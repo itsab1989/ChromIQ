@@ -300,8 +300,9 @@ def build_chart(
     #: `calibration_ramps`). Rewrites the .ti1 in place when it is targen's
     #: pure ramp set; any other .ti1 is laid out exactly as it is.
     ramps_per_strip: bool = False,
-    #: FD-9 only (4.3.25): the run named on the sheet's label, and its clip
-    #: border On/Off (None: `workflow.fd9.furniture.FD9_CLIP_BORDER_DEFAULT`).
+    #: FD-9 only (4.3.25): the run, for the Notes box of the FD-9 clip
+    #: border, and that border's On/Off (None:
+    #: `workflow.fd9.furniture.FD9_CLIP_BORDER_DEFAULT`).
     #: No other instrument reads them.
     fd9_run: str = "",
     fd9_clip_border: "bool | None" = None,

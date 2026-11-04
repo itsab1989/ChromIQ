@@ -357,18 +357,17 @@ def _build_single_chart(
             )
             rows.append((index + 1, f"{alpha_label(col+1)}{row+1}", dev, xyz))
         doc["rows"].append(cells)
-    # What else goes on the sheet (4.3.25, F5 and F12): the label at the
-    # bottom right, or the FD-9 clip border, which says the same and more.
+    # What else goes on the sheet (4.3.25, F5 and F12): the page number at
+    # the top left, turned round, and the FD-9 clip border when it is on.
     from .furniture import (FD9_CLIP_BORDER_DEFAULT, artwork_ink,
                             artwork_runs, clip_artwork, clip_band_mm,
                             label_mask, page_label_text, runs_of)
     page_no, page_count = _page or (1, 1)
     clip_on = FD9_CLIP_BORDER_DEFAULT if clip_border is None else bool(clip_border)
     band = clip_band_mm(doc, (width, height)) if clip_on else None
-    # The label is for a chart of several sheets, as in 4.3.24, and it is
-    # printed with the clip border on or off (the owner's final ruling).
-    _page_label = (page_label_text(sheet_project, sheet_run, page_no, page_count)
-                   if page_count > 1 else "")
+    # "N/M" on every sheet of a multi-page chart, none on a one-sheet
+    # chart, with the clip border on or off (the owner's rulings).
+    _page_label = page_label_text(sheet_project, sheet_run, page_no, page_count)
     if _page_label:
         doc["page_label"] = _page_label
     if band is not None:
@@ -476,20 +475,18 @@ def _build_single_chart(
         # detector on a synthetic pre-scan, at both scan scales, before a
         # file is written (`workflow.fd9.sheet_check`).
         from .sheet_check import check_page_furniture, gray_from_array
-        furniture = None
-        if extra is not None:
-            furniture = np.array(extra, dtype=bool)
+        label_ink = np.array(extra, dtype=bool) if extra is not None else None
+        clip_ink = None
         if art is not None:
             ax, ay = art_xy
             art_on = np.asarray(artwork_ink(art), dtype=bool)
-            if furniture is None:
-                furniture = np.zeros((size[1], size[0]), dtype=bool)
-            furniture[ay:ay + art_on.shape[0], ax:ax + art_on.shape[1]] |= art_on
+            clip_ink = np.zeros((size[1], size[0]), dtype=bool)
+            clip_ink[ay:ay + art_on.shape[0], ax:ax + art_on.shape[1]] = art_on
         check_page_furniture(
             gray_from_array(arr, additive=additive, gray_ink=gray_ink,
                             tokens=[aliases.get(t, t) for t in tokens],
                             maxval=maxval),
-            furniture, dpi, doc, page_no, page_count)
+            label_ink, clip_ink, dpi, doc, page_no, page_count)
     base.parent.mkdir(parents=True, exist_ok=True)
     tiff_compression = None if compression in (None, "", "none") else compression
     if additive:

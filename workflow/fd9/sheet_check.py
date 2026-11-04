@@ -47,6 +47,9 @@ class SheetNotDetectable(ValueError):
 
     def __init__(self, page, pages, dpi, why):
         self.fd9_page, self.fd9_pages, self.dpi, self.why = page, pages, dpi, why
+        #: What ChromIQ printed that is in the way: "label", "clip" or
+        #: "both" (`check_page_furniture`), or None.
+        self.cause = None
         super().__init__(
             f"FD-9 sheet check at Generate: page {page} of {pages}, simulated "
             f"pre-scan at {dpi:.0f} dpi: {why}")
@@ -116,25 +119,39 @@ def check_page(gray, render_dpi, page_doc, page=1, pages=1):
                         f"{max(abs(gx - ex), abs(gy - ey)) / ppmm:.1f} mm)")
 
 
-def check_page_furniture(gray, furniture, render_dpi, page_doc, page=1,
+def check_page_furniture(gray, label, clip, render_dpi, page_doc, page=1,
                          pages=1):
-    """`check_page`, refusing only what the label and the clip border
-    (*furniture*, a boolean array of their ink, or None) cause."""
+    """`check_page`, refusing only what ChromIQ adds: *label* and *clip* are
+    boolean arrays of the page number's and the clip border's ink (or None).
+    A page that fails is checked again without the label, without the clip
+    border and without both, so the refusal can name WHICH of them is in the
+    way (4.3.25 review, M3); its `cause` is "label", "clip" or "both"."""
     import logging
     try:
         check_page(gray, render_dpi, page_doc, page, pages)
         return
     except SheetNotDetectable as error:
         failure = error
-    if furniture is not None and furniture.any():
+
+    def passes_without(*masks):
+        masks = [m for m in masks if m is not None and m.any()]
+        if not masks:
+            return False
         plain = gray.copy()
-        plain[furniture] = 255
+        for m in masks:
+            plain[m] = 255
         try:
             check_page(plain, render_dpi, page_doc, page, pages)
         except SheetNotDetectable:
-            pass
-        else:
-            raise failure
+            return False
+        return True
+
+    cause = ("label" if passes_without(label) else
+             "clip" if passes_without(clip) else
+             "both" if passes_without(label, clip) else None)
+    if cause is not None:
+        failure.cause = cause
+        raise failure
     logging.getLogger(__name__).warning(
         "%s. Not caused by anything ChromIQ added to the sheet, so the chart "
         "is made as before; whether the FD-9 finds it is for a test on the "

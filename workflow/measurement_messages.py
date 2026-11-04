@@ -1045,43 +1045,30 @@ M_CHART_ENGINE_FAILED = _m(
     approved=False)
 
 
-#: 4.3.25 (F4). Before an FD-9 chart is saved, every page goes through the
-#: FD-9's own mark detector on a synthetic pre-scan at two scan scales
-#: (`workflow.fd9.sheet_check`). Shown when something ChromIQ added to the
-#: sheet (the page label, the FD-9 clip border) would stop the FD-9 finding
-#: it. {reason} is ChromIQ's own English sentence, kept for diagnosis.
+#: 4.3.25 (F4, review M3). Before an FD-9 chart is saved, every page goes
+#: through the FD-9's own mark detector on a synthetic pre-scan at two scan
+#: scales (`workflow.fd9.sheet_check`). Shown when something ChromIQ added
+#: to the sheet would stop the FD-9 finding it; the page is checked again
+#: without the page number and without the clip border, and the window names
+#: what is in the way: the clip border (this one), the page number alone
+#: (-LABEL) or only the two together (-BOTH). {reason} is ChromIQ's own
+#: English sentence, kept for diagnosis.
 M_FD9_CHART_UNDETECTABLE = _m(
     "M-FD9-CHART-UNDETECTABLE",
     "The FD-9 would not find this chart",
-    "Before a new FD-9 chart is saved, ChromIQ checks every page the way the "
-    "FD-9 will see it: the FD-9 first looks for the four small black squares "
-    "around the patches, and only measures once it has found exactly those "
-    "four. On page {page} of {pages}, something ChromIQ prints on the sheet "
-    "got in the way, so ChromIQ has not made the chart. Nothing has been "
-    "printed, and the chart you had before is unchanged.\n\n"
-    "This usually comes from the FD-9 clip border, when its content has "
-    "large dark areas (an imported image, for example) that look like one of "
-    "the squares to the FD-9. Switch the clip border off, or choose the "
-    "Notes box as its content, and press “Generate Chart” again.\n\n"
-    "If it still happens, please tell us and include the technical reason "
-    "below.\n\n"
-    "The technical reason was: {reason}",
+    "Before a new FD-9 chart is saved, ChromIQ checks every page the way the FD-9 will see it: the FD-9 first looks for the four small black squares around the patches, and only measures once it has found exactly those four. On page {page} of {pages}, the FD-9 clip border got in the way: with it, the check no longer found the four squares as it should. So ChromIQ has not made the chart. Nothing has been printed, and the chart you had before is unchanged.\n\nThis happens when the clip border's content has dark areas the size of one of those squares, which the FD-9 could take for one of them (an imported image, for example). What you can do: choose the Notes box as the clip border's content, or switch the clip border off (“Clip border” in Manual's layout settings), and press “Generate Chart” again. If it still happens with the Notes box, please tell us and include the technical reason below.\n\nThe technical reason was: {reason}",
     count_key="pages",
-    body_one=(
-        "Before a new FD-9 chart is saved, ChromIQ checks the sheet the way "
-        "the FD-9 will see it: the FD-9 first looks for the four small black "
-        "squares around the patches, and only measures once it has found "
-        "exactly those four. On this sheet, something ChromIQ prints got in "
-        "the way, so ChromIQ has not made the chart. Nothing has been "
-        "printed, and the chart you had before is unchanged.\n\n"
-        "This usually comes from the FD-9 clip border, when its content has "
-        "large dark areas (an imported image, for example) that look like "
-        "one of the squares to the FD-9. Switch the clip border off, or "
-        "choose the Notes box as its content, and press “Generate Chart” "
-        "again.\n\n"
-        "If it still happens, please tell us and include the technical "
-        "reason below.\n\n"
-        "The technical reason was: {reason}"),
+    body_one="Before a new FD-9 chart is saved, ChromIQ checks the sheet the way the FD-9 will see it: the FD-9 first looks for the four small black squares around the patches, and only measures once it has found exactly those four. On this sheet, the FD-9 clip border got in the way: with it, the check no longer found the four squares as it should. So ChromIQ has not made the chart. Nothing has been printed, and the chart you had before is unchanged.\n\nThis happens when the clip border's content has dark areas the size of one of those squares, which the FD-9 could take for one of them (an imported image, for example). What you can do: choose the Notes box as the clip border's content, or switch the clip border off (“Clip border” in Manual's layout settings), and press “Generate Chart” again. If it still happens with the Notes box, please tell us and include the technical reason below.\n\nThe technical reason was: {reason}",
+    approved=False)
+M_FD9_CHART_UNDETECTABLE_LABEL = _m(
+    "M-FD9-CHART-UNDETECTABLE-LABEL",
+    "The FD-9 would not find this chart",
+    'Before a new FD-9 chart is saved, ChromIQ checks every page the way the FD-9 will see it: the FD-9 first looks for the four small black squares around the patches, and only measures once it has found exactly those four. On page {page} of {pages}, the small page number ChromIQ prints at the top of the sheet got in the way: with it, the check no longer found the four squares as it should. So ChromIQ has not made the chart. Nothing has been printed, and the chart you had before is unchanged.\n\nThis should not happen, and it is not caused by anything you set: the page number is always printed on a chart of several sheets. What you can do: choose a different patch size or paper, which moves the squares and the patches, and press “Generate Chart” again. Please also tell us about it, with the technical reason below, so that we can fix it.\n\nThe technical reason was: {reason}',
+    approved=False)
+M_FD9_CHART_UNDETECTABLE_BOTH = _m(
+    "M-FD9-CHART-UNDETECTABLE-BOTH",
+    "The FD-9 would not find this chart",
+    "Before a new FD-9 chart is saved, ChromIQ checks every page the way the FD-9 will see it: the FD-9 first looks for the four small black squares around the patches, and only measures once it has found exactly those four. On page {page} of {pages}, the FD-9 clip border and the small page number together got in the way: with both of them, the check no longer found the four squares as it should, although it does with either one alone. So ChromIQ has not made the chart. Nothing has been printed, and the chart you had before is unchanged.\n\nThis happens when the clip border's content has dark areas the size of one of those squares, which the FD-9 could take for one of them (an imported image, for example). What you can do: choose the Notes box as the clip border's content, or switch the clip border off (“Clip border” in Manual's layout settings), and press “Generate Chart” again. If it still happens with the Notes box, please tell us and include the technical reason below.\n\nThe technical reason was: {reason}",
     approved=False)
 
 
@@ -9239,7 +9226,8 @@ CATALOGUE = {m.id: m for m in (
     M_AUTOSAVE_RETRYING,
     M_PATCHSET_MISSING,
     M_CHART_ENGINE_FAILED, M_CHART_ENGINE_REDRAW_FAILED,
-    M_FD9_CHART_UNDETECTABLE, M_FD9_EDGE_MARKS_NOT_PRINTED,
+    M_FD9_CHART_UNDETECTABLE, M_FD9_CHART_UNDETECTABLE_LABEL,
+    M_FD9_CHART_UNDETECTABLE_BOTH, M_FD9_EDGE_MARKS_NOT_PRINTED,
     M_PATCHSET_KEPT_UNCHECKED,
     M_VERIFY_NO_CONTROL_STRIP, M_VERIFY_PREFLIGHT,
     M_VERIFY_UNCHECKED_METRICS, M_VERIFY_SOLIDS_REASON,

@@ -1,12 +1,11 @@
 """What an FD-9 sheet carries besides its patches, marks and arrow (4.3.25).
 
-* THE PAGE LABEL (F5): a small line at the top left, where it has always
-  been (the owner's final ruling, 2026-11-04), naming the project, the run
-  and the page ("FD9-test · run 2 · page 1 of 3"). Turned 180 degrees like
-  the clip border, so it reads the same way as the clip border text: upside
-  down on screen with the arrow pointing up. Printed on every sheet of a
-  chart with several sheets, with the clip border on or off; there is no
-  option for it.
+* THE PAGE LABEL (F5): the small page number "N/M" at the top left, where
+  it has always been, now turned 180 degrees like the clip border, so it
+  reads the same way as the clip border text: upside down on screen with
+  the arrow pointing up (the owner's rulings, 2026-11-04). Printed on every
+  sheet of a chart with several sheets, with the clip border on or off; a
+  chart of one sheet has none, as in 4.3.24. There is no option for it.
 * THE FD-9 CLIP BORDER (F12): a smaller version of ChromIQ's clip border in
   the trailing band, in the content the person chooses (the Notes box by
   default: wordmark, colour bar, patch count, instrument, paper, date, the
@@ -25,9 +24,15 @@ least 6 mm before the trailing edge.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 #: THE ONE DEFAULT for the FD-9 clip border. Off until lessbones confirms on
 #: real sheets (several papers, every page) that it does not disturb the
-#: measurement; then this goes to True, and nothing else changes.
+#: measurement; then this goes to True, and nothing else changes. A recipe
+#: in which a person switched the clip border stores that answer explicitly
+#: (`LayoutRecipe.fd9_clip_border`, also when it equals this default), so
+#: flipping this never overrides a deliberate "Off"; only recipes that were
+#: never switched follow it.
 FD9_CLIP_BORDER_DEFAULT = False
 
 #: The label's text height, where its box starts (from the left and the
@@ -47,40 +52,99 @@ CLIP_MIN_HEIGHT_MM = 6.0
 
 
 def page_label_text(project: str, run: str, page: int, pages: int) -> str:
-    """"project · run N · page N of M", leaving out what is not known. The
-    sheet's own text is English, like every ChromIQ chart's record strip."""
-    parts = []
-    if str(project or "").strip():
-        parts.append(str(project).strip())
-    run = str(run or "").strip()
-    if run:
-        parts.append(run if not run.isdigit() else f"run {run}")
-    if pages > 1:
-        parts.append(f"page {page} of {pages}")
-    return " · ".join(parts)
+    """The page number a sheet of a multi-page chart carries, "N/M" as in
+    4.3.24 (the owner's ruling: the label is the page number only), or ""
+    for a chart of one sheet. *project* and *run* are not printed."""
+    return f"{page}/{pages}" if pages > 1 else ""
+
+
+def _covers(font, ch) -> bool:
+    """Whether *font* has a glyph of its own for *ch*: a missing one comes
+    out as the font's .notdef box, which is the same for any missing
+    character, so it is compared with that of a code point no font has
+    (U+10FFFD; Inter does draw something at U+E000)."""
+    if ch.isspace():
+        return True
+    try:
+        got = font.getmask(ch)
+        missing = font.getmask("\U0010FFFD")
+    except Exception:  # noqa: BLE001 — a font that cannot draw it
+        return False
+    return not (got.size == missing.size and bytes(got) == bytes(missing))
+
+
+class _LabelFont:
+    """The label's text in the bundled Inter, as the clip border and the
+    record strip print theirs (4.3.25 review, M1: it was Pillow's
+    `load_default`). A character Inter has no glyph for prints as "?",
+    never as an empty box."""
+
+    def __init__(self, size_px: int):
+        from workflow.layout_engine.raster import _font
+        self.size = max(6, int(size_px))
+        self.fonts = [_font(self.size, "Inter")]
+        self._pick = {}
+
+    def font_for(self, ch):
+        if ch not in self._pick:
+            self._pick[ch] = next(
+                (f for f in self.fonts if _covers(f, ch)), None)
+        return self._pick[ch]
+
+    def runs(self, text):
+        """[(font, text)] with each run in one font; "?" for a character
+        nothing covers."""
+        out = []
+        for ch in text:
+            f = self.font_for(ch)
+            if f is None:
+                f, ch = self.fonts[0], "?"
+            if out and out[-1][0] is f:
+                out[-1] = (f, out[-1][1] + ch)
+            else:
+                out.append((f, ch))
+        return out
+
+    def length(self, text) -> float:
+        from PIL import Image, ImageDraw
+        d = ImageDraw.Draw(Image.new("1", (4, 4)))
+        return sum(d.textlength(t, font=f) for f, t in self.runs(text))
+
+    def render(self, text):
+        """A one-bit tile of *text*, upright."""
+        from PIL import Image, ImageDraw
+        runs = self.runs(text)
+        asc = max(f.getmetrics()[0] for f, _t in runs) if runs else self.size
+        desc = max(f.getmetrics()[1] for f, _t in runs) if runs else 0
+        tile = Image.new("1", (max(1, int(self.length(text)) + 4),
+                               asc + desc + 4), 0)
+        d = ImageDraw.Draw(tile)
+        x = 2.0
+        for f, t in runs:
+            d.text((x, 2 + asc), t, font=f, fill=1, anchor="ls")
+            x += d.textlength(t, font=f)
+        box = tile.getbbox()
+        return tile.crop(box) if box else tile
 
 
 def _font(size_px: int):
-    from PIL import ImageFont
-    return ImageFont.load_default(size=max(6, int(size_px)))
+    return _LabelFont(size_px)
 
 
 def _fit(text: str, font, width_px: int) -> str:
     """*text*, shortened with an ellipsis at the front part (the project
     name) until it fits *width_px*; the page part is what must survive."""
-    from PIL import Image, ImageDraw
-    d = ImageDraw.Draw(Image.new("1", (4, 4)))
-    if d.textlength(text, font=font) <= width_px:
+    if font.length(text) <= width_px:
         return text
     head, sep, tail = text.partition(" · ")
     if not sep:
-        while text and d.textlength(text + "…", font=font) > width_px:
+        while text and font.length(text + "…") > width_px:
             text = text[:-1]
         return text + "…"
-    while head and d.textlength(head + "…" + sep + tail, font=font) > width_px:
+    while head and font.length(head + "…" + sep + tail) > width_px:
         head = head[:-1]
     out = (head + "…" + sep + tail) if head else tail
-    if d.textlength(out, font=font) > width_px:
+    if font.length(out) > width_px:
         return _fit(tail, font, width_px) if tail != text else out
     return out
 
@@ -89,7 +153,7 @@ def label_mask(size, dpi, text):
     """A one-bit image of the sheet size with *text* at the top left, turned
     180 degrees, or None for no text. Never wider than the room before the
     arrow; a long project name is shortened, the page is kept."""
-    from PIL import Image, ImageDraw
+    from PIL import Image
     if not text:
         return None
     mm = dpi / 25.4
@@ -97,11 +161,7 @@ def label_mask(size, dpi, text):
     font = _font(round(LABEL_HEIGHT_MM * mm))
     room = int(width / 2 - (LABEL_LEFT_MM + LABEL_ARROW_CLEAR_MM) * mm)
     text = _fit(text, font, room)
-    probe = ImageDraw.Draw(Image.new("1", (4, 4)))
-    x0, y0, x1, y1 = probe.textbbox((0, 0), text, font=font)
-    tile = Image.new("1", (x1 - x0 + 2, y1 - y0 + 2), 0)
-    ImageDraw.Draw(tile).text((1 - x0, 1 - y0), text, font=font, fill=1)
-    tile = tile.rotate(180)
+    tile = font.render(text).rotate(180)
     out = Image.new("1", size, 0)
     out.paste(tile, (round(LABEL_LEFT_MM * mm), round(LABEL_TOP_MM * mm)))
     return out

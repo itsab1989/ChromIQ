@@ -344,11 +344,20 @@ def _fd9_mark_boxes(tiff_path) -> "list[tuple[float, float, float, float]]":
     import json
     import re
     path = Path(tiff_path)
-    m = re.fullmatch(r"(.+?)(?:_(\d{2,}))?", path.stem)
-    stem, number = m.group(1), m.group(2)
+    # The page's own stem FIRST (4.3.25 review, M2): a one-sheet chart
+    # named "Glossy_300" is Glossy_300.tif beside Glossy_300.fd9.json, and
+    # splitting off "_300" as a page number found nothing. Only when that
+    # does not exist is "_NN" read as the page of a multi-page chart.
+    stem, number = path.stem, None
     layout = path.with_name(stem + ".fd9.json")
     if not layout.is_file():
-        return []
+        m = re.fullmatch(r"(.+?)_(\d{2,})", path.stem)
+        if m is None:
+            return []
+        stem, number = m.group(1), m.group(2)
+        layout = path.with_name(stem + ".fd9.json")
+        if not layout.is_file():
+            return []
     try:
         doc = json.loads(layout.read_text(encoding="utf-8"))
         pages = doc.get("pages") or [doc]

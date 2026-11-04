@@ -187,7 +187,14 @@ def measure_pages(chart, settings, session, *, progress, cancelled, on_readings,
                         'found': mismatch.found, 'pages': len(pages),
                         'turned': mismatch.turned, 'complete': whole,
                         'measured': len(read_now), 'total': len(ids),
-                        'reason': str(mismatch)})
+                        'reason': str(mismatch),
+                        # In grid order, so the live preview can move or
+                        # drop this sheet's colours with the answer (L6).
+                        'locations': [locations[p['id']] for p in patches],
+                        'found_locations': [
+                            locations[p['id']]
+                            for row in pages[mismatch.found - 1]['rows']
+                            for p in row]})
                     if answer not in (pc.REFILE, pc.KEEP) or (
                             answer == pc.REFILE and not whole):
                         answer = pc.AGAIN

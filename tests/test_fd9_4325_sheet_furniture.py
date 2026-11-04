@@ -1,8 +1,8 @@
 """4.3.25, the owner's second round of FD-9 feedback, what goes on the sheet:
 
-* F5: the page label of a multi-sheet chart stays at the top left, names
-  "project · run N · page N of M" and is turned 180 degrees, like the clip
-  border; a one-sheet chart has none; printed with the clip border on or off;
+* F5: the page number "N/M" of a multi-sheet chart stays at the top left and
+  is turned 180 degrees, like the clip border; a one-sheet chart has none;
+  printed with the clip border on or off, in the clip border's typeface;
 * F12: the FD-9 clip border, ChromIQ's own clip border (the Notes box by
   default) in the trailing band, turned 180 degrees, off by default through
   ONE constant;
@@ -55,23 +55,16 @@ def test_one_default_switch_and_it_is_off():
     assert furniture.FD9_CLIP_BORDER_DEFAULT is False
 
 
-def test_the_label_is_top_left_turned_and_names_project_run_and_page(tmp_path):
+def test_the_label_is_the_page_number_top_left_and_turned(tmp_path):
+    """The owner's ruling: the label is the page number only, "N/M" as in
+    4.3.24, at the top left, now turned 180 degrees like the clip border."""
     r, pages = _build(tmp_path)
-    assert [p["page_label"] for p in pages] == [
-        "FD9-Test · run 3 · page 1 of 2", "FD9-Test · run 3 · page 2 of 2"]
+    assert [p["page_label"] for p in pages] == ["1/2", "2/2"]
     ink = _ink(r.tiff_paths[0])
-    box = ink[_mm(9):_mm(14), _mm(7):_mm(70)]
-    assert box.sum() > 50                       # the label is there
-    assert not ink[-_mm(30):, :].any() or True  # nothing asked of the bottom
-    # Turned 180 degrees: the mask is the upright text turned round.
-    from PIL import ImageDraw
-    text = pages[0]["page_label"]
-    mask = furniture.label_mask((800, 300), DPI, text)
+    assert ink[_mm(9):_mm(14), _mm(7):_mm(30)].sum() > 10
+    mask = furniture.label_mask((800, 300), DPI, "1/2")
     font = furniture._font(round(furniture.LABEL_HEIGHT_MM * DPI / 25.4))
-    x0, y0, x1, y1 = ImageDraw.Draw(Image.new("1", (4, 4))).textbbox(
-        (0, 0), text, font=font)
-    tile = Image.new("1", (x1 - x0 + 2, y1 - y0 + 2), 0)
-    ImageDraw.Draw(tile).text((1 - x0, 1 - y0), text, font=font, fill=1)
+    tile = font.render("1/2")
     left, top = _mm(furniture.LABEL_LEFT_MM), _mm(furniture.LABEL_TOP_MM)
     got = np.asarray(mask)[top:top + tile.height, left:left + tile.width]
     assert np.array_equal(got, np.asarray(tile.rotate(180)))
@@ -84,13 +77,19 @@ def test_a_one_sheet_chart_has_no_label(tmp_path):
     assert not _ink(r.tiff_paths[0])[_mm(9):_mm(14), _mm(7):_mm(70)].any()
 
 
-def test_a_long_project_name_is_shortened_and_the_page_kept(tmp_path):
-    text = furniture.page_label_text("A" * 200, "1", 2, 5)
-    mask = furniture.label_mask((_mm(137), _mm(300)), DPI, text)
-    cols = np.nonzero(np.asarray(mask).any(axis=0))[0]
-    assert cols.max() < _mm(137 / 2 - furniture.LABEL_ARROW_CLEAR_MM)
-    assert furniture._fit(text, furniture._font(20), 200).endswith(
-        "page 2 of 5")
+def test_the_label_is_printed_in_the_clip_borders_typeface():
+    """Review M1: the label used Pillow's built-in font; it is now the
+    bundled Inter the clip border and the record strip print with, and
+    every character of a page number is a real glyph, never a box."""
+    from workflow.layout_engine.raster import _font as engine_font
+    f = furniture._font(28)
+    inter = engine_font(28, "Inter")
+    assert f.fonts[0].path == inter.path and "Inter" in str(inter.path)
+    for ch in "0123456789/":
+        assert furniture._covers(f.fonts[0], ch), ch
+    assert not furniture._covers(f.fonts[0], "")
+    # A character Inter has no glyph for prints as "?", not as a box.
+    assert f.runs("1/2") == [(f.fonts[0], "1?/2")]
 
 
 @pytest.mark.parametrize("clip", [False, True])
@@ -286,3 +285,66 @@ def test_the_run_named_on_the_label_comes_from_a_real_project(tmp_path):
     fm.set_target_name("Label-Test")
     assert _fd9_run_label(fm, SimpleNamespace(cal_target=False)) == "1"
     assert _fd9_run_label(fm, SimpleNamespace(cal_target=True)) == "calibration"
+
+
+def _with_square(monkeypatch, where):
+    """Make the label or the clip border print a filled 3 mm square, the
+    worst case of the synthetic scans, so the detector finds a fifth mark."""
+    from PIL import ImageDraw
+    if where in ("label", "both"):
+        real = furniture.label_mask
+
+        def label(size, dpi, text):
+            m = real(size, dpi, text)
+            s = round(3 * dpi / 25.4)
+            x = round(40 * dpi / 25.4)
+            ImageDraw.Draw(m).rectangle((x, 4, x + s, 4 + s), fill=1)
+            return m
+        monkeypatch.setattr(furniture, "label_mask", label)
+    if where in ("clip", "both"):
+        real_art = furniture.clip_artwork
+
+        def art(band_mm, dpi, **kw):
+            a, xy = real_art(band_mm, dpi, **kw)
+            s = round(3 * dpi / 25.4)
+            ImageDraw.Draw(a).rectangle((a.width // 2, 4, a.width // 2 + s,
+                                         4 + s), fill=(0, 0, 0))
+            return a, xy
+        monkeypatch.setattr(furniture, "clip_artwork", art)
+
+
+@pytest.mark.parametrize("where", ["label", "clip", "both"])
+def test_the_refusal_names_what_is_in_the_way(tmp_path, monkeypatch, where):
+    """Review M3: the page is checked again without the page number and
+    without the clip border, and the window says which of them is in the
+    way, with the advice that fits."""
+    from workflow import measurement_messages as M
+    _with_square(monkeypatch, where)
+    with pytest.raises(sheet_check.SheetNotDetectable) as caught:
+        _build(tmp_path, clip_border=(where != "label"), dpi=300)
+    assert caught.value.cause == where
+    msg = {"label": M.M_FD9_CHART_UNDETECTABLE_LABEL,
+           "both": M.M_FD9_CHART_UNDETECTABLE_BOTH}.get(
+        where, M.M_FD9_CHART_UNDETECTABLE)
+    body = msg.render(page=1, pages=2, reason="r")[1]
+    if where == "label":
+        assert "page number" in body and "tell us" in body
+        assert "clip border" not in body
+    else:
+        assert "Notes box" in body and "switch the clip border off" in body
+
+
+def test_a_one_sheet_chart_named_with_an_underscore_number_keeps_its_marks(
+        tmp_path):
+    """Review M2: "Glossy_300.tif" beside "Glossy_300.fd9.json" is a
+    one-sheet chart, not page 300 of "Glossy"."""
+    from workflow import printer_edges as PE
+    src, _ = ti1(tmp_path, rep="RGB", tokens=("R", "G", "B"), count=40)
+    r = build_chart(src, tmp_path / "Glossy_300", paper="A4", dpi=100,
+                    randomize=False)
+    assert r.tiff_paths[0].name == "Glossy_300.tif"
+    assert len(PE._fd9_mark_boxes(r.tiff_paths[0])) == 5
+    loss = PE.losses_for_chart([(r.tiff_paths[0], 0)],
+                               PE.Edges(6.4, 6.4, 6.4, 6.4, "ppd"),
+                               (210.0, 297.0))
+    assert set(loss.fd9_marks) == {"left", "right"}

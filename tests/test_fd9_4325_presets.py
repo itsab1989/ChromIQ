@@ -155,3 +155,46 @@ def test_the_preview_draws_no_helper_markers_over_an_fd9_chart(tab, tmp_path):
     tab._margin_ti2 = ti2
     _choose(tab, "FD9")
     assert tab._helper_marker_lines_frac() is None
+
+
+def test_the_manual_pages_box_says_the_same_and_targen_is_not_changed(tab):
+    """Review L3: Manual's own Pages box shows the FD-9 chart's page count
+    too, and a targen snapshot that matched before still matches."""
+    _choose(tab, "FD9")
+    panel = tab._manual_layout_panel
+    panel.set_pages_enabled(False)
+    tab._knut_targen_sig = tab._targen_signature()
+    tab._show_fd9_page_count(["p1.tif", "p2.tif", "p3.tif"])
+    assert tab._manual_pages_spin.value() == 3 and panel.get_pages() == 3
+    assert tab._knut_targen_sig == tab._targen_signature()
+
+
+def test_with_the_beta_off_a_colormunki_preset_switches_from_the_cr30(
+        qapp, qtbot, tmp_path, monkeypatch):
+    """Review M3: the preset switch is not an FD-9 change; from the CR30 it
+    happens with FD-9 support off as well."""
+    from workflow.fd9 import support
+    support.set_enabled_for_this_process(False)
+    monkeypatch.setenv("CHROMIQ_PRESETS_DIR", str(tmp_path / "presets"))
+    from PyQt6.QtCore import QSettings
+    from PyQt6.QtWidgets import QDialog
+    import ui.tabs.tab_chart as TC
+    from core.argyll_runner import ArgyllRunner
+    from core.file_manager import FileManager
+    from core.settings import AppSettings
+    monkeypatch.setattr(TC.QDialog, "exec",
+                        lambda self: QDialog.DialogCode.Accepted)
+    monkeypatch.setattr("ui.dialogs.name_prompt.ask_for_project_name",
+                        lambda *a, **k: "F11-off")
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    s.set("custom_output_path", str(tmp_path / "projects"))
+    s.set("use_chromiq_layout_engine", True)
+    t = TC.TabChart(ArgyllRunner(s), FileManager(s), s)
+    qtbot.addWidget(t)
+    t._switch_mode("manual")
+    monkeypatch.setattr(t, "_generate_from_ti1", lambda *a, **k: True)
+    assert t._manual_layout_panel.instr.findData("FD9") < 0
+    _choose(t, "CR30")
+    _pick(t, _key("cm_a4_2142p_7pages"))
+    assert t._manual_get("printtarg", "-i", "") == "CM"

@@ -215,3 +215,24 @@ def test_the_fd9_clip_border_field_round_trips_and_stays_out_of_others():
         instrument="FD9", paper="A4").to_dict()
     assert "fd9_clip_border" not in LayoutRecipe(
         instrument="i1", paper="A4", fd9_clip_border=True).to_dict()
+
+
+def test_a_deliberate_off_survives_a_later_default_of_on(panel, monkeypatch):
+    """Review L8: once a person has switched the FD-9 clip border, the
+    answer is stored even when it equals today's default, so a later
+    default of On cannot override a deliberate Off."""
+    import workflow.fd9.furniture as F
+    _choose(panel, "FD9")
+    assert panel.get_recipe().fd9_clip_border is None      # never chosen
+    panel.clip_enable.setCurrentIndex(panel.clip_enable.findData("on"))
+    panel.clip_enable.setCurrentIndex(panel.clip_enable.findData("off"))
+    r = panel.get_recipe()
+    assert r.fd9_clip_border is False                      # stored: chosen
+    monkeypatch.setattr(F, "FD9_CLIP_BORDER_DEFAULT", True)
+    _choose(panel, "i1")
+    panel.set_recipe(r)
+    assert panel.clip_enabled() is False
+    from workflow.layout_engine.presets import LayoutRecipe
+    never = LayoutRecipe(instrument="FD9", paper="A4")
+    panel.set_recipe(never)
+    assert panel.clip_enabled() is True                    # follows default

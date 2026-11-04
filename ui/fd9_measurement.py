@@ -386,6 +386,57 @@ def fd9_start_kind(error: BaseException) -> str:
     return kind if kind == "resume" else "failed"
 
 
+class FD9SheetQuestion(QDialog):
+    """The sheet check's question (4.3.25, F7): its buttons connect to a
+    BOUND method, never to a closure capturing the window (CLAUDE.md: a
+    self-capturing lambda as a slot is the crash class of fade_scroll.py).
+    `chosen` is "again", "refile", "keep", or None when closed."""
+
+    def __init__(self, title, body, answers, parent=None):
+        import html
+        from PyQt6.QtCore import Qt
+        super().__init__(parent)
+        self.chosen = None
+        self.setObjectName("fd9_sheet_question")
+        self.setWindowTitle(title)
+        self.setMinimumWidth(560)
+        lay = QVBoxLayout(self)
+        lay.setSpacing(16)
+        lay.setContentsMargins(24, 20, 24, 20)
+        head = QLabel(f"<b>{html.escape(title)}</b>", self)
+        head.setWordWrap(True)
+        lay.addWidget(head)
+        text = QLabel(body, self)
+        text.setTextFormat(Qt.TextFormat.PlainText)
+        text.setWordWrap(True)
+        lay.addWidget(text)
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        for answer, label in answers:
+            btn = QPushButton(label, self)
+            btn.setObjectName("primary" if answer == "again"
+                              else f"fd9_sheet_{answer}")
+            btn.setProperty("fd9_answer", answer)
+            btn.setFixedHeight(32)
+            if answer == "again":
+                btn.setDefault(True)
+            btn.clicked.connect(self._answered)
+            row.addWidget(btn)
+        row.addStretch()
+        lay.addLayout(row)
+        try:
+            from ui.widgets import tint_dialog_primary
+            from ui.tabs.tab_measure import _TAB_COLOR
+            tint_dialog_primary(self, _TAB_COLOR)
+        except Exception:  # noqa: BLE001 — a plain window then
+            pass
+
+    def _answered(self, *_a):
+        btn = self.sender()
+        self.chosen = btn.property("fd9_answer") if btn is not None else None
+        self.accept()
+
+
 class FD9MeasureMixin:
     #: Class defaults, so every hook in TabMeasure can ask without getattr and
     #: with FD-9 support off the answers are the "nothing here" ones.
@@ -1103,8 +1154,48 @@ class FD9MeasureMixin:
             log.exception("FD-9 sheet question failed; measuring again")
         self._fd9_log(tr("Sheet check: your answer was “{answer}”.").format(
             answer=self._fd9_answer_label(question, answer)))
+        try:
+            self._fd9_follow_sheet_answer(question, answer)
+        except Exception:  # noqa: BLE001 — the preview only
+            log.warning("FD-9 preview did not follow the answer", exc_info=True)
         if job is not None:
             job.answer_sheet(answer)
+
+    def _fd9_follow_sheet_answer(self, question, answer):
+        """The live preview follows the answer (4.3.25 review, L6): "again"
+        drops the colours of the sheet that was set aside, "save it turned
+        round" turns them round on the page, and "save it as page M" moves
+        them to page M, which then shows as measured. "Keep" changes
+        nothing. Display only; the worker files the readings."""
+        asked = list(question.get("locations") or [])
+        if answer not in ("again", "refile") or not asked:
+            return
+        colours = self._fd9_live_colours
+        if answer == "refile":
+            target = (list(question.get("found_locations") or asked)
+                      if question.get("kind") != "turned" else asked)
+            if len(target) != len(asked):
+                return
+            # A sheet turned round puts the reading at grid position i under
+            # the patch at R*C-1-i: the flat list read backwards.
+            if question.get("turned"):
+                target = target[::-1]
+            moved = {t: dict(colours[a], loc=t)
+                     for a, t in zip(asked, target) if a in colours}
+            for a in asked:
+                colours.pop(a, None)
+            colours.update(moved)
+            self._progress_file_locs = set(self._progress_file_locs) | set(target)
+        else:
+            for a in asked:
+                colours.pop(a, None)
+        self._progress_locs = set(self._progress_locs) - set(asked)
+        self._preview.clear_patch_overlay()
+        self._fd9_restore_scan_colours(self._chart_file_for(self._ti1_path))
+        if colours:
+            self._on_chart_measured({"patches": list(colours.values())},
+                                    live=False)
+        self._refresh_progress()
 
     @staticmethod
     def _fd9_answer_label(question, answer) -> str:
@@ -1123,9 +1214,6 @@ class FD9MeasureMixin:
     def _fd9_ask_sheet(self, question):
         """The window itself: "again", "refile", "keep", or None when it was
         closed without an answer. Tests replace this method."""
-        import html
-        from PyQt6.QtCore import Qt
-        from PyQt6.QtWidgets import QDialog
         from workflow import measurement_messages as M
         kind = question.get("kind")
         whole = bool(question.get("complete"))
@@ -1143,54 +1231,16 @@ class FD9MeasureMixin:
             reason=str(question.get("reason", "")))
         self._log.appendPlainText(f"[{title}]\n{body}")
         self._log.ensureCursorVisible()
-        dlg = QDialog(self)
-        dlg.setObjectName("fd9_sheet_question")
-        dlg.setWindowTitle(title)
-        dlg.setMinimumWidth(560)
-        lay = QVBoxLayout(dlg)
-        lay.setSpacing(16)
-        lay.setContentsMargins(24, 20, 24, 20)
-        head = QLabel(f"<b>{html.escape(title)}</b>", dlg)
-        head.setWordWrap(True)
-        lay.addWidget(head)
-        text = QLabel(body, dlg)
-        text.setTextFormat(Qt.TextFormat.PlainText)
-        text.setWordWrap(True)
-        lay.addWidget(text)
-        chosen = [None]
-        row = QHBoxLayout()
-        row.setSpacing(8)
-        buttons = []
-        for answer in ("again", "refile", "keep"):
-            if answer == "refile" and not whole:
-                continue
-            btn = QPushButton(self._fd9_answer_label(question, answer), dlg)
-            btn.setObjectName("primary" if answer == "again"
-                              else f"fd9_sheet_{answer}")
-            btn.setFixedHeight(32)
-            if answer == "again":
-                btn.setDefault(True)
-
-            def pick(_c=False, a=answer):
-                chosen[0] = a
-                dlg.accept()
-            btn.clicked.connect(pick)
-            row.addWidget(btn)
-            buttons.append(btn)
-        row.addStretch()
-        lay.addLayout(row)
-        try:
-            from ui.widgets import tint_dialog_primary
-            from ui.tabs.tab_measure import _TAB_COLOR
-            tint_dialog_primary(dlg, _TAB_COLOR)
-        except Exception:  # noqa: BLE001 — a plain window then
-            pass
+        dlg = FD9SheetQuestion(title, body, [
+            (a, self._fd9_answer_label(question, a))
+            for a in ("again", "refile", "keep")
+            if a != "refile" or whole], self)
         runner = getattr(self, "_exec_measurement_window", None)
         if runner is not None:
             runner(dlg)
         else:
             dlg.exec()
-        return chosen[0]
+        return dlg.chosen
 
     def _fd9_wait_timer(self):
         """One single-shot timer per tab, connected to a bound method."""

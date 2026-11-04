@@ -289,3 +289,69 @@ def test_the_worker_waits_for_the_answer_and_stop_means_again(qapp):
     job.request_stop()
     t.join(5)
     assert got[-1] == "again"
+
+
+def test_stop_while_the_question_is_open_ends_a_one_sheet_read(setup,
+                                                               monkeypatch):
+    """Review L4: Stop pressed while the question is open answers "again",
+    and that must end the measurement rather than ask for the sheet again."""
+    s = setup
+    _chart(s, pages=1)
+    _judge(monkeypatch, {(0, 0): ("turned", 1, True)})
+    stopped = {"now": False}
+
+    def on_mismatch(question):
+        stopped["now"] = True             # Stop, while the window is open
+        return "again"
+    capture, calls = capture_pages(s)
+    with pytest.raises(InterruptedError):
+        measure_chart(s.chart, native_settings(s), s.tmp / "page-001" / "x",
+                      capture=capture, on_mismatch=on_mismatch,
+                      cancelled=lambda: stopped["now"])
+    assert len(calls) == 1
+
+
+def test_the_question_window_uses_a_bound_slot():
+    """Review L5: the buttons connect to a method of a QDialog subclass,
+    never to a closure capturing the window."""
+    import inspect
+    from ui import fd9_measurement as F
+    src = inspect.getsource(F.FD9MeasureMixin._fd9_ask_sheet)
+    assert "lambda" not in src and "def pick" not in src
+    assert "FD9SheetQuestion" in src
+    assert "btn.clicked.connect(self._answered)" in inspect.getsource(
+        F.FD9SheetQuestion)
+
+
+def test_the_live_preview_follows_the_answer(tab):
+    """Review L6: "again" drops the set-aside sheet's colours, "save it
+    turned round" turns them round, "save it as page M" moves them there."""
+    shown = []
+    tab._on_chart_measured = lambda ev, live=True: shown.append(
+        sorted(p["loc"] for p in ev["patches"]))
+    tab._fd9_restore_scan_colours = lambda chart: None
+    tab._chart_file_for = lambda p: p
+    tab._ti1_path = "x"
+    asked, found = ["A1", "B1", "A2", "B2"], ["C1", "D1", "C2", "D2"]
+    def colours():
+        return {loc: {"loc": loc, "v": i} for i, loc in enumerate(asked)}
+    tab._fd9_live_colours = colours()
+    tab._fd9_follow_sheet_answer(dict(kind="turned", turned=True,
+                                      locations=asked), "again")
+    assert tab._fd9_live_colours == {}
+    tab._fd9_live_colours = colours()
+    tab._fd9_follow_sheet_answer(dict(kind="turned", turned=True,
+                                      locations=asked), "refile")
+    assert tab._fd9_live_colours["B2"]["v"] == 0      # (0,0) -> (R-1, C-1)
+    assert tab._fd9_live_colours["A1"]["v"] == 3
+    tab._fd9_live_colours = colours()
+    tab._fd9_follow_sheet_answer(dict(kind="wrong_sheet", turned=False,
+                                      locations=asked,
+                                      found_locations=found), "refile")
+    assert sorted(tab._fd9_live_colours) == sorted(found)
+    assert tab._fd9_live_colours["C1"]["v"] == 0
+    assert set(found) <= tab._progress_file_locs
+    keep = colours()
+    tab._fd9_live_colours = dict(keep)
+    tab._fd9_follow_sheet_answer(dict(kind="turned", locations=asked), "keep")
+    assert tab._fd9_live_colours == keep

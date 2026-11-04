@@ -337,6 +337,14 @@ Resume box, all duplicates (review of pull request #214, questions 1 and 9).
       marks and arrow) is never "text" there: say plainly that the
       instrument then cannot read the sheet, and give advice that can be
       followed, never a control your instrument greys.
+- [ ] **A default you may change later**: a recipe field that is stored
+      only when it differs from the default follows the default, which is
+      what you want for people who never touched it. But it also flips for
+      someone who chose the value that is the default today, the day the
+      default changes. So store a person's answer explicitly once they have
+      made one, and keep "not stored" for "never chosen" (the FD-9 clip
+      border, `workflow/fd9/furniture.py::FD9_CLIP_BORDER_DEFAULT` and
+      `LayoutRecipe.fd9_clip_border`).
 - [ ] **Papers**: `workflow/layout_engine/papers.py::list_papers`,
       `workflow/layout_engine/papers.py::ENGINE_EXCLUDED_PAPERS`,
       `data/patch_db.py::EXCLUDED_PAPERS`, `data/patch_db.py::PAPER_FALLBACK`.

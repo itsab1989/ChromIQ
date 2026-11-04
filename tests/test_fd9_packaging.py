@@ -57,6 +57,10 @@ def test_all_platform_specs_include_the_driver_and_its_license():
             "sensor_status",
         ):
             assert "fd9_independent." + module in text
+        # ChromIQ's own FD-9 modules imported only inside functions
+        # (4.3.25 review, L7).
+        for module in ("pages", "sheet_check", "furniture"):
+            assert f"'workflow.fd9.{module}'" in text, (name, module)
         assert "vendor/fd9-independent/LICENSE" in text
         assert "'fd9-independent', 'src'" in text
 

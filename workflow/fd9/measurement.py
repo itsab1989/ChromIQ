@@ -569,6 +569,11 @@ def measure_chart(
                 _wait_for_sheet_clear=_wait_for_sheet_clear or attempt > 0,
                 _sheet_check=_sheet_check, _xyz_method=_xyz_method)
         except _MeasureAgain:
+            # Stop pressed while the question was open answers "again", and
+            # must end the measurement, not start the sheet over (4.3.25
+            # review, L4). Nothing of the set-aside sheet is filed.
+            if cancelled():
+                raise InterruptedError("Operator stopped between FD-9 pages")
             attempt += 1
             progress("Sheet check: the sheet is set aside to be measured again")
             on_page(1, 1)
@@ -810,7 +815,9 @@ def _measure_one_sheet(
                 "kind": mismatch.kind, "page": 1, "found": 1, "pages": 1,
                 "turned": True, "complete": whole,
                 "measured": len(new_rows), "total": len(ids),
-                "reason": str(mismatch)})
+                "reason": str(mismatch),
+                "locations": [locations[p["id"]] for row in layout["rows"]
+                              for p in row]})
             if answer not in (pc.REFILE, pc.KEEP) or (
                     answer == pc.REFILE and not whole):
                 raise _MeasureAgain()

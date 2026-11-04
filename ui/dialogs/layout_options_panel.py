@@ -240,9 +240,9 @@ def fd9_greyed_reason() -> str:
         "the end that goes in first, and at least 33 mm free at the other end. "
         "Four small black squares around the patch area let the FD-9 find the "
         "patches, and an arrow shows which end goes in first. Nothing else is "
-        "printed on the sheet, except a small label at the top left that "
-        "names the project, the run and the page when the chart has several "
-        "sheets, and the FD-9 clip border if you switch it on. The greyed boxes show the values an FD-9 chart "
+        "printed on the sheet, except a small page number at the top left "
+        "when the chart has several sheets, and the FD-9 clip border if you "
+        "switch it on. The greyed boxes show the values an FD-9 chart "
         "uses.\n\n"
         "What you can set for the FD-9 is under “Expert Options”, in “Patches "
         "& spacers”:\n"
@@ -263,6 +263,9 @@ class LayoutOptionsPanel(QWidget):
     changed = pyqtSignal()
     #: Whether the FD-9 is offered (Preferences > Beta); set in __init__.
     _fd9_support = False
+    #: Whether the FD-9 clip border On/Off is a person's answer rather than
+    #: the FD-9's default (L8): then the recipe stores it explicitly.
+    _fd9_clip_chosen = False
 
     def set_appearance(self, mode: str) -> None:
         """Re-resolve this panel's own text colours for ``mode``.
@@ -3413,6 +3416,7 @@ class LayoutOptionsPanel(QWidget):
         # …and its clip border (F12): the stored FD-9 layout's, or the
         # FD-9's default. The previous instrument's comes back on leaving.
         saved = getattr(self, "_fd9_saved", None)
+        self._fd9_clip_chosen = r.fd9_clip_border is not None
         if saved is not None and hasattr(self, "clip_content_mode"):
             saved["clip"] = (self.clip_content_mode.currentIndex(),
                              getattr(self, "_clip_when_on", None))
@@ -3899,6 +3903,9 @@ class LayoutOptionsPanel(QWidget):
 
     def _on_clip_enable_changed(self, *_a) -> None:
         """The CM/SS clip-border On/Off selector drives the content on/off."""
+        if (not self._loading and self._fd9_support and self.instr is not None
+                and self.instr.currentData() == "FD9"):
+            self._fd9_clip_chosen = True      # a person's answer (L8)
         self.set_clip_enabled(self.clip_enable.currentData() == "on")
 
     def _sync_clip_content_for_mode(self, *_a) -> None:
@@ -5986,12 +5993,18 @@ class LayoutOptionsPanel(QWidget):
             from workflow.layout_engine.presets import fd9_fixed_fields
             from workflow.fd9.furniture import FD9_CLIP_BORDER_DEFAULT
             r = fd9_fixed_fields(r)
-            # Written only when it differs from the FD-9's default: a recipe
-            # that leaves it at the default follows the default, and opening
-            # the project with the Beta off then rewrites nothing
-            # (tests/test_fd9_off_stale_project.py).
+            # A CHOICE IS STORED, A DEFAULT IS NOT (4.3.25 review, L8).
+            # Left at the default by nobody's choice, the field stays None
+            # and the recipe follows FD9_CLIP_BORDER_DEFAULT, also when that
+            # default later changes (and opening the project with the Beta
+            # off then rewrites nothing, tests/test_fd9_off_stale_project.py).
+            # Once a person has switched it, On or Off, the answer is written
+            # out, even when it equals today's default: stored only when it
+            # differed, a deliberate "Off" would turn On by itself the day the
+            # default becomes On.
             on = r.clip_content_mode not in (None, "off", "example")
-            r.fd9_clip_border = None if on == FD9_CLIP_BORDER_DEFAULT else on
+            r.fd9_clip_border = (on if self._fd9_clip_chosen or
+                                 on != FD9_CLIP_BORDER_DEFAULT else None)
         return r
 
     def _emit(self, *_a) -> None:
@@ -6230,6 +6243,7 @@ class LayoutOptionsPanel(QWidget):
                                 strip_gap_mm=(r.fd9_gap_mm if r.fd9_gap_mm is not None else r.strip_gap_mm),
                                 fd9_gap_mm=None,
                                 clip_content_mode=self._fd9_clip_content_of(r))
+                    self._fd9_clip_chosen = r.fd9_clip_border is not None
                 self._set_recipe_impl(r)
                 self._hold_fd9_greying()          # review r1 F5
             finally:

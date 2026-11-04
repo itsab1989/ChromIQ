@@ -9854,6 +9854,31 @@ class TabChart(QWidget):
             panel.set_pages(len(tiffs))
         finally:
             panel.pages.blockSignals(False)
+        # ONE FIELD, ONE ANSWER (4.3.25 review, L3): Manual's own Pages box
+        # says the same. Its value is part of the targen signature, so a
+        # snapshot that matched before still matches after: showing the
+        # page count must never read as "targen settings changed".
+        spin = getattr(self, "_manual_pages_spin", None)
+        if spin is None or spin.value() == len(tiffs):
+            return
+        names = ("_targen_sig", "_knut_targen_sig", "_tc918_targen_sig",
+                 "_prebuilt_targen_sig", "_preset_ti1_targen_sig",
+                 "_applied_targen_sig")
+        try:
+            before = self._targen_signature()
+        except Exception:      # noqa: BLE001 — a half-built tab
+            before = None
+        same = [n for n in names
+                if before is not None and vars(self).get(n) == before]
+        spin.blockSignals(True)
+        try:
+            spin.setValue(len(tiffs))
+        finally:
+            spin.blockSignals(False)
+        if same:
+            after = self._targen_signature()
+            for n in same:
+                setattr(self, n, after)
 
     def _builtin_preset_instrument(self, key) -> "str | None":
         """The instrument a built-in preset is laid out for, or None when it

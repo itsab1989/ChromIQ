@@ -1882,12 +1882,15 @@ class ChartCreator:
                     ("engine", "cal_colorspace_mismatch", exc.friendly()))
             elif getattr(exc, "fd9_page", None) is not None:
                 # The FD-9 would not find a page (4.3.25, F4): its own words.
+                # Which of the two ChromIQ prints is in the way (review M3).
                 from workflow import measurement_messages as M
+                msg = {"label": M.M_FD9_CHART_UNDETECTABLE_LABEL,
+                       "both": M.M_FD9_CHART_UNDETECTABLE_BOTH}.get(
+                    getattr(exc, "cause", None), M.M_FD9_CHART_UNDETECTABLE)
                 self._matched_errors.append(
                     ("engine", "fd9_undetectable",
-                     M.M_FD9_CHART_UNDETECTABLE.render(
-                         page=exc.fd9_page, pages=exc.fd9_pages,
-                         reason=str(exc))[1]))
+                     msg.render(page=exc.fd9_page, pages=exc.fd9_pages,
+                                reason=str(exc))[1]))
             else:
                 # ANY OTHER REFUSAL REACHES A WINDOW TOO (review of #214, Q4):
                 # it used to end here with one log line and an empty preview.

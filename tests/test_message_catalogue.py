@@ -611,6 +611,8 @@ AWAITING_APPROVAL: "set[str]" = {
                                  # 4.3.25 (F4): an FD-9 page the FD-9 would
                                  # not find, refused at Generate.
                                  "M-FD9-CHART-UNDETECTABLE",
+                                 "M-FD9-CHART-UNDETECTABLE-LABEL",
+                                 "M-FD9-CHART-UNDETECTABLE-BOTH",
                                  # 4.3.25 (F6): an FD-9 chart's marks in the
                                  # printer's unprinted edge.
                                  "M-FD9-EDGE-MARKS-NOT-PRINTED",
