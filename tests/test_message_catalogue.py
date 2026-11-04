@@ -597,6 +597,9 @@ AWAITING_APPROVAL: "set[str]" = {
                                  # 4.3.24, review of #214 (M4): the sheet
                                  # check after each FD-9 sheet.
                                  "M-FD9-SHEET-TURNED", "M-FD9-WRONG-SHEET",
+                                 # review r1 M2: a minute with no
+                                 # insertion screen between FD-9 pages.
+                                 "M-FD9-STILL-WAITING",
                                  # 4.3.24, review of #214 (Q4): a layout
                                  # engine failure reached only the log.
                                  "M-CHART-ENGINE-FAILED",
@@ -1029,6 +1032,7 @@ WINDOW_SOURCES = [
     ("ui.fd9_measurement", "FD9MeasureMixin", "_fd9_show_insert_window"),
     ("ui.fd9_measurement", "FD9MeasureMixin", "_fd9_explain_error"),
     ("ui.fd9_measurement", "FD9MeasureMixin", "_fd9_page_requested"),
+    ("ui.fd9_measurement", "FD9MeasureMixin", "_fd9_still_waiting"),
     # Forum report, 2026-10-03: a chart whose locations its patterns cannot
     # read, before any reader starts and from the engine's typed event.
     ("ui.tabs.tab_measure", "TabMeasure", "_chart_unreadable_window"),

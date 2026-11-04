@@ -632,6 +632,21 @@ M_FD9_SHEET_TURNED = _m(
     "keep the pages measured before it, tick “Resume” and ChromIQ carries on "
     "from this page.\n\n"
     "The technical reason was: {reason}",
+    # A chart of one sheet has no other pages and no "page 1 of 1" (review
+    # r1 L6).
+    count_key="pages",
+    body_one=(
+        "After the sheet was read, ChromIQ compared the readings with the "
+        "colours this chart should have. They match the chart turned round, "
+        "and not the chart the right way round. So the sheet probably went "
+        "into the FD-9 with the arrow at the back.\n\n"
+        "ChromIQ has not saved these readings, so nothing wrong has been "
+        "filed.\n\n"
+        "Take the sheet out of the FD-9 (with the FD-9's own controls if it "
+        "does not come out by itself). Then press Start again and insert the "
+        "sheet with the end with the arrow going in first and the printed "
+        "side facing up.\n\n"
+        "The technical reason was: {reason}"),
     approved=False)
 
 #: 4.3.24, review of #214 (M4). The readings fit ANOTHER page of the chart
@@ -667,8 +682,9 @@ M_FD9_NEXT_PAGE = _m(
     "{pages}.\n\n"
     "If a sheet is still in the FD-9 or lying in its exit, take it out "
     "completely. As soon as the FD-9's paper sensor is clear, the FD-9 shows "
-    "its insertion screen by itself. You do not need to press anything "
-    "here.\n\n"
+    "its insertion screen by itself, so normally you do not need to press "
+    "anything here. If that takes longer than a minute, this window tells "
+    "you what you can do.\n\n"
     "Then insert page {page}: the end with the arrow goes in first, and the "
     "printed side faces up.\n\n"
     "The pages you have already measured are kept. After each sheet, ChromIQ "
@@ -677,6 +693,26 @@ M_FD9_NEXT_PAGE = _m(
     "that is turned round. It cannot always tell, so please check the page "
     "number printed on the sheet. Press Stop if you want to end here; "
     "ChromIQ then asks what to do with the pages already measured.",
+    approved=False)
+
+#: 4.3.24, review r1 M2. The page-pause panel of M-FD9-NEXT-PAGE after about
+#: a minute with no insertion screen (`FD9MeasureMixin._fd9_still_waiting`).
+#: ChromIQ goes on waiting; no device command is added. The FD-9 shows its
+#: insertion screen once it reports its paper sensor clear, and whether it
+#: reports that on a new connection when the sheet was taken out early is a
+#: question for the device (lessbones). Stop, keep, Resume always works.
+M_FD9_STILL_WAITING = _m(
+    "M-FD9-STILL-WAITING",
+    "Still waiting for the FD-9 to take page {page} of {pages}",
+    "ChromIQ is still waiting for the FD-9 to report that its paper sensor "
+    "is clear. Only then does the FD-9 show its insertion screen for page "
+    "{page}. This has now taken more than a minute.\n\n"
+    "If a sheet is still in the FD-9 or lying in its exit, take it out "
+    "completely. The FD-9 then goes on by itself.\n\n"
+    "If the sheet is already out and the FD-9 still does not show its "
+    "insertion screen, press Stop. The pages you have finished are kept: "
+    "when ChromIQ asks what to do with them, keep them. Then tick “Resume” "
+    "and press Start, and ChromIQ carries on with page {page}.",
     approved=False)
 
 #: The connection to the FD-9 could not be made or was lost.
@@ -8986,7 +9022,7 @@ CATALOGUE = {m.id: m for m in (
     M_FD9_SUPPORT_OFF, M_FD9_NO_ADDRESS, M_FD9_INSERT_SHEET, M_FD9_NEXT_PAGE,
     M_FD9_NO_CONNECTION, M_FD9_WRONG_FIRMWARE, M_FD9_MARKS_NOT_FOUND,
     M_FD9_SHEET_STILL_INSIDE, M_FD9_RESUME_REFUSED, M_FD9_FAILED,
-    M_FD9_SHEET_TURNED, M_FD9_WRONG_SHEET,
+    M_FD9_SHEET_TURNED, M_FD9_WRONG_SHEET, M_FD9_STILL_WAITING,
     M_CAL_REQUESTED, M_CAL_REQUESTED_DONE, M_CAL_REQUESTED_FAILED,
     M_CAL_DONE_UNDERLAY,
     M_REPORT_NOT_SAVED,

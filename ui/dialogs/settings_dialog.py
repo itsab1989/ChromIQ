@@ -6535,7 +6535,7 @@ class SettingsDialog(QDialog):
         ("i1", "i1Pro / i1Pro 2 / i1Pro 3"), ("p3", "i1Pro 3 Plus"),
         ("CM", "ColorMunki / i1Studio / ColorChecker Studio"),
         ("SS", "SpectroScan (flatbed)"),
-        ("CR30", "CR30 (ChnSpec, patch by patch)"),
+        ("CR30", "CR30 (patch by patch)"),
     ]
 
     @staticmethod

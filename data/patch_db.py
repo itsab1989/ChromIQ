@@ -220,7 +220,7 @@ INSTRUMENT_LABELS: dict[str, str] = {
     "p3": "i1Pro 3 Plus",
     "CM": "ColorMunki / i1Studio / ColorChecker Studio",
     "SS": "SpectroScan",
-    "CR30": "CR30 (ChnSpec)",
+    "CR30": "CR30",
     "FD9": "FD-9",
     "isis": "i1iSis (via i1Profiler)",
 }

@@ -313,7 +313,7 @@ def test_knuts_start_then_a_preset_on_another_paper(qapp):
         assert _groups_listed(tab) == _groups_on("A4")
         assert _popup_groups(tab) == _groups_on("A4")
         assert "i1Pro 3 Plus" in _groups_listed(tab)
-        assert "CR30 (ChnSpec)" in _groups_listed(tab)
+        assert "CR30" in _groups_listed(tab)
         # A3 Landscape by hand, then a preset's A4 recipe.
         _panel_paper(tab, "420x297")
         qapp.processEvents()

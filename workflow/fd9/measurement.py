@@ -699,9 +699,12 @@ def measure_chart(
     # A page of a multi-page chart is checked by `pages.measure_pages`,
     # against every page of the chart, so not here as well.
     if _sheet_check:
-        from .page_check import check_sheet
-        check_sheet([layout], 0,
-                    {int(r["SAMPLE_ID"]): r for r in first_table(chart)[2]}, rows)
+        from .page_check import SKIPPED_LINE, check_sheet
+        skipped = check_sheet(
+            [layout], 0,
+            {int(r["SAMPLE_ID"]): r for r in first_table(chart)[2]}, rows)
+        if skipped:
+            progress(SKIPPED_LINE + skipped)
     sessions = []
     if base_path:
         old = _keywords(base_path.read_text(encoding="utf-8"))

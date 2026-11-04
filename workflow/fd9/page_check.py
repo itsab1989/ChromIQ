@@ -44,6 +44,18 @@ MARGIN = 0.4
 INDISTINGUISHABLE = 0.9
 
 
+#: Why the check said nothing (`check_sheet` returns one of these, or None
+#: when it compared and found the sheet right). Logged once per sheet, so a
+#: quiet check is never read as a passed one (review r1 L2).
+SKIP_FEW = "too few patches"
+SKIP_FLAT_READINGS = "the readings have too little contrast"
+SKIP_NO_AIMS = "the chart has no usable expected colours"
+SKIP_LOOKS_ALIKE = "no other sheet or turn would look different"
+#: The line the worker reports; `ui.fd9_measurement._progress_line` puts it
+#: into the user's words.
+SKIPPED_LINE = "Sheet check skipped: "
+
+
 class SheetMismatch(ValueError):
     """The readings fit another sheet, or the expected sheet turned round,
     clearly better than the expected sheet. ``kind`` is ``"turned"`` or
@@ -105,8 +117,9 @@ def _spread(values):
 
 def check_sheet(pages, page_index, design, measured):
     """Raise :class:`SheetMismatch` when the readings of page *page_index*
-    clearly belong to another page or to the page turned round; otherwise
-    return None.
+    clearly belong to another page or to the page turned round. Otherwise
+    return None when the sheet was compared and fits, or one of the SKIP_*
+    reasons when the check could not decide.
 
     *pages* are the chart's physical pages (each with ``rows`` of patches
     carrying ``id``), *design* maps a patch id to its .ti2 row (with
@@ -126,8 +139,10 @@ def check_sheet(pages, page_index, design, measured):
         if pid in where and math.isfinite(y):
             positions.append(where[pid])
             seen.append(_lightness(y))
-    if len(seen) < MIN_PATCHES or _spread(seen) < MIN_SPREAD_L:
-        return None
+    if len(seen) < MIN_PATCHES:
+        return SKIP_FEW
+    if _spread(seen) < MIN_SPREAD_L:
+        return SKIP_FLAT_READINGS
 
     def predicted(q, turned):
         ids = [[p["id"] for p in row] for row in pages[q]["rows"]]
@@ -143,7 +158,7 @@ def check_sheet(pages, page_index, design, measured):
 
     expected = predicted(page_index, False)
     if expected is None or _spread(expected) < MIN_SPREAD_L:
-        return None
+        return SKIP_NO_AIMS
     expected_fit = spearman(seen, expected)
     best = None
     for q, other in enumerate(pages):
@@ -156,13 +171,16 @@ def check_sheet(pages, page_index, design, measured):
             guess = predicted(q, turned)
             if guess is None or _spread(guess) < MIN_SPREAD_L:
                 continue
-            if abs(spearman(guess, expected)) >= INDISTINGUISHABLE:
+            # SIGNED (review r1 L3): only a pattern that looks the SAME is
+            # indistinguishable. The exact reverse of the expected pattern
+            # (a ramp chart turned round) is the easiest case to recognise.
+            if spearman(guess, expected) >= INDISTINGUISHABLE:
                 continue
             fit = spearman(seen, guess)
             if best is None or fit > best[0]:
                 best = (fit, q, turned)
     if best is None:
-        return None
+        return SKIP_LOOKS_ALIKE
     fit, q, turned = best
     if (expected_fit <= EXPECTED_AT_MOST and fit >= OTHER_AT_LEAST
             and fit - expected_fit >= MARGIN):

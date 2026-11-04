@@ -7,6 +7,7 @@ import random
 
 import pytest
 
+from workflow.fd9 import page_check as pc
 from workflow.fd9.page_check import SheetMismatch, check_sheet, spearman
 
 
@@ -86,13 +87,13 @@ def test_a_dark_only_or_light_only_chart_stays_quiet(lo, hi):
     for turned in (False, True):
         assert check_sheet(layout, 1, design,
                            _read(layout, design, 1, turned=turned,
-                                 noise=0.2)) is None
+                                 noise=0.2)) == pc.SKIP_FLAT_READINGS
 
 
 def test_too_few_patches_stays_quiet():
     layout, design = _chart(rows=2, cols=8)            # 16 patches
     assert check_sheet(layout, 0, design,
-                       _read(layout, design, 0, turned=True)) is None
+                       _read(layout, design, 0, turned=True)) == pc.SKIP_FEW
 
 
 def test_a_chart_that_looks_the_same_turned_round_stays_quiet():
@@ -106,7 +107,7 @@ def test_a_chart_that_looks_the_same_turned_round_stays_quiet():
             a, b = grid[r][c]["id"], grid[R - 1 - r][C - 1 - c]["id"]
             design[b]["XYZ_Y"] = design[a]["XYZ_Y"]
     assert check_sheet(layout, 0, design,
-                       _read(layout, design, 0, turned=True)) is None
+                       _read(layout, design, 0, turned=True)) == pc.SKIP_LOOKS_ALIKE
 
 
 def test_two_identical_pages_stay_quiet():
@@ -182,3 +183,77 @@ def test_the_window_for_each_kind(tab, fd9_windows):
 
 from tests.test_fd9_partial import setup  # noqa: E402,F401
 from tests.test_fd9_normal_measurement import tab  # noqa: E402,F401
+
+
+def test_r1_l3_the_exact_reverse_is_named_turned_and_normal_ramps_pass():
+    """A ramp chart (a calibration chart, not randomised) turned round gives
+    the expected pattern reversed: the easiest turn to recognise."""
+    layout, design = _chart(pages=1)
+    ids = [p["id"] for row in layout[0]["rows"] for p in row]
+    for i, pid in enumerate(ids):                       # a lightness ramp
+        design[pid]["XYZ_Y"] = f"{2 + 88 * i / (len(ids) - 1):.4f}"
+    with pytest.raises(SheetMismatch) as caught:
+        check_sheet(layout, 0, design,
+                    _read(layout, design, 0, turned=True, noise=0.5))
+    assert caught.value.kind == "turned"
+    for seed in range(40):
+        assert check_sheet(layout, 0, design,
+                           _read(layout, design, 0, seed=seed, noise=4.0,
+                                 gain=0.7)) is None
+
+
+def test_r1_l2_a_chart_without_usable_aims_says_the_check_was_skipped():
+    layout, design = _chart()
+    printed = _read(layout, design, 0)                 # a real, varied sheet
+    for row in design.values():
+        row["XYZ_Y"] = "50.0"                           # no usable aims
+    assert check_sheet(layout, 0, design, printed) == pc.SKIP_NO_AIMS
+    from ui.fd9_measurement import _progress_line
+    for code in (pc.SKIP_FEW, pc.SKIP_FLAT_READINGS, pc.SKIP_NO_AIMS,
+                 pc.SKIP_LOOKS_ALIKE):
+        _stage, line = _progress_line(pc.SKIPPED_LINE + code)
+        assert line.startswith("ChromIQ") and "right sheet" in line
+
+
+def test_r1_l2_the_worker_logs_the_skip_once_per_sheet(setup):
+    from tests.test_fd9_multipage import capture_pages, make_chart
+    from tests.test_fd9_factory_workflow import native_settings
+    from workflow.fd9.measurement import measure_chart
+    s = setup
+    s.chart = make_chart(s.tmp).ti2_path         # two pages, few patches
+    capture, _ = capture_pages(s)
+    lines = []
+    measure_chart(s.chart, native_settings(s), s.tmp / "m", capture=capture,
+                  progress=lines.append)
+    skipped = [ln for ln in lines if ln.startswith(pc.SKIPPED_LINE)]
+    assert len(skipped) == 2
+
+
+def test_r1_l8_a_refused_sheet_on_a_later_page_resume_offers_nothing_to_save(
+        setup):
+    """Resume at page 2, page 2 refused: nothing new was measured, so the run
+    ends as a failure (no ending question to file the unchanged .ti3)."""
+    from dataclasses import replace
+    from tests.test_fd9_multipage import capture_pages, make_chart
+    from tests.test_fd9_factory_workflow import native_settings
+    from workflow.fd9.measurement import measure_chart, publish_measurement
+    s = setup
+    s.chart = make_chart(s.tmp).ti2_path
+    settings = native_settings(s)
+    capture, _ = capture_pages(s, stop_page=2)
+    partial = measure_chart(s.chart, settings, s.tmp / "a", capture=capture)
+    publish_measurement(partial["staged"], partial["destination"], s.chart,
+                        allow_partial=True)
+    real = pc.check_sheet
+
+    def refuse(pages, page_index, design, measured):
+        raise SheetMismatch("turned", page_index + 1, page_index + 1,
+                            len(pages), 0.1, 0.95)
+    pc.check_sheet = refuse
+    try:
+        capture, _ = capture_pages(s)
+        with pytest.raises(SheetMismatch):
+            measure_chart(s.chart, replace(settings, resume=True),
+                          s.tmp / "b", capture=capture)
+    finally:
+        pc.check_sheet = real

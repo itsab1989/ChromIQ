@@ -111,3 +111,41 @@ def test_a_resume_that_starts_at_a_later_page_does_not_wait_for_the_sensor(setup
     assert final['complete']
     assert [c[0] for c in calls] == [2, 3]
     assert waits == [False, True]      # page 2 starts fresh, page 3 waits
+
+
+def test_r1_m2_after_a_minute_the_notice_says_what_to_do_and_keeps_waiting(
+        tab, setup):
+    """No new device command: the notice only changes its words after
+    FD9_STILL_WAITING_MS, and still closes when the insertion screen comes."""
+    from ui import fd9_measurement as F
+    from workflow import measurement_messages as M
+    assert F.FD9_STILL_WAITING_MS == 60_000
+    tab._fd9_live = True
+    tab._fd9_page_requested(2, 3)
+    assert tab._fd9_wait_timer().isActive()
+    assert tab._fd9_wait_timer().interval() == 60_000
+    tab._fd9_still_waiting()                 # what the timer does
+    title, _ = M.M_FD9_STILL_WAITING.render(page=2, pages=3)
+    assert tab._page_pause is not None and not tab._page_pause_panel.isHidden()
+    text = tab._log.toPlainText()
+    assert title in text and "press Stop" in text and "Resume" in text
+    tab._fd9_progress('FD9 insertion screen ready. Insert chart arrow first, printed face up.')
+    assert tab._page_pause is None and not tab._fd9_wait_timer().isActive()
+    tab._fd9_still_waiting()                 # a late timer does nothing
+    assert tab._page_pause is None
+    tab._fd9_close_insert_window(); tab._fd9_live = False
+
+
+def test_r1_m2_the_next_page_text_does_not_promise_no_button():
+    from workflow import measurement_messages as M
+    _t, body = M.M_FD9_NEXT_PAGE.render(page=2, pages=3)
+    assert "You do not need to press anything here." not in body
+    assert "longer than a minute" in body
+
+
+def test_r1_l6_a_one_sheet_chart_is_not_told_about_pages_or_resume():
+    from workflow import measurement_messages as M
+    _t, one = M.M_FD9_SHEET_TURNED.render(page=1, pages=1, reason="r")
+    _t, many = M.M_FD9_SHEET_TURNED.render(page=2, pages=3, reason="r")
+    assert "of 1" not in one and "Resume" not in one and "pages" not in one
+    assert "page 2 of 3" in many and "Resume" in many

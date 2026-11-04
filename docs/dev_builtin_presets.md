@@ -521,7 +521,7 @@ the sheet and the grid, plus `margin_top`, `margin_bottom` and
 exports needed their Set B re-pointed — every one said `instr: "CM"` or `"i1"`
 from earlier work.
 
-The group heading is `INSTRUMENT_LABELS["CR30"]` ("CR30 (ChnSpec)") and the
+The group heading is `INSTRUMENT_LABELS["CR30"]` ("CR30"; "CR30 (ChnSpec)" before 4.3.24) and the
 group sits **before Scanner** in `BUILTIN_PRESET_GROUPS` (Basti: *"i want them
 listed for the cr30 in both preset dropdowns / speechbubble overlay before the
 scanner section"*). That one list orders the Presets dropdown, the ★ overlay,

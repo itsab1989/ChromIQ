@@ -41,6 +41,10 @@ from core.thread_stack import roomy
 
 log = get_logger(__name__)
 
+#: How long the next-page notice waits for the FD-9's insertion screen
+#: before it says what the person can do (review r1 M2).
+FD9_STILL_WAITING_MS = 60_000
+
 #: FD-9 jobs that have been started and may not have finished yet.
 #:
 #: NOT PARENTED TO THE TAB, for the reason `workflow/cr30/measure_bridge.py`
@@ -213,6 +217,32 @@ def _progress_line(text: str) -> "tuple[str | None, str]":
     if m:
         return None, tr("FD-9: {count} of {total} patches measured.").format(
             count=int(m.group(1)), total=int(m.group(2)))
+    if text.startswith("Sheet check skipped: "):
+        from workflow.fd9 import page_check as pc
+        why = text[len("Sheet check skipped: "):]
+        return None, {
+            pc.SKIP_FEW: tr(
+                "ChromIQ did not check whether this sheet is the right one: "
+                "it has too few patches for a reliable comparison. Please "
+                "make sure yourself that it is the right sheet, the right way "
+                "round."),
+            pc.SKIP_FLAT_READINGS: tr(
+                "ChromIQ did not check whether this sheet is the right one: "
+                "its readings are too even (nearly all dark or nearly all "
+                "light) for a reliable comparison. Please make sure yourself "
+                "that it is the right sheet, the right way round."),
+            pc.SKIP_NO_AIMS: tr(
+                "ChromIQ did not check whether this sheet is the right one: "
+                "the chart does not hold the colours its patches should have, "
+                "so there is nothing to compare the readings with. Please "
+                "make sure yourself that it is the right sheet, the right way "
+                "round."),
+            pc.SKIP_LOOKS_ALIKE: tr(
+                "ChromIQ could not check whether this sheet is the right one: "
+                "turned round, or as another page of this chart, it would "
+                "give the same readings. Please make sure yourself that it is "
+                "the right sheet, the right way round."),
+        }.get(why, text)
     if text.startswith("Measurement complete."):
         return "done", tr(
             "The FD-9 has finished measuring. Take the sheet completely out of "
@@ -948,14 +978,45 @@ class FD9MeasureMixin:
         self._page_pause_continue_btn.hide()
         self._page_pause_reread_btn.hide()
         self._page_pause_help_btn.hide()
-        self._page_pause = {"plan": {"kind": "fd9", "page": page}, "button": False}
+        self._page_pause = {"plan": {"kind": "fd9", "page": page,
+                                     "pages": pages}, "button": False}
         self._page_pause_effect.setOpacity(1.0)
         self._place_page_pause_note()
         self._page_pause_panel.show()
         self._preview_legend_makes_way(True)
         self._fd9_log(f"[{title}]\n{body}")
+        self._fd9_wait_timer().start(FD9_STILL_WAITING_MS)
+
+    def _fd9_wait_timer(self):
+        """One single-shot timer per tab, connected to a bound method."""
+        timer = getattr(self, "_fd9_wait_timer_obj", None)
+        if timer is None:
+            from PyQt6.QtCore import QTimer
+            timer = QTimer(self)
+            timer.setSingleShot(True)
+            timer.timeout.connect(self._fd9_still_waiting)
+            self._fd9_wait_timer_obj = timer
+        return timer
+
+    def _fd9_still_waiting(self):
+        """About a minute under "Prepare page N" with no insertion screen
+        (review r1 M2): say what ChromIQ waits for and what the person can
+        do. ChromIQ goes on waiting; nothing is sent to the FD-9."""
+        pause = getattr(self, "_page_pause", None)
+        if not pause or pause["plan"].get("kind") != "fd9":
+            return
+        from workflow import measurement_messages as M
+        plan = pause["plan"]
+        title, body = M.M_FD9_STILL_WAITING.render(
+            page=plan["page"], pages=plan.get("pages", plan["page"]))
+        self._page_pause_box.set_content(title, body.split("\n\n"), "", [])
+        self._place_page_pause_note()
+        self._fd9_log(f"[{title}]\n{body}")
 
     def _fd9_close_page_notice(self):
+        timer = getattr(self, "_fd9_wait_timer_obj", None)
+        if timer is not None:
+            timer.stop()
         if not getattr(self, "_page_pause", None) or self._page_pause["plan"].get("kind") != "fd9":
             return
         self._hide_page_pause()

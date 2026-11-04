@@ -161,7 +161,7 @@ _INSTRUMENT_KEYS = ("auto", "argyll", "cr30")
 def _instrument_labels() -> "list[str]":
     return [tr("Detect automatically"),
             tr("Any ArgyllCMS instrument"),
-            tr("CR30 (ChnSpec)")]
+            tr("CR30")]
 
 
 def cr30_is_probably_attached() -> bool:

@@ -310,7 +310,7 @@ like before."*
 
 | What | Behaviour |
 |---|---|
-| The order | i1Pro / i1Pro 2 / i1Pro 3, i1Pro 3 Plus, ColorMunki / i1Studio / ColorChecker Studio, CR30 (ChnSpec), then Scanner, then Red River Paper. The person's own presets stay on top, with no heading |
+| The order | i1Pro / i1Pro 2 / i1Pro 3, i1Pro 3 Plus, ColorMunki / i1Studio / ColorChecker Studio, CR30 (labelled "CR30 (ChnSpec)" before 4.3.24), then Scanner, then Red River Paper. The person's own presets stay on top, with no heading |
 | Where it comes from | the Instrument pulldown's own source, `INSTRUMENT_LABELS` in `data/patch_db.py` (what Guided's Instrument field lists, in its order); Manual's Instrument field (`printtarg -i` in `data/parameters.yaml`) lists the same codes in the same order, and a test holds the two together. No second list: `instrument_group_rank` in `ui/tabs/tab_chart.py` ranks each group by its instrument's place there, and a group that is not an instrument goes last, keeping its place |
 | Every list | sorted once, in the registry `BUILTIN_PRESET_GROUPS`, so every list follows: "Select preset", the Built-in presets list, the gear window's list and its Export list CSV, "Compare with profile", "Which presets can be used for verification?" (its "Preset pulldown order" keeps the groups in this order), and `scripts/make_preset_defaults.py --table`. `data/preset_defaults.json` was rewritten in the new order; it ticks the same 62 presets |
 

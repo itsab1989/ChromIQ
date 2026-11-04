@@ -192,3 +192,38 @@ def test_calibration_keeps_pure_ink_columns_with_shared_gaps_and_pages(
             assert len(inks)<=1
             seen.update(inks)
     assert seen==set(range(11))
+
+
+@pytest.mark.parametrize("paper,n_pages", [("137x300", 3), ("A4", 2)])
+def test_r1_l7_marks_and_grid_are_found_on_every_labelled_page(
+        tmp_path, paper, n_pages):
+    """Review of #214, M5 / r1 L7: the page label printed in the leading
+    clear area of a multi-page chart must not stop the FD-9's mark detector
+    finding its four marks and the grid. Synthetic scans at the scanner's
+    scale, as for single-page charts."""
+    from PIL import Image
+    from pathlib import Path
+    from workflow.fd9.chart import chart_pages
+    from workflow.fd9.independent import driver, chart_grid
+    driver(Path(__file__).resolve().parents[1] / "vendor/fd9-independent")
+    from fd9_independent.geometry import find_marks, grid_rows
+    source, _ = ti1(tmp_path, rep="RGB", tokens=("R", "G", "B"),
+                    count=capacity(paper) * (n_pages - 1) + 5)
+    result = build_chart(source, tmp_path / "labelled", paper=paper, dpi=300,
+                         randomize=False)
+    _, doc, _ = checked_chart(result.ti2_path)
+    pages = chart_pages(doc)
+    assert len(pages) == len(result.tiff_paths) == n_pages
+    for index, (page, tif) in enumerate(zip(pages, result.tiff_paths)):
+        assert page.get("page_label"), "a multi-page sheet carries its label"
+        with Image.open(tif) as im:
+            gray = im.convert("L")
+        width = 3638
+        assert gray.width <= width
+        scan = Image.new("L", (width, gray.height + 980), 255)
+        scan.paste(gray, ((width - gray.width) // 2, 490))
+        scan = scan.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+        rows = grid_rows(find_marks(scan.tobytes(), *scan.size),
+                         **chart_grid(page))
+        assert len(rows) == len(page["rows"]), (paper, index)
+        assert len(rows[0]) == len(page["rows"][0]), (paper, index)

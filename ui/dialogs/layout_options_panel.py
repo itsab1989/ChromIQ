@@ -325,7 +325,7 @@ class LayoutOptionsPanel(QWidget):
                    ("p3", "i1Pro 3 Plus"),
                    ("CM", "ColorMunki / i1Studio / ColorChecker Studio"),
                    ("SS", "SpectroScan (flatbed)"),
-                   ("CR30", "CR30 (ChnSpec, patch by patch)")]
+                   ("CR30", "CR30 (patch by patch)")]
     #: Offered only while FD-9 support is on (Preferences > Beta, restart to
     #: apply, `workflow.fd9.support`); `instruments()` adds it then.
     FD9_INSTRUMENT = ("FD9", "FD-9")

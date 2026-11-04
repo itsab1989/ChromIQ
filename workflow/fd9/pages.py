@@ -111,8 +111,10 @@ def measure_pages(chart, settings, session, *, progress, cancelled, on_readings,
             # Is it the sheet that was asked for (review of #214, M4)? A sheet
             # whose readings clearly fit another page, or this page turned
             # round, stops here, before any of it is filed.
-            from .page_check import check_sheet
-            check_sheet(pages, page_index, design, measured)
+            from .page_check import SKIPPED_LINE, check_sheet
+            skipped = check_sheet(pages, page_index, design, measured)
+            if skipped:
+                progress(SKIPPED_LINE + skipped)
             new = [r for r in measured if int(r['SAMPLE_ID']) not in completed_ids]
             all_rows += new
             completed_ids.update(int(r['SAMPLE_ID']) for r in new)
@@ -123,7 +125,12 @@ def measure_pages(chart, settings, session, *, progress, cancelled, on_readings,
             if not result['complete']:
                 break
         except Exception as error:
-            if not all_rows:
+            from .page_check import SheetMismatch
+            if not all_rows or (isinstance(error, SheetMismatch)
+                                and len(all_rows) == original_count):
+                # Nothing new from this Start: a refused sheet leaves
+                # nothing to save, so no ending question offers to file the
+                # unchanged measurement again (review r1 L8).
                 raise
             failure, cause = str(error), error
             break
