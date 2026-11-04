@@ -626,13 +626,17 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path,
     conds = _cxf_conditions_of(root)
     chosen = (str(condition).strip().upper() if condition
               else conds.preselect)
-    if chosen not in conds.available:
+    if conds.available and chosen not in conds.available:
         # A condition the file does not hold (a stale choice, a caller's
-        # mistake): never another condition in silence, so no readings.
-        meas = []
-    else:
-        meas = [o for o in objs
-                if o.get("ObjectType") == f"{chosen}_Measurement"]
+        # mistake): never another condition in silence, and say what is
+        # wrong (4.3.24; it used to read "not as many readings as patches").
+        raise _failure(M.M_CONVERT_CXF_CONDITION_ABSENT, name=cxf_path.name,
+                       condition=chosen,
+                       conditions=M.cxf_condition_list(conds.available))
+    # (A file with no M0/M1/M2 readings at all says so below: no readings
+    # for its patches.)
+    meas = [o for o in objs
+            if o.get("ObjectType") == f"{chosen}_Measurement"] if chosen else []
     if len(meas) != len(targets):
         raise _failure(M.M_CONVERT_CXF_COUNTS_DIFFER, name=cxf_path.name,
                        patches=len(targets), readings=len(meas))

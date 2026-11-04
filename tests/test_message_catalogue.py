@@ -145,6 +145,8 @@ AWAITING_APPROVAL: "set[str]" = {
     # forum 2026-11-03; Basti 2026-11-03: "ChromIQ offers a choice of
     # condition"), 4.3.23.
     "M-IMPORT-CXF-CONDITION", "M-IMPORT-CXF-CONDITION-PARTS",
+    # A condition the i1Profiler file holds no readings for (4.3.24).
+    "M-CONVERT-CXF-CONDITION-ABSENT",
     # Merges of measurements of different conditions are refused (Basti,
     # 2026-11-03, 4.3.23 review round 1, S3).
     "M-MERGE-CONDITION", "M-MERGE-CONDITION-TOOLS",

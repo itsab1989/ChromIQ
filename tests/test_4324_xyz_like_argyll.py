@@ -283,3 +283,13 @@ def test_a_perfect_white_stays_neutral_everywhere():
     assert np.allclose(white_xyz_like_argyll("D50"), _GOLDEN_XYZ[0],
                        atol=1e-4)
 
+
+def test_a_condition_the_file_does_not_hold_is_named_as_such(tmp_path):
+    """Until 4.3.24 this said "not as many readings as patches"."""
+    from tests.test_4324_cxf_selected_condition import _native
+    from workflow.reference_convert import ReferenceConvertError
+    with pytest.raises(ReferenceConvertError) as e:
+        cxf_measurement_to_ti3(_native(tmp_path / "a.mxf", ("M1", "M2"), "1"),
+                               tmp_path / "a.ti3", condition="M0")
+    assert e.value.message_id == "M-CONVERT-CXF-CONDITION-ABSENT"
+    assert "M0" in str(e.value) and "M1 and M2" in str(e.value)

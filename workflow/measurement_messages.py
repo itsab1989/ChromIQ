@@ -7430,6 +7430,27 @@ M_IMPORT_CXF_CONDITION_PARTS = _m(
                _COND_LOG_CHOSEN, _COND_LOG_CANCELLED)),
     approved=False)
 
+# --- PROPOSED (4.3.24): a condition the i1Profiler file holds no readings for --
+#: The conversion is asked for a condition the file does not hold. The window
+#: offers only the conditions the file holds, so this is a door that names a
+#: condition of its own (a stale choice, a script). Until 4.3.24 the refusal
+#: said the file "does not hold as many readings as patches", which is not
+#: what is wrong (the coordinator's review of 4.3.24, 2026-11-04). {name} is
+#: the file's name, {condition} the condition asked for, {conditions} the
+#: ones the file holds ("M1 and M2").
+M_CONVERT_CXF_CONDITION_ABSENT = _m(
+    "M-CONVERT-CXF-CONDITION-ABSENT",
+    _CONVERT_HEADLINE,
+    "{name} holds no readings measured under {condition}. i1Profiler saved "
+    "this measurement under {conditions} only. ChromIQ never imports one "
+    "condition in place of another, because the numbers would differ on a "
+    "paper with optical brighteners.\n\n"
+    "Import the file again and choose one of the conditions it holds. If you "
+    "need {condition} readings, measure the chart again in i1Profiler with "
+    "{condition} switched on and save the measurement.\n\n"
+    "Your file has not been changed.",
+    approved=False)
+
 #: The label and the explanation of each condition, in the window's order.
 CXF_CONDITION_OPTIONS = {
     "M0": (_COND_M0_LABEL, _COND_M0_TEXT),
@@ -8785,6 +8806,7 @@ M_GESTURE_STATUS = _m(
 
 CATALOGUE = {m.id: m for m in (
     M_IMPORT_CXF_CONDITION, M_IMPORT_CXF_CONDITION_PARTS,
+    M_CONVERT_CXF_CONDITION_ABSENT,
     M_MERGE_CONDITION, M_MERGE_CONDITION_TOOLS, M_AVERAGE_CONDITION,
     M_MERGE_CONDITION_ASK, M_AVERAGE_CONDITION_ASK, M_CONDITION_ASK_PARTS,
     M_CONDITION_NOT_ASKED, M_RESUME_CONDITION, M_RESUME_CONDITION_PARTS,
