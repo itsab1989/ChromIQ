@@ -7517,8 +7517,15 @@ _COND_M2_TEXT = ("The ultraviolet is filtered out, so the readings look as if "
                  "the paper had no brighteners. Good for prints that will be "
                  "seen under light with little ultraviolet, such as many LED "
                  "and halogen lamps, or behind glass that blocks ultraviolet.")
-_COND_SETTING_KNOWN = ("In i1Profiler, this measurement was set to "
-                       "{condition}, so that condition is selected below.")
+_COND_SETTING_KNOWN = ("This measurement was saved in i1Profiler with "
+                       "{condition} chosen as its measurement condition, so "
+                       "ChromIQ has selected {condition} for you below. You "
+                       "can still choose another condition if your prints "
+                       "will be seen in different light.")
+_COND_SETTING_ABSENT = ("In i1Profiler, {selected} was chosen as the "
+                        "measurement condition, but this file holds no "
+                        "{selected} readings. So ChromIQ has selected "
+                        "{condition} below instead.")
 _COND_SETTING_UNKNOWN = ("The file records i1Profiler's own setting as "
                          "\u201c{value}\u201d, but ChromIQ cannot tell for "
                          "certain which condition that stands for, so "
@@ -7536,6 +7543,10 @@ _COND_IMPORT = "Import"
 _COND_AND = "{first} and {last}"
 _COND_LOG_ONLY = ("Measurement condition: {condition}, the only one in the "
                   "file.")
+_COND_LOG_ONLY_OTHER_SAVED = ("Measurement condition: {condition}, the only "
+                              "one in the file. In i1Profiler {selected} was "
+                              "chosen, but the file holds no {selected} "
+                              "readings, so ChromIQ imported {condition}.")
 _COND_LOG_CHOSEN = ("Measurement condition: {condition}, as chosen (the file "
                     "also holds {others}).")
 _COND_LOG_CANCELLED = ("Nothing was imported: no measurement condition was "
@@ -7545,9 +7556,94 @@ M_IMPORT_CXF_CONDITION_PARTS = _m(
     "Choosing the measurement condition: the options, notes and log lines",
     "\n".join((_COND_M0_LABEL, _COND_M0_TEXT, _COND_M1_LABEL, _COND_M1_TEXT,
                _COND_M2_LABEL, _COND_M2_TEXT, _COND_SETTING_KNOWN,
-               _COND_SETTING_UNKNOWN, _COND_SETTING_NONE, _COND_FWA_NOTE,
+               _COND_SETTING_ABSENT, _COND_SETTING_UNKNOWN,
+               _COND_SETTING_NONE, _COND_FWA_NOTE,
                _COND_KEPT, _COND_IMPORT, _COND_AND, _COND_LOG_ONLY,
-               _COND_LOG_CHOSEN, _COND_LOG_CANCELLED)),
+               _COND_LOG_ONLY_OTHER_SAVED, _COND_LOG_CHOSEN,
+               _COND_LOG_CANCELLED)),
+    approved=False)
+
+# --- PROPOSED (4.3.24): a condition the i1Profiler file holds no readings for --
+#: The conversion is asked for a condition the file does not hold. The window
+#: offers only the conditions the file holds, so this is a door that names a
+#: condition of its own (a stale choice, a script). Until 4.3.24 the refusal
+#: said the file "does not hold as many readings as patches", which is not
+#: what is wrong (the coordinator's review of 4.3.24, 2026-11-04). {name} is
+#: the file's name, {condition} the condition asked for, {conditions} the
+#: ones the file holds ("M1 and M2").
+M_CONVERT_CXF_CONDITION_ABSENT = _m(
+    "M-CONVERT-CXF-CONDITION-ABSENT",
+    _CONVERT_HEADLINE,
+    "{name} holds no readings measured under {condition}. i1Profiler saved "
+    "this measurement under {conditions} only. ChromIQ never imports one "
+    "condition in place of another, because the numbers would differ on a "
+    "paper with optical brighteners.\n\n"
+    "Import the file again and choose one of the conditions it holds. If you "
+    "need {condition} readings, measure the chart again in i1Profiler with "
+    "{condition} switched on and save the measurement.\n\n"
+    "Your file has not been changed.",
+    approved=False)
+
+# --- PROPOSED (4.3.24): an i1Profiler spectrum ChromIQ cannot integrate ------
+#: A value in a reflectance spectrum that is not a number ("NaN", "INF", a
+#: word): the import wrote "nan" into the .ti3 before (review r1, L6). {name}
+#: the file, {value} the value as written, {patch} which patch it is, in the
+#: words of M-CONVERT-CXF-SPECTRUM-NOT-A-NUMBER-PARTS (review r3, R1): where
+#: it sits on the sheet (page, row and column, from the reading's Location),
+#: else the name the file gives it, else only its place among the readings.
+M_CONVERT_CXF_SPECTRUM_NOT_A_NUMBER = _m(
+    "M-CONVERT-CXF-SPECTRUM-NOT-A-NUMBER",
+    _CONVERT_HEADLINE,
+    "{name} holds a value that is not a number (\u201c{value}\u201d) in the "
+    "reflectance spectrum of {patch}. ChromIQ needs a number for every "
+    "wavelength to work out the colour of a patch, and it never guesses a "
+    "missing one.\n\n"
+    "Open the file in i1Profiler and look at that patch. If its reading is "
+    "missing or broken, measure the patch or the chart again and save the "
+    "measurement once more.\n\n"
+    "Your file has not been changed.",
+    approved=False)
+#: Which patch, for M-CONVERT-CXF-SPECTRUM-NOT-A-NUMBER. {page}, {row} and
+#: {column} are counted from 1 (i1Profiler's Location counts rows and
+#: columns from 0, so 1 is added); {label} is the file's own name for the
+#: patch; {index} and {count} its place among the readings.
+_NAN_PATCH_AT = ("the patch on page {page}, row {row}, column {column} "
+                 "(reading {index} of {count} in the file)")
+_NAN_PATCH_NAMED = ("the patch named \u201c{label}\u201d (reading {index} of "
+                    "{count} in the file)")
+_NAN_PATCH_ONLY = "reading {index} of {count} in the file"
+M_CONVERT_CXF_SPECTRUM_NOT_A_NUMBER_PARTS = _m(
+    "M-CONVERT-CXF-SPECTRUM-NOT-A-NUMBER-PARTS",
+    "Which patch a value that is not a number is in",
+    "\n".join((_NAN_PATCH_AT, _NAN_PATCH_NAMED, _NAN_PATCH_ONLY)),
+    approved=False)
+
+
+def cxf_nan_patch(index: int, count: int, *, page=None, row=None,
+                  column=None, label: "str | None" = None) -> str:
+    """{patch} of M-CONVERT-CXF-SPECTRUM-NOT-A-NUMBER: the location (page,
+    row, column, from 1) when known, else the file's name, else the place."""
+    if page is not None and row is not None and column is not None:
+        return tr(_NAN_PATCH_AT).format(page=page, row=row, column=column,
+                                        index=index, count=count)
+    if label:
+        return tr(_NAN_PATCH_NAMED).format(label=label, index=index,
+                                           count=count)
+    return tr(_NAN_PATCH_ONLY).format(index=index, count=count)
+#: Readings with fewer than 4 wavelengths: ArgyllCMS's method needs four
+#: (review r1, L5). i1Profiler writes 36. {bands} is how many the file has.
+M_CONVERT_CXF_TOO_FEW_BANDS = _m(
+    "M-CONVERT-CXF-TOO-FEW-BANDS",
+    _CONVERT_HEADLINE,
+    "The readings in {name} cover too few wavelengths to work out the "
+    "colours of the patches (wavelengths in the file: {bands}; ChromIQ, "
+    "like ArgyllCMS, needs at least 4). An i1Profiler measurement normally "
+    "holds 36, from 380 to 730 nm, so this file was probably written by "
+    "another program or cut short.\n\n"
+    "If the file was saved by i1Profiler, open the measurement there and "
+    "save it once more. If another program wrote it, have that program save "
+    "the complete spectra, and import the new file.\n\n"
+    "Your file has not been changed.",
     approved=False)
 
 #: The label and the explanation of each condition, in the window's order.
@@ -7820,9 +7916,15 @@ def resume_condition_unrecorded_line(setting: str) -> str:
 
 
 def cxf_condition_setting_line(selected_raw, selected, preselect) -> str:
-    """The line about i1Profiler's own setting under the window's text."""
+    """The line about i1Profiler's own setting under the window's text:
+    the condition chosen in i1Profiler, preselected (4.3.24: i1Profiler's
+    numbers 0, 1, 2 count as M0, M1, M2); the one chosen there but missing
+    from the file; a value ChromIQ cannot read as a condition; nothing."""
     if selected and selected == preselect:
         return tr(_COND_SETTING_KNOWN).format(condition=selected)
+    if selected:
+        return tr(_COND_SETTING_ABSENT).format(selected=selected,
+                                               condition=preselect)
     if selected_raw:
         return tr(_COND_SETTING_UNKNOWN).format(value=selected_raw,
                                                 condition=preselect)
@@ -7849,10 +7951,17 @@ def cxf_condition_import_button() -> str:
     return tr(_COND_IMPORT)
 
 
-def cxf_condition_log_line(condition: str, available) -> str:
-    """The log line every door writes after the condition is settled."""
+def cxf_condition_log_line(condition: str, available,
+                           selected: "str | None" = None) -> str:
+    """The log line every door writes after the condition is settled.
+    *selected* is the condition i1Profiler's saved choice names, when it
+    does: a file with one condition whose saved choice is another says so
+    (review r1, L6)."""
     others = [c for c in available if c != condition]
     if not others:
+        if selected and selected != condition:
+            return tr(_COND_LOG_ONLY_OTHER_SAVED).format(
+                condition=condition, selected=selected)
         return tr(_COND_LOG_ONLY).format(condition=condition)
     return tr(_COND_LOG_CHOSEN).format(condition=condition,
                                        others=cxf_condition_list(others))
@@ -8899,6 +9008,9 @@ M_GESTURE_STATUS = _m(
 
 CATALOGUE = {m.id: m for m in (
     M_IMPORT_CXF_CONDITION, M_IMPORT_CXF_CONDITION_PARTS,
+    M_CONVERT_CXF_CONDITION_ABSENT, M_CONVERT_CXF_SPECTRUM_NOT_A_NUMBER,
+    M_CONVERT_CXF_SPECTRUM_NOT_A_NUMBER_PARTS,
+    M_CONVERT_CXF_TOO_FEW_BANDS,
     M_MERGE_CONDITION, M_MERGE_CONDITION_TOOLS, M_AVERAGE_CONDITION,
     M_MERGE_CONDITION_ASK, M_AVERAGE_CONDITION_ASK, M_CONDITION_ASK_PARTS,
     M_CONDITION_NOT_ASKED, M_RESUME_CONDITION, M_RESUME_CONDITION_PARTS,

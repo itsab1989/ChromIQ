@@ -71,6 +71,15 @@ class CxfConditionDialog(QDialog):
         self._group = QButtonGroup(self)
         self._radios: "dict[str, QRadioButton]" = {}
         pre = conditions.preselect
+        # ABOVE THE CHOICES (4.3.24): the line says which condition "is
+        # selected below" and why (the one chosen in i1Profiler, when the
+        # file says so), so it stands before the choices it talks about.
+        setting = QLabel(M.cxf_condition_setting_line(
+            conditions.selected_raw, conditions.selected, pre))
+        setting.setObjectName("cxf_condition_setting")
+        setting.setWordWrap(True)
+        setting.setTextFormat(Qt.TextFormat.PlainText)
+        lay.addWidget(setting)
         for cond in conditions.available:
             if cond not in M.CXF_CONDITION_OPTIONS:
                 continue
@@ -90,12 +99,6 @@ class CxfConditionDialog(QDialog):
             desc.setBuddy(rb)
             lay.addWidget(desc)
 
-        setting = QLabel(M.cxf_condition_setting_line(
-            conditions.selected_raw, conditions.selected, pre))
-        setting.setObjectName("cxf_condition_setting")
-        setting.setWordWrap(True)
-        setting.setTextFormat(Qt.TextFormat.PlainText)
-        lay.addWidget(setting)
         for note in (M.cxf_condition_fwa_note(), M.cxf_condition_kept_note()):
             lbl = QLabel(note)
             lbl.setWordWrap(True)
@@ -175,5 +178,6 @@ def choose_cxf_condition(parent: "QWidget | None", path: "str | Path",
                 log(M.cxf_condition_cancelled_line())
             return None
     if log is not None:
-        log(M.cxf_condition_log_line(chosen, conds.available))
+        log(M.cxf_condition_log_line(chosen, conds.available,
+                                     conds.selected))
     return chosen

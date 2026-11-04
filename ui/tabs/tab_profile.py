@@ -5440,8 +5440,9 @@ class TabProfile(QWidget):
             from workflow.reference_convert import cxf_conditions
             from workflow import measurement_messages as _MM
             try:
+                _c = cxf_conditions(cxf_path)
                 self._log.appendPlainText(_MM.cxf_condition_log_line(
-                    condition, cxf_conditions(cxf_path).available))
+                    condition, _c.available, _c.selected))
             except Exception:      # noqa: BLE001 - the conversion says why
                 pass
         # Held on the tab so it is reclaimed with it. A bare mkdtemp here had

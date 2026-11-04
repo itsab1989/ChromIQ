@@ -162,6 +162,34 @@ def clear_condition(ti3_path: "str | Path") -> bool:
     """Take ``MEASUREMENT_CONDITION`` (and its ``KEYWORD`` line) out of the
     header of the measurement at *ti3_path*; every other byte stays. True
     when the file was changed."""
+    return clear_header_keyword(ti3_path, CONDITION_KEYWORD)
+
+
+def read_header_keyword(ti3_path: "str | Path | None", key: str
+                        ) -> "str | None":
+    """The value of header keyword *key* of the measurement at *ti3_path*
+    (quotes taken off), or None: no file, no keyword. Header only."""
+    if not ti3_path:
+        return None
+    try:
+        with open(ti3_path, "r", encoding="utf-8", errors="replace") as fh:
+            head = []
+            for n, line in enumerate(fh):
+                if line.strip() in ("BEGIN_DATA_FORMAT", "BEGIN_DATA") \
+                        or n > 400:
+                    break
+                head.append(line)
+    except OSError:
+        return None
+    m = re.search(rf'^\s*{re.escape(key)}\s+"?([^"\r\n]*?)"?\s*$',
+                  "".join(head), re.MULTILINE)
+    return m.group(1).strip() if m else None
+
+
+def clear_header_keyword(ti3_path: "str | Path", key: str) -> bool:
+    """Take header keyword *key* (and its ``KEYWORD`` line) out of the
+    measurement at *ti3_path*; every other byte stays. True when the file
+    was changed."""
     p = Path(ti3_path)
     try:
         raw = p.read_bytes()
@@ -170,9 +198,9 @@ def clear_condition(ti3_path: "str | Path") -> bool:
     head, sep, rest = raw.partition(b"BEGIN_DATA_FORMAT")
     if not sep:
         return False
-    key = re.escape(CONDITION_KEYWORD.encode("ascii"))
+    k = re.escape(key.encode("ascii"))
     line_re = re.compile(
-        rb'^[ \t]*(?:KEYWORD[ \t]+"?' + key + rb'"?|' + key
+        rb'^[ \t]*(?:KEYWORD[ \t]+"?' + k + rb'"?|' + k
         + rb'[ \t]+[^\r\n]*)[ \t]*\r?\n', re.MULTILINE)
     new_head, n = line_re.subn(b"", head)
     if not n:

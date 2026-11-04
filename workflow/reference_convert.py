@@ -19,6 +19,7 @@ the user's original download is left untouched. ``scanin`` happily reads a
 from __future__ import annotations
 
 import logging
+import math
 import re
 import subprocess
 from dataclasses import dataclass
@@ -357,6 +358,14 @@ def stamp_instrument_from_source(ti3_path: str | Path, source_txt: str | Path,
 
 
 _CXF_NS = {"cc": "http://colorexchangeformat.com/CxF3-core"}
+#: The header keyword that says how an import's XYZ was computed from its
+#: spectra (4.3.24). Imports made before carry none: their XYZ came from the
+#: 10 nm sums and is left exactly as it was written.
+XYZ_METHOD_KEYWORD = "CHROMIQ_XYZ_METHOD"
+#: Fewer bands than this cannot be integrated as ArgyllCMS does
+#: (``workflow.argyll_colorimetry.MIN_BANDS``).
+MIN_SPECTRAL_BANDS = 4
+XYZ_METHOD_ARGYLL = "ArgyllCMS xspect, D50, 1931 2 degree, 1 nm"
 #: The measurement conditions (ISO 13655) an i1Profiler CxF can hold, in the
 #: order the condition window lists them. Until 4.3.23 the import took the
 #: first of M2, M1, M0 the file held, without asking and without saying so
@@ -385,10 +394,15 @@ class CxfConditions:
     :data:`_CXF_CONDITIONS` order. *selected_raw* is i1Profiler's own
     ``SelectedMeasurementCondition`` as the file writes it (None when absent),
     and *selected* the condition that value names WITH CERTAINTY, else None.
-    Only a text label is certain: X-Rite's i1iSis sample writes
-    ``"UV excluded [M2]"``. i1Profiler 3.x writes a number ("0" in jctay's
-    files), and which number is which condition has not been proved, so a
-    number is reported but never mapped (Basti, 2026-11-03).
+    A text label is certain: X-Rite's i1iSis sample writes
+    ``"UV excluded [M2]"``. i1Profiler writes a number, and since 4.3.24 the
+    numbers 0, 1 and 2 are mapped to M0, M1 and M2: jctay saved one
+    measurement three times in i1Profiler 3.8.5 with M0, M1 and M2 chosen,
+    and the files differ only in ``SelectedMeasurementCondition="0"``,
+    ``"1"`` and ``"2"`` (printerknowledge, 2026-11-04); his files that hold
+    only some conditions agree (an M2-only file says "2", an M1+M2 file
+    "1"), so the number names the condition itself, not its place among the
+    ones the file holds. Any other number names nothing.
     *preselect* is what the window offers first: *selected* when the file
     holds it, else M1 when it holds M1, else the first it holds."""
     available: tuple
@@ -412,16 +426,26 @@ _CONDITION_LABEL_RE = re.compile(r"(?<![A-Za-z0-9])M([0-3])(?![0-9])",
                                  re.IGNORECASE)
 
 
+#: i1Profiler's numbers for its measurement conditions (4.3.24, proved on
+#: jctay's files, see :class:`CxfConditions`).
+_CXF_CONDITION_NUMBERS = {0: "M0", 1: "M1", 2: "M2"}
+
+
 def condition_from_label(raw: "str | None") -> "str | None":
     """The condition a ``SelectedMeasurementCondition`` value names with
     certainty, or None. A label that carries one condition token ("UV
-    excluded [M2]", "M1", "M0 - No Filter") names it; a bare number does
-    not (see :class:`CxfConditions`), and neither does a label naming two."""
+    excluded [M2]", "M1", "M0 - No Filter") names it; so does i1Profiler's
+    number 0, 1 or 2 (M0, M1, M2; see :class:`CxfConditions`). Any other
+    number names nothing, and neither does a label naming two conditions."""
     if raw is None:
         return None
     text = str(raw).strip()
-    if not text or re.fullmatch(r"[-+]?\d+", text):
+    if not text:
         return None
+    if re.fullmatch(r"[-+]?\d+", text):
+        # Only i1Profiler's own spellings: "0", "1", "2". "-0", "00" or "+1"
+        # are no value it writes, so they name nothing (review r1, L6).
+        return {str(k): v for k, v in _CXF_CONDITION_NUMBERS.items()}.get(text)
     found = {f"M{d}" for d in _CONDITION_LABEL_RE.findall(text)}
     return found.pop() if len(found) == 1 else None
 
@@ -545,6 +569,29 @@ def _cxf_wavelengths(root, spectrum_el, bands: int):
     return start + step * np.arange(bands)
 
 
+def _cxf_patch_label(obj, index: int, count: int) -> str:
+    """Which patch the reading *obj* is, in words a person finds on the
+    sheet (review r3, R1): its ``SampleName`` tag when it has one (the name
+    the chart carries); else its page, row and column from its ``Location``
+    tags (i1Profiler counts rows and columns from 0, so 1 is added); else
+    its ``Name`` attribute, i1Profiler's internal one ("M1_Measurement137"),
+    as a last resort; else only its place among the readings."""
+    tags = {}
+    for tc in obj.iter():
+        if tc.get("Name") is not None and tc.get("Value") is not None:
+            tags.setdefault(tc.get("Name"), tc.get("Value").strip())
+    if tags.get("SampleName"):
+        return M.cxf_nan_patch(index, count, label=tags["SampleName"])
+    try:
+        return M.cxf_nan_patch(index, count, page=int(tags["Page"]),
+                               row=int(tags["Row"]) + 1,
+                               column=int(tags["Column"]) + 1)
+    except (KeyError, TypeError, ValueError):
+        pass
+    return M.cxf_nan_patch(index, count,
+                           label=(obj.get("Name") or "").strip() or None)
+
+
 def _nm(v: float) -> str:
     return f"{int(round(v))}" if abs(v - round(v)) < 1e-6 else f"{v:g}"
 
@@ -557,7 +604,9 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path,
     The CxF3 file holds device patches (``Target`` objects, ``ColorRGB``) and the
     readings (``M0/M1/M2_Measurement`` objects, a ``ReflectanceSpectrum`` each) as
     two PARALLEL, index-aligned object lists; we pair them by order, convert the
-    reflectance to XYZ under D50 / CIE 1931 2° (matching the report's colorimetry),
+    reflectance to XYZ under D50 / CIE 1931 2° by ArgyllCMS's own method
+    (:mod:`workflow.argyll_colorimetry`, since 4.3.24; the same numbers
+    ``spec2cie`` gives, where the 10 nm sums before were 0.05 dE76 away),
     rescale device RGB to Argyll's 0..100, and stamp the instrument + measurement
     date. RGB or CMYK (beta 7); extended inks raise.
 
@@ -571,7 +620,7 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path,
     ``CHROMIQ_I1P_INSTRUMENT``.
     """
     import numpy as np
-    from workflow.profile_engine.spectral import spectra_to_xyz
+    from workflow.argyll_colorimetry import spectra_to_xyz_like_argyll
 
     cxf_path = Path(cxf_path)
     root = _cxf_root(cxf_path)
@@ -606,13 +655,17 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path,
     conds = _cxf_conditions_of(root)
     chosen = (str(condition).strip().upper() if condition
               else conds.preselect)
-    if chosen not in conds.available:
+    if conds.available and chosen not in conds.available:
         # A condition the file does not hold (a stale choice, a caller's
-        # mistake): never another condition in silence, so no readings.
-        meas = []
-    else:
-        meas = [o for o in objs
-                if o.get("ObjectType") == f"{chosen}_Measurement"]
+        # mistake): never another condition in silence, and say what is
+        # wrong (4.3.24; it used to read "not as many readings as patches").
+        raise _failure(M.M_CONVERT_CXF_CONDITION_ABSENT, name=cxf_path.name,
+                       condition=chosen,
+                       conditions=M.cxf_condition_list(conds.available))
+    # (A file with no M0/M1/M2 readings at all says so below: no readings
+    # for its patches.)
+    meas = [o for o in objs
+            if o.get("ObjectType") == f"{chosen}_Measurement"] if chosen else []
     if len(meas) != len(targets):
         raise _failure(M.M_CONVERT_CXF_COUNTS_DIFFER, name=cxf_path.name,
                        patches=len(targets), readings=len(meas))
@@ -623,19 +676,41 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path,
         if sp is None or not sp.text:
             raise _failure(M.M_CONVERT_CXF_NO_SPECTRUM, name=cxf_path.name)
         first_sp = first_sp if first_sp is not None else sp
-        refl.append([float(v) for v in sp.text.split()])
+        values = []
+        for v in sp.text.split():
+            try:
+                f = float(v)
+            except ValueError:
+                f = float("nan")
+            if not math.isfinite(f):
+                # "nan" in a .ti3 is no measurement (review r1, L6): refuse
+                # the import and name the patch, never write it.
+                raise _failure(M.M_CONVERT_CXF_SPECTRUM_NOT_A_NUMBER,
+                               name=cxf_path.name,
+                               patch=_cxf_patch_label(o, len(refl) + 1,
+                                                      len(meas)),
+                               value=v)
+            values.append(f)
+        refl.append(values)
     bands = len(refl[0])
     if any(len(r) != bands for r in refl):
         raise _failure(M.M_CONVERT_CXF_UNEQUAL_SPECTRA, name=cxf_path.name)
+    if bands < MIN_SPECTRAL_BANDS:
+        raise _failure(M.M_CONVERT_CXF_TOO_FEW_BANDS, name=cxf_path.name,
+                       bands=bands)
 
     lam = _cxf_wavelengths(root, first_sp, bands)
     refl = np.asarray(refl, dtype=float)
-    xyz = spectra_to_xyz(refl, lam, illuminant="D50")   # Y=100, D50
     # CxF ColorRGB is 0..255; ColorCMYK is already percent.
     rgb100 = np.asarray(rgb) * ((100.0 / 255.0) if space == "RGB" else 1.0)
     # CxF reflectance is 0..1; an ArgyllCMS .ti3 carries it in percent
     # (chartread's SPEC_ columns), so a value above 2 is already percent.
     spec100 = refl * (1.0 if float(np.nanmax(refl)) > 2.0 else 100.0)
+    # D50, 2 degree, Y = 100, computed as ArgyllCMS computes it (1 nm steps
+    # over 360-830 nm, its interpolation, end values held): what spec2cie
+    # and colprof would make of these spectra (4.3.24, jctay's files).
+    xyz = spectra_to_xyz_like_argyll(spec100, lam, illuminant="D50",
+                                     observer="1931_2", percent=True)
 
     i1p_name = _cxf_instrument(root)
     instrument = argyll_instrument_name(i1p_name)
@@ -647,7 +722,9 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path,
         lines += [f'KEYWORD "{I1P_INSTRUMENT_KEYWORD}"',
                   f'{I1P_INSTRUMENT_KEYWORD} "{i1p_name}"']
     lines += ['KEYWORD "MEASUREMENT_CONDITION"',
-              f'MEASUREMENT_CONDITION "{chosen}"']
+              f'MEASUREMENT_CONDITION "{chosen}"',
+              f'KEYWORD "{XYZ_METHOD_KEYWORD}"',
+              f'{XYZ_METHOD_KEYWORD} "{XYZ_METHOD_ARGYLL}"']
     if date:
         lines += ['KEYWORD "CHROMIQ_MEASURED"', f'CHROMIQ_MEASURED "{date}"']
     grid = _cxf_i1p_grid(root, targets)
@@ -670,7 +747,7 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path,
     for i, (dev, (x, y, z), sp) in enumerate(zip(rgb100, xyz, spec100), 1):
         d = " ".join(f"{v:.4f}" for v in dev)
         s = " ".join(f"{v:.5f}" for v in sp)
-        lines.append(f'{i} "{i}" {d} {x:.4f} {y:.4f} {z:.4f} {s}')
+        lines.append(f'{i} "{i}" {d} {x:.6f} {y:.6f} {z:.6f} {s}')
     lines += ["END_DATA", ""]
     out_ti3 = Path(out_ti3)
     if not out_ti3.name.lower().endswith(".ti3"):

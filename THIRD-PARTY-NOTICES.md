@@ -265,6 +265,37 @@ without it.
 
 ---
 
+## CIE colorimetric tables — `workflow/cie_data.py`, `workflow/profile_engine/spectral_data.py`
+
+The CIE 1931 2° and CIE 1964 10° standard observers and the CIE illuminants A,
+C, D50, D65, F5, F8 and F10, used wherever ChromIQ turns a spectrum into XYZ
+(`workflow/argyll_colorimetry.py`, `workflow/ti3_analysis.py`, the profile
+engine, the CR30's `workflow/cr30/colour.py`).
+
+**What they are: CIE standard data** (CIE 15, ISO/CIE 11664), published by the
+CIE as its standard colorimetric data. The numbers were taken, by the generator
+`scripts/gen_cie_data.py`, from the tabulation in ArgyllCMS's `xicc/xspect.c`
+(Graeme W. Gill, <https://www.argyllcms.com/>), so that ChromIQ integrates with
+exactly the values ArgyllCMS uses. They are data, not program code: no
+ArgyllCMS code was copied.
+
+**Terms.** The values are measured standard data, not a creative work of
+ArgyllCMS, and ChromIQ uses them as the CIE publishes them. The file they
+were read from, `xspect.c`, states *"licenced under the GNU GENERAL PUBLIC
+LICENSE Version 2 or later"*; even read as covered by that licence, "version 2
+or later" allows their use under ChromIQ's GPLv3. Either way nothing conflicts
+with the rights GPLv3 grants everyone who receives ChromIQ. Credited here so a
+reader who sees ArgyllCMS's name beside these tables knows where they come from
+and on what terms.
+
+`workflow/argyll_colorimetry.py` is ChromIQ's own code: a standard numeric
+procedure (linear or 4-point Lagrange interpolation to 1 nm steps, a sum over
+the observer's range, normalisation to Y = 100), written in numpy so that its
+results equal those of ArgyllCMS's `spec2cie`, which the tests check against
+the installed ArgyllCMS.
+
+---
+
 ## ChromIQ's own
 
 Listed so the sweep is exhaustive:

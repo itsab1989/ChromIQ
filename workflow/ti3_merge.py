@@ -368,6 +368,7 @@ def merge_preconditioning(
         _record_confirmed(out_ti3, _check_of(
             [(pre_data, pre.condition), (fresh_ti3, fresh.condition)]))
 
+    settle_combined_xyz_method(out_ti3, [pre_data, fresh_ti3])
     total = fresh.n_sets + pre.n_sets
     log.info(
         "Merged measurements via 'average -m': %d fresh + %d pre-conditioning "
@@ -452,6 +453,7 @@ def merge_measurements(
     if merge_unrecorded:
         # "Merge them": the KNOWN condition, whichever file is the primary.
         _record_confirmed(out_ti3, check)
+    settle_combined_xyz_method(out_ti3, inputs)
 
     log.info(
         "Merged %d measurement files via 'average -m' = %d sets -> %s",
@@ -465,6 +467,29 @@ def _record_confirmed(out_ti3: Path, check: ConditionCheck) -> None:
     the known condition (:func:`settle_combined_condition`)."""
     if check.asks:
         settle_combined_condition(out_ti3, check, confirmed=True)
+
+
+def settle_combined_xyz_method(result: Path, inputs) -> None:
+    """After ``average`` has combined *inputs* into *result*: the result
+    says how its XYZ was computed (``CHROMIQ_XYZ_METHOD``, 4.3.24) only when
+    every input says the same. ``average`` copies the first file's header,
+    so a new i1Profiler import averaged or merged with one made before
+    4.3.24 (or with a chartread file, which carries no such line) would
+    otherwise claim ArgyllCMS's method for readings half of which were
+    computed by the earlier 10 nm sums. Then the line is taken out: the
+    result makes no claim. Only the header changes."""
+    from workflow.measurement_condition import (clear_header_keyword,
+                                                read_header_keyword)
+    from workflow.reference_convert import XYZ_METHOD_KEYWORD
+    try:
+        methods = {read_header_keyword(p, XYZ_METHOD_KEYWORD) or ""
+                   for p in inputs}
+        if len(methods) > 1 and clear_header_keyword(result,
+                                                     XYZ_METHOD_KEYWORD):
+            log.info("combined %s: its inputs computed XYZ in different "
+                     "ways, so it names no method", Path(result).name)
+    except Exception:      # noqa: BLE001 — never fail an average over this
+        log.debug("XYZ method of %s not settled", result, exc_info=True)
 
 
 def settle_combined_condition(result: Path, check: ConditionCheck, *,
@@ -483,9 +508,11 @@ def settle_combined_condition(result: Path, check: ConditionCheck, *,
       data;
     * otherwise (none beside M0, which nobody was asked about): nothing.
 
-    Only the header is changed (:func:`record_condition`)."""
+    Only the header is changed (:func:`record_condition`). The XYZ method
+    line is settled too (:func:`settle_combined_xyz_method`)."""
     from workflow.measurement_condition import (clear_condition,
                                                 record_condition)
+    settle_combined_xyz_method(result, [p for p, _c in check.conditions])
     try:
         if check.common:
             record_condition(result, check.common)

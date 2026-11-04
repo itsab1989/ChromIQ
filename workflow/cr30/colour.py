@@ -127,27 +127,75 @@ def _obs(observer):
             f"observer must be '2' or '10', got {observer!r}") from None
 
 
+#: The 10 nm tables above stand for ArgyllCMS's own illuminants of these
+#: names; the observers for its 1931 2 and 1964 10 degree observers.
+_ARGYLL_ILLUMINANT = (("D50", D50), ("D65", D65))
+_ARGYLL_OBSERVER = {"2": "1931_2", "10": "1964_10"}
+
+
+def _argyll_illuminant(illum):
+    for name, table in _ARGYLL_ILLUMINANT:
+        if illum is table or list(illum) == table:
+            return name
+    return None
+
+
 def spectrum_to_xyz(refl, illum=D50, observer=PROFILING_OBSERVER):
     """refl: 31 values in PERCENT reflectance (as the CR30 returns them).
 
     Defaults to **D50 / CIE 1931 2 degree**, the condition ArgyllCMS expects in
     a .ti3. Y is returned on a 0-100 scale (a perfect diffuser is Y=100), which
     is what `chartread -x` and `colprof` want.
+
+    COMPUTED AS ArgyllCMS COMPUTES IT (4.3.24) for D50 and D65: 1 nm steps
+    over 360-830 nm, the 31 bands read with ArgyllCMS's 4-point cubic and the
+    400 nm and 700 nm values held beyond the measured range, exactly what
+    ``spec2cie`` makes of the same 400-700 nm ``.ti3``
+    (:mod:`workflow.argyll_colorimetry`). The 10 nm sums used before were
+    0.10 dE76 mean, 0.18 max away (measured 2026-11-04). Only new readings
+    are computed so: a ``.ti3`` already written keeps its numbers. Any other
+    illuminant table is summed at the 31 bands as before.
     """
     if len(refl) != len(WL):
         raise ValueError(f"need {len(WL)} bands, got {len(refl)}")
     xb, yb, zb = _obs(observer)
+    name = _argyll_illuminant(illum)
+    if name is not None:
+        from workflow.argyll_colorimetry import spectra_to_xyz_like_argyll
+        xyz = spectra_to_xyz_like_argyll(
+            [float(v) for v in refl], WL, illuminant=name,
+            observer=_ARGYLL_OBSERVER[str(observer)], percent=True)[0]
+        return tuple(float(v) for v in xyz)
+    return _table_xyz(refl, illum, (xb, yb, zb))
+
+
+def _table_xyz(refl, illum, cmfs):
+    xb, yb, zb = cmfs
     k = 100.0 / sum(s * y for s, y in zip(illum, yb))
     r = [v / 100.0 for v in refl]
     return tuple(k * sum(ri * s * c for ri, s, c in zip(r, illum, cmf))
                  for cmf in (xb, yb, zb))
 
 
-def white_point(illum=D50, observer=PROFILING_OBSERVER):
+def _table_white_point(illum, observer=PROFILING_OBSERVER):
+    """The white point summed from the 10 nm tables in this file: what
+    :func:`validate_illuminants` checks those tables with."""
     xb, yb, zb = _obs(observer)
     k = 100.0 / sum(s * y for s, y in zip(illum, yb))
     return tuple(k * sum(s * c for s, c in zip(illum, cmf))
                  for cmf in (xb, yb, zb))
+
+
+def white_point(illum=D50, observer=PROFILING_OBSERVER):
+    """The XYZ of a perfect diffuser, computed the same way as
+    :func:`spectrum_to_xyz`, so a perfect white reads L* 100, a* b* 0."""
+    _obs(observer)
+    name = _argyll_illuminant(illum)
+    if name is not None:
+        from workflow.argyll_colorimetry import white_xyz_like_argyll
+        return tuple(float(v) for v in white_xyz_like_argyll(
+            name, _ARGYLL_OBSERVER[str(observer)]))
+    return _table_white_point(illum, observer)
 
 
 def xyz_to_lab(xyz, illum=D50, observer=PROFILING_OBSERVER):
@@ -183,7 +231,7 @@ def validate_illuminants(tol=0.001, observer=PROFILING_OBSERVER):
     key = str(observer)
     for name, sp, want in (("D65", D65, want_by_obs[key]["D65"]),
                            ("D50", D50, want_by_obs[key]["D50"])):
-        X, Y, Z = white_point(sp, observer)
+        X, Y, Z = _table_white_point(sp, observer)
         x, y = X / (X + Y + Z), Y / (X + Y + Z)
         err = max(abs(x - want[0]), abs(y - want[1]))
         out[name] = {"xy": (round(x, 5), round(y, 5)), "expected": want,

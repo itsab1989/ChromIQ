@@ -79,6 +79,7 @@ NOTICE_SECTIONS: "tuple[str, ...]" = (
     "Certificate bundle",
     "FreeType",
     "Argyll-derived helpers",
+    "CIE colorimetric tables",
     "ChromIQ's own",
 )
 
