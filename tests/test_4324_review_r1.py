@@ -102,8 +102,59 @@ def test_a_patch_with_a_sample_name_is_named_by_it(tmp_path):
         cxf_measurement_to_ti3(src, tmp_path / "a.ti3")
     assert "“A12”" in str(e.value)
     assert M.M_CONVERT_CXF_SPECTRUM_NOT_A_NUMBER.render(
-        name="a.mxf", patch="A12", index=2, count=12, value="nan")[1] \
-        == str(e.value)
+        name="a.mxf", patch=M.cxf_nan_patch(2, 12, label="A12"),
+        value="nan")[1] == str(e.value)
+
+
+def _with_location(src: Path, reading: int, page, row, column) -> None:
+    """Give the *reading*-th object i1Profiler's Location tags (Row and
+    Column from 0, Page from 1), as in jctay's files."""
+    text = src.read_text(encoding="utf-8")
+    parts = text.split("</cc:ColorValues>")
+    parts[reading] = (
+        '<cc:TagCollection Name="Location">'
+        f'<cc:Tag Name="Column" Value="{column}"/>'
+        f'<cc:Tag Name="Page" Value="{page}"/>'
+        f'<cc:Tag Name="Row" Value="{row}"/>'
+        '<cc:Tag Name="SampleID" Value="-1"/>'
+        '<cc:Tag Name="SampleName" Value=""/></cc:TagCollection>'
+        ) + parts[reading]
+    src.write_text("</cc:ColorValues>".join(parts), encoding="utf-8")
+
+
+def test_a_patch_is_named_by_where_it_sits_on_the_sheet(tmp_path):
+    """i1Profiler's readings carry no SampleName but a Location: page 1,
+    row 35 and column 1 counted from 0 are row 36 and column 2 on the sheet
+    (review r3, R1); the internal "M1_Measurement3" is not shown."""
+    src = _native(tmp_path / "a.mxf", ("M1",), "1")
+    _with_location(src, 3, 1, 35, 1)
+    vals = ["0.5"] * 36
+    vals[4] = "NaN"
+    _with_spectrum(src, 3, vals)
+    with pytest.raises(ReferenceConvertError) as e:
+        cxf_measurement_to_ti3(src, tmp_path / "a.ti3")
+    text = str(e.value)
+    assert "page 1, row 36, column 2" in text, text
+    assert "reading 3 of 12" in text
+    assert "M1_Measurement3" not in text
+    assert text == M.M_CONVERT_CXF_SPECTRUM_NOT_A_NUMBER.render(
+        name="a.mxf", patch=M.cxf_nan_patch(3, 12, page=1, row=36, column=2),
+        value="NaN")[1]
+
+
+def test_without_a_name_or_location_only_the_place_is_given():
+    assert M.cxf_nan_patch(5, 600) == "reading 5 of 600 in the file"
+
+
+# ---- review r3, R2: the spectral model with fewer than 4 bands -----------------
+
+def test_the_spectral_model_is_silently_inapplicable_below_four_bands():
+    import types
+    from workflow.profile_engine.spectral_model import fit_spectral_hybrid
+    meas = types.SimpleNamespace(
+        spectral=np.full((300, 3), 50.0), is_additive=False, n_channels=3,
+        device=np.zeros((300, 3)), wavelengths=np.array([450.0, 550.0, 650.0]))
+    assert fit_spectral_hybrid(meas, object(), base_lam=0.03) is None
 
 
 # ---- L5 -----------------------------------------------------------------------

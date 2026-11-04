@@ -7459,16 +7459,15 @@ M_CONVERT_CXF_CONDITION_ABSENT = _m(
 # --- PROPOSED (4.3.24): an i1Profiler spectrum ChromIQ cannot integrate ------
 #: A value in a reflectance spectrum that is not a number ("NaN", "INF", a
 #: word): the import wrote "nan" into the .ti3 before (review r1, L6). {name}
-#: the file, {patch} the patch's number in the file (1 for the first), {value}
-#: the value as written. {patch} is what the file calls the patch (its
-#: SampleName, else the reading's Name, else its place), {index} and {count}
-#: its place among the readings (review r2, N3).
+#: the file, {value} the value as written, {patch} which patch it is, in the
+#: words of M-CONVERT-CXF-SPECTRUM-NOT-A-NUMBER-PARTS (review r3, R1): where
+#: it sits on the sheet (page, row and column, from the reading's Location),
+#: else the name the file gives it, else only its place among the readings.
 M_CONVERT_CXF_SPECTRUM_NOT_A_NUMBER = _m(
     "M-CONVERT-CXF-SPECTRUM-NOT-A-NUMBER",
     _CONVERT_HEADLINE,
-    "The reflectance spectrum of the patch \u201c{patch}\u201d in {name} "
-    "(reading {index} of {count} in the file) holds a value that is not a "
-    "number (\u201c{value}\u201d). ChromIQ needs a number for every "
+    "{name} holds a value that is not a number (\u201c{value}\u201d) in the "
+    "reflectance spectrum of {patch}. ChromIQ needs a number for every "
     "wavelength to work out the colour of a patch, and it never guesses a "
     "missing one.\n\n"
     "Open the file in i1Profiler and look at that patch. If its reading is "
@@ -7476,6 +7475,33 @@ M_CONVERT_CXF_SPECTRUM_NOT_A_NUMBER = _m(
     "measurement once more.\n\n"
     "Your file has not been changed.",
     approved=False)
+#: Which patch, for M-CONVERT-CXF-SPECTRUM-NOT-A-NUMBER. {page}, {row} and
+#: {column} are counted from 1 (i1Profiler's Location counts rows and
+#: columns from 0, so 1 is added); {label} is the file's own name for the
+#: patch; {index} and {count} its place among the readings.
+_NAN_PATCH_AT = ("the patch on page {page}, row {row}, column {column} "
+                 "(reading {index} of {count} in the file)")
+_NAN_PATCH_NAMED = ("the patch named \u201c{label}\u201d (reading {index} of "
+                    "{count} in the file)")
+_NAN_PATCH_ONLY = "reading {index} of {count} in the file"
+M_CONVERT_CXF_SPECTRUM_NOT_A_NUMBER_PARTS = _m(
+    "M-CONVERT-CXF-SPECTRUM-NOT-A-NUMBER-PARTS",
+    "Which patch a value that is not a number is in",
+    "\n".join((_NAN_PATCH_AT, _NAN_PATCH_NAMED, _NAN_PATCH_ONLY)),
+    approved=False)
+
+
+def cxf_nan_patch(index: int, count: int, *, page=None, row=None,
+                  column=None, label: "str | None" = None) -> str:
+    """{patch} of M-CONVERT-CXF-SPECTRUM-NOT-A-NUMBER: the location (page,
+    row, column, from 1) when known, else the file's name, else the place."""
+    if page is not None and row is not None and column is not None:
+        return tr(_NAN_PATCH_AT).format(page=page, row=row, column=column,
+                                        index=index, count=count)
+    if label:
+        return tr(_NAN_PATCH_NAMED).format(label=label, index=index,
+                                           count=count)
+    return tr(_NAN_PATCH_ONLY).format(index=index, count=count)
 #: Readings with fewer than 4 wavelengths: ArgyllCMS's method needs four
 #: (review r1, L5). i1Profiler writes 36. {bands} is how many the file has.
 M_CONVERT_CXF_TOO_FEW_BANDS = _m(
@@ -8855,6 +8881,7 @@ M_GESTURE_STATUS = _m(
 CATALOGUE = {m.id: m for m in (
     M_IMPORT_CXF_CONDITION, M_IMPORT_CXF_CONDITION_PARTS,
     M_CONVERT_CXF_CONDITION_ABSENT, M_CONVERT_CXF_SPECTRUM_NOT_A_NUMBER,
+    M_CONVERT_CXF_SPECTRUM_NOT_A_NUMBER_PARTS,
     M_CONVERT_CXF_TOO_FEW_BANDS,
     M_MERGE_CONDITION, M_MERGE_CONDITION_TOOLS, M_AVERAGE_CONDITION,
     M_MERGE_CONDITION_ASK, M_AVERAGE_CONDITION_ASK, M_CONDITION_ASK_PARTS,

@@ -569,16 +569,27 @@ def _cxf_wavelengths(root, spectrum_el, bands: int):
     return start + step * np.arange(bands)
 
 
-def _cxf_patch_label(obj, index: int) -> str:
-    """What the file calls the reading *obj* (review r2, N3): its
-    ``SampleName`` tag when it has one, else its ``Name`` attribute
-    (i1Profiler writes "M1_Measurement137"), else its place in the file."""
-    for tag in obj.iter():
-        if (tag.get("Name") or "") == "SampleName" \
-                and (tag.get("Value") or "").strip():
-            return tag.get("Value").strip()
-    name = (obj.get("Name") or "").strip()
-    return name or str(index)
+def _cxf_patch_label(obj, index: int, count: int) -> str:
+    """Which patch the reading *obj* is, in words a person finds on the
+    sheet (review r3, R1): its ``SampleName`` tag when it has one (the name
+    the chart carries); else its page, row and column from its ``Location``
+    tags (i1Profiler counts rows and columns from 0, so 1 is added); else
+    its ``Name`` attribute, i1Profiler's internal one ("M1_Measurement137"),
+    as a last resort; else only its place among the readings."""
+    tags = {}
+    for tc in obj.iter():
+        if tc.get("Name") is not None and tc.get("Value") is not None:
+            tags.setdefault(tc.get("Name"), tc.get("Value").strip())
+    if tags.get("SampleName"):
+        return M.cxf_nan_patch(index, count, label=tags["SampleName"])
+    try:
+        return M.cxf_nan_patch(index, count, page=int(tags["Page"]),
+                               row=int(tags["Row"]) + 1,
+                               column=int(tags["Column"]) + 1)
+    except (KeyError, TypeError, ValueError):
+        pass
+    return M.cxf_nan_patch(index, count,
+                           label=(obj.get("Name") or "").strip() or None)
 
 
 def _nm(v: float) -> str:
@@ -676,8 +687,8 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path,
                 # the import and name the patch, never write it.
                 raise _failure(M.M_CONVERT_CXF_SPECTRUM_NOT_A_NUMBER,
                                name=cxf_path.name,
-                               patch=_cxf_patch_label(o, len(refl) + 1),
-                               index=len(refl) + 1, count=len(meas),
+                               patch=_cxf_patch_label(o, len(refl) + 1,
+                                                      len(meas)),
                                value=v)
             values.append(f)
         refl.append(values)
