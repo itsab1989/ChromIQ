@@ -1,5 +1,13 @@
 # Changelog
 
+## v4.3.28
+
+**For everyone updating from 4.3.27: the Measure tab opens without a pause when it shows a measured chart, and typing a project name no longer throws away a Create Chart setting you had changed but not yet generated. Your charts, measurements and profiles do not change.**
+
+### Fixed
+- **Typing a project name threw away Create Chart changes you had not generated yet.** With a project open, every letter you typed in “Printer profile project name” made ChromIQ save and reload the open run's chart settings. A setting you had changed but not yet applied with “Generate Chart” (for example the scale, or the number of patches) quietly jumped back to the chart's value, and the red note that says the change is not in this run's chart yet disappeared. Each letter also took about a tenth of a second. Typing a name now only changes the name: your unapplied settings stay as you set them, and the field reacts at once. Nothing else about the name changes: a rename is still offered when you leave the field, a project with a built profile still cannot be renamed, the line under the box still says straight away when the name belongs to another project, and ChromIQ still asks before it builds into that project.
+- **The Measure tab took a moment to appear when it showed a measured chart.** With “Show overlay” on, ChromIQ worked out and drew the colours of every measured patch two or more times each time you switched to the Measure tab, even when nothing had changed. On a chart of about 1,200 patches that was 0.6 seconds, or more than a second after you accepted the offer to show the measurement. It now draws them once, and not at all when nothing they depend on has changed since the last time: switching to the tab takes less than a tenth of a second. Anything that does change the picture, such as a new reading, another run or chart, a limit changed in Preferences, a confirmed re-read or a changed calibration, still redraws it at once. The colours shown are exactly the same as before.
+
 ## v4.3.27
 
 **For everyone updating from 4.3.26: Create Chart is much quicker with a chart of many pages. Turning the pages of the preview no longer makes you wait, and a layout change with Auto-update preview on comes back in about half the time or less. The patch estimate in Guided now counts what Guided will really build. Your charts, measurements and profiles do not change.**
