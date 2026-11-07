@@ -1078,6 +1078,13 @@ def a88_black(table: np.ndarray, node_lab: np.ndarray, residual: np.ndarray, mod
         return np.concatenate([rr, pen * np.maximum(a88_cast(y) - cp, 0.0)[:, None]], 1)
 
     best = _a88_descend(model.predict, t_lab, seed, res_fn, caps)
+    if np.isfinite(caps).any():
+        # a capped level is never shallower than Neutral: where the capped point prints lighter than the node
+        # already does (the clip had a deeper, more tinted colour), the node keeps its Neutral device
+        lb = np.asarray(model.predict(best), float)[:, 0]
+        lc = np.asarray(model.predict(cur), float)[:, 0]
+        keep = np.isfinite(caps) & (lb > lc)
+        best[keep] = cur[keep]
     new = (1.0 - w[sel])[:, None] * cur + w[sel][:, None] * best
     tab[sel] = _inv_out(out_tables, np.clip(new, 0.0, 1.0))
     pr = np.asarray(model.predict(np.clip(new, 0.0, 1.0)), float)
