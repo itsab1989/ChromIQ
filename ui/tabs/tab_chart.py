@@ -91,6 +91,7 @@ from workflow.chart_creator import (
     ChartCreator, ChartParams, guided_neutrals, GUIDED_NEUTRAL_BASE, REF_BUDGET,
 )
 from workflow.tiff_metadata import ALLOWED_LEFT_CLIP_PAPERS
+from workflow.overhang import writes_chart_pages
 
 if TYPE_CHECKING:
     from core.argyll_runner import ArgyllRunner
@@ -18448,6 +18449,7 @@ class TabChart(QWidget):
         except Exception as exc:  # noqa: BLE001 — carry-back is best-effort
             log.warning("Could not carry engine recipe back from editor: %s", exc)
 
+    @writes_chart_pages
     def _import_applied_chart(self, add_new_run: bool = False, *,
                               gate_already_asked: bool = False) -> None:
         """Copy the applied editor chart's files into the current run and load it.
@@ -18683,6 +18685,7 @@ class TabChart(QWidget):
         self._revert_preset_combo(to_none=True)
         self._leave_prebuilt()
 
+    @writes_chart_pages
     def _create_prebuilt_target(self, key: str, target_name: str | None = None,
                                 *, gate_already_asked: bool = False,
                                 s4_already_answered: bool = False) -> bool:

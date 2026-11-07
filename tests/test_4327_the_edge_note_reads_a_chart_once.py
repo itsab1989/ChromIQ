@@ -499,9 +499,13 @@ def test_every_chart_page_writer_forgets_the_pages():
 def test_the_writers_that_copy_pages_forget_them_too():
     """Copies are not found by the scan above: these put chart pages in place
     by copying files, and carry the mark all the same."""
+    from ui import ti2_loader
+    from ui.tabs.tab_chart import TabChart
     from workflow import chart_import, verify_chart_snapshot
     from workflow.fd9 import chart as fd9_chart
-    for fn in (chart_import._copy_chart_set, chart_import.copy_whole_project,
+    for fn in (TabChart._import_applied_chart, TabChart._create_prebuilt_target,
+               ti2_loader._copy_files,
+               chart_import._copy_chart_set, chart_import.copy_whole_project,
                chart_import.rebuild_missing_pages,
                verify_chart_snapshot.restore_slot,
                verify_chart_snapshot.restore_chart,

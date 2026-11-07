@@ -17,6 +17,7 @@ from core.measurement_target import (RUN_TYPE_PROFILING, RUN_TYPE_VERIFICATION,
 import workflow.chart_import as _chart_import
 from core.platform_paths import default_output_root
 from ui.warning_sign import set_information_icon, set_warning_icon
+from workflow.overhang import writes_chart_pages
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QWidget
@@ -1867,6 +1868,7 @@ def _ask_profile_name(
     return None
 
 
+@writes_chart_pages
 def _copy_files(
     ti2_path: Path,
     ti1: Path | None,
