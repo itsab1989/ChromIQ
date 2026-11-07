@@ -822,6 +822,9 @@ class ChartCreator:
         self._runner = runner
         self._file_mgr = file_mgr
         self._settings = settings
+        #: What the last printtarg-only build set inside 0..100 in the run's
+        #: copy of its patch set (`workflow.device_range.Change`), 4.3.26.
+        self.last_clamped: list = []
 
         self._pending_on_finish: Callable[[list[Path]], None] | None = None
         #: The ink limit the user chose, when targen was handed a nudged one
@@ -1196,6 +1199,7 @@ class ChartCreator:
         on_finish: Callable[[list[Path]], None],
         *,
         keep_results: bool = False,
+        clamp_device_values: bool = True,
     ) -> None:
         """Run printtarg only on an existing .ti1 file.
 
@@ -1206,6 +1210,13 @@ class ChartCreator:
         ``keep_results`` is for redrawing the pages of the chart that is already
         in the run — **Restore Used Chart** — where the measurement and profile
         belong to exactly this chart and must be left alone (Knut, #130).
+
+        ``clamp_device_values`` (4.3.26): the RUN'S COPY of the patch set is
+        held inside 0..100 (`workflow.device_range`), so printtarg, the
+        engine, the .ti2, the exports and colprof agree on what each patch is;
+        the file at *ti1_path* is never changed. Off only for redrawing the
+        pages of a chart a run already holds, which must stay the chart its
+        measurement was taken with.
         """
         # _printtarg_done writes the <stem>.channels.json sidecar only when
         # _pending_params is set; otherwise the preview can't identify inks
@@ -1237,6 +1248,16 @@ class ChartCreator:
         # (the "0 TIFFs" generation failure, #68). Reading the bytes first makes
         # the input survive the reset no matter where it lives.
         ti1_bytes = Path(ti1_path).read_bytes()
+        self.last_clamped = []
+        if clamp_device_values:
+            # VALUES OUTSIDE 0..100, IN THE RUN'S COPY ONLY (4.3.26, jctay).
+            # printtarg wraps -23.14 % round to 196 of 255 (104 % to 10)
+            # while colprof takes it as it is; the copy is what everything
+            # after this reads.
+            from workflow.device_range import clamp_bytes, log_line
+            ti1_bytes, self.last_clamped = clamp_bytes(ti1_bytes)
+            if self.last_clamped:
+                on_line(log_line(self.last_clamped))
         run = self._file_mgr.project().current_run()
         self._announce_result_archive(run, on_line, keep_results)
         # Set aside, not deleted — see the note at the other call site.

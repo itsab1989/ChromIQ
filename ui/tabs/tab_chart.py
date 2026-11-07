@@ -21233,6 +21233,12 @@ class TabChart(QWidget):
         self._layout_owned_by_build = True
         params = self._collect_params()
         params.patch_set_given = True       # a loaded patch set (B8-1363)
+        # VALUES OUTSIDE 0..100 (4.3.26, jctay): the build below holds them
+        # inside 0..100 in the run's copy; say which, beside the preview.
+        from workflow.device_range import changes_in
+        _clamped = changes_in(ti1)
+        if _clamped:
+            self._say_device_values_clamped(_clamped, src.name)
         self._preview.clear()
         self._generate_btn.setEnabled(False)
         self._creator.load_ti1_and_generate_preview(
@@ -21241,6 +21247,25 @@ class TabChart(QWidget):
             on_finish=self._on_generate_finished,
             keep_results=chart_only or self._is_verification_target(),
         )
+
+    def _say_device_values_clamped(self, changes: list, file_name: str) -> None:
+        """M-CHART-DEVICE-VALUES-CLAMPED (§M-PROPOSED, 4.3.26): which values of
+        a loaded patch set were outside 0..100 and what the run's copy holds
+        instead. Not modal: the preview builds beside it, so the person can
+        look at the chart while reading which patches changed."""
+        from workflow.device_range import warning
+        title, body = warning(changes, file_name)
+        old = getattr(self, "_clamped_note", None)
+        if old is not None:
+            try:
+                old.close()
+            except RuntimeError:
+                pass
+        dlg = InfoDialog(title, body, self, min_width=560)
+        dlg.setModal(False)
+        dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        self._clamped_note = dlg
+        dlg.show()
 
     def _on_log_line(self, line: str) -> None:
         # Collapse targen's "Added N/M" seeding spam into one live percentage.
@@ -25152,6 +25177,10 @@ class TabChart(QWidget):
                 # redrawing its pages must not move that measurement aside
                 # (Knut, #130 2026-07-27).
                 keep_results=True,
+                # …nor change a value in it (4.3.26): a run that already
+                # holds a chart with values outside 0..100 keeps it, and its
+                # measurements are compared with the clamped values (§I.16).
+                clamp_device_values=False,
             )
             return True
         except Exception:      # noqa: BLE001 — never break a restore

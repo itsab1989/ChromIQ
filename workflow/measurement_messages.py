@@ -2103,6 +2103,51 @@ def turned_grid_paged_no_place_reason(cols: int, rows: int, got_rows: int,
         + " " + tr(_TURNED_GRID_WHAT_TO_DO))
 
 
+# --- PROPOSED: values outside 0..100 in a loaded patch set ------------------
+#: 4.3.26 (jctay, printerknowledge forum, 2026-11-07). A patch set made by
+#: another program carried a red of -23.1373 and a value of 104. printtarg
+#: printed -23.14 % as 196 of 255 and 104 % as 10 (measured, Argyll 3.5), colprof took it as it was, and the layout
+#: engine and the exports clamped it to 0, so they disagreed about the very
+#: patch on the sheet. The run's copy is now held inside 0..100
+#: (`workflow/device_range.py`) and the person is told which values changed.
+#: {file}: the name of the loaded file; {changes}: one line per value, "Patch
+#: 13 (C1): red −23.1373 → 0", at most 40 lines and then "and N more values".
+M_CHART_DEVICE_VALUES_CLAMPED = _m(
+    "M-CHART-DEVICE-VALUES-CLAMPED",
+    "Some values in this patch set were outside 0 to 100",
+    "A printer prints every colour from 0 % to 100 %, but {count} values in "
+    "{file} lie outside that range. ChromIQ has set each of them to the "
+    "nearest value that can be printed, 0 or 100, in this run's copy of the "
+    "patch set. Your own file has not been changed.\n\n"
+    "{changes}\n\n"
+    "Why this matters: ArgyllCMS would have printed such values as quite "
+    "different colours (−23 % comes out as 196 of 255, a light shade instead "
+    "of none at all, and 104 % as 10 of 255, almost none instead of all), "
+    "while the profile would have been built as if each patch held the value "
+    "in the file. With the values set to 0 and "
+    "100, the printed chart, the chart files, the exports for other programs "
+    "and the profile all agree on what each patch is.\n\n"
+    "If you did not expect values outside 0 to 100, it is worth checking the "
+    "program that made the patch set.",
+    approved=False, count_key="count",
+    body_one=(
+        "A printer prints every colour from 0 % to 100 %, but one value in "
+        "{file} lies outside that range. ChromIQ has set it to the nearest "
+        "value that can be printed, 0 or 100, in this run's copy of the patch "
+        "set. Your own file has not been changed.\n\n"
+        "{changes}\n\n"
+        "Why this matters: ArgyllCMS would have printed such a value as a "
+        "quite different colour (−23 % comes out as 196 of 255, a light shade "
+        "instead of none at all, and 104 % as 10 of 255, almost none instead "
+        "of all), while the profile would have been built as if the patch "
+        "held the value in the file. With the value set to 0 or "
+        "100, the printed chart, the chart files, the exports for other "
+        "programs and the profile all agree on what the patch is.\n\n"
+        "If you did not expect a value outside 0 to 100, it is worth checking "
+        "the program that made the patch set."),
+    title_one="A value in this patch set was outside 0 to 100")
+
+
 # --- PROPOSED: the measured colours do not follow the chart: the reason ----
 #: 4.3.26. The ``{reason}`` of every import door's refusal window ("The
 #: reason: {reason}.") when the device values in a measurement do not agree
@@ -9303,6 +9348,7 @@ CATALOGUE = {m.id: m for m in (
     M_VERIFY_CREATE_NO_PROFILE, M_GAMUT_NO_PROFILE,
     M_IMPORT_MISMATCH, M_IMPORT_DATE_TAKEN, M_IMPORT_DONE,
     M_IMPORT_TURNED_GRID, M_IMPORT_IDENTITY_REASON,
+    M_CHART_DEVICE_VALUES_CLAMPED,
     M_IMPORT_DONE_PROFILING,
     M_IMPORT_DEVICE_FROM_CHART,
     M_VERIFY_SAVED, M_HOW_PRINTED,

@@ -922,8 +922,7 @@ def verify_patch_identity(measured, ti2_path: "Path | None") -> dict:
         out["reason"] = "the chart file carries no device values"
         return out
 
-    want = _rgb_to_0_100(np.asarray(design.rgb, dtype=float))
-    got = _rgb_to_0_100(np.asarray(measured.rgb, dtype=float))
+    want, got = paired_device_0_100(design.rgb, measured.rgb)
 
     # Pair exactly as the report does — by SAMPLE_ID — so this validates the
     # real pairing rather than a second one of its own. Falling back to
@@ -1103,6 +1102,35 @@ def _rgb_to_0_100(rgb):
     """
     arr = np.asarray(rgb, dtype=float)
     return arr * (100.0 / 255.0) if float(arr.max()) > 101.0 else arr
+
+
+def paired_device_0_100(chart_rgb, measured_rgb):
+    """(chart, measurement) device values on 0..100, held inside 0..100, for
+    the checks that pair a measurement with its chart (§I.16, 4.3.26).
+
+    A CHART THAT CARRIES A VALUE OUTSIDE 0..100 (a patch set another program
+    made: jctay's red of -23.1373 and a value of 104) is compared as what
+    ChromIQ prints and exports for it, 0 and 100: an i1Profiler reading of
+    that patch carries 0, and ChromIQ's own reading carries the chart's
+    -23.1373; held inside 0..100, both agree with the chart.
+
+    The scale is decided per side, as :func:`_rgb_to_0_100` does, with one
+    difference: a value a little over 100 does not make an array 0..255. An
+    Argyll chart is always 0..100, so it counts as 0..255 only when it goes
+    past 200 (an i1Profiler code value); a measurement counts as 0..255 when
+    it goes past both 101 and the chart's own largest value, so a reading
+    that repeats the chart's 104 stays 0..100."""
+    from workflow.device_range import clip_0_100
+    want = np.asarray(chart_rgb, dtype=float)
+    got = np.asarray(measured_rgb, dtype=float)
+    want_max = float(want.max()) if want.size else 0.0
+    if want_max > 200.0:
+        want = want * (100.0 / 255.0)
+        want_max = 100.0
+    got_max = float(got.max()) if got.size else 0.0
+    if got_max > max(101.0, want_max + 1.0):
+        got = got * (100.0 / 255.0)
+    return clip_0_100(want), clip_0_100(got)
 
 
 #: The keyword a converted i1Profiler export carries its measurement date in.

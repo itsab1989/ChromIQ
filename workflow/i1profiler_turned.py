@@ -1331,15 +1331,17 @@ def turned_match(measured, chart_ti2: "str | Path | None") -> TurnedMatch:
                 and set(ids) <= allowed):
             return TurnedMatch(order=order)
         partial = True
-    from workflow.measurement_report import PATCH_IDENTITY_TOL, _rgb_to_0_100
+    from workflow.measurement_report import (PATCH_IDENTITY_TOL,
+                                             paired_device_0_100)
     from workflow.ti3_analysis import Ti3ParseError, parse_ti3
     import numpy as np
     try:
         design = parse_ti3(Path(chart_ti2))
     except (Ti3ParseError, OSError):
         return TurnedMatch(order=order)
-    want = _rgb_to_0_100(np.asarray(design.rgb, dtype=float))
-    got = _rgb_to_0_100(np.asarray(measured.rgb, dtype=float))
+    # Held inside 0..100 on both sides (§I.16, 4.3.26), exactly as the
+    # ordinary check by SAMPLE_ID compares them.
+    want, got = paired_device_0_100(design.rgb, measured.rgb)
     by_id = {sid: i for i, sid in enumerate(design.sample_ids)}
 
     def _against(cand: TurnedOrder) -> TurnedMatch:
