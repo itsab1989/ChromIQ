@@ -22,6 +22,10 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import pytest  # noqa: E402
 from PyQt6.QtCore import QRect  # noqa: E402
 
+import shutil  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+from core.file_manager import Project  # noqa: E402
 from workflow import confirmed_patches as cp  # noqa: E402
 from workflow import misread_settings as ms  # noqa: E402
 from workflow import patch_flags as pf  # noqa: E402
@@ -35,6 +39,23 @@ def _reread_route_only(monkeypatch):
     """As in test_k182_k3_k4_overlay_and_memory: the re-read route alone, so
     one confirmation in the memory file is one yellow patch."""
     monkeypatch.setattr(pf, "PEERS_ON", False)
+
+
+@pytest.fixture(autouse=True)
+def _preferences_put_back(qapp):
+    """Every preference a test here sets is put back afterwards, stored or
+    not, so no later file on this worker inherits a limit of 1.0."""
+    from core.settings import AppSettings
+    qs = AppSettings()._qs
+    before = {k: qs.value(k) for k in qs.allKeys()}
+    yield
+    qs = AppSettings()._qs
+    for k in qs.allKeys():
+        if k not in before:
+            qs.remove(k)
+    for k, v in before.items():
+        qs.setValue(k, v)
+    qs.sync()
 
 
 def _boxes():
@@ -297,3 +318,207 @@ def test_a_page_of_patch_geometry_replaced_in_place_is_painted_again(setup):
     tab, ti3, s, show, painted = setup
     tab._patch_boxes[0] = dict(tab._patch_boxes[0])
     assert show() == 1
+
+
+# ---- a verification: its record, its run's profile, its calibration --------
+
+class _Ctl:
+    """The bar's controller as far as the Measure tab asks it."""
+
+    def __init__(self, root, run_id, vid):
+        from core.measurement_target import (MeasurementTarget,
+                                             RUN_TYPE_VERIFICATION)
+        self.root = root
+        self.target = MeasurementTarget(run_type=RUN_TYPE_VERIFICATION,
+                                        profile_run=run_id,
+                                        verification_id=vid)
+
+    def project_or_none(self):
+        return Project.load(self.root)
+
+
+def _fake_live_expected(chart, record_ti3, run, *, bin_dir):
+    """A prediction made from exactly the files the real one reads: the run's
+    profile, the print record and the calibration it names. Every patch's
+    expected colour moves with them, so a stale one shows in the picture."""
+    import hashlib
+    import json
+    from workflow.verification_print import read_print_record
+    from workflow.verify_expected import SOURCE_PREDICTION, LiveExpected
+    h = hashlib.md5()
+    prof = Path(run.built_profile_icc())
+    h.update(prof.read_bytes() if prof.is_file() else b"-")
+    rec = read_print_record(Path(record_ti3)) or {}
+    h.update(json.dumps(rec, sort_keys=True).encode())
+    cal = Path(str(rec.get("cal_from") or "-"))
+    h.update(cal.read_bytes() if cal.is_file() else b"-")
+    f = 0.9 + (int(h.hexdigest()[:4], 16) % 200) / 1000.0
+    from tests.test_k182_k3_k4_overlay_and_memory import KNUT
+    return LiveExpected(SOURCE_PREDICTION, "test",
+                        {loc: tuple(v * f for v in e) for loc, e, _m in KNUT})
+
+
+@pytest.fixture
+def verifying(qapp, tmp_path, monkeypatch):
+    """A dated verification of run1, read and painted from disk, with a
+    second date and a second run holding a measurement too."""
+    from core.argyll_runner import ArgyllRunner
+    from core.settings import AppSettings
+    from ui.tabs.tab_measure import TabMeasure
+    import workflow.verify_expected as ve
+    monkeypatch.setattr(ve, "live_expected", _fake_live_expected)
+    root = tmp_path / "P"
+    proj = Project.create(root, "P")
+    cal = tmp_path / "elsewhere" / "printer.cal"
+    cal.parent.mkdir()
+    cal.write_text("CAL 1\n", encoding="utf-8")
+    vids = {}
+    for rid, scale in (("run1", 1.0), ("run2", 0.95)):
+        run = proj.run(rid) if rid == "run1" else proj.new_run()
+        run.dir.mkdir(parents=True, exist_ok=True)
+        run.profile_icc.write_bytes(b"profile of " + rid.encode())
+        vdir = run.verifications_dir
+        _write_chart(vdir, stem=run.verify_stem)
+        for n, vid in enumerate(("2026-11-01_100000", "2026-11-02_100000")):
+            v = run.verification(vid)
+            v.dir.mkdir(parents=True, exist_ok=True)
+            _write_ti3(v.dir, stem=v.stem, scale=scale + 0.02 * n)
+            (v.dir / f"{v.stem}.print.json").write_text(
+                '{"route": "chromiq", "cal_from": "%s"}' % cal,
+                encoding="utf-8")
+        vids[run.id] = run
+    s = AppSettings()
+    s.set("chartread_engine", "chromiq")
+    tab = TabMeasure(ArgyllRunner(s), s)
+    run1 = vids["run1"]
+    tab._target_ctl = _Ctl(root, run1.id, "2026-11-01_100000")
+    tab._ti1_path = run1.verifications_dir / f"{run1.verify_stem}.ti2"
+    tab._patch_boxes = _boxes()
+    monkeypatch.setattr(tab, "_maybe_offer_existing_overlay", lambda: None)
+    tab._update_resume_availability()
+    cb = tab._overlay_cb if tab._current_mode() == "guided" else tab._m_overlay_cb
+    assert not cb.isHidden(), "the dated verification's overlay is offered"
+    cb.setChecked(True)
+    tab.resize(1200, 900)
+    painted = _Painted(tab, monkeypatch)
+    tab._test_painted = painted
+
+    def show():
+        tab.show()
+        for _ in range(8):
+            qapp.processEvents()
+        tab.hide()
+        for _ in range(2):
+            qapp.processEvents()
+        return painted.take()
+    show()
+    show()
+    assert tab._expected_is_predicted(), "painted against the prediction"
+    assert show() == 0
+    yield tab, run1, vids["run2"], cal, show
+    tab.close()
+
+
+def _record(run1, vid="2026-11-01_100000"):
+    v = run1.verification(vid)
+    return v.dir / f"{v.stem}.print.json"
+
+
+def test_a_rewritten_run_profile_is_painted_again(verifying):
+    tab, run1, run2, cal, show = verifying
+    before = _picture(tab)
+    run1.profile_icc.write_bytes(b"another profile")
+    assert show() == 1
+    assert _picture(tab) != before, "the new prediction did not reach it"
+    assert _picture(tab) == _from_scratch(tab)
+    assert show() == 0
+
+
+def test_a_rewritten_print_record_is_painted_again(verifying):
+    tab, run1, run2, cal, show = verifying
+    before = _picture(tab)
+    _record(run1).write_text('{"route": "chromiq", "cal_from": "%s", '
+                             '"colour": "raw"}' % cal, encoding="utf-8")
+    assert show() == 1
+    assert _picture(tab) != before
+    assert _picture(tab) == _from_scratch(tab)
+
+
+def test_a_record_in_the_dated_chart_snapshot_is_painted_again(verifying):
+    """`read_print_record` reads the dated folder's chart/ snapshot when
+    there is none beside the measurement."""
+    tab, run1, run2, cal, show = verifying
+    rec = _record(run1)
+    snap = rec.parent / "chart" / rec.name
+    snap.parent.mkdir()
+    snap.write_text(rec.read_text(encoding="utf-8"), encoding="utf-8")
+    rec.unlink()
+    assert show() == 1
+    before = _picture(tab)
+    snap.write_text('{"route": "chromiq", "cal_from": "%s", "x": 1}' % cal,
+                    encoding="utf-8")
+    assert show() == 1
+    assert _picture(tab) != before
+    assert _picture(tab) == _from_scratch(tab)
+
+
+@pytest.mark.parametrize("how", ["edited", "deleted"])
+def test_the_recorded_calibration_file_is_part_of_it(verifying, how):
+    tab, run1, run2, cal, show = verifying
+    before = _picture(tab)
+    if how == "edited":
+        cal.write_text("CAL 2, another calibration\n", encoding="utf-8")
+    else:
+        cal.unlink()
+    assert show() == 1
+    assert _picture(tab) != before
+    assert _picture(tab) == _from_scratch(tab)
+    assert show() == 0
+
+
+def test_another_date_is_painted(verifying):
+    tab, run1, run2, cal, show = verifying
+    before = _picture(tab)
+    tab._target_ctl.target.verification_id = "2026-11-02_100000"
+    assert show() == 1
+    assert _picture(tab) != before
+    assert _picture(tab) == _from_scratch(tab)
+
+
+def test_another_run_is_painted(verifying):
+    tab, run1, run2, cal, show = verifying
+    before = _picture(tab)
+    tab._target_ctl.target.profile_run = run2.id
+    tab._ti1_path = run2.verifications_dir / f"{run2.verify_stem}.ti2"
+    assert show() == 1
+    assert _picture(tab) != before
+    assert _picture(tab) == _from_scratch(tab)
+
+
+def test_a_staged_resume_counts_its_dated_folders_record(verifying):
+    """A dated verification staged beside the chart for a resume is described
+    by its dated folder's record (`_record_ti3_for`): that folder's files are
+    in the key, not only the path."""
+    tab, run1, run2, cal, show = verifying
+    v = run1.verification("2026-11-01_100000")
+    beside = tab._ti1_path.with_suffix(".ti3")
+    shutil.copyfile(v.measurement_ti3, beside)
+    tab._staged_verification_ti3 = beside
+    tab._staged_from = v.measurement_ti3
+    k1 = tab._overlay_repaint_key(beside)
+    _record(run1).write_text('{"route": "chromiq", "y": 2}', encoding="utf-8")
+    assert tab._overlay_repaint_key(beside) != k1
+    k2 = tab._overlay_repaint_key(beside)
+    snap = v.dir / "chart" / _record(run1).name
+    snap.parent.mkdir()
+    snap.write_text("{}", encoding="utf-8")
+    assert tab._overlay_repaint_key(beside) != k2
+
+
+def test_never_skipped_while_an_fd9_scan_is_live(setup):
+    tab, ti3, s, show, painted = setup
+    tab._fd9_live = True
+    try:
+        assert tab._overlay_repaint_key(ti3) is None
+    finally:
+        tab._fd9_live = False

@@ -20467,7 +20467,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         """What a painting of *ti3* is made from, or None when a painting
         must never be skipped (a session on, a reader running, anything that
         cannot be told)."""
-        if getattr(self, "_session_live", False):
+        if getattr(self, "_session_live", False) or getattr(
+                self, "_fd9_live", False):
             return None
         try:
             if self._runner.is_running:
@@ -20486,6 +20487,20 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                        chart.parent}
             if ti1.parent.name == VERIFICATIONS_DIRNAME:
                 folders.add(ti1.parent.parent)       # the run and its profile
+            # THE PRINT RECORD THE EXPECTED COLOURS COME FROM, wherever
+            # `read_print_record` looks for it: beside the measurement whose
+            # record applies (a staged resume is described by its dated
+            # folder, `_record_ti3_for`), in that folder's chart/ snapshot,
+            # and one level up.
+            record = Path(self._record_ti3_for(ti3) or ti3)
+            folders.update({record.parent, record.parent / "chart",
+                            record.parent.parent, ti3.parent.parent})
+            # …and the calibration file a record names (``cal_from``): it can
+            # live anywhere, and a prediction is made from it.
+            cal_files = ()
+            if self._is_verification_run():
+                cal_files = tuple(self._file_stamp(c)
+                                  for c in self._recorded_cal_files(record))
             ctl = getattr(self, "_target_ctl", None)
             target = None
             if ctl is not None:
@@ -20500,6 +20515,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 self._file_stamp(chart),
                 tuple(self._folder_stamp(f)
                       for f in sorted(folders, key=str)),
+                cal_files,
                 target, bool(self._is_verification_run()),
                 str(getattr(self, "_staged_verification_ti3", None) or ""),
                 str(getattr(self, "_staged_from", None) or ""),
@@ -20512,6 +20528,25 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         except Exception:      # noqa: BLE001 — unknown: paint, as before
             log.debug("overlay: no repaint key", exc_info=True)
             return None
+
+    @staticmethod
+    def _recorded_cal_files(record_ti3) -> "list[Path]":
+        """The calibration files the print record of *record_ti3* names
+        (``cal_from``, at the top or in its ``printer_calibration`` block)."""
+        try:
+            from workflow.verification_print import read_print_record
+            rec = read_print_record(Path(record_ti3))
+        except Exception:      # noqa: BLE001 — no record: nothing named
+            return []
+        if not isinstance(rec, dict):
+            return []
+        out = []
+        block = rec.get("printer_calibration")
+        for src in (rec.get("cal_from"),
+                    block.get("cal_from") if isinstance(block, dict) else None):
+            if src:
+                out.append(Path(str(src)))
+        return out
 
     def _overlay_marks(self) -> tuple:
         """What the painting just made left behind, held by identity: the
