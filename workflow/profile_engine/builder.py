@@ -244,6 +244,10 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # had rejected as misreads (real i1iSis: warm hues into black);
      # research, opt-in
      "a84-warmblack",
+     # Agent 84: the refit is the build's model for every table (the first
+     # a84 arm: A2B held-out -18 %, but the perceptual / saturation greys
+     # and some rel. col. rows move); research, opt-in
+     "a84-warmblack-all",
      # Agent 56 (D-30 part 1): RGB with a51 on: the chroma of a clip target
      # lifted to the dark floor fades C1 with its depth below the black, at
      # colprof's own per-hue rate; research, opt-in
@@ -418,6 +422,45 @@ A73_CMYGAP_MIN = 6.0
 A74_FOLDMEAS_MIN = 1.0
 # Agent 84 (research, off): see the forward-fit block of _build_profile_impl.
 A84_WARMBLACK = "a84-warmblack"
+A84_WARMBLACK_ALL = "a84-warmblack-all"
+
+
+def _a84_gp_layer(meas, stiff, candidates, settings, lam, curve_rounds,
+                  use_ucs, n):
+    """Agent 84 (a84-warmblack): the build's GP layer (fin3: gpsel / gpwarp,
+    gpclip taper, projection) on the refit ``stiff`` model, with the
+    clustered misfits kept in the GP's Huber weights and held-out folds.
+    The stiff refit when the GP layer does not apply."""
+    if not gp_forward_applies(candidates, is_additive=meas.is_additive,
+                              n_channels=n, n_patches=len(meas.device)):
+        return stiff
+    from workflow.profile_engine import gpfwd, gpsel
+    from workflow.profile_engine.metrics import delta_e_2000 as _de
+    model = stiff
+    gpsel.A84_KEEP_CLUSTERS = True
+    try:
+        if not ({"gpwarp", "gpsel"} & candidates):
+            gpm = gpfwd.fit_gp_forward(meas.device, meas.lab_relative, _de,
+                                       row_weights=meas.row_weights,
+                                       ref_pred=model.predict(meas.device))
+        else:
+            gpm = _agent15_gp(meas, model, candidates, settings, lam,
+                              curve_rounds, use_ucs, _de)
+    finally:
+        gpsel.A84_KEEP_CLUSTERS = False
+    if gpm is not None and "gpclip" in candidates:
+        gpm = gpsel.Tapered(
+            gpm, model, float(meas.device.sum(1).max()),
+            light=(gpsel.light_scale(meas.device)
+                   * (2.0 if "gplight2" in candidates else 1.0)
+                   if {"gplight", "gplight2"} & candidates else None),
+            dark=(15.0, 30.0) if "gpdark" in candidates else None)
+    if gpm is not None:
+        model = gpfwd.project_to_table(
+            gpm, model, lam, fine="a2bfine" in candidates, anchor_rel=0.1,
+            keep_curves="gpkeep" in candidates,
+            shaped_samples="gpsamp" in candidates)
+    return model
 INT9_TOKENS = frozenset({
     "a65-cmykhue-bluejab", "a66-cmyaxis", "a68-clipkeep", "a69-cmykport",
     "a69-cmykport-oog", "a69-cmykport-oogfine", "a70-edgesmooth",
@@ -1206,6 +1249,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     _noise_winner = None
     _a84_fired = False                  # Agent 84 (a84-warmblack)
     _a84_model0 = None                  # ... the first fit, for its black
+    _a84_clip_model = None              # ... the refit, for the dark clip
     _a40_on = False                     # Agent 38 s6 (a40-knut-grey)
     if accurate and settings.noise_model and "gp" not in candidates:
         # #123 user option: noise-aware fitting behind a held-out exam —
@@ -1303,9 +1347,17 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                                 f"{len(outliers)} -> {len(_o84)} flagged, "
                                 f"fit dE76 p99 {np.percentile(_r0, 99):.2f}"
                                 f" -> {np.percentile(_r1, 99):.2f}).")
-                _a84_model0 = model
-                model, outliers, _lam_used = _m84, _o84, _l84
                 _a84_fired = True
+                if A84_WARMBLACK_ALL in candidates:
+                    # research a84-warmblack-all: the refit is THE model
+                    # (every table; arm "fin" of Agent 84)
+                    _a84_model0 = model
+                    model, outliers, _lam_used = _m84, _o84, _l84
+                else:
+                    # a84-warmblack: the refit only clips the dark
+                    # clipped nodes of B2A1 (below); every other table is
+                    # built on the build's own model as before
+                    _a84_clip_model = _m84
         if ({"a19-extrap", "a19-bounds"} & candidates
                 and not meas.is_additive):
             # Research token (agent 19, F-12): physical lower bounds on the
@@ -1368,7 +1420,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                                            ref_pred=model.predict(meas.device))
             else:
                 from workflow.profile_engine import gpsel as _gpsel84
-                _gpsel84.A84_KEEP_CLUSTERS = _a84_fired
+                _gpsel84.A84_KEEP_CLUSTERS = (_a84_fired
+                                              and _a84_clip_model is None)
                 try:
                     gpm = _agent15_gp(meas, model, candidates, settings, lam,
                                       curve_rounds, use_ucs, _de)
@@ -1394,6 +1447,13 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                     anchor_rel=0.1, keep_curves="gpkeep" in candidates,
                     shaped_samples="gpsamp" in candidates)
                 a2b_grid = model.grid
+    if _a84_clip_model is not None:
+        # Agent 84 (a84-warmblack): the refit gets the same GP layer, its
+        # Huber weights and held-out folds keeping the clustered misfits
+        _a84_clip_model = _a84_gp_layer(meas, _a84_clip_model, candidates,
+                                        settings, lam, curve_rounds, use_ucs,
+                                        n)
+        _pin_media_white(_a84_clip_model, meas, settings)
     if "spectral" in candidates or (accurate and settings.spectral_physics):
         # #123 W4: challenge the grid with the YNSN physics hybrid — the
         # standard model stays unless the physics wins on held-out
@@ -2267,6 +2327,32 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             ourk=_a69m["ourk"] or _pern, ourclip=_a69m["ourclip"] or _pern,
             progress=lambda m: _emit(settings, m),
             fold=(_a69.A70_FOLDCAP in candidates and not _a73_kfirst))
+        if _a84_clip_model is not None and not (_a69m["ourclip"] or _pern):
+            # Agent 84 (a84-warmblack): the clipped nodes near the black
+            # are clipped again on the refit that kept the dark C+M-rich
+            # patches (on the build's own model those print purple, so the
+            # clip sent warm hues through C-rich low-K mixes that really
+            # print grey); full up to the black + 20 L*, gone by + 35
+            # (CHROMIQ_A84_DARK l:w), the in-gamut nodes untouched
+            _p84, _ = _a69.colprof_table(
+                _a84_clip_model, node_lab, dev_clut, residual,
+                ink_limit=ink_limit, channel_max=channel_max, l_min=_l_min,
+                ourk=True, ourclip=False,
+                fold=(_a69.A70_FOLDCAP in candidates and not _a73_kfirst))
+            _dl84, _dw84 = (float(v) for v in os.environ.get(
+                "CHROMIQ_A84_DARK", "20:15").split(":"))
+            _u84 = np.clip((_l_min + _dl84 + _dw84 - node_lab[:, 0])
+                           / max(_dw84, 1e-6), 0.0, 1.0)
+            _w84 = _u84 * _u84 * (3.0 - 2.0 * _u84)
+            # printable on either model: not clipped, not moved
+            _w84[np.asarray(residual) < _a69.FEAS_TOL] = 0.0
+            _w84[np.linalg.norm(_a84_clip_model.predict(np.clip(
+                dev_clut, 0.0, 1.0)) - node_lab, axis=1)
+                 < _a69.FEAS_TOL] = 0.0
+            _pure = (1.0 - _w84[:, None]) * _pure + _w84[:, None] * _p84
+            _emit(settings, f"Colorimetric table: {int((_w84 > 0).sum())} "
+                            f"clipped nodes near the black clipped on the "
+                            f"refit (research a84-warmblack).")
         _pure_s = np.clip(model.shape_device(_pure), 0.0, 1.0)
         if channel_max is not None:
             _pure_s = np.minimum(_pure_s, model.shape_device(

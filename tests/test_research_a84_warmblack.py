@@ -10,6 +10,8 @@ def test_token_registered_and_off_by_default():
     assert builder.A84_WARMBLACK in builder.ENGINE_CANDIDATE_TOKENS
     assert builder.A84_WARMBLACK not in builder.ACCURATE_DEFAULT_TOKENS
     assert builder.A84_WARMBLACK not in builder.accurate_candidates(())
+    assert builder.A84_WARMBLACK_ALL in builder.ENGINE_CANDIDATE_TOKENS
+    assert builder.A84_WARMBLACK_ALL not in builder.ACCURATE_DEFAULT_TOKENS
     assert gpsel.A84_KEEP_CLUSTERS is False
 
 
