@@ -143,3 +143,59 @@ def test_m2_a_persons_off_is_still_stored_and_kept(qapp, qtbot):
     panel.instr.setCurrentIndex(panel.instr.findData("i1"))
     panel.set_recipe(r)
     assert panel.clip_enabled() is False and panel._fd9_clip_chosen is True
+
+
+def test_guided_fd9_prints_the_notes_box_upright_in_tiff_and_pdf(
+        qapp, qtbot, tmp_path):
+    """The owner: in Guided the FD-9 clip border is always on, with the
+    Notes box (the ChromIQ wordmark and the info lines), never off or
+    empty, printed upright; the Generate detector check passes for it."""
+    import fitz
+    import numpy as np
+    from PIL import Image
+
+    from tests.test_fd9_chart_creation import ti1
+    from workflow.fd9 import sheet_check
+    from workflow.fd9.chart import chart_pages
+    from workflow.fd9.measurement import checked_chart
+    from workflow.layout_engine.chart import build_chart
+    from workflow.layout_engine.raster import WORDMARK_IQ_RGB
+
+    tab, _ = _tab(tmp_path, qtbot)
+    p = _guided_fd9(tab)
+    kw = tab._creator._engine_kwargs(p)
+    assert kw["fd9_clip_border"] is True and kw["clip_content_mode"] == "notes"
+    kw.update(dpi=200, export_pdf=True)
+    source, _ = ti1(tmp_path, rep="RGB", tokens=("R", "G", "B"), count=40)
+    # build_chart runs the Generate detector check on every page and
+    # raises SheetNotDetectable when the FD-9 would not find one.
+    result = build_chart(source, tmp_path / "guided", **kw)
+    _, doc, _ = checked_chart(result.ti2_path)
+    page = chart_pages(doc)[0]
+    x0, y0, x1, y1 = page["clip_border_mm"]
+
+    def mm(v, dpi):
+        return round(v * dpi / 25.4)
+
+    with Image.open(result.tiff_paths[0]) as im:
+        rgb = np.asarray(im.convert("RGB")).astype(int)
+    sheet_check.check_page(np.asarray(Image.fromarray(
+        rgb.astype(np.uint8)).convert("L")), 200, page)
+    band = rgb[mm(y0, 200):mm(y1, 200), mm(x0, 200):mm(x1, 200)]
+    pink = (np.abs(band - np.array(WORDMARK_IQ_RGB)).sum(axis=2) < 60)
+    assert pink.sum() > 50, "the wordmark's IQ is printed"
+    # Upright: the wordmark at the left end of the band.
+    assert np.nonzero(pink.any(axis=0))[0].max() < band.shape[1] * 0.3
+    # The info lines: dark text to the right of the wordmark.
+    dark = band.min(axis=2) < 120
+    assert dark[:, int(band.shape[1] * 0.3):].sum() > 200
+
+    with fitz.open(result.pdf_path) as pdf:
+        pix = pdf[0].get_pixmap(dpi=150)
+        prgb = np.frombuffer(pix.samples, dtype=np.uint8).reshape(
+            pix.height, pix.width, pix.n)[..., :3].astype(int)
+    pband = prgb[mm(y0, 150):mm(y1, 150), mm(x0, 150):mm(x1, 150)]
+    ppink = ((pband[..., 0] > 180) & (pband[..., 1] < 150)
+             & (pband[..., 2] > 60))
+    assert ppink.sum() > 20
+    assert np.nonzero(ppink.any(axis=0))[0].max() < pband.shape[1] * 0.3
