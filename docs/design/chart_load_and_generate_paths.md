@@ -244,8 +244,12 @@ verified by tests and on screen without an FD-9.*
 * **The FD-9 clip border** (4.3.25), on by default since 4.3.26
   (`workflow/fd9/furniture.py::FD9_CLIP_BORDER_DEFAULT`): lessbones measured
   real sheets with it and the page number, the labels read fine and the four
-  marks were found every time. A recipe in which a person switched it off
-  keeps Off; “Clip border: Off” in the layout settings leaves it out. It is
+  marks were found every time. In Manual, a recipe in which a person
+  switched it off keeps Off, also one stored with Save as Defaults (which
+  stored the FD-9 recipe as an i1Pro one before 4.3.26); only a person's
+  answer is stored, never what the panel merely showed. Guided has no
+  clip-border setting for the FD-9 and always prints it, with the Notes box,
+  as the default says (the owner, 4.3.26 review r1). It is
   a band at most 14 mm deep in the free space after the last row of patches
   (at least 10 mm from each side and 6 mm before the trailing edge), upright
   like the page number. The 33 mm at the trailing edge stay: the sheet is

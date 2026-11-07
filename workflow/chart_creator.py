@@ -792,6 +792,13 @@ class ChartParams:
     #: The FD-9's gap across the feed when it differs from ``fd9_gap_mm``
     #: (the gap along it); None = the same (4.3.22/4.3.23 charts).
     fd9_strip_gap_mm: float | None = None
+    #: Guided's FD-9 clip border (4.3.26, review r1 M1): Guided carries no
+    #: layout recipe and has no clip-border setting, so it passes the FD-9's
+    #: default and the Notes box here (`TabChart._fd9_guided_clip`). None
+    #: leaves the FD-9's own default; Manual's recipe is used instead when
+    #: there is one.
+    fd9_clip_border: "bool | None" = None
+    fd9_clip_options: "dict | None" = None
     # When True, the .icc/.ti3 from a prior session in the same working folder
     # are renamed to pre_*.icc/pre_*.ti3 instead of being overwritten on the
     # following measure / colprof runs. Set by the guided tab when the user
@@ -1254,8 +1261,15 @@ class ChartCreator:
             # printtarg wraps -23.14 % round to 196 of 255 (104 % to 10)
             # while colprof takes it as it is; the copy is what everything
             # after this reads.
-            from workflow.device_range import clamp_bytes, log_line
-            ti1_bytes, self.last_clamped = clamp_bytes(ti1_bytes)
+            from workflow.device_range import (UnreadablePatchLine,
+                                               clamp_bytes, log_line)
+            try:
+                ti1_bytes, self.last_clamped = clamp_bytes(ti1_bytes)
+            except UnreadablePatchLine as exc:
+                # The tab refuses such a file before it gets here; a caller
+                # that did not ask is told in the log, and the file goes on
+                # unchanged for printtarg's own check to refuse.
+                on_line(str(exc))
             if self.last_clamped:
                 on_line(log_line(self.last_clamped))
         run = self._file_mgr.project().current_run()
@@ -1788,7 +1802,11 @@ class ChartCreator:
                 project=str(getattr(params, "target_name", "") or ""),
                 rundescription=str(getattr(params, "run_description", "") or ""),
                 fd9_run=_fd9_run_label(getattr(self, "_file_mgr", None), params),
-                fd9_clip_border=getattr(recipe, "fd9_clip_border", None),
+                fd9_clip_border=(getattr(recipe, "fd9_clip_border", None)
+                                 if recipe is not None else
+                                 getattr(params, "fd9_clip_border", None)),
+                **(dict(getattr(params, "fd9_clip_options", None) or {})
+                   if recipe is None else {}),
                 **({k: recipe_kw[k] for k in (
                     "clip_content_mode", "clip_text", "clip_text_font",
                     "clip_text_size_mm", "clip_image_path",

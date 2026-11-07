@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from workflow import measurement_messages as M
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -71,3 +73,26 @@ def test_verify_patch_identity_gives_this_reason(tmp_path):
     v = verify_patch_identity(_Measured(), ti2)
     assert v["verdict"] == "mismatch", v
     assert v["reason"] == M.identity_mismatch_reason(2, 2)
+
+
+@pytest.mark.parametrize("lang,bad,word", [
+    ("ru", 1, "патч из"), ("ru", 3, "патча из"), ("ru", 5, "патчей из"),
+    ("ru", 21, "патч из"), ("uk", 3, "патчі з"), ("uk", 11, "патчів з"),
+    ("pl", 2, "pola z"), ("pl", 5, "pól z")])
+def test_the_count_takes_the_right_form_in_every_number_category(
+        lang, bad, word):
+    """Review r1 L7: Russian, Ukrainian and Polish change the noun after a
+    number in three ways (one / few / many). The catalogue's "@plurals"
+    forms are picked by the counting placeholder {bad}; "{total}" follows
+    "из"/"з"/"z" and needs no form of its own."""
+    from core import i18n
+    try:
+        i18n.set_language(lang)
+        text = M.identity_mismatch_reason(bad, 30)
+        assert text.startswith(f"{bad} {word} 30"), text[:60]
+        _title, body = M.M_CHART_DEVICE_VALUES_CLAMPED.render(
+            count=bad, file="f.ti1", changes="x")
+        if bad != 1:                  # 1 has its own body ("one value")
+            assert f" {bad} " in body
+    finally:
+        i18n.set_language("en")

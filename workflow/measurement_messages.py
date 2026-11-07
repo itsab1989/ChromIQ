@@ -2148,6 +2148,24 @@ M_CHART_DEVICE_VALUES_CLAMPED = _m(
     title_one="A value in this patch set was outside 0 to 100")
 
 
+# --- PROPOSED: a patch-set line that does not match its format -------------
+#: 4.3.26 (review r1 L6). Load patch set reads every data line value by value
+#: to hold device values inside 0..100; a line with more or fewer values than
+#: the format names cannot be read that way, and was passed on unclamped. It
+#: is refused before anything is bound or asked. {file}: the loaded file's
+#: name; {reason}: `device_range.UnreadablePatchLine`'s sentence, which opens
+#: in lower case and has no closing full stop.
+M_CHART_PATCH_LINE_UNREADABLE = _m(
+    "M-CHART-PATCH-LINE-UNREADABLE",
+    "Couldn't read that patch set",
+    "ChromIQ could not read {file}: {reason}.\n\nNothing has been laid out "
+    "and your file has not been changed. Open it in a text editor and check "
+    "that line: each line between BEGIN_DATA and END_DATA needs exactly one "
+    "value for every name between BEGIN_DATA_FORMAT and END_DATA_FORMAT, in "
+    "the same order.",
+    approved=False)
+
+
 # --- PROPOSED: the measured colours do not follow the chart: the reason ----
 #: 4.3.26. The ``{reason}`` of every import door's refusal window ("The
 #: reason: {reason}.") when the device values in a measurement do not agree
@@ -9348,7 +9366,7 @@ CATALOGUE = {m.id: m for m in (
     M_VERIFY_CREATE_NO_PROFILE, M_GAMUT_NO_PROFILE,
     M_IMPORT_MISMATCH, M_IMPORT_DATE_TAKEN, M_IMPORT_DONE,
     M_IMPORT_TURNED_GRID, M_IMPORT_IDENTITY_REASON,
-    M_CHART_DEVICE_VALUES_CLAMPED,
+    M_CHART_DEVICE_VALUES_CLAMPED, M_CHART_PATCH_LINE_UNREADABLE,
     M_IMPORT_DONE_PROFILING,
     M_IMPORT_DEVICE_FROM_CHART,
     M_VERIFY_SAVED, M_HOW_PRINTED,

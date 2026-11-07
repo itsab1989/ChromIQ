@@ -1095,10 +1095,21 @@ def _rgb_to_0_100(rgb):
     """Device RGB on Argyll's 0..100 scale, whatever scale it arrived on.
 
     i1Profiler measurement exports carry 0..255 code values; ChromIQ's own
-    charts are already 0..100. One rule, used by every caller — comparing a
-    0..100 array against a 0..255 one would make identical patches look
-    completely different, which is exactly the failure this normalisation
-    exists to avoid.
+    charts are already 0..100. Comparing a 0..100 array against a 0..255 one
+    would make identical patches look completely different, which is exactly
+    the failure this normalisation exists to avoid.
+
+    NOT THE ONLY RULE ANY MORE (4.3.26). The two checks that PAIR a
+    measurement with its chart (`verify_patch_identity`, `turned_match`) use
+    :func:`paired_device_0_100`, which knows which side is the chart and so
+    does not take a chart value of 104 for an i1Profiler code value. The
+    report, paper-white, evenness and preset-eligibility callers keep this
+    one on purpose: they look at a single array, with no chart beside it to
+    tell the two scales apart, and for every chart ChromIQ makes (all values
+    inside 0..100) both rules give the same numbers, while a run made from a
+    patch set with values outside 0..100 is clamped since 4.3.26 and never
+    reaches them with such a value. Changing them would change nothing for
+    those charts and risk the many old measurements they read.
     """
     arr = np.asarray(rgb, dtype=float)
     return arr * (100.0 / 255.0) if float(arr.max()) > 101.0 else arr

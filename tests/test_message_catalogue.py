@@ -126,6 +126,8 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-IMPORT-IDENTITY-REASON",
     # Values outside 0 to 100 in a loaded patch set (jctay), 4.3.26.
     "M-CHART-DEVICE-VALUES-CLAMPED",
+    # A patch-set line that does not match its format (review r1 L6).
+    "M-CHART-PATCH-LINE-UNREADABLE",
     # A measurement of the turned i1Profiler chart on another grid (4.3.19,
     # Basti 2026-10-27 approved building it; the wording waits here).
     "M-IMPORT-TURNED-GRID",

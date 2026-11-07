@@ -28,7 +28,16 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-_TOKEN = re.compile(r"\S+")
+#: A CGATS value: a quoted string (which may hold spaces, as a
+#: SAMPLE_NAME "Patch 1" does) or a run of non-space characters.
+_TOKEN = re.compile(r'"[^"]*"|\S+')
+
+
+class UnreadablePatchLine(ValueError):
+    """A data line whose values do not match the file's format, so nobody
+    can tell which of them are colour values (4.3.26, review r1 L6). Its
+    text is the {reason} of the "Couldn't read that patch set" window."""
+
 #: The real minus sign, so "−23.14" does not read as a dash in the warning.
 MINUS = "−"
 
@@ -91,16 +100,25 @@ def clamp_text(text: str) -> "tuple[str, list[Change]]":
         elif s == "END_DATA":
             in_data = False
         elif in_data and prefix and s:
-            line = _clamp_line(line, fields, prefix, changes)
+            line = _clamp_line(line, fields, prefix, changes,
+                               len(out_lines) + 1)
         out_lines.append(line)
     return "".join(out_lines), changes
 
 
 def _clamp_line(line: str, fields: "list[str]", prefix: str,
-                changes: "list[Change]") -> str:
+                changes: "list[Change]", number: int = 0) -> str:
     spans = [(m.start(), m.end(), m.group()) for m in _TOKEN.finditer(line)]
     if len(spans) != len(fields):
-        return line
+        # NEVER LEFT UNCHECKED IN SILENCE (review r1 L6): a line with more or
+        # fewer values than the format names cannot be read value by value,
+        # so it is refused with a reason rather than passed on unclamped.
+        from core.i18n import tr
+        raise UnreadablePatchLine(tr(
+            "line {line} of the patch set does not have as many values as "
+            "its format names (the line has {got}, the format names {want}), "
+            "so ChromIQ cannot tell which of them are the colour values").format(line=number, got=len(spans),
+                                        want=len(fields)))
     vals = dict(zip(fields, (t for _a, _b, t in spans)))
     sid = vals.get("SAMPLE_ID", "").strip('"')
     loc = vals.get("SAMPLE_LOC", "").strip('"')
@@ -111,6 +129,12 @@ def _clamp_line(line: str, fields: "list[str]", prefix: str,
         try:
             v = float(tok)
         except ValueError:
+            continue
+        # NOT A NUMBER IS NOT 100 (review r1 L6): "nan" compares false with
+        # everything and came out as 100. A value that is not a finite number
+        # is left exactly as it is, for the patch set's own checks (and
+        # ArgyllCMS) to refuse; "inf" is no colour either.
+        if v != v or v in (float("inf"), float("-inf")):
             continue
         if 0.0 <= v <= 100.0:
             continue
@@ -145,7 +169,8 @@ def clamp_bytes(data: bytes) -> "tuple[bytes, list[Change]]":
 
 def changes_in(path: "str | Path") -> "list[Change]":
     """What :func:`clamp_bytes` would change in the file at *path*, without
-    changing it. An unreadable file has nothing to say."""
+    changing it. A file that cannot be opened has nothing to say; a data
+    line that does not match its format raises :class:`UnreadablePatchLine`."""
     try:
         return clamp_bytes(Path(path).read_bytes())[1]
     except OSError:

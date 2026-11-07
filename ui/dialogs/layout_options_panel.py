@@ -3418,7 +3418,7 @@ class LayoutOptionsPanel(QWidget):
         # …and its clip border (F12): the stored FD-9 layout's, or the
         # FD-9's default. The previous instrument's comes back on leaving.
         saved = getattr(self, "_fd9_saved", None)
-        self._fd9_clip_chosen = r.fd9_clip_border is not None
+        chosen = r.fd9_clip_border is not None
         if saved is not None and hasattr(self, "clip_content_mode"):
             saved["clip"] = (self.clip_content_mode.currentIndex(),
                              getattr(self, "_clip_when_on", None))
@@ -3428,6 +3428,11 @@ class LayoutOptionsPanel(QWidget):
             else:
                 self._clip_when_on = kind
                 self._select_clip_content(kind)
+        # AFTER the content is set (4.3.26, review r1 M2): setting it fires
+        # `_on_clip_content_changed`, which takes any change outside a load
+        # for a person's answer, so entering the FD-9 used to mark the
+        # default as chosen and store it explicitly.
+        self._fd9_clip_chosen = chosen
 
     def _fd9_live_controls(self) -> tuple:
         """The controls outside `_FD9_LIVE_GROUPS` that the FD-9 does read:
@@ -6002,7 +6007,6 @@ class LayoutOptionsPanel(QWidget):
             # off (helper markers, strip and row labels), and its clip
             # border is the switch's answer, in a field of its own.
             from workflow.layout_engine.presets import fd9_fixed_fields
-            from workflow.fd9.furniture import FD9_CLIP_BORDER_DEFAULT
             r = fd9_fixed_fields(r)
             # A CHOICE IS STORED, A DEFAULT IS NOT (4.3.25 review, L8).
             # Left at the default by nobody's choice, the field stays None
@@ -6013,9 +6017,16 @@ class LayoutOptionsPanel(QWidget):
             # out, even when it equals today's default: stored only when it
             # differed, a deliberate "Off" would turn On by itself the day the
             # default becomes On.
+            # ONLY A PERSON'S ANSWER IS STORED (4.3.26, review r1 M2). Until
+            # then a panel that merely showed "off" (part way through a load,
+            # say) stored an explicit False, and loading that recipe marked
+            # it chosen for good, so the FD-9 clip border stayed off whatever
+            # the default. Nobody's choice stores None, and the panel shows
+            # the default whenever it enters the FD-9 without an answer
+            # (`_load_fd9_layout_values`, `set_recipe`), so the panel and the
+            # build agree.
             on = r.clip_content_mode not in (None, "off", "example")
-            r.fd9_clip_border = (on if self._fd9_clip_chosen or
-                                 on != FD9_CLIP_BORDER_DEFAULT else None)
+            r.fd9_clip_border = on if self._fd9_clip_chosen else None
         return r
 
     def _emit(self, *_a) -> None:

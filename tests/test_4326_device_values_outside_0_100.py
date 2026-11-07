@@ -412,3 +412,108 @@ def test_load_patch_set_names_both_values_in_a_window_that_does_not_block(
         if getattr(tab, "_clamped_note", None) is not None:
             tab._clamped_note.close()
         tab.deleteLater()
+
+
+# --- review r1: nan, quoted values, lines that do not match (L6) ------------
+
+def test_nan_and_inf_are_left_as_they_are():
+    """"nan" compared false with everything and came out as 100."""
+    t = OUT_OF_RANGE.replace("4 104.0000 20.0000", "4 nan 20.0000").replace(
+        "2 0.0000 0.0000 0.0000", "2 inf 0.0000 0.0000")
+    text, changes = D.clamp_text(t)
+    assert [(c.sample_id, c.old_text) for c in changes] == [("3", "-23.1373")]
+    assert "4 nan 20.0000" in text and "2 inf 0.0000" in text
+
+
+def test_a_quoted_value_with_spaces_counts_as_one():
+    t = ('CTI2\nCOLOR_REP "RGB"\nNUMBER_OF_FIELDS 5\nBEGIN_DATA_FORMAT\n'
+         'SAMPLE_ID SAMPLE_NAME RGB_R RGB_G RGB_B\nEND_DATA_FORMAT\n'
+         'NUMBER_OF_SETS 1\nBEGIN_DATA\n7 "Patch seven" -5 50 50\nEND_DATA\n')
+    text, changes = D.clamp_text(t)
+    assert '7 "Patch seven" 0 50 50' in text
+    assert [(c.sample_id, c.channel, c.new) for c in changes] == [
+        ("7", "R", 0.0)]
+
+
+def test_a_line_that_does_not_match_its_format_is_refused_not_skipped():
+    bad = OUT_OF_RANGE.replace("3 -23.1373 50.0000 50.0000 15.0000 20.0000 "
+                               "22.0000", "3 -23.1373 50.0000 50.0000")
+    with pytest.raises(D.UnreadablePatchLine) as caught:
+        D.clamp_text(bad)
+    msg = str(caught.value)
+    assert "line has 4" in msg and "format names 7" in msg
+    assert msg[:1].islower() and not msg.endswith(".")
+
+
+def _real_tab(tmp_path):
+    from PyQt6.QtCore import QSettings
+    from PyQt6.QtWidgets import QApplication
+    import ui.tabs.tab_chart as tc
+    from core.argyll_runner import ArgyllRunner
+    from core.file_manager import FileManager
+    from core.settings import AppSettings
+    from ui.measurement_target_bar import MeasurementTargetController
+    QApplication.instance() or QApplication([])
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    s.set("custom_output_path", str(tmp_path / "projects"))
+    s.set("use_chromiq_layout_engine", False)
+    fm = FileManager(s)
+    tab = tc.TabChart(ArgyllRunner(s), fm, s)
+    tab.set_target_controller(MeasurementTargetController(fm))
+    return tab, fm
+
+
+def test_load_patch_set_refuses_a_line_that_does_not_match(
+        tmp_path, monkeypatch):
+    import ui.tabs.tab_chart as tc
+    tab, fm = _real_tab(tmp_path)
+    src = tmp_path / "broken.ti1"
+    src.write_text(OUT_OF_RANGE.replace(
+        "4 104.0000 20.0000 0.0000 40.0000 25.0000 3.0000",
+        "4 104.0000 20.0000 0.0000"), encoding="utf-8")
+    before = src.read_bytes()
+    monkeypatch.setattr(tc, "open_file_dialog", lambda *a, **k: str(src))
+    asked, built, shown = [], [], []
+    monkeypatch.setattr(tab, "_ti1_load_destination",
+                        lambda _s: asked.append(1) or "new")
+    monkeypatch.setattr(tab._creator, "load_ti1_and_generate_preview",
+                        lambda *a, **k: built.append(a))
+    monkeypatch.setattr(tc.InfoDialog, "exec",
+                        lambda self: shown.append(self.windowTitle()) or 0)
+    try:
+        tab._on_load_ti1()
+        assert shown == ["Couldn't read that patch set"]
+        assert not asked and not built
+        assert tab._preset_ti1_path is None
+        assert src.read_bytes() == before
+    finally:
+        tab.deleteLater()
+
+
+# --- review r1 L5: a .ti1 preset gets the same window -----------------------
+
+def test_a_ti1_preset_with_values_outside_gets_the_window(
+        tmp_path, monkeypatch):
+    tab, fm = _real_tab(tmp_path)
+    src = tmp_path / "preset.ti1"
+    src.write_text(OUT_OF_RANGE, encoding="utf-8")
+    fm.start_new_project("Preset-Test")
+    tab._update_name_fields()
+    built = []
+    monkeypatch.setattr(tab._creator, "load_ti1_and_generate_preview",
+                        lambda *a, **k: built.append(a))
+    try:
+        assert tab._generate_from_ti1(src, ask=False) is True
+        dlg = tab._clamped_note
+        assert dlg is not None and dlg.isVisible() and not dlg.isModal()
+        assert built
+        # …and never for the live preview, which re-lays out on every knob.
+        dlg.close()
+        tab._clamped_note = None
+        tab._generate_from_ti1(src, ask=False, preview=True)
+        assert tab._clamped_note is None
+    finally:
+        if getattr(tab, "_clamped_note", None) is not None:
+            tab._clamped_note.close()
+        tab.deleteLater()

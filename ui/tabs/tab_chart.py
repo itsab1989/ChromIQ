@@ -4660,6 +4660,13 @@ def _engine_instrument(code) -> str:
     out (the i1iSis) is shown as the i1Pro, as `_sync_engine_panel_selection`
     does (B8-1283 is open on that)."""
     eng = {"3p": "p3"}.get(str(code or "i1"), str(code or "i1"))
+    if eng == "FD9":
+        # THE FD-9 IS THE PANEL'S OWN NAME FOR IT TOO (4.3.26, review r1 M1),
+        # while FD-9 support (Beta) is on. Without it "Save as Defaults" on
+        # the FD-9 retargeted the FD-9 recipe to the i1Pro, so its clip
+        # border answer (and every other FD-9 option) was never stored.
+        from workflow.fd9.support import fd9_enabled
+        return "FD9" if fd9_enabled() else "i1"
     return eng if eng in ("i1", "p3", "CM", "SS", "CR30") else "i1"
 
 
@@ -19279,6 +19286,21 @@ class TabChart(QWidget):
             params.patch_set_given = (not preview) or self._ti1_preset_active()
             self._last_target_name = base_name
             self._log.clear()
+            # VALUES OUTSIDE 0..100 IN A .ti1 PRESET (4.3.26, review r1 L5):
+            # the same window as Load patch set, not only the log line. It
+            # does not block, so Generate goes on beside it; not for the live
+            # preview, which re-lays out on every turn of a knob and must not
+            # open a window each time (the log line still says it).
+            if not preview:
+                from workflow.device_range import (UnreadablePatchLine,
+                                                   changes_in)
+                try:
+                    _clamped = changes_in(ti1_path)
+                except UnreadablePatchLine:
+                    _clamped = []     # the build's log says why
+                if _clamped:
+                    self._say_device_values_clamped(
+                        _clamped, Path(ti1_path).name)
             self._preview.clear()
             self._creator.load_ti1_and_generate_preview(
                 ti1_path, params,
@@ -19775,6 +19797,21 @@ class TabChart(QWidget):
         if r.fd9_gap_mm is not None:
             return width, height, float(r.fd9_gap_mm), float(r.fd9_gap_mm)
         return width, height, float(r.inter_patch_mm), float(r.strip_gap_mm)
+
+    def _fd9_guided_clip(self, paper) -> "tuple[bool, dict]":
+        """Guided's FD-9 clip border: always the FD-9's default
+        (`FD9_CLIP_BORDER_DEFAULT`, on), with the Notes box.
+
+        GUIDED HAS NO CLIP-BORDER SETTING FOR THE FD-9, so it follows the
+        default, as Guided does for every other instrument: the i1Pro's clip
+        band is set by Guided's own "disable left border" box and always
+        shows the Notes box (`ChartCreator._engine_build_kwargs`), and no
+        instrument's Guided chart reads a clip border from Manual's Save as
+        Defaults or Preferences > Chart Layout (the owner, 4.3.26 review r1:
+        a Manual Off is Manual's). Passed explicitly, so a Guided FD-9 chart
+        never depends on whatever recipe Manual holds."""
+        from workflow.fd9.furniture import FD9_CLIP_BORDER_DEFAULT
+        return FD9_CLIP_BORDER_DEFAULT, {"clip_content_mode": "notes"}
 
     def _fd9_remember_guided(self, recipe) -> None:
         """Take an FD-9 layout that was loaded as Guided's own."""
@@ -21107,6 +21144,21 @@ class TabChart(QWidget):
                 f"Converted {src.name} to .ti1 ({n} patches)."
             )
 
+        # A LINE THAT DOES NOT MATCH THE FORMAT (4.3.26, review r1 L6) is
+        # refused here, before anything is bound or asked: nobody can tell
+        # which of its values are colour values, so it can be neither clamped
+        # nor laid out as it is meant.
+        from workflow.device_range import UnreadablePatchLine, changes_in
+        try:
+            changes_in(ti1)
+        except UnreadablePatchLine as exc:
+            from workflow.measurement_messages import (
+                M_CHART_PATCH_LINE_UNREADABLE)
+            title, body = M_CHART_PATCH_LINE_UNREADABLE.render(
+                file=src.name, reason=str(exc))
+            InfoDialog(title, body, self, min_width=520).exec()
+            return
+
         # A loaded patch set supplies its own fixed colorimetry, so it's built by
         # printtarg only — targen is skipped, exactly like a user preset that
         # bundled a .ti1. Point Generate at the loaded file and snapshot the
@@ -21236,7 +21288,7 @@ class TabChart(QWidget):
         # VALUES OUTSIDE 0..100 (4.3.26, jctay): the build below holds them
         # inside 0..100 in the run's copy; say which, beside the preview.
         from workflow.device_range import changes_in
-        _clamped = changes_in(ti1)
+        _clamped = changes_in(ti1)      # readable: checked on loading
         if _clamped:
             self._say_device_values_clamped(_clamped, src.name)
         self._preview.clear()
@@ -31634,6 +31686,8 @@ class TabChart(QWidget):
         _fd9_w, _fd9_h, _fd9_along, _fd9_across = (
             self._fd9_guided_values(paper) if instr == "FD9"
             else (8.0, None, 1.0, None))
+        _fd9_clip, _fd9_clip_opts = (self._fd9_guided_clip(paper)
+                                     if instr == "FD9" else (None, None))
 
         return ChartParams(
             # Guided's FD-9 takes its own values, never Manual's panel (review
@@ -31643,6 +31697,10 @@ class TabChart(QWidget):
             fd9_patch_h_mm = _fd9_h,
             fd9_gap_mm = _fd9_along,
             fd9_strip_gap_mm = _fd9_across,
+            # …and its clip border: the FD-9's default, Guided having no
+            # setting for it (review r1 M1, the owner's correction).
+            fd9_clip_border = _fd9_clip,
+            fd9_clip_options = _fd9_clip_opts,
             instrument           = instr,
             paper                = paper,
             pages                = pages,
