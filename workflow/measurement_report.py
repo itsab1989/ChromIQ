@@ -953,10 +953,10 @@ def verify_patch_identity(measured, ti2_path: "Path | None") -> dict:
                worst=round(float(diffs.max()), 4))
     if out["mismatched"]:
         out["verdict"] = "mismatch"
-        out["reason"] = (
-            f"{out['mismatched']} of {len(pairs)} patches do not hold the "
-            "colour the chart asked for, so the readings may not line up with "
-            "the chart")
+        # Translated, and with the way out for a list somebody reordered
+        # (M-IMPORT-IDENTITY-REASON, §M-PROPOSED, 4.3.26).
+        from workflow.measurement_messages import identity_mismatch_reason
+        out["reason"] = identity_mismatch_reason(out["mismatched"], len(pairs))
     else:
         out["verdict"] = "verified"
     return out

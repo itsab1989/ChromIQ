@@ -2103,6 +2103,58 @@ def turned_grid_paged_no_place_reason(cols: int, rows: int, got_rows: int,
         + " " + tr(_TURNED_GRID_WHAT_TO_DO))
 
 
+# --- PROPOSED: the measured colours do not follow the chart: the reason ----
+#: 4.3.26. The ``{reason}`` of every import door's refusal window ("The
+#: reason: {reason}.") when the device values in a measurement do not agree
+#: with the chart's patches (`measurement_report.verify_patch_identity`), so
+#: each fragment opens in lower case and the last carries no closing full
+#: stop. Until 4.3.26 it was the first sentence alone, in English in every
+#: language.
+#:
+#: THE WAY OUT (jctay, printerknowledge forum, 2026-11-07): he put a chart's
+#: patches in another order with another program before measuring them in
+#: i1Profiler. The refusal is right, because ChromIQ never pairs readings
+#: with patches by their colours (§I.9), but it did not say what to do
+#: instead.
+_IDENTITY_ALL = (
+    "{bad} of {total} patches do not hold the colour the chart asked for, so "
+    "the readings may not line up with the chart")
+_IDENTITY_ONE = (
+    "1 of {total} patches does not hold the colour the chart asked for, so "
+    "the readings may not line up with the chart")
+_IDENTITY_ONLY = (
+    "the one patch in this file does not hold the colour the chart asked "
+    "for, so the reading may not belong to the chart")
+_IDENTITY_REORDERED = (
+    "If the patches were put in another order for i1Profiler by another "
+    "program, ChromIQ cannot bring the readings back to the chart, because "
+    "it never guesses which reading belongs to which patch from their "
+    "colours. Measure with ChromIQ's own i1Profiler export instead: the "
+    "normal export keeps the chart's order, and the turned export, which "
+    "ChromIQ writes for a chart created while “Also write an i1Profiler "
+    "chart that matches the printed ChromIQ sheet” is on (Preferences, "
+    "Beta), uses an order of its own that ChromIQ knows and maps back to the "
+    "chart by itself")
+M_IMPORT_IDENTITY_REASON = _m(
+    "M-IMPORT-IDENTITY-REASON",
+    "The measured colours do not follow the chart: the reason",
+    "\n".join((_IDENTITY_ALL, _IDENTITY_ONE, _IDENTITY_ONLY,
+               _IDENTITY_REORDERED)),
+    approved=False)
+
+
+def identity_mismatch_reason(bad: int, total: int) -> str:
+    """{reason}: *bad* of the *total* compared patches hold another colour
+    than the chart asked for. A real singular, never "patch(es)"."""
+    if total == 1:
+        first = tr(_IDENTITY_ONLY)
+    elif bad == 1:
+        first = tr(_IDENTITY_ONE).format(total=total)
+    else:
+        first = tr(_IDENTITY_ALL).format(bad=bad, total=total)
+    return first + ". " + tr(_IDENTITY_REORDERED)
+
+
 M_IMPORT_DATE_TAKEN = _m(
     "M-IMPORT-DATE-TAKEN",
     "This verification already holds a measurement",
@@ -9250,7 +9302,7 @@ CATALOGUE = {m.id: m for m in (
     M_PATCH_CARD_PLAIN,
     M_VERIFY_CREATE_NO_PROFILE, M_GAMUT_NO_PROFILE,
     M_IMPORT_MISMATCH, M_IMPORT_DATE_TAKEN, M_IMPORT_DONE,
-    M_IMPORT_TURNED_GRID,
+    M_IMPORT_TURNED_GRID, M_IMPORT_IDENTITY_REASON,
     M_IMPORT_DONE_PROFILING,
     M_IMPORT_DEVICE_FROM_CHART,
     M_VERIFY_SAVED, M_HOW_PRINTED,
