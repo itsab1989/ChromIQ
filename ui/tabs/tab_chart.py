@@ -26384,6 +26384,14 @@ class TabChart(QWidget):
                            != self._preset_ti1_targen_sig)
                 if not changed:
                     path = self._preset_ti1_path
+            # THE BUILT-IN PRESETS' SETS ARE MANUAL'S ONLY, as in
+            # `_on_generate`: Guided runs targen for the pages it is given even
+            # while a Manual preset is still selected over there. Without the
+            # mode clause Guided A4 / 6 pages promised the preset's 1224 on 12
+            # pages and Generate built 630 on 6 (4.3.26). A patch set LOADED
+            # by hand (above) is laid out in both modes, and stays counted.
+            elif self._current_mode() != "manual":
+                pass
             elif getattr(self, "_tc918_active", False):
                 if self._targen_signature() == self._tc918_targen_sig:
                     path = self._tc918_ti1_path()
