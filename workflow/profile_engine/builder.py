@@ -289,7 +289,12 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # neutral re-solved in CIELAB, so rel. col. + black point compensation
      # reaches the black point on a tinted black (purecolprof.a85_bpcblack);
      # research, opt-in
-     "a85-bpcblack"})
+     "a85-bpcblack",
+     # Agent 86: RGB perceptual / saturation neutral column near the black
+     # takes the colprof oracle's own device values where the oracle's A2B
+     # says the engine's darkest steps merge (Knut's laser; gamut_map
+     # a86_knutdark); research, opt-in
+     "a86-knutdark"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two

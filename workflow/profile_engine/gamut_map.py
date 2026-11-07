@@ -799,6 +799,12 @@ def fit_colprof_mappers(meas: Ti3Measurement, source_gamut: Path | str,
                 # colprof's own device values at the nodes, so the target
                 # can be re-expressed through the ENGINE's model.
                 out[tag].node_dev = _dev_at
+                # Research Agent 86 (a86-knutdark): the oracle profile
+                # itself, kept only with the token (its A2B is the second
+                # opinion a86_knutdark asks)
+                if A86_TOKEN in getattr(settings, "engine_candidates",
+                                        frozenset()):
+                    out[tag].oracle_icc = Path(icc).read_bytes()
                 # Research Agent 80 (a80-oraclecurve): colprof's own output
                 # curves of this table (read while the file exists)
                 try:
@@ -1116,6 +1122,92 @@ def _a35_apply_band(model, dev, mapped, col, band, mode, inv_kw,
         if band_o[k] and lp[k] > lp[k - 1] + 1e-6:
             dev[col[order[k]]] = dev[col[order[k - 1]]]
             lp[k] = lp[k - 1]
+    return dev
+
+
+# Research Agent 86 (a86-knutdark, Findings/agent86-01-knutdark.md). On an RGB
+# printer whose model is blind near the black (Knut's laser: the fitted G
+# curve is flat over G 0-0.05, and the chart has no patch between the black
+# and B 0.18 / grey 0.07), the a35 hand-over band neutralises the black's
+# b* +1 tint with blue alone; the model prints that as 0.2-0.6 L* steps,
+# while every other model of the same chart (colprof's A2B, an RBF, the
+# colprof -qh proxy) prints the darkest perceptual steps flat or reversed.
+# Gate (measured in the build): the colprof oracle's own A2B, a second fit of
+# the same measurements, prints the engine's darkest neutral column steps
+# (the first A86_STEPS node steps) at less than A86_RATIO of the step the
+# engine's model prints, at least once. Where it fires, the column nodes up
+# to the model's RGB neutral black take the oracle's device values (colprof's
+# own perceptual column, monotone on every model), handed back to the
+# engine's column by a smoothstep over the next A86_FADE L* (target L*).
+# CHROMIQ_A86 "ratio:steps:fade" overrides (research).
+A86_TOKEN = "a86-knutdark"
+A86_RATIO, A86_STEPS, A86_FADE = 0.5, 3, 3.0
+
+
+def _a86_params():
+    import os
+    v = os.environ.get("CHROMIQ_A86", "")
+    if not v:
+        return A86_RATIO, A86_STEPS, A86_FADE
+    r, k, f = v.split(":")
+    return float(r), int(k), float(f)
+
+
+def _a86_oracle_l(oracle_icc: bytes, dev: np.ndarray, xicclu) -> np.ndarray:
+    """L* the oracle profile's A2B1 prints for device values (xicclu -ff -ir)."""
+    import os
+    import tempfile
+    fd, tmp = tempfile.mkstemp(suffix=".icc")
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(oracle_icc)
+        inp = "\n".join(" ".join(f"{v:.6f}" for v in r) for r in dev)
+        r = _run_argyll([str(xicclu), "-ff", "-ir", "-pl", tmp], input=inp,
+                        capture_output=True, timeout=XICCLU_TIMEOUT_S)
+        out = np.array([[float(v) for v in ln.rsplit("->", 1)[1].split()[:3]]
+                        for ln in r.stdout.splitlines() if "->" in ln])
+    finally:
+        os.unlink(tmp)
+    if len(out) != len(dev):
+        raise OracleUnavailable("a86: oracle A2B sampling failed")
+    return out[:, 0]
+
+
+def a86_knutdark(model, dev, mapped, col, node_lab, odev, oracle_icc, xicclu,
+                 l_neutral_black: float, report: dict | None = None):
+    """Research a86-knutdark (see A86_TOKEN): returns the column device values
+    (unchanged unless the gate fires). ``col``: the neutral column node
+    indices; ``mapped``: the column targets (L* used); ``odev``: the oracle's
+    device values at all nodes; ``l_neutral_black``: model L* of the RGB
+    neutral black (the top of the a35 band)."""
+    ratio, steps, fade = _a86_params()
+    dev = np.asarray(dev, float).copy()
+    col = np.asarray(col)
+    if not len(col) or odev is None or not oracle_icc:
+        return dev
+    order = col[np.argsort(node_lab[col, 0], kind="stable")]   # dark to light
+    k = min(steps + 1, len(order))
+    if k < 2:
+        return dev
+    lm = model.predict(dev[order[:k]])[:, 0]
+    lo = _a86_oracle_l(oracle_icc, np.clip(dev[order[:k]], 0, 1), xicclu)
+    sm, so = np.diff(lm), np.diff(lo)
+    r = so / np.maximum(sm, 1e-6)
+    if report is not None:
+        report.update({"ratio_min": float(r.min()), "model_steps": sm.tolist(),
+                       "oracle_steps": so.tolist(), "fired": False})
+    if not (r.min() < ratio):
+        return dev
+    tl = np.asarray(mapped[order, 0], float)
+    l_top = float(l_neutral_black)
+    w = np.clip((l_top + fade - tl) / max(fade, 1e-9), 0.0, 1.0)
+    w = w * w * (3.0 - 2.0 * w)
+    w[tl <= l_top] = 1.0
+    o = np.clip(np.asarray(odev, float)[order], 0.0, 1.0)
+    dev[order] = w[:, None] * o + (1.0 - w[:, None]) * dev[order]
+    if report is not None:
+        report.update({"fired": True, "nodes": int((w > 0).sum()),
+                       "l_top": l_top})
     return dev
 
 
@@ -1834,6 +1926,23 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                             _lk = model.predict(dev[_neutral_col[_blk]])[:, 0]
                             _blk = _blk[_lk > float(_lab0[0])]
                             dev[_neutral_col[_blk]] = 0.0
+                    if (A86_TOKEN in _cands and _odev is not None
+                            and getattr(mapper, "oracle_icc", None)):
+                        # Research Agent 86 (a86-knutdark): see A86_TOKEN
+                        _rep: dict = {}
+                        dev = a86_knutdark(
+                            model, dev, mapped, _neutral_col, node_lab, _odev,
+                            mapper.oracle_icc,
+                            Path(getattr(settings, "argyll_bin", None)
+                                 or "/Applications/Argyll/bin") / "xicclu",
+                            _l_nb, report=_rep)
+                        if _rep.get("fired") and progress is not None:
+                            progress(f"a86-knutdark ({tag}): the oracle's A2B "
+                                     f"prints the darkest neutral steps at "
+                                     f"{_rep['ratio_min']:.2f} of the model's; "
+                                     f"{_rep['nodes']} column nodes take "
+                                     f"colprof's own device values up to L* "
+                                     f"{_rep['l_top']:.1f} + fade.")
             if ink_limit is not None and not is_additive:
                 # the engine's ink limit, exactly (xicclu's 4-decimal device
                 # values and colprof's own limit handling overshoot it by up
