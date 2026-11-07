@@ -1132,25 +1132,29 @@ def _a35_apply_band(model, dev, mapped, col, band, mode, inv_kw,
 # b* +1 tint with blue alone; the model prints that as 0.2-0.6 L* steps,
 # while every other model of the same chart (colprof's A2B, an RBF, the
 # colprof -qh proxy) prints the darkest perceptual steps flat or reversed.
-# Gate (measured in the build): the colprof oracle's own A2B, a second fit of
-# the same measurements, prints the engine's darkest neutral column steps
-# (the first A86_STEPS node steps) at less than A86_RATIO of the step the
-# engine's model prints, at least once. Where it fires, the column nodes up
+# Gate (measured in the build), both of: (a) the colprof oracle's own A2B, a
+# second fit of the same measurements, prints the engine's darkest neutral
+# column steps (the first A86_STEPS node cells, each sampled A86_SUB times,
+# device values linear between the nodes) at less than A86_RATIO of the step
+# the engine's model prints, at least once; (b) the engine's first column
+# cell heads in another device direction than the oracle's own column
+# (cosine below A86_COS: Knut 0.23 battery / 0.29 full chart, every other
+# battery RGB printer 0.76 or more). Where it fires, the column nodes up
 # to the model's RGB neutral black take the oracle's device values (colprof's
 # own perceptual column, monotone on every model), handed back to the
 # engine's column by a smoothstep over the next A86_FADE L* (target L*).
 # CHROMIQ_A86 "ratio:steps:fade" overrides (research).
 A86_TOKEN = "a86-knutdark"
-A86_RATIO, A86_STEPS, A86_FADE = 0.5, 3, 3.0
+A86_RATIO, A86_STEPS, A86_FADE, A86_SUB, A86_COS = 0.5, 3, 3.0, 4, 0.5
 
 
 def _a86_params():
     import os
     v = os.environ.get("CHROMIQ_A86", "")
     if not v:
-        return A86_RATIO, A86_STEPS, A86_FADE
-    r, k, f = v.split(":")
-    return float(r), int(k), float(f)
+        return A86_RATIO, A86_STEPS, A86_FADE, A86_SUB, A86_COS
+    r, k, f, sub, c = v.split(":")
+    return float(r), int(k), float(f), int(sub), float(c)
 
 
 def _a86_oracle_l(oracle_icc: bytes, dev: np.ndarray, xicclu) -> np.ndarray:
@@ -1180,7 +1184,7 @@ def a86_knutdark(model, dev, mapped, col, node_lab, odev, oracle_icc, xicclu,
     indices; ``mapped``: the column targets (L* used); ``odev``: the oracle's
     device values at all nodes; ``l_neutral_black``: model L* of the RGB
     neutral black (the top of the a35 band)."""
-    ratio, steps, fade = _a86_params()
+    ratio, steps, fade, sub, cos_max = _a86_params()
     dev = np.asarray(dev, float).copy()
     col = np.asarray(col)
     if not len(col) or odev is None or not oracle_icc:
@@ -1189,14 +1193,22 @@ def a86_knutdark(model, dev, mapped, col, node_lab, odev, oracle_icc, xicclu,
     k = min(steps + 1, len(order))
     if k < 2:
         return dev
-    lm = model.predict(dev[order[:k]])[:, 0]
-    lo = _a86_oracle_l(oracle_icc, np.clip(dev[order[:k]], 0, 1), xicclu)
+    d = np.clip(dev[order[:k]], 0.0, 1.0)
+    t = np.linspace(0.0, 1.0, sub + 1)[:-1]
+    samp = np.vstack([d[i] + (d[i + 1] - d[i]) * tt
+                      for i in range(k - 1) for tt in t] + [d[k - 1:k]])
+    lm = model.predict(samp)[:, 0]
+    lo = _a86_oracle_l(oracle_icc, samp, xicclu)
     sm, so = np.diff(lm), np.diff(lo)
-    r = so / np.maximum(sm, 1e-6)
+    r = so / np.maximum(sm, 1e-3)
+    o01 = np.clip(np.asarray(odev, float)[order[:2]], 0.0, 1.0)
+    a, b = d[1] - d[0], o01[1] - o01[0]
+    cos = float(a @ b / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-12))
     if report is not None:
-        report.update({"ratio_min": float(r.min()), "model_steps": sm.tolist(),
+        report.update({"ratio_min": float(r.min()), "cos": cos,
+                       "model_steps": sm.tolist(),
                        "oracle_steps": so.tolist(), "fired": False})
-    if not (r.min() < ratio):
+    if not (r.min() < ratio and cos < cos_max):
         return dev
     tl = np.asarray(mapped[order, 0], float)
     l_top = float(l_neutral_black)
@@ -1939,7 +1951,8 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                         if _rep.get("fired") and progress is not None:
                             progress(f"a86-knutdark ({tag}): the oracle's A2B "
                                      f"prints the darkest neutral steps at "
-                                     f"{_rep['ratio_min']:.2f} of the model's; "
+                                     f"{_rep['ratio_min']:.2f} of the model's "
+                                     f"(path cosine {_rep['cos']:.2f}); "
                                      f"{_rep['nodes']} column nodes take "
                                      f"colprof's own device values up to L* "
                                      f"{_rep['l_top']:.1f} + fade.")
