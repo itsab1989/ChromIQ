@@ -17895,10 +17895,15 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         except Exception:      # noqa: BLE001 — a repaint is never worth a crash
             return
         loads = getattr(self, "_memory_loads", 0)
+        skipped = getattr(self, "_overlay_repaints_skipped", 0)
         self._repaint_overlay_from_disk()
         # Only when this repaint read the memory and judged the whole file
         # again: otherwise the judge on hand may be another chart's, or empty.
-        if getattr(self, "_memory_loads", 0) != loads:
+        # A painting skipped as unchanged counts as one: the judge on hand is
+        # exactly what that repaint would have left (`_overlay_still_painted`),
+        # so the memory file is brought into line just as it was before.
+        if (getattr(self, "_memory_loads", 0) != loads
+                or getattr(self, "_overlay_repaints_skipped", 0) != skipped):
             self._rewrite_memory_after_repaint()
 
     def _rewrite_memory_after_repaint(self) -> None:
@@ -18219,6 +18224,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 white=white, device_ranges=device_ranges)
         else:
             judge.reset(white=white, device_ranges=device_ranges)
+        # Counted, so a painting from disk knows the memory it judged with
+        # has not been started again since (`_overlay_still_painted`).
+        self._flag_judge_resets = getattr(self, "_flag_judge_resets", 0) + 1
         # The neighbour check remembers the same readings, so it starts
         # afresh with them (#182 beta 11).
         self._neighbour_reset()
@@ -20301,6 +20309,22 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         ti3 = self._existing_ti3_for_chart()
         if ti3 is None or self._ti1_path is None:
             return False
+        # NOT TWICE FOR NOTHING (perf audit 2026-11-07, #2). Arriving at this
+        # tab painted the whole overlay twice, once from showEvent and once
+        # from the deferred `refresh_patch_flags`, and a third time when the
+        # arrival offer was accepted: 0.6 to 1.2 s on a 1,232-patch run. A
+        # painting is skipped only when everything it is made from is what
+        # the last one was made from AND nothing has touched what that one
+        # left behind; the answer is then the same True the repaint gave.
+        key = self._overlay_repaint_key(ti3)
+        if (key is not None and key == getattr(self, "_overlay_painted_key", None)
+                and self._overlay_still_painted()):
+            self._overlay_repaints_skipped = getattr(
+                self, "_overlay_repaints_skipped", 0) + 1
+            log.debug("overlay: nothing it is made from changed since it was "
+                      "painted; not painted again")
+            return True
+        self._overlay_painted_key = None
         # Ensure we have this chart's per-patch geometry (populated on load, but
         # be defensive so the overlay works even if it wasn't).
         if not any(self._patch_boxes):
@@ -20366,7 +20390,176 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # without one the mode set on the panel is the best answer there is.
         self._on_chart_measured({"patches": patches}, live=False,
                                 strip_fence=(mode != "patch"))
+        # The key was taken BEFORE painting: a file that changed while this
+        # ran makes the next asking paint again, never the other way round.
+        if key is not None:
+            self._overlay_painted_key = key
+            self._overlay_painted_marks = self._overlay_marks()
         return True
+
+    # ---- When a painting from disk may be skipped (perf audit #2) ----------
+    #
+    # Two halves, and both must hold. The KEY is everything the painting is
+    # made from: the measurement file, the chart, every file beside them that
+    # a painting reads (the confirmed-patches memory, a verification's print
+    # record and its run's profile), the selection, the reading mode, and the
+    # WHOLE preferences store, not a list of the keys the judge reads today,
+    # so a limit added tomorrow cannot be missed. The MARKS are what the last
+    # painting left behind (the overlay on the preview, the yellow memory, the
+    # neighbour check, the expected colours, the patch geometry); anything
+    # that replaced one of them since, a session, a cleared preview, a chart
+    # change, a reset judge, makes the next asking paint again.
+
+    @staticmethod
+    def _file_stamp(path) -> tuple:
+        """``(path, mtime_ns, size, inode)`` of *path*, or ``(path,)``."""
+        try:
+            st = Path(path).stat()
+            return (str(path), st.st_mtime_ns, st.st_size, st.st_ino)
+        except (OSError, TypeError, ValueError):
+            return (str(path),)
+
+    @staticmethod
+    def _folder_stamp(folder) -> tuple:
+        """Every FILE directly in *folder* with its stamp, sorted. Folders in
+        it are left out: a cache written beside the run must not count as a
+        change of anything a painting reads.
+
+        A ``.json`` file counts by its CONTENT: the run's ``meta.json`` is
+        written again, unchanged, every time a tab saves its settings (the
+        tab switch that brings you here does), and its date alone would make
+        every arrival paint again."""
+        out = []
+        try:
+            import hashlib
+            import os
+            with os.scandir(folder) as it:
+                for e in it:
+                    try:
+                        if not e.is_file():
+                            continue
+                        if e.name.lower().endswith(".json"):
+                            with open(e.path, "rb") as fh:
+                                digest = hashlib.blake2b(
+                                    fh.read(), digest_size=16).hexdigest()
+                            out.append((e.name, digest))
+                            continue
+                        st = e.stat()
+                        out.append((e.name, st.st_mtime_ns, st.st_size))
+                    except OSError:
+                        out.append((e.name,))
+        except (OSError, TypeError, ValueError):
+            return (str(folder), None)
+        return (str(folder), tuple(sorted(out)))
+
+    def _settings_snapshot(self) -> "tuple | None":
+        """Every stored preference, or None when the store cannot be listed
+        (a stand-in settings object): then nothing is ever skipped."""
+        qs = getattr(self._settings, "_qs", None)
+        if qs is None or not hasattr(qs, "allKeys"):
+            return None
+        try:
+            return tuple(sorted((k, repr(qs.value(k))) for k in qs.allKeys()))
+        except Exception:      # noqa: BLE001 — unknown: paint, as before
+            return None
+
+    def _overlay_repaint_key(self, ti3) -> "tuple | None":
+        """What a painting of *ti3* is made from, or None when a painting
+        must never be skipped (a session on, a reader running, anything that
+        cannot be told)."""
+        if getattr(self, "_session_live", False):
+            return None
+        try:
+            if self._runner.is_running:
+                return None
+        except Exception:      # noqa: BLE001
+            return None
+        settings = self._settings_snapshot()
+        if settings is None:
+            return None
+        try:
+            from core.file_manager import VERIFICATIONS_DIRNAME
+            ti1 = Path(self._ti1_path)
+            ti3 = Path(ti3)
+            chart = Path(self._chart_file_for(ti1))
+            folders = {ti3.parent, ti3.parent / "chart", ti1.parent,
+                       chart.parent}
+            if ti1.parent.name == VERIFICATIONS_DIRNAME:
+                folders.add(ti1.parent.parent)       # the run and its profile
+            ctl = getattr(self, "_target_ctl", None)
+            target = None
+            if ctl is not None:
+                t = ctl.target
+                proj = ctl.project_or_none()
+                target = (str(getattr(proj, "root", "") or ""),
+                          str(t.run_type), str(t.profile_run),
+                          str(t.verification_id))
+            boxes = getattr(self, "_patch_boxes", None) or []
+            return (
+                self._file_stamp(ti3), self._file_stamp(ti1),
+                self._file_stamp(chart),
+                tuple(self._folder_stamp(f)
+                      for f in sorted(folders, key=str)),
+                target, bool(self._is_verification_run()),
+                str(getattr(self, "_staged_verification_ti3", None) or ""),
+                str(getattr(self, "_staged_from", None) or ""),
+                self._current_mode(), self._selected_memory_mode(),
+                bool(self._card_reads_patch_by_patch()),
+                len(getattr(self, "_tiff_pages", None) or ()),
+                tuple(len(b) for b in boxes),
+                settings,
+            )
+        except Exception:      # noqa: BLE001 — unknown: paint, as before
+            log.debug("overlay: no repaint key", exc_info=True)
+            return None
+
+    def _overlay_marks(self) -> tuple:
+        """What the painting just made left behind, held by identity: the
+        overlay and hover numbers on the preview, page by page, and the tab's
+        own state the painting set."""
+        pv = getattr(self, "_preview", None)
+        ov = getattr(pv, "_patch_overlay", None)
+        info = getattr(pv, "_patch_info", None)
+
+        def pages(d):
+            if not isinstance(d, dict):
+                return (d,)
+            return (d,) + tuple((p, lst, len(lst)) for p, lst in
+                                sorted(d.items(), key=lambda kv: kv[0]))
+        return (pages(ov), pages(info),
+                getattr(self, "_patch_flag_judge", None),
+                getattr(self, "_flag_judge_resets", 0),
+                getattr(self, "_memory_loads", 0),
+                getattr(self, "_memory_for", None),
+                getattr(self, "_memory_mode", None),
+                getattr(self, "_live_expected", None),
+                getattr(self, "_patch_boxes", None),
+                # each page's boxes too: a page replaced inside the same list
+                tuple(getattr(self, "_patch_boxes", None) or ()),
+                getattr(self, "_nb_check", None),
+                getattr(self, "_nb_card", None),
+                getattr(self, "_slipped_locs", None),
+                getattr(self, "_engine_patch_read", None))
+
+    def _overlay_still_painted(self) -> bool:
+        """Is everything the last painting left behind still as it left it?
+        Compared by identity, so a replaced list or object counts as changed
+        even when it holds the same things."""
+        was = getattr(self, "_overlay_painted_marks", None)
+        if was is None:
+            return False
+        now = self._overlay_marks()
+        if len(now) != len(was):
+            return False
+
+        def same(a, b) -> bool:
+            if isinstance(a, tuple) and isinstance(b, tuple):
+                return len(a) == len(b) and all(same(x, y)
+                                                for x, y in zip(a, b))
+            if isinstance(a, (int, str)) or a is None:
+                return a == b
+            return a is b
+        return all(same(a, b) for a, b in zip(now, was))
 
     def _clear_overlay(self) -> None:
         """Remove the optional engine overlay; FD-9 owns its scan colours."""
