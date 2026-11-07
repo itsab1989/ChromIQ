@@ -24,7 +24,12 @@ permissions:
 jobs:
   build:
     name: Build (${{ matrix.arch }})
-    runs-on: macos-14
+    # macos-15 (arm64): GitHub retired the arm64 macos-14 image (runner-images
+    # #15226); the v4.3.26 tag build was cancelled with "The configuration
+    # 'macos-14-arm64-us-default' is not supported". The minimum stays macOS
+    # 13: the numpy macOS 13 wheel step below and check_bundle_min_macos.py
+    # fail the build if any binary needs a newer macOS.
+    runs-on: macos-15
     strategy:
       fail-fast: false
       matrix:
@@ -103,7 +108,7 @@ jobs:
         run: pip3 install --quiet 'numpy>=1.24.0,<2.4.0'
 
       # The app declares LSMinimumSystemVersion 13.0 (ChromIQ.spec), but pip on
-      # this macOS 14 runner picks numpy's macosx_14_0 arm64 wheel (the
+      # a macOS 14+ runner picks numpy's macosx_14_0 arm64 wheel (the
       # Accelerate build), so numpy's arm64 half required macOS 14: measured on
       # the v4.3.2 DMG with scripts/check_bundle_min_macos.py. Reinstall the
       # SAME version from its macosx_11_0 arm64 wheel, which carries its own
