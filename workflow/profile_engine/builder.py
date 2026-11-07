@@ -289,7 +289,13 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # neutral re-solved in CIELAB, so rel. col. + black point compensation
      # reaches the black point on a tinted black (purecolprof.a85_bpcblack);
      # research, opt-in
-     "a85-bpcblack"})
+     "a85-bpcblack",
+     # Agent 88: how deep the RGB colorimetric neutral shadows go on a tinted
+     # black, three levels: no token = Neutral (int-11), a88-black-balanced
+     # (cast within one just-noticeable step), a88-black-deepest (the
+     # printer's own black, a85 made safe; purecolprof.a88_black); research,
+     # opt-in
+     "a88-black-balanced", "a88-black-deepest"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -2574,6 +2580,27 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                                     f"{(_a85i['neutral_l'] or float('nan')):.1f}, "
                                     f"{_a85i['nodes']} nodes"
                                     f"{'' if _a85i['fires'] else ', not needed'}).")
+                _a88p = _a58m.a88_params(candidates)
+                if _a88p is not None:
+                    # Research Agent 88 (a88-black-balanced / -deepest):
+                    # the clipped neutral column below the darkest printable
+                    # neutral reaches toward the printer's black, at most one
+                    # just-noticeable cast (Balanced) or all the way (Deepest)
+                    _tab, _a88i = _a58m.a88_black(
+                        _tab, node_lab, residual, model, _a88p,
+                        icw.curves_to_tables(inv, entries_b2a))
+                    _k88, _n88 = _a88i["black"], _a88i["neutral"]
+                    _emit(settings, "Colorimetric table: deepest black "
+                                    f"{_a88i['level']} (research a88: "
+                                    "printer black L* "
+                                    f"{_k88[0]:.1f} a* {_k88[1]:.1f} b* "
+                                    f"{_k88[2]:.1f}; darkest printable "
+                                    "neutral "
+                                    + ("none" if _n88 is None else
+                                       f"L* {_n88[0]:.1f} a* {_n88[1]:.1f} "
+                                       f"b* {_n88[2]:.1f}")
+                                    + f"; {_a88i['nodes']} nodes"
+                                    f"{'' if _a88i['fires'] else ', not needed'}).")
                 b2a_col = icw.make_mft2(
                     3, n, b2a_grid, icw.device_to_u16(_tab),
                     in_tables=b2a_in,

@@ -963,3 +963,163 @@ def _a85_descend(predict, t_lab, d0, res_fn, iters: int = 20, h: float = 1e-4):
                 break
         d[i] = x[0]
     return d
+
+
+# --- Agent 88 (a88-black-balanced / a88-black-deepest): how deep the darkest shadows go on a tinted black ----------
+# A three-level choice built on a85-bpcblack. Neutral (no token, the default) leaves the colorimetric table exactly
+# as int-11 writes it: the neutral shadows stop at the darkest truly neutral grey. Deepest follows Agent 85: the
+# clipped neutral column below the darkest neutral is re-solved in CIELAB, so rel. col. + BPC reaches the printer's
+# own (tinted) black. Balanced goes deeper only while the colour cast stays within one just-noticeable step: the
+# same re-solve, but a node may not print further than A88["cast"] dE00 (the battery's JND, 1.75) from the neutral
+# grey of its own lightness. Same gate as a85 (darkest printable neutral >= 1.5 L* above the device black), so a
+# printer with a near-neutral black is byte-identical at every level. Safety knobs (measured by Agent 88):
+#   gfade  the share of the re-solve falls from full at the device black to 0 at the darkest neutral over this
+#          fraction of the gap (0 = off, Agent 85's step: full share up to the darkest neutral)
+#   ring   share of the first ring of off-axis nodes (C* < 12) that take the CIELAB re-solve too (Agent 85: 0)
+#   dcast  Deepest only: an optional cast cap (dE00) on the re-solve (None = no cap, Agent 85)
+# The L* = 0 plane is never touched (the profile's black stays device 0). Env CHROMIQ_A88 "key=value,..." (sweeps).
+A88_LEVELS = {"a88-black-balanced": "balanced", "a88-black-deepest": "deepest"}
+A88 = {"gap": 1.5, "fade": 4.0, "ring": 0.0, "cmax": 1.0, "w": LCH_WEIGHTS, "cast": 1.75, "gfade": 0.0,
+       "dcast": None, "pen": 40.0}
+A88_DEEPEST = {}
+A88_BALANCED = {}
+
+
+def a88_params(candidates):
+    """The chosen level's parameters, or None with neither token (Deepest wins if both are given)."""
+    c = frozenset(candidates or ())
+    lv = "deepest" if "a88-black-deepest" in c else ("balanced" if "a88-black-balanced" in c else None)
+    if lv is None:
+        return None
+    import os
+    p = dict(A88, **(A88_DEEPEST if lv == "deepest" else A88_BALANCED), level=lv)
+    for kv in filter(None, os.environ.get("CHROMIQ_A88", "").split(",")):
+        k, v = kv.split("=", 1)
+        p[k] = None if v in ("", "none", "None") else float(v)
+    return p
+
+
+def a88_cast(lab: np.ndarray) -> np.ndarray:
+    """dE00 between each colour and the neutral grey of its own lightness: how visible its colour cast is."""
+    from .metrics import delta_e_2000
+    y = np.atleast_2d(np.asarray(lab, float))
+    return delta_e_2000(y, np.stack([y[:, 0], 0 * y[:, 0], 0 * y[:, 0]], 1))
+
+
+def a88_dark_end(model, cmax: float = 1.0) -> dict:
+    """What the printer's dark end looks like, for a report: the device black (model, device 0) and the darkest
+    printable neutral (least L* with C* <= cmax on a dark device cloud), both as Lab, and the gap in L*."""
+    n = model.n_channels
+    k = np.asarray(model.predict(np.zeros((1, n)))[0], float)
+    best = None
+    for dmax in (0.3, 0.6, 1.0):
+        cl = _a85_cloud(dmax, n)
+        lab = np.asarray(model.predict(cl), float)
+        ok = np.flatnonzero(np.hypot(lab[:, 1], lab[:, 2]) <= float(cmax))
+        if len(ok):
+            best = lab[ok[np.argmin(lab[ok, 0])]]
+            if best[0] < float(lab[:, 0].max()) - 5.0:
+                break
+    return {"black": k, "neutral": best, "neutral_l": None if best is None else float(best[0]),
+            "gap": None if best is None else float(best[0] - k[0])}
+
+
+def a88_black(table: np.ndarray, node_lab: np.ndarray, residual: np.ndarray, model, params: dict,
+              out_tables: np.ndarray, gate: dict | None = None):
+    """(table, info) for the level in ``params`` (a88_params); the table is untouched where the gate does not
+    fire. See the section comment."""
+    gate = a88_dark_end(model, params["cmax"]) if gate is None else gate
+    gap = gate["gap"]
+    info = dict(gate, level=params["level"], fires=gap is not None and gap >= float(params["gap"]), nodes=0)
+    if not info["fires"]:
+        return np.asarray(table), info
+    nl = np.asarray(node_lab, float)
+    r = np.asarray(residual, float)
+    c = np.hypot(nl[:, 1], nl[:, 2])
+    ln, kl = float(gate["neutral_l"]), float(gate["black"][0])
+    top = ln + float(params["fade"])
+    u = np.clip((top - nl[:, 0]) / max(float(params["fade"]), 1e-9), 0.0, 1.0)
+    wl = u * u * (3.0 - 2.0 * u)
+    v = np.clip(r - 0.5, 0.0, 1.0)
+    wr = v * v * (3.0 - 2.0 * v)
+    ring = float(params["ring"])
+    col = c < 0.5
+    wc = np.where(col, 1.0, np.where(c < 12.0, ring, 0.0))
+    gf = float(params["gfade"] or 0.0)
+    if gf > 0:
+        g = np.clip((ln - nl[:, 0]) / max(gf * (ln - kl), 1e-9), 0.0, 1.0)
+        wl = wl * g * g * (3.0 - 2.0 * g)
+    w = wl * wr * wc * (nl[:, 0] >= 0.5)
+    sel = np.flatnonzero(w > 0)
+    if not len(sel):
+        return np.asarray(table), info
+    tab = np.asarray(table, float).copy()
+    cur = _fwd_out(out_tables, tab[sel])
+    t_lab = nl[sel]
+    wts = tuple(params["w"])
+    cap = params["cast"] if params["level"] == "balanced" else params["dcast"]
+    caps = np.where(col[sel], np.inf if cap is None else float(cap), np.inf)
+    dmax = float(min(1.0, max(0.05, 1.5 * cur.max())))
+    cloud = _a85_cloud(dmax, model.n_channels)
+    lab_c = np.asarray(model.predict(cloud), float)
+    cast_c = a88_cast(lab_c)
+    seed = np.empty_like(cur)
+    for i, t in enumerate(t_lab):
+        d = lchw_sq(lab_c, np.broadcast_to(t, lab_c.shape), wts)
+        if np.isfinite(caps[i]):
+            d = d + float(params["pen"]) ** 2 * np.maximum(cast_c - caps[i], 0.0) ** 2
+        seed[i] = cloud[np.argmin(d)]
+    pen = float(params["pen"])
+
+    def res_fn(y, t, cp):
+        rr = lchw_residual(y, t, wts)
+        if not np.isfinite(cp):
+            return rr
+        return np.concatenate([rr, pen * np.maximum(a88_cast(y) - cp, 0.0)[:, None]], 1)
+
+    best = _a88_descend(model.predict, t_lab, seed, res_fn, caps)
+    new = (1.0 - w[sel])[:, None] * cur + w[sel][:, None] * best
+    tab[sel] = _inv_out(out_tables, np.clip(new, 0.0, 1.0))
+    pr = np.asarray(model.predict(np.clip(new, 0.0, 1.0)), float)
+    cs = col[sel]
+    info.update(nodes=int(len(sel)), top=top,
+                column=[(float(t_lab[i, 0]), [round(float(x), 2) for x in pr[i]], round(float(a88_cast(pr[i])[0]), 2))
+                        for i in np.flatnonzero(cs)])
+    return tab, info
+
+
+def _a88_descend(predict, t_lab, d0, res_fn, caps, iters: int = 30, h: float = 1e-4):
+    """_a85_descend for a residual of any length (the cast penalty adds one)."""
+    d = np.clip(np.array(d0, float), 0.0, 1.0)
+    n = d.shape[1]
+    for i in range(len(d)):
+        t, cp = t_lab[i:i + 1], caps[i]
+        x = d[i:i + 1].copy()
+        r = res_fn(predict(x), t, cp)
+        cst = float((r * r).sum())
+        for _ in range(iters):
+            jac = np.empty((r.shape[1], n))
+            for k in range(n):
+                xk = x.copy()
+                s = h if xk[0, k] + h <= 1.0 else -h
+                xk[0, k] += s
+                jac[:, k] = (res_fn(predict(xk), t, cp) - r)[0] / s
+            stp = np.linalg.lstsq(jac, -r[0], rcond=None)[0]
+            held = ((x[0] <= 0.0) & (stp < 0)) | ((x[0] >= 1.0) & (stp > 0))
+            if held.any() and (~held).any():
+                stp = np.zeros(n)
+                stp[~held] = np.linalg.lstsq(jac[:, ~held], -r[0], rcond=None)[0]
+            elif held.all():
+                break
+            ok = False
+            for f in (1.0, 0.5, 0.25, 0.125, 0.0625):
+                xn = np.clip(x + f * stp, 0.0, 1.0)
+                rn = res_fn(predict(xn), t, cp)
+                cn = float((rn * rn).sum())
+                if cn < cst - 1e-12:
+                    x, r, cst, ok = xn, rn, cn, True
+                    break
+            if not ok:
+                break
+        d[i] = x[0]
+    return d
