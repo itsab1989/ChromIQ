@@ -901,34 +901,87 @@ parameters:
       tooltip_body: |-
         Contrôle la résolution de la grille cLUT et les itérations de
         lissage :
-        • Basse : grille 17³ — test rapide, pas pour la production
-        • Moyenne : grille 33³ — bon équilibre, défaut recommandé
-        • Haute : grille 45³ — qualité de production
-        • Ultra : grille 65³ — précision maximale, très lent
+        • Basse : grille 17³, un test rapide, pas pour la production
+        • Moyenne : grille 33³, un bon équilibre et le défaut recommandé
+        • Haute : grille 45³, qualité de production
+        • Ultra : grille 65³, précision maximale, très lent
         La qualité moyenne suffit pour la plupart du travail jet d'encre.
         Utilise Haute pour le fine-art ou les épreuves contractuelles.
+
+        **Ombres, noir et compensation du point noir**
+        Une qualité plus élevée suit tes mesures d'un peu plus près, mais elle
+        ne change presque rien aux ombres. La façon dont les tons les plus
+        sombres s'impriment dépend surtout de l'intention de rendu et de la
+        compensation du point noir (BPC), que tu choisis dans le programme
+        depuis lequel tu imprimes, pas ici.
+
+        Ce que fait la BPC : aucune imprimante n'imprime un noir parfait. La
+        BPC met l'image à l'échelle pour que son noir tombe sur le noir le
+        plus sombre que l'imprimante peut produire ; ainsi les détails
+        proches du noir sont conservés au lieu d'être écrêtés.
+
+        Pourquoi les paliers les plus sombres peuvent se tasser : ArgyllCMS
+        construit la partie colorimétrique d'un profil pour rester aussi
+        fidèle que possible en couleur, si bien que le noir neutre le plus
+        sombre qu'il vise est un peu plus clair que le noir le plus sombre
+        que les encres peuvent atteindre. C'est ainsi qu'ArgyllCMS est censé
+        fonctionner, comme son auteur l'a expliqué. La BPC vise un noir
+        neutre ; avec Colorimétrique relatif et la BPC activée, le noir sort
+        donc légèrement relevé et les derniers paliers d'un dégradé sombre
+        peuvent beaucoup se ressembler. L'effet est plus fort sur papier mat,
+        dont le noir est plus clair (autour de L* 20) que celui d'un papier
+        brillant.
+
+        Tes trois choix à l'impression :
+        • Colorimétrique relatif avec la BPC activée : un rendu doux jusque
+          dans les ombres, avec un noir légèrement relevé.
+        • Colorimétrique relatif avec la BPC désactivée : le noir le plus
+          profond et plus de punch, mais les détails plus sombres que le noir
+          de l'imprimante sont écrêtés en noir.
+        • Perceptif : le noir complet et des paliers sombres bien séparés, au
+          prix d'un léger décalage de couleur (environ 2 à 3 ΔE00).
+
+        Juge les ombres sur une échelle de gris imprimée en paliers (une
+        rampe de gris du blanc au noir), pas seulement sur l'épreuve écran :
+        un écran ne peut pas montrer à quel point les paliers imprimés les
+        plus sombres sont réellement proches.
       labels:
-        - "l — basse (rapide, ~30 s)"
-        - "m — moyenne (recommandée, ~2 min)"
-        - "h — haute (~10 min)"
-        - "u — ultra (~30+ min)"
+        - "l: basse (rapide, ~30 s)"
+        - "m: moyenne (recommandée, ~2 min)"
+        - "h: haute (~10 min)"
+        - "u: ultra (~30+ min)"
     "-b":
       name: "Qualité des tables B2A"
       tooltip_title: "Qualité des tables B2A (-b)"
       tooltip_body: |-
-        Contrôle indépendamment la qualité des tables B2A
-        (périphérique→PCS) utilisées pour les transformations d'entrée
-        (p. ex. l'épreuvage écran).
-        Laisse vide pour suivre le réglage principal -q.
-        Utilise « n » pour omettre les tables B2A et réduire la taille du
-        profil (les profils sortie-seulement n'ont pas besoin de B2A).
+        Règle à part la qualité des tables inverses (B2A) du profil. Ces
+        tables convertissent les couleurs d'une image en quantités d'encre ;
+        ce sont donc elles qui servent chaque fois que tu imprimes avec
+        ce profil : la table colorimétrique pour Colorimétrique relatif, la
+        table perceptive pour Perceptif. L'épreuve écran d'une impression
+        les utilise aussi.
+
+        Laisse-le sur « Comme la qualité du profil » (le réglage par défaut). ArgyllCMS
+        construit alors ces tables à la qualité choisie sous Qualité du
+        profil, et c'est ce que tu veux pour imprimer.
+        • Un réglage plus bas (Basse, ou tout niveau inférieur à Qualité du
+          profil) rend ces tables plus grossières, et ce sont les ombres et
+          le noir qui en souffrent le plus : lors de tests, le noir est sorti
+          plus clair et l'erreur des tables inverses a environ doublé.
+        • Ce n'est pas un réglage de « noir maximal » ni de point noir. Un
+          niveau supérieur à Qualité du profil prend seulement plus de temps ;
+          il ne rend pas le noir plus profond.
+        • « n : aucune » laisse de côté les tables inverses. Le fichier du
+          profil est plus petit, mais la plupart des programmes ne peuvent
+          alors plus imprimer avec lui ; ne l'utilise donc pas pour un
+          profil d'imprimante.
       labels:
         - "Comme la qualité du profil (par défaut)"
-        - "l — basse"
-        - "m — moyenne"
-        - "h — haute"
-        - "u — ultra"
-        - "n — aucune (omettre les tables B2A)"
+        - "l: basse"
+        - "m: moyenne"
+        - "h: haute"
+        - "u: ultra"
+        - "n: aucune (omettre les tables B2A)"
     "-r":
       name: "Lissage/bruit (% ΔE)"
       tooltip_title: "Bruit moyen du périphérique (-r)"

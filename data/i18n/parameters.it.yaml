@@ -874,34 +874,83 @@ parameters:
       tooltip_body: |-
         Controlla la risoluzione della griglia cLUT e le iterazioni di
         levigatura:
-        • Bassa: griglia 17³ — test rapido, non per produzione
-        • Media: griglia 33³ — buon equilibrio, predefinito consigliato
-        • Alta: griglia 45³ — qualità di produzione
-        • Ultra: griglia 65³ — massima precisione, molto lenta
+        • Bassa: griglia 17³, un test rapido, non per produzione
+        • Media: griglia 33³, un buon equilibrio e il predefinito consigliato
+        • Alta: griglia 45³, qualità di produzione
+        • Ultra: griglia 65³, massima precisione, molto lenta
         La qualità media basta per la maggior parte del lavoro inkjet.
         Usa Alta per applicazioni fine-art o prove contrattuali.
+
+        **Ombre, nero e compensazione del punto di nero**
+        Una qualità più alta segue le tue misurazioni un po' più da vicino, ma
+        cambia appena le ombre. Come si stampano i toni più scuri dipende
+        soprattutto dall'intento di resa e dalla compensazione del punto di
+        nero (BPC), che scegli nel programma da cui stampi, non qui.
+
+        Cosa fa la BPC: nessuna stampante stampa un nero perfetto. La BPC
+        scala l'immagine in modo che il suo nero cada sul nero più scuro che
+        la stampante riesce a produrre, così i dettagli vicini al nero
+        vengono conservati invece di essere tagliati.
+
+        Perché i gradini più scuri possono ammassarsi: ArgyllCMS costruisce la
+        parte colorimetrica di un profilo per restare il più fedele possibile
+        nel colore, quindi il nero neutro più scuro a cui punta è un po' più
+        chiaro del nero più scuro che gli inchiostri possono raggiungere. È
+        così che ArgyllCMS deve funzionare, come ha spiegato il suo autore. La
+        BPC punta a un nero neutro, quindi con Colorimetrico relativo e la BPC
+        attiva il nero risulta leggermente sollevato e gli ultimi gradini di
+        una sfumatura scura possono sembrare molto simili. L'effetto è più
+        forte sulla carta opaca, il cui nero è più chiaro (intorno a L* 20) di
+        quello della carta lucida.
+
+        Le tue tre scelte quando stampi:
+        • Colorimetrico relativo con la BPC attiva: un aspetto morbido fin
+          dentro le ombre, con un nero leggermente sollevato.
+        • Colorimetrico relativo con la BPC disattivata: il nero più profondo
+          e più incisività, ma i dettagli più scuri del nero della stampante
+          vengono tagliati a nero.
+        • Percettivo: il nero pieno e gradini scuri ben separati, al prezzo di
+          un piccolo spostamento di colore (circa da 2 a 3 ΔE00).
+
+        Valuta le ombre su una scala a gradini stampata (una scala di grigi
+        dal bianco al nero), non solo sulla prova a monitor: uno schermo non
+        può mostrare quanto siano davvero vicini i gradini stampati più scuri.
       labels:
-        - "l — bassa (veloce, ~30 s)"
-        - "m — media (consigliata, ~2 min)"
-        - "h — alta (~10 min)"
-        - "u — ultra (~30+ min)"
+        - "l: bassa (veloce, ~30 s)"
+        - "m: media (consigliata, ~2 min)"
+        - "h: alta (~10 min)"
+        - "u: ultra (~30+ min)"
     "-b":
       name: "Qualità tabelle B2A"
       tooltip_title: "Qualità tabelle B2A (-b)"
       tooltip_body: |-
-        Controlla indipendentemente la qualità delle tabelle B2A
-        (dispositivo→PCS) usate per trasformazioni d'ingresso (es.
-        soft-proofing).
-        Lascia vuoto per allinearti all'impostazione principale -q.
-        Usa \"n\" per omettere le tabelle B2A e ridurre la dimensione del
-        profilo (i profili solo-output non hanno bisogno di B2A).
+        Imposta in modo indipendente la qualità delle tabelle inverse (B2A)
+        del profilo. Queste tabelle trasformano i colori di un'immagine in
+        quantità di inchiostro, quindi sono quelle usate ogni volta che stampi
+        attraverso questo profilo: la tabella colorimetrica per Colorimetrico
+        relativo, quella percettiva per Percettivo. Anche la prova a monitor
+        di una stampa le usa.
+
+        Lascialo su «Come la qualità del profilo» (il predefinito). ArgyllCMS
+        costruisce allora queste tabelle alla qualità scelta in Qualità
+        profilo, che è ciò che vuoi per stampare.
+        • Un'impostazione più bassa (Bassa, o qualsiasi livello sotto Qualità
+          profilo) rende queste tabelle più grossolane, e a soffrirne di più
+          sono le ombre e il nero: nei test il nero è risultato più chiaro e
+          l'errore delle tabelle inverse è circa raddoppiato.
+        • Non è un'impostazione di «nero massimo» né del punto di nero. Un
+          livello sopra Qualità profilo richiede solo più tempo; non rende il
+          nero più profondo.
+        • «n: nessuna» lascia fuori le tabelle inverse. Il file del profilo è
+          più piccolo, ma la maggior parte dei programmi non può più stampare
+          attraverso di esso, quindi non usarlo per un profilo di stampante.
       labels:
         - "Come la qualità del profilo (predefinito)"
-        - "l — bassa"
-        - "m — media"
-        - "h — alta"
-        - "u — ultra"
-        - "n — nessuna (ometti tabelle B2A)"
+        - "l: bassa"
+        - "m: media"
+        - "h: alta"
+        - "u: ultra"
+        - "n: nessuna (ometti tabelle B2A)"
     "-r":
       name: "Levigatura/rumore (% ΔE)"
       tooltip_title: "Rumore medio dispositivo (-r)"

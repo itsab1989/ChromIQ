@@ -878,34 +878,87 @@ parameters:
       tooltip_title: "Qualidade do perfil (-q)"
       tooltip_body: |-
         Controla a resolução da grelha cLUT e as iterações de suavização:
-        • Baixa: grelha 17³ — teste rápido, não para produção
-        • Média: grelha 33³ — bom equilíbrio, predefinição recomendada
-        • Alta: grelha 45³ — qualidade de produção
-        • Ultra: grelha 65³ — precisão máxima, muito lento
+        • Baixa: grelha 17³, um teste rápido, não para produção
+        • Média: grelha 33³, um bom equilíbrio e a predefinição recomendada
+        • Alta: grelha 45³, qualidade de produção
+        • Ultra: grelha 65³, precisão máxima, muito lento
         A qualidade média chega para a maioria do trabalho de jato de
         tinta. Use Alta para fine-art ou provas de contrato.
+
+        **Sombras, preto e compensação do ponto preto**
+        Uma qualidade mais alta segue as suas medições um pouco mais de perto,
+        mas quase não altera as sombras. A forma como os tons mais escuros são
+        impressos depende sobretudo da intenção de reprodução e da compensação
+        do ponto preto (BPC), que escolhe no programa a partir do qual
+        imprime, não aqui.
+
+        O que faz a BPC: nenhuma impressora imprime um preto perfeito. A BPC
+        escala a imagem de modo que o seu preto caia no preto mais escuro que
+        a impressora consegue produzir, para que o detalhe próximo do preto
+        seja mantido em vez de cortado.
+
+        Porque é que os degraus mais escuros se podem aglomerar: o ArgyllCMS
+        constrói a parte colorimétrica de um perfil para ficar o mais fiel
+        possível na cor, por isso o preto neutro mais escuro que procura é um
+        pouco mais claro do que o preto mais escuro que as tintas conseguem
+        atingir. É assim que o ArgyllCMS deve funcionar, como o seu autor
+        explicou. A BPC aponta para um preto neutro, por isso, com
+        Colorimétrico relativo e a BPC ligada, o preto sai ligeiramente
+        levantado e os últimos degraus de um gradiente escuro podem parecer
+        muito semelhantes. O efeito é mais forte em papel mate, cujo preto é
+        mais claro (cerca de L* 20) do que o preto do papel brilhante.
+
+        As suas três escolhas ao imprimir:
+        • Colorimétrico relativo com a BPC ligada: um aspeto suave até ao
+          fundo das sombras, com um preto ligeiramente levantado.
+        • Colorimétrico relativo com a BPC desligada: o preto mais profundo e
+          mais impacto, mas o detalhe mais escuro do que o preto da impressora
+          é cortado para preto.
+        • Percetual: o preto completo e degraus escuros bem separados, à custa
+          de um pequeno desvio de cor (cerca de 2 a 3 ΔE00).
+
+        Avalie as sombras numa escala de degraus impressa (uma rampa de
+        cinzentos do branco ao preto), não só na prova de ecrã: um ecrã não
+        consegue mostrar quão próximos estão realmente os degraus impressos
+        mais escuros.
       labels:
-        - "l — baixa (rápida, ~30 s)"
-        - "m — média (recomendada, ~2 min)"
-        - "h — alta (~10 min)"
-        - "u — ultra (~30+ min)"
+        - "l: baixa (rápida, ~30 s)"
+        - "m: média (recomendada, ~2 min)"
+        - "h: alta (~10 min)"
+        - "u: ultra (~30+ min)"
     "-b":
       name: "Qualidade das tabelas B2A"
       tooltip_title: "Qualidade das tabelas B2A (-b)"
       tooltip_body: |-
-        Controla de forma independente a qualidade das tabelas B2A
-        (dispositivo→PCS) usadas em transformações de entrada (p. ex.
-        provas no ecrã).
-        Deixe vazio para acompanhar a definição principal -q.
-        Use \"n\" para omitir as tabelas B2A e reduzir o tamanho do
-        perfil (perfis só de saída não precisam de B2A).
+        Define à parte a qualidade das tabelas inversas (B2A) do perfil.
+        Estas tabelas convertem as cores de uma imagem em quantidades de
+        tinta, por isso são elas que são usadas sempre que imprime através
+        deste perfil: a tabela colorimétrica para Colorimétrico relativo, a
+        percetual para Percetual. A prova de ecrã de uma impressão também as
+        usa.
+
+        Deixe em «Como a qualidade do perfil» (a predefinição). O ArgyllCMS
+        constrói então estas tabelas com a qualidade escolhida em Qualidade do
+        perfil, que é o que quer para imprimir.
+        • Uma definição mais baixa (Baixa, ou qualquer nível abaixo de
+          Qualidade do perfil) torna estas tabelas mais grosseiras, e as
+          sombras e o preto são os que mais sofrem: em testes, o preto saiu
+          mais claro e o erro das tabelas inversas aumentou para cerca do
+          dobro.
+        • Isto não é uma definição de «preto máximo» nem de ponto preto. Um
+          nível acima de Qualidade do perfil só demora mais; não torna o preto
+          mais profundo.
+        • «n: nenhuma» deixa de fora as tabelas inversas. O ficheiro do perfil
+          fica mais pequeno, mas a maioria dos programas deixa então de
+          conseguir imprimir através dele, por isso não o use para um perfil
+          de impressora.
       labels:
         - "Como a qualidade do perfil (predefinição)"
-        - "l — baixa"
-        - "m — média"
-        - "h — alta"
-        - "u — ultra"
-        - "n — nenhuma (omitir tabelas B2A)"
+        - "l: baixa"
+        - "m: média"
+        - "h: alta"
+        - "u: ultra"
+        - "n: nenhuma (omitir tabelas B2A)"
     "-r":
       name: "Suavização/ruído (% ΔE)"
       tooltip_title: "Ruído médio do dispositivo (-r)"

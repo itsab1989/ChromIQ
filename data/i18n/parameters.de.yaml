@@ -913,36 +913,88 @@ parameters:
     "-q":
       name: "Profilqualität"
       labels:
-        - "l — Niedrig (schnell, ~30 s)"
-        - "m — Mittel (empfohlen, ~2 min)"
-        - "h — Hoch (~10 min)"
-        - "u — Ultra (~30+ min)"
+        - "l: Niedrig (schnell, ~30 s)"
+        - "m: Mittel (empfohlen, ~2 min)"
+        - "h: Hoch (~10 min)"
+        - "u: Ultra (~30+ min)"
       tooltip_title: "Profilqualität (-q)"
       tooltip_body: |
         Steuert die cLUT-Gitterauflösung und die Glättungs-Iterationen:
-        • Niedrig: 17³-Gitter — schneller Test, nicht für den Einsatz
-        • Mittel: 33³-Gitter — gutes Gleichgewicht, empfohlener Standard
-        • Hoch: 45³-Gitter — Produktionsqualität
-        • Ultra: 65³-Gitter — maximale Genauigkeit, sehr langsam
+        • Niedrig: 17³-Gitter, ein schneller Test, nicht für den Einsatz
+        • Mittel: 33³-Gitter, ein gutes Gleichgewicht und der empfohlene Standard
+        • Hoch: 45³-Gitter, Produktionsqualität
+        • Ultra: 65³-Gitter, maximale Genauigkeit, sehr langsam
         Mittel reicht für die meiste Inkjet-Arbeit.
         Hoch für Fine-Art- oder Proof-Anwendungen verwenden.
+
+        **Tiefen, Schwarz und Tiefenkompensierung**
+        Eine höhere Qualität bildet deine Messungen etwas genauer ab,
+        ändert an den Tiefen aber kaum etwas. Wie die dunkelsten Töne
+        gedruckt werden, hängt vor allem von der Wiedergabeabsicht und
+        von der Tiefenkompensierung (BPC) ab. Beides wählst du in dem
+        Programm, aus dem du druckst, nicht hier.
+
+        Was BPC macht: Kein Drucker druckt ein perfektes Schwarz. BPC
+        skaliert ein Bild so, dass sein Schwarz auf dem dunkelsten Schwarz
+        landet, das der Drucker erzeugen kann. So bleiben die Details nahe
+        Schwarz erhalten, statt abgeschnitten zu werden.
+
+        Warum die dunkelsten Stufen zusammenrücken können: ArgyllCMS baut
+        den farbmetrischen Teil eines Profils so, dass er farblich so genau
+        wie möglich bleibt. Deshalb ist das dunkelste neutrale Schwarz, das
+        es anstrebt, etwas heller als das dunkelste Schwarz, das die Tinten
+        erreichen können. So ist ArgyllCMS gedacht, wie sein Autor erklärt
+        hat. BPC zielt auf ein neutrales Schwarz. Mit Relativ farbmetrisch
+        und eingeschalteter BPC kommt das Schwarz deshalb leicht angehoben
+        heraus, und die letzten Stufen eines dunklen Verlaufs können sehr
+        ähnlich aussehen. Auf mattem Papier ist das stärker, weil sein
+        Schwarz heller ist (um L* 20) als das Schwarz von Glanzpapier.
+
+        Deine drei Möglichkeiten beim Drucken:
+        • Relativ farbmetrisch mit BPC an: ein weicher Verlauf bis ganz
+          in die Tiefen, mit einem leicht angehobenen Schwarz.
+        • Relativ farbmetrisch mit BPC aus: das tiefste Schwarz und mehr
+          Kraft, aber Details, die dunkler sind als das Schwarz des
+          Druckers, werden zu Schwarz abgeschnitten.
+        • Perzeptiv: das volle Schwarz und gut getrennte dunkle Stufen,
+          um den Preis einer kleinen Farbverschiebung (etwa 2 bis 3 ΔE00).
+
+        Beurteile die Tiefen an einem gedruckten Stufenkeil (einer
+        Graurampe von Weiß bis Schwarz), nicht nur im Softproof: Ein
+        Bildschirm kann nicht zeigen, wie nah die dunkelsten gedruckten
+        Stufen wirklich beieinanderliegen.
 
     "-b":
       name: "B2A-Tabellenqualität"
       labels:
         - "Wie Profilqualität (Standard)"
-        - "l — Niedrig"
-        - "m — Mittel"
-        - "h — Hoch"
-        - "u — Ultra"
-        - "n — Keine (B2A-Tabellen weglassen)"
+        - "l: Niedrig"
+        - "m: Mittel"
+        - "h: Hoch"
+        - "u: Ultra"
+        - "n: Keine (B2A-Tabellen weglassen)"
       tooltip_title: "B2A-Tabellenqualität (-b)"
       tooltip_body: |
-        Steuert unabhängig die Qualität der B2A-Tabellen (Gerät→PCS),
-        die für Eingabe-Transformationen (z. B. Softproof) genutzt werden.
-        Leer lassen, um der Haupteinstellung -q zu folgen.
-        „n“ lässt die B2A-Tabellen weg und verkleinert die Profildatei
-        (reine Ausgabeprofile brauchen kein B2A).
+        Legt die Qualität der Rückwärtstabellen (B2A) des Profils eigenständig
+        fest. Diese Tabellen wandeln die Farben eines Bildes in Tintenmengen
+        um. Sie werden also immer verwendet, wenn du über dieses Profil
+        druckst: die farbmetrische Tabelle für Relativ farbmetrisch, die
+        perzeptive für Perzeptiv. Auch der Softproof eines Drucks nutzt sie.
+
+        Lass es auf „Wie Profilqualität“ (das ist der Standard). ArgyllCMS baut diese
+        Tabellen dann in der Qualität, die unter Profilqualität gewählt ist,
+        und genau das willst du zum Drucken.
+        • Eine niedrigere Einstellung (Niedrig oder jede Stufe unter der
+          Profilqualität) macht diese Tabellen gröber, und am meisten
+          leiden die Tiefen und das Schwarz: In Tests kam das Schwarz
+          heller heraus, und der Fehler der Rückwärtstabellen hat sich
+          etwa verdoppelt.
+        • Das ist keine Einstellung für „maximales Schwarz“ und keine
+          Schwarzpunkt-Einstellung. Eine Stufe über der Profilqualität
+          dauert nur länger, sie macht das Schwarz nicht tiefer.
+        • „n: Keine“ lässt die Rückwärtstabellen weg. Die Profildatei wird
+          kleiner, aber die meisten Programme können dann nicht über sie
+          drucken. Verwende das also nicht für ein Druckerprofil.
 
     "-r":
       name: "Glättung/Rauschen (% ΔE)"

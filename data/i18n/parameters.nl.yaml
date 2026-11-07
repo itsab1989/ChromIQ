@@ -853,33 +853,85 @@ parameters:
       tooltip_title: "Profielkwaliteit (-q)"
       tooltip_body: |-
         Bepaalt de cLUT-rasterresolutie en het aantal gladmakings-iteraties:
-        • Laag: 17³-raster — snelle test, niet voor productie
-        • Middel: 33³-raster — goede balans, aanbevolen standaard
-        • Hoog: 45³-raster — productiekwaliteit
-        • Ultra: 65³-raster — maximale nauwkeurigheid, erg traag
+        • Laag: 17³-raster, een snelle test, niet voor productie
+        • Middel: 33³-raster, een goede balans en de aanbevolen standaard
+        • Hoog: 45³-raster, productiekwaliteit
+        • Ultra: 65³-raster, maximale nauwkeurigheid, erg traag
         Middel volstaat voor het meeste inkjetwerk.
         Gebruik Hoog voor fine-art- of contractproef-toepassingen.
+
+        **Schaduwen, zwart en zwartpuntcompensatie**
+        Een hogere kwaliteit volgt je metingen iets nauwkeuriger, maar
+        verandert de schaduwen nauwelijks. Hoe de donkerste tinten worden
+        afgedrukt, hangt vooral af van de weergave-intentie en van
+        zwartpuntcompensatie (BPC). Die kies je in het programma waaruit je
+        afdrukt, niet hier.
+
+        Wat BPC doet: geen printer drukt een perfect zwart af. BPC schaalt een
+        afbeelding zo dat het zwart ervan uitkomt op het donkerste zwart dat de
+        printer kan maken. Zo blijft het detail vlak bij zwart behouden in
+        plaats van te worden afgekapt.
+
+        Waarom de donkerste stappen op elkaar kunnen kruipen: ArgyllCMS bouwt
+        het colorimetrische deel van een profiel zo dat het qua kleur zo
+        nauwkeurig mogelijk blijft, waardoor het donkerste neutrale zwart waar
+        het op mikt iets lichter is dan het donkerste zwart dat de inkten
+        kunnen bereiken. Zo is ArgyllCMS bedoeld, zoals de maker ervan heeft
+        uitgelegd. BPC mikt op een neutraal zwart, dus met Relatief
+        colorimetrisch en BPC aan komt het zwart iets opgetild uit en kunnen
+        de laatste stappen van een donker verloop erg op elkaar lijken. Op mat
+        papier is dat sterker, omdat het zwart daarvan lichter is (rond L* 20)
+        dan het zwart van glanzend papier.
+
+        Je drie keuzes bij het afdrukken:
+        • Relatief colorimetrisch met BPC aan: een vloeiend beeld tot diep in
+          de schaduwen, met een iets opgetild zwart.
+        • Relatief colorimetrisch met BPC uit: het diepste zwart en meer pit,
+          maar detail dat donkerder is dan het zwart van de printer wordt tot
+          zwart afgekapt.
+        • Perceptueel: het volle zwart en goed gescheiden donkere stappen, ten
+          koste van een kleine kleurverschuiving (ongeveer 2 tot 3 ΔE00).
+
+        Beoordeel de schaduwen op een afgedrukte grijstrap (een grijsverloop
+        van wit naar zwart), niet alleen op de softproof: een scherm kan niet
+        laten zien hoe dicht de donkerste afgedrukte stappen echt bij elkaar
+        liggen.
       labels:
-        - "l — laag (snel, ~30 s)"
-        - "m — middel (aanbevolen, ~2 min)"
-        - "h — hoog (~10 min)"
-        - "u — ultra (~30+ min)"
+        - "l: laag (snel, ~30 s)"
+        - "m: middel (aanbevolen, ~2 min)"
+        - "h: hoog (~10 min)"
+        - "u: ultra (~30+ min)"
     "-b":
       name: "B2A-tabelkwaliteit"
       tooltip_title: "B2A-tabelkwaliteit (-b)"
       tooltip_body: |-
-        Regelt onafhankelijk de kwaliteit van de B2A-tabellen
-        (apparaat→PCS) voor invoertransformaties (bijv. soft-proofing).
-        Leeg laten om de hoofdinstelling -q te volgen.
-        Gebruik "n" om B2A-tabellen weg te laten en het profielbestand te
-        verkleinen (alleen-uitvoerprofielen hebben geen B2A nodig).
+        Stelt de kwaliteit van de omgekeerde tabellen (B2A) van het profiel
+        apart in. Deze tabellen zetten de kleuren van een afbeelding om in
+        inkthoeveelheden, dus ze worden gebruikt telkens als je via dit
+        profiel afdrukt: de colorimetrische tabel voor Relatief
+        colorimetrisch, de perceptuele voor Perceptueel. Ook de softproof van
+        een afdruk gebruikt ze.
+
+        Laat het op “Zelfde als profielkwaliteit” staan (de standaard).
+        ArgyllCMS bouwt deze tabellen dan in de kwaliteit die bij
+        Profielkwaliteit is gekozen, en dat is wat je wilt om af te drukken.
+        • Een lagere instelling (Laag, of elk niveau onder Profielkwaliteit)
+          maakt deze tabellen grover, en de schaduwen en het zwart lijden er
+          het meest onder: in tests kwam het zwart lichter uit en werd de fout
+          van de omgekeerde tabellen ongeveer twee keer zo groot.
+        • Dit is geen instelling voor “maximaal zwart” en geen
+          zwartpuntinstelling. Een niveau boven Profielkwaliteit duurt alleen
+          langer; het maakt het zwart niet dieper.
+        • “n: geen” laat de omgekeerde tabellen weg. Het profielbestand wordt
+          kleiner, maar de meeste programma's kunnen er dan niet via
+          afdrukken, dus gebruik het niet voor een printerprofiel.
       labels:
         - "Zelfde als profielkwaliteit (standaard)"
-        - "l — laag"
-        - "m — middel"
-        - "h — hoog"
-        - "u — ultra"
-        - "n — geen (B2A-tabellen weglaten)"
+        - "l: laag"
+        - "m: middel"
+        - "h: hoog"
+        - "u: ultra"
+        - "n: geen (B2A-tabellen weglaten)"
     "-r":
       name: "Gladmaking/ruis (% ΔE)"
       tooltip_title: "Gemiddelde apparaatruis (-r)"

@@ -853,33 +853,82 @@ parameters:
       tooltip_title: "Jakość profilu (-q)"
       tooltip_body: |-
         Steruje rozdzielczością siatki cLUT i iteracjami wygładzania:
-        • Niska: siatka 17³ — szybki test, nie do produkcji
-        • Średnia: siatka 33³ — dobry kompromis, zalecane domyślne
-        • Wysoka: siatka 45³ — jakość produkcyjna
-        • Ultra: siatka 65³ — maksymalna dokładność, bardzo wolno
+        • Niska: siatka 17³, szybki test, nie do produkcji
+        • Średnia: siatka 33³, dobry kompromis i zalecane ustawienie domyślne
+        • Wysoka: siatka 45³, jakość produkcyjna
+        • Ultra: siatka 65³, maksymalna dokładność, bardzo wolno
         Średnia jakość wystarcza do większości prac atramentowych.
         Wysokiej użyj do fine-art lub prób kontraktowych.
+
+        **Cienie, czerń i kompensacja punktu czerni**
+        Wyższa jakość nieco dokładniej odwzorowuje twoje pomiary, ale prawie
+        nie zmienia cieni. To, jak drukują się najciemniejsze tony, zależy
+        głównie od sposobu odwzorowania i od kompensacji punktu czerni (BPC),
+        które wybierasz w programie, z którego drukujesz, a nie tutaj.
+
+        Co robi BPC: żadna drukarka nie drukuje idealnej czerni. BPC skaluje
+        obraz tak, aby jego czerń trafiła w najciemniejszą czerń, jaką
+        drukarka potrafi uzyskać, dzięki czemu szczegóły blisko czerni zostają
+        zachowane, a nie obcięte.
+
+        Dlaczego najciemniejsze stopnie mogą się zbijać: ArgyllCMS buduje
+        kolorymetryczną część profilu tak, aby kolorystycznie była jak
+        najwierniejsza, więc najciemniejsza neutralna czerń, do której dąży,
+        jest nieco jaśniejsza niż najciemniejsza czerń, jaką mogą osiągnąć
+        atramenty. Tak ArgyllCMS ma działać, jak wyjaśnił jego autor. BPC
+        celuje w neutralną czerń, więc przy sposobie Kolorymetryczny względny
+        z włączonym BPC czerń wychodzi lekko podniesiona, a kilka ostatnich
+        stopni ciemnego przejścia może wyglądać bardzo podobnie. Na papierze
+        matowym efekt jest silniejszy, bo jego czerń jest jaśniejsza (około
+        L* 20) niż czerń papieru błyszczącego.
+
+        Twoje trzy możliwości przy drukowaniu:
+        • Kolorymetryczny względny z włączonym BPC: gładki wygląd aż w głąb
+          cieni, z lekko podniesioną czernią.
+        • Kolorymetryczny względny z wyłączonym BPC: najgłębsza czerń i
+          więcej wyrazu, ale szczegóły ciemniejsze niż czerń drukarki zostają
+          obcięte do czerni.
+        • Percepcyjny: pełna czerń i dobrze rozdzielone ciemne stopnie,
+          kosztem niewielkiego przesunięcia barwy (około 2 do 3 ΔE00).
+
+        Oceniaj cienie na wydrukowanym klinie schodkowym (rampie szarości od
+        bieli do czerni), a nie tylko na proofie ekranowym: ekran nie pokaże,
+        jak blisko siebie naprawdę leżą najciemniejsze wydrukowane stopnie.
       labels:
-        - "l — niska (szybka, ~30 s)"
-        - "m — średnia (zalecana, ~2 min)"
-        - "h — wysoka (~10 min)"
-        - "u — ultra (~30+ min)"
+        - "l: niska (szybka, ~30 s)"
+        - "m: średnia (zalecana, ~2 min)"
+        - "h: wysoka (~10 min)"
+        - "u: ultra (~30+ min)"
     "-b":
       name: "Jakość tablic B2A"
       tooltip_title: "Jakość tablic B2A (-b)"
       tooltip_body: |-
-        Steruje niezależnie jakością tablic B2A (urządzenie→PCS)
-        używanych do transformacji wejściowych (np. próby ekranowe).
-        Zostaw puste, aby podążać za głównym ustawieniem -q.
-        Użyj „n”, aby pominąć tablice B2A i zmniejszyć rozmiar profilu
-        (profile tylko-wyjściowe nie potrzebują B2A).
+        Ustawia osobno jakość tablic odwrotnych (B2A) profilu. Te tablice
+        zamieniają kolory obrazu na ilości atramentu, więc to one są używane
+        za każdym razem, gdy drukujesz przez ten profil: tablica
+        kolorymetryczna dla sposobu Kolorymetryczny względny, a percepcyjna
+        dla sposobu Percepcyjny. Korzysta z nich też proof ekranowy wydruku.
+
+        Zostaw „Jak jakość profilu” (domyślnie). ArgyllCMS zbuduje wtedy te
+        tablice w jakości wybranej w ustawieniu Jakość profilu, a tego właśnie
+        chcesz do drukowania.
+        • Niższe ustawienie (Niska albo dowolny poziom poniżej Jakości
+          profilu) sprawia, że te tablice są bardziej zgrubne, a najbardziej
+          cierpią na tym cienie i czerń: w testach czerń wychodziła
+          jaśniejsza, a błąd tablic odwrotnych mniej więcej się podwajał.
+        • To nie jest ustawienie „maksymalnej czerni” ani punktu czerni.
+          Poziom powyżej Jakości profilu tylko trwa dłużej i nie pogłębia
+          czerni.
+        • „n: żadna” pomija tablice odwrotne. Plik profilu jest mniejszy, ale
+          większość programów nie może wtedy przez niego drukować, więc nie
+          używaj tej opcji dla profilu drukarki.
       labels:
         - "Jak jakość profilu (domyślnie)"
-        - "l — niska"
-        - "m — średnia"
-        - "h — wysoka"
-        - "u — ultra"
-        - "n — żadna (pomiń tablice B2A)"
+        - "l: niska"
+        - "m: średnia"
+        - "h: wysoka"
+        - "u: ultra"
+        - "n: żadna (pomiń tablice B2A)"
     "-r":
       name: "Wygładzanie/szum (% ΔE)"
       tooltip_title: "Średni szum urządzenia (-r)"

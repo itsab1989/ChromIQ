@@ -888,34 +888,86 @@ parameters:
       tooltip_body: |-
         Controla la resolución de la rejilla cLUT y las iteraciones de
         suavizado:
-        • Baja: rejilla 17³ — prueba rápida, no para producción
-        • Media: rejilla 33³ — buen equilibrio, predeterminado recomendado
-        • Alta: rejilla 45³ — calidad de producción
-        • Ultra: rejilla 65³ — máxima precisión, muy lenta
+        • Baja: rejilla 17³, una prueba rápida, no para producción
+        • Media: rejilla 33³, un buen equilibrio y el predeterminado recomendado
+        • Alta: rejilla 45³, calidad de producción
+        • Ultra: rejilla 65³, máxima precisión, muy lenta
         La calidad media basta para la mayoría del trabajo de inyección.
         Usa Alta para bellas artes o pruebas de contrato.
+
+        **Sombras, negro y compensación de punto negro**
+        Una calidad más alta se ajusta un poco más a tus mediciones, pero
+        apenas cambia las sombras. Cómo se imprimen los tonos más oscuros
+        depende sobre todo del propósito de render y de la compensación de
+        punto negro (BPC), que eliges en el programa desde el que imprimes,
+        no aquí.
+
+        Qué hace la BPC: ninguna impresora imprime un negro perfecto. La BPC
+        escala la imagen para que su negro caiga en el negro más oscuro que
+        la impresora puede producir, de modo que el detalle cercano al negro
+        se conserva en lugar de recortarse.
+
+        Por qué los pasos más oscuros pueden amontonarse: ArgyllCMS construye
+        la parte colorimétrica de un perfil para mantenerse lo más fiel
+        posible en color, así que el negro neutro más oscuro al que apunta es
+        un poco más claro que el negro más oscuro que pueden alcanzar las
+        tintas. Así es como ArgyllCMS está pensado para funcionar, como ha
+        explicado su autor. La BPC apunta a un negro neutro, así que con
+        Colorimétrico relativo y la BPC activada, el negro sale ligeramente
+        levantado y los últimos pasos de un degradado oscuro pueden verse muy
+        parecidos. El efecto es mayor en papel mate, cuyo negro es más claro
+        (alrededor de L* 20) que el negro del papel brillante.
+
+        Tus tres opciones al imprimir:
+        • Colorimétrico relativo con la BPC activada: un aspecto suave hasta
+          el fondo de las sombras, con un negro ligeramente levantado.
+        • Colorimétrico relativo con la BPC desactivada: el negro más
+          profundo y más fuerza, pero el detalle más oscuro que el negro de
+          la impresora se recorta a negro.
+        • Perceptual: el negro completo y pasos oscuros bien separados, a
+          cambio de un pequeño cambio de color (unos 2 a 3 ΔE00).
+
+        Juzga las sombras en una cuña escalonada impresa (una rampa de grises
+        de blanco a negro), no solo en la prueba en pantalla: una pantalla no
+        puede mostrar lo juntos que están en realidad los pasos impresos más
+        oscuros.
       labels:
-        - "l — baja (rápida, ~30 s)"
-        - "m — media (recomendada, ~2 min)"
-        - "h — alta (~10 min)"
-        - "u — ultra (~30+ min)"
+        - "l: baja (rápida, ~30 s)"
+        - "m: media (recomendada, ~2 min)"
+        - "h: alta (~10 min)"
+        - "u: ultra (~30+ min)"
     "-b":
       name: "Calidad de tablas B2A"
       tooltip_title: "Calidad de tablas B2A (-b)"
       tooltip_body: |-
-        Controla de forma independiente la calidad de las tablas B2A
-        (dispositivo→PCS) usadas para transformaciones de entrada (p. ej.
-        pruebas en pantalla).
-        Déjalo vacío para igualar el ajuste principal -q.
-        Usa "n" para omitir las tablas B2A y reducir el tamaño del perfil
-        (los perfiles de solo salida no necesitan B2A).
+        Ajusta por separado la calidad de las tablas inversas (B2A) del
+        perfil. Estas tablas convierten los colores de una imagen en
+        cantidades de tinta, así que son las que se usan siempre que imprimes
+        a través de este perfil: la tabla colorimétrica para Colorimétrico
+        relativo y la perceptual para Perceptual. La prueba en pantalla de
+        una impresión también las usa.
+
+        Déjalo en «Como la calidad del perfil» (el predeterminado). ArgyllCMS
+        construye entonces estas tablas con la calidad elegida en Calidad del
+        perfil, que es lo que quieres para imprimir.
+        • Un ajuste más bajo (Baja, o cualquier nivel por debajo de Calidad
+          del perfil) hace estas tablas más toscas, y las sombras y el negro
+          son lo que más sufre: en ensayos, el negro salió más claro y el
+          error de las tablas inversas aproximadamente se duplicó.
+        • No es un ajuste de «negro máximo» ni de punto negro. Un nivel por
+          encima de Calidad del perfil solo tarda más; no hace el negro más
+          profundo.
+        • «n: ninguna» deja fuera las tablas inversas. El archivo del perfil
+          es más pequeño, pero la mayoría de los programas no pueden entonces
+          imprimir a través de él, así que no lo uses para un perfil de
+          impresora.
       labels:
         - "Como la calidad del perfil (predeterminado)"
-        - "l — baja"
-        - "m — media"
-        - "h — alta"
-        - "u — ultra"
-        - "n — ninguna (omitir tablas B2A)"
+        - "l: baja"
+        - "m: media"
+        - "h: alta"
+        - "u: ultra"
+        - "n: ninguna (omitir tablas B2A)"
     "-r":
       name: "Suavizado/ruido (% ΔE)"
       tooltip_title: "Ruido medio del dispositivo (-r)"

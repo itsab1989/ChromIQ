@@ -827,33 +827,81 @@ parameters:
       tooltip_title: "Profilkvalitet (-q)"
       tooltip_body: |-
         Styrer cLUT-rutenettoppløsningen og glattingsiterasjonene:
-        • Lav: 17³-rutenett — rask test, ikke for produksjon
-        • Middels: 33³-rutenett — god balanse, anbefalt standard
-        • Høy: 45³-rutenett — produksjonskvalitet
-        • Ultra: 65³-rutenett — maksimal nøyaktighet, svært tregt
+        • Lav: 17³-rutenett, en rask test, ikke for produksjon
+        • Middels: 33³-rutenett, en god balanse og anbefalt standard
+        • Høy: 45³-rutenett, produksjonskvalitet
+        • Ultra: 65³-rutenett, maksimal nøyaktighet, svært tregt
         Middels kvalitet holder for det meste av blekkskriverarbeid.
         Bruk Høy for fine-art- eller kontraktsprøvetrykk.
+
+        **Skygger, svart og svartpunktkompensasjon**
+        En høyere kvalitet følger målingene dine litt tettere, men endrer
+        knapt skyggene. Hvordan de mørkeste tonene skrives ut, avhenger mest
+        av gjengivelsesformålet og av svartpunktkompensasjon (BPC), som du
+        velger i programmet du skriver ut fra, ikke her.
+
+        Hva BPC gjør: ingen skriver gir en perfekt svart. BPC skalerer et
+        bilde slik at svarten havner på den mørkeste svarten skriveren kan
+        lage, så detaljene nær svart blir bevart i stedet for å bli kuttet
+        bort.
+
+        Hvorfor de mørkeste trinnene kan klumpe seg sammen: ArgyllCMS bygger
+        den kolorimetriske delen av en profil for å holde fargene så
+        nøyaktige som mulig, så den mørkeste nøytrale svarten den sikter mot,
+        er litt lysere enn den mørkeste svarten blekket kan nå. Slik er
+        ArgyllCMS ment å virke, som forfatteren har forklart. BPC sikter mot
+        en nøytral svart, så med Relativ kolorimetrisk og BPC på blir svarten
+        litt løftet, og de siste trinnene i en mørk gradient kan se svært like
+        ut. Det er sterkere på matt papir, der svarten er lysere (rundt L* 20)
+        enn svarten på blankt papir.
+
+        Dine tre valg når du skriver ut:
+        • Relativ kolorimetrisk med BPC på: et jevnt uttrykk helt inn i
+          skyggene, med en svart som er litt løftet.
+        • Relativ kolorimetrisk med BPC av: den dypeste svarten og mer kraft,
+          men detaljer som er mørkere enn skriverens svart, blir kuttet til
+          svart.
+        • Perseptuell: full svart og godt atskilte mørke trinn, på bekostning
+          av et lite fargeavvik (omtrent 2 til 3 ΔE00).
+
+        Vurder skyggene på en utskrevet trinnkile (en gråramp fra hvitt til
+        svart), ikke bare på skjermprøven: en skjerm kan ikke vise hvor tett
+        de mørkeste utskrevne trinnene egentlig ligger.
       labels:
-        - "l — lav (rask, ~30 s)"
-        - "m — middels (anbefalt, ~2 min)"
-        - "h — høy (~10 min)"
-        - "u — ultra (~30+ min)"
+        - "l: lav (rask, ~30 s)"
+        - "m: middels (anbefalt, ~2 min)"
+        - "h: høy (~10 min)"
+        - "u: ultra (~30+ min)"
     "-b":
       name: "B2A-tabellkvalitet"
       tooltip_title: "B2A-tabellkvalitet (-b)"
       tooltip_body: |-
-        Styrer kvaliteten på B2A-tabellene (enhet→PCS) for inndata-
-        transformasjoner (f.eks. soft-proofing) uavhengig.
-        La stå tom for å følge hovedinnstillingen -q.
-        Bruk "n" for å utelate B2A-tabeller og redusere profilfil-
-        størrelsen (kun-utdata-profiler trenger ikke B2A).
+        Angir kvaliteten på profilens omvendte tabeller (B2A) for seg. Disse
+        tabellene gjør om fargene i et bilde til blekkmengder, så det er dem
+        som brukes hver gang du skriver ut gjennom denne profilen: den
+        kolorimetriske tabellen for Relativ kolorimetrisk, den perseptuelle
+        for Perseptuell. Skjermprøven av en utskrift bruker dem også.
+
+        La den stå på «Samme som profilkvalitet» (standard). ArgyllCMS bygger
+        da disse tabellene med kvaliteten som er valgt under Profilkvalitet,
+        og det er det du vil ha for utskrift.
+        • En lavere innstilling (Lav, eller et hvilket som helst nivå under
+          Profilkvalitet) gjør tabellene grovere, og skyggene og svarten
+          lider mest: i tester ble svarten lysere, og feilen i de omvendte
+          tabellene omtrent doblet seg.
+        • Dette er ikke en innstilling for «maksimal svart» eller for
+          svartpunktet. Et nivå over Profilkvalitet tar bare lengre tid; det
+          gjør ikke svarten dypere.
+        • «n: ingen» utelater de omvendte tabellene. Profilfilen blir mindre,
+          men de fleste programmer kan da ikke skrive ut gjennom den, så ikke
+          bruk den for en skriverprofil.
       labels:
         - "Samme som profilkvalitet (standard)"
-        - "l — lav"
-        - "m — middels"
-        - "h — høy"
-        - "u — ultra"
-        - "n — ingen (utelat B2A-tabeller)"
+        - "l: lav"
+        - "m: middels"
+        - "h: høy"
+        - "u: ultra"
+        - "n: ingen (utelat B2A-tabeller)"
     "-r":
       name: "Glatting/støy (% ΔE)"
       tooltip_title: "Gjennomsnittlig enhetsstøy (-r)"

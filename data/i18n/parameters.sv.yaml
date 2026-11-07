@@ -832,33 +832,81 @@ parameters:
       tooltip_title: "Profilkvalitet (-q)"
       tooltip_body: |-
         Styr cLUT-rutnätsupplösningen och utjämningsiterationerna:
-        • Låg: 17³-rutnät — snabbtest, inte för produktion
-        • Medel: 33³-rutnät — bra balans, rekommenderad standard
-        • Hög: 45³-rutnät — produktionskvalitet
-        • Ultra: 65³-rutnät — maximal noggrannhet, mycket långsam
+        • Låg: 17³-rutnät, ett snabbtest, inte för produktion
+        • Medel: 33³-rutnät, en bra balans och rekommenderad standard
+        • Hög: 45³-rutnät, produktionskvalitet
+        • Ultra: 65³-rutnät, maximal noggrannhet, mycket långsam
         Medel räcker för det mesta bläckstrålearbetet.
         Använd Hög för fine-art- eller kontraktsprovtryck.
+
+        **Skuggor, svärta och svartpunktskompensering**
+        En högre kvalitet följer dina mätningar lite närmare, men ändrar knappt
+        skuggorna. Hur de mörkaste tonerna skrivs ut beror främst på
+        återgivningsavsikten och på svartpunktskompensering (BPC), som du
+        väljer i programmet du skriver ut från, inte här.
+
+        Vad BPC gör: ingen skrivare ger en perfekt svärta. BPC skalar en bild
+        så att dess svärta hamnar på den mörkaste svärta som skrivaren kan
+        åstadkomma, så att detaljerna nära svart behålls i stället för att
+        klippas bort.
+
+        Varför de mörkaste stegen kan klumpa ihop sig: ArgyllCMS bygger den
+        kolorimetriska delen av en profil för att hålla färgerna så exakta som
+        möjligt, så den mörkaste neutrala svärta den siktar på är lite ljusare
+        än den mörkaste svärta som bläcken kan nå. Så är ArgyllCMS tänkt att
+        fungera, som dess upphovsman har förklarat. BPC siktar på en neutral
+        svärta, så med Relativ kolorimetrisk och BPC på blir svärtan lätt
+        lyft och de sista stegen i en mörk övergång kan se väldigt lika ut.
+        Det är starkare på matt papper, vars svärta är ljusare (runt L* 20)
+        än svärtan på blankt papper.
+
+        Dina tre val när du skriver ut:
+        • Relativ kolorimetrisk med BPC på: ett mjukt intryck ända in i
+          skuggorna, med en svärta som är lätt lyft.
+        • Relativ kolorimetrisk med BPC av: den djupaste svärtan och mer
+          kraft, men detaljer som är mörkare än skrivarens svärta klipps till
+          svart.
+        • Perceptuell: full svärta och väl åtskilda mörka steg, till priset av
+          en liten färgförskjutning (cirka 2 till 3 ΔE00).
+
+        Bedöm skuggorna på en utskriven stegkil (en gråramp från vitt till
+        svart), inte bara i skärmkorrekturen: en skärm kan inte visa hur nära
+        varandra de mörkaste utskrivna stegen verkligen ligger.
       labels:
-        - "l — låg (snabb, ~30 s)"
-        - "m — medel (rekommenderas, ~2 min)"
-        - "h — hög (~10 min)"
-        - "u — ultra (~30+ min)"
+        - "l: låg (snabb, ~30 s)"
+        - "m: medel (rekommenderas, ~2 min)"
+        - "h: hög (~10 min)"
+        - "u: ultra (~30+ min)"
     "-b":
       name: "B2A-tabellkvalitet"
       tooltip_title: "B2A-tabellkvalitet (-b)"
       tooltip_body: |-
-        Styr oberoende kvaliteten på B2A-tabellerna (enhet→PCS) för
-        indatatransformer (t.ex. skärmkorrektur).
-        Lämna tom för att följa huvudinställningen -q.
-        Använd "n" för att utelämna B2A-tabeller och minska profilfilens
-        storlek (endast-utdata-profiler behöver inte B2A).
+        Ställer in kvaliteten på profilens omvända tabeller (B2A) för sig.
+        Tabellerna omvandlar färgerna i en bild till bläckmängder, så det är
+        dem som används varje gång du skriver ut genom den här profilen: den
+        kolorimetriska tabellen för Relativ kolorimetrisk, den perceptuella för
+        Perceptuell. Skärmkorrekturen av en utskrift använder dem också.
+
+        Låt den stå på ”Samma som profilkvalitet” (standard). ArgyllCMS bygger
+        då tabellerna med den kvalitet som valts under Profilkvalitet, och det
+        är vad du vill ha för utskrift.
+        • En lägre inställning (Låg, eller vilken nivå som helst under
+          Profilkvalitet) gör tabellerna grövre, och skuggorna och svärtan
+          drabbas mest: i tester blev svärtan ljusare och felet i de omvända
+          tabellerna ungefär fördubblades.
+        • Det här är ingen inställning för ”maximal svärta” eller för
+          svartpunkten. En nivå över Profilkvalitet tar bara längre tid; den
+          gör inte svärtan djupare.
+        • ”n: ingen” utelämnar de omvända tabellerna. Profilfilen blir
+          mindre, men de flesta program kan då inte skriva ut genom den, så
+          använd det inte för en skrivarprofil.
       labels:
         - "Samma som profilkvalitet (standard)"
-        - "l — låg"
-        - "m — medel"
-        - "h — hög"
-        - "u — ultra"
-        - "n — ingen (utelämna B2A-tabeller)"
+        - "l: låg"
+        - "m: medel"
+        - "h: hög"
+        - "u: ultra"
+        - "n: ingen (utelämna B2A-tabeller)"
     "-r":
       name: "Utjämning/brus (% ΔE)"
       tooltip_title: "Genomsnittligt enhetsbrus (-r)"
