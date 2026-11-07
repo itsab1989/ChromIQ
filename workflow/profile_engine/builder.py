@@ -2349,10 +2349,44 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             _w84[np.linalg.norm(_a84_clip_model.predict(np.clip(
                 dev_clut, 0.0, 1.0)) - node_lab, axis=1)
                  < _a69.FEAS_TOL] = 0.0
+            # ... and only where the build's own model is WRONG about its
+            # own clip: the refit prints that device differently by more
+            # than CHROMIQ_A84_DIS t0:t1 dE76 (default 1:2); on real
+            # i1iSis this is the magenta-red sector near the black and
+            # nothing else. The weight is grown by one node and averaged
+            # over its 27-node neighbourhood, so no seam is cut.
+            _t0, _t1 = (float(v) for v in os.environ.get(
+                "CHROMIQ_A84_DIS", "1:2").split(":"))
+            _d0 = np.clip(_pure, 0.0, 1.0)
+            _dis = np.linalg.norm(model.predict(_d0)
+                                  - _a84_clip_model.predict(_d0), axis=1)
+            _v = np.clip((_dis - _t0) / max(_t1 - _t0, 1e-6), 0.0, 1.0)
+            _v = (_v * _v * (3.0 - 2.0 * _v)).reshape(
+                b2a_grid, b2a_grid, b2a_grid)
+            _pv = np.pad(_v, 1, mode="edge")
+            _offs = [(i, j, k) for i in range(3) for j in range(3)
+                     for k in range(3)]
+            _g = b2a_grid
+            _vd = np.max([_pv[i:i + _g, j:j + _g, k:k + _g]
+                          for i, j, k in _offs], axis=0)
+            _pv = np.pad(_vd, 1, mode="edge")
+            _vs = np.mean([_pv[i:i + _g, j:j + _g, k:k + _g]
+                           for i, j, k in _offs], axis=0)
+            _w84 = _w84 * _vs.reshape(-1)
+            # the near-neutral core around the black stays the build's own
+            # (every ramp ends there; moving it tinted the last stretch of
+            # the yellow / green ramps): no change below node C* c0, full
+            # from c1 (CHROMIQ_A84_CORE c0:c1, default 4:8)
+            _c0, _c1 = (float(v) for v in os.environ.get(
+                "CHROMIQ_A84_CORE", "4:8").split(":"))
+            _cc = np.clip((np.hypot(node_lab[:, 1], node_lab[:, 2]) - _c0)
+                          / max(_c1 - _c0, 1e-6), 0.0, 1.0)
+            _w84 = _w84 * _cc * _cc * (3.0 - 2.0 * _cc)
             _pure = (1.0 - _w84[:, None]) * _pure + _w84[:, None] * _p84
             _emit(settings, f"Colorimetric table: {int((_w84 > 0).sum())} "
                             f"clipped nodes near the black clipped on the "
-                            f"refit (research a84-warmblack).")
+                            f"refit ({int((_w84 > 0.5).sum())} fully; "
+                            f"research a84-warmblack).")
         _pure_s = np.clip(model.shape_device(_pure), 0.0, 1.0)
         if channel_max is not None:
             _pure_s = np.minimum(_pure_s, model.shape_device(
