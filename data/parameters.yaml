@@ -1198,12 +1198,48 @@ parameters:
       tooltip_title: "Profile Quality (-q)"
       tooltip_body: |
         Controls the cLUT grid resolution and smoothing iterations:
-        • Low: 17³ grid — quick test, not for production
-        • Medium: 33³ grid — good balance, recommended default
-        • High: 45³ grid — production quality
-        • Ultra: 65³ grid — maximum accuracy, very slow
+        • Low: 17³ grid, a quick test, not for production
+        • Medium: 33³ grid, a good balance and the recommended default
+        • High: 45³ grid, production quality
+        • Ultra: 65³ grid, maximum accuracy, very slow
         Medium quality is sufficient for most inkjet work.
         Use High for fine-art or contract proofing applications.
+
+        **Shadows, black and black point compensation**
+        A higher quality fits your measurements a little more closely,
+        but it hardly changes the shadows. How the darkest tones print
+        depends mostly on the rendering intent and on black point
+        compensation (BPC), which you choose in the program you print
+        from, not here.
+
+        What BPC does: no printer prints a perfect black. BPC scales an
+        image so that its black lands on the darkest black the printer
+        can make, so the detail near black is kept instead of being cut
+        off.
+
+        Why the darkest steps can crowd together: ArgyllCMS builds the
+        colorimetric part of a profile to stay as close as possible in
+        colour, so the darkest neutral black it aims for is a little
+        lighter than the darkest black the inks can reach. This is how
+        ArgyllCMS is meant to work, as its author has explained. BPC
+        aims at a neutral black, so with Relative Colorimetric and BPC
+        on, the black comes out slightly lifted and the last few steps
+        of a dark gradient can look very alike. It is stronger on matte
+        paper, whose black is lighter (around L* 20) than the black of
+        glossy paper.
+
+        Your three choices when you print:
+        • Relative Colorimetric with BPC on: a smooth look all the way
+          into the shadows, with a black that is slightly lifted.
+        • Relative Colorimetric with BPC off: the deepest black and more
+          punch, but detail darker than the printer's black is cut off
+          to black.
+        • Perceptual: the full black and well separated dark steps, at
+          the cost of a small colour shift (about 2 to 3 ΔE00).
+
+        Judge the shadows on a printed step wedge (a grey ramp from
+        white to black), not only on the soft proof: a screen cannot
+        show how close the darkest printed steps really are.
 
     - flag: "-b"
       name: "B2A Table Quality"
@@ -1221,11 +1257,26 @@ parameters:
       expert_only: true
       tooltip_title: "B2A Table Quality (-b)"
       tooltip_body: |
-        Independently controls the quality of the B2A (device→PCS)
-        tables used for input (e.g. soft-proofing) transforms.
-        Leave blank to match the main -q quality setting.
-        Use "n" to omit B2A tables and reduce profile file size
-        (output-only profiles don't need B2A).
+        Sets the quality of the profile's reverse tables (B2A) on their
+        own. These tables turn the colours of an image into ink amounts,
+        so they are what is used whenever you print through this
+        profile: the colorimetric table for Relative Colorimetric, the
+        perceptual one for Perceptual. The soft proof of a print uses
+        them too.
+
+        Leave it at "Same as profile quality" (the default). ArgyllCMS
+        then builds these tables at the quality chosen under Profile
+        Quality, which is what you want for printing.
+        • A lower setting (Low, or any level below Profile Quality)
+          makes these tables coarser, and the shadows and the black
+          suffer most: in tests the black came out lighter and the
+          error of the reverse tables about doubled.
+        • This is not a "maximum black" or a black point setting. A
+          level above Profile Quality only takes longer; it does not
+          make the black any deeper.
+        • "n: None" leaves the reverse tables out. The profile file is
+          smaller, but most programs can then not print through it, so
+          do not use it for a printer profile.
 
     - flag: "-r"
       name: "Smoothing / Device Noise (% ΔE)"
