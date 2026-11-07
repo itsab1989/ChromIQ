@@ -58,9 +58,10 @@ class MeasurementTargetController(QObject):
     #: target is still selected — the write trigger in Knut's queue design
     #: (#130). Anything holding unsaved per-target state flushes it here.
     about_to_change_target = pyqtSignal()
-    #: The person TYPED in "Printer profile project name" (4.3.28). NOT a
-    #: change of target: only the location line reads the typed name (before
-    #: a project exists), so only it listens. Emitting ``changed`` for a
+    #: The person TYPED in "Printer profile project name" while a project is
+    #: open (4.3.28; with none open a typed name emits ``changed`` as before,
+    #: see :meth:`note_typed_project_name`). NOT a change of target: only the
+    #: location line reads the typed name, so only it listens. Emitting ``changed`` for a
     #: keystroke ran every tab's target-change handler per character, and
     #: Create Chart's saved and re-loaded the target's settings, which
     #: silently threw away a change not yet applied with Generate Chart
@@ -136,11 +137,29 @@ class MeasurementTargetController(QObject):
             self.changed.emit()
 
     def note_typed_project_name(self, raw: str) -> None:
-        """The person typed in the name field (its ``textEdited``): follow it
-        on the location line only (:attr:`pending_name_changed`)."""
+        """The person typed in the name field (its ``textEdited``).
+
+        WITH A PROJECT OPEN: the location line only
+        (:attr:`pending_name_changed`). A keystroke is no change of target,
+        and `changed` here reloaded the open target's settings and threw away
+        a change not yet applied with Generate Chart (4.3.28, approved by
+        Basti).
+
+        WITH NO PROJECT OPEN: `changed`, exactly as before 4.3.28. There is
+        no target store to reload from, so nothing can be thrown away
+        (measured: an unapplied -a and -B survive it), it costs a few ms, and
+        it is what puts up everything a no-project name has always shown:
+        the 4.3.28 regression check found Create Chart's empty-preview
+        guidance ("No chart for this profile run yet ...") missing in Guided
+        after typing a first name, because that keystroke was its first
+        `changed` (`_no_chart_guidance`)."""
         raw = (raw or "").strip()
-        if raw != self._pending_name:
-            self._pending_name = raw
+        if raw == self._pending_name:
+            return
+        self._pending_name = raw
+        if self.project_or_none() is None:
+            self.changed.emit()
+        else:
             self.pending_name_changed.emit()
 
     def project_replaced_on_disk(self) -> None:

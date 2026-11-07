@@ -333,3 +333,43 @@ def test_no_kind_of_typing_is_a_target_change(measured, qtbot):
     field.setText(name)                      # the app writes the name back
     qtbot.wait(100)
     assert changed.n == 1, "a name the app wrote no longer tells the tabs"
+
+
+@pytest.mark.parametrize("mode", ["guided", "manual"])
+def test_with_no_project_a_typed_name_shows_what_it_always_showed(
+        qapp, tmp_path, qtbot, mode):
+    """The 4.3.28 regression check (against 4.3.26): with NO project open, a
+    typed name puts up Create Chart's empty-preview guidance, "No chart for
+    this profile run yet ...", in Guided too. That keystroke was the first
+    `changed` after start-up, and a typed name with no project open is a
+    `changed` again: one per keystroke, as before, and nothing to lose
+    (no target store; an unapplied change survives it)."""
+    from PyQt6.QtTest import QTest
+    work = tmp_path / "work"
+    work.mkdir()
+    w = _window(qapp, work)
+    try:
+        tab, ctl = w._tab_chart, w._target_ctl
+        assert ctl.project_or_none() is None
+        tab._user_switch_mode(mode)
+        qtbot.wait(200)
+        field = (tab._manual_target_name_edit if mode == "manual"
+                 else tab._target_name_edit)
+        pw = [p for p in tab._manual_widgets["printtarg"] if p.flag == "-a"][0]
+        pw.set_user_enabled(True)
+        pw.set_value(1.37)
+        qtbot.wait(300)
+        changed = _Counter()
+        ctl.changed.connect(changed)
+        QTest.keyClicks(field, "Fresh Printer")
+        qtbot.wait(300)
+        notice = tab._preview._notice_lbl
+        assert not notice.isHidden(), "the empty-preview guidance is missing"
+        assert notice.text() == tab._no_chart_guidance()
+        # one per keystroke whose name is new ("Fresh " strips to "Fresh")
+        assert changed.n == len("Fresh Printer") - 1
+        assert w._target_bar._location_full.endswith("Fresh-Printer/runs/run1/")
+        assert tab._manual_get("printtarg", "-a", None) == pytest.approx(1.37)
+        assert not (work / "Fresh-Printer").exists(), "nothing is made early"
+    finally:
+        w.close()
