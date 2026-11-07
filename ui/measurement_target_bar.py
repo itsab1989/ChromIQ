@@ -58,6 +58,15 @@ class MeasurementTargetController(QObject):
     #: target is still selected — the write trigger in Knut's queue design
     #: (#130). Anything holding unsaved per-target state flushes it here.
     about_to_change_target = pyqtSignal()
+    #: The name typed into "Printer profile project name" changed. NOT a
+    #: change of target: only the location line reads the typed name (before
+    #: a project exists), so only it listens. Emitting ``changed`` for it ran
+    #: every tab's target-change handler on each keystroke, and Create Chart's
+    #: saved and re-loaded the target's settings, which silently threw away
+    #: a change not yet applied with Generate Chart (per_target_settings
+    #: §2.2 says it is lost only on a run change or Close Project; Basti
+    #: approved this, 4.3.28) and cost about 100 ms per keystroke.
+    pending_name_changed = pyqtSignal()
 
     def __init__(self, file_mgr, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -109,7 +118,7 @@ class MeasurementTargetController(QObject):
         raw = (raw or "").strip()
         if raw != self._pending_name:
             self._pending_name = raw
-            self.changed.emit()
+            self.pending_name_changed.emit()
 
     def project_replaced_on_disk(self) -> None:
         """The project folder was emptied and started again underneath us.
@@ -1177,6 +1186,9 @@ class MeasurementTargetBar(QWidget):
         self._delete_tip.set_nudge(-2.0, 0.0)
 
         self._ctl.changed.connect(self._sync_from_controller)
+        # A typed name moves only the location line (see
+        # `MeasurementTargetController.pending_name_changed`).
+        self._ctl.pending_name_changed.connect(self._update_location)
         self.refresh()
 
     # ---- locked on tabs that do not use the selection ---------------------

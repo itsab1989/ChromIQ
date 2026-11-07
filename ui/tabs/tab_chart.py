@@ -17093,12 +17093,34 @@ class TabChart(QWidget):
         return (root, str(t.run_type), str(t.profile_run),
                 str(t.verification_id))
 
+    def _follow_scope_during_a_build(self) -> None:
+        """While a build owns the layout, the name it writes into the field
+        is the project it is landing in: remember that target as seen.
+
+        Until 4.3.28 that write emitted `changed`, and `_scope_bindings_to_
+        target` recorded the new project's key without dropping anything,
+        because a build owned the layout. The landing afterwards then saw no
+        change and kept the binding. With the typed name on its own signal
+        that record has to be kept here, or the landing reads "another
+        project" and drops the patch set the build was made from (#147,
+        tests/test_a_binding_survives_its_own_build.py). Outside a build a
+        name changes no target, so nothing is recorded and nothing dropped.
+        """
+        try:
+            if self._layout_owned_by_build or self._chart_build_in_flight():
+                self._binding_scope_last = self._binding_scope_key()
+        except Exception:      # noqa: BLE001 — bookkeeping is never fatal
+            log.debug("could not follow the target during a build",
+                      exc_info=True)
+
     def _scope_bindings_to_target(self) -> bool:
         """Drop the bindings when, and only when, the target really changed.
 
-        `_on_target_changed` is not "the target changed". It also runs on every
-        keystroke in the project-name box (`set_pending_project_name`), on the
-        build's own landing on its New run (`_align_current_run_to_target`),
+        `_on_target_changed` is not "the target changed". It ran on every
+        keystroke in the project-name box until 4.3.28 (the typed name now has
+        its own `pending_name_changed`, which this handler does not hear), and
+        it still runs on the build's own landing on its New run
+        (`_align_current_run_to_target`),
         and on refreshes that change nothing (a cancelled load, Restore Used
         Chart, `project_replaced_on_disk`). Dropping there would leave a chart
         built from a preset or a loaded patch set UNBOUND in its own run, and
@@ -21544,6 +21566,10 @@ class TabChart(QWidget):
         #: (path, .ti2 mtime) of the chart on screen — see _chart_stamp.
         self._shown_chart_stamp: "tuple | None" = None
         controller.changed.connect(self._on_target_changed)
+        # The typed name is not a change of target (4.3.28), but see
+        # `_follow_scope_during_a_build`.
+        controller.pending_name_changed.connect(
+            self._follow_scope_during_a_build)
         # After the chart of the selected target is shown: a calibration chart
         # is always laid out in order, so its randomisation controls are greyed.
         controller.changed.connect(self._sync_order_lock)
@@ -25599,7 +25625,8 @@ class TabChart(QWidget):
             # name that genuinely belongs to a loaded project should be reflected.
             cur_name = getattr(self._file_mgr, "_target_name", "")
             # …and never while the Guided↔Manual name mirror is writing: the
-            # mirror's setText re-enters here via set_pending_project_name, and
+            # mirror's setText re-entered here via set_pending_project_name
+            # until 4.3.28 (it no longer emits `changed`; kept as a guard), and
             # reflecting the stored project name mid-keystroke would overwrite
             # the very text being typed (found by the mirror's own test,
             # 2026-08-13). A mirror write is not a project change.

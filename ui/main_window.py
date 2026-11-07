@@ -278,6 +278,10 @@ class MainWindow(QMainWindow):
         # whenever the bar's width changes (the Verification box shows/hides).
         self._masthead.set_center_widget(self._target_bar)
         self._target_ctl.changed.connect(self._masthead.reposition_center)
+        # The location line can appear or go while a name is typed (no
+        # project open yet), which changes the bar's size: centre it again.
+        self._target_ctl.pending_name_changed.connect(
+            self._masthead.reposition_center)
         # Tab 4 is not available for a verification — see _apply_profile_tab_gate.
         self._target_ctl.changed.connect(self._apply_profile_tab_gate)
         # …and the masthead: Close Project has something to close the moment a
