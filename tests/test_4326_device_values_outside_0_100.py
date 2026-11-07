@@ -322,7 +322,9 @@ class _SubprocessRunner:
     def run(self, tool, args, cwd, on_line=None, on_finish=None):
         try:
             r = subprocess.run([str(ARGYLL / tool), *args], cwd=str(cwd),
-                               capture_output=True, text=True, timeout=180)
+                               capture_output=True, text=True,
+                               encoding="utf-8", errors="replace",
+                               timeout=180)
             rc = r.returncode
             for l in (r.stdout + r.stderr).splitlines():
                 if on_line:
