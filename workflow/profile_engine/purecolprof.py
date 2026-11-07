@@ -980,7 +980,7 @@ def _a85_descend(predict, t_lab, d0, res_fn, iters: int = 20, h: float = 1e-4):
 # The L* = 0 plane is never touched (the profile's black stays device 0). Env CHROMIQ_A88 "key=value,..." (sweeps).
 A88_LEVELS = {"a88-black-balanced": "balanced", "a88-black-deepest": "deepest"}
 A88 = {"gap": 1.5, "fade": 4.0, "ring": 0.0, "cmax": 1.0, "w": LCH_WEIGHTS, "cast": 1.75, "gfade": 0.0,
-       "dcast": None, "pen": 40.0}
+       "dcast": None, "pen": 40.0, "rshift": 0.0, "rreach": 12.0}
 A88_DEEPEST = {}
 A88_BALANCED = {}
 
@@ -1087,6 +1087,21 @@ def a88_black(table: np.ndarray, node_lab: np.ndarray, residual: np.ndarray, mod
         best[keep] = cur[keep]
     new = (1.0 - w[sel])[:, None] * cur + w[sel][:, None] * best
     tab[sel] = _inv_out(out_tables, np.clip(new, 0.0, 1.0))
+    rs = float(params.get("rshift") or 0.0)
+    if rs > 0:
+        # the clipped off-axis nodes next to a moved column node take the same device shift (share rs, fading
+        # with their distance from the axis over rreach), so the colours that turn into black meet the deeper
+        # black without a seam; nothing is re-solved, the shift only follows the column
+        shift = {round(float(nl[i, 0]), 6): new[k] - cur[k] for k, i in enumerate(sel) if col[i]}
+        reach = float(params["rreach"])
+        nb = np.flatnonzero((~col) & (c < reach) & (wr > 0) & (nl[:, 0] >= 0.5))
+        nb = np.array([i for i in nb if round(float(nl[i, 0]), 6) in shift], int)
+        if len(nb):
+            f = rs * np.clip(1.0 - c[nb] / reach, 0.0, 1.0) * wr[nb]
+            d0 = _fwd_out(out_tables, np.asarray(table, float)[nb])
+            dv = np.stack([shift[round(float(nl[i, 0]), 6)] for i in nb])
+            tab[nb] = _inv_out(out_tables, np.clip(d0 + f[:, None] * dv, 0.0, 1.0))
+            info["ring_nodes"] = int(len(nb))
     pr = np.asarray(model.predict(np.clip(new, 0.0, 1.0)), float)
     cs = col[sel]
     info.update(nodes=int(len(sel)), top=top,
