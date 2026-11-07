@@ -11,6 +11,7 @@ import json
 import math
 import random
 from pathlib import Path
+from workflow.overhang import writes_chart_pages
 
 MAX_COLUMNS = 64
 MAX_ROWS = 128
@@ -165,6 +166,7 @@ def _calibration_target(
     )
 
 
+@writes_chart_pages
 def _build_single_chart(
     ti1_path,
     out_base,
@@ -682,6 +684,7 @@ def chart_pages(layout):
     return pages
 
 
+@writes_chart_pages
 def build_chart(ti1_path, out_base, **kwargs):
     """Use ordinary page artifacts and globally unique locations for all sheets."""
     from tempfile import TemporaryDirectory

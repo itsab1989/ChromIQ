@@ -174,6 +174,22 @@ else:
 _ANSI_RE = re.compile(r"\x1b(?:\[[0-9;]*[A-Za-z]|\][^\x07]*\x07|[()][AB012]|[=>])")
 
 
+#: The ArgyllCMS tools that write chart pages (TIFFs) themselves.
+_PAGE_WRITING_TOOLS = {"printtarg"}
+
+
+def _forget_chart_pages_for(tool) -> None:
+    """When *tool* writes chart pages, forget the pages and edge-note answers
+    ChromIQ keeps in memory (`workflow.overhang.chart_pages_written`)."""
+    try:
+        if Path(str(tool or "")).stem.lower() not in _PAGE_WRITING_TOOLS:
+            return
+        from workflow.overhang import forget_chart_pages
+        forget_chart_pages()
+    except Exception:      # noqa: BLE001 - a memory, never a blocker
+        log.debug("chart page memory not forgotten", exc_info=True)
+
+
 class ArgyllRunner(QObject):
     line_received   = pyqtSignal(str)
     started         = pyqtSignal()      # a tool actually began running
@@ -353,6 +369,9 @@ class ArgyllRunner(QObject):
 
         bin_path = self._resolve(tool)
         log.info("Run: %s %s  [cwd=%s]", bin_path, " ".join(args), cwd)
+        # printtarg writes chart pages: what the edge note keeps of them is
+        # forgotten now and again when it ends (`overhang.chart_pages_written`).
+        _forget_chart_pages_for(tool)
 
         self._process = QProcess(self)
         self._process.setWorkingDirectory(str(cwd))
@@ -1084,6 +1103,11 @@ class ArgyllRunner(QObject):
 
     def _on_finished(self, exit_code: int, _exit_status: object) -> None:
         log.info("ArgyllRunner: finished with code %d", exit_code)
+        try:
+            _tool = self._run_tool
+        except Exception:      # noqa: BLE001 - a stand-in runner has none
+            _tool = None
+        _forget_chart_pages_for(_tool)
         # Drain any output still buffered in QProcess before disconnecting.
         # Qt does not guarantee all readyReadStandardOutput events arrive before
         # finished(), so the last chunk of output (e.g. profcheck per-patch lines)

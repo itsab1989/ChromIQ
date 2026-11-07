@@ -45,6 +45,7 @@ from pathlib import Path
 
 from core.file_manager import Run, Verification
 from core.logger import get_logger
+from workflow.overhang import writes_chart_pages
 
 log = get_logger(__name__)
 
@@ -463,6 +464,7 @@ def _snapshot_turned_export(slot, d: Path) -> list:
     return copied
 
 
+@writes_chart_pages
 def _restore_turned_export(slot, archive: "Path | None") -> list:
     """Put the restored chart's turned i1Profiler export back into its
     ``exports/`` (review 4.3.17 r3, NIT-5). Only when the snapshot holds an
@@ -768,6 +770,7 @@ def _undo_side_archive(moved: "dict[Path, Path]", live_dir: Path) -> None:
             shutil.move(str(dst), str(src))
 
 
+@writes_chart_pages
 def restore_slot(slot) -> "RestoreResult":
     """Put *slot*'s copy back as the live chart.
 
@@ -1184,6 +1187,7 @@ class RestoreResult:
         return self.ok and not self.images_restored and not self.needs_regeneration
 
 
+@writes_chart_pages
 def restore_chart(verification: Verification) -> RestoreResult:
     """Put a verification's snapshotted chart back as the run's live chart.
 

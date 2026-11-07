@@ -337,3 +337,174 @@ def test_paging_does_not_work_the_chart_out_again(qapp, tmp_path, monkeypatch):
     assert sorted(per_page) == sorted(tiffs), (
         f"paging worked the chart out again: {len(per_page)} page passes "
         f"for {len(tiffs)} pages")
+
+
+# ---- a rewrite the file stamp cannot see (4.3.27 review) -------------------
+# On a disk that keeps modification times to the second (HFS+, an external
+# drive in FAT or exFAT) a chart rebuilt in place keeps its inode, its size
+# and its modification time within one tick, so the stamp alone answered from
+# the old page. Every writer of chart pages in ChromIQ forgets both memories.
+def _engine_page(folder: Path, text_bottom_px: int) -> "list[Path]":
+    from workflow.layout_engine import raster
+    w, h = round(100 / PX), round(150 / PX)
+    a = np.full((h, w, 3), 255, np.uint8)
+    a[100:500, 60:340] = 80
+    a[h - text_bottom_px - 6:h - text_bottom_px, 80:240] = 0
+    return raster.save_tiffs([Image.fromarray(a)], folder / "c.tif",
+                             dpi=DPI, compression="none")
+
+
+def test_a_same_stamp_rewrite_through_chromiq_is_read_again(tmp_path):
+    from workflow import overhang as O
+    page = _engine_page(tmp_path, 4)[0]
+    st = page.stat()
+    first = PE.losses_for_chart([(page, 0)], EDGES, PAPER)
+    assert first.text.get("bottom"), first
+    O._ink_mm(page, 0)
+    # the layout engine writes the page again, text well clear of the edge,
+    # and the disk keeps the old modification time (one tick)
+    _engine_page(tmp_path, 200)
+    os.utime(page, ns=(st.st_atime_ns, st.st_mtime_ns))
+    now = page.stat()
+    assert (now.st_ino, now.st_size, now.st_mtime_ns) == (
+        st.st_ino, st.st_size, st.st_mtime_ns), "not a same-stamp rewrite"
+    again = PE.losses_for_chart([(page, 0)], EDGES, PAPER)
+    assert not again.text.get("bottom"), (
+        f"the old page's answer came back: {again.text}")
+    assert again == _uncached([(page, 0)])
+
+
+def test_a_printtarg_run_forgets_the_pages(tmp_path):
+    """printtarg writes the pages itself, through `ArgyllRunner`: both
+    memories are forgotten when it starts and when it ends."""
+    import inspect
+    from core import argyll_runner as AR
+    from workflow import overhang as O
+    pages = [(_page(tmp_path, n), 0) for n in (1, 2)]
+    PE.losses_for_chart(pages, EDGES, PAPER)
+    assert PE._loss_cache and O._ink_cache
+    AR._forget_chart_pages_for("targen")          # writes no page
+    assert PE._loss_cache and O._ink_cache
+    AR._forget_chart_pages_for("/Applications/Argyll/bin/printtarg")
+    assert not PE._loss_cache and not O._ink_cache
+    assert "_forget_chart_pages_for(tool)" in inspect.getsource(
+        AR.ArgyllRunner.run)
+    assert "_forget_chart_pages_for(" in inspect.getsource(
+        AR.ArgyllRunner._on_finished)
+
+
+#: Places that write an image or start printtarg and never write a page of a
+#: chart the edge note or the overhang plan reads, with why.
+_NOT_CHART_PAGES = {
+    "ui/dialogs/settings_dialog.py::SettingsDialog._save_and_close":
+        "saves the settings",
+    "ui/dialogs/softproof_dialog.py::SoftproofDialog._on_save_proof":
+        "the soft proof the user exports",
+    "ui/fd9_measurement.py::FD9MeasureMixin._fd9_load_preview":
+        "the FD-9 scan preview picture",
+    "ui/tabs/tab_print.py::TabPrint._send_page": "a temporary print copy",
+    "ui/tabs/tab_print.py::TabPrint._print_native_qt": "a temporary print copy",
+    "workflow/chart_creator.py::ChartCreator._capture_printtarg_cht":
+        "printtarg in a temporary folder, for the .cht only",
+    "workflow/chart_creator.py::ChartCreator._binary_search":
+        "printtarg in a temporary folder, for a capacity probe",
+    "workflow/chart_inks.py::split_page": "a temporary file for printing",
+    "workflow/cups_printer.py::write_tagged_tiff": "a print copy",
+    "workflow/cups_printer.py::CupsRawPrinter._print_job_tiff_converted":
+        "a temporary print copy",
+    "workflow/fd9/independent.py::capture_layout": "a spectral model",
+    "workflow/fd9/preview.py::build_scan_preview": "a scan preview picture",
+    "workflow/i18n_roundtrip.py::write_xlsx": "a spreadsheet",
+    "workflow/layout_engine/raster.py::export_clip_template":
+        "the clip-strip template the user exports",
+    "workflow/native_print_macos.py::_postscript_for_pages":
+        "a temporary print source",
+    "workflow/photo_fit.py::as_tiff": "a scan converted for scanin",
+    "workflow/preset_layout.py::_printtarg_binary":
+        "names printtarg; its layouts run in a temporary folder",
+    "workflow/print_preview.py::_cctiff_colours": "a temporary preview file",
+    "workflow/scan_auto_align.py::auto_align": "a scan crop",
+    "workflow/softproof_runner.py::prepare_input_tiff": "a soft-proof input",
+    "workflow/softproof_runner.py::SoftproofRunner._after_preview_proof":
+        "a soft-proof file",
+    "workflow/softproof_runner.py::SoftproofRunner._compute":
+        "soft-proof files",
+    "workflow/standard_targets.py::make_test_scan": "a synthetic scan",
+    "workflow/verify_expected.py::convert_like_the_print":
+        "a temporary file for cctiff",
+}
+
+
+def _image_writers():
+    """Every call that writes an image file (``imwrite``, ``.save(path)``)
+    or names printtarg in ChromIQ's code, with whether the function it is in
+    (or one around it) carries `@writes_chart_pages`."""
+    import ast
+    root = Path(__file__).resolve().parent.parent
+    files = [*(root / "workflow").rglob("*.py"), *(root / "ui").rglob("*.py"),
+             *(root / "core").rglob("*.py"), root / "main.py"]
+    found = {}
+    for f in sorted(files):
+        tree = ast.parse(f.read_text(encoding="utf-8"))
+        rel = f.relative_to(root).as_posix()
+
+        def walk(node, names, marked):
+            for child in ast.iter_child_nodes(node):
+                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                      ast.ClassDef)):
+                    deco = any(getattr(d, "id", getattr(d, "attr", ""))
+                               == "writes_chart_pages"
+                               for d in getattr(child, "decorator_list", []))
+                    walk(child, names + [child.name], marked or deco)
+                    continue
+                if isinstance(child, ast.Call):
+                    fn = child.func
+                    name = (fn.attr if isinstance(fn, ast.Attribute)
+                            else getattr(fn, "id", ""))
+                    hit = (name == "imwrite"
+                           or (name == "save" and child.args)
+                           or (name in ("argyll_tool_path", "argyll_binary")
+                               and any(isinstance(a, ast.Constant)
+                                       and a.value == "printtarg"
+                                       for a in child.args)))
+                    if hit:
+                        key = f"{rel}::{'.'.join(names)}"
+                        found[key] = found.get(key, True) and marked
+                walk(child, names, marked)
+        walk(tree, [], False)
+    return found
+
+
+def test_every_chart_page_writer_forgets_the_pages():
+    found = _image_writers()
+    assert len(found) > 20, found                  # the scan does find them
+    unmarked = sorted(k for k, ok in found.items()
+                      if not ok and k not in _NOT_CHART_PAGES)
+    assert not unmarked, (
+        "these write images or run printtarg and neither carry "
+        "@writes_chart_pages nor are named in _NOT_CHART_PAGES: "
+        f"{unmarked}")
+    # the page writers themselves are marked
+    for k in ("workflow/layout_engine/raster.py::save_tiffs",
+              "workflow/layout_engine/raster.py::save_separated_tiffs",
+              "workflow/tiff_metadata.py::_write_preserving",
+              "workflow/ti2_relayout.py::regenerate",
+              "workflow/ti2_relayout.py::recolor_spacers",
+              "workflow/fd9/chart.py::_build_single_chart"):
+        assert found.get(k) is True, (k, found.get(k))
+    stale = sorted(k for k in _NOT_CHART_PAGES if k not in found)
+    assert not stale, f"named in _NOT_CHART_PAGES but gone: {stale}"
+
+
+def test_the_writers_that_copy_pages_forget_them_too():
+    """Copies are not found by the scan above: these put chart pages in place
+    by copying files, and carry the mark all the same."""
+    from workflow import chart_import, verify_chart_snapshot
+    from workflow.fd9 import chart as fd9_chart
+    for fn in (chart_import._copy_chart_set, chart_import.copy_whole_project,
+               chart_import.rebuild_missing_pages,
+               verify_chart_snapshot.restore_slot,
+               verify_chart_snapshot.restore_chart,
+               verify_chart_snapshot._restore_turned_export,
+               fd9_chart.build_chart):
+        assert getattr(fn, "writes_chart_pages", False), fn.__qualname__

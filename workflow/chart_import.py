@@ -25,6 +25,7 @@ from pathlib import Path
 
 from core.file_manager import FileManager, Project, Run
 from core.logger import get_logger
+from workflow.overhang import writes_chart_pages
 
 log = get_logger(__name__)
 
@@ -148,6 +149,7 @@ def archive_run_for_replace(run: Run, *, verification: bool) -> "Path | None":
     return run.archive_to_old([p for p in dict.fromkeys(paths) if p.exists()])
 
 
+@writes_chart_pages
 def _copy_chart_set(src_ti2: Path, src_ti1: "Path | None", tiffs: "list[Path]",
                     dst_dir: Path, dst_stem: str, *, include_measurement: bool) -> None:
     """Copy a chart's files from beside *src_ti2* into *dst_dir* under *dst_stem*.
@@ -212,6 +214,7 @@ def is_full_project(ti2_path: Path) -> "Path | None":
     return None
 
 
+@writes_chart_pages
 def copy_whole_project(src_root: Path, working_dir: Path, new_name: str,
                        *, replace: bool = False) -> Path:
     """Copy an entire external ChromIQ project into *working_dir* as *new_name*
@@ -341,6 +344,7 @@ def chart_page_tiffs(ti2_path: "Path | str") -> "list[Path]":
                              "_*.tif", "_*.tiff"))
 
 
+@writes_chart_pages
 def rebuild_missing_pages(ti2_path: "Path | str",
                           bin_dir: "Path | str") -> "list[Path]":
     """Draw the pages of the chart at *ti2_path* when it has none. Returns them.

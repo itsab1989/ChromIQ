@@ -31,6 +31,7 @@ from PIL import Image, ImageDraw, ImageFont
 from core.logger import get_logger
 from core.pil_font import load_font
 from workflow import text_edge_fit
+from workflow.overhang import writes_chart_pages
 
 log = get_logger(__name__)
 
@@ -889,6 +890,7 @@ def _capture_page_state(page) -> dict:
     }
 
 
+@writes_chart_pages
 def _write_preserving(path: Path, arr: np.ndarray, state: dict) -> None:
     """Rewrite `path` with `arr` while preserving every tag captured in `state`."""
     # Preserve resolution and unit. tifffile owns tags 282/283/296 (extratags

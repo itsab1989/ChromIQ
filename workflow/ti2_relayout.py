@@ -41,6 +41,7 @@ from core.proc_text import run_text
 from core.resource_path import argyll_tool_path
 from core.strip_utils import letter_to_idx, parse_passes_per_page
 from core.text_io import read_text
+from workflow.overhang import writes_chart_pages
 
 log = get_logger(__name__)
 
@@ -1064,6 +1065,7 @@ class RegenResult:
     basename: str
 
 
+@writes_chart_pages
 def regenerate(
     spec: ChartSpec,
     dev_values: list[tuple[float, ...]],
@@ -1740,6 +1742,7 @@ def _split_band_by_colour(
 # ---------------------------------------------------------------------------
 # Recolour + integrity
 # ---------------------------------------------------------------------------
+@writes_chart_pages
 def recolor_spacers(
     page_tif: Path,
     spacers: list[Spacer],

@@ -42,6 +42,7 @@ is empty, so the cut falls in the empty margin.
 from __future__ import annotations
 
 import contextlib
+import functools
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -308,6 +309,48 @@ def clear_ink_cache() -> None:
     """Forget the page kept by `_ink_mm` (tests)."""
     with _ink_lock:
         _ink_cache.clear()
+
+
+def forget_chart_pages() -> None:
+    """Forget every chart page and edge-note answer kept in memory: the page
+    `_ink_mm` keeps and the answers `printer_edges.losses_for_chart` keeps."""
+    clear_ink_cache()
+    try:
+        from workflow import printer_edges
+        printer_edges.clear_loss_cache()
+    except Exception:      # noqa: BLE001 - nothing kept, nothing to forget
+        pass
+
+
+@contextlib.contextmanager
+def chart_pages_written():
+    """Open while ChromIQ itself writes or rewrites chart pages.
+
+    THE FILE STAMP CANNOT TELL EVERY REWRITE APART (4.3.27 review): on a
+    disk that keeps modification times to the second (HFS+, an external
+    drive in FAT or exFAT) a chart rebuilt in place keeps its inode, and
+    often its size, within one tick, so the kept page would be the old one.
+    So both memories are forgotten when a write starts and again when it
+    ends (a page read while it was being written is not kept either). The
+    stamp still covers files written by anything else."""
+    forget_chart_pages()
+    try:
+        yield
+    finally:
+        forget_chart_pages()
+
+
+def writes_chart_pages(fn):
+    """Decorator: *fn* writes chart pages (`chart_pages_written`).
+    `tests/test_4327_the_edge_note_reads_a_chart_once.py` finds every TIFF
+    writer and printtarg launch in ChromIQ and asks that each one is marked
+    with this, or is named there as one that never writes a chart page."""
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        with chart_pages_written():
+            return fn(*args, **kwargs)
+    wrapper.writes_chart_pages = True
+    return wrapper
 
 
 def _ink_mm(tiff_path: "str | Path", frame: int = 0):

@@ -29,6 +29,7 @@ from core.resource_path import resource_path
 from . import contrast, geometry, hexagon, permutation
 from .colorants import to_device_approx, to_device_approx_array, to_display_rgb
 from .geometry import Layout
+from workflow.overhang import writes_chart_pages
 
 #: How thick the ruler helper markers are drawn (#152). Knut: *"a line thin
 #: enough to be precise but visible — around 0.2 mm. Answer: sounds Good."*
@@ -4433,6 +4434,7 @@ def cmy_with_empty_k(arr: np.ndarray) -> np.ndarray:
     return np.ascontiguousarray(np.concatenate([arr, k], axis=2))
 
 
+@writes_chart_pages
 def save_separated_tiffs(arrays: list[np.ndarray], base_path: str | Path,
                          dpi: int = 300, *, ink_names: list[str],
                          compression: str = "lzw") -> list[Path]:
@@ -4484,6 +4486,7 @@ def save_separated_tiffs(arrays: list[np.ndarray], base_path: str | Path,
     return out
 
 
+@writes_chart_pages
 def save_tiffs(images: list[Image.Image], base_path: str | Path, dpi: int = 300,
                *, bit16: bool = False, compression: str = "lzw") -> list[Path]:
     """Write *images* as TIFF(s) in px/cm (ResolutionUnit=3); return paths.
