@@ -345,14 +345,22 @@ def _fake_live_expected(chart, record_ti3, run, *, bin_dir):
     import json
     from workflow.verification_print import read_print_record
     from workflow.verify_expected import SOURCE_PREDICTION, LiveExpected
+    # CONTENT ONLY, never the test's temp-folder path: with the path in the
+    # hash an unlucky folder name gave the old and the new record the same
+    # factor about one run in two hundred (seen twice in 22 loaded rounds).
+    # Without it every input below maps to the same factor in every run, and
+    # each test's before and after were checked to differ.
     h = hashlib.md5()
     prof = Path(run.built_profile_icc())
     h.update(prof.read_bytes() if prof.is_file() else b"-")
     rec = read_print_record(Path(record_ti3)) or {}
-    h.update(json.dumps(rec, sort_keys=True).encode())
     cal = Path(str(rec.get("cal_from") or "-"))
+    shown = dict(rec)
+    if "cal_from" in shown:
+        shown["cal_from"] = cal.name
+    h.update(json.dumps(shown, sort_keys=True).encode())
     h.update(cal.read_bytes() if cal.is_file() else b"-")
-    f = 0.9 + (int(h.hexdigest()[:4], 16) % 200) / 1000.0
+    f = 0.9 + (int(h.hexdigest()[:8], 16) % 2000) / 10000.0
     from tests.test_k182_k3_k4_overlay_and_memory import KNUT
     return LiveExpected(SOURCE_PREDICTION, "test",
                         {loc: tuple(v * f for v in e) for loc, e, _m in KNUT})
