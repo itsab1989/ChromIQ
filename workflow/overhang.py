@@ -281,8 +281,59 @@ def keep_box(content: Box, chart_mm: "tuple[float, float]",
 INK_BELOW = 250
 
 
+#: THE LAST PAGE READ, KEPT (4.3.27, Basti's report on 4.3.26: a layout
+#: change froze the window for 3 s on an 8-page chart, a page turn 1.3 s).
+#: Every reader below (`patch_box`, `caption_box`, `helper_markers`,
+#: `printed_box`, `printer_edges.losses`) asks for the same page in turn, and
+#: each used to decode the whole 300 dpi TIFF again. One page only: an A4 page
+#: at 300 dpi is an 8.7 MB mask, and the readers go page by page. The key is
+#: the file as it is on disk (path, inode, size, modification time in ns) and
+#: the frame, so a page written again is read again.
+_INK_CACHE_PAGES = 1
+_ink_cache: "dict[tuple, object]" = {}
+_ink_lock = threading.Lock()
+
+
+def file_stamp(path: "str | Path") -> "tuple | None":
+    """What tells one version of a file from another without reading it:
+    (inode, size, modification time in ns); None when it is not there."""
+    try:
+        st = Path(path).stat()
+    except OSError:
+        return None
+    return (st.st_ino, st.st_size, st.st_mtime_ns)
+
+
+def clear_ink_cache() -> None:
+    """Forget the page kept by `_ink_mm` (tests)."""
+    with _ink_lock:
+        _ink_cache.clear()
+
+
 def _ink_mm(tiff_path: "str | Path", frame: int = 0):
-    """(ink mask, mm per pixel) for one page, None when it is not RGB/grey."""
+    """(ink mask, mm per pixel) for one page, None when it is not RGB/grey.
+
+    The mask is shared with the next caller for the same page (see
+    `_ink_cache`) and is READ-ONLY: copy it before changing it."""
+    stamp = file_stamp(tiff_path)
+    key = (str(tiff_path), int(frame), stamp)
+    if stamp is not None:
+        with _ink_lock:
+            if key in _ink_cache:
+                return _ink_cache[key]
+    got = _read_ink_mm(tiff_path, frame)
+    if got is not None:
+        got[0].setflags(write=False)
+    if stamp is not None and file_stamp(tiff_path) == stamp:
+        with _ink_lock:
+            while len(_ink_cache) >= _INK_CACHE_PAGES:
+                _ink_cache.pop(next(iter(_ink_cache)))
+            _ink_cache[key] = got
+    return got
+
+
+def _read_ink_mm(tiff_path: "str | Path", frame: int = 0):
+    """`_ink_mm` without the kept page: decodes the file."""
     import numpy as np
     from PIL import Image
     with Image.open(str(tiff_path)) as im:

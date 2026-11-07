@@ -198,12 +198,21 @@ def _no_host_default_printer(monkeypatch):
     test must not depend on which printer this machine happens to have, nor
     wait for a print server that does not answer. A test that wants one sets
     `printer_edges._ask_system_default_printer` (or `system_default_printer`)
-    itself. The remembered answer is forgotten before and after each test."""
+    itself. The remembered answer is forgotten before and after each test.
+
+    So are the chart answers the edge note keeps (4.3.27,
+    `printer_edges.losses_for_chart`, `overhang._ink_mm`): a test that
+    replaces one of the readers starts from an empty memory."""
+    from workflow import overhang as _oh
     from workflow import printer_edges as _pe
     monkeypatch.setattr(_pe, "_ask_system_default_printer", lambda: "")
     _pe.forget_system_default_printer()
+    _pe.clear_loss_cache()
+    _oh.clear_ink_cache()
     yield
     _pe.forget_system_default_printer()
+    _pe.clear_loss_cache()
+    _oh.clear_ink_cache()
 
 
 #: The application-wide appearance as the worker starts, kept so

@@ -31,9 +31,11 @@ Print Chart tab.
 """
 from __future__ import annotations
 
+import copy
 import json
 import re
 import sys
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -576,9 +578,89 @@ def _side_of(box, chart_mm) -> str:
     return min(d, key=d.get)
 
 
+#: THE LAST CHARTS' ANSWERS, KEPT (4.3.27, Basti's report on 4.3.26). The
+#: Create Chart tab and the Print Chart tab both ask for the same chart after
+#: every build, and Create Chart asked again on every page turn although the
+#: answer is the whole chart's: on an 8-page chart that was 1.3 s per turn and
+#: 2.5 s of a 3 s freeze after a layout change. A handful of small `Loss`
+#: records; the key holds everything the answer is made of (`_chart_key`).
+_LOSS_CACHE_CHARTS = 4
+_loss_cache: "dict[tuple, Loss]" = {}
+_loss_lock = threading.Lock()
+
+
+def clear_loss_cache() -> None:
+    """Forget the answers kept by `losses_for_chart` (tests)."""
+    with _loss_lock:
+        _loss_cache.clear()
+
+
+def _page_key(path, frame) -> tuple:
+    """One page and every file beside it that `losses` reads: the page
+    itself, its ``.channels.json`` (helper markers, layout engine, the
+    instrument), its ``.ti2`` (printtarg's caption, the instrument) and its
+    ``.fd9.json`` (FD-9 marks and furniture), each as it is on disk now."""
+    from workflow import overhang as O
+    p = Path(path)
+    stems = list(O._stems(p))
+    m = re.fullmatch(r"(.+?)_(\d{2,})", p.stem)
+    if m is not None and m.group(1) not in stems:
+        stems.append(m.group(1))
+    side = tuple((name, O.file_stamp(p.with_name(name)))
+                 for st in stems
+                 for name in (f"{st}.channels.json", f"{st}.ti2",
+                              f"{st}.fd9.json"))
+    return (str(p), int(frame), O.file_stamp(p), side)
+
+
+def _chart_key(pages, edges: Edges, paper_mm, shift_mm) -> "tuple | None":
+    """Everything `losses_for_chart` depends on, or None when a page is not
+    there (then nothing is kept)."""
+    from workflow.fd9.support import fd9_enabled
+    keys = tuple(_page_key(path, frame) for path, frame in pages)
+    if any(k[2] is None for k in keys):
+        return None
+    return (keys, edges, tuple(float(v) for v in paper_mm),
+            tuple(float(v) for v in shift_mm), bool(fd9_enabled()))
+
+
 def losses_for_chart(pages, edges: Edges, paper_mm, shift_mm=(0.0, 0.0)
                      ) -> Loss:
-    """`losses` over every page, merged (the worst of each)."""
+    """`losses` over every page, merged (the worst of each).
+
+    Worked out once per chart as it is on disk and kept (`_loss_cache`): the
+    same question again is answered from memory, as a copy the caller may
+    change. Any page or sidecar written again, other edges, paper, shift or
+    FD-9 setting is a new question."""
+    pages = list(pages)
+    try:
+        key = _chart_key(pages, edges, paper_mm, shift_mm)
+        hash(key)
+    except Exception:      # noqa: BLE001 - not keyable: work it out
+        key = None
+    if key is not None:
+        with _loss_lock:
+            hit = _loss_cache.get(key)
+        if hit is not None:
+            return copy.deepcopy(hit)
+    out = _losses_for_chart(pages, edges, paper_mm, shift_mm)
+    if key is not None:
+        try:
+            still = _chart_key(pages, edges, paper_mm, shift_mm) == key
+        except Exception:      # noqa: BLE001
+            still = False
+        if still:
+            with _loss_lock:
+                _loss_cache.pop(key, None)
+                while len(_loss_cache) >= _LOSS_CACHE_CHARTS:
+                    _loss_cache.pop(next(iter(_loss_cache)))
+                _loss_cache[key] = copy.deepcopy(out)
+    return out
+
+
+def _losses_for_chart(pages, edges: Edges, paper_mm, shift_mm=(0.0, 0.0)
+                      ) -> Loss:
+    """`losses_for_chart` without the kept answers."""
     out = Loss()
     for path, frame in pages:
         one = losses(path, frame, edges, paper_mm, shift_mm)
