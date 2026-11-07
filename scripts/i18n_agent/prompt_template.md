@@ -6,6 +6,13 @@ PRODUCE EXACTLY TWO FILES (do not touch anything else, do not commit):
 
 STYLE (hard requirement from the app's author): ChromIQ's texts are extensive, friendly and easy to understand — written for beginners, leading with plain-language outcomes and concrete prerequisites. PRESERVE ALL INFORMATION; never shorten or summarize the long tooltips/help texts. Use the informal address that modern consumer software uses in {LANGNAME} (German uses Du-Form). Be consistent: define your terminology once (equivalents for patch→(German used "Messfeld"), strip/stripe→("Streifen"), spacer→("Trennfeld"), chart, target, measurement, instrument="Messgerät" etc.) and stick to it everywhere. Keep established technical terms (ICC, gamut, RGB, ΔE, OFPS, tool names like targen/printtarg/chartread/colprof) untranslated where the colour-management community does.
 
+TERM EXCEPTION, black point compensation (4.3.26): name it with the term the
+print dialogs of {LANGNAME} colour-management software use (for example
+Adobe's), and where the catalogue's own word for "black point" differs, add
+that word once in brackets at its first use in a text, so both are
+recognisable: German "Tiefenkompensierung (Schwarzpunktkompensierung)",
+Japanese "黒点の補正（ブラックポイント補正）", Chinese "黑场补偿（黑点补偿）".
+
 HARD RULES:
 - {placeholders} must be preserved EXACTLY, including format specs like {limit:.1f} — they are part of the key and verified by tests.
 - "&&" stays "&&" (Qt escape). HTML markup (<b>, <br>, &nbsp;, <span style=…>) preserved exactly.

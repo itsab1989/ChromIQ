@@ -1213,9 +1213,9 @@ parameters:
         from, not here.
 
         What BPC does: no printer prints a perfect black. BPC scales an
-        image so that its black lands on the darkest black the printer
-        can make, so the detail near black is kept instead of being cut
-        off.
+        image so that its black lands on the printer's black point, the
+        darkest neutral black the profile aims for, so the detail near
+        black is kept instead of being cut off.
 
         Why the darkest steps can crowd together: ArgyllCMS builds the
         colorimetric part of a profile to stay as close as possible in
@@ -1235,7 +1235,9 @@ parameters:
           punch, but detail darker than the printer's black is cut off
           to black.
         • Perceptual: the full black and well separated dark steps, at
-          the cost of a small colour shift (about 2 to 3 ΔE00).
+          the cost of a colour shift that is usually small (often around
+          2 to 3 ΔE00; it depends on the image and on the printer's
+          gamut).
 
         Judge the shadows on a printed step wedge (a grey ramp from
         white to black), not only on the soft proof: a screen cannot
