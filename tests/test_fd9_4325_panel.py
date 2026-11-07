@@ -171,25 +171,29 @@ def test_the_pattern_gate_ignores_the_fd9(qapp, qtbot, tmp_path, monkeypatch):
     assert tab._pattern_problem_now() is not None
 
 
-def test_the_fd9_clip_border_switch_is_offered_off_and_given_back(panel):
+def test_the_fd9_clip_border_switch_is_offered_on_and_given_back(panel):
     """F12: the FD-9 has a clip border On/Off like the ColorMunki and the
-    CR30, it starts on the FD-9's one default (off), On picks the Notes box
-    like the other instruments, the recipe records the answer only when it
-    differs from the default, and leaving gives the i1Pro its own back."""
+    CR30, it starts on the FD-9's one default (on since 4.3.26: lessbones
+    measured real sheets with it), showing the Notes box like the other
+    instruments, the recipe records the answer once the person switches it,
+    and leaving gives the i1Pro its own back."""
     from workflow.fd9.furniture import FD9_CLIP_BORDER_DEFAULT
     _choose(panel, "i1")
     before = panel.clip_content_mode.currentData()
     _choose(panel, "FD9")
     assert panel.clip_enable.isVisibleTo(panel) and panel.clip_enable.isEnabled()
-    assert panel.clip_enabled() is FD9_CLIP_BORDER_DEFAULT is False
+    assert panel.clip_enabled() is FD9_CLIP_BORDER_DEFAULT is True
     r = panel.get_recipe()
-    assert r.fd9_clip_border is None
+    assert r.fd9_clip_border is None                 # never chosen: default
     assert (r.helper_markers, r.show_strip_indicators) == (False, False)
-    panel.clip_enable.setCurrentIndex(panel.clip_enable.findData("on"))
     assert panel.clip_content_mode.currentData() == "notes"
     assert panel.clip_text.isEnabled() is False      # the Notes box fills itself
     assert not panel.clip_side.isEnabled() and not panel.clip_flip_180.isEnabled()
     assert panel.clip_content_mode.isEnabled()
+    panel.clip_enable.setCurrentIndex(panel.clip_enable.findData("off"))
+    r = panel.get_recipe()
+    assert r.fd9_clip_border is False                # a deliberate Off is kept
+    panel.clip_enable.setCurrentIndex(panel.clip_enable.findData("on"))
     r = panel.get_recipe()
     assert r.fd9_clip_border is True and r.clip_content_mode == "notes"
     _choose(panel, "i1")
@@ -199,11 +203,13 @@ def test_the_fd9_clip_border_switch_is_offered_off_and_given_back(panel):
 
 
 def test_a_recipe_from_before_the_switch_loads_with_the_default(panel):
+    """A recipe that never stored an answer follows today's default, on
+    since 4.3.26; one that stored Off keeps it (next test but one)."""
     from workflow.layout_engine.presets import LayoutRecipe
     old = LayoutRecipe(instrument="FD9", paper="A4", clip_content_mode="notes")
     assert old.fd9_clip_border is None
     panel.set_recipe(old)
-    assert panel.clip_enabled() is False
+    assert panel.clip_enabled() is True
 
 
 def test_the_fd9_clip_border_field_round_trips_and_stays_out_of_others():

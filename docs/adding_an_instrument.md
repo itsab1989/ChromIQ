@@ -527,7 +527,13 @@ Resume box, all duplicates (review of pull request #214, questions 1 and 9).
   CHANGELOG, the specification). Think about orientation: the FD-9's four
   marks look the same after a 180° turn, so the instrument cannot detect a
   reversed sheet. ChromIQ checks the readings against the chart afterwards
-  instead (`workflow/fd9/page_check.py`), and the texts say both.
+  instead (`workflow/fd9/page_check.py`), and the texts say both. And ask
+  how the person stands at the instrument before you decide which way
+  printed text faces: the FD-9's page number and clip border were printed
+  turned 180° in 4.3.25 for a person thought to hold the sheet by its
+  trailing end, but the FD-9 is fed from the front, so the arrow pointing up
+  was already the reading direction and the turned text was upside down for
+  exactly the person feeding it (4.3.26, from the owner of the unit).
 - **Help the user tell sheets apart.** Print the chart's name on the sheet,
   outside the area the instrument reads, and, if the instrument allows it,
   make a reversed or wrong sheet detectable rather than measuring it.
@@ -956,6 +962,7 @@ avoid from the start.
 | Greying only some input types | Spin boxes and lists were greyed, but the line and text boxes beside them stayed typeable and did nothing. | Grey every input type in a group your layout does not read, and test it by finding them independently. |
 | Another instrument's preset laid out as yours | Loading a ColorMunki preset while the FD-9 was chosen made an FD-9 chart with the preset's page count and helper-marker overlay. | The preset switches the instrument, as from the i1Pro. |
 | Printing what the reader cannot see past | Text or artwork on a sheet read by a camera or scanner type reader can look like the marks it searches for. | A detector check of every page at Generate, with the instrument's own detector. |
+| Text turned for a stance nobody had | The page number and clip border were printed turned 180° "for the person holding the trailing end"; the person stands in front of the FD-9, which is fed from the front, so it read upside down. | Ask the owner of the device how they hold and feed the sheet, and print text upright for that view; defaults that need real sheets wait for them (the FD-9 clip border went on by default once it had been measured). |
 | A mismatch with only an OK button | A sheet turned round or the wrong page was refused with one button, so the person had to start again. | Offer choices, as the strip check does (M-STRIP-READ-TWICE): measure again (the safe default), keep it as it is, or file it where it belongs. |
 | Shortened texts that lost their substance | The ⓘ lost its description of the instrument and the credit to its author; terms no longer matched the app's. | Keep the description and the credit when you shorten a text, and use the names the app already uses in every language. |
 

@@ -73,10 +73,13 @@ def _chart_with(tmp_path, pages=2, clip=True):
 
 
 def test_the_clip_border_in_the_edge_is_an_fd9_part_with_its_own_advice(tmp_path):
-    """The band ends 12 mm before the trailing edge; a 13 mm bottom edge
-    cuts it and nothing else (the bottom marks end 28 mm in)."""
+    """The band ends 12 mm before the trailing edge, and its ink, printed
+    upright since 4.3.26 (the Notes box next to the patches), about 14 mm
+    before it; a 15 mm bottom edge cuts it and nothing else (the bottom
+    marks end 28 mm in). 4.3.25's turned artwork reached 12 mm, so this
+    test used 13 mm."""
     pp = _chart_with(tmp_path, pages=2, clip=True)[:1]   # a full sheet
-    edges = PE.Edges(left=3.0, top=3.0, right=3.0, bottom=13.0, source="ppd")
+    edges = PE.Edges(left=3.0, top=3.0, right=3.0, bottom=15.0, source="ppd")
     loss = PE.losses_for_chart(pp, edges, (210.0, 297.0))
     assert loss.fd9_clip == ["bottom"]
     assert loss.fd9_marks == [] and loss.fd9_page_label == []
@@ -110,7 +113,7 @@ def test_the_page_number_in_the_edge_is_an_fd9_part_with_its_own_advice(tmp_path
 
 def test_both_parts_are_named_with_both_fixes(tmp_path):
     pp = _chart_with(tmp_path, pages=2, clip=True)
-    edges = PE.Edges(left=3.0, top=11.0, right=3.0, bottom=13.0, source="ppd")
+    edges = PE.Edges(left=3.0, top=11.0, right=3.0, bottom=15.0, source="ppd")
     loss = PE.losses_for_chart(pp, edges, (210.0, 297.0))
     assert loss.fd9_page_label == ["top"] and loss.fd9_clip == ["bottom"]
     note = MM.edge_note("PRO-300", edges, loss)

@@ -564,6 +564,13 @@ def test_preferences_row_is_under_fd9_support_and_greyed_while_it_is_off(qapp,
                  "Measured from Preview", "**Default:** off"):
         assert must in text
     assert "—" not in text
+    # 4.3.26 (lessbones): the page number and the clip border are printed
+    # upright, readable with the arrow up. The help said they were "printed
+    # turned round" and that 180° made them read the right way up; neither
+    # is true any more.
+    assert "printed turned round" not in text
+    assert "reads the right way up with the arrow pointing up" in text
+    assert "upside down on screen" in text.split("180°", 1)[1].split("270°")[0]
 
 
 def test_measured_from_preview_and_the_guides_describe_the_paper_at_every_angle(

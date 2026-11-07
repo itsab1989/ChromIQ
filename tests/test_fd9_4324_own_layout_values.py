@@ -200,7 +200,10 @@ def test_the_fixed_fields_do_not_change_the_fd9_chart(tmp_path):
     assert fixed.margin_top == 38.0 and fixed.spacer_mode == "none"
     out = []
     for name, r in (("a", plain), ("b", replace(fixed, spacer_mode="colored"))):
-        res = build_chart(source, tmp_path / name, **r.build_kwargs())
+        # One name in two folders: the FD-9 clip border, on by default since
+        # 4.3.26, prints the chart's name, and only the recipe may differ.
+        (tmp_path / name).mkdir()
+        res = build_chart(source, tmp_path / name / "chart", **r.build_kwargs())
         out.append((res.tiff_paths[0].read_bytes(),
                     checked_chart(res.ti2_path)[1]["rows"]))
     assert out[0] == out[1]

@@ -232,18 +232,24 @@ verified by tests and on screen without an FD-9.*
   marks around the patch area and an arrow showing which end goes in first.
   On a chart of several sheets every sheet also carries its page number,
   "N/M" (for example "2/3"), small, at the top left in the leading clear
-  area, turned 180 degrees so it reads the same way as the clip border text
-  (upside down on screen with the arrow pointing up); a chart of one sheet
+  area, upright like the clip border text: it reads the right way up with
+  the arrow pointing up, the way the person standing in front of the FD-9
+  sees the sheet while feeding it (4.3.26, lessbones, who owns the unit;
+  4.3.25 printed both turned 180 degrees, upside down for that person); a
+  chart of one sheet
   has none, and there is no option for it. The page number is for the
   person feeding the sheets, not an automatic page-identity check (that is
   the sheet check after each sheet). The FD-9 clip border may be printed
   as well (below).
-* **The FD-9 clip border** (4.3.25), off by default
-  (`workflow/fd9/furniture.py::FD9_CLIP_BORDER_DEFAULT`) until lessbones
-  has tested it on real sheets: switched on with “Clip border: On”
-  in the layout settings, it is a band at most 14 mm deep in the free space
-  after the last row of patches (at least 10 mm from each side and 6 mm
-  before the trailing edge), turned 180 degrees like the page number. It
+* **The FD-9 clip border** (4.3.25), on by default since 4.3.26
+  (`workflow/fd9/furniture.py::FD9_CLIP_BORDER_DEFAULT`): lessbones measured
+  real sheets with it and the page number, the labels read fine and the four
+  marks were found every time. A recipe in which a person switched it off
+  keeps Off; “Clip border: Off” in the layout settings leaves it out. It is
+  a band at most 14 mm deep in the free space after the last row of patches
+  (at least 10 mm from each side and 6 mm before the trailing edge), upright
+  like the page number. The 33 mm at the trailing edge stay: the sheet is
+  still in the FD-9's rollers while the last row is read (lessbones). It
   takes no room from the patches, and every page that carries it, or the
   page number, goes through the detector check before the chart is saved.
 * **Sheets:** 137x300, A4, A4 landscape, Letter, Letter landscape, A3,
@@ -318,3 +324,9 @@ FD-9 data.*
 * **90° and 270°** lay the sheet out sideways and fit it to the preview as
   a landscape page.
 
+* **Why a person would turn it (4.3.26).** Since 4.3.26 everything written
+  on an FD-9 sheet is printed upright, so Off already shows it readable, as
+  the person in front of the FD-9 sees it. The option is kept for looking at
+  a tall sheet sideways in a wide preview (90° and 270°); 180° now shows the
+  text upside down. Its ⓘ no longer says that the sheet's text is printed
+  turned round or that 180° makes it read the right way up.

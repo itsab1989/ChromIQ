@@ -241,9 +241,11 @@ def fd9_greyed_reason() -> str:
         "Four small black squares around the patch area let the FD-9 find the "
         "patches, and an arrow shows which end goes in first. Nothing else is "
         "printed on the sheet, except a small page number at the top left "
-        "when the chart has several sheets, and the FD-9 clip border if you "
-        "switch it on. The greyed boxes show the values an FD-9 chart "
-        "uses.\n\n"
+        "when the chart has several sheets, and the FD-9 clip border near the "
+        "other end, unless you switch it off. Both read the right way up with "
+        "the arrow pointing up, which is how you see the sheet when you stand "
+        "in front of the FD-9 and feed it in. The greyed boxes show the values "
+        "an FD-9 chart uses.\n\n"
         "What you can set for the FD-9 is under “Expert Options”, in “Patches "
         "& spacers”:\n"
         "  •  “Patch size”: the width × height of each patch, 6 to 30 mm "
@@ -3438,9 +3440,10 @@ class LayoutOptionsPanel(QWidget):
 
     def _fd9_dead_in_live_groups(self) -> tuple:
         """Controls inside a live group that the FD-9 does not read: its clip
-        border always lies across the trailing band, the right way up for the
-        person feeding the sheet, so the side and the 180-degree flip of the
-        other instruments' clip border do not apply."""
+        border always lies across the trailing band, upright with the arrow up
+        (4.3.26), the way the person in front of the FD-9 sees the sheet, so
+        the side and the 180-degree flip of the other instruments' clip border
+        do not apply."""
         return tuple(c for c in (getattr(self, "clip_side", None),
                                  getattr(self, "clip_flip_180", None))
                      if c is not None)
@@ -3874,15 +3877,16 @@ class LayoutOptionsPanel(QWidget):
                 "the end of the sheet that goes into the FD-9 last. It shows the "
                 "content you choose under “Clip-border content”; the Notes box "
                 "is the default, with the patch count, the paper, the date, the "
-                "page and lines to write on. It is turned round so that it reads "
-                "the right way up for you when you hold the sheet by that end to "
-                "feed it, so on screen it is upside down, unless you turn FD-9 "
-                "charts in Preferences > Beta.\n\n"
+                "page and lines to write on. It reads the right way up with the "
+                "arrow pointing up, just as you see the sheet when you stand in "
+                "front of the FD-9 and feed it in, and just as the chart is "
+                "shown on screen.\n\n"
                 "It takes no room from the patches.\n\n"
                 "Before a chart is saved, ChromIQ checks every page the way the "
                 "FD-9 will scan it, and refuses a page the FD-9 would not find. "
-                "The FD-9 clip border is new and is off by default until it has "
-                "been tested on real sheets: switch it on if you want it."))
+                "The FD-9 clip border is on by default: it has been measured on "
+                "real sheets with a real FD-9, and the FD-9 found every sheet. "
+                "Switch it off if you would rather have the sheet without it."))
         return (tr("Clip border"),
                 tr("Reserve a clip-border strip on this chart (the same option the "
                    "i1Pro has). On reserves a band you can fill with a notes box, "

@@ -475,6 +475,9 @@ def test_eleven_ink_linearization_has_one_ramp_per_column_and_rebuilds(tmp_path)
         paper="137x300",
         dpi=72,
         ramps_per_strip=True,
+        # The two builds have different names, and the clip border (on by
+        # default since 4.3.26) prints the name; this test compares patches.
+        fd9_clip_border=False,
     )
     assert result.ramp_whites_added == 35 and not result.randomize
     assert result.layout.steps_in_pass == 25
@@ -495,6 +498,9 @@ def test_eleven_ink_linearization_has_one_ramp_per_column_and_rebuilds(tmp_path)
         paper="137x300",
         dpi=72,
         ramps_per_strip=True,
+        # The two builds have different names, and the clip border (on by
+        # default since 4.3.26) prints the name; this test compares patches.
+        fd9_clip_border=False,
     )
     assert source.read_bytes() == original and rebuilt.ramp_whites_added == 0
     assert np.array_equal(
@@ -700,6 +706,10 @@ def test_minimum_patch_never_rounds_below_six_mm(tmp_path):
         dpi=300,
         randomize=False,
         export_pdf=True,
+        # Counts the PDF's patch rectangles; the clip border (on by default
+        # since 4.3.26) draws rectangles of its own, and is tested in
+        # test_fd9_4325_sheet_furniture.py.
+        clip_border=False,
     )
     _, layout, _ = checked_chart(result.ti2_path)
     pixels = tifffile.imread(result.tiff_paths[0])

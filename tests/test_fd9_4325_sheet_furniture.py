@@ -1,11 +1,15 @@
-"""4.3.25, the owner's second round of FD-9 feedback, what goes on the sheet:
+"""4.3.25, the owner's second round of FD-9 feedback, what goes on the sheet,
+as changed by 4.3.26 (lessbones, who owns an FD-9):
 
 * F5: the page number "N/M" of a multi-sheet chart stays at the top left and
-  is turned 180 degrees, like the clip border; a one-sheet chart has none;
+  is printed UPRIGHT (4.3.25 turned it 180 degrees; the FD-9 is fed from the
+  front, so the arrow up is already the reading direction and the turned
+  text was upside down for the person feeding); a one-sheet chart has none;
   printed with the clip border on or off, in the clip border's typeface;
 * F12: the FD-9 clip border, ChromIQ's own clip border (the Notes box by
-  default) in the trailing band, turned 180 degrees, off by default through
-  ONE constant;
+  default) in the trailing band, upright too, ON by default through ONE
+  constant since 4.3.26 (lessbones: the labels read fine on real sheets and
+  the four marks were found every time);
 * F4: every generated page goes through the FD-9's own mark detector at two
   scan scales, and Generate refuses a page that what ChromIQ added would
   stop the FD-9 finding; TIFF and PDF carry the same artwork.
@@ -51,13 +55,15 @@ def _mm(v, dpi=DPI):
     return round(v * dpi / 25.4)
 
 
-def test_one_default_switch_and_it_is_off():
-    assert furniture.FD9_CLIP_BORDER_DEFAULT is False
+def test_one_default_switch_and_it_is_on():
+    """On since 4.3.26: lessbones measured real sheets with it."""
+    assert furniture.FD9_CLIP_BORDER_DEFAULT is True
 
 
-def test_the_label_is_the_page_number_top_left_and_turned(tmp_path):
+def test_the_label_is_the_page_number_top_left_and_upright(tmp_path):
     """The owner's ruling: the label is the page number only, "N/M" as in
-    4.3.24, at the top left, now turned 180 degrees like the clip border."""
+    4.3.24, at the top left. Upright since 4.3.26: it reads with the arrow
+    up, the way the person in front of the FD-9 sees the sheet."""
     r, pages = _build(tmp_path)
     assert [p["page_label"] for p in pages] == ["1/2", "2/2"]
     ink = _ink(r.tiff_paths[0])
@@ -67,8 +73,8 @@ def test_the_label_is_the_page_number_top_left_and_turned(tmp_path):
     tile = font.render("1/2")
     left, top = _mm(furniture.LABEL_LEFT_MM), _mm(furniture.LABEL_TOP_MM)
     got = np.asarray(mask)[top:top + tile.height, left:left + tile.width]
-    assert np.array_equal(got, np.asarray(tile.rotate(180)))
-    assert not np.array_equal(got, np.asarray(tile))
+    assert np.array_equal(got, np.asarray(tile))
+    assert not np.array_equal(got, np.asarray(tile.rotate(180)))
 
 
 def test_a_one_sheet_chart_has_no_label(tmp_path):
@@ -99,12 +105,14 @@ def test_the_label_is_printed_with_the_clip_border_on_or_off(tmp_path, clip):
     assert ("clip_border_mm" in pages[0]) is clip
 
 
-def test_the_clip_border_is_off_unless_switched_on(tmp_path):
+def test_the_clip_border_is_on_unless_switched_off(tmp_path):
     _r, pages = _build(tmp_path)
+    assert all("clip_border_mm" in p for p in pages)
+    _r, pages = _build(tmp_path, name="off", clip_border=False)
     assert all("clip_border_mm" not in p for p in pages)
 
 
-def test_the_clip_border_lies_in_the_trailing_band_turned_round(tmp_path):
+def test_the_clip_border_lies_in_the_trailing_band_upright(tmp_path):
     r, pages = _build(tmp_path, clip_border=True, dpi=300)
     from workflow.layout_engine.raster import WORDMARK_IQ_RGB
     for tif, page in zip(r.tiff_paths, pages):
@@ -121,9 +129,10 @@ def test_the_clip_border_lies_in_the_trailing_band_turned_round(tmp_path):
         pink = (np.abs(band - np.array(WORDMARK_IQ_RGB)).sum(axis=2) < 60)
         assert pink.sum() > 100, "the wordmark's IQ is printed"
         cols = np.nonzero(pink.any(axis=0))[0]
-        # Upright, the Notes box starts with the wordmark at the left end;
-        # turned 180 degrees it sits at the right end.
-        assert cols.min() > band.shape[1] * 0.7
+        # Upright, the Notes box starts with the wordmark at the left end
+        # (4.3.26); turned 180 degrees, as 4.3.25 printed it, it sat at the
+        # right end.
+        assert cols.max() < band.shape[1] * 0.3
         # Nothing of the clip border outside its band.
         dark = (rgb.min(axis=2) < 200)
         below = dark[_mm(y1, 300) + 2:, :]
@@ -221,7 +230,8 @@ def test_the_pdf_carries_the_same_label_and_clip_border(tmp_path):
     assert WORDMARK_IQ_RGB[0] > 200
     pink = (band[..., 0] > 180) & (band[..., 1] < 150) & (band[..., 2] > 60)
     assert pink.sum() > 20
-    assert np.nonzero(pink.any(axis=0))[0].min() > band.shape[1] * 0.7
+    # Upright, as in the TIFF: the wordmark at the left end (4.3.26).
+    assert np.nonzero(pink.any(axis=0))[0].max() < band.shape[1] * 0.3
     label = (rgb[_mm(9):_mm(14), _mm(7):_mm(70)].min(axis=2) < 128)
     assert label.sum() > 20
 

@@ -1,17 +1,23 @@
 """What an FD-9 sheet carries besides its patches, marks and arrow (4.3.25).
 
 * THE PAGE LABEL (F5): the small page number "N/M" at the top left, where
-  it has always been, now turned 180 degrees like the clip border, so it
-  reads the same way as the clip border text: upside down on screen with
-  the arrow pointing up (the owner's rulings, 2026-11-04). Printed on every
-  sheet of a chart with several sheets, with the clip border on or off; a
-  chart of one sheet has none, as in 4.3.24. There is no option for it.
+  it has always been, printed UPRIGHT: it reads the right way up with the
+  arrow pointing up. Printed on every sheet of a chart with several sheets,
+  with the clip border on or off; a chart of one sheet has none, as in
+  4.3.24. There is no option for it.
 * THE FD-9 CLIP BORDER (F12): a smaller version of ChromIQ's clip border in
   the trailing band, in the content the person chooses (the Notes box by
   default: wordmark, colour bar, patch count, instrument, paper, date, the
-  lines to write on, page N/M), turned the same way. It is OFF by default (`FD9_CLIP_BORDER_DEFAULT`): the owner's
-  rule is that it may only be on by default once lessbones has confirmed on
-  real sheets that it does not disturb the measurement.
+  lines to write on, page N/M), upright like the page number. It is ON by
+  default since 4.3.26 (`FD9_CLIP_BORDER_DEFAULT`): lessbones, who owns an
+  FD-9, measured real sheets with it and the page number, and the four marks
+  were found every time.
+
+UPRIGHT, NOT TURNED ROUND (4.3.26, lessbones). 4.3.25 printed both turned
+180 degrees, for a person thought to hold the sheet by its trailing end.
+The FD-9 is fed from the front, with the person standing in front of it:
+the arrow pointing up, away from them, is already the way they read the
+sheet, so the turned text was upside down for exactly that person.
 
 Both are drawn as a one-bit mask in the chart's black ink, exactly like the
 marks, and every page that carries them goes through the detector check
@@ -26,14 +32,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-#: THE ONE DEFAULT for the FD-9 clip border. Off until lessbones confirms on
-#: real sheets (several papers, every page) that it does not disturb the
-#: measurement; then this goes to True, and nothing else changes. A recipe
-#: in which a person switched the clip border stores that answer explicitly
-#: (`LayoutRecipe.fd9_clip_border`, also when it equals this default), so
-#: flipping this never overrides a deliberate "Off"; only recipes that were
-#: never switched follow it.
-FD9_CLIP_BORDER_DEFAULT = False
+#: THE ONE DEFAULT for the FD-9 clip border. On since 4.3.26: lessbones
+#: reported from real sheets that the extra labels read fine and that the
+#: FD-9 found its four marks every time (4.3.25 had it off until then). A
+#: recipe in which a person switched the clip border stores that answer
+#: explicitly (`LayoutRecipe.fd9_clip_border`, also when it equals the
+#: default), so this change never overrides a deliberate "Off"; only recipes
+#: that were never switched follow it.
+FD9_CLIP_BORDER_DEFAULT = True
 
 #: The label's text height, where its box starts (from the left and the
 #: leading edge, as in 4.3.24) and how far short of the arrow it must end, in
@@ -150,8 +156,8 @@ def _fit(text: str, font, width_px: int) -> str:
 
 
 def label_mask(size, dpi, text):
-    """A one-bit image of the sheet size with *text* at the top left, turned
-    180 degrees, or None for no text. Never wider than the room before the
+    """A one-bit image of the sheet size with *text* at the top left,
+    upright (readable with the arrow up, 4.3.26), or None for no text. Never wider than the room before the
     arrow; a long project name is shortened, the page is kept."""
     from PIL import Image
     if not text:
@@ -161,7 +167,7 @@ def label_mask(size, dpi, text):
     font = _font(round(LABEL_HEIGHT_MM * mm))
     room = int(width / 2 - (LABEL_LEFT_MM + LABEL_ARROW_CLEAR_MM) * mm)
     text = _fit(text, font, room)
-    tile = font.render(text).rotate(180)
+    tile = font.render(text)
     out = Image.new("1", size, 0)
     out.paste(tile, (round(LABEL_LEFT_MM * mm), round(LABEL_TOP_MM * mm)))
     return out
@@ -191,10 +197,11 @@ def clip_artwork(band_mm, dpi, *, mode="notes", ctx=None, text="",
     it goes ((x, y) in px). The artwork is ChromIQ's own clip border
     (`raster.render_clip_strip`) in the content the person chose, the Notes
     box by default (the owner's ruling, 2026-11-04: the same default as the
-    i1Pro's), turned 180 degrees: the engine draws a clip border as a tall
-    strip reading up it (90 degrees), and another 90 lays it across the
-    trailing band, upside down with the arrow up, the right way up for the
-    person holding the trailing end."""
+    i1Pro's), upright: the engine draws a clip border as a tall strip
+    reading up it, and a quarter turn clockwise lays it across the trailing
+    band reading left to right with the arrow up, the way the person in
+    front of the FD-9 sees the sheet as they feed it (4.3.26, lessbones;
+    4.3.25 turned it the other way, upside down for that person)."""
     from workflow.layout_engine.raster import render_clip_strip
     mm = dpi / 25.4
     x0, y0, x1, y1 = (round(v * mm) for v in band_mm)
@@ -207,7 +214,7 @@ def clip_artwork(band_mm, dpi, *, mode="notes", ctx=None, text="",
         image_offset_x_mm=float(image_offset_x_mm or 0.0),
         image_offset_y_mm=float(image_offset_y_mm or 0.0),
         text_size_mm=float(text_size_mm or 0.0))
-    art = strip.convert("RGB").rotate(90, expand=True)
+    art = strip.convert("RGB").rotate(-90, expand=True)
     if art.size != (w, h):
         art = art.resize((w, h))
     return art, (x0, y0)

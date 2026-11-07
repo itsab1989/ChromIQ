@@ -358,7 +358,7 @@ def _build_single_chart(
             rows.append((index + 1, f"{alpha_label(col+1)}{row+1}", dev, xyz))
         doc["rows"].append(cells)
     # What else goes on the sheet (4.3.25, F5 and F12): the page number at
-    # the top left, turned round, and the FD-9 clip border when it is on.
+    # the top left, upright, and the FD-9 clip border when it is on.
     from .furniture import (FD9_CLIP_BORDER_DEFAULT, artwork_ink,
                             artwork_runs, clip_artwork, clip_band_mm,
                             label_mask, page_label_text, runs_of)

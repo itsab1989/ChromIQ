@@ -188,7 +188,21 @@ instrument's values, and leaving it gives those back. Guided never reads
 Manual's panel: it uses a loaded FD-9 layout, Save as Defaults, or the FD-9's
 Chart Layout preset, with Guided's own resolution and options. The greyed
 controls show what an FD-9 chart uses: its fixed margins (38/15/33/15 mm),
-no spacers, patch first.
+no spacers, patch first. The 33 mm at the trailing end stays: the owner of
+the unit confirmed (4.3.26) that the FD-9 still holds the sheet in its
+rollers while it reads the last row, so the clear area after it is what the
+transport needs and is not spare paper to be given to patches.
+
+The page number "N/M" at the top left of each sheet of a multi-sheet chart,
+and the FD-9 clip border in the trailing clear area, are printed upright: they
+read the right way up with the arrow pointing up. The FD-9 is fed from the
+front, with the person standing in front of it, so the arrow pointing up, away
+from them, is already how they read the sheet; 4.3.25 printed both turned
+180 degrees, which was upside down for exactly that person. The clip border is
+on by default since 4.3.26: on real sheets the extra labels read fine and the
+four marks were found every time. Every page that carries either one still
+goes through the detector check (`workflow/fd9/sheet_check.py`) before the
+chart is written.
 Edit layout defaults opens Chart Layout preferences, never printtarg for FD-9.
 The extra FD-9 dialog and Guided Custom sheet button have been removed.
 Legacy equal-gap recipes and schema-1 physical charts are still read.
