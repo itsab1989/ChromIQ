@@ -239,6 +239,11 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 80: where a80-greywalk fired, the perceptual neutral column is
      # a79-perccol's (colprof's separation made neutral); research, opt-in
      "a80-perccol",
+     # Agent 84: on a CMYK printer with a mild measured ink fold (a79's
+     # gate), the forward fit keeps clustered dark patches the robust fit
+     # had rejected as misreads (real i1iSis: warm hues into black);
+     # research, opt-in
+     "a84-warmblack",
      # Agent 56 (D-30 part 1): RGB with a51 on: the chroma of a clip target
      # lifted to the dark floor fades C1 with its depth below the black, at
      # colprof's own per-hue rate; research, opt-in
@@ -411,6 +416,8 @@ INT8B_TOKENS = frozenset({"a63-palefine", "a63-lowgrid"})
 A73_FOLD_MIN = 2.0
 A73_CMYGAP_MIN = 6.0
 A74_FOLDMEAS_MIN = 1.0
+# Agent 84 (research, off): see the forward-fit block of _build_profile_impl.
+A84_WARMBLACK = "a84-warmblack"
 INT9_TOKENS = frozenset({
     "a65-cmykhue-bluejab", "a66-cmyaxis", "a68-clipkeep", "a69-cmykport",
     "a69-cmykport-oog", "a69-cmykport-oogfine", "a70-edgesmooth",
@@ -692,7 +699,10 @@ def _agent15_gp(meas, model, candidates, settings, lam, curve_rounds,
         return fit_forward_model_accurate(
             d, l, grid=model.grid, base_lam=lam, curve_rounds=curve_rounds,
             ucs=use_ucs, row_weights=w, positioning=curve_rounds > 0,
-            additive=False)[0]
+            additive=False,
+            # Agent 84: the held-out folds fit the stiff model the way the
+            # build did (a84-warmblack keeps clustered misfits)
+            keep_clusters=gpsel.A84_KEEP_CLUSTERS)[0]
 
     winner, rep = gpsel.select(dev, lab, model, fit_stiff, de_fn, rw,
                                kinds=kinds,
@@ -1194,6 +1204,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         _emit(settings, "Candidate pipeline active: "
                         f"{', '.join(sorted(candidates))}.")
     _noise_winner = None
+    _a84_fired = False                  # Agent 84 (a84-warmblack)
+    _a84_model0 = None                  # ... the first fit, for its black
     _a40_on = False                     # Agent 38 s6 (a40-knut-grey)
     if accurate and settings.noise_model and "gp" not in candidates:
         # #123 user option: noise-aware fitting behind a held-out exam —
@@ -1250,8 +1262,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 _ramp_blend = {"ramp_blend": _a40["blend"],
                                "lam_factors": (1.0,)}
                 _a40_on = True
-        model, outliers, _lam_used = fit_forward_model_accurate(
-            meas.device, meas.lab_relative, grid=a2b_grid, base_lam=lam,
+        _fit_kw = dict(
+            grid=a2b_grid, base_lam=lam,
             curve_rounds=curve_rounds, ucs=use_ucs,
             gp="gp" in candidates,
             progress=lambda m: _emit(settings, m),
@@ -1268,6 +1280,32 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                                         & candidates)
                                        and not meas.is_additive and n >= 5)
                       else 0.0))
+        model, outliers, _lam_used = fit_forward_model_accurate(
+            meas.device, meas.lab_relative, **_fit_kw)
+        if (A84_WARMBLACK in candidates and not meas.is_additive
+                and n == 4):
+            # Agent 84 (a84-warmblack, Findings/agent84-01): on a CMYK
+            # printer with a mild, MEASURED ink fold (a79's gate: real
+            # i1iSis) the robust fit rejected a whole cluster of dark
+            # C+M-rich patches as misreads; they are the fold itself. Fit
+            # again with clustered misfits kept at full weight.
+            from workflow.profile_engine.gamut_map import a79_mild_fold
+            if a79_mild_fold(model, meas.channel_letters, meas) is not None:
+                _m84, _o84, _l84 = fit_forward_model_accurate(
+                    meas.device, meas.lab_relative, keep_clusters=True,
+                    **_fit_kw)
+                _r0 = np.linalg.norm(model.predict(meas.device)
+                                     - meas.lab_relative, axis=1)
+                _r1 = np.linalg.norm(_m84.predict(meas.device)
+                                     - meas.lab_relative, axis=1)
+                _emit(settings, f"Printer model: dark patches the fit had "
+                                f"set aside kept (research a84-warmblack; "
+                                f"{len(outliers)} -> {len(_o84)} flagged, "
+                                f"fit dE76 p99 {np.percentile(_r0, 99):.2f}"
+                                f" -> {np.percentile(_r1, 99):.2f}).")
+                _a84_model0 = model
+                model, outliers, _lam_used = _m84, _o84, _l84
+                _a84_fired = True
         if ({"a19-extrap", "a19-bounds"} & candidates
                 and not meas.is_additive):
             # Research token (agent 19, F-12): physical lower bounds on the
@@ -1329,8 +1367,13 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                                            row_weights=meas.row_weights,
                                            ref_pred=model.predict(meas.device))
             else:
-                gpm = _agent15_gp(meas, model, candidates, settings, lam,
-                                  curve_rounds, use_ucs, _de)
+                from workflow.profile_engine import gpsel as _gpsel84
+                _gpsel84.A84_KEEP_CLUSTERS = _a84_fired
+                try:
+                    gpm = _agent15_gp(meas, model, candidates, settings, lam,
+                                      curve_rounds, use_ucs, _de)
+                finally:
+                    _gpsel84.A84_KEEP_CLUSTERS = False
             if gpm is not None and "gpclip" in candidates:
                 from workflow.profile_engine import gpsel
                 gpm = gpsel.Tapered(
@@ -1774,7 +1817,14 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 is_additive=meas.is_additive, ink_limit=ink_limit,
                 channel_max=channel_max, ladder=b2a_mod.A34_LADDER,
                 chooser=_ft.partial(
-                    b2a_mod.rate_deep_black,
+                    (b2a_mod.rate_deep_black if _a84_model0 is None else
+                     # Agent 84: where a84-warmblack refitted the model, the
+                     # deep black is chosen on the FIRST fit, so the black
+                     # device (and its depth) stay what they were; the
+                     # refit's own rule picked a neutral C+M black 2 L*
+                     # lighter on real i1iSis (rbf 18.7 -> 20.8)
+                     (lambda _m, **_k: b2a_mod.rate_deep_black(
+                         _a84_model0, **_k))),
                     max_chroma=(None if _meas_c is None
                                 else _meas_c + b2a_mod.A34_MEAS_MARGIN)))
             if axis.get("handover"):

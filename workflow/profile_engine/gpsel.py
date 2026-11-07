@@ -108,8 +108,19 @@ class Tapered:
         return out
 
 
+# Agent 84 (a84-warmblack): set by the builder while it fits the GP layer on
+# a printer where the token fired; the GP's Huber weights then give a patch
+# back its full weight where its neighbours are missed just as badly
+# (accuracy.a84_cluster_keep).
+A84_KEEP_CLUSTERS = False
+
+
 def _huber_keep(stiff, device, lab, de_fn, row_weights):
-    w = gpfwd.huber_weights(de_fn(stiff.predict(device), lab))
+    res = de_fn(stiff.predict(device), lab)
+    w = gpfwd.huber_weights(res)
+    if A84_KEEP_CLUSTERS:
+        from workflow.profile_engine.accuracy import a84_cluster_keep
+        w = a84_cluster_keep(device, res, w)
     if row_weights is not None:
         w = w * np.asarray(row_weights, float)
     return w

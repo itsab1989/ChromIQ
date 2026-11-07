@@ -64,6 +64,28 @@ def _ramp_curves(dev_pos, lab, ramp_blend):
     return ramp_positioning_curves(dev_pos, lab, blend=ramp_blend)
 
 
+
+def a84_cluster_keep(device, res, w, *, k: int = 8, ratio: float = 3.0,
+                     add: float = 1.0) -> np.ndarray:
+    """Agent 84 (a84-warmblack): a robust weight below 1 is given back (1.0)
+    to a patch whose device-space neighbours the fit misses just as badly:
+    the same rule the misread namer uses (a misread is an ISOLATED anomaly;
+    a patch in a region the model cannot follow has equally poor
+    neighbours and is the model's problem, not a misread). On real i1iSis
+    the stiff scan rejected 22 dark C+M-rich patches that all measure
+    near neutral (L* 21, a* 1), and the model then printed them purple
+    (a* +5, b* -5): the clip sent warm hues through them before black."""
+    device = np.asarray(device, float)
+    res = np.asarray(res, float)
+    w = np.asarray(w, float).copy()
+    for i in np.flatnonzero(w < 1.0):
+        d2 = ((device - device[i]) ** 2).sum(1)
+        nn = np.argsort(d2)[1:k + 1]
+        if res[i] < ratio * float(np.median(res[nn])) + add:
+            w[i] = 1.0
+    return w
+
+
 def fit_forward_model_accurate(
         device: np.ndarray, lab: np.ndarray, *, grid: int, base_lam: float,
         curve_rounds: int = 2,
@@ -77,6 +99,7 @@ def fit_forward_model_accurate(
         order_mu: float = 0.0,
         lam_factors: tuple | None = None,
         ramp_blend: float | str = 0.5,
+        keep_clusters: bool = False,
         ) -> tuple[ForwardModel, np.ndarray, float]:
     """Cross-validated, outlier-robust forward fit.
 
@@ -367,6 +390,8 @@ def fit_forward_model_accurate(
         scale = 1.345 * max(mad, 1.0)
     w_rob = np.minimum(1.0, scale / np.maximum(res_w, 1e-9))
     w_rob[res_w > 8.0 * scale] = 0.0
+    if keep_clusters:
+        w_rob = a84_cluster_keep(device, res_w, w_rob)
     w_noise = None
     if sigma is not None:
         # GLS row weights, clipped so no patch dominates or vanishes —
@@ -394,6 +419,8 @@ def fit_forward_model_accurate(
     w2_rob = np.minimum(w_rob, np.minimum(1.0, scale
                                           / np.maximum(res_w, 1e-9)))
     w2_rob[res_w > 8.0 * scale] = 0.0
+    if keep_clusters:
+        w2_rob = np.minimum(w_rob, a84_cluster_keep(device, res_w, w2_rob))
     if (w2_rob < w_rob - 1e-9).any():
         if progress is not None:
             progress("Fitting the printer model: robust fit 2/2…")
