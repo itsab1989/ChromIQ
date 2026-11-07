@@ -104,3 +104,28 @@ def test_a_patch_set_loaded_in_guided_is_still_counted(qapp, tmp_path):
     tab._update_patch_count()
     n, detail = _big_number(tab)
     assert n >= 480 and "6 PAGES" not in detail, (n, detail)
+
+
+def test_calibration_counts_no_preset_and_no_patch_set(qapp, tmp_path):
+    """Run type Calibration: `_on_generate` skips every preset and patch-set
+    branch (`_cal_now`) and targen builds the ramps, so nothing bound may be
+    promised (4.3.27 review)."""
+    tab = _tab(tmp_path)
+    assert tab._pending_patch_set_total() == 1224
+    tab._calibration_selected = lambda: True        # the one predicate
+    assert tab._pending_patch_set_total() is None, (
+        "Calibration promised the built-in preset's patch set")
+    ti1 = tmp_path / "mine.ti1"
+    shutil.copy(Path(__file__).resolve().parent / "fixtures" / "charts"
+                / "cm_a4_480p_2pages.ti1", ti1)
+    tab._preset_ti1_path = ti1
+    tab._preset_ti1_targen_sig = tab._targen_signature()
+    assert tab._pending_patch_set_total() is None, (
+        "Calibration promised the loaded patch set")
+    # what the Manual estimate lays out once Run type has set its knobs
+    # (-f 0, Auto off): the calibration chart, not the loaded 480
+    tab._apply_calibration_knobs(True)
+    assert tab._estimate_patch_total() != 480
+    tab._apply_calibration_knobs(False)
+    tab._calibration_selected = lambda: False
+    assert tab._pending_patch_set_total() == 480

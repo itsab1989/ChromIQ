@@ -26375,6 +26375,12 @@ class TabChart(QWidget):
         """
         try:
             path = None
+            # CALIBRATION USES NO PRESET AND NO PATCH SET, as in `_on_generate`
+            # (`_cal_now`): targen builds the calibration ramps into cal/
+            # whatever is bound, so nothing bound may be counted (4.3.27
+            # review).
+            if self._calibration_selected():
+                return None
             if getattr(self, "_preset_ti1_path", None) is not None:
                 opted_in = bool(self._override_targen_check is not None
                                 and self._override_targen_check.isChecked())
