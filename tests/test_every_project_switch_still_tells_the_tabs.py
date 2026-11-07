@@ -48,12 +48,31 @@ OLD = {
     'measurement_import': {"changed": 1, "settings_loaded": True, "project": "Bravo", "runs_on_bar": ["Run 1 (overwrite)", "Run 2 (overwrite)", "Run 3 (overwrite)", "New run"], "store": "Bravo/runs/run1", "no_op_drops_nothing": True},
     'session_restore': {"changed": 0, "settings_loaded": False, "project": "Bravo", "runs_on_bar": ["Run 1 (overwrite)", "New run"], "store": "Alpha/runs/run1", "no_op_drops_nothing": False},
     'load_patch_set_new_project': {"changed": 1, "settings_loaded": True, "project": "Charlie", "runs_on_bar": ["Run 1 (overwrite)", "New run"], "store": "None", "no_op_drops_nothing": False},
+    'load_patch_set_new_project[printtarg]': {"changed": 1, "settings_loaded": True, "project": "Charlie", "runs_on_bar": ["Run 1 (overwrite)", "New run"], "store": "None", "no_op_drops_nothing": False},
     'close_project': {"changed": 1, "settings_loaded": True, "project": None, "runs_on_bar": ["New run"], "store": "None", "no_op_drops_nothing": True},
     'rename_on_leaving_the_field': {"changed": 0, "settings_loaded": False, "project": None, "runs_on_bar": ["Run 1 (overwrite)", "New run"], "store": "Alpha/runs/run1", "no_op_drops_nothing": False},
     'generate_with_a_typed_new_name': {"changed": 0, "settings_loaded": False, "project": "Delta", "runs_on_bar": ["New run"], "store": "Alpha/runs/run1", "no_op_drops_nothing": False},
 }
 
 RECORD = os.environ.get("CHROMIQ_RECORD_ROUTES") == "1"
+
+
+@pytest.fixture(autouse=True)
+def _preferences_put_back(qapp):
+    """Every preference a test here sets is put back afterwards, so no later
+    file on this worker inherits a layout route, an output folder or a
+    session (the 4.3.28 gate failure came from such an inheritance)."""
+    from core.settings import AppSettings
+    qs = AppSettings()._qs
+    before = {k: qs.value(k) for k in qs.allKeys()}
+    yield
+    qs = AppSettings()._qs
+    for k in qs.allKeys():
+        if k not in before:
+            qs.remove(k)
+    for k, v in before.items():
+        qs.setValue(k, v)
+    qs.sync()
 
 
 def _mk(work: Path, name: str, nruns: int) -> Project:
@@ -95,6 +114,7 @@ def world(qapp, tmp_path, monkeypatch):
     s.set("session_target_name", "")
     s.set("session_project_root", "")
     s.set("auto_update_preview", False)
+    s.set("use_chromiq_layout_engine", True)     # the default, pinned
     w = MainWindow(s)
     w._tab_chart.open_project_manifest(work / "Alpha" / "project.json")
     _settle(qapp, w)
@@ -211,22 +231,28 @@ def test_session_restore(world, qapp):
     _check("session_restore", w, qapp, watch, work)
 
 
+@pytest.mark.parametrize("engine", [True, False],
+                         ids=["layout-engine", "printtarg"])
 def test_load_patch_set_into_a_new_project_with_a_real_build(world, qapp,
                                                               monkeypatch,
-                                                              tmp_path):
+                                                              tmp_path,
+                                                              engine):
     """Alpha is open on run1; the patch set goes into a NEW project, whose
-    run is run1 too. A real build: the chart is laid out and written."""
+    run is run1 too. A real build, on each of the two layout routes, pinned:
+    the 4.3.28 gate ran this on a worker whose settings store an earlier file
+    had left on printtarg, and printtarg refused the hand-written ONE-table
+    .ti1 this test used to make ("Input file doesn't contain two or three
+    tables", then the "Chart Layout Failed" window at teardown). The patch
+    set is now written by the app's own writer, with the three tables
+    targen makes."""
+    from workflow.i1profiler_import import RgbPatch, write_ti1
     w, work, s = world
     tab = w._tab_chart
+    s.set("use_chromiq_layout_engine", engine)
     ti1 = tmp_path / "mine" / "my-patches.ti1"
     ti1.parent.mkdir()
-    rows = "\n".join(f"{i} {v} {v} {v} {v} {v} {v}"
-                     for i, v in enumerate((100.0, 75.0, 50.0, 25.0, 0.0), 1))
-    ti1.write_text('CTI1\n\nORIGINATOR "ChromIQ i1Profiler import"\n'
-                   'COLOR_REP "iRGB"\n\nNUMBER_OF_FIELDS 7\nBEGIN_DATA_FORMAT\n'
-                   'SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z\n'
-                   f'END_DATA_FORMAT\n\nNUMBER_OF_SETS 5\nBEGIN_DATA\n{rows}\n'
-                   'END_DATA\n', encoding="utf-8")
+    write_ti1([RgbPatch(v, v, v) for v in (100.0, 75.0, 50.0, 25.0, 0.0)],
+              ti1)
     monkeypatch.setattr("ui.tabs.tab_chart.open_file_dialog",
                         lambda *a, **k: str(ti1))
     monkeypatch.setattr(type(tab), "_ti1_load_destination",
@@ -242,7 +268,8 @@ def test_load_patch_set_into_a_new_project_with_a_real_build(world, qapp,
     assert (charlie / "project.json").is_file()
     run1 = Project.load(charlie).run("run1")
     assert run1.chart_ti2.is_file(), "the build wrote no chart"
-    _check("load_patch_set_new_project", w, qapp, watch, work)
+    _check("load_patch_set_new_project" + ("" if engine else "[printtarg]"),
+           w, qapp, watch, work)
     assert tab._preset_ti1_path is not None, "the loaded patch set is bound"
 
 
