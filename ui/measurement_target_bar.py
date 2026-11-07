@@ -58,14 +58,16 @@ class MeasurementTargetController(QObject):
     #: target is still selected — the write trigger in Knut's queue design
     #: (#130). Anything holding unsaved per-target state flushes it here.
     about_to_change_target = pyqtSignal()
-    #: The name typed into "Printer profile project name" changed. NOT a
+    #: The person TYPED in "Printer profile project name" (4.3.28). NOT a
     #: change of target: only the location line reads the typed name (before
-    #: a project exists), so only it listens. Emitting ``changed`` for it ran
-    #: every tab's target-change handler on each keystroke, and Create Chart's
-    #: saved and re-loaded the target's settings, which silently threw away
-    #: a change not yet applied with Generate Chart (per_target_settings
-    #: §2.2 says it is lost only on a run change or Close Project; Basti
-    #: approved this, 4.3.28) and cost about 100 ms per keystroke.
+    #: a project exists), so only it listens. Emitting ``changed`` for a
+    #: keystroke ran every tab's target-change handler per character, and
+    #: Create Chart's saved and re-loaded the target's settings, which
+    #: silently threw away a change not yet applied with Generate Chart
+    #: (per_target_settings §2.2: lost only on a run change or Close
+    #: Project; Basti approved this) and cost about 100 ms a keystroke.
+    #: A name the APP writes into the field still emits ``changed``, see
+    #: :meth:`set_pending_project_name`.
     pending_name_changed = pyqtSignal()
 
     def __init__(self, file_mgr, parent: QObject | None = None) -> None:
@@ -113,8 +115,29 @@ class MeasurementTargetController(QObject):
         return None if p is None else p.calibration
 
     def set_pending_project_name(self, raw: str) -> None:
-        """Track the profile-project name being typed, so the bar's location
-        line follows it before the project folder exists."""
+        """Track the profile-project name in the field, so the bar's location
+        line follows it before the project folder exists.
+
+        Connected to the field's ``textChanged``, so it hears EVERY change of
+        the text, and a change that is new here emits ``changed`` exactly as
+        it always did. Since 4.3.28 that is only a name the app wrote into
+        the field: opening another project, a measurement import, a load into
+        a new project, a refused rename putting the old name back. Those
+        writes are how the tabs learn about the switch: an open of a project
+        whose current run has the same id as the one left changes nothing
+        else the bar compares (review of 2da6c9a9c, probed). A name the person
+        TYPED has already been taken by :meth:`note_typed_project_name`, which
+        Qt calls first (``textEdited`` comes before ``textChanged``, measured
+        for keys, backspace, paste, undo and ``insert``), so it is not new
+        here and emits nothing more."""
+        raw = (raw or "").strip()
+        if raw != self._pending_name:
+            self._pending_name = raw
+            self.changed.emit()
+
+    def note_typed_project_name(self, raw: str) -> None:
+        """The person typed in the name field (its ``textEdited``): follow it
+        on the location line only (:attr:`pending_name_changed`)."""
         raw = (raw or "").strip()
         if raw != self._pending_name:
             self._pending_name = raw

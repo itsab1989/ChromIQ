@@ -304,3 +304,32 @@ def test_with_no_project_the_location_line_follows_typing(qapp, tmp_path,
         assert not (work / "My-Printer2").exists(), "nothing is made early"
     finally:
         w.close()
+
+
+def test_no_kind_of_typing_is_a_target_change(measured, qtbot):
+    """Keys, Backspace, a paste, an undo, a cut: every edit a person makes
+    reaches the controller through `textEdited` first and emits nothing; a
+    name the app writes into the field still emits `changed`, as it always
+    did (tests/test_every_project_switch_still_tells_the_tabs.py)."""
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtTest import QTest
+    from PyQt6.QtWidgets import QApplication
+    w, work, name = measured
+    ctl = w._target_ctl
+    field = w._tab_chart._manual_target_name_edit
+    changed, typed = _Counter(), _Counter()
+    ctl.changed.connect(changed)
+    ctl.pending_name_changed.connect(typed)
+    QTest.keyClicks(field, "ab")
+    QTest.keyClick(field, Qt.Key.Key_Backspace)
+    QApplication.clipboard().setText("-pasted")
+    field.paste()
+    field.undo()
+    field.selectAll()
+    field.cut()
+    qtbot.wait(200)
+    assert changed.n == 0, "an edit made by a person emitted `changed`"
+    assert typed.n >= 5, "the location line did not follow the edits"
+    field.setText(name)                      # the app writes the name back
+    qtbot.wait(100)
+    assert changed.n == 1, "a name the app wrote no longer tells the tabs"
