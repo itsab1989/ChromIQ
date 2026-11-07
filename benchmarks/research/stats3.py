@@ -371,7 +371,7 @@ def safety_rows(results_a: dict, results_b: dict | None, engine_a: str, engine_b
 
 def weighed_adoption(rows: list[dict], safety: list[dict] | None = None,
                      ramp_seeds: list[dict] | None = None,
-                     reader_groups=("cmm", "app")) -> dict:
+                     reader_groups=("cmm", "app"), symmetric_single_build: bool = False) -> dict:
     """D-17: may B be adopted although it is not strictly never worse?
     Cells = printer x chart x endpoint over the decision reader groups. A
     cell is a LOSS if any row is WORSE (or WORSE* not cleared over seeds),
@@ -379,7 +379,12 @@ def weighed_adoption(rows: list[dict], safety: list[dict] | None = None,
     needs (a) clearly more wins than losses (at least 2 to 1) and a larger
     total win than total loss, (b) every loss small (<= 0.05 median/mean,
     <= 0.15 p95/max, <= 10 % relative, below the reread floor), (c) no loss
-    on a safety row (grey axis ramps, and ``safety`` property checks)."""
+    on a safety row (grey axis ramps, and ``safety`` property checks).
+
+    ``symmetric_single_build`` (Agent 87, the M1 reading vs colprof): a
+    BETTER* row with no seed run counts as a win exactly as a WORSE* row with
+    no seed run counts as a loss. The default (False) keeps the one-sided
+    no-regression reading, where an unconfirmed BETTER* is never a win."""
     seeds = {(g["dataset"], g["level"], g["chart"], g["reader"], g["endpoint"]): g
              for g in (ramp_seeds or [])}
     cells: dict = defaultdict(lambda: {"win": [], "loss": []})
@@ -394,7 +399,10 @@ def weighed_adoption(rows: list[dict], safety: list[dict] | None = None,
                 "BETTER" if g["verdict"] == "BETTER" else "TIE")
         elif v == "BETTER*":
             g = seeds.get(key)
-            v = "BETTER" if g is not None and g["verdict"] == "BETTER" else "TIE"
+            if g is None and symmetric_single_build:
+                v = "BETTER"
+            else:
+                v = "BETTER" if g is not None and g["verdict"] == "BETTER" else "TIE"
         if v == "WORSE":
             cells[_cell(r)]["loss"].append(r)
         elif v == "BETTER":
@@ -462,8 +470,14 @@ def _oogq_key_info(key: str):
     return oogq.KEYS.get(key)
 
 
+# Agent 87: keys whose ideal is 0 and that can go either side of it; "lower is better" on the signed number
+# rewarded a black printed below the black point (bpc_lift) and colprof's rel. col. black lifted above its own
+# perceptual black (black_gap). Scored as the distance from 0 under --m1-reading (Findings/agent87-01).
+ABS_KEYS = ("bpc_lift_r", "bpc_lift_p", "black_gap_p", "black_gap_s")
+
+
 def property_rows(results_a: dict, results_b: dict | None, engine_a: str,
-                  engine_b: str) -> list[dict]:
+                  engine_b: str, abs_keys=()) -> list[dict]:
     """One row per dataset x oogq key that both profiles carry. ``diff`` is
     signed so that positive = B worse (the key's sign applied); ``a`` and
     ``b`` are the raw numbers. A single build reads like a ramp row:
@@ -486,6 +500,8 @@ def property_rows(results_a: dict, results_b: dict | None, engine_a: str,
                 continue
             sign, floor, safety, finding, _ = info
             a, b = float(qa[key]), float(qb[key])
+            if key in abs_keys:
+                a, b = abs(a), abs(b)
             diff = sign * (b - a)
             rows.append({"dataset": d["name"], "variant": d["variant"], "reader": "lcms",
                          "reader_group": "cmm", "endpoint": f"q.{key}", "a": a, "b": b,
@@ -564,14 +580,14 @@ def property_safety(rows: list[dict], seeds: list[dict] | None = None) -> list[d
 
 
 def compare(dir_a: Path, dir_b: Path, engine_a: str, engine_b: str, readers,
-            table: dict | None = None, alpha: float = 0.05, n_boot: int = N_BOOT) -> dict:
+            table: dict | None = None, alpha: float = 0.05, n_boot: int = N_BOOT, abs_keys=()) -> dict:
     ra = json.loads((Path(dir_a) / "results.json").read_text(encoding="utf-8"))
     rows = build_rows(dir_a, dir_b, engine_a, engine_b, readers, n_boot, results_a=ra)
     decide(rows, engine_a, engine_b, table, alpha)
     seeds = ramp_seed_verdicts(rows, alpha)
     rb = ra if Path(dir_a) == Path(dir_b) else json.loads(
         (Path(dir_b) / "results.json").read_text(encoding="utf-8"))
-    prows = decide_properties(property_rows(ra, rb, engine_a, engine_b), engine_a, engine_b,
+    prows = decide_properties(property_rows(ra, rb, engine_a, engine_b, abs_keys), engine_a, engine_b,
                               table)
     pseeds = property_seed_verdicts(prows, alpha)
     return {"a": str(dir_a), "b": str(dir_b), "engine_a": engine_a, "engine_b": engine_b,
@@ -596,10 +612,13 @@ def main(argv=None) -> None:
     ap.add_argument("--weighed", action="store_true",
                     help="also the D-17 weighed adoption rule (net benefit, small-loss "
                          "tolerance, zero-tolerance safety rows); exit 1 if it fails")
+    ap.add_argument("--m1-reading", action="store_true",
+                    help="Agent 87, for M1 vs colprof: score ABS_KEYS as |value| and read single-build "
+                         "BETTER* / WORSE* alike in the weighed tally")
     args = ap.parse_args(argv)
     table = json.loads(Path(args.seed_sd).read_text(encoding="utf-8")) if args.seed_sd else None
     res = compare(Path(args.dir_a), Path(args.dir_b), args.engine_a, args.engine_b,
-                  args.reader, table)
+                  args.reader, table, abs_keys=ABS_KEYS if args.m1_reading else ())
     all_rows = res["rows"] + res["property_rows"]
     all_seeds = res["ramp_seeds"] + res["property_seeds"]
     for r in res["rows"]:
@@ -632,7 +651,7 @@ def main(argv=None) -> None:
         ra = json.loads((Path(args.dir_a) / "results.json").read_text(encoding="utf-8"))
         rb = json.loads((Path(args.dir_b) / "results.json").read_text(encoding="utf-8"))
         w = weighed_adoption(all_rows, safety_rows(ra, rb, args.engine_a, args.engine_b),
-                             all_seeds)
+                             all_seeds, symmetric_single_build=args.m1_reading)
         res["weighed"] = w
         print(f"\nD-17 WEIGHED ADOPTION: {'PASS' if w['pass'] else 'FAIL'}; {w['wins']} winning "
               f"cells ({w['win_size']:.3f}) vs {w['losses']} losing ({w['loss_size']:.3f}); "
