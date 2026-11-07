@@ -903,9 +903,9 @@ parameters:
         no aquí.
 
         Qué hace la BPC: ninguna impresora imprime un negro perfecto. La BPC
-        escala la imagen para que su negro caiga en el negro más oscuro que
-        la impresora puede producir, de modo que el detalle cercano al negro
-        se conserva en lugar de recortarse.
+        escala la imagen para que su negro caiga en el punto negro de la
+        impresora, el negro neutro más oscuro al que apunta el perfil, de modo
+        que el detalle cercano al negro se conserva en lugar de recortarse.
 
         Por qué los pasos más oscuros pueden amontonarse: ArgyllCMS construye
         la parte colorimétrica de un perfil para mantenerse lo más fiel
@@ -925,7 +925,8 @@ parameters:
           profundo y más fuerza, pero el detalle más oscuro que el negro de
           la impresora se recorta a negro.
         • Perceptual: el negro completo y pasos oscuros bien separados, a
-          cambio de un pequeño cambio de color (unos 2 a 3 ΔE00).
+          cambio de un desplazamiento de color que suele ser pequeño (a menudo
+          unos 2 a 3 ΔE00; depende de la imagen y de la gama de la impresora).
 
         Juzga las sombras en una cuña escalonada impresa (una rampa de grises
         de blanco a negro), no solo en la prueba en pantalla: una pantalla no

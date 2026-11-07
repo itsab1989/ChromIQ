@@ -927,7 +927,7 @@ parameters:
         Mittel reicht für die meiste Inkjet-Arbeit.
         Hoch für Fine-Art- oder Proof-Anwendungen verwenden.
 
-        **Tiefen, Schwarz und Tiefenkompensierung**
+        **Tiefen, Schwarz und Tiefenkompensierung (Schwarzpunktkompensierung)**
         Eine höhere Qualität bildet deine Messungen etwas genauer ab,
         ändert an den Tiefen aber kaum etwas. Wie die dunkelsten Töne
         gedruckt werden, hängt vor allem von der Wiedergabeabsicht und
@@ -935,9 +935,10 @@ parameters:
         Programm, aus dem du druckst, nicht hier.
 
         Was BPC macht: Kein Drucker druckt ein perfektes Schwarz. BPC
-        skaliert ein Bild so, dass sein Schwarz auf dem dunkelsten Schwarz
-        landet, das der Drucker erzeugen kann. So bleiben die Details nahe
-        Schwarz erhalten, statt abgeschnitten zu werden.
+        skaliert ein Bild so, dass sein Schwarz auf dem Schwarzpunkt des
+        Druckers landet, dem dunkelsten neutralen Schwarz, das das Profil
+        anstrebt. So bleiben die Details nahe Schwarz erhalten, statt
+        abgeschnitten zu werden.
 
         Warum die dunkelsten Stufen zusammenrücken können: ArgyllCMS baut
         den farbmetrischen Teil eines Profils so, dass er farblich so genau
@@ -957,7 +958,8 @@ parameters:
           Kraft, aber Details, die dunkler sind als das Schwarz des
           Druckers, werden zu Schwarz abgeschnitten.
         • Perzeptiv: das volle Schwarz und gut getrennte dunkle Stufen,
-          um den Preis einer kleinen Farbverschiebung (etwa 2 bis 3 ΔE00).
+          um den Preis einer Farbverschiebung, die meist klein ist (oft um
+          2 bis 3 ΔE00; das hängt vom Bild und vom Gamut des Druckers ab).
 
         Beurteile die Tiefen an einem gedruckten Stufenkeil (einer
         Graurampe von Weiß bis Schwarz), nicht nur im Softproof: Ein

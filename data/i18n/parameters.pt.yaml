@@ -893,9 +893,9 @@ parameters:
         imprime, não aqui.
 
         O que faz a BPC: nenhuma impressora imprime um preto perfeito. A BPC
-        escala a imagem de modo que o seu preto caia no preto mais escuro que
-        a impressora consegue produzir, para que o detalhe próximo do preto
-        seja mantido em vez de cortado.
+        escala a imagem de modo que o seu preto caia no ponto preto da
+        impressora, o preto neutro mais escuro que o perfil procura atingir,
+        para que o detalhe próximo do preto seja mantido em vez de cortado.
 
         Porque é que os degraus mais escuros se podem aglomerar: o ArgyllCMS
         constrói a parte colorimétrica de um perfil para ficar o mais fiel
@@ -915,7 +915,8 @@ parameters:
           mais impacto, mas o detalhe mais escuro do que o preto da impressora
           é cortado para preto.
         • Percetual: o preto completo e degraus escuros bem separados, à custa
-          de um pequeno desvio de cor (cerca de 2 a 3 ΔE00).
+          de um desvio de cor normalmente pequeno (muitas vezes cerca de 2 a 3
+          ΔE00; depende da imagem e da gama da impressora).
 
         Avalie as sombras numa escala de degraus impressa (uma rampa de
         cinzentos do branco ao preto), não só na prova de ecrã: um ecrã não

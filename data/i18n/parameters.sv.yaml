@@ -846,9 +846,9 @@ parameters:
         väljer i programmet du skriver ut från, inte här.
 
         Vad BPC gör: ingen skrivare ger en perfekt svärta. BPC skalar en bild
-        så att dess svärta hamnar på den mörkaste svärta som skrivaren kan
-        åstadkomma, så att detaljerna nära svart behålls i stället för att
-        klippas bort.
+        så att dess svärta hamnar på skrivarens svartpunkt, den mörkaste
+        neutrala svärta som profilen siktar på, så att detaljerna nära svart
+        behålls i stället för att klippas bort.
 
         Varför de mörkaste stegen kan klumpa ihop sig: ArgyllCMS bygger den
         kolorimetriska delen av en profil för att hålla färgerna så exakta som
@@ -867,7 +867,8 @@ parameters:
           kraft, men detaljer som är mörkare än skrivarens svärta klipps till
           svart.
         • Perceptuell: full svärta och väl åtskilda mörka steg, till priset av
-          en liten färgförskjutning (cirka 2 till 3 ΔE00).
+          en färgförskjutning som oftast är liten (ofta runt 2 till 3 ΔE00;
+          det beror på bilden och på skrivarens färgomfång).
 
         Bedöm skuggorna på en utskriven stegkil (en gråramp från vitt till
         svart), inte bara i skärmkorrekturen: en skärm kan inte visa hur nära

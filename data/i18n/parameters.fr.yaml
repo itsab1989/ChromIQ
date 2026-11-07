@@ -916,9 +916,10 @@ parameters:
         depuis lequel tu imprimes, pas ici.
 
         Ce que fait la BPC : aucune imprimante n'imprime un noir parfait. La
-        BPC met l'image à l'échelle pour que son noir tombe sur le noir le
-        plus sombre que l'imprimante peut produire ; ainsi les détails
-        proches du noir sont conservés au lieu d'être écrêtés.
+        BPC met l'image à l'échelle pour que son noir tombe sur le point noir
+        de l'imprimante, le noir neutre le plus sombre que vise le profil ;
+        ainsi les détails proches du noir sont conservés au lieu d'être
+        écrêtés.
 
         Pourquoi les paliers les plus sombres peuvent se tasser : ArgyllCMS
         construit la partie colorimétrique d'un profil pour rester aussi
@@ -939,7 +940,9 @@ parameters:
           profond et plus de punch, mais les détails plus sombres que le noir
           de l'imprimante sont écrêtés en noir.
         • Perceptif : le noir complet et des paliers sombres bien séparés, au
-          prix d'un léger décalage de couleur (environ 2 à 3 ΔE00).
+          prix d'un décalage de couleur généralement faible (souvent autour
+          de 2 à 3 ΔE00 ; cela dépend de l'image et du gamut de
+          l'imprimante).
 
         Juge les ombres sur une échelle de gris imprimée en paliers (une
         rampe de gris du blanc au noir), pas seulement sur l'épreuve écran :

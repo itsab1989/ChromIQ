@@ -888,9 +888,9 @@ parameters:
         nero (BPC), che scegli nel programma da cui stampi, non qui.
 
         Cosa fa la BPC: nessuna stampante stampa un nero perfetto. La BPC
-        scala l'immagine in modo che il suo nero cada sul nero più scuro che
-        la stampante riesce a produrre, così i dettagli vicini al nero
-        vengono conservati invece di essere tagliati.
+        scala l'immagine in modo che il suo nero cada sul punto di nero della
+        stampante, il nero neutro più scuro a cui punta il profilo, così i
+        dettagli vicini al nero vengono conservati invece di essere tagliati.
 
         Perché i gradini più scuri possono ammassarsi: ArgyllCMS costruisce la
         parte colorimetrica di un profilo per restare il più fedele possibile
@@ -910,7 +910,8 @@ parameters:
           e più incisività, ma i dettagli più scuri del nero della stampante
           vengono tagliati a nero.
         • Percettivo: il nero pieno e gradini scuri ben separati, al prezzo di
-          un piccolo spostamento di colore (circa da 2 a 3 ΔE00).
+          uno spostamento di colore di solito piccolo (spesso circa da 2 a 3
+          ΔE00; dipende dall'immagine e dal gamut della stampante).
 
         Valuta le ombre su una scala a gradini stampata (una scala di grigi
         dal bianco al nero), non solo sulla prova a monitor: uno schermo non

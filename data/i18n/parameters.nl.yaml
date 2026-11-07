@@ -868,9 +868,10 @@ parameters:
         afdrukt, niet hier.
 
         Wat BPC doet: geen printer drukt een perfect zwart af. BPC schaalt een
-        afbeelding zo dat het zwart ervan uitkomt op het donkerste zwart dat de
-        printer kan maken. Zo blijft het detail vlak bij zwart behouden in
-        plaats van te worden afgekapt.
+        afbeelding zo dat het zwart ervan uitkomt op het zwartpunt van de
+        printer, het donkerste neutrale zwart waar het profiel op mikt. Zo
+        blijft het detail vlak bij zwart behouden in plaats van te worden
+        afgekapt.
 
         Waarom de donkerste stappen op elkaar kunnen kruipen: ArgyllCMS bouwt
         het colorimetrische deel van een profiel zo dat het qua kleur zo
@@ -890,7 +891,9 @@ parameters:
           maar detail dat donkerder is dan het zwart van de printer wordt tot
           zwart afgekapt.
         • Perceptueel: het volle zwart en goed gescheiden donkere stappen, ten
-          koste van een kleine kleurverschuiving (ongeveer 2 tot 3 ΔE00).
+          koste van een kleurverschuiving die meestal klein is (vaak rond 2
+          tot 3 ΔE00; dat hangt af van de afbeelding en van het gamut van de
+          printer).
 
         Beoordeel de schaduwen op een afgedrukte grijstrap (een grijsverloop
         van wit naar zwart), niet alleen op de softproof: een scherm kan niet

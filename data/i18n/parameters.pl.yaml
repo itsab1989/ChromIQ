@@ -867,9 +867,9 @@ parameters:
         które wybierasz w programie, z którego drukujesz, a nie tutaj.
 
         Co robi BPC: żadna drukarka nie drukuje idealnej czerni. BPC skaluje
-        obraz tak, aby jego czerń trafiła w najciemniejszą czerń, jaką
-        drukarka potrafi uzyskać, dzięki czemu szczegóły blisko czerni zostają
-        zachowane, a nie obcięte.
+        obraz tak, aby jego czerń trafiła w punkt czerni drukarki, czyli
+        najciemniejszą neutralną czerń, do której dąży profil, dzięki czemu
+        szczegóły blisko czerni zostają zachowane, a nie obcięte.
 
         Dlaczego najciemniejsze stopnie mogą się zbijać: ArgyllCMS buduje
         kolorymetryczną część profilu tak, aby kolorystycznie była jak
@@ -889,7 +889,8 @@ parameters:
           więcej wyrazu, ale szczegóły ciemniejsze niż czerń drukarki zostają
           obcięte do czerni.
         • Percepcyjny: pełna czerń i dobrze rozdzielone ciemne stopnie,
-          kosztem niewielkiego przesunięcia barwy (około 2 do 3 ΔE00).
+          kosztem przesunięcia barwy, zwykle niewielkiego (często około 2
+          do 3 ΔE00; zależy to od obrazu i od gamutu drukarki).
 
         Oceniaj cienie na wydrukowanym klinie schodkowym (rampie szarości od
         bieli do czerni), a nie tylko na proofie ekranowym: ekran nie pokaże,

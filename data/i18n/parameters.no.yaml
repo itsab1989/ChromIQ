@@ -841,9 +841,9 @@ parameters:
         velger i programmet du skriver ut fra, ikke her.
 
         Hva BPC gjør: ingen skriver gir en perfekt svart. BPC skalerer et
-        bilde slik at svarten havner på den mørkeste svarten skriveren kan
-        lage, så detaljene nær svart blir bevart i stedet for å bli kuttet
-        bort.
+        bilde slik at svarten havner på skriverens svartpunkt, den mørkeste
+        nøytrale svarten profilen sikter mot, så detaljene nær svart blir
+        bevart i stedet for å bli kuttet bort.
 
         Hvorfor de mørkeste trinnene kan klumpe seg sammen: ArgyllCMS bygger
         den kolorimetriske delen av en profil for å holde fargene så
@@ -862,7 +862,8 @@ parameters:
           men detaljer som er mørkere enn skriverens svart, blir kuttet til
           svart.
         • Perseptuell: full svart og godt atskilte mørke trinn, på bekostning
-          av et lite fargeavvik (omtrent 2 til 3 ΔE00).
+          av et fargeavvik som vanligvis er lite (ofte rundt 2 til 3 ΔE00;
+          det avhenger av bildet og av skriverens gamut).
 
         Vurder skyggene på en utskrevet trinnkile (en gråramp fra hvitt til
         svart), ikke bare på skjermprøven: en skjerm kan ikke vise hvor tett
