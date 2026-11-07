@@ -16,10 +16,16 @@ the TI1 and emits the matching i1Profiler structure:
   | CMYK          | <cc:ColorCMYK>       | 0..100 (as-is)   | yes   |
   | CMYK+N        | <cc:ColorCMYKPlusN>  | 0..100 (as-is)   | no    |
 
-For CMYK / CMYK+N the .pxf additionally carries the X-Rite Prism
-`ColorSpecification` + `ProfileSettings` blocks and per-ink `PLUS_n_COLOR`
-definitions, matching i1Profiler's own shipped reference patch sets so its
-CMYK / extended-gamut loader accepts them.
+Every .pxf carries the `ColorSpecificationCollection` that defines the
+"Unknown" specification each patch names, as X-Rite's own RGB and CMYK patch
+sets do (the RGB file lacked it until 4.3.26 and failed the CxF3 schema). For
+CMYK / CMYK+N the .pxf additionally carries the X-Rite Prism `ProfileSettings`
+block and per-ink `PLUS_n_COLOR` definitions, matching i1Profiler's own
+shipped reference patch sets so its CMYK / extended-gamut loader accepts them.
+
+Every device value is written inside 0..100 % (0..255 for RGB), so a value a
+loaded patch set carried outside that range comes out as the patch that is
+really printed (4.3.26).
 
 i1Profiler re-lays-out the chart and asks which i1iSis variant to use, so we do
 not differentiate i1iSis / i1iSis 2 / i1iSis XL here.
@@ -220,9 +226,19 @@ def _to_255_int(v: float) -> int:
     return max(0, min(255, round(v / 100.0 * 255.0)))
 
 
+def _clamp_pct(v: float) -> float:
+    """A 0..100 device percentage held inside 0..100.
+
+    The chart prints nothing below 0 % or above 100 %, and the RGB values go
+    through :func:`_to_255_int`, which clamps the same way; a CMYK value of
+    -2.5 in a hand-made patch set is printed as 0 % and is written as 0 here,
+    so the patch set i1Profiler gets names the patch on the sheet (4.3.26)."""
+    return max(0.0, min(100.0, float(v)))
+
+
 def _trim(v: float) -> str:
     """Trim trailing zeros the way the reference files do (0, 69.8, 100)."""
-    s = f"{v:.4f}".rstrip("0").rstrip(".")
+    s = f"{_clamp_pct(v):.4f}".rstrip("0").rstrip(".")
     return s or "0"
 
 
@@ -282,7 +298,8 @@ def write_txt(target: Target, out_path: Path, descriptor: str) -> bool:
         lines = _txt_header(descriptor, "SampleID CMYK_C CMYK_M CMYK_Y CMYK_K ", 5, len(target.rows))
         for sid, v in target.rows:
             lines.append(
-                f"{sid} {v['C']:.4f} {v['M']:.4f} {v['Y']:.4f} {v['K']:.4f} "
+                f"{sid} {_clamp_pct(v['C']):.4f} {_clamp_pct(v['M']):.4f} "
+                f"{_clamp_pct(v['Y']):.4f} {_clamp_pct(v['K']):.4f} "
             )
     else:
         return False  # CMYK+N: i1Profiler ships no CGATS .txt for extended gamut
@@ -438,6 +455,13 @@ def write_pxf(
         for idx, (_sid, v) in enumerate(target.rows, start=1):
             parts += _rgb_object(idx, v, created)
         parts.append("\t\t</cc:ObjectCollection>")
+        # THE "Unknown" EVERY PATCH NAMES MUST BE DEFINED IN THE FILE (4.3.26).
+        # Each <cc:ColorRGB> above says ColorSpecification="Unknown"; until
+        # 4.3.26 the RGB file never wrote the collection that defines it, so
+        # the file failed the CxF3 schema (a keyref with nothing to point at).
+        # X-Rite's own RGB .pxf files carry it, and so do our CMYK files and
+        # the .pwxf/.txf (reported by jctay, printerknowledge forum).
+        parts += _color_specification()
         parts.append("\t</cc:Resources>")
         parts.append("\t<cc:CustomResources>")
         parts.append('\t\t<xrp:Prism xmlns:xrp="http://www.xrite.com/products/prism" release="2.0">')

@@ -151,9 +151,15 @@ def test_rgb_export_scales_to_255_and_stays_minimal(tmp_path):
     assert "<cc:ColorRGB" in pxf_text
     assert "<cc:R>255</cc:R>" in pxf_text  # 100 * 2.55 -> 255
     assert 'ColorSpace="RGB"' in pxf_text
-    # RGB stays the minimal shipped form: no ProfileSettings / ColorSpecification
+    # RGB stays the minimal shipped form: no ProfileSettings ...
     assert "<ProfileSettings" not in pxf_text
-    assert "ColorSpecificationCollection" not in pxf_text
+    # ... but it DOES define the "Unknown" ColorSpecification every patch
+    # names. This line used to assert the opposite, and the file it pinned
+    # failed the CxF3 schema (a reference to nothing). X-Rite's own RGB .pxf
+    # patch sets (TC9.18 RGB, TC2.83 RGB) carry the collection; jctay found
+    # the gap on the printerknowledge forum (4.3.26).
+    assert "ColorSpecificationCollection" in pxf_text
+    assert '<cc:ColorSpecification Id="Unknown">' in pxf_text
     # .txt is CGATS.5 on the 0..255 scale
     txt_text = txt.read_text(encoding="utf-8")
     assert txt_text.startswith("CGATS.5")
