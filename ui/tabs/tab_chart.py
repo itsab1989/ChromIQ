@@ -9752,13 +9752,27 @@ class TabChart(QWidget):
             return None
         return saved
 
-    @staticmethod
-    def _retargeted(recipe, instr, paper):
+    def _retargeted(self, recipe, instr, paper):
         """`recipe` with the instrument and paper Manual is on, every other
-        option its own (B8-1291). The instrument as the panel names it."""
+        option its own (B8-1291). The instrument as the panel names it.
+
+        TURNED INTO AN FD-9 RECIPE (4.3.26, review r2), it takes the FD-9's
+        patch size and gaps from the FD-9's own layout for that paper
+        (`_fd9_layout_preset`), never the other instrument's: an i1Pro's
+        0 mm gaps or a ColorMunki's patch width are no FD-9 layout, the same
+        rule as choosing the FD-9 in the panel (review of #214, H1)."""
         from dataclasses import replace
-        return replace(recipe, instrument=_engine_instrument(instr),
-                       paper=str(paper or recipe.paper))
+        eng = _engine_instrument(instr)
+        paper = str(paper or recipe.paper)
+        if eng == "FD9" and getattr(recipe, "instrument", None) != "FD9":
+            own = self._fd9_layout_preset(paper)
+            return replace(recipe, instrument=eng, paper=paper,
+                           patch_w_mm=own.patch_w_mm,
+                           patch_h_mm=own.patch_h_mm,
+                           fd9_gap_mm=own.fd9_gap_mm,
+                           inter_patch_mm=own.inter_patch_mm,
+                           strip_gap_mm=own.strip_gap_mm)
+        return replace(recipe, instrument=eng, paper=paper)
 
     def _sync_engine_panel_selection(self, instr: "str | None" = None,
                                      paper: "str | None" = None) -> None:

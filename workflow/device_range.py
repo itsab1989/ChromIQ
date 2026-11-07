@@ -70,55 +70,125 @@ def _device_prefix(color_rep: str, fields: "list[str]") -> str:
     return ""
 
 
+def _code_part(line: str) -> str:
+    """*line* without a ``#`` comment, outside quoted values. ArgyllCMS's
+    CGATS reader skips a comment line inside the data and a comment after
+    the values (review r2, measured: printtarg exits 0 on both)."""
+    out, quoted = [], False
+    for ch in line:
+        if ch == '"':
+            quoted = not quoted
+        elif ch == "#" and not quoted:
+            break
+        out.append(ch)
+    return "".join(out)
+
+
+def _tokens(line: str) -> "list[tuple[int, int, str]]":
+    return [(m.start(), m.end(), m.group())
+            for m in _TOKEN.finditer(_code_part(line))]
+
+
 def clamp_text(text: str) -> "tuple[str, list[Change]]":
-    """*text* (a CGATS .ti1 / .ti2) with every device value held inside
-    0..100, and the list of what changed.
+    """*text* (a CGATS .ti1 / .ti2) with every device value of its PATCH
+    table held inside 0..100, and the list of what changed.
 
     Only the changed numbers are rewritten, each keeping the number of
     decimals it had ("-23.1373" becomes "0.0000", "104" becomes "100"); every
     other byte stays as it was, so a file with nothing to change comes back
-    identical."""
+    identical.
+
+    WHICH TABLE (review r2): the patch table only, the first table of the
+    file or any table with a SAMPLE_ID. A .ti2 from printtarg or printcal
+    may carry a calibration-curve table (CMYK_I, CMYK_C ...) in which values
+    above 100 are legitimate, and a .ti1 carries density tables after its
+    patches; neither is touched.
+
+    WHAT A LINE IS (review r2): ArgyllCMS reads the data as a stream of
+    values and skips comments, so a comment line, a comment after the
+    values, and one patch's values split over two lines are all valid. A
+    comment is ignored; when a line's count of values differs from the
+    format, the block is read as one stream grouped by the field count, and
+    refused (:class:`UnreadablePatchLine`) only when the total is not a
+    whole number of patches. Such a block, when something in it is clamped,
+    is written back one patch per line."""
     color_rep = ""
     fields: "list[str]" = []
     in_format = in_data = False
     out_lines: "list[str]" = []
+    block: "list[str]" = []
+    block_start = 0
     changes: "list[Change]" = []
     prefix = ""
-    for line in text.splitlines(keepends=True):
+    table = -1
+    lines = text.splitlines(keepends=True)
+    for number, line in enumerate(lines, start=1):
         s = line.strip()
-        if not in_data and s.startswith("COLOR_REP"):
+        if in_data:
+            if s == "END_DATA":
+                in_data = False
+                out_lines += _clamp_block(block, fields, prefix, changes,
+                                          block_start)
+                block = []
+                out_lines.append(line)
+            else:
+                block.append(line)
+            continue
+        if s.startswith("COLOR_REP"):
             color_rep = s[len("COLOR_REP"):].strip()
         if s == "BEGIN_DATA_FORMAT":
             in_format, fields = True, []
+            table += 1
         elif s == "END_DATA_FORMAT":
             in_format = False
-            prefix = _device_prefix(color_rep, fields)
+            patch_table = table == 0 or "SAMPLE_ID" in fields
+            prefix = _device_prefix(color_rep, fields) if patch_table else ""
         elif in_format:
-            fields += s.split()
+            fields += _code_part(s).split()
         elif s == "BEGIN_DATA":
-            in_data = True
-        elif s == "END_DATA":
-            in_data = False
-        elif in_data and prefix and s:
-            line = _clamp_line(line, fields, prefix, changes,
-                               len(out_lines) + 1)
+            in_data, block, block_start = True, [], number + 1
         out_lines.append(line)
+    if in_data:                          # no END_DATA: left as it was
+        out_lines += block
     return "".join(out_lines), changes
 
 
-def _clamp_line(line: str, fields: "list[str]", prefix: str,
-                changes: "list[Change]", number: int = 0) -> str:
-    spans = [(m.start(), m.end(), m.group()) for m in _TOKEN.finditer(line)]
-    if len(spans) != len(fields):
-        # NEVER LEFT UNCHECKED IN SILENCE (review r1 L6): a line with more or
-        # fewer values than the format names cannot be read value by value,
-        # so it is refused with a reason rather than passed on unclamped.
+def _clamp_block(block: "list[str]", fields: "list[str]", prefix: str,
+                 changes: "list[Change]", first: int) -> "list[str]":
+    """The data lines of one table, clamped (see :func:`clamp_text`)."""
+    if not prefix or not fields:
+        return block
+    n = len(fields)
+    counts = [len(_tokens(l)) for l in block]
+    if all(c in (0, n) for c in counts):
+        return [_clamp_line(l, fields, prefix, changes) if c else l
+                for l, c in zip(block, counts)]
+    # THE STREAM FORM: one patch over several lines, or several on one.
+    stream = [t for l in block for _a, _b, t in _tokens(l)]
+    if len(stream) % n:
         from core.i18n import tr
+        bad = next(i for i, c in enumerate(counts) if c not in (0, n))
         raise UnreadablePatchLine(tr(
             "line {line} of the patch set does not have as many values as "
             "its format names (the line has {got}, the format names {want}), "
-            "so ChromIQ cannot tell which of them are the colour values").format(line=number, got=len(spans),
-                                        want=len(fields)))
+            "so ChromIQ cannot tell which of them are the colour values"
+        ).format(line=first + bad, got=counts[bad], want=n))
+    found: "list[Change]" = []
+    ending = next((l[len(l.rstrip("\r\n")):] for l in block
+                   if l.endswith(("\n", "\r"))), "\n")
+    rows = []
+    for i in range(0, len(stream), n):
+        row = " ".join(stream[i:i + n]) + ending
+        rows.append(_clamp_line(row, fields, prefix, found))
+    if not found:
+        return block
+    changes += found
+    return rows
+
+
+def _clamp_line(line: str, fields: "list[str]", prefix: str,
+                changes: "list[Change]") -> str:
+    spans = _tokens(line)
     vals = dict(zip(fields, (t for _a, _b, t in spans)))
     sid = vals.get("SAMPLE_ID", "").strip('"')
     loc = vals.get("SAMPLE_LOC", "").strip('"')

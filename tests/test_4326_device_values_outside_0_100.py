@@ -517,3 +517,108 @@ def test_a_ti1_preset_with_values_outside_gets_the_window(
         if getattr(tab, "_clamped_note", None) is not None:
             tab._clamped_note.close()
         tab.deleteLater()
+
+
+# --- review r2: forms ArgyllCMS accepts, from real targen output ------------
+
+def _argyll(tool, args, cwd):
+    return subprocess.run([str(ARGYLL / tool), *args], cwd=str(cwd),
+                          capture_output=True, text=True, encoding="utf-8",
+                          errors="replace", timeout=180)
+
+
+@pytest.fixture
+def targen_ti1(tmp_path):
+    if not (ARGYLL / "targen").exists() or not (ARGYLL / "printtarg").exists():
+        pytest.skip("ArgyllCMS targen/printtarg is not installed")
+    r = _argyll("targen", ["-v0", "-d2", "-G", "-f30", "real"], tmp_path)
+    if r.returncode != 0:
+        pytest.fail(f"targen did not make a patch set: {r.stderr[-400:]}")
+    return (tmp_path / "real.ti1").read_text(encoding="utf-8")
+
+
+def _first_block(text):
+    lines = text.splitlines(keepends=True)
+    b = next(i for i, l in enumerate(lines) if l.strip() == "BEGIN_DATA")
+    e = next(i for i, l in enumerate(lines) if l.strip() == "END_DATA")
+    return lines, b, e
+
+
+def _with_comments(text):
+    lines, b, e = _first_block(text)
+    rows = lines[b + 1:e]
+    rows = (["# a comment line inside the data\n"]
+            + [rows[0].rstrip("\n") + "   # a comment after the values\n"]
+            + rows[1:])
+    return "".join(lines[:b + 1] + rows + lines[e:])
+
+
+def _split_patch(text):
+    lines, b, e = _first_block(text)
+    rows = lines[b + 1:e]
+    vals = rows[2].split()
+    rows[2] = " ".join(vals[:3]) + "\n" + " ".join(vals[3:]) + "\n"
+    return "".join(lines[:b + 1] + rows + lines[e:])
+
+
+def _negative_red_in_patch_3(text):
+    lines, b, e = _first_block(text)
+    vals = lines[b + 3].split()
+    vals[1] = "-23.1373"
+    lines[b + 3] = " ".join(vals) + "\n"
+    return "".join(lines)
+
+
+@pytest.mark.parametrize("form", [_with_comments, _split_patch])
+def test_forms_argyll_accepts_are_loaded_and_clamped(tmp_path, targen_ti1,
+                                                     form):
+    in_range = form(targen_ti1)
+    # printtarg accepts the form itself …
+    (tmp_path / "form.ti1").write_text(in_range, encoding="utf-8")
+    assert _argyll("printtarg", ["-ii1", "-pA4", "-T72", "form"],
+                   tmp_path).returncode == 0
+    # … ChromIQ reads it and changes nothing when nothing is out of range …
+    same, none = D.clamp_text(in_range)
+    assert same == in_range and none == []
+    # … and clamps it when a value is out of range.
+    out = form(_negative_red_in_patch_3(targen_ti1))
+    text, changes = D.clamp_text(out)
+    assert [(c.sample_id, c.channel, c.new) for c in changes] == [
+        ("3", "R", 0.0)]
+    (tmp_path / "clamped.ti1").write_text(text, encoding="utf-8")
+    assert _argyll("printtarg", ["-ii1", "-pA4", "-T72", "clamped"],
+                   tmp_path).returncode == 0
+    assert "-23.1373" not in text
+
+
+def test_comments_are_kept_and_never_read_as_values():
+    t = OUT_OF_RANGE.replace(
+        "4 104.0000 20.0000 0.0000 40.0000 25.0000 3.0000",
+        "4 104.0000 20.0000 0.0000 40.0000 25.0000 3.0000 # was -5 \"x\"")
+    text, changes = D.clamp_text(t)
+    assert "4 100.0000 20.0000 0.0000 40.0000 25.0000 3.0000 # was -5" in text
+    assert [c.sample_id for c in changes] == ["3", "4"]
+
+
+def test_a_split_patch_with_nothing_to_clamp_keeps_its_lines():
+    lines = IN_RANGE.splitlines(keepends=True)
+    i = lines.index("3 0.0000 50.0000 50.0000 15.0000 20.0000 22.0000\n")
+    lines[i] = "3 0.0000 50.0000\n50.0000 15.0000 20.0000 22.0000\n"
+    t = "".join(lines)
+    assert D.clamp_text(t) == (t, [])
+
+
+def test_only_the_patch_table_is_clamped_never_a_calibration_curve():
+    """A printtarg/printcal .ti2 may carry a calibration-curve table, where
+    values above 100 are legitimate."""
+    ti2 = ('CTI2\n\nCOLOR_REP "CMYK_XYZ"\n\nNUMBER_OF_FIELDS 6\n'
+           "BEGIN_DATA_FORMAT\nSAMPLE_ID SAMPLE_LOC CMYK_C CMYK_M CMYK_Y "
+           "CMYK_K\nEND_DATA_FORMAT\n\nNUMBER_OF_SETS 1\nBEGIN_DATA\n"
+           '1 "A1" 104 0 0 0\nEND_DATA\nCAL\n\nKEYWORD "DEVICE_CLASS"\n'
+           'COLOR_REP "CMYK"\n\nNUMBER_OF_FIELDS 5\nBEGIN_DATA_FORMAT\n'
+           "CMYK_I CMYK_C CMYK_M CMYK_Y CMYK_K\nEND_DATA_FORMAT\n\n"
+           "NUMBER_OF_SETS 2\nBEGIN_DATA\n0 0 0 0 0\n100 104.5 101 100 "
+           "120\nEND_DATA\n")
+    text, changes = D.clamp_text(ti2)
+    assert [(c.sample_id, c.channel) for c in changes] == [("1", "C")]
+    assert "100 104.5 101 100 120\n" in text

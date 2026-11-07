@@ -199,3 +199,27 @@ def test_guided_fd9_prints_the_notes_box_upright_in_tiff_and_pdf(
              & (pband[..., 2] > 60))
     assert ppink.sum() > 20
     assert np.nonzero(ppink.any(axis=0))[0].max() < pband.shape[1] * 0.3
+
+
+def test_r2_a_recipe_retargeted_to_the_fd9_takes_the_fd9s_sizes(
+        qapp, qtbot, tmp_path):
+    """Review r2: an i1Pro recipe turned into an FD-9 one (Save as Defaults
+    with -i on the FD-9 and the panel's recipe for another instrument) took
+    the i1Pro's 0 mm gaps and patch size; it takes the FD-9's own layout
+    for the paper, as choosing the FD-9 does."""
+    from workflow.layout_engine.presets import default_recipe
+    tab, _ = _tab(tmp_path, qtbot)
+    i1 = default_recipe("i1", "A4")
+    i1.inter_patch_mm, i1.strip_gap_mm, i1.patch_w_mm = 0.0, 0.0, 6.5
+    own = tab._fd9_layout_preset("A4")
+    r = tab._retargeted(i1, "FD9", "A4")
+    assert r.instrument == "FD9" and r.paper == "A4"
+    assert (r.patch_w_mm, r.patch_h_mm, r.inter_patch_mm, r.strip_gap_mm,
+            r.fd9_gap_mm) == (own.patch_w_mm, own.patch_h_mm,
+                              own.inter_patch_mm, own.strip_gap_mm,
+                              own.fd9_gap_mm)
+    assert (r.inter_patch_mm, r.strip_gap_mm) != (0.0, 0.0)
+    # Any other retarget keeps the recipe's own sizes, as before.
+    cm = tab._retargeted(i1, "CM", "A4")
+    assert (cm.instrument, cm.patch_w_mm, cm.inter_patch_mm) == ("CM", 6.5,
+                                                                0.0)
