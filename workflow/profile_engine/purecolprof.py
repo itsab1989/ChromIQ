@@ -974,12 +974,15 @@ def _a85_descend(predict, t_lab, d0, res_fn, iters: int = 20, h: float = 1e-4):
 # grey of its own lightness. Same gate as a85 (darkest printable neutral >= 1.5 L* above the device black), so a
 # printer with a near-neutral black is byte-identical at every level. Safety knobs (measured by Agent 88):
 #   gfade  the share of the re-solve falls from full at the device black to 0 at the darkest neutral over this
-#          fraction of the gap (0 = off, Agent 85's step: full share up to the darkest neutral)
-#   ring   share of the first ring of off-axis nodes (C* < 12) that take the CIELAB re-solve too (Agent 85: 0)
+#          fraction of the gap (0 = Agent 85's full share up to the darkest neutral; 1, the default, takes the
+#          S1 pessimistic grey-ramp corner from banding 0.186 to 0.149, tolerance 0.175, for 0.15 L* of depth)
+#   ring   share of the first ring of off-axis nodes (C* < 12) that take the CIELAB re-solve too (Agent 85: 0;
+#          measured: no gain in the wedge, new ramp defects on RGB default, so 0)
+#   rshift ring nodes follow the column's device shift instead (measured: does not remove the yellow step, 0)
 #   dcast  Deepest only: an optional cast cap (dE00) on the re-solve (None = no cap, Agent 85)
 # The L* = 0 plane is never touched (the profile's black stays device 0). Env CHROMIQ_A88 "key=value,..." (sweeps).
 A88_LEVELS = {"a88-black-balanced": "balanced", "a88-black-deepest": "deepest"}
-A88 = {"gap": 1.5, "fade": 4.0, "ring": 0.0, "cmax": 1.0, "w": LCH_WEIGHTS, "cast": 1.75, "gfade": 0.0,
+A88 = {"gap": 1.5, "fade": 4.0, "ring": 0.0, "cmax": 1.0, "w": LCH_WEIGHTS, "cast": 1.75, "gfade": 1.0,
        "dcast": None, "pen": 40.0, "rshift": 0.0, "rreach": 12.0}
 A88_DEEPEST = {}
 A88_BALANCED = {}
