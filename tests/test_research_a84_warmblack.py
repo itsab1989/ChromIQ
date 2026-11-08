@@ -40,3 +40,16 @@ def test_fit_default_is_unchanged_without_the_flag():
     import inspect
     sig = inspect.signature(accuracy.fit_forward_model_accurate)
     assert sig.parameters["keep_clusters"].default is False
+
+
+def test_a89_isisgap_registered_and_off_by_default():
+    import inspect
+    assert builder.A89_ISISGAP == "a89-isisgap"
+    assert builder.A89_ISISGAP in builder.ENGINE_CANDIDATE_TOKENS
+    assert builder.A89_ISISGAP not in builder.ACCURATE_DEFAULT_TOKENS
+    assert builder.A89_ISISGAP not in builder.accurate_candidates(())
+    src = inspect.getsource(builder)
+    # it only narrows a84's dark re-clip weight, inside that block
+    i84 = src.index("if _a84_clip_model is not None and not (_a69m")
+    i89 = src.index("if A89_ISISGAP in candidates:")
+    assert i84 < i89 < src.index("_pure = (1.0 - _w84[:, None]) * _pure", i84)

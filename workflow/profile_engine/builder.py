@@ -248,6 +248,10 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # a84 arm: A2B held-out -18 %, but the perceptual / saturation greys
      # and some rel. col. rows move); research, opt-in
      "a84-warmblack-all",
+     # Agent 89: with a84-warmblack, the dark re-clip leaves the nodes where
+     # neither clip uses black (the C+M edge: dark sRGB blue, where the
+     # nudge made a71's dark ray add black mid-ramp); research, opt-in
+     "a89-isisgap",
      # Agent 56 (D-30 part 1): RGB with a51 on: the chroma of a clip target
      # lifted to the dark floor fades C1 with its depth below the black, at
      # colprof's own per-hue rate; research, opt-in
@@ -423,6 +427,8 @@ A74_FOLDMEAS_MIN = 1.0
 # Agent 84 (research, off): see the forward-fit block of _build_profile_impl.
 A84_WARMBLACK = "a84-warmblack"
 A84_WARMBLACK_ALL = "a84-warmblack-all"
+# Agent 89 (research, off; needs a84-warmblack): see the a84 dark re-clip.
+A89_ISISGAP = "a89-isisgap"
 
 
 def _a84_gp_layer(meas, stiff, candidates, settings, lam, curve_rounds,
@@ -2382,6 +2388,22 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             _cc = np.clip((np.hypot(node_lab[:, 1], node_lab[:, 2]) - _c0)
                           / max(_c1 - _c0, 1e-6), 0.0, 1.0)
             _w84 = _w84 * _cc * _cc * (3.0 - 2.0 * _cc)
+            if A89_ISISGAP in candidates:
+                # Agent 89 (a89-isisgap, Findings/agent89-01): the warm
+                # fault is the black share of the clip (C-rich, low-K mixes
+                # that print grey); where neither clip uses black (the C+M
+                # edge of dark sRGB blue) the refit only nudges C/M by
+                # < .04, and a71's dark ray turned those nudges into black
+                # mid-ramp (blue h240: a dull band, chroma 34 -> 25 -> 39).
+                # Those nodes keep the build's own clip: no change below
+                # K k0, full from k1 (CHROMIQ_A89_K k0:k1, default .02:.05)
+                _k0, _k1 = (float(v) for v in os.environ.get(
+                    "CHROMIQ_A89_K", "0.02:0.05").split(":"))
+                _k89 = np.maximum(np.clip(_pure[:, 3], 0.0, 1.0),
+                                  np.clip(_p84[:, 3], 0.0, 1.0))
+                _g89 = np.clip((_k89 - _k0) / max(_k1 - _k0, 1e-6),
+                               0.0, 1.0)
+                _w84 = _w84 * _g89 * _g89 * (3.0 - 2.0 * _g89)
             _pure = (1.0 - _w84[:, None]) * _pure + _w84[:, None] * _p84
             _emit(settings, f"Colorimetric table: {int((_w84 > 0).sum())} "
                             f"clipped nodes near the black clipped on the "
