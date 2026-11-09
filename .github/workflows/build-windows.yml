@@ -125,7 +125,8 @@ jobs:
             echo "::error::requirements-build.txt pins PyInstaller $pinned, the bootloader source is $PYI_SDIST_VERSION; move PYI_SDIST_* with the pin"
             exit 1
           fi
-          src="$RUNNER_TEMP/pyi-bootloader-src"
+          # POSIX form: GNU tar reads "D:\..." as a remote host "D".
+          src="$(cygpath -u "$RUNNER_TEMP")/pyi-bootloader-src"
           rm -rf "$src"; mkdir -p "$src"
           curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 -o "$src/sdist.tar.gz" "$PYI_SDIST_URL"
           echo "$PYI_SDIST_SHA256  $src/sdist.tar.gz" | sha256sum -c -
