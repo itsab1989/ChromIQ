@@ -201,8 +201,9 @@ jobs:
           # the one exe in the bundle with no VERSIONINFO at all. Compile
           # upstream's .rc as it stands: the wrapper only supplies what MSVC's
           # rc needs and MinGW gets from afxres.h (VS_VERSION_INFO), and reads
-          # the file as the UTF-8 it is (its copyright sign).
-          printf '#include <winver.h>\r\n#pragma code_page(65001)\r\n#include "wdi-simple.rc"\r\n' \
+          # the file as the Windows-1252 it is: its copyright sign is the
+          # single byte 0xA9, which read as UTF-8 became a replacement character.
+          printf '#include <winver.h>\r\n#pragma code_page(1252)\r\n#include "wdi-simple.rc"\r\n' \
             > libwdi-src/examples/wdi-simple-version.rc
           proj=libwdi-src/examples/.msvc/wdi-simple.vcxproj
           # Anchored: ProjectReference items carry <Project>{guid}</Project> too.
@@ -391,7 +392,7 @@ jobs:
                       for table in getattr(entry, "StringTable", []):
                           return {k.decode(): v.decode() for k, v in table.entries.items()}
               return {}
-          missing = []
+          missing, garbled = [], []
           for rel in (r"ChromIQ.exe", r"_internal\native\chromiq-gammap.exe",
                       r"_internal\native\chromiq-chartread.exe",
                       r"_internal\assets\wdi_simple.exe", r"_internal\assets\zadig.exe"):
@@ -399,8 +400,12 @@ jobs:
               print(f"{rel}: {info}")
               if not info.get("CompanyName") or not info.get("ProductName"):
                   missing.append(rel)
+              if any("\ufffd" in v for v in info.values()):
+                  garbled.append(rel)
           if missing:
               sys.exit(f"no VERSIONINFO in {missing}")
+          if garbled:
+              sys.exit(f"VERSIONINFO with a broken character in {garbled}")
 
       # START THE BUILT APP BEFORE IT IS ZIPPED, ON BOTH ARCHITECTURES. The
       # same check the macOS build runs (core/selftest.py, CHROMIQ_SELFTEST=1):
@@ -412,8 +417,10 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          out=$(CHROMIQ_SELFTEST=1 timeout 300 ./dist/ChromIQ/ChromIQ.exe 2>&1)
-          rc=$?
+          # Actions starts bash with -e: without || a failing app would stop
+          # the step here, before its output and the error line are printed.
+          rc=0
+          out=$(CHROMIQ_SELFTEST=1 timeout 300 ./dist/ChromIQ/ChromIQ.exe 2>&1) || rc=$?
           echo "exit=$rc"
           echo "$out"
           [ "$rc" -eq 0 ] || { echo "::error::the built ChromIQ.exe self-test exited $rc (124 = timed out)"; exit 1; }
