@@ -13,6 +13,8 @@ function(chromiq_add_win_version target description copyright)
     return()
   endif()
   set(_root "${_CHROMIQ_WIN_VERSION_DIR}/..")
+  # Re-run the configure step when the version moves (local rebuilds).
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_root}/core/version.py")
   file(STRINGS "${_root}/core/version.py" _line REGEX "^APP_VERSION *= *\"")
   string(REGEX REPLACE "^APP_VERSION *= *\"([^\"]+)\".*" "\\1" CHROMIQ_VER "${_line}")
   if(NOT CHROMIQ_VER)
