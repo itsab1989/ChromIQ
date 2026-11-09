@@ -361,6 +361,8 @@ jobs:
       # must be the one built above and not the wheel's, or the build fails.
       - name: Check ChromIQ.exe carries the bootloader built here
         shell: python
+        env:
+          PYTHONIOENCODING: utf-8  # the copyright signs in the VERSIONINFO printed below
         run: |
           import hashlib, os, sys
           import pefile
