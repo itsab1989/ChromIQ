@@ -205,9 +205,11 @@ jobs:
           printf '#include <winver.h>\r\n#pragma code_page(65001)\r\n#include "wdi-simple.rc"\r\n' \
             > libwdi-src/examples/wdi-simple-version.rc
           proj=libwdi-src/examples/.msvc/wdi-simple.vcxproj
-          grep -q '</Project>' "$proj"
-          sed -i 's#</Project>#  <ItemGroup>\r\n    <ResourceCompile Include="..\\wdi-simple-version.rc" />\r\n  </ItemGroup>\r\n</Project>#' "$proj"
+          # Anchored: ProjectReference items carry <Project>{guid}</Project> too.
+          grep -q '^</Project>' "$proj"
+          sed -i 's#^</Project>#  <ItemGroup>\r\n    <ResourceCompile Include="..\\wdi-simple-version.rc" />\r\n  </ItemGroup>\r\n</Project>#' "$proj"
           grep -n 'ResourceCompile' "$proj"
+          [ "$(grep -c 'ResourceCompile' "$proj")" = 1 ]
 
       # Build wdi-simple from libwdi source. Only x64 is needed — x64 binaries run on
       # ARM64 Windows via the built-in x64 emulation layer.
@@ -424,7 +426,23 @@ jobs:
       - name: Dry run, nothing published
         if: ${{ inputs.dry_run }}
         shell: bash
-        run: ls -lh "${{ matrix.artifact }}"
+        run: |
+          ls -lh "${{ matrix.artifact }}"
+          # Every file in the bundle with its sha256, so a dry run can be
+          # compared with a released zip from the log alone, nothing uploaded.
+          echo "BUNDLE MANIFEST BEGIN"
+          python -c "
+          import hashlib, os
+          rows = []
+          for d, _, fs in os.walk(os.path.join('dist', 'ChromIQ')):
+              for n in fs:
+                  p = os.path.join(d, n)
+                  rel = os.path.relpath(p, 'dist').replace(os.sep, '/')
+                  rows.append((rel, hashlib.sha256(open(p, 'rb').read()).hexdigest()))
+          for rel, h in sorted(rows):
+              print(f'{h}  ./{rel}')
+          "
+          echo "BUNDLE MANIFEST END"
 
       - name: Create GitHub Release (if not exists)
         if: ${{ !inputs.dry_run }}
