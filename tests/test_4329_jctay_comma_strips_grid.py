@@ -161,7 +161,8 @@ def test_decimal_comma_rgb_device_values_convert(chart_120, tmp_path):
     ti2, files, plan = chart_120
     dots = _mxf(files.txf("i1Pro 3"), tmp_path / "d.mxf", columns=plan.columns)
     both = _commas(dots, tmp_path / "both.mxf", device=True)
-    assert "<cc:R>" in both.read_text() and ",0</cc:R>" in both.read_text()
+    text = both.read_text(encoding="utf-8")
+    assert "<cc:R>" in text and ",0</cc:R>" in text
     a = cxf_measurement_to_ti3(dots, tmp_path / "d.ti3")
     b = cxf_measurement_to_ti3(both, tmp_path / "b.ti3")
     assert a.read_text(encoding="utf-8") == b.read_text(encoding="utf-8")
