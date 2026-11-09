@@ -12,7 +12,21 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+import pytest                                                # noqa: E402
+
 import ui.file_guide as fg                                   # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _no_open_project_from_an_earlier_test(monkeypatch):
+    """Every test here starts with no open project and leaves the hook as it
+    found it. A MainWindow built by an earlier test file on the same worker
+    registers its own `_open_project_root` (`set_open_project_root`), and a
+    turned project open in it made "the setting decides" list the turned
+    rows with the setting off (seen at -n auto; reproduced by running
+    tests/test_i1profiler_turned_doors.py first). monkeypatch puts the
+    earlier value back afterwards."""
+    monkeypatch.setattr(fg, "_open_project_root", None)
 
 TURNED = ("-i1profiler-turned-i1Pro2.txf", "-i1profiler-turned-how-to.txt",
           "-i1profiler-turned.json")
