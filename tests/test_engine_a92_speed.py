@@ -300,3 +300,40 @@ def test_gp_gradient_side_by_side_is_the_serial_gradient(monkeypatch):
         f2, g2 = gpfwd._nlml_grad(theta, x, yn)
     assert np.float64(f1).tobytes() == np.float64(f2).tobytes()
     assert _bits(g1) == _bits(g2)
+
+
+def _orig_cloud_seed(t_j, cloud, cloud_j, block=128):
+    from workflow.profile_engine.purecolprof import LCH_WEIGHTS
+    out = np.empty((len(t_j), cloud.shape[1]))
+    cc = np.hypot(cloud_j[:, 1], cloud_j[:, 2])
+    for lo in range(0, len(t_j), block):
+        tb = t_j[lo:lo + block]
+        dl = cloud_j[None, :, 0] - tb[:, None, 0]
+        dchsq = ((cloud_j[None, :, 1] - tb[:, None, 1]) ** 2
+                 + (cloud_j[None, :, 2] - tb[:, None, 2]) ** 2)
+        dc = cc[None, :] - np.hypot(tb[:, 1], tb[:, 2])[:, None]
+        dhsq = np.maximum(dchsq - dc * dc, 0.0)
+        s = (LCH_WEIGHTS[0] ** 2 * dl * dl + LCH_WEIGHTS[1] ** 2 * dc * dc
+             + LCH_WEIGHTS[2] ** 2 * dhsq)
+        out[lo:lo + block] = cloud[np.argmin(s, 1)]
+    return out
+
+
+@pytest.mark.parametrize("threads", ["1", "4"])
+def test_tiled_cloud_seed_is_the_original_including_ties(threads, monkeypatch):
+    from workflow.profile_engine.purecolprof import _cloud_seed
+    rng = np.random.default_rng(21)
+    cloud = rng.random((9000, 4))
+    cj = np.column_stack([rng.uniform(0, 100, 9000), rng.uniform(-60, 60, 9000),
+                          rng.uniform(-60, 60, 9000)])
+    cj[5000:5100] = cj[100:200]                      # exact ties across tiles
+    tj = np.column_stack([rng.uniform(0, 100, 700), rng.uniform(-90, 90, 700),
+                          rng.uniform(-90, 90, 700)])
+    tj[:50] = cj[150:200]
+    want = _orig_cloud_seed(tj, cloud, cj)
+    monkeypatch.setenv("CHROMIQ_ENGINE_THREADS", threads)
+    with parallel.accurate_scope():
+        assert _bits(_cloud_seed(tj, cloud, cj)) == _bits(want)
+    tj2 = tj.copy()
+    tj2[3, 1] = np.nan                               # the original's NaN rule
+    assert _bits(_cloud_seed(tj2, cloud, cj)) == _bits(_orig_cloud_seed(tj2, cloud, cj))

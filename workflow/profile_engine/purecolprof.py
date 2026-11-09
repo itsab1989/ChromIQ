@@ -345,14 +345,47 @@ def lchw_sq(y: np.ndarray, t: np.ndarray, w=LCH_WEIGHTS) -> np.ndarray:
 
 def _cloud_seed(t_j: np.ndarray, cloud: np.ndarray,
                 cloud_j: np.ndarray, block: int = 128) -> np.ndarray:
-    """Cloud point of least rev.c distance for every target (exhaustive)."""
+    """Cloud point of least rev.c distance for every target (exhaustive).
+
+    Agent 92 (D-06): the distances are the same element-wise expressions
+    as before, computed in tiles of 64 targets x 4096 cloud points (an
+    84,000-point CMYK cloud made five 86 MB temporaries per block, so the
+    search waited on memory), and the first least distance is kept across
+    the tiles with a strict "<", which is np.argmin's first-occurrence
+    rule; the row ranges run on pool threads. With a non-finite input
+    (argmin's NaN rule) the original blocks are used."""
     out = np.empty((len(t_j), cloud.shape[1]))
     cc = np.hypot(cloud_j[:, 1], cloud_j[:, 2])
+    finite = bool(np.isfinite(t_j).all() and np.isfinite(cloud_j).all())
+    c0, c1, c2 = (np.ascontiguousarray(cloud_j[:, k]) for k in range(3))
+    w0, w1, w2 = (LCH_WEIGHTS[k] ** 2 for k in range(3))
+    cb = 4096
+
+    def rows_tiled(a: int, b: int) -> None:
+        for lo in range(a, b, 64):
+            hi = min(lo + 64, b)
+            tb = t_j[lo:hi]
+            t0, t1, t2 = tb[:, None, 0], tb[:, None, 1], tb[:, None, 2]
+            tc = np.hypot(tb[:, 1], tb[:, 2])[:, None]
+            bv = bi = None
+            for cl in range(0, len(cloud_j), cb):
+                ch = slice(cl, cl + cb)
+                dl = c0[None, ch] - t0
+                dchsq = (c1[None, ch] - t1) ** 2 + (c2[None, ch] - t2) ** 2
+                dc = cc[None, ch] - tc
+                dhsq = np.maximum(dchsq - dc * dc, 0.0)
+                sc = w0 * dl * dl + w1 * dc * dc + w2 * dhsq
+                i = np.argmin(sc, 1)
+                v = sc[np.arange(len(i)), i]
+                if bv is None:
+                    bv, bi = v, i
+                else:
+                    up = v < bv
+                    bv = np.where(up, v, bv)
+                    bi = np.where(up, i + cl, bi)
+            out[lo:hi] = cloud[bi]
 
     def rows(a: int, b: int) -> None:
-        # Agent 92 (D-06): every row's distances and argmin are its own;
-        # the row ranges start on block borders, so the blocks are the
-        # serial ones
         for lo in range(a, b, block):
             hi = min(lo + block, b)
             tb = t_j[lo:hi]
@@ -365,7 +398,8 @@ def _cloud_seed(t_j: np.ndarray, cloud: np.ndarray,
                  + LCH_WEIGHTS[2] ** 2 * dhsq)
             out[lo:hi] = cloud[np.argmin(s, 1)]
     from workflow.profile_engine import parallel
-    parallel.map_rows(rows, len(t_j), align=block, min_rows=block, blas=False)
+    parallel.map_rows(rows_tiled if finite and len(cloud_j) else rows, len(t_j), align=block,
+                      min_rows=block, blas=False)
     return out
 
 
