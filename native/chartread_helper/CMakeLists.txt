@@ -96,6 +96,12 @@ target_include_directories(chromiq-chartread PRIVATE
   ${INSTLIB} ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(chromiq-chartread PRIVATE instlib)
 
+# Windows: a VERSIONINFO like ChromIQ.exe's (native/win_version.cmake).
+include(${CMAKE_CURRENT_SOURCE_DIR}/../win_version.cmake)
+chromiq_add_win_version(chromiq-chartread
+  "ChromIQ chart-reading engine (ArgyllCMS chartread)"
+  "Copyright (c) Graeme W. Gill (ArgyllCMS) and Sebastian Reiprich, AGPL-3.0")
+
 if(APPLE)
   # Makefile.OSX LINKFLAGSDEF, verbatim.
   target_link_libraries(chromiq-chartread PRIVATE

@@ -33,14 +33,42 @@ jobs:
             artifact: ChromIQ-Windows-x64.zip
             runner: windows-latest
             python_arch: x64
+            # waf's --target-arch, and the folder PyInstaller looks in.
+            pyi_target_arch: 64bit
+            pyi_platform: Windows-64bit-intel
 
           - arch: arm64
             artifact: ChromIQ-Windows-arm64.zip
             runner: windows-11-arm
             python_arch: arm64
+            pyi_target_arch: 64bit-arm
+            pyi_platform: Windows-64bit-arm
 
     env:
       RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      # EVERY BINARY INPUT THIS BUILD DOWNLOADS IS PINNED BY SHA-256, AND THE
+      # BUILD STOPS ON A MISMATCH (2026-11-09, after Defender flagged 4.3.28).
+      # The hashes are of the files the last green release build (4.3.28)
+      # downloaded: the assets have not been replaced since (GitHub's
+      # updated_at predates that build), zadig-2.9.exe hashes the same as the
+      # zadig.exe inside the 4.3.28 zip, and the two Authenticode-signed ones
+      # (the WDK redistributable, Microsoft; zadig, Akeo) carry signatures
+      # whose digests match their contents. None of the publishers posts a
+      # checksum file. A moved download fails here instead of shipping
+      # something nobody looked at: re-download it, check it, re-pin it.
+      LIBWDI_COMMIT: 30df0c0e051b0132c4b9ebed8c054bc8eb3aaaec  # master since 2025-07-17, used by 4.3.27 and 4.3.28
+      WDK_REDIST_SHA256: 29314207814ce9d5d73695f7e9239539cf37c79e750b9d5ea5a5ef5487a583d6     # wdfcoinstaller.msi via fwlink 253170
+      LIBUSB0_SHA256: 9950b7a226e3ea387365c046d13b68bd0b0b18c015c034363601ff601c5b5585        # libusb-win32-bin-1.4.0.0.zip
+      LIBUSBK_SHA256: 38605d8d5a86f408a4b7bec60f6d4a096050eee72f89a63a8d5be125252d3fe7        # libusbK-3.1.0.0-bin.7z
+      ZADIG_SHA256: 4ecaa95df3da3621486a043aef8b3050b8bafe7c901402871e816229ef82039b          # zadig-2.9.exe (libwdi v1.5.1)
+      LLVM_MINGW_SHA256: 46be741db12b2ba4b0f0f8f22bef2bd86780de4b139092f3413664b5a8b42337     # llvm-mingw-20250430-ucrt-aarch64.zip
+      # PyInstaller's source distribution, for building its bootloader. Must be
+      # the version requirements-build.txt pins; the step below refuses a
+      # mismatch, so moving the pin means moving these two lines with it.
+      # sha256 as published by PyPI for pyinstaller-6.22.3.tar.gz.
+      PYI_SDIST_VERSION: '6.22.3'
+      PYI_SDIST_URL: https://files.pythonhosted.org/packages/63/41/f90302845945abd4ed647933ff5ee7c6ac93983187be67f897b6cb613331/pyinstaller-6.22.3.tar.gz
+      PYI_SDIST_SHA256: 05eb2f5615503e72939a7224d68b4aff572c6b0438ee4a17d0a4b481f399362d
 
     steps:
       # The runner's git converts LF to CRLF on checkout (core.autocrlf=true
@@ -71,6 +99,59 @@ jobs:
           grep -v 'pycups' requirements.txt > requirements-win.txt
           pip install -r requirements-win.txt -r requirements-build.txt
 
+      # OUR OWN BOOTLOADER, NOT THE ONE EVERY PYINSTALLER APP SHIPS
+      # (2026-11-09). ChromIQ.exe is PyInstaller's runw.exe with our archive
+      # appended. The wheel's runw.exe is byte-for-byte the one in every
+      # PyInstaller app in the world, malware included, so Defender's
+      # machine-learning verdicts (4.3.28: Wacatac...!ml) learn it as a
+      # feature of bad files. PyInstaller's own documentation gives "anti-virus
+      # false positives that result from the wide-spread use of pre-compiled
+      # bootloaders" as the reason to build it yourself:
+      # https://pyinstaller.org/en/stable/bootloader-building.html
+      #
+      # Built from the PyPI source distribution of the SAME version as the
+      # pinned wheel (verified by sha256), with the runner's MSVC, which waf
+      # finds by itself (no vcvarsall). The sdist carries prebuilt Windows
+      # bootloaders; they are deleted first, so whatever lands in the folder
+      # was compiled here. The four built exes then replace the wheel's in the
+      # installed PyInstaller (the same files `waf all` installs into a source
+      # tree), and the step after the build proves ChromIQ.exe carries them.
+      - name: Build PyInstaller's bootloader from source
+        shell: bash
+        run: |
+          set -euo pipefail
+          pinned=$(sed -n 's/^pyinstaller==\([0-9][0-9.]*\).*/\1/p' requirements-build.txt)
+          if [ "$pinned" != "$PYI_SDIST_VERSION" ]; then
+            echo "::error::requirements-build.txt pins PyInstaller $pinned, the bootloader source is $PYI_SDIST_VERSION; move PYI_SDIST_* with the pin"
+            exit 1
+          fi
+          src="$RUNNER_TEMP/pyi-bootloader-src"
+          rm -rf "$src"; mkdir -p "$src"
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 -o "$src/sdist.tar.gz" "$PYI_SDIST_URL"
+          echo "$PYI_SDIST_SHA256  $src/sdist.tar.gz" | sha256sum -c -
+          tar -xzf "$src/sdist.tar.gz" -C "$src"
+          tree="$src/pyinstaller-$PYI_SDIST_VERSION"
+          rm -rf "$tree"/PyInstaller/bootloader/Windows-*
+          ( cd "$tree/bootloader" && python ./waf all --target-arch=${{ matrix.pyi_target_arch }} )
+          built="$tree/PyInstaller/bootloader/${{ matrix.pyi_platform }}"
+          ls -l "$built"
+
+          installed=$(python -c "import os, PyInstaller; print(os.path.join(os.path.dirname(PyInstaller.__file__), 'bootloader', '${{ matrix.pyi_platform }}'))")
+          echo "PyInstaller $(python -c 'import PyInstaller; print(PyInstaller.__version__)') at $installed"
+          cp "$installed/runw.exe" "$RUNNER_TEMP/wheel-runw.exe"
+          for exe in run.exe run_d.exe runw.exe runw_d.exe; do
+            test -f "$built/$exe" || { echo "::error::waf did not build $exe"; exit 1; }
+            wheel=$(sha256sum "$installed/$exe" | cut -d' ' -f1)
+            ours=$(sha256sum "$built/$exe" | cut -d' ' -f1)
+            echo "$exe  wheel=$wheel  built=$ours"
+            if [ "$wheel" = "$ours" ]; then
+              echo "::error::the built $exe is identical to the wheel's; building it gained nothing"
+              exit 1
+            fi
+            cp "$built/$exe" "$installed/$exe"
+          done
+          cp "$built/runw.exe" "$RUNNER_TEMP/built-runw.exe"
+
       # Generate a .ico from the existing app_icon.png using Pillow (already installed).
       - name: Generate Windows icon
         shell: python
@@ -87,13 +168,35 @@ jobs:
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v3
 
+      # libwdi at one fixed commit, fetched by its SHA (git checks every object
+      # against its id, so the tree is the one that commit names), and the
+      # three driver packages wdi-simple embeds, each checked against its
+      # pinned sha256 before anything unpacks it. Was `git clone --depth=1` of
+      # master and three unchecked downloads.
+      - name: Fetch libwdi and its driver packages (pinned, verified)
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init -q libwdi-src
+          git -C libwdi-src fetch -q --depth=1 https://github.com/pbatard/libwdi.git "$LIBWDI_COMMIT"
+          git -C libwdi-src -c advice.detachedHead=false checkout -q FETCH_HEAD
+          head=$(git -C libwdi-src rev-parse HEAD)
+          echo "libwdi at $head"
+          [ "$head" = "$LIBWDI_COMMIT" ] || { echo "::error::libwdi is at $head, not $LIBWDI_COMMIT"; exit 1; }
+
+          fetch() {  # url, file, sha256
+            curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 -o "$2" "$1"
+            echo "$3  $2" | sha256sum -c -
+          }
+          fetch "https://go.microsoft.com/fwlink/p/?LinkID=253170" wdk-redist.msi "$WDK_REDIST_SHA256"
+          fetch "https://github.com/mcuee/libusb-win32/releases/download/release_1.4.0.0/libusb-win32-bin-1.4.0.0.zip" libusb0.zip "$LIBUSB0_SHA256"
+          fetch "https://github.com/mcuee/libusbk/releases/download/V3.1.0.0/libusbK-3.1.0.0-bin.7z" libusbk.7z "$LIBUSBK_SHA256"
+
       # Build wdi-simple from libwdi source. Only x64 is needed — x64 binaries run on
       # ARM64 Windows via the built-in x64 emulation layer.
       - name: Build wdi-simple from source
         shell: cmd
         run: |
-          git clone --depth=1 https://github.com/pbatard/libwdi.git libwdi-src
-
           REM libwdi pins PlatformToolset=v143 (VS2022). The windows-latest image
           REM moved to VS18 and dropped the v143 ARM64 component, so the solution's
           REM installer_arm64.vcxproj fails with MSB8020. Retarget every project to
@@ -102,13 +205,11 @@ jobs:
           powershell -Command "Get-ChildItem -Recurse libwdi-src -Filter *.vcxproj | ForEach-Object { (Get-Content $_.FullName) -replace '<PlatformToolset>v\d+</PlatformToolset>', '<PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>' | Set-Content $_.FullName }"
 
           REM All prerequisites go inside libwdi-src\ — embedder resolves paths from libwdi-src\libwdi\
-          curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 -o wdk-redist.msi "https://go.microsoft.com/fwlink/p/?LinkID=253170"
+          REM (downloaded and sha256-checked by the step before)
           msiexec /a wdk-redist.msi /qn TARGETDIR=%CD%\libwdi-src\wdk
 
-          curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 -o libusb0.zip "https://github.com/mcuee/libusb-win32/releases/download/release_1.4.0.0/libusb-win32-bin-1.4.0.0.zip"
           7z x libusb0.zip -o"libwdi-src"
 
-          curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 -o libusbk.7z "https://github.com/mcuee/libusbk/releases/download/V3.1.0.0/libusbK-3.1.0.0-bin.7z"
           7z x libusbk.7z -o"libwdi-src"
 
           cd libwdi-src
@@ -125,8 +226,10 @@ jobs:
         run: |
           # --retry-all-errors so a transient HTTP 503 from the download CDN is
           # retried instead of failing the whole build (it flaked a beta once).
+          set -euo pipefail
           curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 -o assets/zadig.exe \
             "https://github.com/pbatard/libwdi/releases/download/v1.5.1/zadig-2.9.exe"
+          echo "$ZADIG_SHA256  assets/zadig.exe" | sha256sum -c -
 
       # Bit-exact gamut-mapping helper — ArgyllCMS's real gamut mapper compiled
       # from the vendored subset (native/argyll) with mingw-w64 gcc, statically
@@ -183,6 +286,8 @@ jobs:
           $llvmVer = '20250430'
           $url = "https://github.com/mstorsjo/llvm-mingw/releases/download/$llvmVer/llvm-mingw-$llvmVer-ucrt-aarch64.zip"
           Invoke-WebRequest $url -OutFile llvm.zip
+          $got = (Get-FileHash llvm.zip -Algorithm SHA256).Hash.ToLower()
+          if ($got -ne $env:LLVM_MINGW_SHA256) { throw "llvm-mingw sha256 $got, pinned $env:LLVM_MINGW_SHA256" }
           Expand-Archive llvm.zip -DestinationPath tools -Force
           $llvmDir = "$PWD\tools\llvm-mingw-$llvmVer-ucrt-aarch64"
           $env:PATH = "$llvmDir\bin;$env:PATH"
@@ -212,6 +317,8 @@ jobs:
           if (-not (Test-Path $llvmDir)) {
             $url = "https://github.com/mstorsjo/llvm-mingw/releases/download/$llvmVer/llvm-mingw-$llvmVer-ucrt-aarch64.zip"
             Invoke-WebRequest $url -OutFile llvm.zip
+            $got = (Get-FileHash llvm.zip -Algorithm SHA256).Hash.ToLower()
+            if ($got -ne $env:LLVM_MINGW_SHA256) { throw "llvm-mingw sha256 $got, pinned $env:LLVM_MINGW_SHA256" }
             Expand-Archive llvm.zip -DestinationPath tools -Force
           }
           $env:PATH = "$llvmDir\bin;$env:PATH"
@@ -229,6 +336,66 @@ jobs:
 
       - name: Build Windows executable
         run: python -m PyInstaller ChromIQWin.spec
+
+      # ChromIQ.exe is runw.exe with our icon, VERSIONINFO and archive added;
+      # its code section is the bootloader's, untouched. So the code section
+      # must be the one built above and not the wheel's, or the build fails.
+      - name: Check ChromIQ.exe carries the bootloader built here
+        shell: python
+        run: |
+          import hashlib, os, sys
+          import pefile
+          tmp = os.environ["RUNNER_TEMP"]
+          def sections(path):
+              pe = pefile.PE(path, fast_load=True)
+              return {s.Name.rstrip(b"\0").decode(): hashlib.sha256(s.get_data()).hexdigest()
+                      for s in pe.sections}
+          app = sections(r"dist\ChromIQ\ChromIQ.exe")
+          ours = sections(os.path.join(tmp, "built-runw.exe"))
+          wheel = sections(os.path.join(tmp, "wheel-runw.exe"))
+          print(f".text  ChromIQ.exe={app['.text']}")
+          print(f".text  built runw={ours['.text']}")
+          print(f".text  wheel runw={wheel['.text']}")
+          if app[".text"] != ours[".text"]:
+              sys.exit("ChromIQ.exe's code is not the bootloader built in this job")
+          if app[".text"] == wheel[".text"]:
+              sys.exit("ChromIQ.exe's code is the wheel's prebuilt bootloader")
+          print("ChromIQ.exe carries the bootloader built in this job")
+
+          # Every exe of ours in the bundle names itself (VERSIONINFO).
+          def version_info(path):
+              pe = pefile.PE(path)
+              for fi in getattr(pe, "FileInfo", None) or []:
+                  for entry in fi:
+                      for table in getattr(entry, "StringTable", []):
+                          return {k.decode(): v.decode() for k, v in table.entries.items()}
+              return {}
+          missing = []
+          for rel in (r"ChromIQ.exe", r"_internal\native\chromiq-gammap.exe",
+                      r"_internal\native\chromiq-chartread.exe",
+                      r"_internal\assets\wdi_simple.exe", r"_internal\assets\zadig.exe"):
+              info = version_info(os.path.join(r"dist\ChromIQ", rel))
+              print(f"{rel}: {info}")
+              if not info.get("CompanyName") or not info.get("ProductName"):
+                  missing.append(rel)
+          if missing:
+              sys.exit(f"no VERSIONINFO in {missing}")
+
+      # START THE BUILT APP BEFORE IT IS ZIPPED, ON BOTH ARCHITECTURES. The
+      # same check the macOS build runs (core/selftest.py, CHROMIQ_SELFTEST=1):
+      # the frozen app loads numpy and Qt's widgets, does one inversion, prints
+      # one line and exits, with no window and no setting touched. ChromIQ.exe
+      # is a windowed build, so an import error would sit in a message box for
+      # ever; the timeout turns that into a failure.
+      - name: Start the built app's self-test
+        shell: bash
+        run: |
+          set -uo pipefail
+          out=$(CHROMIQ_SELFTEST=1 timeout 300 ./dist/ChromIQ/ChromIQ.exe 2>&1)
+          rc=$?
+          echo "exit=$rc"
+          echo "$out"
+          [ "$rc" -eq 0 ] || { echo "::error::the built ChromIQ.exe self-test exited $rc (124 = timed out)"; exit 1; }
 
       - name: Package as ZIP
         shell: powershell

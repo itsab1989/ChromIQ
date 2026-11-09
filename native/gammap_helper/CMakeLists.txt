@@ -61,6 +61,12 @@ target_include_directories(chromiq-gammap PRIVATE ${ARGYLL_INCLUDES})
 target_compile_definitions(chromiq-gammap PRIVATE ARGYLLCMS ALLINSTS)
 target_link_libraries(chromiq-gammap argyllgm)
 
+# Windows: a VERSIONINFO like ChromIQ.exe's (native/win_version.cmake).
+include(${CMAKE_CURRENT_SOURCE_DIR}/../win_version.cmake)
+chromiq_add_win_version(chromiq-gammap
+  "ChromIQ gamut-mapping helper (ArgyllCMS)"
+  "Copyright (c) Graeme W. Gill (ArgyllCMS) and Sebastian Reiprich, AGPL-3.0")
+
 # --- Per-platform defines, warnings and link libraries -----------------------
 # Platform macros must reach the Argyll units (argyllgm) as well as the helper.
 if(APPLE)
