@@ -417,6 +417,8 @@ jobs:
           echo "exit=$rc"
           echo "$out"
           [ "$rc" -eq 0 ] || { echo "::error::the built ChromIQ.exe self-test exited $rc (124 = timed out)"; exit 1; }
+          echo "$out" | grep -q "^chromiq-selftest ok machine=" || {
+            echo "::error::the built ChromIQ.exe exited 0 without its self-test line"; exit 1; }
 
       - name: Package as ZIP
         shell: powershell
