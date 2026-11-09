@@ -1977,38 +1977,58 @@ M_IMPORT_MISMATCH = _m(
 #: states only what the file says, and _TURNED_GRID_TWO_WAYS (after either)
 #: names both causes and the way out of the first.
 _TURNED_GRID_DIFFERS = (
-    "this file is a measurement of the turned i1Profiler chart, but the file "
-    "says that i1Profiler laid that chart out on a different grid from the "
-    "one the how-to note for this chart names. The note names this grid: "
-    "columns: {cols}, rows: {rows}, pages: 1, so that every row is one strip "
-    "of your printed sheet. The file names this grid: columns: {got_cols}, "
-    "rows: {got_rows}, pages: {got_pages}.")
+    "this file is a measurement of the turned i1Profiler chart (the "
+    "i1Profiler test chart that matches your printed sheet turned a quarter "
+    "turn), but i1Profiler laid that chart out on a different grid (a "
+    "different number of columns and rows of patches) from the one the "
+    "how-to note for this chart asks for. The note asks for this grid in "
+    "step 5: columns: {cols}, rows: {rows}, pages: 1, so that every row in "
+    "i1Profiler is exactly one strip of your printed sheet. The file names "
+    "this grid: columns: {got_cols}, rows: {got_rows}, pages: {got_pages}.")
 _TURNED_GRID_DIFFERS_PAGED = (
-    "this file is a measurement of the turned i1Profiler chart, but the file "
-    "says that i1Profiler laid that chart out on a different grid from the "
-    "one the how-to note for this chart names. The note names this grid: "
-    "columns: {cols}, rows: {rows}, pages: 1, so that every row is one strip "
-    "of your printed sheet. The file names this grid: columns: {got_cols}, "
-    "pages: {got_pages}, rows on its first page: {got_rows}.")
+    "this file is a measurement of the turned i1Profiler chart (the "
+    "i1Profiler test chart that matches your printed sheet turned a quarter "
+    "turn), but i1Profiler laid that chart out on a different grid (a "
+    "different number of columns and rows of patches) from the one the "
+    "how-to note for this chart asks for. The note asks for this grid in "
+    "step 5: columns: {cols}, rows: {rows}, pages: 1, so that every row in "
+    "i1Profiler is exactly one strip of your printed sheet. The file names "
+    "this grid: columns: {got_cols}, pages: {got_pages}, rows on its first "
+    "page: {got_rows}.")
+#: The way out of the first cause was checked in i1Profiler 3.8.8 (4.3.29,
+#: `ChromIQ-work/2026-11-09_jctay/impl/i1p_shots`): jctay's 18-page file
+#: loaded on the Measurement page, its paper width set back from 78.7 to
+#: 154.3 mm on the Test Chart page, saved again: 12 columns on 6 pages, every
+#: reading and device value unchanged, filed by the import with every patch
+#: in its cell. i1Profiler also switched the condition it marks as chosen
+#: from M1 to M0 while doing so, hence the last sentence.
 _TURNED_GRID_TWO_WAYS = (
-    "This can happen in two ways, and the file cannot show which one it was. "
-    "First: the chart was measured on the grid the note names, and the page "
-    "settings in i1Profiler (such as the paper size or the patch size) were "
-    "changed afterwards. i1Profiler then lays the same readings out again on "
-    "the new grid, so each reading still belongs to its own patch, but the "
-    "file no longer shows the grid it was taken on. Second: the chart was "
-    "measured on the other grid. Its rows then did not line up with the "
-    "strips on your sheet, and the readings were taken on other patches than "
-    "the ones they are recorded for. The RGB values in the file cannot tell "
-    "the two apart, because i1Profiler writes the RGB values of its "
-    "test-chart file into every measurement, whatever the instrument read. "
-    "So ChromIQ does not file this measurement. If you are sure that "
-    "i1Profiler showed the grid of step 5 of the how-to note while you "
-    "measured, and you changed the page settings only afterwards, you do not "
-    "need to measure again: with this measurement open in i1Profiler, set "
-    "the page settings back to the ones you measured with, check that "
-    "i1Profiler shows the grid of step 5 again, save the measurement as an "
-    ".mxf file once more and import that file.")
+    "This can happen in two ways, and the file itself cannot show which one "
+    "it was. The first way: the chart was measured on the grid the note asks "
+    "for, and afterwards the page settings in i1Profiler (Page setup on the "
+    "Test Chart page, such as the paper size) were changed. i1Profiler then "
+    "rearranges the measurements it already has to fit the new page, so "
+    "every measurement still belongs to its own patch, but the file no "
+    "longer shows the grid you measured on. The second way: the chart was "
+    "measured on the other grid. Then the rows i1Profiler asked you to read "
+    "did not match the strips on your printed sheet, and the measurements "
+    "were taken on other patches than the ones they are recorded for. The "
+    "RGB values (the colour numbers) in the file cannot tell the two apart "
+    "either, because i1Profiler copies the RGB values of its test-chart file "
+    "into every measurement, whatever the instrument actually read. So "
+    "ChromIQ does not file this measurement, to keep wrong measurements out "
+    "of your profile. If you are sure that i1Profiler showed the grid of "
+    "step 5 while you measured, and that the page settings were changed "
+    "only afterwards, you do not need to measure again: open the saved "
+    "measurement in i1Profiler (Load under Page Data on the Measurement "
+    "page), go back to the Test Chart page and set Page setup back to the "
+    "paper size you measured with, until i1Profiler shows the grid of step 5 "
+    "again, then save the measurement as an .mxf file once more (Save under "
+    "Page Data on the Measurement page) and import that file. Your "
+    "measurements stay exactly as they were; i1Profiler only arranges them "
+    "on its pages again. When ChromIQ then asks which measurement condition "
+    "to import, check that the one you want is selected, because i1Profiler "
+    "may have changed the one it marks as chosen.")
 _TURNED_GRID_CELLS_DIFFER = (
     "this file is a measurement of the turned i1Profiler chart, and its grid "
     "is the one the how-to note for this chart names (columns: {cols}, rows: "

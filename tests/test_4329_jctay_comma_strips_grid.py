@@ -308,8 +308,12 @@ def test_a_re_laid_grid_is_still_refused_with_both_causes(chart_624, tmp_path,
     # no longer stated as a fact
     assert "Its rows therefore did not line up" not in r
     assert "This can happen in two ways" in r
-    assert "the page settings in i1Profiler" in r
-    assert "set the page settings back" in r
+    assert "the page settings in i1Profiler (Page setup on the Test Chart page" in r
+    # the way out, as checked in i1Profiler 3.8.8 on jctay's 18-page file
+    assert "Load under Page Data on the Measurement page" in r
+    assert "set Page setup back to the paper size you measured with" in r
+    assert "Save under Page Data on the Measurement page" in r
+    assert "check that the one you want is selected" in r
     assert r.endswith("import that file")
     assert "—" not in r
     assert complete_from_turned_order(ti3, ti2) == 0
@@ -385,7 +389,7 @@ def test_step_8_says_the_import_asks_which_condition(chart_120):
     assert "uses M2, then M1, then M0" not in step8
     assert "ChromIQ asks which one to import" in step8
     assert "otherwise M1 if the file holds it" in step8
-    assert "Cancel there imports nothing" in step8
+    assert "If you press Cancel in that window, nothing is imported" in step8
     # and what it claims is what the import does
     c = CxfConditions(("M0", "M1", "M2"), None, None)
     assert c.needs_choice and c.preselect == "M1"

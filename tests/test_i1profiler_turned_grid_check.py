@@ -284,7 +284,7 @@ def test_other_columns_on_several_pages_name_the_first_pages_rows(chart_360,
     assert not v.ok
     assert (f"columns: 25, pages: 3, rows on its first page: {g.rows}"
             in v.reason)
-    assert "did not line up with the strips" in v.reason
+    assert "did not match the strips on your printed sheet" in v.reason
     assert "kept the" not in v.reason
     assert complete_from_turned_order(ti3, ti2) == 0
 
@@ -296,7 +296,7 @@ def test_the_grid_reasons_are_chosen_by_columns_and_pages():
     cells = M.turned_grid_paged_cells_reason(24, 15, 5, 3, 2, 360)
     assert "columns: 25, rows: 15, pages: 1" in one
     assert "rows on its first page: 5" in paged
-    assert "did not line up" in one and "did not line up" in paged
+    assert "did not match the strips" in one and "did not match the strips" in paged
     assert "cut the chart over 3 pages, with 5 rows on its first page" in cells
     assert "does not give 2 of its 360 patches the place" in cells
     assert "did not line up" not in cells

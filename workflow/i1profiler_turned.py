@@ -886,13 +886,18 @@ I1PRO2_VERSION_NOTE = (
 
 #: One line of the how-to note, under step 7 (4.3.29).
 PAGE_SETTINGS_NOTE = (
-    "Do not change the page settings in i1Profiler (such as the paper size "
-    "or the patch size) after measuring. i1Profiler then lays the readings "
-    "out again on the new grid, and ChromIQ refuses the file, because it can "
-    "no longer tell whether the readings were taken on the grid of step 5. "
-    "If it has happened, set the page settings back to the ones you measured "
-    "with, check that i1Profiler shows the grid of step 5 again, and save the "
-    "measurement once more.")
+    "After measuring, leave i1Profiler's page settings (Page setup on the "
+    "Test Chart page, such as the paper size) as they were while you "
+    "measured, also when you open the measurement again later and save it "
+    "once more. If they are changed, i1Profiler rearranges the "
+    "measurements to fit the new page, and the saved file then shows a "
+    "different grid from the one in step 5. ChromIQ cannot tell that apart "
+    "from a chart that was measured on the wrong grid, so it refuses the "
+    "file, to keep wrong measurements out of your profile. If it has "
+    "happened, you do not need to measure again: open the measurement in "
+    "i1Profiler, set Page setup back to the paper size you measured with "
+    "until i1Profiler shows the grid of step 5 again, and save the "
+    "measurement once more. Your measurements stay exactly as they were.")
 
 
 def note_qualified(plan: TurnedPlan, chart_name: str, files: TurnedFiles,
@@ -1070,9 +1075,9 @@ def note_qualified(plan: TurnedPlan, chart_name: str, files: TurnedFiles,
         "import before it imports anything. It suggests the condition the "
         "file says was chosen in i1Profiler, otherwise M1 if the file holds "
         "it, and the window explains how the conditions differ: choose the "
-        "one that matches the light your prints will be seen in. Cancel "
-        "there imports nothing. A file with only one condition is imported "
-        "without asking."))
+        "one that matches the light your prints will be seen in. If you "
+        "press Cancel in that window, nothing is imported. A file with only "
+        "one condition is imported without asking."))
     parts.append("")
     parts.append(tr("Which i1Profiler row is which ChromIQ strip"))
     for r, sheet, lab in plan.row_strips:
