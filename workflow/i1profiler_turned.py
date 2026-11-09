@@ -1049,6 +1049,9 @@ def note_qualified(plan: TurnedPlan, chart_name: str, files: TurnedFiles,
     # re-lay the saved readings on another grid, which the import refuses
     # (`grid_mismatch`, M-IMPORT-TURNED-GRID); say so before it happens.
     parts.append("   " + tr(PAGE_SETTINGS_NOTE))
+    # The condition sentence follows the import since 4.3.23
+    # (`cxf_condition_dialog.choose_cxf_condition`, CxfConditions.preselect);
+    # until 4.3.29 it still said "ChromIQ uses M2, then M1, then M0".
     parts.append(tr(
         "8. To bring the measurement into ChromIQ: open this run, go to the "
         "Measure tab, press IMPORT, choose the .mxf file (or the CGATS "
@@ -1062,8 +1065,14 @@ def note_qualified(plan: TurnedPlan, chart_name: str, files: TurnedFiles,
         "it does not prove that each row was read in the right place, which "
         "is what i1Profiler's row check in step 6 is for. If the device "
         "values do not agree, ChromIQ refuses the file and nothing is "
-        "changed. If the file holds more than one measurement condition, "
-        "ChromIQ uses M2, then M1, then M0."))
+        "changed. If the .mxf file holds the readings under more than one "
+        "measurement condition (M0, M1 and M2), ChromIQ asks which one to "
+        "import before it imports anything. It suggests the condition the "
+        "file says was chosen in i1Profiler, otherwise M1 if the file holds "
+        "it, and the window explains how the conditions differ: choose the "
+        "one that matches the light your prints will be seen in. Cancel "
+        "there imports nothing. A file with only one condition is imported "
+        "without asking."))
     parts.append("")
     parts.append(tr("Which i1Profiler row is which ChromIQ strip"))
     for r, sheet, lab in plan.row_strips:

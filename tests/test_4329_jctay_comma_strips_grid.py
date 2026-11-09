@@ -371,3 +371,23 @@ def test_a_normal_export_measured_on_18_pages_files_by_sample_id(chart_624,
     ident = verify_patch_identity(parse_ti3(ti3), ti2)
     assert ident["verdict"] == "verified"
     assert ident["paired_by"] == "SAMPLE_ID"
+
+
+def test_step_8_says_the_import_asks_which_condition(chart_120):
+    """Since 4.3.23 the import asks which condition of a multi-condition CxF
+    to take (cxf_condition_dialog), suggesting the file's own choice, else
+    M1. The note still said "ChromIQ uses M2, then M1, then M0" until
+    4.3.29."""
+    from workflow.reference_convert import CxfConditions
+    ti2, files, plan = chart_120
+    note = files.note.read_text(encoding="utf-8")
+    step8 = next(l for l in note.splitlines() if l.startswith("8. "))
+    assert "uses M2, then M1, then M0" not in step8
+    assert "ChromIQ asks which one to import" in step8
+    assert "otherwise M1 if the file holds it" in step8
+    assert "Cancel there imports nothing" in step8
+    # and what it claims is what the import does
+    c = CxfConditions(("M0", "M1", "M2"), None, None)
+    assert c.needs_choice and c.preselect == "M1"
+    assert CxfConditions(("M0", "M1", "M2"), "2", "M2").preselect == "M2"
+    assert not CxfConditions(("M2",), None, None).needs_choice
