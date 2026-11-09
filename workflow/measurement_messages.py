@@ -1966,30 +1966,49 @@ M_IMPORT_MISMATCH = _m(
 #: 1 on each page", which his screenshots show to be false; it is gone. Only
 #: such a file with patches OUTSIDE their cell (or without Locations) is
 #: refused, with the reason of its own below (_TURNED_GRID_PAGED_CELLS).
+#: 4.3.29 (jctay's forum report, 2026-11-09): the two reasons below used to
+#: end "Its rows therefore did not line up with the strips on your sheet, so
+#: the readings were taken on other patches". That is not always true: two of
+#: his files on other grids (4 x 9 on 18 pages, 3 x 4 on 52) were his
+#: 6-page measurement saved again after he changed i1Profiler's page
+#: settings, readings and device values identical to the byte, and only the
+#: grid and the Locations re-laid. The file cannot tell that from a chart
+#: measured on the other grid, so the import still refuses it; the reason now
+#: states only what the file says, and _TURNED_GRID_TWO_WAYS (after either)
+#: names both causes and the way out of the first.
 _TURNED_GRID_DIFFERS = (
-    "this file is a measurement of the turned i1Profiler chart, but "
-    "i1Profiler laid that chart out on a different grid from the one the "
-    "how-to note for this chart names. The note names this grid: columns: "
-    "{cols}, rows: {rows}, pages: 1, so that every row is one strip of your "
-    "printed sheet. The file says that i1Profiler made this grid: columns: "
-    "{got_cols}, rows: {got_rows}, pages: {got_pages}. Its rows therefore did "
-    "not line up with the strips on your sheet, so the readings were taken on "
-    "other patches than the ones they are recorded for. The RGB values in the "
-    "file cannot show this, because "
-    "i1Profiler writes the RGB values of its test-chart file into every "
-    "measurement, whatever the instrument read.")
+    "this file is a measurement of the turned i1Profiler chart, but the file "
+    "says that i1Profiler laid that chart out on a different grid from the "
+    "one the how-to note for this chart names. The note names this grid: "
+    "columns: {cols}, rows: {rows}, pages: 1, so that every row is one strip "
+    "of your printed sheet. The file names this grid: columns: {got_cols}, "
+    "rows: {got_rows}, pages: {got_pages}.")
 _TURNED_GRID_DIFFERS_PAGED = (
-    "this file is a measurement of the turned i1Profiler chart, but "
-    "i1Profiler laid that chart out on a different grid from the one the "
-    "how-to note for this chart names. The note names this grid: columns: "
-    "{cols}, rows: {rows}, pages: 1, so that every row is one strip of your "
-    "printed sheet. The file says that i1Profiler made this grid: columns: "
-    "{got_cols}, pages: {got_pages}, rows on its first page: {got_rows}. "
-    "Its rows therefore did not line up with the strips on your sheet, so the "
-    "readings were taken on other patches than the ones they are recorded "
-    "for. The RGB values in the file cannot show this, because i1Profiler "
-    "writes the RGB values of its test-chart file into every measurement, "
-    "whatever the instrument read.")
+    "this file is a measurement of the turned i1Profiler chart, but the file "
+    "says that i1Profiler laid that chart out on a different grid from the "
+    "one the how-to note for this chart names. The note names this grid: "
+    "columns: {cols}, rows: {rows}, pages: 1, so that every row is one strip "
+    "of your printed sheet. The file names this grid: columns: {got_cols}, "
+    "pages: {got_pages}, rows on its first page: {got_rows}.")
+_TURNED_GRID_TWO_WAYS = (
+    "This can happen in two ways, and the file cannot show which one it was. "
+    "First: the chart was measured on the grid the note names, and the page "
+    "settings in i1Profiler (such as the paper size or the patch size) were "
+    "changed afterwards. i1Profiler then lays the same readings out again on "
+    "the new grid, so each reading still belongs to its own patch, but the "
+    "file no longer shows the grid it was taken on. Second: the chart was "
+    "measured on the other grid. Its rows then did not line up with the "
+    "strips on your sheet, and the readings were taken on other patches than "
+    "the ones they are recorded for. The RGB values in the file cannot tell "
+    "the two apart, because i1Profiler writes the RGB values of its "
+    "test-chart file into every measurement, whatever the instrument read. "
+    "So ChromIQ does not file this measurement. If you are sure that "
+    "i1Profiler showed the grid of step 5 of the how-to note while you "
+    "measured, and you changed the page settings only afterwards, you do not "
+    "need to measure again: with this measurement open in i1Profiler, set "
+    "the page settings back to the ones you measured with, check that "
+    "i1Profiler shows the grid of step 5 again, save the measurement as an "
+    ".mxf file once more and import that file.")
 _TURNED_GRID_CELLS_DIFFER = (
     "this file is a measurement of the turned i1Profiler chart, and its grid "
     "is the one the how-to note for this chart names (columns: {cols}, rows: "
@@ -2052,7 +2071,8 @@ M_IMPORT_TURNED_GRID = _m(
     "M-IMPORT-TURNED-GRID",
     "A measurement of the turned i1Profiler chart on another grid: the reasons",
     "\n".join((_TURNED_GRID_DIFFERS, _TURNED_GRID_DIFFERS_PAGED,
-               _TURNED_GRID_CELLS_DIFFER, _TURNED_GRID_PAGED_CELLS,
+               _TURNED_GRID_TWO_WAYS, _TURNED_GRID_CELLS_DIFFER,
+               _TURNED_GRID_PAGED_CELLS,
                _TURNED_GRID_PAGED_NO_PLACE, _TURNED_GRID_WHAT_TO_DO)),
     approved=False)
 
@@ -2071,7 +2091,8 @@ def turned_grid_differs_reason(cols: int, rows: int, got_cols: int,
         text = tr(_TURNED_GRID_DIFFERS)
     return (text.format(
         cols=cols, rows=rows, got_cols=got_cols, got_rows=got_rows,
-        got_pages=got_pages) + " " + tr(_TURNED_GRID_WHAT_TO_DO))
+        got_pages=got_pages) + " " + tr(_TURNED_GRID_TWO_WAYS) + " "
+        + tr(_TURNED_GRID_WHAT_TO_DO))
 
 
 def turned_grid_cells_differ_reason(cols: int, rows: int, count: int,

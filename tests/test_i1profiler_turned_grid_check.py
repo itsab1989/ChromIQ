@@ -417,7 +417,7 @@ def test_both_reasons_are_the_catalogues_and_end_with_the_way_out():
         assert "-i1profiler-turned-how-to.txt" in text
     assert not M.M_IMPORT_TURNED_GRID.approved
     for part in (M._TURNED_GRID_DIFFERS, M._TURNED_GRID_DIFFERS_PAGED,
-                 M._TURNED_GRID_CELLS_DIFFER, M._TURNED_GRID_PAGED_CELLS,
+                 M._TURNED_GRID_TWO_WAYS, M._TURNED_GRID_CELLS_DIFFER, M._TURNED_GRID_PAGED_CELLS,
                  M._TURNED_GRID_PAGED_NO_PLACE,
                  M._TURNED_GRID_WHAT_TO_DO):
         assert part in M.M_IMPORT_TURNED_GRID.body

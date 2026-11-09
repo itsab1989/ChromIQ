@@ -884,6 +884,17 @@ I1PRO2_VERSION_NOTE = (
     "those versions.")
 
 
+#: One line of the how-to note, under step 7 (4.3.29).
+PAGE_SETTINGS_NOTE = (
+    "Do not change the page settings in i1Profiler (such as the paper size "
+    "or the patch size) after measuring. i1Profiler then lays the readings "
+    "out again on the new grid, and ChromIQ refuses the file, because it can "
+    "no longer tell whether the readings were taken on the grid of step 5. "
+    "If it has happened, set the page settings back to the ones you measured "
+    "with, check that i1Profiler shows the grid of step 5 again, and save the "
+    "measurement once more.")
+
+
 def note_qualified(plan: TurnedPlan, chart_name: str, files: TurnedFiles,
                    written_again: bool = False) -> str:
     """The plain-language note for a chart that qualifies.
@@ -1034,6 +1045,10 @@ def note_qualified(plan: TurnedPlan, chart_name: str, files: TurnedFiles,
         "measurement back only when every patch has been read, and refuses "
         "a file that holds only part of the rows, saying how many readings "
         "it holds."))
+    # 4.3.29 (jctay, 2026-11-09): page settings changed after measuring
+    # re-lay the saved readings on another grid, which the import refuses
+    # (`grid_mismatch`, M-IMPORT-TURNED-GRID); say so before it happens.
+    parts.append("   " + tr(PAGE_SETTINGS_NOTE))
     parts.append(tr(
         "8. To bring the measurement into ChromIQ: open this run, go to the "
         "Measure tab, press IMPORT, choose the .mxf file (or the CGATS "

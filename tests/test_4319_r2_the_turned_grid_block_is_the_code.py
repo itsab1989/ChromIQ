@@ -31,6 +31,7 @@ def test_the_block_is_the_headline_and_every_fragment_of_the_code():
     assert quoted[0] == f"**{msg.title}**"
     body = [l for l in quoted[1:] if l]
     assert body == [M._TURNED_GRID_DIFFERS, M._TURNED_GRID_DIFFERS_PAGED,
+                    M._TURNED_GRID_TWO_WAYS,     # 4.3.29, jctay
                     M._TURNED_GRID_CELLS_DIFFER, M._TURNED_GRID_PAGED_CELLS,
                     M._TURNED_GRID_PAGED_NO_PLACE,
                     M._TURNED_GRID_WHAT_TO_DO]

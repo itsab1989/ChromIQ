@@ -286,3 +286,88 @@ def test_the_label_fallback_is_the_old_rule():
             return None
     assert T._strip_label("AB12", NoLabels()) == "AB"
     assert T._strip_label("AB12") == "AB"
+
+
+# ---- C. another grid: still refused, with a truthful reason ---------------
+
+@pytest.mark.parametrize("columns, pages, first_rows", [(4, 18, 9),
+                                                        (3, 52, 4)])
+def test_a_re_laid_grid_is_still_refused_with_both_causes(chart_624, tmp_path,
+                                                          columns, pages,
+                                                          first_rows):
+    ti2, files, plan = chart_624
+    mxf = _mxf(files.txf("i1Pro 3"), tmp_path / "g.mxf", columns=columns,
+               pages=pages)
+    ti3, v = _import(mxf, ti2)
+    g = i1p_grid_of(ti3)
+    assert (g.columns, g.rows, g.pages) == (columns, first_rows, pages)
+    assert not v.ok and not v.turned_order
+    r = v.reason
+    assert (f"columns: {columns}, pages: {pages}, rows on its first page: "
+            f"{first_rows}") in r
+    # no longer stated as a fact
+    assert "Its rows therefore did not line up" not in r
+    assert "This can happen in two ways" in r
+    assert "the page settings in i1Profiler" in r
+    assert "set the page settings back" in r
+    assert r.endswith("import that file")
+    assert "—" not in r
+    assert complete_from_turned_order(ti3, ti2) == 0
+
+
+def test_the_one_page_reason_names_both_causes_too():
+    r = M.turned_grid_differs_reason(12, 52, 13, 48, 1)
+    assert "columns: 13, rows: 48, pages: 1." in r
+    assert "This can happen in two ways" in r
+    # the cell reasons are not about page settings
+    for other in (M.turned_grid_cells_differ_reason(12, 52, 3, 624),
+                  M.turned_grid_paged_cells_reason(12, 52, 9, 6, 3, 624),
+                  M.turned_grid_paged_no_place_reason(12, 52, 9, 6)):
+        assert "two ways" not in other
+
+
+@pytest.mark.parametrize("pages", [1, 6])
+def test_the_notes_grid_on_one_or_six_pages_is_still_filed(chart_624,
+                                                           tmp_path, pages):
+    ti2, files, plan = chart_624
+    mxf = _mxf(files.txf("i1Pro 3"), tmp_path / "ok.mxf", columns=12,
+               pages=pages)
+    ti3, v = _import(mxf, ti2)
+    assert v.ok and v.turned_order, v.reason
+    assert complete_from_turned_order(ti3, ti2) == 624
+
+
+def test_the_note_says_not_to_change_the_page_settings(chart_120):
+    ti2, files, plan = chart_120
+    lines = files.note.read_text(encoding="utf-8").splitlines()
+    i7 = next(i for i, l in enumerate(lines) if l.startswith("7. "))
+    i8 = next(i for i, l in enumerate(lines) if l.startswith("8. "))
+    want = "   " + T.PAGE_SETTINGS_NOTE
+    assert want in lines[i7:i8]
+    assert "—" not in T.PAGE_SETTINGS_NOTE
+
+
+def test_a_normal_export_measured_on_18_pages_files_by_sample_id(chart_624,
+                                                                 tmp_path):
+    """The turned order is in the folder, but the measurement was made from
+    the chart's NORMAL export (chart order) and i1Profiler cut it over 18
+    pages of 4 columns: it is not a turned measurement, the grid is not
+    asked about, and it pairs by SAMPLE_ID as before."""
+    ti2, files, plan = chart_624
+    txf = files.txf("i1Pro 3")
+    text = txf.read_text(encoding="utf-8")
+    objs = re.findall(r'(<cc:Object ObjectType="Target".*?</cc:Object>)',
+                      text, flags=re.S)
+    rank = sorted(range(len(plan.order)), key=lambda j: int(plan.order[j][0]))
+    head = text[:text.index(objs[0])]
+    rest = text[text.rindex(objs[-1]) + len(objs[-1]):]
+    straight = tmp_path / "straight.txf"
+    straight.write_text(head + "".join(objs[j] for j in rank) + rest,
+                        encoding="utf-8")
+    mxf = _mxf(straight, tmp_path / "straight.mxf", columns=4, pages=18)
+    ti3, v = _import(mxf, ti2)
+    assert i1p_grid_of(ti3).pages == 18
+    assert v.ok and not v.turned_order, v.reason
+    ident = verify_patch_identity(parse_ti3(ti3), ti2)
+    assert ident["verdict"] == "verified"
+    assert ident["paired_by"] == "SAMPLE_ID"
