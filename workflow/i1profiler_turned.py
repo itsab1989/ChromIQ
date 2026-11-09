@@ -98,6 +98,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from core.i18n import tr
+from workflow.layout_engine.labels import labels_for_chart
 
 log = logging.getLogger(__name__)
 
@@ -291,7 +292,19 @@ def window_mm(per_strip: int, family: str) -> "tuple[float, float]":
     return hi_cap / (per_strip + 1), lo_cap / per_strip
 
 
-def _strip_label(loc: str) -> str:
+def _strip_label(loc: str, labels=None) -> str:
+    """The strip a patch location names, as the sheet prints it.
+
+    Asked of the chart's own labels (``layout_engine.labels``), never of a
+    regular expression (4.3.29): with the patterns swapped a chart's strips
+    are numbered and its patches lettered, so "1A" is strip 1, and the old
+    leading-letters rule found no letters and named the whole location ("Row
+    1: strip 1A" in the note and the order file). The old rule is kept only
+    for a location the labels cannot explain."""
+    if labels is not None:
+        strip = labels.strip_of(loc)
+        if strip:
+            return strip
     m = re.match(r"^([A-Za-z]+)", loc)
     return m.group(1) if m else loc
 
@@ -537,6 +550,7 @@ def plan_for(ti2: "str | Path", turn: "str | None" = None) -> TurnedPlan:
     # * ANTICLOCKWISE (4.3.17's only turn): strips from last to first, strip A
     #   the bottom row; a row runs from the label end, first patch first.
     pages = sorted({s.get("page", 0) for s in strips})
+    labels = labels_for_chart(ti2)
     row_of: dict[int, int] = {}
     r = 0
     for pg in pages:
@@ -544,7 +558,8 @@ def plan_for(ti2: "str | Path", turn: "str | None" = None) -> TurnedPlan:
         for si in (idx if plan.turn == CLOCKWISE else reversed(idx)):
             row_of[si] = r
             plan.row_strips.append(
-                (r + 1, pages.index(pg) + 1, _strip_label(members[si][0]["loc"])))
+                (r + 1, pages.index(pg) + 1,
+                 _strip_label(members[si][0]["loc"], labels)))
             r += 1
     n_rows = len(strips)
     order: list = [None] * (per * n_rows)

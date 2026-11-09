@@ -244,3 +244,45 @@ def test_a_17_column_5_page_grid_with_a_short_last_column(chart_624,
     assert 17 * -(-g.patches // g.columns) == 629
     assert (g.patches, g.located, g.misplaced) == (624, 624, 0)
     assert not v.ok and "columns: 17, pages: 5" in v.reason
+
+
+# ---- B. numbered strips ---------------------------------------------------
+
+@pytest.fixture(scope="module")
+def numbered(tmp_path_factory):
+    return _turned(tmp_path_factory.mktemp("num") / "n", "Num", 120,
+                   strip_pattern="0-9,@-9,@-9;1-999",
+                   patch_pattern="A-Z, A-Z")
+
+
+def test_numbered_strips_are_named_by_their_number(numbered, tmp_path):
+    ti2, files, plan = numbered
+    labels = [lab for _r, _s, lab in plan.row_strips]
+    assert labels == [str(i) for i in range(1, plan.rows + 1)]
+    note = files.note.read_text(encoding="utf-8")
+    assert "  Row 1: strip 1\n" in note
+    assert re.search(r"strip \d+[A-Z]", note) is None
+    order = json.loads(files.order.read_text(encoding="utf-8"))
+    assert "1A" not in json.dumps(order.get("row_strips"))
+    # pairing is untouched: a turned measurement still files patch for patch
+    mxf = _mxf(files.txf("i1Pro 3"), tmp_path / "n.mxf", columns=plan.columns)
+    ti3, v = _import(mxf, ti2)
+    assert v.ok and v.turned_order, v.reason
+    assert complete_from_turned_order(ti3, ti2) == 120
+    ident = verify_patch_identity(parse_ti3(ti3), ti2)
+    assert ident["verdict"] == "verified"
+
+
+def test_default_labels_are_unchanged(chart_120):
+    ti2, files, plan = chart_120
+    labels = [lab for _r, _s, lab in plan.row_strips]
+    assert labels == [chr(ord("A") + i) for i in range(plan.rows)]
+    assert "  Row 1: strip A\n" in files.note.read_text(encoding="utf-8")
+
+
+def test_the_label_fallback_is_the_old_rule():
+    class NoLabels:
+        def strip_of(self, loc):
+            return None
+    assert T._strip_label("AB12", NoLabels()) == "AB"
+    assert T._strip_label("AB12") == "AB"
