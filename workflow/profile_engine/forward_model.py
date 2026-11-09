@@ -146,6 +146,25 @@ def _corner_sum(wt: np.ndarray, ct: np.ndarray, values: np.ndarray
     return acc
 
 
+def _curvature_nd(x3: np.ndarray, n: int) -> np.ndarray:
+    """The curvature operator of :func:`_grid_solve` on an (n+1)-d array
+    (lattice axes, then the value columns)."""
+    o = np.zeros_like(x3)
+    mid = [slice(None)] * (n + 1)
+    lo = [slice(None)] * (n + 1)
+    hi = [slice(None)] * (n + 1)
+    for ax in range(n):
+        mid[ax] = slice(1, -1)
+        lo[ax] = slice(0, -2)
+        hi[ax] = slice(2, None)
+        d2 = (x3[tuple(lo)] - 2 * x3[tuple(mid)] + x3[tuple(hi)])
+        o[tuple(lo)] += d2
+        o[tuple(mid)] -= 2 * d2
+        o[tuple(hi)] += d2
+        mid[ax] = lo[ax] = hi[ax] = slice(None)
+    return o
+
+
 def _grid_solve(w: np.ndarray, cols: np.ndarray, y: np.ndarray, grid: int,
                 n: int, lam: float, iters: int, x0: np.ndarray | None = None,
                 rtol: float = 0.0) -> np.ndarray:
@@ -200,32 +219,35 @@ def _grid_solve(w: np.ndarray, cols: np.ndarray, y: np.ndarray, grid: int,
         toward zero (a zero decay puts a fake Lab(0,0,0) "black" into empty
         corners — measured: it captured every deep-shadow B2A inversion).
         """
-        x3 = x.reshape(shape)
-        o = np.zeros_like(x3)
-        mid = [slice(None)] * (n + 1)
-        lo = [slice(None)] * (n + 1)
-        hi = [slice(None)] * (n + 1)
-        for ax in range(n):
-            mid[ax] = slice(1, -1)
-            lo[ax] = slice(0, -2)
-            hi[ax] = slice(2, None)
-            d2 = (x3[tuple(lo)] - 2 * x3[tuple(mid)] + x3[tuple(hi)])
-            o[tuple(lo)] += d2
-            o[tuple(mid)] -= 2 * d2
-            o[tuple(hi)] += d2
-            mid[ax] = lo[ax] = hi[ax] = slice(None)
-        return o.reshape(ng, -1)
+        return _curvature_nd(x.reshape(shape), n).reshape(ng, -1)
 
-    # D-06 (agent 8): in a Maximum accuracy build with a large lattice the
-    # curvature runs one Lab column per pool thread. The operator is purely
-    # element-wise per column, so each column's numbers are the same bits
-    # as in the (grid..., 3) array; Fast and Bit-exact never take this path.
+    # D-06 (agent 8, agent 92): in a Maximum accuracy build with a large
+    # lattice the curvature runs one Lab column per pool step, and each
+    # column in slabs along the first lattice axis. The operator is
+    # element-wise per column, and a slab computed from its rows plus two
+    # halo rows on each side gives every element the same additions in the
+    # same order as the whole lattice (_curvature_nd), so the bits are the
+    # serial ones; Fast and Bit-exact never take this path.
+    m_cols = y.shape[1]
+    n_slabs = max(1, min(grid, -(-pool.workers // max(1, m_cols)))) \
+        if n > 1 else 1
+    edges = np.linspace(0, grid, n_slabs + 1).round().astype(int)
+    slabs = [(int(a), int(b)) for a, b in zip(edges[:-1], edges[1:]) if b > a]
+    jobs = [(c, a, b) for c in range(m_cols) for a, b in slabs]
+    per = ng // grid                       # lattice nodes per first-axis row
+
     def curvature_cols(x: np.ndarray) -> np.ndarray:
         out = np.empty_like(x)
 
-        def one(c: int, _hi: int) -> None:
-            out[:, c] = curvature(np.ascontiguousarray(x[:, c:c + 1]))[:, 0]
-        pool.map(one, [(c, c + 1) for c in range(x.shape[1])])
+        def one(j: int, _hi: int) -> None:
+            c, a, b = jobs[j]
+            lo_in, hi_in = max(0, a - 2), min(grid, b + 2)
+            sub = np.ascontiguousarray(
+                x[lo_in * per:hi_in * per, c:c + 1]).reshape(
+                    (hi_in - lo_in,) + (grid,) * (n - 1) + (1,))
+            o = _curvature_nd(sub, n)
+            out[a * per:b * per, c] = o[a - lo_in:b - lo_in].reshape(-1)
+        pool.map(one, [(j, j + 1) for j in range(len(jobs))])
         return out
 
     curv = curvature_cols if (use_pool and col_par) else curvature

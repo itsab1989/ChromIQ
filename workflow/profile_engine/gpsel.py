@@ -235,18 +235,32 @@ def select(device, lab, stiff, fit_stiff, de_fn, row_weights=None,
     held = folds >= 0
     pred = {kd: np.zeros((len(device), 3)) for kd in ("stiff",) + tuple(kinds)}
     rw = None if row_weights is None else np.asarray(row_weights, float)
-    for f in range(k):
+    def fold(f):
         te = folds == f
         tr = ~te
         if progress is not None:
             progress(f"Choosing the printer model: held-out fold {f + 1}/{k}…")
         st = fit_stiff(device[tr], lab[tr], None if rw is None else rw[tr])
-        pred["stiff"][te] = st.predict(device[te])
+        got = {"stiff": st.predict(device[te])}
         for kd in kinds:
             m, _ = fit_kind(kd, device[tr], lab[tr], st, de_fn,
                             None if rw is None else rw[tr],
                             hyper=None if full_hyper is None else full_hyper.get(kd))
-            pred[kd][te] = m.predict(device[te])
+            got[kd] = m.predict(device[te])
+        return te, got
+
+    # Agent 92 (D-06): each fold is fitted from its own training rows and
+    # writes only its own held-out rows, so in a Maximum accuracy build the
+    # folds run side by side (the same fits, the same bits)
+    from workflow.profile_engine import parallel
+    tasks = [(lambda f=f: fold(f)) for f in range(k)]
+    if parallel.in_accurate_scope() and parallel.worker_count() > 1:
+        outs = parallel.run_tasks(tasks)
+    else:
+        outs = [t() for t in tasks]
+    for te, got in outs:
+        for kd, v in got.items():
+            pred[kd][te] = v
     lab_h = lab[held]
     w_h = np.ones(held.sum()) if rw is None else rw[held]
     err = {kd: de_fn(p[held], lab_h) for kd, p in pred.items()}
