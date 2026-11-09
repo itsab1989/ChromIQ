@@ -803,3 +803,163 @@ def a82_dark(table: np.ndarray, node_lab: np.ndarray, residual: np.ndarray,
         y = (1.0 - s[:, None]) * y + s[:, None] * f
         x = y.reshape(g, g, g, n)
     return x.reshape(-1, n)
+
+
+# --- Agent 85 (a85-bpcblack): the neutral shadows reach the printer's black ------------------------------------
+# Rel. col. + black point compensation (Lightroom, Photoshop, every Little CMS application) squeezes the image's
+# black onto the profile's black point, which Adobe's algorithm (Little CMS cmsDetectDestinationBlackPoint) takes
+# from device RGB 0 through A2B1, made neutral. On a printer whose deepest black is tinted (ET-8550: L* 4.1,
+# a* 2.2, b* -3.4) there is no neutral that dark, so the B2A1 column node has to clip. colprof's CAM clip (above)
+# measures the miss in Argyll's CIECAM02 Jab, where lightness near black is squashed (J 7.9 at L* 0, 10.9 at
+# L* 7.3: 7.3 L* into 3 J) while the black's tint is not: the clip picks the darkest NEUTRAL, L* 7.2-7.5, for
+# every column node from the black up, a plateau the BPC wedge lands on (bottom step 7.3 for a black point of
+# 4.1, the bottom six steps 0.1 L* apart; colprof itself 7.5). The token re-solves those column nodes with the
+# same rev.c LCh weights (2, 1, 2.2) in CIELAB (for a neutral target 4 dL^2 + C^2), which reaches the black
+# (4.9 at the black point, as Argyll's own exact inverse) at the cost of the black's own tint in the last few L*.
+# Gate (measured on the build's model): the darkest printable neutral (C* <= 1) lies at least A85["gap"] L*
+# above the device black; Knut, both PRO-300s, X1 (neutral blacks) never fire.
+A85_TOKEN = "a85-bpcblack"
+A85 = {"gap": 1.5, "fade": 4.0, "ring": 0.0, "cmax": 1.0, "w": LCH_WEIGHTS}
+
+
+def a85_params(candidates):
+    """a85-bpcblack's parameters, or None with the token off (env CHROMIQ_A85 "gap:fade:ring:wL" for sweeps)."""
+    if A85_TOKEN not in frozenset(candidates or ()):
+        return None
+    import os
+    p = dict(A85)
+    v = os.environ.get("CHROMIQ_A85", "")
+    if v:
+        k = v.split(":")
+        p["gap"] = float(k[0])
+        if len(k) > 1:
+            p["fade"] = float(k[1])
+        if len(k) > 2:
+            p["ring"] = float(k[2])
+        if len(k) > 3:
+            p["w"] = (float(k[3]), LCH_WEIGHTS[1], LCH_WEIGHTS[2])
+    return p
+
+
+def _a85_cloud(dmax: float, n: int = 3, steps: int = 48) -> np.ndarray:
+    ax = np.linspace(0.0, dmax, steps)
+    return np.stack(np.meshgrid(*([ax] * n), indexing="ij"), -1).reshape(-1, n)
+
+
+def a85_gate(model, params: dict) -> dict:
+    """The device black (model, RGB 0), the darkest printable neutral (least L* with C* <= cmax on a dark device
+    cloud) and whether the gap between them fires the token."""
+    n = model.n_channels
+    k = np.asarray(model.predict(np.zeros((1, n)))[0], float)
+    ln = None
+    for dmax in (0.3, 0.6, 1.0):
+        cl = _a85_cloud(dmax, n)
+        lab = np.asarray(model.predict(cl), float)
+        ok = np.hypot(lab[:, 1], lab[:, 2]) <= float(params["cmax"])
+        if ok.any():
+            ln = float(lab[ok, 0].min())
+            if ln < float(lab[:, 0].max()) - 5.0:
+                break
+    gap = None if ln is None else ln - float(k[0])
+    return {"black": k, "neutral_l": ln, "gap": gap,
+            "fires": gap is not None and gap >= float(params["gap"])}
+
+
+def _inv_out(tables: np.ndarray, dev: np.ndarray) -> np.ndarray:
+    """device (N, n) -> table values whose B2A output curves give that device (monotone u16 tables inverted)."""
+    t = np.asarray(tables, float) / 65535.0
+    x = np.linspace(0.0, 1.0, t.shape[1])
+    out = np.empty_like(np.asarray(dev, float))
+    for c in range(t.shape[0]):
+        y = np.maximum.accumulate(t[c])
+        out[:, c] = np.interp(dev[:, c], y, x)
+    return out
+
+
+def _fwd_out(tables: np.ndarray, val: np.ndarray) -> np.ndarray:
+    t = np.asarray(tables, float) / 65535.0
+    x = np.linspace(0.0, 1.0, t.shape[1])
+    return np.stack([np.interp(val[:, c], x, t[c]) for c in range(t.shape[0])], 1)
+
+
+def a85_bpcblack(table: np.ndarray, node_lab: np.ndarray, residual: np.ndarray, model, params: dict,
+                 out_tables: np.ndarray, gate: dict | None = None):
+    """(table, info): the written B2A1 table (values in the space of ``out_tables``) with its clipped neutral
+    column nodes from L* 0 up to the darkest printable neutral (+ fade) re-solved by the rev.c LCh-weighted
+    nearest point in CIELAB, blended in device space (full weight up to the darkest neutral, smoothstep to 0
+    over ``fade`` L*, over 0.5-1.5 dE of the node's own clip distance; ring > 0 lets the first off-axis nodes
+    take that share too). Untouched (``table`` returned as is) where the gate does not fire."""
+    gate = a85_gate(model, params) if gate is None else gate
+    info = dict(gate, nodes=0)
+    if not gate["fires"]:
+        return np.asarray(table), info
+    nl = np.asarray(node_lab, float)
+    r = np.asarray(residual, float)
+    c = np.hypot(nl[:, 1], nl[:, 2])
+    top = float(gate["neutral_l"]) + float(params["fade"])
+    u = np.clip((top - nl[:, 0]) / max(float(params["fade"]), 1e-9), 0.0, 1.0)
+    wl = u * u * (3.0 - 2.0 * u)
+    v = np.clip(r - 0.5, 0.0, 1.0)
+    wr = v * v * (3.0 - 2.0 * v)
+    ring = float(params["ring"])
+    wc = np.where(c < 0.5, 1.0, np.where(c < 12.0, ring, 0.0))
+    w = wl * wr * wc
+    sel = np.flatnonzero(w > 0)
+    if not len(sel):
+        return np.asarray(table), info
+    tab = np.asarray(table, float).copy()
+    cur = _fwd_out(out_tables, tab[sel])
+    t_lab = nl[sel]
+    wts = tuple(params["w"])
+    dmax = float(min(1.0, max(0.05, 1.5 * cur.max())))
+    cloud = _a85_cloud(dmax, model.n_channels)
+    lab_c = np.asarray(model.predict(cloud), float)
+    seed = np.empty_like(cur)
+    for i, t in enumerate(t_lab):
+        seed[i] = cloud[np.argmin(lchw_sq(lab_c, np.broadcast_to(t, lab_c.shape), wts))]
+
+    def res_fn(y, t):
+        return lchw_residual(y, t, wts)
+
+    best = _a85_descend(model.predict, t_lab, seed, res_fn)
+    new = (1.0 - w[sel])[:, None] * cur + w[sel][:, None] * best
+    tab[sel] = _inv_out(out_tables, np.clip(new, 0.0, 1.0))
+    info.update(nodes=int(len(sel)), top=top)
+    return tab, info
+
+
+def _a85_descend(predict, t_lab, d0, res_fn, iters: int = 20, h: float = 1e-4):
+    """Projected Gauss-Newton with backtracking inside the device cube (few nodes, so plain loops)."""
+    d = np.clip(np.array(d0, float), 0.0, 1.0)
+    n = d.shape[1]
+    for i in range(len(d)):
+        t = t_lab[i:i + 1]
+        x = d[i:i + 1].copy()
+        r = res_fn(predict(x), t)
+        cst = float((r * r).sum())
+        for _ in range(iters):
+            jac = np.empty((3, n))
+            for k in range(n):
+                xk = x.copy()
+                s = h if xk[0, k] + h <= 1.0 else -h
+                xk[0, k] += s
+                jac[:, k] = (res_fn(predict(xk), t) - r)[0] / s
+            stp = np.linalg.lstsq(jac, -r[0], rcond=None)[0]
+            held = ((x[0] <= 0.0) & (stp < 0)) | ((x[0] >= 1.0) & (stp > 0))
+            if held.any() and (~held).any():
+                stp = np.zeros(n)
+                stp[~held] = np.linalg.lstsq(jac[:, ~held], -r[0], rcond=None)[0]
+            elif held.all():
+                break
+            ok = False
+            for f in (1.0, 0.5, 0.25, 0.125, 0.0625):
+                xn = np.clip(x + f * stp, 0.0, 1.0)
+                rn = res_fn(predict(xn), t)
+                cn = float((rn * rn).sum())
+                if cn < cst - 1e-12:
+                    x, r, cst, ok = xn, rn, cn, True
+                    break
+            if not ok:
+                break
+        d[i] = x[0]
+    return d

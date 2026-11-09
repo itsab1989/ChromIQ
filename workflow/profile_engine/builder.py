@@ -297,7 +297,17 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # table) and at the green cusp (coarse table) smoothed
      # (purecolprof.a82_dark / a82_coarse); a82-green default since
      # integration 11, a82-greencusp and a82-greenin opt-in
-     "a82-green", "a82-greencusp", "a82-greenin"})
+     "a82-green", "a82-greencusp", "a82-greenin",
+     # Agent 85: RGB colorimetric neutral column below the darkest printable
+     # neutral re-solved in CIELAB, so rel. col. + black point compensation
+     # reaches the black point on a tinted black (purecolprof.a85_bpcblack);
+     # research, opt-in
+     "a85-bpcblack",
+     # Agent 86: RGB perceptual / saturation neutral column near the black
+     # takes the colprof oracle's own device values where the oracle's A2B
+     # says the engine's darkest steps merge (Knut's laser; gamut_map
+     # a86_knutdark); research, opt-in
+     "a86-knutdark"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -2744,6 +2754,23 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                                     f"{'' if _a82p['dark'] else ' off'}, "
                                     "a82-greencusp"
                                     f"{'' if _a82p['cusp'] else ' off'}).")
+                _a85p = _a58m.a85_params(candidates)
+                if _a85p is not None:
+                    # Research Agent 85 (a85-bpcblack): the clipped neutral
+                    # column between the device black and the darkest
+                    # printable neutral re-solved in CIELAB (rel. col. + BPC
+                    # reaches the black point), gated on a tinted black
+                    _tab, _a85i = _a58m.a85_bpcblack(
+                        _tab, node_lab, residual, model, _a85p,
+                        icw.curves_to_tables(inv, entries_b2a))
+                    _emit(settings, "Colorimetric table: neutral shadows "
+                                    "reach the printer's black (research "
+                                    "a85-bpcblack: black L* "
+                                    f"{_a85i['black'][0]:.1f}, darkest "
+                                    "printable neutral L* "
+                                    f"{(_a85i['neutral_l'] or float('nan')):.1f}, "
+                                    f"{_a85i['nodes']} nodes"
+                                    f"{'' if _a85i['fires'] else ', not needed'}).")
                 b2a_col = icw.make_mft2(
                     3, n, b2a_grid, icw.device_to_u16(_tab),
                     in_tables=b2a_in,
