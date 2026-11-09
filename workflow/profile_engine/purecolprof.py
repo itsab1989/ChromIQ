@@ -478,9 +478,12 @@ def cam_clip(model, target_lab: np.ndarray, d_lab: np.ndarray,
     n = model.n_channels
     cloud = clip_cloud(n, None, None, 5858,
                        light=True, faces=True)
-    seed_c = _cloud_seed(t_j, cloud, predict_j(cloud))
-    best, best_c = _descend(predict_j, t_j, d_lab[sel])
-    d2, c2 = _descend(predict_j, t_j, seed_c)
+    from workflow.profile_engine import parallel
+    # Agent 92 (D-06): the two descents are independent, side by side
+    (best, best_c), (d2, c2) = parallel.side_by_side([
+        lambda: _descend(predict_j, t_j, d_lab[sel]),
+        lambda: _descend(predict_j, t_j,
+                         _cloud_seed(t_j, cloud, predict_j(cloud)))])
     take = c2 < best_c
     best[take] = d2[take]
     cdist = np.linalg.norm(predict_j(best) - t_j, axis=1)

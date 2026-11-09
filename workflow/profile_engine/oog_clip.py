@@ -1088,20 +1088,28 @@ def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
     pr_clip, pw_clip = (None, None) if p.get("two_stage") else (pr, pw)
     best = None
     best_cost = None
-    for k, s0 in enumerate(starts):
-        if p.get("descent", True):
-            d, cst = _descend(b2a, view, t_s, s0, w, free=free,
-                              iters=p["iters"], damping=damping, limit=limit,
-                              prior=pr_clip, prior_w=pw_clip, gn_kw=gn_kw,
-                              label=f"{progress_label}: weighted clip "
-                                    f"{k + 1}/{len(starts)}")
-        else:
+
+    def from_start(k, s0):
+        def run():
+            if p.get("descent", True):
+                return _descend(b2a, view, t_s, s0, w, free=free,
+                                iters=p["iters"], damping=damping, limit=limit,
+                                prior=pr_clip, prior_w=pw_clip, gn_kw=gn_kw,
+                                label=f"{progress_label}: weighted clip "
+                                      f"{k + 1}/{len(starts)}")
             d = b2a._gauss_newton(view, t_s, s0.copy(), free, iters=p["iters"],
                                   damping=damping, ink_limit=limit, err_weights=w,
                                   prior=pr_clip, prior_w=pw_clip,
                                   progress_label=f"{progress_label}: weighted clip "
                                                  f"{k + 1}/{len(starts)}", **gn_kw)
-            cst = cost(view.predict(d), t_s, w)
+            return d, cost(view.predict(d), t_s, w)
+        return run
+    # Agent 92 (D-06): the starts are independent searches, side by side;
+    # combined below in start order with the same strict "<"
+    from workflow.profile_engine import parallel
+    runs = parallel.side_by_side([from_start(k, s0)
+                                  for k, s0 in enumerate(starts)])
+    for d, cst in runs:
         if best is None:
             best, best_cost = d, cst
         else:

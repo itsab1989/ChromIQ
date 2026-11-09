@@ -13,10 +13,16 @@ Rules this module enforces, so callers do not have to remember them:
   inversion consists of. Threads need no pickling, no ``fork`` (Windows has
   none), no ``multiprocessing.freeze_support()`` in a PyInstaller bundle,
   and they end with the process when the app quits (``os._exit``).
-* **Never all cores.** :func:`worker_count` leaves headroom for the UI
-  thread and an Argyll child, honours CPU affinity (Linux ``sched``,
-  ``os.process_cpu_count``), Linux cgroup CPU quotas (containers), and the
-  ``CHROMIQ_ENGINE_THREADS`` override (1 = the serial code path exactly).
+* **Never all cores.** :func:`worker_count` is the app's own choice for
+  the build (``BuildSettings.engine_workers``), else the
+  ``CHROMIQ_ENGINE_THREADS`` override (1 = the serial code path exactly),
+  else the usable CPUs minus one (the colprof oracle runs beside the
+  engine), capped at :data:`_MAX_WORKERS`; it honours CPU affinity (Linux
+  ``sched``, ``os.process_cpu_count``) and Linux cgroup CPU quotas.
+* **BLAS rows.** A matrix product may give a row different bits in a
+  different batch (measured on Accelerate), so row-split work that can
+  reach one cuts on multiples of :data:`ROW_ALIGN` and only where
+  :func:`rows_stable` holds on this machine (Agent 92).
 * **Stack.** Pool threads get 32 MiB of stack like every worker QThread
   (core/thread_stack.py: OpenBLAS's parallel LU on a small stack crashed).
 """
@@ -302,6 +308,16 @@ def run_tasks(tasks: list, workers: int | None = None) -> list:
             return [f.result() for f in futs]
     finally:
         threading.stack_size(old)
+
+
+def side_by_side(tasks: list) -> list:
+    """``[t() for t in tasks]``: independent tasks (each builds its own
+    result from inputs nobody mutates) on pool threads in a Maximum
+    accuracy build with spare workers, else one after the other; results
+    in task order either way (Agent 92)."""
+    if in_accurate_scope() and worker_count() > 1 and len(tasks) > 1:
+        return run_tasks(tasks)
+    return [t() for t in tasks]
 
 
 class Pool:
