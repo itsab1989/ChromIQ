@@ -142,8 +142,10 @@ jobs:
           cp "$installed/runw.exe" "$RUNNER_TEMP/wheel-runw.exe"
           for exe in run.exe run_d.exe runw.exe runw_d.exe; do
             test -f "$built/$exe" || { echo "::error::waf did not build $exe"; exit 1; }
-            wheel=$(sha256sum "$installed/$exe" | cut -d' ' -f1)
-            ours=$(sha256sum "$built/$exe" | cut -d' ' -f1)
+            # From stdin: sha256sum prefixes a "\" to the hash of a path
+            # with backslashes in it, and the two would never compare equal.
+            wheel=$(sha256sum < "$installed/$exe" | cut -d' ' -f1)
+            ours=$(sha256sum < "$built/$exe" | cut -d' ' -f1)
             echo "$exe  wheel=$wheel  built=$ours"
             if [ "$wheel" = "$ours" ]; then
               echo "::error::the built $exe is identical to the wheel's; building it gained nothing"
@@ -192,6 +194,20 @@ jobs:
           fetch "https://go.microsoft.com/fwlink/p/?LinkID=253170" wdk-redist.msi "$WDK_REDIST_SHA256"
           fetch "https://github.com/mcuee/libusb-win32/releases/download/release_1.4.0.0/libusb-win32-bin-1.4.0.0.zip" libusb0.zip "$LIBUSB0_SHA256"
           fetch "https://github.com/mcuee/libusbk/releases/download/V3.1.0.0/libusbK-3.1.0.0-bin.7z" libusbk.7z "$LIBUSBK_SHA256"
+
+          # wdi-simple's VERSIONINFO. libwdi ships examples/wdi-simple.rc
+          # (Pete Batard's own name, version and licence for the program), but
+          # its MSVC project never compiles it, so wdi_simple.exe went out as
+          # the one exe in the bundle with no VERSIONINFO at all. Compile
+          # upstream's .rc as it stands: the wrapper only supplies what MSVC's
+          # rc needs and MinGW gets from afxres.h (VS_VERSION_INFO), and reads
+          # the file as the UTF-8 it is (its copyright sign).
+          printf '#include <winver.h>\r\n#pragma code_page(65001)\r\n#include "wdi-simple.rc"\r\n' \
+            > libwdi-src/examples/wdi-simple-version.rc
+          proj=libwdi-src/examples/.msvc/wdi-simple.vcxproj
+          grep -q '</Project>' "$proj"
+          sed -i 's#</Project>#  <ItemGroup>\r\n    <ResourceCompile Include="..\\wdi-simple-version.rc" />\r\n  </ItemGroup>\r\n</Project>#' "$proj"
+          grep -n 'ResourceCompile' "$proj"
 
       # Build wdi-simple from libwdi source. Only x64 is needed — x64 binaries run on
       # ARM64 Windows via the built-in x64 emulation layer.
