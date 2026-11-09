@@ -348,21 +348,46 @@ def _cloud_seed(t_j: np.ndarray, cloud: np.ndarray,
     """Cloud point of least rev.c distance for every target (exhaustive)."""
     out = np.empty((len(t_j), cloud.shape[1]))
     cc = np.hypot(cloud_j[:, 1], cloud_j[:, 2])
-    for lo in range(0, len(t_j), block):
-        tb = t_j[lo:lo + block]
-        dl = cloud_j[None, :, 0] - tb[:, None, 0]
-        dchsq = ((cloud_j[None, :, 1] - tb[:, None, 1]) ** 2
-                 + (cloud_j[None, :, 2] - tb[:, None, 2]) ** 2)
-        dc = cc[None, :] - np.hypot(tb[:, 1], tb[:, 2])[:, None]
-        dhsq = np.maximum(dchsq - dc * dc, 0.0)
-        s = (LCH_WEIGHTS[0] ** 2 * dl * dl + LCH_WEIGHTS[1] ** 2 * dc * dc
-             + LCH_WEIGHTS[2] ** 2 * dhsq)
-        out[lo:lo + block] = cloud[np.argmin(s, 1)]
+
+    def rows(a: int, b: int) -> None:
+        # Agent 92 (D-06): every row's distances and argmin are its own;
+        # the row ranges start on block borders, so the blocks are the
+        # serial ones
+        for lo in range(a, b, block):
+            hi = min(lo + block, b)
+            tb = t_j[lo:hi]
+            dl = cloud_j[None, :, 0] - tb[:, None, 0]
+            dchsq = ((cloud_j[None, :, 1] - tb[:, None, 1]) ** 2
+                     + (cloud_j[None, :, 2] - tb[:, None, 2]) ** 2)
+            dc = cc[None, :] - np.hypot(tb[:, 1], tb[:, 2])[:, None]
+            dhsq = np.maximum(dchsq - dc * dc, 0.0)
+            s = (LCH_WEIGHTS[0] ** 2 * dl * dl + LCH_WEIGHTS[1] ** 2 * dc * dc
+                 + LCH_WEIGHTS[2] ** 2 * dhsq)
+            out[lo:hi] = cloud[np.argmin(s, 1)]
+    from workflow.profile_engine import parallel
+    parallel.map_rows(rows, len(t_j), align=block, min_rows=block, blas=False)
     return out
 
 
 def _descend(predict_j, t_j: np.ndarray, d0: np.ndarray, *, iters: int = 12,
              damping: float = 1e-3, h: float = 1e-4) -> tuple:
+    """:func:`_descend_rows` on row ranges (Agent 92, D-06): every row's
+    steps, acceptance and stop depend on that row alone (a row that accepts
+    nothing stays where it is, so the batch's shared stop changes no row)."""
+    from workflow.profile_engine import parallel
+    parts = parallel.map_rows(
+        lambda lo, hi: _descend_rows(predict_j, t_j[lo:hi], d0[lo:hi],
+                                     iters=iters, damping=damping, h=h),
+        len(t_j))
+    if len(parts) == 1:
+        return parts[0]
+    return (np.concatenate([p[0] for p in parts], 0),
+            np.concatenate([p[1] for p in parts], 0))
+
+
+def _descend_rows(predict_j, t_j: np.ndarray, d0: np.ndarray, *,
+                  iters: int = 12, damping: float = 1e-3,
+                  h: float = 1e-4) -> tuple:
     """Levenberg-Marquardt on the rev.c residual inside the device cube
     (active set: a channel on a face whose step points outward is held),
     never accepting a step that raises the distance (backtracking)."""
@@ -451,7 +476,7 @@ def cam_clip(model, target_lab: np.ndarray, d_lab: np.ndarray,
 
     t_j = lab_to_argyll_jab(t_lab)
     n = model.n_channels
-    cloud = clip_cloud(n, None, None, np.random.default_rng(5858),
+    cloud = clip_cloud(n, None, None, 5858,
                        light=True, faces=True)
     seed_c = _cloud_seed(t_j, cloud, predict_j(cloud))
     best, best_c = _descend(predict_j, t_j, d_lab[sel])

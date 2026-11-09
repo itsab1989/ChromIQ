@@ -257,7 +257,7 @@ def locus_k(model, target: np.ndarray, d_ok: np.ndarray, kt: np.ndarray, *,
 
 def _cloud(n, limit, cmax, seed=6969):
     from workflow.profile_engine.oog_clip import clip_cloud
-    return clip_cloud(n, limit, cmax, np.random.default_rng(seed),
+    return clip_cloud(n, limit, cmax, int(seed),
                       light=True, faces=True)
 
 
@@ -276,9 +276,15 @@ def nearest_lab(model, target: np.ndarray, d0: np.ndarray, *, limit, cmax,
     cl_lab = model.predict(cl)
     seeds = np.empty_like(d0)
     c2 = (cl_lab ** 2).sum(1)
-    for lo in range(0, len(target), 1024):
-        t = target[lo:lo + 1024]
-        seeds[lo:lo + 1024] = cl[np.argmin(c2[None] - 2.0 * t @ cl_lab.T, 1)]
+    def rows(a: int, b: int) -> None:
+        # Agent 92 (D-06): ranges start on the serial 1024-row blocks
+        for lo in range(a, b, 1024):
+            t = target[lo:lo + 1024]
+            seeds[lo:lo + 1024] = cl[np.argmin(
+                c2[None] - 2.0 * t @ cl_lab.T, 1)]
+    from workflow.profile_engine import parallel
+    parallel.map_rows(rows, len(target), align=1024, min_rows=1024,
+                      blas=False)
     b = _gauss_newton(model, target, seeds, free, **kw)
     rb = np.linalg.norm(model.predict(b) - target, axis=1)
     take = rb < ra
@@ -296,6 +302,21 @@ def _project4(d, limit, cmax):
 
 def _descend_jab(predict_j, t_j, d0, *, limit, cmax, iters: int = 14,
                  damping: float = 1e-3, h: float = 1e-4):
+    """:func:`_descend_jab_rows` on row ranges (Agent 92, D-06): every
+    row's steps, acceptance and stop are its own."""
+    from workflow.profile_engine import parallel
+    parts = parallel.map_rows(
+        lambda lo, hi: _descend_jab_rows(
+            predict_j, t_j[lo:hi], d0[lo:hi], limit=limit, cmax=cmax,
+            iters=iters, damping=damping, h=h), len(t_j), min_rows=96)
+    if len(parts) == 1:
+        return parts[0]
+    return (np.concatenate([p[0] for p in parts], 0),
+            np.concatenate([p[1] for p in parts], 0))
+
+
+def _descend_jab_rows(predict_j, t_j, d0, *, limit, cmax, iters: int = 14,
+                      damping: float = 1e-3, h: float = 1e-4):
     """Levenberg-Marquardt on the rev.c LCh-weighted residual in Jab, inside
     the device box and under the ink limit (projected steps, backtracking,
     never accepting a step that raises the distance)."""

@@ -842,6 +842,11 @@ class BuildSettings:
     # rendering exactly via the arm's-length oracle (gamut_map).
     argyll_bin: Path | str | None = None
     timestamp: datetime | None = None        # fixed → byte-reproducible
+    # Agent 92 (D-06): threads a Maximum accuracy build may use; 0 = the
+    # engine's default (usable CPUs minus one, capped; parallel.worker_count)
+    # or the CHROMIQ_ENGINE_THREADS override. The profile's bytes do not
+    # depend on it (tests/test_engine_a92_speed.py).
+    engine_workers: int = 0
     progress: Callable[[str], None] | None = None
     # Gamut-mapping engine for the perceptual/saturation B2A tables:
     #   "fast"     — ChromIQ's built-in Python mapper (colprof's algorithm,
@@ -1085,7 +1090,7 @@ def build_profile(ti3_path: Path | str, out_path: Path | str,
     scope = parallel.accurate_scope() if settings.gammap_mode == "accurate" \
         else contextlib.nullcontext()
     try:
-        with scope:
+        with scope, parallel.worker_budget(int(settings.engine_workers or 0)):
             return _build_profile_impl(ti3_path, out_path, settings, started)
     finally:
         settings.progress = orig_progress
