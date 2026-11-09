@@ -22,6 +22,7 @@ RGB case covers the targets this tool exists for (e.g. TC9.18).
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -126,10 +127,16 @@ def parse_pxf(path: Path) -> list[RgbPatch]:
         if rgb_el is None:
             continue
         vals = {_localname(c.tag): (c.text or "").strip() for c in rgb_el}
-        try:
-            triples.append((float(vals["R"]), float(vals["G"]), float(vals["B"])))
-        except (KeyError, ValueError):
+        if not all(ch in vals for ch in "RGB"):
             continue
+        # i1Profiler writes numbers in the computer's number format, so a
+        # decimal comma ("12,5") is read like the CxF measurement import
+        # reads it (4.3.29); before, such a patch was skipped in silence.
+        from workflow.reference_convert import cxf_number_group
+        r, g, b = cxf_number_group([vals["R"], vals["G"], vals["B"]])[0]
+        if not all(math.isfinite(v) for v in (r, g, b)):
+            continue
+        triples.append((r, g, b))
 
     if not triples:
         if saw_non_rgb:

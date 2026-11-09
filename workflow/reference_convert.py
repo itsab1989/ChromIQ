@@ -556,15 +556,13 @@ def _cxf_wavelengths(root, spectrum_el, bands: int):
                 step = wr.get("Increment")
                 start = start or wr.get("StartWL")
             break
-    try:
-        start = float(start) if start is not None else 380.0
-    except ValueError:
+    # The same number format as the spectra (4.3.29): "380" and "10" in
+    # every file seen, but a "10,0" must not fall back in silence.
+    start = cxf_number_group([start])[0][0] if start is not None else 380.0
+    step = cxf_number_group([step])[0][0] if step is not None else 10.0
+    if not math.isfinite(start):
         start = 380.0
-    try:
-        step = float(step) if step is not None else 10.0
-    except ValueError:
-        step = 10.0
-    if step <= 0:
+    if not math.isfinite(step) or step <= 0:
         step = 10.0
     return start + step * np.arange(bands)
 
@@ -594,6 +592,41 @@ def _cxf_patch_label(obj, index: int, count: int) -> str:
 
 def _nm(v: float) -> str:
     return f"{int(round(v))}" if abs(v - round(v)) < 1e-6 else f"{v:g}"
+
+
+#: One number written with a DECIMAL COMMA: digits, exactly one comma, digits
+#: (an exponent allowed), and no dot.
+_DECIMAL_COMMA_RE = re.compile(r"^[+-]?\d+,\d+(?:[eE][+-]?\d+)?$")
+
+
+def cxf_number_group(texts) -> "tuple[list[float], bool]":
+    """The numbers of one CxF value group (one spectrum, or one patch's device
+    channels), and whether they were written with decimal commas.
+
+    I1PROFILER WRITES ITS NUMBERS IN THE COMPUTER'S NUMBER FORMAT (4.3.29,
+    found while studying jctay's files: an ``.mxf`` saved by i1Profiler on a
+    German macOS, ``ChromIQ-work/2026-11-09_jctay/i1p_out``): on a
+    decimal-comma locale every reflectance comes out as ``0,056192``,
+    which ``float`` refuses, and the whole file was turned away as "not a
+    number". A value is read as a decimal comma only when it is digits, ONE
+    comma and digits, and only when the whole group agrees: no value in it
+    carries a dot. Values with no separator at all ("0", "255") fit either
+    form. A group that mixes the two forms, or a value that is no number in
+    either, is left for the caller to refuse: such a value comes back as NaN,
+    exactly as ``float`` would have failed on it. Never guessed further than
+    that (a thousands separator, "1.234,5", is not a CxF number)."""
+    vals = [str(t).strip() for t in texts]
+    comma = (any(_DECIMAL_COMMA_RE.match(v) for v in vals)
+             and not any("." in v for v in vals))
+    out = []
+    for v in vals:
+        if comma and _DECIMAL_COMMA_RE.match(v):
+            v = v.replace(",", ".")
+        try:
+            out.append(float(v))
+        except ValueError:
+            out.append(float("nan"))
+    return out, comma
 
 
 def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path,
@@ -635,6 +668,7 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path,
     # before: their channel names cannot be told from the file.
     rgb = []
     space = None
+    commas = 0          # value groups read with decimal commas (logged once)
     for o in targets:
         c = o.find("cc:DeviceColorValues/cc:ColorRGB", _CXF_NS)
         k = o.find("cc:DeviceColorValues/cc:ColorCMYK", _CXF_NS)
@@ -643,12 +677,19 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path,
             raise _failure(M.M_CONVERT_CXF_NO_DEVICE_VALUES,
                            name=cxf_path.name)
         space = this
-        if this == "RGB":
-            rgb.append([float(c.find(f"cc:{ch}", _CXF_NS).text)
-                        for ch in "RGB"])
-        else:
-            rgb.append([float(k.find(f"cc:{ch}", _CXF_NS).text)
-                        for ch in ("Cyan", "Magenta", "Yellow", "Black")])
+        el, chans = ((c, "RGB") if this == "RGB"
+                     else (k, ("Cyan", "Magenta", "Yellow", "Black")))
+        texts = [getattr(el.find(f"cc:{ch}", _CXF_NS), "text", None) or ""
+                 for ch in chans]
+        values, comma = cxf_number_group(texts)
+        commas += comma
+        if not all(math.isfinite(v) for v in values):
+            # A channel that is missing or no number in either form: the
+            # file does not give this patch's device values (until 4.3.29 an
+            # unhandled ValueError, and a decimal comma was one).
+            raise _failure(M.M_CONVERT_CXF_NO_DEVICE_VALUES,
+                           name=cxf_path.name)
+        rgb.append(values)
     if not rgb:
         raise _failure(M.M_CONVERT_CXF_NO_PATCHES, name=cxf_path.name)
 
@@ -676,12 +717,11 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path,
         if sp is None or not sp.text:
             raise _failure(M.M_CONVERT_CXF_NO_SPECTRUM, name=cxf_path.name)
         first_sp = first_sp if first_sp is not None else sp
+        texts = sp.text.split()
+        numbers, comma = cxf_number_group(texts)
+        commas += comma
         values = []
-        for v in sp.text.split():
-            try:
-                f = float(v)
-            except ValueError:
-                f = float("nan")
+        for v, f in zip(texts, numbers):
             if not math.isfinite(f):
                 # "nan" in a .ti3 is no measurement (review r1, L6): refuse
                 # the import and name the patch, never write it.
@@ -755,6 +795,11 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path,
         # of ".2", and with_suffix() would REPLACE it (core/stem_paths.py).
         out_ti3 = artefact(out_ti3, ".ti3")
     out_ti3.write_text("\n".join(lines), encoding="utf-8")
+    if commas:
+        logging.getLogger(__name__).info(
+            "cxf import: %s writes its numbers with decimal commas (%d value "
+            "groups, i1Profiler on a decimal-comma locale); read as decimals",
+            cxf_path.name, commas)
     logging.getLogger(__name__).info(
         "cxf import: %s -> %s, condition %s of %s (i1Profiler's setting %r), "
         "%d bands from %s nm, instrument %r (i1Profiler %r)",
