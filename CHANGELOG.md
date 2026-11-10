@@ -1,5 +1,15 @@
 # Changelog
 
+## v4.3.30
+
+**For everyone updating from 4.3.29: Tools › Verify against reference works again. A measurement file (.ti3) can now be the reference, pasted values no longer need “3D difference map” to be ticked, and a reference of another chart is refused with an explanation instead of giving meaningless numbers. Your charts, measurements and profiles do not change.**
+
+### Fixed
+- **Pasted reference values only worked with “3D difference map” ticked.** Since 4.3.3, ChromIQ wrote the values you pasted into a temporary folder, but told the comparison tool (ArgyllCMS colverify) only the file's name, so the tool looked for it in the measurement's folder and stopped with “Unable to open file”. Only the run with the 3D map worked, because it copies the measurement into that folder too. The tool now gets the right path, also when a folder name contains spaces or letters such as ü.
+- **A measurement file could not be used as the reference.** The help said you could load “a reference measurement file”, but choosing a .ti3 with “Load from file…” stopped with “Line 1 doesn't have three numbers: 'CTI3'”, because ChromIQ read every file as a plain list of numbers. A .ti3 or any other CGATS file with L\*a\*b\*, XYZ or spectral values is now handed to the comparison as it is, and the window shows which file is loaded, with a button to type or paste values instead. A file without patch numbers is paired with your measurement in the order of its list, like pasted values. Your own file is never changed.
+- **A reference of another chart gave meaningless numbers.** The comparison pairs patches by their number, so a reference of a different chart, or one whose patch numbers were shifted, produced an average difference of 18 ΔE instead of an error. ChromIQ now checks first that both files hold the same chart (the same number of patches, every patch number present, and the same colour values for each patch number) and otherwise explains what does not match and what to do, without comparing anything. If the chart definition you chose is the one that does not match, the message says so, and the chart definition and the profile now have a Clear button.
+- **The result counted one patch too few, and long messages were cut off.** For measurements that record where each patch sits on the sheet, the result said 615 patches for a chart of 616. The window's settings now scroll, so a long message is shown in full.
+
 ## v4.3.29
 
 **For everyone updating from 4.3.28: i1Profiler measurements saved on a computer that writes numbers with a decimal comma (for example one set to German) are now read instead of refused, and the message for a turned i1Profiler measurement on another grid now explains what really happened and how to fix it without measuring again. On Windows, ChromIQ is now built in a way that should make a false alarm from antivirus programs less likely. Your charts, measurements and profiles do not change.**
