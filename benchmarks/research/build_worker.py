@@ -55,6 +55,9 @@ def build_engine(job: dict) -> dict:
         timestamp=datetime.fromisoformat(job.get("timestamp",
                                                  "2026-01-01T00:00:00")),
     )
+    # Integration 12: the black-depth build option, only when a job names it
+    if job.get("black_depth"):
+        wanted["black_depth"] = job["black_depth"]
     # An older tree (master) may not know a field; it then gets that tree's
     # default, which is recorded so the identity check can be read correctly.
     known = {f.name for f in dataclasses.fields(builder_mod.BuildSettings)}

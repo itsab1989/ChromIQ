@@ -189,6 +189,8 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "no-a78-rgbsmooth", "no-a79-perccol", "no-a79-lincurve",
      "no-a79-lincurve-col", "no-a80-greywalk", "no-a80-colpin",
      "no-a80-lincurve", "no-a82-green",
+     # Integration 12: the off switches of its new defaults
+     "no-a84-warmblack", "no-a89-isisgap", "no-a86-knutdark",
      # Agent 73 (ink test): colprof's -kr K prior for the colorimetric
      # table on a printer with a strong ink fold and a light C+M+Y black;
      # default since integration 10
@@ -242,7 +244,7 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 84: on a CMYK printer with a mild measured ink fold (a79's
      # gate), the forward fit keeps clustered dark patches the robust fit
      # had rejected as misreads (real i1iSis: warm hues into black);
-     # research, opt-in
+     # default since integration 12
      "a84-warmblack",
      # Agent 84: the refit is the build's model for every table (the first
      # a84 arm: A2B held-out -18 %, but the perceptual / saturation greys
@@ -250,7 +252,8 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "a84-warmblack-all",
      # Agent 89: with a84-warmblack, the dark re-clip leaves the nodes where
      # neither clip uses black (the C+M edge: dark sRGB blue, where the
-     # nudge made a71's dark ray add black mid-ramp); research, opt-in
+     # nudge made a71's dark ray add black mid-ramp); default since
+     # integration 12
      "a89-isisgap",
      # Agent 56 (D-30 part 1): RGB with a51 on: the chroma of a clip target
      # lifted to the dark floor fades C1 with its depth below the black, at
@@ -306,13 +309,15 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 86: RGB perceptual / saturation neutral column near the black
      # takes the colprof oracle's own device values where the oracle's A2B
      # says the engine's darkest steps merge (Knut's laser; gamut_map
-     # a86_knutdark); research, opt-in
+     # a86_knutdark); default since integration 12
      "a86-knutdark",
      # Agent 88: how deep the RGB colorimetric neutral shadows go on a tinted
      # black, three levels: no token = Neutral (int-11), a88-black-balanced
      # (cast within one just-noticeable step), a88-black-deepest (the
-     # printer's own black, a85 made safe; purecolprof.a88_black); research,
-     # opt-in
+     # printer's own black, a85 made safe; purecolprof.a88_black); off by
+     # default. Since integration 12 a88-black-deepest is the build option
+     # BuildSettings.black_depth = "deepest" (BLACK_DEPTH_TOKENS);
+     # a88-black-balanced stays research only
      "a88-black-balanced", "a88-black-deepest"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
@@ -544,6 +549,21 @@ INT10_TOKENS = frozenset({
 INT11_TOKENS = frozenset({
     "a78-rgbsmooth", "a79-perccol", "a79-lincurve", "a79-lincurve-col",
     "a80-greywalk", "a80-colpin", "a80-lincurve", "a82-green"})
+# Integration 12 (2026-11-10, Agent 93, Findings/agent93-01-integration12.md;
+# Basti passed all three, RESUME.md s86/s88/s91 and the 2026-11-10 decisions):
+# ON as well, Maximum accuracy only, each behind its own gate:
+#   a84-warmblack (CMYK 4 inks with a mild measured ink fold, a79's gate:
+#     the forward fit keeps clustered dark patches the robust fit rejected
+#     as misreads and re-clips the dark clipped B2A1 nodes with that refit;
+#     real i1iSis: warm hues into black);
+#   a89-isisgap (with a84-warmblack: the re-clip leaves nodes where neither
+#     clip uses black, so dark blue keeps integration 11's shape);
+#   a86-knutdark (RGB perceptual / saturation neutral column near the black
+#     takes the colprof oracle's devices where the oracle's own A2B says the
+#     engine's darkest steps merge; Knut's laser).
+# Each has a "no-<token>" switch. a84-warmblack-all, a85-bpcblack and
+# a88-black-balanced stay research only.
+INT12_TOKENS = frozenset({"a84-warmblack", "a89-isisgap", "a86-knutdark"})
 ACCURATE_DEFAULT_TOKENS = frozenset({
     "b2a33s", "rgbpos", "v4prm", "rgbcol",
     "a25-oog", "a25-rgbcol", "a25-oracle-dev", "a25-oracle-neutral",
@@ -555,7 +575,27 @@ ACCURATE_DEFAULT_TOKENS = frozenset({
     "a44b-smoothexact", "a45-c1space", "a45-darkend",
     "a51-colprofedge"}) | INT8_TOKENS | INT8B_TOKENS | INT9_TOKENS \
     | INT9_CMY_TOKENS | {A72_CMY_ONLY, A72_MAX4_INK} | INT10_TOKENS \
-    | INT11_TOKENS
+    | INT11_TOKENS | INT12_TOKENS
+
+# Integration 12: the black-depth build option (Basti, 2026-11-08/09: two
+# levels, Neutral the default). BuildSettings.black_depth picks one; the
+# token it maps to is added by effective_engine_candidates() for Maximum
+# accuracy builds only. "neutral" = no token = integration 11's colorimetric
+# table; "deepest" = a88-black-deepest (Findings/agent88-01-deepblack.md):
+# only the Rel./Abs. Colorimetric B2A1 table changes, and only on a printer
+# whose black is tinted (darkest printable neutral >= 1.5 L* above the
+# device black); Perceptual and Saturation are unchanged.
+BLACK_DEPTH_TOKENS = {"neutral": None, "deepest": "a88-black-deepest"}
+
+
+def black_depth_token(black_depth) -> str | None:
+    """The engine token for a BuildSettings.black_depth value ("" or None
+    count as "neutral"); ValueError for anything else."""
+    key = (black_depth or "neutral").strip().lower()
+    if key not in BLACK_DEPTH_TOKENS:
+        raise ValueError(f"black_depth must be one of "
+                         f"{sorted(BLACK_DEPTH_TOKENS)}, not {black_depth!r}")
+    return BLACK_DEPTH_TOKENS[key]
 
 
 def scope_device_tokens(candidates, *, n: int, is_additive: bool) -> frozenset:
@@ -686,6 +726,10 @@ def effective_engine_candidates(settings) -> frozenset:
     raw = frozenset(getattr(settings, "engine_candidates", None) or ())
     if getattr(settings, "gammap_mode", "") != "accurate":
         return frozenset()
+    # Integration 12: the black-depth option (BLACK_DEPTH_TOKENS)
+    bt = black_depth_token(getattr(settings, "black_depth", "neutral"))
+    if bt is not None:
+        raw = raw | {bt}
     return accurate_candidates(raw) | {t for t in raw if t.startswith("no-")}
 
 
@@ -847,6 +891,15 @@ class BuildSettings:
     # or the CHROMIQ_ENGINE_THREADS override. The profile's bytes do not
     # depend on it (tests/test_engine_a92_speed.py).
     engine_workers: int = 0
+    # Integration 12 (Agent 93): how deep the Rel./Abs. Colorimetric table's
+    # neutral shadows go on a printer with a tinted black, Maximum accuracy
+    # only. "neutral" (default) = the darkest truly neutral grey (integration
+    # 11's table); "deepest" = the printer's own black (a88-black-deepest:
+    # deeper with Rel. Col. + BPC, a slight tint near black, and without BPC
+    # the darkest few steps merge). Perceptual / Saturation never change;
+    # identical to "neutral" on a printer with a near-neutral black. See
+    # BLACK_DEPTH_TOKENS. Ignored by Fast / Bit-exact.
+    black_depth: str = "neutral"
     progress: Callable[[str], None] | None = None
     # Gamut-mapping engine for the perceptual/saturation B2A tables:
     #   "fast"     — ChromIQ's built-in Python mapper (colprof's algorithm,

@@ -51,8 +51,11 @@ _INT10 = {"a75-lightkeep", "a73-kfirst", "a74-foldmeas", "a74-kfloor",
 # (a78, a82) and the CMYK i1iSis / folding-printer greys (a79, a80)
 _INT11 = {"a78-rgbsmooth", "a79-perccol", "a79-lincurve", "a79-lincurve-col",
           "a80-greywalk", "a80-colpin", "a80-lincurve", "a82-green"}
+# integration 12 (Findings/agent93-01-integration12.md): real i1iSis warm hues
+# into black (a84 + a89) and Knut's darkest perceptual greys (a86)
+_INT12 = {"a84-warmblack", "a89-isisgap", "a86-knutdark"}
 _DEF = ({"b2a33s", "rgbpos", "v4prm", "rgbcol"} | _INT3 | _INT4 | _INT5 | _INT6
-        | _INT7 | _INT8 | _INT8B | _INT9 | _INT10 | _INT11)
+        | _INT7 | _INT8 | _INT8B | _INT9 | _INT10 | _INT11 | _INT12)
 
 
 def test_the_defaults_are_b2a33s_rgbpos_and_v4prm():
@@ -75,11 +78,11 @@ def test_agent9_tokens_are_off_by_default():
 
 def test_a_default_can_be_switched_off_for_research():
     assert accurate_candidates({"no-b2a33s"}) == ({"rgbpos", "v4prm", "rgbcol"}
-                                                  | _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _INT8B | _INT9 | _INT10 | _INT11 | _FIN3)
+                                                  | _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _INT8B | _INT9 | _INT10 | _INT11 | _INT12 | _FIN3)
     assert accurate_candidates({"no-rgbpos", "no-b2a33s", "no-v4prm",
                                 "no-rgbcol", "no-fin3"}
-                               | {"no-" + t for t in _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _INT8B | _INT9 | _INT10 | _INT11}) == frozenset()
-    for t in _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _INT8B | _INT9 | _INT10 | _INT11:
+                               | {"no-" + t for t in _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _INT8B | _INT9 | _INT10 | _INT11 | _INT12}) == frozenset()
+    for t in _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _INT8B | _INT9 | _INT10 | _INT11 | _INT12:
         assert "no-" + t in ENGINE_CANDIDATE_TOKENS
 
 
@@ -184,3 +187,52 @@ def test_integration11_tokens_are_on_and_switchable():
               "a80-oraclecurve", "a80-perccol"):
         assert t not in on
         assert t in ENGINE_CANDIDATE_TOKENS
+
+
+def test_integration12_tokens_are_on_and_switchable():
+    from workflow.profile_engine.builder import INT12_TOKENS
+    assert INT12_TOKENS == _INT12
+    on = accurate_candidates(frozenset())
+    assert _INT12 <= on
+    for t in _INT12:
+        assert t not in accurate_candidates({"no-" + t})
+        assert "no-" + t in ENGINE_CANDIDATE_TOKENS
+    # the research variants Basti did not pass stay off
+    for t in ("a84-warmblack-all", "a85-bpcblack", "a88-black-balanced",
+              "a88-black-deepest"):
+        assert t not in on
+        assert t in ENGINE_CANDIDATE_TOKENS
+
+
+def test_integration12_black_depth_option():
+    """BuildSettings.black_depth: two levels (Basti 2026-11-09). "neutral"
+    (default) adds nothing; "deepest" adds a88-black-deepest, for Maximum
+    accuracy only; anything else is refused."""
+    import pytest
+    from workflow.profile_engine.builder import (
+        BLACK_DEPTH_TOKENS, BuildSettings, black_depth_token,
+        effective_engine_candidates)
+    assert BLACK_DEPTH_TOKENS == {"neutral": None,
+                                  "deepest": "a88-black-deepest"}
+    assert BuildSettings().black_depth == "neutral"
+    assert black_depth_token("") is None and black_depth_token(None) is None
+    assert black_depth_token("Deepest") == "a88-black-deepest"
+    with pytest.raises(ValueError):
+        black_depth_token("balanced")
+    neutral = effective_engine_candidates(BuildSettings(gammap_mode="accurate"))
+    assert neutral == accurate_candidates(frozenset())
+    deep = effective_engine_candidates(
+        BuildSettings(gammap_mode="accurate", black_depth="deepest"))
+    assert deep == neutral | {"a88-black-deepest"}
+    # resolving again gives the same set (idempotent, as the builder needs)
+    assert accurate_candidates(deep) == deep
+    # the research token alone does the same as the option
+    assert deep == effective_engine_candidates(BuildSettings(
+        gammap_mode="accurate", engine_candidates=frozenset({"a88-black-deepest"})))
+    # other modes never take a token
+    for mode in ("fast", "argyll"):
+        assert effective_engine_candidates(
+            BuildSettings(gammap_mode=mode, black_depth="deepest")) == frozenset()
+    from workflow.profile_engine import purecolprof as P
+    assert P.a88_params(deep)["level"] == "deepest"
+    assert P.a88_params(neutral) is None

@@ -24,9 +24,10 @@ def _setup(monkeypatch, oracle_l):
     return dev, odev, mapped, node_lab
 
 
-def test_registered_and_off_by_default():
+def test_registered_and_on_since_integration12():
     assert gm.A86_TOKEN in builder.ENGINE_CANDIDATE_TOKENS
-    assert gm.A86_TOKEN not in builder.ACCURATE_DEFAULT_TOKENS
+    assert gm.A86_TOKEN in builder.ACCURATE_DEFAULT_TOKENS
+    assert gm.A86_TOKEN not in builder.accurate_candidates({"no-" + gm.A86_TOKEN})
 
 
 def test_no_change_when_the_oracle_agrees(monkeypatch):

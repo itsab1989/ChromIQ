@@ -5,11 +5,12 @@ import numpy as np
 from workflow.profile_engine import accuracy, builder, gpsel
 
 
-def test_token_registered_and_off_by_default():
+def test_token_registered_and_on_since_integration12():
     assert builder.A84_WARMBLACK == "a84-warmblack"
     assert builder.A84_WARMBLACK in builder.ENGINE_CANDIDATE_TOKENS
-    assert builder.A84_WARMBLACK not in builder.ACCURATE_DEFAULT_TOKENS
-    assert builder.A84_WARMBLACK not in builder.accurate_candidates(())
+    assert builder.A84_WARMBLACK in builder.ACCURATE_DEFAULT_TOKENS
+    assert builder.A84_WARMBLACK in builder.accurate_candidates(())
+    assert builder.A84_WARMBLACK not in builder.accurate_candidates({"no-a84-warmblack"})
     assert builder.A84_WARMBLACK_ALL in builder.ENGINE_CANDIDATE_TOKENS
     assert builder.A84_WARMBLACK_ALL not in builder.ACCURATE_DEFAULT_TOKENS
     assert gpsel.A84_KEEP_CLUSTERS is False
@@ -42,12 +43,13 @@ def test_fit_default_is_unchanged_without_the_flag():
     assert sig.parameters["keep_clusters"].default is False
 
 
-def test_a89_isisgap_registered_and_off_by_default():
+def test_a89_isisgap_registered_and_on_since_integration12():
     import inspect
     assert builder.A89_ISISGAP == "a89-isisgap"
     assert builder.A89_ISISGAP in builder.ENGINE_CANDIDATE_TOKENS
-    assert builder.A89_ISISGAP not in builder.ACCURATE_DEFAULT_TOKENS
-    assert builder.A89_ISISGAP not in builder.accurate_candidates(())
+    assert builder.A89_ISISGAP in builder.ACCURATE_DEFAULT_TOKENS
+    assert builder.A89_ISISGAP in builder.accurate_candidates(())
+    assert builder.A89_ISISGAP not in builder.accurate_candidates({"no-a89-isisgap"})
     src = inspect.getsource(builder)
     # it only narrows a84's dark re-clip weight, inside that block
     i84 = src.index("if _a84_clip_model is not None and not (_a69m")
