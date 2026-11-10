@@ -9,13 +9,30 @@ behind tokens (`CHROMIQ_ENGINE_NEXT="ucs,joint-sep"` /
 `BuildSettings.engine_candidates`). Nothing replaces the shipped accurate
 mode until it provably wins here.
 
-- `synthetic.py` — six analytic spectral printers (S1–S6) where
+- `synthetic.py` — seven analytic spectral printers (S1–S7) where
   `f_true(device) → XYZ` is exact; instrument-noise + misread models.
+  S7 is CMYKcm: light cyan/magenta are the parent dye at 40 % of the
+  absorbance (`SyntheticPrinter.light_inks`) — a diluted primary, not a
+  spot colour. S1–S6 are byte-identical to the six-printer battery.
 - `battery.py` — builds a profile per printer and scores the **written
   bytes** against `f_true` on dense quasi-random points (ΔE2000):
   A2B accuracy, B2A end-to-end (profile ink printed on the true printer),
   round-trip, neutral-K smoothness, OOG hue keeping, outlier-flag F1,
   build time. Also evaluates the promotion gates.
+  Two referees added with S7 (every printer reports them):
+  `highlight.a2b/b2a` score the two legs on a dedicated light sample
+  (`highlight_points`: Halton with every channel ≤ 40 % coverage, kept
+  where the true printer renders L* > 70) — the main evaluation grid is
+  TAC-projected over the whole cube and on six inks holds 3 points in
+  6,000 above L* 70, so a highlight median from it means nothing.
+  `light_ink` (light-ink printers only): `fraction` = the share of
+  neutral-ramp (L* 5…95 at 0.5 steps, a = b = 0) + highlight targets the
+  profile prints within 1 ΔE00 AND separates light-first — for every
+  light/parent pair the pair is unused (< 2 % together), or the dark ink
+  is ≥ 40 %, or the light ink carries at least as much as the dark one;
+  `colour_ok` / `light_first` are the two halves on their own;
+  `ramp_max_step` is the largest move of any channel between consecutive
+  0.5 L* ramp steps (the "0 → 17.5 %" jump of A-20 reads ≈ 0.17).
 - `iccread.py` — minimal mft2 CMM replay so the referee judges the file,
   not the in-memory model.
 - `heldout.py` — the real-measurement secondary leg (90/10 held-out
@@ -43,6 +60,12 @@ A candidate set is promoted into the shipped accurate mode only when:
 3. Smoothness: neutral K TV-vs-net not worse on S3/S5/S6.
 4. Build time ≤ 2× the current accurate mode; full test suite green.
 5. Real-measurement leg: no consistent regression across the corpus.
+6. Light-ink printer (S7): the highlight A2B and B2A medians improve
+   ≥ 25 %, `light_ink.fraction` rises, and `ramp_max_step` ≤ 0.08 (no
+   jumps along the neutral ramp). A change to the separation alone can
+   never move the A2B half — A2B is the model — which is the point: a
+   light-ink win has to come with a model that is accurate where the
+   light inks print (agent E, 2026-09-05).
 
 ## Interpretation rule (data-integrity policy)
 
@@ -51,3 +74,29 @@ from them. The synthetic battery decides ties. The owner's own
 measurements are benchmark smoke tests only; **no constant, threshold or
 curve may ever be tuned against them.** The battery definitions in
 `synthetic.py` are fixed referees — do not tune them against a candidate.
+
+## benchmarks/research (v2, 2026-10-03)
+
+The research benchmark (`python -m benchmarks.research.run`) scores every
+profile through the real CMMs. Each column reads with the kernel that CMM
+itself picks, measured by `benchmarks/research/kernels.py` and pinned by
+`tests/test_benchmarks_research_v2.py`:
+
+| column | A2B 3 inks | A2B 4 inks | A2B 5-8 inks | B2A (Lab PCS) |
+|---|---|---|---|---|
+| `argyll` (`icclu`) | simplex | simplex | N-linear for `nCLR` (the engine's signature), simplex for `MCH6` | N-linear |
+| `lcms` | tetrahedral | linear in ink 1 over tetrahedral | linear over inks 1..n-3, tetrahedral in the last 3 | trilinear |
+| `colorsync` | multilinear | multilinear | multilinear when Quartz loads the profile | multilinear |
+| `multilinear` | multilinear | multilinear | multilinear | multilinear |
+
+So the September reader's multilinear kernel differs from Argyll and
+littleCMS only for 3 and 4 inks; for 6 and 7 inks it is Argyll's kernel.
+
+Measurement simulation (v2): one noisy 1 nm reflectance per patch feeds both
+the XYZ and the SPEC fields, so spectral and colorimetric builds see the same
+noise; the benchmark levels are `typical` and `pessimistic` (calibrated on 45
+real re-read pairs, the latter with whole-strip misreads); a printer's own
+`noise_scale` and `misread_prob` are honoured (S4 = 3x S3's noise). Real
+held-out sets are split by device value so no held-out patch has a duplicate
+in training. The i1Profiler sample data are read from `~/develop/i1Profiler`
+(override: `CHROMIQ_I1PROFILER_DATA`).

@@ -54,6 +54,20 @@ def is_multi_ink(ti3_path: Path | str) -> bool:
     return bool(rep) and rep not in _COLPROF_REPS
 
 
+# colprof's own errors for input-profile options on output data (colprof.c).
+_WP_MODE_ERRORS = {
+    "u": "Input auto WP scale mode isn't applicable to an output device",
+    # "uR" is `-u -R`: the -R half is fine on output data, the -u half is the
+    # one colprof refuses, so it refuses the pair for the same reason and with
+    # the same words. The scanner window strips white-point handling in printer
+    # mode (`effective_adv_vals`), so this is the belt behind that brace.
+    "uR": "Input auto WP scale mode isn't applicable to an output device",
+    "ua": "Force absolute colorimetric isn't applicable to an output device",
+    "uc": "Input cLUT clipping above WP mode isn't applicable to an output "
+          "device",
+}
+
+
 class ExtraArgsError(ValueError):
     """An extra command-line flag the engine parser doesn't know."""
 
@@ -81,8 +95,11 @@ def _apply_extra_args(extra: str, s: BuildSettings) -> None:
         t = toks[i]
         if t == "-v":
             pass
-        elif t.startswith("-l") or t.startswith("-L"):
-            s.ink_limit = float(val(t, t[:2]))
+        elif t.startswith("-l"):
+            s.ink_limit = float(val(t, "-l"))
+        elif t.startswith("-L"):
+            # colprof: -L klimit = BLACK ink limit (0-100 %), not the total.
+            s.black_ink_limit = float(val(t, "-L"))
         elif t.startswith("-r"):
             s.smoothing = float(val(t, "-r"))
         elif t.startswith("-V"):
@@ -157,28 +174,19 @@ def _apply_extra_args(extra: str, s: BuildSettings) -> None:
         elif t.startswith("-D"):
             s.description = val(t, "-D")
         elif t.startswith("-s") or t.startswith("-S"):
+            s.sat_gamut = t.startswith("-S")
             s.source_gamut = val(t, t[:2])
         elif t == "-R":
             s.clip_primaries = True
         elif t.startswith("-u"):
-            s.wp_scale = float(val(t, "-u"))
+            # colprof 3.5.0 refuses every -u form on printer data
+            # ("Input auto WP scale mode isn't applicable to an output
+            # device" — run 2026-09-04 with -u 1.1 and -u1.1); the engine
+            # gives the same answer instead of quietly scaling the white.
+            raise ValueError(_WP_MODE_ERRORS["u"])
         else:
             raise ExtraArgsError(t)
         i += 1
-
-
-# colprof's own errors for input-profile options on output data (colprof.c).
-_WP_MODE_ERRORS = {
-    "u": "Input auto WP scale mode isn't applicable to an output device",
-    # "uR" is `-u -R`: the -R half is fine on output data, the -u half is the
-    # one colprof refuses, so it refuses the pair for the same reason and with
-    # the same words. The scanner window strips white-point handling in printer
-    # mode (`effective_adv_vals`), so this is the belt behind that brace.
-    "uR": "Input auto WP scale mode isn't applicable to an output device",
-    "ua": "Force absolute colorimetric isn't applicable to an output device",
-    "uc": "Input cLUT clipping above WP mode isn't applicable to an output "
-          "device",
-}
 
 
 def settings_from_params(params: "ProfileParams") -> BuildSettings:
@@ -223,6 +231,7 @@ def settings_from_params(params: "ProfileParams") -> BuildSettings:
             params.z_color_mode])),
         z_default_intent=params.z_default_intent,
         source_gamut=params.gamut_src or params.gamut_sat_src or None,
+        sat_gamut=bool(params.gamut_sat_src),      # -S; -s = perceptual only
         perc_src_colorimetric=params.no_perc_gamut,
         sat_src_colorimetric=params.no_sat_gamut,
         inverse_gamut_a2b=params.inv_gamut_map,
@@ -344,6 +353,12 @@ class _EngineThread(QThread):
             "Model fit at the measured patches: median {med:.2f} ΔE, "
             "95% {p95:.2f} ΔE.").format(med=res.fit_median_de,
                                         p95=res.fit_p95_de))
+        # colprof's fit-check line, verbatim in shape: the scanner tool's
+        # misalignment verdict (#108) is built on it, and it now builds
+        # printer profiles through this engine as well.
+        self.line.emit(f"Profile check complete, peak err = "
+                       f"{res.fit_max_de:.6f}, avg err = "
+                       f"{res.fit_mean_de:.6f}")
         if res.perceptual_distinct:
             self.line.emit(tr(
                 "Perceptual and saturation tables built from the gamut "
@@ -353,6 +368,15 @@ class _EngineThread(QThread):
 
 class EngineProfileBuilder:
     """ProfileBuilder-compatible front end for the in-process engine."""
+
+    #: Every builder with a live thread — the Build Profile tab's and the
+    #: scanner tool's alike — so the quit guard asks for any of them
+    #: (reviewer R13: a build started from the scanner tool got no question).
+    _RUNNING: set = set()
+
+    @classmethod
+    def any_running(cls) -> bool:
+        return any(b.is_running for b in list(cls._RUNNING))
 
     def __init__(self, settings=None) -> None:
         self._thread: _EngineThread | None = None
@@ -424,6 +448,7 @@ class EngineProfileBuilder:
         def _released() -> None:
             """Drop our reference only once the thread has really stopped."""
             self._thread = None
+            EngineProfileBuilder._RUNNING.discard(self)
 
         t.done.connect(_finished)
         # ``done`` is emitted from inside the thread's run(), so the QThread is
@@ -437,11 +462,17 @@ class EngineProfileBuilder:
         t.finished.connect(_released)
         t.finished.connect(t.deleteLater)
         on_line(tr("Building with the ChromIQ profile engine (beta)…"))
+        EngineProfileBuilder._RUNNING.add(self)
         t.start()
 
     # ProfileBuilder-parity helpers the finish path may consult ------------
     def primary_failure(self) -> tuple[str, str] | None:
         return ("engine", self._last_error) if self._last_error else None
+
+    def last_output(self) -> str:
+        """What the colprof builder returns as the tool's raw output; the
+        engine has no separate stream, so its last error stands in."""
+        return self._last_error
 
     def captured_warnings(self) -> list[tuple[str, str]]:
         return []

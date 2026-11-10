@@ -34,6 +34,11 @@ permissions:
 env:
   QT_QPA_PLATFORM: offscreen
   ARGYLL_VERSION: '3.5.0'
+  # Research D-07 point 5: the cross-platform engine test
+  # (tests/test_engine_profiles_match_macos_reference_nodes.py) writes every
+  # profile it builds here, and the job uploads the folder, so a node
+  # difference against the stored macOS references can be read afterwards.
+  CHROMIQ_CI_ARTIFACTS: ${{ github.workspace }}/engine-profiles
 
 jobs:
   macos:
@@ -94,7 +99,7 @@ jobs:
         run: |
           set -uo pipefail
           if [ "${{ inputs.slow }}" = "true" ]; then SLOW=--runslow; else SLOW=; fi
-          python -m pytest $SLOW -n auto -q -p no:cacheprovider > pytest-output.txt 2>&1
+          python -m pytest $SLOW -n auto -q -rs -p no:cacheprovider > pytest-output.txt 2>&1
           rc=$?
           tail -n 80 pytest-output.txt
           echo "pytest exit code: $rc"
@@ -106,6 +111,15 @@ jobs:
         with:
           name: pytest-output-${{ matrix.tag }}
           path: pytest-output.txt
+          retention-days: 14
+
+      - name: Keep the engine profiles built by the cross-platform test
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine-profiles-${{ matrix.tag }}
+          path: engine-profiles/
+          if-no-files-found: warn
           retention-days: 14
 
   linux:
@@ -220,7 +234,7 @@ jobs:
         run: |
           set -uo pipefail
           if [ "${{ inputs.slow }}" = "true" ]; then SLOW=--runslow; else SLOW=; fi
-          python -m pytest $SLOW -n auto -q -p no:cacheprovider > pytest-output.txt 2>&1
+          python -m pytest $SLOW -n auto -q -rs -p no:cacheprovider > pytest-output.txt 2>&1
           rc=$?
           tail -n 80 pytest-output.txt
           echo "pytest exit code: $rc"
@@ -232,6 +246,15 @@ jobs:
         with:
           name: pytest-output-linux-${{ matrix.arch }}
           path: pytest-output.txt
+          retention-days: 14
+
+      - name: Keep the engine profiles built by the cross-platform test
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine-profiles-linux-${{ matrix.arch }}
+          path: engine-profiles/
+          if-no-files-found: warn
           retention-days: 14
 
   windows:
@@ -282,7 +305,13 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $zip = "$env:RUNNER_TEMP\argyll.zip"
-          Invoke-WebRequest "https://www.argyllcms.com/Argyll_V$($env:ARGYLL_VERSION)_${{ matrix.argyll_zip }}_exe.zip" -OutFile $zip
+          # Retried: run 37251847063 lost the whole Windows x64 job to one
+          # connection timeout on this download.
+          $url = "https://www.argyllcms.com/Argyll_V$($env:ARGYLL_VERSION)_${{ matrix.argyll_zip }}_exe.zip"
+          for ($i = 1; $i -le 5; $i++) {
+            try { Invoke-WebRequest $url -OutFile $zip -TimeoutSec 300; break }
+            catch { if ($i -eq 5) { throw }; Write-Host "download attempt $i failed: $_"; Start-Sleep -Seconds (30 * $i) }
+          }
           Expand-Archive $zip -DestinationPath "$env:RUNNER_TEMP\argyll"
           $src = Get-ChildItem "$env:RUNNER_TEMP\argyll" -Directory | Select-Object -First 1
           New-Item -ItemType Directory -Force "C:\Program Files\ArgyllCMS" | Out-Null
@@ -336,7 +365,7 @@ jobs:
         run: |
           set -uo pipefail
           if [ "${{ inputs.slow }}" = "true" ]; then SLOW=--runslow; else SLOW=; fi
-          python -m pytest $SLOW -n auto -q -p no:cacheprovider > pytest-output.txt 2>&1
+          python -m pytest $SLOW -n auto -q -rs -p no:cacheprovider > pytest-output.txt 2>&1
           rc=$?
           tail -n 80 pytest-output.txt
           echo "pytest exit code: $rc"
@@ -348,4 +377,13 @@ jobs:
         with:
           name: pytest-output-windows-${{ matrix.arch }}
           path: pytest-output.txt
+          retention-days: 14
+
+      - name: Keep the engine profiles built by the cross-platform test
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine-profiles-windows-${{ matrix.arch }}
+          path: engine-profiles/
+          if-no-files-found: warn
           retention-days: 14

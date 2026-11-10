@@ -25,6 +25,9 @@ builds:
 """
 from __future__ import annotations
 
+import os
+
+import contextlib
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -74,7 +77,686 @@ _CLUT_ONLY_MSG = ("Output profile can only be a cLUT algorithm — "
 # Issue #123 candidate tokens (dark-launched maximum-accuracy successors).
 # Unknown tokens in CHROMIQ_ENGINE_NEXT are ignored with a log line.
 ENGINE_CANDIDATE_TOKENS = frozenset(
-    {"ucs", "joint-sep", "gp", "spectral", "render2"})
+    {"ucs", "joint-sep", "gp", "spectral", "render2", "gpfwd", "b2a33", "b2a33s", "a2bfine", "rgbpos",
+     "rgbcol", "rgbshadow", "no-rgbcol",
+     # Integration 3 off-switches for its new defaults
+     "no-a25-oog", "no-a25-rgbcol", "no-a25-oracle-dev", "no-a25-oracle-neutral",
+     "no-a24-f05", "no-a29-oog-darkmono-floor",
+     "no-a34-blackseam", "no-a35-percblack-blend", "no-a35-oracle-limit",
+     "no-a36-lcms8-safe", "no-a38-noisy-rgb",
+     "no-b2a33s", "no-rgbpos", "no-v4prm",
+     # Agent 15 (D-14 repair), read only together with "gpfwd":
+     "gpwarp", "gpres", "gpclip", "gpsel", "gpkeep", "gplight", "gplight2", "gpdark", "gpsamp",
+     # Agent 17 (research/pe-mustfix): column pin; F-09 v4 PRM black
+     "a17-colpin", "v4prm",
+     # Integration 2: the fin3 GP set as one switch (see GP_FIN3_TOKENS)
+     "fin3", "no-fin3",
+     # Agent 21 (F-14/F-15) and Agent 25 (F-15/F-17), research only:
+     "a21-lightcloud", "a21-lightcloud-all", "a21-clipfix", "a21-lightcloud60",
+     "a25-oog", "a25-clip", "a25-space-ucs", "a25-space-lab",
+     "a25-space-oklab", "a25-space-ipt", "a25-oracle-model",
+     "a25-oracle-dev", "a25-oracle-seed", "a25-oracle-neutral", "a25-rgbcol",
+     # Agent 24 (F-05, 5+ ink mapped-intent black; acts only on >= 5 inks)
+     "a24-f05", "a24-f05walk", "a24-f05min", "a24-f05pin", "a24-f05nopin",
+     # Agent 24 (C-L1, ColorSync-readable A2B L* encoding). The C-S1
+     # spectral tokens ("a24-s1", "a24-s1sprague") are retired: spectra are
+     # integrated by ArgyllCMS's own method (workflow/argyll_colorimetry.py).
+     "a24-l1", "a24-l1scale",
+     # Agent 19 (F-12 extrapolation; opt-in, Integration 3 verdict)
+     "a19-extrap", "a19-order", "a19-bounds",
+     # Agent 29a (cluster 1: black hand-over; <= 4 inks)
+     "a29-blackhandover", "a29-blackhandover-ink",
+     # Agent 29b (cluster 2, monotone a25-oog clip into black; research only)
+     "a29-oog-darkmono", "a29-oog-darkmono-bpc", "a29-oog-darkmono-soft",
+     "a29-oog-darkmono-floor",
+     # Agent 34 (black seam: rate-chosen deep black, axis gaps filled)
+     "a34-blackseam", "a34-blackseam-pin", "a34-blackseam-deepfloor",
+     # Agent 35 (perceptual/saturation black = the colorimetric black,
+     # reached by a hand-over band; research only)
+     "a35-percblack-blend", "a35-percblack-deep",
+     # Agent 35: the colprof oracle runs with the build's ink limits
+     "a35-oracle-limit",
+     # Agent 36: the RGB perceptual column made monotone without plateaus
+     "a36-lcms8-safe",
+     # Agent 38 s6: gentler RGB ramp placement where an exam wants it
+     "a40-knut-grey",
+     # Agent 38: RGB ramp curves kept only where a held-out exam wants them
+     "a38-noisy-rgb",
+     # Agent 42: the near-black hand-over of the B2A tables (curve space
+     # without collapsed ink intervals, the near-black column held)
+     "a42-nearblack",
+     # Agent 44: a42's keep-the-exact-value rule anywhere in the
+     # colorimetric table (in-gamut nodes the refit pulled off)
+     "a44-exactkeep",
+     # Agent 44 round 2: the RGB colorimetric table re-solved as one smooth
+     # field on its own branches where a44 found the refit failed
+     "a44b-smoothexact",
+     # Agent 40: the total ink limit held between the B2A nodes as well
+     # (workflow/profile_engine/tac_guard.py); "no-a40-inklimit" is its
+     # off-switch once it is a default
+     "a40-inklimit", "no-a40-inklimit",
+     # Agent 43: the perceptual hand-over band no wider than the path needs,
+     # and the perceptual black no deeper than the measured data
+     "a43-shadowdetail", "a43-shadowdetail-width",
+     # Agent 51: colprof's colorimetric clip metric (CIECAM02 Jab, LCh
+     # weights J 2 / C 1 / H 2.2, Helmholtz-Kohlrausch); research, opt-in
+     "a51-colprofedge", "a51-colprofedge-band", "a51-colprofedge-nohk",
+     "a51-colprofedge-ownhue", "a51-colprofedge-nofloor",
+     "a51-colprofedge-lab", "a51-colprofedge-soft",
+     # Agent 51: shaper refit with a curvature penalty (xfit-like input
+     # curves; changes the A2B); research, opt-in
+     "a51-shapersmooth",
+     # Agent 51 round 2: a51 with targets below the black moved along their
+     # ray toward the black (no darker-then-lighter); research, opt-in
+     "a51b-colprofedge", "a51-colprofedge-all",
+     # Agent 45: the perceptual dark end C1 and monotone (a C1 B2A curve
+     # space; with the held black, one planned device path to the oracle black)
+     "a45-c1space", "a45-darkend",
+     # Agent 45 round 2: the forward model's shaper refit keeps every ink
+     # interval at least half the identity's slope
+     "a45b-shaperfloor",
+     # Integration 6: the off switches of the new Maximum accuracy defaults
+     "no-a40-knut-grey", "no-a42-nearblack", "no-a43-shadowdetail",
+     "no-a43-shadowdetail-width", "no-a44-exactkeep", "no-a44b-smoothexact",
+     "no-a45-c1space", "no-a45-darkend",
+     # Integration 7: the off switch of a51-colprofedge (RGB devices only)
+     "no-a51-colprofedge",
+     # Integration 8: the off switches of the new Maximum accuracy defaults
+     "no-a58-purecolprof", "no-a58-keep-black", "no-a58-keep-grid33in",
+     "no-a58-keep-floor", "no-a56-blackfade", "no-a58-keep-rgbcol",
+     "no-a58-keep-refit", "no-a58-keep-a44", "no-a58-keep-a42",
+     "no-a58-keep-a40", "no-a60-darkacc", "no-a62-camhue",
+     # Integration 8b: the off switches of its two new defaults
+     "no-a63-palefine", "no-a63-lowgrid",
+     # Integration 9: its defaults (research tokens of Agents 65-71 that
+     # were not registered here), their off switches, and the CMY scope
+     "a66-cmyaxis", "a66-refitguard", "a67-camratio", "a67-guardall-dark",
+     "a67-guardpolish", "a69-cmykport", "a69-cmykport-oog",
+     "a69-cmykport-oogfine", "a70-edgesmooth", "a70-edgeadapt",
+     "a70-foldcap", "a70-blackshell", "a71-darkray", "a72-cmyonly",
+     "a72-max4ink", "no-a72-max4ink",
+     # Agent 75 (int-9 CMYK losses vs colprof; default since integration 10):
+     # a75-lightkeep = the engine's own table back for pale out-of-gamut
+     # colours, CHROMIQ_A75_LIGHT l0:w:c0:cw:chi:chw
+     "a75-lightkeep",
+     "no-a65-cmykhue-bluejab", "no-a66-cmyaxis", "no-a66-refitguard",
+     "no-a67-camratio", "no-a67-guardall-dark", "no-a67-guardpolish",
+     "no-a68-clipkeep", "no-a69-cmykport", "no-a69-cmykport-oog",
+     "no-a69-cmykport-oogfine", "no-a70-edgesmooth", "no-a70-edgeadapt",
+     "no-a70-foldcap", "no-a71-darkray", "no-a72-cmyonly",
+     # Integration 10: the off switches of its new defaults
+     "no-a75-lightkeep", "no-a73-kfirst", "no-a74-foldmeas",
+     "no-a74-kfloor", "no-a74-shellhold", "no-a74-shellhue",
+     # Integration 11: the off switches of its new defaults
+     "no-a78-rgbsmooth", "no-a79-perccol", "no-a79-lincurve",
+     "no-a79-lincurve-col", "no-a80-greywalk", "no-a80-colpin",
+     "no-a80-lincurve", "no-a82-green",
+     # Integration 12: the off switches of its new defaults
+     "no-a84-warmblack", "no-a89-isisgap", "no-a86-knutdark",
+     # Agent 73 (ink test): colprof's -kr K prior for the colorimetric
+     # table on a printer with a strong ink fold and a light C+M+Y black;
+     # default since integration 10
+     "a73-kfirst",
+     # Agent 74: the a71 k-shell (strong ink fold, i1Pro) holds colour
+     # closer to the black (a74-shellhold) and keeps the clip hue while it
+     # fades (a74-shellhue); default since integration 10
+     "a74-shellhold", "a74-shellhue",
+     # Agent 74: with a73-kfirst, near the black the K prior is at least
+     # the K that alone prints the target L* (no heavy rich-black greys on
+     # a folding printer); default since integration 10
+     "a74-kfloor",
+     # Agent 74: a73-kfirst fires only on a MEASURED ink fold (heavy-K
+     # patches with colour print lighter than K alone); default since
+     # integration 10
+     "a74-foldmeas",
+     # Agent 79 (i1iSis smoothness): on a CMYK printer with a MILD ink fold
+     # at the black (cmykport.k_fold finds one, fold_at_black below
+     # A73_FOLD_MIN, so a73-kfirst never fires, and the fold is measured) the perceptual
+     # (B2A0) neutral column keeps the colprof oracle's own device
+     # values instead of the colorimetric axis (a25-oracle-neutral and the
+     # a29/a35/a43/a45 hand-over); default since integration 11
+     "a79-perccol",
+     # Agent 79: on the same mild-fold printers the perceptual B2A0 is written
+     # with identity output curves (same device value at every node; the CMM
+     # interpolates in device values, not in the model's sparse-data shaper
+     # space); default since integration 11
+     "a79-lincurve",
+     # Agent 79: the same for the colorimetric B2A1 (separate: on i1iSis it
+     # smooths the rel. col. ramps by the numbers but the eyecheck is mixed,
+     # proxy -4 / rbf +4 defects near black); default since integration 11
+     "a79-lincurve-col",
+     # Agent 80 (grey ramps near black): on a CMYK printer with a MEASURED
+     # ink fold whose neutral walk jumps from the C/M/Y-heavy ink-limit
+     # face to the K-led black, the dark end of the walk is re-walked K
+     # first (b2a.a80_rewalk); default since integration 11
+     "a80-greywalk",
+     # Agent 80: where a80-greywalk fired, identity B2A0/B2A1 output curves
+     # (a79-lincurve's re-encoding); default since integration 11
+     "a80-lincurve",
+     # Agent 80: on a measured-fold CMYK printer the B2A1 neutral column is
+     # put back exactly after the smoothing refit (a17-colpin there);
+     # default since integration 11
+     "a80-colpin",
+     # Agent 80: where a80-greywalk fired, the perceptual B2A0 is stored in
+     # colprof's own output-curve space; research, opt-in
+     "a80-oraclecurve",
+     # Agent 80: where a80-greywalk fired, the perceptual neutral column is
+     # a79-perccol's (colprof's separation made neutral); research, opt-in
+     "a80-perccol",
+     # Agent 84: on a CMYK printer with a mild measured ink fold (a79's
+     # gate), the forward fit keeps clustered dark patches the robust fit
+     # had rejected as misreads (real i1iSis: warm hues into black);
+     # default since integration 12
+     "a84-warmblack",
+     # Agent 84: the refit is the build's model for every table (the first
+     # a84 arm: A2B held-out -18 %, but the perceptual / saturation greys
+     # and some rel. col. rows move); research, opt-in
+     "a84-warmblack-all",
+     # Agent 89: with a84-warmblack, the dark re-clip leaves the nodes where
+     # neither clip uses black (the C+M edge: dark sRGB blue, where the
+     # nudge made a71's dark ray add black mid-ramp); default since
+     # integration 12
+     "a89-isisgap",
+     # Agent 56 (D-30 part 1): RGB with a51 on: the chroma of a clip target
+     # lifted to the dark floor fades C1 with its depth below the black, at
+     # colprof's own per-hue rate; research, opt-in
+     "a56-blackfade",
+     # Agent 58: the RGB colorimetric B2A1 exactly as colprof builds it
+     # (per-node inversion, Argyll's CAM clip, no additions); the
+     # a58-keep-<step> tokens give one engine addition back each
+     "a58-purecolprof", "a58-keep-black", "a58-keep-floor",
+     "a58-keep-ourclip", "a58-keep-rgbcol", "a58-keep-refit",
+     "a58-keep-a44", "a58-keep-a42", "a58-keep-a40", "a58-keep-grid33",
+     "a58-keep-grid33in",
+     # Agent 59 (ET rel. col.): on top of a58 + keep-grid33in, a wider
+     # hand-over band, the coarse clipped table from the per-node inversion,
+     # and a longer ease into the deep black; research, opt-in
+     "a59-wideband", "a59-pernodeout", "a59-pernodefine", "a59-blackease",
+     "a59-inband", "a60-darkfine", "a60-darkrel", "a60-darkclip",
+     # Agent 60: dark in-gamut accuracy on v-noclip (fine grid and the
+     # engine's own clip near the black); research, opt-in
+     "a60-darkacc",
+     # Agent 62: a target lifted to the black floor keeps its CIECAM02 hue
+     # (the violet patch near the black on blue ramps); research, opt-in
+     "a62-camhue",
+     # Agent 63: pale in-gamut accuracy near the paper white (the fine grid
+     # kept there, the mirror of a60-darkacc); research, opt-in
+     "a63-palefine",
+     # Agent 63: at quality l the keep-grid33in coarse table is never
+     # coarser than colprof's -qm grid 17; research, opt-in
+     "a63-lowgrid",
+     # Agent 65: ink devices' colorimetric clip measures hue along colprof's
+     # CIECAM02 (or IPT) hue lines instead of Oklab's; research, opt-in
+     "a65-cmykhue", "a65-cmykhue-ipt", "a65-cmykhue-pass2",
+     "a65-cmykhue-jab", "a65-cmykhue-iptspace", "a65-cmykhue-jabdark",
+     "a65-cmykhue-bluejab", "a65-cmykhue-bluejabdark",
+     # Agent 68: the RGB colorimetric refit may not throw a clipped node far
+     # off its own clip (Knut's spring-green spot); research, opt-in
+     "a68-clipkeep",
+     # Agent 78: the RGB colorimetric table's clipped coarse nodes smoothed
+     # along L* (purecolprof.a78_smooth; colour-to-black ramps turn into
+     # black without a knee); a78-rgbsmooth default since integration 11
+     # (gated: Knut's folded response only), a78-rgbsmooth-all opt-in
+     "a78-rgbsmooth", "a78-rgbsmooth-all",
+     # Agent 82: RGB colorimetric greens, clipped nodes near the black (fine
+     # table) and at the green cusp (coarse table) smoothed
+     # (purecolprof.a82_dark / a82_coarse); a82-green default since
+     # integration 11, a82-greencusp and a82-greenin opt-in
+     "a82-green", "a82-greencusp", "a82-greenin",
+     # Agent 85: RGB colorimetric neutral column below the darkest printable
+     # neutral re-solved in CIELAB, so rel. col. + black point compensation
+     # reaches the black point on a tinted black (purecolprof.a85_bpcblack);
+     # research, opt-in
+     "a85-bpcblack",
+     # Agent 86: RGB perceptual / saturation neutral column near the black
+     # takes the colprof oracle's own device values where the oracle's A2B
+     # says the engine's darkest steps merge (Knut's laser; gamut_map
+     # a86_knutdark); default since integration 12
+     "a86-knutdark",
+     # Agent 88: how deep the RGB colorimetric neutral shadows go on a tinted
+     # black, three levels: no token = Neutral (int-11), a88-black-balanced
+     # (cast within one just-noticeable step), a88-black-deepest (the
+     # printer's own black, a85 made safe; purecolprof.a88_black); off by
+     # default. Since integration 12 a88-black-deepest is the build option
+     # BuildSettings.black_depth = "deepest" (BLACK_DEPTH_TOKENS);
+     # a88-black-balanced stays research only
+     "a88-black-balanced", "a88-black-deepest"})
+
+# Research integration 1 (2026-10-04, orchestrator after Agent 13's design
+# challenge, Validation/agent13-01): Maximum accuracy builds with these two
+# of Agent 3's candidates ON by default. "b2a33s" = the B2A table at grid 33
+# or finer with the refit samples scaled to it (held up in Agent 13's uneven
+# printers, Ghostscript and lcms); "rgbpos" = mirrored ramp positioning
+# curves for RGB devices. "no-b2a33s" / "no-rgbpos" switch one off again for
+# research ablations. "gpfwd" and "a2bfine" (the GP layer) stay OFF: on
+# uneven printers the GP made the B2A worse than b2a33s alone on 6/6
+# builds, beyond the ink limit A2B p95 went from 2.4 to 11-25 dE00, and its
+# highlight results depended on the chart. Fast and Bit-exact never read
+# candidates.
+# Integration 2 (D-19, 2026-10-05): "v4prm" ON too: the v4 container's
+# perceptual/saturation tables follow ICC.1:2022 Table 16 (F-09); the v2
+# file is untouched. "no-v4prm" switches it off for research.
+# Integration 3 (D-20, 2026-10-06): "rgbcol" ON too. Research F-13 (Agent
+# 20, Findings/agent20-01): it holds an RGB printer's neutral column below
+# the device black AT the black through the B2A refit (the grey ramp no
+# longer turns lighter in the deep shadows). "no-rgbcol" for ablations.
+# Integration 3 (2026-10-06, Integrator 5 verdicts in
+# ProfileEngineResearch/Findings/agent26-01-integration3.md; D-17 with D-24):
+# ON as well: "a25-oog" (F-15/F-17 out-of-gamut clip; carries Agent 21's
+# L* >= 60 light seeds, i.e. "a21-lightcloud60", on ink devices; D-24 without
+# blend_light), "a25-rgbcol" (RGB in-gamut neutral column anchored),
+# "a25-oracle-dev" + "a25-oracle-neutral" (F-16/F-18 perceptual and
+# saturation tables, <= 4 inks), "a24-f05" (F-05 mapped-intent black,
+# only 5+ inks). ("a24-s1", C-S1 spectral illuminants by spline, was ON here
+# until the engine came into master: master integrates spectra by ArgyllCMS's
+# own method for every illuminant, so the token is retired.) Opt-in only: "a24-l1" (C-L1), "a19-extrap" (F-12). Each has
+# a "no-<token>" switch for ablations.
+# Integration 4 (2026-10-06, Integrator 6, Findings/agent33-01-integration4.md;
+# factorial verdict Findings/agent31-01-factorial.md s3.4, D-17/D-25): ON as
+# well: "a29-oog-darkmono-floor" (Agent 29b/31: the a25-oog clip may not aim
+# below the black the colorimetric neutral column ends at; no safety loss vs
+# the integration-3 engine, SWOP C3/C5 and CMYK-default ramp reversals gone).
+# Opt-in only: "a29-blackhandover-ink" (i1Pro neutral reversals 5 -> 14),
+# "a29-blackhandover" (its RGB part made contour edges) and the other
+# a29-oog-darkmono variants (plain, -soft, -bpc: dark-blue contours); an
+# explicitly requested variant wins over the default floor (b2a
+# set_research_tokens). "no-a29-oog-darkmono-floor" switches it off.
+# Agent 35 (2026-10-06, Findings/agent35-01-percblack.md, Agent 34's verdict
+# Findings/agent34-01-blackseam.md s5.4): ON as well: "a34-blackseam" (the
+# deep black chosen by L* bought per C* of tint, axis gaps filled along
+# their branch, clip floor at the neutral black). It replaces
+# a29-blackhandover-ink as the black rule (a34 wins when both are given).
+# "no-a34-blackseam" switches it off; -pin and -deepfloor stay opt-in.
+# Agent 35 battery verdict (Findings/agent35-01-percblack.md s6, D-26):
+# ON as well: "a35-percblack-blend" (perceptual and saturation end at the
+# colorimetric black, neutral down to the neutral black, smoothstep
+# hand-over in the last L*) and "a35-oracle-limit" (the colprof oracle with
+# the build's ink limits; a bug fix). "a35-percblack-deep" stays opt-in
+# (it wins over blend when given). "no-a35-percblack-blend" and
+# "no-a35-oracle-limit" switch them off.
+# Agent 36 verdict (Findings/agent36-01-lcms8.md s5): ON as well:
+# "a36-lcms8-safe" (the RGB perceptual neutral column is made monotone by a
+# bridge, not a running minimum, so no plateau reaches lcms2's 8-bit
+# prelinearisation). "no-a36-lcms8-safe" switches it off.
+# Integration 5 (2026-10-07, Integrator 7, Findings/agent39-01-integration5.md;
+# verdict Findings/agent38-01-knut-laser.md s5.4): ON as well:
+# "a38-noisy-rgb", rule v2 (noisyrgb.decide(strict=True)): on RGB charts a
+# five-fold held-out exam drops the "rgbpos" ramp curves only when they are
+# clearly WORSE than no curves; otherwise the build is the default build byte
+# for byte. Of the 19 battery RGB charts it drops them on R-ET8550 only (real
+# verify sheet overall 0.522 -> 0.489, darks 0.718 -> 0.617). v1 (drop unless
+# clearly better) doubled the A2B error on the misread-heavy t400 charts and is
+# NOT the default. "no-a38-noisy-rgb" switches it off.
+# Integration 6 (2026-10-08, Integrator 8, Findings/agent47-01-integration6.md;
+# rulings ProfileEngineResearch/RESUME.md s51-52, D-28): ON as well:
+# "a40-inklimit" (Agent 40: the total ink limit held between the B2A nodes,
+# tac_guard.py, the last step before writing), "a42-nearblack" (Agent 42: the
+# B2A near-black hand-over, curve space without collapsed ink intervals),
+# "a43-shadowdetail-width" (Agent 43: the perceptual hand-over band no wider
+# than the path needs; a bug fix) and "a43-shadowdetail" (the perceptual black
+# held at the darkest measured patch, Basti's choice D-28), "a40-knut-grey"
+# (Agent 38 s6: gentler RGB ramp placement), "a44-exactkeep" (Agent 44:
+# in-gamut colorimetric nodes keep their exact inversion), "a44b-smoothexact"
+# (Agent 44 v2: the RGB colorimetric table re-solved smooth on its own
+# branches), "a45-c1space" and "a45-darkend" (Agent 45: the perceptual dark
+# end C1 and monotone with the held black). Opt-in only: "a45b-shaperfloor"
+# (rel. col. safety losses on i1iSis). Each has a "no-<token>" switch.
+# Integration 7 (2026-10-10, Integrator 9, Findings/agent52-01-integration7.md;
+# Agent 51 verdict, RESUME s58): ON as well "a51-colprofedge" (colprof's
+# CIECAM02 Jab clip metric for the colorimetric B2A; RGB devices ONLY, ink
+# devices need the opt-in "a51-colprofedge-all"; "a51b-colprofedge" dropped).
+# Switch: "no-a51-colprofedge".
+# Integration 8 (2026-10-14, Agent 62, Findings/agent62-01-violet-int8.md;
+# Agents 58, 60, 62): the RGB colorimetric B2A1 on colprof's recipe with the
+# engine's additions kept except its own clip metric ("v-noclip": a58-
+# purecolprof and the a58-keep-* tokens below, with a56-blackfade), the dark
+# in-gamut accuracy fix a60-darkacc, and a62-camhue (a target lifted to the
+# dark floor keeps its CIECAM02 hue). All act on RGB Maximum accuracy only
+# (purecolprof.applies; a56/a62 only where a51 acts); CMYK builds unchanged.
+# Each has a "no-<token>" switch; "no-a58-purecolprof" alone gives int-7's
+# table back with a56-blackfade and a62-camhue still acting in its clip.
+INT8_TOKENS = frozenset({
+    "a58-purecolprof", "a58-keep-black", "a58-keep-grid33in",
+    "a58-keep-floor", "a56-blackfade", "a58-keep-rgbcol", "a58-keep-refit",
+    "a58-keep-a44", "a58-keep-a42", "a58-keep-a40", "a60-darkacc",
+    "a62-camhue"})
+# Integration 8b (2026-10-14, Agent 63, Findings/agent63-01-pale.md): the
+# keep-grid33in hand-over keeps the fine table near the paper white
+# (a63-palefine, the light-end mirror of a60-darkacc: int-8 printed pale
+# in-gamut colours about twice as far off as int-7), and at quality l the
+# coarse table is never coarser than colprof's -qm grid 17 (a63-lowgrid).
+# RGB Maximum accuracy B2A1 only; each has a "no-<token>" switch.
+INT8B_TOKENS = frozenset({"a63-palefine", "a63-lowgrid"})
+# Integration 9 (2026-10-20, Agent 72, Findings/agent72-01-integration9.md;
+# Basti's eye verdicts RESUME.md s66-s73): ON as well
+#   CMYK (4 inks): a65-cmykhue-bluejab (the colorimetric clip measures hue in
+#     CIECAM02 Jab inside the blue hue window; it acts on every ink device,
+#     CMY included), a69-cmykport + a69-cmykport-oog + a69-cmykport-oogfine
+#     (colprof's per-node clip recipe for the clipped CMYK nodes, the
+#     engine's table where printable), a70-edgesmooth + a70-edgeadapt (the
+#     slope break at the gamut edge of colour-to-black ramps softened),
+#     a70-foldcap (printers whose inks lighten the black), a71-darkray (the
+#     dark end below the black; replaces a70-blackshell, which stays off);
+#   CMY (3 inks, no black): a66-cmyaxis (neutral axis, column and dark
+#     floor), and INT9_CMY_TOKENS below;
+#   RGB: a68-clipkeep (a clipped node keeps its clip where the refit throws
+#     it far off, on a folded response such as Knut's printer).
+# Agent 73 (a73-kfirst): the fold test. Colour ink on solid K must lighten
+# it by this much (cmykport.fold_at_black: i1iSis 1, fitted XFI 0.9, i1Pro
+# 5, fitted XFP 3.0) AND the C+M+Y black under the limit be this much
+# lighter than solid K (XFP / i1Pro 9.8, XFI / i1iSis 3.4).
+A73_FOLD_MIN = 2.0
+A73_CMYGAP_MIN = 6.0
+A74_FOLDMEAS_MIN = 1.0
+# Agent 84 (research, off): see the forward-fit block of _build_profile_impl.
+A84_WARMBLACK = "a84-warmblack"
+A84_WARMBLACK_ALL = "a84-warmblack-all"
+# Agent 89 (research, off; needs a84-warmblack): see the a84 dark re-clip.
+A89_ISISGAP = "a89-isisgap"
+
+
+def _a84_gp_layer(meas, stiff, candidates, settings, lam, curve_rounds,
+                  use_ucs, n):
+    """Agent 84 (a84-warmblack): the build's GP layer (fin3: gpsel / gpwarp,
+    gpclip taper, projection) on the refit ``stiff`` model, with the
+    clustered misfits kept in the GP's Huber weights and held-out folds.
+    The stiff refit when the GP layer does not apply."""
+    if not gp_forward_applies(candidates, is_additive=meas.is_additive,
+                              n_channels=n, n_patches=len(meas.device)):
+        return stiff
+    from workflow.profile_engine import gpfwd, gpsel
+    from workflow.profile_engine.metrics import delta_e_2000 as _de
+    model = stiff
+    gpsel.A84_KEEP_CLUSTERS = True
+    try:
+        if not ({"gpwarp", "gpsel"} & candidates):
+            gpm = gpfwd.fit_gp_forward(meas.device, meas.lab_relative, _de,
+                                       row_weights=meas.row_weights,
+                                       ref_pred=model.predict(meas.device))
+        else:
+            gpm = _agent15_gp(meas, model, candidates, settings, lam,
+                              curve_rounds, use_ucs, _de)
+    finally:
+        gpsel.A84_KEEP_CLUSTERS = False
+    if gpm is not None and "gpclip" in candidates:
+        gpm = gpsel.Tapered(
+            gpm, model, float(meas.device.sum(1).max()),
+            light=(gpsel.light_scale(meas.device)
+                   * (2.0 if "gplight2" in candidates else 1.0)
+                   if {"gplight", "gplight2"} & candidates else None),
+            dark=(15.0, 30.0) if "gpdark" in candidates else None)
+    if gpm is not None:
+        model = gpfwd.project_to_table(
+            gpm, model, lam, fine="a2bfine" in candidates, anchor_rel=0.1,
+            keep_curves="gpkeep" in candidates,
+            shaped_samples="gpsamp" in candidates)
+    return model
+INT9_TOKENS = frozenset({
+    "a65-cmykhue-bluejab", "a66-cmyaxis", "a68-clipkeep", "a69-cmykport",
+    "a69-cmykport-oog", "a69-cmykport-oogfine", "a70-edgesmooth",
+    "a70-edgeadapt", "a70-foldcap", "a71-darkray"})
+# a67-camratio (colprof's Jab chroma : lightness balance per target),
+# a67-guardall-dark + a67-guardpolish (the B2A refit no longer pulls dark
+# near-surface nodes too dark) passed Basti's eye on CMY ONLY and were
+# rejected on CMYK (2026-10-16). The two guard tokens act only through
+# a66-refitguard (b2a.refine_b2a_clut), which is therefore part of the set:
+# the CMY candidate Basti judged (Agent 67's cmy-gpcr) had it on. On by
+# default, but while "a72-cmyonly" is in the set (the default) they are
+# taken out of every build that is not a 3-channel ink device;
+# "no-a72-cmyonly" gives back Agent 67's research behaviour (all ink
+# devices), "no-<token>" switches one off.
+INT9_CMY_TOKENS = frozenset({
+    "a66-refitguard", "a67-camratio", "a67-guardall-dark",
+    "a67-guardpolish"})
+A72_CMY_ONLY = "a72-cmyonly"
+# a65-cmykhue-bluejab acts on every ink device in the code, but it was
+# measured and judged on CMYK (Agent 65) and CMY (Agent 67's cmy-gpcr) only;
+# on 5-7 inks it moved the X5 B2A1 unvalidated (integration 9 check (c)).
+# While "a72-max4ink" is in the set (the default) it acts on 3- and 4-channel
+# ink devices only; "no-a72-max4ink" lets it act on 5+ inks as before.
+INT9_MAX4_TOKENS = frozenset({"a65-cmykhue-bluejab"})
+A72_MAX4_INK = "a72-max4ink"
+# Integration 10 (2026-10-23, Agent 76, Findings/agent76-01-integration10.md;
+# Basti's eye verdicts RESUME.md s76-s77): ON as well, CMYK (4 inks, K the
+# 4th channel) Maximum accuracy only (every one acts inside the a69 port
+# branch or behind the n == 4 ink-fold test):
+#   a75-lightkeep (pale out-of-gamut nodes take the engine's own table back
+#     from the a69 port, keeping their lightness; CHROMIQ_A75_LIGHT default
+#     72:24:16:6:45:15:0.8);
+#   a73-kfirst + a74-foldmeas (colprof's -kr K prior for the colorimetric
+#     table on a printer with a MEASURED strong ink fold and a light C+M+Y
+#     black; a70-foldcap off there), a74-kfloor (near the black the K prior
+#     is at least K alone), a74-shellhold (a71 k-shell cmax 60, the smoother
+#     default; the stronger cmax 50 stays off) and a74-shellhue (moved
+#     nodes keep their clip hue), the shell tokens on a measured fold only.
+# Each has a "no-<token>" switch.
+INT10_TOKENS = frozenset({
+    "a75-lightkeep", "a73-kfirst", "a74-foldmeas", "a74-kfloor",
+    "a74-shellhold", "a74-shellhue"})
+# Integration 11 (2026-10-26, Agent 83, Findings/agent83-01-integration11.md;
+# Basti's eye verdicts RESUME.md s80-s84): ON as well, Maximum accuracy only,
+# each gated where it was judged:
+#   a78-rgbsmooth (RGB rel. col.: clipped coarse nodes smoothed along L*,
+#     gate median L* bend >= 0.04: Knut's folded response only; the ungated
+#     a78-rgbsmooth-all stays off);
+#   a79-perccol + a79-lincurve + a79-lincurve-col (CMYK 4 inks with a mild,
+#     measured ink fold: perceptual neutral column from the colprof oracle
+#     made neutral, identity B2A output curves; real i1iSis);
+#   a80-greywalk + a80-colpin + a80-lincurve (CMYK 4 inks with a measured
+#     fold whose neutral walk jumps: dark end re-walked K first, column pinned
+#     after the refit, identity curves; the research a80-oraclecurve and
+#     a80-perccol stay off);
+#   a82-green (RGB rel. col.: slightly clipped green nodes near the black
+#     smoothed; a82-greencusp and a82-greenin stay off).
+# Each has a "no-<token>" switch.
+INT11_TOKENS = frozenset({
+    "a78-rgbsmooth", "a79-perccol", "a79-lincurve", "a79-lincurve-col",
+    "a80-greywalk", "a80-colpin", "a80-lincurve", "a82-green"})
+# Integration 12 (2026-11-10, Agent 93, Findings/agent93-01-integration12.md;
+# Basti passed all three, RESUME.md s86/s88/s91 and the 2026-11-10 decisions):
+# ON as well, Maximum accuracy only, each behind its own gate:
+#   a84-warmblack (CMYK 4 inks with a mild measured ink fold, a79's gate:
+#     the forward fit keeps clustered dark patches the robust fit rejected
+#     as misreads and re-clips the dark clipped B2A1 nodes with that refit;
+#     real i1iSis: warm hues into black);
+#   a89-isisgap (with a84-warmblack: the re-clip leaves nodes where neither
+#     clip uses black, so dark blue keeps integration 11's shape);
+#   a86-knutdark (RGB perceptual / saturation neutral column near the black
+#     takes the colprof oracle's devices where the oracle's own A2B says the
+#     engine's darkest steps merge; Knut's laser).
+# Each has a "no-<token>" switch. a84-warmblack-all, a85-bpcblack and
+# a88-black-balanced stay research only.
+INT12_TOKENS = frozenset({"a84-warmblack", "a89-isisgap", "a86-knutdark"})
+ACCURATE_DEFAULT_TOKENS = frozenset({
+    "b2a33s", "rgbpos", "v4prm", "rgbcol",
+    "a25-oog", "a25-rgbcol", "a25-oracle-dev", "a25-oracle-neutral",
+    "a24-f05", "a29-oog-darkmono-floor", "a34-blackseam",
+    "a35-percblack-blend", "a35-oracle-limit", "a36-lcms8-safe",
+    "a38-noisy-rgb",
+    "a40-inklimit", "a42-nearblack", "a43-shadowdetail-width",
+    "a43-shadowdetail", "a40-knut-grey", "a44-exactkeep",
+    "a44b-smoothexact", "a45-c1space", "a45-darkend",
+    "a51-colprofedge"}) | INT8_TOKENS | INT8B_TOKENS | INT9_TOKENS \
+    | INT9_CMY_TOKENS | {A72_CMY_ONLY, A72_MAX4_INK} | INT10_TOKENS \
+    | INT11_TOKENS | INT12_TOKENS
+
+# Integration 12: the black-depth build option (Basti, 2026-11-08/09: two
+# levels, Neutral the default). BuildSettings.black_depth picks one; the
+# token it maps to is added by effective_engine_candidates() for Maximum
+# accuracy builds only. "neutral" = no token = integration 11's colorimetric
+# table; "deepest" = a88-black-deepest (Findings/agent88-01-deepblack.md):
+# only the Rel./Abs. Colorimetric B2A1 table changes, and only on a printer
+# whose black is tinted (darkest printable neutral >= 1.5 L* above the
+# device black); Perceptual and Saturation are unchanged.
+BLACK_DEPTH_TOKENS = {"neutral": None, "deepest": "a88-black-deepest"}
+
+
+def black_depth_token(black_depth) -> str | None:
+    """The engine token for a BuildSettings.black_depth value ("" or None
+    count as "neutral"); ValueError for anything else."""
+    key = (black_depth or "neutral").strip().lower()
+    if key not in BLACK_DEPTH_TOKENS:
+        raise ValueError(f"black_depth must be one of "
+                         f"{sorted(BLACK_DEPTH_TOKENS)}, not {black_depth!r}")
+    return BLACK_DEPTH_TOKENS[key]
+
+
+def scope_device_tokens(candidates, *, n: int, is_additive: bool) -> frozenset:
+    """Integration 9: with "a72-cmyonly" in the set, INT9_CMY_TOKENS act on
+    a 3-channel ink device (CMY) only; with "a72-max4ink", INT9_MAX4_TOKENS
+    act on ink devices of at most 4 channels only. Without the scope token
+    its tokens are left as they are."""
+    candidates = frozenset(candidates)
+    if A72_CMY_ONLY in candidates and (is_additive or n != 3):
+        candidates = candidates - INT9_CMY_TOKENS
+    if A72_MAX4_INK in candidates and not is_additive and n > 4:
+        candidates = candidates - INT9_MAX4_TOKENS
+    return candidates
+
+
+# Research integration 2 (2026-10-05): Agent 15's repaired GP layer
+# (Findings/agent15-01 s11, "fin3"). It acts ONLY through the gpfwd branch,
+# which gp_forward_applies() opens for ink devices of at most
+# GP_FORWARD_MAX_INKS (4) inks with >= 75 patches per ink; on RGB and on
+# 5+ inks every one of these tokens is inert. "fin3" asks for the whole set,
+# "no-fin3" removes it. GP_FIN3_DEFAULT_ON: True since the safety-row
+# verification (Validation/fin3-neutral-chroma-10seed.md: 80/80 builds, all
+# 60 grey-axis rows TIE over 10 paired seeds, every non-zero difference in
+# fin3's favour, no reversal) cleared D-17 2c. Still <= 4 inks only.
+GP_FIN3_TOKENS = frozenset({"gpfwd", "gpsel", "gpwarp", "gpclip", "gplight2",
+                            "gpdark", "a2bfine", "gpkeep"})
+GP_FIN3_DEFAULT_ON = True
+
+
+def darkmono_clip_floor(axis, model, *, is_additive: bool, n: int,
+                        neutral: bool = False):
+    """Agent 29b / 31: the L* the a29-oog-darkmono clip may not aim below.
+
+    The black the colorimetric table's neutral column ends at: on an ink
+    device ``axis["l_black"]``, read after any a29 black hand-over has
+    replaced the axis (so the deep, slightly tinted black, not
+    ``axis["neutral_l_black"]``); on RGB without an axis the L* of device
+    RGB 0. None when neither applies.
+    """
+    if neutral and axis is not None and axis.get("handover"):
+        return float(axis["neutral_l_black"])
+    if axis is not None and axis.get("l_black") is not None:
+        return float(axis["l_black"])
+    if is_additive and n == 3:
+        return float(model.predict(np.zeros((1, n)))[0, 0])
+    return None
+
+def _a21_cached_fit(fn):
+    import hashlib
+    import pickle
+    from pathlib import Path as _P
+
+    def wrapped(device, lab, **kw):
+        h = hashlib.sha256()
+        for a in (device, lab, kw.get("row_weights")):
+            if a is not None:
+                h.update(np.ascontiguousarray(a, float).tobytes())
+        h.update(repr(sorted((k, v) for k, v in kw.items()
+                             if k not in ("progress", "row_weights"))).encode())
+        d = _P(os.environ["CHROMIQ_A21_FIT_CACHE"])
+        d.mkdir(parents=True, exist_ok=True)
+        f = d / f"fit-{h.hexdigest()[:32]}.pkl"
+        if f.exists():
+            return pickle.loads(f.read_bytes())
+        out = fn(device, lab, **kw)
+        f.write_bytes(pickle.dumps(out))
+        return out
+    return wrapped
+
+# a19-extrap: weight of the interaction-order penalty relative to the fit's
+# lambda (agent 19; X5 and X7 re-solves: about lambda / 3 wins every
+# extrapolation row, larger starts to bend real three-ink structure).
+A19_ORDER_MU = 0.3
+
+
+def pin_black_cell(b2a: bytes, black_lab) -> bytes:
+    """A copy of the Lab-PCS B2A lut16 ``b2a`` whose eight nodes around
+    ``black_lab`` (the Lab of the device black) all hold the value of the
+    L* 0 corner, which the engine pins to the device black. A CMM that asks
+    for the device's own black Lab (lcms with black point compensation does,
+    for the perceptual intents) then gets the black back instead of an
+    interpolation with clipped neighbour nodes."""
+    from workflow.profile_engine.v4_prm import parse_mft2
+    t = parse_mft2(b2a)
+    g = t["grid"]
+    ls, ab = icw.lab_grid_axes(g)
+    i0 = int(np.argmin(np.abs(ab)))
+    clut = np.array(t["clut"]).reshape(g, g, g, t["n_out"])
+    black = clut[0, i0, i0, :].copy()
+
+    def cell(axis, v):
+        k = int(np.floor(np.interp(v, axis, np.arange(g))))
+        return slice(max(0, min(k, g - 2)), max(0, min(k, g - 2)) + 2)
+    lab = np.asarray(black_lab, float)
+    clut[cell(ls, lab[0]), cell(ab, lab[1]), cell(ab, lab[2]), :] = black
+    return icw.make_mft2(3, t["n_out"], g, clut.reshape(-1, t["n_out"]),
+                         in_tables=t["in"], out_tables=t["out"])
+
+
+def accurate_candidates(tokens) -> frozenset:
+    """The candidate set a Maximum accuracy build runs with: the requested
+    tokens plus ACCURATE_DEFAULT_TOKENS (plus GP_FIN3_TOKENS when "fin3" is
+    asked for or GP_FIN3_DEFAULT_ON), minus every "no-<token>"."""
+    tokens = frozenset(tokens or ())
+    off = {t[3:] for t in tokens if t.startswith("no-")}
+    on = tokens | ACCURATE_DEFAULT_TOKENS
+    if ("fin3" in tokens or GP_FIN3_DEFAULT_ON) and "fin3" not in off:
+        on = on | GP_FIN3_TOKENS
+    return frozenset(t for t in on
+                     if not t.startswith("no-") and t != "fin3"
+                     and t not in off)
+
+
+def effective_engine_candidates(settings) -> frozenset:
+    """The ONE place a build's token set is resolved for every consumer
+    (Agent 28, 2026-10-06). Maximum accuracy: accurate_candidates() of the
+    requested tokens, i.e. defaults + requested - opt-outs, with the
+    "no-<token>" markers kept so that resolving the result again gives the
+    same set (accurate_candidates is idempotent on it). Every other mode:
+    the empty set (candidates only ever modify the Maximum accuracy
+    pipeline, #123).
+
+    Before this, _build_profile_impl resolved the set into a LOCAL variable
+    while gamut_map.py and gammap_port/wire.py read the RAW requested
+    settings.engine_candidates, so the default-on tokens a25-oracle-dev,
+    a25-oracle-neutral and a24-f05 never reached the perceptual/saturation
+    tables (Agent 27, Findings/agent27-01 s3.1)."""
+    raw = frozenset(getattr(settings, "engine_candidates", None) or ())
+    if getattr(settings, "gammap_mode", "") != "accurate":
+        return frozenset()
+    # Integration 12: the black-depth option (BLACK_DEPTH_TOKENS)
+    bt = black_depth_token(getattr(settings, "black_depth", "neutral"))
+    if bt is not None:
+        raw = raw | {bt}
+    return accurate_candidates(raw) | {t for t in raw if t.startswith("no-")}
+
+
+def _with_effective_candidates(settings):
+    """A copy of settings whose engine_candidates is the effective set (the
+    caller's object is left as it was)."""
+    import dataclasses
+    eff = effective_engine_candidates(settings)
+    if eff == frozenset(settings.engine_candidates or ()):
+        return settings
+    return dataclasses.replace(settings, engine_candidates=eff)
+
+
+def _process_ink_hues(meas) -> dict:
+    """Measured hue of the C, M, Y solids (research token a14-ecgsep)."""
+    out = {}
+    lab = meas.lab_relative
+    for i, letter in enumerate(meas.channel_letters[:3]):
+        others = np.delete(meas.device, i, axis=1)
+        solid = (meas.device[:, i] >= 0.85) & (others.max(1) <= 0.05)
+        if solid.any():
+            a, b = lab[solid, 1].mean(), lab[solid, 2].mean()
+            out[letter] = float(np.degrees(np.arctan2(b, a)) % 360.0)
+    return out or None
 
 
 def candidates_from_env(env_value: str | None) -> frozenset:
@@ -83,6 +765,74 @@ def candidates_from_env(env_value: str | None) -> frozenset:
         return frozenset()
     return frozenset(t.strip() for t in env_value.split(",")
                      if t.strip() in ENGINE_CANDIDATE_TOKENS)
+
+
+# Agent 3's GP forward model ("gpfwd", and "a2bfine", which only acts inside
+# its projection) is for ink devices of AT MOST 4 inks (integration 1,
+# 2026-10-04). On 5-7 inks it degrades the single-ink ramps (Agent 14
+# interim: X5 ramp A2B median 1.2-1.8 dE00 against 0.1-0.4 with the shipped
+# forward fit; the battery's multi-ink charts are 71-89 % all-inks-on patches,
+# so E1 did not see it), and on 7 inks its 5^7 lattice adds nothing to the
+# A2B and hurts the B2A (agent3-01 section 14). 5+ inks keep the shipped
+# forward fit; "b2a33s" does not depend on the GP and still applies.
+GP_FORWARD_MAX_INKS = 4
+
+
+def gp_forward_applies(candidates, *, is_additive: bool, n_channels: int,
+                       n_patches: int) -> bool:
+    """True when the "gpfwd" candidate replaces the forward fit: an ink
+    device (not RGB) of at most GP_FORWARD_MAX_INKS inks, with at least 75
+    patches per ink."""
+    return ("gpfwd" in candidates and not is_additive
+            and 0 < n_channels <= GP_FORWARD_MAX_INKS
+            and n_patches >= 75 * n_channels)
+
+
+def _agent15_gp(meas, model, candidates, settings, lam, curve_rounds,
+                use_ucs, de_fn):
+    """Agent 15 (D-14 repair). "gpwarp" alone: the GP in the stiff fit's
+    shaper coordinates. "gpsel": a held-out choice between the stiff fit
+    (returns None: the table stays the stiff fit's), the raw GP, the warped
+    GP and (with "gpres") a residual GP."""
+    from workflow.profile_engine import gpsel
+    from workflow.profile_engine.accuracy import fit_forward_model_accurate
+    dev, lab, rw = meas.device, meas.lab_relative, meas.row_weights
+    if "gpsel" not in candidates:
+        return gpsel.fit_kind("warp", dev, lab, model, de_fn, rw)[0]
+    # Agent 15 B1: the raw GP is not a contender (the held-out patches
+    # cannot see its highlight-neutral failure on charts without light
+    # patches, Agent 13 blocker 3); the choice is stiff vs warped GP
+    # (+ the residual GP with "gpres").
+    kinds = ("warp",) + (("res",) if "gpres" in candidates else ())
+    full = {kd: gpsel.fit_kind(kd, dev, lab, model, de_fn, rw)
+            for kd in kinds}
+
+    def fit_stiff(d, l, w):
+        return fit_forward_model_accurate(
+            d, l, grid=model.grid, base_lam=lam, curve_rounds=curve_rounds,
+            ucs=use_ucs, row_weights=w, positioning=curve_rounds > 0,
+            additive=False,
+            # Agent 84: the held-out folds fit the stiff model the way the
+            # build did (a84-warmblack keeps clustered misfits)
+            keep_clusters=gpsel.A84_KEEP_CLUSTERS)[0]
+
+    winner, rep = gpsel.select(dev, lab, model, fit_stiff, de_fn, rw,
+                               kinds=kinds,
+                               full_hyper={kd: full[kd][1] for kd in kinds},
+                               progress=lambda m: _emit(settings, m))
+    parts = []
+    for kd in ("stiff",) + kinds:
+        r = rep[kd]
+        parts.append(f"{kd} {r['mean']:.3f}/{r['p95']:.3f}"
+                     + ("" if kd == "stiff" else
+                        (" ok" if r["accepted"] else " no")))
+    _emit(settings, "Printer model chosen on held-out patches of this chart "
+                    f"({rep['n_heldout']} patches, mean/p95 dE00): "
+                    + ", ".join(parts) + f" -> {winner}.")
+    settings_log = getattr(settings, "_agent15_report", None)
+    if isinstance(settings_log, dict):
+        settings_log.update(rep)
+    return None if winner == "stiff" else full[winner][0]
 
 
 def _fit_lambda(grid: int) -> float:
@@ -101,6 +851,7 @@ class BuildSettings:
     manufacturer: str = ""                   # colprof -A → dmnd
     model: str = ""                          # colprof -M → dmdd
     ink_limit: float | None = None           # percent; None = from the .ti3
+    black_ink_limit: float | None = None     # colprof -L, percent; None = .ti3
     smoothing: float = 0.5                   # colprof -r avgdev (percent)
     curve_rounds: int = 2
     no_input_shaper: bool = False            # colprof -ni / -np
@@ -119,6 +870,9 @@ class BuildSettings:
     z_default_intent: str = ""               # colprof -Z p/r/s/a
     # Gamut mapping (colprof -s/-S; ChromIQ passes ClayRGB by default, #121)
     source_gamut: Path | str | None = None
+    # colprof -S (True: perceptual AND saturation tables are mapped) vs -s
+    # (False: perceptual only; the saturation table aliases it — colprof.html)
+    sat_gamut: bool = True
     perc_src_colorimetric: bool = False      # colprof -nP
     sat_src_colorimetric: bool = False       # colprof -nS
     inverse_gamut_a2b: bool = False          # colprof -nI
@@ -135,6 +889,20 @@ class BuildSettings:
     # rendering exactly via the arm's-length oracle (gamut_map).
     argyll_bin: Path | str | None = None
     timestamp: datetime | None = None        # fixed → byte-reproducible
+    # Agent 92 (D-06): threads a Maximum accuracy build may use; 0 = the
+    # engine's default (usable CPUs minus one, capped; parallel.worker_count)
+    # or the CHROMIQ_ENGINE_THREADS override. The profile's bytes do not
+    # depend on it (tests/test_engine_a92_speed.py).
+    engine_workers: int = 0
+    # Integration 12 (Agent 93): how deep the Rel./Abs. Colorimetric table's
+    # neutral shadows go on a printer with a tinted black, Maximum accuracy
+    # only. "neutral" (default) = the darkest truly neutral grey (integration
+    # 11's table); "deepest" = the printer's own black (a88-black-deepest:
+    # deeper with Rel. Col. + BPC, a slight tint near black, and without BPC
+    # the darkest few steps merge). Perceptual / Saturation never change;
+    # identical to "neutral" on a printer with a near-neutral black. See
+    # BLACK_DEPTH_TOKENS. Ignored by Fast / Bit-exact.
+    black_depth: str = "neutral"
     progress: Callable[[str], None] | None = None
     # Gamut-mapping engine for the perceptual/saturation B2A tables:
     #   "fast"     — ChromIQ's built-in Python mapper (colprof's algorithm,
@@ -184,6 +952,15 @@ class BuildSettings:
     # radial mapping (exact -nI inverse, much faster; how photos LOOK is
     # a taste question the user judges by printing).
     render_style: str = "argyll"
+    # Accurate mode, opt-in: average exactly repeated patches before the fit
+    # (each averaged row keeps its repeats' weight). It won on a chart whose
+    # every patch was read three times (A-18), but on the synthetic battery,
+    # whose charts repeat only white and black, it lost interior accuracy
+    # (S2 A2B 0.220 → 0.241) and neutral-K smoothness (S5 0.13 → 0.38 → 0.15
+    # weighted) — the robust loop's scale is estimated from fewer, cleaner
+    # rows. Off until the battery says otherwise; ChromIQ's own averaging
+    # feature (ti3_average) already averages whole reads before the engine.
+    average_duplicates: bool = False
 
 
 @dataclass
@@ -203,6 +980,11 @@ class BuildResult:
     # ΔE2000 companions to the ΔE76 fit statistics (perceptually weighted).
     fit_median_de00: float = 0.0
     fit_p95_de00: float = 0.0
+    # colprof's own "Profile check complete, peak err = …, avg err = …" pair
+    # (ΔE76 max and mean at the patches), so a window that watches for that
+    # line — the scanner tool's misalignment check — reads the engine too.
+    fit_max_de: float = 0.0
+    fit_mean_de: float = 0.0
     # Patch rows flagged as likely misreads (accurate mode; 0-based).
     outlier_rows: tuple = ()
 
@@ -239,9 +1021,16 @@ _STAGE_PCT: list[tuple[str, int]] = [
     ("Gamut mapping: matching source colours", 46),
     ("Gamut mapping: smoothing", 54),
     ("Gamut mapping: fine-tuning", 62),
+    # The oracle colprof run is the longest single stage of an accurate
+    # ≤4-ink build (~40 of ~55 s on a 924-patch chart) and comes BEFORE the
+    # final colour table: it used to be anchored at 78 %, after the table,
+    # and sat there with "~20s left" for 45 s (B-08). The list is in time
+    # order so sub-step fractions interpolate forwards. The remaining-time
+    # estimate still cannot see inside colprof; it says so.
+    ("Saturation table: matching colprof", 40),
+    ("Saturation table: reusing", 40),
+    ("Saturation table: fitting", 70),
     ("Gamut mapping: building the final colour table", 74),
-    ("Saturation table: matching colprof", 78),
-    ("Saturation table: fitting", 92),
 ]
 
 
@@ -265,21 +1054,51 @@ class _PercentProgress:
     _FRACTION = re.compile(r"(\d+)\s*/\s*(\d+)")
 
     def __init__(self, inner, clock=None) -> None:
+        import threading
         import time
+        # Engine stages may report from pool threads (D-06): one line at a
+        # time, so the percentage and the deadline stay consistent.
+        self._lock = threading.Lock()
         self._inner = inner
         self._pct = 0.0
         self._clock = clock or time.monotonic
         self._t0 = self._clock()
-        self._eta = None
+        self._deadline: float | None = None
+        self._paused_at: float | None = None
 
     def _eta_text(self) -> str:
-        elapsed = self._clock() - self._t0
+        """The remaining-time estimate is a DEADLINE that only ever moves
+        earlier. elapsed·(100−p)/p re-evaluated on every line grew whenever
+        the percentage stalled on a long stage while the clock ran — the
+        number went UP between lines (B-08; Basti saw it too). Now lines
+        within a stage count down; a new stage may shorten the deadline,
+        never lengthen it; and when a stage overruns, the log says so
+        instead of printing a bigger number, then re-estimates."""
+        now = self._clock()
+        if self._paused_at is not None:
+            # The colprof stage was not in the budget: the time it took is
+            # added to the deadline and taken out of the pace, so the
+            # estimate neither drains during it nor counts it afterwards
+            # (the challenger's C5: "~20s" at 26 % with 47 s to go, then
+            # "taking longer than estimated" on 27 lines).
+            gap = now - self._paused_at
+            self._paused_at = None
+            self._t0 += gap
+            if self._deadline is not None:
+                self._deadline += gap
+        elapsed = now - self._t0
+        if self._pct >= 99.0:
+            return "almost done"
         if self._pct < 10.0 or elapsed < 3.0:
             return ""
         raw = elapsed * (100.0 - self._pct) / max(self._pct, 1e-6)
-        self._eta = raw if self._eta is None else \
-            0.6 * self._eta + 0.4 * raw
-        secs = self._eta
+        cand = now + raw
+        if self._deadline is None or cand < self._deadline:
+            self._deadline = cand
+        secs = self._deadline - now
+        if secs <= 0.0:
+            self._deadline = cand
+            return "taking longer than estimated"
         if secs < 5.0:
             return "almost done"
         if secs < 90.0:
@@ -287,6 +1106,10 @@ class _PercentProgress:
         return f"~{int(np.ceil(secs / 60.0))} min left"
 
     def __call__(self, msg: str) -> None:
+        with self._lock:
+            self._call(msg)
+
+    def _call(self, msg: str) -> None:
         for i, (prefix, pct) in enumerate(_STAGE_PCT):
             if not msg.startswith(prefix):
                 continue
@@ -301,6 +1124,9 @@ class _PercentProgress:
             break
         if self._inner is not None:
             eta = self._eta_text()
+            if msg.startswith("Saturation table: matching colprof"):
+                eta = "colprof is running, its time is not counted"
+                self._paused_at = self._clock()
             head = f"{self._pct:.0f}%" + (f" · {eta}" if eta else "")
             self._inner(f"{head} · {msg}")
 
@@ -315,14 +1141,64 @@ def build_profile(ti3_path: Path | str, out_path: Path | str,
     settings = settings or BuildSettings()
     orig_progress = settings.progress
     settings.progress = _PercentProgress(orig_progress)
+    started: list = []          # Argyll runs started ahead of need (D-06)
+    from workflow.profile_engine import parallel
+    scope = parallel.accurate_scope() if settings.gammap_mode == "accurate" \
+        else contextlib.nullcontext()
     try:
-        return _build_profile_impl(ti3_path, out_path, settings)
+        with scope, parallel.worker_budget(int(settings.engine_workers or 0)):
+            return _build_profile_impl(ti3_path, out_path, settings, started)
     finally:
         settings.progress = orig_progress
+        from workflow.profile_engine import b2a as _b2a
+        _b2a.set_research_tokens((), is_additive=None)
+        for run in started:
+            run.close()
 
+
+def _will_use_colprof_oracle(meas: Ti3Measurement,
+                             settings: BuildSettings) -> bool:
+    """True when build_mapped_b2a will ask fit_colprof_mappers for the
+    perceptual/saturation rendering: Maximum accuracy, a gamut source, a
+    device colprof can build (<= 4 channels), Argyll's rendering (not the
+    bijective one), and at least one intent that is gamut mapped."""
+    from workflow.profile_engine.gamut_map import _COLORIMETRIC_INTENTS
+    if settings.gammap_mode != "accurate" or settings.source_gamut is None:
+        return False
+    if not 0 < meas.n_channels <= 4 or settings.argyll_bin is None:
+        return False
+    render2 = (("render2" in settings.engine_candidates
+                or settings.render_style == "bijective")
+               and not settings.perc_intent and not settings.sat_intent)
+    if render2:
+        return False
+    mapped = [settings.perc_intent] + ([settings.sat_intent]
+                                       if settings.sat_gamut else [])
+    return any(i not in _COLORIMETRIC_INTENTS for i in mapped)
+
+
+
+def _a74_measured_fold(meas, model, n: int):
+    """Agent 74 (a74-foldmeas): the MEASURED ink fold at the black: median
+    of (printed L* - the model's L* for K alone at the same K) over the
+    patches with K >= 0.9 and C+M+Y >= 0.1, or None below 10 such patches
+    (real i1Pro +2.4, fold printers XFP +5..+6, X3m -5.0, XKB -1.7)."""
+    dv = np.asarray(meas.device, float)
+    sel = (dv[:, 3] >= 0.9) & (dv[:, :3].sum(1) >= 0.1)
+    if int(sel.sum()) < 10:
+        return None
+    kk = np.zeros((int(sel.sum()), n))
+    kk[:, 3] = dv[sel, 3]
+    return float(np.median(np.asarray(meas.lab_relative, float)[sel, 0]
+                           - model.predict(kk)[:, 0]))
 
 def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
-                        settings: BuildSettings) -> BuildResult:
+                        settings: BuildSettings,
+                        started: list | None = None) -> BuildResult:
+    started = [] if started is None else started
+    # Every reader below (this function, gamut_map, gammap_port, the colprof
+    # oracle) sees the EFFECTIVE token set, never the raw request.
+    settings = _with_effective_candidates(settings)
     if settings.quality not in _QUALITY_INDEX:
         raise EngineError(f"Unknown quality {settings.quality!r} "
                           "(expected one of l, m, h, u).")
@@ -330,10 +1206,19 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         raise EngineError(_CLUT_ONLY_MSG)
     q = _QUALITY_INDEX[settings.quality]
     qb = _QUALITY_INDEX.get(settings.b2a_quality, q)
+    _qb_colprof = qb                    # Agent 58: colprof's own B2A grid
+    if (settings.gammap_mode == "accurate"
+            and ({"b2a33", "b2a33s"}
+                 & accurate_candidates(settings.engine_candidates))):
+        # Agent 3 candidate: the B2A table resolution, not the inversion,
+        # sets most of the B2A error (B1/bh-*: S3 B2A median 0.394 at grid
+        # 17 -> 0.171 at grid 33, same build otherwise). At least grid 33.
+        qb = max(qb, 2)
     # Accurate mode gets the shadow-resolving shaped XYZ-PCS layout; the
     # parity modes keep colprof's identity layout.
     codec = codec_for(settings.algorithm,
-                      accurate=settings.gammap_mode == "accurate")
+                      accurate=settings.gammap_mode == "accurate",
+                      entries=_B2A_ENTRIES[qb])
 
     _emit(settings, "Reading the measurement…")
     meas = read_ti3(ti3_path)
@@ -363,21 +1248,48 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         if wy > 100.0:
             meas.xyz = meas.xyz * (100.0 / wy)
             _invalidate_bases(meas)
-    if settings.wp_scale is not None:
-        # colprof -u <scale>: scale the media white point.
-        meas.xyz = meas.xyz.copy()
-        meas.xyz[meas.white_index] *= float(settings.wp_scale)
-        _invalidate_bases(meas)
+    # colprof -u <scale> is applied to the FITTED white below (as xfit.c
+    # does), not to one measured row: scaling a single duplicate white
+    # patch was then out-voted by its unscaled twins when the white index
+    # was recomputed (fast) or averaged away (accurate) — measured 2026-09-04.
 
+    _sanity_gates(meas, settings)
     accurate = settings.gammap_mode == "accurate"
+    oracle_run = None
+    if _will_use_colprof_oracle(meas, settings):
+        # D-06: colprof reads only the .ti3 and the settings, so the oracle
+        # starts NOW and runs beside the fit and the inversion instead of
+        # after them; build_mapped_b2a collects it. Same bytes either way.
+        from workflow.profile_engine.gamut_map import start_colprof_oracle
+        oracle_run = start_colprof_oracle(
+            meas, settings.source_gamut, settings, settings.argyll_bin,
+            codec.node_lab(_B2A_GRID[qb]))
+        if oracle_run is not None:
+            started.append(oracle_run)
+    if accurate and settings.average_duplicates and not settings.noise_model:
+        groups, removed = meas.collapse_duplicates()
+        if groups:
+            _emit(settings, f"Averaged {groups} repeated patch(es) "
+                            f"({removed} extra readings) before the fit.")
     # #123 candidates only ever modify the maximum-accuracy pipeline.
-    candidates = frozenset(settings.engine_candidates) if accurate \
-        else frozenset()
+    candidates = accurate_candidates(settings.engine_candidates) \
+        if accurate else frozenset()
+    # Integration 9: the CMY-only defaults leave every other device's set
+    candidates = scope_device_tokens(candidates, n=n,
+                                     is_additive=meas.is_additive)
     if accurate:
         # Maximum-accuracy mode: unbiased media white/black from duplicate
         # patches (after the -R/-u mutations above), measured extra-ink hues.
         meas.average_endpoints()
     extra_hues = meas.extra_ink_hues() if accurate else None
+    # Research tokens a21-lightcloud / a21-clipfix (Agent 21, F-14/F-15) and
+    # a25-* (Agent 25, F-15/F-17 out-of-gamut clip); off by default, reset
+    # by build_profile when the build ends.
+    b2a_mod.set_research_tokens(candidates, is_additive=meas.is_additive)
+    b2a_mod.ECG_SEPARATION["on"] = bool({"a14-ecgsep", "a14-ecgsep2"} & set(candidates))
+    b2a_mod.ECG_SEPARATION["sector"] = "a14-ecgsep2" in candidates
+    if b2a_mod.ECG_SEPARATION["on"]:
+        b2a_mod.ECG_SEPARATION["cmy_hues"] = _process_ink_hues(meas)
     # Measured black L* anchors the GCR locus in accurate mode (shadow-
     # banding fix) and any explicit -k/-K curve (Argyll normalises its
     # inking curve over the profile's own L range); None keeps the parity
@@ -393,8 +1305,16 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     a2b_grid = (_A2B_GRID_34 if n >= 4 else _A2B_GRID_23)[q]
     b2a_grid = _B2A_GRID[qb]
     # Keep very high-dimensional grids inside sane memory: grid**n nodes.
+    asked_grid = a2b_grid
     while a2b_grid ** n > 2_000_000 and a2b_grid > 3:
         a2b_grid -= 2
+    if a2b_grid != asked_grid:
+        # 6 inks: High and Ultra both land on grid 11 (A-21); say so, or the
+        # user pays 25 minutes for a quality step that changed nothing.
+        _emit(settings, f"Colour table grid reduced from {asked_grid} to "
+                        f"{a2b_grid} per axis: {n} ink channels at this "
+                        f"quality would need {asked_grid ** n:,} nodes. "
+                        f"Higher quality settings give the same table here.")
 
     _emit(settings, f"Fitting the printer model ({len(meas.device)} patches, "
                     f"grid {a2b_grid})…")
@@ -408,35 +1328,214 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     if candidates:
         _emit(settings, "Candidate pipeline active: "
                         f"{', '.join(sorted(candidates))}.")
+    _noise_winner = None
+    _a84_fired = False                  # Agent 84 (a84-warmblack)
+    _a84_model0 = None                  # ... the first fit, for its black
+    _a84_clip_model = None              # ... the refit, for the dark clip
+    _a40_on = False                     # Agent 38 s6 (a40-knut-grey)
     if accurate and settings.noise_model and "gp" not in candidates:
         # #123 user option: noise-aware fitting behind a held-out exam —
         # only used when it clearly beats the standard fit on THIS chart
         # (the env token "gp" still forces it, for the benchmark harness).
         from workflow.profile_engine.accuracy import \
             fit_forward_model_accurate_challenged
-        model, outliers, _lam_used, _winner = \
+        model, outliers, _lam_used, _noise_winner = \
             fit_forward_model_accurate_challenged(
                 meas.device, meas.lab_relative, grid=a2b_grid,
                 base_lam=lam, curve_rounds=curve_rounds, ucs=use_ucs,
-                progress=lambda m: _emit(settings, m))
+                progress=lambda m: _emit(settings, m),
+                row_weights=meas.row_weights,
+                positioning=not meas.is_additive and curve_rounds > 0)
     elif accurate:
         from workflow.profile_engine.accuracy import fit_forward_model_accurate
-        model, outliers, _lam_used = fit_forward_model_accurate(
-            meas.device, meas.lab_relative, grid=a2b_grid, base_lam=lam,
+        if os.environ.get("CHROMIQ_A21_FIT_CACHE"):
+            # Research only (agent 21): an on-disk cache of this exact fit, so
+            # two battery arms that differ only in B2A tokens fit once. The
+            # pickle round trip returns the same arrays bit for bit.
+            fit_forward_model_accurate = _a21_cached_fit(fit_forward_model_accurate)
+        _positioning = ((not meas.is_additive or "rgbpos" in candidates)
+                        and curve_rounds > 0)
+        if (_positioning and meas.is_additive
+                and "a38-noisy-rgb" in candidates):
+            # Research (Agent 38): keep the RGB ramp curves only where a
+            # held-out exam on this chart shows they help (noisy, sparse
+            # laser charts: they cost the grey column; noisyrgb.py).
+            from workflow.profile_engine import noisyrgb
+            _a38 = noisyrgb.rgbpos_exam(
+                meas.device, meas.lab_relative, grid=a2b_grid, base_lam=lam,
+                curve_rounds=curve_rounds, row_weights=meas.row_weights,
+                ucs=use_ucs)
+            _emit(settings, noisyrgb.message(_a38))
+            if _a38["drop"]:
+                _positioning = False
+        _ramp_blend = {}
+        _a40_on = False
+        if (_positioning and meas.is_additive
+                and "a40-knut-grey" in candidates):
+            # Research (Agent 38 s6): a gentler ramp placement in the light
+            # part of each channel ("mixed") where the shipped one is clearly worse on this chart's held-out
+            # exam (Knut's laser chart: the grey column; noisyrgb.py).
+            from workflow.profile_engine import noisyrgb
+            _a40 = noisyrgb.blend_exam(
+                meas.device, meas.lab_relative, grid=a2b_grid, base_lam=lam,
+                curve_rounds=curve_rounds, row_weights=meas.row_weights,
+                ucs=use_ucs)
+            _emit(settings, noisyrgb.blend_message(_a40))
+            if _a40["drop"]:
+                # ... and the standard smoothing: on a chart where the exam
+                # says this, the single-split search is a coin toss (Knut:
+                # x0.25..x4 across ten folds; its x4 pick cost 0.3 dE00).
+                _ramp_blend = {"ramp_blend": _a40["blend"],
+                               "lam_factors": (1.0,)}
+                _a40_on = True
+        _fit_kw = dict(
+            grid=a2b_grid, base_lam=lam,
             curve_rounds=curve_rounds, ucs=use_ucs,
             gp="gp" in candidates,
-            progress=lambda m: _emit(settings, m))
+            progress=lambda m: _emit(settings, m),
+            row_weights=meas.row_weights,
+            # Ink devices: shaper curves start from the chart's own
+            # single-ink ramps (research agent5-03, item 1 cause D).
+            # Agent 3 "rgbpos": the same, mirrored, for RGB devices.
+            positioning=_positioning,
+            **_ramp_blend,
+            additive=meas.is_additive,
+            # Research token "a19-extrap" (agent 19, F-12): penalise the
+            # 3+-ink interactions no chart identifies, 5+ ink devices only.
+            order_mu=(A19_ORDER_MU if (({"a19-extrap", "a19-order"}
+                                        & candidates)
+                                       and not meas.is_additive and n >= 5)
+                      else 0.0))
+        model, outliers, _lam_used = fit_forward_model_accurate(
+            meas.device, meas.lab_relative, **_fit_kw)
+        if (A84_WARMBLACK in candidates and not meas.is_additive
+                and n == 4):
+            # Agent 84 (a84-warmblack, Findings/agent84-01): on a CMYK
+            # printer with a mild, MEASURED ink fold (a79's gate: real
+            # i1iSis) the robust fit rejected a whole cluster of dark
+            # C+M-rich patches as misreads; they are the fold itself. Fit
+            # again with clustered misfits kept at full weight.
+            from workflow.profile_engine.gamut_map import a79_mild_fold
+            if a79_mild_fold(model, meas.channel_letters, meas) is not None:
+                _m84, _o84, _l84 = fit_forward_model_accurate(
+                    meas.device, meas.lab_relative, keep_clusters=True,
+                    **_fit_kw)
+                _r0 = np.linalg.norm(model.predict(meas.device)
+                                     - meas.lab_relative, axis=1)
+                _r1 = np.linalg.norm(_m84.predict(meas.device)
+                                     - meas.lab_relative, axis=1)
+                _emit(settings, f"Printer model: dark patches the fit had "
+                                f"set aside kept (research a84-warmblack; "
+                                f"{len(outliers)} -> {len(_o84)} flagged, "
+                                f"fit dE76 p99 {np.percentile(_r0, 99):.2f}"
+                                f" -> {np.percentile(_r1, 99):.2f}).")
+                _a84_fired = True
+                if A84_WARMBLACK_ALL in candidates:
+                    # research a84-warmblack-all: the refit is THE model
+                    # (every table; arm "fin" of Agent 84)
+                    _a84_model0 = model
+                    model, outliers, _lam_used = _m84, _o84, _l84
+                else:
+                    # a84-warmblack: the refit only clips the dark
+                    # clipped nodes of B2A1 (below); every other table is
+                    # built on the build's own model as before
+                    _a84_clip_model = _m84
+        if ({"a19-extrap", "a19-bounds"} & candidates
+                and not meas.is_additive):
+            # Research token (agent 19, F-12): physical lower bounds on the
+            # lattice where the chart leaves it to extrapolation. A node may
+            # not be darker, in any XYZ channel, than a measured patch that
+            # carries at least as much of every ink, nor than half the
+            # darkest patches; nodes that obey are untouched (no node moved
+            # = the same bytes). Before the GP block, so its taper and
+            # projection see the bounded stiff fit.
+            from workflow.profile_engine import extrap
+            _xinfo: dict = {}
+            bounded, _moved = extrap.bound_by_data(
+                model, meas.device, meas.lab_relative, info=_xinfo)
+            if _moved.any():
+                model.nodes = bounded
+                _emit(settings, f"Printer model: {int(_moved.sum())} of "
+                                f"{len(_moved)} colour-table nodes the chart "
+                                f"does not reach held to the measured "
+                                f"darkness bounds.")
         if len(outliers):
-            ids = ", ".join(str(i + 1) for i in outliers[:8])
+            # Name the patches the way the SHEET names them (SAMPLE_LOC):
+            # "rows 757, 811" only coincided with the printed IDs on a
+            # targen chart; on an imported or merged chart a data-row
+            # number sends the user to the wrong patch.
+            ids = ", ".join(meas.patch_label(int(i)) for i in outliers[:8])
             more = "" if len(outliers) <= 8 else f" (+{len(outliers) - 8})"
             _emit(settings,
                   f"{len(outliers)} patch(es) disagree strongly with the "
-                  f"model and were down-weighted — rows {ids}{more}. "
+                  f"model and were down-weighted — {ids}{more}. "
                   f"Consider remeasuring them.")
     else:
         model = fit_forward_model(meas.device, meas.lab_relative,
                                   grid=a2b_grid, lam=lam,
                                   curve_rounds=curve_rounds)
+    # Integration 2: the GP layer (fin3, default for <= 4 inks) follows the
+    # forward fit whichever way it was made, unless the noise-aware fit WON
+    # on this chart. Before, it sat inside the standard-fit branch, so
+    # switching the noise option on silently dropped the GP even where the
+    # noise handling stood aside (test_noise_option_stands_aside_on_clean_chart:
+    # a clean chart must build identically with and without the option).
+    if accurate and _noise_winner != "noise":
+        if ("gpfwd" in candidates and not meas.is_additive and n > 4):
+            _emit(settings, "Gaussian process forward model: not used for "
+                            "5 or more inks (the forward fit is kept).")
+        if gp_forward_applies(candidates, is_additive=meas.is_additive,
+                              n_channels=n, n_patches=len(meas.device)):
+            # Not below 75 patches per ink: at 150 patches on 4 inks the
+            # marginal likelihood picks a near-interpolating optimum on 1 of
+            # 3 S3 charts (p95 10.9 dE00 vs the grid's 2.4; agent 3, F0g/F0h,
+            # development set); at 300 it never did.
+            # Agent 3 candidate: GP forward model (ARD Matern 5/2, marginal
+            # likelihood, Huber), projected onto the same lattice and curves
+            # under the CMMs' kernels. Outlier naming stays the grid fit's.
+            from workflow.profile_engine import gpfwd
+            from workflow.profile_engine.metrics import delta_e_2000 as _de
+            _emit(settings, "Fitting the printer model: Gaussian process…")
+            if not ({"gpwarp", "gpsel"} & candidates):
+                gpm = gpfwd.fit_gp_forward(meas.device, meas.lab_relative, _de,
+                                           row_weights=meas.row_weights,
+                                           ref_pred=model.predict(meas.device))
+            else:
+                from workflow.profile_engine import gpsel as _gpsel84
+                _gpsel84.A84_KEEP_CLUSTERS = (_a84_fired
+                                              and _a84_clip_model is None)
+                try:
+                    gpm = _agent15_gp(meas, model, candidates, settings, lam,
+                                      curve_rounds, use_ucs, _de)
+                finally:
+                    _gpsel84.A84_KEEP_CLUSTERS = False
+            if gpm is not None and "gpclip" in candidates:
+                from workflow.profile_engine import gpsel
+                gpm = gpsel.Tapered(
+                    gpm, model, float(meas.device.sum(1).max()),
+                    light=(gpsel.light_scale(meas.device)
+                           * (2.0 if "gplight2" in candidates else 1.0)
+                           if {"gplight", "gplight2"} & candidates
+                           else None),
+                    dark=(15.0, 30.0) if "gpdark" in candidates else None)
+            # anchor_rel 0.1: every node weakly pulled to the GP's own value
+            # there, so the projection has ONE solution the solver reaches
+            # (X5: without it 26,374 nodes moved > 1 LSB between solvers,
+            # up to 12,200 LSB; with it <= 0.4 LSB; accuracy unchanged,
+            # agent 3 P1-projection-stability*.txt).
+            if gpm is not None:
+                model = gpfwd.project_to_table(
+                    gpm, model, lam, fine="a2bfine" in candidates,
+                    anchor_rel=0.1, keep_curves="gpkeep" in candidates,
+                    shaped_samples="gpsamp" in candidates)
+                a2b_grid = model.grid
+    if _a84_clip_model is not None:
+        # Agent 84 (a84-warmblack): the refit gets the same GP layer, its
+        # Huber weights and held-out folds keeping the clustered misfits
+        _a84_clip_model = _a84_gp_layer(meas, _a84_clip_model, candidates,
+                                        settings, lam, curve_rounds, use_ucs,
+                                        n)
+        _pin_media_white(_a84_clip_model, meas, settings)
     if "spectral" in candidates or (accurate and settings.spectral_physics):
         # #123 W4: challenge the grid with the YNSN physics hybrid — the
         # standard model stays unless the physics wins on held-out
@@ -449,16 +1548,146 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         if challenge is not None:
             model, verdict = challenge
             _emit(settings, verdict)
+        elif settings.spectral_physics:
+            # A ticked option that leaves no trace looks broken (B-11).
+            why = ("this is an RGB-driver chart (the inks are hidden)"
+                   if meas.is_additive else
+                   "the chart has no spectral data" if meas.spectral is None
+                   else "the chart is too small for a held-out check")
+            _emit(settings, f"Spectral physics model: not applicable — {why}. "
+                            f"Standard model kept.")
+    # THE PAPER WHITE IS PINNED TO THE PCS WHITE. A least-squares surface
+    # passes near the white patches, not through them: on a real 924-patch
+    # chart the fitted device white came out at L* 99.76 (fast) / 99.94
+    # (accurate), so relative-colorimetric B2A sent L*=100 to RGB ≈ 0.996 —
+    # ink in every paper-white area of a print. Argyll re-adapts the whole
+    # grid so device white lands exactly on D50 (xfit.c, "White point fine
+    # tune") and records that FITTED white as the profile's white point;
+    # this does the same, and applies -u to that white.
+    wtpt_abs = _pin_media_white(model, meas, settings)
     fit_res = np.linalg.norm(model.predict(meas.device) - meas.lab_relative,
                              axis=1)
 
     _emit(settings, f"Inverting the model (B2A grid {b2a_grid})…")
-    ink_limit = settings.ink_limit if settings.ink_limit is not None \
-        else meas.ink_limit
+    user_limit = settings.ink_limit is not None
+    ink_limit = settings.ink_limit if user_limit else meas.ink_limit
+    if ink_limit is not None and not meas.is_additive:
+        # A stamped limit above anything the chart printed sends the
+        # inversion 69 % beyond the measured ink range (A-16: 400 % stamped,
+        # 280 % printed, B2A asking 349 %). The chart's own maximum is the
+        # only ink range the model has seen — so a STAMPED limit is capped
+        # there; a limit the user typed is theirs to keep, with the same
+        # warning colprof gives (reviewer R8, colprof.c: it warns and keeps
+        # the user's value; for a stamp it uses the stamp minus 10 %).
+        printed_max = float(meas.device.sum(1).max() * 100.0)
+        if ink_limit > printed_max + 0.5:
+            if user_limit:
+                _emit(settings, f"WARNING: your total ink limit {ink_limit:g}% "
+                                f"is above the most ink any chart patch "
+                                f"carries ({printed_max:.0f}%) — the model "
+                                f"extrapolates beyond what was measured "
+                                f"there. Kept as you asked.")
+            else:
+                _emit(settings, f"Total ink limit {ink_limit:g}% (stamped on "
+                                f"the chart) is above the most ink any chart "
+                                f"patch carries ({printed_max:.0f}%) — using "
+                                f"{printed_max:.0f}%, the range the chart "
+                                f"actually measured (colprof would use the "
+                                f"stamp minus 10%).")
+                ink_limit = printed_max
+    # colprof -L / BLACK_INK_LIMIT: a ceiling on the K channel alone. Used
+    # to be folded into the TOTAL limit by the extra-options parser (a
+    # hand-typed "-L 90" capped all inks at 90 %) — found 2026-09-04.
+    channel_max = _channel_ceilings(meas, settings)
+    if channel_max is not None:
+        k_pct = float(channel_max[meas.channel_letters.index("K")] * 100.0)
+        _emit(settings, f"Black ink limited to {k_pct:g}%.")
     # Multi-ink: anchor the neutral rendering + K separation in colprof's
     # behaviour via a synthetic CMYK proxy (colprof can build THAT).
+    # D-06 (agent 8): the perceptual/saturation tables need the final model
+    # (fixed from here on), the gamut source and the oracle, but neither the
+    # colorimetric inversion nor (on the helper / port / oracle paths) the
+    # multi-ink anchor. They are built on a background thread beside the
+    # anchor and the colorimetric inversion; the anchor reaches the one
+    # fallback mapper that reads it through a callable that waits for it.
+    # Every table is the same computation as before, so the same bytes.
+    mapped_bg = None
+    anchor_box: dict = {}
+    # Research token "a9-ownmap" (agent9-01, with a9-blackpin) maps onto the
+    # colorimetric table's neutral black (axis["black"], device_black), which
+    # exists only after the colorimetric inversion below. Started early, the
+    # background build would not have it and would quietly recompute or skip
+    # it, so with that token the mapped tables are built afterwards, as on
+    # the branch where the token was measured (integration 1 decision).
+    # Research F-05 (Agent 24): the a24-f05* tokens on 5+ inks need the
+    # colorimetric table's black too, so they build afterwards as well.
+    _f05_after = (n >= 5 and not meas.is_additive
+                  and any(t.startswith("a24-f05") for t in candidates))
+    if (accurate and settings.source_gamut is not None
+            and "a9-ownmap" not in candidates and not _f05_after):
+        import threading
+        from workflow.profile_engine import parallel
+        if parallel.worker_count() > 1:
+            anchor_ready = threading.Event()
+            axis_ready = threading.Event()
+
+            def _axis_value():
+                axis_ready.wait()
+                return anchor_box.get("axis")
+
+            def _anchor_value():
+                anchor_ready.wait()
+                return anchor_box.get("anchor")
+
+            def _mapped():
+                from workflow.profile_engine.gamut_map import build_mapped_b2a
+                _emit(settings, "Building the perceptual and saturation "
+                                "tables…")
+                return build_mapped_b2a(
+                    model, meas, b2a_grid, Path(settings.source_gamut),
+                    channel_letters=meas.channel_letters,
+                    is_additive=meas.is_additive, ink_limit=ink_limit,
+                    entries=_B2A_ENTRIES[qb], codec=codec, settings=settings,
+                    a2b_grid=a2b_grid, a2b_entries=_A2B_ENTRIES[q],
+                    anchor=_anchor_value, channel_max=channel_max,
+                    oracle_run=oracle_run,
+                    **({"neutral_axis": _axis_value}
+                       if "a25-oracle-neutral" in candidates else {}))
+
+            mapped_bg = parallel.Background(_mapped)
+
+            class _Release:
+                """Build ending early: free the waiting anchor, then join,
+                so no engine thread outlives build_profile."""
+                def close(self) -> None:
+                    anchor_ready.set()
+                    axis_ready.set()
+                    mapped_bg.join()
+            started.append(_Release())
+            anchor_box["ready"] = anchor_ready
+            anchor_box["axis_ready"] = axis_ready
     anchor = None
-    if n >= 5 and settings.argyll_bin is not None:
+    # Research D-08 item (a), agent9-01 section 2: Maximum accuracy can
+    # replace the colprof proxy with the engine's own N-ink rule (tokens
+    # "a9-locus": no anchor, the 4-ink accurate rule for every ink count;
+    # "a9-kcurve": colprof's K target curve computed by the engine).
+    own_rule = accurate and n >= 5 and (
+        "a9-locus" in candidates or "a9-kcurve" in candidates)
+    if own_rule and "a9-kcurve" in candidates:
+        ls = np.linspace(0.0, 100.0, 201)
+        params = (settings.k_curve_params if settings.k_rule == "p"
+                  and settings.k_curve_params else
+                  b2a_mod.K_RULE_PARAMS.get(settings.k_rule or "r",
+                                            b2a_mod.K_RULE_PARAMS["r"]))
+        anchor = {"l_axis": ls, "k_curve": b2a_mod.argyll_k_curve(
+            ls, params=params,
+            l_min=max(float(black_l), 2.0) if black_l is not None else 5.0)}
+        _emit(settings, "Black generation: the engine's own N-ink rule "
+                        "(no colprof proxy).")
+    elif own_rule:
+        _emit(settings, "Black generation: the engine's own N-ink rule "
+                        "(no colprof proxy).")
+    if n >= 5 and settings.argyll_bin is not None and not own_rule:
         from workflow.profile_engine.gamut_map import (OracleUnavailable,
                                                        fit_multiink_anchor)
         try:
@@ -467,15 +1696,441 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 settings.argyll_bin, settings.progress)
         except OracleUnavailable as exc:
             _emit(settings, f"Using the engine's own rendering ({exc}).")
+    if mapped_bg is not None:
+        anchor_box["anchor"] = anchor
+        anchor_box["ready"].set()
     node_lab = codec.node_lab(b2a_grid)
+    # Maximum accuracy separates the COLORIMETRIC table with its own K
+    # policy (late GCR locus + the neutral-axis walk), not with the CMYK
+    # proxy's colprof K curve: on the battery's 6-7 ink printers that prior
+    # made the relative B2A worse on every printer (X5 median 0.958 without
+    # it vs 1.366 with it, X7 1.359 vs 1.872, X8 0.822 vs 1.349; research
+    # agent5-03 item 5). The proxy anchor still shapes the perceptual and
+    # saturation tables (build_mapped_b2a below). Costs ink: section 6.
+    k_prior_col = None if accurate else anchor
+    # a73-kfirst: True when its fold test fired (then the a70-foldcap K cap
+    # on chromatic clipped nodes is off too: on such a printer it forces the
+    # dark clipped colours onto the light C/M/Y branch, Findings agent73-01)
+    _a73_kfirst = False
+    _a80_fired = False      # Agent 80: a80-greywalk re-walked the grey
+    _a80_pin = False        # Agent 80: a80-colpin pins the neutral column
+    if (accurate and not meas.is_additive and n == 4
+            and "a73-kfirst" in candidates and "K" in meas.channel_letters
+            and meas.channel_letters.index("K") == 3):
+        # Research Agent 73 (ink test, Findings/agent73-01): on a printer
+        # whose colour inks LIGHTEN heavy black (ink fold) and whose C+M+Y
+        # black under the ink limit is much lighter than solid K, the late
+        # GCR locus separates the dark end on a C/M/Y-heavy, low-K branch
+        # that dead-ends L* units above the black; the column and every dark
+        # ramp must then cross to the K-only black between two table nodes,
+        # and the blends across that switch print LIGHTER than both ends (a
+        # grey flash before black, B2A1 dark median 6.4 dE00 on the fitted
+        # i1Pro-like printer XFP, colprof 1.7). There colprof's default
+        # black rule (-kr, K first) is the K prior of the colorimetric table
+        # too, as in Fast. Other printers are untouched.
+        from workflow.profile_engine import cmykport as _a73cp
+        _f1 = _a73cp.fold_at_black(model)
+        _lim = (float(ink_limit) / 100.0) if ink_limit else 4.0
+        _c = min(1.0, max(_lim, 0.0) / 3.0)
+        _l_cmy = float(model.predict(np.array([[_c, _c, _c, 0.0]]))[0, 0])
+        _l_k = float(model.predict(np.array([[0.0, 0.0, 0.0, 1.0]]))[0, 0])
+        _need = _f1 >= A73_FOLD_MIN and (_l_cmy - _l_k) >= A73_CMYGAP_MIN
+        if _need and "a74-foldmeas" in candidates:
+            # Agent 74 (a74-foldmeas): the model's fold reading near K 1 is
+            # an extrapolation where the chart is sparse (synthetic X3m and
+            # XKB on the September chart read 3.2 / 2.0 L* with NO fold in
+            # their truth, and a73-kfirst then cost B2A median +25..94 %).
+            # The fold must also be MEASURED: patches with K >= 0.9 and
+            # C+M+Y >= 0.1 print, at the median, at least A74_FOLDMEAS_MIN
+            # L* lighter than the model's K alone at the same K (real i1Pro
+            # +2.4, fold printers XFP +5..+6; X3m -5.0, XKB -1.7).
+            _ex = _a74_measured_fold(meas, model, n)
+            _emit(settings, "Ink fold check (a74-foldmeas): measured "
+                            + (f"{_ex:+.1f} L* vs K alone" if _ex is not None
+                               else "too few heavy-K patches"))
+            _need = _ex is not None and _ex >= A74_FOLDMEAS_MIN
+        _emit(settings, f"Ink fold check (a73-kfirst): colour ink on solid K "
+                        f"lightens by {_f1:.1f} L*, C+M+Y black L* "
+                        f"{_l_cmy:.1f} vs K {_l_k:.1f}: "
+                        + ("K first." if _need else "no change."))
+        if _need:
+            _a73_kfirst = True
+            _ls = np.linspace(0.0, 100.0, 201)
+            k_prior_col = {"l_axis": _ls, "k_curve": b2a_mod.argyll_k_curve(
+                _ls, params=b2a_mod.K_RULE_PARAMS["r"],
+                l_min=max(float(black_l), 2.0) if black_l is not None
+                else 5.0)}
+            if "a74-kfloor" in candidates:
+                # Agent 74 (a74-kfloor): near the black the K prior never
+                # asks for LESS K than K alone needs to print the target L*.
+                # On a folding printer colour ink first LIGHTENS heavy K, so
+                # a grey darker than its K-only value can only be reached by
+                # heavy C+M+Y on top (real i1Pro target L* 25-26: K .98 +
+                # C+M+Y 1.6-1.7), exactly where the model is least sure (the
+                # measured C .53 M .53 Y 1 K 1 patch: L* 23.7, model 28.2) and
+                # the references print a 4 L* dip (Findings agent74-01). The
+                # floor is full up to K-only black + 5 L* and gone at + 15.
+                _ks = np.linspace(0.0, 1.0, 401)
+                _dk = np.zeros((len(_ks), 4))
+                _dk[:, 3] = _ks
+                _lk = np.minimum.accumulate(model.predict(_dk)[:, 0])
+                _kal = np.interp(_ls, _lk[::-1], _ks[::-1])
+                _kal = np.where(_ls > _lk[-1], _kal, 1.0)
+                _x = np.clip((_lk[-1] + 15.0 - _ls) / 10.0, 0.0, 1.0)
+                _wf = _x * _x * (3.0 - 2.0 * _x)
+                _kc = k_prior_col["k_curve"]
+                k_prior_col["k_curve"] = _kc + _wf * np.maximum(_kal - _kc,
+                                                                0.0)
+    if (accurate and not meas.is_additive and n >= 4
+            and ("a9-nramp" in candidates or "a9-nramps" in candidates)
+            and "K" in meas.channel_letters):
+        # Research agent9-01 6.2: colprof's default black rule (-kr ramp,
+        # engine port) as the K target for the NEUTRALS only, faded out with
+        # chroma; chromatic colours keep the late-GCR locus. The deep neutral
+        # black then needs no CMY-for-spot-ink swap at the ink limit (the
+        # P7 TV excess), without the proxy's global K prior that cost B2A
+        # accuracy (agent5-03 5.3).
+        _ls = np.linspace(0.0, 100.0, 201)
+        _params = (settings.k_curve_params if settings.k_rule == "p"
+                   and settings.k_curve_params else
+                   b2a_mod.K_RULE_PARAMS.get(settings.k_rule or "r",
+                                             b2a_mod.K_RULE_PARAMS["r"]))
+        if "a9-nramps" in candidates and not settings.k_rule:
+            # shadow-only ramp: no K above 40 % of the way to the black
+            # (light greys stay K-free, as the locus has them), full K at
+            # the black (colprof -kp 0 0.4 1 1 1).
+            _params = (0.0, 0.4, 1.0, 1.0, 1.0)
+        k_prior_col = {"l_axis": _ls, "k_curve": b2a_mod.argyll_k_curve(
+            _ls, params=_params,
+            l_min=max(float(black_l), 2.0) if black_l is not None else 5.0),
+            "neutral_only": True}
+    mono_axis = None
+    if (accurate and not meas.is_additive and n >= 4
+            and "a9-monok" in candidates and "K" in meas.channel_letters):
+        # Research agent9-01 6.2: walk the neutral axis first (forward to
+        # the neutral black, then back up with no ink allowed to rise and
+        # fall), and let its K curve steer the NEUTRAL part of every
+        # inversion so the column and its neighbours agree.
+        _emit(settings, "Inverting the model: a monotone neutral axis…")
+        _ax_kw = dict(channel_letters=meas.channel_letters,
+                      is_additive=meas.is_additive, ink_limit=ink_limit,
+                      accurate=accurate, extra_hues=extra_hues,
+                      black_l=black_l, k_gen=k_gen, ucs=use_ucs,
+                      channel_max=channel_max)
+        _fwd = b2a_mod.neutral_axis(model, **_ax_kw)
+        mono_axis = b2a_mod.monotone_neutral_axis(model, _fwd, **_ax_kw)
+        if mono_axis.get("black") is not None:
+            ki = meas.channel_letters.index("K")
+            _l = np.asarray(mono_axis["l"])[::-1]
+            _k = np.asarray(mono_axis["dev"])[::-1, ki].copy()
+            _k[_l < mono_axis["l_black"]] = mono_axis["black"][ki]
+            k_prior_col = {"l_axis": _l, "k_curve": _k,
+                           "neutral_only": True}
+    axis = None
+    # Agent 66 (a66-cmyaxis): a 3-ink device without black (CMY) gets the
+    # same neutral axis, neutral column and dark clip floor as the ink
+    # devices with K. Without it nothing holds the CMY colorimetric table's
+    # dark end: the clip's lightness-first metric sends every colour ramp
+    # (and the grey) into the deepest corner under the ink limit, which on a
+    # CMY printer is chromatic (X3c: Lab 0 printed L* 16, C* 25 blue-violet;
+    # colprof L* 25.6, C* 3; Findings agent66-01 s6).
+    _cmy_axis = (accurate and not meas.is_additive and n == 3
+                 and "a66-cmyaxis" in candidates)
+    if (accurate and not meas.is_additive and n >= 4) or _cmy_axis:
+        # The neutral axis solved once by continuation from paper white,
+        # put on the B2A neutral column, with everything darker than the
+        # neutral black clipped along the axis (research agent5-03 item 5:
+        # a neutral black, monotone neutral ramp, for any channel count).
+        # Solved BEFORE the per-node inversion (it does not depend on it):
+        # when the walk had to be re-routed to reach a deeper neutral black
+        # (research agent17-01 item 1, a printer whose dark end lightens),
+        # the near-neutral nodes must follow the same K, so the axis's K
+        # curve becomes their neutral K prior.
+        _emit(settings, "Inverting the model: following the neutral axis…")
+        axis = mono_axis if mono_axis is not None else b2a_mod.neutral_axis(
+            model, channel_letters=meas.channel_letters,
+            is_additive=meas.is_additive, ink_limit=ink_limit,
+            k_prior=k_prior_col, accurate=accurate, extra_hues=extra_hues,
+            black_l=black_l, k_gen=k_gen, ucs=use_ucs,
+            channel_max=channel_max)
+        if "a9-monoblack" in candidates:
+            axis = b2a_mod.monotone_black(model, axis)
+        if os.environ.get("CHROMIQ_A80_AXISDUMP"):
+            # Agent 80 (research only): the model, the walk and its keywords
+            # for offline work on the neutral axis; CHROMIQ_A80_AXISSTOP=1
+            # ends the build here.
+            import pickle
+            with open(os.environ["CHROMIQ_A80_AXISDUMP"], "wb") as _fh:
+                pickle.dump({"model": model, "axis": axis, "kw": dict(
+                    channel_letters=meas.channel_letters,
+                    is_additive=meas.is_additive, ink_limit=ink_limit,
+                    k_prior=k_prior_col, accurate=accurate,
+                    extra_hues=extra_hues, black_l=black_l, k_gen=k_gen,
+                    ucs=use_ucs, channel_max=channel_max),
+                    "meas_dev": np.asarray(meas.device, float),
+                    "meas_lab": np.asarray(meas.lab_relative, float)}, _fh)
+            if os.environ.get("CHROMIQ_A80_AXISSTOP") == "1":
+                raise SystemExit(0)
+        if (b2a_mod.A80_TOKEN in candidates and accurate and n == 4
+                and not meas.is_additive and not _a73_kfirst
+                and "K" in meas.channel_letters
+                and meas.channel_letters.index("K") == 3
+                and axis.get("black") is not None):
+            # Research Agent 80 (a80-greywalk, b2a.py): on a printer whose
+            # colour inks measurably lighten heavy black, a neutral walk
+            # that JUMPS from the C/M/Y-heavy ink-limit face to the K-led
+            # black is re-walked K first near the black, so the column's
+            # CMM blends do not print lighter than its nodes (XFI targen2240
+            # rel. col. grey +2.0 L*, demo layout perceptual +4.6 L*).
+            _j80 = b2a_mod.a80_walk_jump(axis)
+            _m80 = _a74_measured_fold(meas, model, n)
+            _go80 = (_j80 >= float(os.environ.get("CHROMIQ_A80_JUMP")
+                                   or b2a_mod.A80_JUMP)
+                     and _m80 is not None
+                     and _m80 >= A74_FOLDMEAS_MIN)
+            if _go80:
+                axis = b2a_mod.a80_rewalk(model, axis, kw=dict(
+                    channel_letters=meas.channel_letters,
+                    is_additive=meas.is_additive, ink_limit=ink_limit,
+                    accurate=accurate, extra_hues=extra_hues,
+                    black_l=black_l, k_gen=k_gen, ucs=use_ucs,
+                    channel_max=channel_max))
+            _i80 = axis.get("a80") or {}
+            _a80_fired = bool(_i80.get("fired"))
+            if (b2a_mod.A80_COLPIN in candidates and _m80 is not None
+                    and _m80 >= A74_FOLDMEAS_MIN):
+                # Research Agent 80 (a80-colpin): on a measured-fold printer
+                # the smoothing refit's weight-4 anchor lets the neutral
+                # column give way where its ring is on another separation
+                # (i1iSis full chart: node L* 25 moved M .31 -> .19, prints
+                # a* -3.4, then +2.9 at L* 28: the greys flicker green-pink
+                # near black); the column is put back exactly after the
+                # refit, as a17-colpin does.
+                _a80_pin = True
+            _emit(settings, f"Grey walk check (a80-greywalk): ink jump "
+                            f"{_j80:.2f}/L* near the black, measured fold "
+                            + (f"{_m80:+.1f}" if _m80 is not None else "n/a")
+                            + (f": re-walked K first from L* "
+                               f"{_i80['join_l']:.1f}." if _i80.get("fired")
+                               else ": no change."))
+            if (_i80.get("fired")
+                    and os.environ.get("CHROMIQ_A80_NB", "1") == "1"):
+                # the near-neutral nodes follow the re-walked separation
+                # (as for the deep-black re-route below), so the cells next
+                # to the column do not mix two separations (Agent 79)
+                okx = np.asarray(axis["ok"], bool)
+                _l = np.asarray(axis["l"])[okx][::-1]
+                _d = np.asarray(axis["dev"])[okx][::-1]
+                _l = np.concatenate([[0.0], _l])
+                _d = np.vstack([np.asarray(axis["black"])[None, :], _d])
+                k_prior_col = {"l_axis": _l, "k_curve": _d[:, 3].copy(),
+                               "dev_curve": _d, "neutral_only": True}
+        if axis.get("deep_black") and "K" in meas.channel_letters:
+            ki = meas.channel_letters.index("K")
+            okx = np.asarray(axis["ok"], bool)
+            _l = np.asarray(axis["l"])[okx][::-1]
+            _k = np.asarray(axis["dev"])[okx][::-1, ki].copy()
+            _d = np.asarray(axis["dev"])[okx][::-1]
+            _l = np.concatenate([[0.0], _l])
+            _k = np.concatenate([[axis["black"][ki]], _k])
+            _d = np.vstack([np.asarray(axis["black"])[None, :], _d])
+            k_prior_col = {"l_axis": _l, "k_curve": _k, "dev_curve": _d,
+                           "neutral_only": True}
+            _emit(settings, f"The deepest neutral black needs black ink "
+                            f"earlier (L* {axis['walk_l_black']:.1f} -> "
+                            f"{axis['l_black']:.1f}).")
+        _bh_ink = "a29-blackhandover-ink" in candidates
+        _a34 = any(t.startswith("a34-blackseam") for t in candidates)
+        if _a34 and n <= 4:
+            # Research Agent 34 (Findings/agent34-01): fill the rows the
+            # walk could not solve neutral where both neighbours are on one
+            # separation branch, then hand the axis over to the deep black
+            # chosen by depth bought per C* of tint (not a fixed cap),
+            # bounded by the printer's own darkest measured near-neutrals.
+            axis = b2a_mod.fill_axis_gaps(model, axis)
+            if axis.get("filled"):
+                _emit(settings, f"Neutral axis: {len(axis['filled'])} "
+                                f"unsolved rows filled along their branch.")
+            _meas_c = b2a_mod.measured_dark_chroma(
+                meas.lab_relative, meas.device, ink_limit=ink_limit)
+            import functools as _ft
+            axis = b2a_mod.blackhandover_axis(
+                model, axis, channel_letters=meas.channel_letters,
+                is_additive=meas.is_additive, ink_limit=ink_limit,
+                channel_max=channel_max, ladder=b2a_mod.A34_LADDER,
+                chooser=_ft.partial(
+                    (b2a_mod.rate_deep_black if _a84_model0 is None else
+                     # Agent 84: where a84-warmblack refitted the model, the
+                     # deep black is chosen on the FIRST fit, so the black
+                     # device (and its depth) stay what they were; the
+                     # refit's own rule picked a neutral C+M black 2 L*
+                     # lighter on real i1iSis (rbf 18.7 -> 20.8)
+                     (lambda _m, **_k: b2a_mod.rate_deep_black(
+                         _a84_model0, **_k))),
+                    max_chroma=(None if _meas_c is None
+                                else _meas_c + b2a_mod.A34_MEAS_MARGIN)))
+            if axis.get("handover"):
+                _emit(settings, f"Black hand-over: neutral to L* "
+                                f"{axis['neutral_l_black']:.1f}, then to "
+                                f"the deepest black L* "
+                                f"{axis['l_black']:.1f}.")
+                if b2a_mod.a43_mode(candidates) == "floor":
+                    # Research Agent 43, part 2: the darkest measured
+                    # near-neutral patch, read by the perceptual and
+                    # saturation tables (gamut_map, b2a.a43_floor_axis)
+                    axis = dict(axis, a43_meas_floor=(
+                        b2a_mod.measured_dark_floor(
+                            meas.lab_relative, meas.device,
+                            ink_limit=ink_limit)))
+        elif ("a29-blackhandover" in candidates or _bh_ink) and n <= 4:
+            # Research Agent 29a: below the neutral black, hand the axis
+            # over to a deeper, slightly tinted black (colprof's depth),
+            # after the K prior above was taken from the neutral axis.
+            axis = b2a_mod.blackhandover_axis(
+                model, axis, channel_letters=meas.channel_letters,
+                is_additive=meas.is_additive, ink_limit=ink_limit,
+                channel_max=channel_max,
+                # a29-blackhandover-ink: the deep black at most C* 2 (chain 1:
+                # the C* <= 3 step tinted XKB pess t400 to 2.25, colprof 1.15)
+                **({"ladder": (1.0, 2.0)} if _bh_ink else {}))
+            if axis.get("handover"):
+                _emit(settings, f"Black hand-over: neutral to L* "
+                                f"{axis['neutral_l_black']:.1f}, then to "
+                                f"the deepest black L* "
+                                f"{axis['l_black']:.1f}.")
+    if mapped_bg is not None and "axis_ready" in anchor_box:
+        anchor_box["axis"] = axis
+        anchor_box["axis_ready"].set()
+    _a34_on = any(t.startswith("a34-blackseam") for t in candidates)
+    # Research Agent 58 (a58-purecolprof): RGB colorimetric table built as
+    # colprof builds it; _a58k(step) says whether one of the engine's own
+    # additions still runs (always, with the token off).
+    from workflow.profile_engine import purecolprof as _a58m
+    _a58 = _a58m.applies(candidates, accurate=accurate,
+                         is_additive=meas.is_additive, n=n)
+    if _a58 and _a58m.a63_lowoff(candidates, _B2A_GRID[_qb_colprof]):
+        # Agent 63 (a63-lowgrid, sweep "off"): below colprof's -qm grid the
+        # engine's own table (int-7's recipe)
+        _a58 = False
+
+    def _a58k(step: str) -> bool:
+        return _a58m.keep(candidates, step, active=_a58)
+    _a58_floor = None
+    if accurate and any(t.startswith("a29-oog-darkmono") for t in candidates):
+        # Research Agent 29b (Findings/agent29b-01): the a25-oog clip may not
+        # aim below the black the colorimetric table's neutral column ends
+        # at (ink devices: the neutral axis's black; RGB: device RGB 0, the
+        # column's L* 0 corner). Colorimetric table only, this thread only;
+        # cleared after the refit.
+        # Agent 31 (factorial 29a x 29b): this runs AFTER the a29 black
+        # hand-over above, so on an ink device the floor is the black the
+        # column ends at after the hand-over (axis["l_black"], the deep
+        # black), never the neutral black it was handed over from.
+        _floor = darkmono_clip_floor(axis, model,
+                                     is_additive=meas.is_additive, n=n,
+                                     # Agent 34: with a34-blackseam the
+                                     # floor stays at the NEUTRAL black
+                                     # when the column is handed over to
+                                     # a deeper tinted black (i1Pro: blue
+                                     # ramp swing 8.28 -> 5.69, contours
+                                     # 213 -> 178; i1iSis contours 164 ->
+                                     # 88). Ablation: -deepfloor.
+                                     neutral=(_a34_on and "a34-blackseam-"
+                                              "deepfloor" not in candidates))
+        if not _a58k("floor"):
+            _floor = None               # Agent 58: colprof has no floor
+        _a58_floor = _floor
+        from workflow.profile_engine import oog_clip as _oogc
+        _oogc.set_dark_floor(_floor)
+        if _floor is not None:
+            _emit(settings, f"Out-of-gamut clip floor at the black: "
+                            f"L* {_floor:.1f}.")
+    from workflow.profile_engine import oog_clip as _oog51
+    _oog51.set_colorimetric(True)       # Agent 51: this thread, this table
+    if _a58 and not _a58k("ourclip"):
+        # Agent 58: colprof's clip (purecolprof.cam_clip) for this table
+        _a58m.set_active(True, floor=_a58_floor,
+                         fade="a56-blackfade" in candidates)
+        _a58m.set_a60(candidates)
+        _emit(settings, "Colorimetric table: colprof's per-node inversion "
+                        "and CAM clip (research a58-purecolprof).")
     dev_clut, residual = b2a_mod.build_b2a_clut(
         model, b2a_grid, channel_letters=meas.channel_letters,
         is_additive=meas.is_additive, ink_limit=ink_limit,
-        node_lab=node_lab, k_prior=anchor, accurate=accurate,
+        node_lab=node_lab, k_prior=k_prior_col, accurate=accurate,
         extra_hues=extra_hues, black_l=black_l, k_gen=k_gen,
-        ucs=use_ucs, progress=lambda m: _emit(settings, m))
+        ucs=use_ucs, channel_max=channel_max,
+        progress=lambda m: _emit(settings, m))
+    _a58m.set_active(False)
+    fixed_nodes = None
+    if (accurate and meas.is_additive and "a25-rgbcol" in candidates
+            and _a58k("rgbcol")):
+        fixed_nodes = b2a_mod.additive_column_nodes(node_lab, residual)
+    if axis is not None:
+        fixed_nodes = b2a_mod.apply_neutral_axis(
+            dev_clut, node_lab, axis, model,
+            channel_letters=meas.channel_letters,
+            is_additive=meas.is_additive, ink_limit=ink_limit,
+            k_prior=k_prior_col, accurate=accurate, extra_hues=extra_hues,
+            black_l=black_l, k_gen=k_gen, ucs=use_ucs,
+            channel_max=channel_max)
+        if axis.get("l_black") is not None:
+            _emit(settings, f"Neutral black under the ink limits: "
+                            f"L* {axis['l_black']:.1f}.")
+    rgb_col = None
+    if (accurate and meas.is_additive and n == 3 and "rgbcol" in candidates
+            and _a58k("rgbcol")):
+        # Research F-13 (Findings/agent20-01 s6.2, design A3). An RGB
+        # printer's B2A neutral column below the black: the smoothing refit
+        # gave these nodes a weak anchor and set them from their lighter,
+        # chromatic neighbours, so the grey ramp turned lighter in the deep
+        # shadows (X1: sRGB 7.86 -> 10.99 -> 9.90 L* through lcms and
+        # ColorSync). Each column node below the NEUTRAL black keeps its own
+        # per-node (nearest-clip) inversion, as colprof fills its table node
+        # by node, held through the refit and pinned after it; walking down,
+        # a node never prints lighter than the one above it; the L* 0
+        # corner stays RGB 0 (the deepest black). Clipping to RGB 0 instead
+        # (v1) tinted the grey axis above a chromatic black (S2 C* 3), and
+        # clipping to the neutral black (A2) cost dark-colour accuracy.
+        _black_l = float(model.predict(np.zeros((1, n)))[0, 0])
+        _nb_l, _ = b2a_mod.rgb_neutral_black(model, _black_l, ucs=use_ucs)
+        rgb_col = b2a_mod.below_black_column(node_lab, _nb_l)
+        _corner = np.linalg.norm(node_lab[rgb_col], axis=1) <= 1.0
+        # Only the L* 0 corner below the black: pin_black_node already sets
+        # it and nothing reverses, so the table stays byte-identical.
+        if _corner.all():
+            rgb_col = rgb_col[:0]
+            _corner = _corner[:0]
+        rgb_col_val = b2a_mod.monotone_column(model, dev_clut[rgb_col],
+                                              node_lab[rgb_col, 0])
+        rgb_col_val[_corner] = 0.0
+        if len(rgb_col):
+            dev_clut[rgb_col] = rgb_col_val
+            # Integration 3: together with "a25-rgbcol" (in-gamut column)
+            # BOTH parts of the neutral column are held; before, this line
+            # replaced a25-rgbcol's nodes and silently undid that token.
+            fixed_nodes = (rgb_col if fixed_nodes is None
+                           else np.union1d(fixed_nodes, rgb_col))
+        if len(rgb_col) and "rgbshadow" in candidates:
+            # Research F-13 design C: the near-neutral shadow nodes below the
+            # black are clipped ALONG L* first (re-inverted at the black's
+            # L* with their own a*, b*), so a tinted ramp is flat at the
+            # black's depth until it enters the gamut, like the column.
+            _c = np.hypot(node_lab[:, 1], node_lab[:, 2])
+            _sh = np.flatnonzero((node_lab[:, 0] < _nb_l) & (_c >= 1.0)
+                                 & (_c < 20.0))
+            if len(_sh):
+                _t = node_lab[_sh].copy()
+                _t[:, 0] = _nb_l
+                dev_clut[_sh] = b2a_mod.invert_to_device(
+                    model, _t, channel_letters=meas.channel_letters,
+                    is_additive=True, accurate=True, ucs=use_ucs)[0]
+                rgb_col = np.concatenate([rgb_col, _sh])
+                rgb_col_val = np.vstack([rgb_col_val, dev_clut[_sh]])
+                fixed_nodes = np.union1d(fixed_nodes, _sh)
     # refine_b2a_clut returns *curve-space* values — written straight into
     # the CLUT, with the inverse shaper curves as B2A output tables.
+    _a70_cache = None
     if n > 3 and "joint-sep" in candidates:
         # #123 W2: re-solve the whole separation field as one global
         # optimisation (smoothness in the objective, TAC by projection),
@@ -483,7 +2138,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         from workflow.profile_engine.joint_sep import joint_separation
         prior, prior_w = b2a_mod.ink_priors(
             node_lab, n, channel_letters=meas.channel_letters,
-            k_prior=anchor, k_gen=k_gen, accurate=accurate,
+            k_prior=k_prior_col, k_gen=k_gen, accurate=accurate,
             extra_hues=extra_hues, black_l=black_l)
         gn_view = None
         if use_ucs:
@@ -496,14 +2151,537 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             prior=prior, prior_w=prior_w, gn_model=gn_view,
             progress=lambda m: _emit(settings, m))
         dev_clut_shaped = np.clip(model.shape_device(dev_joint), 0.0, 1.0)
+    elif not _a58k("refit"):
+        # Agent 58: colprof writes the per-node inversion as it is
+        # (profout.c:82, USE_LEASTSQUARES_APROX undefined): no refit
+        dev_clut_shaped = np.clip(model.shape_device(dev_clut), 0.0, 1.0)
     else:
+        # Agent 70 (a70-portrefit): with the a69 oog port on, the port's
+        # clipped-node answers are computed BEFORE the smoothing refit and
+        # enter it as anchors (weight rising with the hand-over weight), so
+        # the in-gamut nodes next to the gamut surface are fitted against the
+        # neighbours the written table really holds. Before, the refit fitted
+        # them against its own extrapolated (K-heavy, darker) clipped nodes
+        # and the port then replaced those: FOGRA dark yellow node L* 21.9,
+        # a* -8, b* 16 printed 19.9 between port neighbours printing 19.4,
+        # a dip-and-stall on every mid yellow ramp (Findings agent70-01).
+        _a70_dev, _a70_amin = dev_clut, None
+        _a70_cache = None
+        from workflow.profile_engine import cmykport as _a70c
+        _a70m = (_a70c.mode(candidates)
+                 if _a70c.applies(candidates, accurate=accurate,
+                                  is_additive=meas.is_additive, n=n,
+                                  letters=meas.channel_letters) else None)
+        if (_a70m is not None and _a70m["oog"] and not _a70m["oogpn"]
+                and not _a70m["oogdark"] and not _a70m["darkin"]
+                and _a70c.A70_PORTREFIT in candidates):
+            _a70_lmin = (float(axis["l_black"]) if axis is not None
+                         and axis.get("l_black") is not None
+                         else float(model.predict(np.ones((1, n)))[0, 0]))
+            _a70_up, _a70_w, _a70_info = _a70c.oog_target(
+                model, node_lab, dev_clut, residual, ink_limit=ink_limit,
+                channel_max=channel_max, l_min=_a70_lmin, grid=b2a_grid,
+                oogfine=_a70m["oogfine"],
+                progress=lambda m: _emit(settings, m),
+                fold=(_a70c.A70_FOLDCAP in candidates and not _a73_kfirst))
+            _wf = _a70_w.copy()
+            if fixed_nodes is not None and len(fixed_nodes):
+                _wf[fixed_nodes] = 0.0
+            _blend = ((1.0 - _wf)[:, None]
+                      * np.clip(model.shape_device(dev_clut), 0.0, 1.0)
+                      + _wf[:, None] * _a70_up)
+            _a70_dev = np.clip(model.unshape_device(_blend), 0.0, 1.0)
+            _a70_amin = 0.05 + 3.95 * _wf
+            _a70_cache = (_a70_up, _a70_w, _a70_info)
         dev_clut_shaped = b2a_mod.refine_b2a_clut(
-            model, dev_clut, residual, b2a_grid,
+            model, _a70_dev, residual, b2a_grid,
+            anchor_min=_a70_amin,
             ink_limit=ink_limit, is_additive=meas.is_additive,
             channel_letters=meas.channel_letters,
-            node_lab=node_lab, lab_to01=codec.lab_to01, k_prior=anchor,
+            node_lab=node_lab, lab_to01=codec.lab_to01, k_prior=k_prior_col,
             accurate=accurate, extra_hues=extra_hues, black_l=black_l,
-            k_gen=k_gen, ucs=use_ucs, progress=lambda m: _emit(settings, m))
+            k_gen=k_gen, ucs=use_ucs, channel_max=channel_max,
+            fixed_nodes=fixed_nodes,
+            progress=lambda m: _emit(settings, m),
+            # Agent 3 "b2a33s": keep the refit's exact inverse samples per
+            # B2A node constant (30,000 were sized for grid 17; at grid 33
+            # the n>3 path had 10,000 samples for 35,937 nodes).
+            **({"samples": int(30000 * (b2a_grid / 17.0) ** 3)}
+               if "b2a33s" in candidates else {}))
+    if (accurate and meas.is_additive and n == 3
+            and b2a_mod.A68_TOKEN in candidates and _a58k("refit")):
+        # Research Agent 68 (a68-clipkeep, b2a.clip_keep): on a folded RGB
+        # response the refit's least-squares field throws a clipped node far
+        # off its own clip (Knut: L* 68.8 a* -48 b* 16 printed a* +19.5 among
+        # neighbours at a* -29..-39); such a node takes its clip back.
+        dev_clut_shaped, _ck = b2a_mod.clip_keep(
+            model, dev_clut_shaped, dev_clut, residual,
+            keep_out=fixed_nodes)
+        if _ck["nodes"]:
+            _emit(settings, f"Clip kept at {_ck['nodes']} clipped nodes the "
+                            f"smoothing refit had thrown off it.")
+    from workflow.profile_engine import oog_clip as _oogc
+    _oogc.set_dark_floor(None)          # Agent 29b: colorimetric table done
+    _oogc.set_colorimetric(False)       # Agent 51: colorimetric table done
+    if (_a40_on and fixed_nodes is not None and len(fixed_nodes)
+            and _a58k("a40")):
+        # Research (Agent 38 s6, a40-knut-grey): with the gentler curves the
+        # neutral black of a noisy chart can land on a cube face (Knut: RGB
+        # 0, 0, 0.17), and the held column then turns a channel back on its
+        # way up (B 0.17 at L* 25, 0.11 at L* 28): a kink a grey ramp shows.
+        # Along the column every RGB channel is made non-decreasing in L*
+        # (pool-adjacent-violators); a column that is monotone already is
+        # left exactly as it is.
+        dev_clut = dev_clut.copy()
+        _col = b2a_mod.column_nodes_by_l(node_lab, fixed_nodes)
+        _bl = float(model.predict(np.zeros((1, n)))[0, 0])
+        _nbl, _ = b2a_mod.rgb_neutral_black(model, _bl, ucs=use_ucs)
+        _to_l = float(_nbl) + 3.0
+        if b2a_mod.A42_TOKEN in candidates:
+            # Research a42-nearblack: a bridge top whose value lies in an
+            # ink interval the model cannot resolve (Knut, a40 curves: node
+            # L* 25 at G 0.001 inside G 0-0.05) is no anchor; the bridge
+            # runs on to the next column node.
+            _cl = node_lab[_col, 0]
+            for _j in np.flatnonzero(_cl >= _to_l):
+                _to_l = float(_cl[_j])
+                if not b2a_mod.ill_posed(dev_clut[_col[_j]],
+                                         model.curves)[0]:
+                    break
+        if accurate and b2a_mod.A44_TOKEN in candidates:
+            # Research a44-exactkeep, part 2: the bridge drawn on the grid
+            # nodes and in the B2A curve space, as the CMM reads it.
+            _sp = (b2a_mod.b2a_space_curves(
+                       model.curves, smooth=b2a_mod.a45_c1(candidates))
+                   if b2a_mod.A42_TOKEN in candidates else None)
+            dev_clut[_col] = b2a_mod.dark_bridge_on_grid(
+                dev_clut[_col], node_lab[_col, 0], black_l=_bl,
+                to_l=_to_l, space=model.curves if _sp is None else _sp)
+        else:
+            dev_clut[_col] = b2a_mod.dark_bridge(
+                dev_clut[_col], node_lab[_col, 0], black_l=_bl,
+                to_l=_to_l)
+        dev_clut[_col] = b2a_mod.monotone_channels(dev_clut[_col])
+    if (accurate and meas.is_additive and "a25-rgbcol" in candidates
+            and fixed_nodes is not None and len(fixed_nodes)):
+        # Research (Agent 25): the in-gamut neutral column of an RGB table
+        # keeps its exact inversion (the refit's anchor alone gives way).
+        dev_clut_shaped = dev_clut_shaped.copy()
+        dev_clut_shaped[fixed_nodes] = model.shape_device(
+            dev_clut[fixed_nodes])
+    if (_a80_pin and fixed_nodes is not None and len(fixed_nodes)
+            and "a17-colpin" not in candidates
+            and "a34-blackseam-pin" not in candidates):
+        # Agent 80 (a80-colpin): pin only where the refit really moved the
+        # column (model dE76 between the refit's and the walk's device at a
+        # column node above the neutral black; real i1iSis 3.5-4.7, the XKB
+        # targen sets 0.8-1.1, where pinning added a seam: XKB pessimistic
+        # targen900 neutral banding d2 0.29 -> 0.36) or where a80-greywalk
+        # fired
+        _cn = np.asarray(fixed_nodes)
+        _cn = _cn[(np.hypot(node_lab[_cn, 1], node_lab[_cn, 2]) < 1.0)
+                  & (node_lab[_cn, 0] >= (float(axis["l_black"])
+                                          if axis is not None and
+                                          axis.get("l_black") is not None
+                                          else 0.0))]
+        _drift = 0.0
+        if len(_cn):
+            _drift = float(np.max(np.linalg.norm(
+                model.predict(np.clip(model.unshape_device(
+                    dev_clut_shaped[_cn]), 0.0, 1.0))
+                - model.predict(np.clip(dev_clut[_cn], 0.0, 1.0)), axis=1)))
+        _tol80 = float(os.environ.get("CHROMIQ_A80_PINTOL")
+                       or b2a_mod.A80_PINTOL)
+        # where a80-greywalk re-walked the grey, always (XFI: drift 0.6,
+        # rel. col. grey rise 0.5-0.6 L* unpinned, 0.0-0.06 pinned)
+        _a80_pin = _a80_fired or _drift >= _tol80
+        _emit(settings, f"Grey walk check (a80-colpin): refit column drift "
+                        f"{_drift:.2f} dE: "
+                        + ("pinned." if _a80_pin else "left as it is."))
+    if (("a17-colpin" in candidates or "a34-blackseam-pin" in candidates
+         or _a80_pin)
+            and fixed_nodes is not None
+            and len(fixed_nodes)):
+        # Research agent17-01 section 3 (token, not default): the smoothing
+        # refit holds the neutral column only by a weight-4 anchor, and
+        # next to the black it gives way: X3, node L* 6.25 moved from the
+        # axis's K 0.94 to 0.85 and prints L* 7.5-7.8 instead of 6.25, so
+        # every CMM with black point compensation (Ghostscript's default)
+        # prints the source black 1.9 L* light. Put the column back exactly.
+        dev_clut_shaped = dev_clut_shaped.copy()
+        dev_clut_shaped[fixed_nodes] = model.shape_device(
+            dev_clut[fixed_nodes])
+    if (accurate and b2a_mod.A42_TOKEN in candidates and n <= 4
+            and _a58k("a42")):
+        # Research a42-nearblack, part 2: in the rows of the black hand-over
+        # the column and its first ring take their own per-node inversion
+        # back where the refit gave way (b2a.py, comment above A42_TOKEN).
+        # The hand-over top: the neutral black plus its gap to the deepest
+        # black (ink: the axis; RGB: RGB 0 and its neutral black).
+        _l_top = None
+        if not meas.is_additive and axis is not None \
+                and axis.get("black") is not None:
+            _nb = float(axis.get("neutral_l_black", axis["l_black"]))
+            _l_top = _nb + max(_nb - float(axis["l_black"]), 0.0)
+        elif meas.is_additive and n == 3:
+            _bl = float(model.predict(np.zeros((1, n)))[0, 0])
+            _nbl, _ = b2a_mod.rgb_neutral_black(model, _bl, ucs=use_ucs)
+            _l_top = float(_nbl) + max(float(_nbl) - _bl, 0.0)
+        if _l_top is not None:
+            dev_clut_shaped, _nbk = b2a_mod.nearblack_column(
+                model, dev_clut_shaped, node_lab, pernode=dev_clut,
+                l_top=_l_top, grid=b2a_grid, lab_to01=codec.lab_to01)
+            if _nbk["restored"]:
+                _emit(settings, f"Near-black hand-over: {_nbk['nodes']} "
+                                f"nodes up to L* {_nbk['rows'][-1]:.1f} "
+                                f"keep their own inversion.")
+    if (accurate and b2a_mod.A44_TOKEN in candidates and n <= 4
+            and _a58k("a44")):
+        # Research a44-exactkeep: anywhere in the table, an in-gamut node
+        # the refit pulled more than A44_TOL off its exact inversion takes
+        # that inversion back where the cells around it then print closer
+        # (b2a.py, comment above A44_TOKEN).
+        dev_clut_shaped, _ek = b2a_mod.exact_keep(
+            model, dev_clut_shaped, node_lab, pernode=dev_clut,
+            grid=b2a_grid, keep_out=fixed_nodes)
+        if _ek["nodes"]:
+            _emit(settings, f"Exact inversion kept at {_ek['nodes']} of "
+                            f"{_ek['candidates']} in-gamut nodes the "
+                            f"smoothing refit had pulled off.")
+        if (_ek["nodes"] and n == 3
+                and b2a_mod.A44B_TOKEN in candidates):
+            # Research a44b-smoothexact: where the refit failed on an RGB
+            # table (a folded printer response), re-solve the table as one
+            # smooth field that keeps every node on its own branch.
+            dev_clut_shaped, _sx = b2a_mod.smooth_exact(
+                model, dev_clut_shaped, node_lab, pernode=dev_clut,
+                grid=b2a_grid, keep_out=fixed_nodes, residual=residual)
+            if _sx["applied"]:
+                _emit(settings, "Colorimetric table smoothed on its own "
+                                "branches (in-gamut nodes within "
+                                f"{_sx['ingamut_err_p95']:.2f} dE at p95).")
+    if channel_max is not None:
+        # The smooth refit is a least-squares field over samples that all
+        # respect the ceiling; between them it can overshoot (measured: K
+        # 0.65 for a 60 % limit). Nodes are what the CMM interpolates, so a
+        # ceiling on the nodes is a ceiling on the table. Curve space here.
+        top = model.shape_device(channel_max[None, :])
+        dev_clut_shaped = np.minimum(dev_clut_shaped, top)
+    # Research Agent 69 (a69-cmykport*): the CMYK colorimetric B2A1 the way
+    # colprof builds it (cmykport.py: K = the -kr curve clipped to the K
+    # locus, Lab nearest then CAM Jab clip, per node, no refit / floor /
+    # column / black pin), whole or blended into the engine's own table.
+    from workflow.profile_engine import cmykport as _a69
+    _a69m = (_a69.mode(candidates)
+             if _a69.applies(candidates, accurate=accurate,
+                             is_additive=meas.is_additive, n=n,
+                             letters=meas.channel_letters) else None)
+    if _a69m is not None:
+        _l_min = (float(axis["l_black"]) if axis is not None
+                  and axis.get("l_black") is not None
+                  else float(model.predict(np.ones((1, n)))[0, 0]))
+        if os.environ.get("CHROMIQ_A69_DUMP"):
+            import pickle
+            with open(os.environ["CHROMIQ_A69_DUMP"], "wb") as _fh:
+                pickle.dump({"model": model, "node_lab": node_lab,
+                             "dev_clut": dev_clut, "residual": residual,
+                             "shaped": dev_clut_shaped, "grid": b2a_grid,
+                             "ink_limit": ink_limit,
+                             "channel_max": channel_max, "l_min": _l_min},
+                            _fh)
+        _pern = _a69m["pernode"]
+    if _a69m is not None and _a70_cache is not None:
+        # Agent 70 (a70-portrefit): the port table was computed before the
+        # refit (above); the same hand-over, now onto the anchored refit.
+        _up, _w, _a69i = _a70_cache
+        _w = _w.copy()
+        if fixed_nodes is not None and len(fixed_nodes):
+            _w[fixed_nodes] = 0.0
+        _w = _w[:, None]
+        dev_clut_shaped = (1.0 - _w) * dev_clut_shaped + _w * _up
+        _emit(settings, f"Colorimetric table: colprof's CMYK recipe for the "
+                        f"clipped nodes, anchored in the refit (research "
+                        f"a70-portrefit; {_a69i['clipped']} clipped).")
+    elif _a69m is not None:
+        _pure, _a69i = _a69.colprof_table(
+            model, node_lab, dev_clut, residual, ink_limit=ink_limit,
+            channel_max=channel_max, l_min=_l_min,
+            ourk=_a69m["ourk"] or _pern, ourclip=_a69m["ourclip"] or _pern,
+            progress=lambda m: _emit(settings, m),
+            fold=(_a69.A70_FOLDCAP in candidates and not _a73_kfirst))
+        if _a84_clip_model is not None and not (_a69m["ourclip"] or _pern):
+            # Agent 84 (a84-warmblack): the clipped nodes near the black
+            # are clipped again on the refit that kept the dark C+M-rich
+            # patches (on the build's own model those print purple, so the
+            # clip sent warm hues through C-rich low-K mixes that really
+            # print grey); full up to the black + 20 L*, gone by + 35
+            # (CHROMIQ_A84_DARK l:w), the in-gamut nodes untouched
+            _p84, _ = _a69.colprof_table(
+                _a84_clip_model, node_lab, dev_clut, residual,
+                ink_limit=ink_limit, channel_max=channel_max, l_min=_l_min,
+                ourk=True, ourclip=False,
+                fold=(_a69.A70_FOLDCAP in candidates and not _a73_kfirst))
+            _dl84, _dw84 = (float(v) for v in os.environ.get(
+                "CHROMIQ_A84_DARK", "20:15").split(":"))
+            _u84 = np.clip((_l_min + _dl84 + _dw84 - node_lab[:, 0])
+                           / max(_dw84, 1e-6), 0.0, 1.0)
+            _w84 = _u84 * _u84 * (3.0 - 2.0 * _u84)
+            # printable on either model: not clipped, not moved
+            _w84[np.asarray(residual) < _a69.FEAS_TOL] = 0.0
+            _w84[np.linalg.norm(_a84_clip_model.predict(np.clip(
+                dev_clut, 0.0, 1.0)) - node_lab, axis=1)
+                 < _a69.FEAS_TOL] = 0.0
+            # ... and only where the build's own model is WRONG about its
+            # own clip: the refit prints that device differently by more
+            # than CHROMIQ_A84_DIS t0:t1 dE76 (default 1:2); on real
+            # i1iSis this is the magenta-red sector near the black and
+            # nothing else. The weight is grown by one node and averaged
+            # over its 27-node neighbourhood, so no seam is cut.
+            _t0, _t1 = (float(v) for v in os.environ.get(
+                "CHROMIQ_A84_DIS", "1:2").split(":"))
+            _d0 = np.clip(_pure, 0.0, 1.0)
+            _dis = np.linalg.norm(model.predict(_d0)
+                                  - _a84_clip_model.predict(_d0), axis=1)
+            _v = np.clip((_dis - _t0) / max(_t1 - _t0, 1e-6), 0.0, 1.0)
+            _v = (_v * _v * (3.0 - 2.0 * _v)).reshape(
+                b2a_grid, b2a_grid, b2a_grid)
+            _pv = np.pad(_v, 1, mode="edge")
+            _offs = [(i, j, k) for i in range(3) for j in range(3)
+                     for k in range(3)]
+            _g = b2a_grid
+            _vd = np.max([_pv[i:i + _g, j:j + _g, k:k + _g]
+                          for i, j, k in _offs], axis=0)
+            _pv = np.pad(_vd, 1, mode="edge")
+            _vs = np.mean([_pv[i:i + _g, j:j + _g, k:k + _g]
+                           for i, j, k in _offs], axis=0)
+            _w84 = _w84 * _vs.reshape(-1)
+            # the near-neutral core around the black stays the build's own
+            # (every ramp ends there; moving it tinted the last stretch of
+            # the yellow / green ramps): no change below node C* c0, full
+            # from c1 (CHROMIQ_A84_CORE c0:c1, default 4:8)
+            _c0, _c1 = (float(v) for v in os.environ.get(
+                "CHROMIQ_A84_CORE", "4:8").split(":"))
+            _cc = np.clip((np.hypot(node_lab[:, 1], node_lab[:, 2]) - _c0)
+                          / max(_c1 - _c0, 1e-6), 0.0, 1.0)
+            _w84 = _w84 * _cc * _cc * (3.0 - 2.0 * _cc)
+            if A89_ISISGAP in candidates:
+                # Agent 89 (a89-isisgap, Findings/agent89-01): the warm
+                # fault is the black share of the clip (C-rich, low-K mixes
+                # that print grey); where neither clip uses black (the C+M
+                # edge of dark sRGB blue) the refit only nudges C/M by
+                # < .04, and a71's dark ray turned those nudges into black
+                # mid-ramp (blue h240: a dull band, chroma 34 -> 25 -> 39).
+                # Those nodes keep the build's own clip: no change below
+                # K k0, full from k1 (CHROMIQ_A89_K k0:k1, default .02:.05)
+                _k0, _k1 = (float(v) for v in os.environ.get(
+                    "CHROMIQ_A89_K", "0.02:0.05").split(":"))
+                _k89 = np.maximum(np.clip(_pure[:, 3], 0.0, 1.0),
+                                  np.clip(_p84[:, 3], 0.0, 1.0))
+                _g89 = np.clip((_k89 - _k0) / max(_k1 - _k0, 1e-6),
+                               0.0, 1.0)
+                _w84 = _w84 * _g89 * _g89 * (3.0 - 2.0 * _g89)
+            _pure = (1.0 - _w84[:, None]) * _pure + _w84[:, None] * _p84
+            _emit(settings, f"Colorimetric table: {int((_w84 > 0).sum())} "
+                            f"clipped nodes near the black clipped on the "
+                            f"refit ({int((_w84 > 0.5).sum())} fully; "
+                            f"research a84-warmblack).")
+        _pure_s = np.clip(model.shape_device(_pure), 0.0, 1.0)
+        if channel_max is not None:
+            _pure_s = np.minimum(_pure_s, model.shape_device(
+                channel_max[None, :]))
+        if ((_a69m["grid17"] or _a69m["in17"])
+                and (b2a_grid - 1) % 16 == 0):
+            _st = (b2a_grid - 1) // 16
+            _up = _a69.upsample(_pure_s.reshape(
+                b2a_grid, b2a_grid, b2a_grid, n)[::_st, ::_st, ::_st]
+                .reshape(-1, n), 17, b2a_grid)
+            if _a69m["in17"]:
+                # the fine grid where the node is printable, colprof's
+                # 17 grid where it clipped (a58 keep-grid33in, for CMYK)
+                _u = np.clip(np.asarray(residual, float) / float(
+                    os.environ.get("CHROMIQ_A69_BAND", "2.0")), 0.0, 1.0)
+                _w = (_u * _u * (3.0 - 2.0 * _u))[:, None]
+                _pure_s = (1.0 - _w) * _pure_s + _w * _up
+            else:
+                _pure_s = _up
+        if _a69m["oog"]:
+            # Agent 69 (a69-cmykport-oog): the engine's own table where the
+            # node is printable (its K, its neutral column), colprof's
+            # recipe on colprof's 17 grid where it clipped, handed over
+            # over CHROMIQ_A69_BAND dE of clip distance; the neutral column
+            # nodes stay the engine's. -oogpn: the printable side is the
+            # engine's per-node answer without the smoothing refit.
+            _ours = (np.clip(model.shape_device(dev_clut), 0.0, 1.0)
+                     if _a69m["oogpn"] else dev_clut_shaped)
+            _st = (b2a_grid - 1) // 16
+            _up = (_a69.upsample(_pure_s.reshape(
+                b2a_grid, b2a_grid, b2a_grid, n)[::_st, ::_st, ::_st]
+                .reshape(-1, n), 17, b2a_grid)
+                if (b2a_grid - 1) % 16 == 0 else _pure_s)
+            # hand-over band: 2 dE (a58's) by default, 6 dE with oogfine
+            # (Agent 69 D-25: of6 = 50 WORSE rows vs of4 75, oog 239)
+            _band = float(os.environ.get(
+                "CHROMIQ_A69_BAND", "6.0" if _a69m["oogfine"] else "2.0"))
+            if _a69m["oogfine"]:
+                # a69-cmykport-oogfine: near the gamut surface the clipped
+                # nodes take colprof's recipe on the fine grid, handed over
+                # to its 17 grid from _band to CHROMIQ_A69_FINE dE out
+                _fb = float(os.environ.get("CHROMIQ_A69_FINE", "8.0"))
+                _v = np.clip((np.asarray(residual, float) - _band)
+                             / max(_fb - _band, 1e-6), 0.0, 1.0)
+                _v = (_v * _v * (3.0 - 2.0 * _v))[:, None]
+                _up = (1.0 - _v) * _pure_s + _v * _up
+            _u = np.clip(np.asarray(residual, float) / _band, 0.0, 1.0)
+            _w = _u * _u * (3.0 - 2.0 * _u)
+            if _a69m["darkin"]:
+                # a69-cmykport-darkin: just above the black the printable
+                # nodes take colprof's recipe too (its K rule), so both sides
+                # of the in-gamut / clipped seam hold one separation
+                # (CHROMIQ_A69_DARKIN l:w above the black)
+                _dl, _dw = (float(v) for v in os.environ.get(
+                    "CHROMIQ_A69_DARKIN", "10:10").split(":"))
+                _x = np.clip((_l_min + _dl + _dw - node_lab[:, 0])
+                             / max(_dw, 1e-6), 0.0, 1.0)
+                _w = np.maximum(_w, _x * _x * (3.0 - 2.0 * _x))
+            if _a69m["oogdark"]:
+                # a69-cmykport-oogdark: only the dark end (colour to black);
+                # full up to black + l, out by black + l + w (CHROMIQ_A69_DARK)
+                _w = _w * _a69.dark_weight(node_lab, _l_min)
+            if _a69.A75_LIGHTKEEP in candidates:
+                # Agent 75 (a75-lightkeep): pale out-of-gamut nodes (L* 72+,
+                # C* 8-45, up to 0.8, cmykport.light_weight) hand back to the engine's
+                # own table: its clip keeps their lightness (FOGRA sRGB
+                # 200/255/200 prints 4.3 L* dark with the port, 2.7 engine).
+                _w = _w * (1.0 - _a69.light_weight(node_lab))
+            if fixed_nodes is not None and len(fixed_nodes):
+                _w[fixed_nodes] = 0.0
+            _w = _w[:, None]
+            dev_clut_shaped = (1.0 - _w) * _ours + _w * _up
+        elif _a69m["dark"]:
+            _w = _a69.dark_weight(node_lab, _l_min)[:, None]
+            dev_clut_shaped = (1.0 - _w) * dev_clut_shaped + _w * _pure_s
+        else:
+            dev_clut_shaped = _pure_s
+        _emit(settings, f"Colorimetric table: colprof's CMYK recipe "
+                        f"(research a69-cmykport; {_a69i['inside']} nodes "
+                        f"on the K rule, {_a69i['clipped']} clipped, "
+                        f"K curve from L* {_l_min:.1f}).")
+    if (_a69m is not None and _a69m["oog"]
+            and _a69.A70_EDGESMOOTH in candidates):
+        # Agent 70 (a70-edgesmooth): soften the slope break where colour-to-
+        # black ramps leave the gamut (cmykport.edge_smooth; Findings
+        # agent70-01): a few Jacobi passes over chromatic dark nodes in a
+        # thin band across the gamut boundary.
+        dev_clut_shaped, _es = _a69.edge_smooth(
+            dev_clut_shaped, residual, node_lab, b2a_grid,
+            fixed_nodes=fixed_nodes, model=model,
+            adapt=(os.environ.get("CHROMIQ_A70_ADAPT", "2:5")
+                   if _a69.A70_EDGEADAPT in candidates else None))
+        _emit(settings, f"Colorimetric table: gamut edge softened at "
+                        f"{_es['nodes']} nodes (research a70-edgesmooth).")
+    if _a69m is not None and os.environ.get("CHROMIQ_A71_DUMP"):
+        # Agent 71: the table after edge smoothing, before the black shell
+        import pickle
+        _bn1 = int(np.argmin(np.linalg.norm(node_lab, axis=1)))
+        with open(os.environ["CHROMIQ_A71_DUMP"], "wb") as _fh:
+            pickle.dump({"pre_shell": dev_clut_shaped.copy(),
+                         "black_dev": np.clip(dev_clut[_bn1], 0.0, 1.0),
+                         "l_min": _l_min, "residual": residual,
+                         "node_lab": node_lab, "grid": b2a_grid}, _fh)
+    if (_a69m is not None and _a69m["oog"]
+            and _a69.A71_DARKRAY in candidates):
+        # Agent 71 (a71-darkray): the dark end below the black darkens
+        # steadily into the table's black (cmykport.dark_end; Findings
+        # agent71-01); replaces a70-blackshell.
+        _bn = int(np.argmin(np.linalg.norm(node_lab, axis=1)))
+        _bd = np.clip(dev_clut[_bn], 0.0, 1.0)
+        if channel_max is not None:
+            _bd = np.minimum(_bd, channel_max)
+        # Agent 74: with a74-foldmeas the a74 shell tokens act only on a
+        # MEASURED fold (X3m on the September chart runs the k-shell on a
+        # fold its truth does not have)
+        _a74_shell_ok = True
+        if "a74-foldmeas" in candidates and (
+                _a69.A74_SHELLHOLD in candidates
+                or _a69.A74_SHELLHUE in candidates):
+            _mx = _a74_measured_fold(meas, model, n)
+            _a74_shell_ok = _mx is not None and _mx >= A74_FOLDMEAS_MIN
+        dev_clut_shaped, _dr = _a69.dark_end(
+            dev_clut_shaped, residual, node_lab, b2a_grid, model, _bd,
+            _l_min, ink_limit=ink_limit, fixed_nodes=fixed_nodes,
+            hold=_a69.A74_SHELLHOLD in candidates and _a74_shell_ok,
+            hue=_a69.A74_SHELLHUE in candidates and _a74_shell_ok)
+        _emit(settings, f"Colorimetric table: dark end ({_dr['mode']}, "
+                        f"{_dr.get('moved', _dr['nodes'])} nodes; research "
+                        f"a71-darkray).")
+    elif (_a69m is not None and _a69m["oog"]
+            and _a69.A70_BLACKSHELL in candidates):
+        # Agent 70 (a70-blackshell): below the printable black the clipped
+        # nodes lean toward the table's black (cmykport.black_shell).
+        _bn = int(np.argmin(np.linalg.norm(node_lab, axis=1)))
+        _bd = np.clip(dev_clut[_bn], 0.0, 1.0)
+        if channel_max is not None:
+            _bd = np.minimum(_bd, channel_max)
+        _bd = np.clip(model.shape_device(_bd[None, :])[0], 0.0, 1.0)
+        dev_clut_shaped, _bs = _a69.black_shell(
+            dev_clut_shaped, residual, node_lab, _bd, _l_min, model=model)
+        _emit(settings, f"Colorimetric table: {_bs['nodes']} nodes below "
+                        f"the black lean toward it (research a70-blackshell, "
+                        f"fold factor {_bs['fold_factor']:.2f}).")
+    # The B2A half of the white pin (see _pin_media_white for the A2B half),
+    # and the black corner: L*=0 → the chart's deepest measured black.
+    # Agent 59 (a59-pernodeout): the coarse (clipped) half of keep-grid33in
+    # taken from the per-node inversion, as colprof writes it (no refit),
+    # with the same pins and curve space as the table itself
+    _a59_pn = None
+    if (_a58 and _a58k("grid33in") and not _a58k("grid33")
+            and ("a59-pernodeout" in candidates
+                 or "a59-pernodefine" in candidates)):
+        _a59_pn = np.clip(model.shape_device(dev_clut), 0.0, 1.0)
+        _a59_pn = b2a_mod.pin_white_node(_a59_pn, node_lab,
+                                         meas.is_additive)
+    dev_clut_shaped = b2a_mod.pin_white_node(dev_clut_shaped, node_lab,
+                                             meas.is_additive)
+    if meas.is_additive:
+        device_black = np.zeros(n)
+    else:
+        # Ink devices: the per-node inversion's OWN answer for the black
+        # corner respects the ink policy (K locus, TAC, priors); the darkest
+        # measured patch is an arbitrary ink mix and made the neutral K
+        # curve jump at the bottom (battery S5: TV excess 0.10 → 0.38).
+        black_node = int(np.argmin(np.linalg.norm(node_lab, axis=1)))
+        device_black = dev_clut[black_node].copy()
+    if channel_max is not None:
+        device_black = np.minimum(device_black, channel_max)
+    if _a58k("black") and (_a69m is None or _a69m["keepblack"]
+                           or _a69m["oog"]):
+        # (Agent 58: colprof pins no black into an RGB B2A1; xlut.c:3443-
+        # 3447 uses RGB 0 only as the perceptual black point)
+        dev_clut_shaped = b2a_mod.pin_black_node(
+            dev_clut_shaped, node_lab,
+            model.shape_device(device_black[None, :])[0])
+        if _a59_pn is not None:
+            _a59_pn = b2a_mod.pin_black_node(
+                _a59_pn, node_lab,
+                model.shape_device(device_black[None, :])[0])
+        if _a58 and "a59-blackease" in candidates:
+            # Agent 59 (a59-blackease): the deep-black pin eased in over a
+            # longer stretch: clipped near-neutral nodes darker than the
+            # printer black + CHROMIQ_A59_EASE L* lean toward the pinned
+            # black, smoothly in L* and chroma
+            _bk = model.shape_device(device_black[None, :])[0]
+            _bl0 = float(model.predict(np.zeros((1, n)))[0, 0])
+            dev_clut_shaped = _a58m.a59_blackease(
+                dev_clut_shaped, node_lab, residual, _bk, _bl0)
+            if _a59_pn is not None:
+                _a59_pn = _a58m.a59_blackease(
+                    _a59_pn, node_lab, residual, _bk, _bl0)
+    if rgb_col is not None and len(rgb_col):
+        dev_clut_shaped = b2a_mod.pin_nodes(
+            dev_clut_shaped, rgb_col, model.shape_device(rgb_col_val))
+        if _a59_pn is not None:
+            _a59_pn = b2a_mod.pin_nodes(
+                _a59_pn, rgb_col, model.shape_device(rgb_col_val))
     in_gamut = residual <= 1.0
 
     _emit(settings, "Writing the profile…")
@@ -525,13 +2703,195 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             out_tables=np.tile(icw._identity_table(entries_b2a), (n, 1)))
     else:
         inv = b2a_mod.inverse_curves(model.curves)
+        _space = (b2a_mod.b2a_space_curves(
+                      model.curves, smooth=b2a_mod.a45_c1(candidates))
+                  if (accurate and b2a_mod.A42_TOKEN in candidates
+                      and _a58k("a42")) else None)
+        if _space is not None:
+            # Research a42-nearblack, part 1: the B2A curve space keeps
+            # every ink interval at least half the identity's share.
+            dev_clut_shaped = b2a_mod.reexpress(dev_clut_shaped,
+                                                model.curves, _space)
+            if _a59_pn is not None:
+                _a59_pn = b2a_mod.reexpress(_a59_pn, model.curves, _space)
+            inv = b2a_mod.inverse_curves(_space)
         b2a_col = icw.make_mft2(
             3, n, b2a_grid, icw.device_to_u16(dev_clut_shaped),
             in_tables=b2a_in,
             out_tables=icw.curves_to_tables(inv, entries_b2a))
+        _g0 = _B2A_GRID[_qb_colprof]
+        if _a58:
+            # Agent 63 (a63-lowgrid): no coarse table below grid 17
+            _g0 = _a58m.a63_coarse_grid(candidates, _g0, b2a_grid)
+        if (_a58 and not _a58k("grid33") and codec.signature == b"Lab "
+                and _g0 < b2a_grid and (b2a_grid - 1) % (_g0 - 1) == 0):
+            # Agent 58: colprof writes B2A1 on its own grid for the quality
+            # (profout.c:1129-1146: -qm 17 points, 1024-entry curves), not
+            # the engine's b2a33s grid. The coarse Lab nodes are every
+            # k-th fine node (lab_grid_axes is a linspace), so the per-node
+            # inversions are the same values, sub-sampled.
+            _st = (b2a_grid - 1) // (_g0 - 1)
+            _sub = (dev_clut_shaped if (_a59_pn is None or "a59-pernodeout"
+                                        not in candidates)
+                    else _a59_pn).reshape(
+                b2a_grid, b2a_grid, b2a_grid, n)[
+                ::_st, ::_st, ::_st].reshape(-1, n)
+            _a78p = _a58m.a78_params(candidates)
+            if _a58k("grid33in") and _a78p is not None:
+                # Research Agent 78 (a78-rgbsmooth): the coarse table's
+                # clipped nodes smoothed along L* (purecolprof.a78_smooth),
+                # on a table whose clip field bends (the gate)
+                _sub78 = _a58m.a78_smooth(
+                    _sub, node_lab, residual, b2a_grid, _g0, _a78p,
+                    white_l=float(model.predict(np.ones((1, n)))[0, 0]))
+                if _sub78 is not _sub:
+                    _emit(settings, "Colorimetric table: clipped coarse "
+                                    "nodes smoothed along L* (research "
+                                    "a78-rgbsmooth).")
+                _sub = _sub78
+            _a82p = _a58m.a82_params(candidates)
+            if _a58k("grid33in") and _a82p is not None:
+                # Research Agent 82 (a82-green): the coarse table's clipped
+                # green nodes at the cusp smoothed along L*
+                _sub = _a58m.a82_coarse(
+                    _sub, node_lab, residual, b2a_grid, _g0, _a82p,
+                    float(model.predict(np.zeros((1, n)))[0, 0]),
+                    float(model.predict(np.ones((1, n)))[0, 0]))
+            if _a58k("grid33in") and os.environ.get("CHROMIQ_A78_DUMP"):
+                # Research Agent 78: dump the colorimetric table's parts
+                # (fine table, coarse sub-sample, clip distance, pre-refit
+                # per-node inversion) for offline study; writes nothing
+                # into the profile
+                _bl78 = float(model.predict(np.zeros((1, n)))[0, 0])
+                _wl78 = float(model.predict(np.ones((1, n)))[0, 0])
+                np.savez_compressed(
+                    os.environ["CHROMIQ_A78_DUMP"],
+                    fine=_a58m.a59_fine(dev_clut_shaped, _a59_pn, residual,
+                                        candidates),
+                    sub=_sub, residual=residual, node_lab=node_lab,
+                    pernode=np.clip(model.shape_device(dev_clut), 0, 1),
+                    g=b2a_grid, g0=_g0, black_l=_bl78, white_l=_wl78)
+            if _a58k("grid33in"):
+                # Agent 58 addition: the engine's fine grid where the node
+                # is printable (exact inversion, the accuracy win), colprof's
+                # coarse table interpolated where it is clipped, handed over
+                # over A58_IN_BAND dE of clip distance
+                _tab = _a58m.coarse_outside(
+                    _a58m.a59_fine(dev_clut_shaped, _a59_pn, residual,
+                                   candidates),
+                    _sub, residual, b2a_grid, _g0,
+                    band=_a58m.a59_band(candidates),
+                    inside=_a58m.a59_inside(candidates),
+                    dark=_a58m.a60_dark(
+                        candidates, node_lab,
+                        float(model.predict(np.zeros((1, n)))[0, 0])),
+                    pale=_a58m.a63_pale(
+                        candidates, node_lab,
+                        float(model.predict(np.ones((1, n)))[0, 0])))
+                if _a58m.a82_in(candidates) is not None:
+                    # Research Agent 82 (a82-greenin): the inward hand-over
+                    # on green target hues only
+                    _tin = _a58m.coarse_outside(
+                        _a58m.a59_fine(dev_clut_shaped, _a59_pn, residual,
+                                       candidates),
+                        _sub, residual, b2a_grid, _g0,
+                        band=_a58m.a59_band(candidates),
+                        inside=_a58m.a82_in(candidates),
+                        dark=_a58m.a60_dark(
+                            candidates, node_lab,
+                            float(model.predict(np.zeros((1, n)))[0, 0])),
+                        pale=_a58m.a63_pale(
+                            candidates, node_lab,
+                            float(model.predict(np.ones((1, n)))[0, 0])))
+                    _tab = np.where(_a58m._a82_hue_mask(
+                        np.asarray(node_lab, float), _a58m.A82["hue"])[:, None],
+                        _tin, _tab)
+                    _emit(settings, "Colorimetric table: printable greens "
+                                    "next to the gamut edge lean toward the "
+                                    "colprof grid (research a82-greenin).")
+                if _a82p is not None:
+                    # Research Agent 82 (a82-green): the written table's
+                    # clipped green nodes near the black smoothed
+                    _tab = _a58m.a82_dark(
+                        _tab, node_lab, residual, b2a_grid, _a82p,
+                        float(model.predict(np.zeros((1, n)))[0, 0]))
+                    _emit(settings, "Colorimetric table: clipped green "
+                                    "nodes smoothed (research a82-green"
+                                    f"{'' if _a82p['dark'] else ' off'}, "
+                                    "a82-greencusp"
+                                    f"{'' if _a82p['cusp'] else ' off'}).")
+                _a85p = _a58m.a85_params(candidates)
+                if _a85p is not None:
+                    # Research Agent 85 (a85-bpcblack): the clipped neutral
+                    # column between the device black and the darkest
+                    # printable neutral re-solved in CIELAB (rel. col. + BPC
+                    # reaches the black point), gated on a tinted black
+                    _tab, _a85i = _a58m.a85_bpcblack(
+                        _tab, node_lab, residual, model, _a85p,
+                        icw.curves_to_tables(inv, entries_b2a))
+                    _emit(settings, "Colorimetric table: neutral shadows "
+                                    "reach the printer's black (research "
+                                    "a85-bpcblack: black L* "
+                                    f"{_a85i['black'][0]:.1f}, darkest "
+                                    "printable neutral L* "
+                                    f"{(_a85i['neutral_l'] or float('nan')):.1f}, "
+                                    f"{_a85i['nodes']} nodes"
+                                    f"{'' if _a85i['fires'] else ', not needed'}).")
+                _a88p = _a58m.a88_params(candidates)
+                if _a88p is not None:
+                    # Research Agent 88 (a88-black-balanced / -deepest):
+                    # the clipped neutral column below the darkest printable
+                    # neutral reaches toward the printer's black, at most one
+                    # just-noticeable cast (Balanced) or all the way (Deepest)
+                    _tab, _a88i = _a58m.a88_black(
+                        _tab, node_lab, residual, model, _a88p,
+                        icw.curves_to_tables(inv, entries_b2a))
+                    _k88, _n88 = _a88i["black"], _a88i["neutral"]
+                    _emit(settings, "Colorimetric table: deepest black "
+                                    f"{_a88i['level']} (research a88: "
+                                    "printer black L* "
+                                    f"{_k88[0]:.1f} a* {_k88[1]:.1f} b* "
+                                    f"{_k88[2]:.1f}; darkest printable "
+                                    "neutral "
+                                    + ("none" if _n88 is None else
+                                       f"L* {_n88[0]:.1f} a* {_n88[1]:.1f} "
+                                       f"b* {_n88[2]:.1f}")
+                                    + f"; {_a88i['nodes']} nodes"
+                                    f"{'' if _a88i['fires'] else ', not needed'}).")
+                b2a_col = icw.make_mft2(
+                    3, n, b2a_grid, icw.device_to_u16(_tab),
+                    in_tables=b2a_in,
+                    out_tables=icw.curves_to_tables(inv, entries_b2a))
+            else:
+                _e0 = _B2A_ENTRIES[_qb_colprof]
+                b2a_col = icw.make_mft2(
+                    3, n, _g0, icw.device_to_u16(_sub),
+                    in_tables=codec.b2a_in_tables(_e0),
+                    out_tables=icw.curves_to_tables(inv, _e0))
+    # ICC.1 §9.2.29: gamt is 0 for an in-gamut PCS colour. The inversion's
+    # clamp distance is a continuous residual (0.3–0.9 ΔE on converged
+    # near-boundary nodes) and it leaked onto two thirds of the printable
+    # interior (A-08); nodes the build itself calls in-gamut write 0.
+    # ICC.1 §9.2.29: gamt is 0 for an in-gamut colour. The table is
+    # interpolated across cells 16 ΔE wide (a/b at grid 17), so a node's
+    # value leaks into the cell around it: with the raw clamp distance two
+    # thirds of the printable interior read non-zero (A-08), and with a
+    # 3 ΔE node tolerance a band 5–10 ΔE INSIDE the surface still did
+    # (reviewer R10). colprof's tag behaves as if it subtracted a margin of
+    # a few ΔE from the distance (86 % zeros 2 ΔE inside, 59 % zeros 2 ΔE
+    # outside); a 6 ΔE margin here shrinks the leak to what a soft-proof
+    # warning can live with — measured on battery S1 at -qm: printable
+    # interior exactly 0 for 86 % (was 32 %), every point 5 ΔE inside the
+    # true surface under 1 ΔE, and 96 % of points 5 ΔE outside still
+    # non-zero. The distance far outside is understated by the margin.
+    # …and the margin fades out again beyond 12 ΔE, so a colour far outside
+    # keeps its true distance (a soft-proof reads the magnitude; understating
+    # it by 6 was the price of the margin until Basti asked for better).
+    knee = np.clip((residual - 6.0) / 6.0, 0.0, 1.0)      # 0 at 6, 1 at 12
+    gamt_dist = np.maximum(residual - 6.0 * (1.0 - knee), 0.0)
     gamt = icw.make_mft2(
         3, 1, b2a_grid,
-        (np.clip(residual, 0, 128)[:, None] / 128 * 0xFFFF).round(),
+        (np.clip(gamt_dist, 0, 128)[:, None] / 128 * 0xFFFF).round(),
         in_tables=codec.b2a_in_tables(256))
 
     # The colorimetric tables own the bytes; the other intents alias them
@@ -542,7 +2902,11 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         "B2A1": b2a_col, "gamt": gamt,
     }
     perceptual_distinct = False
-    if settings.source_gamut is not None:
+    if mapped_bg is not None:
+        mapped = mapped_bg.result()
+        luts.update(mapped)
+        perceptual_distinct = "B2A0" in mapped
+    elif settings.source_gamut is not None:
         from workflow.profile_engine.gamut_map import build_mapped_b2a
         _emit(settings, "Building the perceptual and saturation tables…")
         mapped = build_mapped_b2a(
@@ -550,14 +2914,67 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             channel_letters=meas.channel_letters,
             is_additive=meas.is_additive, ink_limit=ink_limit,
             entries=entries_b2a, codec=codec, settings=settings,
-            a2b_grid=a2b_grid, a2b_entries=entries_a2b, anchor=anchor)
+            a2b_grid=a2b_grid, a2b_entries=entries_a2b, anchor=anchor,
+            channel_max=channel_max, oracle_run=oracle_run,
+            neutral_black_dev=(axis or {}).get("black"),
+            **({"neutral_axis": axis}
+               if "a25-oracle-neutral" in candidates else {}),
+            black_dev_shaped=model.shape_device(device_black[None, :])[0])
         luts.update(mapped)
         perceptual_distinct = "B2A0" in mapped
     if "B2A0" not in luts:
         luts["B2A0"] = "B2A1"
     if "B2A2" not in luts:
         luts["B2A2"] = "B2A1"
+    if (accurate and codec.signature == b"Lab "
+            and luts["B2A0"] == "B2A1" and luts["B2A2"] == "B2A1"
+            and "a51-colprofedge" in candidates
+            and (meas.is_additive or "a51-colprofedge-all" in candidates)):
+        # Integration 7 (a51-colprofedge default): with no mapped table the
+        # perceptual intents alias the colorimetric B2A1, and lcms feeds them
+        # the device black's own Lab (black point compensation). The
+        # perceptual tables hold the cell around the device black's own
+        # Lab on the black (lcms feeds exactly that Lab, with black point
+        # compensation, and the clipped neighbour nodes of a51 lifted the
+        # answer: X1 sRGB black 0.39 L* lighter than the device black). The
+        # colorimetric B2A1 is untouched.
+        pinned = pin_black_cell(luts["B2A1"],
+                                model.predict(device_black[None, :])[0])
+        luts["B2A0"] = pinned
+        luts["B2A2"] = "B2A0"
 
+    if (accurate and not meas.is_additive
+            and {"a79-lincurve", "a79-lincurve-col"} & set(candidates)):
+        from workflow.profile_engine import gamut_map as _a79g
+        _a79f = _a79g.a79_mild_fold(model, meas.channel_letters, meas)
+        if _a79f is not None:
+            # Research Agent 79 (a79-lincurve, Findings agent79-01): the
+            # model's shaper curves on a sparse chart wiggle (i1iSis demo:
+            # slope 0.7 -> 1.9 within a tenth of K), and the CMM interpolates
+            # between B2A nodes in that space: dark colour-to-black ramps
+            # bend between nodes. Same node values, identity output curves.
+            for _t in (("B2A0", "B2A1") if "a79-lincurve-col" in candidates
+                       else ("B2A0",)):
+                if isinstance(luts.get(_t), (bytes, bytearray)):
+                    luts[_t] = _a79g.a79_identity_output(luts[_t])
+            _emit(settings, "B2A output curves (a79-lincurve): identity "
+                            "(mild ink fold printer) for "
+                            + ("B2A0/B2A1." if "a79-lincurve-col"
+                               in candidates else "B2A0."))
+    if (accurate and _a80_fired and b2a_mod.A80_LINCURVE in candidates):
+        # Research Agent 80 (a80-lincurve): where a80-greywalk re-walked the
+        # grey, the perceptual and colorimetric B2A get identity output
+        # curves (a79-lincurve's re-encoding, same node values): on the
+        # i1iSis-like XFI the shaper-space curves bend the blue ramp between
+        # nodes near black (blue, darker, blue, black).
+        from workflow.profile_engine import gamut_map as _a80g
+        for _t in (("B2A1",) if _a80g.A80_ORACLECURVE in candidates
+                   else ("B2A0", "B2A1")):
+            if isinstance(luts.get(_t), (bytes, bytearray)):
+                luts[_t] = _a80g.a79_identity_output(luts[_t])
+        _emit(settings, "B2A output curves (a80-lincurve): identity for "
+                        + ("B2A1." if _a80g.A80_ORACLECURVE in candidates
+                           else "B2A0/B2A1."))
     out = Path(out_path)
     attributes = 0
     for letter in settings.z_attributes:
@@ -569,7 +2986,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         copyright=settings.copyright,
         manufacturer=settings.manufacturer,
         model=settings.model,
-        wtpt=tuple(meas.media_white_xyz / 100.0),
+        wtpt=tuple(wtpt_abs / 100.0),
         bkpt=tuple(meas.black_xyz / 100.0),
         targ=meas.text if settings.embed_ti3 else None,
         pcs=codec.signature,
@@ -578,15 +2995,69 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         timestamp=settings.timestamp,
         version=(4, 4) if str(settings.icc_version) == "4" else (2, 2),
     )
-    icw.write_profile(out, spec, luts)
+    v4_extra, v4_wtpt = _v4_adaptation(meas, settings, wtpt_abs)
+    luts_v4 = luts
+    if (accurate and "v4prm" in candidates
+            and str(settings.icc_version) in ("4", "both")):
+        # ICC.1:2022 6.3.4.3 / Table 16: a v4 CMM takes the perceptual (and,
+        # in lcms, the saturation) PCS black to be the perceptual reference
+        # medium's, so the v4 container's intent 0/2 tables are referred to
+        # it; the v2 file keeps its bytes (research agent17-01 item 2, F-09).
+        # Maximum accuracy only (D-15): Fast and Bit-exact stay frozen
+        # comparison columns, their v4 container keeps the v2 tables.
+        # Integration 2: token "v4prm", ON by default (D-19, after
+        # Validation/f09-decision.md): ColorSync and Argyll do no PRM black
+        # handling and merge the darkest sRGB levels into black, as they do
+        # for every X-Rite v4 profile; Mac users are pointed at the v2 file.
+        from workflow.profile_engine.v4_prm import v4_luts
+        luts_v4 = v4_luts(luts, codec.signature,
+                          model.predict(device_black[None, :])[0])
+    if accurate and {"a24-l1", "a24-l1scale"} & candidates \
+            and codec.signature == b"Lab ":
+        # Research C-L1 (Agent 24, D-01 closing section): the A2B L* output
+        # encoding that ColorSync reads right and every spec CMM reads as
+        # before (workflow/profile_engine/lab_l1.py). A2B tags only.
+        from workflow.profile_engine.lab_l1 import apply_l1
+        same = luts_v4 is luts
+        l1v = "scale" if "a24-l1scale" in candidates else "b"
+        luts = apply_l1(luts, l1v)
+        luts_v4 = luts if same else apply_l1(luts_v4, l1v)
+    if (accurate and "a40-inklimit" in candidates and ink_limit is not None
+            and not meas.is_additive):
+        # Agent 40 (Findings/agent40-01-inklimit.md): the total ink limit
+        # held BETWEEN the B2A nodes too, not only at them. The CMM
+        # interpolates the shaped CLUT and then applies the (partly concave)
+        # output tables, so a cell whose corners sit on the limit printed up
+        # to 306.6 % for 300 % (R-CMYK-default-i1Pro B2A1). Last step before
+        # writing, on the final bytes: after every pin, the gamut clip and
+        # the v4 PRM resampling, so nothing later can undo it.
+        from workflow.profile_engine.tac_guard import guard_luts
+        same = luts_v4 is luts
+        log = lambda m: _emit(settings, m)  # noqa: E731
+        # The black corner moves only if its cell cannot be held otherwise
+        # (or it is itself over the limit): the black rows stay as built.
+        _blk = [int(np.argmin(np.linalg.norm(node_lab, axis=1)))]
+        luts = guard_luts(luts, float(ink_limit), log=log, protect=_blk)
+        luts_v4 = luts if same else guard_luts(luts_v4, float(ink_limit),
+                                               protect=_blk)
+    if str(settings.icc_version) == "4":
+        from dataclasses import replace
+        spec = replace(spec, wtpt=v4_wtpt)
+        icw.write_profile(out, spec, luts_v4, extra_tags=v4_extra)
+    else:
+        icw.write_profile(out, spec, luts)
     if str(settings.icc_version) == "both":
         # One build, two containers: the main path stays v2 (what the
         # rest of the workflow installs), the v4 twin lands alongside it
-        # with a self-explaining name. Same LUT bytes in both — only the
-        # header and metadata types differ.
+        # with a self-explaining name. Same colorimetric LUT bytes in both;
+        # the perceptual and saturation tables are PRM-referred in the twin.
         from dataclasses import replace
         twin = out.with_name(out.stem + "-v4.icc")
-        icw.write_profile(twin, replace(spec, version=(4, 4)), luts)
+        # Its own name: two entries called the same thing in a profile
+        # menu cannot be told apart (critic N12).
+        icw.write_profile(twin, replace(spec, version=(4, 4), wtpt=v4_wtpt,
+                                        description=spec.description + " (v4)"),
+                          luts_v4, extra_tags=v4_extra)
         _emit(settings, f"Also wrote the ICC v4 twin: {twin.name}")
 
     gam_res = residual[in_gamut]
@@ -596,6 +3067,20 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         _emit(settings, f"Model fit (perceptual ΔE2000): median "
                         f"{float(np.median(fit_res00)):.2f}, 95% "
                         f"{float(np.percentile(fit_res00, 95)):.2f}.")
+    # A-16: a junk scanner chart built with fit median 5.1 / p95 14.5 and
+    # installed like any other. Numbers alone draw no verdict. A chart read
+    # by a scanner or camera (no TARGET_INSTRUMENT stamp — scanin writes
+    # none) legitimately fits at 2–4 ΔE2000 (reviewer R7), so its bar is 4.
+    spectro = bool(meas.keywords.get("TARGET_INSTRUMENT"))
+    bar = 2.0 if spectro else 4.0
+    if float(np.median(fit_res00)) > bar:
+        _emit(settings, "WARNING: the model fits this measurement poorly "
+                        f"(median {float(np.median(fit_res00)):.1f} ΔE2000 at "
+                        "the patches; a spectrophotometer chart fits under "
+                        "1, a scanner- or camera-measured chart under 4). "
+                        "The measurement may be damaged, mis-aligned or from "
+                        "an instrument that did not read colour — check it "
+                        "before trusting this profile.")
     if "gp" in candidates or (accurate and settings.noise_model):
         from workflow.profile_engine.gp import uncertainty_lines
         for line in uncertainty_lines(meas.lab_relative, fit_res00):
@@ -611,7 +3096,133 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         model=model, measurement=meas,
         fit_median_de00=float(np.median(fit_res00)),
         fit_p95_de00=float(np.percentile(fit_res00, 95)),
+        # "peak err" over the patches the model was asked to fit: the robust
+        # loop deliberately leaves the misreads it names unfitted, and their
+        # residual doubled the peak the scanner tool judges (reviewer R13).
+        fit_max_de=float(np.delete(fit_res, outliers).max()
+                         if len(outliers) < len(fit_res) else fit_res.max()),
+        fit_mean_de=float(np.delete(fit_res, outliers).mean()
+                          if len(outliers) < len(fit_res) else fit_res.mean()),
         outlier_rows=tuple(int(i) for i in outliers))
+
+
+def _sanity_gates(meas: Ti3Measurement, settings: BuildSettings) -> None:
+    """Refuse a measurement that cannot describe a printer.
+
+    A stuck-instrument chart (every patch ≈ the same colour) built in 1.4 s
+    with "fit median 0.03" and a profile that mapped every colour to paper
+    white (A-16). The lightness range between the chart's white and its
+    darkest patch is the one number no printer chart can fake."""
+    lab = meas.lab_relative
+    span = float(lab[meas.white_index, 0] - lab[meas.black_index, 0])
+    if span < 10.0:
+        raise EngineError(
+            f"This measurement cannot describe a printer: its brightest and "
+            f"darkest patches are only {span:.1f} L* apart (a printed chart "
+            f"spans 70 or more). The instrument may have been stuck or "
+            f"mis-aimed, or the wrong file was chosen — re-measure the chart "
+            f"before building a profile.")
+
+
+def _v4_adaptation(meas: Ti3Measurement, settings: BuildSettings,
+                   wtpt_abs: np.ndarray):
+    """ICC v4 needs ``chad`` and a D50-adapted ``wtpt`` when the measurement
+    was computed for an illuminant other than D50 (ICC.1 §8.2, §9.2.36).
+    Returns ``(extra_tags, wtpt_v4)``; the v2 file keeps colprof's raw
+    illuminant-relative white (parity), the v4 file gets the adapted one."""
+    illum = (settings.illuminant or "D50").upper().replace("M2", "")
+    if illum == "D50" or meas.wavelengths is None:
+        return [], tuple(wtpt_abs / 100.0)
+    from workflow.profile_engine.icc_writer import BRADFORD, make_sf32
+    from workflow.profile_engine.spectral import spectra_to_xyz
+    from workflow.profile_engine.ti3_data import D50_XYZ100
+    ill = spectra_to_xyz(np.ones((1, len(meas.wavelengths))),
+                         meas.wavelengths,
+                         illuminant=settings.illuminant)[0]
+    cone_ill = BRADFORD @ (ill / 100.0)
+    cone_d50 = BRADFORD @ (D50_XYZ100 / 100.0)
+    m = np.linalg.inv(BRADFORD) @ np.diag(cone_d50 / cone_ill) @ BRADFORD
+    return [(b"chad", make_sf32(m))], tuple((m @ wtpt_abs) / 100.0)
+
+
+def _channel_ceilings(meas: Ti3Measurement,
+                      settings: BuildSettings) -> np.ndarray | None:
+    """Per-channel device ceilings for the inversion: 1.0 everywhere except
+    a K channel under a black ink limit (settings -L, else the chart's
+    BLACK_INK_LIMIT). None when no limit applies — additive devices, no K,
+    or a limit ≥ 100 %."""
+    if meas.is_additive or "K" not in meas.channel_letters:
+        return None
+    limit = settings.black_ink_limit
+    if limit is None:
+        limit = meas.black_ink_limit
+    if limit is None or not (0.0 < limit < 100.0):
+        return None
+    top = np.ones(meas.n_channels)
+    top[meas.channel_letters.index("K")] = limit / 100.0
+    return top
+
+
+def _pin_media_white(model: ForwardModel, meas: Ti3Measurement,
+                     settings: BuildSettings) -> np.ndarray:
+    """Re-adapt the fitted grid so device white maps exactly to D50, and
+    return the profile's absolute media white (Y=100 scale).
+
+    Argyll's ``xfit.c`` (XFIT_OUT_WP_REL) looks the device white up through
+    the fitted model and re-adapts the WHOLE grid so it lands on D50. That
+    global move costs interior accuracy by the white-fit error — measured on
+    the synthetic battery: A2B median S2 0.241 → 0.318, S3 0.238 → 0.319 —
+    so here the correction is LOCAL: the fitted white's error is added in
+    full at the white corner and fades out below L* 60 and beyond chroma
+    40, leaving the interior exactly as fitted. Device white sits on a grid
+    CORNER (the shaper curves are pinned at 0 and 1), so that node becomes
+    (100, 0, 0) exactly and the relative tables agree with the white-point
+    tag, which is the fitted white expressed back in the measured basis.
+    ``wp_scale`` (xfit semantics: grid ×1/scale, white ×scale) stays a global
+    operation — colprof refuses it on printer data and the tab cannot reach
+    it; kept for an input-class future.
+    """
+    from workflow.profile_engine.icc_writer import BRADFORD
+    from workflow.profile_engine.ti3_data import (D50_XYZ100, lab_to_xyz,
+                                                   xyz_to_lab)
+    dev_white = np.full((1, meas.n_channels),
+                        1.0 if meas.is_additive else 0.0)
+    lab_w = model.predict(dev_white)
+    xyz_w = lab_to_xyz(lab_w)[0]                      # D50-relative, Y≈100
+    if not np.all(np.isfinite(xyz_w)) or xyz_w[1] <= 1.0:
+        _emit(settings, "Paper white could not be anchored (the model's "
+                        "white is not a usable colour); leaving the tables "
+                        "unadapted.")
+        return meas.media_white_xyz.copy()
+    # Absolute white = the fitted white in the measured basis (before the
+    # correction, so the absolute response of the profile is unchanged).
+    wtpt_abs = meas.relative_to_absolute_xyz(xyz_w)[0]
+    delta = np.array([100.0, 0.0, 0.0]) - lab_w[0]
+    nodes = model.nodes
+    l_w = np.clip((nodes[:, 0] - 60.0) / 40.0, 0.0, 1.0) ** 2
+    c_w = np.clip(1.0 - np.hypot(nodes[:, 1], nodes[:, 2]) / 40.0, 0.0, 1.0)
+    model.nodes = nodes + delta[None, :] * (l_w * c_w)[:, None]
+    # The weights above are evaluated at each node's own fitted Lab, so the
+    # corner's weight is ((L_w−60)/40)² < 1 and the pin fell short by
+    # δ·(1−w) — 97.7 instead of 100 on a heavily smoothed matte chart
+    # (reviewer R1). Device white IS the corner node: set it exactly.
+    n_ch = meas.n_channels
+    corner = np.ravel_multi_index(
+        tuple([model.grid - 1 if meas.is_additive else 0] * n_ch),
+        (model.grid,) * n_ch)
+    model.nodes[corner] = np.array([100.0, 0.0, 0.0])
+    scale = float(settings.wp_scale) if settings.wp_scale else 1.0
+    if scale <= 0.0:
+        scale = 1.0
+    if scale != 1.0:
+        model.nodes = xyz_to_lab(lab_to_xyz(model.nodes) / scale)
+    wtpt_abs = wtpt_abs * scale
+    corner = model.predict(dev_white)[0]
+    _emit(settings, f"Paper white anchored: the model's white read L* "
+                    f"{lab_w[0, 0]:.2f}, now {corner[0]:.2f} — the profile's "
+                    f"white point is the fitted paper (Y {wtpt_abs[1]:.2f})"
+                    + (f", scaled by {scale:g}." if scale != 1.0 else "."))
+    return wtpt_abs
 
 
 def _invalidate_bases(meas: Ti3Measurement) -> None:

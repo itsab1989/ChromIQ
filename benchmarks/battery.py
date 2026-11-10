@@ -1,6 +1,6 @@
 """Battery runner + promotion gates (issue #123, W0).
 
-Builds a maximum-accuracy profile per synthetic printer (S1–S6) with a
+Builds a maximum-accuracy profile per synthetic printer (S1–S7) with a
 given candidate set and scores the written profile bytes against the
 analytic ground truth on dense quasi-random points — all ΔE2000, all
 against ``f_true``, never against the chart.
@@ -29,7 +29,7 @@ import numpy as np
 
 from benchmarks.iccread import IccProfile
 from benchmarks.synthetic import PRINTERS, SyntheticPrinter, eval_points, \
-    make_chart, measure, write_ti3
+    halton, make_chart, measure, write_ti3
 from workflow.profile_engine.metrics import delta_e_2000
 
 
@@ -47,6 +47,62 @@ def _hue_deg(lab: np.ndarray) -> np.ndarray:
 def _circ_diff(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     d = np.abs(a - b) % 360.0
     return np.minimum(d, 360.0 - d)
+
+
+# The light-ink metrics' neutral ramp: L* 5…95 at 0.5 L* steps (a = b = 0).
+RAMP_L = np.arange(5.0, 95.0 + 1e-9, 0.5)
+HIGHLIGHT_L = 70.0          # "highlight" = true L* above this
+HIGHLIGHT_COVERAGE = 0.40   # the highlight sample's per-channel ceiling
+LIGHT_DARK_HANDOVER = 0.40  # dark ink below this → the light ink must lead
+
+
+def highlight_points(printer: SyntheticPrinter, n: int, seed: int = 13
+                     ) -> np.ndarray:
+    """The highlight referee's device sample: Halton points with every
+    channel at ≤ 40 % coverage (RGB: ≥ 60 %), keeping those the true
+    printer renders above L* 70. The main evaluation grid is uniform over
+    the whole device cube and TAC-projected, which on six inks is almost
+    entirely dark — measured: 3 of 6,000 points above L* 70 on S7 — so a
+    highlight median taken from it rests on a handful of points."""
+    pts = halton(n, printer.n_channels, seed) * HIGHLIGHT_COVERAGE
+    if printer.is_additive:
+        pts = 1.0 - pts
+    lab = printer.lab_relative_true(pts)
+    return pts[lab[:, 0] > HIGHLIGHT_L]
+
+
+def light_ink_usage(printer: SyntheticPrinter, prof: IccProfile,
+                    lab_high: np.ndarray) -> dict:
+    """The light-ink metric (S7): the fraction of neutral-ramp and
+    highlight (:func:`highlight_points`) targets the profile prints within 1 ΔE00
+    AND separates light-first — for every light/parent pair the pair
+    either is unused (< 2 % together), or the dark ink is at or above 40 %,
+    or the light ink carries at least as much as the dark one. A
+    hue-gated spot-ink policy fails the second half on nearly every
+    neutral (light ink 0, dark ink 5–30 %); a light/dark curve passes it
+    wherever it also prints the colour. ``ramp_max_step`` is the largest
+    change of any channel between consecutive 0.5 L* ramp steps."""
+    pairs = printer.light_ink_pairs
+    neutral = np.stack([RAMP_L, np.zeros_like(RAMP_L),
+                        np.zeros_like(RAMP_L)], 1)
+    targets = np.vstack([neutral, lab_high])
+    dev = prof.b2a_device(targets)
+    printed = printer.lab_relative_true(dev)
+    de = delta_e_2000(printed, targets)
+    ok = de <= 1.0
+    light_first = np.ones(len(targets), bool)
+    for light, parent in pairs:
+        d_l, d_p = dev[:, light], dev[:, parent]
+        light_first &= ((d_l + d_p < 0.02) | (d_p >= LIGHT_DARK_HANDOVER)
+                        | (d_l >= d_p))
+    ramp = dev[:len(RAMP_L)]
+    return {"fraction": float(np.mean(ok & light_first)),
+            "colour_ok": float(np.mean(ok)),
+            "light_first": float(np.mean(light_first)),
+            "n_targets": int(len(targets)),
+            "ramp_max_step": float(np.abs(np.diff(ramp, axis=0)).max()),
+            "ramp_light_mean": [float(ramp[:, l].mean()) for l, _ in pairs],
+            "ramp_parent_mean": [float(ramp[:, p].mean()) for _, p in pairs]}
 
 
 def score_profile(printer: SyntheticPrinter, icc_path: Path,
@@ -72,6 +128,17 @@ def score_profile(printer: SyntheticPrinter, icc_path: Path,
 
     out = {"a2b": _stats(de_a2b), "b2a": _stats(de_b2a),
            "roundtrip": _stats(de_rt)}
+    # The same two legs on a dedicated highlight sample (true L* > 70) —
+    # where a light-ink printer earns its keep (A-20); every printer.
+    dev_h = highlight_points(printer, max(n_eval // 2, 5000))
+    lab_h = printer.lab_relative_true(dev_h)
+    de_a2b_h = delta_e_2000(prof.a2b_lab(dev_h), lab_h)
+    de_b2a_h = delta_e_2000(printer.lab_relative_true(prof.b2a_device(lab_h)),
+                            lab_h)
+    out["highlight"] = {"a2b": _stats(de_a2b_h), "b2a": _stats(de_b2a_h),
+                        "n": int(len(dev_h))}
+    if printer.light_ink_pairs:
+        out["light_ink"] = light_ink_usage(printer, prof, lab_h)
 
     if printer.n_channels >= 4 and not printer.is_additive:
         # Neutral-axis separation smoothness: K total variation vs net.
@@ -136,10 +203,17 @@ def run_battery(candidates: frozenset[str] = frozenset(), *,
                    / (o["precision"] + o["recall"])
                    if (o["precision"] + o["recall"]) > 0 else 0.0)
         results["printers"][pid] = row
+        extra = ""
+        if "light_ink" in row:
+            li = row["light_ink"]
+            extra = (f" | highlight A2B {row['highlight']['a2b']['median']:.3f}"
+                     f" B2A {row['highlight']['b2a']['median']:.3f}"
+                     f" | light-first {li['fraction']:.3f}"
+                     f" ramp step {li['ramp_max_step']:.3f}")
         progress(f"{pid}: A2B med {row['a2b']['median']:.3f} "
                  f"p95 {row['a2b']['p95']:.3f} | B2A med "
                  f"{row['b2a']['median']:.3f} p95 {row['b2a']['p95']:.3f}"
-                 f" | {secs:.0f}s")
+                 f" | {secs:.0f}s{extra}")
     return results
 
 
@@ -191,6 +265,28 @@ def evaluate_gates(baseline: dict, candidate: dict) -> dict:
             detail.append(f"REGRESS {pid} build time: "
                           f"{b['build_seconds']:.0f}s → "
                           f"{c['build_seconds']:.0f}s (> 2×)")
+        if "light_ink" in b and "light_ink" in c:
+            # Light-ink printer (S7): the highlight legs must improve by
+            # ≥ 25 %, the light-first fraction must rise, and the neutral
+            # ramp must be free of jumps (no channel moves more than 0.08
+            # between 0.5 L* steps).
+            for leg in ("a2b", "b2a"):
+                hb = b["highlight"][leg]["median"]
+                hc = c["highlight"][leg]["median"]
+                if rel(hb, hc) > -0.25:
+                    ok = False
+                    detail.append(f"GATE {pid} highlight {leg} median "
+                                  f"{hb:.3f} → {hc:.3f} "
+                                  f"({-rel(hb, hc) * 100:+.1f}% < 25%)")
+            fb, fc = b["light_ink"]["fraction"], c["light_ink"]["fraction"]
+            if fc <= fb:
+                ok = False
+                detail.append(f"GATE {pid} light-ink usage {fb:.3f} → "
+                              f"{fc:.3f} did not rise")
+            if c["light_ink"]["ramp_max_step"] > 0.08:
+                ok = False
+                detail.append(f"GATE {pid} neutral ramp max step "
+                              f"{c['light_ink']['ramp_max_step']:.3f} > 0.08")
     s4b = baseline["printers"].get("S4", {}).get("outliers")
     s4c = candidate["printers"].get("S4", {}).get("outliers")
     if s4b and s4c:

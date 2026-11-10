@@ -3384,6 +3384,16 @@ class MainWindow(QMainWindow):
         # this ending was the user quitting, not a failure. See
         # MeasureManager.note_app_quitting.
         self._mark_quit_on_the_measurement()
+        # The engine's Argyll children are not QProcesses: closing the window
+        # mid-build used to leave the oracle colprof running for ~50 s and its
+        # temp folder behind (B-25).
+        try:
+            from workflow.profile_engine.gamut_map import \
+                terminate_argyll_children
+            terminate_argyll_children()
+        except Exception:              # noqa: BLE001 — never trap the user
+            log.warning("could not stop the engine's Argyll children",
+                        exc_info=True)
         self._runner.cleanup()
         # LET GO OF A CR30 ON THE WAY OUT. ChromIQ's own reader holds the
         # instrument in this process, and `_hard_exit` skips every destructor,

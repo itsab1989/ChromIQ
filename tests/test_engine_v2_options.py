@@ -342,7 +342,7 @@ def test_noise_option_wins_on_noisy_chart(tmp_path):
                   BuildSettings(quality="l", gammap_mode="accurate",
                                 ink_limit=280.0, noise_model=True,
                                 progress=lines.append))
-    assert any("noise handling engaged" in ln for ln in lines)
+    assert any("weighted by their reliability" in ln for ln in lines)
 
 
 @pytest.mark.slow
@@ -357,7 +357,7 @@ def test_render_style_option_uses_bijective_mapper(tmp_path):
         source_gamut="assets/profiles/ClayRGB1998.icm",
         progress=lines.append))
     assert res.perceptual_distinct
-    assert any("bijective CAM16-UCS" in ln for ln in lines)
+    assert any("ChromIQ bijective rendering" in ln for ln in lines)
 
 
 def test_new_rows_persistence_roundtrip(tmp_path, qtbot):

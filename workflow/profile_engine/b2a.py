@@ -22,10 +22,13 @@ doubles as the ``gamt`` gamut-distance table (ColorSync requires that tag).
 """
 from __future__ import annotations
 
+import os
+
 import numpy as np
 
 from workflow.profile_engine.forward_model import ForwardModel
 from workflow.profile_engine.icc_writer import lab_grid_axes
+from workflow.profile_engine import oog_clip as _oog
 
 # Lab hue anchors for extra inks, keyed by COLOR_REP letter. Measured hues of
 # the EXTRA_INK display anchors used across ChromIQ (ui.tiff_preview).
@@ -86,6 +89,34 @@ def project_tac(d: np.ndarray, limit: float) -> np.ndarray:
     theta = css[np.arange(len(sub)), rho - 1] / rho
     d[over] = np.maximum(sub - theta[:, None], 0.0)
     return d
+
+
+def _tac_face_step(jtj: np.ndarray, jtr: np.ndarray, cvec: np.ndarray,
+                   e: np.ndarray) -> np.ndarray:
+    """Batched Gauss–Newton step on the total-ink face.
+
+    Solves ``min ½ sᵀ A s − bᵀ s  s.t.  cᵀ s = e`` per row (A = ``jtj``,
+    b = ``jtr``, c = 1 over the channels that may move, e = the ink still
+    to be added to land exactly on the limit): ``s = A⁻¹(b + μc)`` with
+    ``μ = (e − cᵀA⁻¹b) / (cᵀA⁻¹c)``.
+
+    A projection AFTER the step subtracts a common amount from every
+    channel, so a dark target that drives C, M, Y and K all onto the 1.0
+    face comes back as equal parts of each — and the K prior's pull is
+    undone every iteration. Measured 2026-09-05 on the battery's CMYK
+    printer: the objective's own optimum at L*=0 under a 280 % limit is
+    (0.66, 0.59, 0.55, K 1.0), true L* 9.9; the projected step delivered
+    (0.75, 0.56, 0.75, 0.75), L* 14.8, and fast mode's proportional
+    scaling L* 13.5. On the face the solver trades ink BETWEEN channels
+    and the colour and the priors decide the split.
+    """
+    rhs = np.stack([jtr, cvec], -1)                     # (N, k, 2)
+    sol = np.linalg.solve(jtj, rhs)
+    ab, ac = sol[..., 0], sol[..., 1]
+    cab = (cvec * ab).sum(1)
+    cac = (cvec * ac).sum(1)
+    mu = np.where(cac > 1e-12, (e - cab) / np.maximum(cac, 1e-12), 0.0)
+    return ab + mu[:, None] * ac
 
 
 # Hue-preservation factor on top of the ΔE2000 metric for clipping: gamut-
@@ -159,7 +190,7 @@ def _ucs_hue_weight_matrices(target_ucs: np.ndarray) -> np.ndarray:
     return w
 
 
-def _gauss_newton(model: ForwardModel, target: np.ndarray, seed: np.ndarray,
+def _gauss_newton(model, target: np.ndarray, seed: np.ndarray,
                   free: np.ndarray, *, iters: int, damping: float,
                   ink_limit: float | None,
                   prior: np.ndarray | None = None,
@@ -167,8 +198,60 @@ def _gauss_newton(model: ForwardModel, target: np.ndarray, seed: np.ndarray,
                   boundary_fd: bool = False,
                   tac_projection: bool = False,
                   err_weights: np.ndarray | None = None,
+                  channel_max: np.ndarray | None = None,
+                  progress=None, progress_label: str = "") -> np.ndarray:
+    """Row-parallel front of :func:`_gauss_newton_rows` (D-06).
+
+    Every row of the batched Gauss-Newton is solved on its own (its own
+    Jacobian, its own k x k solve, its own clip and ink-limit projection),
+    so contiguous row chunks on pool threads give the same bytes as one
+    batch. Only the maximum-accuracy path (``boundary_fd``) is split; Fast
+    and Bit-exact keep the serial call untouched. Chunk 0 reports progress,
+    so the log carries exactly the serial run's lines."""
+    from workflow.profile_engine import parallel
+    kw = dict(iters=iters, damping=damping, ink_limit=ink_limit,
+              boundary_fd=boundary_fd, tac_projection=tac_projection,
+              channel_max=channel_max, progress_label=progress_label)
+    # Agent 92: pieces start on multiples of ROW_ALIGN, and a view that may
+    # reach a BLAS product (the a51 CIECAM02 view, a GP layer) is only
+    # split where parallel.rows_stable() holds; the plain forward model is
+    # element-wise per row.
+    split = boundary_fd and (type(model) is ForwardModel
+                             or parallel.rows_stable())
+    bounds = parallel.chunk_bounds(len(target), parallel.worker_count(),
+                                   align=parallel.ROW_ALIGN) \
+        if split else [(0, len(target))]
+    if len(bounds) <= 1:
+        return _gauss_newton_rows(model, target, seed, free, prior=prior,
+                                  prior_w=prior_w, err_weights=err_weights,
+                                  progress=progress, **kw)
+
+    def one(lo: int, hi: int) -> np.ndarray:
+        sl = slice(lo, hi)
+        return _gauss_newton_rows(
+            model, target[sl], seed[sl], free,
+            prior=None if prior is None else prior[sl],
+            prior_w=None if prior_w is None else prior_w[sl],
+            err_weights=None if err_weights is None else err_weights[sl],
+            progress=progress if lo == 0 else None, **kw)
+    return np.concatenate(parallel.run_chunks(one, bounds), axis=0)
+
+
+def _gauss_newton_rows(model: ForwardModel, target: np.ndarray, seed: np.ndarray,
+                  free: np.ndarray, *, iters: int, damping: float,
+                  ink_limit: float | None,
+                  prior: np.ndarray | None = None,
+                  prior_w: np.ndarray | None = None,
+                  boundary_fd: bool = False,
+                  tac_projection: bool = False,
+                  err_weights: np.ndarray | None = None,
+                  channel_max: np.ndarray | None = None,
                   progress=None, progress_label: str = "") -> np.ndarray:
     """Batched damped Gauss–Newton on the free channels.
+
+    ``channel_max``: per-channel upper bound (device fraction) — the black
+    ink limit (colprof ``-L`` / BLACK_INK_LIMIT) is a box constraint on the
+    K channel, applied at every clip like the 0..1 cube itself.
 
     ``prior``/``prior_w``: optional per-channel soft targets over the free
     channels (the ink policy). They enter as extra least-squares rows, so
@@ -196,6 +279,7 @@ def _gauss_newton(model: ForwardModel, target: np.ndarray, seed: np.ndarray,
             jtj += np.einsum("nk,kl->nkl", prior_w, eye)
             jtr += prior_w * (prior - d[:, free])
         step = np.linalg.solve(jtj, jtr[..., None])[..., 0]
+        bad = None
         if boundary_fd:
             # Active-set guard: with the boundary-aware Jacobian a pinned
             # channel keeps a live column, so an *unreachable* target keeps
@@ -203,8 +287,15 @@ def _gauss_newton(model: ForwardModel, target: np.ndarray, seed: np.ndarray,
             # other channels. Drop the outward-pointing pinned columns and
             # re-solve; channels wanting to move inward stay free (that is
             # the stall fix).
+            # A channel is pinned at ITS OWN ceiling, not at 1.0: under a
+            # black ink limit (-L) the K channel sits at e.g. 0.70 and an
+            # outward step there must leave the face constraint too, or
+            # the KKT step hands K ink the clip then removes and C/M/Y
+            # never receive the total-ink budget (research agent5-02 E6:
+            # S3 -L70 black L* 21.3 -> 14.3, X3 a green 18.0 -> 9.6).
             eps = 1e-9
-            bad = (((d[:, free] >= 1.0 - eps) & (step > 0))
+            top = 1.0 if channel_max is None else channel_max[free]
+            bad = (((d[:, free] >= top - eps) & (step > 0))
                    | ((d[:, free] <= eps) & (step < 0)))
             if bad.any():
                 jac_m = jac * (~bad)[:, None, :]
@@ -216,7 +307,25 @@ def _gauss_newton(model: ForwardModel, target: np.ndarray, seed: np.ndarray,
                     jtr += prior_w * (prior - d[:, free])
                 step = np.linalg.solve(jtj, jtr[..., None])[..., 0]
                 step[bad] = 0.0
-        d[:, free] = np.clip(d[:, free] + step, 0.0, 1.0)
+        hi = 1.0 if channel_max is None else channel_max[free]
+        if ink_limit is not None and tac_projection:
+            # Rows whose move would cross the total ink limit take the same
+            # least-squares step ON the limit's face instead (the
+            # projection below then only tidies clip rounding). Pinned
+            # columns stay out of the constraint — their step is zero.
+            trial = np.clip(d[:, free] + step, 0.0, hi)
+            others = d.sum(1) - d[:, free].sum(1)
+            over = trial.sum(1) + others > ink_limit + 1e-9
+            if over.any():
+                cvec = np.ones((int(over.sum()), len(free)))
+                if bad is not None:
+                    cvec[bad[over]] = 0.0
+                e = (ink_limit - others[over]) - d[over][:, free].sum(1)
+                s_face = _tac_face_step(jtj[over], jtr[over], cvec, e)
+                if bad is not None:
+                    s_face[bad[over]] = 0.0
+                step[over] = s_face
+        d[:, free] = np.clip(d[:, free] + step, 0.0, hi)
         if ink_limit is not None:
             if tac_projection:
                 d = project_tac(d, ink_limit)
@@ -228,18 +337,39 @@ def _gauss_newton(model: ForwardModel, target: np.ndarray, seed: np.ndarray,
     return d
 
 
-def _seed_nearest(model: ForwardModel, target: np.ndarray, seed_res: int
-                  ) -> np.ndarray:
-    """Seed each target with the nearest point of a coarse device mesh."""
+def _seed_nearest(model: ForwardModel, target: np.ndarray, seed_res: int,
+                  channel_max: np.ndarray | None = None,
+                  threads: bool = False) -> np.ndarray:
+    """Seed each target with the nearest point of a coarse device mesh.
+
+    ``threads`` (Maximum accuracy, D-06): the rows are searched in parallel
+    blocks. Each row's distances are element-wise and summed over the
+    three Lab axes only, so a row's answer does not depend on which other
+    rows share its block."""
     n = model.n_channels
-    axes = [np.linspace(0.0, 1.0, seed_res)] * n
+    top = np.ones(n) if channel_max is None else np.asarray(channel_max)
+    axes = [np.linspace(0.0, float(top[c]), seed_res) for c in range(n)]
     mesh = np.stack(np.meshgrid(*axes, indexing="ij"), -1).reshape(-1, n)
     mesh_lab = model.predict(mesh)
     out = np.empty((len(target), n))
-    for lo in range(0, len(target), 4096):      # chunked distance search
-        chunk = target[lo:lo + 4096]
-        d2 = ((mesh_lab[None, :, :] - chunk[:, None, :]) ** 2).sum(2)
-        out[lo:lo + 4096] = mesh[np.argmin(d2, 1)]
+    # Chunked distance search, the chunk sized to the mesh: a fixed 4096
+    # targets against the 5**7 = 78,125-point mesh of a 7-ink device made a
+    # 7.7 GB temporary (14.3 GB peak RSS per build; agent9-01 6.4). Each row
+    # is computed by the same expression whatever the chunk (D-06).
+    step = max(1, min(4096, int(4.0e6 // max(len(mesh), 1))))
+
+    def block(a: int, b: int) -> None:
+        for lo in range(a, b, step):
+            hi = min(lo + step, b)
+            chunk = target[lo:hi]
+            d2 = ((mesh_lab[None, :, :] - chunk[:, None, :]) ** 2).sum(2)
+            out[lo:hi] = mesh[np.argmin(d2, 1)]
+    if threads:
+        from workflow.profile_engine import parallel
+        parallel.run_chunks(block, parallel.chunk_bounds(
+            len(target), parallel.worker_count()))
+    else:
+        block(0, len(target))
     return out
 
 
@@ -338,6 +468,27 @@ def ink_priors(target: np.ndarray, n: int, *,
     """
     prior = np.zeros((len(target), n))
     prior_w = np.zeros((len(target), n))
+    neutral_k = None
+    neutral_dev = None
+    if k_prior is not None and k_prior.get("neutral_only"):
+        # Research agent9-01 6.2 ("a9-monok"): a K curve that applies to
+        # the NEUTRALS only (blended in with the accurate neutral weight
+        # below); chromatic colours keep the engine's own locus.
+        neutral_k = np.interp(target[:, 0], k_prior["l_axis"],
+                              k_prior["k_curve"])
+        if k_prior.get("dev_curve") is not None:
+            # Research agent17-01 item 1: the re-routed neutral axis of a
+            # printer whose dark end lightens. There K alone does not pick
+            # the branch (XKB, L* 22: K 0.70 with C/M/Y 1.0/0.63/0.62 at
+            # 295 % prints the same as K 0.73 with 0.37/0.35/0.35 at 179 %),
+            # so near-neutral targets are pulled toward the axis's whole
+            # separation; the colour terms still dominate wherever the
+            # model has slope, the prior only picks among metamers.
+            dc = np.asarray(k_prior["dev_curve"], float)
+            neutral_dev = np.stack([np.interp(target[:, 0],
+                                              k_prior["l_axis"], dc[:, c])
+                                    for c in range(dc.shape[1])], 1)
+        k_prior = None
     if k_prior is not None:
         # colprof-calibrated K behaviour (CMYK proxy oracle) — a firmer
         # prior than the generic locus, matching how colprof separates.
@@ -375,13 +526,62 @@ def ink_priors(target: np.ndarray, n: int, *,
         chroma_t = np.hypot(target[:, 1], target[:, 2])
         neutral_w = np.exp(-(chroma_t / 25.0) ** 2)
         prior_w[:, 3] = np.maximum(prior_w[:, 3], 2.0 * neutral_w)
+        if neutral_k is not None:
+            prior[:, 3] = neutral_w * neutral_k + (1.0 - neutral_w) * prior[:, 3]
     hues = extra_hues or {}
     for ch in range(4, n):
         prior[:, ch] = extra_ink_amount(
             target, channel_letters[ch],
             hue_override=hues.get(channel_letters[ch]))
         prior_w[:, ch] = 0.05
+    if accurate and ECG_SEPARATION.get("on"):
+        _ecg_separation_priors(target, prior, prior_w, channel_letters, hues)
+    if accurate and neutral_dev is not None and neutral_dev.shape[1] == n:
+        nw = np.exp(-(np.hypot(target[:, 1], target[:, 2]) / 25.0) ** 2)
+        prior = nw[:, None] * neutral_dev + (1.0 - nw[:, None]) * prior
+        prior_w = np.maximum(prior_w, 2.0 * nw[:, None])
     return prior, prior_w
+
+
+# Research token "a14-ecgsep" (agent14-01, Validation/ncolour-excellence.md):
+# the professional ECG separation rule that an extra ink never prints with
+# the process ink on the far side of the hue circle (CMYKOGV: O with C, G
+# with M, V with Y; Fogra/IDEAlliance ECG practice, Tzeng-Berns, Deshpande's
+# 4-ink sectors). Where an extra ink's hue gate is open, the complementary
+# process ink gets a soft prior towards 0, weighted by that gate; elsewhere
+# nothing changes. Set by the builder per build (one build per process).
+ECG_SEPARATION: dict = {"on": False, "sector": False, "weight": 0.5, "cmy_hues": None}
+_CMY_HUE_DEFAULT = {"C": 235.0, "M": 355.0, "Y": 95.0}
+
+
+def _ecg_separation_priors(target, prior, prior_w, letters, extra_hues):
+    cmy = ECG_SEPARATION.get("cmy_hues") or _CMY_HUE_DEFAULT
+    w = float(ECG_SEPARATION.get("weight", 0.5))
+    for ch in range(4, len(letters)):
+        hue = extra_hues.get(letters[ch], _EXTRA_INK_HUE.get(letters[ch]))
+        if hue is None or letters[ch] in ("c", "m", "y", "k"):
+            continue                       # light inks have no complement
+        far = max((abs((hue - h + 180.0) % 360.0 - 180.0), i)
+                  for i, h in ((letters.index(l), cmy[l]) for l in "CMY" if l in letters))
+        if far[0] < 120.0:
+            continue
+        comp = far[1]
+        gate = extra_ink_amount(target, letters[ch], power=1.0, hue_override=hue)
+        wt = w * np.clip(gate * 2.0, 0.0, 1.0)
+        # target 0 for the complement where the gate is open (the strongest
+        # gate wins when two extra inks want the same process ink out)
+        take = wt > prior_w[:, comp]
+        prior[take, comp] = 0.0
+        prior_w[take, comp] = wt[take]
+        if ECG_SEPARATION.get("sector"):
+            # a14-ecgsep2: the extra ink itself stays out of the hue sectors
+            # it does not belong to (measured with a14-ecgsep alone: O moved
+            # into the green-cyan sector on X5, so C+O reappeared there)
+            out = w * np.clip(1.0 - 2.0 * gate, 0.0, 1.0) * np.clip(
+                np.hypot(target[:, 1], target[:, 2]) / 15.0, 0.0, 1.0)
+            more = out > prior_w[:, ch]
+            prior[more, ch] = 0.0
+            prior_w[more, ch] = out[more]
 
 
 def invert_to_device(model: ForwardModel, target: np.ndarray, *,
@@ -396,10 +596,14 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
                      black_l: float | None = None,
                      k_gen: dict | None = None,
                      ucs: bool = False,
+                     channel_max: np.ndarray | None = None,
                      progress=None,
                      progress_label: str = "Inverting the model",
                      ) -> tuple[np.ndarray, np.ndarray]:
     """Invert the forward model at ``target`` Lab points.
+
+    ``channel_max``: per-channel device ceiling (the black ink limit on K);
+    None = the plain 0..1 cube.
 
     Returns ``(device, residual_de)`` — residual is the remaining ΔE76 after
     convergence, i.e. ~0 in gamut and the clamp distance outside (this array
@@ -428,8 +632,11 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
         gn_model = _UcsView(model, _space)
         gn_target = _space.lab_to_ucs(target)
     if seed is None:
-        seed = _seed_nearest(gn_model, gn_target, seed_res if n <= 4 else 5)
+        seed = _seed_nearest(gn_model, gn_target, seed_res if n <= 4 else 5,
+                             channel_max=channel_max, threads=accurate)
     d = seed.copy()
+    if channel_max is not None:
+        d = np.minimum(d, channel_max[None, :])
 
     free = np.arange(n)
     prior = prior_w = None
@@ -441,7 +648,7 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
         d[:, 3:] = prior[:, 3:]
 
     gn_kw = dict(boundary_fd=accurate, tac_projection=accurate,
-                 progress=progress)
+                 channel_max=channel_max, progress=progress)
     d = _gauss_newton(gn_model, gn_target, d, free, iters=iters,
                       damping=damping,
                       ink_limit=limit, prior=prior, prior_w=prior_w,
@@ -455,13 +662,8 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
     # dense-cloud nearest seed and keep whichever lands closer.
     retry = residual > 0.5
     if retry.any():
-        rng = np.random.default_rng(1234)
-        cloud = rng.uniform(0.0, 1.0, (min(40000, 6000 * n), n))
-        if limit is not None:
-            total = cloud.sum(1)
-            over = total > limit
-            cloud[over] *= (limit / total[over])[:, None]
-        cloud_lab = gn_model.predict(cloud)
+        cloud, cloud_lab = _cloud_and_lab(gn_model, model, n, limit,
+                                          channel_max, 1234, memo=accurate)
         sub = gn_target[retry]
         seeds2 = np.empty((len(sub), n))
         cl2 = (cloud_lab ** 2).sum(1)
@@ -469,6 +671,21 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
             chunk = sub[lo:lo + 2048]
             d2 = cl2[None, :] - 2.0 * chunk @ cloud_lab.T
             seeds2[lo:lo + 2048] = cloud[np.argmin(d2, 1)]
+        lmin = LIGHT_CLOUD.get("l_min")
+        if lmin is not None and accurate:
+            # Agent 21 "a21-lightcloud60" (ported by Agent 25 from 5fa8afdb):
+            # light seeds only for light targets; dark targets keep exactly
+            # the seeds they had (no change below L* lmin)
+            lt = np.flatnonzero(target[retry][:, 0] >= lmin)
+            if len(lt):
+                lc_, lcl_ = _cloud_and_lab(gn_model, model, n, limit,
+                                           channel_max, 1234, memo=True,
+                                           light=True)
+                c2 = (lcl_ ** 2).sum(1)
+                for lo in range(0, len(lt), 2048):
+                    ix = lt[lo:lo + 2048]
+                    d2 = c2[None, :] - 2.0 * sub[ix] @ lcl_.T
+                    seeds2[ix] = lc_[np.argmin(d2, 1)]
         d_retry = _gauss_newton(
             gn_model, sub, seeds2, free, iters=iters, damping=damping,
             ink_limit=limit,
@@ -483,27 +700,1137 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
         d[idx] = d_retry[better]
         residual[idx] = res_retry[better]
 
-    if accurate:
+    from workflow.profile_engine import purecolprof as _pure
+    if accurate and _pure.active():
+        # Research (Agent 58, a58-purecolprof): colprof's own clip for the
+        # RGB colorimetric table (purecolprof.cam_clip): Lab nearest, then
+        # the rev.c LCh-weighted nearest point in Argyll's CIECAM02 Jab,
+        # blended over CAMCLIPTRANS (xicc/xlut.c:1321-1418)
+        _d_near = d
+        d = _pure.cam_clip(model, target, d, residual,
+                           floor=_pure.floor(), fade=_pure.fade_fn(model))
+        _k60 = _pure.a60_clip_weight(model, target)
+        if (_k60 is not None and _oog.PARAMS.get("on")
+                and (_k60[residual > 1e-3] > 0).any()):
+            # Research (Agent 60, a60-darkclip): near the black the
+            # engine's own clip (int-7's answer), blended in over L*
+            _d_our = _oog.clip_nodes(
+                model, target, _d_near, residual, free=free, limit=limit,
+                channel_max=channel_max, prior=prior, prior_w=prior_w,
+                gn_kw=gn_kw, damping=damping, progress_label=progress_label)
+            d = (1.0 - _k60[:, None]) * d + _k60[:, None] * _d_our
+    elif accurate and _oog.PARAMS.get("on"):
+        # Research (Agent 25, tokens a25-*): one continuous weighted
+        # nearest-point clip in a hue-linear space, no accept/reject switch
+        # (oog_clip module docstring; Findings agent25-01).
+        d = _oog.clip_nodes(
+            model, target, d, residual, free=free, limit=limit,
+            channel_max=channel_max, prior=prior, prior_w=prior_w,
+            gn_kw=gn_kw, damping=damping, progress_label=progress_label)
+    elif accurate:
         # Hue-preserving clip: nodes that stay out of gamut are re-clipped
         # under a norm that punishes hue errors hardest — a clipped
         # saturated colour loses chroma instead of changing colour family.
         # The *residual* keeps the nearest-clip distance from above: the
         # ``gamt`` tag encodes distance-from-gamut and must stay metric.
         oog = residual > 1.0
+        chroma_t = np.hypot(target[:, 1], target[:, 2])
+        oog &= chroma_t >= 5.0          # neutrals keep the nearest clip
         if oog.any():
-            # In UCS the metric is already perceptual — only the deliberate
-            # hue emphasis remains; in Lab the full local-ΔE2000 weights.
-            wm = _ucs_hue_weight_matrices(gn_target[oog]) if ucs \
-                else _hue_weight_matrices(target[oog])
-            d[oog] = _gauss_newton(
-                gn_model, gn_target[oog], d[oog], free, iters=8,
-                damping=damping,
-                ink_limit=limit, err_weights=wm,
-                prior=None if prior is None else prior[oog],
-                prior_w=None if prior_w is None else prior_w[oog],
-                progress_label=f"{progress_label}: hue-preserving clip",
-                **gn_kw)
+            # Seed every out-of-gamut node from a printable colour of the
+            # SAME HUE (angle-gated), then polish under the hue-weighted
+            # norm; a polish that drifts in hue or gains chroma is dropped.
+            cloud2, cloud2_lab = _cloud_and_lab(model, model, n, limit,
+                                                channel_max, 4321, memo=True)
+            seeds_h, found = _hue_gated_seeds(target[oog], cloud2, cloud2_lab)
+            lmin = LIGHT_CLOUD.get("l_min")
+            if lmin is not None:
+                lt = np.flatnonzero(target[oog][:, 0] >= lmin)
+                if len(lt):
+                    lc_, lcl_ = _cloud_and_lab(model, model, n, limit,
+                                               channel_max, 4321, memo=True,
+                                               light=True)
+                    sh2, f2 = _hue_gated_seeds(target[oog][lt], lc_, lcl_)
+                    seeds_h[lt] = sh2
+                    found[lt] = f2
+            sub_idx = np.flatnonzero(oog)[found]
+            if len(sub_idx):
+                wm = _ucs_hue_weight_matrices(gn_target[sub_idx]) if ucs \
+                    else _hue_weight_matrices(target[sub_idx])
+                d_pol = _gauss_newton(
+                    gn_model, gn_target[sub_idx], seeds_h[found], free,
+                    iters=4, damping=damping,
+                    ink_limit=limit, err_weights=wm,
+                    prior=None if prior is None else prior[sub_idx],
+                    prior_w=None if prior_w is None else prior_w[sub_idx],
+                    progress_label=f"{progress_label}: hue-preserving clip",
+                    **gn_kw)
+                lab_pol = model.predict(d_pol)
+                lab_seed = model.predict(seeds_h[found])
+                t_sub = target[sub_idx]
+                t_h = np.degrees(np.arctan2(t_sub[:, 2], t_sub[:, 1]))
+                p_h = np.degrees(np.arctan2(lab_pol[:, 2], lab_pol[:, 1]))
+                dh = np.abs((p_h - t_h + 180.0) % 360.0 - 180.0)
+                gained = (np.hypot(lab_pol[:, 1], lab_pol[:, 2])
+                          > np.hypot(t_sub[:, 1], t_sub[:, 2]) + 3.0)
+                keep = (dh <= 10.0) & ~gained
+                if CLIP_FIX.get("on"):
+                    # Agent 21 / F-15 (token a21-clipfix, ported by Agent 25
+                    # from research/pe-nink-research a2e64114): a hue angle is
+                    # meaningless at low chroma, and a rejected polish must
+                    # not write the RAW cloud seed: fall back to the plain
+                    # nearest clip already in d, unless the seed is closer.
+                    c_pol = np.hypot(lab_pol[:, 1], lab_pol[:, 2])
+                    c_t = np.hypot(t_sub[:, 1], t_sub[:, 2])
+                    keep = (((dh <= 10.0) | (np.minimum(c_pol, c_t) < 5.0))
+                            & ~gained)
+                    near = d[sub_idx]
+                    e_near = np.linalg.norm(model.predict(near) - t_sub, axis=1)
+                    e_seed = np.linalg.norm(lab_seed - t_sub, axis=1)
+                    fb = np.where((e_near <= e_seed)[:, None], near,
+                                  seeds_h[found])
+                    d_pol[~keep] = fb[~keep]
+                else:
+                    d_pol[~keep] = seeds_h[found][~keep]
+                d[sub_idx] = d_pol
     return d, residual
+
+
+def neutral_axis(model: ForwardModel, *, step: float = 0.5,
+                 deep_black: bool = True, **inv_kw) -> dict:
+    """The neutral axis of an ink device, solved once by continuation.
+
+    Walks a* = b* = 0 from paper white (device 0) down in ``step`` L*
+    increments; every solve is seeded with the previous solution, so the
+    separation changes continuously along the axis (no metameric jump
+    between neighbouring L*, whatever the channel count) and a light tint
+    is never seeded from a 25 % mesh point. The darkest L* that still
+    converges neutral (residual < 0.5 ΔE76, model C* < 1) is the device's
+    NEUTRAL BLACK under its limits: colprof's Lmin (xicc/xlut.c,
+    efv_wh_bk_points) where the engine used the darkest measured patch,
+    which is usually chromatic. ``inv_kw`` are :func:`invert_to_device`'s
+    keywords. Returns ``l`` (targets, light to dark), ``dev``, ``ok``,
+    ``l_black`` (model L* of the neutral black), ``black`` (its device
+    value). Research agent5-03 item 5.
+    """
+    n = model.n_channels
+    ls = np.arange(100.0, -1e-9, -step)
+    dev = np.zeros((len(ls), n))
+    res = np.zeros(len(ls))
+    cur = np.zeros((1, n))
+    kw = {k: v for k, v in inv_kw.items()
+          if k not in ("node_lab", "progress", "seed")}
+    for i, lv in enumerate(ls):
+        d, r = invert_to_device(model, np.array([[lv, 0.0, 0.0]]),
+                                seed=cur.copy(), **kw)
+        dev[i], res[i] = d[0], r[0]
+        cur = d
+    lab = model.predict(dev)
+    ok = (res < 0.5) & (np.hypot(lab[:, 1], lab[:, 2]) < 1.0)
+    if not ok.any():
+        return {"l": ls, "dev": dev, "ok": ok, "l_black": None,
+                "black": None}
+    last = int(np.flatnonzero(ok)[-1])
+    axis = {"l": ls, "dev": dev, "ok": ok, "l_black": float(lab[last, 0]),
+            "black": dev[last].copy()}
+    if deep_black:
+        axis = _deepen_neutral_black(model, axis, step=step, kw=kw)
+    return axis
+
+
+# Research agent17-01 item 1: the walk from paper white is a CONTINUATION
+# under the ink policy, whose K prior on neutrals (the late-GCR locus, weight
+# 2.0, full K only at the darkest MEASURED patch) is firm. On a printer whose
+# dark end lightens (bronzing, over-inked matte media: L* rises again above
+# some total coverage) that branch loads C, M and Y into the lightening zone
+# and stops at the ink-limit face: agent 13's XKB walks to L* 22.1 at 295 %
+# ink while the model itself prints a neutral L* 7.5 at 205 % (K 1.0,
+# C/M/Y 0.35). The black is therefore also searched WITHOUT the policy (a
+# constrained minimum of L* over the model, many seeds), and when it is
+# clearly deeper the dark end of the axis is re-walked from a join point on
+# the forward walk down to it, with the neutral K prior blended linearly
+# from the walk's K at the join to the deep black's K: K enters earlier,
+# the separation stays continuous at the join, and C/M/Y stay out of the
+# lightening zone. Printers on which the walk already finds the deepest
+# neutral are untouched (the walk's axis is returned as is).
+_DEEP_BLACK_MARGIN = 1.0      # L*: below this gain the walk's black stays
+_DEEP_BLACK_SEEDS = 12
+_DEEP_BLACK_JOIN_STEP = 2.0   # L*: spacing of the join points tried
+_DEEP_BLACK_JOIN_TOP = 60.0   # L*: lightest join tried (K starts near here)
+# CMYK only for now: on the battery's 6-ink S7 (walk 12.8, global 8.7) the
+# re-route gave a 3.2 L* deeper neutral black and a better B2A (median
+# 0.882 -> 0.828, p95 1.990 -> 1.600) but C/M/Y rise and fall along the
+# grey ramp (P7 TV excess 0.05 -> 0.25) and the L* 14-30 neutral median
+# went 0.61 -> 0.74. 5+ inks wait for an N-ink-aware blend (agent17-01 1.6).
+_DEEP_BLACK_MAX_INKS = 4
+
+
+def _neutral_ok(model: ForwardModel, d: np.ndarray, r: np.ndarray):
+    lab = model.predict(d)
+    return (r < 0.5) & (np.hypot(lab[:, 1], lab[:, 2]) < 1.0), lab
+
+
+def deepest_neutral(model: ForwardModel, *, step: float = 0.5,
+                    kw: dict) -> tuple[float, np.ndarray] | None:
+    """The darkest neutral the MODEL prints under the build's limits,
+    whatever the ink policy says.
+
+    Seeds: the darkest near-neutral points (model C* < 4) of the
+    limit-respecting device cloud the inversion's retries use, chosen
+    greedily so no two seeds are within 0.15 of each other in device space
+    (different branches of the metamer family). From each seed the axis is
+    walked DOWN in ``step`` L* by plain damped Gauss-Newton on the colour
+    alone (no priors; same TAC projection, channel ceilings and
+    boundary-aware Jacobian as the inversion), accepting a step by the
+    walk's own rule (residual < 0.5 ΔE76, model C* < 1) and stopping after
+    two failures in a row. Returns ``(model L*, device)`` of the darkest
+    accepted point, or None. Deterministic (fixed cloud seed, stable sort)."""
+    n = model.n_channels
+    ink_limit = kw.get("ink_limit")
+    limit = (None if ink_limit is None or kw.get("is_additive")
+             else ink_limit / 100.0)
+    cmax = kw.get("channel_max")
+    cloud, lab = _cloud_and_lab(model, model, n, limit, cmax, 2718,
+                                memo=True)
+    chroma = np.hypot(lab[:, 1], lab[:, 2])
+    cand = np.flatnonzero(chroma < 4.0)
+    if not len(cand):
+        return None
+    cand = cand[np.argsort(lab[cand, 0], kind="stable")]
+    seeds: list[int] = []
+    for i in cand:
+        if all(np.max(np.abs(cloud[i] - cloud[j])) > 0.15 for j in seeds):
+            seeds.append(int(i))
+            if len(seeds) >= _DEEP_BLACK_SEEDS:
+                break
+    free = np.arange(n)
+    best = None
+    for i in seeds:
+        cur = cloud[i][None, :].copy()
+        lv = np.ceil(lab[i, 0] / step) * step
+        fails = 0
+        while lv >= -1e-9 and fails < 2:
+            t = np.array([[lv, 0.0, 0.0]])
+            d = _gauss_newton_rows(model, t, cur, free, iters=12,
+                                   damping=0.05, ink_limit=limit,
+                                   boundary_fd=True, tac_projection=True,
+                                   channel_max=cmax)
+            r = np.linalg.norm(model.predict(d) - t, axis=1)
+            okv, labd = _neutral_ok(model, d, r)
+            if okv[0]:
+                fails = 0
+                cur = d
+                if best is None or labd[0, 0] < best[0] - 1e-9:
+                    best = (float(labd[0, 0]), d[0].copy())
+            else:
+                fails += 1
+            lv -= step
+    return best
+
+
+def _deepen_neutral_black(model: ForwardModel, axis: dict, *, step: float,
+                          kw: dict) -> dict:
+    """Re-walk the dark end of the axis to a deeper neutral black when one
+    exists (see the comment above). Join points on the forward walk are
+    tried every ``_DEEP_BLACK_JOIN_STEP`` L* from its black up to
+    ``_DEEP_BLACK_JOIN_TOP``; from each, the blended-K walk must stay
+    accepted all the way down to the deep black. Of the joins that work the
+    one with the least ink total variation along the whole axis wins (the
+    grey ramp then neither rises and falls in any ink nor detours through
+    the ink-limit face), the darker join on a tie. Needs a K channel (the
+    blend is a K prior); with none, or when no join works, the walk's axis
+    is returned unchanged."""
+    letters = kw.get("channel_letters") or []
+    if "K" not in letters or model.n_channels > _DEEP_BLACK_MAX_INKS:
+        return axis
+    found = deepest_neutral(model, step=step, kw=kw)
+    if found is None or found[0] > axis["l_black"] - _DEEP_BLACK_MARGIN:
+        return axis
+    l_deep, black = found
+    ki = letters.index("K")
+    ls = np.asarray(axis["l"])
+    dev_f = np.asarray(axis["dev"], float)
+    ok_f = np.asarray(axis["ok"], bool)
+    seg_kw = {k: v for k, v in kw.items() if k != "k_prior"}
+    joins = [int(j) for j in np.flatnonzero(
+        ok_f & (ls >= axis["l_black"] - 1e-9) & (ls <= _DEEP_BLACK_JOIN_TOP)
+        & (np.abs(np.round((ls - axis["l_black"]) / _DEEP_BLACK_JOIN_STEP)
+                  * _DEEP_BLACK_JOIN_STEP - (ls - axis["l_black"])) < step / 2
+           ))]
+    best = None
+    for j in sorted(joins, reverse=True):        # darkest join first
+        k_curve = {"l_axis": np.array([l_deep, ls[j]]),
+                   "k_curve": np.array([black[ki], dev_f[j, ki]]),
+                   "neutral_only": True}
+        dev_s = dev_f.copy()
+        ok_s = ok_f.copy()
+        cur = dev_f[j][None, :].copy()
+        i = j + 1
+        good = True
+        while i < len(ls) and ls[i] >= l_deep - 1e-9:
+            d, r = invert_to_device(model, np.array([[ls[i], 0.0, 0.0]]),
+                                    seed=cur.copy(), k_prior=k_curve,
+                                    **seg_kw)
+            okv, _ = _neutral_ok(model, d, r)
+            if not okv[0]:
+                good = False
+                break
+            dev_s[i], ok_s[i] = d[0], True
+            cur = d
+            i += 1
+        if not good:
+            continue
+        last = i - 1
+        tv = float(np.abs(np.diff(dev_s[:last + 1], axis=0)).sum())
+        if best is None or tv < best[0] - 1e-9:
+            ok_s[last + 1:] = False
+            best = (tv, j, last, dev_s, ok_s, k_curve)
+    if best is None:
+        return axis
+    tv, j, last, dev_s, ok_s, k_curve = best
+    lab_last = model.predict(dev_s[last][None, :])[0]
+    return {"l": ls, "dev": dev_s, "ok": ok_s, "l_black": float(lab_last[0]),
+            "black": dev_s[last].copy(), "deep_black": True,
+            "walk_l_black": axis["l_black"], "join_l": float(ls[j]),
+            "axis_tv": tv}
+
+
+# Research token "a80-greywalk" (Agent 80, Findings/agent80-01). The walk
+# above follows the late-GCR locus from paper white. On a CMYK printer whose
+# C+M+Y black is LIGHTER than K (an ink fold, even a mild one: XFI, the
+# i1iSis-like synthetic printer) the locus loads C/M/Y onto the ink-limit
+# face a few L* above the black (XFI targen2240: L* 27 C .77 M .76 Y .76 K
+# .71 at 300 %) and then the walk JUMPS to the K-led black within 1-2 L*
+# (L* 23: C .24 M .15 Y .13 K .91). The B2A column nodes sit 3.1 L* apart, so
+# the CMM blends the two separations, and on a folding printer that blend
+# prints LIGHTER than both ends: the grey ramp goes dark, light, dark (truth
+# +2.0 L* rel. col.; through a25-oracle-neutral the perceptual column too,
+# +4.6 L* on the demo layout). Here the dark end is re-walked from a join
+# point with the neutral K prior blended linearly from the walk's K at the
+# join to the black's K (the same continuation as _deepen_neutral_black, but
+# to the walk's OWN black): K rises steadily, C/M/Y come off the face
+# without a jump. Of the joins that reach the black the one with the least
+# ink total variation wins. Fires only when the walk jumps.
+A80_TOKEN = "a80-greywalk"
+A80_LINCURVE = "a80-lincurve"
+A80_COLPIN = "a80-colpin"
+A80_PINTOL = 1.5     # dE76: a80-colpin pins only a column the refit moved this far (env CHROMIQ_A80_PINTOL)
+# ink change (sum of |d| over channels) per L* that is a jump; env CHROMIQ_A80_JUMP.
+# 1.0: the battery's real i1iSis walk (0.85, smooth greys) stays as it is; XFI
+# 1.30-3.40 and XKB typical targen400 2.19 fire; presses and the other
+# synthetic printers read 0.08-0.31 (X3 pessimistic targen400 1.25 has no
+# measured fold)
+A80_JUMP = 1.0
+A80_SPAN = 20.0       # L* above the neutral black searched for a jump
+A80_JOIN_TOP = 30.0   # L* above the black: lightest join tried
+A80_END = 1.5        # L*: a re-walk that stops this close to the black hands over to it
+
+
+def a80_walk_jump(axis: dict, *, span: float = A80_SPAN) -> float:
+    """Largest ink change per L* (sum over channels) along the walk within
+    ``span`` L* above its neutral black (0 when there is no black)."""
+    if axis.get("l_black") is None:
+        return 0.0
+    ls = np.asarray(axis["l"], float)
+    dv = np.asarray(axis["dev"], float)
+    ok = np.asarray(axis["ok"], bool)
+    last = int(np.flatnonzero(ok)[-1])
+    sel = np.flatnonzero((ls <= axis["l_black"] + span)
+                         & (np.arange(len(ls)) <= last))
+    if len(sel) < 2:
+        return 0.0
+    dl = np.abs(np.diff(ls[sel]))
+    return float(np.max(np.abs(np.diff(dv[sel], axis=0)).sum(1)
+                        / np.maximum(dl, 1e-9)))
+
+
+A80_FLOOR = (5.0, 15.0)   # K floor full up to K-only black + 5 L*, gone at + 15
+
+
+def a80_k_alone(model: ForwardModel, l_axis: np.ndarray, ki: int):
+    """K alone that prints each target L* (1 below the K-only black) and the
+    K-only black's L*."""
+    n = model.n_channels
+    ks = np.linspace(0.0, 1.0, 401)
+    dk = np.zeros((len(ks), n))
+    dk[:, ki] = ks
+    lk = np.minimum.accumulate(model.predict(dk)[:, 0])
+    kal = np.interp(l_axis, lk[::-1], ks[::-1])
+    return np.where(l_axis > lk[-1], kal, 1.0), float(lk[-1])
+
+
+def a80_rewalk(model: ForwardModel, axis: dict, *, step: float = 0.5,
+               kw: dict, join_top: float = A80_JOIN_TOP,
+               join_step: float = 1.0, floor=A80_FLOOR) -> dict:
+    """The a80-greywalk re-walk (see above). Returns the axis unchanged when
+    no join reaches the black or none lowers the total variation. With
+    ``floor`` (l_full, l_gone) the K prior near the black is at least the K
+    that prints the target alone (a74-kfloor's rule): on a folding printer a
+    little colour ink on heavy K LIGHTENS it, so a K-led path with C/M/Y
+    only neutralising is the one that darkens steadily."""
+    letters = kw.get("channel_letters") or []
+    if "K" not in letters or axis.get("black") is None:
+        return axis
+    ki = letters.index("K")
+    kw = {k: v for k, v in kw.items()
+          if k not in ("node_lab", "progress", "seed", "k_prior")}
+    ls = np.asarray(axis["l"], float)
+    dev_f = np.asarray(axis["dev"], float)
+    ok_f = np.asarray(axis["ok"], bool)
+    lb = float(axis["l_black"])
+    last0 = int(np.flatnonzero(ok_f)[-1])
+    black = np.asarray(axis["black"], float)
+    tv0 = float(np.abs(np.diff(dev_f[:last0 + 1], axis=0)).sum())
+    joins = [int(j) for j in np.flatnonzero(
+        ok_f & (ls >= lb + 2.0) & (ls <= lb + join_top)
+        & (np.abs(np.round(ls / join_step) * join_step - ls) < step / 2))]
+    best = None
+    if floor is not None:
+        kal, lkb = a80_k_alone(model, ls, ki)
+        x = np.clip((lkb + floor[1] - ls) / max(floor[1] - floor[0], 1e-6),
+                    0.0, 1.0)
+        wf = x * x * (3.0 - 2.0 * x)
+    for j in sorted(joins, reverse=True):
+        kc = np.interp(ls, [lb, ls[j]], [black[ki], dev_f[j, ki]])
+        if floor is not None:
+            kc = kc + wf * np.maximum(kal - kc, 0.0)
+        o = np.argsort(ls)
+        k_curve = {"l_axis": ls[o], "k_curve": kc[o], "neutral_only": True}
+        dev_s = dev_f.copy()
+        ok_s = ok_f.copy()
+        cur = dev_f[j][None, :].copy()
+        good = True
+        i = j + 1
+        while i <= last0:
+            d, r = invert_to_device(model, np.array([[ls[i], 0.0, 0.0]]),
+                                    seed=cur.copy(), k_prior=k_curve, **kw)
+            okv, _ = _neutral_ok(model, d, r)
+            if not okv[0]:
+                if ls[i] < lb + A80_END:
+                    # the last L* above the black: hand over to the walk's
+                    # own black in a straight device line
+                    i0 = i - 1
+                    for q in range(i, last0 + 1):
+                        t = (ls[i0] - ls[q]) / max(ls[i0] - ls[last0], 1e-9)
+                        dev_s[q] = (1.0 - t) * dev_s[i0] + t * black
+                        ok_s[q] = True
+                    break
+                good = False
+                break
+            dev_s[i], ok_s[i] = d[0], True
+            cur = d
+            i += 1
+        if not good:
+            continue
+        tv = float(np.abs(np.diff(dev_s[:last0 + 1], axis=0)).sum())
+        if best is None or tv < best[0] - 1e-9:
+            best = (tv, j, dev_s, ok_s)
+    if best is None or best[0] >= tv0 - 1e-6:
+        out = dict(axis)
+        out["a80"] = {"fired": False, "tv0": tv0,
+                      "tv": None if best is None else best[0]}
+        return out
+    tv, j, dev_s, ok_s = best
+    out = dict(axis)
+    out.update(dev=dev_s, ok=ok_s, black=dev_s[last0].copy(),
+               l_black=float(model.predict(dev_s[last0][None, :])[0, 0]))
+    out["a80"] = {"fired": True, "join_l": float(ls[j]), "tv0": tv0, "tv": tv}
+    return out
+
+
+# Research token "a29-blackhandover" (Agent 29a, Findings/agent29a-01).
+# The neutral axis ends at the darkest point the model prints NEUTRAL (C* <
+# 1). Where the printer's deepest black is slightly tinted, colprof's black
+# is that deeper tinted one (xicc/xlut.c bfindfunc: minimise L* with a soft
+# penalty on a*b*, then the clip vector lines every out-of-gamut neutral up
+# with the white-black line), and ours was up to 2-5 L* lighter (battery
+# v3.1: R-CMYK-default, XKB, X3; perceptually S1, S2, X1, XKH). The axis is
+# kept neutral down to its neutral black and then HANDED OVER to a deeper,
+# slightly tinted black: the device value is blended linearly from the
+# neutral black to the deep black, so no ink jumps and C* rises from ~0 at
+# the neutral black to the deep black's C*. The deep black is the darkest
+# model point under the build's limits for a ladder of chroma bounds,
+# scored L* + _HANDOVER_LAMBDA * C* (1 C* costs half an L*), and it is only
+# used when that score beats the neutral black by _HANDOVER_MIN_GAIN.
+_HANDOVER_LADDER = (1.0, 2.0, 3.0)
+_HANDOVER_LAMBDA = 0.5
+_HANDOVER_MIN_GAIN = 0.3
+_HANDOVER_SEEDS = 12
+
+
+def deepest_tinted(model: ForwardModel, *, chroma_max: float, kw: dict,
+                   step: float = 0.5, seeds_n: int = _HANDOVER_SEEDS
+                   ) -> tuple[np.ndarray, np.ndarray] | None:
+    """The darkest point the MODEL prints with C* <= ``chroma_max`` under
+    the build's limits (TAC, channel ceilings), whatever the ink policy.
+
+    Seeds: the darkest points of the limit-respecting device cloud with
+    C* below max(2 * chroma_max, 4), greedily 0.15 apart in device space,
+    plus K alone when there is a K channel (colprof's first trial, 000K).
+    From each, damped Gauss-Newton walks down in L* holding the current
+    a*b* (pulled inside 0.8 * ``chroma_max``), halving the step on a
+    failure and stopping after three. Returns ``(model Lab, device)`` of the
+    darkest accepted point, or None. Deterministic."""
+    n = model.n_channels
+    ink_limit = kw.get("ink_limit")
+    limit = (None if ink_limit is None or kw.get("is_additive")
+             else ink_limit / 100.0)
+    cmax = kw.get("channel_max")
+    cloud, lab = _cloud_and_lab(model, model, n, limit, cmax, 2718,
+                                memo=True)
+    chroma = np.hypot(lab[:, 1], lab[:, 2])
+    cand = np.flatnonzero(chroma < max(2.0 * chroma_max, 4.0))
+    cand = cand[np.argsort(lab[cand, 0], kind="stable")]
+    seeds: list[np.ndarray] = []
+    for i in cand:
+        if all(np.max(np.abs(cloud[i] - s)) > 0.15 for s in seeds):
+            seeds.append(cloud[i])
+            if len(seeds) >= seeds_n:
+                break
+    letters = kw.get("channel_letters") or []
+    if "K" in letters:
+        k = np.zeros(n)
+        k[letters.index("K")] = 1.0
+        if cmax is not None:
+            k = np.minimum(k, np.asarray(cmax, float))
+        seeds.append(k)
+    free = np.arange(n)
+    gn = dict(free=free, damping=0.05, ink_limit=limit, boundary_fd=True,
+              tac_projection=True, channel_max=cmax)
+    best = None
+    for s in seeds:
+        cur = np.asarray(s, float)[None, :].copy()
+        lc = model.predict(cur)[0]
+        c = float(np.hypot(lc[1], lc[2]))
+        if c > chroma_max:
+            ab = lc[1:] * (0.8 * chroma_max / c)
+            cur = _gauss_newton_rows(model, np.array([[lc[0], ab[0], ab[1]]]),
+                                     cur, iters=20, **gn)
+            lc = model.predict(cur)[0]
+            if np.hypot(lc[1], lc[2]) > chroma_max:
+                continue
+        st, fails = step, 0
+        while fails < 3:
+            c = float(np.hypot(lc[1], lc[2]))
+            ab = lc[1:] * min(1.0, 0.8 * chroma_max / max(c, 1e-9))
+            d = _gauss_newton_rows(
+                model, np.array([[lc[0] - st, ab[0], ab[1]]]), cur,
+                iters=12, **gn)
+            ln = model.predict(d)[0]
+            if ln[0] < lc[0] - 0.01 and np.hypot(ln[1], ln[2]) <= chroma_max:
+                cur, lc, fails = d, ln, 0
+            else:
+                fails += 1
+                st /= 2.0
+        if best is None or lc[0] < best[0][0] - 1e-9:
+            best = (lc.copy(), cur[0].copy())
+    return best
+
+
+def handover_black(model: ForwardModel, *, l_neutral: float,
+                   c_neutral: float, kw: dict,
+                   ladder: tuple = _HANDOVER_LADDER) -> dict | None:
+    """The deep black the axis is handed over to, or None when it does not
+    beat the neutral black (``l_neutral``, chroma ``c_neutral``) by
+    _HANDOVER_MIN_GAIN in L* + _HANDOVER_LAMBDA * C*."""
+    base = l_neutral + _HANDOVER_LAMBDA * c_neutral
+    best = None
+    for cm in ladder:
+        found = deepest_tinted(model, chroma_max=cm, kw=kw)
+        if found is None:
+            continue
+        lab, dev = found
+        score = float(lab[0] + _HANDOVER_LAMBDA * np.hypot(lab[1], lab[2]))
+        if best is None or score < best["score"] - 1e-9:
+            best = {"lab": lab, "dev": dev, "score": score, "chroma_max": cm}
+    if best is None or best["score"] > base - _HANDOVER_MIN_GAIN:
+        return None
+    return best
+
+
+def blackhandover_axis(model: ForwardModel, axis: dict, *,
+                       ladder: tuple = _HANDOVER_LADDER,
+                       chooser=None, **inv_kw) -> dict:
+    """Research token "a29-blackhandover": extend the neutral axis below its
+    neutral black to a deeper, slightly tinted black (see the comment
+    above). Grid points of ``axis["l"]`` between the deep black's L* and the
+    neutral black's take the device value of the linear device blend
+    neutral black -> deep black at that model L* (the blend's L* made
+    monotone by keeping only new minima). The axis black becomes the deep
+    black; ``neutral_l_black`` keeps the old one. Returns the axis
+    unchanged when there is no deeper black worth it."""
+    if axis.get("black") is None:
+        return axis
+    kw = {k: v for k, v in inv_kw.items()
+          if k not in ("node_lab", "progress", "seed")}
+    nb = np.asarray(axis["black"], float)
+    lab_nb = model.predict(nb[None, :])[0]
+    # ``chooser``: research a34-blackseam picks the deep black by its own
+    # rule (rate_deep_black); None keeps the a29 rule.
+    deep = (chooser or handover_black)(
+        model, l_neutral=float(lab_nb[0]),
+        c_neutral=float(np.hypot(lab_nb[1], lab_nb[2])), kw=kw,
+        ladder=ladder)
+    if deep is None:
+        return axis
+    dd = np.asarray(deep["dev"], float)
+    u = np.linspace(0.0, 1.0, 81)
+    blend = nb[None, :] + u[:, None] * (dd - nb)[None, :]
+    if kw.get("ink_limit") is not None and not kw.get("is_additive"):
+        blend = project_tac(blend, kw["ink_limit"] / 100.0)
+    bl = model.predict(blend)[:, 0]
+    keep = [0]
+    for i in range(1, len(u)):
+        if bl[i] < bl[keep[-1]] - 1e-6:
+            keep.append(i)
+    keep = np.asarray(keep)
+    if len(keep) < 2:
+        return axis
+    l_k, d_k = bl[keep], blend[keep]
+    l_deep = float(l_k[-1])
+    ls = np.asarray(axis["l"], float)
+    dev = np.asarray(axis["dev"], float).copy()
+    ok = np.asarray(axis["ok"], bool).copy()
+    order = np.argsort(l_k)
+    for i, lv in enumerate(ls):
+        if lv >= lab_nb[0] - 1e-9 or lv < l_deep - 1e-9:
+            continue
+        dev[i] = [np.interp(lv, l_k[order], d_k[order, c])
+                  for c in range(dev.shape[1])]
+        ok[i] = True
+    last = int(np.flatnonzero(ok)[-1])
+    ok[last + 1:] = False
+    lab_k = model.predict(d_k)
+    out = dict(axis)
+    out.update({"dev": dev, "ok": ok, "l_black": l_deep,
+                "black": d_k[-1].copy(), "handover": True,
+                "neutral_l_black": float(lab_nb[0]),
+                "neutral_black": nb.copy(),
+                "handover_lab": lab_k[-1],
+                "blend_l": l_k, "blend_dev": d_k,
+                "blend_c": np.hypot(lab_k[:, 1], lab_k[:, 2])})
+    return out
+
+
+# Research token "a34-blackseam" (Agent 34, Findings/agent34-01). Two
+# parts on top of the a29 hand-over (which it replaces as the black rule):
+#
+# 1. The deep black is chosen by a RATE, not by a fixed chroma cap: from
+#    the neutral black, step to the deeper, slightly tinted black of the
+#    chroma ladder that buys the most L* per C* of tint, and only while
+#    every C* buys at least A34_RATE L*; the tint may not exceed the
+#    printer's own darkest measured near-neutral patches by more than
+#    A34_MEAS_MARGIN. The a29 cap (C* 2) was below the i1iSis's tinted black
+#    (its darkest measured patches are C* 2.5-2.9; colprof's black C* 4.1)
+#    and above what XKB pessimistic t400's 0.2 L* extra depth was worth.
+# 2. Every neutral column node above the black takes an axis value: the
+#    walk leaves rows it cannot solve neutral (i1Pro: 23.5-28 L*, where the
+#    K-only and the rich C+M+Y+K separations meet), and a column node whose
+#    row failed fell back to its own per-node inversion, a third
+#    separation (i1Pro node L* 28.1 printed model L* 39.9 before the refit
+#    smoothed it). Such rows are filled by interpolating the two nearest
+#    solved rows when both lie on the same separation branch and the
+#    filled device prints neutral in the model.
+A34_RATE = 1.0
+A34_LADDER = (1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0)
+A34_MEAS_MARGIN = 1.0
+A34_MEAS_N = 3
+A34_MEAS_MAX_C = 6.0
+A34_FILL_BRANCH = 0.3       # max channel difference of the two neighbours
+A34_FILL_TOL_L = 1.0        # filled row: model L* within this of its target
+A34_FILL_TOL_C = 1.5        # ... and model C* below this
+
+
+def measured_dark_chroma(lab: np.ndarray, device: np.ndarray, *,
+                         ink_limit: float | None = None,
+                         n: int = A34_MEAS_N,
+                         max_c: float = A34_MEAS_MAX_C) -> float | None:
+    """Median C* of the ``n`` darkest measured patches that are
+    near-neutral (C* < ``max_c``) and within the ink limit (percent): the
+    tint of the printer's own deepest blacks. None without such patches."""
+    lab = np.asarray(lab, float)
+    device = np.asarray(device, float)
+    c = np.hypot(lab[:, 1], lab[:, 2])
+    keep = c < max_c
+    if ink_limit is not None:
+        keep &= device.sum(1) * 100.0 <= float(ink_limit) + 1e-6
+    idx = np.flatnonzero(keep)
+    if not len(idx):
+        return None
+    idx = idx[np.argsort(lab[idx, 0], kind="stable")][:n]
+    return float(np.median(c[idx]))
+
+
+def rate_deep_black(model: ForwardModel, *, l_neutral: float,
+                    c_neutral: float, kw: dict,
+                    ladder: tuple = A34_LADDER, rate: float = A34_RATE,
+                    max_chroma: float | None = None,
+                    candidates: list | None = None) -> dict | None:
+    """a34-blackseam's deep black (see the comment above): greedy on the
+    chroma ladder, from the neutral black, take the rung with the best
+    L* gained per C* added while that is at least ``rate``; rungs above
+    ``max_chroma`` are not tried. ``candidates``: precomputed (model Lab,
+    device) per rung, for tests. None when no rung is worth it."""
+    rungs = [c for c in ladder if max_chroma is None or c <= max_chroma]
+    found = []
+    for i, cm in enumerate(rungs):
+        f = (candidates[i] if candidates is not None
+             else deepest_tinted(model, chroma_max=cm, kw=kw))
+        if f is None:
+            continue
+        lab, dev = f
+        found.append({"lab": np.asarray(lab, float),
+                      "dev": np.asarray(dev, float), "chroma_max": cm,
+                      "c": float(np.hypot(lab[1], lab[2]))})
+    cur_l, cur_c, best = float(l_neutral), float(c_neutral), None
+    while True:
+        step = None
+        for f in found:
+            dl = cur_l - float(f["lab"][0])
+            dc = f["c"] - cur_c
+            if dl <= 1e-6:
+                continue
+            r = dl / dc if dc > 1e-6 else np.inf
+            if r >= rate and (step is None or r > step[0] + 1e-12):
+                step = (r, f)
+        if step is None:
+            break
+        best = step[1]
+        cur_l, cur_c = float(best["lab"][0]), best["c"]
+    if best is None:
+        return None
+    out = dict(best)
+    out["score"] = float(best["lab"][0])
+    return out
+
+
+def fill_axis_gaps(model: ForwardModel, axis: dict, *,
+                   branch: float = A34_FILL_BRANCH,
+                   tol_l: float = A34_FILL_TOL_L,
+                   tol_c: float = A34_FILL_TOL_C) -> dict:
+    """a34-blackseam part 2: rows of the walk between its paper white and
+    its (neutral) black that did not solve neutral take the linear
+    interpolation in L* of the nearest solved rows above and below, when
+    those two are on the same branch (no channel differs by more than
+    ``branch``) and the filled device prints within ``tol_l`` L* of the row
+    and below ``tol_c`` C* in the model. Returns a new axis (``filled``:
+    the L* values filled) or the axis itself when nothing was filled."""
+    if axis.get("black") is None:
+        return axis
+    ls = np.asarray(axis["l"], float)
+    dev = np.asarray(axis["dev"], float).copy()
+    ok = np.asarray(axis["ok"], bool).copy()
+    l_bottom = float(axis.get("neutral_l_black", axis["l_black"]))
+    rows = np.flatnonzero(~ok & (ls >= l_bottom - 1e-9))
+    good = np.flatnonzero(ok)
+    filled = []
+    for i in rows:
+        hi = good[ls[good] > ls[i]]
+        lo = good[(ls[good] < ls[i]) & (ls[good] >= l_bottom - 0.5 - 1e-9)]
+        if not len(hi) or not len(lo):
+            continue
+        a = hi[np.argmin(ls[hi])]
+        b = lo[np.argmax(ls[lo])]
+        if np.max(np.abs(dev[a] - dev[b])) > branch:
+            continue
+        t = (ls[a] - ls[i]) / (ls[a] - ls[b])
+        d = dev[a] + t * (dev[b] - dev[a])
+        lab = model.predict(d[None, :])[0]
+        if (abs(lab[0] - ls[i]) > tol_l
+                or np.hypot(lab[1], lab[2]) > tol_c):
+            continue
+        filled.append((i, d))
+    if not filled:
+        return axis
+    for i, d in filled:
+        dev[i], ok[i] = d, True
+    out = dict(axis)
+    out.update({"dev": dev, "ok": ok,
+                "filled": [float(ls[i]) for i, _ in filled]})
+    return out
+
+
+# Research tokens "a35-percblack-blend" / "a35-percblack-deep" (Agent 35,
+# Findings/agent35-01-percblack.md; Basti 2026-10-06 night). The perceptual
+# and saturation tables end at the SAME black as the colorimetric one (RGB
+# 0 on an RGB printer, a34-blackseam's rate-chosen deep black on ink), not
+# at the neutral black (S1 28.8 vs colprof 26.8, ET on paper +1.1 L*). The
+# neutral column's target a*b* is handed over from neutral to the deep
+# black's a*b* over a band [l_deep, l_deep + width] of target L*:
+#
+# * blend (option 3): smoothstep (C1 at both ends, monotone). The width is
+#   the L* gap between the neutral and the deep black, widened only as far
+#   as the measured hand-over path (the device line from the neutral black
+#   to the deep black, monotone part) needs for every band target to be
+#   printable: the curve's fraction of the deep black's tint must reach the
+#   path's own fraction at every path sample (in-gamut, so the inversion
+#   never has to clip a target to a lighter neutral).
+# * deep (option 1, colprof's way): Argyll's gmm_bendBP (gamut/gammap.c
+#   l. 1378-1445): the band is the black's a*b* distance from neutral
+#   ("brad", in L* units), the blend is smoothstep of smoothstep near the
+#   top and linear at the black, towards the straight white-to-black axis.
+#   Never narrower than the printable width above.
+A35_TOKENS = ("a35-percblack-blend", "a35-percblack-deep")
+_A35_WIDTH_STEPS = 32           # width search resolution: gap / 32 ...
+_A35_WIDTH_MAX = 4.0            # ... up to 4 x the gap
+
+
+def a35_mode(candidates) -> str | None:
+    """'blend', 'deep' or None from the build's candidate tokens (deep
+    wins when both are given)."""
+    c = set(candidates or ())
+    if "a35-percblack-deep" in c:
+        return "deep"
+    if "a35-percblack-blend" in c:
+        return "blend"
+    return None
+
+
+def _smoothstep(t: np.ndarray) -> np.ndarray:
+    t = np.clip(np.asarray(t, float), 0.0, 1.0)
+    return t * t * (3.0 - 2.0 * t)
+
+
+def percblack_fraction(target_l: np.ndarray, *, l_deep: float,
+                       width: float, mode: str) -> np.ndarray:
+    """Fraction (0 above the band, 1 at and below the deep black) of the
+    deep black's a*b* at each target L*."""
+    u = (float(l_deep) + float(width) - np.asarray(target_l, float)) \
+        / max(float(width), 1e-9)
+    if mode == "deep":
+        t = _smoothstep(u)
+        ty = _smoothstep(t)
+        return (1.0 - t) * ty + t * t      # gammap.c: spline at 0, linear at 1
+    return _smoothstep(u)
+
+
+def percblack_tint(target_l: np.ndarray, *, l_deep: float,
+                   ab_deep: np.ndarray, width: float, mode: str,
+                   l_white: float = 100.0) -> np.ndarray:
+    """a*b* targets of the hand-over (see the comment above). ``deep``
+    blends towards the straight white-to-black axis, as gammap.c does."""
+    tl = np.asarray(target_l, float)
+    f = percblack_fraction(tl, l_deep=l_deep, width=width, mode=mode)
+    if mode == "deep":
+        span = max(float(l_white) - float(l_deep), 1e-9)
+        f = f * np.clip((float(l_white) - tl) / span, 0.0, 1.0)
+    return f[:, None] * np.asarray(ab_deep, float)[None, :]
+
+
+def percblack_width(path_l: np.ndarray, path_c: np.ndarray, *,
+                    l_neutral: float, l_deep: float, c_deep: float,
+                    mode: str) -> float:
+    """Band width (L*) of the hand-over. ``path_l`` / ``path_c``: model L*
+    and C* along the hand-over path from the neutral black (first) to the
+    deep black (last). blend: the smallest gap * (1 + k / 32) whose
+    smoothstep fraction reaches the path's fraction (C* above the neutral
+    black's, over the deep black's) at every path sample; deep: the black's
+    chroma (gammap.c brad), at least that printable width."""
+    gap = max(float(l_neutral) - float(l_deep), 1e-6)
+    pl = np.asarray(path_l, float)
+    pc = np.asarray(path_c, float)
+    c_top = float(pc[0]) if len(pc) else 0.0
+    den = max(float(c_deep) - c_top, 1e-9)
+    need = np.clip((pc - c_top) / den, 0.0, 1.0)
+    w_ok = gap * _A35_WIDTH_MAX
+    for k in range(int(_A35_WIDTH_STEPS * (_A35_WIDTH_MAX - 1.0)) + 1):
+        w = gap * (1.0 + k / _A35_WIDTH_STEPS)
+        f = percblack_fraction(pl, l_deep=l_deep, width=w, mode="blend")
+        if np.all(f >= need - 1e-6):
+            w_ok = w
+            break
+    if mode == "deep":
+        return max(float(c_deep), w_ok)
+    return w_ok
+
+
+def rgb_handover_path(model: ForwardModel, neutral_dev: np.ndarray,
+                      n: int = 81):
+    """RGB: the device line from the neutral black's device value to RGB 0,
+    its monotone (darkening) part: ``(l, dev, c)`` from the neutral black
+    to RGB 0, as blackhandover_axis builds the ink path."""
+    nb = np.asarray(neutral_dev, float)
+    u = np.linspace(0.0, 1.0, n)
+    line = nb[None, :] * (1.0 - u)[:, None]
+    lab = model.predict(line)
+    keep = [0]
+    for i in range(1, n):
+        if lab[i, 0] < lab[keep[-1], 0] - 1e-6:
+            keep.append(i)
+    keep = np.asarray(keep)
+    return lab[keep, 0], line[keep], np.hypot(lab[keep, 1], lab[keep, 2])
+
+
+def path_device_at(target_l: np.ndarray, path_l: np.ndarray,
+                   path_dev: np.ndarray) -> np.ndarray:
+    """Device values on the hand-over path at the given L* (linear in L*,
+    clamped to the path's ends)."""
+    o = np.argsort(path_l)
+    pl, pd = np.asarray(path_l, float)[o], np.asarray(path_dev, float)[o]
+    tl = np.asarray(target_l, float)
+    return np.column_stack([np.interp(tl, pl, pd[:, c])
+                            for c in range(pd.shape[1])])
+
+
+def percblack_band_devices(model: ForwardModel, target: np.ndarray,
+                           inverted: np.ndarray, on_path: np.ndarray
+                           ) -> np.ndarray:
+    """Per band node, the device value of the two candidates (the inversion
+    of the hand-over target, and the hand-over path at the target L*) that
+    the model prints closer to the target (dE76). The path value is always
+    printable and monotone, so a node whose inversion had to clip keeps the
+    path."""
+    a = model.predict(np.asarray(inverted, float))
+    b = model.predict(np.asarray(on_path, float))
+    t = np.asarray(target, float)
+    da = np.linalg.norm(a - t, axis=1)
+    db = np.linalg.norm(b - t, axis=1)
+    return np.where((da <= db)[:, None], inverted, on_path)
+
+
+def axis_points(axis: dict, chroma_cap: float | None = None):
+    """The axis as interpolation points for the mapped intents: ``(ls
+    ascending, devices, l_black, black)``. The accepted grid points, and on
+    a hand-over axis the neutral part plus the exact blend samples (the
+    0.5 L* grid alone ends above the deep black). ``chroma_cap``: the blend
+    stops at the last sample whose model C* is within it (research
+    a29-blackhandover: the perceptual black is handed over only as far as
+    colprof's own perceptual black is tinted, at least C* 1)."""
+    ls = np.asarray(axis["l"], float)
+    ok = np.asarray(axis["ok"], bool)
+    dev = np.asarray(axis["dev"], float)
+    if not axis.get("handover"):
+        o = np.argsort(ls[ok])
+        return ls[ok][o], dev[ok][o], float(axis["l_black"]), \
+            np.asarray(axis["black"], float)
+    top = ok & (ls >= axis["neutral_l_black"] - 1e-9)
+    bl = np.asarray(axis["blend_l"], float)
+    bd = np.asarray(axis["blend_dev"], float)
+    if chroma_cap is not None:
+        bc = np.asarray(axis["blend_c"], float)
+        over = np.flatnonzero(bc > chroma_cap)
+        n_keep = int(over[0]) if len(over) else len(bl)
+        n_keep = max(n_keep, 1)                # the neutral black itself
+        bl, bd = bl[:n_keep], bd[:n_keep]
+    pl = np.concatenate([ls[top], bl])
+    pd = np.vstack([dev[top], bd])
+    o = np.argsort(pl, kind="stable")
+    pl, pd = pl[o], pd[o]
+    keep = np.concatenate([[True], np.diff(pl) > 1e-9])
+    pl, pd = pl[keep], pd[keep]
+    return pl, pd, float(pl[0]), pd[0].copy()
+
+
+def handover_target_ab(target_l: np.ndarray, *, l_top: float,
+                       l_deep: float, ab_deep: np.ndarray) -> np.ndarray:
+    """a*b* of the hand-over curve at ``target_l``: 0 at and above
+    ``l_top``, the deep black's a*b* at and below ``l_deep``, smoothstep in
+    between (C1 at both ends)."""
+    span = max(float(l_top) - float(l_deep), 1e-6)
+    t = np.clip((float(l_top) - np.asarray(target_l, float)) / span,
+                0.0, 1.0)
+    s = t * t * (3.0 - 2.0 * t)
+    return s[:, None] * np.asarray(ab_deep, float)[None, :]
+
+
+def anchor_column_black(target_l: np.ndarray, source_l: np.ndarray,
+                        black_l: float, fade: float = 25.0,
+                        bridge: bool = False) -> np.ndarray:
+    """Perceptual column lightness with the SOURCE black on the destination
+    black: the darkest source-neutral node's target L* is moved onto
+    ``black_l`` and the correction fades out linearly by source L* =
+    ``fade``; then made non-increasing from light to dark. Research
+    a29-blackhandover: on XKH september the engine's model prints colprof's
+    perceptual black device value at L* 9.0 (colprof's own A2B: 5.0), so
+    the column ended 3.8 L* above the black B2A1 prints."""
+    tl = np.asarray(target_l, float).copy()
+    sl = np.asarray(source_l, float)
+    if not len(tl):
+        return tl
+    i0 = int(np.argmin(sl))
+    shift = float(black_l) - tl[i0]
+    w = np.clip(1.0 - (sl - sl[i0]) / fade, 0.0, 1.0)
+    tl = tl + shift * w
+    if bridge:
+        return monotone_bridge(tl, sl)
+    order = np.argsort(-sl, kind="stable")             # light to dark
+    tl[order] = np.minimum.accumulate(tl[order])
+    return tl
+
+
+# Research token "a36-lcms8-safe" (Agent 36, Findings/agent36-01-lcms8.md).
+# anchor_column_black made the column non-increasing with a running
+# minimum, which turns a reversal of the colprof oracle's perceptual column
+# (S1 pessimistic september: target L* 73.6 at source L* ~56, 70.4 two
+# nodes darker) into a PLATEAU: several source nodes print one L* (70.4
+# from sRGB grey 136 to 152). The plateau is a flat step in every grey
+# gradient, and on an RGB printer it also makes all three device channels
+# flat along the sRGB grey ramp. lcms2 (cmsopt.c
+# OptimizeByComputingLinearization, the default 8-bit RGB -> RGB path)
+# allocates its 33 CLUT nodes per input channel along exactly that grey
+# ramp curve: a flat stretch leaves one CLUT cell spanning 0.15 of the
+# input range, and off-axis colours (skin, sky) go up to 11 % wrong. With
+# the reversal (int-4) lcms rejected the curve as non-monotone and took
+# the accurate resampling path, so the defect appeared once the column
+# became monotone. The bridge removes the reversal without a plateau.
+A36_TOKEN = "a36-lcms8-safe"
+
+
+def monotone_bridge(target_l: np.ndarray, source_l: np.ndarray
+                    ) -> np.ndarray:
+    """Make the column's target L* non-increasing from light to dark
+    (by source L*) without plateaus: every node outside a reversal keeps
+    its value exactly; each reversal zone (the nodes where the running
+    minimum from the light end and the running maximum from the dark end
+    disagree, i.e. where no monotone curve can pass through the targets)
+    is replaced by the straight line in source L* between the two nodes
+    that bound it, which both envelopes agree on. Strictly decreasing
+    wherever the bounding values differ. A zone open at an end of the
+    column falls back to the running minimum (anchor_column_black's rule).
+    No parameter."""
+    tl = np.asarray(target_l, float).copy()
+    sl = np.asarray(source_l, float)
+    n = len(tl)
+    if n < 3:
+        if n:
+            order = np.argsort(-sl, kind="stable")
+            tl[order] = np.minimum.accumulate(tl[order])
+        return tl
+    order = np.argsort(-sl, kind="stable")             # light to dark
+    t = tl[order]
+    s = sl[order]
+    lo = np.minimum.accumulate(t)                      # from the light end
+    hi = np.maximum.accumulate(t[::-1])[::-1]          # from the dark end
+    tol = 1e-9 * max(1.0, float(np.abs(t).max()))
+    bad = (hi - lo) > tol
+    out = lo.copy()
+    k = 0
+    while k < n:
+        if not bad[k]:
+            k += 1
+            continue
+        j = k
+        while j < n and bad[j]:
+            j += 1
+        a, b = k - 1, j                                # bounding nodes
+        if a >= 0 and b < n and s[a] > s[b]:
+            u = (s[a] - s[k:j]) / (s[a] - s[b])
+            out[k:j] = t[a] + (t[b] - t[a]) * u
+        k = j
+    tl[order] = out
+    return tl
+
+
+def monotone_black(model: ForwardModel, axis: dict,
+                   tol: float = 0.02) -> dict:
+    """Research agent9-01 6.2 ("a9-monoblack"): end the neutral axis at
+    the darkest step reached WITHOUT any ink falling back (by more than
+    ``tol``) after it rose. Deeper neutrals on 5+ ink printers are bought
+    at the ink-limit face by swapping one ink for another (S6: M 0.66 ->
+    0.03 for V 0 -> 0.58 in the last 4 L*), which is the grey ramp's rise
+    and fall (P7 TV excess). The black is then that last monotone step."""
+    if axis.get("black") is None:
+        return axis
+    dev = np.asarray(axis["dev"], float)
+    ok = np.asarray(axis["ok"], bool).copy()
+    run_max = np.maximum.accumulate(dev, axis=0)
+    fell = (run_max - dev > tol).any(1)
+    if not fell.any():
+        return axis
+    first = int(np.argmax(fell))
+    good = np.flatnonzero(ok[:first])
+    if not len(good):
+        return axis
+    last = int(good[-1])
+    ok[last + 1:] = False
+    lab = model.predict(dev[last][None, :])[0]
+    return {"l": axis["l"], "dev": dev, "ok": ok, "l_black": float(lab[0]),
+            "black": dev[last].copy(), "monotone_black": True}
+
+
+def monotone_neutral_axis(model: ForwardModel, axis: dict, *,
+                          step: float = 0.5, **inv_kw) -> dict:
+    """Research agent9-01 6.2 ("a9-monok"): the neutral axis walked BACK
+    from the neutral black to paper white with every channel capped at its
+    value one step darker, so no ink rises and falls along the grey ramp
+    (P7 "TV excess"). The black is the forward walk's (same depth); the
+    caps force the K the black composition needs to enter early enough that
+    C/M/Y never exceed their amount in the black. Same return keys as
+    :func:`neutral_axis` (``l`` light to dark)."""
+    if axis.get("black") is None:
+        return axis
+    n = model.n_channels
+    l_nb = float(axis["l_black"])
+    base_max = inv_kw.pop("channel_max", None)
+    base_max = np.ones(n) if base_max is None else np.asarray(base_max, float)
+    kw = {k: v for k, v in inv_kw.items()
+          if k not in ("node_lab", "progress", "seed")}
+    ls_up = np.arange(l_nb, 100.0 + 1e-9, step)
+    cur = np.asarray(axis["black"], float)[None, :]
+    devs, ress = [], []
+    for lv in ls_up:
+        cap = np.minimum(base_max, cur[0] + 1e-9)
+        d, r = invert_to_device(model, np.array([[lv, 0.0, 0.0]]),
+                                seed=np.minimum(cur, cap), channel_max=cap,
+                                **kw)
+        d = np.minimum(d, cap)
+        devs.append(d[0]); ress.append(r[0]); cur = d
+    devs, ress = np.array(devs), np.array(ress)
+    # light to dark, on the forward walk's grid (targets above the black)
+    ls = np.asarray(axis["l"])
+    out_dev = np.array(axis["dev"], float).copy()
+    out_ok = np.array(axis["ok"]).copy()
+    for i, lv in enumerate(ls):
+        if lv < l_nb - 1e-9:
+            continue
+        j = int(np.argmin(np.abs(ls_up - lv)))
+        out_dev[i] = devs[j]
+        lab = model.predict(devs[j][None, :])[0]
+        out_ok[i] = ress[j] < 0.5 and np.hypot(lab[1], lab[2]) < 1.0
+    return {"l": ls, "dev": out_dev, "ok": out_ok, "l_black": axis["l_black"],
+            "black": axis["black"], "monotone": True}
+
+
+def apply_neutral_axis(dev_clut: np.ndarray, node_lab: np.ndarray,
+                       axis: dict, model: ForwardModel,
+                       **inv_kw) -> np.ndarray:
+    """Put the continuation solution on the B2A neutral column.
+
+    Column nodes (C* < 1) at or above the neutral black take the walk's
+    device value at their L*; column nodes darker than it take the neutral
+    black itself, and near-neutral nodes (C* < 5) darker than it are
+    re-inverted at the neutral black's L* with their own a*, b*: the dark
+    end of the axis is clipped ALONG the axis instead of onto the nearest
+    (often chromatic) vertex of the ink-limit face (research agent5-01 P3:
+    X3 black L* 8.8 a* -12 -> 5.3 neutral). Returns the indices of the
+    nodes it set (the refit anchors them). The caller keeps the residual
+    measured against the original targets (gamt stays a distance).
+    """
+    if axis.get("black") is None:
+        return np.array([], dtype=int)
+    l_nb = axis["l_black"]
+    chroma = np.hypot(node_lab[:, 1], node_lab[:, 2])
+    col = np.flatnonzero(chroma < 1.0)
+    set_idx = []
+    for i in col:
+        lt = node_lab[i, 0]
+        if lt < l_nb:
+            dev_clut[i] = axis["black"]
+            set_idx.append(i)
+            continue
+        j = int(np.argmin(np.abs(axis["l"] - lt)))
+        if abs(axis["l"][j] - lt) <= 0.26 and axis["ok"][j]:
+            dev_clut[i] = axis["dev"][j]
+            set_idx.append(i)
+    below = np.flatnonzero((chroma >= 1.0) & (chroma < 5.0)
+                           & (node_lab[:, 0] < l_nb))
+    if len(below):
+        tgt = node_lab[below].copy()
+        tgt[:, 0] = l_nb
+        kw = {k: v for k, v in inv_kw.items()
+              if k not in ("node_lab", "progress", "seed")}
+        dev_clut[below] = invert_to_device(model, tgt, **kw)[0]
+    return np.array(set_idx, dtype=int)
 
 
 def build_b2a_clut(model: ForwardModel, grid: int, *,
@@ -516,6 +1843,7 @@ def build_b2a_clut(model: ForwardModel, grid: int, *,
                    black_l: float | None = None,
                    k_gen: dict | None = None,
                    ucs: bool = False,
+                   channel_max: np.ndarray | None = None,
                    progress=None,
                    ) -> tuple[np.ndarray, np.ndarray]:
     """Full B2A CLUT: (grid³, n) device fractions + (grid³,) OOG distance.
@@ -528,7 +1856,14 @@ def build_b2a_clut(model: ForwardModel, grid: int, *,
                             is_additive=is_additive, ink_limit=ink_limit,
                             k_prior=k_prior, accurate=accurate,
                             extra_hues=extra_hues, black_l=black_l,
-                            k_gen=k_gen, ucs=ucs, progress=progress)
+                            k_gen=k_gen, ucs=ucs, channel_max=channel_max,
+                            progress=progress)
+
+
+# Agent 66 (a66-clipanchor): anchor ramp of the refit for clipped nodes on
+# ink devices (refine_b2a_clut); set per build by set_research_tokens.
+REFIT_ANCHOR = {"on": False, "lo": 0.5, "hi": 2.5, "dark": False, "l_max": 60.0, "c_min": 8.0,
+                "guard": False, "g_lo": 1.5, "g_hi": 4.0}
 
 
 def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
@@ -546,8 +1881,18 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
                     black_l: float | None = None,
                     k_gen: dict | None = None,
                     ucs: bool = False,
-                    progress=None) -> np.ndarray:
+                    channel_max: np.ndarray | None = None,
+                    fixed_nodes: np.ndarray | None = None,
+                    progress=None,
+                    anchor_min: np.ndarray | None = None) -> np.ndarray:
     """Refit the B2A CLUT as one smooth field over exact inverse samples.
+
+    ``anchor_min`` (Agent 70, a70-portrefit): a per-node floor on the node
+    anchor weight (the port's clipped nodes enter the fit as firm anchors).
+
+    ``fixed_nodes``: node indices whose value is already decided (the
+    neutral column of :func:`apply_neutral_axis`); they get the heavy
+    anchor weight, like the deep out-of-gamut clamps.
 
     Every random device point is an *exact* sample of the inverse function
     (its Lab comes from the forward model, its device value is known), so the
@@ -575,6 +1920,8 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
         faces[np.arange(nf), rng.integers(0, n, nf)] = \
             rng.integers(0, 2, nf).astype(float)
         dev_s = np.vstack([dev_s, faces])
+        if channel_max is not None:
+            dev_s *= channel_max[None, :]
         if limit is not None:
             total = dev_s.sum(1)
             over = total > limit
@@ -587,6 +1934,17 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
         # Sample *reachable* Lab targets instead and invert them through the
         # same policy the per-node pass used; those pairs are consistent.
         probe_dev = rng.uniform(0.0, 1.0, (samples // 3, n))
+        if accurate:
+            # Uniform device points almost never print light: on a CMYK
+            # Clapper-Yule printer 3 of 10,000 landed above L* 80, on six
+            # inks none, so the highlight nodes were extrapolated from the
+            # midtones and the L* 93.75 neutral printed L* 58-88 (research
+            # agent5-03, item 1 cause A). Half the probes are scaled toward
+            # paper (coverage s², s ~ U(0, 1)) so light Lab is sampled too.
+            half = len(probe_dev) // 2
+            probe_dev[:half] *= rng.uniform(0.0, 1.0, (half, 1)) ** 2
+        if channel_max is not None:
+            probe_dev *= channel_max[None, :]
         if limit is not None:
             total = probe_dev.sum(1)
             over = total > limit
@@ -596,7 +1954,7 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
             model, lab_targets, channel_letters=channel_letters or [],
             is_additive=is_additive, ink_limit=ink_limit, k_prior=k_prior,
             accurate=accurate, extra_hues=extra_hues, black_l=black_l,
-            k_gen=k_gen, ucs=ucs, progress=progress,
+            k_gen=k_gen, ucs=ucs, channel_max=channel_max, progress=progress,
             progress_label="Inverting the model: sampling the separation")
         keep = res_s < 1.0
         dev_s, lab_s = dev_s[keep], lab_targets[keep]
@@ -615,6 +1973,32 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
     # out of gamut (their clamp IS the answer there), light anchors elsewhere
     # (keep the fit stable where samples are sparse, let data win).
     anchor_w = np.where(residual > deep_oog, 4.0, 0.05)
+    if REFIT_ANCHOR.get("on") and accurate and not is_additive:
+        # Agent 66 (a66-clipanchor): on ink devices the clipped nodes just
+        # outside the gamut (residual between blend_lo and deep_oog) kept a
+        # weak anchor, so the refit extrapolated them from the in-gamut
+        # samples on one side of the surface: dark yellow / olive nodes went
+        # K-heavy and printed up to 6 L* too dark between firmly anchored
+        # neighbours (FOGRA node L* 25, a* -8, b* 24: clip answer L* 24.4,
+        # refit L* 19; Findings agent66-01 s3b). The anchor now rises
+        # smoothly (smoothstep) from 0.05 at residual lo to 4.0 at hi.
+        lo, hi = REFIT_ANCHOR["lo"], REFIT_ANCHOR["hi"]
+        u = np.clip((residual - lo) / max(hi - lo, 1e-9), 0.0, 1.0)
+        u = u * u * (3.0 - 2.0 * u)
+        if REFIT_ANCHOR.get("dark") and node_lab is not None:
+            # a66-clipanchor-dark: only dark chromatic nodes (node L* below
+            # l_max, faded over 10 L*; chroma above c_min, faded over 5):
+            # the pale clipped nodes near paper white and the near-neutral
+            # dark column keep the refit's weak anchor (Y4: those lost)
+            nl = np.asarray(node_lab, float)
+            fl = np.clip((REFIT_ANCHOR["l_max"] - nl[:, 0]) / 10.0, 0.0, 1.0)
+            fc = np.clip((np.hypot(nl[:, 1], nl[:, 2]) - REFIT_ANCHOR["c_min"]) / 5.0, 0.0, 1.0)
+            u = u * (fl * fl * (3.0 - 2.0 * fl)) * (fc * fc * (3.0 - 2.0 * fc))
+        anchor_w = np.maximum(anchor_w, 0.05 + 3.95 * u)
+    if fixed_nodes is not None and len(fixed_nodes):
+        anchor_w[fixed_nodes] = 4.0
+    if anchor_min is not None:
+        anchor_w = np.maximum(anchor_w, np.asarray(anchor_min, float))
     if node_lab is None:
         node_lab = lab_grid(grid)
     # Fit in *curve space* — the CLUT stores shaped device values (the output
@@ -654,6 +2038,71 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
         p_all = np.vstack([p_all, to01(model.predict(extra))])
         y_all = np.vstack([y_all, model.shape_device(extra)])
         w_all = np.concatenate([w_all, np.ones(len(extra))])
+    if REFIT_ANCHOR.get("guard") and accurate and not is_additive:
+        # Agent 66 (a66-refitguard): a clipped node near the surface (weak
+        # anchor) whose refitted value prints far from the clip's own answer
+        # was extrapolated, not smoothed (FOGRA node L* 25, a* -8, b* 24:
+        # clip L* 24.4, refit L* 19, the dark olive blotch). Such nodes go
+        # back to the clip's answer, smoothly with the size of the jump;
+        # everything else keeps the refit (which is what keeps the gamut
+        # surface crossings free of knees: the plain anchor ramp,
+        # a66-clipanchor, added grey-saturation knees, Findings agent66-01 s5).
+        weak = (residual > 0.5) & (residual <= deep_oog)
+        g_scale = None
+        if REFIT_ANCHOR.get("alldark") and node_lab is not None:
+            # Agent 67 (a67-guardall-dark): the wider guard (in-gamut nodes,
+            # band 0.75 -> 2) only in the dark, where the bands are: node
+            # L* below 40 fully, smoothstep to a66-refitguard's own guard
+            # (clipped nodes only, 1.5 -> 4) at L* 55. Everywhere guardall
+            # cost B2A p95 on the synthetic sets (XKH / X3 / X3m +10..31 %,
+            # interpolation between exact nodes of different separations).
+            _u = np.clip((55.0 - np.asarray(node_lab, float)[:, 0]) / 15.0, 0.0, 1.0)
+            _u = _u * _u * (3.0 - 2.0 * _u)
+            weak = residual <= deep_oog
+            g_scale = _u
+        elif REFIT_ANCHOR.get("all"):
+            # Agent 67 (a67-guardall): the in-gamut nodes too. Next to the
+            # gamut surface the refit also pulls IN-GAMUT nodes off their
+            # exact inversion (FOGRA node L* 21.9, a* -8, b* 16: exact,
+            # refit prints L* 19.9), between clipped nodes the guard already
+            # holds: the dark green band of mid h080/h090 (Findings
+            # agent67-01). a44-exactkeep (tol 2) did not restore it.
+            weak = residual <= deep_oog
+        if fixed_nodes is not None and len(fixed_nodes):
+            weak[fixed_nodes] = False
+        if weak.any():
+            lab_ref = model.predict(np.clip(model.unshape_device(refined[weak]), 0.0, 1.0))
+            lab_clip = model.predict(np.clip(dev_clut[weak], 0.0, 1.0))
+            e = np.linalg.norm(lab_ref - lab_clip, axis=1)
+            g0, g1 = REFIT_ANCHOR["g_lo"], REFIT_ANCHOR["g_hi"]
+            if g_scale is not None:
+                gs = g_scale[weak]
+                g0 = 1.5 - 0.75 * gs
+                g1 = 4.0 - 2.0 * gs
+            u = np.clip((e - g0) / np.maximum(g1 - g0, 1e-9), 0.0, 1.0)
+            u = u * u * (3.0 - 2.0 * u)
+            if g_scale is not None:
+                # in-gamut nodes: the guard fades out above the dark
+                ing = residual[weak] <= 0.5
+                u = np.where(ing, u * gs, u)
+            back = model.shape_device(dev_clut[weak])
+            if REFIT_ANCHOR.get("polish") and (u > 0).any():
+                # Agent 67 (a67-guardpolish): instead of the per-node answer
+                # (whose separation can differ from its refitted neighbours,
+                # which cost B2A p95 between the nodes), the refitted value is
+                # polished toward the colour the per-node answer prints,
+                # starting from and weakly held at the refit's own inks
+                rows = np.flatnonzero(u > 0)
+                seed = np.clip(model.unshape_device(refined[weak][rows]), 0.0, 1.0)
+                pw = np.full(seed.shape, float(REFIT_ANCHOR.get("polish_w", 0.05)))
+                pol = _gauss_newton(model, lab_clip[rows], seed.copy(), np.arange(n),
+                                    iters=8, damping=0.05, ink_limit=limit,
+                                    prior=seed, prior_w=pw, boundary_fd=True,
+                                    channel_max=channel_max)
+                back = back.copy()
+                back[rows] = model.shape_device(np.clip(pol, 0.0, 1.0))
+            refined[weak] = ((1.0 - u)[:, None] * refined[weak]
+                             + u[:, None] * back)
     if limit is not None:
         raw = model.unshape_device(refined)
         total = raw.sum(1)
@@ -664,6 +2113,477 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
             raw[over] *= (limit / total[over])[:, None]
         refined[over] = model.shape_device(raw[over])
     return refined
+
+
+def pin_white_node(dev_clut: np.ndarray, node_lab: np.ndarray,
+                   is_additive: bool, tol: float = 1.0) -> np.ndarray:
+    """Force the B2A node(s) that stand for the PCS white to DEVICE white.
+
+    The colorimetric table is refitted as one smooth field
+    (:func:`refine_b2a_clut`) and the mapped tables come from a per-node
+    inversion of a mapped target; both leave the white corner a fitted
+    value — measured 2026-09-04 on a synthetic CMYK chart: C 0.6 %, M 1.3 %,
+    Y 3.5 % at L*=100 (ink in the paper white), with the forward model's
+    white already pinned. Argyll's ICX_SET_WHITE makes the white exact on
+    both sides; this is the B2A half. Works in device space and in the
+    curve (shaped) space alike, because the shaper curves are pinned at 0
+    and 1. Only nodes within ``tol`` ΔE76 of (100, 0, 0) qualify — the top
+    row's a=b≈0 node, never its coloured neighbours."""
+    d = np.linalg.norm(node_lab - np.array([100.0, 0.0, 0.0]), axis=1)
+    hit = d <= tol
+    if not hit.any():
+        return dev_clut
+    out = dev_clut.copy()
+    out[hit] = 1.0 if is_additive else 0.0
+    return out
+
+
+def pin_black_node(dev_clut: np.ndarray, node_lab: np.ndarray,
+                   device_black: np.ndarray, tol: float = 1.0) -> np.ndarray:
+    """Force the B2A node(s) that stand for L*=0 to the printer's DEEPEST
+    black. The Lab grid's black corner lies only ~3 ΔE76 outside a real
+    printer's gamut, so the smooth refit treated it as a weak anchor and
+    extrapolated — measured 2026-09-05 on a real chart: L*=0 printed as
+    RGB 3/4/18 (fast, a blue cast, L* 6.2) and 3/0/4 (accurate, magenta)
+    while colprof gives 0/0/0. Every "pure black" pixel carries L*=0.
+    ``device_black`` is given in the same space as ``dev_clut`` (device or
+    curve space) — the caller shapes it."""
+    d = np.linalg.norm(node_lab, axis=1)
+    hit = d <= tol
+    if not hit.any():
+        return dev_clut
+    out = dev_clut.copy()
+    out[hit] = np.asarray(device_black, float)[None, :]
+    return out
+
+
+def below_black_column(node_lab: np.ndarray, black_l: float,
+                       chroma_tol: float = 1.0) -> np.ndarray:
+    """Indices of the B2A neutral-column nodes (C* < ``chroma_tol``) whose
+    target L* lies below ``black_l``, the L* of the device black.
+
+    Research F-13 (agent20-01): on an RGB printer whose black is well above
+    L* 0 these nodes are only a few dE76 outside the gamut, so the smoothing
+    refit (:func:`refine_b2a_clut`) gave them the weak anchor and set them
+    from their heavy-anchored chromatic neighbours: lighter than the black
+    and lighter than the next node up (X1: sRGB grey 7.86 -> 10.99 -> 9.90
+    L* through lcms and ColorSync). colprof clips each node on its own
+    (nearest, LCh-weighted, xicc/xlut.c), so its column is flat at the
+    black until the ramp enters the gamut; this is the same answer."""
+    chroma = np.hypot(node_lab[:, 1], node_lab[:, 2])
+    return np.flatnonzero((chroma < chroma_tol)
+                          & (node_lab[:, 0] < float(black_l)))
+
+
+def rgb_neutral_black(model: ForwardModel, black_l: float, *,
+                      ucs: bool = False, step: float = 0.05,
+                      span: float = 15.0, tol: float = 0.5
+                      ) -> tuple[float, np.ndarray]:
+    """The NEUTRAL black of an RGB device: the darkest L* (from the device
+    black's L* upward, ``step`` apart) whose neutral target (L*, 0, 0) the
+    model reaches within ``tol`` dE76, and its device value. Returns the
+    device black (``black_l``, RGB 0) when RGB 0 is itself neutral (model
+    C* < 1, the test :func:`neutral_axis` uses) or
+    no neutral is reached within ``span`` L*.
+
+    Research F-13 (agent20-01 s5.2, s6.2): the B2A neutral column is held
+    below this point (design A3). Design A2 clipped the column TO it, as
+    Agent 5's :func:`apply_neutral_axis` does for ink devices, which kept
+    the grey axis neutral above a chromatic black (battery S2: C* 3.0) but
+    cost dark-colour accuracy."""
+    n = model.n_channels
+    zero = np.zeros((1, n))
+    lab0 = model.predict(zero)[0]
+    if np.hypot(lab0[1], lab0[2]) < 1.0:
+        # RGB 0 is already neutral (C* < 1, Agent 5's neutrality test)
+        return float(black_l), zero[0]
+    ls = np.arange(float(black_l), float(black_l) + span + 1e-9, step)
+    tgt = np.column_stack([ls, np.zeros_like(ls), np.zeros_like(ls)])
+    dev, res = invert_to_device(model, tgt, channel_letters=[],
+                                is_additive=True, accurate=True, ucs=ucs)
+    ok = np.flatnonzero(res < tol)
+    if not len(ok):
+        return float(black_l), zero[0]
+    i = int(ok[0])
+    return float(ls[i]), np.clip(dev[i], 0.0, 1.0)
+
+
+def monotone_column(model: ForwardModel, values: np.ndarray,
+                    target_l: np.ndarray) -> np.ndarray:
+    """Column device values made monotone in the model's L*: walking from
+    the lightest target down, a node whose value would print lighter than
+    the node above it takes that node's value. Research F-13 (design A3):
+    the per-node nearest clips below the black are monotone on every
+    printer measured, this makes it a guarantee."""
+    values = np.asarray(values, float).copy()
+    if not len(values):
+        return values
+    order = np.argsort(-np.asarray(target_l, float))       # light to dark
+    vals = values[order]
+    lp = model.predict(vals)[:, 0]
+    for i in range(1, len(vals)):
+        if lp[i] > lp[i - 1]:
+            vals[i], lp[i] = vals[i - 1], lp[i - 1]
+    out = np.empty_like(vals)
+    out[order] = vals
+    return out
+
+
+def pin_nodes(dev_clut: np.ndarray, nodes: np.ndarray,
+              value: np.ndarray) -> np.ndarray:
+    """Set ``nodes`` of a CLUT to one device value (same space as the
+    table). The column generalisation of :func:`pin_black_node`."""
+    if nodes is None or not len(nodes):
+        return dev_clut
+    out = dev_clut.copy()
+    value = np.asarray(value, float)
+    out[np.asarray(nodes, int)] = value if value.ndim == 2 else value[None, :]
+    return out
+
+
+_CLOUD_CACHE: dict = {}
+_CLOUD_LOCK = __import__("threading").Lock()
+
+
+def _cloud_and_lab(view, model: ForwardModel, n: int, limit: float | None,
+                   channel_max: np.ndarray | None, seed: int,
+                   memo: bool = True, light: bool | None = None):
+    """The retry / hue-clip device cloud and its predicted colours.
+
+    Every call rebuilt both from a fresh ``default_rng(seed)``: the same
+    numbers each time for the same model, and the prediction is the
+    expensive part (the neutral-axis walk asks for it once per step). D-06:
+    remembered per model CONTENT (nodes and curves hashed, so an in-place
+    change of the model can never hit a stale entry) and per limits; the
+    arrays returned are the ones a fresh computation gives, bit for bit."""
+    if not memo:                     # Fast / Bit-exact: the serial path
+        cloud = _device_cloud(n, limit, channel_max,
+                              np.random.default_rng(seed))
+        return cloud, view.predict(cloud)
+    import hashlib
+    h = hashlib.blake2b(digest_size=16)
+    h.update(np.ascontiguousarray(model.nodes).tobytes())
+    h.update(np.ascontiguousarray(model.curves).tobytes())
+    use_light = bool(LIGHT_CLOUD.get("on")) if light is None else bool(light)
+    key = (h.hexdigest(), type(view).__name__, n, limit, use_light,
+           None if channel_max is None else tuple(np.asarray(channel_max,
+                                                             float)), seed)
+    with _CLOUD_LOCK:
+        hit = _CLOUD_CACHE.get(key)
+    if hit is not None:
+        return hit
+    cloud = _device_cloud(n, limit, channel_max, np.random.default_rng(seed))
+    if use_light:
+        cloud = np.vstack([cloud, _light_cloud(
+            n, limit, channel_max, np.random.default_rng(seed + 7))])
+    val = (cloud, view.predict(cloud))
+    for a in val:                    # shared: nobody may write into them
+        a.flags.writeable = False
+    with _CLOUD_LOCK:
+        while len(_CLOUD_CACHE) >= 4:
+            _CLOUD_CACHE.pop(next(iter(_CLOUD_CACHE)))
+        _CLOUD_CACHE[key] = val
+    return val
+
+
+# Agent 21 (Findings/agent21-01 s3.1, token "a21-lightcloud", Maximum
+# accuracy; ported by Agent 25 from research/pe-nink-research c6b75dea /
+# 9ed806ab): the retry and clip clouds are uniform in the N-cube, which on
+# 5-7 inks under a 300 % limit holds no light colour at all, so pale nodes
+# were seeded from dark colours (F-14). Light and sparse points are added.
+LIGHT_CLOUD: dict = {"on": False, "l_min": None}
+CLIP_FIX: dict = {"on": False}      # agent 21 / F-15, token "a21-clipfix"
+
+
+def additive_column_nodes(node_lab: np.ndarray, residual: np.ndarray) -> np.ndarray:
+    """Research (Agent 25, token a25-rgbcol): the in-gamut nodes of the B2A
+    neutral column of a 3-channel device. Ink devices anchor their column
+    through apply_neutral_axis; an RGB table had no anchor at all, so the
+    smoothing refit could move a light neutral node by 3 L* (battery S2:
+    node L* 96.9 printed 100) and an out-of-gamut neighbour's clip value
+    could tint it (S2 with a25-oog: b* -0.5)."""
+    chroma = np.hypot(node_lab[:, 1], node_lab[:, 2])
+    return np.flatnonzero((chroma < 1.0) & (residual < 0.5))
+
+
+def column_nodes_by_l(node_lab: np.ndarray, nodes: np.ndarray) -> np.ndarray:
+    """Research (Agent 38 s6): the neutral-column nodes (C* < 1) among
+    ``nodes``, ordered from dark to light."""
+    nodes = np.asarray(nodes, int)
+    c = np.hypot(node_lab[nodes, 1], node_lab[nodes, 2])
+    col = nodes[c < 1.0]
+    return col[np.argsort(node_lab[col, 0], kind="stable")]
+
+
+def dark_bridge(dev: np.ndarray, l_star: np.ndarray, *, black_l: float,
+                to_l: float) -> np.ndarray:
+    """Research (Agent 38 s6): column nodes (dark to light) between the
+    device black (RGB 0 at ``black_l``) and the first node at or above
+    ``to_l`` are put on the straight line between the two in L*, so the
+    grey ramp walks from the (tinted) black into the neutral column without
+    a corner on a cube face. Nodes outside the band are unchanged."""
+    dev = np.asarray(dev, float).copy()
+    l_star = np.asarray(l_star, float)
+    above = np.flatnonzero(l_star >= to_l)
+    if not len(above):
+        return dev
+    a = above[0]
+    band = (l_star > black_l) & (l_star < l_star[a])
+    u = (l_star[band] - black_l) / max(l_star[a] - black_l, 1e-9)
+    dev[band] = u[:, None] * dev[a][None, :]
+    return dev
+
+
+def monotone_channels(dev: np.ndarray) -> np.ndarray:
+    """Research (Agent 38 s6): each column of ``dev`` (rows dark to light)
+    made non-decreasing by pool-adjacent-violators (the least-squares
+    monotone fit); an already monotone channel is returned unchanged."""
+    dev = np.asarray(dev, float)
+    out = dev.copy()
+    for c in range(dev.shape[1]):
+        y = dev[:, c]
+        if np.all(np.diff(y) >= 0):
+            continue
+        vals, wts = [], []
+        for v in y:
+            vals.append(float(v)); wts.append(1)
+            while len(vals) > 1 and vals[-2] > vals[-1]:
+                w = wts[-2] + wts[-1]
+                vals[-2] = (vals[-2] * wts[-2] + vals[-1] * wts[-1]) / w
+                wts[-2] = w
+                vals.pop(); wts.pop()
+        out[:, c] = np.repeat(vals, wts)
+    return out
+
+
+# Agent 51 (a51-shapersmooth): weight of the shaper curvature penalty
+# (forward_model.SHAPER_SMOOTH); CHROMIQ_A51_MU overrides it for a sweep.
+A51_SMOOTH_MU = float(os.environ.get("CHROMIQ_A51_MU", "0.01"))
+
+
+def set_research_tokens(tokens, *, is_additive) -> None:
+    """Module switches for one build (research tokens a21-*, a25-*).
+    Called by the builder before the first inversion and with an empty set
+    afterwards; Fast and Bit-exact never reach the code they switch."""
+    from workflow.profile_engine import oog_clip, forward_model as _fm
+    t = frozenset(tokens or ())
+    # Agent 45 (a45b-shaperfloor): the shaper refit keeps every interval at
+    # least A42_FLOOR of the identity's slope
+    _fm.SHAPER_FLOOR["slope"] = (A42_FLOOR if A45B_TOKEN in t else None)
+    # Agent 51 (a51-shapersmooth): curvature penalty on the shaper refit
+    _fm.SHAPER_SMOOTH["mu"] = (A51_SMOOTH_MU if "a51-shapersmooth" in t else None)
+    LIGHT_CLOUD["on"] = bool(("a21-lightcloud" in t and is_additive is False)
+                             or "a21-lightcloud-all" in t)
+    # a25-oog carries Agent 21's L* >= 60 variant (a21-lightcloud60): the
+    # plain light cloud also moved the retry seeds of DARK near-neutral
+    # nodes (battery XKB pessimistic L* 12.5 reversal 0 -> 1, d2 0.47 -> 2.09)
+    LIGHT_CLOUD["l_min"] = (60.0 if ("a21-lightcloud60" in t or "a25-oog" in t)
+                            and is_additive is False else None)
+    CLIP_FIX["on"] = "a21-clipfix" in t
+    p = oog_clip.PARAMS
+    p.clear()
+    p.update(oog_clip.DEFAULTS)
+    p["on"] = "a25-oog" in t or "a25-clip" in t
+    # Agent 29b: monotone clip into black (acts only with the a25 clip on and
+    # a floor set by the builder for the colorimetric table)
+    p["dm_on"] = any(x.startswith("a29-oog-darkmono") for x in t)
+    if "a29-oog-darkmono-bpc" in t:
+        p["dm_band"] = 15.0
+    if "a29-oog-darkmono-soft" in t:
+        # ablation after the A/B (Findings agent29b-01 s5): a gentler
+        # lightness-first band (the x25 band made dark-blue contours)
+        p["dm_wj"], p["dm_lband"] = 6.0, 20.0
+    if "a29-oog-darkmono-floor" in t and not t & {
+            "a29-oog-darkmono", "a29-oog-darkmono-soft",
+            "a29-oog-darkmono-bpc"}:
+        # the floor alone (Agent 29b ablation; default ON since integration
+        # 4). An explicitly requested other variant wins over the default,
+        # so each one still builds exactly as on its own branch.
+        p["dm_wj"] = 1.0
+    oog_clip.set_dark_floor(None)       # the builder sets it per table
+    # Agent 51 (a51-colprofedge*): colprof's CIECAM02 Jab clip metric for the
+    # colorimetric table (oog_clip.A51_PARAMS); acts with a25-oog only.
+    # Agent 51 verdict (Findings agent51-01 s6): colprof's metric wins on RGB
+    # printers (even_dark_r 29 won / 1 lost, contours 11 / 0) but adds contour
+    # and ramp-reversal losses on ink devices (X3 pess 4 -> 142, XKB 10 -> 40):
+    # RGB only, unless "a51-colprofedge-all" asks for every device.
+    p["a51"] = ((any(x.startswith(oog_clip.A51_TOKEN) for x in t) or oog_clip.A51B_TOKEN in t)
+                and (is_additive is True or "a51-colprofedge-all" in t))
+    p["a51_ray"] = oog_clip.A51B_TOKEN in t
+    p["a51_band"] = 1.5 if oog_clip.A51_BAND_TOKEN in t else 0.0
+    p["a51_ownhue"] = oog_clip.A51_OWNHUE_TOKEN in t
+    p["a51_nofloor"] = oog_clip.A51_NOFLOOR_TOKEN in t
+    p["a51_lab"] = oog_clip.A51_LAB_TOKEN in t
+    p["a51_soft"] = 15.0 if oog_clip.A51_SOFT_TOKEN in t else 0.0
+    # Agent 56: the lifted chroma fades into the black (acts only where a51
+    # acts: table_params passes it on for the colorimetric table only)
+    p["a56"] = oog_clip.A56_TOKEN in t
+    # Agent 62 (a62-camhue): the lifted target keeps its CIECAM02 hue (only
+    # where a51 acts, passed on by table_params like a56)
+    p["a62"] = oog_clip.A62_TOKEN in t
+    # Agent 65 (a65-cmykhue*): ink devices only, colorimetric table only
+    # (table_params); RGB and every other table are unchanged
+    if is_additive is False and (t & {oog_clip.A65_TOKEN, oog_clip.A65_IPT_TOKEN,
+                                      oog_clip.A65_PASS2_TOKEN, oog_clip.A65_JAB_TOKEN,
+                                      oog_clip.A65_IPTSPACE_TOKEN,
+                                      oog_clip.A65_JABDARK_TOKEN,
+                                      oog_clip.A65_BLUE_TOKEN,
+                                      oog_clip.A65_BLUEDARK_TOKEN}):
+        p["a65"] = ("space-cam02" if t & {oog_clip.A65_JAB_TOKEN,
+                                          oog_clip.A65_JABDARK_TOKEN,
+                                          oog_clip.A65_BLUE_TOKEN,
+                                          oog_clip.A65_BLUEDARK_TOKEN} else
+                    "space-ipt" if oog_clip.A65_IPTSPACE_TOKEN in t else
+                    "ipt" if oog_clip.A65_IPT_TOKEN in t else "cam02")
+        p["a65_pass2"] = oog_clip.A65_PASS2_TOKEN in t
+        p["a65_dark"] = bool(t & {oog_clip.A65_JABDARK_TOKEN, oog_clip.A65_BLUEDARK_TOKEN})
+        p["a65_blue"] = bool(t & {oog_clip.A65_BLUE_TOKEN, oog_clip.A65_BLUEDARK_TOKEN})
+    # Agent 66 (a66-cmykprop): neighbour propagation in the ink devices'
+    # colorimetric clip (oog_clip.table_params)
+    p["a66_prop"] = (int(os.environ.get("CHROMIQ_A66_PROP", "3"))
+                     if is_additive is False and oog_clip.A66_PROP_TOKEN in t else 0)
+    # Agent 66 (a66-cmykbpc): on ink devices the colorimetric clip's dark
+    # floor becomes a29's BPC-like band (dark_target_l: [0, floor + band] ->
+    # [floor, floor + band] linearly) instead of the hard max(L*, floor);
+    # band CHROMIQ_A66_BAND (default 15) L*. The lightness weight stays as
+    # integration 8b has it (dm_wj 1).
+    REFIT_ANCHOR["on"] = is_additive is False and bool(t & {"a66-clipanchor", "a66-clipanchor-dark"})
+    REFIT_ANCHOR["dark"] = "a66-clipanchor-dark" in t
+    REFIT_ANCHOR["guard"] = is_additive is False and "a66-refitguard" in t
+    REFIT_ANCHOR["all"] = is_additive is False and "a67-guardall" in t
+    REFIT_ANCHOR["alldark"] = is_additive is False and "a67-guardall-dark" in t
+    REFIT_ANCHOR["polish"] = is_additive is False and "a67-guardpolish" in t
+    REFIT_ANCHOR["polish_w"] = float(os.environ.get("CHROMIQ_A67_POLISHW", "0.05"))
+    # Agent 67 (a67-guardall): the guard band 0.75 -> 2 dE (G1 probe)
+    _rg = os.environ.get("CHROMIQ_A66_GUARD", "0.75:2" if REFIT_ANCHOR["all"] else "1.5:4").split(":")
+    REFIT_ANCHOR["g_lo"], REFIT_ANCHOR["g_hi"] = float(_rg[0]), float(_rg[1])
+    _rl = os.environ.get("CHROMIQ_A66_ANCHOR_LC", "60:8").split(":")
+    REFIT_ANCHOR["l_max"], REFIT_ANCHOR["c_min"] = float(_rl[0]), float(_rl[1])
+    _ra = os.environ.get("CHROMIQ_A66_ANCHOR", "0.5:2.5").split(":")
+    REFIT_ANCHOR["lo"], REFIT_ANCHOR["hi"] = float(_ra[0]), float(_ra[1])
+    p["a66_blendsep_req"] = is_additive is False and oog_clip.A66_BLENDSEP_TOKEN in t
+    # Agent 67 (a67-darkchroma): the ink devices' colorimetric clip weighs
+    # chroma like colprof in the dark (oog_clip.weights)
+    p["a67_dc"] = ((tuple(float(x) for x in os.environ["CHROMIQ_A67_DC"].split(":"))
+                    if os.environ.get("CHROMIQ_A67_DC") else oog_clip.A67_DC)
+                   if is_additive is False and oog_clip.A67_DC_TOKEN in t else None)
+    p["a67_cam"] = ((tuple(float(x) for x in os.environ["CHROMIQ_A67_CAM"].split(":"))
+                     if os.environ.get("CHROMIQ_A67_CAM") else oog_clip.A67_CAM)
+                    if is_additive is False and oog_clip.A67_CAM_TOKEN in t else None)
+    p["a67_camfloor"] = ((tuple(float(x) for x in os.environ["CHROMIQ_A67_CAMFLOOR"].split(":"))
+                          if os.environ.get("CHROMIQ_A67_CAMFLOOR") else oog_clip.A67_CAMFLOOR)
+                         if is_additive is False and oog_clip.A67_CAMFLOOR_TOKEN in t else None)
+    p["a67_lift"] = ((tuple(float(x) for x in os.environ["CHROMIQ_A67_LIFT"].split(":"))
+                      if os.environ.get("CHROMIQ_A67_LIFT") else oog_clip.A67_LIFT)
+                     if is_additive is False and oog_clip.A67_LIFT_TOKEN in t else None)
+    if is_additive is False and oog_clip.A67_DCALL_TOKEN in t and not os.environ.get("CHROMIQ_A67_DC"):
+        # a67-darkchroma-all: colprof's chroma : lightness ratio at every L*
+        # (the light out-of-gamut greens / cyans too); wins over -darkchroma
+        p["a67_dc"] = (1.0, 101.0, 100.0)
+    p["a66_sep_tol"] = float(os.environ.get("CHROMIQ_A66_SEPTOL", "0.10"))
+    if is_additive is False and oog_clip.A66_BPC_TOKEN in t and p.get("dm_on"):
+        p["dm_band"] = float(os.environ.get("CHROMIQ_A66_BAND", "15"))
+    # research knobs for the fade's order and shape (Agent 56 A/B only)
+    p["a56_r"] = float(os.environ.get("CHROMIQ_A56_R", "2.0"))
+    p["a56_shape"] = os.environ.get("CHROMIQ_A56_SHAPE", "rat")
+    p["a56_hsmooth"] = float(os.environ.get("CHROMIQ_A56_HSMOOTH", "20.0"))
+    oog_clip._HK["on"] = oog_clip.A51_NOHK_TOKEN not in t
+    oog_clip.set_colorimetric(False)
+    for tok in t:
+        if tok.startswith("a25-space-"):
+            p["space"] = tok[len("a25-space-"):]
+        elif tok.startswith("a25-p-") and "=" in tok:
+            k, v = tok[len("a25-p-"):].split("=", 1)
+            p[k] = type(oog_clip.DEFAULTS[k])(v) if not isinstance(
+                oog_clip.DEFAULTS[k], bool) else v in ("1", "true", "on")
+
+
+def _light_cloud(n: int, limit, channel_max, rng: np.random.Generator) -> np.ndarray:
+    m = min(40000, 6000 * n)
+    a = rng.uniform(0.0, 1.0, (m // 2, n)) * rng.uniform(0.0, 1.0, (m // 2, 1)) ** 2
+    sp = np.zeros((m // 2, n))
+    for k in (1, 2, 3):
+        rows = np.arange(k - 1, m // 2, 3)
+        for i in rows:
+            sp[i, rng.choice(n, k, replace=False)] = 1.0
+    sp *= rng.uniform(0.0, 1.0, sp.shape) ** 2
+    c = np.vstack([a, sp])
+    if channel_max is not None:
+        c *= channel_max[None, :]
+    if limit is not None:
+        total = c.sum(1)
+        over = total > limit
+        c[over] *= (limit / total[over])[:, None]
+    return c
+
+
+def _device_cloud(n: int, limit: float | None,
+                  channel_max: np.ndarray | None,
+                  rng: np.random.Generator) -> np.ndarray:
+    cloud = rng.uniform(0.0, 1.0, (min(40000, 6000 * n), n))
+    if channel_max is not None:
+        cloud *= channel_max[None, :]
+    if limit is not None:
+        total = cloud.sum(1)
+        over = total > limit
+        cloud[over] *= (limit / total[over])[:, None]
+    return cloud
+
+
+def _hue_gated_seeds(target: np.ndarray, cloud: np.ndarray,
+                     cloud_lab: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """For out-of-gamut targets: the printable colour of the SAME HUE that
+    loses chroma rather than lightness. Returns ``(seeds, found)``.
+
+    A first-order hue metric (the previous clip) cannot tell a colour from
+    its complement — both lie on one line through the neutral axis, so the
+    "hue error" of the opposite hue is zero — and the solver walked round
+    the hue circle for far-out targets (measured: 5.7 % of out-of-gamut
+    nodes printed the complementary hue in accurate mode; colprof 0 %).
+    Gating candidates by hue ANGLE first makes the flip impossible."""
+    n_t = len(target)
+    out = np.zeros((n_t, cloud.shape[1]))
+    found = np.zeros(n_t, bool)
+    c_l, c_c = cloud_lab[:, 0], np.hypot(cloud_lab[:, 1], cloud_lab[:, 2])
+    c_h = np.degrees(np.arctan2(cloud_lab[:, 2], cloud_lab[:, 1]))
+    t_l, t_c = target[:, 0], np.hypot(target[:, 1], target[:, 2])
+    t_h = np.degrees(np.arctan2(target[:, 2], target[:, 1]))
+    # D-06: every row is scored and chosen on its own (element-wise maths,
+    # argmin along the cloud), so 256-row blocks run on pool threads with
+    # the same bits. Only the Maximum accuracy path calls this.
+    from workflow.profile_engine import parallel
+    blocks = list(range(0, n_t, 256))
+    groups = parallel.chunk_bounds(len(blocks), parallel.worker_count(),
+                                   min_rows=4)
+    parallel.run_chunks(
+        lambda a, b: _hue_gated_block(blocks[a:b], out, found, cloud,
+                                      c_l, c_c, c_h, t_l, t_c, t_h),
+        groups)
+    return out, found
+
+
+def _hue_gated_block(starts, out, found, cloud, c_l, c_c, c_h, t_l, t_c,
+                     t_h) -> None:
+    for lo in starts:
+        sl = slice(lo, lo + 256)
+        dh = np.abs((c_h[None, :] - t_h[sl, None] + 180.0) % 360.0 - 180.0)
+        # Lightness is worth keeping more than chroma: score = (2·ΔL)² + ΔC²
+        score = (4.0 * (c_l[None, :] - t_l[sl, None]) ** 2
+                 + (c_c[None, :] - t_c[sl, None]) ** 2)
+        chosen = np.full(dh.shape[0], -1)
+        for gate in (6.0, 12.0, 25.0):
+            ok = dh <= gate
+            need = chosen < 0
+            if not need.any():
+                break
+            masked = np.where(ok, score, np.inf)
+            best = np.argmin(masked, 1)
+            have = np.isfinite(masked[np.arange(len(best)), best]) & need
+            chosen[have] = best[have]
+        got = chosen >= 0
+        idx = np.flatnonzero(got) + lo
+        out[idx] = cloud[chosen[got]]
+        found[idx] = True
 
 
 def inverse_curves(curves: np.ndarray, knots: int = 256) -> np.ndarray:
@@ -682,3 +2602,702 @@ def inverse_curves(curves: np.ndarray, knots: int = 256) -> np.ndarray:
     for c in range(n):
         out[c] = np.interp(xs, curves[c], xp)   # swap axes = inverse
     return out
+
+
+# Research token "a42-nearblack" (Agent 42, Findings/agent42-01). Two
+# defects meet at the near-black end of the colorimetric table:
+#
+# 1. The B2A tables store curve-space values and undo them with the inverse
+#    of the A2B shaper curves. The shaper refit (forward_model._refit_curve)
+#    may push a knot against its neighbour, so one ink interval collapses
+#    into a sliver of the curve axis (i1iSis K 0.60-0.65: slope 0.13; Knut
+#    with a40-knut-grey, G 0.00-0.05: slope 0.002). A B2A cell that crosses
+#    such a sliver jumps through the whole interval in a few per cent of its
+#    width: the 2.5 L* step at i1iSis L* 29 and the a40 kink at Knut L* 25.
+#    The shipped ramp curves guarantee every channel at least half the
+#    identity's slope ("blended half way with the identity so every grid
+#    cell keeps some ink range"); the B2A curve space restores that same
+#    guarantee (A42_FLOOR = 0.5, the shipped blend, not a new constant).
+#    Node device values are unchanged; only the path between nodes differs,
+#    and only in cells that cross a floored interval.
+# 2. The smoothing refit gives way at the near-black column: near the black
+#    the inverse samples sit on competing separations and the least-squares
+#    field averages them (i1iSis node L* 25 printed model L* 26.9, C* 4.3).
+#    The contiguous run of column nodes from the black upward whose refit
+#    value misses the neutral axis's own value by the walk's acceptance
+#    (0.5 dE) takes the axis value back, when that prints smoother along
+#    the column in the model than the refit does (a branch switch inside one
+#    cell, i1Pro, keeps the refit); the correction fades linearly across the
+#    cells that touch the column (half on the first ring, none beyond).
+A42_TOKEN = "a42-nearblack"
+A42_FLOOR = 0.5
+A42_ACCEPT = 0.5
+A45_FINE = 20                   # a45-c1space: samples per shaper knot interval
+A45_C1_TOKEN = "a45-c1space"
+A45_TOKEN = "a45-darkend"
+A45B_TOKEN = "a45b-shaperfloor"
+
+
+def a45_c1(candidates) -> bool:
+    """Research Agent 45: the C1 B2A curve space (part 1), on with either
+    a45 token."""
+    c = set(candidates or ())
+    return A45_C1_TOKEN in c or A45_TOKEN in c
+
+
+def b2a_space_curves(curves: np.ndarray, floor: float = A42_FLOOR,
+                     smooth: bool = False):
+    """Research a42-nearblack: the B2A curve space. Each channel's shaper
+    (knots on an even grid, 0..1, monotone) whose slope falls below
+    ``floor`` anywhere gets that slope raised to ``floor`` and is
+    renormalised to 0..1; a channel that never does is returned exactly as
+    it is. Returns None when no channel changes.
+
+    ``smooth`` (research a45-c1space, Agent 45): the floored channel's
+    slope is made continuous (a box of one knot interval over the
+    piecewise-constant slope, the least smoothing that removes the jumps)
+    and the curve is returned on a fine grid of A45_FINE samples per knot
+    interval, so the space is C1: no slope corner where a floored interval
+    meets its neighbours. Channels that need no floor are carried over
+    unchanged (linearly resampled, the same function)."""
+    curves = np.asarray(curves, float)
+    k = curves.shape[1]
+    h = 1.0 / (k - 1)
+    out = curves.copy()
+    changed = False
+    floored = []
+    for c in range(curves.shape[0]):
+        d = np.diff(curves[c]) / h
+        if d.min() >= floor:
+            continue
+        floored.append(c)
+        y = np.concatenate([[0.0], np.cumsum(np.maximum(d, floor) * h)])
+        out[c] = y / y[-1]
+        changed = True
+    if not changed or not smooth:
+        return out if changed else None
+    f = A45_FINE
+    xf = np.linspace(0.0, 1.0, (k - 1) * f + 1)
+    xk = np.linspace(0.0, 1.0, k)
+    fine = np.stack([np.interp(xf, xk, curves[c])
+                     for c in range(curves.shape[0])])
+    for c in floored:
+        ds = np.repeat(np.maximum(np.diff(curves[c]) / h, floor), f)
+        pad = np.concatenate([np.full(f, ds[0]), ds, np.full(f, ds[-1])])
+        # centred box of one knot interval (f samples) on the
+        # midpoint-sampled slope: continuous, piecewise linear, >= floor
+        cs = np.concatenate([[0.0], np.cumsum(pad)])
+        n_ = len(ds)
+        sm = (cs[f // 2 + f: f // 2 + f + n_] - cs[f // 2: f // 2 + n_]) / f
+        y = np.concatenate([[0.0], np.cumsum(sm)])
+        fine[c] = y / y[-1]
+    return fine
+
+
+def reexpress(shaped: np.ndarray, curves: np.ndarray,
+              space: np.ndarray) -> np.ndarray:
+    """Curve-space values under shaper ``curves`` re-expressed under the
+    shaper ``space`` (same device value at every node)."""
+    shaped = np.asarray(shaped, float)
+    xp = np.linspace(0.0, 1.0, curves.shape[1])
+    xs = np.linspace(0.0, 1.0, space.shape[1])     # a45: a finer space grid
+    out = np.empty_like(shaped)
+    for c in range(shaped.shape[1]):
+        dev = np.interp(shaped[:, c], curves[c], xp)
+        out[:, c] = np.interp(dev, xs, space[c])
+    return out
+
+
+def ill_posed(dev: np.ndarray, curves: np.ndarray,
+              floor: float = A42_FLOOR) -> np.ndarray:
+    """Research a42-nearblack: per device row, True when any channel lies in
+    a shaper interval flatter than ``floor`` (the model barely tells values
+    there apart, so an inversion's choice inside it is arbitrary)."""
+    dev = np.atleast_2d(np.asarray(dev, float))
+    k = curves.shape[1]
+    h = 1.0 / (k - 1)
+    out = np.zeros(len(dev), bool)
+    for c in range(dev.shape[1]):
+        d = np.diff(curves[c]) / h
+        j = np.clip((dev[:, c] / h).astype(int), 0, k - 2)
+        out |= d[j] < floor
+    return out
+
+
+def _lines_d2(model: ForwardModel, shaped: np.ndarray, grid: int, to01,
+              lines, l_lo: float, l_hi: float) -> float:
+    """Largest |second difference| of model Lab along lines of constant a*,
+    b* (``lines``), every 0.25 L* from ``l_lo`` to ``l_hi``, through the
+    B2A CLUT ``shaped`` (curve space) interpolated as a CMM does."""
+    from workflow.profile_engine.forward_model import _interp_weights
+    lq = np.arange(float(l_lo), float(l_hi) + 1e-9, 0.25)
+    if len(lq) < 3:
+        return 0.0
+    worst = 0.0
+    for a, b in lines:
+        lab = np.stack([lq, np.full_like(lq, a), np.full_like(lq, b)], 1)
+        w, cols = _interp_weights(to01(lab), grid, 3)
+        cq = (w[:, :, None] * shaped[cols]).sum(1)
+        out = model.predict(np.clip(model.unshape_device(cq), 0.0, 1.0))
+        worst = max(worst, float(np.linalg.norm(np.diff(out, 2, axis=0),
+                                                axis=1).max()))
+    return worst
+
+
+def nearblack_column(model: ForwardModel, shaped: np.ndarray,
+                     node_lab: np.ndarray, *, pernode: np.ndarray,
+                     l_top: float, grid: int, lab_to01=None,
+                     accept: float = A42_ACCEPT):
+    """Research a42-nearblack, part 2 (see the comment above A42_TOKEN).
+    ``shaped``: the refitted B2A CLUT (curve space, after the column pins);
+    ``pernode``: the per-node inversion it was refitted from (device). The
+    near-black rows are the grid rows up to and including the first one at
+    or above ``l_top`` (the top of the black hand-over: the neutral black
+    plus its own gap to the deepest black). In those rows the column and
+    its first ring (the nodes a near-neutral lookup reads) take the
+    per-node value back wherever that prints at least ``accept`` dE closer
+    to the node's target than the refit's value does; and only if the
+    column and the four lines half a grid step beside it then print
+    smoother in the model, up to the row above the zone. Returns ``(shaped,
+    info)``; ``shaped`` is a new array only when something was restored."""
+    info = {"rows": [], "restored": False, "nodes": 0}
+    rows_l = np.unique(np.round(node_lab[:, 0], 9))
+    above = np.flatnonzero(rows_l >= float(l_top) - 1e-9)
+    if not len(above):
+        return shaped, info
+    k_top = int(above[0])
+    zone_l = rows_l[:k_top + 1]
+    info["rows"] = zone_l.tolist()
+    ab = np.unique(np.round(node_lab[:, 1], 6))
+    step = float(np.median(np.diff(ab))) if len(ab) > 1 else 1.0
+    cand = np.flatnonzero((node_lab[:, 0] <= zone_l[-1] + 1e-6)
+                          & (np.abs(node_lab[:, 1]) <= step * 1.01)
+                          & (np.abs(node_lab[:, 2]) <= step * 1.01))
+    pn = np.asarray(pernode, float)[cand]
+    have = np.clip(model.unshape_device(shaped[cand]), 0.0, 1.0)
+    e_per = np.linalg.norm(model.predict(pn) - node_lab[cand], axis=1)
+    e_ref = np.linalg.norm(model.predict(have) - node_lab[cand], axis=1)
+    take = cand[e_per + accept <= e_ref]
+    if not len(take):
+        return shaped, info
+    out = shaped.copy()
+    out[take] = model.shape_device(np.asarray(pernode, float)[take])
+    if lab_to01 is None:
+        from workflow.profile_engine.icc_writer import lab_grid_axes
+        _ls, _ab = lab_grid_axes(grid)
+        _o = np.array([_ls[0], _ab[0], _ab[0]])
+        _s = np.array([_ls[-1] - _ls[0], _ab[-1] - _ab[0], _ab[-1] - _ab[0]])
+
+        def lab_to01(lab):
+            return np.clip((lab - _o[None, :]) / _s[None, :], 0.0, 1.0)
+    h = step / 2.0
+    lines = [(0.0, 0.0), (h, 0.0), (-h, 0.0), (0.0, h), (0.0, -h)]
+    hi = rows_l[min(k_top + 1, len(rows_l) - 1)]
+    d_old = _lines_d2(model, shaped, grid, lab_to01, lines, 0.0, hi)
+    d_new = _lines_d2(model, out, grid, lab_to01, lines, 0.0, hi)
+    info.update(d2_refit=d_old, d2_restored=d_new)
+    if d_new > d_old:
+        return shaped, info
+    info.update(restored=True, nodes=int(len(take)))
+    return out, info
+
+
+# Research token "a44-exactkeep" (Agent 44, Findings/agent44-01). a42's
+# keep-the-exact-value rule, beyond the near-black rows. Where the forward
+# model folds (a noisy chart fitted on few patches: Knut's laser printer, 608
+# of 3273 refit samples in the eight cells around node (46.9, 0, -16) have a
+# negative Jacobian), random device samples that print the same Lab carry
+# different device values, and the least-squares refit averages the
+# branches: in-gamut nodes whose own inversion is exact print 10-26 dE76 off
+# (the light-blue contours of a40-knut-grey, Agent 42 s9). The refit may
+# smooth, but it may not move an in-gamut node (own inversion within
+# A42_ACCEPT of its target) further from its target than A44_TOL, the
+# largest cost the refit is allowed to pay for smoothness: where it does,
+# the node takes its own inversion back, if the cells around it then print
+# closer to their targets in the model (a node the refit moved for a good
+# reason, a kink between converged and clipped neighbours, keeps the refit).
+A44_TOKEN = "a44-exactkeep"
+A44_TOL = 2.0
+
+
+def _cell_points(node_idx: np.ndarray, grid: int, sub: int = 4):
+    """Lattice points (0..1 grid coordinates) every 1/``sub`` cell over the
+    eight cells around each node; returns (points, owner index)."""
+    t = np.arange(-sub, sub + 1) / float(sub)
+    off = np.stack(np.meshgrid(t, t, t, indexing="ij"), -1).reshape(-1, 3)
+    ijk = np.stack(np.unravel_index(node_idx, (grid,) * 3), 1).astype(float)
+    pts = (ijk[:, None, :] + off[None, :, :]) / (grid - 1)
+    own = np.repeat(np.arange(len(node_idx)), len(off))
+    keep = np.all((pts >= -1e-9) & (pts <= 1 + 1e-9), axis=2).reshape(-1)
+    return np.clip(pts.reshape(-1, 3), 0.0, 1.0)[keep], own[keep]
+
+
+def _print_err(model: ForwardModel, shaped: np.ndarray, p01: np.ndarray,
+               from01, grid: int) -> np.ndarray:
+    from workflow.profile_engine.forward_model import _interp_weights
+    w, cols = _interp_weights(p01, grid, 3)
+    cq = (w[:, :, None] * shaped[cols]).sum(1)
+    out = model.predict(np.clip(model.unshape_device(cq), 0.0, 1.0))
+    return np.linalg.norm(out - from01(p01), axis=1)
+
+
+def exact_keep(model: ForwardModel, shaped: np.ndarray,
+               node_lab: np.ndarray, *, pernode: np.ndarray, grid: int,
+               tol: float = A44_TOL, accept: float = A42_ACCEPT,
+               keep_out: np.ndarray | None = None):
+    """Research a44-exactkeep (see the comment above A44_TOKEN).
+    ``shaped``: the refitted B2A CLUT (curve space) after every earlier pin;
+    ``pernode``: the per-node inversion (device). ``keep_out``: node indices
+    never touched (pinned nodes). Returns ``(shaped, info)``; ``shaped`` is
+    a new array only when a node was restored."""
+    info = {"candidates": 0, "nodes": 0}
+    # The guard reads a lattice point's target as the blend of its corner
+    # nodes' Lab, which holds for the uniform Lab grid (the Lab PCS) only.
+    lo, hi = node_lab.min(0), node_lab.max(0)
+    ijk = np.stack(np.unravel_index(np.arange(len(node_lab)), (grid,) * 3),
+                   1) / float(grid - 1)
+    if len(node_lab) != grid ** 3 or not np.allclose(
+            lo[None, :] + ijk * (hi - lo)[None, :], node_lab, atol=1e-3):
+        info["skipped"] = "grid"
+        return shaped, info
+    pn = np.asarray(pernode, float)
+    e_per = np.linalg.norm(model.predict(pn) - node_lab, axis=1)
+    have = np.clip(model.unshape_device(shaped), 0.0, 1.0)
+    e_ref = np.linalg.norm(model.predict(have) - node_lab, axis=1)
+    cand = (e_per <= accept) & (e_ref > tol) & (e_ref >= e_per + accept)
+    if keep_out is not None and len(keep_out):
+        cand[np.asarray(keep_out, int)] = False
+    cand = np.flatnonzero(cand)
+    info["candidates"] = int(len(cand))
+    if not len(cand):
+        return shaped, info
+    def from01(p):
+        return lo[None, :] + p * (hi - lo)[None, :]
+
+    exact = model.shape_device(pn[cand])
+    pts, own = _cell_points(cand, grid)
+    # The guard scores only points inside the gamut (the blend of their
+    # corner nodes' own inversion errors within ``accept``): beyond it every
+    # table prints the clip, and a point's error there is its distance to
+    # the gamut, not the table's.
+    from workflow.profile_engine.forward_model import _interp_weights
+    _w, _c = _interp_weights(pts, grid, 3)
+    inside = (_w * e_per[_c]).sum(1) <= accept
+    pts, own = pts[inside], own[inside]
+    # Every candidate restored together, then pruned: a node goes back to
+    # the refit when the cells around it print closer to their targets that
+    # way (given every other node as it stands); up to three passes.
+    ok = np.ones(len(cand), bool)
+    for _pass in range(3):
+        out = shaped.copy()
+        out[cand[ok]] = exact[ok]
+        flip = np.zeros(len(cand), bool)
+        for j in np.flatnonzero(ok):
+            sel = own == j
+            if not sel.any():
+                continue
+            e_keep = _print_err(model, out, pts[sel], from01, grid)
+            trial = out.copy()
+            trial[cand[j]] = shaped[cand[j]]
+            e_back = _print_err(model, trial, pts[sel], from01, grid)
+            flip[j] = e_back.mean() <= e_keep.mean()
+        if not flip.any():
+            break
+        ok &= ~flip
+    out = shaped.copy()
+    out[cand[ok]] = exact[ok]
+    info["nodes"] = int(ok.sum())
+    if not ok.any():
+        return shaped, info
+    info["restored"] = cand[ok].tolist()
+    return out, info
+
+
+def dark_bridge_on_grid(dev: np.ndarray, l_star: np.ndarray, *,
+                        black_l: float, to_l: float,
+                        space: np.ndarray) -> np.ndarray:
+    """Research a44-exactkeep, part 2 (with a40-knut-grey): the a40 dark
+    bridge (:func:`dark_bridge`) drawn the way the table is read. A CMM
+    interpolates the column between GRID nodes and in the B2A curve space
+    (``space``: the shaper the B2A output tables undo, a42's floored one
+    when that token is on), so a line hinged at the black's own L* (between
+    two nodes) and straight in device values leaves a corner at the first
+    node above the black: Knut, node L* 25.0 printed 0.7 L* dark with the
+    device rate up 50 % past it (rel. col. neutral d2 0.38, int-5 0.17).
+    Here the line runs from the last column node at or below the black (its
+    own value, the black) to the first node at or above ``to_l``, straight
+    in the curve space; nodes outside the band are unchanged. Without a node
+    at or below the black it is :func:`dark_bridge`."""
+    dev = np.asarray(dev, float).copy()
+    l_star = np.asarray(l_star, float)
+    above = np.flatnonzero(l_star >= to_l)
+    below = np.flatnonzero(l_star <= black_l + 1e-9)
+    if not len(above):
+        return dev
+    if not len(below):
+        return dark_bridge(dev, l_star, black_l=black_l, to_l=to_l)
+    a, b = above[0], below[-1]
+    band = (l_star > l_star[b]) & (l_star < l_star[a])
+    if not band.any():
+        return dev
+    k = space.shape[1]
+    xp = np.linspace(0.0, 1.0, k)
+    ca = np.array([np.interp(dev[a, c], xp, space[c])
+                   for c in range(dev.shape[1])])
+    cb = np.array([np.interp(dev[b, c], xp, space[c])
+                   for c in range(dev.shape[1])])
+    u = (l_star[band] - l_star[b]) / max(l_star[a] - l_star[b], 1e-9)
+    cs = cb[None, :] + u[:, None] * (ca - cb)[None, :]
+    dev[band] = np.stack([np.interp(cs[:, c], space[c], xp)
+                          for c in range(dev.shape[1])], 1)
+    return dev
+
+
+# Research tokens "a43-shadowdetail" / "a43-shadowdetail-width" (Agent 43,
+# Findings/agent43-01-shadowdetail.md). Two parts on the a35 perceptual /
+# saturation black hand-over (D-26: neutral through the shadows, the
+# deepest black only at the end):
+#
+# 1. The band width (both tokens). percblack_width asks the smoothstep
+#    fraction of the deep black's tint to reach the hand-over path's own
+#    fraction at every path sample. When the path's chroma reaches the deep
+#    black's chroma ABOVE the deep black (i1iSis: the linear device blend is
+#    at C* 2.8 by L* 19.6, the deep black C* 2.83 at L* 16.6) that fraction
+#    is 1 at a lightness the smoothstep only reaches at the deep black, no
+#    width passes, and the search fell back to its maximum, 4 x the gap: the
+#    tint ran from L* 16.6 up to L* 34 (measured on four references: C* 2
+#    at printed L* 25-30, colprof 0.4). Here the tint is full from the point
+#    where the path first reaches the deep black's chroma (``l_full``) down,
+#    and the smoothstep band is searched above it by the same rule. A path
+#    whose chroma never overshoots gives l_full = the deep black: a35's band
+#    exactly.
+# 2. The data floor (a43-shadowdetail only, ink devices). The perceptual
+#    and saturation black go no deeper than the printer's darkest measured
+#    near-neutral patch (the patches measured_dark_chroma reads): below it
+#    every value is the model's extrapolation, and on R-CMYK-default-i1iSis
+#    (darkest patch L* 19.2, deep black L* 16.6) the four references
+#    disagree there by 2.2 L* and 1.9 C*. The colorimetric table keeps the
+#    deep black (a34, D-26). Sets whose deep black lies within the data are
+#    untouched.
+A43_TOKEN = "a43-shadowdetail"
+A43_WIDTH_TOKEN = "a43-shadowdetail-width"
+
+
+def a43_mode(candidates) -> str | None:
+    """'floor' (both parts), 'width' (part 1 only) or None."""
+    c = set(candidates or ())
+    if A43_TOKEN in c:
+        return "floor"
+    if A43_WIDTH_TOKEN in c:
+        return "width"
+    return None
+
+
+def measured_dark_floor(lab: np.ndarray, device: np.ndarray, *,
+                        ink_limit: float | None = None,
+                        max_c: float = A34_MEAS_MAX_C) -> float | None:
+    """L* of the darkest measured near-neutral patch (C* < ``max_c``) within
+    the ink limit (percent), the same patches measured_dark_chroma reads.
+    None without such patches."""
+    lab = np.asarray(lab, float)
+    device = np.asarray(device, float)
+    keep = np.hypot(lab[:, 1], lab[:, 2]) < max_c
+    if ink_limit is not None:
+        keep &= device.sum(1) * 100.0 <= float(ink_limit) + 1e-6
+    if not keep.any():
+        return None
+    return float(lab[keep, 0].min())
+
+
+def a43_band(path_l: np.ndarray, path_c: np.ndarray, *, l_neutral: float,
+             l_deep: float, c_deep: float) -> tuple[float, float]:
+    """Part 1 (see the comment above A43_TOKEN): ``(l_full, width)``. The
+    tint is the deep black's at and below ``l_full`` (the first path sample,
+    from the neutral black down, whose chroma reaches ``c_deep``; the deep
+    black when none does), smoothstep over [l_full, l_full + width] with
+    the width found by percblack_width on the path above l_full."""
+    pl = np.asarray(path_l, float)
+    pc = np.asarray(path_c, float)
+    hit = np.flatnonzero(pc >= float(c_deep) - 1e-9)
+    j = int(hit[0]) if len(hit) else len(pl) - 1
+    l_full = max(float(pl[j]), float(l_deep))
+    if l_full <= float(l_deep) + 1e-9:
+        l_full = float(l_deep)
+        w = percblack_width(pl, pc, l_neutral=l_neutral, l_deep=l_deep,
+                            c_deep=c_deep, mode="blend")
+        return l_full, w
+    w = percblack_width(pl[:j + 1], pc[:j + 1], l_neutral=l_neutral,
+                        l_deep=l_full, c_deep=c_deep, mode="blend")
+    return l_full, w
+
+
+def a43_floor_axis(model: ForwardModel, axis: dict,
+                   floor_l: float | None) -> dict:
+    """Part 2: the hand-over axis as the perceptual / saturation tables see
+    it, ending at ``floor_l`` (the darkest measured near-neutral patch) when
+    the deep black lies below it: the blend samples darker than the floor
+    are dropped and the path's own device value at the floor (linear in
+    L*, as path_device_at) becomes the black. Returns the axis itself when
+    there is no hand-over, no floor, the deep black is within the data, or
+    the floor is at or above the neutral black (then nothing below the
+    neutral black is supported, and the neutral black is the black)."""
+    if not axis.get("handover") or floor_l is None:
+        return axis
+    l_deep = float(axis["l_black"])
+    l_nb = float(axis["neutral_l_black"])
+    if floor_l <= l_deep + 1e-9:
+        return axis
+    bl = np.asarray(axis["blend_l"], float)
+    bd = np.asarray(axis["blend_dev"], float)
+    if floor_l >= l_nb - 1e-9:
+        d = bd[:1]
+    else:
+        keep = bl > floor_l + 1e-9
+        d = np.vstack([bd[keep], path_device_at(np.array([floor_l]), bl,
+                                                bd)])
+    lab = model.predict(d)
+    out = dict(axis)
+    out.update({"l_black": float(lab[-1, 0]), "black": d[-1].copy(),
+                "handover_lab": lab[-1], "blend_l": lab[:, 0],
+                "blend_dev": d, "blend_c": np.hypot(lab[:, 1], lab[:, 2]),
+                "a43_floor": float(floor_l)})
+    if len(d) < 2:
+        ls = np.asarray(axis["l"], float)
+        out.update({"handover": False, "l_black": l_nb,
+                    "black": np.asarray(axis["neutral_black"], float).copy(),
+                    "ok": np.asarray(axis["ok"], bool) & (ls >= l_nb - 1e-9)})
+    return out
+
+
+# Research token "a68-clipkeep" (Agent 68, ProfileEngineResearch Findings/
+# agent68-01-knutspot.md). refine_b2a_clut fits ONE least-squares field over
+# exact inverse samples. Where the forward model is folded (Knut's laser
+# printer: 17.5 % of the device cube has a negative Jacobian, and near the
+# bright spring-green surface 64 % of the device points landing there are
+# on the reversed sheet, 1.8 % of the cube squeezed into 0.02 % of Lab),
+# thousands of samples from two branches share the cells next to the gamut
+# surface and the field answers them with a seesaw: the clipped node L* 68.8
+# a* -48 b* 16 kept its heavy anchor (residual 8.8 > deep_oog) and still
+# went from its clip RGB .31/.78/.45 (prints a* -40.8) to .70/.53/.63
+# (prints a* +23, pink-grey), 67 dE76 from its own clip. a44b then takes
+# the refit's print as that clipped node's target ("clips stay"), so the
+# spot is kept. Rule: a clipped node (per-node residual > A68_CLIPPED)
+# whose refit prints more than A68_LO dE76 from what its own per-node clip
+# prints is blended back to that clip, fully from A68_HI (smoothstep in
+# between). In-gamut nodes are a44's business; pinned nodes are untouched.
+# RGB colorimetric table only (builder); CHROMIQ_A68 = "lo:hi" for sweeps.
+A68_TOKEN = "a68-clipkeep"
+A68_LO = 6.0
+A68_HI = 12.0
+A68_CLIPPED = 1.0
+
+
+def a68_band():
+    v = os.environ.get("CHROMIQ_A68")
+    if v:
+        lo, hi = (float(x) for x in v.split(":"))
+        return lo, hi
+    return A68_LO, A68_HI
+
+
+def clip_keep(model: ForwardModel, shaped: np.ndarray, pernode: np.ndarray,
+              residual: np.ndarray, *, keep_out: np.ndarray | None = None,
+              band: tuple | None = None, clipped_at: float = A68_CLIPPED):
+    """Research a68-clipkeep (see the comment above A68_TOKEN).
+    ``shaped``: the refitted CLUT (curve space); ``pernode``: the per-node
+    inversion (device); ``residual``: its clip distance. Returns
+    ``(shaped, info)``; ``shaped`` is a new array only when a node moved."""
+    lo, hi = a68_band() if band is None else band
+    pn = np.asarray(pernode, float)
+    have = np.clip(model.unshape_device(np.clip(shaped, 0.0, 1.0)), 0.0, 1.0)
+    e = np.linalg.norm(model.predict(have) - model.predict(pn), axis=1)
+    u = np.clip((e - lo) / max(hi - lo, 1e-9), 0.0, 1.0)
+    v = u * u * (3.0 - 2.0 * u)
+    v[np.asarray(residual, float) <= clipped_at] = 0.0
+    if keep_out is not None and len(keep_out):
+        v[np.asarray(keep_out, int)] = 0.0
+    info = {"nodes": int((v > 0).sum()), "full": int((v >= 1).sum()),
+            "max_de": float(e[v > 0].max()) if (v > 0).any() else 0.0}
+    if not info["nodes"]:
+        return shaped, info
+    out = np.array(shaped, float, copy=True)
+    sel = v > 0
+    out[sel] = ((1.0 - v[sel, None]) * out[sel]
+                + v[sel, None] * model.shape_device(pn[sel]))
+    return out, info
+
+
+# Research token "a44b-smoothexact" (Agent 44, Findings/agent44-01 s9). On
+# Knut's laser printer the response is folded (12-21 % of the device cube
+# has a non-positive Jacobian in every reference, colprof's A2B included),
+# so even the exact per-node inversion steps between branches from node to
+# node: the a44 sky field kept d2 p99 0.22 against colprof's 0.08. Here the
+# colorimetric RGB table is re-solved as one field: minimise, over the node
+# values in curve space, sum |print(node) - target|^2 + A44B_MU * |second
+# differences|^2, by Gauss-Newton linearised around the current table, so
+# every node stays on its own branch (no averaging of competing samples).
+# Targets: the node's Lab where its own inversion reaches it, else the
+# table's own print (clips stay). Pinned nodes do not move. A44B_MU = 100:
+# the in-gamut nodes then miss their target by 0.85 dE76 at p95, under half
+# of A44_TOL (Knut; mu 30-1000 in the findings).
+A44B_TOKEN = "a44b-smoothexact"
+A44B_MU = 100.0
+
+
+def _curv3(x: np.ndarray, grid: int) -> np.ndarray:
+    x3 = x.reshape((grid,) * 3 + (-1,))
+    o = np.zeros_like(x3)
+    for ax in range(3):
+        lo = [slice(None)] * 4
+        mid, hi = list(lo), list(lo)
+        lo[ax], mid[ax], hi[ax] = slice(0, -2), slice(1, -1), slice(2, None)
+        d2 = x3[tuple(lo)] - 2 * x3[tuple(mid)] + x3[tuple(hi)]
+        o[tuple(lo)] += d2
+        o[tuple(mid)] -= 2 * d2
+        o[tuple(hi)] += d2
+    return o.reshape(x.shape)
+
+
+def smooth_exact(model: ForwardModel, shaped: np.ndarray,
+                 node_lab: np.ndarray, *, pernode: np.ndarray, grid: int,
+                 keep_out: np.ndarray | None = None, mu: float = A44B_MU,
+                 accept: float = A42_ACCEPT, rounds: int = 4,
+                 cg_iters: int = 300, residual: np.ndarray | None = None,
+                 deep_oog: float = 5.0):
+    """Research a44b-smoothexact (see the comment above A44B_TOKEN).
+    ``shaped``: the B2A CLUT in the model's curve space (after a44's exact
+    keep); 3 output channels only. ``residual``: the per-node inversion
+    residual; nodes deep out of gamut (above ``deep_oog``, the refit's own
+    heavy-anchor rule: "their clamp IS the answer") stay where they are
+    unless they lie within two cells of an in-gamut node (the reach of the
+    second-difference stencil). Without this the curvature term moved the
+    deep clips too (sRGB blue: IPT hue error +0.1 to +1.0 deg on all six
+    sets a44b changed). Returns ``(shaped, info)``."""
+    n = shaped.shape[1]
+    info = {"applied": False}
+    if n != 3 or len(node_lab) != grid ** 3:
+        return shaped, info
+
+    def pr(s):
+        return model.predict(np.clip(model.unshape_device(
+            np.clip(s, 0.0, 1.0)), 0.0, 1.0))
+
+    e_per = np.linalg.norm(model.predict(np.asarray(pernode, float))
+                           - node_lab, axis=1)
+    s = np.asarray(shaped, float).copy()
+    tgt = pr(s)
+    ing = e_per <= accept
+    tgt[ing] = node_lab[ing]
+    free = np.ones(len(s), bool)
+    if keep_out is not None and len(keep_out):
+        free[np.asarray(keep_out, int)] = False
+    if residual is not None:
+        near = ing.reshape((grid,) * 3)
+        for _ in range(2):
+            grown = near.copy()
+            for ax in range(3):
+                a = [slice(None)] * 3
+                b = [slice(None)] * 3
+                a[ax], b[ax] = slice(1, None), slice(None, -1)
+                grown[tuple(a)] |= near[tuple(b)]
+                grown[tuple(b)] |= near[tuple(a)]
+            near = grown
+        free[(np.asarray(residual, float) > deep_oog) & ~near.ravel()] = False
+    fm = free[:, None].astype(float)
+    h = 1e-3
+    eye = np.eye(3)
+    for _ in range(rounds):
+        r = pr(s) - tgt
+        jac = np.stack([(pr(s + h * eye[k]) - pr(s - h * eye[k])) / (2 * h)
+                        for k in range(3)], 2)
+        jtj = np.einsum("nlk,nlm->nkm", jac, jac)
+        b = -(np.einsum("nlk,nl->nk", jac, r) + mu * _curv3(s, grid)) * fm
+
+        def amul(x):
+            return (np.einsum("nkm,nm->nk", jtj, x * fm)
+                    + mu * _curv3(x * fm, grid)) * fm + 1e-6 * x
+        x = np.zeros_like(s)
+        rr = b - amul(x)
+        p = rr.copy()
+        rs = float((rr * rr).sum())
+        for _i in range(cg_iters):
+            ap = amul(p)
+            al = rs / max(float((p * ap).sum()), 1e-30)
+            x += al * p
+            rr -= al * ap
+            rs2 = float((rr * rr).sum())
+            if rs2 < 1e-12:
+                break
+            p = rr + (rs2 / rs) * p
+            rs = rs2
+        s = np.clip(s + x, 0.0, 1.0)
+    e = np.linalg.norm(pr(s) - node_lab, axis=1)
+    info.update(applied=True, ingamut_err_mean=float(e[ing].mean()),
+                ingamut_err_p95=float(np.percentile(e[ing], 95)))
+    return s, info
+
+
+# Research token "a45-darkend" (Agent 45, Findings/agent45-01-darkend.md),
+# with a43-shadowdetail's held black (D-28). Three defects of the
+# perceptual / saturation dark end on R-CMYK-default-i1iSis:
+#
+# 1. (a45-c1space, also on with a45-darkend) the a42 B2A curve space has a
+#    slope corner where a floored shaper interval meets its neighbours
+#    (i1iSis K 0.60-0.65, printed L* 30-33): b2a_space_curves(smooth=True).
+# 2. The hand-over join: below about L* 22.5 the neutral axis takes the
+#    model's own near-black branch (Y -> 0, then C 0.57 / M 0.49 at the
+#    neutral black), and the a35 band inverts its tint targets node by node
+#    (one node at C 0.63 / M 0.57): device corners at printed L* 20-22.
+# 3. The held black (a43_floor_axis) is a point of the model's blend
+#    (0.31, 0.26, 0, 0.96), Y-free like that branch, which no patch
+#    measured; the references print it 0.3-1.6 L* lighter than the model.
+#    The colour ramps' last nodes are the oracle's devices (a25-oracle-dev,
+#    Y 0.5-0.6 near the black), and on this printer Y darkens a rich black
+#    (measured: 0.53/0.53/0/1 L* 20.99, 0.53/0.53/0.53/1 L* 19.38), so each
+#    ramp dips below the black and rises into it.
+#
+# Planned together, only where the a43 data floor acts (the deep black lies
+# below the measured data): the perceptual / saturation black is the
+# ORACLE's own black device (what its perceptual table gives the source
+# black; every neighbouring node is the oracle's, so the colour ramps end
+# where they already head) when the model puts it within the data (not
+# below the floor) and below the neutral black; and the column reaches it
+# on one straight device path, parameterised linearly in target L*, from
+# the axis point at the top of the hand-over zone, neutral black +
+# (neutral black - model deep black) (a42's zone rule): above that the axis
+# is unchanged, below it no node is inverted on its own. Without an oracle,
+# or with its black outside those bounds, a43's held black stays.
+def a45_dark_path(model: ForwardModel, axis: dict, black_dev, *,
+                  l_deep: float, l_floor: float | None) -> dict | None:
+    """Parts 2/3 (see the comment above): the planned dark path, or None
+    when it does not apply. ``axis``: the hand-over axis (the neutral part
+    is read); ``black_dev``: the oracle's black device; ``l_deep``: the
+    model deep black's L* before the a43 floor; ``l_floor``: the darkest
+    measured near-neutral patch's L*."""
+    if not axis.get("handover") or black_dev is None:
+        return None
+    b = np.asarray(black_dev, float)
+    l_n = float(axis["neutral_l_black"])
+    l_b = float(model.predict(b[None, :])[0, 0])
+    if l_b >= l_n - 1e-6 or (l_floor is not None
+                             and l_b < float(l_floor) - 1e-6):
+        return None
+    l_a = l_n + (l_n - min(l_b, float(l_deep)))
+    ls = np.asarray(axis["l"], float)
+    ok = np.asarray(axis["ok"], bool) & (ls >= l_n - 1e-9)
+    if not ok.any():
+        return None
+    o = np.argsort(ls[ok])
+    al, ad = ls[ok][o], np.asarray(axis["dev"], float)[ok][o]
+    l_a = min(l_a, float(al[-1]))
+    a = np.array([np.interp(l_a, al, ad[:, c]) for c in range(ad.shape[1])])
+    return {"l_a": float(l_a), "l_n": l_n, "l_b": l_b, "a": a, "b": b}
+
+
+def a45_path_devices(target_l: np.ndarray, path: dict) -> np.ndarray:
+    """Device values of the planned dark path at target L* (the black at
+    and below l_b, the axis point at and above l_a, straight between)."""
+    tl = np.asarray(target_l, float)
+    u = np.clip((path["l_a"] - tl) / max(path["l_a"] - path["l_b"], 1e-9),
+                0.0, 1.0)[:, None]
+    return (1.0 - u) * path["a"][None, :] + u * path["b"][None, :]
