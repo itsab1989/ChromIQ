@@ -201,11 +201,21 @@ from workflow.average_runner import AverageParams, AverageRunner
 from workflow.colverify_runner import (
     ColverifyParams,
     ColverifyRunner,
+    ReferenceFile,
+    ReferenceFileError,
     chart_patch_count,
     interpret,
+    load_reference_file,
+    looks_like_cgats,
     parse_reference_values,
+    reference_mismatch,
     vrml_output_path,
     write_reference_ti3,
+    write_reference_with_ids,
+)
+from workflow.measurement_messages import (
+    M_VERIFY_REFERENCE_MISMATCH,
+    M_VERIFY_REFERENCE_UNUSABLE,
 )
 from ui.dialogs.drift_plot_dialog import DriftPlotDialog, webengine_available
 from workflow.i1profiler_export import (
@@ -1861,6 +1871,10 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
     EYEBROW     = tr("QUALITY CHECK")
     ACCENT      = SPEC_VIOLET
     RUN_LABEL   = tr("Verify")
+    # The result and a refusal (M-VERIFY-REFERENCE-*, 4.3.30) are paragraphs
+    # long: in a window held to the screen they were cut off at both ends
+    # (driven on screen, 2026-11-11), so the inputs and the banner scroll.
+    SCROLLABLE_CONTENT = True
     HELP = (
         tr("This tool tells you how close your colours came out compared to where "
         "they were supposed to be, without building a profile first.\n\n"
@@ -1956,6 +1970,25 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
         self._ref_edit.setFixedHeight(110)
         self._ref_edit.textChanged.connect(self._refresh)
         self._content.addWidget(self._ref_edit)
+
+        # A reference FILE (a .ti3 or other CGATS table) is not pasted into
+        # the box above: it goes to colverify as it is (4.3.30). This row
+        # stands in for the box while one is chosen.
+        self._ref_file: "ReferenceFile | None" = None
+        self._ref_file_row = QWidget(self)
+        rf = QHBoxLayout(self._ref_file_row)
+        rf.setContentsMargins(0, 0, 0, 0)
+        self._ref_file_label = QLabel("", self._ref_file_row)
+        self._ref_file_label.setWordWrap(True)
+        self._ref_file_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse)
+        rf.addWidget(self._ref_file_label, 1)
+        self._ref_file_clear = QPushButton(tr("Type or paste values instead"),
+                                           self._ref_file_row)
+        self._ref_file_clear.clicked.connect(self._clear_reference_file)
+        rf.addWidget(self._ref_file_clear, 0, Qt.AlignmentFlag.AlignTop)
+        self._ref_file_row.setVisible(False)
+        self._content.addWidget(self._ref_file_row)
 
         self._content.addWidget(QLabel(tr("Measured chart (.ti3):"), self))
         row, self._measured_field = self._file_row(self._pick_measured)
@@ -2061,8 +2094,63 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
         except OSError as exc:
             self._log.appendPlainText(f"[ERROR] Could not read {p.name}: {exc}")
             return
-        self._ref_edit.setPlainText(text)
+        if not looks_like_cgats(text):
+            # A plain list of expected values: into the box, as before.
+            self._clear_reference_file()
+            self._ref_edit.setPlainText(text)
+            self._refresh()
+            return
+        # A measurement (.ti3) or another CGATS table: colverify reads it
+        # itself, Lab, XYZ or spectral, so it is handed over as it is. Until
+        # 4.3.30 it went into the box and failed with "Line 1 doesn't have
+        # three numbers: 'CTI3'".
+        try:
+            ref = load_reference_file(p)
+        except ReferenceFileError as exc:
+            self._say_refused(M_VERIFY_REFERENCE_UNUSABLE, file=p.name,
+                              reason=exc.reason)
+            return
+        self._set_reference_file(ref)
+
+    def _set_reference_file(self, ref: "ReferenceFile") -> None:
+        self._ref_file = ref
+        how = (tr("Its patches are paired with your measurement's by patch "
+                  "number.") if ref.by_id else
+               tr("It has no patch numbers, so its patches are paired with "
+                  "your measurement's in the order they are listed."))
+        self._ref_file_label.setText(
+            tr("Reference file: {p}").format(p=ref.path) + "\n" + how)
+        self._ref_edit.setVisible(False)
+        self._ref_file_row.setVisible(True)
+        self._space.setEnabled(False)   # the file names its own colour space
+        self._banner.setText("")
         self._refresh()
+
+    def _clear_reference_file(self) -> None:
+        self._ref_file = None
+        self._ref_file_label.setText("")
+        self._ref_file_row.setVisible(False)
+        self._ref_edit.setVisible(True)
+        self._space.setEnabled(True)
+        self._refresh()
+
+    def _say_refused(self, message, **kw) -> None:
+        """A refusal from §M, in the banner and the log, and the run ended."""
+        title, body = message.render(**kw)
+        self._banner.setText(f"{title}\n\n{body}")
+        self._log.appendPlainText(f"[ERROR] {title}")
+        self._log.appendPlainText(body)
+        self._show_banner()
+        self._finish(False)
+
+    def _show_banner(self) -> None:
+        """Scroll the banner into view once its new text is laid out."""
+        if self._scroll is not None:
+            QTimer.singleShot(0, self._scroll_to_banner)
+
+    def _scroll_to_banner(self) -> None:
+        if self._scroll is not None:
+            self._scroll.ensureWidgetVisible(self._banner, 0, 0)
 
     def _pick_measured(self) -> None:
         p = self._pick_input_file(tr("Choose measured chart"), tr("Measurements (*.ti3);;All files (*)"))
@@ -2087,7 +2175,14 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
 
     # -- run ------------------------------------------------------------
     def _can_run(self) -> bool:
-        return self._measured is not None and bool(self._ref_edit.toPlainText().strip())
+        return self._measured is not None and (
+            self._ref_file is not None
+            or bool(self._ref_edit.toPlainText().strip()))
+
+    def _staging_dir(self) -> Path:
+        work = Path(tempfile.mkdtemp(prefix="chromiq_drift_"))
+        self._temp_dirs.append(work)
+        return work
 
     def _execute(self) -> None:
         if self._runner.is_running:
@@ -2096,8 +2191,30 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
             return
 
         assert self._measured is not None
+        ref_file = self._ref_file
+        file_label = ref_file.path.name if ref_file is not None else ""
+        pasted = self._ref_edit.toPlainText()
+        if ref_file is None and looks_like_cgats(pasted):
+            # A .ti3's text pasted into the box: used as the file it is.
+            file_label = tr("the pasted text")
+            staged = self._staging_dir() / "pasted-reference.ti3"
+            try:
+                staged.write_text(pasted, encoding="utf-8")
+                ref_file = load_reference_file(staged)
+            except OSError as exc:
+                self._log.appendPlainText(f"[ERROR] {exc}")
+                self._finish(False)
+                return
+            except ReferenceFileError as exc:
+                self._say_refused(M_VERIFY_REFERENCE_UNUSABLE,
+                                  file=file_label, reason=exc.reason)
+                return
+        if ref_file is not None:
+            self._execute_with_file(ref_file, file_label)
+            return
+
         try:
-            rows = parse_reference_values(self._ref_edit.toPlainText())
+            rows = parse_reference_values(pasted)
         except ValueError as exc:
             self._log.appendPlainText(f"[ERROR] {exc}")
             self._finish(False)
@@ -2119,7 +2236,49 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
                 self._finish(False)
                 return
 
-        space     = self._space.currentData()
+        space = self._space.currentData()
+        work = self._staging_dir()
+        ref_path = work / f"{self._measured.stem}-reference.ti3"
+        try:
+            write_reference_ti3(ref_path, rows, space=space)
+        except (ValueError, OSError) as exc:
+            self._log.appendPlainText(f"[ERROR] Could not write reference file: {exc}")
+            self._finish(False)
+            return
+        self._run_colverify(
+            work, ref_path,
+            f"Built reference: {ref_path.name} ({len(rows)} patches, {space})",
+            tr("Reference: {n} patches ({space})").format(
+                n=len(rows), space=space))
+
+    def _execute_with_file(self, ref: "ReferenceFile", label: str) -> None:
+        """A reference FILE: checked against the measurement, then handed to
+        colverify as it is (a table without patch numbers gets the
+        measurement's, row by row, in a staged copy)."""
+        assert self._measured is not None
+        reason = reference_mismatch(ref, self._measured, self._chart)
+        if reason is not None:
+            self._say_refused(M_VERIFY_REFERENCE_MISMATCH, file=label,
+                              reason=reason)
+            return
+        work = self._staging_dir()
+        ref_path = ref.path
+        if not ref.by_id:
+            try:
+                ref_path = write_reference_with_ids(
+                    ref, self._measured, work / f"{self._measured.stem}-reference.ti3")
+            except (ValueError, OSError, StopIteration) as exc:
+                self._log.appendPlainText(f"[ERROR] Could not write reference file: {exc}")
+                self._finish(False)
+                return
+        # a chosen file by its full path; pasted text as "the pasted text"
+        line = tr("Reference file: {p}").format(
+            p=ref.path if self._ref_file is ref else label)
+        self._run_colverify(work, ref_path, line, line)
+
+    def _run_colverify(self, work: Path, ref_path: Path, log_line: str,
+                       report_line: str) -> None:
+        assert self._measured is not None
         want_plot = self._vrml_cb.isChecked() and self._vrml_cb.isEnabled()
 
         # For the 3D map, colverify writes the .x3d.html (plus sibling x3dom.js/
@@ -2135,10 +2294,9 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
         # became 24 patches at 43.4, reference "colorimetric"), and the chart
         # counted as already converted. The values typed here are this
         # check's input, nothing else's, so they live in the staging folder
-        # and go with it when the window closes.
-        work = Path(tempfile.mkdtemp(prefix="chromiq_drift_"))
-        self._temp_dirs.append(work)
-        ref_path = work / f"{self._measured.stem}-reference.ti3"
+        # and go with it when the window closes. (colverify runs in the
+        # measurement's folder and is handed the staged reference by its full
+        # path: ColverifyRunner._build_args, 4.3.30.)
         if want_plot:
             measured_path = work / self._measured.name
             try:
@@ -2150,18 +2308,9 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
         else:
             measured_path = self._measured
 
-        try:
-            write_reference_ti3(ref_path, rows, space=space)
-        except (ValueError, OSError) as exc:
-            self._log.appendPlainText(f"[ERROR] Could not write reference file: {exc}")
-            self._finish(False)
-            return
-
         self._log.clear()
         self._banner.setText("")
-        self._log.appendPlainText(
-            f"Built reference: {ref_path.name} ({len(rows)} patches, {space})"
-        )
+        self._log.appendPlainText(log_line)
         _remember_dir(self._settings, self.TOOL_KEY, self._measured.parent)
 
         params = ColverifyParams(
@@ -2185,6 +2334,7 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
             result = self._cv.parse_results()
             if code == 0 and result.avg_de is not None:
                 self._banner.setText(interpret(result))
+                self._show_banner()
                 # Leave a readable report in reports/ next to the ORIGINAL
                 # measurement (the 3D-map run verifies a staged temp copy),
                 # like the quality check does (Knut, beta.5). Best-effort.
@@ -2200,8 +2350,7 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
                         datetime.now().isoformat(timespec="seconds"),
                         "",
                         tr("Measured file: {p}").format(p=self._measured),
-                        tr("Reference: {n} patches ({space})").format(
-                            n=len(rows), space=space),
+                        report_line,
                         "",
                         interpret(result),
                     ])

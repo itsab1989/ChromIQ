@@ -2259,6 +2259,97 @@ def identity_mismatch_reason(bad: int, total: int) -> str:
     return first + ". " + tr(_IDENTITY_REORDERED)
 
 
+# --- PROPOSED: Tools > Verify against reference, a reference FILE (4.3.30) --
+#: Until 4.3.30 "Load from file…" put the chosen file into the paste box,
+#: whose parser reads number triples only, so a measurement (.ti3) chosen as
+#: the reference ended in "Line 1 doesn't have three numbers: 'CTI3'"
+#: although the help promised "a reference measurement file". A CGATS file
+#: (.ti3 or any table with L*a*b*, XYZ or spectral columns) is now handed to
+#: colverify as it is. colverify pairs the two files by SAMPLE_ID and
+#: compares whatever it is given, so a reference of ANOTHER chart produced
+#: numbers for pairs of different colours (measured 2026-11-11: the same
+#: readings with their patch numbers moved on by six gave average ΔE00 18.0
+#: instead of 0.2). These are checked first; {reason} is one of the
+#: fragments below, lower case and without a closing full stop.
+_REF_COUNT = (
+    "the reference file and your measurement do not hold the same number of "
+    "patches (reference file: {ref_n}, measurement: {meas_n})")
+_REF_CHART = (
+    "the reference file and the chart definition you chose do not hold the "
+    "same number of patches (reference file: {ref_n}, chart definition: "
+    "{chart_n})")
+_REF_IDS = (
+    "some patch numbers of your measurement do not appear in the reference "
+    "file at all (for example {ids})")
+_REF_DEVICE = (
+    "the device values of paired patches disagree, so the same patch number "
+    "stands for a different colour in each file ({bad} of {total} pairs; "
+    "patch {sid}, for example, is {ref_dev} in the reference file and "
+    "{meas_dev} in your measurement)")
+M_VERIFY_REFERENCE_MISMATCH = _m(
+    "M-VERIFY-REFERENCE-MISMATCH",
+    "The reference file holds a different chart",
+    "ChromIQ pairs every patch of your measurement with the patch of the "
+    "same number in {file} and compares the two. That only gives true "
+    "results when both files hold the same chart, and these two do not: "
+    "{reason}.\n\n"
+    "Nothing has been compared, because the numbers would describe pairs of "
+    "different colours. Your files have not been changed.\n\n"
+    "Choose a reference that was measured from the same chart as your "
+    "measurement, or paste the expected values instead, one patch per line "
+    "in chart order.",
+    approved=False)
+
+_REF_NO_TABLE = (
+    "it looks like a CGATS file, but ChromIQ found no table of patches in it "
+    "(the lines between BEGIN_DATA and END_DATA)")
+_REF_NO_COLOUR = (
+    "it holds no L*a*b*, XYZ or spectral values, so there is nothing to "
+    "compare your measurement with")
+_REF_UNREADABLE = "the file could not be read ({error})"
+M_VERIFY_REFERENCE_UNUSABLE = _m(
+    "M-VERIFY-REFERENCE-UNUSABLE",
+    "This file cannot be used as the reference",
+    "ChromIQ could not use {file} as the reference: {reason}.\n\n"
+    "Nothing has been compared and the file has not been changed.\n\n"
+    "A reference can be a measurement (.ti3) of the same chart, any CGATS "
+    "file that holds L*a*b*, XYZ or spectral values for each patch, or a "
+    "plain list of expected values, one patch per line in chart order.",
+    approved=False)
+
+
+def reference_count_reason(ref_n: int, meas_n: int) -> str:
+    """{reason} of M-VERIFY-REFERENCE-MISMATCH: the patch counts differ."""
+    return tr(_REF_COUNT).format(ref_n=ref_n, meas_n=meas_n)
+
+
+def reference_chart_reason(ref_n: int, chart_n: int) -> str:
+    """{reason}: the reference and the chosen chart definition differ."""
+    return tr(_REF_CHART).format(ref_n=ref_n, chart_n=chart_n)
+
+
+def reference_ids_reason(ids: "list[str]") -> str:
+    """{reason}: measured patch numbers the reference does not have."""
+    return tr(_REF_IDS).format(ids=", ".join(ids))
+
+
+def reference_device_reason(bad: int, total: int, sid: str,
+                            ref_dev: str, meas_dev: str) -> str:
+    """{reason}: paired patches carry different device values."""
+    return tr(_REF_DEVICE).format(bad=bad, total=total, sid=sid,
+                                  ref_dev=ref_dev, meas_dev=meas_dev)
+
+
+def reference_unusable_reason(kind: str, error: str = "") -> str:
+    """{reason} of M-VERIFY-REFERENCE-UNUSABLE: ``"no-table"``,
+    ``"no-colour"`` or ``"unreadable"`` (with *error*)."""
+    if kind == "no-table":
+        return tr(_REF_NO_TABLE)
+    if kind == "no-colour":
+        return tr(_REF_NO_COLOUR)
+    return tr(_REF_UNREADABLE).format(error=error)
+
+
 M_IMPORT_DATE_TAKEN = _m(
     "M-IMPORT-DATE-TAKEN",
     "This verification already holds a measurement",
@@ -9407,6 +9498,7 @@ CATALOGUE = {m.id: m for m in (
     M_VERIFY_CREATE_NO_PROFILE, M_GAMUT_NO_PROFILE,
     M_IMPORT_MISMATCH, M_IMPORT_DATE_TAKEN, M_IMPORT_DONE,
     M_IMPORT_TURNED_GRID, M_IMPORT_IDENTITY_REASON,
+    M_VERIFY_REFERENCE_MISMATCH, M_VERIFY_REFERENCE_UNUSABLE,
     M_CHART_DEVICE_VALUES_CLAMPED, M_CHART_PATCH_LINE_UNREADABLE,
     M_IMPORT_DONE_PROFILING,
     M_IMPORT_DEVICE_FROM_CHART,

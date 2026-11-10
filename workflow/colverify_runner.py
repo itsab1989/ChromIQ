@@ -30,6 +30,7 @@ dialog lives in ui/dialogs/tools_dialogs.py.
 from __future__ import annotations
 
 import math
+import os
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -54,13 +55,16 @@ _SUMMARY_RE = re.compile(
 # Per-patch line (verbose ≥ 2): "<id>[ <loc>]: l a b <=> l a b  de <value>"
 # colverify prints the id immediately followed by a colon ("%s%s%s:"), so the
 # id is everything up to the first colon.
-_PATCH_RE = re.compile(r"^(\S+?):.*?\bde\s+([\d.]+)\s*$")
+# When either file carries SAMPLE_LOC the location follows the id after a
+# space ("2 AF9: …", every chartread measurement used as the reference,
+# 4.3.30); the id is still the first word.
+_PATCH_RE = re.compile(r"^(\S+?)(?:\s+\S+?)?:.*?\bde\s+([\d.]+)\s*$")
 # Full per-patch line, capturing both Lab triples (always Lab — colverify prints
 # its internal v[] which is Lab regardless of the file's PCS). Lets us split each
 # patch's error into lightness (ΔL*) vs colour (Δa*b*) without a second tool.
 # colverify.c ~L1303:  printf("%s%s%s: %f %f %f <=> %f %f %f  de %f\n", …)
 _PATCH_FULL_RE = re.compile(
-    r"^(\S+?):\s*"
+    r"^(\S+?)(?:\s+\S+?)?:\s*"
     r"(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s*<=>\s*"
     r"(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+de\s+([\d.]+)\s*$"
 )
@@ -122,6 +126,222 @@ def parse_reference_values(text: str) -> list[tuple[float, float, float]]:
     if not rows:
         raise ValueError("No reference values found — the table is empty.")
     return rows
+
+
+# ---------------------------------------------------------------------------
+# A reference FILE (.ti3 or any CGATS table), 4.3.30
+# ---------------------------------------------------------------------------
+# Until 4.3.30 "Load from file…" put every file into the paste box, so a
+# measurement chosen as the reference failed with "Line 1 doesn't have three
+# numbers: 'CTI3'". colverify reads a CGATS file itself, Lab, XYZ or spectral
+# (spectral-only included, measured 2026-11-11), and pairs it with the
+# measurement by SAMPLE_ID; it refuses unequal patch counts and unknown IDs
+# with an ArgyllCMS error, and it accepts the same IDs on a DIFFERENT chart
+# without a word. So the file goes to colverify as it is, after the checks
+# below, which say in plain words what does not fit.
+
+_TOKEN_RE = re.compile(r'"[^"]*"|\S+')
+_PCS_SETS = (("LAB_L", "LAB_A", "LAB_B"), ("XYZ_X", "XYZ_Y", "XYZ_Z"))
+
+
+def looks_like_cgats(text: str) -> bool:
+    """Whether *text* is a CGATS table (a ``.ti3``, ``.ti2``, ``.cgats`` …)
+    rather than a plain list of number triples."""
+    return bool(re.search(r"^\s*BEGIN_DATA_FORMAT\s*$", text, re.M))
+
+
+@dataclass
+class CgatsTable:
+    """The FIRST table of a CGATS file, as written (values as strings)."""
+    fields: list[str]
+    rows: list[list[str]]
+
+    def column(self, name: str) -> "list[str] | None":
+        if name not in self.fields:
+            return None
+        i = self.fields.index(name)
+        return [r[i].strip('"') for r in self.rows]
+
+
+def parse_cgats_table(text: str) -> CgatsTable:
+    """The first table of CGATS *text*. Raises ``ValueError`` when there is no
+    ``BEGIN_DATA_FORMAT``…``BEGIN_DATA``…``END_DATA`` table with rows."""
+    lines = text.splitlines()
+    try:
+        f0 = next(i for i, ln in enumerate(lines)
+                  if ln.strip() == "BEGIN_DATA_FORMAT")
+        f1 = next(i for i in range(f0 + 1, len(lines))
+                  if lines[i].strip() == "END_DATA_FORMAT")
+        d0 = next(i for i in range(f1 + 1, len(lines))
+                  if lines[i].strip() == "BEGIN_DATA")
+        d1 = next(i for i in range(d0 + 1, len(lines))
+                  if lines[i].strip() == "END_DATA")
+    except StopIteration as exc:
+        raise ValueError("no data table") from exc
+    fields = " ".join(lines[f0 + 1:f1]).split()
+    rows = []
+    for ln in lines[d0 + 1:d1]:
+        toks = _TOKEN_RE.findall(ln)
+        if len(toks) >= len(fields) and fields:
+            rows.append(toks[:len(fields)])
+    if not fields or not rows:
+        raise ValueError("no data table")
+    return CgatsTable(fields, rows)
+
+
+def read_cgats_table(path: Path) -> CgatsTable:
+    from core.text_io import read_text
+    return parse_cgats_table(read_text(path, lenient=True))
+
+
+class ReferenceFileError(ValueError):
+    """A file that cannot serve as the reference; ``reason`` is the
+    translated {reason} of M-VERIFY-REFERENCE-UNUSABLE."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
+@dataclass
+class ReferenceFile:
+    """A CGATS file chosen as the reference."""
+    path: Path
+    table: CgatsTable
+
+    @property
+    def n_patches(self) -> int:
+        return len(self.table.rows)
+
+    @property
+    def by_id(self) -> bool:
+        """True when colverify can pair it by its own SAMPLE_IDs; False for
+        a table without them, which is paired in file order instead (as the
+        pasted values are)."""
+        return "SAMPLE_ID" in self.table.fields
+
+
+def _has_colour(fields: "list[str]") -> bool:
+    return (any(all(f in fields for f in s) for s in _PCS_SETS)
+            or sum(1 for f in fields if f.startswith("SPEC_")) >= 3)
+
+
+def load_reference_file(path: Path) -> ReferenceFile:
+    """Read *path* as a reference table, or raise :class:`ReferenceFileError`
+    with the reason it cannot be one."""
+    from workflow.measurement_messages import reference_unusable_reason
+    try:
+        table = read_cgats_table(path)
+    except OSError as exc:
+        raise ReferenceFileError(
+            reference_unusable_reason("unreadable", str(exc))) from exc
+    except ValueError as exc:
+        raise ReferenceFileError(reference_unusable_reason("no-table")) from exc
+    if not _has_colour(table.fields):
+        raise ReferenceFileError(reference_unusable_reason("no-colour"))
+    return ReferenceFile(Path(path), table)
+
+
+def _device_fields(fields: "list[str]") -> "list[str]":
+    from workflow.ti3_analysis import device_columns
+    return device_columns(fields)
+
+
+def _fmt_device(values) -> str:
+    return " ".join(f"{v:g}" for v in values)
+
+
+def reference_mismatch(ref: ReferenceFile, measured: Path,
+                       chart: "Path | None" = None) -> "str | None":
+    """Why *ref* does not hold the chart *measured* was read from, as the
+    translated {reason} of M-VERIFY-REFERENCE-MISMATCH, or None when it fits.
+
+    Pairing is colverify's own: by ``SAMPLE_ID`` when the reference has
+    them, otherwise row by row. Checked in this order: the chosen chart
+    definition's patch count, the measurement's patch count, every measured
+    patch number present in the reference, and the device values of each
+    pair, which may differ by ``PATCH_IDENTITY_TOL`` (the rule the Measurement
+    Report and the import use). A file whose patch numbers fit but which
+    carries no device values cannot be checked further and is accepted."""
+    import numpy as np
+
+    from workflow.measurement_messages import (reference_chart_reason,
+                                               reference_count_reason,
+                                               reference_device_reason,
+                                               reference_ids_reason)
+    from workflow.measurement_report import (PATCH_IDENTITY_TOL,
+                                             paired_device_0_100)
+    n_ref = ref.n_patches
+    if chart is not None:
+        try:
+            n_chart = chart_patch_count(chart)
+        except OSError:
+            n_chart = 0
+        if n_chart and n_chart != n_ref:
+            return reference_chart_reason(n_ref, n_chart)
+    try:
+        meas = read_cgats_table(measured)
+    except (OSError, ValueError):
+        return None   # colverify says what is wrong with the measurement
+    if len(meas.rows) != n_ref:
+        return reference_count_reason(n_ref, len(meas.rows))
+
+    meas_ids = meas.column("SAMPLE_ID") or [str(i + 1) for i in range(n_ref)]
+    if ref.by_id:
+        ref_ids = ref.table.column("SAMPLE_ID") or []
+        where = {sid: i for i, sid in enumerate(ref_ids)}
+        missing = [sid for sid in meas_ids if sid not in where]
+        if missing:
+            shown = missing[:5] + (["…"] if len(missing) > 5 else [])
+            return reference_ids_reason(shown)
+        pairs = [(where[sid], mi) for mi, sid in enumerate(meas_ids)]
+    else:
+        pairs = [(i, i) for i in range(n_ref)]
+
+    dev = [f for f in _device_fields(ref.table.fields)
+           if f in _device_fields(meas.fields)]
+    if not dev:
+        return None
+    try:
+        want = np.array([[float(ref.table.rows[ri][ref.table.fields.index(f)])
+                          for f in dev] for ri, _mi in pairs])
+        got = np.array([[float(meas.rows[mi][meas.fields.index(f)])
+                         for f in dev] for _ri, mi in pairs])
+    except ValueError:
+        return None
+    w, g = paired_device_0_100(want, got)
+    diffs = np.abs(w - g).max(axis=1)
+    bad = np.flatnonzero(diffs > PATCH_IDENTITY_TOL)
+    if not len(bad):
+        return None
+    k = int(bad[0])
+    return reference_device_reason(
+        int(len(bad)), len(pairs), meas_ids[pairs[k][1]],
+        _fmt_device(want[k]), _fmt_device(got[k]))
+
+
+def write_reference_with_ids(ref: ReferenceFile, measured: Path,
+                             out_path: Path) -> Path:
+    """A copy of a reference table WITHOUT patch numbers, given the
+    measurement's own ``SAMPLE_ID`` row by row, so colverify pairs the two in
+    file order (the order the pasted values are paired in). Every other
+    column, spectral ones included, is copied as written."""
+    from core.text_io import read_text
+    meas = read_cgats_table(measured)
+    ids = meas.column("SAMPLE_ID") or [str(i + 1) for i in range(len(meas.rows))]
+    text = read_text(ref.path, lenient=True)
+    lines = text.splitlines()
+    f0 = next(i for i, ln in enumerate(lines) if ln.strip() == "BEGIN_DATA_FORMAT")
+    # The header as written, then the first table only (the one colverify
+    # reads), with SAMPLE_ID in front.
+    head = [ln for ln in lines[:f0] if not ln.strip().startswith("NUMBER_OF_FIELDS")]
+    fields = ["SAMPLE_ID", *ref.table.fields]
+    data = [" ".join([sid, *row]) for sid, row in zip(ids, ref.table.rows)]
+    out = [*head, f"NUMBER_OF_FIELDS {len(fields)}", "BEGIN_DATA_FORMAT",
+           " ".join(fields), "END_DATA_FORMAT", "",
+           f"NUMBER_OF_SETS {len(data)}", "BEGIN_DATA", *data, "END_DATA", ""]
+    out_path.write_text("\n".join(out), encoding="utf-8")
+    return out_path
 
 
 def vrml_output_path(measured_ti3: Path) -> Path:
@@ -289,6 +509,52 @@ class ColverifyResult:
     total_patches: int | None = None
 
 
+#: A per-patch line cut in two. ArgyllRunner emits whatever one pipe read
+#: holds, so a line that straddles two reads arrives as two "lines" (on
+#: purpose: Argyll's prompts end without a newline and must show at once),
+#: and the cut falls anywhere. Measured on screen 2026-11-11 on 616-patch
+#: runs: "389: " / "17.417000 0.873000 …  de 0.226562", and
+#: "52 AP8: 37.492753 -3.723912 -33.537" / "450 <=> 37.713860 …"; the result
+#: then said 615 patches.
+def _rejoin_split_patch_lines(lines: "list[str]") -> "list[str]":
+    """*lines* with each per-patch line that was cut in two put back
+    together: two neighbours that are no patch line apart, and are one
+    joined exactly as they arrived."""
+    out: list[str] = []
+    for ln in lines:
+        if out:
+            prev = out[-1]
+            if (not _PATCH_FULL_RE.match(prev.strip())
+                    and not _PATCH_FULL_RE.match(ln.strip())
+                    and _PATCH_FULL_RE.match((prev + ln).strip())):
+                out[-1] = prev + ln
+                continue
+        out.append(ln)
+    return out
+
+
+def _path_from(target: Path, cwd: Path) -> str:
+    """*target* as a program running in *cwd* can open it: its bare name when
+    it sits in *cwd*, otherwise its path relative to *cwd*, the way
+    ``average_runner`` addresses its inputs.
+
+    Relative rather than absolute, because ArgyllCMS opens files through the
+    narrow (ANSI) API on Windows, where a folder name the code page cannot
+    hold (a user name with letters outside it, above the temp folder) fails
+    to open; a relative path leaves out the part both paths share. Taken
+    between REAL paths, because the program climbs ``..`` from its real
+    working folder (``/tmp`` is ``/private/tmp`` on macOS). Absolute when
+    the two are on different Windows drives."""
+    t = os.path.realpath(target)
+    c = os.path.realpath(cwd)
+    if os.path.dirname(t) == c:
+        return os.path.basename(t)
+    try:
+        return os.path.relpath(t, c)
+    except ValueError:
+        return t
+
+
 class ColverifyRunner:
     def __init__(self, runner: "ArgyllRunner") -> None:
         self._runner = runner
@@ -308,9 +574,17 @@ class ColverifyRunner:
             args.append("-w")
         if p.gamut_profile is not None:
             # colverify opens the profile directly, so an absolute path is fine
-            # even though ref/measured are named relative to cwd.
-            args += ["-L", str(p.gamut_profile)]
-        args += [p.ref_ti3.name, p.measured_ti3.name]
+            # even though the measurement is named relative to cwd.
+            args += ["-L", os.path.abspath(p.gamut_profile)]
+        # colverify runs in the MEASUREMENT's folder (run(): -w writes
+        # <measured stem>.x3d.html there, where vrml_output_path looks), so
+        # the measurement goes by name, and the reference by its path FROM
+        # that folder. Until 4.3.30 the reference went by name too, and since
+        # c56c1061c (4.3.3 beta 3) the dialog writes it into its staging
+        # folder: every check of pasted values without the 3D map ended in
+        # colverify's "Unable to open file '<stem>-reference.ti3'".
+        args += [_path_from(p.ref_ti3, p.measured_ti3.parent),
+                 p.measured_ti3.name]
         return args
 
     def run(
@@ -360,7 +634,7 @@ class ColverifyRunner:
             result.in_gamut = int(m.group(1))
             result.total_patches = int(m.group(2))
 
-        for line in text.splitlines():
+        for line in _rejoin_split_patch_lines(text.splitlines()):
             stripped = line.strip()
             full = _PATCH_FULL_RE.match(stripped)
             if full:
