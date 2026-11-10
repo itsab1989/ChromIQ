@@ -716,6 +716,9 @@ MESSAGE_DEMOS: "dict[str, list[str]]" = {
     "M-VERIFY-ALL-PATCHES-READ": ["raised when a verification read patch by "
                                   "patch is finished; needs an instrument"],
     "M-VERIFY-CREATE-NO-PROFILE": ["not a report message: Create Chart on a run with no profile"],
+    "M-VERIFY-REFERENCE-MISMATCH": ["not a report message: Tools > Verify against reference with a reference .ti3 of another chart"],
+    "M-VERIFY-REFERENCE-CHART": ["not a report message: Tools > Verify against reference with a chart definition whose patch count differs from the reference"],
+    "M-VERIFY-REFERENCE-UNUSABLE": ["not a report message: Tools > Verify against reference with a file that holds no colour values"],
 }
 
 #: Behaviours worth a help page, and where to try each.
