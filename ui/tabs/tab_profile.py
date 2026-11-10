@@ -49,7 +49,8 @@ from ui.ti2_loader import (has_spectral_data,
                           instrument_label, is_colormunki,
                           read_target_instrument, spectral_options_unavailable)
 from ui.spectrum_progress import SpectrumSegmentsBar
-from workflow.engine_builder import (EngineProfileBuilder, engine_support,
+from workflow.engine_builder import (EngineProfileBuilder, choose_builder,
+                                     engine_support, engine_switch_on,
                                      is_multi_ink)
 from workflow.profile_builder import (COLPROF_DARK_EMPHASIS_MAX, ProfileBuilder,
                                       ProfileParams)
@@ -1111,43 +1112,17 @@ class TabProfile(QWidget):
         ``colprof`` for a build the engine makes would be a record of a
         command nobody ran), so the decision lives here, once, and the build
         only adds the logging."""
-        beta = bool(self._settings.get("profile_engine_beta", False))
-        if is_multi_ink(params.ti3_path):
-            if beta:
-                return "engine", tr(
-                    "[INFO] Multi-ink measurement — Argyll colprof can't "
-                    "build these, using the ChromIQ engine.")
-            return "blocked", ""
-        if beta:
-            # Bit-exact gamut mapping on a standard (<=4-ink) measurement:
-            # colprof builds these natively, so run it directly for a result
-            # identical to ArgyllCMS — the engine re-implements the forward and
-            # inverse tables, so it can only approximate colprof, never match it
-            # byte-for-byte. The engine (+ the bundled gamut helper) is reserved
-            # for CMY+N above, where colprof refuses.
-            # "accurate" must NOT take this shortcut: its improved pipeline
-            # (averaged endpoints, CV smoothing, robust fit, …) lives in the
-            # engine — the engine then matches colprof's *rendering* through
-            # the oracle while keeping the improved colorimetric tables.
-            if str(self._settings.get("gammap_mode", "fast")) == "argyll":
-                return "colprof", tr(
-                    "[INFO] Bit-exact gamut mapping on a standard (≤4-ink) "
-                    "measurement — building with ArgyllCMS colprof directly, "
-                    "for a profile identical to Argyll.")
-            ok, why = engine_support(params)
-            if ok:
-                return "engine", ""
-            return "colprof", tr(
-                "[INFO] This build needs Argyll colprof because of: {what}. "
-                "Building with colprof.").format(what=why)
-        return "colprof", ""
+        # ONE switch (Preferences > Beta), one decision, made in
+        # `workflow.engine_builder.choose_builder` for every window: off is
+        # stock colprof exactly as before, on is the new profile engine. The
+        # Fast / Bit-exact / Maximum accuracy picker that used to send a
+        # "Bit-exact" build back to colprof is gone (2026-11-10).
+        return choose_builder(self._settings, params)
 
     def _accurate_engine_active(self) -> bool:
-        """True while builds run through the engine's Maximum accuracy
-        mode (Preferences → Beta) — the only state with engine-only options."""
-        return (bool(self._settings.get("profile_engine_beta", False))
-                and str(self._settings.get("gammap_mode", "fast"))
-                == "accurate")
+        """True while builds run through the new profile engine
+        (Preferences → Beta), the only state with engine-only options."""
+        return engine_switch_on(self._settings)
 
     def _refresh_engine_rows(self) -> None:
         """Show/hide the engine-only Manual rows (#123). Called on tab
@@ -3658,7 +3633,7 @@ class TabProfile(QWidget):
             "leave less room for black ink, and the proportional form "
             "scales down gracefully there instead of clipping.\n\n"
             "Every build path honours this setting the same way (Argyll "
-            "colprof and all three ChromIQ engine modes), so profiles stay "
+            "colprof and the ChromIQ profile engine), so profiles stay "
             "comparable when you switch engines. The choice is baked into "
             "the profile when it is built; to try a different black "
             "behaviour, change it here and build again."),
@@ -3700,8 +3675,8 @@ class TabProfile(QWidget):
         self._m_kgen_combo.currentIndexChanged.connect(
             lambda _i: _on_kgen_rule_changed())
 
-        # Engine-only options (#123) — only shown while the ChromIQ engine
-        # runs in its Maximum accuracy mode (Preferences → Beta); colprof has
+        # Engine-only options (#123), only shown while the new profile engine
+        # is switched on (Preferences → Beta); colprof has
         # no equivalent flags, so they stay hidden on every other path.
         self._m_engine_rows_widget = QWidget(grp)
         eng_col = QVBoxLayout(self._m_engine_rows_widget)
@@ -6195,6 +6170,39 @@ class TabProfile(QWidget):
         self._archive_superseded_profile(run)
         return True
 
+    def _restore_archived_build(self) -> None:
+        """A build with the new profile engine that failed, or never
+        produced a file, puts the previous profile back where it was: a run
+        is never left without the profile it had. Once only; a second call
+        does nothing."""
+        moved = getattr(self, "_archived_build", None)
+        self._archived_build = None
+        if not moved:
+            return
+        import shutil
+        restored, folders = [], set()
+        for back, src in moved.items():
+            back, src = Path(back), Path(src)
+            folders.add(src.parent)
+            if src.is_file() and not back.exists():
+                try:
+                    shutil.move(str(src), str(back))
+                    restored.append(back.name)
+                except OSError as exc:
+                    self._log.appendPlainText(tr(
+                        "[WARNING] Could not put the previous profile back: "
+                        "{error}").format(error=exc))
+        for folder in folders:
+            try:
+                if folder.is_dir() and not any(folder.iterdir()):
+                    folder.rmdir()
+            except OSError:
+                pass
+        if restored:
+            self._log.appendPlainText(tr(
+                "The previous profile was put back: {names}").format(
+                    names=", ".join(restored)))
+
     def _archive_superseded_profile(self, run) -> None:
         """“Build here anyway”: move the profile being replaced out of the way
         (§6), into ``runs/runN/old/``. **Only the profile.**
@@ -6265,11 +6273,32 @@ class TabProfile(QWidget):
         """
         from datetime import datetime
 
+        self._archived_build = None
+        # With the new profile engine OFF this door is exactly what it was:
+        # only `<stem>.icc` moves and nothing is remembered. With it ON the
+        # profile's companions move with it (the "-v4.icc" twin and colprof's
+        # comparison profile, both replaced by the same build), and a build
+        # that fails puts all of them back (`_restore_archived_build`).
+        engine_on = engine_switch_on(self._settings)
         try:
             icc = self._builder.expected_icc_path(params)
             if not icc.is_file() or icc.stat().st_size == 0:
                 return
-            dest = Run.for_dir(icc.parent).archive_to_old([icc], datetime.now())
+            run = Run.for_dir(icc.parent)
+            present = [icc]
+            # colprof's comparison profile belongs to the profile being
+            # replaced, whichever builder replaces it: left behind, it would
+            # sit beside a new profile it was never built with. (Only a run
+            # the new engine built in has one.)
+            if run.colprof_comparison_icc.is_file():
+                present.append(run.colprof_comparison_icc)
+            twin = icc.with_name(icc.stem + "-v4.icc")
+            if engine_on and twin.is_file():
+                present.append(twin)
+            moved: dict = {}
+            dest = run.archive_to_old(present, datetime.now(), moved=moved)
+            if dest is not None and engine_on:
+                self._archived_build = dict(moved)
         except Exception as exc:      # noqa: BLE001 - never block the build
             log.warning("could not archive the profile being replaced",
                         exc_info=True)
@@ -6415,9 +6444,12 @@ class TabProfile(QWidget):
         self._save_defaults_btn.setEnabled(False)
         self._file_grp.setEnabled(False)
         self._stack.setEnabled(False)
+        # The label names the BUILDER: Guided has no engine rows, so this and
+        # the first log line are where a Guided user sees which one runs.
         self._progress_bar.set_label(
             tr("Building"),
-            "colprof" if engine == "colprof" else "ChromIQ engine")
+            "colprof" if engine == "colprof"
+            else tr("ChromIQ profile engine (beta)"))
         self._progress_bar.set_value(None)
         self._progress_bar.start()
         self.profile_active.emit(True)
@@ -6516,21 +6548,47 @@ class TabProfile(QWidget):
         self._profile_after_a_build_that_made_none()
 
     def _on_engine_done(self, code: int) -> None:
-        """Finish path for ChromIQ-engine builds (#122)."""
-        self._reset_build_ui()
+        """Finish path for builds with the new profile engine (#122).
+
+        Three endings. The engine could not get its reference from colprof:
+        the build goes to colprof (`_fall_back_to_colprof`). The engine
+        failed: the previous profile is put back. The engine succeeded: what
+        it did is recorded in the run, colprof builds its own profile from
+        the same measurement to keep beside it, and only then is the build
+        reported as finished."""
+        params = self._active_params or self._collect_params()
+        reason = getattr(self._engine_builder, "reference_failed", "")
+        if code != 0 and reason:
+            self._fall_back_to_colprof(params, reason)
+            return
         if code != 0:
+            self._reset_build_ui()
+            self._restore_archived_build()
             failure = self._engine_builder.primary_failure()
             self._show_tool_failure_dialog(
                 tr("Profile Build Failed"),
                 failure[1] if failure else tr(
                     "The ChromIQ engine reported an error."))
             return
-        params = self._active_params or self._collect_params()
-        self._icc_path = self._engine_builder.expected_icc_path(params)
-        if not (self._icc_path and self._icc_path.exists()):
+        icc = self._engine_builder.expected_icc_path(params)
+        if not (icc and icc.exists()):
+            self._reset_build_ui()
+            self._restore_archived_build()
             self._log.appendPlainText("\n[ERROR] Profile file was not created.")
             self._log.ensureCursorVisible()
             return
+        self._record_profile_build(
+            icc, dict(getattr(self._engine_builder, "last_record", {}) or
+                      {"builder": "engine"}))
+        if self._start_colprof_comparison(params):
+            return                 # `_on_comparison_done` finishes the build
+        self._finish_engine_build(params)
+
+    def _finish_engine_build(self, params) -> None:
+        """The new profile is in place and everything around it is done."""
+        self._reset_build_ui()
+        self._archived_build = None          # the new profile is in place
+        self._icc_path = self._engine_builder.expected_icc_path(params)
         self._install_btn.setEnabled(True)
         self._log.appendPlainText(f"\n[OK] Profile saved: {self._icc_path}")
         self._log.ensureCursorVisible()
@@ -6538,6 +6596,160 @@ class TabProfile(QWidget):
         if self._ti3_path:
             self.profile_built.emit(self._ti3_path, self._icc_path)
         self._show_build_result_dialog(self._icc_path, [])
+
+    def _record_profile_build(self, icc: Path, info: dict) -> None:
+        """Write how the profile was built into the run's ``meta.json``
+        (`Run.record_profile_build`). Only inside a real run: a measurement
+        opened from a loose folder has no ``meta.json`` and gets none."""
+        try:
+            from datetime import datetime
+            run = Run.for_dir(Path(icc).parent)
+            if not run.meta_path.is_file():
+                return
+            info = dict(info)
+            info["at"] = datetime.now().isoformat(timespec="seconds")
+            info["profile"] = Path(icc).name
+            run.record_profile_build(info)
+        except Exception:      # noqa: BLE001 - a record never fails a build
+            log.warning("could not record the profile build", exc_info=True)
+
+    def _fall_back_to_colprof(self, params, reason: str) -> None:
+        """The engine stopped because colprof could not give it its
+        reference rendering: build this profile with stock colprof and say
+        so, in the log now and in a window when the build has ended. The
+        engine's own untuned rendering is never used silently."""
+        from workflow import measurement_messages as M
+        title, body = M.M_BUILD_ENGINE_FALLBACK.render(reason=reason)
+        self._log.appendPlainText(
+            "\n[INFO] " + " ".join(body.replace("\n", " ").split()))
+        self._log.ensureCursorVisible()
+        self._fallback_notice = (title, body)
+        self._fallback_reason = reason
+        self._building_with = "colprof"
+        self._progress_bar.set_label(tr("Building"), "colprof")
+        self._progress_bar.set_value(None)
+        try:
+            self._builder.build(
+                params,
+                on_line=self._on_log_line,
+                on_finish=self._on_build_done,
+            )
+        except Exception:      # noqa: BLE001 - never leave the app locked
+            log.exception("the colprof build after the engine could not be "
+                          "started")
+            self._reset_build_ui()
+            self._restore_archived_build()
+            self._show_the_fallback_notice()
+
+    def _show_the_fallback_notice(self) -> None:
+        """The window that says a build went to colprof, once."""
+        notice = getattr(self, "_fallback_notice", None)
+        self._fallback_notice = None
+        if notice:
+            InfoDialog(notice[0], notice[1], self, min_width=560).exec()
+
+    def _start_colprof_comparison(self, params) -> bool:
+        """Build colprof's own profile from the same measurement and
+        settings, to keep beside the engine's (`Run.colprof_comparison_icc`),
+        so a tester can compare the two or go back. True when it was
+        started; False when there is nothing to start (a multi-ink
+        measurement, which colprof cannot build, or no colprof).
+
+        colprof names its output after the measurement, which is the
+        engine profile's own name, so it works on a COPY of the measurement
+        in a temporary folder and the result is moved into the run under its
+        role name. Its description ends in " (colprof)", so the two can be
+        installed side by side and told apart in a program's profile list.
+        Nothing here can fail the build: the new profile already exists."""
+        import dataclasses
+        import shutil
+        import tempfile
+        self._comparison = None
+        try:
+            if is_multi_ink(params.ti3_path):
+                return False
+            if not self._runner.tool_is_installed("colprof"):
+                return False
+            work = Path(tempfile.mkdtemp(prefix="chromiq-colprof-comparison-"))
+            copy = work / params.ti3_path.name
+            shutil.copy2(params.ti3_path, copy)
+            desc = params.description or params.ti3_path.stem
+            cparams = dataclasses.replace(
+                params, ti3_path=copy,
+                description=f"{desc} (colprof)",
+                model=params.model or desc,
+                spectral_physics=False, icc_version="2",
+                noise_model=False, render_style="argyll")
+            self._comparison = (params, cparams, work)
+            self._comparison_builder = ProfileBuilder(self._runner)
+            self._building_with = "colprof"
+            self._progress_bar.set_label(tr("Building"), "colprof")
+            self._progress_bar.set_value(None)
+            self._log.appendPlainText(tr(
+                "The new profile is ready. Now ArgyllCMS colprof builds its "
+                "own profile from the same measurement, to keep beside it "
+                "for comparison…"))
+            self._log.ensureCursorVisible()
+            self._comparison_builder.build(
+                cparams,
+                on_line=self._on_comparison_line,
+                on_finish=self._on_comparison_done,
+            )
+            return True
+        except Exception:      # noqa: BLE001
+            log.warning("could not start colprof's comparison build",
+                        exc_info=True)
+            self._drop_comparison_work()
+            self._runner.last_failed_to_start = None
+            self._log.appendPlainText(tr(
+                "[WARNING] The comparison profile from ArgyllCMS colprof "
+                "could not be built. Your new profile is not affected."))
+            return False
+
+    def _on_comparison_line(self, line: str) -> None:
+        """colprof's output during the comparison build drives the progress
+        bar only: its fit figures describe the OTHER profile and would read
+        as the new one's in this log."""
+        self._show_colprof_progress(line)
+
+    def _drop_comparison_work(self) -> None:
+        import shutil
+        rec = getattr(self, "_comparison", None)
+        self._comparison = None
+        if rec:
+            shutil.rmtree(rec[2], ignore_errors=True)
+
+    def _on_comparison_done(self, code: int) -> None:
+        rec = getattr(self, "_comparison", None)
+        if not rec:
+            return
+        params, cparams, _work = rec
+        kept = None
+        try:
+            made = self._comparison_builder.expected_icc_path(cparams)
+            if code == 0 and made.is_file() and made.stat().st_size > 0:
+                import shutil
+                dest = Run.for_dir(
+                    params.ti3_path.parent).colprof_comparison_icc
+                if dest.exists():
+                    dest.unlink()
+                shutil.move(str(made), str(dest))
+                kept = dest
+        except Exception:      # noqa: BLE001
+            log.warning("could not keep colprof's comparison profile",
+                        exc_info=True)
+        self._runner.last_failed_to_start = None
+        self._drop_comparison_work()
+        if kept is not None:
+            self._log.appendPlainText(tr(
+                "ArgyllCMS colprof's profile from the same measurement was "
+                "saved beside the new one for comparison: {path}").format(
+                    path=kept))
+        else:
+            self._log.appendPlainText(tr(
+                "[WARNING] The comparison profile from ArgyllCMS colprof "
+                "could not be built. Your new profile is not affected."))
+        self._finish_engine_build(params)
 
     def _refuse_when_the_profiler_is_not_installed(self, engine: str) -> bool:
         """Say "ChromIQ could not start colprof" BEFORE anything is moved.
@@ -6581,7 +6793,18 @@ class TabProfile(QWidget):
         answer down. There is exactly one question left here, and it is the
         cheap, certain one: can that builder be launched at all?
         """
-        if engine != "colprof":
+        if engine == "engine":
+            # The new profile engine runs colprof once inside every build of
+            # an RGB, CMY or CMYK measurement, for its reference rendering,
+            # and without it the build is handed to colprof anyway. So it
+            # needs colprof exactly as a colprof build does. Only a multi-ink
+            # measurement (which colprof cannot build) goes ahead without.
+            try:
+                if is_multi_ink(getattr(self, "_ti3_path", None)):
+                    return False
+            except Exception:      # noqa: BLE001 - unreadable: ask colprof
+                pass
+        elif engine != "colprof":
             return False
         if self._runner.tool_is_installed("colprof"):
             return False
@@ -6619,8 +6842,10 @@ class TabProfile(QWidget):
         self._reset_build_ui()
 
         if code != 0:
+            self._restore_archived_build()
             self._log.appendPlainText(f"\n[ERROR] colprof exited with code {code}.")
             self._log.ensureCursorVisible()
+            self._show_the_fallback_notice()
             # THE TOOL NEVER RAN AT ALL. There is no output to diagnose, so
             # every pattern below finds nothing and the user was shown nothing
             # — one line in the log for a wrong ArgyllCMS path. Say it plainly.
@@ -6646,10 +6871,14 @@ class TabProfile(QWidget):
         issues = self._builder.sanity_check(self._icc_path)
 
         if not (self._icc_path and self._icc_path.exists()):
+            self._restore_archived_build()
             self._log.appendPlainText("\n[ERROR] Profile file was not created.")
             self._log.ensureCursorVisible()
+            self._show_the_fallback_notice()
             return
 
+        self._archived_build = None          # the new profile is in place
+        self._note_a_colprof_build(self._icc_path)
         self._install_btn.setEnabled(True)
         self._log.appendPlainText(f"\n[OK] Profile saved: {self._icc_path}")
         self._log.ensureCursorVisible()
@@ -6657,7 +6886,31 @@ class TabProfile(QWidget):
         if self._ti3_path:
             self.profile_built.emit(self._ti3_path, self._icc_path)
 
+        self._show_the_fallback_notice()
         self._show_build_result_dialog(self._icc_path, issues)
+
+    def _note_a_colprof_build(self, icc: Path) -> None:
+        """Keep the run's build record true after a colprof build.
+
+        Written only where it is needed, so a build with the new profile
+        engine switched off touches the run exactly as it always did: when
+        this colprof build stood in for the engine, or when the run still
+        carries the record of an engine build that this profile replaces."""
+        reason = getattr(self, "_fallback_reason", "")
+        self._fallback_reason = ""
+        try:
+            run = Run.for_dir(Path(icc).parent)
+            if not run.meta_path.is_file():
+                return
+            if not reason and not getattr(run.load_meta(), "profile_build",
+                                          None):
+                return
+        except Exception:      # noqa: BLE001
+            return
+        info = {"builder": "colprof"}
+        if reason:
+            info["instead_of_the_engine_because"] = reason
+        self._record_profile_build(icc, info)
 
     def _show_tool_failure_dialog(self, title: str, body: str) -> None:
         """Show a friendly failure dialog with the structured reason from the
@@ -7275,5 +7528,21 @@ class TabProfile(QWidget):
         self._m_no_output_cb.setChecked(bool(s.get("manual2_colprof_no_output_shaper", False)))
         self._m_no_grid_pos_cb.setChecked(bool(s.get("manual2_colprof_no_grid_pos",   False)))
         self._m_no_embedded_cb.setChecked(bool(s.get("manual2_colprof_no_embedded",   False)))
+        # The black-generation rows and the four engine-only rows (#123) were
+        # missing here. On the first switch to a run with nothing stored
+        # every other Manual control fell back to the saved defaults while
+        # these kept the PREVIOUS run's values, and were then written into
+        # the new run's meta.json as if chosen: the per_target_settings.md
+        # section 4 S4 to S7 leak, for the controls added after it (B-18).
+        _set_m_combo(self._m_kgen_combo,          "manual2_colprof_kgen_rule", "")
+        self._m_kgen_locus_cb.setChecked(bool(s.get("manual2_colprof_kgen_locus", False)))
+        for key, dflt in (("stle", 0.0), ("stpo", 0.1), ("enpo", 0.9),
+                          ("enle", 1.0), ("shape", 1.0)):
+            self._m_kgen_spins[key].setValue(
+                float(s.get(f"manual2_colprof_kgen_{key}", dflt)))
+        self._m_spectral_cb.setChecked(bool(s.get("manual2_colprof_spectral", False)))
+        _set_m_combo(self._m_iccver_combo,        "manual2_colprof_iccver",   "2")
+        self._m_noise_cb.setChecked(bool(s.get("manual2_colprof_noise", False)))
+        _set_m_combo(self._m_render_combo,        "manual2_colprof_render",   "argyll")
         presets = self._m_load_presets()
         self._m_populate_preset_combo(presets)

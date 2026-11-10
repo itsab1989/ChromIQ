@@ -14,6 +14,22 @@ types, the input-profile white-point modes) produce the same errors here.
 Only two things still route to colprof, both named in the log: a hand-typed
 extra command-line flag the parser doesn't know, and a gamut-source file
 that can't be read as an RGB/CMYK profile.
+
+THE APP SHAPE (2026-11-10). The engine is ONE switch in Preferences > Beta
+(``profile_engine_beta``), off by default. Off is stock colprof. On is the
+engine's Maximum accuracy build, always: the Fast / Bit-exact / Maximum
+accuracy picker is gone, and this module is the only place that says
+``gammap_mode = "accurate"`` for the app. Around the build it also
+
+* ignores the engine's development variables in a packaged app
+  (``core/engine_env.py``),
+* stops the build when ArgyllCMS colprof cannot give the engine its
+  reference rendering, so the caller can build with colprof instead
+  (:class:`ColprofReferenceFailed`); the engine's own untuned rendering is
+  never used silently,
+* keeps the engine's internal switch names out of the window's log while
+  recording them for ``chromiq.log`` and the run's ``meta.json``
+  (:class:`EngineLines`).
 """
 from __future__ import annotations
 
@@ -33,6 +49,31 @@ if TYPE_CHECKING:
     from workflow.profile_builder import ProfileParams
 
 log = get_logger(__name__)
+
+#: The one engine mode the app builds with (D-27).
+ENGINE_MODE = "accurate"
+
+#: Preferences > Beta, the black option: stored value -> BuildSettings value.
+BLACK_DEPTHS = ("neutral", "deepest")
+
+
+def engine_switch_on(settings) -> bool:
+    """Preferences > Beta: is the new profile engine switched on?"""
+    try:
+        return bool(settings.get("profile_engine_beta", False))
+    except Exception:      # noqa: BLE001 - an unreadable store is "off"
+        return False
+
+
+def black_depth_setting(settings) -> str:
+    """The stored black option as a ``BuildSettings.black_depth`` value; any
+    value this build does not know is read as the default, Neutral."""
+    try:
+        raw = str(settings.get("profile_engine_black_depth", "neutral"))
+    except Exception:      # noqa: BLE001
+        raw = "neutral"
+    raw = raw.strip().lower()
+    return raw if raw in BLACK_DEPTHS else "neutral"
 
 # Device representations colprof itself accepts (profout.c) — everything
 # else (CMYKOG, CMYKcm, …) is engine-only territory.
@@ -249,6 +290,32 @@ def settings_from_params(params: "ProfileParams") -> BuildSettings:
     return s
 
 
+def choose_builder(settings, params: "ProfileParams") -> tuple[str, str]:
+    """Which builder makes the profile for *params* under the current
+    Preferences: ``("engine", why)``, ``("colprof", why)`` or
+    ``("blocked", "")`` (a multi-ink measurement with the engine off, which
+    colprof cannot build). *why* is a finished log line, or ``""``.
+
+    The ONE place this is decided, so the Build Profile tab, its command box
+    and any other window that builds a printer profile give the same answer.
+    """
+    on = engine_switch_on(settings)
+    if is_multi_ink(params.ti3_path):
+        if on:
+            return "engine", tr(
+                "[INFO] Multi-ink measurement — Argyll colprof can't "
+                "build these, using the ChromIQ engine.")
+        return "blocked", ""
+    if not on:
+        return "colprof", ""
+    ok, why = engine_support(params)
+    if ok:
+        return "engine", ""
+    return "colprof", tr(
+        "[INFO] This build needs Argyll colprof because of: {what}. "
+        "Building with colprof.").format(what=why)
+
+
 def engine_support(params: "ProfileParams") -> tuple[bool, str]:
     """Can the engine run this exact build?
 
@@ -315,6 +382,169 @@ def build_result_summary(res, seconds: float) -> str:
         f"perceptual/saturation from a gamut source: {res.perceptual_distinct}")
 
 
+class ColprofReferenceFailed(RuntimeError):
+    """ArgyllCMS colprof could not give the engine its reference rendering.
+
+    Every engine build of an RGB, CMY or CMYK measurement runs colprof once
+    and matches its perceptual and saturation rendering. When that run
+    fails the engine would carry on with a rendering of its own that nobody
+    has tuned or judged, so the app stops the build here instead and the
+    caller builds with colprof (which then reports its own trouble)."""
+
+
+#: The engine's line when its colprof reference is not available.
+_OWN_RENDERING = re.compile(r"^Using the engine's own rendering \((.*)\)\.$",
+                            re.S)
+#: The engine's list of the switches a build runs with.
+_SWITCHES_ON = re.compile(r"^Candidate pipeline active: (.*?)\.?$", re.S)
+#: The engine's report on the Deepest black option.
+_DEEPEST = re.compile(
+    r"^Colorimetric table: deepest black \S+ \(research a88: printer black "
+    r"L\* (?P<kl>-?[\d.]+) a\* (?P<ka>-?[\d.]+) b\* (?P<kb>-?[\d.]+); "
+    r"darkest printable neutral (?:none|L\* (?P<nl>-?[\d.]+) a\* "
+    r"(?P<na>-?[\d.]+) b\* (?P<nb>-?[\d.]+)); (?P<nodes>\d+) nodes"
+    r"(?P<idle>, not needed)?\)\.$")
+#: The percentage / remaining-time head the engine puts before a line.
+_HEAD = re.compile(r"^(\d+%(?: · [^·]*)?) · (.*)$", re.S)
+#: A numbered internal switch name (a84-warmblack, a25-oog, a88).
+_NUMBERED_SWITCH = re.compile(r"\ba\d{2,3}[a-z]?(?:-[a-z0-9]+)*\b")
+_INTERNAL_WORDS = re.compile(r"\bresearch\b|\bagent\s*\d", re.I)
+#: Switch names that are also plain words: never taken for a switch.
+_PLAIN_WORDS = frozenset({"spectral", "gp", "ucs"})
+
+
+def _switch_names_in(msg: str) -> list[str]:
+    """Internal switch names a line of the engine mentions."""
+    found = set(_NUMBERED_SWITCH.findall(msg))
+    try:
+        from workflow.profile_engine.builder import (ENGINE_CANDIDATE_TOKENS,
+                                                     GP_FIN3_TOKENS)
+        known = (set(ENGINE_CANDIDATE_TOKENS) | set(GP_FIN3_TOKENS)) \
+            - _PLAIN_WORDS
+    except Exception:      # noqa: BLE001 - the names are a nicety
+        known = set()
+    words = set(re.findall(r"[A-Za-z0-9][A-Za-z0-9-]*", msg))
+    found |= {t for t in known if not t.startswith("no-") and t in words}
+    return sorted(found)
+
+
+class EngineLines:
+    """Turns the engine's own progress lines into what the window shows,
+    and keeps what a later diagnosis needs.
+
+    The engine reports in its developers' words: many lines name an internal
+    switch ("... (research a70-edgesmooth)"). None of that belongs in front
+    of a user, and all of it is exactly what is needed to build a reported
+    profile again. So a line that names a switch is NOT shown; it goes to
+    ``chromiq.log`` and into :meth:`record` (for the run's ``meta.json``).
+    Two lines are replaced by a sentence of the app's own: the Deepest black
+    report, and the missing colprof reference on a multi-ink build.
+
+    On an RGB / CMY / CMYK build the missing colprof reference ends the
+    build: :meth:`__call__` raises :class:`ColprofReferenceFailed` from then
+    on, on whichever engine thread reports next.
+    """
+
+    def __init__(self, emit: Callable[[str], None], *,
+                 multi_ink: bool = False) -> None:
+        self._emit = emit
+        self._multi_ink = multi_ink
+        self.switches_on: list[str] = []
+        self.reported: list[dict] = []
+        self.reference_failed: str = ""
+        self.dark_end: dict | None = None
+
+    def __call__(self, raw: str) -> None:
+        if self.reference_failed:
+            raise ColprofReferenceFailed(self.reference_failed)
+        m = _HEAD.match(raw)
+        head, msg = (m.group(1), m.group(2)) if m else ("", raw)
+        shown = self._present(msg)
+        if self.reference_failed:
+            raise ColprofReferenceFailed(self.reference_failed)
+        if shown is None:
+            log.info("[engine] %s", msg)       # kept for diagnosis
+            return
+        log.debug("[engine] %s", msg)
+        self._emit(f"{head} · {shown}" if head else shown)
+
+    def _present(self, msg: str) -> "str | None":
+        m = _SWITCHES_ON.match(msg)
+        if m:
+            self.switches_on = sorted(
+                t.strip() for t in m.group(1).split(",") if t.strip())
+            return None
+        m = _OWN_RENDERING.match(msg)
+        if m:
+            if not self._multi_ink:
+                self.reference_failed = m.group(1).strip() or "colprof"
+                return None
+            return tr(
+                "[WARNING] ChromIQ could not run ArgyllCMS colprof for the "
+                "reference it normally uses for the black and the rendering "
+                "of a multi-ink profile ({reason}). The profile is still "
+                "being built, but without that reference, so please check "
+                "it with a test print. To get the reference back, check the "
+                "ArgyllCMS folder in Preferences and build "
+                "again.").format(reason=m.group(1).strip())
+        m = _DEEPEST.match(msg)
+        if m:
+            self.reported.append({"switch": "a88-black-deepest", "line": msg})
+            return self._deepest_line(m)
+        names = _switch_names_in(msg)
+        if names or _INTERNAL_WORDS.search(msg):
+            for name in names or ["(unnamed)"]:
+                self.reported.append({"switch": name, "line": msg})
+            return None
+        return msg
+
+    def _deepest_line(self, m) -> str:
+        black = {"l": m.group("kl"), "a": m.group("ka"), "b": m.group("kb")}
+        self.dark_end = {
+            "printer_black_lab": [float(black[k]) for k in "lab"],
+            "darkest_neutral_lab": (
+                None if m.group("nl") is None else
+                [float(m.group(k)) for k in ("nl", "na", "nb")]),
+            "changed_the_table": not m.group("idle"),
+        }
+        if m.group("nl") is None:
+            return tr(
+                "Deepest black: your printer's black measures L* {kl}, "
+                "a* {ka}, b* {kb}. ChromIQ found no darker neutral grey to "
+                "compare it with, so nothing was changed: this profile is "
+                "the same as with Neutral.").format(
+                    kl=black["l"], ka=black["a"], kb=black["b"])
+        if m.group("idle"):
+            return tr(
+                "Deepest black: nothing to change on this printer. Its "
+                "black (L* {kl}, a* {ka}, b* {kb}) is practically as "
+                "neutral and as dark as the darkest neutral grey it can "
+                "print (L* {nl}, a* {na}, b* {nb}), so this profile is the "
+                "same as with Neutral.").format(
+                    kl=black["l"], ka=black["a"], kb=black["b"],
+                    nl=m.group("nl"), na=m.group("na"), nb=m.group("nb"))
+        return tr(
+            "Deepest black: the Relative and Absolute Colorimetric table "
+            "now goes down to your printer's own black (L* {kl}, a* {ka}, "
+            "b* {kb}) instead of stopping at the darkest neutral grey the "
+            "printer can print (L* {nl}, a* {na}, b* {nb}). Use this "
+            "profile with black point compensation switched on.").format(
+                kl=black["l"], ka=black["a"], kb=black["b"],
+                nl=m.group("nl"), na=m.group("na"), nb=m.group("nb"))
+
+    def record(self, settings) -> dict:
+        """What ``meta.json`` keeps about this engine build."""
+        return {
+            "builder": "engine",
+            "engine_mode": ENGINE_MODE,
+            "black_depth": str(getattr(settings, "black_depth", "neutral")),
+            "settings": build_settings_summary(settings),
+            "switches_on": list(self.switches_on),
+            "switches_reported": list(self.reported),
+            "dark_end": self.dark_end,
+        }
+
+
 class _EngineThread(QThread):
     line = pyqtSignal(str)
     done = pyqtSignal(int, str)
@@ -328,27 +558,66 @@ class _EngineThread(QThread):
         self._ti3 = ti3_path
         self._out = out_path
         self._settings = settings
+        #: Into chromiq.log as well as the tab's box, the way every Argyll
+        #: tool's output reaches it; `line.emit` is queued across threads.
+        self.lines = EngineLines(self.line.emit,
+                                 multi_ink=is_multi_ink(ti3_path))
+        #: What meta.json keeps about the build; filled when it succeeds.
+        self.record: dict = {}
+        #: Why colprof's reference was not available, when that ended it.
+        self.reference_failed: str = ""
+
+    def _drop_what_was_written(self) -> None:
+        """A build stopped part way leaves no half profile behind."""
+        for p in (self._out, self._out.with_name(self._out.stem + "-v4.icc")):
+            try:
+                if p.is_file():
+                    p.unlink()
+            except OSError:
+                log.warning("could not remove %s", p, exc_info=True)
 
     def run(self) -> None:  # noqa: D102 — QThread worker
         import time
         from workflow.profile_engine import build_profile
 
-        def _progress(msg: str) -> None:
-            # Into chromiq.log as well as the tab's box, the way every Argyll
-            # tool's output reaches it ("[argyll] ..." at DEBUG).
-            log.debug("[engine] %s", msg)
-            self.line.emit(msg)                # queued across threads
-
-        self._settings.progress = _progress
+        self._settings.progress = self.lines
         t0 = time.monotonic()
         try:
             res = build_profile(self._ti3, self._out, self._settings)
+            if self.lines.reference_failed:
+                # Said on a thread whose error the engine did not pass on.
+                raise ColprofReferenceFailed(self.lines.reference_failed)
+        except ColprofReferenceFailed as exc:
+            log.warning("engine build stopped after %.1f s: colprof could "
+                        "not give its reference rendering (%s)",
+                        time.monotonic() - t0, exc)
+            self._drop_what_was_written()
+            self.reference_failed = str(exc) or "colprof"
+            self.done.emit(1, "")
+            return
         except Exception as exc:            # noqa: BLE001 — surfaced to UI
+            if self.lines.reference_failed:
+                # The stop surfaced as another error on the way out.
+                log.warning("engine build stopped: colprof could not give "
+                            "its reference rendering (%s)",
+                            self.lines.reference_failed, exc_info=True)
+                self._drop_what_was_written()
+                self.reference_failed = self.lines.reference_failed
+                self.done.emit(1, "")
+                return
             log.exception("engine build failed after %.1f s",
                           time.monotonic() - t0)
             self.done.emit(1, str(exc))
             return
         log.info(build_result_summary(res, time.monotonic() - t0))
+        self.record = self.lines.record(self._settings)
+        self.record["seconds"] = round(time.monotonic() - t0, 1)
+        log.info("engine build switches on: %s",
+                 ", ".join(self.record["switches_on"]) or "(none reported)")
+        log.info("engine build switches that reported: %s",
+                 ", ".join(sorted({r["switch"] for r in
+                                   self.record["switches_reported"]}))
+                 or "(none)")
         self.line.emit(tr(
             "Model fit at the measured patches: median {med:.2f} ΔE, "
             "95% {p95:.2f} ΔE.").format(med=res.fit_median_de,
@@ -376,6 +645,11 @@ class EngineProfileBuilder:
         self._thread: _EngineThread | None = None
         self._last_error: str = ""
         self._app_settings = settings
+        #: Set when the last build stopped because colprof could not give
+        #: its reference rendering: the caller builds with colprof instead.
+        self.reference_failed: str = ""
+        #: What meta.json keeps about the last successful build.
+        self.last_record: dict = {}
 
     @property
     def is_running(self) -> bool:
@@ -404,23 +678,35 @@ class EngineProfileBuilder:
         params, refusal = without_refused_fwa(params)
         if refusal is not None:
             on_line(refusal.log_line)
+        self.reference_failed = ""
+        self.last_record = {}
+        # A packaged app ignores the engine's development variables; main()
+        # did this at start-up, and this is the door every build passes.
+        from core.engine_env import (ignore_engine_overrides_when_frozen,
+                                     is_frozen)
+        ignore_engine_overrides_when_frozen()
         try:
             settings = settings_from_params(params)
+            # The app builds with ONE engine mode (D-27).
+            settings.gammap_mode = ENGINE_MODE
+            # The engine's own default thread count; no setting for it.
+            settings.engine_workers = 0
             if self._app_settings is not None:
                 settings.argyll_bin = self._app_settings.get(
                     "argyll_bin_path", "/Applications/Argyll/bin")
-                settings.gammap_mode = str(
-                    self._app_settings.get("gammap_mode", "fast"))
-            if settings.gammap_mode == "accurate":
-                # #123: dark-launched candidate pipeline, env-only.
+                settings.black_depth = black_depth_setting(self._app_settings)
+            if not is_frozen():
+                # #123: dark-launched candidate pipeline, for development
+                # only, from the environment. Never in a packaged app.
                 import os
                 from workflow.profile_engine.builder import \
                     candidates_from_env
                 settings.engine_candidates = candidates_from_env(
                     os.environ.get("CHROMIQ_ENGINE_NEXT"))
                 if settings.engine_candidates:
-                    on_line(tr("Engine candidates active: {names}").format(
-                        names=", ".join(sorted(settings.engine_candidates))))
+                    log.info("engine development switches from the "
+                             "environment: %s",
+                             ", ".join(sorted(settings.engine_candidates)))
         except (ExtraArgsError, ValueError) as exc:
             self._last_error = str(exc)
             on_line(tr("[ERROR] {msg}").format(msg=exc))
@@ -435,6 +721,8 @@ class EngineProfileBuilder:
 
         def _finished(code: int, err: str) -> None:
             self._last_error = err
+            self.reference_failed = t.reference_failed
+            self.last_record = dict(t.record)
             if err:
                 on_line(tr("[ERROR] {msg}").format(msg=err))
             on_finish(code)

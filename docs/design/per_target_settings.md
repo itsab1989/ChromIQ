@@ -652,6 +652,38 @@ the same lesson as beta.165 and the three per-target-settings faults before it.
 
 ---
 
+### ⏳ Awaiting confirmation: S4 to S7 for the black-generation and engine-only Build Profile rows (2026-11-10)
+
+**Confirmed by:** *nobody yet.*
+
+What the app does since 2026-11-10, measured by test and not yet confirmed by
+a human. It applies the S4 to S7 rule above to controls that were added to
+Build Profile's Manual panel after that rule was written, and it changes no
+rule.
+
+* **The leak (B-18).** When a target with nothing stored was selected, every
+  Manual control of Build Profile fell back to the saved defaults (or the
+  factory setting), except eleven: the black-generation rule, its
+  "Proportional" box and its five curve values, and the four rows that are
+  only shown while the new profile engine is switched on (Spectral physics
+  model, ICC profile version, Measurement noise handling, Out-of-gamut
+  rendering). Those kept the PREVIOUS target's values, and the next write
+  stored them in the new target's `meta.json` (`profile_settings`) as if they
+  had been chosen there.
+* **Now.** `TabProfile._restore_defaults` sets those eleven from the saved
+  defaults too (`manual2_colprof_kgen_*`, `manual2_colprof_spectral`,
+  `manual2_colprof_iccver`, `manual2_colprof_noise`,
+  `manual2_colprof_render`), with the factory values "default black", not
+  proportional, 0 / 0.1 / 0.9 / 1 / 1, off, Version 2, off, Argyll-matched.
+  Test: `tests/test_the_new_profile_engine_is_one_switch.py::
+  test_restore_defaults_resets_the_engine_and_black_generation_rows`.
+* **What stays global.** The new profile engine's switch and its "Darkest
+  black" option live in Preferences (Beta tab) and are global, as §1.1 says
+  of everything in Preferences. They are not stored per target. Which builder
+  made a run's profile, and with which black option, is recorded in that run's
+  `meta.json` (`profile_build`) as a record for diagnosis; nothing loads it
+  back into a control.
+
 ### 4b. A preset creating a target
 
 For a fraction of a second, "nothing stored" is literally true of a target a

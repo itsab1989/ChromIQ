@@ -120,6 +120,10 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 # M-PATCH-SIMILAR joined on 2026-10-15 (4.3.5 beta 8): Knut confirmed the
 # similar-patch rule for both tests (#182 6196599132); its card texts are ours.
 AWAITING_APPROVAL: "set[str]" = {
+    # The new profile engine (Preferences > Beta), 2026-11-10: a build that
+    # went to colprof because colprof could not give the engine its
+    # reference, and the question on quitting while the engine builds.
+    "M-BUILD-ENGINE-FALLBACK", "M-QUIT-DURING-BUILD",
     # Tools > Verify against reference takes a measurement or other CGATS
     # file as the reference, and refuses one of another chart or with no
     # colour values (found driving 4.3.29 on screen, 2026-11-11), 4.3.30.

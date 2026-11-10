@@ -3304,6 +3304,38 @@ class MainWindow(QMainWindow):
             log.warning("the quit guard failed; closing anyway", exc_info=True)
             return True
 
+    def _ask_before_quitting_on_a_build(self) -> bool:
+        """M-QUIT-DURING-BUILD. A build with the new profile engine cannot
+        be resumed: quitting throws its minutes away. Ask, the way a
+        measurement asks. True = the quit may proceed. Never raises: a fault
+        here must not trap the user in an app that will not close."""
+        try:
+            from workflow.engine_builder import EngineProfileBuilder
+            if not EngineProfileBuilder.any_running():
+                return True
+            from PyQt6.QtWidgets import QMessageBox
+
+            from ui.widgets import fit_message_box_buttons
+            from workflow import measurement_messages as M
+            title, body = M.M_QUIT_DURING_BUILD.render()
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Icon.NoIcon)
+            box.setWindowTitle(title)
+            box.setText(title)
+            box.setInformativeText(body)
+            keep = box.addButton(tr("Keep building"),
+                                 QMessageBox.ButtonRole.RejectRole)
+            box.addButton(tr("Quit anyway"), QMessageBox.ButtonRole.AcceptRole)
+            box.setDefaultButton(keep)
+            box.setEscapeButton(keep)
+            fit_message_box_buttons(box)
+            box.exec()
+            return box.clickedButton() is not keep
+        except Exception:              # noqa: BLE001 - never trap the user
+            log.warning("the build quit question failed; closing anyway",
+                        exc_info=True)
+            return True
+
     def closeEvent(self, event) -> None:
         # ASK FIRST, BEFORE ANYTHING HERE IS DONE OR UNDONE.
         #
@@ -3336,6 +3368,11 @@ class MainWindow(QMainWindow):
             may_close = True
         if not may_close:
             log.info("close cancelled: the measurement keeps running")
+            self._closing = False      # the user is still working
+            event.ignore()
+            return
+        if not self._ask_before_quitting_on_a_build():
+            log.info("close cancelled: the profile build keeps running")
             self._closing = False      # the user is still working
             event.ignore()
             return

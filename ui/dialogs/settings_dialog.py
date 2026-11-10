@@ -3281,114 +3281,122 @@ class SettingsDialog(QDialog):
         )
         engine_tip = TooltipButton(
             tr("ChromIQ Profile Engine (beta)"),
-            tr("A profile builder that lives inside ChromIQ itself.\n\n"
-            "While this option is ON, clicking Build Profile runs the "
-            "ChromIQ engine instead of Argyll colprof — same tab, same "
-            "buttons, same options, nothing new to learn. Turn the option "
-            "OFF and every profile is built by colprof again, exactly as "
-            "before.\n\n"
-            "Why would you want it? One reason above all: printers with "
-            "EXTRA INKS. colprof can build profiles for RGB and CMYK "
-            "printers, but not for a CMYK printer with orange, green or "
-            "violet channels. The ChromIQ engine can. Together with the "
-            "multi-ink charts from Create Chart this closes the loop "
-            "entirely inside ChromIQ: print a multi-ink chart, measure "
-            "it, build a working profile.\n\n"
-            "What to expect:\n\n"
-            "  • The engine understands every option on the Build Profile "
-            "tab — quality levels, gamut sources, rendering intents, "
-            "spectral illuminants and observers, paper-whitener "
-            "compensation, ICC attributes and all the expert switches.\n\n"
-            "  • Its colour rendering is computed by ChromIQ's own port "
-            "of Argyll's gamut-mapping algorithm. In our own limited "
-            "testing the results measure within colprof's normal "
-            "build-to-build variation — but it has not been tested "
-            "extensively yet, so treat that as promising rather than "
-            "proven.\n\n"
-            "  • If a build needs something only colprof has (for example "
-            "a hand-typed extra flag the engine doesn't recognise), that "
-            "build is quietly handed to colprof and the log tells you "
-            "why.\n\n"
-            "  • Your measurement files are never changed by either "
-            "engine.\n\n"
-            "Turning the option on shows this information once more and "
-            "asks you to confirm. It is a new beta and has not been "
-            "extensively tested, so use it at your own risk and verify "
-            "every profile with a test print before you rely on it."),
+            tr("A new way of building your printer profile, made inside "
+            "ChromIQ. It is a beta, and it stays switched off unless you "
+            "switch it on here.\n\n"
+            "**Off (the default):** every profile is built by ArgyllCMS "
+            "colprof, exactly as before. Nothing about your work changes.\n\n"
+            "**On:** clicking Build Profile builds the profile with the new "
+            "ChromIQ profile engine. The tab, the buttons and the options "
+            "stay the same, so there is nothing new to learn.\n\n"
+            "**What it is for:**\n\n"
+            "  • It aims at a more precise profile from the same "
+            "measurement. In our own tests on RGB printers it describes the "
+            "printer as well as colprof does, chooses the ink amounts for "
+            "each colour more precisely, and shows fewer flaws in smooth "
+            "gradients when simulated. On paper we expect the difference to "
+            "be small, and a real print comparison has not been made yet. "
+            "So please see it as something to try, not as a proven "
+            "improvement.\n\n"
+            "  • It can build profiles for printers with extra inks (for "
+            "example orange, green or violet beside CMYK), which colprof "
+            "cannot build at all.\n\n"
+            "**What to expect:**\n\n"
+            "  • A build takes longer. As a rough guide on a recent "
+            "computer: two to three minutes for an RGB printer, four to six "
+            "minutes for a CMYK printer, and six minutes or more for a "
+            "printer with extra inks. The higher quality settings take "
+            "longer still. These times include the comparison profile "
+            "described next.\n\n"
+            "  • The profile from colprof is kept as well. After each build "
+            "ChromIQ lets ArgyllCMS colprof build its own profile from the "
+            "same measurement and settings, and saves it beside the new one "
+            "in the run's folder as “colprof-comparison.icc”. Its name "
+            "inside the file ends in “(colprof)”, so you can tell the two "
+            "apart in any program. You can compare them, or simply use the "
+            "colprof one. ChromIQ never installs it by itself. For a printer "
+            "with extra inks there is no such file, because colprof cannot "
+            "build one.\n\n"
+            "  • If the new engine cannot be used for a build, ChromIQ "
+            "builds that profile with colprof and tells you why.\n\n"
+            "  • Your measurement files are never changed.\n\n"
+            "Switching the option on shows a short summary once more and "
+            "asks you to confirm. Because this is a beta, please check every "
+            "profile with a test print before you rely on it, and tell us "
+            "what you see."),
             self,
             min_width=680,
         )
         self._profile_engine_check.clicked.connect(
             self._on_profile_engine_clicked)
 
-        self._gammap_mode_combo = NoScrollComboBox(self)
-        self._gammap_mode_combo.addItem(tr("Fast"), "fast")
-        self._gammap_mode_combo.addItem(tr("Bit-exact"), "argyll")
-        self._gammap_mode_combo.addItem(tr("Maximum accuracy"), "accurate")
-        self._gammap_mode_combo.setSizeAdjustPolicy(
+        # THE BLACK OPTION, shown only while the engine is switched on. It
+        # stands where the Fast / Bit-exact / Maximum accuracy picker stood
+        # until 2026-11-10: only Maximum accuracy remains, so there is
+        # nothing left to pick and the switch alone decides.
+        self._black_depth_combo = NoScrollComboBox(self)
+        self._black_depth_combo.addItem(tr("Neutral (recommended)"), "neutral")
+        self._black_depth_combo.addItem(tr("Deepest"), "deepest")
+        self._black_depth_combo.setSizeAdjustPolicy(
             NoScrollComboBox.SizeAdjustPolicy.AdjustToContents)
-        gammap_mode_tip = TooltipButton(
-            tr("Accuracy"),
-            tr("This chooses how much work the profile engine puts into "
-            "colour accuracy when it builds your profile. All three "
-            "choices read the same measurement, understand the same "
-            "options and give you a correct, ready-to-use profile for any "
-            "printer ChromIQ supports, including 6-ink and beyond.\n\n"
-            "  • Fast (built-in): ChromIQ's own, careful re-creation of "
-            "Argyll's gamut-mapping maths, running right inside the app. It "
-            "finishes in a few seconds and, in our testing, is visually "
-            "indistinguishable from the exact result. This is the best "
-            "choice for everyday use.\n\n"
-            "  • Bit-exact (Argyll's engine): gives you ArgyllCMS's real "
-            "colour rendering, not a re-creation of it:\n"
-            "       – For a normal RGB or CMYK printer, ChromIQ builds the "
-            "profile with ArgyllCMS colprof itself, so it is identical to "
-            "what Argyll would produce on its own.\n"
-            "       – For a 6-ink or larger printer (which Argyll's own "
-            "profiler cannot build at all), ChromIQ builds it with its "
-            "engine plus Argyll's actual gamut-mapping code (bundled with "
-            "the app), so the colour mapping is Argyll's real algorithm "
-            "there too.\n"
-            "     It takes a little longer: expect up to a minute or two, "
-            "and somewhat more for multi-ink printers.\n\n"
-            "  • Maximum accuracy: the bit-exact rendering plus everything "
-            "ChromIQ can do to squeeze the most out of your measurement:\n"
-            "       – the paper's white and black are averaged over "
-            "duplicate patches instead of trusting a single reading,\n"
-            "       – the model's smoothing is tuned by testing it against "
-            "held-back patches from your own chart,\n"
-            "       – patches that look like misreads are detected, "
-            "down-weighted and reported so you can remeasure them,\n"
-            "       – extra inks (orange, green, violet …) are anchored on "
-            "their measured colour instead of an assumed one,\n"
-            "       – colours the printer cannot reach lose saturation "
-            "instead of changing to a different colour family, and dark "
-            "shadows keep their depth when the total ink limit steps in.\n"
-            "     Expect the build to take several minutes longer, "
-            "especially at the higher quality settings.\n\n"
-            "Which should you pick? Fast for everyday work. Bit-exact when "
-            "you want Argyll's exact rendering. Maximum accuracy when the "
-            "last bit of measured accuracy matters more than build time, "
-            "for example fine-art printing on an expensive paper. Whatever "
-            "you choose, verify the profile with a test print before you "
-            "rely on it.\n\n"
-            "Building a profile is a one-time step per paper and printer, "
-            "so even the slowest choice only costs you those extra minutes "
-            "once."),
+        black_depth_tip = TooltipButton(
+            tr("Darkest black"),
+            tr("How dark the profile lets neutral shadows go. This applies "
+            "to the new profile engine only.\n\n"
+            "On many printers the darkest black is not quite neutral: the "
+            "very deepest black the printer can make has a slight colour "
+            "tint, and the darkest grey that is truly neutral is a little "
+            "lighter. This option decides which of the two the profile "
+            "aims for.\n\n"
+            "  • **Neutral (recommended):** shadows go down to the darkest "
+            "neutral grey. The darkest steps stay neutral and stay distinct "
+            "from each other, with or without black point compensation.\n\n"
+            "  • **Deepest:** shadows go all the way down to the printer's "
+            "own black. With Relative Colorimetric and black point "
+            "compensation switched on, this gives a clearly deeper black. "
+            "On our Epson ET-8550 test printer the darkest step went from "
+            "L* 7.3 to L* 5.2.\n\n"
+            "**What Deepest costs:** a slight colour tint in the darkest "
+            "tones. On the test printer this was a faint violet cast in the "
+            "very last step and a small yellowish step just above it.\n\n"
+            "**Important, please read:** use Deepest only when black point "
+            "compensation is switched ON in the program you print from (for "
+            "example Photoshop). Without black point compensation, Deepest "
+            "makes the darkest few steps print as the same black, so shadow "
+            "detail is lost there. On the test printer the four darkest "
+            "steps all came out at L* 4.4. ChromIQ cannot see that setting "
+            "in your other program, so this is yours to check. Absolute "
+            "Colorimetric never uses black point compensation, so for that "
+            "intent this always applies. With Neutral the steps stay "
+            "separate either way.\n\n"
+            "**What it changes, and what it does not:**\n\n"
+            "  • Only the Relative Colorimetric and Absolute Colorimetric "
+            "intents change. Perceptual and Saturation are exactly the same "
+            "with both choices.\n\n"
+            "  • Only RGB printers with a tinted black are affected, which "
+            "means the darkest neutral grey is at least 1.5 L* lighter than "
+            "the printer's own black. On a printer with a nearly neutral "
+            "black, and on every CMYK and CMY printer, both choices give "
+            "the identical profile.\n\n"
+            "After a build with Deepest, the build log tells you your "
+            "printer's black and its darkest neutral grey as L*a*b* values, "
+            "and whether anything was changed.\n\n"
+            "**Default:** Neutral."),
             self,
             min_width=680,
         )
-        self._gammap_mode_cell = gammap_mode_cell = QWidget(self)
-        _gm_row = QHBoxLayout(gammap_mode_cell)
-        _gm_row.setContentsMargins(0, 0, 0, 0)
-        _gm_row.addWidget(QLabel(tr("Accuracy"), self))
-        _gm_row.addWidget(self._gammap_mode_combo)
-        _gm_row.addStretch()
-        _gm_row.addWidget(gammap_mode_tip)
-        # Gamut mapping only applies to the profile engine, so the picker is
-        # shown only while the engine is enabled.
+        # kept by name for the tests and the on-screen drivers
+        self._engine_tip = engine_tip
+        self._black_depth_tip = black_depth_tip
+        self._black_depth_cell = black_depth_cell = QWidget(self)
+        _bd_row = QHBoxLayout(black_depth_cell)
+        _bd_row.setContentsMargins(0, 0, 0, 0)
+        _bd_row.addWidget(QLabel(tr("Darkest black:"), self))
+        _bd_row.addWidget(self._black_depth_combo)
+        _bd_row.addStretch()
+        _bd_row.addWidget(black_depth_tip)
         self._profile_engine_check.toggled.connect(
-            self._gammap_mode_cell.setVisible)
+            self._black_depth_cell.setVisible)
 
         # Both live on their own "Beta features" tab.
         self._beta_page = QWidget(self)
@@ -3405,7 +3413,7 @@ class SettingsDialog(QDialog):
         _eng_row.addStretch()
         _eng_row.addWidget(engine_tip)
         _beta.addLayout(_eng_row)
-        _beta.addWidget(self._gammap_mode_cell)
+        _beta.addWidget(self._black_depth_cell)
 
         # Hexagonal charts in the scanner / camera tools (opt-in).
         self._scanner_hex_check = QCheckBox(
@@ -4510,50 +4518,29 @@ class SettingsDialog(QDialog):
         box.setWindowTitle(tr("ChromIQ Profile Engine (beta)"))
         box.setIcon(QMessageBox.Icon.NoIcon)   # no exclamation mark
         box.setText(tr(
-            "Great choice — you're switching on the ChromIQ profile "
-            "engine. Here's exactly what that does, in plain terms, so "
-            "there are no surprises.\n\n"
-            "The short version: from now on, when you click Build Profile, "
-            "ChromIQ builds the ICC profile itself instead of handing the "
-            "job to Argyll colprof. Everything else stays where it is — "
-            "the same tab, the same buttons, the same options. You don't "
-            "have to change how you work.\n\n"
-            "The big new thing this unlocks:\n\n"
-            "•  Printers with extra inks. colprof can only build profiles "
-            "for RGB and CMYK printers. If your printer adds orange, "
-            "green, violet or other inks on top of CMYK, colprof simply "
-            "can't make a profile for it — but the ChromIQ engine can. "
-            "Print one of the multi-ink charts from Create Chart, measure "
-            "it, and build a real, working profile for that printer, all "
-            "without leaving ChromIQ.\n\n"
-            "What stays exactly the same:\n\n"
-            "•  Every option on the Build Profile tab still works — the "
-            "quality levels, the gamut source, the rendering intents, "
-            "spectral illuminants and observers, paper-whitener "
-            "compensation, the ICC attributes and all the expert "
-            "switches. Nothing is taken away.\n\n"
-            "•  The colours match colprof. The engine's perceptual "
-            "rendering is ChromIQ's own careful port of Argyll's "
-            "gamut-mapping maths, and on our test charts the two build "
-            "profiles that measure so close you shouldn't be able to tell "
-            "them apart in a print.\n\n"
-            "•  Your measurements are never touched. If a particular build "
-            "needs something only colprof has, ChromIQ quietly lets "
-            "colprof handle that one and writes the reason in the log — "
-            "you don't have to do anything.\n\n"
-            "•  You're always one click from going back. Switch this "
-            "option off and ChromIQ returns to building every profile "
-            "with colprof, exactly as before.\n\n"
-            "Please read this part carefully: this engine is new and "
-            "still in beta. It has NOT been extensively tested yet, so "
-            "use it at your own risk. Treat every profile it makes as a "
-            "trial run — always check it with a test print before you "
-            "rely on it for anything that matters, and never use it "
-            "unchecked for an important or paid job. If anything looks "
-            "off, turn the option back off (colprof comes straight back) "
-            "and tell us what you saw; every report genuinely helps make "
-            "it better.\n\n"
-            "Enable it at your own risk and give it a try?"))
+            "You are switching on the new ChromIQ profile engine. Here is "
+            "what that means, in plain words.\n\n"
+            "From now on, Build Profile builds your profile with the new "
+            "engine instead of ArgyllCMS colprof. The tab, the buttons and "
+            "the options stay as they are.\n\n"
+            "•  It aims at a more precise profile from the same "
+            "measurement, and it can build profiles for printers with extra "
+            "inks, which colprof cannot.\n\n"
+            "•  A build takes longer: roughly two to three minutes for an "
+            "RGB printer, four to six minutes for a CMYK printer, and more "
+            "for extra inks or the higher quality settings.\n\n"
+            "•  The profile colprof builds from the same measurement is "
+            "saved beside the new one as “colprof-comparison.icc”, so you "
+            "can compare the two or go back.\n\n"
+            "•  You can switch this off again at any time. ChromIQ then "
+            "builds every profile with colprof, exactly as before.\n\n"
+            "Please read this part carefully: the engine is a beta. It did "
+            "well in our tests, but no print has been compared on paper "
+            "yet. Check every profile it makes with a test print before you "
+            "rely on it, and do not use one unchecked for an important or "
+            "paid job. If something looks wrong, switch the option off and "
+            "tell us what you saw. Every report helps.\n\n"
+            "Would you like to switch it on?"))
         box.setStandardButtons(QMessageBox.StandardButton.Ok
                                | QMessageBox.StandardButton.Cancel)
         ok_btn = box.button(QMessageBox.StandardButton.Ok)
@@ -6304,11 +6291,11 @@ class SettingsDialog(QDialog):
         self._declutter_check.setChecked(bool(s.get("declutter_on_load", True)))
         self._splash_check.setChecked(bool(s.get("show_splash", True)))
         self._profile_engine_check.setChecked(bool(s.get("profile_engine_beta", False)))
-        self._gammap_mode_combo.setCurrentIndex(
-            max(0, self._gammap_mode_combo.findData(
-                str(s.get("gammap_mode", "fast")))))
+        from workflow.engine_builder import black_depth_setting
+        self._black_depth_combo.setCurrentIndex(
+            max(0, self._black_depth_combo.findData(black_depth_setting(s))))
         # A no-change setChecked above may not emit toggled, so sync explicitly.
-        self._gammap_mode_cell.setVisible(
+        self._black_depth_cell.setVisible(
             self._profile_engine_check.isChecked())
         self._chartread_engine_check.setChecked(
             str(s.get("chartread_engine", "argyll")) == "chromiq")
@@ -7763,7 +7750,8 @@ class SettingsDialog(QDialog):
         s.set("declutter_on_load",         self._declutter_check.isChecked())
         s.set("show_splash",               self._splash_check.isChecked())
         s.set("profile_engine_beta",       self._profile_engine_check.isChecked())
-        s.set("gammap_mode",               self._gammap_mode_combo.currentData())
+        s.set("profile_engine_black_depth",
+              self._black_depth_combo.currentData() or "neutral")
         s.set("chartread_engine",
               "chromiq" if self._chartread_engine_check.isChecked() else "argyll")
         s.set("engine_all_modes", self._engine_all_modes_check.isChecked())

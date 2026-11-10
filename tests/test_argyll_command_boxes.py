@@ -156,10 +156,9 @@ def test_the_engine_build_shows_no_colprof_command(qapp, tmp_path,
                                                    monkeypatch):
     """The ChromIQ engine builds the profile itself; a colprof line would be
     a record of a command nobody ran."""
-    import ui.tabs.tab_profile as tp
-    monkeypatch.setattr(tp, "engine_support", lambda _p: (True, ""))
-    tab, _calls = _tab(tmp_path, monkeypatch, profile_engine_beta=True,
-                       gammap_mode="fast")
+    import workflow.engine_builder as eb
+    monkeypatch.setattr(eb, "engine_support", lambda _p: (True, ""))
+    tab, _calls = _tab(tmp_path, monkeypatch, profile_engine_beta=True)
     tab.set_ti3_path(_measurement(tmp_path))
     tab.refresh_argyll_commands(every=True)
     text = tab._guided_cmd_box.text()
@@ -168,14 +167,20 @@ def test_the_engine_build_shows_no_colprof_command(qapp, tmp_path,
     tab.deleteLater()
 
 
-def test_bit_exact_still_shows_colprof(qapp, tmp_path, monkeypatch):
-    tab, calls = _tab(tmp_path, monkeypatch, profile_engine_beta=True,
-                      gammap_mode="argyll")
+def test_a_leftover_bit_exact_choice_no_longer_shows_colprof(
+        qapp, tmp_path, monkeypatch):
+    """The Fast / Bit-exact / Maximum accuracy picker is gone (2026-11-10):
+    with the switch on the engine builds, whatever an old store still says,
+    and the box shows the builder that will really run."""
+    import workflow.engine_builder as eb
+    monkeypatch.setattr(eb, "engine_support", lambda _p: (True, ""))
+    tab, _calls = _tab(tmp_path, monkeypatch, profile_engine_beta=True,
+                       gammap_mode="argyll")
     tab.set_ti3_path(_measurement(tmp_path))
     tab.refresh_argyll_commands(every=True)
-    shown = _command_lines(tab._guided_cmd_box.text(), "colprof")
-    _press_build(tab, monkeypatch)
-    assert shown == [["colprof"] + calls[0][1]]
+    text = tab._guided_cmd_box.text()
+    assert not _command_lines(text, "colprof")
+    assert "ChromIQ profile engine" in text
     tab.deleteLater()
 
 

@@ -9418,6 +9418,38 @@ M_GESTURE_STATUS = _m(
     approved=False)
 
 
+# --- PROPOSED: the new profile engine (Preferences > Beta), 2026-11-10 -----
+#: Shown when a build with the new profile engine went to colprof because
+#: colprof could not give the engine its reference rendering: as an [INFO]
+#: line in the Build Profile log when it happens, and as a window when that
+#: build has ended. {reason} is what the colprof run reported.
+M_BUILD_ENGINE_FALLBACK = _m(
+    "M-BUILD-ENGINE-FALLBACK",
+    "Built with ArgyllCMS colprof instead of the new profile engine",
+    "The new profile engine could not be used for this build.\n\n"
+    "The engine runs ArgyllCMS colprof once in the background to learn the "
+    "colour rendering it has to match, and this time that run did not "
+    "succeed:\n{reason}\n\n"
+    "Without it the engine would have to guess, so ChromIQ does not let it. "
+    "ChromIQ builds this profile with ArgyllCMS colprof instead, exactly as "
+    "it does with the new profile engine switched off. Your measurement is "
+    "untouched, and you do not have to do anything now.\n\n"
+    "If you see this every time you build a profile, please check the "
+    "ArgyllCMS folder in Preferences.",
+    approved=False)
+#: Asked when the app is closed while the new profile engine is building.
+M_QUIT_DURING_BUILD = _m(
+    "M-QUIT-DURING-BUILD",
+    "A profile is still being built",
+    "ChromIQ is still building a profile. If you quit now, the build stops "
+    "and the profile it was making is not saved.\n\n"
+    "Your measurement is not affected, and you can build the profile again "
+    "at any time. If this run already had a profile, you find it in the "
+    "run's “old” folder.\n\n"
+    "Would you like to keep building, or quit anyway?",
+    approved=False)
+
+
 CATALOGUE = {m.id: m for m in (
     M_IMPORT_CXF_CONDITION, M_IMPORT_CXF_CONDITION_PARTS,
     M_CONVERT_CXF_CONDITION_ABSENT, M_CONVERT_CXF_SPECTRUM_NOT_A_NUMBER,
@@ -9528,6 +9560,7 @@ CATALOGUE = {m.id: m for m in (
     M_CHART_PATTERN_REFUSED, M_CHART_LOCATIONS_UNREADABLE,
     M_CHART_LEGACY_STOCK, M_CHART_LEGACY_ENDED,
     M_AUTOSAVE_NOT_SAVED,
+    M_BUILD_ENGINE_FALLBACK, M_QUIT_DURING_BUILD,
     M_AUTOSAVE_RETRYING,
     M_PATCHSET_MISSING,
     M_CHART_ENGINE_FAILED, M_CHART_ENGINE_REDRAW_FAILED,

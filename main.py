@@ -25,6 +25,14 @@ from core.logger import configure_logging, get_logger
 configure_logging()
 log = get_logger("chromiq")
 
+# A PACKAGED APP IGNORES THE PROFILE ENGINE'S DEVELOPMENT VARIABLES, before
+# anything can import the engine (some are read at import). A variable left
+# over on a tester's machine would otherwise change a profile with no visible
+# sign. From source nothing is touched. See core/engine_env.py.
+from core.engine_env import ignore_engine_overrides_when_frozen  # noqa: E402
+
+ignore_engine_overrides_when_frozen()
+
 # CHROMIQ_SELFTEST=1: the release build's check of the built app (Intel half
 # under Rosetta included); prints one line and exits. Unset, nothing happens.
 from core.selftest import run_if_asked  # noqa: E402
