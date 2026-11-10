@@ -149,6 +149,15 @@ collection appears to hang for many minutes. Anything far beyond the times
 above means something is wrong (a test opening a modal dialog `.exec()`, or
 `.venv` being scanned again), not just "slow tests".
 
+**INSIDE THE SUITE A PROFILE-ENGINE BUILD USES ONE THREAD.** A Maximum
+accuracy build uses up to 8 threads by default
+(`workflow/profile_engine/parallel.py`). With 12 gate workers that was 96
+threads on 16 cores: the first gate with the int-12 engine (2026-11-10) took
+28 minutes and timed an unrelated 15-minute subprocess out
+(`make_preset_certificates.py --check`). `tests/conftest.py::pytest_configure`
+sets `CHROMIQ_ENGINE_THREADS=1` as a default; the profile's bytes do not
+depend on the count, and a test that needs another count sets it itself.
+
 **Run the gate in parallel — it is the difference between 2.5 minutes and 19.**
 `--dist loadfile` keeps each file on one worker, which the session-scoped
 fixtures need. Parallel was avoided because a run once hung for 2.5 h; that was

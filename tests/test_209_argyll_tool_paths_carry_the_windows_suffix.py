@@ -384,6 +384,10 @@ def _offences(tree: ast.AST) -> list[tuple[int, str]]:
 _NOT_A_TOOL = {
     # a folder beside bin/, not a program in it
     ("ui/gamut_panel.py", "Path(argyll_bin).parent / 'ref'"),
+    # arithmetic, not a path: a finite-difference quotient with step h; the
+    # scan reads "argyll" in the function name lab_to_argyll_jab
+    ("workflow/profile_engine/oog_clip.py",
+     "(lab_to_argyll_jab(d) - f0) / h"),
 }
 
 

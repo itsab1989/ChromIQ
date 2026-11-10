@@ -95,8 +95,40 @@ def test_nothing_is_collected_while_no_dialog_closes(qapp, no_due_collection):
     assert 2 not in seen, seen
 
 
-def test_the_rule_holds_no_reference_to_what_it_watches(qapp):
+def _the_collector_holds(obj) -> list:
+    """Whatever of the collector's own state refers to *obj*."""
     from core import gc_guard
+    own = [gc_guard._COLLECTOR, vars(gc_guard._COLLECTOR),
+           *vars(gc_guard._COLLECTOR).values()]
+    return [r for r in gc.get_referrers(obj) if any(r is o for o in own)]
+
+
+def _close_a_watched_dialog_and_wait(qapp):
+    """Show a dialog, let the rule see it, close it, and wait for it to go.
+    Returns ``(weakref, what the collector held right after the close)``.
+
+    WHY THIS WAITS FOR THE EVENT LOOP AND NOT FOR A SPAN OF TIME. The cause
+    of this test's reds in a full gate, found 2026-11-10: the dialog has no
+    cycle, so it dies at ``del`` unless somebody else holds it, and somebody
+    does whenever an earlier test file on the same worker left the app's
+    ``DialogFocusFilter`` (alone or in ``CompositeAppFilter``) on the shared
+    QApplication. On every dialog shown it queues ``QTimer.singleShot``
+    closures that capture the window (``ui.widgets.defer_freeze_default`` at
+    0 and 160 ms, ``defer_clear_button_focus`` at 0, 40 and 150 ms), and each
+    holds the dialog until it has fired. This used to pump for 0.3 s and
+    collect once. On a loaded worker with a large heap the collector's own
+    tick (it sees the dialog close and runs a full ``gc.collect()``) outlasts
+    that 0.3 s inside one ``processEvents`` call, Qt does not fire a timer
+    that came due during the pass, the pump ends, and the 160 ms closure is
+    still pending: red, with nothing wrong, and green alone, where no test
+    has installed the filter. Reproduced 14 times in 20 with the filter and
+    a 0.25 s collection, never without.
+
+    So: the rule's own state is looked at directly, at once, and then the
+    event loop is run until the queued closures have fired and let go. A
+    real reference never goes, and 5 s is thirty times the longest timer."""
+    from core import gc_guard
+    from PyQt6.QtCore import QCoreApplication, QEvent
     from PyQt6.QtWidgets import QDialog
     dlg = QDialog()
     dlg.show()
@@ -104,12 +136,8 @@ def test_the_rule_holds_no_reference_to_what_it_watches(qapp):
     ref = weakref.ref(dlg)
     dlg.close()
     dlg.deleteLater()
+    held = _the_collector_holds(dlg)
     del dlg
-    # What is asserted is that NOTHING keeps the dialog, not how fast a loaded
-    # machine gets round to it: the GitHub runners (macOS and Linux) still
-    # held it after the 0.3 s this used to allow, and pass alone. So pump
-    # and collect until it is gone, for up to 5 s; a real reference never goes.
-    from PyQt6.QtCore import QCoreApplication, QEvent
     end = time.monotonic() + 5.0
     while True:
         _pump(qapp, 0.1)
@@ -117,4 +145,44 @@ def test_the_rule_holds_no_reference_to_what_it_watches(qapp):
         gc.collect()
         if ref() is None or time.monotonic() > end:
             break
+    return ref, held
+
+
+def test_the_rule_holds_no_reference_to_what_it_watches(qapp):
+    ref, held = _close_a_watched_dialog_and_wait(qapp)
+    assert held == [], "the collector itself refers to the dialog"
+    assert ref() is None
+
+
+def test_it_holds_none_behind_the_focus_filter_and_a_slow_collection(
+        qapp, monkeypatch):
+    """The case that was red in the gate, made on purpose: the app's focus
+    filter on the application (its timers hold every shown dialog for
+    160 ms) and a collector tick whose full collection takes longer than the
+    old 0.3 s wait had left."""
+    import types
+
+    from core import gc_guard
+    from ui.widgets import DialogFocusFilter
+    slow = []
+
+    def collect(*args):
+        if not args:                    # the tick's full collection
+            slow.append(1)
+            time.sleep(0.25)
+        return gc.collect(*args)
+
+    names = {k: getattr(gc, k) for k in dir(gc) if not k.startswith("__")}
+    monkeypatch.setattr(gc_guard, "gc",
+                        types.SimpleNamespace(**{**names, "collect": collect}))
+    flt = DialogFocusFilter(qapp)
+    qapp.installEventFilter(flt)
+    try:
+        ref, held = _close_a_watched_dialog_and_wait(qapp)
+    finally:
+        qapp.removeEventFilter(flt)
+        flt.setParent(None)
+        flt.deleteLater()
+    assert slow, "the tick never ran its full collection on the closed dialog"
+    assert held == [], "the collector itself refers to the dialog"
     assert ref() is None

@@ -353,12 +353,6 @@ class _EngineThread(QThread):
             "Model fit at the measured patches: median {med:.2f} ΔE, "
             "95% {p95:.2f} ΔE.").format(med=res.fit_median_de,
                                         p95=res.fit_p95_de))
-        # colprof's fit-check line, verbatim in shape: the scanner tool's
-        # misalignment verdict (#108) is built on it, and it now builds
-        # printer profiles through this engine as well.
-        self.line.emit(f"Profile check complete, peak err = "
-                       f"{res.fit_max_de:.6f}, avg err = "
-                       f"{res.fit_mean_de:.6f}")
         if res.perceptual_distinct:
             self.line.emit(tr(
                 "Perceptual and saturation tables built from the gamut "

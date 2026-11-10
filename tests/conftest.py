@@ -2115,6 +2115,14 @@ def pytest_configure(config):
     # ...and none may play a stream into its real sound devices (N2,
     # core/audio_keepalive.py): a measurement armed with the warm-up on would.
     os.environ["CHROMIQ_NO_AUDIO_KEEPALIVE"] = "1"
+    # ONE ENGINE THREAD PER BUILD INSIDE THE SUITE. A Maximum accuracy build
+    # uses up to 8 threads by default (workflow/profile_engine/parallel.py),
+    # and the gate already runs 12 workers: the first gate with the int-12
+    # engine put 12 x 8 threads on 16 cores, took 28 minutes and timed an
+    # unrelated 15-minute subprocess out (2026-11-10). The profile's bytes do
+    # not depend on the count (tests/test_engine_a92_speed.py proves that with
+    # its own explicit counts, which win over this default).
+    os.environ.setdefault("CHROMIQ_ENGINE_THREADS", "1")
     _enter_the_run_temp(config)
     _enforce_the_helper(config)
     # as main() does: every Argyll tool and helper a test starts skips the
