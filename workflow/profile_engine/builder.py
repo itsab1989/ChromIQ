@@ -1131,6 +1131,12 @@ class _PercentProgress:
             self._inner(f"{head} · {msg}")
 
 
+import threading as _threading
+
+#: Held for the whole of a build: see build_profile.
+_BUILD_LOCK = _threading.Lock()
+
+
 def build_profile(ti3_path: Path | str, out_path: Path | str,
                   settings: BuildSettings | None = None) -> BuildResult:
     """Build an ICC printer profile from a measured chart.
@@ -1139,21 +1145,35 @@ def build_profile(ti3_path: Path | str, out_path: Path | str,
     percentage; the original callback is restored afterwards.
     """
     settings = settings or BuildSettings()
-    orig_progress = settings.progress
-    settings.progress = _PercentProgress(orig_progress)
-    started: list = []          # Argyll runs started ahead of need (D-06)
-    from workflow.profile_engine import parallel
-    scope = parallel.accurate_scope() if settings.gammap_mode == "accurate" \
-        else contextlib.nullcontext()
-    try:
-        with scope, parallel.worker_budget(int(settings.engine_workers or 0)):
-            return _build_profile_impl(ti3_path, out_path, settings, started)
-    finally:
-        settings.progress = orig_progress
-        from workflow.profile_engine import b2a as _b2a
-        _b2a.set_research_tokens((), is_additive=None)
-        for run in started:
-            run.close()
+    # ONE BUILD AT A TIME IN A PROCESS (expert review 2026-11-10). A build
+    # sets its switches in module-level state that every table of the build
+    # reads (b2a.set_research_tokens: oog_clip.PARAMS, b2a.REFIT_ANCHOR,
+    # LIGHT_CLOUD, forward_model.SHAPER_FLOOR; gpsel.A84_KEEP_CLUSTERS) and
+    # clears it when it ends. A second build started on another thread while
+    # the first runs would rewrite those switches under it (an RGB build
+    # switching a CMYK build's clip metric, or the first build's end
+    # clearing the second's switches), with no error and a different
+    # profile. The app starts one build at a time; this makes it a property
+    # of the engine instead of every caller's duty. The second build waits.
+    with _BUILD_LOCK:
+        orig_progress = settings.progress
+        settings.progress = _PercentProgress(orig_progress)
+        started: list = []      # Argyll runs started ahead of need (D-06)
+        from workflow.profile_engine import parallel
+        scope = parallel.accurate_scope() \
+            if settings.gammap_mode == "accurate" \
+            else contextlib.nullcontext()
+        try:
+            with scope, parallel.worker_budget(
+                    int(settings.engine_workers or 0)):
+                return _build_profile_impl(ti3_path, out_path, settings,
+                                           started)
+        finally:
+            settings.progress = orig_progress
+            from workflow.profile_engine import b2a as _b2a
+            _b2a.set_research_tokens((), is_additive=None)
+            for run in started:
+                run.close()
 
 
 def _will_use_colprof_oracle(meas: Ti3Measurement,

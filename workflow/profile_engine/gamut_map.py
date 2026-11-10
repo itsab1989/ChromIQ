@@ -537,12 +537,39 @@ _ORACLE_CACHE: dict[tuple, dict] = {}
 _ORACLE_CACHE_MAX = 4
 
 
+def _file_identity(path) -> tuple:
+    """(resolved path, mtime, size) of a file, or the bare text when it
+    cannot be read: what tells two files, or two states of one, apart."""
+    try:
+        p = Path(path)
+        st = p.stat()
+        return (str(p.resolve()), st.st_mtime_ns, st.st_size)
+    except (OSError, TypeError, ValueError):
+        return (str(path), None, None)
+
+
 def _oracle_cache_key(meas: Ti3Measurement, source_gamut, settings,
-                      node_lab: np.ndarray | None) -> tuple | None:
+                      node_lab: np.ndarray | None,
+                      argyll_bin=None) -> tuple | None:
     try:
         st = Path(meas.path).stat()
     except OSError:
         return None
+    # Expert review 2026-11-10: three things reached the oracle without
+    # being in its key. (1) WHICH colprof ran: after the ArgyllCMS folder
+    # is changed in Preferences (another version, or a repaired install)
+    # a rebuild of the same measurement in the same session reused the
+    # rendering of the colprof that is no longer selected. (2) The gamut
+    # source FILE: only its path was keyed, so a profile replaced under the
+    # same name kept the old rendering. (3) Whether the oracle profile's
+    # bytes were kept (a86-knutdark reads them): a result cached without
+    # them silently switched that token off for the next build.
+    bin_dir = Path(argyll_bin) if argyll_bin else Path(
+        getattr(settings, "argyll_bin", None) or "/Applications/Argyll/bin")
+    tools = tuple(_file_identity(argyll_tool_path(bin_dir, name))
+                  for name in ("colprof", "xicclu"))
+    keeps_icc = A86_TOKEN in (getattr(settings, "engine_candidates", None)
+                              or ())
     node_key = None if node_lab is None else (
         node_lab.shape[0], round(float(node_lab.sum()), 3))
     # Keyed on the oracle's own command line (Integration 3, Agent 10b
@@ -554,7 +581,7 @@ def _oracle_cache_key(meas: Ti3Measurement, source_gamut, settings,
     return (str(meas.path), st.st_mtime_ns, st.st_size,
             tuple(_oracle_args(Path("colprof"), settings, source_gamut,
                                meas)),
-            node_key)
+            node_key, tools, _file_identity(source_gamut), keeps_icc)
 
 
 def _oracle_args(colprof: Path, settings, source_gamut,
@@ -693,7 +720,8 @@ def start_colprof_oracle(meas: Ti3Measurement, source_gamut, settings,
         return None
     if meas.device_rep not in ("RGB", "CMY", "CMYK"):
         return None
-    key = _oracle_cache_key(meas, source_gamut, settings, node_lab)
+    key = _oracle_cache_key(meas, source_gamut, settings, node_lab,
+                            argyll_bin)
     if key is None or key in _ORACLE_CACHE:
         return None
     return OracleRun(key, _oracle_args(colprof, settings, source_gamut,
@@ -734,7 +762,8 @@ def fit_colprof_mappers(meas: Ti3Measurement, source_gamut: Path | str,
         raise OracleUnavailable(
             f"colprof can't build {meas.device_rep} measurements")
 
-    cache_key = _oracle_cache_key(meas, source_gamut, settings, node_lab)
+    cache_key = _oracle_cache_key(meas, source_gamut, settings, node_lab,
+                                  argyll_bin)
     if cache_key is not None and cache_key in _ORACLE_CACHE:
         if progress:
             progress("Saturation table: reusing the colprof rendering "
