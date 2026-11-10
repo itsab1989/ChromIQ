@@ -320,7 +320,12 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # default. Since integration 12 a88-black-deepest is the build option
      # BuildSettings.black_depth = "deepest" (BLACK_DEPTH_TOKENS);
      # a88-black-balanced stays research only
-     "a88-black-balanced", "a88-black-deepest"})
+     "a88-black-balanced", "a88-black-deepest",
+     # Expert review 2026-11-10/11 (candidate m-smooth-hue): the optional
+     # hue-kept rendering of the RGB Perceptual / Saturation tables
+     # (hue_keep.py); off by default, the build option
+     # BuildSettings.hue_rendering = "kept" (HUE_RENDERING_TOKENS)
+     "x1-huekeep", "no-x1-huekeep"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -601,6 +606,29 @@ def black_depth_token(black_depth) -> str | None:
     return BLACK_DEPTH_TOKENS[key]
 
 
+# Expert review 2026-11-10/11: the hue-rendering build option, shaped like
+# the black-depth option above. BuildSettings.hue_rendering picks one; the
+# token it maps to is added by effective_engine_candidates() for Maximum
+# accuracy builds only. "argyll" = no token = the Perceptual and Saturation
+# tables as before (ArgyllCMS colprof's rendering, hue drift included);
+# "kept" = x1-huekeep (hue_keep.py): those two tables re-solved so that a
+# colour keeps the hue of its source. RGB printers only; on every other
+# device the token does nothing. Colorimetric and all A2B tables never
+# change. "no-x1-huekeep" switches it off again.
+HUE_RENDERING_TOKENS = {"argyll": None, "kept": "x1-huekeep"}
+
+
+def hue_rendering_token(hue_rendering) -> str | None:
+    """The engine token for a BuildSettings.hue_rendering value ("" or None
+    count as "argyll"); ValueError for anything else."""
+    key = (hue_rendering or "argyll").strip().lower()
+    if key not in HUE_RENDERING_TOKENS:
+        raise ValueError(f"hue_rendering must be one of "
+                         f"{sorted(HUE_RENDERING_TOKENS)}, "
+                         f"not {hue_rendering!r}")
+    return HUE_RENDERING_TOKENS[key]
+
+
 def scope_device_tokens(candidates, *, n: int, is_additive: bool) -> frozenset:
     """Integration 9: with "a72-cmyonly" in the set, INT9_CMY_TOKENS act on
     a 3-channel ink device (CMY) only; with "a72-max4ink", INT9_MAX4_TOKENS
@@ -733,6 +761,10 @@ def effective_engine_candidates(settings) -> frozenset:
     bt = black_depth_token(getattr(settings, "black_depth", "neutral"))
     if bt is not None:
         raw = raw | {bt}
+    # The hue-rendering option (HUE_RENDERING_TOKENS)
+    ht = hue_rendering_token(getattr(settings, "hue_rendering", "argyll"))
+    if ht is not None:
+        raw = raw | {ht}
     return accurate_candidates(raw) | {t for t in raw if t.startswith("no-")}
 
 
@@ -903,6 +935,14 @@ class BuildSettings:
     # identical to "neutral" on a printer with a near-neutral black. See
     # BLACK_DEPTH_TOKENS. Ignored by Fast / Bit-exact.
     black_depth: str = "neutral"
+    # Expert review 2026-11-10/11: the hue of the Perceptual and Saturation
+    # tables, Maximum accuracy and RGB printers only. "argyll" (default) =
+    # ArgyllCMS colprof's rendering as before; "kept" = a colour keeps the
+    # hue of its source (x1-huekeep, hue_keep.py; a little less chroma, the
+    # neutral axis and the Colorimetric and A2B tables unchanged). Does
+    # nothing on ink devices. See HUE_RENDERING_TOKENS. Ignored by Fast /
+    # Bit-exact.
+    hue_rendering: str = "argyll"
     progress: Callable[[str], None] | None = None
     # Gamut-mapping engine for the perceptual/saturation B2A tables:
     #   "fast"     — ChromIQ's built-in Python mapper (colprof's algorithm,

@@ -1690,6 +1690,24 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                 progress("Perceptual neutral column (a80-perccol): "
                          "colprof's separation kept.")
 
+    # Optional hue-kept rendering (BuildSettings.hue_rendering = "kept",
+    # token x1-huekeep; hue_keep.py): Maximum accuracy, RGB printers, Lab
+    # PCS. Everywhere else the token does nothing and says so once.
+    from workflow.profile_engine import hue_keep
+    _huekeep = False
+    if accurate and model is not None and hue_keep.TOKEN in getattr(
+            settings, "engine_candidates", frozenset()):
+        if not hue_keep.applies(settings.engine_candidates, accurate=True,
+                                is_additive=is_additive,
+                                n_channels=model.n_channels):
+            if progress:
+                progress(hue_keep.NOT_RGB_LINE)
+        elif codec.signature != b"Lab ":
+            if progress:
+                progress(hue_keep.NOT_LAB_LINE)
+        else:
+            _huekeep = True
+
     def _map_and_invert(tag: str):
         """One intent's table: map the node targets, invert them. Each
         intent reads only its own mapper and the (unchanged) model, so the
@@ -2031,12 +2049,21 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
             shaped = b2a_mod.pin_black_node(shaped, node_lab, dev_b)
         if _a42_space is not None and not no_out_shaper:
             shaped = b2a_mod.reexpress(shaped, model.curves, _a42_space)
+        _out_tables = (np.tile(icw._identity_table(entries),
+                               (model.n_channels, 1)) if no_out_shaper
+                       else icw.curves_to_tables(inv_curves, entries))
+        if _huekeep:
+            # Optional hue-kept rendering (hue_keep.py): the finished table
+            # re-solved as one smooth field with the source hue kept. Each
+            # intent's solve reads only its own table and the model.
+            shaped, _hk = hue_keep.keep_source_hue(
+                model, shaped, node_lab, grid=grid, out_tables=_out_tables)
+            if progress is not None and _hk.get("applied"):
+                progress(hue_keep.progress_line(tag, _hk))
         out[tag] = icw.make_mft2(
             3, model.n_channels, grid, icw.device_to_u16(shaped),
             in_tables=codec.b2a_in_tables(entries),
-            out_tables=(np.tile(icw._identity_table(entries),
-                                (model.n_channels, 1)) if no_out_shaper
-                        else icw.curves_to_tables(inv_curves, entries)))
+            out_tables=_out_tables)
         if (accurate and tag == "B2A0" and A80_ORACLECURVE in getattr(
                 settings, "engine_candidates", frozenset())
                 and getattr(mapper, "oracle_out", None) is not None):
