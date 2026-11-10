@@ -124,6 +124,7 @@ AWAITING_APPROVAL: "set[str]" = {
     # file as the reference, and refuses one of another chart or with no
     # colour values (found driving 4.3.29 on screen, 2026-11-11), 4.3.30.
     "M-VERIFY-REFERENCE-MISMATCH", "M-VERIFY-REFERENCE-UNUSABLE",
+    "M-VERIFY-REFERENCE-CHART",
     # The reason a measurement whose colours do not follow the chart is
     # refused, translated and with the way out for a patch list another
     # program reordered (jctay, printerknowledge forum), 4.3.26.

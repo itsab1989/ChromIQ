@@ -213,10 +213,7 @@ from workflow.colverify_runner import (
     write_reference_ti3,
     write_reference_with_ids,
 )
-from workflow.measurement_messages import (
-    M_VERIFY_REFERENCE_MISMATCH,
-    M_VERIFY_REFERENCE_UNUSABLE,
-)
+from workflow.measurement_messages import M_VERIFY_REFERENCE_UNUSABLE
 from ui.dialogs.drift_plot_dialog import DriftPlotDialog, webengine_available
 from workflow.i1profiler_export import (
     WorkflowOptions, export_from_ti1, parse_ti1, write_pwxf,
@@ -1937,7 +1934,9 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
         self._cleanup_temp()
         super().closeEvent(event)
 
-    def _file_row(self, on_browse: "Callable[[], None]") -> tuple[QHBoxLayout, QLineEdit]:
+    def _file_row(self, on_browse: "Callable[[], None]",
+                  on_clear: "Callable[[], None] | None" = None
+                  ) -> tuple[QHBoxLayout, QLineEdit]:
         row = QHBoxLayout()
         field = QLineEdit(self)
         field.setReadOnly(True)
@@ -1946,6 +1945,13 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
         btn = QPushButton(tr("Browse…"), self)
         btn.clicked.connect(on_browse)
         row.addWidget(btn)
+        if on_clear is not None:
+            # The optional files could not be let go of once chosen; a chart
+            # definition of the wrong chart then blocked every check
+            # (M-VERIFY-REFERENCE-CHART, review of 2dd09fc23, 4.3.30).
+            clear = QPushButton(tr("Clear"), self)
+            clear.clicked.connect(on_clear)
+            row.addWidget(clear)
         return row, field
 
     def _build_inputs(self) -> None:
@@ -1997,7 +2003,8 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
         self._content.addWidget(
             QLabel(tr("Chart definition (.ti1 / .ti2) — optional, cross-checks patch count:"), self)
         )
-        row, self._chart_field = self._file_row(self._pick_chart)
+        row, self._chart_field = self._file_row(self._pick_chart,
+                                                self._clear_chart)
         self._content.addLayout(row)
 
         prof_row = QHBoxLayout()
@@ -2025,7 +2032,8 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
         )
         prof_row.addStretch(1)
         self._content.addLayout(prof_row)
-        row, self._profile_field = self._file_row(self._pick_profile)
+        row, self._profile_field = self._file_row(self._pick_profile,
+                                                  self._clear_profile)
         self._content.addLayout(row)
 
         opts = QHBoxLayout()
@@ -2107,6 +2115,10 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
         try:
             ref = load_reference_file(p)
         except ReferenceFileError as exc:
+            # A file chosen earlier is let go too: the window then shows the
+            # paste box and this refusal, never a row naming an older file
+            # under "This file cannot be used" (review of 2dd09fc23).
+            self._clear_reference_file()
             self._say_refused(M_VERIFY_REFERENCE_UNUSABLE, file=p.name,
                               reason=exc.reason)
             return
@@ -2122,16 +2134,35 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
             tr("Reference file: {p}").format(p=ref.path) + "\n" + how)
         self._ref_edit.setVisible(False)
         self._ref_file_row.setVisible(True)
-        self._space.setEnabled(False)   # the file names its own colour space
         self._banner.setText("")
         self._refresh()
+
+    def _clear_chart(self) -> None:
+        self._chart = None
+        self._chart_field.clear()
+        self._refresh()
+
+    def _clear_profile(self) -> None:
+        self._profile = None
+        self._profile_field.clear()
+        self._refresh()
+
+    def _refresh(self) -> None:
+        super()._refresh()
+        # A file, or a .ti3 pasted as text, names its own colour space, so
+        # the picker is greyed out for both.
+        space = getattr(self, "_space", None)
+        box = getattr(self, "_ref_edit", None)
+        if space is not None and box is not None:
+            space.setEnabled(
+                getattr(self, "_ref_file", None) is None
+                and not looks_like_cgats(box.toPlainText()))
 
     def _clear_reference_file(self) -> None:
         self._ref_file = None
         self._ref_file_label.setText("")
         self._ref_file_row.setVisible(False)
         self._ref_edit.setVisible(True)
-        self._space.setEnabled(True)
         self._refresh()
 
     def _say_refused(self, message, **kw) -> None:
@@ -2256,10 +2287,10 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
         colverify as it is (a table without patch numbers gets the
         measurement's, row by row, in a staged copy)."""
         assert self._measured is not None
-        reason = reference_mismatch(ref, self._measured, self._chart)
-        if reason is not None:
-            self._say_refused(M_VERIFY_REFERENCE_MISMATCH, file=label,
-                              reason=reason)
+        mismatch = reference_mismatch(ref, self._measured, self._chart)
+        if mismatch is not None:
+            message, kw = mismatch
+            self._say_refused(message, file=label, **kw)
             return
         work = self._staging_dir()
         ref_path = ref.path

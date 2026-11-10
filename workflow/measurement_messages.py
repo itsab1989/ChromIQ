@@ -2274,10 +2274,6 @@ def identity_mismatch_reason(bad: int, total: int) -> str:
 _REF_COUNT = (
     "the reference file and your measurement do not hold the same number of "
     "patches (reference file: {ref_n}, measurement: {meas_n})")
-_REF_CHART = (
-    "the reference file and the chart definition you chose do not hold the "
-    "same number of patches (reference file: {ref_n}, chart definition: "
-    "{chart_n})")
 _REF_IDS = (
     "some patch numbers of your measurement do not appear in the reference "
     "file at all (for example {ids})")
@@ -2289,15 +2285,35 @@ _REF_DEVICE = (
 M_VERIFY_REFERENCE_MISMATCH = _m(
     "M-VERIFY-REFERENCE-MISMATCH",
     "The reference file holds a different chart",
-    "ChromIQ pairs every patch of your measurement with the patch of the "
-    "same number in {file} and compares the two. That only gives true "
-    "results when both files hold the same chart, and these two do not: "
-    "{reason}.\n\n"
+    "ChromIQ pairs every patch of your measurement with its partner in "
+    "{file} and compares the two: the patch with the same patch number, or, "
+    "where the reference has no patch numbers, the patch in the same place "
+    "in the list. That only gives true results when both hold the same "
+    "chart, and these two do not: {reason}.\n\n"
     "Nothing has been compared, because the numbers would describe pairs of "
     "different colours. Your files have not been changed.\n\n"
     "Choose a reference that was measured from the same chart as your "
     "measurement, or paste the expected values instead, one patch per line "
     "in chart order.",
+    approved=False)
+
+#: The chosen chart definition (optional, used only to check the patch
+#: count) and the reference disagree. Either may be the wrong file, so this
+#: is its own message, not a {reason} of the one above, whose advice is to
+#: choose another reference (review of 2dd09fc23, 4.3.30). The field has a
+#: Clear button since the same review.
+M_VERIFY_REFERENCE_CHART = _m(
+    "M-VERIFY-REFERENCE-CHART",
+    "The reference and the chart definition do not match",
+    "The reference ({file}) and the chart definition you chose do not hold "
+    "the same number of patches (reference: {ref_n}, chart definition: "
+    "{chart_n}). ChromIQ uses the chart definition only to check that "
+    "number, so one of the two is probably not the file you meant.\n\n"
+    "Nothing has been compared. Your files have not been changed.\n\n"
+    "If the chart definition is the wrong one, choose the right one with "
+    "Browse… beside it, or press Clear beside it to verify without it. If "
+    "the reference is the wrong one, choose the reference that was measured "
+    "from the same chart as your measurement.",
     approved=False)
 
 _REF_NO_TABLE = (
@@ -2321,11 +2337,6 @@ M_VERIFY_REFERENCE_UNUSABLE = _m(
 def reference_count_reason(ref_n: int, meas_n: int) -> str:
     """{reason} of M-VERIFY-REFERENCE-MISMATCH: the patch counts differ."""
     return tr(_REF_COUNT).format(ref_n=ref_n, meas_n=meas_n)
-
-
-def reference_chart_reason(ref_n: int, chart_n: int) -> str:
-    """{reason}: the reference and the chosen chart definition differ."""
-    return tr(_REF_CHART).format(ref_n=ref_n, chart_n=chart_n)
 
 
 def reference_ids_reason(ids: "list[str]") -> str:
@@ -9499,6 +9510,7 @@ CATALOGUE = {m.id: m for m in (
     M_IMPORT_MISMATCH, M_IMPORT_DATE_TAKEN, M_IMPORT_DONE,
     M_IMPORT_TURNED_GRID, M_IMPORT_IDENTITY_REASON,
     M_VERIFY_REFERENCE_MISMATCH, M_VERIFY_REFERENCE_UNUSABLE,
+    M_VERIFY_REFERENCE_CHART,
     M_CHART_DEVICE_VALUES_CLAMPED, M_CHART_PATCH_LINE_UNREADABLE,
     M_IMPORT_DONE_PROFILING,
     M_IMPORT_DEVICE_FROM_CHART,

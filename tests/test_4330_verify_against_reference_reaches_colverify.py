@@ -401,8 +401,11 @@ def test_the_chosen_chart_definition_is_cross_checked_for_a_file_too(tmp_path):
     chart.write_text("CTI2\nBEGIN_DATA_FORMAT\nSAMPLE_ID RGB_R RGB_G RGB_B\n"
                      "END_DATA_FORMAT\nBEGIN_DATA\n1 0 0 0\n2 100 100 100\n"
                      "END_DATA\n", encoding="utf-8")
-    reason = reference_mismatch(load_reference_file(REAL_TI3), REAL_TI3, chart)
-    assert reason and "616" in reason and "2" in reason
+    from workflow.measurement_messages import M_VERIFY_REFERENCE_CHART
+    message, kw = reference_mismatch(load_reference_file(REAL_TI3), REAL_TI3,
+                                     chart)
+    assert message is M_VERIFY_REFERENCE_CHART
+    assert kw == {"ref_n": 616, "chart_n": 2}
 
 
 def test_the_same_chart_passes_the_check(tmp_path):
@@ -414,9 +417,8 @@ def test_the_same_chart_passes_the_check(tmp_path):
 def test_a_device_value_mismatch_names_a_patch_and_both_values(tmp_path):
     from workflow.colverify_runner import load_reference_file, reference_mismatch
     rot = _variant(REAL_TI3, tmp_path / "rot.ti3", rotate_ids=6)
-    reason = reference_mismatch(load_reference_file(rot), REAL_TI3)
-    assert reason is not None
-    assert "of 616 pairs" in reason, reason
+    _message, kw = reference_mismatch(load_reference_file(rot), REAL_TI3)
+    assert "of 616 pairs" in kw["reason"], kw
 
 
 def test_a_file_without_colour_values_is_refused_on_loading(
@@ -506,3 +508,138 @@ def test_a_patch_line_cut_inside_a_number_is_put_back_together():
         "450 <=> 37.713860 -3.742987 -33.903144  de 0.231351\n")
     assert res.patch_errors == [("52", 0.231351)]
     assert res.patches[0].target == (37.492753, -3.723912, -33.53745)
+
+
+
+# --- review of 2dd09fc23 ----------------------------------------------------
+
+def test_on_windows_the_reference_path_is_taken_as_written(tmp_path,
+                                                          monkeypatch):
+    """Windows resolves ".." lexically from the working folder AS WRITTEN,
+    so through a junction or a subst drive a path between resolved folders
+    would point elsewhere: there the paths are not resolved."""
+    from workflow import colverify_runner as cr
+    resolved = []
+
+    def _real(p):
+        resolved.append(p)
+        return "/junction-target/" + os.path.basename(os.fspath(p))
+
+    monkeypatch.setattr(cr.os.path, "realpath", _real)
+    monkeypatch.setattr(cr.os, "name", "nt")
+    ref = tmp_path / "staging" / "r.ti3"
+    cwd = tmp_path / "run"
+    out = cr._path_from(ref, cwd)
+    assert not resolved
+    assert out == os.path.relpath(os.path.abspath(ref), os.path.abspath(cwd))
+    monkeypatch.setattr(cr.os, "name", "posix")
+    cr._path_from(ref, cwd)
+    assert resolved            # POSIX still climbs from the real folder
+
+
+def test_device_values_on_0_to_1_are_compared_on_0_to_100(tmp_path):
+    from workflow.colverify_runner import load_reference_file, reference_mismatch
+    lines, fi, b, e = _cgats_parts(REAL_TI3)
+    fields = lines[fi + 1].split()
+    dev = [fields.index(f"RGB_{c}") for c in "RGB"]
+    rows = []
+    for ln in lines[b + 1:e]:
+        t = ln.split()
+        for i in dev:
+            t[i] = f"{float(t[i]) / 100.0:.6f}"
+        rows.append(" ".join(t))
+    ref = tmp_path / "fractions.ti3"
+    ref.write_text("\n".join(lines[:b + 1] + rows + lines[e:]) + "\n",
+                   encoding="utf-8")
+    assert reference_mismatch(load_reference_file(ref), REAL_TI3) is None
+    rot = _variant(ref, tmp_path / "fractions-rotated.ti3", rotate_ids=6)
+    assert reference_mismatch(load_reference_file(rot), REAL_TI3) is not None
+
+
+def test_a_comment_line_inside_the_data_is_not_a_patch(tmp_path):
+    from workflow.colverify_runner import load_reference_file, reference_mismatch
+    lines, fi, b, e = _cgats_parts(REAL_TI3)
+    ref = tmp_path / "commented.ti3"
+    # a patch line commented out: as many words as a real one
+    ref.write_text("\n".join(lines[:b + 1] + ["# " + lines[b + 1]]
+                             + lines[b + 1:e] + lines[e:]) + "\n",
+                   encoding="utf-8")
+    loaded = load_reference_file(ref)
+    assert loaded.n_patches == 616
+    assert reference_mismatch(loaded, REAL_TI3) is None
+
+
+def test_a_patch_line_cut_inside_its_delta_e_is_put_back_together():
+    res = ColverifyRunner(None).parse_results(
+        "52 AP8: 37.492753 -3.723912 -33.53745 <=> 37.713860 -3.742987 "
+        "-33.903144  de 0.23\n"
+        "1351\n"
+        "53: 1.0 2.0 3.0 <=> 1.0 2.0 3.0  de 0.000000\n")
+    assert res.patch_errors == [("52", 0.231351), ("53", 0.0)]
+
+
+@needs_colverify
+def test_a_chart_definition_of_another_chart_gets_its_own_message_and_can_be_cleared(
+        tmp_path, qapp, monkeypatch):
+    from workflow.measurement_messages import M_VERIFY_REFERENCE_CHART
+    meas = tmp_path / "run" / "Chart.ti3"
+    meas.parent.mkdir(parents=True)
+    shutil.copyfile(REAL_TI3, meas)
+    chart = tmp_path / "other.ti2"
+    chart.write_text("CTI2\nBEGIN_DATA_FORMAT\nSAMPLE_ID RGB_R RGB_G RGB_B\n"
+                     "END_DATA_FORMAT\nBEGIN_DATA\n1 0 0 0\nEND_DATA\n",
+                     encoding="utf-8")
+    runner = _SyncRunner()
+    dlg = _dialog(runner, monkeypatch)
+    try:
+        dlg._measured = meas
+        dlg._chart = chart
+        dlg._chart_field.setText(str(chart))
+        _load(dlg, REAL_TI3, monkeypatch)
+        dlg._execute()
+        assert not runner.calls
+        title = M_VERIFY_REFERENCE_CHART.render(file="", ref_n=0,
+                                                chart_n=0)[0]
+        assert title in dlg._banner.text()
+        assert "Clear" in dlg._banner.text()
+        dlg._clear_chart()
+        assert dlg._chart is None and not dlg._chart_field.text()
+        dlg._execute()
+        assert runner.calls
+        assert dlg._cv.parse_results().avg_de == pytest.approx(0.0, abs=1e-4)
+    finally:
+        dlg.close()
+        dlg.done(0)
+
+
+def test_a_refused_file_lets_go_of_the_file_chosen_before(tmp_path, qapp,
+                                                          monkeypatch):
+    bad = tmp_path / "no colour.ti1"
+    bad.write_text("CTI1\nBEGIN_DATA_FORMAT\nSAMPLE_ID RGB_R RGB_G RGB_B\n"
+                   "END_DATA_FORMAT\nBEGIN_DATA\n1 0 0 0\nEND_DATA\n",
+                   encoding="utf-8")
+    dlg = _dialog(_SyncRunner(), monkeypatch)
+    try:
+        _load(dlg, REAL_TI3, monkeypatch)
+        assert dlg._ref_file is not None
+        _load(dlg, bad, monkeypatch)
+        assert dlg._ref_file is None
+        assert dlg._ref_file_row.isHidden() and not dlg._ref_edit.isHidden()
+        assert "no colour.ti1" in dlg._banner.text()
+    finally:
+        dlg.close()
+        dlg.done(0)
+
+
+def test_a_pasted_measurement_greys_out_the_colour_space_too(qapp,
+                                                            monkeypatch):
+    dlg = _dialog(_SyncRunner(), monkeypatch)
+    try:
+        assert dlg._space.isEnabled()
+        dlg._ref_edit.setPlainText(REAL_TI3.read_text(encoding="utf-8"))
+        assert not dlg._space.isEnabled()
+        dlg._ref_edit.setPlainText("95 0 0\n")
+        assert dlg._space.isEnabled()
+    finally:
+        dlg.close()
+        dlg.done(0)

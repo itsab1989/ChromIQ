@@ -181,6 +181,8 @@ def parse_cgats_table(text: str) -> CgatsTable:
     fields = " ".join(lines[f0 + 1:f1]).split()
     rows = []
     for ln in lines[d0 + 1:d1]:
+        if ln.lstrip().startswith("#"):
+            continue            # a comment line inside the data (CGATS allows it)
         toks = _TOKEN_RE.findall(ln)
         if len(toks) >= len(fields) and fields:
             rows.append(toks[:len(fields)])
@@ -252,9 +254,13 @@ def _fmt_device(values) -> str:
 
 
 def reference_mismatch(ref: ReferenceFile, measured: Path,
-                       chart: "Path | None" = None) -> "str | None":
-    """Why *ref* does not hold the chart *measured* was read from, as the
-    translated {reason} of M-VERIFY-REFERENCE-MISMATCH, or None when it fits.
+                       chart: "Path | None" = None
+                       ) -> "tuple[object, dict] | None":
+    """Why *ref* does not hold the chart *measured* was read from, as
+    ``(message, placeholders)`` without ``{file}`` (the caller names the
+    file), or None when it fits. The message is M-VERIFY-REFERENCE-CHART
+    when the chosen chart definition disagrees with the reference, otherwise
+    M-VERIFY-REFERENCE-MISMATCH with a translated {reason}.
 
     Pairing is colverify's own: by ``SAMPLE_ID`` when the reference has
     them, otherwise row by row. Checked in this order: the chosen chart
@@ -265,12 +271,17 @@ def reference_mismatch(ref: ReferenceFile, measured: Path,
     carries no device values cannot be checked further and is accepted."""
     import numpy as np
 
-    from workflow.measurement_messages import (reference_chart_reason,
+    from workflow.measurement_messages import (M_VERIFY_REFERENCE_CHART,
+                                               M_VERIFY_REFERENCE_MISMATCH,
                                                reference_count_reason,
                                                reference_device_reason,
                                                reference_ids_reason)
     from workflow.measurement_report import (PATCH_IDENTITY_TOL,
                                              paired_device_0_100)
+
+    def _because(reason: str):
+        return M_VERIFY_REFERENCE_MISMATCH, {"reason": reason}
+
     n_ref = ref.n_patches
     if chart is not None:
         try:
@@ -278,13 +289,14 @@ def reference_mismatch(ref: ReferenceFile, measured: Path,
         except OSError:
             n_chart = 0
         if n_chart and n_chart != n_ref:
-            return reference_chart_reason(n_ref, n_chart)
+            return M_VERIFY_REFERENCE_CHART, {"ref_n": n_ref,
+                                              "chart_n": n_chart}
     try:
         meas = read_cgats_table(measured)
     except (OSError, ValueError):
         return None   # colverify says what is wrong with the measurement
     if len(meas.rows) != n_ref:
-        return reference_count_reason(n_ref, len(meas.rows))
+        return _because(reference_count_reason(n_ref, len(meas.rows)))
 
     meas_ids = meas.column("SAMPLE_ID") or [str(i + 1) for i in range(n_ref)]
     if ref.by_id:
@@ -293,7 +305,7 @@ def reference_mismatch(ref: ReferenceFile, measured: Path,
         missing = [sid for sid in meas_ids if sid not in where]
         if missing:
             shown = missing[:5] + (["…"] if len(missing) > 5 else [])
-            return reference_ids_reason(shown)
+            return _because(reference_ids_reason(shown))
         pairs = [(where[sid], mi) for mi, sid in enumerate(meas_ids)]
     else:
         pairs = [(i, i) for i in range(n_ref)]
@@ -315,9 +327,9 @@ def reference_mismatch(ref: ReferenceFile, measured: Path,
     if not len(bad):
         return None
     k = int(bad[0])
-    return reference_device_reason(
+    return _because(reference_device_reason(
         int(len(bad)), len(pairs), meas_ids[pairs[k][1]],
-        _fmt_device(want[k]), _fmt_device(got[k]))
+        _fmt_device(want[k]), _fmt_device(got[k])))
 
 
 def write_reference_with_ids(ref: ReferenceFile, measured: Path,
@@ -516,6 +528,9 @@ class ColverifyResult:
 #: runs: "389: " / "17.417000 0.873000 …  de 0.226562", and
 #: "52 AP8: 37.492753 -3.723912 -33.537" / "450 <=> 37.713860 …"; the result
 #: then said 615 patches.
+_DIGITS_ONLY_RE = re.compile(r"^[\d.]+\s*$")
+
+
 def _rejoin_split_patch_lines(lines: "list[str]") -> "list[str]":
     """*lines* with each per-patch line that was cut in two put back
     together: two neighbours that are no patch line apart, and are one
@@ -527,6 +542,13 @@ def _rejoin_split_patch_lines(lines: "list[str]") -> "list[str]":
             if (not _PATCH_FULL_RE.match(prev.strip())
                     and not _PATCH_FULL_RE.match(ln.strip())
                     and _PATCH_FULL_RE.match((prev + ln).strip())):
+                out[-1] = prev + ln
+                continue
+            # cut inside the trailing ΔE ("… de 0.23" / "1351"): the first
+            # half already reads as a whole line, so only digits that
+            # continue its last number, with no space between, are joined.
+            if (_PATCH_FULL_RE.match(prev.strip()) and prev[-1:] in "0123456789."
+                    and prev[-1:] and _DIGITS_ONLY_RE.match(ln)):
                 out[-1] = prev + ln
                 continue
         out.append(ln)
@@ -543,10 +565,15 @@ def _path_from(target: Path, cwd: Path) -> str:
     hold (a user name with letters outside it, above the temp folder) fails
     to open; a relative path leaves out the part both paths share. Taken
     between REAL paths, because the program climbs ``..`` from its real
-    working folder (``/tmp`` is ``/private/tmp`` on macOS). Absolute when
-    the two are on different Windows drives."""
-    t = os.path.realpath(target)
-    c = os.path.realpath(cwd)
+    working folder (``/tmp`` is ``/private/tmp`` on macOS). On Windows the
+    paths are taken AS WRITTEN instead: Windows resolves ``..`` lexically
+    from the folder the program was started in, and that folder is
+    ``measured_ti3.parent`` as written, so through a junction or a ``subst``
+    drive a path between resolved folders would point elsewhere (review of
+    2dd09fc23). Absolute when the two are on different Windows drives."""
+    resolve = os.path.abspath if os.name == "nt" else os.path.realpath
+    t = resolve(target)
+    c = resolve(cwd)
     if os.path.dirname(t) == c:
         return os.path.basename(t)
     try:

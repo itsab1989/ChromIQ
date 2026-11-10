@@ -1141,6 +1141,17 @@ def paired_device_0_100(chart_rgb, measured_rgb):
     got_max = float(got.max()) if got.size else 0.0
     if got_max > max(101.0, want_max + 1.0):
         got = got * (100.0 / 255.0)
+        got_max = 100.0
+    # A SIDE ON 0..1 (4.3.30, review of 2dd09fc23): a CGATS file another
+    # program wrote with device values as fractions. Scaled only when the
+    # other side is clearly not on 0..1 too, so a 0..100 file whose values
+    # all happen to sit at or below 1 (a chart of near-black patches) is
+    # left alone when both sides agree.
+    if want.size and got.size:
+        if want_max <= 1.0 < got_max:
+            want = want * 100.0
+        elif got_max <= 1.0 < want_max:
+            got = got * 100.0
     return clip_0_100(want), clip_0_100(got)
 
 
