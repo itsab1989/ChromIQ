@@ -741,6 +741,15 @@ def score_task(t: dict):
                 if truth is not None:
                     _score_oogq(rec, j, ds, truth, out)
                     cache.write_text(json.dumps(rec, default=_js), encoding="utf-8")
+            elif (t.get("oogq") and b.get("ok") and isinstance(rec.get("oogq"), dict)
+                  and "q" in rec["oogq"] and "bpc_lift_r" not in rec["oogq"]["q"]
+                  and ds.n_channels <= 4):
+                # Agent 85: only the BPC rows are new
+                truth = _truth_for(ds, t["proxy"])
+                if truth is not None:
+                    from benchmarks.research import oogq
+                    oogq.add_bpc(rec["oogq"], j["out"], oogq_printer(ds, truth))
+                    cache.write_text(json.dumps(rec, default=_js), encoding="utf-8")
             return t["i"], t["key"], rec
     rec = {k: b.get(k) for k in ("ok", "seconds", "sha256", "v4_sha256",
                                    "error", "outlier_rows", "fit_median_de00")}

@@ -76,19 +76,46 @@ def _nlml_grad(theta, x, yn):
         Lc = np.linalg.cholesky(K)
     except np.linalg.LinAlgError:
         return np.inf, np.zeros_like(theta)
-    alpha = np.linalg.solve(Lc.T, np.linalg.solve(Lc, yn))
+    # Agent 92 (D-06): the alpha chain and the inverse of K are independent
+    # LAPACK calls on the same arrays, so they run side by side in a
+    # Maximum accuracy build with spare workers (same calls, same bits);
+    # likewise the gradient's per-parameter sums below.
+    from workflow.profile_engine import parallel
+    par = parallel.in_accurate_scope() and parallel.worker_count() > 1
+
+    def _alpha():
+        return np.linalg.solve(Lc.T, np.linalg.solve(Lc, yn))
+
+    def _kinv():
+        # Agent 8 (wave 2): one LU of K instead of two of the triangular
+        # factor (S3: GP fit CPU 57.5 -> 40.2 s; projected nodes move
+        # <= 0.027 LSB).
+        return np.linalg.solve(K, np.eye(N))
+    if par:
+        alpha, Kinv = parallel.run_tasks([_alpha, _kinv])
+    else:
+        alpha = _alpha()
+        Kinv = _kinv()
     nlml = 0.5 * (yn * alpha).sum() + m * np.log(np.diag(Lc)).sum() \
         + 0.5 * N * m * np.log(2 * np.pi)
-    # Agent 8 (wave 2): one LU of K instead of two of the triangular factor
-    # (S3: GP fit CPU 57.5 -> 40.2 s; projected nodes move <= 0.027 LSB).
-    Kinv = np.linalg.solve(K, np.eye(N))
     Q = alpha @ alpha.T - m * Kinv          # d nlml/dtheta = -0.5 tr(Q dK)
     g = np.empty_like(theta)
     base = s2 * 5.0 / 3.0 * (1.0 + _SQ5 * r) * e
-    for dd in range(n):
-        diff2 = (x[:, dd:dd + 1] - x[:, dd][None, :]) ** 2 / ls[dd] ** 2
-        g[dd] = -0.5 * (Q * (base * diff2)).sum()
-    g[n] = -0.5 * (Q * Ks).sum()
+
+    def _gdim(dd):
+        def run():
+            diff2 = (x[:, dd:dd + 1] - x[:, dd][None, :]) ** 2 / ls[dd] ** 2
+            g[dd] = -0.5 * (Q * (base * diff2)).sum()
+        return run
+
+    def _gs2():
+        g[n] = -0.5 * (Q * Ks).sum()
+    tasks = [_gdim(dd) for dd in range(n)] + [_gs2]
+    if par:
+        parallel.run_tasks(tasks)
+    else:
+        for t in tasks:
+            t()
     g[n + 1] = -0.5 * np.trace(Q) * nz
     return nlml, g
 

@@ -100,6 +100,9 @@ GMQ_KEYS = {"M1_neutral_C_mean": (1, 0.1), "M1_neutral_C_max": (1, 0.2),
             "M5_core_de_median": (1, 0.05), "M7_core_p05": (-1, 0.02),
             "M8_black_gap": (1, 0.5), "M9_over_share": (1, 0.005),
             "M10_sep_d2_max": (1, 0.01), "M11_rt_median": (1, 0.05), "M11_rt_p95": (1, 0.1)}
+# Agent 85: rel. col. / perceptual + black point compensation, neutral L* 0-20 wedge (bpcq)
+from benchmarks.research import bpcq as _bpcq  # noqa: E402
+KEYS.update(_bpcq.KEYS)
 for _i in ("p", "s"):
     for _k, (_sg, _fl) in GMQ_KEYS.items():
         KEYS[f"gmq_{_i}_{_k}"] = (_sg, _fl, False, "gmq", f"Agent 9 {_k}, intent {_i}")
@@ -188,6 +191,27 @@ def abs_white(ctx) -> float:
     return float(colour.de2000(ctx.truth_lab(d), ctx.truth_lab(paper))[0])
 
 
+def bpc(profile, printer) -> dict:
+    """Agent 85: the BPC wedge (bpcq) printed on the battery truth and on the profile's own A2B1:
+    {"q": rows, "raw": bpcq.evaluate output}."""
+    res = _bpcq.evaluate(str(profile), {"truth": printer.lab_rel})
+    for it in ("r", "p"):
+        if it in res:
+            res[it].pop("device", None)
+    return {"q": _bpcq.q_rows(res, "truth"), "raw": hunt.jsonable(res)}
+
+
+def add_bpc(rec_oogq: dict, profile, printer) -> dict:
+    """Add the BPC rows to an existing oogq record (cached batteries); an error is recorded, never a pass."""
+    try:
+        b = bpc(profile, printer)
+        rec_oogq.setdefault("q", {}).update({k: float(v) for k, v in b["q"].items()})
+        rec_oogq.setdefault("raw", {})["bpc"] = b["raw"]
+    except Exception as exc:
+        rec_oogq.setdefault("errors", {})["bpc"] = f"{type(exc).__name__}: {exc}"
+    return rec_oogq
+
+
 def evaluate(profile, printer, reader: str = "lcms", cloud=None, with_gmq: bool = True,
              with_ncq: bool = False, ncq_reader: str = "argyll") -> dict:
     """Every v3.1 property of one profile. Returns {"q": headline, "raw": the
@@ -217,6 +241,7 @@ def evaluate(profile, printer, reader: str = "lcms", cloud=None, with_gmq: bool 
     block("shadows", lambda: {i: grey_shadows(ctx, i) for i in ("p", "s")})
     block("abs_white", lambda: abs_white(ctx))
     block("evenness", lambda: evenness.evaluate(ctx))
+    block("bpc", lambda: bpc(profile, printer))
     h1, h2, h5, h6, h8, h11 = (raw.get(k, {}) for k in ("H1", "H2", "H5", "H6", "H8", "H11"))
     if h2:
         rr = _ramps(h2, "r")
@@ -267,6 +292,9 @@ def evaluate(profile, printer, reader: str = "lcms", cloud=None, with_gmq: bool 
     if "evenness" in raw:
         q.update(raw["evenness"][0])
         raw["evenness"] = raw["evenness"][1]
+    if "bpc" in raw:
+        q.update(raw["bpc"]["q"])
+        raw["bpc"] = raw["bpc"]["raw"]
     if "below_black" in raw:
         q["below_black_swing_r"] = raw["below_black"]["swing"]
         q["below_black_rev_r"] = raw["below_black"]["rev"]

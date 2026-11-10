@@ -131,7 +131,11 @@ def test_chunks_are_contiguous_and_cover_every_row():
 
 def test_worker_count_leaves_headroom(monkeypatch):
     monkeypatch.delenv("CHROMIQ_ENGINE_THREADS", raising=False)
-    for cpus, want in ((1, 1), (2, 1), (4, 2), (8, 6), (16, 8), (64, 8)):
+    # Agent 92: usable CPUs minus one (the colprof oracle runs beside the
+    # engine; the UI thread is idle during a build), capped
+    cap = parallel._MAX_WORKERS
+    for cpus, want in ((1, 1), (2, 1), (4, 3), (8, min(7, cap)),
+                       (16, cap), (64, cap)):
         monkeypatch.setattr(parallel, "usable_cpus", lambda c=cpus: c)
         assert parallel.worker_count() == want
     monkeypatch.setenv("CHROMIQ_ENGINE_THREADS", "1")
@@ -191,15 +195,16 @@ def test_column_parallel_curvature_is_bit_identical(monkeypatch):
     w, cols = _interp_weights(dev, grid, n)
     serial = _grid_solve(w, cols, lab, grid, n, 0.03, 6)
     calls = []
-    real = parallel.run_tasks
+    real = parallel.Pool.map
 
-    def spy(tasks, workers=None):
-        calls.append(len(tasks))
-        return real(tasks, workers)
-    monkeypatch.setattr(parallel, "run_tasks", spy)
+    def spy(self, fn, bounds):
+        calls.append(len(bounds))
+        return real(self, fn, bounds)
+    # Agent 92: the columns go to the solve's own persistent pool
+    monkeypatch.setattr(parallel.Pool, "map", spy)
     with parallel.accurate_scope():
         threaded = _grid_solve(w, cols, lab, grid, n, 0.03, 6)
-    assert calls and set(calls) == {3}
+    assert calls and 3 in set(calls)
     assert np.array_equal(_bits(serial), _bits(threaded))
 
 
@@ -207,6 +212,9 @@ def test_fast_mode_fit_never_uses_threads(monkeypatch):
     monkeypatch.setenv("CHROMIQ_ENGINE_THREADS", "4")
     monkeypatch.setattr(parallel, "run_tasks",
                         lambda *a, **k: pytest.fail("threads outside accurate"))
+    monkeypatch.setattr(parallel.Pool, "map",
+                        lambda self, fn, b: pytest.fail("pool outside accurate")
+                        if self.workers > 1 else [fn(lo, hi) for lo, hi in b])
     rng = np.random.default_rng(9)
     dev = rng.random((300, 6))
     w, cols = _interp_weights(dev, 9, 6)

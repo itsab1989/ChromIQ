@@ -798,21 +798,58 @@ def best_cloud_seed(target_s, w, cloud, cloud_s, block: int = 256):
     q = np.stack([c[:, 0] ** 2, c[:, 1] ** 2, c[:, 2] ** 2,
                   2 * c[:, 0] * c[:, 1], 2 * c[:, 0] * c[:, 2],
                   2 * c[:, 1] * c[:, 2]], 1)              # (m, 6)
-    for lo in range(0, len(target_s), block):
-        mb = m[lo:lo + block]
-        tb = target_s[lo:lo + block]
-        m6 = np.stack([mb[:, 0, 0], mb[:, 1, 1], mb[:, 2, 2],
-                       mb[:, 0, 1], mb[:, 0, 2], mb[:, 1, 2]], 1)   # (b, 6)
-        mt = np.einsum("bij,bj->bi", mb, tb)             # (b, 3)
-        score = q @ m6.T - 2.0 * (c @ mt.T)              # (m, b)
-        out[lo:lo + block] = cloud[np.argmin(score, 0)]
+    def rows(a: int, b: int) -> None:
+        # Agent 92 (D-06): ranges start on block borders, so every block is
+        # the serial one (the same two products on the same arrays)
+        for lo in range(a, b, block):
+            mb = m[lo:lo + block]
+            tb = target_s[lo:lo + block]
+            m6 = np.stack([mb[:, 0, 0], mb[:, 1, 1], mb[:, 2, 2],
+                           mb[:, 0, 1], mb[:, 0, 2], mb[:, 1, 2]], 1)  # (b, 6)
+            mt = np.einsum("bij,bj->bi", mb, tb)             # (b, 3)
+            score = q @ m6.T - 2.0 * (c @ mt.T)              # (m, b)
+            out[lo:lo + block] = cloud[np.argmin(score, 0)]
+    from workflow.profile_engine import parallel
+    parallel.map_rows(rows, len(target_s), align=block, min_rows=block,
+                      blas=False)
     return out
+
+
+_CLOUD_MEMO: dict = {}
+_CLOUD_LOCK = threading.Lock()
 
 
 def clip_cloud(n: int, limit, channel_max, rng, *, light: bool, faces: bool):
     """Uniform device cloud plus light / sparse points and points on the
     device-cube faces (the gamut boundary of a 3-channel device; for ink
-    devices the faces near paper are where pale boundary colours live)."""
+    devices the faces near paper are where pale boundary colours live).
+
+    ``rng``: a Generator, or an int seed. Agent 92 (D-06): with a seed the
+    cloud is what ``np.random.default_rng(seed)`` gives, remembered per
+    (n, limit, channel_max, seed, light, faces), and a fresh copy is
+    returned each time (a 4-ink cloud costs a 40,000-step loop; a build
+    asked for the same few clouds 62 times)."""
+    if isinstance(rng, (int, np.integer)):
+        cm = None if channel_max is None else tuple(
+            float(v) for v in np.asarray(channel_max, float).ravel())
+        key = (int(n), None if limit is None else float(limit), cm,
+               int(rng), bool(light), bool(faces))
+        with _CLOUD_LOCK:
+            hit = _CLOUD_MEMO.get(key)
+        if hit is None:
+            hit = _clip_cloud(n, limit, channel_max,
+                              np.random.default_rng(int(rng)),
+                              light=light, faces=faces)
+            hit.setflags(write=False)
+            with _CLOUD_LOCK:
+                if len(_CLOUD_MEMO) > 64:
+                    _CLOUD_MEMO.clear()
+                _CLOUD_MEMO[key] = hit
+        return hit.copy()
+    return _clip_cloud(n, limit, channel_max, rng, light=light, faces=faces)
+
+
+def _clip_cloud(n: int, limit, channel_max, rng, *, light: bool, faces: bool):
     m = min(40000, 6000 * n)
     parts = [rng.uniform(0.0, 1.0, (m, n))]
     if light:
@@ -873,6 +910,29 @@ def _lattice_neighbours(target_lab: np.ndarray):
 
 def _descend(b2a, view, t_s, d0, w, *, free, iters, damping, limit, prior,
              prior_w, gn_kw, label):
+    """:func:`_descend_rows` on row ranges (Agent 92, D-06): every row's
+    steps, acceptance and stop are its own. The progress line comes from
+    the first range only, as from the serial batch."""
+    from workflow.profile_engine import parallel
+
+    def part(lo: int, hi: int):
+        sl = slice(lo, hi)
+        return _descend_rows(
+            b2a, view, t_s[sl], d0[sl], w[sl], free=free, iters=iters,
+            damping=damping, limit=limit,
+            prior=None if prior is None else prior[sl],
+            prior_w=None if prior_w is None else prior_w[sl],
+            gn_kw=gn_kw if lo == 0 else {**gn_kw, "progress": None},
+            label=label)
+    parts = parallel.map_rows(part, len(t_s), min_rows=96)
+    if len(parts) == 1:
+        return parts[0]
+    return (np.concatenate([p[0] for p in parts], 0),
+            np.concatenate([p[1] for p in parts], 0))
+
+
+def _descend_rows(b2a, view, t_s, d0, w, *, free, iters, damping, limit,
+                  prior, prior_w, gn_kw, label):
     """Weighted Gauss-Newton that never accepts a step raising the weighted
     colour cost (backtracking by halving; the box and the ink limit are
     convex, so every halved step stays printable). Plain GN overshoots on
@@ -1012,7 +1072,7 @@ def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
         w = w.copy()
         w[:, 1, :] *= np.sqrt(1.0 + (km - 1.0) * u)[:, None]
     n = model.n_channels
-    cloud = clip_cloud(n, limit, channel_max, np.random.default_rng(2525),
+    cloud = clip_cloud(n, limit, channel_max, 2525,
                        light=True, faces=p["faces"])
     cloud_s = fn(model.predict(cloud))
     starts = [d_near[sel], best_cloud_seed(t_s, w, cloud, cloud_s)]
@@ -1028,20 +1088,28 @@ def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
     pr_clip, pw_clip = (None, None) if p.get("two_stage") else (pr, pw)
     best = None
     best_cost = None
-    for k, s0 in enumerate(starts):
-        if p.get("descent", True):
-            d, cst = _descend(b2a, view, t_s, s0, w, free=free,
-                              iters=p["iters"], damping=damping, limit=limit,
-                              prior=pr_clip, prior_w=pw_clip, gn_kw=gn_kw,
-                              label=f"{progress_label}: weighted clip "
-                                    f"{k + 1}/{len(starts)}")
-        else:
+
+    def from_start(k, s0):
+        def run():
+            if p.get("descent", True):
+                return _descend(b2a, view, t_s, s0, w, free=free,
+                                iters=p["iters"], damping=damping, limit=limit,
+                                prior=pr_clip, prior_w=pw_clip, gn_kw=gn_kw,
+                                label=f"{progress_label}: weighted clip "
+                                      f"{k + 1}/{len(starts)}")
             d = b2a._gauss_newton(view, t_s, s0.copy(), free, iters=p["iters"],
                                   damping=damping, ink_limit=limit, err_weights=w,
                                   prior=pr_clip, prior_w=pw_clip,
                                   progress_label=f"{progress_label}: weighted clip "
                                                  f"{k + 1}/{len(starts)}", **gn_kw)
-            cst = cost(view.predict(d), t_s, w)
+            return d, cost(view.predict(d), t_s, w)
+        return run
+    # Agent 92 (D-06): the starts are independent searches, side by side;
+    # combined below in start order with the same strict "<"
+    from workflow.profile_engine import parallel
+    runs = parallel.side_by_side([from_start(k, s0)
+                                  for k, s0 in enumerate(starts)])
+    for d, cst in runs:
         if best is None:
             best, best_cost = d, cst
         else:

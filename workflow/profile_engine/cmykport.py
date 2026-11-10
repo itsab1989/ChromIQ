@@ -257,7 +257,7 @@ def locus_k(model, target: np.ndarray, d_ok: np.ndarray, kt: np.ndarray, *,
 
 def _cloud(n, limit, cmax, seed=6969):
     from workflow.profile_engine.oog_clip import clip_cloud
-    return clip_cloud(n, limit, cmax, np.random.default_rng(seed),
+    return clip_cloud(n, limit, cmax, int(seed),
                       light=True, faces=True)
 
 
@@ -270,20 +270,42 @@ def nearest_lab(model, target: np.ndarray, d0: np.ndarray, *, limit, cmax,
     free = np.arange(4)
     kw = dict(iters=iters, damping=1e-3, ink_limit=limit, boundary_fd=True,
               tac_projection=True, channel_max=cmax)
-    a = _gauss_newton(model, target, np.minimum(d0, cmax[None]), free, **kw)
-    ra = np.linalg.norm(model.predict(a) - target, axis=1)
+    from workflow.profile_engine import parallel
+
+    def _cloud_seeds():
+        return _nearest_cloud_seeds(model, target, d0, limit, cmax)
+
+    def from_d0():
+        a = _gauss_newton(model, target, np.minimum(d0, cmax[None]), free, **kw)
+        return a, np.linalg.norm(model.predict(a) - target, axis=1)
+
+    def from_cloud():
+        b = _gauss_newton(model, target, _cloud_seeds(), free, **kw)
+        return b, np.linalg.norm(model.predict(b) - target, axis=1)
+
+    # Agent 92 (D-06): the two starts are independent; side by side in a
+    # Maximum accuracy build, combined exactly as before
+    (a, ra), (b, rb) = parallel.side_by_side([from_d0, from_cloud])
+    take = rb < ra
+    a[take] = b[take]
+    return a
+
+
+def _nearest_cloud_seeds(model, target, d0, limit, cmax):
     cl = _cloud(4, limit, cmax)
     cl_lab = model.predict(cl)
     seeds = np.empty_like(d0)
     c2 = (cl_lab ** 2).sum(1)
-    for lo in range(0, len(target), 1024):
-        t = target[lo:lo + 1024]
-        seeds[lo:lo + 1024] = cl[np.argmin(c2[None] - 2.0 * t @ cl_lab.T, 1)]
-    b = _gauss_newton(model, target, seeds, free, **kw)
-    rb = np.linalg.norm(model.predict(b) - target, axis=1)
-    take = rb < ra
-    a[take] = b[take]
-    return a
+    def rows(a: int, b: int) -> None:
+        # Agent 92 (D-06): ranges start on the serial 1024-row blocks
+        for lo in range(a, b, 1024):
+            t = target[lo:lo + 1024]
+            seeds[lo:lo + 1024] = cl[np.argmin(
+                c2[None] - 2.0 * t @ cl_lab.T, 1)]
+    from workflow.profile_engine import parallel
+    parallel.map_rows(rows, len(target), align=1024, min_rows=1024,
+                      blas=False)
+    return seeds
 
 
 def _project4(d, limit, cmax):
@@ -296,6 +318,21 @@ def _project4(d, limit, cmax):
 
 def _descend_jab(predict_j, t_j, d0, *, limit, cmax, iters: int = 14,
                  damping: float = 1e-3, h: float = 1e-4):
+    """:func:`_descend_jab_rows` on row ranges (Agent 92, D-06): every
+    row's steps, acceptance and stop are its own."""
+    from workflow.profile_engine import parallel
+    parts = parallel.map_rows(
+        lambda lo, hi: _descend_jab_rows(
+            predict_j, t_j[lo:hi], d0[lo:hi], limit=limit, cmax=cmax,
+            iters=iters, damping=damping, h=h), len(t_j), min_rows=96)
+    if len(parts) == 1:
+        return parts[0]
+    return (np.concatenate([p[0] for p in parts], 0),
+            np.concatenate([p[1] for p in parts], 0))
+
+
+def _descend_jab_rows(predict_j, t_j, d0, *, limit, cmax, iters: int = 14,
+                      damping: float = 1e-3, h: float = 1e-4):
     """Levenberg-Marquardt on the rev.c LCh-weighted residual in Jab, inside
     the device box and under the ink limit (projected steps, backtracking,
     never accepting a step that raises the distance)."""
@@ -344,11 +381,18 @@ def cam_clip(model, target_lab: np.ndarray, d_lab: np.ndarray, *, limit,
     def pj(dev):
         return lab_to_argyll_jab(model.predict(dev))
     t_j = lab_to_argyll_jab(target_lab)
-    best, bc = _descend_jab(pj, t_j, d_lab, limit=limit, cmax=cmax)
+    from workflow.profile_engine import parallel
     from workflow.profile_engine.purecolprof import _cloud_seed
-    cl = _cloud(4, limit, cmax, seed=5858)
-    seeds = _cloud_seed(t_j, cl, pj(cl))
-    d2, c2 = _descend_jab(pj, t_j, seeds, limit=limit, cmax=cmax)
+
+    def from_lab():
+        return _descend_jab(pj, t_j, d_lab, limit=limit, cmax=cmax)
+
+    def from_cloud():
+        cl = _cloud(4, limit, cmax, seed=5858)
+        seeds = _cloud_seed(t_j, cl, pj(cl))
+        return _descend_jab(pj, t_j, seeds, limit=limit, cmax=cmax)
+    # Agent 92 (D-06): two independent descents, side by side
+    (best, bc), (d2, c2) = parallel.side_by_side([from_lab, from_cloud])
     take = c2 < bc
     best[take] = d2[take]
     cdist = np.linalg.norm(pj(best) - t_j, axis=1)
@@ -415,15 +459,23 @@ def colprof_table(model, node_lab: np.ndarray, d_ours: np.ndarray,
             fc = _ss((FOLD_C1 - cc) / (FOLD_C1 - FOLD_C0))
             fl = _ss((l_min + FOLD_L1 - node_lab[oo, 0]) / (FOLD_L1 - FOLD_L0))
             frac = np.round(np.maximum(fc, fl) * 4.0) / 4.0
-            for f in np.unique(frac):
-                sel = oo[frac == f]
-                cm = cmax.copy()
-                cm[3] = min(cm[3], kf + f * (cm[3] - kf))
-                seed = np.minimum(d_ours[sel], cm[None])
-                d_n = nearest_lab(model, node_lab[sel], seed, limit=limit,
-                                  cmax=cm)
-                out[sel] = cam_clip(model, node_lab[sel], d_n, limit=limit,
-                                    cmax=cm)
+            # Agent 92 (D-06): every cap group is solved from its own
+            # nodes only, so the groups run side by side (same calls)
+            def group(f):
+                def run():
+                    sel = oo[frac == f]
+                    cm = cmax.copy()
+                    cm[3] = min(cm[3], kf + f * (cm[3] - kf))
+                    seed = np.minimum(d_ours[sel], cm[None])
+                    d_n = nearest_lab(model, node_lab[sel], seed, limit=limit,
+                                      cmax=cm)
+                    return sel, cam_clip(model, node_lab[sel], d_n,
+                                         limit=limit, cmax=cm)
+                return run
+            from workflow.profile_engine import parallel
+            for sel, val in parallel.side_by_side(
+                    [group(f) for f in np.unique(frac)]):
+                out[sel] = val
     info["clipped"] = int(len(oo))
     return out, info
 

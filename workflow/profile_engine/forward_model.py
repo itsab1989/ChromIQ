@@ -65,39 +65,104 @@ class ForwardModel:
         return self._predict_rows(dev)
 
     def _predict_rows(self, dev: np.ndarray) -> np.ndarray:
-        w, cols = _interp_weights(self.shape_device(dev), self.grid,
-                                  self.n_channels)
-        return (w[:, :, None] * self.nodes[cols]).sum(1)
+        wt, ct = _interp_weights_t(self.shape_device(dev), self.grid,
+                                   self.n_channels)
+        return _corner_sum(wt, ct, self.nodes)
 
     def clut_lab(self) -> np.ndarray:
         """The A2B CLUT contents (= the grid nodes, first axis slowest)."""
         return self.nodes
 
 
+_CORNERS: dict = {}
+
+
 def _corners(n: int) -> np.ndarray:
-    return np.stack(np.meshgrid(*([[0, 1]] * n), indexing="ij"),
-                    -1).reshape(-1, n)
+    c = _CORNERS.get(n)
+    if c is None:
+        c = np.stack(np.meshgrid(*([[0, 1]] * n), indexing="ij"),
+                     -1).reshape(-1, n)
+        c.setflags(write=False)
+        _CORNERS[n] = c
+    return c
+
+
+def _interp_weights_t(p01: np.ndarray, grid: int, n: int
+                      ) -> tuple[np.ndarray, np.ndarray]:
+    """Multilinear weights, corner-major: (2ⁿ, N) weights + (2ⁿ, N) flat
+    node columns; row k is column k of :func:`_interp_weights`.
+
+    Agent 92 (D-06, byte-identical): every corner's weight is still
+    ``1 * f_0 * f_1 * ... * f_(n-1)`` multiplied in axis order (1.0 * f is
+    exactly f), but corners that share their first axes share those
+    products instead of recomputing them (n=4: 30 multiplies per point
+    instead of 64), and ``1 - f`` is formed once per axis."""
+    idxf = np.clip(p01, 0.0, 1.0) * (grid - 1)
+    i0 = np.clip(idxf.astype(int), 0, grid - 2)
+    fr = idxf - i0
+    npts = len(p01)
+    ws = [np.ones(npts)]
+    fl = [np.zeros(npts, dtype=np.int64)]
+    for d in range(n):
+        f1 = fr[:, d]
+        f0 = 1.0 - f1
+        a0 = i0[:, d]
+        a1 = a0 + 1
+        nw, nf = [], []
+        for wk, flat in zip(ws, fl):
+            nw.append(wk * f0)
+            nw.append(wk * f1)
+            base = flat * grid
+            nf.append(base + a0)
+            nf.append(base + a1)
+        ws, fl = nw, nf
+    return np.stack(ws, 0), np.stack(fl, 0)
 
 
 def _interp_weights(p01: np.ndarray, grid: int, n: int
                     ) -> tuple[np.ndarray, np.ndarray]:
     """Multilinear weights: (N, 2ⁿ) weights + flat node columns."""
-    corners = _corners(n)
-    idxf = np.clip(p01, 0.0, 1.0) * (grid - 1)
-    i0 = np.clip(idxf.astype(int), 0, grid - 2)
-    fr = idxf - i0
-    npts = len(p01)
-    w = np.ones((npts, len(corners)))
-    cols = np.zeros((npts, len(corners)), dtype=np.int64)
-    for k, c in enumerate(corners):
-        wk = np.ones(npts)
-        flat = np.zeros(npts, dtype=np.int64)
-        for d in range(n):
-            wk *= fr[:, d] if c[d] else 1.0 - fr[:, d]
-            flat = flat * grid + (i0[:, d] + c[d])
-        w[:, k] = wk
-        cols[:, k] = flat
-    return w, cols
+    wt, ct = _interp_weights_t(p01, grid, n)
+    return np.ascontiguousarray(wt.T), np.ascontiguousarray(ct.T)
+
+
+def _corner_sum(wt: np.ndarray, ct: np.ndarray, values: np.ndarray
+                ) -> np.ndarray:
+    """``(w[:, :, None] * values[cols]).sum(1)`` from the corner-major
+    arrays of :func:`_interp_weights_t`, with the same bits (Agent 92, D-06).
+
+    numpy reduces the corner axis of an (N, 2ⁿ, m) array with m >= 2 one
+    corner after the other (the corner axis is not the innermost one, so no
+    pairwise summation), which is exactly this loop; for m == 1 the corner
+    axis IS the innermost and numpy sums it pairwise, so that case keeps
+    numpy's own expression (tests/test_engine_a92_speed.py)."""
+    if values.ndim != 2 or values.shape[1] < 2:
+        return (np.ascontiguousarray(wt.T)[:, :, None]
+                * values[np.ascontiguousarray(ct.T)]).sum(1)
+    # numpy's reduction starts from 0.0 (so a -0.0 product becomes +0.0)
+    acc = np.zeros((wt.shape[1], values.shape[1]))
+    for k in range(len(wt)):
+        acc += wt[k][:, None] * values[ct[k]]
+    return acc
+
+
+def _curvature_nd(x3: np.ndarray, n: int) -> np.ndarray:
+    """The curvature operator of :func:`_grid_solve` on an (n+1)-d array
+    (lattice axes, then the value columns)."""
+    o = np.zeros_like(x3)
+    mid = [slice(None)] * (n + 1)
+    lo = [slice(None)] * (n + 1)
+    hi = [slice(None)] * (n + 1)
+    for ax in range(n):
+        mid[ax] = slice(1, -1)
+        lo[ax] = slice(0, -2)
+        hi[ax] = slice(2, None)
+        d2 = (x3[tuple(lo)] - 2 * x3[tuple(mid)] + x3[tuple(hi)])
+        o[tuple(lo)] += d2
+        o[tuple(mid)] -= 2 * d2
+        o[tuple(hi)] += d2
+        mid[ax] = lo[ax] = hi[ax] = slice(None)
+    return o
 
 
 def _grid_solve(w: np.ndarray, cols: np.ndarray, y: np.ndarray, grid: int,
@@ -107,18 +172,43 @@ def _grid_solve(w: np.ndarray, cols: np.ndarray, y: np.ndarray, grid: int,
     ng = grid ** n
     shape = (grid,) * n + (-1,)
 
+    from workflow.profile_engine import parallel as _par
+    # Agent 92 (D-06): the corner-major copies make W x a loop over the 2^n
+    # corners (same bits as the (N, 2^n, m) sum, _corner_sum); in a Maximum
+    # accuracy build with a large problem the rows of W x, the columns of
+    # W^T r and the columns of the curvature run on one pool kept for the
+    # whole solve. Every row / column is computed by the same expression
+    # whatever the chunking, so the result never depends on the workers.
+    wt = np.ascontiguousarray(w.T)
+    ct = np.ascontiguousarray(cols.T)
+    fc = cols.reshape(-1)
+    use_pool = (_par.in_accurate_scope() and _par.worker_count() > 1
+                and (w.size >= 50_000 or ng >= 20_000))
+    pool = _par.Pool() if use_pool else _par.Pool(1)
+    row_bounds = pool.bounds(len(w), max(2048, len(w) // 64)) \
+        if w.size >= 50_000 else [(0, len(w))]
+    col_par = ng >= 20_000
+
     def wmul(x: np.ndarray) -> np.ndarray:
-        return (w[:, :, None] * x[cols]).sum(1)
+        if len(row_bounds) <= 1:
+            return _corner_sum(wt, ct, x)
+        out = np.empty((len(w), x.shape[1]))
+
+        def rows(lo: int, hi: int) -> None:
+            out[lo:hi] = _corner_sum(wt[:, lo:hi], ct[:, lo:hi], x)
+        pool.map(rows, row_bounds)
+        return out
 
     def wtmul(r: np.ndarray) -> np.ndarray:
         # np.bincount accumulates in input order exactly like np.add.at
         # (same products, same sequence of additions from 0.0, so the same
         # bits; Experiments/agent8 addat_vs_bincount.py and
         # tests/test_engine_parallel_identity.py) at a fraction of the cost.
-        fc = cols.reshape(-1)
-        return np.stack([np.bincount(fc, (w * r[:, c:c + 1]).reshape(-1),
-                                     minlength=ng)
-                         for c in range(r.shape[1])], 1)
+        def col(c: int, _hi: int = 0) -> np.ndarray:
+            return np.bincount(fc, (w * r[:, c:c + 1]).reshape(-1),
+                               minlength=ng)
+        return np.stack(pool.map(col, [(c, c + 1)
+                                       for c in range(r.shape[1])]), 1)
 
     def curvature(x: np.ndarray) -> np.ndarray:
         """Σ_axis D₂ᵀD₂ x — second-difference penalty, interior rows only.
@@ -129,65 +219,62 @@ def _grid_solve(w: np.ndarray, cols: np.ndarray, y: np.ndarray, grid: int,
         toward zero (a zero decay puts a fake Lab(0,0,0) "black" into empty
         corners — measured: it captured every deep-shadow B2A inversion).
         """
-        x3 = x.reshape(shape)
-        o = np.zeros_like(x3)
-        mid = [slice(None)] * (n + 1)
-        lo = [slice(None)] * (n + 1)
-        hi = [slice(None)] * (n + 1)
-        for ax in range(n):
-            mid[ax] = slice(1, -1)
-            lo[ax] = slice(0, -2)
-            hi[ax] = slice(2, None)
-            d2 = (x3[tuple(lo)] - 2 * x3[tuple(mid)] + x3[tuple(hi)])
-            o[tuple(lo)] += d2
-            o[tuple(mid)] -= 2 * d2
-            o[tuple(hi)] += d2
-            mid[ax] = lo[ax] = hi[ax] = slice(None)
-        return o.reshape(ng, -1)
+        return _curvature_nd(x.reshape(shape), n).reshape(ng, -1)
 
-    # D-06 (agent 8): in a Maximum accuracy build with a large lattice
-    # (5+ inks: 9^6 = 531,441 nodes, two thirds of the fit's CPU) the
-    # curvature runs one Lab column per pool thread. The operator is purely
-    # element-wise per column, so each column's numbers are the same bits
-    # as in the (grid..., 3) array; Fast and Bit-exact never take this path.
-    from workflow.profile_engine import parallel as _par
-    col_threads = (ng >= 100_000 and _par.in_accurate_scope()
-                   and _par.worker_count() > 1)
+    # D-06 (agent 8, agent 92): in a Maximum accuracy build with a large
+    # lattice the curvature runs one Lab column per pool step, and each
+    # column in slabs along the first lattice axis. The operator is
+    # element-wise per column, and a slab computed from its rows plus two
+    # halo rows on each side gives every element the same additions in the
+    # same order as the whole lattice (_curvature_nd), so the bits are the
+    # serial ones; Fast and Bit-exact never take this path.
+    m_cols = y.shape[1]
+    n_slabs = max(1, min(grid, -(-pool.workers // max(1, m_cols)))) \
+        if n > 1 else 1
+    edges = np.linspace(0, grid, n_slabs + 1).round().astype(int)
+    slabs = [(int(a), int(b)) for a, b in zip(edges[:-1], edges[1:]) if b > a]
+    jobs = [(c, a, b) for c in range(m_cols) for a, b in slabs]
+    per = ng // grid                       # lattice nodes per first-axis row
 
     def curvature_cols(x: np.ndarray) -> np.ndarray:
         out = np.empty_like(x)
 
-        def one(c: int):
-            def run():
-                out[:, c] = curvature(np.ascontiguousarray(x[:, c:c + 1]))[:, 0]
-            return run
-        _par.run_tasks([one(c) for c in range(x.shape[1])])
+        def one(j: int, _hi: int) -> None:
+            c, a, b = jobs[j]
+            lo_in, hi_in = max(0, a - 2), min(grid, b + 2)
+            sub = np.ascontiguousarray(
+                x[lo_in * per:hi_in * per, c:c + 1]).reshape(
+                    (hi_in - lo_in,) + (grid,) * (n - 1) + (1,))
+            o = _curvature_nd(sub, n)
+            out[a * per:b * per, c] = o[a - lo_in:b - lo_in].reshape(-1)
+        pool.map(one, [(j, j + 1) for j in range(len(jobs))])
         return out
 
-    curv = curvature_cols if col_threads else curvature
+    curv = curvature_cols if (use_pool and col_par) else curvature
 
     def amul(x: np.ndarray) -> np.ndarray:
         return wtmul(wmul(x)) + lam * curv(x) + 1e-7 * x
 
-    b = wtmul(y)
-    x = np.zeros((ng, y.shape[1])) if x0 is None else x0.copy()
-    r = b - amul(x)
-    p = r.copy()
-    rs = (r * r).sum()
-    # rtol: optional relative termination (squared-residual scale) — the
-    # absolute 1e-9 over/under-iterates depending on problem magnitude.
-    stop = max(1e-9, rtol * rs)
-    for _ in range(iters):
-        ap = amul(p)
-        alpha = rs / max((p * ap).sum(), 1e-12)
-        x += alpha * p
-        r -= alpha * ap
-        rs2 = (r * r).sum()
-        if rs2 < stop:
-            break
-        p = r + (rs2 / rs) * p
-        rs = rs2
-    return x
+    with pool:
+        b = wtmul(y)
+        x = np.zeros((ng, y.shape[1])) if x0 is None else x0.copy()
+        r = b - amul(x)
+        p = r.copy()
+        rs = (r * r).sum()
+        # rtol: optional relative termination (squared-residual scale) — the
+        # absolute 1e-9 over/under-iterates depending on problem magnitude.
+        stop = max(1e-9, rtol * rs)
+        for _ in range(iters):
+            ap = amul(p)
+            alpha = rs / max((p * ap).sum(), 1e-12)
+            x += alpha * p
+            r -= alpha * ap
+            rs2 = (r * r).sum()
+            if rs2 < stop:
+                break
+            p = r + (rs2 / rs) * p
+            rs = rs2
+        return x
 
 
 def fit_forward_model(device: np.ndarray, lab: np.ndarray, *, grid: int,
@@ -356,8 +443,8 @@ def _refit_curve(model: ForwardModel, device: np.ndarray, lab: np.ndarray,
     def fit_err(kn: np.ndarray) -> float:
         model.curves[channel] = kn
         shaped[:, channel] = np.interp(device[:, channel], xp, kn)
-        w, cols = _interp_weights(shaped, model.grid, n)
-        r2 = (((w[:, :, None] * model.nodes[cols]).sum(1) - lab) ** 2).sum(1)
+        wt, ct = _interp_weights_t(shaped, model.grid, n)
+        r2 = ((_corner_sum(wt, ct, model.nodes) - lab) ** 2).sum(1)
         return float(r2.sum() if wts is None else (wts * r2).sum())
 
     mu = SHAPER_SMOOTH["mu"]

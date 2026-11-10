@@ -212,8 +212,15 @@ def _gauss_newton(model, target: np.ndarray, seed: np.ndarray,
     kw = dict(iters=iters, damping=damping, ink_limit=ink_limit,
               boundary_fd=boundary_fd, tac_projection=tac_projection,
               channel_max=channel_max, progress_label=progress_label)
-    bounds = parallel.chunk_bounds(len(target), parallel.worker_count()) \
-        if boundary_fd else [(0, len(target))]
+    # Agent 92: pieces start on multiples of ROW_ALIGN, and a view that may
+    # reach a BLAS product (the a51 CIECAM02 view, a GP layer) is only
+    # split where parallel.rows_stable() holds; the plain forward model is
+    # element-wise per row.
+    split = boundary_fd and (type(model) is ForwardModel
+                             or parallel.rows_stable())
+    bounds = parallel.chunk_bounds(len(target), parallel.worker_count(),
+                                   align=parallel.ROW_ALIGN) \
+        if split else [(0, len(target))]
     if len(bounds) <= 1:
         return _gauss_newton_rows(model, target, seed, free, prior=prior,
                                   prior_w=prior_w, err_weights=err_weights,

@@ -239,6 +239,19 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 80: where a80-greywalk fired, the perceptual neutral column is
      # a79-perccol's (colprof's separation made neutral); research, opt-in
      "a80-perccol",
+     # Agent 84: on a CMYK printer with a mild measured ink fold (a79's
+     # gate), the forward fit keeps clustered dark patches the robust fit
+     # had rejected as misreads (real i1iSis: warm hues into black);
+     # research, opt-in
+     "a84-warmblack",
+     # Agent 84: the refit is the build's model for every table (the first
+     # a84 arm: A2B held-out -18 %, but the perceptual / saturation greys
+     # and some rel. col. rows move); research, opt-in
+     "a84-warmblack-all",
+     # Agent 89: with a84-warmblack, the dark re-clip leaves the nodes where
+     # neither clip uses black (the C+M edge: dark sRGB blue, where the
+     # nudge made a71's dark ray add black mid-ramp); research, opt-in
+     "a89-isisgap",
      # Agent 56 (D-30 part 1): RGB with a51 on: the chroma of a clip target
      # lifted to the dark floor fades C1 with its depth below the black, at
      # colprof's own per-hue rate; research, opt-in
@@ -284,7 +297,23 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # table) and at the green cusp (coarse table) smoothed
      # (purecolprof.a82_dark / a82_coarse); a82-green default since
      # integration 11, a82-greencusp and a82-greenin opt-in
-     "a82-green", "a82-greencusp", "a82-greenin"})
+     "a82-green", "a82-greencusp", "a82-greenin",
+     # Agent 85: RGB colorimetric neutral column below the darkest printable
+     # neutral re-solved in CIELAB, so rel. col. + black point compensation
+     # reaches the black point on a tinted black (purecolprof.a85_bpcblack);
+     # research, opt-in
+     "a85-bpcblack",
+     # Agent 86: RGB perceptual / saturation neutral column near the black
+     # takes the colprof oracle's own device values where the oracle's A2B
+     # says the engine's darkest steps merge (Knut's laser; gamut_map
+     # a86_knutdark); research, opt-in
+     "a86-knutdark",
+     # Agent 88: how deep the RGB colorimetric neutral shadows go on a tinted
+     # black, three levels: no token = Neutral (int-11), a88-black-balanced
+     # (cast within one just-noticeable step), a88-black-deepest (the
+     # printer's own black, a85 made safe; purecolprof.a88_black); research,
+     # opt-in
+     "a88-black-balanced", "a88-black-deepest"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -411,6 +440,49 @@ INT8B_TOKENS = frozenset({"a63-palefine", "a63-lowgrid"})
 A73_FOLD_MIN = 2.0
 A73_CMYGAP_MIN = 6.0
 A74_FOLDMEAS_MIN = 1.0
+# Agent 84 (research, off): see the forward-fit block of _build_profile_impl.
+A84_WARMBLACK = "a84-warmblack"
+A84_WARMBLACK_ALL = "a84-warmblack-all"
+# Agent 89 (research, off; needs a84-warmblack): see the a84 dark re-clip.
+A89_ISISGAP = "a89-isisgap"
+
+
+def _a84_gp_layer(meas, stiff, candidates, settings, lam, curve_rounds,
+                  use_ucs, n):
+    """Agent 84 (a84-warmblack): the build's GP layer (fin3: gpsel / gpwarp,
+    gpclip taper, projection) on the refit ``stiff`` model, with the
+    clustered misfits kept in the GP's Huber weights and held-out folds.
+    The stiff refit when the GP layer does not apply."""
+    if not gp_forward_applies(candidates, is_additive=meas.is_additive,
+                              n_channels=n, n_patches=len(meas.device)):
+        return stiff
+    from workflow.profile_engine import gpfwd, gpsel
+    from workflow.profile_engine.metrics import delta_e_2000 as _de
+    model = stiff
+    gpsel.A84_KEEP_CLUSTERS = True
+    try:
+        if not ({"gpwarp", "gpsel"} & candidates):
+            gpm = gpfwd.fit_gp_forward(meas.device, meas.lab_relative, _de,
+                                       row_weights=meas.row_weights,
+                                       ref_pred=model.predict(meas.device))
+        else:
+            gpm = _agent15_gp(meas, model, candidates, settings, lam,
+                              curve_rounds, use_ucs, _de)
+    finally:
+        gpsel.A84_KEEP_CLUSTERS = False
+    if gpm is not None and "gpclip" in candidates:
+        gpm = gpsel.Tapered(
+            gpm, model, float(meas.device.sum(1).max()),
+            light=(gpsel.light_scale(meas.device)
+                   * (2.0 if "gplight2" in candidates else 1.0)
+                   if {"gplight", "gplight2"} & candidates else None),
+            dark=(15.0, 30.0) if "gpdark" in candidates else None)
+    if gpm is not None:
+        model = gpfwd.project_to_table(
+            gpm, model, lam, fine="a2bfine" in candidates, anchor_rel=0.1,
+            keep_curves="gpkeep" in candidates,
+            shaped_samples="gpsamp" in candidates)
+    return model
 INT9_TOKENS = frozenset({
     "a65-cmykhue-bluejab", "a66-cmyaxis", "a68-clipkeep", "a69-cmykport",
     "a69-cmykport-oog", "a69-cmykport-oogfine", "a70-edgesmooth",
@@ -692,7 +764,10 @@ def _agent15_gp(meas, model, candidates, settings, lam, curve_rounds,
         return fit_forward_model_accurate(
             d, l, grid=model.grid, base_lam=lam, curve_rounds=curve_rounds,
             ucs=use_ucs, row_weights=w, positioning=curve_rounds > 0,
-            additive=False)[0]
+            additive=False,
+            # Agent 84: the held-out folds fit the stiff model the way the
+            # build did (a84-warmblack keeps clustered misfits)
+            keep_clusters=gpsel.A84_KEEP_CLUSTERS)[0]
 
     winner, rep = gpsel.select(dev, lab, model, fit_stiff, de_fn, rw,
                                kinds=kinds,
@@ -767,6 +842,11 @@ class BuildSettings:
     # rendering exactly via the arm's-length oracle (gamut_map).
     argyll_bin: Path | str | None = None
     timestamp: datetime | None = None        # fixed → byte-reproducible
+    # Agent 92 (D-06): threads a Maximum accuracy build may use; 0 = the
+    # engine's default (usable CPUs minus one, capped; parallel.worker_count)
+    # or the CHROMIQ_ENGINE_THREADS override. The profile's bytes do not
+    # depend on it (tests/test_engine_a92_speed.py).
+    engine_workers: int = 0
     progress: Callable[[str], None] | None = None
     # Gamut-mapping engine for the perceptual/saturation B2A tables:
     #   "fast"     — ChromIQ's built-in Python mapper (colprof's algorithm,
@@ -1010,7 +1090,7 @@ def build_profile(ti3_path: Path | str, out_path: Path | str,
     scope = parallel.accurate_scope() if settings.gammap_mode == "accurate" \
         else contextlib.nullcontext()
     try:
-        with scope:
+        with scope, parallel.worker_budget(int(settings.engine_workers or 0)):
             return _build_profile_impl(ti3_path, out_path, settings, started)
     finally:
         settings.progress = orig_progress
@@ -1194,6 +1274,9 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         _emit(settings, "Candidate pipeline active: "
                         f"{', '.join(sorted(candidates))}.")
     _noise_winner = None
+    _a84_fired = False                  # Agent 84 (a84-warmblack)
+    _a84_model0 = None                  # ... the first fit, for its black
+    _a84_clip_model = None              # ... the refit, for the dark clip
     _a40_on = False                     # Agent 38 s6 (a40-knut-grey)
     if accurate and settings.noise_model and "gp" not in candidates:
         # #123 user option: noise-aware fitting behind a held-out exam —
@@ -1250,8 +1333,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 _ramp_blend = {"ramp_blend": _a40["blend"],
                                "lam_factors": (1.0,)}
                 _a40_on = True
-        model, outliers, _lam_used = fit_forward_model_accurate(
-            meas.device, meas.lab_relative, grid=a2b_grid, base_lam=lam,
+        _fit_kw = dict(
+            grid=a2b_grid, base_lam=lam,
             curve_rounds=curve_rounds, ucs=use_ucs,
             gp="gp" in candidates,
             progress=lambda m: _emit(settings, m),
@@ -1268,6 +1351,40 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                                         & candidates)
                                        and not meas.is_additive and n >= 5)
                       else 0.0))
+        model, outliers, _lam_used = fit_forward_model_accurate(
+            meas.device, meas.lab_relative, **_fit_kw)
+        if (A84_WARMBLACK in candidates and not meas.is_additive
+                and n == 4):
+            # Agent 84 (a84-warmblack, Findings/agent84-01): on a CMYK
+            # printer with a mild, MEASURED ink fold (a79's gate: real
+            # i1iSis) the robust fit rejected a whole cluster of dark
+            # C+M-rich patches as misreads; they are the fold itself. Fit
+            # again with clustered misfits kept at full weight.
+            from workflow.profile_engine.gamut_map import a79_mild_fold
+            if a79_mild_fold(model, meas.channel_letters, meas) is not None:
+                _m84, _o84, _l84 = fit_forward_model_accurate(
+                    meas.device, meas.lab_relative, keep_clusters=True,
+                    **_fit_kw)
+                _r0 = np.linalg.norm(model.predict(meas.device)
+                                     - meas.lab_relative, axis=1)
+                _r1 = np.linalg.norm(_m84.predict(meas.device)
+                                     - meas.lab_relative, axis=1)
+                _emit(settings, f"Printer model: dark patches the fit had "
+                                f"set aside kept (research a84-warmblack; "
+                                f"{len(outliers)} -> {len(_o84)} flagged, "
+                                f"fit dE76 p99 {np.percentile(_r0, 99):.2f}"
+                                f" -> {np.percentile(_r1, 99):.2f}).")
+                _a84_fired = True
+                if A84_WARMBLACK_ALL in candidates:
+                    # research a84-warmblack-all: the refit is THE model
+                    # (every table; arm "fin" of Agent 84)
+                    _a84_model0 = model
+                    model, outliers, _lam_used = _m84, _o84, _l84
+                else:
+                    # a84-warmblack: the refit only clips the dark
+                    # clipped nodes of B2A1 (below); every other table is
+                    # built on the build's own model as before
+                    _a84_clip_model = _m84
         if ({"a19-extrap", "a19-bounds"} & candidates
                 and not meas.is_additive):
             # Research token (agent 19, F-12): physical lower bounds on the
@@ -1329,8 +1446,14 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                                            row_weights=meas.row_weights,
                                            ref_pred=model.predict(meas.device))
             else:
-                gpm = _agent15_gp(meas, model, candidates, settings, lam,
-                                  curve_rounds, use_ucs, _de)
+                from workflow.profile_engine import gpsel as _gpsel84
+                _gpsel84.A84_KEEP_CLUSTERS = (_a84_fired
+                                              and _a84_clip_model is None)
+                try:
+                    gpm = _agent15_gp(meas, model, candidates, settings, lam,
+                                      curve_rounds, use_ucs, _de)
+                finally:
+                    _gpsel84.A84_KEEP_CLUSTERS = False
             if gpm is not None and "gpclip" in candidates:
                 from workflow.profile_engine import gpsel
                 gpm = gpsel.Tapered(
@@ -1351,6 +1474,13 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                     anchor_rel=0.1, keep_curves="gpkeep" in candidates,
                     shaped_samples="gpsamp" in candidates)
                 a2b_grid = model.grid
+    if _a84_clip_model is not None:
+        # Agent 84 (a84-warmblack): the refit gets the same GP layer, its
+        # Huber weights and held-out folds keeping the clustered misfits
+        _a84_clip_model = _a84_gp_layer(meas, _a84_clip_model, candidates,
+                                        settings, lam, curve_rounds, use_ucs,
+                                        n)
+        _pin_media_white(_a84_clip_model, meas, settings)
     if "spectral" in candidates or (accurate and settings.spectral_physics):
         # #123 W4: challenge the grid with the YNSN physics hybrid — the
         # standard model stays unless the physics wins on held-out
@@ -1774,7 +1904,14 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 is_additive=meas.is_additive, ink_limit=ink_limit,
                 channel_max=channel_max, ladder=b2a_mod.A34_LADDER,
                 chooser=_ft.partial(
-                    b2a_mod.rate_deep_black,
+                    (b2a_mod.rate_deep_black if _a84_model0 is None else
+                     # Agent 84: where a84-warmblack refitted the model, the
+                     # deep black is chosen on the FIRST fit, so the black
+                     # device (and its depth) stay what they were; the
+                     # refit's own rule picked a neutral C+M black 2 L*
+                     # lighter on real i1iSis (rbf 18.7 -> 20.8)
+                     (lambda _m, **_k: b2a_mod.rate_deep_black(
+                         _a84_model0, **_k))),
                     max_chroma=(None if _meas_c is None
                                 else _meas_c + b2a_mod.A34_MEAS_MARGIN)))
             if axis.get("handover"):
@@ -2217,6 +2354,82 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             ourk=_a69m["ourk"] or _pern, ourclip=_a69m["ourclip"] or _pern,
             progress=lambda m: _emit(settings, m),
             fold=(_a69.A70_FOLDCAP in candidates and not _a73_kfirst))
+        if _a84_clip_model is not None and not (_a69m["ourclip"] or _pern):
+            # Agent 84 (a84-warmblack): the clipped nodes near the black
+            # are clipped again on the refit that kept the dark C+M-rich
+            # patches (on the build's own model those print purple, so the
+            # clip sent warm hues through C-rich low-K mixes that really
+            # print grey); full up to the black + 20 L*, gone by + 35
+            # (CHROMIQ_A84_DARK l:w), the in-gamut nodes untouched
+            _p84, _ = _a69.colprof_table(
+                _a84_clip_model, node_lab, dev_clut, residual,
+                ink_limit=ink_limit, channel_max=channel_max, l_min=_l_min,
+                ourk=True, ourclip=False,
+                fold=(_a69.A70_FOLDCAP in candidates and not _a73_kfirst))
+            _dl84, _dw84 = (float(v) for v in os.environ.get(
+                "CHROMIQ_A84_DARK", "20:15").split(":"))
+            _u84 = np.clip((_l_min + _dl84 + _dw84 - node_lab[:, 0])
+                           / max(_dw84, 1e-6), 0.0, 1.0)
+            _w84 = _u84 * _u84 * (3.0 - 2.0 * _u84)
+            # printable on either model: not clipped, not moved
+            _w84[np.asarray(residual) < _a69.FEAS_TOL] = 0.0
+            _w84[np.linalg.norm(_a84_clip_model.predict(np.clip(
+                dev_clut, 0.0, 1.0)) - node_lab, axis=1)
+                 < _a69.FEAS_TOL] = 0.0
+            # ... and only where the build's own model is WRONG about its
+            # own clip: the refit prints that device differently by more
+            # than CHROMIQ_A84_DIS t0:t1 dE76 (default 1:2); on real
+            # i1iSis this is the magenta-red sector near the black and
+            # nothing else. The weight is grown by one node and averaged
+            # over its 27-node neighbourhood, so no seam is cut.
+            _t0, _t1 = (float(v) for v in os.environ.get(
+                "CHROMIQ_A84_DIS", "1:2").split(":"))
+            _d0 = np.clip(_pure, 0.0, 1.0)
+            _dis = np.linalg.norm(model.predict(_d0)
+                                  - _a84_clip_model.predict(_d0), axis=1)
+            _v = np.clip((_dis - _t0) / max(_t1 - _t0, 1e-6), 0.0, 1.0)
+            _v = (_v * _v * (3.0 - 2.0 * _v)).reshape(
+                b2a_grid, b2a_grid, b2a_grid)
+            _pv = np.pad(_v, 1, mode="edge")
+            _offs = [(i, j, k) for i in range(3) for j in range(3)
+                     for k in range(3)]
+            _g = b2a_grid
+            _vd = np.max([_pv[i:i + _g, j:j + _g, k:k + _g]
+                          for i, j, k in _offs], axis=0)
+            _pv = np.pad(_vd, 1, mode="edge")
+            _vs = np.mean([_pv[i:i + _g, j:j + _g, k:k + _g]
+                           for i, j, k in _offs], axis=0)
+            _w84 = _w84 * _vs.reshape(-1)
+            # the near-neutral core around the black stays the build's own
+            # (every ramp ends there; moving it tinted the last stretch of
+            # the yellow / green ramps): no change below node C* c0, full
+            # from c1 (CHROMIQ_A84_CORE c0:c1, default 4:8)
+            _c0, _c1 = (float(v) for v in os.environ.get(
+                "CHROMIQ_A84_CORE", "4:8").split(":"))
+            _cc = np.clip((np.hypot(node_lab[:, 1], node_lab[:, 2]) - _c0)
+                          / max(_c1 - _c0, 1e-6), 0.0, 1.0)
+            _w84 = _w84 * _cc * _cc * (3.0 - 2.0 * _cc)
+            if A89_ISISGAP in candidates:
+                # Agent 89 (a89-isisgap, Findings/agent89-01): the warm
+                # fault is the black share of the clip (C-rich, low-K mixes
+                # that print grey); where neither clip uses black (the C+M
+                # edge of dark sRGB blue) the refit only nudges C/M by
+                # < .04, and a71's dark ray turned those nudges into black
+                # mid-ramp (blue h240: a dull band, chroma 34 -> 25 -> 39).
+                # Those nodes keep the build's own clip: no change below
+                # K k0, full from k1 (CHROMIQ_A89_K k0:k1, default .02:.05)
+                _k0, _k1 = (float(v) for v in os.environ.get(
+                    "CHROMIQ_A89_K", "0.02:0.05").split(":"))
+                _k89 = np.maximum(np.clip(_pure[:, 3], 0.0, 1.0),
+                                  np.clip(_p84[:, 3], 0.0, 1.0))
+                _g89 = np.clip((_k89 - _k0) / max(_k1 - _k0, 1e-6),
+                               0.0, 1.0)
+                _w84 = _w84 * _g89 * _g89 * (3.0 - 2.0 * _g89)
+            _pure = (1.0 - _w84[:, None]) * _pure + _w84[:, None] * _p84
+            _emit(settings, f"Colorimetric table: {int((_w84 > 0).sum())} "
+                            f"clipped nodes near the black clipped on the "
+                            f"refit ({int((_w84 > 0.5).sum())} fully; "
+                            f"research a84-warmblack).")
         _pure_s = np.clip(model.shape_device(_pure), 0.0, 1.0)
         if channel_max is not None:
             _pure_s = np.minimum(_pure_s, model.shape_device(
@@ -2552,6 +2765,44 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                                     f"{'' if _a82p['dark'] else ' off'}, "
                                     "a82-greencusp"
                                     f"{'' if _a82p['cusp'] else ' off'}).")
+                _a85p = _a58m.a85_params(candidates)
+                if _a85p is not None:
+                    # Research Agent 85 (a85-bpcblack): the clipped neutral
+                    # column between the device black and the darkest
+                    # printable neutral re-solved in CIELAB (rel. col. + BPC
+                    # reaches the black point), gated on a tinted black
+                    _tab, _a85i = _a58m.a85_bpcblack(
+                        _tab, node_lab, residual, model, _a85p,
+                        icw.curves_to_tables(inv, entries_b2a))
+                    _emit(settings, "Colorimetric table: neutral shadows "
+                                    "reach the printer's black (research "
+                                    "a85-bpcblack: black L* "
+                                    f"{_a85i['black'][0]:.1f}, darkest "
+                                    "printable neutral L* "
+                                    f"{(_a85i['neutral_l'] or float('nan')):.1f}, "
+                                    f"{_a85i['nodes']} nodes"
+                                    f"{'' if _a85i['fires'] else ', not needed'}).")
+                _a88p = _a58m.a88_params(candidates)
+                if _a88p is not None:
+                    # Research Agent 88 (a88-black-balanced / -deepest):
+                    # the clipped neutral column below the darkest printable
+                    # neutral reaches toward the printer's black, at most one
+                    # just-noticeable cast (Balanced) or all the way (Deepest)
+                    _tab, _a88i = _a58m.a88_black(
+                        _tab, node_lab, residual, model, _a88p,
+                        icw.curves_to_tables(inv, entries_b2a))
+                    _k88, _n88 = _a88i["black"], _a88i["neutral"]
+                    _emit(settings, "Colorimetric table: deepest black "
+                                    f"{_a88i['level']} (research a88: "
+                                    "printer black L* "
+                                    f"{_k88[0]:.1f} a* {_k88[1]:.1f} b* "
+                                    f"{_k88[2]:.1f}; darkest printable "
+                                    "neutral "
+                                    + ("none" if _n88 is None else
+                                       f"L* {_n88[0]:.1f} a* {_n88[1]:.1f} "
+                                       f"b* {_n88[2]:.1f}")
+                                    + f"; {_a88i['nodes']} nodes"
+                                    f"{'' if _a88i['fires'] else ', not needed'}).")
                 b2a_col = icw.make_mft2(
                     3, n, b2a_grid, icw.device_to_u16(_tab),
                     in_tables=b2a_in,

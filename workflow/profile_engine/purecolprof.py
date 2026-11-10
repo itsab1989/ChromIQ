@@ -345,24 +345,83 @@ def lchw_sq(y: np.ndarray, t: np.ndarray, w=LCH_WEIGHTS) -> np.ndarray:
 
 def _cloud_seed(t_j: np.ndarray, cloud: np.ndarray,
                 cloud_j: np.ndarray, block: int = 128) -> np.ndarray:
-    """Cloud point of least rev.c distance for every target (exhaustive)."""
+    """Cloud point of least rev.c distance for every target (exhaustive).
+
+    Agent 92 (D-06): the distances are the same element-wise expressions
+    as before, computed in tiles of 64 targets x 4096 cloud points (an
+    84,000-point CMYK cloud made five 86 MB temporaries per block, so the
+    search waited on memory), and the first least distance is kept across
+    the tiles with a strict "<", which is np.argmin's first-occurrence
+    rule; the row ranges run on pool threads. With a non-finite input
+    (argmin's NaN rule) the original blocks are used."""
     out = np.empty((len(t_j), cloud.shape[1]))
     cc = np.hypot(cloud_j[:, 1], cloud_j[:, 2])
-    for lo in range(0, len(t_j), block):
-        tb = t_j[lo:lo + block]
-        dl = cloud_j[None, :, 0] - tb[:, None, 0]
-        dchsq = ((cloud_j[None, :, 1] - tb[:, None, 1]) ** 2
-                 + (cloud_j[None, :, 2] - tb[:, None, 2]) ** 2)
-        dc = cc[None, :] - np.hypot(tb[:, 1], tb[:, 2])[:, None]
-        dhsq = np.maximum(dchsq - dc * dc, 0.0)
-        s = (LCH_WEIGHTS[0] ** 2 * dl * dl + LCH_WEIGHTS[1] ** 2 * dc * dc
-             + LCH_WEIGHTS[2] ** 2 * dhsq)
-        out[lo:lo + block] = cloud[np.argmin(s, 1)]
+    finite = bool(np.isfinite(t_j).all() and np.isfinite(cloud_j).all())
+    c0, c1, c2 = (np.ascontiguousarray(cloud_j[:, k]) for k in range(3))
+    w0, w1, w2 = (LCH_WEIGHTS[k] ** 2 for k in range(3))
+    cb = 4096
+
+    def rows_tiled(a: int, b: int) -> None:
+        for lo in range(a, b, 64):
+            hi = min(lo + 64, b)
+            tb = t_j[lo:hi]
+            t0, t1, t2 = tb[:, None, 0], tb[:, None, 1], tb[:, None, 2]
+            tc = np.hypot(tb[:, 1], tb[:, 2])[:, None]
+            bv = bi = None
+            for cl in range(0, len(cloud_j), cb):
+                ch = slice(cl, cl + cb)
+                dl = c0[None, ch] - t0
+                dchsq = (c1[None, ch] - t1) ** 2 + (c2[None, ch] - t2) ** 2
+                dc = cc[None, ch] - tc
+                dhsq = np.maximum(dchsq - dc * dc, 0.0)
+                sc = w0 * dl * dl + w1 * dc * dc + w2 * dhsq
+                i = np.argmin(sc, 1)
+                v = sc[np.arange(len(i)), i]
+                if bv is None:
+                    bv, bi = v, i
+                else:
+                    up = v < bv
+                    bv = np.where(up, v, bv)
+                    bi = np.where(up, i + cl, bi)
+            out[lo:hi] = cloud[bi]
+
+    def rows(a: int, b: int) -> None:
+        for lo in range(a, b, block):
+            hi = min(lo + block, b)
+            tb = t_j[lo:hi]
+            dl = cloud_j[None, :, 0] - tb[:, None, 0]
+            dchsq = ((cloud_j[None, :, 1] - tb[:, None, 1]) ** 2
+                     + (cloud_j[None, :, 2] - tb[:, None, 2]) ** 2)
+            dc = cc[None, :] - np.hypot(tb[:, 1], tb[:, 2])[:, None]
+            dhsq = np.maximum(dchsq - dc * dc, 0.0)
+            s = (LCH_WEIGHTS[0] ** 2 * dl * dl + LCH_WEIGHTS[1] ** 2 * dc * dc
+                 + LCH_WEIGHTS[2] ** 2 * dhsq)
+            out[lo:hi] = cloud[np.argmin(s, 1)]
+    from workflow.profile_engine import parallel
+    parallel.map_rows(rows_tiled if finite and len(cloud_j) else rows, len(t_j), align=block,
+                      min_rows=block, blas=False)
     return out
 
 
 def _descend(predict_j, t_j: np.ndarray, d0: np.ndarray, *, iters: int = 12,
              damping: float = 1e-3, h: float = 1e-4) -> tuple:
+    """:func:`_descend_rows` on row ranges (Agent 92, D-06): every row's
+    steps, acceptance and stop depend on that row alone (a row that accepts
+    nothing stays where it is, so the batch's shared stop changes no row)."""
+    from workflow.profile_engine import parallel
+    parts = parallel.map_rows(
+        lambda lo, hi: _descend_rows(predict_j, t_j[lo:hi], d0[lo:hi],
+                                     iters=iters, damping=damping, h=h),
+        len(t_j))
+    if len(parts) == 1:
+        return parts[0]
+    return (np.concatenate([p[0] for p in parts], 0),
+            np.concatenate([p[1] for p in parts], 0))
+
+
+def _descend_rows(predict_j, t_j: np.ndarray, d0: np.ndarray, *,
+                  iters: int = 12, damping: float = 1e-3,
+                  h: float = 1e-4) -> tuple:
     """Levenberg-Marquardt on the rev.c residual inside the device cube
     (active set: a channel on a face whose step points outward is held),
     never accepting a step that raises the distance (backtracking)."""
@@ -451,11 +510,14 @@ def cam_clip(model, target_lab: np.ndarray, d_lab: np.ndarray,
 
     t_j = lab_to_argyll_jab(t_lab)
     n = model.n_channels
-    cloud = clip_cloud(n, None, None, np.random.default_rng(5858),
+    cloud = clip_cloud(n, None, None, 5858,
                        light=True, faces=True)
-    seed_c = _cloud_seed(t_j, cloud, predict_j(cloud))
-    best, best_c = _descend(predict_j, t_j, d_lab[sel])
-    d2, c2 = _descend(predict_j, t_j, seed_c)
+    from workflow.profile_engine import parallel
+    # Agent 92 (D-06): the two descents are independent, side by side
+    (best, best_c), (d2, c2) = parallel.side_by_side([
+        lambda: _descend(predict_j, t_j, d_lab[sel]),
+        lambda: _descend(predict_j, t_j,
+                         _cloud_seed(t_j, cloud, predict_j(cloud)))])
     take = c2 < best_c
     best[take] = d2[take]
     cdist = np.linalg.norm(predict_j(best) - t_j, axis=1)
@@ -803,3 +865,348 @@ def a82_dark(table: np.ndarray, node_lab: np.ndarray, residual: np.ndarray,
         y = (1.0 - s[:, None]) * y + s[:, None] * f
         x = y.reshape(g, g, g, n)
     return x.reshape(-1, n)
+
+
+# --- Agent 85 (a85-bpcblack): the neutral shadows reach the printer's black ------------------------------------
+# Rel. col. + black point compensation (Lightroom, Photoshop, every Little CMS application) squeezes the image's
+# black onto the profile's black point, which Adobe's algorithm (Little CMS cmsDetectDestinationBlackPoint) takes
+# from device RGB 0 through A2B1, made neutral. On a printer whose deepest black is tinted (ET-8550: L* 4.1,
+# a* 2.2, b* -3.4) there is no neutral that dark, so the B2A1 column node has to clip. colprof's CAM clip (above)
+# measures the miss in Argyll's CIECAM02 Jab, where lightness near black is squashed (J 7.9 at L* 0, 10.9 at
+# L* 7.3: 7.3 L* into 3 J) while the black's tint is not: the clip picks the darkest NEUTRAL, L* 7.2-7.5, for
+# every column node from the black up, a plateau the BPC wedge lands on (bottom step 7.3 for a black point of
+# 4.1, the bottom six steps 0.1 L* apart; colprof itself 7.5). The token re-solves those column nodes with the
+# same rev.c LCh weights (2, 1, 2.2) in CIELAB (for a neutral target 4 dL^2 + C^2), which reaches the black
+# (4.9 at the black point, as Argyll's own exact inverse) at the cost of the black's own tint in the last few L*.
+# Gate (measured on the build's model): the darkest printable neutral (C* <= 1) lies at least A85["gap"] L*
+# above the device black; Knut, both PRO-300s, X1 (neutral blacks) never fire.
+A85_TOKEN = "a85-bpcblack"
+A85 = {"gap": 1.5, "fade": 4.0, "ring": 0.0, "cmax": 1.0, "w": LCH_WEIGHTS}
+
+
+def a85_params(candidates):
+    """a85-bpcblack's parameters, or None with the token off (env CHROMIQ_A85 "gap:fade:ring:wL" for sweeps)."""
+    if A85_TOKEN not in frozenset(candidates or ()):
+        return None
+    import os
+    p = dict(A85)
+    v = os.environ.get("CHROMIQ_A85", "")
+    if v:
+        k = v.split(":")
+        p["gap"] = float(k[0])
+        if len(k) > 1:
+            p["fade"] = float(k[1])
+        if len(k) > 2:
+            p["ring"] = float(k[2])
+        if len(k) > 3:
+            p["w"] = (float(k[3]), LCH_WEIGHTS[1], LCH_WEIGHTS[2])
+    return p
+
+
+def _a85_cloud(dmax: float, n: int = 3, steps: int = 48) -> np.ndarray:
+    ax = np.linspace(0.0, dmax, steps)
+    return np.stack(np.meshgrid(*([ax] * n), indexing="ij"), -1).reshape(-1, n)
+
+
+def a85_gate(model, params: dict) -> dict:
+    """The device black (model, RGB 0), the darkest printable neutral (least L* with C* <= cmax on a dark device
+    cloud) and whether the gap between them fires the token."""
+    n = model.n_channels
+    k = np.asarray(model.predict(np.zeros((1, n)))[0], float)
+    ln = None
+    for dmax in (0.3, 0.6, 1.0):
+        cl = _a85_cloud(dmax, n)
+        lab = np.asarray(model.predict(cl), float)
+        ok = np.hypot(lab[:, 1], lab[:, 2]) <= float(params["cmax"])
+        if ok.any():
+            ln = float(lab[ok, 0].min())
+            if ln < float(lab[:, 0].max()) - 5.0:
+                break
+    gap = None if ln is None else ln - float(k[0])
+    return {"black": k, "neutral_l": ln, "gap": gap,
+            "fires": gap is not None and gap >= float(params["gap"])}
+
+
+def _inv_out(tables: np.ndarray, dev: np.ndarray) -> np.ndarray:
+    """device (N, n) -> table values whose B2A output curves give that device (monotone u16 tables inverted)."""
+    t = np.asarray(tables, float) / 65535.0
+    x = np.linspace(0.0, 1.0, t.shape[1])
+    out = np.empty_like(np.asarray(dev, float))
+    for c in range(t.shape[0]):
+        y = np.maximum.accumulate(t[c])
+        out[:, c] = np.interp(dev[:, c], y, x)
+    return out
+
+
+def _fwd_out(tables: np.ndarray, val: np.ndarray) -> np.ndarray:
+    t = np.asarray(tables, float) / 65535.0
+    x = np.linspace(0.0, 1.0, t.shape[1])
+    return np.stack([np.interp(val[:, c], x, t[c]) for c in range(t.shape[0])], 1)
+
+
+def a85_bpcblack(table: np.ndarray, node_lab: np.ndarray, residual: np.ndarray, model, params: dict,
+                 out_tables: np.ndarray, gate: dict | None = None):
+    """(table, info): the written B2A1 table (values in the space of ``out_tables``) with its clipped neutral
+    column nodes from L* 0 up to the darkest printable neutral (+ fade) re-solved by the rev.c LCh-weighted
+    nearest point in CIELAB, blended in device space (full weight up to the darkest neutral, smoothstep to 0
+    over ``fade`` L*, over 0.5-1.5 dE of the node's own clip distance; ring > 0 lets the first off-axis nodes
+    take that share too). Untouched (``table`` returned as is) where the gate does not fire."""
+    gate = a85_gate(model, params) if gate is None else gate
+    info = dict(gate, nodes=0)
+    if not gate["fires"]:
+        return np.asarray(table), info
+    nl = np.asarray(node_lab, float)
+    r = np.asarray(residual, float)
+    c = np.hypot(nl[:, 1], nl[:, 2])
+    top = float(gate["neutral_l"]) + float(params["fade"])
+    u = np.clip((top - nl[:, 0]) / max(float(params["fade"]), 1e-9), 0.0, 1.0)
+    wl = u * u * (3.0 - 2.0 * u)
+    v = np.clip(r - 0.5, 0.0, 1.0)
+    wr = v * v * (3.0 - 2.0 * v)
+    ring = float(params["ring"])
+    wc = np.where(c < 0.5, 1.0, np.where(c < 12.0, ring, 0.0))
+    w = wl * wr * wc
+    sel = np.flatnonzero(w > 0)
+    if not len(sel):
+        return np.asarray(table), info
+    tab = np.asarray(table, float).copy()
+    cur = _fwd_out(out_tables, tab[sel])
+    t_lab = nl[sel]
+    wts = tuple(params["w"])
+    dmax = float(min(1.0, max(0.05, 1.5 * cur.max())))
+    cloud = _a85_cloud(dmax, model.n_channels)
+    lab_c = np.asarray(model.predict(cloud), float)
+    seed = np.empty_like(cur)
+    for i, t in enumerate(t_lab):
+        seed[i] = cloud[np.argmin(lchw_sq(lab_c, np.broadcast_to(t, lab_c.shape), wts))]
+
+    def res_fn(y, t):
+        return lchw_residual(y, t, wts)
+
+    best = _a85_descend(model.predict, t_lab, seed, res_fn)
+    new = (1.0 - w[sel])[:, None] * cur + w[sel][:, None] * best
+    tab[sel] = _inv_out(out_tables, np.clip(new, 0.0, 1.0))
+    info.update(nodes=int(len(sel)), top=top)
+    return tab, info
+
+
+def _a85_descend(predict, t_lab, d0, res_fn, iters: int = 20, h: float = 1e-4):
+    """Projected Gauss-Newton with backtracking inside the device cube (few nodes, so plain loops)."""
+    d = np.clip(np.array(d0, float), 0.0, 1.0)
+    n = d.shape[1]
+    for i in range(len(d)):
+        t = t_lab[i:i + 1]
+        x = d[i:i + 1].copy()
+        r = res_fn(predict(x), t)
+        cst = float((r * r).sum())
+        for _ in range(iters):
+            jac = np.empty((3, n))
+            for k in range(n):
+                xk = x.copy()
+                s = h if xk[0, k] + h <= 1.0 else -h
+                xk[0, k] += s
+                jac[:, k] = (res_fn(predict(xk), t) - r)[0] / s
+            stp = np.linalg.lstsq(jac, -r[0], rcond=None)[0]
+            held = ((x[0] <= 0.0) & (stp < 0)) | ((x[0] >= 1.0) & (stp > 0))
+            if held.any() and (~held).any():
+                stp = np.zeros(n)
+                stp[~held] = np.linalg.lstsq(jac[:, ~held], -r[0], rcond=None)[0]
+            elif held.all():
+                break
+            ok = False
+            for f in (1.0, 0.5, 0.25, 0.125, 0.0625):
+                xn = np.clip(x + f * stp, 0.0, 1.0)
+                rn = res_fn(predict(xn), t)
+                cn = float((rn * rn).sum())
+                if cn < cst - 1e-12:
+                    x, r, cst, ok = xn, rn, cn, True
+                    break
+            if not ok:
+                break
+        d[i] = x[0]
+    return d
+
+
+# --- Agent 88 (a88-black-balanced / a88-black-deepest): how deep the darkest shadows go on a tinted black ----------
+# A three-level choice built on a85-bpcblack. Neutral (no token, the default) leaves the colorimetric table exactly
+# as int-11 writes it: the neutral shadows stop at the darkest truly neutral grey. Deepest follows Agent 85: the
+# clipped neutral column below the darkest neutral is re-solved in CIELAB, so rel. col. + BPC reaches the printer's
+# own (tinted) black. Balanced goes deeper only while the colour cast stays within one just-noticeable step: the
+# same re-solve, but a node may not print further than A88["cast"] dE00 (the battery's JND, 1.75) from the neutral
+# grey of its own lightness. Same gate as a85 (darkest printable neutral >= 1.5 L* above the device black), so a
+# printer with a near-neutral black is byte-identical at every level. Safety knobs (measured by Agent 88):
+#   gfade  the share of the re-solve falls from full at the device black to 0 at the darkest neutral over this
+#          fraction of the gap (0 = Agent 85's full share up to the darkest neutral; 1, the default, takes the
+#          S1 pessimistic grey-ramp corner from banding 0.186 to 0.149, tolerance 0.175, for 0.15 L* of depth)
+#   ring   share of the first ring of off-axis nodes (C* < 12) that take the CIELAB re-solve too (Agent 85: 0;
+#          measured: no gain in the wedge, new ramp defects on RGB default, so 0)
+#   rshift ring nodes follow the column's device shift instead (measured: does not remove the yellow step, 0)
+#   dcast  Deepest only: an optional cast cap (dE00) on the re-solve (None = no cap, Agent 85)
+# The L* = 0 plane is never touched (the profile's black stays device 0). Env CHROMIQ_A88 "key=value,..." (sweeps).
+A88_LEVELS = {"a88-black-balanced": "balanced", "a88-black-deepest": "deepest"}
+A88 = {"gap": 1.5, "fade": 4.0, "ring": 0.0, "cmax": 1.0, "w": LCH_WEIGHTS, "cast": 1.75, "gfade": 1.0,
+       "dcast": None, "pen": 40.0, "rshift": 0.0, "rreach": 12.0}
+A88_DEEPEST = {}
+A88_BALANCED = {}
+
+
+def a88_params(candidates):
+    """The chosen level's parameters, or None with neither token (Deepest wins if both are given)."""
+    c = frozenset(candidates or ())
+    lv = "deepest" if "a88-black-deepest" in c else ("balanced" if "a88-black-balanced" in c else None)
+    if lv is None:
+        return None
+    import os
+    p = dict(A88, **(A88_DEEPEST if lv == "deepest" else A88_BALANCED), level=lv)
+    for kv in filter(None, os.environ.get("CHROMIQ_A88", "").split(",")):
+        k, v = kv.split("=", 1)
+        p[k] = None if v in ("", "none", "None") else float(v)
+    return p
+
+
+def a88_cast(lab: np.ndarray) -> np.ndarray:
+    """dE00 between each colour and the neutral grey of its own lightness: how visible its colour cast is."""
+    from .metrics import delta_e_2000
+    y = np.atleast_2d(np.asarray(lab, float))
+    return delta_e_2000(y, np.stack([y[:, 0], 0 * y[:, 0], 0 * y[:, 0]], 1))
+
+
+def a88_dark_end(model, cmax: float = 1.0) -> dict:
+    """What the printer's dark end looks like, for a report: the device black (model, device 0) and the darkest
+    printable neutral (least L* with C* <= cmax on a dark device cloud), both as Lab, and the gap in L*."""
+    n = model.n_channels
+    k = np.asarray(model.predict(np.zeros((1, n)))[0], float)
+    best = None
+    for dmax in (0.3, 0.6, 1.0):
+        cl = _a85_cloud(dmax, n)
+        lab = np.asarray(model.predict(cl), float)
+        ok = np.flatnonzero(np.hypot(lab[:, 1], lab[:, 2]) <= float(cmax))
+        if len(ok):
+            best = lab[ok[np.argmin(lab[ok, 0])]]
+            if best[0] < float(lab[:, 0].max()) - 5.0:
+                break
+    return {"black": k, "neutral": best, "neutral_l": None if best is None else float(best[0]),
+            "gap": None if best is None else float(best[0] - k[0])}
+
+
+def a88_black(table: np.ndarray, node_lab: np.ndarray, residual: np.ndarray, model, params: dict,
+              out_tables: np.ndarray, gate: dict | None = None):
+    """(table, info) for the level in ``params`` (a88_params); the table is untouched where the gate does not
+    fire. See the section comment."""
+    gate = a88_dark_end(model, params["cmax"]) if gate is None else gate
+    gap = gate["gap"]
+    info = dict(gate, level=params["level"], fires=gap is not None and gap >= float(params["gap"]), nodes=0)
+    if not info["fires"]:
+        return np.asarray(table), info
+    nl = np.asarray(node_lab, float)
+    r = np.asarray(residual, float)
+    c = np.hypot(nl[:, 1], nl[:, 2])
+    ln, kl = float(gate["neutral_l"]), float(gate["black"][0])
+    top = ln + float(params["fade"])
+    u = np.clip((top - nl[:, 0]) / max(float(params["fade"]), 1e-9), 0.0, 1.0)
+    wl = u * u * (3.0 - 2.0 * u)
+    v = np.clip(r - 0.5, 0.0, 1.0)
+    wr = v * v * (3.0 - 2.0 * v)
+    ring = float(params["ring"])
+    col = c < 0.5
+    wc = np.where(col, 1.0, np.where(c < 12.0, ring, 0.0))
+    gf = float(params["gfade"] or 0.0)
+    if gf > 0:
+        g = np.clip((ln - nl[:, 0]) / max(gf * (ln - kl), 1e-9), 0.0, 1.0)
+        wl = wl * g * g * (3.0 - 2.0 * g)
+    w = wl * wr * wc * (nl[:, 0] >= 0.5)
+    sel = np.flatnonzero(w > 0)
+    if not len(sel):
+        return np.asarray(table), info
+    tab = np.asarray(table, float).copy()
+    cur = _fwd_out(out_tables, tab[sel])
+    t_lab = nl[sel]
+    wts = tuple(params["w"])
+    cap = params["cast"] if params["level"] == "balanced" else params["dcast"]
+    caps = np.where(col[sel], np.inf if cap is None else float(cap), np.inf)
+    dmax = float(min(1.0, max(0.05, 1.5 * cur.max())))
+    cloud = _a85_cloud(dmax, model.n_channels)
+    lab_c = np.asarray(model.predict(cloud), float)
+    cast_c = a88_cast(lab_c)
+    seed = np.empty_like(cur)
+    for i, t in enumerate(t_lab):
+        d = lchw_sq(lab_c, np.broadcast_to(t, lab_c.shape), wts)
+        if np.isfinite(caps[i]):
+            d = d + float(params["pen"]) ** 2 * np.maximum(cast_c - caps[i], 0.0) ** 2
+        seed[i] = cloud[np.argmin(d)]
+    pen = float(params["pen"])
+
+    def res_fn(y, t, cp):
+        rr = lchw_residual(y, t, wts)
+        if not np.isfinite(cp):
+            return rr
+        return np.concatenate([rr, pen * np.maximum(a88_cast(y) - cp, 0.0)[:, None]], 1)
+
+    best = _a88_descend(model.predict, t_lab, seed, res_fn, caps)
+    if np.isfinite(caps).any():
+        # a capped level is never shallower than Neutral: where the capped point prints lighter than the node
+        # already does (the clip had a deeper, more tinted colour), the node keeps its Neutral device
+        lb = np.asarray(model.predict(best), float)[:, 0]
+        lc = np.asarray(model.predict(cur), float)[:, 0]
+        keep = np.isfinite(caps) & (lb > lc)
+        best[keep] = cur[keep]
+    new = (1.0 - w[sel])[:, None] * cur + w[sel][:, None] * best
+    tab[sel] = _inv_out(out_tables, np.clip(new, 0.0, 1.0))
+    rs = float(params.get("rshift") or 0.0)
+    if rs > 0:
+        # the clipped off-axis nodes next to a moved column node take the same device shift (share rs, fading
+        # with their distance from the axis over rreach), so the colours that turn into black meet the deeper
+        # black without a seam; nothing is re-solved, the shift only follows the column
+        shift = {round(float(nl[i, 0]), 6): new[k] - cur[k] for k, i in enumerate(sel) if col[i]}
+        reach = float(params["rreach"])
+        nb = np.flatnonzero((~col) & (c < reach) & (wr > 0) & (nl[:, 0] >= 0.5))
+        nb = np.array([i for i in nb if round(float(nl[i, 0]), 6) in shift], int)
+        if len(nb):
+            f = rs * np.clip(1.0 - c[nb] / reach, 0.0, 1.0) * wr[nb]
+            d0 = _fwd_out(out_tables, np.asarray(table, float)[nb])
+            dv = np.stack([shift[round(float(nl[i, 0]), 6)] for i in nb])
+            tab[nb] = _inv_out(out_tables, np.clip(d0 + f[:, None] * dv, 0.0, 1.0))
+            info["ring_nodes"] = int(len(nb))
+    pr = np.asarray(model.predict(np.clip(new, 0.0, 1.0)), float)
+    cs = col[sel]
+    info.update(nodes=int(len(sel)), top=top,
+                column=[(float(t_lab[i, 0]), [round(float(x), 2) for x in pr[i]], round(float(a88_cast(pr[i])[0]), 2))
+                        for i in np.flatnonzero(cs)])
+    return tab, info
+
+
+def _a88_descend(predict, t_lab, d0, res_fn, caps, iters: int = 30, h: float = 1e-4):
+    """_a85_descend for a residual of any length (the cast penalty adds one)."""
+    d = np.clip(np.array(d0, float), 0.0, 1.0)
+    n = d.shape[1]
+    for i in range(len(d)):
+        t, cp = t_lab[i:i + 1], caps[i]
+        x = d[i:i + 1].copy()
+        r = res_fn(predict(x), t, cp)
+        cst = float((r * r).sum())
+        for _ in range(iters):
+            jac = np.empty((r.shape[1], n))
+            for k in range(n):
+                xk = x.copy()
+                s = h if xk[0, k] + h <= 1.0 else -h
+                xk[0, k] += s
+                jac[:, k] = (res_fn(predict(xk), t, cp) - r)[0] / s
+            stp = np.linalg.lstsq(jac, -r[0], rcond=None)[0]
+            held = ((x[0] <= 0.0) & (stp < 0)) | ((x[0] >= 1.0) & (stp > 0))
+            if held.any() and (~held).any():
+                stp = np.zeros(n)
+                stp[~held] = np.linalg.lstsq(jac[:, ~held], -r[0], rcond=None)[0]
+            elif held.all():
+                break
+            ok = False
+            for f in (1.0, 0.5, 0.25, 0.125, 0.0625):
+                xn = np.clip(x + f * stp, 0.0, 1.0)
+                rn = res_fn(predict(xn), t, cp)
+                cn = float((rn * rn).sum())
+                if cn < cst - 1e-12:
+                    x, r, cst, ok = xn, rn, cn, True
+                    break
+            if not ok:
+                break
+        d[i] = x[0]
+    return d
