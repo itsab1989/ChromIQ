@@ -474,8 +474,15 @@ def test_a_missing_colprof_reference_stops_a_standard_build():
     with pytest.raises(eb.ColprofReferenceFailed) as exc:
         lines("26% · Using the engine's own rendering (colprof oracle "
               "failed: bad file).")
-    assert "colprof oracle failed: bad file" in str(exc.value)
-    assert lines.reference_failed == "colprof oracle failed: bad file"
+    # the engine's own name for that run ("oracle") is not shown to anyone
+    assert str(exc.value) == "bad file"
+    assert lines.reference_failed == "bad file"
+    assert eb._plain_reason("colprof oracle failed: ") == \
+        "colprof ended with an error"
+    assert eb._plain_reason("a86: oracle A2B sampling failed") == \
+        "the result of the colprof run could not be read"
+    assert eb._plain_reason("colprof did not finish within 30 minutes") == \
+        "colprof did not finish within 30 minutes"
     # ...and every later line, from whichever thread, stops it again
     with pytest.raises(eb.ColprofReferenceFailed):
         lines("30% · Inverting the model…")

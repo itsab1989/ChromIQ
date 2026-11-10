@@ -428,6 +428,18 @@ def _switch_names_in(msg: str) -> list[str]:
     return sorted(found)
 
 
+def _plain_reason(raw: str) -> str:
+    """Why the colprof reference run failed, without the engine's own name
+    for that run ("oracle"): what is left is ArgyllCMS's message or a plain
+    English phrase, which is what the user is shown as {reason}."""
+    text = re.sub(r"^\s*colprof oracle failed:\s*", "", raw or "").strip()
+    if not text:
+        return "colprof ended with an error"
+    if re.search(r"oracle", text, re.I) or _NUMBERED_SWITCH.search(text):
+        return "the result of the colprof run could not be read"
+    return text
+
+
 class EngineLines:
     """Turns the engine's own progress lines into what the window shows,
     and keeps what a later diagnosis needs.
@@ -477,7 +489,7 @@ class EngineLines:
         m = _OWN_RENDERING.match(msg)
         if m:
             if not self._multi_ink:
-                self.reference_failed = m.group(1).strip() or "colprof"
+                self.reference_failed = _plain_reason(m.group(1))
                 return None
             return tr(
                 "[WARNING] ChromIQ could not run ArgyllCMS colprof for the "
@@ -486,7 +498,7 @@ class EngineLines:
                 "being built, but without that reference, so please check "
                 "it with a test print. To get the reference back, check the "
                 "ArgyllCMS folder in Preferences and build "
-                "again.").format(reason=m.group(1).strip())
+                "again.").format(reason=_plain_reason(m.group(1)))
         m = _DEEPEST.match(msg)
         if m:
             self.reported.append({"switch": "a88-black-deepest", "line": msg})

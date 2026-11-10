@@ -7875,7 +7875,7 @@
  "Built with ArgyllCMS colprof instead of the new profile engine": "已用 ArgyllCMS colprof 生成，而不是用新的配置文件引擎",
  "ChromIQ is still building a profile. If you quit now, the build stops and the profile it was making is not saved.\n\nYour measurement is not affected, and you can build the profile again at any time. If this run already had a profile, you find it in the run's “old” folder.\n\nWould you like to keep building, or quit anyway?": "ChromIQ 仍在生成配置文件。如果你现在退出，生成会停止，正在生成的配置文件不会被保存。\n\n你的测量不受影响，你可以随时重新生成配置文件。如果这次运行原先已有配置文件，你可以在这次运行的“old”文件夹里找到它。\n\n你想继续生成，还是仍然退出？",
  "Darkest black": "最暗的黑色",
- "Darkest black:": "最暗的黑色：",
+ "Darkest black:": "最暗的黑色:",
  "Deepest": "最深",
  "Deepest black: nothing to change on this printer. Its black (L* {kl}, a* {ka}, b* {kb}) is practically as neutral and as dark as the darkest neutral grey it can print (L* {nl}, a* {na}, b* {nb}), so this profile is the same as with Neutral.": "最深黑色：在这台打印机上没有需要更改的地方。它的黑色（L* {kl}, a* {ka}, b* {kb}）与它能打印的最暗中性灰（L* {nl}, a* {na}, b* {nb}）几乎一样中性、一样暗，所以这个配置文件与选择「中性」时相同。",
  "Deepest black: the Relative and Absolute Colorimetric table now goes down to your printer's own black (L* {kl}, a* {ka}, b* {kb}) instead of stopping at the darkest neutral grey the printer can print (L* {nl}, a* {na}, b* {nb}). Use this profile with black point compensation switched on.": "最深黑色：「相对比色」和「绝对比色」的表格现在会一直降到你的打印机自身的黑色（L* {kl}, a* {ka}, b* {kb}），而不是停在打印机能打印的最暗中性灰（L* {nl}, a* {na}, b* {nb}）。请在打开黑场补偿的情况下使用这个配置文件。",
