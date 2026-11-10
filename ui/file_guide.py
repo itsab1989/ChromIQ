@@ -782,7 +782,6 @@ def _rows(turned: "bool | None" = None):
             ("preconditioning.ti3 / .icc", "runs/runN", tr("Copies of a previous run's measurement + profile, used to aim the next chart better."), tr("Refine")),
             ("merged.ti3 / merged.icc", "runs/runN", tr("The build-time merge of your new measurement with the pre-conditioning one. The installed profile still gets the clean {name}.icc name."), tr("Build Profile (refinement)")),
             ("calibrated.icc", "runs/runN", tr("Your profile with calibration curves baked in (applycal), when the calibration workflow is on."), tr("Build Profile")),
-            ("colprof-comparison.icc", "runs/runN", tr("The profile ArgyllCMS colprof builds from the same measurement and settings, kept beside a profile made by the new ChromIQ profile engine (Preferences, Beta tab), so that you can compare the two or go back. ChromIQ never installs it by itself."), tr("Build Profile")),
             ("{name}.x3d.html + x3dom.css / x3dom.js", "runs/runN", tr("The 3D difference map Check & Refine writes when \u201cCreate X3DOM 3D visualisation (-w)\u201d is ticked, next to the measurement it checked (the three files reference each other)."), tr("Check & Refine")),
         ]),
         (tr("Verification runs — checking a finished profile over time"), [

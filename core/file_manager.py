@@ -3281,6 +3281,11 @@ DUPLICATE_META_FRESH: frozenset = frozenset({
     # Lifecycle, and nothing in the app reads or writes it — leave it at the
     # fresh default rather than propagate a state nothing maintains.
     "status",
+    # How the SOURCE run's profile was last built (a record for diagnosis).
+    # The profile itself is an optional part of a duplicate, and the record
+    # is only true beside the very file it was written for, so the copy
+    # starts without one; the source run keeps it.
+    "profile_build",
     # #182: the copy has no verifications/, so nothing has been judged with
     # its limits yet: the binding moment is fresh and the copy starts locked
     # ("duplicating a run carries the chosen set and clears the binding").

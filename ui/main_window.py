@@ -3328,6 +3328,9 @@ class MainWindow(QMainWindow):
             box.addButton(tr("Quit anyway"), QMessageBox.ButtonRole.AcceptRole)
             box.setDefaultButton(keep)
             box.setEscapeButton(keep)
+            from ui.widgets import keep_message_box_inside_the_work_area
+            keep_message_box_inside_the_work_area(box,
+                                                  widen_when_it_fits=False)
             fit_message_box_buttons(box)
             box.exec()
             return box.clickedButton() is not keep
