@@ -398,3 +398,24 @@ def test_nine_others_of_2000_patches_are_quick(qapp, tmp_path):
     assert again < 3.0, f"a change of tolerance took {again:.2f} s"
     assert "Reading 4" in _texts(dlg)
     dlg.deleteLater()
+
+
+# ---- the scroll fade takes the window's appearance ------------------------
+
+@pytest.mark.parametrize("mode,colour", [("light", "#eeece8"),
+                                         ("dark", "#181818")])
+def test_the_details_fade_follows_the_appearance(qapp, mode, colour):
+    """Basti, 2026-11-11, watching the window on screen: "it is a black
+    gradient even though the app is in light mode". The details' scroll fade
+    started as "dark" and nobody told it otherwise: MainWindow's appearance
+    broadcast only reaches widgets that exist when it runs, and this window
+    is built later, from the Tools menu. Measured in the real app (main.py)
+    as well as in a driver; v4.3.30 had it too."""
+    from tests.test_profile_tools import _runner, _Settings
+    from ui.dialogs.ti3_info_dialog import Ti3InfoDialog
+    s = _Settings()
+    s.set("appearance", mode)
+    dlg = Ti3InfoDialog(_runner(), s)
+    assert dlg._scroll._top_fade._color.name() == colour
+    assert dlg._scroll._bot_fade._color.name() == colour
+    dlg.deleteLater()

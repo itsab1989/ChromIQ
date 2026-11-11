@@ -335,7 +335,17 @@ class Ti3InfoDialog(QDialog):
         self._inner.addWidget(sep)
 
         # --- Scrollable details -------------------------------------------
-        self._scroll = FadeScrollArea(self)
+        # THE FADE TAKES THIS WINDOW'S APPEARANCE. FadeScrollArea starts as
+        # "dark", and MainWindow's appearance broadcast only reaches widgets
+        # that exist when it runs; this window is built later, from the Tools
+        # menu, so its fade stayed a black band in light mode (Basti,
+        # 2026-11-11: "it is a black gradient even though the app is in
+        # light mode"; in the real app too, and in v4.3.30). The tool
+        # dialogs' own base class sets it the same way (tools_dialogs.py).
+        from ui.theme import resolve_mode
+        self._scroll = FadeScrollArea(self, surface="dialog")
+        self._scroll.set_appearance(
+            resolve_mode(self._settings.get("appearance", "auto")))
         self._scroll.setWidgetResizable(True)
         self._scroll.setFrameShape(QFrame.Shape.NoFrame)
         # A LOW floor here — the generous one is set per-screen in showEvent.
