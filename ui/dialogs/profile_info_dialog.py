@@ -131,7 +131,13 @@ class ProfileInfoDialog(QDialog):
         self._inner.addWidget(sep)
 
         # --- Scrollable details -------------------------------------------
-        self._scroll = FadeScrollArea(self)
+        # Built from the Tools menu after start-up: the fade takes this
+        # window's appearance (as Measurement info; it was a black band in
+        # light mode, Basti 2026-11-11).
+        from ui.theme import resolve_mode
+        self._scroll = FadeScrollArea(self, surface="dialog")
+        self._scroll.set_appearance(
+            resolve_mode(self._settings.get("appearance", "auto")))
         self._scroll.setWidgetResizable(True)
         self._scroll.setFrameShape(QFrame.Shape.NoFrame)
         # The details are the point of this window, so give the scroll a tall

@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
+    QAbstractItemView,
     QButtonGroup,
     QDialog,
     QDoubleSpinBox,
@@ -26,6 +27,8 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QPushButton,
     QRadioButton,
     QSizePolicy,
@@ -48,6 +51,7 @@ from ui.widgets import (
     NoScrollComboBox,
     make_browse_button,
     open_file_dialog,
+    open_files_dialog,
     save_file_dialog,
 )
 from workflow.ti3_analysis import (
@@ -65,6 +69,8 @@ from workflow.ti3_analysis import (
 
 from workflow.reading_compare import (
     DEFAULT_TOLERANCE,
+    MAX_OTHER_READINGS,
+    ReadingsNotComparable,
     TOLERANCE_MAX,
     TOLERANCE_MIN,
     TOLERANCE_PRESETS,
@@ -147,9 +153,12 @@ class Ti3InfoDialog(QDialog):
         self._accuracy_msg = ""         # status/error shown in place of accuracy rows
         self._pc_runner = None          # lazily-created ProfcheckRunner
         self._report: list[str] = []    # plain-text lines mirroring the shown rows
-        # another reading of the same chart (4.3.32)
-        self._second_path: Path | None = None
+        # other readings of the same chart (4.3.32)
+        self._others: list[Path] = []   # in the order they were added
+        self._cache: dict = {}          # (path, condition) -> Reading | refusal
         self._second = None             # reading_compare.Comparison | None
+        self._several = None            # reading_compare.SeveralComparison
+        self._refused: dict = {}        # path -> (title, body)
         self._second_error: tuple[str, str] | None = None
         self._tolerance = DEFAULT_TOLERANCE
         # Theme-aware detail-text colours (hardcoded dark-theme greys are
@@ -230,7 +239,7 @@ class Ti3InfoDialog(QDialog):
         self._rb_inspect.toggled.connect(self._on_mode_changed)
         self._inner.addLayout(mode_row)
 
-        # --- Another reading of this chart (4.3.32, both modes) -----------
+        # --- Other readings of this chart (4.3.32, both modes) ------------
         self._build_second_reading_rows()
 
         # --- Verify-only controls (hidden in Inspect mode) ----------------
@@ -326,7 +335,17 @@ class Ti3InfoDialog(QDialog):
         self._inner.addWidget(sep)
 
         # --- Scrollable details -------------------------------------------
-        self._scroll = FadeScrollArea(self)
+        # THE FADE TAKES THIS WINDOW'S APPEARANCE. FadeScrollArea starts as
+        # "dark", and MainWindow's appearance broadcast only reaches widgets
+        # that exist when it runs; this window is built later, from the Tools
+        # menu, so its fade stayed a black band in light mode (Basti,
+        # 2026-11-11: "it is a black gradient even though the app is in
+        # light mode"; in the real app too, and in v4.3.30). The tool
+        # dialogs' own base class sets it the same way (tools_dialogs.py).
+        from ui.theme import resolve_mode
+        self._scroll = FadeScrollArea(self, surface="dialog")
+        self._scroll.set_appearance(
+            resolve_mode(self._settings.get("appearance", "auto")))
         self._scroll.setWidgetResizable(True)
         self._scroll.setFrameShape(QFrame.Shape.NoFrame)
         # A LOW floor here — the generous one is set per-screen in showEvent.
@@ -394,6 +413,18 @@ class Ti3InfoDialog(QDialog):
         # and the details floor is what's left under 90 % of the screen — so
         # the whole dialog always fits, and smaller screens get a working
         # scrollbar instead of an off-screen bottom.
+        self._fit_details_floor()
+        pin_min_height(
+            self, min_width=720, wrap_labels=(self._body, self._banner),
+            inner_margins=self._inner.contentsMargins(), resize_width=True)
+
+    def _fit_details_floor(self) -> None:
+        """The details' height floor: as much of 720 px as this screen
+        affords beside everything else. Called again when the list of other
+        readings grows or shrinks, which moves "everything else": measured
+        on screen 2026-11-11, a floor set before the list appeared pushed the
+        dialog's minimum past the window and the bottom buttons sat on top of
+        the details."""
         from PyQt6.QtGui import QGuiApplication
         screen = self.screen() or QGuiApplication.primaryScreen()
         if screen is not None and self.layout() is not None:
@@ -402,9 +433,6 @@ class Ti3InfoDialog(QDialog):
                       - self._scroll.minimumHeight())
             avail = int(screen.availableGeometry().height() * 0.9)
             self._scroll.setMinimumHeight(max(240, min(720, avail - others)))
-        pin_min_height(
-            self, min_width=720, wrap_labels=(self._body, self._banner),
-            inner_margins=self._inner.contentsMargins(), resize_width=True)
 
     # ------------------------------------------------------------------
     def _on_browse(self) -> None:
@@ -447,7 +475,8 @@ class Ti3InfoDialog(QDialog):
         if is_verification_ti3(data):
             self._rb_verify.setChecked(True)
         self._recompute_accuracy()   # re-score against any attached comparison
-        self._recompute_second()     # and against another reading, if any
+        self._recompute_second()     # and against other readings, if any
+        self._fill_reading_list()
         self._render()
         self._save_btn.setEnabled(True)
         self._body.setText(
@@ -500,60 +529,106 @@ class Ti3InfoDialog(QDialog):
     # Another reading of this chart (4.3.32, jctay)
     # ------------------------------------------------------------------
     def _build_second_reading_rows(self) -> None:
-        """The row that takes a second reading of the same chart, and the
-        tolerance row under it. Shown in both modes: two readings of a raw
-        chart are the usual case."""
+        """The list of other readings of the same chart, and the tolerance
+        row under it. Shown in both modes: readings of a raw chart are the
+        usual case. One other reading gives the two-reading view; two or
+        more (Basti, 2026-11-11: "several readings, not only two") compare
+        every reading with each patch's centre."""
         tip = tr(
-            "Compare this measurement with another reading of the same chart: "
-            "the same printed sheet measured again, or a second print of the "
-            "same chart. ChromIQ pairs every patch with the same patch in the "
-            "other file and shows how far apart the two readings are (as "
-            "ΔE₀₀, where about 1 is a difference you can just see), which "
-            "patches and strips disagree most, and how many patches lie above "
-            "a tolerance you choose.\n\n"
-            "The second reading can be a measurement file (.ti3), a CGATS text "
-            "file with XYZ or L*a*b* values, or an i1Profiler measurement "
-            "(.mxf or .cxf), which ChromIQ reads directly.\n\n"
-            "Before comparing, ChromIQ checks that both files hold the same "
-            "chart: the same number of patches, and the same device values "
-            "(the colour numbers each patch was printed with) on every pair. "
-            "Files of different charts are refused rather than compared patch "
-            "by wrong patch.\n\n"
-            "Nothing is changed: not this measurement, not the second reading, "
-            "and no profile.")
+            "Compare this measurement with other readings of the same chart: "
+            "the same printed sheet measured again, or another print of the "
+            "same chart. You can add one reading or several (up to {max} "
+            "others), and in the file window you can select several files at "
+            "once. ChromIQ pairs every patch with the same patch in each file "
+            "and shows how far apart the readings are (as ΔE₀₀, where about 1 "
+            "is a difference you can just see), which patches and strips "
+            "disagree most, and how many patches lie above a tolerance you "
+            "choose.\n\n"
+            "With one other reading you see where the two disagree. With two "
+            "or more others (three readings or more in all), ChromIQ can also "
+            "show which reading stands apart from the rest, and how "
+            "repeatable your readings are.\n\n"
+            "A reading can be a measurement file (.ti3), a CGATS text file "
+            "with XYZ or L*a*b* values, or an i1Profiler measurement (.mxf "
+            "or .cxf), which ChromIQ reads directly.\n\n"
+            "Before comparing, ChromIQ checks that every file holds the same "
+            "chart as this measurement: the same number of patches, and the "
+            "same device values (the colour numbers each patch was printed "
+            "with) on every pair. A file of another chart is refused rather "
+            "than compared patch by wrong patch, and the other readings "
+            "stay.\n\n"
+            "Nothing is changed: not this measurement, not the other "
+            "readings, and no profile.").format(max=MAX_OTHER_READINGS)
+        # The app's multi-file list (Tools > Average / Merge): a list with
+        # Add… and Remove under it, styled by the app's own QListWidget rule
+        # (ui/styles.py); here in this window's "Label: field  (i)" row.
         row = QHBoxLayout()
         row.setSpacing(8)
-        lbl = QLabel(tr("Another reading:"), self)
-        lbl.setToolTip(tip)
-        lbl.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
-        row.addWidget(lbl)
-        self._second_edit = QLineEdit(self)
-        self._second_edit.setReadOnly(True)
-        self._second_edit.setPlaceholderText(
-            tr("Optional: a second reading of the same chart…"))
-        self._second_edit.setToolTip(tip)
-        row.addWidget(self._second_edit, 1)
-        self._second_browse = make_browse_button(
-            self, tr("Browse for another reading of this chart"),
-            "folder_build")
+        self._others_lbl = QLabel(tr("Other readings:"), self)
+        self._others_lbl.setToolTip(tip)
+        self._others_lbl.setSizePolicy(QSizePolicy.Policy.Maximum,
+                                       QSizePolicy.Policy.Fixed)
+        row.addWidget(self._others_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
+        self._others_row = row
+        col = QVBoxLayout()
+        col.setSpacing(6)
+        self._others_list = QListWidget(self)
+        self._others_list.setSelectionMode(
+            QAbstractItemView.SelectionMode.ExtendedSelection)
+        # Long file names are shortened in the middle (the full line and
+        # path are the entry's tooltip), never cut off or scrolled sideways.
+        self._others_list.setTextElideMode(Qt.TextElideMode.ElideMiddle)
+        self._others_list.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._others_list.setUniformItemSizes(True)
+        self._others_list.setToolTip(tip)
+        self._others_list.setVisible(False)
+        self._others_list.itemSelectionChanged.connect(
+            self._update_reading_buttons)
+        col.addWidget(self._others_list)
+        buttons = QHBoxLayout()
+        buttons.setSpacing(8)
+        self._second_browse = QPushButton(tr("Add…"), self)
+        self._second_browse.setToolTip(tr(
+            "Add one or more other readings of this chart. You can select "
+            "several files at once."))
         self._second_browse.clicked.connect(self._on_second_browse)
-        row.addWidget(self._second_browse)
-        self._second_clear = QPushButton(tr("Clear"), self)
-        self._second_clear.setToolTip(
-            tr("Stop comparing with the second reading."))
+        buttons.addWidget(self._second_browse)
+        self._second_remove = QPushButton(tr("Remove"), self)
+        self._second_remove.setToolTip(tr(
+            "Take the selected readings out of the comparison. The files "
+            "themselves are not touched."))
+        self._second_remove.setEnabled(False)
+        self._second_remove.clicked.connect(self._on_second_remove)
+        buttons.addWidget(self._second_remove)
+        self._second_clear = QPushButton(tr("Clear all"), self)
+        self._second_clear.setToolTip(tr(
+            "Take every other reading out of the list and stop comparing. "
+            "The files themselves are not touched."))
         self._second_clear.setEnabled(False)
         self._second_clear.clicked.connect(self._on_second_clear)
-        row.addWidget(self._second_clear)
+        buttons.addWidget(self._second_clear)
+        self._others_empty = QLabel(
+            tr("Optional: one or more other readings of the same chart, to "
+               "compare with this measurement"), self)
+        self._others_empty.setWordWrap(True)
+        self._others_empty.setStyleSheet(f"color: {self._text_dim};")
+        self._others_empty.setToolTip(tip)
+        buttons.addWidget(self._others_empty, 1)
+        buttons.addStretch(0)
+        col.addLayout(buttons)
+        row.addLayout(col, 1)
         row.addWidget(TooltipButton(
-            tr("Another reading of this chart"), tip, self, color=_ACCENT))
+            tr("Other readings of this chart"), tip, self, color=_ACCENT),
+            0, Qt.AlignmentFlag.AlignTop)
         self._inner.addLayout(row)
 
         tol_tip = tr(
             "The colour difference (ΔE₀₀) above which a patch counts as a "
-            "disagreement between the two readings. About 1.0 suits a chart "
-            "scanned with an instrument such as the i1Pro. 0.5 suits a very "
+            "disagreement between readings. About 1.0 suits a chart scanned "
+            "with an instrument such as the i1Pro. 0.5 suits a very "
             "consistent setup, for example an instrument guided by a ruler "
-            "and both readings taken one after the other. 2.0 suits readings "
+            "and the readings taken one after the other. 2.0 suits readings "
             "taken by hand. Choose Custom to type your own value.")
         self._tol_box = QWidget(self)
         tl = QHBoxLayout(self._tol_box)
@@ -600,24 +675,157 @@ class Ti3InfoDialog(QDialog):
         start = (str(self._analysis.data.path.parent)
                  if self._analysis is not None
                  else str(_chromiq_root(self._settings)))
-        path = open_file_dialog(
-            self, tr("Select another reading of this chart"),
+        paths = open_files_dialog(
+            self, tr("Select other readings of this chart (you can select "
+                     "several)"),
             tr("Readings (*.ti3 *.txt *.mxf *.cxf);;All files (*)"),
             start_dir=start)
-        if path:
-            self.load_second_reading(Path(path))
+        if paths:
+            self.add_readings([Path(p) for p in paths])
 
     def load_second_reading(self, path: "Path | None") -> None:
-        """Compare with *path* (None stops comparing)."""
-        self._second_path = Path(path) if path else None
-        self._second_edit.setText(str(path) if path else "")
-        self._second_clear.setEnabled(path is not None)
-        self._tol_box.setVisible(path is not None)
-        self._recompute_second()
-        self._render()
+        """Compare with *path* alone (None stops comparing)."""
+        self._others = []
+        self.add_readings([Path(path)] if path else [])
+
+    def add_readings(self, paths: "list[Path]") -> None:
+        """Add *paths* to the other readings (a file already in the list is
+        not added twice) and compare again. Past MAX_OTHER_READINGS the rest
+        is not added, and the banner says how many were left out."""
+        have = {p.resolve() for p in self._others}
+        not_added = 0
+        for p in paths:
+            p = Path(p)
+            if p.resolve() in have:
+                continue
+            if len(self._others) >= MAX_OTHER_READINGS:
+                not_added += 1
+                continue
+            self._others.append(p)
+            have.add(p.resolve())
+        self._readings_changed()
+        if not_added:
+            if not_added == 1:
+                text = tr(
+                    "ChromIQ compares up to {max} other readings at once, so "
+                    "1 of the files you chose was not added. Remove a reading "
+                    "from the list to make room for another one.").format(
+                    max=MAX_OTHER_READINGS)
+            else:
+                text = tr(
+                    "ChromIQ compares up to {max} other readings at once, so "
+                    "{n} of the files you chose were not added. Remove a "
+                    "reading from the list to make room for others.").format(
+                    max=MAX_OTHER_READINGS, n=not_added)
+            self._banner.setText(text)
+            self._banner.setStyleSheet(
+                banner_qss("#3b82f6", "rgba(59,130,246,0.10)", kind="warn"))
+            self._banner.setVisible(True)
+
+    def remove_readings(self, rows: "list[int]") -> None:
+        drop = set(rows)
+        self._others = [p for i, p in enumerate(self._others)
+                        if i not in drop]
+        self._readings_changed()
+
+    def _on_second_remove(self) -> None:
+        self.remove_readings(
+            [self._others_list.row(it)
+             for it in self._others_list.selectedItems()])
 
     def _on_second_clear(self) -> None:
-        self.load_second_reading(None)
+        self._others = []
+        self._readings_changed()
+
+    def _readings_changed(self) -> None:
+        some = bool(self._others)
+        self._tol_box.setVisible(some)
+        self._second_clear.setEnabled(some)
+        if not some:
+            self._banner.setVisible(False)
+        self._recompute_second()
+        self._fill_reading_list()
+        self._render()
+
+    def _update_reading_buttons(self) -> None:
+        self._second_remove.setEnabled(
+            bool(self._others_list.selectedItems()))
+
+    def _fill_reading_list(self) -> None:
+        """The list: each file with when, with what and under which
+        condition it was read, where the file says; a refused one says so."""
+        self._others_list.clear()
+        for p in self._others:
+            got = self._cache.get(self._cache_key(p))
+            if p in self._refused:
+                text = tr("{name}  ·  not compared (see below)").format(
+                    name=p.name)
+            elif got is not None and not isinstance(
+                    got, ReadingsNotComparable):
+                text = self._reading_line(got)
+            else:
+                text = p.name
+            item = QListWidgetItem(text)
+            item.setToolTip(f"{text}\n{p}")
+            self._others_list.addItem(item)
+        some = bool(self._others)
+        self._others_list.setVisible(some)
+        self._others_empty.setVisible(not some)
+        # The label sits beside the buttons when there is no list, and beside
+        # the list's first line when there is one.
+        self._others_row.setAlignment(
+            self._others_lbl, Qt.AlignmentFlag.AlignTop if some
+            else Qt.AlignmentFlag.AlignVCenter)
+        if some:
+            # FOUR LINES, whatever the count: the window does not jump as
+            # readings are added, and five to nine scroll in place.
+            self._fit_list_height()
+            # …and again once the list is laid out in this appearance's
+            # style sheet: measured on screen 2026-11-11, the dark style's
+            # rows came out shorter than the first estimate and a fifth line
+            # showed half cut off.
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(0, self._fit_list_height)
+        self._update_reading_buttons()
+        if self.isVisible():
+            self._fit_details_floor()
+
+    def _fit_list_height(self) -> None:
+        """Exactly four whole lines, whatever the count: the window does
+        not jump as readings are added, and five to nine scroll in place.
+        The frame and the style sheet's padding are what the list is taller
+        than its viewport."""
+        lw = self._others_list
+        if not lw.count():
+            return
+        lw.ensurePolished()
+        rect = lw.visualItemRect(lw.item(0))
+        rh = rect.height() if rect.height() > 0 else lw.sizeHintForRow(0)
+        rh = max(1, rh)
+        chrome = max(2 * lw.frameWidth(),
+                     lw.height() - lw.viewport().height())
+        if lw.height() != rh * 4 + chrome:
+            lw.setFixedHeight(rh * 4 + chrome)
+
+    @staticmethod
+    def _reading_line(rd) -> str:
+        """"name  ·  measured 2026-10-28  ·  i1Pro 2  ·  M0 (…)", with what
+        the file says."""
+        from workflow.measurement_condition import condition_name
+        parts = [rd.path.name]
+        if rd.measured_on:
+            parts.append(tr("measured {date}").format(date=rd.measured_on))
+        if rd.instrument:
+            parts.append(rd.instrument)
+        if rd.condition:
+            parts.append(condition_name(rd.condition))
+        return "  ·  ".join(parts)
+
+    def _cache_key(self, p: Path) -> "tuple[str, str]":
+        cond = ""
+        if self._analysis is not None:
+            cond = self._analysis.data.keywords.get("MEASUREMENT_CONDITION", "")
+        return (str(p), cond)
 
     def _on_tolerance_changed(self, *_a) -> None:
         data = self._tol_combo.currentData()
@@ -628,41 +836,93 @@ class Ti3InfoDialog(QDialog):
         self._render()
 
     def _recompute_second(self) -> None:
-        """Pair and compare the second reading with the measurement shown.
-        Pure Python; the files are only read."""
+        """Pair and compare the other readings with the measurement shown.
+        Pure Python, on the GUI thread as the rest of this window; every
+        file is read once and kept, so a change of tolerance or a removed
+        reading costs only the statistics (measured: ten readings of 2000
+        patches in well under a second)."""
+        from PyQt6.QtWidgets import QApplication
         from workflow.reading_compare import (ReadingsNotComparable, compare,
-                                              load_reading, reading_from_ti3)
+                                              compare_several, load_reading,
+                                              reading_from_ti3)
         self._second = None
+        self._several = None
         self._second_error = None
-        if self._analysis is None or self._second_path is None:
+        self._refused = {}
+        if self._analysis is None or not self._others:
             return
+        # BusyCursor, NOT WaitCursor: measured 2026-11-11 on macOS 27.2 with
+        # Qt 6.11, setOverrideCursor(WaitCursor) aborts the process (SIGTRAP,
+        # 3 of 3, also in a bare QApplication); BusyCursor 3 of 3 fine.
+        QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
         try:
-            a = reading_from_ti3(self._analysis.data.path)
-            b = load_reading(self._second_path, a.condition)
-            self._second = compare(a, b)
-        except ReadingsNotComparable as exc:
-            self._second_error = exc.render(self._second_path.name)
-            log.info("compare readings: refused %s: %s",
-                     self._second_path.name, exc.reason)
+            try:
+                a = reading_from_ti3(self._analysis.data.path)
+            except ReadingsNotComparable as exc:
+                for p in self._others:
+                    self._refused[p] = exc.render(p.name)
+                return
+            loaded = []
+            for p in self._others:
+                key = self._cache_key(p)
+                got = self._cache.get(key)
+                if got is None:
+                    try:
+                        got = load_reading(p, a.condition)
+                    except ReadingsNotComparable as exc:
+                        got = exc
+                    self._cache[key] = got
+                if isinstance(got, ReadingsNotComparable):
+                    self._refused[p] = got.render(p.name)
+                else:
+                    loaded.append((p, got))
+            paired = loaded
+            if len(loaded) >= 2:
+                several, refused = compare_several(a, [r for _p, r in loaded])
+                bad = {id(r) for r, _e in refused}
+                for p, r in loaded:
+                    for rr, exc in refused:
+                        if rr is r:
+                            self._refused[p] = exc.render(p.name)
+                paired = [(p, r) for p, r in loaded if id(r) not in bad]
+                self._several = several
+            if self._several is None and len(paired) == 1:
+                p, b = paired[0]
+                try:
+                    self._second = compare(a, b)
+                except ReadingsNotComparable as exc:
+                    self._refused[p] = exc.render(p.name)
+            for p, (_t, _b) in self._refused.items():
+                log.info("compare readings: refused %s", p.name)
+            if len(self._others) == 1 and self._others[0] in self._refused:
+                self._second_error = self._refused[self._others[0]]
+        finally:
+            QApplication.restoreOverrideCursor()
 
     def _second_section(self) -> None:
-        """The result of the comparison with another reading, or why there
-        is none."""
-        if self._second_path is None:
+        """The result of the comparison with the other readings, or why
+        there is none."""
+        if not self._others:
+            return
+        if self._several is not None:
+            self._several_section()
             return
         self._section(tr("Another reading of this chart"), tr(
             "How far a second reading of the same chart is from this "
             "measurement, patch by patch, as a colour difference (ΔE₀₀; about "
             "1 is a difference you can just see)."))
-        if self._second_error is not None:
-            title, body = self._second_error
-            self._row_kv(tr("Not compared"), f"{title}\n\n{body}")
-            return
+        for p in self._others:
+            if p in self._refused:
+                title, body = self._refused[p]
+                self._row_kv(tr("Not compared"), f"{title}\n\n{body}")
         c = self._second
         if c is None:
             return
         tol = self._tolerance
-        name = c.b.path.name
+        # The file, and when, with what and under which condition it was
+        # read, where it says (review pass 1: a .ti3's condition was not
+        # shown at all).
+        name = self._reading_line(c.b)
         if c.b.converted_from_cxf and c.b.condition:
             name = tr("{name} (i1Profiler measurement, condition {cond})"
                       ).format(name=name, cond=c.b.condition)
@@ -670,6 +930,7 @@ class Ti3InfoDialog(QDialog):
             "The file this measurement is compared with. An i1Profiler "
             "measurement is read directly; ChromIQ takes the same measurement "
             "condition as this measurement when the file holds it."))
+        self._mixed_rows([c.a, c.b])
         if c.paired_by == "device":
             how = tr("device values, because the patch numbers of the two "
                      "files do not line up (for example, one file was saved "
@@ -678,22 +939,17 @@ class Ti3InfoDialog(QDialog):
             how = tr("patch number")
         self._row_kv(tr("Paired by"), how, tr(
             "How each patch of this measurement found its partner in the "
-            "second reading. Both ways were checked against the device values "
-            "(the colour numbers each patch was printed with), so every pair "
-            "is the same patch of the chart."))
+            "second reading. When both files hold device values (the colour "
+            "numbers each patch was printed with), every pair was checked "
+            "against them, so every pair is the same patch of the chart. "
+            "When a file holds none, the patches were paired by patch number "
+            "alone, and the row “Same chart?” below says so."))
         if not c.device_checked:
             self._row_kv(tr("Same chart?"), tr(
                 "not checked: one of the files holds no device values, so "
                 "ChromIQ paired the patches by patch number alone. Make sure "
                 "both files are readings of the same chart."))
-        if c.left_out:
-            self._row_kv(tr("Left out"), (tr(
-                "1 patch, because its device value appears more than once in "
-                "the chart and ChromIQ cannot tell those copies apart")
-                if c.left_out == 1 else tr(
-                "{n} patches, because their device values appear more than "
-                "once in the chart and ChromIQ cannot tell those copies "
-                "apart").format(n=c.left_out)))
+        self._left_out_row(c.left_out)
         self._row_kv(tr("Compared"),
                      tr("1 patch") if c.n == 1 else
                      tr("{n} patches").format(n=c.n))
@@ -715,20 +971,11 @@ class Ti3InfoDialog(QDialog):
             "The largest difference of all, on the first patch in the list "
             "below."))
         above = c.above(tol)
-        share = decimal_text(100.0 * len(above) / c.n, 1) if c.n else "0"
-        if not above:
-            txt = (tr("none") if c.n == 1 else
-                   tr("none of the {n} patches").format(n=c.n))
-        elif len(above) == 1:
-            txt = tr("1 of {n} patches ({share} %)").format(n=c.n,
-                                                             share=share)
-        else:
-            txt = tr("{k} of {n} patches ({share} %)").format(
-                k=len(above), n=c.n, share=share)
-        self._row_kv(tr("Above the tolerance"), txt, tr(
-            "How many patches differ by more than the tolerance chosen above "
-            "(ΔE₀₀ {tol}). These are the patches worth measuring a third "
-            "time.").format(tol=decimal_text(tol, 1)))
+        self._row_kv(tr("Above the tolerance"), self._count_of(len(above), c.n),
+                     tr("How many patches differ by more than the tolerance "
+                        "chosen above (ΔE₀₀ {tol}). These are the patches "
+                        "worth measuring a third time.").format(
+                         tol=decimal_text(tol, 1)))
 
         worst = c.worst_patches(WORST_SHOWN)
         self._row_kv(tr("Largest differences"), tr(
@@ -779,6 +1026,346 @@ class Ti3InfoDialog(QDialog):
                 self._report.append(
                     f"  {self._patch_key(p)}: "
                     + self._patch_value(p, tol).replace("\n", "  ·  "))
+
+    @staticmethod
+    def _count_of(k: int, n: int) -> str:
+        """"none of the 616 patches", "1 of 616 patches (0.2 %)", …"""
+        share = decimal_text(100.0 * k / n, 1) if n else "0"
+        if not k:
+            return (tr("none") if n == 1 else
+                    tr("none of the {n} patches").format(n=n))
+        if k == 1:
+            return tr("1 of {n} patches ({share} %)").format(n=n, share=share)
+        return tr("{k} of {n} patches ({share} %)").format(k=k, n=n,
+                                                            share=share)
+
+    def _left_out_row(self, left_out: int) -> None:
+        if left_out:
+            self._row_kv(tr("Left out"), (tr(
+                "1 patch, because its device value appears more than once in "
+                "the chart and ChromIQ cannot tell those copies apart")
+                if left_out == 1 else tr(
+                "{n} patches, because their device values appear more than "
+                "once in the chart and ChromIQ cannot tell those copies "
+                "apart").format(n=left_out)))
+
+    @staticmethod
+    def _numbers(ks: "list[int]") -> str:
+        """Reading numbers as shown (from 1): "1, 2 and 4" is left to the
+        sentence; here "1, 2, 4"."""
+        return ", ".join(str(k + 1) for k in ks)
+
+    def _mixed_rows(self, readings) -> None:
+        """A row when the files say the readings were taken under different
+        measurement conditions or with different instruments: then a
+        difference shows that, not repeatability. Never a refusal."""
+        from workflow.measurement_condition import condition_name
+        from workflow.reading_compare import mixed_ways
+        unnamed = [rd.path.name for rd in readings if not rd.condition]
+        if unnamed:
+            # Review pass 1: a condition the file does not name is one the
+            # tool cannot compare, and M0 against M2 differs by more than
+            # scatter (the tester's CC24 file: 2.3 to 3.0 ΔE00). Said once,
+            # plainly, where it applies.
+            self._row_kv(tr("Measurement condition"), tr(
+                "not named in {files}. ChromIQ cannot tell from such a file "
+                "whether it was measured under M0, M1 or M2 (how much "
+                "ultraviolet light reached the paper), nor always with which "
+                "instrument. Readings taken under different measurement "
+                "conditions or with different instruments differ for that "
+                "reason alone, often clearly on paper with optical "
+                "brighteners, and that difference says nothing about how "
+                "repeatable your readings are. If you are not sure, compare "
+                "only readings you know were taken the same way.").format(
+                files=", ".join(unnamed)))
+        conds, insts = mixed_ways(readings)
+        if not conds and not insts:
+            return
+        tip = tr(
+            "ChromIQ can only tell this where the files say which "
+            "measurement condition or instrument they were measured with. A "
+            "file that does not say (many .ti3 files name no measurement "
+            "condition) is left out of this check, so readings taken "
+            "differently can still look alike here.")
+
+        def groups(d, name=lambda v: v) -> str:
+            out = []
+            for v, ks in d.items():
+                out.append((tr("{what} (reading {n})") if len(ks) == 1 else
+                            tr("{what} (readings {list})")).format(
+                    what=name(v), n=ks[0] + 1, list=self._numbers(ks)))
+            return "; ".join(out)
+        if conds:
+            self._row_kv(tr("Measured differently"), tr(
+                "Not all of these readings were taken under the same "
+                "measurement condition: {groups}. A difference between "
+                "readings taken under different conditions mostly shows the "
+                "difference between the conditions (how much ultraviolet "
+                "light reached the paper), not how repeatable your readings "
+                "are. To judge repeatability, compare readings taken under "
+                "the same condition.").format(
+                groups=groups(conds, condition_name)), tip)
+        if insts:
+            self._row_kv(tr("Measured differently"), tr(
+                "Not all of these readings were taken with the same "
+                "instrument: {groups}. Two instruments rarely read exactly "
+                "alike, even two of the same model, so a difference between "
+                "them shows the difference between the instruments as well "
+                "as how repeatable your readings are. To judge "
+                "repeatability, compare readings taken with the same "
+                "instrument.").format(groups=groups(insts)), tip)
+
+    # ------------------------------------------------------------------
+    # Three readings or more
+    # ------------------------------------------------------------------
+    def _several_section(self) -> None:
+        c = self._several
+        tol = self._tolerance
+        self._section(tr("Other readings of this chart"), tr(
+            "How far each reading of the same chart is from the others, "
+            "patch by patch, as a colour difference (ΔE₀₀; about 1 is a "
+            "difference you can just see). Every reading is measured against "
+            "the centre of all readings, so a reading that is off stands "
+            "out."))
+        reading_tip = tr(
+            "The readings compared, numbered as in the rest of this section. "
+            "Reading 1 is the measurement shown in this window.")
+        for k, rd in enumerate(c.readings):
+            line = self._reading_line(rd)
+            if k == 0:
+                line = tr("this measurement: {name}").format(name=line)
+            self._row_kv(tr("Reading {n}").format(n=k + 1), line, reading_tip)
+        for p in self._others:
+            if p in self._refused:
+                title, body = self._refused[p]
+                self._row_kv(tr("Not compared"), f"{title}\n\n{body}")
+        self._mixed_rows(c.readings)
+        dev_k = [k + 1 for k, how in enumerate(c.paired_by, start=1)
+                 if how == "device"]
+        if not dev_k:
+            how = tr("patch number")
+        elif len(dev_k) == 1:
+            how = tr("patch number, and device values for reading {n}, "
+                     "because its patch numbers do not line up with those of "
+                     "this measurement (for example, because the file was "
+                     "saved on another grid or in another order)").format(
+                n=dev_k[0])
+        else:
+            how = tr("patch number, and device values for readings {list}, "
+                     "because their patch numbers do not line up with those "
+                     "of this measurement (for example, because the files "
+                     "were saved on another grid or in another order)"
+                     ).format(list=", ".join(str(k) for k in dev_k))
+        self._row_kv(tr("Paired by"), how, tr(
+            "How each patch of this measurement found its partner in the "
+            "other readings. Where both files hold device values (the colour "
+            "numbers each patch was printed with), every pair was checked "
+            "against them, so every pair is the same patch of the chart. "
+            "Where a file holds none, its patches were paired by patch "
+            "number alone, and the row “Same chart?” below says so."))
+        if not c.device_checked:
+            self._row_kv(tr("Same chart?"), tr(
+                "not checked for every reading: some files hold no device "
+                "values, so ChromIQ paired their patches by patch number "
+                "alone. Make sure all files are readings of the same chart."))
+        self._left_out_row(c.left_out)
+        self._row_kv(tr("Compared"),
+                     tr("1 patch") if c.n == 1 else
+                     tr("{n} patches").format(n=c.n))
+        self._row_kv(tr("Readings"), tr(
+            "{r} in all: this measurement and {o} other readings").format(
+            r=c.r, o=c.r - 1))
+        self._row_kv(tr("Centre"), tr(
+            "for every patch, the middle of all readings: the median of their "
+            "L*, a* and b* values"), tr(
+            "Each reading is measured against the centre of all readings "
+            "rather than against one of them, because no single reading is "
+            "known to be right. ChromIQ takes the median of L*, of a* and of "
+            "b* separately. With three readings that is the middle value, so "
+            "when two readings agree the centre lies with them and the third "
+            "shows its whole difference. With an even number of readings it "
+            "is halfway between the two middle values. One reading that is "
+            "off hardly moves the centre, where an average would be pulled "
+            "towards it and make the good readings look off as well."))
+        med, p95 = c.repeatability()
+        self._row_kv(tr("Repeatability"), tr(
+            "half of the patches vary by {median} or less between your "
+            "readings, and 95 out of every 100 patches by {p95} or less "
+            "(ΔE₀₀)").format(median=decimal_text(med, 2),
+                             p95=decimal_text(p95, 2)), tr(
+            "How repeatable your readings are. For every patch ChromIQ takes "
+            "its spread: the largest colour difference (ΔE₀₀) between any "
+            "two of your readings of that patch. The first number is the "
+            "median of those spreads, the second their 95th percentile. Two "
+            "careful readings of the same print with the same instrument "
+            "often differ by a few tenths. The spread grows a little with "
+            "more readings, because more readings give more chances for one "
+            "wider pair."))
+        above = c.spread_above(tol)
+        self._row_kv(tr("Above the tolerance"),
+                     self._count_of(len(above), c.n), tr(
+            "How many patches have a spread above the tolerance chosen above "
+            "(ΔE₀₀ {tol}): at least two of your readings differ by more than "
+            "that on them. The lists below show which reading stands apart "
+            "on them, where one does.").format(tol=decimal_text(tol, 1)))
+
+        strips = c.strips(tol)
+        self._row_kv(tr("By reading"), tr(
+            "how far each reading is from the centre, and what that says "
+            "about it"), tr(
+            "For every reading: the average, median, 95th percentile and "
+            "largest distance (ΔE₀₀) of its patches from the centre, and how "
+            "many of its patches lie farther from the centre than the "
+            "tolerance. A reading that was taken well sits close to the "
+            "centre on almost every patch. A reading with a misread strip is "
+            "far off on that strip only, and a reading taken with another "
+            "instrument, under another measurement condition or from "
+            "another print is off nearly everywhere."))
+        verdicts = [c.verdict(k, tol, strips) for k in range(c.r)]
+        # A reading that differs overall is off on nearly every strip; its
+        # strips are not listed one by one (its verdict already says it).
+        by_strip = [k for k in range(c.r) if verdicts[k].kind != "overall"]
+        for k in range(c.r):
+            st = c.stats(k)
+            v = verdicts[k]
+            lines = [self._verdict_text(v),
+                     tr("average {mean}, median {median}, 95th percentile "
+                        "{p95}, largest {worst} from the centre").format(
+                         mean=decimal_text(st.mean, 2),
+                         median=decimal_text(st.median, 2),
+                         p95=decimal_text(st.p95, 2),
+                         worst=decimal_text(st.worst, 2)),
+                     tr("above the tolerance: {count}").format(
+                         count=self._count_of(c.above(k, tol), c.n))]
+            self._row_kv(tr("Reading {n}").format(n=k + 1), "\n".join(lines))
+
+        apart = c.stands_apart(tol)
+        self._row_kv(tr("Largest differences"), tr(
+            "the patches where your readings differ most, largest spread "
+            "first, with each reading's distance from the centre"))
+        for i in c.worst(WORST_SHOWN):
+            self._row_kv(tr("Patch {id}").format(id=c.sids[int(i)]),
+                         self._several_patch_value(c, int(i), tol, apart))
+
+        if strips:
+            ks = by_strip or list(range(c.r))
+            worst_mean = sorted(strips,
+                                key=lambda s: -float(s.means[ks].max()))
+            flagged = [s for s in strips if any(s.off(k) for k in by_strip)]
+            shown = worst_mean[:5] + [s for s in flagged
+                                      if s not in worst_mean[:5]]
+            self._row_kv(tr("By strip"), tr(
+                "the printed strips where a reading is farthest from the "
+                "centre on average, with each reading's average distance "
+                "(a reading that differs overall does not decide the order)"),
+                tr("A whole strip that is off in one reading only points at "
+                   "that strip being read badly in that reading (a slipped "
+                   "strip, or the wrong strip read), rather than at the "
+                   "instrument's ordinary scatter."))
+            for s in shown:
+                val = tr("average from the centre, by reading: {list}").format(
+                    list=self._by_reading(s.means))
+                for k in by_strip:
+                    if s.off(k):
+                        val += "\n" + tr(
+                            "Reading {n}: nearly the whole strip is off ({k} "
+                            "of {m} patches above the tolerance). Read this "
+                            "strip again.").format(n=k + 1, k=int(s.above[k]),
+                                                   m=s.n)
+                self._row_kv(tr("Strip {label}").format(label=s.label), val)
+
+        self._row_kv(tr("What this tells you"), tr(
+            "With three readings or more, ChromIQ can do more than show where "
+            "they disagree: it measures every reading against the centre of "
+            "all of them, so a reading that is off as a whole, on one strip "
+            "or on single patches stands out, and the repeatability line "
+            "tells you how closely your readings agree in general.\n\n"
+            "When one reading stands apart while the others agree, that is "
+            "strong evidence that this reading is the one that is off, but "
+            "it is not proof. Two readings can share an error, for example "
+            "the same strip slipped in the same way twice, or two readings "
+            "of a print that has changed since. Then those two agree with "
+            "each other and make a good reading stand apart instead. A "
+            "reading that differs on nearly a whole strip is best checked by "
+            "reading that strip again. A reading that differs overall was "
+            "usually taken differently: with another instrument, under "
+            "another measurement condition or from another print. Where the "
+            "readings disagree with each other and no single one stands "
+            "apart, measure those patches again.\n\n"
+            "Small differences spread over the whole chart are normal: no "
+            "instrument reads the same patch exactly the same twice, and the "
+            "backing under the paper, the position of the instrument, the "
+            "temperature and ink that is still drying all add a little. "
+            "Nothing here changes any file or any profile."))
+        if len(above):
+            # The saved inspection lists EVERY patch above the tolerance,
+            # with each reading's distance from the centre.
+            self._report.append("")
+            self._report.append(tr("All patches above the tolerance"))
+            for i in above:
+                self._report.append(
+                    "  " + tr("Patch {id}").format(id=c.sids[int(i)]) + ": "
+                    + self._several_patch_value(c, int(i), tol, apart
+                                                ).replace("\n", "  ·  "))
+
+    @staticmethod
+    def _by_reading(values) -> str:
+        """"1: 0.12  ·  2: 0.10  ·  3: 2.20", one number per reading."""
+        return "  ·  ".join(f"{k + 1}: {decimal_text(float(v), 2)}"
+                            for k, v in enumerate(values))
+
+    @staticmethod
+    def _verdict_text(v) -> str:
+        if v.kind == "agrees":
+            return tr("Agrees with the others.")
+        if v.kind == "overall":
+            return tr(
+                "Differs from the others overall: most of its patches lie "
+                "farther from the centre than the tolerance. That usually "
+                "means it was taken differently: with another instrument, "
+                "under another measurement condition, from another print, or "
+                "with an instrument that needed calibrating.")
+        if v.kind == "strip":
+            if len(v.strips) == 1:
+                return tr(
+                    "Differs from the others on nearly the whole strip "
+                    "{strip}: that strip was probably slipped or misread in "
+                    "this reading. Read this strip again.").format(
+                    strip=v.strips[0])
+            return tr(
+                "Differs from the others on nearly the whole of strips "
+                "{strips}: those strips were probably slipped or misread in "
+                "this reading. Read them again.").format(
+                strips=", ".join(v.strips))
+        return (tr("Differs from the others on 1 patch.") if v.count == 1
+                else tr("Differs from the others on {n} patches.").format(
+                    n=v.count))
+
+    def _several_patch_value(self, c, i: int, tol: float, apart) -> str:
+        if c.strips_of[i] is not None and c.positions[i] is not None:
+            where = tr("strip {strip}, patch {pos} as printed").format(
+                strip=c.strips_of[i], pos=c.positions[i])
+        elif c.locs[i] and c.locs[i] != c.sids[i]:
+            where = tr("location {loc}").format(loc=c.locs[i])
+        else:
+            where = ""
+        spread = float(c.spread[i])
+        head = tr("spread {de}").format(de=decimal_text(spread, 2))
+        if spread > tol + 1e-9:
+            head += "  " + tr("(above the tolerance)")
+        if where:
+            head += "  ·  " + where
+        lines = [head, tr("from the centre, by reading: {list}").format(
+            list=self._by_reading(c.dev[:, i]))]
+        if spread > tol + 1e-9:
+            k = int(apart[i])
+            lines.append(
+                tr("Reading {n} stands apart: the other readings agree with "
+                   "each other within the tolerance.").format(n=k + 1)
+                if k >= 0 else
+                tr("The readings disagree with each other: no single reading "
+                   "stands apart."))
+        return "\n".join(lines)
 
     @staticmethod
     def _patch_key(p) -> str:
@@ -1097,7 +1684,7 @@ class Ti3InfoDialog(QDialog):
                 "out, as if the paper had no optical brighteners. Brightener "
                 "compensation (FWA) only works with M0 readings."))
 
-        # --- Another reading of this chart (4.3.32) ---------------------
+        # --- Other readings of this chart (4.3.32) ----------------------
         self._second_section()
 
         # --- Tone & contrast ---------------------------------------------
