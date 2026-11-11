@@ -245,7 +245,7 @@ def test_the_window_names_the_outlier_and_the_tolerance_moves_it(qapp, a,
     qapp.processEvents()
     t2 = _texts(dlg)
     assert "Differs from the others overall" not in t2
-    assert t2.count("Agrees with the others.") == 4
+    assert t2.count("Within the tolerance of the centre on every patch.") == 4
     assert [_sha(p) for p in [a] + paths] == before, "a file was written to"
     dlg.deleteLater()
 

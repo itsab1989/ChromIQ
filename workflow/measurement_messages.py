@@ -2627,6 +2627,13 @@ _READINGS_NO_COLOUR = (
     "it holds no XYZ or L*a*b* values for its patches, so there is nothing "
     "to compare your measurement with")
 _READINGS_UNREADABLE = "the file could not be read ({error})"
+#: 4.3.32 review: the same reading counted twice outvotes the others. Three
+#: readings of which two are one file (or the measurement itself again) made
+#: the GOOD reading "stand apart" and called the bad one "agrees".
+_READINGS_DUPLICATE = (
+    "it holds exactly the same values on every patch as {other}, so it is "
+    "the same reading again. Counted twice, one reading would outvote the "
+    "others and make a different reading look like the one that is off")
 M_READINGS_UNUSABLE = _m(
     "M-READINGS-UNUSABLE",
     "This file cannot be used as a second reading",
@@ -2665,6 +2672,12 @@ def readings_turned_no_device_reason() -> str:
     """{reason}: one file has no device values and the other was paired
     through the turned order, so the patch numbers cannot pair them."""
     return tr(_READINGS_TURNED_NO_DEVICE)
+
+
+def readings_duplicate_reason(other: str) -> str:
+    """{reason} of M-READINGS-UNUSABLE: the reading is one already compared
+    (*other*: its file name)."""
+    return tr(_READINGS_DUPLICATE).format(other=other)
 
 
 def readings_unusable_reason(kind: str, error: str = "") -> str:
