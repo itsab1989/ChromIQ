@@ -587,6 +587,25 @@ def test_a_reference_failure_after_writing_removes_what_it_wrote(
     assert twin.read_bytes().startswith(b"the previous twin")
 
 
+def test_an_engine_error_after_writing_leaves_no_profile_of_its_own(
+        tmp_path, monkeypatch):
+    """Review 2026-11-11 (F2): an engine error AFTER the profile file was
+    written left that file in the run. The tab then reported the build as
+    failed and could not put the previous profile back from ``old/``,
+    because a file already stood in its place."""
+    def fake(ti3, out, settings):
+        Path(out).write_bytes(b"a profile of a failed build " * 50)
+        raise RuntimeError("the twin could not be written")
+
+    t, icc, twin = _thread_on(monkeypatch, tmp_path, fake)
+    errors: list = []
+    t.done.connect(lambda code, err: errors.append((code, err)))
+    t.run()
+    assert errors == [(1, "the twin could not be written")]
+    assert not icc.exists()
+    assert twin.read_bytes().startswith(b"the previous twin")
+
+
 def test_an_engine_error_before_writing_keeps_what_was_there(
         tmp_path, monkeypatch):
     def fake(ti3, out, settings):

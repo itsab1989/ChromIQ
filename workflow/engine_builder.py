@@ -705,6 +705,10 @@ class _EngineThread(QThread):
                 return
             log.exception("engine build failed after %.1f s",
                           time.monotonic() - t0)
+            # A file this failed build wrote is not a profile the run may
+            # keep, and while it stands where the previous profile was, the
+            # tab cannot put that one back from old/ (review F2).
+            self._drop_what_was_written()
             self.done.emit(1, str(exc))
             return
         log.info(build_result_summary(res, time.monotonic() - t0))
