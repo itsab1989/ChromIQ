@@ -40,6 +40,7 @@ _TEXTS = [
     "/Users/Jürgen/ChromIQ/a folder with spaces/My Printer",
     "Tom & Jerry's 50%", "it's $HOME `date` $(date) !x *.ti3 ?",
     "=x", "a=b", "~", "~/x", "-s1.0", "two  spaces", "tab\tin it",
+    'Epson P900 13" roll', '"quoted"', "ends in a backslash\\", "x\\",
 ]
 
 if os.name == "nt":
