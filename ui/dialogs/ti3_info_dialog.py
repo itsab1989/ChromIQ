@@ -808,7 +808,7 @@ class Ti3InfoDialog(QDialog):
             lw.setFixedHeight(rh * 4 + chrome)
 
     @staticmethod
-    def _reading_line(rd) -> str:
+    def _reading_line(rd, condition: bool = True) -> str:
         """"name  ·  measured 2026-10-28  ·  i1Pro 2  ·  M0 (…)", with what
         the file says."""
         from workflow.measurement_condition import condition_name
@@ -817,7 +817,7 @@ class Ti3InfoDialog(QDialog):
             parts.append(tr("measured {date}").format(date=rd.measured_on))
         if rd.instrument:
             parts.append(rd.instrument)
-        if rd.condition:
+        if rd.condition and condition:
             parts.append(condition_name(rd.condition))
         return "  ·  ".join(parts)
 
@@ -922,8 +922,9 @@ class Ti3InfoDialog(QDialog):
         # The file, and when, with what and under which condition it was
         # read, where it says (review pass 1: a .ti3's condition was not
         # shown at all).
-        name = self._reading_line(c.b)
-        if c.b.converted_from_cxf and c.b.condition:
+        cxf = c.b.converted_from_cxf and c.b.condition
+        name = self._reading_line(c.b, condition=not cxf)
+        if cxf:
             name = tr("{name} (i1Profiler measurement, condition {cond})"
                       ).format(name=name, cond=c.b.condition)
         self._row_kv(tr("Second reading"), name, tr(
