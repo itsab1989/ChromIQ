@@ -15,6 +15,7 @@ through BuildSettings.engine_workers.
 """
 from __future__ import annotations
 
+import re
 import shutil
 import struct
 from datetime import datetime
@@ -309,8 +310,22 @@ def test_the_app_adapter_lists_the_field_and_hides_the_internal_lines():
     lines = EngineLines(shown.append)
     info = {"rounds": 8, "pinned": 33, "moved_median": 3.6, "moved_p95": 29.4,
             "miss_median": 0.2, "miss_p95": 5.5}
-    for msg in (HK.progress_line("B2A0", info), HK.NOT_RGB_LINE,
-                HK.NOT_LAB_LINE):
-        assert lines._present(msg) is None, msg
-    assert [r["switch"] for r in lines.reported] == ["x1-huekeep"] * 3
+    # Since the option is in the app (2026-11-11) the window shows these
+    # lines in its own words; the engine's line, with the token, is kept
+    # for chromiq.log and meta.json only.
+    said = [lines._present(msg) for msg in (
+        HK.progress_line("B2A0", info), HK.progress_line("B2A2", info),
+        HK.NOT_RGB_LINE, HK.NOT_LAB_LINE)]
+    assert [r["switch"] for r in lines.reported] == ["x1-huekeep"] * 4
+    assert all(t and t.startswith("Keep the original hue: ") for t in said)
+    assert "Perceptual" in said[0] and "Saturation" in said[1]
+    assert "RGB printers only" in said[2] and "changed nothing" in said[2]
+    assert "changed nothing" in said[3]
+    for text in said:
+        assert not re.search(r"x1|huekeep|oklab|research|B2A|token", text,
+                             re.I), text
+        assert "\u2014" not in text
+    # a form of the line this adapter does not know stays in the log only
+    assert lines._present("Hue-kept rendering (x1-huekeep): something "
+                          "new.") is None
     assert shown == []
