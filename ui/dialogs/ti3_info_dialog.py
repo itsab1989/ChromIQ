@@ -403,6 +403,18 @@ class Ti3InfoDialog(QDialog):
         # and the details floor is what's left under 90 % of the screen — so
         # the whole dialog always fits, and smaller screens get a working
         # scrollbar instead of an off-screen bottom.
+        self._fit_details_floor()
+        pin_min_height(
+            self, min_width=720, wrap_labels=(self._body, self._banner),
+            inner_margins=self._inner.contentsMargins(), resize_width=True)
+
+    def _fit_details_floor(self) -> None:
+        """The details' height floor: as much of 720 px as this screen
+        affords beside everything else. Called again when the list of other
+        readings grows or shrinks, which moves "everything else": measured
+        on screen 2026-11-11, a floor set before the list appeared pushed the
+        dialog's minimum past the window and the bottom buttons sat on top of
+        the details."""
         from PyQt6.QtGui import QGuiApplication
         screen = self.screen() or QGuiApplication.primaryScreen()
         if screen is not None and self.layout() is not None:
@@ -411,9 +423,6 @@ class Ti3InfoDialog(QDialog):
                       - self._scroll.minimumHeight())
             avail = int(screen.availableGeometry().height() * 0.9)
             self._scroll.setMinimumHeight(max(240, min(720, avail - others)))
-        pin_min_height(
-            self, min_width=720, wrap_labels=(self._body, self._banner),
-            inner_margins=self._inner.contentsMargins(), resize_width=True)
 
     # ------------------------------------------------------------------
     def _on_browse(self) -> None:
@@ -540,47 +549,65 @@ class Ti3InfoDialog(QDialog):
             "stay.\n\n"
             "Nothing is changed: not this measurement, not the other "
             "readings, and no profile.").format(max=MAX_OTHER_READINGS)
+        # The app's multi-file list (Tools > Average / Merge): a list with
+        # Add… and Remove under it, styled by the app's own QListWidget rule
+        # (ui/styles.py); here in this window's "Label: field  (i)" row.
         row = QHBoxLayout()
         row.setSpacing(8)
-        lbl = QLabel(tr("Other readings:"), self)
-        lbl.setToolTip(tip)
-        lbl.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
-        row.addWidget(lbl, 0, Qt.AlignmentFlag.AlignTop)
-        self._others_empty = QLabel(
-            tr("Optional: one or more other readings of the same chart, to "
-               "compare with this measurement"), self)
-        self._others_empty.setWordWrap(True)
-        self._others_empty.setStyleSheet(f"color: {self._text_dim};")
-        self._others_empty.setToolTip(tip)
-        row.addWidget(self._others_empty, 1)
+        self._others_lbl = QLabel(tr("Other readings:"), self)
+        self._others_lbl.setToolTip(tip)
+        self._others_lbl.setSizePolicy(QSizePolicy.Policy.Maximum,
+                                       QSizePolicy.Policy.Fixed)
+        row.addWidget(self._others_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
+        self._others_row = row
+        col = QVBoxLayout()
+        col.setSpacing(6)
         self._others_list = QListWidget(self)
         self._others_list.setSelectionMode(
             QAbstractItemView.SelectionMode.ExtendedSelection)
+        # Long file names are shortened in the middle (the full line and
+        # path are the entry's tooltip), never cut off or scrolled sideways.
+        self._others_list.setTextElideMode(Qt.TextElideMode.ElideMiddle)
+        self._others_list.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._others_list.setUniformItemSizes(True)
         self._others_list.setToolTip(tip)
         self._others_list.setVisible(False)
         self._others_list.itemSelectionChanged.connect(
             self._update_reading_buttons)
-        row.addWidget(self._others_list, 1)
+        col.addWidget(self._others_list)
+        buttons = QHBoxLayout()
+        buttons.setSpacing(8)
         self._second_browse = QPushButton(tr("Add…"), self)
         self._second_browse.setToolTip(tr(
             "Add one or more other readings of this chart. You can select "
             "several files at once."))
         self._second_browse.clicked.connect(self._on_second_browse)
-        row.addWidget(self._second_browse, 0, Qt.AlignmentFlag.AlignTop)
+        buttons.addWidget(self._second_browse)
         self._second_remove = QPushButton(tr("Remove"), self)
         self._second_remove.setToolTip(tr(
             "Take the selected readings out of the comparison. The files "
             "themselves are not touched."))
         self._second_remove.setEnabled(False)
         self._second_remove.clicked.connect(self._on_second_remove)
-        row.addWidget(self._second_remove, 0, Qt.AlignmentFlag.AlignTop)
+        buttons.addWidget(self._second_remove)
         self._second_clear = QPushButton(tr("Clear all"), self)
         self._second_clear.setToolTip(tr(
             "Take every other reading out of the list and stop comparing. "
             "The files themselves are not touched."))
         self._second_clear.setEnabled(False)
         self._second_clear.clicked.connect(self._on_second_clear)
-        row.addWidget(self._second_clear, 0, Qt.AlignmentFlag.AlignTop)
+        buttons.addWidget(self._second_clear)
+        self._others_empty = QLabel(
+            tr("Optional: one or more other readings of the same chart, to "
+               "compare with this measurement"), self)
+        self._others_empty.setWordWrap(True)
+        self._others_empty.setStyleSheet(f"color: {self._text_dim};")
+        self._others_empty.setToolTip(tip)
+        buttons.addWidget(self._others_empty, 1)
+        buttons.addStretch(0)
+        col.addLayout(buttons)
+        row.addLayout(col, 1)
         row.addWidget(TooltipButton(
             tr("Other readings of this chart"), tip, self, color=_ACCENT),
             0, Qt.AlignmentFlag.AlignTop)
@@ -729,17 +756,25 @@ class Ti3InfoDialog(QDialog):
             else:
                 text = p.name
             item = QListWidgetItem(text)
-            item.setToolTip(str(p))
+            item.setToolTip(f"{text}\n{p}")
             self._others_list.addItem(item)
         some = bool(self._others)
         self._others_list.setVisible(some)
         self._others_empty.setVisible(not some)
+        # The label sits beside the buttons when there is no list, and beside
+        # the list's first line when there is one.
+        self._others_row.setAlignment(
+            self._others_lbl, Qt.AlignmentFlag.AlignTop if some
+            else Qt.AlignmentFlag.AlignVCenter)
         if some:
+            # FOUR LINES, whatever the count: the window does not jump as
+            # readings are added, and five to nine scroll in place.
             rh = max(18, self._others_list.sizeHintForRow(0))
-            shown = min(len(self._others), 4)
             frame = 2 * self._others_list.frameWidth() + 6
-            self._others_list.setFixedHeight(rh * shown + frame)
+            self._others_list.setFixedHeight(rh * 4 + frame)
         self._update_reading_buttons()
+        if self.isVisible():
+            self._fit_details_floor()
 
     @staticmethod
     def _reading_line(rd) -> str:
