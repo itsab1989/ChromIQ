@@ -779,9 +779,14 @@ class Ti3InfoDialog(QDialog):
         if some:
             # FOUR LINES, whatever the count: the window does not jump as
             # readings are added, and five to nine scroll in place.
-            rh = max(18, self._others_list.sizeHintForRow(0))
-            frame = 2 * self._others_list.frameWidth() + 6
-            self._others_list.setFixedHeight(rh * 4 + frame)
+            lw = self._others_list
+            rh = max(18, lw.sizeHintForRow(0))
+            # exactly four whole lines: the frame and the style sheet's
+            # padding are what the list is taller than its viewport
+            lw.ensurePolished()
+            chrome = max(2 * lw.frameWidth(),
+                         lw.height() - lw.viewport().height())
+            lw.setFixedHeight(rh * 4 + chrome)
         self._update_reading_buttons()
         if self.isVisible():
             self._fit_details_floor()
