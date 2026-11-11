@@ -714,6 +714,7 @@ def say_what_was_filed(parent, filed: Path, *, turned: bool = False) -> None:
         if not complete_from_turned_order(Path(filed), chart):
             _say_the_turned_copy_does_not_pair(parent, turned_refusal_reason())
             return
+    _say_if_the_colours_cleared_the_grid(parent, Path(filed))
     if verdict.ok and verdict.partial:
         InfoDialog(
             tr("Filed — and it is a partial measurement"),
@@ -725,6 +726,22 @@ def say_what_was_filed(parent, filed: Path, *, turned: bool = False) -> None:
                "measurement report states both counts."
                ).format(chart=verdict.n_chart, got=verdict.patches_read),
             parent, min_width=580).exec()
+
+
+def _say_if_the_colours_cleared_the_grid(parent, filed: Path) -> None:
+    """M-IMPORT-TURNED-GRID-COLOURS when the filed copy is a turned
+    measurement on another i1Profiler grid that was filed because its
+    colours agree with the chart (4.3.32): the person is told that the grid
+    differed and that the colours were checked, never left to wonder."""
+    from workflow.i1profiler_turned import colour_check_fields
+    fields = colour_check_fields(filed)
+    if not fields:
+        return
+    from workflow.measurement_messages import turned_grid_colours_filed
+    title, body = turned_grid_colours_filed(fields)
+    log.info("import: told the person that %s was filed on its colours "
+             "(%s)", Path(filed).name, fields)
+    InfoDialog(title, body, parent, min_width=580).exec()
 
 
 def _say_the_turned_copy_does_not_pair(parent, reason: str) -> None:

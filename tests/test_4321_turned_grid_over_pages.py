@@ -214,13 +214,13 @@ def test_a_misplaced_cell_on_page_3_is_refused(chart_600, tmp_path):
 
 def test_other_columns_on_pages_are_refused(chart_600, tmp_path):
     ti2, files, plan = chart_600
-    mxf = _mxf(files.txf("i1Pro 3"), tmp_path / "wide.mxf", columns=25,
-               pages=5)
+    mxf = _mxf(files.txf("i1Pro 3"), tmp_path / "wide.mxf", columns=23,
+               pages=5, misread=(plan.rows, plan.columns))
     ti3, v = _import(mxf, ti2)
-    assert i1p_grid_of(ti3).columns == 25
+    assert i1p_grid_of(ti3).columns == 23
     assert not v.ok and not v.turned_order
     assert "laid that chart out on a different grid" in v.reason
-    assert "columns: 25, pages: 5, rows on its first page:" in v.reason
+    assert "columns: 23, pages: 5, rows on its first page:" in v.reason
     assert complete_from_turned_order(ti3, ti2) == 0
 
 

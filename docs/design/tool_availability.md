@@ -291,3 +291,37 @@ neither introduces.
 - **The audit and its completeness tests** — see §5.
 - **Nothing greys out yet.** No cell of §4 is implemented, because no cell of
   §4 is confirmed.
+
+### ⏳ Awaiting confirmation — Inspect a measurement compares two readings of one chart (4.3.32)
+
+**Confirmed by:** *nobody yet.* Asked for by jctay (forum, 2026-11-10);
+Basti ordered it built on 2026-11-11 (*"do both, established workflow"*).
+Still ○ in every state: it reads files and writes none.
+
+* Measurement info has a row **Another reading:** under the mode row, in
+  both modes, with Browse…, Clear and a help button. It takes a second
+  reading of the same chart: a `.ti3`, a CGATS text file with XYZ or
+  L\*a\*b\* values, or an i1Profiler `.mxf`/`.cxf`, converted by the
+  import's converter in a temporary folder that is removed again, in the
+  measurement's own condition when the file holds it.
+* **Same chart first** (`workflow/reading_compare.py`): the patch count,
+  the patch numbers and the device values of every pair within
+  `PATCH_IDENTITY_TOL`, the rule of Verify against reference (4.3.30).
+  Files whose patch numbers do not pair (another grid, another order) are
+  paired by their device values when each names exactly one patch in each
+  file; patches whose device value repeats in the chart are left out and
+  counted (more than 10 % left out: refused). Anything else is refused with
+  M-READINGS-NOT-SAME-CHART; an unreadable or colourless file with
+  M-READINGS-UNUSABLE. Nothing is compared then.
+* **Results**, section "Another reading of this chart": the file, how the
+  patches were paired, the count, average, median, 95th percentile and
+  largest ΔE₀₀, the tolerance (0.5, 1.0 default, 2.0, or Custom 0.1 to 10)
+  and how many patches lie above it (above = strictly greater), the ten
+  largest differences with their strip and place as printed and both
+  L\*a\*b\* values, per printed strip the five worst and every strip of
+  which at least three quarters are above the tolerance ("nearly the whole
+  strip disagrees"), and a paragraph on what two readings can and cannot
+  tell. Save inspection… saves it with the rest, plus every patch above the
+  tolerance.
+* Nothing is written: not the measurement, not the second reading, no
+  profile (`tests/test_4332_compare_two_readings.py`).
