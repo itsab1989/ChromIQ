@@ -586,7 +586,6 @@ class Ti3InfoDialog(QDialog):
         self._tol_spin.setRange(TOLERANCE_MIN, TOLERANCE_MAX)
         self._tol_spin.setSingleStep(TOLERANCE_STEP)
         self._tol_spin.setValue(DEFAULT_TOLERANCE)
-        self._tol_spin.setPrefix("ΔE₀₀ ")
         self._tol_spin.setToolTip(tol_tip)
         self._tol_spin.setVisible(False)
         self._tol_spin.valueChanged.connect(self._on_tolerance_changed)
