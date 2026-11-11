@@ -129,3 +129,45 @@ def test_a_file_argyll_cannot_convert_is_refused_in_words(tmp_path):
     with pytest.raises(ReadingsNotComparable) as e:
         load_reading(p, argyll_bin=str(tmp_path / "no-argyll-here"))
     assert e.value.message is M.M_READINGS_UNUSABLE
+
+
+# ---- a file without device values beside a turned measurement -------------
+
+def _strip_rgb(src_text: str) -> str:
+    lines = src_text.splitlines()
+    f0 = lines.index("BEGIN_DATA_FORMAT")
+    fields = lines[f0 + 1].split()
+    keep = [i for i, f in enumerate(fields) if not f.startswith("RGB_")]
+    d0, d1 = lines.index("BEGIN_DATA"), lines.index("END_DATA")
+    rows = [" ".join(ln.split()[i] for i in keep) for ln in lines[d0 + 1:d1]]
+    head = [ln for ln in lines[:f0] if not ln.startswith("NUMBER_OF_FIELDS")]
+    return "\n".join(head + [f"NUMBER_OF_FIELDS {len(keep)}",
+                             "BEGIN_DATA_FORMAT",
+                             " ".join(fields[i] for i in keep),
+                             "END_DATA_FORMAT", f"NUMBER_OF_SETS {len(rows)}",
+                             "BEGIN_DATA", *rows, "END_DATA", ""])
+
+
+def test_no_device_values_beside_a_turned_measurement_is_refused(tmp_path):
+    """Measured on the real 624-patch files (review 2026-11-11): an
+    i1Profiler export without RGB values, in i1Profiler's own (turned)
+    patch numbers, beside the imported measurement, was compared patch by
+    wrong patch, average dE00 37, under a "not checked" note only."""
+    from workflow.i1profiler_turned import TURNED_KEYWORD
+    text = SRC.read_text(encoding="utf-8")
+    a = tmp_path / "a.ti3"
+    a.write_text(text.replace(
+        "DEVICE_CLASS", f'KEYWORD "{TURNED_KEYWORD}"\n{TURNED_KEYWORD} '
+        '"x-i1profiler-turned.json"\nDEVICE_CLASS', 1), encoding="utf-8")
+    b = tmp_path / "b.ti3"
+    b.write_text(_strip_rgb(text), encoding="utf-8")
+    ra, rb = load_reading(a), load_reading(b)
+    assert ra.turned and not rb.turned and len(rb.device) == 0
+    with pytest.raises(ReadingsNotComparable) as e:
+        compare(ra, rb)
+    assert e.value.message is M.M_READINGS_NOT_SAME_CHART
+    assert "turned i1Profiler chart" in e.value.reason
+    # two plain files without the turned order still pair by number, said
+    # to be unchecked
+    plain = compare(load_reading(SRC), rb)
+    assert plain.paired_by == "id" and not plain.device_checked

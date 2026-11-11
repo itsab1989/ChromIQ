@@ -81,6 +81,9 @@ class Reading:
     lab: np.ndarray               # (N, 3) L*a*b* D50
     condition: str = ""           # the measurement condition, when known
     converted_from_cxf: bool = False
+    #: paired through the turned i1Profiler order on import: its patch
+    #: numbers are the chart's, not the ones i1Profiler's own files carry
+    turned: bool = False
 
 
 @dataclass
@@ -212,7 +215,8 @@ def reading_from_ti3(path: Path) -> Reading:
                    np.asarray(data.rgb, dtype=float).reshape(-1, 3)
                    if len(data.rgb) else np.empty((0, 3)),
                    _lab_of(np.asarray(data.xyz, dtype=float)),
-                   condition=data.keywords.get("MEASUREMENT_CONDITION", ""))
+                   condition=data.keywords.get("MEASUREMENT_CONDITION", ""),
+                   turned=_TURNED_KEYWORD in data.keywords)
 
 
 #: One number written with a decimal comma (i1Profiler on a decimal-comma
@@ -297,6 +301,10 @@ def _is_argyll_table(path: Path) -> bool:
     """An ArgyllCMS table announces itself on its first line (CTI3 …)."""
     from workflow.measurement_import import _cgats_table_kind
     return _cgats_table_kind(path).startswith("CTI")
+
+
+#: `i1profiler_turned.TURNED_KEYWORD`, here to keep this module light.
+_TURNED_KEYWORD = "CHROMIQ_PAIRED_BY_TURNED_ORDER"
 
 
 def load_reading(path: Path, prefer_condition: str = "",
@@ -409,6 +417,12 @@ def pair_readings(a: Reading, b: Reading
     if not missing and len(where) == n_b:
         pairs = [(ia, where[sid]) for ia, sid in enumerate(a.ids)]
         if not have_dev:
+            if a.turned != b.turned:
+                # Only the numbers could pair them, and they do not mean the
+                # same patches (4.3.32 review).
+                from workflow.measurement_messages import \
+                    readings_turned_no_device_reason
+                raise _mismatch(readings_turned_no_device_reason())
             return pairs, "id", False, 0
         diffs = np.array([np.abs(da[ia] - db[ib]).max() for ia, ib in pairs])
         bad = np.flatnonzero(diffs > PATCH_IDENTITY_TOL)

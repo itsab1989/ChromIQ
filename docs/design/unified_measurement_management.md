@@ -6106,6 +6106,7 @@ chart's file name. Two buttons: **Import it** and **Cancel**.*
 > some patch numbers of your measurement do not appear in the second reading at all (for example {ids}), and the device values (the colour numbers each patch was printed with) cannot pair the patches either
 > patches with the same patch number hold different device values (the colour numbers each patch was printed with) in the two files ({bad} of {total} pairs; patch {sid}, for example, is {a_dev} in your measurement and {b_dev} in the second reading), and some device values of one file do not appear in the other at all
 > patches with the same patch number hold different device values (the colour numbers each patch was printed with) in the two files ({bad} of {total} pairs; patch {sid}, for example, is {a_dev} in your measurement and {b_dev} in the second reading). ChromIQ cannot pair the patches by their device values instead, because some device values belong to more than one patch of the chart, so it could not tell which of those patches is which
+> one of the two files holds no device values (the colour numbers each patch was printed with), so only the patch numbers could pair them, and the other is a measurement of the turned i1Profiler chart. A file saved by i1Profiler numbers the patches of that chart in another order than ChromIQ does, so the same patch number names different patches in the two files
 
 ### M-READINGS-UNUSABLE · PROPOSED · Tools ▸ Inspect a measurement, "Another reading": the chosen file cannot be a reading, 4.3.32
 

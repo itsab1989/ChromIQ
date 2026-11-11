@@ -2592,6 +2592,18 @@ _READINGS_DEVICE_REPEATS = (
     "their device values instead, because some device values belong to more "
     "than one patch of the chart, so it could not tell which of those "
     "patches is which")
+#: 4.3.32 review: one file holds no device values, so only the patch
+#: numbers could pair them, and the other was paired through the turned
+#: i1Profiler chart, whose own files number the patches in another order
+#: (an i1Profiler export without RGB values beside the imported measurement
+#: compared patch by wrong patch: average dE00 37 instead of 0).
+_READINGS_TURNED_NO_DEVICE = (
+    "one of the two files holds no device values (the colour numbers each "
+    "patch was printed with), so only the patch numbers could pair them, "
+    "and the other is a measurement of the turned i1Profiler chart. A file "
+    "saved by i1Profiler numbers the patches of that chart in another order "
+    "than ChromIQ does, so the same patch number names different patches in "
+    "the two files")
 M_READINGS_NOT_SAME_CHART = _m(
     "M-READINGS-NOT-SAME-CHART",
     "These two readings cannot be paired patch by patch",
@@ -2647,6 +2659,12 @@ def readings_device_reason(bad: int, total: int, sid: str, a_dev: str,
             else _READINGS_DEVICE_DIFFER)
     return tr(text).format(bad=bad, total=total, sid=sid, a_dev=a_dev,
                            b_dev=b_dev)
+
+
+def readings_turned_no_device_reason() -> str:
+    """{reason}: one file has no device values and the other was paired
+    through the turned order, so the patch numbers cannot pair them."""
+    return tr(_READINGS_TURNED_NO_DEVICE)
 
 
 def readings_unusable_reason(kind: str, error: str = "") -> str:
