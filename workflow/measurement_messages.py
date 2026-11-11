@@ -2361,6 +2361,102 @@ def reference_unusable_reason(kind: str, error: str = "") -> str:
     return tr(_REF_UNREADABLE).format(error=error)
 
 
+# --- PROPOSED (4.3.32, jctay; Basti 2026-11-11 "do both"): Tools > Inspect a
+#: measurement compares the measurement with ANOTHER READING OF THE SAME
+#: CHART (`workflow/reading_compare.py`). Before any number is shown the two
+#: are paired and checked by the rule Verify against reference uses (4.3.30):
+#: the same number of patches, the patch numbers, and the device values of
+#: every pair within PATCH_IDENTITY_TOL; where the patch numbers do not pair,
+#: by the device values when each names exactly one patch. A pair of files
+#: that fails is refused with this message, in the tool's result area.
+#: {file} is the second reading's file name; {reason} one of the fragments
+#: below, lower case and without a closing full stop.
+_READINGS_COUNT = (
+    "the two files do not hold the same number of patches (your "
+    "measurement: {a_n}, the second reading: {b_n})")
+_READINGS_IDS = (
+    "some patch numbers of your measurement do not appear in the second "
+    "reading at all (for example {ids}), and the device values (the colour "
+    "numbers each patch was printed with) cannot pair the patches either")
+_READINGS_DEVICE_DIFFER = (
+    "patches with the same patch number hold different device values (the "
+    "colour numbers each patch was printed with) in the two files ({bad} of "
+    "{total} pairs; patch {sid}, for example, is {a_dev} in your measurement "
+    "and {b_dev} in the second reading), and some device values of one file "
+    "do not appear in the other at all")
+_READINGS_DEVICE_REPEATS = (
+    "patches with the same patch number hold different device values (the "
+    "colour numbers each patch was printed with) in the two files ({bad} of "
+    "{total} pairs; patch {sid}, for example, is {a_dev} in your measurement "
+    "and {b_dev} in the second reading). ChromIQ cannot pair the patches by "
+    "their device values instead, because some device values belong to more "
+    "than one patch of the chart, so it could not tell which of those "
+    "patches is which")
+M_READINGS_NOT_SAME_CHART = _m(
+    "M-READINGS-NOT-SAME-CHART",
+    "These two readings cannot be paired patch by patch",
+    "To compare two readings, ChromIQ pairs every patch of your measurement "
+    "with the same patch in {file}: the patch with the same patch number, "
+    "or, when the patch numbers do not line up, the patch with the same "
+    "device values (the colour numbers each patch was printed with). That "
+    "only gives true results when both files are readings of the same "
+    "chart, and ChromIQ cannot pair these two: {reason}.\n\n"
+    "Nothing has been compared, because the numbers would describe pairs of "
+    "different patches. Your files have not been changed.\n\n"
+    "Choose a second reading that was measured from a print of the same "
+    "chart. If both really are readings of the same chart, import both into "
+    "the same ChromIQ project first (on the Measure tab: IMPORT, then Import "
+    "Measurement), so "
+    "that both carry the chart's own patch numbers, and compare the "
+    "imported files.",
+    approved=False)
+
+_READINGS_NO_COLOUR = (
+    "it holds no XYZ or L*a*b* values for its patches, so there is nothing "
+    "to compare your measurement with")
+_READINGS_UNREADABLE = "the file could not be read ({error})"
+M_READINGS_UNUSABLE = _m(
+    "M-READINGS-UNUSABLE",
+    "This file cannot be used as a second reading",
+    "ChromIQ could not use {file} as a second reading of your chart: "
+    "{reason}.\n\n"
+    "Nothing has been compared and the file has not been changed.\n\n"
+    "A second reading can be a measurement file (.ti3), a CGATS text file "
+    "with XYZ or L*a*b* values for every patch, or an i1Profiler "
+    "measurement (.mxf or .cxf).",
+    approved=False)
+
+
+def readings_count_reason(a_n: int, b_n: int) -> str:
+    """{reason} of M-READINGS-NOT-SAME-CHART: the patch counts differ."""
+    return tr(_READINGS_COUNT).format(a_n=a_n, b_n=b_n)
+
+
+def readings_ids_reason(ids: "list[str]") -> str:
+    """{reason}: patch numbers the second reading does not have, and no
+    pairing by device values either."""
+    return tr(_READINGS_IDS).format(ids=", ".join(ids))
+
+
+def readings_device_reason(bad: int, total: int, sid: str, a_dev: str,
+                           b_dev: str, why: str) -> str:
+    """{reason}: same-numbered patches carry different device values, and
+    *why* (``"repeats"`` or ``"differ"``) the device values cannot pair
+    them instead."""
+    text = (_READINGS_DEVICE_REPEATS if why == "repeats"
+            else _READINGS_DEVICE_DIFFER)
+    return tr(text).format(bad=bad, total=total, sid=sid, a_dev=a_dev,
+                           b_dev=b_dev)
+
+
+def readings_unusable_reason(kind: str, error: str = "") -> str:
+    """{reason} of M-READINGS-UNUSABLE: ``"no-colour"`` or
+    ``"unreadable"`` (with *error*)."""
+    if kind == "no-colour":
+        return tr(_READINGS_NO_COLOUR)
+    return tr(_READINGS_UNREADABLE).format(error=error)
+
+
 M_IMPORT_DATE_TAKEN = _m(
     "M-IMPORT-DATE-TAKEN",
     "This verification already holds a measurement",
@@ -9451,6 +9547,7 @@ M_QUIT_DURING_BUILD = _m(
 
 
 CATALOGUE = {m.id: m for m in (
+    M_READINGS_NOT_SAME_CHART, M_READINGS_UNUSABLE,
     M_IMPORT_CXF_CONDITION, M_IMPORT_CXF_CONDITION_PARTS,
     M_CONVERT_CXF_CONDITION_ABSENT, M_CONVERT_CXF_SPECTRUM_NOT_A_NUMBER,
     M_CONVERT_CXF_SPECTRUM_NOT_A_NUMBER_PARTS,
