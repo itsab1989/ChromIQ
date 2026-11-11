@@ -112,3 +112,15 @@ def test_the_agrees_verdict_claims_only_the_centre(qapp):
     assert float(c.pair[0, 2].min()) > 1.0
     text = Ti3InfoDialog._verdict_text(Verdict("agrees"))
     assert "centre" in text and "others" not in text
+
+
+def test_no_reading_is_named_when_two_could_be():
+    """+0, +0.9, +1.8: leaving out the first or the last leaves two that
+    agree, so either could be the odd one; neither may be named (pinned
+    after the uniqueness rule could be dropped with the suite green)."""
+    base = _noisy(1)
+    c, _r = compare_several(
+        _rd("m", base), [_rd("b", base + [0.9, 0, 0]),
+                         _rd("c", base + [1.8, 0, 0])])
+    assert (c.spread > 1.0).all()
+    assert (c.stands_apart(1.0) == -1).all()
