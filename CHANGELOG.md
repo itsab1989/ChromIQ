@@ -1,5 +1,12 @@
 # Changelog
 
+## v4.3.31
+
+**For everyone updating from 4.3.30: minor changes to the beta option “ChromIQ profile engine (beta)” in Preferences > Beta. If you have not switched that option on, nothing changes for you. Your charts, measurements and profiles do not change.**
+
+### Changed
+- **Minor changes to the beta option “ChromIQ profile engine (beta)”.** The option stays off unless you switch it on yourself, and with it off, ChromIQ builds your profiles with ArgyllCMS colprof exactly as before.
+
 ## v4.3.30
 
 **For everyone updating from 4.3.29: Tools › Verify against reference works again. A measurement file (.ti3) can now be the reference, pasted values no longer need “3D difference map” to be ticked, and a reference of another chart is refused with an explanation instead of giving meaningless numbers. Your charts, measurements and profiles do not change.**
