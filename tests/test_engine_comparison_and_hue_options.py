@@ -208,6 +208,27 @@ def test_a_comparison_without_its_profile_is_moved_out_too(
     assert str(moved[0].parent) in log
 
 
+def test_a_comparison_without_its_profile_is_kept_when_the_option_is_on(
+        tmp_path, qtbot, monkeypatch):
+    """Review 2026-11-11 (F3): with the option ON the new comparison was
+    moved in after DELETING the one already there (the profile it belonged
+    to had been removed by hand, so the archive at the start of the build
+    left it). It goes into ``old/`` instead, as with the option off."""
+    tab, run, ti3, icc, shown, started = _engine_done(
+        tmp_path, qtbot, monkeypatch, comparison=True)
+    run.colprof_comparison_icc.write_bytes(b"orphan comparison " * 100)
+    tab._archive_the_profile_being_replaced(tab._active_params)
+    icc.write_bytes(b"the engine made this " * 100)
+    tab._on_engine_done(0)
+    assert len(started) == 1
+    assert run.colprof_comparison_icc.read_bytes().startswith(
+        b"colprof made this")
+    moved = list((run.dir / "old").rglob(COLPROF_COMPARISON_NAME))
+    assert len(moved) == 1
+    assert moved[0].read_bytes().startswith(b"orphan comparison")
+    assert str(moved[0].parent) in tab._log.toPlainText()
+
+
 def test_a_failed_build_with_the_option_off_puts_the_old_pair_back(
         tmp_path, qtbot, monkeypatch):
     tab, run, ti3, icc, shown, started = _engine_done(

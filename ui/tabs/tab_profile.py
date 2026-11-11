@@ -6849,10 +6849,19 @@ class TabProfile(QWidget):
             made = self._comparison_builder.expected_icc_path(cparams)
             if code == 0 and made.is_file() and made.stat().st_size > 0:
                 import shutil
-                dest = Run.for_dir(
-                    params.ti3_path.parent).colprof_comparison_icc
+                from datetime import datetime
+                run = Run.for_dir(params.ti3_path.parent)
+                dest = run.colprof_comparison_icc
                 if dest.exists():
-                    dest.unlink()
+                    # One the archive at the start of the build left behind
+                    # (its profile was gone): moved, never deleted, as with
+                    # the option off (`_no_comparison_this_time`).
+                    old = run.archive_to_old([dest], datetime.now())
+                    if old is not None:
+                        self._log.appendPlainText(tr(
+                            "An older comparison profile from colprof, which "
+                            "does not belong to the new profile, was moved "
+                            "to: {folder}").format(folder=old))
                 shutil.move(str(made), str(dest))
                 kept = dest
         except Exception:      # noqa: BLE001
