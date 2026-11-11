@@ -668,14 +668,19 @@ class Ti3InfoDialog(QDialog):
             have.add(p.resolve())
         self._readings_changed()
         if not_added:
-            self._banner.setText((tr(
-                "ChromIQ compares up to {max} other readings at once, so 1 of "
-                "the files you chose was not added. Remove a reading from the "
-                "list to make room for another one.") if not_added == 1 else
-                tr("ChromIQ compares up to {max} other readings at once, so "
-                   "{n} of the files you chose were not added. Remove a "
-                   "reading from the list to make room for others.")).format(
-                max=MAX_OTHER_READINGS, n=not_added))
+            if not_added == 1:
+                text = tr(
+                    "ChromIQ compares up to {max} other readings at once, so "
+                    "1 of the files you chose was not added. Remove a reading "
+                    "from the list to make room for another one.").format(
+                    max=MAX_OTHER_READINGS)
+            else:
+                text = tr(
+                    "ChromIQ compares up to {max} other readings at once, so "
+                    "{n} of the files you chose were not added. Remove a "
+                    "reading from the list to make room for others.").format(
+                    max=MAX_OTHER_READINGS, n=not_added)
+            self._banner.setText(text)
             self._banner.setStyleSheet(
                 banner_qss("#3b82f6", "rgba(59,130,246,0.10)", kind="warn"))
             self._banner.setVisible(True)
