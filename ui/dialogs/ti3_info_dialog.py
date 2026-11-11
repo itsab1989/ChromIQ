@@ -20,6 +20,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QButtonGroup,
     QDialog,
+    QDoubleSpinBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -60,6 +61,15 @@ from workflow.ti3_analysis import (
     neutral_residual,
     parse_reference_labs,
     parse_ti3,
+)
+
+from workflow.reading_compare import (
+    DEFAULT_TOLERANCE,
+    TOLERANCE_MAX,
+    TOLERANCE_MIN,
+    TOLERANCE_PRESETS,
+    TOLERANCE_STEP,
+    WORST_SHOWN,
 )
 
 if TYPE_CHECKING:
@@ -137,6 +147,11 @@ class Ti3InfoDialog(QDialog):
         self._accuracy_msg = ""         # status/error shown in place of accuracy rows
         self._pc_runner = None          # lazily-created ProfcheckRunner
         self._report: list[str] = []    # plain-text lines mirroring the shown rows
+        # another reading of the same chart (4.3.32)
+        self._second_path: Path | None = None
+        self._second = None             # reading_compare.Comparison | None
+        self._second_error: tuple[str, str] | None = None
+        self._tolerance = DEFAULT_TOLERANCE
         # Theme-aware detail-text colours (hardcoded dark-theme greys are
         # invisible on a light background).
         self._text_main, self._text_dim = self._resolve_text_colors()
@@ -214,6 +229,9 @@ class Ti3InfoDialog(QDialog):
             tr("Inspect vs Verify"), mode_tip, self, color=_ACCENT))
         self._rb_inspect.toggled.connect(self._on_mode_changed)
         self._inner.addLayout(mode_row)
+
+        # --- Another reading of this chart (4.3.32, both modes) -----------
+        self._build_second_reading_rows()
 
         # --- Verify-only controls (hidden in Inspect mode) ----------------
         self._verify_box = QWidget(self)
@@ -429,6 +447,7 @@ class Ti3InfoDialog(QDialog):
         if is_verification_ti3(data):
             self._rb_verify.setChecked(True)
         self._recompute_accuracy()   # re-score against any attached comparison
+        self._recompute_second()     # and against another reading, if any
         self._render()
         self._save_btn.setEnabled(True)
         self._body.setText(
@@ -476,6 +495,312 @@ class Ti3InfoDialog(QDialog):
         self._cmp_path.setText(path)
         self._recompute_accuracy()
         self._render()
+
+    # ------------------------------------------------------------------
+    # Another reading of this chart (4.3.32, jctay)
+    # ------------------------------------------------------------------
+    def _build_second_reading_rows(self) -> None:
+        """The row that takes a second reading of the same chart, and the
+        tolerance row under it. Shown in both modes: two readings of a raw
+        chart are the usual case."""
+        tip = tr(
+            "Compare this measurement with another reading of the same chart: "
+            "the same printed sheet measured again, or a second print of the "
+            "same chart. ChromIQ pairs every patch with the same patch in the "
+            "other file and shows how far apart the two readings are (as "
+            "ΔE₀₀, where about 1 is a difference you can just see), which "
+            "patches and strips disagree most, and how many patches lie above "
+            "a tolerance you choose.\n\n"
+            "The second reading can be a measurement file (.ti3), a CGATS text "
+            "file with XYZ or L*a*b* values, or an i1Profiler measurement "
+            "(.mxf or .cxf), which ChromIQ reads directly.\n\n"
+            "Before comparing, ChromIQ checks that both files hold the same "
+            "chart: the same number of patches, and the same device values "
+            "(the colour numbers each patch was printed with) on every pair. "
+            "Files of different charts are refused rather than compared patch "
+            "by wrong patch.\n\n"
+            "Nothing is changed: not this measurement, not the second reading, "
+            "and no profile.")
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        lbl = QLabel(tr("Another reading:"), self)
+        lbl.setToolTip(tip)
+        lbl.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+        row.addWidget(lbl)
+        self._second_edit = QLineEdit(self)
+        self._second_edit.setReadOnly(True)
+        self._second_edit.setPlaceholderText(
+            tr("Optional: a second reading of the same chart…"))
+        self._second_edit.setToolTip(tip)
+        row.addWidget(self._second_edit, 1)
+        self._second_browse = make_browse_button(
+            self, tr("Browse for another reading of this chart"),
+            "folder_build")
+        self._second_browse.clicked.connect(self._on_second_browse)
+        row.addWidget(self._second_browse)
+        self._second_clear = QPushButton(tr("Clear"), self)
+        self._second_clear.setToolTip(
+            tr("Stop comparing with the second reading."))
+        self._second_clear.setEnabled(False)
+        self._second_clear.clicked.connect(self._on_second_clear)
+        row.addWidget(self._second_clear)
+        row.addWidget(TooltipButton(
+            tr("Another reading of this chart"), tip, self, color=_ACCENT))
+        self._inner.addLayout(row)
+
+        tol_tip = tr(
+            "The colour difference (ΔE₀₀) above which a patch counts as a "
+            "disagreement between the two readings. About 1.0 suits a chart "
+            "scanned with an instrument such as the i1Pro. 0.5 suits a very "
+            "consistent setup, for example an instrument guided by a ruler "
+            "and both readings taken one after the other. 2.0 suits readings "
+            "taken by hand. Choose Custom to type your own value.")
+        self._tol_box = QWidget(self)
+        tl = QHBoxLayout(self._tol_box)
+        tl.setContentsMargins(0, 0, 0, 0)
+        tl.setSpacing(8)
+        tlbl = QLabel(tr("Tolerance:"), self._tol_box)
+        tlbl.setToolTip(tol_tip)
+        tl.addWidget(tlbl)
+        self._tol_combo = NoScrollComboBox(self._tol_box)
+        names = {0.5: tr("{value}  (very consistent setup)"),
+                 1.0: tr("{value}  (scanned with an i1Pro or similar)"),
+                 2.0: tr("{value}  (readings taken by hand)")}
+        for v in TOLERANCE_PRESETS:
+            self._tol_combo.addItem(
+                names.get(v, "{value}").format(value=decimal_text(v, 1)), v)
+        self._tol_combo.addItem(tr("Custom"), "custom")
+        self._tol_combo.setCurrentIndex(
+            list(TOLERANCE_PRESETS).index(DEFAULT_TOLERANCE))
+        self._tol_combo.setToolTip(tol_tip)
+        self._tol_combo.currentIndexChanged.connect(self._on_tolerance_changed)
+        tl.addWidget(self._tol_combo)
+        self._tol_spin = QDoubleSpinBox(self._tol_box)
+        self._tol_spin.setDecimals(1)
+        self._tol_spin.setRange(TOLERANCE_MIN, TOLERANCE_MAX)
+        self._tol_spin.setSingleStep(TOLERANCE_STEP)
+        self._tol_spin.setValue(DEFAULT_TOLERANCE)
+        self._tol_spin.setPrefix("ΔE₀₀ ")
+        self._tol_spin.setToolTip(tol_tip)
+        self._tol_spin.setVisible(False)
+        self._tol_spin.valueChanged.connect(self._on_tolerance_changed)
+        tl.addWidget(self._tol_spin)
+        tl.addStretch(1)
+        tl.addWidget(TooltipButton(tr("Tolerance"), tol_tip, self._tol_box,
+                                   color=_ACCENT))
+        self._tol_box.setVisible(False)
+        self._inner.addWidget(self._tol_box)
+
+    def _on_second_browse(self) -> None:
+        start = (str(self._analysis.data.path.parent)
+                 if self._analysis is not None
+                 else str(_chromiq_root(self._settings)))
+        path = open_file_dialog(
+            self, tr("Select another reading of this chart"),
+            tr("Readings (*.ti3 *.txt *.mxf *.cxf);;All files (*)"),
+            start_dir=start)
+        if path:
+            self.load_second_reading(Path(path))
+
+    def load_second_reading(self, path: "Path | None") -> None:
+        """Compare with *path* (None stops comparing)."""
+        self._second_path = Path(path) if path else None
+        self._second_edit.setText(str(path) if path else "")
+        self._second_clear.setEnabled(path is not None)
+        self._tol_box.setVisible(path is not None)
+        self._recompute_second()
+        self._render()
+
+    def _on_second_clear(self) -> None:
+        self.load_second_reading(None)
+
+    def _on_tolerance_changed(self, *_a) -> None:
+        data = self._tol_combo.currentData()
+        custom = data == "custom"
+        self._tol_spin.setVisible(custom)
+        self._tolerance = (float(self._tol_spin.value()) if custom
+                           else float(data))
+        self._render()
+
+    def _recompute_second(self) -> None:
+        """Pair and compare the second reading with the measurement shown.
+        Pure Python; the files are only read."""
+        from workflow.reading_compare import (ReadingsNotComparable, compare,
+                                              load_reading, reading_from_ti3)
+        self._second = None
+        self._second_error = None
+        if self._analysis is None or self._second_path is None:
+            return
+        try:
+            a = reading_from_ti3(self._analysis.data.path)
+            b = load_reading(self._second_path, a.condition)
+            self._second = compare(a, b)
+        except ReadingsNotComparable as exc:
+            self._second_error = exc.render(self._second_path.name)
+            log.info("compare readings: refused %s: %s",
+                     self._second_path.name, exc.reason)
+
+    def _second_section(self) -> None:
+        """The result of the comparison with another reading, or why there
+        is none."""
+        if self._second_path is None:
+            return
+        self._section(tr("Another reading of this chart"), tr(
+            "How far a second reading of the same chart is from this "
+            "measurement, patch by patch, as a colour difference (ΔE₀₀; about "
+            "1 is a difference you can just see)."))
+        if self._second_error is not None:
+            title, body = self._second_error
+            self._row_kv(tr("Not compared"), f"{title}\n\n{body}")
+            return
+        c = self._second
+        if c is None:
+            return
+        tol = self._tolerance
+        name = c.b.path.name
+        if c.b.converted_from_cxf and c.b.condition:
+            name = tr("{name} (i1Profiler measurement, condition {cond})"
+                      ).format(name=name, cond=c.b.condition)
+        self._row_kv(tr("Second reading"), name, tr(
+            "The file this measurement is compared with. An i1Profiler "
+            "measurement is read directly; ChromIQ takes the same measurement "
+            "condition as this measurement when the file holds it."))
+        if c.paired_by == "device":
+            how = tr("device values, because the patch numbers of the two "
+                     "files do not line up (for example, one file was saved "
+                     "on another grid or in another order)")
+        else:
+            how = tr("patch number")
+        self._row_kv(tr("Paired by"), how, tr(
+            "How each patch of this measurement found its partner in the "
+            "second reading. Both ways were checked against the device values "
+            "(the colour numbers each patch was printed with), so every pair "
+            "is the same patch of the chart."))
+        if not c.device_checked:
+            self._row_kv(tr("Same chart?"), tr(
+                "not checked: one of the files holds no device values, so "
+                "ChromIQ paired the patches by patch number alone. Make sure "
+                "both files are readings of the same chart."))
+        if c.left_out:
+            self._row_kv(tr("Left out"), (tr(
+                "1 patch, because its device value appears more than once in "
+                "the chart and ChromIQ cannot tell those copies apart")
+                if c.left_out == 1 else tr(
+                "{n} patches, because their device values appear more than "
+                "once in the chart and ChromIQ cannot tell those copies "
+                "apart").format(n=c.left_out)))
+        self._row_kv(tr("Compared"),
+                     tr("1 patch") if c.n == 1 else
+                     tr("{n} patches").format(n=c.n))
+        self._row_kv(tr("Average ΔE₀₀"), decimal_text(c.mean, 2), tr(
+            "The average difference between the two readings over all "
+            "compared patches. Two careful readings of the same print with "
+            "the same instrument often average a few tenths; much more points "
+            "to noise, a moving instrument or a misread strip."))
+        self._row_kv(tr("Median ΔE₀₀"), decimal_text(c.median, 2), tr(
+            "The middle value: half of the patches differ less than this, "
+            "half more. A few badly read patches do not pull it up, so a "
+            "median well below the average means that a few patches disagree "
+            "strongly."))
+        self._row_kv(tr("95th percentile ΔE₀₀"), decimal_text(c.p95, 2), tr(
+            "95 out of every 100 patches differ by this much or less. It "
+            "shows how large the bigger differences are, without being "
+            "decided by one single patch."))
+        self._row_kv(tr("Largest ΔE₀₀"), decimal_text(c.worst, 2), tr(
+            "The largest difference of all, on the first patch in the list "
+            "below."))
+        above = c.above(tol)
+        share = decimal_text(100.0 * len(above) / c.n, 1) if c.n else "0"
+        if not above:
+            txt = (tr("none") if c.n == 1 else
+                   tr("none of the {n} patches").format(n=c.n))
+        elif len(above) == 1:
+            txt = tr("1 of {n} patches ({share} %)").format(n=c.n,
+                                                             share=share)
+        else:
+            txt = tr("{k} of {n} patches ({share} %)").format(
+                k=len(above), n=c.n, share=share)
+        self._row_kv(tr("Above the tolerance"), txt, tr(
+            "How many patches differ by more than the tolerance chosen above "
+            "(ΔE₀₀ {tol}). These are the patches worth measuring a third "
+            "time.").format(tol=decimal_text(tol, 1)))
+
+        worst = c.worst_patches(WORST_SHOWN)
+        self._row_kv(tr("Largest differences"), tr(
+            "the patches where the two readings differ most, largest first"))
+        for p in worst:
+            self._row_kv(self._patch_key(p), self._patch_value(p, tol))
+
+        strips = c.strips(tol)
+        if strips:
+            flagged = [s for s in strips if s.whole_strip_off]
+            shown = strips[:5] + [s for s in flagged if s not in strips[:5]]
+            self._row_kv(tr("By strip"), tr(
+                "the printed strips whose patches differ most on average"),
+                tr("A whole strip that disagrees points at one strip read "
+                   "badly in one of the two readings (a slipped strip, or "
+                   "the wrong strip read), rather than at the instrument's "
+                   "ordinary scatter."))
+            for s in shown:
+                val = tr("average {mean}, largest {worst}, {k} of {n} "
+                         "patches above the tolerance").format(
+                    mean=decimal_text(s.mean, 2),
+                    worst=decimal_text(s.worst, 2), k=s.above, n=s.n)
+                if s.whole_strip_off:
+                    val += "\n" + tr(
+                        "Nearly the whole strip disagrees: one of the two "
+                        "readings of this strip is probably off (a slipped "
+                        "or misread strip). Read this strip again.")
+                self._row_kv(tr("Strip {label}").format(label=s.label), val)
+
+        self._row_kv(tr("What this tells you"), tr(
+            "Two readings show where they disagree and by how much. They "
+            "cannot show which of the two is right: ChromIQ has nothing else "
+            "to judge them by, and a difference looks the same whichever "
+            "reading is off. To find out, measure the patches above the "
+            "tolerance a third time and keep the two readings that agree. A "
+            "whole strip that disagrees usually means that one reading of "
+            "that strip slipped or was taken on the wrong strip, so read that "
+            "strip again. Small differences spread over the whole chart are "
+            "normal: no instrument reads the same patch exactly the same "
+            "twice, and the backing under the paper, the position of the "
+            "instrument, the temperature and ink that is still drying all add "
+            "a little. Nothing here changes either file or any profile."))
+        if above:
+            # The saved inspection lists EVERY patch above the tolerance.
+            self._report.append("")
+            self._report.append(tr("All patches above the tolerance"))
+            for p in above:
+                self._report.append(
+                    f"  {self._patch_key(p)}: "
+                    + self._patch_value(p, tol).replace("\n", "  ·  "))
+
+    @staticmethod
+    def _patch_key(p) -> str:
+        return tr("Patch {id}").format(id=p.sid)
+
+    @staticmethod
+    def _patch_value(p, tol: float) -> str:
+        if p.strip is not None and p.position is not None:
+            where = tr("strip {strip}, patch {pos} as printed").format(
+                strip=p.strip, pos=p.position)
+        elif p.loc and p.loc != p.sid:
+            where = tr("location {loc}").format(loc=p.loc)
+        else:
+            where = ""
+        head = tr("ΔE₀₀ {de}").format(de=decimal_text(p.de, 2))
+        if p.de > tol + 1e-9:
+            head += "  " + tr("(above the tolerance)")
+        if where:
+            head += "  ·  " + where
+
+        def _lab(v) -> str:
+            return tr("L* {l}  a* {a}  b* {b}").format(
+                l=decimal_text(v[0], 1), a=decimal_text(v[1], 1),
+                b=decimal_text(v[2], 1))
+        return (head + "\n" + tr("this measurement: {lab}").format(
+            lab=_lab(p.lab_a)) + "\n" + tr("second reading: {lab}").format(
+            lab=_lab(p.lab_b)))
 
     def _recompute_accuracy(self) -> None:
         """Score the measurement against the attached comparison. Reference is
@@ -766,6 +1091,9 @@ class Ti3InfoDialog(QDialog):
                 "daylight with its ultraviolet, and M2 cuts the ultraviolet "
                 "out, as if the paper had no optical brighteners. Brightener "
                 "compensation (FWA) only works with M0 readings."))
+
+        # --- Another reading of this chart (4.3.32) ---------------------
+        self._second_section()
 
         # --- Tone & contrast ---------------------------------------------
         self._section(tr("Tone & contrast"), tr(
