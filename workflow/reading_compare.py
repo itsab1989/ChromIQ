@@ -81,6 +81,9 @@ class Reading:
     lab: np.ndarray               # (N, 3) L*a*b* D50
     condition: str = ""           # the measurement condition, when known
     converted_from_cxf: bool = False
+    #: paired through the turned i1Profiler order on import: its patch
+    #: numbers are the chart's, not the ones i1Profiler's own files carry
+    turned: bool = False
     instrument: str = ""          # the instrument, as the file names it
     measured_on: str = ""         # when it was read, as the file says
 
@@ -194,7 +197,9 @@ def reading_from_ti3(path: Path) -> Reading:
     from workflow.ti3_analysis import Ti3ParseError, parse_ti3
     try:
         data = parse_ti3(Path(path))
-    except OSError as exc:
+    except (OSError, ValueError, IndexError) as exc:
+        # ValueError / IndexError: a value that is not a number, a short
+        # row. They used to escape and leave the window without an answer.
         raise _unusable("unreadable", str(exc)) from exc
     except Ti3ParseError as exc:
         text = str(exc)
@@ -214,6 +219,7 @@ def reading_from_ti3(path: Path) -> Reading:
                    if len(data.rgb) else np.empty((0, 3)),
                    _lab_of(np.asarray(data.xyz, dtype=float)),
                    condition=kw.get("MEASUREMENT_CONDITION", ""),
+                   turned=_TURNED_KEYWORD in kw,
                    instrument=(kw.get("CHROMIQ_I1P_INSTRUMENT")
                                or kw.get("TARGET_INSTRUMENT") or ""),
                    measured_on=_date_of(kw.get("CHROMIQ_MEASURED")
@@ -239,17 +245,110 @@ _MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep",
            "oct", "nov", "dec"]
 
 
-def load_reading(path: Path, prefer_condition: str = "") -> Reading:
+#: One number written with a decimal comma (i1Profiler on a decimal-comma
+#: system writes its CGATS text so): digits, one comma, digits.
+_COMMA_NUMBER = re.compile(r"^[+-]?\d+,\d+(?:[eE][+-]?\d+)?$")
+_POINT_NUMBER = re.compile(r"^[+-]?\d*\.\d+(?:[eE][+-]?\d+)?$")
+
+
+def _decimal_points(text: str) -> "str | None":
+    """*text* with the decimal commas of its data table made points, or None
+    when it has none. Only when the table is consistent: some value is
+    written with a comma and none with a point (a comma inside a quoted name
+    is left alone, as is any token that is not one plain number)."""
+    lines = text.splitlines()
+    try:
+        d0 = next(i for i, ln in enumerate(lines) if ln.strip() == "BEGIN_DATA")
+        d1 = next(i for i in range(d0, len(lines))
+                  if lines[i].strip() == "END_DATA")
+    except StopIteration:
+        return None
+    toks = [t for ln in lines[d0 + 1:d1] for t in ln.split()]
+    if not any(_COMMA_NUMBER.match(t) for t in toks) \
+            or any(_POINT_NUMBER.match(t) for t in toks):
+        return None
+    out = lines[:d0 + 1]
+    for ln in lines[d0 + 1:d1]:
+        out.append("\t".join(t.replace(",", ".") if _COMMA_NUMBER.match(t)
+                             else t for t in ln.split()))
+    return "\n".join(out + lines[d1:]) + "\n"
+
+
+def _argyll_bin() -> str:
+    """The ArgyllCMS folder of the settings, as every import door uses it."""
+    from core.platform_paths import default_argyll_bin_dir
+    try:
+        from core.settings import AppSettings
+        return str(AppSettings().get("argyll_bin_path", "")
+                   or default_argyll_bin_dir())
+    except Exception:          # noqa: BLE001 — the default is still a folder
+        return default_argyll_bin_dir()
+
+
+def _reading_from_cgats_text(path: Path, argyll_bin: "str | None") -> Reading:
+    """A CGATS text file that is not an ArgyllCMS measurement (an i1Profiler
+    CGATS export, say), read EXACTLY as the import reads it
+    (`reference_convert.convert_i1profiler_measurement`: txt2ti3, then the
+    CIE scale repaired and XYZ added from a spectral-only export), in a
+    temporary folder that is removed again. Read directly, i1Profiler's XYZ
+    on the 0..1 scale came out a hundredfold dark (a real export against its
+    own import: average ΔE00 45 instead of 0) and a spectral export was
+    called a file without colours (4.3.32 review). Decimal commas are made
+    points first, in the temporary copy only."""
+    from workflow.reference_convert import (ReferenceConvertError,
+                                            convert_i1profiler_measurement)
+    from core.text_io import read_text
+    try:
+        text = read_text(path, lenient=True)
+    except OSError as exc:
+        raise _unusable("unreadable", str(exc)) from exc
+    with tempfile.TemporaryDirectory(prefix="chromiq-compare-") as tmp:
+        src = path
+        fixed = _decimal_points(text)
+        if fixed is not None:
+            src = Path(tmp) / "src" / path.name
+            src.parent.mkdir()
+            src.write_text(fixed, encoding="utf-8")
+            log.info("compare readings: %s writes decimal commas; read as "
+                     "decimal points", path.name)
+        try:
+            out = convert_i1profiler_measurement(
+                src, argyll_bin or _argyll_bin(), Path(tmp) / "out")
+        except ReferenceConvertError as exc:
+            raise _unusable("unreadable", str(exc)) from exc
+        except OSError as exc:
+            raise _unusable("unreadable", str(exc)) from exc
+        r = reading_from_ti3(out)
+    r.path = path
+    return r
+
+
+def _is_argyll_table(path: Path) -> bool:
+    """An ArgyllCMS table announces itself on its first line (CTI3 …)."""
+    from workflow.measurement_import import _cgats_table_kind
+    return _cgats_table_kind(path).startswith("CTI")
+
+
+#: `i1profiler_turned.TURNED_KEYWORD`, here to keep this module light.
+_TURNED_KEYWORD = "CHROMIQ_PAIRED_BY_TURNED_ORDER"
+
+
+def load_reading(path: Path, prefer_condition: str = "",
+                 argyll_bin: "str | None" = None) -> Reading:
     """The reading in *path*. An i1Profiler ``.mxf``/``.cxf`` is converted in
     a temporary folder that is removed again; it takes *prefer_condition*
     (the first reading's condition) when the file holds it, else the
-    condition the import window would offer first."""
+    condition the import window would offer first. A CGATS text file that
+    is not an ArgyllCMS table is converted the way the import converts it
+    (*argyll_bin*, default: the settings' ArgyllCMS folder)."""
     from workflow.reference_convert import is_cxf
     path = Path(path)
     if not path.is_file():
         raise _unusable("unreadable", tr("the file does not exist"))
     if not is_cxf(path):
-        return reading_from_ti3(path)
+        if _is_argyll_table(path):
+            return reading_from_ti3(path)
+        return _reading_from_cgats_text(path, argyll_bin)
     from workflow.reference_convert import (ReferenceConvertError,
                                             cxf_conditions,
                                             cxf_measurement_to_ti3)
@@ -344,6 +443,12 @@ def pair_readings(a: Reading, b: Reading
     if not missing and len(where) == n_b:
         pairs = [(ia, where[sid]) for ia, sid in enumerate(a.ids)]
         if not have_dev:
+            if a.turned != b.turned:
+                # Only the numbers could pair them, and they do not mean the
+                # same patches (4.3.32 review).
+                from workflow.measurement_messages import \
+                    readings_turned_no_device_reason
+                raise _mismatch(readings_turned_no_device_reason())
             return pairs, "id", False, 0
         diffs = np.array([np.abs(da[ia] - db[ib]).max() for ia, ib in pairs])
         bad = np.flatnonzero(diffs > PATCH_IDENTITY_TOL)

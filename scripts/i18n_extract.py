@@ -476,6 +476,14 @@ def _message_catalogue_keys() -> set[str]:
     out |= {v for k, v in vars(mm).items()
             if isinstance(v, str) and not k.startswith("__")
             and (k.startswith("M_") or k.startswith("_"))}
+    # AND THE TEXTS KEPT IN A DICT, which the sweep above could not see: the
+    # eight "cannot tell" sentences of 4.3.32 (`_TURNED_GRID_COLOURS_UNSURE`)
+    # showed English in every language until the 4.3.32 review found it.
+    out |= {t for k, v in vars(mm).items()
+            if isinstance(v, dict) and k.startswith("_")
+            and not k.startswith("__") and v
+            and all(isinstance(t, str) for t in v.values())
+            for t in v.values()}
     return out
 
 
