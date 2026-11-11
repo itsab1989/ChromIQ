@@ -2001,7 +2001,7 @@ class TabPrint(QWidget):
             bin_dir = self._settings.get("argyll_bin_path",
                                          "/Applications/Argyll/bin")
             unique = list(dict.fromkeys(p for p, _f in pages))
-            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+            QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
             try:
                 def _progress(n: int, total: int) -> None:
                     self._set_status(tr(

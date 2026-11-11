@@ -2148,7 +2148,7 @@ class MainWindow(QMainWindow):
 
         worker = threading.Thread(target=_work, daemon=True,
                                   name="cr30-bluetooth-report")
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
         worker.start()
         try:
             while worker.is_alive():
