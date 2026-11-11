@@ -51,7 +51,7 @@ def test_a_fade_starts_in_the_appearance_on_screen(qapp, monkeypatch, mode):
     host.deleteLater()
 
 
-@pytest.mark.parametrize("mode", ("light", "dark"))
+@pytest.mark.parametrize("mode", MODES)
 def test_the_late_built_info_windows_take_it(qapp, monkeypatch, mode):
     from tests.test_profile_tools import _runner, _Settings
     from ui.dialogs.profile_info_dialog import ProfileInfoDialog
