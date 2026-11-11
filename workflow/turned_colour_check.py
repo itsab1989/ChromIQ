@@ -398,11 +398,24 @@ def judge(expected_lab, measured_lab, rows: int, cols: int,
 # From the files
 # ---------------------------------------------------------------------------
 
+def expected_lab_rgb(rgb100) -> np.ndarray:
+    """The colour an RGB chart expects for device values *rgb100* (0..100):
+    targen's own no-profile estimate, as L*a*b* against its white."""
+    from workflow.patch_flags import targen_estimate_xyz
+    xyz = np.array([targen_estimate_xyz(tuple(v)) for v in np.asarray(rgb100, float)])
+    return _lab(xyz, np.array(targen_estimate_xyz((100.0, 100.0, 100.0))))
+
+
+def measured_lab(xyz) -> np.ndarray:
+    """Measured XYZ as L*a*b* against the brightest reading (the paper)."""
+    xyz = np.asarray(xyz, float)
+    return _lab(xyz, xyz[int(np.argmax(xyz[:, 1]))])
+
+
 def _expected_lab(entries_device: np.ndarray, chart_ti2: Path,
                   order) -> "np.ndarray | None":
     """The colour the chart expects for each entry, as L*a*b* against the
     chart's own white, or None when the chart files cannot say."""
-    from workflow.patch_flags import targen_estimate_xyz
     from workflow.ti3_analysis import Ti3ParseError, parse_ti3
     rep = ""
     try:
@@ -415,9 +428,7 @@ def _expected_lab(entries_device: np.ndarray, chart_ti2: Path,
         return None
     if rep in ("RGB", "IRGB") and entries_device is not None \
             and len(entries_device) and entries_device.shape[1] == 3:
-        xyz = np.array([targen_estimate_xyz(tuple(v)) for v in entries_device])
-        white = np.array(targen_estimate_xyz((100.0, 100.0, 100.0)))
-        return _lab(xyz, white)
+        return expected_lab_rgb(entries_device)
     # Another colour space: the chart's own expected XYZ, by sample id.
     try:
         design = parse_ti3(Path(chart_ti2))
@@ -458,8 +469,7 @@ def judge_turned_measurement(ti3_path: "str | Path", order, chart_ti2,
     E = _expected_lab(dev, Path(chart_ti2), order) if chart_ti2 else None
     if E is None or len(E) != n:
         return ColourJudgement(UNSURE, "no-colours", patches=n)
-    white = xyz[int(np.argmax(xyz[:, 1]))] if len(xyz) else None
-    if white is None or float(white[1]) <= 0:
+    if not len(xyz) or float(xyz[:, 1].max()) <= 0:
         return ColourJudgement(UNSURE, "no-colours", patches=n)
-    M = _lab(xyz, white)
+    M = measured_lab(xyz)
     return judge(E, M, int(order.rows), int(order.columns), file_cols)
