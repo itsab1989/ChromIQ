@@ -298,9 +298,13 @@ neither introduces.
 Basti ordered it built on 2026-11-11 (*"do both, established workflow"*).
 Still ○ in every state: it reads files and writes none.
 
-* Measurement info has a row **Another reading:** under the mode row, in
-  both modes, with Browse…, Clear and a help button. It takes a second
-  reading of the same chart: a `.ti3`, a CGATS text file with XYZ or
+* Measurement info has a row **Other readings:** under the mode row, in
+  both modes: a list of files (each with its name and, where the file says,
+  the date measured, the instrument and the measurement condition), Add…
+  (several files at once), Remove (the selected entries), Clear all and a
+  help button; up to nine other readings, ten in all; a file already in the
+  list is not added twice, and files past the ninth are not added and the
+  window says how many. Each is a reading of the same chart: a `.ti3`, a CGATS text file with XYZ or
   L\*a\*b\* values, or an i1Profiler `.mxf`/`.cxf`, converted by the
   import's converter in a temporary folder that is removed again, in the
   measurement's own condition when the file holds it.
@@ -325,3 +329,46 @@ Still ○ in every state: it reads files and writes none.
   tolerance.
 * Nothing is written: not the measurement, not the second reading, no
   profile (`tests/test_4332_compare_two_readings.py`).
+* **One other reading** gives the view above, row for row (also when it is
+  what is left after removing others). Where the files name different
+  measurement conditions or instruments, a row "Measured differently" says
+  so, in both views; nothing is refused for it (a file that names none is
+  left out of that check).
+* **Two or more other readings** (Basti, 2026-11-11: several readings, not
+  only two), section "Other readings of this chart"
+  (`workflow/reading_compare.compare_several`). Every file is paired with
+  the measurement on its own; one that fails is refused with the messages
+  above, marked "not compared" in the list and shown as a "Not compared"
+  row, and the others are compared exactly as without it. Patches are those
+  every compared reading pairs (others left out and counted).
+  * The **centre** of a patch is the median of its L\*, of its a\* and of its
+    b\* over all readings, each separately: with three readings the middle
+    value (two that agree hold it, the third shows its whole difference),
+    with an even number the mean of the two middle values. Every reading's
+    ΔE₀₀ to the centre is its distance.
+  * The **spread** of a patch is the largest ΔE₀₀ between any two readings
+    (with two readings, their difference). **Repeatability**: the median and
+    95th percentile of the spread. "Above the tolerance" counts patches
+    whose spread is above it.
+  * **By reading**: per reading average, median, 95th percentile and largest
+    distance, and patches farther than the tolerance (count and share), with
+    a verdict: agrees with the others (none above); differs overall (median
+    distance above the tolerance); differs on nearly the whole strip X (at
+    least three quarters of a strip of three or more patches above); else
+    differs on N patches.
+  * **Largest differences**: the ten largest spreads, each with its strip
+    and place, every reading's distance from the centre, and, above the
+    tolerance, "Reading N stands apart" when every pair of the OTHER
+    readings is within the tolerance and N is the only reading for which
+    that holds, else "the readings disagree with each other".
+  * **By strip**: the five strips where a reading (not one that differs
+    overall) is farthest from the centre on average, with every reading's
+    average, plus every strip that is nearly whole off in one such reading.
+  * **What this tells you**: standing apart is strong evidence, not proof;
+    two readings can share an error and make the good one stand apart.
+  * Save inspection… saves it all, plus every patch whose spread is above
+    the tolerance with its place, its spread and every reading's distance
+    from the centre. No CSV export: the window has none to extend.
+  * Read on the GUI thread as before; each file is read once and kept, so a
+    change of tolerance only recounts (`tests/test_4332_compare_several_
+    readings.py`, nine others of 2000 patches well under a second).
