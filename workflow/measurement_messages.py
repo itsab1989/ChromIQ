@@ -2129,19 +2129,21 @@ _TURNED_GRID_COLOURS_OTHER_ARRANGEMENT = (
     "most likely taken on other patches, so ChromIQ does not file this "
     "measurement, to keep wrong measurements out of your profile.")
 _TURNED_GRID_COLOURS_STRIP_WRONG = (
-    "Here most measurements match their patches, but those in row {row} in "
-    "i1Profiler (one strip of your printed sheet) match the neighbouring "
+    "Here most measurements match their patches, but those in row {row} of "
+    "the grid in step 5 (one strip of your printed sheet) match the "
+    "neighbouring "
     "patches better than their own, as if that strip had been read one "
     "patch out of place. ChromIQ does not file this measurement, to keep "
     "wrong measurements out of your profile.")
 _TURNED_GRID_COLOURS_UNSURE = {
     "no-colours": (
         "Here the colours cannot settle it, because ChromIQ could not work "
-        "out from the chart files which colour each patch should have."),
+        "out from the chart files which colour each patch should have, or "
+        "could not read a measured colour for every patch."),
     "few-patches": (
-        "Here the colours cannot settle it, because the chart has only {n} "
-        "patches, too few to tell rearranged measurements from misplaced "
-        "ones with confidence."),
+        "Here the colours cannot settle it, because the chart has too few "
+        "patches ({n}) to tell rearranged measurements from misplaced ones "
+        "with confidence."),
     "similar": (
         "Here the colours cannot settle it, because the patches of this "
         "chart are too similar in colour (or too few of them differ clearly) "
@@ -2166,8 +2168,9 @@ _TURNED_GRID_COLOURS_UNSURE = {
         "other places on the chart (shifted, mirrored or turned round)."),
     "strip-unclear": (
         "Here the colours cannot settle it: most measurements match their "
-        "patches, but in row {row} in i1Profiler (one strip of your printed "
-        "sheet) the measurements match their own patches hardly better than "
+        "patches, but in row {row} of the grid in step 5 (one strip of your "
+        "printed sheet) the measurements match their own patches hardly "
+        "better than "
         "the neighbouring ones."),
 }
 _TURNED_GRID_COLOURS_UNSURE_TAIL = (
@@ -2281,10 +2284,13 @@ M_IMPORT_TURNED_GRID_COLOURS = _m(
     "To tell the two apart, ChromIQ compared the colour the instrument "
     "measured on every patch with the colour your chart should have there. "
     "They agree clearly (agreement {score} on a scale where 1 is a perfect "
-    "match, and ChromIQ needs at least {need}), no other arrangement of the "
-    "patches fits nearly as well, and every strip fits its own patches "
-    "better than its neighbours. So every measurement has been filed on its "
-    "own patch, exactly as if the file had kept the grid you measured on.\n\n"
+    "match, and ChromIQ needs at least {need}), none of the other "
+    "arrangements ChromIQ tried (the measurements shifted, mirrored or "
+    "turned round, or laid out on the grid in the file) fits nearly as "
+    "well, and every strip fits its own patches clearly better than the "
+    "patches one place along it. So ChromIQ has filed the measurements on "
+    "the patches the file records them for, exactly as if the file had "
+    "kept the grid you measured on.\n\n"
     "Nothing else is needed. Next time, it helps to leave the page settings "
     "in i1Profiler as they were while measuring until the measurement is "
     "saved, so that the file shows the grid you measured on.",
