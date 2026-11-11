@@ -3143,6 +3143,36 @@ def clip_keep(model: ForwardModel, shaped: np.ndarray, pernode: np.ndarray,
 A44B_TOKEN = "a44b-smoothexact"
 A44B_MU = 100.0
 
+# Token "x2-smoothexact-always" (expert review 2026-11-10/11, Relative
+# Colorimetric candidate A "always"; off by default). The builder runs the
+# re-solve above only when a44-exactkeep restored at least one node. That
+# count is one or zero on the inkjets, so re-read noise and a 0.03 dE change
+# of the input cross it (4 of 10 PRO-300 rebuilds; the ET-8550 with the 1964
+# 10 degree observer, device values 5 % apart). With this token an RGB
+# Maximum accuracy build re-solves the colorimetric table whatever that
+# count: no trigger is left to flip. It changes WHEN smooth_exact runs and
+# nothing in it, so it needs a44-exactkeep and a44b-smoothexact on. Ink
+# devices (CMY included) keep the count as their trigger.
+A44B_ALWAYS_TOKEN = "x2-smoothexact-always"
+
+
+def smooth_exact_always(candidates, *, accurate: bool, is_additive: bool,
+                        n: int) -> bool:
+    """True where "x2-smoothexact-always" acts: a Maximum accuracy build of
+    an RGB (additive, three channel) device with a44b-smoothexact on."""
+    return bool(accurate and is_additive and n == 3
+                and A44B_ALWAYS_TOKEN in candidates
+                and A44B_TOKEN in candidates)
+
+
+def smooth_exact_always_line(restored: int) -> str:
+    """The one progress line of the token (it names the token, so the app
+    keeps it out of the window and in the log; workflow/engine_builder.py
+    EngineLines)."""
+    return ("Colorimetric table re-solved on every RGB build "
+            f"({A44B_ALWAYS_TOKEN}): exact inversion restored at "
+            f"{int(restored)} nodes, the re-solve does not wait for one.")
+
 
 def _curv3(x: np.ndarray, grid: int) -> np.ndarray:
     x3 = x.reshape((grid,) * 3 + (-1,))
