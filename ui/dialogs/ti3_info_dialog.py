@@ -785,7 +785,10 @@ class Ti3InfoDialog(QDialog):
         self._refused = {}
         if self._analysis is None or not self._others:
             return
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        # BusyCursor, NOT WaitCursor: measured 2026-11-11 on macOS 27.2 with
+        # Qt 6.11, setOverrideCursor(WaitCursor) aborts the process (SIGTRAP,
+        # 3 of 3, also in a bare QApplication); BusyCursor 3 of 3 fine.
+        QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
         try:
             try:
                 a = reading_from_ti3(self._analysis.data.path)
