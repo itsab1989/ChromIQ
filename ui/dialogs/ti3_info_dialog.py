@@ -1316,7 +1316,12 @@ class Ti3InfoDialog(QDialog):
         verdicts = [c.verdict(k, tol, strips) for k in range(c.r)]
         # A reading that differs overall is off on nearly every strip; its
         # strips are not listed one by one (its verdict already says it).
-        by_strip = [k for k in range(c.r) if verdicts[k].kind != "overall"]
+        # Nor are the strips of a reading in a named group (`_groups_row`):
+        # its distance comes from a centre between the groups, so a strip
+        # "off" there is the gap between the groups, not a slipped strip.
+        grouped = {k for g in groups if len(g) >= 2 for k in g}
+        by_strip = [k for k in range(c.r) if verdicts[k].kind != "overall"
+                    and k not in grouped]
         for k in range(c.r):
             st = c.stats(k)
             v = verdicts[k]
@@ -1461,10 +1466,10 @@ class Ti3InfoDialog(QDialog):
     def _verdict_text(v, group: "list[int] | None" = None) -> str:
         """*group*: the other readings of this reading's group (see
         `_groups_row`). Then "differs from the others overall" or "on N
-        patches" is not what it is: it agrees with its group, and its
-        distance comes from a centre that lies between the groups or with
-        the other one. A whole strip off is still said as such."""
-        if group and v.kind in ("overall", "patches"):
+        patches" or "on nearly the whole strip" is not what it is: it agrees
+        with its group, and its distance comes from a centre that lies
+        between the groups or with the other one."""
+        if group and v.kind != "agrees":
             if len(group) == 1:
                 return tr(
                     "Agrees with reading {n}, but not with the readings "

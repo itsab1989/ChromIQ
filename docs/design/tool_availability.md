@@ -379,8 +379,10 @@ Still ○ in every state: it reads files and writes none.
     outside it) and at least two groups hold two readings or more, a row
     "Groups" names them by number ("readings 1 and 2; readings 3 and 4"),
     any reading that agrees with no group, and says that ChromIQ cannot tell
-    which group is right. A reading of such a group that would "differ
-    overall" says instead which readings it agrees with. A single reading
+    which group is right. A reading of such a group that is not within the
+    tolerance of the centre says instead which readings it agrees with, and
+    its strips are not called slipped (the centre lies between the groups,
+    so that distance is the gap between them). A single reading
     apart (three against one), a chain (1 agrees with 2, 2 with 3, 1 not
     with 3) or no split at all names no groups
     (`SeveralComparison.groups`).

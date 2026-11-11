@@ -122,6 +122,20 @@ def test_two_against_two_is_said_as_two_groups(qapp, tmp_path):
     dlg.deleteLater()
 
 
+def test_a_wider_split_names_no_slipped_strips(qapp, tmp_path):
+    """With 10 % between the groups the centre between them puts some
+    strips of one group just above the tolerance: that is the gap between
+    the groups, not a slipped strip, and it is not called one."""
+    dlg = _dialog_with(qapp, tmp_path, (1.0, 1.0, 1.10, 1.10))
+    c = dlg._several
+    assert c.groups(dlg._tolerance) == [[0, 1], [2, 3]]
+    t = _texts(dlg)
+    assert "readings 1 and 2; readings 3 and 4." in t
+    assert "Read this strip again" not in t
+    assert "Differs from the others" not in t
+    dlg.deleteLater()
+
+
 def test_two_plus_two_plus_one_names_the_reading_on_its_own(qapp, tmp_path):
     dlg = _dialog_with(qapp, tmp_path, (1.0, 1.0, 1.08, 1.08, 1.2))
     t = _texts(dlg)
