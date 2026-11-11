@@ -851,9 +851,10 @@ class Ti3InfoDialog(QDialog):
         self._refused = {}
         if self._analysis is None or not self._others:
             return
-        # BusyCursor, NOT WaitCursor: measured 2026-11-11 on macOS 27.2 with
-        # Qt 6.11, setOverrideCursor(WaitCursor) aborts the process (SIGTRAP,
-        # 3 of 3, also in a bare QApplication); BusyCursor 3 of 3 fine.
+        # The busy cursor, never the plain wait cursor: measured 2026-11-11
+        # on macOS 27.2 with Qt 6.11, the wait cursor aborts the process
+        # (SIGTRAP, 3 of 3); see tests/test_the_app_never_sets_the_wait_
+        # cursor.py.
         QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
         try:
             try:
