@@ -250,6 +250,11 @@ DEFAULTS: dict[str, Any] = {
     # The black option beside the switch: "neutral" (default) or "deepest".
     # Only read while the switch is on (BuildSettings.black_depth).
     "profile_engine_black_depth": "neutral",
+    # The comparison option directly under the switch (2026-11-11, Basti):
+    # after an engine build, colprof builds its own profile from the same
+    # measurement and it is kept as `Run.colprof_comparison_icc`. On by
+    # default; only read while the switch is on (greyed out while it is off).
+    "profile_engine_colprof_comparison": True,
     # Chart-reading engine for the Measure tab (#126): "chromiq" = the bundled
     # chromiq-chartread fork (JSON protocol, per-strip autosave, direct strip
     # jumps, live patch feedback) — the default from v3.14.0; "argyll" = stock

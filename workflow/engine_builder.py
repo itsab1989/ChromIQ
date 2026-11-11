@@ -65,6 +65,24 @@ def engine_switch_on(settings) -> bool:
         return False
 
 
+def colprof_comparison_setting(settings) -> bool:
+    """Preferences > Beta, the option under the switch, as stored: on by
+    default, and an unreadable or unknown value reads as the default."""
+    try:
+        raw = settings.get("profile_engine_colprof_comparison", True)
+    except Exception:      # noqa: BLE001
+        return True
+    if isinstance(raw, str):
+        return raw.strip().lower() not in ("false", "0", "no", "off")
+    return True if raw is None else bool(raw)
+
+
+def colprof_comparison_wanted(settings) -> bool:
+    """Does colprof build its own profile beside an engine build? Only ever
+    true while the switch is on (`colprof_comparison_setting`)."""
+    return engine_switch_on(settings) and colprof_comparison_setting(settings)
+
+
 def black_depth_setting(settings) -> str:
     """The stored black option as a ``BuildSettings.black_depth`` value; any
     value this build does not know is read as the default, Neutral."""

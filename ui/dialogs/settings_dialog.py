@@ -3307,11 +3307,14 @@ class SettingsDialog(QDialog):
             "minutes for a CMYK printer, and six minutes or more for a "
             "printer with extra inks. The higher quality settings take "
             "longer still. These times include the comparison profile "
-            "described next.\n\n"
-            "  • The profile from colprof is kept as well. After each build "
-            "ChromIQ lets ArgyllCMS colprof build its own profile from the "
-            "same measurement and settings, and saves it beside the new one "
-            "in the run's folder as “colprof-comparison.icc”. Its name "
+            "described next. Without it a build is clearly quicker: in our "
+            "RGB test it took about half as long.\n\n"
+            "  • The profile from colprof can be kept as well. With the "
+            "option “Also build a colprof profile for comparison” just below "
+            "this switch (it is on unless you switch it off), ArgyllCMS "
+            "colprof builds its own profile from the same measurement and "
+            "settings after each build, and ChromIQ saves it beside the new "
+            "one in the run's folder as “colprof-comparison.icc”. Its name "
             "inside the file ends in “(colprof)”, so you can tell the two "
             "apart in any program. You can compare them, or simply use the "
             "colprof one. ChromIQ never installs it by itself. For a printer "
@@ -3330,6 +3333,59 @@ class SettingsDialog(QDialog):
         self._profile_engine_check.clicked.connect(
             self._on_profile_engine_clicked)
 
+        # THE COMPARISON OPTION (Basti, 2026-11-11), directly under the
+        # switch so it reads as part of it. Until now colprof always built
+        # its own profile after an engine build; this decides whether it
+        # does. Greyed out while the switch is off (every build is colprof
+        # then anyway), on by default, and its stored value is kept either
+        # way (`engine_builder.colprof_comparison_wanted`).
+        self._colprof_comparison_check = QCheckBox(
+            tr("Also build a colprof profile for comparison"), self)
+        comparison_tip = TooltipButton(
+            tr("colprof profile for comparison"),
+            tr("After the new engine has built your profile, ChromIQ can "
+            "also let ArgyllCMS colprof build its own profile from the same "
+            "measurement and with the same settings. That second profile is "
+            "there for comparison: you can look at both, print with both, "
+            "or simply go back to the colprof one if you like it "
+            "better.\n\n"
+            "**On (the default while the engine is on):** after every "
+            "engine build, colprof builds its profile as well. ChromIQ saves "
+            "it beside the new one in the run's folder as "
+            "“colprof-comparison.icc”, and its name inside the file ends in "
+            "“(colprof)”, so you can tell the two apart in any program. "
+            "ChromIQ never installs it by itself, and it never takes the "
+            "place of your new profile.\n\n"
+            "**Off:** only the new engine's profile is built, so each build "
+            "finishes clearly sooner. In our RGB test a build took about "
+            "half as long. A comparison file left from an earlier build of "
+            "the same run is moved into the run's “old” folder, so it is "
+            "never mistaken for a comparison of the new profile.\n\n"
+            "**Good to know:**\n\n"
+            "  • This option only matters while the ChromIQ profile engine "
+            "is switched on. With the engine off, every profile is built by "
+            "colprof anyway, so the option is greyed out.\n\n"
+            "  • Your new profile is exactly the same with the option on or "
+            "off. It only decides whether the second file is made.\n\n"
+            "  • For a printer with extra inks there is never a comparison "
+            "file, because colprof cannot build profiles for such "
+            "printers.\n\n"
+            "**Default:** on."),
+            self,
+            min_width=620,
+        )
+        self._comparison_tip = comparison_tip
+        self._colprof_comparison_cell = cmp_cell = QWidget(self)
+        _cmp_row = QHBoxLayout(cmp_cell)
+        # indented under the switch: it belongs to it
+        _cmp_row.setContentsMargins(24, 0, 0, 0)
+        _cmp_row.addWidget(self._colprof_comparison_check)
+        _cmp_row.addStretch()
+        _cmp_row.addWidget(comparison_tip)
+        self._colprof_comparison_check.setEnabled(False)
+        self._profile_engine_check.toggled.connect(
+            self._colprof_comparison_check.setEnabled)
+
         # THE BLACK OPTION, shown only while the engine is switched on. It
         # stands where the Fast / Bit-exact / Maximum accuracy picker stood
         # until 2026-11-10: only Maximum accuracy remains, so there is
@@ -3341,34 +3397,44 @@ class SettingsDialog(QDialog):
             NoScrollComboBox.SizeAdjustPolicy.AdjustToContents)
         black_depth_tip = TooltipButton(
             tr("Darkest black"),
-            tr("How dark the profile lets neutral shadows go. This applies "
-            "to the new profile engine only.\n\n"
+            tr("How the profile handles the darkest tones. This applies to "
+            "the new profile engine only.\n\n"
             "On many printers the darkest black is not quite neutral: the "
             "very deepest black the printer can make has a slight colour "
             "tint, and the darkest grey that is truly neutral is a little "
             "lighter. This option decides which of the two the profile "
-            "aims for.\n\n"
-            "  • **Neutral (recommended):** shadows go down to the darkest "
-            "neutral grey. The darkest steps stay neutral and stay distinct "
-            "from each other, with or without black point compensation.\n\n"
-            "  • **Deepest:** shadows go all the way down to the printer's "
-            "own black. With Relative Colorimetric and black point "
-            "compensation switched on, this gives a clearly deeper black. "
-            "On our Epson ET-8550 test printer the darkest step went from "
-            "L* 7.3 to L* 5.2.\n\n"
-            "**What Deepest costs:** a slight colour tint in the darkest "
-            "tones. On the test printer this was a faint violet cast in the "
-            "very last step and a small yellowish step just above it.\n\n"
+            "aims for in its colorimetric part.\n\n"
+            "  • **Neutral (recommended):** a grey ramp stays neutral from "
+            "the lightest tones down to the darkest neutral grey the "
+            "printer can make, and the darkest steps stay distinct from "
+            "each other, with or without black point compensation. Only "
+            "the very last few steps below that grey, down to pure black, "
+            "take on some of the slight tint of the printer's own black. "
+            "On our test printer that was the darkest four steps of a grey "
+            "ramp in steps of 1 L*.\n\n"
+            "  • **Deepest:** the shadows go all the way down to the "
+            "printer's own black. With Relative Colorimetric and black "
+            "point compensation switched on, this gives a deeper black than "
+            "Neutral. On our Epson ET-8550 test printer the darkest step "
+            "came out between about 1 and 2 L* darker, depending on the "
+            "program that does the printing.\n\n"
             "**Important, please read:** use Deepest only when black point "
             "compensation is switched ON in the program you print from (for "
             "example Photoshop). Without black point compensation, Deepest "
             "makes the darkest few steps print as the same black, so shadow "
-            "detail is lost there. On the test printer the four darkest "
-            "steps all came out at L* 4.4. ChromIQ cannot see that setting "
-            "in your other program, so this is yours to check. Absolute "
-            "Colorimetric never uses black point compensation, so for that "
-            "intent this always applies. With Neutral the steps stay "
-            "separate either way.\n\n"
+            "detail is lost there. On the test printer the darkest three or "
+            "four steps all came out as the same black. ChromIQ cannot see "
+            "that setting in your other program, so this is yours to check. "
+            "Absolute Colorimetric never uses black point compensation, so "
+            "for that intent this always applies. With Neutral the steps "
+            "stay separate either way.\n\n"
+            "**Good to know about black point compensation:** when it is "
+            "switched on, the program you print from scales the shadows "
+            "towards the printer's own black. On a printer with a tinted "
+            "black this brings a little of that tint into the deep shadows, "
+            "with either choice, and with a profile from colprof just the "
+            "same. The tint belongs to the printer's black, and no profile "
+            "can prevent it.\n\n"
             "**What it changes, and what it does not:**\n\n"
             "  • Only the Relative Colorimetric and Absolute Colorimetric "
             "intents change. Perceptual and Saturation are exactly the same "
@@ -3378,6 +3444,11 @@ class SettingsDialog(QDialog):
             "the printer's own black. On a printer with a nearly neutral "
             "black, and on every CMYK and CMY printer, both choices give "
             "the identical profile.\n\n"
+            "**How this was checked:** the numbers above come from "
+            "measurements of the test printer, converted through LittleCMS, "
+            "the colour engine many programs use. How macOS's own colour "
+            "engine handles the black with black point compensation has not "
+            "been confirmed by a measured print yet.\n\n"
             "After a build with Deepest, the build log tells you your "
             "printer's black and its darkest neutral grey as L*a*b* values, "
             "and whether anything was changed.\n\n"
@@ -3413,6 +3484,7 @@ class SettingsDialog(QDialog):
         _eng_row.addStretch()
         _eng_row.addWidget(engine_tip)
         _beta.addLayout(_eng_row)
+        _beta.addWidget(self._colprof_comparison_cell)
         _beta.addWidget(self._black_depth_cell)
 
         # Hexagonal charts in the scanner / camera tools (opt-in).
@@ -4528,10 +4600,14 @@ class SettingsDialog(QDialog):
             "inks, which colprof cannot.\n\n"
             "•  A build takes longer: roughly two to three minutes for an "
             "RGB printer, four to six minutes for a CMYK printer, and more "
-            "for extra inks or the higher quality settings.\n\n"
-            "•  The profile colprof builds from the same measurement is "
-            "saved beside the new one as “colprof-comparison.icc”, so you "
-            "can compare the two or go back.\n\n"
+            "for extra inks or the higher quality settings. These times "
+            "include the comparison profile described next.\n\n"
+            "•  After each build, ArgyllCMS colprof also builds its own "
+            "profile from the same measurement, and it is saved beside the "
+            "new one as “colprof-comparison.icc”, so you can compare the two "
+            "or go back. If you do not need it, switch off “Also build a "
+            "colprof profile for comparison” under the switch, and each "
+            "build is clearly quicker.\n\n"
             "•  You can switch this off again at any time. ChromIQ then "
             "builds every profile with colprof, exactly as before.\n\n"
             "Please read this part carefully: the engine is a beta. It did "
@@ -6294,8 +6370,13 @@ class SettingsDialog(QDialog):
         from workflow.engine_builder import black_depth_setting
         self._black_depth_combo.setCurrentIndex(
             max(0, self._black_depth_combo.findData(black_depth_setting(s))))
+        from workflow.engine_builder import colprof_comparison_setting
+        self._colprof_comparison_check.setChecked(
+            colprof_comparison_setting(s))
         # A no-change setChecked above may not emit toggled, so sync explicitly.
         self._black_depth_cell.setVisible(
+            self._profile_engine_check.isChecked())
+        self._colprof_comparison_check.setEnabled(
             self._profile_engine_check.isChecked())
         self._chartread_engine_check.setChecked(
             str(s.get("chartread_engine", "argyll")) == "chromiq")
@@ -7752,6 +7833,8 @@ class SettingsDialog(QDialog):
         s.set("profile_engine_beta",       self._profile_engine_check.isChecked())
         s.set("profile_engine_black_depth",
               self._black_depth_combo.currentData() or "neutral")
+        s.set("profile_engine_colprof_comparison",
+              self._colprof_comparison_check.isChecked())
         s.set("chartread_engine",
               "chromiq" if self._chartread_engine_check.isChecked() else "argyll")
         s.set("engine_all_modes", self._engine_all_modes_check.isChecked())

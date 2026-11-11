@@ -50,6 +50,7 @@ from ui.ti2_loader import (has_spectral_data,
                           read_target_instrument, spectral_options_unavailable)
 from ui.spectrum_progress import SpectrumSegmentsBar
 from workflow.engine_builder import (EngineProfileBuilder, choose_builder,
+                                     colprof_comparison_wanted,
                                      engine_support, engine_switch_on,
                                      is_multi_ink)
 from workflow.profile_builder import (COLPROF_DARK_EMPHASIS_MAX, ProfileBuilder,
@@ -6577,12 +6578,47 @@ class TabProfile(QWidget):
             self._log.appendPlainText("\n[ERROR] Profile file was not created.")
             self._log.ensureCursorVisible()
             return
-        self._record_profile_build(
-            icc, dict(getattr(self._engine_builder, "last_record", {}) or
-                      {"builder": "engine"}))
-        if self._start_colprof_comparison(params):
+        wanted = colprof_comparison_wanted(self._settings)
+        record = dict(getattr(self._engine_builder, "last_record", {}) or
+                      {"builder": "engine"})
+        record["colprof_comparison"] = wanted
+        self._record_profile_build(icc, record)
+        if not wanted:
+            self._no_comparison_this_time(params)
+        elif self._start_colprof_comparison(params):
             return                 # `_on_comparison_done` finishes the build
         self._finish_engine_build(params)
+
+    def _no_comparison_this_time(self, params) -> None:
+        """The comparison option is off (Preferences > Beta): colprof does
+        not build a second profile, and a comparison profile still in the
+        run cannot belong to the profile just built. The archive at the
+        start of the build moves one together with the profile it was built
+        beside; one that had no profile left to travel with (the profile was
+        removed by hand, say) is moved into ``old/`` here, the same way.
+        Nothing is deleted, and nothing here can fail the build."""
+        from datetime import datetime
+        self._log.appendPlainText(tr(
+            "No comparison profile from ArgyllCMS colprof was built, "
+            "because that option is switched off in Preferences → Beta."))
+        try:
+            run = Run.for_dir(Path(params.ti3_path).parent)
+            stale = run.colprof_comparison_icc
+            if not stale.is_file():
+                return
+            dest = run.archive_to_old([stale], datetime.now())
+        except Exception as exc:      # noqa: BLE001
+            log.warning("could not move an older comparison profile",
+                        exc_info=True)
+            self._log.appendPlainText(tr(
+                "[WARNING] Could not move the previous profile out of the "
+                "way: {error}").format(error=exc))
+            return
+        if dest is not None:
+            self._log.appendPlainText(tr(
+                "An older comparison profile from colprof, which does not "
+                "belong to the new profile, was moved to: {folder}").format(
+                    folder=dest))
 
     def _finish_engine_build(self, params) -> None:
         """The new profile is in place and everything around it is done."""
