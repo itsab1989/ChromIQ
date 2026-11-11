@@ -195,7 +195,15 @@ def convert_i1profiler_measurement(path: str | Path, argyll_bin: str | Path,
     # temporary copy with points; the user's file is never written. The
     # finalise step below reads only the header, from the original.
     with decimal_point_source(p) as src:
-        _run(Path(argyll_bin), "txt2ti3", [str(src), str(base)], runner)
+        try:
+            _run(Path(argyll_bin), "txt2ti3", [str(src), str(base)], runner)
+        except ReferenceConvertError as exc:
+            if src == p:
+                raise
+            # ArgyllCMS names the file it read: the person's, not our copy.
+            raise ReferenceConvertError(
+                str(exc).replace(str(src), str(p)), title=exc.title,
+                message_id=exc.message_id) from None
     out = artefact(base, ".ti3")
     if not out.is_file():
         raise _failure(M.M_CONVERT_NO_TI3)

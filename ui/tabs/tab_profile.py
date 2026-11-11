@@ -5589,6 +5589,9 @@ class TabProfile(QWidget):
         self._txt_points = ExitStack()
         src = self._txt_points.enter_context(decimal_point_source(work_txt))
         src_arg = work_txt.name if src == work_txt else str(src)
+        # txt2ti3's own lines name the file it read: the working copy's name
+        # is what they show, never the temporary one.
+        self._txt_points_name = (src_arg, work_txt.name)
 
         # txt2ti3 -v <base>.txt <base>  → writes <base>.ti3 in the same folder.
         # We deliberately omit -2 (dummy .ti2): the build flow needs only the
@@ -5612,6 +5615,9 @@ class TabProfile(QWidget):
             points.close()          # the decimal-point copy, if there was one
         ti3 = self._txt_convert_dir / f"{self._txt_convert_base}.ti3"
         output = "\n".join(self._txt_convert_lines)
+        read_as, shown_as = getattr(self, "_txt_points_name", ("", ""))
+        if read_as and read_as != shown_as:
+            output = output.replace(read_as, shown_as)
         if output:
             self._log.appendPlainText(output)
         if code != 0 or not ti3.exists():

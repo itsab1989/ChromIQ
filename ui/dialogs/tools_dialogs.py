@@ -1693,6 +1693,10 @@ class I1ProfilerToTi3Dialog(_ToolDialogBase):
         collected: list[str] = []
 
         def _on_line(line: str) -> None:
+            if src != staged_txt:
+                # txt2ti3 names the file it read: the staged one, for the
+                # person, never the temporary copy with decimal points.
+                line = line.replace(str(src), staged_txt.name)
             collected.append(line)
             self._log.appendPlainText(line.rstrip())
             self._log.ensureCursorVisible()
