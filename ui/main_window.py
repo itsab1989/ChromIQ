@@ -3325,7 +3325,8 @@ class MainWindow(QMainWindow):
             box.setInformativeText(body)
             keep = box.addButton(tr("Keep building"),
                                  QMessageBox.ButtonRole.RejectRole)
-            box.addButton(tr("Quit anyway"), QMessageBox.ButtonRole.AcceptRole)
+            quit_btn = box.addButton(tr("Quit anyway"),
+                                     QMessageBox.ButtonRole.AcceptRole)
             box.setDefaultButton(keep)
             box.setEscapeButton(keep)
             from ui.widgets import keep_message_box_inside_the_work_area
@@ -3333,7 +3334,9 @@ class MainWindow(QMainWindow):
                                                   widen_when_it_fits=False)
             fit_message_box_buttons(box)
             box.exec()
-            return box.clickedButton() is not keep
+            # Only "Quit anyway" quits: a window that ends with no button
+            # pressed keeps the build, as Return and Esc do.
+            return box.clickedButton() is quit_btn
         except Exception:              # noqa: BLE001 - never trap the user
             log.warning("the build quit question failed; closing anyway",
                         exc_info=True)

@@ -952,11 +952,18 @@ def test_the_quit_question_is_asked_only_while_the_engine_builds(
             return self._running
 
     asked: list = []
-    monkeypatch.setattr(QMessageBox, "exec",
-                        lambda self: asked.append(
-                            (self.text(), self.informativeText(),
-                             [b.text() for b in self.buttons()],
-                             self.defaultButton().text())) or 0)
+    press: list = [None]          # the button text to press, or None
+
+    def fake_exec(self):
+        asked.append((self.text(), self.informativeText(),
+                      [b.text() for b in self.buttons()],
+                      self.defaultButton().text()))
+        for btn in self.buttons():
+            if press[0] is not None and btn.text() == press[0]:
+                btn.click()
+        return 0
+
+    monkeypatch.setattr(QMessageBox, "exec", fake_exec)
     eb.EngineProfileBuilder._RUNNING.clear()
     ask = MainWindow._ask_before_quitting_on_a_build
     assert ask(None) is True and not asked
@@ -965,14 +972,18 @@ def test_the_quit_question_is_asked_only_while_the_engine_builds(
     try:
         # nothing clicked reads as "quit anyway" is NOT assumed: the default
         # and Esc are "Keep building"; here no button was clicked at all
-        ask(None)
+        assert ask(None) is False
         title, body, buttons, default = asked[0]
         assert title == "A profile is still being built"
         assert "not saved" in body and "old" in body
         assert sorted(buttons) == ["Keep building", "Quit anyway"]
         assert default == "Keep building"
+        press[0] = "Keep building"
+        assert ask(None) is False
+        press[0] = "Quit anyway"
+        assert ask(None) is True
         b._running = False
-        assert ask(None) is True and len(asked) == 1
+        assert ask(None) is True and len(asked) == 3
     finally:
         eb.EngineProfileBuilder._RUNNING.discard(b)
 
