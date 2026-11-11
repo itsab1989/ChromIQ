@@ -1453,8 +1453,56 @@ def fits_straight_and_turned(measured, match: TurnedMatch) -> bool:
 
 
 def grid_mismatch(ti3_path: "str | Path",
-                  order: "TurnedOrder | None") -> str:
-    """Why a COMPLETE turned measurement *ti3_path*, whose device values
+                  order: "TurnedOrder | None",
+                  chart_ti2: "str | Path | None" = None) -> str:
+    """The reason of :func:`turned_grid_verdict`, or ``""``."""
+    return turned_grid_verdict(ti3_path, order, chart_ti2)[0]
+
+
+#: Header keyword written into a turned measurement on another grid that was
+#: filed because its colours agree with the chart (4.3.32): i1Profiler's grid,
+#: the grid the note asks for, and the score. `ui.measurement_filing.
+#: say_what_was_filed` shows M-IMPORT-TURNED-GRID-COLOURS from it.
+COLOUR_CHECK_KEYWORD = "CHROMIQ_TURNED_GRID_CHECKED_BY_COLOUR"
+
+
+def colour_check_fields(ti3_path: "str | Path") -> "dict[str, str] | None":
+    """The fields of :data:`COLOUR_CHECK_KEYWORD` in *ti3_path*, or None."""
+    import re
+    try:
+        with open(ti3_path, "r", encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                s = line.strip()
+                if s == "BEGIN_DATA":
+                    break
+                if s.startswith(COLOUR_CHECK_KEYWORD + " "):
+                    val = s[len(COLOUR_CHECK_KEYWORD):].strip().strip('"')
+                    return dict(re.findall(r"(\w+)=(\S+)", val))
+    except OSError:
+        return None
+    return None
+
+
+def turned_grid_verdict(ti3_path: "str | Path",
+                        order: "TurnedOrder | None",
+                        chart_ti2: "str | Path | None" = None):
+    """(reason, colour) for :func:`grid_mismatch`: *reason* ``""`` when the
+    file may be filed; *colour* the `turned_colour_check.ColourJudgement`
+    when the colours were asked (another grid, with *chart_ti2* given).
+
+    ANOTHER GRID IS JUDGED BY ITS COLOURS (4.3.32, jctay; option 2 of
+    ``ChromIQ-work/2026-11-10_jctay/analysis.md``). When i1Profiler's grid
+    has other columns or rows than the note's, and the chart is known, the
+    measured colours are compared with the colours the chart expects for
+    each patch (`workflow.turned_colour_check`): clearly on their own
+    patches, the file is filed (the readings re-laid by a page change after
+    measuring, as jctay's were); clearly not, or cannot tell, it is refused
+    as before and the reason says which. Patches outside their cell on the
+    note's own grid, and the paged cases, are judged exactly as before.
+    Nothing is paired by colour: the order pairs, the colours only decide
+    whether the file is filed.
+
+    Why a COMPLETE turned measurement *ti3_path*, whose device values
     follow *order*, was not read on the grid the order's ``.txf`` asks for;
     ``""`` when it was, or when nothing in the file says (4.3.19, §I.14).
 
@@ -1503,10 +1551,10 @@ def grid_mismatch(ti3_path: "str | Path",
         turned_grid_paged_cells_reason, turned_grid_paged_no_place_reason)
     from workflow.reference_convert import i1p_grid_of
     if order is None or order.rows <= 0 or order.columns <= 0:
-        return ""
+        return "", None
     grid = i1p_grid_of(ti3_path)
     if grid is None:
-        return ""
+        return "", None
     if grid.pages > 1 and grid.columns == order.columns:
         # The Locations are the only evidence of where each entry sat; the
         # converted file keeps how many were in their cell, the rows counted
@@ -1518,7 +1566,7 @@ def grid_mismatch(ti3_path: "str | Path",
                      "place for any of its patches", grid.pages)
             return turned_grid_paged_no_place_reason(
                 cols=order.columns, rows=order.rows, got_rows=grid.rows,
-                got_pages=grid.pages)
+                got_pages=grid.pages), None
         whole_rows = -(-grid.patches // grid.columns)
         if (whole_rows != order.rows
                 or grid.patches != len(order.sample_ids)):
@@ -1532,21 +1580,32 @@ def grid_mismatch(ti3_path: "str | Path",
                      grid.patches)
             return turned_grid_paged_cells_reason(
                 cols=order.columns, rows=order.rows, got_rows=grid.rows,
-                got_pages=grid.pages, count=off, total=grid.patches)
+                got_pages=grid.pages, count=off, total=grid.patches), None
         log.info("import: i1Profiler cut the turned chart over %d pages of "
                  "%d columns; every patch, counted on over the pages, is in "
                  "the turned chart's cell", grid.pages, grid.columns)
-        return ""
+        return "", None
     if (grid.columns, grid.rows, grid.pages) != (order.columns, order.rows, 1):
         log.info("import: i1Profiler laid the turned chart out %d x %d on %d "
                  "page(s); the order asks for %d x %d on one",
                  grid.columns, grid.rows, grid.pages, order.columns,
                  order.rows)
+        colour = None
+        if chart_ti2 is not None:
+            from workflow.turned_colour_check import judge_turned_measurement
+            colour = judge_turned_measurement(ti3_path, order, chart_ti2,
+                                              file_cols=grid.columns)
+            log.info("import: the colours of the turned measurement on "
+                     "another grid were compared with the chart: %s",
+                     colour.log_text())
+            if colour.agrees:
+                return "", colour
         return turned_grid_differs_reason(
             cols=order.columns, rows=order.rows, got_cols=grid.columns,
-            got_rows=grid.rows, got_pages=grid.pages)
+            got_rows=grid.rows, got_pages=grid.pages,
+            colour=colour), colour
     if grid.located == 0:
-        return ""
+        return "", None
     off = grid.misplaced + (grid.patches - grid.located)
     if off:
         log.info("import: %d of %d patches of the turned measurement are not "
@@ -1554,8 +1613,8 @@ def grid_mismatch(ti3_path: "str | Path",
                  grid.patches)
         return turned_grid_cells_differ_reason(
             cols=order.columns, rows=order.rows, count=off,
-            total=grid.patches)
-    return ""
+            total=grid.patches), None
+    return "", None
 
 
 #: Header keyword stamped on a measurement paired through the turned order.
@@ -1580,9 +1639,11 @@ def reorder_turned_measurement(ti3_path: "str | Path",
     if not (m.applies and m.verified and not m.partial
             and m.order is not None):
         return 0
-    if grid_mismatch(ti3_path, m.order):
-        # Read on another grid than the .txf asks for (4.3.19): never paired,
-        # whichever door asks (`measurement_import.assess` says why).
+    why, colour = turned_grid_verdict(ti3_path, m.order, chart_ti2)
+    if why:
+        # Read on another grid than the .txf asks for (4.3.19), and the
+        # colours did not clear it (4.3.32): never paired, whichever door
+        # asks (`measurement_import.assess` says why).
         return 0
     text = read_text(ti3_path, lenient=True)
     t = _first_table(text)
@@ -1623,5 +1684,16 @@ def reorder_turned_measurement(ti3_path: "str | Path",
     if TURNED_KEYWORD not in text:
         out[at:at] = [f'KEYWORD "{TURNED_KEYWORD}"',
                       f'{TURNED_KEYWORD} "{m.order.path.name}"']
+    if colour is not None and colour.agrees \
+            and COLOUR_CHECK_KEYWORD not in text:
+        # Filed on the colours' word (4.3.32): say so in the file, so that
+        # the filing door can tell the person and the file keeps the record.
+        from workflow.reference_convert import i1p_grid_of
+        g = i1p_grid_of(ti3_path)
+        val = (f"columns={g.columns if g else 0} rows={g.rows if g else 0} "
+               f"pages={g.pages if g else 0} asked_columns={m.order.columns} "
+               f"asked_rows={m.order.rows} score={colour.score:.3f}")
+        out[at:at] = [f'KEYWORD "{COLOUR_CHECK_KEYWORD}"',
+                      f'{COLOUR_CHECK_KEYWORD} "{val}"']
     ti3_path.write_text("\n".join(out) + "\n", encoding="utf-8")
     return len(new_rows)

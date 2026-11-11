@@ -235,7 +235,10 @@ def test_a_17_column_5_page_grid_with_a_short_last_column(chart_624,
     is 629 cells for 624 patches, the last column five short, its rows shared
     8 + 8 + 7 + 7 + 7 over 5 pages. Every Location is where i1Profiler's fill
     rule puts it (the real file gave misplaced 0 too), so nothing is counted
-    as misplaced; the import refuses it for its 17 columns, not for a cell."""
+    as misplaced. Since 4.3.32 its colours decide: that file was jctay's
+    measurement re-laid by i1Profiler, every reading on its own patch, so it
+    is filed; the same grid with the readings taken on other patches is
+    refused for its 17 columns, not for a cell."""
     ti2, files, plan = chart_624
     mxf = _commas(_mxf(files.txf("i1Pro 3"), tmp_path / "a5.mxf", columns=17,
                        pages=5), tmp_path / "a5-comma.mxf")
@@ -244,7 +247,14 @@ def test_a_17_column_5_page_grid_with_a_short_last_column(chart_624,
     assert (g.columns, g.rows, g.pages) == (17, 8, 5)
     assert 17 * -(-g.patches // g.columns) == 629
     assert (g.patches, g.located, g.misplaced) == (624, 624, 0)
+    assert v.ok and v.turned_order, v.reason
+    bad = _commas(_mxf(files.txf("i1Pro 3"), tmp_path / "a5b.mxf",
+                       columns=17, pages=5,
+                       misread=(plan.rows, plan.columns)),
+                  tmp_path / "a5b-comma.mxf")
+    _ti3, v = _import(bad, ti2)
     assert not v.ok and "columns: 17, pages: 5" in v.reason
+    assert "Here they do not match" in v.reason
 
 
 # ---- B. numbered strips ---------------------------------------------------
@@ -293,12 +303,45 @@ def test_the_label_fallback_is_the_old_rule():
 
 @pytest.mark.parametrize("columns, pages, first_rows", [(4, 18, 9),
                                                         (3, 52, 4)])
-def test_a_re_laid_grid_is_still_refused_with_both_causes(chart_624, tmp_path,
-                                                          columns, pages,
-                                                          first_rows):
+def test_a_re_laid_grid_is_filed_on_its_colours(chart_624, tmp_path,
+                                                columns, pages, first_rows):
+    """4.3.32: his 4 x 9 (18 pages) and 3 x 4 (52 pages) files hold the
+    readings of his 6-page file unchanged. Their colours agree with the
+    chart, so they are filed, the filed copy says so in its header, and the
+    window that says so names both grids and the score."""
+    from workflow.i1profiler_turned import colour_check_fields
     ti2, files, plan = chart_624
     mxf = _mxf(files.txf("i1Pro 3"), tmp_path / "g.mxf", columns=columns,
                pages=pages)
+    ti3, v = _import(mxf, ti2)
+    g = i1p_grid_of(ti3)
+    assert (g.columns, g.rows, g.pages) == (columns, first_rows, pages)
+    assert v.ok and v.turned_order, v.reason
+    assert complete_from_turned_order(ti3, ti2) == 624
+    fields = colour_check_fields(ti3)
+    assert fields["columns"] == str(columns) and fields["pages"] == str(pages)
+    assert float(fields["score"]) >= 0.75
+    title, body = M.turned_grid_colours_filed(fields)
+    assert title.startswith("Filed:")
+    assert (f"the file names columns: {columns}, rows on its first page: "
+            f"{first_rows}, pages: {pages}") in body
+    assert "columns: 12, rows: 52, pages: 1" in body
+    assert "{" not in body and "—" not in body
+    # filed exactly as the note's own grid would have been
+    ok = _mxf(files.txf("i1Pro 3"), tmp_path / "ok.mxf", columns=12)
+    ti3_ok, v_ok = _import(ok, ti2)
+    assert complete_from_turned_order(ti3_ok, ti2) == 624
+    assert colour_check_fields(ti3_ok) is None
+    assert verify_patch_identity(parse_ti3(ti3), ti2)["verdict"] == "verified"
+
+
+@pytest.mark.parametrize("columns, pages, first_rows", [(4, 18, 9),
+                                                        (3, 52, 4)])
+def test_a_grid_measured_wrongly_is_still_refused_with_both_causes(
+        chart_624, tmp_path, columns, pages, first_rows):
+    ti2, files, plan = chart_624
+    mxf = _mxf(files.txf("i1Pro 3"), tmp_path / "g.mxf", columns=columns,
+               pages=pages, misread=(plan.rows, plan.columns))
     ti3, v = _import(mxf, ti2)
     g = i1p_grid_of(ti3)
     assert (g.columns, g.rows, g.pages) == (columns, first_rows, pages)
@@ -306,18 +349,33 @@ def test_a_re_laid_grid_is_still_refused_with_both_causes(chart_624, tmp_path,
     r = v.reason
     assert (f"columns: {columns}, pages: {pages}, rows on its first page: "
             f"{first_rows}") in r
-    # no longer stated as a fact
     assert "Its rows therefore did not line up" not in r
     assert "This can happen in two ways" in r
     assert "the page settings in i1Profiler (Page setup on the Test Chart page" in r
-    # the way out, as checked in i1Profiler 3.8.8 on jctay's 18-page file
+    assert "So ChromIQ compared the colours" in r
+    assert "Here they do not match" in r
+    # a clear disagreement does not offer setting the page back: that would
+    # only hide readings taken on other patches
+    assert "set Page setup back to the paper size you measured with" not in r
+    assert r.endswith("import that file")
+    assert "—" not in r
+    assert complete_from_turned_order(ti3, ti2) == 0
+
+
+def test_cannot_tell_names_the_way_back_of_the_first_cause():
+    """The way out without measuring again, as checked in i1Profiler 3.8.8 on
+    jctay's 18-page file, is offered when the colours cannot tell."""
+    from workflow.turned_colour_check import UNSURE, ColourJudgement
+    r = M.turned_grid_differs_reason(
+        12, 52, 4, 9, 18, colour=ColourJudgement(UNSURE, "between", 0.61, 624))
+    assert "Here the colours cannot settle it" in r
+    assert "agreement 0.61" in r and "at least 0.75" in r
     assert "Load under Page Data on the Measurement page" in r
     assert "set Page setup back to the paper size you measured with" in r
     assert "Save under Page Data on the Measurement page" in r
     assert "check that the one you want is selected" in r
     assert r.endswith("import that file")
-    assert "—" not in r
-    assert complete_from_turned_order(ti3, ti2) == 0
+    assert "{" not in r and "—" not in r
 
 
 def test_the_one_page_reason_names_both_causes_too():
