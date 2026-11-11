@@ -30,8 +30,9 @@ the real print, but it puts the colours in nearly the right ORDER.
 ON TOP OF THE SCORE, so that no arrangement passes by accident:
 * the chart must be able to tell: enough patches, enough different colours,
   each of L*, a* and b* spread out, and neighbouring patches along a strip
-  different enough that a reading one patch away would not look right too
-  (a chart sorted by colour cannot tell, and says so);
+  as different as any two patches of the chart, so that a reading one patch
+  away would not look right too (a chart sorted by colour cannot tell, and
+  says so);
 * no other arrangement of the same readings may fit nearly as well: every
   readings shifted by one patch, one strip or one entry, mirrored either
   way, turned half a turn, transposed, and the two ways i1Profiler's own
@@ -85,12 +86,18 @@ DISTINCT_DE = 5.0
 #: Each of expected L*, a*, b* must spread at least this much (standard
 #: deviation), or its rank agreement is noise. A CC24 spreads 20 to 30.
 MIN_CHANNEL_SPREAD = 5.0
-#: The typical expected-colour difference between neighbours along a strip
-#: (median ΔE76 of the estimate) must be at least this, or a reading one
-#: patch away would look right too. Randomised real charts: 56 to 97, jctay's
-#: CC24 49, his 624 75; charts ordered so that each patch is next to its most
-#: similar one: 6 to 30.
-MIN_NEIGHBOUR_SEPARATION = 25.0
+#: IS THE CHART ORDERED BY COLOUR? Neighbours along a strip are compared
+#: with any two patches of the chart: the median expected-colour difference
+#: (ΔE76 of the estimate) of neighbours over that of all pairs, as a whole
+#: and per channel (L*, a*, b*). A chart laid out at random gives about 1; a
+#: chart sorted by colour puts alike patches side by side, and then a reading
+#: one patch away would look right too. Measured on the real sets (random
+#: subsets of 24 to 1224 patches): whole 0.78 to 1.13, lowest channel 0.36
+#: to 1.15; jctay's CC24 0.88 / 0.79, his 624 1.04 / 1.00. Sorted by nearest
+#: colour: whole 0.08 to 0.49; by lightness: lowest channel 0.00 to 0.17; by
+#: hue then lightness: whole 0.22 to 0.76.
+MIN_NEIGHBOUR_RATIO = 0.70
+MIN_CHANNEL_NEIGHBOUR_RATIO = 0.25
 #: If a wrong arrangement makes the chart's EXPECTED colours agree with
 #: themselves this well (over the entries it moves), the chart cannot tell
 #: that arrangement from the right one. Randomised real charts at most 0.24,
@@ -296,11 +303,24 @@ def judge(expected_lab, measured_lab, rows: int, cols: int,
 
     # Can this chart tell at all? Neighbours along each strip, and every
     # whole-chart arrangement applied to the chart's own colours.
-    seps = []
+    na, nb = [], []
     for r in range(rows):
         js = _strip_entries(n, rows, cols, r)
-        seps += [float(np.linalg.norm(E[a] - E[b])) for a, b in zip(js, js[1:])]
-    sep = float(np.median(seps)) if seps else 0.0
+        na += js[:-1]
+        nb += js[1:]
+    if not na:
+        return ColourJudgement(UNSURE, "short-strips", patches=n)
+    na_, nb_ = np.array(na), np.array(nb)
+    ia, ib = np.triu_indices(n, 1)
+    if len(ia) > 200000:           # a big chart: a fixed sample of pairs
+        pick = np.random.default_rng(0).choice(len(ia), 200000, replace=False)
+        ia, ib = ia[pick], ib[pick]
+    all_d = float(np.median(np.linalg.norm(E[ia] - E[ib], axis=1))) or 1e-9
+    sep = float(np.median(np.linalg.norm(E[na_] - E[nb_], axis=1))) / all_d
+    sep_ch = min(
+        float(np.median(np.abs(E[na_, c] - E[nb_, c])))
+        / (float(np.median(np.abs(E[ia, c] - E[ib, c]))) or 1e-9)
+        for c in range(3))
     alts = wrong_arrangements(n, rows, cols, file_cols)
     idx = np.arange(n)
     likeness = float("nan")
@@ -311,10 +331,12 @@ def judge(expected_lab, measured_lab, rows: int, cols: int,
             if math.isfinite(v) and not (likeness >= v):
                 likeness = v
     likeness = -1.0 if not math.isfinite(likeness) else likeness
-    if sep < MIN_NEIGHBOUR_SEPARATION or likeness >= MAX_SELF_LIKENESS:
+    if (sep < MIN_NEIGHBOUR_RATIO or sep_ch < MIN_CHANNEL_NEIGHBOUR_RATIO
+            or likeness >= MAX_SELF_LIKENESS):
         return ColourJudgement(
             UNSURE, "neighbours", patches=n,
-            detail=f"neighbour separation {sep:.1f}, self-likeness {likeness:.2f}")
+            detail=(f"neighbour ratio {sep:.2f}, lowest channel {sep_ch:.2f}, "
+                    f"self-likeness {likeness:.2f}"))
 
     s = _score(E, M)
     if not math.isfinite(s):
