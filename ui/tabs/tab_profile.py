@@ -49,7 +49,8 @@ from ui.ti2_loader import (has_spectral_data,
                           instrument_label, is_colormunki,
                           read_target_instrument, spectral_options_unavailable)
 from ui.spectrum_progress import SpectrumSegmentsBar
-from workflow.engine_builder import (EngineProfileBuilder, choose_builder,
+from workflow.engine_builder import (EngineProfileBuilder,
+                                     black_depth_value, choose_builder,
                                      colprof_comparison_wanted,
                                      engine_support, engine_switch_on,
                                      is_multi_ink)
@@ -178,6 +179,29 @@ def _hue_default_kept(settings) -> bool:
     except Exception:      # noqa: BLE001
         return False
     return str(raw or "").strip().lower() == "kept"
+
+
+def _black_default(settings) -> str:
+    """The saved default of "Darkest black" (``manual2_colprof_black_depth``,
+    "neutral", the factory setting, or "deepest")."""
+    try:
+        raw = settings.get("manual2_colprof_black_depth", "neutral")
+    except Exception:      # noqa: BLE001
+        return "neutral"
+    return black_depth_value(raw)
+
+
+def _black_for_older_targets(settings) -> str:
+    """What a target stored before "Darkest black" became a Build Profile
+    option (its settings carry no "black_depth") reads: "deepest" only for
+    someone whose global preference was Deepest at the move (settings schema
+    33, `AppSettings._migrate_black_depth_to_build_profile`), else Neutral."""
+    try:
+        raw = settings.get("manual2_colprof_black_depth_older_targets",
+                           "neutral")
+    except Exception:      # noqa: BLE001
+        return "neutral"
+    return black_depth_value(raw)
 
 
 def _intents() -> "list[tuple[str, str]]":
@@ -2812,6 +2836,10 @@ class TabProfile(QWidget):
         if self._accurate_engine_active():
             data["hue_rendering"] = ("kept" if self._m_hue_cb.isChecked()
                                      else "argyll")
+            # "Darkest black" follows the same rule (Basti, 2026-11-12:
+            # "savable as default and as part of a preset", like the hue).
+            data["black_depth"] = black_depth_value(
+                self._m_black_combo.currentData())
         return data
 
     # ------------------------------------------------------------------
@@ -2993,6 +3021,11 @@ class TabProfile(QWidget):
             if hue_cb is not None:
                 wanted["hue_rendering"] = ("kept" if hue_cb.isChecked()
                                            else "argyll")
+            # "Darkest black" likewise (2026-11-12).
+            black_combo = getattr(self, "_m_black_combo", None)
+            if black_combo is not None:
+                wanted["black_depth"] = black_depth_value(
+                    black_combo.currentData())
             fingerprint = str(getattr(store, "dir", store))
             if self._profile_written_cache().get(fingerprint) == wanted:
                 return False
@@ -3035,6 +3068,11 @@ class TabProfile(QWidget):
                 self._restore_defaults()
                 return False
             self._m_apply_preset_data(stored)
+            if "black_depth" not in stored:
+                # Stored before "Darkest black" was a Build Profile option:
+                # it reads what the global preference said at the move
+                # (settings schema 33), until it is changed here.
+                self._m_set_black(_black_for_older_targets(self._settings))
             self._apply_guided_profile_fields(stored)
             return True
         except Exception:      # noqa: BLE001
@@ -3173,6 +3211,16 @@ class TabProfile(QWidget):
         self._m_hue_cb.setChecked(
             str(data.get("hue_rendering", "argyll")).strip().lower()
             == "kept")
+        # A preset without "black_depth" (saved with the engine off, or
+        # before the option was a Build Profile row) loads Neutral; a target
+        # stored before then is handled in `load_target_settings`.
+        self._m_set_black(data.get("black_depth", "neutral"))
+
+    def _m_set_black(self, value) -> None:
+        """Put a stored "Darkest black" value on the combo (unknown values
+        read as Neutral, `engine_builder.black_depth_value`)."""
+        combo = self._m_black_combo
+        combo.setCurrentIndex(max(0, combo.findData(black_depth_value(value))))
 
     def _on_m_preset_selected(self, index: int) -> None:
         self._m_preset_del_btn.setEnabled(index > 0)
@@ -3235,6 +3283,7 @@ class TabProfile(QWidget):
             _set_combo(self._m_render_combo,
                        "manual2_colprof_render", "argyll")
             self._m_hue_cb.setChecked(_hue_default_kept(s))
+            self._m_set_black(_black_default(s))
         else:
             name = self._m_preset_combo.currentData()
             presets = self._m_load_presets()
@@ -3915,6 +3964,85 @@ class TabProfile(QWidget):
         )
         hue_row.addWidget(self._m_hue_tip)
         eng_col.addLayout(hue_row)
+        # "Darkest black" (Basti, 2026-11-12): BuildSettings.black_depth,
+        # "neutral" (the default) or "deepest". It stood in Preferences >
+        # Beta as one global setting until then; now it is per target, saved
+        # as a default and in a preset exactly like "Keep the original hue"
+        # above (settings schema 33 carries an old global Deepest over).
+        black_row = QHBoxLayout()
+        black_row.addWidget(QLabel(tr("Darkest black:"), grp))
+        self._m_black_combo = NoScrollComboBox(grp)
+        self._m_black_combo.addItem(tr("Neutral (recommended)"), "neutral")
+        self._m_black_combo.addItem(tr("Deepest"), "deepest")
+        self._m_black_combo.setObjectName("compact_input")
+        self._m_black_combo.style().unpolish(self._m_black_combo)
+        self._m_black_combo.style().polish(self._m_black_combo)
+        black_row.addWidget(self._m_black_combo, stretch=1)
+        self._m_black_tip = TooltipButton(
+            tr("Darkest black"),
+            tr("How the profile handles the darkest tones. This applies to "
+            "the new profile engine only.\n\n"
+            "On many printers the darkest black is not quite neutral: the "
+            "very deepest black the printer can make has a slight colour "
+            "tint, and the darkest grey that is truly neutral is a little "
+            "lighter. This option decides which of the two the profile "
+            "aims for in its colorimetric part.\n\n"
+            "  • **Neutral (recommended):** a grey ramp stays neutral from "
+            "the lightest tones down to the darkest neutral grey the "
+            "printer can make, and the darkest steps stay distinct from "
+            "each other, with or without black point compensation. Only "
+            "the very last few steps below that grey, down to pure black, "
+            "take on some of the slight tint of the printer's own black. "
+            "On our test printer that was the darkest four steps of a grey "
+            "ramp in steps of 1 L*.\n\n"
+            "  • **Deepest:** the shadows go all the way down to the "
+            "printer's own black. With Relative Colorimetric and black "
+            "point compensation switched on, this gives a deeper black than "
+            "Neutral. On our Epson ET-8550 test printer the darkest step "
+            "came out between about 1 and 2 L* darker, depending on the "
+            "program that does the printing.\n\n"
+            "**Important, please read:** use Deepest only when black point "
+            "compensation is switched ON in the program you print from (for "
+            "example Photoshop). Without black point compensation, Deepest "
+            "makes the darkest few steps print as the same black, so shadow "
+            "detail is lost there. On the test printer the darkest three or "
+            "four steps all came out as the same black. ChromIQ cannot see "
+            "that setting in your other program, so this is yours to check. "
+            "Absolute Colorimetric never uses black point compensation, so "
+            "for that intent this always applies. With Neutral the steps "
+            "stay separate either way.\n\n"
+            "**Good to know about black point compensation:** when it is "
+            "switched on, the program you print from scales the shadows "
+            "towards the printer's own black. On a printer with a tinted "
+            "black this brings a little of that tint into the deep shadows, "
+            "with either choice, and with a profile from colprof just the "
+            "same. The tint belongs to the printer's black, and no profile "
+            "can prevent it.\n\n"
+            "**What it changes, and what it does not:**\n\n"
+            "  • Only the Relative Colorimetric and Absolute Colorimetric "
+            "intents change. Perceptual and Saturation are exactly the same "
+            "with both choices.\n\n"
+            "  • Only RGB printers with a tinted black are affected, which "
+            "means the darkest neutral grey is at least 1.5 L* lighter than "
+            "the printer's own black. On a printer with a nearly neutral "
+            "black, and on every CMYK and CMY printer, both choices give "
+            "the identical profile.\n\n"
+            "  • This choice is used for builds in Manual mode. Guided mode "
+            "always builds with Neutral.\n\n"
+            "**How this was checked:** the numbers above come from "
+            "measurements of the test printer, converted through LittleCMS, "
+            "the colour engine many programs use. How macOS's own colour "
+            "engine handles the black with black point compensation has not "
+            "been confirmed by a measured print yet.\n\n"
+            "After a build with Deepest, the build log tells you your "
+            "printer's black and its darkest neutral grey as L*a*b* values, "
+            "and whether anything was changed.\n\n"
+            "**Default:** Neutral."),
+            grp,
+            min_width=680,
+        )
+        black_row.addWidget(self._m_black_tip)
+        eng_col.addLayout(black_row)
         g.addWidget(self._m_engine_rows_widget)
         self._refresh_engine_rows()
 
@@ -6822,7 +6950,7 @@ class TabProfile(QWidget):
                 model=params.model or desc,
                 spectral_physics=False, icc_version="2",
                 noise_model=False, render_style="argyll",
-                hue_rendering="argyll")
+                hue_rendering="argyll", black_depth="neutral")
             self._comparison = (params, cparams, work)
             self._comparison_builder = ProfileBuilder(self._runner)
             self._building_with = "colprof"
@@ -7488,6 +7616,10 @@ class TabProfile(QWidget):
             hue_rendering    = ("kept" if (self._m_hue_cb.isChecked()
                                            and self._accurate_engine_active())
                                 else "argyll"),
+            black_depth      = (black_depth_value(
+                                    self._m_black_combo.currentData())
+                                if self._accurate_engine_active()
+                                else "neutral"),
         )
 
     # ------------------------------------------------------------------
@@ -7583,6 +7715,8 @@ class TabProfile(QWidget):
             if self._accurate_engine_active():
                 s.set("manual2_colprof_hue",
                       "kept" if self._m_hue_cb.isChecked() else "argyll")
+                s.set("manual2_colprof_black_depth", black_depth_value(
+                    self._m_black_combo.currentData()))
         self._log.appendPlainText("Profile settings saved as defaults.")
         self._log.ensureCursorVisible()
 
@@ -7705,5 +7839,6 @@ class TabProfile(QWidget):
         self._m_noise_cb.setChecked(bool(s.get("manual2_colprof_noise", False)))
         _set_m_combo(self._m_render_combo,        "manual2_colprof_render",   "argyll")
         self._m_hue_cb.setChecked(_hue_default_kept(s))
+        self._m_set_black(_black_default(s))
         presets = self._m_load_presets()
         self._m_populate_preset_combo(presets)
