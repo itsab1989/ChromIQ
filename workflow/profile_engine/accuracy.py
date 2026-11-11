@@ -31,14 +31,59 @@ from typing import Callable
 import numpy as np
 
 from workflow.profile_engine.forward_model import (ForwardModel,
-                                                   fit_forward_model)
+                                                   fit_forward_model,
+                                                   ramp_positioning_curves,
+                                                   ramp_positioning_curves_mixed)
 from workflow.profile_engine.metrics import delta_e_2000
 
 # λ search ladder, as factors on the parity table's value (settings -r
 # included — it scales the base before the search).
 _LAMBDA_FACTORS = (0.25, 0.5, 1.0, 2.0, 4.0)
+# THE SMOOTHING SEARCH IS THE SHIPPED ONE, ON PURPOSE. The 2026-09 challenge
+# showed the held-out criterion is split-sensitive (the same chart picked
+# ×0.25 whole and ×4 at 90 %), and three alternatives were measured on the
+# synthetic battery — the referee — against the shipped rule: three splits
+# (S6 −21 %), a "keep ×1 on a near tie" margin (S6 −21 %), and duplicate-
+# group-aware splits (S3 −8 %, S6 back to par). Each helped one printer and
+# cost another; none met the gate. So the selection stays, and the LOG became
+# honest: a win inside the test's scatter is called a near tie, a pick at
+# either end of the ladder is named. A criterion that sees the print (B2A
+# round trip, neutral smoothness) is the open piece of work.
+_CV_FOLDS = 1
+_CV_FOLD_MAX_NODES = 250_000   # (kept for the folds-by-size rule)
+_CV_MARGIN_FRACTION = 0.05     # the "near tie" label only; no decision
+_NAME_SCALE_FACTOR = 6.0       # "remeasure" threshold in robust-scale units
+_CV_PREFER_STANDARD_ON_TIE = False
 _HOLDOUT_MIN_PATCHES = 120     # below this a CV split starves the fit
 _CG_RTOL = 1e-12               # squared-residual scale → ~1e-6 relative
+
+
+def _ramp_curves(dev_pos, lab, ramp_blend):
+    if ramp_blend == "mixed":
+        return ramp_positioning_curves_mixed(dev_pos, lab)
+    return ramp_positioning_curves(dev_pos, lab, blend=ramp_blend)
+
+
+
+def a84_cluster_keep(device, res, w, *, k: int = 8, ratio: float = 3.0,
+                     add: float = 1.0) -> np.ndarray:
+    """Agent 84 (a84-warmblack): a robust weight below 1 is given back (1.0)
+    to a patch whose device-space neighbours the fit misses just as badly:
+    the same rule the misread namer uses (a misread is an ISOLATED anomaly;
+    a patch in a region the model cannot follow has equally poor
+    neighbours and is the model's problem, not a misread). On real i1iSis
+    the stiff scan rejected 22 dark C+M-rich patches that all measure
+    near neutral (L* 21, a* 1), and the model then printed them purple
+    (a* +5, b* -5): the clip sent warm hues through them before black."""
+    device = np.asarray(device, float)
+    res = np.asarray(res, float)
+    w = np.asarray(w, float).copy()
+    for i in np.flatnonzero(w < 1.0):
+        d2 = ((device - device[i]) ** 2).sum(1)
+        nn = np.argsort(d2)[1:k + 1]
+        if res[i] < ratio * float(np.median(res[nn])) + add:
+            w[i] = 1.0
+    return w
 
 
 def fit_forward_model_accurate(
@@ -47,8 +92,33 @@ def fit_forward_model_accurate(
         progress: Callable[[str], None] | None = None,
         ucs: bool = False,
         gp: bool = False,
+        row_weights: np.ndarray | None = None,
+        positioning: bool = False,
+        additive: bool = False,
+        fit_space=None,
+        order_mu: float = 0.0,
+        lam_factors: tuple | None = None,
+        ramp_blend: float | str = 0.5,
+        keep_clusters: bool = False,
         ) -> tuple[ForwardModel, np.ndarray, float]:
     """Cross-validated, outlier-robust forward fit.
+
+    ``ramp_blend`` (research, Agent 38 s6, token a40-knut-grey): the share
+    of the ramp placement in the positioning curves (the rest is the
+    identity); 0.5 = the shipped curves; "mixed" = gentler in the light
+    part, shipped at the dark end (forward_model.ramp_positioning_curves_mixed).
+
+    ``lam_factors`` (research, Agent 38): the smoothing ladder to search
+    instead of ``_LAMBDA_FACTORS`` (``(1.0,)`` = the standard value only,
+    used by the a38-noisy-rgb exam); None = the shipped ladder.
+
+    ``positioning`` (ink devices): every fit starts from shaper curves
+    placed by the chart's single-ink ramps
+    (:func:`forward_model.ramp_positioning_curves`) instead of the identity.
+
+    ``row_weights``: per-row multiplicity (an averaged duplicate group
+    stands for k readings) — multiplied into every least-squares weight so
+    the fit is the one the k separate rows would have given.
 
     Returns ``(model, outlier_indices, lam_used)`` — outliers are patch row
     indices whose residual stayed far above the bulk even after the robust
@@ -75,10 +145,17 @@ def fit_forward_model_accurate(
         from workflow.profile_engine.ucs import print_ucs
         space = print_ucs()
         lab = space.lab_to_ucs(lab)
+    elif fit_space is not None:
+        # research (agent 19, ablation): fit in another space with the same
+        # lab_to_ucs / ucs_to_lab interface; every distance stays dE00.
+        space = fit_space
+        lab = space.lab_to_ucs(lab)
 
     def dist(pred: np.ndarray, ref: np.ndarray) -> np.ndarray:
         if ucs:
             return np.linalg.norm(pred - ref, axis=1)
+        if fit_space is not None:
+            return delta_e_2000(space.ucs_to_lab(pred), space.ucs_to_lab(ref))
         return delta_e_2000(pred, ref)
 
     sigma = None
@@ -87,8 +164,9 @@ def fit_forward_model_accurate(
         sigma, (n_floor, n_dark) = patch_noise_sigma(device, lab_orig,
                                                      space=space)
         if progress is not None:
-            progress(f"Measurement-noise model from duplicate patches: "
-                     f"σ = {n_floor:.3f} + {n_dark:.3f}·exp(−Y/10).")
+            progress(f"Estimated reading noise from the repeated patches: "
+                     f"±{n_floor:.2f} XYZ on light patches, "
+                     f"±{n_floor + n_dark:.2f} near black.")
 
     # Outlier scan on a deliberately STIFF fit: a smudge cannot hide from
     # the residuals of a stiff surface, whereas a low cross-validated λ can
@@ -97,11 +175,66 @@ def fit_forward_model_accurate(
     if progress is not None:
         progress("Fitting the printer model: scanning for misread "
                  "patches…")
+    rw = None if row_weights is None else np.asarray(row_weights, float)
     scan = fit_forward_model(device, lab, grid=grid,
                              lam=4.0 * base_lam,
                              curve_rounds=min(curve_rounds, 1),
-                             cg_iters=350, cg_rtol=_CG_RTOL)
+                             cg_iters=350, cg_rtol=_CG_RTOL, weights=rw)
     res_scan = dist(scan.predict(device), lab)
+    init = None
+    if positioning:
+        # The ramp curves read the single-ink patches directly, so ONE
+        # misread strip across a ramp bends a whole channel's curve
+        # (measured on the v2 battery's pessimistic noise, a strip shifted
+        # by one patch over the C and M ramps: 0.15 of full scale, neutral
+        # highlights 3.4 -> 8.5 dE00 on X3m). Each ramp patch is checked
+        # against a stiff fit that has NOT seen the ramps (the mixtures
+        # around the axis predict it); one it disagrees with by more than
+        # 3 robust sigmas (and at least 2 dE00) is replaced by that
+        # prediction for the curves only.
+        # RGB (agent 3, token "rgbpos"): paper is device 1,1,1, a channel's
+        # "ink" is 1 - value; the curves are mirrored back below.
+        dev_pos = 1.0 - device if additive else device
+        inked = dev_pos > 1e-6
+        ramp = inked.sum(1) <= 1
+        lab_for_curves = np.array(lab_orig, float, copy=True)
+        replaced = np.zeros(len(device), bool)
+        if (~ramp).sum() >= 4 * device.shape[1] and ramp.any():
+            lo = fit_forward_model(device[~ramp], lab[~ramp], grid=grid,
+                                   lam=4.0 * base_lam,
+                                   curve_rounds=min(curve_rounds, 1),
+                                   cg_iters=350, cg_rtol=_CG_RTOL,
+                                   weights=None if rw is None else rw[~ramp])
+            pred = lo.predict(device[ramp])
+            if space is not None:
+                pred = space.ucs_to_lab(pred)
+            r = delta_e_2000(pred, lab_orig[ramp])
+            mad_s = 1.4826 * float(np.median(np.abs(r - np.median(r))))
+            bad = r > max(2.0, float(np.median(r)) + 3.0 * mad_s)
+            idx = np.flatnonzero(ramp)[bad]
+            lab_for_curves[idx] = pred[bad]
+            replaced[idx] = True
+        # An isolated misread on a ramp is judged by a stiff fit that
+        # starts from the ramp curves themselves: with identity curves the
+        # scan cannot fit the light end of a clean ramp (its own highlight
+        # bias, the defect these curves fix) and flagged 10-13 good ramp
+        # patches per clean chart.
+        pos = fit_forward_model(device, lab, grid=grid, lam=4.0 * base_lam,
+                                curve_rounds=0, cg_iters=350,
+                                cg_rtol=_CG_RTOL, weights=rw,
+                                init_curves=_mirror(_ramp_curves(
+                                    dev_pos, lab_for_curves,
+                                    ramp_blend), additive))
+        pred_all = pos.predict(device)
+        if space is not None:
+            pred_all = space.ucs_to_lab(pred_all)
+        r_all = delta_e_2000(pred_all, lab_orig)
+        mad_a = 1.4826 * float(np.median(np.abs(r_all - np.median(r_all))))
+        bad_all = ramp & ~replaced & (r_all > max(2.0, float(np.median(r_all))
+                                                  + 3.0 * mad_a))
+        lab_for_curves[bad_all] = pred_all[bad_all]
+        init = _mirror(_ramp_curves(dev_pos, lab_for_curves, ramp_blend),
+                       additive)
 
     if sigma is not None:
         # Whitening by measurement noise alone is wrong statistics where
@@ -125,36 +258,94 @@ def fit_forward_model_accurate(
             floors[band] = np.sqrt(max(
                 mad_b ** 2 - float(np.median(sigma[band])) ** 2, 0.0))
         sigma = np.sqrt(sigma ** 2 + floors ** 2)
-        if progress is not None:
-            progress(f"Model-error floor folded into the noise budget "
-                     f"(shadows ±{floors[l_star < 30.0].max(initial=0):.2f} "
-                     f"ΔE, highlights "
-                     f"±{floors[l_star >= 65.0].max(initial=0):.2f} ΔE).")
+        sh = float(floors[l_star < 30.0].max(initial=0))
+        hi = float(floors[l_star >= 65.0].max(initial=0))
+        if progress is not None and max(sh, hi) >= 0.005:
+            progress(f"The model's own resolution limit is added to that "
+                     f"budget (shadows ±{sh:.2f} ΔE, highlights ±{hi:.2f} "
+                     f"ΔE).")
 
-    if npts >= _HOLDOUT_MIN_PATCHES:
-        rng = np.random.default_rng(4242)
-        idx = rng.permutation(npts)
+    if npts >= _HOLDOUT_MIN_PATCHES and (lam_factors is None
+                                          or len(lam_factors) > 1):
+        # Several hold-out splits, not one: on a real 924-patch chart the
+        # single-split criterion spread only 0.01–0.1 ΔE00 across the whole
+        # ladder while the same factor moved 0.1 between splits, so the
+        # "choice" was the split's noise — ×0.25 on the full chart, ×4 on
+        # 90 % of it, and the stiffer profile generalised WORSE than the
+        # plain fit (measured 2026-09-05). A factor now has to beat the
+        # standard smoothing by more than the criterion's own scatter.
         nho = max(30, npts // 10)
-        ho, trn = idx[:nho], idx[nho:]
+        folds = _CV_FOLDS if grid ** device.shape[1] <= _CV_FOLD_MAX_NODES \
+            else 1
+        splits = []
+        for k in range(folds):
+            idx = np.random.default_rng(4242 + k).permutation(npts)
+            splits.append((idx[:nho], idx[nho:]))
 
-        def cv_err(lam_try: float) -> float:
+        def cv_err(lam_try: float, ho: np.ndarray, trn: np.ndarray) -> float:
             m = fit_forward_model(device[trn], lab[trn], grid=grid,
                                   lam=lam_try, cg_iters=350,
                                   curve_rounds=min(curve_rounds, 1),
-                                  cg_rtol=_CG_RTOL)
+                                  cg_rtol=_CG_RTOL, init_curves=init,
+                                  weights=None if rw is None else rw[trn])
             r = dist(m.predict(device[ho]), lab[ho])
             if sigma is not None:
                 r = r / sigma[ho]      # whitened: a true z-score criterion
             return float(np.median(r))
 
-        best_err, best_lam = np.inf, base_lam
-        for ci, f in enumerate(_LAMBDA_FACTORS):
+        # D-06 (agent 8): every (factor, split) of the search is its own
+        # fit through cv_err, which reads only inputs fixed by now; in a
+        # Maximum accuracy build they run side by side on pool threads and
+        # are read back in the serial order. Whatever cv_err does (a
+        # candidate may change it), each call is the same computation, so
+        # the same bits. The noise-model hill-climb below stays serial.
+        from workflow.profile_engine import parallel
+        factors = _LAMBDA_FACTORS if lam_factors is None else tuple(lam_factors)
+        pre = None
+        if parallel.worker_count() > 1:
+            keys = [(f, k) for f in factors
+                    for k in range(len(splits))]
+            vals = parallel.run_tasks(
+                [(lambda f=f, k=k: cv_err(base_lam * f, *splits[k]))
+                 for f, k in keys])
+            pre = dict(zip(keys, vals))
+        errs: dict[float, list[float]] = {}
+        for ci, f in enumerate(factors):
             if progress is not None:
                 progress(f"Fitting the printer model: smoothing search "
-                         f"{ci + 1}/{len(_LAMBDA_FACTORS)}…")
-            err = cv_err(base_lam * f)
-            if err < best_err:
-                best_err, best_lam = err, base_lam * f
+                         f"{ci + 1}/{len(factors)}…")
+            if pre is not None:
+                errs[f] = [pre[(f, k)] for k in range(len(splits))]
+            else:
+                errs[f] = [cv_err(base_lam * f, ho, trn)
+                           for ho, trn in splits]
+        mean = {f: float(np.mean(v)) for f, v in errs.items()}
+        std_at_1 = float(np.std(errs[1.0])) if folds > 1 else 0.0
+        noise = max(_CV_MARGIN_FRACTION * mean[1.0], std_at_1)
+        # The best MEAN across the splits wins. A conservative "keep ×1
+        # unless beaten by the scatter" rule was tried and cost the 5-ink
+        # battery printer 21 % A2B accuracy (S6 0.447 → 0.542); the honest
+        # part is the LOG: a win inside the scatter is called a near tie.
+        best_f = min(mean, key=mean.get)
+        near_tie = best_f != 1.0 and (mean[1.0] - mean[best_f]) < noise
+        if near_tie and _CV_PREFER_STANDARD_ON_TIE:
+            best_f = 1.0
+        best_err, best_lam = mean[best_f], base_lam * best_f
+        unit_ = "× the instrument noise" if sigma is not None else "ΔE2000"
+        if progress is not None:
+            at_end = best_f in (factors[0], factors[-1])
+            progress(f"Smoothing chosen by cross-validation: ×{best_f:.2g} "
+                     f"of the standard value (held-out median "
+                     f"{best_err:.2f} vs {mean[1.0]:.2f} {unit_} at the "
+                     f"standard value"
+                     + (f"; within the test's own scatter of ±{noise:.2f}, "
+                        f"a near tie — the standard value is kept"
+                        if near_tie and best_f == 1.0 else
+                        f"; within the test's own scatter of ±{noise:.2f}, "
+                        f"a near tie" if near_tie else "")
+                     + ")"
+                     + (" — the end of the search range." if at_end
+                        else "."))
         if gp:
             # Hill-climb refinement in half-octave steps (pragmatic v1 of
             # the GP marginal-likelihood optimisation): the optimum is no
@@ -171,20 +362,15 @@ def fit_forward_model_accurate(
                     if progress is not None:
                         progress(f"Fitting the printer model: smoothing "
                                  f"refine {ri + 1}/4…")
-                    err = cv_err(lam_try)
-                    if err < best_err - 1e-9:
+                    err = float(np.mean([cv_err(lam_try, ho, trn)
+                                         for ho, trn in splits]))
+                    if err < best_err - noise:
                         best_err, best_lam = err, lam_try
                         moved = True
                         break
                 if not moved:
                     break
         lam = best_lam
-        if progress is not None:
-            unit = "× the instrument noise" if sigma is not None \
-                else "ΔE2000"
-            progress(f"Smoothing chosen by cross-validation: "
-                     f"×{lam / base_lam:g} of the standard value "
-                     f"(held-out median {best_err:.2f} {unit}).")
 
     # Robust weights from the stiff scan. Huber (1 inside the scale,
     # scale/r beyond), scale = Huber's k = 1.345 × the MAD estimate of σ,
@@ -204,6 +390,8 @@ def fit_forward_model_accurate(
         scale = 1.345 * max(mad, 1.0)
     w_rob = np.minimum(1.0, scale / np.maximum(res_w, 1e-9))
     w_rob[res_w > 8.0 * scale] = 0.0
+    if keep_clusters:
+        w_rob = a84_cluster_keep(device, res_w, w_rob)
     w_noise = None
     if sigma is not None:
         # GLS row weights, clipped so no patch dominates or vanishes —
@@ -213,7 +401,8 @@ def fit_forward_model_accurate(
                           0.2, 5.0)
 
     def _total(wr: np.ndarray) -> np.ndarray:
-        return wr if w_noise is None else wr * w_noise
+        out = wr if w_noise is None else wr * w_noise
+        return out if rw is None else out * rw
 
     if progress is not None:
         progress("Fitting the printer model: robust fit 1/2…")
@@ -221,43 +410,84 @@ def fit_forward_model_accurate(
     model = fit_forward_model(device, lab, grid=grid, lam=lam,
                               curve_rounds=curve_rounds,
                               weights=w if ((w < 0.999).any()
-                                            or w_noise is not None) else None,
-                              cg_rtol=_CG_RTOL)
+                                            or w_noise is not None
+                                            or rw is not None) else None,
+                              cg_rtol=_CG_RTOL, init_curves=init)
     res = dist(model.predict(device), lab)
     res_w = res / sigma if sigma is not None else res
     # One tightening pass against the final fit (never loosening).
     w2_rob = np.minimum(w_rob, np.minimum(1.0, scale
                                           / np.maximum(res_w, 1e-9)))
     w2_rob[res_w > 8.0 * scale] = 0.0
+    if keep_clusters:
+        w2_rob = np.minimum(w_rob, a84_cluster_keep(device, res_w, w2_rob))
     if (w2_rob < w_rob - 1e-9).any():
         if progress is not None:
             progress("Fitting the printer model: robust fit 2/2…")
         model = fit_forward_model(device, lab, grid=grid, lam=lam,
                                   curve_rounds=curve_rounds,
                                   weights=_total(w2_rob),
-                                  cg_rtol=_CG_RTOL)
+                                  cg_rtol=_CG_RTOL, init_curves=init)
         res = dist(model.predict(device), lab)
         res_w = res / sigma if sigma is not None else res
         w_rob = w2_rob
+
+    if order_mu > 0.0:
+        # Research token "a19-extrap" (agent 19, F-12): one more solve of the
+        # final lattice (same curves, same robust weights, warm start) with
+        # a penalty on every interaction of three or more inks, weight
+        # order_mu x lambda. The per-axis curvature penalty leaves every
+        # multilinear function free, so a corner no patch reaches took the
+        # Lab-additive continuation of its inks (two dark inks -> L* < 0);
+        # with the order penalty it takes the additive + pairwise structure
+        # the chart measured elsewhere (functional ANOVA of order 2).
+        from workflow.profile_engine import extrap
+        if progress is not None:
+            progress("Fitting the printer model: limiting unmeasured "
+                     "many-ink interactions…")
+        wf = _total(w_rob)
+        model.nodes = extrap.resolve_with_order_penalty(
+            model, device, lab, lam, order_mu * lam,
+            weights=wf if ((wf < 0.999).any() or w_noise is not None
+                           or rw is not None) else None,
+            # only away from the chart: the region the patches pin (paper
+            # white and its light neighbourhood included) keeps the plain
+            # fit (global penalty: X7 near-white B2A jumps, NC5 0 -> 15)
+            local=(0.5, 1.0),
+            # and only where the node carries real ink (total lattice
+            # coordinate 0.5 -> 1.5): the local gate alone still left 15
+            # near-white X7 jumps; the light end the B2A refit samples
+            # keeps the plain fit
+            ink_gate=(0.5, 1.5),
+            # the CHANGE is solved, not the whole lattice again: a full
+            # re-solve from the fit drifted the unpenalised region
+            delta=True)
+        res = dist(model.predict(device), lab)
+        res_w = res / sigma if sigma is not None else res
 
     # Report likely misreads: everything rejected outright, plus whatever
     # still sits clearly above the bulk after the refit. With the noise
     # model a patch must be *visibly wrong AND statistically anomalous*
     # (a misread is both; a light patch's model-error tail is only the
     # latter, a noisy dark patch only the former — neither is a misread).
+    # The naming threshold scales with the chart's own scatter: on a chart
+    # measured at 3× a healthy instrument's noise a fixed 3 ΔE00 named 61
+    # patches of which one was a misread (A-15); 4× the robust scale keeps
+    # a clean chart's threshold where it was (scale floors at 0.35).
     named = res_w > max(6.0 * float(np.median(res_w)),
-                        3.0 if sigma is None else 3.0 * scale)
+                        3.0 if sigma is None else 3.0 * scale,
+                        _NAME_SCALE_FACTOR * scale)
     if sigma is not None:
         named &= res > 3.0
-        # A misread is an ISOLATED anomaly — its device-space neighbours
-        # read fine. A patch merely sitting in a hard-to-fit region has
-        # equally-poor neighbours and is the model's problem, not the
-        # user's: don't send them remeasuring the whole shadow end.
-        for i in np.flatnonzero(named):
-            d2 = ((device - device[i]) ** 2).sum(1)
-            nn = np.argsort(d2)[1:9]
-            if res[i] < 3.0 * float(np.median(res[nn])) + 1.0:
-                named[i] = False
+    # A misread is an ISOLATED anomaly — its device-space neighbours read
+    # fine. A patch merely sitting in a hard-to-fit region has equally-poor
+    # neighbours and is the model's problem, not the user's: don't send
+    # them remeasuring the whole shadow end.
+    for i in np.flatnonzero(named):
+        d2 = ((device - device[i]) ** 2).sum(1)
+        nn = np.argsort(d2)[1:9]
+        if res[i] < 3.0 * float(np.median(res[nn])) + 1.0:
+            named[i] = False
     if sigma is None:
         outliers = np.flatnonzero(named | (w_rob == 0.0))
     else:
@@ -278,6 +508,8 @@ def fit_forward_model_accurate_challenged(
         device: np.ndarray, lab: np.ndarray, *, grid: int, base_lam: float,
         curve_rounds: int = 2, ucs: bool = False,
         progress: Callable[[str], None] | None = None,
+        row_weights: np.ndarray | None = None,
+        positioning: bool = False,
         ) -> tuple[ForwardModel, np.ndarray, float, str]:
     """Noise-aware fitting behind a noise DETECTOR (issue #123).
 
@@ -304,12 +536,21 @@ def fit_forward_model_accurate_challenged(
     win = ratio >= 2.0
     if progress is not None:
         if win:
-            progress(f"Repeated patches scatter {ratio:.1f}× the healthy-"
-                     f"instrument level — noise handling engaged.")
+            progress(f"The repeated white and black patches differ by "
+                     f"{ratio:.1f}× more than a spectrophotometer's own "
+                     f"repeatability (paper or print unevenness across the "
+                     f"sheet counts here) — readings will be weighted by "
+                     f"their reliability.")
         else:
-            progress("Measurement noise is low on this chart — keeping "
-                     "the standard fit (noise handling stands aside).")
+            progress("The repeated patches agree closely — the readings are "
+                     "trusted equally (noise handling stands aside).")
     model, outliers, lam = fit_forward_model_accurate(
         device, lab, grid=grid, base_lam=base_lam,
-        curve_rounds=curve_rounds, ucs=ucs, gp=win, progress=progress)
+        curve_rounds=curve_rounds, ucs=ucs, gp=win, progress=progress,
+        row_weights=row_weights, positioning=positioning)
     return model, outliers, lam, ("noise" if win else "standard")
+
+
+def _mirror(curves: np.ndarray, additive: bool) -> np.ndarray:
+    """Ramp curves computed on 1 - device (RGB) -> curves on the device."""
+    return 1.0 - curves[:, ::-1] if additive else curves

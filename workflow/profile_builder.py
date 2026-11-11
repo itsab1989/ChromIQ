@@ -559,6 +559,9 @@ class ProfileParams:
     icc_version: str = "2"
     noise_model: bool = False
     render_style: str = "argyll"
+    # "Keep the original hue" (2026-11-11): "argyll" (off, the default) or
+    # "kept" (BuildSettings.hue_rendering; workflow/profile_engine/hue_keep.py)
+    hue_rendering: str = "argyll"
 
 
 class ProfileBuilder:

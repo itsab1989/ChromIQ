@@ -652,6 +652,79 @@ the same lesson as beta.165 and the three per-target-settings faults before it.
 
 ---
 
+### ⏳ Awaiting confirmation: S4 to S7 for the black-generation and engine-only Build Profile rows (2026-11-10)
+
+**Confirmed by:** *nobody yet.*
+
+What the app does since 2026-11-10, measured by test and not yet confirmed by
+a human. It applies the S4 to S7 rule above to controls that were added to
+Build Profile's Manual panel after that rule was written, and it changes no
+rule.
+
+* **The leak (B-18).** When a target with nothing stored was selected, every
+  Manual control of Build Profile fell back to the saved defaults (or the
+  factory setting), except eleven: the black-generation rule, its
+  "Proportional" box and its five curve values, and the four rows that are
+  only shown while the new profile engine is switched on (Spectral physics
+  model, ICC profile version, Measurement noise handling, Out-of-gamut
+  rendering). Those kept the PREVIOUS target's values, and the next write
+  stored them in the new target's `meta.json` (`profile_settings`) as if they
+  had been chosen there.
+* **Now.** `TabProfile._restore_defaults` sets those eleven from the saved
+  defaults too (`manual2_colprof_kgen_*`, `manual2_colprof_spectral`,
+  `manual2_colprof_iccver`, `manual2_colprof_noise`,
+  `manual2_colprof_render`), with the factory values "default black", not
+  proportional, 0 / 0.1 / 0.9 / 1 / 1, off, Version 2, off, Argyll-matched.
+  Test: `tests/test_the_new_profile_engine_is_one_switch.py::
+  test_restore_defaults_resets_the_engine_and_black_generation_rows`.
+* **What stays global.** The new profile engine's switch and its "Darkest
+  black" option live in Preferences (Beta tab) and are global, as §1.1 says
+  of everything in Preferences. They are not stored per target. Which builder
+  made a run's profile, and with which black option, is recorded in that run's
+  `meta.json` (`profile_build`) as a record for diagnosis; nothing loads it
+  back into a control.
+
+### ⏳ Awaiting confirmation: "Keep the original hue" and the comparison option (2026-11-11)
+
+**Confirmed by:** *nobody yet.*
+
+Two options Basti asked for on 2026-11-11, built and tested, not yet
+confirmed by a human. They apply the rules above; no rule is changed.
+
+* **"Keep the original hue" (Build Profile, Manual).** A tick box among the
+  rows that are only shown while the new profile engine is switched on
+  (`TabProfile._m_hue_cb`; the build setting `BuildSettings.hue_rendering`,
+  "argyll" = off, the factory setting, or "kept"). Basti: it *"has to be
+  savable as default and as part of a preset (if engine is on)"*.
+  * **Per target** like the four engine rows above it: written into the
+    run's `meta.json` (`profile_settings["hue_rendering"]`) with the tab's
+    other settings, whatever the engine switch says, and loaded back with
+    them. A target stored before the option existed has no value and opens
+    with it off. So switching the engine off and on again never loses a
+    choice made for a target.
+  * **Saved default** `manual2_colprof_hue`: written by Save as default ONLY
+    while the engine is on. With the engine off, Save as default leaves the
+    saved hue default as it was. Restore defaults and the "Default settings"
+    preset entry read it (factory: off), so S4 to S7 cover it.
+  * **Preset:** a preset carries `hue_rendering` ONLY when it was saved with
+    the engine on. With the engine off the box is hidden, so a value written
+    then would be one nobody could see, and it would quietly apply the day
+    the engine is switched on. A preset without the key (saved with the
+    engine off, or before the option existed) loads the box as off.
+  * **The build** uses it only while the engine is on; a colprof build, and
+    colprof's comparison profile, never see it.
+  * Tests: `tests/test_engine_comparison_and_hue_options.py`.
+* **"Also build a colprof profile for comparison" (Preferences, Beta tab).**
+  Directly under the engine switch, greyed out while the switch is off, on by
+  default (`profile_engine_colprof_comparison`). It is in Preferences, so it
+  is global (§1.1), like the switch and "Darkest black". Off: no second
+  colprof run and no `colprof-comparison.icc` for that build; a comparison
+  file of an earlier build of the same run is moved into `old/<date>/` (with
+  its profile at the start of the build, or on its own after the build when
+  no profile was left beside it), so it is never taken for a comparison of
+  the new profile. The run's `meta.json` (`profile_build`) records
+  `colprof_comparison` true or false.
+
 ### 4b. A preset creating a target
 
 For a fraction of a second, "nothing stored" is literally true of a target a

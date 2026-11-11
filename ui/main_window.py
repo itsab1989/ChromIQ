@@ -2148,7 +2148,7 @@ class MainWindow(QMainWindow):
 
         worker = threading.Thread(target=_work, daemon=True,
                                   name="cr30-bluetooth-report")
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
         worker.start()
         try:
             while worker.is_alive():
@@ -3304,6 +3304,44 @@ class MainWindow(QMainWindow):
             log.warning("the quit guard failed; closing anyway", exc_info=True)
             return True
 
+    def _ask_before_quitting_on_a_build(self) -> bool:
+        """M-QUIT-DURING-BUILD. A build with the new profile engine cannot
+        be resumed: quitting throws its minutes away. Ask, the way a
+        measurement asks. True = the quit may proceed. Never raises: a fault
+        here must not trap the user in an app that will not close."""
+        try:
+            from workflow.engine_builder import EngineProfileBuilder
+            if not EngineProfileBuilder.any_running():
+                return True
+            from PyQt6.QtWidgets import QMessageBox
+
+            from ui.widgets import fit_message_box_buttons
+            from workflow import measurement_messages as M
+            title, body = M.M_QUIT_DURING_BUILD.render()
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Icon.NoIcon)
+            box.setWindowTitle(title)
+            box.setText(title)
+            box.setInformativeText(body)
+            keep = box.addButton(tr("Keep building"),
+                                 QMessageBox.ButtonRole.RejectRole)
+            quit_btn = box.addButton(tr("Quit anyway"),
+                                     QMessageBox.ButtonRole.AcceptRole)
+            box.setDefaultButton(keep)
+            box.setEscapeButton(keep)
+            from ui.widgets import keep_message_box_inside_the_work_area
+            keep_message_box_inside_the_work_area(box,
+                                                  widen_when_it_fits=False)
+            fit_message_box_buttons(box)
+            box.exec()
+            # Only "Quit anyway" quits: a window that ends with no button
+            # pressed keeps the build, as Return and Esc do.
+            return box.clickedButton() is quit_btn
+        except Exception:              # noqa: BLE001 - never trap the user
+            log.warning("the build quit question failed; closing anyway",
+                        exc_info=True)
+            return True
+
     def closeEvent(self, event) -> None:
         # ASK FIRST, BEFORE ANYTHING HERE IS DONE OR UNDONE.
         #
@@ -3336,6 +3374,11 @@ class MainWindow(QMainWindow):
             may_close = True
         if not may_close:
             log.info("close cancelled: the measurement keeps running")
+            self._closing = False      # the user is still working
+            event.ignore()
+            return
+        if not self._ask_before_quitting_on_a_build():
+            log.info("close cancelled: the profile build keeps running")
             self._closing = False      # the user is still working
             event.ignore()
             return
@@ -3384,6 +3427,16 @@ class MainWindow(QMainWindow):
         # this ending was the user quitting, not a failure. See
         # MeasureManager.note_app_quitting.
         self._mark_quit_on_the_measurement()
+        # The engine's Argyll children are not QProcesses: closing the window
+        # mid-build used to leave the oracle colprof running for ~50 s and its
+        # temp folder behind (B-25).
+        try:
+            from workflow.profile_engine.gamut_map import \
+                terminate_argyll_children
+            terminate_argyll_children()
+        except Exception:              # noqa: BLE001 — never trap the user
+            log.warning("could not stop the engine's Argyll children",
+                        exc_info=True)
         self._runner.cleanup()
         # LET GO OF A CR30 ON THE WAY OUT. ChromIQ's own reader holds the
         # instrument in this process, and `_hard_exit` skips every destructor,

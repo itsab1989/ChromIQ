@@ -241,11 +241,20 @@ DEFAULTS: dict[str, Any] = {
     # ChromIQ-style refinement: merge a pre-conditioning profile's measurement
     # data into the freshly measured chart before building (see workflow/ti3_merge.py)
     "chromiq_refinement":        False,
-    # Gamut-mapping engine for the profile engine's perceptual/saturation B2A
-    # tables: "fast" = ChromIQ's built-in Python mapper; "argyll" = the bundled
-    # chromiq-gammap helper running Argyll's real gamut mapper (bit-exact,
-    # slower). Falls back to "fast" when the helper binary isn't present.
-    "gammap_mode":               "fast",
+    # The new profile engine (Preferences > Beta), ONE switch, off by default.
+    # Off = stock colprof exactly as before. On = the engine's Maximum
+    # accuracy build. The Fast / Bit-exact / Maximum accuracy picker
+    # ("gammap_mode") is gone since schema 32; see
+    # `_migrate_engine_single_switch`.
+    "profile_engine_beta":       False,
+    # The black option beside the switch: "neutral" (default) or "deepest".
+    # Only read while the switch is on (BuildSettings.black_depth).
+    "profile_engine_black_depth": "neutral",
+    # The comparison option directly under the switch (2026-11-11, Basti):
+    # after an engine build, colprof builds its own profile from the same
+    # measurement and it is kept as `Run.colprof_comparison_icc`. On by
+    # default; only read while the switch is on (greyed out while it is off).
+    "profile_engine_colprof_comparison": True,
     # Chart-reading engine for the Measure tab (#126): "chromiq" = the bundled
     # chromiq-chartread fork (JSON protocol, per-strip autosave, direct strip
     # jumps, live patch feedback) — the default from v3.14.0; "argyll" = stock
@@ -1082,7 +1091,7 @@ def thresholds_for_combo(
 # Bump when a shipped default changes in a way that must reach users who have
 # the OLD default persisted. Settings → Save writes every key, so a stored
 # value otherwise pins a user to the old behaviour for good.
-SETTINGS_SCHEMA = 31
+SETTINGS_SCHEMA = 32
 
 # key → the old default(s) it must no longer be stuck on. Only a stored value
 # EQUAL to one of the old defaults is dropped (so it falls through to the new
@@ -1330,11 +1339,48 @@ class AppSettings:
             dropped.append("use_native_print_dialog (Windows: a value stored "
                            "while it was forced on; the dialog stays the "
                            "default)")
+        if stored_schema < 32 and self._migrate_engine_single_switch():
+            dropped.append("gammap_mode (the Fast / Bit-exact / Maximum "
+                           "accuracy picker is gone; the profile engine is "
+                           "one switch)")
         self._qs.setValue("settings_schema", SETTINGS_SCHEMA)
         if dropped:
             log.info("Settings migrated to schema %d; dropped stale defaults: %s",
                      SETTINGS_SCHEMA, ", ".join(dropped))
         return dropped
+
+    def _migrate_engine_single_switch(self) -> bool:
+        """schema 32: the profile engine is ONE switch.
+
+        Until now Preferences > Beta held a tick box ("profile_engine_beta")
+        and, beside it, a Fast / Bit-exact / Maximum accuracy picker
+        ("gammap_mode"). Only Maximum accuracy remains, so the picker is
+        gone and the switch alone decides.
+
+        * The switch stays ON only for someone who had the engine ticked AND
+          had explicitly chosen Maximum accuracy: that is the build they get
+          now, so nothing changes for them.
+        * Everyone else ends with the switch OFF, which is stock colprof:
+          Fast and Bit-exact no longer exist, and silently moving their users
+          onto a different, slower builder would not be what they chose.
+        * A stored "accurate" with the engine NOT ticked stays off. The
+          Preferences window writes every key when it is saved, so that value
+          is on disk for people who never switched the engine on.
+
+        The stored "gammap_mode" is removed either way. Returns True when
+        anything on disk changed."""
+        raw_mode = self._qs.value("gammap_mode", None)
+        raw_on = self._qs.value("profile_engine_beta", None)
+        was_on = (raw_on is True
+                  or str(raw_on).strip().lower() in ("true", "1", "yes"))
+        changed = False
+        if raw_mode is not None:
+            self._qs.remove("gammap_mode")
+            changed = True
+        if was_on and str(raw_mode or "").strip().lower() != "accurate":
+            self._qs.setValue("profile_engine_beta", False)
+            changed = True
+        return changed
 
     def _migrate_report_thresholds_to_sets(self) -> bool:
         """schema 23 (#182): the two Measurement Report thresholds become

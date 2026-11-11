@@ -2115,6 +2115,14 @@ def pytest_configure(config):
     # ...and none may play a stream into its real sound devices (N2,
     # core/audio_keepalive.py): a measurement armed with the warm-up on would.
     os.environ["CHROMIQ_NO_AUDIO_KEEPALIVE"] = "1"
+    # ONE ENGINE THREAD PER BUILD INSIDE THE SUITE. A Maximum accuracy build
+    # uses up to 8 threads by default (workflow/profile_engine/parallel.py),
+    # and the gate already runs 12 workers: the first gate with the int-12
+    # engine put 12 x 8 threads on 16 cores, took 28 minutes and timed an
+    # unrelated 15-minute subprocess out (2026-11-10). The profile's bytes do
+    # not depend on the count (tests/test_engine_a92_speed.py proves that with
+    # its own explicit counts, which win over this default).
+    os.environ.setdefault("CHROMIQ_ENGINE_THREADS", "1")
     _enter_the_run_temp(config)
     _enforce_the_helper(config)
     # as main() does: every Argyll tool and helper a test starts skips the
@@ -2255,6 +2263,10 @@ def pytest_configure(config):
 def pytest_addoption(parser):
     parser.addoption("--runslow", action="store_true", default=False,
                      help="also run the slow end-to-end build tests")
+    parser.addoption("--runengine", action="store_true", default=False,
+                     help="also run the heavy engine build tier "
+                          "(tests/_engine_tier.py); the FULL gate is "
+                          "--runslow --runengine")
     parser.addoption("--allow-missing-helper", action="store_true",
                      default=False,
                      help="let a --runslow run continue without the "
@@ -2358,6 +2370,7 @@ _SKIP_BUCKETS: tuple = (
         "not in ref/", "not found under",
     )),
     ("the slow tier was not asked for", ("use --runslow",)),
+    ("the heavy engine tier was not asked for", ("use --runengine",)),
 )
 
 
@@ -2447,6 +2460,13 @@ def pytest_report_header(config):
                    "-B native/chartread_helper/build && \\")
         out.append("                cmake --build native/chartread_helper/build")
     out.append(f"  tier: {'--runslow (THE RELEASE GATE)' if gate else 'everyday (the slow tier is skipped, this is NOT a gate)'}")
+    if config.getoption("--runengine"):
+        out.append("  engine tier: --runengine, the heavy engine builds RUN "
+                   "(with --runslow this is the FULL gate)")
+    else:
+        out.append("  engine tier: the heavy engine builds are SKIPPED "
+                   "(tests/_engine_tier.py); `python scripts/gate_tier.py` "
+                   "says whether this change needs --runengine")
     out.append(f"  output root: {os.environ.get('CHROMIQ_OUTPUT_ROOT', 'NOT SANDBOXED - the real ~/ChromIQ')}")
     out.append("  a census of every skip this run took, grouped by reason, "
                "is printed at the end.")
@@ -2516,11 +2536,28 @@ def _enforce_the_helper(config):
 
 
 def pytest_collection_modifyitems(config, items):
+    _mark_the_engine_tier(config, items)
     if config.getoption("--runslow"):
         return
     skip = pytest.mark.skip(reason="slow end-to-end build — use --runslow")
     for item in items:
         if "slow" in item.keywords:
+            item.add_marker(skip)
+
+
+def _mark_the_engine_tier(config, items):
+    """The heavy engine tier (Basti, 2026-11-11): one central list,
+    tests/_engine_tier.py, marks its tests `engine_heavy`; they run only with
+    --runengine. A test may also carry @pytest.mark.engine_heavy itself, but
+    the list is where the tier is meant to be read and audited."""
+    from tests import _engine_tier as tier
+
+    run = bool(config.getoption("--runengine"))
+    skip = pytest.mark.skip(reason=tier.SKIP_REASON)
+    for item in items:
+        if tier.is_heavy(item.nodeid):
+            item.add_marker(pytest.mark.engine_heavy)
+        if not run and "engine_heavy" in item.keywords:
             item.add_marker(skip)
 
 # ---------------------------------------------------------------------------

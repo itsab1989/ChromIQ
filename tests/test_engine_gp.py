@@ -79,7 +79,7 @@ def test_gp_fit_flags_misread_not_clean(tmp_path):
     assert 300 in out
     # Hygiene: few false flags on an otherwise clean chart.
     assert len(set(out) - {300} - set(int(i) for i in mis)) <= 8
-    assert any("noise model" in x for x in msgs)
+    assert any("reading noise" in x for x in msgs)      # the σ line, reworded
     assert any("cross-validation" in x for x in msgs)
 
 
@@ -107,7 +107,11 @@ def test_gp_build_emits_confidence_map(tmp_path):
     res = build_profile(ti3, tmp_path / "c.icc", s)
     assert res.icc_path.exists()
     assert any("Confidence map" in ln for ln in lines)
-    assert any("Candidate pipeline active: gp" in ln for ln in lines)
+    # The line lists every token the build ran with, Maximum accuracy's
+    # defaults included (research integration 1: b2a33s, rgbpos).
+    key = "Candidate pipeline active: "
+    active = [ln.split(key, 1)[1] for ln in lines if key in ln]
+    assert active and "gp" in active[0].strip().rstrip(".").split(", ")
 
 
 def test_non_gp_path_untouched():

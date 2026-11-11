@@ -44,6 +44,27 @@ _SURFACES: dict[str, dict[str, str]] = {
 }
 
 
+def _mode_on_screen() -> str:
+    """The appearance on screen now (the app palette `apply_appearance` set).
+
+    A FADE STARTS IN THE APPEARANCE THAT IS ON SCREEN, NOT IN "dark". It
+    used to start dark and wait for MainWindow's appearance broadcast, which
+    only reaches widgets that exist when it runs: every window built later
+    (Measurement info, Profile info, a tool window, from the Tools menu)
+    kept a black band at its scroll edges in light mode (Basti, 2026-11-11:
+    "it is a black gradient even though the app is in light mode").
+    Without a QApplication this is still "dark", as before."""
+    from ui.theme import active_mode
+    return active_mode()
+
+
+def _follows_palette(ev) -> bool:
+    """The APP's palette changed (`apply_appearance` switching appearance).
+    Not a widget's own PaletteChange, which a style sheet's polish sends
+    too and which says nothing about the appearance."""
+    return ev.type() == QEvent.Type.ApplicationPaletteChange
+
+
 class _ScrollFade(QWidget):
     """Vertical gradient strip — opaque on the active edge, transparent on
     the inner edge. Overlay child of :class:`FadeScrollArea`."""
@@ -86,7 +107,7 @@ class FadeScrollArea(QScrollArea):
     ) -> None:
         super().__init__(parent)
         self._surface: str | None = surface if surface in _SURFACES else "panel"
-        self._mode = "dark"
+        self._mode = _mode_on_screen()
         self._top_fade = _ScrollFade("top", self)
         self._bot_fade = _ScrollFade("bottom", self)
         self.verticalScrollBar().valueChanged.connect(self._refresh_fade)
@@ -140,6 +161,16 @@ class FadeScrollArea(QScrollArea):
         red naming something that passes on its own.
         """
         self._refresh_fade()
+
+    def event(self, ev) -> bool:  # noqa: A003
+        """An appearance switched while this is open follows on screen, also
+        in a window MainWindow's broadcast does not reach."""
+        if _follows_palette(ev):
+            mode = _mode_on_screen()
+            if mode != self._mode:
+                self._mode = mode
+                self._refresh_color()
+        return super().event(ev)
 
     def set_appearance(self, mode: str) -> None:
         """Picked up automatically by MainWindow.apply_theme()'s broadcast."""
@@ -196,7 +227,7 @@ class EdgeFades(QObject):
         super().__init__(area)
         self._area = area
         self._surface = surface if surface in _SURFACES else "dialog"
-        self._mode = "dark"
+        self._mode = _mode_on_screen()
         vp = area.viewport()
         self._top = _ScrollFade("top", vp)
         self._bot = _ScrollFade("bottom", vp)
@@ -230,6 +261,11 @@ class EdgeFades(QObject):
     def eventFilter(self, obj: QObject, ev: QEvent) -> bool:  # noqa: N802
         if ev.type() == QEvent.Type.Resize:
             self._refresh()
+        elif _follows_palette(ev):
+            mode = _mode_on_screen()
+            if mode != self._mode:
+                self._mode = mode
+                self._refresh_color()
         return False
 
     def _refresh(self) -> None:

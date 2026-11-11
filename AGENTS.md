@@ -39,5 +39,7 @@ printer profiling).
   and read the exit code from pytest, not through a pipe. On Windows
   PowerShell:
   `$env:QT_QPA_PLATFORM='offscreen'; pytest --runslow -n auto -q > $env:TEMP\chromiq-gate.txt 2>&1; echo "exit=$LASTEXITCODE"`.
+  A change to the profile engine needs the FULL gate, the same command with
+  `--runengine` added; `python scripts/gate_tier.py` says which one.
 - One topic per pull request, and say what was and was not tested on real
   hardware.

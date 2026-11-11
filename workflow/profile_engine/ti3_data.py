@@ -48,6 +48,39 @@ def split_rep_letters(device_rep: str) -> list[str]:
     return letters
 
 
+def light_ink_parents(channel_letters: list[str]) -> dict[int, int]:
+    """Light-ink channel index → the index of the ink it dilutes.
+
+    Argyll's COLOR_REP letters: a lowercase letter is the light version of
+    its uppercase parent (``c`` of ``C``), ``2c``/``2m``/``2y``/``2k`` are
+    medium inks of the same parent, ``1k`` is the light-light black. A
+    light ink is not a spot colour — it is the parent's dye at a lower
+    density, bought for smooth highlights and neutrals — so the ink policy
+    treats it as a light/dark pair with its parent (:mod:`b2a`), never as a
+    hue-gated extra ink. A medium ink stands between: ``c`` dilutes ``2c``
+    when the printer has one, ``2c`` dilutes ``C``; ``1k`` dilutes ``k``,
+    else ``K``. Letters whose parent is missing are left alone (they are
+    whatever the chart says they are).
+    """
+    index = {letter: i for i, letter in enumerate(channel_letters)}
+    parents: dict[int, int] = {}
+    for i, letter in enumerate(channel_letters):
+        chain: list[str]
+        if letter == "1k":
+            chain = ["k", "K"]
+        elif len(letter) == 2 and letter[0] == "2":
+            chain = [letter[1].upper()]
+        elif letter in ("c", "m", "y", "k"):
+            chain = ["2" + letter, letter.upper()]
+        else:
+            continue
+        for parent in chain:
+            if parent in index:
+                parents[i] = index[parent]
+                break
+    return parents
+
+
 @dataclass
 class Ti3Measurement:
     path: Path
@@ -60,6 +93,26 @@ class Ti3Measurement:
     text: str                         # full file text (embedded as 'targ')
     spectral: np.ndarray | None = None      # (N, bands) reflectance
     wavelengths: np.ndarray | None = None   # (bands,) nm
+    sample_ids: list[str] | None = None     # SAMPLE_ID column, if present
+    sample_locs: list[str] | None = None    # SAMPLE_LOC column (sheet cell)
+    # After collapse_duplicates(): how many readings each row stands for.
+    # An averaged row must keep its repeats' weight in the fit — dropping it
+    # loosened the white/black anchoring and cost interior accuracy on the
+    # battery (S2 A2B 0.220 → 0.241, S5 neutral-K smoothness 0.13 → 0.38).
+    row_weights: np.ndarray | None = None
+
+    def patch_label(self, row: int) -> str:
+        """How a person finds patch ``row`` (0-based) on the printed sheet:
+        the SAMPLE_LOC cell first (that is what is printed next to the
+        patch), the SAMPLE_ID in brackets, the data row as a last resort.
+        A data-row number is meaningless on an imported or merged chart."""
+        loc = self.sample_locs[row] if self.sample_locs else ""
+        sid = self.sample_ids[row] if self.sample_ids else ""
+        if loc and sid and loc != sid:
+            return f"{loc} (ID {sid})"
+        if loc or sid:
+            return loc or sid
+        return f"row {row + 1}"
 
     @property
     def n_channels(self) -> int:
@@ -71,9 +124,24 @@ class Ti3Measurement:
         return self.device_rep in ("RGB", "W")
 
     @property
+    def light_ink_parents(self) -> dict[int, int]:
+        """Light-ink channel → parent channel (see :func:`light_ink_parents`)."""
+        return light_ink_parents(self.channel_letters)
+
+    @property
     def ink_limit(self) -> float | None:
         """TOTAL_INK_LIMIT keyword in percent, if stamped."""
         v = self.keywords.get("TOTAL_INK_LIMIT")
+        try:
+            return float(v) if v is not None else None
+        except ValueError:
+            return None
+
+    @property
+    def black_ink_limit(self) -> float | None:
+        """BLACK_INK_LIMIT keyword in percent, if stamped (targen -L; colprof
+        reads it as the default black ink limit, colprof.c)."""
+        v = self.keywords.get("BLACK_INK_LIMIT")
         try:
             return float(v) if v is not None else None
         except ValueError:
@@ -130,6 +198,55 @@ class Ti3Measurement:
         """XYZ of the darkest patch (the ``bkpt`` tag content)."""
         return self.xyz[self.black_index].copy()
 
+    def collapse_duplicates(self) -> tuple[int, int]:
+        """Average every group of exactly repeated device values into one
+        row (XYZ and spectra; the first row's SAMPLE_ID/LOC is kept).
+
+        Returns ``(groups, rows_removed)``. Fitting THROUGH k repeats is
+        only equivalent to averaging them under equal weights, and it makes
+        the robust loop read the between-read scatter of identical patches
+        as misreads — measured on the noisy battery printer: 205 patches
+        "flagged" with three stacked reads vs 62 pre-averaged, and the
+        pre-averaged build won on every ground-truth metric (A-18)."""
+        order = np.lexsort(self.device.T)
+        groups: list[list[int]] = []
+        cur = [int(order[0])]
+        for prev, nxt in zip(order[:-1], order[1:]):
+            if np.abs(self.device[nxt] - self.device[prev]).max() <= 1e-9:
+                cur.append(int(nxt))
+            else:
+                groups.append(cur)
+                cur = [int(nxt)]
+        groups.append(cur)
+        multi = [g for g in groups if len(g) > 1]
+        if not multi:
+            return 0, 0
+        keep = sorted(min(g) for g in groups)
+        xyz = self.xyz.copy()
+        spec = None if self.spectral is None else self.spectral.copy()
+        for g in multi:
+            xyz[min(g)] = self.xyz[g].mean(0)
+            if spec is not None:
+                spec[min(g)] = self.spectral[g].mean(0)
+        removed = len(self.device) - len(keep)
+        counts = np.ones(len(self.device))
+        for g in groups:
+            counts[min(g)] = len(g)
+        self.row_weights = counts[keep]
+        self.device = self.device[keep]
+        self.xyz = xyz[keep]
+        if spec is not None:
+            self.spectral = spec[keep]
+        if self.sample_ids is not None:
+            self.sample_ids = [self.sample_ids[i] for i in keep]
+        if self.sample_locs is not None:
+            self.sample_locs = [self.sample_locs[i] for i in keep]
+        for attr in ("xyz_relative", "lab_relative", "lab_absolute",
+                     "media_white_xyz", "white_index", "black_index",
+                     "black_xyz"):
+            self.__dict__.pop(attr, None)
+        return len(multi), removed
+
     def extra_ink_hues(self) -> dict[str, float]:
         """Measured Lab hue angle per extra ink (channels beyond CMYK).
 
@@ -138,6 +255,10 @@ class Ti3Measurement:
         printer whose orange leans red still gets its hue gate centred on
         the ink it actually has. Channels without a usable solid patch are
         absent from the result (callers fall back to the anchor table).
+        A light ink (``c``/``m``/``1k``…, :attr:`light_ink_parents`) is read
+        like any other extra ink here — its solid becomes "a cyan hue" for
+        the hue gate, which is A-20 (still open, see
+        ``docs/dev_profile_engine_accuracy_challenge.md``).
         """
         hues: dict[str, float] = {}
         if self.n_channels <= 4:
@@ -171,6 +292,17 @@ class Ti3Measurement:
     @cached_property
     def lab_relative(self) -> np.ndarray:
         return xyz_to_lab(self.xyz_relative)
+
+    def relative_to_absolute_xyz(self, xyz_rel: np.ndarray) -> np.ndarray:
+        """Undo :attr:`xyz_relative`'s adaptation: D50-relative XYZ (Y=100
+        scale) → the measured, media-white basis. The exact inverse of the
+        Bradford scaling the relative basis was built with."""
+        xyz_rel = np.atleast_2d(np.asarray(xyz_rel, float))
+        cone = BRADFORD @ (xyz_rel.T / 100.0)
+        cone_w = BRADFORD @ (self.media_white_xyz / 100.0)
+        cone_d50 = BRADFORD @ (D50_XYZ100 / 100.0)
+        back = np.linalg.inv(BRADFORD) @ (cone * (cone_w / cone_d50)[:, None])
+        return back.T * 100.0
 
     @cached_property
     def lab_absolute(self) -> np.ndarray:
@@ -258,6 +390,27 @@ def read_ti3(path: Path | str) -> Ti3Measurement:
     else:
         raise Ti3Error(f"{p.name}: no XYZ or Lab columns in the measurement.")
 
+    def column(name: str) -> list[str] | None:
+        if name not in idx:
+            return None
+        return [r[idx[name]].strip('"') for r in rows]
+
+    sample_ids, sample_locs = column("SAMPLE_ID"), column("SAMPLE_LOC")
+    bad = ~(np.isfinite(device).all(1) & np.isfinite(xyz).all(1))
+    if bad.any():
+        probe = Ti3Measurement(path=p, color_rep=color_rep,
+                               device_rep=device_rep, channel_letters=letters,
+                               device=device, xyz=xyz, keywords=keywords,
+                               text="", sample_ids=sample_ids,
+                               sample_locs=sample_locs)
+        rows_bad = np.flatnonzero(bad)
+        names = ", ".join(probe.patch_label(int(i)) for i in rows_bad[:8])
+        more = "" if len(rows_bad) <= 8 else f" (+{len(rows_bad) - 8} more)"
+        raise Ti3Error(
+            f"{p.name}: {len(rows_bad)} patch(es) have no usable reading "
+            f"(nan/inf) — {names}{more}. Re-measure them, or remove those "
+            f"rows, before building a profile.")
+
     spectral = wavelengths = None
     spec_cols = [i for i, f in enumerate(fields) if f.startswith("SPEC_")]
     if len(spec_cols) >= 3 and "SPECTRAL_BANDS" in keywords:
@@ -275,4 +428,5 @@ def read_ti3(path: Path | str) -> Ti3Measurement:
     return Ti3Measurement(path=p, color_rep=color_rep, device_rep=device_rep,
                           channel_letters=letters, device=device, xyz=xyz,
                           keywords=keywords, text=text,
-                          spectral=spectral, wavelengths=wavelengths)
+                          spectral=spectral, wavelengths=wavelengths,
+                          sample_ids=sample_ids, sample_locs=sample_locs)

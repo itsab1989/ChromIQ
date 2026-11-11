@@ -14687,6 +14687,14 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             "turned order. The device values in the file are this chart's on "
             "every patch, so the measurement was made from this chart's "
             "i1Profiler test-chart file.").format(chart=chart.name))
+        # 4.3.32: filed although i1Profiler's grid differed, because the
+        # colours agree with the chart; the log says so in the window's words.
+        from workflow.i1profiler_turned import colour_check_fields
+        fields = colour_check_fields(converted)
+        if fields:
+            from workflow.measurement_messages import turned_grid_colours_filed
+            title, body = turned_grid_colours_filed(fields)
+            self._log.appendPlainText("\n[OK] " + title + "\n" + body)
         return True
 
     def _show_import_refusal(self, message, **kw) -> None:
@@ -14894,6 +14902,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 self._show_import_refusal(
                     M.M_IMPORT_MISMATCH, reason=self._turned_refusal())
                 return
+            # This door does not end in `say_what_was_filed`, so it says it
+            # here (4.3.32): filed on the colours' word, another grid.
+            from ui.measurement_filing import \
+                _say_if_the_colours_cleared_the_grid
+            _say_if_the_colours_cleared_the_grid(self, converted)
 
         # 2a) A measurement with no device values of its own takes them from
         #     the chart, on the CONVERTED COPY in the run's cache and never on

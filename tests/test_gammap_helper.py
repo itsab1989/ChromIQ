@@ -92,9 +92,12 @@ def test_migration_drops_legacy_gammap_key(tmp_path):
     assert int(app._qs.value("settings_schema")) == SETTINGS_SCHEMA
 
 
-def test_default_gammap_mode_is_fast():
+def test_the_mode_picker_has_no_setting_any_more():
+    """Since 2026-11-10 the app builds with one engine mode; the helper is
+    still what a multi-ink build's gamut mapping runs through. The switch and
+    the migration: tests/test_the_new_profile_engine_is_one_switch.py."""
     from core.settings import DEFAULTS
-    assert DEFAULTS["gammap_mode"] == "fast"
+    assert "gammap_mode" not in DEFAULTS
 
 
 # --- optional integration: the real binary round-trips ----------------------
@@ -149,83 +152,6 @@ def test_argyll_cmyk_falls_back_to_cloud(monkeypatch, tmp_path):
     assert m._dst_gam is None            # not the .gam path
     assert m._dst_cloud is not None      # the model-sampled cloud instead
     assert m._wp_jab is not None         # cloud path needs explicit wp/bp
-
-
-# --- Settings dialog: the mode combo loads and saves gammap_mode -----------
-
-def test_settings_dialog_mode_combo_roundtrip():
-    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-    from PyQt6.QtWidgets import QApplication
-    from core.settings import DEFAULTS
-    from ui.dialogs.settings_dialog import SettingsDialog
-
-    _ = QApplication.instance() or QApplication([])
-
-    class _FakeSettings:
-        def __init__(self, **ov):
-            self._s = {**DEFAULTS, **ov}
-
-        def get(self, k, d=None):
-            return self._s.get(k, d)
-
-        def set(self, k, v):
-            self._s[k] = v
-
-    fake = _FakeSettings(gammap_mode="argyll", profile_engine_beta=True)
-    dlg = SettingsDialog(fake)
-    try:
-        assert dlg._gammap_mode_combo.currentData() == "argyll"
-        # shown while the engine is on; hidden when it is turned off (checked
-        # via the explicit hidden state, independent of which tab is current)
-        assert not dlg._gammap_mode_cell.isHidden()
-        dlg._profile_engine_check.setChecked(False)
-        assert dlg._gammap_mode_cell.isHidden()
-        dlg._profile_engine_check.setChecked(True)
-        assert not dlg._gammap_mode_cell.isHidden()
-        idx = dlg._gammap_mode_combo.findData("fast")
-        dlg._gammap_mode_combo.setCurrentIndex(idx)
-        dlg._save_and_close()
-        assert fake.get("gammap_mode") == "fast"
-    finally:
-        dlg.deleteLater()
-
-
-def test_settings_dialog_offers_maximum_accuracy_mode():
-    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-    from PyQt6.QtWidgets import QApplication
-    from core.settings import DEFAULTS
-    from ui.dialogs.settings_dialog import SettingsDialog
-
-    _ = QApplication.instance() or QApplication([])
-
-    class _FakeSettings:
-        def __init__(self, **ov):
-            self._s = {**DEFAULTS, **ov}
-
-        def get(self, k, d=None):
-            return self._s.get(k, d)
-
-        def set(self, k, v):
-            self._s[k] = v
-
-    fake = _FakeSettings(profile_engine_beta=True)
-    dlg = SettingsDialog(fake)
-    try:
-        datas = [dlg._gammap_mode_combo.itemData(i)
-                 for i in range(dlg._gammap_mode_combo.count())]
-        assert datas == ["fast", "argyll", "accurate"]
-        idx = dlg._gammap_mode_combo.findData("accurate")
-        dlg._gammap_mode_combo.setCurrentIndex(idx)
-        dlg._save_and_close()
-        assert fake.get("gammap_mode") == "accurate"
-        # And it loads back.
-        dlg2 = SettingsDialog(fake)
-        try:
-            assert dlg2._gammap_mode_combo.currentData() == "accurate"
-        finally:
-            dlg2.deleteLater()
-    finally:
-        dlg.deleteLater()
 
 
 @pytest.mark.skipif(

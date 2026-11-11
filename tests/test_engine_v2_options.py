@@ -165,8 +165,13 @@ def test_engine_rows_hidden_without_accurate_mode(tmp_path, qtbot):
     tab = _tab(tmp_path)                          # engine beta off
     qtbot.addWidget(tab)
     assert tab._m_engine_rows_widget.isHidden()
+    # Since 2026-11-10 the switch alone decides (the mode picker is gone):
+    # a leftover "fast" in an old store hides nothing.
     tab2 = _tab(tmp_path, profile_engine_beta=True, gammap_mode="fast")
     qtbot.addWidget(tab2)
+    tab2._refresh_engine_rows()
+    assert not tab2._m_engine_rows_widget.isHidden()
+    tab2._settings.set("profile_engine_beta", False)
     tab2._refresh_engine_rows()
     assert tab2._m_engine_rows_widget.isHidden()
 
@@ -189,8 +194,9 @@ def test_engine_options_reach_params_only_when_active(tmp_path, qtbot):
     params = tab._collect_manual_profile()
     assert params.spectral_physics is True
     assert params.icc_version == "4"
-    # Same widget state, but accurate mode off → engine-only options muted.
-    tab._settings.set("gammap_mode", "fast")
+    # Same widget state, but the engine switched off: engine-only options
+    # are muted, so a colprof build never sees them.
+    tab._settings.set("profile_engine_beta", False)
     params = tab._collect_manual_profile()
     assert params.spectral_physics is False
     assert params.icc_version == "2"
@@ -342,7 +348,7 @@ def test_noise_option_wins_on_noisy_chart(tmp_path):
                   BuildSettings(quality="l", gammap_mode="accurate",
                                 ink_limit=280.0, noise_model=True,
                                 progress=lines.append))
-    assert any("noise handling engaged" in ln for ln in lines)
+    assert any("weighted by their reliability" in ln for ln in lines)
 
 
 @pytest.mark.slow
@@ -357,7 +363,7 @@ def test_render_style_option_uses_bijective_mapper(tmp_path):
         source_gamut="assets/profiles/ClayRGB1998.icm",
         progress=lines.append))
     assert res.perceptual_distinct
-    assert any("bijective CAM16-UCS" in ln for ln in lines)
+    assert any("ChromIQ bijective rendering" in ln for ln in lines)
 
 
 def test_new_rows_persistence_roundtrip(tmp_path, qtbot):
@@ -381,8 +387,8 @@ def test_new_rows_persistence_roundtrip(tmp_path, qtbot):
     tab._on_save_defaults()
     assert bool(tab._settings.get("manual2_colprof_noise")) is True
     assert tab._settings.get("manual2_colprof_render") == "bijective"
-    # Muted outside accurate mode.
-    tab._settings.set("gammap_mode", "fast")
+    # Muted with the engine switched off.
+    tab._settings.set("profile_engine_beta", False)
     params = tab._collect_manual_profile()
     assert params.noise_model is False and params.render_style == "argyll"
 

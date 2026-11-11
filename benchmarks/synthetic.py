@@ -29,7 +29,7 @@ import numpy as np
 from workflow.profile_engine.icc_writer import BRADFORD
 from workflow.profile_engine.spectral import spectra_to_xyz
 from workflow.profile_engine.ti3_data import (D50_XYZ100, lab_to_xyz,
-                                              xyz_to_lab)
+                                              split_rep_letters, xyz_to_lab)
 
 LAM = np.arange(380.0, 731.0, 10.0)          # 36 bands, 380–730 nm
 
@@ -57,6 +57,11 @@ _INK_D = {
     # engine's 300° anchor (tests the measured-hue path).
     "V": _band(555.0, 65.0, 1.05) + _band(500.0, 48.0, 0.40),
 }
+
+
+def _parent_letter(light: str) -> str:
+    """``"c"`` → ``"C"``, ``"1k"``/``"2k"`` → ``"K"`` (Argyll's light-ink letters)."""
+    return "K" if light in ("1k", "2k") else light.upper()
 
 
 def _paper(kind: str) -> np.ndarray:
@@ -92,14 +97,32 @@ class SyntheticPrinter:
     # which no physical CMYK chart shows. RGB-driver printers (S1/S2)
     # keep the continuous-tone model (photo pipelines behave that way).
     yn_nu: float = 4.0
+    # Light inks (S7): a lowercase COLOR_REP letter is its uppercase
+    # parent's dye at a fixed fraction of the absorbance — the same hue,
+    # a diluted density ("1k"/"2k" dilute K). Nothing else about the
+    # printer changes, so S1–S6 (no entry) are byte-identical.
+    light_inks: tuple[tuple[str, float], ...] = ()
 
     @property
     def channel_letters(self) -> list[str]:
-        return list(self.device_rep)
+        return split_rep_letters(self.device_rep)
+
+    @property
+    def light_ink_pairs(self) -> list[tuple[int, int]]:
+        """(light channel index, parent channel index) per light ink."""
+        letters = self.channel_letters
+        return [(letters.index(light), letters.index(_parent_letter(light)))
+                for light, _ in self.light_inks]
+
+    def _ink_density(self, letter: str) -> np.ndarray:
+        for light, fraction in self.light_inks:
+            if light == letter:
+                return fraction * _INK_D[_parent_letter(light)]
+        return _INK_D[letter]
 
     @property
     def n_channels(self) -> int:
-        return len(self.device_rep)
+        return len(self.channel_letters)
 
     @property
     def is_additive(self) -> bool:
@@ -129,7 +152,7 @@ class SyntheticPrinter:
             n = len(letters)
             combos = np.stack(np.meshgrid(*([[0, 1]] * n), indexing="ij"),
                               -1).reshape(-1, n)
-            dens = np.stack([_INK_D[c] for c in letters])      # (n, bands)
+            dens = np.stack([self._ink_density(c) for c in letters])  # (n, bands)
             prim = paper[None, :] * 10.0 ** (
                 -self.density_scale * combos @ dens)           # (2ⁿ, bands)
             prim_yn = prim ** (1.0 / self.yn_nu)
@@ -177,6 +200,11 @@ PRINTERS: dict[str, SyntheticPrinter] = {
                            yn_nu=4.0),
     "S5": SyntheticPrinter("S5", "CMYKOG", tac=320.0, yn_nu=3.2),
     "S6": SyntheticPrinter("S6", "CMYKV", tac=300.0, yn_nu=4.8),
+    # S7: light cyan / light magenta at 40 % of the parent's absorbance
+    # (agent A's A-20 printer, now in the battery) — the printer a
+    # light/dark separation is bought for: smooth highlights and neutrals.
+    "S7": SyntheticPrinter("S7", "CMYKcm", tac=300.0, yn_nu=4.0,
+                           light_inks=(("c", 0.40), ("m", 0.40))),
 }
 
 

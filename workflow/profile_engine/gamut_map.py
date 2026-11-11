@@ -41,7 +41,6 @@ from workflow.profile_engine import b2a as b2a_mod
 from workflow.profile_engine import icc_writer as icw
 from workflow.profile_engine.forward_model import ForwardModel
 from workflow.profile_engine.ti3_data import Ti3Measurement, xyz_to_lab
-from core.proc_text import run_text
 from core.resource_path import argyll_tool_path
 
 # Bradford D65→D50 adaptation (both analytic sources are D65-white).
@@ -450,6 +449,68 @@ class WarpMapper:
         return lab + (w[:, :, None] * self._nodes[cols]).sum(1)
 
 
+# Budgets for the Argyll subprocesses (CLAUDE.md: "Anything that shells out
+# to Argyll needs a timeout=" — a wedged colprof was a build that never ended
+# and could not be cancelled). Generous, for a loaded machine: colprof at -qh
+# on a large chart is minutes, never tens of minutes.
+COLPROF_TIMEOUT_S = 1800
+XICCLU_TIMEOUT_S = 600
+
+
+# Argyll children the engine has running right now, so a quit can end them.
+# Closing the window mid-build used to orphan the oracle colprof for ~50 s
+# and leave its temp folder behind (B-25).
+_LIVE_CHILDREN: set = set()
+
+
+def terminate_argyll_children() -> int:
+    """Kill every Argyll subprocess the engine still has running; returns
+    how many were killed. Safe to call from any thread and when none run."""
+    n = 0
+    for proc in list(_LIVE_CHILDREN):
+        try:
+            if proc.poll() is None:
+                proc.kill()
+                n += 1
+        except OSError:
+            pass
+        _LIVE_CHILDREN.discard(proc)
+    return n
+
+
+def _run_argyll(cmd, **kw):
+    """``run_text``-equivalent that (a) registers the child so a quit can
+    kill it, and (b) turns a timeout into :class:`OracleUnavailable`
+    naming the tool and the budget, instead of a bare ``TimeoutExpired``
+    that reads like a crash."""
+    import subprocess
+    from core.proc_text import decode_output
+    timeout = kw.pop("timeout", None)
+    kw.pop("capture_output", None)
+    inp = kw.pop("input", None)
+    if isinstance(inp, str):
+        inp = inp.encode("utf-8")
+    proc = subprocess.Popen([str(c) for c in cmd], stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    _LIVE_CHILDREN.add(proc)
+    what = Path(str(cmd[0])).name
+    try:
+        out, err = proc.communicate(input=inp, timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        proc.kill()
+        proc.communicate()
+        raise OracleUnavailable(
+            f"{what} did not finish within "
+            f"{int(timeout or 0) // 60} minutes") from exc
+    finally:
+        _LIVE_CHILDREN.discard(proc)
+    if proc.returncode is not None and proc.returncode < 0:
+        raise OracleUnavailable(f"{what} was stopped")
+    return subprocess.CompletedProcess(
+        cmd, proc.returncode, decode_output(out, what=what),
+        decode_output(err, what=what))
+
+
 class OracleUnavailable(RuntimeError):
     """colprof can't provide the mapping oracle for this build."""
 
@@ -476,36 +537,203 @@ _ORACLE_CACHE: dict[tuple, dict] = {}
 _ORACLE_CACHE_MAX = 4
 
 
+def _file_identity(path) -> tuple:
+    """(resolved path, mtime, size) of a file, or the bare text when it
+    cannot be read: what tells two files, or two states of one, apart."""
+    try:
+        p = Path(path)
+        st = p.stat()
+        return (str(p.resolve()), st.st_mtime_ns, st.st_size)
+    except (OSError, TypeError, ValueError):
+        return (str(path), None, None)
+
+
 def _oracle_cache_key(meas: Ti3Measurement, source_gamut, settings,
-                      node_lab: np.ndarray | None) -> tuple | None:
+                      node_lab: np.ndarray | None,
+                      argyll_bin=None) -> tuple | None:
     try:
         st = Path(meas.path).stat()
     except OSError:
         return None
+    # Expert review 2026-11-10: three things reached the oracle without
+    # being in its key. (1) WHICH colprof ran: after the ArgyllCMS folder
+    # is changed in Preferences (another version, or a repaired install)
+    # a rebuild of the same measurement in the same session reused the
+    # rendering of the colprof that is no longer selected. (2) The gamut
+    # source FILE: only its path was keyed, so a profile replaced under the
+    # same name kept the old rendering. (3) Whether the oracle profile's
+    # bytes were kept (a86-knutdark reads them): a result cached without
+    # them silently switched that token off for the next build.
+    bin_dir = Path(argyll_bin) if argyll_bin else Path(
+        getattr(settings, "argyll_bin", None) or "/Applications/Argyll/bin")
+    tools = tuple(_file_identity(argyll_tool_path(bin_dir, name))
+                  for name in ("colprof", "xicclu"))
+    keeps_icc = A86_TOKEN in (getattr(settings, "engine_candidates", None)
+                              or ())
     node_key = None if node_lab is None else (
         node_lab.shape[0], round(float(node_lab.sum()), 3))
-    return (str(meas.path), st.st_mtime_ns, st.st_size, str(source_gamut),
-            getattr(settings, "quality", ""),
-            getattr(settings, "perc_intent", ""),
-            getattr(settings, "sat_intent", ""),
-            getattr(settings, "src_viewing", ""),
-            getattr(settings, "dst_viewing", ""),
-            getattr(settings, "perc_src_colorimetric", False),
-            getattr(settings, "sat_src_colorimetric", False),
-            getattr(settings, "illuminant", ""),
-            getattr(settings, "observer", ""),
-            getattr(settings, "fwa", False),
-            getattr(settings, "fwa_illum", ""),
-            getattr(settings, "k_rule", ""),
-            getattr(settings, "k_locus", False),
-            getattr(settings, "k_curve_params", None),
-            node_key)
+    # Keyed on the oracle's own command line (Integration 3, Agent 10b
+    # finding s3.3): every setting that reaches colprof is in the key by
+    # construction. Before, "-s" vs "-S" (settings.sat_gamut) was missing,
+    # so after one "-s" build every later "-S" build of the same
+    # measurement in the same app session reused the perceptual-only
+    # result and its saturation table became the perceptual one.
+    return (str(meas.path), st.st_mtime_ns, st.st_size,
+            tuple(_oracle_args(Path("colprof"), settings, source_gamut,
+                               meas)),
+            node_key, tools, _file_identity(source_gamut), keeps_icc)
+
+
+def _oracle_args(colprof: Path, settings, source_gamut,
+                 meas: Ti3Measurement | None = None) -> list[str]:
+    """The oracle's colprof command line, without the output base name."""
+    q = settings.quality if settings.quality in ("l", "m", "h") else "h"
+    args = [str(colprof), f"-q{q}"]
+    if (meas is not None and getattr(meas, "is_additive", None) is False
+            and "a35-oracle-limit"
+            in (getattr(settings, "engine_candidates", None) or ())):
+        # Research Agent 35 (Findings/agent35-01 s2): without -l colprof
+        # uses the .ti3's TOTAL_INK_LIMIT minus 10 % ("Total ink limit
+        # being used is 290%"), so the oracle's perceptual black was found
+        # under 290 % while the engine, the app's own colprof run
+        # (profile_builder prefills -l from the .ti3) and the battery's
+        # colprof all use 300 %. XKH typical september: oracle black
+        # (0.49, 0.47, 0.58, 0.89) prints L* 9.0, at -l300 (0.60, 0.74,
+        # 0.64, 1.0) prints 5.1. Pass the build's own limits.
+        lim = getattr(settings, "ink_limit", None)
+        if lim is None:
+            lim = getattr(meas, "ink_limit", None)
+        if lim is not None:
+            args.append(f"-l{float(lim):g}")
+        klim = getattr(settings, "black_ink_limit", None)
+        if klim is not None:
+            args.append(f"-L{float(klim):g}")
+    # Same source/intent/viewing surface the engine build was asked for.
+    # -s = perceptual only (colprof aliases saturation to it), -S =
+    # both; -nP/-nS say which SOURCE gamut each uses and never collapse
+    # the saturation table into the perceptual one (A-12).
+    flag = "-S" if getattr(settings, "sat_gamut", True) else "-s"
+    args += [flag, str(source_gamut)]
+    if getattr(settings, "perc_intent", ""):
+        args.append(f"-t{settings.perc_intent}")
+    if getattr(settings, "sat_intent", ""):
+        args.append(f"-T{settings.sat_intent}")
+    if getattr(settings, "src_viewing", ""):
+        args.append(f"-c{settings.src_viewing}")
+    if getattr(settings, "dst_viewing", ""):
+        args.append(f"-d{settings.dst_viewing}")
+    if getattr(settings, "perc_src_colorimetric", False):
+        args.append("-nP")
+    if getattr(settings, "sat_src_colorimetric", False):
+        args.append("-nS")
+    if getattr(settings, "illuminant", ""):
+        args += ["-i", settings.illuminant]
+    if getattr(settings, "observer", ""):
+        args += ["-o", settings.observer]
+    if getattr(settings, "fwa", False):
+        args.append(f"-f{settings.fwa_illum}" if settings.fwa_illum
+                    else "-f")
+    args += _k_args(settings)
+    return args
+
+
+class OracleRun:
+    """One colprof oracle run, started as soon as its inputs are known
+    (D-06, agent 8). colprof reads only the .ti3 file and the settings, never
+    the engine's model, so the build can start it before the forward fit and
+    let it run beside the engine's own work instead of after it; the tables
+    it writes are the same bytes either way. The child is registered in
+    ``_LIVE_CHILDREN`` (a quit kills it) and :meth:`close` kills it and
+    removes its temp folder if the build ends early or never needs it."""
+
+    def __init__(self, key, args: list[str], ti3_path) -> None:
+        import shutil
+        import subprocess
+        import tempfile
+        import time
+        self.key = key
+        self._td = tempfile.TemporaryDirectory(prefix="chromiq-oracle-")
+        self.base = Path(self._td.name) / "oracle"
+        shutil.copy(ti3_path, self.base.with_suffix(".ti3"))
+        self._log = open(self.base.with_suffix(".log"), "wb")
+        self._t0 = time.monotonic()
+        self.proc = subprocess.Popen([str(c) for c in args] + [str(self.base)],
+                                     stdin=subprocess.DEVNULL,
+                                     stdout=self._log,
+                                     stderr=subprocess.STDOUT)
+        _LIVE_CHILDREN.add(self.proc)
+
+    def wait(self) -> Path:
+        """The finished profile, or :class:`OracleUnavailable`."""
+        import subprocess
+        import time
+        from core.proc_text import decode_output
+        left = COLPROF_TIMEOUT_S - (time.monotonic() - self._t0)
+        try:
+            self.proc.wait(timeout=max(1.0, left))
+        except subprocess.TimeoutExpired as exc:
+            self.proc.kill()
+            self.proc.wait()
+            raise OracleUnavailable(
+                f"colprof did not finish within "
+                f"{int(COLPROF_TIMEOUT_S) // 60} minutes") from exc
+        finally:
+            _LIVE_CHILDREN.discard(self.proc)
+        if self.proc.returncode < 0:
+            raise OracleUnavailable("colprof was stopped")
+        # colprof writes .icm on Windows (#210)
+        from core.file_manager import profile_file
+        icc = profile_file(self.base.with_suffix(".icc"),
+                           self.base.with_suffix(".icm"))
+        if self.proc.returncode != 0 or not icc.exists():
+            self._log.flush()
+            text = decode_output(self.base.with_suffix(".log").read_bytes(),
+                                 what="colprof")
+            raise OracleUnavailable(f"colprof oracle failed: {text[:200]}")
+        return icc
+
+    def close(self) -> None:
+        try:
+            if self.proc.poll() is None:
+                self.proc.kill()
+                self.proc.wait()
+        except OSError:
+            pass
+        _LIVE_CHILDREN.discard(self.proc)
+        try:
+            self._log.close()
+        finally:
+            self._td.cleanup()
+
+
+def start_colprof_oracle(meas: Ti3Measurement, source_gamut, settings,
+                         argyll_bin, node_lab: np.ndarray | None
+                         ) -> OracleRun | None:
+    """Start the oracle colprof now, if :func:`fit_colprof_mappers` will
+    need it later for exactly these inputs; None when it will not (cached,
+    no binaries, a device colprof cannot build)."""
+    bin_dir = Path(argyll_bin) if argyll_bin else Path(
+        "/Applications/Argyll/bin")
+    colprof = argyll_tool_path(bin_dir, "colprof")
+    if not colprof.exists() or not argyll_tool_path(bin_dir,
+                                                    "xicclu").exists():
+        return None
+    if meas.device_rep not in ("RGB", "CMY", "CMYK"):
+        return None
+    key = _oracle_cache_key(meas, source_gamut, settings, node_lab,
+                            argyll_bin)
+    if key is None or key in _ORACLE_CACHE:
+        return None
+    return OracleRun(key, _oracle_args(colprof, settings, source_gamut,
+                                       meas),
+                     meas.path)
 
 
 def fit_colprof_mappers(meas: Ti3Measurement, source_gamut: Path | str,
                         settings, argyll_bin: Path | str | None,
                         progress=None,
-                        node_lab: np.ndarray | None = None) -> dict:
+                        node_lab: np.ndarray | None = None,
+                        pending: "OracleRun | None" = None) -> dict:
     """Colprof-matched perceptual/saturation mappers (arm's-length oracle).
 
     Runs Argyll colprof as a subprocess on the same measurement with the
@@ -534,7 +762,8 @@ def fit_colprof_mappers(meas: Ti3Measurement, source_gamut: Path | str,
         raise OracleUnavailable(
             f"colprof can't build {meas.device_rep} measurements")
 
-    cache_key = _oracle_cache_key(meas, source_gamut, settings, node_lab)
+    cache_key = _oracle_cache_key(meas, source_gamut, settings, node_lab,
+                                  argyll_bin)
     if cache_key is not None and cache_key in _ORACLE_CACHE:
         if progress:
             progress("Saturation table: reusing the colprof rendering "
@@ -544,43 +773,15 @@ def fit_colprof_mappers(meas: Ti3Measurement, source_gamut: Path | str,
     if progress:
         progress("Saturation table: matching colprof's rendering "
                      "(this runs Argyll colprof once in the background)…")
-    with tempfile.TemporaryDirectory() as td:
-        base = Path(td) / "oracle"
-        shutil.copy(meas.path, base.with_suffix(".ti3"))
-        q = settings.quality if settings.quality in ("l", "m", "h") else "h"
-        args = [str(colprof), f"-q{q}"]
-        # Same source/intent/viewing surface the engine build was asked for.
-        flag = "-s" if (getattr(settings, "perc_src_colorimetric", False)
-                        and getattr(settings, "sat_src_colorimetric", False)
-                        ) else "-S"
-        args += [flag, str(source_gamut)]
-        if getattr(settings, "perc_intent", ""):
-            args.append(f"-t{settings.perc_intent}")
-        if getattr(settings, "sat_intent", ""):
-            args.append(f"-T{settings.sat_intent}")
-        if getattr(settings, "src_viewing", ""):
-            args.append(f"-c{settings.src_viewing}")
-        if getattr(settings, "dst_viewing", ""):
-            args.append(f"-d{settings.dst_viewing}")
-        if getattr(settings, "perc_src_colorimetric", False):
-            args.append("-nP")
-        if getattr(settings, "sat_src_colorimetric", False):
-            args.append("-nS")
-        if getattr(settings, "illuminant", ""):
-            args += ["-i", settings.illuminant]
-        if getattr(settings, "observer", ""):
-            args += ["-o", settings.observer]
-        if getattr(settings, "fwa", False):
-            args.append(f"-f{settings.fwa_illum}" if settings.fwa_illum
-                        else "-f")
-        args += _k_args(settings)
-        r = run_text(args + [str(base)], capture_output=True)
-        # colprof writes .icm on Windows (#210)
-        from core.file_manager import profile_file
-        icc = profile_file(base.with_suffix(".icc"), base.with_suffix(".icm"))
-        if r.returncode != 0 or not icc.exists():
-            raise OracleUnavailable(
-                f"colprof oracle failed: {(r.stderr or r.stdout)[:200]}")
+    run = pending if (pending is not None and cache_key is not None
+                      and pending.key == cache_key) else None
+    own = run is None
+    if own:
+        run = OracleRun(cache_key, _oracle_args(colprof, settings,
+                                                source_gamut, meas),
+                        meas.path)
+    try:
+        icc = run.wait()
 
         # Real source colours: random source-device values through the
         # source profile (never random Lab — impossible colours), plus a
@@ -594,12 +795,12 @@ def fit_colprof_mappers(meas: Ti3Measurement, source_gamut: Path | str,
 
         def realized(intent: str) -> np.ndarray:
             inp = "\n".join(f"{a:.4f} {b:.4f} {c:.4f}" for a, b, c in train)
-            r1 = run_text([str(xicclu), "-fb", f"-i{intent}", "-pl",
-                           str(icc)], input=inp, capture_output=True)
+            r1 = _run_argyll([str(xicclu), "-fb", f"-i{intent}", "-pl",
+                           str(icc)], input=inp, capture_output=True, timeout=XICCLU_TIMEOUT_S)
             dev = [" ".join(ln.rsplit("->", 1)[1].split()[:meas.n_channels])
                    for ln in r1.stdout.splitlines() if "->" in ln]
-            r2 = run_text([str(xicclu), "-ff", "-ir", "-pl", str(icc)],
-                          input="\n".join(dev), capture_output=True)
+            r2 = _run_argyll([str(xicclu), "-ff", "-ir", "-pl", str(icc)],
+                          input="\n".join(dev), capture_output=True, timeout=XICCLU_TIMEOUT_S)
             out = np.array([[float(v) for v in
                              ln.rsplit("->", 1)[1].split()[:3]]
                             for ln in r2.stdout.splitlines() if "->" in ln])
@@ -609,44 +810,97 @@ def fit_colprof_mappers(meas: Ti3Measurement, source_gamut: Path | str,
 
         if progress:
             progress("Saturation table: fitting the matched rendering…")
-        out = {"B2A0": WarpMapper(train, realized("p")),
-               "B2A2": WarpMapper(train, realized("s"))}
+        if node_lab is not None:
+            # D-06 (agent 8): with exact node targets the warp only answers
+            # off-node queries (-nI); fit it on first use. Same inputs, same
+            # fit, same bytes; 2-3 s of CPU saved on every other build.
+            out = {"B2A0": _LazyWarp(train, realized("p")),
+                   "B2A2": _LazyWarp(train, realized("s"))}
+        else:
+            out = {"B2A0": WarpMapper(train, realized("p")),
+                   "B2A2": WarpMapper(train, realized("s"))}
         # Exact node targets: sample colprof's realized mapping AT the CLUT
         # nodes the profile will carry — the tables then reproduce colprof's
         # values up to quantisation, and the warp only serves smooth
         # inversion (-nI) and off-node queries.
         if node_lab is not None:
             for tag, intent in (("B2A0", "p"), ("B2A2", "s")):
-                out[tag] = _ExactNodeMapper(node_lab, _realized_at(
-                    xicclu, icc, node_lab, intent, meas.n_channels),
-                    out[tag])
+                _lab_at, _dev_at = _realized_at(
+                    xicclu, icc, node_lab, intent, meas.n_channels,
+                    with_device=True)
+                out[tag] = _ExactNodeMapper(node_lab, _lab_at, out[tag])
+                # Research (Agent 25, F-16/F-18, token a25-oracle-model):
+                # colprof's own device values at the nodes, so the target
+                # can be re-expressed through the ENGINE's model.
+                out[tag].node_dev = _dev_at
+                # Research Agent 86 (a86-knutdark): the oracle profile
+                # itself, kept only with the token (its A2B is the second
+                # opinion a86_knutdark asks)
+                if A86_TOKEN in getattr(settings, "engine_candidates",
+                                        frozenset()):
+                    out[tag].oracle_icc = Path(icc).read_bytes()
+                # Research Agent 80 (a80-oraclecurve): colprof's own output
+                # curves of this table (read while the file exists)
+                try:
+                    out[tag].oracle_out = a80_lut_out_curves(
+                        Path(icc).read_bytes(), tag)
+                except Exception:       # noqa: BLE001 - research only
+                    out[tag].oracle_out = None
         if cache_key is not None:
             while len(_ORACLE_CACHE) >= _ORACLE_CACHE_MAX:
                 _ORACLE_CACHE.pop(next(iter(_ORACLE_CACHE)))
             _ORACLE_CACHE[cache_key] = out
         return out
+    finally:
+        if own:
+            run.close()
 
 
 def _realized_at(xicclu: Path, icc: Path, lab: np.ndarray, intent: str,
-                 n_channels: int) -> np.ndarray:
+                 n_channels: int, with_device: bool = False):
     import subprocess
     inp = "\n".join(f"{a:.4f} {b:.4f} {c:.4f}" for a, b, c in lab)
-    r1 = run_text([str(xicclu), "-fb", f"-i{intent}", "-pl", str(icc)],
-                  input=inp, capture_output=True)
+    r1 = _run_argyll([str(xicclu), "-fb", f"-i{intent}", "-pl", str(icc)],
+                  input=inp, capture_output=True, timeout=XICCLU_TIMEOUT_S)
     dev = [" ".join(ln.rsplit("->", 1)[1].split()[:n_channels])
            for ln in r1.stdout.splitlines() if "->" in ln]
-    r2 = run_text([str(xicclu), "-ff", "-ir", "-pl", str(icc)],
-                  input="\n".join(dev), capture_output=True)
+    r2 = _run_argyll([str(xicclu), "-ff", "-ir", "-pl", str(icc)],
+                  input="\n".join(dev), capture_output=True, timeout=XICCLU_TIMEOUT_S)
     out = np.array([[float(v) for v in ln.rsplit("->", 1)[1].split()[:3]]
                     for ln in r2.stdout.splitlines() if "->" in ln])
     if len(out) != len(lab):
         raise OracleUnavailable("node sampling failed")
+    if with_device:
+        return out, np.array([[float(v) for v in ln.split()] for ln in dev])
     return out
+
+
+class _LazyWarp:
+    """A :class:`WarpMapper` fitted the first time it is asked anything."""
+
+    def __init__(self, train_lab: np.ndarray, target_lab: np.ndarray) -> None:
+        self._args = (train_lab, target_lab)
+        self._warp: WarpMapper | None = None
+
+    def _get(self) -> WarpMapper:
+        if self._warp is None:
+            self._warp = WarpMapper(*self._args)
+        return self._warp
+
+    def map_lab(self, lab: np.ndarray) -> np.ndarray:
+        return self._get().map_lab(lab)
+
+    def __getattr__(self, name):
+        if name.startswith("_"):
+            raise AttributeError(name)
+        return getattr(self._get(), name)
 
 
 class _ExactNodeMapper:
     """colprof's realized mapping sampled exactly at the CLUT nodes; the
     fitted warp answers everything off-node (the -nI inverse, probes)."""
+
+    node_dev = None     # colprof's device values at the nodes (Agent 25)
 
     def __init__(self, node_lab: np.ndarray, node_mapped: np.ndarray,
                  warp: WarpMapper) -> None:
@@ -756,9 +1010,9 @@ def fit_multiink_anchor(model: ForwardModel, meas: Ti3Measurement,
                          + " ".join(f"{v:.4f}" for v in x))
         lines.append("END_DATA")
         base.with_suffix(".ti3").write_text("\n".join(lines), encoding="utf-8")
-        r = run_text([str(colprof), "-qm", "-S", str(source_gamut),
+        r = _run_argyll([str(colprof), "-qm", "-S", str(source_gamut),
                       *_k_args(settings), str(base)],
-                     capture_output=True)
+                     capture_output=True, timeout=COLPROF_TIMEOUT_S)
         # colprof writes .icm on Windows (#210)
         from core.file_manager import profile_file
         icc = profile_file(base.with_suffix(".icc"), base.with_suffix(".icm"))
@@ -769,13 +1023,13 @@ def fit_multiink_anchor(model: ForwardModel, meas: Ti3Measurement,
         # Neutral rendering table: realized perceptual along the L axis.
         ls = np.linspace(0.0, 100.0, 41)
         inp = "\n".join(f"{v:.3f} 0 0" for v in ls)
-        r1 = run_text([str(xicclu), "-fb", "-ip", "-pl", str(icc)],
-                      input=inp, capture_output=True)
+        r1 = _run_argyll([str(xicclu), "-fb", "-ip", "-pl", str(icc)],
+                      input=inp, capture_output=True, timeout=XICCLU_TIMEOUT_S)
         dev4 = [ln.rsplit("->", 1)[1].split()[:4]
                 for ln in r1.stdout.splitlines() if "->" in ln]
-        r2 = run_text([str(xicclu), "-ff", "-ir", "-pl", str(icc)],
+        r2 = _run_argyll([str(xicclu), "-ff", "-ir", "-pl", str(icc)],
                       input="\n".join(" ".join(d) for d in dev4),
-                      capture_output=True)
+                      capture_output=True, timeout=XICCLU_TIMEOUT_S)
         neutral = np.array([[float(v) for v in ln.rsplit("->", 1)[1]
                              .split()[:3]]
                             for ln in r2.stdout.splitlines() if "->" in ln])
@@ -784,6 +1038,63 @@ def fit_multiink_anchor(model: ForwardModel, meas: Ti3Measurement,
         # K behaviour along the same axis (device K of the proxy's B2A).
         k_curve = np.array([float(d[3]) for d in dev4])
         return {"l_axis": ls, "neutral_lab": neutral, "k_curve": k_curve}
+
+
+F05_TOKENS = {"a24-f05": "f05", "a24-f05walk": "walk",
+              "a24-f05min": "min", "a24-f05pin": "pin",
+              "a24-f05nopin": "nopin"}
+
+
+def f05_variant(settings, model, *, is_additive: bool,
+                accurate: bool) -> str | None:
+    """The research F-05 variant a Maximum accuracy build of a 5+ ink device
+    runs with (None: unchanged). First listed token wins."""
+    if not accurate or is_additive or model is None \
+            or getattr(model, "n_channels", 0) < 5:
+        return None
+    cands = getattr(settings, "engine_candidates", frozenset())
+    # "a24-f05" is default-on, so the effective set carries it beside any
+    # explicitly requested variant: the variants are tested first and the
+    # plain default is the fallback (Agent 28).
+    for tok, var in F05_TOKENS.items():
+        if tok != "a24-f05" and tok in cands:
+            return var
+    return "f05" if "a24-f05" in cands else None
+
+
+def darkest_neutral_of_cloud(cloud_lab: np.ndarray) -> np.ndarray:
+    """F-05's minimal fix: the darkest NEAR-NEUTRAL colour of the destination
+    shell cloud (model surface under the ink limit plus measured patches)."""
+    c = np.hypot(cloud_lab[:, 1], cloud_lab[:, 2])
+    near = c < max(3.0, float(np.percentile(c, 1)))
+    pts = cloud_lab[near]
+    return pts[int(np.argmin(pts[:, 0]))].astype(float)
+
+
+def _neutral_black_lab(model: ForwardModel, *, is_additive: bool,
+                       ink_limit: float | None, channel_letters,
+                       channel_max, neutral_black_dev, meas) -> np.ndarray:
+    """The destination black for gamut mapping: the darkest colour the
+    printer can make NEUTRAL under its limits (Argyll's colprof uses its
+    profile's black point the same way). Additive devices: device black."""
+    n = model.n_channels
+    if is_additive:
+        return model.predict(np.zeros((1, n)))[0]
+    if neutral_black_dev is None:
+        black_l = None
+        if meas is not None and hasattr(meas, "lab_relative"):
+            black_l = float(meas.lab_relative[meas.black_index, 0])
+        axis = b2a_mod.neutral_axis(
+            model, channel_letters=channel_letters, is_additive=False,
+            ink_limit=ink_limit, accurate=True, black_l=black_l,
+            channel_max=channel_max)
+        neutral_black_dev = axis.get("black")
+    if neutral_black_dev is None:
+        dev = np.ones((1, n))
+        if ink_limit is not None:
+            dev *= min(1.0, ink_limit / 100.0 / n)
+        return model.predict(dev)[0]
+    return model.predict(np.asarray(neutral_black_dev, float)[None, :])[0]
 
 
 def invert_mapping(mapper, mapped_lab: np.ndarray, iters: int = 20
@@ -804,13 +1115,357 @@ def invert_mapping(mapper, mapped_lab: np.ndarray, iters: int = 20
     return lab0
 
 
+def _a35_apply_band(model, dev, mapped, col, band, mode, inv_kw,
+                    black_dev=None):
+    """Research Agent 35 (a35-percblack-*): the perceptual/saturation
+    neutral column nodes whose target L* falls in the hand-over band
+    [l_deep, l_deep + width) take the hand-over target (L*, tint a*b*),
+    inverted from the path's device value as seed, or the path value
+    itself where that prints closer (b2a.percblack_band_devices); nodes
+    at or below the deep black print it (``black_dev``, else the path's
+    end). Then no band node may print lighter than the column node above
+    it (model L*), as b2a.monotone_column guarantees for F-13."""
+    from workflow.profile_engine import b2a as _b2a
+    dev = np.asarray(dev, float).copy()
+    col = np.asarray(col)
+    if not len(col):
+        return dev
+    tl = np.asarray(mapped[col, 0], float)
+    l_deep, w = float(band["l_deep"]), float(band["width"])
+    pl, pd = band["path_l"], band["path_dev"]
+    deep_dev = (np.asarray(black_dev, float) if black_dev is not None
+                else pd[int(np.argmin(pl))])
+    below = tl <= l_deep + 1e-6
+    inb = (~below) & (tl < l_deep + w)
+    if inb.any():
+        # Research a43-shadowdetail(-width): full tint at and below
+        # band["l_full"] (b2a.a43_band); a35's band when it is absent
+        tgt = np.column_stack([tl[inb], _b2a.percblack_tint(
+            tl[inb], l_deep=float(band.get("l_full", l_deep)),
+            ab_deep=band["ab_deep"], width=w, mode=mode)])
+        seed = _b2a.path_device_at(tl[inb], pl, pd)
+        inv = _b2a.invert_to_device(model, tgt, seed=seed, **inv_kw)[0]
+        if inv_kw.get("ink_limit") is not None and not inv_kw.get(
+                "is_additive"):
+            inv = _b2a.project_tac(inv, inv_kw["ink_limit"] / 100.0)
+        dev[col[inb]] = _b2a.percblack_band_devices(model, tgt, inv, seed)
+    if below.any():
+        dev[col[below]] = deep_dev
+    order = np.argsort(-tl, kind="stable")              # light to dark
+    lp = model.predict(dev[col[order]])[:, 0]
+    band_o = (inb | below)[order]
+    for k in range(1, len(order)):
+        if band_o[k] and lp[k] > lp[k - 1] + 1e-6:
+            dev[col[order[k]]] = dev[col[order[k - 1]]]
+            lp[k] = lp[k - 1]
+    return dev
+
+
+# Research Agent 86 (a86-knutdark, Findings/agent86-01-knutdark.md). On an RGB
+# printer whose model is blind near the black (Knut's laser: the fitted G
+# curve is flat over G 0-0.05, and the chart has no patch between the black
+# and B 0.18 / grey 0.07), the a35 hand-over band neutralises the black's
+# b* +1 tint with blue alone; the model prints that as 0.2-0.6 L* steps,
+# while every other model of the same chart (colprof's A2B, an RBF, the
+# colprof -qh proxy) prints the darkest perceptual steps flat or reversed.
+# Gate (measured in the build), both of: (a) the colprof oracle's own A2B, a
+# second fit of the same measurements, prints the engine's darkest neutral
+# column steps (the first A86_STEPS node cells, each sampled A86_SUB times,
+# device values linear between the nodes) at less than A86_RATIO of the step
+# the engine's model prints, at least once; (b) the engine's first column
+# cell heads in another device direction than the oracle's own column
+# (cosine below A86_COS: Knut 0.23 battery / 0.29 full chart, every other
+# battery RGB printer 0.76 or more). Where it fires, the column nodes up
+# to the model's RGB neutral black take the oracle's device values (colprof's
+# own perceptual column, monotone on every model), handed back to the
+# engine's column by a smoothstep over the next A86_FADE L* (target L*).
+# CHROMIQ_A86 "ratio:steps:fade" overrides (research).
+A86_TOKEN = "a86-knutdark"
+A86_RATIO, A86_STEPS, A86_FADE, A86_SUB, A86_COS = 0.5, 3, 3.0, 4, 0.5
+
+
+def _a86_params():
+    import os
+    v = os.environ.get("CHROMIQ_A86", "")
+    if not v:
+        return A86_RATIO, A86_STEPS, A86_FADE, A86_SUB, A86_COS
+    r, k, f, sub, c = v.split(":")
+    return float(r), int(k), float(f), int(sub), float(c)
+
+
+def _a86_oracle_l(oracle_icc: bytes, dev: np.ndarray, xicclu) -> np.ndarray:
+    """L* the oracle profile's A2B1 prints for device values (xicclu -ff -ir)."""
+    import os
+    import tempfile
+    fd, tmp = tempfile.mkstemp(suffix=".icc")
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(oracle_icc)
+        inp = "\n".join(" ".join(f"{v:.6f}" for v in r) for r in dev)
+        r = _run_argyll([str(xicclu), "-ff", "-ir", "-pl", tmp], input=inp,
+                        capture_output=True, timeout=XICCLU_TIMEOUT_S)
+        out = np.array([[float(v) for v in ln.rsplit("->", 1)[1].split()[:3]]
+                        for ln in r.stdout.splitlines() if "->" in ln])
+    finally:
+        os.unlink(tmp)
+    if len(out) != len(dev):
+        raise OracleUnavailable("a86: oracle A2B sampling failed")
+    return out[:, 0]
+
+
+def a86_knutdark(model, dev, mapped, col, node_lab, odev, oracle_icc, xicclu,
+                 l_neutral_black: float, report: dict | None = None):
+    """Research a86-knutdark (see A86_TOKEN): returns the column device values
+    (unchanged unless the gate fires). ``col``: the neutral column node
+    indices; ``mapped``: the column targets (L* used); ``odev``: the oracle's
+    device values at all nodes; ``l_neutral_black``: model L* of the RGB
+    neutral black (the top of the a35 band)."""
+    ratio, steps, fade, sub, cos_max = _a86_params()
+    dev = np.asarray(dev, float).copy()
+    col = np.asarray(col)
+    if not len(col) or odev is None or not oracle_icc:
+        return dev
+    order = col[np.argsort(node_lab[col, 0], kind="stable")]   # dark to light
+    k = min(steps + 1, len(order))
+    if k < 2:
+        return dev
+    d = np.clip(dev[order[:k]], 0.0, 1.0)
+    t = np.linspace(0.0, 1.0, sub + 1)[:-1]
+    samp = np.vstack([d[i] + (d[i + 1] - d[i]) * tt
+                      for i in range(k - 1) for tt in t] + [d[k - 1:k]])
+    lm = model.predict(samp)[:, 0]
+    lo = _a86_oracle_l(oracle_icc, samp, xicclu)
+    sm, so = np.diff(lm), np.diff(lo)
+    r = so / np.maximum(sm, 1e-3)
+    o01 = np.clip(np.asarray(odev, float)[order[:2]], 0.0, 1.0)
+    a, b = d[1] - d[0], o01[1] - o01[0]
+    cos = float(a @ b / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-12))
+    if report is not None:
+        report.update({"ratio_min": float(r.min()), "cos": cos,
+                       "model_steps": sm.tolist(),
+                       "oracle_steps": so.tolist(), "fired": False})
+    if not (r.min() < ratio and cos < cos_max):
+        return dev
+    tl = np.asarray(mapped[order, 0], float)
+    l_top = float(l_neutral_black)
+    w = np.clip((l_top + fade - tl) / max(fade, 1e-9), 0.0, 1.0)
+    w = w * w * (3.0 - 2.0 * w)
+    w[tl <= l_top] = 1.0
+    o = np.clip(np.asarray(odev, float)[order], 0.0, 1.0)
+    dev[order] = w[:, None] * o + (1.0 - w[:, None]) * dev[order]
+    if report is not None:
+        report.update({"fired": True, "nodes": int((w > 0).sum()),
+                       "l_top": l_top})
+    return dev
+
+
+A79_TOKEN = "a79-perccol"
+
+
+def a79_mild_fold(model, channel_letters, meas=None) -> tuple | None:
+    """Research a79-perccol: ``(k_fold, fold_at_black)`` when ``model`` is a
+    4-ink CMYK printer (K fourth) with a MILD ink fold at the black
+    (cmykport.k_fold finds one, fold_at_black below the a73-kfirst
+    threshold A73_FOLD_MIN), else None. With ``meas`` the fold must also be
+    MEASURED (Agent 74's test, builder._a74_measured_fold >=
+    A74_FOLDMEAS_MIN): the fitted models of the synthetic X3 pessimistic and
+    XKH typical September 900 sets read a fold their data does not show
+    (measured -4.8 L*; real i1iSis +2.0)."""
+    if (getattr(model, "n_channels", 0) != 4 or channel_letters is None
+            or list(channel_letters)[3:4] != ["K"]):
+        return None
+    from workflow.profile_engine import cmykport
+    from workflow.profile_engine.builder import (
+        A73_FOLD_MIN, A74_FOLDMEAS_MIN, _a74_measured_fold)
+    kf = cmykport.k_fold(model)
+    if kf is None:
+        return None
+    fb = float(cmykport.fold_at_black(model))
+    if fb >= A73_FOLD_MIN:
+        return None
+    if meas is not None and hasattr(meas, "device"):
+        ex = _a74_measured_fold(meas, model, 4)
+        if ex is None or ex < A74_FOLDMEAS_MIN:
+            return None
+    return (float(kf), fb)
+
+
+A79_LINCURVE = "a79-lincurve"
+# Source L* below which the a79 neutral column runs on one straight device
+# path from the oracle's column device at the first node at or above it to
+# the oracle's black (env CHROMIQ_A79_LA). Without it the column took
+# colprof's own dark end, whose black (Y-rich on i1iSis) prints lighter
+# than the K-led column just above it: every grey ramp rose 1.2 L* into
+# the black (offline, Findings agent79-01 s3). Swept 5 / 8 / 12 / 20 / 25:
+# below 12 the rise returns, above it the straight path tints the dark
+# greys (rbf C* 6.4 at 12, 7.3 at 20; colprof 4.9).
+A79_LA = 12.0
+
+
+def a79_la() -> float:
+    import os
+    v = os.environ.get("CHROMIQ_A79_LA")
+    return float(v) if v else A79_LA
+
+
+def a79_dark_path(dev: np.ndarray, node_lab: np.ndarray) -> np.ndarray:
+    """Research a79-perccol: the source-neutral column below a79_la() on a
+    straight device path (linear in node L*) from the column's device at
+    the first node at or above it to the column's black node; the column
+    above, and every other node, unchanged."""
+    col = np.flatnonzero(np.hypot(node_lab[:, 1], node_lab[:, 2]) < 1.0)
+    if len(col) < 3:
+        return dev
+    col = col[np.argsort(node_lab[col, 0])]
+    lc = node_lab[col, 0]
+    up = np.flatnonzero(lc >= a79_la())
+    if not len(up) or up[0] < 2:
+        return dev
+    ia = int(up[0])
+    out = np.asarray(dev, float).copy()
+    d0, da = out[col[0]].copy(), out[col[ia]].copy()
+    span = max(lc[ia] - lc[0], 1e-9)
+    for i in range(1, ia):
+        w = (lc[i] - lc[0]) / span
+        out[col[i]] = (1.0 - w) * d0 + w * da
+    return out
+
+
+def a79_neutralise(model, dev: np.ndarray, node_lab: np.ndarray, *,
+                   ink_limit: float | None = None,
+                   channel_max: np.ndarray | None = None,
+                   iters: int = 6) -> np.ndarray:
+    """Research a79-perccol: the source-neutral column at and above
+    a79_la() keeps the oracle's K (its separation, the one its neighbours
+    share) while C, M, Y move so the model prints it neutral at the same
+    L* (Gauss-Newton, K held, box and ink limit kept). colprof's K-led
+    perceptual greys are tinted (i1iSis saturation neutral C* 0.63 vs the
+    colorimetric axis 0.25); the correction is small (i1iSis: <= 0.04)."""
+    col = np.flatnonzero(np.hypot(node_lab[:, 1], node_lab[:, 2]) < 1.0)
+    col = col[(node_lab[col, 0] >= a79_la()) & (node_lab[col, 0] < 99.0)]
+    if not len(col):
+        return dev
+    out = np.asarray(dev, float).copy()
+    d = out[col].copy()
+    tgt = model.predict(d)
+    tgt[:, 1:] = 0.0
+    hi = np.ones(d.shape[1]) if channel_max is None else np.asarray(
+        channel_max, float)
+    h = 2e-3
+    for _ in range(iters):
+        r = model.predict(d) - tgt
+        jac = np.stack([(model.predict(d + h * np.eye(d.shape[1])[k])
+                         - model.predict(d - h * np.eye(d.shape[1])[k]))
+                        / (2 * h) for k in range(3)], 2)
+        try:
+            step = np.linalg.solve(jac + 1e-6 * np.eye(3), -r[:, :, None])[:, :, 0]
+        except np.linalg.LinAlgError:
+            break
+        d[:, :3] = np.clip(d[:, :3] + 0.8 * step, 0.0, hi[None, :3])
+        if ink_limit is not None:
+            d = b2a_mod.project_tac(d, ink_limit / 100.0)
+    out[col] = d
+    return out
+
+
+def a79_identity_output(blob: bytes) -> bytes:
+    """Research a79-lincurve: the same mft2 (Lut16) table with identity
+    output curves: every CLUT entry decoded through its output curve to the
+    device value it stands for. The device value at every node is unchanged
+    (to 1/65535); only the space the CMM interpolates in between the nodes
+    becomes plain device values instead of the model's shaper space."""
+    import struct
+    b = bytes(blob)
+    if b[:4] != b"mft2":
+        return blob
+    nin, nout, grid = b[8], b[9], b[10]
+    nie, noe = struct.unpack(">HH", b[48:52])
+    c0 = 52 + nin * nie * 2
+    cn = grid ** nin * nout
+    clut = np.frombuffer(b[c0:c0 + 2 * cn], dtype=">u2").astype(float).reshape(-1, nout) / 65535.0
+    outs = np.frombuffer(b[c0 + 2 * cn:c0 + 2 * cn + 2 * nout * noe],
+                         dtype=">u2").astype(float).reshape(nout, noe) / 65535.0
+    xs = np.linspace(0.0, 1.0, noe)
+    dev = np.stack([np.interp(clut[:, c], xs, outs[c]) for c in range(nout)], 1)
+    new = np.round(np.clip(dev, 0.0, 1.0) * 65535.0).astype(">u2").tobytes()
+    ident = np.tile(icw._identity_table(noe), (nout, 1)).astype(">u2").tobytes()
+    return b[:c0] + new + ident + b[c0 + 2 * cn + 2 * nout * noe:]
+
+
+A80_ORACLECURVE = "a80-oraclecurve"
+A80_PERCCOL = "a80-perccol"
+
+
+def a80_lut_out_curves(icc_bytes: bytes, tag: str):
+    """The output curves (nout x entries, 0..1) of an mft2 tag in a profile,
+    or None."""
+    import struct
+    b = bytes(icc_bytes)
+    n = struct.unpack(">I", b[128:132])[0]
+    for i in range(n):
+        sig, off, sz = struct.unpack(">4sII", b[132 + 12 * i:144 + 12 * i])
+        if sig == tag.encode():
+            d = b[off:off + sz]
+            if d[:4] != b"mft2":
+                return None
+            nin, nout, g = d[8], d[9], d[10]
+            nie, noe = struct.unpack(">HH", d[48:52])
+            c0 = 52 + nin * nie * 2 + 2 * nout * g ** nin
+            return (np.frombuffer(d[c0:c0 + 2 * nout * noe], dtype=">u2")
+                    .astype(float).reshape(nout, noe) / 65535.0)
+    return None
+
+
+def a80_oracle_output(blob: bytes, curves: np.ndarray) -> bytes:
+    """Research a80-oraclecurve: the same mft2 table re-encoded so its
+    output curves are ``curves`` (colprof's own for this table): every CLUT
+    entry is decoded to its device value and stored as the curve's inverse
+    of it. Node device values are unchanged (to the curve's resolution);
+    between nodes the CMM then interpolates in colprof's space, as colprof's
+    own table does (XFI targen2240 perceptual blue near black: ours blue,
+    darker, blue, black with linear or shaper-space curves; colprof smooth).
+    """
+    import struct
+    b = bytes(blob)
+    if b[:4] != b"mft2" or curves is None:
+        return blob
+    nin, nout, grid = b[8], b[9], b[10]
+    nie, noe = struct.unpack(">HH", b[48:52])
+    if np.asarray(curves).shape[0] != nout:
+        return blob
+    c0 = 52 + nin * nie * 2
+    cn = grid ** nin * nout
+    clut = np.frombuffer(b[c0:c0 + 2 * cn], dtype=">u2").astype(float).reshape(-1, nout) / 65535.0
+    outs = np.frombuffer(b[c0 + 2 * cn:c0 + 2 * cn + 2 * nout * noe],
+                         dtype=">u2").astype(float).reshape(nout, noe) / 65535.0
+    xs = np.linspace(0.0, 1.0, noe)
+    dev = np.stack([np.interp(clut[:, c], xs, outs[c]) for c in range(nout)], 1)
+    cv = np.asarray(curves, float)
+    xc = np.linspace(0.0, 1.0, cv.shape[1])
+    newc = np.empty_like(dev)
+    newo = np.empty((nout, noe))
+    for c in range(nout):
+        y = np.maximum.accumulate(cv[c])
+        y = y + np.linspace(0.0, 1e-9, len(y))   # strictly increasing
+        newc[:, c] = np.interp(dev[:, c], y, xc)
+        newo[c] = np.interp(xs, xc, cv[c])
+    new = np.round(np.clip(newc, 0.0, 1.0) * 65535.0).astype(">u2").tobytes()
+    ot = np.round(np.clip(newo, 0.0, 1.0) * 65535.0).astype(">u2").tobytes()
+    return b[:c0] + new + ot + b[c0 + 2 * cn + 2 * nout * noe:]
+
+
 def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                      source_gamut: Path, *, channel_letters: list[str],
                      is_additive: bool, ink_limit: float | None,
                      entries: int, codec=None, settings=None,
                      a2b_grid: int | None = None,
                      a2b_entries: int | None = None,
-                     anchor: dict | None = None) -> dict:
+                     anchor: dict | None = None,
+                     channel_max: np.ndarray | None = None,
+                     oracle_run: "OracleRun | None" = None,
+                     neutral_black_dev: np.ndarray | None = None,
+                     black_dev_shaped: np.ndarray | None = None,
+                     neutral_axis=None) -> dict:
     """Mapped tables per intent → dict of mft2 tags/aliases for the writer.
 
     Returns entries for ``B2A0``/``B2A2`` (bytes or the alias string
@@ -846,6 +1501,17 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
         dst = np.vstack([dst, meas.lab_relative])
     node_lab = codec.node_lab(grid)
     inv_curves = b2a_mod.inverse_curves(model.curves)
+    # Research a42-nearblack, part 1 (b2a.py): the same B2A curve space as
+    # the colorimetric table.
+    _a42_space = (b2a_mod.b2a_space_curves(
+                      model.curves, smooth=b2a_mod.a45_c1(getattr(
+                          settings, "engine_candidates", frozenset())))
+                  if accurate and b2a_mod.A42_TOKEN in getattr(
+                      settings, "engine_candidates", frozenset()) else None)
+    if _a42_space is not None:
+        inv_curves = b2a_mod.inverse_curves(_a42_space)
+    no_out_shaper = bool(getattr(settings, "no_output_shaper", False))
+    sat_gamut = bool(getattr(settings, "sat_gamut", True))
     out: dict[str, bytes | str] = {}
     mappers: dict[str, object] = {}
     mapped_by_tag: dict[str, np.ndarray] = {}
@@ -867,6 +1533,41 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
     _n = getattr(model, "n_channels", 0) if model is not None else 0
     _bitexact_le4 = (getattr(settings, "gammap_mode", "fast")
                      in ("argyll", "accurate") and 0 < _n <= 4)
+    # Research D-08 items (b)/(c), agent9-01 section 3: "a9-ownmap" maps
+    # every ink count with the compiled Argyll mapper on the engine's own
+    # destination (no background colprof build), with the destination black
+    # = the model's NEUTRAL black under the limits instead of all inks at
+    # 100 % (an extrapolation that tilts the grey axis and causes F-03).
+    ownmap = accurate and "a9-ownmap" in getattr(
+        settings, "engine_candidates", frozenset())
+    dst_black_lab = None
+    if ownmap:
+        _bitexact_le4 = False
+        dst_black_lab = _neutral_black_lab(
+            model, is_additive=is_additive, ink_limit=ink_limit,
+            channel_letters=channel_letters, channel_max=channel_max,
+            neutral_black_dev=neutral_black_dev, meas=meas)
+    # Research F-05 (agent24-01 s1): on 5+ ink devices the mapper's black
+    # is the model at ALL inks 100 % (500-700 % ink, far outside every
+    # patch); Argyll's perceptual/saturation intents align the whole grey
+    # axis to it, so greys take its colour. a24-f05* hand the mapper a black
+    # the printer can make instead. <= 4 inks and RGB are never touched.
+    f05 = f05_variant(settings, model, is_additive=is_additive,
+                      accurate=accurate)
+    f05_pin = False
+    if f05 is not None and not ownmap:
+        f05_pin = f05 in ("f05", "walk", "pin")
+        if f05 in ("f05", "nopin") and black_dev_shaped is not None:
+            dev_b = model.unshape_device(
+                np.asarray(black_dev_shaped, float)[None, :])
+            dst_black_lab = model.predict(dev_b)[0]
+        elif f05 == "walk":
+            dst_black_lab = _neutral_black_lab(
+                model, is_additive=is_additive, ink_limit=ink_limit,
+                channel_letters=channel_letters, channel_max=channel_max,
+                neutral_black_dev=neutral_black_dev, meas=meas)
+        elif f05 == "min":
+            dst_black_lab = darkest_neutral_of_cloud(dst)
     # #123 W5 (candidate "render2"): the bijective CAM16-UCS radial
     # mapper replaces the Argyll-matched rendering for the DEFAULT
     # perceptual/saturation intents — explicit -t/-T selections keep the
@@ -879,8 +1580,9 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                and not getattr(settings, "perc_intent", "")
                and not getattr(settings, "sat_intent", ""))
     if render2 and progress:
-        progress("Gamut mapping (maximum accuracy): bijective CAM16-UCS "
-                 "rendering intents (candidate).")
+        progress("Gamut mapping (maximum accuracy): ChromIQ bijective "
+                 "rendering (CAM16-UCS) for the perceptual and saturation "
+                 "tables.")
     if settings is not None and model is not None and not _bitexact_le4 \
             and not render2:
         try:
@@ -889,12 +1591,14 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
             oracle = fit_gammap_port_mappers(
                 model, meas, source_gamut, settings,
                 getattr(settings, "argyll_bin", None), progress,
-                is_additive=is_additive, ink_limit=ink_limit)
+                is_additive=is_additive, ink_limit=ink_limit,
+                **({"dst_black_lab": dst_black_lab}
+                   if ownmap or dst_black_lab is not None else {}))
         except Exception as exc:                      # noqa: BLE001
             if progress:
                 progress(f"Ported gammap unavailable ({exc}) — "
                          "matching colprof's rendering instead.")
-    elif _bitexact_le4 and progress:
+    elif _bitexact_le4 and progress and not render2:
         progress("Gamut mapping (maximum accuracy): rendering intents "
                  "matched to ArgyllCMS colprof."
                  if accurate else
@@ -906,17 +1610,23 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
             cp = fit_colprof_mappers(
                 meas, source_gamut, settings,
                 getattr(settings, "argyll_bin", None), progress,
-                node_lab=node_lab)
+                node_lab=node_lab, pending=oracle_run)
             for tag, m in cp.items():
                 oracle.setdefault(tag, m)
         except OracleUnavailable as exc:
             if progress:
                 progress(f"Using the engine's own rendering ({exc}).")
 
+    jobs: list[str] = []
     for tag, intent, s_int, default_kw in (
             ("B2A0", getattr(settings, "perc_intent", ""), perc_int, {}),
             ("B2A2", getattr(settings, "sat_intent", ""), sat_int,
              _SAT_DEFAULT)):
+        if tag == "B2A2" and not sat_gamut:
+            # colprof -s: "the saturation intent will use the same table as
+            # the perceptual intent" (colprof.html).
+            out[tag] = "B2A0"
+            continue
         if intent in _COLORIMETRIC_INTENTS:
             out[tag] = "B2A1"          # colorimetric-family intent: exact
             continue
@@ -929,37 +1639,453 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
         elif mapper is None:
             src = source_surface_from_profile(source_gamut, intent=s_int)
             mapper = _mapper_for(intent, default_kw, src, dst, settings)
-            if anchor is not None and isinstance(mapper, GamutMapper):
+            anchor_v = anchor() if callable(anchor) else anchor
+            if anchor_v is not None and isinstance(mapper, GamutMapper) \
+                    and "neutral_lab" in anchor_v:
                 # +N: colprof-anchored neutral rendering (CMYK proxy).
-                mapper.neutral_table = anchor
+                mapper.neutral_table = anchor_v
         if mapper is None:
             out[tag] = "B2A1"
             continue
         mappers[tag] = mapper
+        jobs.append(tag)
+
+    # Research Agent 79 (a79-perccol, Findings/agent79-01-isissmooth.md):
+    # the source-neutral column of the mapped tables is the colorimetric
+    # table's axis (late GCR, C/M/Y-led) while every other node is the
+    # colprof oracle's own device value (K-led, -kr). The CMM interpolates
+    # the cells next to the axis between the two separations. On a printer
+    # whose colour inks lighten heavy black (an ink fold) those mixes print
+    # off their targets and change fast with L*: R-CMYK-default-i1iSis
+    # (mild fold) shows a band and a hue patch on every grey ramp and a step
+    # at the dark end of the blue / violet ramps that colprof's table does
+    # not have; its target tone also carries a 3.4 L* error of the model on
+    # the K axis (K 0.60, a gap of the training chart). With the token, on a
+    # 4-ink CMYK printer with a MILD fold (cmykport.k_fold finds one and
+    # fold_at_black < A73_FOLD_MIN, the a73-kfirst test, which on a strong
+    # fold already puts colprof's -kr K prior under the axis), the column
+    # keeps the oracle's devices like its neighbours. No fold, or a strong
+    # one: bytes unchanged.
+    _a79 = None
+    if (accurate and A79_TOKEN in getattr(settings, "engine_candidates",
+                                          frozenset())
+            and model is not None and not is_additive):
+        _a79 = a79_mild_fold(model, channel_letters, meas)
+        if progress:
+            progress("Perceptual neutral column (a79-perccol): "
+                     + (f"mild ink fold (from K {_a79[0]:.2f}, {_a79[1]:.1f}"
+                        " L* at the black): colprof's separation kept."
+                        if _a79 else "no change."))
+    if (_a79 is None and accurate and A80_PERCCOL in getattr(
+            settings, "engine_candidates", frozenset())
+            and model is not None and not is_additive
+            and model.n_channels == 4):
+        # Research Agent 80 (a80-perccol): where a80-greywalk re-walked the
+        # grey (a measured fold that a79_mild_fold misses because the model
+        # shows no k_fold: XFI), the perceptual column is a79-perccol's too
+        _axv80 = neutral_axis() if callable(neutral_axis) else neutral_axis
+        if _axv80 is not None and (_axv80.get("a80") or {}).get("fired"):
+            _a79 = (float("nan"), float("nan"))
+            if progress:
+                progress("Perceptual neutral column (a80-perccol): "
+                         "colprof's separation kept.")
+
+    # Optional hue-kept rendering (BuildSettings.hue_rendering = "kept",
+    # token x1-huekeep; hue_keep.py): Maximum accuracy, RGB printers, Lab
+    # PCS. Everywhere else the token does nothing and says so once.
+    from workflow.profile_engine import hue_keep
+    _huekeep = False
+    if accurate and model is not None and hue_keep.TOKEN in getattr(
+            settings, "engine_candidates", frozenset()):
+        if not hue_keep.applies(settings.engine_candidates, accurate=True,
+                                is_additive=is_additive,
+                                n_channels=model.n_channels):
+            if progress:
+                progress(hue_keep.NOT_RGB_LINE)
+        elif codec.signature != b"Lab ":
+            if progress:
+                progress(hue_keep.NOT_LAB_LINE)
+        else:
+            _huekeep = True
+
+    def _map_and_invert(tag: str):
+        """One intent's table: map the node targets, invert them. Each
+        intent reads only its own mapper and the (unchanged) model, so the
+        two intents can run side by side with the same bytes (D-06)."""
+        mapper = mappers[tag]
         if progress is not None and getattr(mapper, "expensive_map", False):
             # The helper rebuilds Argyll's new_gammap per call (~20 s).
             progress(f"Gamut mapping: matching source colours "
                      f"({'1' if tag == 'B2A0' else '2'}/2, Argyll's "
                      f"mapper)…")
         mapped = mapper.map_lab(node_lab)
+        if accurate and "a25-oracle-model" in getattr(
+                settings, "engine_candidates", frozenset()) and getattr(
+                mapper, "node_dev", None) is not None:
+            # Research (Agent 25, F-16/F-18): the oracle target is what
+            # colprof's TABLE prints, by the engine's model, instead of what
+            # colprof's own A2B claims it prints (that A2B is 8-12 L* wrong
+            # in places; Findings F-16, F-18). In the engine's gamut by
+            # construction, so no target needs a re-clip.
+            mapped = model.predict(np.clip(mapper.node_dev, 0.0, 1.0))
+        _cands = getattr(settings, "engine_candidates", frozenset())
+        _neutral_col = None
+        _a29_pts = None
+        # Research Agent 35: perceptual/saturation black = the colorimetric
+        # black, reached by a hand-over band (b2a A35_TOKENS)
+        _a35 = (b2a_mod.a35_mode(_cands)
+                if accurate and model.n_channels <= 4 else None)
+        _a35_band = None
+        _a45_path = None
+        if accurate and "a25-oracle-neutral" in _cands and getattr(
+                mapper, "node_dev", None) is not None and not (
+                    _a79 and tag == "B2A0"):
+            # Research (Agent 25): perceptual maps the neutral axis onto the
+            # neutral axis. The source-neutral column's target keeps the L*
+            # colprof's table prints (engine model) but is made neutral, and
+            # is re-inverted; integration 2's inversion was neutral there
+            # (X1 grey C* 1.1) and colprof's own table is not (1.8).
+            _neutral_col = np.flatnonzero(
+                np.hypot(node_lab[:, 1], node_lab[:, 2]) < 1.0)
+            mapped = mapped.copy()
+            mapped[_neutral_col] = model.predict(
+                np.clip(mapper.node_dev[_neutral_col], 0.0, 1.0))
+            mapped[_neutral_col, 1:] = 0.0
+            if model.n_channels <= 4 and (
+                    "a29-blackhandover" in _cands
+                    or ("a29-blackhandover-ink" in _cands
+                        and not is_additive)
+                    or (any(t.startswith("a34-blackseam") for t in _cands)
+                        and not is_additive)
+                    or _a35 is not None):
+                # Research Agent 29a: the source black lands on the
+                # destination black (the axis black B2A1 prints; RGB 0 on
+                # an RGB printer), whatever the engine's model says
+                # colprof's black device value prints.
+                if is_additive:
+                    _bk_l = float(model.predict(
+                        np.zeros((1, model.n_channels)))[0, 0])
+                else:
+                    _axv = (neutral_axis() if callable(neutral_axis)
+                            else neutral_axis)
+                    _bk_l = None
+                    _a43 = b2a_mod.a43_mode(_cands)
+                    if (_a43 == "floor" and _a35 and _axv is not None
+                            and _axv.get("handover")):
+                        # Research Agent 43, part 2: the perceptual and
+                        # saturation black no deeper than the darkest
+                        # measured near-neutral patch (b2a.a43_floor_axis)
+                        _l_deep0 = float(_axv["l_black"])
+                        _axv = b2a_mod.a43_floor_axis(
+                            model, _axv, _axv.get("a43_meas_floor"))
+                        if (b2a_mod.A45_TOKEN in _cands
+                                and _axv.get("a43_floor") is not None):
+                            # Research Agent 45, parts 2/3: the black is the
+                            # oracle's own black device, reached from the
+                            # axis on one planned device path (b2a.py)
+                            _ob = None
+                            if getattr(mapper, "node_dev", None) is not None:
+                                _i0 = int(np.argmin(np.abs(node_lab).sum(1)))
+                                _ob = np.clip(mapper.node_dev[_i0], 0.0, 1.0)
+                            _a45_path = b2a_mod.a45_dark_path(
+                                model, _axv, _ob, l_deep=_l_deep0,
+                                l_floor=_axv.get("a43_floor"))
+                    if _axv is not None and _axv.get("black") is not None:
+                        # perceptual/saturation hand over only while the
+                        # model still prints it neutral (C* <= 1, the
+                        # axis's own test): colprof keeps its perceptual
+                        # black near neutral on CMYK (battery v3.1:
+                        # R-CMYK-default C* 0.4-0.5) while B2A1 goes deep.
+                        # Pre-check: capping at colprof's own perceptual
+                        # black chroma (engine model) instead tinted the
+                        # i1iSis perceptual black to C* 2.9 (base 1.7).
+                        # Agent 35: with a35-percblack-* the column goes
+                        # all the way to the colorimetric (deep) black
+                        _a29_pts = b2a_mod.axis_points(
+                            _axv, chroma_cap=None if _a35 else 1.0)
+                        _bk_l = _a29_pts[2]
+                        if _a45_path is not None:
+                            _bk_l = _a45_path["l_b"]
+                        if (_a35 and _axv.get("handover")
+                                and _a45_path is None):
+                            _lab_d = np.asarray(_axv["handover_lab"], float)
+                            if _a43 and _a35 == "blend":
+                                # Research Agent 43, part 1 (b2a.a43_band)
+                                _lf, _w = b2a_mod.a43_band(
+                                    _axv["blend_l"], _axv["blend_c"],
+                                    l_neutral=float(_axv["neutral_l_black"]),
+                                    l_deep=float(_axv["l_black"]),
+                                    c_deep=float(np.hypot(*_lab_d[1:])))
+                            else:
+                                _w = b2a_mod.percblack_width(
+                                    _axv["blend_l"], _axv["blend_c"],
+                                    l_neutral=float(_axv["neutral_l_black"]),
+                                    l_deep=float(_axv["l_black"]),
+                                    c_deep=float(np.hypot(*_lab_d[1:])),
+                                    mode=_a35)
+                                _lf = float(_axv["l_black"])
+                            _a35_band = {
+                                "l_deep": float(_axv["l_black"]),
+                                "l_full": _lf,
+                                "ab_deep": _lab_d[1:], "width": _w,
+                                "path_l": np.asarray(_axv["blend_l"], float),
+                                "path_dev": np.asarray(_axv["blend_dev"],
+                                                       float)}
+                if _bk_l is not None:
+                    # Research Agent 36 (a36-lcms8-safe): on an RGB
+                    # printer the column is made monotone by a bridge, not
+                    # a running minimum, so an oracle reversal leaves no
+                    # plateau (b2a.monotone_bridge; Findings/agent36-01).
+                    mapped[_neutral_col, 0] = b2a_mod.anchor_column_black(
+                        mapped[_neutral_col, 0], node_lab[_neutral_col, 0],
+                        _bk_l, bridge=bool(
+                            is_additive and b2a_mod.A36_TOKEN in _cands))
+        _odev = (np.clip(mapper.node_dev, 0.0, 1.0)
+                 if accurate and getattr(mapper, "node_dev", None) is not None
+                 and ({"a25-oracle-dev", "a25-oracle-seed"} & set(_cands))
+                 else None)
+        if ownmap and "a9-warp" in getattr(settings, "engine_candidates",
+                                           frozenset()):
+            # Research a9-warp: colprof's realized map is smooth because it
+            # passes through colprof's own smooth B2A table; the raw node map
+            # of Argyll's mapper is not. A smooth displacement field fitted
+            # to it (the same warp that reproduces colprof's map to 0.23 dE)
+            # gives the inversion a smooth target field.
+            mapped = WarpMapper(node_lab, mapped).map_lab(node_lab)
         mapped_by_tag[tag] = mapped
         # Mapped targets land inside (or at) the gamut surface, so per-node
         # inversion converges everywhere — the boundary-cell kink that makes
         # the colorimetric table need a global refit doesn't arise here.
-        dev, _residual = b2a_mod.invert_to_device(
+        if _odev is not None and "a25-oracle-dev" in _cands:
+            # Research (Agent 25): colprof's own perceptual device values at
+            # the nodes, no re-inversion (what colprof's table prints).
+            dev = _odev.copy()
+            if channel_max is not None:
+                dev = np.minimum(dev, channel_max[None, :])
+            if _a79 and tag == "B2A0":
+                # Research a79-perccol (perceptual table only: the
+                # saturation table stays as it was, its neutral column
+                # scored 0.25 -> 0.38 C* with it): the oracle's own column, and below
+                # a79_la() one straight path into the oracle's black
+                dev = a79_neutralise(model, dev, node_lab,
+                                     ink_limit=None if is_additive
+                                     else ink_limit,
+                                     channel_max=channel_max)
+                dev = a79_dark_path(dev, node_lab)
+            _ax = neutral_axis() if callable(neutral_axis) else neutral_axis
+            if (_neutral_col is not None and len(_neutral_col)
+                    and _ax is not None and _ax.get("black") is not None):
+                # Ink devices: the colorimetric table's own neutral axis (the
+                # continuation walk under the ink policy, the column B2A1
+                # prints neutral with) at the lightness colprof's table
+                # prints; below its black, the neutral black.
+                al = np.asarray(_ax["l"], float)
+                aok = np.asarray(_ax["ok"], bool)
+                adev = np.asarray(_ax["dev"], float)
+                order = np.argsort(al[aok])
+                ls_ = al[aok][order]
+                ds_ = adev[aok][order]
+                _lb, _bk = _ax["l_black"], np.asarray(_ax["black"], float)
+                if _a29_pts is not None:
+                    # Research Agent 29a: the hand-over points, ending at
+                    # the exact (capped) black, not at a 0.5 L* grid point
+                    ls_, ds_, _lb, _bk = _a29_pts
+                for i in _neutral_col:
+                    lt = mapped[i, 0]
+                    if lt < _lb:
+                        dev[i] = _bk
+                    else:
+                        # linear along the walk (0.5 L* steps)
+                        dev[i] = [np.interp(lt, ls_, ds_[:, c])
+                                  for c in range(ds_.shape[1])]
+                if _a45_path is not None:
+                    # Research Agent 45: the dark end on the planned path
+                    _lt = mapped[_neutral_col, 0]
+                    _in = _lt < _a45_path["l_a"]
+                    dev[_neutral_col[_in]] = b2a_mod.a45_path_devices(
+                        _lt[_in], _a45_path)
+                if _a35_band is not None:
+                    dev = _a35_apply_band(
+                        model, dev, mapped, _neutral_col, _a35_band, _a35,
+                        dict(channel_letters=channel_letters,
+                             is_additive=is_additive, ink_limit=ink_limit,
+                             accurate=accurate, extra_hues=extra_hues,
+                             black_l=black_l, k_gen=k_gen,
+                             channel_max=channel_max))
+            elif _neutral_col is not None and len(_neutral_col):
+                _tgt = mapped[_neutral_col]
+                _at_black = None
+                if (is_additive and "a29-blackhandover" in _cands
+                        and model.n_channels == 3):
+                    # Research Agent 29a: RGB. Neutral down to the RGB
+                    # neutral black (at least 1 L* above the device black),
+                    # then a*b* hand over smoothly to RGB 0's own a*b*; the
+                    # source black prints RGB 0 (colprof's black). Before,
+                    # a neutral target below the neutral black was clipped
+                    # to a lighter neutral (S1 28.8 vs 26.8, X1 9.0 vs 7.9).
+                    _lab0 = model.predict(np.zeros((1, 3)))[0]
+                    _l_nb, _ = b2a_mod.rgb_neutral_black(model,
+                                                         float(_lab0[0]))
+                    _tgt = _tgt.copy()
+                    _tgt[:, 1:] = b2a_mod.handover_target_ab(
+                        _tgt[:, 0], l_top=max(_l_nb, _lab0[0] + 1.0),
+                        l_deep=float(_lab0[0]), ab_deep=_lab0[1:])
+                    _at_black = _tgt[:, 0] <= _lab0[0] + 0.05
+                dev[_neutral_col] = b2a_mod.invert_to_device(
+                    model, _tgt,
+                    channel_letters=channel_letters, is_additive=is_additive,
+                    ink_limit=ink_limit, accurate=accurate,
+                    extra_hues=extra_hues, black_l=black_l, k_gen=k_gen,
+                    channel_max=channel_max, seed=_odev[_neutral_col])[0]
+                if _at_black is not None and _at_black.any():
+                    dev[_neutral_col[_at_black]] = 0.0
+                if (_a35 is not None and is_additive
+                        and model.n_channels == 3
+                        and "a29-blackhandover" not in _cands):
+                    # Research Agent 35: RGB. The source black prints RGB 0
+                    # (B2A1's and colprof's black); the column is handed
+                    # over to RGB 0's a*b* below the RGB neutral black.
+                    _lab0 = model.predict(np.zeros((1, 3)))[0]
+                    _l_nb, _d_nb = b2a_mod.rgb_neutral_black(
+                        model, float(_lab0[0]))
+                    if _l_nb > float(_lab0[0]) + 1e-6:
+                        _pl, _pd, _pc = b2a_mod.rgb_handover_path(model,
+                                                                  _d_nb)
+                        _lf = float(_pl[-1])
+                        if b2a_mod.a43_mode(_cands) and _a35 == "blend":
+                            # Research Agent 43, part 1 (b2a.a43_band)
+                            _lf, _w = b2a_mod.a43_band(
+                                _pl, _pc, l_neutral=float(_pl[0]),
+                                l_deep=float(_pl[-1]),
+                                c_deep=float(np.hypot(*_lab0[1:])))
+                        else:
+                            _w = b2a_mod.percblack_width(
+                                _pl, _pc, l_neutral=float(_pl[0]),
+                                l_deep=float(_pl[-1]),
+                                c_deep=float(np.hypot(*_lab0[1:])),
+                                mode=_a35)
+                        dev = _a35_apply_band(
+                            model, dev, mapped, _neutral_col,
+                            {"l_deep": float(_pl[-1]), "l_full": _lf,
+                             "ab_deep": _lab0[1:],
+                             "width": _w, "path_l": _pl, "path_dev": _pd},
+                            _a35,
+                            dict(channel_letters=channel_letters,
+                                 is_additive=is_additive,
+                                 ink_limit=ink_limit, accurate=accurate,
+                                 extra_hues=extra_hues, black_l=black_l,
+                                 k_gen=k_gen, channel_max=channel_max),
+                            black_dev=np.zeros(3))
+                    else:
+                        # RGB 0 is itself neutral (model C* < 1, X1): no
+                        # band, but the source black still prints RGB 0,
+                        # B2A1's black. The neutral target's inversion
+                        # put 1.8 % blue in it (X1 perceptual 8.5-9.0 vs
+                        # RGB 0's 7.9; Agent 35 battery, s6).
+                        # Only where RGB 0 is darker in the model than
+                        # the inversion: on R-Knut-printer the inversion's
+                        # neutral prints deeper than RGB 0 (proxy 19.6 vs
+                        # 20.1), pinning RGB 0 there made a reversal.
+                        _blk = np.flatnonzero(
+                            mapped[_neutral_col, 0] <= float(_lab0[0]) + 0.05)
+                        if len(_blk):
+                            _lk = model.predict(dev[_neutral_col[_blk]])[:, 0]
+                            _blk = _blk[_lk > float(_lab0[0])]
+                            dev[_neutral_col[_blk]] = 0.0
+                    if (A86_TOKEN in _cands and _odev is not None
+                            and getattr(mapper, "oracle_icc", None)):
+                        # Research Agent 86 (a86-knutdark): see A86_TOKEN
+                        _rep: dict = {}
+                        dev = a86_knutdark(
+                            model, dev, mapped, _neutral_col, node_lab, _odev,
+                            mapper.oracle_icc,
+                            argyll_tool_path(
+                                Path(getattr(settings, "argyll_bin", None)
+                                     or "/Applications/Argyll/bin"),
+                                "xicclu"),
+                            _l_nb, report=_rep)
+                        if _rep.get("fired") and progress is not None:
+                            progress(f"a86-knutdark ({tag}): the oracle's A2B "
+                                     f"prints the darkest neutral steps at "
+                                     f"{_rep['ratio_min']:.2f} of the model's "
+                                     f"(path cosine {_rep['cos']:.2f}); "
+                                     f"{_rep['nodes']} column nodes take "
+                                     f"colprof's own device values up to L* "
+                                     f"{_rep['l_top']:.1f} + fade.")
+            if ink_limit is not None and not is_additive:
+                # the engine's ink limit, exactly (xicclu's 4-decimal device
+                # values and colprof's own limit handling overshoot it by up
+                # to 1 %: FOGRA39 333 % for a 330 % limit)
+                dev = b2a_mod.project_tac(dev, ink_limit / 100.0)
+        else:
+          dev, _residual = b2a_mod.invert_to_device(
             model, mapped, channel_letters=channel_letters,
             is_additive=is_additive, ink_limit=ink_limit,
             accurate=accurate, extra_hues=extra_hues, black_l=black_l,
             k_gen=k_gen,
             ucs=accurate and "ucs" in getattr(settings, "engine_candidates",
                                               frozenset()),
+            channel_max=channel_max,
             progress=progress,
-            progress_label="Gamut mapping: building the final colour table")
-        shaped = model.shape_device(dev)
+            progress_label="Gamut mapping: building the final colour table",
+            **({"seed": _odev} if _odev is not None else {}))
+        # colprof -no applies to EVERY B2A table (A-17): identity output
+        # tables with unshaped device values in the CLUT.
+        shaped = dev if no_out_shaper else model.shape_device(dev)
+        # Perceptual/saturation white is device white by definition
+        # (source white → destination white); the inversion of the mapped
+        # target lands a fitted value there, so pin it (b2a.pin_white_node).
+        shaped = b2a_mod.pin_white_node(shaped, node_lab, is_additive)
+        if black_dev_shaped is not None and (f05_pin or (
+                ownmap and "a9-blackpin" in
+                getattr(settings, "engine_candidates", frozenset()))):
+            # Research agent9-01 6.3: source black -> the SAME device black
+            # as the colorimetric table (the neutral black under the limits),
+            # as B2A1's pin_black_node does; the gamut map's own black lands
+            # 0.1-0.5 L* lighter (mapres interpolation of the black point).
+            dev_b = np.asarray(black_dev_shaped, float)
+            if no_out_shaper:
+                dev_b = model.unshape_device(dev_b[None, :])[0]
+            shaped = b2a_mod.pin_black_node(shaped, node_lab, dev_b)
+        if _a42_space is not None and not no_out_shaper:
+            shaped = b2a_mod.reexpress(shaped, model.curves, _a42_space)
+        _out_tables = (np.tile(icw._identity_table(entries),
+                               (model.n_channels, 1)) if no_out_shaper
+                       else icw.curves_to_tables(inv_curves, entries))
+        if _huekeep:
+            # Optional hue-kept rendering (hue_keep.py): the finished table
+            # re-solved as one smooth field with the source hue kept. Each
+            # intent's solve reads only its own table and the model.
+            shaped, _hk = hue_keep.keep_source_hue(
+                model, shaped, node_lab, grid=grid, out_tables=_out_tables)
+            if progress is not None and _hk.get("applied"):
+                progress(hue_keep.progress_line(tag, _hk))
         out[tag] = icw.make_mft2(
             3, model.n_channels, grid, icw.device_to_u16(shaped),
             in_tables=codec.b2a_in_tables(entries),
-            out_tables=icw.curves_to_tables(inv_curves, entries))
+            out_tables=_out_tables)
+        if (accurate and tag == "B2A0" and A80_ORACLECURVE in getattr(
+                settings, "engine_candidates", frozenset())
+                and getattr(mapper, "oracle_out", None) is not None):
+            _axv = (neutral_axis() if callable(neutral_axis)
+                    else neutral_axis)
+            if _axv is not None and (_axv.get("a80") or {}).get("fired"):
+                out[tag] = a80_oracle_output(out[tag], mapper.oracle_out)
+                if progress:
+                    progress("Perceptual table: colprof's output curves "
+                             "(research a80-oraclecurve).")
+        return tag
+
+    from workflow.profile_engine import parallel
+    if accurate and len(jobs) > 1:
+        parallel.run_tasks([(lambda t=t: _map_and_invert(t)) for t in jobs])
+    else:
+        for t in jobs:
+            _map_and_invert(t)
+    # The tags in the serial order (B2A0 before B2A2), whichever intent
+    # finished first: the writer keeps insertion order.
+    out = {t: out[t] for t in ("B2A0", "B2A2") if t in out} | {
+        k: v for k, v in out.items() if k not in ("B2A0", "B2A2")}
 
     if getattr(settings, "inverse_gamut_a2b", False) and mappers \
             and a2b_grid is not None:

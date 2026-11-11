@@ -342,15 +342,51 @@ def test_accurate_rgb_build_end_to_end(tmp_path):
     assert res.fit_median_de00 > 0.0
     assert res.fit_median_de00 <= res.fit_p95_de00
     assert res.fit_median_de < 1.5
+    # Integration 6: a40-knut-grey is a default. On this small noiseless
+    # chart its held-out exam picks the gentler ramp curves, and the build
+    # then fits at the standard smoothing (no cross-validated search; Agent
+    # 38 s6, builder.py). The search itself is pinned with the exam off:
+    if any("gentler in the light part" in m for m in msgs):
+        assert not any("cross-validation" in m for m in msgs)
+        msgs = []
+        st = BuildSettings(quality="l", gammap_mode="accurate",
+                           progress=msgs.append,
+                           engine_candidates=frozenset({"no-a40-knut-grey"}))
+        build_profile(ti3, tmp_path / "rgb-search.icc", st)
     assert any("cross-validation" in m for m in msgs)
 
 
 @pytest.mark.slow
+# RESEARCH FINDING F-00 (research/profile-engine, 2026-09-29): red since
+# 37357e92 (the Sept round's KKT face step for accurate CMYK black depth);
+# 37357e92~1 passes. The neutral column's largest step is 0.58 against 0.45:
+# C, M and Y fall by ~0.25 per step at the dark end. It was never seen because
+# only the everyday tier ran after that commit. Whether the step or this
+# threshold is wrong is for the benchmark to decide, see
+# ~/Desktop/ProfileEngineResearch/Findings/F-00-*.md. Strict, so a change
+# either way turns this red.
+# Measured 2026-10-03 (Findings/agent5-03, item 4): NOT the B2A refit. With
+# the neutral column fixed by the continuation walk and anchored, the raw
+# step is still 0.58 (0.585 with the refit pinned to every per-node value);
+# with the -kr rule on the same chart it is 0.28 (printed 0.39 per 0.25 L*,
+# no reversal). The step is the default late-GCR K locus meeting this
+# fixture's ink-limit face (solid K prints L* 39), and it PRINTS (1.0 dE00
+# per 0.25 L*, 11 L* reversals), so the xfail stays: it is a real fault of
+# the default K rule on a weak-black printer, not of this threshold.
+@pytest.mark.xfail(strict=True, reason="research finding F-00: neutral-column "
+                   "jump after the accurate CMYK black-depth fix (37357e92)")
 def test_accurate_cmyk_build_and_separation_smoothness(tmp_path):
     ti3 = write_synth_ti3(tmp_path / "cmyk.ti3", "CMYK",
                           [f"CMYK_{c}" for c in "CMYK"], additive=False,
                           n_per_axis=7, ink_limit=300.0)
-    st = BuildSettings(quality="l", gammap_mode="accurate")
+    # Research integration 1 (2026-10-04): Maximum accuracy now writes its
+    # B2A at grid 33 by default (token b2a33s). The checks below measure the
+    # step between ADJACENT nodes, so a 4x finer grid (9 -> 33) shrinks them
+    # and the F-00 jump no longer reaches the thresholds, although the K
+    # locus that causes it is unchanged (XPASS on gate-07). F-00 is recorded
+    # at the grid it was found on: "no-b2a33s" keeps this build at grid 9 (-ql).
+    st = BuildSettings(quality="l", gammap_mode="accurate",
+                       engine_candidates=frozenset({"no-b2a33s"}))
     res = build_profile(ti3, tmp_path / "cmyk.icc", st)
     assert res.icc_path.exists()
     assert res.n_channels == 4
@@ -400,10 +436,15 @@ def test_shaped_xyz_pcs_codec_roundtrips_and_resolves_shadows():
     expect = np.stack(np.meshgrid(axes, axes, axes, indexing="ij"),
                       -1).reshape(-1, 3)
     assert np.allclose(u, expect, atol=1e-4)   # Lab↔XYZ float roundtrip
-    # the input tables encode the same cube root, monotonically.
+    # the input tables encode the same cube root of (code / PCS white),
+    # monotonically, saturating at the white (the grid ends at D50 so the
+    # corner node IS the paper white — reviewer R1b, 2026-09-05).
     t = XyzPcsShaped.b2a_in_tables(2048).astype(float) / 0xFFFF
     assert (np.diff(t, axis=1) >= 0).all()
-    assert t[0, 1024] == pytest.approx(np.cbrt(1024 / 2047), abs=1e-3)
+    code = 1024 / 2047 * icw.XYZ16_MAX
+    assert t[0, 1024] == pytest.approx(np.cbrt(min(code / 0.9642, 1.0)), abs=1e-3)
+    assert t[1, -1] == 1.0 and t[2, 1024] == pytest.approx(
+        np.cbrt(min(code / 0.8249, 1.0)), abs=1e-3)
     # shadow resolution: the darkest grid step covers a small L* span now
     # (L* rides on the Y axis — the middle meshgrid dimension).
     l_axis_shaped = XyzPcsShaped.node_lab(33)[0:33 * 33:33, 0]
@@ -430,8 +471,14 @@ def test_accurate_xyz_build_carries_shaped_tables(tmp_path):
     nie, _ = struct.unpack(">HH", data[off + 48:off + 52])
     table = np.frombuffer(data, dtype=">u2", count=nie,
                           offset=off + 52).astype(float) / 0xFFFF
-    # cube-root input curve, not identity.
-    assert table[nie // 2] == pytest.approx(np.cbrt(0.5), abs=0.01)
+    # cube-root input curve, not identity — of (code / PCS white), saturating
+    # at the white: the grid ends at D50 since 2026-09-05 (reviewer R1b), so
+    # the mid entry (code ≈ 1.0 ≥ the white's X) reads 1.0 and a quarter of
+    # the way in the curve is still the cube root.
+    from workflow.profile_engine import icc_writer as _icw
+    assert table[nie // 2] == pytest.approx(1.0, abs=0.01)
+    code_q = 0.25 * _icw.XYZ16_MAX
+    assert table[nie // 4] == pytest.approx(np.cbrt(code_q / 0.9642), abs=0.02)
 
 
 def test_percent_progress_interpolates_substeps():
@@ -459,8 +506,11 @@ def test_accurate_build_emits_granular_progress(tmp_path):
                           ["RGB_R", "RGB_G", "RGB_B"], additive=True,
                           n_per_axis=6)
     msgs: list[str] = []
+    # the smoothing search runs unless a40-knut-grey's exam switches to the
+    # standard smoothing, which it does on this toy chart (integration 6)
     st = BuildSettings(quality="l", gammap_mode="accurate",
-                       progress=msgs.append)
+                       progress=msgs.append,
+                       engine_candidates=frozenset({"no-a40-knut-grey"}))
     build_profile(ti3, tmp_path / "rgb.icc", st)
     assert any("smoothing search" in m for m in msgs)
     assert any("converging" in m for m in msgs)

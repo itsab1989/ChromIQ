@@ -341,7 +341,7 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
             # An .mxf records the grid and every patch's place on it; a file
             # that does not (a CGATS export) is judged as before.
             from workflow.i1profiler_turned import grid_mismatch
-            why = grid_mismatch(ti3, turned.order)
+            why = grid_mismatch(ti3, turned.order, chart_ti2)
             if why:
                 return ImportVerdict(False, why, n_chart=n_chart or 0,
                                      n_measured=n_got)

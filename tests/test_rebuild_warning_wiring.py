@@ -209,7 +209,11 @@ def test_a_silenced_warning_moves_nothing_under_verifications_either(tmp_path):
     src = inspect.getsource(TabProfile._archive_the_profile_being_replaced)
     code = src.split('"""', 2)[2]
     assert "verification" not in code
-    assert "archive_to_old([icc]" in code
+    # the profile, and only its own companions in the run folder (colprof's
+    # comparison profile and the "-v4.icc" twin, 2026-11-10)
+    assert "present = [icc]" in code
+    assert "archive_to_old(present" in code
+    assert code.count("present.append(") == 2
 
 
 def test_the_verifications_do_not_land_in_the_runs_own_old_folder(tmp_path):

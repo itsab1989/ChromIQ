@@ -1693,11 +1693,33 @@ class I1ProfilerToTi3Dialog(_ToolDialogBase):
         collected: list[str] = []
 
         def _on_line(line: str) -> None:
+            if src != staged_txt:
+                # txt2ti3 names the file it read: the staged one, for the
+                # person, never the temporary copy with decimal points.
+                line = line.replace(str(src), staged_txt.name)
             collected.append(line)
             self._log.appendPlainText(line.rstrip())
             self._log.ensureCursorVisible()
 
+        # DECIMAL COMMAS (i1Profiler on a decimal-comma system): txt2ti3
+        # reads a temporary copy with points, removed when it has finished;
+        # neither the user's file nor the staged copy is written. The same
+        # helper as every other i1Profiler import door.
+        #
+        # The copy is held by the WINDOW, not only by this run's finish: it is
+        # also removed when the run does not start, when the window closes
+        # (`done`, `closeEvent`) and before the next conversion, so no path
+        # leaves it behind (4.3.32 review). Closing twice is harmless.
+        from contextlib import ExitStack
+        from workflow.reference_convert import decimal_point_source
+        self._drop_decimal_point_copy()
+        points = ExitStack()
+        self._decimal_points = points
+        src = points.enter_context(decimal_point_source(staged_txt))
+        src_arg = staged_txt.name if src == staged_txt else str(src)
+
         def _on_finish(code: int) -> None:
+            points.close()
             ok = code == 0 and out.exists()
             if ok:
                 # txt2ti3 doesn't carry the instrument across; read it from the
@@ -1733,13 +1755,33 @@ class I1ProfilerToTi3Dialog(_ToolDialogBase):
                     self._log.appendPlainText(detail)
                 self._finish(False)
 
-        self._runner.run(
-            "txt2ti3",
-            ["-v", staged_txt.name, base],
-            cwd=out_dir,
-            on_line=_on_line,
-            on_finish=_on_finish,
-        )
+        try:
+            self._runner.run(
+                "txt2ti3",
+                ["-v", src_arg, base],
+                cwd=out_dir,
+                on_line=_on_line,
+                on_finish=_on_finish,
+            )
+        except BaseException:
+            points.close()
+            raise
+
+    def _drop_decimal_point_copy(self) -> None:
+        """Remove the temporary decimal-point copy of the last conversion,
+        if one is still there."""
+        points = getattr(self, "_decimal_points", None)
+        self._decimal_points = None
+        if points is not None:
+            points.close()
+
+    def done(self, result: int) -> None:  # noqa: D102 — Run-accept and Close
+        self._drop_decimal_point_copy()
+        super().done(result)
+
+    def closeEvent(self, event) -> None:  # noqa: N802
+        self._drop_decimal_point_copy()
+        super().closeEvent(event)
 
 
 # ---------------------------------------------------------------------------

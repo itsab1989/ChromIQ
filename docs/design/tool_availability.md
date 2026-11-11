@@ -291,3 +291,114 @@ neither introduces.
 - **The audit and its completeness tests** — see §5.
 - **Nothing greys out yet.** No cell of §4 is implemented, because no cell of
   §4 is confirmed.
+
+### ⏳ Awaiting confirmation — Inspect a measurement compares two readings of one chart (4.3.32)
+
+**Confirmed by:** *nobody yet.* Asked for by jctay (forum, 2026-11-10);
+Basti ordered it built on 2026-11-11 (*"do both, established workflow"*).
+Still ○ in every state: it reads files and writes none.
+
+* Measurement info has a row **Other readings:** under the mode row, in
+  both modes: a list of files (each with its name and, where the file says,
+  the date measured, the instrument and the measurement condition), Add…
+  (several files at once), Remove (the selected entries), Clear all and a
+  help button; up to nine other readings, ten in all; a file already in the
+  list is not added twice, and files past the ninth are not added and the
+  window says how many. Each is a reading of the same chart: a `.ti3`, a CGATS text file with XYZ or
+  L\*a\*b\* values, or an i1Profiler `.mxf`/`.cxf`, converted by the
+  import's converter in a temporary folder that is removed again, in the
+  measurement's own condition when the file holds it.
+* **Same chart first** (`workflow/reading_compare.py`): the patch count,
+  the patch numbers and the device values of every pair within
+  `PATCH_IDENTITY_TOL`, the rule of Verify against reference (4.3.30).
+  Files whose patch numbers do not pair (another grid, another order) are
+  paired by their device values when each names exactly one patch in each
+  file; patches whose device value repeats in the chart are left out and
+  counted (more than 10 % left out: refused). Anything else is refused with
+  M-READINGS-NOT-SAME-CHART; an unreadable or colourless file with
+  M-READINGS-UNUSABLE. Nothing is compared then.
+* **Results**, section "Another reading of this chart": the file, how the
+  patches were paired, the count, average, median, 95th percentile and
+  largest ΔE₀₀, the tolerance (0.5, 1.0 default, 2.0, or Custom 0.1 to 10)
+  and how many patches lie above it (above = strictly greater), the ten
+  largest differences with their strip and place as printed and both
+  L\*a\*b\* values, per printed strip the five worst and every strip of
+  which at least three quarters are above the tolerance ("nearly the whole
+  strip disagrees"), and a paragraph on what two readings can and cannot
+  tell. Save inspection… saves it with the rest, plus every patch above the
+  tolerance.
+* Nothing is written: not the measurement, not the second reading, no
+  profile (`tests/test_4332_compare_two_readings.py`).
+* **One other reading** gives the view above, row for row (also when it is
+  what is left after removing others). Where the files name different
+  measurement conditions or instruments, a row "Measured differently" says
+  so, in both views; nothing is refused for it (a file that names none is
+  left out of that check). Where a file names no condition (a chartread
+  .ti3 never does), a row "Measurement condition" names those readings
+  by their place ("This measurement", "The second reading", "Neither of
+  the two readings"; with three readings or more by number: "Reading 3",
+  "Readings 1, 3 and 4", "None of the readings", 4.3.32 review: file names
+  made a ten-line block) and says that ChromIQ cannot know their condition
+  (M0, M1, M2) or always their instrument, and that readings taken
+  differently differ for that reason alone. The "Second reading" row shows
+  the file with its date, instrument and condition where the file says
+  them. Every date the window reads from a file ("Measured on", the reading
+  lines) is shown one way: `2026-11-11 09:30`, or `2026-11-11` without a
+  time, and as the file has it when it does not read as a date
+  (`reading_compare.display_date`). Every added reading
+  is read by the same loader as the one other reading (review pass 1:
+  i1Profiler CGATS text converted as the import converts it; a reading
+  without device values beside a turned measurement refused).
+* **Two or more other readings** (Basti, 2026-11-11: several readings, not
+  only two), section "Other readings of this chart"
+  (`workflow/reading_compare.compare_several`). Every file is paired with
+  the measurement on its own; one that fails is refused with the messages
+  above, marked "not compared" in the list and shown as a "Not compared"
+  row, and the others are compared exactly as without it. Patches are those
+  every compared reading pairs (others left out and counted).
+  * The **centre** of a patch is the median of its L\*, of its a\* and of its
+    b\* over all readings, each separately: with three readings the middle
+    value (two that agree hold it, the third shows its whole difference),
+    with an even number the mean of the two middle values. Every reading's
+    ΔE₀₀ to the centre is its distance.
+  * The **spread** of a patch is the largest ΔE₀₀ between any two readings
+    (with two readings, their difference). **Repeatability**: the median and
+    95th percentile of the spread. "Above the tolerance" counts patches
+    whose spread is above it.
+  * **By reading**: per reading average, median, 95th percentile and largest
+    distance, and patches farther than the tolerance (count and share), with
+    a verdict: agrees with the others (none above); differs overall (median
+    distance above the tolerance); differs on nearly the whole strip X (at
+    least three quarters of a strip of three or more patches above); else
+    differs on N patches.
+  * **Groups** (4.3.32 review: two against two read as four readings that
+    each differ overall): two readings agree when their typical difference
+    (the median ΔE₀₀ between them over all compared patches) is within the
+    tolerance. When the readings split CLEANLY into groups (inside each
+    group every reading agrees with every other, none with a reading
+    outside it) and at least two groups hold two readings or more, a row
+    "Groups" names them by number ("readings 1 and 2; readings 3 and 4"),
+    any reading that agrees with no group, and says that ChromIQ cannot tell
+    which group is right. A reading of such a group that is not within the
+    tolerance of the centre says instead which readings it agrees with, and
+    its strips are not called slipped (the centre lies between the groups,
+    so that distance is the gap between them). A single reading
+    apart (three against one), a chain (1 agrees with 2, 2 with 3, 1 not
+    with 3) or no split at all names no groups
+    (`SeveralComparison.groups`).
+  * **Largest differences**: the ten largest spreads, each with its strip
+    and place, every reading's distance from the centre, and, above the
+    tolerance, "Reading N stands apart" when every pair of the OTHER
+    readings is within the tolerance and N is the only reading for which
+    that holds, else "the readings disagree with each other".
+  * **By strip**: the five strips where a reading (not one that differs
+    overall) is farthest from the centre on average, with every reading's
+    average, plus every strip that is nearly whole off in one such reading.
+  * **What this tells you**: standing apart is strong evidence, not proof;
+    two readings can share an error and make the good one stand apart.
+  * Save inspection… saves it all, plus every patch whose spread is above
+    the tolerance with its place, its spread and every reading's distance
+    from the centre. No CSV export: the window has none to extend.
+  * Read on the GUI thread as before; each file is read once and kept, so a
+    change of tolerance only recounts (`tests/test_4332_compare_several_
+    readings.py`, nine others of 2000 patches well under a second).

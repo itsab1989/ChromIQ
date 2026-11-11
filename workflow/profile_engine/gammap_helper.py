@@ -88,6 +88,24 @@ def is_available() -> bool:
         return False
 
 
+def _registered_run(cmd, *, input=None, capture_output=True, **kw):
+    """``subprocess.run`` for the helper, with the child registered in the
+    engine's Argyll-child registry for as long as it runs, so a quit
+    (``MainWindow`` -> ``terminate_argyll_children``) kills it like colprof
+    and xicclu. F-06: before this the helper outlived the app and left its
+    temp folder behind."""
+    from workflow.profile_engine.gamut_map import _LIVE_CHILDREN
+    proc = subprocess.Popen(
+        [str(c) for c in cmd], stdin=subprocess.PIPE if input else None,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    _LIVE_CHILDREN.add(proc)
+    try:
+        out, err = proc.communicate(input=input)
+    finally:
+        _LIVE_CHILDREN.discard(proc)
+    return subprocess.CompletedProcess(cmd, proc.returncode, out, err)
+
+
 def run_gammap(query_jab: np.ndarray, *, src_gam: Path | str, intent: str,
                mapres: int, wp_jab=None, bp_jab=None,
                dst_gam: Path | str | None = None,
@@ -127,7 +145,7 @@ def run_gammap(query_jab: np.ndarray, *, src_gam: Path | str, intent: str,
             args += ["--wp", *[f"{v:.9f}" for v in np.ravel(wp_jab)[:3]],
                      "--bp", *[f"{v:.9f}" for v in np.ravel(bp_jab)[:3]]]
         try:
-            r = run_text(args, capture_output=True)
+            r = run_text(args, capture_output=True, runner=_registered_run)
         except OSError as exc:
             raise HelperUnavailable(f"could not run helper: {exc}") from exc
         if r.returncode != 0 or not of.exists():

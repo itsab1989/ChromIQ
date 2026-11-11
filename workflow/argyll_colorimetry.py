@@ -64,7 +64,12 @@ from workflow.profile_engine import spectral_data as sd
 _LINEAR_BELOW_NM = 5.01
 
 _OBSERVERS = {"": sd.OBS_1931_2, "1931_2": sd.OBS_1931_2,
-              "1964_10": sd.OBS_1964_10}
+              "1964_10": sd.OBS_1964_10,
+              # The two 2015 observers the Build Profile tab has offered
+              # since #121 (CIE 170-2:2015 tables, in spectral_data): without
+              # them a Maximum accuracy build with -o 2015_2 died with
+              # "Unknown observer" instead of building.
+              "2015_2": sd.OBS_2015_2, "2015_10": sd.OBS_2015_10}
 _ILLUMINANTS = {
     "A": sd.ILLUM_A, "C": sd.ILLUM_C, "D50": sd.ILLUM_D50,
     "D65": sd.ILLUM_D65, "F5": sd.ILLUM_F5, "F8": sd.ILLUM_F8,
@@ -140,7 +145,8 @@ def _observer(observer) -> dict:
     key = str(observer or "").strip()
     if key not in _OBSERVERS:
         raise ColorimetryError(
-            f"Unknown observer {observer!r} (known: 1931_2, 1964_10).")
+            f"Unknown observer {observer!r} (known: 1931_2, 1964_10, "
+            "2015_2, 2015_10).")
     return _OBSERVERS[key]
 
 

@@ -24,10 +24,79 @@ instrument" below).
 
 ```bash
 source .venv/bin/activate
-QT_QPA_PLATFORM=offscreen pytest -n auto            # everyday tier, ~27,100 tests
-QT_QPA_PLATFORM=offscreen pytest --runslow -n auto  # THE RELEASE GATE, ~27,280 tests, ~9:30
-# measured 2026-10-21, 4.3.8: six gates 9:26-10:05 on an otherwise quiet machine
+QT_QPA_PLATFORM=offscreen pytest -n auto                        # everyday tier, NOT a gate
+QT_QPA_PLATFORM=offscreen pytest --runslow -n auto              # THE RELEASE GATE (normal), 31,659 passed, 10:31
+QT_QPA_PLATFORM=offscreen pytest --runslow --runengine -n auto  # THE FULL GATE, 31,803 passed, 27:49
+python scripts/gate_tier.py                                     # which of the two this change needs
 ```
+
+**THE HEAVY ENGINE TIER (2026-11-11).** Basti: *"the engine is beta and off by
+default so i dont want it to put on 25minutes on each gate from now on"*. When
+the research profile engine was merged (4.3.31) the gate went from about 10
+minutes to **27:55 and 27:11** (the two 4.3.31 release gates, 31,803 passed,
+`~/Desktop/ChromIQ-work/2026-11-11_release_4331/gate1.txt`, `gate2.txt`). The
+heavy engine builds now carry the `engine_heavy` marker and run only with
+`--runengine`. The list is ONE place, `tests/_engine_tier.py`: 23 whole files
+and 12 single tests, **190 tests** that were **10,820 of 17,039 worker-seconds**
+of a full gate (junit timings, 2026-11-11). It was chosen by measured cost,
+not by name: the ~100 engine and research files whose tests are fast stay in
+the normal gate, and so does everything that protects a user with the engine
+OFF (`test_the_new_profile_engine_is_one_switch.py` minus its one real build,
+`test_engine_comparison_and_hue_options.py`, `test_engine_fallback.py`,
+settings migration, i18n, the message catalogue, the specifications).
+
+* **The NORMAL gate (`--runslow`)** is what a merge or a release needs when the
+  change does not touch the engine.
+* **The FULL gate (`--runslow --runengine`)** is required when anything under
+  `workflow/profile_engine/`, `workflow/engine_builder.py`,
+  `workflow/argyll_colorimetry.py`, `native/gammap_helper/`, `native/argyll/`,
+  `benchmarks/research/`, `tests/_engine_tier.py` or a heavy test file changed
+  since the last release tag. `python scripts/gate_tier.py` reads that diff
+  (committed and uncommitted) and prints which one, with the files that
+  decided it. Run it before choosing; do not decide from memory. A release
+  that changes what the engine does, or turns it on by default, takes the
+  FULL gate.
+* **It cannot silently grow back.** `tests/test_the_normal_gate_cannot_
+  silently_grow.py` reads a committed snapshot, `tests/data/gate_durations.
+  json` (setup + call + teardown of every test of a FULL gate), and fails when
+  a test above 30 s or a file above 240 s would run in the normal gate without
+  being in the heavy tier or on `ALLOWED_SLOW` / `ALLOWED_SLOW_FILES` with a
+  reason, or when a list entry names a test that no longer exists. No live
+  timing, so it is deterministic. Re-make the snapshot from a FULL gate run
+  with `--junitxml=full.xml`: `python scripts/gate_tier.py --snapshot full.xml
+  --measured "<date, machine, count, wall>"`.
+* **A release** still takes the three consecutive green `--runslow` gates
+  below. When `gate_tier.py` says FULL, at least one of them is a FULL gate
+  (`--runslow --runengine`) on the same tree. Whether all three must then be
+  FULL is Basti's call and has not been made (2026-11-11).
+* `.github/workflows/tests.yml` has an `engine` input, **off by default**.
+* The FULL gate collects exactly what `--runslow` collected before the tier
+  existed: 32,125 ids on a27a3a0ad and on this branch, identical sets.
+
+Measured 2026-11-11 on this Mac (16-core M-series, `-n auto` = 12 workers),
+ONE run each (Basti ruled one green run enough for this measurement):
+
+| gate | command | result | wall |
+|---|---|---|---|
+| before, 4.3.31 release gate 1 | `--runslow` | 31,803 passed, 316 skipped, 6 xfailed | 27:55 |
+| before, 4.3.31 release gate 2 | `--runslow` | 31,803 passed, 316 skipped, 6 xfailed | 27:11 |
+| after, FULL | `--runslow --runengine` | 31,803 passed, 316 skipped, 6 xfailed, exit 0 | 27:49 |
+| after, NORMAL | `--runslow` | 31,659 passed, 506 skipped, 4 xfailed, exit 0 | 10:31 |
+
+The FULL run was on the tier code with the lists still empty (the lists
+decide only what the NORMAL gate skips); the NORMAL run on the final tree,
+which adds 44 test ids (the guard, a CI-input check, two per-file checks) and
+removes none. In the NORMAL gate the 190 heavy tests show in the skip census
+as "the heavy engine tier was not asked for".
+
+**What now sets the NORMAL gate's floor is not the engine.** One test,
+`test_beta12_b_review.py::test_the_shipped_certificates_are_what_this_
+chromiq_works_out` (`make_preset_certificates.py --check`, every built-in
+preset worked out again), took **407 s** of the 631: under `--dist loadfile`
+the gate cannot end before it does. Next: the FD-9 preset sweep (117 s), the
+k44 button audit fixture (79 s). They are on `ALLOWED_SLOW` with reasons and
+were not moved; making the certificate check faster (it is 373 s even alone)
+is the next lever if the gate must go well under 10 minutes.
 
 The suite is two-tiered: ~20 heavy end-to-end profile-build tests carry
 `@pytest.mark.slow` and are skipped by a plain `pytest` run; `--runslow`
@@ -148,6 +217,15 @@ bare `pytest` recurses into `.venv/` and — with `pytest-qt` active —
 collection appears to hang for many minutes. Anything far beyond the times
 above means something is wrong (a test opening a modal dialog `.exec()`, or
 `.venv` being scanned again), not just "slow tests".
+
+**INSIDE THE SUITE A PROFILE-ENGINE BUILD USES ONE THREAD.** A Maximum
+accuracy build uses up to 8 threads by default
+(`workflow/profile_engine/parallel.py`). With 12 gate workers that was 96
+threads on 16 cores: the first gate with the int-12 engine (2026-11-10) took
+28 minutes and timed an unrelated 15-minute subprocess out
+(`make_preset_certificates.py --check`). `tests/conftest.py::pytest_configure`
+sets `CHROMIQ_ENGINE_THREADS=1` as a default; the profile's bytes do not
+depend on the count, and a test that needs another count sets it itself.
 
 **Run the gate in parallel — it is the difference between 2.5 minutes and 19.**
 `--dist loadfile` keeps each file on one worker, which the session-scoped

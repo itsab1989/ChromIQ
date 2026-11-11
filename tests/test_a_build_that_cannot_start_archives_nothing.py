@@ -258,21 +258,40 @@ def test_a_build_that_cannot_start_leaves_the_profile_where_it_was(
 
 def test_the_refusal_stands_down_when_the_engine_is_the_builder(qapp, tmp_path,
                                                                monkeypatch):
-    """A build the ChromIQ engine runs needs no ArgyllCMS. Refusing there would
-    take a working feature away over a tool it does not run."""
+    """A MULTI-INK build the ChromIQ engine runs needs no colprof (colprof
+    cannot build one at all). Refusing there would take a working feature
+    away over a tool it does not run.
+
+    A standard (RGB, CMY, CMYK) engine build is different since 2026-11-10:
+    the engine runs colprof once for its reference rendering and, without
+    it, hands the build to colprof. So it needs colprof exactly as a colprof
+    build does, and is refused HERE, before anything is archived."""
     from core.argyll_runner import ArgyllRunner
     from core.settings import AppSettings
 
     s = AppSettings()
     s.set("argyll_bin_path", str(tmp_path / "nowhere"))
     monkeypatch.setenv("PATH", "")
+    multi = tmp_path / "og.ti3"
+    multi.write_text('CTI3\nCOLOR_REP "CMYKOG_XYZ"\n', encoding="utf-8")
+    rgb = tmp_path / "rgb.ti3"
+    rgb.write_text('CTI3\nCOLOR_REP "iRGB_XYZ"\n', encoding="utf-8")
+    said = []
 
     class _Tab:
         _settings = s
         _runner = ArgyllRunner(s)
+        _ti3_path = multi
         _refuse = TabProfile._refuse_when_the_profiler_is_not_installed
 
-    assert _Tab._refuse(_Tab(), "engine") is False
+        def _report_if_the_tool_could_not_start(self):
+            said.append(self._runner.last_failed_to_start)
+            return True
+
+    assert _Tab._refuse(_Tab(), "engine") is False and not said
+    _Tab._ti3_path = rgb
+    assert _Tab._refuse(_Tab(), "engine") is True
+    assert said == ["colprof"]
 
 
 # ---- B8-224: the refusal guessed the builder, and guessed wrong ---------

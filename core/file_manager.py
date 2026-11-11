@@ -524,6 +524,11 @@ def resolve_existing(path: Path) -> Path:
     return Path(same[0])
 
 
+#: colprof's own profile kept beside a profile the new engine built; see
+#: :attr:`Run.colprof_comparison_icc`.
+COLPROF_COMPARISON_NAME = "colprof-comparison.icc"
+
+
 def profile_file(icc: Path, icm: Path) -> Path:
     """The profile colprof wrote: *icc*, or *icm* when only that one exists.
 
@@ -1217,6 +1222,13 @@ class RunMeta:
     # that specific run."* Before this the override was one value for the whole
     # tab, so a description typed for run 3 followed the user into every run.
     profile_description: str = ""
+    #: How this run's profile was LAST built (`Run.record_profile_build`):
+    #: {"builder": "engine" | "colprof", "at": iso time, ...}; for the new
+    #: profile engine also "black_depth", "settings", "switches_on" and
+    #: "switches_reported" (with the engine's own lines). {} = not recorded,
+    #: which is every profile built before this existed. A record for
+    #: diagnosis only: nothing reads it to decide anything.
+    profile_build: dict = field(default_factory=dict)
     status: str = "in_progress"          # in_progress | complete
     # TI2 layout editor only: the printtarg layout knobs (a LayoutOptions dict)
     # the chart was rendered with + its file basename, so reopening the chart in
@@ -2360,6 +2372,35 @@ class Run:
     @property
     def calibrated_icc(self) -> Path:         return self.dir / "calibrated.icc"
 
+    # ---- the stock colprof profile kept beside a new-engine profile
+    @property
+    def colprof_comparison_icc(self) -> Path:
+        """The profile ArgyllCMS colprof builds from the same measurement and
+        settings, kept beside a profile the new profile engine built
+        (Preferences > Beta), so a tester can compare the two or go back.
+
+        Role-named, like ``merged.icc`` and ``calibrated.icc``: it never
+        answers for the run. ``profile_icc`` / ``built_profile_icc`` do not
+        return it, a run holding only this file has no profile
+        (:func:`peek_project`), and nothing installs it by itself. It is
+        replaced, archived and duplicated together with the profile it
+        belongs to."""
+        return self.dir / COLPROF_COMPARISON_NAME
+
+    def record_profile_build(self, info: dict) -> None:
+        """Store how this run's profile was last built in ``meta.json``
+        (``RunMeta.profile_build``): which builder, and for the new profile
+        engine its settings and the switches that were on and that reported
+        acting, so a profile somebody reports can be built again exactly.
+        Never raises: a build that succeeded must not fail on its record."""
+        try:
+            meta = self.load_meta()
+            meta.profile_build = dict(info)
+            self.save_meta(meta)
+        except Exception:      # noqa: BLE001
+            log.warning("could not record the profile build in %s",
+                        self.meta_path, exc_info=True)
+
     # ---- v2 sub-folders (#127)
     # reports/ — quality checks, refine lists, measurement reports.
     # exports/ — the chart's hand-off files for other programs.
@@ -2745,7 +2786,8 @@ class Run:
                    self.artefact(".icc"),
                    self.artefact(".icm"), self.dir / "merged.ti3",
                    self.dir / "merged.icc", self.dir / "merged.icm",
-                   self.dir / "calibrated.icc"]
+                   self.dir / "calibrated.icc",
+                   self.colprof_comparison_icc]
         if keep_results:
             results = []
         # reads/ IS ARCHIVED, NOT DELETED. `clear_reads()` used to `rmtree` it
@@ -2863,6 +2905,7 @@ class Run:
             "merged.ti3", "merged.icc",  # build-time refinement merge outputs
             "merged.icm",                # …as colprof spells it on Windows
             "calibrated.icc",            # applycal output
+            COLPROF_COMPARISON_NAME,     # colprof's profile beside the engine's
         )
         for p in ([self.artefact(ext) for ext in stem_exts]
                   + [self.dir / n for n in role_named]):
@@ -3238,6 +3281,11 @@ DUPLICATE_META_FRESH: frozenset = frozenset({
     # Lifecycle, and nothing in the app reads or writes it — leave it at the
     # fresh default rather than propagate a state nothing maintains.
     "status",
+    # How the SOURCE run's profile was last built (a record for diagnosis).
+    # The profile itself is an optional part of a duplicate, and the record
+    # is only true beside the very file it was written for, so the copy
+    # starts without one; the source run keeps it.
+    "profile_build",
     # #182: the copy has no verifications/, so nothing has been judged with
     # its limits yet: the binding moment is fresh and the copy starts locked
     # ("duplicating a run carries the chosen set and clears the binding").
@@ -3992,6 +4040,7 @@ class Project:
         ("measurement", ("{stem}.ti3", "{stem}.confirmed.json", "reads/**/*")),
         ("profile", ("{stem}.icc", "{stem}.icm", "merged.ti3", "merged.icc",
                      "merged.icm", "calibrated.icc", "calibrated.icm",
+                     COLPROF_COMPARISON_NAME,
                      "*.x3d.html", "x3dom.css", "x3dom.js")),
         ("refinement", ("preconditioning.ti3", "preconditioning.icc")),
         # Knut named these three exactly (2026-08-01): the quality report, the
@@ -5390,7 +5439,8 @@ def peek_project(root: "Path | None") -> ProjectPeek:
             rid,
             chart=_any("*.ti1", "*.ti2"),
             measurement=_any("*.ti3", skip=("preconditioning.ti3",)),
-            profile=_any("*.icc", "*.icm", skip=("preconditioning.icc",)),
+            profile=_any("*.icc", "*.icm", skip=("preconditioning.icc",
+                                                 COLPROF_COMPARISON_NAME)),
             verifications=n_ver,
         )
 

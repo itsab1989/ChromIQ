@@ -38,8 +38,9 @@ def test_resolve_engine_follows_setting(qapp, tmp_path, monkeypatch):
 
     class _Params:
         ti3_path = tmp_path / "x.ti3"
-    monkeypatch.setattr(tp, "is_multi_ink", lambda _p: False)
-    monkeypatch.setattr(tp, "engine_support", lambda _p: (True, ""))
+    import workflow.engine_builder as eb
+    monkeypatch.setattr(eb, "is_multi_ink", lambda _p: False)
+    monkeypatch.setattr(eb, "engine_support", lambda _p: (True, ""))
 
     off = _tab(tmp_path, profile_engine_beta=False)
     assert off._resolve_engine(_Params()) == "colprof"
@@ -54,8 +55,9 @@ def test_resolve_engine_falls_back_when_unsupported(qapp, tmp_path,
 
     class _Params:
         ti3_path = tmp_path / "x.ti3"
-    monkeypatch.setattr(tp, "is_multi_ink", lambda _p: False)
-    monkeypatch.setattr(tp, "engine_support",
+    import workflow.engine_builder as eb
+    monkeypatch.setattr(eb, "is_multi_ink", lambda _p: False)
+    monkeypatch.setattr(eb, "engine_support",
                         lambda _p: (False, "an extra flag"))
     on = _tab(tmp_path, profile_engine_beta=True)
     assert on._resolve_engine(_Params()) == "colprof"
