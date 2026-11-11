@@ -2989,8 +2989,10 @@ class TabProfile(QWidget):
             # (`_m_collect_preset_data`), but the target keeps the value it
             # was loaded with, so switching the engine off and on again
             # never loses a choice made for this target.
-            wanted["hue_rendering"] = ("kept" if self._m_hue_cb.isChecked()
-                                       else "argyll")
+            hue_cb = getattr(self, "_m_hue_cb", None)
+            if hue_cb is not None:
+                wanted["hue_rendering"] = ("kept" if hue_cb.isChecked()
+                                           else "argyll")
             fingerprint = str(getattr(store, "dir", store))
             if self._profile_written_cache().get(fingerprint) == wanted:
                 return False
