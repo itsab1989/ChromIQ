@@ -3144,8 +3144,10 @@ A44B_TOKEN = "a44b-smoothexact"
 A44B_MU = 100.0
 
 # Token "x2-smoothexact-always" (expert review 2026-11-10/11, Relative
-# Colorimetric candidate A "always"; off by default). The builder runs the
-# re-solve above only when a44-exactkeep restored at least one node. That
+# Colorimetric candidate A "always"; a Maximum accuracy default since
+# 2026-11-11, builder.X2_TOKENS, off with "no-x2-smoothexact-always").
+# Without it the builder runs the re-solve above only when a44-exactkeep
+# restored at least one node. That
 # count is one or zero on the inkjets, so re-read noise and a 0.03 dE change
 # of the input cross it (4 of 10 PRO-300 rebuilds; the ET-8550 with the 1964
 # 10 degree observer, device values 5 % apart). With this token an RGB

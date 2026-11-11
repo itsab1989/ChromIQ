@@ -1,12 +1,15 @@
 """The colorimetric re-solve on every RGB build (token x2-smoothexact-always,
-workflow/profile_engine/b2a.py A44B_ALWAYS_TOKEN) is a CANDIDATE, off by
-default:
+workflow/profile_engine/b2a.py A44B_ALWAYS_TOKEN). It came in as a
+candidate, off by default; since 2026-11-11 it is a Maximum accuracy
+DEFAULT (builder.X2_TOKENS: the owner followed the expert review's
+recommendation), with "no-x2-smoothexact-always" as its off switch:
 
-* today the RGB colorimetric table is re-solved by a44b-smoothexact only
-  when a44-exactkeep restored at least one node; that count is zero or one
-  on the inkjets, so re-read noise switches a whole-table step on and off.
-  With the token the re-solve runs on every RGB Maximum accuracy build;
-* off by default, and with it off nothing in a build changes;
+* without it the RGB colorimetric table is re-solved by a44b-smoothexact
+  only when a44-exactkeep restored at least one node; that count is zero or
+  one on the inkjets, so re-read noise switches a whole-table step on and
+  off. With the token the re-solve runs on every RGB Maximum accuracy build;
+* on by default; switched off, the build is the int-12 build (before the
+  token existed) and nothing else in it changes;
 * on, an RGB profile differs in the Colorimetric B2A1 table and in nothing
   else (Perceptual, Saturation and every A2B table byte for byte the same);
 * an ink device (CMYK here) is not touched at all;
@@ -38,28 +41,39 @@ SMOOTHED = "Colorimetric table smoothed on its own branches"
 
 
 # ------------------------------------------------------------- the token
-def test_the_token_is_known_has_an_off_switch_and_is_not_a_default():
+def test_the_token_is_known_has_an_off_switch_and_is_a_default():
+    # Was "... and is not a default" while the token was a candidate; the
+    # owner made it a default on 2026-11-11 (builder.X2_TOKENS).
     assert b2a.A44B_ALWAYS_TOKEN == TOKEN
     assert TOKEN in B.ENGINE_CANDIDATE_TOKENS
     assert "no-" + TOKEN in B.ENGINE_CANDIDATE_TOKENS
-    assert TOKEN not in B.ACCURATE_DEFAULT_TOKENS
+    assert B.X2_TOKENS == {TOKEN}
+    assert TOKEN in B.ACCURATE_DEFAULT_TOKENS
     plain = B.effective_engine_candidates(
         B.BuildSettings(gammap_mode="accurate"))
-    assert TOKEN not in plain
+    assert TOKEN in plain
 
 
-def test_the_token_reaches_a_maximum_accuracy_build_only_when_asked_for():
+def test_the_token_reaches_every_maximum_accuracy_build_until_switched_off():
     plain = B.effective_engine_candidates(
         B.BuildSettings(gammap_mode="accurate"))
+    # asking for it explicitly is the default build
     on = B.effective_engine_candidates(B.BuildSettings(
         gammap_mode="accurate", engine_candidates=frozenset({TOKEN})))
-    assert on == plain | {TOKEN}
+    assert on == plain
+    off = B.effective_engine_candidates(B.BuildSettings(
+        gammap_mode="accurate", engine_candidates=frozenset({"no-" + TOKEN})))
+    assert TOKEN not in off
+    assert off - {"no-" + TOKEN} == plain - {TOKEN}
+    # the off switch wins over an explicit request
     off_again = B.effective_engine_candidates(B.BuildSettings(
         gammap_mode="accurate",
         engine_candidates=frozenset({TOKEN, "no-" + TOKEN})))
     assert TOKEN not in off_again
-    assert off_again - {"no-" + TOKEN} == plain
+    assert off_again - {"no-" + TOKEN} == plain - {TOKEN}
     for mode in ("fast", "argyll"):
+        assert B.effective_engine_candidates(B.BuildSettings(
+            gammap_mode=mode)) == frozenset()
         assert B.effective_engine_candidates(B.BuildSettings(
             gammap_mode=mode,
             engine_candidates=frozenset({TOKEN}))) == frozenset()
@@ -73,8 +87,11 @@ def test_it_acts_on_rgb_devices_in_maximum_accuracy_with_the_resolve_on():
     assert not act(on, accurate=True, is_additive=False, n=4)      # CMYK
     assert not act(on, accurate=True, is_additive=True, n=4)
     assert not act(on, accurate=False, is_additive=True, n=3)
-    assert not act(B.accurate_candidates(frozenset()), accurate=True,
-                   is_additive=True, n=3)
+    # the default set acts (it is a default), its off switch does not
+    assert act(B.accurate_candidates(frozenset()), accurate=True,
+               is_additive=True, n=3)
+    assert not act(B.accurate_candidates(frozenset({"no-" + TOKEN})),
+                   accurate=True, is_additive=True, n=3)
     # it changes when the re-solve runs, so the re-solve has to be on
     no_resolve = B.accurate_candidates(
         frozenset({TOKEN, "no-" + b2a.A44B_TOKEN}))
@@ -148,12 +165,15 @@ def _build(ti3: Path, folder: Path, *tokens: str, workers: int = 1):
 
 @pytest.fixture(scope="module")
 def rgb_builds(tmp_path_factory):
+    """"off" is the build with the token's off switch (the int-12 build);
+    1, 2, 4, 8 are DEFAULT builds (no token named: it is a default) at that
+    many workers."""
     from benchmarks.research import datasets as dsm
     work = tmp_path_factory.mktemp("resolve_always_rgb")
     ds = dsm.synthetic("S1", work, 400)
-    out = {"off": _build(ds.ti3, work / "off")}
+    out = {"off": _build(ds.ti3, work / "off", "no-" + TOKEN)}
     for n in (1, 2, 4, 8):
-        out[n] = _build(ds.ti3, work / f"on{n}", TOKEN, workers=n)
+        out[n] = _build(ds.ti3, work / f"on{n}", workers=n)
     out["ti3"], out["work"] = ds.ti3, work
     return out
 
@@ -203,9 +223,21 @@ def test_the_profile_does_not_depend_on_the_worker_count(rgb_builds):
 
 @pytest.mark.slow
 @needs_argyll
-def test_switched_off_again_the_build_is_the_default_build(rgb_builds):
+def test_asked_for_by_name_the_build_is_the_default_build(rgb_builds):
+    """Naming the token is the default build, byte for byte (it is in the
+    default set, so the request adds nothing)."""
+    named, lines = _build(rgb_builds["ti3"], rgb_builds["work"] / "named",
+                          TOKEN)
+    assert named == rgb_builds[1][0]
+    assert len([ln for ln in lines if SMOOTHED in ln]) == 1
+
+
+@pytest.mark.slow
+@needs_argyll
+def test_switched_off_again_the_build_is_the_off_build(rgb_builds):
     """The token with its own no- switch is the build without it, byte for
-    byte: with the token off nothing else has moved."""
+    byte: the off switch wins over a request, and with the token off nothing
+    else has moved."""
     again, lines = _build(rgb_builds["ti3"], rgb_builds["work"] / "offagain",
                           TOKEN, "no-" + TOKEN)
     assert again == rgb_builds["off"][0]
@@ -219,8 +251,11 @@ def test_without_the_resolve_itself_the_token_does_nothing(rgb_builds):
     and has no table of its own."""
     none, lines = _build(rgb_builds["ti3"], rgb_builds["work"] / "noresolve",
                          TOKEN, "no-" + b2a.A44B_TOKEN)
+    # "off" (no-x2) is the same bytes here: on this printer a44-exactkeep
+    # restores no node, so without the token the re-solve does not run
     assert none == rgb_builds["off"][0]
     assert not [ln for ln in lines if SMOOTHED in ln]
+    assert not [ln for ln in lines if "re-solved on every RGB build" in ln]
 
 
 @pytest.mark.slow
@@ -228,8 +263,8 @@ def test_without_the_resolve_itself_the_token_does_nothing(rgb_builds):
 def test_on_a_cmyk_device_the_token_changes_nothing(tmp_path):
     from benchmarks.research import datasets as dsm
     ds = dsm.synthetic("X3", tmp_path, 400)
-    off, _ = _build(ds.ti3, tmp_path / "off")
-    on, lines = _build(ds.ti3, tmp_path / "on", TOKEN)
+    off, _ = _build(ds.ti3, tmp_path / "off", "no-" + TOKEN)
+    on, lines = _build(ds.ti3, tmp_path / "on")          # the default
     assert on == off
     assert not [ln for ln in lines if SMOOTHED in ln]
     assert not [ln for ln in lines if "re-solved on every RGB build" in ln]

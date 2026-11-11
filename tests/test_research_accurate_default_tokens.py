@@ -57,8 +57,14 @@ _INT11 = {"a78-rgbsmooth", "a79-perccol", "a79-lincurve", "a79-lincurve-col",
 # integration 12 (Findings/agent93-01-integration12.md): real i1iSis warm hues
 # into black (a84 + a89) and Knut's darkest perceptual greys (a86)
 _INT12 = {"a84-warmblack", "a89-isisgap", "a86-knutdark"}
+# expert review 2026-11-10/11, Rel. Col. candidate A "always" (the owner made
+# it a default on 2026-11-11): the RGB colorimetric table re-solved by
+# a44b-smoothexact on every build. Added to the pinned set because it IS a
+# new default, not to make the test pass: test_x2_tokens_are_on_and_switchable
+# pins it separately.
+_X2 = {"x2-smoothexact-always"}
 _DEF = ({"b2a33s", "rgbpos", "v4prm", "rgbcol"} | _INT3 | _INT4 | _INT5 | _INT6
-        | _INT7 | _INT8 | _INT8B | _INT9 | _INT10 | _INT11 | _INT12)
+        | _INT7 | _INT8 | _INT8B | _INT9 | _INT10 | _INT11 | _INT12 | _X2)
 
 
 def test_the_defaults_are_b2a33s_rgbpos_and_v4prm():
@@ -81,11 +87,11 @@ def test_agent9_tokens_are_off_by_default():
 
 def test_a_default_can_be_switched_off_for_research():
     assert accurate_candidates({"no-b2a33s"}) == ({"rgbpos", "v4prm", "rgbcol"}
-                                                  | _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _INT8B | _INT9 | _INT10 | _INT11 | _INT12 | _FIN3)
+                                                  | _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _INT8B | _INT9 | _INT10 | _INT11 | _INT12 | _X2 | _FIN3)
     assert accurate_candidates({"no-rgbpos", "no-b2a33s", "no-v4prm",
                                 "no-rgbcol", "no-fin3"}
-                               | {"no-" + t for t in _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _INT8B | _INT9 | _INT10 | _INT11 | _INT12}) == frozenset()
-    for t in _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _INT8B | _INT9 | _INT10 | _INT11 | _INT12:
+                               | {"no-" + t for t in _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _INT8B | _INT9 | _INT10 | _INT11 | _INT12 | _X2}) == frozenset()
+    for t in _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _INT8B | _INT9 | _INT10 | _INT11 | _INT12 | _X2:
         assert "no-" + t in ENGINE_CANDIDATE_TOKENS
 
 
@@ -205,6 +211,21 @@ def test_integration12_tokens_are_on_and_switchable():
               "a88-black-deepest"):
         assert t not in on
         assert t in ENGINE_CANDIDATE_TOKENS
+
+
+def test_x2_tokens_are_on_and_switchable():
+    """x2-smoothexact-always: a default since 2026-11-11, with its off
+    switch, and the same name the re-solve step itself asks for."""
+    from workflow.profile_engine import b2a
+    from workflow.profile_engine.builder import X2_TOKENS
+    assert X2_TOKENS == _X2 == {b2a.A44B_ALWAYS_TOKEN}
+    on = accurate_candidates(frozenset())
+    assert _X2 <= on
+    for t in _X2:
+        assert t not in accurate_candidates({"no-" + t})
+        assert "no-" + t in ENGINE_CANDIDATE_TOKENS
+    # it moves only the trigger of a44b-smoothexact, which stays a default
+    assert {"a44-exactkeep", "a44b-smoothexact"} <= on
 
 
 def test_integration12_black_depth_option():

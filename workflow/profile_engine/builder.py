@@ -328,8 +328,9 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "x1-huekeep", "no-x1-huekeep",
      # Expert review 2026-11-10/11 (Rel. Col. candidate A "always"): the RGB
      # colorimetric table re-solved by a44b-smoothexact on every build, not
-     # only when a44-exactkeep restored a node (b2a.A44B_ALWAYS_TOKEN); off
-     # by default
+     # only when a44-exactkeep restored a node (b2a.A44B_ALWAYS_TOKEN); a
+     # default since 2026-11-11 (X2_TOKENS), "no-x2-smoothexact-always"
+     # switches it off
      "x2-smoothexact-always", "no-x2-smoothexact-always"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
@@ -577,6 +578,19 @@ INT11_TOKENS = frozenset({
 # Each has a "no-<token>" switch. a84-warmblack-all, a85-bpcblack and
 # a88-black-balanced stay research only.
 INT12_TOKENS = frozenset({"a84-warmblack", "a89-isisgap", "a86-knutdark"})
+# Expert review 2026-11-10/11, Relative Colorimetric candidate A "always"
+# (ChromIQ-work/2026-11-10_engine_expert_review/a44b/RESULTS.md; the owner
+# followed the expert's recommendation on 2026-11-11): ON as well, RGB
+# Maximum accuracy only:
+#   x2-smoothexact-always (the RGB colorimetric table is re-solved by
+#     a44b-smoothexact on every build, not only when a44-exactkeep restored
+#     a node, so re-read noise can no longer switch that whole-table step on
+#     and off; b2a.A44B_ALWAYS_TOKEN, scoped by b2a.smooth_exact_always to
+#     additive three-channel devices with a44b-smoothexact on; ink devices,
+#     CMY included, keep a44-exactkeep's count as the trigger).
+# "no-x2-smoothexact-always" switches it off: the build is then the
+# int-12 build byte for byte.
+X2_TOKENS = frozenset({"x2-smoothexact-always"})
 ACCURATE_DEFAULT_TOKENS = frozenset({
     "b2a33s", "rgbpos", "v4prm", "rgbcol",
     "a25-oog", "a25-rgbcol", "a25-oracle-dev", "a25-oracle-neutral",
@@ -588,7 +602,7 @@ ACCURATE_DEFAULT_TOKENS = frozenset({
     "a44b-smoothexact", "a45-c1space", "a45-darkend",
     "a51-colprofedge"}) | INT8_TOKENS | INT8B_TOKENS | INT9_TOKENS \
     | INT9_CMY_TOKENS | {A72_CMY_ONLY, A72_MAX4_INK} | INT10_TOKENS \
-    | INT11_TOKENS | INT12_TOKENS
+    | INT11_TOKENS | INT12_TOKENS | X2_TOKENS
 
 # Integration 12: the black-depth build option (Basti, 2026-11-08/09: two
 # levels, Neutral the default). BuildSettings.black_depth picks one; the
@@ -2413,10 +2427,10 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             _emit(settings, f"Exact inversion kept at {_ek['nodes']} of "
                             f"{_ek['candidates']} in-gamut nodes the "
                             f"smoothing refit had pulled off.")
-        # x2-smoothexact-always (off by default): on an RGB printer the
-        # re-solve below runs whatever exact_keep's count, so one node more
-        # or less cannot switch a whole-table step (b2a.py, comment above
-        # A44B_ALWAYS_TOKEN).
+        # x2-smoothexact-always (a default since 2026-11-11, X2_TOKENS): on
+        # an RGB printer the re-solve below runs whatever exact_keep's
+        # count, so one node more or less cannot switch a whole-table step
+        # (b2a.py, comment above A44B_ALWAYS_TOKEN).
         _sx_always = b2a_mod.smooth_exact_always(
             candidates, accurate=accurate, is_additive=meas.is_additive, n=n)
         if _sx_always:
