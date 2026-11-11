@@ -219,8 +219,9 @@ def test_on_an_rgb_printer_only_the_perceptual_and_saturation_tables_change(
     changed = sorted(t for t in off if off[t] != on[t])
     assert changed == ["B2A0", "B2A2"]
     assert len(rgb_builds["off"][0]) == len(rgb_builds[1][0])
-    said = [ln for ln in rgb_builds[1][1] if "x1-huekeep" in ln]
-    assert len(said) == 2 and all("Hue-kept rendering" in ln for ln in said)
+    said = [ln for ln in rgb_builds[1][1] if "Hue-kept rendering" in ln]
+    assert len(said) == 2 and all("x1-huekeep" in ln for ln in said)
+    assert "B2A0" in said[0] + said[1] and "B2A2" in said[0] + said[1]
     assert not [ln for ln in rgb_builds["off"][1] if "Hue-kept" in ln]
 
 
@@ -293,8 +294,9 @@ def test_on_an_ink_device_the_option_changes_nothing_and_says_so(
     on, lines = _build(ds.ti3, tmp_path / "on", hue_rendering="kept",
                        engine_workers=1)
     assert on == off
-    said = [ln for ln in lines if "x1-huekeep" in ln]
-    assert said == [HK.NOT_RGB_LINE]
+    # (the build's list of active switches names the token as well)
+    said = [ln for ln in lines if "Hue-kept rendering" in ln]
+    assert len(said) == 1 and said[0].endswith(HK.NOT_RGB_LINE)
 
 
 # --------------------------------------------------------- the app adapter
