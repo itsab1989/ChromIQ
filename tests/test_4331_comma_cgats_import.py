@@ -399,6 +399,93 @@ def test_door_tools_convert_i1profiler_to_ti3(tmp_path, settings, qapp):
     assert src.read_bytes() == before and _leftovers() == []
 
 
+class _HeldRunner:
+    """A runner that records what txt2ti3 was handed and then behaves as
+    *how* says: ``"running"`` never reports back (the run is still going),
+    ``"no-start"`` reports -1 at once (the program did not start),
+    ``"raises"`` fails inside `run`."""
+    is_running = False
+
+    def __init__(self, how):
+        self.how = how
+        self.read = []
+
+    def run(self, tool, args, cwd, on_line=None, on_finish=None, **_):
+        self.read.append(Path(args[1]) if Path(args[1]).is_absolute()
+                         else Path(cwd) / args[1])
+        assert self.read[-1].is_file()       # the copy exists while it runs
+        if self.how == "no-start" and on_finish:
+            on_finish(-1)
+        elif self.how == "raises":
+            raise RuntimeError("could not start")
+
+
+def _tools_dialog_with(tmp_path, settings, runner):
+    from ui.dialogs.tools_dialogs import I1ProfilerToTi3Dialog
+    src = _export(tmp_path / "in" / "export.txt", comma=True, lab=True)
+    dlg = I1ProfilerToTi3Dialog(runner, settings)
+    dlg._pick_input_file = lambda *a, **k: src
+    dlg._pick_txt()
+    dlg._output._dir_edit.setText(str(tmp_path / "out"))
+    dlg._output._name_edit.setText("converted")
+    return dlg, src
+
+
+@pytest.mark.parametrize("ending", ["close", "reject", "accept"])
+def test_tools_convert_copy_removed_when_the_window_closes_mid_run(
+        tmp_path, settings, qapp, ending):
+    """4.3.32 review: the decimal-point copy went only when the runner
+    reported back. A window closed while txt2ti3 still runs removes it."""
+    runner = _HeldRunner("running")
+    dlg, src = _tools_dialog_with(tmp_path, settings, runner)
+    before = src.read_bytes()
+    try:
+        dlg._execute()
+        copy = runner.read[-1]
+        assert copy.name == "converted.txt" and "chromiq-decimal-points-" \
+            in str(copy.parent) and copy.is_file()
+        {"close": dlg.close, "reject": dlg.reject,
+         "accept": dlg.accept}[ending]()
+        assert not copy.parent.exists()
+    finally:
+        dlg.deleteLater()
+    assert src.read_bytes() == before
+
+
+@pytest.mark.parametrize("how", ["no-start", "raises"])
+def test_tools_convert_copy_removed_when_the_run_does_not_start(
+        tmp_path, settings, qapp, how):
+    runner = _HeldRunner(how)
+    dlg, _src = _tools_dialog_with(tmp_path, settings, runner)
+    try:
+        if how == "raises":
+            with pytest.raises(RuntimeError):
+                dlg._execute()
+        else:
+            dlg._execute()
+        assert not runner.read[-1].parent.exists()
+    finally:
+        dlg.deleteLater()
+
+
+def test_tools_convert_next_conversion_drops_the_last_copy(
+        tmp_path, settings, qapp):
+    """A run that never reported back leaves nothing behind once the next
+    conversion starts."""
+    runner = _HeldRunner("running")
+    dlg, _src = _tools_dialog_with(tmp_path, settings, runner)
+    try:
+        dlg._execute()
+        first = runner.read[-1]
+        (tmp_path / "out" / "converted.ti3").unlink(missing_ok=True)
+        dlg._execute()
+        assert not first.parent.exists() and runner.read[-1].is_file()
+        dlg.close()
+        assert not runner.read[-1].parent.exists()
+    finally:
+        dlg.deleteLater()
+
+
 def test_door_tools_convert_into_the_files_own_name(tmp_path, settings, qapp):
     """Output folder and name the same as the input: the staged file IS the
     person's file, and it still is not written."""

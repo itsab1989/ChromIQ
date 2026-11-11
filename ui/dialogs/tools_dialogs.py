@@ -1705,9 +1705,16 @@ class I1ProfilerToTi3Dialog(_ToolDialogBase):
         # reads a temporary copy with points, removed when it has finished;
         # neither the user's file nor the staged copy is written. The same
         # helper as every other i1Profiler import door.
+        #
+        # The copy is held by the WINDOW, not only by this run's finish: it is
+        # also removed when the run does not start, when the window closes
+        # (`done`, `closeEvent`) and before the next conversion, so no path
+        # leaves it behind (4.3.32 review). Closing twice is harmless.
         from contextlib import ExitStack
         from workflow.reference_convert import decimal_point_source
+        self._drop_decimal_point_copy()
         points = ExitStack()
+        self._decimal_points = points
         src = points.enter_context(decimal_point_source(staged_txt))
         src_arg = staged_txt.name if src == staged_txt else str(src)
 
@@ -1759,6 +1766,22 @@ class I1ProfilerToTi3Dialog(_ToolDialogBase):
         except BaseException:
             points.close()
             raise
+
+    def _drop_decimal_point_copy(self) -> None:
+        """Remove the temporary decimal-point copy of the last conversion,
+        if one is still there."""
+        points = getattr(self, "_decimal_points", None)
+        self._decimal_points = None
+        if points is not None:
+            points.close()
+
+    def done(self, result: int) -> None:  # noqa: D102 — Run-accept and Close
+        self._drop_decimal_point_copy()
+        super().done(result)
+
+    def closeEvent(self, event) -> None:  # noqa: N802
+        self._drop_decimal_point_copy()
+        super().closeEvent(event)
 
 
 # ---------------------------------------------------------------------------
