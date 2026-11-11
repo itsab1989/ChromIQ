@@ -819,8 +819,10 @@ class Ti3InfoDialog(QDialog):
         if not lw.count():
             return
         fm = lw.fontMetrics()
-        # The style's text margins on both sides of an entry.
-        avail = max(40, lw.viewport().width() - 12)
+        # The style's text margins on both sides of an entry, with room to
+        # spare: measured on screen (German, minimum width), 12 px let the
+        # list cut the last digits of a time.
+        avail = max(40, lw.viewport().width() - 28)
         for row in range(lw.count()):
             item = lw.item(row)
             shape, name = item.data(Qt.ItemDataRole.UserRole) or (None, "")
