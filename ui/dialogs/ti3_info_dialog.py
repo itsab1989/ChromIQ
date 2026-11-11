@@ -1123,9 +1123,13 @@ class Ti3InfoDialog(QDialog):
             "far off on that strip only, and a reading taken with another "
             "instrument, under another measurement condition or from "
             "another print is off nearly everywhere."))
+        verdicts = [c.verdict(k, tol, strips) for k in range(c.r)]
+        # A reading that differs overall is off on nearly every strip; its
+        # strips are not listed one by one (its verdict already says it).
+        by_strip = [k for k in range(c.r) if verdicts[k].kind != "overall"]
         for k in range(c.r):
             st = c.stats(k)
-            v = c.verdict(k, tol, strips)
+            v = verdicts[k]
             lines = [self._verdict_text(v),
                      tr("average {mean}, median {median}, 95th percentile "
                         "{p95}, largest {worst} from the centre").format(
@@ -1146,14 +1150,16 @@ class Ti3InfoDialog(QDialog):
                          self._several_patch_value(c, int(i), tol, apart))
 
         if strips:
-            worst_mean = sorted(strips, key=lambda s: -float(s.means.max()))
-            flagged = [s for s in strips
-                       if any(s.off(k) for k in range(c.r))]
+            ks = by_strip or list(range(c.r))
+            worst_mean = sorted(strips,
+                                key=lambda s: -float(s.means[ks].max()))
+            flagged = [s for s in strips if any(s.off(k) for k in by_strip)]
             shown = worst_mean[:5] + [s for s in flagged
                                       if s not in worst_mean[:5]]
             self._row_kv(tr("By strip"), tr(
                 "the printed strips where a reading is farthest from the "
-                "centre on average, with each reading's average distance"),
+                "centre on average, with each reading's average distance "
+                "(a reading that differs overall does not decide the order)"),
                 tr("A whole strip that is off in one reading only points at "
                    "that strip being read badly in that reading (a slipped "
                    "strip, or the wrong strip read), rather than at the "
@@ -1161,7 +1167,7 @@ class Ti3InfoDialog(QDialog):
             for s in shown:
                 val = tr("average from the centre, by reading: {list}").format(
                     list=self._by_reading(s.means))
-                for k in range(c.r):
+                for k in by_strip:
                     if s.off(k):
                         val += "\n" + tr(
                             "Reading {n}: nearly the whole strip is off ({k} "

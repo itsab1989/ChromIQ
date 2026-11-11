@@ -223,14 +223,20 @@ def reading_from_ti3(path: Path) -> Reading:
 def _date_of(text: str) -> str:
     """*text* (chartread's "Thu Oct 29 20:39:53 2026", or a date the import
     wrote) as YYYY-MM-DD when it reads as a date, else as it stands."""
-    from datetime import datetime
     text = str(text).strip().strip('"')
-    for fmt in ("%a %b %d %H:%M:%S %Y", "%Y-%m-%d", "%Y-%m-%dT%H:%M:%S"):
-        try:
-            return datetime.strptime(text, fmt).strftime("%Y-%m-%d")
-        except ValueError:
-            continue
-    return text
+    # chartread writes English names whatever the computer's language, so
+    # they are read here by hand (strptime's %b follows the locale)
+    m = re.fullmatch(r"[A-Za-z]{3}\s+([A-Za-z]{3})\s+(\d{1,2})\s+"
+                     r"[\d:]+\s+(\d{4})", text)
+    if m and m.group(1).lower() in _MONTHS:
+        return (f"{m.group(3)}-{_MONTHS.index(m.group(1).lower()) + 1:02d}-"
+                f"{int(m.group(2)):02d}")
+    m = re.match(r"(\d{4})-(\d{2})-(\d{2})", text)
+    return m.group(0) if m else text
+
+
+_MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep",
+           "oct", "nov", "dec"]
 
 
 def load_reading(path: Path, prefer_condition: str = "") -> Reading:
