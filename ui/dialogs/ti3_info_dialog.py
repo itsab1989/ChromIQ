@@ -576,6 +576,12 @@ class Ti3InfoDialog(QDialog):
         self._tol_combo.currentIndexChanged.connect(self._on_tolerance_changed)
         tl.addWidget(self._tol_combo)
         self._tol_spin = QDoubleSpinBox(self._tol_box)
+        # The same decimal mark as every number beside it (`decimal_text`
+        # follows the UI language), not the computer's own.
+        from PyQt6.QtCore import QLocale
+        from core.i18n import uses_decimal_comma
+        self._tol_spin.setLocale(QLocale(QLocale.Language.German)
+                                 if uses_decimal_comma() else QLocale.c())
         self._tol_spin.setDecimals(1)
         self._tol_spin.setRange(TOLERANCE_MIN, TOLERANCE_MAX)
         self._tol_spin.setSingleStep(TOLERANCE_STEP)

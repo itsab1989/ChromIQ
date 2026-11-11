@@ -6130,7 +6130,7 @@ chart's file name. Two buttons: **Import it** and **Cancel**.*
 
 > **Filed: the grid in i1Profiler had changed, and the colours were checked**
 >
-> This measurement of the turned i1Profiler chart was saved on a different grid from the one the how-to note for this chart asks for (the note asks for columns: {cols}, rows: {rows}, pages: 1; the file names columns: {got_cols}, rows on its first page: {got_rows}, pages: {got_pages}). That usually means the page settings in i1Profiler were changed after measuring, which rearranges the finished measurements without moving any of them off its patch. It could also mean that the chart was measured on the other grid, with the measurements taken on the wrong patches.
+> This measurement of the turned i1Profiler chart was saved on a different grid from the one the how-to note for this chart asks for (the note asks for columns: {cols}, rows: {rows}, pages: 1; the file names columns: {got_cols}, rows on its first page: {got_rows}, pages: {got_pages}). That usually means the page settings in i1Profiler were changed after measuring, which rearranges the finished measurements but keeps each of them on its own patch. It could also mean that the chart was measured on the other grid, with the measurements taken on the wrong patches.
 >
 > To tell the two apart, ChromIQ compared the colour the instrument measured on every patch with the colour your chart should have there. They agree clearly (agreement {score} on a scale where 1 is a perfect match, and ChromIQ needs at least {need}), no other arrangement of the patches fits nearly as well, and every strip fits its own patches better than its neighbours. So every measurement has been filed on its own patch, exactly as if the file had kept the grid you measured on.
 >
@@ -9972,6 +9972,11 @@ behaviour and the wording await confirmation.
 * **Only a check, never a pairing**, as before: the readings stay paired by
   the turned order and checked by their device values; the colours only
   decide whether the file is filed. No setting, no "import anyway".
+* **The how-to note** (`i1profiler_turned.PAGE_SETTINGS_NOTE`, under step
+  7) no longer says that ChromIQ refuses such a file: it says that ChromIQ
+  then compares the colours, imports the file when they show clearly that
+  every measurement is on its own patch, refuses it when they cannot show
+  it, and how to set the page back if it is refused.
 * **Unchanged:** the note's own grid (one page, or its columns over several
   pages with every Location in its cell, 4.3.21) is filed without the
   colour check; patches outside their cell on the note's grid and the paged
