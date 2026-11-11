@@ -100,7 +100,7 @@ def test_the_progress_line_names_the_token_and_the_app_keeps_it_internal():
     from workflow.engine_builder import EngineLines
     line = b2a.smooth_exact_always_line(0)
     assert TOKEN in line and "restored at 0 nodes" in line
-    assert "—" not in line
+    assert chr(0x2014) not in line           # no em dash in a line of ours
     shown: list[str] = []
     lines = EngineLines(shown.append)
     assert lines._present(line) is None
