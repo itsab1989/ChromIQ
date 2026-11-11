@@ -419,3 +419,23 @@ def test_the_details_fade_follows_the_appearance(qapp, mode, colour):
     assert dlg._scroll._top_fade._color.name() == colour
     assert dlg._scroll._bot_fade._color.name() == colour
     dlg.deleteLater()
+
+
+def test_the_list_shows_four_whole_lines_whatever_the_count(qapp, a,
+                                                            tmp_path):
+    """No jumping window as readings are added, and no half-cut fifth line
+    (measured on screen in the dark appearance before the refit)."""
+    paths = [_write(tmp_path / f"r{k}.ti3", _noisy(seed=k)) for k in range(9)]
+    dlg = _inspector(qapp, a)
+    dlg.show()
+    heights = []
+    for n in (1, 4, 9):
+        dlg.add_readings(paths[:n])
+        qapp.processEvents()
+        lw = dlg._others_list
+        rh = lw.visualItemRect(lw.item(0)).height()
+        assert lw.viewport().height() == 4 * rh, (n, rh)
+        heights.append(lw.height())
+    assert len(set(heights)) == 1
+    dlg.close()
+    dlg.deleteLater()

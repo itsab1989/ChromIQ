@@ -779,17 +779,33 @@ class Ti3InfoDialog(QDialog):
         if some:
             # FOUR LINES, whatever the count: the window does not jump as
             # readings are added, and five to nine scroll in place.
-            lw = self._others_list
-            rh = max(18, lw.sizeHintForRow(0))
-            # exactly four whole lines: the frame and the style sheet's
-            # padding are what the list is taller than its viewport
-            lw.ensurePolished()
-            chrome = max(2 * lw.frameWidth(),
-                         lw.height() - lw.viewport().height())
-            lw.setFixedHeight(rh * 4 + chrome)
+            self._fit_list_height()
+            # …and again once the list is laid out in this appearance's
+            # style sheet: measured on screen 2026-11-11, the dark style's
+            # rows came out shorter than the first estimate and a fifth line
+            # showed half cut off.
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(0, self._fit_list_height)
         self._update_reading_buttons()
         if self.isVisible():
             self._fit_details_floor()
+
+    def _fit_list_height(self) -> None:
+        """Exactly four whole lines, whatever the count: the window does
+        not jump as readings are added, and five to nine scroll in place.
+        The frame and the style sheet's padding are what the list is taller
+        than its viewport."""
+        lw = self._others_list
+        if not lw.count():
+            return
+        lw.ensurePolished()
+        rect = lw.visualItemRect(lw.item(0))
+        rh = rect.height() if rect.height() > 0 else lw.sizeHintForRow(0)
+        rh = max(1, rh)
+        chrome = max(2 * lw.frameWidth(),
+                     lw.height() - lw.viewport().height())
+        if lw.height() != rh * 4 + chrome:
+            lw.setFixedHeight(rh * 4 + chrome)
 
     @staticmethod
     def _reading_line(rd) -> str:
