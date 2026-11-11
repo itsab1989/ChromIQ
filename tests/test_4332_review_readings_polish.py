@@ -300,10 +300,10 @@ def test_the_list_keeps_the_end_of_a_name_at_the_minimum_width(qapp,
         assert f"-{row + 1}-measured.ti3" in shown, shown
         assert "measured 20" in shown, shown
         assert "…" in shown                      # it was shortened
-        # the name and the date fit; only the instrument may be cut at the
-        # right by the list itself
-        head = shown.split("  ·  X-Rite")[0]
-        assert fm.horizontalAdvance(head) <= lw.viewport().width(), shown
+        # the name and the date fit; a detail that cannot fit is left out
+        # whole, never shown as a lone "· …"
+        assert fm.horizontalAdvance(shown) <= lw.viewport().width(), shown
+        assert "X-Rite" not in shown or shown.endswith("ColorMunki"), shown
         assert names[row] in lw.item(row).toolTip()
     # wider again: the whole line comes back
     dlg.resize(dlg.minimumWidth() + 900, dlg.height())

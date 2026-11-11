@@ -811,9 +811,10 @@ class Ti3InfoDialog(QDialog):
         return super().eventFilter(obj, event)
 
     def _elide_reading_items(self) -> None:
-        """Fit every list line to the list's width by shortening the file
-        name in its middle, never below about 60 % of the width; what still
-        does not fit is cut at the right by the list (the details last)."""
+        """Fit every list line to the list's width: the trailing details
+        that cannot fit are left out whole, then the file name is shortened
+        in its middle, never below about 60 % of the width; anything still
+        too long is cut at the right by the list."""
         lw = self._others_list
         if not lw.count():
             return
@@ -829,6 +830,16 @@ class Ti3InfoDialog(QDialog):
             if fm.horizontalAdvance(full) <= avail:
                 text = full
             else:
+                # The last details go first (the instrument, then the
+                # condition), whole, never as a lone "· …"; the first
+                # detail after the name (the date, or "not compared")
+                # always stays. All of it is in the tooltip.
+                sep = "  ·  "
+                while (shape.count(sep) > 1 and fm.horizontalAdvance(
+                        shape.replace(_NAME_SLOT, fm.elidedText(
+                            name, Qt.TextElideMode.ElideMiddle,
+                            int(avail * 0.6)))) > avail):
+                    shape = shape.rsplit(sep, 1)[0]
                 rest = fm.horizontalAdvance(shape.replace(_NAME_SLOT, ""))
                 room = max(avail - rest, int(avail * 0.6))
                 text = shape.replace(_NAME_SLOT, fm.elidedText(
