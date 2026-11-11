@@ -170,6 +170,16 @@ class _DarkEmphasisSpin(NoScrollDoubleSpinBox):
 # ArgyllCMS documentation. These are functions, not module constants, so tr()
 # runs when the combo is built (after the UI language is loaded) and the i18n
 # extractor sees every literal.
+def _hue_default_kept(settings) -> bool:
+    """The saved default of "Keep the original hue" (``manual2_colprof_hue``,
+    "argyll" = off, the factory setting, or "kept")."""
+    try:
+        raw = settings.get("manual2_colprof_hue", "argyll")
+    except Exception:      # noqa: BLE001
+        return False
+    return str(raw or "").strip().lower() == "kept"
+
+
 def _intents() -> "list[tuple[str, str]]":
     return [
         (tr("Default"), ""),
@@ -2745,7 +2755,7 @@ class TabProfile(QWidget):
 
     def _m_collect_preset_data(self) -> dict:
         gam_mode = self._m_gam_mode_combo.currentData() or ""
-        return {
+        data = {
             "algorithm":           self._m_algo_combo.currentData() or "l",
             "quality":             self._m_qual_combo.currentData() or "m",
             "b2a_enabled":         self._m_b2a_check.isChecked(),
@@ -2793,6 +2803,16 @@ class TabProfile(QWidget):
             "render_style":        self._m_render_combo.currentData()
                                    or "argyll",
         }
+        # "Keep the original hue" is saved only while the engine is on
+        # (Basti: "savable as default and as part of a preset, if engine is
+        # on"). With the engine off the box is hidden, so a value written
+        # now would be one nobody could see, and it would quietly apply the
+        # day the engine is switched on. A preset without the key loads it
+        # as off (`_m_apply_preset_data`).
+        if self._accurate_engine_active():
+            data["hue_rendering"] = ("kept" if self._m_hue_cb.isChecked()
+                                     else "argyll")
+        return data
 
     # ------------------------------------------------------------------
     # Per-target settings (#130 §5)
@@ -2963,6 +2983,14 @@ class TabProfile(QWidget):
             # "g_…" (Knut's beta.3 bug-test). _m_apply_preset_data ignores
             # keys it does not know, so presets stay exactly as they were.
             wanted = {**wanted, **self._collect_guided_profile_fields()}
+            # "Keep the original hue" is the target's own whatever the
+            # engine switch says, like the other engine-only rows: a preset
+            # or a saved default leaves it out while the engine is off
+            # (`_m_collect_preset_data`), but the target keeps the value it
+            # was loaded with, so switching the engine off and on again
+            # never loses a choice made for this target.
+            wanted["hue_rendering"] = ("kept" if self._m_hue_cb.isChecked()
+                                       else "argyll")
             fingerprint = str(getattr(store, "dir", store))
             if self._profile_written_cache().get(fingerprint) == wanted:
                 return False
@@ -3140,6 +3168,9 @@ class TabProfile(QWidget):
         _set_combo(self._m_iccver_combo, "icc_version", "2")
         self._m_noise_cb.setChecked(bool(data.get("noise_model", False)))
         _set_combo(self._m_render_combo, "render_style", "argyll")
+        self._m_hue_cb.setChecked(
+            str(data.get("hue_rendering", "argyll")).strip().lower()
+            == "kept")
 
     def _on_m_preset_selected(self, index: int) -> None:
         self._m_preset_del_btn.setEnabled(index > 0)
@@ -3201,6 +3232,7 @@ class TabProfile(QWidget):
                 bool(s.get("manual2_colprof_noise", False)))
             _set_combo(self._m_render_combo,
                        "manual2_colprof_render", "argyll")
+            self._m_hue_cb.setChecked(_hue_default_kept(s))
         else:
             name = self._m_preset_combo.currentData()
             presets = self._m_load_presets()
@@ -3832,6 +3864,55 @@ class TabProfile(QWidget):
             min_width=560,
         ))
         eng_col.addLayout(render_row)
+
+        # "Keep the original hue" (Basti, 2026-11-11): BuildSettings.
+        # hue_rendering, "argyll" (off, the default) or "kept"
+        # (workflow/profile_engine/hue_keep.py). Saved per target, as a
+        # default and in a preset like the rows above, but a preset or a
+        # default only takes it while the engine is on.
+        hue_row = QHBoxLayout()
+        self._m_hue_cb = QCheckBox(tr("Keep the original hue"), grp)
+        hue_row.addWidget(self._m_hue_cb)
+        hue_row.addStretch()
+        self._m_hue_tip = TooltipButton(
+            tr("Keep the original hue"),
+            tr("Photos often contain colours your printer cannot reach, "
+               "such as a very saturated blue or a bright yellow-green. In "
+               "the Perceptual and Saturation renderings the profile moves "
+               "such colours to the nearest colour the printer can print. "
+               "On the way their hue usually drifts a little: in our "
+               "measurements by 3.5 to 5 degrees of hue on average.\n\n"
+               "**With this option on,** the engine builds those two "
+               "renderings so that colours the printer cannot reach keep "
+               "the hue of the original colour as closely as it can. "
+               "Roughly a quarter to a half of the usual drift remains, "
+               "depending on how hue is measured.\n\n"
+               "**What you may see:** yellow and yellow-green come out "
+               "slightly greener (less orange), blue slightly less violet, "
+               "and magenta a little cooler. Colours the printer can reach, "
+               "neutral greys and skin tones stay practically the "
+               "same.\n\n"
+               "**What it costs:** the very purest colours lose a tiny "
+               "amount of saturation, and a build takes a few seconds "
+               "longer.\n\n"
+               "**What it changes, and what it does not:**\n\n"
+               "  • Only the Perceptual and Saturation intents change. "
+               "Relative Colorimetric and Absolute Colorimetric stay exactly "
+               "the same.\n\n"
+               "  • For now it works for RGB printers only. On a CMYK "
+               "printer or a printer with extra inks it does nothing, and "
+               "the build log says so.\n\n"
+               "**Please note:** so far it has been judged by measurements "
+               "and simulated pictures only, and no printed comparison has "
+               "been made yet. That is why it is offered as a choice and "
+               "stays off unless you switch it on. If you try it, check the "
+               "result with a test print, and tell us what you see.\n\n"
+               "**Default:** off."),
+            grp,
+            min_width=560,
+        )
+        hue_row.addWidget(self._m_hue_tip)
+        eng_col.addLayout(hue_row)
         g.addWidget(self._m_engine_rows_widget)
         self._refresh_engine_rows()
 
@@ -6715,7 +6796,8 @@ class TabProfile(QWidget):
                 description=f"{desc} (colprof)",
                 model=params.model or desc,
                 spectral_physics=False, icc_version="2",
-                noise_model=False, render_style="argyll")
+                noise_model=False, render_style="argyll",
+                hue_rendering="argyll")
             self._comparison = (params, cparams, work)
             self._comparison_builder = ProfileBuilder(self._runner)
             self._building_with = "colprof"
@@ -7369,6 +7451,9 @@ class TabProfile(QWidget):
                                  or "argyll")
                                 if self._accurate_engine_active()
                                 else "argyll"),
+            hue_rendering    = ("kept" if (self._m_hue_cb.isChecked()
+                                           and self._accurate_engine_active())
+                                else "argyll"),
         )
 
     # ------------------------------------------------------------------
@@ -7459,6 +7544,11 @@ class TabProfile(QWidget):
                   self._m_noise_cb.isChecked())
             s.set("manual2_colprof_render",
                   self._m_render_combo.currentData() or "argyll")
+            # Only while the engine is on, where the box can be seen (see
+            # `_m_collect_preset_data`); otherwise the saved default stays.
+            if self._accurate_engine_active():
+                s.set("manual2_colprof_hue",
+                      "kept" if self._m_hue_cb.isChecked() else "argyll")
         self._log.appendPlainText("Profile settings saved as defaults.")
         self._log.ensureCursorVisible()
 
@@ -7580,5 +7670,6 @@ class TabProfile(QWidget):
         _set_m_combo(self._m_iccver_combo,        "manual2_colprof_iccver",   "2")
         self._m_noise_cb.setChecked(bool(s.get("manual2_colprof_noise", False)))
         _set_m_combo(self._m_render_combo,        "manual2_colprof_render",   "argyll")
+        self._m_hue_cb.setChecked(_hue_default_kept(s))
         presets = self._m_load_presets()
         self._m_populate_preset_combo(presets)

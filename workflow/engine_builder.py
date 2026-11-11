@@ -285,6 +285,7 @@ def settings_from_params(params: "ProfileParams") -> BuildSettings:
         icc_version=params.icc_version or "2",
         noise_model=params.noise_model,
         render_style=params.render_style or "argyll",
+        hue_rendering=params.hue_rendering or "argyll",
         z_attributes="".join(filter(None, [
             params.z_surface, params.z_media_type, params.z_polarity,
             params.z_color_mode])),
@@ -422,6 +423,11 @@ _DEEPEST = re.compile(
     r"darkest printable neutral (?:none|L\* (?P<nl>-?[\d.]+) a\* "
     r"(?P<na>-?[\d.]+) b\* (?P<nb>-?[\d.]+)); (?P<nodes>\d+) nodes"
     r"(?P<idle>, not needed)?\)\.$")
+#: The engine's lines about "Keep the original hue" (hue_keep.py): one per
+#: table it re-solved, or one saying it did nothing on this device.
+_HUE_KEPT = re.compile(
+    r"^Hue-kept rendering \(x1-huekeep(?:, (?P<tag>B2A\d))?\): "
+    r"(?P<rest>.*)$", re.S)
 #: The percentage / remaining-time head the engine puts before a line.
 _HEAD = re.compile(r"^(\d+%(?: · [^·]*)?) · (.*)$", re.S)
 #: A numbered internal switch name (a84-warmblack, a25-oog, a88).
@@ -521,12 +527,43 @@ class EngineLines:
         if m:
             self.reported.append({"switch": "a88-black-deepest", "line": msg})
             return self._deepest_line(m)
+        m = _HUE_KEPT.match(msg)
+        if m:
+            self.reported.append({"switch": "x1-huekeep", "line": msg})
+            return self._hue_kept_line(m)
         names = _switch_names_in(msg)
         if names or _INTERNAL_WORDS.search(msg):
             for name in names or ["(unnamed)"]:
                 self.reported.append({"switch": name, "line": msg})
             return None
         return msg
+
+    @staticmethod
+    def _hue_kept_line(m) -> "str | None":
+        """The engine's "Hue-kept rendering" lines in the app's words; a
+        form this does not know stays in chromiq.log only."""
+        tag, rest = m.group("tag"), m.group("rest")
+        if tag == "B2A0":
+            return tr(
+                "Keep the original hue: the Perceptual table was built so "
+                "that colours the printer cannot reach keep the hue of the "
+                "original colour.")
+        if tag == "B2A2":
+            return tr(
+                "Keep the original hue: the Saturation table was built so "
+                "that colours the printer cannot reach keep the hue of the "
+                "original colour.")
+        if tag is None and "RGB printers only" in rest:
+            return tr(
+                "Keep the original hue: this option works for RGB printers "
+                "only for now, so it changed nothing in this profile. The "
+                "profile is the same as with the option off.")
+        if tag is None and "Lab connection space" in rest:
+            return tr(
+                "Keep the original hue: this profile does not use L*a*b* as "
+                "its connection space, so the option changed nothing in it. "
+                "The profile is the same as with the option off.")
+        return None
 
     def _deepest_line(self, m) -> str:
         black = {"l": m.group("kl"), "a": m.group("ka"), "b": m.group("kb")}
@@ -555,10 +592,13 @@ class EngineLines:
                     nl=m.group("nl"), na=m.group("na"), nb=m.group("nb"))
         return tr(
             "Deepest black: the Relative and Absolute Colorimetric table "
-            "now goes down to your printer's own black (L* {kl}, a* {ka}, "
-            "b* {kb}) instead of stopping at the darkest neutral grey the "
-            "printer can print (L* {nl}, a* {na}, b* {nb}). Use this "
-            "profile with black point compensation switched on.").format(
+            "now takes the darkest shadows all the way down to your "
+            "printer's own black (L* {kl}, a* {ka}, b* {kb}), instead of "
+            "keeping them at the darkest neutral grey the printer can print "
+            "(L* {nl}, a* {na}, b* {nb}) for as long as possible. Use this "
+            "profile with black point compensation switched on in the "
+            "program you print from: without it, the darkest few steps "
+            "print as the same black.").format(
                 kl=black["l"], ka=black["a"], kb=black["b"],
                 nl=m.group("nl"), na=m.group("na"), nb=m.group("nb"))
 
@@ -568,6 +608,8 @@ class EngineLines:
             "builder": "engine",
             "engine_mode": ENGINE_MODE,
             "black_depth": str(getattr(settings, "black_depth", "neutral")),
+            "hue_rendering": str(getattr(settings, "hue_rendering",
+                                         "argyll")),
             "settings": build_settings_summary(settings),
             "switches_on": list(self.switches_on),
             "switches_reported": list(self.reported),
