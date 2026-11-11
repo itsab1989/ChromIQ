@@ -68,7 +68,8 @@ def _loc_xml(cell) -> str:
 
 def _mxf(txf: Path, out: Path, *, columns: int, pages: int = 1,
          locations: "str" = "rule", swap: "tuple | None" = None,
-         attributes: bool = True, per_page: "list | None" = None) -> Path:
+         attributes: bool = True, per_page: "list | None" = None,
+         misread: "tuple | None" = None) -> Path:
     """An .mxf shaped like i1Profiler's own (X-Rite's RGB_default-i1Pro.mxf):
     Target objects in patch-list order with the device values of *txf*,
     M0/M1/M2 measurement objects index-aligned, and the CustomAttributes with
@@ -77,9 +78,27 @@ def _mxf(txf: Path, out: Path, *, columns: int, pages: int = 1,
     gives), "none" (no Location tags). *swap* exchanges the Locations of two
     entries (the readings and device values stay where they are).
     *per_page* overrides how the rows are shared out over the pages (another
-    split than i1Profiler's, for the tests that need one)."""
+    split than i1Profiler's, for the tests that need one).
+
+    *misread* = (order rows, order columns): the chart was MEASURED on this
+    grid, so every reading is of the patch the person had under the
+    instrument while i1Profiler asked for its own cells row by row and the
+    person followed the printed strips patch by patch
+    (`turned_colour_check._file_grid_arrangements`, "by-patch"; the other
+    model, strip by strip, puts every reading on its own patch when the grid
+    has the order's rows, as one column more on a full chart does), while the
+    device values stay the .txf's. Without it the
+    readings are each patch's own: a measurement re-laid after measuring,
+    which is what i1Profiler does when its page settings change (4.3.32)."""
     rgb = _rgbs(txf)
     n = len(rgb)
+    source = list(range(n))
+    if misread is not None:
+        from workflow.turned_colour_check import _file_grid_arrangements
+        o_rows, o_cols = misread
+        p = _file_grid_arrangements(n, o_rows, o_cols, columns)[
+            f"grid-{columns}-by-patch"]
+        source = [int(p[j]) if p[j] >= 0 else (j + 7) % n for j in range(n)]
     rows_total = -(-n // columns)
     if per_page is None:
         per_page = i1p_page_rows(rows_total, pages)
@@ -94,7 +113,7 @@ def _mxf(txf: Path, out: Path, *, columns: int, pages: int = 1,
     for mode in ("M0", "M1", "M2"):
         for j, (r, g, b) in enumerate(rgb):
             k += 1
-            sp = " ".join(str(v) for v in _spectrum(r, g, b))
+            sp = " ".join(str(v) for v in _spectrum(*rgb[source[j]]))
             objs.append(
                 f'<cc:Object ObjectType="{mode}_Measurement" '
                 f'Name="{mode}_Measurement{j + 1}" Id="c{k}"><cc:ColorValues>'
@@ -166,7 +185,7 @@ def test_b_one_column_more_is_refused_although_the_device_values_agree(
         turned_chart, tmp_path):
     ti2, files, plan = turned_chart
     mxf = _mxf(files.txf("i1Pro 3"), tmp_path / "b.mxf",
-               columns=plan.columns + 1)
+               columns=plan.columns - 1, misread=(plan.rows, plan.columns))
     ti3, v = _import(mxf, ti2)
     # the device values alone would have said "verified": that is the bug
     from workflow.ti3_analysis import parse_ti3
@@ -174,11 +193,14 @@ def test_b_one_column_more_is_refused_although_the_device_values_agree(
     assert m.applies and m.verified and not m.partial
     assert not v.ok and not v.turned_order
     assert "laid that chart out on a different grid" in v.reason
-    rows_b = -(-len(plan.order) // (plan.columns + 1))
+    rows_b = -(-len(plan.order) // (plan.columns - 1))
     assert (f"columns: {plan.columns}, rows: {plan.rows}, pages: 1"
             in v.reason)
-    assert (f"columns: {plan.columns + 1}, rows: {rows_b}, pages: 1"
+    assert (f"columns: {plan.columns - 1}, rows: {rows_b}, pages: 1"
             in v.reason)
+    # 4.3.32: the colours were asked, and said no
+    assert "So ChromIQ compared the colours" in v.reason
+    assert "Here they do not match" in v.reason
     assert "step 5" in v.reason and ".mxf" in v.reason
     assert "—" not in v.reason
     # no door can pair it either: the copy is left exactly as it was
@@ -214,7 +236,8 @@ def test_grid_attributes_without_locations_are_judged_by_the_grid(
     assert g.located == 0 and g.misplaced == 0
     assert v.ok and v.turned_order, v.reason
     bad = _mxf(files.txf("i1Pro 3"), tmp_path / "bad.mxf",
-               columns=plan.columns + 1, locations="none")
+               columns=plan.columns - 1, locations="none",
+               misread=(plan.rows, plan.columns))
     _ti3, v = _import(bad, ti2)
     assert not v.ok and "different grid" in v.reason
 
@@ -277,12 +300,12 @@ def test_other_columns_on_several_pages_name_the_first_pages_rows(chart_360,
                                                                    tmp_path):
     ti2, files, plan = chart_360
     mxf = _mxf(files.txf("i1Pro 3"), tmp_path / "wide.mxf",
-               columns=25, pages=3)
+               columns=23, pages=3, misread=(plan.rows, plan.columns))
     ti3, v = _import(mxf, ti2)
     g = i1p_grid_of(ti3)
-    assert (g.columns, g.pages) == (25, 3)
+    assert (g.columns, g.pages) == (23, 3)
     assert not v.ok
-    assert (f"columns: 25, pages: 3, rows on its first page: {g.rows}"
+    assert (f"columns: 23, pages: 3, rows on its first page: {g.rows}"
             in v.reason)
     assert "did not match the strips on your printed sheet" in v.reason
     assert "kept the" not in v.reason
@@ -321,7 +344,7 @@ def test_a_4317_anticlockwise_order_is_checked_by_its_grid_too(tmp_path):
     _ti3, v = _import(good, ti2)
     assert v.ok and v.turned_order, v.reason
     bad = _mxf(files.txf("i1Pro 3"), tmp_path / "old_b.mxf",
-               columns=plan.columns + 1)
+               columns=plan.columns - 1, misread=(plan.rows, plan.columns))
     _ti3, v = _import(bad, ti2)
     assert not v.ok and "different grid" in v.reason
 
@@ -342,7 +365,8 @@ def test_an_earlier_order_kept_after_a_rewrite_shares_the_charts_grid(
                            columns=plan.columns), ti2)
     assert v.ok and v.turned_order, v.reason
     _ti3, v = _import(_mxf(old_txf, tmp_path / "e_b.mxf",
-                           columns=plan.columns + 1), ti2)
+                           columns=plan.columns - 1,
+                           misread=(plan.rows, plan.columns)), ti2)
     assert not v.ok and "different grid" in v.reason
 
 
@@ -532,7 +556,8 @@ from tests.test_i1profiler_turned_doors import (                    # noqa: E402
 def _bad_grid_mxf(src_ti2: Path, out: Path) -> Path:
     files = T.TurnedFiles(exports_subdir(src_ti2.parent), src_ti2.stem)
     plan = T.plan_for(src_ti2)
-    return _mxf(files.txf("i1Pro 3"), out, columns=plan.columns + 1)
+    return _mxf(files.txf("i1Pro 3"), out, columns=plan.columns - 1,
+                misread=(plan.rows, plan.columns))
 
 
 def test_build_profile_refuses_a_turned_mxf_read_on_another_grid(

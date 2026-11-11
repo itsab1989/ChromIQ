@@ -11761,7 +11761,7 @@ class TabChart(QWidget):
         None when it could not be run. Kept (B8-1470)."""
         answer = None
         from PyQt6.QtWidgets import QApplication
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
         try:
             import subprocess
             targen = self._runner.resolve_tool("targen")
@@ -24485,7 +24485,7 @@ class TabChart(QWidget):
         from workflow.gamut_target import (GamutTargetError,
                                            select_gamut_targets,
                                            write_gamut_ti1)
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
         try:
             # Knut's stepwise grid (#182 6113365581) is EXPERIMENTAL and off:
             # no control shows it, only a hand-set "gamut_target_spread" of

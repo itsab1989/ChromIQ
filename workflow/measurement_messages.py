@@ -2087,32 +2087,232 @@ _TURNED_GRID_WHAT_TO_DO = (
     "Also check that Default display device is set to the family of that "
     "instrument (step 3). Then measure every row again, save the measurement "
     "as an .mxf file and import that file")
+#: 4.3.32 (jctay, forum 2026-11-10; option 2 of `ChromIQ-work/2026-11-10_
+#: jctay/analysis.md`): a turned measurement on another grid is no longer
+#: refused without a look. ChromIQ compares the measured colours with the
+#: colours the chart expects for each patch (`workflow/turned_colour_check.
+#: py`); when they agree clearly it is filed (M-IMPORT-TURNED-GRID-COLOURS
+#: says so), otherwise it is refused, and the reason then says which of the
+#: two it was. _TURNED_GRID_TWO_WAYS above stays for a door that cannot ask
+#: the chart (none does since 4.3.32; kept for `grid_mismatch` without one).
+_TURNED_GRID_TWO_WAYS_CHECKED = (
+    "This can happen in two ways. The first way: the chart was measured on "
+    "the grid the note asks for, and afterwards the page settings in "
+    "i1Profiler (Page setup on the Test Chart page, such as the paper size) "
+    "were changed. i1Profiler then rearranges the measurements it already "
+    "has to fit the new page, so every measurement still belongs to its own "
+    "patch, but the file no longer shows the grid you measured on. The "
+    "second way: the chart was measured on the other grid. Then the rows "
+    "i1Profiler asked you to read did not match the strips on your printed "
+    "sheet, and the measurements were taken on other patches than the ones "
+    "they are recorded for. The file itself cannot show which way it was, "
+    "and neither can the RGB values (the colour numbers) in it, because "
+    "i1Profiler copies the RGB values of its test-chart file into every "
+    "measurement, whatever the instrument actually read. So ChromIQ compared "
+    "the colours the instrument measured with the colours your chart should "
+    "have on each patch: in the first way they match closely, patch by "
+    "patch, and in the second way most measurements belong to other patches "
+    "and do not match.")
+#: The verdict, one of these after the paragraph above. {score} and {need}
+#: are the rank agreement (1 is a perfect match) and ACCEPT_FROM, {row} the
+#: i1Profiler row (1-based), {n} the patch count.
+_TURNED_GRID_COLOURS_DISAGREE = (
+    "Here they do not match: the measured colours do not follow the colours "
+    "the patches should have (agreement {score} on a scale where 1 is a "
+    "perfect match, and ChromIQ needs at least {need}). The measurements "
+    "were most likely taken on other patches, so ChromIQ does not file this "
+    "measurement, to keep wrong measurements out of your profile.")
+_TURNED_GRID_COLOURS_OTHER_ARRANGEMENT = (
+    "Here they do not match: the measured colours fit the patches better "
+    "when they are moved to other places on the chart (shifted, mirrored or "
+    "turned round) than where the file records them. The measurements were "
+    "most likely taken on other patches, so ChromIQ does not file this "
+    "measurement, to keep wrong measurements out of your profile.")
+_TURNED_GRID_COLOURS_STRIP_WRONG = (
+    "Here most measurements match their patches, but those in row {row} of "
+    "the grid in step 5 (one strip of your printed sheet) match the "
+    "neighbouring "
+    "patches better than their own, as if that strip had been read one "
+    "patch out of place. ChromIQ does not file this measurement, to keep "
+    "wrong measurements out of your profile.")
+_TURNED_GRID_COLOURS_UNSURE = {
+    "no-colours": (
+        "Here the colours cannot settle it, because ChromIQ could not work "
+        "out from the chart files which colour each patch should have, or "
+        "could not read a measured colour for every patch."),
+    "few-patches": (
+        "Here the colours cannot settle it, because the chart has too few "
+        "patches ({n}) to tell rearranged measurements from misplaced ones "
+        "with confidence."),
+    "similar": (
+        "Here the colours cannot settle it, because the patches of this "
+        "chart are too similar in colour (or too few of them differ clearly) "
+        "for a measurement taken on the wrong patch to stand out."),
+    "neighbours": (
+        "Here the colours cannot settle it, because on this chart "
+        "neighbouring patches have colours close to each other (as on a "
+        "chart sorted by colour), so a measurement taken one patch away "
+        "would look almost as right as one taken on its own patch."),
+    "short-strips": (
+        "Here the colours cannot settle it, because the strips of this chart "
+        "are too short to check one by one."),
+    "between": (
+        "Here the colours cannot settle it: they match better than "
+        "misplaced measurements usually do, but not as closely as "
+        "measurements on their own patches usually do (agreement {score} on "
+        "a scale where 1 is a perfect match, and ChromIQ needs at least "
+        "{need})."),
+    "other-arrangement": (
+        "Here the colours cannot settle it: they match their own patches, "
+        "but they match the patches almost as well when they are moved to "
+        "other places on the chart (shifted, mirrored or turned round)."),
+    "strip-unclear": (
+        "Here the colours cannot settle it: most measurements match their "
+        "patches, but in row {row} of the grid in step 5 (one strip of your "
+        "printed sheet) the measurements match their own patches hardly "
+        "better than "
+        "the neighbouring ones."),
+}
+_TURNED_GRID_COLOURS_UNSURE_TAIL = (
+    "ChromIQ files a measurement of the turned chart on another grid only "
+    "when the colours show clearly that every measurement belongs to its "
+    "own patch, so it does not file this one.")
+#: The way out of the first cause, after a "cannot tell" (after a clear
+#: disagreement it would only hide the problem, so it is not offered there).
+_TURNED_GRID_WAY_BACK = (
+    "If you are sure that i1Profiler showed the grid of step 5 while you "
+    "measured, and that the page settings were changed only afterwards, you "
+    "do not need to measure again: open the saved measurement in i1Profiler "
+    "(Load under Page Data on the Measurement page), go back to the Test "
+    "Chart page and set Page setup back to the paper size you measured "
+    "with, until i1Profiler shows the grid of step 5 again, then save the "
+    "measurement as an .mxf file once more (Save under Page Data on the "
+    "Measurement page) and import that file. Your measurements stay exactly "
+    "as they were; i1Profiler only arranges them on its pages again. When "
+    "ChromIQ then asks which measurement condition to import, check that "
+    "the one you want is selected, because i1Profiler may have changed the "
+    "one it marks as chosen.")
+
+
 M_IMPORT_TURNED_GRID = _m(
     "M-IMPORT-TURNED-GRID",
     "A measurement of the turned i1Profiler chart on another grid: the reasons",
     "\n".join((_TURNED_GRID_DIFFERS, _TURNED_GRID_DIFFERS_PAGED,
-               _TURNED_GRID_TWO_WAYS, _TURNED_GRID_CELLS_DIFFER,
+               _TURNED_GRID_TWO_WAYS, _TURNED_GRID_TWO_WAYS_CHECKED,
+               _TURNED_GRID_COLOURS_DISAGREE,
+               _TURNED_GRID_COLOURS_OTHER_ARRANGEMENT,
+               _TURNED_GRID_COLOURS_STRIP_WRONG,
+               *(_TURNED_GRID_COLOURS_UNSURE[k] for k in (
+                   "no-colours", "few-patches", "similar", "neighbours",
+                   "short-strips", "between", "other-arrangement",
+                   "strip-unclear")),
+               _TURNED_GRID_COLOURS_UNSURE_TAIL, _TURNED_GRID_WAY_BACK,
+               _TURNED_GRID_CELLS_DIFFER,
                _TURNED_GRID_PAGED_CELLS,
                _TURNED_GRID_PAGED_NO_PLACE, _TURNED_GRID_WHAT_TO_DO)),
     approved=False)
 
 
 def turned_grid_differs_reason(cols: int, rows: int, got_cols: int,
-                               got_rows: int, got_pages: int) -> str:
+                               got_rows: int, got_pages: int,
+                               colour=None) -> str:
     """{reason}: i1Profiler made another grid than the order names.
 
     On one page {got_rows} is all of i1Profiler's rows; on more than one it is
     the rows of the first page. A file with the note's columns on more than
     one page is not another grid (4.3.21): `grid_mismatch` judges it by its
-    Locations and gives `turned_grid_paged_cells_reason` when it refuses it."""
+    Locations and gives `turned_grid_paged_cells_reason` when it refuses it.
+
+    *colour* (a `turned_colour_check.ColourJudgement`, 4.3.32) is what the
+    colours said when they did not clear the file: the reason then says that
+    they were checked and which way it went. Without it the reason is the
+    4.3.29 one."""
     if got_pages > 1:
         text = tr(_TURNED_GRID_DIFFERS_PAGED)
     else:
         text = tr(_TURNED_GRID_DIFFERS)
-    return (text.format(
-        cols=cols, rows=rows, got_cols=got_cols, got_rows=got_rows,
-        got_pages=got_pages) + " " + tr(_TURNED_GRID_TWO_WAYS) + " "
-        + tr(_TURNED_GRID_WHAT_TO_DO))
+    head = text.format(cols=cols, rows=rows, got_cols=got_cols,
+                       got_rows=got_rows, got_pages=got_pages)
+    if colour is None:
+        return (head + " " + tr(_TURNED_GRID_TWO_WAYS) + " "
+                + tr(_TURNED_GRID_WHAT_TO_DO))
+    return (head + " " + tr(_TURNED_GRID_TWO_WAYS_CHECKED) + " "
+            + turned_grid_colour_verdict(colour) + " "
+            + tr(_TURNED_GRID_WHAT_TO_DO))
+
+
+def turned_grid_colour_verdict(colour) -> str:
+    """The sentences that say what the colours said, for a refusal: the
+    clear disagreement, or the "cannot tell" with its tail and the way back
+    of the first cause."""
+    from core.i18n import decimal_text
+    from workflow.turned_colour_check import ACCEPT_FROM, DISAGREE
+    score = (decimal_text(colour.score, 2)
+             if colour.score == colour.score else "")
+    kw = dict(score=score, need=decimal_text(ACCEPT_FROM, 2),
+              row=(colour.strip or 0) + 1, n=colour.patches)
+    if colour.verdict == DISAGREE:
+        text = {"other-arrangement": _TURNED_GRID_COLOURS_OTHER_ARRANGEMENT,
+                "strip-wrong": _TURNED_GRID_COLOURS_STRIP_WRONG
+                }.get(colour.why, _TURNED_GRID_COLOURS_DISAGREE)
+        return tr(text).format(**kw)
+    text = _TURNED_GRID_COLOURS_UNSURE.get(
+        colour.why, _TURNED_GRID_COLOURS_UNSURE["between"])
+    return (tr(text).format(**kw) + " " + tr(_TURNED_GRID_COLOURS_UNSURE_TAIL)
+            + " " + tr(_TURNED_GRID_WAY_BACK))
+
+
+#: 4.3.32: the window after a turned measurement on another grid was FILED
+#: because its colours agree with the chart (`turned_colour_check`). Shown
+#: once, by `ui.measurement_filing.say_what_was_filed`, from the keyword the
+#: pairing step writes into the filed copy. {cols}/{rows}: the note's grid;
+#: {got_cols}/{got_rows}/{got_pages}: the file's ({got_rows} the rows of the
+#: first page when there is more than one); {score}/{need} as above.
+M_IMPORT_TURNED_GRID_COLOURS = _m(
+    "M-IMPORT-TURNED-GRID-COLOURS",
+    "Filed: the grid in i1Profiler had changed, and the colours were checked",
+    "This measurement of the turned i1Profiler chart was saved on a "
+    "different grid from the one the how-to note for this chart asks for "
+    "(the note asks for columns: {cols}, rows: {rows}, pages: 1; the file "
+    "names columns: {got_cols}, rows on its first page: {got_rows}, pages: "
+    "{got_pages}). That "
+    "usually means the page settings in i1Profiler were changed after "
+    "measuring, which rearranges the finished measurements but keeps each "
+    "of them on its own patch. It could also mean that the chart was "
+    "measured on the other grid, with the measurements taken on the wrong "
+    "patches.\n\n"
+    "To tell the two apart, ChromIQ compared the colour the instrument "
+    "measured on every patch with the colour your chart should have there. "
+    "They agree clearly (agreement {score} on a scale where 1 is a perfect "
+    "match, and ChromIQ needs at least {need}), none of the other "
+    "arrangements ChromIQ tried (the measurements shifted, mirrored or "
+    "turned round, or laid out on the grid in the file) fits nearly as "
+    "well, and every strip fits its own patches clearly better than the "
+    "patches one place along it. So ChromIQ has filed the measurements on "
+    "the patches the file records them for, exactly as if the file had "
+    "kept the grid you measured on.\n\n"
+    "Nothing else is needed. Next time, it helps to leave the page settings "
+    "in i1Profiler as they were while measuring until the measurement is "
+    "saved, so that the file shows the grid you measured on.",
+    approved=False)
+
+
+def turned_grid_colours_filed(fields: "dict[str, str]") -> "tuple[str, str]":
+    """(title, body) of M-IMPORT-TURNED-GRID-COLOURS from the keyword the
+    pairing step wrote (`i1profiler_turned.COLOUR_CHECK_KEYWORD`)."""
+    from core.i18n import decimal_text
+    from workflow.turned_colour_check import ACCEPT_FROM
+
+    def _f(k: str, d: float = 0.0) -> float:
+        try:
+            return float(fields.get(k, d))
+        except ValueError:
+            return d
+    return M_IMPORT_TURNED_GRID_COLOURS.render(
+        cols=int(_f("asked_columns")), rows=int(_f("asked_rows")),
+        got_cols=int(_f("columns")), got_rows=int(_f("rows")),
+        got_pages=int(_f("pages", 1)),
+        score=decimal_text(_f("score"), 2), need=decimal_text(ACCEPT_FROM, 2))
 
 
 def turned_grid_cells_differ_reason(cols: int, rows: int, count: int,
@@ -2359,6 +2559,133 @@ def reference_unusable_reason(kind: str, error: str = "") -> str:
     if kind == "no-colour":
         return tr(_REF_NO_COLOUR)
     return tr(_REF_UNREADABLE).format(error=error)
+
+
+# --- PROPOSED (4.3.32, jctay; Basti 2026-11-11 "do both"): Tools > Inspect a
+#: measurement compares the measurement with ANOTHER READING OF THE SAME
+#: CHART (`workflow/reading_compare.py`). Before any number is shown the two
+#: are paired and checked by the rule Verify against reference uses (4.3.30):
+#: the same number of patches, the patch numbers, and the device values of
+#: every pair within PATCH_IDENTITY_TOL; where the patch numbers do not pair,
+#: by the device values when each names exactly one patch. A pair of files
+#: that fails is refused with this message, in the tool's result area.
+#: {file} is the second reading's file name; {reason} one of the fragments
+#: below, lower case and without a closing full stop.
+_READINGS_COUNT = (
+    "the two files do not hold the same number of patches (your "
+    "measurement: {a_n}, the second reading: {b_n})")
+_READINGS_IDS = (
+    "some patch numbers of your measurement do not appear in the second "
+    "reading at all (for example {ids}), and the device values (the colour "
+    "numbers each patch was printed with) cannot pair the patches either")
+_READINGS_DEVICE_DIFFER = (
+    "patches with the same patch number hold different device values (the "
+    "colour numbers each patch was printed with) in the two files ({bad} of "
+    "{total} pairs; patch {sid}, for example, is {a_dev} in your measurement "
+    "and {b_dev} in the second reading), and some device values of one file "
+    "do not appear in the other at all")
+_READINGS_DEVICE_REPEATS = (
+    "patches with the same patch number hold different device values (the "
+    "colour numbers each patch was printed with) in the two files ({bad} of "
+    "{total} pairs; patch {sid}, for example, is {a_dev} in your measurement "
+    "and {b_dev} in the second reading). ChromIQ cannot pair the patches by "
+    "their device values instead, because some device values belong to more "
+    "than one patch of the chart, so it could not tell which of those "
+    "patches is which")
+#: 4.3.32 review: one file holds no device values, so only the patch
+#: numbers could pair them, and the other was paired through the turned
+#: i1Profiler chart, whose own files number the patches in another order
+#: (an i1Profiler export without RGB values beside the imported measurement
+#: compared patch by wrong patch: average dE00 37 instead of 0).
+_READINGS_TURNED_NO_DEVICE = (
+    "one of the two files holds no device values (the colour numbers each "
+    "patch was printed with), so only the patch numbers could pair them, "
+    "and the other is a measurement of the turned i1Profiler chart. A file "
+    "saved by i1Profiler numbers the patches of that chart in another order "
+    "than ChromIQ does, so the same patch number names different patches in "
+    "the two files")
+M_READINGS_NOT_SAME_CHART = _m(
+    "M-READINGS-NOT-SAME-CHART",
+    "These two readings cannot be paired patch by patch",
+    "To compare two readings, ChromIQ pairs every patch of your measurement "
+    "with the same patch in {file}: the patch with the same patch number, "
+    "or, when the patch numbers do not line up, the patch with the same "
+    "device values (the colour numbers each patch was printed with). That "
+    "only gives true results when both files are readings of the same "
+    "chart, and ChromIQ cannot pair these two: {reason}.\n\n"
+    "Nothing has been compared, because the numbers would describe pairs of "
+    "different patches. Your files have not been changed.\n\n"
+    "Choose a second reading that was measured from a print of the same "
+    "chart. If both really are readings of the same chart, import both into "
+    "the same ChromIQ project first (on the Measure tab: IMPORT, then Import "
+    "Measurement), so "
+    "that both carry the chart's own patch numbers, and compare the "
+    "imported files.",
+    approved=False)
+
+_READINGS_NO_COLOUR = (
+    "it holds no XYZ or L*a*b* values for its patches, so there is nothing "
+    "to compare your measurement with")
+_READINGS_UNREADABLE = "the file could not be read ({error})"
+#: 4.3.32 review: the same reading counted twice outvotes the others. Three
+#: readings of which two are one file (or the measurement itself again) made
+#: the GOOD reading "stand apart" and called the bad one "agrees".
+_READINGS_DUPLICATE = (
+    "it holds exactly the same values on every patch as {other}, so it is "
+    "the same reading again. Counted twice, one reading would outvote the "
+    "others and make a different reading look like the one that is off")
+M_READINGS_UNUSABLE = _m(
+    "M-READINGS-UNUSABLE",
+    "This file cannot be used as a second reading",
+    "ChromIQ could not use {file} as a second reading of your chart: "
+    "{reason}.\n\n"
+    "Nothing has been compared and the file has not been changed.\n\n"
+    "A second reading can be a measurement file (.ti3), a CGATS text file "
+    "with XYZ or L*a*b* values for every patch, or an i1Profiler "
+    "measurement (.mxf or .cxf).",
+    approved=False)
+
+
+def readings_count_reason(a_n: int, b_n: int) -> str:
+    """{reason} of M-READINGS-NOT-SAME-CHART: the patch counts differ."""
+    return tr(_READINGS_COUNT).format(a_n=a_n, b_n=b_n)
+
+
+def readings_ids_reason(ids: "list[str]") -> str:
+    """{reason}: patch numbers the second reading does not have, and no
+    pairing by device values either."""
+    return tr(_READINGS_IDS).format(ids=", ".join(ids))
+
+
+def readings_device_reason(bad: int, total: int, sid: str, a_dev: str,
+                           b_dev: str, why: str) -> str:
+    """{reason}: same-numbered patches carry different device values, and
+    *why* (``"repeats"`` or ``"differ"``) the device values cannot pair
+    them instead."""
+    text = (_READINGS_DEVICE_REPEATS if why == "repeats"
+            else _READINGS_DEVICE_DIFFER)
+    return tr(text).format(bad=bad, total=total, sid=sid, a_dev=a_dev,
+                           b_dev=b_dev)
+
+
+def readings_turned_no_device_reason() -> str:
+    """{reason}: one file has no device values and the other was paired
+    through the turned order, so the patch numbers cannot pair them."""
+    return tr(_READINGS_TURNED_NO_DEVICE)
+
+
+def readings_duplicate_reason(other: str) -> str:
+    """{reason} of M-READINGS-UNUSABLE: the reading is one already compared
+    (*other*: its file name)."""
+    return tr(_READINGS_DUPLICATE).format(other=other)
+
+
+def readings_unusable_reason(kind: str, error: str = "") -> str:
+    """{reason} of M-READINGS-UNUSABLE: ``"no-colour"`` or
+    ``"unreadable"`` (with *error*)."""
+    if kind == "no-colour":
+        return tr(_READINGS_NO_COLOUR)
+    return tr(_READINGS_UNREADABLE).format(error=error)
 
 
 M_IMPORT_DATE_TAKEN = _m(
@@ -9451,6 +9778,8 @@ M_QUIT_DURING_BUILD = _m(
 
 
 CATALOGUE = {m.id: m for m in (
+    M_READINGS_NOT_SAME_CHART, M_READINGS_UNUSABLE,
+    M_IMPORT_TURNED_GRID_COLOURS,
     M_IMPORT_CXF_CONDITION, M_IMPORT_CXF_CONDITION_PARTS,
     M_CONVERT_CXF_CONDITION_ABSENT, M_CONVERT_CXF_SPECTRUM_NOT_A_NUMBER,
     M_CONVERT_CXF_SPECTRUM_NOT_A_NUMBER_PARTS,

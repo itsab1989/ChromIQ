@@ -120,6 +120,13 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 # M-PATCH-SIMILAR joined on 2026-10-15 (4.3.5 beta 8): Knut confirmed the
 # similar-patch rule for both tests (#182 6196599132); its card texts are ours.
 AWAITING_APPROVAL: "set[str]" = {
+    # Tools > Inspect a measurement compares with another reading of the same
+    # chart, and refuses two files it cannot pair (jctay, forum 2026-11-10;
+    # Basti 2026-11-11 "do both"), 4.3.32.
+    "M-READINGS-NOT-SAME-CHART", "M-READINGS-UNUSABLE",
+    # A turned measurement on another grid filed because its colours agree
+    # with the chart (jctay, forum 2026-11-10), 4.3.32.
+    "M-IMPORT-TURNED-GRID-COLOURS",
     # The new profile engine (Preferences > Beta), 2026-11-10: a build that
     # went to colprof because colprof could not give the engine its
     # reference, and the question on quitting while the engine builds.

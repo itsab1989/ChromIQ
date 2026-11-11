@@ -32,6 +32,17 @@ def test_the_block_is_the_headline_and_every_fragment_of_the_code():
     body = [l for l in quoted[1:] if l]
     assert body == [M._TURNED_GRID_DIFFERS, M._TURNED_GRID_DIFFERS_PAGED,
                     M._TURNED_GRID_TWO_WAYS,     # 4.3.29, jctay
+                    # 4.3.32, jctay: the colours are asked
+                    M._TURNED_GRID_TWO_WAYS_CHECKED,
+                    M._TURNED_GRID_COLOURS_DISAGREE,
+                    M._TURNED_GRID_COLOURS_OTHER_ARRANGEMENT,
+                    M._TURNED_GRID_COLOURS_STRIP_WRONG,
+                    *(M._TURNED_GRID_COLOURS_UNSURE[k] for k in (
+                        "no-colours", "few-patches", "similar", "neighbours",
+                        "short-strips", "between", "other-arrangement",
+                        "strip-unclear")),
+                    M._TURNED_GRID_COLOURS_UNSURE_TAIL,
+                    M._TURNED_GRID_WAY_BACK,
                     M._TURNED_GRID_CELLS_DIFFER, M._TURNED_GRID_PAGED_CELLS,
                     M._TURNED_GRID_PAGED_NO_PLACE,
                     M._TURNED_GRID_WHAT_TO_DO]
