@@ -333,7 +333,15 @@ Still ○ in every state: it reads files and writes none.
   what is left after removing others). Where the files name different
   measurement conditions or instruments, a row "Measured differently" says
   so, in both views; nothing is refused for it (a file that names none is
-  left out of that check).
+  left out of that check). Where a file names no condition (a chartread
+  .ti3 never does), a row "Measurement condition" names those files and
+  says that ChromIQ cannot know their condition (M0, M1, M2) or always
+  their instrument, and that readings taken differently differ for that
+  reason alone. The "Second reading" row shows the file with its date,
+  instrument and condition where the file says them. Every added reading
+  is read by the same loader as the one other reading (review pass 1:
+  i1Profiler CGATS text converted as the import converts it; a reading
+  without device values beside a turned measurement refused).
 * **Two or more other readings** (Basti, 2026-11-11: several readings, not
   only two), section "Other readings of this chart"
   (`workflow/reading_compare.compare_several`). Every file is paired with
