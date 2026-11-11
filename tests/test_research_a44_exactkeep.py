@@ -242,7 +242,9 @@ def test_smooth_exact_keeps_pinned_nodes_and_skips_ink_tables():
 def test_the_builder_runs_a44b_only_on_rgb_after_an_exact_keep():
     src = inspect.getsource(builder._build_profile_impl)
     i = src.index("b2a_mod.smooth_exact(")
-    assert 'if (_ek["nodes"] and n == 3' in src[:i]
+    # (or on every RGB build with x2-smoothexact-always, off by default:
+    # tests/test_engine_colorimetric_resolve_on_every_rgb_build_is_optional.py)
+    assert 'if ((_ek["nodes"] or _sx_always) and n == 3' in src[:i]
     assert "and b2a_mod.A44B_TOKEN in candidates):" in src[:i]
     assert src.index("b2a_mod.exact_keep(") < i
 

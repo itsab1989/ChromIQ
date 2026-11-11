@@ -325,7 +325,12 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # hue-kept rendering of the RGB Perceptual / Saturation tables
      # (hue_keep.py); off by default, the build option
      # BuildSettings.hue_rendering = "kept" (HUE_RENDERING_TOKENS)
-     "x1-huekeep", "no-x1-huekeep"})
+     "x1-huekeep", "no-x1-huekeep",
+     # Expert review 2026-11-10/11 (Rel. Col. candidate A "always"): the RGB
+     # colorimetric table re-solved by a44b-smoothexact on every build, not
+     # only when a44-exactkeep restored a node (b2a.A44B_ALWAYS_TOKEN); off
+     # by default
+     "x2-smoothexact-always", "no-x2-smoothexact-always"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -2408,7 +2413,15 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             _emit(settings, f"Exact inversion kept at {_ek['nodes']} of "
                             f"{_ek['candidates']} in-gamut nodes the "
                             f"smoothing refit had pulled off.")
-        if (_ek["nodes"] and n == 3
+        # x2-smoothexact-always (off by default): on an RGB printer the
+        # re-solve below runs whatever exact_keep's count, so one node more
+        # or less cannot switch a whole-table step (b2a.py, comment above
+        # A44B_ALWAYS_TOKEN).
+        _sx_always = b2a_mod.smooth_exact_always(
+            candidates, accurate=accurate, is_additive=meas.is_additive, n=n)
+        if _sx_always:
+            _emit(settings, b2a_mod.smooth_exact_always_line(_ek["nodes"]))
+        if ((_ek["nodes"] or _sx_always) and n == 3
                 and b2a_mod.A44B_TOKEN in candidates):
             # Research a44b-smoothexact: where the refit failed on an RGB
             # table (a folded printer response), re-solve the table as one
