@@ -1317,7 +1317,10 @@ class Ti3InfoDialog(QDialog):
     @staticmethod
     def _verdict_text(v) -> str:
         if v.kind == "agrees":
-            return tr("Agrees with the others.")
+            # Not "agrees with the others": the verdict is about the centre,
+            # and two readings each within the tolerance of it can differ
+            # from each other by nearly twice the tolerance (review 4.3.32).
+            return tr("Within the tolerance of the centre on every patch.")
         if v.kind == "overall":
             return tr(
                 "Differs from the others overall: most of its patches lie "

@@ -97,3 +97,18 @@ def test_two_files_left_after_a_duplicate_are_no_several_comparison():
         _rd("m.ti3", good), [_rd("b.ti3", _noisy(2)),
                              _rd("m copy.ti3", good.copy())])
     assert c is None and len(refused) == 1
+
+
+def test_the_agrees_verdict_claims_only_the_centre(qapp):
+    """+0, +0.9, +1.8 in L*: every reading is within 1.0 of the centre,
+    readings 1 and 3 are 1.8 apart. The words must not say they agree."""
+    from ui.dialogs.ti3_info_dialog import Ti3InfoDialog
+    from workflow.reading_compare import Verdict
+    base = _noisy(1)
+    c, _r = compare_several(
+        _rd("m", base), [_rd("b", base + [0.9, 0, 0]),
+                         _rd("c", base + [1.8, 0, 0])])
+    assert all(c.verdict(k, 1.0).kind == "agrees" for k in range(3))
+    assert float(c.pair[0, 2].min()) > 1.0
+    text = Ti3InfoDialog._verdict_text(Verdict("agrees"))
+    assert "centre" in text and "others" not in text
