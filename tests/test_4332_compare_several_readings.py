@@ -439,3 +439,21 @@ def test_the_list_shows_four_whole_lines_whatever_the_count(qapp, a,
     assert len(set(heights)) == 1
     dlg.close()
     dlg.deleteLater()
+
+
+def test_a_condition_the_files_do_not_name_is_said(qapp, a, tmp_path):
+    """Review pass 1: a .ti3 that names no measurement condition cannot be
+    checked, and M0 against M2 differs by more than scatter; the window
+    says so plainly, in both views."""
+    b = _write(tmp_path / "b.ti3", _noisy(seed=1))
+    dlg = _inspector(qapp, a)
+    dlg.load_second_reading(b)
+    t = _texts(dlg)
+    assert "not named in a.ti3, b.ti3" in t and "M0, M1 or M2" in t
+    d = _keyword(_write(tmp_path / "d.ti3", _noisy(seed=2)),
+                 "MEASUREMENT_CONDITION", "M0")
+    dlg.add_readings([d])
+    t = _texts(dlg)
+    assert "not named in a.ti3, b.ti3." in t and "d.ti3." not in \
+        t.split("not named in")[1].split("ChromIQ")[0]
+    dlg.deleteLater()

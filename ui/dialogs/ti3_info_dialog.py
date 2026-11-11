@@ -919,7 +919,10 @@ class Ti3InfoDialog(QDialog):
         if c is None:
             return
         tol = self._tolerance
-        name = c.b.path.name
+        # The file, and when, with what and under which condition it was
+        # read, where it says (review pass 1: a .ti3's condition was not
+        # shown at all).
+        name = self._reading_line(c.b)
         if c.b.converted_from_cxf and c.b.condition:
             name = tr("{name} (i1Profiler measurement, condition {cond})"
                       ).format(name=name, cond=c.b.condition)
@@ -936,9 +939,11 @@ class Ti3InfoDialog(QDialog):
             how = tr("patch number")
         self._row_kv(tr("Paired by"), how, tr(
             "How each patch of this measurement found its partner in the "
-            "second reading. Both ways were checked against the device values "
-            "(the colour numbers each patch was printed with), so every pair "
-            "is the same patch of the chart."))
+            "second reading. When both files hold device values (the colour "
+            "numbers each patch was printed with), every pair was checked "
+            "against them, so every pair is the same patch of the chart. "
+            "When a file holds none, the patches were paired by patch number "
+            "alone, and the row “Same chart?” below says so."))
         if not c.device_checked:
             self._row_kv(tr("Same chart?"), tr(
                 "not checked: one of the files holds no device values, so "
@@ -1056,6 +1061,23 @@ class Ti3InfoDialog(QDialog):
         difference shows that, not repeatability. Never a refusal."""
         from workflow.measurement_condition import condition_name
         from workflow.reading_compare import mixed_ways
+        unnamed = [rd.path.name for rd in readings if not rd.condition]
+        if unnamed:
+            # Review pass 1: a condition the file does not name is one the
+            # tool cannot compare, and M0 against M2 differs by more than
+            # scatter (the tester's CC24 file: 2.3 to 3.0 ΔE00). Said once,
+            # plainly, where it applies.
+            self._row_kv(tr("Measurement condition"), tr(
+                "not named in {files}. ChromIQ cannot tell from such a file "
+                "whether it was measured under M0, M1 or M2 (how much "
+                "ultraviolet light reached the paper), nor always with which "
+                "instrument. Readings taken under different measurement "
+                "conditions or with different instruments differ for that "
+                "reason alone, often clearly on paper with optical "
+                "brighteners, and that difference says nothing about how "
+                "repeatable your readings are. If you are not sure, compare "
+                "only readings you know were taken the same way.").format(
+                files=", ".join(unnamed)))
         conds, insts = mixed_ways(readings)
         if not conds and not insts:
             return
@@ -1136,9 +1158,11 @@ class Ti3InfoDialog(QDialog):
                      ).format(list=", ".join(str(k) for k in dev_k))
         self._row_kv(tr("Paired by"), how, tr(
             "How each patch of this measurement found its partner in the "
-            "other readings. Both ways were checked against the device "
-            "values (the colour numbers each patch was printed with), so "
-            "every pair is the same patch of the chart."))
+            "other readings. Where both files hold device values (the colour "
+            "numbers each patch was printed with), every pair was checked "
+            "against them, so every pair is the same patch of the chart. "
+            "Where a file holds none, its patches were paired by patch "
+            "number alone, and the row “Same chart?” below says so."))
         if not c.device_checked:
             self._row_kv(tr("Same chart?"), tr(
                 "not checked for every reading: some files hold no device "
