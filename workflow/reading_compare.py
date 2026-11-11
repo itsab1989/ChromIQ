@@ -226,23 +226,33 @@ def reading_from_ti3(path: Path) -> Reading:
                                         or kw.get("CREATED") or ""))
 
 
+def display_date(text: str) -> str:
+    """A date as a file writes it, shown the one way this window shows dates:
+    ``2026-11-11 09:30`` when it has a time, ``2026-11-11`` when it has only
+    a day, and as the file has it when it does not read as a date.
+
+    Read by `core.cgats_date` (chartread's "Wed Nov 11 09:30:00 2026" in any
+    shipped language, ISO dates, i1Profiler's "July 19, 2026"); the same
+    year-month-day form as the app's other dates (verification dates,
+    `measurement_target.pretty_verification_date`), which reads the same in
+    every language (4.3.32 review: "Measured on" showed chartread's raw text
+    beside readings shown as 2026-11-11)."""
+    from core.cgats_date import parse_created_date, parse_created_datetime
+    raw = str(text or "").strip().strip('"').strip()
+    if not raw:
+        return ""
+    when = parse_created_datetime(raw)
+    if when is not None:
+        return when.strftime("%Y-%m-%d %H:%M")
+    day = parse_created_date(raw)
+    if day is not None:
+        return day.strftime("%Y-%m-%d")
+    return raw
+
+
 def _date_of(text: str) -> str:
-    """*text* (chartread's "Thu Oct 29 20:39:53 2026", or a date the import
-    wrote) as YYYY-MM-DD when it reads as a date, else as it stands."""
-    text = str(text).strip().strip('"')
-    # chartread writes English names whatever the computer's language, so
-    # they are read here by hand (strptime's %b follows the locale)
-    m = re.fullmatch(r"[A-Za-z]{3}\s+([A-Za-z]{3})\s+(\d{1,2})\s+"
-                     r"[\d:]+\s+(\d{4})", text)
-    if m and m.group(1).lower() in _MONTHS:
-        return (f"{m.group(3)}-{_MONTHS.index(m.group(1).lower()) + 1:02d}-"
-                f"{int(m.group(2)):02d}")
-    m = re.match(r"(\d{4})-(\d{2})-(\d{2})", text)
-    return m.group(0) if m else text
-
-
-_MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep",
-           "oct", "nov", "dec"]
+    """*text* as :func:`display_date` shows it."""
+    return display_date(text)
 
 
 def _argyll_bin() -> str:
@@ -672,6 +682,50 @@ class SeveralComparison:
         if off:
             return Verdict("strip", count, off)
         return Verdict("patches", count)
+
+    def typical(self) -> np.ndarray:
+        """(R, R) the TYPICAL difference between two readings: the median
+        ΔE₀₀ between them over all compared patches."""
+        return np.median(self.pair, axis=2)
+
+    def groups(self, tol: float) -> "list[list[int]]":
+        """The readings split into groups that agree, or [] when they do not
+        split cleanly (4.3.32 review: two against two read as four readings
+        that each "differ from the others overall").
+
+        Two readings AGREE when their typical difference is within *tol*.
+        The groups are the sets of readings joined by agreement, and they are
+        named only when the split is CLEAN: inside every group each reading
+        agrees with each other one (a chain where 1 agrees with 2 and 2 with
+        3 but 1 not with 3 is no group), and at least two groups hold two
+        readings or more. A single reading on its own is not a group: one
+        reading apart from the rest is what "stands apart" already says.
+        Returned in reading order, each group sorted; readings that agree
+        with nobody come back as groups of one. Nothing here says which
+        group is right."""
+        close = self.typical() <= tol + 1e-9
+        r = self.r
+        seen: "set[int]" = set()
+        comps: "list[list[int]]" = []
+        for k in range(r):
+            if k in seen:
+                continue
+            todo, comp = [k], []
+            seen.add(k)
+            while todo:
+                i = todo.pop()
+                comp.append(i)
+                for j in range(r):
+                    if j not in seen and close[i, j]:
+                        seen.add(j)
+                        todo.append(j)
+            comps.append(sorted(comp))
+        for comp in comps:
+            if not all(close[i, j] for i in comp for j in comp):
+                return []
+        if sum(1 for comp in comps if len(comp) >= 2) < 2:
+            return []
+        return sorted(comps, key=lambda g: g[0])
 
     def mixed(self) -> "tuple[dict[str, list[int]], dict[str, list[int]]]":
         return mixed_ways(self.readings)

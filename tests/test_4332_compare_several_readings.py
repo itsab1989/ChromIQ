@@ -449,11 +449,15 @@ def test_a_condition_the_files_do_not_name_is_said(qapp, a, tmp_path):
     dlg = _inspector(qapp, a)
     dlg.load_second_reading(b)
     t = _texts(dlg)
-    assert "not named in a.ti3, b.ti3" in t and "M0, M1 or M2" in t
+    assert ("Neither of the two readings says under which measurement "
+            "condition it was taken.") in t and "M0, M1 or M2" in t
     d = _keyword(_write(tmp_path / "d.ti3", _noisy(seed=2)),
                  "MEASUREMENT_CONDITION", "M0")
     dlg.add_readings([d])
     t = _texts(dlg)
-    assert "not named in a.ti3, b.ti3." in t and "d.ti3." not in \
-        t.split("not named in")[1].split("ChromIQ")[0]
+    # by number since 4.3.32 review, never by file name
+    assert ("Readings 1 and 2 do not say under which measurement condition "
+            "they were taken.") in t
+    assert "b.ti3" not in t.split("Measurement condition")[1].split(
+        "ChromIQ")[0]
     dlg.deleteLater()

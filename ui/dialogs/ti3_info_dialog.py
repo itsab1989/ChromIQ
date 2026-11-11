@@ -133,6 +133,11 @@ def _instrument_text(kw: dict) -> str:
         return tr("{name} (in i1Profiler: {i1p})").format(name=name, i1p=i1p)
     return name
 
+#: Where the file name goes in a line of the readings list, so the name
+#: alone can be shortened (`Ti3InfoDialog._elide_reading_items`).
+_NAME_SLOT = "\ue000"
+
+
 class Ti3InfoDialog(QDialog):
     def __init__(
         self,
@@ -575,9 +580,14 @@ class Ti3InfoDialog(QDialog):
         self._others_list = QListWidget(self)
         self._others_list.setSelectionMode(
             QAbstractItemView.SelectionMode.ExtendedSelection)
-        # Long file names are shortened in the middle (the full line and
-        # path are the entry's tooltip), never cut off or scrolled sideways.
-        self._others_list.setTextElideMode(Qt.TextElideMode.ElideMiddle)
+        # A line too long for the list shortens the FILE NAME in its middle
+        # first, so the name's distinguishing end and the date stay (4.3.32
+        # review: the whole line shortened in its middle lost both, e.g.
+        # "…second-pri…measured"); only what still does not fit is cut at
+        # the right. The full line and path are the entry's tooltip.
+        # `_elide_reading_items`, again on every resize of the list.
+        self._others_list.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self._others_list.viewport().installEventFilter(self)
         self._others_list.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._others_list.setUniformItemSizes(True)
@@ -758,16 +768,19 @@ class Ti3InfoDialog(QDialog):
         for p in self._others:
             got = self._cache.get(self._cache_key(p))
             if p in self._refused:
-                text = tr("{name}  ·  not compared (see below)").format(
-                    name=p.name)
+                shape = tr("{name}  ·  not compared (see below)").format(
+                    name=_NAME_SLOT)
             elif got is not None and not isinstance(
                     got, ReadingsNotComparable):
-                text = self._reading_line(got)
+                shape = self._reading_line(got, name=_NAME_SLOT)
             else:
-                text = p.name
+                shape = _NAME_SLOT
+            text = shape.replace(_NAME_SLOT, p.name)
             item = QListWidgetItem(text)
             item.setToolTip(f"{text}\n{p}")
+            item.setData(Qt.ItemDataRole.UserRole, (shape, p.name))
             self._others_list.addItem(item)
+        self._elide_reading_items()
         some = bool(self._others)
         self._others_list.setVisible(some)
         self._others_empty.setVisible(not some)
@@ -790,6 +803,39 @@ class Ti3InfoDialog(QDialog):
         if self.isVisible():
             self._fit_details_floor()
 
+    def eventFilter(self, obj, event) -> bool:  # noqa: N802 — Qt's name
+        from PyQt6.QtCore import QEvent
+        if (event.type() == QEvent.Type.Resize
+                and obj is self._others_list.viewport()):
+            self._elide_reading_items()
+        return super().eventFilter(obj, event)
+
+    def _elide_reading_items(self) -> None:
+        """Fit every list line to the list's width by shortening the file
+        name in its middle, never below about 60 % of the width; what still
+        does not fit is cut at the right by the list (the details last)."""
+        lw = self._others_list
+        if not lw.count():
+            return
+        fm = lw.fontMetrics()
+        # The style's text margins on both sides of an entry.
+        avail = max(40, lw.viewport().width() - 12)
+        for row in range(lw.count()):
+            item = lw.item(row)
+            shape, name = item.data(Qt.ItemDataRole.UserRole) or (None, "")
+            if not shape:
+                continue
+            full = shape.replace(_NAME_SLOT, name)
+            if fm.horizontalAdvance(full) <= avail:
+                text = full
+            else:
+                rest = fm.horizontalAdvance(shape.replace(_NAME_SLOT, ""))
+                room = max(avail - rest, int(avail * 0.6))
+                text = shape.replace(_NAME_SLOT, fm.elidedText(
+                    name, Qt.TextElideMode.ElideMiddle, room))
+            if item.text() != text:
+                item.setText(text)
+
     def _fit_list_height(self) -> None:
         """Exactly four whole lines, whatever the count: the window does
         not jump as readings are added, and five to nine scroll in place.
@@ -808,11 +854,12 @@ class Ti3InfoDialog(QDialog):
             lw.setFixedHeight(rh * 4 + chrome)
 
     @staticmethod
-    def _reading_line(rd, condition: bool = True) -> str:
+    def _reading_line(rd, condition: bool = True,
+                      name: "str | None" = None) -> str:
         """"name  ·  measured 2026-10-28  ·  i1Pro 2  ·  M0 (…)", with what
-        the file says."""
+        the file says (*name*: in place of the file's name)."""
         from workflow.measurement_condition import condition_name
-        parts = [rd.path.name]
+        parts = [rd.path.name if name is None else name]
         if rd.measured_on:
             parts.append(tr("measured {date}").format(date=rd.measured_on))
         if rd.instrument:
@@ -1053,33 +1100,73 @@ class Ti3InfoDialog(QDialog):
 
     @staticmethod
     def _numbers(ks: "list[int]") -> str:
-        """Reading numbers as shown (from 1): "1, 2 and 4" is left to the
-        sentence; here "1, 2, 4"."""
+        """Reading numbers as shown (from 1): "1, 2, 4"."""
         return ", ".join(str(k + 1) for k in ks)
 
-    def _mixed_rows(self, readings) -> None:
+    @staticmethod
+    def _and_numbers(ks: "list[int]") -> str:
+        """Reading numbers as shown (from 1) in a sentence: "4", "1 and 3",
+        "1, 3 and 4", with the app's own "{first} and {last}"
+        (`core.run_delete._join`)."""
+        items = [str(k + 1) for k in ks]
+        if len(items) == 1:
+            return items[0]
+        return tr("{first} and {last}").format(first=", ".join(items[:-1]),
+                                               last=items[-1])
+
+    def _unnamed_condition_text(self, readings, numbered: bool) -> str:
+        """Which readings do not say under which measurement condition they
+        were taken, by their NUMBER (4.3.32 review: the file names made a
+        ten-line block with ten readings), and why that matters. *numbered*:
+        the readings are numbered (three or more); else they are this
+        measurement and the second reading."""
+        ks = [k for k, rd in enumerate(readings) if not rd.condition]
+        if not ks:
+            return ""
+        if not numbered:
+            if len(ks) == 2:
+                lead = tr("Neither of the two readings says under which "
+                          "measurement condition it was taken.")
+            elif ks[0] == 0:
+                lead = tr("This measurement does not say under which "
+                          "measurement condition it was taken.")
+            else:
+                lead = tr("The second reading does not say under which "
+                          "measurement condition it was taken.")
+        elif len(ks) == len(readings):
+            lead = tr("None of the readings says under which measurement "
+                      "condition it was taken.")
+        elif len(ks) == 1:
+            lead = tr("Reading {n} does not say under which measurement "
+                      "condition it was taken.").format(n=ks[0] + 1)
+        else:
+            lead = tr("Readings {list} do not say under which measurement "
+                      "condition they were taken.").format(
+                list=self._and_numbers(ks))
+        return lead + "\n" + tr(
+            "ChromIQ cannot tell from such a file whether it was measured "
+            "under M0, M1 or M2 (how much ultraviolet light reached the "
+            "paper), nor always with which instrument. Readings taken under "
+            "different measurement conditions or with different instruments "
+            "differ for that reason alone, often clearly on paper with "
+            "optical brighteners, and that difference says nothing about how "
+            "repeatable your readings are. If you are not sure, compare only "
+            "readings you know were taken the same way.")
+
+    def _mixed_rows(self, readings, numbered: bool = False) -> None:
         """A row when the files say the readings were taken under different
         measurement conditions or with different instruments: then a
-        difference shows that, not repeatability. Never a refusal."""
+        difference shows that, not repeatability. Never a refusal.
+        *numbered*: the readings are numbered (three or more)."""
         from workflow.measurement_condition import condition_name
         from workflow.reading_compare import mixed_ways
-        unnamed = [rd.path.name for rd in readings if not rd.condition]
+        unnamed = self._unnamed_condition_text(readings, numbered)
         if unnamed:
             # Review pass 1: a condition the file does not name is one the
             # tool cannot compare, and M0 against M2 differs by more than
             # scatter (the tester's CC24 file: 2.3 to 3.0 ΔE00). Said once,
             # plainly, where it applies.
-            self._row_kv(tr("Measurement condition"), tr(
-                "not named in {files}. ChromIQ cannot tell from such a file "
-                "whether it was measured under M0, M1 or M2 (how much "
-                "ultraviolet light reached the paper), nor always with which "
-                "instrument. Readings taken under different measurement "
-                "conditions or with different instruments differ for that "
-                "reason alone, often clearly on paper with optical "
-                "brighteners, and that difference says nothing about how "
-                "repeatable your readings are. If you are not sure, compare "
-                "only readings you know were taken the same way.").format(
-                files=", ".join(unnamed)))
+            self._row_kv(tr("Measurement condition"), unnamed)
         conds, insts = mixed_ways(readings)
         if not conds and not insts:
             return
@@ -1141,7 +1228,7 @@ class Ti3InfoDialog(QDialog):
             if p in self._refused:
                 title, body = self._refused[p]
                 self._row_kv(tr("Not compared"), f"{title}\n\n{body}")
-        self._mixed_rows(c.readings)
+        self._mixed_rows(c.readings, numbered=True)
         dev_k = [k + 1 for k, how in enumerate(c.paired_by, start=1)
                  if how == "device"]
         if not dev_k:
@@ -1211,6 +1298,9 @@ class Ti3InfoDialog(QDialog):
             "that on them. The lists below show which reading stands apart "
             "on them, where one does.").format(tol=decimal_text(tol, 1)))
 
+        groups = c.groups(tol)
+        if groups:
+            self._groups_row(groups)
         strips = c.strips(tol)
         self._row_kv(tr("By reading"), tr(
             "how far each reading is from the centre, and what that says "
@@ -1230,7 +1320,7 @@ class Ti3InfoDialog(QDialog):
         for k in range(c.r):
             st = c.stats(k)
             v = verdicts[k]
-            lines = [self._verdict_text(v),
+            lines = [self._verdict_text(v, self._group_of(groups, k)),
                      tr("average {mean}, median {median}, 95th percentile "
                         "{p95}, largest {worst} from the centre").format(
                          mean=decimal_text(st.mean, 2),
@@ -1317,7 +1407,73 @@ class Ti3InfoDialog(QDialog):
                             for k, v in enumerate(values))
 
     @staticmethod
-    def _verdict_text(v) -> str:
+    def _group_of(groups: "list[list[int]]", k: int) -> "list[int]":
+        """The other readings in reading *k*'s group of two or more, or []."""
+        for g in groups:
+            if k in g and len(g) >= 2:
+                return [i for i in g if i != k]
+        return []
+
+    def _groups_row(self, groups: "list[list[int]]") -> None:
+        """The readings fall into groups that agree inside and not with each
+        other (`SeveralComparison.groups`): said plainly, never which group
+        is right (4.3.32 review)."""
+        real = [g for g in groups if len(g) >= 2]
+        alone = [g[0] for g in groups if len(g) == 1]
+        listed = "; ".join(tr("readings {list}").format(
+            list=self._and_numbers(g)) for g in real)
+        if len(real) == 2:
+            lead = tr("The readings fall into two groups. The readings in "
+                      "each group agree with each other, but not with those "
+                      "of the other group: {groups}.").format(groups=listed)
+        else:
+            lead = tr("The readings fall into several groups. The readings "
+                      "in each group agree with each other, but not with "
+                      "those of the other groups: {groups}.").format(
+                groups=listed)
+        lines = [lead]
+        if len(alone) == 1:
+            lines.append(tr("Reading {n} agrees with none of the groups."
+                            ).format(n=alone[0] + 1))
+        elif alone:
+            lines.append(tr("Readings {list} agree with none of the groups, "
+                            "nor with each other.").format(
+                list=self._and_numbers(alone)))
+        lines.append(tr(
+            "ChromIQ cannot tell which group is right. Groups like these "
+            "usually mean that the readings were taken in different ways, for "
+            "example with different instruments, under different measurement "
+            "conditions, from different prints or at different times. Find "
+            "out how each group was taken before you rely on either of them. "
+            "The centre follows the larger group, or lies between the groups "
+            "when they are the same size, so the lines by reading below show "
+            "how far each reading is from that centre, not which reading is "
+            "right."))
+        self._row_kv(tr("Groups"), "\n".join(lines), tr(
+            "Two readings belong together when their typical difference (the "
+            "median ΔE₀₀ over all compared patches) is within the tolerance. "
+            "ChromIQ names groups only when the split is clean: every reading "
+            "in a group agrees with every other reading in it and with no "
+            "reading outside it. Otherwise, or when only one reading is off, "
+            "the lines by reading below judge each reading on its own."))
+
+    @staticmethod
+    def _verdict_text(v, group: "list[int] | None" = None) -> str:
+        """*group*: the other readings of this reading's group (see
+        `_groups_row`). Then "differs from the others overall" or "on N
+        patches" is not what it is: it agrees with its group, and its
+        distance comes from a centre that lies between the groups or with
+        the other one. A whole strip off is still said as such."""
+        if group and v.kind in ("overall", "patches"):
+            if len(group) == 1:
+                return tr(
+                    "Agrees with reading {n}, but not with the readings "
+                    "outside its group (see “Groups” above).").format(
+                    n=group[0] + 1)
+            return tr(
+                "Agrees with readings {list}, but not with the readings "
+                "outside its group (see “Groups” above).").format(
+                list=Ti3InfoDialog._and_numbers(group))
         if v.kind == "agrees":
             # Not "agrees with the others": the verdict is about the centre,
             # and two readings each within the tolerance of it can differ
@@ -1676,7 +1832,10 @@ class Ti3InfoDialog(QDialog):
         # converted), so the date it was read is shown from that (4.3.23).
         measured_on = kw.get("CREATED") or kw.get("CHROMIQ_MEASURED")
         if measured_on:
-            self._row_kv(tr("Measured on"), measured_on, tr(
+            # One date format in this window (4.3.32 review): the reading
+            # rows below show the same year-month-day form.
+            from workflow.reading_compare import display_date
+            self._row_kv(tr("Measured on"), display_date(measured_on), tr(
                 "When the chart was read. Inks and paper can change over time, so "
                 "an old measurement may no longer match today's prints."))
         condition = kw.get("MEASUREMENT_CONDITION")

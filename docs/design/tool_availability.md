@@ -334,11 +334,18 @@ Still ○ in every state: it reads files and writes none.
   measurement conditions or instruments, a row "Measured differently" says
   so, in both views; nothing is refused for it (a file that names none is
   left out of that check). Where a file names no condition (a chartread
-  .ti3 never does), a row "Measurement condition" names those files and
-  says that ChromIQ cannot know their condition (M0, M1, M2) or always
-  their instrument, and that readings taken differently differ for that
-  reason alone. The "Second reading" row shows the file with its date,
-  instrument and condition where the file says them. Every added reading
+  .ti3 never does), a row "Measurement condition" names those readings
+  by their place ("This measurement", "The second reading", "Neither of
+  the two readings"; with three readings or more by number: "Reading 3",
+  "Readings 1, 3 and 4", "None of the readings", 4.3.32 review: file names
+  made a ten-line block) and says that ChromIQ cannot know their condition
+  (M0, M1, M2) or always their instrument, and that readings taken
+  differently differ for that reason alone. The "Second reading" row shows
+  the file with its date, instrument and condition where the file says
+  them. Every date the window reads from a file ("Measured on", the reading
+  lines) is shown one way: `2026-11-11 09:30`, or `2026-11-11` without a
+  time, and as the file has it when it does not read as a date
+  (`reading_compare.display_date`). Every added reading
   is read by the same loader as the one other reading (review pass 1:
   i1Profiler CGATS text converted as the import converts it; a reading
   without device values beside a turned measurement refused).
@@ -364,6 +371,19 @@ Still ○ in every state: it reads files and writes none.
     distance above the tolerance); differs on nearly the whole strip X (at
     least three quarters of a strip of three or more patches above); else
     differs on N patches.
+  * **Groups** (4.3.32 review: two against two read as four readings that
+    each differ overall): two readings agree when their typical difference
+    (the median ΔE₀₀ between them over all compared patches) is within the
+    tolerance. When the readings split CLEANLY into groups (inside each
+    group every reading agrees with every other, none with a reading
+    outside it) and at least two groups hold two readings or more, a row
+    "Groups" names them by number ("readings 1 and 2; readings 3 and 4"),
+    any reading that agrees with no group, and says that ChromIQ cannot tell
+    which group is right. A reading of such a group that would "differ
+    overall" says instead which readings it agrees with. A single reading
+    apart (three against one), a chain (1 agrees with 2, 2 with 3, 1 not
+    with 3) or no split at all names no groups
+    (`SeveralComparison.groups`).
   * **Largest differences**: the ten largest spreads, each with its strip
     and place, every reading's distance from the centre, and, above the
     tolerance, "Reading N stands apart" when every pair of the OTHER
