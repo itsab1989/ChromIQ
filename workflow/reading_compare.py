@@ -732,6 +732,26 @@ def mixed_ways(readings: "list[Reading]"
              if len(insts) > 1 else {}))
 
 
+def _same_reading_as(a: Reading, b: Reading, m: "dict[int, int]",
+                     paired) -> "Reading | None":
+    """The reading among *a* and those already *paired* that *b* repeats
+    exactly (the same L*a*b* on every patch they share), or None."""
+    ia = np.asarray(sorted(m), dtype=int)
+    if not len(ia):
+        return None
+    lb = b.lab[np.asarray([m[i] for i in ia], dtype=int)]
+    if np.array_equal(lb, a.lab[ia]):
+        return a
+    for c, mc, _h, _k in paired:
+        both = [i for i in ia if i in mc]
+        if len(both) != len(ia):
+            continue
+        lc = c.lab[np.asarray([mc[i] for i in ia], dtype=int)]
+        if np.array_equal(lb, lc):
+            return c
+    return None
+
+
 def compare_several(a: Reading, others: "list[Reading]"
                     ) -> "tuple[SeveralComparison | None, list[tuple[Reading, ReadingsNotComparable]]]":
     """Pair every reading of *others* with *a*, refuse the ones that are not
@@ -750,7 +770,18 @@ def compare_several(a: Reading, others: "list[Reading]"
         except ReadingsNotComparable as exc:
             refused.append((b, exc))
             continue
-        paired.append((b, dict(pairs), how, checked))
+        m = dict(pairs)
+        twin = _same_reading_as(a, b, m, paired)
+        if twin is not None:
+            # 4.3.32 review: one reading counted twice outvotes the others
+            # (the same file added twice, or the measurement itself again).
+            from workflow.measurement_messages import (
+                M_READINGS_UNUSABLE, readings_duplicate_reason)
+            refused.append((b, ReadingsNotComparable(
+                M_READINGS_UNUSABLE, readings_duplicate_reason(
+                    twin.path.name))))
+            continue
+        paired.append((b, m, how, checked))
     if len(paired) < 2:
         return None, refused
     common = [i for i in range(len(a.ids))

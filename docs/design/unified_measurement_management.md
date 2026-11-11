@@ -6124,6 +6124,7 @@ chart's file name. Two buttons: **Import it** and **Cancel**.*
 
 > it holds no XYZ or L*a*b* values for its patches, so there is nothing to compare your measurement with
 > the file could not be read ({error})
+> it holds exactly the same values on every patch as {other}, so it is the same reading again. Counted twice, one reading would outvote the others and make a different reading look like the one that is off
 
 ### M-IMPORT-TURNED-GRID-COLOURS · PROPOSED · a measurement of the turned i1Profiler chart on another grid was FILED because its colours agree with the chart, every import door, 4.3.32
 
