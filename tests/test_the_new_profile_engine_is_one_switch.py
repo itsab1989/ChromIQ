@@ -537,6 +537,67 @@ def test_a_real_build_without_colprof_stops_and_leaves_no_profile(
     assert not any("[ERROR]" in ln or "own rendering" in ln for ln in lines)
 
 
+def _thread_on(monkeypatch, tmp_path, fake_build):
+    """An engine thread over an RGB measurement whose profile and v4 twin
+    already exist (the archive into ``old/`` failed, say), with
+    ``build_profile`` replaced by *fake_build*. Run in this thread."""
+    import workflow.profile_engine as pe
+    from workflow.profile_engine.builder import BuildSettings
+    ti3 = _rgb_ti3(tmp_path / "s.ti3")
+    icc = ti3.with_suffix(".icc")
+    twin = icc.with_name(icc.stem + "-v4.icc")
+    icc.write_bytes(b"the previous profile " * 50)
+    twin.write_bytes(b"the previous twin " * 50)
+    monkeypatch.setattr(pe, "build_profile", fake_build)
+    t = eb._EngineThread(ti3, icc, BuildSettings())
+    return t, icc, twin
+
+
+def test_a_reference_failure_never_removes_a_profile_it_did_not_write(
+        tmp_path, monkeypatch):
+    """Review 2026-11-11 (F1): the stop for a missing colprof reference
+    removed whatever stood at the output paths. When the previous profile
+    was still there (its move into ``old/`` had failed), that was the
+    previous profile, and with colprof broken the build that follows fails
+    too: the run was left with no profile at all."""
+    def fake(ti3, out, settings):
+        settings.progress("Using the engine's own rendering (colprof oracle "
+                          "failed: colprof: not found).")
+        raise AssertionError("not reached")
+
+    t, icc, twin = _thread_on(monkeypatch, tmp_path, fake)
+    t.run()
+    assert t.reference_failed
+    assert icc.read_bytes().startswith(b"the previous profile")
+    assert twin.read_bytes().startswith(b"the previous twin")
+
+
+def test_a_reference_failure_after_writing_removes_what_it_wrote(
+        tmp_path, monkeypatch):
+    def fake(ti3, out, settings):
+        Path(out).write_bytes(b"half a profile")
+        settings.progress("Using the engine's own rendering (colprof oracle "
+                          "failed: boom).")
+        raise AssertionError("not reached")
+
+    t, icc, twin = _thread_on(monkeypatch, tmp_path, fake)
+    t.run()
+    assert t.reference_failed
+    assert not icc.exists()                       # it wrote this one
+    assert twin.read_bytes().startswith(b"the previous twin")
+
+
+def test_an_engine_error_before_writing_keeps_what_was_there(
+        tmp_path, monkeypatch):
+    def fake(ti3, out, settings):
+        raise RuntimeError("the model could not be fitted")
+
+    t, icc, twin = _thread_on(monkeypatch, tmp_path, fake)
+    t.run()
+    assert icc.read_bytes().startswith(b"the previous profile")
+    assert twin.read_bytes().startswith(b"the previous twin")
+
+
 # ---------------------------------------------------------------------------
 # B2 in the tab: the build goes to colprof and says so
 # ---------------------------------------------------------------------------

@@ -639,12 +639,37 @@ class _EngineThread(QThread):
         #: Why colprof's reference was not available, when that ended it.
         self.reference_failed: str = ""
 
+    def _outputs(self) -> tuple:
+        return (self._out, self._out.with_name(self._out.stem + "-v4.icc"))
+
+    @staticmethod
+    def _signature(p: Path):
+        """What tells a file this build wrote from one that was already
+        there: None when there is no file."""
+        try:
+            st = p.stat()
+        except OSError:
+            return None
+        return (st.st_ino, st.st_size, st.st_mtime_ns)
+
+    def _note_what_is_there(self) -> None:
+        """Before the build: the files at the output paths now. The Build
+        Profile tab moves the profile being replaced into ``old/`` first, but
+        when that move failed (a full disk, a file another program holds) the
+        previous profile is still here, and it is not this build's to
+        remove."""
+        self._before = {p: self._signature(p) for p in self._outputs()}
+
     def _drop_what_was_written(self) -> None:
-        """A build stopped part way leaves no half profile behind."""
-        for p in (self._out, self._out.with_name(self._out.stem + "-v4.icc")):
+        """A build stopped part way leaves no half profile behind, and
+        removes ONLY what it wrote itself (`_note_what_is_there`)."""
+        before = getattr(self, "_before", {})
+        for p in self._outputs():
             try:
-                if p.is_file():
-                    p.unlink()
+                now = self._signature(p)
+                if now is None or now == before.get(p):
+                    continue           # not there, or not written by this build
+                p.unlink()
             except OSError:
                 log.warning("could not remove %s", p, exc_info=True)
 
@@ -653,6 +678,7 @@ class _EngineThread(QThread):
         from workflow.profile_engine import build_profile
 
         self._settings.progress = self.lines
+        self._note_what_is_there()
         t0 = time.monotonic()
         try:
             res = build_profile(self._ti3, self._out, self._settings)
