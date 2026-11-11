@@ -85,10 +85,10 @@ def _run_pasted(shell: "list[str]", work: Path, folder: Path,
     except subprocess.TimeoutExpired:
         pytest.fail(f"{shell[0]} did not finish within 180 s")
     assert out.exists(), (
-        f"{shell[0]} did not run the pasted command:\n{script}\n"
+        f"{shell[0]} did not run the pasted command:\n{ascii(script)}\n"
         f"exit {done.returncode}\n"
-        f"{done.stdout.decode('utf-8', 'replace')}\n"
-        f"{done.stderr.decode('utf-8', 'replace')}")
+        f"{ascii(done.stdout.decode('utf-8', 'replace'))}\n"
+        f"{ascii(done.stderr.decode('utf-8', 'replace'))}")
     return json.loads(out.read_text(encoding="utf-8"))
 
 
@@ -101,7 +101,9 @@ def test_every_argument_arrives_as_chromiq_passes_it(tmp_path, shell_name):
     for arg in WINDOWS_ARGUMENTS + _TEXTS:
         got = _run_pasted(shell, tmp_path, folder, ["-D", arg, "last"])
         if got["args"] != ["-D", arg, "last"]:
-            wrong.append(f"{arg!r} arrived as {got['args']!r}")
+            # ASCII only: a Windows console in cp1252 cannot print the
+            # report otherwise, and pytest's summary dies with it.
+            wrong.append(f"{arg!a} arrived as {got['args']!a}")
         assert Path(got["cwd"]).resolve() == folder.resolve()
     assert not wrong, (f"{shell_name} received a different argument from "
                        "the box's text:\n" + "\n".join(wrong))
