@@ -23,7 +23,6 @@ an average ΔE₀₀ of 18 instead of 0.2).
 from __future__ import annotations
 
 import math
-import re
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -219,35 +218,6 @@ def reading_from_ti3(path: Path) -> Reading:
                    turned=_TURNED_KEYWORD in data.keywords)
 
 
-#: One number written with a decimal comma (i1Profiler on a decimal-comma
-#: system writes its CGATS text so): digits, one comma, digits.
-_COMMA_NUMBER = re.compile(r"^[+-]?\d+,\d+(?:[eE][+-]?\d+)?$")
-_POINT_NUMBER = re.compile(r"^[+-]?\d*\.\d+(?:[eE][+-]?\d+)?$")
-
-
-def _decimal_points(text: str) -> "str | None":
-    """*text* with the decimal commas of its data table made points, or None
-    when it has none. Only when the table is consistent: some value is
-    written with a comma and none with a point (a comma inside a quoted name
-    is left alone, as is any token that is not one plain number)."""
-    lines = text.splitlines()
-    try:
-        d0 = next(i for i, ln in enumerate(lines) if ln.strip() == "BEGIN_DATA")
-        d1 = next(i for i in range(d0, len(lines))
-                  if lines[i].strip() == "END_DATA")
-    except StopIteration:
-        return None
-    toks = [t for ln in lines[d0 + 1:d1] for t in ln.split()]
-    if not any(_COMMA_NUMBER.match(t) for t in toks) \
-            or any(_POINT_NUMBER.match(t) for t in toks):
-        return None
-    out = lines[:d0 + 1]
-    for ln in lines[d0 + 1:d1]:
-        out.append("\t".join(t.replace(",", ".") if _COMMA_NUMBER.match(t)
-                             else t for t in ln.split()))
-    return "\n".join(out + lines[d1:]) + "\n"
-
-
 def _argyll_bin() -> str:
     """The ArgyllCMS folder of the settings, as every import door uses it."""
     from core.platform_paths import default_argyll_bin_dir
@@ -267,27 +237,21 @@ def _reading_from_cgats_text(path: Path, argyll_bin: "str | None") -> Reading:
     temporary folder that is removed again. Read directly, i1Profiler's XYZ
     on the 0..1 scale came out a hundredfold dark (a real export against its
     own import: average ΔE00 45 instead of 0) and a spectral export was
-    called a file without colours (4.3.32 review). Decimal commas are made
-    points first, in the temporary copy only."""
+    called a file without colours (4.3.32 review). Decimal commas are read
+    by that converter too, from a temporary copy with points."""
     from workflow.reference_convert import (ReferenceConvertError,
                                             convert_i1profiler_measurement)
     from core.text_io import read_text
     try:
-        text = read_text(path, lenient=True)
+        read_text(path, lenient=True)     # unreadable: said in words here
     except OSError as exc:
         raise _unusable("unreadable", str(exc)) from exc
     with tempfile.TemporaryDirectory(prefix="chromiq-compare-") as tmp:
-        src = path
-        fixed = _decimal_points(text)
-        if fixed is not None:
-            src = Path(tmp) / "src" / path.name
-            src.parent.mkdir()
-            src.write_text(fixed, encoding="utf-8")
-            log.info("compare readings: %s writes decimal commas; read as "
-                     "decimal points", path.name)
         try:
+            # Decimal commas are read by the import's own converter
+            # (`reference_convert.decimal_point_source`), one rule for both.
             out = convert_i1profiler_measurement(
-                src, argyll_bin or _argyll_bin(), Path(tmp) / "out")
+                path, argyll_bin or _argyll_bin(), Path(tmp) / "out")
         except ReferenceConvertError as exc:
             raise _unusable("unreadable", str(exc)) from exc
         except OSError as exc:

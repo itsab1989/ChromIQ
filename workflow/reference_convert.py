@@ -22,10 +22,11 @@ import logging
 import math
 import re
 import subprocess
+from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Iterator
 
 from core.proc_text import run_text
 from core.resource_path import argyll_tool_path
@@ -190,7 +191,11 @@ def convert_i1profiler_measurement(path: str | Path, argyll_bin: str | Path,
     # way — with_suffix() here looked for "Epson P900 v1.ti3" and reported the
     # user's own file as unconvertible. See core/stem_paths.py.
     base = out_dir / p.stem
-    _run(Path(argyll_bin), "txt2ti3", [str(p), str(base)], runner)
+    # Decimal commas (i1Profiler on a decimal-comma system) are read from a
+    # temporary copy with points; the user's file is never written. The
+    # finalise step below reads only the header, from the original.
+    with decimal_point_source(p) as src:
+        _run(Path(argyll_bin), "txt2ti3", [str(src), str(base)], runner)
     out = artefact(base, ".ti3")
     if not out.is_file():
         raise _failure(M.M_CONVERT_NO_TI3)
@@ -627,6 +632,130 @@ def cxf_number_group(texts) -> "tuple[list[float], bool]":
         except ValueError:
             out.append(float("nan"))
     return out, comma
+
+
+#: One CGATS token: a quoted string (kept whole, never touched) or a run of
+#: characters up to the next space, tab or quote.
+_CGATS_TOKEN_RE = re.compile(r'"[^"]*"|[^\s"]+')
+#: Data columns that hold names and labels, never measured numbers: their
+#: values are text even when they look like "1,5" (SAMPLE_ID, SampleID,
+#: SAMPLE_NAME, SAMPLE_LOC, ...).
+_TEXT_FIELD_RE = re.compile(r"(ID|NAME|LOC|LABEL|STRING|DATE|TIME)$",
+                            re.IGNORECASE)
+#: Header keywords whose value CGATS defines as a number (written quoted or
+#: not); every other keyword is text and stays exactly as it is.
+_NUMERIC_KEYWORD_RE = re.compile(
+    r'^(\s*(?:SPECTRAL_START_NM|SPECTRAL_END_NM|SPECTRAL_NORM)\s+"?)'
+    r'([+-]?\d+,\d+(?:[eE][+-]?\d+)?)("?\s*)$', re.IGNORECASE)
+
+
+def cgats_decimal_points(text: str) -> "str | None":
+    """*text* (a CGATS text file) with its decimal commas made points, or
+    None when there is nothing to do or the file does not say clearly how it
+    writes its numbers.
+
+    THE SAME RULE AS THE CxF IMPORT (:func:`cxf_number_group`, 4.3.29),
+    applied to i1Profiler's CGATS text export: on a decimal-comma system it
+    writes every value as ``0,056192``, and ArgyllCMS ``txt2ti3`` refuses the
+    file ("Field 'RGB_R' has unexpected type"). A value is read as a decimal
+    comma only when it is digits, ONE comma and digits, and only when the
+    whole data block agrees: no value in a number column carries a point.
+    Values with no separator at all ("0", "255") fit either form.
+
+    Only numbers are touched, and only where the format defines a number:
+    the unquoted values of the number columns between ``BEGIN_DATA`` and
+    ``END_DATA``, and ``SPECTRAL_START_NM`` / ``SPECTRAL_END_NM`` /
+    ``SPECTRAL_NORM`` in the header. Quoted strings, name and location
+    columns (``SAMPLE_NAME`` "1,5" stays "1,5"), the field list and every
+    other header line ("ILLUMINANT, D50") are left exactly as they are.
+
+    Nothing is guessed: a file that mixes the two forms ("0,5" beside
+    "0.5", or "1.234,5", a thousands separator), a row that does not hold
+    one value per field, or a value that is no number in either form, is
+    left as it is, so ``txt2ti3`` refuses it with the message it always gave.
+    """
+    lines = text.splitlines(keepends=True)
+    fields: "list[str]" = []
+    in_format = in_data = False
+    cells = []          # (line index, start, end, column) of number cells
+    comma = point = False
+    for i, ln in enumerate(lines):
+        s = ln.strip()
+        if s == "BEGIN_DATA_FORMAT":
+            in_format, fields = True, []
+            continue
+        if s == "END_DATA_FORMAT":
+            in_format = False
+            continue
+        if s == "BEGIN_DATA":
+            in_data = True
+            continue
+        if s == "END_DATA":
+            in_data = False
+            continue
+        if in_format:
+            fields += s.split()
+            continue
+        if not in_data or not s:
+            continue
+        toks = list(_CGATS_TOKEN_RE.finditer(ln))
+        if len(toks) != len(fields):
+            return None             # ragged: txt2ti3 decides, as before
+        for col, m in enumerate(toks):
+            v = m.group(0)
+            if v.startswith('"') or _TEXT_FIELD_RE.search(fields[col]):
+                continue
+            if _DECIMAL_COMMA_RE.match(v):
+                comma = True
+                cells.append((i, m.start(), m.end()))
+            elif "." in v:
+                point = True
+    if not comma or point:
+        return None
+    for i, a, b in reversed(cells):
+        ln = lines[i]
+        lines[i] = ln[:a] + ln[a:b].replace(",", ".") + ln[b:]
+    for i, ln in enumerate(lines):
+        if ln.strip() == "BEGIN_DATA_FORMAT":
+            break
+        body = ln.rstrip("\r\n")
+        m = _NUMERIC_KEYWORD_RE.match(body)
+        if m:
+            lines[i] = (m.group(1) + m.group(2).replace(",", ".") + m.group(3)
+                        + ln[len(body):])
+    return "".join(lines)
+
+
+@contextmanager
+def decimal_point_source(path: str | Path) -> "Iterator[Path]":
+    """The file ``txt2ti3`` should read for the CGATS text file *path*:
+    *path* itself, or, when it writes decimal commas
+    (:func:`cgats_decimal_points`), a copy with decimal points in a
+    temporary folder that is removed again when the block ends, however it
+    ends. The copy keeps the file's name. THE USER'S FILE IS NEVER WRITTEN.
+
+    The one place every door that hands an i1Profiler CGATS export to
+    ``txt2ti3`` gets its numbers read: :func:`convert_i1profiler_measurement`
+    (the Measure tab, Build Profile, the calibration and scanner-target
+    imports, the Measurement Report, Another reading) and the two doors that
+    run ``txt2ti3`` themselves (Tools > Convert i1Profiler > TI3, the Build
+    Profile .txt import)."""
+    import tempfile
+    p = Path(path)
+    try:
+        fixed = cgats_decimal_points(read_text(p, lenient=True))
+    except (OSError, UnicodeError):
+        fixed = None
+    if fixed is None:
+        yield p
+        return
+    with tempfile.TemporaryDirectory(prefix="chromiq-decimal-points-") as tmp:
+        dst = Path(tmp) / p.name
+        dst.write_text(fixed.replace("﻿", ""), encoding="utf-8")
+        logging.getLogger(__name__).info(
+            "i1Profiler import: %s writes its numbers with decimal commas "
+            "(a decimal-comma system); read as decimals", p.name)
+        yield dst
 
 
 def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path,

@@ -1697,7 +1697,18 @@ class I1ProfilerToTi3Dialog(_ToolDialogBase):
             self._log.appendPlainText(line.rstrip())
             self._log.ensureCursorVisible()
 
+        # DECIMAL COMMAS (i1Profiler on a decimal-comma system): txt2ti3
+        # reads a temporary copy with points, removed when it has finished;
+        # neither the user's file nor the staged copy is written. The same
+        # helper as every other i1Profiler import door.
+        from contextlib import ExitStack
+        from workflow.reference_convert import decimal_point_source
+        points = ExitStack()
+        src = points.enter_context(decimal_point_source(staged_txt))
+        src_arg = staged_txt.name if src == staged_txt else str(src)
+
         def _on_finish(code: int) -> None:
+            points.close()
             ok = code == 0 and out.exists()
             if ok:
                 # txt2ti3 doesn't carry the instrument across; read it from the
@@ -1733,13 +1744,17 @@ class I1ProfilerToTi3Dialog(_ToolDialogBase):
                     self._log.appendPlainText(detail)
                 self._finish(False)
 
-        self._runner.run(
-            "txt2ti3",
-            ["-v", staged_txt.name, base],
-            cwd=out_dir,
-            on_line=_on_line,
-            on_finish=_on_finish,
-        )
+        try:
+            self._runner.run(
+                "txt2ti3",
+                ["-v", src_arg, base],
+                cwd=out_dir,
+                on_line=_on_line,
+                on_finish=_on_finish,
+            )
+        except BaseException:
+            points.close()
+            raise
 
 
 # ---------------------------------------------------------------------------

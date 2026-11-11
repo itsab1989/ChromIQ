@@ -5580,19 +5580,36 @@ class TabProfile(QWidget):
         self._log.appendPlainText(f"Converting i1Profiler measurement: {work_txt.name} …")
         self._log.ensureCursorVisible()
 
+        # DECIMAL COMMAS (i1Profiler on a decimal-comma system): txt2ti3
+        # reads a temporary copy with points, removed when it has finished;
+        # the working copy beside the run keeps what the user's file says.
+        # The same helper as every other i1Profiler import door.
+        from contextlib import ExitStack
+        from workflow.reference_convert import decimal_point_source
+        self._txt_points = ExitStack()
+        src = self._txt_points.enter_context(decimal_point_source(work_txt))
+        src_arg = work_txt.name if src == work_txt else str(src)
+
         # txt2ti3 -v <base>.txt <base>  → writes <base>.ti3 in the same folder.
         # We deliberately omit -2 (dummy .ti2): the build flow needs only the
         # .ti3, and a dummy .ti2 would overwrite any real chart of that name and
         # mislead the Print tab.
-        self._runner.run(
-            "txt2ti3",
-            ["-v", work_txt.name, base_name],
-            cwd=work_txt.parent,
-            on_line=self._txt_convert_lines.append,
-            on_finish=self._on_txt2ti3_done,
-        )
+        try:
+            self._runner.run(
+                "txt2ti3",
+                ["-v", src_arg, base_name],
+                cwd=work_txt.parent,
+                on_line=self._txt_convert_lines.append,
+                on_finish=self._on_txt2ti3_done,
+            )
+        except BaseException:
+            self._txt_points.close()
+            raise
 
     def _on_txt2ti3_done(self, code: int) -> None:
+        points = getattr(self, "_txt_points", None)
+        if points is not None:
+            points.close()          # the decimal-point copy, if there was one
         ti3 = self._txt_convert_dir / f"{self._txt_convert_base}.ti3"
         output = "\n".join(self._txt_convert_lines)
         if output:
