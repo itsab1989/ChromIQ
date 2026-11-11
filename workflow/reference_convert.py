@@ -195,15 +195,9 @@ def convert_i1profiler_measurement(path: str | Path, argyll_bin: str | Path,
     # temporary copy with points; the user's file is never written. The
     # finalise step below reads only the header, from the original.
     with decimal_point_source(p) as src:
-        try:
-            _run(Path(argyll_bin), "txt2ti3", [str(src), str(base)], runner)
-        except ReferenceConvertError as exc:
-            if src == p:
-                raise
-            # ArgyllCMS names the file it read: the person's, not our copy.
-            raise ReferenceConvertError(
-                str(exc).replace(str(src), str(p)), title=exc.title,
-                message_id=exc.message_id) from None
+        # ArgyllCMS names the file it read: the person's, not our copy.
+        _run(Path(argyll_bin), "txt2ti3", [str(src), str(base)], runner,
+             shown={str(src): str(p)} if src != p else None)
     out = artefact(base, ".ti3")
     if not out.is_file():
         raise _failure(M.M_CONVERT_NO_TI3)
@@ -1541,7 +1535,11 @@ def read_txt_condition(txt_path: str | Path) -> "str | None":
 
 
 def _run(argyll_bin: Path, tool: str, args: list[str],
-         runner: Callable[..., subprocess.CompletedProcess]) -> None:
+         runner: Callable[..., subprocess.CompletedProcess],
+         shown: "dict[str, str] | None" = None) -> None:
+    """Run ArgyllCMS *tool*; a failure raises M-CONVERT-TOOL-FAILED with the
+    tool's own last line, in which each key of *shown* (a temporary copy's
+    path) reads as its value (the file the person chose)."""
     exe = argyll_tool_path(argyll_bin, tool)
     if not exe.exists():
         raise _failure(M.M_CONVERT_TOOL_MISSING, tool=exe.name)
@@ -1555,6 +1553,8 @@ def _run(argyll_bin: Path, tool: str, args: list[str],
         detail = tail[0].strip() if tail and tail[0].strip() else \
             tr("{tool}: exit code {code}").format(tool=exe.name,
                                                   code=r.returncode)
+        for read_as, shown_as in (shown or {}).items():
+            detail = detail.replace(read_as, shown_as)
         raise _failure(M.M_CONVERT_TOOL_FAILED, tool=exe.name, detail=detail)
 
 

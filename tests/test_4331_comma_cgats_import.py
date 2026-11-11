@@ -364,7 +364,8 @@ class _SyncRunner:
         import subprocess
         self.calls.append(list(args))
         r = subprocess.run([str(self.argyll / tool), *args], cwd=str(cwd),
-                           capture_output=True, text=True, timeout=120)
+                           capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", timeout=120)
         for ln in (r.stdout + r.stderr).splitlines():
             if on_line:
                 on_line(ln)
