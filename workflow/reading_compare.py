@@ -23,6 +23,7 @@ an average ΔE₀₀ of 18 instead of 0.2).
 from __future__ import annotations
 
 import math
+import re
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -80,6 +81,8 @@ class Reading:
     lab: np.ndarray               # (N, 3) L*a*b* D50
     condition: str = ""           # the measurement condition, when known
     converted_from_cxf: bool = False
+    instrument: str = ""          # the instrument, as the file names it
+    measured_on: str = ""         # when it was read, as the file says
 
 
 @dataclass
@@ -205,11 +208,29 @@ def reading_from_ti3(path: Path) -> Reading:
         or [str(i + 1) for i in range(n)]
     locs = [str(s).strip('"') for s in (data.sample_locs or [])] \
         or [""] * n
+    kw = data.keywords
     return Reading(Path(path), ids, locs,
                    np.asarray(data.rgb, dtype=float).reshape(-1, 3)
                    if len(data.rgb) else np.empty((0, 3)),
                    _lab_of(np.asarray(data.xyz, dtype=float)),
-                   condition=data.keywords.get("MEASUREMENT_CONDITION", ""))
+                   condition=kw.get("MEASUREMENT_CONDITION", ""),
+                   instrument=(kw.get("CHROMIQ_I1P_INSTRUMENT")
+                               or kw.get("TARGET_INSTRUMENT") or ""),
+                   measured_on=_date_of(kw.get("CHROMIQ_MEASURED")
+                                        or kw.get("CREATED") or ""))
+
+
+def _date_of(text: str) -> str:
+    """*text* (chartread's "Thu Oct 29 20:39:53 2026", or a date the import
+    wrote) as YYYY-MM-DD when it reads as a date, else as it stands."""
+    from datetime import datetime
+    text = str(text).strip().strip('"')
+    for fmt in ("%a %b %d %H:%M:%S %Y", "%Y-%m-%d", "%Y-%m-%dT%H:%M:%S"):
+        try:
+            return datetime.strptime(text, fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    return text
 
 
 def load_reading(path: Path, prefer_condition: str = "") -> Reading:
@@ -388,3 +409,274 @@ def compare(a: Reading, b: Reading) -> Comparison:
              a.path.name, b.path.name, out.n, how, out.mean, out.median,
              out.p95, out.worst)
     return out
+
+
+# ---------------------------------------------------------------------------
+# Several readings (Basti, 2026-11-11: "several readings, not only two")
+# ---------------------------------------------------------------------------
+#
+# WITH THREE OR MORE READINGS THERE IS SOMETHING TO JUDGE BY. Two readings
+# show a difference and cannot say which of them is off. With more, each
+# patch has a CENTRE that a single bad reading hardly moves, and every
+# reading is measured against it.
+#
+# THE CENTRE IS THE PER-PATCH MEDIAN OF L*, a* AND b* SEPARATELY, not the
+# mean: one reading that is 5 ΔE₀₀ off pulls a mean of four by a quarter of
+# that, which makes the good readings look off too and the bad one look
+# better than it is. The median of each coordinate stays with the majority.
+# With THREE readings it is, per coordinate, the middle value: when two of
+# them agree it lies at or between those two, so the third shows its whole
+# difference and the two show at most their own small scatter. With an EVEN
+# number it is the mean of the two middle values per coordinate, which still
+# lies inside the majority when only one reading is off (with four: the
+# middle two of the three that agree). Split evenly (two against two) it
+# lies between the groups, every reading is about half the gap away, and no
+# reading is named: that is the honest answer then. (A medoid, the reading
+# nearest to all others, was the other candidate: it picks one reading as
+# "right", which is exactly the claim this tool must not make.)
+#
+# THE SPREAD of a patch is the LARGEST ΔE₀₀ BETWEEN ANY TWO READINGS of it:
+# with two readings it is their difference, the number the two-reading view
+# shows, so both views speak of the same quantity. It grows a little with
+# the number of readings (more readings, more chance of a wider pair); that
+# is said where it is shown.
+#
+# A READING STANDS APART on a patch whose spread is above the tolerance when
+# all the OTHER readings agree with each other within the tolerance and it
+# is the only reading of which that is true. Otherwise "the readings
+# disagree with each other". That is strong evidence, not proof: two
+# readings that share an error (the same strip slipped twice) agree with
+# each other and make the good one stand apart.
+
+#: How many other readings can be compared with the measurement at once
+#: (ten readings in all).
+MAX_OTHER_READINGS = 9
+
+# A reading "differs overall" when its MEDIAN distance from the centre is
+# above the tolerance: more than half of its patches are off, which a
+# misread strip or a few bad patches never cause, and another instrument,
+# another measurement condition, another print or a drifting instrument do
+# (`SeveralComparison.verdict`).
+
+
+@dataclass
+class ReadingStats:
+    mean: float
+    median: float
+    p95: float
+    worst: float
+
+
+@dataclass
+class Verdict:
+    """What one reading looks like beside the others, at one tolerance.
+
+    *kind*: ``"agrees"``, ``"patches"`` (*count* patches above the
+    tolerance), ``"strip"`` (nearly the whole of *strips*, and *count* above
+    in all) or ``"overall"``."""
+    kind: str
+    count: int = 0
+    strips: "list[str]" = field(default_factory=list)
+
+
+@dataclass
+class StripRow:
+    label: str
+    n: int
+    means: np.ndarray             # (R,) average distance from the centre
+    above: np.ndarray             # (R,) patches above the tolerance
+
+    def off(self, k: int) -> bool:
+        """Nearly the whole strip of reading *k* is above the tolerance."""
+        return (self.n >= WHOLE_STRIP_MIN_PATCHES
+                and self.above[k] >= WHOLE_STRIP_SHARE * self.n)
+
+
+def _norm_instrument(name: str) -> str:
+    """An instrument name for comparing: "X-Rite i1 Pro 2" (chartread) and
+    "i1Pro 2" (i1Profiler) are the same instrument."""
+    t = re.sub(r"[^a-z0-9]", "", str(name).lower())
+    for brand in ("xrite", "datacolor", "konicaminolta"):
+        if t.startswith(brand):
+            t = t[len(brand):]
+    return t
+
+
+@dataclass
+class SeveralComparison:
+    """The measurement and two or more other readings, paired and compared
+    with each patch's centre. Readings are numbered from 0 here (0 is the
+    measurement); the window numbers them from 1."""
+    readings: "list[Reading]"
+    paired_by: "list[str]"        # per OTHER reading: "id" | "device"
+    device_checked: bool          # False when some pair was not checked
+    left_out: int                 # measurement patches not in every reading
+    sids: "list[str]"
+    locs: "list[str]"
+    strips_of: "list[str | None]"
+    positions: "list[int | None]"
+    lab: np.ndarray               # (R, N, 3)
+    centre: np.ndarray            # (N, 3) per-patch median
+    dev: np.ndarray               # (R, N) ΔE₀₀ to the centre
+    pair: np.ndarray              # (R, R, N) ΔE₀₀ between two readings
+    spread: np.ndarray            # (N,) largest pairwise ΔE₀₀
+
+    @property
+    def n(self) -> int:
+        return int(self.dev.shape[1])
+
+    @property
+    def r(self) -> int:
+        return int(self.dev.shape[0])
+
+    def stats(self, k: int) -> ReadingStats:
+        d = self.dev[k]
+        return ReadingStats(float(d.mean()), float(np.median(d)),
+                            float(np.percentile(d, 95)), float(d.max()))
+
+    def above(self, k: int, tol: float) -> int:
+        """Patches of reading *k* farther than *tol* from the centre."""
+        return int(np.count_nonzero(self.dev[k] > tol + 1e-9))
+
+    def repeatability(self) -> "tuple[float, float]":
+        """(median, 95th percentile) of the per-patch spread."""
+        return (float(np.median(self.spread)),
+                float(np.percentile(self.spread, 95)))
+
+    def spread_above(self, tol: float) -> np.ndarray:
+        """Patch indexes whose spread is above *tol*, largest first."""
+        idx = np.flatnonzero(self.spread > tol + 1e-9)
+        return idx[np.argsort(-self.spread[idx], kind="stable")]
+
+    def worst(self, k: int = WORST_SHOWN) -> np.ndarray:
+        return np.argsort(-self.spread, kind="stable")[:k]
+
+    def stands_apart(self, tol: float) -> np.ndarray:
+        """(N,) the reading that stands apart on each patch, or -1.
+
+        Only on patches whose spread is above *tol*: reading k stands apart
+        when every pair of the OTHER readings is within *tol* and k is the
+        only reading of which that holds."""
+        r, n = self.r, self.n
+        agree = np.zeros((r, n), dtype=bool)
+        for k in range(r):
+            keep = [i for i in range(r) if i != k]
+            sub = self.pair[np.ix_(keep, keep)]
+            agree[k] = sub.max(axis=(0, 1)) <= tol + 1e-9
+        out = np.full(n, -1, dtype=int)
+        one = (agree.sum(axis=0) == 1) & (self.spread > tol + 1e-9)
+        out[one] = np.argmax(agree[:, one], axis=0)
+        return out
+
+    def strips(self, tol: float) -> "list[StripRow]":
+        """Per printed strip (in chart order); empty when the locations name
+        no strips."""
+        groups: "dict[str, list[int]]" = {}
+        for i, s in enumerate(self.strips_of):
+            if s is not None:
+                groups.setdefault(s, []).append(i)
+        if len(groups) < 2:
+            return []
+        out = []
+        for s, idx in groups.items():
+            d = self.dev[:, idx]
+            out.append(StripRow(s, len(idx), d.mean(axis=1),
+                                np.count_nonzero(d > tol + 1e-9, axis=1)))
+        return out
+
+    def verdict(self, k: int, tol: float,
+                strips: "list[StripRow] | None" = None) -> Verdict:
+        count = self.above(k, tol)
+        if count == 0:
+            return Verdict("agrees")
+        if float(np.median(self.dev[k])) > tol + 1e-9:
+            return Verdict("overall", count)
+        strips = self.strips(tol) if strips is None else strips
+        off = [s.label for s in strips if s.off(k)]
+        if off:
+            return Verdict("strip", count, off)
+        return Verdict("patches", count)
+
+    def mixed(self) -> "tuple[dict[str, list[int]], dict[str, list[int]]]":
+        return mixed_ways(self.readings)
+
+
+def mixed_ways(readings: "list[Reading]"
+               ) -> "tuple[dict[str, list[int]], dict[str, list[int]]]":
+    """({condition: reading indexes}, {instrument: reading indexes}), each
+    only when the files name more than one. A reading whose file does not
+    say is left out of both (many a .ti3 names no measurement condition)."""
+    conds: "dict[str, list[int]]" = {}
+    insts: "dict[str, list[int]]" = {}
+    shown: "dict[str, str]" = {}
+    for k, rd in enumerate(readings):
+        if rd.condition:
+            conds.setdefault(rd.condition.upper(), []).append(k)
+        key = _norm_instrument(rd.instrument)
+        if key:
+            shown.setdefault(key, rd.instrument)
+            insts.setdefault(key, []).append(k)
+    return ((conds if len(conds) > 1 else {}),
+            ({shown[key]: v for key, v in insts.items()}
+             if len(insts) > 1 else {}))
+
+
+def compare_several(a: Reading, others: "list[Reading]"
+                    ) -> "tuple[SeveralComparison | None, list[tuple[Reading, ReadingsNotComparable]]]":
+    """Pair every reading of *others* with *a*, refuse the ones that are not
+    the same chart (each on its own: a refused reading never stops the
+    rest), and compare the rest with each patch's centre.
+
+    Returns (comparison, refused). The comparison is None when fewer than
+    two other readings pair: the two-reading view (`compare`) is the one
+    for that."""
+    from workflow.profile_engine.metrics import delta_e_2000
+    paired: "list[tuple[Reading, dict[int, int], str, bool]]" = []
+    refused: "list[tuple[Reading, ReadingsNotComparable]]" = []
+    for b in others:
+        try:
+            pairs, how, checked, _left = pair_readings(a, b)
+        except ReadingsNotComparable as exc:
+            refused.append((b, exc))
+            continue
+        paired.append((b, dict(pairs), how, checked))
+    if len(paired) < 2:
+        return None, refused
+    common = [i for i in range(len(a.ids))
+              if all(i in m for _b, m, _h, _c in paired)]
+    if not common:
+        return None, refused
+    labels = None
+    try:
+        from workflow.layout_engine.labels import labels_for_measurement
+        labels = labels_for_measurement(a.path)
+    except Exception:          # noqa: BLE001 — without labels, no strips
+        labels = None
+    idx = np.asarray(common, dtype=int)
+    lab = np.stack([a.lab[idx]] + [
+        b.lab[np.asarray([m[i] for i in common], dtype=int)]
+        for b, m, _h, _c in paired])
+    r, n = lab.shape[0], lab.shape[1]
+    centre = np.median(lab, axis=0)
+    dev = np.stack([delta_e_2000(lab[k], centre) for k in range(r)])
+    pair = np.zeros((r, r, n))
+    for i in range(r):
+        for j in range(i + 1, r):
+            pair[i, j] = pair[j, i] = delta_e_2000(lab[i], lab[j])
+    dev = np.where(np.isfinite(dev), dev, 0.0)
+    pair = np.where(np.isfinite(pair), pair, 0.0)
+    spread = pair.max(axis=(0, 1))
+    sp = [_strip_and_place(labels, a.locs[i]) for i in common]
+    out = SeveralComparison(
+        readings=[a] + [b for b, _m, _h, _c in paired],
+        paired_by=[h for _b, _m, h, _c in paired],
+        device_checked=all(c for _b, _m, _h, c in paired),
+        left_out=len(a.ids) - len(common),
+        sids=[a.ids[i] for i in common], locs=[a.locs[i] for i in common],
+        strips_of=[s for s, _p in sp], positions=[p for _s, p in sp],
+        lab=lab, centre=centre, dev=dev, pair=pair, spread=spread)
+    med, p95 = out.repeatability()
+    log.info("compare readings: %s against %d other readings, %d patches; "
+             "spread median %.2f, 95th percentile %.2f; %d refused",
+             a.path.name, r - 1, n, med, p95, len(refused))
+    return out, refused
