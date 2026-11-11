@@ -47,6 +47,10 @@ you tested on the device is part of the pull request.
 
   On Windows PowerShell:
   `$env:QT_QPA_PLATFORM='offscreen'; pytest --runslow -n auto -q > $env:TEMP\chromiq-gate.txt 2>&1; echo "exit=$LASTEXITCODE"`.
+  A change to the profile engine (`workflow/profile_engine/`, its native
+  helpers or its research benchmarks) needs the FULL gate: add `--runengine`
+  to the same command. `python scripts/gate_tier.py` says which one a change
+  needs.
 
 - User-facing text goes through `tr()` into all 13 translation catalogues in
   `data/i18n/`, and new English text uses no em dash.

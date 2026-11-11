@@ -26,4 +26,16 @@ def test_the_only_trigger_is_a_manual_start():
 def test_the_job_reports_pytests_own_exit_code():
     text = WF.read_text(encoding="utf-8")
     assert "rc=$?" in text and "exit $rc" in text
-    assert "pytest $SLOW -n auto" in text
+    assert "pytest $SLOW $ENGINE -n auto" in text
+
+
+def test_the_heavy_engine_tier_is_off_unless_asked_for():
+    """Basti, 2026-11-11: the engine is beta and off by default, so a
+    hand-started run leaves its heavy tier (--runengine) out unless the
+    engine input is ticked."""
+    inputs = yaml.safe_load(WF.read_text(encoding="utf-8"))[True][
+        "workflow_dispatch"]["inputs"]
+    assert inputs["engine"]["type"] == "boolean"
+    assert inputs["engine"]["default"] is False
+    text = WF.read_text(encoding="utf-8")
+    assert text.count("then ENGINE=--runengine; else ENGINE=; fi") == 3

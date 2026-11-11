@@ -14,7 +14,12 @@ name: Test suite
 # are picked up by themselves. The newest work is on the beta branch, not on
 # master. Start it from the Actions tab ("Test suite" > "Run workflow", pick
 # the branch), or:
-#   gh workflow run tests.yml --ref <branch> [-f systems=windows] [-f slow=false]
+#   gh workflow run tests.yml --ref <branch> [-f systems=windows] [-f slow=false] [-f engine=true]
+#
+# The heavy engine tier (tests/_engine_tier.py, `--runengine`) is OFF by
+# default here, as in the normal gate (Basti, 2026-11-11: the engine is beta
+# and off by default). Tick "engine" for a change that touches the engine;
+# `python scripts/gate_tier.py` says when that is.
 on:
   workflow_dispatch:
     inputs:
@@ -27,6 +32,10 @@ on:
         description: 'Include the slow end-to-end tests (--runslow, the release gate)'
         type: boolean
         default: true
+      engine:
+        description: 'Include the heavy engine build tier (--runengine; needed when the change touches the profile engine, see scripts/gate_tier.py)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -99,7 +108,8 @@ jobs:
         run: |
           set -uo pipefail
           if [ "${{ inputs.slow }}" = "true" ]; then SLOW=--runslow; else SLOW=; fi
-          python -m pytest $SLOW -n auto -q -rs -p no:cacheprovider > pytest-output.txt 2>&1
+          if [ "${{ inputs.engine }}" = "true" ]; then ENGINE=--runengine; else ENGINE=; fi
+          python -m pytest $SLOW $ENGINE -n auto -q -rs -p no:cacheprovider > pytest-output.txt 2>&1
           rc=$?
           tail -n 80 pytest-output.txt
           echo "pytest exit code: $rc"
@@ -234,7 +244,8 @@ jobs:
         run: |
           set -uo pipefail
           if [ "${{ inputs.slow }}" = "true" ]; then SLOW=--runslow; else SLOW=; fi
-          python -m pytest $SLOW -n auto -q -rs -p no:cacheprovider > pytest-output.txt 2>&1
+          if [ "${{ inputs.engine }}" = "true" ]; then ENGINE=--runengine; else ENGINE=; fi
+          python -m pytest $SLOW $ENGINE -n auto -q -rs -p no:cacheprovider > pytest-output.txt 2>&1
           rc=$?
           tail -n 80 pytest-output.txt
           echo "pytest exit code: $rc"
@@ -365,7 +376,8 @@ jobs:
         run: |
           set -uo pipefail
           if [ "${{ inputs.slow }}" = "true" ]; then SLOW=--runslow; else SLOW=; fi
-          python -m pytest $SLOW -n auto -q -rs -p no:cacheprovider > pytest-output.txt 2>&1
+          if [ "${{ inputs.engine }}" = "true" ]; then ENGINE=--runengine; else ENGINE=; fi
+          python -m pytest $SLOW $ENGINE -n auto -q -rs -p no:cacheprovider > pytest-output.txt 2>&1
           rc=$?
           tail -n 80 pytest-output.txt
           echo "pytest exit code: $rc"
