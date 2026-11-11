@@ -467,6 +467,20 @@ def test_the_engine_still_words_its_deepest_report_the_way_we_read_it():
     assert "Using the engine's own rendering (" in gm
 
 
+@pytest.mark.parametrize("raw", ["colprof oracle failed: ",
+                                 "oracle sampling failed"])
+def test_the_reason_ChromIQ_words_itself_is_translated(raw):
+    """Review 2026-11-11 (F4): when colprof's own words cannot be shown,
+    the reason in M-BUILD-ENGINE-FALLBACK is a phrase of ChromIQ's, and it
+    was English in every language."""
+    import core.i18n as i18n
+    english = eb._plain_reason(raw)
+    i18n.set_language("de")
+    german = eb._plain_reason(raw)
+    assert german and german != english
+    assert "oracle" not in german.lower()
+
+
 def test_a_missing_colprof_reference_stops_a_standard_build():
     shown: list = []
     lines = eb.EngineLines(shown.append)

@@ -458,9 +458,9 @@ def _plain_reason(raw: str) -> str:
     English phrase, which is what the user is shown as {reason}."""
     text = re.sub(r"^\s*colprof oracle failed:\s*", "", raw or "").strip()
     if not text:
-        return "colprof ended with an error"
+        return tr("colprof ended with an error")
     if re.search(r"oracle", text, re.I) or _NUMBERED_SWITCH.search(text):
-        return "the result of the colprof run could not be read"
+        return tr("the result of the colprof run could not be read")
     return text
 
 
