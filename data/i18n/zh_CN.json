@@ -8066,5 +8066,8 @@
  "{name}: ChromIQ could not find this file on this computer.": "{name}：ChromIQ 在这台电脑上找不到这个文件。",
  "Added to the list, but not compared: the list marks these as “not compared”, and the details below explain why.": "已添加到列表，但未比较：列表中标为“未比较”，下方的详情说明了原因。",
  "You can also drag a measurement file (.ti3) from {manager} and drop it on this row, and ChromIQ opens it just as the browse button does.": "你也可以从{manager}中把测量文件（.ti3）拖到这一行上松开，ChromIQ 会像使用浏览按钮一样打开它。",
- "You can also drag one or several reading files (.ti3, .txt, .mxf or .cxf) from {manager} and drop them on this row, and ChromIQ adds them just as Add… does (folders and other kinds of files are left out).": "你也可以从{manager}中把一个或多个测量文件（.ti3、.txt、.mxf 或 .cxf）拖到这一行上松开，ChromIQ 会像“添加…”一样添加它们（文件夹和其他类型的文件会被忽略）。"
+ "You can also drag one or several reading files (.ti3, .txt, .mxf or .cxf) from {manager} and drop them on this row, and ChromIQ adds them just as Add… does (folders and other kinds of files are left out).": "你也可以从{manager}中把一个或多个测量文件（.ti3、.txt、.mxf 或 .cxf）拖到这一行上松开，ChromIQ 会像“添加…”一样添加它们（文件夹和其他类型的文件会被忽略）。",
+ "You can also drag a file from {manager} and drop it on this row, and ChromIQ uses it just as if you had chosen it with the browse button. A file of another kind is not accepted.": "你也可以从{manager}中把文件拖到这一行上松开，ChromIQ 会像用浏览按钮选择它一样使用它。其他类型的文件不会被接受。",
+ "You can also drag a folder from {manager} and drop it on this row, and ChromIQ uses it just as if you had chosen it with the browse button.": "你也可以从{manager}中把文件夹拖到这一行上松开，ChromIQ 会像用浏览按钮选择它一样使用它。",
+ "You can also drag one or several files from {manager} and drop them on this list, and ChromIQ adds them just as the add button does. Files of other kinds are left out.": "你也可以从{manager}中把一个或多个文件拖到这个列表上松开，ChromIQ 会像使用添加按钮一样把它们添加进来。其他类型的文件会被略过。"
 }

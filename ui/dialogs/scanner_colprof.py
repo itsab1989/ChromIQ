@@ -1416,7 +1416,15 @@ class ScannerAdvancedDialog(QDialog):
         self._gam_browse.clicked.connect(self._browse_gamut)
         path_row = _indented(self._gam_path, grp)
         path_row.addWidget(self._gam_browse)
-        g.addLayout(path_row)
+        # A profile dropped on this row fills it as the button does, only
+        # while the button is enabled (4.3.33).
+        from ui.file_drop import FileDropZone
+        from ui.styles import SPEC_GREEN
+        self._gam_zone = FileDropZone.around(
+            path_row, grp, (".icc", ".icm"), single=True,
+            spacing=g.spacing(), guard=self._gam_browse, accent=SPEC_GREEN)
+        self._gam_zone.file_dropped.connect(self._use_gamut)
+        g.addWidget(self._gam_zone)
 
         def _on_mode() -> None:
             active = bool(self._gam_mode.currentData())
@@ -1570,7 +1578,11 @@ class ScannerAdvancedDialog(QDialog):
                              tr("ICC/ICM profiles (*.icc *.icm)"),
                              start_dir=start, extra_path=start)
         if f:
-            self._gam_path.setText(f)
+            self._use_gamut(f)
+
+    def _use_gamut(self, f) -> None:
+        """The profile chosen with the button, or dropped on its row."""
+        self._gam_path.setText(str(f))
 
     def _seed(self, values: dict[str, Any]) -> None:
         """Load *values* into the widgets, preferring explicit UI-state keys and

@@ -669,6 +669,10 @@ def ps_texts(*, proposed: bool = False):
             MM.M_PRINT_PS_FORM_HELP_PROJECT_EXPLAINED)
 
 class TabPrint(QWidget):
+    #: The hue of this tab's step header, its accent: file-drop frames
+    #: (4.3.33) are drawn in it (`ui.file_drop.context_accent`).
+    TAB_ACCENT = "#ffb42d"
+
 
     ti2_loaded         = pyqtSignal(Path)  # emitted when the user loads a .ti2 file
     ti2_replaced       = pyqtSignal()      # emitted when a different .ti2 file is loaded by the user

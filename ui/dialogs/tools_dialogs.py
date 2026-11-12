@@ -48,6 +48,7 @@ from core.i18n import tr
 from core.logger import get_logger
 from core.platform_paths import default_output_root
 from ui.fade_scroll import FadeScrollArea
+from ui.file_drop import FileDropTarget, FileDropZone, with_drop_hint
 from ui.spectrum_progress import SpectrumSegmentsBar
 from ui.styles import (
     BG_INPUT, BORDER, POPUP_HL_TEXT, SPEC_GREEN, SPEC_MAGENTA, SPEC_VIOLET,
@@ -64,6 +65,11 @@ from ui.widgets import (
     confirm, make_browse_button, NoScrollComboBox, NoScrollSpinBox, TailFollowLog,
     open_dir_dialog, open_file_dialog, open_files_dialog, WorkAreaClamped,
 )
+
+
+# What "Load from file…" offers for the expected values (its filter's first
+# entry), and so what a drop there may bring (4.3.33).
+_REF_SUFFIXES = (".txt", ".cgats", ".ti3", ".csv")
 
 
 def _indicator_color(settings: "AppSettings") -> str:
@@ -370,6 +376,7 @@ class _ToolDialogBase(WorkAreaClamped, QDialog):
         super().__init__(parent)
         self._settings = settings
         self._sized_once = False
+        self._busy = False              # a run is going: no file drops
         self.setWindowTitle(self.TITLE)
         self.setMinimumWidth(self.MIN_WIDTH)
         self.setWindowFlags(
@@ -599,6 +606,7 @@ class _ToolDialogBase(WorkAreaClamped, QDialog):
             self._finish(False)
 
     def _set_busy(self, busy: bool) -> None:
+        self._busy = busy
         self._run_btn.setEnabled(not busy and self._can_run())
         self._close_btn.setEnabled(not busy)
         if self._busy_bar is None:
@@ -668,6 +676,43 @@ class _ToolDialogBase(WorkAreaClamped, QDialog):
         _remember_dir(self._settings, self.TOOL_KEY, result[0].parent)
         return result
 
+    # ------------------------------------------------------------------
+    # Files dropped from the file manager (4.3.33)
+    # ------------------------------------------------------------------
+    def _not_busy(self) -> bool:
+        """Nothing may be dropped while the tool runs."""
+        return not self._busy
+
+    def _drop_row(self, row: "QHBoxLayout", layout, suffixes, use, *,
+                  several: bool = False, guard=None,
+                  remember: bool = True, declutter=None) -> FileDropZone:
+        """Put *row* (a layout not yet added) into a drop zone, add the zone
+        to *layout* where the row would have gone, and hand a dropped file to
+        *use*: the very method the row's Browse calls with the file it was
+        given (``use(path)``, or for a list ``use(paths)``). *remember*: as
+        `_pick_input_file`, the file's folder is where the next Browse
+        opens. Refused while the tool runs, and while *guard* says no.
+        *declutter*: the settings, for a row whose Browse tidies a legacy
+        project folder first (``declutter_settings``)."""
+        spacing = layout.spacing() if layout is not None else None
+        zone = FileDropZone.around(
+            row, self, suffixes, single=not several, spacing=spacing,
+            guard=(self._not_busy,) + ((guard,) if guard is not None else ()),
+            accent=self.ACCENT, declutter=declutter)
+        if remember:
+            zone.files_dropped.connect(self._remember_dropped)
+        if several:
+            zone.files_dropped.connect(use)
+        else:
+            zone.file_dropped.connect(use)
+        if layout is not None:
+            layout.addWidget(zone)
+        return zone
+
+    def _remember_dropped(self, files: list, _left: "list | None" = None) -> None:
+        if files:
+            _remember_dir(self._settings, self.TOOL_KEY, Path(files[0]).parent)
+
     def _pick_output_dir(self, caption: str) -> Path | None:
         path = open_dir_dialog(
             self, caption,
@@ -732,11 +777,24 @@ class _OutputRow(QWidget):
         ext_lbl.setStyleSheet("color: #888;")
         row.addWidget(ext_lbl)
 
+        # A folder dropped from the file manager on this row is the
+        # destination, as the folder button sets it (4.3.33). Not while the
+        # tool runs (the window's own guard, `_not_busy`).
+        busy = getattr(parent, "_not_busy", None)
+        self._drop = FileDropTarget(
+            self, folders=True, guard=busy,
+            accent=getattr(parent, "ACCENT", None))
+        self._drop.file_dropped.connect(self._use_dir)
+
     def _browse(self) -> None:
         start = self._dir_edit.text() or str(Path.home())
         path = open_dir_dialog(self, tr("Choose destination folder"), start_dir=start)
         if path:
-            self._dir_edit.setText(path)
+            self._use_dir(path)
+
+    def _use_dir(self, path) -> None:
+        """The folder chosen with the button, or dropped on the row."""
+        self._dir_edit.setText(str(path))
 
     @property
     def directory(self) -> Path | None:
@@ -814,6 +872,11 @@ class AverageMeasurementsDialog(_ToolDialogBase):
         self._list = QListWidget(self)
         self._list.setMinimumHeight(110)
         self._content.addWidget(self._list)
+        # Files dropped on the list are added as Add… adds them (4.3.33).
+        self._list_drop = FileDropTarget(
+            self._list, (".ti3",), guard=self._not_busy, accent=self.ACCENT)
+        self._list_drop.files_dropped.connect(self._remember_dropped)
+        self._list_drop.files_dropped.connect(self._use_files)
 
         btn_row = QHBoxLayout()
         add_btn = QPushButton(tr("Add…"), self)
@@ -858,6 +921,11 @@ class AverageMeasurementsDialog(_ToolDialogBase):
             tr("Add measurement files"),
             tr("Measurement files (*.ti3);;All files (*)"),
         )
+        self._use_files(files)
+
+    def _use_files(self, files: list, _left: "list | None" = None) -> None:
+        """The files chosen with Add…, or dropped on the list."""
+        files = [Path(p) for p in files]
         for p in files:
             if p not in self._inputs:
                 self._inputs.append(p)
@@ -1029,7 +1097,8 @@ class MergeMeasurementsDialog(_ToolDialogBase):
         primary_btn = QPushButton(tr("Browse…"), self)
         primary_btn.clicked.connect(self._pick_primary)
         row.addWidget(primary_btn)
-        self._content.addLayout(row)
+        self._primary_zone = self._drop_row(row, self._content, (".ti3",),
+                                            self._use_primary)
 
         self._additional_lbl = QLabel(
             tr("Additional measurements (.ti3) — their patches are appended:"), self
@@ -1039,6 +1108,10 @@ class MergeMeasurementsDialog(_ToolDialogBase):
         self._list = QListWidget(self)
         self._list.setMinimumHeight(90)
         self._content.addWidget(self._list)
+        self._list_drop = FileDropTarget(
+            self._list, (".ti3",), guard=self._not_busy, accent=self.ACCENT)
+        self._list_drop.files_dropped.connect(self._remember_dropped)
+        self._list_drop.files_dropped.connect(self._use_additional)
 
         btn_row = QHBoxLayout()
         add_btn = QPushButton(tr("Add…"), self)
@@ -1063,6 +1136,12 @@ class MergeMeasurementsDialog(_ToolDialogBase):
     def _pick_primary(self) -> None:
         p = self._pick_input_file(tr("Choose primary measurement"), tr("Measurement files (*.ti3);;All files (*)"))
         if p:
+            self._use_primary(p)
+
+    def _use_primary(self, p) -> None:
+        """The primary chosen with Browse…, or dropped on its row."""
+        p = Path(p)
+        if p:
             self._primary = p
             self._primary_field.setText(str(p))
             if not self._output.name or self._output.name == "merged":
@@ -1073,6 +1152,11 @@ class MergeMeasurementsDialog(_ToolDialogBase):
         files = self._pick_input_files(
             tr("Add measurements to merge in"), tr("Measurement files (*.ti3);;All files (*)")
         )
+        self._use_additional(files)
+
+    def _use_additional(self, files: list, _left: "list | None" = None) -> None:
+        """The files chosen with Add…, or dropped on the list."""
+        files = [Path(p) for p in files]
         for p in files:
             if p not in self._additional and p != self._primary:
                 self._additional.append(p)
@@ -1208,7 +1292,8 @@ class Ti1ToI1ProfilerDialog(_ToolDialogBase):
             self, tr("Browse for the chart definition"), color=self._accent)
         btn.clicked.connect(self._pick_ti1)
         row.addWidget(btn)
-        self._content.addLayout(row)
+        self._ti1_zone = self._drop_row(row, self._content, (".ti1",),
+                                        self._use_ti1)
 
         self._content.addWidget(QLabel(tr("Save the i1Profiler files as:"), self))
         self._output = _OutputRow(
@@ -1377,6 +1462,12 @@ class Ti1ToI1ProfilerDialog(_ToolDialogBase):
         p = self._pick_input_file(
             tr("Choose chart definition"), tr("Argyll chart files (*.ti1);;All files (*)")
         )
+        if p:
+            self._use_ti1(p)
+
+    def _use_ti1(self, p) -> None:
+        """The chart chosen with Browse, or dropped on its row."""
+        p = Path(p)
         if p:
             self._ti1 = p
             self._ti1_field.setText(str(p))
@@ -1577,7 +1668,9 @@ class I1ProfilerToTi3Dialog(_ToolDialogBase):
         btn = QPushButton(tr("Browse…"), self)
         btn.clicked.connect(self._pick_txt)
         row.addWidget(btn)
-        self._content.addLayout(row)
+        self._txt_zone = self._drop_row(row, self._content,
+                                        (".txt", ".mxf", ".cxf"),
+                                        self._use_txt)
 
         self._content.addWidget(QLabel(tr("Save the Argyll measurement as:"), self))
         self._output = _OutputRow(
@@ -1594,6 +1687,12 @@ class I1ProfilerToTi3Dialog(_ToolDialogBase):
             tr("Choose i1Profiler measurement"),
             tr("i1Profiler measurements (*.txt *.mxf *.cxf);;All files (*)")
         )
+        if p:
+            self._use_txt(p)
+
+    def _use_txt(self, p) -> None:
+        """The file chosen with Browse…, or dropped on its row."""
+        p = Path(p)
         if p:
             self._txt = p
             self._txt_field.setText(str(p))
@@ -1839,7 +1938,9 @@ class I1ProfilerToTi1Dialog(_ToolDialogBase):
         btn = QPushButton(tr("Browse…"), self)
         btn.clicked.connect(self._pick_src)
         row.addWidget(btn)
-        self._content.addLayout(row)
+        self._src_zone = self._drop_row(row, self._content,
+                                        (".pxf", ".pwxf", ".cgats", ".txt"),
+                                        self._use_src)
 
         self._content.addWidget(QLabel(tr("Save the Argyll chart definition as:"), self))
         self._output = _OutputRow(
@@ -1856,6 +1957,12 @@ class I1ProfilerToTi1Dialog(_ToolDialogBase):
             tr("Choose i1Profiler patch set"),
             tr("i1Profiler patch sets (*.pxf *.pwxf *.cgats *.txt);;All files (*)"),
         )
+        if p:
+            self._use_src(p)
+
+    def _use_src(self, p) -> None:
+        """The patch set chosen with Browse…, or dropped on its row."""
+        p = Path(p)
         if p:
             self._src = p
             self._src_field.setText(str(p))
@@ -2008,7 +2115,11 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
         load_btn = QPushButton(tr("Load from file…"), self)
         load_btn.clicked.connect(self._load_reference_file)
         head.addWidget(load_btn)
-        self._content.addLayout(head)
+        # A reference file dropped on this row, on the paste box or on the
+        # file row below it is loaded as "Load from file…" loads it
+        # (4.3.33). Text dropped on the box is still pasted.
+        self._ref_zone = self._drop_row(head, self._content, _REF_SUFFIXES,
+                                        self._use_reference_file)
 
         self._ref_edit = QPlainTextEdit(self)
         self._ref_edit.setPlaceholderText(
@@ -2018,6 +2129,11 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
         self._ref_edit.setFixedHeight(110)
         self._ref_edit.textChanged.connect(self._refresh)
         self._content.addWidget(self._ref_edit)
+        self._ref_edit_drop = FileDropTarget(
+            self._ref_edit, _REF_SUFFIXES, single=True, guard=self._not_busy,
+            accent=self.ACCENT)
+        self._ref_edit_drop.files_dropped.connect(self._remember_dropped)
+        self._ref_edit_drop.file_dropped.connect(self._use_reference_file)
 
         # A reference FILE (a .ti3 or other CGATS table) is not pasted into
         # the box above: it goes to colverify as it is (4.3.30). This row
@@ -2037,17 +2153,24 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
         rf.addWidget(self._ref_file_clear, 0, Qt.AlignmentFlag.AlignTop)
         self._ref_file_row.setVisible(False)
         self._content.addWidget(self._ref_file_row)
+        self._ref_row_drop = FileDropTarget(
+            self._ref_file_row, _REF_SUFFIXES, single=True,
+            guard=self._not_busy, accent=self.ACCENT)
+        self._ref_row_drop.files_dropped.connect(self._remember_dropped)
+        self._ref_row_drop.file_dropped.connect(self._use_reference_file)
 
         self._content.addWidget(QLabel(tr("Measured chart (.ti3):"), self))
         row, self._measured_field = self._file_row(self._pick_measured)
-        self._content.addLayout(row)
+        self._measured_zone = self._drop_row(row, self._content, (".ti3",),
+                                             self._use_measured)
 
         self._content.addWidget(
             QLabel(tr("Chart definition (.ti1 / .ti2) — optional, cross-checks patch count:"), self)
         )
         row, self._chart_field = self._file_row(self._pick_chart,
                                                 self._clear_chart)
-        self._content.addLayout(row)
+        self._chart_zone = self._drop_row(row, self._content,
+                                          (".ti1", ".ti2"), self._use_chart)
 
         prof_row = QHBoxLayout()
         prof_row.addWidget(
@@ -2059,7 +2182,7 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
         prof_row.addWidget(
             TooltipButton(
                 tr("Skip unprintable colours"),
-                tr("If your reference values were made for a different paper or finish "
+                with_drop_hint(tr("If your reference values were made for a different paper or finish "
                 "(say glossy values checked on matte), some of them are colours your "
                 "paper simply can't produce — most often the very darkest shadows, "
                 "because matte paper can't go as dark as glossy. Comparing against "
@@ -2067,7 +2190,7 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
                 "Point this at the profile for the paper you actually printed on, and "
                 "ChromIQ asks Argyll to leave those unreachable colours out of the "
                 "score, then tells you how many it skipped. What's left is a fair "
-                "measure of how well the colours your paper CAN make were reproduced."),
+                "measure of how well the colours your paper CAN make were reproduced.")),
                 self, min_width=520, color=_indicator_color(self._settings),
             ),
             0, Qt.AlignmentFlag.AlignVCenter,
@@ -2076,7 +2199,9 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
         self._content.addLayout(prof_row)
         row, self._profile_field = self._file_row(self._pick_profile,
                                                   self._clear_profile)
-        self._content.addLayout(row)
+        self._profile_zone = self._drop_row(row, self._content,
+                                            (".icc", ".icm"),
+                                            self._use_profile)
 
         opts = QHBoxLayout()
         opts.addWidget(QLabel(tr("ΔE formula:"), self))
@@ -2139,6 +2264,12 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
         )
         if not p:
             return
+        self._use_reference_file(p)
+
+    def _use_reference_file(self, p) -> None:
+        """The file chosen with "Load from file…", or dropped on the
+        expected-values rows."""
+        p = Path(p)
         try:
             text = p.read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
@@ -2228,23 +2359,32 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
     def _pick_measured(self) -> None:
         p = self._pick_input_file(tr("Choose measured chart"), tr("Measurements (*.ti3);;All files (*)"))
         if p:
-            self._measured = p
-            self._measured_field.setText(str(p))
-            self._refresh()
+            self._use_measured(p)
+
+    def _use_measured(self, p) -> None:
+        self._measured = Path(p)
+        self._measured_field.setText(str(p))
+        self._refresh()
 
     def _pick_chart(self) -> None:
         p = self._pick_input_file(tr("Choose chart definition"), tr("Charts (*.ti1 *.ti2);;All files (*)"))
         if p:
-            self._chart = p
-            self._chart_field.setText(str(p))
-            self._refresh()
+            self._use_chart(p)
+
+    def _use_chart(self, p) -> None:
+        self._chart = Path(p)
+        self._chart_field.setText(str(p))
+        self._refresh()
 
     def _pick_profile(self) -> None:
         p = self._pick_input_file(tr("Choose your profile"), tr("ICC profiles (*.icc *.icm);;All files (*)"))
         if p:
-            self._profile = p
-            self._profile_field.setText(str(p))
-            self._refresh()
+            self._use_profile(p)
+
+    def _use_profile(self, p) -> None:
+        self._profile = Path(p)
+        self._profile_field.setText(str(p))
+        self._refresh()
 
     # -- run ------------------------------------------------------------
     def _can_run(self) -> bool:
@@ -2539,7 +2679,9 @@ class VerifyProfileDialog(_ToolDialogBase):
             "should be and compares that to your measurement.",
         ))
         row, self._profile_field = self._file_row(self._pick_profile)
-        self._content.addLayout(row)
+        self._profile_zone = self._drop_row(row, self._content,
+                                            (".icc", ".icm"),
+                                            self._use_profile)
 
         self._content.addLayout(self._label_with_tip(
             "Measured chart (.ti3):",
@@ -2551,7 +2693,8 @@ class VerifyProfileDialog(_ToolDialogBase):
             "profile isn't. A few hundred fresh patches are plenty.",
         ))
         row, self._measured_field = self._file_row(self._pick_measured)
-        self._content.addLayout(row)
+        self._measured_zone = self._drop_row(row, self._content, (".ti3",),
+                                             self._use_measured)
 
         opts = QHBoxLayout()
         opts.addWidget(QLabel(tr("ΔE formula:"), self))
@@ -2605,9 +2748,12 @@ class VerifyProfileDialog(_ToolDialogBase):
                                   tr("ICC profiles (*.icc *.icm);;All files (*)"),
                                   start_dir=prof_dir)
         if p:
-            self._profile = p
-            self._profile_field.setText(str(p))
-            self._refresh()
+            self._use_profile(p)
+
+    def _use_profile(self, p) -> None:
+        self._profile = Path(p)
+        self._profile_field.setText(str(p))
+        self._refresh()
 
     def _pick_measured(self) -> None:
         _prof_dir, meas_dir = self._verify_dirs()
@@ -2615,9 +2761,12 @@ class VerifyProfileDialog(_ToolDialogBase):
                                   tr("Measurements (*.ti3);;All files (*)"),
                                   start_dir=meas_dir)
         if p:
-            self._measured = p
-            self._measured_field.setText(str(p))
-            self._refresh()
+            self._use_measured(p)
+
+    def _use_measured(self, p) -> None:
+        self._measured = Path(p)
+        self._measured_field.setText(str(p))
+        self._refresh()
 
     def _verify_dirs(self) -> "tuple[Path | None, Path | None]":
         """Browse-default folders (profile, measurement) for this tool, pointing

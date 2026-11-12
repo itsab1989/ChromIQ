@@ -339,6 +339,10 @@ def _inside(path: Path, project) -> bool:
 
 class TabCheckRefine(QWidget):
     """Step 5: check an ICC profile against .ti3 data and guide strip re-measurement."""
+    #: The hue of this tab's step header, its accent: file-drop frames
+    #: (4.3.33) are drawn in it (`ui.file_drop.context_accent`).
+    TAB_ACCENT = _TAB_COLOR
+
 
     guide_refinement_requested = pyqtSignal(Path, Path)  # (ti3_path, strips_file_path)
     preconditioning_requested  = pyqtSignal(Path)         # user clicked "Use as pre-conditioning profile"
@@ -653,7 +657,15 @@ class TabCheckRefine(QWidget):
         ti3_browse = make_browse_button(self, tr("Browse for .ti3 file"), icon="folder_check")
         ti3_browse.clicked.connect(self._on_browse_ti3)
         ti3_row.addWidget(ti3_browse)
-        fg.addLayout(ti3_row)
+        # A file dropped from the file manager on either row is taken as its
+        # Browse takes it, with the same questions; not while a check runs
+        # (4.3.33).
+        from ui.file_drop import CONTEXT, FileDropZone
+        self._ti3_zone = FileDropZone.around(
+            ti3_row, file_grp, (".ti3",), single=True, spacing=fg.spacing(),
+            guard=(ti3_browse, self._drops_open), accent=CONTEXT)
+        self._ti3_zone.file_dropped.connect(self._use_ti3)
+        fg.addWidget(self._ti3_zone)
 
         icc_row = QHBoxLayout()
         icc_row.addWidget(QLabel(tr("ICC / ICM profile:"), self))
@@ -664,7 +676,12 @@ class TabCheckRefine(QWidget):
         icc_browse = make_browse_button(self, tr("Browse for ICC/ICM profile"), icon="folder_check")
         icc_browse.clicked.connect(self._on_browse_icc)
         icc_row.addWidget(icc_browse)
-        fg.addLayout(icc_row)
+        self._icc_zone = FileDropZone.around(
+            icc_row, file_grp, (".icc", ".icm"), single=True,
+            spacing=fg.spacing(), guard=(icc_browse, self._drops_open),
+            accent=CONTEXT)
+        self._icc_zone.file_dropped.connect(self._use_icc)
+        fg.addWidget(self._icc_zone)
 
         left_layout.addWidget(file_grp)
 
@@ -1667,6 +1684,10 @@ class TabCheckRefine(QWidget):
         so a verification browsed to under any Run type is framed as one."""
         return _verification_of(self._ti3_path) is not None
 
+    def _drops_open(self) -> bool:
+        """No file is taken while ArgyllCMS runs."""
+        return not self._runner.is_running
+
     def _on_browse_ti3(self) -> None:
         path = open_file_dialog(
             self, tr("Select .ti3 file"), tr("Test chart data (*.ti3)"),
@@ -1674,6 +1695,12 @@ class TabCheckRefine(QWidget):
         )
         if not path:
             return
+        self._use_ti3(path)
+
+    def _use_ti3(self, path) -> None:
+        """The measurement chosen with Browse, or dropped on its row (4.3.33):
+        from here on the same questions for both."""
+        path = str(path)
         # THE SAME QUESTION THE OTHER DOORS ASK. This used to hand the file to
         # `resolve_ti3`, which for a file outside the working folder CREATED A
         # PROJECT WITHOUT ASKING -- the fault the import work has been about all
@@ -1786,6 +1813,11 @@ class TabCheckRefine(QWidget):
             self, tr("Select ICC / ICM profile"), tr("ICC profiles (*.icc *.icm)"),
             extra_path=self._settings.get("custom_output_path", ""),
         )
+        if path:
+            self._use_icc(path)
+
+    def _use_icc(self, path) -> None:
+        """The profile chosen with Browse, or dropped on its row."""
         if path:
             self._icc_path = Path(path)
             self._icc_edit.setText(str(self._icc_path))

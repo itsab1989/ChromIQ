@@ -317,8 +317,11 @@ class SoftproofDialog(QDialog):
     # ------------------------------------------------------------------
     # UI construction
     # ------------------------------------------------------------------
-    def _path_row(self, label: str, placeholder: str, tip: str, on_browse) -> QLineEdit:
-        """A 'label / read-only path edit / browse' block stacked in the left column."""
+    def _path_row(self, label: str, placeholder: str, tip: str, on_browse,
+                  drop=None) -> QLineEdit:
+        """A 'label / read-only path edit / browse' block stacked in the left column.
+        *drop*: ``(suffixes, use)``, a file of those kinds dropped from the
+        file manager is handed to *use* as Browse hands it (4.3.33)."""
         self._left.addWidget(QLabel(label, self))
         row = QHBoxLayout()
         row.setSpacing(6)
@@ -329,13 +332,32 @@ class SoftproofDialog(QDialog):
         btn = make_browse_button(self, tip, "folder_check")
         btn.clicked.connect(on_browse)
         row.addWidget(btn)
-        self._left.addLayout(row)
+        if drop is None:
+            self._left.addLayout(row)
+        else:
+            self._left.addWidget(self._drop_zone(row, *drop))
         return edit
+
+    def _drop_zone(self, row, suffixes, use):
+        """*row* in a drop zone in this window's accent (4.3.33)."""
+        from ui.file_drop import FileDropZone
+        zone = FileDropZone.around(row, self, suffixes, single=True,
+                                   guard=self._drops_open, accent=_ACCENT)
+        zone.file_dropped.connect(use)
+        return zone
+
+    def _drops_open(self) -> bool:
+        """No file is taken while a proof is being worked out."""
+        try:
+            return not self._runner.is_running
+        except AttributeError:
+            return True
 
     def _build_inputs(self) -> None:
         self._image_edit = self._path_row(
             tr("Image:"), tr("Browse for an image (TIFF, JPEG, PNG)…"),
-            tr("Browse for an image"), self._on_browse_image)
+            tr("Browse for an image"), self._on_browse_image,
+            drop=((".tif", ".tiff", ".jpg", ".jpeg", ".png"), self._set_image))
         # Quick-pick a bundled photographic test target (no file hunting).
         test_row = QHBoxLayout()
         test_row.setContentsMargins(0, 0, 0, 0)
@@ -349,7 +371,8 @@ class SoftproofDialog(QDialog):
 
         self._profile_edit = self._path_row(
             tr("Printer profile:"), tr("Browse for the printer's ICC profile (v2)…"),
-            tr("Browse for the printer ICC profile"), self._on_browse_profile)
+            tr("Browse for the printer ICC profile"), self._on_browse_profile,
+            drop=((".icc", ".icm"), self._use_profile))
 
         # Optional monitor profile — when set, the preview is rendered for that
         # display (a truer proof); empty = approximate sRGB.
@@ -369,7 +392,8 @@ class SoftproofDialog(QDialog):
         mon_clear.setToolTip(tr("Clear monitor profile"))
         mon_clear.clicked.connect(self._on_clear_monitor)
         mon_row.addWidget(mon_clear)
-        self._left.addLayout(mon_row)
+        self._left.addWidget(self._drop_zone(mon_row, (".icc", ".icm"),
+                                             self._use_monitor))
 
         # Colour space + intent (each on its own row to fit the narrow column).
         grid = QGridLayout()
@@ -809,10 +833,14 @@ class SoftproofDialog(QDialog):
             tr("ICC profiles (*.icc *.icm);;All files (*)"),
             start_dir=(sidebar[0] if sidebar else ""), extra_paths=sidebar)
         if path:
-            self._profile_path = Path(path)
-            self._profile_edit.setText(path)
-            self._check_profile_version()
-            self._auto_update()
+            self._use_profile(path)
+
+    def _use_profile(self, path) -> None:
+        """The profile chosen with Browse, or dropped on its row."""
+        self._profile_path = Path(path)
+        self._profile_edit.setText(str(path))
+        self._check_profile_version()
+        self._auto_update()
 
     def _on_browse_monitor(self) -> None:
         sidebar = [str(d) for d in icc_system_dirs() if Path(d).exists()]
@@ -821,9 +849,13 @@ class SoftproofDialog(QDialog):
             tr("ICC profiles (*.icc *.icm);;All files (*)"),
             start_dir=(sidebar[0] if sidebar else ""), extra_paths=sidebar)
         if path:
-            self._display_path = Path(path)
-            self._monitor_edit.setText(path)
-            self._schedule_rerun()
+            self._use_monitor(path)
+
+    def _use_monitor(self, path) -> None:
+        """The monitor profile chosen with Browse, or dropped on its row."""
+        self._display_path = Path(path)
+        self._monitor_edit.setText(str(path))
+        self._schedule_rerun()
 
     def _on_clear_monitor(self) -> None:
         self._display_path = None

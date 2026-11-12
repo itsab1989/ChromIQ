@@ -183,6 +183,11 @@ PT_PER_MM = 72.0 / 25.4          # ≈ 2.835
 MM_PER_PT = 25.4 / 72.0          # ≈ 0.3528
 
 
+
+# What the clip-strip image button offers, and so what a drop there may bring
+# (4.3.33).
+_CLIP_IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp")
+
 class _RowLabel(QLabel):
     """A wrapping row label that asks for the height of the lines it wraps to.
 
@@ -2732,6 +2737,14 @@ class LayoutOptionsPanel(QWidget):
         self.clip_image_path.textChanged.connect(self._emit)
         self.clip_image_browse = self._compact_browse(tr("Browse for an image"))
         self.clip_image_browse.clicked.connect(self._browse_clip_image)
+        # An image dropped from the file manager on the field fills it as the
+        # button does, only while the button is enabled; text still drops in
+        # as text (4.3.33).
+        from ui.file_drop import CONTEXT, FileDropTarget
+        self._clip_image_drop = FileDropTarget(
+            self.clip_image_path, _CLIP_IMAGE_SUFFIXES, single=True,
+            guard=self.clip_image_browse, accent=CONTEXT)
+        self._clip_image_drop.file_dropped.connect(self._use_clip_image)
         self.clip_dims_label = QLabel("", self)
         self.clip_dims_label.setWordWrap(True)
         self.clip_preview = QLabel(self)
@@ -2961,6 +2974,11 @@ class LayoutOptionsPanel(QWidget):
             browse = self._compact_browse(tr("Browse for a .cal file"))
             browse.clicked.connect(self._browse_cal)
             cgg.addWidget(browse, 1, 3)
+            from ui.file_drop import CONTEXT, FileDropTarget
+            self._cal_drop = FileDropTarget(
+                self.cal_path_edit, (".cal",), single=True, guard=browse,
+                accent=CONTEXT)
+            self._cal_drop.file_dropped.connect(self._use_cal)
             cgg.addWidget(TooltipButton(
                 tr("Printer calibration"),
                 tr("Attach an ArgyllCMS calibration (.cal) that linearises your "
@@ -3005,8 +3023,13 @@ class LayoutOptionsPanel(QWidget):
             self, tr("Select printer calibration"),
             name_filter=tr("ArgyllCMS calibration (*.cal)"),
             start_dir=start, extra_path=start)
+        if path:
+            self._use_cal(path)
+
+    def _use_cal(self, path) -> None:
+        """The .cal chosen with the button, or dropped on the field."""
         if path and self.cal_path_edit is not None:
-            self.cal_path_edit.setText(path)
+            self.cal_path_edit.setText(str(path))
 
     def cal_settings(self) -> tuple[str | None, bool]:
         """Return ``(cal_path_or_None, apply_cal)`` for the engine."""
@@ -4858,7 +4881,11 @@ class LayoutOptionsPanel(QWidget):
             name_filter=tr("Images (*.png *.jpg *.jpeg *.tif *.tiff *.bmp)"),
             start_dir=start, extra_path=start, preview=True)
         if path:
-            self.clip_image_path.setText(path)
+            self._use_clip_image(path)
+
+    def _use_clip_image(self, path) -> None:
+        """The image chosen with the button, or dropped on the field."""
+        self.clip_image_path.setText(str(path))
 
     def _clip_geom_and_height(self):
         """The Geom + paper size behind the clip preview, for ANY instrument

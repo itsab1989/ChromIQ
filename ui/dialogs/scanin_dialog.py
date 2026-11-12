@@ -1855,7 +1855,9 @@ class ScannerProfileDialog(_ToolDialogBase):
         pb = make_browse_button(self, tr("Browse…"), icon="folder_measure")
         pb.clicked.connect(self._pick_scanner_profile)
         prow.addWidget(pb)
-        pv.addLayout(prow)
+        self._printer_prof_zone = self._drop_row(
+            prow, pv, (".icc", ".icm"), self._use_scanner_profile,
+            remember=False)
         self._printer_box.setVisible(False)
         v.addWidget(self._printer_box)
 
@@ -1887,7 +1889,11 @@ class ScannerProfileDialog(_ToolDialogBase):
         b = make_browse_button(self, tr("Browse…"), icon="folder_measure")
         b.clicked.connect(self._pick_chart)
         row.addWidget(b)
-        v.addLayout(row)
+        # A dropped chart is used as Browse uses it (4.3.33); the kind
+        # follows the mode, as Browse's filter does.
+        self._chart_zone = self._drop_row(row, v, self._chart_suffixes,
+                                          self._set_chart, remember=False,
+                                          declutter=self._settings)
         self._chart_note = self._hint_label("")
         v.addWidget(self._chart_note)
 
@@ -2038,7 +2044,9 @@ class ScannerProfileDialog(_ToolDialogBase):
         bc = make_browse_button(self, tr("Browse…"), icon="folder_measure")
         bc.clicked.connect(self._pick_cht)
         self._cht_row.addWidget(bc)
-        _cht_v.addLayout(self._cht_row)
+        self._cht_zone = self._drop_row(self._cht_row, _cht_v, (".cht",),
+                                        self._use_cht, remember=False,
+                                        declutter=self._settings)
         self._cht_row_w.setVisible(False)
         v.addWidget(self._cht_row_w)
 
@@ -2071,7 +2079,10 @@ class ScannerProfileDialog(_ToolDialogBase):
         br = make_browse_button(self, tr("Browse…"), icon="folder_measure")
         br.clicked.connect(self._pick_ref)
         rrow.addWidget(br)
-        v.addLayout(rrow)
+        self._ref_zone = self._drop_row(rrow, v,
+                                        (".cie", ".txt", ".ti3", ".cxf"),
+                                        self._use_ref, remember=False,
+                                        declutter=self._settings)
         self._std_note = self._hint_label("")
         v.addWidget(self._std_note)
 
@@ -2264,7 +2275,10 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._scan_browse = make_browse_button(self, tr("Browse…"), icon="folder_measure")
         self._scan_browse.clicked.connect(self._pick_scan)
         row2.addWidget(self._scan_browse)
-        form.addLayout(row2)
+        self._scan_zone = self._drop_row(
+            row2, form, (".tif", ".tiff", ".jpg", ".jpeg", ".png"),
+            self._on_scan_dropped, guard=self._scan_browse, remember=False,
+            declutter=self._settings)
 
         # THE RIGHT PANE STARTS HERE. The window is two columns (see
         # `_build_two_panel_layout`): the preview and everything that acts on
@@ -4205,6 +4219,10 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._log.appendPlainText(reason)
         self._refresh()
 
+    def _chart_suffixes(self) -> tuple:
+        """What the chart row's Browse offers in the current mode."""
+        return (".ti2",) if self._printer_mode() else (".ti3",)
+
     def _pick_chart(self) -> None:
         if self._printer_mode():
             title, flt = tr("Choose the chart you printed"), tr(_CHART_FILTER)
@@ -4877,9 +4895,13 @@ class ScannerProfileDialog(_ToolDialogBase):
             tr("ICC profiles (*.icc *.icm);;All files (*)"), start_dir=start,
             extra_path=str(self._ti3.parent) if getattr(self, "_ti3", None) else "")
         if p:
-            self._printer_scan_profile = Path(p)
-            self._printer_prof_field.setText(p)
-            self._refresh()
+            self._use_scanner_profile(p)
+
+    def _use_scanner_profile(self, p) -> None:
+        """The scanner profile chosen with Browse, or dropped on its row."""
+        self._printer_scan_profile = Path(p)
+        self._printer_prof_field.setText(str(p))
+        self._refresh()
 
     def _on_target_changed(self, _idx: int = 0) -> None:
         key = self._target_combo.currentData()
@@ -4948,6 +4970,11 @@ class ScannerProfileDialog(_ToolDialogBase):
                                 declutter_settings=self._settings)
         if not path:
             return
+        self._use_cht(path)
+
+    def _use_cht(self, path) -> None:
+        """The .cht chosen with Browse, or dropped on its row."""
+        path = str(path)
         self._cht_field.setText(path)
         _remember_dir(self._settings, self.TOOL_KEY, Path(path).parent)
         self._set_std_targets([Path(path)])
@@ -4969,6 +4996,10 @@ class ScannerProfileDialog(_ToolDialogBase):
                                 declutter_settings=self._settings)
         if not path:
             return
+        self._use_ref(path)
+
+    def _use_ref(self, path) -> None:
+        """The reference data chosen with Browse, or dropped on its row."""
         p = Path(path)
         _remember_dir(self._settings, self.TOOL_KEY, p.parent)
         from workflow.reference_convert import (
@@ -5377,6 +5408,25 @@ class ScannerProfileDialog(_ToolDialogBase):
         pop.deleteLater()
 
     def _pick_scan(self) -> None:
+        if not self._scan_ready():
+            return
+        path = open_file_dialog(self, tr("Choose the scan"), tr(_SCAN_FILTER),
+                                start_dir=str(_initial_dir(self._settings, self.TOOL_KEY)),
+                                declutter_settings=self._settings)
+        if not path:
+            return
+        self._use_scan(path)
+
+    def _on_scan_dropped(self, path) -> None:
+        """A scan dropped on its row (4.3.33): the same refusal as a press
+        on Browse before the target is chosen, else what Browse does with
+        the file it was given."""
+        if self._scan_ready():
+            self._use_scan(str(path))
+
+    def _scan_ready(self) -> bool:
+        """Is there a target to read the scan against? If not, say what
+        to do first (in the log) and answer False."""
         ready = (self._std_cht is not None if self._standard_mode()
                  else self._layout is not None)
         if not ready:
@@ -5411,12 +5461,11 @@ class ScannerProfileDialog(_ToolDialogBase):
                     "needs its .channels.json alongside). An older .ti3 from a "
                     "plain scanin run won't work — for a bought target, switch to "
                     "“A standard target I own” above and load its .cht."))
-            return
-        path = open_file_dialog(self, tr("Choose the scan"), tr(_SCAN_FILTER),
-                                start_dir=str(_initial_dir(self._settings, self.TOOL_KEY)),
-                                declutter_settings=self._settings)
-        if not path:
-            return
+            return False
+        return True
+
+    def _use_scan(self, path) -> None:
+        """The scan chosen with Browse, or dropped on its row."""
         # ARGYLL READS TIFF AND NOTHING ELSE, and a camera writes JPEG. The
         # picker's "All files" entry lets one through, Qt decodes it into the
         # preview happily and the marquee aligns on it — and then `scanin`

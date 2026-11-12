@@ -61,6 +61,7 @@ log = get_logger(__name__)
 
 import sys as _sys
 from core.i18n import decimal_text, tr
+from ui.file_drop import drop_hint
 
 
 # ---------------------------------------------------------------------------
@@ -2726,10 +2727,12 @@ class SettingsDialog(QDialog):
             tr("Directory containing targen, printtarg, chartread, and colprof.\n"
                "Default: {path}\n"
                "You can download the latest version from argyllcms.com."
-               ).format(path=default_argyll_bin_dir()),
+               ).format(path=default_argyll_bin_dir())
+            + "\n\n" + drop_hint("folder"),
             self,
         ))
-        ag.addLayout(path_row)
+        self._argyll_zone = self._folder_drop(path_row, ag,
+                                              self._use_argyll_dir)
 
         btn_row = QHBoxLayout()
         test_btn = QPushButton(tr("Test binaries"), self)
@@ -5599,7 +5602,8 @@ class SettingsDialog(QDialog):
         folder_browse = make_browse_button(self, tr("Select output folder"), icon="folder")
         folder_browse.clicked.connect(self._browse_folder)
         folder_row.addWidget(folder_browse)
-        gw.addLayout(folder_row)
+        self._folder_zone = self._folder_drop(folder_row, gw,
+                                              self._use_output_dir)
 
         inst_lbl = QLabel(tr(
             "Profile install folder — where “Install profile” copies a "
@@ -5622,11 +5626,12 @@ class SettingsDialog(QDialog):
                                 start_dir=self._profile_dir_edit.text()
                                 or str(icc_install_dir()))
             if d:
-                self._profile_dir_edit.setText(d)
+                self._use_profile_dir(d)
 
         inst_browse.clicked.connect(_pick_profile_dir)
         inst_row.addWidget(inst_browse)
-        gw.addLayout(inst_row)
+        self._profile_dir_zone = self._folder_drop(inst_row, gw,
+                                                   self._use_profile_dir)
 
         # Measurement sounds folder (#131). Blank = the bundled default pack;
         # point it at your own folder to add or replace sounds. The Sounds tab's
@@ -5653,11 +5658,12 @@ class SettingsDialog(QDialog):
                                 start_dir=self._sound_dir_edit.text()
                                 or str(Path.home()))
             if d:
-                self._sound_dir_edit.setText(d)
+                self._use_sound_dir(d)
 
         snd_browse.clicked.connect(_pick_sound_dir)
         snd_row.addWidget(snd_browse)
-        gw.addLayout(snd_row)
+        self._sound_dir_zone = self._folder_drop(snd_row, gw,
+                                                 self._use_sound_dir)
         v.addWidget(grp_w)
 
         grp_r = QGroupBox(tr("For reference"), page)
@@ -6410,6 +6416,36 @@ class SettingsDialog(QDialog):
         self._margin_notify_check.setChecked(bool(s.get("margin_violation_notify", True)))
         self._sync_margin_notify_enabled()
 
+    @staticmethod
+    def _indicator_for(mode: str) -> str:
+        """This window's accent in *mode*: its checkboxes, focus rings and
+        file-drop frames (4.3.33) are all drawn in it."""
+        return accent_for("#1c1b18" if mode == "light" else "#d0d0d0", mode)
+
+    def _folder_drop(self, row, layout, use):
+        """*row* in a zone that takes one folder from the file manager, as
+        its folder button would set it (4.3.33). Only fills the field; the
+        setting is written on OK, as after the button."""
+        from ui.file_drop import FileDropZone
+        zone = FileDropZone.around(row, self, folders=True,
+                                   spacing=layout.spacing(),
+                                   accent=self._indicator_for)
+        zone.file_dropped.connect(use)
+        layout.addWidget(zone)
+        return zone
+
+    def _use_argyll_dir(self, d) -> None:
+        self._argyll_edit.setText(str(d))
+
+    def _use_output_dir(self, d) -> None:
+        self._folder_edit.setText(str(d))
+
+    def _use_profile_dir(self, d) -> None:
+        self._profile_dir_edit.setText(str(d))
+
+    def _use_sound_dir(self, d) -> None:
+        self._sound_dir_edit.setText(str(d))
+
     def _apply_indicator_theme(self, mode: str) -> None:
         """Apply the neutral indicator colour to checkboxes, line-edit focus and
         tooltip ⓘ icons for the given resolved mode ('light'/'dark').
@@ -6428,7 +6464,7 @@ class SettingsDialog(QDialog):
         # have a much darker grey — should be vice versa"). Neutral's answer is
         # its single accent, ACTION, which is what NEUTRAL_STYLESHEET already
         # paints; this dialog-scoped sheet was overriding it.
-        indicator = accent_for("#1c1b18" if mode == "light" else "#d0d0d0", mode)
+        indicator = self._indicator_for(mode)
         # Shared with the Tools dialogs so every dialog highlights controls the
         # same neutral way (checkboxes, radios and the focus ring on text/number/
         # combo inputs).
@@ -7882,7 +7918,7 @@ class SettingsDialog(QDialog):
             start_dir=self._argyll_edit.text() or "/Applications",
         )
         if d:
-            self._argyll_edit.setText(d)
+            self._use_argyll_dir(d)
 
     def _browse_folder(self) -> None:
         d = open_dir_dialog(
@@ -7890,7 +7926,7 @@ class SettingsDialog(QDialog):
             start_dir=self._folder_edit.text() or str(Path.home()),
         )
         if d:
-            self._folder_edit.setText(d)
+            self._use_output_dir(d)
 
     def _auto_detect(self) -> None:
         detected = find_argyll_bin_path()

@@ -104,7 +104,9 @@ def test_every_format_reaches_the_same_question(qapp):
     import inspect
     from ui.tabs.tab_profile import TabProfile
 
-    src = inspect.getsource(TabProfile._on_load_ti3)
+    # 4.3.33: the step after the chooser is `_use_measurement`, shared with
+    # a measurement dropped on the Measurement Data box.
+    src = inspect.getsource(TabProfile._use_measurement)
     ask = src.index("_offer_import_into_a_project")
     mxf = src.index('".mxf", ".cxf"')
     assert src.index("_convert_for_import") < ask, (
