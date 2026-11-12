@@ -446,3 +446,73 @@ Still ○ in every state: it reads files and writes none.
   * `file:` URLs only, decoded (spaces, umlauts); `file:///C:/…` is read as
     the drive path `C:/…` on every platform, `file://server/share/…` as
     `//server/share/…`.
+
+### ⏳ Awaiting confirmation — Files dropped on every Browse row (4.3.32)
+
+**Confirmed by:** *nobody yet.* The owner, 2026-11-12, after the Measurement
+info drop above: drag and drop *"in the other places where safe and
+beneficial"*. `ui/file_drop.py`, `tests/test_4333_drop_files_everywhere.py`
+(one table, one line per row below).
+
+* **The rule.** A file (or folder) dropped from the file manager on a row
+  does exactly what choosing it with that row's Browse does: the same method
+  after the chooser, the same questions, refusals and checks (an import door
+  still asks into which project; a hexagonal chart is still turned away; a
+  scan before its target is still refused with the same log line; a legacy
+  flat project folder is still tidied first where Browse tidies it).
+  * Only the kinds the row's own filter names first; "All files (*)" is not
+    taken as licence. Folders only on folder rows, files only on file rows.
+    A row that shows one file takes exactly one.
+  * A greyed row, a hidden row and a window that is busy take nothing (a
+    Tools window while it runs; a tab while ArgyllCMS runs). The drag is
+    then not accepted at all: no frame, the system's "not allowed" pointer.
+  * Save choosers (the user names a new file) take no drop. Neither does a
+    row whose choice would write or start something without a question,
+    unless its Browse does the same without one. When in doubt, no drop.
+  * A file dropped on an editable path field is handled by the row (the
+    field shows the path as Browse sets it), never pasted into it as text;
+    until now an editable field could paste the file's `file://` address.
+    Plain text and web links dropped on a field still go into it.
+  * **The frame wears the accent of its own window** (the owner, 2026-11-12:
+    *"this color shall always match the accent color of the tool or the tab
+    where the drop zone is located"*): a Tools window's `ACCENT` (its
+    masthead, primary button and focus ring), a tab's `TAB_ACCENT` (the hue
+    of its step header), a window with an accent of its own (Measurement
+    info, Profile info, Soft-proof, Measurement report, the gamut panel) that
+    one; Preferences its indicator ink. Resolved through `accent_for` at
+    every drag, so Neutral shows its one ACTION ink and an appearance switch
+    while the window is open is followed.
+  * Delivered on the next turn of the event loop, never inside the drop.
+* **Rows that take a drop**: Measurement info, compare-with reference;
+  Average (list); Merge (primary, additional list); .ti1 to i1Profiler;
+  i1Profiler to .ti3; i1Profiler to .ti1; Verify against reference
+  (expected values: the row, the paste box and the file row; measured chart;
+  chart definition; profile); Verify a profile (profile, measured chart);
+  every Tools window's destination folder; Device link (source, destination,
+  abstract, calibration, image list while ticked); Apply device link (link,
+  source, image list); Scanner profile (chart, in the kind of the mode;
+  scan; .cht; reference data; scanner profile); Scanner target from a chart
+  (measurement, patch set, page TIFFs, measurement); Scanner advanced, gamut
+  source; Profile info; Soft-proof (image, printer profile, monitor
+  profile); Measurement report list; Preferences folders (ArgyllCMS,
+  output, profile install, sounds); Create Chart, Refinement profile
+  (Guided, while ticked); Measure, IMPORT file box; Check & Refine
+  (measurement, profile, gamut compare profile); Build Profile, Measurement
+  Data box (both run types, as the header's load icon), previous .cal,
+  Apply calibration .cal and input profile, gamut source (Guided, Manual);
+  every `parameters.yaml` file row (targen -c, printtarg -C/-K/-I); layout
+  panel calibration .cal and clip-strip image.
+* **Rows that take none, and why**: the masthead's Open Project and Open
+  Chart File and Create Chart's Load patch set icon (buttons, not rows; each
+  changes the whole project or builds a chart; the chart-file import rule
+  above is untouched, a .ti2 is still only imported through Open Chart
+  File); Print Chart's Load image and its preview (one wrong drop would drop
+  the loaded chart without a question); the Scanner window's "chart made
+  outside ChromIQ" .cht pages (valid only in one waiting state); Soft-proof's
+  "Other ICC profile…" (a combo entry); Reference values' installers (they
+  copy into ChromIQ's own folder, and which source is meant is ambiguous);
+  Preferences' Import layout presets and instrument driver folder (write or
+  install at once); Built-in presets' Import list and the Translations
+  window's import (write at once); every Save / Export chooser; the patch set
+  editor (its grid already uses drag for reordering, and its loaders change
+  the patches being edited without a question).
