@@ -62,6 +62,12 @@ def _pump(qapp, n: int = 4) -> None:
 
 
 def _bring_into_view(w: QWidget) -> None:
+    from PyQt6.QtWidgets import QStackedWidget
+    child, p = w, w.parentWidget()
+    while p is not None:          # the page it is on comes to the front
+        if isinstance(p, QStackedWidget):
+            p.setCurrentWidget(child)
+        child, p = p, p.parentWidget()
     p = w.parentWidget()
     while p is not None:
         if isinstance(p, QScrollArea):
@@ -368,6 +374,106 @@ def _scanner_adv():
     return ScannerAdvancedDialog({}, printer=True)
 
 
+def _softproof(settings):
+    from ui.dialogs.softproof_dialog import SoftproofDialog
+    return SoftproofDialog(_runner(), settings)
+
+
+def _profile_info(settings):
+    from ui.dialogs.profile_info_dialog import ProfileInfoDialog
+    return ProfileInfoDialog(_runner(), settings)
+
+
+def _report(settings):
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    return MeasurementReportDialog(settings)
+
+
+def _prefs(_settings):
+    from core.settings import AppSettings    # the suite's sandboxed store
+    from ui.dialogs.settings_dialog import SettingsDialog
+    return SettingsDialog(AppSettings(), None)
+
+
+def _mod_const(module, name):
+    def get(_w):
+        import importlib
+        return getattr(importlib.import_module(module), name)
+    return get
+
+
+def _grey(attr):
+    def close(w):
+        getattr(w, attr).setEnabled(False)
+    return close
+
+
+_SP = "ui.dialogs.softproof_dialog"
+_PI = "ui.dialogs.profile_info_dialog"
+_MR = "ui.dialogs.measurement_report_dialog"
+_SD = "ui.dialogs.settings_dialog"
+
+
+def _press_browse_in(attr):
+    """Press the folder button inside a row whose Browse is a closure."""
+    def press(w):
+        from PyQt6.QtWidgets import QAbstractButton
+        btns = [b for b in getattr(w, attr).findChildren(QAbstractButton)]
+        btns[-1].click()
+    return press
+
+
+ROWS += [
+    # -- Profile info, Soft-proof, Measurement report (R36-R41) ----------------
+    Row("profile-info", _profile_info, _cls(_PI, "ProfileInfoDialog"),
+        "load_profile", lambda w: w._path_edit, lambda w: w._on_browse(),
+        _PI + ":open_file_dialog", (".icc", ".icm"),
+        accent=_mod_const(_PI, "_ACCENT")),
+    Row("softproof-image", _softproof, _cls(_SP, "SoftproofDialog"),
+        "_set_image", lambda w: w._image_edit, lambda w: w._on_browse_image(),
+        _SP + ":open_file_dialog", (".tif", ".jpg", ".png"),
+        accent=_mod_const(_SP, "_ACCENT")),
+    Row("softproof-printer-profile", _softproof,
+        _cls(_SP, "SoftproofDialog"), "_use_profile",
+        lambda w: w._profile_edit, lambda w: w._on_browse_profile(),
+        _SP + ":open_file_dialog", (".icc", ".icm"),
+        accent=_mod_const(_SP, "_ACCENT")),
+    Row("softproof-monitor-profile", _softproof,
+        _cls(_SP, "SoftproofDialog"), "_use_monitor",
+        lambda w: w._monitor_edit, lambda w: w._on_browse_monitor(),
+        _SP + ":open_file_dialog", (".icc", ".icm"),
+        accent=_mod_const(_SP, "_ACCENT")),
+    Row("measurement-report-list", _report,
+        _cls(_MR, "MeasurementReportDialog"), "_add_measurements",
+        lambda w: w._profile_list, lambda w: w._on_add_project(),
+        _MR + ":open_files_dialog", (".ti3", ".mxf", ".txt", ".cxf"),
+        several=True, closed=_grey("_add_btn"),
+        accent=_mod_const("ui.styles", "SPEC_GREEN")),
+    # -- Settings folder rows (R43-R46) -----------------------------------------
+    Row("settings-argyll-folder", _prefs, _cls(_SD, "SettingsDialog"),
+        "_use_argyll_dir", lambda w: w._argyll_edit,
+        lambda w: w._browse_argyll(), _SD + ":open_dir_dialog", (),
+        folder=True, editable=lambda w: w._argyll_edit,
+        accent=lambda w: w._indicator_for),
+    Row("settings-output-folder", _prefs, _cls(_SD, "SettingsDialog"),
+        "_use_output_dir", lambda w: w._folder_edit,
+        lambda w: w._browse_folder(), _SD + ":open_dir_dialog", (),
+        folder=True, editable=lambda w: w._folder_edit,
+        accent=lambda w: w._indicator_for),
+    Row("settings-profile-install-folder", _prefs,
+        _cls(_SD, "SettingsDialog"), "_use_profile_dir",
+        lambda w: w._profile_dir_edit, _press_browse_in("_profile_dir_zone"),
+        _SD + ":open_dir_dialog", (), folder=True,
+        editable=lambda w: w._profile_dir_edit,
+        accent=lambda w: w._indicator_for),
+    Row("settings-sounds-folder", _prefs, _cls(_SD, "SettingsDialog"),
+        "_use_sound_dir", lambda w: w._sound_dir_edit,
+        _press_browse_in("_sound_dir_zone"), _SD + ":open_dir_dialog", (),
+        folder=True, editable=lambda w: w._sound_dir_edit,
+        accent=lambda w: w._indicator_for),
+]
+
+
 # ---------------------------------------------------------------------------
 # the harness
 # ---------------------------------------------------------------------------
@@ -541,7 +647,9 @@ def test_the_highlight_is_the_accent_of_its_own_window(row, appearance, qapp,
     win, _rec = _open(row, monkeypatch, qapp)
     try:
         monkeypatch.setattr(theme, "active_mode", lambda *a: appearance)
-        want = theme.accent_for(row.accent(win), appearance).lower()
+        a = row.accent(win)
+        want = (a(appearance) if callable(a)
+                else theme.accent_for(a, appearance)).lower()
         drops = _drop_of(row.drop_on(win))
         assert drops.highlight_colour().lower() == want
         if row.folder:

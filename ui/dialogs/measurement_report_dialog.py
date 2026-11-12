@@ -3338,7 +3338,15 @@ class MeasurementReportDialog(QDialog):
             "limit set, and the ticked measurements decide where Generate "
             "report saves the report, whichever profile run this window was "
             "opened from.") + "\n\n" + _report_across_projects_help()
+        from ui.file_drop import FileDropTarget, with_drop_hint
+        self._list_tooltip = with_drop_hint(self._list_tooltip, "files")
         self._profile_list.setToolTip(self._list_tooltip)
+        # Measurements dropped on the list are added as "Add Profile's
+        # Measurements…" adds the files chosen in its window (4.3.33).
+        self._list_drop = FileDropTarget(
+            self._profile_list, (".ti3", ".mxf", ".txt", ".cxf"),
+            guard=self._add_btn, accent=SPEC_GREEN)
+        self._list_drop.files_dropped.connect(self._add_measurements)
         # **THE SELECTED ROW IS THE WINDOW'S OWN GREEN, NOT THE APP'S CYAN.**
         # Basti, 2026-09-18, on a photograph of this very list: *"when i click
         # the demo switching in the list it gets a cyan overlay. should be the
@@ -5827,6 +5835,12 @@ class MeasurementReportDialog(QDialog):
             self, tr("Add measurements (.ti3, or i1Profiler .mxf / .txt / .cxf)"),
             tr("Measurement data (*.ti3 *.mxf *.txt *.cxf);;All files (*)"),
             extra_path=self._settings.get("custom_output_path", ""))
+        self._add_measurements(paths)
+
+    def _add_measurements(self, paths: list, _left: "list | None" = None) -> None:
+        """The files chosen with "Add Profile's Measurements…", or dropped on
+        the list."""
+        paths = [str(p) for p in paths]
         if not paths:
             return
         added, failed = 0, []

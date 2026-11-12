@@ -250,7 +250,8 @@ class _Drops(QObject):
         # 2026-11-12: drawn inside the row it cut the "M" of "Measurement:").
         host = row.parentWidget() or row
         self._overlay = _DropOverlay(host)
-        self._overlay.colour = colour or accent or "#37bcd6"
+        self._overlay.colour = colour or (
+            accent if isinstance(accent, str) else None) or "#37bcd6"
         self._fixed_colour = colour is not None
 
     # --- what is taken -----------------------------------------------
@@ -290,7 +291,11 @@ class _Drops(QObject):
         (`ui.theme.accent_for`)."""
         if self._fixed_colour or not self._accent:
             return self._overlay.colour
-        from ui.theme import accent_for
+        from ui.theme import accent_for, active_mode
+        if callable(self._accent):
+            # A window whose accent depends on the appearance (Settings'
+            # indicator ink): its own function, asked for the mode on screen.
+            return self._accent(active_mode())
         return accent_for(self._accent)
 
     def show_highlight(self, on: bool) -> None:
@@ -402,7 +407,9 @@ class FileDropZone(QWidget):
     row whose Browse filter changes (it is asked at every drag). *guard*: a
     widget (its Browse button: the row takes drops while it is enabled) or
     a callable answering whether the row takes drops now. *accent*: the
-    window's accent, resolved for the appearance at each drag; *colour*
+    window's accent, resolved for the appearance at each drag (a callable
+    ``accent(mode) -> colour`` for a window whose accent is not one colour);
+    *colour*
     fixes the colour instead. *declutter*: the AppSettings the row's Browse
     hands to ``open_file_dialog(declutter_settings=...)``."""
 

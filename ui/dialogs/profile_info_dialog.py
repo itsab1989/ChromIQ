@@ -116,7 +116,12 @@ class ProfileInfoDialog(QDialog):
         browse = make_browse_button(self, tr("Browse for an ICC/ICM profile"), "folder_check")
         browse.clicked.connect(self._on_browse)
         pick.addWidget(browse)
-        self._inner.addLayout(pick)
+        # A profile dropped on this row opens as Browse opens it (4.3.33).
+        from ui.file_drop import FileDropZone
+        self._pick_zone = FileDropZone.around(
+            pick, self, (".icc", ".icm"), single=True, accent=_ACCENT)
+        self._pick_zone.file_dropped.connect(self.load_profile)
+        self._inner.addWidget(self._pick_zone)
 
         # --- v4 / error banner (hidden until needed) ----------------------
         self._banner = QLabel("", self)
