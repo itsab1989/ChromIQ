@@ -490,6 +490,8 @@ class Ti3InfoDialog(QDialog):
             self._banner.setStyleSheet(self._notice_qss())
             self._notice_on = False
             self._banner.setVisible(True)
+            if self.isVisible():
+                self._refit_for_banner()
             self._save_btn.setEnabled(False)
             return
         try:
@@ -788,10 +790,20 @@ class Ti3InfoDialog(QDialog):
             self._banner.setVisible(False)
             self._notice_on = False
         if self.isVisible():
-            # The notice is a row of its own: room for it comes out of the
-            # details, never from under the bottom buttons (measured on
-            # screen 2026-11-12: the buttons covered the last detail rows).
-            self._fit_details_floor()
+            self._refit_for_banner()
+
+    def _refit_for_banner(self) -> None:
+        """The banner changed its text while the window is open: pin its
+        wrapped height again, give the details what is left, and pin the
+        window's floor. Measured on screen 2026-11-12 (and so in 4.3.31):
+        the banner's height was pinned once, at first show, for its empty
+        text, so a notice of several lines did not count in the window's
+        floor and the bottom buttons covered the last detail rows."""
+        kw = dict(min_width=720, wrap_labels=(self._body, self._banner),
+                  inner_margins=self._inner.contentsMargins())
+        pin_min_height(self, **kw)
+        self._fit_details_floor()
+        pin_min_height(self, **kw)
 
     @staticmethod
     def _not_added_text(not_added, refused) -> str:
@@ -1790,6 +1802,8 @@ class Ti3InfoDialog(QDialog):
         self._banner.setStyleSheet(
             banner_qss("#ff4573", "rgba(255,69,115,0.12)", kind="error"))
         self._banner.setVisible(True)
+        if self.isVisible():
+            self._refit_for_banner()
 
     # ------------------------------------------------------------------
     # Details grid

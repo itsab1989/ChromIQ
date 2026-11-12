@@ -472,3 +472,29 @@ def test_the_neutral_note_banner_has_four_equal_edges():
     note = banner_qss("#000", "#fff", APPEARANCE_NEUTRAL, kind="note")
     assert f"border: 1px solid {N.NM_BORDER}" in note
     assert "border-bottom" not in note and "border-left" not in note
+
+
+def test_a_long_notice_does_not_put_the_buttons_over_the_details(qapp, a,
+                                                                 tmp_path):
+    """Measured on screen 2026-11-12 (and in 4.3.31): a notice of several
+    lines did not count in the window's floor, and Save inspection… and
+    Close covered the last detail rows."""
+    bs = [_write(tmp_path / f"r{k:02d}.ti3", _noisy(seed=k))
+          for k in range(MAX_OTHER_READINGS + 4)]
+    dlg = _inspector(qapp, a)
+    dlg.show()
+    qapp.processEvents()
+    dlg.add_readings(bs + bs[:4])
+    for _ in range(3):
+        qapp.processEvents()
+    assert dlg._banner.isVisible() and dlg._banner.text().count("•") >= 8
+    scroll = dlg._scroll.geometry()
+    save = dlg._save_btn.geometry()
+    save_top = dlg._save_btn.mapTo(dlg, save.topLeft() - save.topLeft()).y()
+    scroll_bottom = dlg._scroll.mapTo(dlg, scroll.bottomLeft()
+                                      - scroll.topLeft()).y()
+    assert scroll_bottom < save_top
+    banner_h = dlg._banner.height()
+    assert banner_h >= dlg._banner.heightForWidth(dlg._banner.width()) - 1
+    dlg.close()
+    dlg.deleteLater()
