@@ -537,7 +537,8 @@ def test_nothing_reads_the_removed_preference():
     out = subprocess.run(
         ["git", "grep", "-n", "profile_engine_black_depth", "--",
          "*.py", ":!tests/*", ":!benchmarks/*"],
-        cwd=ROOT, capture_output=True, text=True, check=False).stdout
+        cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
+        check=False).stdout
     hits = [ln for ln in out.splitlines() if ln.strip()]
     assert hits, "git grep found nothing at all: not a git checkout?"
     assert all(ln.startswith("core/settings.py:") for ln in hits), hits

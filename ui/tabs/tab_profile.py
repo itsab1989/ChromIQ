@@ -3068,11 +3068,12 @@ class TabProfile(QWidget):
                 self._restore_defaults()
                 return False
             self._m_apply_preset_data(stored)
-            if "black_depth" not in stored:
+            set_black = getattr(self, "_m_set_black", None)
+            if "black_depth" not in stored and set_black is not None:
                 # Stored before "Darkest black" was a Build Profile option:
                 # it reads what the global preference said at the move
                 # (settings schema 33), until it is changed here.
-                self._m_set_black(_black_for_older_targets(self._settings))
+                set_black(_black_for_older_targets(self._settings))
             self._apply_guided_profile_fields(stored)
             return True
         except Exception:      # noqa: BLE001
