@@ -53,7 +53,10 @@ log = get_logger(__name__)
 #: The one engine mode the app builds with (D-27).
 ENGINE_MODE = "accurate"
 
-#: Preferences > Beta, the black option: stored value -> BuildSettings value.
+#: "Darkest black" (Build Profile, Manual, an engine-only row since
+#: 2026-11-12; Preferences > Beta before): the values a target, a preset or
+#: a saved default may hold, each also the ``BuildSettings.black_depth``
+#: value.
 BLACK_DEPTHS = ("neutral", "deepest")
 
 
@@ -83,15 +86,15 @@ def colprof_comparison_wanted(settings) -> bool:
     return engine_switch_on(settings) and colprof_comparison_setting(settings)
 
 
-def black_depth_setting(settings) -> str:
-    """The stored black option as a ``BuildSettings.black_depth`` value; any
-    value this build does not know is read as the default, Neutral."""
+def black_depth_value(raw) -> str:
+    """A stored "Darkest black" value (a target's, a preset's or the saved
+    default) as a ``BuildSettings.black_depth`` value; anything this build
+    does not know, and nothing at all, reads as the default, Neutral."""
     try:
-        raw = str(settings.get("profile_engine_black_depth", "neutral"))
+        key = str(raw if raw is not None else "neutral").strip().lower()
     except Exception:      # noqa: BLE001
-        raw = "neutral"
-    raw = raw.strip().lower()
-    return raw if raw in BLACK_DEPTHS else "neutral"
+        return "neutral"
+    return key if key in BLACK_DEPTHS else "neutral"
 
 # Device representations colprof itself accepts (profout.c) — everything
 # else (CMYKOG, CMYKcm, …) is engine-only territory.
@@ -286,6 +289,10 @@ def settings_from_params(params: "ProfileParams") -> BuildSettings:
         noise_model=params.noise_model,
         render_style=params.render_style or "argyll",
         hue_rendering=params.hue_rendering or "argyll",
+        # "Darkest black" comes with the build's own parameters (the Build
+        # Profile tab's row, per target) since 2026-11-12; until then it was
+        # one global preference read here from the app settings.
+        black_depth=black_depth_value(params.black_depth),
         z_attributes="".join(filter(None, [
             params.z_surface, params.z_media_type, params.z_polarity,
             params.z_color_mode])),
@@ -796,7 +803,6 @@ class EngineProfileBuilder:
             if self._app_settings is not None:
                 settings.argyll_bin = self._app_settings.get(
                     "argyll_bin_path", "/Applications/Argyll/bin")
-                settings.black_depth = black_depth_setting(self._app_settings)
             if not is_frozen():
                 # #123: dark-launched candidate pipeline, for development
                 # only, from the environment. Never in a packaged app.

@@ -3386,88 +3386,12 @@ class SettingsDialog(QDialog):
         self._profile_engine_check.toggled.connect(
             self._colprof_comparison_check.setEnabled)
 
-        # THE BLACK OPTION, shown only while the engine is switched on. It
-        # stands where the Fast / Bit-exact / Maximum accuracy picker stood
-        # until 2026-11-10: only Maximum accuracy remains, so there is
-        # nothing left to pick and the switch alone decides.
-        self._black_depth_combo = NoScrollComboBox(self)
-        self._black_depth_combo.addItem(tr("Neutral (recommended)"), "neutral")
-        self._black_depth_combo.addItem(tr("Deepest"), "deepest")
-        self._black_depth_combo.setSizeAdjustPolicy(
-            NoScrollComboBox.SizeAdjustPolicy.AdjustToContents)
-        black_depth_tip = TooltipButton(
-            tr("Darkest black"),
-            tr("How the profile handles the darkest tones. This applies to "
-            "the new profile engine only.\n\n"
-            "On many printers the darkest black is not quite neutral: the "
-            "very deepest black the printer can make has a slight colour "
-            "tint, and the darkest grey that is truly neutral is a little "
-            "lighter. This option decides which of the two the profile "
-            "aims for in its colorimetric part.\n\n"
-            "  • **Neutral (recommended):** a grey ramp stays neutral from "
-            "the lightest tones down to the darkest neutral grey the "
-            "printer can make, and the darkest steps stay distinct from "
-            "each other, with or without black point compensation. Only "
-            "the very last few steps below that grey, down to pure black, "
-            "take on some of the slight tint of the printer's own black. "
-            "On our test printer that was the darkest four steps of a grey "
-            "ramp in steps of 1 L*.\n\n"
-            "  • **Deepest:** the shadows go all the way down to the "
-            "printer's own black. With Relative Colorimetric and black "
-            "point compensation switched on, this gives a deeper black than "
-            "Neutral. On our Epson ET-8550 test printer the darkest step "
-            "came out between about 1 and 2 L* darker, depending on the "
-            "program that does the printing.\n\n"
-            "**Important, please read:** use Deepest only when black point "
-            "compensation is switched ON in the program you print from (for "
-            "example Photoshop). Without black point compensation, Deepest "
-            "makes the darkest few steps print as the same black, so shadow "
-            "detail is lost there. On the test printer the darkest three or "
-            "four steps all came out as the same black. ChromIQ cannot see "
-            "that setting in your other program, so this is yours to check. "
-            "Absolute Colorimetric never uses black point compensation, so "
-            "for that intent this always applies. With Neutral the steps "
-            "stay separate either way.\n\n"
-            "**Good to know about black point compensation:** when it is "
-            "switched on, the program you print from scales the shadows "
-            "towards the printer's own black. On a printer with a tinted "
-            "black this brings a little of that tint into the deep shadows, "
-            "with either choice, and with a profile from colprof just the "
-            "same. The tint belongs to the printer's black, and no profile "
-            "can prevent it.\n\n"
-            "**What it changes, and what it does not:**\n\n"
-            "  • Only the Relative Colorimetric and Absolute Colorimetric "
-            "intents change. Perceptual and Saturation are exactly the same "
-            "with both choices.\n\n"
-            "  • Only RGB printers with a tinted black are affected, which "
-            "means the darkest neutral grey is at least 1.5 L* lighter than "
-            "the printer's own black. On a printer with a nearly neutral "
-            "black, and on every CMYK and CMY printer, both choices give "
-            "the identical profile.\n\n"
-            "**How this was checked:** the numbers above come from "
-            "measurements of the test printer, converted through LittleCMS, "
-            "the colour engine many programs use. How macOS's own colour "
-            "engine handles the black with black point compensation has not "
-            "been confirmed by a measured print yet.\n\n"
-            "After a build with Deepest, the build log tells you your "
-            "printer's black and its darkest neutral grey as L*a*b* values, "
-            "and whether anything was changed.\n\n"
-            "**Default:** Neutral."),
-            self,
-            min_width=680,
-        )
+        # "Darkest black" stood here until 2026-11-12. It is a Build
+        # Profile option now (Manual, among the engine-only rows), saved
+        # per target, as a default and in a preset (Basti, 2026-11-12;
+        # `TabProfile._m_black_combo`, settings schema 33).
         # kept by name for the tests and the on-screen drivers
         self._engine_tip = engine_tip
-        self._black_depth_tip = black_depth_tip
-        self._black_depth_cell = black_depth_cell = QWidget(self)
-        _bd_row = QHBoxLayout(black_depth_cell)
-        _bd_row.setContentsMargins(0, 0, 0, 0)
-        _bd_row.addWidget(QLabel(tr("Darkest black:"), self))
-        _bd_row.addWidget(self._black_depth_combo)
-        _bd_row.addStretch()
-        _bd_row.addWidget(black_depth_tip)
-        self._profile_engine_check.toggled.connect(
-            self._black_depth_cell.setVisible)
 
         # Both live on their own "Beta features" tab.
         self._beta_page = QWidget(self)
@@ -3485,7 +3409,6 @@ class SettingsDialog(QDialog):
         _eng_row.addWidget(engine_tip)
         _beta.addLayout(_eng_row)
         _beta.addWidget(self._colprof_comparison_cell)
-        _beta.addWidget(self._black_depth_cell)
 
         # Hexagonal charts in the scanner / camera tools (opt-in).
         self._scanner_hex_check = QCheckBox(
@@ -6367,15 +6290,10 @@ class SettingsDialog(QDialog):
         self._declutter_check.setChecked(bool(s.get("declutter_on_load", True)))
         self._splash_check.setChecked(bool(s.get("show_splash", True)))
         self._profile_engine_check.setChecked(bool(s.get("profile_engine_beta", False)))
-        from workflow.engine_builder import black_depth_setting
-        self._black_depth_combo.setCurrentIndex(
-            max(0, self._black_depth_combo.findData(black_depth_setting(s))))
         from workflow.engine_builder import colprof_comparison_setting
         self._colprof_comparison_check.setChecked(
             colprof_comparison_setting(s))
         # A no-change setChecked above may not emit toggled, so sync explicitly.
-        self._black_depth_cell.setVisible(
-            self._profile_engine_check.isChecked())
         self._colprof_comparison_check.setEnabled(
             self._profile_engine_check.isChecked())
         self._chartread_engine_check.setChecked(
@@ -7831,8 +7749,6 @@ class SettingsDialog(QDialog):
         s.set("declutter_on_load",         self._declutter_check.isChecked())
         s.set("show_splash",               self._splash_check.isChecked())
         s.set("profile_engine_beta",       self._profile_engine_check.isChecked())
-        s.set("profile_engine_black_depth",
-              self._black_depth_combo.currentData() or "neutral")
         s.set("profile_engine_colprof_comparison",
               self._colprof_comparison_check.isChecked())
         s.set("chartread_engine",
