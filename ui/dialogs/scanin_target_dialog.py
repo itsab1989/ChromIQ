@@ -276,7 +276,9 @@ class ScaninTargetDialog(_ToolDialogBase):
         pa.addLayout(head)
         self._ti3_field = QLineEdit(self)
         self._ti3_field.setPlaceholderText(tr("Pick the chart's measurement (.ti3)…"))
-        pa.addLayout(self._pick_row(self._ti3_field, self._pick_ti3))
+        self._ti3_zone = self._drop_row(
+            self._pick_row(self._ti3_field, self._pick_ti3), pa, (".ti3",),
+            self._use_ti3, remember=False, declutter=self._settings)
         self._note = self._hint("")
         pa.addWidget(self._note)
         pa.addWidget(self._hint(tr(
@@ -314,7 +316,9 @@ class ScaninTargetDialog(_ToolDialogBase):
         pb.addLayout(ph)
         self._pset_field = QLineEdit(self)
         self._pset_field.setPlaceholderText(tr("Pick the patch set you loaded into i1Profiler…"))
-        pb.addLayout(self._pick_row(self._pset_field, self._pick_pset))
+        self._pset_zone = self._drop_row(
+            self._pick_row(self._pset_field, self._pick_pset), pb,
+            (".ti1", ".txt", ".pxf"), self._use_pset, remember=False)
 
         th = QHBoxLayout()
         th.addWidget(QLabel(tr("2. The chart i1Profiler saved (.tif):"), self))
@@ -329,7 +333,10 @@ class ScaninTargetDialog(_ToolDialogBase):
         pb.addLayout(th)
         self._tiff_field = QLineEdit(self)
         self._tiff_field.setPlaceholderText(tr("Pick the saved chart pages…"))
-        pb.addLayout(self._pick_row(self._tiff_field, self._pick_tiffs))
+        self._tiff_zone = self._drop_row(
+            self._pick_row(self._tiff_field, self._pick_tiffs), pb,
+            (".tif", ".tiff"), self._use_tiffs, several=True,
+            remember=False, declutter=self._settings)
 
         mh = QHBoxLayout()
         mh.addWidget(QLabel(tr("3. Your measurement (.ti3):"), self))
@@ -346,7 +353,10 @@ class ScaninTargetDialog(_ToolDialogBase):
         pb.addLayout(mh)
         self._meas_field = QLineEdit(self)
         self._meas_field.setPlaceholderText(tr("Pick i1Profiler's measurement (.mxf / .txt / .cxf) or a .ti3…"))
-        pb.addLayout(self._pick_row(self._meas_field, self._pick_meas))
+        self._meas_zone = self._drop_row(
+            self._pick_row(self._meas_field, self._pick_meas), pb,
+            (".ti3", ".mxf", ".txt", ".cxf"), self._use_meas,
+            remember=False, declutter=self._settings)
 
         self._i1p_note = self._hint("")
         pb.addWidget(self._i1p_note)
@@ -361,6 +371,11 @@ class ScaninTargetDialog(_ToolDialogBase):
             declutter_settings=self._settings)
         if not path:
             return
+        self._use_ti3(path)
+
+    def _use_ti3(self, path) -> None:
+        """The measurement chosen with Browse, or dropped on its row."""
+        path = str(path)
         if self._reject_if_hexagonal(_chart_base(Path(path))):
             return
         self._ti3_path = Path(path)
@@ -403,6 +418,11 @@ class ScaninTargetDialog(_ToolDialogBase):
             start_dir=str(_initial_dir(self._settings, self.TOOL_KEY)))
         if not path:
             return
+        self._use_pset(path)
+
+    def _use_pset(self, path) -> None:
+        """The patch set chosen with Browse, or dropped on its row."""
+        path = str(path)
         self._pset_path = Path(path)
         self._pset_field.setText(path)
         _remember_dir(self._settings, self.TOOL_KEY, self._pset_path.parent)
@@ -415,6 +435,10 @@ class ScaninTargetDialog(_ToolDialogBase):
             start_dir=str(_initial_dir(self._settings, self.TOOL_KEY)),
             preview=True,
             declutter_settings=self._settings)
+        self._use_tiffs(paths)
+
+    def _use_tiffs(self, paths: list, _left: "list | None" = None) -> None:
+        """The pages chosen with Browse, or dropped on their row."""
         if not paths:
             return
         # Page order matters; i1Profiler's …_1_2 / …_2_2 names sort correctly.
@@ -431,6 +455,11 @@ class ScaninTargetDialog(_ToolDialogBase):
             declutter_settings=self._settings)
         if not path:
             return
+        self._use_meas(path)
+
+    def _use_meas(self, path) -> None:
+        """The measurement chosen with Browse, or dropped on its row."""
+        path = str(path)
         if self._reject_if_hexagonal(_chart_base(Path(path))):
             return
         self._meas_path = Path(path)

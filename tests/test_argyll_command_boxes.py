@@ -9,6 +9,16 @@ check below reads the box, then presses the module's own button with
 ``ArgyllRunner.run`` caught, and compares the two argument lists. A box built
 by a second, drifting reimplementation would pass a test that only reads the
 box; it cannot pass these.
+
+THE BOX IS READ THE WAY ITS SHELL READS IT. On Windows the box is written for
+PowerShell (``workflow/argyll_command_text.py``), so these tests read it with
+PowerShell's rules, not ``shlex``: until 4.3.31 they read PowerShell text as
+POSIX text and failed on every Windows machine (``''`` inside a quoted
+description, the backslashes of a bare ``C:\\...`` path, ``Set-Location``
+for ``cd``), while the box itself was right. Every box test runs once with the
+POSIX text and once with the PowerShell text, on every platform, through the
+``quoting`` fixture; ``test_argyll_command_boxes_in_a_real_shell.py`` pastes
+the text into the real shells.
 """
 from __future__ import annotations
 
@@ -74,8 +84,73 @@ def _press_build(tab, monkeypatch):
     tab._on_build()
 
 
+@pytest.fixture(params=["posix", "powershell"])
+def quoting(request, monkeypatch):
+    """Write the boxes for one shell, whatever the platform under test."""
+    import workflow.argyll_command_text as act
+    monkeypatch.setattr(act, "_windows",
+                        lambda: request.param == "powershell")
+    return request.param
+
+
+#: Every character PowerShell reads as a single quote.
+_PS_QUOTES = "'\u2018\u2019\u201a\u201b"
+#: Characters that mean something to PowerShell outside quotes. The box must
+#: never leave one bare, so meeting one is a failure, not a guess.
+_PS_SPECIAL = '"`$@{}()[];&|<>#,\u201c\u201d\u201e'
+
+
+def powershell_words(line: str) -> "list[str]":
+    """*line* split into arguments as PowerShell reads a command line of the
+    kind the box writes: words separated by spaces, each either bare (taken
+    literally, backslashes included) or one single-quoted string in which a
+    doubled quote character stands for one."""
+    words, i, n = [], 0, len(line)
+    while i < n:
+        if line[i] == " ":
+            i += 1
+            continue
+        word: list = []
+        if line[i] in _PS_QUOTES:
+            i += 1
+            while True:
+                if i >= n:
+                    raise ValueError(f"unterminated quote in {line!r}")
+                if line[i] in _PS_QUOTES:
+                    if i + 1 < n and line[i + 1] in _PS_QUOTES:
+                        word.append(line[i])
+                        i += 2
+                        continue
+                    i += 1
+                    break
+                word.append(line[i])
+                i += 1
+            if i < n and line[i] != " ":
+                raise ValueError(f"text glued to a quoted word in {line!r}")
+        else:
+            while i < n and line[i] != " ":
+                if line[i] in _PS_SPECIAL or line[i] in _PS_QUOTES:
+                    raise ValueError(
+                        f"bare {line[i]!r} PowerShell would interpret, "
+                        f"in {line!r}")
+                word.append(line[i])
+                i += 1
+            if word and word[0] in "-\u2013\u2014\u2015" and not all(
+                    c.isascii() and (c.isalnum() or c == "-") for c in word):
+                raise ValueError(f"bare flag PowerShell 5.1 may split: "
+                                 f"{''.join(word)!r}")
+        words.append("".join(word))
+    return words
+
+
+def _split(line: str) -> "list[str]":
+    """*line* as the shell the box is written for reads it."""
+    import workflow.argyll_command_text as act
+    return powershell_words(line) if act._windows() else shlex.split(line)
+
+
 def _command_lines(box_text: str, tool: str) -> "list[list[str]]":
-    return [shlex.split(line) for line in box_text.splitlines()
+    return [_split(line) for line in box_text.splitlines()
             if line.startswith(tool + " ")]
 
 
@@ -106,7 +181,7 @@ def _set_manual(tab, *, quality=None, algorithm=None, description=None,
     ("manual", {"illuminant": "D65", "description": "two  spaces"}),
 ])
 def test_the_colprof_box_shows_the_command_the_build_runs(
-        qapp, tmp_path, monkeypatch, mode, changes):
+        qapp, tmp_path, monkeypatch, mode, changes, quoting):
     tab, calls = _tab(tmp_path, monkeypatch)
     tab._switch_mode(mode)
     tab.set_ti3_path(_measurement(tmp_path))
@@ -196,7 +271,7 @@ def test_a_multi_ink_measurement_without_the_engine_says_why(
 
 
 def test_refinement_shows_the_average_merge_then_colprof_on_merged(
-        qapp, tmp_path, monkeypatch):
+        qapp, tmp_path, monkeypatch, quoting):
     from core.file_manager import Run
     from workflow.ti3_merge import average_merge_args
     tab, _calls = _tab(tmp_path, monkeypatch, chromiq_refinement=True)
@@ -236,7 +311,7 @@ def test_the_merge_runs_the_arguments_the_box_shows():
     ("imitation", False, "Café"),
 ])
 def test_the_printcal_box_shows_the_command_create_calibration_runs(
-        qapp, tmp_path, monkeypatch, mode, dry, desc):
+        qapp, tmp_path, monkeypatch, mode, dry, desc, quoting):
     tab, calls = _tab(tmp_path, monkeypatch)
     ti3 = _measurement(tmp_path, name="My Cal.ti3")
     tab._cal_ti3_path = ti3
@@ -246,7 +321,8 @@ def test_the_printcal_box_shows_the_command_create_calibration_runs(
     tab._pc_desc_edit.setText(desc)
     tab.refresh_argyll_commands(every=True)
     lines = tab._pc_cmd_box.text().splitlines()
-    cd = next(line for line in lines if line.startswith("cd "))
+    cd_word = "Set-Location " if quoting == "powershell" else "cd "
+    cd = next(line for line in lines if line.startswith(cd_word))
     shown = _command_lines(tab._pc_cmd_box.text(), "printcal")
 
     monkeypatch.setattr(tab, "_confirm_build_from_incomplete",
@@ -255,7 +331,8 @@ def test_the_printcal_box_shows_the_command_create_calibration_runs(
     tool, args, cwd = calls[0]
     assert tool == "printcal"
     assert shown == [["printcal"] + args]
-    assert shlex.split(cd) == ["cd", str(cwd)]
+    assert _split(cd) == (["Set-Location", "-LiteralPath", str(cwd)]
+                          if quoting == "powershell" else ["cd", str(cwd)])
     tab.deleteLater()
 
 
@@ -265,7 +342,7 @@ def test_the_printcal_box_shows_the_command_create_calibration_runs(
     ("check", False, ""),
 ])
 def test_the_applycal_box_shows_the_command_apply_calibration_runs(
-        qapp, tmp_path, monkeypatch, mode, verbose, out):
+        qapp, tmp_path, monkeypatch, mode, verbose, out, quoting):
     tab, calls = _tab(tmp_path, monkeypatch)
     icc = tmp_path / "a folder" / "My Profile.icc"
     icc.parent.mkdir()
@@ -377,7 +454,7 @@ def _ti3(path: Path, rep="RGB_LAB", fields="SAMPLE_ID RGB_R RGB_G RGB_B "
 
 
 def test_a_merge_the_build_would_refuse_is_not_shown(qapp, tmp_path,
-                                                      monkeypatch):
+                                                      monkeypatch, quoting):
     """Finding 3: a different COLOR_REP makes the merge refuse and the build
     use the new measurement alone; the box says so and shows no average."""
     tab, _calls = _tab(tmp_path, monkeypatch, chromiq_refinement=True)
@@ -472,12 +549,53 @@ def test_windows_commands_are_written_for_powershell(monkeypatch):
         == "'\u201a\u201aa\u201b\u201bb\u2018\u2018'"
 
 
+#: Windows paths and texts as they reach a box: drive roots, a trailing
+#: backslash, UNC shares, spaces, umlauts, apostrophes and PowerShell's own
+#: special characters. Used here on every platform and pasted into the real
+#: shells by test_argyll_command_boxes_in_a_real_shell.py.
+WINDOWS_ARGUMENTS = [
+    r"C:\Users\Jürgen\ChromIQ\My-Printer\runs\run1\My-Printer",
+    r"C:\Users\Jürgen\ChromIQ\a folder with spaces\My Printer",
+    r"C:\Users\runneradmin\AppData\Local\Temp\run\Fresh",
+    "C:\\", "D:\\Profiles\\", "C:\\a b\\c d\\",
+    r"\\nas\prints\Epson P900\run1\Café.ti3",
+    r"\\?\C:\very\long\path.ti3",
+    r"C:\My [Prints]\run1", r"C:\100% cotton\$HOME\`tick`\a;b\c&d",
+    "Epson P900 \u2013 Hahnemühle's Photo Rag", "Bob\u2019s \u201cbest\u201d",
+    "-v", "-D", "-qh", "-al", "-l250", "-s1.0", "-r0.50", "a,b", "@x", "#x",
+    "--%", "-", "0.1",
+]
+
+
+def test_windows_paths_read_back_unchanged_from_the_powershell_text(
+        monkeypatch):
+    """What a Windows user sees in the box, for real Windows paths, read back
+    with PowerShell's rules: every argument arrives whole, backslashes and
+    all. Runs on every platform: the quoting is pure text."""
+    import workflow.argyll_command_text as act
+    monkeypatch.setattr(act, "_windows", lambda: True)
+    line = act.command_line("colprof", WINDOWS_ARGUMENTS)
+    assert powershell_words(line) == ["colprof"] + WINDOWS_ARGUMENTS
+    # What the user reads: a plain path stays bare, backslashes and all; one
+    # with a space or a PowerShell sign is single-quoted.
+    assert act.quote_arg(WINDOWS_ARGUMENTS[0]) == WINDOWS_ARGUMENTS[0]
+    assert act.quote_arg(r"\\nas\prints\x.ti3") == r"\\nas\prints\x.ti3"
+    assert act.quote_arg(r"C:\a b\x") == r"'C:\a b\x'"
+    for folder in ("C:\\", "D:\\Profiles\\", r"\\nas\prints\Epson P900",
+                   r"C:\My [Prints]\run1", r"C:\Users\Jürgen\Druck"):
+        assert powershell_words(act.change_folder_line(folder)) \
+            == ["Set-Location", "-LiteralPath", folder]
+
+
 def test_posix_commands_are_written_for_the_shell(monkeypatch):
     import workflow.argyll_command_text as act
     monkeypatch.setattr(act, "_windows", lambda: False)
     assert shlex.split(act.command_line("colprof", ["-D", "Tom & Jerry's"])) \
         == ["colprof", "-D", "Tom & Jerry's"]
     assert act.change_folder_line("/a b/c") == "cd '/a b/c'"
+    # zsh reads a bare leading `=` as "the path of this program".
+    assert act.quote_arg("=x") == "'=x'" and act.quote_arg("a=b") == "a=b"
+    assert shlex.split(act.quote_arg("=it's")) == ["=it's"]
     assert act.program_example("/Applications/Argyll/bin/colprof") \
         == "/Applications/Argyll/bin/colprof"
 

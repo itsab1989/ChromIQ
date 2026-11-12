@@ -49,7 +49,8 @@ from ui.ti2_loader import (has_spectral_data,
                           instrument_label, is_colormunki,
                           read_target_instrument, spectral_options_unavailable)
 from ui.spectrum_progress import SpectrumSegmentsBar
-from workflow.engine_builder import (EngineProfileBuilder, choose_builder,
+from workflow.engine_builder import (EngineProfileBuilder,
+                                     black_depth_value, choose_builder,
                                      colprof_comparison_wanted,
                                      engine_support, engine_switch_on,
                                      is_multi_ink)
@@ -68,6 +69,9 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 _TAB_COLOR = "#37bcd6"  # Build Profile tab accent
+# What the load icon's chooser offers (both run types), and so what a drop on
+# the Measurement Data box may bring (4.3.33).
+_MEASUREMENT_SUFFIXES = (".ti3", ".txt", ".mxf", ".cxf")
 from ui.styles import SPEC_CYAN, TAB_COLORS
 from core.i18n import tr
 from core.platform_paths import default_output_root
@@ -178,6 +182,29 @@ def _hue_default_kept(settings) -> bool:
     except Exception:      # noqa: BLE001
         return False
     return str(raw or "").strip().lower() == "kept"
+
+
+def _black_default(settings) -> str:
+    """The saved default of "Darkest black" (``manual2_colprof_black_depth``,
+    "neutral", the factory setting, or "deepest")."""
+    try:
+        raw = settings.get("manual2_colprof_black_depth", "neutral")
+    except Exception:      # noqa: BLE001
+        return "neutral"
+    return black_depth_value(raw)
+
+
+def _black_for_older_targets(settings) -> str:
+    """What a target stored before "Darkest black" became a Build Profile
+    option (its settings carry no "black_depth") reads: "deepest" only for
+    someone whose global preference was Deepest at the move (settings schema
+    33, `AppSettings._migrate_black_depth_to_build_profile`), else Neutral."""
+    try:
+        raw = settings.get("manual2_colprof_black_depth_older_targets",
+                           "neutral")
+    except Exception:      # noqa: BLE001
+        return "neutral"
+    return black_depth_value(raw)
 
 
 def _intents() -> "list[tuple[str, str]]":
@@ -405,6 +432,10 @@ def _paint_note(label, mode: "str | None" = None) -> None:
 
 class TabProfile(QWidget):
     """Step 4: build and install ICC profile from .ti3 measurements."""
+    #: The hue of this tab's step header, its accent: file-drop frames
+    #: (4.3.33) are drawn in it (`ui.file_drop.context_accent`).
+    TAB_ACCENT = _TAB_COLOR
+
 
     profile_built    = pyqtSignal(Path, Path)   # (ti3_path, icc_path)
     check_requested  = pyqtSignal()             # user clicked "Check Quality" in the result dialog
@@ -748,6 +779,13 @@ class TabProfile(QWidget):
         self._file_lbl.setWordWrap(True)
         fg.addWidget(self._file_lbl, stretch=1)
         cc.addWidget(file_grp)
+        # A measurement dropped from the file manager on this box is loaded
+        # as the header's load icon loads the file chosen with it (4.3.33).
+        from ui.file_drop import CONTEXT, FileDropTarget
+        self._file_drop = FileDropTarget(
+            file_grp, _MEASUREMENT_SUFFIXES, single=True,
+            guard=self._drops_open, accent=CONTEXT)
+        self._file_drop.file_dropped.connect(self._on_measurement_dropped)
 
         self._stack = QStackedWidget(colprof_container)
         self._guided_panel = self._make_guided_panel()
@@ -1524,6 +1562,11 @@ class TabProfile(QWidget):
         in_row.addWidget(self._pc_ti3_lbl, stretch=1)
         ti3_g.addLayout(in_row)
         gw_layout.addWidget(grp_ti3)
+        from ui.file_drop import CONTEXT, FileDropTarget
+        self._pc_ti3_drop = FileDropTarget(
+            grp_ti3, _MEASUREMENT_SUFFIXES, single=True,
+            guard=self._drops_open, accent=CONTEXT)
+        self._pc_ti3_drop.file_dropped.connect(self._on_measurement_dropped)
 
         # ---- Calibration Metadata section ----
         self._build_pc_metadata_group(gw_layout, grp_wrapper)
@@ -1581,6 +1624,11 @@ class TabProfile(QWidget):
         prev_browse.setFixedHeight(22)
         prev_row.addWidget(self._pc_prev_edit, stretch=1)
         prev_row.addWidget(prev_browse)
+        from ui.file_drop import CONTEXT, FileDropTarget
+        self._pc_prev_drop = FileDropTarget(
+            self._pc_prev_widget, (".cal",), single=True,
+            guard=(prev_browse, self._runner_idle), accent=CONTEXT)
+        self._pc_prev_drop.file_dropped.connect(self._pc_use_prev)
         self._pc_prev_widget.setVisible(False)
         g.addWidget(self._pc_prev_widget)
 
@@ -1933,6 +1981,12 @@ class TabProfile(QWidget):
         p = open_file_dialog(self, tr("Load calibration measurement"),
                              tr("Measurement data (*.ti3 *.mxf *.txt *.cxf);;All files (*)"),
                              extra_path=self._settings.get("custom_output_path", ""))
+        self._pc_use_ti3(p)
+
+    def _pc_use_ti3(self, p) -> None:
+        """The calibration measurement chosen with the load icon, or dropped
+        on the Measurement Data box."""
+        p = str(p) if p else ""
         if p and Path(p).suffix.lower() != ".ti3":
             # Which readings of a CxF (4.3.23, M-IMPORT-CXF-CONDITION).
             from ui.dialogs.cxf_condition_dialog import choose_cxf_condition
@@ -2043,7 +2097,11 @@ class TabProfile(QWidget):
         p = open_file_dialog(self, tr("Load previous .cal file"), tr("CAL files (*.cal)"),
                              extra_path=self._settings.get("custom_output_path", ""))
         if p:
-            self._pc_prev_edit.setText(p)
+            self._pc_use_prev(p)
+
+    def _pc_use_prev(self, p) -> None:
+        """The .cal chosen with Browse, or dropped on its row."""
+        self._pc_prev_edit.setText(str(p))
 
     def _on_pc_save_defaults(self) -> None:
         s = self._settings
@@ -2178,7 +2236,8 @@ class TabProfile(QWidget):
         ac_cal_browse.setFixedHeight(22)
         cal_row.addWidget(self._ac_cal_edit, stretch=1)
         cal_row.addWidget(ac_cal_browse)
-        g.addLayout(cal_row)
+        self._ac_cal_zone = self._file_drop_row(
+            cal_row, g, grp, (".cal",), ac_cal_browse, self._ac_use_cal)
 
         # ---- Input ICC ----
         in_row = QHBoxLayout()
@@ -2198,7 +2257,8 @@ class TabProfile(QWidget):
         ac_in_browse.setFixedHeight(22)
         in_row.addWidget(self._ac_in_edit, stretch=1)
         in_row.addWidget(ac_in_browse)
-        g.addLayout(in_row)
+        self._ac_in_zone = self._file_drop_row(
+            in_row, g, grp, (".icc", ".icm"), ac_in_browse, self._ac_use_in)
 
         # ---- Output ICC ----
         out_row = QHBoxLayout()
@@ -2279,13 +2339,21 @@ class TabProfile(QWidget):
         p = open_file_dialog(self, tr("Select calibration file"), tr("CAL files (*.cal)"),
                              extra_path=self._settings.get("custom_output_path", ""))
         if p:
-            self._ac_cal_edit.setText(p)
+            self._ac_use_cal(p)
+
+    def _ac_use_cal(self, p) -> None:
+        """The .cal chosen with Browse, or dropped on its row."""
+        self._ac_cal_edit.setText(str(p))
 
     def _ac_browse_in(self) -> None:
         p = open_file_dialog(self, tr("Select input ICC profile"), tr("ICC profiles (*.icc *.icm)"),
                              extra_path=self._settings.get("custom_output_path", ""))
         if p:
-            self._ac_in_edit.setText(p)
+            self._ac_use_in(p)
+
+    def _ac_use_in(self, p) -> None:
+        """The profile chosen with Browse, or dropped on its row."""
+        self._ac_in_edit.setText(str(p))
 
     def _ac_browse_out(self) -> None:
         from ui.widgets import save_file_dialog
@@ -2812,6 +2880,10 @@ class TabProfile(QWidget):
         if self._accurate_engine_active():
             data["hue_rendering"] = ("kept" if self._m_hue_cb.isChecked()
                                      else "argyll")
+            # "Darkest black" follows the same rule (Basti, 2026-11-12:
+            # "savable as default and as part of a preset", like the hue).
+            data["black_depth"] = black_depth_value(
+                self._m_black_combo.currentData())
         return data
 
     # ------------------------------------------------------------------
@@ -2993,6 +3065,11 @@ class TabProfile(QWidget):
             if hue_cb is not None:
                 wanted["hue_rendering"] = ("kept" if hue_cb.isChecked()
                                            else "argyll")
+            # "Darkest black" likewise (2026-11-12).
+            black_combo = getattr(self, "_m_black_combo", None)
+            if black_combo is not None:
+                wanted["black_depth"] = black_depth_value(
+                    black_combo.currentData())
             fingerprint = str(getattr(store, "dir", store))
             if self._profile_written_cache().get(fingerprint) == wanted:
                 return False
@@ -3035,6 +3112,12 @@ class TabProfile(QWidget):
                 self._restore_defaults()
                 return False
             self._m_apply_preset_data(stored)
+            set_black = getattr(self, "_m_set_black", None)
+            if "black_depth" not in stored and set_black is not None:
+                # Stored before "Darkest black" was a Build Profile option:
+                # it reads what the global preference said at the move
+                # (settings schema 33), until it is changed here.
+                set_black(_black_for_older_targets(self._settings))
             self._apply_guided_profile_fields(stored)
             return True
         except Exception:      # noqa: BLE001
@@ -3173,6 +3256,16 @@ class TabProfile(QWidget):
         self._m_hue_cb.setChecked(
             str(data.get("hue_rendering", "argyll")).strip().lower()
             == "kept")
+        # A preset without "black_depth" (saved with the engine off, or
+        # before the option was a Build Profile row) loads Neutral; a target
+        # stored before then is handled in `load_target_settings`.
+        self._m_set_black(data.get("black_depth", "neutral"))
+
+    def _m_set_black(self, value) -> None:
+        """Put a stored "Darkest black" value on the combo (unknown values
+        read as Neutral, `engine_builder.black_depth_value`)."""
+        combo = self._m_black_combo
+        combo.setCurrentIndex(max(0, combo.findData(black_depth_value(value))))
 
     def _on_m_preset_selected(self, index: int) -> None:
         self._m_preset_del_btn.setEnabled(index > 0)
@@ -3235,6 +3328,7 @@ class TabProfile(QWidget):
             _set_combo(self._m_render_combo,
                        "manual2_colprof_render", "argyll")
             self._m_hue_cb.setChecked(_hue_default_kept(s))
+            self._m_set_black(_black_default(s))
         else:
             name = self._m_preset_combo.currentData()
             presets = self._m_load_presets()
@@ -3915,6 +4009,85 @@ class TabProfile(QWidget):
         )
         hue_row.addWidget(self._m_hue_tip)
         eng_col.addLayout(hue_row)
+        # "Darkest black" (Basti, 2026-11-12): BuildSettings.black_depth,
+        # "neutral" (the default) or "deepest". It stood in Preferences >
+        # Beta as one global setting until then; now it is per target, saved
+        # as a default and in a preset exactly like "Keep the original hue"
+        # above (settings schema 33 carries an old global Deepest over).
+        black_row = QHBoxLayout()
+        black_row.addWidget(QLabel(tr("Darkest black:"), grp))
+        self._m_black_combo = NoScrollComboBox(grp)
+        self._m_black_combo.addItem(tr("Neutral (recommended)"), "neutral")
+        self._m_black_combo.addItem(tr("Deepest"), "deepest")
+        self._m_black_combo.setObjectName("compact_input")
+        self._m_black_combo.style().unpolish(self._m_black_combo)
+        self._m_black_combo.style().polish(self._m_black_combo)
+        black_row.addWidget(self._m_black_combo, stretch=1)
+        self._m_black_tip = TooltipButton(
+            tr("Darkest black"),
+            tr("How the profile handles the darkest tones. This applies to "
+            "the new profile engine only.\n\n"
+            "On many printers the darkest black is not quite neutral: the "
+            "very deepest black the printer can make has a slight colour "
+            "tint, and the darkest grey that is truly neutral is a little "
+            "lighter. This option decides which of the two the profile "
+            "aims for in its colorimetric part.\n\n"
+            "  • **Neutral (recommended):** a grey ramp stays neutral from "
+            "the lightest tones down to the darkest neutral grey the "
+            "printer can make, and the darkest steps stay distinct from "
+            "each other, with or without black point compensation. Only "
+            "the very last few steps below that grey, down to pure black, "
+            "take on some of the slight tint of the printer's own black. "
+            "On our test printer that was the darkest four steps of a grey "
+            "ramp in steps of 1 L*.\n\n"
+            "  • **Deepest:** the shadows go all the way down to the "
+            "printer's own black. With Relative Colorimetric and black "
+            "point compensation switched on, this gives a deeper black than "
+            "Neutral. On our Epson ET-8550 test printer the darkest step "
+            "came out between about 1 and 2 L* darker, depending on the "
+            "program that does the printing.\n\n"
+            "**Important, please read:** use Deepest only when black point "
+            "compensation is switched ON in the program you print from (for "
+            "example Photoshop). Without black point compensation, Deepest "
+            "makes the darkest few steps print as the same black, so shadow "
+            "detail is lost there. On the test printer the darkest three or "
+            "four steps all came out as the same black. ChromIQ cannot see "
+            "that setting in your other program, so this is yours to check. "
+            "Absolute Colorimetric never uses black point compensation, so "
+            "for that intent this always applies. With Neutral the steps "
+            "stay separate either way.\n\n"
+            "**Good to know about black point compensation:** when it is "
+            "switched on, the program you print from scales the shadows "
+            "towards the printer's own black. On a printer with a tinted "
+            "black this brings a little of that tint into the deep shadows, "
+            "with either choice, and with a profile from colprof just the "
+            "same. The tint belongs to the printer's black, and no profile "
+            "can prevent it.\n\n"
+            "**What it changes, and what it does not:**\n\n"
+            "  • Only the Relative Colorimetric and Absolute Colorimetric "
+            "intents change. Perceptual and Saturation are exactly the same "
+            "with both choices.\n\n"
+            "  • Only RGB printers with a tinted black are affected, which "
+            "means the darkest neutral grey is at least 1.5 L* lighter than "
+            "the printer's own black. On a printer with a nearly neutral "
+            "black, and on every CMYK and CMY printer, both choices give "
+            "the identical profile.\n\n"
+            "  • This choice is used for builds in Manual mode. Guided mode "
+            "always builds with Neutral.\n\n"
+            "**How this was checked:** the numbers above come from "
+            "measurements of the test printer, converted through LittleCMS, "
+            "the colour engine many programs use. How macOS's own colour "
+            "engine handles the black with black point compensation has not "
+            "been confirmed by a measured print yet.\n\n"
+            "After a build with Deepest, the build log tells you your "
+            "printer's black and its darkest neutral grey as L*a*b* values, "
+            "and whether anything was changed.\n\n"
+            "**Default:** Neutral."),
+            grp,
+            min_width=680,
+        )
+        black_row.addWidget(self._m_black_tip)
+        eng_col.addLayout(black_row)
         g.addWidget(self._m_engine_rows_widget)
         self._refresh_engine_rows()
 
@@ -4192,7 +4365,9 @@ class TabProfile(QWidget):
         self._m_gam_path_browse.setFixedHeight(22)
         path_row.addWidget(self._m_gam_path_edit, stretch=1)
         path_row.addWidget(self._m_gam_path_browse)
-        g.addLayout(path_row)
+        self._m_gam_zone = self._file_drop_row(
+            path_row, g, grp, (".icc", ".icm"), self._m_gam_path_browse,
+            self._use_m_gam)
 
         def _on_m_mode_changed() -> None:
             active = bool(self._m_gam_mode_combo.currentData())
@@ -4792,7 +4967,9 @@ class TabProfile(QWidget):
         self._gam_path_browse.clicked.connect(self._browse_gam)
         path_row.addWidget(self._gam_path_edit, stretch=1)
         path_row.addWidget(self._gam_path_browse)
-        g.addLayout(path_row)
+        self._gam_zone = self._file_drop_row(
+            path_row, g, grp, (".icc", ".icm"), self._gam_path_browse,
+            self._use_gam)
 
         def _on_mode_changed() -> None:
             active = bool(self._gam_mode_combo.currentData())
@@ -5410,6 +5587,53 @@ class TabProfile(QWidget):
         )
         if not path:
             return
+        self._use_measurement(path)
+
+    def _runner_idle(self) -> bool:
+        return not self._runner.is_running
+
+    def _file_drop_row(self, row, layout, parent, suffixes, browse, use):
+        """*row* in a zone that takes one file of *suffixes* from the file
+        manager and hands it to *use*, the method its Browse (*browse*)
+        hands the chosen file to; only while that button is enabled and
+        ArgyllCMS is idle (4.3.33). Added to *layout* in the row's place."""
+        from ui.file_drop import CONTEXT, FileDropZone
+        zone = FileDropZone.around(row, parent, suffixes, single=True,
+                                   spacing=layout.spacing(),
+                                   guard=(browse, self._runner_idle),
+                                   accent=CONTEXT)
+        zone.file_dropped.connect(use)
+        layout.addWidget(zone)
+        return zone
+
+    def _drops_open(self) -> bool:
+        """A measurement is taken while the load icon is enabled and
+        ArgyllCMS is not running."""
+        return self._load_btn.isEnabled() and not self._runner.is_running
+
+    def _on_measurement_dropped(self, path) -> None:
+        """A measurement dropped on the Measurement Data box (4.3.33): what
+        the header's load icon does with the file it was given, in either
+        run type, with the same questions."""
+        ctl = getattr(self, "_target_ctl", None)
+        try:
+            if ctl is not None and ctl.target.is_calibration():
+                self._pc_use_ti3(str(path))
+                return
+        except Exception:      # noqa: BLE001 — as the icon: the normal load
+            pass
+        # As Browse's `declutter_settings`: a legacy flat project folder is
+        # tidied before the file is used.
+        from core.file_manager import maybe_declutter_on_load
+        try:
+            maybe_declutter_on_load(str(path), self._settings)
+        except Exception:      # noqa: BLE001 — as Browse: never fatal
+            pass
+        self._use_measurement(str(path))
+
+    def _use_measurement(self, path) -> None:
+        """The measurement chosen with the load icon, or dropped on the
+        Measurement Data box: from here on the same steps and questions."""
         p = Path(path)
         # THE QUESTION COMES BEFORE THE FORMAT, and it did not.
         #
@@ -5676,7 +5900,11 @@ class TabProfile(QWidget):
             start_dir=str(ref_dir) if ref_dir.is_dir() else "",
         )
         if path:
-            self._gam_path_edit.setText(path)
+            self._use_gam(path)
+
+    def _use_gam(self, path) -> None:
+        """The profile chosen with Browse, or dropped on its row."""
+        self._gam_path_edit.setText(str(path))
 
     def _browse_m_gam(self) -> None:
         bin_path = self._settings.get("argyll_bin_path", "/Applications/Argyll/bin")
@@ -5686,7 +5914,11 @@ class TabProfile(QWidget):
             start_dir=str(ref_dir) if ref_dir.is_dir() else "",
         )
         if path:
-            self._m_gam_path_edit.setText(path)
+            self._use_m_gam(path)
+
+    def _use_m_gam(self, path) -> None:
+        """The profile chosen with Browse, or dropped on its row."""
+        self._m_gam_path_edit.setText(str(path))
 
     def _apply_preconditioning_merge(self, params: ProfileParams) -> ProfileParams:
         """When ChromIQ-style refinement is on and pre-conditioning data was
@@ -6822,7 +7054,7 @@ class TabProfile(QWidget):
                 model=params.model or desc,
                 spectral_physics=False, icc_version="2",
                 noise_model=False, render_style="argyll",
-                hue_rendering="argyll")
+                hue_rendering="argyll", black_depth="neutral")
             self._comparison = (params, cparams, work)
             self._comparison_builder = ProfileBuilder(self._runner)
             self._building_with = "colprof"
@@ -7488,6 +7720,10 @@ class TabProfile(QWidget):
             hue_rendering    = ("kept" if (self._m_hue_cb.isChecked()
                                            and self._accurate_engine_active())
                                 else "argyll"),
+            black_depth      = (black_depth_value(
+                                    self._m_black_combo.currentData())
+                                if self._accurate_engine_active()
+                                else "neutral"),
         )
 
     # ------------------------------------------------------------------
@@ -7583,6 +7819,8 @@ class TabProfile(QWidget):
             if self._accurate_engine_active():
                 s.set("manual2_colprof_hue",
                       "kept" if self._m_hue_cb.isChecked() else "argyll")
+                s.set("manual2_colprof_black_depth", black_depth_value(
+                    self._m_black_combo.currentData()))
         self._log.appendPlainText("Profile settings saved as defaults.")
         self._log.ensureCursorVisible()
 
@@ -7705,5 +7943,6 @@ class TabProfile(QWidget):
         self._m_noise_cb.setChecked(bool(s.get("manual2_colprof_noise", False)))
         _set_m_combo(self._m_render_combo,        "manual2_colprof_render",   "argyll")
         self._m_hue_cb.setChecked(_hue_default_kept(s))
+        self._m_set_black(_black_default(s))
         presets = self._m_load_presets()
         self._m_populate_preset_combo(presets)

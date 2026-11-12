@@ -6297,6 +6297,10 @@ class _InfoRowScroll(FadeScrollArea):
 
 class TabChart(QWidget):
     """Step 1: create targen/printtarg test chart."""
+    #: The hue of this tab's step header, its accent: file-drop frames
+    #: (4.3.33) are drawn in it (`ui.file_drop.context_accent`).
+    TAB_ACCENT = "#ff4573"
+
 
     # (list[Path] tiffs, Path ti2, bool is_external_workflow)
     # is_external_workflow is True for i1iSis (i1Profiler hand-off); main_window
@@ -7528,6 +7532,16 @@ class TabChart(QWidget):
         self._guided_precond_browse.setEnabled(False)
         self._guided_precond_browse.clicked.connect(self._on_guided_precond_browse)
         precond_row.addWidget(self._guided_precond_browse)
+        # A profile dropped from the file manager on this box fills the field
+        # as the folder button does, and only while the button is enabled
+        # (the tick) (4.3.33).
+        from ui.file_drop import CONTEXT, FileDropTarget
+        self._guided_precond_drop = FileDropTarget(
+            precond_grp, (".icc", ".icm", ".mpp"), single=True,
+            guard=self._guided_precond_browse, accent=CONTEXT,
+            declutter=self._settings)
+        self._guided_precond_drop.file_dropped.connect(
+            self._use_guided_precond)
 
         precond_row.addWidget(TooltipButton(
             tr("Refinement Profile (Pre-conditioning)"),
@@ -12583,8 +12597,12 @@ class TabChart(QWidget):
             declutter_settings=self._settings,
         )
         if path:
-            self._guided_precond_path.setText(path)
-            self._update_patch_count()
+            self._use_guided_precond(path)
+
+    def _use_guided_precond(self, path) -> None:
+        """The profile chosen with the folder button, or dropped on its box."""
+        self._guided_precond_path.setText(str(path))
+        self._update_patch_count()
 
     def apply_preconditioning(self, profile_path: Path | str) -> None:
         """Programmatically pre-fill pre-conditioning from a result dialog.

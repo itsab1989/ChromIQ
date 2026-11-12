@@ -1,5 +1,25 @@
 # Changelog
 
+## v4.3.32
+
+**For everyone updating from 4.3.31: you can now drag files and folders from your file manager and drop them on almost every file and folder row in ChromIQ instead of using its browse button, and in the Measurement info window the notice about files that were not added now names each file and the reason, in the app's own colours. An argument that starts with “=” is now quoted in the ArgyllCMS command boxes, so the command pastes correctly into zsh on macOS, and the beta option “Darkest black” has moved to the Build Profile tab. Your charts, measurements and profiles do not change.**
+
+### New
+- **Drag and drop for files and folders.** You can now drag a file or folder from Finder (File Explorer on Windows, your file manager on Linux) and drop it on almost every row where ChromIQ asks for one, instead of using that row's browse button. A dropped file does exactly what choosing it with the browse button does, with the same questions and the same checks. While you drag over a row that can take what you are holding, the row is outlined in the colour of its tab or tool window. A file of the wrong kind, a greyed-out row and a window that is busy accept nothing. It works in:
+  - the Tools windows, Profile info, Soft-proof and the Measurement Report, where a list such as the files to average or the measurements of a report takes several files at once;
+  - the Measurement info window (Tools › Inspect a measurement), where the “Other readings” list takes several readings at once;
+  - the file rows of the Create Chart, Measure, Check & Refine and Build Profile tabs;
+  - the folder rows in Preferences.
+
+  Some places deliberately take no drop, because one wrong drop there would change too much without a question: opening a project or a chart, Load patch set, Load image on the Print Chart tab, every window where you choose where to save or export, imports that write at once, and the chart patch set editor. Thanks to jctay on the printerknowledge forum for the suggestion.
+
+### Fixed
+- **The notice about files that were not added is clearer.** When some of the files you chose or dropped are not added to “Other readings”, the notice now names each of them and says why: already in the list, the list is full, a folder, a kind of file ChromIQ cannot read, or a file that could not be found. It used to give only a number, and only when the list was full. It now uses the app's own warning colours in every appearance instead of a blue that belongs to none of them, it no longer has a thicker line at the bottom in the neutral appearance, and the window now makes room for it, so the buttons at the bottom no longer cover the last details.
+- **An argument that starts with “=” was not quoted in the ArgyllCMS command boxes.** zsh, the shell macOS uses by default, reads a word that starts with “=” as the name of a program, so a copied command could stop with “not found”. ChromIQ now puts such an argument in quotes, and the command pastes correctly into zsh.
+
+### Changed
+- **The beta option “Darkest black” has moved to the Build Profile tab.** This option of the beta “ChromIQ profile engine (beta)” is no longer in Preferences › Beta but in the Build Profile tab (Manual mode), beside “Keep the original hue”. Each printer project keeps its own choice, you can save it as a default and in a preset, and if you had chosen “Deepest” before, that choice is carried over. Guided mode builds with Neutral. If the beta option is off, nothing changes.
+
 ## v4.3.31
 
 **For everyone updating from 4.3.30: the Measurement info window (Tools › Inspect a measurement) can now compare your measurement with other readings of the same chart, and a turned i1Profiler measurement saved on another grid is now checked by its colours and imported when they clearly match. ChromIQ no longer quits unexpectedly on macOS 27.2 when it shows the busy pointer, i1Profiler text files with decimal commas are imported, and the beta option “ChromIQ profile engine (beta)” has minor changes. Your charts, measurements and profiles do not change.**

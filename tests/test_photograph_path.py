@@ -272,7 +272,11 @@ def test_only_a_non_tiff_reaches_the_converter():
     grown a second path that skips it."""
     import inspect
     import ui.dialogs.scanin_dialog as sd
-    src = inspect.getsource(sd.ScannerProfileDialog._pick_scan)
+    # Since 4.3.33 the step after the chooser is `_use_scan`, shared with a
+    # scan dropped on the row; Browse must still go through it.
+    assert "self._use_scan(path)" in inspect.getsource(
+        sd.ScannerProfileDialog._pick_scan)
+    src = inspect.getsource(sd.ScannerProfileDialog._use_scan)
     assert "as_tiff" in src
     assert 'self._cur_shot()["source"] = picked' in src, (
         "the file the user picked must be remembered, or the outputs are "

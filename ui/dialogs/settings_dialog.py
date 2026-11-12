@@ -61,6 +61,7 @@ log = get_logger(__name__)
 
 import sys as _sys
 from core.i18n import decimal_text, tr
+from ui.file_drop import drop_hint
 
 
 # ---------------------------------------------------------------------------
@@ -2726,10 +2727,12 @@ class SettingsDialog(QDialog):
             tr("Directory containing targen, printtarg, chartread, and colprof.\n"
                "Default: {path}\n"
                "You can download the latest version from argyllcms.com."
-               ).format(path=default_argyll_bin_dir()),
+               ).format(path=default_argyll_bin_dir())
+            + "\n\n" + drop_hint("folder"),
             self,
         ))
-        ag.addLayout(path_row)
+        self._argyll_zone = self._folder_drop(path_row, ag,
+                                              self._use_argyll_dir)
 
         btn_row = QHBoxLayout()
         test_btn = QPushButton(tr("Test binaries"), self)
@@ -3386,88 +3389,12 @@ class SettingsDialog(QDialog):
         self._profile_engine_check.toggled.connect(
             self._colprof_comparison_check.setEnabled)
 
-        # THE BLACK OPTION, shown only while the engine is switched on. It
-        # stands where the Fast / Bit-exact / Maximum accuracy picker stood
-        # until 2026-11-10: only Maximum accuracy remains, so there is
-        # nothing left to pick and the switch alone decides.
-        self._black_depth_combo = NoScrollComboBox(self)
-        self._black_depth_combo.addItem(tr("Neutral (recommended)"), "neutral")
-        self._black_depth_combo.addItem(tr("Deepest"), "deepest")
-        self._black_depth_combo.setSizeAdjustPolicy(
-            NoScrollComboBox.SizeAdjustPolicy.AdjustToContents)
-        black_depth_tip = TooltipButton(
-            tr("Darkest black"),
-            tr("How the profile handles the darkest tones. This applies to "
-            "the new profile engine only.\n\n"
-            "On many printers the darkest black is not quite neutral: the "
-            "very deepest black the printer can make has a slight colour "
-            "tint, and the darkest grey that is truly neutral is a little "
-            "lighter. This option decides which of the two the profile "
-            "aims for in its colorimetric part.\n\n"
-            "  • **Neutral (recommended):** a grey ramp stays neutral from "
-            "the lightest tones down to the darkest neutral grey the "
-            "printer can make, and the darkest steps stay distinct from "
-            "each other, with or without black point compensation. Only "
-            "the very last few steps below that grey, down to pure black, "
-            "take on some of the slight tint of the printer's own black. "
-            "On our test printer that was the darkest four steps of a grey "
-            "ramp in steps of 1 L*.\n\n"
-            "  • **Deepest:** the shadows go all the way down to the "
-            "printer's own black. With Relative Colorimetric and black "
-            "point compensation switched on, this gives a deeper black than "
-            "Neutral. On our Epson ET-8550 test printer the darkest step "
-            "came out between about 1 and 2 L* darker, depending on the "
-            "program that does the printing.\n\n"
-            "**Important, please read:** use Deepest only when black point "
-            "compensation is switched ON in the program you print from (for "
-            "example Photoshop). Without black point compensation, Deepest "
-            "makes the darkest few steps print as the same black, so shadow "
-            "detail is lost there. On the test printer the darkest three or "
-            "four steps all came out as the same black. ChromIQ cannot see "
-            "that setting in your other program, so this is yours to check. "
-            "Absolute Colorimetric never uses black point compensation, so "
-            "for that intent this always applies. With Neutral the steps "
-            "stay separate either way.\n\n"
-            "**Good to know about black point compensation:** when it is "
-            "switched on, the program you print from scales the shadows "
-            "towards the printer's own black. On a printer with a tinted "
-            "black this brings a little of that tint into the deep shadows, "
-            "with either choice, and with a profile from colprof just the "
-            "same. The tint belongs to the printer's black, and no profile "
-            "can prevent it.\n\n"
-            "**What it changes, and what it does not:**\n\n"
-            "  • Only the Relative Colorimetric and Absolute Colorimetric "
-            "intents change. Perceptual and Saturation are exactly the same "
-            "with both choices.\n\n"
-            "  • Only RGB printers with a tinted black are affected, which "
-            "means the darkest neutral grey is at least 1.5 L* lighter than "
-            "the printer's own black. On a printer with a nearly neutral "
-            "black, and on every CMYK and CMY printer, both choices give "
-            "the identical profile.\n\n"
-            "**How this was checked:** the numbers above come from "
-            "measurements of the test printer, converted through LittleCMS, "
-            "the colour engine many programs use. How macOS's own colour "
-            "engine handles the black with black point compensation has not "
-            "been confirmed by a measured print yet.\n\n"
-            "After a build with Deepest, the build log tells you your "
-            "printer's black and its darkest neutral grey as L*a*b* values, "
-            "and whether anything was changed.\n\n"
-            "**Default:** Neutral."),
-            self,
-            min_width=680,
-        )
+        # "Darkest black" stood here until 2026-11-12. It is a Build
+        # Profile option now (Manual, among the engine-only rows), saved
+        # per target, as a default and in a preset (Basti, 2026-11-12;
+        # `TabProfile._m_black_combo`, settings schema 33).
         # kept by name for the tests and the on-screen drivers
         self._engine_tip = engine_tip
-        self._black_depth_tip = black_depth_tip
-        self._black_depth_cell = black_depth_cell = QWidget(self)
-        _bd_row = QHBoxLayout(black_depth_cell)
-        _bd_row.setContentsMargins(0, 0, 0, 0)
-        _bd_row.addWidget(QLabel(tr("Darkest black:"), self))
-        _bd_row.addWidget(self._black_depth_combo)
-        _bd_row.addStretch()
-        _bd_row.addWidget(black_depth_tip)
-        self._profile_engine_check.toggled.connect(
-            self._black_depth_cell.setVisible)
 
         # Both live on their own "Beta features" tab.
         self._beta_page = QWidget(self)
@@ -3485,7 +3412,6 @@ class SettingsDialog(QDialog):
         _eng_row.addWidget(engine_tip)
         _beta.addLayout(_eng_row)
         _beta.addWidget(self._colprof_comparison_cell)
-        _beta.addWidget(self._black_depth_cell)
 
         # Hexagonal charts in the scanner / camera tools (opt-in).
         self._scanner_hex_check = QCheckBox(
@@ -5676,7 +5602,8 @@ class SettingsDialog(QDialog):
         folder_browse = make_browse_button(self, tr("Select output folder"), icon="folder")
         folder_browse.clicked.connect(self._browse_folder)
         folder_row.addWidget(folder_browse)
-        gw.addLayout(folder_row)
+        self._folder_zone = self._folder_drop(folder_row, gw,
+                                              self._use_output_dir)
 
         inst_lbl = QLabel(tr(
             "Profile install folder — where “Install profile” copies a "
@@ -5699,11 +5626,12 @@ class SettingsDialog(QDialog):
                                 start_dir=self._profile_dir_edit.text()
                                 or str(icc_install_dir()))
             if d:
-                self._profile_dir_edit.setText(d)
+                self._use_profile_dir(d)
 
         inst_browse.clicked.connect(_pick_profile_dir)
         inst_row.addWidget(inst_browse)
-        gw.addLayout(inst_row)
+        self._profile_dir_zone = self._folder_drop(inst_row, gw,
+                                                   self._use_profile_dir)
 
         # Measurement sounds folder (#131). Blank = the bundled default pack;
         # point it at your own folder to add or replace sounds. The Sounds tab's
@@ -5730,11 +5658,12 @@ class SettingsDialog(QDialog):
                                 start_dir=self._sound_dir_edit.text()
                                 or str(Path.home()))
             if d:
-                self._sound_dir_edit.setText(d)
+                self._use_sound_dir(d)
 
         snd_browse.clicked.connect(_pick_sound_dir)
         snd_row.addWidget(snd_browse)
-        gw.addLayout(snd_row)
+        self._sound_dir_zone = self._folder_drop(snd_row, gw,
+                                                 self._use_sound_dir)
         v.addWidget(grp_w)
 
         grp_r = QGroupBox(tr("For reference"), page)
@@ -6367,15 +6296,10 @@ class SettingsDialog(QDialog):
         self._declutter_check.setChecked(bool(s.get("declutter_on_load", True)))
         self._splash_check.setChecked(bool(s.get("show_splash", True)))
         self._profile_engine_check.setChecked(bool(s.get("profile_engine_beta", False)))
-        from workflow.engine_builder import black_depth_setting
-        self._black_depth_combo.setCurrentIndex(
-            max(0, self._black_depth_combo.findData(black_depth_setting(s))))
         from workflow.engine_builder import colprof_comparison_setting
         self._colprof_comparison_check.setChecked(
             colprof_comparison_setting(s))
         # A no-change setChecked above may not emit toggled, so sync explicitly.
-        self._black_depth_cell.setVisible(
-            self._profile_engine_check.isChecked())
         self._colprof_comparison_check.setEnabled(
             self._profile_engine_check.isChecked())
         self._chartread_engine_check.setChecked(
@@ -6492,6 +6416,36 @@ class SettingsDialog(QDialog):
         self._margin_notify_check.setChecked(bool(s.get("margin_violation_notify", True)))
         self._sync_margin_notify_enabled()
 
+    @staticmethod
+    def _indicator_for(mode: str) -> str:
+        """This window's accent in *mode*: its checkboxes, focus rings and
+        file-drop frames (4.3.33) are all drawn in it."""
+        return accent_for("#1c1b18" if mode == "light" else "#d0d0d0", mode)
+
+    def _folder_drop(self, row, layout, use):
+        """*row* in a zone that takes one folder from the file manager, as
+        its folder button would set it (4.3.33). Only fills the field; the
+        setting is written on OK, as after the button."""
+        from ui.file_drop import FileDropZone
+        zone = FileDropZone.around(row, self, folders=True,
+                                   spacing=layout.spacing(),
+                                   accent=self._indicator_for)
+        zone.file_dropped.connect(use)
+        layout.addWidget(zone)
+        return zone
+
+    def _use_argyll_dir(self, d) -> None:
+        self._argyll_edit.setText(str(d))
+
+    def _use_output_dir(self, d) -> None:
+        self._folder_edit.setText(str(d))
+
+    def _use_profile_dir(self, d) -> None:
+        self._profile_dir_edit.setText(str(d))
+
+    def _use_sound_dir(self, d) -> None:
+        self._sound_dir_edit.setText(str(d))
+
     def _apply_indicator_theme(self, mode: str) -> None:
         """Apply the neutral indicator colour to checkboxes, line-edit focus and
         tooltip ⓘ icons for the given resolved mode ('light'/'dark').
@@ -6510,7 +6464,7 @@ class SettingsDialog(QDialog):
         # have a much darker grey — should be vice versa"). Neutral's answer is
         # its single accent, ACTION, which is what NEUTRAL_STYLESHEET already
         # paints; this dialog-scoped sheet was overriding it.
-        indicator = accent_for("#1c1b18" if mode == "light" else "#d0d0d0", mode)
+        indicator = self._indicator_for(mode)
         # Shared with the Tools dialogs so every dialog highlights controls the
         # same neutral way (checkboxes, radios and the focus ring on text/number/
         # combo inputs).
@@ -7831,8 +7785,6 @@ class SettingsDialog(QDialog):
         s.set("declutter_on_load",         self._declutter_check.isChecked())
         s.set("show_splash",               self._splash_check.isChecked())
         s.set("profile_engine_beta",       self._profile_engine_check.isChecked())
-        s.set("profile_engine_black_depth",
-              self._black_depth_combo.currentData() or "neutral")
         s.set("profile_engine_colprof_comparison",
               self._colprof_comparison_check.isChecked())
         s.set("chartread_engine",
@@ -7966,7 +7918,7 @@ class SettingsDialog(QDialog):
             start_dir=self._argyll_edit.text() or "/Applications",
         )
         if d:
-            self._argyll_edit.setText(d)
+            self._use_argyll_dir(d)
 
     def _browse_folder(self) -> None:
         d = open_dir_dialog(
@@ -7974,7 +7926,7 @@ class SettingsDialog(QDialog):
             start_dir=self._folder_edit.text() or str(Path.home()),
         )
         if d:
-            self._folder_edit.setText(d)
+            self._use_output_dir(d)
 
     def _auto_detect(self) -> None:
         detected = find_argyll_bin_path()

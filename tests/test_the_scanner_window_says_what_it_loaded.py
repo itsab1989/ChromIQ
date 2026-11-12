@@ -145,9 +145,12 @@ def test_the_window_reports_a_load_and_names_the_diagnostic():
     src = inspect.getsource(ScannerProfileDialog._say_what_was_loaded)
     assert "measurement_messages" in src
     assert "M_SCAN_LOADED" in src and "M_SCAN_DIAGNOSTIC" in src
-    # _pick_scan must actually call it, or the window is silent again.
-    assert "_say_what_was_loaded" in inspect.getsource(
+    # _pick_scan must actually call it, or the window is silent again. Since
+    # 4.3.33 through `_use_scan`, the step a dropped scan shares with Browse.
+    assert "_use_scan(path)" in inspect.getsource(
         ScannerProfileDialog._pick_scan)
+    assert "_say_what_was_loaded" in inspect.getsource(
+        ScannerProfileDialog._use_scan)
 
 
 def test_it_is_a_warning_and_not_a_refusal():

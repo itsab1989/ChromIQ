@@ -41,6 +41,10 @@ def quote_arg(arg: str, placeholders: Iterable[str] = ()) -> str:
         return text
     if _windows():
         return powershell_quote(text)
+    if text.startswith("="):
+        # zsh, the macOS default, expands a bare word that starts with `=`
+        # to a program's path (`=x` -> "x not found"); shlex leaves it bare.
+        return "'" + text.replace("'", "'\"'\"'") + "'"
     return shlex.quote(text)
 
 

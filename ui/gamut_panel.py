@@ -623,7 +623,14 @@ class GamutPanel(QWidget):
         cmp_clear.setToolTip(tr("Clear comparison profile"))
         cmp_clear.clicked.connect(self._on_clear_compare)
         cmp_row.addWidget(cmp_clear)
-        pg.addLayout(cmp_row)
+        # A profile dropped on this row is compared as Browse compares it
+        # (4.3.33), in this panel's accent.
+        from ui.file_drop import FileDropZone
+        self._compare_zone = FileDropZone.around(
+            cmp_row, profile_grp, (".icc", ".icm"), single=True,
+            guard=cmp_browse, accent=_ACCENT)
+        self._compare_zone.file_dropped.connect(self._use_compare)
+        pg.addWidget(self._compare_zone)
 
         inner_layout.addWidget(profile_grp)
 
@@ -1096,8 +1103,13 @@ class GamutPanel(QWidget):
             extra_paths=sidebar,
         )
         if path:
+            self._use_compare(path)
+
+    def _use_compare(self, path) -> None:
+        """The profile chosen with Browse, or dropped on its row."""
+        if path:
             self._compare_path = Path(path)
-            self._compare_edit.setText(path)
+            self._compare_edit.setText(str(path))
             self._compare_volume = None
             self._update_volume_labels()
             self._update_profile_header()

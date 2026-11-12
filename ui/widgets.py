@@ -5574,7 +5574,11 @@ def banner_qss(accent: str, wash: str, mode: "str | None" = None,
                 f" border: 1px solid {accent}; border-radius: 4px;"
                 f" padding: 8px 10px; }}")
     from ui import neutral_styles as _n
+    # "note": a plain notice of several lines, one equal edge all round
+    # (the Print Chart warning box's ruling); the underline stays for the
+    # one-line warning banners it was kept for.
     mark = (f" border-left: 3px solid {_n.NM_ACTION};" if kind == "error"
+            else "" if kind == "note"
             else f" border-bottom: 2px solid {_n.NM_ACTION};")
     return (f"QLabel {{ background: {_n.NM_BG_SURFACE}; color: {_n.NM_TEXT_MAIN};"
             f" border: 1px solid {_n.NM_BORDER};{mark}"

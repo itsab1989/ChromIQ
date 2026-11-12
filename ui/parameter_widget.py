@@ -343,11 +343,23 @@ class ParameterWidget(QWidget):
             self._browse_btn = make_browse_button(self, tr("Browse…"), icon=self._browse_icon)
             self._browse_btn.clicked.connect(self._browse)
             layout.addWidget(self._browse_btn)
+            # A file dropped from the file manager on this row fills the
+            # field as Browse does: the kinds Browse's filter offers first,
+            # only while Browse is enabled, in the accent of the tab the row
+            # is on (4.3.33).
+            from ui.file_drop import CONTEXT, FileDropTarget
+            self._file_drop = FileDropTarget(
+                self, self._drop_suffixes(), single=True,
+                guard=self._browse_btn, accent=CONTEXT)
+            self._file_drop.file_dropped.connect(self._use_file)
 
         # Tooltip button — honour optional `tooltip_min_width:` from YAML so a
         # parameter with extensive prose can request a wider info dialog.
         tt_title = self._param.get("tooltip_title", name)
         tt_body  = self._param.get("tooltip_body", "No description available.")
+        if self._param.get("type") == "file_path":
+            from ui.file_drop import with_drop_hint
+            tt_body = with_drop_hint(tt_body)
         tt_min_w = int(self._param.get("tooltip_min_width", 420))
         btn = TooltipButton(tt_title, tt_body, self, min_width=tt_min_w)
         self._tooltip_btn = btn
@@ -471,8 +483,20 @@ class ParameterWidget(QWidget):
             extra_paths = icc_profile_paths()
         path = open_file_dialog(self, tr("Select file"), tr(filt) if filt else "",
                                 extra_paths=extra_paths)
+        if path:
+            self._use_file(path)
+
+    def _use_file(self, path) -> None:
+        """The file chosen with Browse, or dropped on the row."""
         if path and isinstance(self._control, QLineEdit):
-            self._control.setText(path)
+            self._control.setText(str(path))
+
+    def _drop_suffixes(self) -> tuple:
+        """The kinds Browse's filter offers first (``"ICC profiles (*.icc
+        *.icm);;All files (*)"`` -> ``.icc``, ``.icm``)."""
+        import re
+        first = str(self._param.get("filter", "")).split(";;")[0]
+        return tuple("." + e.lower() for e in re.findall(r"\*\.(\w+)", first))
 
     def _make_custom_dim_control(self) -> QWidget:
         container = QWidget(self)

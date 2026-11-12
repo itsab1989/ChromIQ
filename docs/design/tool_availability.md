@@ -303,8 +303,8 @@ Still ○ in every state: it reads files and writes none.
   the date measured, the instrument and the measurement condition), Add…
   (several files at once), Remove (the selected entries), Clear all and a
   help button; up to nine other readings, ten in all; a file already in the
-  list is not added twice, and files past the ninth are not added and the
-  window says how many. Each is a reading of the same chart: a `.ti3`, a CGATS text file with XYZ or
+  list is not added twice, and files past the ninth are not added; the
+  window names each file not added and why (see the notice below). Each is a reading of the same chart: a `.ti3`, a CGATS text file with XYZ or
   L\*a\*b\* values, or an i1Profiler `.mxf`/`.cxf`, converted by the
   import's converter in a temporary folder that is removed again, in the
   measurement's own condition when the file holds it.
@@ -402,3 +402,118 @@ Still ○ in every state: it reads files and writes none.
   * Read on the GUI thread as before; each file is read once and kept, so a
     change of tolerance only recounts (`tests/test_4332_compare_several_
     readings.py`, nine others of 2000 patches well under a second).
+* **Files dropped from the file manager** (jctay, forum 150152, 2026-11-12:
+  *"would it be possible to add drag-and-drop for selecting files?"*; Basti:
+  if possible, do it). `ui/file_drop.py`, `tests/test_4332_drop_files_on_
+  measurement_info.py`.
+  * On the **Other readings** row (the list, its buttons, its label, also
+    while the list is still empty): one file or several, of the kinds Add…
+    offers (`.ti3`, `.txt`, `.mxf`, `.cxf`, any case), are added exactly as
+    Add… adds the files chosen in its window: in the order dropped, the same
+    loader and same-chart check, the same refusals in the same words, a file
+    already listed not added twice, and past nine others the rest not added,
+    all named in the same notice.
+  * On the **Measurement** row: exactly one `.ti3` opens as Browse opens it.
+    Two files or a file of another kind there are not accepted.
+  * Folders, web links, missing files and files of other kinds are left out;
+    a drag that holds nothing usable is not accepted at all (no highlight,
+    the system shows its "not allowed" pointer, nothing changes). The row's
+    help says which kinds are taken and that folders and other kinds are
+    left out.
+    It names the file manager as each platform calls it (the Finder, File
+    Explorer, "your file manager" on Linux; #130).
+  * **One notice, for Add… and for a drop alike** (the owner, 2026-11-12):
+    when a file was not added, the banner under the rows names EVERY such
+    file with its reason, one line each: already in the list, the list is
+    full (nine others), a folder, a kind ChromIQ cannot read as a reading,
+    not found on this computer. A newly added file that cannot be compared
+    is named in a second part ("Added to the list, but not compared"), and
+    its row says "not compared" as before. When every file was added and
+    compared there is no notice, and an earlier one goes. This replaces
+    4.3.31's single line "… so N of the files you chose were not added",
+    which named no file and said nothing about duplicates.
+  * **The notice wears the app's warning colours**: the cream warning box's
+    ink in Light, amber in Dark, Neutral's own grey box with one equal 1 px
+    edge all round (a multi-line box, as the Print Chart warning box; the
+    2 px underline stays on one-line banners). Until 4.3.31 this window drew
+    it, and its "RGB only" note, in a blue (`#3b82f6`) that is in no
+    appearance's palette.
+  * While a usable drag is over a row, a dashed frame with a light wash in
+    the window's accent (Neutral: the ACTION ink) is drawn over it; it goes
+    when the drag leaves or drops. Nothing under it moves.
+  * The files are loaded on the next turn of the event loop after the drop,
+    not inside it, and on the GUI thread as Add… loads them.
+  * `file:` URLs only, decoded (spaces, umlauts); `file:///C:/…` is read as
+    the drive path `C:/…` on every platform, `file://server/share/…` as
+    `//server/share/…`.
+
+### ⏳ Awaiting confirmation — Files dropped on every Browse row (4.3.32)
+
+**Confirmed by:** *nobody yet.* The owner, 2026-11-12, after the Measurement
+info drop above: drag and drop *"in the other places where safe and
+beneficial"*. `ui/file_drop.py`, `tests/test_4333_drop_files_everywhere.py`
+(one table, one line per row below).
+
+* **The rule.** A file (or folder) dropped from the file manager on a row
+  does exactly what choosing it with that row's Browse does: the same method
+  after the chooser, the same questions, refusals and checks (an import door
+  still asks into which project; a hexagonal chart is still turned away; a
+  scan before its target is still refused with the same log line; a legacy
+  flat project folder is still tidied first where Browse tidies it).
+  * Only the kinds the row's own filter names first; "All files (*)" is not
+    taken as licence. Folders only on folder rows, files only on file rows.
+    A row that shows one file takes exactly one.
+  * A greyed row, a hidden row and a window that is busy take nothing (a
+    Tools window while it runs; a tab while ArgyllCMS runs). The drag is
+    then not accepted at all: no frame, the system's "not allowed" pointer.
+  * Save choosers (the user names a new file) take no drop. Neither does a
+    row whose choice would write or start something without a question,
+    unless its Browse does the same without one. When in doubt, no drop.
+  * A file dropped on an editable path field is handled by the row (the
+    field shows the path as Browse sets it), never pasted into it as text;
+    until now an editable field could paste the file's `file://` address.
+    Plain text and web links dropped on a field still go into it.
+  * **The frame wears the accent of its own window** (the owner, 2026-11-12:
+    *"this color shall always match the accent color of the tool or the tab
+    where the drop zone is located"*): a Tools window's `ACCENT` (its
+    masthead, primary button and focus ring), a tab's `TAB_ACCENT` (the hue
+    of its step header), a window with an accent of its own (Measurement
+    info, Profile info, Soft-proof, Measurement report, the gamut panel) that
+    one; Preferences its indicator ink. Resolved through `accent_for` at
+    every drag, so Neutral shows its one ACTION ink and an appearance switch
+    while the window is open is followed.
+  * Delivered on the next turn of the event loop, never inside the drop.
+* **Rows that take a drop**: Average (list); Merge (primary, additional list); .ti1 to i1Profiler;
+  i1Profiler to .ti3; i1Profiler to .ti1; Verify against reference
+  (expected values: the row, the paste box and the file row; measured chart;
+  chart definition; profile); Verify a profile (profile, measured chart);
+  every Tools window's destination folder; Device link (source, destination,
+  abstract, calibration, image list while ticked); Apply device link (link,
+  source, image list); Scanner profile (chart, in the kind of the mode;
+  scan; .cht; reference data; scanner profile); Scanner target from a chart
+  (measurement, patch set, page TIFFs, measurement); Scanner advanced, gamut
+  source; Profile info; Soft-proof (image, printer profile, monitor
+  profile); Measurement report list; Preferences folders (ArgyllCMS,
+  output, profile install, sounds); Create Chart, Refinement profile
+  (Guided, while ticked); Measure, IMPORT file box; Check & Refine
+  (measurement, profile, gamut compare profile); Build Profile, Measurement
+  Data box (both run types, as the header's load icon), previous .cal,
+  Apply calibration .cal and input profile, gamut source (Guided, Manual);
+  every `parameters.yaml` file row (targen -c, printtarg -C/-K/-I); layout
+  panel calibration .cal and clip-strip image.
+* **Rows that take none, and why**: Measurement info's "Compare with"
+  profile or reference (not built in this round: its kinds change with the
+  combo beside it; Browse only); the masthead's Open Project and Open
+  Chart File and Create Chart's Load patch set icon (buttons, not rows; each
+  changes the whole project or builds a chart; the chart-file import rule
+  above is untouched, a .ti2 is still only imported through Open Chart
+  File); Print Chart's Load image and its preview (one wrong drop would drop
+  the loaded chart without a question); the Scanner window's "chart made
+  outside ChromIQ" .cht pages (valid only in one waiting state); Soft-proof's
+  "Other ICC profile…" (a combo entry); Reference values' installers (they
+  copy into ChromIQ's own folder, and which source is meant is ambiguous);
+  Preferences' Import layout presets and instrument driver folder (write or
+  install at once); Built-in presets' Import list and the Translations
+  window's import (write at once); every Save / Export chooser; the patch set
+  editor (its grid already uses drag for reordering, and its loaders change
+  the patches being edited without a question).

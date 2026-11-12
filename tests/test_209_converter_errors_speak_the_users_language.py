@@ -181,4 +181,7 @@ def test_the_calibration_button_offers_i1profiler_files():
     from ui.tabs.tab_profile import TabProfile
     src = inspect.getsource(TabProfile._pc_browse_ti3)
     assert "*.txt" in src and "*.mxf" in src
-    assert "_convert_calibration_measurement" in src
+    # 4.3.33: the step after the chooser is `_pc_use_ti3`, shared with a drop
+    assert "self._pc_use_ti3(p)" in src
+    assert "_convert_calibration_measurement" in inspect.getsource(
+        TabProfile._pc_use_ti3)
