@@ -706,7 +706,7 @@ class TabProfile(QWidget):
         _ht.addWidget(_load_wrap)
         _ht.addWidget(self._reveal_btn)
         self._header = TabHeader(
-            tr("STEP 04 · CREATE ICC PROFILE"), tr("Build ICC profile"), self.TAB_ACCENT, self,
+            tr("STEP 04 · CREATE ICC PROFILE"), tr("Build ICC profile"), "#37bcd6", self,
             tooltip_title=tr(_TOOLTIP_TITLE_NORMAL),
             tooltip_body=tr(_TOOLTIP_BODY_NORMAL),
             trailing_widget=_hdr_trailing,

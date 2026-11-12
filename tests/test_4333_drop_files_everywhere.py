@@ -939,3 +939,19 @@ def test_a_skipped_row_takes_no_file(rid, build, target, kind, qapp,
     finally:
         win.close()
         win.deleteLater()
+
+
+@pytest.mark.parametrize("path, cls", [
+    ("ui/tabs/tab_chart.py", "TabChart"),
+    ("ui/tabs/tab_print.py", "TabPrint"),
+    ("ui/tabs/tab_measure.py", "TabMeasure"),
+    ("ui/tabs/tab_profile.py", "TabProfile"),
+    ("ui/tabs/tab_check_refine.py", "TabCheckRefine")])
+def test_a_tabs_drop_accent_is_its_header_hue(path, cls):
+    """TAB_ACCENT, which a drop frame on the tab takes, is the hue the tab
+    hands its step header (`test_a_tab_header_keeps_its_hue` reads it)."""
+    import importlib
+    from tests.test_a_tab_header_keeps_its_hue import ROOT, _accent_argument
+    mod = importlib.import_module(path[:-3].replace("/", "."))
+    hue = _accent_argument((ROOT / path).read_text(encoding="utf-8"))
+    assert f'"{getattr(mod, cls).TAB_ACCENT}"' == hue

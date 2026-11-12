@@ -2814,7 +2814,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         _ht.setSpacing(6)
         _ht.addWidget(self._reveal_btn)
         top_layout.addWidget(TabHeader(
-            tr("STEP 03 · MEASURE CHART"), tr("Measure printed chart"), self.TAB_ACCENT, top_widget,
+            tr("STEP 03 · MEASURE CHART"), tr("Measure printed chart"), "#56d6a5", top_widget,
             tooltip_title=tr("Step 3 — Measure the print"),
             tooltip_body=(
                 tr("On this screen, your spectrophotometer reads every colour patch "

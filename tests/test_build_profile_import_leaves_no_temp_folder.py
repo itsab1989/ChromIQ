@@ -135,7 +135,11 @@ def test_the_real_door_files_its_own_copy_and_leaves_no_folder(
 def test_only_its_own_folder_is_removed():
     import inspect
     from ui.tabs.tab_profile import TabProfile
-    src = inspect.getsource(TabProfile._on_load_ti3)
+    # 4.3.33: the step after the chooser is `_use_measurement`, shared with
+    # a measurement dropped on the Measurement Data box.
+    assert "self._use_measurement(path)" in inspect.getsource(
+        TabProfile._on_load_ti3)
+    src = inspect.getsource(TabProfile._use_measurement)
     assert 'startswith("chromiq-import-")' in src
     assert 'prefix="chromiq-import-"' in inspect.getsource(
         TabProfile._convert_for_import)

@@ -6520,7 +6520,7 @@ class TabChart(QWidget):
             # back to Light or Dark. The other four tabs pass their hue
             # unwrapped (tab_print.py, tab_measure.py, tab_profile.py,
             # tab_check_refine.py) and were never affected.
-            self.TAB_ACCENT, left,
+            "#ff4573", left,
             tooltip_title=tr("Step 1 — Make a test chart"),
             tooltip_body=tr(
                 "This is where you design the sheet of colour patches your printer "

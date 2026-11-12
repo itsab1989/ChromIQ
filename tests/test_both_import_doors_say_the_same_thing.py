@@ -563,6 +563,9 @@ def test_the_check_and_refine_fallback_cannot_be_reached(house):
         "Check & Refine is no longer given a target controller, so its import "
         "door falls through to a branch that creates a project without "
         "opening it")
-    src = inspect.getsource(win._tab_check._on_browse_ti3)
+    # 4.3.33: the step after the chooser is `_use_ti3`, shared with a drop.
+    assert "self._use_ti3(path)" in inspect.getsource(
+        win._tab_check._on_browse_ti3)
+    src = inspect.getsource(win._tab_check._use_ti3)
     assert "resolve_ti3(self, _picked, self._settings)" in src, (
         "the fallback has changed; re-read T1-I before trusting this test")

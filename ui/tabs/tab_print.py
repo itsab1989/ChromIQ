@@ -812,7 +812,7 @@ class TabPrint(QWidget):
         self._reveal_btn.clicked.connect(self._reveal_folder)
         _tl.addWidget(self._reveal_btn)
         self._header = TabHeader(
-            tr("STEP 02 · PRINT CHART"), tr("Print test chart"), self.TAB_ACCENT, left,
+            tr("STEP 02 · PRINT CHART"), tr("Print test chart"), "#ffb42d", left,
             tooltip_title=_initial_tt_title,
             tooltip_body=_initial_tt_body,
             trailing_widget=_trailing,

@@ -588,7 +588,7 @@ class TabCheckRefine(QWidget):
         left_layout.setSpacing(8)
 
         left_layout.addWidget(TabHeader(
-            tr("STEP 05 · SANITY CHECK"), tr("Check & refine"), self.TAB_ACCENT, left,
+            tr("STEP 05 · SANITY CHECK"), tr("Check & refine"), "#9f82ff", left,
             tooltip_title=tr("Step 5 — Check the profile"),
             tooltip_body=tr(
                 "On this final screen you sanity-check the profile you just built. "
