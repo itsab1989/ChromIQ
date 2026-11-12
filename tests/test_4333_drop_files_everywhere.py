@@ -81,15 +81,38 @@ def drag_to(qapp, w: QWidget, mime: QMimeData, *, drop: bool = True) -> bool:
     win = w.window()
     _bring_into_view(w)
     _pump(qapp, 2)
-    if w.isVisible():
-        pos = w.mapTo(win, w.rect().center())
-        handle = win.windowHandle()
-    else:
+    if not w.isVisible():
         # A row on a page that needs a project in another run type to be
-        # shown: sent to the field itself. Qt's own notify still walks an
-        # ignored drag up to the first parent that takes drops.
-        pos = w.rect().center()
-        handle = w
+        # shown: its hidden containers are shown, so the drag still goes
+        # through the window as a real one does. (Sending a drag straight to
+        # a hidden widget crashed a worker once, gate 2026-11-12.)
+        p = w
+        while p is not None and p is not win:
+            if not p.isVisibleTo(win):
+                p.setVisible(True)
+            p = p.parentWidget()
+        _bring_into_view(w)
+        _pump(qapp, 2)
+    pos = w.mapTo(win, w.rect().center())
+    handle = win.windowHandle()
+    hit = win.childAt(pos)
+    while hit is not None and hit is not w:
+        hit = hit.parentWidget()
+    if hit is None:
+        # Deep in a collapsed section or scrolled past the test window's
+        # size: a file drag goes to the row's own drop zone instead, as the
+        # 4.3.32 Measurement info tests do; plain text to the field itself
+        # (its own handling). Never a file drag to a plain hidden widget:
+        # that crashed a worker (gate, 2026-11-12).
+        if mime.hasUrls():
+            try:
+                owner = _drop_of(w)._row
+            except AssertionError:
+                return False        # no drop zone there: nothing can take it
+        else:
+            owner = w
+        pos = owner.rect().center()
+        handle = owner
     act = Qt.DropAction.CopyAction
     btn = Qt.MouseButton.LeftButton
     mod = Qt.KeyboardModifier.NoModifier
@@ -910,6 +933,8 @@ def test_a_skipped_row_takes_no_file(rid, build, target, kind, qapp,
         f = tmp_path / f"a file{kind}"
         f.write_text("x\n", encoding="utf-8")
         w = target(win)
+        with pytest.raises(AssertionError):
+            _drop_of(w)            # no drop zone or drop target around it
         assert not drag_to(qapp, w, _mime(f))
     finally:
         win.close()

@@ -483,8 +483,7 @@ beneficial"*. `ui/file_drop.py`, `tests/test_4333_drop_files_everywhere.py`
     every drag, so Neutral shows its one ACTION ink and an appearance switch
     while the window is open is followed.
   * Delivered on the next turn of the event loop, never inside the drop.
-* **Rows that take a drop**: Measurement info, compare-with reference;
-  Average (list); Merge (primary, additional list); .ti1 to i1Profiler;
+* **Rows that take a drop**: Average (list); Merge (primary, additional list); .ti1 to i1Profiler;
   i1Profiler to .ti3; i1Profiler to .ti1; Verify against reference
   (expected values: the row, the paste box and the file row; measured chart;
   chart definition; profile); Verify a profile (profile, measured chart);
@@ -502,7 +501,9 @@ beneficial"*. `ui/file_drop.py`, `tests/test_4333_drop_files_everywhere.py`
   Apply calibration .cal and input profile, gamut source (Guided, Manual);
   every `parameters.yaml` file row (targen -c, printtarg -C/-K/-I); layout
   panel calibration .cal and clip-strip image.
-* **Rows that take none, and why**: the masthead's Open Project and Open
+* **Rows that take none, and why**: Measurement info's "Compare with"
+  profile or reference (not built in this round: its kinds change with the
+  combo beside it; Browse only); the masthead's Open Project and Open
   Chart File and Create Chart's Load patch set icon (buttons, not rows; each
   changes the whole project or builds a chart; the chart-file import rule
   above is untouched, a .ti2 is still only imported through Open Chart
