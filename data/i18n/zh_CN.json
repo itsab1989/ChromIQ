@@ -8059,5 +8059,7 @@
  "The second reading does not say under which measurement condition it was taken.": "第二次测量没有说明是在哪种测量条件下进行的。",
  "This measurement does not say under which measurement condition it was taken.": "这次测量没有说明是在哪种测量条件下进行的。",
  "Two readings belong together when their typical difference (the median ΔE₀₀ over all compared patches) is within the tolerance. ChromIQ names groups only when the split is clean: every reading in a group agrees with every other reading in it and with no reading outside it. Otherwise, or when only one reading is off, the lines by reading below judge each reading on its own.": "当两次测量的典型差异（所有比较色块的 ΔE₀₀ 中位数）在容差之内时，它们属于同一组。只有分得很干净时，ChromIQ 才会列出分组：组内每次测量都与组内其他每次测量一致，并且与组外任何测量都不一致。否则，或只有一次测量偏离时，下方按测量列出的各行会分别评判每次测量。",
- "readings {list}": "测量 {list}"
+ "readings {list}": "测量 {list}",
+ "You can also drag a measurement file (.ti3) from Finder, Explorer or another file manager and drop it on this row, and ChromIQ opens it just as the browse button does.": "你也可以从“访达”（Finder）、文件资源管理器或其他文件管理器中把测量文件（.ti3）拖到这一行上松开，ChromIQ 会像使用浏览按钮一样打开它。",
+ "You can also drag one or several reading files (.ti3, .txt, .mxf or .cxf) from Finder, Explorer or another file manager and drop them on this row, and ChromIQ adds them just as Add… does (folders and other kinds of files are left out).": "你也可以从“访达”（Finder）、文件资源管理器或其他文件管理器中把一个或多个测量文件（.ti3、.txt、.mxf 或 .cxf）拖到这一行上松开，ChromIQ 会像“添加…”一样添加它们（文件夹和其他类型的文件会被忽略）。"
 }
