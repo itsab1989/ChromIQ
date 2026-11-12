@@ -103,7 +103,7 @@ def test_spaces_and_umlauts_arrive_intact(tmp_path):
     url = QUrl.fromLocalFile(str(f))
     assert "%20" in url.toString(QUrl.ComponentFormattingOption.FullyEncoded)
     got, left = paths_from_mime(_mime(url), (".ti3",))
-    assert got == [f] and left == 0
+    assert got == [f] and left == []
     # and from the encoded text form a file manager hands over
     enc = QUrl(url.toString(QUrl.ComponentFormattingOption.FullyEncoded))
     got, _ = paths_from_mime(_mime(enc), (".ti3",))
@@ -119,7 +119,7 @@ def test_spaces_and_umlauts_arrive_intact(tmp_path):
 def test_a_windows_file_url_is_a_drive_path_on_every_platform(url, want):
     got, left = paths_from_mime(_mime(QUrl(url)), (".ti3",),
                                 check_disk=False)
-    assert left == 0 and [p.as_posix() for p in got] == [Path(want).as_posix()]
+    assert left == [] and [p.as_posix() for p in got] == [Path(want).as_posix()]
 
 
 def test_folders_links_and_other_kinds_are_left_out(tmp_path):
@@ -133,7 +133,10 @@ def test_folders_links_and_other_kinds_are_left_out(tmp_path):
     got, left = paths_from_mime(
         _mime(good, pdf, folder, gone, QUrl("https://example.org/a.ti3")),
         (".ti3", ".cxf"))
-    assert got == [good] and left == 4
+    assert got == [good]
+    assert [r for _n, r in left] == ["kind", "folder", "missing", "missing"]
+    assert [n for n, _r in left][:3] == ["notes.pdf", "folder.ti3",
+                                         "missing.ti3"]
 
 
 # ---- the Other readings row ------------------------------------------------
@@ -205,8 +208,10 @@ def test_past_the_limit_the_rest_is_not_added_and_said(qapp, a, tmp_path):
     assert len(dlg._others) == MAX_OTHER_READINGS
     assert _others(dlg) == [p.name for p in bs[:MAX_OTHER_READINGS]]
     assert dlg._banner.isVisibleTo(dlg)
-    assert ("3 of the files you chose were not added"
-            in dlg._banner.text())
+    text = dlg._banner.text()
+    assert "were not added" in text
+    for p in bs[MAX_OTHER_READINGS:]:
+        assert f"{p.name}: the list is full" in text
     dlg.deleteLater()
 
 
@@ -249,7 +254,10 @@ def test_the_highlight_goes_on_leave(qapp, a, tmp_path):
     dlg = _inspector(qapp, a)
     zone = dlg._others_zone
     ok, lit = _drag(zone, _mime(b), drop=False)
-    assert ok and lit and zone._overlay.isVisibleTo(zone)
+    assert ok and lit and zone._overlay.isVisibleTo(dlg)
+    # the frame lies just OUTSIDE the row, so it does not cut its label
+    g = zone._overlay.geometry()
+    assert g.contains(zone.geometry()) and g != zone.geometry()
     QApplication.sendEvent(zone, QDragLeaveEvent())
     assert not zone.is_highlighted() and dlg._others == []
     dlg.deleteLater()
@@ -378,3 +386,89 @@ def test_no_lambda_no_wait_cursor_in_the_drop_code():
     for meth in ("dragEnterEvent", "dragMoveEvent", "dragLeaveEvent",
                  "dropEvent"):
         assert meth in FileDropZone.__dict__
+
+
+# ---- the notice: which files, and why (the owner, 2026-11-12) --------------
+
+def test_the_notice_names_every_file_not_added_with_its_reason(qapp, a,
+                                                               tmp_path):
+    b = _write(tmp_path / "b.ti3", _noisy())
+    other = _write(tmp_path / "other chart.ti3", lambda r, f: r[:-1])
+    pdf = tmp_path / "notes.pdf"
+    pdf.write_text("x", encoding="utf-8")
+    folder = tmp_path / "More readings"
+    folder.mkdir()
+    dlg = _inspector(qapp, a)
+    dlg.add_readings([b])
+    _drag(dlg._others_zone, _mime(b, other, pdf, folder), qapp=qapp)
+    text = dlg._banner.text()
+    assert dlg._banner.isVisibleTo(dlg)
+    assert "b.ti3: this file is already in the list." in text
+    assert "notes.pdf: ChromIQ cannot use this kind of file" in text
+    assert "More readings: this is a folder." in text
+    # added but refused: named, and its row says "not compared"
+    assert "Added to the list, but not compared" in text
+    assert "•  other chart.ti3" in text
+    row = dlg._others_list.item(1).toolTip()
+    assert "other chart.ti3" in row and "not compared" in row
+    assert "—" not in text
+    dlg.deleteLater()
+
+
+def test_add_shows_the_same_notice(qapp, a, tmp_path):
+    b = _write(tmp_path / "b.ti3", _noisy())
+    dlg = _inspector(qapp, a)
+    dlg.add_readings([b, b])
+    assert "b.ti3: this file is already in the list." in dlg._banner.text()
+    dlg.deleteLater()
+
+
+def test_no_notice_when_every_file_was_used(qapp, a, tmp_path):
+    bs = [_write(tmp_path / f"r{k}.ti3", _noisy(seed=k)) for k in range(2)]
+    dlg = _inspector(qapp, a)
+    dlg.add_readings([bs[0], bs[0]])
+    assert dlg._banner.isVisibleTo(dlg)
+    _drag(dlg._others_zone, _mime(bs[1]), qapp=qapp)
+    assert not dlg._banner.isVisibleTo(dlg)
+    dlg.deleteLater()
+
+
+@pytest.mark.parametrize("appearance", ["light", "dark", "neutral"])
+def test_the_notice_wears_the_app_colours(qapp, a, tmp_path, appearance):
+    from tests.test_profile_tools import _runner, _Settings
+    from ui import neutral_styles as N
+    from ui.dialogs.ti3_info_dialog import Ti3InfoDialog
+    from ui.light_styles import LM_WARN_BG, LM_WARN_TEXT
+    from ui.styles import SPEC_AMBER
+    s = _Settings()
+    s.set("appearance", appearance)
+    dlg = Ti3InfoDialog(_runner(), s)
+    dlg.load_measurement(a)
+    b = _write(tmp_path / "b.ti3", _noisy())
+    dlg.add_readings([b, b])
+    qss = dlg._banner.styleSheet()
+    assert "3b82f6" not in qss and "59,130,246" not in qss
+    if appearance == "light":
+        assert LM_WARN_TEXT in qss and LM_WARN_BG in qss
+    elif appearance == "dark":
+        assert SPEC_AMBER in qss
+    else:
+        # four equal edges: no heavier bottom (or any side) in Neutral
+        assert f"border: 1px solid {N.NM_BORDER}" in qss
+        assert "border-bottom" not in qss and "border-left" not in qss
+    dlg.deleteLater()
+
+
+def test_the_rgb_only_note_left_the_blue_too():
+    from ui.dialogs import ti3_info_dialog as ti
+    assert "3b82f6" not in inspect.getsource(ti.Ti3InfoDialog.load_measurement)
+    assert "3b82f6" not in inspect.getsource(ti.Ti3InfoDialog.add_readings)
+
+
+def test_the_neutral_note_banner_has_four_equal_edges():
+    from ui import neutral_styles as N
+    from ui.theme import APPEARANCE_NEUTRAL
+    from ui.widgets import banner_qss
+    note = banner_qss("#000", "#fff", APPEARANCE_NEUTRAL, kind="note")
+    assert f"border: 1px solid {N.NM_BORDER}" in note
+    assert "border-bottom" not in note and "border-left" not in note

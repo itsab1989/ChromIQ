@@ -336,7 +336,11 @@ def test_more_than_the_limit_is_not_added_and_said(qapp, a, tmp_path):
     dlg.add_readings(paths)
     assert dlg._others_list.count() == MAX_OTHER_READINGS
     assert dlg._banner.isVisibleTo(dlg)
-    assert "2 of the files you chose were not added" in dlg._banner.text()
+    # each file not added is named with its reason (2026-11-12)
+    text = dlg._banner.text()
+    assert "were not added" in text
+    assert text.count(": the list is full.") == 2
+    assert text.count(": this file is already in the list.") == 3
     dlg._on_second_clear()
     assert dlg._others_list.count() == 0 and not dlg._tol_box.isVisibleTo(dlg)
     assert "Other readings of this chart" not in _texts(dlg)

@@ -44,7 +44,7 @@ from ui.dialog_sizing import pin_min_height
 from ui.dialogs.tools_dialogs import neutral_controls_qss
 from ui.fade_scroll import FadeScrollArea
 from ui.file_drop import FileDropZone
-from ui.styles import SPEC_CYAN, TEXT_DIM, TEXT_MAIN
+from ui.styles import SPEC_AMBER, SPEC_CYAN, TEXT_DIM, TEXT_MAIN
 from ui.tab_header import dialog_masthead
 from ui.tooltip_button import TooltipButton
 from ui.widgets import (
@@ -170,6 +170,7 @@ class Ti3InfoDialog(QDialog):
         self._several = None            # reading_compare.SeveralComparison
         self._refused: dict = {}        # path -> (title, body)
         self._second_error: tuple[str, str] | None = None
+        self._notice_on = False         # the banner holds add_readings' notice
         self._tolerance = DEFAULT_TOLERANCE
         # Theme-aware detail-text colours (hardcoded dark-theme greys are
         # invisible on a light background).
@@ -486,8 +487,8 @@ class Ti3InfoDialog(QDialog):
             self._analysis = None
             self._clear_grid()
             self._banner.setText(_note[0] + "\n\n" + _note[1])
-            self._banner.setStyleSheet(
-                banner_qss("#3b82f6", "rgba(59,130,246,0.10)", kind="warn"))
+            self._banner.setStyleSheet(self._notice_qss())
+            self._notice_on = False
             self._banner.setVisible(True)
             self._save_btn.setEnabled(False)
             return
@@ -729,14 +730,18 @@ class Ti3InfoDialog(QDialog):
         if paths:
             self.add_readings([Path(p) for p in paths])
 
-    def _on_readings_dropped(self, paths: "list[Path]") -> None:
+    def _on_readings_dropped(self, paths: "list[Path]",
+                             left_out: "list | None" = None) -> None:
         """Files dropped on the Other readings row: exactly what Add… does
         with the files chosen in its window (same list, same limit, same
-        duplicates rule, same loader and refusals)."""
+        duplicates rule, same loader and refusals), and what the drop could
+        not use is named in the same notice."""
         if paths:
-            self.add_readings([Path(p) for p in paths])
+            self.add_readings([Path(p) for p in paths],
+                              [tuple(x) for x in (left_out or ())])
 
-    def _on_measurement_dropped(self, paths: "list[Path]") -> None:
+    def _on_measurement_dropped(self, paths: "list[Path]",
+                                _left_out: "list | None" = None) -> None:
         """One .ti3 dropped on the Measurement row: as Browse opens it."""
         if len(paths) == 1:
             self.load_measurement(Path(paths[0]))
@@ -746,39 +751,105 @@ class Ti3InfoDialog(QDialog):
         self._others = []
         self.add_readings([Path(path)] if path else [])
 
-    def add_readings(self, paths: "list[Path]") -> None:
-        """Add *paths* to the other readings (a file already in the list is
-        not added twice) and compare again. Past MAX_OTHER_READINGS the rest
-        is not added, and the banner says how many were left out."""
+    def add_readings(self, paths: "list[Path]",
+                     left_out: "list[tuple[str, str]] | tuple" = ()) -> None:
+        """Add *paths* to the other readings and compare again.
+
+        A file already in the list is not added twice, and past
+        MAX_OTHER_READINGS the rest is not added. *left_out* is what a drop
+        could not use (``(name, reason)``, `ui.file_drop.paths_from_mime`).
+        Every file not added is then named in a notice with its reason, and
+        so is every newly added file that cannot be compared (its row says
+        "not compared"); when every file was added and compared, there is no
+        notice (4.3.32, the owner: one notice that says which files and why,
+        in the app's own colours)."""
         have = {p.resolve() for p in self._others}
-        not_added = 0
+        not_added: list[tuple[str, str]] = list(left_out)
+        added: list[Path] = []
         for p in paths:
             p = Path(p)
             if p.resolve() in have:
+                not_added.append((p.name, "duplicate"))
                 continue
             if len(self._others) >= MAX_OTHER_READINGS:
-                not_added += 1
+                not_added.append((p.name, "full"))
                 continue
             self._others.append(p)
+            added.append(p)
             have.add(p.resolve())
         self._readings_changed()
-        if not_added:
-            if not_added == 1:
-                text = tr(
-                    "ChromIQ compares up to {max} other readings at once, so "
-                    "1 of the files you chose was not added. Remove a reading "
-                    "from the list to make room for another one.").format(
-                    max=MAX_OTHER_READINGS)
-            else:
-                text = tr(
-                    "ChromIQ compares up to {max} other readings at once, so "
-                    "{n} of the files you chose were not added. Remove a "
-                    "reading from the list to make room for others.").format(
-                    max=MAX_OTHER_READINGS, n=not_added)
-            self._banner.setText(text)
-            self._banner.setStyleSheet(
-                banner_qss("#3b82f6", "rgba(59,130,246,0.10)", kind="warn"))
+        refused = [p.name for p in added if p in self._refused]
+        if not_added or refused:
+            self._banner.setText(self._not_added_text(not_added, refused))
+            self._banner.setStyleSheet(self._notice_qss())
             self._banner.setVisible(True)
+            self._notice_on = True
+        elif self._notice_on:
+            self._banner.setVisible(False)
+            self._notice_on = False
+        if self.isVisible():
+            # The notice is a row of its own: room for it comes out of the
+            # details, never from under the bottom buttons (measured on
+            # screen 2026-11-12: the buttons covered the last detail rows).
+            self._fit_details_floor()
+
+    @staticmethod
+    def _not_added_text(not_added, refused) -> str:
+        """The notice: each file not added with its reason, then each added
+        file that cannot be compared."""
+        why = {
+            "duplicate": tr("{name}: this file is already in the list."),
+            "full": tr(
+                "{name}: the list is full. ChromIQ compares up to {max} other "
+                "readings at once, so remove a reading from the list to make "
+                "room for this one."),
+            "folder": tr(
+                "{name}: this is a folder. Open it and drop the reading files "
+                "inside it instead."),
+            "kind": tr(
+                "{name}: ChromIQ cannot use this kind of file as a reading. "
+                "It reads measurement files (.ti3), CGATS text files (.txt) "
+                "and i1Profiler measurements (.mxf or .cxf)."),
+            "missing": tr(
+                "{name}: ChromIQ could not find this file on this computer."),
+        }
+        parts = []
+        if not_added:
+            lines = [tr("Some of the files you chose or dropped were not "
+                        "added:")]
+            for name, reason in not_added:
+                lines.append("•  " + why.get(reason, why["missing"]).format(
+                    name=name, max=MAX_OTHER_READINGS))
+            parts.append("\n".join(lines))
+        if refused:
+            lines = [tr(
+                "Added to the list, but not compared: the list marks these "
+                "as “not compared”, and the details below explain why.")]
+            lines += ["•  " + name for name in refused]
+            parts.append("\n".join(lines))
+        return "\n\n".join(parts)
+
+    def _notice_qss(self) -> str:
+        """A notice in the app's own warning colours, as the Print Chart
+        tab's notes and the Profile info window's warnings: amber in Dark,
+        the cream warning box's ink in Light, Neutral's own shape. Not the
+        blue #3b82f6 this window used until 4.3.31, which is in no
+        appearance's palette (the owner, 2026-11-12)."""
+        from ui.light_styles import LM_WARN_BG, LM_WARN_TEXT
+        from ui.theme import APPEARANCE_NEUTRAL, by_mode, resolve_mode
+        mode = resolve_mode(self._settings.get("appearance", "auto"))
+        accent, wash = by_mode((LM_WARN_TEXT, LM_WARN_BG),
+                               (SPEC_AMBER, "rgba(255,180,45,0.12)"),
+                               (LM_WARN_TEXT, LM_WARN_BG), mode)
+        # FOUR EQUAL EDGES IN NEUTRAL. `banner_qss` marks a Neutral warning
+        # with a 2 px underline, kept on purpose for ONE-LINE banners
+        # (tests/test_neutral_ground_and_rule.py); this notice runs to
+        # several lines, where the owner reads the heavier bottom as a
+        # fault, as on the Print Chart warning box ("the bottom line of this
+        # same info box is wider than the others", 2026-11-12). So it takes
+        # the Print Chart box's ruling: one 1 px edge all round.
+        kind = "note" if mode == APPEARANCE_NEUTRAL else "warn"
+        return banner_qss(accent, wash, mode=mode, kind=kind)
 
     def remove_readings(self, rows: "list[int]") -> None:
         drop = set(rows)
