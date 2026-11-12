@@ -685,18 +685,20 @@ class _ToolDialogBase(WorkAreaClamped, QDialog):
 
     def _drop_row(self, row: "QHBoxLayout", layout, suffixes, use, *,
                   several: bool = False, guard=None,
-                  remember: bool = True) -> FileDropZone:
+                  remember: bool = True, declutter=None) -> FileDropZone:
         """Put *row* (a layout not yet added) into a drop zone, add the zone
         to *layout* where the row would have gone, and hand a dropped file to
         *use*: the very method the row's Browse calls with the file it was
         given (``use(path)``, or for a list ``use(paths)``). *remember*: as
         `_pick_input_file`, the file's folder is where the next Browse
-        opens. Refused while the tool runs, and while *guard* says no."""
+        opens. Refused while the tool runs, and while *guard* says no.
+        *declutter*: the settings, for a row whose Browse tidies a legacy
+        project folder first (``declutter_settings``)."""
         spacing = layout.spacing() if layout is not None else None
         zone = FileDropZone.around(
             row, self, suffixes, single=not several, spacing=spacing,
             guard=(self._not_busy,) + ((guard,) if guard is not None else ()),
-            colour=self._accent)
+            accent=self.ACCENT, declutter=declutter)
         if remember:
             zone.files_dropped.connect(self._remember_dropped)
         if several:
@@ -781,7 +783,7 @@ class _OutputRow(QWidget):
         busy = getattr(parent, "_not_busy", None)
         self._drop = FileDropTarget(
             self, folders=True, guard=busy,
-            colour=getattr(parent, "_accent", None))
+            accent=getattr(parent, "ACCENT", None))
         self._drop.file_dropped.connect(self._use_dir)
 
     def _browse(self) -> None:
@@ -872,7 +874,7 @@ class AverageMeasurementsDialog(_ToolDialogBase):
         self._content.addWidget(self._list)
         # Files dropped on the list are added as Add… adds them (4.3.33).
         self._list_drop = FileDropTarget(
-            self._list, (".ti3",), guard=self._not_busy, colour=self._accent)
+            self._list, (".ti3",), guard=self._not_busy, accent=self.ACCENT)
         self._list_drop.files_dropped.connect(self._remember_dropped)
         self._list_drop.files_dropped.connect(self._use_files)
 
@@ -1107,7 +1109,7 @@ class MergeMeasurementsDialog(_ToolDialogBase):
         self._list.setMinimumHeight(90)
         self._content.addWidget(self._list)
         self._list_drop = FileDropTarget(
-            self._list, (".ti3",), guard=self._not_busy, colour=self._accent)
+            self._list, (".ti3",), guard=self._not_busy, accent=self.ACCENT)
         self._list_drop.files_dropped.connect(self._remember_dropped)
         self._list_drop.files_dropped.connect(self._use_additional)
 
@@ -2129,7 +2131,7 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
         self._content.addWidget(self._ref_edit)
         self._ref_edit_drop = FileDropTarget(
             self._ref_edit, _REF_SUFFIXES, single=True, guard=self._not_busy,
-            colour=self._accent)
+            accent=self.ACCENT)
         self._ref_edit_drop.files_dropped.connect(self._remember_dropped)
         self._ref_edit_drop.file_dropped.connect(self._use_reference_file)
 
@@ -2153,7 +2155,7 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
         self._content.addWidget(self._ref_file_row)
         self._ref_row_drop = FileDropTarget(
             self._ref_file_row, _REF_SUFFIXES, single=True,
-            guard=self._not_busy, colour=self._accent)
+            guard=self._not_busy, accent=self.ACCENT)
         self._ref_row_drop.files_dropped.connect(self._remember_dropped)
         self._ref_row_drop.file_dropped.connect(self._use_reference_file)
 

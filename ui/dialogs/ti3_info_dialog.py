@@ -212,7 +212,7 @@ class Ti3InfoDialog(QDialog):
             "drop it on this row, and ChromIQ opens it just as the browse "
             "button does.").format(manager=file_manager_name())
         self._pick_zone = FileDropZone(self, MEASUREMENT_DROP_SUFFIXES,
-                                       single=True)
+                                       single=True, accent=_ACCENT)
         self._pick_zone.files_dropped.connect(self._on_measurement_dropped)
         pick = QHBoxLayout(self._pick_zone)
         pick.setContentsMargins(0, 0, 0, 0)
@@ -412,13 +412,9 @@ class Ti3InfoDialog(QDialog):
         # Use the cyan masthead accent (not the neutral indicator) for the
         # focus ring, so a highlighted field matches the rest of the dialog.
         self.setStyleSheet(neutral_controls_qss(_ACCENT, popup=_ACCENT))
-        # The drop highlight in this window's accent; in Neutral the one
-        # ACTION ink, as every accent surface there (`accent_for`).
-        from ui.theme import accent_for
-        drop_colour = accent_for(
-            _ACCENT, resolve_mode(self._settings.get("appearance", "auto")))
-        for zone in (self._pick_zone, self._others_zone):
-            zone.set_highlight_colour(drop_colour)
+        # The drop highlight is this window's accent (_ACCENT, the focus
+        # ring's), resolved at every drag for the appearance on screen; in
+        # Neutral the one ACTION ink (`ui.file_drop`, `accent_for`).
 
     # ------------------------------------------------------------------
     def _resolve_text_colors(self) -> tuple[str, str]:
@@ -606,7 +602,8 @@ class Ti3InfoDialog(QDialog):
         # The app's multi-file list (Tools > Average / Merge): a list with
         # Add… and Remove under it, styled by the app's own QListWidget rule
         # (ui/styles.py); here in this window's "Label: field  (i)" row.
-        self._others_zone = FileDropZone(self, READING_DROP_SUFFIXES)
+        self._others_zone = FileDropZone(self, READING_DROP_SUFFIXES,
+                                         accent=_ACCENT)
         self._others_zone.files_dropped.connect(self._on_readings_dropped)
         row = QHBoxLayout(self._others_zone)
         row.setContentsMargins(0, 0, 0, 0)

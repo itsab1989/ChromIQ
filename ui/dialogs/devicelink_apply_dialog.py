@@ -214,7 +214,7 @@ class DeviceLinkApplyDialog(_ToolDialogBase):
         # (4.3.33).
         self._image_drop = FileDropTarget(
             self._image_list, _IMG_SUFFIXES, guard=self._not_busy,
-            colour=self._accent)
+            accent=self.ACCENT)
         self._image_drop.files_dropped.connect(self._use_images)
 
         _COMPACT = "QPushButton { min-height: 24px; max-height: 24px; padding: 2px 12px; }"

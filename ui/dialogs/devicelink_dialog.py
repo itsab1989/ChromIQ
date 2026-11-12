@@ -439,7 +439,7 @@ class DeviceLinkDialog(_ToolDialogBase):
         # and only while that button is (the tick above) (4.3.33).
         self._image_drop = FileDropTarget(
             self._image_list, _IMG_SUFFIXES,
-            guard=(self._not_busy, self._img_add), colour=self._accent)
+            guard=(self._not_busy, self._img_add), accent=self.ACCENT)
         self._image_drop.files_dropped.connect(self._use_images)
 
         # Detail = presets + a "Custom…" entry that reveals a raw 0–100 spinner.

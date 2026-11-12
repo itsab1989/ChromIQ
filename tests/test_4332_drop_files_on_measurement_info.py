@@ -265,16 +265,19 @@ def test_the_highlight_goes_on_leave(qapp, a, tmp_path):
 
 @pytest.mark.parametrize("appearance, want", [
     ("light", "#37bcd6"), ("dark", "#37bcd6"), ("neutral", None)])
-def test_the_highlight_takes_the_window_accent(qapp, appearance, want):
+def test_the_highlight_takes_the_window_accent(qapp, appearance, want,
+                                              monkeypatch):
+    # 4.3.33: resolved at every drag for the appearance on screen.
     from tests.test_profile_tools import _runner, _Settings
-    from ui import neutral_styles
+    from ui import neutral_styles, theme
     from ui.dialogs.ti3_info_dialog import Ti3InfoDialog
     s = _Settings()
     s.set("appearance", appearance)
     dlg = Ti3InfoDialog(_runner(), s)
+    monkeypatch.setattr(theme, "active_mode", lambda *a: appearance)
     want = want or neutral_styles.NM_ACTION
     for zone in (dlg._pick_zone, dlg._others_zone):
-        assert zone._overlay.colour.lower() == want.lower()
+        assert zone.highlight_colour().lower() == want.lower()
     dlg.deleteLater()
 
 

@@ -282,12 +282,21 @@ class _Drops(QObject):
         self._fixed_colour = True
         self._overlay.update()
 
+    def highlight_colour(self) -> str:
+        """The colour the frame is drawn in NOW: the row's window or tab
+        accent, resolved for the appearance on screen at this moment (so an
+        appearance switch while the window is open is followed), Neutral's
+        one ACTION ink there, as every accent element in the app
+        (`ui.theme.accent_for`)."""
+        if self._fixed_colour or not self._accent:
+            return self._overlay.colour
+        from ui.theme import accent_for
+        return accent_for(self._accent)
+
     def show_highlight(self, on: bool) -> None:
         self._lit = on
         if on:
-            if not self._fixed_colour and self._accent:
-                from ui.theme import accent_for
-                self._overlay.colour = accent_for(self._accent)
+            self._overlay.colour = self.highlight_colour()
             self.place_overlay()
             self._overlay.raise_()
             self._overlay.show()
@@ -431,6 +440,9 @@ class FileDropZone(QWidget):
 
     def is_highlighted(self) -> bool:
         return self._drops._lit
+
+    def highlight_colour(self) -> str:
+        return self._drops.highlight_colour()
 
     def take_file_drags_from(self, *widgets: QWidget) -> None:
         for w in widgets:

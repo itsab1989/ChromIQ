@@ -114,6 +114,9 @@ class Row:
     editable: "Callable | None" = None  # (win) -> its editable field
     prepare: "Callable | None" = None   # (win) -> make the row visible
     extra_patches: dict = field(default_factory=dict)
+    # the accent the window's own accent elements are painted from (its
+    # masthead, primary button and focus ring), before `accent_for`
+    accent: Callable = lambda w: type(w).ACCENT
 
 
 def _tools(name):
@@ -271,6 +274,100 @@ ROWS += [
 ]
 
 
+_SC = "ui.dialogs.scanin_dialog"
+_ST = "ui.dialogs.scanin_target_dialog"
+
+
+def _scanner(settings):
+    from ui.dialogs.scanin_dialog import ScannerProfileDialog
+    return ScannerProfileDialog(_runner(), settings)
+
+
+def _scanin_target(settings):
+    from ui.dialogs.scanin_target_dialog import ScaninTargetDialog
+    return ScaninTargetDialog(settings)
+
+
+def _printer_on(w):
+    w._printer_cb.setChecked(True)
+
+
+def _standard_other(w):
+    w._mode_standard.setChecked(True)
+    w._target_combo.setCurrentIndex(w._target_combo.count() - 1)
+
+
+def _i1p_mode(w):
+    for name in ("_mode_i1p", "_i1p_radio", "_rb_i1p"):
+        rb = getattr(w, name, None)
+        if rb is not None:
+            rb.setChecked(True)
+            return
+    w._panel_i1p.setVisible(True)
+
+
+ROWS += [
+    # -- Scanner profile (R25-R29) ---------------------------------------------
+    Row("scanner-chart", _scanner, _cls(_SC, "ScannerProfileDialog"),
+        "_set_chart", lambda w: w._ti3_field, lambda w: w._pick_chart(),
+        _SC + ":open_file_dialog", (".ti3",), bad=".ti2", closed=_busy),
+    Row("scanner-chart-printer-mode", _scanner,
+        _cls(_SC, "ScannerProfileDialog"), "_set_chart",
+        lambda w: w._ti3_field, lambda w: w._pick_chart(),
+        _SC + ":open_file_dialog", (".ti2",), bad=".ti3", closed=_busy,
+        prepare=_printer_on),
+    Row("scanner-scan", _scanner, _cls(_SC, "ScannerProfileDialog"),
+        "_on_scan_dropped", lambda w: w._scan_field, None,
+        _SC + ":open_file_dialog", (".tif", ".jpg", ".png"), closed=_busy),
+    Row("scanner-cht", _scanner, _cls(_SC, "ScannerProfileDialog"),
+        "_use_cht", lambda w: w._cht_field, lambda w: w._pick_cht(),
+        _SC + ":open_file_dialog", (".cht",), closed=_busy,
+        prepare=_standard_other),
+    Row("scanner-reference", _scanner, _cls(_SC, "ScannerProfileDialog"),
+        "_use_ref", lambda w: w._ref_field, lambda w: w._pick_ref(),
+        _SC + ":open_file_dialog", (".cie", ".txt", ".ti3", ".cxf"),
+        closed=_busy, prepare=_standard_other),
+    Row("scanner-printer-scanner-profile", _scanner,
+        _cls(_SC, "ScannerProfileDialog"), "_use_scanner_profile",
+        lambda w: w._printer_prof_field, lambda w: w._pick_scanner_profile(),
+        _SC + ":open_file_dialog", (".icc", ".icm"), closed=_busy,
+        prepare=_printer_on),
+    # -- Scanner target from a chart (R31-R34) --------------------------------
+    Row("scanin-target-ti3", _scanin_target, _cls(_ST, "ScaninTargetDialog"),
+        "_use_ti3", lambda w: w._ti3_field, lambda w: w._pick_ti3(),
+        _ST + ":open_file_dialog", (".ti3",), closed=_busy),
+    Row("scanin-target-patch-set", _scanin_target,
+        _cls(_ST, "ScaninTargetDialog"), "_use_pset",
+        lambda w: w._pset_field, lambda w: w._pick_pset(),
+        _ST + ":open_file_dialog", (".ti1", ".txt", ".pxf"), closed=_busy,
+        prepare=_i1p_mode),
+    Row("scanin-target-pages", _scanin_target,
+        _cls(_ST, "ScaninTargetDialog"), "_use_tiffs",
+        lambda w: w._tiff_field, lambda w: w._pick_tiffs(),
+        _ST + ":open_files_dialog", (".tif", ".tiff"), several=True,
+        closed=_busy, prepare=_i1p_mode),
+    Row("scanin-target-measurement", _scanin_target,
+        _cls(_ST, "ScaninTargetDialog"), "_use_meas",
+        lambda w: w._meas_field, lambda w: w._pick_meas(),
+        _ST + ":open_file_dialog", (".ti3", ".mxf", ".txt", ".cxf"),
+        closed=_busy, prepare=_i1p_mode),
+    # -- Scanner advanced: gamut source (R35) -----------------------------------
+    Row("scanner-advanced-gamut", lambda s: _scanner_adv(),
+        _cls("ui.dialogs.scanner_colprof", "ScannerAdvancedDialog"),
+        "_use_gamut", lambda w: w._gam_path, lambda w: w._browse_gamut(),
+        "ui.dialogs.scanner_colprof:open_file_dialog", (".icc", ".icm"),
+        closed=lambda w: w._gam_mode.setCurrentIndex(0),
+        prepare=lambda w: w._gam_mode.setCurrentIndex(1),
+        editable=lambda w: w._gam_path,
+        accent=lambda w: __import__("ui.styles").styles.SPEC_GREEN),
+]
+
+
+def _scanner_adv():
+    from ui.dialogs.scanner_colprof import ScannerAdvancedDialog
+    return ScannerAdvancedDialog({}, printer=True)
+
+
 # ---------------------------------------------------------------------------
 # the harness
 # ---------------------------------------------------------------------------
@@ -335,9 +432,15 @@ def test_a_dropped_file_reaches_what_browse_reaches(row, qapp, tmp_path,
             good = _files(tmp_path, row, 2 if row.several else 1)
         chosen = ([str(p) for p in good] if row.several else str(good[0]))
         _choose_with_browse(row, monkeypatch, chosen)
-        row.browse(win)
-        assert rec.calls, "Browse did not reach the handler"
-        by_browse = rec.calls[-1]
+        if row.browse is None:
+            # Browse and the drop share the step after the chooser in a
+            # method of their own; the drop is pinned to reach it with the
+            # file, Browse is pinned by `test_the_scan_row_*` below.
+            by_browse = _norm(chosen)
+        else:
+            row.browse(win)
+            assert rec.calls, "Browse did not reach the handler"
+            by_browse = rec.calls[-1]
         rec.calls.clear()
         field = row.drop_on(win)
         before = field.text() if isinstance(field, QLineEdit) else None
@@ -407,6 +510,47 @@ def test_plain_text_still_drops_into_an_editable_field(row, qapp,
                 else edit.text())
         assert "typed by hand" in text
         assert rec.calls == []
+    finally:
+        win.close()
+        win.deleteLater()
+
+
+def _drop_of(w):
+    """The drop zone or drop target that owns the row *w* sits in."""
+    from PyQt6.QtCore import Qt as _Qt
+    from ui.file_drop import FileDropZone, _Drops
+    while w is not None:
+        if isinstance(w, FileDropZone):
+            return w._drops
+        for d in w.findChildren(
+                _Drops, options=_Qt.FindChildOption.FindDirectChildrenOnly):
+            return d
+        w = w.parentWidget()
+    raise AssertionError("no drop zone around the row")
+
+
+@pytest.mark.parametrize("appearance", ["light", "dark", "neutral"])
+@pytest.mark.parametrize("row", ROWS, ids=[r.id for r in ROWS])
+def test_the_highlight_is_the_accent_of_its_own_window(row, appearance, qapp,
+                                                       tmp_path, monkeypatch):
+    """The owner, 2026-11-12: the frame always matches the accent of the
+    tool or tab it is in. Compared with what the window's own accent
+    elements are painted from, through the same `accent_for`, for the
+    appearance on screen at the moment of the drag."""
+    from ui import theme
+    win, _rec = _open(row, monkeypatch, qapp)
+    try:
+        monkeypatch.setattr(theme, "active_mode", lambda *a: appearance)
+        want = theme.accent_for(row.accent(win), appearance).lower()
+        drops = _drop_of(row.drop_on(win))
+        assert drops.highlight_colour().lower() == want
+        if row.folder:
+            good = [tmp_path / "f"]
+            good[0].mkdir()
+        else:
+            good = _files(tmp_path, row)
+        assert drag_to(qapp, row.drop_on(win), _mime(*good), drop=False)
+        assert drops._overlay.colour.lower() == want
     finally:
         win.close()
         win.deleteLater()
