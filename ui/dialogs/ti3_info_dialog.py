@@ -801,6 +801,10 @@ class Ti3InfoDialog(QDialog):
         floor and the bottom buttons covered the last detail rows."""
         kw = dict(min_width=720, wrap_labels=(self._body, self._banner),
                   inner_margins=self._inner.contentsMargins())
+        # Unpin first: a label's heightForWidth never answers below its own
+        # minimum, so a short notice after a long one kept the long one's
+        # height (measured on screen 2026-11-12: two lines in a box of ten).
+        self._banner.setMinimumHeight(0)
         pin_min_height(self, **kw)
         self._fit_details_floor()
         pin_min_height(self, **kw)

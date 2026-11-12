@@ -498,3 +498,24 @@ def test_a_long_notice_does_not_put_the_buttons_over_the_details(qapp, a,
     assert banner_h >= dlg._banner.heightForWidth(dlg._banner.width()) - 1
     dlg.close()
     dlg.deleteLater()
+
+
+def test_a_short_notice_after_a_long_one_is_short(qapp, a, tmp_path):
+    """Measured on screen 2026-11-12: after a notice of ten lines, a notice
+    of two kept the ten-line box."""
+    bs = [_write(tmp_path / f"r{k:02d}.ti3", _noisy(seed=k))
+          for k in range(MAX_OTHER_READINGS + 4)]
+    dlg = _inspector(qapp, a)
+    dlg.resize(1040, 900)
+    dlg.show()
+    qapp.processEvents()
+    dlg.add_readings(bs + bs[:4])
+    qapp.processEvents()
+    long_h = dlg._banner.height()
+    dlg.add_readings(bs[:1])
+    for _ in range(3):
+        qapp.processEvents()
+    short_h = dlg._banner.height()
+    assert short_h < long_h / 2
+    dlg.close()
+    dlg.deleteLater()
