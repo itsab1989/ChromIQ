@@ -420,6 +420,8 @@ Still ○ in every state: it reads files and writes none.
     the system shows its "not allowed" pointer, nothing changes). The row's
     help says which kinds are taken and that folders and other kinds are
     left out.
+    It names the file manager as each platform calls it (the Finder, File
+    Explorer, "your file manager" on Linux; #130).
   * **One notice, for Add… and for a drop alike** (the owner, 2026-11-12):
     when a file was not added, the banner under the rows names EVERY such
     file with its reason, one line each: already in the list, the list is

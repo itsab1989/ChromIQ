@@ -205,10 +205,12 @@ class Ti3InfoDialog(QDialog):
         # --- File picker row ----------------------------------------------
         # A .ti3 dragged from the file manager onto this row opens as Browse
         # opens it (4.3.32, jctay 150152); `ui/file_drop.py`.
+        # The file manager by its own name on each platform (#130, Knut).
+        from core.platform_paths import file_manager_name
         drop_tip = tr(
-            "You can also drag a measurement file (.ti3) from Finder, "
-            "Explorer or another file manager and drop it on this row, and "
-            "ChromIQ opens it just as the browse button does.")
+            "You can also drag a measurement file (.ti3) from {manager} and "
+            "drop it on this row, and ChromIQ opens it just as the browse "
+            "button does.").format(manager=file_manager_name())
         self._pick_zone = FileDropZone(self, MEASUREMENT_DROP_SUFFIXES,
                                        single=True)
         self._pick_zone.files_dropped.connect(self._on_measurement_dropped)
@@ -595,11 +597,12 @@ class Ti3InfoDialog(QDialog):
             "readings, and no profile.").format(max=MAX_OTHER_READINGS)
         # Files dragged from the file manager onto this row are added as
         # Add… adds them (4.3.32, jctay 150152); `ui/file_drop.py`.
+        from core.platform_paths import file_manager_name
         tip += "\n\n" + tr(
             "You can also drag one or several reading files (.ti3, .txt, "
-            ".mxf or .cxf) from Finder, Explorer or another file manager and "
-            "drop them on this row, and ChromIQ adds them just as Add… does "
-            "(folders and other kinds of files are left out).")
+            ".mxf or .cxf) from {manager} and drop them on this row, and "
+            "ChromIQ adds them just as Add… does (folders and other kinds of "
+            "files are left out).").format(manager=file_manager_name())
         # The app's multi-file list (Tools > Average / Merge): a list with
         # Add… and Remove under it, styled by the app's own QListWidget rule
         # (ui/styles.py); here in this window's "Label: field  (i)" row.

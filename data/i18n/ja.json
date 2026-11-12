@@ -8058,13 +8058,13 @@
  "This measurement does not say under which measurement condition it was taken.": "この測定には、どの測定条件で測ったかが記されていません。",
  "Two readings belong together when their typical difference (the median ΔE₀₀ over all compared patches) is within the tolerance. ChromIQ names groups only when the split is clean: every reading in a group agrees with every other reading in it and with no reading outside it. Otherwise, or when only one reading is off, the lines by reading below judge each reading on its own.": "2 つの測定は、典型的な差（比較したすべてのパッチにおける ΔE₀₀ の中央値）が許容値以内のときに同じ仲間とみなされます。ChromIQ がグループを示すのは、きれいに分かれるときだけです。つまり、グループ内のどの測定も、そのグループ内のほかのすべての測定と一致し、グループ外のどの測定とも一致しない場合です。そうでない場合や、1 つだけ外れている場合は、下の測定別の行が各測定を個別に判定します。",
  "readings {list}": "測定 {list}",
- "You can also drag a measurement file (.ti3) from Finder, Explorer or another file manager and drop it on this row, and ChromIQ opens it just as the browse button does.": "測定ファイル（.ti3）は、Finder やエクスプローラーなどのファイルマネージャーからこの行にドラッグ＆ドロップすることもできます。参照ボタンで選んだときとまったく同じように開きます。",
- "You can also drag one or several reading files (.ti3, .txt, .mxf or .cxf) from Finder, Explorer or another file manager and drop them on this row, and ChromIQ adds them just as Add… does (folders and other kinds of files are left out).": "測定ファイル（.ti3、.txt、.mxf、.cxf）は、Finder やエクスプローラーなどのファイルマネージャーからこの行に 1 つでも複数でもドラッグ＆ドロップできます。「追加…」とまったく同じように追加されます（フォルダーやほかの種類のファイルは除外されます）。",
  "Some of the files you chose or dropped were not added:": "選んだファイルまたはドロップしたファイルのうち、次のものは追加されませんでした：",
  "{name}: this file is already in the list.": "{name}：このファイルはすでにリストにあります。",
  "{name}: the list is full. ChromIQ compares up to {max} other readings at once, so remove a reading from the list to make room for this one.": "{name}：リストがいっぱいです。ChromIQ が一度に比較できる別の測定は最大 {max} 件までです。このファイルを入れるには、リストから測定を 1 つ削除してください。",
  "{name}: this is a folder. Open it and drop the reading files inside it instead.": "{name}：これはフォルダーです。フォルダーを開き、中の測定ファイルをドロップしてください。",
  "{name}: ChromIQ cannot use this kind of file as a reading. It reads measurement files (.ti3), CGATS text files (.txt) and i1Profiler measurements (.mxf or .cxf).": "{name}：この種類のファイルは測定として使えません。ChromIQ が読めるのは、測定ファイル（.ti3）、CGATS テキストファイル（.txt）、i1Profiler の測定（.mxf または .cxf）です。",
  "{name}: ChromIQ could not find this file on this computer.": "{name}：このコンピューター上でこのファイルが見つかりませんでした。",
- "Added to the list, but not compared: the list marks these as “not compared”, and the details below explain why.": "リストには追加されましたが、比較されていません。リストでは「比較なし」と表示され、下の詳細にその理由が説明されています。"
+ "Added to the list, but not compared: the list marks these as “not compared”, and the details below explain why.": "リストには追加されましたが、比較されていません。リストでは「比較なし」と表示され、下の詳細にその理由が説明されています。",
+ "You can also drag a measurement file (.ti3) from {manager} and drop it on this row, and ChromIQ opens it just as the browse button does.": "測定ファイル（.ti3）は、{manager}からこの行にドラッグ＆ドロップすることもできます。参照ボタンで選んだときとまったく同じように開きます。",
+ "You can also drag one or several reading files (.ti3, .txt, .mxf or .cxf) from {manager} and drop them on this row, and ChromIQ adds them just as Add… does (folders and other kinds of files are left out).": "測定ファイル（.ti3、.txt、.mxf、.cxf）は、{manager}からこの行に 1 つでも複数でもドラッグ＆ドロップできます。「追加…」とまったく同じように追加されます（フォルダーやほかの種類のファイルは除外されます）。"
 }

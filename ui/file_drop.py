@@ -1,4 +1,4 @@
-"""Files dropped from Finder, Explorer or a Linux file manager (4.3.32,
+"""Files dropped from the platform's file manager (4.3.32,
 jctay, forum post 150152: "would it be possible to add drag-and-drop for
 selecting files?").
 
