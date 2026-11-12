@@ -562,6 +562,9 @@ class ProfileParams:
     # "Keep the original hue" (2026-11-11): "argyll" (off, the default) or
     # "kept" (BuildSettings.hue_rendering; workflow/profile_engine/hue_keep.py)
     hue_rendering: str = "argyll"
+    # "Darkest black" (2026-11-12, an engine-only Build Profile row since
+    # then): "neutral" (the default) or "deepest" (BuildSettings.black_depth)
+    black_depth: str = "neutral"
 
 
 class ProfileBuilder:

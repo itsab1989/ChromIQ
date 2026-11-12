@@ -67,6 +67,7 @@ HEAVY_TESTS: tuple[str, ...] = (
     "tests/test_engine_ucs.py::test_build_with_ucs_candidate",
     "tests/test_benchmarks_research_v31.py::test_ncq_runs_on_a_real_seven_ink_set_through_its_proxy",
     "tests/test_the_new_profile_engine_is_one_switch.py::test_a_real_build_without_colprof_stops_and_leaves_no_profile",
+    "tests/test_darkest_black_is_a_build_profile_option.py::test_the_tabs_choice_builds_the_same_bytes_as_the_old_preference",
 )
 
 #: Tests that take longer than the bound in the snapshot and stay in the

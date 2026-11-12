@@ -247,9 +247,9 @@ DEFAULTS: dict[str, Any] = {
     # ("gammap_mode") is gone since schema 32; see
     # `_migrate_engine_single_switch`.
     "profile_engine_beta":       False,
-    # The black option beside the switch: "neutral" (default) or "deepest".
-    # Only read while the switch is on (BuildSettings.black_depth).
-    "profile_engine_black_depth": "neutral",
+    # "Darkest black" stood beside the switch until schema 33. It is a Build
+    # Profile row now, per target ("manual2_colprof_black_depth" is its saved
+    # default); see `_migrate_black_depth_to_build_profile`.
     # The comparison option directly under the switch (2026-11-11, Basti):
     # after an engine build, colprof builds its own profile from the same
     # measurement and it is kept as `Run.colprof_comparison_icc`. On by
@@ -1091,7 +1091,7 @@ def thresholds_for_combo(
 # Bump when a shipped default changes in a way that must reach users who have
 # the OLD default persisted. Settings → Save writes every key, so a stored
 # value otherwise pins a user to the old behaviour for good.
-SETTINGS_SCHEMA = 32
+SETTINGS_SCHEMA = 33
 
 # key → the old default(s) it must no longer be stuck on. Only a stored value
 # EQUAL to one of the old defaults is dropped (so it falls through to the new
@@ -1343,11 +1343,51 @@ class AppSettings:
             dropped.append("gammap_mode (the Fast / Bit-exact / Maximum "
                            "accuracy picker is gone; the profile engine is "
                            "one switch)")
+        if stored_schema < 33 and self._migrate_black_depth_to_build_profile():
+            dropped.append("profile_engine_black_depth (\"Darkest black\" is "
+                           "a Build Profile option now; a Deepest choice is "
+                           "carried into its saved default)")
         self._qs.setValue("settings_schema", SETTINGS_SCHEMA)
         if dropped:
             log.info("Settings migrated to schema %d; dropped stale defaults: %s",
                      SETTINGS_SCHEMA, ", ".join(dropped))
         return dropped
+
+    def _migrate_black_depth_to_build_profile(self) -> bool:
+        """schema 33: "Darkest black" moves from Preferences > Beta into the
+        Build Profile tab (Manual, an engine-only row; Basti, 2026-11-12).
+
+        Until now it was ONE global preference, "profile_engine_black_depth"
+        ("neutral", the default, or "deepest"), that every engine build read.
+        Now each target keeps its own choice (``profile_settings
+        ["black_depth"]``), with a saved default
+        ("manual2_colprof_black_depth") and presets, like "Keep the original
+        hue". The rule, whatever the engine switch says (the old value was
+        kept with the switch off too, and applied the day it went on):
+
+        * stored "deepest" (any case, any spaces): the saved Build Profile
+          default becomes Deepest (unless one is already stored), so a new
+          target starts with Deepest as before; and
+          "manual2_colprof_black_depth_older_targets" = "deepest", which a
+          target stored before this version (its settings carry no
+          "black_depth") reads until the user changes it there;
+        * stored "neutral", any other value, or nothing: nothing is written,
+          and Neutral is what every target, new or old, reads;
+        * the old key is removed either way (Preferences no longer writes it).
+
+        A preset never held the value, so a preset from before loads as
+        Neutral, like a preset saved with the engine off. Returns True when
+        anything on disk changed."""
+        raw = self._qs.value("profile_engine_black_depth", None)
+        if raw is None:
+            return False
+        self._qs.remove("profile_engine_black_depth")
+        if str(raw).strip().lower() == "deepest":
+            if self._qs.value("manual2_colprof_black_depth", None) is None:
+                self._qs.setValue("manual2_colprof_black_depth", "deepest")
+            self._qs.setValue("manual2_colprof_black_depth_older_targets",
+                              "deepest")
+        return True
 
     def _migrate_engine_single_switch(self) -> bool:
         """schema 32: the profile engine is ONE switch.

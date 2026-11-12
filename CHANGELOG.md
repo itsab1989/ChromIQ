@@ -1,5 +1,19 @@
 # Changelog
 
+## v4.3.32
+
+**For everyone updating from 4.3.31: in the Measurement info window (Tools › Inspect a measurement) you can now drag files from your file manager and drop them on the window, and the notice about files that were not added now names each file and the reason, in the app's own colours. An argument that starts with “=” is now quoted in the ArgyllCMS command boxes, so the command pastes correctly into zsh on macOS, and the beta option “Darkest black” has moved to the Build Profile tab. Your charts, measurements and profiles do not change.**
+
+### New
+- **Drag and drop in the Measurement info window.** In Tools › Inspect a measurement you can now drag files from Finder, File Explorer or your file manager and drop them on the window instead of browsing for them. Drop one or several reading files (.ti3, .txt, .mxf or .cxf) on the “Other readings” row, and ChromIQ adds them just as “Add…” does, with the same checks. Drop a measurement file (.ti3) on the “Measurement” row, and ChromIQ opens it just as the browse button does. While you drag a file that can be used over a row, the row is highlighted. Folders and other kinds of files are left out. Thanks to jctay on the printerknowledge forum for the suggestion.
+
+### Fixed
+- **The notice about files that were not added is clearer.** When some of the files you chose or dropped are not added to “Other readings”, the notice now names each of them and says why: already in the list, the list is full, a folder, a kind of file ChromIQ cannot read, or a file that could not be found. It used to give only a number, and only when the list was full. It now uses the app's own warning colours in every appearance instead of a blue that belongs to none of them, it no longer has a thicker line at the bottom in the neutral appearance, and the window now makes room for it, so the buttons at the bottom no longer cover the last details.
+- **An argument that starts with “=” was not quoted in the ArgyllCMS command boxes.** zsh, the shell macOS uses by default, reads a word that starts with “=” as the name of a program, so a copied command could stop with “not found”. ChromIQ now puts such an argument in quotes, and the command pastes correctly into zsh.
+
+### Changed
+- **The beta option “Darkest black” has moved to the Build Profile tab.** This option of the beta “ChromIQ profile engine (beta)” is no longer in Preferences › Beta but in the Build Profile tab (Manual mode), beside “Keep the original hue”. Each printer project keeps its own choice, you can save it as a default and in a preset, and if you had chosen “Deepest” before, that choice is carried over. Guided mode builds with Neutral. If the beta option is off, nothing changes.
+
 ## v4.3.31
 
 **For everyone updating from 4.3.30: the Measurement info window (Tools › Inspect a measurement) can now compare your measurement with other readings of the same chart, and a turned i1Profiler measurement saved on another grid is now checked by its colours and imported when they clearly match. ChromIQ no longer quits unexpectedly on macOS 27.2 when it shows the busy pointer, i1Profiler text files with decimal commas are imported, and the beta option “ChromIQ profile engine (beta)” has minor changes. Your charts, measurements and profiles do not change.**

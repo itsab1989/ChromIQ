@@ -6,6 +6,8 @@
   On is the engine's Maximum accuracy build. The Fast / Bit-exact / Maximum
   accuracy picker is gone, and stored settings are migrated.
 * A black option (Neutral, Deepest) appears only while the switch is on.
+  (Since 2026-11-12 it is a Build Profile row, per target, not a
+  Preferences control: tests/test_darkest_black_is_a_build_profile_option.py.)
 * A packaged app ignores the engine's development environment variables.
 * When colprof cannot give the engine its reference rendering, the build
   goes to stock colprof and says so. Never the engine's own rendering.
@@ -79,7 +81,10 @@ def _tab(tmp_path, **prefs):
 
 def test_the_switch_is_off_by_default_and_the_picker_has_no_setting():
     assert DEFAULTS["profile_engine_beta"] is False
-    assert DEFAULTS["profile_engine_black_depth"] == "neutral"
+    # "Darkest black" left Preferences on 2026-11-12 (Basti): it is a Build
+    # Profile row now, so the global preference is gone and schema 33
+    # migrates it (tests/test_darkest_black_is_a_build_profile_option.py).
+    assert "profile_engine_black_depth" not in DEFAULTS
     assert "gammap_mode" not in DEFAULTS
     assert SETTINGS_SCHEMA >= 32
 
@@ -98,38 +103,33 @@ def test_preferences_has_no_mode_picker_any_more(qtbot):
     assert "gammap_mode" not in dlg._settings
 
 
-def test_the_black_option_shows_only_with_the_switch_on_and_is_saved(qtbot):
+def test_preferences_no_longer_holds_the_black_option(qtbot):
+    """Was: the black option shows in Preferences > Beta only with the switch
+    on and is saved there. Basti, 2026-11-12: it "should have been in build
+    profile tab manual module", savable as a default and in a preset. So the
+    Preferences window has no such control and writes no such key; the
+    Build Profile side is tested in
+    tests/test_darkest_black_is_a_build_profile_option.py."""
     from ui.dialogs.settings_dialog import SettingsDialog
     fake = _Fake(DEFAULTS)
     dlg = SettingsDialog(fake)
     qtbot.addWidget(dlg)
-    assert dlg._profile_engine_check.isChecked() is False
-    assert dlg._black_depth_cell.isHidden()
+    for gone in ("_black_depth_combo", "_black_depth_cell",
+                 "_black_depth_tip"):
+        assert not hasattr(dlg, gone), gone
     dlg._profile_engine_check.setChecked(True)       # no consent: not a click
-    assert not dlg._black_depth_cell.isHidden()
-    assert [dlg._black_depth_combo.itemData(i)
-            for i in range(dlg._black_depth_combo.count())] == [
-                "neutral", "deepest"]
-    assert dlg._black_depth_combo.currentData() == "neutral"
-    dlg._black_depth_combo.setCurrentIndex(
-        dlg._black_depth_combo.findData("deepest"))
     dlg._save_and_close()
     assert fake["profile_engine_beta"] is True
-    assert fake["profile_engine_black_depth"] == "deepest"
-    again = SettingsDialog(fake)
-    qtbot.addWidget(again)
-    assert again._black_depth_combo.currentData() == "deepest"
-    assert not again._black_depth_cell.isHidden()
-    again._profile_engine_check.setChecked(False)
-    assert again._black_depth_cell.isHidden()
+    assert "profile_engine_black_depth" not in fake
 
 
 def test_an_unknown_stored_black_depth_reads_as_neutral():
-    assert eb.black_depth_setting(_Fake()) == "neutral"
-    assert eb.black_depth_setting(
-        _Fake(profile_engine_black_depth="balanced")) == "neutral"
-    assert eb.black_depth_setting(
-        _Fake(profile_engine_black_depth=" Deepest ")) == "deepest"
+    # was black_depth_setting(app settings): the value now comes from a
+    # target, a preset or the saved default, so the reader takes the value
+    assert eb.black_depth_value(None) == "neutral"
+    assert eb.black_depth_value("balanced") == "neutral"
+    assert eb.black_depth_value(" Deepest ") == "deepest"
+    assert not hasattr(eb, "black_depth_setting")
 
 
 # ---------------------------------------------------------------------------
@@ -266,11 +266,16 @@ def test_the_app_builds_maximum_accuracy_with_the_default_thread_count(
     assert s.black_depth == "neutral"
     assert s.engine_candidates == frozenset()
     assert str(s.argyll_bin) == "/nowhere"
-    # whatever an old store still says
+    # whatever an old store still says: the old global black preference no
+    # longer reaches a build (2026-11-12, it is a Build Profile row now and
+    # comes with the build's own parameters)
     s = _built_settings(monkeypatch, tmp_path, _Fake(
         profile_engine_beta=True, gammap_mode="fast",
         profile_engine_black_depth="deepest"))
-    assert s.gammap_mode == "accurate" and s.black_depth == "deepest"
+    assert s.gammap_mode == "accurate" and s.black_depth == "neutral"
+    s = _built_settings(monkeypatch, tmp_path, _Fake(
+        profile_engine_beta=True), black_depth="deepest")
+    assert s.black_depth == "deepest"
     from workflow.profile_engine.builder import effective_engine_candidates
     assert "a88-black-deepest" in effective_engine_candidates(s)
     # and with no settings object at all

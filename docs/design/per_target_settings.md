@@ -677,12 +677,14 @@ rule.
   proportional, 0 / 0.1 / 0.9 / 1 / 1, off, Version 2, off, Argyll-matched.
   Test: `tests/test_the_new_profile_engine_is_one_switch.py::
   test_restore_defaults_resets_the_engine_and_black_generation_rows`.
-* **What stays global.** The new profile engine's switch and its "Darkest
-  black" option live in Preferences (Beta tab) and are global, as §1.1 says
-  of everything in Preferences. They are not stored per target. Which builder
-  made a run's profile, and with which black option, is recorded in that run's
-  `meta.json` (`profile_build`) as a record for diagnosis; nothing loads it
-  back into a control.
+* **What stays global.** The new profile engine's switch lives in
+  Preferences (Beta tab) and is global, as §1.1 says of everything in
+  Preferences. It is not stored per target. Its "Darkest black" option stood
+  beside it until 2026-11-12 and is a Build Profile row now, per target (see
+  the "Darkest black" block below). Which builder made a run's profile, and
+  with which black option, is recorded in that run's `meta.json`
+  (`profile_build`) as a record for diagnosis; nothing loads it back into a
+  control.
 
 ### ⏳ Awaiting confirmation: "Keep the original hue" and the comparison option (2026-11-11)
 
@@ -717,13 +719,61 @@ confirmed by a human. They apply the rules above; no rule is changed.
 * **"Also build a colprof profile for comparison" (Preferences, Beta tab).**
   Directly under the engine switch, greyed out while the switch is off, on by
   default (`profile_engine_colprof_comparison`). It is in Preferences, so it
-  is global (§1.1), like the switch and "Darkest black". Off: no second
+  is global (§1.1), like the switch. Off: no second
   colprof run and no `colprof-comparison.icc` for that build; a comparison
   file of an earlier build of the same run is moved into `old/<date>/` (with
   its profile at the start of the build, or on its own after the build when
   no profile was left beside it), so it is never taken for a comparison of
   the new profile. The run's `meta.json` (`profile_build`) records
   `colprof_comparison` true or false.
+
+### ⏳ Awaiting confirmation: "Darkest black" moves into Build Profile (2026-11-12)
+
+**Confirmed by:** *nobody yet.*
+
+Basti's ruling of 2026-11-12, built and tested, not yet confirmed by a human:
+"Darkest black" was placed in Preferences > Beta as one global setting in
+4.3.31, and it *"should have been in build profile tab manual module"*, and
+*"savable as default and as part of a preset"*, exactly like "Keep the
+original hue". It applies the rules of the "Keep the original hue" block
+above; no rule is changed.
+
+* **Darkest black (Build Profile, Manual).** A choice "Darkest black:",
+  Neutral (recommended) or Deepest, among the rows that are only shown while
+  the new profile engine is switched on, directly under "Keep the original
+  hue" (`TabProfile._m_black_combo`; the build setting
+  `BuildSettings.black_depth`, "neutral" = the factory setting, or
+  "deepest"). Preferences > Beta no longer has it; the engine switch and the
+  comparison option stay there.
+  * **Per target**: written into the run's `meta.json`
+    (`profile_settings["black_depth"]`) with the tab's other settings,
+    whatever the engine switch says, and loaded back with them.
+  * **Saved default** `manual2_colprof_black_depth`: written by Save as
+    default (Manual) ONLY while the engine is on. Restore defaults and the
+    "Default settings" preset entry read it (factory: Neutral), so S4 to S7
+    cover it.
+  * **Preset:** carries `black_depth` ONLY when saved with the engine on. A
+    preset without it (saved with the engine off, or from before this
+    version, when the value was global) loads Neutral.
+  * **The build** uses it only while the engine is on (`ProfileParams.
+    black_depth`); a colprof build and colprof's comparison profile never
+    see it. The run's `profile_build` record names the black used.
+  * **Guided** has no engine rows. A Guided build uses the factory value of
+    every engine row (spectral off, Version 2, noise off, Argyll-matched,
+    hue not kept), so it builds with Neutral, whatever Manual, the target or
+    the saved default say. The tooltip says so.
+* **The migration (settings schema 33).** The old global preference
+  `profile_engine_black_depth` is removed from the settings in every case.
+  If it said Deepest (any case or spacing), whatever the engine switch said
+  (the value was kept with the engine off and applied the day it went on):
+  the saved default `manual2_colprof_black_depth` becomes Deepest (unless one
+  was already stored), so a new target starts with Deepest, and
+  `manual2_colprof_black_depth_older_targets` is set to Deepest, which a
+  target stored before this version (its settings carry no `black_depth`)
+  reads until the user changes it there. Neutral, any other value or nothing
+  stored: nothing is written, and every target reads Neutral. Presets never
+  held the value, so they load Neutral either way.
+* Tests: `tests/test_darkest_black_is_a_build_profile_option.py`.
 
 ### 4b. A preset creating a target
 

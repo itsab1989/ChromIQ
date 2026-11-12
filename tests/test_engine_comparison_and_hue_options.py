@@ -82,7 +82,9 @@ def test_the_option_stands_directly_under_the_switch(qtbot):
                        is dlg._profile_engine_check
                        for k in range(it.layout().count())))
     assert items[eng + 1].widget() is dlg._colprof_comparison_cell
-    assert items[eng + 2].widget() is dlg._black_depth_cell
+    # "Darkest black" stood next (eng + 2) until 2026-11-12; it is a Build
+    # Profile row now (Basti), so nothing of it is left on this page.
+    assert not hasattr(dlg, "_black_depth_cell")
     # indented, so it reads as part of the switch
     assert dlg._colprof_comparison_cell.layout().contentsMargins().left() > 0
     assert dlg._comparison_tip is not None
@@ -449,7 +451,9 @@ def test_the_hue_lines_reach_the_window_in_plain_words():
 # ---------------------------------------------------------------------------
 
 def test_the_darkest_black_tooltip_says_what_was_measured():
-    src = (ROOT / "ui/dialogs/settings_dialog.py").read_text("utf-8")
+    # the tooltip moved with the option into the Build Profile tab
+    # (2026-11-12); its measured facts are kept word for word
+    src = (ROOT / "ui/tabs/tab_profile.py").read_text("utf-8")
     i = src.index('tr("Darkest black"),')
     tip = src[i:src.index("min_width=680", i)]
     flat = "".join(re.findall(r'"((?:[^"\\]|\\.)*)"', tip))
