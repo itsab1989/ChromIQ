@@ -81,8 +81,15 @@ def drag_to(qapp, w: QWidget, mime: QMimeData, *, drop: bool = True) -> bool:
     win = w.window()
     _bring_into_view(w)
     _pump(qapp, 2)
-    pos = w.mapTo(win, w.rect().center())
-    handle = win.windowHandle()
+    if w.isVisible():
+        pos = w.mapTo(win, w.rect().center())
+        handle = win.windowHandle()
+    else:
+        # A row on a page that needs a project in another run type to be
+        # shown: sent to the field itself. Qt's own notify still walks an
+        # ignored drag up to the first parent that takes drops.
+        pos = w.rect().center()
+        handle = w
     act = Qt.DropAction.CopyAction
     btn = Qt.MouseButton.LeftButton
     mod = Qt.KeyboardModifier.NoModifier
@@ -474,6 +481,202 @@ ROWS += [
 ]
 
 
+def _tab_settings():
+    from core.settings import AppSettings    # the suite's sandboxed store
+    return AppSettings()
+
+
+def _chart_tab(_s):
+    from core.argyll_runner import ArgyllRunner
+    from core.file_manager import FileManager
+    from ui.tabs.tab_chart import TabChart
+    s = _tab_settings()
+    return TabChart(ArgyllRunner(s), FileManager(s), s)
+
+
+def _measure_tab(_s):
+    from core.argyll_runner import ArgyllRunner
+    from ui.tabs.tab_measure import TabMeasure
+    s = _tab_settings()
+    return TabMeasure(ArgyllRunner(s), s)
+
+
+def _check_tab(_s):
+    from core.argyll_runner import ArgyllRunner
+    from ui.tabs.tab_check_refine import TabCheckRefine
+    s = _tab_settings()
+    return TabCheckRefine(ArgyllRunner(s), s)
+
+
+def _profile_tab(_s):
+    from core.argyll_runner import ArgyllRunner
+    from ui.tabs.tab_profile import TabProfile
+    s = _tab_settings()
+    return TabProfile(ArgyllRunner(s), s)
+
+
+def _tab_accent(w):
+    return type(w).TAB_ACCENT
+
+
+def _precond_on(w):
+    w._switch_mode("guided")
+    w._guided_precond_check.setChecked(True)
+
+
+def _precond_off(w):
+    w._guided_precond_check.setChecked(False)
+
+
+def _show_import(w):
+    w._import_panel.setVisible(True)
+
+
+def _grey_load_icon(w):
+    w._load_btn.setEnabled(False)
+
+
+_TC = "ui.tabs.tab_chart"
+_TM = "ui.tabs.tab_measure"
+_TCR = "ui.tabs.tab_check_refine"
+_TP = "ui.tabs.tab_profile"
+
+
+def _param_row(flag):
+    def find(w):
+        from ui.parameter_widget import ParameterWidget
+        for pw in w.findChildren(ParameterWidget):
+            if pw._param.get("flag") == flag and \
+                    pw._param.get("type") == "file_path":
+                return pw
+        raise AssertionError(f"no {flag} file row")
+    return find
+
+
+def _manual_and(then):
+    def prep(w):
+        w._switch_mode("manual")
+        then(w)
+    return prep
+
+
+def _enable_param(flag):
+    def prep(w):
+        pw = _param_row(flag)(w)
+        if pw._enable_check is not None:
+            pw._enable_check.setChecked(True)
+        else:
+            pw.set_control_enabled(True)
+    return prep
+
+
+def _disable_param(flag):
+    def close(w):
+        pw = _param_row(flag)(w)
+        if pw._enable_check is not None:
+            pw._enable_check.setChecked(False)
+        else:
+            pw.set_control_enabled(False)
+    return close
+
+
+ROWS += [
+    # -- Create Chart (R52) -------------------------------------------------------
+    Row("create-chart-refinement-profile", _chart_tab, _cls(_TC, "TabChart"),
+        "_use_guided_precond", lambda w: w._guided_precond_path,
+        lambda w: w._on_guided_precond_browse(), _TC + ":open_file_dialog",
+        (".icc", ".icm", ".mpp"), closed=_precond_off, prepare=_precond_on,
+        accent=_tab_accent),
+    # -- Measure, IMPORT (R57) -------------------------------------------------------
+    Row("measure-import", _measure_tab, _cls(_TM, "TabMeasure"),
+        "_use_import_file", lambda w: w._import_file_lbl,
+        lambda w: w._on_import_browse(), _TM + ":open_file_dialog",
+        (".mxf", ".cxf", ".txt", ".ti3"), bad=".ti2",
+        closed=lambda w: w._import_browse_btn.setEnabled(False),
+        prepare=_show_import, accent=_tab_accent),
+    # -- Check & Refine (R58-R60) --------------------------------------------------
+    Row("check-refine-measurement", _check_tab, _cls(_TCR, "TabCheckRefine"),
+        "_use_ti3", lambda w: w._ti3_edit, lambda w: w._on_browse_ti3(),
+        _TCR + ":open_file_dialog", (".ti3",), accent=_tab_accent),
+    Row("check-refine-profile", _check_tab, _cls(_TCR, "TabCheckRefine"),
+        "_use_icc", lambda w: w._icc_edit, lambda w: w._on_browse_icc(),
+        _TCR + ":open_file_dialog", (".icc", ".icm"), accent=_tab_accent),
+    Row("check-refine-gamut-compare", _check_tab,
+        _cls("ui.gamut_panel", "GamutPanel"), "_use_compare",
+        lambda w: w._gamut_panel._compare_edit,
+        lambda w: w._gamut_panel._on_browse_compare(),
+        "ui.gamut_panel:open_file_dialog", (".icc", ".icm"),
+        accent=_mod_const("ui.gamut_panel", "_ACCENT")),
+    # -- Build Profile (R61-R66) ----------------------------------------------------
+    Row("build-profile-measurement", _profile_tab, _cls(_TP, "TabProfile"),
+        "_use_measurement", lambda w: w._file_lbl,
+        lambda w: w._on_load_ti3(), _TP + ":open_file_dialog",
+        (".ti3", ".txt", ".mxf", ".cxf"), bad=".ti2",
+        closed=_grey_load_icon, accent=_tab_accent),
+    Row("build-profile-previous-cal", _profile_tab, _cls(_TP, "TabProfile"),
+        "_pc_use_prev", lambda w: w._pc_prev_edit,
+        lambda w: w._pc_browse_prev(), _TP + ":open_file_dialog", (".cal",),
+        editable=lambda w: w._pc_prev_edit, accent=_tab_accent),
+    Row("build-profile-apply-cal-file", _profile_tab, _cls(_TP, "TabProfile"),
+        "_ac_use_cal", lambda w: w._ac_cal_edit,
+        lambda w: w._ac_browse_cal(), _TP + ":open_file_dialog", (".cal",),
+        editable=lambda w: w._ac_cal_edit, accent=_tab_accent),
+    Row("build-profile-apply-cal-input", _profile_tab,
+        _cls(_TP, "TabProfile"), "_ac_use_in", lambda w: w._ac_in_edit,
+        lambda w: w._ac_browse_in(), _TP + ":open_file_dialog",
+        (".icc", ".icm"), editable=lambda w: w._ac_in_edit,
+        accent=_tab_accent),
+    Row("build-profile-gamut-source-guided", _profile_tab,
+        _cls(_TP, "TabProfile"), "_use_gam", lambda w: w._gam_path_edit,
+        lambda w: w._browse_gam(), _TP + ":open_file_dialog",
+        (".icc", ".icm"),
+        closed=lambda w: w._gam_path_browse.setEnabled(False),
+        prepare=lambda w: w._gam_path_browse.setEnabled(True),
+        accent=_tab_accent),
+    Row("build-profile-gamut-source-manual", _profile_tab,
+        _cls(_TP, "TabProfile"), "_use_m_gam", lambda w: w._m_gam_path_edit,
+        lambda w: w._browse_m_gam(), _TP + ":open_file_dialog",
+        (".icc", ".icm"),
+        closed=lambda w: w._m_gam_path_browse.setEnabled(False),
+        prepare=lambda w: w._m_gam_path_browse.setEnabled(True),
+        accent=_tab_accent),
+    # -- parameters.yaml file rows (R67) ----------------------------------------------
+    Row("parameter-file-row-targen-precond", _chart_tab,
+        _cls("ui.parameter_widget", "ParameterWidget"), "_use_file",
+        lambda w: _param_row("-c")(w)._control,
+        lambda w: _param_row("-c")(w)._browse(),
+        "ui.parameter_widget:open_file_dialog", (".icc", ".icm"),
+        closed=_disable_param("-c"), prepare=_manual_and(_enable_param("-c")),
+        editable=lambda w: _param_row("-c")(w)._control,
+        accent=_tab_accent),
+    Row("parameter-file-row-printtarg-cal", _chart_tab,
+        _cls("ui.parameter_widget", "ParameterWidget"), "_use_file",
+        lambda w: _param_row("-K")(w)._control,
+        lambda w: _param_row("-K")(w)._browse(),
+        "ui.parameter_widget:open_file_dialog", (".cal",),
+        closed=_disable_param("-K"), prepare=_manual_and(_enable_param("-K")),
+        editable=lambda w: _param_row("-K")(w)._control,
+        accent=_tab_accent),
+    # -- Layout options panel (R68-R69) -------------------------------------------------
+    Row("layout-panel-clip-image", _chart_tab,
+        _cls("ui.dialogs.layout_options_panel", "LayoutOptionsPanel"),
+        "_use_clip_image", lambda w: _layout_panel(w).clip_image_path,
+        lambda w: _layout_panel(w)._browse_clip_image(),
+        "ui.widgets:open_file_dialog", (".png", ".jpg", ".tif"),
+        closed=lambda w: _layout_panel(w).clip_image_browse.setEnabled(False),
+        prepare=lambda w: _layout_panel(w).clip_image_browse.setEnabled(True),
+        editable=lambda w: _layout_panel(w).clip_image_path,
+        accent=_tab_accent),
+]
+
+
+def _layout_panel(w):
+    from ui.dialogs.layout_options_panel import LayoutOptionsPanel
+    panels = w.findChildren(LayoutOptionsPanel)
+    assert panels, "no layout options panel"
+    return panels[0]
+
+
 # ---------------------------------------------------------------------------
 # the harness
 # ---------------------------------------------------------------------------
@@ -659,6 +862,55 @@ def test_the_highlight_is_the_accent_of_its_own_window(row, appearance, qapp,
             good = _files(tmp_path, row)
         assert drag_to(qapp, row.drop_on(win), _mime(*good), drop=False)
         assert drops._overlay.colour.lower() == want
+    finally:
+        win.close()
+        win.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# the rows the inventory SKIPS take no file
+# ---------------------------------------------------------------------------
+
+def _print_tab(_s):
+    from ui.tabs.tab_print import TabPrint
+    return TabPrint(_tab_settings())
+
+
+def _masthead(_s):
+    from ui.masthead_header import MastheadHeader
+    return MastheadHeader(None, "test")
+
+
+SKIPPED = [
+    # (id, build, the widget a file would be dropped on, a kind Browse offers)
+    ("R30 scanner byo .cht pages", _scanner, lambda w: w._byo_field, ".cht"),
+    ("R40 soft-proof colour space combo", _softproof,
+     lambda w: w._source_combo, ".icc"),
+    ("R53 Create Chart Load patch set icon", _chart_tab,
+     lambda w: w._load_ti1_btn, ".ti1"),
+    ("R54 masthead Open Project", _masthead,
+     lambda w: w._load_project_btn, ".json"),
+    ("R55 masthead Open Chart File", _masthead,
+     lambda w: w._load_ti2_btn, ".ti2"),
+    ("R56 Print Chart Load image", _print_tab,
+     lambda w: w._load_image_btn, ".tif"),
+    ("R56 Print Chart preview", _print_tab, lambda w: w._preview, ".tif"),
+]
+
+
+@pytest.mark.parametrize("rid, build, target, kind", SKIPPED,
+                         ids=[r[0] for r in SKIPPED])
+def test_a_skipped_row_takes_no_file(rid, build, target, kind, qapp,
+                                     tmp_path):
+    win = build(_Settings())
+    win.resize(900, 900)
+    win.show()
+    _pump(qapp)
+    try:
+        f = tmp_path / f"a file{kind}"
+        f.write_text("x\n", encoding="utf-8")
+        w = target(win)
+        assert not drag_to(qapp, w, _mime(f))
     finally:
         win.close()
         win.deleteLater()

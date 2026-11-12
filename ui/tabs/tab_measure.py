@@ -1698,6 +1698,10 @@ def _fd9_ask(tab, name: str) -> bool:
 
 class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
     """Step 3: interactive chart measurement with chartread."""
+    #: The hue of this tab's step header, its accent: file-drop frames
+    #: (4.3.33) are drawn in it (`ui.file_drop.context_accent`).
+    TAB_ACCENT = _TAB_COLOR
+
 
     measure_finished   = pyqtSignal(Path)  # emits the .ti3 path on success
     proceed_to_profile = pyqtSignal()      # emitted when user chooses to go straight to tab 4
@@ -2810,7 +2814,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         _ht.setSpacing(6)
         _ht.addWidget(self._reveal_btn)
         top_layout.addWidget(TabHeader(
-            tr("STEP 03 · MEASURE CHART"), tr("Measure printed chart"), "#56d6a5", top_widget,
+            tr("STEP 03 · MEASURE CHART"), tr("Measure printed chart"), self.TAB_ACCENT, top_widget,
             tooltip_title=tr("Step 3 — Measure the print"),
             tooltip_body=(
                 tr("On this screen, your spectrophotometer reads every colour patch "
@@ -14194,10 +14198,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._import_file_lbl = ElidingLabel(tr("No file chosen yet"), grp)
         self._import_file_lbl.setStyleSheet("color: #909090; font-size: 11px;")
         row.addWidget(self._import_file_lbl, stretch=1)
-        self._import_browse_btn = make_browse_button(grp, tooltip=tr(
+        from ui.file_drop import CONTEXT, FileDropTarget, with_drop_hint
+        self._import_browse_btn = make_browse_button(grp, tooltip=with_drop_hint(tr(
             "Choose the measurement file to import — i1Profiler's own "
             "measurement (.mxf or .cxf), its CGATS text export (.txt), or a "
-            "measurement already in Argyll's .ti3 format."),
+            "measurement already in Argyll's .ti3 format.")),
             color=_TAB_COLOR)
         self._import_browse_btn.clicked.connect(self._on_import_browse)
         row.addWidget(self._import_browse_btn)
@@ -14212,6 +14217,14 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         row.addWidget(self._import_help_btn)
         g.addLayout(row)
         ll.addWidget(grp)
+        # A measurement dropped from the file manager on this box is chosen
+        # as the folder button chooses it; the Import button still does the
+        # work, and asks what it asks (4.3.33).
+        self._import_drop = FileDropTarget(
+            grp, (".mxf", ".cxf", ".txt", ".ti3"), single=True,
+            guard=(self._import_browse_btn, self._drops_open),
+            accent=CONTEXT, declutter=self._settings)
+        self._import_drop.file_dropped.connect(self._use_import_file)
 
         # The green info box (Basti): same shape as the Create Chart tab's
         # info boxes, in this tab's accent — says what THIS import will do.
@@ -14632,9 +14645,17 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             declutter_settings=self._settings)
         if not path:
             return
+        self._use_import_file(path)
+
+    def _use_import_file(self, path) -> None:
+        """The file chosen with the folder button, or dropped on its box."""
         self._import_path = Path(path)
         self._settings.set("import_measurement_dir", str(Path(path).parent))
         self._update_import_panel()
+
+    def _drops_open(self) -> bool:
+        """No file is taken while ArgyllCMS runs (a measurement, say)."""
+        return not self._runner.is_running
 
     def _import_verdict(self, ti3: Path, ti2: Path):
         """Judge this file against the verification chart, THROUGH THE ONE

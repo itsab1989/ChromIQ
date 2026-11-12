@@ -69,6 +69,9 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 _TAB_COLOR = "#37bcd6"  # Build Profile tab accent
+# What the load icon's chooser offers (both run types), and so what a drop on
+# the Measurement Data box may bring (4.3.33).
+_MEASUREMENT_SUFFIXES = (".ti3", ".txt", ".mxf", ".cxf")
 from ui.styles import SPEC_CYAN, TAB_COLORS
 from core.i18n import tr
 from core.platform_paths import default_output_root
@@ -429,6 +432,10 @@ def _paint_note(label, mode: "str | None" = None) -> None:
 
 class TabProfile(QWidget):
     """Step 4: build and install ICC profile from .ti3 measurements."""
+    #: The hue of this tab's step header, its accent: file-drop frames
+    #: (4.3.33) are drawn in it (`ui.file_drop.context_accent`).
+    TAB_ACCENT = _TAB_COLOR
+
 
     profile_built    = pyqtSignal(Path, Path)   # (ti3_path, icc_path)
     check_requested  = pyqtSignal()             # user clicked "Check Quality" in the result dialog
@@ -699,7 +706,7 @@ class TabProfile(QWidget):
         _ht.addWidget(_load_wrap)
         _ht.addWidget(self._reveal_btn)
         self._header = TabHeader(
-            tr("STEP 04 · CREATE ICC PROFILE"), tr("Build ICC profile"), "#37bcd6", self,
+            tr("STEP 04 · CREATE ICC PROFILE"), tr("Build ICC profile"), self.TAB_ACCENT, self,
             tooltip_title=tr(_TOOLTIP_TITLE_NORMAL),
             tooltip_body=tr(_TOOLTIP_BODY_NORMAL),
             trailing_widget=_hdr_trailing,
@@ -772,6 +779,13 @@ class TabProfile(QWidget):
         self._file_lbl.setWordWrap(True)
         fg.addWidget(self._file_lbl, stretch=1)
         cc.addWidget(file_grp)
+        # A measurement dropped from the file manager on this box is loaded
+        # as the header's load icon loads the file chosen with it (4.3.33).
+        from ui.file_drop import CONTEXT, FileDropTarget
+        self._file_drop = FileDropTarget(
+            file_grp, _MEASUREMENT_SUFFIXES, single=True,
+            guard=self._drops_open, accent=CONTEXT)
+        self._file_drop.file_dropped.connect(self._on_measurement_dropped)
 
         self._stack = QStackedWidget(colprof_container)
         self._guided_panel = self._make_guided_panel()
@@ -1548,6 +1562,11 @@ class TabProfile(QWidget):
         in_row.addWidget(self._pc_ti3_lbl, stretch=1)
         ti3_g.addLayout(in_row)
         gw_layout.addWidget(grp_ti3)
+        from ui.file_drop import CONTEXT, FileDropTarget
+        self._pc_ti3_drop = FileDropTarget(
+            grp_ti3, _MEASUREMENT_SUFFIXES, single=True,
+            guard=self._drops_open, accent=CONTEXT)
+        self._pc_ti3_drop.file_dropped.connect(self._on_measurement_dropped)
 
         # ---- Calibration Metadata section ----
         self._build_pc_metadata_group(gw_layout, grp_wrapper)
@@ -1605,6 +1624,11 @@ class TabProfile(QWidget):
         prev_browse.setFixedHeight(22)
         prev_row.addWidget(self._pc_prev_edit, stretch=1)
         prev_row.addWidget(prev_browse)
+        from ui.file_drop import CONTEXT, FileDropTarget
+        self._pc_prev_drop = FileDropTarget(
+            self._pc_prev_widget, (".cal",), single=True,
+            guard=(prev_browse, self._runner_idle), accent=CONTEXT)
+        self._pc_prev_drop.file_dropped.connect(self._pc_use_prev)
         self._pc_prev_widget.setVisible(False)
         g.addWidget(self._pc_prev_widget)
 
@@ -1957,6 +1981,12 @@ class TabProfile(QWidget):
         p = open_file_dialog(self, tr("Load calibration measurement"),
                              tr("Measurement data (*.ti3 *.mxf *.txt *.cxf);;All files (*)"),
                              extra_path=self._settings.get("custom_output_path", ""))
+        self._pc_use_ti3(p)
+
+    def _pc_use_ti3(self, p) -> None:
+        """The calibration measurement chosen with the load icon, or dropped
+        on the Measurement Data box."""
+        p = str(p) if p else ""
         if p and Path(p).suffix.lower() != ".ti3":
             # Which readings of a CxF (4.3.23, M-IMPORT-CXF-CONDITION).
             from ui.dialogs.cxf_condition_dialog import choose_cxf_condition
@@ -2067,7 +2097,11 @@ class TabProfile(QWidget):
         p = open_file_dialog(self, tr("Load previous .cal file"), tr("CAL files (*.cal)"),
                              extra_path=self._settings.get("custom_output_path", ""))
         if p:
-            self._pc_prev_edit.setText(p)
+            self._pc_use_prev(p)
+
+    def _pc_use_prev(self, p) -> None:
+        """The .cal chosen with Browse, or dropped on its row."""
+        self._pc_prev_edit.setText(str(p))
 
     def _on_pc_save_defaults(self) -> None:
         s = self._settings
@@ -2202,7 +2236,8 @@ class TabProfile(QWidget):
         ac_cal_browse.setFixedHeight(22)
         cal_row.addWidget(self._ac_cal_edit, stretch=1)
         cal_row.addWidget(ac_cal_browse)
-        g.addLayout(cal_row)
+        self._ac_cal_zone = self._file_drop_row(
+            cal_row, g, grp, (".cal",), ac_cal_browse, self._ac_use_cal)
 
         # ---- Input ICC ----
         in_row = QHBoxLayout()
@@ -2222,7 +2257,8 @@ class TabProfile(QWidget):
         ac_in_browse.setFixedHeight(22)
         in_row.addWidget(self._ac_in_edit, stretch=1)
         in_row.addWidget(ac_in_browse)
-        g.addLayout(in_row)
+        self._ac_in_zone = self._file_drop_row(
+            in_row, g, grp, (".icc", ".icm"), ac_in_browse, self._ac_use_in)
 
         # ---- Output ICC ----
         out_row = QHBoxLayout()
@@ -2303,13 +2339,21 @@ class TabProfile(QWidget):
         p = open_file_dialog(self, tr("Select calibration file"), tr("CAL files (*.cal)"),
                              extra_path=self._settings.get("custom_output_path", ""))
         if p:
-            self._ac_cal_edit.setText(p)
+            self._ac_use_cal(p)
+
+    def _ac_use_cal(self, p) -> None:
+        """The .cal chosen with Browse, or dropped on its row."""
+        self._ac_cal_edit.setText(str(p))
 
     def _ac_browse_in(self) -> None:
         p = open_file_dialog(self, tr("Select input ICC profile"), tr("ICC profiles (*.icc *.icm)"),
                              extra_path=self._settings.get("custom_output_path", ""))
         if p:
-            self._ac_in_edit.setText(p)
+            self._ac_use_in(p)
+
+    def _ac_use_in(self, p) -> None:
+        """The profile chosen with Browse, or dropped on its row."""
+        self._ac_in_edit.setText(str(p))
 
     def _ac_browse_out(self) -> None:
         from ui.widgets import save_file_dialog
@@ -4321,7 +4365,9 @@ class TabProfile(QWidget):
         self._m_gam_path_browse.setFixedHeight(22)
         path_row.addWidget(self._m_gam_path_edit, stretch=1)
         path_row.addWidget(self._m_gam_path_browse)
-        g.addLayout(path_row)
+        self._m_gam_zone = self._file_drop_row(
+            path_row, g, grp, (".icc", ".icm"), self._m_gam_path_browse,
+            self._use_m_gam)
 
         def _on_m_mode_changed() -> None:
             active = bool(self._m_gam_mode_combo.currentData())
@@ -4921,7 +4967,9 @@ class TabProfile(QWidget):
         self._gam_path_browse.clicked.connect(self._browse_gam)
         path_row.addWidget(self._gam_path_edit, stretch=1)
         path_row.addWidget(self._gam_path_browse)
-        g.addLayout(path_row)
+        self._gam_zone = self._file_drop_row(
+            path_row, g, grp, (".icc", ".icm"), self._gam_path_browse,
+            self._use_gam)
 
         def _on_mode_changed() -> None:
             active = bool(self._gam_mode_combo.currentData())
@@ -5539,6 +5587,53 @@ class TabProfile(QWidget):
         )
         if not path:
             return
+        self._use_measurement(path)
+
+    def _runner_idle(self) -> bool:
+        return not self._runner.is_running
+
+    def _file_drop_row(self, row, layout, parent, suffixes, browse, use):
+        """*row* in a zone that takes one file of *suffixes* from the file
+        manager and hands it to *use*, the method its Browse (*browse*)
+        hands the chosen file to; only while that button is enabled and
+        ArgyllCMS is idle (4.3.33). Added to *layout* in the row's place."""
+        from ui.file_drop import CONTEXT, FileDropZone
+        zone = FileDropZone.around(row, parent, suffixes, single=True,
+                                   spacing=layout.spacing(),
+                                   guard=(browse, self._runner_idle),
+                                   accent=CONTEXT)
+        zone.file_dropped.connect(use)
+        layout.addWidget(zone)
+        return zone
+
+    def _drops_open(self) -> bool:
+        """A measurement is taken while the load icon is enabled and
+        ArgyllCMS is not running."""
+        return self._load_btn.isEnabled() and not self._runner.is_running
+
+    def _on_measurement_dropped(self, path) -> None:
+        """A measurement dropped on the Measurement Data box (4.3.33): what
+        the header's load icon does with the file it was given, in either
+        run type, with the same questions."""
+        ctl = getattr(self, "_target_ctl", None)
+        try:
+            if ctl is not None and ctl.target.is_calibration():
+                self._pc_use_ti3(str(path))
+                return
+        except Exception:      # noqa: BLE001 — as the icon: the normal load
+            pass
+        # As Browse's `declutter_settings`: a legacy flat project folder is
+        # tidied before the file is used.
+        from core.file_manager import maybe_declutter_on_load
+        try:
+            maybe_declutter_on_load(str(path), self._settings)
+        except Exception:      # noqa: BLE001 — as Browse: never fatal
+            pass
+        self._use_measurement(str(path))
+
+    def _use_measurement(self, path) -> None:
+        """The measurement chosen with the load icon, or dropped on the
+        Measurement Data box: from here on the same steps and questions."""
         p = Path(path)
         # THE QUESTION COMES BEFORE THE FORMAT, and it did not.
         #
@@ -5805,7 +5900,11 @@ class TabProfile(QWidget):
             start_dir=str(ref_dir) if ref_dir.is_dir() else "",
         )
         if path:
-            self._gam_path_edit.setText(path)
+            self._use_gam(path)
+
+    def _use_gam(self, path) -> None:
+        """The profile chosen with Browse, or dropped on its row."""
+        self._gam_path_edit.setText(str(path))
 
     def _browse_m_gam(self) -> None:
         bin_path = self._settings.get("argyll_bin_path", "/Applications/Argyll/bin")
@@ -5815,7 +5914,11 @@ class TabProfile(QWidget):
             start_dir=str(ref_dir) if ref_dir.is_dir() else "",
         )
         if path:
-            self._m_gam_path_edit.setText(path)
+            self._use_m_gam(path)
+
+    def _use_m_gam(self, path) -> None:
+        """The profile chosen with Browse, or dropped on its row."""
+        self._m_gam_path_edit.setText(str(path))
 
     def _apply_preconditioning_merge(self, params: ProfileParams) -> ProfileParams:
         """When ChromIQ-style refinement is on and pre-conditioning data was

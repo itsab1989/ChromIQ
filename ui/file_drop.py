@@ -163,6 +163,25 @@ def guard_allows(guard) -> bool:
         return False
 
 
+#: ``accent=CONTEXT``: the accent of the tab or Tools window the row is in.
+CONTEXT = "context"
+
+
+def context_accent(widget: "QWidget | None") -> "str | None":
+    """The accent of the nearest tab or tool window around *widget*: its
+    ``TAB_ACCENT`` (the four workflow tabs and Print, the hue their step
+    header is painted in) or ``ACCENT`` (every Tools window, the hue of its
+    masthead, primary button and focus ring). None outside both."""
+    w = widget
+    while w is not None:
+        for name in ("TAB_ACCENT", "ACCENT"):
+            value = getattr(type(w), name, None)
+            if isinstance(value, str) and value.startswith("#"):
+                return value
+        w = w.parentWidget()
+    return None
+
+
 def drop_hint(kind: str = "file") -> str:
     """The one sentence a row's existing help gains (4.3.33): *kind* is
     ``"file"`` (a row that takes one file), ``"files"`` (a list that takes
@@ -251,7 +270,8 @@ class _Drops(QObject):
         host = row.parentWidget() or row
         self._overlay = _DropOverlay(host)
         self._overlay.colour = colour or (
-            accent if isinstance(accent, str) else None) or "#37bcd6"
+            accent if isinstance(accent, str) and accent != CONTEXT
+            else None) or "#37bcd6"
         self._fixed_colour = colour is not None
 
     # --- what is taken -----------------------------------------------
@@ -292,6 +312,9 @@ class _Drops(QObject):
         if self._fixed_colour or not self._accent:
             return self._overlay.colour
         from ui.theme import accent_for, active_mode
+        if self._accent == CONTEXT:
+            found = context_accent(self._row)
+            return accent_for(found) if found else self._overlay.colour
         if callable(self._accent):
             # A window whose accent depends on the appearance (Settings'
             # indicator ink): its own function, asked for the mode on screen.
