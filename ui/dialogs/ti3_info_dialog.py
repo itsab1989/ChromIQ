@@ -43,6 +43,7 @@ from ui import neutral_styles
 from ui.dialog_sizing import pin_min_height
 from ui.dialogs.tools_dialogs import neutral_controls_qss
 from ui.fade_scroll import FadeScrollArea
+from ui.file_drop import FileDropZone
 from ui.styles import SPEC_CYAN, TEXT_DIM, TEXT_MAIN
 from ui.tab_header import dialog_masthead
 from ui.tooltip_button import TooltipButton
@@ -85,6 +86,10 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 _ACCENT = SPEC_CYAN
+# What a drop may bring (4.3.32, jctay 150152): the files the two choosers'
+# own filters offer. Anything else dropped is left out.
+MEASUREMENT_DROP_SUFFIXES = (".ti3",)
+READING_DROP_SUFFIXES = (".ti3", ".txt", ".mxf", ".cxf")
 
 _HELP = tr(
     "Open a measurement file (.ti3) — the raw readings of every patch on a "
@@ -197,11 +202,25 @@ class Ti3InfoDialog(QDialog):
         self._inner.addWidget(self._body)
 
         # --- File picker row ----------------------------------------------
-        pick = QHBoxLayout()
+        # A .ti3 dragged from the file manager onto this row opens as Browse
+        # opens it (4.3.32, jctay 150152); `ui/file_drop.py`.
+        drop_tip = tr(
+            "You can also drag a measurement file (.ti3) from Finder, "
+            "Explorer or another file manager and drop it on this row, and "
+            "ChromIQ opens it just as the browse button does.")
+        self._pick_zone = FileDropZone(self, MEASUREMENT_DROP_SUFFIXES,
+                                       single=True)
+        self._pick_zone.files_dropped.connect(self._on_measurement_dropped)
+        pick = QHBoxLayout(self._pick_zone)
+        pick.setContentsMargins(0, 0, 0, 0)
         pick.setSpacing(8)
         pick.addWidget(QLabel(tr("Measurement:"), self))
         self._path_edit = QLineEdit(self)
         self._path_edit.setReadOnly(True)
+        # Read-only, so it takes no text drop anyway; off, so a file drag
+        # over it reaches the row instead of being refused by the field.
+        self._path_edit.setAcceptDrops(False)
+        self._path_edit.setToolTip(drop_tip)
         self._path_edit.setPlaceholderText(tr("Browse for a .ti3 measurement…"))
         pick.addWidget(self._path_edit, 1)
         # Reuse the cyan "folder_build" glyph (as on the Build Profile tab) so
@@ -211,7 +230,7 @@ class Ti3InfoDialog(QDialog):
             self, tr("Browse for a .ti3 measurement"), "folder_build")
         browse.clicked.connect(self._on_browse)
         pick.addWidget(browse)
-        self._inner.addLayout(pick)
+        self._inner.addWidget(self._pick_zone)
 
         # --- Mode: Inspect (raw chart) vs Verify (managed print) ----------
         mode_row = QHBoxLayout()
@@ -390,6 +409,13 @@ class Ti3InfoDialog(QDialog):
         # Use the cyan masthead accent (not the neutral indicator) for the
         # focus ring, so a highlighted field matches the rest of the dialog.
         self.setStyleSheet(neutral_controls_qss(_ACCENT, popup=_ACCENT))
+        # The drop highlight in this window's accent; in Neutral the one
+        # ACTION ink, as every accent surface there (`accent_for`).
+        from ui.theme import accent_for
+        drop_colour = accent_for(
+            _ACCENT, resolve_mode(self._settings.get("appearance", "auto")))
+        for zone in (self._pick_zone, self._others_zone):
+            zone.set_highlight_colour(drop_colour)
 
     # ------------------------------------------------------------------
     def _resolve_text_colors(self) -> tuple[str, str]:
@@ -564,10 +590,20 @@ class Ti3InfoDialog(QDialog):
             "stay.\n\n"
             "Nothing is changed: not this measurement, not the other "
             "readings, and no profile.").format(max=MAX_OTHER_READINGS)
+        # Files dragged from the file manager onto this row are added as
+        # Add… adds them (4.3.32, jctay 150152); `ui/file_drop.py`.
+        tip += "\n\n" + tr(
+            "You can also drag one or several reading files (.ti3, .txt, "
+            ".mxf or .cxf) from Finder, Explorer or another file manager and "
+            "drop them on this row, and ChromIQ adds them just as Add… does "
+            "(folders and other kinds of files are left out).")
         # The app's multi-file list (Tools > Average / Merge): a list with
         # Add… and Remove under it, styled by the app's own QListWidget rule
         # (ui/styles.py); here in this window's "Label: field  (i)" row.
-        row = QHBoxLayout()
+        self._others_zone = FileDropZone(self, READING_DROP_SUFFIXES)
+        self._others_zone.files_dropped.connect(self._on_readings_dropped)
+        row = QHBoxLayout(self._others_zone)
+        row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(8)
         self._others_lbl = QLabel(tr("Other readings:"), self)
         self._others_lbl.setToolTip(tip)
@@ -631,7 +667,7 @@ class Ti3InfoDialog(QDialog):
         row.addWidget(TooltipButton(
             tr("Other readings of this chart"), tip, self, color=_ACCENT),
             0, Qt.AlignmentFlag.AlignTop)
-        self._inner.addLayout(row)
+        self._inner.addWidget(self._others_zone)
 
         tol_tip = tr(
             "The colour difference (ΔE₀₀) above which a patch counts as a "
@@ -692,6 +728,18 @@ class Ti3InfoDialog(QDialog):
             start_dir=start)
         if paths:
             self.add_readings([Path(p) for p in paths])
+
+    def _on_readings_dropped(self, paths: "list[Path]") -> None:
+        """Files dropped on the Other readings row: exactly what Add… does
+        with the files chosen in its window (same list, same limit, same
+        duplicates rule, same loader and refusals)."""
+        if paths:
+            self.add_readings([Path(p) for p in paths])
+
+    def _on_measurement_dropped(self, paths: "list[Path]") -> None:
+        """One .ti3 dropped on the Measurement row: as Browse opens it."""
+        if len(paths) == 1:
+            self.load_measurement(Path(paths[0]))
 
     def load_second_reading(self, path: "Path | None") -> None:
         """Compare with *path* alone (None stops comparing)."""
