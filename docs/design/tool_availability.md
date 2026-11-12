@@ -303,8 +303,8 @@ Still ○ in every state: it reads files and writes none.
   the date measured, the instrument and the measurement condition), Add…
   (several files at once), Remove (the selected entries), Clear all and a
   help button; up to nine other readings, ten in all; a file already in the
-  list is not added twice, and files past the ninth are not added and the
-  window says how many. Each is a reading of the same chart: a `.ti3`, a CGATS text file with XYZ or
+  list is not added twice, and files past the ninth are not added; the
+  window names each file not added and why (see the notice below). Each is a reading of the same chart: a `.ti3`, a CGATS text file with XYZ or
   L\*a\*b\* values, or an i1Profiler `.mxf`/`.cxf`, converted by the
   import's converter in a temporary folder that is removed again, in the
   measurement's own condition when the file holds it.
@@ -402,3 +402,47 @@ Still ○ in every state: it reads files and writes none.
   * Read on the GUI thread as before; each file is read once and kept, so a
     change of tolerance only recounts (`tests/test_4332_compare_several_
     readings.py`, nine others of 2000 patches well under a second).
+* **Files dropped from the file manager** (jctay, forum 150152, 2026-11-12:
+  *"would it be possible to add drag-and-drop for selecting files?"*; Basti:
+  if possible, do it). `ui/file_drop.py`, `tests/test_4332_drop_files_on_
+  measurement_info.py`.
+  * On the **Other readings** row (the list, its buttons, its label, also
+    while the list is still empty): one file or several, of the kinds Add…
+    offers (`.ti3`, `.txt`, `.mxf`, `.cxf`, any case), are added exactly as
+    Add… adds the files chosen in its window: in the order dropped, the same
+    loader and same-chart check, the same refusals in the same words, a file
+    already listed not added twice, and past nine others the rest not added,
+    all named in the same notice.
+  * On the **Measurement** row: exactly one `.ti3` opens as Browse opens it.
+    Two files or a file of another kind there are not accepted.
+  * Folders, web links, missing files and files of other kinds are left out;
+    a drag that holds nothing usable is not accepted at all (no highlight,
+    the system shows its "not allowed" pointer, nothing changes). The row's
+    help says which kinds are taken and that folders and other kinds are
+    left out.
+    It names the file manager as each platform calls it (the Finder, File
+    Explorer, "your file manager" on Linux; #130).
+  * **One notice, for Add… and for a drop alike** (the owner, 2026-11-12):
+    when a file was not added, the banner under the rows names EVERY such
+    file with its reason, one line each: already in the list, the list is
+    full (nine others), a folder, a kind ChromIQ cannot read as a reading,
+    not found on this computer. A newly added file that cannot be compared
+    is named in a second part ("Added to the list, but not compared"), and
+    its row says "not compared" as before. When every file was added and
+    compared there is no notice, and an earlier one goes. This replaces
+    4.3.31's single line "… so N of the files you chose were not added",
+    which named no file and said nothing about duplicates.
+  * **The notice wears the app's warning colours**: the cream warning box's
+    ink in Light, amber in Dark, Neutral's own grey box with one equal 1 px
+    edge all round (a multi-line box, as the Print Chart warning box; the
+    2 px underline stays on one-line banners). Until 4.3.31 this window drew
+    it, and its "RGB only" note, in a blue (`#3b82f6`) that is in no
+    appearance's palette.
+  * While a usable drag is over a row, a dashed frame with a light wash in
+    the window's accent (Neutral: the ACTION ink) is drawn over it; it goes
+    when the drag leaves or drops. Nothing under it moves.
+  * The files are loaded on the next turn of the event loop after the drop,
+    not inside it, and on the GUI thread as Add… loads them.
+  * `file:` URLs only, decoded (spaces, umlauts); `file:///C:/…` is read as
+    the drive path `C:/…` on every platform, `file://server/share/…` as
+    `//server/share/…`.
