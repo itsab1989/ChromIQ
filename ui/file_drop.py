@@ -484,6 +484,7 @@ class FileDropTarget(_Drops):
             # A list or a text box takes its drags on its viewport.
             widget.viewport().setAcceptDrops(True)
             targets.append(widget.viewport())
+        self._own_ids = {id(t) for t in targets}
         for t in targets:
             self._watched.add(id(t))
             t.installEventFilter(self)
@@ -501,10 +502,12 @@ class FileDropTarget(_Drops):
 
     def eventFilter(self, obj, event) -> bool:  # noqa: N802 — Qt's name
         t = event.type()
-        mine = obj is self._own or (
-            isinstance(self._own, QAbstractScrollArea)
-            and obj is self._own.viewport())
-        if not mine:
+        if t not in _DRAG_EVENTS and t not in (QEvent.Type.Resize,
+                                               QEvent.Type.Show):
+            return False
+        # By id: a widget being destroyed still sends events through here,
+        # and asking it anything then raises.
+        if id(obj) not in self._own_ids:
             return super().eventFilter(obj, event)
         if t == QEvent.Type.Resize and self._lit:
             self.place_overlay()

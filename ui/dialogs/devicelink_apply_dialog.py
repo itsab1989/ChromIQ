@@ -47,6 +47,7 @@ from ui.dialogs.tools_dialogs import (
     _remember_dir,
     neutral_controls_qss,
 )
+from ui.file_drop import FileDropTarget, with_drop_hint
 from ui.styles import SPEC_AMBER
 from ui.theme import accent_for, resolve_mode
 from ui.tooltip_button import TooltipButton
@@ -69,6 +70,9 @@ log = get_logger(__name__)
 
 _ICC_FILTER = "ICC profiles (*.icc *.icm);;All files (*)"
 _IMG_FILTER = "Images (*.tif *.tiff *.jpg *.jpeg);;All files (*)"
+# What those filters offer first, so what a drop may bring (4.3.33).
+_ICC_SUFFIXES = (".icc", ".icm")
+_IMG_SUFFIXES = (".tif", ".tiff", ".jpg", ".jpeg")
 
 
 def _embedded_icc(image_path: Path) -> bytes | None:
@@ -146,7 +150,11 @@ class DeviceLinkApplyDialog(_ToolDialogBase):
         head.addWidget(self._tip(tip_title, tip_body), 0, Qt.AlignmentFlag.AlignVCenter)
         layout.addLayout(head)
 
-    def _file_row(self, layout: QVBoxLayout, placeholder: str, on_pick) -> QLineEdit:
+    def _file_row(self, layout: QVBoxLayout, placeholder: str, on_pick,
+                  drop=None) -> QLineEdit:
+        """*drop*: ``(suffixes, use, remember)``, a file of those kinds
+        dropped from the file manager is handed to *use* as Browse hands it
+        (4.3.33)."""
         row = QHBoxLayout()
         field = QLineEdit(self)
         field.setReadOnly(True)
@@ -155,7 +163,10 @@ class DeviceLinkApplyDialog(_ToolDialogBase):
         browse = make_browse_button(self, tr("Browse…"), icon="folder_print")
         browse.clicked.connect(on_pick)
         row.addWidget(browse)
-        layout.addLayout(row)
+        if drop is None:
+            layout.addLayout(row)
+        else:
+            self._drop_row(row, layout, drop[0], drop[1], remember=drop[2])
         return field
 
     def _build_inputs(self) -> None:
@@ -163,25 +174,26 @@ class DeviceLinkApplyDialog(_ToolDialogBase):
 
         self._label_row(
             form, tr("Device-link profile:"), tr("Device-link profile"),
-            tr("The device-link you built with 'Create device-link profile'. It "
+            with_drop_hint(tr("The device-link you built with 'Create device-link profile'. It "
             "bakes in a fixed source→printer conversion. If you built it here, "
             "ChromIQ also knows which colour space it expects and can prepare "
-            "your images accordingly."))
+            "your images accordingly.")))
         self._link_field = self._file_row(
             form, tr("Pick a device-link .icc (auto-filled from the last one built)…"),
-            self._pick_link)
+            self._pick_link, drop=(_ICC_SUFFIXES, self._set_link, False))
 
         self._label_row(
             form, tr("Link's source colour space (optional):"),
             tr("Link's source colour space"),
-            tr("The colour space the link was built for (e.g. sRGB, AdobeRGB, "
+            with_drop_hint(tr("The colour space the link was built for (e.g. sRGB, AdobeRGB, "
             "ProPhoto). ChromIQ fills this in automatically for links built here. "
             "When it's set, any image that's in a different space is converted "
             "into it first, so the result is correct even if your image wasn't "
             "already in the link's source space. Leave empty only if you're sure "
-            "your images are already in it."))
+            "your images are already in it.")))
         self._src_field = self._file_row(
-            form, tr("Auto-filled for links built in ChromIQ…"), self._pick_source)
+            form, tr("Auto-filled for links built in ChromIQ…"), self._pick_source,
+            drop=(_ICC_SUFFIXES, self._use_source, False))
 
         self._note = QLabel("", self)
         self._note.setWordWrap(True)
@@ -190,14 +202,20 @@ class DeviceLinkApplyDialog(_ToolDialogBase):
 
         self._label_row(
             form, tr("Images to convert:"), tr("Images"),
-            tr("The images to run through the link. They should be in the link's "
+            with_drop_hint(tr("The images to run through the link. They should be in the link's "
             "source colour space (ChromIQ converts them for you when it knows "
             "that space). Add a whole set at once — each is processed the same "
-            "way. TIFF and JPEG are supported."))
+            "way. TIFF and JPEG are supported."), "files"))
         self._image_list = QListWidget(self)
         self._image_list.setMaximumHeight(150)
         self._image_list.itemSelectionChanged.connect(self._on_image_selection)
         form.addWidget(self._image_list)
+        # Images dropped on the list are added as "Add images…" adds them
+        # (4.3.33).
+        self._image_drop = FileDropTarget(
+            self._image_list, _IMG_SUFFIXES, guard=self._not_busy,
+            colour=self._accent)
+        self._image_drop.files_dropped.connect(self._use_images)
 
         _COMPACT = "QPushButton { min-height: 24px; max-height: 24px; padding: 2px 12px; }"
         btns = QHBoxLayout()
@@ -264,14 +282,21 @@ class DeviceLinkApplyDialog(_ToolDialogBase):
             start_dir=str(_initial_dir(self._settings, self.TOOL_KEY)),
             extra_paths=tuple(icc_profile_paths()))
         if path:
-            self._src_profile = Path(path)
-            self._src_field.setText(path)
-            self._refresh_note()
+            self._use_source(path)
+
+    def _use_source(self, path) -> None:
+        self._src_profile = Path(path)
+        self._src_field.setText(str(path))
+        self._refresh_note()
 
     def _pick_images(self) -> None:
         paths = open_files_dialog(
             self, tr("Choose images to convert"), tr(_IMG_FILTER),
             start_dir=str(_initial_dir(self._settings, self.TOOL_KEY)), preview=True)
+        self._use_images(paths)
+
+    def _use_images(self, paths: list, _left: "list | None" = None) -> None:
+        """The images chosen with Add images…, or dropped on the list."""
         if not paths:
             return
         added = False

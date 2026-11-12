@@ -43,6 +43,7 @@ from ui.dialogs.tools_dialogs import (
     neutral_controls_qss,
 )
 from ui.fade_scroll import FadeScrollArea
+from ui.file_drop import FileDropTarget, with_drop_hint
 from ui.styles import SPEC_CYAN
 from ui.theme import accent_for, resolve_mode
 from ui.tooltip_button import TooltipButton
@@ -69,6 +70,9 @@ log = get_logger(__name__)
 _ICC_FILTER = "ICC profiles (*.icc *.icm);;All files (*)"
 _CAL_FILTER = "Calibration files (*.cal);;All files (*)"
 _IMG_FILTER = "Images (*.tif *.tiff *.jpg *.jpeg *.png);;All files (*)"
+# What those filters offer first, so what a drop may bring (4.3.33).
+_ICC_SUFFIXES = (".icc", ".icm")
+_IMG_SUFFIXES = (".tif", ".tiff", ".jpg", ".jpeg", ".png")
 
 
 class DeviceLinkDialog(_ToolDialogBase):
@@ -201,8 +205,11 @@ class DeviceLinkDialog(_ToolDialogBase):
             + disabled_primary_qss(c, mode))
 
     # ------------------------------------------------------------------ UI
-    def _file_row(self, layout: QVBoxLayout, placeholder: str, on_pick):
-        """A read-only path field + Browse button appended to ``layout``."""
+    def _file_row(self, layout: QVBoxLayout, placeholder: str, on_pick,
+                  drop=None):
+        """A read-only path field + Browse button appended to ``layout``.
+        *drop*: ``(suffixes, use)``, a file of those kinds dropped from the
+        file manager is handed to *use* as Browse hands it (4.3.33)."""
         row = QHBoxLayout()
         field = QLineEdit(self)
         field.setReadOnly(True)
@@ -211,7 +218,10 @@ class DeviceLinkDialog(_ToolDialogBase):
         browse = make_browse_button(self, tr("Browse…"), icon="folder_build")
         browse.clicked.connect(on_pick)
         row.addWidget(browse)
-        layout.addLayout(row)
+        if drop is None:
+            layout.addLayout(row)
+        else:
+            self._drop_row(row, layout, drop[0], drop[1])
         return field
 
     def _label_row(self, layout: QVBoxLayout, text: str,
@@ -284,25 +294,25 @@ class DeviceLinkDialog(_ToolDialogBase):
         self._label_row(
             form, tr("Source profile — the colour space your images are in:"),
             tr("Source profile"),
-            tr("The colour space your photos are saved in — most often sRGB, "
+            with_drop_hint(tr("The colour space your photos are saved in — most often sRGB, "
             "AdobeRGB (1998) or ProPhoto/ROMM. This tells the device-link where "
             "the colours are coming from. If the file is an ICC version-4 profile, "
             "ChromIQ converts a copy to version 2 automatically, because the "
-            "ArgyllCMS engine only reads version 2."))
+            "ArgyllCMS engine only reads version 2.")))
         self._src_field = self._file_row(
             form, tr("Pick an ICC profile (e.g. sRGB, AdobeRGB)…"),
-            self._pick_source)
+            self._pick_source, drop=(_ICC_SUFFIXES, self._use_source))
 
         self._label_row(
             form, tr("Destination profile — your printer profile:"),
             tr("Destination (printer) profile"),
-            tr("The printer profile you built in ChromIQ for this printer, ink and "
+            with_drop_hint(tr("The printer profile you built in ChromIQ for this printer, ink and "
             "paper. The device-link maps your source colours straight onto what "
             "this printer can reproduce. If you have a current project open, "
-            "ChromIQ fills this in for you."))
+            "ChromIQ fills this in for you.")))
         self._dst_field = self._file_row(
             form, tr("Pick your printer .icc (auto-filled from the current project)…"),
-            self._pick_destination)
+            self._pick_destination, drop=(_ICC_SUFFIXES, self._set_destination))
 
         self._intent_combo = self._combo_row(
             form, tr("Rendering style:"), tr("Rendering style"),
@@ -388,14 +398,14 @@ class DeviceLinkDialog(_ToolDialogBase):
         self._image_cb = self._check_row(
             body, tr("Optimise the mapping for specific images"),
             tr("Optimise for specific images"),
-            tr("Normally the link is built to fit the whole source colour space — "
+            with_drop_hint(tr("Normally the link is built to fit the whole source colour space — "
             "on a big space like ProPhoto that can over-compress and dull strong "
             "colours. Tick this and add one or more images, and ChromIQ measures "
             "the colours actually in them (in the same appearance space the "
             "mapping uses) and tunes the link to those, so the colours you care "
             "about get the most faithful treatment. Add a whole series (e.g. an "
             "exhibition set) to map every image identically. Best when you'll "
-            "reprint the same pictures, or a set with similar colours."))
+            "reprint the same pictures, or a set with similar colours."), "files"))
         self._image_cb.toggled.connect(self._on_image_toggled)
 
         self._image_list = QListWidget(self)
@@ -425,6 +435,12 @@ class DeviceLinkDialog(_ToolDialogBase):
         img_btns.addWidget(self._img_remove)
         img_btns.addStretch(1)
         body.addLayout(img_btns)
+        # Images dropped on the list are added as "Add images…" adds them,
+        # and only while that button is (the tick above) (4.3.33).
+        self._image_drop = FileDropTarget(
+            self._image_list, _IMG_SUFFIXES,
+            guard=(self._not_busy, self._img_add), colour=self._accent)
+        self._image_drop.files_dropped.connect(self._use_images)
 
         # Detail = presets + a "Custom…" entry that reveals a raw 0–100 spinner.
         detail_row = QHBoxLayout()
@@ -462,23 +478,25 @@ class DeviceLinkDialog(_ToolDialogBase):
         self._label_row(
             body, tr("Abstract 'tweak' profile (optional):"),
             tr("Abstract profile"),
-            tr("An optional creative adjustment baked into the link — for example a "
+            with_drop_hint(tr("An optional creative adjustment baked into the link — for example a "
             "profile that warms the whole image slightly or lifts contrast. Leave "
             "empty unless you've made one on purpose; it changes every colour the "
-            "link touches."))
+            "link touches.")))
         self._abstract_field = self._file_row(
-            body, tr("Pick an abstract profile…"), self._pick_abstract)
+            body, tr("Pick an abstract profile…"), self._pick_abstract,
+            drop=(_ICC_SUFFIXES, self._use_abstract))
 
         # 3 — bake-in calibration.
         self._label_row(
             body, tr("Bake in calibration curves (optional):"),
             tr("Bake-in calibration"),
-            tr("If your printer was calibrated to a known state (a .cal file), "
+            with_drop_hint(tr("If your printer was calibrated to a known state (a .cal file), "
             "folding those curves into the link keeps the printer on that target "
             "without a separate calibration step. Only use the .cal that belongs to "
-            "this exact printer/paper — the wrong one will skew every colour."))
+            "this exact printer/paper — the wrong one will skew every colour.")))
         self._cal_field = self._file_row(
-            body, tr("Pick a calibration (.cal) file…"), self._pick_cal)
+            body, tr("Pick a calibration (.cal) file…"), self._pick_cal,
+            drop=((".cal",), self._use_cal))
 
         # 4 — 3DLUT export.
         self._lut3d_combo = self._combo_row(
@@ -580,10 +598,14 @@ class DeviceLinkDialog(_ToolDialogBase):
     def _pick_source(self) -> None:
         p = self._browse_file(tr("Choose source profile"), tr(_ICC_FILTER), icc=True)
         if p:
-            self._src_path = p
-            self._src_field.setText(str(p))
-            self._maybe_default_output_name()
-            self._refresh()
+            self._use_source(p)
+
+    def _use_source(self, p) -> None:
+        p = Path(p)
+        self._src_path = p
+        self._src_field.setText(str(p))
+        self._maybe_default_output_name()
+        self._refresh()
 
     def _pick_destination(self) -> None:
         p = self._browse_file(tr("Choose printer profile"), tr(_ICC_FILTER), icc=True)
@@ -593,14 +615,20 @@ class DeviceLinkDialog(_ToolDialogBase):
     def _pick_abstract(self) -> None:
         p = self._browse_file(tr("Choose abstract profile"), tr(_ICC_FILTER), icc=True)
         if p:
-            self._abstract_path = p
-            self._abstract_field.setText(str(p))
+            self._use_abstract(p)
+
+    def _use_abstract(self, p) -> None:
+        self._abstract_path = Path(p)
+        self._abstract_field.setText(str(p))
 
     def _pick_cal(self) -> None:
         p = self._browse_file(tr("Choose calibration file"), tr(_CAL_FILTER))
         if p:
-            self._cal_path = p
-            self._cal_field.setText(str(p))
+            self._use_cal(p)
+
+    def _use_cal(self, p) -> None:
+        self._cal_path = Path(p)
+        self._cal_field.setText(str(p))
 
     def _pick_images(self) -> None:
         """Add one or more images to the gamut set (ChromIQ's own picker, with the
@@ -609,6 +637,10 @@ class DeviceLinkDialog(_ToolDialogBase):
             self, tr("Choose images to optimise for"), tr(_IMG_FILTER),
             start_dir=str(_initial_dir(self._settings, self.TOOL_KEY)),
             preview=True)
+        self._use_images(paths)
+
+    def _use_images(self, paths: list, _left: "list | None" = None) -> None:
+        """The images chosen with Add images…, or dropped on the list."""
         if not paths:
             return
         added = False
