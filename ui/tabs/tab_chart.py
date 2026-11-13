@@ -4074,7 +4074,8 @@ def i1io_instrument_bullet_manual() -> str:
         "letters and numbers (their patterns, typeface, underline and "
         "alignment) and the sheet text's typeface and size, and you can add "
         "a clip border for notes along one long edge of the sheet (off by "
-        "default, in Guided too); the other layout controls are greyed, "
+        "default; Guided offers it too); the other layout controls are "
+        "greyed, "
         "because the table needs this layout.")
 
 
