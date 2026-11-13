@@ -473,8 +473,8 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
         # a "B"): it is the one element that can go without loss.
         wm_box = wordmark_box(geom, layout, w, h, index, labels)
         if wm_box is not None:
-            _wordmark(draw, geom_list, px(wm_box[0]), px(F.TEXT_LINE_MM.value),
-                      px(F.WORDMARK_MM.value))
+            _wordmark(draw, geom_list, px(wm_box[0]),
+                      px((wm_box[1] + wm_box[3]) / 2.0), px(wm_box[4]))
         # The chart's name, and the sheet text (Manual's "Sheet text", its
         # placeholders filled in as on every chart) after it, centred between
         # marks 2 and 3 and cut to fit with "…": never at the patches' cost.
@@ -521,21 +521,26 @@ def wordmark_box(geom, layout, w: float, h: float, page: int,
     for that layout. So no patch size, margin or label setting can bring it
     back at the patches' cost."""
     wm_x0 = mark_zone(marks(w, h)[0])[2] + 4.0
-    wm_h = F.WORDMARK_MM.value
-    box = (wm_x0, F.TEXT_LINE_MM.value - wm_h / 2 - 0.5,
-           wm_x0 + 5.0 * wm_h, F.TEXT_LINE_MM.value + wm_h / 2 + 0.5)
-    if geom is None or layout is None:
-        return box
-    cells = page_patches(geom, layout, w, h, page)
-    blocked = [c[3:] for c in cells]
-    for _y, x0, x1, row in scan_rows(cells, w):
-        blocked.append((x0, row[0][4], x1, row[0][6]))
-    if labels is not None:
-        numbers, letters = label_boxes(geom, layout, w, h, page, labels)
-        blocked += [b[1:] for b in numbers + letters]
-    if any(_overlap(box, b) for b in blocked):
-        return None
-    return box
+    blocked: list = []
+    if geom is not None and layout is not None:
+        cells = page_patches(geom, layout, w, h, page)
+        blocked = [c[3:] for c in cells]
+        for _y, x0, x1, row in scan_rows(cells, w):
+            blocked.append((x0, row[0][4], x1, row[0][6]))
+        if labels is not None:
+            numbers, letters = label_boxes(geom, layout, w, h, page, labels)
+            blocked += [b[1:] for b in numbers + letters]
+    # Full size first, then smaller in 0.5 mm steps down to the smallest
+    # legible size, its top kept at the printer's edge: the first that
+    # touches nothing is the one drawn. ``box[4]`` is its height.
+    size = F.WORDMARK_MM.value
+    while size >= F.WORDMARK_MIN_MM.value - 1e-9:
+        top = F.PRINTER_EDGE_MM.value
+        box = (wm_x0, top, wm_x0 + 5.0 * size, top + size + 1.0, size)
+        if not any(_overlap(box, b) for b in blocked):
+            return box
+        size -= 0.5
+    return None
 
 
 def _wordmark(draw, geom_list, x: int, centre_y: int, height: int) -> None:

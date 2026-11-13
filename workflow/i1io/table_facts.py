@@ -263,8 +263,12 @@ TEXT_LINE_MM = Fact(8.5, "ours", OURS)
 PRINTER_EDGE_MM = Fact(5.0, "the engine's default page margin for text "
                        "(text_edge); the hold and the ring: unknown", OURS)
 
-#: The ChromIQ wordmark's height in the top band (beside mark 1).
+#: The ChromIQ wordmark's height in the top band (beside mark 1), and the
+#: smallest it is shrunk to before it is left off: 2 mm, the same as the
+#: smallest label size, still legible in print (Basti, 2026-11-13: "or very
+#: small in a place where it takes up no space for patches").
 WORDMARK_MM = Fact(4.0, "ours", OURS)
+WORDMARK_MIN_MM = Fact(2.0, "ours: the smallest label size", OURS)
 
 #: Clear paper kept round every mark (no patch, run or text inside it).
 MARK_CLEAR_MM = Fact(1.0, "ours", OURS)

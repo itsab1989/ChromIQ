@@ -514,3 +514,18 @@ def test_the_logo_never_costs_a_patch(tmp_path, kw):
         for kind in ("columns", "rows"):
             for _t, *b in page["labels_mm"][kind]:
                 assert clear(b)
+
+
+def test_the_logo_shrinks_before_it_is_left_off(tmp_path):
+    """The logo is tried at full size, then smaller down to 2 mm, before it
+    is left off: on the default sheets and with 4 mm labels it fits at full
+    size at the top edge; it is never drawn below the smallest legible size."""
+    from workflow.i1io.table_facts import WORDMARK_MIN_MM, WORDMARK_MM
+    _r, full = _build(tmp_path / "a" if (tmp_path / "a").mkdir() is None
+                      else tmp_path, 60, "A4R")
+    (tmp_path / "b").mkdir()
+    _r, big = _build(tmp_path / "b", 60, "LetterR", indicator_size_mm=4.0)
+    assert full["pages"][0]["wordmark_mm"][4] == WORDMARK_MM.value
+    got = big["pages"][0]["wordmark_mm"]
+    assert got is not None
+    assert WORDMARK_MIN_MM.value <= got[4] <= WORDMARK_MM.value
