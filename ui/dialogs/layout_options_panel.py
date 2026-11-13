@@ -395,8 +395,8 @@ def i1io_clip_help() -> str:
         "edges. It ends above aiming cross 1 and never reaches the patches, "
         "the blank paper at the ends of the strips or the strip letters. "
         "The patch numbers may stand in the part of the band its content "
-        "leaves free, always at least 1 mm away from that content, as on "
-        "every ChromIQ chart with a clip border. It is always on this edge, "
+        "leaves free, always at least 2 mm away from that content. It is "
+        "always on this edge, "
         "because the other long edge holds aiming crosses 2 and 3 and the "
         "line with the chart name."
         "\n\n"
@@ -3967,6 +3967,14 @@ class LayoutOptionsPanel(QWidget):
             # engine reads the distance as unset and the numbers would hug
             # the patches instead (review 3, nit 6a: what is typed is what
             # is stored, built and shown)
+            # the clip border's width from the i1iO's own minimum: the box
+            # took 10 to 19.9 mm and the build used 20 (review 5, item 5)
+            cw = getattr(self, "clip_width", None)
+            if cw is not None:
+                from workflow.i1io.table_facts import CLIP_MIN_MM
+                saved["ranges"].append((cw, cw.minimum(), cw.maximum(),
+                                        cw.value(), cw.specialValueText()))
+                cw.setMinimum(max(cw.minimum(), CLIP_MIN_MM.value))
             tec = getattr(self, "text_edge_clip", None)
             if tec is not None:
                 saved["ranges"].append((tec, tec.minimum(), tec.maximum(),
