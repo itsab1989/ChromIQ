@@ -17,7 +17,7 @@ fixes (:func:`fixed_build_kwargs`). This module adds the rest:
 
 * three numbered aiming marks. On the table (sheet turned) they sit top-left
   (1), bottom-left (2) and bottom-right (3), the order i1Profiler asks for;
-  on the portrait page that is top-right, top-left and bottom-left. Their
+  on the portrait page that is bottom-left, bottom-right and top-right. Their
   digits, the chart's name, the page "N/M", the sheet text and the ChromIQ
   wordmark are printed turned, so they read the right way up on the table.
   No arrow: the person aims at the numbers, so either quarter turn is aimed
@@ -65,20 +65,27 @@ def paper_for(paper) -> str:
 
 @dataclass(frozen=True)
 class Labels:
-    """The engine's own label switches for an i1iO chart: the strip letters
-    (above every strip, beyond its run-in) and the patch numbers (beside the
-    first strip). The table needs neither; the person does."""
+    """The label switches for an i1iO chart: the strip letters (below every
+    strip, beyond its run-out: on the table the strip's left end, drawn by
+    `draw_furniture`) and the patch numbers (the engine's row indicators,
+    beside the first strip: on the table along the top). The table needs
+    neither; the person does."""
     columns: bool = True     # the patch numbers (the engine's row indicators)
-    rows: bool = True        # the strip letters (the engine's strip indicators)
-    size: float = F.LABEL_SIZE_MM.value
+    rows: bool = True        # the strip letters (Manual's "strip indicators")
+    size: float = 0.0        # 0 = automatic, as the engine's labels
 
 
 def label_wishes(kw: dict) -> Labels:
-    """The engine's label switches as *kw* holds them."""
+    """The label switches as *kw* holds them: what a person asked for, kept
+    under LABELS_KEY once `fixed_build_kwargs` has run (it hands the engine
+    its own switches, the letters off), so a second pass reads the wish and
+    not the engine's switch."""
+    held = kw.get(LABELS_KEY)
+    if isinstance(held, Labels):
+        return held
     return Labels(columns=kw.get("row_indicators") is not False,
                   rows=kw.get("draw_indicators", True) is not False,
-                  size=label_size_mm(kw.get("indicator_size_mm"))
-                  or F.LABEL_SIZE_MM.value)
+                  size=label_size_mm(kw.get("indicator_size_mm")))
 
 
 def label_size_mm(asked) -> float:
@@ -89,26 +96,6 @@ def label_size_mm(asked) -> float:
     except (TypeError, ValueError):
         size = 0.0
     return min(max(size, 0.0), F.LABEL_MAX_MM.value)
-
-
-def settle_letter_band(geom):
-    """*geom* with its top margin raised, if need be, so the strip letters'
-    ink (the engine's own measure of it, `Geom.label_ink_bottom_mm`, which
-    allows for the widest label: two letters once a chart has more than 26
-    strips) ends `table_facts.LABEL_CLEAR_MM` before every strip's run-in
-    (review r3 M1, m2). Nothing is printed on a scan line outside the
-    patches. Called by `instruments.geom_from_build_kwargs`, so the capacity
-    estimate and the build agree."""
-    from dataclasses import replace
-    from workflow.layout_engine import geometry
-    ink = float(getattr(geom, "label_ink_bottom_mm", 0.0) or 0.0)
-    if ink <= 0.0:
-        return geom
-    need = (geometry.strip_label_leader_top_mm(geom) + ink
-            + F.LABEL_CLEAR_MM.value + F.RUN_MM.value)
-    if geom.margin_t >= need - 1e-9:
-        return geom
-    return replace(geom, margin_t=round(need, 3))
 
 
 def fixed_build_kwargs(kw: dict) -> dict:
@@ -154,6 +141,10 @@ def fixed_build_kwargs(kw: dict) -> dict:
         clip_content_mode="off", helper_markers=False, chart_text="",
         stamp_command=False, side_stamp=False, strip_indicator_gap=0.0,
         indicator_size_mm=label_size_mm(kw.get("indicator_size_mm")),
+        # the strip letters are drawn by `draw_furniture`, at the strips'
+        # other end; the engine draws only the patch numbers
+        draw_indicators=False, row_indicators=bool(labels.columns),
+        text_edge_clip=F.NUMBERS_EDGE_MM.value,
         text_edge_top=4.0, strip_label_offset_mm=0.0,
         strip_label_offset_x_mm=0.0,
         # the letters and numbers turned to read upright on the table
@@ -193,20 +184,13 @@ class Mark:
 
 def marks(w: float, h: float) -> "list[Mark]":
     """The three aiming marks, in the order the person aims at them. The
-    sheet lies across the table turned a quarter turn ANTICLOCKWISE (its top
-    edge to the person's LEFT), so on the table every strip reads from the
-    left like a line of text: the strip letters at the left end, the patch
-    numbers rising 1, 2, 3 from left to right (the coordinator's ruling,
-    2026-11-13). The one thing that is not like text: strip A is the BOTTOM
-    strip and the letters rise upwards, because the engine lays strip A at
-    the page's left and putting it at the top would mean laying the strips
-    right to left, new engine work for every instrument. It is the same
-    turn as 4.3.17's anticlockwise i1Profiler chart. The table's top-left
-    is the page's top-right, and so on."""
+    sheet lies across the table turned a quarter turn CLOCKWISE (its top edge
+    to the person's right, so strip A is the top strip on the table), so the
+    table's top-left is the page's bottom-left, and so on."""
     i = F.MARK_INSET_MM.value
-    return [Mark(1, "top-left", (w - i, i)),
-            Mark(2, "bottom-left", (i, i)),
-            Mark(3, "bottom-right", (i, h - i))]
+    return [Mark(1, "top-left", (i, h - i)),
+            Mark(2, "bottom-left", (w - i, h - i)),
+            Mark(3, "bottom-right", (w - i, i))]
 
 
 def digit_offset(mark: Mark) -> "tuple[float, float]":
@@ -252,17 +236,20 @@ def _overlap(a, b) -> bool:
 
 def scan_strips(cells):
     """The scan lines of one page: ``[(x_centre, run_start_y, run_end_y,
-    [cells top to bottom])]``, one per strip, read along the page's Y (the
-    table's X) with :data:`F.RUN_MM` of blank paper at each end."""
+    [cells in strip order, patch 1 first])]``, one per strip, read along the
+    page's Y (the table's X) with :data:`F.RUN_MM` of blank paper at each
+    end. Patch 1 is at the strip's BOTTOM on the page (`Geom.reverse_steps`:
+    the table's left), so the run starts at the top of the highest cell."""
     strips: dict[int, list] = {}
     for cell in cells:
         strips.setdefault(cell[1], []).append(cell)
     run = F.RUN_MM.value
     out = []
     for p in sorted(strips):
-        col = sorted(strips[p], key=lambda c: c[4])
+        col = sorted(strips[p], key=lambda c: c[2])
         x = (col[0][3] + col[0][5]) / 2.0
-        out.append((x, col[0][4] - run, col[-1][6] + run, col))
+        out.append((x, min(c[4] for c in col) - run,
+                    max(c[6] for c in col) + run, col))
     return out
 
 
@@ -294,11 +281,10 @@ def check_sheet(geom, layout, w: float, h: float) -> None:
 
 def text_column(w: float, h: float) -> "tuple[float, float, float, float]":
     """The paper the turned text line may use, ``(x0, y0, x1, y1)``: the
-    right-hand margin below mark 1 (on the table, along the top edge right of
-    mark 1), where no strip and no run ever is. It ends as far from the
-    page's bottom as it starts from its top."""
-    top = mark_zone(marks(w, h)[0])[3] + 2.0
-    bottom = h - top
+    right-hand margin between marks 3 and 2 (on the table, the bottom edge
+    between marks 2 and 3), where no strip and no run ever is."""
+    top = mark_zone(marks(w, h)[2])[3] + 2.0
+    bottom = mark_zone(marks(w, h)[1])[1] - 2.0
     return (w - F.MARK_SIDE_MM.value + 1.0, top,
             w - F.PRINTER_EDGE_MM.value, bottom)
 
@@ -320,9 +306,9 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
     into the page image, from which the separated TIFF folds them into the
     black ink, and into the PDF display list when there is one. In place.
 
-    THE TEXT IS TURNED a quarter turn clockwise on the page, so it reads
-    the right way up on the sheet laid across the table (turned
-    anticlockwise), from the page's top downwards."""
+    THE TEXT IS TURNED a quarter turn anticlockwise on the page, so it reads
+    the right way up on the sheet laid across the table (turned clockwise),
+    from the page's bottom upwards."""
     from PIL import Image, ImageDraw
     s = dpi / 25.4
 
@@ -352,29 +338,28 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
                         family: str = "Inter", italic: bool = False,
                         bold: bool = True, rgb=black,
                         anchor: str = "centre") -> "tuple[int, int]":
-            """*txt* turned a quarter turn clockwise, centred on *centre*
-            (mm), or with its START at *centre* (the text then runs DOWN the
-            page from there) when *anchor* is "start". Returns its (width,
-            height) on the page in pixels."""
+            """*txt* turned a quarter turn anticlockwise, centred on
+            *centre* (mm), or with its START at *centre* (the text then runs
+            UP the page from there) when *anchor* is "start". Returns its
+            (width, height) on the page in pixels."""
             font, path, var = _font(size_px, family, italic, bold)
             bb = draw.textbbox((0, 0), txt, font=font)
             tw, th = bb[2] - bb[0], bb[3] - bb[1]
             tile = Image.new("L", (max(1, tw), max(1, th)), 0)
             ImageDraw.Draw(tile).text((-bb[0], -bb[1]), txt, font=font,
                                       fill=255)
-            tile = tile.rotate(-90, expand=True)          # clockwise
+            tile = tile.rotate(90, expand=True)           # anticlockwise
             cx, cy = px(centre[0]), px(centre[1])
             x0 = cx - tile.width // 2
-            y0 = (cy if anchor == "start"
+            y0 = (cy - tile.height if anchor == "start"
                   else cy - tile.height // 2)
             img.paste(Image.new("RGB", tile.size, rgb), (x0, y0), tile)
             if geom_list is not None and path:
                 ascent = font.getmetrics()[0]
                 # The run turned about its (left, baseline) anchor: on the
-                # page the baseline runs DOWN the tile, ascent in from its
-                # right (as `raster`'s own 270-degree labels).
-                geom_list.append(("text", x0 + th - 1 - (ascent - bb[1]),
-                                  y0 - bb[0], txt, path, size_px, 0, 270,
+                # page the baseline runs UP the tile at ascent from its left.
+                geom_list.append(("text", x0 + (ascent - bb[1]),
+                                  y0 + tw + bb[0], txt, path, size_px, 0, 90,
                                   rgb, var))
             return tile.width, tile.height
 
@@ -392,22 +377,33 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
             rect(fx1 - line, fy0, fx1, fy1)
             dx, dy = digit_offset(mark)
             turned_text(str(mark.number), (cx + dx, cy + dy), digit_px)
+        # THE STRIP LETTERS, at the page's bottom beyond every strip's
+        # run-out: on the table the LEFT end of the strip, read upright like
+        # the start of a line of text (the owner, 2026-11-13). Each ends
+        # LABEL_CLEAR_MM before its run-out; the bottom margin holds the
+        # widest (`table_facts.letter_band_mm`).
+        if geom is not None and layout is not None and (
+                labels is None or labels.rows):
+            for text, centre, size in strip_letters(geom, layout, w, h, index,
+                                                    dpi, labels, draw):
+                turned_text(text, centre, size, family=LETTER_FONT,
+                            bold=False, anchor="start")
         # THE TEXT LINE, turned, in the right-hand margin below mark 1 (on the
         # table: along the top edge, right of mark 1): the ChromIQ wordmark,
         # then the page "N/M", the chart's name and Manual's sheet text, cut
         # to fit with "…". Paper no strip can use, so none of it costs a patch.
         x0, y0, x1, y1 = text_column(w, h)
         cx = (x0 + x1) / 2.0
-        y = y0                       # the text starts at the top, runs down
+        y = y1                       # the text starts at the bottom, runs up
         wm = wordmark_box(geom, layout, w, h, index, labels)
         if wm is not None:
             wpx = px(wm[4] / 0.74)
             ww, wh = turned_text("Chrom", (cx, y), wpx, family="Instrument Serif",
                                  bold=False, rgb=(28, 27, 24), anchor="start")
-            turned_text("IQ", (cx, y + wh / s + 0.3), wpx,
+            turned_text("IQ", (cx, y - wh / s - 0.3), wpx,
                         family="Instrument Serif", italic=True, bold=False,
                         rgb=(255, 69, 115), anchor="start")
-            y = wm[3] + 4.0
+            y = wm[1] - 4.0
         full = str(name or "")
         if pages > 1:
             full = f"{index + 1}/{pages}  ·  {full}" if full else \
@@ -418,7 +414,7 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
                 extra = extra.replace("{" + key + "}", str(value))
             extra = extra.replace("{page}", f"{index + 1}/{pages}")
             full = f"{full}  ·  {extra}" if full else extra
-        room = px(y1 - y)
+        room = px(y - y0)
         font, _p, _v = _font(small_px)
         label, keep = full, len(full)
         while label:
@@ -429,6 +425,46 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
             label = full[:keep] + "…" if keep > 0 else ""
         if label:
             turned_text(label, (cx, y), small_px, anchor="start")
+
+
+#: The face of the strip letters: the engine's own label face, as the patch
+#: numbers beside them.
+LETTER_FONT = "JetBrains Mono"
+
+
+def letter_size_mm(geom, dpi: int, labels: "Labels | None") -> float:
+    """The strip letters' size: Manual's, or the engine's automatic label
+    size (the patch numbers' own), never above LABEL_MAX_MM."""
+    from workflow.layout_engine import raster
+    asked = float(labels.size) if labels is not None and labels.size else 0.0
+    if not asked:
+        asked = raster.effective_indicator_size_mm(geom, dpi, LETTER_FONT, 0.0)
+    return min(asked, F.LETTER_AUTO_MM.value if not (
+        labels is not None and labels.size) else F.LABEL_MAX_MM.value)
+
+
+def strip_letters(geom, layout, w: float, h: float, page: int, dpi: int,
+                  labels: "Labels | None" = None, draw=None):
+    """``[(text, start (x, y) in mm, size px)]`` for the strip letters of
+    *page*: one per strip, its START (the turned text runs up the page from
+    there, so it reads left to right on the table) placed so its END is
+    LABEL_CLEAR_MM below the strip's run-out."""
+    from PIL import ImageDraw, Image
+    from workflow.layout_engine import permutation
+    s = dpi / 25.4
+    size_px = max(1, int(round(letter_size_mm(geom, dpi, labels) * s)))
+    font, _p, _v = _font(size_px, LETTER_FONT, bold=False)
+    if draw is None:
+        draw = ImageDraw.Draw(Image.new("L", (1, 1)))
+    name = permutation.make_labeller(permutation.DEFAULT_STRIP_PATTERN)
+    steps = max(1, layout.steps_in_pass)
+    out = []
+    for x, _y0, y1, col in scan_strips(page_patches(geom, layout, w, h, page)):
+        text = str(name(col[0][0] // steps + 1)).strip()
+        bb = draw.textbbox((0, 0), text, font=font)
+        length = (bb[2] - bb[0]) / s
+        out.append((text, (x, y1 + F.LABEL_CLEAR_MM.value + length), size_px))
+    return out
 
 
 def wordmark_box(geom, layout, w: float, h: float, page: int,
@@ -445,7 +481,7 @@ def wordmark_box(geom, layout, w: float, h: float, page: int,
     while size >= F.WORDMARK_MIN_MM.value - 1e-9:
         length = 5.0 * size
         if size + 1.0 <= (x1 - x0) and y1 - length >= y0:
-            return (x0, y0, x1, y0 + length, size)
+            return (x0, y1 - length, x1, y1, size)
         size -= 0.5
     return None
 
@@ -492,8 +528,8 @@ def write_side_file(path: Path, *, geom, layout, w: float, h: float,
         "paper": paper,
         "paper_mm": [w, h],
         "orientation": "portrait page laid across the table, a quarter turn "
-                       "anticlockwise (its top edge to the left): its Y is "
-                       "the table's X",
+                       "clockwise (its top edge to the right): its Y is the "
+                       "table's X",
         "scan_axis": "y",
         "patch_mm": [geom.pwid, geom.plen],
         "spacer_mm": round(geom.pspa, 4),

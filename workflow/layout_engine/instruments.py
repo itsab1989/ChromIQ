@@ -258,6 +258,12 @@ class Geom:
     # brick wall (#93, Knut). 0 = no stagger. Render + patch_rects honour it; the
     # hxeh reservation makes room so capacity reflects it.
     row_stagger_mm: float = 0.0
+    # THE PATCHES OF A STRIP FROM THE BOTTOM OF THE PAGE UP (the X-Rite i1iO
+    # Beta only): slot 0 of every strip at the strip's BOTTOM end. The sheet
+    # lies across the table a quarter turn clockwise, so this puts patch 1 at
+    # the table's left and the numbers rising to the right (the owner,
+    # 2026-11-13). False everywhere else: every other chart is untouched.
+    reverse_steps: bool = False
     # Minimum distance (mm) from the PAPER EDGE to the start of text on that side
     # (Knut #93): strip labels (top) and the clip/notes band (clip side) sit this
     # far in from the edge. Independent of the margins; if a margin is too small
@@ -849,10 +855,6 @@ def geom_from_build_kwargs(kw: dict) -> Geom:
     )
     from . import raster   # lazy: raster imports this module
     geom = raster.apply_furniture_reserves(geom, kw)
-    if kw.get("instrument") == "IO2" and _i1io_on():
-        # The strip letters end before every strip's run-in (review r3).
-        from workflow.i1io.chart import settle_letter_band
-        geom = settle_letter_band(geom)
     if (float(getattr(geom, "lbord", 0.0) or 0.0) > 0
             and not old_clip_border_rule(kw)
             and (kw.get("clip_side") or "left") == "left"
@@ -919,7 +921,7 @@ def _build_base(
                        target_name=TARGET_INSTRUMENT_NAME["IO2"],
                        plen=along, pwid=across, rrsp=across,
                        pspa=F.SPACER_MM.value if spacer_on else 0.0,
-                       padlrow=True,
+                       padlrow=True, reverse_steps=True,
                        extra_keywords=(
                            ("CHROMIQ_I1IO_LAYOUT", str(I1IO_LAYOUT_SCHEMA)),
                            ("CHROMIQ_I1IO_TABLE", "i1iO 2")))

@@ -619,6 +619,11 @@ AWAITING_APPROVAL: "set[str]" = {
                                  # 2026-11-13: the X-Rite i1iO table Beta
                                  # (charts only; measuring comes later).
                                  "M-I1IO-NOT-YET", "M-I1IO-SUPPORT-OFF",
+                                 # review r3 m3: its crosses and lettering
+                                 # in a printer's unprinted edge.
+                                 "M-I1IO-EDGE-MARKS-NOT-PRINTED",
+                                 "M-I1IO-EDGE-TEXT-NOT-PRINTED",
+                                 "M-I1IO-EDGE-TEXT-PARTS",
                                  "M-FD9-SUPPORT-OFF", "M-FD9-NO-ADDRESS",
                                  "M-FD9-INSERT-SHEET", "M-FD9-NEXT-PAGE", "M-FD9-NO-CONNECTION",
                                  "M-FD9-WRONG-FIRMWARE",

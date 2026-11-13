@@ -130,7 +130,10 @@ def test_every_patch_run_and_mark_is_on_the_sheet_and_clear(tmp_path, paper,
             assert y1 <= h - F.RUN_EDGE_MM.value + 1e-6
             centres = [p["centre_mm"] for p in strip["patches"]]
             assert all(abs(c[0] - strip["x_mm"]) < 1e-6 for c in centres)
-            assert centres[0][1] - 5.0 - y0 == pytest.approx(F.RUN_MM.value)
+            top = min(c[1] for c in centres) - 5.0
+            bottom = max(c[1] for c in centres) + 5.0
+            assert top - y0 == pytest.approx(F.RUN_MM.value)
+            assert y1 - bottom == pytest.approx(F.RUN_MM.value)
             run = (strip["x_mm"] - 4.0, y0, strip["x_mm"] + 4.0, y1)
             for z in zones:
                 assert not (run[0] < z[2] and z[0] < run[2]
@@ -140,18 +143,18 @@ def test_every_patch_run_and_mark_is_on_the_sheet_and_clear(tmp_path, paper,
 
 
 def test_the_marks_are_in_the_order_the_person_aims(tmp_path):
-    """On the table (the sheet a quarter turn anticlockwise) 1 is top-left,
-    2 bottom-left, 3 bottom-right; on the page top-right, top-left and
-    bottom-left."""
+    """On the table (the sheet a quarter turn clockwise) 1 is top-left, 2
+    bottom-left, 3 bottom-right; on the page bottom-left, bottom-right and
+    top-right."""
     from workflow.i1io.table_facts import MARK_INSET_MM
     _, side = _build(tmp_path, 50)
     w, h = side["paper_mm"]
     i = MARK_INSET_MM.value
     got = [(m["number"], m["corner_on_table"], m["centre_mm"])
            for m in side["marks_mm"]]
-    assert got == [(1, "top-left", [w - i, i]),
-                   (2, "bottom-left", [i, i]),
-                   (3, "bottom-right", [i, h - i])]
+    assert got == [(1, "top-left", [i, h - i]),
+                   (2, "bottom-left", [w - i, h - i]),
+                   (3, "bottom-right", [w - i, i])]
 
 
 def test_the_marks_are_printed_where_the_side_file_says(tmp_path):
@@ -163,30 +166,60 @@ def test_the_marks_are_printed_where_the_side_file_says(tmp_path):
         cx, cy = m["centre_mm"]
         for dx, dy in ((0, 0), (2.8, 0), (-2.8, 0), (0, 2.8), (0, -2.8)):
             assert img[round((cy + dy) * s), round((cx + dx) * s)] < 100
-    corner = img[-round(20 * s):, -round(20 * s):]
-    assert corner.min() > 200          # the page's bottom-right: no mark
+    corner = img[: round(10 * s), : round(10 * s)]
+    assert corner.min() > 200          # the page's top-left: no mark
 
 
-def test_on_the_table_the_sheet_reads_from_the_left(tmp_path):
-    """The coordinator's ruling (2026-11-13): laid on the table (a quarter
-    turn anticlockwise), every strip reads from the left like a line of
-    text. Strip letters at the LEFT end of their strip, patch 1 at the left
-    and the numbers rising to the right; strip A the bottom strip (the one
-    order that is not like text, see `chart.marks`). Measured on the page:
-    patch 1 of every strip is nearest the page's top (the table's left), the
-    strip letters are above the strips (left on the table), and strip A is
-    the page's leftmost strip (the bottom on the table)."""
-    _, side = _build(tmp_path, 504)
+def _as_on_the_table(x, y, w, h):
+    """A point of the portrait page where it lies on the table (the sheet a
+    quarter turn clockwise), in mm from the table view's top-left."""
+    return h - y, x
+
+
+@pytest.mark.parametrize("n", [504, 700])
+def test_held_as_on_the_table_the_sheet_reads_like_text(tmp_path, n):
+    """The owner, 2026-11-13: held the way it lies on the table (landscape,
+    cross 1 top-left, 2 bottom-left, 3 bottom-right), the strip letters stand
+    at the LEFT end of each strip, A at the top; the patch numbers run 1, 2,
+    3 ... from left to right along the top; and every text is upright.
+    Derived from the layout itself (side file, `strip_letters`, the label
+    turn), not from a picture."""
+    from workflow.i1io import chart as C, table_facts as F
+    from workflow.layout_engine import geometry, instruments
+    result, side = _build(tmp_path, n)
+    w, h = side["paper_mm"]
+    marks = {m["number"]: _as_on_the_table(*m["centre_mm"], w, h)
+             for m in side["marks_mm"]}
+    assert marks[1][0] < marks[3][0] and marks[1][1] < marks[2][1]
+    assert abs(marks[1][0] - marks[2][0]) < 1e-6                # 1 above 2
+    assert abs(marks[2][1] - marks[3][1]) < 1e-6                # 2 left of 3
     strips = side["pages"][0]["strips"]
-    xs = [st["x_mm"] for st in strips]
-    assert xs == sorted(xs)                              # A leftmost on the page
+    # strips top to bottom on the table: A first
+    tops = [_as_on_the_table(st["x_mm"], 0.0, w, h)[1] for st in strips]
+    assert tops == sorted(tops)
     assert strips[0]["patches"][0]["loc"].startswith("A")
     for st in strips:
-        ys = [p["centre_mm"][1] for p in st["patches"]]
-        assert ys == sorted(ys)                          # 1 at the page's top
-        assert st["patches"][0]["loc"].endswith("1")
-        assert st["patches"][0]["loc"][:-1].strip() == st["patches"][1]["loc"][:-1].strip()
-    assert "anticlockwise" in side["orientation"]
+        # patches left to right on the table: 1, 2, 3 ...
+        by_x = sorted(st["patches"], key=lambda p: _as_on_the_table(
+            *p["centre_mm"], w, h)[0])
+        numbers = [int(p["loc"].lstrip("ABCDEFGHIJKLMNOPQRSTUVWXYZ"))
+                   for p in by_x]
+        assert numbers == sorted(numbers) and numbers[0] == 1
+    # the strip letters at the LEFT end, beyond the run
+    geom = instruments.geom_from_build_kwargs(
+        {"instrument": "IO2", "paper": "A4", "dpi": 150})
+    layout = geometry.compute(geom, w, h, n)
+    letters = C.strip_letters(geom, layout, w, h, 0, 150)
+    assert [t for t, _c, _s in letters][:3] == ["A", "B", "C"]
+    for (text, (x, y), _size), st in zip(letters, strips):
+        tx, _ty = _as_on_the_table(x, y, w, h)
+        first = min(_as_on_the_table(*p["centre_mm"], w, h)[0]
+                    for p in st["patches"])
+        assert tx < first - F.RUN_MM.value, text
+    # upright on the table: every turned text turns a quarter turn
+    # anticlockwise on the page, which the clockwise turn of the sheet undoes
+    assert F.LABEL_TURN_DEG.value == 90
+    assert "clockwise (its top edge to the right)" in side["orientation"]
 
 
 def test_the_ti2_names_the_family_and_the_table_and_round_trips(tmp_path):
@@ -263,8 +296,8 @@ def test_no_ink_on_a_scan_line_outside_the_patches(tmp_path, paper, kw):
     for strip in side["pages"][0]["strips"]:
         y0, y1 = strip["run_mm"]
         x = strip["x_mm"]
-        first = strip["patches"][0]["centre_mm"][1] - 5.0
-        last = strip["patches"][-1]["centre_mm"][1] + 5.0
+        ys = [p["centre_mm"][1] for p in strip["patches"]]
+        first, last = min(ys) - 5.0, max(ys) + 5.0
         left, right = round((x - 4.0) * s) + 1, round((x + 4.0) * s) - 1
         for a, b in ((y0, first), (last, y1)):
             band = img[round(a * s) + 1:round(b * s) - 1, left:right]
@@ -274,22 +307,24 @@ def test_no_ink_on_a_scan_line_outside_the_patches(tmp_path, paper, kw):
 @pytest.mark.parametrize("n,kw", [(700, {}), (504, {"indicator_size_mm": 20.0})])
 def test_the_strip_letters_end_before_every_run_in(tmp_path, n, kw):
     """Review r3 M1 and m2: a large label size, and the two-letter labels of
-    a chart of more than 26 strips (padded on page 1 too, so turned they
-    reach further down), printed into the run-in. Measured on the raster:
-    over each strip's width, the last ink above the run-in ends at least
-    LABEL_CLEAR_MM before it."""
+    a chart of more than 26 strips, printed into the blank run. The letters
+    now stand beyond the run at the strips' bottom end on the page (the
+    table's left). Measured on the raster: over each strip's width, the
+    first ink below the run starts at least LABEL_CLEAR_MM after it, and
+    there is no ink at all above the run's top."""
     from PIL import Image
     from workflow.i1io import table_facts as F
     result, side = _build(tmp_path, n, **kw)
     img = np.asarray(Image.open(result.tiff_paths[0]).convert("L"))
     s = 150 / 25.4
     for strip in side["pages"][0]["strips"]:
-        y0 = strip["run_mm"][0]
+        y0, y1 = strip["run_mm"]
         x = strip["x_mm"]
         left, right = round((x - 4.0) * s) + 1, round((x + 4.0) * s) - 1
-        rows = np.where((img[:round(y0 * s), left:right] < 200).any(axis=1))[0]
+        rows = np.where((img[round(y1 * s):, left:right] < 200).any(axis=1))[0]
         assert len(rows), x                     # the letter is there
-        assert rows.max() / s <= y0 - F.LABEL_CLEAR_MM.value + 0.2, (x, y0)
+        assert rows.min() / s >= F.LABEL_CLEAR_MM.value - 0.2, (x, y1)
+        assert (img[:round(y0 * s), left:right] >= 200).all(), (x, y0)
 
 
 def test_the_label_size_is_never_above_the_i1ios_largest():
@@ -492,3 +527,40 @@ def test_the_turned_i1profiler_option_says_why_an_i1io_chart_has_no_match(
     assert not plan.qualifies
     assert any("i1iO table" in r and "3.8.6" in r for r in plan.reasons), \
         plan.reasons
+
+
+def test_a_pro300_letter_edge_cuts_nothing_of_an_i1io_chart(tmp_path):
+    """Review r3 m3: on a Canon PRO-300's Letter sheet (6.4 mm left, 6.3 mm
+    right, 3.0 mm top, 5.0 mm bottom unprinted) the patch numbers sat at
+    4 mm and were cut, and the note told the person to raise a greyed
+    control. They now start 10 mm in, at no cost in patches, and nothing of
+    the chart falls into that edge."""
+    from workflow import printer_edges as PE
+    result, side = _build(tmp_path, 462, "Letter")
+    assert result.layout.patches_per_page == 462
+    edges = PE.Edges(left=6.4, right=6.3, top=3.0, bottom=5.0, source="ppd")
+    loss = PE.losses(result.tiff_paths[0], 0, edges, tuple(side["paper_mm"]))
+    assert not loss.any(), loss
+
+
+def test_the_edge_note_for_an_i1io_chart_names_only_live_controls(tmp_path):
+    """A note must never point at something greyed. With an edge wide enough
+    to take the crosses, the note is the i1iO's own (they cannot be moved);
+    with one that takes only lettering, it names the two checkboxes Manual
+    leaves live, never "Text distance from edge"."""
+    from workflow import measurement_messages as MM, printer_edges as PE
+    result, side = _build(tmp_path, 462, "Letter")
+    paper = tuple(side["paper_mm"])
+    wide = PE.Edges(left=10.0, right=10.0, top=10.0, bottom=10.0,
+                    source="override")
+    loss = PE.losses(result.tiff_paths[0], 0, wide, paper)
+    assert loss.i1io_marks and not loss.text
+    note = MM.edge_note("Printer", wide, loss)
+    assert "crosses" in note and "Text distance from edge" not in note
+    # only the lettering: a 12 mm left edge reaches the numbers (11 to 15 mm)
+    # but, with the crosses taken out of the count, nothing else
+    loss = PE.Loss(i1io_text=["left"])
+    note = MM.edge_note("Printer", PE.Edges(left=12.0, source="override"),
+                        loss)
+    assert "Show row indicators" in note
+    assert "Text distance from edge" not in note

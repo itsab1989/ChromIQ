@@ -3713,6 +3713,12 @@ def render_pages(
                             ("rect", (x0, y0, xR, yB), dev_by_slot[gslot]))
                 if sp_px > 0 and spacer_mode != "none" and j + 1 < len(col_slots):
                     y_next = px(place.y_of(j + 1)) + _stag     # next patch top
+                    _gap_top = yB
+                    if place.reverse_steps:
+                        # the next slot is ABOVE this one (the i1iO): the
+                        # spacer runs from its bottom down to this patch's top
+                        _gap_top = px(place.y_of(j + 1) + place.plen) + _stag
+                        y_next = y0
                     nxt = rgb_by_slot[col_slots[j + 1]]
                     # A per-spacer manual override (keyed by flat geometric index)
                     # wins over the auto/contrast colour.
@@ -3720,10 +3726,10 @@ def render_pages(
                     _ov = spacer_overrides.get(_flat) if spacer_overrides else None
                     _fill = _ov if _ov is not None else contrast.spacer_for_mode(
                         spacer_mode, rgb, nxt, spacer_palette)
-                    if _fill_rect(draw, [x0, yB, xR - 1, y_next - 1], _fill) \
+                    if _fill_rect(draw, [x0, _gap_top, xR - 1, y_next - 1], _fill) \
                             and collect_device_geom:  # coloured spacer → device ink
                         _geom_rows.append(
-                            ("spacer", (x0, yB, xR, y_next), _fill))
+                            ("spacer", (x0, _gap_top, xR, y_next), _fill))
             # Bracket the strip with a leading + trailing spacer (printtarg does
             # this). Fits in space the layout already reserves, so it doesn't
             # change the patch count. Auto-coloured against the paper white on the

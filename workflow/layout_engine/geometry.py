@@ -411,12 +411,23 @@ class Placement:
     rrsp: float
     steps_in_pass: int
     leader_top: float    # top of the leader area (for the strip label), mm
+    #: slot 0 at the BOTTOM of the strip (`Geom.reverse_steps`, the i1iO only)
+    reverse_steps: bool = False
 
     def x_of(self, pass_idx: int) -> float:
         return self.x0 + pass_idx * self.rrsp
 
     def y_of(self, pos: int) -> float:
+        if self.reverse_steps:
+            pos = self.steps_in_pass - 1 - pos
         return self.y0_first + pos * (self.plen + self.pspa)
+
+    def y_span(self, first: int, last: int) -> "tuple[float, float]":
+        """Top of the higher and bottom of the lower of slots *first* and
+        *last* (mm): the extent of the patches between them whichever way the
+        strip runs."""
+        a, b = self.y_of(first), self.y_of(last)
+        return min(a, b), max(a, b) + self.plen
 
 
 def placement(geom: Geom, paper_w_mm: float, paper_h_mm: float, layout: Layout) -> Placement:
@@ -570,6 +581,7 @@ def placement(geom: Geom, paper_w_mm: float, paper_h_mm: float, layout: Layout) 
         plen=g.plen, pwid=g.pwid, pspa=g.pspa, rrsp=g.rrsp,
         steps_in_pass=layout.steps_in_pass,
         leader_top=_leader_top,
+        reverse_steps=bool(getattr(g, "reverse_steps", False)),
     )
 
 
@@ -615,9 +627,10 @@ def realized_margins_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
     # affect the top/bottom margins, never left/right.
     _edge = geom.pspa if (geom.edge_spacers and geom.pspa > 0) else 0.0
     left = place.x_of(0)
-    top = place.y_of(0) - _edge
+    _y_top, _y_bottom = place.y_span(0, max(0, rows0 - 1))
+    top = _y_top - _edge
     right = paper_w_mm - (place.x_of(max(0, n_passes - 1)) + geom.pwid)
-    bottom = paper_h_mm - (place.y_of(max(0, rows0 - 1)) + geom.plen + _edge)
+    bottom = paper_h_mm - (_y_bottom + _edge)
     return (max(0.0, left), max(0.0, right), max(0.0, top), max(0.0, bottom))
 
 
@@ -904,8 +917,9 @@ def strip_rects_px(geom: Geom, paper_w_mm: float, paper_h_mm: float,
             _stag = (px(geom.row_stagger_mm)
                      if (((first // steps) + p) & 1) else 0)
             x = px(place.x_of(p))
-            y = px(place.y_of(0)) + _stag
-            h = px(place.y_of(col_n - 1) + place.plen) + _stag - y
+            _y_top, _y_bottom = place.y_span(0, col_n - 1)
+            y = px(_y_top) + _stag
+            h = px(_y_bottom) + _stag - y
             width = px(place.pwid)
             if _is_fd9(geom):
                 if abs(geom.rrsp - geom.pwid) < 1e-9:
@@ -1082,7 +1096,8 @@ def spacer_rects_px(geom: Geom, paper_w_mm: float, paper_h_mm: float,
             x = px(place.x_of(p))
             w = px(place.x_of(p) + place.pwid) - x
             for j in range(ncol - 1):     # a spacer below each patch but the last
-                y = px(place.y_of(j)) + px(place.plen)
+                # the upper of the two patches' bottom (`reverse_steps`)
+                y = px(min(place.y_of(j), place.y_of(j + 1))) + px(place.plen)
                 out.append({"page": page, "flat": global_strip * steps + j,
                             "x": x, "y": y, "w": w, "h": px(place.pspa)})
     return out

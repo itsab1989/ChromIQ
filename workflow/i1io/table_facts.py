@@ -243,11 +243,17 @@ LABEL_CHAR_WIDTH = 0.85
 #: printer that leaves an edge unprinted does not cut them (same reason as
 #: MARK_INSET_MM); on A4 and Letter it costs no column.
 ROW_LABEL_EDGE_MM = Fact(5.0, "ours", OURS)
+#: How far in from the page's left edge the patch numbers start (Manual's
+#: "Clip" text distance, which an i1iO chart fixes): beside the strips, inside
+#: the marks' 20 mm side band, so they cost no patch and stay well inside the
+#: edge a printer leaves unprinted (6.4 mm on a Canon PRO-300's Letter sheet,
+#: where 4 mm cut them: review r3 m3).
+NUMBERS_EDGE_MM = Fact(10.0, "ours: past every printer edge ChromIQ knows, "
+                       "inside the 20 mm side band", OURS)
 
 #: The engine's strip letters and patch numbers are turned this far on the
 #: page so they read the right way up on the sheet laid across the table.
-LABEL_TURN_DEG = Fact(270, "ours: the sheet lies a quarter turn "
-                      "anticlockwise (labels turned clockwise on the page)",
+LABEL_TURN_DEG = Fact(90, "ours: the sheet lies a quarter turn clockwise",
                       OURS)
 
 #: Clear paper between a row label and the end of the row's run.
@@ -320,14 +326,30 @@ def row_label_band_mm(size_mm: "float | None" = None) -> float:
                  + ROW_LABEL_EDGE_MM.value - RUN_EDGE_MM.value, 3)
 
 
-#: The strip letters' band at the top of the page, before the run-in: the
-#: engine's text edge (4 mm), the letters' ink at the automatic size (6.86 mm
-#: by the engine's own measure, which allows for two letters: turned, a
-#: chart of more than 26 strips needs that much, review r3 m2) and
-#: LABEL_CLEAR_MM. A larger label size raises the build's top margin past
-#: this (`chart.settle_letter_band`); A4 still holds 504 and Letter 462.
-STRIP_LETTER_BAND_MM = Fact(11.9, "ours: text edge 4 + two turned letters "
-                            "6.86 + 1 clear", OURS)
+#: THE STRIP LETTERS SIT AT THE BOTTOM OF THE PAGE, beyond every strip's
+#: run-out: on the table (the sheet a quarter turn clockwise) that is the LEFT
+#: end of every strip, and the patches run from there, 1 at the left (the
+#: owner, 2026-11-13: "strip labels on the other side so the numbers can be
+#: read from left to right"). ChromIQ draws them itself
+#: (`chart.draw_furniture`), turned to read upright on the table, in the
+#: engine's label face, JetBrains Mono, whose advance is 0.6 of the size.
+LETTER_EDGE_MM = Fact(4.0, "ours: the engine's own text edge", OURS)
+LETTER_ADVANCE = 0.6
+#: The letters' size when Manual leaves it on "auto": the engine's own
+#: automatic label size for an i1iO chart (4.9 mm, the patch numbers'),
+#: rounded up.
+LETTER_AUTO_MM = Fact(5.0, "ours: the engine's automatic label size, 4.9 mm",
+                      OURS)
+
+
+def letter_band_mm(size_mm: "float | None" = None) -> float:
+    """Paper the strip letters take below the run-outs, from the page edge:
+    the text edge, two letters at *size_mm* (a chart of more than 26 strips
+    needs two) and LABEL_CLEAR_MM before the run-out."""
+    size = float(size_mm or 0.0) or LETTER_AUTO_MM.value
+    return round(LETTER_EDGE_MM.value + 2 * LETTER_ADVANCE * size
+                 + LABEL_CLEAR_MM.value, 3)
+
 
 #: Paper at the left and right of the strips for the marks: a mark's zone
 #: (inset 11 + half the cross 3 + 1 clear + its digit 4 + 1) is 20 mm from
@@ -339,13 +361,13 @@ def margins_mm(strip_letters: bool = True,
                label_size_mm: "float | None" = None
                ) -> "tuple[float, float, float, float]":
     """The patch block's smallest margins ``(top, right, bottom, left)`` on
-    the PORTRAIT page: at the top the strip letters (if on) and the run-in,
-    at the bottom the run-out, at the sides the marks' zones (the patch
-    numbers live in the left one, beside the first strip, clear of the
-    marks and of every scan line)."""
-    top = (STRIP_LETTER_BAND_MM.value if strip_letters
-           else RUN_EDGE_MM.value) + RUN_MM.value
-    bottom = RUN_MM.value + RUN_EDGE_MM.value
+    the PORTRAIT page: at the top a run, at the bottom a run and the strip
+    letters (if on, at *label_size_mm*), at the sides the marks' zones (the
+    patch numbers live in the left one, beside the first strip, clear of
+    the marks and of every scan line)."""
+    top = RUN_EDGE_MM.value + RUN_MM.value
+    bottom = RUN_MM.value + (letter_band_mm(label_size_mm) if strip_letters
+                             else RUN_EDGE_MM.value)
     side = MARK_SIDE_MM.value
     return top, side, bottom, side
 

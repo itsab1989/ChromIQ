@@ -251,6 +251,8 @@ HOOKED_FILES = {
     "core/file_manager.py",          # .i1io.json companion (no switch: a name)
     "core/settings.py",              # the switch's default
     "data/patch_db.py",              # the label; filtered by the switch
+    "workflow/printer_edges.py",     # the crosses' boxes from .i1io.json
+                                     # (review r3 m3); nothing read while off
     "main.py",                       # latches the switch
     "ui/dialogs/settings_dialog.py",  # the Beta row and its consent window
     "ui/dialogs/layout_options_panel.py",  # Manual's panel: its greying
