@@ -135,11 +135,14 @@ def test_the_send_function_knows_exactly_six_programs():
     assert "0xD6" in block and "0x03" in block
 
 
-def test_the_new_choices_are_gated_on_the_recorded_firmware():
+def test_no_firmware_condition_beyond_argylls_own():
+    """2026-11-14: no exact-firmware gate (4.3.33 has none, Argyll's light code
+    has none). Below firmware 600 Argyll runs the instrument as a rev A-D
+    (dtype instI1Pro), which every entry refuses."""
     text = (INSTLIB / "i1pro_imp.c").read_text(encoding="utf-8",
                                                errors="surrogateescape")
-    assert "#define CQ_LIGHTS_RECORDED_FW 634" in text
+    assert "CQ_LIGHTS_RECORDED_FW" not in text
     begin = text[text.index("int i1pro2_cq_lights_begin(void *pp) {"):]
     begin = begin[:begin.index("\n}\n")]
-    assert ("if (m->fwrev != CQ_LIGHTS_RECORDED_FW)\n"
-            "\t\t\tm->cq_lights_signals = m->cq_lights_left_on = 0;") in begin
+    assert "fwrev" not in begin
+    assert "if (p->dtype == instI1Pro2 && m->fwrev < 600) {" in text

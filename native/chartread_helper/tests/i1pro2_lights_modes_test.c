@@ -324,11 +324,21 @@ int main(void) {
 	life("on_signals_off", instI1Pro2, 1, 1, 0);
 	life("on_ready_lefton", instI1Pro2, 1, 0, 1);
 	life("on_signals_lefton", instI1Pro2, 1, 1, 1);
-	/* Another firmware than the recorded one: both choices fall back to
-	 * 4.3.33's lights (compared with on_ready_off by the test). */
-	fwrev = 600;
-	life("fw600_signals_lefton", instI1Pro2, 1, 1, 1);
-	fwrev = 634;
+	/* Other firmware: the recordings were made on 634; the programs go to
+	 * any i1Pro 2, as 4.3.33's do (no firmware condition, like Argyll's). */
+	{
+		static const int fws[] = { 600, 635, 700 };
+		static char names[3][2][32];
+		int k;
+		for (k = 0; k < 3; k++) {
+			fwrev = fws[k];
+			snprintf(names[k][0], 32, "fw%d_signals_off", fws[k]);
+			snprintf(names[k][1], 32, "fw%d_ready_off", fws[k]);
+			life(names[k][0], instI1Pro2, 1, 1, 0);
+			life(names[k][1], instI1Pro2, 1, 0, 0);
+		}
+		fwrev = 634;
+	}
 #endif
 	printf("ALL DONE\n");
 	return 0;

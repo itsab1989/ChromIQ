@@ -54,12 +54,15 @@ extern int cq_lights_left_on;
 extern volatile int cq_lights_verdict;
 extern volatile int cq_lights_verdict_n;
 extern void (*cq_lights_poll)(void);
+int cq_lights_take_verdict(int *n);
+void cq_lights_drop_verdict(void);
 extern volatile int cq_exiting_on_signal;   /* set by the signal handler */
 void cq_end_process_like_a_kill(void);      /* never returns */
 /* In the vendored driver (i1pro_imp.c); the same prototypes as i1pro_imp.h. */
 int i1pro2_cq_lights_begin(void *pp);
 int i1pro2_cq_lights_end(void *pp);
 int i1pro2_cq_lights_choices(void *pp);
+int i1pro2_cq_lights_firmware(void *pp);
 extern void (*i1pro2_cq_lights_note)(int seq, int icom_err);
 void i1pro2_cq_lights_options(void *pp, int signals, int left_on);
 void i1pro2_cq_lights_owe(void *pp);

@@ -165,7 +165,8 @@ def _manager():
     (False, "off", ["shows white while it waits"]),
     (True, "off", ["softly pulsing white", "green twice", "red twice",
                    "calibrates or measures, its lights are off"]),
-    (False, "on", ["no off command before a", "dims its lights by"]),
+    (False, "on", ["no off command before a", "dims its lights by",
+                   "except the first reading after connecting"]),
     (True, "on", ["no off command before a", "green twice",
                   "While it calibrates, its lights are off"]),
 ])
@@ -175,22 +176,33 @@ def test_the_session_line_says_what_was_chosen(qapp, signals, reading, needles):
     m._handle_engine_line(json.dumps(
         {"event": "lights", "active": True, "instrument": "i1pro2",
          "signals": signals, "during_reading": reading,
-         "choices_refused": False}), lines.append)
+         "firmware": -1}), lines.append)
     assert len(lines) == 1
     for n in needles:
         assert n in lines[0], n
     assert "—" not in lines[0]
 
 
-def test_another_firmware_is_said(qapp):
+@pytest.mark.parametrize("fw", [600, 634, 700])
+def test_the_firmware_is_said_with_either_choice(qapp, fw):
     m, _r = _manager()
     lines = []
     m._handle_engine_line(json.dumps(
         {"event": "lights", "active": True, "instrument": "i1pro2",
-         "signals": False, "during_reading": "off",
-         "choices_refused": True}), lines.append)
-    assert len(lines) == 2 and "different firmware" in lines[1]
-    assert "4.3.33" in lines[1]
+         "signals": True, "during_reading": "off", "firmware": fw}),
+        lines.append)
+    assert len(lines) == 2
+    assert f"firmware {fw}." in lines[1] and "firmware 634" in lines[1]
+
+
+def test_no_firmware_line_with_both_choices_off(qapp):
+    m, _r = _manager()
+    lines = []
+    m._handle_engine_line(json.dumps(
+        {"event": "lights", "active": True, "instrument": "i1pro2",
+         "signals": False, "during_reading": "off", "firmware": 634}),
+        lines.append)
+    assert len(lines) == 1
 
 
 @pytest.mark.parametrize("sent,needle", [("green2", "green twice"),
@@ -211,8 +223,10 @@ def test_each_sent_program(qapp, sent, needle):
 
 def test_unknown_off_keeps_the_marker(qapp):
     m, runner = _manager()
+    lines = []
     m._handle_engine_line(json.dumps({"event": "lights", "state": "unknown"}),
-                          lambda _l: None)
+                          lines.append)
+    assert len(lines) == 1 and "unplug the instrument" in lines[0]
     assert m._lights_failed is True
     assert runner.courtesy == [None]
 

@@ -1405,7 +1405,7 @@ static void cq_lights_owe_strip(void) {
 	if (!cq_lights_signals_on())
 		return;
 	cq_lights_seq++;
-	cq_lights_verdict = 0;		/* anything stored is for an earlier strip */
+	cq_lights_drop_verdict();	/* anything stored is for an earlier strip */
 	i1pro2_cq_lights_owe(cq_lights_it);
 	cq_emit_raw("{\"event\":\"lights_owed\",\"n\":%d}", cq_lights_seq);
 }
@@ -1427,10 +1427,9 @@ static void cq_lights_poll_fn(void) {
 	int owed, v, n;
 	if (!cq_lights_signals_on())
 		return;
-	v = cq_lights_verdict;
-	n = cq_lights_verdict_n;
-	if (v != 0)
-		cq_lights_verdict = 0;
+	/* Read and cleared at once: a verdict the reader thread stores in
+	 * between is kept for the next poll, never wiped. */
+	v = cq_lights_take_verdict(&n);
 	owed = i1pro2_cq_lights_owed_ms(cq_lights_it);
 	if (owed < 0)
 		return;
@@ -1524,8 +1523,7 @@ static void cq_lights_for_session(inst *it, int rmode, int emis, int trans,
 			cq_lights_forget();
 			why = "lights";
 		} else if (cq_lights_gen == 2) {
-			/* What the driver took: the choices only work on the firmware
-			 * the recordings were made with; otherwise 4.3.33's lights. */
+			/* What the driver took (both choices, on any i1Pro 2). */
 			choices = i1pro2_cq_lights_choices(it);
 			cq_lights_sig_active = (choices & 1) != 0;
 			if (cq_lights_sig_active)
@@ -1535,12 +1533,11 @@ static void cq_lights_for_session(inst *it, int rmode, int emis, int trans,
 	if (why == NULL)
 		cq_emit_raw("{\"event\":\"lights\",\"active\":true,"
 		            "\"instrument\":\"%s\",\"signals\":%s,"
-		            "\"during_reading\":\"%s\",\"choices_refused\":%s}",
+		            "\"during_reading\":\"%s\",\"firmware\":%d}",
 		            cq_lights_gen == 3 ? "i1pro3" : "i1pro2",
 		            choices & 1 ? "true" : "false",
 		            choices & 2 ? "on" : "off",
-		            cq_lights_gen == 2 && (cq_lights_signals || cq_lights_left_on)
-		            && choices == 0 ? "true" : "false");
+		            cq_lights_gen == 2 ? i1pro2_cq_lights_firmware(it) : -1);
 	else
 		cq_emit_raw("{\"event\":\"lights\",\"active\":false,\"why\":\"%s\"}",
 		            why);

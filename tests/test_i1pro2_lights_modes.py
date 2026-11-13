@@ -13,8 +13,8 @@ everything should stay as it was before". So:
   (tests/data/i1pro2_lights_v4333_trace.txt, made from commit ee661dc65 by
   scripts/make_lights_v4333_fixture.py);
 * an original i1Pro (rev A-D) gets no light request in any combination;
-* another firmware than the recorded 634 gets 4.3.33's lights whatever was
-  chosen;
+* every i1Pro 2 firmware (600, 634, 635, 700 tested) gets the new programs
+  when chosen, and 4.3.33's bytes with both choices off;
 * the three new combinations send exactly the programs the design names, in
   the order it names (DESIGN.md 2a), and never one after the button was
   pressed for the next reading.
@@ -136,9 +136,21 @@ def test_no_light_request_without_the_option_or_on_an_original_i1pro(trace, scn)
     assert not any(ln.startswith("WR 03") for ln in lines)
 
 
-def test_another_firmware_gets_4_3_33s_lights_whatever_was_chosen(trace):
-    assert _wire(_lines(trace, "fw600_signals_lefton")) == \
-        _wire(_lines(trace, "on_ready_off"))
+@pytest.mark.parametrize("fw", [600, 635, 700])
+def test_every_firmware_gets_the_programs_when_chosen(trace, fw):
+    """The recordings were made on firmware 634; the programs go to any
+    i1Pro 2, as 4.3.33's own three do (2026-11-14, coordinator's decision
+    after the review: Argyll's light code has no firmware condition)."""
+    assert _wire(_lines(trace, f"fw{fw}_signals_off")) == \
+        _wire(_lines(trace, "on_signals_off"))
+
+
+@pytest.mark.parametrize("fw", [600, 635, 700])
+def test_ready_only_and_off_is_4_3_33s_on_every_firmware(trace, fw):
+    """4.3.33 sends the same bytes whatever the firmware: the fixture's
+    firmware-634 life is the reference for every other firmware too."""
+    assert _wire(_lines(trace, f"fw{fw}_ready_off")) == \
+        _wire(_lines(_fixture(), "on_ready_off"))
 
 
 # ---------------------------------------------------------------------------

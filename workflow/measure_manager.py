@@ -3256,6 +3256,12 @@ class MeasureManager(QObject):
             self._runner.set_kill_courtesy(None)
             log.warning("i1Pro 2 lights: the helper could not confirm the "
                         "lights are off; the marker stays")
+            on_line(tr(
+                "[Engine] Instrument lights (beta): ChromIQ could not make "
+                "sure that the instrument's lights went off at the end. If "
+                "they are still on, unplug the instrument and plug it back in. "
+                "While this option is on, ChromIQ reminds you of it the next "
+                "time you start a measurement."))
             return
         if state == "failed":
             # The marker stays: after a failed request the lights may still be
@@ -3301,17 +3307,22 @@ class MeasureManager(QObject):
                     "reading could not be taken two blinks we expect to be "
                     "red, each followed by a slowly breathing white light."))
             else:
-                on_line(self._i1pro2_lights_line(
-                    bool(ev.get("signals")),
-                    str(ev.get("during_reading") or "off") == "on"))
-                if ev.get("choices_refused"):
+                signals = bool(ev.get("signals"))
+                left_on = str(ev.get("during_reading") or "off") == "on"
+                on_line(self._i1pro2_lights_line(signals, left_on))
+                # With either choice, which firmware this instrument has: the
+                # patterns were recorded on 634 (2026-11-14: no firmware gate,
+                # so a tester's report says which one they ran on).
+                try:
+                    fw = int(ev.get("firmware", -1))
+                except (TypeError, ValueError):
+                    fw = -1
+                if (signals or left_on) and fw > 0:
                     on_line(tr(
-                        "[Engine] Instrument lights (beta): the light patterns "
-                        "you chose were recorded on an i1Pro 2 with a "
-                        "different firmware from this one, so ChromIQ uses "
-                        "the plain white ready light here, as in ChromIQ "
-                        "4.3.33, and switches it off while the instrument "
-                        "calibrates or measures."))
+                        "[Engine] Instrument lights (beta): this i1Pro 2 has "
+                        "firmware {fw}. The light patterns were recorded on "
+                        "an i1Pro 2 with firmware 634. If anything looks odd, "
+                        "please tell us the firmware number.").format(fw=fw))
             return
         why = str(ev.get("why") or "")
         log.info("i1Pro 2 lights: not used for this session (%s)", why)
@@ -3342,8 +3353,9 @@ class MeasureManager(QObject):
                 "[Engine] Instrument lights (beta): on. The i1Pro 2 shows a "
                 "softly pulsing white while it waits for you. As X-Rite's "
                 "i1Profiler does, ChromIQ sends it no off command before a "
-                "reading: the instrument most likely dims its lights by "
-                "itself while it measures. After a "
+                "reading (except the first reading after connecting, if no "
+                "calibration was needed): the instrument most likely dims "
+                "its lights by itself while it measures. After a "
                 "reading it blinks green twice when ChromIQ accepted it, and "
                 "red twice when ChromIQ asks you to look at the screen or to "
                 "read it again. While it calibrates, its lights are off.")
@@ -3359,8 +3371,9 @@ class MeasureManager(QObject):
                 "[Engine] Instrument lights (beta): on. The i1Pro 2 shows a "
                 "softly pulsing white while it waits for you. As X-Rite's "
                 "i1Profiler does, ChromIQ sends it no off command before a "
-                "reading: the instrument most likely dims its lights by "
-                "itself while it measures. While it "
+                "reading (except the first reading after connecting, if no "
+                "calibration was needed): the instrument most likely dims "
+                "its lights by itself while it measures. While it "
                 "calibrates, its lights are off.")
         return tr(
             "[Engine] Instrument lights (beta): on. The i1Pro 2 shows "

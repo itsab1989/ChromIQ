@@ -106,6 +106,7 @@ I1PRO_IMP_H_LIGHTS = [
      "int i1pro2_cq_lights_owed_ms(void *pp);\t/* how long; -1 = none */\n"
      "void i1pro2_cq_lights_result(void *pp, int good);\t/* 1 green, 0 red, -1 ready */\n"
      "int i1pro2_cq_lights_choices(void *pp);\t/* in use: 1 signals, 2 left on */\n"
+     "int i1pro2_cq_lights_firmware(void *pp);\t/* firmware, -1 = not in use */\n"
      "extern void (*i1pro2_cq_lights_note)(int seq, int icom_err);\n"
      "extern void (*i1pro2_cq_lights_sent)(int seq);\t/* each sequence sent */\n"
      "\n"
@@ -192,11 +193,13 @@ I1PRO_IMP_C_LIGHTS_BLOCK = r"""
 #define CQ_LIGHTS_TOUT_TRIGGER 0.25	/* between the button and the trigger: short */
 #define CQ_LIGHTS_TOUT_CLOSE 0.5	/* at the close, inside the helper's 1.5 s */
 #define CQ_LIGHTS_SLOW_MS    2500	/* OFF_SLOW plays for about 2 s */
-/* PULSE, GREEN2 and RED2 are 2306-2990 bytes (37-47 USB packets, where the
- * three 4.3.33 sequences fit in one). Both instruments ever recorded with
- * them, and every recording of an i1Pro 2, report firmware 634: the two new
- * choices are used only there, and any other firmware gets 4.3.33's lights. */
-#define CQ_LIGHTS_RECORDED_FW 634
+/* PULSE, GREEN2 and RED2 were recorded on an i1Pro 2 with firmware 634 (as
+ * was every other i1Pro 2 recording). They go to any i1Pro 2 this block
+ * accepts, exactly as 4.3.33's three sequences do: Argyll's light code has
+ * no firmware condition, a program is data in one format through the same
+ * request, and anything below firmware 600 is not an i1Pro 2 to Argyll (it is
+ * run as a rev A-D, dtype instI1Pro, i1pro_imp.c) and never reaches here. The
+ * helper reports the firmware with the session, so a tester's report says it. */
 
 /* WHITE: "off for 0x3640 clocks (about 1 s), then all six LEDs on, forever" */
 static const unsigned char cq_lights_seq_white[32] = {
@@ -451,8 +454,6 @@ int i1pro2_cq_lights_begin(void *pp) {
 	if ((m->capabilities2 & I1PRO_CAP2_IND_LED) == 0)
 		return 0;
 	if (m->cq_lights == CQ_LIGHTS_UNUSED) {
-		if (m->fwrev != CQ_LIGHTS_RECORDED_FW)
-			m->cq_lights_signals = m->cq_lights_left_on = 0;
 		m->cq_lights = CQ_LIGHTS_DARK;
 		if (!cq_lights_trigger_pending(m))
 			cq_lights_send(p, CQ_LIGHTS_WHITE, CQ_LIGHTS_TOUT);
@@ -461,13 +462,23 @@ int i1pro2_cq_lights_begin(void *pp) {
 }
 
 /* The choices in use after ..._begin (bit 0 signals, bit 1 left_on); 0
- * when the firmware is not the recorded one or the lights are not in use. */
+ * when the lights are not in use. */
 int i1pro2_cq_lights_choices(void *pp) {
 	i1pro *p = (i1pro *)pp;
 	i1proimp *m = cq_lights_m(p);
 	if (m == NULL)
 		return 0;
 	return (m->cq_lights_signals ? 1 : 0) | (m->cq_lights_left_on ? 2 : 0);
+}
+
+/* The firmware of an i1Pro 2 whose lights are in use, for the helper's
+ * report; -1 otherwise. */
+int i1pro2_cq_lights_firmware(void *pp) {
+	i1pro *p = (i1pro *)pp;
+	i1proimp *m = cq_lights_m(p);
+	if (m == NULL)
+		return -1;
+	return m->fwrev;
 }
 
 /* Stop using the lights: OFF_NOW when anything may still be playing (and no
@@ -931,8 +942,9 @@ prov.write_text(
     "  bytes) after a reading ChromIQ accepted and RED2 (2990 bytes) after one\n"
     "  it refused. They live in ChromIQ's own `cq_i1pro2_programs.h` (not an\n"
     "  Argyll file; this script never writes it), pinned by sha256 in\n"
-    "  `tests/test_i1pro2_light_programs.py`, and are used only on firmware\n"
-    "  634, the firmware of every recording.\n"
+    "  `tests/test_i1pro2_light_programs.py`. They were recorded on firmware\n"
+    "  634 and go, like the three above, to any i1Pro 2 the block accepts\n"
+    "  (no firmware condition, as in Argyll's own light code).\n"
     "- **`i1pro3_imp.c`, `i1pro3_imp.h`, `i1pro3.c`: the same Beta for the\n"
     "  i1Pro 3** (2026-11-13). Its own request and format (0x29, LE32 length,\n"
     "  bytes on bulk endpoint 0x02, Argyll's `i1pro3_indLEDseq`). Exactly four\n"

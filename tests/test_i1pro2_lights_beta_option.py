@@ -379,7 +379,8 @@ def test_the_row_is_off_and_says_what_it_does(dialog):
                    "measure when “Off during a reading” is chosen",
                    # the two choices (2026-11-13)
                    "Ready light and result signals", "green twice",
-                   "red twice", "firmware 634", "Ready light only",
+                   "red twice", "recorded on firmware 634", "Ready light only",
+                   "except", "first reading after connecting",
                    "Off during a reading", "the cautious choice",
                    "Left on during a reading",
                    "has not compared readings taken both ways",

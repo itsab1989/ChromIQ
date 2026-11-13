@@ -231,9 +231,10 @@ static void cq_handle_line(const char *line) {
 		 && cq_json_get(line, "result", rb, sizeof(rb))) {
 			int v = strcmp(rb, "good") == 0 ? 1 : strcmp(rb, "bad") == 0 ? 2 : 0;
 			if (v != 0) {
-				cq_lights_verdict = 0;
+				cq_lock_take();
 				cq_lights_verdict_n = atoi(nb);
 				cq_lights_verdict = v;
+				cq_lock_give();
 			}
 		}
 		return;
@@ -527,6 +528,25 @@ void cq_cmd_start(void) {
 	pthread_create(&t, NULL, cq_reader, NULL);
 	pthread_detach(t);
 #endif
+}
+
+/* The lights' verdict (Beta), taken and cleared under the command lock:
+ * 0 = none; 1 good, 2 bad, with its strip number in *n. */
+int cq_lights_take_verdict(int *n) {
+	int v;
+	cq_lock_take();
+	v = cq_lights_verdict;
+	*n = cq_lights_verdict_n;
+	cq_lights_verdict = 0;
+	cq_lock_give();
+	return v;
+}
+
+/* ...and dropped (a new strip is owed: anything stored is older). */
+void cq_lights_drop_verdict(void) {
+	cq_lock_take();
+	cq_lights_verdict = 0;
+	cq_lock_give();
 }
 
 int cq_cmd_take_key(void) {

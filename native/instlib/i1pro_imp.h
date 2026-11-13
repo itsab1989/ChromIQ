@@ -1481,6 +1481,7 @@ void i1pro2_cq_lights_owe(void *pp);	/* a result is owed for a reported strip */
 int i1pro2_cq_lights_owed_ms(void *pp);	/* how long; -1 = none */
 void i1pro2_cq_lights_result(void *pp, int good);	/* 1 green, 0 red, -1 ready */
 int i1pro2_cq_lights_choices(void *pp);	/* in use: 1 signals, 2 left on */
+int i1pro2_cq_lights_firmware(void *pp);	/* firmware, -1 = not in use */
 extern void (*i1pro2_cq_lights_note)(int seq, int icom_err);
 extern void (*i1pro2_cq_lights_sent)(int seq);	/* each sequence sent */
 
