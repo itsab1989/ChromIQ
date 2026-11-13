@@ -25,6 +25,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -253,6 +254,10 @@ def test_no_other_driver_is_touched():
 # The real driver on a fake USB layer (two small builds of the library)
 # ---------------------------------------------------------------------------
 def _cmake() -> str:
+    if sys.platform == "win32":
+        pytest.skip("the fake-USB driver test is built on macOS and Linux only: "
+                    "chromiq-chartread helper not built here with the "
+                    "Windows toolchain")
     exe = shutil.which("cmake")
     if exe is None:
         pytest.skip("cmake not available: the chromiq-chartread helper not "
