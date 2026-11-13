@@ -882,6 +882,20 @@ def build_chart(
             clip_content=clip_content_mode if _i1io_clip else "off",
             text_style=_i1io_text_style,
             text_align=_i1io_chart.text_align_of(_f))
+        # A NAME LINE WITH NO PAPER LEFT IS SAID, never dropped silently
+        # (the whole-workflow drive: crosses off, a small right margin and
+        # a strip cap left no free paper beside the last strip)
+        try:
+            _pages = json.loads(artefact(stem, ".i1io.json").read_text(
+                encoding="utf-8")).get("pages") or []
+        except (OSError, ValueError):
+            _pages = []
+        if any(not (pg.get("text_line") or {}).get("text") for pg in _pages):
+            from workflow import measurement_messages as _mm
+            from core.i18n import tr as _tr
+            _why = _tr(_mm._I1IO_LINE_LEFT_OFF)
+            if _why not in _i1io_warnings:
+                _i1io_warnings.append(_why)
 
     cht_paths: list[Path] | None = None
     if emit_cht:

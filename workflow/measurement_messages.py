@@ -7742,6 +7742,14 @@ _I1IO_NUMBERS_LEFT_OFF = ("The patch numbers do not fit beside the strips "
                           "the chart offset smaller.")
 _I1IO_LETTERS_OFF_SHEET = ("The strip letters would lie off the sheet. Change “Label offset” "
                            "or the chart offset.")
+_I1IO_LINE_LEFT_OFF = ("The line with the chart's name and page number has "
+                       "no free paper on this sheet and is left off. Make "
+                       "the right margin larger, or switch the aiming "
+                       "crosses on.")
+_I1IO_ON_NAME_LINE = ("The patches, the strip letters or their underline "
+                      "would touch the line with the chart's name. Make the "
+                      "chart offset or \u201cLabel offset\u201d smaller, or "
+                      "the right margin larger.")
 _I1IO_NUMBERS_ON_CROSS = ("A patch number would touch an aiming cross. Change the chart "
                           "offset or the margins, or switch the aiming crosses off.")
 _I1IO_NUMBERS_PAST_EDGE = ("The patch numbers would reach past the edge of the sheet, so part "
@@ -7755,7 +7763,8 @@ M_I1IO_FURNITURE_PARTS = _m(
     "\n".join((_I1IO_LETTERS_ON_PATCHES, _I1IO_LETTERS_ON_RUN,
                _I1IO_LETTERS_ON_CROSS,
                _I1IO_LETTERS_PAST_EDGE, _I1IO_LETTERS_OFF_SHEET,
-               _I1IO_NUMBERS_LEFT_OFF,
+               _I1IO_NUMBERS_LEFT_OFF, _I1IO_LINE_LEFT_OFF,
+               _I1IO_ON_NAME_LINE,
                _I1IO_NUMBERS_ON_CROSS, _I1IO_NUMBERS_PAST_EDGE,
                _I1IO_NUMBERS_OFF_SHEET)),
     approved=False)

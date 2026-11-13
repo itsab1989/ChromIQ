@@ -2199,6 +2199,16 @@ def furniture_warnings(geom, layout, w: float, h: float, dpi: int,
                 say(tr(_mm._I1IO_LETTERS_ON_RUN))
             if any(_overlap(b, z) for z in zones):
                 say(tr(_mm._I1IO_LETTERS_ON_CROSS))
+        # THE NAME LINE'S PAPER (with the crosses: between crosses 2 and 3,
+        # `text_column`): nothing a person's options move may reach it
+        # (the whole-workflow drive: a chart offset pushed the last strip,
+        # its letter and the underline onto the logo)
+        if zones:
+            col = text_column(w, h)
+            near = (col[0] - F.LABEL_CLEAR_MM.value + 1e-6, col[1],
+                    col[2], col[3])
+            if any(_overlap(b, near) for b in cells + letters):
+                say(tr(_mm._I1IO_ON_NAME_LINE))
         numbers = _number_boxes(geom, layout, w, h, page, dpi, labels)
         if labels.columns and cells and (
                 not numbers or numbers[0][0] >= numbers[0][2] - 1e-6
