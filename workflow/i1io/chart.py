@@ -1008,11 +1008,15 @@ def free_spots(geom, layout, w: float, h: float, page: int,
       table along the top), centred between the top corner patches.
 
     Each ``{"spot", "x0", "x1", "y0", "y1", "mid_y"}`` in mm on the page;
-    a spot narrower than nothing is left out."""
+    a spot narrower than nothing is left out. Never nearer the paper's edge
+    than `table_facts.TEXT_EDGE_MM` (10 mm, as the patch numbers), so no
+    printer's unprinted edge cuts the line; the "top edge" spot, between
+    the edge and the patch numbers, is therefore empty while the numbers
+    are printed."""
     cells = page_patches(geom, layout, w, h, page)
     if not cells:
         return []
-    edge = F.PRINTER_EDGE_MM.value
+    edge = F.TEXT_EDGE_MM.value
     clear = F.LABEL_CLEAR_MM.value
     first = min(c[1] for c in cells)
     last = max(c[1] for c in cells)

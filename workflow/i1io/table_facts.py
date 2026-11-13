@@ -329,6 +329,13 @@ CORNER_NEVER_L = Fact(85.0, "ours: near white is not aimed at", OURS)
 #: is printed only where it costs no patch (the owner, 2026-11-13): it is
 #: shrunk, down to capitals this high, before a part is left off.
 TEXT_MIN_CAP_MM = Fact(1.5, "ours: 6 pt type, still legible in print", OURS)
+#: ... and never nearer the paper's edge than this, whichever printer prints
+#: it: the patch numbers' own distance. Until 2026-11-13 it could sit 5 to
+#: 9 mm from the edge, and a Canon PRO-300 leaves 6.4 mm of a Letter sheet
+#: unprinted. Where no free paper is left that far in, the line is left off
+#: by the no-cost rule and the help asks for the name by hand.
+TEXT_EDGE_MM = Fact(NUMBERS_EDGE_MM.value, "ours: = NUMBERS_EDGE_MM, past "
+                    "every printer edge ChromIQ knows", OURS)
 
 
 def as_record() -> dict:

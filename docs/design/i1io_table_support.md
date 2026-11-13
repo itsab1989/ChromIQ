@@ -72,8 +72,10 @@ instrument to name.
   clicks and the strip highlight turn with it; the paper lists name the sheet
   "A4 (297 × 210 mm) Landscape" and "Letter (11 × 8.5") Landscape"; the Print
   tab says that the page prints upright and how to lay it on the table. The
-  files, the PDF and printing stay portrait. Not turned yet: the patch set
-  editor's page view and the measurement report's pictures.
+  files, the PDF and printing stay portrait. The patch set editor's page
+  view turns with the same rule (its clicks, marquee and highlight follow);
+  the measurement report shows no picture of the chart, so it has nothing
+  to turn.
 * Defaults, chosen for ChromIQ's own reading with the table and to be
   confirmed by the first real scan: patches 10 mm along the strip x 8 mm
   across, Coloured contrast spacers of 1 mm between them (the layout
@@ -94,13 +96,20 @@ instrument to name.
   spacers, no labels in a run). No arrow, no helper markers, no clip border.
   Per sheet: A4 528 (572 without spacers), Letter 506 (552); without the aiming crosses more (see below). Every number,
   its source and its confidence are in `workflow/i1io/table_facts.py`.
-* Manual: margins (down to the safe minimum), patch size (8.9 to 20 mm along
-  the strip, 7 to 20 mm across), spacers (Coloured, Black & white, None),
-  Inter-patch gap (along a strip, at most 20 % of the patch length), Strip gap
-  (between strips, 0 to 3 mm), strip letters and patch numbers on/off and size
-  (at most 6 mm; a larger size moves the strips down, never into the letters),
-  sheet text, paper, pages, randomisation, calibration and output are live;
-  every other layout control is greyed with the reason and shows the value
+* Manual: margins (down to the safe minimum), patch area alignment (any of
+  the nine places; nobody's pick: centred with the crosses, at the patch
+  numbers without them), patch size (8.9 to 20 mm along the strip, 7 to
+  20 mm across), spacers (Coloured, Black & white, None), spacer size (1 mm
+  up to a fifth of the patch length), own spacer colours, Inter-patch gap
+  (along a strip, at most 20 % of the patch length), Strip gap (between
+  strips, 0 to 3 mm), the aiming crosses, strip letters and patch numbers
+  on/off and size (at most 6 mm; a larger size moves the strips down, never
+  into the letters), sheet text and its Insert menu, paper, pages,
+  randomisation, calibration and output are live. Every other layout
+  control was reviewed one by one (2026-11-13) and is greyed only for a
+  concrete reason (ink where the aperture passes, leaving the area a printer
+  prints or the table reaches, breaking the scan, or no meaning on a table);
+  its tooltip gives that control's own reason first, and it shows the value
   that applies.
 * The ChromIQ logo never costs a patch: it is no layout input, it is drawn in
   the turned text line beside the strips, shrunk down to 2 mm before it is
@@ -156,8 +165,14 @@ away"; "guided mode gets the option as well".*
   page of one strip, or one whose corner holds no visible patch, keeps its
   crosses, recorded for that page: nobody is told to aim at paper.
 * The text line (name and page N/M, sheet text, logo) is printed only where
-  it costs no patch: the bottom edge, else the band between the paper's edge
-  and the patch numbers (the top edge). Priority: the name with the page
+  it costs no patch and at least 10 mm from every paper edge (the patch
+  numbers' own distance, past every unprinted edge ChromIQ knows: a Canon
+  PRO-300 leaves 6.4 mm of a Letter sheet): beside the last strip (the
+  table's bottom edge), else between the paper's edge and the patch numbers
+  (the top edge, only when the numbers are off or a margin is wide). On a
+  full A4 or Letter page neither is free that far in, so the line is left
+  off there, and the help of "Aiming crosses" says so and asks for the name
+  and page number to be written on each sheet by hand. Priority: the name with the page
   number, then the strip letters and patch numbers (their own places), the
   sheet text, the logo; each shrunk (text down to 1.5 mm capitals, logo to
   2 mm) before it is left off, a long sheet text shortened before the logo

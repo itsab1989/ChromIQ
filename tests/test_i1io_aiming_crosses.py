@@ -398,13 +398,15 @@ def test_text_name_impossible():
 def test_the_line_is_centred_between_the_bottom_corner_patches(off_chart):
     """With the crosses off the group is centred between the table's
     bottom-left and bottom-right corner patches, every part's visual middle
-    on one line, inside the free paper beside the last strip."""
+    on one line, inside the free paper beside the last strip (a page of 13
+    strips: a full A4 page leaves no free paper 10 mm in, see
+    `test_without_crosses_the_line_keeps_10_mm_from_every_edge`)."""
     from workflow.i1io import chart
     from workflow.layout_engine import geometry, instruments, papers
     w, h = papers.dimensions_mm("A4")
     geom = instruments.geom_from_build_kwargs(
         {"instrument": "IO2", "paper": "A4", chart.CROSSES_KEY: False})
-    layout = geometry.compute(geom, w, h, 552)
+    layout = geometry.compute(geom, w, h, 13 * 24)
     plan = chart.line_plan(geom, layout, w, h, 0, name="My chart",
                            sheet_text="", dpi=300, crosses=False)
     corners = chart.corner_cells(geom, layout, w, h, 0)
@@ -539,7 +541,11 @@ def test_the_crosses_help_counts_and_names_live():
     letter = i1io_crosses_help({"paper": "Letter", "instrument": "IO2"},
                                name="My chart", paper_label="Letter")
     assert "506 patches with the crosses, 528 without them" in letter
-    assert "move to the top edge" in letter
+    # Letter leaves no free paper 10 mm from the edge on a full page (it
+    # used to move to the top edge, 5 to 9 mm from it: item 4, 2026-11-13)
+    assert "move to the top edge" not in letter
+    assert "write the name and the page number on each sheet by hand" \
+        in letter
 
 
 def test_a_part_filled_last_page_uses_the_engines_own_fill_up(tmp_path):
@@ -566,3 +572,70 @@ def test_a_part_filled_last_page_uses_the_engines_own_fill_up(tmp_path):
     for name in side["pages"][1]["aim_patches"]:
         assert rows[name] != (100.0, 100.0, 100.0), name
         assert _lab(rows[name])[0] < 85.0, name
+
+
+# ---- the name line keeps 10 mm from the edge (2026-11-13, item 4) -----------
+
+PRO300_LETTER = dict(left=6.4, right=6.3, top=3.0, bottom=5.0)
+
+
+@pytest.mark.parametrize("paper", ["A4", "Letter"])
+@pytest.mark.parametrize("n", [100, 13 * 24, 2000])
+@pytest.mark.parametrize("sheet", ["", "Hahnemühle Photo Rag, 2026-11-13"])
+def test_without_crosses_the_line_keeps_10_mm_from_every_edge(paper, n,
+                                                               sheet):
+    """Without the crosses the chart name line is printed only where it
+    costs no patch AND at least `TEXT_EDGE_MM` (10 mm, the patch numbers'
+    own distance) from every paper edge, whichever printer prints it; the
+    top-edge band 5 to 9 mm in is gone. Where nothing that far in is free,
+    the line is left off (the help asks for the name by hand)."""
+    from workflow.i1io import chart, table_facts as F
+    from workflow.layout_engine import geometry, instruments, papers
+    assert F.TEXT_EDGE_MM.value == F.NUMBERS_EDGE_MM.value == 10.0
+    w, h = papers.dimensions_mm(paper)
+    geom = instruments.geom_from_build_kwargs(
+        {"instrument": "IO2", "paper": paper, chart.CROSSES_KEY: False})
+    layout = geometry.compute(geom, w, h, n)
+    for page in range(layout.pages):
+        for spot in chart.free_spots(geom, layout, w, h, page):
+            assert spot["x0"] >= 10.0 - 1e-9 and spot["x1"] <= w - 10.0 + 1e-9
+            assert spot["y0"] >= 10.0 - 1e-9 and spot["y1"] <= h - 10.0 + 1e-9
+            assert spot["spot"] != "top edge"     # numbers printed
+        plan = chart.line_plan(geom, layout, w, h, page, name="My chart",
+                               sheet_text=sheet, dpi=300, crosses=False)
+        if not plan["kept"]:
+            assert plan["text"] == "" and plan["wordmark"] is None
+            continue
+        lo, hi = plan["group"]
+        assert lo >= 10.0 - 1e-6 and hi <= h - 10.0 + 1e-6
+        assert plan["line_x"] >= 10.0 and plan["line_x"] <= w - 10.0
+
+
+def test_a_full_a4_or_letter_page_without_crosses_leaves_the_name_off():
+    """The free paper beside the last strip of a full page lies within
+    10 mm of the edge on both sheets, so the line is left off there, and
+    the help says so and asks for the name by hand."""
+    from ui.dialogs.layout_options_panel import i1io_crosses_help
+    from workflow.i1io import chart
+    for paper in ("A4", "Letter"):
+        fx = chart.crosses_off_effects({"paper": paper}, name="My chart")
+        assert fx["name"] == "none" and fx["spot"] is None, (paper, fx)
+        text = i1io_crosses_help({"paper": paper, "instrument": "IO2"},
+                                 name="My chart", paper_label=paper)
+        assert "write the name and the page number on each sheet by hand" \
+            in text
+
+
+@pytest.mark.parametrize("n", [100, 552])
+def test_a_pro300_letter_edge_cuts_nothing_without_the_crosses(tmp_path, n):
+    """The owner's case: a Canon PRO-300 leaves 6.4 mm (left), 6.3 mm
+    (right), 3.0 mm (top) and 5.0 mm (bottom) of a Letter sheet unprinted.
+    Without the crosses nothing of the chart falls into that edge: no
+    patch, no label, and no part of the name line."""
+    from workflow import printer_edges as PE
+    _build(tmp_path, n, paper="Letter", i1io_crosses=False)
+    side = json.loads((tmp_path / "c.i1io.json").read_text("utf-8"))
+    tif = sorted(tmp_path.glob("c*.tif"))[0]
+    edges = PE.Edges(**PRO300_LETTER, source="ppd")
+    loss = PE.losses(tif, 0, edges, tuple(side["paper_mm"]))
+    assert not loss.any(), loss
