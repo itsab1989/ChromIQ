@@ -8773,14 +8773,16 @@ alone.
 
 ### M-I1IO-FURNITURE-PARTS · PROPOSED · an i1iO chart's strip letters or patch numbers where a person's options put them, the build's log and Create Chart's "Measured from Preview"
 
-*New 2026-11-13 (i1iO table Beta, review round 3, items 2 and 5; the owner: risky is allowed, silent is not). One line each, shown when "Label offset", the strip-indicator gap, text distance "B" or the chart offset puts the strip letters (or their underline) on a patch, on an aiming cross or partly past the paper's edge, or the patch numbers on a cross or partly past it. The last line of each group is the build's refusal when they would lie wholly off the sheet.*
+*New 2026-11-13 (i1iO table Beta, review round 3, items 2 and 5; the owner: risky is allowed, silent is not). One line each, shown when "Label offset", the strip-indicator gap, text distance "B" or the chart offset puts the strip letters (or their underline) on a patch, on the blank paper a strip's run takes, on an aiming cross or partly past the paper's edge, or the patch numbers on a cross, partly past it or out of room beside the strips (then they are left off). The last line of each group is the build's refusal when they would lie wholly off the sheet.*
 
 > **The i1iO chart's strip letters and patch numbers: the parts of the note**
 >
 > The strip letters would print on the patches, and the table may read them as part of a patch. Change “Label offset” (Y) or the strip-indicator gap.
+> The strip letters or their underline would print on the blank paper the arm starts or stops a strip on. The table may take them for a patch; change “Label offset” (Y) or the strip-indicator gap.
 > The strip letters would touch an aiming cross. Change “Label offset”, or switch the aiming crosses off.
 > The strip letters would reach past the edge of the sheet, so part of them may not be printed. Change “Label offset” or the text distance “B”.
 > The strip letters would lie off the sheet. Change “Label offset” or the chart offset.
+> The patch numbers do not fit beside the strips and are left off. Make the left margin larger or the chart offset smaller.
 > A patch number would touch an aiming cross. Change the chart offset or the margins, or switch the aiming crosses off.
 > The patch numbers would reach past the edge of the sheet, so part of them may not be printed. Change the chart offset or the margins.
 > The patch numbers would lie off the sheet. Change the chart offset or the margins.

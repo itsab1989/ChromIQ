@@ -7732,6 +7732,14 @@ _I1IO_LETTERS_ON_CROSS = ("The strip letters would touch an aiming cross. Change
 _I1IO_LETTERS_PAST_EDGE = ("The strip letters would reach past the edge of the sheet, so part "
                            "of them may not be printed. Change “Label offset” or the text "
                            "distance “B”.")
+_I1IO_LETTERS_ON_RUN = ("The strip letters or their underline would print "
+                        "on the blank paper the arm starts or stops a strip "
+                        "on. The table may take them for a patch; change "
+                        "\u201cLabel offset\u201d (Y) or the strip-indicator "
+                        "gap.")
+_I1IO_NUMBERS_LEFT_OFF = ("The patch numbers do not fit beside the strips "
+                          "and are left off. Make the left margin larger or "
+                          "the chart offset smaller.")
 _I1IO_LETTERS_OFF_SHEET = ("The strip letters would lie off the sheet. Change “Label offset” "
                            "or the chart offset.")
 _I1IO_NUMBERS_ON_CROSS = ("A patch number would touch an aiming cross. Change the chart "
@@ -7744,8 +7752,10 @@ _I1IO_NUMBERS_OFF_SHEET = ("The patch numbers would lie off the sheet. Change th
 M_I1IO_FURNITURE_PARTS = _m(
     "M-I1IO-FURNITURE-PARTS",
     "The i1iO chart's strip letters and patch numbers: the parts of the note",
-    "\n".join((_I1IO_LETTERS_ON_PATCHES, _I1IO_LETTERS_ON_CROSS,
+    "\n".join((_I1IO_LETTERS_ON_PATCHES, _I1IO_LETTERS_ON_RUN,
+               _I1IO_LETTERS_ON_CROSS,
                _I1IO_LETTERS_PAST_EDGE, _I1IO_LETTERS_OFF_SHEET,
+               _I1IO_NUMBERS_LEFT_OFF,
                _I1IO_NUMBERS_ON_CROSS, _I1IO_NUMBERS_PAST_EDGE,
                _I1IO_NUMBERS_OFF_SHEET)),
     approved=False)

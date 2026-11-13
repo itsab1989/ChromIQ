@@ -2179,7 +2179,12 @@ def furniture_warnings(geom, layout, w: float, h: float, dpi: int,
     for page in range(layout.pages):
         zones = ([mark_zone(m) for m in marks(w, h)]
                  if on_page(crosses, page) else [])
-        cells = [c[3:] for c in page_patches(geom, layout, w, h, page)]
+        page_cells = page_patches(geom, layout, w, h, page)
+        cells = [c[3:] for c in page_cells]
+        # the blank paper each strip's run takes (run-in and run-out), where
+        # the arm reads too (review 4, item 2)
+        runs = [(col[0][3], y0, col[0][5], y1)
+                for _x, y0, y1, col in scan_strips(page_cells)]
         letters = letter_boxes(geom, layout, w, h, page, dpi, labels, rule)
         letters += [r for r, _rgb in underline_rects(geom, layout, w, h,
                                                      page, labels)]
@@ -2190,9 +2195,20 @@ def furniture_warnings(geom, layout, w: float, h: float, dpi: int,
                 say(tr(_mm._I1IO_LETTERS_PAST_EDGE))
             if any(_overlap(b, c) for c in cells):
                 say(tr(_mm._I1IO_LETTERS_ON_PATCHES))
+            elif any(_overlap(b, r) for r in runs):
+                say(tr(_mm._I1IO_LETTERS_ON_RUN))
             if any(_overlap(b, z) for z in zones):
                 say(tr(_mm._I1IO_LETTERS_ON_CROSS))
-        for b in _number_boxes(geom, layout, w, h, page, dpi, labels):
+        numbers = _number_boxes(geom, layout, w, h, page, dpi, labels)
+        if labels.columns and cells and (
+                not numbers or numbers[0][0] >= numbers[0][2] - 1e-6
+                or min(c[0] for c in cells) - 1.0
+                < float(getattr(geom, "row_label_floor", 0.0) or 0.0)):
+            # asked for, but no room left between the Clip distance and the
+            # first strip: the engine leaves them off (review 4, item 3)
+            say(tr(_mm._I1IO_NUMBERS_LEFT_OFF))
+            numbers = []
+        for b in numbers:
             if off(b):
                 raise I1ioSheetRefused(tr(_mm._I1IO_NUMBERS_OFF_SHEET))
             if part_off(b):

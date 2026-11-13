@@ -413,7 +413,8 @@ def i1io_text_edge_help(which: str) -> str:
             "sheet lies on the table. 10 mm is the default and the safe "
             "choice: it is past the edge most printers leave unprinted, so "
             "the numbers are never cut. A smaller value is allowed, but a "
-            "printer may cut the numbers.")
+            "printer may cut the numbers. It also limits how far “Label "
+            "offset” (X) can move the strip letters to the side.")
     return tr(
         "For the i1iO: how far the strip letters keep from the bottom edge "
         "of the sheet as it is printed, which is the left edge as the sheet "
