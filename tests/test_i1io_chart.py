@@ -71,14 +71,15 @@ def _build(tmp_path, n, paper="A4R", rep="RGB", **kw):
     ("A4R", True, 24, 22), ("A4R", False, 24, 22),
     ("LetterR", True, 22, 23), ("LetterR", False, 23, 23)])
 def test_the_capacity_is_the_geometrys_own(paper, labels, cols, rows):
-    """528 patches on A4 landscape with or without the row numbers (they
-    fit in paper no column could use), 506 and 529 on Letter landscape.
+    """528 patches on A4 landscape with or without the strip letters beside
+    the rows (they fit in paper no column could use), 506 and 529 on Letter
+    landscape.
     Computed from the patch size, the 1 mm gap along the rows and the
     smallest safe margins of `table_facts`, not looked up."""
     from workflow.layout_engine import geometry, instruments, papers
     g = instruments.geom_from_build_kwargs(
         {"instrument": "IO2", "paper": paper,
-         "row_indicators": None if labels else False})
+         "draw_indicators": labels})
     w, h = papers.dimensions_mm(paper)
     assert geometry.patches_per_sheet(g, w, h) == cols * rows
     assert (g.pwid, g.plen, g.pspa, g.rrsp) == (10.0, 8.0, 0.0, 11.0)
@@ -310,6 +311,67 @@ def test_margins_are_the_persons_but_never_below_the_safe_minimum():
         g = instruments.geom_from_build_kwargs(
             {"instrument": "IO2", "paper": "A4R", "margins": asked})
         assert geometry.patches_per_sheet(g, w, h) == count
+
+
+@pytest.mark.parametrize("paper", ["A4R", "LetterR"])
+def test_no_ink_on_a_scan_line_outside_the_patches(tmp_path, paper):
+    """Basti, 2026-11-13: the instrument reads all through the run-in and the
+    run-out, so nothing may be printed there, and a label sits only where the
+    aperture never passes. Measured on the printed raster: every pixel of
+    every run, over the row's full height, is paper white; every label box
+    is clear of every run and keeps LABEL_CLEAR_MM from the patches. A
+    scanned row is a STRIP, lettered as on every ChromIQ chart, and the
+    patches along it are numbered."""
+    from PIL import Image
+    from workflow.i1io import table_facts as F
+    result, side = _build(tmp_path, 528, paper)
+    img = np.asarray(Image.open(result.tiff_paths[0]).convert("L"))
+    s = 150 / 25.4
+    page = side["pages"][0]
+    for row in page["rows"]:
+        x0, x1 = row["run_mm"]
+        y = row["y_mm"]
+        first = row["patches"][0]["centre_mm"][0] - 5.0
+        last = row["patches"][-1]["centre_mm"][0] + 5.0
+        top, bottom = round((y - 4.0) * s) + 1, round((y + 4.0) * s) - 1
+        for a, b in ((x0, first), (last, x1)):
+            band = img[top:bottom, round(a * s) + 1:round(b * s) - 1]
+            assert band.size and band.min() >= 250, (row["y_mm"], a, b)
+    labels = page["labels_mm"]
+    assert labels["rows"] and labels["columns"]
+    rows = page["rows"]
+    block_top = min(r["y_mm"] for r in rows) - 4.0
+    for _t, bx0, by0, bx1, by1 in labels["columns"]:
+        assert by1 <= block_top - F.LABEL_CLEAR_MM.value + 1e-6
+    for (t, bx0, by0, bx1, by1), row in zip(labels["rows"], rows):
+        assert bx1 <= row["run_mm"][0] - F.ROW_LABEL_GAP_MM.value + 1e-6
+        locs = [p["loc"] for p in row["patches"]]
+        assert locs == [f"{t}{i}" for i in range(1, len(locs) + 1)]
+    assert [r[0] for r in labels["rows"]][:3] == ["A", "B", "C"]
+    assert [c[0] for c in labels["columns"]][:3] == ["1", "2", "3"]
+
+
+def test_labels_follow_the_engines_own_controls(tmp_path):
+    """The strip-letters switch, the row-label switch and the label size of
+    the layout engine are the i1iO's too; switched off, nothing is drawn."""
+    _r, side = _build(tmp_path, 40, draw_indicators=False,
+                      row_indicators=False)
+    assert side["pages"][0]["labels_mm"] == {"columns": [], "rows": []}
+
+
+def test_the_ti2_names_every_row_as_a_strip(tmp_path):
+    """In the .ti2 too: STEPS_IN_PASS is the patches of a row,
+    PASSES_IN_STRIPS2 the rows of each page, and the second page's first
+    row continues the letters (W on A4 after A..V)."""
+    import re
+    result, side = _build(tmp_path, 1056)
+    text = result.ti2_path.read_text(encoding="utf-8")
+    assert 'STEPS_IN_PASS "24"' in text and 'PASSES_IN_STRIPS2 "22,22"' in text
+    locs = set(re.findall(r'^\d+ "([A-Z]+\d+)"', text, re.M))
+    assert {"A1", "A24", "V24", "W1", "AR24"} <= locs and "A25" not in locs
+    assert side["pages"][1]["rows"][0]["patches"][0]["loc"] == "W1"
+    strips = json.loads((tmp_path / "c.strips.json").read_text(encoding="utf-8"))
+    assert len(strips["strips"]) == 44 and strips["steps_in_pass"] == 24
 
 
 def test_every_number_has_a_source_and_a_confidence():

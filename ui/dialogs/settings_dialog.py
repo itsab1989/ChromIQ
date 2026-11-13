@@ -9075,21 +9075,21 @@ def i1io_support_help() -> str:
     return "\n\n".join((
         tr("The X-Rite i1iO is a motorised scanning table. Your i1Pro 2 "
            "clicks into a holder on its arm, the printed chart lies on the "
-           "table, and the arm moves the i1Pro over the chart by itself, row "
-           "by row, so you do not swipe strips by hand."),
+           "table, and the arm moves the i1Pro along every strip of the chart "
+           "by itself, so you do not swipe the strips by hand."),
         tr("This version prepares for the table. It can make charts for it, "
            "but it cannot measure with the table yet, and it sends nothing at "
-           "all to a table. Reading with the table, quickly and row by row, "
+           "all to a table. Reading with the table, quickly and strip by strip, "
            "is being prepared for a later version."),
         tr("What turning this on adds, after a restart of ChromIQ:\n"
            "  •  Create Chart: “i1iO 2 + i1Pro 2” in the Instrument list of "
-           "Guided and of Manual. The chart is laid out for reading row by "
-           "row with the table: a landscape A4 or Letter sheet, patches of "
-           "10 × 8 mm (in Manual you can change the size) in rows along the "
+           "Guided and of Manual. The chart is laid out for reading strip by "
+           "strip with the table: a landscape A4 or Letter sheet, patches of "
+           "10 × 8 mm (in Manual you can change the size) in strips along the "
            "long side of the sheet with a thin white gap between neighbours, "
-           "blank paper at both ends of every row so the arm can speed up and "
-           "slow down, and three numbered aiming marks in the corners. When a "
-           "chart has more "
+           "blank paper at both ends of every strip so the arm can speed up "
+           "and slow down, and three numbered aiming marks in the corners. "
+           "When a chart has more "
            "patches than one sheet holds, it is printed on several numbered "
            "sheets. The layout may still change once an i1iO owner has tested "
            "it.\n"
@@ -9131,7 +9131,7 @@ def i1io_consent_text() -> str:
         tr("This version prepares for the table. It can make charts for the "
            "i1iO 2 with an i1Pro 2, but it cannot measure with the table yet, "
            "and it sends nothing at all to a table. Reading with the table, "
-           "quickly and row by row, is being prepared for a later version."),
+           "quickly and strip by strip, is being prepared for a later version."),
         tr("•  X-Rite has not published how the table is controlled. What we "
            "know was worked out from recordings that one i1iO owner made of "
            "his own table while he used X-Rite's software, not from X-Rite's "

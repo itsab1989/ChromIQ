@@ -745,6 +745,11 @@ def build_chart(
             label_rule=label_rule, designed=len(target.patches),
             labels=_i1io_labels)
 
+    if _i1io:
+        # Every scanned row is a lettered strip, as on every ChromIQ chart.
+        rects = _i1io_chart.rows_as_strips(ti2_path, strips_path, geom, layout,
+                                           w_mm, h_mm, dpi)
+
     cht_paths: list[Path] | None = None
     if emit_cht:
         from . import cht_writer

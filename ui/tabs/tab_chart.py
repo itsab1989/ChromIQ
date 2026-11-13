@@ -4041,25 +4041,26 @@ def i1io_instrument_bullet() -> str:
     return tr(
         "  •  i1iO 2 + i1Pro 2 (X-Rite): a motorised scanning table that "
         "moves your i1Pro 2 over the chart by itself. The chart is made for "
-        "reading row by row with the table: a landscape A4 or Letter sheet, "
-        "patches of 10 × 8 mm in rows along the long side with a thin white "
-        "gap between neighbours, blank paper at both ends of every row so "
-        "the arm can speed up and slow down, three numbered aiming marks in "
-        "the corners (1 top left, 2 bottom left, 3 bottom right), column "
-        "letters and row numbers so you can find a patch. In Manual you can "
-        "change the patch size (8.9 to 20 mm along the row, 7 to 20 mm "
-        "across it) and switch the letters and numbers off; the other layout "
-        "controls are greyed, because the table needs this layout. Because "
-        "the table reads every sheet by itself, Guided always fills whole "
-        "sheets, and each extra page adds a full sheet of patches at no extra "
-        "effort for you. "
-        "The layout may still change once an i1iO owner has tested it. This "
-        "version can make these charts but cannot measure with the table "
-        "yet; the Measure tab tells you what you can do today. Only the i1iO "
-        "2 with an i1Pro 2 is supported: other i1iO tables and other "
-        "instruments on the arm are not supported yet. If you own one, please "
-        "tell us in the project's GitHub issues. i1iO support is a beta "
-        "(Preferences → Beta).")
+        "reading strip by strip with the table: a landscape A4 or Letter "
+        "sheet, patches of 10 × 8 mm in strips along the long side with a "
+        "thin white gap between neighbours, blank paper at both ends of every "
+        "strip so the arm can speed up and slow down, and three numbered "
+        "aiming marks in the corners (1 top left, 2 bottom left, 3 bottom "
+        "right). As on every ChromIQ chart, each strip has a letter and the "
+        "patches along it are numbered, so “C7” is the 7th patch of strip C. "
+        "In Manual you can change the margins, the patch size (8.9 to 20 mm "
+        "along the strip, 7 to 20 mm across it), the two gaps and the "
+        "letters and numbers; the other layout controls are greyed, because "
+        "the table needs this layout. Because the table reads every sheet by "
+        "itself, Guided always fills whole sheets, and each extra page adds a "
+        "full sheet of patches at no extra effort for you. The layout may "
+        "still change once an i1iO owner has tested it. This version can "
+        "make these charts but cannot measure with the table yet; the "
+        "Measure tab tells you what you can do today. Only the i1iO 2 with an "
+        "i1Pro 2 is supported: other i1iO tables and other instruments on the "
+        "arm are not supported yet. If you own one, please tell us in the "
+        "project's GitHub issues. i1iO support is a beta (Preferences → "
+        "Beta).")
 
 
 def _without_choice(params: dict, value: str) -> dict:
@@ -19568,8 +19569,8 @@ class TabChart(QWidget):
             from workflow.i1io import table_facts as _F
             return tr(
                 "ChromIQ layout engine, i1iO table, {paper}, {dpi} dpi: "
-                "patches {w:g} × {h:g} mm in rows along the long side, "
-                "{run:g} mm of blank paper at both ends of every row, three "
+                "patches {w:g} × {h:g} mm in strips along the long side, "
+                "{run:g} mm of blank paper at both ends of every strip, three "
                 "numbered aiming marks."
             ).format(paper=paper, dpi=dpi, w=_F.PATCH_ALONG_MM.value,
                      h=_F.PATCH_ACROSS_MM.value, run=_F.RUN_MM.value)
@@ -32144,6 +32145,9 @@ class TabChart(QWidget):
         stored_i = (self._instrument_b8_1288_left_behind(saved_recipe)
                     or s.get(_pw_settings_key("printtarg", "-i")) or "i1")
         stored_p = str(s.get(_pw_settings_key("printtarg", "-p")) or "A4")
+        if _saved_beta_instrument_is_off(stored_i):
+            # an i1iO default with i1iO support off reads as none (both)
+            stored_i, stored_p = "i1", "A4"
         recipe_paper = None
         if (_layout_panel_lays_out(
                     stored_i, s.get("use_chromiq_layout_engine", False))
@@ -32307,6 +32311,11 @@ class TabChart(QWidget):
         healed_i = self._instrument_b8_1288_left_behind(
             self._stored_defaults_recipe())
         _i, _p, recipe_paper = self._stored_defaults_selection()
+        # A Manual default saved on the i1iO table while i1iO support (Beta)
+        # is off: its instrument and its landscape sheet read as none, as
+        # Guided's do (review of 2026-11-13, D-off).
+        _stale_i1io = _saved_beta_instrument_is_off(
+            s.get(_pw_settings_key("printtarg", "-i")))
         for tool, widgets in self._manual_widgets.items():
             for pw in widgets:
                 if pw in self._d_cascade_widgets:
@@ -32315,6 +32324,9 @@ class TabChart(QWidget):
                 v = s.get(new_key)
                 if tool == "printtarg" and pw.flag == "-i" and healed_i:
                     v = healed_i
+                if (_stale_i1io and tool == "printtarg"
+                        and pw.flag in ("-i", "-p")):
+                    v = None
                 if v is None:
                     legacy_key = f"manual_{tool}_{pw.flag}"
                     if legacy_key != new_key:

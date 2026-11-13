@@ -54,9 +54,9 @@ class I1ioSheetRefused(ValueError):
 
 @dataclass(frozen=True)
 class Labels:
-    """The person's labels on an i1iO sheet: column letters above the
-    patches, row numbers beyond the left end of each row's run, *size* mm
-    high. The table needs none of them (`table_facts.LABEL_SIZE_MM`)."""
+    """The person's labels on an i1iO sheet: patch numbers above the
+    patches (*columns*), strip letters beyond the left end of each row's run
+    (*rows*), *size* mm high. The table needs none of them."""
     columns: bool = True
     rows: bool = True
     size: float = F.LABEL_SIZE_MM.value
@@ -71,8 +71,11 @@ def label_wishes(kw: dict) -> Labels:
     `table_facts.LABEL_SIZE_RANGE_MM`. Their position is the i1iO's own."""
     lo, hi = F.LABEL_SIZE_RANGE_MM.value
     size = float(kw.get("indicator_size_mm") or 0.0) or F.LABEL_SIZE_MM.value
-    return Labels(columns=kw.get("draw_indicators", True) is not False,
-                  rows=kw.get("row_indicators") is not False,
+    # The engine's "strip indicators" are the STRIP letters, here beside
+    # every scanned row; its "row indicators" are the patch numbers, here
+    # above the patches (`rows_as_strips`).
+    return Labels(columns=kw.get("row_indicators") is not False,
+                  rows=kw.get("draw_indicators", True) is not False,
                   size=min(max(size, lo), hi))
 
 
@@ -204,33 +207,51 @@ def _overlap(a, b) -> bool:
     return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
 
 
-def _split_loc(loc: str) -> "tuple[str, str]":
-    """``("C", "7")`` for "C7": the column letters and the row number."""
-    import re
-    m = re.fullmatch(r"([A-Za-z]+)(\d+)", str(loc))
-    return (m.group(1), m.group(2)) if m else (str(loc), "")
+# ---- names: the line the arm scans is a STRIP, lettered ------------------
+#
+# Basti, 2026-11-13: ArgyllCMS, and so every ChromIQ chart, letters the line
+# that is measured in one go (the strip) and numbers the patches along it;
+# i1Profiler does the opposite. So on an i1iO chart each ROW the arm scans is
+# a strip: "C7" is the 7th patch of the third row from the top, in the
+# `.ti2`, on the sheet, in the side file and in every window. The engine lays
+# the grid out in columns; `rows_as_strips` renames its locations afterwards.
+
+def strip_name(page: int, row: int, rows_per_page: int) -> str:
+    """The letters of the *row*-th row (0-based) of *page*: one alphabet
+    across the whole chart, by ArgyllCMS's rule (A..Z, then AA ...)."""
+    from workflow.layout_engine import permutation
+    from workflow.layout_engine.permutation import make_labeller
+    return make_labeller(permutation.DEFAULT_STRIP_PATTERN, permutation.ARGYLL)(
+        page * rows_per_page + row + 1)
+
+
+def patch_number(col: int) -> str:
+    """The number of the *col*-th patch (0-based) along its row."""
+    from workflow.layout_engine import permutation
+    from workflow.layout_engine.permutation import make_labeller
+    return make_labeller(permutation.DEFAULT_PATCH_PATTERN, permutation.ARGYLL)(
+        col + 1)
+
+
+def cell_name(page: int, cell, layout) -> str:
+    """The location name of *cell* (a `page_patches` entry)."""
+    return strip_name(page, cell[2], layout.steps_in_pass) + patch_number(cell[1])
 
 
 def label_boxes(geom, layout, w: float, h: float, page: int, labels: Labels,
-                *, strip_pattern: str = "A-Z, A-Z",
-                patch_pattern: str = "0-9,@-9,@-9;1-999",
-                label_rule: str = "argyll"):
-    """``(columns, rows)``: the label boxes of *page* as ``[(text, x0, y0,
-    x1, y1)]`` in mm, each list empty when that kind is off OR cannot be
-    placed safely on this sheet (then it is dropped, never its clearance):
-    clear of every mark, on the paper, and where the aperture never passes."""
-    from workflow.layout_engine import permutation
+                **_unused):
+    """``(numbers, letters)``: the label boxes of *page* as ``[(text, x0,
+    y0, x1, y1)]`` in mm: the patch numbers above the first row, the strip
+    letters beyond the left end of every row's run. A list is empty when
+    that kind is off OR cannot be placed safely on this sheet (then it is
+    dropped, never its clearance): clear of every mark, on the paper, and
+    where the aperture never passes."""
     cells = page_patches(geom, layout, w, h, page)
     if not cells:
         return [], []
     size, clear = labels.size, F.LABEL_CLEAR_MM.value
     zones = [mark_zone(m) for m in marks(w, h)]
     edge = F.RUN_EDGE_MM.value
-
-    def loc(slot):
-        return permutation.location_label(slot, layout.steps_in_pass,
-                                          strip_pattern, patch_pattern,
-                                          label_rule)
 
     def safe(box):
         return (box[0] >= edge and box[2] <= w - edge and box[1] >= edge
@@ -241,27 +262,79 @@ def label_boxes(geom, layout, w: float, h: float, page: int, labels: Labels,
         return F.LABEL_CHAR_WIDTH * size * len(text)
 
     top = min(c[4] for c in cells)
-    columns = []
+    numbers = []
     if labels.columns:
         for c in cells:
             if c[2] != 0:
                 continue
-            text = _split_loc(loc(c[0]))[0]
+            text = patch_number(c[1])
             cx = (c[3] + c[5]) / 2.0
             box = (cx - width(text) / 2, top - clear - size,
                    cx + width(text) / 2, top - clear)
-            columns.append((text,) + box)
-        if not all(safe(b[1:]) for b in columns):
-            columns = []
-    rows = []
+            numbers.append((text,) + box)
+        if not all(safe(b[1:]) for b in numbers):
+            numbers = []
+    letters = []
     if labels.rows:
         for y, x_start, _x_end, row in scan_rows(cells, w):
-            text = _split_loc(loc(row[0][0]))[1]
+            text = strip_name(page, row[0][2], layout.steps_in_pass)
             x1 = x_start - F.ROW_LABEL_GAP_MM.value
-            rows.append((text, x1 - width(text), y - size / 2, x1, y + size / 2))
-        if not all(safe(b[1:]) for b in rows):
-            rows = []
-    return columns, rows
+            letters.append((text, x1 - width(text), y - size / 2, x1,
+                            y + size / 2))
+        if not all(safe(b[1:]) for b in letters):
+            letters = []
+    return numbers, letters
+
+
+def rows_as_strips(ti2_path: Path, strips_path: Path, geom, layout,
+                   w: float, h: float, dpi: int) -> "list[dict]":
+    """Rename the engine's column-wise locations so every scanned ROW is a
+    strip (`strip_name` + `patch_number`), in the `.ti2` and in
+    `.strips.json`, and give both the rows as their strips. Returns the new
+    strip rectangles (pixels), as the build hands them on."""
+    import re
+    s = dpi / 25.4
+    rename: dict = {}
+    strips_px: list = []
+    rows_on_page: list = []
+    max_cols = 0
+    for page in range(layout.pages):
+        cells = page_patches(geom, layout, w, h, page)
+        rows = scan_rows(cells, w)
+        rows_on_page.append(len(rows))
+        for _y, _x0, _x1, row in rows:
+            max_cols = max(max_cols, len(row))
+            for c in row:
+                rename[c[0]] = cell_name(page, c, layout)
+            x0, y0 = row[0][3], row[0][4]
+            x1, y1 = row[-1][5], row[0][6]
+            strips_px.append({"page": page, "pass": len(strips_px),
+                              "x": round(x0 * s), "y": round(y0 * s),
+                              "w": round(x1 * s) - round(x0 * s),
+                              "h": round(y1 * s) - round(y0 * s)})
+    doc = json.loads(strips_path.read_text(encoding="utf-8"))
+    by_old = {}
+    for cell in doc.get("patches", []):
+        new = rename.get(cell.get("slot"))
+        if new is not None:
+            by_old[cell["loc"]] = new
+            cell["loc"] = new
+    doc["strips"] = strips_px
+    doc["steps_in_pass"] = max_cols
+    doc["i1io_rows_as_strips"] = True
+    strips_path.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+    text = ti2_path.read_text(encoding="utf-8")
+    head, rest = text.split("BEGIN_DATA\n", 1)
+    head = re.sub(r'^STEPS_IN_PASS ".*"$', f'STEPS_IN_PASS "{max_cols}"', head,
+                  flags=re.M)
+    head = re.sub(r'^PASSES_IN_STRIPS2 ".*"$', 'PASSES_IN_STRIPS2 "%s"'
+                  % ",".join(str(n) for n in rows_on_page), head, flags=re.M)
+
+    def _swap(m):
+        return f'{m.group(1)} "{by_old.get(m.group(2), m.group(2))}"'
+    body = re.sub(r'^(\d+) "([^"]*)"', _swap, rest, flags=re.M)
+    ti2_path.write_text(head + "BEGIN_DATA\n" + body, encoding="utf-8")
+    return strips_px
 
 
 def scan_rows(cells, w: float):
@@ -394,21 +467,31 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
             else:
                 left = px(cx + half + 1.0)
             text(left, y, str(mark.number), dfont, dpath, dvar, digit_px)
-        cx, cy = w / 2.0, F.TEXT_LINE_MM.value
-        if pages > 1:
-            label_w = draw.textbbox((0, 0), f"{index + 1}/{pages}", font=sfont)
-            text(px(cx) - (label_w[2] - label_w[0]) // 2, px(cy),
-                 f"{index + 1}/{pages}", sfont, spath, svar, small_px)
-        # THE ChromIQ WORDMARK, in the top band between mark 1 and the page
-        # number: paper the patches could never use, so it costs nothing.
-        _wordmark(draw, geom_list, px(mark_zone(marks(w, h)[0])[2] + 4.0),
-                  px(F.TEXT_LINE_MM.value), px(F.WORDMARK_MM.value))
+        # THE ChromIQ WORDMARK beside mark 1, on paper no patch could use.
+        # Left off on a sheet where it would touch the patch numbers (large
+        # labels or a tall top row; the review of 2026-11-13 found the "Q" on
+        # a "B"): it is the one element that can go without loss.
+        wm_x0 = mark_zone(marks(w, h)[0])[2] + 4.0
+        wm_h = F.WORDMARK_MM.value
+        wm_box = (wm_x0, F.TEXT_LINE_MM.value - wm_h / 2 - 0.5,
+                  wm_x0 + 5.0 * wm_h, F.TEXT_LINE_MM.value + wm_h / 2 + 0.5)
+        numbers = (label_boxes(geom, layout, w, h, index, labels)[0]
+                   if geom is not None and layout is not None
+                   and labels is not None else [])
+        if not any(_overlap(wm_box, b[1:]) for b in numbers):
+            _wordmark(draw, geom_list, px(wm_x0), px(F.TEXT_LINE_MM.value),
+                      px(wm_h))
         # The chart's name, and the sheet text (Manual's "Sheet text", its
         # placeholders filled in as on every chart) after it, centred between
         # marks 2 and 3 and cut to fit with "…": never at the patches' cost.
         left = mark_zone(marks(w, h)[1])[2] + 4.0
         right = mark_zone(marks(w, h)[2])[0] - 4.0
         full = str(name or "")
+        if pages > 1:
+            # The page "N/M" leads the name line, where the person checks
+            # which sheet is on the table.
+            full = f"{index + 1}/{pages}  ·  {full}" if full else \
+                f"{index + 1}/{pages}"
         extra = str(sheet_text or "").strip()
         if extra:
             for key, value in (text_ctx or {}).items():
@@ -477,9 +560,7 @@ def write_side_file(path: Path, *, geom, layout, w: float, h: float,
                 "y_mm": round(y, 4),
                 "run_mm": [round(x_start, 4), round(x_end, 4)],
                 "patches": [{
-                    "loc": permutation.location_label(
-                        c[0], layout.steps_in_pass, strip_pattern,
-                        patch_pattern, label_rule),
+                    "loc": cell_name(page, c, layout),
                     "sample_id": sample_of[c[0]],
                     "centre_mm": [round((c[3] + c[5]) / 2.0, 4),
                                   round((c[4] + c[6]) / 2.0, 4)],
@@ -503,7 +584,7 @@ def write_side_file(path: Path, *, geom, layout, w: float, h: float,
         "paper": paper,
         "paper_mm": [w, h],
         "patch_mm": [geom.pwid, geom.plen],
-        "gap_mm": [0.0, 0.0],
+        "gap_mm": [round(geom.rrsp - geom.pwid, 4), round(geom.pspa, 4)],
         "scan_axis": "x",
         "marks_mm": [{"number": m.number, "corner": m.corner,
                       "centre_mm": list(m.centre_mm)} for m in marks(w, h)],
