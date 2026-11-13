@@ -186,6 +186,9 @@ _PRINTTARG_CAL_MISMATCH = re.compile(
 
 
 # Instruments the ChromIQ layout engine can lay out itself (issue #93).
+# ADDING AN INSTRUMENT? Read docs/adding_an_instrument.md and work through
+# docs/adding_an_instrument_checklist.md first: they list every place an
+# instrument is registered (this is one of them) and how each is tested.
 ENGINE_INSTRUMENTS = {"i1", "p3", "CM", "SS", "CR30", "FD9", "IO2"}
 
 # Instruments the engine is the ONLY route for - printtarg cannot lay them out

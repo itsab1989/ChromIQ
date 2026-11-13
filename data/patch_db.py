@@ -215,6 +215,9 @@ def i1_defaults_from_preset(preset_key: str) -> tuple[int, float]:
     return I1PRO_DEFAULT_PRESETS.get(preset_key, I1PRO_DEFAULT_PRESETS[I1PRO_DEFAULT_PRESET_KEY])
 
 # Human-readable labels for UI combos
+# ADDING AN INSTRUMENT? Read docs/adding_an_instrument.md and work through
+# docs/adding_an_instrument_checklist.md first: they list every place an
+# instrument is registered (this is one of them) and how each is tested.
 INSTRUMENT_LABELS: dict[str, str] = {
     "i1": "i1Pro / i1Pro 2 / i1Pro 3",
     "p3": "i1Pro 3 Plus",
