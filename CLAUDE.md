@@ -778,15 +778,18 @@ adding another.
 
 ### Adding a measuring instrument
 
-Read **`docs/adding_an_instrument.md`** in full before adding or changing an
-instrument, and plan against its registration checklist. It distils the CR30
-and FD-9 integrations and the FD-9 review rounds: the Preferences > Beta
-option (off means no change, pinned by a test like
-`tests/test_fd9_off_changes_nothing.py` and
-`tests/test_fd9_off_stale_project.py`), every place an instrument is
-registered, the shared Start preflight, the read-only stance towards the
-device, and no device data in the repository. Contributors' agents start from
-`AGENTS.md` and `docs/adding_an_instrument_agent_prompt.md`.
+Adding or changing an instrument (or an instrument feature): read
+**`docs/adding_an_instrument.md`** first, then work through its strict
+companion **`docs/adding_an_instrument_checklist.md`** stage by stage. The
+guide says why: find the facts and note their source, design the chart from
+what the instrument physically needs with ChromIQ's own layout engine, keep
+the options open (safe defaults; unavailable only when meaningless or
+unbuildable; everything saved as defaults, in presets and per target), every
+run type, a Preferences > Beta switch whose "off" changes nothing (four test
+nets and a file comparison), old saves building as they were built, and the
+hardware rules. The checklist says where and how each step is checked.
+Contributors' agents start from `AGENTS.md` and
+`docs/adding_an_instrument_agent_prompt.md`.
 
 ### The design specifications are binding
 

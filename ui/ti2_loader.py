@@ -35,6 +35,10 @@ _SPECTRAL_BANDS_RE = re.compile(r'SPECTRAL_BANDS\s+"?(\d+)"?')
 # bidirectional recognition off the same keyword (chartread.c:2980).
 _RANDOM_START_RE = re.compile(r'\bRANDOM_START\b')
 
+# ADDING AN INSTRUMENT? Read docs/adding_an_instrument.md and work through
+# docs/adding_an_instrument_checklist.md first: they list every place an
+# instrument is registered (this is one of them) and how each is tested.
+
 # The exact TARGET_INSTRUMENT strings ChromIQ lays out charts for. ArgyllCMS
 # writes the same value into the resulting .ti3, so detection works on either.
 #

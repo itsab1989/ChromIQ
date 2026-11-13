@@ -867,13 +867,17 @@ the i1Profiler export format, and more), and project-specific guidance is in
 
 ### Want to add an instrument?
 
-If you own a measuring instrument ChromIQ does not support yet, and you have a
-driver or a working connection to it, we would love your help. Start with
-[`docs/adding_an_instrument.md`](docs/adding_an_instrument.md): it explains
-what to bring, which existing integration to model yours on (the CR30 or the
-FD-9), the Preferences > Beta option that keeps everyone else's ChromIQ
-unchanged, and every place an instrument has to be registered. If you work
-with a coding agent, hand it
+If you own a measuring instrument ChromIQ does not support yet, we would love
+your help, with or without code. Start with
+[`docs/adding_an_instrument.md`](docs/adding_an_instrument.md): its section 2
+explains how owners who do not program can help (for example with a recording
+made by our read-only probe tool), and the rest explains how an instrument is
+added, step by step: finding the facts, designing the chart for what the
+instrument needs, keeping ChromIQ's options open for it, every run type, and
+the Preferences > Beta option that keeps everyone else's ChromIQ unchanged.
+Its companion, [`docs/adding_an_instrument_checklist.md`](docs/adding_an_instrument_checklist.md),
+lists every step with the test that checks it. If you work with a coding
+agent, hand it
 [`docs/adding_an_instrument_agent_prompt.md`](docs/adding_an_instrument_agent_prompt.md).
 The maintainers cannot test hardware they do not own, so your tests on the
 real device are an important part of the pull request.

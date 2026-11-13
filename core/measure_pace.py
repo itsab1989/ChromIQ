@@ -365,6 +365,10 @@ def strip_pace_message(pace: StripPace, config: PaceConfig) -> str:
              limit=strip_limit_fact(config, pace.patches))
 
 
+# ADDING AN INSTRUMENT? Read docs/adding_an_instrument.md and work through
+# docs/adding_an_instrument_checklist.md first: they list every place an
+# instrument is registered (this is one of them) and how each is tested.
+
 # ---------------------------------------------------------------------------
 # Per-model sampling rates and thresholds (Knut, #131 2026-07-26)
 # ---------------------------------------------------------------------------

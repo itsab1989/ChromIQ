@@ -21,12 +21,16 @@ welcome as bug reports, ideas, translations and pull requests.
 Support for a new instrument is one of the most valuable contributions, and
 one of the largest. Please read
 **[`docs/adding_an_instrument.md`](docs/adding_an_instrument.md)** before you
-begin. It covers what to bring (a working driver or connection and the device
-in your hands), which existing integration to model yours on, the Preferences
-> Beta option that keeps everyone else's ChromIQ unchanged, every place an
-instrument has to be registered, and the mistakes earlier reviews found. A
-prompt you can hand to your coding agent is in
+begin. It covers what to bring, how to find the facts about the instrument,
+designing its chart, keeping ChromIQ's options open for it, every run type, the
+Preferences > Beta option that keeps everyone else's ChromIQ unchanged, the
+hardware rules, and the mistakes earlier reviews found. Its strict companion,
+[`docs/adding_an_instrument_checklist.md`](docs/adding_an_instrument_checklist.md),
+lists every step with the test that checks it. A prompt you can hand to your
+coding agent is in
 [`docs/adding_an_instrument_agent_prompt.md`](docs/adding_an_instrument_agent_prompt.md).
+You own an instrument but do not program? Section 2 of the guide says how you
+can help.
 
 The maintainers cannot test hardware they do not own, so your report of what
 you tested on the device is part of the pull request.

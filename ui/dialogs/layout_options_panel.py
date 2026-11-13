@@ -683,6 +683,9 @@ class LayoutOptionsPanel(QWidget):
 
     # Labels mirror the printtarg -i combobox (data/parameters.yaml) so the engine
     # and printtarg show the same instrument names (Knut). Codes stay i1/p3/CM/SS.
+    # ADDING AN INSTRUMENT? Read docs/adding_an_instrument.md and work through
+    # docs/adding_an_instrument_checklist.md first: they list every place an
+    # instrument is registered (this is one of them) and how each is tested.
     INSTRUMENTS = [("i1", "i1Pro / i1Pro 2 / i1Pro 3"),
                    ("p3", "i1Pro 3 Plus"),
                    ("CM", "ColorMunki / i1Studio / ColorChecker Studio"),

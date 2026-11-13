@@ -129,6 +129,9 @@ def supported(family: "str | None") -> "bool | None":
     return family in SUPPORTED_FAMILIES
 
 
+# ADDING AN INSTRUMENT? Read docs/adding_an_instrument.md and work through
+# docs/adding_an_instrument_checklist.md first: they list every place an
+# instrument is registered (this is one of them) and how each is tested.
 def family_of(name: "str | None") -> "str | None":
     """The family of a model name or chart instrument code, or None."""
     if not name:
