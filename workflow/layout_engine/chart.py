@@ -646,7 +646,9 @@ def build_chart(
         # every page the names of the three patches when they are patches
         from dataclasses import replace as _replace
         _ti2_geom = _replace(geom, extra_keywords=tuple(geom.extra_keywords) + (
-            (_i1io_chart.AIM_KEYWORD, _i1io_chart.aim_of(_i1io_crosses)),)
+            (_i1io_chart.AIM_KEYWORD, _i1io_chart.aim_of(_i1io_crosses)),
+            (_i1io_chart.AIM_DIGITS_KEYWORD,
+             "yes" if any(_i1io_pages) else "no"),)
             + (() if _i1io_crosses else (
                 (_i1io_chart.AIM_PATCHES_KEYWORD,
                  _i1io_chart.aim_patches_value(

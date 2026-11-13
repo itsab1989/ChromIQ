@@ -159,6 +159,12 @@ def test_the_files_record_what_to_aim_at(off_chart, on_chart, tmp_path):
         side = json.loads((folder / "c.i1io.json").read_text("utf-8"))
         assert side["aim"] == aim
         assert chart.aim_recorded(folder / "c.ti2") == aim
+        # whether the numbers 1, 2, 3 are printed (never a second set later)
+        digits = "yes" if aim == "crosses" else "no"
+        assert 'KEYWORD "CHROMIQ_I1IO_AIM_DIGITS"' in text
+        assert f'CHROMIQ_I1IO_AIM_DIGITS "{digits}"' in text
+        assert {p["digits_printed"] for p in side["pages"]} == {
+            aim == "crosses"}
     # a chart made before the option records nothing: "unknown"
     old = tmp_path / "old.ti2"
     old.write_text(re.sub(r'.*CHROMIQ_I1IO_AIM.*\n', "",
@@ -445,6 +451,9 @@ def test_a_last_page_of_one_strip_keeps_its_crosses(tmp_path):
     _build(tmp_path, 552 + 24, i1io_crosses=False)
     side = json.loads((tmp_path / "c.i1io.json").read_text("utf-8"))
     assert [p["aim"] for p in side["pages"]] == ["corner patches", "crosses"]
+    assert [p["digits_printed"] for p in side["pages"]] == [False, True]
+    assert 'CHROMIQ_I1IO_AIM_DIGITS "yes"' in (tmp_path / "c.ti2").read_text(
+        "utf-8")
     assert side["pages"][1]["aim_patches"] == []
     assert {a["target"] for a in side["pages"][1]["aim_points"]} == {"cross"}
     assert 'CHROMIQ_I1IO_AIM_PATCHES "1: A1 W1 W24; 2: crosses"' in (

@@ -185,6 +185,11 @@ AIM_KEYWORD = "CHROMIQ_I1IO_AIM"
 #: order, e.g. "1: A1 W1 W24; 2: X1 AT1 AT24" ("2: crosses" for a page that
 #: keeps them, `page_crosses`).
 AIM_PATCHES_KEYWORD = "CHROMIQ_I1IO_AIM_PATCHES"
+#: Whether the aiming points' numbers 1, 2, 3 are printed on the sheet: "yes"
+#: beside every cross (they cost nothing, `digit_offset`), "no" on a chart
+#: aimed at its corner patches. The later on-screen overlay adds numbers only
+#: where none are printed: never a second set (the owner, 2026-11-13).
+AIM_DIGITS_KEYWORD = "CHROMIQ_I1IO_AIM_DIGITS"
 
 
 def aim_patches_value(geom, layout, w: float, h: float, crosses,
@@ -1386,6 +1391,8 @@ def write_side_file(path: Path, *, geom, layout, w: float, h: float,
                  # EVERY PAGE IS ALIGNED ON ITS OWN (X-Rite: each sheet is
                  # laid down by hand): its own three points, in aiming order
                  "aim": aim_of(here),
+                 # the numbers 1, 2, 3 printed beside this page's crosses
+                 "digits_printed": bool(here),
                  "aim_patches": [p["patch"] for p in points] if not here
                  else [],
                  "aim_points": points,

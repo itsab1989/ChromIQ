@@ -163,9 +163,10 @@ away"; "guided mode gets the option as well".*
   2 mm) before it is left off, a long sheet text shortened before the logo
   shrinks; centred between the two corner patches of that edge.
 * Recorded: `.ti2` keywords `CHROMIQ_I1IO_AIM` ("crosses" or "corner
-  patches") and, without crosses, `CHROMIQ_I1IO_AIM_PATCHES` ("1: A1 W1 W24;
+  patches"), `CHROMIQ_I1IO_AIM_DIGITS` ("yes" when the numbers 1, 2, 3 are
+  printed beside crosses, "no" otherwise) and, without crosses, `CHROMIQ_I1IO_AIM_PATCHES` ("1: A1 W1 W24;
   2: crosses"), both declared; the side file's "aim", "labels_printed" and,
-  per page, "aim", "aim_patches" and "aim_points" (in mm on the page and on
+  per page, "aim", "digits_printed", "aim_patches" and "aim_points" (in mm on the page and on
   the table, in aiming order). A chart without the keyword is "unknown".
 * What to aim at follows the record: the last paragraph of M-I1IO-NOT-YET and
   M-I1IO-NOT-YET-BY-HAND (M-I1IO-AIM-CROSSES, -CORNERS with the patch names
