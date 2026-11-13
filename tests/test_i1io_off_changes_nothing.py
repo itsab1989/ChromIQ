@@ -258,6 +258,9 @@ HOOKED_FILES = {
     "ui/tabs/tab_measure.py",        # the two Start windows
     "workflow/chart_creator.py",     # engine-only; no stamp; its error words
     "workflow/chart_import.py",      # .i1io.json companion
+    # the turned export (its own Beta) says why an i1iO chart has no
+    # matching i1Profiler chart yet; reached only for an "IO2" recipe
+    "workflow/i1profiler_turned.py",
     "workflow/layout_engine/chart.py",
     "workflow/layout_engine/instruments.py",
     "workflow/layout_engine/papers.py",

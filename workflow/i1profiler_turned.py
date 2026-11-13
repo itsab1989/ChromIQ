@@ -387,6 +387,18 @@ def plan_for(ti2: "str | Path", turn: "str | None" = None) -> TurnedPlan:
         plan.reasons.append(tr(
             "the chart's files do not say which instrument it was laid out "
             "for"))
+    elif inst == "IO2":
+        # The X-Rite i1iO table (a Beta; such a chart exists only if it was
+        # made with i1iO support on). Not refused for good: the rules are not
+        # known yet, and the note says what is missing.
+        plan.reasons.append(tr(
+            "the chart is laid out for the i1iO table. ChromIQ cannot write a "
+            "matching i1Profiler chart for the table yet: i1Profiler's own "
+            "rules for an i1iO chart (how many rows and columns it puts on a "
+            "page, its margins, its smallest patch of 6 × 7 mm, its 320 × "
+            "230 mm measuring area and the corner patches it aims at) still "
+            "have to be measured in i1Profiler 3.8.6, the last version that "
+            "works with the i1iO 2"))
     elif inst != "i1":
         # "p3" is the i1Pro 3 Plus: its i1Profiler row holds 440 to 460 mm,
         # twice a ChromIQ strip on A4 or A3 [measured on A2, test P].

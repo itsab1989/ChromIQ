@@ -388,3 +388,21 @@ def test_the_i1profiler_route_of_the_notice_works_for_an_i1io_run(tmp_path,
     verdict = assess(m, result.ti2_path)
     assert verdict.ok, verdict
     assert verdict.partial is partial
+
+
+def test_the_turned_i1profiler_option_says_why_an_i1io_chart_has_no_match(
+        tmp_path):
+    """The separate Beta "Also write an i1Profiler chart that matches the
+    printed ChromIQ sheet" covers the i1iO by telling, in its own note, why
+    it cannot write a matching chart for the table yet (i1Profiler's iO rules
+    are unmeasured), instead of the generic "not an i1Pro"."""
+    from workflow.i1profiler_turned import plan_for
+    result, _ = _build(tmp_path, 60)
+    # As Create Chart folds the geometry and the recipe into channels.json.
+    strips = json.loads((tmp_path / "c.strips.json").read_text())
+    strips["recipe"] = {"instrument": "IO2", "paper": "A4R"}
+    (tmp_path / "c.channels.json").write_text(json.dumps({"layout": strips}))
+    plan = plan_for(result.ti2_path)
+    assert not plan.qualifies
+    assert any("i1iO table" in r and "3.8.6" in r for r in plan.reasons), \
+        plan.reasons
