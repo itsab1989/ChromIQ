@@ -111,7 +111,7 @@ for code in json.loads(sys.argv[7]):
             result["%s/%s" % (code, name)] = "refused: %s: %s" % (
                 type(exc).__name__, str(exc).splitlines()[0][:120]
                 if str(exc) else "")
-(out / "built.json").write_text(json.dumps(result, indent=1))
+(out / "built.json").write_text(json.dumps(result, indent=1), encoding="utf-8")
 '''
 
 
@@ -130,10 +130,11 @@ def build(tree: Path, out: Path, betas: str, codes: list[str]) -> dict:
     r = subprocess.run(
         [sys.executable, "-c", BUILDER, str(tree), str(out), betas,
          json.dumps(CHARTS), str(SEED), CHART_DATE, json.dumps(codes)],
-        cwd=str(tree), capture_output=True, text=True, timeout=1800)
+        cwd=str(tree), capture_output=True, text=True, encoding="utf-8",
+        errors="replace", timeout=1800)
     if r.returncode != 0 or not (out / "built.json").exists():
         raise RuntimeError(f"building in {tree} failed:\n{r.stderr[-2000:]}")
-    return json.loads((out / "built.json").read_text())
+    return json.loads((out / "built.json").read_text(encoding="utf-8"))
 
 
 def _digest(p: Path) -> str:
@@ -218,7 +219,8 @@ def main(argv=None) -> int:
     try:
         subprocess.run(["git", "-C", str(REPO), "worktree", "add", "--detach",
                         str(tree), args.tag], check=True,
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, encoding="utf-8",
+                       errors="replace")
     except subprocess.CalledProcessError as exc:
         print(f"could not check {args.tag} out: {exc.stderr.strip()}")
         return 2
