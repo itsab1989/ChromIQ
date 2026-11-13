@@ -219,23 +219,41 @@ def test_every_trigger_passes_the_off_guard():
 
 
 def test_white_follows_every_measure_and_calibrate_in_i1pro_c():
+    """The ready hook follows every calibration; every reading sits between
+    the reading hooks (2026-11-13: ..._after_read calls ..._ready unless the
+    result signals were chosen, so with both choices off this is 4.3.33's
+    ready, tests/test_i1pro2_lights_modes.py proves it on the wire)."""
     text = _src("i1pro.c")
     for call in ("rv = i1pro_imp_measure(p, vals, npatch, instClamp);\n",
-                 "rv = i1pro_imp_measure(p, val, 1, clamp);\n",
-                 "rv = i1pro_imp_calibrate(p, calt, calc, idtype, id);\n"):
-        i = text.index(call) + len(call)
-        assert text[i:].lstrip("\t").startswith("i1pro2_cq_lights_ready(p);")
-    assert text.count("i1pro2_cq_lights_") == 3
+                 "rv = i1pro_imp_measure(p, val, 1, clamp);\n"):
+        i = text.index(call)
+        before = text[:i].rstrip("\t").splitlines()[-1]
+        assert before.lstrip("\t").startswith("i1pro2_cq_lights_reading(p, 1);")
+        after = text[i + len(call):].lstrip("\t")
+        assert after.startswith("i1pro2_cq_lights_after_read(p);")
+    call = "rv = i1pro_imp_calibrate(p, calt, calc, idtype, id);\n"
+    i = text.index(call) + len(call)
+    assert text[i:].lstrip("\t").startswith("i1pro2_cq_lights_ready(p);")
 
 
 def test_every_entry_asks_dtype_first():
     text = _src("i1pro_imp.c")
     block = text[text.index("CHROMIQ PATCH: the i1Pro 2 indicator lights"):]
-    for fn in ("i1pro2_cq_lights_trigger", "i1pro2_cq_lights_eeprom",
-               "i1pro2_cq_lights_ready", "i1pro2_cq_lights_end"):
-        body = block[block.index(f"void {fn}(void *pp) {{"):]
+    entries = re.findall(r"\n(?:void|int) (i1pro2_cq_lights_\w+)\(void \*pp", block)
+    assert {"i1pro2_cq_lights_trigger", "i1pro2_cq_lights_eeprom",
+            "i1pro2_cq_lights_ready", "i1pro2_cq_lights_end",
+            "i1pro2_cq_lights_reading", "i1pro2_cq_lights_after_read",
+            "i1pro2_cq_lights_owe", "i1pro2_cq_lights_owed_ms",
+            "i1pro2_cq_lights_result", "i1pro2_cq_lights_choices",
+            "i1pro2_cq_lights_options", "i1pro2_cq_lights_begin"} <= set(entries)
+    for fn in entries:
+        body = block[re.search(r"\n(?:void|int) " + fn + r"\(void \*pp", block).start():]
         body = body[:body.index("\n}\n")]
-        assert "cq_lights_m(p)" in body, fn
+        if fn in ("i1pro2_cq_lights_begin", "i1pro2_cq_lights_options"):
+            assert "p->dtype != instI1Pro2" in body, fn
+            assert body.index("p->dtype != instI1Pro2") < body.index("p->m"), fn
+        else:
+            assert "cq_lights_m(p)" in body, fn
     helper = block[block.index("static i1proimp *cq_lights_m(i1pro *p) {"):]
     helper = helper[:helper.index("\n}\n")]
     assert helper.index("p->dtype != instI1Pro2") < helper.index("p->m")
