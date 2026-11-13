@@ -368,7 +368,7 @@ def least_margins_mm(kw: dict) -> "tuple[float, float, float, float]":
 
 #: The build-kwargs key for the patch numbers' distance from the paper edge
 #: on an i1iO chart (Manual's "Clip" text distance while the i1iO is chosen,
-#: `LayoutRecipe.i1io_numbers_edge_mm`); absent or 0 = NUMBERS_EDGE_MM. Its
+#: `LayoutRecipe.i1io_numbers_edge_mm`); absent = NUMBERS_EDGE_MM. Its
 #: own key: the shared "Clip" box defaults to 4 mm for every other chart.
 NUMBERS_EDGE_KEY = "i1io_numbers_edge_mm"
 
@@ -390,8 +390,13 @@ def text_align_of(kw: dict) -> str:
 def numbers_edge_of(kw: dict) -> float:
     if legacy_labels(kw):
         return F.NUMBERS_EDGE_MM.value
-    v = _mm(kw.get(NUMBERS_EDGE_KEY) or None, F.NUMBERS_EDGE_MM.value)
-    return max(0.0, v)
+    # None (absent) = the default; any number, 0 included, is the person's
+    # (review 3, nit 6a: typing 0 stores, builds and shows 0)
+    v = kw.get(NUMBERS_EDGE_KEY)
+    if v is None:
+        return F.NUMBERS_EDGE_MM.value
+    # from 1 mm, as Manual's box offers it (0 would read as unset)
+    return max(1.0, _mm(v, F.NUMBERS_EDGE_MM.value))
 
 
 #: The build-kwargs key for "Aiming crosses" (Manual, Guided, recipes).

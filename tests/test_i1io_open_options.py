@@ -125,9 +125,34 @@ def test_b_moves_the_letters_off_the_bottom_edge():
         {})[2]
 
 
+def _numbers_ink_mm(result) -> float:
+    """Where the patch numbers' ink starts on the PRINTED page, from its
+    left edge: the first dark column in the page's middle band, left of the
+    patches (the crosses sit in the corners, outside the band)."""
+    import numpy as np
+    from PIL import Image
+    im = np.asarray(Image.open(result.tiff_paths[0]).convert("L"))
+    h, w = im.shape
+    band = im[int(h * 0.3):int(h * 0.7), :int(w * 0.3)]
+    cols = np.where((band < 128).any(axis=0))[0]
+    return cols[0] / DPI * 25.4
+
+
+@pytest.mark.parametrize("edge", [1.0, 2.0, 10.0, 25.0])
+def test_clip_moves_the_printed_numbers(tmp_path, edge):
+    """Review 3, item 3: at 2, 10 and 25 mm the numbers printed at 10.9 mm
+    whatever was asked; 25 only widened the margin. Measured on the page."""
+    from workflow.i1io import chart as C
+    result, _side = _build(tmp_path, **{C.NUMBERS_EDGE_KEY: edge})
+    ink = _numbers_ink_mm(result)
+    assert edge <= ink < edge + 2.0
+
+
 def test_clip_is_the_numbers_own_distance():
     from workflow.i1io import chart as C
     assert C.numbers_edge_of({}) == 10.0
+    assert C.numbers_edge_of({C.NUMBERS_EDGE_KEY: None}) == 10.0
+    assert C.numbers_edge_of({C.NUMBERS_EDGE_KEY: 1.0}) == 1.0
     assert C.numbers_edge_of({C.NUMBERS_EDGE_KEY: 6.0}) == 6.0
     # the engine's own clip distance is not it (that is the i1Pro band's)
     assert C.numbers_edge_of({"text_edge_clip": 3.0}) == 10.0
@@ -224,7 +249,7 @@ def test_reading_a_4333_recipe_resets_the_new_fields():
             r.max_strip_mm, r.nolimit, r.strip_indicator_gap_mm,
             r.strip_label_offset_mm, r.text_edge_mm, r.i1io_numbers_edge_mm,
             r.i1io_text_align) == (False, 0.0, 0.0, False, 0.0, True, 0.0,
-                                   0.0, 4.0, 0.0, "")
+                                   0.0, 4.0, None, "")
 
 
 def test_a_build_logs_its_warnings():
@@ -234,3 +259,34 @@ def test_a_build_logs_its_warnings():
     i = src.index('getattr(result, "warnings", ())')
     assert ('tr("[WARNING] The i1iO table may not read this layout "\n'
             in src[i:i + 200])
+
+
+def test_what_clip_shows_is_stored_built_and_shown_again(qapp, qtbot):
+    """Nit 6a: "Clip" on the i1iO starts at 1 mm (0 would read as unset in
+    the engine); typing 0 shows 1, and 1 is what is stored, built and shown
+    again when the recipe is loaded; a recipe without a value shows 10."""
+    from workflow.i1io import chart as C
+    from workflow.layout_engine.presets import LayoutRecipe, default_recipe
+    from ui.dialogs.layout_options_panel import LayoutOptionsPanel
+    p = LayoutOptionsPanel(with_selectors=True)
+    qtbot.addWidget(p)
+    i = p.instr.findData("IO2")
+    p.instr.setCurrentIndex(i)
+    p.instr.activated.emit(i)
+    assert p.text_edge_clip.value() == 10.0
+    assert p.get_recipe().i1io_numbers_edge_mm is None
+    p.text_edge_clip.setValue(0.0)
+    assert p.text_edge_clip.value() == 1.0
+    r = p.get_recipe()
+    assert r.i1io_numbers_edge_mm == 1.0
+    back = LayoutRecipe.from_dict(r.to_dict())
+    assert back.i1io_numbers_edge_mm == 1.0
+    assert C.numbers_edge_of(back.build_kwargs()) == 1.0
+    p.set_recipe(default_recipe("IO2", "A4"))
+    assert p.text_edge_clip.value() == 10.0
+    p.set_recipe(back)
+    assert p.text_edge_clip.value() == 1.0
+    # leaving the i1iO gives the shared box its own range back
+    i = p.instr.findData("i1")
+    p.instr.setCurrentIndex(i)
+    assert p.text_edge_clip.minimum() == 0.0

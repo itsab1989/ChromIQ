@@ -874,7 +874,7 @@ class LayoutOptionsPanel(QWidget):
         #: 10 mm) and the name line's place ("" centred, "start") as a
         #: person chose them for the i1iO (`LayoutRecipe.i1io_numbers_edge_mm`,
         #: `i1io_text_align`).
-        self._i1io_numbers_edge = 0.0
+        self._i1io_numbers_edge = None
         self._i1io_text_align = ""
         #: The i1iO's clip border (an option, off by default): whether it is
         #: on and the content it holds, kept while another instrument is
@@ -3835,8 +3835,9 @@ class LayoutOptionsPanel(QWidget):
                                else _TEF.BOTTOM_TEXT_CENTRE_AVAILABLE)},
                 # "Clip": the patch numbers' distance, the i1iO's own
                 "values": {"text_edge_clip": (
-                    float(getattr(self, "_i1io_numbers_edge", 0.0) or 0.0)
-                    or F.NUMBERS_EDGE_MM.value)},
+                    F.NUMBERS_EDGE_MM.value
+                    if getattr(self, "_i1io_numbers_edge", None) is None
+                    else float(self._i1io_numbers_edge))},
                 "checks": {},
                 # the label patterns are the chart's own since 2026-11-13
                 "texts": {}}
@@ -3964,6 +3965,15 @@ class LayoutOptionsPanel(QWidget):
             size = getattr(self, "indicator_size", None)
             if size is not None:
                 size.setMaximum(round(mm_to_pt(LABEL_MAX_MM.value), 1))
+            # "Clip" (the patch numbers' distance) from 1 mm: at 0 the
+            # engine reads the distance as unset and the numbers would hug
+            # the patches instead (review 3, nit 6a: what is typed is what
+            # is stored, built and shown)
+            tec = getattr(self, "text_edge_clip", None)
+            if tec is not None:
+                saved["ranges"].append((tec, tec.minimum(), tec.maximum(),
+                                        tec.value(), tec.specialValueText()))
+                tec.setMinimum(max(tec.minimum(), 1.0))
             # The margins are the person's for the i1iO, so "Use instrument
             # margins" (which locks them to another instrument's minimums)
             # is off while it is chosen, and comes back on leaving.
@@ -4310,8 +4320,7 @@ class LayoutOptionsPanel(QWidget):
 
     def _i1io_own_capture(self) -> dict:
         out = {"values": {}, "checks": {},
-               "numbers_edge": float(getattr(self, "_i1io_numbers_edge", 0.0)
-                                     or 0.0),
+               "numbers_edge": getattr(self, "_i1io_numbers_edge", None),
                "text_align": str(getattr(self, "_i1io_text_align", "") or "")}
         for name, _f in self._I1IO_OWN_VALUES:
             w = getattr(self, name, None)
@@ -4330,7 +4339,7 @@ class LayoutOptionsPanel(QWidget):
         return {"values": {n: getattr(r, f) for n, f in self._I1IO_OWN_VALUES},
                 "checks": {n: bool(getattr(r, f))
                            for n, f in self._I1IO_OWN_CHECKS},
-                "numbers_edge": 0.0, "text_align": ""}
+                "numbers_edge": None, "text_align": ""}
 
     def _i1io_own_apply(self, own) -> None:
         if not own:
@@ -4344,7 +4353,8 @@ class LayoutOptionsPanel(QWidget):
             if w is not None and w.isChecked() != bool(on):
                 w.setChecked(bool(on))
         if "numbers_edge" in own:
-            self._i1io_numbers_edge = float(own["numbers_edge"] or 0.0)
+            self._i1io_numbers_edge = (None if own["numbers_edge"] is None
+                                       else float(own["numbers_edge"]))
         if "text_align" in own:
             self._i1io_text_align = str(own["text_align"] or "")
 
@@ -7656,9 +7666,9 @@ class LayoutOptionsPanel(QWidget):
         # below shows the i1iO's values.
         self._i1io_align = (str(getattr(r, "i1io_align", "") or "")
                             if r.instrument == "IO2" else "")
-        self._i1io_numbers_edge = (float(getattr(r, "i1io_numbers_edge_mm",
-                                                 0.0) or 0.0)
-                                   if r.instrument == "IO2" else 0.0)
+        _ne = getattr(r, "i1io_numbers_edge_mm", None)
+        self._i1io_numbers_edge = (None if r.instrument != "IO2" or _ne is None
+                                   else float(_ne))
         self._i1io_text_align = (str(getattr(r, "i1io_text_align", "") or "")
                                  if r.instrument == "IO2" else "")
         cb = getattr(self, "i1io_crosses_cb", None)
@@ -7910,9 +7920,9 @@ class LayoutOptionsPanel(QWidget):
                           else True)
         r.i1io_align = (getattr(self, "_i1io_align", "")
                         if r.instrument == "IO2" else "")
-        r.i1io_numbers_edge_mm = (float(getattr(self, "_i1io_numbers_edge",
-                                                0.0) or 0.0)
-                                  if r.instrument == "IO2" else 0.0)
+        _ne = getattr(self, "_i1io_numbers_edge", None)
+        r.i1io_numbers_edge_mm = (None if r.instrument != "IO2" or _ne is None
+                                  else float(_ne))
         r.i1io_text_align = (getattr(self, "_i1io_text_align", "")
                              if r.instrument == "IO2" else "")
         r.i1io_clip_border = (self._i1io_clip_now()

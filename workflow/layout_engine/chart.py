@@ -333,7 +333,7 @@ def build_chart(
     #: i1iO only (Job D): the patch numbers' distance from the paper edge
     #: (0 = the i1iO's own 10 mm) and where the name line sits in its room
     #: ("" = centred, "start"). No other instrument reads them.
-    i1io_numbers_edge_mm: float = 0.0,
+    i1io_numbers_edge_mm: "float | None" = None,
     i1io_text_align: str = "",
 ) -> ChartResult:
     """Full chart build: write ``out_base.ti2`` + page TIFF(s) + strip geometry.
@@ -516,7 +516,13 @@ def build_chart(
         **({_i1io_chart.LABELS_KEY: _i1io_labels,
             _i1io_chart.ALIGN_KEY: patch_area_align,
             _i1io_chart.CROSSES_KEY: _i1io_crosses,
-            _i1io_chart.CLIP_KEY: _i1io_clip} if _i1io else {}),
+            _i1io_chart.CLIP_KEY: _i1io_clip,
+            # the patch numbers' distance (review 3, item 3): without it
+            # the geometry re-derived the default and the numbers never moved
+            _i1io_chart.NUMBERS_EDGE_KEY: (
+                None if i1io_label_options is False
+                else i1io_numbers_edge_mm)}
+           if _i1io else {}),
         "instrument": instrument, "paper": paper, "hflag": hflag,
         "hex_flat_top": hex_flat_top,
         "density": density, "cm_stagger": cm_stagger,

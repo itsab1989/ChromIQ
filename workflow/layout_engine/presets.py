@@ -245,10 +245,10 @@ class LayoutRecipe:
     i1io_label_options: bool = True
     #: Job D (options open, defaults safe): the patch numbers' distance from
     #: the paper edge on an i1iO chart (Manual's "Clip" box while the i1iO
-    #: is chosen; 0 = its own 10 mm) and where its name line sits ("" =
+    #: is chosen; None = its own 10 mm, any number is a person's) and where its name line sits ("" =
     #: centred, "start"). Their own fields: the shared boxes default to
     #: other values for every other chart. Written only for "IO2" when set.
-    i1io_numbers_edge_mm: float = 0.0
+    i1io_numbers_edge_mm: "float | None" = None
     i1io_text_align: str = ""
     # Layout strategy (#93, Knut). "patch_first" (default) = size the patches
     # (above) and fit as many as possible to the page. "area_first" = fit a
@@ -496,7 +496,7 @@ class LayoutRecipe:
             d.pop("i1io_text_bold", None)
         if self.instrument != "IO2":
             d.pop("i1io_label_options", None)
-        if self.instrument != "IO2" or not self.i1io_numbers_edge_mm:
+        if self.instrument != "IO2" or self.i1io_numbers_edge_mm is None:
             d.pop("i1io_numbers_edge_mm", None)
         if self.instrument != "IO2" or not self.i1io_text_align:
             d.pop("i1io_text_align", None)
@@ -595,7 +595,9 @@ class LayoutRecipe:
                             else None),
             # LIVE build kwargs: a missing mark is this version's (R1)
             i1io_label_options=d.get("i1io_label_options", True) is not False,
-            i1io_numbers_edge_mm=float(d.get("i1io_numbers_edge_mm") or 0.0),
+            i1io_numbers_edge_mm=(None if d.get("i1io_numbers_edge_mm")
+                                  is None
+                                  else float(d["i1io_numbers_edge_mm"])),
             i1io_text_align=str(d.get("i1io_text_align") or ""),
             show_strip_indicators=bool(d.get("draw_indicators", True)),
             show_row_indicators=(None if d.get("row_indicators") is None
@@ -893,7 +895,8 @@ class LayoutRecipe:
         # recipe from before the label options as 4.3.33 built it.
         if self.instrument == "IO2":
             kw["i1io_label_options"] = bool(self.i1io_label_options)
-        if self.instrument == "IO2" and self.i1io_numbers_edge_mm:
+        if (self.instrument == "IO2"
+                and self.i1io_numbers_edge_mm is not None):
             kw["i1io_numbers_edge_mm"] = float(self.i1io_numbers_edge_mm)
         if self.instrument == "IO2" and self.i1io_text_align:
             kw["i1io_text_align"] = self.i1io_text_align
@@ -1029,7 +1032,7 @@ def i1io_legacy_recipe(r: "LayoutRecipe") -> "LayoutRecipe":
                    offset_x_mm=0.0, offset_y_mm=0.0, helper_markers=False,
                    strip_indicator_gap_mm=0.0, strip_label_offset_mm=0.0,
                    strip_label_offset_x_mm=0.0, text_edge_mm=4.0,
-                   i1io_numbers_edge_mm=0.0, i1io_text_align="")
+                   i1io_numbers_edge_mm=None, i1io_text_align="")
 
 
 class PresetStore:

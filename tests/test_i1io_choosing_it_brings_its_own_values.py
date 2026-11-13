@@ -77,7 +77,7 @@ def test_an_i1pros_risky_values_do_not_follow_it_to_the_i1io(panel):
         f.offset_x_mm, f.offset_y_mm, f.max_strip_mm, f.text_edge_mm,
         f.strip_indicator_gap_mm, f.strip_label_offset_mm,
         f.strip_label_offset_x_mm, False, False)
-    assert (r.i1io_numbers_edge_mm, r.i1io_text_align) == (0.0, "")
+    assert (r.i1io_numbers_edge_mm, r.i1io_text_align) == (None, "")
 
 
 def test_leaving_gives_the_i1pro_back_what_it_had(panel):
