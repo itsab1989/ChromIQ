@@ -74,9 +74,13 @@ and 8 mm patches, A4 with 7 mm patches 612/612, every grid exact):
   the same way, or any instrument i1Profiler does not read by hand.
 
 THE WAY BACK. i1Profiler numbers the readings of its own chart 1..N in
-patch-list order (its CxF objects carry no trace of ChromIQ's patch ids; a real
-round trip, 2026-08-08, kept the order exactly: see
-``measurement_report.verify_patch_identity``). A turned measurement therefore
+patch-list order (a real round trip, 2026-08-08, kept the order exactly: see
+``measurement_report.verify_patch_identity``). A measurement made from a
+``.txf`` older than 4.3.33 carries no trace of ChromIQ's patch ids; since
+4.3.33 the ``.txf`` gives every patch the chart's own name (``SampleName``)
+and its entry number 1..N (``SampleID``), which i1Profiler copies into its
+measurement for other tools to show, and which the pairing below does not
+use. A turned measurement therefore
 arrives in the TURNED order, and the ordinary import refuses it: its device
 values do not agree with the chart's patches by ``SAMPLE_ID``. The order file
 written here (``-i1profiler-turned.json``, holding the ``.ti2``'s SHA-256)
@@ -742,7 +746,14 @@ def _write_txf(plan: TurnedPlan, family: str, out: Path, title: str) -> None:
         pages=1, patch_w_mm=d["patch_w_mm"], patch_h_mm=d["patch_h_mm"],
         patch_w_percent=d["patch_w_percent"],
         patch_h_percent=d["patch_h_percent"], title=title)
-    write_pwxf(tgt, out, title, opt)
+    # Every patch carries the chart's own name of it, as printed, and its
+    # entry number 1..N (4.3.33, jctay 2026-11-13): i1Profiler copies both
+    # into its measurement, so other tools can show "7G" where they showed
+    # its grid cell. SampleID is the LIST POSITION, never the chart's
+    # SAMPLE_ID, because turned_match reads a measured SAMPLE_ID as that
+    # position. ChromIQ's own import still pairs by the order file alone.
+    write_pwxf(tgt, out, title, opt,
+               sample_names=[str(loc) for _sid, loc, _v in plan.order])
 
 
 def _order_doc(plan: TurnedPlan, ti2: Path, earlier: "list | None" = None) -> dict:

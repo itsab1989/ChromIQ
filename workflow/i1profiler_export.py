@@ -825,19 +825,25 @@ def _pwxf_custom_attributes(n_patches: int, opt: WorkflowOptions) -> str:
 
 
 def _pwxf_rgb_object(idx: int, v: dict[str, float], created: str,
-                     location: tuple[int, int, int] | None) -> list[str]:
-    """RGB Object, optionally with a column-major Location tag block."""
+                     location: tuple[int, int, int] | None,
+                     sample: "tuple[int, str] | None" = None) -> list[str]:
+    """RGB Object, optionally with a column-major Location tag block.
+
+    *sample* is ``(SampleID, SampleName)`` for that block; without it the
+    block carries i1Profiler's own "no name" values, ``-1`` and ``""``."""
     out = _rgb_object(idx, v, created)
     if location is None:
         return out
     col, page, row = location
+    sid, name = sample if sample is not None else (-1, "")
+    name_x = escape(str(name), {'"': "&quot;"})
     loc = [
         '\t\t\t\t<cc:TagCollection Name="Location">',
         f'\t\t\t\t\t<cc:Tag Name="Column" Value="{col}"/>',
         f'\t\t\t\t\t<cc:Tag Name="Page" Value="{page}"/>',
         f'\t\t\t\t\t<cc:Tag Name="Row" Value="{row}"/>',
-        '\t\t\t\t\t<cc:Tag Name="SampleID" Value="-1"/>',
-        '\t\t\t\t\t<cc:Tag Name="SampleName" Value=""/>',
+        f'\t\t\t\t\t<cc:Tag Name="SampleID" Value="{int(sid)}"/>',
+        f'\t\t\t\t\t<cc:Tag Name="SampleName" Value="{name_x}"/>',
         "\t\t\t\t</cc:TagCollection>",
     ]
     # insert the Location block before the closing </cc:Object>
@@ -849,11 +855,18 @@ def write_pwxf(
     out_path: Path,
     descriptor: str,
     options: WorkflowOptions | None = None,
+    sample_names: "list[str] | None" = None,
 ) -> None:
     """Write an i1Profiler workflow (.pwxf) for an RGB target.
 
     Mirrors a genuine i1Profiler "Prism" workflow file so i1Profiler opens it
     with the instrument/paper/grid pre-configured. RGB only.
+
+    *sample_names*, one per patch in list order, gives every patch a Location
+    block in i1Profiler's own shape whose ``SampleName`` is that name and whose
+    ``SampleID`` is the patch's position in the list, 1..N (it implies
+    ``emit_locations``). The turned export passes the chart's own patch names,
+    so they reach i1Profiler's measurement files (4.3.33).
     """
     if target.kind != "RGB":
         raise ValueError(
@@ -863,6 +876,9 @@ def write_pwxf(
     opt = options or WorkflowOptions()
     created = _pwxf_utc_now()
     n = len(target.rows)
+    if sample_names is not None and len(sample_names) != n:
+        raise ValueError(
+            f"{len(sample_names)} sample names for {n} patches")
 
     parts = [
         '<?xml version="1.0" encoding="UTF-8"?>',
@@ -885,10 +901,16 @@ def write_pwxf(
     # filled page by page (`columns x rows` patches on page 1, then page 2),
     # while i1Profiler fills ONE grid column-first and only then cuts its rows
     # into pages: on pharmacist's 3-page 702-patch file (i1Profiler 3.8.6) the
-    # old rule put 26 of 702 patches in i1Profiler's cell. Unused by ChromIQ
-    # itself (the turned export writes no Location); the probe scripts use it.
+    # old rule put 26 of 702 patches in i1Profiler's cell. The probe scripts
+    # use it, and since 4.3.33 the turned export does, with *sample_names*:
+    # i1Profiler ignores the cells on load and lays the chart out itself (P4,
+    # 2026-10-27), but copies SampleID and SampleName into its measurement,
+    # which is how ChromIQ's patch names reach other tools (jctay, 2026-11-13).
+    # The Tools .pwxf passes no names: there i1Profiler prints its own chart
+    # with its own labels, so ChromIQ's names would be wrong names.
     grid = None
-    if opt.emit_locations and opt.columns > 0 and n:
+    if ((opt.emit_locations or sample_names is not None)
+            and opt.columns > 0 and n):
         rows_total = -(-n // opt.columns)
         # `rows` is not asked: the cells follow from the columns and the
         # pages alone, as in i1Profiler's own files.
@@ -898,7 +920,9 @@ def write_pwxf(
         if grid is not None:
             page, row, col = i1p_location(idx - 1, *grid)
             loc = (col, page, row)
-        parts += _pwxf_rgb_object(idx, v, created, loc)
+        sample = (None if sample_names is None
+                  else (idx, sample_names[idx - 1]))
+        parts += _pwxf_rgb_object(idx, v, created, loc, sample)
     parts.append("\t\t</cc:ObjectCollection>")
     parts += _color_specification()
     parts.append("\t</cc:Resources>")
