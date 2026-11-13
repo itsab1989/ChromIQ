@@ -198,7 +198,16 @@ def test_manual_offers_the_i1io_and_greys_what_it_does_not_read(chart_tab):
             continue           # live, and enabled by "Clip border" On
         if c in (panel.ind_italic, panel.ct_italic, panel.ind_bold,
                  panel.ct_bold):
-            continue           # live, enabled where the face has the style
+            # live, and enabled exactly where the typeface has that style
+            from workflow.layout_engine.raster import font_supports
+            combo = (panel.indicator_font
+                     if c in (panel.ind_bold, panel.ind_italic)
+                     else panel.chart_text_font)
+            has_bold, has_italic = font_supports(combo.currentData() or "")
+            want = has_bold if c in (panel.ind_bold, panel.ct_bold) \
+                else has_italic
+            assert c.isEnabled() == want, (c.text(), combo.currentData())
+            continue
         if c in (panel.underline_thickness, panel.underline_gap):
             continue           # live, enabled by an underline
         assert c.isEnabled(), c.objectName() or type(c).__name__
@@ -239,3 +248,21 @@ def test_other_charts_get_no_keyword_declarations(tmp_path):
                           instrument="SS", paper="A4", dpi=100, hflag=True)
     text = r.ti2_path.read_text(encoding="utf-8")
     assert 'HEXAGON_PATCHES "True"' in text and "KEYWORD" not in text
+
+
+def test_the_i1io_style_boxes_follow_the_typeface(chart_tab):
+    """Review F6: Bold and Italic are live for the i1iO wherever the chosen
+    typeface has the style, for the labels and for the sheet text."""
+    from workflow.layout_engine.raster import font_supports
+    tab = chart_tab
+    tab._init_manual_layout_panel()
+    panel = tab._manual_layout_panel
+    panel.instr.setCurrentIndex(panel.instr.findData("IO2"))
+    for face in ("JetBrains Mono", "Inter", "Instrument Serif"):
+        for combo, bold, italic in (
+                (panel.indicator_font, panel.ind_bold, panel.ind_italic),
+                (panel.chart_text_font, panel.ct_bold, panel.ct_italic)):
+            combo.setCurrentIndex(combo.findData(face))
+            has_bold, has_italic = font_supports(face)
+            assert bold.isEnabled() == has_bold, (face, bold.text())
+            assert italic.isEnabled() == has_italic, (face, italic.text())
