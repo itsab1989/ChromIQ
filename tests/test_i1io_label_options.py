@@ -531,3 +531,39 @@ def test_the_panel_keeps_an_old_recipe_old_until_a_label_is_touched(panel):
     r = panel.get_recipe()
     assert r.i1io_label_options is True
     assert r.build_kwargs()["i1io_label_options"] is True
+
+
+# ---- review R4: a larger sheet-text size never loses more than a smaller ----
+
+@pytest.mark.parametrize("paper,crosses,n", [("Letter", False, 300),
+                                             ("A4", False, 300),
+                                             ("A4", True, 300)])
+def test_a_larger_sheet_text_size_never_loses_more(paper, crosses, n):
+    """Review R4: Letter, no crosses, 300 patches: at 22 mm the sheet text
+    was printed (shortened), at 72 pt it and the logo were dropped. Every
+    size from 22 mm up keeps at least what 22 mm keeps."""
+    from workflow.i1io import chart as C
+    from workflow.layout_engine import geometry, instruments, papers
+    name = "Proof chart Glossy Baryta"
+    text = "Hahnemuehle Photo Rag 308, ink set B, 2026-11-13"
+
+    def kept(size):
+        kw = {"paper": paper, "i1io_crosses": crosses,
+              "chart_text_size_mm": size}
+        k = {**kw, "instrument": "IO2"}
+        geom = instruments.geom_from_build_kwargs(k)
+        w, h = papers.dimensions_mm(paper)
+        layout = geometry.compute(geom, w, h, n)
+        plan = C.line_plan(geom, layout, w, h, 0, name=name,
+                           sheet_text=text, dpi=300,
+                           labels=C.label_wishes(C.fixed_build_kwargs(k)),
+                           crosses=crosses, style=C.text_style_of(kw))
+        assert plan["text"].startswith("Proof chart"), (size, plan["text"])
+        return ({"name"}
+                | ({"sheet text"} if "Hahnemuehle"[:4] in plan["text"]
+                   else set())
+                | ({"logo"} if plan.get("wordmark") else set()))
+
+    base = kept(22.0)
+    for size in (24.0, 25.4, 40.0):
+        assert kept(size) >= base, size

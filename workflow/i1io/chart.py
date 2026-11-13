@@ -1305,6 +1305,26 @@ def styled_line_plan(w: float, h: float, head: str, extra: str, dpi: int,
     def plen(parts) -> float:
         return sum(probe.textlength(t, font=f) for t, f in parts if t) / s
 
+    # …AND ALONG IT (review R4): the largest size at which the whole line
+    # fits beside the full-size logo, down to the smallest capitals; when
+    # none does, the smallest, and only then is the text shortened. So a
+    # larger size asked for never loses more than a smaller one.
+    probe_x, _p, _v = _font(200, style.family, style.italic, style.bold)
+    floor_px = max(1, int(round(200 * (F.TEXT_MIN_CAP_MM.value * s)
+                                / _cap_mm(probe_x, 1.0))))
+    wm_full = F.WORDMARK_MM.value
+    _wf, _p, _v = _font(max(1, int(round(wm_full / 0.74 * s))),
+                        WORDMARK_FONT, bold=False)
+    _wi, _p, _v = _font(max(1, int(round(wm_full / 0.74 * s))),
+                        WORDMARK_FONT, italic=True, bold=False)
+    wm_len = (probe.textlength("Chrom", font=_wf)
+              + probe.textlength("IQ", font=_wi)) / s
+    while xpx > floor_px and (
+            plen(((head_part, text_font), (extra, xfont)))
+            + wm_len + WORDMARK_GAP_MM > room + 1e-9):
+        xpx = max(floor_px, min(xpx - 1, int(xpx * 0.92)))
+        xfont, _p, _v = _font(xpx, style.family, style.italic, style.bold)
+
     def fit(length: float):
         """(head part, sheet text) shortened from the end with "…" until
         they fit *length*: the sheet text first, then the head."""
@@ -1602,11 +1622,44 @@ def free_text_plan(spot: dict, head: str, extra: str, dpi: int,
                 return None
         if extra and extra_least is not None:
             rest = left - tlen(f, name) - tlen(f, TEXT_SEP)
-            ex = fit(fx, extra, rest, min(extra_least, len(extra)))
-            if ex is None:
-                return None
-            return join(name, ex), wm, name, ex
+            if not styled:
+                ex = fit(fx, extra, rest, min(extra_least, len(extra)))
+                if ex is None:
+                    return None
+                return join(name, ex), wm, name, ex
+            # THE SHEET TEXT SHRINKS ALONG THE LINE TOO before it is
+            # shortened or left off (review R4): the largest of its sizes,
+            # from the one it fits across down to its smallest, at which it
+            # fits; a larger size asked for never loses more than a smaller
+            for xpx, xf in extra_sizes(_c):
+                ex = fit(xf, extra, rest, min(extra_least, len(extra)))
+                if ex is not None:
+                    chosen_extra[_c] = (xpx, xf)
+                    return join(name, ex), wm, name, ex
+            return None
         return name, wm, name, ""
+
+    chosen_extra = {}
+    floor_px = {}
+
+    def extra_sizes(cap_mm: float):
+        """The sheet text's sizes at the name's *cap_mm*: from the one that
+        fits across (`extra_fit`) down to its smallest capitals."""
+        start = xfont.get(cap_mm)
+        if start is None:
+            return
+        if style.family not in floor_px:
+            probe_x, _p, _v = _font(200, style.family, style.italic,
+                                    style.bold)
+            floor_px[style.family] = max(1, int(round(
+                200 * (F.TEXT_MIN_CAP_MM.value * s) / _cap_mm(probe_x, 1.0))))
+        px_, fx = start
+        while True:
+            yield px_, fx
+            if px_ <= floor_px[style.family]:
+                return
+            px_ = max(floor_px[style.family], min(px_ - 1, int(px_ * 0.92)))
+            fx = _font(px_, style.family, style.italic, style.bold)[0]
 
     big = caps[0]
     tries = []
@@ -1634,7 +1687,7 @@ def free_text_plan(spot: dict, head: str, extra: str, dpi: int,
             continue
         _c, px_, f = cap
         two = styled and bool(ex_t)
-        fx_px, fx = xfont[_c] if two else (px_, f)
+        fx_px, fx = (chosen_extra.get(_c) or xfont[_c]) if two else (px_, f)
         if two:
             head_part = f"{name_t}{TEXT_SEP}" if name_t else ""
             text_len = tlen(f, head_part) + tlen(fx, ex_t)
