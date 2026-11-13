@@ -219,7 +219,7 @@ def test_the_ti2_gains_nothing(tmp_path):
     off, _side = _build(tmp_path / "off", 300)
 
     def keywords(p):
-        return sorted(ln.split()[0] for ln in p.read_text().splitlines()
+        return sorted(ln.split()[0] for ln in p.read_text(encoding="utf-8").splitlines()
                       if ln and ln[0].isupper() and not ln.startswith(
                           ("CREATED", "BEGIN", "END", "SAMPLE")))
     assert keywords(on.ti2_path) == keywords(off.ti2_path)
