@@ -5418,9 +5418,17 @@ class LayoutOptionsPanel(QWidget):
                 fb = {"t": 6.0, "r": 6.0, "b": 6.0, "l": 6.0}
                 try:
                     from workflow.layout_engine import instruments as _ins
-                    g = _ins.geom_from_build_kwargs(
-                        {"instrument": inst, "paper": paper,
-                         "layout_mode": "patch_first"})
+                    _fkw = {"instrument": inst, "paper": paper,
+                            "layout_mode": "patch_first"}
+                    _cb = getattr(self, "i1io_crosses_cb", None)
+                    if inst == "IO2" and _cb is not None:
+                        # THE i1iO'S MINIMUM FOLLOWS ITS CROSSES (review 3,
+                        # item 7): without them the right margin may be
+                        # smaller, and a reopened chart made without them
+                        # was locked to the margins WITH them (552 patches
+                        # became 528; 4.3.33 too).
+                        _fkw["i1io_crosses"] = bool(_cb.isChecked())
+                    g = _ins.geom_from_build_kwargs(_fkw)
                     fb = {"t": g.margin_t, "r": g.margin_r,
                           "b": g.margin_b, "l": g.margin_l}
                 except Exception:

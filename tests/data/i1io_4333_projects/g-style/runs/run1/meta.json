@@ -1,0 +1,377 @@
+{
+  "run_id": "run1",
+  "created_at": "2026-11-13T17:11:04",
+  "parent_run": null,
+  "instrument": "IO2",
+  "paper": "A4",
+  "averaging_enabled": false,
+  "averaging_method": "mean",
+  "averaging_read_count": 0,
+  "scanner_target_enabled": false,
+  "chart_snapshot_stale": false,
+  "preconditioning_source_run": null,
+  "profile_built_from": "",
+  "calibration_used": "",
+  "description": "",
+  "chart_notes": "",
+  "verify_chart_notes": "",
+  "create_chart_settings": {
+    "printtarg-i": {
+      "enabled": true,
+      "value": "IO2"
+    },
+    "printtarg-h": {
+      "enabled": true,
+      "value": false
+    },
+    "printtarg-p": {
+      "enabled": true,
+      "value": "A4"
+    },
+    "printtarg-t": {
+      "enabled": true,
+      "value": 300
+    },
+    "printtarg-L": {
+      "enabled": true,
+      "value": true
+    },
+    "printtarg-a": {
+      "enabled": true,
+      "value": 1.0
+    },
+    "printtarg-m": {
+      "enabled": false,
+      "value": 6
+    },
+    "printtarg-r": {
+      "enabled": false,
+      "value": false
+    },
+    "printtarg-b": {
+      "enabled": false,
+      "value": false
+    },
+    "printtarg-P": {
+      "enabled": false,
+      "value": false
+    },
+    "printtarg-N": {
+      "enabled": true,
+      "value": false
+    },
+    "printtarg-K": {
+      "enabled": false,
+      "value": ""
+    },
+    "printtarg-I": {
+      "enabled": false,
+      "value": ""
+    },
+    "printtarg-C": {
+      "enabled": false,
+      "value": false
+    },
+    "printtarg-D": {
+      "enabled": false,
+      "value": false
+    },
+    "printtarg-U": {
+      "enabled": false,
+      "value": false
+    },
+    "printtarg-R": {
+      "enabled": false,
+      "value": 1
+    },
+    "printtarg-Q": {
+      "enabled": false,
+      "value": 8
+    },
+    "printtarg-A": {
+      "enabled": false,
+      "value": 1.0
+    },
+    "printtarg-n": {
+      "enabled": false,
+      "value": false
+    },
+    "printtarg-c": {
+      "enabled": false,
+      "value": false
+    },
+    "targen-d": {
+      "enabled": true,
+      "value": "2"
+    },
+    "targen-D": {
+      "repeats": [
+        {
+          "enabled": false,
+          "value": "5"
+        },
+        {
+          "enabled": false,
+          "value": "5"
+        },
+        {
+          "enabled": false,
+          "value": "5"
+        },
+        {
+          "enabled": false,
+          "value": "5"
+        },
+        {
+          "enabled": false,
+          "value": "5"
+        },
+        {
+          "enabled": false,
+          "value": "5"
+        },
+        {
+          "enabled": false,
+          "value": "5"
+        },
+        {
+          "enabled": false,
+          "value": "5"
+        },
+        {
+          "enabled": false,
+          "value": "5"
+        },
+        {
+          "enabled": false,
+          "value": "5"
+        },
+        {
+          "enabled": false,
+          "value": "5"
+        }
+      ]
+    },
+    "targen-f": {
+      "enabled": true,
+      "value": 0
+    },
+    "targen-e": {
+      "enabled": true,
+      "value": 0
+    },
+    "targen-B": {
+      "enabled": true,
+      "value": 0
+    },
+    "targen-g": {
+      "enabled": true,
+      "value": 0
+    },
+    "targen-G": {
+      "enabled": true,
+      "value": true
+    },
+    "targen-s": {
+      "enabled": true,
+      "value": 0
+    },
+    "targen-c": {
+      "enabled": false,
+      "value": ""
+    },
+    "targen-C": {
+      "enabled": false,
+      "value": ""
+    },
+    "targen-n": {
+      "enabled": false,
+      "value": 0
+    },
+    "targen-N": {
+      "enabled": false,
+      "value": 0.5
+    },
+    "targen-V": {
+      "enabled": false,
+      "value": 1.0
+    },
+    "targen-l": {
+      "enabled": false,
+      "value": 300
+    },
+    "targen__targen_distribution__": {
+      "enabled": false,
+      "value": ""
+    },
+    "targen-A": {
+      "enabled": false,
+      "value": 0.1
+    },
+    "targen-m": {
+      "enabled": false,
+      "value": 0
+    },
+    "targen-M": {
+      "enabled": false,
+      "value": 0
+    },
+    "targen-b": {
+      "enabled": false,
+      "value": 0
+    }
+  },
+  "create_chart_ui": {
+    "mode": "guided",
+    "stamp": false,
+    "auto": {
+      "patches": true
+    },
+    "guided": {
+      "instrument": "IO2",
+      "paper": "A4",
+      "pages": 1,
+      "double_density": false,
+      "triple_density": false,
+      "left_border": false,
+      "no_strip_limit": false,
+      "precond": "",
+      "i1io_crosses": true
+    },
+    "engine_on": true,
+    "engine_recipe": {
+      "instrument": "IO2",
+      "paper": "A4",
+      "dpi": 300,
+      "randomize": true,
+      "seed": null,
+      "seed_fixed": false,
+      "hflag": false,
+      "cm_density": 1,
+      "cm_stagger": false,
+      "hex_flat_top": false,
+      "spacer_on": true,
+      "spacer_mode": "colored",
+      "spacer_palette": [],
+      "spacer_overrides": {},
+      "edge_spacers": false,
+      "patch_area_align": "center",
+      "pscale": 1.0,
+      "sscale": 1.0,
+      "border": 6.0,
+      "margin_top": 12.0,
+      "margin_right": 15.0,
+      "margin_bottom": 21.0,
+      "margin_left": 16.0,
+      "use_instrument_margins": false,
+      "patch_w_mm": 8.0,
+      "patch_h_mm": 10.0,
+      "layout_mode": "patch_first",
+      "area_method": "by_width",
+      "area_cols": 0,
+      "area_rows": 0,
+      "area_ratio": 1.0,
+      "area_min_patch_mm": 0.0,
+      "layout_explicit": false,
+      "margins_explicit": false,
+      "align_explicit": false,
+      "spacer_width_mm": 1.0,
+      "inter_patch_mm": 0.0,
+      "strip_gap_mm": 0.0,
+      "max_strip_mm": 0.0,
+      "strip_indicator_gap_mm": 0.0,
+      "offset_x_mm": 0.0,
+      "offset_y_mm": 0.0,
+      "bit16": false,
+      "compression": "lzw",
+      "export_pdf": false,
+      "show_strip_indicators": true,
+      "show_row_indicators": null,
+      "label_style_explicit": false,
+      "indicator_font": "JetBrains Mono",
+      "indicator_size_mm": 0.0,
+      "indicator_bold": false,
+      "indicator_italic": false,
+      "indicator_rotation": 0,
+      "indicator_align": "left",
+      "strip_label_offset_mm": 0.0,
+      "underline_mode": "off",
+      "underline_thickness_mm": 0.5,
+      "underline_gap_mm": 0.5,
+      "chart_text": "",
+      "chart_text_font": "Inter",
+      "chart_text_size_mm": 0.0,
+      "chart_text_bold": false,
+      "chart_text_italic": false,
+      "chart_text_align": "left_margin",
+      "helper_markers": false,
+      "helper_marker_edge_mm": 2.0,
+      "helper_marker_len_mm": 2.0,
+      "helper_marker_per_patch": 3,
+      "helper_markers_top_bottom": true,
+      "helper_markers_sides": true,
+      "text_edge_mm": 4.0,
+      "text_edge_top_mm": 4.0,
+      "text_edge_clip_mm": 10.0,
+      "stamp_command": false,
+      "clip_border": true,
+      "clip_border_width_mm": 26.0,
+      "clip_side": "left",
+      "clip_content_mode": "notes",
+      "clip_content_when_on": "notes",
+      "clip_text": "",
+      "clip_text_font": "Inter",
+      "clip_text_size_mm": 0.0,
+      "clip_image_path": "",
+      "clip_image_rotation": 0,
+      "clip_image_scale": 100.0,
+      "clip_image_offset_x_mm": 0.0,
+      "clip_image_offset_y_mm": 0.0,
+      "clip_flip_180": false,
+      "clip_border_free_space": true,
+      "nolimit": true,
+      "strip_pattern": "A-Z, A-Z",
+      "patch_pattern": "0-9,@-9,@-9;1-999",
+      "area_first_hides_patch_controls": true
+    },
+    "engine_cal": {
+      "path": "",
+      "mode": "off"
+    },
+    "gamut": {
+      "count": 400,
+      "count_chosen": false,
+      "auto": false,
+      "margin": "safe",
+      "intent": "absolute"
+    }
+  },
+  "measure_settings": {},
+  "profile_settings": {},
+  "print_settings": {},
+  "profile_description": "",
+  "profile_build": {},
+  "status": "in_progress",
+  "editor_layout": {
+    "spacer_mode": "colored",
+    "patch_scale": 1.0,
+    "spacer_scale": 1.0,
+    "margin_mm": 6,
+    "suppress_left_clip": false,
+    "no_strip_limit": false,
+    "double_density": false,
+    "triple_density": false,
+    "tiff_16bit": false,
+    "dpi": 300
+  },
+  "editor_basename": "g-style",
+  "editor_recipe": null,
+  "duplicated_from": null,
+  "compliance_set_id": "",
+  "compliance_set_label": "",
+  "compliance_thresholds": {},
+  "compliance_bound_at": "",
+  "compliance_unlocked": false,
+  "compliance_columns": [],
+  "report_type": ""
+}
