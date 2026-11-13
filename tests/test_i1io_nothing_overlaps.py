@@ -96,22 +96,24 @@ def test_every_element_keeps_1_mm_from_every_other(paper, crosses, clip,
                         assert _apart(x, y, gap), (page, a, x, b, y)
 
 
-def test_a_chart_offset_onto_the_name_line_is_said():
+def test_a_chart_offset_never_reaches_the_name_line():
     """The drive's chart 3: chart offset X 2 and "Label offset" X 1 put the
-    last strip, its letter and the underline on the logo, silently. Said by
-    `furniture_warnings`, which the build's log and "Measured from Preview"
-    both use (`preview_checks`)."""
+    last strip, its letter and the underline on the logo, silently. The
+    offset is fitted now (review 5, item 2): the right floor grows by it, so
+    the strips end where they always did, 2 mm short of the line."""
     from workflow.i1io import chart as C
-    base = {"instrument": "IO2", "paper": "Letter", "dpi": DPI,
-            "area_target_count": 900}
-    _s, notes = C.preview_checks(dict(base, offset_x=2.0, max_strip=200.0,
-                                      nolimit=False,
-                                      strip_label_offset_x_mm=1.0,
-                                      underline_mode="black"))
-    assert any("would touch the line with the chart's name" in w
-               for w in notes), notes
-    _s, quiet = C.preview_checks(base)
-    assert quiet == []
+    from workflow.layout_engine import geometry, instruments, papers
+    kw = {"instrument": "IO2", "paper": "Letter", "dpi": DPI,
+          "offset_x": 2.0, "max_strip": 200.0, "nolimit": False,
+          "strip_label_offset_x_mm": 1.0, "underline_mode": "black"}
+    _s, notes = C.preview_checks(dict(kw, area_target_count=900))
+    assert notes == []
+    geom = instruments.geom_from_build_kwargs(kw)
+    w, h = (float(v) for v in papers.dimensions_mm("Letter"))
+    layout = geometry.compute(geom, w, h, 900)
+    cells = [c[3:] for c in C.page_patches(geom, layout, w, h, 0)]
+    col = C.text_column(w, h)
+    assert max(c[2] for c in cells) <= col[0] - 2.0 + 1e-6
 
 
 def test_a_name_line_with_no_paper_is_said(tmp_path):

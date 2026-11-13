@@ -191,13 +191,15 @@ def test_guided_the_count_and_the_build_follow_the_box(chart_tab):
     tab._i1io_aim_check.setChecked(False)
     p = tab._collect_guided()
     assert p.i1io_crosses is False
-    assert tab._creator._engine_total_patches(p) == 552
+    # Guided keeps the right edge for the name line without the crosses
+    # (review 5, item 4): the same count as with them
+    assert tab._creator._engine_total_patches(p) == 528
     assert tab._creator._engine_build_kwargs(p)["i1io_crosses"] is False
     from workflow.layout_engine import geometry, papers
     w, h = papers.dimensions_mm("A4")
     geom = tab._engine_geom("IO2", "A4", dd=False, td=False, eff_lb=True,
                             nsl=False, pscale=1.0, margin=6.0, guided=True)
-    assert geometry.patches_per_sheet(geom, w, h) == 552
+    assert geometry.patches_per_sheet(geom, w, h) == 528
     # the run's Guided row keeps it, and gives it back
     row = tab._shared_get("guided")
     assert row["i1io_crosses"] is False
@@ -273,7 +275,7 @@ def test_the_guided_help_is_live(chart_tab):
     from ui.dialogs.layout_options_panel import i1io_crosses_help
     kw = src.pop("kw")
     text = i1io_crosses_help(kw, **src)
-    assert "528 patches with the crosses, 552 without them" in text
+    assert "gains no patches: 528 either way" in text
     assert "A1" in text
 
 

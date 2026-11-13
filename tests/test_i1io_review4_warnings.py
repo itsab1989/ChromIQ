@@ -35,9 +35,21 @@ def test_letters_on_the_run_are_said(tmp_path, kw):
 
 @pytest.mark.parametrize("kw", [{"offset_x": -12.0},
                                 {"offset_x": -7.0, "i1io_crosses": False}])
-def test_numbers_left_off_are_said(tmp_path, kw):
+def test_a_chart_offset_to_the_left_keeps_the_numbers(tmp_path, kw):
+    """A chart offset to the left used to leave the patch numbers no room
+    (they were left off, and said). The offset is fitted now (review 5,
+    item 2): the floor on that side grows by it, the numbers keep their
+    room, and nothing has to be said."""
+    import json
     result = _build(tmp_path, **kw)
-    assert any(GONE in w for w in result.warnings), result.warnings
+    assert not any(GONE in w for w in result.warnings), result.warnings
+    from workflow.i1io import chart as C
+    from workflow.layout_engine import instruments, papers
+    geom = instruments.geom_from_build_kwargs(
+        {"instrument": "IO2", "paper": "A4", "dpi": 100, **kw})
+    w, h = (float(v) for v in papers.dimensions_mm("A4"))
+    assert C._number_boxes(geom, result.layout, w, h, 0, 100,
+                           C.label_wishes(kw))
 
 
 def test_defaults_say_neither(tmp_path):

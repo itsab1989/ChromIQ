@@ -69,7 +69,8 @@ CROSS_N = "patch number would touch an aiming cross"
     ({"strip_label_offset_mm": -15.0}, [PATCH]),
     ({"strip_label_offset_mm": 8.0}, [EDGE_L]),
     ({"strip_label_offset_x_mm": 10.0}, [CROSS_L]),
-    ({"offset_y": 8.0}, [EDGE_L, CROSS_N]),
+    # a chart offset is fitted (review 5, item 2): nothing to say
+    ({"offset_y": 8.0}, []),
 ])
 def test_what_is_risky_is_said_in_the_log_and_the_panel(tmp_path, kw, want):
     result = _build(tmp_path, **kw)
@@ -83,8 +84,7 @@ def test_what_is_risky_is_said_in_the_log_and_the_panel(tmp_path, kw, want):
     assert sorted(notes) == sorted(result.warnings)
 
 
-@pytest.mark.parametrize("kw", [{"strip_label_offset_mm": 30.0},
-                                {"offset_y": 20.0}])
+@pytest.mark.parametrize("kw", [{"strip_label_offset_mm": 30.0}])
 def test_letters_wholly_off_the_sheet_are_refused(tmp_path, kw):
     from workflow.i1io.chart import I1ioSheetRefused
     with pytest.raises(I1ioSheetRefused, match="off the sheet"):

@@ -91,8 +91,15 @@ def test_a_recipe_from_before_the_option_stays_without_the_band():
 def test_the_capacity_both_ways(paper, crosses, off, on):
     from workflow.i1io import chart as C
     base = {"paper": paper}
+    if not crosses:      # Manual at its floor (Guided keeps the name line)
+        base["margins"] = C.least_margins_mm({"paper": paper,
+                                              C.CROSSES_KEY: False})
+        clip = C.least_margins_mm({"paper": paper, C.CROSSES_KEY: False,
+                                   C.CLIP_KEY: True})
     assert C.capacity(base, crosses) == off
-    assert C.capacity({**base, C.CLIP_KEY: True}, crosses) == on
+    assert C.capacity({**base, C.CLIP_KEY: True,
+                       **({"margins": clip} if not crosses else {})},
+                      crosses) == on
 
 
 def test_a_wider_band_costs_more_and_never_goes_below_its_minimum():

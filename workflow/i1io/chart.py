@@ -88,6 +88,11 @@ def comparable_recipe_values(d: dict) -> dict:
         pass
     return out
 
+#: The build-kwargs key a caller sets for a GUIDED i1iO layout that hands
+#: margins on anyway (the Create Chart tab's estimate): Guided has no margin
+#: boxes, whatever the kwargs carry (review 5, item 4).
+GUIDED_KEY = "i1io_guided"
+
 #: Air between the clip border's content and the patch numbers, and between
 #: the line with the chart's name and the last strip (whose letter and
 #: underline end with it): 2 mm, which reads as clearly apart on the preview
@@ -276,8 +281,24 @@ def fixed_build_kwargs(kw: dict) -> dict:
         asked = tuple(float(v) for v in asked) if asked else None
     except (TypeError, ValueError):
         asked = None
-    margins = (tuple(max(a, m) for a, m in zip(asked, least))
-               if asked and len(asked) == 4 else least)
+    # THE CHART OFFSET IS FITTED, NOT PUSHED PAST THE FLOOR (review 5, item
+    # 2): the patch block moves by it, so the floor on the side it moves
+    # towards grows by as much, and the fit lays out what then still fits
+    # (fewer patches, as on other instruments) instead of a block that
+    # Generate refuses for touching a cross.
+    ox, oy = _mm(kw.get("offset_x"), 0.0), _mm(kw.get("offset_y"), 0.0)
+    t_, r_, b_, l_ = least
+    if (not asked or kw.get(GUIDED_KEY)) and not crosses:
+        # GUIDED, WITHOUT THE CROSSES (review 5, item 4): Guided has no
+        # margin boxes, so the person cannot make room for the line with the
+        # chart's name and page number, and on a full sheet it was always left
+        # off. The name and page number come first (the owner): the right
+        # edge keeps the room the crosses' band gives it.
+        r_ = max(r_, F.MARK_SIDE_MM.value)
+    least_fit = (t_ + max(0.0, -oy), r_ + max(0.0, ox),
+                 b_ + max(0.0, oy), l_ + max(0.0, -ox))
+    margins = (tuple(max(a, m) for a, m in zip(asked, least_fit))
+               if asked and len(asked) == 4 else least_fit)
     strip_gap, inter_patch = F.gaps_mm(kw.get("strip_gap"),
                                        kw.get("inter_patch"))
     out.update(
@@ -2266,6 +2287,17 @@ def preview_checks(kw: dict):
         # the edge-spacer and ruler-marker warnings in the log only): the
         # sheet's own check, the options' and the letters' and numbers'
         warn: "list[str]" = []
+        if not fixed[CROSSES_KEY]:
+            # the name line without the crosses: left off when no paper is
+            # free for it, as the build says (`build_chart`)
+            from workflow import measurement_messages as _mm
+            for page in range(layout.pages):
+                plan = line_plan(geom, layout, w, h, page,
+                                 name=str(kw.get("project") or "chart"),
+                                 dpi=dpi, labels=labels, crosses=False)
+                if "name" not in (plan.get("kept") or ()):
+                    warn.append(tr(_mm._I1IO_LINE_LEFT_OFF))
+                    break
         try:
             warn += check_sheet(geom, layout, w, h,
                                 crosses=fixed[CROSSES_KEY])

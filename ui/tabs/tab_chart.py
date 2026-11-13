@@ -19629,6 +19629,10 @@ class TabChart(QWidget):
                 and not self._i1io_aim_check.isChecked()):
             # Guided's "Aiming crosses" off (i1iO Beta), as the build has it
             kw["i1io_crosses"] = False
+        if instr == "IO2" and guided:
+            # Guided has no margin boxes, whatever this estimate hands on: the
+            # same floor as the build (`workflow.i1io.chart.GUIDED_KEY`)
+            kw["i1io_guided"] = True
         if (instr == "IO2" and guided
                 and getattr(self, "_i1io_clip_check", None) is not None
                 and self._i1io_clip_check.isChecked()):

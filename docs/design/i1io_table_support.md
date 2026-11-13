@@ -199,6 +199,15 @@ away"; "guided mode gets the option as well".*
 | no spacers | 572 | 598 | 552 | 576 |
 | maximum (no spacers, 7 mm across x 8.9 mm along) | 725 | 783 | 702 | 729 |
 
+The "none" columns are Manual at its floor. Guided, which has no margin
+boxes, keeps the right edge's room for the name and page line without the
+crosses (review 5, item 4, awaiting confirmation; the owner: the name and
+page number come first), so there the count is the same as with them.
+A chart offset is fitted into the layout (review 5, item 2): the floor on the
+side the patch block moves towards grows by the offset, so fewer patches fit
+and the chart builds as estimated; only an offset that leaves no room for one
+strip is refused.
+
 ### On: Clip border, an option off by default (2026-11-13)
 
 *The owner, 2026-11-13: "the clip border should be possible to enable if a

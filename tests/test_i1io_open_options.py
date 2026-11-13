@@ -58,25 +58,34 @@ def _strip(side, i=0, page=0):
 # ---- offsets -----------------------------------------------------------------
 
 def test_the_offsets_move_the_patches(tmp_path):
+    """The block moves by the offset, and the floor on that side grows by
+    as much (review 5, item 2), so it never reaches a cross or the edge."""
+    from workflow.i1io import chart as C
     _r, base = _build(tmp_path / "a")
     _r, moved = _build(tmp_path / "b", offset_x=2.0, offset_y=3.0)
     a, b = _strip(base), _strip(moved)
-    assert b["x_mm"] == pytest.approx(a["x_mm"] + 2.0)
-    assert b["patches"][0]["centre_mm"][1] == pytest.approx(
-        a["patches"][0]["centre_mm"][1] + 3.0)
+    assert b["x_mm"] > a["x_mm"]
+    w, h = moved["paper_mm"]
+    least = C.least_margins_mm({})
+    last = moved["pages"][0]["strips"][-1]
+    assert last["x_mm"] + moved["patch_mm"][0] / 2 <= w - least[1] + 1e-6
 
 
-def test_an_offset_off_the_sheet_is_refused_not_built(tmp_path):
-    from workflow.i1io.chart import I1ioSheetRefused
-    with pytest.raises(I1ioSheetRefused):
-        _build(tmp_path, offset_x=150.0)
+def test_an_offset_is_fitted_and_only_no_room_is_refused(tmp_path):
+    """Review 5, item 2: a large offset lays out fewer patches; only an
+    offset that leaves no room for one strip is refused."""
+    from workflow.layout_engine.geometry import LayoutError
+    small, _s = _build(tmp_path / "a", offset_x=150.0)
+    assert 0 < small.layout.patches_per_page < 528
+    with pytest.raises(LayoutError):
+        _build(tmp_path / "b", offset_x=180.0)
 
 
-def test_an_offset_into_the_run_is_a_warning(tmp_path):
-    """The patches pushed so far down the page that a strip's blank paper
-    reaches the edge: built, and said."""
+def test_an_offset_down_the_page_keeps_the_runs_on_the_paper(tmp_path):
+    """Chart offset Y 10 used to push the last run to the paper's edge (a
+    warning); fitted, the block keeps its floor and nothing is said."""
     result, _side = _build(tmp_path, offset_y=10.0)
-    assert any("arm to reach its speed" in w for w in result.warnings)
+    assert not any("arm to reach its speed" in w for w in result.warnings)
 
 
 # ---- edge spacers and ruler helper markers: allowed, and said ----------------
