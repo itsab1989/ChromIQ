@@ -75,6 +75,9 @@ NOT_WALKED = {
     "_preset_combo": "choosing a preset applies it; walked by the preset paths",
     "_manual_engine_check": "switches the layout engine and with it the whole "
                             "panel; walked by the panel's own paths",
+    "_target_name_edit": "the project's name: a new one starts or renames a "
+                         "project, which is not a chart option",
+    "_manual_target_name_edit": "the project's name, as in Guided",
 }
 
 #: A value each LayoutRecipe field can take that is not its default. Fields
@@ -325,6 +328,69 @@ class Bench:
             self.drop(t)
 
 
+#: Every window that would have waited for an answer during a walk:
+#: (where, its class, its title, the start of its text). A walk answers
+#: Cancel / No to every one of them, as a person who changes nothing would.
+QUESTIONS: list[tuple] = []
+_WHERE = ["start"]
+
+
+@contextlib.contextmanager
+def no_waiting_windows() -> Iterator[None]:
+    """No modal window may wait for a person during a walk: record it and
+    answer it with its reject button."""
+    from PyQt6.QtWidgets import QDialog, QFileDialog, QMessageBox
+    saved = {(QDialog, "exec"): QDialog.exec,
+             (QMessageBox, "exec"): QMessageBox.exec,
+             (QFileDialog, "getOpenFileName"): QFileDialog.getOpenFileName,
+             (QFileDialog, "getSaveFileName"): QFileDialog.getSaveFileName,
+             (QFileDialog, "getExistingDirectory"):
+                 QFileDialog.getExistingDirectory}
+
+    def _note(dlg) -> None:
+        text = ""
+        try:
+            text = dlg.text() if hasattr(dlg, "text") else ""
+        except Exception:      # noqa: BLE001
+            pass
+        QUESTIONS.append((_WHERE[0], type(dlg).__name__,
+                          dlg.windowTitle(), (text or "")[:80]))
+
+    def _dialog_exec(self, *a, **k):
+        _note(self)
+        return 0
+
+    def _msg_exec(self, *a, **k):
+        _note(self)
+        no = self.escapeButton() or self.defaultButton()
+        if no is not None:
+            try:
+                self.setProperty("_parity_answer", "escape")
+                no.click()
+            except Exception:      # noqa: BLE001
+                pass
+        return int(QMessageBox.StandardButton.Cancel.value)
+
+    def _file(*a, **k):
+        QUESTIONS.append((_WHERE[0], "QFileDialog", "", ""))
+        return ("", "")
+
+    def _dir(*a, **k):
+        QUESTIONS.append((_WHERE[0], "QFileDialog", "", ""))
+        return ""
+
+    QDialog.exec = _dialog_exec
+    QMessageBox.exec = _msg_exec
+    QFileDialog.getOpenFileName = staticmethod(_file)
+    QFileDialog.getSaveFileName = staticmethod(_file)
+    QFileDialog.getExistingDirectory = staticmethod(_dir)
+    try:
+        yield
+    finally:
+        for (cls, name), fn in saved.items():
+            setattr(cls, name, fn)
+
+
 def _settle() -> None:
     from PyQt6.QtWidgets import QApplication
     QApplication.processEvents()
@@ -380,23 +446,28 @@ def _names(tab) -> dict[int, str]:
     from PyQt6.QtWidgets import QWidget
     names: dict[int, str] = {}
 
-    def add(prefix: str, obj) -> None:
+    panel = getattr(tab, "_manual_layout_panel", None)
+    owners = [(p, o) for p, o in (("", tab), ("panel.", panel))
+              if o is not None]
+    # direct attributes first, then dicts (their keys mean something), then
+    # lists: a widget the panel also keeps in a list is named by its own
+    # attribute, a margin box by its side
+    for prefix, obj in owners:
         for k, v in sorted(vars(obj).items()):
             if isinstance(v, QWidget):
                 names.setdefault(id(v), prefix + k)
-            elif isinstance(v, dict):
+    for prefix, obj in owners:
+        for k, v in sorted(vars(obj).items()):
+            if isinstance(v, dict):
                 for kk, vv in v.items():
                     if isinstance(vv, QWidget):
                         names.setdefault(id(vv), f"{prefix}{k}[{kk}]")
-            elif isinstance(v, (list, tuple)) and len(v) < 50:
+    for prefix, obj in owners:
+        for k, v in sorted(vars(obj).items()):
+            if isinstance(v, (list, tuple)) and len(v) < 50:
                 for n, vv in enumerate(v):
                     if isinstance(vv, QWidget):
                         names.setdefault(id(vv), f"{prefix}{k}[{n}]")
-
-    add("", tab)
-    panel = getattr(tab, "_manual_layout_panel", None)
-    if panel is not None:
-        add("panel.", panel)
     for tool, pws in tab._manual_widgets.items():
         for pw in pws:
             names[id(pw)] = f"pw.{tool}{pw.flag}"
@@ -577,7 +648,11 @@ def kept_walk(bench: Bench, code: str) -> dict[str, list[str]]:
     tab = bench.tab()
     base, kept = recipe_options(tab, code)
     tab._update_manual_preset()
-    _show(tab, replace(base, paper=tab._manual_layout_panel.get_recipe().paper))
+    # the factory values on the SAME preset (instrument, paper and mode:
+    # the clip border, the density, the patch shape)
+    k = tab._manual_layout_panel.get_recipe()
+    _show(tab, replace(base, paper=k.paper, cm_density=k.cm_density,
+                       hflag=k.hflag, clip_border=k.clip_border))
     tab._reset_manual_to_preset()
     _settle()
     out["preset_bar"] = _lost(tab._manual_layout_panel.get_recipe(), kept)
@@ -805,6 +880,9 @@ def observe(root: Path, only: "list[str] | None" = None,
     """Run every walk once. Returns the raw observations."""
     bench = Bench(root)
     obs: dict = {}
+    QUESTIONS.clear()
+    stack = contextlib.ExitStack()
+    stack.enter_context(no_waiting_windows())
     try:
         tab = bench.tab()
         obs["lists"] = instrument_lists(tab)
@@ -826,16 +904,20 @@ def observe(root: Path, only: "list[str] | None" = None,
         obs["kept"] = {}
         for code in codes:
             if _panel_offers(bench, code):
+                _WHERE[0] = f"kept manual {code}"
                 obs["kept"][("manual", code)] = kept_walk(bench, code)
         for mode in ("guided", "manual"):
             for code in codes:
                 if (mode, code) in obs["controls"]:
+                    _WHERE[0] = f"kept controls {mode} {code}"
                     w = widget_walk(bench, mode, code)
                     obs["kept"].setdefault((mode, code), {})
                     for path, lost in w.items():
                         obs["kept"][(mode, code)]["controls:" + path] = lost
         log("kept done")
+        _WHERE[0] = "switching"
         obs["switching"] = switching_walk(bench, codes)
+        _WHERE[0] = "run types"
         log("switching done")
         obs["run_types"] = {(m, c): run_type_walk(bench, m, c)
                             for m in MODES for c in codes}
@@ -845,7 +927,14 @@ def observe(root: Path, only: "list[str] | None" = None,
         log("prefs style done")
     finally:
         bench.close()
+        stack.close()
+    obs["questions"] = list(QUESTIONS)
     return obs
+
+
+def _is_selector(name: str) -> bool:
+    return name.split("/")[0] in ("_instr_combo", "panel.instr",
+                                  "pw.printtarg-i", "_manual_instr_pw")
 
 
 def differences(obs: dict) -> list[dict]:
@@ -880,6 +969,8 @@ def differences(obs: dict) -> list[dict]:
                         a is not None)
                     continue
                 for aspect in ("present", "enabled", "value"):
+                    if aspect == "value" and _is_selector(name):
+                        continue      # it shows the instrument chosen
                     if code != REFERENCE and not _same(a[aspect], b[aspect]):
                         add("control", mode, code, name, aspect, b[aspect],
                             a[aspect])
@@ -1029,6 +1120,11 @@ def main(argv: "list[str] | None" = None) -> int:
         print(f"differences observed: {len(rows)}; not on the allow-list: "
               f"{len(un)}; allow-list entries that no longer match: "
               f"{len(stale) + len(mis)}")
+        if obs.get("questions"):
+            print(f"windows that asked a question during the walks "
+                  f"(answered Cancel): {len(obs['questions'])}")
+            for q in sorted(set(obs["questions"])):
+                print("  ", " | ".join(map(str, q)))
         if args.all:
             print(as_entries(rows))
         elif un:
