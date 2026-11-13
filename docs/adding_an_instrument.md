@@ -37,6 +37,7 @@ straight to [section 2](#2-you-own-an-instrument-chromiq-does-not-support-yet-th
 7. [Options stay open, and everything is saved](#7-options-stay-open-and-everything-is-saved)
 8. [Every run type](#8-every-run-type)
 9. [Behind a Beta switch, and off changes nothing](#9-behind-a-beta-switch-and-off-changes-nothing)
+   - 9a. [Checking your instrument against the others](#9a-checking-your-instrument-against-the-others)
 10. [What was saved builds as it was built](#10-what-was-saved-builds-as-it-was-built)
 11. [Measuring](#11-measuring)
 12. [Talking to the hardware](#12-talking-to-the-hardware)
@@ -446,30 +447,150 @@ New hardware support the project cannot test itself goes behind a checkbox in
 **Proof, in two parts.** Tests, four nets of them (the checklist names them),
 check what somebody thought of. A **file comparison** checks everything else:
 the same charts, built by the previous release and by your branch, must come
-out byte for byte the same. ChromIQ has no ready-made script for this yet, so
-you write a short one and put it in your pull request. The method:
-
-1. Check out the previous release in a second worktree, beside your branch:
-   `git worktree add ../chromiq-previous v4.3.33` (use the latest release
-   tag, `git tag --sort=-v:refname`).
-2. Write one script that builds a fixed list of charts: every instrument on
-   offer, the common papers, and a handful of option combinations, each from
-   a recipe (`LayoutRecipe(...).build_kwargs()` passed to
-   `workflow/layout_engine/chart.py::build_chart`, with the same `.ti1` for
-   every build). Pass a fixed `seed=` so the patch order is the same in both
-   trees (in the app, this is "Use a fixed seed (reproducible)" in Manual's
-   options), and a fixed `chart_date=` so any date printed on the sheet is
-   the same. Add recipes, presets and a project saved by the previous
-   release.
-3. Run the same script in both trees (switch off; then switch on, for the
-   other instruments) and compare every output file byte for byte.
-4. Normalise only what really differs per build, and say what you
-   normalised: the `CREATED` line of the `.ti2` (and of a `.ti1` made by
-   targen) holds the time of the build, so compare those files with that one
-   line taken out. Keep the layout summary stamp switched off in the
-   comparison, because it prints the version, rather than normalising pixels.
+out byte for byte the same. `scripts/compare_with_release.py` does the layout-engine part of this for
+you (Guided, printtarg and the app's own paths still need the on-screen
+drive and the tests): it builds the same charts with the previous release
+and with your branch, for every instrument,
+with a fixed seed and chart date, and compares every file byte for byte (only
+the `.ti2`'s `CREATED` line, the clock time, is taken out). Run it with the
+switch off, then with `--betas on`, and put both tables in your pull request;
+see [section 9a](#9a-checking-your-instrument-against-the-others) below. If your change
+touches recipes, presets or saved projects, also build a few of those saved
+by the previous release in both trees, as section 10 describes.
 
 *In [the checklist](adding_an_instrument_checklist.md): stages 1 and 10.*
+
+## 9a. Checking your instrument against the others
+
+A person who switches from one instrument to another should find the same
+Create Chart: the same controls in the same places, options that are open
+for the same reasons, and settings that are kept the same way. Reviewers used
+to check this by hand, and every new instrument so far had a few places where
+it quietly behaved differently. ChromIQ now checks it for you, with three
+tools that ship in the repository. Run them before you open your pull
+request, and you will hear about a difference from the tools rather than
+from a reviewer weeks later.
+
+All three compare your instrument with a **reference instrument**, the i1Pro
+strip reader (`i1`), because it is the instrument every Create Chart option
+was built for first. A difference is not automatically wrong: a table that
+moves to every patch has no use for a ruler's strip limit. But every
+difference has to be **written down with its reason**, so the next person
+can see it was meant.
+
+### 1. The parity test (no window, about a minute)
+
+```bash
+QT_QPA_PLATFORM=offscreen pytest tests/test_instrument_parity.py -q
+```
+
+It finds your instrument by itself: from Guided's instrument list,
+printtarg's `-i` choices in `data/parameters.yaml`, the layout panel and
+`data/patch_db.py::INSTRUMENT_LABELS`, with every Beta switch
+(`workflow/<name>/support.py` with `set_enabled_for_this_process`) turned on
+for the run. You do not edit the test. For every instrument, in Guided, in
+Manual and in Manual with the layout engine switched off, it looks at:
+
+- **every control** on the Create Chart tab: shown or not, enabled or greyed,
+  and the value a fresh start shows. A control that is greyed for your
+  instrument only must say why, in its tooltip or an ⓘ beside it;
+- **whether every option is kept**: by Save as Defaults (and the next start),
+  the preset bar, a named preset, the target's own settings (moving to
+  another run and back), and a new project opened after Save as Defaults;
+  and whether your panel keeps every option the reference's panel keeps;
+- **switching instruments**: choosing yours, then another, then yours again
+  must give yours back what it had, and the other instrument may take over
+  only the values listed as shared;
+- **every run type** (Profiling, Verification, Calibration): it can be chosen
+  with your instrument, and the chart can be built;
+- **the label style from Preferences**: it reaches your chart in Guided and in
+  Manual the same way as it does for the reference.
+
+When something differs, the test prints the rows, ready to paste into
+`tests/data/instrument_parity_allowlist.json`. Each row names the check, the
+mode, the instrument, the control or setting, what your instrument shows, and
+a **reason in one plain sentence**. Put it under `"intended"` when the
+difference is part of your design, with the reason a reviewer needs (for
+example, "The table moves to every patch by its corner crosses, so its
+margins are open"). If you are not sure, put it under `"known_to_review"` and
+say what you saw: that is honest, and the reviewer will decide with you. A
+difference you cannot explain is often a bug worth fixing first.
+
+The list cannot go stale: an entry that no longer matches what the app does
+makes the test fail too, and so does an entry for an instrument the app no
+longer lists, or two entries that claim the same row.
+
+What the test does **not** see: a change to an instrument's factory values
+made only in `workflow/layout_engine/presets.py::default_recipe` shows up as
+a changed default in the control rows only when it changes what the panel
+shows; a change in the charts built from it is found by
+`scripts/compare_with_release.py` (part 3 below). If you change something on purpose, update its
+entry in the same commit.
+
+To see the same rows without the test suite:
+
+```bash
+QT_QPA_PLATFORM=offscreen python scripts/instrument_parity.py --only YOURCODE
+```
+
+### 2. The same sequence on screen, side by side
+
+```bash
+python scripts/instrument_parity_drive.py ~/Desktop/parity-drive --only YOURCODE
+```
+
+This opens the real app in a real window, once per instrument (the
+reference is always included), and goes through one fixed sequence: Guided
+with a chart generated, Manual, three options changed, Save as Defaults, a
+new project, a built-in preset, the first project opened again, and each run
+type. It photographs the window at every step and then writes one picture
+per step with all instruments side by side (`contact/`), and a short text
+(`<folder>/summary.txt`) that names, step by step, the controls whose state differs
+from the reference.
+
+Everything it writes stays in the folder you give it: settings, presets,
+logs and projects are sandboxed, so your own ChromIQ setup is never touched.
+It never prints and never takes your keyboard. Step 2 needs ArgyllCMS
+(`targen`); without it that step says so and the rest still runs. The
+photographs need macOS with Screen Recording allowed for your terminal
+(System Settings > Privacy & Security > Screen Recording). On Windows and
+Linux the drive runs and writes `<folder>/summary.txt`, but takes no photographs; take
+your own screenshots of the real window there.
+
+Put the contact sheets for the steps your work touches in the pull request.
+
+### 3. "Switched off changes nothing", in one command
+
+```bash
+python scripts/compare_with_release.py v4.3.33 --out ~/Desktop/compare
+python scripts/compare_with_release.py v4.3.33 --out ~/Desktop/compare-on --betas on
+```
+
+Use the latest release tag (`git tag --sort=-v:refname`). The script checks
+that release out into a temporary worktree inside the folder you give it,
+builds the same charts there and in your tree for every instrument (a fixed
+patch set, shuffle seed and chart date, from the plain engine defaults and
+from each instrument's default layout recipe), and compares every file byte
+for byte. It takes out only the `CREATED` line of the `.ti2`, which holds the
+clock time; a TIFF whose pixels match but whose file metadata does not is
+reported as such. Then it prints a table, writes it to `<folder>/compare.txt`, and
+removes the worktree.
+
+What it proves, and what it does not: it compares charts built by the layout
+engine, from its plain defaults and from each instrument's default layout
+recipe. It does not build through Guided, printtarg, presets or saved
+projects, so it is strong evidence, not the whole proof: the parity test, the
+on-screen drive and your own tests cover the app's paths.
+
+With `--betas off` (the default) every chart must be the same: the layout
+engine, with your switch off, builds exactly what the release built. With
+`--betas on` (this turns on **every** Beta, not only yours), every
+instrument except yours must still be the same; a difference in your own
+instrument's files is expected, and the table names which file (and, for a
+JSON side file, which keys) changed, so you can explain it. Put both tables
+in the pull request.
+
+*In [the checklist](adding_an_instrument_checklist.md): items 3.11, 3.12, 4.5, 10.4, 10.5 and 10.8.*
 
 ## 10. What was saved builds as it was built
 

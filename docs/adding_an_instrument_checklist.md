@@ -266,8 +266,29 @@ passes the sheet check, and the four nets of Stage 1 are still green.
       reads Manual's widgets. Another instrument's built-in preset switches the
       instrument (`ui/tabs/tab_chart.py::TabChart._leave_engine_only_for_builtin`).
 
+- [ ] **3.11** **The parity test is green with your instrument in it**:
+      `QT_QPA_PLATFORM=offscreen pytest tests/test_instrument_parity.py -q`.
+      It finds your instrument by itself (Guided's list, printtarg's `-i`
+      choices, the layout panel, `data/patch_db.py::INSTRUMENT_LABELS`, every
+      Beta switch on) and compares it with the reference (`i1`) in Guided,
+      Manual and Manual with the engine off: controls shown, greyed (with a
+      visible reason) and their defaults; every option kept by Save as
+      Defaults, the preset bar, a named preset, the target's own settings and a
+      new project after Save as Defaults; options the reference's panel keeps
+      and yours does not;
+      switching instruments there and back; every run type; Preferences'
+      label style. *Check:* do not edit the test or
+      `scripts/instrument_parity.py` to make your instrument pass.
+- [ ] **3.12** Every difference it reports is in
+      `tests/data/instrument_parity_allowlist.json` with a reason in one plain
+      sentence: under `"intended"` when it is your design, under
+      `"known_to_review"` (what you saw) when you are not sure. *Check:* the
+      pull request lists the entries you added or changed, and no entry of
+      another instrument was edited except where your change really changed
+      that instrument (and then the pull request says why).
+
 **Done means:** the options table complete, every "unavailable" justified by
-3.2, and the table-driven test green.
+3.2, the table-driven test green, and tests/test_instrument_parity.py green.
 
 ## Stage 4. Every run type
 
@@ -281,6 +302,9 @@ passes the sheet check, and the four nets of Stage 1 are still green.
       window (§M), never by silent absence.
 - [ ] **4.4** `docs/design/calibration_run_type.md` and the Verification
       parts of `docs/design/per_target_settings.md` read; conflicts raised.
+- [ ] **4.5** The parity test's `run_type` rows show nothing for your
+      instrument (every run type is offered and builds), or each row is on
+      the allow-list together with the visible window of 4.3 that explains it.
 
 **Done means:** a test per run type, and an on-screen photograph of each.
 
@@ -495,21 +519,30 @@ request.
       private recordings or a device. House rules from `CLAUDE.md`
       (`timeout=` on subprocesses, no modal `.exec()`, no
       `qapp.setStyleSheet()`, the shared `qapp`, `tests/conftest.py`).
-- [ ] **10.4** **File comparison**, by the method in the guide's section 9
-      (ChromIQ has no ready-made script for it yet): the previous release tag
-      in a second `git worktree`; one script, run in both trees, that builds
-      a fixed list of charts (every instrument, the common papers, a few
-      option combinations) with `workflow/layout_engine/chart.py::build_chart`
-      from `LayoutRecipe(...).build_kwargs()` with a fixed `seed=` and
-      `chart_date=`, plus recipes, presets and a project saved by the previous
-      release; switch off, then switch on for the other instruments. Every
-      output byte-identical, except the `CREATED` line of `.ti2` and `.ti1`
-      files, which is taken out before comparing; the layout summary stamp
-      stays off. The script, its output and the normalised fields go in the
-      pull request.
-- [ ] **10.5** On screen (R1, R2): switch off and on, every run type, the
-      options of Stage 3 at their extremes, compared side by side with the
-      same window for another instrument; photographs in the pull request.
+- [ ] **10.4** **File comparison**:
+      `python scripts/compare_with_release.py <latest tag> --out <folder>`
+      and again with `--betas on` (latest tag:
+      `git tag --sort=-v:refname`). With the switch off every chart is the
+      same; with it on (every Beta, not only yours) every other instrument
+      is the same, and each difference in your own instrument's files is
+      explained. It covers layout-engine charts from the default recipes,
+      not Guided, printtarg, presets or saved projects: those are covered by
+      3.11 and 10.5. A changed `default_recipe()` value is caught here, not
+      by the parity test. Only the
+      `.ti2` `CREATED` line is normalised (the script does it). If you
+      changed recipes, presets or saved projects, also build some saved by
+      the previous release in both trees (Stage 5). Both `<folder>/compare.txt`
+      tables go in the pull request.
+- [ ] **10.5** **On screen, side by side** (R1, R2):
+      `python scripts/instrument_parity_drive.py <folder> --only <your code>`
+      runs one fixed sequence (Guided generate, Manual, three options, Save
+      as Defaults, new project, preset, reopen, every run type) for your
+      instrument and the reference in the real app, sandboxed, and writes
+      `<folder>/contact/<step>.png` and `<folder>/summary.txt`. The contact sheets for the
+      steps you touched, plus your own photographs of the switch off and on
+      and of the Stage 3 options at their extremes, go in the pull request.
+      On Windows and Linux the drive writes `<folder>/summary.txt` only; add your own
+      screenshots of the real window.
 - [ ] **10.6** Independent review by someone who did not build it, given the
       diff and not the conclusions; repeated until it finds nothing that
       matters.
@@ -527,8 +560,11 @@ request.
   *Done:* `N passed` with no `failed`, `exit=0` read from pytest itself, not
   through a pipe, and no file edited while it ran. A failure you did not
   cause is run on unchanged `master` too, and both results are reported.
+- [ ] **10.8** The parity test is part of the gate (10.7) and green there;
+      run it alone first, it takes about a minute and prints any new
+      difference ready to paste.
 
-**Done means:** 10.1 to 10.7 all done, with their evidence in the pull
+**Done means:** 10.1 to 10.8 all done, with their evidence in the pull
 request.
 
 ## Stage 11. The pull request
