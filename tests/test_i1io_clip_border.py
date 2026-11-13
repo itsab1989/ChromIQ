@@ -128,9 +128,10 @@ def test_the_band_is_inside_the_printable_area_and_clear(tmp_path, paper,
     x0, y0, x1, y1 = rec["area_mm"]
     assert x0 == 0.0 and x1 == pytest.approx(26.0)
     assert y0 == pytest.approx(F.CLIP_EDGE_MM.value)
-    bottom = C.clip_bottom_mm(crosses)
-    assert h - y1 == pytest.approx(bottom)
-    assert bottom == (21.0 if crosses else 10.0)
+    # always clear of cross 1: a short last page keeps its crosses even
+    # with them switched off (review R5)
+    bottom = C.clip_bottom_mm(True)
+    assert h - y1 == pytest.approx(bottom) == 21.0
     # the content itself starts 10 mm in from the paper edge
     geom = instruments.geom_from_build_kwargs(
         {"instrument": "IO2", "paper": paper, **kw})
@@ -162,9 +163,8 @@ def test_nothing_is_printed_outside_the_band_that_was_not_there(tmp_path,
     # column and cross 1; paper above and below the band's ends is blank
     top = img[:int(y0 * S) - 1, :int(x1 * S)]
     assert top.min() >= 250
-    if not crosses:
-        bot = img[int(y1 * S) + 1:, :int(x1 * S)]
-        assert bot.min() >= 250
+    if False:
+        pass
     else:
         zone = C.mark_zone(C.marks(*side["paper_mm"])[0])
         gap = img[int(y1 * S) + 1:int(zone[1] * S) - 1, :int(x1 * S)]
@@ -463,3 +463,24 @@ def test_the_minimums_are_the_displayed_charts_not_the_panels(
         assert got[2] == pytest.approx(21.0)
     else:
         assert got[2] > 21.5
+
+
+def test_a_short_last_page_keeps_its_crosses_clear_of_the_band(tmp_path):
+    """Review R5: Letter, crosses off, clip border on, 480 patches, built
+    from default_recipe's margins: the last page keeps its crosses, and the
+    band used to run into cross 1 ("The clip border would touch an aiming
+    cross" with the crosses switched off)."""
+    from workflow.layout_engine import chart
+    from workflow.layout_engine.presets import default_recipe
+    r = default_recipe("IO2", "Letter")
+    r.i1io_crosses = False
+    r.i1io_clip_border = True
+    r.clip_content_mode = "notes"
+    kw = r.build_kwargs()
+    for k in ("instrument", "paper", "dpi", "seed"):
+        kw.pop(k, None)
+    ti1 = _ti1(tmp_path / "c.ti1", 480)
+    chart.build_chart(ti1, tmp_path / "c", instrument="IO2", paper="Letter",
+                      dpi=DPI, seed=3, **kw)
+    side = json.loads((tmp_path / "c.i1io.json").read_text(encoding="utf-8"))
+    assert any(p["aim"] == "crosses" for p in side["pages"])

@@ -269,7 +269,9 @@ def fixed_build_kwargs(kw: dict) -> dict:
             clip_band=clip, clip_border_width=clip, clip_side="left",
             clip_content_mode=mode if mode != "off" else "notes",
             text_edge_top=F.CLIP_EDGE_MM.value,
-            text_edge=clip_bottom_mm(crosses))
+            # ALWAYS clear of cross 1, crosses or not (review R5): without
+            # them a short last page still keeps its crosses (`page_crosses`)
+            text_edge=clip_bottom_mm(True))
     return out
 
 
@@ -603,7 +605,8 @@ def check_sheet(geom, layout, w: float, h: float,
     for zx0, zy0, zx1, zy1 in [mark_zone(m) for m in marks(w, h)]:
         if zx0 < 0 or zy0 < 0 or zx1 > w or zy1 > h:
             raise I1ioSheetRefused(tr(
-                "An aiming cross would not fit on the sheet."))
+                "An aiming cross would not fit on the sheet. Please choose A4 or "
+                "Letter."))
     for page in range(layout.pages):
         zones = ([mark_zone(m) for m in marks(w, h)]
                  if on_page(crosses, page) else [])
@@ -611,9 +614,11 @@ def check_sheet(geom, layout, w: float, h: float,
         for cell in cells:
             box = cell[3:]
             if box[0] < 0 or box[1] < 0 or box[2] > w or box[3] > h:
-                raise I1ioSheetRefused(tr("A patch would lie partly off the sheet."))
+                raise I1ioSheetRefused(tr("A patch would lie partly off the sheet. Make the "
+                    "margins or the patch size smaller."))
             if any(_overlap(box, z) for z in zones):
-                raise I1ioSheetRefused(tr("A patch would touch an aiming cross."))
+                raise I1ioSheetRefused(tr("A patch would touch an aiming cross. Make the "
+                    "margins larger, or switch the aiming crosses off."))
         for _x, y_start, y_end, col in scan_strips(cells):
             if y_start < edge - 1e-6 or y_end > h - edge + 1e-6:
                 raise I1ioSheetRefused(tr(
@@ -623,15 +628,17 @@ def check_sheet(geom, layout, w: float, h: float,
             if any(_overlap(run, z) for z in zones):
                 raise I1ioSheetRefused(tr(
                     "The blank paper at the end of a strip would touch an aiming "
-                    "cross."))
+                    "cross. Make the top or bottom margin larger."))
             if band is not None and _overlap(run, band):
                 raise I1ioSheetRefused(tr(
                     "The blank paper at the end of a strip would run into the clip "
-                    "border."))
+                    "border. Make the clip border narrower, or the left "
+                    "margin larger."))
         if band is not None:
             if any(_overlap(band, z) for z in zones):
                 raise I1ioSheetRefused(tr(
-                    "The clip border would touch an aiming cross."))
+                    "The clip border would touch an aiming cross. Make the clip "
+                    "border narrower, or switch it off."))
             if reach is not None and cells and (
                     reach + F.LABEL_CLEAR_MM.value
                     > min(c[3] for c in cells) + 1e-6):

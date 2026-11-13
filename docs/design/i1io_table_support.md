@@ -217,8 +217,9 @@ user wants it as an option. just off by default".*
 * Always on the page's LEFT edge (the table's top edge): the other long edge
   holds crosses 2 and 3 and the name line. Width from the paper edge, at
   least 20 mm (default 26). Content from 10 mm in (the "Clip" distance the
-  patch numbers keep) and 10 mm from the page's top and bottom; with crosses
-  the band ends 21 mm from the bottom, 1 mm above cross 1's zone.
+  patch numbers keep) and 10 mm from the page's top; at the bottom it ends
+  21 mm from the edge, 1 mm above cross 1's zone, with the crosses on or off
+  (without them a short last page still keeps its crosses).
 * Clear of every run, cross, strip letter and patch: `check_sheet` refuses a
   band touching a cross or a run, or content within 1 mm of a patch; the
   patch numbers follow the band (the engine's own row-label rule) and the
