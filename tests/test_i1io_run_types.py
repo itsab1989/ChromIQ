@@ -163,7 +163,10 @@ def _measure_refuses(w, ti2: Path, monkeypatch) -> str:
     assert len(shown) == 1
     from workflow import measurement_messages as M
     for msg in (M.M_I1IO_NOT_YET, M.M_I1IO_NOT_YET_BY_HAND):
-        if shown[0] == msg.render():
+        # the notice, and as its last paragraph what to aim at
+        # (`measurement_messages.i1io_aim_text`)
+        title, body = msg.render()
+        if shown[0][0] == title and shown[0][1].startswith(body + "\n\n"):
             return msg.id
     raise AssertionError(f"an unknown notice: {shown[0][0]!r}")
 

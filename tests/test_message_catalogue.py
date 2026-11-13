@@ -622,6 +622,12 @@ AWAITING_APPROVAL: "set[str]" = {
                                  # the same for a verification or a
                                  # calibration chart made for the table
                                  "M-I1IO-NOT-YET-BY-HAND",
+                                 # the "Aiming crosses" option: what to aim
+                                 # at, by what the chart records
+                                 "M-I1IO-AIM-CROSSES", "M-I1IO-AIM-CORNERS",
+                                 "M-I1IO-AIM-UNKNOWN",
+                                 "M-I1IO-AIM-CORNERS-UNLABELLED",
+                                 "M-I1IO-AIM-PAGE-PARTS",
                                  # review r3 m3: its crosses and lettering
                                  # in a printer's unprinted edge.
                                  "M-I1IO-EDGE-MARKS-NOT-PRINTED",

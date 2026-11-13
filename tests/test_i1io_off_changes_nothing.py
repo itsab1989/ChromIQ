@@ -274,6 +274,9 @@ HOOKED_FILES = {
     # declares the i1iO's CHROMIQ_I1IO_* keywords (any CHROMIQ_ keyword);
     # every other chart's .ti2 is byte for byte as before
     "workflow/layout_engine/ti2_writer.py",
+    # the i1iO's "what to aim at" paragraph (M-I1IO-AIM-*), rendered from
+    # the chart's record; reached only from the i1iO's own Start notices
+    "workflow/measurement_messages.py",
 }
 
 

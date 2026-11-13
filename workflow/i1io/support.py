@@ -137,11 +137,11 @@ def chart_names_i1io(path: Any) -> "bool | None":
 # `meta.json` stays byte-identical.
 
 CHART_PARAM_KEYS = ("printtarg-i", "printtarg-p")
-CHART_GUIDED_KEYS = ("instrument", "paper", "pages")
+CHART_GUIDED_KEYS = ("instrument", "paper", "pages", "i1io_crosses")
 CHART_RECIPE_KEYS = ("instrument", "paper", "border", "margin_top",
                      "margin_right", "margin_bottom", "margin_left",
                      "use_instrument_margins", "patch_w_mm", "patch_h_mm",
-                     "layout_mode")
+                     "layout_mode", "i1io_crosses")
 
 
 def target_names_i1io(stored_params: "dict | None",
@@ -217,6 +217,26 @@ def pages_are_i1io_chart(paths: Any) -> bool:
                    for s in stems):
             return False
     return True
+
+
+def aim_for_pages(paths: Any) -> str:
+    """What the i1iO chart whose page images are *paths* records as the
+    thing to aim at: "crosses", "corner patches" or "unknown"
+    (`workflow.i1io.chart.aim_recorded`). Never raises."""
+    import re
+    from pathlib import Path
+    try:
+        page = Path(list(paths)[0])
+        stem = page.stem
+        m = re.fullmatch(r"(.+)_\d+", stem)
+        for s in ([m.group(1)] if m else []) + [stem]:
+            ti2 = page.with_name(s + ".ti2")
+            if ti2.is_file():
+                from workflow.i1io.chart import aim_recorded
+                return aim_recorded(ti2)
+    except Exception:      # noqa: BLE001
+        pass
+    return "unknown"
 
 
 def display_rotation_for(paths: Any) -> int:

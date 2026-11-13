@@ -211,6 +211,12 @@ class LayoutRecipe:
     #: `clip_content_mode`, whose default "notes" would have switched it on
     #: for every FD-9 recipe saved before it existed. Written only when set.
     fd9_clip_border: "bool | None" = None
+    #: The i1iO table's numbered aiming crosses (a Beta, 2026-11-13): on by
+    #: default; off, the person aims at the corner patches and the paper the
+    #: crosses held goes to patches (`workflow.i1io.chart`). Written only for
+    #: an i1iO recipe that switches them off, so every other recipe's dict and
+    #: build kwargs are the ones they were.
+    i1io_crosses: bool = True
     # Layout strategy (#93, Knut). "patch_first" (default) = size the patches
     # (above) and fit as many as possible to the page. "area_first" = fit a
     # target grid into the usable area and SIZE the patches to fill it:
@@ -447,6 +453,8 @@ class LayoutRecipe:
             d.pop("fd9_gap_mm", None)
         if self.instrument != "FD9" or self.fd9_clip_border is None:
             d.pop("fd9_clip_border", None)
+        if self.instrument != "IO2" or self.i1io_crosses:
+            d.pop("i1io_crosses", None)
         d[HIDES_PATCH_CONTROLS_KEY] = True      # B8-1570; not a field
         # Left out at 0, so a recipe that does not move its labels sideways
         # writes exactly the dict it wrote before the field existed (see the
@@ -525,6 +533,7 @@ class LayoutRecipe:
             offset_y_mm=float(d.get("offset_y", 0.0)),
             bit16=bool(d.get("bit16", False)), compression=d.get("compression", "lzw"),
             export_pdf=bool(d.get("export_pdf", False)),
+            i1io_crosses=bool(d.get("i1io_crosses", True)),
             show_strip_indicators=bool(d.get("draw_indicators", True)),
             show_row_indicators=(None if d.get("row_indicators") is None
                                  else bool(d.get("row_indicators"))),
@@ -807,6 +816,9 @@ class LayoutRecipe:
                 # Preserve an explicit zero instead of the generic None/auto.
                 kw["inter_patch"] = self.inter_patch_mm
                 kw["strip_gap"] = self.strip_gap_mm
+        # The i1iO's crosses, only when switched off (see the field).
+        if self.instrument == "IO2" and not self.i1io_crosses:
+            kw["i1io_crosses"] = False
         # Only when it moves anything, so the kwargs of every chart that does
         # not use it are the ones it had before the field existed.
         if self.strip_label_offset_x_mm:
