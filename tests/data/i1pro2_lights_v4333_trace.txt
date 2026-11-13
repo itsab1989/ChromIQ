@@ -1,0 +1,421 @@
+# ChromIQ 4.3.33 (ee661dc65): the fake-USB trace of
+# native/chartread_helper/tests/i1pro2_lights_modes_test.c built with
+# CQ_V4333 against 4.3.33's i1pro.c / i1pro_imp.c / i1pro_imp.h.
+# Made by scripts/make_lights_v4333_fixture.py; do not edit.
+off_i1pro2 STEP cal-dark
+off_i1pro2 CTL d4 0000022c00000029000000010100 tout=2.00
+off_i1pro2 STEP cal-white
+off_i1pro2 CTL d4 0000022c00000029000000010100 tout=2.00
+off_i1pro2 STEP cal-returned
+off_i1pro2 STEP strip-A-start
+off_i1pro2 STEP read-dark
+off_i1pro2 CTL d4 0000022c00000029000000010100 tout=2.00
+off_i1pro2 STEP read-lit
+off_i1pro2 CTL d4 0000022c00000029000000010100 tout=2.00
+off_i1pro2 STEP strip-A-returned
+off_i1pro2 STEP strip-B-start
+off_i1pro2 STEP read-dark
+off_i1pro2 CTL d4 0000022c00000029000000010100 tout=2.00
+off_i1pro2 STEP read-lit
+off_i1pro2 CTL d4 0000022c00000029000000010100 tout=2.00
+off_i1pro2 STEP strip-B-returned
+off_i1pro2 STEP strip-C-start
+off_i1pro2 STEP read-dark
+off_i1pro2 CTL d4 0000022c00000029000000010100 tout=2.00
+off_i1pro2 STEP read-lit
+off_i1pro2 CTL d4 0000022c00000029000000010100 tout=2.00
+off_i1pro2 STEP strip-C-returned
+off_i1pro2 STEP strip-D-start
+off_i1pro2 STEP read-dark
+off_i1pro2 CTL d4 0000022c00000029000000010100 tout=2.00
+off_i1pro2 STEP read-lit
+off_i1pro2 CTL d4 0000022c00000029000000010100 tout=2.00
+off_i1pro2 STEP strip-D-returned
+off_i1pro2 STEP strip-E-start
+off_i1pro2 STEP read-dark
+off_i1pro2 CTL d4 0000022c00000029000000010100 tout=2.00
+off_i1pro2 STEP read-lit
+off_i1pro2 CTL d4 0000022c00000029000000010100 tout=2.00
+off_i1pro2 STEP strip-E-returned
+off_i1pro2 STEP strip-F-start
+off_i1pro2 STEP read-dark
+off_i1pro2 CTL d4 0000022c00000029000000010100 tout=2.00
+off_i1pro2 STEP read-lit
+off_i1pro2 CTL d4 0000022c00000029000000010100 tout=2.00
+off_i1pro2 STEP strip-F-returned
+off_i1pro2 STEP strip-H-start
+off_i1pro2 STEP read-dark
+off_i1pro2 CTL d4 0000022c00000029000000010100 tout=2.00
+off_i1pro2 STEP read-lit
+off_i1pro2 CTL d4 0000022c00000029000000010100 tout=2.00
+off_i1pro2 STEP strip-H-returned
+off_i1pro2 STEP patch-1-start
+off_i1pro2 STEP read-dark
+off_i1pro2 CTL d4 0000022c00000029000000010100 tout=2.00
+off_i1pro2 STEP read-lit
+off_i1pro2 CTL d4 0000022c00000029000000010100 tout=2.00
+off_i1pro2 STEP patch-1-returned
+off_i1pro2 STEP cal-dark
+off_i1pro2 CTL d4 0000022c00000029000000010100 tout=2.00
+off_i1pro2 STEP cal-white
+off_i1pro2 CTL d4 0000022c00000029000000010100 tout=2.00
+off_i1pro2 STEP cal-returned
+off_i1pro2 STEP strip-G-start
+off_i1pro2 STEP read-dark
+off_i1pro2 CTL d4 0000022c00000029000000010100 tout=2.00
+off_i1pro2 STEP read-lit
+off_i1pro2 CTL d4 0000022c00000029000000010100 tout=2.00
+off_i1pro2 STEP strip-G-returned
+off_i1pro2 STEP eeprom
+off_i1pro2 CTL c4 00000c140040 tout=2.00
+off_i1pro2 RD 82 64
+off_i1pro2 STEP close
+off_i1pro2 END
+off_i1pro STEP cal-dark
+off_i1pro CTL cf 01 tout=2.00
+off_i1pro CTL d1 in6 tout=2.00
+off_i1pro TRIGGER-FAILED
+off_i1pro STEP cal-white
+off_i1pro CTL cf 01 tout=2.00
+off_i1pro CTL d1 in6 tout=2.00
+off_i1pro TRIGGER-FAILED
+off_i1pro STEP cal-returned
+off_i1pro STEP strip-A-start
+off_i1pro STEP read-dark
+off_i1pro CTL cf 01 tout=2.00
+off_i1pro CTL d1 in6 tout=2.00
+off_i1pro TRIGGER-FAILED
+off_i1pro STEP read-lit
+off_i1pro CTL cf 01 tout=2.00
+off_i1pro CTL d1 in6 tout=2.00
+off_i1pro TRIGGER-FAILED
+off_i1pro STEP strip-A-returned
+off_i1pro STEP strip-B-start
+off_i1pro STEP read-dark
+off_i1pro CTL cf 01 tout=2.00
+off_i1pro CTL d1 in6 tout=2.00
+off_i1pro TRIGGER-FAILED
+off_i1pro STEP read-lit
+off_i1pro CTL cf 01 tout=2.00
+off_i1pro CTL d1 in6 tout=2.00
+off_i1pro TRIGGER-FAILED
+off_i1pro STEP strip-B-returned
+off_i1pro STEP strip-C-start
+off_i1pro STEP read-dark
+off_i1pro CTL cf 01 tout=2.00
+off_i1pro CTL d1 in6 tout=2.00
+off_i1pro TRIGGER-FAILED
+off_i1pro STEP read-lit
+off_i1pro CTL cf 01 tout=2.00
+off_i1pro CTL d1 in6 tout=2.00
+off_i1pro TRIGGER-FAILED
+off_i1pro STEP strip-C-returned
+off_i1pro STEP strip-D-start
+off_i1pro STEP read-dark
+off_i1pro CTL cf 01 tout=2.00
+off_i1pro CTL d1 in6 tout=2.00
+off_i1pro TRIGGER-FAILED
+off_i1pro STEP read-lit
+off_i1pro CTL cf 01 tout=2.00
+off_i1pro CTL d1 in6 tout=2.00
+off_i1pro TRIGGER-FAILED
+off_i1pro STEP strip-D-returned
+off_i1pro STEP strip-E-start
+off_i1pro STEP read-dark
+off_i1pro CTL cf 01 tout=2.00
+off_i1pro CTL d1 in6 tout=2.00
+off_i1pro TRIGGER-FAILED
+off_i1pro STEP read-lit
+off_i1pro CTL cf 01 tout=2.00
+off_i1pro CTL d1 in6 tout=2.00
+off_i1pro TRIGGER-FAILED
+off_i1pro STEP strip-E-returned
+off_i1pro STEP strip-F-start
+off_i1pro STEP read-dark
+off_i1pro CTL cf 01 tout=2.00
+off_i1pro CTL d1 in6 tout=2.00
+off_i1pro TRIGGER-FAILED
+off_i1pro STEP read-lit
+off_i1pro CTL cf 01 tout=2.00
+off_i1pro CTL d1 in6 tout=2.00
+off_i1pro TRIGGER-FAILED
+off_i1pro STEP strip-F-returned
+off_i1pro STEP strip-H-start
+off_i1pro STEP read-dark
+off_i1pro CTL cf 01 tout=2.00
+off_i1pro CTL d1 in6 tout=2.00
+off_i1pro TRIGGER-FAILED
+off_i1pro STEP read-lit
+off_i1pro CTL cf 01 tout=2.00
+off_i1pro CTL d1 in6 tout=2.00
+off_i1pro TRIGGER-FAILED
+off_i1pro STEP strip-H-returned
+off_i1pro STEP patch-1-start
+off_i1pro STEP read-dark
+off_i1pro CTL cf 01 tout=2.00
+off_i1pro CTL d1 in6 tout=2.00
+off_i1pro TRIGGER-FAILED
+off_i1pro STEP read-lit
+off_i1pro CTL cf 01 tout=2.00
+off_i1pro CTL d1 in6 tout=2.00
+off_i1pro TRIGGER-FAILED
+off_i1pro STEP patch-1-returned
+off_i1pro STEP cal-dark
+off_i1pro CTL cf 01 tout=2.00
+off_i1pro CTL d1 in6 tout=2.00
+off_i1pro TRIGGER-FAILED
+off_i1pro STEP cal-white
+off_i1pro CTL cf 01 tout=2.00
+off_i1pro CTL d1 in6 tout=2.00
+off_i1pro TRIGGER-FAILED
+off_i1pro STEP cal-returned
+off_i1pro STEP strip-G-start
+off_i1pro STEP read-dark
+off_i1pro CTL cf 01 tout=2.00
+off_i1pro CTL d1 in6 tout=2.00
+off_i1pro TRIGGER-FAILED
+off_i1pro STEP read-lit
+off_i1pro CTL cf 01 tout=2.00
+off_i1pro CTL d1 in6 tout=2.00
+off_i1pro TRIGGER-FAILED
+off_i1pro STEP strip-G-returned
+off_i1pro STEP eeprom
+off_i1pro CTL c4 00000c1400400000 tout=2.00
+off_i1pro RD 82 64
+off_i1pro STEP close
+off_i1pro END
+on_ready_off STEP begin
+on_ready_off CTL d6 00000020 tout=0.25
+on_ready_off WR 03 000000020000000a000000010036400000010000000affffffff3f3640000001 tout=0.25
+on_ready_off BEGIN 1
+on_ready_off STEP cal-dark
+on_ready_off CTL d6 00000012 tout=0.25
+on_ready_off WR 03 000000010000000a00000002003640000001 tout=0.25
+on_ready_off CTL d4 0000022c00000029000000010100 tout=2.00
+on_ready_off STEP cal-white
+on_ready_off CTL d4 0000022c00000029000000010100 tout=2.00
+on_ready_off STEP cal-returned
+on_ready_off CTL d6 00000020 tout=0.25
+on_ready_off WR 03 000000020000000a000000010036400000010000000affffffff3f3640000001 tout=0.25
+on_ready_off STEP strip-A-start
+on_ready_off STEP read-dark
+on_ready_off CTL d6 00000012 tout=0.25
+on_ready_off WR 03 000000010000000a00000002003640000001 tout=0.25
+on_ready_off CTL d4 0000022c00000029000000010100 tout=2.00
+on_ready_off STEP read-lit
+on_ready_off CTL d4 0000022c00000029000000010100 tout=2.00
+on_ready_off STEP strip-A-returned
+on_ready_off CTL d6 00000020 tout=0.25
+on_ready_off WR 03 000000020000000a000000010036400000010000000affffffff3f3640000001 tout=0.25
+on_ready_off STEP strip-B-start
+on_ready_off STEP read-dark
+on_ready_off CTL d6 00000012 tout=0.25
+on_ready_off WR 03 000000010000000a00000002003640000001 tout=0.25
+on_ready_off CTL d4 0000022c00000029000000010100 tout=2.00
+on_ready_off STEP read-lit
+on_ready_off CTL d4 0000022c00000029000000010100 tout=2.00
+on_ready_off STEP strip-B-returned
+on_ready_off CTL d6 00000020 tout=0.25
+on_ready_off WR 03 000000020000000a000000010036400000010000000affffffff3f3640000001 tout=0.25
+on_ready_off STEP strip-C-start
+on_ready_off STEP read-dark
+on_ready_off CTL d6 00000012 tout=0.25
+on_ready_off WR 03 000000010000000a00000002003640000001 tout=0.25
+on_ready_off CTL d4 0000022c00000029000000010100 tout=2.00
+on_ready_off STEP read-lit
+on_ready_off CTL d4 0000022c00000029000000010100 tout=2.00
+on_ready_off STEP strip-C-returned
+on_ready_off CTL d6 00000020 tout=0.25
+on_ready_off WR 03 000000020000000a000000010036400000010000000affffffff3f3640000001 tout=0.25
+on_ready_off STEP strip-D-start
+on_ready_off STEP read-dark
+on_ready_off CTL d6 00000012 tout=0.25
+on_ready_off WR 03 000000010000000a00000002003640000001 tout=0.25
+on_ready_off CTL d4 0000022c00000029000000010100 tout=2.00
+on_ready_off STEP read-lit
+on_ready_off CTL d4 0000022c00000029000000010100 tout=2.00
+on_ready_off STEP strip-D-returned
+on_ready_off CTL d6 00000020 tout=0.25
+on_ready_off WR 03 000000020000000a000000010036400000010000000affffffff3f3640000001 tout=0.25
+on_ready_off STEP strip-E-start
+on_ready_off STEP read-dark
+on_ready_off CTL d6 00000012 tout=0.25
+on_ready_off WR 03 000000010000000a00000002003640000001 tout=0.25
+on_ready_off CTL d4 0000022c00000029000000010100 tout=2.00
+on_ready_off STEP read-lit
+on_ready_off CTL d4 0000022c00000029000000010100 tout=2.00
+on_ready_off STEP strip-E-returned
+on_ready_off CTL d6 00000020 tout=0.25
+on_ready_off WR 03 000000020000000a000000010036400000010000000affffffff3f3640000001 tout=0.25
+on_ready_off STEP strip-F-start
+on_ready_off STEP read-dark
+on_ready_off CTL d6 00000012 tout=0.25
+on_ready_off WR 03 000000010000000a00000002003640000001 tout=0.25
+on_ready_off CTL d4 0000022c00000029000000010100 tout=2.00
+on_ready_off STEP read-lit
+on_ready_off CTL d4 0000022c00000029000000010100 tout=2.00
+on_ready_off STEP strip-F-returned
+on_ready_off CTL d6 00000020 tout=0.25
+on_ready_off WR 03 000000020000000a000000010036400000010000000affffffff3f3640000001 tout=0.25
+on_ready_off STEP strip-H-start
+on_ready_off STEP read-dark
+on_ready_off CTL d6 00000012 tout=0.25
+on_ready_off WR 03 000000010000000a00000002003640000001 tout=0.25
+on_ready_off CTL d4 0000022c00000029000000010100 tout=2.00
+on_ready_off STEP read-lit
+on_ready_off CTL d4 0000022c00000029000000010100 tout=2.00
+on_ready_off STEP strip-H-returned
+on_ready_off CTL d6 00000020 tout=0.25
+on_ready_off WR 03 000000020000000a000000010036400000010000000affffffff3f3640000001 tout=0.25
+on_ready_off STEP patch-1-start
+on_ready_off STEP read-dark
+on_ready_off CTL d6 00000012 tout=0.25
+on_ready_off WR 03 000000010000000a00000002003640000001 tout=0.25
+on_ready_off CTL d4 0000022c00000029000000010100 tout=2.00
+on_ready_off STEP read-lit
+on_ready_off CTL d4 0000022c00000029000000010100 tout=2.00
+on_ready_off STEP patch-1-returned
+on_ready_off CTL d6 00000020 tout=0.25
+on_ready_off WR 03 000000020000000a000000010036400000010000000affffffff3f3640000001 tout=0.25
+on_ready_off STEP cal-dark
+on_ready_off CTL d6 00000012 tout=0.25
+on_ready_off WR 03 000000010000000a00000002003640000001 tout=0.25
+on_ready_off CTL d4 0000022c00000029000000010100 tout=2.00
+on_ready_off STEP cal-white
+on_ready_off CTL d4 0000022c00000029000000010100 tout=2.00
+on_ready_off STEP cal-returned
+on_ready_off CTL d6 00000020 tout=0.25
+on_ready_off WR 03 000000020000000a000000010036400000010000000affffffff3f3640000001 tout=0.25
+on_ready_off STEP strip-G-start
+on_ready_off STEP read-dark
+on_ready_off CTL d6 00000012 tout=0.25
+on_ready_off WR 03 000000010000000a00000002003640000001 tout=0.25
+on_ready_off CTL d4 0000022c00000029000000010100 tout=2.00
+on_ready_off STEP read-lit
+on_ready_off CTL d4 0000022c00000029000000010100 tout=2.00
+on_ready_off STEP strip-G-returned
+on_ready_off CTL d6 00000020 tout=0.25
+on_ready_off WR 03 000000020000000a000000010036400000010000000affffffff3f3640000001 tout=0.25
+on_ready_off STEP eeprom
+on_ready_off CTL d6 0000000f tout=0.25
+on_ready_off WR 03 000000010000000700000002000001 tout=0.25
+on_ready_off CTL c4 00000c140040 tout=2.00
+on_ready_off RD 82 64
+on_ready_off STEP close
+on_ready_off END
+revad_ready_off STEP begin
+revad_ready_off BEGIN 0
+revad_ready_off STEP cal-dark
+revad_ready_off CTL cf 01 tout=2.00
+revad_ready_off CTL d1 in6 tout=2.00
+revad_ready_off TRIGGER-FAILED
+revad_ready_off STEP cal-white
+revad_ready_off CTL cf 01 tout=2.00
+revad_ready_off CTL d1 in6 tout=2.00
+revad_ready_off TRIGGER-FAILED
+revad_ready_off STEP cal-returned
+revad_ready_off STEP strip-A-start
+revad_ready_off STEP read-dark
+revad_ready_off CTL cf 01 tout=2.00
+revad_ready_off CTL d1 in6 tout=2.00
+revad_ready_off TRIGGER-FAILED
+revad_ready_off STEP read-lit
+revad_ready_off CTL cf 01 tout=2.00
+revad_ready_off CTL d1 in6 tout=2.00
+revad_ready_off TRIGGER-FAILED
+revad_ready_off STEP strip-A-returned
+revad_ready_off STEP strip-B-start
+revad_ready_off STEP read-dark
+revad_ready_off CTL cf 01 tout=2.00
+revad_ready_off CTL d1 in6 tout=2.00
+revad_ready_off TRIGGER-FAILED
+revad_ready_off STEP read-lit
+revad_ready_off CTL cf 01 tout=2.00
+revad_ready_off CTL d1 in6 tout=2.00
+revad_ready_off TRIGGER-FAILED
+revad_ready_off STEP strip-B-returned
+revad_ready_off STEP strip-C-start
+revad_ready_off STEP read-dark
+revad_ready_off CTL cf 01 tout=2.00
+revad_ready_off CTL d1 in6 tout=2.00
+revad_ready_off TRIGGER-FAILED
+revad_ready_off STEP read-lit
+revad_ready_off CTL cf 01 tout=2.00
+revad_ready_off CTL d1 in6 tout=2.00
+revad_ready_off TRIGGER-FAILED
+revad_ready_off STEP strip-C-returned
+revad_ready_off STEP strip-D-start
+revad_ready_off STEP read-dark
+revad_ready_off CTL cf 01 tout=2.00
+revad_ready_off CTL d1 in6 tout=2.00
+revad_ready_off TRIGGER-FAILED
+revad_ready_off STEP read-lit
+revad_ready_off CTL cf 01 tout=2.00
+revad_ready_off CTL d1 in6 tout=2.00
+revad_ready_off TRIGGER-FAILED
+revad_ready_off STEP strip-D-returned
+revad_ready_off STEP strip-E-start
+revad_ready_off STEP read-dark
+revad_ready_off CTL cf 01 tout=2.00
+revad_ready_off CTL d1 in6 tout=2.00
+revad_ready_off TRIGGER-FAILED
+revad_ready_off STEP read-lit
+revad_ready_off CTL cf 01 tout=2.00
+revad_ready_off CTL d1 in6 tout=2.00
+revad_ready_off TRIGGER-FAILED
+revad_ready_off STEP strip-E-returned
+revad_ready_off STEP strip-F-start
+revad_ready_off STEP read-dark
+revad_ready_off CTL cf 01 tout=2.00
+revad_ready_off CTL d1 in6 tout=2.00
+revad_ready_off TRIGGER-FAILED
+revad_ready_off STEP read-lit
+revad_ready_off CTL cf 01 tout=2.00
+revad_ready_off CTL d1 in6 tout=2.00
+revad_ready_off TRIGGER-FAILED
+revad_ready_off STEP strip-F-returned
+revad_ready_off STEP strip-H-start
+revad_ready_off STEP read-dark
+revad_ready_off CTL cf 01 tout=2.00
+revad_ready_off CTL d1 in6 tout=2.00
+revad_ready_off TRIGGER-FAILED
+revad_ready_off STEP read-lit
+revad_ready_off CTL cf 01 tout=2.00
+revad_ready_off CTL d1 in6 tout=2.00
+revad_ready_off TRIGGER-FAILED
+revad_ready_off STEP strip-H-returned
+revad_ready_off STEP patch-1-start
+revad_ready_off STEP read-dark
+revad_ready_off CTL cf 01 tout=2.00
+revad_ready_off CTL d1 in6 tout=2.00
+revad_ready_off TRIGGER-FAILED
+revad_ready_off STEP read-lit
+revad_ready_off CTL cf 01 tout=2.00
+revad_ready_off CTL d1 in6 tout=2.00
+revad_ready_off TRIGGER-FAILED
+revad_ready_off STEP patch-1-returned
+revad_ready_off STEP cal-dark
+revad_ready_off CTL cf 01 tout=2.00
+revad_ready_off CTL d1 in6 tout=2.00
+revad_ready_off TRIGGER-FAILED
+revad_ready_off STEP cal-white
+revad_ready_off CTL cf 01 tout=2.00
+revad_ready_off CTL d1 in6 tout=2.00
+revad_ready_off TRIGGER-FAILED
+revad_ready_off STEP cal-returned
+revad_ready_off STEP strip-G-start
+revad_ready_off STEP read-dark
+revad_ready_off CTL cf 01 tout=2.00
+revad_ready_off CTL d1 in6 tout=2.00
+revad_ready_off TRIGGER-FAILED
+revad_ready_off STEP read-lit
+revad_ready_off CTL cf 01 tout=2.00
+revad_ready_off CTL d1 in6 tout=2.00
+revad_ready_off TRIGGER-FAILED
+revad_ready_off STEP strip-G-returned
+revad_ready_off STEP eeprom
+revad_ready_off CTL c4 00000c1400400000 tout=2.00
+revad_ready_off RD 82 64
+revad_ready_off STEP close
+revad_ready_off END
+ALL DONE

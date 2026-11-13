@@ -261,6 +261,40 @@ other windows a Start raises before anything is opened (M-INSTRUMENT-BUSY,
 M-FD9-SUPPORT-OFF) and like *Calibrate the instrument*, which plays no sound
 (§1). It plays **no sound** and has no row in §1.
 
+
+## 4h. The i1Pro 2's result signals follow the strip and patch verdicts (2026-11-13)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+With Preferences ▸ Beta, the instrument lights on and "Ready light and result
+signals" chosen, an i1Pro 2 shows i1Profiler's recorded patterns (recorded on
+firmware 634; sent to any i1Pro 2 the lights accept) where ChromIQ decides
+about a reading. Green means "kept": for a strip it goes with the strip-OK
+sound, and a strip ChromIQ asks about is red, with the slow-down cue or the
+question's window. Patch by patch, a kept patch is green even when it "looks
+off" and plays PATCH_OUT_OF_TOL: the patch is kept, the sound only warns. The
+lights play no sound and change no sound.
+
+| moment | program sent | who decides |
+|---|---|---|
+| the instrument is opened | WHITE (32 B) | driver, as 4.3.33 |
+| before a calibration's first trigger | OFF_SLOW (18 B) | driver, as 4.3.33 |
+| a calibration returned | PULSE (2306 B, Argyll's `b3`) | driver |
+| an accepted strip that ChromIQ keeps as it is (the STRIP_OK cue) | GREEN2 (2990 B) | the Measure tab's strip cue, sent to the engine as `{"cmd":"lights_result","n":…}` |
+| an accepted strip ChromIQ asks about: read too fast (the SLOW_DOWN cue), the engine's or ChromIQ's slip check, read twice | RED2 (2990 B) | the manager (before any window opens) or the strip cue |
+| a strip the engine refused: misread (not a button shortcut), wrong strip, unexpected response, an unexpected error | RED2 | the engine, at once |
+| a patch kept, patch by patch (also one that plays the "looks off" sound) | GREEN2 | the engine |
+| a patch misread | RED2 | the engine |
+| no verdict within 3 s of an accepted strip, or the lights dark at the next prompt | PULSE | the engine |
+| before a hand-held reading's triggers | OFF_SLOW when lit ("Off during a reading"); nothing while a pulse-family program plays ("Left on during a reading") | driver |
+| the close | OFF_NOW (15 B) when anything plays | driver, as 4.3.33 |
+
+A verdict is acted on only while the engine waits for the next strip or patch
+(before any trigger) or at its prompts, only for the strip it was given for,
+and never once the button has been pressed for the next reading.
+
 ## 5. Related documents
 
 - [`measurement_exit_strategy.md`](measurement_exit_strategy.md) — the same windows, from the point of view of how each one ends a session

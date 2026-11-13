@@ -117,6 +117,16 @@ add_executable(i1pro3_lights_test EXCLUDE_FROM_ALL
 target_include_directories(i1pro3_lights_test PRIVATE
   ${INSTLIB} ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(i1pro3_lights_test PRIVATE instlib)
+# The lights Beta's two choices (2026-11-13): one whole instrument life per
+# combination; tests/test_i1pro2_lights_modes.py builds and reads it.
+add_executable(i1pro2_lights_modes_test EXCLUDE_FROM_ALL
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests/i1pro2_lights_modes_test.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_stubs.c
+  ${INSTLIB}/alphix.c
+)
+target_include_directories(i1pro2_lights_modes_test PRIVATE
+  ${INSTLIB} ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(i1pro2_lights_modes_test PRIVATE instlib)
 
 # ...and the same tests against Argyll's own, UNPATCHED i1pro_imp.c, i1pro.c,
 # i1pro_imp.h and the i1pro3 counterparts, for the option-off wire trace to be compared byte for byte. The
@@ -158,6 +168,37 @@ if(CQ_UPSTREAM_I1PRO_DIR)
   target_link_libraries(i1pro3_lights_test_upstream PRIVATE instlib_upstream_i1pro)
 endif()
 
+# ...and the same life against ChromIQ 4.3.33's own i1pro.c / i1pro_imp.c /
+# i1pro_imp.h (ee661dc65), for the regression fixture
+# tests/data/i1pro2_lights_v4333_trace.txt. scripts/make_lights_v4333_fixture.py
+# writes those files into a folder and configures with
+# -DCQ_V4333_I1PRO_DIR=<that folder>.
+if(CQ_V4333_I1PRO_DIR)
+  set(_cq_v4_sources ${INSTLIB_SOURCES})
+  list(REMOVE_ITEM _cq_v4_sources "${INSTLIB}/i1pro.c" "${INSTLIB}/i1pro_imp.c")
+  add_library(instlib_v4333_i1pro STATIC EXCLUDE_FROM_ALL ${_cq_v4_sources}
+    "${CQ_V4333_I1PRO_DIR}/i1pro.c" "${CQ_V4333_I1PRO_DIR}/i1pro_imp.c"
+    ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_utf_compat.c)
+  get_target_property(_cq_defs4 instlib COMPILE_DEFINITIONS)
+  get_target_property(_cq_idefs4 instlib INTERFACE_COMPILE_DEFINITIONS)
+  get_target_property(_cq_opts4 instlib COMPILE_OPTIONS)
+  target_compile_definitions(instlib_v4333_i1pro PUBLIC ${_cq_defs4} ${_cq_idefs4})
+  if(_cq_opts4)
+    target_compile_options(instlib_v4333_i1pro PRIVATE ${_cq_opts4})
+  endif()
+  target_include_directories(instlib_v4333_i1pro BEFORE PUBLIC
+    "${CQ_V4333_I1PRO_DIR}")
+  target_include_directories(instlib_v4333_i1pro PUBLIC
+    ${INSTLIB} ${CMAKE_CURRENT_SOURCE_DIR})
+  add_executable(i1pro2_lights_modes_test_v4333 EXCLUDE_FROM_ALL
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/i1pro2_lights_modes_test.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_stubs.c
+    ${INSTLIB}/alphix.c
+  )
+  target_compile_definitions(i1pro2_lights_modes_test_v4333 PRIVATE CQ_V4333)
+  target_link_libraries(i1pro2_lights_modes_test_v4333 PRIVATE instlib_v4333_i1pro)
+endif()
+
 # Windows: a VERSIONINFO like ChromIQ.exe's (native/win_version.cmake).
 include(${CMAKE_CURRENT_SOURCE_DIR}/../win_version.cmake)
 chromiq_add_win_version(chromiq-chartread
@@ -165,6 +206,10 @@ chromiq_add_win_version(chromiq-chartread
   "Copyright (c) Graeme W. Gill (ArgyllCMS) and Sebastian Reiprich, AGPL-3.0")
 
 set(_cq_link_targets chromiq-chartread i1pro2_lights_test i1pro3_lights_test)
+list(APPEND _cq_link_targets i1pro2_lights_modes_test)
+if(CQ_V4333_I1PRO_DIR)
+  list(APPEND _cq_link_targets i1pro2_lights_modes_test_v4333)
+endif()
 if(CQ_UPSTREAM_I1PRO_DIR)
   list(APPEND _cq_link_targets i1pro2_lights_test_upstream
        i1pro3_lights_test_upstream)

@@ -285,6 +285,18 @@ DEFAULTS: dict[str, Any] = {
     #: Off = exactly 4.3.32: the helper is started without --i1pro2-lights and
     #: the driver never sends a light request. Read at every Start.
     "i1pro2_lights_beta":        False,
+    #: Inside that option (2026-11-13), the i1Pro 2 only (firmware 634, the
+    #: firmware of every recording): what the lights show. True = "ready light
+    #: and result signals": a pulsing white when ready, green twice after a
+    #: reading ChromIQ accepted, red twice after one it refused or asks to
+    #: read again (--lights-signals). False = "ready light only", exactly
+    #: 4.3.33. A 4.3.33 user who had the option on keeps False (schema 34).
+    "i1pro2_lights_signals":     True,
+    #: ...and during a hand-held reading. False = "off during a reading",
+    #: exactly 4.3.33 (the cautious choice: the project has not compared
+    #: readings with the lights on). True = "left on during a reading", as
+    #: X-Rite's i1Profiler does by hand (--lights-during-reading).
+    "i1pro2_lights_during_reading": False,
     #: Beta (Settings -> Beta): also write the "turned" i1Profiler chart files
     #: (`workflow.i1profiler_turned`) into a chart's exports/ folder, so the
     #: printed ChromIQ sheet can be read in i1Profiler too after a quarter
@@ -1101,7 +1113,7 @@ def thresholds_for_combo(
 # Bump when a shipped default changes in a way that must reach users who have
 # the OLD default persisted. Settings → Save writes every key, so a stored
 # value otherwise pins a user to the old behaviour for good.
-SETTINGS_SCHEMA = 33
+SETTINGS_SCHEMA = 34
 
 # key → the old default(s) it must no longer be stuck on. Only a stored value
 # EQUAL to one of the old defaults is dropped (so it falls through to the new
@@ -1357,11 +1369,32 @@ class AppSettings:
             dropped.append("profile_engine_black_depth (\"Darkest black\" is "
                            "a Build Profile option now; a Deepest choice is "
                            "carried into its saved default)")
+        if stored_schema < 34 and self._migrate_lights_signals_keep_4333():
+            dropped.append("i1pro2_lights_signals (the lights Beta was already "
+                           "on: kept as in 4.3.33, ready light only)")
         self._qs.setValue("settings_schema", SETTINGS_SCHEMA)
         if dropped:
             log.info("Settings migrated to schema %d; dropped stale defaults: %s",
                      SETTINGS_SCHEMA, ", ".join(dropped))
         return dropped
+
+    def _migrate_lights_signals_keep_4333(self) -> bool:
+        """schema 34 (2026-11-13): the i1Pro 2 lights Beta gained "what the
+        lights show", whose default is the result signals. A 4.3.33 user who
+        had already switched the Beta option on must not see different lights
+        after an update without choosing them: for him "ready light only" is
+        written, exactly 4.3.33. Anyone else gets the default the first time
+        they switch the option on. Runs once (schema step), so a later absent
+        key is never mistaken for an upgrade. Returns True when it wrote."""
+        if self._qs.value("i1pro2_lights_signals", None) is not None:
+            return False
+        raw = self._qs.value("i1pro2_lights_beta", None)
+        is_true = raw is True or (isinstance(raw, str)
+                                  and raw.strip().lower() in ("true", "1", "yes"))
+        if not is_true:
+            return False
+        self._qs.setValue("i1pro2_lights_signals", False)
+        return True
 
     def _migrate_black_depth_to_build_profile(self) -> bool:
         """schema 33: "Darkest black" moves from Preferences > Beta into the
