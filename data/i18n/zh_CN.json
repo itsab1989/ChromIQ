@@ -8201,7 +8201,7 @@
  "A patch would lie partly off the sheet.": "有色块会部分超出纸张。",
  "A patch would touch an aiming cross.": "有色块会碰到瞄准十字标记。",
  "A strip has no room before its first or after its last patch for the arm to reach its speed and to stop.": "某条色条在第一个色块之前或最后一个色块之后没有足够空间，让机械臂加速和停下。",
- "An aiming cross would not fit on the sheet.": "瞄准十字标记放不进纸张。",
+ "An aiming cross would not fit on the sheet.": "纸张上放不下瞄准十字标记。",
  "The blank paper at the end of a strip would run into the clip border.": "某条色条末端的空白纸会伸进夹纸边条。",
  "The blank paper at the end of a strip would touch an aiming cross.": "某条色条末端的空白纸会碰到瞄准十字标记。",
  "The clip border would touch an aiming cross.": "夹纸边条会碰到瞄准十字标记。",
