@@ -7467,6 +7467,20 @@ class TabChart(QWidget):
             self._i1io_aim_tooltip.setVisible(False)
             dd_row.addWidget(self._i1io_aim_check)
             dd_row.addWidget(self._i1io_aim_tooltip)
+            # …and its "Clip border" (an option, off by default,
+            # 2026-11-13): the notes band down the sheet's left edge.
+            from ui.dialogs.layout_options_panel import i1io_clip_help
+            self._i1io_clip_check = QCheckBox(tr("Clip border"), inner)
+            self._i1io_clip_check.setChecked(False)
+            self._i1io_clip_check.toggled.connect(self._update_patch_count)
+            self._i1io_clip_tooltip = TooltipButton(
+                tr("Clip border (i1iO)"), i1io_clip_help(), inner,
+                min_width=600)
+            self._i1io_clip_check.setVisible(False)
+            self._i1io_clip_tooltip.setVisible(False)
+            dd_row.addSpacing(20)
+            dd_row.addWidget(self._i1io_clip_check)
+            dd_row.addWidget(self._i1io_clip_tooltip)
         dd_row.addWidget(self._dd_check)
         dd_row.addWidget(self._dd_tooltip)
         dd_row.addSpacing(20)
@@ -12453,6 +12467,12 @@ class TabChart(QWidget):
                    if (getattr(self, "_i1io_aim_check", None) is not None
                        and self._instr_combo.currentData() == "IO2")
                    else {}),
+                # …and its clip border, only when switched on
+                **({"i1io_clip_border": True}
+                   if (getattr(self, "_i1io_clip_check", None) is not None
+                       and self._instr_combo.currentData() == "IO2"
+                       and self._i1io_clip_check.isChecked())
+                   else {}),
             }
         # manual
         toks = []
@@ -12512,6 +12532,10 @@ class TabChart(QWidget):
                 aim = getattr(self, "_i1io_aim_check", None)
                 if aim is not None:
                     aim.setChecked(bool(value))
+            elif field == "i1io_clip_border":
+                clip = getattr(self, "_i1io_clip_check", None)
+                if clip is not None:
+                    clip.setChecked(bool(value))
         else:  # manual (a superset of guided's options)
             if field == "instrument":
                 self._set_manual_value("printtarg", "-i", value)
@@ -19588,6 +19612,11 @@ class TabChart(QWidget):
                 and not self._i1io_aim_check.isChecked()):
             # Guided's "Aiming crosses" off (i1iO Beta), as the build has it
             kw["i1io_crosses"] = False
+        if (instr == "IO2" and guided
+                and getattr(self, "_i1io_clip_check", None) is not None
+                and self._i1io_clip_check.isChecked()):
+            # Guided's "Clip border" on (i1iO Beta), as the build has it
+            kw.update(i1io_clip_border=True, clip_content_mode="notes")
         return instruments.geom_from_build_kwargs(kw)
 
     def _engine_capacity(self, instr: str, paper: str, *, dd: bool, td: bool,
@@ -20257,6 +20286,11 @@ class TabChart(QWidget):
             # the i1iO's "Aiming crosses" (Beta), for the i1iO only
             aim.setVisible(instr == "IO2")
             self._i1io_aim_tooltip.setVisible(instr == "IO2")
+        clip = getattr(self, "_i1io_clip_check", None)
+        if clip is not None:
+            # …and its "Clip border", for the i1iO only
+            clip.setVisible(instr == "IO2")
+            self._i1io_clip_tooltip.setVisible(instr == "IO2")
         # Triple density: CM-only, hidden everywhere else.
         td_visible = instr == "CM"
         self._td_check.setVisible(td_visible)
@@ -23207,6 +23241,8 @@ class TabChart(QWidget):
                 # the i1iO's "Aiming crosses" (Beta): the saved default
                 guided["i1io_crosses"] = bool(
                     self._settings.get("chart_i1io_crosses", True))
+                guided["i1io_clip_border"] = bool(
+                    self._settings.get("chart_i1io_clip_border", False))
             for fld, val in guided.items():
                 try:
                     self._shared_set("guided", fld, val)
@@ -23225,6 +23261,10 @@ class TabChart(QWidget):
                     and "i1io_crosses" not in guided):
                 # a row without the i1iO's crosses answer had them on
                 guided = {**guided, "i1io_crosses": True}
+            if (getattr(self, "_i1io_clip_check", None) is not None
+                    and "i1io_clip_border" not in guided):
+                # …and one without its clip border answer had none
+                guided = {**guided, "i1io_clip_border": False}
             for fld, val in guided.items():
                 try:
                     self._shared_set("guided", fld, val)
@@ -31830,6 +31870,9 @@ class TabChart(QWidget):
                 and getattr(self, "_i1io_aim_check", None) is not None):
             s.set("chart_i1io_crosses",
                   bool(self._i1io_aim_check.isChecked()))
+            if getattr(self, "_i1io_clip_check", None) is not None:
+                s.set("chart_i1io_clip_border",
+                      bool(self._i1io_clip_check.isChecked()))
         s.set("chart_pages",               params.pages)
         s.set("chart_double_density",      params.double_density)
         s.set("chart_triple_density",      params.triple_density)
@@ -32069,6 +32112,11 @@ class TabChart(QWidget):
                                     or getattr(self, "_i1io_aim_check", None)
                                     is None
                                     or self._i1io_aim_check.isChecked()),
+            # …and its clip border (off by default)
+            i1io_clip_border     = (instr == "IO2"
+                                    and getattr(self, "_i1io_clip_check",
+                                                None) is not None
+                                    and self._i1io_clip_check.isChecked()),
         )
 
     def _manual_i1io_context(self) -> dict:
@@ -32462,6 +32510,9 @@ class TabChart(QWidget):
         if getattr(self, "_i1io_aim_check", None) is not None:
             self._i1io_aim_check.setChecked(
                 bool(s.get("chart_i1io_crosses", True)))
+        if getattr(self, "_i1io_clip_check", None) is not None:
+            self._i1io_clip_check.setChecked(
+                bool(s.get("chart_i1io_clip_border", False)))
         self._update_dd_visibility()
         self._update_patch_count()
 

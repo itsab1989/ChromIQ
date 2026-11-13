@@ -129,8 +129,8 @@ def fixed_build_kwargs(kw: dict) -> dict:
     if kw.get("spacer_on") is False and kw.get("spacer_mode") is None:
         mode = "none"
     crosses = crosses_of(kw)
-    least = F.margins_mm(labels.rows, labels.size, numbers=labels.columns,
-                         crosses=crosses)
+    clip = clip_width_of(kw)
+    least = least_margins_mm(kw)
     asked = kw.get("margins")
     try:
         asked = tuple(float(v) for v in asked) if asked else None
@@ -170,11 +170,91 @@ def fixed_build_kwargs(kw: dict) -> dict:
     )
     out[LABELS_KEY] = labels
     out[CROSSES_KEY] = crosses
+    out[CLIP_KEY] = clip > 0
+    if clip > 0:
+        # THE CLIP BORDER (an option, off by default): the engine's notes
+        # band down the page's LEFT edge (the table's top edge), from the
+        # paper edge to *clip* mm in, its content from the "Clip" text
+        # distance (10 mm, as the patch numbers) and CLIP_EDGE_MM from the
+        # page's top and bottom, or clear of cross 1 in the bottom-left
+        # corner (`clip_bottom_mm`). Off, none of these keys is touched, so
+        # a chart without the band is built exactly as before.
+        mode = str(kw.get("clip_content_mode") or "off")
+        out.update(
+            clip_band=clip, clip_border_width=clip, clip_side="left",
+            clip_content_mode=mode if mode != "off" else "notes",
+            text_edge_top=F.CLIP_EDGE_MM.value,
+            text_edge=clip_bottom_mm(crosses))
     return out
+
+
+def least_margins_mm(kw: dict) -> "tuple[float, float, float, float]":
+    """The smallest margins ``(top, right, bottom, left)`` the i1iO chart
+    *kw* (build kwargs) may have (`table_facts.margins_mm`): the runs, the
+    strip letters' band, the crosses' bands or the printer's edge, the
+    patch numbers and the clip border, as asked for. The build floors the
+    margins with this, and Manual's margin boxes offer nothing below it."""
+    labels = label_wishes(kw)
+    return F.margins_mm(labels.rows, labels.size, numbers=labels.columns,
+                        crosses=crosses_of(kw), clip_mm=clip_width_of(kw))
 
 
 #: The build-kwargs key for "Aiming crosses" (Manual, Guided, recipes).
 CROSSES_KEY = "i1io_crosses"
+
+#: The build-kwargs key for the i1iO's clip border On/Off (Manual's "Clip
+#: border", Guided's box, `LayoutRecipe.i1io_clip_border`). Its own key, not
+#: `clip_content_mode`, whose recipe default "notes" would have switched the
+#: band on for every i1iO recipe saved before the option existed.
+CLIP_KEY = "i1io_clip_border"
+
+
+def clip_width_of(kw: dict) -> float:
+    """The clip border's width in mm when *kw* asks for one (CLIP_KEY), at
+    least `table_facts.CLIP_MIN_MM`; 0.0 when it is off (the default)."""
+    on = kw.get(CLIP_KEY)
+    if not (F.CLIP_BORDER.value if on is None else bool(on)):
+        return 0.0
+    try:
+        width = float(kw.get("clip_border_width") or 26.0)
+    except (TypeError, ValueError):
+        width = 26.0
+    return max(width, F.CLIP_MIN_MM.value)
+
+
+def clip_bottom_mm(crosses: bool) -> float:
+    """How far the clip border's content keeps from the page's bottom edge:
+    `table_facts.CLIP_EDGE_MM`, or with the crosses past cross 1's zone (the
+    cross, its digit and its clearance, in the page's bottom-left corner)
+    plus LABEL_CLEAR_MM."""
+    if not crosses:
+        return F.CLIP_EDGE_MM.value
+    w, h = 210.0, 297.0              # the zone's distance from the edge is
+    zone = mark_zone(marks(w, h)[0])  # the same on every sheet
+    return max(F.CLIP_EDGE_MM.value,
+               round(h - zone[1] + F.LABEL_CLEAR_MM.value, 4))
+
+
+def clip_area(geom, w: float, h: float
+              ) -> "tuple[float, float, float, float] | None":
+    """``(x0, y0, x1, y1)`` in mm of the clip border's band on the page: the
+    engine's own content rectangle (`geometry.clip_area_mm`) from the paper
+    edge to the band's inner edge, or None without one."""
+    from workflow.layout_engine import geometry
+    area = geometry.clip_area_mm(geom, h, w)
+    band = clip_band_mm(geom)
+    if area is None or band is None:
+        return None
+    x, y, aw, ah = area
+    return (band[0], y, max(band[1], x + aw), y + ah)
+
+
+def clip_band_mm(geom) -> "tuple[float, float] | None":
+    """``(x0, x1)`` on the page of the clip border *geom* lays out (the paper
+    edge to its width), or None without one."""
+    if float(getattr(geom, "lbord", 0.0) or 0.0) <= 0:
+        return None
+    return (0.0, float(geom.lbord) + float(geom.border))
 
 #: The build-kwargs key for Manual's "Patch area alignment" chosen for the
 #: i1iO (`Recipe.i1io_align`); absent or "" = the i1iO's own default.
@@ -421,11 +501,19 @@ def on_page(crosses, page: int) -> bool:
 
 
 def check_sheet(geom, layout, w: float, h: float,
-                crosses: "bool | list" = True) -> None:
+                crosses: "bool | list" = True,
+                reach: "float | None" = None) -> None:
     """Refuse a layout the table could not read: a patch or a strip's run off
     the sheet or into a mark, or a mark off the sheet. *crosses*: one answer
-    or one per page."""
+    or one per page. With a clip border (`clip_area`): the band touching a
+    cross or a run, or its printed content (*reach*, mm from the paper edge,
+    `raster.clip_content_reach_mm`) within LABEL_CLEAR_MM of a patch."""
     edge = F.RUN_EDGE_MM.value
+    band = clip_area(geom, w, h)
+    if band is not None and (reach is None or reach < 0):
+        reach = getattr(geom, "clip_content_reach_mm", None)
+        if reach is None or reach < 0:       # not measured: the whole band
+            reach = band[2]
     for zx0, zy0, zx1, zy1 in [mark_zone(m) for m in marks(w, h)]:
         if zx0 < 0 or zy0 < 0 or zx1 > w or zy1 > h:
             raise I1ioSheetRefused("An aiming mark would not fit on the sheet.")
@@ -447,6 +535,18 @@ def check_sheet(geom, layout, w: float, h: float,
             run = (col[0][3], y_start, col[0][5], y_end)
             if any(_overlap(run, z) for z in zones):
                 raise I1ioSheetRefused("A strip's run would cross an aiming mark.")
+            if band is not None and _overlap(run, band):
+                raise I1ioSheetRefused(
+                    "A strip's run would cross the clip border.")
+        if band is not None:
+            if any(_overlap(band, z) for z in zones):
+                raise I1ioSheetRefused(
+                    "The clip border would touch an aiming cross.")
+            if reach is not None and cells and (
+                    reach + F.LABEL_CLEAR_MM.value
+                    > min(c[3] for c in cells) + 1e-6):
+                raise I1ioSheetRefused(
+                    "The clip border's content would reach the patches.")
 
 
 # ---- without the crosses: the corner patches --------------------------------
@@ -1032,7 +1132,15 @@ def free_spots(geom, layout, w: float, h: float, page: int,
     numbers = labels is None or labels.columns
     x1 = (F.NUMBERS_EDGE_MM.value if numbers
           else min(c[3] for c in cells)) - clear
-    out.append({"spot": "top edge", "x0": edge, "x1": x1,
+    x0 = edge
+    band = clip_band_mm(geom)
+    if band is not None:
+        # a clip border holds that edge: only the paper past it is free,
+        # and with the patch numbers on there is none (they follow it)
+        x0 = max(edge, band[1] + clear)
+        if numbers:
+            x1 = x0
+    out.append({"spot": "top edge", "x0": x0, "x1": x1,
                 "y0": edge, "y1": h - edge, "mid_y": mid(first)})
     return [o for o in out if o["x1"] - o["x0"] > 0.0]
 
@@ -1365,6 +1473,17 @@ def wordmark_box(geom, layout, w: float, h: float, page: int,
 
 # ---- the side file -----------------------------------------------------------
 
+def _clip_record(geom, w: float, h: float, content: str) -> "dict | None":
+    """The side file's "clip_border": None without one."""
+    area = clip_area(geom, w, h)
+    band = clip_band_mm(geom)
+    if area is None or band is None:
+        return None
+    return {"side": "left", "width_mm": round(band[1], 4),
+            "content": str(content or "off"),
+            "area_mm": [round(v, 4) for v in area]}
+
+
 def write_side_file(path: Path, *, geom, layout, w: float, h: float,
                     paper: str, dpi: int, seed: int, randomize: bool,
                     strip_pattern: str, patch_pattern: str, label_rule: str,
@@ -1372,7 +1491,8 @@ def write_side_file(path: Path, *, geom, layout, w: float, h: float,
                     name: str = "", sheet_text: str = "",
                     text_ctx: "dict | None" = None,
                     crosses: "bool | list" = True,
-                    slots: "list[int] | None" = None) -> Path:
+                    slots: "list[int] | None" = None,
+                    clip_content: str = "off") -> Path:
     """Write ``<stem>.i1io.json``: every mark, strip and patch in mm on the
     portrait page, what to aim at and where, for the measuring step.
     *slots* is the chart's own patch order (`sheet_slots`)."""
@@ -1469,5 +1589,12 @@ def write_side_file(path: Path, *, geom, layout, w: float, h: float,
                        "padding_patches": layout.padding},
         "table_facts": F.as_record(),
     }
+    # THE CLIP BORDER (an option, off by default): its band on the page's
+    # left edge (the table's top edge), mm on the page, and what it holds.
+    # Written only when there is one, so a chart without it records exactly
+    # what it recorded before the option.
+    clip = _clip_record(geom, w, h, clip_content)
+    if clip is not None:
+        doc["clip_border"] = clip
     path.write_text(json.dumps(doc, indent=1) + "\n", encoding="utf-8")
     return path

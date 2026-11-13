@@ -801,6 +801,9 @@ class ChartParams:
     #: Guided's i1iO "Aiming crosses" (a Beta): Guided carries no layout
     #: recipe, so its choice rides here; Manual's recipe holds its own.
     i1io_crosses: bool = True
+    #: …and its "Clip border" (off by default): the notes band down the
+    #: sheet's left edge (`workflow.i1io.chart.CLIP_KEY`).
+    i1io_clip_border: bool = False
     fd9_clip_options: "dict | None" = None
     # When True, the .icc/.ti3 from a prior session in the same working folder
     # are renamed to pre_*.icc/pre_*.ti3 instead of being overwritten on the
@@ -1727,11 +1730,16 @@ class ChartCreator:
                 # an absent key still reads False, so reprinting a lost sheet
                 # reproduces the sheet that was printed.
                 kw["hex_flat_top"] = bool(kw.get("hflag"))
-        elif params.instrument == "IO2" and not getattr(params, "i1io_crosses",
-                                                         True):
+        elif params.instrument == "IO2":
             # Guided's "Aiming crosses" for the i1iO (a Beta), only when off,
-            # so every other chart's kwargs are the ones they were.
-            kw["i1io_crosses"] = False
+            # and its "Clip border" only when on (with the Notes box, as
+            # Guided's i1Pro clip band), so every other chart's kwargs are
+            # the ones they were.
+            if not getattr(params, "i1io_crosses", True):
+                kw["i1io_crosses"] = False
+            if getattr(params, "i1io_clip_border", False):
+                kw["i1io_clip_border"] = True
+                kw["clip_content_mode"] = "notes"
         return kw
 
     def _engine_total_patches(self, params: "ChartParams") -> int | None:

@@ -95,7 +95,8 @@ instrument to name.
   their centres (a long text is shortened before the logo shrinks); the
   wordmark set as on every other chart, one baseline for Chrom and IQ.
   **Nothing is printed on a scan line outside the patches** (no edge
-  spacers, no labels in a run). No arrow, no helper markers, no clip border.
+  spacers, no labels in a run). No arrow, no helper markers, and no clip
+  border unless one is switched on (see "Clip border" below).
   Per sheet: A4 528 (572 without spacers), Letter 506 (552); without the aiming crosses more (see below). Every number,
   its source and its confidence are in `workflow/i1io/table_facts.py`.
 * Manual: margins (down to the safe minimum), patch area alignment (any of
@@ -195,6 +196,36 @@ away"; "guided mode gets the option as well".*
 | default (10 x 8 mm, coloured spacers) | 528 | 552 | 506 | 528 |
 | no spacers | 572 | 598 | 552 | 576 |
 | maximum (no spacers, 7 mm across x 8.9 mm along) | 725 | 783 | 702 | 729 |
+
+### On: Clip border, an option off by default (2026-11-13)
+
+*The owner, 2026-11-13: "the clip border should be possible to enable if a
+user wants it as an option. just off by default".*
+
+* The table holds the sheet, so the band holds no clip: it is the engine's
+  notes band (Notes box, custom text, ChromIQ branding or an image, the
+  "Clip-border content" group), as on a ColorMunki, SpectroScan or CR30
+  chart. Manual: the "Clip border" Off/On selector those instruments have,
+  shown for the i1iO, Off by default; the content controls live; "Side"
+  greyed on Left with its reason. Guided: its own "Clip border" box on the
+  i1iO's option line, unticked by default (setting `chart_i1io_clip_border`),
+  the Notes box at 26 mm. Recipe field `i1io_clip_border` (written only when
+  on), never `clip_content_mode`, whose default "notes" would have switched
+  the band on for every recipe saved before.
+* Always on the page's LEFT edge (the table's top edge): the other long edge
+  holds crosses 2 and 3 and the name line. Width from the paper edge, at
+  least 20 mm (default 26). Content from 10 mm in (the "Clip" distance the
+  patch numbers keep) and 10 mm from the page's top and bottom; with crosses
+  the band ends 21 mm from the bottom, 1 mm above cross 1's zone.
+* Clear of every run, cross, strip letter and patch: `check_sheet` refuses a
+  band touching a cross or a run, or content within 1 mm of a patch; the
+  patch numbers follow the band (the engine's own row-label rule) and the
+  left margin's minimum includes it. Without crosses the free "top edge"
+  spot for the name line starts past the band.
+* Capacity from the one geometry, shown live: A4 528 -> 480 with crosses,
+  552 -> 504 without; Letter 506 -> 462 and 528 -> 484 (26 mm, defaults).
+* Side file `"clip_border": {"side", "width_mm", "content", "area_mm"}`
+  (written only when on); the `.ti2` gains nothing.
 
 ### On: Verification and Calibration
 

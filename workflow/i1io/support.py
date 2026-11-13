@@ -137,11 +137,12 @@ def chart_names_i1io(path: Any) -> "bool | None":
 # `meta.json` stays byte-identical.
 
 CHART_PARAM_KEYS = ("printtarg-i", "printtarg-p")
-CHART_GUIDED_KEYS = ("instrument", "paper", "pages", "i1io_crosses")
+CHART_GUIDED_KEYS = ("instrument", "paper", "pages", "i1io_crosses",
+                     "i1io_clip_border")
 CHART_RECIPE_KEYS = ("instrument", "paper", "border", "margin_top",
                      "margin_right", "margin_bottom", "margin_left",
                      "use_instrument_margins", "patch_w_mm", "patch_h_mm",
-                     "layout_mode", "i1io_crosses")
+                     "layout_mode", "i1io_crosses", "i1io_clip_border")
 
 
 def target_names_i1io(stored_params: "dict | None",

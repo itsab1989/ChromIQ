@@ -397,17 +397,40 @@ MARK_SIDE_MM = Fact(15.0, "ours: mark inset 11 + half the cross 3 + 1 clear",
                     OURS)
 
 
-def numbers_band_mm(size_mm: "float | None" = None) -> float:
+def numbers_band_mm(size_mm: "float | None" = None,
+                    start_mm: "float | None" = None) -> float:
     """Paper the patch numbers take at the page's left (the table's top), from
-    the page edge to the strips: NUMBERS_EDGE_MM, the numbers turned (as wide
-    on the page as their size) and ROW_LABEL_GAP_MM before the first strip."""
+    the page edge to the strips: NUMBERS_EDGE_MM (or *start_mm*, where a clip
+    border ends), the numbers turned (as wide on the page as their size) and
+    ROW_LABEL_GAP_MM before the first strip."""
     size = float(size_mm or 0.0) or LETTER_AUTO_MM.value
-    return round(NUMBERS_EDGE_MM.value + size + ROW_LABEL_GAP_MM.value, 3)
+    start = NUMBERS_EDGE_MM.value if start_mm is None else float(start_mm)
+    return round(start + size + ROW_LABEL_GAP_MM.value, 3)
+
+
+#: THE CLIP BORDER IS AN OPTION, OFF BY DEFAULT (the owner, 2026-11-13: "the
+#: clip border should be possible to enable if a user wants it as an option.
+#: just off by default"). The table holds the sheet itself, so the band holds
+#: no clip: it is the engine's notes band (Notes box, custom text, branding or
+#: an image), as on a ColorMunki, SpectroScan or CR30 chart, always along the
+#: page's LEFT edge (the table's top edge): the other long edge holds crosses
+#: 2 and 3 and the name line.
+CLIP_BORDER = Fact(False, "ours: the owner's ruling, off by default", OURS)
+#: The narrowest band: its content starts NUMBERS_EDGE_MM (10 mm) in from the
+#: paper edge, past every unprinted edge ChromIQ knows, so a narrower band
+#: would hold next to nothing.
+CLIP_MIN_MM = Fact(20.0, "ours: 10 mm of content past the 10 mm text edge",
+                   OURS)
+#: The band's content keeps this far from the page's top and bottom edges
+#: (the table's right and left edges), as the name line does.
+CLIP_EDGE_MM = Fact(10.0, "ours: = TEXT_EDGE_MM, past every printer edge "
+                    "ChromIQ knows", OURS)
 
 
 def margins_mm(strip_letters: bool = True,
                label_size_mm: "float | None" = None, numbers: bool = True,
-               crosses: bool = True
+               crosses: bool = True, clip_mm: float = 0.0,
+               letter_band: "float | None" = None,
                ) -> "tuple[float, float, float, float]":
     """The patch block's smallest margins ``(top, right, bottom, left)`` on
     the PORTRAIT page: at the top a run, at the bottom a run and the strip
@@ -418,13 +441,25 @@ def margins_mm(strip_letters: bool = True,
     Without the aiming crosses (*crosses* False, :data:`AIM_CROSSES`) a side
     needs only the printer's edge, and the patch numbers' band on the left:
     the paper the crosses held goes to patches, and the text line takes only
-    what is left over (`chart.free_text_plan`)."""
+    what is left over (`chart.free_text_plan`).
+
+    With a clip border of *clip_mm* (its width from the paper edge, 0 = none)
+    on the left, the patch numbers start where it ends, and without numbers
+    the patches start LABEL_CLEAR_MM past it. *letter_band* is the strip
+    letters' band when the caller has measured it (`chart.letter_band_for`:
+    another pattern, face or an underline), else `letter_band_mm`."""
     top = RUN_EDGE_MM.value + RUN_MM.value
-    bottom = RUN_MM.value + (letter_band_mm(label_size_mm) if strip_letters
-                             else RUN_EDGE_MM.value)
+    band = (letter_band_mm(label_size_mm) if letter_band is None
+            else float(letter_band))
+    bottom = RUN_MM.value + (band if strip_letters else RUN_EDGE_MM.value)
     side = MARK_SIDE_MM.value if crosses else PRINTER_EDGE_MM.value
     right = side
-    left = max(side, numbers_band_mm(label_size_mm) if numbers else 0.0)
+    clip = float(clip_mm or 0.0)
+    if clip > 0:
+        left = max(side, numbers_band_mm(label_size_mm, start_mm=clip)
+                   if numbers else clip + LABEL_CLEAR_MM.value)
+    else:
+        left = max(side, numbers_band_mm(label_size_mm) if numbers else 0.0)
     return top, right, bottom, left
 
 

@@ -315,6 +315,11 @@ def build_chart(
     #: the i1iO's own, `workflow.i1io.chart.align_of`). No other instrument
     #: reads it.
     i1io_align: str = "",
+    #: i1iO only: the clip border On/Off (an option, off by default,
+    #: `workflow.i1io.chart.CLIP_KEY`): the notes band down the page's left
+    #: edge, with the clip-border content asked for. No other instrument
+    #: reads it.
+    i1io_clip_border: bool = False,
 ) -> ChartResult:
     """Full chart build: write ``out_base.ti2`` + page TIFF(s) + strip geometry.
 
@@ -362,8 +367,11 @@ def build_chart(
             "row_indicators": row_indicators,
             "indicator_size_mm": indicator_size_mm,
             "spacer_width": spacer_width,
+            "clip_border_width": clip_border_width,
+            "clip_content_mode": clip_content_mode,
             _i1io_chart.ALIGN_KEY: i1io_align,
-            _i1io_chart.CROSSES_KEY: i1io_crosses})
+            _i1io_chart.CROSSES_KEY: i1io_crosses,
+            _i1io_chart.CLIP_KEY: i1io_clip_border})
         _i1io_chart.sheet_size(paper)
         (patch_w, patch_h, pscale, sscale, spacer_on, spacer_mode,
          spacer_width, inter_patch, strip_gap, edge_spacers, margins,
@@ -385,6 +393,14 @@ def build_chart(
             "row_indicator_rotation"))
         _i1io_labels = _f[_i1io_chart.LABELS_KEY]
         _i1io_crosses = _f[_i1io_chart.CROSSES_KEY]
+        _i1io_clip = _f[_i1io_chart.CLIP_KEY]
+        if _i1io_clip:
+            # the clip border's band, on the page's left edge, its content
+            # clear of the crosses and inside the printable area
+            # (`workflow.i1io.chart.fixed_build_kwargs`)
+            clip_border_width = _f["clip_border_width"]
+            clip_side = _f["clip_side"]
+            text_edge = _f["text_edge"]
         # never above the i1iO's largest label size (review r3 M1)
         indicator_size_mm = _f["indicator_size_mm"]
         # the patch numbers beside the strips, clear of a printer's edge
@@ -448,7 +464,8 @@ def build_chart(
         # the i1iO's labels as asked for, past the fixed settings above
         **({_i1io_chart.LABELS_KEY: _i1io_labels,
             _i1io_chart.ALIGN_KEY: patch_area_align,
-            _i1io_chart.CROSSES_KEY: _i1io_crosses} if _i1io else {}),
+            _i1io_chart.CROSSES_KEY: _i1io_crosses,
+            _i1io_chart.CLIP_KEY: _i1io_clip} if _i1io else {}),
         "instrument": instrument, "paper": paper, "hflag": hflag,
         "hex_flat_top": hex_flat_top,
         "density": density, "cm_stagger": cm_stagger,
@@ -803,7 +820,8 @@ def build_chart(
             label_rule=label_rule, designed=len(target.patches),
             labels=_i1io_labels, name=project or Path(out_base).name,
             sheet_text=_i1io_sheet_text, text_ctx=_ctx,
-            crosses=_i1io_pages, slots=_slots)
+            crosses=_i1io_pages, slots=_slots,
+            clip_content=clip_content_mode if _i1io_clip else "off")
 
     cht_paths: list[Path] | None = None
     if emit_cht:
