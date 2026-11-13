@@ -1023,6 +1023,7 @@ class LayoutOptionsPanel(QWidget):
                     QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
                 _c.setMinimumContentsLength(10)
             self.instr.currentIndexChanged.connect(self._on_instr_changed)
+            self._panel_inst = self.instr.currentData()
             self.paper.currentIndexChanged.connect(self._on_paper_changed)
             self.mode.currentIndexChanged.connect(self._apply_mode_defaults)
             self.mode.currentIndexChanged.connect(self._sync_clip_content_for_mode)
@@ -4714,10 +4715,53 @@ class LayoutOptionsPanel(QWidget):
         refreshed in that window does not take -i, still on the instrument
         before, as the newer choice and put the panel back on it (B8-1360)."""
         self._instr_changing = True
+        # A -> B -> A GIVES A BACK WHAT IT HAD (the parity review, 2026-11-13:
+        # i1iO -> i1Pro -> i1iO lost the i1iO's margins, patch size and sheet
+        # text). A person's switch into or out of the i1iO keeps the whole
+        # recipe of the instrument being left, and a person's switch back
+        # restores it; a recipe being loaded brings its own values.
+        new = self.instr.currentData() if self.instr is not None else None
+        prev = getattr(self, "_panel_inst", None)
+        person = not self._loading and getattr(self, "_i1io_support", False)
+        restore = None
+        if person and prev is not None and prev != new and (
+                prev == "IO2" or new == "IO2"):
+            snap = self._recipe_as(prev)
+            if prev == "IO2":
+                self._i1io_last_recipe = snap
+                back = getattr(self, "_i1io_other_recipe", None)
+                if back is not None and back.instrument == new:
+                    restore = back
+            else:
+                self._i1io_other_recipe = snap
+                restore = getattr(self, "_i1io_last_recipe", None)
         try:
             self._on_instr_changed_body()
+            if restore is not None:
+                self._restoring_on_switch = True
+                try:
+                    self.set_recipe(restore)
+                finally:
+                    self._restoring_on_switch = False
         finally:
             self._instr_changing = False
+            self._panel_inst = (self.instr.currentData()
+                                if self.instr is not None else None)
+
+    def _recipe_as(self, code: str):
+        """`get_recipe` as the panel held it while *code* was chosen: the
+        combo has already moved, so it is put back for the read, silently."""
+        combo = self.instr
+        now = combo.currentIndex()
+        i = combo.findData(code)
+        was = combo.blockSignals(True)
+        try:
+            if i >= 0:
+                combo.setCurrentIndex(i)
+            return self.get_recipe()
+        finally:
+            combo.setCurrentIndex(now)
+            combo.blockSignals(was)
 
     def _on_instr_changed_body(self) -> None:
         from workflow.layout_engine import papers
@@ -7816,7 +7860,12 @@ class LayoutOptionsPanel(QWidget):
         # clip content and strip/patch layout until a field was toggled by hand
         # (Knut #130 beta-2 test #1). _emit refreshes both previews and fires the
         # panel's `changed` signal exactly as an interactive edit would.
-        self._emit()
+        # Not while an instrument switch gives an instrument back its own
+        # recipe (`_on_instr_changed`): the host's listeners would still see
+        # the instrument before the switch and put the panel back on it; the
+        # switch's own signal follows.
+        if not getattr(self, "_restoring_on_switch", False):
+            self._emit()
 
     def apply_to_recipe(self, r: LayoutRecipe) -> LayoutRecipe:
         """Write the panel's values onto *r* (keeps r's instrument/paper/mode)."""
