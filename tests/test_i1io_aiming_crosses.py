@@ -244,7 +244,7 @@ def test_only_positions_move(off_chart, tmp_path):
     rows = _ti2_rows(off_chart / "c.ti2")
     ti1 = _ti1(tmp_path / "x.ti1", 552)
     want = []
-    for line in ti1.read_text().split("BEGIN_DATA\n")[1].split(
+    for line in ti1.read_text(encoding="utf-8").split("BEGIN_DATA\n")[1].split(
             "END_DATA")[0].strip().splitlines():
         want.append(tuple(float(v) for v in line.split()[1:4]))
     assert Counter(rows.values()) == Counter(want)
@@ -298,12 +298,12 @@ def test_every_other_instrument_keeps_the_seeds_order(tmp_path):
     _build(tmp_path / "i1", 300, instrument="i1")
     rows = _ti2_rows(tmp_path / "i1" / "c.ti2")
     steps = int(re.search(r'STEPS_IN_PASS "(\d+)"',
-                          (tmp_path / "i1" / "c.ti2").read_text()).group(1))
+                          (tmp_path / "i1" / "c.ti2").read_text(encoding="utf-8")).group(1))
     total = len(rows)
     slots = permutation.location_permutation(total, 4242, True)
     ti1 = _ti1(tmp_path / "y.ti1", 300)
     want = [tuple(float(v) for v in line.split()[1:4]) for line in
-            ti1.read_text().split("BEGIN_DATA\n")[1].split(
+            ti1.read_text(encoding="utf-8").split("BEGIN_DATA\n")[1].split(
                 "END_DATA")[0].strip().splitlines()]
     want += [(100.0, 100.0, 100.0)] * (total - 300)
     for i, slot in enumerate(slots):
