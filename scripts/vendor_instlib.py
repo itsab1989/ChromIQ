@@ -142,7 +142,7 @@ I1PRO_IMP_C_LIGHTS_BLOCK = r"""
 #define CQ_LIGHTS_OFF_SLOW 2
 #define CQ_LIGHTS_OFF_NOW  3
 
-#define CQ_LIGHTS_TOUT       1.0	/* s per transfer; a good one takes a few ms */
+#define CQ_LIGHTS_TOUT       0.25	/* s per transfer; a good one takes a few ms */
 #define CQ_LIGHTS_TOUT_TRIGGER 0.25	/* between the button and the trigger: short */
 #define CQ_LIGHTS_TOUT_CLOSE 0.5	/* at the close, inside the helper's 1.5 s */
 #define CQ_LIGHTS_SLOW_MS    2500	/* OFF_SLOW plays for about 2 s */
@@ -354,12 +354,262 @@ I1PRO_C_LIGHTS = [
      "\trv = i1pro_imp_calibrate(p, calt, calc, idtype, id);\n"
      "\ti1pro2_cq_lights_ready(p);\t/* CHROMIQ PATCH: Beta lights, no-op unless on */\n"),
 ]
+# The same Beta for the i1Pro 3 (2026-11-13, from one user's recording of
+# i1Profiler 3.8.5 with his own i1Pro 3; the model, 3 or 3 Plus, is not
+# known). A different request (0x29, LE32 length, bytes on bulk OUT 0x02) and a
+# different format: the four sequences below are the only ones ever sent.
+# Argyll's own off (`00`, sent today at every open, i1pro3_imp.c
+# i1pro3_imp_init) goes out before every measurement; i1Profiler's three
+# recorded patterns only after one. tests/test_i1pro3_lights_driver.py pins it.
+I1PRO3_IMP_H_LIGHTS = [
+    ("\tint ee_unk34;\n\n}; typedef struct _i1pro3imp i1pro3imp;\n",
+     "\tint ee_unk34;\n\n"
+     "\t/* CHROMIQ PATCH: i1Pro 3 indicator lights (Beta). 0 = not in use, the\n"
+     "\t * calloc default, and then every light hook returns at once. */\n"
+     "\tint cq_lights;\n"
+     "\n}; typedef struct _i1pro3imp i1pro3imp;\n"),
+    ("#ifdef __cplusplus\n\t}\n#endif\n\n#define I1PRO3_IMP\n",
+     "/* CHROMIQ PATCH: i1Pro 3 indicator lights (Beta), see i1pro3_imp.c. Every\n"
+     " * entry returns at once unless ChromIQ's helper called ..._begin(). */\n"
+     "int i1pro3_cq_lights_begin(void *pp);\t/* ChromIQ's helper only */\n"
+     "void i1pro3_cq_lights_end(void *pp);\t/* off if lit, then never again */\n"
+     "void i1pro3_cq_lights_measure(void *pp);\t/* off, before a measurement */\n"
+     "void i1pro3_cq_lights_after_read(void *pp, int rv);\t/* GOOD / BAD */\n"
+     "void i1pro3_cq_lights_after_cal(void *pp, int rv);\t/* READY on success */\n"
+     "extern void (*i1pro3_cq_lights_note)(int seq, int icom_err);\n"
+     "\n#ifdef __cplusplus\n\t}\n#endif\n\n#define I1PRO3_IMP\n"),
+]
+I1PRO3_IMP_C_LIGHTS_BLOCK = r"""
+/* ============================================================ */
+/* CHROMIQ PATCH: the i1Pro 3 indicator lights (Preferences > Beta, 2026-11-13).
+ *
+ * Where the knowledge comes from: the request (0x29, i1p3cc_set_ind) and the
+ * format are Argyll's own (i1pro3_indLEDseq above and its comment; Argyll uses
+ * it only for its off, `00`, at every open). The three patterns are byte for
+ * byte what X-Rite's i1Profiler 3.8.5 sent to a user's own i1Pro 3 (one USB
+ * recording, 46 light requests), each sent here where i1Profiler sent it:
+ *   READY  `01 fa 04 12 05 00`  after a calibration (8x after its calibration
+ *                               readings; look: GUESS, white blink then
+ *                               white breathing);
+ *   GOOD   `0a 14 02 12 05 00`  after a reading (33x after good scans and spot
+ *                               readings; tester: two green blinks, then white);
+ *   BAD    `06 14 02 12 05 00`  after a reading the instrument could not take
+ *                               (4x after scans i1Profiler rejected as
+ *                               incomplete; LIKELY two red blinks, then white).
+ *   OFF    `00`                 Argyll's own off, the bytes every ChromIQ sends
+ *                               every i1Pro 3 at every open today; sent before
+ *                               every measurement and at the close.
+ * i1Profiler never sent an off, and kept the lights breathing through its
+ * measurements; ChromIQ switches them off before every measurement, so every
+ * reading is taken with the lights as they are today. A wrong guess about a
+ * pattern's look can therefore change a colour, never a reading. Nothing else
+ * is sent from here: no 0x3B, no memory write.
+ *
+ * Rules, all enforced in this block:
+ *  - nothing happens until ChromIQ's helper calls i1pro3_cq_lights_begin(),
+ *    which it does only when the user switched the option on, and which
+ *    refuses anything but an inited i1Pro 3 (the driver's dtype, i1Pro 3 and
+ *    3 Plus alike) whose EEPROM reports the indicator LEDs
+ *    (I1PRO3_CAP_IND_LED). Every entry checks dtype first;
+ *  - OFF at the top of i1pro3_do_measure, the one function every calibration
+ *    and reading of this driver passes through, before its 0x3B and trigger;
+ *  - the sender holds m->lock across the 0x29 request and its bytes, so no
+ *    other request of this driver can come between them; it is never called
+ *    with the lock held;
+ *  - a pattern only once a measurement has returned and no trigger thread is
+ *    still to send its request;
+ *  - a request that fails is never retried and fails nothing: the lights are
+ *    given up for the session (not even a final off), the helper is told once.
+ */
+
+#define CQ3_LIGHTS_UNUSED 0	/* the default: never asked for, never sends */
+#define CQ3_LIGHTS_DARK   1	/* in use, the last sequence was OFF (or none yet) */
+#define CQ3_LIGHTS_LIT    2	/* in use, a pattern is playing */
+#define CQ3_LIGHTS_DONE   3	/* ended or given up: never sends again */
+
+#define CQ3_LIGHTS_READY 1
+#define CQ3_LIGHTS_GOOD  2
+#define CQ3_LIGHTS_BAD   3
+#define CQ3_LIGHTS_OFF   4
+
+#define CQ3_LIGHTS_TOUT         0.25	/* s per transfer; a good one takes a few ms */
+#define CQ3_LIGHTS_TOUT_MEASURE 0.25	/* between the button and the measurement */
+#define CQ3_LIGHTS_TOUT_CLOSE   0.25	/* at the close, inside the helper's 1.5 s */
+
+static const unsigned char cq3_lights_seq_ready[6] = { 0x01, 0xfa, 0x04,  0x12, 0x05, 0x00 };
+static const unsigned char cq3_lights_seq_good[6]  = { 0x0a, 0x14, 0x02,  0x12, 0x05, 0x00 };
+static const unsigned char cq3_lights_seq_bad[6]   = { 0x06, 0x14, 0x02,  0x12, 0x05, 0x00 };
+static const unsigned char cq3_lights_seq_off[1]   = { 0x00 };
+
+/* Set by ChromIQ's helper to hear about a failed light request (one call per
+ * session at most). seq is CQ3_LIGHTS_READY / _GOOD / _BAD / _OFF (1-4). */
+void (*i1pro3_cq_lights_note)(int seq, int icom_err) = NULL;
+
+/* The i1pro3imp of an i1Pro 3 whose lights are in use, else NULL. dtype is in
+ * every instrument's base object, so this is safe to ask of any inst. */
+static i1pro3imp *cq3_lights_m(i1pro3 *p) {
+	i1pro3imp *m;
+	if (p == NULL || p->dtype != instI1Pro3 || (m = (i1pro3imp *)p->m) == NULL
+	 || p->icom == NULL)
+		return NULL;
+	if (m->cq_lights != CQ3_LIGHTS_DARK && m->cq_lights != CQ3_LIGHTS_LIT)
+		return NULL;
+	return m;
+}
+
+/* A trigger thread that has not sent its request yet. */
+static int cq3_lights_trigger_pending(i1pro3imp *m) {
+	return m->trig_thread != NULL && m->tr_t2 == 0;
+}
+
+/* Send one of the four sequences. The only place a light request is made. */
+static void cq3_lights_send(i1pro3 *p, int which, double tout) {
+	i1pro3imp *m = (i1pro3imp *)p->m;
+	const unsigned char *seq;
+	int size;
+	unsigned char pbuf[4];
+	int wbytes = 0;
+	int se;
+
+	if (which == CQ3_LIGHTS_READY) {
+		seq = cq3_lights_seq_ready; size = (int)sizeof(cq3_lights_seq_ready);
+	} else if (which == CQ3_LIGHTS_GOOD) {
+		seq = cq3_lights_seq_good;  size = (int)sizeof(cq3_lights_seq_good);
+	} else if (which == CQ3_LIGHTS_BAD) {
+		seq = cq3_lights_seq_bad;   size = (int)sizeof(cq3_lights_seq_bad);
+	} else {
+		which = CQ3_LIGHTS_OFF;
+		seq = cq3_lights_seq_off;   size = (int)sizeof(cq3_lights_seq_off);
+	}
+
+	write_INR32_le(pbuf, size);
+	amutex_lock(m->lock);
+	se = p->icom->usb_control(p->icom,
+		               IUSB_ENDPOINT_OUT | IUSB_REQ_TYPE_VENDOR | IUSB_REQ_RECIP_DEVICE,
+	                   i1p3cc_set_ind, 0, 0, pbuf, 4, NULL, tout);
+	if (icoms2i1pro3_err(se) == I1PRO3_OK)
+		se = p->icom->usb_write(p->icom, NULL, 0x02, (unsigned char *)seq, size,
+		                        &wbytes, tout);
+	amutex_unlock(m->lock);
+
+	if (icoms2i1pro3_err(se) != I1PRO3_OK || wbytes != size) {
+		m->cq_lights = CQ3_LIGHTS_DONE;		/* given up for this session */
+		a1logd(p->log,1,"i1pro3 lights: sequence %d failed, ICOM err 0x%x, wrote %d of %d;"
+		                " lights not used again\n", which, se, wbytes, size);
+		if (i1pro3_cq_lights_note != NULL)
+			i1pro3_cq_lights_note(which, se);
+		return;
+	}
+	m->cq_lights = which == CQ3_LIGHTS_OFF ? CQ3_LIGHTS_DARK : CQ3_LIGHTS_LIT;
+	a1logd(p->log,2,"i1pro3 lights: sequence %d sent\n", which);
+}
+
+/* Before a measurement: OFF, when a pattern is playing. */
+void i1pro3_cq_lights_measure(void *pp) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m = cq3_lights_m(p);
+	if (m == NULL || m->cq_lights != CQ3_LIGHTS_LIT)
+		return;
+	cq3_lights_send(p, CQ3_LIGHTS_OFF, CQ3_LIGHTS_TOUT_MEASURE);
+}
+
+/* A pattern after a measurement, only when off and no trigger is pending. */
+static void cq3_lights_show(i1pro3 *p, int which) {
+	i1pro3imp *m = cq3_lights_m(p);
+	if (m == NULL || m->cq_lights != CQ3_LIGHTS_DARK || cq3_lights_trigger_pending(m))
+		return;
+	cq3_lights_send(p, which, CQ3_LIGHTS_TOUT);
+}
+
+/* After i1pro3_imp_measure: GOOD for a reading, BAD for a reading the
+ * instrument could not take; nothing for anything else (an abort, a command,
+ * a calibration needed, a USB or hardware fault). */
+void i1pro3_cq_lights_after_read(void *pp, int rv) {
+	int which;
+	if (rv == I1PRO3_OK)
+		which = CQ3_LIGHTS_GOOD;
+	else if (rv == I1PRO3_RD_SHORTMEAS || rv == I1PRO3_RD_READINCONS
+	      || rv == I1PRO3_RD_NOTENOUGHPATCHES || rv == I1PRO3_RD_TOOMANYPATCHES
+	      || rv == I1PRO3_RD_NOTENOUGHSAMPLES || rv == I1PRO3_RD_SENSORSATURATED
+	      || rv == I1PRO3_RD_LEADTRAILINCONS)
+		which = CQ3_LIGHTS_BAD;
+	else
+		return;
+	cq3_lights_show((i1pro3 *)pp, which);
+}
+
+/* After i1pro3_imp_calibrate: READY when it succeeded, nothing otherwise. */
+void i1pro3_cq_lights_after_cal(void *pp, int rv) {
+	if (rv != I1PRO3_OK)
+		return;
+	cq3_lights_show((i1pro3 *)pp, CQ3_LIGHTS_READY);
+}
+
+/* Start using the lights. ChromIQ's helper calls this, and only when the user
+ * switched the option on. Sends nothing: the first pattern follows the first
+ * calibration or reading. Returns non-zero when they are in use. */
+int i1pro3_cq_lights_begin(void *pp) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m;
+
+	if (p == NULL || p->dtype != instI1Pro3 || !p->gotcoms || !p->inited
+	 || (m = (i1pro3imp *)p->m) == NULL || p->icom == NULL)
+		return 0;
+	if ((m->capabilities & I1PRO3_CAP_IND_LED) == 0)
+		return 0;
+	if (m->cq_lights == CQ3_LIGHTS_UNUSED)
+		m->cq_lights = CQ3_LIGHTS_DARK;
+	return m->cq_lights == CQ3_LIGHTS_DARK || m->cq_lights == CQ3_LIGHTS_LIT;
+}
+
+/* Stop using the lights: OFF when a pattern is playing (and no trigger is
+ * still to be sent), then never send again. */
+void i1pro3_cq_lights_end(void *pp) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m = cq3_lights_m(p);
+	if (m == NULL)
+		return;
+	if (m->cq_lights == CQ3_LIGHTS_LIT && !cq3_lights_trigger_pending(m))
+		cq3_lights_send(p, CQ3_LIGHTS_OFF, CQ3_LIGHTS_TOUT_CLOSE);
+	m->cq_lights = CQ3_LIGHTS_DONE;
+}
+"""
+I1PRO3_IMP_C_LIGHTS = [
+    ("\ta1logd(p->log,4,\"\\ni1pro3_do_measure: mm %d nummeas %d inttime %f\\n\",mm,*pnummeas,*pinttime);\n",
+     "\ta1logd(p->log,4,\"\\ni1pro3_do_measure: mm %d nummeas %d inttime %f\\n\",mm,*pnummeas,*pinttime);\n\n"
+     "\t/* CHROMIQ PATCH: the indicator lights go off before every measurement */\n"
+     "\t/* (Beta, a no-op unless ChromIQ's helper switched them on). */\n"
+     "\ti1pro3_cq_lights_measure(p);\n"),
+    ("\t\ti1pro3_state *s;\n\t\ti1pro3_code ev;\n\n\t\t/* Terminate event monitor thread */\n",
+     "\t\ti1pro3_state *s;\n\t\ti1pro3_code ev;\n\n"
+     "\t\t/* CHROMIQ PATCH: lights off before the instrument is let go (Beta, */\n"
+     "\t\t/* a no-op unless ChromIQ's helper switched them on). */\n"
+     "\t\ti1pro3_cq_lights_end(p);\n\n"
+     "\t\t/* Terminate event monitor thread */\n"),
+    ("\ta1logd(p->log,2,\"i1pro3_indLEDoff: returning ICOM err 0x%x\\n\",rv);\n\n\treturn rv;\n}\n",
+     "\ta1logd(p->log,2,\"i1pro3_indLEDoff: returning ICOM err 0x%x\\n\",rv);\n\n\treturn rv;\n}\n"
+     + I1PRO3_IMP_C_LIGHTS_BLOCK),
+]
+I1PRO3_C_LIGHTS = [
+    ("\trv = i1pro3_imp_measure(p, vals, npatch, instClamp);\n",
+     "\trv = i1pro3_imp_measure(p, vals, npatch, instClamp);\n"
+     "\ti1pro3_cq_lights_after_read(p, rv);\t/* CHROMIQ PATCH: Beta lights, no-op unless on */\n"),
+    ("\trv = i1pro3_imp_measure(p, val, 1, clamp);\n",
+     "\trv = i1pro3_imp_measure(p, val, 1, clamp);\n"
+     "\ti1pro3_cq_lights_after_read(p, rv);\t/* CHROMIQ PATCH: Beta lights, no-op unless on */\n"),
+    ("\trv = i1pro3_imp_calibrate(p, calt, calc, idtype, id);\n",
+     "\trv = i1pro3_imp_calibrate(p, calt, calc, idtype, id);\n"
+     "\ti1pro3_cq_lights_after_cal(p, rv);\t/* CHROMIQ PATCH: Beta lights, no-op unless on */\n"),
+]
 PATCHES = {
     "rspl1.c": [(RSPL1_UPSTREAM, RSPL1_PATCHED)],
     "conv.c": CONV_PATCHES,
     "i1pro_imp.h": I1PRO_IMP_H_LIGHTS,
     "i1pro_imp.c": I1PRO_IMP_C_LIGHTS,
     "i1pro.c": I1PRO_C_LIGHTS,
+    "i1pro3_imp.h": I1PRO3_IMP_H_LIGHTS,
+    "i1pro3_imp.c": I1PRO3_IMP_C_LIGHTS,
+    "i1pro3.c": I1PRO3_C_LIGHTS,
 }
 
 # (source-relative, dest-name) — dest flat like the instlib zip
@@ -446,7 +696,7 @@ prov.write_text(
     "`chartread.c.orig`. To bump Argyll: re-run `scripts/vendor_instlib.py`\n"
     "against the new source tree and rebuild.\n\n"
     "## ChromIQ patches\n\n"
-    "Five library files depart from upstream. `scripts/vendor_instlib.py`\n"
+    "Eight library files depart from upstream. `scripts/vendor_instlib.py`\n"
     "re-applies every patch on every re-vendor (its `PATCHES` table), and\n"
     "stops if one no longer applies.\n\n"
     "- **`rspl1.c`, `set_rspl`**: upstream writes the grid index at\n"
@@ -484,6 +734,20 @@ prov.write_text(
     "  recorded WHITE (the recording was made on a measuring table, where\n"
     "  i1Profiler kept the lights dark). Argyll's own `i1pro2_indLEDoff` bytes\n"
     "  were never seen on the wire and are not used.\n"
+    "- **`i1pro3_imp.c`, `i1pro3_imp.h`, `i1pro3.c`: the same Beta for the\n"
+    "  i1Pro 3** (2026-11-13). Its own request and format (0x29, LE32 length,\n"
+    "  bytes on bulk endpoint 0x02, Argyll's `i1pro3_indLEDseq`). Exactly four\n"
+    "  sequences: Argyll's own off `00` (sent by unpatched Argyll at every open)\n"
+    "  before every measurement (top of `i1pro3_do_measure`) and at the close;\n"
+    "  and, only after a measurement has returned, three patterns X-Rite's\n"
+    "  i1Profiler 3.8.5 sent to a user's own i1Pro 3 in one USB recording, each\n"
+    "  where i1Profiler sent it: READY `01 fa 04 12 05 00` after a successful\n"
+    "  calibration, GOOD `0a 14 02 12 05 00` after a reading, BAD\n"
+    "  `06 14 02 12 05 00` after a reading the instrument could not take. Inert\n"
+    "  until the helper calls `i1pro3_cq_lights_begin` (option on), which\n"
+    "  refuses anything but an inited i1Pro 3 (3 and 3 Plus, one dtype) whose\n"
+    "  EEPROM reports the indicator LEDs. No 0x3B, no memory write. Not tested\n"
+    "  on a real i1Pro 3 by the project.\n"
     "  Not tested on a real i1Pro 2 by the project.\n\n"
     "| patched file | upstream sha256 (first 16) | shipped sha256 (first 16) |\n"
     "|---|---|---|\n" + "\n".join(patched) + "\n\n"

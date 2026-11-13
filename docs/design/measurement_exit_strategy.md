@@ -609,3 +609,23 @@ management §M-PROPOSED) before anything is armed, archived or connected:
 Continue removes the marker and starts; Cancel keeps it and starts nothing.
 With the option OFF the marker is never written or read, and the window
 cannot appear; a chart for any other instrument never shows it.
+
+## The i1Pro 3 lights (Beta) at every ending
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+The same option also covers the i1Pro 3 (2026-11-13, from one user's
+recording of i1Profiler 3.8.5; the engine reports
+`{"event":"lights","active":true,"instrument":"i1pro3"}`). Every ending in the
+table above behaves the same, with ArgyllCMS's own off (`00`, the bytes it
+sends at every open) instead of the i1Pro 2's off. Two differences: between
+measurements the i1Pro 3 shows i1Profiler's recorded patterns (after a
+successful calibration, after a reading, after a reading the instrument could
+not take), and the "lights may still be on" marker and its replug window
+(M-I1PRO2-LIGHTS-LEFT-ON) stay the i1Pro 2's alone: their reason is
+ArgyllCMS's note about the i1Pro 2's start-up, and Argyll's i1Pro 3 open reads
+the instrument's memory and then switches the lights off itself. Built and
+tested on 2026-11-13 without an i1Pro 3 (fake USB layer); nobody has confirmed
+it on hardware.

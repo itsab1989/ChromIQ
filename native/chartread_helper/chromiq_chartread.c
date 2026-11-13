@@ -1334,16 +1334,20 @@ static void cq_guard_inst(inst *it) {
 	it->del = cq_guarded_del;
 }
 
-/* CHROMIQ_EXT: the i1Pro 2 indicator lights (Preferences > Beta, 2026-11-13).
+/* CHROMIQ_EXT: the i1Pro 2 and i1Pro 3 indicator lights (Preferences > Beta,
+ * 2026-11-13).
  *
- * Asked for with --i1pro2-lights, and then only used for a real i1Pro 2,
+ * Asked for with --i1pro2-lights (the flag kept its first name), and then
+ * only used for a real i1Pro 2 or i1Pro 3, as the driver itself identifies it,
  * reading reflective strips or single patches by hand (never XY or chart
  * modes, so never an instrument on a table), in JSON mode, never in a replay.
- * The driver does the rest (i1pro_imp.c, CHROMIQ PATCH): white while the
- * instrument waits for the user, off before every trigger and at the close.
- * The GUI hears {"event":"lights","active":b,"why":...} once, after the mode
- * is set and before the first calibration. */
+ * The drivers do the rest (i1pro_imp.c / i1pro3_imp.c, CHROMIQ PATCH): lights
+ * off before every measurement and at the close; between measurements the
+ * i1Pro 2 shows white, the i1Pro 3 i1Profiler's recorded patterns.
+ * The GUI hears {"event":"lights","active":b,"why":...,"instrument":...} once,
+ * after the mode is set and before the first calibration. */
 static inst *cq_lights_it = NULL;
+static int cq_lights_gen = 0;	/* 2 = i1Pro 2, 3 = i1Pro 3 */
 #ifdef NT
 static DWORD cq_lights_thread = 0;
 # define CQ_THIS_THREAD() GetCurrentThreadId()
@@ -1367,7 +1371,10 @@ static void cq_lights_do_off(void) {
 	if (it == NULL)
 		return;
 	cq_lights_forget();
-	i1pro2_cq_lights_end(it);
+	if (cq_lights_gen == 3)
+		i1pro3_cq_lights_end(it);
+	else
+		i1pro2_cq_lights_end(it);
 	cq_emit_raw("{\"event\":\"lights\",\"state\":\"off\"}");
 }
 
@@ -1377,6 +1384,11 @@ static void cq_lights_atexit(void) {
 	if (cq_lights_it == NULL || cq_exiting_on_signal
 	 || !CQ_SAME_THREAD(cq_lights_thread))
 		return;
+	/* If the off cannot complete (a stuck transfer, a lock never released),
+	 * the exit guard ends the process; with the deadline a closed instrument
+	 * gets for the rest of the exit (30 s), so an ordinary exit keeps its
+	 * own exit code. */
+	cq_exit_deadline_arm(CQ_EXIT_AFTER_CLOSE_MS);
 	cq_lights_do_off();
 }
 
@@ -1388,18 +1400,28 @@ static void cq_lights_failed(int seq, int icom_err) {
 	            "\"err\":%d}", seq == 1 ? "white" : "off", icom_err);
 }
 
+/* The i1Pro 3's: seq 1-3 are its patterns, 4 its off. */
+static void cq_lights_failed3(int seq, int icom_err) {
+	cq_lights_forget();
+	cq_emit_raw("{\"event\":\"lights\",\"state\":\"failed\",\"step\":\"%s\","
+	            "\"err\":%d}", seq == 4 ? "off" : "pattern", icom_err);
+}
+
 static void cq_lights_for_session(inst *it, int rmode, int emis, int trans,
                                   int displ) {
 	const char *why = NULL;
 	if (!cq_i1pro2_lights || !cq_json)
 		return;
-	if (it == NULL || cq_replay_active() || it->dtype != instI1Pro2)
+	if (it == NULL || cq_replay_active()
+	 || (it->dtype != instI1Pro2 && it->dtype != instI1Pro3))
 		why = "instrument";
 	else if (emis || trans || displ || (rmode != 0 && rmode != 1))
 		why = "mode";
 	else {
 		static int registered = 0;
+		cq_lights_gen = it->dtype == instI1Pro3 ? 3 : 2;
 		i1pro2_cq_lights_note = cq_lights_failed;
+		i1pro3_cq_lights_note = cq_lights_failed3;
 		cq_lights_thread = CQ_THIS_THREAD();
 		cq_lights_it = it;
 		cq_lights_service = cq_lights_do_off;
@@ -1407,13 +1429,16 @@ static void cq_lights_for_session(inst *it, int rmode, int emis, int trans,
 			registered = 1;
 			atexit(cq_lights_atexit);
 		}
-		if (!i1pro2_cq_lights_begin(it)) {
+		if (!(cq_lights_gen == 3 ? i1pro3_cq_lights_begin(it)
+		                         : i1pro2_cq_lights_begin(it))) {
 			cq_lights_forget();
 			why = "lights";
 		}
 	}
 	if (why == NULL)
-		cq_emit_raw("{\"event\":\"lights\",\"active\":true}");
+		cq_emit_raw("{\"event\":\"lights\",\"active\":true,"
+		            "\"instrument\":\"%s\"}",
+		            cq_lights_gen == 3 ? "i1pro3" : "i1pro2");
 	else
 		cq_emit_raw("{\"event\":\"lights\",\"active\":false,\"why\":\"%s\"}",
 		            why);
@@ -4748,7 +4773,7 @@ int main(int argc, char *argv[]) {
 				 * before it relies on it. One JSON line, then exit 0.
 				 * "legacy_labels": reads sheets ChromIQ's layout engine
 				 * printed with its pre-4.3.3-beta.7 labels as printed. */
-				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"gestures\",\"button_test\",\"i1pro2_lights\"],\"build\":\"%s\"}\n",
+				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\"],\"build\":\"%s\"}\n",
 				       cq_helper_build_string());
 				fflush(stdout);
 				return 0;

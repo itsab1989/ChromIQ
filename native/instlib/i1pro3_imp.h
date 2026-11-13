@@ -519,6 +519,10 @@ struct _i1pro3imp {
 	/* Block 6 */
 	int ee_unk34;
 
+	/* CHROMIQ PATCH: i1Pro 3 indicator lights (Beta). 0 = not in use, the
+	 * calloc default, and then every light hook returns at once. */
+	int cq_lights;
+
 }; typedef struct _i1pro3imp i1pro3imp;
 
 /* Add an implementation structure */
@@ -1549,6 +1553,15 @@ struct _i1data3 {
 
 /* Constructor. Construct from the EEprom calibration contents */
 extern i1data3 *new_i1data3(i1pro3 *p, unsigned char *buf, int len);
+
+/* CHROMIQ PATCH: i1Pro 3 indicator lights (Beta), see i1pro3_imp.c. Every
+ * entry returns at once unless ChromIQ's helper called ..._begin(). */
+int i1pro3_cq_lights_begin(void *pp);	/* ChromIQ's helper only */
+void i1pro3_cq_lights_end(void *pp);	/* off if lit, then never again */
+void i1pro3_cq_lights_measure(void *pp);	/* off, before a measurement */
+void i1pro3_cq_lights_after_read(void *pp, int rv);	/* GOOD / BAD */
+void i1pro3_cq_lights_after_cal(void *pp, int rv);	/* READY on success */
+extern void (*i1pro3_cq_lights_note)(int seq, int icom_err);
 
 #ifdef __cplusplus
 	}
