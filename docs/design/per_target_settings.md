@@ -152,6 +152,21 @@ Pages uses the existing per-target page setting, without an FD-9 override.
 
 ---
 
+### 1.5 ⏳ Awaiting confirmation: an i1iO target with the Beta off (2026-11-13)
+
+**Confirmed by:** *nobody yet.*
+
+The i1iO table Beta adds no per-target key. A target whose Guided block names
+the i1iO (`IO2`) and is opened with i1iO support off keeps that block as
+stored: the tab cannot show the i1iO, so it neither puts the instrument nor
+its sheet on screen, and the carry rules shared with the FD-9
+(`workflow/beta_chart_carry.py`) put the stored values back when the target is
+written, so an untouched target's `meta.json` stays byte-identical. A value
+the user changes is the user's and is written; a Generate makes the target
+the chart that is really there. Guided's Save as Defaults naming the i1iO is
+read as none (instrument and sheet) while the option is off
+(`tests/test_i1io_off_stale_project.py`, `tests/test_i1io_off_changes_nothing.py`).
+
 ## 2. When settings are loaded
 
 Knut asked for this to be pinned down and checked:

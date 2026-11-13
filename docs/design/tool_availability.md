@@ -517,3 +517,16 @@ beneficial"*. `ui/file_drop.py`, `tests/test_4333_drop_files_everywhere.py`
   window's import (write at once); every Save / Export chooser; the patch set
   editor (its grid already uses drag for reordering, and its loaders change
   the patches being edited without a question).
+
+### ⏳ Awaiting confirmation — the i1iO table chart (Beta, 2026-11-13)
+
+**Confirmed by:** *nobody yet.*
+
+* **Edit / create chart patch set** on an i1iO chart, with i1iO support on:
+  refused with a window, because the editor hands its patch set back to Manual,
+  which does not offer the i1iO yet; nothing is changed. Off: as in 4.3.32.
+* **Read single patches**: the i1iO is not one of its instruments.
+* **i1Profiler interchange**: an i1iO run writes the same i1Profiler patch-set
+  files into `exports/` as any RGB or CMYK chart; Convert i1Profiler → TI3
+  brings a measurement made in i1Profiler (on i1Profiler's own chart) into the
+  run, as for any chart.

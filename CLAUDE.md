@@ -820,6 +820,7 @@ Two obligations, and the second is the one that is easy to get wrong:
 | `tool_availability.md` | which Tools apply to which run-type/profile-run selection, and where each may write (**DRAFT — awaiting confirmation**) |
 | `verification_printing_and_target.md` | printing a verification chart through its profile, and #133's profile-tailored target — condition→action tables mapped to code (**DRAFT — awaiting confirmation**) |
 | `measurement_report_limits.md` | the Measurement Report's limit sets (#182): rows, the five verdict words, where a run's set lives and when it may change, report types per run type, report folders and the report list, evenness, the trend graphs; every ruling since beta 34 indexed at the top (**the sections on Knut's confirmation list were CONFIRMED by him on 2026-09-23, #182 5794311113; older blocks and the §20 gaps still await confirmation**) |
+| `i1io_table_support.md` | the X-Rite i1iO table Beta's preparation step: the option and its consent window, the i1iO chart for row scanning, its file tags, the Measure tab's notice (**awaiting confirmation**) |
 | `chart_load_and_generate_paths.md` | every path that shows a stored chart and every path that builds a new one (#182), measured by driving the app; the chart-file import rule, and the two ways of laying a chart out again (**DRAFT, awaiting confirmation**) |
 
 New user-facing message text is governed by §M of

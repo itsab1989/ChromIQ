@@ -334,3 +334,20 @@ FD-9 data.*
   a tall sheet sideways in a wide preview (90° and 270°); 180° now shows the
   text upside down. Its ⓘ no longer says that the sheet's text is printed
   turned round or that 180° makes it read the right way up.
+
+## i1iO table (Beta): creating and loading an i1iO chart
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+*Written 2026-11-13 for the i1iO table Beta's preparation step
+(`i1io_table_support.md`).* With i1iO support on, Guided's "i1iO 2 + i1Pro 2"
+builds through the layout engine with the i1iO's fixed settings
+(`workflow/i1io/chart.py::fixed_build_kwargs`, applied in the capacity
+estimate and in the build alike), adds its marks and bars between rendering
+and saving, and writes `<stem>.i1io.json` beside the `.ti2`. The side file is
+a chart companion (copy, rename, import, reset and Restore keep it). Restore
+Used Chart redraws an i1iO chart only with the option on; off, it fails with a
+reason that names the option. The patch set editor refuses an i1iO chart while
+the option is on (Manual cannot lay it out yet); off, it opens as in 4.3.32.
