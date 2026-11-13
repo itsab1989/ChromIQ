@@ -291,6 +291,14 @@ class Run:
                               "the round measuring opening is. Does it rest on the white "
                               "tile, or is there a gap between it and the tile?",
                               ("rests", "gap", "not sure", "stop"), "opening at home")
+            # listen once more (sends nothing): an extra or late line after the
+            # last answer is reported like any other surprise
+            self.d.busy += 1
+            try:
+                self.d._quiet_check()
+            finally:
+                self.d.busy -= 1
+            self.d._stop_if_requested()
             self.ui.say("")
             self.ui.say("That was all: the table answered, and the arm is at its resting "
                         "place. Thank you.")

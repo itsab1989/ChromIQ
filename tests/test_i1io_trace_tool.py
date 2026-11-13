@@ -219,7 +219,7 @@ REPLY_FAULTS = ("no_answer", "no_done", "late", "bad_checksum", "garbled", "stat
 
 @pytest.mark.parametrize("kind", REPLY_FAULTS)
 def test_a_bad_reply_at_any_point_stops_and_nothing_more_is_sent(tmp_path, kind):
-    for index in range(len(FULL) - (1 if kind == "extra_line" else 0)):
+    for index in range(len(FULL)):
         sim = sim_mod.SimTable()
         sim.inject_at(index, kind, 30.0 if kind == "late" else 0.0)
         code, sim, log = _run(tmp_path, sim)
@@ -229,11 +229,12 @@ def test_a_bad_reply_at_any_point_stops_and_nothing_more_is_sent(tmp_path, kind)
         assert "nothing more is sent" in log
 
 
-def test_an_extra_line_after_the_last_answer_is_harmless(tmp_path):
+def test_an_extra_line_after_the_last_answer_is_reported_and_nothing_is_sent(tmp_path):
     sim = sim_mod.SimTable()
     sim.inject_at(len(FULL) - 1, "extra_line")
-    code, sim, _log = _run(tmp_path, sim)
-    assert code == 0 and len(sim.received) == len(FULL)
+    code, sim, log = _run(tmp_path, sim)
+    assert code == 2 and len(sim.received) == len(FULL)
+    assert "nobody asked for" in log
 
 
 @pytest.mark.parametrize("kind,value", [("blocked", 0.5), ("drift", 15.0), ("drift", -40.0),
