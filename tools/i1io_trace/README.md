@@ -32,9 +32,12 @@ With `--real` the program does exactly this, and nothing else:
 5. **Step 4:** moves it about **4 mm** sideways.
 6. **Step 5:** sends the arm back to its resting place.
 
-Steps 3, 4 and 5 are the way i1Profiler itself brought the arm home when it
-started up in your recordings. The only difference: i1Profiler began that
-first 95 mm move about 7 mm further out and 4 mm to the side.
+Steps 3, 4 and 5 send the same three lines, in the same order, with which
+i1Profiler brought the arm home when it started up in the first recording.
+One difference: i1Profiler sent the step 3 line with the arm about 7 mm
+further out and 4 mm to the side, so on the tester's table it made a straight
+88 mm move, while here the same line makes a 95 mm move with a 4 mm sideways
+part. It ends at the same place.
 
 Before each of the five steps it shows you the exact line it is about to send
 and what you should see, and it waits until you type `yes`. After each step it
@@ -134,8 +137,9 @@ python3 -m venv venv
 venv/bin/python3 -m pip install pyusb==1.2.1
 ```
 
-(The first line installs libusb only if it is not there yet. If it says it is
-already installed, please note that, so you know not to remove it later.)
+(The first line installs libusb only if it is not there yet. If it prints a
+list of files instead, libusb was already installed: please note that, so you
+know not to remove it later.)
 
 ### How to undo the installs afterwards
 
@@ -208,8 +212,10 @@ home.
 
 If the program says the table **never reported that its last movement had
 finished**, please keep your hands away from the arm, switch the table off,
-wait ten seconds and switch it on again before you open i1Profiler. That way
-a movement the table may still be waiting to make cannot start later.
+wait ten seconds and switch it on again before you open i1Profiler, and keep
+your hands away when you switch it on as well (nobody knows yet whether the
+table moves by itself then). That way a movement the table may still be
+waiting to make cannot start later.
 
 ---
 

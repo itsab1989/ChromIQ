@@ -107,6 +107,9 @@ RECORDED_AT = {
 ALLOWED_LINES = frozenset(WIRE.values())
 MOTION_LINES = frozenset({WIRE["home"], WIRE["out"], WIRE["forward"], WIRE["approach"]})
 MOTION_KEYS = frozenset({"home", "out", "forward", "approach"})
+#: Where each movement line sends the arm (decoded from the line itself).
+TARGETS = {"home": (1102, 0), "out": (1102, 250), "forward": (1058, 1202),
+           "approach": (1102, 1202)}
 
 #: Data characters in the ':$' reply of each command id.
 DATA_LEN = {"s0": 0, "a1": 10, "f4": 2, "p0": 8, "i1": 0, "m0": 0}
@@ -305,7 +308,10 @@ class Table:
         #: a motion line was written and its completion never arrived: the
         #: table may still be moving, or may start a pending motion later
         self.motion_unconfirmed = False
-        self.unexpected = False       # stopped by an error nobody planned for
+        #: a movement was sent and its arrival has not been read yet: where the
+        #: arm is now is unknown (it was heading for :attr:`heading_to`)
+        self.arrival_unknown = False
+        self.heading_to: "tuple[int, int] | None" = None
 
     # ---- logging and stopping ------------------------------------------------------
     def log(self, kind: str, text: str) -> None:
@@ -418,7 +424,6 @@ class Table:
         except BaseException as exc:
             # anything else after the write (a bug, an interrupt that got
             # through): the answer may still be on its way, so nothing more
-            self.unexpected = True
             self.close_for_sending(f"an unexpected error ({type(exc).__name__})")
             raise
         finally:
@@ -466,6 +471,7 @@ class Table:
     def position(self, honour_stop: bool = True) -> "tuple[int, int]":
         p = self.exchange("position", QUICK_TIMEOUT, honour_stop).xy()
         self.position_now = p
+        self.arrival_unknown = False
         return p
 
     # ---- the opening checks -------------------------------------------------------
@@ -517,6 +523,11 @@ class Table:
                     f"before step {step.number} the arm reports table position {here}, which "
                     "is not where the step before left it (it may have been touched, or "
                     "moved by itself)")
+            # from the moment the line is written until the arrival is read,
+            # where the arm is counts as unknown (challenge 2, finding 1)
+            self.arrival_unknown = True
+            self.position_now = None
+            self.heading_to = TARGETS[step.key]
             self.exchange(step.key, step.timeout)
             got = self.position(honour_stop=False)
             if not step.end.contains(got):

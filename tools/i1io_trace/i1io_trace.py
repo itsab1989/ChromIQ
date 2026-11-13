@@ -47,7 +47,8 @@ RECOVERY_UNFINISHED = (
     "The table never reported that its last movement had finished, so it may still be "
     "moving, or it may start that movement later. Please keep your hands away from the arm, "
     "switch the table off, wait ten seconds and switch it on again before you open "
-    "i1Profiler. ")
+    "i1Profiler; keep your hands away from the arm when you switch it on again too, because "
+    "nobody knows yet whether the table moves by itself then. ")
 
 RISKS = (
     "Please read this before you go on.\n"
@@ -205,8 +206,11 @@ def plan_text() -> str:
 
 
 class Run:
-    def __init__(self, table: tbl.Table, ui: Console, simulated: bool, sim=None):
+    def __init__(self, table: tbl.Table, ui: Console, simulated: bool, sim=None,
+                 other_program=None):
         self.d, self.ui, self.simulated, self.sim = table, ui, simulated, sim
+        #: called before every step (real run: is i1Profiler running now?)
+        self.other_program = other_program or (lambda: False)
         self.done_steps = 0
         self.answers: "list[tuple[str, str]]" = []
 
@@ -244,6 +248,10 @@ class Run:
                 go = self.ui.ask(f"{HANDS} Send step {step.number} now?", ("yes", "no", "stop"))
                 if go != "yes":
                     raise Stopped(f"You stopped before step {step.number}.")
+                if self.other_program():
+                    self.d.close_for_sending("i1Profiler was started during the run")
+                    raise Stopped("i1Profiler is running now, so the program stops here: two "
+                                  "programs must never talk to the table at the same time.")
                 got = self.d.motion(step)
                 self.done_steps = step.number
                 self.ui.say(f"The table reports that it has finished step {step.number}; "
@@ -285,7 +293,6 @@ class Run:
             self.ui.say(f"The program stopped because {exc}.")
             return 2
         except Exception as exc:      # a bug or a library surprise: say so, never a traceback
-            self.d.unexpected = True
             self.d.close_for_sending(f"an unexpected error ({type(exc).__name__})")
             self.ui.say(f"The program stopped because of an unexpected error "
                         f"({type(exc).__name__}). Nothing more is sent to the table.")
@@ -295,24 +302,31 @@ class Run:
             self.d.close_for_sending("the run is over")
 
     def ending(self, code: int) -> None:
-        """Say where the arm is and what to do. Sends nothing."""
+        """Say where the arm is and what to do. Sends nothing; nothing (not
+        even Ctrl-C) may keep the advice from being shown."""
         try:
-            pos = self.d.position_now
-            if self.d.motions_sent == 0:
+            d = self.d
+            pos = None if d.arrival_unknown else d.position_now
+            if d.motions_sent == 0:
                 self.ui.say("Nothing was moved.")
             elif code == 0:
                 pass
-            elif not self.d.motion_unconfirmed and pos is not None and \
-                    tbl.HOME_CLUSTER.contains(pos):
+            elif pos is not None and tbl.HOME_CLUSTER.contains(pos):
                 self.ui.say("The arm was last reported at its resting place.")
             else:
-                where = (f" (last reported at table position X {pos[0]}, Y {pos[1]})"
-                         if pos else "")
-                self.ui.say(f"The arm stays where it is now{where}; the program does not move "
-                            "it again. "
-                            + (RECOVERY_UNFINISHED if self.d.motion_unconfirmed else "")
+                if d.arrival_unknown and d.heading_to:
+                    where = (f" Its last movement was towards table position X "
+                             f"{d.heading_to[0]}, Y {d.heading_to[1]}, and where it stopped "
+                             "is not known.")
+                elif pos is not None:
+                    where = f" It was last reported at table position X {pos[0]}, Y {pos[1]}."
+                else:
+                    where = ""
+                self.ui.say("The arm stays where it is now; the program does not move it "
+                            "again." + where + " "
+                            + (RECOVERY_UNFINISHED if d.motion_unconfirmed else "")
                             + RECOVERY)
-        except Exception:
+        except BaseException:
             pass
 
     def questions(self) -> None:
@@ -325,8 +339,11 @@ class Run:
                       "buzz)? If yes, during which step?",
                       "Did anything else surprise you, or is there anything you want to add?"):
                 self.note(q, self.ui.text(q))
-        except (KeyboardInterrupt, Exception):
-            self.ui.say("Questions skipped.")
+        except BaseException:
+            try:
+                self.ui.say("Questions skipped.")
+            except BaseException:
+                pass
 
 
 # ---- the environment -------------------------------------------------------------------
@@ -378,11 +395,9 @@ class Lock:
         return True
 
     def release(self) -> None:
+        # the (empty) file is left in the temporary folder: deleting it could
+        # let two later copies lock two different files
         if self.fh is not None:
-            try:
-                self.path.unlink()
-            except OSError:
-                pass
             self.fh.close()
             self.fh = None
 
@@ -456,7 +471,12 @@ def main(argv=None, sim_table=None, console=None) -> int:
 
     stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     log_path = Path(args.log or f"i1io-trace-{stamp}{'' if args.real else '-simulated'}.txt")
-    fh = log_path.open("w", encoding="utf-8")
+    try:
+        fh = log_path.open("w", encoding="utf-8")
+    except OSError as exc:
+        print(f"The log file {log_path.name} cannot be written here ({type(exc).__name__}). "
+              "Please start the program from a folder you can write to. Nothing was sent.")
+        return 2
 
     def log(kind, text):
         try:
@@ -539,7 +559,8 @@ def main(argv=None, sim_table=None, console=None) -> int:
         table = tbl.Table(transport, log=log)
         previous = install_signals(table)
         try:
-            r = Run(table, ui, simulated=not args.real, sim=sim)
+            r = Run(table, ui, simulated=not args.real, sim=sim,
+                    other_program=i1profiler_running if args.real else None)
             code = r.go()
             r.ending(code)
             r.questions()
@@ -566,6 +587,11 @@ def main(argv=None, sim_table=None, console=None) -> int:
             pass
         return 2
     finally:
+        previous_int = None
+        try:                    # the tidy-up itself is never cut short by Ctrl-C
+            previous_int = signal.signal(signal.SIGINT, signal.SIG_IGN)
+        except (ValueError, OSError):
+            pass
         if transport is not None:
             transport.close()
         lock.release()
@@ -578,6 +604,11 @@ def main(argv=None, sim_table=None, console=None) -> int:
         except OSError:
             pass
         fh.close()
+        if previous_int is not None:
+            try:
+                signal.signal(signal.SIGINT, previous_int)
+            except (ValueError, OSError):
+                pass
 
 
 if __name__ == "__main__":

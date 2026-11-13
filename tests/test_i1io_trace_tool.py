@@ -403,7 +403,7 @@ def test_each_step_starts_only_where_the_one_before_ended():
     t = tbl.Table(sim_mod.SimTransport(sim))
     t.open_checks()
     with pytest.raises(tbl.Doubt, match="not where the step before left it"):
-        t.motion(tbl.PLAN[2])             # the approach, from the resting place
+        t.motion(tbl.PLAN[2])             # the forward move, from the resting place
     assert sim.motions == 0
 
 
@@ -1008,3 +1008,65 @@ def test_the_terminal_never_shows_the_full_log_path(tmp_path, capsys, monkeypatc
               console=prog.AutoConsole(lambda k, t: None))
     out = capsys.readouterr().out
     assert str(tmp_path) not in out and "The log is in: i1io-trace-" in out
+
+
+# ---- after the second challenge (review/CHALLENGE_2.md) --------------------------------
+
+@pytest.mark.parametrize("kind", ["no_answer", "bad_checksum", "garbled"])
+def test_a_failed_arrival_check_never_reports_the_arm_at_rest(tmp_path, kind):
+    """Finding 1: after any movement, a fault on the arrival reading means
+    where the arm is is unknown, and the advice says so."""
+    for motion in MOTION_LINES:
+        for index in [i for i, x in enumerate(FULL) if x == motion]:
+            sim = sim_mod.SimTable()
+            sim.inject_at(index + 1, kind)
+            code, sim, log = _run(tmp_path, sim)
+            assert code == 2
+            assert len(sim.received) == index + 2
+            assert "last reported at its resting place" not in log, (motion, index)
+            assert "where it stopped is not known" in log and "start i1Profiler once" in log
+
+
+def test_a_status_on_a_movement_gives_the_recovery_advice(tmp_path):
+    index = FULL.index(";m0044e00fa012c0e")
+    sim = sim_mod.SimTable()
+    sim.inject_at(index, "status", 3)
+    code, sim, log = _run(tmp_path, sim)
+    assert code == 2 and "start i1Profiler once" in log
+    assert "last reported at its resting place" not in log
+
+
+def test_i1profiler_started_during_the_run_stops_before_the_next_step(tmp_path):
+    calls = []
+
+    def running():
+        calls.append(1)
+        return len(calls) >= 3            # appears before step 3
+    sim = sim_mod.SimTable()
+    t = tbl.Table(sim_mod.SimTransport(sim))
+    r = prog.Run(t, prog.AutoConsole(lambda k, x: None), simulated=True, sim=sim,
+                 other_program=running)
+    assert r.go() == 1
+    assert sim.motions == 2 and len(sim.received) == 15
+
+
+def test_an_unwritable_log_folder_is_said_plainly_and_nothing_is_opened(tmp_path, capsys):
+    code = prog.main(["--auto", "--log", str(tmp_path / "missing" / "log.txt")],
+                     sim_table=sim_mod.SimTable())
+    out = capsys.readouterr().out
+    assert code == 2 and "cannot be written here" in out and str(tmp_path) not in out
+
+
+def test_ctrl_c_while_the_advice_is_shown_is_swallowed():
+    class Interrupting(prog.AutoConsole):
+        def say(self, text=""):
+            raise KeyboardInterrupt
+    t = tbl.Table(sim_mod.SimTransport())
+    t.motions_sent, t.arrival_unknown, t.heading_to = 1, True, (1102, 250)
+    prog.Run(t, Interrupting(lambda k, x: None), simulated=True).ending(2)   # no raise
+
+
+def test_the_main_program_puts_back_the_interrupt_handler_it_found(tmp_path):
+    before = signal.getsignal(signal.SIGINT)
+    _run(tmp_path)
+    assert signal.getsignal(signal.SIGINT) is before
