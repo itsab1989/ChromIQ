@@ -3972,6 +3972,12 @@ class LayoutOptionsPanel(QWidget):
             if um is not None and um.isChecked():
                 um.setChecked(False)
             saved["shown"] = self._i1io_capture_shown()
+            # THE OPTIONS JOB D OPENED ARE THE i1iO'S OWN (review 3, item 4):
+            # the previous instrument's are kept here and given back on
+            # leaving, and a person choosing the i1iO gets the i1iO's
+            # (`_load_i1io_layout_values`), never another instrument's
+            # offsets, markers or distances.
+            saved["own_prev"] = self._i1io_own_capture()
             # the previous instrument's clip-border content, given back on
             # leaving; the box shows the i1iO's own clip border meanwhile
             ccm = getattr(self, "clip_content_mode", None)
@@ -4051,6 +4057,7 @@ class LayoutOptionsPanel(QWidget):
                 self._i1io_rows_wired = True
             return
         self._i1io_remember_clip_state()
+        self._i1io_own_values = self._i1io_own_capture()
         self._i1io_text_bold_off = not self.ct_bold.isChecked()
         self._i1io_set_checked(self.ct_bold, bool(was.get("ct_bold", False)))
         self._i1io_saved = None
@@ -4063,6 +4070,7 @@ class LayoutOptionsPanel(QWidget):
             except RuntimeError:
                 pass
         self._i1io_restore_shown(was.get("shown"))
+        self._i1io_own_apply(was.get("own_prev"))
         for control, lo, hi, value, special in was.get("ranges", []):
             control.setSpecialValueText(special)
             control.setRange(lo, hi)
@@ -4282,6 +4290,64 @@ class LayoutOptionsPanel(QWidget):
                 sw.setMaximum(max(SPACER_MM.value,
                                   round(0.2 * self.patch_y.value(), 2)))
 
+    #: The options Job D opened, as (control, recipe field): the i1iO's own
+    #: values while it is chosen (review 3, item 4).
+    _I1IO_OWN_VALUES = (("offx", "offset_x_mm"), ("offy", "offset_y_mm"),
+                        ("max_strip", "max_strip_mm"),
+                        ("text_edge", "text_edge_mm"),
+                        ("sig", "strip_indicator_gap_mm"),
+                        ("strip_label_offset", "strip_label_offset_mm"),
+                        ("strip_label_offset_x", "strip_label_offset_x_mm"),
+                        ("helper_marker_edge", "helper_marker_edge_mm"),
+                        ("helper_marker_len", "helper_marker_len_mm"),
+                        ("helper_marker_per_patch", "helper_marker_per_patch"))
+    _I1IO_OWN_CHECKS = (("edge_spacers_cb", "edge_spacers"),
+                        ("nolimit", "nolimit"),
+                        ("helper_markers_cb", "helper_markers"),
+                        ("helper_markers_top_bottom",
+                         "helper_markers_top_bottom"),
+                        ("helper_markers_sides", "helper_markers_sides"))
+
+    def _i1io_own_capture(self) -> dict:
+        out = {"values": {}, "checks": {},
+               "numbers_edge": float(getattr(self, "_i1io_numbers_edge", 0.0)
+                                     or 0.0),
+               "text_align": str(getattr(self, "_i1io_text_align", "") or "")}
+        for name, _f in self._I1IO_OWN_VALUES:
+            w = getattr(self, name, None)
+            if w is not None:
+                out["values"][name] = w.value()
+        for name, _f in self._I1IO_OWN_CHECKS:
+            w = getattr(self, name, None)
+            if w is not None:
+                out["checks"][name] = w.isChecked()
+        return out
+
+    def _i1io_own_factory(self) -> dict:
+        """The safe factory values of the options Job D opened."""
+        from workflow.layout_engine.presets import default_recipe
+        r = default_recipe("IO2", self.paper.currentData() or "A4")
+        return {"values": {n: getattr(r, f) for n, f in self._I1IO_OWN_VALUES},
+                "checks": {n: bool(getattr(r, f))
+                           for n, f in self._I1IO_OWN_CHECKS},
+                "numbers_edge": 0.0, "text_align": ""}
+
+    def _i1io_own_apply(self, own) -> None:
+        if not own:
+            return
+        for name, v in own.get("values", {}).items():
+            w = getattr(self, name, None)
+            if w is not None and w.value() != v:
+                w.setValue(v)
+        for name, on in own.get("checks", {}).items():
+            w = getattr(self, name, None)
+            if w is not None and w.isChecked() != bool(on):
+                w.setChecked(bool(on))
+        if "numbers_edge" in own:
+            self._i1io_numbers_edge = float(own["numbers_edge"] or 0.0)
+        if "text_align" in own:
+            self._i1io_text_align = str(own["text_align"] or "")
+
     def _load_i1io_layout_values(self) -> None:
         """A person has just chosen the i1iO: its own patch size, never the
         previous instrument's (the FD-9's H1 lesson)."""
@@ -4291,11 +4357,16 @@ class LayoutOptionsPanel(QWidget):
         self.patch_y.setValue(PATCH_ALONG_MM.value)
         self.strip_gap.setValue(ROW_GAP_MM.value)
         self.inter_patch.setValue(0.0)
-        # …and no edge spacers: an instrument default (per-target §4c D-1),
-        # as the CR30's; a strip reader before it may have had them on
-        es = getattr(self, "edge_spacers_cb", None)
-        if es is not None and es.isChecked():
-            es.setChecked(False)
+        # …and the i1iO's own values of the options Job D opened (review 3,
+        # item 4): what it had when a person last left it in this session,
+        # else the safe factory values (no edge spacers, no offsets, no
+        # markers, no cap, the letters 4 mm from the edge). An instrument
+        # default (per-target §4c D-1), as the CR30's: a strip reader before
+        # it may have had any of them on.
+        self._i1io_own_apply(getattr(self, "_i1io_own_values", None)
+                             or self._i1io_own_factory())
+        if getattr(self, "_i1io_saved", None) is not None:
+            self._i1io_show_what_applies()     # Clip and Alignment show them
         i = self.spacer_mode.findData(SPACER_MODE.value)
         if i >= 0:
             self.spacer_mode.setCurrentIndex(i)
