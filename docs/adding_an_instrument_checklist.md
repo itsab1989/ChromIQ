@@ -22,7 +22,8 @@ template for the whole instrument.
   (`scripts/capture_screens.py::build_app`, or at least
   `core/numeric_locale.py::pin_c_numeric_locale`), start a
   `scripts/onscreen_capture.py::PopupWatchdog`, photograph with
-  `scripts/onscreen_capture.py::capture_window` on macOS, and give the
+  `scripts/onscreen_capture.py::capture_window` on macOS (elsewhere, the
+  system's screenshot tool on the real window), and give the
   keyboard back (`scripts/onscreen_capture.py::FocusGiveBack`).
 - **R3. No real printer** from a script, and no command to a real device from
   a script that was not built for it.
@@ -316,7 +317,10 @@ passes the sheet check, and the four nets of Stage 1 are still green.
 ## Stage 7. Measure tab
 
 - [ ] **7.1** Routing at `ui/tabs/tab_measure.py::_on_start`: the chartread
-      route, or a start method of your own that runs the whole preflight in
+      route (for a handheld instrument with its own driver, chartread with
+      external values, `workflow/measure_manager.py::MeasureParams.external_values`,
+      answered by a bridge like `workflow/cr30/measure_bridge.py::Cr30MeasureBridge`),
+      or a start method of your own that runs the whole preflight in
       order: `ui/tabs/tab_measure.py::_recover_engine_autosave`, the new-run
       and chart guards, `core/instrument_lease.py::held_by_other`,
       `ui/tabs/tab_measure.py::_blocked_by_a_misfitting_measurement`,

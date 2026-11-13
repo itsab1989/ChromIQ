@@ -219,6 +219,8 @@ repository. Facts are written down in our own words, with a note of where
 they came from; recordings stay private evidence and never enter the
 repository or its tests.
 
+*In [the checklist](adding_an_instrument_checklist.md): stage 0.*
+
 ## 6. Designing the chart from what the instrument needs
 
 ChromIQ has its own layout engine (`workflow/layout_engine/`). It places every
@@ -253,6 +255,8 @@ instrument reads, and is checked before any file is written. Anything that
 costs patches can be an option. If the sheet lies turned on the instrument,
 show it turned on screen, never by turning the files. Print the chart's name
 and page number on every sheet, so sheets can be told apart.
+
+*In [the checklist](adding_an_instrument_checklist.md): stages 0 and 2.*
 
 ## 7. Options stay open, and everything is saved
 
@@ -303,6 +307,8 @@ instrument, every field gets the instrument's stored or default value; but a
 value the person has chosen, by hand or with a preset, is never overwritten
 (`docs/design/per_target_settings.md` §4c).
 
+*In [the checklist](adding_an_instrument_checklist.md): stage 3.*
+
 ## 8. Every run type
 
 ChromIQ has three run types, chosen in the target bar: **Profiling**,
@@ -322,6 +328,8 @@ the table, and pressing Start on such a chart explains that measuring with
 the table is not available yet and offers the instrument by hand
 (`tests/test_i1io_run_types.py`). Read `docs/design/calibration_run_type.md`
 and the Verification parts of `docs/design/per_target_settings.md` first.
+
+*In [the checklist](adding_an_instrument_checklist.md): stage 4.*
 
 ## 9. Behind a Beta switch, and off changes nothing
 
@@ -354,6 +362,8 @@ set with your branch, switch off and switch on, and compare the files byte
 for byte. Normalise only what really differs per build, such as a creation
 time stamp, and say what you normalised.
 
+*In [the checklist](adding_an_instrument_checklist.md): stages 1 and 10.*
+
 ## 10. What was saved builds as it was built
 
 People keep presets for years and reopen old projects. When you change how a
@@ -376,6 +386,8 @@ must still build exactly as that version built it.**
   the panel holds now.
 - **A chart records what it was made with**, and a chart without the record
   reads as "unknown", never as a guess.
+
+*In [the checklist](adding_an_instrument_checklist.md): stage 5.*
 
 ## 11. Measuring
 
@@ -400,6 +412,8 @@ must still build exactly as that version built it.**
   replug the instrument).
 - **Errors reach the person as friendly windows**, never as raw exception
   text, and log lines are written for a person and translated too.
+
+*In [the checklist](adding_an_instrument_checklist.md): stages 6 and 7.*
 
 ## 12. Talking to the hardware
 
@@ -441,6 +455,8 @@ command it does not understand.
   provenance note says how the protocol was learned and that nothing of the
   maker's was copied.
 
+*In [the checklist](adding_an_instrument_checklist.md): stage 8.*
+
 ## 13. Files, text and specifications
 
 These are the project's usual rules; the checklist has the details and the
@@ -465,6 +481,8 @@ tests.
   before you change code. A conflict is raised with the maintainers, not
   fixed in passing. New behaviour is written as "Awaiting confirmation"; only
   a maintainer's confirmation makes it confirmed.
+
+*In [the checklist](adding_an_instrument_checklist.md): stage 9.*
 
 ## 14. How we work: challenge, build, review, prove
 
@@ -493,6 +511,8 @@ tests.
    exit code, read from pytest itself and not through a pipe, is 0. Do not
    edit files while it runs. The checklist's stage 10 has the quicker checks
    to run first, and the Windows command.
+
+*In [the checklist](adding_an_instrument_checklist.md): stage 10.*
 
 ## 15. Opening the pull request
 
