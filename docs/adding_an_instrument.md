@@ -124,7 +124,7 @@ The **ChromIQ X-Rite instrument probe** is a free, open-source tool:
 [github.com/itsab1989/chromiq-i1io-probe](https://github.com/itsab1989/chromiq-i1io-probe).
 Its README has the step-by-step instructions for each system; please follow
 those, because they are kept up to date with the tool. What follows is a short
-summary, checked against version 1.6.0.
+summary, checked against version 1.6.1.
 
 - **What it does.** It looks for your instrument, writes a plain-text report
   about it and your computer, and can then guide you through a few short steps
@@ -144,10 +144,10 @@ summary, checked against version 1.6.0.
   i1Pro 3 Plus), the ColorMunki Photo / Design, the i1Studio, and since
   version 1.6 the i1iSis chart readers (i1iSis, i1iSis XL, i1iSis 2 and
   i1iSis 2 XL). Instruments by other makers are not covered by it yet.
-- **About the i1iSis session**: it is new in version 1.6 and, in the words of
-  that release, "it has not been tried with a real i1iSis yet: everything was
-  tested with invented recordings only, so your first session is the real
-  test." ChromIQ cannot use an i1iSis today. A recording helps us learn the
+- **About the i1iSis session**: it is new in version 1.6, and the README says
+  plainly: "this session has not been tried with a real i1iSis yet. We built
+  and tested it with made-up recordings only." ChromIQ cannot use an i1iSis
+  today. A recording helps us learn the
   basics; whether ChromIQ can ever use an i1iSis is a separate question, and
   nothing is promised. The README's section "The i1iSis session" says what to
   prepare (a printed i1iSis chart page and a plain sheet) and what such a
