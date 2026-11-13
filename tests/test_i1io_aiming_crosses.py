@@ -531,3 +531,29 @@ def test_the_crosses_help_counts_and_names_live():
                                name="My chart", paper_label="Letter")
     assert "506 patches with the crosses, 528 without them" in letter
     assert "move to the top edge" in letter
+
+
+def test_a_part_filled_last_page_uses_the_engines_own_fill_up(tmp_path):
+    """A Manual count that leaves the last page partly filled: the engine
+    lays it out as on every chart (exact capacity per page, the last strip
+    padded to the strip length, IO2's `padlrow`), and the three aiming
+    patches of that page are its first strip's patch 1, its last strip's
+    patch 1 and its last strip's last patch: all of them printed, and all of
+    them patches of the set, never the padding."""
+    from workflow.i1io import chart
+    from workflow.layout_engine import geometry, instruments, papers
+    w, h = papers.dimensions_mm("A4")
+    geom = instruments.geom_from_build_kwargs(
+        {"instrument": "IO2", "paper": "A4", chart.CROSSES_KEY: False})
+    layout = geometry.compute(geom, w, h, 552 + 30)
+    assert geometry.patches_per_sheet(geom, w, h) == 552
+    assert layout.pages == 2 and layout.padding == 18
+    assert layout.total_patches == 552 + 48
+    _build(tmp_path, 552 + 30, i1io_crosses=False)
+    side = json.loads((tmp_path / "c.i1io.json").read_text("utf-8"))
+    assert side["generation"]["padding_patches"] == 18
+    assert side["pages"][1]["aim_patches"] == ["X1", "Y1", "Y24"]
+    rows = _ti2_rows(tmp_path / "c.ti2")
+    for name in side["pages"][1]["aim_patches"]:
+        assert rows[name] != (100.0, 100.0, 100.0), name
+        assert _lab(rows[name])[0] < 85.0, name

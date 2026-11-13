@@ -3817,7 +3817,9 @@ class LayoutOptionsPanel(QWidget):
         r = self.get_recipe()
         out = {"kw": {**r.build_kwargs(), "instrument": "IO2"},
                "sheet_text": r.chart_text or "", "name": "", "pages": 1,
-               "paper_label": ""}
+               "paper_label": (self.paper.currentText()
+                               if getattr(self, "paper", None) is not None
+                               else "")}
         # The chart's name, pages and paper label, from the tab holding the
         # panel (`TabChart`), when it says.
         ctx = getattr(self, "i1io_context", None)
