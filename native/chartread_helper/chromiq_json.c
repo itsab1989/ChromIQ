@@ -24,6 +24,11 @@ int cq_autosave = 0;
 int cq_safenet = 0;
 int cq_xychart = 0;
 int cq_i1pro2_lights = 0;
+int cq_lights_signals = 0;
+int cq_lights_left_on = 0;
+volatile int cq_lights_verdict = 0;
+volatile int cq_lights_verdict_n = 0;
+void (*cq_lights_poll)(void) = NULL;
 volatile int cq_lights_off_pending = 0;
 void (*cq_lights_service)(void) = NULL;
 volatile int cq_exiting_on_signal = 0;
@@ -213,6 +218,24 @@ static void cq_handle_line(const char *line) {
 	 * the instrument. Not a key, so nothing waiting for one is disturbed. */
 	if (strcmp(cmd, "lights_off_exit") == 0) {
 		cq_lights_off_pending = CQ_LIGHTS_REQ_EXIT;
+		return;
+	}
+	/* {"cmd":"lights_result","n":"7","result":"good"|"bad"}: ChromIQ's
+	 * verdict on the strip the engine reported after {"event":"lights_owed",
+	 * "n":7}. Only noted here, like the off above; the main thread acts on it
+	 * while it waits for the next strip (cq_lights_poll), and only while that
+	 * strip's result is still owed. */
+	if (strcmp(cmd, "lights_result") == 0) {
+		char nb[16] = "", rb[8] = "";
+		if (cq_json_get(line, "n", nb, sizeof(nb))
+		 && cq_json_get(line, "result", rb, sizeof(rb))) {
+			int v = strcmp(rb, "good") == 0 ? 1 : strcmp(rb, "bad") == 0 ? 2 : 0;
+			if (v != 0) {
+				cq_lights_verdict = 0;
+				cq_lights_verdict_n = atoi(nb);
+				cq_lights_verdict = v;
+			}
+		}
 		return;
 	}
 
@@ -563,6 +586,8 @@ int cq_wait_char(void) {
 		 && k != CQ_KEY_RESUME && k != CQ_KEY_HOLD)
 			return k;
 		cq_press_group_poll("prompt");	/* inert unless gestures + gate */
+		if (cq_lights_poll != NULL)
+			cq_lights_poll();	/* the lights' result (Beta), idle here */
 		cq_sleep_ms(20);
 	}
 }
@@ -744,6 +769,8 @@ int cq_hold_wait(char *label, size_t labellen) {
 		if (r != CQ_KEY_NONE)
 			return r;
 		cq_press_group_poll("held");	/* inert unless gestures + gate */
+		if (cq_lights_poll != NULL)
+			cq_lights_poll();	/* the lights' result (Beta), idle here */
 		cq_sleep_ms(20);
 	}
 }

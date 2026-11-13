@@ -42,12 +42,30 @@ extern int cq_i1pro2_lights; /* --i1pro2-lights: Preferences > Beta, the
 #define CQ_LIGHTS_REQ_EXIT 2
 extern volatile int cq_lights_off_pending;
 extern void (*cq_lights_service)(void);
+/* The choices inside the Beta option (2026-11-13; i1Pro 2 only):
+ * --lights-signals: green / red after a reading and a pulsing white when
+ * ready; --lights-during-reading: no off before a reading's own triggers.
+ * Both 0 = 4.3.33. cq_lights_verdict (1 good, 2 bad) and _n are set by the
+ * reader thread from {"cmd":"lights_result"}; cq_lights_poll is called by
+ * the main thread where the instrument is idle (the armed wait for the next
+ * strip or patch, the prompt and hold waits) and is NULL unless in use. */
+extern int cq_lights_signals;
+extern int cq_lights_left_on;
+extern volatile int cq_lights_verdict;
+extern volatile int cq_lights_verdict_n;
+extern void (*cq_lights_poll)(void);
 extern volatile int cq_exiting_on_signal;   /* set by the signal handler */
 void cq_end_process_like_a_kill(void);      /* never returns */
 /* In the vendored driver (i1pro_imp.c); the same prototypes as i1pro_imp.h. */
 int i1pro2_cq_lights_begin(void *pp);
-void i1pro2_cq_lights_end(void *pp);
+int i1pro2_cq_lights_end(void *pp);
+int i1pro2_cq_lights_choices(void *pp);
 extern void (*i1pro2_cq_lights_note)(int seq, int icom_err);
+void i1pro2_cq_lights_options(void *pp, int signals, int left_on);
+void i1pro2_cq_lights_owe(void *pp);
+int i1pro2_cq_lights_owed_ms(void *pp);
+void i1pro2_cq_lights_result(void *pp, int good);
+extern void (*i1pro2_cq_lights_sent)(int seq);
 /* ...and the i1Pro 3's (i1pro3_imp.c), the same prototypes as i1pro3_imp.h. */
 int i1pro3_cq_lights_begin(void *pp);
 void i1pro3_cq_lights_end(void *pp);

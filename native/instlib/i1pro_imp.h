@@ -344,6 +344,13 @@ struct _i1proimp {
 	 * use, the calloc default, and then every light hook returns at once. */
 	int cq_lights;
 	unsigned int cq_lights_slow_ms;	/* msec_time() of the last slow off */
+	int cq_lights_prog;		/* the last sequence sent (CQ_LIGHTS_WHITE ..) */
+	int cq_lights_signals;	/* the helper's choices (0/0 = 4.3.33) */
+	int cq_lights_left_on;
+	int cq_lights_reading;	/* inside read_strip / read_sample */
+	int cq_lights_press_count;	/* switch_count when that reading began */
+	int cq_lights_owed;		/* a result for a reported strip is owed */
+	unsigned int cq_lights_owed_ms;
 
 }; typedef struct _i1proimp i1proimp;
 
@@ -1463,11 +1470,19 @@ struct _i1data {
 /* CHROMIQ PATCH: i1Pro 2 indicator lights (Beta), see i1pro_imp.c. Every
  * entry returns at once unless ChromIQ's helper called ..._begin(). */
 int i1pro2_cq_lights_begin(void *pp);	/* ChromIQ's helper only */
-void i1pro2_cq_lights_end(void *pp);	/* off now if needed, then never again */
+int i1pro2_cq_lights_end(void *pp);	/* off now if needed, then never again; 1 = known off */
 void i1pro2_cq_lights_ready(void *pp);	/* white, if in use and off */
 void i1pro2_cq_lights_trigger(void *pp);	/* off, before a trigger */
 void i1pro2_cq_lights_eeprom(void *pp);	/* off now, before an EEPROM read */
+void i1pro2_cq_lights_reading(void *pp, int on);	/* around a reading */
+void i1pro2_cq_lights_after_read(void *pp);	/* ready, unless the helper decides */
+void i1pro2_cq_lights_options(void *pp, int signals, int left_on);	/* before begin */
+void i1pro2_cq_lights_owe(void *pp);	/* a result is owed for a reported strip */
+int i1pro2_cq_lights_owed_ms(void *pp);	/* how long; -1 = none */
+void i1pro2_cq_lights_result(void *pp, int good);	/* 1 green, 0 red, -1 ready */
+int i1pro2_cq_lights_choices(void *pp);	/* in use: 1 signals, 2 left on */
 extern void (*i1pro2_cq_lights_note)(int seq, int icom_err);
+extern void (*i1pro2_cq_lights_sent)(int seq);	/* each sequence sent */
 
 #ifdef __cplusplus
 	}
