@@ -305,6 +305,31 @@ WORDMARK_MIN_MM = Fact(2.0, "ours: the smallest label size", OURS)
 #: Clear paper kept round every mark (no patch, run or text inside it).
 MARK_CLEAR_MM = Fact(1.0, "ours", OURS)
 
+#: THE AIMING CROSSES ARE AN OPTION (the owner, 2026-11-13: "add an option to
+#: turn on the crosses (or not in turn) and then make even more patches fit a
+#: single sheet"). On by default: a cross is easier and safer to put the
+#: sight on than the middle of a patch. Off, the person aims at the centres
+#: of three corner patches (table top left, bottom left, bottom right), as
+#: X-Rite's own software does; the table needs three points either way, and
+#: the four corner slots then hold clearly visible patches of the set
+#: (`chart.corner_order`).
+AIM_CROSSES = Fact(True, "ours: easier and safer to aim at than a patch",
+                   OURS)
+#: A corner patch for aiming is mid to dark: CIELAB L* at most this (on the
+#: display colours of the set), so it stands out from the paper ...
+CORNER_MAX_L = Fact(60.0, "ours: clearly darker than paper (L* about 95)",
+                    OURS)
+#: ... and either this saturated (C*ab) or, if greyish, at most CORNER_DARK_L.
+CORNER_MIN_C = Fact(25.0, "ours", OURS)
+CORNER_DARK_L = Fact(45.0, "ours", OURS)
+#: Never near white, whatever is left in a small set.
+CORNER_NEVER_L = Fact(85.0, "ours: near white is not aimed at", OURS)
+
+#: Without the crosses the text line (chart name, page N/M, sheet text, logo)
+#: is printed only where it costs no patch (the owner, 2026-11-13): it is
+#: shrunk, down to capitals this high, before a part is left off.
+TEXT_MIN_CAP_MM = Fact(1.5, "ours: 6 pt type, still legible in print", OURS)
+
 
 def as_record() -> dict:
     """Every fact as ``{name: {value, source, confidence}}``, for the side
@@ -374,19 +399,25 @@ def numbers_band_mm(size_mm: "float | None" = None) -> float:
 
 
 def margins_mm(strip_letters: bool = True,
-               label_size_mm: "float | None" = None, numbers: bool = True
+               label_size_mm: "float | None" = None, numbers: bool = True,
+               crosses: bool = True
                ) -> "tuple[float, float, float, float]":
     """The patch block's smallest margins ``(top, right, bottom, left)`` on
     the PORTRAIT page: at the top a run, at the bottom a run and the strip
     letters (if on, at *label_size_mm*), at the sides the marks' zones (the
     patch numbers live in the left one, beside the first strip, clear of
-    the marks and of every scan line)."""
+    the marks and of every scan line).
+
+    Without the aiming crosses (*crosses* False, :data:`AIM_CROSSES`) a side
+    needs only the printer's edge, and the patch numbers' band on the left:
+    the paper the crosses held goes to patches, and the text line takes only
+    what is left over (`chart.free_text_plan`)."""
     top = RUN_EDGE_MM.value + RUN_MM.value
     bottom = RUN_MM.value + (letter_band_mm(label_size_mm) if strip_letters
                              else RUN_EDGE_MM.value)
-    right = MARK_SIDE_MM.value
-    left = max(MARK_SIDE_MM.value, numbers_band_mm(label_size_mm)
-               if numbers else 0.0)
+    side = MARK_SIDE_MM.value if crosses else PRINTER_EDGE_MM.value
+    right = side
+    left = max(side, numbers_band_mm(label_size_mm) if numbers else 0.0)
     return top, right, bottom, left
 
 

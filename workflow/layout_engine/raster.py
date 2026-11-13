@@ -3095,6 +3095,7 @@ def render_pages(
     helper_markers_top_bottom: bool = True,
     helper_markers_sides: bool = True,
     collect_device_geom: bool = False,
+    slots: "list[int] | None" = None,
 ) -> RenderResult:
     """Render one :class:`PIL.Image` per page for *target*.
 
@@ -3110,7 +3111,8 @@ def render_pages(
     media = target.media_patch()
     patches = list(target.patches) + [media] * layout.padding
     total = len(patches)
-    slots = permutation.location_permutation(total, seed, randomize)
+    if slots is None:      # a chart's own order (the i1iO's), else the seed's
+        slots = permutation.location_permutation(total, seed, randomize)
     rgb_by_slot: list[tuple[int, int, int]] = [(255, 255, 255)] * total
     # Device values by slot mirror the RGB fills, so Tier D can paint the exact
     # ink coverage of each patch into the separated raster (the RGB preview is a

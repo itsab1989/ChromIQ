@@ -306,6 +306,11 @@ def build_chart(
     #: No other instrument reads them.
     fd9_run: str = "",
     fd9_clip_border: "bool | None" = None,
+    #: i1iO only (a Beta): the three numbered aiming crosses on (default) or
+    #: off; off, the person aims at the corner patches
+    #: (`workflow.i1io.chart.fixed_build_kwargs`, `sheet_slots`). No other
+    #: instrument reads it.
+    i1io_crosses: bool = True,
 ) -> ChartResult:
     """Full chart build: write ``out_base.ti2`` + page TIFF(s) + strip geometry.
 
@@ -351,7 +356,8 @@ def build_chart(
             "margins": margins, "spacer_mode": spacer_mode,
             "draw_indicators": draw_indicators,
             "row_indicators": row_indicators,
-            "indicator_size_mm": indicator_size_mm})
+            "indicator_size_mm": indicator_size_mm,
+            _i1io_chart.CROSSES_KEY: i1io_crosses})
         _i1io_chart.sheet_size(paper)
         (patch_w, patch_h, pscale, sscale, spacer_on, spacer_mode,
          spacer_width, inter_patch, strip_gap, edge_spacers, margins,
@@ -372,6 +378,7 @@ def build_chart(
             "strip_label_offset_x_mm", "indicator_rotation",
             "row_indicator_rotation"))
         _i1io_labels = _f[_i1io_chart.LABELS_KEY]
+        _i1io_crosses = _f[_i1io_chart.CROSSES_KEY]
         # never above the i1iO's largest label size (review r3 M1)
         indicator_size_mm = _f["indicator_size_mm"]
         # the patch numbers beside the strips, clear of a printer's edge
@@ -433,7 +440,8 @@ def build_chart(
     def _geom_for(npat: int):
         return instruments.geom_from_build_kwargs({
         # the i1iO's labels as asked for, past the fixed settings above
-        **({_i1io_chart.LABELS_KEY: _i1io_labels} if _i1io else {}),
+        **({_i1io_chart.LABELS_KEY: _i1io_labels,
+            _i1io_chart.CROSSES_KEY: _i1io_crosses} if _i1io else {}),
         "instrument": instrument, "paper": paper, "hflag": hflag,
         "hex_flat_top": hex_flat_top,
         "density": density, "cm_stagger": cm_stagger,
@@ -559,7 +567,8 @@ def build_chart(
     if _i1io:
         # The table must be able to read this layout at all: refused BEFORE
         # anything is written (and again below if calibration ramps re-lay it).
-        _i1io_chart.check_sheet(geom, layout, w_mm, h_mm)
+        _i1io_chart.check_sheet(geom, layout, w_mm, h_mm,
+                                        crosses=_i1io_crosses)
 
     # EACH INK'S RAMP ON ITS OWN STRIP (#182, Knut 5965186237). Only for a
     # calibration build, and only when the .ti1 is targen's pure ramp set:
@@ -597,7 +606,8 @@ def build_chart(
                                           len(target.patches))
                 _refuse_unreadable_patterns(layout)
                 if _i1io:
-                    _i1io_chart.check_sheet(geom, layout, w_mm, h_mm)
+                    _i1io_chart.check_sheet(geom, layout, w_mm, h_mm,
+                                        crosses=_i1io_crosses)
     if cal is not None and apply_cal:
         from . import calibration
         printed = calibration.apply_to_target(target, cal)
@@ -617,12 +627,26 @@ def build_chart(
     media = target.media_patch()
     white_point = media[1] if any(media[1]) else ti2_writer.DEFAULT_WHITE_POINT
     ti2_path = artefact(stem, ".ti2")
+    # ONE patch order for every file of the chart: the seed's, and for an
+    # i1iO chart without crosses clearly visible patches in the corners
+    # (`workflow.i1io.chart.sheet_slots`). None for every other chart, which
+    # is then written exactly as before.
+    _slots = None
+    _ti2_geom = geom
+    if _i1io:
+        _slots = _i1io_chart.sheet_slots(target, layout, geom, w_mm, h_mm,
+                                         seed, randomize, _i1io_crosses)
+        # what the person aims at, recorded (`chart.aim_recorded`)
+        from dataclasses import replace as _replace
+        _ti2_geom = _replace(geom, extra_keywords=tuple(geom.extra_keywords) + (
+            (_i1io_chart.AIM_KEYWORD, _i1io_chart.aim_of(_i1io_crosses)),))
     ti2_writer.write_ti2(
-        ti2_path, target.patches, target.device_fields, layout, geom,
+        ti2_path, target.patches, target.device_fields, layout, _ti2_geom,
         color_rep=target.color_rep, seed=seed, randomize=randomize,
         strip_pattern=strip_pattern, patch_pattern=patch_pattern,
         paper_w_mm=w_mm, paper_h_mm=h_mm, media=media, white_point=white_point,
         ink_limit=target.ink_limit, label_rule=label_rule,
+        **({"slots": _slots} if _slots is not None else {}),
     )
     if cal is not None:  # embed the calibration table (-K and -I both embed)
         from . import calibration
@@ -692,6 +716,7 @@ def build_chart(
         # printtarg writes it as CMYK with K = 0, and so does the engine now.
         collect_device_geom=(target.n_channels >= 4 or export_pdf
                              or raster.is_cmy_target(target)),
+        **({"slots": _slots} if _slots is not None else {}),
     )
     if _i1io:
         # The marks, the arrow, the page and the name, after the check that
@@ -703,7 +728,7 @@ def build_chart(
                                    patterns=(strip_pattern, patch_pattern,
                                              label_rule),
                                    sheet_text=_i1io_sheet_text,
-                                   text_ctx=_ctx)
+                                   text_ctx=_ctx, crosses=_i1io_crosses)
     if target.n_channels >= 4:
         device_pages = raster.build_device_pages(render, printed, bit16=bit16)
         tiff_paths = raster.save_separated_tiffs(
@@ -756,14 +781,16 @@ def build_chart(
             strip_pattern=strip_pattern, patch_pattern=patch_pattern,
             label_rule=label_rule, designed=len(target.patches),
             labels=_i1io_labels, name=project or Path(out_base).name,
-            sheet_text=_i1io_sheet_text, text_ctx=_ctx)
+            sheet_text=_i1io_sheet_text, text_ctx=_ctx,
+            crosses=_i1io_crosses, slots=_slots)
 
     cht_paths: list[Path] | None = None
     if emit_cht:
         from . import cht_writer
         # slot → reference XYZ, so each box can carry its EXPECTED value.
-        slots = permutation.location_permutation(layout.total_patches, seed,
-                                                 randomize)
+        slots = (_slots if _slots is not None else
+                 permutation.location_permutation(layout.total_patches, seed,
+                                                  randomize))
         all_patches = list(target.patches) + [media] * layout.padding
         xyz_by_slot: dict[int, tuple] = {}
         for i, (_dev, xyz) in enumerate(all_patches):
