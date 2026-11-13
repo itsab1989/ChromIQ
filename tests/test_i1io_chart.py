@@ -68,13 +68,13 @@ def _build(tmp_path, n, paper="A4R", rep="RGB", **kw):
 
 
 @pytest.mark.parametrize("paper,labels,cols,rows", [
-    ("A4R", True, 23, 21), ("A4R", False, 24, 21),
-    ("LetterR", True, 21, 22), ("LetterR", False, 22, 22)])
+    ("A4R", True, 24, 22), ("A4R", False, 24, 22),
+    ("LetterR", True, 22, 23), ("LetterR", False, 23, 23)])
 def test_the_capacity_is_the_geometrys_own(paper, labels, cols, rows):
-    """483 patches on A4 landscape with the row numbers (the default), 504
-    without them; 462 and 484 on Letter landscape. Computed from the patch
-    size, the 1 mm gap along the rows and the margins of `table_facts`, not
-    looked up."""
+    """528 patches on A4 landscape with or without the row numbers (they
+    fit in paper no column could use), 506 and 529 on Letter landscape.
+    Computed from the patch size, the 1 mm gap along the rows and the
+    smallest safe margins of `table_facts`, not looked up."""
     from workflow.layout_engine import geometry, instruments, papers
     g = instruments.geom_from_build_kwargs(
         {"instrument": "IO2", "paper": paper,
@@ -109,7 +109,7 @@ def test_whatever_a_recipe_asks_for_the_i1io_keeps_its_own_layout():
 
 
 @pytest.mark.parametrize("paper", ["A4R", "LetterR"])
-@pytest.mark.parametrize("n", [1, 37, 483, 1300])
+@pytest.mark.parametrize("n", [1, 37, 528, 1300])
 def test_every_patch_run_and_mark_is_on_the_sheet_and_clear(tmp_path, paper,
                                                             n):
     from workflow.i1io import table_facts as F
@@ -203,11 +203,11 @@ def test_the_side_file_and_the_strips_json_agree_patch_for_patch(tmp_path):
     and every location must carry the sample the `.ti2` gives it."""
     from workflow.layout_engine.ti1_reader import read_ti1  # noqa: F401
     result, side = _build(tmp_path, 300)
-    strips = json.loads((tmp_path / "c.strips.json").read_text())
+    strips = json.loads((tmp_path / "c.strips.json").read_text(encoding="utf-8"))
     s = strips["dpi"] / 25.4
     rects = {(r["page"], r["loc"]): r for r in strips["patches"]}
     ids = {}
-    for line in result.ti2_path.read_text().split("BEGIN_DATA\n", 1)[1].splitlines():
+    for line in result.ti2_path.read_text(encoding="utf-8").split("BEGIN_DATA\n", 1)[1].splitlines():
         if line.startswith("END_DATA"):
             break
         tok = line.split()
@@ -283,7 +283,7 @@ def test_the_scan_numbers_follow_from_the_recorded_timing():
     (alo, ahi), (clo, chi) = F.patch_limits_mm()
     assert alo >= F.min_patch_length_mm() and alo <= F.PATCH_ALONG_MM.value
     assert F.SCAN_GAP_MM.value <= F.GAP_MAX_FRACTION.value * alo
-    assert F.RUN_MM.value >= F.run_in_mm(fastest)
+    assert F.RUN_MM.value >= F.run_in_mm()
     clean = ((F.PATCH_ALONG_MM.value - F.APERTURE_MM.value)
              / (fastest * F.SCAN_READING_INTERVAL_S.value)) * 2 / 3
     assert clean > F.ARGYLL_MIN_SAMPLES.value
@@ -295,9 +295,21 @@ def test_the_wordmark_and_the_sheet_text_cost_no_patch(tmp_path):
     name line: the patch count is the same with them as without."""
     (tmp_path / "a").mkdir()
     (tmp_path / "b").mkdir()
-    r1, _ = _build(tmp_path / "a", 483)
-    r2, side = _build(tmp_path / "b", 483, chart_text="Epson P900 · {date}")
-    assert r1.layout.patches_per_page == r2.layout.patches_per_page == 483
+    r1, _ = _build(tmp_path / "a", 528)
+    r2, side = _build(tmp_path / "b", 528, chart_text="Epson P900 · {date}")
+    assert r1.layout.patches_per_page == r2.layout.patches_per_page == 528
+
+
+def test_margins_are_the_persons_but_never_below_the_safe_minimum():
+    """Manual's margins are honoured above the i1iO's minimum and raised to
+    it below: 30 mm all round gives 378 patches on A4, 3 mm gives the
+    default 528."""
+    from workflow.layout_engine import geometry, instruments, papers
+    w, h = papers.dimensions_mm("A4R")
+    for asked, count in (((30, 30, 30, 30), 378), ((3, 3, 3, 3), 528)):
+        g = instruments.geom_from_build_kwargs(
+            {"instrument": "IO2", "paper": "A4R", "margins": asked})
+        assert geometry.patches_per_sheet(g, w, h) == count
 
 
 def test_every_number_has_a_source_and_a_confidence():
@@ -313,32 +325,32 @@ def test_every_number_has_a_source_and_a_confidence():
 
 def test_a_patch_set_fills_the_pages_in_order(tmp_path):
     """Any patch set (targen's, a loaded file, the editor's) is laid out
-    whole: two full A4 pages hold exactly 966 patches with no padding, and
+    whole: two full A4 pages hold exactly 1056 patches with no padding, and
     every .ti2 SAMPLE_ID carries the .ti1 patch of the same number, so the
     patch set's order is the measurement's order whatever the randomising
     put where; the side file names every one of them once."""
     from workflow.layout_engine.ti1_reader import read_ti1
-    result, side = _build(tmp_path, 966)
+    result, side = _build(tmp_path, 1056)
     assert (result.layout.pages, result.layout.padding) == (2, 0)
     ti1 = read_ti1(tmp_path / "c.ti1")
     rows = {}
-    for line in result.ti2_path.read_text().split("BEGIN_DATA\n", 1)[1].splitlines():
+    for line in result.ti2_path.read_text(encoding="utf-8").split("BEGIN_DATA\n", 1)[1].splitlines():
         if line.startswith("END_DATA"):
             break
         tok = line.split()
         rows[int(tok[0])] = [float(v) for v in tok[2:5]]
-    assert len(rows) == 966
+    assert len(rows) == 1056
     for i, (dev, _xyz) in enumerate(ti1.patches, start=1):
         assert rows[i] == pytest.approx(list(dev), abs=1e-6)
     ids = sorted(p["sample_id"] for pg in side["pages"] for r in pg["rows"]
                  for p in r["patches"])
-    assert ids == list(range(1, 967))
+    assert ids == list(range(1, 1057))
 
 
 @pytest.mark.parametrize("paper,along,rows,count", [
-    ("A4R", None, None, 483), ("A4R", 0.0, 0.0, 525), ("A4R", 1.0, 1.0, 437),
-    ("LetterR", None, None, 462), ("LetterR", 0.0, 0.0, 506),
-    ("LetterR", 1.0, 1.0, 420), ("A4R", 9.0, 9.0, 336)])
+    ("A4R", None, None, 528), ("A4R", 0.0, 0.0, 572), ("A4R", 1.0, 1.0, 480),
+    ("LetterR", None, None, 506), ("LetterR", 0.0, 0.0, 552),
+    ("LetterR", 1.0, 1.0, 440), ("A4R", 9.0, 9.0, 352)])
 def test_the_two_gaps_are_the_engines_own_controls_kept_apart(paper, along,
                                                              rows, count):
     """"Strip gap" is the separator along the scan (default 1 mm, at most
@@ -353,7 +365,7 @@ def test_the_two_gaps_are_the_engines_own_controls_kept_apart(paper, along,
     assert geometry.patches_per_sheet(g, w, h) == count
 
 
-@pytest.mark.parametrize("n,partial", [(483, False), (470, True)])
+@pytest.mark.parametrize("n,partial", [(528, False), (515, True)])
 def test_the_i1profiler_route_of_the_notice_works_for_an_i1io_run(tmp_path,
                                                                   n, partial):
     """What M-I1IO-NOT-YET says works today: the run's i1Profiler patch-set
@@ -399,9 +411,10 @@ def test_the_turned_i1profiler_option_says_why_an_i1io_chart_has_no_match(
     from workflow.i1profiler_turned import plan_for
     result, _ = _build(tmp_path, 60)
     # As Create Chart folds the geometry and the recipe into channels.json.
-    strips = json.loads((tmp_path / "c.strips.json").read_text())
+    strips = json.loads((tmp_path / "c.strips.json").read_text(encoding="utf-8"))
     strips["recipe"] = {"instrument": "IO2", "paper": "A4R"}
-    (tmp_path / "c.channels.json").write_text(json.dumps({"layout": strips}))
+    (tmp_path / "c.channels.json").write_text(json.dumps({"layout": strips}),
+                                              encoding="utf-8")
     plan = plan_for(result.ti2_path)
     assert not plan.qualifies
     assert any("i1iO table" in r and "3.8.6" in r for r in plan.reasons), \

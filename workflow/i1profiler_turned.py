@@ -388,7 +388,7 @@ def plan_for(ti2: "str | Path", turn: "str | None" = None) -> TurnedPlan:
             "the chart's files do not say which instrument it was laid out "
             "for"))
     elif inst == "IO2":
-        # The X-Rite i1iO table (a Beta; such a chart exists only if it was
+        # The i1iO table (a Beta; such a chart exists only if it was
         # made with i1iO support on). Not refused for good: the rules are not
         # known yet, and the note says what is missing.
         plan.reasons.append(tr(

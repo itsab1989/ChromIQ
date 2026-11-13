@@ -99,15 +99,27 @@ def fixed_build_kwargs(kw: dict) -> dict:
     # Guided chart): the i1iO's defaults, 1 mm and none.
     along_gap, row_gap = F.gaps_mm(kw.get("strip_gap"), kw.get("inter_patch"),
                                    along)
+    # THE MARGINS ARE THE PERSON'S, NEVER BELOW THE SAFE MINIMUM: the marks'
+    # zones above and below, the runs (and the row numbers) at the sides.
+    # Guided passes none and gets the minimum: as much paper for patches as
+    # the sheet allows (Basti, 2026-11-13).
+    least = F.margins_mm(labels.rows, labels.size)
+    asked = kw.get("margins")
+    try:
+        asked = tuple(float(v) for v in asked) if asked else None
+    except (TypeError, ValueError):
+        asked = None
+    margins = (tuple(max(a, m) for a, m in zip(asked, least))
+               if asked and len(asked) == 4 else least)
     out.update(
         patch_w=along, patch_h=across,
         pscale=1.0, sscale=1.0, spacer_on=False, spacer_mode="none",
         spacer_width=None, inter_patch=row_gap, edge_spacers=False,
         strip_gap=along_gap,
-        margins=F.margins_mm(labels.rows, labels.size),
+        margins=margins,
         use_instrument_margins=True,
         layout_mode="patch_first", patch_area_align="center",
-        hflag=False, hex_flat_top=False, density=1, cm_stagger=False,
+        density=1, cm_stagger=False,
         max_strip=None, offset_x=0.0, offset_y=0.0, nolpcbord=True,
         nolimit=True, clip_band=0.0, clip_content_mode="off",
         draw_indicators=False, row_indicators=False, helper_markers=False,
@@ -382,7 +394,7 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
             else:
                 left = px(cx + half + 1.0)
             text(left, y, str(mark.number), dfont, dpath, dvar, digit_px)
-        cx, cy = w / 2.0, F.MARK_INSET_MM.value
+        cx, cy = w / 2.0, F.TEXT_LINE_MM.value
         if pages > 1:
             label_w = draw.textbbox((0, 0), f"{index + 1}/{pages}", font=sfont)
             text(px(cx) - (label_w[2] - label_w[0]) // 2, px(cy),
@@ -390,7 +402,7 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
         # THE ChromIQ WORDMARK, in the top band between mark 1 and the page
         # number: paper the patches could never use, so it costs nothing.
         _wordmark(draw, geom_list, px(mark_zone(marks(w, h)[0])[2] + 4.0),
-                  px(F.MARK_INSET_MM.value), px(F.WORDMARK_MM.value))
+                  px(F.TEXT_LINE_MM.value), px(F.WORDMARK_MM.value))
         # The chart's name, and the sheet text (Manual's "Sheet text", its
         # placeholders filled in as on every chart) after it, centred between
         # marks 2 and 3 and cut to fit with "…": never at the patches' cost.

@@ -274,15 +274,19 @@ def i1io_greyed_reason() -> str:
         "along the long side of a landscape sheet, every row has 15 mm of blank paper at both ends "
         "so the arm can speed up and slow down, and three numbered aiming "
         "marks sit in the corners. Nothing is printed where the instrument "
-        "reads, so there is no clip border, and the labels have fixed places "
+        "reads, so there is no clip border and there are no helper markers "
+        "(the table needs no ruler), and the labels have fixed places "
         "beside the rows and above the patches. Spacers are not used: on this "
         "chart they would lie between the rows, where the instrument does not "
         "look, and only cost rows; the white gap between neighbours along a "
         "row is the “Strip gap”. The greyed boxes show the values an i1iO "
         "chart uses.\n\n"
         "What you can set for the i1iO: the paper and the number of pages; "
-        "under “Expert Options”, the patch size (8.9 to 20 mm along the row, "
-        "7 to 20 mm across it), the “Strip gap” along the rows and the "
+        "the margins (at least what the marks, the run at both ends of every "
+        "row and the row numbers need; ChromIQ raises a smaller value to "
+        "that); under “Expert Options”, the patch size (8.9 to 20 mm along "
+        "the row, 7 to 20 mm across it), the “Strip gap” along the rows and "
+        "the "
         "“Inter-patch gap” between them, the strip letters and row numbers "
         "on or off and their size, the sheet text (printed on the line with "
         "the chart name), the randomisation, the printer calibration and the "
@@ -3371,6 +3375,7 @@ class LayoutOptionsPanel(QWidget):
         return tuple(c for c in (
             self.dpi, self.patch_x, self.patch_y,
             getattr(self, "strip_gap", None), getattr(self, "inter_patch", None),
+            *getattr(self, "margins", {}).values(),
             getattr(self, "show_indicators", None),
             getattr(self, "show_row_indicators", None),
             getattr(self, "indicator_size", None),
@@ -3422,9 +3427,11 @@ class LayoutOptionsPanel(QWidget):
         was_loading = self._loading
         self._loading = True
         try:
+            # The margins are LIVE for the i1iO (any value at or above its
+            # minimum); only a value below the minimum is raised to it.
             for k, v in want["margins"].items():
                 box = self.margins.get(k)
-                if box is not None and abs(box.value() - v) > 1e-9:
+                if box is not None and box.value() < v - 1e-9:
                     box.setValue(v)
             for name in ("spacer_mode", "layout_mode"):
                 combo = getattr(self, name, None)
@@ -3477,6 +3484,13 @@ class LayoutOptionsPanel(QWidget):
                 c.setRange(lo, hi)
             self.strip_gap.setToolTip(i1io_gap_help("along"))
             self.inter_patch.setToolTip(i1io_gap_help("rows"))
+            # The margins are the person's for the i1iO, so "Use instrument
+            # margins" (which locks them to another instrument's minimums)
+            # is off while it is chosen, and comes back on leaving.
+            um = getattr(self, "use_instr_margins", None)
+            saved["instr_margins"] = bool(um is not None and um.isChecked())
+            if um is not None and um.isChecked():
+                um.setChecked(False)
             saved["shown"] = self._fd9_capture_shown()
             self._i1io_saved = saved
             self._i1io_show_what_applies()
@@ -3500,6 +3514,9 @@ class LayoutOptionsPanel(QWidget):
             control.setValue(value)
         for control, tip in was.get("gap_tips", []):
             control.setToolTip(tip)
+        um = getattr(self, "use_instr_margins", None)
+        if um is not None and was.get("instr_margins"):
+            um.setChecked(True)
 
     def _i1io_rows_toggled(self, *_a) -> None:
         """The greyed left margin follows the row numbers' band."""
@@ -3515,6 +3532,13 @@ class LayoutOptionsPanel(QWidget):
         self.patch_y.setValue(PATCH_ACROSS_MM.value)
         self.strip_gap.setValue(SCAN_GAP_MM.value)
         self.inter_patch.setValue(ROW_GAP_MM.value)
+        # …and the smallest safe margins: as much of the sheet for patches
+        # as it allows (`table_facts.margins_mm`).
+        from workflow.i1io.table_facts import margins_mm
+        rows = getattr(self, "show_row_indicators", None)
+        t, r, b, lt = margins_mm(bool(rows is None or rows.isChecked()))
+        for k, v in (("t", t), ("r", r), ("b", b), ("l", lt)):
+            self.margins[k].setValue(v)
 
     def _hold_i1io_greying(self) -> None:
         """While the i1iO is selected, grey again what a recipe load or one

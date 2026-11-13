@@ -146,9 +146,9 @@ def min_patch_length_mm(speed_mm_s: "float | None" = None,
 
 def run_in_mm(speed_mm_s: "float | None" = None) -> float:
     """Blank paper needed before the first patch of a row at *speed* (the
-    fastest by default): the arm may travel for the shortest trigger delay
-    seen before the first reading arrives."""
-    v = max(SCAN_SPEEDS_MM_S.value) if speed_mm_s is None else speed_mm_s
+    design speed by default): the arm may travel for the shortest trigger
+    delay seen before the first reading arrives."""
+    v = SCAN_DESIGN_SPEED_MM_S.value if speed_mm_s is None else speed_mm_s
     return v * SCAN_TRIGGER_DELAY_S.value[0]
 
 
@@ -184,12 +184,13 @@ PATCH_ALONG_MM = Fact(10.0, "ours: above min_patch_length_mm() = 8.81",
 PATCH_ACROSS_MM = Fact(8.0, "ours: aperture plus 1.75 mm each side", OURS)
 
 #: Blank paper before the first and after the last patch of every row:
-#: `run_in_mm()` at the fastest speed (138 x 0.10 = 13.8 mm), rounded up, so
-#: a reading that starts late at full speed still finds paper before the
-#: first patch. The slower passes' longer delays (to 0.8 s) do not fit on any
-#: sheet; the recordings suggest the table waits for the instrument, which
-#: the tester must confirm.
-RUN_MM = Fact(15.0, "ours: run_in_mm(138) = 13.8, rounded up", OURS)
+#: `run_in_mm()` at the design speed (88 x 0.10 = 8.8 mm), rounded up, so a
+#: reading that starts late still finds paper before the first patch, as
+#: little as possible of the sheet going to it (Basti, 2026-11-13: "use as
+#: much space on the paper as possible for patches"). The fastest recorded
+#: speed would need 13.8 mm; the recordings suggest the table waits for the
+#: instrument anyway, which the tester must confirm.
+RUN_MM = Fact(10.0, "ours: run_in_mm(88) = 8.8, rounded up", OURS)
 
 #: NOTHING IS PRINTED ON A SCAN LINE OUTSIDE THE PATCHES (Basti, 2026-11-13):
 #: the instrument reads all through the run-in and the run-out, and a patch
@@ -243,7 +244,24 @@ MARK_DIGIT_MM = Fact(4.0, "ours", OURS)
 
 #: The bands above and below the patches that hold the marks, the arrow, the
 #: page number and the chart name.
-BAND_MM = Fact(18.0, "ours: mark inset + half the cross + 4 mm clear", OURS)
+#: No band of their own for the marks: the top and bottom rows start right
+#: below (above) a mark's zone (inset + half the cross + MARK_CLEAR_MM), so a
+#: row's run never crosses a mark, and the labels and text lines share the
+#: paper beside the marks, which can never hold a row anyway.
+BAND_MM = Fact(15.0, "ours: mark inset 11 + half the cross 3 + 1 mm clear",
+               OURS)
+
+#: Where the top text line (the ChromIQ wordmark and the page "N/M") sits,
+#: its middle this far from the top edge: above the column letters.
+TEXT_LINE_MM = Fact(8.5, "ours", OURS)
+
+#: Paper ChromIQ's other charts leave at an edge by default, for the printer's
+#: unprintable edge (the engine's default margin), and what the table needs
+#: beyond that at the sheet's edges: the electrostatic hold and the arm's
+#: glider ring are not documented with a number (i1Profiler facts RESULTS,
+#: [TESTER]), so nothing is added for them yet.
+PRINTER_EDGE_MM = Fact(5.0, "the engine's default page margin for text "
+                       "(text_edge); the hold and the ring: unknown", OURS)
 
 #: The ChromIQ wordmark's height in the top band (beside mark 1).
 WORDMARK_MM = Fact(4.0, "ours", OURS)

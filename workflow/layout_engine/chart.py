@@ -347,10 +347,12 @@ def build_chart(
         _f = _i1io_chart.fixed_build_kwargs({
             "patch_w": patch_w, "patch_h": patch_h,
             "strip_gap": strip_gap, "inter_patch": inter_patch,
+            "margins": margins,
             "draw_indicators": draw_indicators,
             "row_indicators": row_indicators,
             "indicator_size_mm": indicator_size_mm})
         _i1io_labels = _f[_i1io_chart.LABELS_KEY]
+        hflag = False          # an i1iO grid is never a honeycomb
         # Manual's "Sheet text" goes on the name line in the bottom band
         # (`draw_furniture`), where it costs no patch, not under the patches.
         _i1io_sheet_text = chart_text
@@ -361,15 +363,15 @@ def build_chart(
         _i1io_chart.sheet_size(paper)
         (patch_w, patch_h, pscale, sscale, spacer_on, spacer_mode,
          spacer_width, inter_patch, strip_gap, edge_spacers, margins,
-         use_instrument_margins, layout_mode, patch_area_align, hflag,
-         hex_flat_top, density, cm_stagger, max_strip, offset_x, offset_y,
+         use_instrument_margins, layout_mode, patch_area_align,
+         density, cm_stagger, max_strip, offset_x, offset_y,
          nolpcbord, nolimit, clip_content_mode, draw_indicators,
          row_indicators, helper_markers, chart_text, stamp_command,
          side_stamp) = (_f[k] for k in (
             "patch_w", "patch_h", "pscale", "sscale", "spacer_on",
             "spacer_mode", "spacer_width", "inter_patch", "strip_gap",
             "edge_spacers", "margins", "use_instrument_margins",
-            "layout_mode", "patch_area_align", "hflag", "hex_flat_top",
+            "layout_mode", "patch_area_align",
             "density", "cm_stagger", "max_strip", "offset_x", "offset_y",
             "nolpcbord", "nolimit", "clip_content_mode", "draw_indicators",
             "row_indicators", "helper_markers", "chart_text",
