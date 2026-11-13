@@ -1204,3 +1204,53 @@ def test_the_power_plug_sentence_keeps_its_hedge():
         "\n", " ")
     assert "HOMEBREW_NO_AUTO_UPDATE=1 brew install libusb" in _source("i1io_table.py")
     assert "'brew install libusb'" not in _source("i1io_table.py")
+
+
+# ---- 0.1.1: the table's refusal (":#"), seen on the tester's table ------------------------
+
+def test_the_refusal_the_tester_saw_is_recognised():
+    with pytest.raises(tbl.TableRefused) as exc:
+        tbl.parse_ack(":#s01CF", "s0")              # run 1 of 0.1.0, verbatim
+    assert exc.value.code == 1 and exc.value.cid == "s0"
+    with pytest.raises(tbl.TableRefused):
+        tbl.parse_done(":#s01CF", "s0")
+    for bad in (":#s01CE", ":#p01CF", ":#s0", ":#s01CFX"):   # bad checksum, other id, short
+        with pytest.raises(tbl.ProtocolError) as exc:
+            tbl.parse_ack(bad, "s0")
+        assert not isinstance(exc.value, tbl.TableRefused), bad
+
+
+def test_a_refusal_of_any_line_stops_with_the_plain_advice_and_nothing_more(tmp_path):
+    for index, line in enumerate(FULL):
+        sim = sim_mod.SimTable()
+        sim.inject_at(index, "refuse", 1)
+        code, sim, log = _run(tmp_path, sim)
+        assert code == 2, index
+        assert len(sim.received) == index + 1, index
+        what = "command" if line == ";i12b" else "question"
+        assert (f"The table answered, but refused this {what} (code 1). This most likely "
+                "means that the table has been switched on and i1Profiler has not been "
+                "opened since. Please open i1Profiler once, wait until it shows the table, "
+                "quit it, and start this program again.") in log, index
+        assert "wait ten seconds" not in log           # a refusal is an answer: nothing pending
+        homing = FULL.index(";i12b")
+        if index != homing + 1:                         # the reading right after the homing
+            assert "where it stopped is not known" not in log, index
+        if line == ";i12b":
+            assert "last reported at its resting place" in log
+        elif index < homing:
+            assert "Nothing was moved" in log
+
+
+def test_the_run_1_answer_verbatim_stops_before_anything_moves(tmp_path):
+    sim = sim_mod.SimTable()
+    sim.inject_at(2, "refuse", 1)                           # ;s022 -> :#s01CF
+    code, sim, log = _run(tmp_path, sim)
+    assert "RECV" in log and ":#s01CF" in log
+    assert sim.received == FULL[:3] and sim.motions == 0
+
+
+def test_the_readme_says_up_front_to_open_i1profiler_once():
+    head = _source("README.md").split("## What it does")[0]
+    assert "open i1Profiler once" in head and "quit it" in head
+    assert tbl.TOOL_VERSION == "0.1.1"

@@ -1,4 +1,4 @@
-# ChromIQ i1iO test program 0.1.0 (a first sign of life)
+# ChromIQ i1iO test program 0.1.1 (a first sign of life)
 
 This is a very small test program for the **X-Rite i1iO 2** scanning table
 with an **i1Pro 2**. It was written for ChromIQ issue #129, from the USB
@@ -9,6 +9,13 @@ table **once** to run to its resting place, where the arm already is. The arm
 should barely move. **It never measures.**
 
 It is not part of the ChromIQ app, and it does not need ChromIQ.
+
+**Before the real run, after switching the table on: open i1Profiler once,
+wait until it shows the table, and quit it.** On the first real test, the
+table refused the program's status question until i1Profiler had been opened once
+(most likely because i1Profiler does a start-up step this program leaves out).
+If the table refuses anyway, the program says so, explains this, and stops
+without sending anything more.
 
 Nothing here is promised. Whether you try it is entirely your choice, there is
 no warranty, and you can stop at every step. Nobody on the ChromIQ project owns
@@ -133,6 +140,8 @@ not to remove it later. The last two lines put pyusb into a small folder called
 
 ## 3. Preparing the table
 
+* **If the table was switched on since you last used i1Profiler: open
+  i1Profiler once, wait until it shows the table, and quit it.**
 * **Quit i1Profiler** (i1Profiler menu, Quit i1Profiler). The program refuses
   to start while it runs, because two programs must never talk to the table at
   the same time. X-Rite's background helpers (i1ProfilerTray, X-Rite Device

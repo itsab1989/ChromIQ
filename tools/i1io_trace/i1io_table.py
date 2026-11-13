@@ -31,7 +31,7 @@ import sys
 import time
 from dataclasses import dataclass
 
-TOOL_VERSION = "0.1.0"
+TOOL_VERSION = "0.1.1"
 
 VID, PID = 0x0971, 0x2004
 
@@ -42,6 +42,16 @@ class ForbiddenLine(Exception):
 
 class ProtocolError(Exception):
     """A reply that is not what the protocol says."""
+
+
+class TableRefused(ProtocolError):
+    """The table answered ``:#`` + id + code: it refused the command. Seen on
+    the tester's table (0.1.0, run 1: ``:#s01CF`` to ``;s022`` before i1Profiler
+    had been opened since the table was switched on); never in the recordings."""
+
+    def __init__(self, cid: str, code: int, line: str):
+        super().__init__(f"the table refused {cid} with code {code} ({line!r})")
+        self.cid, self.code = cid, code
 
 
 class TransportError(Exception):
@@ -131,10 +141,23 @@ class Reply:
 
 
 _ACK_RE = re.compile(r":!([a-z][0-9])([0-9A-F]{2})")
+_REFUSED_RE = re.compile(r":#([a-z][0-9])([0-9A-F])([0-9A-F]{2})")
+
+
+def _check_refused(line: str, cid: str) -> None:
+    """A well-formed ``:#`` line for *cid* (valid checksum) is the table's
+    refusal; raise TableRefused. Anything else starting ``:#`` is malformed."""
+    if not line.startswith(":#"):
+        return
+    m = _REFUSED_RE.fullmatch(line)
+    if m and checksum_ok(line) and m.group(1) == cid:
+        raise TableRefused(cid, int(m.group(2), 16), line)
+    raise ProtocolError(f"a malformed refusal while waiting for {cid} ({_short(line.encode())})")
 _DONE_RE = re.compile(r":\$([a-z][0-9])([0-9A-F])([0-9A-F]*)([0-9A-F]{2})")
 
 
 def parse_ack(line: str, cid: str) -> None:
+    _check_refused(line, cid)
     m = _ACK_RE.fullmatch(line)
     if not m or not checksum_ok(line):
         raise ProtocolError(f"expected the table's acceptance of {cid}, got {line!r}")
@@ -143,6 +166,7 @@ def parse_ack(line: str, cid: str) -> None:
 
 
 def parse_done(line: str, cid: str) -> Reply:
+    _check_refused(line, cid)
     if not line.startswith(":$") or not checksum_ok(line):
         raise ProtocolError(f"expected the table's answer to {cid}, got {line!r}")
     m = _DONE_RE.fullmatch(line)
@@ -237,6 +261,14 @@ MAX_MOTIONS = 1
 MAX_LINES = 12
 
 
+#: What the tester is told when the table refuses a line (LIKELY reason: run 1
+#: of the tester's first test, refused until i1Profiler had been opened once).
+REFUSED_TEXT = ("The table answered, but refused this {what} (code {code}). This most likely "
+                "means that the table has been switched on and i1Profiler has not been opened "
+                "since. Please open i1Profiler once, wait until it shows the table, quit it, and "
+                "start this program again. Nothing more is sent to the table.")
+
+
 # ---- the session ------------------------------------------------------------------------
 
 class Doubt(Exception):
@@ -276,6 +308,7 @@ class Table:
         #: arm is now is unknown (it was heading for :attr:`heading_to`)
         self.arrival_unknown = False
         self.heading_to: "tuple[int, int] | None" = None
+        self._position_before: "tuple[int, int] | None" = None
 
     # ---- logging and stopping ------------------------------------------------------
     def log(self, kind: str, text: str) -> None:
@@ -382,6 +415,14 @@ class Table:
             reply = parse_done(self._read_line(start + timeout), cid)
         except TimeoutError:
             raise self._doubt(f"no answer to {cid} within the expected time") from None
+        except TableRefused as exc:
+            if line in MOTION_LINES:
+                # the table answered and refused: it did not start the movement
+                self.motion_unconfirmed = False
+                self.arrival_unknown = False
+                self.position_now = self._position_before
+            what = "command" if line in MOTION_LINES else "question"
+            raise self._doubt(str(exc), REFUSED_TEXT.format(what=what, code=exc.code)) from None
         except ProtocolError as exc:
             raise self._doubt(str(exc)) from None
         except TransportError as exc:
@@ -496,6 +537,7 @@ class Table:
             # from the moment the line is written until the arrival is read,
             # where the arm is counts as unknown (challenge 2, finding 1)
             self.arrival_unknown = True
+            self._position_before = self.position_now
             self.position_now = None
             self.heading_to = TARGETS[step.key]
             self.exchange(step.key, step.timeout)

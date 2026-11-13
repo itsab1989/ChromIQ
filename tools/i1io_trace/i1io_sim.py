@@ -66,7 +66,7 @@ class Fault:
 
 FAULT_KINDS = ("no_answer", "no_done", "late", "bad_checksum", "garbled", "status",
                "wrong_cid", "stray", "blocked", "drift", "unplug", "free", "identity",
-               "extra_line")
+               "extra_line", "refuse")
 
 
 @dataclass
@@ -174,6 +174,9 @@ class SimTable:
             return
         if kind == "garbled":
             self._out.append((t0 + 0.01, b":!\xff\xfe\r"))
+            return
+        if kind == "refuse":       # ':#' + id + code, as the tester's table answered s0
+            self._reply(t0 + 0.016, f":#{cid}{int(fault.value or 1):X}")
             return
         if kind == "wrong_cid":
             other = "s0" if cid != "s0" else "p0"
