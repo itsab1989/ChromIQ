@@ -344,6 +344,32 @@ possible"; what follows is how it was built, awaiting confirmation.)
 * A chart 4.3.33 made with the aiming crosses off reopens with its own
   smaller right margin.
 
+### On: Any sheet inside the table's reach (review 5, item 7, 2026-11-13)
+
+**Confirmed by:** *nobody yet.* (The owner asked: "does the i1iO allow for
+smaller and custom paper sizes as well?")
+
+* Offered in Guided and Manual: A4, Letter, 8x10", A5, 13 x 18 cm, 5x7",
+  4x6", 10 x 15 cm and the postcard; Manual's "Custom..." takes any size.
+  Every one is named as it lies on the table (landscape), and printed, like
+  A4, on an upright (portrait) sheet.
+* How a small sheet lies on the table: like A4, across the table, its long
+  edge along the arm's travel, so the strips (which run down the portrait
+  page) run along the arm; the corner the strips start from is the same, so
+  the aiming crosses, the letters, the numbers and the name line keep their
+  places relative to the sheet. The previews turn it as they turn A4.
+* The limit is the arm's reach as X-Rite publishes it (`table_facts.
+  REACH_MM`, 320 x 230 mm; a PUBLISHED figure, not yet confirmed on a
+  table): a sheet that, laid across the table, lies outside it is refused,
+  and so is a landscape code and a sheet too small for one strip, each with
+  its reason (M-I1IO-SHEET-CHECK-PARTS). A sheet larger than A4 or Letter in
+  one direction but inside the reach is built and said to be untested.
+* Everything adapts to the sheet: the capacity, the letter and number
+  bands, the crosses (on a small sheet they may take paper patches would
+  have; they can be switched off), and the name line, which is dropped
+  before a patch is lost, and said.
+* A4 and Letter charts are byte-identical to before.
+
 ### On: Verification and Calibration
 
 *The owner, relayed 2026-11-13: "verification and calibration runs must work

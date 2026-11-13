@@ -43,7 +43,17 @@ from core.i18n import tr
 from . import table_facts as F
 
 #: The sheets Guided offers for the i1iO: portrait, laid across the table.
-GUIDED_PAPERS = ("A4", "Letter")
+#: Since review 5 (item 7, the owner: "does the i1iO allow for smaller and
+#: custom paper sizes as well?"): every sheet that, laid across the table,
+#: lies inside the arm's reach (`sheet_size`), A4 and Letter first; Manual's
+#: "Custom..." takes any other size the same rule allows.
+GUIDED_PAPERS = ("A4", "Letter", "203x254", "148x210", "130x180", "127x178",
+                 "4x6", "10x15cm", "postcard")
+
+#: The largest sheet the i1iO has been tried with in each direction (A4's
+#: height, Letter's width): a larger one inside the reach builds, with a
+#: warning that the size is untested on a table.
+TESTED_MM = (215.9, 297.0)
 
 
 #: The `LayoutRecipe` fields an i1iO chart reads. The preset bar compares an
@@ -131,9 +141,39 @@ def paper_for(paper) -> str:
     """The i1iO sheet for a person coming from *paper*: Letter for anyone on a
     US sheet, A4 for everyone else (Guided picks no paper by locale anywhere,
     so the paper already on screen is the best evidence)."""
-    return ("Letter" if str(paper or "") in ("Letter", "LetterR", "Legal",
-                                             "11x17", "203x254")
+    paper = str(paper or "")
+    if paper in GUIDED_PAPERS:
+        return paper
+    return ("Letter" if paper in ("Letter", "LetterR", "Legal", "11x17")
             else "A4")
+
+
+_LANDSCAPE_NAMES = {"203x254": '10×8" (254 × 203 mm)',
+                    "148x210": "A5 (210 × 148 mm)",
+                    "130x180": "18 × 13 cm (180 × 130 mm)",
+                    "127x178": '7×5" (178 × 127 mm)',
+                    "4x6": '6×4" (152 × 102 mm)',
+                    "10x15cm": "15 × 10 cm (150 × 100 mm)",
+                    "postcard": "148 × 100 mm"}
+
+
+def i1io_paper_label(paper: str) -> str:
+    """The list label of an i1iO sheet, named as it is used: landscape, as it
+    lies on the table (the chart's code, its files and printing stay
+    portrait). A4 and Letter keep their own labels; any other size, listed
+    or custom, is named by its landscape dimensions (review 5, item 7)."""
+    from data.patch_db import PAPER_LABELS
+    code = paper_label_code(paper)
+    if code in PAPER_LABELS and code != paper:
+        return PAPER_LABELS[code]
+    if paper in _LANDSCAPE_NAMES:
+        return _LANDSCAPE_NAMES[paper] + " Landscape"
+    from workflow.layout_engine.papers import dimensions_mm
+    try:
+        w, h = dimensions_mm(paper)
+    except (ValueError, TypeError):
+        return str(paper)
+    return f"{max(w, h):g} × {min(w, h):g} mm Landscape"
 
 
 def paper_label_code(paper: str) -> str:
@@ -615,16 +655,14 @@ def sheet_size(paper: str) -> "tuple[float, float]":
     and, laid across the table, inside the arm's reach."""
     from workflow.layout_engine.papers import dimensions_mm
     w, h = dimensions_mm(paper)
+    from workflow import measurement_messages as _mm
     rx, ry = F.REACH_MM.value
     if w > h:
-        raise I1ioSheetRefused(
-            f"An i1iO chart is printed on a portrait sheet (this one is "
-            f"{w:g} x {h:g} mm) and laid across the table, so its strips run "
-            f"along the arm.")
+        raise I1ioSheetRefused(tr(_mm._I1IO_SHEET_NOT_PORTRAIT).format(
+            w=f"{w:g}", h=f"{h:g}"))
     if h > rx + 1e-6 or w > ry + 1e-6:
-        raise I1ioSheetRefused(
-            f"This sheet ({w:g} x {h:g} mm), laid across the table, is larger "
-            f"than the area the i1iO's arm can reach ({rx:g} x {ry:g} mm).")
+        raise I1ioSheetRefused(tr(_mm._I1IO_SHEET_OVER_REACH).format(
+            w=f"{w:g}", h=f"{h:g}", rx=f"{rx:g}", ry=f"{ry:g}"))
     return w, h
 
 
@@ -740,12 +778,17 @@ def check_sheet(geom, layout, w: float, h: float,
     LABEL_CLEAR_MM of a patch. *crosses*: one answer or one per page;
     *reach*: how far the band's content reaches (mm from the paper edge,
     `raster.clip_content_reach_mm`), else the geometry's."""
+    from workflow import measurement_messages as _mm
     warn: "list[str]" = []
 
     def risky(text: str) -> None:
         if text not in warn:
             warn.append(text)
 
+    if w > TESTED_MM[0] + 0.05 or h > TESTED_MM[1] + 0.05:
+        # inside the reach (`sheet_size`) but larger than any sheet tried on
+        # a table: built, and said (review 5, item 7)
+        risky(tr(_mm._I1IO_SIZE_UNTESTED).format(w=f"{w:g}", h=f"{h:g}"))
     edge = F.RUN_EDGE_MM.value
     band = clip_area(geom, w, h)
     if band is not None and (reach is None or reach < 0):
@@ -754,9 +797,7 @@ def check_sheet(geom, layout, w: float, h: float,
             reach = band[2]
     for zx0, zy0, zx1, zy1 in [mark_zone(m) for m in marks(w, h)]:
         if zx0 < 0 or zy0 < 0 or zx1 > w or zy1 > h:
-            raise I1ioSheetRefused(tr(
-                "An aiming cross would not fit on the sheet. Please choose A4 or "
-                "Letter."))
+            raise I1ioSheetRefused(tr(_mm._I1IO_CROSS_OFF_SHEET))
     for page in range(layout.pages):
         zones = ([mark_zone(m) for m in marks(w, h)]
                  if on_page(crosses, page) else [])
@@ -764,48 +805,28 @@ def check_sheet(geom, layout, w: float, h: float,
         for cell in cells:
             box = cell[3:]
             if box[0] < 0 or box[1] < 0 or box[2] > w or box[3] > h:
-                raise I1ioSheetRefused(tr(
-                    "A patch would lie partly off the sheet. Make the "
-                    "margins, the chart offset or the patch size smaller."))
+                raise I1ioSheetRefused(tr(_mm._I1IO_PATCH_OFF_SHEET))
             if any(_overlap(box, z) for z in zones):
-                raise I1ioSheetRefused(tr(
-                    "A patch would touch an aiming cross. Make the margins "
-                    "larger or the chart offset smaller, or switch the "
-                    "aiming crosses off."))
+                raise I1ioSheetRefused(tr(_mm._I1IO_PATCH_ON_CROSS))
             if band is not None and _overlap(box, (band[0], 0.0, band[2], h)):
-                raise I1ioSheetRefused(tr(
-                    "A patch would lie in the clip border. Make the clip "
-                    "border narrower, or the left margin larger."))
+                raise I1ioSheetRefused(tr(_mm._I1IO_PATCH_IN_CLIP))
         for _x, y_start, y_end, col in scan_strips(cells):
             if y_start < edge - 1e-6 or y_end > h - edge + 1e-6:
-                risky(tr(
-                    "A strip has no room before its first or after its last "
-                    "patch for the arm to reach its speed and to stop."))
+                risky(tr(_mm._I1IO_RUN_NEAR_EDGE))
             run = (col[0][3], y_start, col[0][5], y_end)
             if any(_overlap(run, z) for z in zones):
-                risky(tr(
-                    "The blank paper at the end of a strip would touch an aiming "
-                    "cross. Make the top or bottom margin larger."))
+                risky(tr(_mm._I1IO_RUN_ON_CROSS))
             if band is not None and _overlap(run, band):
-                risky(tr(
-                    "The blank paper at the end of a strip would run into the clip "
-                    "border. Make the clip border narrower, or the left "
-                    "margin larger."))
+                risky(tr(_mm._I1IO_RUN_INTO_CLIP))
         if band is not None:
             if any(_overlap(band, z) for z in zones):
-                raise I1ioSheetRefused(tr(
-                    "The clip border would touch an aiming cross. Make the clip "
-                    "border narrower, or switch it off."))
+                raise I1ioSheetRefused(tr(_mm._I1IO_CLIP_ON_CROSS))
             if reach is not None and cells:
                 left = min(c[3] for c in cells)
                 if reach > left + 1e-6:
-                    raise I1ioSheetRefused(tr(
-                        "The clip border's content would come too close to the "
-                        "patches. Make the clip border wider, or its text smaller."))
+                    raise I1ioSheetRefused(tr(_mm._I1IO_CLIP_CONTENT_NEAR))
                 if reach + F.LABEL_CLEAR_MM.value > left + 1e-6:
-                    risky(tr(
-                        "The clip border's content would come too close to the "
-                        "patches. Make the clip border wider, or its text smaller."))
+                    risky(tr(_mm._I1IO_CLIP_CONTENT_NEAR))
     return warn
 
 
@@ -813,19 +834,12 @@ def option_warnings(kw: dict) -> "list[str]":
     """What a person's own options put on the blank paper the arm runs on
     (Job D: allowed, and said, as other instruments' charts say it): edge
     spacers, and ruler helper markers along the top and bottom edges."""
+    from workflow import measurement_messages as _mm
     out = []
     if kw.get("edge_spacers"):
-        out.append(tr(
-            "Edge spacers print a spacer on the blank paper where the arm "
-            "starts and stops every strip. The table may take it for a "
-            "patch; switch “Edge spacers (bracket each strip)” off if a "
-            "strip is read wrongly."))
+        out.append(tr(_mm._I1IO_EDGE_SPACERS))
     if kw.get("helper_markers") and kw.get("helper_markers_top_bottom", True):
-        out.append(tr(
-            "The ruler helper markers along the top and bottom edges print "
-            "where the arm starts and stops every strip. The table may take "
-            "them for a patch; switch off “Top/bottom (horizontal)” for the markers if "
-            "a strip is read wrongly."))
+        out.append(tr(_mm._I1IO_TOP_MARKERS))
     return out
 
 
@@ -2292,7 +2306,14 @@ def preview_checks(kw: dict):
                                                        or "A4"))
         fixed = fixed_build_kwargs(kw)
         geom = instruments.geom_from_build_kwargs(kw)
-        layout = geometry.compute(geom, w, h, count)
+        try:
+            sheet_size(str(kw.get("paper") or "A4"))
+            layout = geometry.compute(geom, w, h, count)
+        except I1ioSheetRefused as exc:
+            return None, [str(exc)]
+        except geometry.LayoutError:
+            from workflow import measurement_messages as _mm
+            return None, [tr(_mm._I1IO_SHEET_TOO_SMALL)]
         labels = fixed[LABELS_KEY]
         rule = kw.get("label_rule")
         labels, shift = held_letters(geom, layout, w, h, dpi, labels, rule)
@@ -2301,17 +2322,19 @@ def preview_checks(kw: dict):
         # the edge-spacer and ruler-marker warnings in the log only): the
         # sheet's own check, the options' and the letters' and numbers'
         warn: "list[str]" = []
-        if not fixed[CROSSES_KEY]:
-            # the name line without the crosses: left off when no paper is
-            # free for it, as the build says (`build_chart`)
-            from workflow import measurement_messages as _mm
-            for page in range(layout.pages):
-                plan = line_plan(geom, layout, w, h, page,
-                                 name=str(kw.get("project") or "chart"),
-                                 dpi=dpi, labels=labels, crosses=False)
-                if "name" not in (plan.get("kept") or ()):
-                    warn.append(tr(_mm._I1IO_LINE_LEFT_OFF))
-                    break
+        # the name line: left off when no paper is free for it, as the build
+        # says (`build_chart`)
+        from workflow import measurement_messages as _mm
+        _cr = bool(fixed[CROSSES_KEY])
+        for page in range(layout.pages):
+            plan = line_plan(geom, layout, w, h, page,
+                             name=str(kw.get("project") or "chart"),
+                             dpi=dpi, labels=labels, crosses=_cr)
+            # what the build records (`write_side_file`: the plan's text)
+            if not plan.get("text"):
+                warn.append(tr(_mm._I1IO_LINE_LEFT_OFF_SMALL if _cr
+                               else _mm._I1IO_LINE_LEFT_OFF))
+                break
         try:
             warn += check_sheet(geom, layout, w, h,
                                 crosses=fixed[CROSSES_KEY])

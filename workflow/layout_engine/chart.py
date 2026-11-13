@@ -611,7 +611,16 @@ def build_chart(
            {"clip_border_free_space": False})})
     w_mm, h_mm = papers.dimensions_mm(paper)
     geom = _geom_for(len(target.patches))
-    layout = geometry.compute(geom, w_mm, h_mm, len(target.patches))
+    try:
+        layout = geometry.compute(geom, w_mm, h_mm, len(target.patches))
+    except geometry.LayoutError:
+        if not _i1io:
+            raise
+        # A SHEET TOO SMALL FOR ONE STRIP, said in words (review 5, item 7):
+        # any size inside the table's reach may be chosen now
+        from workflow import measurement_messages as _mm
+        from core.i18n import tr as _tr
+        raise _i1io_chart.I1ioSheetRefused(_tr(_mm._I1IO_SHEET_TOO_SMALL))
 
     def _refuse_unreadable_patterns(layout_now) -> None:
         if label_rule == permutation.LEGACY:
@@ -890,10 +899,16 @@ def build_chart(
                 encoding="utf-8")).get("pages") or []
         except (OSError, ValueError):
             _pages = []
-        if any(not (pg.get("text_line") or {}).get("text") for pg in _pages):
+        _lost = [pg for pg in _pages
+                 if not (pg.get("text_line") or {}).get("text")]
+        if _lost:
             from workflow import measurement_messages as _mm
             from core.i18n import tr as _tr
-            _why = _tr(_mm._I1IO_LINE_LEFT_OFF)
+            # with the crosses on the sheet is simply too small for it
+            # (review 5, item 7: any size inside the reach)
+            _why = _tr(_mm._I1IO_LINE_LEFT_OFF_SMALL
+                       if any(pg.get("aim") == "crosses" for pg in _lost)
+                       else _mm._I1IO_LINE_LEFT_OFF)
             if _why not in _i1io_warnings:
                 _i1io_warnings.append(_why)
 

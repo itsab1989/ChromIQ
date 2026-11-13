@@ -162,7 +162,10 @@ def test_guided_offers_the_i1io_with_its_own_sheets_only(chart_tab):
     tab._instr_combo.setCurrentIndex(i)
     papers = [tab._paper_combo.itemData(k)
               for k in range(tab._paper_combo.count())]
-    assert papers == ["A4", "Letter"]
+    # every sheet inside the table's reach, A4 and Letter first (review 5,
+    # item 7)
+    from workflow.i1io.chart import GUIDED_PAPERS
+    assert papers == list(GUIDED_PAPERS) and papers[:2] == ["A4", "Letter"]
     p = tab._collect_guided()
     assert (p.instrument, p.paper) == ("IO2", "A4")
     # the engine's own count for that sheet

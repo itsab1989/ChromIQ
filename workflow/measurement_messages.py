@@ -7720,6 +7720,70 @@ M_I1IO_EDGE_TEXT_PARTS = _m(
     "The i1iO chart's lettering in the edge: the parts of the note",
     "\n".join((_I1IO_EDGE_LOST_TEXT, _I1IO_EDGE_FIX_TEXT)),
     approved=False)
+#: An i1iO sheet's own check (`workflow.i1io.chart.check_sheet`) and the
+#: options' warnings (`option_warnings`): one line each, in the build's log
+#: and under "Measured from Preview"; the refusals end a build (review 5 nit).
+_I1IO_CROSS_OFF_SHEET = ("An aiming cross would not fit on this sheet. Switch the "
+                         "aiming crosses off, or choose a larger sheet.")
+_I1IO_SHEET_NOT_PORTRAIT = ("An i1iO chart is printed on an upright (portrait) "
+                            "sheet, this one is {w} x {h} mm, and the sheet is "
+                            "laid across the table so its strips run along "
+                            "the arm. Choose the size the other way round.")
+_I1IO_SHEET_OVER_REACH = ("This sheet ({w} x {h} mm), laid across the table, "
+                          "is larger than the area the i1iO's arm can reach "
+                          "({rx} x {ry} mm). Choose a smaller sheet.")
+_I1IO_SHEET_TOO_SMALL = ("This sheet is too small for one strip of patches "
+                         "with the margins, the aiming crosses and the labels "
+                         "it needs. Choose a larger sheet, make the patches "
+                         "or the margins smaller, or switch the aiming "
+                         "crosses off.")
+_I1IO_SIZE_UNTESTED = ("This sheet ({w} x {h} mm) is larger than A4 or Letter "
+                       "in one direction. It lies inside the area the arm can "
+                       "reach as X-Rite publishes it, but no sheet of this "
+                       "size has been tried on a table yet.")
+_I1IO_PATCH_OFF_SHEET = ("A patch would lie partly off the sheet. Make the margins, "
+                         "the chart offset or the patch size smaller.")
+_I1IO_PATCH_ON_CROSS = ("A patch would touch an aiming cross. Make the margins larger"
+                        " or the chart offset smaller, or switch the aiming crosses "
+                        "off.")
+_I1IO_PATCH_IN_CLIP = ("A patch would lie in the clip border. Make the clip border "
+                       "narrower, or the left margin larger.")
+_I1IO_RUN_NEAR_EDGE = ("A strip has no room before its first or after its last patch"
+                       " for the arm to reach its speed and to stop.")
+_I1IO_RUN_ON_CROSS = ("The blank paper at the end of a strip would touch an aiming "
+                      "cross. Make the top or bottom margin larger.")
+_I1IO_RUN_INTO_CLIP = ("The blank paper at the end of a strip would run into the "
+                       "clip border. Make the clip border narrower, or the left "
+                       "margin larger.")
+_I1IO_CLIP_ON_CROSS = ("The clip border would touch an aiming cross. Make the clip "
+                       "border narrower, or switch it off.")
+_I1IO_CLIP_CONTENT_NEAR = ("The clip border's content would come too close to the "
+                           "patches. Make the clip border wider, or its text smaller.")
+_I1IO_EDGE_SPACERS = ("Edge spacers print a spacer on the blank paper where the arm"
+                      " starts and stops every strip. The table may take it for a "
+                      "patch; switch “Edge spacers (bracket each strip)” off if a "
+                      "strip is read wrongly.")
+_I1IO_TOP_MARKERS = ("The ruler helper markers along the top and bottom edges "
+                     "print where the arm starts and stops every strip. The table "
+                     "may take them for a patch; switch off “Top/bottom "
+                     "(horizontal)” for the markers if a strip is read wrongly.")
+M_I1IO_SHEET_CHECK_PARTS = _m(
+    "M-I1IO-SHEET-CHECK-PARTS",
+    "The i1iO sheet's own check: the parts of the note",
+    "\n".join((_I1IO_CROSS_OFF_SHEET, _I1IO_SHEET_NOT_PORTRAIT,
+               _I1IO_SHEET_OVER_REACH, _I1IO_SHEET_TOO_SMALL,
+               _I1IO_SIZE_UNTESTED,
+               _I1IO_PATCH_OFF_SHEET,
+               _I1IO_PATCH_ON_CROSS,
+               _I1IO_PATCH_IN_CLIP,
+               _I1IO_RUN_NEAR_EDGE,
+               _I1IO_RUN_ON_CROSS,
+               _I1IO_RUN_INTO_CLIP,
+               _I1IO_CLIP_ON_CROSS,
+               _I1IO_CLIP_CONTENT_NEAR,
+               _I1IO_EDGE_SPACERS,
+               _I1IO_TOP_MARKERS)),
+    approved=False)
 #: An i1iO chart's strip letters (and their underline) and patch numbers where
 #: a person's options put them (review 3 of the i1iO Beta, items 2 and 5):
 #: one line each, said in the build's log and under "Measured from Preview";
@@ -7746,6 +7810,11 @@ _I1IO_LINE_LEFT_OFF = ("The line with the chart's name and page number has "
                        "no free paper on this sheet and is left off. Make "
                        "the right margin larger, or switch the aiming "
                        "crosses on.")
+_I1IO_LINE_LEFT_OFF_SMALL = ("The line with the chart's name and page number "
+                             "does not fit between aiming crosses 2 and 3 on "
+                             "this small sheet and is left off. Choose a "
+                             "larger sheet, or write the name and the page "
+                             "number on the sheet by hand.")
 _I1IO_ON_NAME_LINE = ("The patches, the strip letters or their underline "
                       "would touch the line with the chart's name. Make the "
                       "chart offset or \u201cLabel offset\u201d smaller, or "
@@ -7764,6 +7833,7 @@ M_I1IO_FURNITURE_PARTS = _m(
                _I1IO_LETTERS_ON_CROSS,
                _I1IO_LETTERS_PAST_EDGE, _I1IO_LETTERS_OFF_SHEET,
                _I1IO_NUMBERS_LEFT_OFF, _I1IO_LINE_LEFT_OFF,
+               _I1IO_LINE_LEFT_OFF_SMALL,
                _I1IO_ON_NAME_LINE,
                _I1IO_NUMBERS_ON_CROSS, _I1IO_NUMBERS_PAST_EDGE,
                _I1IO_NUMBERS_OFF_SHEET)),
@@ -10227,6 +10297,7 @@ CATALOGUE = {m.id: m for m in (
     M_I1IO_AIM_UNKNOWN, M_I1IO_AIM_PAGE_PARTS,
     M_I1IO_EDGE_MARKS_NOT_PRINTED, M_I1IO_EDGE_TEXT_NOT_PRINTED,
     M_I1IO_EDGE_TEXT_PARTS, M_I1IO_FURNITURE_PARTS,
+    M_I1IO_SHEET_CHECK_PARTS,
     M_FD9_SUPPORT_OFF, M_FD9_NO_ADDRESS, M_FD9_INSERT_SHEET, M_FD9_NEXT_PAGE,
     M_FD9_NO_CONNECTION, M_FD9_WRONG_FIRMWARE, M_FD9_MARKS_NOT_FOUND,
     M_FD9_SHEET_STILL_INSIDE, M_FD9_RESUME_REFUSED, M_FD9_FAILED,

@@ -20110,7 +20110,7 @@ class TabChart(QWidget):
         _label_code = (lambda c: c)
         if instr == "IO2":
             # shown as the sheet is used: landscape, on the table
-            from workflow.i1io.chart import paper_label_code as _label_code
+            from workflow.i1io.chart import i1io_paper_label as _label_code
         for size in sizes:
             if size not in excluded:
                 self._paper_combo.addItem(

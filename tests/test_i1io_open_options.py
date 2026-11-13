@@ -74,10 +74,10 @@ def test_the_offsets_move_the_patches(tmp_path):
 def test_an_offset_is_fitted_and_only_no_room_is_refused(tmp_path):
     """Review 5, item 2: a large offset lays out fewer patches; only an
     offset that leaves no room for one strip is refused."""
-    from workflow.layout_engine.geometry import LayoutError
+    from workflow.i1io.chart import I1ioSheetRefused
     small, _s = _build(tmp_path / "a", offset_x=150.0)
     assert 0 < small.layout.patches_per_page < 528
-    with pytest.raises(LayoutError):
+    with pytest.raises(I1ioSheetRefused, match="too small for one strip"):
         _build(tmp_path / "b", offset_x=180.0)
 
 
