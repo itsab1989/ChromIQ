@@ -626,6 +626,125 @@ M_I1IO_NOT_YET_BY_HAND = _m(
     "measure it by hand on this tab.",
     approved=False)
 
+#: What to aim at on an i1iO chart, by what the chart records
+#: (`workflow.i1io.chart.aim_details`, 2026-11-13: the owner's "Aiming
+#: crosses" option). Appended as their last paragraph to M-I1IO-NOT-YET and
+#: M-I1IO-NOT-YET-BY-HAND; the title names the paragraph in the catalogue
+#: and is not shown. X-Rite's manuals align every page again, because each
+#: sheet is laid down by hand, so every page has its own three points.
+M_I1IO_AIM_CROSSES = _m(
+    "M-I1IO-AIM-CROSSES",
+    "What to aim at on this i1iO chart: the crosses",
+    "Good to know for later: this chart has three small numbered aiming "
+    "crosses on every page. When the table measures it, you lay each sheet "
+    "on the table as the preview shows it, a quarter turn clockwise from "
+    "how it was printed, and show the table where it lies: push the arm "
+    "until the cross hair of its sight sits exactly on the centre of cross "
+    "1 at the top left, then on cross 2 at the bottom left, then on cross 3 "
+    "at the bottom right. From these three points the table works out where "
+    "every patch is. Every sheet is laid down by hand, so every page is "
+    "aimed at on its own, at its own three crosses.",
+    approved=False)
+
+#: {pages}: one line per page, from M-I1IO-AIM-PAGE-PARTS.
+M_I1IO_AIM_CORNERS = _m(
+    "M-I1IO-AIM-CORNERS",
+    "What to aim at on this i1iO chart: the corner patches",
+    "Good to know for later: this chart was made without aiming crosses, "
+    "so that more patches fit on it. When the table measures it, you lay "
+    "each sheet on the table as the preview shows it, a quarter turn "
+    "clockwise from how it was printed, and show the table where it lies by "
+    "aiming at three corner patches instead: push the arm until the cross "
+    "hair of its sight sits on the centre of the top-left patch, then on "
+    "the centre of the bottom-left patch, then on the centre of the "
+    "bottom-right patch. Every sheet is laid down by hand, so every page is "
+    "aimed at on its own. On this chart that means:\n{pages}\n"
+    "ChromIQ has put clearly visible patches into those corners, so they "
+    "are easy to find. From these three points the table works out where "
+    "every patch is.",
+    approved=False)
+
+#: The same when the chart prints no strip letters or patch numbers, so its
+#: patches have no names on the sheet: position words only.
+M_I1IO_AIM_CORNERS_UNLABELLED = _m(
+    "M-I1IO-AIM-CORNERS-UNLABELLED",
+    "What to aim at on this i1iO chart: the corner patches, unlabelled",
+    "Good to know for later: this chart was made without aiming crosses, "
+    "so that more patches fit on it. When the table measures it, you lay "
+    "each sheet on the table as the preview shows it, a quarter turn "
+    "clockwise from how it was printed, and show the table where it lies by "
+    "aiming at three corner patches instead: push the arm until the cross "
+    "hair of its sight sits on the centre of the patch in the top-left "
+    "corner of the block of patches, then on the centre of the one in the "
+    "bottom-left corner, then on the centre of the one in the bottom-right "
+    "corner. The strip letters and patch numbers are not printed on this "
+    "chart, so go by the corners. ChromIQ has put clearly visible patches "
+    "there, so they are easy to find. Every sheet is laid down by hand, so "
+    "every page is aimed at on its own, at its own three corners.",
+    approved=False)
+
+M_I1IO_AIM_UNKNOWN = _m(
+    "M-I1IO-AIM-UNKNOWN",
+    "What to aim at on this i1iO chart: not recorded",
+    "Good to know for later: this chart does not record what to aim at, "
+    "because it was made by an earlier version of ChromIQ. When the table "
+    "measures it, you lay each sheet on the table as the preview shows it, "
+    "a quarter turn clockwise from how it was printed, and show the table "
+    "where it lies at three points. If the sheet has three small numbered "
+    "crosses in its corners, push the arm until the cross hair of its sight "
+    "sits on the centre of cross 1 at the top left, then of cross 2 at the "
+    "bottom left, then of cross 3 at the bottom right. If it has no "
+    "crosses, aim at the centre of the top-left patch (on page 1 that is "
+    "patch A1, the first patch of strip A), then of the bottom-left patch "
+    "(the first patch of the last strip), then of the bottom-right patch "
+    "(the last patch of the last strip) instead. Every sheet is laid down "
+    "by hand, so every page is aimed at on its own.",
+    approved=False)
+
+#: The lines of M-I1IO-AIM-CORNERS's {pages}: a page aimed at its corner
+#: patches (named as printed), and a page that keeps its crosses
+#: (`workflow.i1io.chart.page_crosses`: one strip, or no visible corner).
+_I1IO_AIM_PAGE_PATCHES = ("Page {page}: patch {first} (top-left corner), "
+                          "then patch {second} (bottom-left corner), then "
+                          "patch {third} (bottom-right corner).")
+_I1IO_AIM_PAGE_CROSSES = ("Page {page}: this page carries the three "
+                          "numbered crosses, because its corner patches "
+                          "cannot be aimed at (it has only one strip, or no "
+                          "clearly visible patch in a corner). Aim at "
+                          "cross 1, 2 and 3 there.")
+M_I1IO_AIM_PAGE_PARTS = _m(
+    "M-I1IO-AIM-PAGE-PARTS",
+    "What to aim at on this i1iO chart: the lines per page",
+    "\n".join((_I1IO_AIM_PAGE_PATCHES, _I1IO_AIM_PAGE_CROSSES)),
+    approved=False)
+
+
+def i1io_aim_text(details: dict) -> str:
+    """The paragraph of M-I1IO-AIM-* for a chart's aiming record
+    (`workflow.i1io.chart.aim_details`), rendered and translated."""
+    aim = details.get("aim")
+    if aim == "crosses":
+        return M_I1IO_AIM_CROSSES.render()[1]
+    if aim == "corner patches":
+        if not details.get("labels", True):
+            return M_I1IO_AIM_CORNERS_UNLABELLED.render()[1]
+        lines = []
+        for page in details.get("pages") or []:
+            names = list(page.get("patches") or [])
+            if page.get("aim") == "crosses" or len(names) < 3:
+                lines.append(tr(_I1IO_AIM_PAGE_CROSSES).format(
+                    page=page.get("page")))
+            else:
+                lines.append(tr(_I1IO_AIM_PAGE_PATCHES).format(
+                    page=page.get("page"), first=names[0], second=names[1],
+                    third=names[2]))
+        if not lines:
+            return M_I1IO_AIM_CORNERS_UNLABELLED.render()[1]
+        return M_I1IO_AIM_CORNERS.render(
+            pages="\n".join("  \u2022  " + ln for ln in lines))[1]
+    return M_I1IO_AIM_UNKNOWN.render()[1]
+
+
 #: Start pressed on an X-Rite i1iO table chart while i1iO support is off.
 M_I1IO_SUPPORT_OFF = _m(
     "M-I1IO-SUPPORT-OFF",
@@ -10056,6 +10175,8 @@ CATALOGUE = {m.id: m for m in (
     M_CR30_LEARN_TILE, M_CR30_TRIGGER_NOT_ARMED,
     M_INSTRUMENT_BUSY,
     M_I1IO_NOT_YET, M_I1IO_NOT_YET_BY_HAND, M_I1IO_SUPPORT_OFF,
+    M_I1IO_AIM_CROSSES, M_I1IO_AIM_CORNERS, M_I1IO_AIM_CORNERS_UNLABELLED,
+    M_I1IO_AIM_UNKNOWN, M_I1IO_AIM_PAGE_PARTS,
     M_I1IO_EDGE_MARKS_NOT_PRINTED, M_I1IO_EDGE_TEXT_NOT_PRINTED,
     M_I1IO_EDGE_TEXT_PARTS,
     M_FD9_SUPPORT_OFF, M_FD9_NO_ADDRESS, M_FD9_INSERT_SHEET, M_FD9_NEXT_PAGE,

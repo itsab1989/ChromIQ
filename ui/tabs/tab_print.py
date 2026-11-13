@@ -2523,7 +2523,32 @@ class TabPrint(QWidget):
                 from workflow.i1io.support import pages_are_i1io_chart
                 pages = [p for p, _f in (getattr(self._preview, "_pages", None)
                                          or [])]
-                if pages and pages_are_i1io_chart(pages[:1]):
+                from workflow.i1io.support import aim_for_pages
+                aim = (aim_for_pages(pages[:1])
+                       if pages and pages_are_i1io_chart(pages[:1]) else None)
+                if aim == "corner patches":
+                    text = tr(
+                        "This i1iO chart is shown as it lies on the table. It "
+                        "prints on an upright (portrait) sheet like any other "
+                        "page, so there is nothing to turn in the print "
+                        "settings. After printing, lay the sheet on the table "
+                        "a quarter turn clockwise, so that strip A is at the "
+                        "top and its patch 1 at the top left. This chart has "
+                        "no aiming crosses: you aim at the centres of the "
+                        "top-left, bottom-left and bottom-right patches.")
+                elif aim == "unknown":
+                    text = tr(
+                        "This i1iO chart is shown as it lies on the table. It "
+                        "prints on an upright (portrait) sheet like any other "
+                        "page, so there is nothing to turn in the print "
+                        "settings. After printing, lay the sheet on the table "
+                        "a quarter turn clockwise, so that strip A is at the "
+                        "top and the letters and numbers read the right way "
+                        "up. If the sheet has numbered aiming crosses, cross 1 "
+                        "is then at the top left; if it has none, you aim at "
+                        "the centres of the top-left, bottom-left and "
+                        "bottom-right patches.")
+                elif aim == "crosses":
                     text = tr(
                         "This i1iO chart is shown as it lies on the table. It "
                         "prints on an upright (portrait) sheet like any other "

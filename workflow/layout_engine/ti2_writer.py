@@ -44,6 +44,7 @@ def build_ti2_text(
     white_point: tuple[float, float, float] = DEFAULT_WHITE_POINT,
     created: str | None = None,
     ink_limit: float | None = None,
+    slots: "list[int] | None" = None,
 ) -> str:
     """Return the full ``.ti2`` text.
 
@@ -64,7 +65,11 @@ def build_ti2_text(
 
     patches: list[Patch] = list(test_patches) + [media] * layout.padding
     total = len(patches)
-    slots = perm.location_permutation(total, seed, randomize)
+    # *slots*: a chart's own patch order when it has one (an i1iO chart
+    # aimed at its corner patches, `workflow.i1io.chart.sheet_slots`); every
+    # other chart passes none and is written exactly as before.
+    if slots is None:
+        slots = perm.location_permutation(total, seed, randomize)
 
     # English whatever the locale, as ArgyllCMS writes it (core/cgats_date.py).
     from core.cgats_date import created_stamp

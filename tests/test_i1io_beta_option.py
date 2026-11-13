@@ -188,9 +188,15 @@ def test_manual_offers_the_i1io_and_greys_what_it_does_not_read(chart_tab):
     panel.instr.setCurrentIndex(k)
     greyed = list(panel._i1io_greyable_controls())
     assert greyed and all(not c.isEnabled() for c in greyed)
-    assert all(c.toolTip() == i1io_greyed_reason() for c in greyed)
+    assert all(c.toolTip() == panel._i1io_reason_for(c) for c in greyed)
+    assert all(c.toolTip().endswith(i1io_greyed_reason()) for c in greyed)
     for c in panel._i1io_live_controls():
+        if c in panel._spacer_swatches:
+            continue           # live, and enabled by "Custom spacer colours"
         assert c.isEnabled(), c.objectName() or type(c).__name__
+    panel.custom_spacer_cb.setChecked(True)
+    assert all(b.isEnabled() for b in panel._spacer_swatches)
+    panel.custom_spacer_cb.setChecked(False)
     assert [panel.paper.itemData(j) for j in range(panel.paper.count())][:2] \
         == ["A4", "Letter"]
     # width across a strip, height along it (the scan)

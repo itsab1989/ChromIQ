@@ -6823,7 +6823,20 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         `_chart_is_calibration` decides it) M-I1IO-NOT-YET-BY-HAND: the
         i1Profiler way ends in building a profile, which those are not for."""
         from workflow import measurement_messages as M
-        self._i1io_window(*self._i1io_not_yet_message(M).render())
+        title, body = self._i1io_not_yet_message(M).render()
+        self._i1io_window(title, body + "\n\n"
+                          + M.i1io_aim_text(self._i1io_aim_details()))
+
+    def _i1io_aim_details(self) -> dict:
+        """What the loaded i1iO chart records about aiming
+        (`workflow.i1io.chart.aim_details`): the crosses, the corner patches
+        by name page by page, or nothing (then both are explained)."""
+        try:
+            from workflow.i1io.chart import aim_details
+            return aim_details(self._chart_file_for(self._ti1_path))
+        except Exception:      # noqa: BLE001 - a notice, never a blocker
+            log.debug("i1iO aim not read", exc_info=True)
+            return {"aim": "unknown", "pages": [], "labels": True}
 
     def _i1io_not_yet_message(self, M):
         """Which of the two i1iO "not yet" messages the loaded chart gets."""

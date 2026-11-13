@@ -128,7 +128,9 @@ def fixed_build_kwargs(kw: dict) -> dict:
         mode = F.SPACER_MODE.value
     if kw.get("spacer_on") is False and kw.get("spacer_mode") is None:
         mode = "none"
-    least = F.margins_mm(labels.rows, labels.size, numbers=labels.columns)
+    crosses = crosses_of(kw)
+    least = F.margins_mm(labels.rows, labels.size, numbers=labels.columns,
+                         crosses=crosses)
     asked = kw.get("margins")
     try:
         asked = tuple(float(v) for v in asked) if asked else None
@@ -141,10 +143,16 @@ def fixed_build_kwargs(kw: dict) -> dict:
     out.update(
         patch_w=across, patch_h=along, pscale=1.0, sscale=1.0,
         spacer_on=mode != "none", spacer_mode=mode,
-        spacer_width=F.SPACER_MM.value if mode != "none" else None,
+        spacer_width=(F.spacer_width_mm(kw.get("spacer_width"), along)
+                      if mode != "none" else None),
         inter_patch=inter_patch, strip_gap=strip_gap, edge_spacers=False,
         margins=margins, use_instrument_margins=True,
-        layout_mode="patch_first", patch_area_align="center",
+        layout_mode="patch_first",
+        # Manual's "Patch area alignment" when a person chose one for the
+        # i1iO (ALIGN_KEY); else centred between the crosses, and without
+        # them at the patch numbers, so what is left over goes to the
+        # table's bottom edge, where the text line is (`free_text_plan`)
+        patch_area_align=align_of(kw, crosses),
         density=1, cm_stagger=False, max_strip=None, offset_x=0.0,
         offset_y=0.0, nolpcbord=True, nolimit=True, clip_band=0.0,
         clip_content_mode="off", helper_markers=False, chart_text="",
@@ -161,7 +169,143 @@ def fixed_build_kwargs(kw: dict) -> dict:
         row_indicator_rotation=F.LABEL_TURN_DEG.value,
     )
     out[LABELS_KEY] = labels
+    out[CROSSES_KEY] = crosses
     return out
+
+
+#: The build-kwargs key for "Aiming crosses" (Manual, Guided, recipes).
+CROSSES_KEY = "i1io_crosses"
+
+#: The build-kwargs key for Manual's "Patch area alignment" chosen for the
+#: i1iO (`Recipe.i1io_align`); absent or "" = the i1iO's own default.
+ALIGN_KEY = "i1io_align"
+
+
+def align_of(kw: dict, crosses: bool) -> str:
+    """Where the patch block sits: the alignment chosen for the i1iO, else
+    `table_facts.ALIGN_WITH_CROSSES` / `ALIGN_WITHOUT_CROSSES`."""
+    asked = str(kw.get(ALIGN_KEY) or "")
+    if asked in F.ALIGNMENTS:
+        return asked
+    return (F.ALIGN_WITH_CROSSES.value if crosses
+            else F.ALIGN_WITHOUT_CROSSES.value)
+
+#: What a chart's files record as the thing to aim at (`.ti2` keyword
+#: CHROMIQ_I1IO_AIM and the side file's "aim"). A chart that records nothing
+#: (made before the option) is AIM_UNKNOWN.
+AIM_CROSSES = "crosses"
+AIM_CORNERS = "corner patches"
+AIM_UNKNOWN = "unknown"
+AIM_KEYWORD = "CHROMIQ_I1IO_AIM"
+#: Without the crosses: the three patches aimed at, per page, in aiming
+#: order, e.g. "1: A1 W1 W24; 2: X1 AT1 AT24" ("2: crosses" for a page that
+#: keeps them, `page_crosses`).
+AIM_PATCHES_KEYWORD = "CHROMIQ_I1IO_AIM_PATCHES"
+#: Whether the aiming points' numbers 1, 2, 3 are printed on the sheet: "yes"
+#: beside every cross (they cost nothing, `digit_offset`), "no" on a chart
+#: aimed at its corner patches. The later on-screen overlay adds numbers only
+#: where none are printed: never a second set (the owner, 2026-11-13).
+AIM_DIGITS_KEYWORD = "CHROMIQ_I1IO_AIM_DIGITS"
+
+
+def aim_patches_value(geom, layout, w: float, h: float, crosses,
+                      patterns: "tuple | None" = None) -> str:
+    """The value of AIM_PATCHES_KEYWORD for a chart with *crosses* (one
+    answer, or one per page)."""
+    parts = []
+    for page in range(layout.pages):
+        if on_page(crosses, page):
+            parts.append(f"{page + 1}: crosses")
+            continue
+        names = [p["patch"] for p in aim_points(geom, layout, w, h, page,
+                                                False, patterns)]
+        parts.append(f"{page + 1}: " + " ".join(names))
+    return "; ".join(parts)
+
+
+def crosses_of(kw: dict) -> bool:
+    """Whether *kw* asks for the aiming crosses (default on)."""
+    v = kw.get(CROSSES_KEY)
+    return F.AIM_CROSSES.value if v is None else bool(v)
+
+
+def aim_of(crosses: bool) -> str:
+    return AIM_CROSSES if crosses else AIM_CORNERS
+
+
+def aim_recorded(ti2_path) -> str:
+    """What the chart *ti2_path* records as the thing to aim at:
+    AIM_CROSSES, AIM_CORNERS, or AIM_UNKNOWN (no record, or unreadable).
+    The side file ``<stem>.i1io.json`` beside it is asked when the `.ti2`
+    has no keyword."""
+    import re
+    try:
+        text = Path(ti2_path).read_text(encoding="utf-8", errors="replace")
+    except (OSError, TypeError, ValueError):
+        text = ""
+    m = re.search(r'^\s*' + AIM_KEYWORD + r'\s+"([^"]*)"', text, re.M)
+    if m and m.group(1) in (AIM_CROSSES, AIM_CORNERS):
+        return m.group(1)
+    try:
+        p = Path(str(ti2_path))
+        stem = str(p)[:-4] if str(p).lower().endswith(".ti2") else str(p)
+        doc = json.loads(Path(stem + ".i1io.json").read_text(encoding="utf-8"))
+        if doc.get("aim") in (AIM_CROSSES, AIM_CORNERS):
+            return doc["aim"]
+    except (OSError, TypeError, ValueError, AttributeError):
+        pass
+    return AIM_UNKNOWN
+
+
+def aim_details(ti2_path) -> dict:
+    """What a chart records about aiming, for the texts that tell a person
+    what to aim at: ``{"aim": AIM_CROSSES | AIM_CORNERS | AIM_UNKNOWN,
+    "pages": [{"page": n, "aim": ..., "patches": [names]}], "labels":
+    bool}``. ``labels`` says whether the strip letters and patch numbers are
+    printed (so a patch can be named); from the side file, else True."""
+    aim = aim_recorded(ti2_path)
+    out = {"aim": aim, "pages": [], "labels": True}
+    if aim == AIM_UNKNOWN:
+        return out
+    try:
+        p = str(ti2_path)
+        stem = p[:-4] if p.lower().endswith(".ti2") else p
+        doc = json.loads(Path(stem + ".i1io.json").read_text(encoding="utf-8"))
+        out["labels"] = bool(doc.get("labels_printed", True))
+        for page in doc.get("pages", []):
+            out["pages"].append({"page": int(page.get("page", 0)),
+                                 "aim": page.get("aim", doc.get("aim")),
+                                 "patches": list(page.get("aim_patches")
+                                                 or [])})
+        return out
+    except (OSError, TypeError, ValueError, AttributeError):
+        pass
+    import re
+    try:
+        text = Path(ti2_path).read_text(encoding="utf-8", errors="replace")
+        m = re.search(r'^\s*' + AIM_PATCHES_KEYWORD + r'\s+"([^"]*)"', text,
+                      re.M)
+        for part in (m.group(1).split(";") if m else []):
+            num, _sep, rest = part.strip().partition(":")
+            names = rest.split()
+            out["pages"].append({
+                "page": int(num),
+                "aim": AIM_CROSSES if names == ["crosses"] else AIM_CORNERS,
+                "patches": [] if names == ["crosses"] else names})
+    except (OSError, TypeError, ValueError):
+        pass
+    return out
+
+
+def capacity(kw: dict, crosses: bool) -> int:
+    """Patches per sheet for the i1iO build kwargs *kw* with or without the
+    crosses (the same geometry the build uses)."""
+    from workflow.layout_engine import geometry, instruments, papers
+    k = {**kw, "instrument": "IO2", CROSSES_KEY: bool(crosses)}
+    paper = k.get("paper") or "A4"
+    w, h = papers.dimensions_mm(paper)
+    return geometry.patches_per_sheet(instruments.geom_from_build_kwargs(k),
+                                      w, h)
 
 
 def sheet_size(paper: str) -> "tuple[float, float]":
@@ -268,15 +412,26 @@ def scan_strips(cells):
     return out
 
 
-def check_sheet(geom, layout, w: float, h: float) -> None:
+def on_page(crosses, page: int) -> bool:
+    """Whether page *page* carries the crosses: *crosses* is one answer for
+    the whole chart or a list with one per page (`page_crosses`)."""
+    if isinstance(crosses, (list, tuple)):
+        return bool(crosses[page]) if page < len(crosses) else True
+    return bool(crosses)
+
+
+def check_sheet(geom, layout, w: float, h: float,
+                crosses: "bool | list" = True) -> None:
     """Refuse a layout the table could not read: a patch or a strip's run off
-    the sheet or into a mark, or a mark off the sheet."""
+    the sheet or into a mark, or a mark off the sheet. *crosses*: one answer
+    or one per page."""
     edge = F.RUN_EDGE_MM.value
-    zones = [mark_zone(m) for m in marks(w, h)]
-    for zx0, zy0, zx1, zy1 in zones:
+    for zx0, zy0, zx1, zy1 in [mark_zone(m) for m in marks(w, h)]:
         if zx0 < 0 or zy0 < 0 or zx1 > w or zy1 > h:
             raise I1ioSheetRefused("An aiming mark would not fit on the sheet.")
     for page in range(layout.pages):
+        zones = ([mark_zone(m) for m in marks(w, h)]
+                 if on_page(crosses, page) else [])
         cells = page_patches(geom, layout, w, h, page)
         for cell in cells:
             box = cell[3:]
@@ -292,6 +447,255 @@ def check_sheet(geom, layout, w: float, h: float) -> None:
             run = (col[0][3], y_start, col[0][5], y_end)
             if any(_overlap(run, z) for z in zones):
                 raise I1ioSheetRefused("A strip's run would cross an aiming mark.")
+
+
+# ---- without the crosses: the corner patches --------------------------------
+
+#: The four corners of a page's patch block, ON THE TABLE (the sheet a
+#: quarter turn clockwise), the three aimed at first, in aiming order.
+CORNERS = ("top-left", "bottom-left", "bottom-right", "top-right")
+
+
+def corner_cells(geom, layout, w: float, h: float, page: int) -> dict:
+    """``{corner on the table: cell}`` for page *page* (a cell as
+    `page_patches` gives it). On the page, the table's top left is strip A's
+    patch 1 (the page's bottom left: `Geom.reverse_steps`), its bottom left
+    the last strip's patch 1, its bottom right the last strip's last patch
+    and its top right strip A's last patch."""
+    cells = page_patches(geom, layout, w, h, page)
+    if not cells:
+        return {}
+    first = min(c[1] for c in cells)
+    last = max(c[1] for c in cells)
+
+    def end(strip: int, low_on_page: bool):
+        col = [c for c in cells if c[1] == strip]
+        # the larger page y is the page's bottom = the table's left
+        return (max if low_on_page else min)(col, key=lambda c: c[4])
+
+    return {"top-left": end(first, True), "bottom-left": end(last, True),
+            "bottom-right": end(last, False), "top-right": end(first, False)}
+
+
+def to_table_mm(h: float, point: "tuple[float, float]"
+                ) -> "tuple[float, float]":
+    """A point on the portrait page, in mm from the page's top left, as it
+    lies on the table (the sheet a quarter turn clockwise), in mm from the
+    sheet's top left corner there, x to the right and y down."""
+    px, py = point
+    return (round(h - py, 4), round(px, 4))
+
+
+def aim_points(geom, layout, w: float, h: float, page: int,
+               crosses: bool, patterns: "tuple | None" = None
+               ) -> "list[dict]":
+    """The three points the person aims at on page *page*, in aiming order:
+    the crosses' centres, or without them the centres of the corner patches
+    at the table's top left, bottom left and bottom right. Each
+    ``{"number", "corner_on_table", "target", "page_mm", "table_mm"}``."""
+    out = []
+    if crosses:
+        for m in marks(w, h):
+            out.append({"number": m.number, "corner_on_table": m.corner,
+                        "target": "cross", "patch": None,
+                        "page_mm": [round(m.centre_mm[0], 4),
+                                    round(m.centre_mm[1], 4)],
+                        "table_mm": list(to_table_mm(h, m.centre_mm))})
+        return out
+    cells = corner_cells(geom, layout, w, h, page)
+    for n, corner in enumerate(CORNERS[:3], start=1):
+        c = cells.get(corner)
+        if c is None:
+            continue
+        centre = ((c[3] + c[5]) / 2.0, (c[4] + c[6]) / 2.0)
+        out.append({"number": n, "corner_on_table": corner,
+                    "target": "patch", "slot": c[0],
+                    "patch": patch_name(c[0], layout, patterns),
+                    "page_mm": [round(centre[0], 4), round(centre[1], 4)],
+                    "table_mm": list(to_table_mm(h, centre))})
+    return out
+
+
+def patch_name(slot: int, layout, patterns: "tuple | None" = None) -> str:
+    """The name ChromIQ prints for the patch in *slot* ("A1": strip A, patch
+    1), the strip letters running on across the pages."""
+    from workflow.layout_engine import permutation
+    sp, pp, rule = patterns or (permutation.DEFAULT_STRIP_PATTERN,
+                                permutation.DEFAULT_PATCH_PATTERN,
+                                permutation.ARGYLL)
+    return permutation.location_label(slot, layout.steps_in_pass, sp, pp,
+                                      rule)
+
+
+def visible(rgb) -> bool:
+    """Whether a patch of display colour *rgb* can be aimed at on paper:
+    never near white (`table_facts.CORNER_NEVER_L`)."""
+    return _lab_of_rgb(rgb)[0] < F.CORNER_NEVER_L.value
+
+
+def page_crosses(target, layout, geom, w: float, h: float,
+                 slots: "list[int]", crosses: bool) -> "list[bool]":
+    """One answer per page: does it carry the crosses? All pages do when the
+    chart has them. WITHOUT THEM a page still keeps its crosses when its
+    three corner patches cannot be aimed at (the owner, 2026-11-13: "never
+    tell the user to aim at a patch that is not printed"):
+
+    * a page of ONE strip (the last page of a chart that does not fill it):
+      its top-left and bottom-left corner would be one patch, and three
+      points on one line place nothing;
+    * a page whose corner holds no visible patch (a set with too few that
+      are not near white, `corner_order`): paper is not a target.
+
+    The crosses' places lie outside the patches of such a page (it has
+    fewer strips than the sheet holds, or `check_sheet` refuses it), so
+    nothing else moves."""
+    from workflow.layout_engine import raster
+    if crosses:
+        return [True] * layout.pages
+    media = target.media_patch()
+    patches = list(target.patches) + [media] * layout.padding
+    slot_to_patch = {slot: i for i, slot in enumerate(slots)}
+    real = len(target.patches)
+    out = []
+    for page in range(layout.pages):
+        cells = corner_cells(geom, layout, w, h, page)
+        strips = {c[1] for c in page_patches(geom, layout, w, h, page)}
+        ok = len(strips) >= 2 and len(cells) == 4
+        for corner in CORNERS[:3]:
+            if not ok:
+                break
+            i = slot_to_patch.get(cells[corner][0])
+            ok = (i is not None and i < real and visible(
+                raster.to_display_rgb(patches[i][0], target.color_rep)))
+        out.append(not ok)
+    return out
+
+
+def _lab_of_rgb(rgb) -> "tuple[float, float, float]":
+    """CIELAB (D65) of a display sRGB triple, 0..255."""
+    def lin(c):
+        c = c / 255.0
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+    r, g, b = (lin(float(v)) for v in rgb[:3])
+    x = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047
+    y = 0.2126 * r + 0.7152 * g + 0.0722 * b
+    z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883
+
+    def f(t):
+        return t ** (1.0 / 3.0) if t > 0.008856 else 7.787 * t + 16.0 / 116.0
+    fx, fy, fz = f(x), f(y), f(z)
+    return (116.0 * fy - 16.0, 500.0 * (fx - fy), 200.0 * (fy - fz))
+
+
+def _de(a, b) -> float:
+    return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2) ** 0.5
+
+
+def corner_order(slots: "list[int]", rgbs: "list", real: int, geom, layout,
+                 w: float, h: float,
+                 skip_pages: "set | None" = None) -> "list[int]":
+    """*slots* (canonical patch index -> sheet slot, the engine's scrambled
+    order) with clearly visible patches moved into the four corner slots of
+    every page, for a chart aimed at its corner patches. *rgbs* are the
+    display colours of every patch in canonical order (padding included),
+    *real* how many of them are the set's own (the rest is padding paper,
+    never chosen).
+
+    ONLY POSITIONS MOVE: a chosen patch and the one in the corner change
+    places, so the set and its count stay exactly as they were, and the
+    result is a function of the seed and the set alone. A corner patch is
+    mid to dark (`table_facts.CORNER_MAX_L`) and saturated or dark
+    (CORNER_MIN_C, CORNER_DARK_L), never near white (CORNER_NEVER_L); of
+    those, each corner takes the one that differs most from the paper and
+    from its neighbours on the sheet. A set with too few such patches fills
+    what it can, darkest first."""
+    out = list(slots)
+    n = len(out)
+    if n == 0 or real <= 0:
+        return out
+    labs = [_lab_of_rgb(c) for c in rgbs]
+    paper = _lab_of_rgb((255, 255, 255))
+
+    def chroma(lab):
+        return (lab[1] ** 2 + lab[2] ** 2) ** 0.5
+
+    def strong(i):
+        L = labs[i][0]
+        return L <= F.CORNER_MAX_L.value and (
+            chroma(labs[i]) >= F.CORNER_MIN_C.value
+            or L <= F.CORNER_DARK_L.value)
+
+    pool = [i for i in range(real) if strong(i)]
+    spare = sorted((i for i in range(real)
+                    if not strong(i) and labs[i][0] < F.CORNER_NEVER_L.value),
+                   key=lambda i: (labs[i][0], i))
+    # every corner slot and every neighbour of one, on every page
+    corners: "list[tuple[int, list[int]]]" = []
+    for page in range(layout.pages):
+        if skip_pages and page in skip_pages:
+            continue
+        cells = page_patches(geom, layout, w, h, page)
+        if len({c[1] for c in cells}) < 2:
+            continue                  # one strip: it keeps its crosses
+        at = {(c[1], c[2]): c[0] for c in cells}
+        seen = set()
+        for corner in CORNERS:
+            c = corner_cells(geom, layout, w, h, page).get(corner)
+            if c is None or c[0] in seen:
+                continue
+            seen.add(c[0])
+            near = [at[k] for k in ((c[1] - 1, c[2]), (c[1] + 1, c[2]),
+                                    (c[1], c[2] - 1), (c[1], c[2] + 1))
+                    if k in at]
+            corners.append((c[0], near))
+    blocked = {slot for slot, _near in corners}
+    for _slot, near in corners:
+        blocked.update(near)
+    patch_at = {slot: i for i, slot in enumerate(out)}
+    taken: set = set()
+    for slot, near in corners:
+        here = patch_at[slot]
+
+        def usable(i):
+            return i not in taken and (out[i] not in blocked or i == here)
+
+        for group in (pool, spare):
+            choice, best = None, -1.0
+            for i in group:
+                if not usable(i):
+                    continue
+                score = min([_de(labs[i], paper)]
+                            + [_de(labs[i], labs[patch_at[s]]) for s in near])
+                if score > best + 1e-9:
+                    choice, best = i, score
+            if choice is not None:
+                break
+        if choice is None:
+            continue
+        taken.add(choice)
+        if choice != here:
+            a, b = out[here], out[choice]
+            out[here], out[choice] = b, a
+            patch_at[a], patch_at[b] = choice, here
+    return out
+
+
+def sheet_slots(target, layout, geom, w: float, h: float, seed: int,
+                randomize: bool, crosses: bool) -> "list[int]":
+    """The slot of every patch (padding included) on an i1iO chart: the
+    engine's own order, and without the crosses `corner_order` on top. The
+    `.ti2`, the TIFF, the side file and the `.cht` are all written from
+    this one list, so they cannot disagree."""
+    from workflow.layout_engine import permutation, raster
+    slots = permutation.location_permutation(layout.total_patches, seed,
+                                             randomize)
+    if crosses:
+        return slots
+    media = target.media_patch()
+    patches = list(target.patches) + [media] * layout.padding
+    rgbs = [raster.to_display_rgb(dev, target.color_rep)
+            for dev, _xyz in patches]
+    return corner_order(slots, rgbs, len(target.patches), geom, layout, w, h)
 
 
 def text_column(w: float, h: float) -> "tuple[float, float, float, float]":
@@ -316,7 +720,8 @@ def _font(px: int, family: str = "Inter", italic: bool = False,
 def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
                    geom=None, layout=None, labels: "Labels | None" = None,
                    patterns: "tuple | None" = None, sheet_text: str = "",
-                   text_ctx: "dict | None" = None) -> None:
+                   text_ctx: "dict | None" = None,
+                   crosses: "bool | list" = True) -> None:
     """Draw the marks and the turned text line onto every page of *render*:
     into the page image, from which the separated TIFF folds them into the
     black ink, and into the PDF display list when there is one. In place.
@@ -391,7 +796,8 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
                                   rgb, var))
             return tile.width, tile.height
 
-        for mark in marks(w, h):
+        here = on_page(crosses, index)
+        for mark in (marks(w, h) if here else ()):
             cx, cy = mark.centre_mm
             x, y = px(cx), px(cy)
             hl = line // 2
@@ -422,9 +828,16 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
         # between them, and with each part's visual middle on the line
         # through their centres (`text_line_plan`). Paper no strip can use,
         # so none of it costs a patch.
-        plan = text_line_plan(w, h, page_line_text(name, index, pages,
-                                                   sheet_text, text_ctx),
-                              dpi)
+        # WITHOUT THE CROSSES only where it costs nothing, shrunk before a
+        # part is left off (`crosses_off_plan`).
+        if here or geom is None or layout is None:
+            plan = text_line_plan(w, h, page_line_text(name, index, pages,
+                                                       sheet_text, text_ctx),
+                                  dpi)
+        else:
+            plan = line_plan(geom, layout, w, h, index, name=name,
+                             sheet_text=sheet_text, text_ctx=text_ctx,
+                             dpi=dpi, labels=labels, crosses=False)
         if plan["wordmark"] is not None:
             wm = plan["wordmark"]
             turned_text("Chrom", (wm["baseline_x"], wm["chrom_y"]),
@@ -456,21 +869,35 @@ WORDMARK_GAP_MM = 4.0
 TEXT_MIN_CHARS = 12
 
 
-def page_line_text(name, index: int, pages: int, sheet_text: str = "",
-                   text_ctx: "dict | None" = None) -> str:
-    """The text line of page *index*: the page "N/M" (more than one page),
-    the chart's name and Manual's sheet text with its fields filled in."""
-    full = str(name or "")
+#: Between the parts of the text line.
+TEXT_SEP = "  ·  "
+
+
+def page_line_parts(name, index: int, pages: int, sheet_text: str = "",
+                    text_ctx: "dict | None" = None) -> "tuple[str, str]":
+    """The text line of page *index* in its two parts: ``(head, extra)``,
+    the page "N/M" (more than one page) with the chart's name, and Manual's
+    sheet text with its fields filled in."""
+    head = str(name or "")
     if pages > 1:
-        full = f"{index + 1}/{pages}  ·  {full}" if full else \
+        head = f"{index + 1}/{pages}{TEXT_SEP}{head}" if head else \
             f"{index + 1}/{pages}"
     extra = str(sheet_text or "").strip()
     if extra:
         for key, value in (text_ctx or {}).items():
             extra = extra.replace("{" + key + "}", str(value))
         extra = extra.replace("{page}", f"{index + 1}/{pages}")
-        full = f"{full}  ·  {extra}" if full else extra
-    return full
+    return head, extra
+
+
+def page_line_text(name, index: int, pages: int, sheet_text: str = "",
+                   text_ctx: "dict | None" = None) -> str:
+    """The text line of page *index*: the page "N/M" (more than one page),
+    the chart's name and Manual's sheet text with its fields filled in."""
+    head, extra = page_line_parts(name, index, pages, sheet_text, text_ctx)
+    if head and extra:
+        return f"{head}{TEXT_SEP}{extra}"
+    return head or extra
 
 
 def _cap_mm(font, s: float) -> float:
@@ -566,6 +993,318 @@ def text_line_plan(w: float, h: float, full: str, dpi: int) -> dict:
     return out
 
 
+# ---- without the crosses: the text line only where it costs nothing --------
+
+def free_spots(geom, layout, w: float, h: float, page: int,
+               labels: "Labels | None" = None) -> "list[dict]":
+    """The paper a text line may use on a chart WITHOUT the crosses, page
+    *page*: only what no patch, run or label needs, inside the printer's
+    edge. In order of preference:
+
+    * "bottom edge": beside the last strip (on the table the sheet's bottom
+      edge, where the line is with the crosses), centred between the
+      bottom-left and bottom-right corner patches;
+    * "top edge": between the paper's edge and the patch numbers (on the
+      table along the top), centred between the top corner patches.
+
+    Each ``{"spot", "x0", "x1", "y0", "y1", "mid_y"}`` in mm on the page;
+    a spot narrower than nothing is left out. Never nearer the paper's edge
+    than `table_facts.TEXT_EDGE_MM` (10 mm, as the patch numbers), so no
+    printer's unprinted edge cuts the line; the "top edge" spot, between
+    the edge and the patch numbers, is therefore empty while the numbers
+    are printed."""
+    cells = page_patches(geom, layout, w, h, page)
+    if not cells:
+        return []
+    edge = F.TEXT_EDGE_MM.value
+    clear = F.LABEL_CLEAR_MM.value
+    first = min(c[1] for c in cells)
+    last = max(c[1] for c in cells)
+    out = []
+
+    def mid(strip):
+        col = [c for c in cells if c[1] == strip]
+        return (min(c[4] for c in col) + max(c[6] for c in col)) / 2.0
+
+    x0 = max(c[5] for c in cells) + clear
+    out.append({"spot": "bottom edge", "x0": x0, "x1": w - edge,
+                "y0": edge, "y1": h - edge, "mid_y": mid(last)})
+    numbers = labels is None or labels.columns
+    x1 = (F.NUMBERS_EDGE_MM.value if numbers
+          else min(c[3] for c in cells)) - clear
+    out.append({"spot": "top edge", "x0": edge, "x1": x1,
+                "y0": edge, "y1": h - edge, "mid_y": mid(first)})
+    return [o for o in out if o["x1"] - o["x0"] > 0.0]
+
+
+def _across(probe, font, txt: str, s: float) -> "tuple[float, float]":
+    """``(up, down)`` in mm: how far *txt*'s ink reaches from its visual
+    middle (half the capital height above the baseline) towards the glyph
+    tops and towards the descenders."""
+    ascent = font.getmetrics()[0]
+    bb = probe.textbbox((0, 0), txt or "H", font=font)
+    cap = _cap_mm(font, s)
+    up = (ascent - bb[1]) / s - cap / 2.0
+    down = (bb[3] - ascent) / s + cap / 2.0
+    return max(up, cap / 2.0), max(down, 0.0)
+
+
+def free_text_plan(spot: dict, head: str, extra: str, dpi: int) -> dict:
+    """The text line in one free *spot* (`free_spots`) of a chart without the
+    crosses: as much of it as costs nothing, by the owner's priorities
+    (2026-11-13): 1. the chart name with the page N/M, 2. (the strip letters
+    and patch numbers keep their own places), 3. the sheet text, 4. the
+    logo. Each is shrunk first and only then left off; a long sheet text is
+    shortened before the logo shrinks, as with the crosses.
+
+    Returns the dict `text_line_plan` returns, plus ``"spot"``, ``"kept"``
+    (a subset of ``("name", "sheet text", "logo")``), ``"name_whole"`` and
+    ``"name_small"``; ``"text"`` is empty and ``"wordmark"`` None when even
+    the page number does not fit."""
+    from PIL import Image, ImageDraw
+    s = dpi / 25.4
+    probe = ImageDraw.Draw(Image.new("L", (1, 1)))
+    width = spot["x1"] - spot["x0"]
+    mid_y = spot["mid_y"]
+    room = 2.0 * max(0.0, min(mid_y - spot["y0"], spot["y1"] - mid_y))
+    probe_font, _p, _v = _font(200, "Inter")
+    cap200 = _cap_mm(probe_font, 1.0)
+    every = (head + extra + "Hgy…").strip()
+
+    def text_font(cap_mm: float):
+        px_ = max(1, int(round(200 * (cap_mm * s) / cap200)))
+        return px_, _font(px_, "Inter")[0]
+
+    caps = []
+    c = TEXT_CAP_MM
+    while c >= F.TEXT_MIN_CAP_MM.value - 1e-9:
+        px_, f = text_font(c)
+        up, down = _across(probe, f, every, s)
+        if up + down <= width + 1e-9:
+            caps.append((c, px_, f))
+        c = round(c - 0.25, 4)
+    empty = {"line_x": (spot["x0"] + spot["x1"]) / 2.0,
+             "group": (mid_y, mid_y), "text": "", "text_size_px": 1,
+             "wordmark": None, "spot": spot["spot"], "kept": (),
+             "name_whole": False, "name_small": False,
+             "text_baseline_x": spot["x0"], "text_y": mid_y}
+    if not caps:
+        return empty
+
+    def wm_at(size_mm: float):
+        size_px = max(1, int(round(size_mm / 0.74 * s)))
+        f, _p, _v = _font(size_px, WORDMARK_FONT, bold=False)
+        fi, _p, _v = _font(size_px, WORDMARK_FONT, italic=True, bold=False)
+        chrom = probe.textlength("Chrom", font=f) / s
+        iq = probe.textlength("IQ", font=fi) / s
+        kern = WORDMARK_KERN * size_px / s
+        u1, d1 = _across(probe, f, "Chrom", s)
+        u2, d2 = _across(probe, fi, "IQ", s)
+        return {"size_mm": size_mm, "size_px": size_px, "font": f,
+                "chrom_len": chrom, "kern": kern, "length": chrom + kern + iq,
+                "up": max(u1, u2), "down": max(d1, d2)}
+
+    wms = []
+    size = F.WORDMARK_MM.value
+    while size >= F.WORDMARK_MIN_MM.value - 1e-9:
+        wm = wm_at(size)
+        if wm["up"] + wm["down"] <= width + 1e-9:
+            wms.append(wm)
+        size -= 0.5
+
+    def tlen(f, t: str) -> float:
+        return probe.textlength(t, font=f) / s if t else 0.0
+
+    def fit(f, t: str, length: float, least: int) -> "str | None":
+        """*t*, shortened with "…" to *length*, never below *least*
+        characters; None when even that is too long."""
+        if tlen(f, t) <= length + 1e-9:
+            return t
+        keep = len(t) - 1
+        while keep >= least:
+            label = t[:keep].rstrip() + "…"
+            if tlen(f, label) <= length + 1e-9:
+                return label
+            keep -= 1
+        return None
+
+    def join(a: str, b: str) -> str:
+        return f"{a}{TEXT_SEP}{b}" if a and b else (a or b)
+
+    def attempt(cap, wm, extra_least, name_least=None):
+        """One arrangement: the text at *cap* (``(mm, px, font)``), the
+        wordmark *wm* (or None), the sheet text kept down to *extra_least*
+        characters (None: left off), the name shortened down to
+        *name_least* characters (None: whole). Returns (label, wm) or None."""
+        _c, _px, f = cap
+        left = room - (wm["length"] + WORDMARK_GAP_MM if wm else 0.0)
+        if left < 0:
+            return None
+        if name_least is None:
+            if tlen(f, head) > left + 1e-9:
+                return None
+            name = head
+        else:
+            name = fit(f, head, left, name_least)
+            if name is None:
+                return None
+        if extra and extra_least is not None:
+            rest = left - tlen(f, name) - tlen(f, TEXT_SEP)
+            ex = fit(f, extra, rest, min(extra_least, len(extra)))
+            if ex is None:
+                return None
+            return join(name, ex), wm
+        return name, wm
+
+    big = caps[0]
+    tries = []
+    top_wm = wms[0] if wms else None
+    if top_wm is not None:
+        tries.append((big, top_wm, len(extra) if extra else None, None))
+        tries.append((big, top_wm, TEXT_MIN_CHARS if extra else None, None))
+        for wm in wms[1:]:
+            tries.append((big, wm, TEXT_MIN_CHARS if extra else None, None))
+    if extra:
+        tries.append((big, None, len(extra), None))
+        tries.append((big, None, TEXT_MIN_CHARS, None))
+    for cap in caps:
+        tries.append((cap, None, None, None))
+    # the page number stays whole: only the name after it is shortened
+    page_part = head.split(TEXT_SEP)[0] if TEXT_SEP in head else ""
+    least = max(len(page_part) + len(TEXT_SEP) + 4, 4) if head else 0
+    tries.append((caps[-1], None, None, least))
+    for cap, wm, ex_least, name_least in tries:
+        got = attempt(cap, wm, ex_least, name_least)
+        if got is None:
+            continue
+        label, wm = got
+        if not label and not wm:
+            continue
+        _c, px_, f = cap
+        total = ((wm["length"] if wm else 0.0)
+                 + (WORDMARK_GAP_MM if wm and label else 0.0)
+                 + tlen(f, label))
+        up, down = _across(probe, f, label, s)
+        if wm:
+            up, down = max(up, wm["up"]), max(down, wm["down"])
+        # every part's visual middle on one line, the ink inside the spot
+        lo, hi = spot["x0"] + up, spot["x1"] - down
+        line_x = (lo + hi) / 2.0
+        start = mid_y + total / 2.0
+        out = {"line_x": line_x, "group": (start - total, start),
+               "text": label, "text_size_px": px_, "wordmark": None,
+               "spot": spot["spot"],
+               "name_whole": label.startswith(head) if head else True,
+               "name_small": (cap[0] < TEXT_CAP_MM - 1e-9
+                              or name_least is not None)}
+        y = start
+        kept = ["name"] if head else []
+        if extra and label != head and len(label) > len(head):
+            kept.append("sheet text")
+        if wm:
+            capw = _cap_mm(wm["font"], s)
+            out["wordmark"] = {
+                "size_mm": wm["size_mm"], "size_px": wm["size_px"],
+                "baseline_x": line_x + capw / 2.0, "chrom_y": y,
+                "iq_y": y - wm["chrom_len"] - wm["kern"],
+                "box": (line_x - capw / 2.0, y - wm["length"],
+                        line_x + capw / 2.0, y)}
+            kept.append("logo")
+            y -= wm["length"] + (WORDMARK_GAP_MM if label else 0.0)
+        out["kept"] = tuple(kept)
+        out["text_baseline_x"] = line_x + _cap_mm(f, s) / 2.0
+        out["text_y"] = y
+        return out
+    return empty
+
+
+def _rank(plan: dict) -> tuple:
+    """How good a free text plan is, by the owner's priorities."""
+    kept = plan.get("kept", ())
+    return ("name" in kept, bool(plan.get("name_whole")),
+            "sheet text" in kept, "logo" in kept,
+            not plan.get("name_small"))
+
+
+def crosses_off_plan(geom, layout, w: float, h: float, page: int, head: str,
+                     extra: str, dpi: int,
+                     labels: "Labels | None" = None) -> dict:
+    """The text line of page *page* of a chart without the crosses: the best
+    of the free spots (`free_spots`, `free_text_plan`), the bottom edge
+    when it keeps as much."""
+    best = None
+    for spot in free_spots(geom, layout, w, h, page, labels):
+        plan = free_text_plan(spot, head, extra, dpi)
+        if best is None or _rank(plan) > _rank(best):
+            best = plan
+    if best is None:
+        best = {"line_x": 0.0, "group": (0.0, 0.0), "text": "",
+                "text_size_px": 1, "wordmark": None, "spot": None,
+                "kept": (), "name_whole": False, "name_small": False,
+                "text_baseline_x": 0.0, "text_y": 0.0}
+    return best
+
+
+def line_plan(geom, layout, w: float, h: float, page: int, *, name: str,
+              sheet_text: str = "", text_ctx: "dict | None" = None,
+              dpi: int = 300, labels: "Labels | None" = None,
+              crosses: bool = True) -> dict:
+    """The text line of page *page*, with the crosses (`text_line_plan`,
+    between crosses 2 and 3) or without them (`crosses_off_plan`)."""
+    pages = layout.pages
+    if crosses:
+        plan = text_line_plan(w, h, page_line_text(name, page, pages,
+                                                   sheet_text, text_ctx), dpi)
+        plan.setdefault("spot", "between crosses 2 and 3")
+        return plan
+    head, extra = page_line_parts(name, page, pages, sheet_text, text_ctx)
+    return crosses_off_plan(geom, layout, w, h, page, head, extra, dpi,
+                            labels)
+
+
+def crosses_off_effects(kw: dict, name: str = "", sheet_text: str = "",
+                        pages: int = 1, dpi: int = 300) -> dict:
+    """What happens to the text line of page 1 when the crosses of the i1iO
+    chart *kw* (build kwargs) are switched off, for the help of "Aiming
+    crosses": ``{"name": "whole" | "small" | "shortened" | "none",
+    "spot": "bottom edge" | "top edge" | None, "sheet_text": None | "kept" |
+    "shortened" | "dropped", "logo": bool}``."""
+    from workflow.layout_engine import geometry, instruments, papers
+    k = {**kw, "instrument": "IO2", CROSSES_KEY: False}
+    w, h = papers.dimensions_mm(k.get("paper") or "A4")
+    geom = instruments.geom_from_build_kwargs(k)
+    per = geometry.patches_per_sheet(geom, w, h)
+    pages = max(1, int(pages or 1))
+    layout = geometry.compute(geom, w, h, max(1, per) * pages)
+    labels = label_wishes(fixed_build_kwargs(k))
+    plan = line_plan(geom, layout, w, h, 0, name=name, sheet_text=sheet_text,
+                     dpi=dpi, labels=labels, crosses=False)
+    head, extra = page_line_parts(name, 0, layout.pages, sheet_text, None)
+    kept = plan.get("kept", ())
+    names = [p["patch"] for p in aim_points(geom, layout, w, h, 0, False)]
+    if "name" not in kept:
+        state = "none"
+    elif not plan.get("name_whole"):
+        state = "shortened"
+    elif plan.get("name_small"):
+        state = "small"
+    else:
+        state = "whole"
+    if not extra:
+        sheet = None
+    elif "sheet text" not in kept:
+        sheet = "dropped"
+    elif not plan.get("text", "").endswith(extra):
+        sheet = "shortened"
+    else:
+        sheet = "kept"
+    return {"name": state, "spot": plan.get("spot") if kept else None,
+            "sheet_text": sheet, "logo": "logo" in kept,
+            # page 1's three aiming patches, as printed (when labelled)
+            "aim_patches": names,
+            "labels": bool(labels.rows and labels.columns)}
+
+
 #: The face of the strip letters: the engine's own label face, as the patch
 #: numbers beside them.
 LETTER_FONT = "JetBrains Mono"
@@ -608,7 +1347,7 @@ def strip_letters(geom, layout, w: float, h: float, page: int, dpi: int,
 
 def wordmark_box(geom, layout, w: float, h: float, page: int,
                  labels: "Labels | None" = None, full: str = "",
-                 dpi: int = 300):
+                 dpi: int = 300, plan: "dict | None" = None):
     """Where the ChromIQ wordmark goes on page *page* with the text line
     *full*, ``(x0, y0, x1, y1, height)`` in mm on the page, or None when it
     is left off (`text_line_plan`).
@@ -617,7 +1356,8 @@ def wordmark_box(geom, layout, w: float, h: float, page: int,
     it is drawn only between crosses 2 and 3 in the margin no strip and no
     run ever is, shrunk to the smallest legible size, and left off only when
     even that does not fit."""
-    wm = text_line_plan(w, h, full, dpi)["wordmark"]
+    wm = (plan if plan is not None else text_line_plan(w, h, full, dpi)
+          )["wordmark"]
     if wm is None:
         return None
     return (*wm["box"], wm["size_mm"])
@@ -630,13 +1370,17 @@ def write_side_file(path: Path, *, geom, layout, w: float, h: float,
                     strip_pattern: str, patch_pattern: str, label_rule: str,
                     designed: int, labels: "Labels | None" = None,
                     name: str = "", sheet_text: str = "",
-                    text_ctx: "dict | None" = None) -> Path:
+                    text_ctx: "dict | None" = None,
+                    crosses: "bool | list" = True,
+                    slots: "list[int] | None" = None) -> Path:
     """Write ``<stem>.i1io.json``: every mark, strip and patch in mm on the
-    portrait page, for the measuring step."""
+    portrait page, what to aim at and where, for the measuring step.
+    *slots* is the chart's own patch order (`sheet_slots`)."""
     from workflow.layout_engine import permutation
     from .support import HEAD_MODEL, TABLE_MODEL, TARGET_INSTRUMENT
-    slots = permutation.location_permutation(layout.total_patches, seed,
-                                             randomize)
+    if slots is None:
+        slots = permutation.location_permutation(layout.total_patches, seed,
+                                                 randomize)
     sample_of = {slot: i + 1 for i, slot in enumerate(slots)}
     pages = []
     for page in range(layout.pages):
@@ -655,13 +1399,37 @@ def write_side_file(path: Path, *, geom, layout, w: float, h: float,
                                   round((c[4] + c[6]) / 2.0, 4)],
                 } for c in col],
             })
-        wm = wordmark_box(geom, layout, w, h, page, labels,
-                          full=page_line_text(name, page, layout.pages,
-                                              sheet_text, text_ctx),
-                          dpi=dpi)
-        pages.append({"page": page + 1, "strips": strips,
-                      "wordmark_mm": list(wm) if wm else None,
-                      "text_column_mm": list(text_column(w, h))})
+        here = on_page(crosses, page)
+        plan = line_plan(geom, layout, w, h, page, name=name,
+                         sheet_text=sheet_text, text_ctx=text_ctx, dpi=dpi,
+                         labels=labels, crosses=here)
+        wm = wordmark_box(geom, layout, w, h, page, labels, dpi=dpi,
+                          plan=plan)
+        points = aim_points(geom, layout, w, h, page, here,
+                            (strip_pattern, patch_pattern, label_rule))
+        entry = {"page": page + 1, "strips": strips,
+                 # EVERY PAGE IS ALIGNED ON ITS OWN (X-Rite: each sheet is
+                 # laid down by hand): its own three points, in aiming order
+                 "aim": aim_of(here),
+                 # the numbers 1, 2, 3 printed beside this page's crosses
+                 "digits_printed": bool(here),
+                 "aim_patches": [p["patch"] for p in points] if not here
+                 else [],
+                 "aim_points": points,
+                 "wordmark_mm": list(wm) if wm else None,
+                 "text_line": {"text": plan.get("text", ""),
+                               "spot": plan.get("spot")}}
+        if here:
+            entry["text_column_mm"] = list(text_column(w, h))
+        else:
+            entry["corner_patches"] = {
+                corner: {"loc": permutation.location_label(
+                             c[0], layout.steps_in_pass, strip_pattern,
+                             patch_pattern, label_rule),
+                         "sample_id": sample_of[c[0]]}
+                for corner, c in corner_cells(geom, layout, w, h,
+                                              page).items()}
+        pages.append(entry)
     doc = {
         "schema": SCHEMA,
         "instrument": TARGET_INSTRUMENT,
@@ -676,8 +1444,24 @@ def write_side_file(path: Path, *, geom, layout, w: float, h: float,
         "patch_mm": [geom.pwid, geom.plen],
         "spacer_mm": round(geom.pspa, 4),
         "strip_gap_mm": round(geom.rrsp - geom.pwid, 4),
-        "marks_mm": [{"number": m.number, "corner_on_table": m.corner,
-                      "centre_mm": list(m.centre_mm)} for m in marks(w, h)],
+        # WHAT TO AIM AT (`.ti2` keyword CHROMIQ_I1IO_AIM): "crosses" or
+        # "corner patches"; every page's "aim_points" says where, in aiming
+        # order, on the page and on the table (the sheet's top left there).
+        "aim": aim_of(on_page(crosses, 0) if not isinstance(
+            crosses, (list, tuple)) else all(crosses)),
+        "aim_rule": "every page is aligned on its own, at its own three "
+                    "points (pages[].aim, aim_points, aim_patches); without "
+                    "the crosses a page keeps them only when its corner "
+                    "patches cannot be aimed at (one strip, or no visible "
+                    "patch in a corner)",
+        "labels_printed": bool(labels is None or (labels.rows
+                                                  and labels.columns)),
+        "table_mm_note": "table_mm: from the sheet's top left corner as it "
+                         "lies on the table, x to the right, y down",
+        "marks_mm": ([{"number": m.number, "corner_on_table": m.corner,
+                       "centre_mm": list(m.centre_mm)} for m in marks(w, h)]
+                     if any(on_page(crosses, p) for p in range(layout.pages))
+                     else []),
         "page_count": layout.pages,
         "pages": pages,
         "generation": {"seed": seed, "randomize": bool(randomize), "dpi": dpi,

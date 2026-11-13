@@ -7423,6 +7423,23 @@ class TabChart(QWidget):
             inner,
             min_width=600,
         )
+        from workflow.i1io.support import i1io_enabled as _i1io_on
+        if _i1io_on():
+            # THE i1iO's "Aiming crosses" (a Beta), on the line where the
+            # other instruments keep their own second option (a SpectroScan's
+            # or CR30's "Hexagon patches"): a tick box at the line's start
+            # and its (i) beside it, the same widgets and spacing. Built only
+            # while i1iO support is on, shown only for the i1iO.
+            from ui.dialogs.layout_options_panel import I1ioCrossesTip
+            self._i1io_aim_check = QCheckBox(tr("Aiming crosses"), inner)
+            self._i1io_aim_check.setChecked(True)
+            self._i1io_aim_check.toggled.connect(self._update_patch_count)
+            self._i1io_aim_tooltip = I1ioCrossesTip(
+                self._guided_i1io_crosses_source, inner)
+            self._i1io_aim_check.setVisible(False)
+            self._i1io_aim_tooltip.setVisible(False)
+            dd_row.addWidget(self._i1io_aim_check)
+            dd_row.addWidget(self._i1io_aim_tooltip)
         dd_row.addWidget(self._dd_check)
         dd_row.addWidget(self._dd_tooltip)
         dd_row.addSpacing(20)
@@ -8713,6 +8730,9 @@ class TabChart(QWidget):
         # A newly chosen FD-9 takes its own stored layout (H1). A bound method,
         # never a lambda that captures self (CLAUDE.md).
         self._manual_layout_panel.set_fd9_layout_lookup(self._fd9_layout_preset)
+        # The i1iO's "Aiming crosses" (i) names the chart and its pages (a
+        # bound method, as above).
+        self._manual_layout_panel.i1io_context = self._manual_i1io_context
         # Preferences → Chart Layout is the SEED for a chart with no label style
         # of its own; the panel shows those values so the controls never lie.
         # `getattr` because a test double may be a settings stand-in without it;
@@ -12400,6 +12420,12 @@ class TabChart(QWidget):
                 "left_border": self._lb_check.isChecked(),
                 "no_strip_limit": self._nsl_check.isChecked(),
                 "precond": precond,
+                # the i1iO's "Aiming crosses" (Beta): only for an i1iO row,
+                # so every other target's record is the one it was
+                **({"i1io_crosses": self._i1io_aim_check.isChecked()}
+                   if (getattr(self, "_i1io_aim_check", None) is not None
+                       and self._instr_combo.currentData() == "IO2")
+                   else {}),
             }
         # manual
         toks = []
@@ -12455,6 +12481,10 @@ class TabChart(QWidget):
             elif field == "precond":
                 self._guided_precond_path.setText(str(value or ""))
                 self._guided_precond_check.setChecked(bool(value))
+            elif field == "i1io_crosses":
+                aim = getattr(self, "_i1io_aim_check", None)
+                if aim is not None:
+                    aim.setChecked(bool(value))
         else:  # manual (a superset of guided's options)
             if field == "instrument":
                 self._set_manual_value("printtarg", "-i", value)
@@ -19526,6 +19556,11 @@ class TabChart(QWidget):
                           dpi=int(self._settings.get("printtarg_dpi", 300) or 300))
             elif getattr(self, "_manual_layout_panel", None) is not None:
                 kw.update(self._manual_layout_panel.get_recipe().build_kwargs())
+        if (instr == "IO2" and guided
+                and getattr(self, "_i1io_aim_check", None) is not None
+                and not self._i1io_aim_check.isChecked()):
+            # Guided's "Aiming crosses" off (i1iO Beta), as the build has it
+            kw["i1io_crosses"] = False
         return instruments.geom_from_build_kwargs(kw)
 
     def _engine_capacity(self, instr: str, paper: str, *, dd: bool, td: bool,
@@ -19567,6 +19602,16 @@ class TabChart(QWidget):
         if is_i1io_code(instr) and i1io_enabled():
             # Its own fixed layout, not a margin it does not use.
             from workflow.i1io import table_facts as _F
+            aim = getattr(self, "_i1io_aim_check", None)
+            if aim is not None and not aim.isChecked():
+                return tr(
+                    "ChromIQ layout engine, i1iO table, {paper}, {dpi} dpi: "
+                    "patches {w:g} × {h:g} mm in strips along the long side "
+                    "(lay the sheet across the table), {run:g} mm of blank "
+                    "paper at both ends of every strip, no aiming crosses: "
+                    "you aim at the centres of three corner patches."
+                ).format(paper=paper, dpi=dpi, w=_F.PATCH_ALONG_MM.value,
+                         h=_F.PATCH_ACROSS_MM.value, run=_F.RUN_MM.value)
             return tr(
                 "ChromIQ layout engine, i1iO table, {paper}, {dpi} dpi: "
                 "patches {w:g} × {h:g} mm in strips along the long side (lay "
@@ -20180,6 +20225,11 @@ class TabChart(QWidget):
             # the next time the user goes back to CM/SS without re-touching it.
             if self._dd_check.isChecked():
                 self._dd_check.setChecked(False)
+        aim = getattr(self, "_i1io_aim_check", None)
+        if aim is not None:
+            # the i1iO's "Aiming crosses" (Beta), for the i1iO only
+            aim.setVisible(instr == "IO2")
+            self._i1io_aim_tooltip.setVisible(instr == "IO2")
         # Triple density: CM-only, hidden everywhere else.
         td_visible = instr == "CM"
         self._td_check.setVisible(td_visible)
@@ -23099,6 +23149,10 @@ class TabChart(QWidget):
                           self._settings.get("chart_left_clip_info", False)),
                       "no_strip_limit": False,
                       "precond": ""}
+            if getattr(self, "_i1io_aim_check", None) is not None:
+                # the i1iO's "Aiming crosses" (Beta): the saved default
+                guided["i1io_crosses"] = bool(
+                    self._settings.get("chart_i1io_crosses", True))
             for fld, val in guided.items():
                 try:
                     self._shared_set("guided", fld, val)
@@ -23113,6 +23167,10 @@ class TabChart(QWidget):
             if _saved_beta_instrument_is_off(guided.get("instrument")):
                 guided = {k: v for k, v in guided.items()
                           if k not in ("instrument", "paper")}
+            if (getattr(self, "_i1io_aim_check", None) is not None
+                    and "i1io_crosses" not in guided):
+                # a row without the i1iO's crosses answer had them on
+                guided = {**guided, "i1io_crosses": True}
             for fld, val in guided.items():
                 try:
                     self._shared_set("guided", fld, val)
@@ -26918,7 +26976,15 @@ class TabChart(QWidget):
         from workflow.i1io.support import i1io_enabled, is_i1io_code
         if is_i1io_code(instr_flag) and i1io_enabled():
             from workflow.i1io.table_facts import margins_mm
-            _t, _r, _b, _l = margins_mm()
+            # …with or without the aiming crosses, as the chart records
+            _crosses = True
+            if self._margin_ti2 is not None:
+                try:
+                    from workflow.i1io.chart import AIM_CORNERS, aim_recorded
+                    _crosses = aim_recorded(self._margin_ti2) != AIM_CORNERS
+                except Exception:      # noqa: BLE001
+                    _crosses = True
+            _t, _r, _b, _l = margins_mm(crosses=_crosses)
             thresholds = {"T": _t, "B": _b, "L": _l, "R": _r}
 
         # Strip-length (ruler) limit: the per-combo value configured in
@@ -31706,6 +31772,10 @@ class TabChart(QWidget):
             s.set("chart_fd9_strip_gap_mm",
                   params.fd9_gap_mm if params.fd9_strip_gap_mm is None
                   else params.fd9_strip_gap_mm)
+        if (params.instrument == "IO2"          # i1iO (Beta) only
+                and getattr(self, "_i1io_aim_check", None) is not None):
+            s.set("chart_i1io_crosses",
+                  bool(self._i1io_aim_check.isChecked()))
         s.set("chart_pages",               params.pages)
         s.set("chart_double_density",      params.double_density)
         s.set("chart_triple_density",      params.triple_density)
@@ -31940,7 +32010,27 @@ class TabChart(QWidget):
             # no "Stamp settings down the right edge" control, so a Guided
             # chart is printed WITHOUT the stamp (ChartParams defaults on)
             stamp_commands       = False,
+            # the i1iO's "Aiming crosses" (Beta)
+            i1io_crosses         = (instr != "IO2"
+                                    or getattr(self, "_i1io_aim_check", None)
+                                    is None
+                                    or self._i1io_aim_check.isChecked()),
         )
+
+    def _manual_i1io_context(self) -> dict:
+        """The chart name and pages Manual's "Aiming crosses" (i) uses."""
+        spin = getattr(self, "_manual_pages_spin", None)
+        return {"name": self._preview_target_name("manual") or "",
+                "pages": int(spin.value()) if spin is not None else 1}
+
+    def _guided_i1io_crosses_source(self) -> dict:
+        """What Guided's "Aiming crosses" (i) is worked out from: the chart
+        Guided would build now (`ChartCreator._engine_build_kwargs`)."""
+        params = self._collect_guided()
+        kw = self._creator._engine_build_kwargs(params)
+        return {"kw": kw, "name": self._preview_target_name("guided") or "",
+                "pages": int(params.pages or 1),
+                "paper_label": self._paper_combo.currentText()}
 
     def _collect_manual(self) -> ChartParams:
         p = ChartParams()
@@ -32315,6 +32405,9 @@ class TabChart(QWidget):
         self._td_check.setChecked(bool(s.get("chart_triple_density", False)))
         self._lb_check.setChecked(bool(s.get("chart_disable_left_border", True)))
         self._nsl_check.setChecked(bool(s.get("chart_no_strip_limit", False)))
+        if getattr(self, "_i1io_aim_check", None) is not None:
+            self._i1io_aim_check.setChecked(
+                bool(s.get("chart_i1io_crosses", True)))
         self._update_dd_visibility()
         self._update_patch_count()
 

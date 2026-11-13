@@ -798,6 +798,9 @@ class ChartParams:
     #: leaves the FD-9's own default; Manual's recipe is used instead when
     #: there is one.
     fd9_clip_border: "bool | None" = None
+    #: Guided's i1iO "Aiming crosses" (a Beta): Guided carries no layout
+    #: recipe, so its choice rides here; Manual's recipe holds its own.
+    i1io_crosses: bool = True
     fd9_clip_options: "dict | None" = None
     # When True, the .icc/.ti3 from a prior session in the same working folder
     # are renamed to pre_*.icc/pre_*.ti3 instead of being overwritten on the
@@ -1724,6 +1727,11 @@ class ChartCreator:
                 # an absent key still reads False, so reprinting a lost sheet
                 # reproduces the sheet that was printed.
                 kw["hex_flat_top"] = bool(kw.get("hflag"))
+        elif params.instrument == "IO2" and not getattr(params, "i1io_crosses",
+                                                         True):
+            # Guided's "Aiming crosses" for the i1iO (a Beta), only when off,
+            # so every other chart's kwargs are the ones they were.
+            kw["i1io_crosses"] = False
         return kw
 
     def _engine_total_patches(self, params: "ChartParams") -> int | None:
