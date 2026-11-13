@@ -4,7 +4,8 @@
   every coding agent. A short summary is in [`AGENTS.md`](../AGENTS.md).
 - **Adding or changing a measuring instrument**: read
   [`docs/adding_an_instrument.md`](../docs/adding_an_instrument.md) in full
-  first and follow its registration checklist. New instruments go behind a
+  first and follow its checklist,
+  [`docs/adding_an_instrument_checklist.md`](../docs/adding_an_instrument_checklist.md). New instruments go behind a
   Preferences > Beta option, and with it off ChromIQ behaves exactly as before.
 - User-facing text goes through `tr()` into all 13 translation catalogues, with no
   em dash in new English text.

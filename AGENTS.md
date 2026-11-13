@@ -14,7 +14,9 @@ printer profiling).
   approve" as "the ChromIQ maintainers must approve".
 - **Adding or changing a measuring instrument?** Read
   **[`docs/adding_an_instrument.md`](docs/adding_an_instrument.md)** in full
-  before you change anything, and plan against its registration checklist.
+  before you change anything, then work through
+  **[`docs/adding_an_instrument_checklist.md`](docs/adding_an_instrument_checklist.md)**
+  stage by stage.
   Open a feature request issue for the instrument first, show the plan and
   wait for a go-ahead before you write code.
   A ready-made prompt is in
