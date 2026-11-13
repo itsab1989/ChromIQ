@@ -624,8 +624,13 @@ Inside the same option, two Preferences choices for the i1Pro 2 only
 (`tests/test_i1pro2_lights_modes.py` against a trace of the 4.3.33 driver), and
 every ending above is unchanged. With either choice, the endings are the same
 rows: the close still sends the immediate off, the marker is kept or removed
-exactly as above. The choices are used only on firmware 634 (the firmware of
-every recording); any other firmware gets 4.3.33's lights. Programs and their
+exactly as above; when the engine cannot confirm the off it says
+`{"event":"lights","state":"unknown"}`, the marker is kept and the Measure log
+says so in one line. The new programs were recorded on firmware 634 and go to
+any i1Pro 2 the lights accept, like 4.3.33's; the engine reports the firmware
+and the log names it. "Left on during a reading" still sends the off before
+the first reading after connecting when no calibration was needed (the steady
+white of the open is playing). Programs and their
 moments: `measurement_window_sounds.md` §4h. Built and tested on 2026-11-13
 without an i1Pro 2; nobody has confirmed it on hardware.
 

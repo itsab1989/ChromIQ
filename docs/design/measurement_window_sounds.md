@@ -269,9 +269,13 @@ M-FD9-SUPPORT-OFF) and like *Calibrate the instrument*, which plays no sound
 **Confirmed by:** *nobody yet.*
 
 With Preferences ▸ Beta, the instrument lights on and "Ready light and result
-signals" chosen, an i1Pro 2 (firmware 634) shows i1Profiler's recorded
-patterns where ChromIQ decides about a reading. The lights follow the same
-verdict as the sounds; they play no sound and change no sound.
+signals" chosen, an i1Pro 2 shows i1Profiler's recorded patterns (recorded on
+firmware 634; sent to any i1Pro 2 the lights accept) where ChromIQ decides
+about a reading. Green means "kept": for a strip it goes with the strip-OK
+sound, and a strip ChromIQ asks about is red, with the slow-down cue or the
+question's window. Patch by patch, a kept patch is green even when it "looks
+off" and plays PATCH_OUT_OF_TOL: the patch is kept, the sound only warns. The
+lights play no sound and change no sound.
 
 | moment | program sent | who decides |
 |---|---|---|
@@ -281,7 +285,7 @@ verdict as the sounds; they play no sound and change no sound.
 | an accepted strip that ChromIQ keeps as it is (the STRIP_OK cue) | GREEN2 (2990 B) | the Measure tab's strip cue, sent to the engine as `{"cmd":"lights_result","n":…}` |
 | an accepted strip ChromIQ asks about: read too fast (the SLOW_DOWN cue), the engine's or ChromIQ's slip check, read twice | RED2 (2990 B) | the manager (before any window opens) or the strip cue |
 | a strip the engine refused: misread (not a button shortcut), wrong strip, unexpected response, an unexpected error | RED2 | the engine, at once |
-| a patch kept, patch by patch | GREEN2 | the engine |
+| a patch kept, patch by patch (also one that plays the "looks off" sound) | GREEN2 | the engine |
 | a patch misread | RED2 | the engine |
 | no verdict within 3 s of an accepted strip, or the lights dark at the next prompt | PULSE | the engine |
 | before a hand-held reading's triggers | OFF_SLOW when lit ("Off during a reading"); nothing while a pulse-family program plays ("Left on during a reading") | driver |
