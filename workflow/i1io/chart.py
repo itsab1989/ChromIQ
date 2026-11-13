@@ -471,16 +471,10 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
         # Left off on a sheet where it would touch the patch numbers (large
         # labels or a tall top row; the review of 2026-11-13 found the "Q" on
         # a "B"): it is the one element that can go without loss.
-        wm_x0 = mark_zone(marks(w, h)[0])[2] + 4.0
-        wm_h = F.WORDMARK_MM.value
-        wm_box = (wm_x0, F.TEXT_LINE_MM.value - wm_h / 2 - 0.5,
-                  wm_x0 + 5.0 * wm_h, F.TEXT_LINE_MM.value + wm_h / 2 + 0.5)
-        numbers = (label_boxes(geom, layout, w, h, index, labels)[0]
-                   if geom is not None and layout is not None
-                   and labels is not None else [])
-        if not any(_overlap(wm_box, b[1:]) for b in numbers):
-            _wordmark(draw, geom_list, px(wm_x0), px(F.TEXT_LINE_MM.value),
-                      px(wm_h))
+        wm_box = wordmark_box(geom, layout, w, h, index, labels)
+        if wm_box is not None:
+            _wordmark(draw, geom_list, px(wm_box[0]), px(F.TEXT_LINE_MM.value),
+                      px(F.WORDMARK_MM.value))
         # The chart's name, and the sheet text (Manual's "Sheet text", its
         # placeholders filled in as on every chart) after it, centred between
         # marks 2 and 3 and cut to fit with "…": never at the patches' cost.
@@ -511,6 +505,37 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
             start = px((left + right) / 2.0) - width // 2
             text(start, px(h - F.MARK_INSET_MM.value), label, sfont, spath,
                  svar, small_px)
+
+
+def wordmark_box(geom, layout, w: float, h: float, page: int,
+                 labels: "Labels | None"):
+    """Where the ChromIQ wordmark goes on *page*, ``(x0, y0, x1, y1)`` in mm,
+    or None when it is left off.
+
+    THE LOGO NEVER COSTS A PATCH (Basti, 2026-11-13: "if our chromiq logo ...
+    uses space that could be used for patches otherwise then it should be
+    optional and off by default"). It is not a layout input at all: the
+    margins and the grid are computed without it. It is drawn only in the
+    paper beside mark 1, above the first strip, and only where it touches no
+    patch, no strip's scan band and no label; otherwise it is simply left off
+    for that layout. So no patch size, margin or label setting can bring it
+    back at the patches' cost."""
+    wm_x0 = mark_zone(marks(w, h)[0])[2] + 4.0
+    wm_h = F.WORDMARK_MM.value
+    box = (wm_x0, F.TEXT_LINE_MM.value - wm_h / 2 - 0.5,
+           wm_x0 + 5.0 * wm_h, F.TEXT_LINE_MM.value + wm_h / 2 + 0.5)
+    if geom is None or layout is None:
+        return box
+    cells = page_patches(geom, layout, w, h, page)
+    blocked = [c[3:] for c in cells]
+    for _y, x0, x1, row in scan_rows(cells, w):
+        blocked.append((x0, row[0][4], x1, row[0][6]))
+    if labels is not None:
+        numbers, letters = label_boxes(geom, layout, w, h, page, labels)
+        blocked += [b[1:] for b in numbers + letters]
+    if any(_overlap(box, b) for b in blocked):
+        return None
+    return box
 
 
 def _wordmark(draw, geom_list, x: int, centre_y: int, height: int) -> None:
@@ -566,7 +591,11 @@ def write_side_file(path: Path, *, geom, layout, w: float, h: float,
                                   round((c[4] + c[6]) / 2.0, 4)],
                 } for c in row],
             })
-        entry = {"page": page + 1, "rows": rows}
+        entry = {"page": page + 1, "rows": rows,
+                 "wordmark_mm": (list(wordmark_box(geom, layout, w, h, page,
+                                                   labels))
+                                 if wordmark_box(geom, layout, w, h, page,
+                                                 labels) else None)}
         if labels is not None:
             cols, rws = label_boxes(geom, layout, w, h, page, labels,
                                     strip_pattern=strip_pattern,

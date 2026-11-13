@@ -481,3 +481,36 @@ def test_the_turned_i1profiler_option_says_why_an_i1io_chart_has_no_match(
     assert not plan.qualifies
     assert any("i1iO table" in r and "3.8.6" in r for r in plan.reasons), \
         plan.reasons
+
+
+@pytest.mark.parametrize("kw", [
+    {}, {"patch_w": 20.0, "patch_h": 20.0}, {"indicator_size_mm": 4.0},
+    {"margins": (40.0, 12.0, 15.0, 20.0)}, {"draw_indicators": False,
+                                            "row_indicators": False},
+    {"patch_h": 7.0, "paper": "LetterR"}])
+def test_the_logo_never_costs_a_patch(tmp_path, kw):
+    """Basti, 2026-11-13: the ChromIQ logo may only use paper no patch could
+    use. Whatever the patch size, label size or margins, the capacity is the
+    same as the geometry gives without any logo, and where the logo is drawn
+    it touches no patch, no strip's scan band and no label."""
+    from workflow.layout_engine import geometry, instruments, papers
+    kw = dict(kw)
+    paper = kw.pop("paper", "A4R")
+    result, side = _build(tmp_path, 60, paper, **kw)
+    g = instruments.geom_from_build_kwargs({"instrument": "IO2",
+                                            "paper": paper, **kw})
+    w, h = papers.dimensions_mm(paper)
+    assert result.layout.patches_per_page == geometry.patches_per_sheet(g, w, h)
+    for page in side["pages"]:
+        box = page["wordmark_mm"]
+        if box is None:
+            continue
+        def clear(b):
+            return not (box[0] < b[2] and b[0] < box[2]
+                        and box[1] < b[3] and b[1] < box[3])
+        for row in page["rows"]:
+            assert clear((row["run_mm"][0], row["y_mm"] - 4.0,
+                          row["run_mm"][1], row["y_mm"] + 4.0))
+        for kind in ("columns", "rows"):
+            for _t, *b in page["labels_mm"][kind]:
+                assert clear(b)
