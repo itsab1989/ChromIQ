@@ -3204,9 +3204,10 @@ class MeasureManager(QObject):
 
     def _on_lights_event(self, ev: dict,
                          on_line: Callable[[str], None]) -> None:
-        """The i1Pro 2 lights (Preferences > Beta, 2026-11-13).
+        """The i1Pro 2 and i1Pro 3 lights (Preferences > Beta, 2026-11-13).
 
-        The helper reports once whether this session uses them, and later if a
+        The helper reports once whether this session uses them (and for which
+        instrument: "i1pro2" or "i1pro3"), and later if a
         light request failed or the lights were switched off. Only ever seen
         when the option is on (the helper is started with --i1pro2-lights)."""
         from core import i1pro2_lights_marker as _marker
@@ -3220,8 +3221,8 @@ class MeasureManager(QObject):
                         "light request (%s, err %s); not used again in this "
                         "session", ev.get("step"), ev.get("err"))
             on_line(tr(
-                "[Engine] Instrument lights (beta): the i1Pro 2 did not accept "
-                "a light request, so ChromIQ stops using its lights for this "
+                "[Engine] Instrument lights (beta): the instrument did not "
+                "accept a light request, so ChromIQ stops using its lights for this "
                 "measurement. Measuring carries on as usual. The lights may "
                 "stay as they are now, even while you measure: if they stay "
                 "on, unplug the instrument and plug it back in once you have "
@@ -3236,15 +3237,29 @@ class MeasureManager(QObject):
             return
         if ev.get("active"):
             self.lights_active = True
-            if self._lights_option:
+            which = str(ev.get("instrument") or "i1pro2")
+            # The "lights may still be on" marker and its replug window are
+            # the i1Pro 2's alone: their reason is ArgyllCMS's note about the
+            # i1Pro 2's start-up (core/i1pro2_lights_marker.py). An i1Pro 3
+            # opens today after i1Profiler left its lights running.
+            if self._lights_option and which == "i1pro2":
                 _marker.note_white_on(True)
                 self._lights_marker_live = True
             self._runner.set_kill_courtesy(self.LIGHTS_OFF_EXIT)
-            log.info("i1Pro 2 lights: in use for this session")
-            on_line(tr(
-                "[Engine] Instrument lights (beta): on. The i1Pro 2 shows white "
-                "while it waits for you and switches its lights off while it "
-                "calibrates or measures."))
+            log.info("instrument lights: in use for this session (%s)", which)
+            if which == "i1pro3":
+                on_line(tr(
+                    "[Engine] Instrument lights (beta): on. The i1Pro 3 "
+                    "switches its lights off while it calibrates or measures. "
+                    "Afterwards it shows the patterns X-Rite's i1Profiler "
+                    "uses: after a reading two green blinks, when a reading "
+                    "could not be taken two red blinks, each followed by a "
+                    "slowly breathing white light."))
+            else:
+                on_line(tr(
+                    "[Engine] Instrument lights (beta): on. The i1Pro 2 shows "
+                    "white while it waits for you and switches its lights off "
+                    "while it calibrates or measures."))
             return
         why = str(ev.get("why") or "")
         log.info("i1Pro 2 lights: not used for this session (%s)", why)
@@ -3253,8 +3268,8 @@ class MeasureManager(QObject):
         if why == "instrument":
             on_line(tr(
                 "[Engine] Instrument lights (beta): ChromIQ uses the lights "
-                "only on an i1Pro 2, so it leaves this instrument's lights "
-                "alone."))
+                "only on an i1Pro 2 or an i1Pro 3, so it leaves this "
+                "instrument's lights alone."))
         elif why == "mode":
             on_line(tr(
                 "[Engine] Instrument lights (beta): they are only used while "
@@ -3263,7 +3278,7 @@ class MeasureManager(QObject):
         else:
             on_line(tr(
                 "[Engine] Instrument lights (beta): ChromIQ could not use the "
-                "lights of this i1Pro 2, so it leaves them alone for this "
+                "lights of this instrument, so it leaves them alone for this "
                 "measurement. Measuring works as usual."))
 
     #: Exit codes of a helper whose close ran: 0 (the end of a chart), 1 (an

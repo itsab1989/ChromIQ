@@ -15,7 +15,7 @@ against the new source tree and rebuild.
 
 ## ChromIQ patches
 
-Five library files depart from upstream. `scripts/vendor_instlib.py`
+Eight library files depart from upstream. `scripts/vendor_instlib.py`
 re-applies every patch on every re-vendor (its `PATCHES` table), and
 stops if one no longer applies.
 
@@ -54,6 +54,20 @@ stops if one no longer applies.
   recorded WHITE (the recording was made on a measuring table, where
   i1Profiler kept the lights dark). Argyll's own `i1pro2_indLEDoff` bytes
   were never seen on the wire and are not used.
+- **`i1pro3_imp.c`, `i1pro3_imp.h`, `i1pro3.c`: the same Beta for the
+  i1Pro 3** (2026-11-13). Its own request and format (0x29, LE32 length,
+  bytes on bulk endpoint 0x02, Argyll's `i1pro3_indLEDseq`). Exactly four
+  sequences: Argyll's own off `00` (sent by unpatched Argyll at every open)
+  before every measurement (top of `i1pro3_do_measure`) and at the close;
+  and, only after a measurement has returned, three patterns X-Rite's
+  i1Profiler 3.8.5 sent to a user's own i1Pro 3 in one USB recording, each
+  where i1Profiler sent it: READY `01 fa 04 12 05 00` after a successful
+  calibration, GOOD `0a 14 02 12 05 00` after a reading, BAD
+  `06 14 02 12 05 00` after a reading the instrument could not take. Inert
+  until the helper calls `i1pro3_cq_lights_begin` (option on), which
+  refuses anything but an inited i1Pro 3 (3 and 3 Plus, one dtype) whose
+  EEPROM reports the indicator LEDs. No 0x3B, no memory write. Not tested
+  on a real i1Pro 3 by the project.
   Not tested on a real i1Pro 2 by the project.
 
 | patched file | upstream sha256 (first 16) | shipped sha256 (first 16) |
@@ -63,6 +77,9 @@ stops if one no longer applies.
 | `i1pro.c` | `ac75b6e3f47537b8…` | `90b196908646ba2f…` |
 | `i1pro_imp.h` | `c37813e4b43a9bff…` | `4762e1d402c0562d…` |
 | `i1pro_imp.c` | `8b8516cdd89e21de…` | `7905b18b1f17fbb7…` |
+| `i1pro3.c` | `9c4b1ac9f8af507a…` | `1ce2195c7b12f562…` |
+| `i1pro3_imp.h` | `190cceb46fe8bc33…` | `7c467ee1045ec4f4…` |
+| `i1pro3_imp.c` | `42c684afa3bbb15d…` | `76b5ae35fd34152a…` |
 
 ## Files
 

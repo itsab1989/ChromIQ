@@ -3606,16 +3606,17 @@ class SettingsDialog(QDialog):
         _i1prow.addWidget(i1p_turned_tip)
         _beta.addLayout(_i1prow)
 
-        # THE i1Pro 2 LIGHTS (Basti, 2026-11-13: "build the lights option for
-        # i1pro 2 owners too"). Read at every Start: the helper is given
+        # THE i1Pro 2 AND i1Pro 3 LIGHTS (Basti, 2026-11-13: "build the lights
+        # option for i1pro 2 owners too", then the i1Pro 3 from jctay's
+        # recording; i1pro3_imp.c). Read at every Start: the helper is given
         # --i1pro2-lights, and the driver patch (native/instlib/i1pro_imp.c,
         # PROVENANCE.md) sends only the light sequences X-Rite's i1Profiler
         # was recorded sending. Off = nothing is sent, exactly 4.3.32.
         self._i1pro2_lights_check = QCheckBox(
-            tr("X-Rite i1Pro 2: white light while the instrument waits for "
-               "you (beta)"), self)
+            tr("X-Rite i1Pro 2 and i1Pro 3: show the instrument's state with "
+               "its lights (beta)"), self)
         i1pro2_lights_tip = TooltipButton(
-            tr("i1Pro 2 Lights (beta)"), i1pro2_lights_help(), self,
+            tr("i1Pro 2 and i1Pro 3 Lights (beta)"), i1pro2_lights_help(), self,
             min_width=680)
         self._i1pro2_lights_check.clicked.connect(
             self._on_i1pro2_lights_clicked)
@@ -4536,7 +4537,7 @@ class SettingsDialog(QDialog):
             return
         from PyQt6.QtWidgets import QMessageBox, QSpacerItem, QSizePolicy
         box = QMessageBox(self)
-        box.setWindowTitle(tr("i1Pro 2 Lights (beta)"))
+        box.setWindowTitle(tr("i1Pro 2 and i1Pro 3 Lights (beta)"))
         box.setIcon(QMessageBox.Icon.NoIcon)   # no exclamation mark
         box.setText(i1pro2_lights_confirmation())
         box.setStandardButtons(QMessageBox.StandardButton.Ok
@@ -8980,7 +8981,8 @@ def preview_legend_help() -> str:
 
 
 def i1pro2_lights_help() -> str:
-    """The ⓘ of Preferences ▸ Beta ▸ the i1Pro 2 lights (Basti, 2026-11-13).
+    """The ⓘ of Preferences ▸ Beta ▸ the i1Pro 2 and i1Pro 3 lights (Basti,
+    2026-11-13; the i1Pro 3 from jctay's recording, the same day).
 
     Every sentence is checked against the code: the helper flag and its gates
     (chromiq_chartread.c ``cq_lights_for_session``: JSON engine, reflective
@@ -8989,20 +8991,36 @@ def i1pro2_lights_help() -> str:
     every trigger, at the close and before an EEPROM read; a failed request
     gives the lights up) and the recording it comes from (issue #129)."""
     return "\n\n".join((
-        tr("The X-Rite i1Pro 2 has small indicator lights. X-Rite's own "
-           "program, i1Profiler, uses them. ArgyllCMS, which ChromIQ measures "
-           "with, leaves them alone, so with ChromIQ they normally stay as "
-           "they are."),
-        tr("**With this on**, ChromIQ uses them in the simplest way:\n"
-           "  •  white while the instrument waits for you, for example for "
-           "you to press its button and read the next strip;\n"
-           "  •  off while it calibrates or measures;\n"
-           "  •  off when the measurement ends.\n"
+        tr("The X-Rite i1Pro 2 and i1Pro 3 have small indicator lights. "
+           "X-Rite's own program, i1Profiler, uses them to show what the "
+           "instrument is doing. ArgyllCMS, which ChromIQ measures with, does "
+           "not use them: it leaves the i1Pro 2's lights as they are and "
+           "switches the i1Pro 3's off when it connects."),
+        tr("**With this on, an i1Pro 2 shows:**\n"
+           "  •  white while it waits for you, for example for you to press "
+           "its button and read the next strip;\n"
+           "  •  no light while it calibrates or measures;\n"
+           "  •  no light when the measurement ends.\n"
            "The white comes on about a second after the instrument is ready, "
-           "so after a quick press you may not see it at all. In rare cases "
-           "(ChromIQ is forced to quit, or a light command fails) the lights "
-           "can stay on until you unplug the instrument."),
-        tr("**Only for the i1Pro 2.** The original i1Pro, the i1Pro 3, the "
+           "so after a quick press you may not see it at all."),
+        tr("**With this on, an i1Pro 3 shows** (an i1Pro 3 Plus too, which "
+           "ArgyllCMS handles in exactly the same way):\n"
+           "  •  no light while it calibrates or measures, as without this "
+           "option;\n"
+           "  •  after a successful calibration, the pattern i1Profiler shows "
+           "after its own calibration (we expect a short white blink), then a "
+           "slowly breathing white light;\n"
+           "  •  after a reading, two green blinks, then the breathing white "
+           "light;\n"
+           "  •  when the instrument could not take a reading (for example a "
+           "strip swiped too quickly), two red blinks, then the breathing "
+           "white light;\n"
+           "  •  no light when the measurement ends.\n"
+           "Green only means that the instrument took a reading. Whether "
+           "ChromIQ accepts it for your chart is shown on screen, as before."),
+        tr("In rare cases (ChromIQ is forced to quit, or a light command "
+           "fails) the lights can stay on until you unplug the instrument."),
+        tr("**Only for the i1Pro 2 and the i1Pro 3.** The original i1Pro, the "
            "ColorMunki and every other instrument are left exactly as they "
            "are: ChromIQ sends them nothing new."),
         tr("**Where it works:** only while you measure a chart with the "
@@ -9012,19 +9030,21 @@ def i1pro2_lights_help() -> str:
            "ArgyllCMS's own chartread, the “Read single patches” tool, “Try "
            "it” for the instrument button shortcuts and measuring tables do "
            "not use it."),
-        tr("**Please read this: it has not been tried on a real i1Pro 2 "
-           "yet.** Nobody on the ChromIQ team owns one. How the lights are "
-           "switched was worked out from ArgyllCMS's own program code, where "
-           "it is written but switched off, and from one recording of what "
-           "X-Rite's i1Profiler sent to a user's own i1Pro 2. ChromIQ sends "
-           "only light commands that i1Profiler was seen sending there: "
-           "“white” and “off” (i1Profiler used two forms of “off”: ChromIQ "
-           "sends one before every calibration and every reading, and the "
-           "other when the measurement ends). Showing white again "
-           "after every reading is ChromIQ's own idea: the recording was made "
-           "on a measuring table, where i1Profiler kept the lights dark. "
-           "ChromIQ sends nothing else that is new, and it never writes "
-           "anything into the instrument's memory."),
+        tr("**Please read this: it has not been tried on a real i1Pro 2 or "
+           "i1Pro 3 yet.** Nobody on the ChromIQ team owns either. The two "
+           "instruments use different light commands. For each one, how the "
+           "lights are switched was worked out from ArgyllCMS's own program "
+           "code and from one recording of what X-Rite's i1Profiler sent to "
+           "one user's own instrument. ChromIQ sends only light commands seen "
+           "in that recording, each at the moment i1Profiler sent it, and on "
+           "the i1Pro 3 also the “off” that ArgyllCMS itself sends whenever it "
+           "connects. Two things are ChromIQ's own choice: the i1Pro 2 shows "
+           "white again after every reading (its recording was made on a "
+           "measuring table, where i1Profiler kept the lights dark), and the "
+           "i1Pro 3's lights are switched off while it measures (i1Profiler "
+           "leaves them on), so every reading is taken with the lights just as "
+           "without this option. ChromIQ sends nothing else that is new, and "
+           "it never writes anything into the instrument's memory."),
         tr("If a light command fails, ChromIQ stops using the lights for the "
            "rest of that measurement, says so in the measurement log and "
            "carries on measuring as normal. The lights may then stay as they "
@@ -9038,14 +9058,16 @@ def i1pro2_lights_help() -> str:
            "please tell us what you saw with “Report a Bug…” at the bottom of "
            "Preferences, which opens a form on GitHub."),
         tr("**If you try it, these four things would help us most:**\n"
-           "  1.  Does the white light come on when the instrument is ready?\n"
-           "  2.  Does it go off while you calibrate and measure?\n"
+           "  1.  Do the lights do what is described above for your "
+           "instrument?\n"
+           "  2.  Are they off while you calibrate and measure?\n"
            "  3.  Does the same chart, or one strip of it, read the same with "
            "this on and with it off? Measure it once each way and compare the "
            "numbers.\n"
            "  4.  Does the instrument start normally about ten times in a row? "
            "Start a measurement, let it calibrate, stop, and start again.\n"
-           "Please also tell us which system you use (macOS, Windows or "
+           "Please also tell us which instrument you have (i1Pro 2, i1Pro 3 or "
+           "i1Pro 3 Plus) and which system you use (macOS, Windows or "
            "Linux)."),
         tr("With this off (the default), ChromIQ sends the instrument no light "
            "commands and works exactly as before. A change applies from the "
@@ -9054,18 +9076,21 @@ def i1pro2_lights_help() -> str:
 
 
 def i1pro2_lights_confirmation() -> str:
-    """The window shown when the i1Pro 2 lights are switched on."""
+    """The window shown when the i1Pro 2 and i1Pro 3 lights are switched on."""
     return tr(
-        "You are switching on the i1Pro 2 lights. Here is what that means.\n\n"
-        "•  While ChromIQ's chart-reading engine measures with an X-Rite "
-        "i1Pro 2, the instrument's lights show white while it waits for you "
-        "and go off while it calibrates or measures. Other instruments are "
-        "not affected.\n\n"
-        "•  This has not been tried on a real i1Pro 2 yet. It was worked out "
-        "from ArgyllCMS's program code and from one recording of X-Rite's "
-        "i1Profiler, and ChromIQ sends only light commands that i1Profiler "
-        "was seen sending. It never writes anything into the instrument's "
-        "memory.\n\n"
+        "You are switching on the instrument lights for the i1Pro 2 and the "
+        "i1Pro 3. Here is what that means.\n\n"
+        "•  While ChromIQ's chart-reading engine measures with one of them, "
+        "its lights show the instrument's state between readings: an i1Pro 2 "
+        "shows white while it waits for you; an i1Pro 3 shows i1Profiler's "
+        "patterns (green blinks after a reading, red blinks when it could not "
+        "take one, otherwise breathing white). While they calibrate or "
+        "measure, the lights are off. Other instruments are not affected.\n\n"
+        "•  This has not been tried on a real i1Pro 2 or i1Pro 3 yet. It was "
+        "worked out from ArgyllCMS's program code and from one recording of "
+        "X-Rite's i1Profiler for each instrument, and ChromIQ sends only light "
+        "commands seen there, plus ArgyllCMS's own “off”. It never writes "
+        "anything into the instrument's memory.\n\n"
         "•  You use it at your own risk. If the instrument does not start, "
         "readings look different or the lights behave oddly, switch this "
         "off, unplug the instrument and plug it back in, and tell us what "

@@ -115,7 +115,7 @@ def _manager_with_lines():
     ({"event": "lights", "active": True}, ['{"cmd":"lights_off_exit"}\n'],
      "white while it waits for you"),
     ({"event": "lights", "active": False, "why": "instrument"}, [],
-     "only on an i1Pro 2"),
+     "only on an i1Pro 2 or an i1Pro 3"),
     ({"event": "lights", "active": False, "why": "mode"}, [],
      "strips or single patches by hand"),
     ({"event": "lights", "active": False, "why": "lights"}, [],
@@ -134,6 +134,31 @@ def test_the_lights_events(qapp, ev, courtesy, needle):
         assert len(lines) == 1 and needle in lines[0]
         assert "—" not in lines[0]
     assert m.lights_active is bool(ev.get("active"))
+
+
+def test_an_i1pro3_session_says_what_it_shows_and_writes_no_i1pro2_marker(
+        qapp, monkeypatch):
+    from core import i1pro2_lights_marker as marker
+    written = []
+    monkeypatch.setattr(marker, "note_white_on",
+                        lambda *a, **k: written.append(a))
+    m, runner, lines = _manager_with_lines()
+    m._lights_option = True
+    m._handle_engine_line(json.dumps(
+        {"event": "lights", "active": True, "instrument": "i1pro3"}),
+        lines.append)
+    assert len(lines) == 1 and "The i1Pro 3" in lines[0]
+    assert "two green blinks" in lines[0] and "\u2014" not in lines[0]
+    assert written == [] and m._lights_marker_live is False
+    assert runner.courtesy == ['{"cmd":"lights_off_exit"}\n']
+    # ...while an i1Pro 2 session does write it, as before
+    m2, _r2, lines2 = _manager_with_lines()
+    m2._lights_option = True
+    m2._handle_engine_line(json.dumps(
+        {"event": "lights", "active": True, "instrument": "i1pro2"}),
+        lines2.append)
+    assert written and m2._lights_marker_live is True
+    assert "The i1Pro 2 shows white" in lines2[0]
 
 
 def test_a_failed_first_white_is_said_once(qapp):
@@ -325,24 +350,32 @@ def test_the_row_is_off_and_says_what_it_does(dialog):
     dlg, _s = dialog
     box = dlg._i1pro2_lights_check
     assert box.isChecked() is False
-    assert "i1Pro 2" in box.text() and "(beta)" in box.text()
+    assert "i1Pro 2" in box.text() and "i1Pro 3" in box.text()
+    assert "(beta)" in box.text()
     tips = [b for b in dlg.findChildren(TooltipButton)
-            if b._title == "i1Pro 2 Lights (beta)"]
+            if b._title == "i1Pro 2 and i1Pro 3 Lights (beta)"]
     assert len(tips) == 1
     body = tips[0]._body
-    for needed in ("white while the instrument waits for you",
-                   "off while it calibrates or measures",
-                   "Only for the i1Pro 2", "i1Pro 3", "ColorMunki",
+    for needed in ("white while it waits for you",
+                   "no light while it calibrates or measures",
+                   "two green blinks", "two red blinks",
+                   "breathing white light", "i1Pro 3 Plus",
+                   "Green only means that the instrument took a reading",
+                   "Only for the i1Pro 2 and the i1Pro 3", "ColorMunki",
                    "chart-reading engine", "Read single patches",
                    "has not been tried on a real i1Pro 2",
-                   "Nobody on the ChromIQ team owns one",
+                   "Nobody on the ChromIQ team owns either",
+                   "different light commands",
                    "ArgyllCMS's own program code", "one recording",
-                   "only light commands that i1Profiler was seen sending",
+                   "only light commands seen in that recording",
+                   "the “off” that ArgyllCMS itself sends",
+                   "i1Profiler leaves them on",
                    "never writes anything into the instrument's memory",
                    "switch this off, unplug the instrument",
                    "Report a Bug", "GitHub",
-                   "1.  Does the white light come on",
-                   "2.  Does it go off",
+                   "1.  Do the lights do what is described above",
+                   "2.  Are they off while you calibrate and measure",
+                   "i1Pro 2, i1Pro 3 or i1Pro 3 Plus",
                    "3.  Does the same chart",
                    "4.  Does the instrument start normally about ten times",
                    "exactly as before", "**Default:** off"):

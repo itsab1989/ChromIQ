@@ -130,6 +130,12 @@ def _upstream_text(dest: str) -> str:
     return text
 
 
+#: The vendored files the lights patches touch, written back to Argyll's own
+#: text for the upstream build of the fake-USB tests.
+UPSTREAM_FILES = ("i1pro_imp.c", "i1pro_imp.h", "i1pro.c",
+                  "i1pro3_imp.c", "i1pro3_imp.h", "i1pro3.c")
+
+
 def _provenance_upstream_sha() -> "dict[str, str]":
     prov = (INSTLIB / "PROVENANCE.md").read_text(encoding="utf-8")
     return dict(re.findall(r"^\| `([^`]+)` \| `[^`]+` \| `([0-9a-f]{16})…` \|$",
@@ -241,9 +247,10 @@ def test_every_entry_asks_dtype_first():
 
 def test_no_other_driver_is_touched():
     patched = set(_vendor()["PATCHES"])
-    assert patched == {"rspl1.c", "conv.c", "i1pro_imp.c", "i1pro_imp.h", "i1pro.c"}
+    assert patched == {"rspl1.c", "conv.c", "i1pro_imp.c", "i1pro_imp.h", "i1pro.c",
+                       "i1pro3_imp.c", "i1pro3_imp.h", "i1pro3.c"}
     up = _provenance_upstream_sha()
-    for name in ("i1pro3_imp.c", "i1pro3_imp.h", "i1pro3.c", "munki_imp.c",
+    for name in ("munki_imp.c",
                  "munki.c", "i1d3.c", "ss_imp.c", "dtp20.c", "icoms.c",
                  "usbio.c", "inst.c"):
         have = hashlib.sha256((INSTLIB / name).read_bytes()).hexdigest()[:16]
@@ -265,14 +272,15 @@ def _cmake() -> str:
     return exe
 
 
-@pytest.fixture(scope="module")
-def traces(tmp_path_factory):
+def build_and_run(tmp_path_factory, stem: str) -> "dict[str, str]":
+    """Build `<stem>` and `<stem>_upstream` (Argyll's own unpatched i1Pro
+    files, checked against PROVENANCE's sha256) and return both traces."""
     cmake = _cmake()
-    work = tmp_path_factory.mktemp("lights_build")
+    work = tmp_path_factory.mktemp(stem + "_build")
     updir = work / "upstream"
     updir.mkdir()
     sha = _provenance_upstream_sha()
-    for dest in ("i1pro_imp.c", "i1pro_imp.h", "i1pro.c"):
+    for dest in UPSTREAM_FILES:
         data = _upstream_text(dest).encode("utf-8", "surrogateescape")
         assert hashlib.sha256(data).hexdigest()[:16] == sha[dest]
         (updir / dest).write_bytes(data)
@@ -283,15 +291,14 @@ def traces(tmp_path_factory):
                     f"-DCQ_UPSTREAM_I1PRO_DIR={updir}"],
                    check=True, capture_output=True, timeout=600, env=env)
     jobs = str(max(2, (os.cpu_count() or 4) // 2))
-    for target in ("i1pro2_lights_test", "i1pro2_lights_test_upstream"):
+    for target in (stem, stem + "_upstream"):
         r = subprocess.run([cmake, "--build", str(build), "--target", target,
                             "-j", jobs], capture_output=True, text=True,
                            encoding="utf-8", errors="replace", timeout=900,
                            env=env)
         assert r.returncode == 0, r.stdout[-3000:] + r.stderr[-3000:]
     out = {}
-    for name, target in (("patched", "i1pro2_lights_test"),
-                         ("upstream", "i1pro2_lights_test_upstream")):
+    for name, target in (("patched", stem), ("upstream", stem + "_upstream")):
         exe = next(p for p in build.rglob(target + "*")
                    if p.is_file() and os.access(p, os.X_OK)
                    and p.name in (target, target + ".exe"))
@@ -301,6 +308,11 @@ def traces(tmp_path_factory):
             r.stdout[-2000:] + r.stderr[-2000:]
         out[name] = r.stdout
     return out
+
+
+@pytest.fixture(scope="module")
+def traces(tmp_path_factory):
+    return build_and_run(tmp_path_factory, "i1pro2_lights_test")
 
 
 def _scenario(trace: str, name: str) -> "list[str]":
