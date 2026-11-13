@@ -1718,7 +1718,7 @@
     "text_edge_mm",
     "use_instrument_margins"
    ],
-   "reason": "One panel for all classic instruments: margins, patch size, offsets, helper markers and the other risky layout values set for one follow a person to the next and back, as they did for the i1iO before review 3 item 4; seen 2026-11-13, not judged yet."
+   "reason": "One panel for all classic instruments: margins, patch size, offsets, helper markers and the other risky layout values set for one follow a person to the next and back, as they did for the i1iO before review 3 item 4; seen 2026-11-13. The owner chose to leave this as it is for now (2026-11-13); it stays listed for review."
   },
   {
    "check": "inherits",
@@ -1765,7 +1765,7 @@
     "text_edge_mm",
     "use_instrument_margins"
    ],
-   "reason": "One panel for all classic instruments: margins, patch size, offsets, helper markers and the other risky layout values set for one follow a person to the next and back, as they did for the i1iO before review 3 item 4; seen 2026-11-13, not judged yet."
+   "reason": "One panel for all classic instruments: margins, patch size, offsets, helper markers and the other risky layout values set for one follow a person to the next and back, as they did for the i1iO before review 3 item 4; seen 2026-11-13. The owner chose to leave this as it is for now (2026-11-13); it stays listed for review."
   },
   {
    "check": "inherits",
@@ -1794,21 +1794,6 @@
     "use_instrument_margins"
    ],
    "reason": "Strip-reader options (offsets, helper markers, strip cap, label distances) follow a person between the i1Pro and the FD-9 panel (the FD-9 is a contributed Beta: observed only, never changed here); seen 2026-11-13."
-  },
-  {
-   "check": "inherits",
-   "mode": "manual",
-   "instrument": "IO2",
-   "item": "IO2 -> i1",
-   "aspect": "back and forth",
-   "expected": [
-    "area_method",
-    "patch_pattern",
-    "show_row_indicators",
-    "show_strip_indicators",
-    "strip_pattern"
-   ],
-   "reason": "Label patterns, label visibility and the sheet text follow a person between the i1Pro and the i1iO (its risky values do not); seen 2026-11-13, not judged yet."
   },
   {
    "check": "inherits",
@@ -1855,7 +1840,7 @@
     "text_edge_mm",
     "use_instrument_margins"
    ],
-   "reason": "One panel for all classic instruments: margins, patch size, offsets, helper markers and the other risky layout values set for one follow a person to the next and back, as they did for the i1iO before review 3 item 4; seen 2026-11-13, not judged yet."
+   "reason": "One panel for all classic instruments: margins, patch size, offsets, helper markers and the other risky layout values set for one follow a person to the next and back, as they did for the i1iO before review 3 item 4; seen 2026-11-13. The owner chose to leave this as it is for now (2026-11-13); it stays listed for review."
   },
   {
    "check": "inherits",
@@ -1902,7 +1887,7 @@
     "text_edge_mm",
     "use_instrument_margins"
    ],
-   "reason": "One panel for all classic instruments: margins, patch size, offsets, helper markers and the other risky layout values set for one follow a person to the next and back, as they did for the i1iO before review 3 item 4; seen 2026-11-13, not judged yet."
+   "reason": "One panel for all classic instruments: margins, patch size, offsets, helper markers and the other risky layout values set for one follow a person to the next and back, as they did for the i1iO before review 3 item 4; seen 2026-11-13. The owner chose to leave this as it is for now (2026-11-13); it stays listed for review."
   },
   {
    "check": "inherits",
@@ -1949,7 +1934,7 @@
     "text_edge_mm",
     "use_instrument_margins"
    ],
-   "reason": "One panel for all classic instruments: margins, patch size, offsets, helper markers and the other risky layout values set for one follow a person to the next and back, as they did for the i1iO before review 3 item 4; seen 2026-11-13, not judged yet."
+   "reason": "One panel for all classic instruments: margins, patch size, offsets, helper markers and the other risky layout values set for one follow a person to the next and back, as they did for the i1iO before review 3 item 4; seen 2026-11-13. The owner chose to leave this as it is for now (2026-11-13); it stays listed for review."
   },
   {
    "check": "inherits",
@@ -1994,7 +1979,7 @@
     "text_edge_mm",
     "use_instrument_margins"
    ],
-   "reason": "One panel for all classic instruments: margins, patch size, offsets, helper markers and the other risky layout values set for one follow a person to the next and back, as they did for the i1iO before review 3 item 4; seen 2026-11-13, not judged yet."
+   "reason": "One panel for all classic instruments: margins, patch size, offsets, helper markers and the other risky layout values set for one follow a person to the next and back, as they did for the i1iO before review 3 item 4; seen 2026-11-13. The owner chose to leave this as it is for now (2026-11-13); it stays listed for review."
   },
   {
    "check": "inherits",
@@ -2084,7 +2069,7 @@
     "text_edge_mm",
     "use_instrument_margins"
    ],
-   "reason": "One panel for all classic instruments: margins, patch size, offsets, helper markers and the other risky layout values set for one follow a person to the next and back, as they did for the i1iO before review 3 item 4; seen 2026-11-13, not judged yet."
+   "reason": "One panel for all classic instruments: margins, patch size, offsets, helper markers and the other risky layout values set for one follow a person to the next and back, as they did for the i1iO before review 3 item 4; seen 2026-11-13. The owner chose to leave this as it is for now (2026-11-13); it stays listed for review."
   },
   {
    "check": "inherits",
@@ -2131,7 +2116,7 @@
     "text_edge_mm",
     "use_instrument_margins"
    ],
-   "reason": "One panel for all classic instruments: margins, patch size, offsets, helper markers and the other risky layout values set for one follow a person to the next and back, as they did for the i1iO before review 3 item 4; seen 2026-11-13, not judged yet."
+   "reason": "One panel for all classic instruments: margins, patch size, offsets, helper markers and the other risky layout values set for one follow a person to the next and back, as they did for the i1iO before review 3 item 4; seen 2026-11-13. The owner chose to leave this as it is for now (2026-11-13); it stays listed for review."
   },
   {
    "check": "kept",
@@ -2203,7 +2188,7 @@
    ],
    "aspect": "new_target_after_defaults",
    "expected": "lost",
-   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here."
+   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here. The owner chose to leave this as it is for now (2026-11-13); it stays listed for review."
   },
   {
    "check": "kept",
@@ -2224,7 +2209,7 @@
    ],
    "aspect": "new_target_after_defaults",
    "expected": "lost",
-   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here."
+   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here. The owner chose to leave this as it is for now (2026-11-13); it stays listed for review."
   },
   {
    "check": "kept",
@@ -2254,7 +2239,7 @@
    ],
    "aspect": "new_target_after_defaults",
    "expected": "lost",
-   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here."
+   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here. The owner chose to leave this as it is for now (2026-11-13); it stays listed for review."
   },
   {
    "check": "kept",
@@ -2269,7 +2254,7 @@
    "item": "layout_mode",
    "aspect": "new_target_after_defaults",
    "expected": "lost",
-   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here."
+   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here. The owner chose to leave this as it is for now (2026-11-13); it stays listed for review."
   },
   {
    "check": "kept",
@@ -2278,7 +2263,7 @@
    "item": "cm_density",
    "aspect": "new_target_after_defaults",
    "expected": "lost",
-   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here."
+   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here. The owner chose to leave this as it is for now (2026-11-13); it stays listed for review."
   },
   {
    "check": "kept",
@@ -2290,7 +2275,7 @@
    "item": "hflag",
    "aspect": "new_target_after_defaults",
    "expected": "lost",
-   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here."
+   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here. The owner chose to leave this as it is for now (2026-11-13); it stays listed for review."
   },
   {
    "check": "kept",
@@ -2299,7 +2284,7 @@
    "item": "fd9_clip_border",
    "aspect": "new_target_after_defaults",
    "expected": "lost",
-   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here."
+   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here. The owner chose to leave this as it is for now (2026-11-13); it stays listed for review."
   },
   {
    "check": "kept",
@@ -2315,7 +2300,7 @@
    ],
    "aspect": "new_target_after_defaults",
    "expected": "lost",
-   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here."
+   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here. The owner chose to leave this as it is for now (2026-11-13); it stays listed for review."
   },
   {
    "check": "lacks_option",
@@ -2381,7 +2366,7 @@
    "item": "cm_density",
    "aspect": "CM -> i1 -> CM",
    "expected": "lost",
-   "reason": "After visiting the i1Pro the ColorMunki comes back on its default density, not the one set before; seen 2026-11-13, not judged yet."
+   "reason": "After visiting the i1Pro the ColorMunki comes back on its default density, not the one set before; seen 2026-11-13. The owner chose to leave this as it is for now (2026-11-13); it stays listed for review."
   },
   {
    "check": "switch_back",
@@ -2417,32 +2402,11 @@
   {
    "check": "switch_back",
    "mode": "manual",
-   "instrument": "IO2",
-   "item": [
-    "chart_text",
-    "inter_patch_mm",
-    "margin_bottom",
-    "margin_left",
-    "margin_right",
-    "margin_top",
-    "patch_h_mm",
-    "patch_w_mm",
-    "spacer_mode",
-    "spacer_width_mm",
-    "strip_gap_mm"
-   ],
-   "aspect": "IO2 -> i1 -> IO2",
-   "expected": "lost",
-   "reason": "After visiting the i1Pro the i1iO keeps its risky values (offsets, markers) but comes back on its factory margins, patch size, spacers and sheet text; seen 2026-11-13, not judged yet."
-  },
-  {
-   "check": "switch_back",
-   "mode": "manual",
    "instrument": "SS",
    "item": "hflag",
    "aspect": "SS -> i1 -> SS",
    "expected": "lost",
-   "reason": "After visiting the i1Pro the SpectroScan comes back on flat patches, not the hexagons set before; seen 2026-11-13, not judged yet."
+   "reason": "After visiting the i1Pro the SpectroScan comes back on flat patches, not the hexagons set before; seen 2026-11-13. The owner chose to leave this as it is for now (2026-11-13); it stays listed for review."
   }
  ]
 }

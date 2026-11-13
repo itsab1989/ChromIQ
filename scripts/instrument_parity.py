@@ -145,7 +145,6 @@ NOT_A_CANDIDATE = {
     "spacer_palette": "the coloured spacers' palette, set by its own dialog",
     "spacer_overrides": "per-pair spacer colours, internal",
     "border": "printtarg's single border, superseded by the four margins",
-    "i1io_label_options": "a recipe's version mark",
     "layout_explicit": "bookkeeping",
     "margins_explicit": "bookkeeping",
     "align_explicit": "bookkeeping",
