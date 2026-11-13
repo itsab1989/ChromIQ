@@ -17870,6 +17870,16 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         Called exactly once per accepted strip — the slow-down cue when it was
         read too fast, the strip cue otherwise. Never both (Knut, #131).
         """
+        # The i1Pro 2's result signals (Beta, 2026-11-13) follow the same
+        # verdict: green with the strip cue, red with the slow-down cue.
+        # Before the sound check, so sounds off does not silence the lights.
+        _v = getattr(getattr(self, "_manager", None), "lights_strip_verdict",
+                     None)
+        if callable(_v):
+            try:
+                _v(too_fast)
+            except Exception:      # noqa: BLE001 - a light never stops a read
+                pass
         if getattr(self, "_sound", None) is None:
             return
         import core.sound as _snd
@@ -21771,6 +21781,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         p.engine_xy_chart = bool(self._settings.get("engine_all_modes", False))
         p.engine_i1pro2_lights = bool(
             self._settings.get("i1pro2_lights_beta", False))
+        p.engine_lights_signals = bool(
+            self._settings.get("i1pro2_lights_signals", True))
+        p.engine_lights_during_reading = bool(
+            self._settings.get("i1pro2_lights_during_reading", False))
         p.cal_auto_retries = int(self._settings.get("cal_auto_retries", 3))
         import os as _os
         replay = _os.environ.get("CHROMIQ_REPLAY")
