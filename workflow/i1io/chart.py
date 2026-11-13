@@ -88,6 +88,20 @@ def comparable_recipe_values(d: dict) -> dict:
         pass
     return out
 
+def with_guided_size(recipe, kw: dict):
+    """*recipe* (rebuilt from Guided's build kwargs *kw*) with the patch size
+    an i1iO build really uses when Guided's is automatic (0): Manual showed 0
+    as the table's minimum, 7 x 8.9 mm, and built 650 patches where Guided
+    built 528 (review 5, item 6; 4.3.33 too). Other instruments unchanged."""
+    if (getattr(recipe, "instrument", None) != "IO2"
+            or (recipe.patch_w_mm and recipe.patch_h_mm)):
+        return recipe
+    f = fixed_build_kwargs(kw)
+    recipe.patch_w_mm = float(f["patch_w"])
+    recipe.patch_h_mm = float(f["patch_h"])
+    return recipe
+
+
 #: The build-kwargs key a caller sets for a GUIDED i1iO layout that hands
 #: margins on anyway (the Create Chart tab's estimate): Guided has no margin
 #: boxes, whatever the kwargs carry (review 5, item 4).

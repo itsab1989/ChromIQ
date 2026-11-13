@@ -2061,8 +2061,14 @@ class ChartCreator:
                 # lose fields like clip_border (which kwargs spell as nolpcbord)
                 # and the editor reproduces the exact layout (#93).
                 from workflow.layout_engine.presets import LayoutRecipe
-                layout["recipe"] = LayoutRecipe.from_build_kwargs(
-                    self._engine_build_kwargs(params)).to_dict()
+                _gkw = self._engine_build_kwargs(params)
+                _grec = LayoutRecipe.from_build_kwargs(_gkw)
+                if _grec.instrument == "IO2":
+                    # the size Guided really used, recorded as such, so
+                    # Manual opens on it (review 5, item 6)
+                    from workflow.i1io.chart import with_guided_size
+                    _grec = with_guided_size(_grec, _gkw)
+                layout["recipe"] = _grec.to_dict()
                 # NOBODY CHOSE A GUIDED CHART'S MARGINS, AND THE NUMBERS THE
                 # RECIPE CARRIES ARE NOT THE ONES THE SHEET WAS LAID OUT TO.
                 #

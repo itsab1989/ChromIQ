@@ -60,3 +60,25 @@ def test_manual_shows_and_builds_guideds_size(chart_tab, paper):
                                             PATCH_ALONG_MM.value)
     manual = tab._creator._engine_total_patches(tab._collect_params())
     assert manual == guided
+
+
+def test_a_guided_charts_recorded_recipe_carries_the_size():
+    """The chart Guided builds records its recipe (channels.json), and
+    Manual opens on it after a Guided Generate: the recorded patch size is
+    the one built, never 0 (the reviewer's 650 / 1872)."""
+    import inspect
+    from workflow import chart_creator
+    from workflow.chart_creator import engine_build_kwargs
+    from workflow.i1io.chart import with_guided_size
+    from workflow.i1io.table_facts import PATCH_ACROSS_MM, PATCH_ALONG_MM
+    from workflow.layout_engine.presets import LayoutRecipe
+    kw = {"instrument": "IO2", "paper": "Letter"}
+    r = with_guided_size(LayoutRecipe.from_build_kwargs(kw), kw)
+    assert (r.patch_w_mm, r.patch_h_mm) == (PATCH_ACROSS_MM.value,
+                                            PATCH_ALONG_MM.value)
+    other = with_guided_size(LayoutRecipe.from_build_kwargs(
+        {"instrument": "i1", "paper": "A4"}), {"instrument": "i1"})
+    assert other.patch_w_mm == 0.0
+    src = inspect.getsource(chart_creator.ChartCreator)
+    assert "with_guided_size(_grec, _gkw)" in src
+    assert engine_build_kwargs is not None
