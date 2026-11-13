@@ -122,6 +122,15 @@
   {
    "check": "control",
    "mode": "manual",
+   "instrument": "CR30",
+   "item": "panel.spacer_width",
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "The CR30 starts without spacers, so their width is greyed until spacers are switched on (the spacer row beside it is the reason)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
    "instrument": "FD9",
    "item": [
     "panel.area_cols",
@@ -220,7 +229,7 @@
    ],
    "aspect": "enabled",
    "expected": true,
-   "reason": "Options of the shared strip layout (area-first sizing, scales, mode, rotation, the summary stamp, the clip side) that the FD-9 and i1iO builders do not use; greyed with their reason."
+   "reason": "The i1iO's table moves to every patch by its corner crosses, so its margins, edge spacers, label alignment and strip-length cap are open, where the i1Pro takes them from its instrument margins and ruler."
   },
   {
    "check": "control",
@@ -414,7 +423,7 @@
    "item": "panel.spacer_mode",
    "aspect": "value",
    "expected": "none",
-   "reason": "The CR30 and the FD-9 are read patch by patch and start without spacers."
+   "reason": "The CR30 (read patch by patch) and the FD-9 start from their own factory layouts, which have no spacers."
   },
   {
    "check": "control",
@@ -799,6 +808,15 @@
   {
    "check": "control",
    "mode": "manual_engine_off",
+   "instrument": "CR30",
+   "item": "panel.spacer_width",
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "The CR30 starts without spacers, so their width is greyed until spacers are switched on (the spacer row beside it is the reason)."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
    "instrument": "FD9",
    "item": [
     "panel.area_cols",
@@ -896,7 +914,7 @@
    ],
    "aspect": "enabled",
    "expected": true,
-   "reason": "Options of the shared strip layout (area-first sizing, scales, mode, rotation, the summary stamp, the clip side) that the FD-9 and i1iO builders do not use; greyed with their reason."
+   "reason": "The i1iO's table moves to every patch by its corner crosses, so its margins, edge spacers, label alignment and strip-length cap are open, where the i1Pro takes them from its instrument margins and ruler."
   },
   {
    "check": "control",
@@ -1152,7 +1170,7 @@
    "item": "panel.spacer_mode",
    "aspect": "value",
    "expected": "none",
-   "reason": "The CR30 and the FD-9 are read patch by patch and start without spacers."
+   "reason": "The CR30 (read patch by patch) and the FD-9 start from their own factory layouts, which have no spacers."
   },
   {
    "check": "control",
@@ -1457,6 +1475,24 @@
    "reason": "Charts for the i1iSis are recomputed by i1Profiler; printtarg's rows take its own defaults: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
   },
   {
+   "check": "greyed_without_reason",
+   "mode": "manual",
+   "instrument": "CR30",
+   "item": "panel.spacer_width",
+   "aspect": "reason",
+   "expected": false,
+   "reason": "Greyed only because the CR30 starts without spacers; the spacer row directly beside it, set to none, is what the person sees and changes."
+  },
+  {
+   "check": "greyed_without_reason",
+   "mode": "manual_engine_off",
+   "instrument": "CR30",
+   "item": "panel.spacer_width",
+   "aspect": "reason",
+   "expected": false,
+   "reason": "Greyed only because the CR30 starts without spacers; the spacer row directly beside it, set to none, is what the person sees and changes."
+  },
+  {
    "check": "kept",
    "mode": "guided",
    "instrument": [
@@ -1527,6 +1563,21 @@
    "aspect": "controls:save_defaults",
    "expected": "lost",
    "reason": "The run description and the chart notes belong to one run, not to the defaults (per_run_description.md), for every instrument."
+  },
+  {
+   "check": "lacks_option",
+   "mode": "manual",
+   "instrument": "IO2",
+   "item": [
+    "layout_mode",
+    "patch_area_align",
+    "row_indicator_rotation",
+    "text_edge_clip_mm",
+    "use_instrument_margins"
+   ],
+   "aspect": "panel keeps it",
+   "expected": false,
+   "reason": "Greyed for the i1iO with its reason: its page is always patch-first, centred and turned, its numbers' edge and alignment are its own i1io_* fields, and it has no instrument margins to follow."
   },
   {
    "check": "listed",
@@ -1622,42 +1673,6 @@
   }
  ],
  "known_to_review": [
-  {
-   "check": "control",
-   "mode": "manual",
-   "instrument": "CR30",
-   "item": "panel.spacer_width",
-   "aspect": "enabled",
-   "expected": false,
-   "reason": "Spacer width is greyed for the CR30 (no spacers by default) and the FD-9; for the CR30 the box gives no reason the person can see (see greyed_without_reason). Seen 2026-11-13, not judged yet."
-  },
-  {
-   "check": "control",
-   "mode": "manual_engine_off",
-   "instrument": "CR30",
-   "item": "panel.spacer_width",
-   "aspect": "enabled",
-   "expected": false,
-   "reason": "Spacer width is greyed for the CR30 (no spacers by default) and the FD-9; for the CR30 the box gives no reason the person can see (see greyed_without_reason). Seen 2026-11-13, not judged yet."
-  },
-  {
-   "check": "greyed_without_reason",
-   "mode": "manual",
-   "instrument": "CR30",
-   "item": "panel.spacer_width",
-   "aspect": "reason",
-   "expected": false,
-   "reason": "Greyed for this instrument only, with no tooltip or (i) the person can read; seen 2026-11-13, not judged yet."
-  },
-  {
-   "check": "greyed_without_reason",
-   "mode": "manual_engine_off",
-   "instrument": "CR30",
-   "item": "panel.spacer_width",
-   "aspect": "reason",
-   "expected": false,
-   "reason": "Greyed for this instrument only, with no tooltip or (i) the person can read; seen 2026-11-13, not judged yet."
-  },
   {
    "check": "inherits",
    "mode": "manual",
@@ -2119,6 +2134,214 @@
    "reason": "One panel for all classic instruments: margins, patch size, offsets, helper markers and the other risky layout values set for one follow a person to the next and back, as they did for the i1iO before review 3 item 4; seen 2026-11-13, not judged yet."
   },
   {
+   "check": "kept",
+   "mode": "manual",
+   "instrument": [
+    "CM",
+    "CR30",
+    "FD9",
+    "IO2",
+    "SS",
+    "i1",
+    "p3"
+   ],
+   "item": [
+    "area_cols",
+    "area_method",
+    "area_min_patch_mm",
+    "area_ratio",
+    "area_rows",
+    "bit16",
+    "chart_text_bold",
+    "chart_text_font",
+    "chart_text_italic",
+    "chart_text_size_mm",
+    "clip_border_width_mm",
+    "clip_content_mode",
+    "clip_flip_180",
+    "clip_side",
+    "clip_text",
+    "clip_text_font",
+    "clip_text_size_mm",
+    "cm_stagger",
+    "compression",
+    "dpi",
+    "edge_spacers",
+    "export_pdf",
+    "helper_marker_edge_mm",
+    "helper_marker_len_mm",
+    "helper_marker_per_patch",
+    "helper_markers_sides",
+    "helper_markers_top_bottom",
+    "hex_flat_top",
+    "indicator_align",
+    "indicator_bold",
+    "indicator_font",
+    "indicator_italic",
+    "indicator_rotation",
+    "indicator_size_mm",
+    "max_strip_mm",
+    "nolimit",
+    "offset_x_mm",
+    "offset_y_mm",
+    "paper",
+    "patch_h_mm",
+    "patch_w_mm",
+    "pscale",
+    "randomize",
+    "spacer_width_mm",
+    "sscale",
+    "stamp_command",
+    "strip_indicator_gap_mm",
+    "strip_label_offset_mm",
+    "strip_label_offset_x_mm",
+    "text_edge_mm",
+    "text_edge_top_mm",
+    "underline_gap_mm",
+    "underline_mode",
+    "underline_thickness_mm"
+   ],
+   "aspect": "new_target_after_defaults",
+   "expected": "lost",
+   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here."
+  },
+  {
+   "check": "kept",
+   "mode": "manual",
+   "instrument": [
+    "CM",
+    "CR30",
+    "FD9",
+    "SS",
+    "i1",
+    "p3"
+   ],
+   "item": [
+    "patch_area_align",
+    "row_indicator_rotation",
+    "text_edge_clip_mm",
+    "use_instrument_margins"
+   ],
+   "aspect": "new_target_after_defaults",
+   "expected": "lost",
+   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here."
+  },
+  {
+   "check": "kept",
+   "mode": "manual",
+   "instrument": [
+    "CM",
+    "CR30",
+    "IO2",
+    "SS",
+    "i1",
+    "p3"
+   ],
+   "item": [
+    "chart_text",
+    "helper_markers",
+    "inter_patch_mm",
+    "margin_bottom",
+    "margin_left",
+    "margin_right",
+    "margin_top",
+    "patch_pattern",
+    "show_row_indicators",
+    "show_strip_indicators",
+    "spacer_mode",
+    "strip_gap_mm",
+    "strip_pattern"
+   ],
+   "aspect": "new_target_after_defaults",
+   "expected": "lost",
+   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here."
+  },
+  {
+   "check": "kept",
+   "mode": "manual",
+   "instrument": [
+    "CM",
+    "CR30",
+    "SS",
+    "i1",
+    "p3"
+   ],
+   "item": "layout_mode",
+   "aspect": "new_target_after_defaults",
+   "expected": "lost",
+   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here."
+  },
+  {
+   "check": "kept",
+   "mode": "manual",
+   "instrument": "CM",
+   "item": "cm_density",
+   "aspect": "new_target_after_defaults",
+   "expected": "lost",
+   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here."
+  },
+  {
+   "check": "kept",
+   "mode": "manual",
+   "instrument": [
+    "CR30",
+    "SS"
+   ],
+   "item": "hflag",
+   "aspect": "new_target_after_defaults",
+   "expected": "lost",
+   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here."
+  },
+  {
+   "check": "kept",
+   "mode": "manual",
+   "instrument": "FD9",
+   "item": "fd9_clip_border",
+   "aspect": "new_target_after_defaults",
+   "expected": "lost",
+   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here."
+  },
+  {
+   "check": "kept",
+   "mode": "manual",
+   "instrument": "IO2",
+   "item": [
+    "i1io_align",
+    "i1io_clip_border",
+    "i1io_crosses",
+    "i1io_numbers_edge_mm",
+    "i1io_text_align",
+    "i1io_text_bold"
+   ],
+   "aspect": "new_target_after_defaults",
+   "expected": "lost",
+   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here."
+  },
+  {
+   "check": "lacks_option",
+   "mode": "manual",
+   "instrument": "FD9",
+   "item": [
+    "chart_text",
+    "helper_markers",
+    "inter_patch_mm",
+    "layout_mode",
+    "margin_bottom",
+    "margin_left",
+    "margin_right",
+    "margin_top",
+    "patch_pattern",
+    "show_row_indicators",
+    "show_strip_indicators",
+    "spacer_mode",
+    "strip_gap_mm",
+    "strip_pattern"
+   ],
+   "aspect": "panel keeps it",
+   "expected": false,
+   "reason": "A value a preset or a saved layout sets on this option is not kept by the FD-9 panel (it shows its own) (the FD-9 is a contributed Beta: observed only, never changed here); seen 2026-11-13, not judged yet."
+  },
+  {
    "check": "listed",
    "mode": "",
    "instrument": [
@@ -2166,7 +2389,6 @@
    "instrument": "CR30",
    "item": [
     "hflag",
-    "spacer_mode",
     "spacer_on"
    ],
    "aspect": "CR30 -> i1 -> CR30",
@@ -2180,10 +2402,8 @@
    "item": [
     "clip_content_mode",
     "clip_content_when_on",
-    "clip_text_size_mm",
     "fd9_clip_border",
     "inter_patch_mm",
-    "margin_top",
     "patch_area_align",
     "patch_h_mm",
     "patch_w_mm",
@@ -2223,15 +2443,6 @@
    "aspect": "SS -> i1 -> SS",
    "expected": "lost",
    "reason": "After visiting the i1Pro the SpectroScan comes back on flat patches, not the hexagons set before; seen 2026-11-13, not judged yet."
-  },
-  {
-   "check": "switch_back",
-   "mode": "manual",
-   "instrument": "CR30",
-   "item": "spacer_mode",
-   "aspect": "i1 -> CR30 -> i1",
-   "expected": "lost",
-   "reason": "Visiting the CR30 drops the spacer and patch-shape choice of the instrument switched from (both directions); seen 2026-11-13, not judged yet."
   }
  ]
 }

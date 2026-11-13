@@ -63,7 +63,8 @@ MODES = ("guided", "manual", "manual_engine_off")
 
 #: Check kinds, in the order the allow-list is written.
 CHECKS = ("listed", "control", "greyed_without_reason", "kept",
-          "switch_back", "inherits", "run_type", "prefs_style")
+          "lacks_option", "switch_back", "inherits", "run_type",
+          "prefs_style")
 
 #: Not options a person sets for a chart, so the generic "change it and see
 #: whether it is kept" walk leaves them alone. Everything else is walked.
@@ -121,6 +122,18 @@ CANDIDATES: dict[str, Any] = {
     "text_edge_clip_mm": 5.0, "stamp_command": True, "clip_side": "right",
     "layout_mode": "patch_first", "area_method": "by_grid", "area_cols": 9,
     "area_rows": 7, "area_ratio": 1.3, "area_min_patch_mm": 7.0,
+}
+
+#: A second value for a field whose CANDIDATES value is already some
+#: instrument's own default, so the field is walked for that instrument too.
+ALTERNATES: dict[str, Any] = {
+    "layout_mode": "area_first", "area_method": "by_width",
+    "chart_text_bold": False, "row_indicator_rotation": 270,
+    "indicator_rotation": 270, "text_edge_clip_mm": 7.0,
+    "use_instrument_margins": True, "patch_area_align": "top-left",
+    "spacer_mode": "colored", "show_row_indicators": True,
+    "show_strip_indicators": True, "i1io_text_bold": True,
+    "clip_content_mode": "notes", "randomize": True,
 }
 
 #: Recipe fields that are not an option of their own, and why.
@@ -609,8 +622,12 @@ def recipe_options(tab, code: str) -> tuple[Any, dict]:
     pick(tab, "manual", code)
     panel = tab._manual_layout_panel
     base = panel.get_recipe()
-    want = {k: v for k, v in CANDIDATES.items()
-            if not _same(getattr(base, k), v)}
+    want = {}
+    for k, v in CANDIDATES.items():
+        if _same(getattr(base, k), v) and k in ALTERNATES:
+            v = ALTERNATES[k]
+        if not _same(getattr(base, k), v):
+            want[k] = v
     _show(tab, _marked(replace(base, **want)))
     got = panel.get_recipe()
     kept = {k: v for k, v in want.items() if _same(getattr(got, k), v)}
@@ -675,7 +692,43 @@ def kept_walk(bench: Bench, code: str) -> dict[str, list[str]]:
     tab._switch_mode("manual")
     out["target_state"] = _lost(tab._manual_layout_panel.get_recipe(), kept)
     bench.drop(tab)
+    # (5) a NEW target after Save as Defaults, with a project open:
+    # per_target_settings.md §4 opens it on "factory settings, or the saved
+    # defaults if the user has any"
+    tab = bench.tab(project="Parity")
+    base, kept = recipe_options(tab, code)
+    tab._on_save_defaults()
+    # the screen moves on (back to the factory values) before the new
+    # target is opened, so what it shows comes from the target, not the
+    # screen: the SAVED values must come back
+    _show(tab, base)
+    new_target(tab)
+    tab._switch_mode("manual")
+    out["new_target_after_defaults"] = _lost(
+        tab._manual_layout_panel.get_recipe(), kept)
+    bench.drop(tab)
     return out
+
+
+def new_target(tab) -> None:
+    """A NEW PROJECT typed into the name box while one is open, answered
+    "Create the new one and keep the old" as a person does: a target with
+    nothing stored (per_target_settings.md section 4)."""
+    from ui.dialogs.target_change_dialog import (TargetChangeAction,
+                                                 TargetChangeDialog)
+    keep_exec = TargetChangeDialog.exec
+    keep_res = TargetChangeDialog.result_action
+    TargetChangeDialog.exec = lambda self, *a, **k: 1
+    TargetChangeDialog.result_action = lambda self: TargetChangeAction.KEEP
+    try:
+        edit = (tab._target_name_edit if tab._current_mode() == "guided"
+                else tab._manual_target_name_edit)
+        edit.setText("Parity-new-target")
+        edit.editingFinished.emit()
+        _settle()
+    finally:
+        TargetChangeDialog.exec = keep_exec
+        TargetChangeDialog.result_action = keep_res
 
 
 def _change(w) -> bool:
@@ -796,15 +849,40 @@ def switching_walk(bench: Bench, codes: list[str]) -> dict:
             rb = _panel_pick(tab, b)
             ra2 = _panel_pick(tab, a)
             bench.drop(tab)
+            bulk_lost = sorted(n for n in names
+                               if not _same(getattr(ra, n), getattr(ra2, n)))
             out[(a, b)] = {
-                "lost": sorted(n for n in names
-                               if not _same(getattr(ra, n), getattr(ra2, n))),
+                "lost": [n for n in bulk_lost
+                         if _lost_alone(bench, a, b, n, want)],
+                "bulk_only": [n for n in bulk_lost
+                              if not _lost_alone(bench, a, b, n, want)],
                 "inherited": sorted(
                     n for n in names
                     if _same(getattr(rb, n), getattr(ra, n))
                     and not _same(getattr(ra, n), getattr(fresh[b], n))),
             }
     return out
+
+
+def _lost_alone(bench: Bench, a: str, b: str, name: str, want: dict) -> bool:
+    """Is *name* lost on A -> B -> A when it is the ONLY value changed? A
+    loss seen with every candidate changed at once is confirmed this way, so
+    an interaction between candidates is never reported as a loss."""
+    if name not in want:
+        return True            # a derived field: judged with its source
+    tab = bench.tab()
+    try:
+        _panel_pick(tab, a)
+        panel = tab._manual_layout_panel
+        _show(tab, _marked(replace(panel.get_recipe(), **{name: want[name]})))
+        before = getattr(panel.get_recipe(), name)
+        if not _same(before, want[name]):
+            return False       # A does not take it alone: not a loss
+        _panel_pick(tab, b)
+        after = getattr(_panel_pick(tab, a), name)
+        return not _same(before, after)
+    finally:
+        bench.drop(tab)
 
 
 _PANEL_CODES: "list[str] | None" = None
@@ -836,11 +914,13 @@ def run_type_walk(bench: Bench, mode: str, code: str) -> dict[str, str]:
             held = ctl.target.run_type == rt
             try:
                 params = tab._collect_params()
+                # as `_on_generate` does: the bar's Run type decides
+                params.cal_target = tab._calibration_selected()
                 tab._creator._engine_kwargs(params)
                 built = "builds"
-                if rt == "calibration" and not getattr(params, "cal_target",
-                                                       False):
-                    built = "builds, but not as a calibration chart"
+                if rt == "calibration":
+                    built = ("builds a calibration chart" if params.cal_target
+                             else "builds, but not as a calibration chart")
             except Exception as exc:      # noqa: BLE001 - recorded, not raised
                 built = f"refused: {type(exc).__name__}"
             gen = tab._generate_btn.isEnabled()
@@ -986,6 +1066,15 @@ def differences(obs: dict) -> list[dict]:
             for item in lost:
                 add("kept", mode, code, item, path, "lost")
 
+    ref_opts = set(obs["kept"].get(("manual", REFERENCE), {})
+                   .get("_options", []))
+    for (mode, code), paths in sorted(obs["kept"].items()):
+        if mode != "manual" or code == REFERENCE or "_options" not in paths:
+            continue
+        for item in sorted(ref_opts - set(paths["_options"])):
+            add("lacks_option", "manual", code, item, "panel keeps it",
+                False, True)
+
     for (a, b), r in sorted(obs["switching"].items()):
         x = b if a == REFERENCE else a
         direction = "there and back" if a == REFERENCE else "back and forth"
@@ -1045,6 +1134,28 @@ def expand(allow: dict, codes: list[str]) -> dict[tuple, dict]:
     return out
 
 
+def collisions(allow: dict, codes: list[str]) -> list[tuple]:
+    """Rows two entries both claim (for example a "*" entry and an explicit
+    one): the later would silently overwrite the earlier."""
+    seen: dict[tuple, int] = {}
+    out = []
+    n = 0
+    for status in ("intended", "known_to_review"):
+        for e in allow.get(status, []):
+            n += 1
+            inst = e["instrument"]
+            members = codes if inst == "*" else (
+                inst if isinstance(inst, list) else [inst])
+            items = e["item"] if isinstance(e["item"], list) else [e["item"]]
+            for c in members:
+                for item in items:
+                    k = (e["check"], e.get("mode", ""), c, item, e["aspect"])
+                    if k in seen and seen[k] != n:
+                        out.append(k)
+                    seen[k] = n
+    return out
+
+
 def shared_fields(allow: dict) -> set[str]:
     return set((allow.get("shared") or {}).get("fields", []))
 
@@ -1072,7 +1183,7 @@ def compare(rows: list[dict], allow: dict, codes: list[str]):
     stale = [{"check": k[0], "mode": k[1], "instrument": k[2], "item": k[3],
               "aspect": k[4], "expected": e.get("expected")}
              for k, e in sorted(allowed.items(), key=lambda kv: str(kv[0]))
-             if k not in used and k[2] in codes]
+             if k not in used]
     return unexplained, stale, mismatched
 
 
@@ -1083,13 +1194,30 @@ def _same_expected(a, b) -> bool:
 
 
 def as_entries(rows: list[dict]) -> str:
-    """The rows as allow-list entries, ready to paste (reason to be written)."""
-    out = []
+    """The rows as allow-list entries, ready to paste: rows that differ only
+    in the control or the instrument become one entry (exactly the rows it
+    stands for), and each says what the reference shows, so the reason can
+    be written once for the group."""
+    per_item: dict[tuple, list] = {}
     for r in rows:
-        e = {k: r[k] for k in ("check", "mode", "instrument", "item",
-                               "aspect", "expected")}
-        e["reason"] = "WRITE ONE PLAIN SENTENCE"
-        out.append(e)
+        k = (r["check"], r.get("mode", ""), r["aspect"],
+             json.dumps(r["expected"], sort_keys=True),
+             json.dumps(r.get("reference"), sort_keys=True), r["item"])
+        per_item.setdefault(k, [])
+        if r["instrument"] not in per_item[k]:
+            per_item[k].append(r["instrument"])
+    groups: dict[tuple, list] = {}
+    for k, ins in per_item.items():
+        groups.setdefault(k[:5] + (tuple(ins),), []).append(k[5])
+    out = []
+    for (check, mode, aspect, exp, ref, ins), items in groups.items():
+        out.append({
+            "check": check, "mode": mode,
+            "instrument": ins[0] if len(ins) == 1 else list(ins),
+            "item": items[0] if len(items) == 1 else items,
+            "aspect": aspect, "expected": json.loads(exp),
+            "reference_shows": json.loads(ref),
+            "reason": "WRITE ONE PLAIN SENTENCE"})
     return json.dumps(out, indent=1, ensure_ascii=False)
 
 
@@ -1099,6 +1227,8 @@ def main(argv: "list[str] | None" = None) -> int:
                     "(the reference is always included)")
     ap.add_argument("--all", action="store_true",
                     help="print every difference, not only the unexplained")
+    ap.add_argument("--rows", help="also write every difference, one row "
+                    "each, to this JSON file")
     args = ap.parse_args(argv)
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     with tempfile.TemporaryDirectory(prefix="chromiq-parity-") as tmp:
@@ -1113,6 +1243,9 @@ def main(argv: "list[str] | None" = None) -> int:
             obs = observe(Path(tmp) / "bench", args.only,
                           log=lambda m: print("..", m, file=sys.stderr))
         rows = differences(obs)
+        if args.rows:
+            Path(args.rows).write_text(json.dumps(rows, indent=1),
+                                       encoding="utf-8")
         allow = load_allowlist() if ALLOWLIST.exists() else {}
         un, stale, mis = compare(rows, allow, obs["instruments"])
         print(f"instruments: {', '.join(obs['instruments'])} "

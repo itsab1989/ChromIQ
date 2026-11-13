@@ -14,7 +14,9 @@ layout engine off:
   a. every Create Chart control: shown, enabled or greyed, its default, and a
      visible reason when it is greyed for that instrument only;
   b. every option kept by Save as Defaults (and the next start), the preset
-     bar, a named preset and the target's own stored settings;
+     bar, a named preset, the target's own stored settings, and a new target
+     opened after Save as Defaults; and every option the reference's panel
+     keeps that this instrument's does not ("lacks_option");
   c. instrument A -> B -> A gives A back what it had, and B takes over only
      the values the allow-list calls shared;
   d. every run type can be chosen and built;
@@ -128,6 +130,30 @@ def test_the_walks_really_walked(observed):
     assert len(opts) > 40, opts
     assert observed["switching"]
     assert all(observed["run_types"][("guided", ip.REFERENCE)].values())
+    # a REAL calibration target, in every mode the reference is offered in
+    for mode in ip.MODES:
+        got = observed["run_types"][(mode, ip.REFERENCE)]["calibration"]
+        assert "builds a calibration chart" in got, (mode, got)
+    # the fifth kept path really opened a new target
+    assert "new_target_after_defaults" in \
+        observed["kept"][("manual", ip.REFERENCE)]
+
+
+def test_no_two_entries_claim_the_same_row(observed, allow):
+    """A "*" entry and an explicit one for the same row (or two explicit
+    ones) would overwrite each other silently."""
+    assert ip.collisions(allow, observed["instruments"]) == []
+
+
+def test_an_entry_for_an_instrument_no_longer_listed_fails(allow):
+    """Rot: an entry naming a code the app no longer lists is stale."""
+    fake = {"intended": [{"check": "control", "mode": "guided",
+                          "instrument": "GONE", "item": "_lb_check",
+                          "aspect": "present", "expected": False,
+                          "reason": "x"}],
+            "known_to_review": [], "shared": allow.get("shared")}
+    _un, stale, _mis = ip.compare([], fake, [ip.REFERENCE])
+    assert [s["instrument"] for s in stale] == ["GONE"]
 
 
 # ---- the comparison ---------------------------------------------------------
