@@ -356,3 +356,28 @@ def test_guided_has_its_own_box_off_by_default(chart_tab):
     on = tab._creator._engine_total_patches(p)
     assert on < off
     assert tab._collect_ui_state()["guided"]["i1io_clip_border"] is True
+
+
+@pytest.mark.parametrize("mode", ["notes", "text", "branding"])
+@pytest.mark.parametrize("crosses", [True, False])
+def test_the_patch_numbers_stay_1_mm_clear_of_the_band_content(tmp_path, mode,
+                                                               crosses):
+    """Review F3: the numbers may stand in the part of the band its
+    content leaves free (the engine's row-label rule), never within 1 mm of
+    that content: the paper between the content's reach and 1 mm past it
+    is blank over the band's height."""
+    from PIL import Image
+    from workflow.i1io import chart as C
+    from workflow.layout_engine import instruments
+    kw = {C.CLIP_KEY: True, "clip_content_mode": mode,
+          "clip_text": "Printer and ink\nsecond line", "i1io_crosses": crosses}
+    result, side = _build(tmp_path, 300, "A4", **kw)
+    geom = instruments.geom_from_build_kwargs(
+        {"instrument": "IO2", "paper": "A4", "dpi": DPI, **kw})
+    reach = geom.clip_content_reach_mm
+    assert reach >= 0
+    img = np.asarray(Image.open(result.tiff_paths[0]).convert("L"))
+    _x0, y0, _x1, y1 = side["clip_border"]["area_mm"]
+    gap = img[int(y0 * S) + 2:int(y1 * S) - 2,
+              int(round(reach * S)) + 1:int((reach + 1.0) * S)]
+    assert gap.size and gap.min() >= 250

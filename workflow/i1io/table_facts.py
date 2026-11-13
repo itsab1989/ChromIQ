@@ -444,8 +444,11 @@ def margins_mm(strip_letters: bool = True,
     what is left over (`chart.free_text_plan`).
 
     With a clip border of *clip_mm* (its width from the paper edge, 0 = none)
-    on the left, the patch numbers start where it ends, and without numbers
-    the patches start LABEL_CLEAR_MM past it. *letter_band* is the strip
+    on the left, the left margin is at least the band, the numbers' band and
+    LABEL_CLEAR_MM (without numbers: the band and LABEL_CLEAR_MM). This is a
+    floor for the margin only: the engine places the patch numbers itself
+    (`raster.apply_row_label_geometry`), and they may stand in the part of
+    the band its content leaves free, 1 mm clear of that content. *letter_band* is the strip
     letters' band when the caller has measured it (`chart.letter_band_for`:
     another pattern, face or an underline), else `letter_band_mm`."""
     top = RUN_EDGE_MM.value + RUN_MM.value
