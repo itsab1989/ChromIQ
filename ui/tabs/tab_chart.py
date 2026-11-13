@@ -26976,7 +26976,15 @@ class TabChart(QWidget):
         from workflow.i1io.support import i1io_enabled, is_i1io_code
         if is_i1io_code(instr_flag) and i1io_enabled():
             from workflow.i1io.table_facts import margins_mm
-            _t, _r, _b, _l = margins_mm()
+            # …with or without the aiming crosses, as the chart records
+            _crosses = True
+            if self._margin_ti2 is not None:
+                try:
+                    from workflow.i1io.chart import AIM_CORNERS, aim_recorded
+                    _crosses = aim_recorded(self._margin_ti2) != AIM_CORNERS
+                except Exception:      # noqa: BLE001
+                    _crosses = True
+            _t, _r, _b, _l = margins_mm(crosses=_crosses)
             thresholds = {"T": _t, "B": _b, "L": _l, "R": _r}
 
         # Strip-length (ruler) limit: the per-combo value configured in
