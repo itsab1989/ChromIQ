@@ -63,6 +63,15 @@ def paper_for(paper) -> str:
             else "A4")
 
 
+def paper_label_code(paper: str) -> str:
+    """The paper code whose LABEL a list shows for an i1iO sheet: its
+    landscape twin ("A4" -> "A4R"), because the sheet is used landscape, as
+    it lies on the table (the owner, 2026-11-13: never "A4 ... Portrait"
+    where the person chooses the paper). The chart's own code, its files and
+    printing stay portrait."""
+    return {"A4": "A4R", "Letter": "LetterR"}.get(str(paper or ""), paper)
+
+
 @dataclass(frozen=True)
 class Labels:
     """The label switches for an i1iO chart: the strip letters (below every

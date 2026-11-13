@@ -19947,6 +19947,19 @@ class TabChart(QWidget):
         instr    = self._instr_combo.currentData() or "i1"
         excluded = EXCLUDED_PAPERS.get(instr, set())
         current  = self._paper_combo.currentData()
+        # THE SHEET BEFORE THE i1iO COMES BACK when the i1iO is left (review
+        # r2): the i1iO offers only A4 and Letter, and the sheet it picked
+        # used to stay for the next instrument. Remembered on entering it,
+        # given back (if still offered) on leaving it, and only then.
+        was_io2 = getattr(self, "_paper_instr_before", None) == "IO2"
+        if instr == "IO2" and not was_io2:
+            self._paper_before_i1io = current
+        elif was_io2 and instr != "IO2":
+            before = getattr(self, "_paper_before_i1io", None)
+            if before:
+                current = before
+            self._paper_before_i1io = None
+        self._paper_instr_before = instr
 
         self._paper_combo.blockSignals(True)
         self._paper_combo.clear()
@@ -19968,9 +19981,14 @@ class TabChart(QWidget):
             sizes = list(GUIDED_PAPERS)
             if current not in sizes:
                 current = paper_for(current)
+        _label_code = (lambda c: c)
+        if instr == "IO2":
+            # shown as the sheet is used: landscape, on the table
+            from workflow.i1io.chart import paper_label_code as _label_code
         for size in sizes:
             if size not in excluded:
-                self._paper_combo.addItem(paper_display_label(size), size)
+                self._paper_combo.addItem(
+                    paper_display_label(_label_code(size)), size)
         self._paper_combo.blockSignals(False)
 
         target = current if current not in excluded else PAPER_FALLBACK.get(current, "A4")

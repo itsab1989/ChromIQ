@@ -718,6 +718,25 @@ def _bradford_d65_to_d50(x: float, y: float, z: float) -> "tuple[float, float, f
             -0.0092345 * x + 0.0150436 * y + 0.7521316 * z)
 
 
+def _i1io_chart_instrument(ti3_path) -> "str | None":
+    """The instrument an i1iO chart names, for a measurement that names none
+    (review r2: a run on an i1iO chart read "Unknown instrument"). Only
+    while i1iO support is on, and only when the measurement's own chart (its
+    sibling ``.ti2``) is an i1iO chart; None otherwise, so every other
+    report is exactly as before."""
+    try:
+        from workflow.i1io.support import (chart_names_i1io, i1io_enabled,
+                                           TARGET_INSTRUMENT)
+        if not i1io_enabled():
+            return None
+        ti2 = _find_reference_ti2(Path(ti3_path))
+        if ti2 is not None and chart_names_i1io(ti2) is True:
+            return TARGET_INSTRUMENT
+    except Exception:      # noqa: BLE001 - a label, never a failure
+        return None
+    return None
+
+
 def _clean_instrument(raw: "str | None") -> str:
     """Tidy the .ti3 TARGET_INSTRUMENT string for display, or a clear fallback."""
     s = str(raw or "").strip().strip('"').strip()
@@ -1812,7 +1831,9 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
         # The measuring instrument, from the .ti3's TARGET_INSTRUMENT keyword
         # (chartread writes it). Used in Report Scope and to warn when runs from
         # different instruments are mixed into one report (Knut).
-        "instrument": _clean_instrument(data.keywords.get("TARGET_INSTRUMENT")),
+        "instrument": _clean_instrument(
+            data.keywords.get("TARGET_INSTRUMENT")
+            or _i1io_chart_instrument(ti3_path)),
         # True when this measurement is a colour-managed verification (carries
         # CHROMIQ_VERIFICATION) — chooses the report's title/scope wording and
         # keeps verification trends separate from profiling ones (#130).

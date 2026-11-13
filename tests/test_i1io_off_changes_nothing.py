@@ -251,6 +251,9 @@ HOOKED_FILES = {
     "core/file_manager.py",          # .i1io.json companion (no switch: a name)
     "core/settings.py",              # the switch's default
     "data/patch_db.py",              # the label; filtered by the switch
+    "ui/tabs/tab_print.py",          # the load note; switch-gated
+    "ui/tiff_preview.py",            # shown as on the table; 0 while off
+    "workflow/measurement_report.py",  # names the i1iO; switch-gated
     "workflow/printer_edges.py",     # the crosses' boxes from .i1io.json
                                      # (review r3 m3); nothing read while off
     "main.py",                       # latches the switch

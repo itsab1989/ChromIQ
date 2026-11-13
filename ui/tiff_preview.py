@@ -2686,20 +2686,33 @@ class TiffPreview(QWidget):
 
         Asked at every :meth:`load_tiff` and again by
         :meth:`refresh_view_rotation`. Without a rule (the default, and every
-        preview but Create Chart's and the Measure tab's) the view is never
-        turned. A rule that fails or answers anything else means 0."""
+        preview but Create Chart's and the Measure tab's) the view is turned
+        only for an i1iO chart while i1iO support is on (it is shown as it
+        lies on the table). A rule that fails or answers anything else
+        means 0."""
         self._rotation_rule = rule
         self.refresh_view_rotation()
 
     def _rule_rotation(self, paths) -> int:
         rule = self._rotation_rule
-        if rule is None:
-            return 0
-        try:
-            angle = int(rule(list(paths)))
-        except Exception:  # noqa: BLE001 — a display aid never breaks a load
-            log.debug("TiffPreview: rotation rule failed", exc_info=True)
-            return 0
+        angle = 0
+        if rule is not None:
+            try:
+                angle = int(rule(list(paths)))
+            except Exception:  # noqa: BLE001 — a display aid never breaks a load
+                log.debug("TiffPreview: rotation rule failed", exc_info=True)
+                angle = 0
+        if not angle:
+            # AN i1iO CHART IS SHOWN AS IT LIES ON THE TABLE, in every
+            # preview, with no host rule needed (the owner, 2026-11-13;
+            # `workflow.i1io.support.display_rotation_for`). With i1iO support
+            # off this reads nothing and answers 0.
+            try:
+                from workflow.i1io.support import display_rotation_for
+                angle = int(display_rotation_for(list(paths)))
+            except Exception:  # noqa: BLE001
+                log.debug("TiffPreview: i1iO rotation failed", exc_info=True)
+                angle = 0
         return angle if angle in self.ROTATIONS else 0
 
     def refresh_view_rotation(self) -> None:

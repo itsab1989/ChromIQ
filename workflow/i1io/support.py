@@ -180,3 +180,50 @@ def off_snapshot(screen_params, screen_ui, stored_params, stored_ui):
             return chart_names_i1io(path)
 
     return I1ioOffSnapshot(screen_params, screen_ui, stored_params, stored_ui)
+
+
+# ---- how an i1iO chart is shown ON SCREEN (display only) ------------------
+#
+# The owner, 2026-11-13: an i1iO chart is shown the way it is used, landscape
+# as it lies on the table (the portrait page turned a quarter turn
+# CLOCKWISE), its letters and numbers upright, wherever ChromIQ shows it: the
+# preview's own view rotation (`ui.tiff_preview.TiffPreview`) turns the
+# picture, every overlay, the pointer readout and every click with it. The
+# chart's files, its PDF and printing never change.
+
+#: Degrees clockwise an i1iO chart is turned on screen.
+DISPLAY_ROTATION = 90
+
+
+def pages_are_i1io_chart(paths: Any) -> bool:
+    """True when *paths* are the page images of an i1iO chart: each one sits
+    beside the chart's ``<stem>.i1io.json`` and a ``<stem>.ti2`` that names
+    the i1iO (``<stem>.tif`` or ``<stem>_NN.tif``). Never raises."""
+    import re
+    from pathlib import Path
+    try:
+        pages = [Path(p) for p in paths]
+    except TypeError:
+        return False
+    if not pages:
+        return False
+    for page in pages:
+        stems = [page.stem]
+        m = re.fullmatch(r"(.+)_\d+", page.stem)
+        if m:
+            stems.append(m.group(1))
+        if not any(page.with_name(s + ".i1io.json").is_file()
+                   and chart_names_i1io(page.with_name(s + ".ti2")) is True
+                   for s in stems):
+            return False
+    return True
+
+
+def display_rotation_for(paths: Any) -> int:
+    """The angle to turn *paths* by on screen: DISPLAY_ROTATION for an i1iO
+    chart's pages while i1iO support is on, 0 for every other chart. With
+    the support off nothing is read at all, not even whether a file
+    exists."""
+    if not i1io_enabled():
+        return 0
+    return DISPLAY_ROTATION if pages_are_i1io_chart(paths) else 0
