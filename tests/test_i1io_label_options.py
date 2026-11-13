@@ -356,3 +356,45 @@ def test_a_loaded_recipe_shows_the_i1ios_bold(panel):
                                              "i1io_text_bold": False}))
     assert not panel.ct_bold.isChecked()
     assert panel.get_recipe().i1io_text_bold is False
+
+
+# ---- review F1: a large sheet-text size never costs the name line ------------
+
+@pytest.mark.parametrize("crosses", [True, False])
+@pytest.mark.parametrize("n", [300, 508, 520, 528])
+def test_a_72_pt_sheet_text_never_drops_the_name_and_page(crosses, n):
+    """Review F1: crosses off, sheet text 16 mm or 72 pt, 508 to 528
+    patches printed no line at all. The name and page number come first;
+    the sheet text is shrunk, and left off only if even its smallest size
+    does not fit."""
+    from workflow.i1io import chart as C
+    from workflow.layout_engine import geometry, instruments, papers
+    kw = {"paper": "A4", "i1io_crosses": crosses,
+          "chart_text_size_mm": 25.4}           # 72 pt
+    k = {**kw, "instrument": "IO2"}
+    geom = instruments.geom_from_build_kwargs(k)
+    w, h = papers.dimensions_mm("A4")
+    layout = geometry.compute(geom, w, h, n)
+    plan = C.line_plan(geom, layout, w, h, 0, name="My chart",
+                       sheet_text="Hi there", dpi=300,
+                       labels=C.label_wishes(C.fixed_build_kwargs(k)),
+                       crosses=crosses, style=C.text_style_of(kw))
+    if not crosses and not C.free_spots(geom, layout, w, h, 0,
+                                        C.label_wishes(
+                                            C.fixed_build_kwargs(k))):
+        return                  # a full page has no free paper at all (§24)
+    assert plan["text"].startswith("My chart")
+    if plan.get("parts"):
+        assert plan["parts"][0]["text"].startswith("My chart")
+        assert plan["parts"][-1]["size_px"] <= round(25.4 * 300 / 25.4)
+
+
+def test_a_sheet_text_that_cannot_fit_is_left_off_not_the_name():
+    from workflow.i1io import chart as C
+    spot = {"spot": "bottom edge", "x0": 100.0, "x1": 104.0, "y0": 10.0,
+            "y1": 287.0, "mid_y": 150.0}
+    style = C.SheetTextStyle(family="Inter", size_mm=25.4)
+    plan = C.free_text_plan(spot, "1/2  ·  Chart", "Hi there", 300,
+                            style=style)
+    assert "name" in plan["kept"]
+    assert plan["text"].startswith("1/2  ·  Chart")

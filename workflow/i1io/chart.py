@@ -1468,18 +1468,40 @@ def free_text_plan(spot: dict, head: str, extra: str, dpi: int,
         u2, d2 = _across(probe, fx, (extra_t + "Hgy…").strip(), s)
         return max(u1, u2), max(d1, d2)
 
+    def extra_fit(cap_mm: float, f):
+        """The sheet text's font at the name's *cap_mm*, shrunk further
+        until the whole line fits the spot across, never below the
+        smallest capitals (TEXT_MIN_CAP_MM in its face); None when even
+        that does not fit: the sheet text is then left off, never the
+        name (review F1)."""
+        px_, fx = extra_font(cap_mm)
+        probe_x, _p, _v = _font(200, style.family, style.italic, style.bold)
+        floor = max(1, int(round(200 * (F.TEXT_MIN_CAP_MM.value * s)
+                                 / _cap_mm(probe_x, 1.0))))
+        while True:
+            up, down = across_all(f, fx, head, extra)
+            if up + down <= width + 1e-9:
+                return px_, fx
+            if px_ <= floor:
+                return None
+            px_ = max(floor, min(px_ - 1, int(px_ * 0.95)))
+            fx = _font(px_, style.family, style.italic, style.bold)[0]
+
     caps = []
     xfont = {}
     c = TEXT_CAP_MM
     while c >= F.TEXT_MIN_CAP_MM.value - 1e-9:
         px_, f = text_font(c)
         if styled:
-            xfont[c] = extra_font(c)
-            up, down = across_all(f, xfont[c][1], head, extra)
+            # THE NAME AND PAGE NUMBER DECIDE WHICH SIZES THERE ARE; the
+            # sheet text fits in beside them or is left off (review F1)
+            up, down = _across(probe, f, (head + "Hgy…").strip(), s)
         else:
             up, down = _across(probe, f, every, s)
         if up + down <= width + 1e-9:
             caps.append((c, px_, f))
+            if styled:
+                xfont[c] = extra_fit(c, f)
         c = round(c - 0.25, 4)
     empty = {"line_x": (spot["x0"] + spot["x1"]) / 2.0,
              "group": (mid_y, mid_y), "text": "", "text_size_px": 1,
@@ -1536,7 +1558,10 @@ def free_text_plan(spot: dict, head: str, extra: str, dpi: int,
         *name_least* characters (None: whole). Returns (label, wm, name,
         sheet text) or None."""
         _c, _px, f = cap
-        fx = xfont[_c][1] if styled else f
+        if styled and xfont.get(_c) is None and extra and \
+                extra_least is not None:
+            return None            # the sheet text does not fit at all
+        fx = xfont[_c][1] if styled and xfont.get(_c) else f
         left = room - (wm["length"] + WORDMARK_GAP_MM if wm else 0.0)
         if left < 0:
             return None
