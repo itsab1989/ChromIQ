@@ -38,6 +38,8 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
+from core.i18n import tr
+
 from . import table_facts as F
 
 #: The sheets Guided offers for the i1iO: portrait, laid across the table.
@@ -595,7 +597,8 @@ def check_sheet(geom, layout, w: float, h: float,
             reach = band[2]
     for zx0, zy0, zx1, zy1 in [mark_zone(m) for m in marks(w, h)]:
         if zx0 < 0 or zy0 < 0 or zx1 > w or zy1 > h:
-            raise I1ioSheetRefused("An aiming mark would not fit on the sheet.")
+            raise I1ioSheetRefused(tr(
+                "An aiming cross would not fit on the sheet."))
     for page in range(layout.pages):
         zones = ([mark_zone(m) for m in marks(w, h)]
                  if on_page(crosses, page) else [])
@@ -603,29 +606,33 @@ def check_sheet(geom, layout, w: float, h: float,
         for cell in cells:
             box = cell[3:]
             if box[0] < 0 or box[1] < 0 or box[2] > w or box[3] > h:
-                raise I1ioSheetRefused("A patch would lie off the sheet.")
+                raise I1ioSheetRefused(tr("A patch would lie partly off the sheet."))
             if any(_overlap(box, z) for z in zones):
-                raise I1ioSheetRefused("A patch would touch an aiming mark.")
+                raise I1ioSheetRefused(tr("A patch would touch an aiming cross."))
         for _x, y_start, y_end, col in scan_strips(cells):
             if y_start < edge - 1e-6 or y_end > h - edge + 1e-6:
-                raise I1ioSheetRefused(
+                raise I1ioSheetRefused(tr(
                     "A strip has no room before its first or after its last "
-                    "patch for the arm to reach its speed and to stop.")
+                    "patch for the arm to reach its speed and to stop."))
             run = (col[0][3], y_start, col[0][5], y_end)
             if any(_overlap(run, z) for z in zones):
-                raise I1ioSheetRefused("A strip's run would cross an aiming mark.")
+                raise I1ioSheetRefused(tr(
+                    "The blank paper at the end of a strip would touch an aiming "
+                    "cross."))
             if band is not None and _overlap(run, band):
-                raise I1ioSheetRefused(
-                    "A strip's run would cross the clip border.")
+                raise I1ioSheetRefused(tr(
+                    "The blank paper at the end of a strip would run into the clip "
+                    "border."))
         if band is not None:
             if any(_overlap(band, z) for z in zones):
-                raise I1ioSheetRefused(
-                    "The clip border would touch an aiming cross.")
+                raise I1ioSheetRefused(tr(
+                    "The clip border would touch an aiming cross."))
             if reach is not None and cells and (
                     reach + F.LABEL_CLEAR_MM.value
                     > min(c[3] for c in cells) + 1e-6):
-                raise I1ioSheetRefused(
-                    "The clip border's content would reach the patches.")
+                raise I1ioSheetRefused(tr(
+                    "The clip border's content would come too close to the "
+                    "patches. Make the clip border wider, or its text smaller."))
 
 
 # ---- without the crosses: the corner patches --------------------------------

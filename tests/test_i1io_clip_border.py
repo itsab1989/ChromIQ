@@ -381,3 +381,22 @@ def test_the_patch_numbers_stay_1_mm_clear_of_the_band_content(tmp_path, mode,
     gap = img[int(y0 * S) + 2:int(y1 * S) - 2,
               int(round(reach * S)) + 1:int((reach + 1.0) * S)]
     assert gap.size and gap.min() >= 250
+
+
+def test_a_refusal_reason_is_in_the_persons_language(monkeypatch, tmp_path):
+    """Review F5: the reason sits inside a translated sentence, so it is
+    translated too."""
+    from dataclasses import replace
+    import core.i18n as i18n
+    from workflow.i1io import chart as C
+    from workflow.layout_engine import geometry, instruments, papers
+    monkeypatch.setattr(i18n, "tr", lambda s: "«" + s + "»")
+    monkeypatch.setattr(C, "tr", lambda s: "«" + s + "»")
+    kw = {"instrument": "IO2", "paper": "A4", C.CLIP_KEY: True,
+          "clip_content_mode": "notes"}
+    geom = instruments.geom_from_build_kwargs(kw)
+    w, h = papers.dimensions_mm("A4")
+    layout = geometry.compute(geom, w, h, 300)
+    with pytest.raises(C.I1ioSheetRefused, match="^«The clip border's"):
+        C.check_sheet(replace(geom, clip_content_reach_mm=200.0), layout,
+                      w, h, True)
