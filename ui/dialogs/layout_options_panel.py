@@ -271,19 +271,22 @@ def i1io_greyed_reason() -> str:
     return tr(
         "Not used for the i1iO table. An i1iO chart has a layout of its own, "
         "made for the table reading it row by row: the patches lie in rows "
-        "along the long side of a landscape sheet with a 1 mm white gap "
-        "between neighbours, every row has 15 mm of blank paper at both ends "
+        "along the long side of a landscape sheet, every row has 15 mm of blank paper at both ends "
         "so the arm can speed up and slow down, and three numbered aiming "
         "marks sit in the corners. Nothing is printed where the instrument "
-        "reads, so there are no spacers and no clip border, and the labels "
-        "have fixed places beside the rows and above the patches. The greyed "
-        "boxes show the values an i1iO chart uses.\n\n"
+        "reads, so there is no clip border, and the labels have fixed places "
+        "beside the rows and above the patches. Spacers are not used: on this "
+        "chart they would lie between the rows, where the instrument does not "
+        "look, and only cost rows; the white gap between neighbours along a "
+        "row is the “Strip gap”. The greyed boxes show the values an i1iO "
+        "chart uses.\n\n"
         "What you can set for the i1iO: the paper and the number of pages; "
         "under “Expert Options”, the patch size (8.9 to 20 mm along the row, "
-        "7 to 20 mm across it), the strip letters and row numbers on or off "
-        "and their size, the sheet text (printed on the line with the chart "
-        "name), the randomisation, the printer calibration and the output "
-        "settings.")
+        "7 to 20 mm across it), the “Strip gap” along the rows and the "
+        "“Inter-patch gap” between them, the strip letters and row numbers "
+        "on or off and their size, the sheet text (printed on the line with "
+        "the chart name), the randomisation, the printer calibration and the "
+        "output settings.")
 
 
 def i1io_gap_help(which: str) -> str:
