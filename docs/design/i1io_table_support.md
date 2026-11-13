@@ -92,7 +92,7 @@ instrument to name.
   wordmark set as on every other chart, one baseline for Chrom and IQ.
   **Nothing is printed on a scan line outside the patches** (no edge
   spacers, no labels in a run). No arrow, no helper markers, no clip border.
-  Per sheet: A4 528 (572 without spacers), Letter 506 (552). Every number,
+  Per sheet: A4 528 (572 without spacers), Letter 506 (552); without the aiming crosses more (see below). Every number,
   its source and its confidence are in `workflow/i1io/table_facts.py`.
 * Manual: margins (down to the safe minimum), patch size (8.9 to 20 mm along
   the strip, 7 to 20 mm across), spacers (Coloured, Black & white, None),
@@ -117,6 +117,66 @@ instrument to name.
 * The separate Beta "Also write an i1Profiler chart that matches the printed
   ChromIQ sheet" says, for an i1iO chart, that it cannot write a matching
   i1Profiler chart for the table yet and what has to be measured first.
+
+### On: Aiming crosses, an option (2026-11-13)
+
+*The owner, relayed 2026-11-13: "in theory we could add an option to turn on
+the crosses (or not in turn) and then make even more patches fit a single
+sheet? the info should then mention what to aim at. it either knows from how
+the chart was created what to tell or should mention both things"; "without
+the crosses then the chromiq logo and probably sheet text would also go
+away"; "guided mode gets the option as well".*
+
+* "Aiming crosses", on by default, in Guided (on the instrument's own option
+  line, where a SpectroScan or CR30 shows "Hexagon patches") and in Manual
+  (in the slot of "Print helper markers", which an i1iO chart does not use;
+  the group is titled "Aiming marks" while the i1iO is chosen). Its (i), the
+  same in both, says what the crosses are for, that the table needs three
+  points and not crosses, the patch count both ways on the current sheet,
+  page 1's three aiming patches by name, what else changes on the sheet, and
+  that the chart records the choice. Kept by the recipe, presets, Save as
+  Defaults (`chart_i1io_crosses` for Guided), the run's Guided row and, with
+  the Beta off, carried untouched.
+* Off: a side needs only the printer's edge (5 mm) and, on the left, the
+  patch numbers' band; the block starts at the numbers and what is left goes
+  to the table's bottom edge. The page's three aiming points are the centres
+  of its corner patches, as the sheet lies on the table: the first strip's
+  patch 1 (top left), the last strip's patch 1 (bottom left) and the last
+  strip's last patch (bottom right), named as printed (A1, W1, W24 on a
+  full A4 page; the letters run on across pages). The engine's own page
+  filling pads the last strip, so they always exist.
+* The four corner slots of every page then hold clearly visible patches of
+  the set: L* at most 60 and C* at least 25 or L* at most 45, never L* 85 or
+  more, each the one that differs most from the paper and its neighbours.
+  Only positions change (swaps); the set and its count do not, the order is
+  reproducible from the seed, and the `.ti2`, the TIFF, the `.strips.json`,
+  the side file and the `.cht` are written from one order. Every other
+  instrument's order is untouched.
+* Every page is aimed at on its own (each sheet is laid down by hand). A
+  page of one strip, or one whose corner holds no visible patch, keeps its
+  crosses, recorded for that page: nobody is told to aim at paper.
+* The text line (name and page N/M, sheet text, logo) is printed only where
+  it costs no patch: the bottom edge, else the band between the paper's edge
+  and the patch numbers (the top edge). Priority: the name with the page
+  number, then the strip letters and patch numbers (their own places), the
+  sheet text, the logo; each shrunk (text down to 1.5 mm capitals, logo to
+  2 mm) before it is left off, a long sheet text shortened before the logo
+  shrinks; centred between the two corner patches of that edge.
+* Recorded: `.ti2` keywords `CHROMIQ_I1IO_AIM` ("crosses" or "corner
+  patches") and, without crosses, `CHROMIQ_I1IO_AIM_PATCHES` ("1: A1 W1 W24;
+  2: crosses"), both declared; the side file's "aim", "labels_printed" and,
+  per page, "aim", "aim_patches" and "aim_points" (in mm on the page and on
+  the table, in aiming order). A chart without the keyword is "unknown".
+* What to aim at follows the record: the last paragraph of M-I1IO-NOT-YET and
+  M-I1IO-NOT-YET-BY-HAND (M-I1IO-AIM-CROSSES, -CORNERS with the patch names
+  per page, -CORNERS-UNLABELLED with position words only, -UNKNOWN with both
+  ways), and the Print tab's note on how to lay the sheet down.
+
+| Per sheet | A4, crosses | A4, none | Letter, crosses | Letter, none |
+|---|---|---|---|---|
+| default (10 x 8 mm, coloured spacers) | 528 | 552 | 506 | 528 |
+| no spacers | 572 | 598 | 552 | 576 |
+| maximum (no spacers, 7 mm across x 8.9 mm along) | 725 | 783 | 702 | 729 |
 
 ### On: Verification and Calibration
 
