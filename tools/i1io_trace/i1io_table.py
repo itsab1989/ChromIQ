@@ -644,6 +644,9 @@ def open_table() -> FtdiUsb:
         raise NotAvailable(
             "On Windows, X-Rite's own driver owns the i1iO, and this test program cannot "
             "open it next to that driver. Please run it on a Mac instead.")
+    if sys.platform != "darwin":
+        raise NotAvailable("This test program opens the real table only on a Mac (it was "
+                           "never tried anywhere else).")
     try:
         import usb.backend.libusb1
         import usb.core

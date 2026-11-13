@@ -42,6 +42,10 @@ PLUG = ("If anything looks or sounds wrong while the arm moves, switch the table
         "Pulling the USB cable alone does not stop a movement that has already started.")
 RECOVERY = ("To bring the arm back to its resting place, start i1Profiler once and let it "
             "connect to the table: it sends the arm home by itself. Then quit i1Profiler.")
+RECOVERY_NO_ANSWER = ("Because the table did not answer as expected, please switch the table "
+                      "off, wait ten seconds and switch it on again before you open "
+                      "i1Profiler, so that nothing the table may still be waiting to do is "
+                      "left over. ")
 
 RISKS = (
     "Please read this before you go on.\n"
@@ -280,7 +284,7 @@ class Run:
             where = f" (last reported at table position X {pos[0]}, Y {pos[1]})" if pos else ""
             self.ui.say(f"The arm stays where it is now{where}; the program does not move it "
                         "again. If it was moving, the table finishes that movement by itself. "
-                        + RECOVERY)
+                        + (RECOVERY_NO_ANSWER if code == 2 else "") + RECOVERY)
 
     def questions(self) -> None:
         if self.d.lines_sent == 0:
@@ -347,10 +351,14 @@ def install_signals(table: tbl.Table) -> dict:
 
     def handler(signum, frame):
         if table.busy:
-            if not table.stop_requested:
-                print("\nThe program stops after the current step; if the arm is moving, "
-                      "the table finishes that movement first.")
+            first = not table.stop_requested
             table.request_stop()
+            if first:
+                try:      # a closed terminal must not raise in the middle of a step
+                    print("\nThe program stops after the current step; if the arm is "
+                          "moving, the table finishes that movement first.", flush=True)
+                except Exception:
+                    pass
             return
         raise KeyboardInterrupt
     for name in ("SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT"):
@@ -423,8 +431,9 @@ def main(argv=None, sim_table=None, console=None) -> int:
                 ui.say("With --real, every answer must be typed by a person at the keyboard, "
                        "so the program does not run with piped or redirected input.")
                 return 2
-            if sys.platform == "win32":
-                ui.say("The real table can only be used from a Mac with this program.")
+            if sys.platform != "darwin":
+                ui.say("The real table can only be used from a Mac with this program "
+                       "(it was never tried on Windows or Linux). Nothing was sent.")
                 return 2
             ui.say(RISKS)
             if i1profiler_running():

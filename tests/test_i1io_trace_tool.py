@@ -643,10 +643,21 @@ def test_open_table_opens_the_one_recorded_table(monkeypatch):
     t.close()
 
 
-def test_windows_is_refused(monkeypatch):
+def test_windows_and_linux_are_refused(monkeypatch, tmp_path):
     monkeypatch.setattr(sys, "platform", "win32")
     with pytest.raises(tbl.NotAvailable, match="Windows"):
         tbl.open_table()
+    monkeypatch.setattr(sys, "platform", "linux")
+    with pytest.raises(tbl.NotAvailable, match="only on a Mac"):
+        tbl.open_table()
+
+    class Tty:
+        def isatty(self):
+            return True
+    monkeypatch.setattr(sys, "stdin", Tty())
+    monkeypatch.setattr(tbl, "open_table", lambda: (_ for _ in ()).throw(AssertionError()))
+    assert prog.main(["--real", "--log", str(tmp_path / "l.txt")],
+                     console=prog.AutoConsole(lambda k, t: None)) == 2
 
 
 # ---- the real mode's doors --------------------------------------------------------------
@@ -662,6 +673,7 @@ def test_real_mode_refuses_piped_input_before_anything(tmp_path, monkeypatch):
 
 
 def test_real_mode_asks_its_questions_and_the_sentence_before_opening(tmp_path, monkeypatch):
+    monkeypatch.setattr(sys, "platform", "darwin")
     opened = []
     monkeypatch.setattr(tbl, "open_table", lambda: opened.append(1) or (_ for _ in ()).throw(
         tbl.NotAvailable("no table here")))
@@ -690,6 +702,7 @@ def test_real_mode_asks_its_questions_and_the_sentence_before_opening(tmp_path, 
 
 
 def test_real_mode_refuses_while_i1profiler_runs_or_another_copy_runs(tmp_path, monkeypatch):
+    monkeypatch.setattr(sys, "platform", "darwin")
     monkeypatch.setattr(tbl, "open_table", lambda: (_ for _ in ()).throw(AssertionError()))
 
     class Tty:

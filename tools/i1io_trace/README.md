@@ -188,6 +188,11 @@ surprised you.
 If the program stops in the middle, the arm stays where it is. To bring it
 home, open i1Profiler once and let it connect to the table, then quit it.
 
+If the program says the table **did not answer** as expected, please switch
+the table off, wait ten seconds and switch it on again before you open
+i1Profiler. That way nothing the table may still be waiting to do is left
+over.
+
 ---
 
 ## 5. What to report
