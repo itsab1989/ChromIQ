@@ -54,7 +54,7 @@ def main() -> int:
                    capture_output=True, timeout=1200)
     exe = bdir / "i1pro2_lights_modes_test_v4333"
     r = subprocess.run([str(exe)], check=True, capture_output=True, text=True,
-                       timeout=120)
+                       encoding="utf-8", timeout=120)
     if not r.stdout.rstrip().endswith("ALL DONE"):
         print("the harness did not finish")
         return 1
