@@ -143,7 +143,11 @@ def test_a_name_line_with_no_room_on_a_tiny_sheet_is_said_rightly(tmp_path):
     _s, notes = C.preview_checks({"instrument": "IO2", "paper": "50x50",
                                   "dpi": 100, "area_target_count": 300,
                                   "project": "Small"})
-    assert sorted(notes) == sorted(r.warnings)
+    # …and, before building only, the page count (review 6: 2 patches a
+    # sheet, 150 sheets)
+    many = [n for n in notes if "sheets, because only" in n]
+    assert len(many) == 1 and "150 sheets" in many[0], notes
+    assert sorted(n for n in notes if n not in many) == sorted(r.warnings)
 
 
 def test_a_custom_size_typed_lying_down_is_turned_upright(qtbot):

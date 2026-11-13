@@ -2278,6 +2278,13 @@ def furniture_warnings(geom, layout, w: float, h: float, dpi: int,
             # first strip: the engine leaves them off (review 4, item 3)
             say(tr(_mm._I1IO_NUMBERS_LEFT_OFF))
             numbers = []
+        if numbers and abs(float(getattr(geom, "offset_x", 0.0)
+                                 or 0.0)) >= 0.5:
+            # THE NUMBERS KEEP THEIR "CLIP" DISTANCE (review 6, nit): the
+            # engine anchors them at the paper edge on every chart (Knut's
+            # ruling, `raster`), so an offset X moves only the patches; the
+            # rows they name still line up, and that is said
+            say(tr(_mm._I1IO_NUMBERS_STAY))
         for b in numbers:
             if off(b):
                 raise I1ioSheetRefused(tr(_mm._I1IO_NUMBERS_OFF_SHEET))
@@ -2335,6 +2342,11 @@ def preview_checks(kw: dict):
                 warn.append(tr(_mm._I1IO_LINE_LEFT_OFF_SMALL if _cr
                                else _mm._I1IO_LINE_LEFT_OFF))
                 break
+        if layout.pages >= _mm.I1IO_MANY_PAGES_FROM:
+            # MANY PAGES, SAID BEFORE ANYTHING IS BUILT (review 6, nit): a
+            # notice, never a refusal
+            warn.append(tr(_mm._I1IO_MANY_PAGES).format(
+                pages=layout.pages, per_page=layout.patches_per_page))
         try:
             warn += check_sheet(geom, layout, w, h,
                                 crosses=fixed[CROSSES_KEY])

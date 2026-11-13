@@ -106,8 +106,10 @@ def test_a_chart_offset_never_reaches_the_name_line():
     kw = {"instrument": "IO2", "paper": "Letter", "dpi": DPI,
           "offset_x": 2.0, "max_strip": 200.0, "nolimit": False,
           "strip_label_offset_x_mm": 1.0, "underline_mode": "black"}
+    from workflow import measurement_messages as _mm
     _s, notes = C.preview_checks(dict(kw, area_target_count=900))
-    assert notes == []
+    # the numbers keep their "Clip" distance, and that is said (review 6)
+    assert notes == [_mm._I1IO_NUMBERS_STAY]
     geom = instruments.geom_from_build_kwargs(kw)
     w, h = (float(v) for v in papers.dimensions_mm("Letter"))
     layout = geometry.compute(geom, w, h, 900)
@@ -128,3 +130,55 @@ def test_a_name_line_with_no_paper_is_said(tmp_path):
                                         "edge_spacers": True,
                                         "spacer_mode": "bw"})
     assert any("is left off" in w and "name" in w for w in result.warnings)
+
+
+OFFSETS = list(itertools.product(("A4", "Letter"), (True, False),
+                                 ((3.0, 0.0), (-3.0, 0.0), (0.0, 3.0),
+                                  (0.0, -3.0), (2.0, 2.0))))
+
+
+@pytest.mark.parametrize("paper,crosses,offset", OFFSETS)
+def test_a_chart_offset_keeps_every_clearance(paper, crosses, offset):
+    """Review 6: the pairwise clearances hold with a chart offset too, the
+    strip letters follow their strips along Y, and the patch numbers keep
+    their rows (they keep their "Clip" distance across, which is said)."""
+    from workflow import measurement_messages as _mm
+    from workflow.i1io import chart as C
+    from workflow.layout_engine import geometry, instruments, papers
+    ox, oy = offset
+    kw = {"instrument": "IO2", "paper": paper, "dpi": DPI,
+          C.CROSSES_KEY: crosses, "offset_x": ox, "offset_y": oy}
+    fixed = C.fixed_build_kwargs(kw)
+    geom = instruments.geom_from_build_kwargs(kw)
+    w, h = (float(v) for v in papers.dimensions_mm(paper))
+    layout = geometry.compute(geom, w, h, 528)
+    labels = fixed[C.LABELS_KEY]
+    said = C.furniture_warnings(geom, layout, w, h, DPI, labels, crosses)
+    assert said == ([_mm._I1IO_NUMBERS_STAY] if ox else [])
+    for page in range(layout.pages):
+        cells = [c[3:] for c in C.page_patches(geom, layout, w, h, page)]
+        letters = C.letter_boxes(geom, layout, w, h, page, DPI, labels)
+        numbers = C._number_boxes(geom, layout, w, h, page, DPI, labels)
+        zones = ([C.mark_zone(m) for m in C.marks(w, h)]
+                 if C.on_page(crosses, page) else [])
+        line = [C.text_column(w, h)] if zones else []
+        groups = {"patches": cells, "letters": letters, "numbers": numbers,
+                  "crosses": zones, "name line": line}
+        names = list(groups)
+        for i, a in enumerate(names):
+            for b in names[i + 1:]:
+                pair = {a, b}
+                gap = (0.0 if "crosses" in pair
+                       else 2.0 - 0.05 if pair in ({"name line", "letters"},
+                                                   {"name line", "patches"})
+                       else CLEAR)
+                for x in groups[a]:
+                    for y in groups[b]:
+                        assert _apart(x, y, gap), (page, a, x, b, y)
+        # the letters sit past the strips' ends whatever the offset Y
+        assert min(b[1] for b in letters) >= max(c[3] for c in cells)
+        # every number on the row it names
+        first = sorted((c for c in C.page_patches(geom, layout, w, h, page)
+                        if c[1] == 0), key=lambda c: c[2])
+        for n, c in zip(numbers, first):
+            assert abs((n[1] + n[3]) / 2 - (c[4] + c[6]) / 2) < 0.05
