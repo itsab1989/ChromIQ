@@ -525,6 +525,10 @@ def build_chart(
     # Refused BEFORE a calibration's ramps rewrite the .ti1 on disk, and again
     # on the layout those ramps settle on (it can have a different strip count).
     _refuse_unreadable_patterns(layout)
+    if _i1io:
+        # The table must be able to read this layout at all: refused BEFORE
+        # anything is written (and again below if calibration ramps re-lay it).
+        _i1io_chart.check_sheet(geom, layout, w_mm, h_mm)
 
     # EACH INK'S RAMP ON ITS OWN STRIP (#182, Knut 5965186237). Only for a
     # calibration build, and only when the .ti1 is targen's pure ramp set:
@@ -561,6 +565,8 @@ def build_chart(
                 layout = geometry.compute(geom, w_mm, h_mm,
                                           len(target.patches))
                 _refuse_unreadable_patterns(layout)
+                if _i1io:
+                    _i1io_chart.check_sheet(geom, layout, w_mm, h_mm)
     if cal is not None and apply_cal:
         from . import calibration
         printed = calibration.apply_to_target(target, cal)
@@ -659,9 +665,9 @@ def build_chart(
     if _i1io:
         # The marks, the arrow, the page and the name, after the check that
         # the table can read this layout at all, and before anything is saved.
-        _i1io_chart.check_sheet(geom, layout, w_mm, h_mm)
         _i1io_chart.draw_furniture(render, w_mm, h_mm, dpi,
-                                   name=project or Path(out_base).name)
+                                   name=project or Path(out_base).name,
+                                   geom=geom, layout=layout)
     if target.n_channels >= 4:
         device_pages = raster.build_device_pages(render, printed, bit16=bit16)
         tiff_paths = raster.save_separated_tiffs(

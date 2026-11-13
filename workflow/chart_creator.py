@@ -1940,10 +1940,26 @@ class ChartCreator:
                 redraw = bool(str(getattr(params, "chart_date", "") or ""))
                 msg = (M.M_CHART_ENGINE_REDRAW_FAILED if redraw
                        else M.M_CHART_ENGINE_FAILED)
+                reason = str(exc)
+                from workflow.i1io.support import i1io_enabled, is_i1io_code
+                if is_i1io_code(params.instrument):
+                    # An i1iO chart drawn again with i1iO support off, or a
+                    # sheet the table cannot take: said in words, never as
+                    # "unknown instrument 'IO2'".
+                    if not i1io_enabled():
+                        reason = tr(
+                            "This chart was made for the X-Rite i1iO table, "
+                            "and i1iO support is switched off in Preferences "
+                            "→ Beta. Turn it on and restart ChromIQ to draw "
+                            "this chart again.")
+                    elif type(exc).__name__ == "I1ioSheetRefused":
+                        reason = tr(
+                            "The i1iO table cannot read this layout: {why}"
+                        ).format(why=reason)
                 self._matched_errors.append(
                     ("engine", "engine_redraw_failed" if redraw
                      else "engine_failed",
-                     msg.render(reason=str(exc))[1]))
+                     msg.render(reason=reason)[1]))
             self._finish([])
             return
 
@@ -1974,7 +1990,9 @@ class ChartCreator:
             self._write_channel_sidecar(work_dir, stem, self._pending_params,
                                         engine="chromiq")
             self._embed_layout_geometry(work_dir, stem, result, params)
-            if params.instrument != "FD9":
+            # Not on an FD-9 or i1iO sheet: their corners and edges hold the
+            # marks the instrument or the person aims at.
+            if params.instrument not in ("FD9", "IO2"):
                 self._stamp_tiff_metadata(tiffs, self._pending_params)
 
         self._finish(tiffs)

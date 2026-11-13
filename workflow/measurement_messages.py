@@ -589,16 +589,19 @@ M_I1IO_NOT_YET = _m(
     "of ChromIQ can make charts for the table, but it cannot measure with "
     "it yet: reading with the table is being prepared for a later version. "
     "So this chart cannot be measured here at the moment. Nothing is wrong "
-    "with the chart, and you can keep the sheets you have printed for "
-    "later.\n\n"
-    "What you can do today, if you have i1Profiler 3.8.6 or an older "
-    "version: when the chart was made, ChromIQ also saved this run's "
-    "patches as i1Profiler patch-set files in the run's “exports” folder. "
-    "Open one of them in i1Profiler, print the chart that i1Profiler lays "
-    "out for the table (i1Profiler cannot read ChromIQ's own i1iO sheet), "
-    "measure it there with the table and save the measurement. Then bring "
-    "it back with Tools → “Convert i1Profiler → TI3”, and build the profile "
-    "as usual.",
+    "with the chart. Please keep in mind that the layout may still change "
+    "once an i1iO owner has tested it, so a later version may ask you to "
+    "print the chart again.\n\n"
+    "What you can do today, if you still have i1Profiler 3.8.6 or an older "
+    "version and your printer uses RGB or CMYK: when the chart was made, "
+    "ChromIQ also saved this run's patches as i1Profiler patch-set files in "
+    "the run's “exports” folder. Open one of them in i1Profiler, print the "
+    "chart that i1Profiler lays out for the table (i1Profiler cannot read "
+    "ChromIQ's own i1iO sheet), and measure it there with the table. Save "
+    "the measurement as an .mxf file, or as a CGATS text export that "
+    "includes the RGB or CMYK values, so that ChromIQ can tell which reading "
+    "belongs to which patch. Then bring it in with Tools → “Convert "
+    "i1Profiler → TI3”, and build the profile as usual.",
     approved=False)
 
 #: Start pressed on an X-Rite i1iO table chart while i1iO support is off.

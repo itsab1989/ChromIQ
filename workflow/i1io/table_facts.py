@@ -41,7 +41,10 @@ class Fact:
 #: recordings drove the arm over 427 mm in X, but that includes parking
 #: positions off the chart (PROTOCOL 3.1), so it does not widen this.
 REACH_MM = Fact((320.0, 230.0),
-                "X-Rite i1iO 3 product page; Northlight Images i1iO review",
+                "X-Rite i1iO 3 product page; Northlight Images review of the "
+                "first i1iO. Not published for the i1iO 2, and the recordings "
+                "only spanned 263 x 154 mm between aimed corners: the tester "
+                "must confirm the arm reaches all three marks",
                 PUBLISHED)
 
 #: The i1Pro 2's measuring opening.
@@ -58,13 +61,66 @@ PATCH_RANGE_ACROSS_MM = Fact((7.0, 20.0),
                              "i1Profiler workflow files (docs/dev_pxwf_format.md)",
                              VERIFIED)
 
-#: How often the i1Pro 2 reads while i1Profiler drags it along a row, and the
-#: fastest of the three speeds i1Profiler used (PROTOCOL 4.4: 520 readings of
-#: 5.00 ms during a 138 units/0.1 s move).
-SCAN_READING_INTERVAL_S = Fact(0.005, "PROTOCOL 4.4 (i1Pro trigger, 5.00 ms)",
-                               VERIFIED)
-SCAN_FASTEST_MM_S = Fact(138.0, "PROTOCOL 4.4 (m2 speed 138; unit 0.1 mm "
-                         "LIKELY, PROTOCOL 3.1)", LIKELY)
+# ---- scanning a row (ALL FROM ONE RECORDING: issue #129, R1 and R2, an
+#      i1iO 2 with an i1Pro 2 Rev E; to be confirmed by the tester) ---------
+
+#: How often the i1Pro 2 reads while i1Profiler drags it along a row: a fixed
+#: burst of N readings of 5.004 ms each, lamp on, no gap between them
+#: (i1pro2_side RESULTS 6.1: 139 integration clocks of 36 us, all 494
+#: triggers; the table's own memory stores 0.005004).
+SCAN_READING_INTERVAL_S = Fact(0.005004, "i1pro2_side RESULTS 6.1 (every "
+                               "trigger of both recordings)", VERIFIED)
+
+#: The three arm speeds i1Profiler used on every row, mm/s (the m2 speeds
+#: 137-138, 87-88, 53-54 in table units per 0.1 s; the unit 0.1 mm is LIKELY).
+#: The fastest pass alone already held every patch with about 14 readings
+#: each (RESULTS 6.2, a fit to the spot readings, LIKELY strong).
+SCAN_SPEEDS_MM_S = Fact((138.0, 88.0, 54.0), "PROTOCOL 4.4; i1pro2_side "
+                        "RESULTS 6.1-6.2", LIKELY)
+
+#: Delay between the move command and the instrument's first reading:
+#: 0.10 s at the fastest speed, up to 0.8 s at the slower ones (RESULTS 6.1).
+#: The recordings show the table finishing later by exactly as much as the
+#: trigger came later, so it seems to start moving in step with the
+#: instrument (observation CERTAIN, mechanism a GUESS).
+SCAN_TRIGGER_DELAY_S = Fact((0.10, 0.80), "i1pro2_side RESULTS 6.1", LIKELY)
+
+#: ArgyllCMS's patch finder in the i1Pro driver keeps the middle two thirds
+#: of every patch it finds in a stream and drops a patch with 3 readings or
+#: fewer after that (native/instlib/i1pro_imp.c: MIN_SAMPLES 3, the 66 % trim
+#: in i1pro_extract_patches_multimeas).
+ARGYLL_MIN_SAMPLES = Fact(3, "native/instlib/i1pro_imp.c MIN_SAMPLES",
+                          VERIFIED)
+
+#: OURS: the readings a patch should get at the fastest speed. i1Profiler's
+#: own fastest pass gave 13.8 (the only case seen to work); 14 keeps us at or
+#: above it. After the 4.5 mm aperture's own smear (about 6.5 readings at
+#: that speed) and Argyll's two-thirds trim, a 14-reading patch still has
+#: about 5 clean readings, above Argyll's minimum of 3.
+SCAN_SAFE_READINGS = Fact(14, "ours: at least what i1Profiler's fastest "
+                          "pass gave", OURS)
+
+
+def readings_per_patch(length_mm: float, speed_mm_s: float) -> float:
+    """Readings the i1Pro 2 takes over *length_mm* of a row at *speed*."""
+    return length_mm / (speed_mm_s * SCAN_READING_INTERVAL_S.value)
+
+
+def min_patch_length_mm(speed_mm_s: float,
+                        readings: "float | None" = None) -> float:
+    """The shortest patch along the row that still gets *readings* readings
+    (default :data:`SCAN_SAFE_READINGS`) at *speed*."""
+    n = SCAN_SAFE_READINGS.value if readings is None else readings
+    return n * speed_mm_s * SCAN_READING_INTERVAL_S.value
+
+
+def run_in_mm(speed_mm_s: "float | None" = None) -> float:
+    """Blank paper needed before the first patch of a row at *speed* (the
+    fastest by default): the arm may travel for the shortest trigger delay
+    seen before the first reading arrives."""
+    v = max(SCAN_SPEEDS_MM_S.value) if speed_mm_s is None else speed_mm_s
+    return v * SCAN_TRIGGER_DELAY_S.value[0]
+
 
 #: The tester's own i1Profiler chart: 28 patches 9.54 mm apart along each row,
 #: 18 rows 8.2 mm apart (PROTOCOL 3.1, the unit LIKELY 0.1 mm).
@@ -85,20 +141,32 @@ AIMING_ORDER = Fact(("top-left", "bottom-left", "bottom-right"),
 
 # ---- our design choices -------------------------------------------------
 
-#: Patch length along the row (the scan direction). At the fastest speed one
-#: reading covers 138 x 0.005 = 0.69 mm; a 9.5 mm patch less the 4.5 mm
-#: aperture leaves 5 mm of clean patch, about 7 readings at 138 mm/s and 18 at
-#: 54 mm/s, and is close to the tester's own 9.54 mm pitch.
-PATCH_ALONG_MM = Fact(9.5, "ours: scan readings per patch, see comment", OURS)
+#: Patch length along the row (the scan direction): the shortest length
+#: that gets SCAN_SAFE_READINGS at the fastest speed seen
+#: (`min_patch_length_mm`: 14 x 138 x 0.005004 = 9.67 mm), rounded up to
+#: 10 mm. Patch by patch it leaves 2.75 mm on each side of the aperture.
+PATCH_ALONG_MM = Fact(10.0, "ours: min_patch_length_mm(138) = 9.67, "
+                      "rounded up", OURS)
 
 #: Patch height across the row: 1.75 mm each side of the 4.5 mm aperture for
 #: alignment and arm error, which also suits a spot reading.
 PATCH_ACROSS_MM = Fact(8.0, "ours: aperture plus 1.75 mm each side", OURS)
 
-#: Blank paper before the first and after the last patch of every row, for the
-#: arm to reach speed and to stop, and for a clean paper-to-patch edge.
-RUN_MM = Fact(10.0, "ours: nothing is known about the arm's acceleration",
-              OURS)
+#: Blank paper before the first and after the last patch of every row:
+#: `run_in_mm()` at the fastest speed (138 x 0.10 = 13.8 mm), rounded up, so
+#: a reading that starts late at full speed still finds paper before the
+#: first patch. The slower passes' longer delays (to 0.8 s) do not fit on any
+#: sheet; the recordings suggest the table waits for the instrument, which
+#: the tester must confirm.
+RUN_MM = Fact(15.0, "ours: run_in_mm(138) = 13.8, rounded up", OURS)
+
+#: A solid black bar across every row inside the run-in and the run-out, at
+#: this distance before the first and after the last patch and this wide: a
+#: dark-to-white edge at a known place, so a scan can be lined up by position
+#: even when the first or last patch is pale. The challenge of 2026-11-13
+#: asked for a timing aid that a printed sheet can no longer get later.
+ANCHOR_BAR_GAP_MM = Fact(5.0, "ours", OURS)
+ANCHOR_BAR_MM = Fact(2.0, "ours", OURS)
 
 #: Blank paper outside each run, to the sheet's left and right edges.
 RUN_EDGE_MM = Fact(2.0, "ours: so a run never starts on the paper edge", OURS)

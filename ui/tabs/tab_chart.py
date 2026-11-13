@@ -4029,20 +4029,27 @@ def fd9_instrument_bullet() -> str:
 
 
 
+def _saved_beta_instrument_is_off(code) -> bool:
+    """True for a stored i1iO instrument code while i1iO support is off."""
+    from workflow.i1io.support import i1io_enabled, is_i1io_code
+    return is_i1io_code(code) and not i1io_enabled()
+
+
 def i1io_instrument_bullet() -> str:
     """The i1iO's bullet in Guided's Instrument (i). Only shown while i1iO
     support (Preferences > Beta) is on."""
     return tr(
         "  •  i1iO 2 + i1Pro 2 (X-Rite): a motorised scanning table that "
         "moves your i1Pro 2 over the chart by itself. The chart is made for "
-        "the table: a landscape A4 or Letter sheet, patches of 9.5 × 8 mm in "
-        "rows along the long side, blank paper at both ends of every row so "
-        "the arm can speed up and slow down, three numbered aiming marks in "
-        "the corners (1 top left, 2 bottom left, 3 bottom right) and an arrow "
-        "that shows which edge goes towards the back of the table. Lay the "
-        "sheet with that edge away from you. This version can make these "
-        "charts but cannot measure with the table yet; the Measure tab tells "
-        "you what you can do today. Only the i1iO 2 with an i1Pro 2 is "
+        "reading row by row with the table: a landscape A4 or Letter sheet, "
+        "patches of 10 × 8 mm in rows along the long side, blank paper with a "
+        "black bar at both ends of every row so the arm can speed up and slow "
+        "down, three numbered aiming marks in the corners (1 top left, 2 "
+        "bottom left, 3 bottom right) and an arrow that shows which edge goes "
+        "towards the arm's resting place. The layout may still change once "
+        "an i1iO owner has tested it. This version can make these charts but "
+        "cannot measure with the table yet; the Measure tab tells you what "
+        "you can do today. Only the i1iO 2 with an i1Pro 2 is "
         "supported: other i1iO tables and other instruments on the arm are "
         "not supported yet. If you own one, please tell us in the project's "
         "GitHub issues. i1iO support is a beta (Preferences → Beta).")
@@ -7284,11 +7291,12 @@ class TabChart(QWidget):
             # the list is exactly 4.3.21's.
             if code == "FD9" and not fd9_enabled():
                 continue
-            # The i1iO table is a Beta too (Preferences > Beta, restart to
-            # apply): off, the list is exactly 4.3.32's.
-            if code == "IO2" and not i1io_enabled():
-                continue
             self._instr_combo.addItem(label, code)
+        # The i1iO table is a Beta too (Preferences > Beta, restart to apply),
+        # offered in Guided only, last: off, the list is exactly 4.3.32's.
+        if i1io_enabled():
+            from workflow.i1io.support import CODE, LABEL
+            self._instr_combo.addItem(LABEL, CODE)
         self._instr_combo.currentIndexChanged.connect(self._update_patch_count)
         self._instr_combo.currentIndexChanged.connect(self._update_dd_visibility)
         # USER PICKS ONLY. See `_on_user_picked_instrument`.
@@ -12275,6 +12283,19 @@ class TabChart(QWidget):
         except Exception:
             log.warning("Guided→Manual transfer skipped (could not read guided "
                         "settings)", exc_info=True)
+            return
+        # AN i1iO CHART IS GUIDED'S ONLY, FOR NOW (Beta, 2026-11-13). Manual
+        # does not offer the i1iO yet, so carrying its settings across would
+        # make Manual's next chart an i1Pro strip chart with the i1iO's
+        # spacer-less, label-less layout, which a strip reader cannot read.
+        # Manual keeps its own settings, and the log says why.
+        from workflow.i1io.support import is_i1io_code
+        if is_i1io_code(p.instrument):
+            if not quiet:
+                self._log.appendPlainText(tr(
+                    "Manual mode does not offer the X-Rite i1iO table yet, so "
+                    "the settings of this i1iO chart were not copied into "
+                    "Manual. Manual keeps its own settings."))
             return
         # Instrument + paper first: changing the instrument can cascade (reset
         # -a/-m to the instrument default), so scale/margin are set afterwards.
@@ -22999,8 +23020,11 @@ class TabChart(QWidget):
             # leaked into a brand-new run and were written into its meta.json —
             # and a preconditioning `.ti3` path changes the targen command for
             # a run that never asked for one.
-            guided = {"instrument": self._settings.get("chart_instrument", "i1"),
-                      "paper": self._settings.get("chart_paper", "A4"),
+            _saved = self._settings.get("chart_instrument", "i1")
+            _off = _saved_beta_instrument_is_off(_saved)
+            guided = {"instrument": "i1" if _off else _saved,
+                      "paper": ("A4" if _off
+                                else self._settings.get("chart_paper", "A4")),
                       # …from the saved defaults where there IS one, the same
                       # as instrument and paper above. Hard-coding these gave
                       # somebody with 3 pages saved a 1-page chart.
@@ -23021,6 +23045,14 @@ class TabChart(QWidget):
                 except Exception:      # noqa: BLE001
                     log.debug("ui-state: guided %s not reset", fld)
         elif isinstance(guided, dict):
+            # AN i1iO ROW WITH i1iO SUPPORT OFF: the tab cannot show the
+            # instrument, and the row's sheet was chosen for the table, so
+            # neither is put on screen (the carry keeps both in the file,
+            # `workflow.beta_chart_carry`). Its sheet on the fallback i1Pro
+            # would also drag Manual's paper with it and rewrite the target.
+            if _saved_beta_instrument_is_off(guided.get("instrument")):
+                guided = {k: v for k, v in guided.items()
+                          if k not in ("instrument", "paper")}
             for fld, val in guided.items():
                 try:
                     self._shared_set("guided", fld, val)
@@ -32163,6 +32195,12 @@ class TabChart(QWidget):
                        if s.is_stored("chart_fd9_strip_gap_mm") else _along)
             self._fd9_guided = (_w, _h, _along, _across)
         paper = s.get("chart_paper", "A4")
+        # A saved i1iO with i1iO support (Beta) off is no choice at all: its
+        # sheet (landscape, chosen for the table) is read as none too, so the
+        # off app opens on the factory sheet, as 4.3.32 would have.
+        if (_saved_beta_instrument_is_off(instr)
+                and self._instr_combo.findData(instr) < 0):
+            paper = "A4"
         # The COMBO's instrument, not the saved one: with FD-9 support (Beta)
         # off, a saved "FD9" is not in the list, and its sheet must not be
         # added to the i1Pro's papers either, nor workflow.fd9 imported for it

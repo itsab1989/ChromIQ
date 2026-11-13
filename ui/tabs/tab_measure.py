@@ -6740,6 +6740,27 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             return True
         return False           # repaired — carry on and measure
 
+    def _refused_as_an_i1io_chart(self) -> bool:
+        """True, with M-I1IO-NOT-YET shown, when i1iO support is on and the
+        loaded chart is an i1iO table chart. Reads the chart's header only
+        while the switch is on, and never raises."""
+        from workflow.i1io.support import i1io_enabled
+        if not i1io_enabled() or not self._ti1_path:
+            return False
+        try:
+            from workflow.i1io.support import chart_names_i1io
+            chart = self._chart_file_for(self._ti1_path)
+            if chart_names_i1io(chart) is not True:
+                return False
+        except Exception:      # noqa: BLE001 - never block a read on this
+            return False
+        self._i1io_not_yet_window()
+        self._log.appendPlainText(tr(
+            "Measurement not started: this chart is for the X-Rite i1iO "
+            "table, and measuring with the table is not available in this "
+            "version of ChromIQ yet."))
+        return True
+
     def _i1io_not_yet_window(self) -> None:
         """M-I1IO-NOT-YET on screen: the text is the catalogue's."""
         from workflow import measurement_messages as M
@@ -8119,6 +8140,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             return
         if _fd9_ask(self, "_is_fd9_target"):
             self._start_fd9_measurement()
+            return
+        # An X-Rite i1iO table chart with i1iO support on (Beta): the table
+        # cannot be driven yet, so Start says so BEFORE anything is recovered,
+        # armed or written. With the switch off nothing is read here; the
+        # chart is refused where 4.3.32 already reads its instrument name
+        # (`_blocked_by_unusable_target_instrument`).
+        if self._refused_as_an_i1io_chart():
             return
         if not self._ti1_path:
             self._log.appendPlainText("[ERROR] No .ti2 file selected.")

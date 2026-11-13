@@ -32,6 +32,11 @@ CODE = "IO2"
 #: Every Create Chart code that is an i1iO entry (one today).
 CODES: "frozenset[str]" = frozenset({CODE})
 
+#: What Guided's Instrument list shows for it. NOT in
+#: `data.patch_db.INSTRUMENT_LABELS`, which is Manual's printtarg -i list as
+#: well (tests/test_k42_*): Manual does not offer the i1iO yet.
+LABEL = "i1iO 2 + i1Pro 2"
+
 #: The family name every i1iO chart carries in ``TARGET_INSTRUMENT``.
 TARGET_INSTRUMENT = "X-Rite i1iO"
 
@@ -81,18 +86,23 @@ def is_i1io_code(code: Any) -> bool:
 
 
 def is_i1io_instrument_name(name: "str | None") -> bool:
-    """True for a ``TARGET_INSTRUMENT`` value naming the i1iO family, in any
-    letter case, with or without the quotes CGATS puts around it. Any
-    generation ("X-Rite i1iO 2", "i1iO 3") counts as the family."""
+    """True for a CHART's ``TARGET_INSTRUMENT`` naming the i1iO family, in any
+    letter case, with or without the quotes CGATS puts around it: the family
+    name ChromIQ writes, a vendor-qualified generation ("X-Rite i1iO 3") or
+    the bare "i1iO". A bare generation ("i1iO 2") is NOT taken: it is
+    i1Profiler's own name, which older imports wrote into measurements
+    (challenge of 2026-11-13). Asked of ``.ti2`` charts only."""
     text = str(name or "").strip()
     if len(text) >= 2 and text[0] == text[-1] and text[0] in "\"'":
         text = text[1:-1].strip()
     folded = text.casefold()
+    if folded == "i1io":
+        return True
     for prefix in ("x-rite ", "xrite ", "gretagmacbeth "):
         if folded.startswith(prefix):
-            folded = folded[len(prefix):].strip()
-            break
-    return folded == "i1io" or folded.startswith("i1io ")
+            rest = folded[len(prefix):].strip()
+            return rest == "i1io" or rest.startswith("i1io ")
+    return False
 
 
 def chart_names_i1io(path: Any) -> "bool | None":

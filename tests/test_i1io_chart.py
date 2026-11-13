@@ -67,17 +67,17 @@ def _build(tmp_path, n, paper="A4R", rep="RGB", **kw):
     return result, side
 
 
-@pytest.mark.parametrize("paper,cols,rows", [("A4R", 28, 21),
-                                             ("LetterR", 26, 22)])
+@pytest.mark.parametrize("paper,cols,rows", [("A4R", 26, 21),
+                                             ("LetterR", 24, 22)])
 def test_the_capacity_is_the_geometrys_own(paper, cols, rows):
-    """588 patches on A4 landscape and 572 on Letter landscape, computed from
+    """546 patches on A4 landscape and 528 on Letter landscape, computed from
     the patch size and the margins of `table_facts`, not looked up."""
     from workflow.layout_engine import geometry, instruments, papers
     g = instruments.geom_from_build_kwargs({"instrument": "IO2",
                                             "paper": paper})
     w, h = papers.dimensions_mm(paper)
     assert geometry.patches_per_sheet(g, w, h) == cols * rows
-    assert (g.pwid, g.plen, g.pspa) == (9.5, 8.0, 0.0)
+    assert (g.pwid, g.plen, g.pspa) == (10.0, 8.0, 0.0)
 
 
 def test_whatever_a_recipe_asks_for_the_i1io_keeps_its_own_layout():
@@ -98,7 +98,7 @@ def test_whatever_a_recipe_asks_for_the_i1io_keeps_its_own_layout():
 
 
 @pytest.mark.parametrize("paper", ["A4R", "LetterR"])
-@pytest.mark.parametrize("n", [1, 37, 588, 1300])
+@pytest.mark.parametrize("n", [1, 37, 546, 1300])
 def test_every_patch_run_and_mark_is_on_the_sheet_and_clear(tmp_path, paper,
                                                             n):
     from workflow.i1io import table_facts as F
@@ -118,9 +118,13 @@ def test_every_patch_run_and_mark_is_on_the_sheet_and_clear(tmp_path, paper,
             # a row runs along X, every patch at the row's height
             assert all(abs(c[1] - row["y_mm"]) < 1e-6 for c in centres)
             assert centres == sorted(centres)
-            assert centres[0][0] - 9.5 / 2 - x0 == pytest.approx(F.RUN_MM.value)
+            assert centres[0][0] - 5.0 - x0 == pytest.approx(F.RUN_MM.value)
+            assert x1 - (centres[-1][0] + 5.0) == pytest.approx(F.RUN_MM.value)
+            (b0, b1), (b2, b3) = row["anchor_bars_mm"]
+            assert x0 <= b0 < b1 < centres[0][0] - 5.0
+            assert centres[-1][0] + 5.0 < b2 < b3 <= x1
             for cx, cy in centres:
-                box = (cx - 4.75, cy - 4.0, cx + 4.75, cy + 4.0)
+                box = (cx - 5.0, cy - 4.0, cx + 5.0, cy + 4.0)
                 assert 0 <= box[0] and box[2] <= w and 0 <= box[1] and box[3] <= h
                 for z in zones:
                     assert not (box[0] < z[2] and z[0] < box[2]
@@ -173,11 +177,13 @@ def test_the_ti2_names_the_family_and_the_table_and_round_trips(tmp_path):
     assert chart_names_i1io(result.ti2_path) is True
     assert side["instrument"] == "X-Rite i1iO"
     assert (side["table_model"], side["head_model"]) == ("i1iO 2", "i1Pro 2")
-    for name in ("X-Rite i1iO", "x-rite i1io", '"X-Rite i1iO"', "i1iO 2",
-                 "X-Rite i1iO 3"):
+    for name in ("X-Rite i1iO", "x-rite i1io", '"X-Rite i1iO"', "i1iO",
+                 "X-Rite i1iO 3", "GretagMacbeth i1iO"):
         assert is_i1io_instrument_name(name)
+    # "i1iO 2" alone is i1Profiler's own name, written into measurements by
+    # older imports: never taken for a chart of ours.
     for name in ("GretagMacbeth i1 Pro", "i1iSis", "X-Rite i1iSis 2", "",
-                 None, "i1io2x"):
+                 None, "i1io2x", "i1iO 2", "X-Rite i1iO2"):
         assert not is_i1io_instrument_name(name)
 
 
@@ -249,6 +255,26 @@ def test_the_pdf_carries_the_marks_too(tmp_path):
     for m in side["marks_mm"]:
         cx, cy = m["centre_mm"]
         assert img[round(cy * s), round(cx * s)] < 120
+
+
+def test_the_scan_numbers_follow_from_the_recorded_timing():
+    """The patch length and the run-in are derived from the reading interval
+    and the speeds seen, not guessed: the fastest pass still gives a patch at
+    least the readings i1Profiler's own fastest pass gave, and the run-in
+    covers the shortest trigger delay seen at that speed."""
+    from workflow.i1io import table_facts as F
+    fastest = max(F.SCAN_SPEEDS_MM_S.value)
+    assert F.readings_per_patch(F.PATCH_ALONG_MM.value, fastest) >= \
+        F.SCAN_SAFE_READINGS.value
+    assert F.PATCH_ALONG_MM.value >= F.min_patch_length_mm(fastest)
+    assert F.RUN_MM.value >= F.run_in_mm(fastest)
+    clean = ((F.PATCH_ALONG_MM.value - F.APERTURE_MM.value)
+             / (fastest * F.SCAN_READING_INTERVAL_S.value)) * 2 / 3
+    assert clean > F.ARGYLL_MIN_SAMPLES.value
+    lo, hi = F.PATCH_RANGE_ALONG_MM.value
+    assert lo <= F.PATCH_ALONG_MM.value <= hi
+    lo, hi = F.PATCH_RANGE_ACROSS_MM.value
+    assert lo <= F.PATCH_ACROSS_MM.value <= hi
 
 
 def test_every_number_has_a_source_and_a_confidence():

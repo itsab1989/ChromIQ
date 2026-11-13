@@ -137,6 +137,16 @@ def _overlap(a, b) -> bool:
     return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
 
 
+def anchor_bars(row) -> "list[tuple[float, float, float, float]]":
+    """The two black bars of a scan row, ``(x0, y0, x1, y1)``: one in the
+    run-in before the first patch and one in the run-out after the last."""
+    gap, bar = F.ANCHOR_BAR_GAP_MM.value, F.ANCHOR_BAR_MM.value
+    y0, y1 = row[0][4], row[0][6]
+    left, right = row[0][3], row[-1][5]
+    return [(left - gap - bar, y0, left - gap, y1),
+            (right + gap, y0, right + gap + bar, y1)]
+
+
 def scan_rows(cells, w: float):
     """The scan rows of one page: ``[(y_centre, run_start_x, run_end_x,
     [cells in X order])]``, a row being every patch at one position down the
@@ -177,6 +187,9 @@ def check_sheet(geom, layout, w: float, h: float) -> None:
             run = (x_start, row[0][4], x_end, row[0][6])
             if any(_overlap(run, z) for z in zones):
                 raise I1ioSheetRefused("A row's run would cross an aiming mark.")
+            for bar in anchor_bars(row):
+                if bar[0] < x_start - 1e-6 or bar[2] > x_end + 1e-6:
+                    raise I1ioSheetRefused("A row's bar would lie outside its run.")
 
 
 # ---- drawing ---------------------------------------------------------------
@@ -187,7 +200,8 @@ def _font(px: int):
     return raster._font(px, "Inter", bold=True), path, variation
 
 
-def draw_furniture(render, w: float, h: float, dpi: int, *, name: str) -> None:
+def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
+                   geom=None, layout=None) -> None:
     """Draw the marks, the arrow, the page and the name onto every page of
     *render* (`raster.RenderResult`): into the page image, from which the
     separated TIFF folds them into the black ink, and into the PDF display
@@ -230,6 +244,13 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str) -> None:
                                   size, 0, 0, black, var))
             return bb[2] - bb[0]
 
+        # The rows' anchor bars (`anchor_bars`): black, drawn per row, so
+        # rows that touch make one continuous bar down each side.
+        if geom is not None and layout is not None:
+            for _y, _x0, _x1, row in scan_rows(
+                    page_patches(geom, layout, w, h, index), w):
+                for bx0, by0, bx1, by1 in anchor_bars(row):
+                    rect(px(bx0), px(by0), px(bx1), px(by1))
         for mark in marks(w, h):
             cx, cy = mark.centre_mm
             x, y = px(cx), px(cy)
@@ -299,6 +320,8 @@ def write_side_file(path: Path, *, geom, layout, w: float, h: float,
             rows.append({
                 "y_mm": round(y, 4),
                 "run_mm": [round(x_start, 4), round(x_end, 4)],
+                "anchor_bars_mm": [[round(v, 4) for v in (b[0], b[2])]
+                                   for b in anchor_bars(row)],
                 "patches": [{
                     "loc": permutation.location_label(
                         c[0], layout.steps_in_pass, strip_pattern,
