@@ -171,3 +171,25 @@ def test_a_preset_saved_now_is_modern():
     store = PresetStore()
     store.set(_legacy())
     assert all(r.i1io_label_options for r in store._presets.values())
+
+
+def test_a_new_project_made_from_a_legacy_screen_is_modern(chart_tab):
+    """Review R3: "Create X and keep/delete Y" makes a new project; the i1iO
+    recipe on screen goes into it with the mark."""
+    import inspect
+    from PyQt6.QtWidgets import QApplication
+    from ui.tabs.tab_chart import TabChart
+    tab = chart_tab
+    tab._switch_mode("manual")
+    tab._init_manual_layout_panel()
+    panel = tab._manual_layout_panel
+    panel.instr.setCurrentIndex(panel.instr.findData("IO2"))
+    QApplication.processEvents()
+    panel.set_recipe(_legacy())
+    assert panel.get_recipe().i1io_label_options is False
+    tab._i1io_mark_modern()
+    assert panel.get_recipe().i1io_label_options is True
+    src = inspect.getsource(TabChart)
+    i = src.index("if action in (TargetChangeAction.KEEP, "
+                  "TargetChangeAction.DELETE):")
+    assert "self._i1io_mark_modern()" in src[i:i + 400]
