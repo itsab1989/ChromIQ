@@ -405,8 +405,10 @@ class MeasureManager(QObject):
     #: at after one ({"where", "label"}), until it offers one again.
     gestures_active: bool = False
     gesture_unit: str = "strip"
-    #: The i1Pro 2 lights (Beta): the engine said this session uses them.
+    #: The i1Pro 2 lights (Beta): the engine said this session uses them,
+    #: and whether a light request failed in it (said once, not twice).
     lights_active: bool = False
+    _lights_failed: bool = False
     _gesture_held: "dict | None" = None
     _gesture_moving: "dict | None" = None
     _in_strip_ready: bool = False
@@ -3200,6 +3202,7 @@ class MeasureManager(QObject):
         when the option is on (the helper is started with --i1pro2-lights)."""
         state = ev.get("state")
         if state == "failed":
+            self._lights_failed = True
             self._runner.set_kill_courtesy(None)
             log.warning("i1Pro 2 lights: the instrument did not accept a "
                         "light request (%s, err %s); not used again in this "
@@ -3208,8 +3211,9 @@ class MeasureManager(QObject):
                 "[Engine] Instrument lights (beta): the i1Pro 2 did not accept "
                 "a light request, so ChromIQ stops using its lights for this "
                 "measurement. Measuring carries on as usual. The lights may "
-                "stay as they are now: if they stay on, unplug the instrument "
-                "and plug it back in once you have finished."))
+                "stay as they are now, even while you measure: if they stay "
+                "on, unplug the instrument and plug it back in once you have "
+                "finished, and compare a reading with the option off."))
             return
         if state == "off":
             self._runner.set_kill_courtesy(None)
@@ -3226,10 +3230,13 @@ class MeasureManager(QObject):
             return
         why = str(ev.get("why") or "")
         log.info("i1Pro 2 lights: not used for this session (%s)", why)
+        if why == "lights" and self._lights_failed:
+            return          # the failure has already been said, once
         if why == "instrument":
             on_line(tr(
-                "[Engine] Instrument lights (beta): this instrument is not an "
-                "i1Pro 2, so ChromIQ leaves its lights alone."))
+                "[Engine] Instrument lights (beta): ChromIQ uses the lights "
+                "only on an i1Pro 2, so it leaves this instrument's lights "
+                "alone."))
         elif why == "mode":
             on_line(tr(
                 "[Engine] Instrument lights (beta): they are only used while "
@@ -3327,6 +3334,7 @@ class MeasureManager(QObject):
         if kind == "session_start":
             self.gestures_active = False
             self.lights_active = False
+            self._lights_failed = False
             self._gesture_held = None
             self._saw_spot_ready = False
             self._ending_already_answered = False

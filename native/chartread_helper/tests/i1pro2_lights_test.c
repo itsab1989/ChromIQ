@@ -106,8 +106,14 @@ static int fake_read(icoms *p, usb_cancelt *c, int ep, unsigned char *buf,
 	return ICOM_OK;
 }
 
+/* Non-zero: the trigger thread is held in its wait for the read to start
+ * (scenario 12), as it is on a real instrument until the read is submitted. */
+static volatile int hold_trigger = 0;
+
 static int fake_wait_io(icoms *p, usb_cancelt *c) {
 	(void)p; (void)c;
+	while (hold_trigger)
+		msec_sleep(1);
 	return ICOM_OK;
 }
 
@@ -304,8 +310,11 @@ int main(void) {
 		i1proimp *m = (i1proimp *)p->m;
 		double inttime = 0.02;
 		step("trigger-without-read");
+		hold_trigger = 1;
 		i1pro_trigger_one_measure(p, 1, &inttime, 0, i1p_cal);
 		ready(p);			/* the read never started: no WHITE */
+		step("read-starts");
+		hold_trigger = 0;
 		amutex_unlock(m->rd_sync.condx);
 		m->trig_thread->del(m->trig_thread);
 		m->trig_thread = NULL;

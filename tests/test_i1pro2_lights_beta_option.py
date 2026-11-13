@@ -115,7 +115,7 @@ def _manager_with_lines():
     ({"event": "lights", "active": True}, ['{"cmd":"lights_off_exit"}\n'],
      "white while it waits for you"),
     ({"event": "lights", "active": False, "why": "instrument"}, [],
-     "not an i1Pro 2"),
+     "only on an i1Pro 2"),
     ({"event": "lights", "active": False, "why": "mode"}, [],
      "strips or single patches by hand"),
     ({"event": "lights", "active": False, "why": "lights"}, [],
@@ -134,6 +134,14 @@ def test_the_lights_events(qapp, ev, courtesy, needle):
         assert len(lines) == 1 and needle in lines[0]
         assert "—" not in lines[0]
     assert m.lights_active is bool(ev.get("active"))
+
+
+def test_a_failed_first_white_is_said_once(qapp):
+    m, runner, lines = _manager_with_lines()
+    for ev in ({"event": "lights", "state": "failed", "step": "white", "err": 0},
+               {"event": "lights", "active": False, "why": "lights"}):
+        m._handle_engine_line(json.dumps(ev), lines.append)
+    assert len(lines) == 1 and "did not accept" in lines[0]
 
 
 # ---------------------------------------------------------------------------

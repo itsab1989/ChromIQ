@@ -8997,9 +8997,11 @@ def i1pro2_lights_help() -> str:
            "  •  white while the instrument waits for you, for example for "
            "you to press its button and read the next strip;\n"
            "  •  off while it calibrates or measures;\n"
-           "  •  off when the measurement ends, however it ends.\n"
+           "  •  off when the measurement ends.\n"
            "The white comes on about a second after the instrument is ready, "
-           "so after a quick press you may not see it at all."),
+           "so after a quick press you may not see it at all. In rare cases "
+           "(ChromIQ is forced to quit, or a light command fails) the lights "
+           "can stay on until you unplug the instrument."),
         tr("**Only for the i1Pro 2.** The original i1Pro, the i1Pro 3, the "
            "ColorMunki and every other instrument are left exactly as they "
            "are: ChromIQ sends them nothing new."),
@@ -9016,16 +9018,20 @@ def i1pro2_lights_help() -> str:
            "it is written but switched off, and from one recording of what "
            "X-Rite's i1Profiler sent to a user's own i1Pro 2. ChromIQ sends "
            "only light commands that i1Profiler was seen sending there: "
-           "“white” and “off” (i1Profiler used two forms of “off”, and "
-           "ChromIQ uses each one where i1Profiler did). Showing white again "
+           "“white” and “off” (i1Profiler used two forms of “off”: ChromIQ "
+           "sends one before every calibration and every reading, and the "
+           "other when the measurement ends). Showing white again "
            "after every reading is ChromIQ's own idea: the recording was made "
            "on a measuring table, where i1Profiler kept the lights dark. "
            "ChromIQ sends nothing else that is new, and it never writes "
            "anything into the instrument's memory."),
         tr("If a light command fails, ChromIQ stops using the lights for the "
            "rest of that measurement, says so in the measurement log and "
-           "carries on measuring as normal. A measurement is never stopped "
-           "because of the lights; at worst it waits a moment, once."),
+           "carries on measuring as normal. The lights may then stay as they "
+           "were, even while you measure: if that happens, please compare a "
+           "reading with this option off. A measurement is never stopped "
+           "because of the lights; at worst it waits a fraction of a second, "
+           "once."),
         tr("**If anything looks wrong**, for example the instrument does not "
            "start, readings look different or the lights do something odd: "
            "switch this off, unplug the instrument and plug it back in, and "

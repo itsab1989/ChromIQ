@@ -12437,6 +12437,7 @@ i1pro2_indLEDoff(void *pp) {
 #define CQ_LIGHTS_OFF_NOW  3
 
 #define CQ_LIGHTS_TOUT       1.0	/* s per transfer; a good one takes a few ms */
+#define CQ_LIGHTS_TOUT_TRIGGER 0.25	/* between the button and the trigger: short */
 #define CQ_LIGHTS_TOUT_CLOSE 0.5	/* at the close, inside the helper's 1.5 s */
 #define CQ_LIGHTS_SLOW_MS    2500	/* OFF_SLOW plays for about 2 s */
 
@@ -12551,7 +12552,7 @@ void i1pro2_cq_lights_trigger(void *pp) {
 	i1proimp *m = cq_lights_m(p);
 	if (m == NULL || m->cq_lights != CQ_LIGHTS_LIT)
 		return;
-	cq_lights_send(p, CQ_LIGHTS_OFF_SLOW, CQ_LIGHTS_TOUT);
+	cq_lights_send(p, CQ_LIGHTS_OFF_SLOW, CQ_LIGHTS_TOUT_TRIGGER);
 }
 
 /* Before an EEPROM read: OFF_NOW, when anything may still be playing. */

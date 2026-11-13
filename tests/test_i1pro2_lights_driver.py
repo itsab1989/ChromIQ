@@ -317,7 +317,7 @@ def _d6(lines):
 
 
 WHITE = ["CTL d6 00000020 tout=1.00", f"WR 03 {RECORDED['white']} tout=1.00"]
-OFF_SLOW = ["CTL d6 00000012 tout=1.00", f"WR 03 {RECORDED['off_slow']} tout=1.00"]
+OFF_SLOW = ["CTL d6 00000012 tout=0.25", f"WR 03 {RECORDED['off_slow']} tout=0.25"]
 OFF_NOW = ["CTL d6 0000000f tout=1.00", f"WR 03 {RECORDED['off_now']} tout=1.00"]
 OFF_CLOSE = ["CTL d6 0000000f tout=0.50", f"WR 03 {RECORDED['off_now']} tout=0.50"]
 
@@ -374,7 +374,7 @@ def test_a_failed_request_is_noted_once_and_ends_the_lights(traces):
     lines = _scenario(traces["patched"], "fail_off")
     assert [ln for ln in lines if ln.startswith("NOTE")] == ["NOTE seq=2 err=0x200"]
     d6 = _d6(lines)
-    assert d6 == WHITE + ["CTL d6 00000012 tout=1.00"]   # nothing after it
+    assert d6 == WHITE + ["CTL d6 00000012 tout=0.25"]   # nothing after it
     assert sum(ln.startswith("CTL d4") for ln in lines) == 3   # measuring went on
     white = _scenario(traces["patched"], "fail_white")
     assert [ln for ln in white if ln.startswith("NOTE")] == ["NOTE seq=1 err=0x0"]
@@ -395,5 +395,8 @@ def test_the_end_paths(traces):
 def test_white_waits_for_a_pending_trigger(traces):
     lines = _scenario(traces["patched"], "trigger_pending")
     i_ready = lines.index("STEP ready")
-    i_close = lines.index("STEP close")
-    assert _d6(lines[i_ready:i_close]) == []
+    i_read = lines.index("STEP read-starts")
+    assert _d6(lines[i_ready:i_read]) == []
+    # the trigger thread really was still waiting while ready() ran
+    assert any(ln.startswith("CTL d4") for ln in lines[i_read:])
+    assert not any(ln.startswith("CTL d4") for ln in lines[:i_read])
