@@ -1051,6 +1051,10 @@ def margin_combo_key(instrument: str, paper: str, orientation: str) -> str:
     return f"{instrument}|{paper}{suffix}"
 
 
+# ADDING AN INSTRUMENT? Read docs/adding_an_instrument.md and work through
+# docs/adding_an_instrument_checklist.md first: they list every place an
+# instrument is registered (this is one of them) and how each is tested.
+
 # Engine instrument flag → margin-threshold instrument label (matches the seed
 # keys + settings_dialog._MARGIN_INSTRUMENTS).
 THRESHOLD_INSTR_LABEL = {

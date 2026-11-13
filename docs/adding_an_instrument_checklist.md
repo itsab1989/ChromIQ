@@ -6,7 +6,10 @@ written for coding agents and for reviewers. Work through the stages in order;
 copy the stage lists into your pull request and mark every item **done**,
 **not applicable (why)** or **open**.
 
-Every item names the file, the test or the command that checks it. A path
+Most items name the file, the test or the command that checks them. The
+others (a plan, a rule about defaults, a property of the commands) are checked
+by the reviewer against the evidence in the pull request: the options table,
+the command list, the photographs and the comparison output. A path
 written as `path::name` is a definition in that file. Where an item names an
 existing instrument's code, it is a worked example of that one step, not a
 template for the whole instrument.
@@ -65,7 +68,9 @@ template for the whole instrument.
 - [ ] **0.3** No fact marked as a guess drives a command, a movement or a
       timing (Stage 8).
 - [ ] **0.4** The route is chosen (guide, section 4) and written in the
-      issue.
+      issue. It depends on what the driver returns: one reading per patch
+      (the external-values route of 7.1), or a whole strip at once (agree a
+      design in the issue first).
 - [ ] **0.5** The plan covers every stage below, row by row, and has been
       challenged by someone who did not write it; the findings are folded in.
 
@@ -118,8 +123,8 @@ challenged plan.
          whether it is the instrument's, and the layout engine refuses the
          instrument's code as unknown;
       3. the shared files that name the instrument are pinned in a
-         `HOOKED_FILES` set and a test compares it with what `git grep`
-         finds;
+         `HOOKED_FILES` set, and a test compares it with a scan of the
+         source tree for the instrument's names;
       4. a real project made with the switch on, opened with it off and its
          tabs changed: `meta.json` byte-identical; a change the user makes is
          kept; another instrument's chart generated into the run leaves no
@@ -224,7 +229,10 @@ passes the sheet check, and the four nets of Stage 1 are still green.
       than this, the rule wins. *Check:* every "unavailable" row in 3.1 names
       one of the two reasons.
 - [ ] **3.3** Behaves as the other instruments do: allowed, with a warning
-      where they warn.
+      where they warn. Example of such a warning: a margin below the
+      instrument's minimum from Preferences is still built, and the
+      "Measured from Preview" panel flags that edge
+      (`workflow/margin_inspector.py::check_violations`).
 - [ ] **3.4** Defaults are the safest values; the pull request says why for
       each.
 - [ ] **3.5** An unavailable control's tooltip starts with its own reason
@@ -233,6 +241,8 @@ passes the sheet check, and the four nets of Stage 1 are still green.
       value back when the user leaves the instrument
       (example `ui/dialogs/layout_options_panel.py::LayoutOptionsPanel._i1io_show_what_applies`).
       Every input type is covered; the test finds inputs independently.
+      Model test:
+      `tests/test_i1io_layout_options.py::test_the_unfreed_controls_are_live_and_the_rest_say_why`.
 - [ ] **3.6** Existing controls reused (patch size, inter-patch gap, strip
       gap, Pages, Custom paper, Resume, strip recognition); no duplicates.
 - [ ] **3.7** Every working option survives Save as Defaults (Guided and
@@ -294,6 +304,9 @@ passes the sheet check, and the four nets of Stage 1 are still green.
 - [ ] **5.7** Recipes, presets and a project saved by the previous release
       build byte-identical charts with the branch (Stage 10).
 
+**Done means:** 5.1 to 5.6 each covered by a test, and 5.7 shown by the
+comparison output in the pull request.
+
 ## Stage 6. Loading charts and their files
 
 - [ ] **6.1** Recognising the chart reads only header bytes (or
@@ -314,21 +327,35 @@ passes the sheet check, and the four nets of Stage 1 are still green.
       TIFF stamped like other charts
       (`workflow/chart_creator.py::_stamp_tiff_metadata`).
 
+**Done means:** a chart for the instrument is recognised, copied, imported
+and restored with all its files, and a `.ti3` of your own is accepted by
+`colprof` in a test.
+
 ## Stage 7. Measure tab
 
-- [ ] **7.1** Routing at `ui/tabs/tab_measure.py::_on_start`: the chartread
-      route (for a handheld instrument with its own driver, chartread with
-      external values, `workflow/measure_manager.py::MeasureParams.external_values`,
-      answered by a bridge like `workflow/cr30/measure_bridge.py::Cr30MeasureBridge`),
-      or a start method of your own that runs the whole preflight in
-      order: `ui/tabs/tab_measure.py::_recover_engine_autosave`, the new-run
-      and chart guards, `core/instrument_lease.py::held_by_other`,
+- [ ] **7.1** Routing at `ui/tabs/tab_measure.py::_on_start`: either the
+      chartread route (for a driver that returns one reading per patch,
+      chartread with external values, `-xx`,
+      `workflow/measure_manager.py::MeasureParams.external_values`, answered by
+      a bridge like `workflow/cr30/measure_bridge.py::Cr30MeasureBridge`),
+      which gets the whole preflight by itself, or a start method of your own
+      that runs every guard `_on_start` runs, in its order. Today that is
+      `ui/tabs/tab_measure.py::_recover_engine_autosave`,
+      `ui/tabs/tab_measure.py::_blocked_by_new_run`,
+      `ui/tabs/tab_measure.py::_blocked_by_missing_chart_file`,
+      `ui/tabs/tab_measure.py::_blocked_by_unreadable_locations`,
+      `ui/tabs/tab_measure.py::_blocked_by_the_instrument_being_in_use` (the
+      instrument lease),
+      `ui/tabs/tab_measure.py::_blocked_by_unusable_target_instrument`,
       `ui/tabs/tab_measure.py::_blocked_by_a_misfitting_measurement`,
+      `ui/tabs/tab_measure.py::_blocked_by_a_differing_condition`, then
       `ui/tabs/tab_measure.py::_verification_guard`,
       `ui/tabs/tab_measure.py::_snapshot_verification_chart`,
-      `ui/tabs/tab_measure.py::_confirm_replacing_measurement`,
-      `ui/tabs/tab_measure.py::_stage_verification_for_resume`. A test proves
-      the order.
+      `ui/tabs/tab_measure.py::_confirm_replacing_measurement` and
+      `ui/tabs/tab_measure.py::_stage_verification_for_resume`, with the
+      instrument-specific guards in between where they apply to yours. Read
+      `_on_start` itself before you copy this list: it is the source of
+      truth. A test proves your start runs them in that order.
 - [ ] **7.2** A chart that cannot be measured yet is answered at the top of
       Start with a window (example `ui/tabs/tab_measure.py::_refused_as_an_i1io_chart`,
       `workflow/measurement_messages.py::M_I1IO_NOT_YET`).
@@ -376,6 +403,15 @@ passes the sheet check, and the four nets of Stage 1 are still green.
       catalogue (what happened, what to do, what is kept), classified by
       exception type before words, with the technical reason as a detail
       line; log lines in `tr()`.
+- [ ] **7.11** Instrument button shortcuts (Preferences > Measurement): map
+      the instrument's model or code to its family in
+      `workflow/button_gestures.py::family_of`, and add the family to
+      `workflow/button_gestures.py::SUPPORTED_FAMILIES` only if the instrument
+      really reports its button presses the way that feature needs.
+
+**Done means:** Start runs the whole preflight for the instrument (a test),
+every ending releases the lease and settles the chart (tests), and a session
+with the simulator or the real device reaches the end window on screen.
 
 ## Stage 8. Hardware
 
@@ -413,6 +449,10 @@ passes the sheet check, and the four nets of Stage 1 are still green.
 - [ ] **8.10** Testers: the consent window, the ⓘ's list of checks, small
       steps each ending with a report.
 
+**Done means:** the command list is in the pull request with a source and
+level for every command, the byte and "nothing else is sent" tests are green,
+and the full session runs against the simulator.
+
 ## Stage 9. Text, messages, specifications, docs
 
 - [ ] **9.1** R5 and R6 for every new or changed string;
@@ -427,7 +467,7 @@ passes the sheet check, and the four nets of Stage 1 are still green.
       `docs/design/i1io_table_support.md`).
 - [ ] **9.4** New per-target keys recorded in `docs/design/per_target_settings.md`;
       new folders in `docs/dev_folder_layout.md`; `CHANGELOG.md` under
-      `## Unreleased`.
+      `## Unreleased` (add the heading if it is missing).
 - [ ] **9.5** Optional: `ui/dialogs/welcome_dialog.py`, `ui/keyboard_help.py`,
       only if a first-time user needs it.
 - [ ] **9.6** The other places that may need to name the instrument, each
@@ -440,6 +480,10 @@ passes the sheet check, and the four nets of Stage 1 are still green.
 - [ ] **9.7** The `HOOKED_FILES` pin lists every shared file that now names
       the instrument.
 
+**Done means:** the language, em dash, message catalogue, specification and
+guide tests of 10.7 pass, and the translation review is named in the pull
+request.
+
 ## Stage 10. Proof
 
 - [ ] **10.1** Every behaviour change has a test that failed before it and
@@ -451,13 +495,18 @@ passes the sheet check, and the four nets of Stage 1 are still green.
       private recordings or a device. House rules from `CLAUDE.md`
       (`timeout=` on subprocesses, no modal `.exec()`, no
       `qapp.setStyleSheet()`, the shared `qapp`, `tests/conftest.py`).
-- [ ] **10.4** **File comparison**: a fixed set of charts (every instrument,
-      the common papers, a few option combinations, a fixed seed), plus
-      recipes, presets and a project saved by the previous release, built
-      with the previous release and with the branch (switch off, and switch
-      on for the other instruments); byte-identical after normalising only
-      named per-build fields (creation time stamps). The script and the list
-      of normalised fields go in the pull request.
+- [ ] **10.4** **File comparison**, by the method in the guide's section 9
+      (ChromIQ has no ready-made script for it yet): the previous release tag
+      in a second `git worktree`; one script, run in both trees, that builds
+      a fixed list of charts (every instrument, the common papers, a few
+      option combinations) with `workflow/layout_engine/chart.py::build_chart`
+      from `LayoutRecipe(...).build_kwargs()` with a fixed `seed=` and
+      `chart_date=`, plus recipes, presets and a project saved by the previous
+      release; switch off, then switch on for the other instruments. Every
+      output byte-identical, except the `CREATED` line of `.ti2` and `.ti1`
+      files, which is taken out before comparing; the layout summary stamp
+      stays off. The script, its output and the normalised fields go in the
+      pull request.
 - [ ] **10.5** On screen (R1, R2): switch off and on, every run type, the
       options of Stage 3 at their extremes, compared side by side with the
       same window for another instrument; photographs in the pull request.
@@ -475,7 +524,6 @@ passes the sheet check, and the four nets of Stage 1 are still green.
 
   Windows PowerShell:
   `$env:QT_QPA_PLATFORM='offscreen'; pytest --runslow -n auto -q > $env:TEMP\chromiq-gate.txt 2>&1; echo "exit=$LASTEXITCODE"`.
-  `python scripts/gate_tier.py` says whether a larger tier is needed.
   *Done:* `N passed` with no `failed`, `exit=0` read from pytest itself, not
   through a pipe, and no file edited while it ran. A failure you did not
   cause is run on unchanged `master` too, and both results are reported.

@@ -15,7 +15,11 @@ much for the coding agent you may be working with.
   instrument has to be registered.
 
 If you are a coding agent: read this guide and [`CLAUDE.md`](../CLAUDE.md) in
-full, then work through the checklist stage by stage. A ready-made prompt for
+full, then work through the checklist stage by stage. Parts of `CLAUDE.md`
+describe the maintainer's own machine and people (his folders, his display,
+his session hooks, the people who approve): follow their intent, not their
+paths, and read "Knut or Basti must approve" as "the ChromIQ maintainers
+approve". A ready-made prompt for
 your agent is in
 [`docs/adding_an_instrument_agent_prompt.md`](adding_an_instrument_agent_prompt.md).
 
@@ -82,11 +86,37 @@ Nothing in this guide is a promise that a pull request will be merged, or
 that a particular instrument will be supported. It is the list of things a
 review will look for, written down so you can do them first.
 
+**A few words this guide uses:**
+
+- **Guided** and **Manual**: the two modes of the Create Chart tab. Guided
+  asks a few questions and picks a sensible layout; Manual offers every
+  layout option.
+- **Recipe**: the full set of layout choices a chart is built from
+  (`workflow/layout_engine/presets.py::LayoutRecipe`). Presets, Save as
+  Defaults and the chart's own record all store recipes.
+- **Target**: what the bar at the top of the window points at, that is a
+  project's run, one of its verifications, or its calibration. **A target's
+  own settings** are the choices ChromIQ remembers for that target in the
+  project, so reopening it brings them back
+  (`docs/design/per_target_settings.md`).
+- **The ⓘ help**: the small round button beside an option that opens its
+  explanation.
+- **The instrument lease**: ChromIQ's claim on an instrument it drives
+  itself, so that two windows never talk to one device at the same time
+  (`core/instrument_lease.py`).
+- **§M-PROPOSED**: the part of the message catalogue
+  (`docs/design/unified_measurement_management.md`) where the text of every
+  new window is proposed before the maintainers approve it.
+
+Where this guide gives an example from the X-Rite i1iO table, it comes from a
+chart-only Beta: ChromIQ makes charts for the table, and does not measure with
+it yet.
+
 ## 2. You own an instrument ChromIQ does not support yet? This is how you can help
 
 You do not need to program, and you do not need an AI agent. Much of what
-ChromIQ knows about the instruments it learned recently came from owners who
-let a small tool watch what the instrument's own program says to it.
+ChromIQ has learned recently about its instruments came from owners'
+recordings of what the instrument's own program says to it.
 
 ### The recording tool
 
@@ -103,9 +133,12 @@ summary, checked against version 1.5.5.
   it, and by default it hides serial numbers, your user name and your home
   folder.
 - **It never sends anything to the instrument.** It does not even open a
-  connection to it, and it changes no settings on your computer. (On a Mac,
-  if you agree to a recording, it switches the Mac's USB recording interfaces
-  on for the recording and off again afterwards.)
+  connection to it. It changes nothing on your computer unless you say yes
+  first: on a Mac, if you agree to a recording, it switches the Mac's USB
+  recording interfaces on for the recording and off again afterwards; on
+  Windows, if USBPcap (below) is missing, it can, after asking you, download
+  USBPcap's own installer and start it, and it can offer to start itself
+  again as administrator.
 - **Which instruments it covers today**: X-Rite instruments only, namely the
   i1iO scanning table, the i1Pro family (original i1Pro, i1Pro 2, i1Pro 3 and
   i1Pro 3 Plus), the ColorMunki Photo / Design and the i1Studio. Instruments
@@ -121,6 +154,9 @@ summary, checked against version 1.5.5.
     README explains how, and the risk, honestly.
   - **Linux**: `usbmon` and `tcpdump`; the makers' programs themselves do not
     run on Linux.
+
+  The README also lists which versions of X-Rite's i1Profiler and of Windows
+  still work with which instrument; please check it before you start.
 - **What a recording contains.** Necessarily your instrument's **serial
   number and its factory calibration data**, because the maker's program reads
   them every time it connects. They identify your instrument, not you. So
@@ -168,8 +204,8 @@ and changing them is the maintainers' decision.
 |---|---|
 | **ArgyllCMS already drives it**, ChromIQ does not offer it yet | Registration only: lists, layout geometry, pace row. ArgyllCMS does the reading. |
 | **A new feature for an instrument ChromIQ already measures with** | A change to the vendored ArgyllCMS instrument code in `native/instlib/`, recorded as a patch and in its provenance note, used only while the Beta switch is on. Every other instrument stays exactly as upstream. |
-| **A handheld spot or strip instrument** with its own driver | ChromIQ's own chartread runs the session with "external values": it opens no instrument and asks ChromIQ for each patch's reading, which a small bridge fetches from your driver. chartread keeps the session, the file and all the measurement logic, so resume, re-reading and the end windows come for free. |
-| **A scanning strip reader** with its own driver | Open an issue first. If the driver can hand over readings patch by patch, the route above works. |
+| **An instrument with its own driver that returns one reading per patch** (a spot instrument, or a strip reader whose driver hands over each patch's reading on its own) | ChromIQ's own chartread runs the session with "external values" (`-xx`, `workflow/measure_manager.py::MeasureParams.external_values`): it opens no instrument and asks ChromIQ for each patch's reading, which a small bridge fetches from your driver. chartread keeps the session, the file and all the measurement logic, so resume, re-reading and the end windows come for free. |
+| **An instrument with its own driver that returns a whole strip at once** | Open an issue first: the external-values route asks for one patch at a time, so a driver that only delivers whole strips needs a design agreed with the maintainers. |
 | **A measuring table or an automatic chart reader** | Open an issue first and agree the design there. Making charts for it follows [section 6](#6-designing-the-chart-from-what-the-instrument-needs); there is no general measuring route for these devices yet. |
 | **A scanner or camera** | Not an instrument in this sense: ChromIQ reads a scanned chart with ArgyllCMS `scanin` (Tools > "Build profile with scanner or camera"). |
 
@@ -196,28 +232,35 @@ before you design anything, and write down where each one came from.
 5. **Your own careful measurement**: a ruler on a printed chart, a timed
    scan.
 
-**How sure is each fact?** Note it beside the fact, in the code too:
-**verified** (shown by a source anyone can check, or holds on every case
-recorded), **likely** (one reading fits all the evidence, not proved), or a
-**guess**. A design choice of the project's own is marked as that, with its
-reason. Keep every number about one instrument in one module, each with its
-value, its source and its confidence, and have the layout code read its
-numbers from there and nowhere else; then the next recording or datasheet
-corrects a number without anyone touching layout logic.
-`workflow/i1io/table_facts.py` is such a module (its levels are `VERIFIED`,
-`PUBLISHED`, `LIKELY` and `OURS`).
+**How sure is each fact?** Keep every number about one instrument in one
+module, each with its value, its source and one of four levels, and have the
+layout code read its numbers from there and nowhere else; then the next
+recording or datasheet corrects a number without anyone touching layout
+logic. `workflow/i1io/table_facts.py` is such a module, and its four levels
+are the ones to use:
 
-**A guess never acts on hardware.** A guess may at most set a safe chart
-default that is marked as a guess. It never becomes a command, a movement or
-a timing that the device is driven with ([section 12](#12-talking-to-the-hardware)).
+- **`VERIFIED`**: shown by a source anyone can check (the maker's own pages
+  or files), or arithmetic that holds on every case recorded;
+- **`PUBLISHED`**: a published figure nobody on the project has checked on a
+  real device yet;
+- **`LIKELY`**: one reading fits all the evidence, but it is not proved;
+- **`OURS`**: a design choice of the project's own, with its reason.
+
+**A guess is a comment, never a value.** Something you only suspect is
+written down as a note beside the code or in the issue, so the next recording
+can confirm or drop it. It never becomes a number the code uses, and never a
+command, a movement or a timing that a device is driven with
+([section 12](#12-talking-to-the-hardware)).
 
 **Keep it lawful and plain.** Observing how a program behaves, and recording
 the traffic of your own device, to make another program work with it, is
 what this project does. It never copies the maker's program code, firmware,
 calibration data, stored instrument memory, chart files or tables into the
 repository. Facts are written down in our own words, with a note of where
-they came from; recordings stay private evidence and never enter the
-repository or its tests.
+they came from. Recordings stay outside the repository and its tests. An
+owner who attaches one to a GitHub issue makes it public, so it is shared
+deliberately, by its owner's choice
+([section 2](#2-you-own-an-instrument-chromiq-does-not-support-yet-this-is-how-you-can-help)).
 
 *In [the checklist](adding_an_instrument_checklist.md): stage 0.*
 
@@ -272,7 +315,10 @@ This is the part that decides how useful the instrument will be.
   such options on every other instrument (margins, gaps, label offsets), and a
   new instrument should not be more locked down than the rest.
 - **Behave as the other instruments do** with the same option: allow it, and
-  warn where they warn.
+  warn where they warn. For example, a margin smaller than the instrument's
+  minimum in Preferences is not refused: the chart is made, and Create
+  Chart's "Measured from Preview" panel flags that edge
+  (`workflow/margin_inspector.py::check_violations`).
 - **A limit is fine where the chart would otherwise not exist** (margins that
   keep the marks clear, a sheet the instrument cannot reach). Say the limit in
   the control's help.
@@ -294,7 +340,7 @@ supports survives all four places a setting can live:
 2. **presets**, the user's own and any built-in ones;
 3. **a target's own settings**, which are loaded and written as
    `docs/design/per_target_settings.md` says;
-4. **the chart's own record**, so a reopened project and "Restore used chart"
+4. **the chart's own record**, so a reopened project and "Restore Used Chart"
    show exactly what was built.
 
 One table-driven test walks every recipe field through all four, so a field
@@ -356,11 +402,29 @@ New hardware support the project cannot test itself goes behind a checkbox in
 
 **Proof, in two parts.** Tests, four nets of them (the checklist names them),
 check what somebody thought of. A **file comparison** checks everything else:
-build a fixed set of charts with the previous release (every instrument, the
-common papers, a handful of option combinations, a fixed seed), build the same
-set with your branch, switch off and switch on, and compare the files byte
-for byte. Normalise only what really differs per build, such as a creation
-time stamp, and say what you normalised.
+the same charts, built by the previous release and by your branch, must come
+out byte for byte the same. ChromIQ has no ready-made script for this yet, so
+you write a short one and put it in your pull request. The method:
+
+1. Check out the previous release in a second worktree, beside your branch:
+   `git worktree add ../chromiq-previous v4.3.33` (use the latest release
+   tag, `git tag --sort=-v:refname`).
+2. Write one script that builds a fixed list of charts: every instrument on
+   offer, the common papers, and a handful of option combinations, each from
+   a recipe (`LayoutRecipe(...).build_kwargs()` passed to
+   `workflow/layout_engine/chart.py::build_chart`, with the same `.ti1` for
+   every build). Pass a fixed `seed=` so the patch order is the same in both
+   trees (in the app, this is "Use a fixed seed (reproducible)" in Manual's
+   options), and a fixed `chart_date=` so any date printed on the sheet is
+   the same. Add recipes, presets and a project saved by the previous
+   release.
+3. Run the same script in both trees (switch off; then switch on, for the
+   other instruments) and compare every output file byte for byte.
+4. Normalise only what really differs per build, and say what you
+   normalised: the `CREATED` line of the `.ti2` (and of a `.ti1` made by
+   targen) holds the time of the build, so compare those files with that one
+   line taken out. Keep the layout summary stamp switched off in the
+   comparison, because it prints the version, rather than normalising pixels.
 
 *In [the checklist](adding_an_instrument_checklist.md): stages 1 and 10.*
 
