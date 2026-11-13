@@ -58,27 +58,41 @@ def legacy_labels(kw: dict) -> bool:
     return kw.get(OPTIONS_KEY) is False
 
 
-#: `LayoutRecipe` fields an i1iO chart does not read: greyed controls, the
-#: values the panel only SHOWS for the i1iO (its alignment, its sheet text's
-#: bold and place, its numbers' edge have their own fields), and other
-#: instruments' options. The preset bar compares an i1iO layout without them
-#: (`TabChart._layout_recipe_values`), so a value nobody can change and the
-#: build never reads does not light "modified" (Job D).
-UNREAD_RECIPE_FIELDS = (
-    "hflag", "cm_density", "cm_stagger", "hex_flat_top", "pscale", "sscale",
-    "border", "use_instrument_margins", "fd9_gap_mm", "fd9_clip_border",
-    "layout_mode", "area_method", "area_cols", "area_rows", "area_ratio",
-    "area_min_patch_mm", "patch_area_align", "indicator_rotation",
-    "row_indicator_rotation", "chart_text_bold", "chart_text_align",
-    "text_edge_top_mm", "text_edge_clip_mm", "stamp_command", "clip_border",
-    "clip_side", "clip_content_when_on")
+#: The `LayoutRecipe` fields an i1iO chart reads. The preset bar compares an
+#: i1iO layout on these alone (`TabChart._layout_recipe_values`), so a greyed
+#: control, a value the panel only SHOWS for the i1iO (its alignment, its
+#: sheet text's bold and place, its numbers' edge have their own fields) or
+#: another instrument's option never lights "modified" (Job D). A field
+#: missing here never lights it either:
+#: `tests/test_i1io_every_option_persists.py` holds every option in it.
+READ_RECIPE_FIELDS = frozenset((
+    "instrument", "paper", "dpi", "randomize", "spacer_on", "spacer_mode",
+    "spacer_palette", "spacer_overrides", "edge_spacers", "margin_top",
+    "margin_right", "margin_bottom", "margin_left", "patch_w_mm",
+    "patch_h_mm", "i1io_crosses", "i1io_align", "i1io_clip_border",
+    "i1io_text_bold", "i1io_label_options", "i1io_numbers_edge_mm",
+    "i1io_text_align", "spacer_width_mm", "inter_patch_mm", "strip_gap_mm",
+    "max_strip_mm", "strip_indicator_gap_mm", "offset_x_mm", "offset_y_mm",
+    "bit16", "compression", "export_pdf", "show_strip_indicators",
+    "show_row_indicators", "indicator_font", "indicator_size_mm",
+    "indicator_bold", "indicator_italic", "indicator_align",
+    "strip_label_offset_mm", "strip_label_offset_x_mm", "underline_mode",
+    "underline_thickness_mm", "underline_gap_mm", "chart_text",
+    "chart_text_font", "chart_text_size_mm", "chart_text_italic",
+    "helper_markers", "helper_marker_edge_mm", "helper_marker_len_mm",
+    "helper_marker_per_patch", "helper_markers_top_bottom",
+    "helper_markers_sides", "text_edge_mm", "clip_border_width_mm",
+    "clip_content_mode", "clip_text", "clip_text_font", "clip_text_size_mm",
+    "clip_image_path", "clip_image_rotation", "clip_image_scale",
+    "clip_image_offset_x_mm", "clip_image_offset_y_mm", "clip_flip_180",
+    "clip_border_free_space", "nolimit", "strip_pattern", "patch_pattern"))
 
 
 def comparable_recipe_values(d: dict) -> dict:
     """An i1iO recipe's ``to_dict()`` as the preset bar compares it: the
     fields the chart reads, the spacer width the chart uses (0 = the table's
     own, `table_facts.SPACER_MM`)."""
-    out = {k: v for k, v in d.items() if k not in UNREAD_RECIPE_FIELDS}
+    out = {k: v for k, v in d.items() if k in READ_RECIPE_FIELDS}
     try:
         if float(out.get("spacer_width_mm") or 0.0) == F.SPACER_MM.value:
             out["spacer_width_mm"] = 0.0

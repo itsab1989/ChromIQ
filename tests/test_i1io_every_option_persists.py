@@ -387,10 +387,14 @@ def test_guided_keeps_its_i1io_controls(chart_tab, attr):
 
 # ---- the preset bar's "modified" --------------------------------------------
 
-def test_the_fields_the_chart_does_not_read_are_none_of_the_options():
-    from workflow.i1io.chart import UNREAD_RECIPE_FIELDS
-    assert not set(UNREAD_RECIPE_FIELDS) & set(KEPT)
-    assert set(UNREAD_RECIPE_FIELDS) <= set(NOT_AN_I1IO_OPTION)
+def test_the_preset_bar_compares_every_option():
+    from workflow.i1io.chart import READ_RECIPE_FIELDS
+    assert set(KEPT) <= READ_RECIPE_FIELDS
+    # greyed and shown-only fields are not compared
+    for name in ("patch_area_align", "chart_text_bold", "chart_text_align",
+                 "text_edge_clip_mm", "use_instrument_margins", "pscale",
+                 "layout_mode", "area_ratio", "stamp_command"):
+        assert name not in READ_RECIPE_FIELDS
 
 
 def _modified(tab):
