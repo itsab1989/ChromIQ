@@ -3340,8 +3340,10 @@ class MeasureManager(QObject):
         if signals and left_on:
             return tr(
                 "[Engine] Instrument lights (beta): on. The i1Pro 2 shows a "
-                "softly pulsing white while it waits for you and keeps it on "
-                "while you measure, as X-Rite's i1Profiler does. After a "
+                "softly pulsing white while it waits for you. As X-Rite's "
+                "i1Profiler does, ChromIQ sends it no off command before a "
+                "reading: the instrument most likely dims its lights by "
+                "itself while it measures. After a "
                 "reading it blinks green twice when ChromIQ accepted it, and "
                 "red twice when ChromIQ asks you to look at the screen or to "
                 "read it again. While it calibrates, its lights are off.")
@@ -3355,8 +3357,10 @@ class MeasureManager(QObject):
         if left_on:
             return tr(
                 "[Engine] Instrument lights (beta): on. The i1Pro 2 shows a "
-                "softly pulsing white while it waits for you and keeps it on "
-                "while you measure, as X-Rite's i1Profiler does. While it "
+                "softly pulsing white while it waits for you. As X-Rite's "
+                "i1Profiler does, ChromIQ sends it no off command before a "
+                "reading: the instrument most likely dims its lights by "
+                "itself while it measures. While it "
                 "calibrates, its lights are off.")
         return tr(
             "[Engine] Instrument lights (beta): on. The i1Pro 2 shows "

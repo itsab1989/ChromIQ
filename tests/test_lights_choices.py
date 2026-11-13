@@ -165,8 +165,8 @@ def _manager():
     (False, "off", ["shows white while it waits"]),
     (True, "off", ["softly pulsing white", "green twice", "red twice",
                    "calibrates or measures, its lights are off"]),
-    (False, "on", ["keeps it on while you measure", "i1Profiler"]),
-    (True, "on", ["keeps it on while you measure", "green twice",
+    (False, "on", ["no off command before a", "dims its lights by"]),
+    (True, "on", ["no off command before a", "green twice",
                   "While it calibrates, its lights are off"]),
 ])
 def test_the_session_line_says_what_was_chosen(qapp, signals, reading, needles):
