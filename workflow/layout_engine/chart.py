@@ -311,6 +311,10 @@ def build_chart(
     #: (`workflow.i1io.chart.fixed_build_kwargs`, `sheet_slots`). No other
     #: instrument reads it.
     i1io_crosses: bool = True,
+    #: i1iO only: Manual's "Patch area alignment" chosen for the i1iO ("" =
+    #: the i1iO's own, `workflow.i1io.chart.align_of`). No other instrument
+    #: reads it.
+    i1io_align: str = "",
 ) -> ChartResult:
     """Full chart build: write ``out_base.ti2`` + page TIFF(s) + strip geometry.
 
@@ -357,6 +361,8 @@ def build_chart(
             "draw_indicators": draw_indicators,
             "row_indicators": row_indicators,
             "indicator_size_mm": indicator_size_mm,
+            "spacer_width": spacer_width,
+            _i1io_chart.ALIGN_KEY: i1io_align,
             _i1io_chart.CROSSES_KEY: i1io_crosses})
         _i1io_chart.sheet_size(paper)
         (patch_w, patch_h, pscale, sscale, spacer_on, spacer_mode,
@@ -441,6 +447,7 @@ def build_chart(
         return instruments.geom_from_build_kwargs({
         # the i1iO's labels as asked for, past the fixed settings above
         **({_i1io_chart.LABELS_KEY: _i1io_labels,
+            _i1io_chart.ALIGN_KEY: patch_area_align,
             _i1io_chart.CROSSES_KEY: _i1io_crosses} if _i1io else {}),
         "instrument": instrument, "paper": paper, "hflag": hflag,
         "hex_flat_top": hex_flat_top,

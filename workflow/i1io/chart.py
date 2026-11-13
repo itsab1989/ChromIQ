@@ -143,14 +143,16 @@ def fixed_build_kwargs(kw: dict) -> dict:
     out.update(
         patch_w=across, patch_h=along, pscale=1.0, sscale=1.0,
         spacer_on=mode != "none", spacer_mode=mode,
-        spacer_width=F.SPACER_MM.value if mode != "none" else None,
+        spacer_width=(F.spacer_width_mm(kw.get("spacer_width"), along)
+                      if mode != "none" else None),
         inter_patch=inter_patch, strip_gap=strip_gap, edge_spacers=False,
         margins=margins, use_instrument_margins=True,
         layout_mode="patch_first",
-        # centred between the crosses; without them the block starts at the
-        # patch numbers and what is left over goes to the table's bottom
-        # edge, where the text line is (`free_text_plan`)
-        patch_area_align="center" if crosses else "center-left",
+        # Manual's "Patch area alignment" when a person chose one for the
+        # i1iO (ALIGN_KEY); else centred between the crosses, and without
+        # them at the patch numbers, so what is left over goes to the
+        # table's bottom edge, where the text line is (`free_text_plan`)
+        patch_area_align=align_of(kw, crosses),
         density=1, cm_stagger=False, max_strip=None, offset_x=0.0,
         offset_y=0.0, nolpcbord=True, nolimit=True, clip_band=0.0,
         clip_content_mode="off", helper_markers=False, chart_text="",
@@ -173,6 +175,20 @@ def fixed_build_kwargs(kw: dict) -> dict:
 
 #: The build-kwargs key for "Aiming crosses" (Manual, Guided, recipes).
 CROSSES_KEY = "i1io_crosses"
+
+#: The build-kwargs key for Manual's "Patch area alignment" chosen for the
+#: i1iO (`Recipe.i1io_align`); absent or "" = the i1iO's own default.
+ALIGN_KEY = "i1io_align"
+
+
+def align_of(kw: dict, crosses: bool) -> str:
+    """Where the patch block sits: the alignment chosen for the i1iO, else
+    `table_facts.ALIGN_WITH_CROSSES` / `ALIGN_WITHOUT_CROSSES`."""
+    asked = str(kw.get(ALIGN_KEY) or "")
+    if asked in F.ALIGNMENTS:
+        return asked
+    return (F.ALIGN_WITH_CROSSES.value if crosses
+            else F.ALIGN_WITHOUT_CROSSES.value)
 
 #: What a chart's files record as the thing to aim at (`.ti2` keyword
 #: CHROMIQ_I1IO_AIM and the side file's "aim"). A chart that records nothing

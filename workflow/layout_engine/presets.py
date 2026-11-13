@@ -217,6 +217,12 @@ class LayoutRecipe:
     #: an i1iO recipe that switches them off, so every other recipe's dict and
     #: build kwargs are the ones they were.
     i1io_crosses: bool = True
+    #: Manual's "Patch area alignment" as a person chose it for the i1iO
+    #: ("" = the i1iO's own: centred between the crosses, or at the patch
+    #: numbers without them, `workflow.i1io.chart.align_of`). Its own field,
+    #: not `patch_area_align`, which an i1iO recipe carried over from the
+    #: previous instrument while the box was greyed. Written only when set.
+    i1io_align: str = ""
     # Layout strategy (#93, Knut). "patch_first" (default) = size the patches
     # (above) and fit as many as possible to the page. "area_first" = fit a
     # target grid into the usable area and SIZE the patches to fill it:
@@ -455,6 +461,8 @@ class LayoutRecipe:
             d.pop("fd9_clip_border", None)
         if self.instrument != "IO2" or self.i1io_crosses:
             d.pop("i1io_crosses", None)
+        if self.instrument != "IO2" or not self.i1io_align:
+            d.pop("i1io_align", None)
         d[HIDES_PATCH_CONTROLS_KEY] = True      # B8-1570; not a field
         # Left out at 0, so a recipe that does not move its labels sideways
         # writes exactly the dict it wrote before the field existed (see the
@@ -534,6 +542,7 @@ class LayoutRecipe:
             bit16=bool(d.get("bit16", False)), compression=d.get("compression", "lzw"),
             export_pdf=bool(d.get("export_pdf", False)),
             i1io_crosses=bool(d.get("i1io_crosses", True)),
+            i1io_align=str(d.get("i1io_align") or ""),
             show_strip_indicators=bool(d.get("draw_indicators", True)),
             show_row_indicators=(None if d.get("row_indicators") is None
                                  else bool(d.get("row_indicators"))),
@@ -819,6 +828,9 @@ class LayoutRecipe:
         # The i1iO's crosses, only when switched off (see the field).
         if self.instrument == "IO2" and not self.i1io_crosses:
             kw["i1io_crosses"] = False
+        # The alignment chosen for the i1iO, only when chosen (see the field).
+        if self.instrument == "IO2" and self.i1io_align:
+            kw["i1io_align"] = self.i1io_align
         # Only when it moves anything, so the kwargs of every chart that does
         # not use it are the ones it had before the field existed.
         if self.strip_label_offset_x_mm:

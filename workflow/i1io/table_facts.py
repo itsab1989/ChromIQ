@@ -449,6 +449,31 @@ def gaps_mm(strip_gap: "float | None" = None,
             min(max(i, 0.0), GAP_MAX_FRACTION.value * length))
 
 
+def spacer_width_mm(asked: "float | None" = None,
+                    patch_along: "float | None" = None) -> float:
+    """The width of the spacer between two patches of a strip on an i1iO
+    chart: Manual's "Spacer width" (0 or None = SPACER_MM), never narrower
+    than SPACER_MM (the i1Pro's own spacer, which the scan's patch edges are
+    found by) and never wider than GAP_MAX_FRACTION of the patch length
+    (i1Profiler's rule for what lies between two patches)."""
+    length = patch_along or PATCH_ALONG_MM.value
+    w = float(asked) if asked else SPACER_MM.value
+    return min(max(w, SPACER_MM.value),
+               max(SPACER_MM.value, GAP_MAX_FRACTION.value * length))
+
+
+#: Where the patch block sits in the space the margins leave, when nobody
+#: chose ("" in Manual's "Patch area alignment" for the i1iO): centred
+#: between the crosses; without them at the patch numbers, so what is left
+#: over goes to the table's bottom edge, where the text line is
+#: (`chart.free_text_plan`). Any of the nine places keeps every run, mark
+#: and label inside the margins, which are what keep them clear.
+ALIGN_WITH_CROSSES = Fact("center", "ours", OURS)
+ALIGN_WITHOUT_CROSSES = Fact("center-left", "ours", OURS)
+ALIGNMENTS = ("top-left", "top-center", "top-right", "center-left", "center",
+              "center-right", "bottom-left", "bottom-center", "bottom-right")
+
+
 def patch_size_mm(along: "float | None" = None,
                   across: "float | None" = None) -> "tuple[float, float]":
     """The patch size an i1iO chart is laid out with: *along* x *across* when
