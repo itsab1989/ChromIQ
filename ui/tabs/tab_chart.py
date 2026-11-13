@@ -4029,6 +4029,25 @@ def fd9_instrument_bullet() -> str:
 
 
 
+def i1io_instrument_bullet() -> str:
+    """The i1iO's bullet in Guided's Instrument (i). Only shown while i1iO
+    support (Preferences > Beta) is on."""
+    return tr(
+        "  •  i1iO 2 + i1Pro 2 (X-Rite): a motorised scanning table that "
+        "moves your i1Pro 2 over the chart by itself. The chart is made for "
+        "the table: a landscape A4 or Letter sheet, patches of 9.5 × 8 mm in "
+        "rows along the long side, blank paper at both ends of every row so "
+        "the arm can speed up and slow down, three numbered aiming marks in "
+        "the corners (1 top left, 2 bottom left, 3 bottom right) and an arrow "
+        "that shows which edge goes towards the back of the table. Lay the "
+        "sheet with that edge away from you. This version can make these "
+        "charts but cannot measure with the table yet; the Measure tab tells "
+        "you what you can do today. Only the i1iO 2 with an i1Pro 2 is "
+        "supported: other i1iO tables and other instruments on the arm are "
+        "not supported yet. If you own one, please tell us in the project's "
+        "GitHub issues. i1iO support is a beta (Preferences → Beta).")
+
+
 def _without_choice(params: dict, value: str) -> dict:
     """*params* (parameters.yaml, translated) with the choice *value* and its
     label removed from every choice list that offers it.
@@ -7257,12 +7276,17 @@ class TabChart(QWidget):
         # instrument, but for these devices the layout is recomputed by an
         # external tool (i1Profiler) — so there's nothing to optimise here.
         from workflow.fd9.support import fd9_enabled
+        from workflow.i1io.support import i1io_enabled
         for code, label in INSTRUMENT_LABELS.items():
             if code in EXTERNAL_INSTRUMENTS:
                 continue
             # The FD-9 is a Beta (Preferences > Beta, restart to apply): off,
             # the list is exactly 4.3.21's.
             if code == "FD9" and not fd9_enabled():
+                continue
+            # The i1iO table is a Beta too (Preferences > Beta, restart to
+            # apply): off, the list is exactly 4.3.32's.
+            if code == "IO2" and not i1io_enabled():
                 continue
             self._instr_combo.addItem(label, code)
         self._instr_combo.currentIndexChanged.connect(self._update_patch_count)
@@ -7315,7 +7339,9 @@ class TabChart(QWidget):
             "engine, and can only be read by ChromIQ — standard ArgyllCMS "
             "chartread does not know this instrument and will refuse the "
             "chart.") + (("\n\n" + fd9_instrument_bullet())
-                         if fd9_enabled() else ""),
+                         if fd9_enabled() else "")
+            + (("\n\n" + i1io_instrument_bullet())
+               if i1io_enabled() else ""),
             inner,
             min_width=600,
         ))
@@ -19886,6 +19912,14 @@ class TabChart(QWidget):
                     sizes.append(current)
             except (ValueError, TypeError, AttributeError):
                 current = "137x300"
+        elif instr == "IO2":
+            # The i1iO's sheets: landscape, inside the arm's reach
+            # (`workflow.i1io.chart.GUIDED_PAPERS`). Only reachable with i1iO
+            # support on: the entry is not in the list otherwise.
+            from workflow.i1io.chart import GUIDED_PAPERS
+            sizes = list(GUIDED_PAPERS)
+            if current not in sizes:
+                current = sizes[0]
         for size in sizes:
             if size not in excluded:
                 self._paper_combo.addItem(paper_display_label(size), size)
@@ -22190,7 +22224,8 @@ class TabChart(QWidget):
             # The memory below holds what the TAB wanted, before the carry,
             # so a repeat with nothing changed still reads nothing.
             from workflow.fd9.support import fd9_enabled
-            if fd9_enabled():
+            from workflow.i1io.support import i1io_enabled
+            if fd9_enabled() and i1io_enabled():
                 at_load = None
                 screen = (wanted, ui_state)    # the carry does nothing then
             else:
@@ -22508,6 +22543,18 @@ class TabChart(QWidget):
             from workflow.fd9.support import fd9_enabled, target_names_fd9
             fingerprint = str(getattr(store, "dir", store))
             self._fd9_off_screens().pop(fingerprint, None)
+            # The same for an i1iO table target (a Beta too): its own
+            # snapshot, the same carry rules (`workflow.beta_chart_carry`).
+            from workflow.i1io.support import i1io_enabled, target_names_i1io
+            if not i1io_enabled() and target_names_i1io(stored, ui_state):
+                from workflow.i1io.support import off_snapshot
+                from workflow.per_target_settings import snapshot
+                meta = store.load_meta()
+                self._fd9_off_screens()[fingerprint] = off_snapshot(
+                    snapshot(self), self._collect_ui_state(),
+                    getattr(meta, "create_chart_settings", None),
+                    getattr(meta, "create_chart_ui", None))
+                return
             if fd9_enabled() or not target_names_fd9(stored, ui_state):
                 return
             from workflow.fd9.support import Fd9OffSnapshot
@@ -22544,7 +22591,6 @@ class TabChart(QWidget):
         at_load = self._fd9_off_screens().get(fingerprint)
         if at_load is None:
             return None
-        from workflow.fd9.support import chart_names_fd9
         chart = None
         for name in ("chart_ti2", "ti2"):
             try:
@@ -22553,7 +22599,8 @@ class TabChart(QWidget):
                 chart = None
             if chart is not None:
                 break
-        if chart is not None and chart_names_fd9(chart) is False:
+        # The snapshot knows its own instrument's chart (FD-9 or i1iO).
+        if chart is not None and at_load.chart_names(chart) is False:
             self._fd9_off_screens().pop(fingerprint, None)
             return None
         return at_load

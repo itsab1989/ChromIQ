@@ -6677,6 +6677,27 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # this far (`_on_start` hands it to the FD-9 worker); with it off, the
         # chart cannot be measured and M-FD9-SUPPORT-OFF says how to change
         # that, instead of offering to "correct" a name that is right.
+        # An X-Rite i1iO table chart (a Beta), read HERE for the same reason:
+        # no chart is read for it that 4.3.32 did not read. On, the table
+        # cannot be driven yet and M-I1IO-NOT-YET says what can be done
+        # today; off, M-I1IO-SUPPORT-OFF says how to turn it on. Never the
+        # repair below, which would rename it an i1Pro strip chart.
+        from workflow.i1io.support import is_i1io_instrument_name
+        if is_i1io_instrument_name(name):
+            from workflow.i1io.support import i1io_enabled
+            if i1io_enabled():
+                self._i1io_not_yet_window()
+                self._log.appendPlainText(tr(
+                    "Measurement not started: this chart is for the X-Rite "
+                    "i1iO table, and measuring with the table is not "
+                    "available in this version of ChromIQ yet."))
+            else:
+                self._i1io_support_off_window()
+                self._log.appendPlainText(tr(
+                    "Measurement not started: this chart is for the X-Rite "
+                    "i1iO table, and i1iO support is switched off in "
+                    "Preferences → Beta."))
+            return True
         from workflow.fd9.support import is_fd9_instrument_name
         if is_fd9_instrument_name(name):
             self._fd9_support_off_window()
@@ -6718,6 +6739,30 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if not self._repair_target_instrument(chart, name):
             return True
         return False           # repaired — carry on and measure
+
+    def _i1io_not_yet_window(self) -> None:
+        """M-I1IO-NOT-YET on screen: the text is the catalogue's."""
+        from workflow import measurement_messages as M
+        self._i1io_window(*M.M_I1IO_NOT_YET.render())
+
+    def _i1io_support_off_window(self) -> None:
+        """M-I1IO-SUPPORT-OFF on screen: the text is the catalogue's."""
+        from workflow import measurement_messages as M
+        self._i1io_window(*M.M_I1IO_SUPPORT_OFF.render())
+
+    def _i1io_window(self, title: str, body: str) -> None:
+        from PyQt6.QtWidgets import QMessageBox
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        from ui.widgets import (fit_message_box_buttons,
+                                keep_message_box_inside_the_work_area)
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        fit_message_box_buttons(box)
+        box.exec()
 
     def _fd9_support_off_window(self) -> None:
         """M-FD9-SUPPORT-OFF on screen: the text is the catalogue's."""

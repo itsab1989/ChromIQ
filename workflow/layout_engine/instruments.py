@@ -98,7 +98,17 @@ TARGET_INSTRUMENT_NAME: dict[str, str] = {
     # named "CR30". A CR30 chart is readable only by ChromIQ's own chartread
     # fork. The UI must say so at chart creation and at measure time.
     "CR30": "CR30",
+    # X-Rite i1iO 2 with an i1Pro 2 (a Beta, Preferences > Beta): the files
+    # carry the table FAMILY, and the generation is recorded beside it
+    # (`workflow.i1io.support`), so a later i1iO / i1iO 3 entry writes the
+    # same name and no chart already made is renamed.
+    "IO2": "X-Rite i1iO",
 }
+
+#: The schema of an i1iO chart's side file (`<stem>.i1io.json`), which the
+#: `.ti2` names in its `CHROMIQ_I1IO_LAYOUT` keyword so a chart that lost its
+#: side file is recognised as one.
+I1IO_LAYOUT_SCHEMA = 1
 
 # Instruments ChromIQ never lays out itself (delegated to i1Profiler).
 DELEGATED = {"isis"}
@@ -108,6 +118,13 @@ def _fd9_on() -> bool:
     instrument the layout engine does not know, as in 4.3.21 (review r2 S2)."""
     from workflow.fd9.support import fd9_enabled
     return fd9_enabled()
+
+
+def _i1io_on() -> bool:
+    """i1iO support (Preferences > Beta). Off, an i1iO chart is a chart for an
+    instrument the layout engine does not know, as in 4.3.32."""
+    from workflow.i1io.support import i1io_enabled
+    return i1io_enabled()
 
 
 def _inch(mm: float) -> float:
@@ -747,6 +764,11 @@ def geom_from_build_kwargs(kw: dict) -> Geom:
     the margins laid out (Knut's model, #93). The clamp that once sat here,
     ``margins_fit`` and a ``thresholds`` argument, was only ever called with
     ``None`` and was removed in 4.3.19 (review r1 N8)."""
+    if kw.get("instrument") == "IO2" and _i1io_on():
+        # What an i1iO chart fixes, for the capacity estimate exactly as for
+        # the build (`workflow.i1io.chart.fixed_build_kwargs`).
+        from workflow.i1io.chart import fixed_build_kwargs
+        kw = fixed_build_kwargs(kw)
     if kw.get("instrument") == "FD9" and _fd9_on():
         from workflow.fd9.chart import patch_dimensions
         w, h, gap = patch_dimensions(kw.get("patch_w") or 8.0, kw.get("patch_h"),
@@ -874,6 +896,26 @@ def _build_base(
                        pspa=1.0, txhisl=0.0, rlwi=0.0, mxpprow=25,
                        padlrow=True, margin_t=38.0, margin_b=33.0,
                        margin_l=15.0, margin_r=15.0)
+    if key == "IO2" and not _i1io_on():
+        # i1iO support (Preferences > Beta) is off: 4.3.32 knew no i1iO.
+        raise ValueError(f"unknown instrument {key!r}")
+    if key == "IO2":
+        # A grid for the i1iO table, made for scanning along the rows: no
+        # spacers, no labels, no leader or trailer of the strip readers. The
+        # patch size and the margins are the table's own and are FIXED here
+        # and in `workflow.i1io.chart.fixed_build_kwargs` (every number from
+        # `workflow.i1io.table_facts`, with its source).
+        from workflow.i1io import table_facts as F
+        t_, r_, b_, l_ = F.margins_mm()
+        along, across = F.PATCH_ALONG_MM.value, F.PATCH_ACROSS_MM.value
+        return replace(_build_base("SS", spacer_on=False), key="IO2",
+                       target_name=TARGET_INSTRUMENT_NAME["IO2"],
+                       plen=across, pwid=along, rrsp=along, pspa=0.0,
+                       txhisl=0.0, rlwi=0.0, lspa=0.0, padlrow=True,
+                       margin_t=t_, margin_r=r_, margin_b=b_, margin_l=l_,
+                       extra_keywords=(
+                           ("CHROMIQ_I1IO_LAYOUT", str(I1IO_LAYOUT_SCHEMA)),
+                           ("CHROMIQ_I1IO_TABLE", "i1iO 2")))
     if key == "CM" and hflag and density < 2:
         density = 2   # back-compat: hflag meant "rig" (double density)
     if key in DELEGATED:

@@ -173,74 +173,14 @@ def carry_fd9_chart_keys(wanted: "dict | None", ui_state: "dict | None",
     target's chart is no longer an FD-9 chart or the user has generated into
     it, so ``meta.json`` then describes the chart that is really there. With
     the Beta on this does nothing: the tab writes its own FD-9 values."""
-    users: set = set()
-    if fd9_enabled():
-        return users
-    if not (isinstance(screen_at_load, tuple) and len(screen_at_load) == 2):
-        return users
-    own = own if isinstance(own, (set, frozenset)) else set()
-    loaded_params, loaded_ui = screen_at_load
-    loaded_params = loaded_params if isinstance(loaded_params, dict) else {}
-    loaded_ui = loaded_ui if isinstance(loaded_ui, dict) else {}
-    _missing = object()
-
-    def _split(where, keys, was, now, at_load):
-        """(carried, changed) for one block: carried while unchanged and
-        not the user's, and only while its instrument is carried too."""
-        carried, changed = set(), set()
-        for key in keys:
-            if key not in was:
-                continue
-            if (where, key) in own:
-                changed.add(key)
-            elif now.get(key, _missing) == at_load.get(key, _missing):
-                carried.add(key)
-            else:
-                changed.add(key)
-        instrument = "printtarg-i" if where == "params" else "instrument"
-        if instrument not in carried:
-            changed |= carried
-            carried = set()
-        return carried, changed
-
-    params = stored_params if isinstance(stored_params, dict) else {}
-    if isinstance(wanted, dict) and _names_fd9(
-            (params.get("printtarg-i") or {}).get("value")):
-        carried, changed = _split("params", CHART_PARAM_KEYS, params, wanted,
-                                  loaded_params)
-        for key in carried:
-            wanted[key] = params[key]
-        users |= {("params", key) for key in changed}
-    ui = stored_ui if isinstance(stored_ui, dict) else {}
-    if not isinstance(ui_state, dict):
-        return users
-    for block, keys in (("guided", CHART_GUIDED_KEYS),
-                        ("engine_recipe", CHART_RECIPE_KEYS)):
-        was = ui.get(block)
-        now = ui_state.get(block)
-        if not (isinstance(was, dict) and _names_fd9(was.get("instrument"))):
-            continue
-        if not isinstance(now, dict):
-            continue
-        at_load = loaded_ui.get(block)
-        at_load = at_load if isinstance(at_load, dict) else {}
-        carried, changed = _split(block, keys, was, now, at_load)
-        users |= {(block, key) for key in changed}
-        if not carried:
-            continue
-        # In the STORED order, so a block written again (the user switched
-        # Guided/Manual and back, say) comes out byte for byte as it was.
-        ordered = {}
-        for key in was:
-            if key in carried:
-                ordered[key] = was[key]
-            elif key in now:
-                ordered[key] = now[key]
-        for key in now:
-            if key not in ordered and key not in carried:
-                ordered[key] = now[key]
-        ui_state[block] = ordered
-    return users
+    # The rules live in `workflow.beta_chart_carry` since the i1iO became a
+    # second Beta instrument; the FD-9's behaviour is exactly what it was.
+    from workflow.beta_chart_carry import carry_chart_keys
+    return carry_chart_keys("FD9", fd9_enabled(), wanted, ui_state,
+                            stored_params, stored_ui, screen_at_load, own,
+                            param_keys=CHART_PARAM_KEYS,
+                            guided_keys=CHART_GUIDED_KEYS,
+                            recipe_keys=CHART_RECIPE_KEYS)
 
 
 class Fd9OffSnapshot:
@@ -263,6 +203,10 @@ class Fd9OffSnapshot:
         this write files as the user's; pass them to :meth:`written`."""
         return carry_fd9_chart_keys(wanted, ui_state, self.stored[0],
                                     self.stored[1], self.screen, self.own)
+
+    def chart_names(self, path: Any) -> "bool | None":
+        """Whether the target's chart is still an FD-9 chart."""
+        return chart_names_fd9(path)
 
     def written(self, users: set) -> None:
         """The write that carried went to disk: its user keys are theirs."""

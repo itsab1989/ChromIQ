@@ -580,6 +580,41 @@ M_FD9_SUPPORT_OFF = _m(
     "is changed.",
     approved=False)
 
+#: Start pressed on an X-Rite i1iO table chart while i1iO support (Beta) is
+#: on: this version makes charts for the table but cannot drive it yet.
+M_I1IO_NOT_YET = _m(
+    "M-I1IO-NOT-YET",
+    "Measuring with the i1iO table is not available yet",
+    "This chart was made for the X-Rite i1iO scanning table. This version "
+    "of ChromIQ can make charts for the table, but it cannot measure with "
+    "it yet: reading with the table is being prepared for a later version. "
+    "So this chart cannot be measured here at the moment. Nothing is wrong "
+    "with the chart, and you can keep the sheets you have printed for "
+    "later.\n\n"
+    "What you can do today, if you have i1Profiler 3.8.6 or an older "
+    "version: when the chart was made, ChromIQ also saved this run's "
+    "patches as i1Profiler patch-set files in the run's “exports” folder. "
+    "Open one of them in i1Profiler, print the chart that i1Profiler lays "
+    "out for the table (i1Profiler cannot read ChromIQ's own i1iO sheet), "
+    "measure it there with the table and save the measurement. Then bring "
+    "it back with Tools → “Convert i1Profiler → TI3”, and build the profile "
+    "as usual.",
+    approved=False)
+
+#: Start pressed on an X-Rite i1iO table chart while i1iO support is off.
+M_I1IO_SUPPORT_OFF = _m(
+    "M-I1IO-SUPPORT-OFF",
+    "Turn on i1iO support to see what you can do with this chart",
+    "This chart was made for the X-Rite i1iO scanning table. i1iO support "
+    "is a beta, and it is switched off at the moment, so ChromIQ does not "
+    "measure this chart.\n\n"
+    "To find out what you can do with it, open Preferences, go to the Beta "
+    "tab, tick “X-Rite i1iO support (beta)” and restart ChromIQ. Then press "
+    "Start again.\n\n"
+    "Nothing is wrong with the chart, and nothing you have already measured "
+    "is changed.",
+    approved=False)
+
 #: Start pressed and no address has been entered in "FD-9 setup…".
 M_FD9_NO_ADDRESS = _m(
     "M-FD9-NO-ADDRESS",
@@ -9912,6 +9947,7 @@ CATALOGUE = {m.id: m for m in (
     M_CR30_HOW_TO_MEASURE, M_CR30_READ_FAILED,
     M_CR30_LEARN_TILE, M_CR30_TRIGGER_NOT_ARMED,
     M_INSTRUMENT_BUSY,
+    M_I1IO_NOT_YET, M_I1IO_SUPPORT_OFF,
     M_FD9_SUPPORT_OFF, M_FD9_NO_ADDRESS, M_FD9_INSERT_SHEET, M_FD9_NEXT_PAGE,
     M_FD9_NO_CONNECTION, M_FD9_WRONG_FIRMWARE, M_FD9_MARKS_NOT_FOUND,
     M_FD9_SHEET_STILL_INSIDE, M_FD9_RESUME_REFUSED, M_FD9_FAILED,

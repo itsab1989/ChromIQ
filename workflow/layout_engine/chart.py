@@ -334,6 +334,31 @@ def build_chart(
     printer, and ``applycal`` then calibrated it a second time.
     """
     from workflow.fd9.support import fd9_enabled
+    # An X-Rite i1iO chart (a Beta): the engine's own grid with the settings
+    # an i1iO chart fixes (`workflow.i1io.chart.fixed_build_kwargs`), and its
+    # marks and side file added below. Off, the engine refuses "IO2" as an
+    # unknown instrument (`instruments._build_base`), as 4.3.32 did.
+    from workflow.i1io.support import i1io_enabled, is_i1io_code
+    _i1io = is_i1io_code(instrument) and i1io_enabled()
+    if _i1io:
+        from workflow.i1io import chart as _i1io_chart
+        _f = _i1io_chart.fixed_build_kwargs({})
+        _i1io_chart.sheet_size(paper)
+        (patch_w, patch_h, pscale, sscale, spacer_on, spacer_mode,
+         spacer_width, inter_patch, strip_gap, edge_spacers, margins,
+         use_instrument_margins, layout_mode, patch_area_align, hflag,
+         hex_flat_top, density, cm_stagger, max_strip, offset_x, offset_y,
+         nolpcbord, nolimit, clip_content_mode, draw_indicators,
+         row_indicators, helper_markers, chart_text, stamp_command,
+         side_stamp) = (_f[k] for k in (
+            "patch_w", "patch_h", "pscale", "sscale", "spacer_on",
+            "spacer_mode", "spacer_width", "inter_patch", "strip_gap",
+            "edge_spacers", "margins", "use_instrument_margins",
+            "layout_mode", "patch_area_align", "hflag", "hex_flat_top",
+            "density", "cm_stagger", "max_strip", "offset_x", "offset_y",
+            "nolpcbord", "nolimit", "clip_content_mode", "draw_indicators",
+            "row_indicators", "helper_markers", "chart_text",
+            "stamp_command", "side_stamp"))
     if instrument == "FD9" and fd9_enabled():
         from workflow.fd9.chart import build_chart as build_fd9
         return build_fd9(ti1_path, out_base, paper=paper, dpi=dpi,
@@ -631,6 +656,12 @@ def build_chart(
         collect_device_geom=(target.n_channels >= 4 or export_pdf
                              or raster.is_cmy_target(target)),
     )
+    if _i1io:
+        # The marks, the arrow, the page and the name, after the check that
+        # the table can read this layout at all, and before anything is saved.
+        _i1io_chart.check_sheet(geom, layout, w_mm, h_mm)
+        _i1io_chart.draw_furniture(render, w_mm, h_mm, dpi,
+                                   name=project or Path(out_base).name)
     if target.n_channels >= 4:
         device_pages = raster.build_device_pages(render, printed, bit16=bit16)
         tiff_paths = raster.save_separated_tiffs(
@@ -675,6 +706,13 @@ def build_chart(
         "patch_ink_top_px": render.patch_ink_top_px,
         "strips": rects, "patches": patch_rects,
     }, indent=2), encoding="utf-8")
+
+    if _i1io:
+        _i1io_chart.write_side_file(
+            artefact(stem, ".i1io.json"), geom=geom, layout=layout, w=w_mm,
+            h=h_mm, paper=paper, dpi=dpi, seed=seed, randomize=randomize,
+            strip_pattern=strip_pattern, patch_pattern=patch_pattern,
+            label_rule=label_rule, designed=len(target.patches))
 
     cht_paths: list[Path] | None = None
     if emit_cht:

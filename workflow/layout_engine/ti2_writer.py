@@ -89,6 +89,10 @@ def build_ti2_text(
     add(f'PAPER_SIZE "{paper_w_mm:.1f}x{paper_h_mm:.1f}"')
     add(f'{seed_kw[0]} "{seed_kw[1]}"')
     for kw, val in geom.extra_keywords:
+        # A keyword of ChromIQ's own is DECLARED, as CGATS wants (the i1iO's
+        # `CHROMIQ_I1IO_*`); ArgyllCMS's own (HEXAGON_PATCHES) never was.
+        if kw.startswith("CHROMIQ_"):
+            add(f'KEYWORD "{kw}"')
         add(f'{kw} "{val}"')
     add(f'STEPS_IN_PASS "{layout.steps_in_pass}"')
     # PASSES_IN_STRIPS2 is the per-page STRIP (pass) count, comma-separated, just

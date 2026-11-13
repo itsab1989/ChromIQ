@@ -186,7 +186,7 @@ _PRINTTARG_CAL_MISMATCH = re.compile(
 
 
 # Instruments the ChromIQ layout engine can lay out itself (issue #93).
-ENGINE_INSTRUMENTS = {"i1", "p3", "CM", "SS", "CR30", "FD9"}
+ENGINE_INSTRUMENTS = {"i1", "p3", "CM", "SS", "CR30", "FD9", "IO2"}
 
 # Instruments the engine is the ONLY route for - printtarg cannot lay them out
 # at all, so the printtarg path is not a fallback, it is a fault (#159).
@@ -201,7 +201,7 @@ ENGINE_INSTRUMENTS = {"i1", "p3", "CM", "SS", "CR30", "FD9"}
 # to printtarg once per probe. So the CR30 is forced onto the engine in
 # _should_use_engine, and _build_printtarg_args REFUSES to build an argv for it
 # rather than emitting a flag printtarg will reject.
-ENGINE_ONLY_INSTRUMENTS = {"CR30", "FD9"}
+ENGINE_ONLY_INSTRUMENTS = {"CR30", "FD9", "IO2"}
 
 # printtarg's ColorMunki triple-density trick (-ii1) uses -a1.3 by default; the
 # engine's native extra-high-density (pscale 1.0) reproduces exactly that size,

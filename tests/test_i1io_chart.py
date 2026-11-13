@@ -1,0 +1,262 @@
+"""THE i1iO TABLE CHART (Beta): made for scanning along the rows, readable by
+position, and named so the Measure tab knows it.
+
+Basti, 2026-11-13: an "i1iO" entry in Create Chart that makes a chart with
+ChromIQ's own layout engine ("we have absolute freedom when it comes to
+creating charts"), and ``.ti2`` files that carry the instrument name. What
+is held here:
+
+* the geometry: every patch, every row's run-in and run-out and every aiming
+  mark lies on the sheet and inside the arm's reach, nothing touches a mark,
+  the rows run along the long side, and the capacity is the geometry's own;
+* the marks are where the side file says, in the order the person aims;
+* the files: ``TARGET_INSTRUMENT "X-Rite i1iO"``, the declared keywords, the
+  side file, and every patch of the side file at the place the ``.strips.json``
+  draws it, so the measuring step can drive the arm from the side file alone;
+* separated (CMYK) charts carry the marks in the black ink only.
+"""
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+
+@pytest.fixture(autouse=True)
+def i1io_on():
+    from workflow.i1io import support
+    before = support._latched
+    support.set_enabled_for_this_process(True)
+    try:
+        yield
+    finally:
+        support._latched = before
+
+
+def _ti1(path: Path, n: int, rep: str = "RGB") -> Path:
+    fields = {"RGB": ["RGB_R", "RGB_G", "RGB_B"],
+              "CMYK": ["CMYK_C", "CMYK_M", "CMYK_Y", "CMYK_K"]}[rep]
+    rows = []
+    for i in range(n):
+        dev = [((i * (7 + 3 * k)) % 101) * 1.0 for k in range(len(fields))]
+        rows.append(f"{i + 1} " + " ".join(f"{v:.4f}" for v in dev)
+                    + " 50.0 50.0 50.0")
+    path.write_text(
+        "CTI1\n\n"
+        'DESCRIPTOR "Argyll Calibration Target chart information 1"\n'
+        f'COLOR_REP "{rep}"\n\n'
+        f"NUMBER_OF_FIELDS {len(fields) + 4}\nBEGIN_DATA_FORMAT\n"
+        "SAMPLE_ID " + " ".join(fields) + " XYZ_X XYZ_Y XYZ_Z\n"
+        "END_DATA_FORMAT\n\n"
+        f"NUMBER_OF_SETS {n}\nBEGIN_DATA\n" + "\n".join(rows)
+        + "\nEND_DATA\n", encoding="utf-8")
+    return path
+
+
+def _build(tmp_path, n, paper="A4R", rep="RGB", **kw):
+    from workflow.layout_engine import chart
+    ti1 = _ti1(tmp_path / "c.ti1", n, rep)
+    result = chart.build_chart(ti1, tmp_path / "c", instrument="IO2",
+                               paper=paper, dpi=150, **kw)
+    side = json.loads((tmp_path / "c.i1io.json").read_text(encoding="utf-8"))
+    return result, side
+
+
+@pytest.mark.parametrize("paper,cols,rows", [("A4R", 28, 21),
+                                             ("LetterR", 26, 22)])
+def test_the_capacity_is_the_geometrys_own(paper, cols, rows):
+    """588 patches on A4 landscape and 572 on Letter landscape, computed from
+    the patch size and the margins of `table_facts`, not looked up."""
+    from workflow.layout_engine import geometry, instruments, papers
+    g = instruments.geom_from_build_kwargs({"instrument": "IO2",
+                                            "paper": paper})
+    w, h = papers.dimensions_mm(paper)
+    assert geometry.patches_per_sheet(g, w, h) == cols * rows
+    assert (g.pwid, g.plen, g.pspa) == (9.5, 8.0, 0.0)
+
+
+def test_whatever_a_recipe_asks_for_the_i1io_keeps_its_own_layout():
+    """Labels, spacers, a clip border, helper markers, other margins or
+    patch sizes asked of an i1iO chart change nothing: its capacity is the
+    same as with nothing asked."""
+    from workflow.layout_engine import geometry, instruments, papers
+    w, h = papers.dimensions_mm("A4R")
+    plain = geometry.patches_per_sheet(instruments.geom_from_build_kwargs(
+        {"instrument": "IO2", "paper": "A4R"}), w, h)
+    noisy = geometry.patches_per_sheet(instruments.geom_from_build_kwargs(
+        {"instrument": "IO2", "paper": "A4R", "patch_w": 6.0, "patch_h": 6.0,
+         "spacer_on": True, "inter_patch": 2.0, "margins": (3, 3, 3, 3),
+         "row_indicators": True, "helper_markers": True,
+         "layout_mode": "area_first", "clip_content_mode": "notes",
+         "clip_band": 26.0}), w, h)
+    assert noisy == plain
+
+
+@pytest.mark.parametrize("paper", ["A4R", "LetterR"])
+@pytest.mark.parametrize("n", [1, 37, 588, 1300])
+def test_every_patch_run_and_mark_is_on_the_sheet_and_clear(tmp_path, paper,
+                                                            n):
+    from workflow.i1io import table_facts as F
+    from workflow.i1io.chart import mark_zone, marks
+    result, side = _build(tmp_path, n, paper)
+    w, h = side["paper_mm"]
+    assert w <= F.REACH_MM.value[0] and h <= F.REACH_MM.value[1]
+    zones = [mark_zone(m) for m in marks(w, h)]
+    seen = 0
+    for page in side["pages"]:
+        boxes = []
+        for row in page["rows"]:
+            x0, x1 = row["run_mm"]
+            assert x0 >= F.RUN_EDGE_MM.value - 1e-6
+            assert x1 <= w - F.RUN_EDGE_MM.value + 1e-6
+            centres = [p["centre_mm"] for p in row["patches"]]
+            # a row runs along X, every patch at the row's height
+            assert all(abs(c[1] - row["y_mm"]) < 1e-6 for c in centres)
+            assert centres == sorted(centres)
+            assert centres[0][0] - 9.5 / 2 - x0 == pytest.approx(F.RUN_MM.value)
+            for cx, cy in centres:
+                box = (cx - 4.75, cy - 4.0, cx + 4.75, cy + 4.0)
+                assert 0 <= box[0] and box[2] <= w and 0 <= box[1] and box[3] <= h
+                for z in zones:
+                    assert not (box[0] < z[2] and z[0] < box[2]
+                                and box[1] < z[3] and z[1] < box[3])
+                boxes.append(box)
+                seen += 1
+        # no two patches overlap
+        boxes.sort()
+        for a, b in zip(boxes, boxes[1:]):
+            assert not (a[0] < b[2] - 1e-6 and b[0] < a[2] - 1e-6
+                        and a[1] < b[3] - 1e-6 and b[1] < a[3] - 1e-6)
+    assert seen == result.layout.total_patches
+    assert side["page_count"] == result.layout.pages
+
+
+def test_the_marks_are_in_the_order_the_person_aims(tmp_path):
+    _, side = _build(tmp_path, 50)
+    w, h = side["paper_mm"]
+    got = [(m["number"], m["corner"], m["centre_mm"]) for m in side["marks_mm"]]
+    assert got == [(1, "top-left", [10.0, 10.0]),
+                   (2, "bottom-left", [10.0, h - 10.0]),
+                   (3, "bottom-right", [w - 10.0, h - 10.0])]
+
+
+def test_the_marks_are_printed_where_the_side_file_says(tmp_path):
+    """The centre pixel of every mark's cross is ink, and so is a point on
+    each arm; the top-right corner, where there is no mark, is blank."""
+    from PIL import Image
+    result, side = _build(tmp_path, 50)
+    img = np.asarray(Image.open(result.tiff_paths[0]).convert("L"))
+    s = 150 / 25.4
+    for m in side["marks_mm"]:
+        cx, cy = m["centre_mm"]
+        for dx, dy in ((0, 0), (3.5, 0), (-3.5, 0), (0, 3.5), (0, -3.5)):
+            assert img[round((cy + dy) * s), round((cx + dx) * s)] < 100
+    w, _ = side["paper_mm"]
+    corner = img[: round(20 * s), round((w - 20) * s):]
+    assert corner.min() > 200
+
+
+def test_the_ti2_names_the_family_and_the_table_and_round_trips(tmp_path):
+    from ui.ti2_loader import read_target_instrument
+    from workflow.i1io.support import chart_names_i1io, is_i1io_instrument_name
+    result, side = _build(tmp_path, 40)
+    text = result.ti2_path.read_text(encoding="utf-8")
+    assert 'TARGET_INSTRUMENT "X-Rite i1iO"' in text
+    assert 'KEYWORD "CHROMIQ_I1IO_LAYOUT"\nCHROMIQ_I1IO_LAYOUT "1"' in text
+    assert 'KEYWORD "CHROMIQ_I1IO_TABLE"\nCHROMIQ_I1IO_TABLE "i1iO 2"' in text
+    assert read_target_instrument(result.ti2_path) == "X-Rite i1iO"
+    assert chart_names_i1io(result.ti2_path) is True
+    assert side["instrument"] == "X-Rite i1iO"
+    assert (side["table_model"], side["head_model"]) == ("i1iO 2", "i1Pro 2")
+    for name in ("X-Rite i1iO", "x-rite i1io", '"X-Rite i1iO"', "i1iO 2",
+                 "X-Rite i1iO 3"):
+        assert is_i1io_instrument_name(name)
+    for name in ("GretagMacbeth i1 Pro", "i1iSis", "X-Rite i1iSis 2", "",
+                 None, "i1io2x"):
+        assert not is_i1io_instrument_name(name)
+
+
+def test_the_side_file_and_the_strips_json_agree_patch_for_patch(tmp_path):
+    """The measuring step drives the arm from the side file; the preview
+    draws from `.strips.json`. Both must put every location in one place,
+    and every location must carry the sample the `.ti2` gives it."""
+    from workflow.layout_engine.ti1_reader import read_ti1  # noqa: F401
+    result, side = _build(tmp_path, 300)
+    strips = json.loads((tmp_path / "c.strips.json").read_text())
+    s = strips["dpi"] / 25.4
+    rects = {(r["page"], r["loc"]): r for r in strips["patches"]}
+    ids = {}
+    for line in result.ti2_path.read_text().split("BEGIN_DATA\n", 1)[1].splitlines():
+        if line.startswith("END_DATA"):
+            break
+        tok = line.split()
+        ids[tok[1].strip('"')] = int(tok[0])
+    for page in side["pages"]:
+        for row in page["rows"]:
+            for p in row["patches"]:
+                r = rects[(page["page"] - 1, p["loc"])]
+                cx, cy = p["centre_mm"]
+                assert abs((r["x"] + r["w"] / 2) / s - cx) < 0.5
+                assert abs((r["y"] + r["h"] / 2) / s - cy) < 0.5
+                assert ids[p["loc"]] == p["sample_id"]
+
+
+def test_a_chart_of_several_sheets_has_marks_and_a_page_on_each(tmp_path):
+    from PIL import Image
+    result, side = _build(tmp_path, 700)
+    assert result.layout.pages == 2 and len(result.tiff_paths) == 2
+    s = 150 / 25.4
+    for tif in result.tiff_paths:
+        img = np.asarray(Image.open(tif).convert("L"))
+        for m in side["marks_mm"]:
+            cx, cy = m["centre_mm"]
+            assert img[round(cy * s), round(cx * s)] < 100
+
+
+def test_a_cmyk_chart_carries_the_marks_in_black_ink_only(tmp_path):
+    import tifffile
+    result, side = _build(tmp_path, 60, rep="CMYK")
+    arr = tifffile.imread(str(result.tiff_paths[0]))
+    s = 150 / 25.4
+    cx, cy = side["marks_mm"][0]["centre_mm"]
+    px = arr[round(cy * s), round(cx * s)]
+    assert px[3] > 200 and max(px[:3]) == 0
+
+
+def test_a_portrait_or_oversized_sheet_is_refused():
+    from workflow.i1io.chart import I1ioSheetRefused, sheet_size
+    with pytest.raises(I1ioSheetRefused):
+        sheet_size("A4")
+    with pytest.raises(I1ioSheetRefused):
+        sheet_size("420x297")
+    assert sheet_size("A4R") == (297.0, 210.0)
+
+
+def test_the_pdf_carries_the_marks_too(tmp_path):
+    import fitz
+    result, side = _build(tmp_path, 40, export_pdf=True)
+    with fitz.open(result.pdf_path) as pdf:
+        page = pdf[0]
+        pix = page.get_pixmap(dpi=100)
+        img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(
+            pix.height, pix.width, pix.n)[..., :3].mean(axis=2)
+    s = 100 / 25.4
+    for m in side["marks_mm"]:
+        cx, cy = m["centre_mm"]
+        assert img[round(cy * s), round(cx * s)] < 120
+
+
+def test_every_number_has_a_source_and_a_confidence():
+    from workflow.i1io import table_facts as F
+    record = F.as_record()
+    assert {"REACH_MM", "APERTURE_MM", "PATCH_ALONG_MM", "RUN_MM",
+            "MARK_INSET_MM"} <= set(record)
+    for name, fact in record.items():
+        assert fact["source"], name
+        assert fact["confidence"] in (F.VERIFIED, F.PUBLISHED, F.LIKELY,
+                                      F.OURS), name

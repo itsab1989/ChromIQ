@@ -300,6 +300,10 @@ DEFAULTS: dict[str, Any] = {
     #: domain, so CHROMIQ_SETTINGS_FILE sandboxes it too). Only read or
     #: written while FD-9 support is on.
     "fd9_host":                  "",
+    #: Beta (Settings -> Beta): X-Rite i1iO scanning table, i1iO 2 with an
+    #: i1Pro 2. This first step makes charts only and sends nothing to any
+    #: table. Off = exactly 4.3.32. Restart to apply (`workflow.i1io.support`).
+    "i1io_support_beta":         False,
     # Qt's QSplashScreen burns ~1 s inside its own show() waiting on a
     # condition that never becomes true; the plain window paints the same
     # pixmap in 9-66 ms. This restores the old one if it ever matters.
