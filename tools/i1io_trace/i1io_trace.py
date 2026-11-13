@@ -360,13 +360,15 @@ def install_signals(table: tbl.Table) -> dict:
     return old
 
 
-def environment() -> str:
+def environment(real: bool) -> str:
     mac = platform.mac_ver()[0]
-    try:
-        import usb
-        pyusb = getattr(usb, "__version__", "unknown version")
-    except ImportError:
-        pyusb = "not installed"
+    pyusb = "not used (simulated table)"
+    if real:
+        try:
+            import usb
+            pyusb = getattr(usb, "__version__", "unknown version")
+        except ImportError:
+            pyusb = "not installed"
     return (f"{platform.system()} {mac or platform.release()} {platform.machine()}; "
             f"Python {platform.python_version()}; pyusb {pyusb}")
 
@@ -406,7 +408,7 @@ def main(argv=None, sim_table=None, console=None) -> int:
 
     log("INFO", f"{TITLE}; {'REAL table' if args.real else 'SIMULATED table'}; "
                 f"{datetime.datetime.now().isoformat(timespec='seconds')}")
-    log("INFO", environment())
+    log("INFO", environment(args.real))
     log("INFO", "allowed lines: " + " ".join(v.decode().rstrip("\r") for v in tbl.WIRE.values())
         + f"; at most {tbl.MAX_LINES} lines and {tbl.MAX_MOTIONS} movements")
     log("INFO", "the table's serial number is never read by this program")

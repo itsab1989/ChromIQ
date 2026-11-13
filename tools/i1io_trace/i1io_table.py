@@ -51,6 +51,12 @@ class NotAvailable(Exception):
 
 # ---- checksum and framing ------------------------------------------------------
 
+def _short(raw: bytes) -> str:
+    """Unexpected bytes are described, never copied whole into a message or the
+    log: an unasked memory answer could hold the table's serial number."""
+    return f"{len(raw)} bytes, starting {bytes(raw[:4])!r}"
+
+
 def checksum(body: str) -> str:
     """Two lower-case hex digits that make the byte sum of *body* + them 0."""
     return f"{(-sum(body.encode('ascii'))) & 0xFF:02x}"
@@ -185,6 +191,11 @@ QUICK_TIMEOUT = 1.0
 MOVE_TIMEOUT = 8.0
 HOME_TIMEOUT = 12.0
 
+#: Before every command the program listens this long for anything unasked.
+QUIET_CHECK_S = 0.05
+#: The longest answer line to any of the seven lines (":$a1" + 10 + checksum).
+LONGEST_REPLY = 17
+
 #: After opening, the table must be silent this long before the first command.
 DRAIN_QUIET_S = 1.0
 DRAIN_SETTLE_S = 15.0
@@ -311,19 +322,32 @@ class Table:
         try:
             line = raw.decode("ascii")
         except UnicodeDecodeError:
-            raise ProtocolError(f"non-text bytes from the table: {raw!r}") from None
+            raise ProtocolError(f"non-text bytes from the table ({_short(raw)})") from None
         if not line.isprintable():
-            raise ProtocolError(f"unexpected characters from the table: {raw!r}")
+            raise ProtocolError(f"unexpected characters from the table ({_short(raw)})")
+        if len(raw) > LONGEST_REPLY:
+            raise ProtocolError(f"a reply longer than any the program asks for ({_short(raw)})")
         self.log("RECV", line)
         return line
+
+    def _quiet_check(self) -> None:
+        """Before every command the table must have nothing more to say: an
+        extra or late line means the conversation is out of step."""
+        try:
+            self._buf += self.t.read(QUIET_CHECK_S)
+        except TransportError as exc:
+            raise self._doubt(f"the USB link failed: {exc}") from None
+        if self._buf:
+            raise self._doubt(f"the table sent something nobody asked for ({_short(self._buf)})")
 
     def exchange(self, key: str, timeout: float) -> Reply:
         """Send WIRE[key], read its two answers. Any fault closes the session."""
         line = WIRE[key]
-        if self._buf:
-            raise self._doubt(f"the table sent something nobody asked for: {self._buf!r}")
+        if self.closed_reason is not None:
+            raise Doubt(f"not sending: {self.closed_reason}")
         self.busy += 1
         try:
+            self._quiet_check()
             cid = self._write(line)
             start = self.t.now()
             parse_ack(self._read_line(start + QUICK_TIMEOUT), cid)
@@ -439,10 +463,10 @@ class Table:
                 self._stop_if_requested()
             self.exchange(step.key, step.timeout)
             got = self.position()
-            mode = self.arm_mode()
             if not step.end.contains(got):
                 raise self._doubt(f"after step {step.number} the arm reports {got}, not where "
                                   "it was sent: something may be in its way")
+            mode = self.arm_mode()
             if mode != "00":
                 raise self._doubt(f"after step {step.number} the motors no longer hold the "
                                   f"arm (mode {mode})")
@@ -593,6 +617,26 @@ def check_descriptors(dev) -> None:
                            "Nothing was sent to it.")
 
 
+#: Where Homebrew puts libusb (Apple silicon, then Intel). macOS's own Python
+#: does not look there by itself.
+LIBUSB_PATHS = ("/opt/homebrew/lib/libusb-1.0.dylib", "/usr/local/lib/libusb-1.0.dylib")
+
+
+def libusb_backend(libusb1):
+    """pyusb's libusb 1.0 backend: the library pyusb finds by itself, else
+    Homebrew's. Loading the library touches no device."""
+    import os
+    backend = libusb1.get_backend()
+    if backend is not None:
+        return backend
+    for path in LIBUSB_PATHS:
+        if os.path.exists(path):
+            backend = libusb1.get_backend(find_library=lambda name, path=path: path)
+            if backend is not None:
+                return backend
+    return None
+
+
 def open_table() -> FtdiUsb:
     """Find and open the table, or raise NotAvailable. Sends no table command;
     only the FTDI set-up after the descriptor check."""
@@ -601,14 +645,19 @@ def open_table() -> FtdiUsb:
             "On Windows, X-Rite's own driver owns the i1iO, and this test program cannot "
             "open it next to that driver. Please run it on a Mac instead.")
     try:
+        import usb.backend.libusb1
         import usb.core
         import usb.util
     except ImportError:
         raise NotAvailable(
             "The real table needs the Python package pyusb and the libusb library: "
             "see 'What to install' in the README. (Without --real nothing is needed.)") from None
+    backend = libusb_backend(usb.backend.libusb1)
+    if backend is None:
+        raise NotAvailable("pyusb is installed but finds no libusb library. "
+                           "On a Mac: 'brew install libusb'.")
     try:
-        found = list(usb.core.find(find_all=True, idVendor=VID, idProduct=PID))
+        found = list(usb.core.find(find_all=True, idVendor=VID, idProduct=PID, backend=backend))
     except usb.core.NoBackendError:
         raise NotAvailable("pyusb is installed but finds no libusb library. "
                            "On a Mac: 'brew install libusb'.") from None

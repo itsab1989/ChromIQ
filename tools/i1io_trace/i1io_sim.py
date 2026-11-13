@@ -87,6 +87,8 @@ class SimTable:
         self._out: "list[tuple[float, bytes]]" = []
         self._busy_until = 0.0
         self._faults: "list[Fault]" = []
+        self._faults_at: "dict[int, Fault]" = {}
+        self.on_command = None           # test hook: called with the command's index
         self.received: "list[str]" = []
         self.motions = 0
 
@@ -104,6 +106,12 @@ class SimTable:
         if kind not in FAULT_KINDS:
             raise ValueError(kind)
         self._faults.append(Fault(kind, cid, value))
+
+    def inject_at(self, index: int, kind: str, value: float = 0.0) -> None:
+        """The same faults, for the command with this index (0 = the first)."""
+        if kind not in FAULT_KINDS:
+            raise ValueError(kind)
+        self._faults_at[index] = Fault(kind, None, value)
 
     @property
     def moving(self) -> bool:
@@ -163,7 +171,10 @@ class SimTable:
             raise SimViolation(f"{cid} sent while the arm is still moving: {line!r}")
         self._check(cid, args)
         t0 = max(self.clock, self._busy_until)
-        fault = self._fault_for(cid)
+        index = len(self.received) - 1
+        if self.on_command is not None:
+            self.on_command(index)
+        fault = self._faults_at.pop(index, None) or self._fault_for(cid)
         kind = fault.kind if fault else None
         if kind == "unplug":
             self.unplugged = True
