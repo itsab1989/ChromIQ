@@ -103,9 +103,8 @@ receive. It writes a log file ending in `-simulated.txt`.
 ## 2. What to install for the real table
 
 The real run needs the **libusb** library and the Python package **pyusb**.
-libusb comes from Homebrew. If you do not have Homebrew, please either install
-it first from its website (https://brew.sh), or do not run the real test; the
-practice run works without it.
+libusb comes from Homebrew. If you do not have Homebrew, please run only the
+practice test and tell us; we will find another way.
 
 ```
 HOMEBREW_NO_AUTO_UPDATE=1 brew install libusb
@@ -134,12 +133,12 @@ not to remove it later. The last two lines put pyusb into a small folder called
 
 ## 3. Preparing the table
 
-* **Quit i1Profiler, and X-Rite's helper programs for the duration of the
-  test.** If X-Rite's software has the table open while this program talks to
-  it, nobody knows what happens. The program checks for `i1Profiler`, its
-  menu-bar helper `i1ProfilerTray` and X-Rite Device Services `xrdd`, refuses
-  to start while any of them runs, and tells you how to quit them. Restarting
-  your Mac afterwards starts them all again as before.
+* **Quit i1Profiler** (i1Profiler menu, Quit i1Profiler). The program refuses
+  to start while it runs, because two programs must never talk to the table at
+  the same time. X-Rite's background helpers (i1ProfilerTray, X-Rite Device
+  Services) can keep running; you do not need to stop them, and please do not
+  try to stop them by hand. If the program then says the table cannot be
+  opened, nothing was sent: send us the log and stop there.
 * The **arm must be at its resting place**, with the motors holding it, as
   i1Profiler leaves it.
 * **Leave the i1Pro 2 seated in the arm's holder and connected**, exactly as
@@ -175,7 +174,7 @@ pressing Enter. Pressing Enter alone, or a single letter, never answers.
   never starts a movement. A movement that has already begun is not stopped by
   Ctrl-C: only the power switch or plug stops it.
 * **Switch the table off or pull its power plug.** Always allowed, at any
-  moment; it is the way to stop a movement that has begun. Pulling the USB
+  moment; it will most likely stop a movement that has begun. Pulling the USB
   cable alone does not do that: the table has its own power supply.
 
 If the program stops and the arm is not at its resting place, the arm stays

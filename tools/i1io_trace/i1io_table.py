@@ -240,7 +240,12 @@ MAX_LINES = 12
 # ---- the session ------------------------------------------------------------------------
 
 class Doubt(Exception):
-    """Something was not as expected. From now on NOTHING more is sent."""
+    """Something was not as expected. From now on NOTHING more is sent.
+    *plain*: a whole sentence for the tester, said as it is."""
+
+    def __init__(self, reason: str, plain: "str | None" = None):
+        super().__init__(reason)
+        self.plain = plain
 
 
 class Stopped(Exception):
@@ -285,14 +290,14 @@ class Table:
             self.closed_reason = reason
             self.log("STOP", f"nothing more is sent: {reason}")
 
-    def _doubt(self, reason: str) -> Doubt:
+    def _doubt(self, reason: str, plain: "str | None" = None) -> Doubt:
         self.close_for_sending(reason)
-        return Doubt(reason)
+        return Doubt(reason, plain)
 
     def _stop_if_requested(self) -> None:
         if self.stop_requested:
             self.close_for_sending("stopped by you")
-            raise Stopped("stopped by you")
+            raise Stopped("You stopped the program. Nothing more is sent to the table.")
 
     # ---- the wire ---------------------------------------------------------------------
     def _write(self, line: bytes) -> str:
@@ -496,8 +501,18 @@ class Table:
             self.exchange(step.key, step.timeout)
             got = self.position(honour_stop=False)
             if not step.end.contains(got):
+                where = f"After the homing the arm reports X {got[0]}, Y {got[1]}"
+                if step.key == "home" and HOME_CLUSTER.contains(got):
+                    raise self._doubt(
+                        f"after the homing the arm reports {got}, inside the home area but "
+                        "outside the tight box",
+                        f"{where}, a little different from what i1Profiler's table reported "
+                        "right after homing (Y 0 to 2). The arm is at its resting place. That "
+                        "is a useful result; nothing more is sent.")
                 raise self._doubt(f"after step {step.number} the arm reports {got}, not where "
-                                  "it was sent: something may be in its way")
+                                  "it was sent: something may be in its way",
+                                  f"{where}, which is not its resting place. Nothing more is "
+                                  "sent." if step.key == "home" else None)
             mode = self.arm_mode(honour_stop=False)
             if mode != "00":
                 raise self._doubt(f"after step {step.number} the motors no longer hold the "
@@ -746,12 +761,12 @@ def open_table() -> FtdiUsb:
     backend = libusb_backend(usb.backend.libusb1)
     if backend is None:
         raise NotAvailable("pyusb is installed but finds no libusb library. "
-                           "On a Mac: 'brew install libusb'.")
+                           "On a Mac: 'HOMEBREW_NO_AUTO_UPDATE=1 brew install libusb'.")
     try:
         found = list(usb.core.find(find_all=True, idVendor=VID, idProduct=PID, backend=backend))
     except usb.core.NoBackendError:
         raise NotAvailable("pyusb is installed but finds no libusb library. "
-                           "On a Mac: 'brew install libusb'.") from None
+                           "On a Mac: 'HOMEBREW_NO_AUTO_UPDATE=1 brew install libusb'.") from None
     if not found:
         raise NotAvailable("No i1iO table (USB 0971:2004) was found. Please check that its "
                            "power supply is switched on and that its USB cable goes straight "

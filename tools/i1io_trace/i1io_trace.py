@@ -37,28 +37,27 @@ TITLE = (f"ChromIQ i1iO test program {tbl.TOOL_VERSION} (a first sign of life: o
 CONFIRM_SENTENCE = "i understand that this moves my table"
 HANDS = "Keep your hands and everything else away from the arm while it moves."
 PLUG = ("If anything looks or sounds wrong while the arm moves, switch the table off at its "
-        "power switch or pull its power plug. That is always allowed, and it is the way to "
+        "power switch or pull its power plug. That is always allowed, and it will most likely "
         "stop a movement that has begun. Pulling the USB cable alone does not do that: the "
         "table has its own power supply, so a movement it has started most likely goes on.")
 PLUG_SHORT = "If it sounds or looks wrong, switch the table off at its power switch."
 STOP_PROMISE = ("Ctrl-C works at any time: after Ctrl-C has been noticed, the program never "
                 "starts a movement. A movement that has already begun is not stopped by "
                 "Ctrl-C; only the power switch or plug stops it.")
-#: X-Rite programs that may talk to the table or to its instrument. The names
-#: are those installed on a Mac with i1Profiler 3.8: the app, its menu-bar
-#: helper (/Library/LaunchAgents/com.xrite.i1Profiler.tray.plist) and X-Rite
-#: Device Services (/Library/LaunchDaemons/com.xrite.device.xrdd.plist).
-XRITE_NAMES = ("i1Profiler", "i1ProfilerTray", "xrdd")
-XRITE_HOWTO = (
-    "How to quit them, only for this test:\n"
-    "  i1Profiler: quit the app (i1Profiler menu, Quit).\n"
-    "  i1ProfilerTray (the menu-bar helper): in the Terminal,\n"
-    "    launchctl bootout gui/$(id -u) /Library/LaunchAgents/com.xrite.i1Profiler.tray.plist\n"
-    "  xrdd (X-Rite Device Services): in the Terminal (asks for your password),\n"
-    "    sudo launchctl bootout system /Library/LaunchDaemons/com.xrite.device.xrdd.plist\n"
-    "Afterwards, restart your Mac: that starts all of them again as before. (These commands "
-    "were written from the files i1Profiler installs; they were not tried on a Mac with a "
-    "table. If one does not work, restarting the Mac still undoes everything.)")
+#: The X-Rite program the real run refuses to work beside: i1Profiler itself.
+#: In the recordings only i1Profiler's own sessions ever sent the table a line.
+I1PROFILER = "i1Profiler"
+#: X-Rite's background helpers, installed with i1Profiler 3.8 and normally
+#: running all the time: the menu-bar helper and X-Rite Device Services. They
+#: are only logged (and named if the table cannot be opened), never refused.
+XRITE_HELPERS = ("i1ProfilerTray", "xrdd")
+I1PROFILER_RUNNING = (
+    "i1Profiler is running. Please quit it (i1Profiler menu, Quit i1Profiler) and start "
+    "this program again. Nothing was sent. X-Rite's background helpers (i1ProfilerTray, "
+    "X-Rite Device Services) can keep running; you do not need to stop them, and please do "
+    "not try to stop them by hand. If this program then says the table cannot be opened, "
+    "nothing was sent: send us the log and stop there.")
+STOPPED = "You stopped the program. Nothing more is sent to the table."
 RECOVERY = ("To bring the arm back to its resting place, start i1Profiler once and let it "
             "connect to the table: it sends the arm home by itself. Then quit i1Profiler. "
             "Please do not start this program again until i1Profiler has brought the arm home.")
@@ -215,7 +214,7 @@ def plan_text() -> str:
                 f"  {_bare('position'):20} position, must be in X {e.xmin}..{e.xmax}, "
                 f"Y {e.ymin}..{e.ymax}",
                 f"  {_bare('arm_mode'):20} arm_mode, must still be 00"]
-    out += ["", f"At most {tbl.MAX_LINES} lines and {tbl.MAX_MOTIONS} movements per run. "
+    out += ["", f"At most {tbl.MAX_LINES} lines and {tbl.MAX_MOTIONS} movement per run. "
             "After any stop or any doubt, nothing more is sent at all."]
     return "\n".join(out)
 
@@ -236,7 +235,7 @@ class Run:
         ans = self.ui.ask(question, choices)
         self.note(key, ans)
         if ans == "stop":
-            raise Stopped("You stopped the run.")
+            raise Stopped(STOPPED)
         return ans
 
     def go(self) -> int:
@@ -270,10 +269,10 @@ class Run:
                 if go != "yes":
                     raise Stopped(f"You stopped before step {step.number}.")
                 if self.other_program():
-                    self.d.close_for_sending("an X-Rite program was started during the run")
-                    raise Stopped("An X-Rite program has started, so the program stops here: "
-                                  "two programs must never talk to the table at the same "
-                                  "time.")
+                    self.d.close_for_sending("i1Profiler was started during the run")
+                    raise Stopped("i1Profiler has started, so the program stops here: two "
+                                  "programs must never talk to the table at the same time. "
+                                  "Nothing more is sent to the table.")
                 got = self.d.motion(step)
                 self.done_steps = step.number
                 self.ui.say(f"The table reports that it has finished step {step.number}; "
@@ -308,10 +307,10 @@ class Run:
             return 1
         except KeyboardInterrupt:
             self.d.close_for_sending("stopped with Ctrl-C")
-            self.ui.say("Stopped with Ctrl-C.")
+            self.ui.say(STOPPED)
             return 1
         except Doubt as exc:
-            self.ui.say(f"The program stopped because {exc}.")
+            self.ui.say(exc.plain or f"The program stopped because {exc}.")
             return 2
         except Exception as exc:      # a bug or a library surprise: say so, never a traceback
             self.d.close_for_sending(f"an unexpected error ({type(exc).__name__})")
@@ -378,16 +377,15 @@ def _pgrep(*args) -> "list[str]":
     return [line for line in out.stdout.splitlines() if line.strip()]
 
 
-def xrite_running() -> "list[str]":
-    """Which of X-Rite's programs (by exact name) are running now. Any of them
-    could have the table or its instrument open, and the outcome of two
-    programs talking to the table at once is unknown, so the real run refuses."""
-    return [name for name in XRITE_NAMES if _pgrep("-x", "-i", name)]
-
-
 def i1profiler_running() -> bool:
-    """Kept for the step check: any X-Rite program counts."""
-    return bool(xrite_running())
+    """i1Profiler itself talking to the table at the same time would be two
+    masters: the real run refuses while it runs (by its exact name)."""
+    return bool(_pgrep("-x", "-i", I1PROFILER))
+
+
+def xrite_helpers_running() -> "list[str]":
+    """X-Rite's background helpers running now (logged, never refused)."""
+    return [name for name in XRITE_HELPERS if _pgrep("-x", "-i", name)]
 
 
 class Lock:
@@ -487,9 +485,22 @@ def main(argv=None, sim_table=None, console=None) -> int:
         return 2
 
     stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    log_path = Path(args.log or f"i1io-trace-{stamp}{'' if args.real else '-simulated'}.txt")
+    suffix = "" if args.real else "-simulated"
     try:
-        fh = log_path.open("w", encoding="utf-8")
+        if args.log:
+            log_path = Path(args.log)
+            fh = log_path.open("w", encoding="utf-8")
+        else:
+            # a new name even for two runs in the same second: never overwrite a log
+            for n in range(1, 1000):
+                log_path = Path(f"i1io-trace-{stamp}{'' if n == 1 else f'-{n}'}{suffix}.txt")
+                try:
+                    fh = log_path.open("x", encoding="utf-8")
+                    break
+                except FileExistsError:
+                    continue
+            else:
+                raise FileExistsError(log_path.name)
     except OSError as exc:
         print(f"The log file {log_path.name} cannot be written here ({type(exc).__name__}). "
               "Please start the program from a folder you can write to. Nothing was sent.")
@@ -536,13 +547,9 @@ def main(argv=None, sim_table=None, console=None) -> int:
                 return 2
             log("INFO", usb_info)
             ui.say(RISKS)
-            running = xrite_running()
-            if running:
-                log("INFO", f"X-Rite programs running: {running}")
-                ui.say("These X-Rite programs are running: " + ", ".join(running) + ". "
-                       "Please quit them first: if X-Rite's software has the table open "
-                       "while this program talks to it, nobody knows what happens. "
-                       "Nothing was sent.\n" + XRITE_HOWTO)
+            if i1profiler_running():
+                log("INFO", "i1Profiler is running: refused")
+                ui.say(I1PROFILER_RUNNING)
                 return 2
             if not lock.acquire():
                 ui.say("Another copy of this program is running. Please let it finish first. "
@@ -561,16 +568,20 @@ def main(argv=None, sim_table=None, console=None) -> int:
                                CONFIRM_SENTENCE):
                 ui.say("That was not the sentence, so nothing was sent to the table.")
                 return 1
-            running = xrite_running()       # one may have started while he read
-            if running:
-                ui.say("These X-Rite programs are running now: " + ", ".join(running) + ". "
-                       "Please quit them first. Nothing was sent.\n" + XRITE_HOWTO)
+            if i1profiler_running():        # it may have been opened while he read
+                log("INFO", "i1Profiler is running: refused")
+                ui.say(I1PROFILER_RUNNING)
                 return 2
-            log("INFO", "X-Rite programs running: none")
+            helpers = xrite_helpers_running()
+            log("INFO", f"X-Rite background helpers running: {helpers or 'none'}")
             try:
                 transport = tbl.open_table()
             except (tbl.NotAvailable, tbl.TransportError) as exc:
                 ui.say(str(exc))
+                if helpers:
+                    ui.say("X-Rite's background helpers were running: " + ", ".join(helpers)
+                           + ". Nothing was sent: please send us the log and stop there; do "
+                           "not try to stop them by hand.")
                 return 2
         else:
             from i1io_sim import SimTable, SimTransport

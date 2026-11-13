@@ -456,7 +456,7 @@ def test_the_homing_is_sent_only_from_the_resting_place_and_must_end_there():
     sim.inject_at(7, "blocked", 0.5)                 # stops halfway (Y 15)
     t = tbl.Table(sim_mod.SimTransport(sim))
     t.open_checks()
-    with pytest.raises(tbl.Doubt, match="not where it was sent"):
+    with pytest.raises(tbl.Doubt, match="after the homing the arm reports"):
         t.motion(step)
 
 
@@ -754,11 +754,12 @@ class _Tty:
         return True
 
 
-def _real_doors(monkeypatch, opened, usb_ok=True, xrite=()):
+def _real_doors(monkeypatch, opened, usb_ok=True, i1profiler=False, helpers=()):
     monkeypatch.setattr(sys, "platform", "darwin")
     monkeypatch.setattr(sys, "stdin", _Tty())
     monkeypatch.setattr(prog.Lock, "acquire", lambda self: True)
-    monkeypatch.setattr(prog, "xrite_running", lambda: list(xrite))
+    monkeypatch.setattr(prog, "i1profiler_running", lambda: i1profiler)
+    monkeypatch.setattr(prog, "xrite_helpers_running", lambda: list(helpers))
 
     def usb():
         if not usb_ok:
@@ -807,23 +808,37 @@ def test_real_mode_asks_its_questions_and_the_sentence_before_opening(tmp_path, 
     assert not opened
 
 
-@pytest.mark.parametrize("name", prog.XRITE_NAMES)
-def test_real_mode_refuses_while_an_xrite_program_runs_and_says_how_to_quit_it(
-        tmp_path, monkeypatch, name):
+def test_real_mode_refuses_only_while_i1profiler_itself_runs(tmp_path, monkeypatch):
     opened = []
-    _real_doors(monkeypatch, opened, xrite=(name,))
+    _real_doors(monkeypatch, opened, i1profiler=True)
     con = prog.AutoConsole(lambda k, t: None)
     log = tmp_path / "l.txt"
     assert prog.main(["--real", "--log", str(log)], console=con) == 2
     text = log.read_text(encoding="utf-8")
     assert not opened and con.asked == 0
-    assert name in text and "restart your Mac" in text and "Nothing was sent" in text
+    assert "i1Profiler is running. Please quit it (i1Profiler menu, Quit i1Profiler)" in text
+    assert "please do not try to stop them by hand" in text
 
 
-def test_the_xrite_names_are_the_ones_i1profiler_installs():
-    assert prog.XRITE_NAMES == ("i1Profiler", "i1ProfilerTray", "xrdd")
-    assert "com.xrite.device.xrdd.plist" in prog.XRITE_HOWTO
-    assert "com.xrite.i1Profiler.tray.plist" in prog.XRITE_HOWTO
+def test_xrite_background_helpers_are_logged_never_refused_and_named_if_opening_fails(
+        tmp_path, monkeypatch):
+    opened = []
+    _real_doors(monkeypatch, opened, helpers=("i1ProfilerTray", "xrdd"))
+    log = tmp_path / "l.txt"
+    code = prog.main(["--real", "--log", str(log)], console=prog.AutoConsole(lambda k, t: None))
+    text = log.read_text(encoding="utf-8")
+    assert opened and code == 2                     # it did try to open the table
+    assert "background helpers running: ['i1ProfilerTray', 'xrdd']" in text
+    assert "background helpers were running: i1ProfilerTray, xrdd" in text
+    assert "send us the log and stop there" in text
+
+
+def test_no_instruction_to_stop_system_services_anywhere():
+    for name in SOURCES:
+        src = _source(name)
+        assert "launchctl" not in src and "sudo" not in src, name
+    assert prog.I1PROFILER == "i1Profiler"
+    assert prog.XRITE_HELPERS == ("i1ProfilerTray", "xrdd")
 
 
 def test_real_mode_refuses_while_another_copy_runs(tmp_path, monkeypatch):
@@ -835,7 +850,7 @@ def test_real_mode_refuses_while_another_copy_runs(tmp_path, monkeypatch):
     assert not opened
 
 
-def test_an_xrite_program_started_during_the_run_stops_it_before_the_homing(tmp_path):
+def test_i1profiler_started_during_the_run_stops_it_before_the_homing(tmp_path):
     calls = []
     sim = sim_mod.SimTable()
     t = tbl.Table(sim_mod.SimTransport(sim))
@@ -1107,3 +1122,85 @@ def test_the_zip_builds_and_its_simulated_run_works_without_chromiq(tmp_path):
     result = json.loads(r.stdout.rsplit("RESULT ", 1)[1])
     assert result == {"code": 0, "bad": []}
     assert "result 0; 10 lines sent, 1 movements" in (work / "run.txt").read_text(encoding="utf-8")
+
+
+# ---- after the second safety re-check ----------------------------------------------------
+
+def test_a_homing_that_ends_in_the_home_area_but_outside_the_tight_box_is_reported_calmly(
+        tmp_path):
+    sim = sim_mod.SimTable()
+    orig = sim._execute                             # the reading after the homing: Y + 12
+
+    def execute(cid, a, fault, orig=orig, sim=sim):
+        status, data, t = orig(cid, a, fault)
+        if cid == "p0" and sim.motions == 1:
+            x, y = int(data[:4], 16), int(data[4:8], 16)
+            data = f"{x:04X}{(y + 12) & 0xFFFF:04X}"         # Y about 12 to 14
+        return status, data, t
+    sim._execute = execute
+    code, sim, log = _run(tmp_path, sim)
+    assert code == 2
+    assert "a little different from what i1Profiler's table reported right after homing " \
+           "(Y 0 to 2). The arm is at its resting place. That is a useful result; nothing " \
+           "more is sent." in log
+    assert "not its resting place" not in log and "start i1Profiler once" not in log
+    assert "The program stopped because" not in log
+
+
+def test_a_homing_that_ends_outside_the_home_area_says_so_and_gives_the_advice(tmp_path):
+    sim = sim_mod.SimTable()
+    orig = sim._execute
+
+    def execute(cid, a, fault, orig=orig, sim=sim):
+        status, data, t = orig(cid, a, fault)
+        if cid == "p0" and sim.motions == 1:
+            data = f"{1102:04X}{300:04X}"
+        return status, data, t
+    sim._execute = execute
+    code, sim, log = _run(tmp_path, sim)
+    assert code == 2
+    assert "After the homing the arm reports X 1102, Y 300, which is not its resting place" in log
+    assert "start i1Profiler once" in log
+    assert "last reported at its resting place" not in log
+
+
+def test_the_stop_message_is_plain(tmp_path):
+    console = prog.AutoConsole(lambda k, t: None, script={"Send step 1": "stop"})
+    code, sim, log = _run(tmp_path, console=console)
+    assert code == 1
+    console = prog.AutoConsole(lambda k, t: None, script={"Does it rest": "stop"})
+    code, sim, log = _run(tmp_path, console=console)
+    assert "You stopped the program. Nothing more is sent to the table." in log
+    console = prog.AutoConsole(lambda k, t: None, interrupt_at=1)
+    code, sim, log = _run(tmp_path, console=console)
+    assert "You stopped the program. Nothing more is sent to the table." in log
+
+
+def test_the_plan_says_one_movement(capsys):
+    prog.main(["--plan"])
+    assert "1 movement per run" in capsys.readouterr().out
+
+
+def test_two_runs_in_the_same_second_get_two_log_files(tmp_path, monkeypatch):
+    import datetime as dt
+
+    class Frozen(dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 11, 14, 10, 15, 0)
+    monkeypatch.setattr(prog.datetime, "datetime", Frozen)
+    monkeypatch.chdir(tmp_path)
+    for _ in range(2):
+        prog.main(["--auto"], sim_table=sim_mod.SimTable(),
+                  console=prog.AutoConsole(lambda k, t: None))
+    names = sorted(p.name for p in tmp_path.glob("i1io-trace-*.txt"))
+    assert names == ["i1io-trace-20261114-101500-2-simulated.txt",
+                     "i1io-trace-20261114-101500-simulated.txt"]
+
+
+def test_the_power_plug_sentence_keeps_its_hedge():
+    assert "will most likely stop a movement that has begun" in prog.PLUG
+    assert "will most likely stop a movement that has begun" in _source("README.md").replace(
+        "\n", " ")
+    assert "HOMEBREW_NO_AUTO_UPDATE=1 brew install libusb" in _source("i1io_table.py")
+    assert "'brew install libusb'" not in _source("i1io_table.py")
