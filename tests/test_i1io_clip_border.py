@@ -420,3 +420,46 @@ def test_measured_from_preview_judges_against_the_charts_minimums(
     tab._margin_ti2 = off.ti2_path
     assert tab._i1io_chart_minimums(True, (0, 0, 0, 0))[3] == \
         pytest.approx(16.0)
+
+
+@pytest.mark.parametrize("built_with", ["guided", "manual"])
+def test_the_minimums_are_the_displayed_charts_not_the_panels(
+        chart_tab, tmp_path, built_with):
+    """Review R2: a Guided chart was judged against Manual's recipe with
+    Preferences' label style (Bottom 26.4, a false warning). The minimums
+    come from the recipe the DISPLAYED chart records (its channels.json),
+    whatever the panel holds now; the same files when it is reopened."""
+    from PyQt6.QtWidgets import QApplication
+    from workflow.i1io import chart as C
+    from workflow.layout_engine.presets import LayoutRecipe
+    tab = chart_tab
+    # the panel holds a heavy label style (as Preferences gives Manual)
+    tab._switch_mode("manual")
+    tab._init_manual_layout_panel()
+    panel = tab._manual_layout_panel
+    panel.instr.setCurrentIndex(panel.instr.findData("IO2"))
+    QApplication.processEvents()
+    panel.underline_mode.setCurrentIndex(panel.underline_mode.findData("black"))
+    panel.indicator_font.setCurrentIndex(panel.indicator_font.findData("Inter"))
+    QApplication.processEvents()
+    style = (dict(underline_mode="black", indicator_font="Inter",
+                  label_style_explicit=True)
+             if built_with == "manual" else {})
+    rec = LayoutRecipe(instrument="IO2", paper="A4", **style)
+    (tmp_path / "c").mkdir()
+    kw = rec.build_kwargs()
+    for k in ("instrument", "paper", "dpi", "seed"):
+        kw.pop(k, None)
+    result, _side = _build(tmp_path / "c", 300, "A4", **kw)
+    ti2 = result.ti2_path
+    ti2.with_name(ti2.stem + ".channels.json").write_text(json.dumps(
+        {"layout": {"engine": "chromiq", "recipe": rec.to_dict()}}),
+        encoding="utf-8")
+    tab._margin_ti2 = ti2
+    want = C.least_margins_mm({**rec.build_kwargs(), "instrument": "IO2"})
+    got = tab._i1io_chart_minimums(True, (0, 0, 0, 0))
+    assert got == pytest.approx(want)
+    if built_with == "guided":
+        assert got[2] == pytest.approx(21.0)
+    else:
+        assert got[2] > 21.5

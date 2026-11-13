@@ -26968,21 +26968,24 @@ class TabChart(QWidget):
     def _i1io_chart_minimums(self, crosses: bool, plain):
         """The smallest margins ``(top, right, bottom, left)`` of the i1iO
         chart in the preview (review F7: Left showed 16.0 for a chart with a
-        clip border, whose minimum is 32): its clip border from its side
-        file, its labels from the recipe Manual builds with when that is an
-        i1iO one (`workflow.i1io.chart.least_margins_mm`). *plain* when
+        clip border, whose minimum is 32), from the DISPLAYED chart's own
+        files, never from the panel (review R2: a Guided chart was judged
+        against Manual's recipe and Preferences' label style): its labels
+        from the recipe its channels.json records, its clip border from its
+        side file (`workflow.i1io.chart.least_margins_mm`). *plain* when
         anything cannot be read."""
         try:
             from workflow.i1io.chart import CLIP_KEY, least_margins_mm
+            from workflow.layout_engine.presets import LayoutRecipe
             kw = {}
-            if (getattr(self, "_manual_layout_panel", None) is not None
-                    and getattr(self, "_manual_panel_inited", False)):
-                rk = self._current_layout_recipe().build_kwargs()
-                if rk.get("instrument") == "IO2":
-                    kw = dict(rk)
+            ti2 = getattr(self, "_margin_ti2", None)
+            if ti2 is not None:
+                rec = LayoutRecipe.from_channels_json(
+                    str(ti2)[:-4] + ".channels.json")
+                if rec is not None and rec.instrument == "IO2":
+                    kw = dict(rec.build_kwargs())
             kw.update(instrument="IO2", i1io_crosses=bool(crosses))
             kw[CLIP_KEY] = False
-            ti2 = getattr(self, "_margin_ti2", None)
             if ti2 is not None:
                 side = Path(str(ti2)[:-4] + ".i1io.json")
                 if side.is_file():
