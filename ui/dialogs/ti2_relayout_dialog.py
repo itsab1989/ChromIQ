@@ -8075,8 +8075,69 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
         pm = QPixmap(str(path))
         if pm.isNull():
             return
+        # AN i1iO CHART IS SHOWN AS IT LIES ON THE TABLE, here as in every
+        # TiffPreview (the owner, 2026-11-13: one shared rule,
+        # `workflow.i1io.support.display_rotation_for`; 0 for every other
+        # chart, and with i1iO support off nothing is read). Display only:
+        # every rect the dialog keeps stays in the page's own pixels, and
+        # `_image_to_view` / `_view_to_image` turn them for the overlays and
+        # back for the clicks.
+        self._view_rotation = self._rotation_for(path)
+        self._image_size = (pm.width(), pm.height())
+        if self._view_rotation:
+            from PyQt6.QtGui import QTransform
+            pm = pm.transformed(QTransform().rotate(self._view_rotation),
+                                Qt.TransformationMode.FastTransformation)
         self._full_pixmap = pm
         self._rescale_preview()
+
+    @staticmethod
+    def _rotation_for(path) -> int:
+        try:
+            from workflow.i1io.support import display_rotation_for
+            angle = int(display_rotation_for([Path(path)]))
+        except Exception:  # noqa: BLE001 — a display aid never breaks a load
+            log.debug("editor: i1iO rotation failed", exc_info=True)
+            angle = 0
+        return angle if angle in (0, 90, 180, 270) else 0
+
+    def _image_to_view(self, x: float, y: float) -> tuple[float, float]:
+        """A point in the page's own pixels -> the same point on the page as
+        shown (turned clockwise by `_view_rotation`)."""
+        w, h = getattr(self, "_image_size", (0, 0))
+        rot = getattr(self, "_view_rotation", 0)
+        if rot == 90:
+            return h - y, x
+        if rot == 180:
+            return w - x, h - y
+        if rot == 270:
+            return y, w - x
+        return x, y
+
+    def _view_to_image(self, u: float, v: float) -> tuple[float, float]:
+        """Inverse of `_image_to_view`."""
+        w, h = getattr(self, "_image_size", (0, 0))
+        rot = getattr(self, "_view_rotation", 0)
+        if rot == 90:
+            return v, h - u
+        if rot == 180:
+            return w - u, h - v
+        if rot == 270:
+            return w - v, u
+        return u, v
+
+    def _draw_image_rect(self, p, x0: float, y0: float, x1: float,
+                         y1: float) -> None:
+        """Outline the page rect [x0, x1) x [y0, y1) (page pixels) on the
+        preview as shown, inside the white border."""
+        a = self._image_to_view(x0, y0)
+        b = self._image_to_view(x1, y1)
+        vx0, vx1 = sorted((a[0], b[0]))
+        vy0, vy1 = sorted((a[1], b[1]))
+        s = self._preview_scale
+        B = getattr(self, "_preview_border", 0)
+        p.drawRect(int(vx0 * s) + B - 1, int(vy0 * s) + B - 1,
+                   int((vx1 - vx0) * s) + 2, int((vy1 - vy0) * s) + 2)
 
     def _rescale_preview(self) -> None:
         """Scale + compose the cached full-res pixmap onto a white canvas
@@ -8147,13 +8208,10 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
             p.setRenderHint(QPainter.RenderHint.Antialiasing, False)
             p.setBrush(QColor(255, 69, 115, 120))
             p.setPen(QPen(QColor(SPEC_MAGENTA), 2))
-            s = self._preview_scale
             for i in self._sel_spacers:
                 if 0 <= i < len(self._spacers):
                     x0, y0, x1, y1 = self._spacers[i].bbox
-                    p.drawRect(int(x0 * s) + B - 1, int(y0 * s) + B - 1,
-                               int((x1 - x0 + 1) * s) + 2,
-                               int((y1 - y0 + 1) * s) + 2)
+                    self._draw_image_rect(p, x0, y0, x1 + 1, y1 + 1)
             p.end()
         elif (self._mode_patches.isChecked() and self._hl_patches.isChecked()
                 and self._engine_active()):
@@ -8164,15 +8222,14 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
             p.setRenderHint(QPainter.RenderHint.Antialiasing, False)
             p.setBrush(QColor(255, 69, 115, 120))
             p.setPen(QPen(QColor(SPEC_MAGENTA), 2))
-            s = self._preview_scale
             for i in sel:
                 if i < 0 or i >= len(self._engine_slots):
                     continue
                 d = self._engine_patch_rects.get((self._page, self._engine_slots[i]))
                 if d is None:
                     continue
-                p.drawRect(int(d["x"] * s) + B - 1, int(d["y"] * s) + B - 1,
-                           int(d["w"] * s) + 2, int(d["h"] * s) + 2)
+                self._draw_image_rect(p, d["x"], d["y"], d["x"] + d["w"],
+                                      d["y"] + d["h"])
             p.end()
         elif (self._mode_patches.isChecked()
                 and self._hl_patches.isChecked()
@@ -8184,15 +8241,12 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
                 p.setRenderHint(QPainter.RenderHint.Antialiasing, False)
                 p.setBrush(QColor(255, 69, 115, 120))
                 p.setPen(QPen(QColor(SPEC_MAGENTA), 2))
-                s = self._preview_scale
                 for sid in sel:
                     box = geom.get(sid)
                     if box is None:
                         continue
                     x0, y0, x1, y1 = box
-                    p.drawRect(int(x0 * s) + B - 1, int(y0 * s) + B - 1,
-                               int((x1 - x0 + 1) * s) + 2,
-                               int((y1 - y0 + 1) * s) + 2)
+                    self._draw_image_rect(p, x0, y0, x1 + 1, y1 + 1)
                 p.end()
         self._preview.set_base_pixmap(pm)
 
@@ -8328,8 +8382,10 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
         off_x = (self._preview.width() - pm_logical_w) / 2
         off_y = (self._preview.height() - pm_logical_h) / 2
         B = getattr(self, "_preview_border", 0)
-        return ((p.x() - off_x - B) / self._preview_scale,
-                (p.y() - off_y - B) / self._preview_scale)
+        # the point on the page as shown, then in the page's own pixels (an
+        # i1iO chart is shown turned, `_show_image`)
+        return self._view_to_image((p.x() - off_x - B) / self._preview_scale,
+                                   (p.y() - off_y - B) / self._preview_scale)
 
     def _on_marquee(self, rect, mods) -> None:
         """Marquee selection — same semantics as :meth:`_on_preview_click`.
@@ -8343,8 +8399,9 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
         br = self._label_to_image(rect.bottomRight())
         if tl is None or br is None:
             return
-        ix0, iy0 = tl
-        ix1, iy1 = br
+        # sorted: on a turned page the dragged corners are other corners
+        ix0, ix1 = sorted((tl[0], br[0]))
+        iy0, iy1 = sorted((tl[1], br[1]))
         is_alt   = bool(mods & Qt.KeyboardModifier.AltModifier)
         is_shift = bool(mods & (Qt.KeyboardModifier.ShiftModifier
                                 | Qt.KeyboardModifier.ControlModifier
