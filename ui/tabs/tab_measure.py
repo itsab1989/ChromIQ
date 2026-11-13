@@ -21610,6 +21610,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         from workflow import button_gestures as _bg
         p.gesture_args = _bg.engine_args(_bg.config_from(self._settings))
         p.engine_xy_chart = bool(self._settings.get("engine_all_modes", False))
+        p.engine_i1pro2_lights = bool(
+            self._settings.get("i1pro2_lights_beta", False))
         p.cal_auto_retries = int(self._settings.get("cal_auto_retries", 3))
         import os as _os
         replay = _os.environ.get("CHROMIQ_REPLAY")

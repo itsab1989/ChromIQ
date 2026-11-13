@@ -279,6 +279,12 @@ DEFAULTS: dict[str, Any] = {
     #: above a Sample area of ~64 % the sampling box escapes the hexagon and
     #: reads its neighbours. Until both are solved this stays opt-in.
     "scanner_hex_charts":        False,
+    #: Beta (Settings -> Beta): the X-Rite i1Pro 2's indicator lights while the
+    #: ChromIQ chart-reading engine measures (2026-11-13): white while the
+    #: instrument waits for the user, off while it calibrates or measures.
+    #: Off = exactly 4.3.32: the helper is started without --i1pro2-lights and
+    #: the driver never sends a light request. Read at every Start.
+    "i1pro2_lights_beta":        False,
     #: Beta (Settings -> Beta): also write the "turned" i1Profiler chart files
     #: (`workflow.i1profiler_turned`) into a chart's exports/ folder, so the
     #: printed ChromIQ sheet can be read in i1Profiler too after a quarter

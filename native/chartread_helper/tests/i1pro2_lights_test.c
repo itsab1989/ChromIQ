@@ -295,8 +295,8 @@ int main(void) {
 	trigger(p);
 	close_it(p);
 
-	/* 12. A trigger thread still waiting to send its 0xD4: WHITE is held
-	 *     back, and the close sends nothing while it waits. */
+	/* 12. A trigger thread still waiting to send its 0xD4 (its read never
+	 *     started): WHITE is held back, so no light request can meet it. */
 	scn = "trigger_pending";
 	p = make(instI1Pro2, I1PRO_CAP2_IND_LED, 1);
 	begin(p);

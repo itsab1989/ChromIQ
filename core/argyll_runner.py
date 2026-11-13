@@ -225,6 +225,12 @@ class ArgyllRunner(QObject):
         super().__init__(parent)
         self._settings = settings
         self._process: QProcess | None = None
+        #: The i1Pro 2 lights (Preferences > Beta, 2026-11-13): while the lights
+        #: of THIS process are in use, (process, line) - what to send it instead
+        #: of killing it outright. The helper switches the lights off and then
+        #: ends itself exactly as a kill would; KILL_COURTESY_MS later the kill
+        #: comes anyway. None (always, with the option off): kill as before.
+        self._kill_courtesy: "tuple[QProcess, bytes] | None" = None
         self._pending_stdin: bytes | None = None
         self._run_on_finish: Callable[[int], None] | None = None
         self._run_on_line:   Callable[[str], None] | None = None
@@ -373,6 +379,7 @@ class ArgyllRunner(QObject):
         # forgotten now and again when it ends (`overhang.chart_pages_written`).
         _forget_chart_pages_for(tool)
 
+        self._kill_courtesy = None      # never carried over to a new run
         self._process = QProcess(self)
         self._process.setWorkingDirectory(str(cwd))
         self._process.setProcessChannelMode(
@@ -460,11 +467,52 @@ class ArgyllRunner(QObject):
             log.warning("send_key %s: no active process", label)
             self.keypress_failed.emit(label, "no active process")
 
+    #: How long a helper asked to switch the i1Pro 2 lights off may take
+    #: before it is killed anyway. It answers at its next poll of the command
+    #: queue: every 100 ms while it waits for the instrument's button.
+    KILL_COURTESY_MS = 1000
+
+    def set_kill_courtesy(self, line: "str | None") -> None:
+        """Ask the RUNNING process to be sent *line* instead of a plain kill
+        (the i1Pro 2 lights, Beta). ``None`` clears it. Bound to the process
+        running now: a later run never inherits it."""
+        if line is None or self._process is None or self._pty_proc is not None:
+            self._kill_courtesy = None
+            return
+        self._kill_courtesy = (self._process, line.encode())
+
+    def _courtesy_for_running_process(self) -> "bytes | None":
+        c = self._kill_courtesy
+        if (c is None or self._pty_proc is not None or c[0] is not self._process
+                or self._process is None
+                or self._process.state() == QProcess.ProcessState.NotRunning):
+            return None
+        return c[1]
+
     def abort(self) -> None:
         if self._pty_proc is not None:
             self._pty_proc.kill()
             log.info("ArgyllRunner: PTY process killed")
         elif self._process:
+            line = self._courtesy_for_running_process()
+            if line is not None:
+                # i1Pro 2 lights (Beta): lights off, then the helper ends
+                # itself as a kill would; the kill follows regardless, bound
+                # to this process so it can never reach a later run.
+                from PyQt6.QtCore import QTimer
+                proc = self._process
+                self._kill_courtesy = None
+                proc.write(line)
+                # A child of the process: it dies with it, and its slot is the
+                # process's own kill (no closure in a C++ object).
+                backstop = QTimer(proc)
+                backstop.setSingleShot(True)
+                backstop.timeout.connect(proc.kill)
+                backstop.start(self.KILL_COURTESY_MS)
+                log.info("ArgyllRunner: asked the helper to switch the "
+                         "instrument's lights off and end; killed in %d ms "
+                         "if it has not", self.KILL_COURTESY_MS)
+                return
             self._process.kill()
             log.info("ArgyllRunner: process killed")
 
@@ -532,6 +580,16 @@ class ArgyllRunner(QObject):
                 sig.disconnect()
             except (TypeError, RuntimeError):
                 pass
+
+        # The i1Pro 2 lights (Beta): lights off before the helper goes. It
+        # ends itself as the kill below would; the kill stays as the backstop.
+        line = self._courtesy_for_running_process()
+        self._kill_courtesy = None
+        if line is not None:
+            self._process.write(line)
+            self._process.waitForFinished(self.KILL_COURTESY_MS)
+            log.info("ArgyllRunner: the helper was asked to switch the "
+                     "instrument's lights off before the app quits")
 
         # Kill subprocess(es).
         if self._pty_proc is not None and self._pty_proc.poll() is None:

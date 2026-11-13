@@ -203,6 +203,10 @@ class MeasureParams:
     # (i1iSis/DTP70) reading too. Off by default → those modes fall back to
     # stock chartread. Passed as --xychart.
     engine_xy_chart: bool = False
+    #: Preferences > Beta, the X-Rite i1Pro 2's indicator lights (2026-11-13):
+    #: pass --i1pro2-lights, and only to a helper that says it knows the flag
+    #: (``helper_caps``). Off: the command line is exactly the one it was.
+    engine_i1pro2_lights: bool = False
     #: Preferences ▸ Measurement ▸ "Pause after each page so I can check it"
     #: (jctay, forum 149802; Basti 2026-10-23). Off by default. Engine strip
     #: reading only: the manager asks the engine to hold after a strip
@@ -401,6 +405,8 @@ class MeasureManager(QObject):
     #: at after one ({"where", "label"}), until it offers one again.
     gestures_active: bool = False
     gesture_unit: str = "strip"
+    #: The i1Pro 2 lights (Beta): the engine said this session uses them.
+    lights_active: bool = False
     _gesture_held: "dict | None" = None
     _gesture_moving: "dict | None" = None
     _in_strip_ready: bool = False
@@ -973,6 +979,13 @@ class MeasureManager(QObject):
                 eargs += ["--safenet"]
             if params.engine_xy_chart:
                 eargs += ["--xychart"]
+            if params.engine_i1pro2_lights:
+                from workflow.chartread_engine import helper_caps
+                if "i1pro2_lights" in helper_caps(params.engine_helper):
+                    eargs += ["--i1pro2-lights"]
+                else:
+                    log.info("i1Pro 2 lights: this helper does not know "
+                             "--i1pro2-lights; not passed")
             if params.engine_replay is not None:
                 eargs += ["--replay", str(params.engine_replay)]
             eargs += list(params.gesture_args or [])
@@ -3174,6 +3187,60 @@ class MeasureManager(QObject):
             return False
         return wanted <= self._strips_read_this_session
 
+    #: What ChromIQ sends the helper instead of killing it while the i1Pro 2
+    #: lights are in use (`ArgyllRunner.set_kill_courtesy`).
+    LIGHTS_OFF_EXIT = '{"cmd":"lights_off_exit"}\n'
+
+    def _on_lights_event(self, ev: dict,
+                         on_line: Callable[[str], None]) -> None:
+        """The i1Pro 2 lights (Preferences > Beta, 2026-11-13).
+
+        The helper reports once whether this session uses them, and later if a
+        light request failed or the lights were switched off. Only ever seen
+        when the option is on (the helper is started with --i1pro2-lights)."""
+        state = ev.get("state")
+        if state == "failed":
+            self._runner.set_kill_courtesy(None)
+            log.warning("i1Pro 2 lights: the instrument did not accept a "
+                        "light request (%s, err %s); not used again in this "
+                        "session", ev.get("step"), ev.get("err"))
+            on_line(tr(
+                "[Engine] Instrument lights (beta): the i1Pro 2 did not accept "
+                "a light request, so ChromIQ stops using its lights for this "
+                "measurement. Measuring carries on as usual. The lights may "
+                "stay as they are now: if they stay on, unplug the instrument "
+                "and plug it back in once you have finished."))
+            return
+        if state == "off":
+            self._runner.set_kill_courtesy(None)
+            log.info("i1Pro 2 lights: switched off")
+            return
+        if ev.get("active"):
+            self.lights_active = True
+            self._runner.set_kill_courtesy(self.LIGHTS_OFF_EXIT)
+            log.info("i1Pro 2 lights: in use for this session")
+            on_line(tr(
+                "[Engine] Instrument lights (beta): on. The i1Pro 2 shows white "
+                "while it waits for you and switches its lights off while it "
+                "calibrates or measures."))
+            return
+        why = str(ev.get("why") or "")
+        log.info("i1Pro 2 lights: not used for this session (%s)", why)
+        if why == "instrument":
+            on_line(tr(
+                "[Engine] Instrument lights (beta): this instrument is not an "
+                "i1Pro 2, so ChromIQ leaves its lights alone."))
+        elif why == "mode":
+            on_line(tr(
+                "[Engine] Instrument lights (beta): they are only used while "
+                "you read strips or single patches by hand, so ChromIQ leaves "
+                "them alone for this measurement."))
+        else:
+            on_line(tr(
+                "[Engine] Instrument lights (beta): ChromIQ could not use the "
+                "lights of this i1Pro 2, so it leaves them alone for this "
+                "measurement. Measuring works as usual."))
+
     def _handle_engine_line(self, line: str,
                             on_line: Callable[[str], None]) -> None:
         """Engine mode: typed events replace the regex forest. Prose lines
@@ -3259,6 +3326,7 @@ class MeasureManager(QObject):
 
         if kind == "session_start":
             self.gestures_active = False
+            self.lights_active = False
             self._gesture_held = None
             self._saw_spot_ready = False
             self._ending_already_answered = False
@@ -3415,6 +3483,9 @@ class MeasureManager(QObject):
                      "%s ms)", "on" if self.gestures_active else
                      "not available for this instrument", self.gesture_unit,
                      ev.get("wait_ms"))
+
+        elif kind == "lights":
+            self._on_lights_event(ev, on_line)
 
         elif kind == "gesture":
             # Button shortcuts: a double or triple press. At a waiting strip
