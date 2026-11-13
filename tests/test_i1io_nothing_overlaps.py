@@ -80,8 +80,17 @@ def test_every_element_keeps_1_mm_from_every_other(paper, crosses, clip,
         names = list(groups)
         for i, a in enumerate(names):
             for b in names[i + 1:]:
-                # a cross's zone already holds its own clearance
-                gap = 0.0 if "crosses" in (a, b) else CLEAR
+                # a cross's zone already holds its own clearance; the clip
+                # border's content and the numbers, and the name line and the
+                # strips with their letters, keep 2 mm (the owner read 1 mm
+                # as touching on the preview)
+                pair = {a, b}
+                gap = (0.0 if "crosses" in pair
+                       else 2.0 - 0.05 if pair in (
+                           {"clip content", "numbers"},
+                           {"name line", "letters"},
+                           {"name line", "patches"})
+                       else CLEAR)
                 for x in groups[a]:
                     for y in groups[b]:
                         assert _apart(x, y, gap), (page, a, x, b, y)

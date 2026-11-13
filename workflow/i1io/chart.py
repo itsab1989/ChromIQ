@@ -88,6 +88,14 @@ def comparable_recipe_values(d: dict) -> dict:
         pass
     return out
 
+#: Air between the clip border's content and the patch numbers, and between
+#: the line with the chart's name and the last strip (whose letter and
+#: underline end with it): 2 mm, which reads as clearly apart on the preview
+#: and on paper (the owner, 2026-11-13: 1 mm looked touching). 1 mm stays the
+#: floor below which a person's options are warned (`furniture_warnings`).
+CLIP_TO_NUMBERS_MM = 2.0
+LINE_TO_STRIPS_MM = 2.0
+
 #: The build-kwargs key that carries the label wishes past
 #: `fixed_build_kwargs` (kept for callers; the labels are the engine's own).
 LABELS_KEY = "_i1io_labels"
@@ -305,6 +313,9 @@ def fixed_build_kwargs(kw: dict) -> dict:
         # "Clip" for the i1iO: the patch numbers' distance from the paper
         # edge (its own field, default NUMBERS_EDGE_MM, Job D)
         text_edge_clip=numbers_edge_of(kw),
+        # 2 mm of air between the clip border's content and the patch
+        # numbers (the owner read 1 mm as touching on the preview)
+        row_label_clip_clearance_mm=CLIP_TO_NUMBERS_MM,
         text_edge_top=4.0, strip_label_offset_mm=0.0,
         strip_label_offset_x_mm=0.0,
         # the letters and numbers turned to read upright on the table
@@ -1038,7 +1049,7 @@ def text_column(w: float, h: float) -> "tuple[float, float, float, float]":
     between marks 2 and 3), where no strip and no run ever is."""
     top = mark_zone(marks(w, h)[2])[3] + 2.0
     bottom = mark_zone(marks(w, h)[1])[1] - 2.0
-    return (w - F.MARK_SIDE_MM.value + 1.0, top,
+    return (w - F.MARK_SIDE_MM.value + LINE_TO_STRIPS_MM, top,
             w - F.PRINTER_EDGE_MM.value, bottom)
 
 
