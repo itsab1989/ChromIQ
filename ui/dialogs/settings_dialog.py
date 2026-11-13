@@ -3660,6 +3660,11 @@ class SettingsDialog(QDialog):
         _lrd.addWidget(self._lights_reading_combo)
         _lrd.addStretch()
         _beta.addLayout(_lrd)
+        # the two combo boxes start at the same place, whatever the language
+        _lw = max(self._lights_signals_label.sizeHint().width(),
+                  self._lights_reading_label.sizeHint().width())
+        self._lights_signals_label.setMinimumWidth(_lw)
+        self._lights_reading_label.setMinimumWidth(_lw)
         self._i1pro2_lights_check.toggled.connect(self._lights_choices_follow)
 
         # Konica Minolta FD-9 support (PR #213, written and contributed by
