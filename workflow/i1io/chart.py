@@ -723,11 +723,14 @@ def check_sheet(geom, layout, w: float, h: float,
         for cell in cells:
             box = cell[3:]
             if box[0] < 0 or box[1] < 0 or box[2] > w or box[3] > h:
-                raise I1ioSheetRefused(tr("A patch would lie partly off the sheet. Make the "
-                    "margins or the patch size smaller."))
+                raise I1ioSheetRefused(tr(
+                    "A patch would lie partly off the sheet. Make the "
+                    "margins, the chart offset or the patch size smaller."))
             if any(_overlap(box, z) for z in zones):
-                raise I1ioSheetRefused(tr("A patch would touch an aiming cross. Make the "
-                    "margins larger, or switch the aiming crosses off."))
+                raise I1ioSheetRefused(tr(
+                    "A patch would touch an aiming cross. Make the margins "
+                    "larger or the chart offset smaller, or switch the "
+                    "aiming crosses off."))
             if band is not None and _overlap(box, (band[0], 0.0, band[2], h)):
                 raise I1ioSheetRefused(tr(
                     "A patch would lie in the clip border. Make the clip "

@@ -272,6 +272,47 @@ the sheet text and the labels).*
   margin to align to), the label rotations, the strip-indicator gap, the
   label offsets and the text distances.
 
+### On: Options open, defaults safe (2026-11-13, Job D)
+
+**Confirmed by:** *nobody yet.* (The owner's rule, 2026-11-13: "our defaults
+should be safe but advanced users should be able to tweak as much as
+possible"; what follows is how it was built, awaiting confirmation.)
+
+* Live on the i1iO as on every instrument, defaults unchanged (a chart with
+  the defaults is byte-identical to 4.3.33's): Chart offset X / Y, Edge
+  spacers (switched off when the i1iO is chosen), Max strip length / Don't
+  cap, the ruler helper markers (their group is now "Aiming crosses and
+  ruler helper markers"), text distance B (the strip letters' distance from
+  the page's bottom edge, and always past the markers' ink + 1 mm), Clip
+  (the patch numbers' own distance from the page's left edge, its own
+  field `i1io_numbers_edge_mm`, default 10 mm), the strip-indicator gap
+  (extra paper beyond the 1 mm clearance), the strip letters' label offsets,
+  and the sheet text's Alignment (its own field `i1io_text_align`: "Left
+  margin" starts the line at the left end of its paper, either centre
+  option centres it, the default).
+* Still greyed, each with its reason: patch and spacer scale, Mode, the
+  area-first layout, the clip border's side, Offset every second strip,
+  Use instrument margins, straight strips (hexagons), the layout summary
+  stamp, text distance T (nothing is printed at the top) and the label
+  rotations.
+* Refused (nothing is built, the reason is shown): an aiming cross off the
+  sheet, a patch off the sheet, a patch touching a cross, a patch in the
+  clip border, the clip border touching a cross, the clip border's content
+  over a patch. The first two name the chart offset among the fixes.
+* Built and said in the log as `[WARNING] The i1iO table may not read this
+  layout well: ...`: a strip's blank paper near the paper edge or touching a
+  cross or the clip border, the clip border's content within 1 mm of a
+  patch, edge spacers, ruler helper markers along the top and bottom.
+* A recipe saved before the label options (4.3.33's) ignores every one of
+  these and builds as 4.3.33 did.
+* Every option is kept by Save as Defaults, the layout preset bar, a named
+  preset and the target's own stored state (§4 of
+  `per_target_settings.md`); `tests/test_i1io_every_option_persists.py`
+  walks every recipe field. An i1iO recipe that carries "Use instrument
+  margins" no longer locks the four margins at the table's minimum. The
+  preset bar compares an i1iO layout on the fields its chart reads, so a
+  fresh i1iO layout is not "modified".
+
 ### On: Verification and Calibration
 
 *The owner, relayed 2026-11-13: "verification and calibration runs must work
