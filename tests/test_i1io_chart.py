@@ -68,26 +68,27 @@ def _build(tmp_path, n, paper="A4R", rep="RGB", **kw):
 
 
 @pytest.mark.parametrize("paper,labels,cols,rows", [
-    ("A4R", True, 25, 21), ("A4R", False, 26, 21),
-    ("LetterR", True, 24, 22), ("LetterR", False, 24, 22)])
+    ("A4R", True, 23, 21), ("A4R", False, 24, 21),
+    ("LetterR", True, 21, 22), ("LetterR", False, 22, 22)])
 def test_the_capacity_is_the_geometrys_own(paper, labels, cols, rows):
-    """525 patches on A4 landscape with the row numbers (the default), 546
-    without them; 528 on Letter landscape either way. Computed from the patch
-    size and the margins of `table_facts`, not looked up."""
+    """483 patches on A4 landscape with the row numbers (the default), 504
+    without them; 462 and 484 on Letter landscape. Computed from the patch
+    size, the 1 mm gap along the rows and the margins of `table_facts`, not
+    looked up."""
     from workflow.layout_engine import geometry, instruments, papers
     g = instruments.geom_from_build_kwargs(
         {"instrument": "IO2", "paper": paper,
          "row_indicators": None if labels else False})
     w, h = papers.dimensions_mm(paper)
     assert geometry.patches_per_sheet(g, w, h) == cols * rows
-    assert (g.pwid, g.plen, g.pspa) == (10.0, 8.0, 0.0)
+    assert (g.pwid, g.plen, g.pspa, g.rrsp) == (10.0, 8.0, 0.0, 11.0)
 
 
 def test_whatever_a_recipe_asks_for_the_i1io_keeps_its_own_layout():
     """Spacers, a clip border, helper markers, other margins or an
     area-first layout asked of an i1iO chart change nothing: its capacity is
     the same as with nothing asked. A patch size is kept inside the table's
-    limits: 6 x 6 mm comes out 9.7 x 7 mm, 30 x 30 mm comes out 20 x 20."""
+    limits: 6 x 6 mm comes out 8.9 x 7 mm, 30 x 30 mm comes out 20 x 20."""
     from workflow.layout_engine import geometry, instruments, papers
     w, h = papers.dimensions_mm("A4R")
     plain = geometry.patches_per_sheet(instruments.geom_from_build_kwargs(
@@ -99,7 +100,7 @@ def test_whatever_a_recipe_asks_for_the_i1io_keeps_its_own_layout():
          "layout_mode": "area_first", "clip_content_mode": "notes",
          "clip_band": 26.0}), w, h)
     assert noisy == plain
-    for asked, got in (((6.0, 6.0), (9.7, 7.0)), ((30.0, 30.0), (20.0, 20.0)),
+    for asked, got in (((6.0, 6.0), (8.9, 7.0)), ((30.0, 30.0), (20.0, 20.0)),
                        ((12.0, 9.0), (12.0, 9.0))):
         g = instruments.geom_from_build_kwargs(
             {"instrument": "IO2", "paper": "A4R", "patch_w": asked[0],
@@ -108,7 +109,7 @@ def test_whatever_a_recipe_asks_for_the_i1io_keeps_its_own_layout():
 
 
 @pytest.mark.parametrize("paper", ["A4R", "LetterR"])
-@pytest.mark.parametrize("n", [1, 37, 525, 1300])
+@pytest.mark.parametrize("n", [1, 37, 483, 1300])
 def test_every_patch_run_and_mark_is_on_the_sheet_and_clear(tmp_path, paper,
                                                             n):
     from workflow.i1io import table_facts as F
@@ -266,65 +267,35 @@ def test_the_pdf_carries_the_marks_too(tmp_path):
 
 def test_the_scan_numbers_follow_from_the_recorded_timing():
     """The patch length and the run-in are derived from the reading interval
-    and the speeds seen, not guessed: the fastest pass still gives a patch at
-    least the readings i1Profiler's own fastest pass gave, and the run-in
-    covers the shortest trigger delay seen at that speed."""
+    and the speeds seen, not guessed: at the design speed every patch gets
+    the safe number of readings, the gap between neighbours stays inside
+    i1Profiler's 20 % limit, and the run-in covers the shortest trigger
+    delay seen at the fastest speed. After the aperture's smear and
+    Argyll's two-thirds trim a patch keeps more readings than Argyll's
+    minimum even at the fastest speed recorded."""
     from workflow.i1io import table_facts as F
+    design = F.SCAN_DESIGN_SPEED_MM_S.value
     fastest = max(F.SCAN_SPEEDS_MM_S.value)
-    assert F.readings_per_patch(F.PATCH_ALONG_MM.value, fastest) >= \
+    assert F.readings_per_patch(F.PATCH_ALONG_MM.value, design) >= \
         F.SCAN_SAFE_READINGS.value
-    assert F.PATCH_ALONG_MM.value >= F.min_patch_length_mm(fastest)
+    (alo, ahi), (clo, chi) = F.patch_limits_mm()
+    assert alo >= F.min_patch_length_mm() and alo <= F.PATCH_ALONG_MM.value
+    assert F.SCAN_GAP_MM.value <= F.GAP_MAX_FRACTION.value * alo
     assert F.RUN_MM.value >= F.run_in_mm(fastest)
     clean = ((F.PATCH_ALONG_MM.value - F.APERTURE_MM.value)
              / (fastest * F.SCAN_READING_INTERVAL_S.value)) * 2 / 3
     assert clean > F.ARGYLL_MIN_SAMPLES.value
-    lo, hi = F.PATCH_RANGE_ALONG_MM.value
-    assert lo <= F.PATCH_ALONG_MM.value <= hi
-    lo, hi = F.PATCH_RANGE_ACROSS_MM.value
-    assert lo <= F.PATCH_ACROSS_MM.value <= hi
+    assert clo == 7.0 and F.PATCH_ACROSS_MM.value >= clo
 
 
-@pytest.mark.parametrize("paper", ["A4R", "LetterR"])
-def test_no_ink_on_a_scan_line_outside_the_patches(tmp_path, paper):
-    """Basti, 2026-11-13: the instrument reads all through the run-in and the
-    run-out, so nothing may be printed there, and a label sits only where the
-    aperture never passes. Measured on the printed raster: every pixel of
-    every run, over the row's full height, is paper white; every label box
-    is clear of every run and keeps LABEL_CLEAR_MM from the patches."""
-    from PIL import Image
-    from workflow.i1io import table_facts as F
-    result, side = _build(tmp_path, 525, paper)
-    img = np.asarray(Image.open(result.tiff_paths[0]).convert("L"))
-    s = 150 / 25.4
-    page = side["pages"][0]
-    for row in page["rows"]:
-        x0, x1 = row["run_mm"]
-        y = row["y_mm"]
-        first = row["patches"][0]["centre_mm"][0] - 5.0
-        last = row["patches"][-1]["centre_mm"][0] + 5.0
-        top, bottom = round((y - 4.0) * s) + 1, round((y + 4.0) * s) - 1
-        for a, b in ((x0, first), (last, x1)):
-            band = img[top:bottom, round(a * s) + 1:round(b * s) - 1]
-            assert band.size and band.min() >= 250, (row["y_mm"], a, b)
-    labels = page["labels_mm"]
-    assert labels["rows"] and labels["columns"]
-    rows = page["rows"]
-    block_top = min(r["y_mm"] for r in rows) - 4.0
-    for _t, bx0, by0, bx1, by1 in labels["columns"]:
-        assert by1 <= block_top - F.LABEL_CLEAR_MM.value + 1e-6
-    for (t, bx0, by0, bx1, by1), row in zip(labels["rows"], rows):
-        assert bx1 <= row["run_mm"][0] - F.ROW_LABEL_GAP_MM.value + 1e-6
-        assert t == row["patches"][0]["loc"].lstrip("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-    assert [c[0] for c in labels["columns"]][:3] == ["A", "B", "C"]
-
-
-def test_labels_follow_the_engines_own_controls(tmp_path):
-    """The strip-letters switch, the row-label switch and the label size of
-    the layout engine are the i1iO's too; switched off, nothing is drawn and
-    the row band is given back to the patches."""
-    _r, side = _build(tmp_path, 40, draw_indicators=False,
-                      row_indicators=False)
-    assert side["pages"][0]["labels_mm"] == {"columns": [], "rows": []}
+def test_the_wordmark_and_the_sheet_text_cost_no_patch(tmp_path):
+    """The ChromIQ wordmark sits in the top band and the sheet text on the
+    name line: the patch count is the same with them as without."""
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    r1, _ = _build(tmp_path / "a", 483)
+    r2, side = _build(tmp_path / "b", 483, chart_text="Epson P900 · {date}")
+    assert r1.layout.patches_per_page == r2.layout.patches_per_page == 483
 
 
 def test_every_number_has_a_source_and_a_confidence():

@@ -222,6 +222,9 @@ INSTRUMENT_LABELS: dict[str, str] = {
     "SS": "SpectroScan",
     "CR30": "CR30",
     "FD9": "FD-9",
+    # X-Rite i1iO 2 table with an i1Pro 2 (Beta; offered only while
+    # Preferences > Beta turns it on, `workflow.i1io.support`).
+    "IO2": "i1iO 2 + i1Pro 2",
     "isis": "i1iSis (via i1Profiler)",
 }
 

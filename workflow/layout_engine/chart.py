@@ -350,6 +350,9 @@ def build_chart(
             "row_indicators": row_indicators,
             "indicator_size_mm": indicator_size_mm})
         _i1io_labels = _f[_i1io_chart.LABELS_KEY]
+        # Manual's "Sheet text" goes on the name line in the bottom band
+        # (`draw_furniture`), where it costs no patch, not under the patches.
+        _i1io_sheet_text = chart_text
         # Its labels name patches as SAMPLE_LOC does, column letters and
         # row numbers: the default patterns, whatever a recipe holds.
         strip_pattern = permutation.DEFAULT_STRIP_PATTERN
@@ -683,7 +686,9 @@ def build_chart(
                                    geom=geom, layout=layout,
                                    labels=_i1io_labels,
                                    patterns=(strip_pattern, patch_pattern,
-                                             label_rule))
+                                             label_rule),
+                                   sheet_text=_i1io_sheet_text,
+                                   text_ctx=_ctx)
     if target.n_channels >= 4:
         device_pages = raster.build_device_pages(render, printed, bit16=bit16)
         tiff_paths = raster.save_separated_tiffs(

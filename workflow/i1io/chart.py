@@ -85,7 +85,10 @@ def fixed_build_kwargs(kw: dict) -> dict:
     out.update(
         patch_w=along, patch_h=across,
         pscale=1.0, sscale=1.0, spacer_on=False, spacer_mode="none",
-        spacer_width=None, inter_patch=0.0, strip_gap=0.0, edge_spacers=False,
+        spacer_width=None, inter_patch=0.0, edge_spacers=False,
+        # the white gap between neighbours along a row: the engine's columns
+        # are the patches of a row, so its gap between strips is that gap
+        strip_gap=F.SCAN_GAP_MM.value,
         margins=F.margins_mm(labels.rows, labels.size),
         use_instrument_margins=True,
         layout_mode="patch_first", patch_area_align="center",
@@ -286,7 +289,8 @@ def _font(px: int):
 
 def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
                    geom=None, layout=None, labels: "Labels | None" = None,
-                   patterns: "tuple | None" = None) -> None:
+                   patterns: "tuple | None" = None, sheet_text: str = "",
+                   text_ctx: "dict | None" = None) -> None:
     """Draw the marks, the labels, the page and the name onto every page of
     *render* (`raster.RenderResult`): into the page image, from which the
     separated TIFF folds them into the black ink, and into the PDF display
@@ -368,10 +372,22 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
             label_w = draw.textbbox((0, 0), f"{index + 1}/{pages}", font=sfont)
             text(px(cx) - (label_w[2] - label_w[0]) // 2, px(cy),
                  f"{index + 1}/{pages}", sfont, spath, svar, small_px)
-        # The chart's name, centred between marks 2 and 3, cut to fit.
+        # THE ChromIQ WORDMARK, in the top band between mark 1 and the page
+        # number: paper the patches could never use, so it costs nothing.
+        _wordmark(draw, geom_list, px(mark_zone(marks(w, h)[0])[2] + 4.0),
+                  px(F.MARK_INSET_MM.value), px(F.WORDMARK_MM.value))
+        # The chart's name, and the sheet text (Manual's "Sheet text", its
+        # placeholders filled in as on every chart) after it, centred between
+        # marks 2 and 3 and cut to fit with "…": never at the patches' cost.
         left = mark_zone(marks(w, h)[1])[2] + 4.0
         right = mark_zone(marks(w, h)[2])[0] - 4.0
         full = str(name or "")
+        extra = str(sheet_text or "").strip()
+        if extra:
+            for key, value in (text_ctx or {}).items():
+                extra = extra.replace("{" + key + "}", str(value))
+            extra = extra.replace("{page}", f"{index + 1}/{pages}")
+            full = f"{full}  ·  {extra}" if full else extra
         label, keep = full, len(full)
         while label:
             bb = draw.textbbox((0, 0), label, font=sfont)
@@ -385,6 +401,32 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
             start = px((left + right) / 2.0) - width // 2
             text(start, px(h - F.MARK_INSET_MM.value), label, sfont, spath,
                  svar, small_px)
+
+
+def _wordmark(draw, geom_list, x: int, centre_y: int, height: int) -> None:
+    """"Chrom" in Instrument Serif and an italic "IQ" in the accent colour,
+    as the masthead and the clip-border notes draw it, left-anchored at *x*
+    and centred on *centre_y*; into the PDF display list as text runs."""
+    from workflow.layout_engine import raster
+    size = max(8, int(height / 0.74))
+    f = raster._font(size, raster.WORDMARK_FONT)
+    f_iq = raster._font(size, raster.WORDMARK_FONT, italic=True)
+    asc, desc = f.getmetrics()
+    baseline = centre_y + (asc - desc) // 2
+    chrom_w = draw.textlength("Chrom", font=f)
+    draw.text((x, baseline), "Chrom", font=f, fill=raster.WORDMARK_RGB,
+              anchor="ls")
+    x_iq = int(x + chrom_w + size * 0.02)
+    draw.text((x_iq, baseline), "IQ", font=f_iq, fill=raster.WORDMARK_IQ_RGB,
+              anchor="ls")
+    if geom_list is not None:
+        regular = raster._font_path(raster.WORDMARK_FONT, "regular")
+        italic = raster._font_path(raster.WORDMARK_FONT, "italic")
+        if regular and italic:
+            geom_list.append(("text", x, baseline, "Chrom", regular, size, 0, 0,
+                              raster.WORDMARK_RGB, None))
+            geom_list.append(("text", x_iq, baseline, "IQ", italic, size, 0, 0,
+                              raster.WORDMARK_IQ_RGB, None))
 
 
 # ---- the side file -----------------------------------------------------------

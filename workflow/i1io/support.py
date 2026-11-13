@@ -32,9 +32,8 @@ CODE = "IO2"
 #: Every Create Chart code that is an i1iO entry (one today).
 CODES: "frozenset[str]" = frozenset({CODE})
 
-#: What Guided's Instrument list shows for it. NOT in
-#: `data.patch_db.INSTRUMENT_LABELS`, which is Manual's printtarg -i list as
-#: well (tests/test_k42_*): Manual does not offer the i1iO yet.
+#: What the Instrument lists show for it (also `data.patch_db.
+#: INSTRUMENT_LABELS` and `data/parameters.yaml`).
 LABEL = "i1iO 2 + i1Pro 2"
 
 #: The family name every i1iO chart carries in ``TARGET_INSTRUMENT``.

@@ -490,6 +490,7 @@ parameters:
         - "SpectroScan（フラットベッド）"
         - "CR30（パッチごと）"
         - "FD-9"
+        - "i1iO 2 + i1Pro 2"
         - "i1iSis（i1Profiler経由）"
     "-h":
       name: "ダブルデンシティ"

@@ -490,6 +490,7 @@ parameters:
         - "SpectroScan (Flachbett)"
         - "CR30 (Feld für Feld)"
         - "FD-9"
+        - "i1iO 2 + i1Pro 2"
         - "i1iSis (über i1Profiler)"
       tooltip_title: "Messgerät (-i)"
       tooltip_body: |

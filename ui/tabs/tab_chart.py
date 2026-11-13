@@ -7296,12 +7296,11 @@ class TabChart(QWidget):
             # the list is exactly 4.3.21's.
             if code == "FD9" and not fd9_enabled():
                 continue
+            # The i1iO table is a Beta too (Preferences > Beta, restart to
+            # apply): off, the list is exactly 4.3.32's.
+            if code == "IO2" and not i1io_enabled():
+                continue
             self._instr_combo.addItem(label, code)
-        # The i1iO table is a Beta too (Preferences > Beta, restart to apply),
-        # offered in Guided only, last: off, the list is exactly 4.3.32's.
-        if i1io_enabled():
-            from workflow.i1io.support import CODE, LABEL
-            self._instr_combo.addItem(LABEL, CODE)
         self._instr_combo.currentIndexChanged.connect(self._update_patch_count)
         self._instr_combo.currentIndexChanged.connect(self._update_dd_visibility)
         # USER PICKS ONLY. See `_on_user_picked_instrument`.
@@ -12101,6 +12100,17 @@ class TabChart(QWidget):
                         param["tooltip_body"] = (
                             str(param.get("tooltip_body", "")).rstrip()
                             + "\n\n" + fd9_instrument_bullet())
+            # The i1iO table, a Beta too: off, the -i list is 4.3.32's.
+            from workflow.i1io.support import CODE as _IO, i1io_enabled
+            if not i1io_enabled():
+                params = _without_choice(params, _IO)
+            else:
+                for param in params.get("printtarg", []) or []:
+                    if param.get("flag") == "-i" and _IO in (
+                            param.get("choices") or []):
+                        param["tooltip_body"] = (
+                            str(param.get("tooltip_body", "")).rstrip()
+                            + "\n\n" + i1io_instrument_bullet())
             return params
         except Exception as exc:
             log.error("Cannot load parameters.yaml: %s", exc)

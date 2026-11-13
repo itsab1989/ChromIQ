@@ -92,13 +92,34 @@ SCAN_TRIGGER_DELAY_S = Fact((0.10, 0.80), "i1pro2_side RESULTS 6.1", LIKELY)
 ARGYLL_MIN_SAMPLES = Fact(3, "native/instlib/i1pro_imp.c MIN_SAMPLES",
                           VERIFIED)
 
-#: OURS: the readings a patch should get at the fastest speed. i1Profiler's
-#: own fastest pass gave 13.8 (the only case seen to work); 14 keeps us at or
-#: above it. After the 4.5 mm aperture's own smear (about 6.5 readings at
-#: that speed) and Argyll's two-thirds trim, a 14-reading patch still has
-#: about 5 clean readings, above Argyll's minimum of 3.
-SCAN_SAFE_READINGS = Fact(14, "ours: at least what i1Profiler's fastest "
-                          "pass gave", OURS)
+#: THE TESTER'S SCANS WERE i1Profiler'S FALLBACK, NOT ITS SUCCESS
+#: (2026-11-13_i1profiler_io_facts RESULTS 2.1 and the summary): i1Profiler's
+#: help says a row that fails is read again more slowly and then patch by
+#: patch, which is exactly what every row of his chart (9.54 x 8.2 mm, no
+#: gaps) did. The data held every patch (14 to 36 readings each, RESULTS 6.2
+#: of the i1Pro 2 side), but i1Profiler's own recognition gave up. So
+#: nothing here is taken as proof that a scan of that layout works, and the
+#: design leaves more room than it had:
+#:
+#: * OURS: the speed we design for is i1Profiler's middle one, not its
+#:   fastest; the measuring step chooses the speed, and a slower scan is
+#:   still far quicker than patch by patch;
+SCAN_DESIGN_SPEED_MM_S = Fact(88.0, "ours: i1Profiler's middle speed", OURS)
+#: * OURS: at least this many readings on every patch at that speed, half
+#:   again what the fastest recorded pass gave (about 14);
+SCAN_SAFE_READINGS = Fact(20, "ours: about 1.5 x the fastest recorded pass",
+                          OURS)
+#: * OURS: a thin white gap between neighbouring patches of a row, so every
+#:   patch boundary is an edge a stream patch finder can see, also between
+#:   two similar colours (X-Rite asks scanning charts for "gaps or a minimum
+#:   deltaE between the patches"; i1Profiler's driver refuses a gap of more
+#:   than 20 % of the patch length; 1 mm is 10 % of a 10 mm patch). On top,
+#:   the patches are scrambled as on every ChromIQ chart, which X-Rite's help
+#:   recommends for the i1iO too. UNPROVEN until a tester has scanned it.
+SCAN_GAP_MM = Fact(1.0, "ours: X-Rite's supported-targets note; i1Profiler's "
+                   "20 % gap limit", OURS)
+GAP_MAX_FRACTION = Fact(0.2, "i1Profiler driver: 'gaps size too large (more "
+                        "than 20% of the patch length)'", VERIFIED)
 
 
 def readings_per_patch(length_mm: float, speed_mm_s: float) -> float:
@@ -106,12 +127,13 @@ def readings_per_patch(length_mm: float, speed_mm_s: float) -> float:
     return length_mm / (speed_mm_s * SCAN_READING_INTERVAL_S.value)
 
 
-def min_patch_length_mm(speed_mm_s: float,
+def min_patch_length_mm(speed_mm_s: "float | None" = None,
                         readings: "float | None" = None) -> float:
     """The shortest patch along the row that still gets *readings* readings
     (default :data:`SCAN_SAFE_READINGS`) at *speed*."""
     n = SCAN_SAFE_READINGS.value if readings is None else readings
-    return n * speed_mm_s * SCAN_READING_INTERVAL_S.value
+    v = SCAN_DESIGN_SPEED_MM_S.value if speed_mm_s is None else speed_mm_s
+    return n * v * SCAN_READING_INTERVAL_S.value
 
 
 def run_in_mm(speed_mm_s: "float | None" = None) -> float:
@@ -141,12 +163,13 @@ AIMING_ORDER = Fact(("top-left", "bottom-left", "bottom-right"),
 
 # ---- our design choices -------------------------------------------------
 
-#: Patch length along the row (the scan direction): the shortest length
-#: that gets SCAN_SAFE_READINGS at the fastest speed seen
-#: (`min_patch_length_mm`: 14 x 138 x 0.005004 = 9.67 mm), rounded up to
-#: 10 mm. Patch by patch it leaves 2.75 mm on each side of the aperture.
-PATCH_ALONG_MM = Fact(10.0, "ours: min_patch_length_mm(138) = 9.67, "
-                      "rounded up", OURS)
+#: Patch length along the row (the scan direction). The shortest that gets
+#: SCAN_SAFE_READINGS at the design speed is `min_patch_length_mm()` =
+#: 20 x 88 x 0.005004 = 8.81 mm; 10 mm gives 22.7 readings at 88 mm/s and
+#: still 14.5 at the fastest recorded 138 mm/s. Patch by patch it leaves
+#: 2.75 mm on each side of the aperture.
+PATCH_ALONG_MM = Fact(10.0, "ours: above min_patch_length_mm() = 8.81",
+                      OURS)
 
 #: Patch height across the row: 1.75 mm each side of the 4.5 mm aperture for
 #: alignment and arm error, which also suits a spot reading.
@@ -208,6 +231,9 @@ MARK_DIGIT_MM = Fact(4.0, "ours", OURS)
 #: page number and the chart name.
 BAND_MM = Fact(18.0, "ours: mark inset + half the cross + 4 mm clear", OURS)
 
+#: The ChromIQ wordmark's height in the top band (beside mark 1).
+WORDMARK_MM = Fact(4.0, "ours", OURS)
+
 #: Clear paper kept round every mark (no patch, run or text inside it).
 MARK_CLEAR_MM = Fact(1.0, "ours", OURS)
 
@@ -245,11 +271,11 @@ def margins_mm(row_labels: bool = False,
 def patch_limits_mm() -> "tuple[tuple[float, float], tuple[float, float]]":
     """``((along_min, along_max), (across_min, across_max))``: what Manual
     may set. Along the row, no shorter than a patch that still gets
-    SCAN_SAFE_READINGS at the fastest speed seen (rounded UP to 0.1 mm, so
-    9.7 mm) and no longer than i1Profiler's own maximum; across it,
-    i1Profiler's own range for the i1iO 2."""
+    SCAN_SAFE_READINGS at the design speed (rounded UP to 0.1 mm, so 8.9 mm)
+    and no longer than i1Profiler's own maximum; across it, i1Profiler's own
+    range for the i1iO 2 (its minimum, 7 mm, is X-Rite's)."""
     import math
-    lo = math.ceil(min_patch_length_mm(max(SCAN_SPEEDS_MM_S.value)) * 10) / 10
+    lo = math.ceil(min_patch_length_mm() * 10) / 10
     along = (max(lo, PATCH_RANGE_ALONG_MM.value[0]), PATCH_RANGE_ALONG_MM.value[1])
     return along, tuple(PATCH_RANGE_ACROSS_MM.value)
 

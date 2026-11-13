@@ -505,6 +505,7 @@ parameters:
         - "SpectroScan (планшетный)"
         - "CR30 (патч за патчем)"
         - "FD-9"
+        - "i1iO 2 + i1Pro 2"
         - "i1iSis (через i1Profiler)"
     "-h":
       name: "Двойная плотность"

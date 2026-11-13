@@ -489,6 +489,7 @@ parameters:
         - "SpectroScan (planskanner)"
         - "CR30 (felt for felt)"
         - "FD-9"
+        - "i1iO 2 + i1Pro 2"
         - "i1iSis (via i1Profiler)"
     "-h":
       name: "Double density"
