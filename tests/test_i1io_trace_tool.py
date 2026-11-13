@@ -1,10 +1,10 @@
-"""THE i1iO TESTER PROGRAM CAN SEND ONLY SEVEN RECORDED LINES, AND STOPS ON ANY DOUBT.
+"""THE i1iO TESTER PROGRAM CAN SEND ONLY EIGHT RECORDED LINES, AND STOPS ON ANY DOUBT.
 
 `tools/i1io_trace/` is a standalone program for the one tester who owns an
 i1iO 2 (issue #129). It moves a real table, so these tests hold its safety
 claims in place (work folder 2026-11-13_i1io_trace, SAFETY.md):
 
-* every byte it can write is one of seven lines, each byte-identical to a line
+* every byte it can write is one of eight lines, each byte-identical to a line
   i1Profiler sent to the tester's table in his recordings;
 * any fault in a reply (missing, late, garbled, wrong checksum, another
   command's answer, an error status, an extra line, the cable) stops the run
@@ -38,26 +38,28 @@ import i1io_sim as sim_mod  # noqa: E402
 import i1io_table as tbl  # noqa: E402
 import i1io_trace as prog  # noqa: E402
 
-#: The seven lines, as they appear in the decoded recordings (PROTOCOL.md and
+#: The eight lines, as they appear in the decoded recordings (PROTOCOL.md and
 #: the timelines of R1 / R2), byte for byte.
 RECORDED = {
     "status": b";s022\r", "identity": b";a133\r", "arm_mode": b";f42b\r",
     "position": b";p025\r", "home": b";i12b\r",
-    "out": b";m0044e00fa012c0e\r", "approach": b";m0044e04b200c838\r",
+    "out": b";m0044e00fa012c0e\r", "forward": b";m0042204b200c86d\r",
+    "approach": b";m0044e04b200c838\r",
 }
 
-OPEN = [";s022", ";a133", ";a133", ";f42b", ";p025"]
+OPEN = [";a133", ";a133", ";s022", ";f42b", ";p025"]
 
 
 def _step(motion_line):
     return [";f42b", ";p025", motion_line, ";p025", ";f42b"]
 
 
-FULL = (OPEN + _step(";i12b") + _step(";m0044e00fa012c0e") + _step(";m0044e04b200c838")
-        + _step(";i12b"))
-#: The points where a run may end after a stop: after the opening and after
-#: each complete step (never between a movement and its checks).
-CUTS = {0, 5, 10, 15, 20, 25}
+FULL = (OPEN + _step(";i12b") + _step(";m0044e00fa012c0e") + _step(";m0042204b200c86d")
+        + _step(";m0044e04b200c838") + _step(";i12b"))
+MOTION_LINES = (";i12b", ";m0044e00fa012c0e", ";m0042204b200c86d", ";m0044e04b200c838")
+#: The points where a run may end after a stop at a question: after the
+#: opening and after each complete step (never between a movement and its checks).
+CUTS = {0, 5, 10, 15, 20, 25, 30}
 
 FORBIDDEN_IDS = ("c3", "c4", "d1", "f3", "m1", "m2", "a3", "u8", "k2", "a0", "f0", "f1", "p1")
 
@@ -75,9 +77,9 @@ def _run(tmp_path, sim=None, console=None, argv=("--auto",)):
     return code, sim, log.read_text(encoding="utf-8")
 
 
-# ---- the seven lines ------------------------------------------------------------------
+# ---- the eight lines ------------------------------------------------------------------
 
-def test_the_seven_lines_are_byte_identical_to_the_recorded_ones():
+def test_the_eight_lines_are_byte_identical_to_the_recorded_ones():
     assert tbl.WIRE == RECORDED
     assert tbl.ALLOWED_LINES == frozenset(RECORDED.values())
     for line in RECORDED.values():
@@ -104,7 +106,7 @@ def test_the_gate_refuses_every_other_move_and_every_other_shape():
             tbl.check_outgoing(line)
 
 
-def test_twenty_thousand_random_lines_are_refused_unless_they_are_one_of_the_seven():
+def test_twenty_thousand_random_lines_are_refused_unless_they_are_one_of_the_eight():
     rng = random.Random(129)
     alphabet = "0123456789abcdef;:!$\r\nmiaspfc"
     for _ in range(20000):
@@ -130,7 +132,7 @@ def test_the_program_has_no_way_to_build_another_command():
     tree = ast.parse(src)
     frames = [n for n in ast.walk(tree) if isinstance(n, ast.Call)
               and getattr(n.func, "id", None) == "_frame"]
-    assert len(frames) == 7                    # exactly the seven entries of WIRE
+    assert len(frames) == 8                    # exactly the eight entries of WIRE
     wire = next(n for n in tree.body if isinstance(n, ast.Assign)
                 and getattr(n.targets[0], "id", None) == "WIRE")
     assert all(any(f is c for c in ast.walk(wire)) for f in frames)
@@ -184,11 +186,11 @@ def test_a_complete_simulated_run_sends_exactly_the_plan(tmp_path):
     code, sim, log = _run(tmp_path)
     assert code == 0
     assert sim.received == [line.rstrip("\r") for line in FULL]
-    assert sim.motions == 4
+    assert sim.motions == 5
     assert tbl.HOME_CLUSTER.contains(sim.pos)
     for line in FULL:
-        assert f"SEND   " in log and line in log
-    assert "result 0; 25 lines sent, 4 movements" in log
+        assert "SEND   " in log and line in log
+    assert "result 0; 30 lines sent, 5 movements" in log
 
 
 def test_the_plan_printout_names_every_line_and_nothing_else(capsys):
@@ -231,7 +233,7 @@ def test_an_extra_line_after_the_last_answer_is_harmless(tmp_path):
 def test_a_wrong_position_mode_or_identity_stops_and_nothing_more_is_sent(tmp_path, kind, value):
     hits = 0
     for index, line in enumerate(FULL):
-        relevant = {"blocked": line in (";i12b", ";m0044e00fa012c0e", ";m0044e04b200c838"),
+        relevant = {"blocked": line in MOTION_LINES,
                     "drift": line == ";p025", "free": line == ";f42b",
                     "identity": line == ";a133"}[kind]
         if not relevant:
@@ -252,6 +254,7 @@ def test_a_wrong_position_mode_or_identity_stops_and_nothing_more_is_sent(tmp_pa
 
 
 @pytest.mark.parametrize("start", [dict(pos=[1102.0, 250.0]), dict(pos=[1102.0, 1202.0]),
+                                   dict(pos=[1058.0, 1202.0]),
                                    dict(pos=[0.0, 1500.0]), dict(pos=[1102.0, 60.0]),
                                    dict(pos=[1090.0, 10.0]), dict(arm="01")])
 def test_it_never_moves_unless_the_arm_starts_held_at_its_resting_place(tmp_path, start):
@@ -278,8 +281,12 @@ def test_ctrl_c_at_every_question_ends_at_a_clean_point_and_sends_nothing_more(t
 
 
 @pytest.mark.parametrize("answer_key,word", [("Is the arm at its resting place", "no"),
-                                             ("Send step 1", "stop"), ("Send step 2", "stop"),
+                                             ("Is the arm at its resting place", "stop"),
+                                             ("Send step 1", "stop"), ("Send step 2", "no"),
                                              ("Send step 3", "stop"), ("Send step 4", "stop"),
+                                             ("Send step 5", "no"),
+                                             ("described for step 1", "stop"),
+                                             ("Does it rest", "stop"),
                                              ("described for step 2", "not sure"),
                                              ("described for step 3", "no"),
                                              ("Does it touch", "touches"),
@@ -295,13 +302,13 @@ def test_a_no_or_stop_answer_moves_nothing_more(tmp_path, answer_key, word):
 
 
 def _expected_end_after_a_stop_at(index: int) -> int:
-    """A stop during the opening ends after it; during a step's two checks
-    before its movement, the movement is NOT sent; during the movement or the
-    checks after it, the step is completed first."""
+    """A stop is honoured before the next line is written, except for the two
+    checks right after a movement: so the movement is never sent after a stop,
+    and a movement that was sent always gets its arrival checked."""
     if index < 5:
-        return 5
+        return index + 1
     k, off = divmod(index - 5, 5)
-    return 5 + 5 * k + (2 if off < 2 else 5)
+    return 5 + 5 * k + (off + 1 if off < 2 else 5)
 
 
 def test_a_stop_signal_during_any_command_ends_after_that_step_never_inside_it(tmp_path):
@@ -327,7 +334,7 @@ def test_a_stop_signal_during_any_command_ends_after_that_step_never_inside_it(t
         n = len(sim.received)
         assert n == _expected_end_after_a_stop_at(index), (index, n)
         assert sim.received == [x.rstrip("\r") for x in FULL[:n]]
-        assert sim.motions == sum(1 for x in FULL[:n] if x[1:3] in ("i1", "m0"))
+        assert sim.motions == sum(1 for x in FULL[:n] if x in MOTION_LINES)
         assert "stopped by you" in log
 
 
@@ -369,11 +376,11 @@ def test_no_run_can_make_more_movements_or_lines_than_the_plan():
     sim = sim_mod.SimTable()
     t = tbl.Table(sim_mod.SimTransport(sim))
     t.open_checks()
-    for _ in range(4):
-        t.motion(tbl.PLAN[0])             # homing at home is allowed four times
+    for _ in range(5):
+        t.motion(tbl.PLAN[0])             # homing at home is allowed five times
     with pytest.raises(tbl.Doubt, match="limit of motions"):
         t.motion(tbl.PLAN[0])
-    assert sim.motions == 4 and t.closed_reason
+    assert sim.motions == 5 and t.closed_reason
     t2 = tbl.Table(sim_mod.SimTransport(sim_mod.SimTable()))
     t2.lines_sent = tbl.MAX_LINES
     with pytest.raises(tbl.Doubt, match="limit of lines"):
@@ -395,16 +402,16 @@ def test_each_step_starts_only_where_the_one_before_ended():
     sim = sim_mod.SimTable()
     t = tbl.Table(sim_mod.SimTransport(sim))
     t.open_checks()
-    with pytest.raises(tbl.Doubt, match="starts only from its own place"):
+    with pytest.raises(tbl.Doubt, match="not where the step before left it"):
         t.motion(tbl.PLAN[2])             # the approach, from the resting place
     assert sim.motions == 0
 
 
 def test_every_target_lies_inside_what_i1profiler_drove_on_this_table():
-    """No target is computed or extrapolated: the moves end at (1102, 250) and
-    (1102, 1202), both recorded m0 targets, inside the recorded m0 range
-    X -1320..2507, Y 250..1789."""
-    for key in ("out", "approach"):
+    """No target is computed or extrapolated: the moves end at (1102, 250),
+    (1058, 1202) and (1102, 1202), all recorded m0 targets, inside the
+    recorded m0 range X -1320..2507, Y 250..1789."""
+    for key in ("out", "forward", "approach"):
         line = tbl.WIRE[key].decode()
         x, y = int(line[3:7], 16), int(line[7:11], 16)
         assert -1320 <= x <= 2507 and 250 <= y <= 1789
@@ -752,7 +759,7 @@ def test_a_question_takes_only_a_whole_word_and_end_of_input_is_no(monkeypatch):
 
 def test_the_log_holds_every_line_and_no_serial_number(tmp_path):
     code, sim, log = _run(tmp_path)
-    assert log.count("SEND   ") == 25 and log.count("RECV   ") == 50
+    assert log.count("SEND   ") == 30 and log.count("RECV   ") == 60
     assert "serial number is never read" in log
     ids = {line[1:3] if line[0] == ";" else line[2:4]
            for line in re.findall(r"(?:SEND|RECV)\s+\S+\s+(\S+)", log)}
@@ -804,4 +811,200 @@ def test_the_zip_builds_and_its_simulated_run_works_without_chromiq(tmp_path):
     assert r.returncode == 0, r.stderr
     result = json.loads(r.stdout.rsplit("RESULT ", 1)[1])
     assert result == {"code": 0, "bad": []}
-    assert "result 0; 25 lines sent, 4 movements" in (work / "run.txt").read_text(encoding="utf-8")
+    assert "result 0; 30 lines sent, 5 movements" in (work / "run.txt").read_text(encoding="utf-8")
+
+
+# ---- after the first challenge (work folder review/CHALLENGE_1.md) ----------------------
+
+class _Creeping(prog.AutoConsole):
+    """While the tester answers, the reported Y creeps (challenge finding 2)."""
+
+    def __init__(self, sim, units, only="described for step", **kw):
+        super().__init__(lambda k, t: None, **kw)
+        self.sim, self.units, self.only = sim, units, only
+
+    def ask(self, question, choices=("yes", "no")):
+        if self.only in question:
+            sim_mod.creep(self.sim, self.units)
+        return super().ask(question, choices)
+
+
+def test_the_arm_creeping_while_he_answers_does_not_stop_the_run(tmp_path):
+    sim = sim_mod.SimTable()
+    code, sim, log = _run(tmp_path, sim, console=_Creeping(sim, 40))
+    assert code == 0 and sim.motions == 5
+    assert "DATA" in log and "starts at" in log
+
+
+def test_an_arm_that_moved_further_than_creep_between_steps_stops_with_its_own_reason(tmp_path):
+    sim = sim_mod.SimTable()
+    code, sim, log = _run(tmp_path, sim, console=_Creeping(sim, 70, "described for step 2"))
+    assert code == 2 and sim.motions == 2          # home, then out; step 3 refused
+    assert "not where the step before left it" in log
+    assert sim.received == [x.rstrip("\r") for x in FULL[:17]]
+
+
+def test_the_power_cycle_advice_comes_only_after_an_unfinished_movement(tmp_path):
+    unfinished = FULL.index(";m0044e00fa012c0e")
+    sim = sim_mod.SimTable()
+    sim.inject_at(unfinished, "no_done")
+    code, sim, log = _run(tmp_path, sim)
+    assert code == 2 and "switch the table off, wait ten seconds" in log
+    assert "keep your hands away from the arm" in log
+    assert "do not start this program again" in log
+    for kind, index in (("drift", unfinished + 1), ("free", unfinished + 2),
+                        ("no_answer", unfinished - 1)):
+        sim = sim_mod.SimTable()
+        sim.inject_at(index, kind, 40.0)
+        code, sim, log = _run(tmp_path, sim)
+        assert code == 2 and "wait ten seconds" not in log, kind
+
+
+class _BrokenRead(sim_mod.SimTransport):
+    def __init__(self, at):
+        super().__init__()
+        self.at, self.n = at, 0
+
+    def read(self, timeout):
+        if len(self.table.received) == self.at:
+            raise ValueError("a library surprise")
+        return super().read(timeout)
+
+
+def test_an_unexpected_error_still_ends_cleanly_with_advice_and_no_traceback(tmp_path, capsys):
+    t = _BrokenRead(FULL.index(";i12b") + 1)
+    table = tbl.Table(t)
+    r = prog.Run(table, prog.AutoConsole(lambda k, x: None), simulated=True)
+    code = r.go()
+    r.ending(code)
+    out = capsys.readouterr().out
+    assert code == 2 and "unexpected error (ValueError)" in out
+    assert "start i1Profiler once" in out and "Traceback" not in out
+    assert table.closed_reason and len(t.table.received) == FULL.index(";i12b") + 1
+
+
+class _Ticking:
+    """A transport whose reads return nothing after 16 ms, like the FTDI chip's
+    status-only packets, and then an unasked line."""
+
+    def __init__(self, stray_after):
+        self.clock, self.stray_after, self.writes = 0.0, stray_after, []
+
+    def now(self):
+        return self.clock
+
+    def read(self, timeout):
+        self.clock += 0.016
+        return b":$p00\r" if self.clock >= self.stray_after else b""
+
+    def write(self, data):
+        self.writes.append(data)
+
+
+def test_the_listening_before_a_command_lasts_50_ms_by_the_clock_not_one_read():
+    t = _Ticking(stray_after=0.04)
+    table = tbl.Table(t)
+    with pytest.raises(tbl.Doubt, match="nobody asked for"):
+        table.exchange("status", 1.0)
+    assert t.writes == [] and t.clock >= 0.04
+    t2 = _Ticking(stray_after=99)
+    tbl.Table(t2)._quiet_check()
+    assert 0.05 <= t2.clock < 0.1
+
+
+class _Suspended(sim_mod.SimTransport):
+    """The clock jumps 60 s during the first read after a movement line, as if
+    the process had been stopped with Ctrl-Z and continued later."""
+
+    def __init__(self):
+        super().__init__()
+        self.jumped = False
+
+    def read(self, timeout):
+        data = super().read(timeout)
+        if self.writes and self.writes[-1] == RECORDED["out"] and not self.jumped:
+            self.jumped = True
+            self.table.clock += 60.0
+        return data
+
+
+def test_an_answer_already_waiting_is_read_before_a_timeout_is_declared():
+    t = _Suspended()
+    table = tbl.Table(t)
+    table.open_checks()
+    table.motion(tbl.PLAN[0])
+    assert table.motion(tbl.PLAN[1])               # no "no answer" after the jump
+    assert t.jumped
+
+
+def test_job_control_stops_are_ignored_while_the_program_runs():
+    old = prog.install_signals(tbl.Table(sim_mod.SimTransport()))
+    try:
+        for name in ("SIGTSTP", "SIGTTIN", "SIGTTOU"):
+            if hasattr(signal, name):
+                assert signal.getsignal(getattr(signal, name)) == signal.SIG_IGN
+    finally:
+        for sig, h in old.items():
+            signal.signal(sig, h)
+
+
+def test_a_stop_during_the_opening_sends_no_further_read():
+    sim = sim_mod.SimTable()
+    t = tbl.Table(sim_mod.SimTransport(sim))
+    sim.on_command = lambda i: t.request_stop() if i == 1 else None
+    with pytest.raises(tbl.Stopped):
+        t.open_checks()
+    assert len(sim.received) == 2
+
+
+def test_set_configuration_only_for_an_unconfigured_device():
+    class Unconfigured(FakeDev):
+        def get_active_configuration(self):
+            raise USBError("Configuration not set")
+
+        def set_configuration(self):
+            self.ctrl.append("set_configuration")
+
+    dev, util, t = _ftdi(Unconfigured())
+    assert dev.ctrl[0] == "set_configuration" and len(dev.ctrl) == 6
+
+    class Odd(FakeDev):
+        def get_active_configuration(self):
+            raise USBError("Pipe error")
+    dev = Odd()
+    with pytest.raises(tbl.TransportError, match="Nothing was sent"):
+        _ftdi(dev)
+    assert dev.ctrl == []
+
+
+def test_every_question_offers_stop_and_the_step_question_takes_no(tmp_path):
+    seen = []
+
+    class Recorder(prog.AutoConsole):
+        def ask(self, question, choices=("yes", "no")):
+            seen.append(tuple(choices))
+            return super().ask(question, choices)
+    _run(tmp_path, console=Recorder(lambda k, t: None))
+    assert seen and all("stop" in c for c in seen)
+    assert ("yes", "no", "stop") in seen
+
+
+def test_the_simulator_holds_the_recorded_pairs_not_the_programs_choice():
+    """Finding 1: its rules come from the timelines, independently."""
+    t = sim_mod.SimTable()
+    t.receive(RECORDED["home"])
+    t.clock = 5
+    with pytest.raises(sim_mod.SimViolation):          # the old unrecorded pair
+        sim_mod.SimTable(pos=[1102.0, 250.0]).receive(RECORDED["approach"])
+    with pytest.raises(sim_mod.SimViolation):          # forward only from Y 317 or the deviation
+        sim_mod.SimTable(pos=[1102.0, 30.0]).receive(RECORDED["forward"])
+    sim_mod.SimTable(pos=[1058.0, 317.0]).receive(RECORDED["forward"])     # recorded
+    sim_mod.SimTable(pos=[1058.0, 1202.0]).receive(RECORDED["approach"])   # recorded
+
+
+def test_the_terminal_never_shows_the_full_log_path(tmp_path, capsys, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    prog.main(["--auto"], sim_table=sim_mod.SimTable(),
+              console=prog.AutoConsole(lambda k, t: None))
+    out = capsys.readouterr().out
+    assert str(tmp_path) not in out and "The log is in: i1io-trace-" in out

@@ -4,11 +4,11 @@
 
 Standard library only. pyusb is imported only when the REAL table is opened.
 
-THE ONE RULE OF THIS FILE: the program can put exactly SEVEN different lines
+THE ONE RULE OF THIS FILE: the program can put exactly EIGHT different lines
 on the wire, listed in :data:`WIRE`, and every one of them is a line that
 X-Rite's i1Profiler sent to the tester's own table in his two recordings,
 byte for byte (GitHub issue #129, recordings R1 and R2, decoded 2026-11-13).
-There is no function that builds a command from numbers: the seven lines are
+There is no function that builds a command from numbers: the eight lines are
 fixed at import and :func:`check_outgoing` refuses every other byte string.
 
 Line format (the decode, held on all 2,475 recorded lines): host to table
@@ -34,7 +34,7 @@ VID, PID = 0x0971, 0x2004
 
 
 class ForbiddenLine(Exception):
-    """A line that is not one of the seven (a bug; it is never written)."""
+    """A line that is not one of the eight (a bug; it is never written)."""
 
 
 class ProtocolError(Exception):
@@ -74,7 +74,7 @@ def _frame(cid: str, args: str = "") -> bytes:
     return (body + checksum(body) + "\r").encode("ascii")
 
 
-# ---- THE SEVEN LINES ---------------------------------------------------------------
+# ---- THE EIGHT LINES ---------------------------------------------------------------
 
 #: Everything this program can send. Each line is verbatim from the recordings
 #: (where, in :data:`RECORDED_AT`); `tests/test_i1io_trace_tool.py` pins the bytes.
@@ -86,6 +86,8 @@ WIRE = {
     "home":     _frame("i1"),                    # ;i12b
     # m0 X Y speed: X 0x044e = 1102, Y 0x00fa = 250, speed 0x012c = 300
     "out":      _frame("m0", "044e00fa012c"),    # ;m0044e00fa012c0e
+    # m0 X Y speed: X 0x0422 = 1058, Y 0x04b2 = 1202, speed 0x00c8 = 200
+    "forward":  _frame("m0", "042204b200c8"),    # ;m0042204b200c86d
     # m0 X Y speed: X 0x044e = 1102, Y 0x04b2 = 1202, speed 0x00c8 = 200
     "approach": _frame("m0", "044e04b200c8"),    # ;m0044e04b200c838
 }
@@ -93,25 +95,28 @@ WIRE = {
 #: Where each line was recorded (seconds from the start of the recording).
 RECORDED_AT = {
     "status":   "R1 84.051, R2 34.932 (at every open)",
-    "identity": "R1 and R2, twice at every open (R2 34.546, 34.715)",
+    "identity": "R2 34.546 and 34.715 (first and second line at every open)",
     "arm_mode": "R1 84.062, R2 34.940 (four times at every open)",
     "position": "R2 35.017 (just before the start-up homing), before nearly every move",
     "home":     "R2 35.033 from (1102, 47) at start-up; R1 85.848 from (1102, 1202)",
-    "out":      "R1 197.917 from home (1102, 5), the first move out after a calibration",
-    "approach": "R1 85.529, i1Profiler's start-up approach, right before its homing",
+    "out":      "R1 197.917 from (1102, 5); R2 142.056 from (1102, 6); R2 425.038 from (1102, 4)",
+    "forward":  "R1 84.153 from (1058, 317): first leg of i1Profiler's start-up approach, 1.375 s",
+    "approach": "R1 85.529 from (1058, 1202): second leg of the same approach, 0.319 s",
 }
 
 ALLOWED_LINES = frozenset(WIRE.values())
+MOTION_LINES = frozenset({WIRE["home"], WIRE["out"], WIRE["forward"], WIRE["approach"]})
+MOTION_KEYS = frozenset({"home", "out", "forward", "approach"})
 
 #: Data characters in the ':$' reply of each command id.
 DATA_LEN = {"s0": 0, "a1": 10, "f4": 2, "p0": 8, "i1": 0, "m0": 0}
 
 
 def check_outgoing(line: bytes) -> str:
-    """THE GATE. Return the command id if *line* is exactly one of the seven
+    """THE GATE. Return the command id if *line* is exactly one of the eight
     lines; raise ForbiddenLine otherwise."""
     if not isinstance(line, (bytes, bytearray)) or bytes(line) not in ALLOWED_LINES:
-        raise ForbiddenLine(f"not one of the seven allowed lines: {line!r}")
+        raise ForbiddenLine(f"not one of the eight allowed lines: {line!r}")
     return bytes(line)[1:3].decode("ascii")
 
 
@@ -172,28 +177,44 @@ def around(x: int, y: int, tol: int = 10) -> Box:
     return Box(x - tol, x + tol, y - tol, y + tol)
 
 
+def after_a_pause(x: int, y: int) -> Box:
+    """Where a step may start when the arm stood still for a while since the
+    step before: the reported Y creeps at rest (recorded at home: 6 units in
+    7 s, up to 47 over minutes), so 10 units in X and 50 in Y. The targets are
+    fixed, so a crept start only makes the next move a few millimetres longer
+    or shorter."""
+    return Box(x - TOLERANCE, x + TOLERANCE, y - CREEP_Y, y + CREEP_Y)
+
+
 #: The identity reply of the one table we know (constant at all four recorded
 #: opens). It carries no serial number. Any other answer: nothing moves.
 KNOWN_IDENTITY = "005D010702"
 
-#: Where the arm rests: every recorded start and calibration found it at
-#: X 1102, Y 0 to 47 (the reading creeps while it stands), plus 5 units of
-#: jitter. The program starts only from here.
+#: Where the arm rests. Every recorded start or calibration read X 1102 and
+#: Y 0, 2, 22, 24, 32, 36 or 47 (the reading creeps while the arm stands); the
+#: box adds 5 units of margin on each side. The program starts only from here.
 HOME_CLUSTER = Box(1097, 1107, -5, 50)
 
 #: After a completed move the position must be this close to the target, per
 #: axis (220 recorded moves: worst 4, median 1).
 TOLERANCE = 10
+#: How far the reported Y may creep while the tester answers questions.
+CREEP_Y = 50
 
 #: Longest recorded: quick commands 0.21 s, m0 1.76 s, i1 4.02 s. These are
 #: how long the program waits before it treats a missing answer as a fault.
 QUICK_TIMEOUT = 1.0
 MOVE_TIMEOUT = 8.0
 HOME_TIMEOUT = 12.0
+#: No read is shorter than this. On a Mac, a USB read that times out is
+#: cancelled, which can cost bytes arriving at that instant; the FTDI chip
+#: sends a status packet every 16 ms anyway, so reads normally return sooner.
+MIN_READ_S = 0.05
 
-#: Before every command the program listens this long for anything unasked.
+#: Before every command the program listens this long (by the clock, over as
+#: many reads as it takes) for anything unasked.
 QUIET_CHECK_S = 0.05
-#: The longest answer line to any of the seven lines (":$a1" + 10 + checksum).
+#: The longest answer line to any of the eight lines (":$a1" + 10 + checksum).
 LONGEST_REPLY = 17
 
 #: After opening, the table must be silent this long before the first command.
@@ -212,41 +233,46 @@ class Motion:
     end: Box
     timeout: float
     what: str          # what the tester will see, in plain words
-    seconds: str       # how long it took in the recordings
-    recorded: str      # where i1Profiler made this same movement
+    seconds: str       # how long this line took in the recordings
+    recorded: str      # where i1Profiler sent this line, and how this step differs
 
 
 #: THE PLAN. The whole of what the program can make the arm do, in this order,
 #: each step only after the tester typed yes. Nothing else moves the arm.
+#: Steps 3 to 5 are i1Profiler's own recorded start-up approach (R1 84.153 to
+#: 87.448: forward, approach, home); only the start of step 3 differs.
 PLAN = (
     Motion(1, "home", HOME_CLUSTER, HOME_CLUSTER, HOME_TIMEOUT,
            "The arm finds its exact resting place. It is already there, so it moves "
            "very little or not at all; you may hear the motors for a moment.",
-           "0.3 s", "R2 35.033: the line ;i12b sent from (1102, 47), right after "
-           "i1Profiler opened the table (also R2 378.632, R1 190.093)"),
+           "0.3 s", "i1Profiler sent this same line in this same situation (R2 35.033, from "
+           "X 1102, Y 47, right after it opened the table; also R2 378.632)"),
     Motion(2, "out", HOME_CLUSTER, around(1102, 250), MOVE_TIMEOUT,
            "The arm moves about 25 mm (1 inch) straight towards the front of the "
            "table, away from its resting place, and stops.",
-           "0.7 s", "R1 197.917: this same line sent from (1102, 5), the first move "
-           "out from the resting place"),
-    Motion(3, "approach", around(1102, 250), around(1102, 1202), MOVE_TIMEOUT,
+           "0.7 s", "i1Profiler sent this same line from the resting place three times "
+           "(R1 197.917, R2 142.056, R2 425.038)"),
+    Motion(3, "forward", after_a_pause(1102, 250), around(1058, 1202), MOVE_TIMEOUT,
            "The arm moves about 95 mm (3.7 inches) further towards the front of the "
-           "table, in a straight line, and stops about 12 cm from its resting place.",
-           "1.4 s", "R1 84.153 to 85.529: i1Profiler's start-up approach sent the arm "
-           "from Y 317 to Y 1202 and then to exactly this place with this same line; "
-           "this step starts 7 mm nearer the resting place and 4 mm to the side"),
-    Motion(4, "home", around(1102, 1202), HOME_CLUSTER, HOME_TIMEOUT,
+           "table, and about 4 mm sideways, and stops about 12 cm from its resting place.",
+           "1.4 s", "i1Profiler sent this same line as the first leg of its start-up "
+           "approach (R1 84.153), from X 1058, Y 317. Here it starts from X 1102, Y 250, "
+           "so the path is about 7 mm longer and 4 mm sideways. This is the one movement "
+           "that was not recorded exactly like this"),
+    Motion(4, "approach", after_a_pause(1058, 1202), around(1102, 1202), MOVE_TIMEOUT,
+           "The arm moves about 4 mm sideways and stops.",
+           "0.3 s", "i1Profiler sent this same line from this same place, as the second "
+           "leg of its start-up approach (R1 85.529)"),
+    Motion(5, "home", after_a_pause(1102, 1202), HOME_CLUSTER, HOME_TIMEOUT,
            "The arm goes back to its resting place at the back of the table by itself.",
-           "1.6 s", "R1 85.848: the line ;i12b sent from (1102, 1202), right after "
-           "this same approach"),
+           "1.6 s", "i1Profiler sent this same line from this same place, right after "
+           "the approach (R1 85.848)"),
 )
 
-#: A hard cap, checked on every write: no run can make more motions than the plan has.
+#: Hard caps, checked on every write: no run can make more motions than the
+#: plan has, nor send more lines (the full plan sends 30).
 MAX_MOTIONS = len(PLAN)
-#: A hard cap on lines of any kind (the full plan sends 25).
 MAX_LINES = 40
-
-MOTION_KEYS = frozenset({"home", "out", "approach"})
 
 
 # ---- the session ------------------------------------------------------------------------
@@ -276,13 +302,17 @@ class Table:
         self.busy = 0                 # >0 while an exchange or a motion step runs
         self.stop_requested = False
         self.position_now: "tuple[int, int] | None" = None
+        #: a motion line was written and its completion never arrived: the
+        #: table may still be moving, or may start a pending motion later
+        self.motion_unconfirmed = False
+        self.unexpected = False       # stopped by an error nobody planned for
 
     # ---- logging and stopping ------------------------------------------------------
     def log(self, kind: str, text: str) -> None:
         self._log(kind, f"{self.t.now():10.3f}  {text}")
 
     def request_stop(self) -> None:
-        """From a signal handler while busy: stop once the current step is done."""
+        """From a signal handler while busy: stop at the next safe point."""
         self.stop_requested = True
 
     def close_for_sending(self, reason: str) -> None:
@@ -294,6 +324,11 @@ class Table:
         self.close_for_sending(reason)
         return Doubt(reason)
 
+    def _stop_if_requested(self) -> None:
+        if self.stop_requested:
+            self.close_for_sending("stopped by you")
+            raise Stopped("stopped by you")
+
     # ---- the wire ---------------------------------------------------------------------
     def _write(self, line: bytes) -> str:
         """The ONLY place that writes to the transport."""
@@ -302,22 +337,29 @@ class Table:
         cid = check_outgoing(line)
         if self.lines_sent >= MAX_LINES:
             raise self._doubt("the program reached its limit of lines for one run")
-        is_motion = line in (WIRE["home"], WIRE["out"], WIRE["approach"])
+        is_motion = line in MOTION_LINES
         if is_motion and self.motions_sent >= MAX_MOTIONS:
             raise self._doubt("the program reached its limit of motions for one run")
         self.lines_sent += 1
         if is_motion:
             self.motions_sent += 1
+            self.motion_unconfirmed = True
         self.log("SEND", line.decode("ascii").rstrip("\r"))
         self.t.write(bytes(line))
         return cid
 
     def _read_line(self, deadline: float) -> str:
+        """One line. Bytes already waiting are always read before a timeout is
+        declared (one last read after the deadline), so a process that was
+        suspended for a while does not mistake a good answer for none."""
+        last_try = False
         while b"\r" not in self._buf:
             left = deadline - self.t.now()
             if left <= 0:
-                raise TimeoutError
-            self._buf += self.t.read(min(left, 0.25))
+                if last_try:
+                    raise TimeoutError
+                last_try = True
+            self._buf += self.t.read(max(MIN_READ_S, min(left, 0.25)))
         raw, self._buf = self._buf.split(b"\r", 1)
         try:
             line = raw.decode("ascii")
@@ -332,19 +374,31 @@ class Table:
 
     def _quiet_check(self) -> None:
         """Before every command the table must have nothing more to say: an
-        extra or late line means the conversation is out of step."""
+        extra or late line means the conversation is out of step. Listens
+        for QUIET_CHECK_S by the clock (the FTDI chip answers a read every
+        16 ms with an empty status packet, so one read is not enough)."""
+        end = self.t.now() + QUIET_CHECK_S
         try:
-            self._buf += self.t.read(QUIET_CHECK_S)
+            while not self._buf:
+                left = end - self.t.now()
+                if left <= 0:
+                    break
+                self._buf += self.t.read(max(MIN_READ_S, left))
         except TransportError as exc:
             raise self._doubt(f"the USB link failed: {exc}") from None
         if self._buf:
             raise self._doubt(f"the table sent something nobody asked for ({_short(self._buf)})")
 
-    def exchange(self, key: str, timeout: float) -> Reply:
-        """Send WIRE[key], read its two answers. Any fault closes the session."""
+    def exchange(self, key: str, timeout: float, honour_stop: bool = True) -> Reply:
+        """Send WIRE[key], read its two answers. Any fault closes the session.
+        A stop asked for earlier is honoured BEFORE the line is written, except
+        for the checks right after a movement (*honour_stop* False), which
+        record where the arm arrived."""
         line = WIRE[key]
         if self.closed_reason is not None:
             raise Doubt(f"not sending: {self.closed_reason}")
+        if honour_stop:
+            self._stop_if_requested()
         self.busy += 1
         try:
             self._quiet_check()
@@ -364,10 +418,13 @@ class Table:
         except BaseException as exc:
             # anything else after the write (a bug, an interrupt that got
             # through): the answer may still be on its way, so nothing more
-            self.close_for_sending(f"an unexpected error: {exc!r}")
+            self.unexpected = True
+            self.close_for_sending(f"an unexpected error ({type(exc).__name__})")
             raise
         finally:
             self.busy -= 1
+        if line in MOTION_LINES:
+            self.motion_unconfirmed = False
         if reply.status != 0:
             raise self._doubt(f"the table answered {cid} with status {reply.status}, which "
                               "it never did in the recordings")
@@ -380,6 +437,7 @@ class Table:
         start = last = self.t.now()
         quiet = DRAIN_QUIET_S
         while True:
+            self._stop_if_requested()
             try:
                 chunk = self.t.read(0.25)
             except TransportError as exc:
@@ -402,34 +460,30 @@ class Table:
     def identity(self) -> str:
         return self.exchange("identity", QUICK_TIMEOUT).data
 
-    def arm_mode(self) -> str:
-        return self.exchange("arm_mode", QUICK_TIMEOUT).data
+    def arm_mode(self, honour_stop: bool = True) -> str:
+        return self.exchange("arm_mode", QUICK_TIMEOUT, honour_stop).data
 
-    def position(self) -> "tuple[int, int]":
-        p = self.exchange("position", QUICK_TIMEOUT).xy()
+    def position(self, honour_stop: bool = True) -> "tuple[int, int]":
+        p = self.exchange("position", QUICK_TIMEOUT, honour_stop).xy()
         self.position_now = p
         return p
 
-    def _stop_if_requested(self) -> None:
-        if self.stop_requested:
-            self.close_for_sending("stopped by you")
-            raise Stopped("stopped by you")
-
     # ---- the opening checks -------------------------------------------------------
     def open_checks(self) -> "tuple[int, int]":
-        """The read-only opening, as i1Profiler's: s0, a1 twice, f4, p0. Raises
-        Doubt (nothing moves, nothing more is sent) unless it is the table we
-        know, its motors hold the arm and the arm is at its resting place."""
+        """The read-only opening in i1Profiler's order (a1 twice, s0, f4, p0;
+        its k2, a0 and memory reads left out). Raises Doubt (nothing moves,
+        nothing more is sent) unless it is the table we know, its motors hold
+        the arm and the arm is at its resting place."""
         self.busy += 1
         try:
             self.drain()
-            self.status()
             for _ in range(2):
                 ident = self.identity()
                 if ident != KNOWN_IDENTITY:
                     raise self._doubt(
                         f"the table identified itself as {ident}, not as the one table this "
                         f"program was made from ({KNOWN_IDENTITY})")
+            self.status()
             mode = self.arm_mode()
             if mode != "00":
                 raise self._doubt(f"the arm is not held by its motors (mode {mode}); "
@@ -447,7 +501,8 @@ class Table:
     def motion(self, step: Motion) -> "tuple[int, int]":
         """f4 and p0 first (motors holding, arm where the step starts), then the
         step's fixed line, then p0 and f4 again (arrived, still held). A stop
-        asked for during the step is honoured after it, never in the middle."""
+        asked for before the line is written means it is not written; once it
+        is, the step's own checks are completed first."""
         if step.key not in MOTION_KEYS or step not in PLAN:
             raise self._doubt(f"not a step of the plan: {step!r}")
         self.busy += 1
@@ -456,17 +511,18 @@ class Table:
             if mode != "00":
                 raise self._doubt(f"the arm is not held by its motors (mode {mode})")
             here = self.position()
+            self.log("DATA", f"step {step.number} starts at {here}")
             if not step.start.contains(here):
-                raise self._doubt(f"step {step.number} starts only from its own place, and "
-                                  f"the arm reports {here}")
-            if self.stop_requested:
-                self._stop_if_requested()
+                raise self._doubt(
+                    f"before step {step.number} the arm reports table position {here}, which "
+                    "is not where the step before left it (it may have been touched, or "
+                    "moved by itself)")
             self.exchange(step.key, step.timeout)
-            got = self.position()
+            got = self.position(honour_stop=False)
             if not step.end.contains(got):
                 raise self._doubt(f"after step {step.number} the arm reports {got}, not where "
                                   "it was sent: something may be in its way")
-            mode = self.arm_mode()
+            mode = self.arm_mode(honour_stop=False)
             if mode != "00":
                 raise self._doubt(f"after step {step.number} the motors no longer hold the "
                                   f"arm (mode {mode})")
@@ -539,15 +595,21 @@ class FtdiUsb(Transport):
         try:
             try:
                 self.dev.get_active_configuration()
-            except USBError:
-                self.dev.set_configuration()      # only if not configured yet
+            except USBError as exc:
+                # pyusb's own words for an unconfigured device; anything else
+                # is a fault, and nothing is sent
+                if "Configuration not set" not in str(exc):
+                    raise
+                self.dev.set_configuration()
             self._util.claim_interface(self.dev, 0)
             self._claimed = True
         except USBError as exc:
             raise TransportError(
-                "The table could not be opened. Another program may be using it "
-                "(i1Profiler, or another copy of this program); please quit it and try "
-                f"again. ({getattr(exc, 'strerror', None) or type(exc).__name__})") from None
+                "The table could not be opened. Another program may be using it: "
+                "i1Profiler, another copy of this program, or one of X-Rite's background "
+                "services (for example X-Rite Device Services). Please quit i1Profiler and "
+                "try again; if it still fails, send the log. Nothing was sent to the table. "
+                f"({getattr(exc, 'strerror', None) or type(exc).__name__})") from None
         try:
             for req, val, idx in self.SETUP:
                 self.dev.ctrl_transfer(0x40, req, val, idx, None, 1000)

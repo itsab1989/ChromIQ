@@ -14,11 +14,19 @@ it receives anything the real program must never send:
   or without its CR;
 * anything at all while the arm is still moving;
 * an m0 or i1 while the arm is free;
-* an m0 or i1 from a place where i1Profiler was not recorded sending it:
-  i1 only at the resting place or at (1102, 1202); m0 only from the resting
-  place to (1102, 250), or from (1102, 250) to (1102, 1202).
+* an m0 or i1 that is not one of the RECORDED pairs below (line and the place
+  it was sent from, from the decoded timelines), apart from the one deviation
+  the program names:
 
-These rules are written here a second time, on purpose not imported from
+  - i1 from the resting place (R2 35.033 from (1102, 47)) or from (1102, 1202)
+    (R1 85.848);
+  - m0 (1102, 250) at 300 from the resting place (R1 197.917, R2 142.056,
+    425.038);
+  - m0 (1058, 1202) at 200 from (1058, 317) (R1 84.153), and, as THE ONE
+    DEVIATION, from (1102, 250) after the move above;
+  - m0 (1102, 1202) at 200 from (1058, 1202) (R1 85.529).
+
+These rules are written from the recordings, on purpose not imported from
 `i1io_table`, so that a mistake in one is caught by the other.
 
 Faults can be injected for the tests (:meth:`SimTable.inject`).
@@ -42,6 +50,12 @@ HOME = (1102, 0)
 ACCEL = 2000.0                # units/s^2, fitted on the recorded m0 times
 _HOST_RE = re.compile(r";([a-z][0-9])([0-9a-f]*)([0-9a-f]{2})")
 KNOWN_IDS = {"s0": "", "a1": "", "f4": "", "p0": "", "i1": "", "m0": "[0-9a-f]{12}"}
+
+
+def creep(table, units: float) -> None:
+    """Test hook: the reported Y creeps while the arm stands (as at home in
+    the recordings)."""
+    table.pos[1] += units
 
 
 def _at_home(p) -> bool:
@@ -149,14 +163,18 @@ class SimTable:
         if cid in ("m0", "i1"):
             if self.arm != "00":
                 raise SimViolation(f"{cid} while the arm is free")
-        if cid == "i1" and not (_at_home(here) or _near(here, (1102, 1202))):
+        if cid == "i1" and not (_at_home(here) or _near(here, (1102, 1202), 60)):
             raise SimViolation(f"i1 from {here}, where it was never recorded")
         if cid == "m0":
             x, y, v = int(args[0:4], 16), int(args[4:8], 16), int(args[8:12], 16)
             if (x, y, v) == (1102, 250, 300) and _at_home(here):
-                return
-            if (x, y, v) == (1102, 1202, 200) and _near(here, (1102, 250)):
-                return
+                return                       # recorded
+            if (x, y, v) == (1058, 1202, 200) and _near(here, (1058, 317)):
+                return                       # recorded
+            if (x, y, v) == (1058, 1202, 200) and _near(here, (1102, 250), 60):
+                return                       # THE ONE DEVIATION (start of step 3)
+            if (x, y, v) == (1102, 1202, 200) and _near(here, (1058, 1202), 60):
+                return                       # recorded (60: the reading creeps at rest)
             raise SimViolation(f"m0 to ({x}, {y}) at {v} from {here}: not a recorded move")
 
     def _command(self, line: str) -> None:
