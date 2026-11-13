@@ -158,7 +158,8 @@ def test_a_4333_project_reopens_as_4333_made_it(tmp_path, name, patches):
                CHROMIQ_PRESETS_DIR=str(tmp_path / "presets"),
                CHROMIQ_LOG_DIR=str(tmp_path / "logs"))
     proc = subprocess.run([sys.executable, "-c", PROBE], env=env, cwd=ROOT,
-                          capture_output=True, text=True, timeout=600)
+                          capture_output=True, text=True, encoding="utf-8",
+                          errors="replace", timeout=600)
     assert proc.returncode == 0, proc.stderr[-3000:]
     stops = json.loads((out / "stops.json").read_text(encoding="utf-8"))
     assert len(stops) == 4
