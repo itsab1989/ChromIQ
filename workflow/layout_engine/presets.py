@@ -844,7 +844,9 @@ def default_recipe(instrument: str = "i1", paper: str = "A4", *, mode: str | Non
             from workflow.i1io.table_facts import (PATCH_ACROSS_MM,
                                                    PATCH_ALONG_MM, margins_mm)
             t, rt, b, lt = margins_mm(True)
+            from workflow.i1io.table_facts import ROW_GAP_MM, SCAN_GAP_MM
             r.patch_w_mm, r.patch_h_mm = PATCH_ALONG_MM.value, PATCH_ACROSS_MM.value
+            r.strip_gap_mm, r.inter_patch_mm = SCAN_GAP_MM.value, ROW_GAP_MM.value
             r.layout_mode = "patch_first"
             r.spacer_mode = "none"
             r.clip_content_mode = "off"

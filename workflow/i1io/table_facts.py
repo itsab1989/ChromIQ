@@ -118,6 +118,14 @@ SCAN_SAFE_READINGS = Fact(20, "ours: about 1.5 x the fastest recorded pass",
 #:   recommends for the i1iO too. UNPROVEN until a tester has scanned it.
 SCAN_GAP_MM = Fact(1.0, "ours: X-Rite's supported-targets note; i1Profiler's "
                    "20 % gap limit", OURS)
+#: Between ROWS (across the scan) there is no gap by default: the 4.5 mm
+#: aperture keeps 1.75 mm inside an 8 mm row on each side, and the arm's
+#: positioning error is not published (the recordings show the encoder
+#: drifting a few tenths of a millimetre at rest, PROTOCOL 3.1), so a row gap
+#: buys nothing measured and costs whole rows. Manual may add one, up to this.
+ROW_GAP_MM = Fact(0.0, "ours: aperture 4.5 mm in an 8 mm row; arm accuracy "
+                  "unpublished", OURS)
+ROW_GAP_MAX_MM = Fact(3.0, "ours", OURS)
 GAP_MAX_FRACTION = Fact(0.2, "i1Profiler driver: 'gaps size too large (more "
                         "than 20% of the patch length)'", VERIFIED)
 
@@ -210,6 +218,11 @@ LABEL_CLEAR_MM = Fact(1.0, "ours: aperture 4.5 mm in an 8 mm row, plus 1 mm",
 LABEL_CAP_HEIGHT = 0.73
 LABEL_CHAR_WIDTH = 0.85
 
+#: The row numbers start at least this far from the paper's left edge, so a
+#: printer that leaves an edge unprinted does not cut them (same reason as
+#: MARK_INSET_MM); on A4 and Letter it costs no column.
+ROW_LABEL_EDGE_MM = Fact(5.0, "ours", OURS)
+
 #: Clear paper between a row label and the end of the row's run.
 ROW_LABEL_GAP_MM = Fact(1.0, "ours", OURS)
 
@@ -219,9 +232,10 @@ RUN_EDGE_MM = Fact(2.0, "ours: so a run never starts on the paper edge", OURS)
 #: The aiming marks: centre this far in from both sheet edges at its corner,
 #: a cross of this span and line width inside a square outline of this size,
 #: and the digit this high beside it.
-MARK_INSET_MM = Fact(10.0, "ours: clear of most printers' unprintable edge",
-                     OURS)
-MARK_CROSS_MM = Fact(8.0, "ours", OURS)
+MARK_INSET_MM = Fact(11.0, "ours: the cross stays 8 mm from the paper edge, "
+                     "clear of the widest unprintable edge seen (6.4 mm, a "
+                     "Canon PRO-300 description, on screen 2026-11-13)", OURS)
+MARK_CROSS_MM = Fact(6.0, "ours", OURS)
 MARK_LINE_MM = Fact(0.3, "ours: thin enough to put the sight's cross hair on",
                     OURS)
 MARK_FRAME_MM = Fact(5.0, "ours: makes the cross easy to find", OURS)
@@ -254,7 +268,8 @@ def row_label_band_mm(size_mm: "float | None" = None) -> float:
     """Paper a column of row numbers (up to two digits) takes beside the
     runs, its gap included."""
     size = LABEL_SIZE_MM.value if not size_mm else float(size_mm)
-    return round(2 * LABEL_CHAR_WIDTH * size + ROW_LABEL_GAP_MM.value, 3)
+    return round(2 * LABEL_CHAR_WIDTH * size + ROW_LABEL_GAP_MM.value
+                 + ROW_LABEL_EDGE_MM.value - RUN_EDGE_MM.value, 3)
 
 
 def margins_mm(row_labels: bool = False,
@@ -278,6 +293,20 @@ def patch_limits_mm() -> "tuple[tuple[float, float], tuple[float, float]]":
     lo = math.ceil(min_patch_length_mm() * 10) / 10
     along = (max(lo, PATCH_RANGE_ALONG_MM.value[0]), PATCH_RANGE_ALONG_MM.value[1])
     return along, tuple(PATCH_RANGE_ACROSS_MM.value)
+
+
+def gaps_mm(along_gap: "float | None" = None,
+            row_gap: "float | None" = None,
+            patch_along: "float | None" = None) -> "tuple[float, float]":
+    """``(gap along the row, gap between rows)`` an i1iO chart is laid out
+    with: the given values (Manual's "Strip gap" and "Inter-patch gap"),
+    held to 0 .. 20 % of the patch length along the row and 0 ..
+    ROW_GAP_MAX_MM between rows; None takes the defaults."""
+    length = patch_along or PATCH_ALONG_MM.value
+    a = SCAN_GAP_MM.value if along_gap is None else float(along_gap)
+    r = ROW_GAP_MM.value if row_gap is None else float(row_gap)
+    return (min(max(a, 0.0), GAP_MAX_FRACTION.value * length),
+            min(max(r, 0.0), ROW_GAP_MAX_MM.value))
 
 
 def patch_size_mm(along: "float | None" = None,

@@ -286,6 +286,27 @@ def i1io_greyed_reason() -> str:
         "settings.")
 
 
+def i1io_gap_help(which: str) -> str:
+    """The tooltip of "Strip gap" (*which* "along") or "Inter-patch gap"
+    ("rows") while the i1iO table is chosen."""
+    if which == "along":
+        return tr(
+            "For the i1iO: the thin white gap between neighbouring patches "
+            "along a row, the direction the arm scans. When the table scans a "
+            "row, ChromIQ has to find where one patch ends and the next "
+            "begins in the stream of readings; a white gap makes every "
+            "boundary visible, also between two similar colours. 1 mm is the "
+            "default. 0 gives more patches per sheet but makes the scan "
+            "harder to read; at most 20 % of the patch length is used, as "
+            "i1Profiler allows. Untested on a real table so far.")
+    return tr(
+        "For the i1iO: a white gap between the rows of patches. None is the "
+        "default: the i1Pro 2 reads a circle 4.5 mm across in the middle of "
+        "each 8 mm row, so it does not see the neighbouring rows anyway. A "
+        "gap here only costs rows; add one only if a table owner finds that "
+        "readings pick up the row next to them.")
+
+
 class LayoutOptionsPanel(QWidget):
     """All layout-engine controls except instrument/paper/mode."""
 
@@ -3346,6 +3367,7 @@ class LayoutOptionsPanel(QWidget):
         their size, and the sheet text (printed on the name line)."""
         return tuple(c for c in (
             self.dpi, self.patch_x, self.patch_y,
+            getattr(self, "strip_gap", None), getattr(self, "inter_patch", None),
             getattr(self, "show_indicators", None),
             getattr(self, "show_row_indicators", None),
             getattr(self, "indicator_size", None),
@@ -3442,6 +3464,16 @@ class LayoutOptionsPanel(QWidget):
                 c.setRange(lo, hi)
                 if not was_value:
                     c.setValue(default)
+            # The two gaps, in the i1iO's words and limits (`i1io_gap_help`).
+            saved["gap_tips"] = [(c, c.toolTip()) for c in
+                                 (self.strip_gap, self.inter_patch)]
+            for c, lo, hi in ((self.strip_gap, 0.0, 4.0),
+                              (self.inter_patch, 0.0, 3.0)):
+                saved["ranges"].append((c, c.minimum(), c.maximum(), c.value(),
+                                        c.specialValueText()))
+                c.setRange(lo, hi)
+            self.strip_gap.setToolTip(i1io_gap_help("along"))
+            self.inter_patch.setToolTip(i1io_gap_help("rows"))
             saved["shown"] = self._fd9_capture_shown()
             self._i1io_saved = saved
             self._i1io_show_what_applies()
@@ -3463,6 +3495,8 @@ class LayoutOptionsPanel(QWidget):
             control.setSpecialValueText(special)
             control.setRange(lo, hi)
             control.setValue(value)
+        for control, tip in was.get("gap_tips", []):
+            control.setToolTip(tip)
 
     def _i1io_rows_toggled(self, *_a) -> None:
         """The greyed left margin follows the row numbers' band."""
@@ -3472,9 +3506,12 @@ class LayoutOptionsPanel(QWidget):
     def _load_i1io_layout_values(self) -> None:
         """A person has just chosen the i1iO: its own patch size, never the
         previous instrument's (the FD-9's H1 lesson)."""
-        from workflow.i1io.table_facts import PATCH_ACROSS_MM, PATCH_ALONG_MM
+        from workflow.i1io.table_facts import (PATCH_ACROSS_MM, PATCH_ALONG_MM,
+                                               ROW_GAP_MM, SCAN_GAP_MM)
         self.patch_x.setValue(PATCH_ALONG_MM.value)
         self.patch_y.setValue(PATCH_ACROSS_MM.value)
+        self.strip_gap.setValue(SCAN_GAP_MM.value)
+        self.inter_patch.setValue(ROW_GAP_MM.value)
 
     def _hold_i1io_greying(self) -> None:
         """While the i1iO is selected, grey again what a recipe load or one

@@ -92,13 +92,18 @@ def fixed_build_kwargs(kw: dict) -> dict:
     out = dict(kw)
     along, across = F.patch_size_mm(kw.get("patch_w"), kw.get("patch_h"))
     labels = kw.get(LABELS_KEY) or label_wishes(kw)
+    # THE TWO GAPS ARE THE ENGINE'S OWN CONTROLS, kept apart: the engine's
+    # columns are the patches of a row, so its "Strip gap" (between strips)
+    # is the white separator ALONG the scan, and its "Inter-patch gap"
+    # (between the patches of a strip) is the gap BETWEEN ROWS. Absent (a
+    # Guided chart): the i1iO's defaults, 1 mm and none.
+    along_gap, row_gap = F.gaps_mm(kw.get("strip_gap"), kw.get("inter_patch"),
+                                   along)
     out.update(
         patch_w=along, patch_h=across,
         pscale=1.0, sscale=1.0, spacer_on=False, spacer_mode="none",
-        spacer_width=None, inter_patch=0.0, edge_spacers=False,
-        # the white gap between neighbours along a row: the engine's columns
-        # are the patches of a row, so its gap between strips is that gap
-        strip_gap=F.SCAN_GAP_MM.value,
+        spacer_width=None, inter_patch=row_gap, edge_spacers=False,
+        strip_gap=along_gap,
         margins=F.margins_mm(labels.rows, labels.size),
         use_instrument_margins=True,
         layout_mode="patch_first", patch_area_align="center",

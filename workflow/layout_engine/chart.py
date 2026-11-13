@@ -346,6 +346,7 @@ def build_chart(
         # table's limits; everything else is the i1iO's own.
         _f = _i1io_chart.fixed_build_kwargs({
             "patch_w": patch_w, "patch_h": patch_h,
+            "strip_gap": strip_gap, "inter_patch": inter_patch,
             "draw_indicators": draw_indicators,
             "row_indicators": row_indicators,
             "indicator_size_mm": indicator_size_mm})

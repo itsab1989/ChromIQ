@@ -95,7 +95,7 @@ def test_whatever_a_recipe_asks_for_the_i1io_keeps_its_own_layout():
         {"instrument": "IO2", "paper": "A4R"}), w, h)
     noisy = geometry.patches_per_sheet(instruments.geom_from_build_kwargs(
         {"instrument": "IO2", "paper": "A4R",
-         "spacer_on": True, "inter_patch": 2.0, "margins": (3, 3, 3, 3),
+         "spacer_on": True, "margins": (3, 3, 3, 3),
          "helper_markers": True,
          "layout_mode": "area_first", "clip_content_mode": "notes",
          "clip_band": 26.0}), w, h)
@@ -152,9 +152,11 @@ def test_the_marks_are_in_the_order_the_person_aims(tmp_path):
     _, side = _build(tmp_path, 50)
     w, h = side["paper_mm"]
     got = [(m["number"], m["corner"], m["centre_mm"]) for m in side["marks_mm"]]
-    assert got == [(1, "top-left", [10.0, 10.0]),
-                   (2, "bottom-left", [10.0, h - 10.0]),
-                   (3, "bottom-right", [w - 10.0, h - 10.0])]
+    from workflow.i1io.table_facts import MARK_INSET_MM
+    i = MARK_INSET_MM.value
+    assert got == [(1, "top-left", [i, i]),
+                   (2, "bottom-left", [i, h - i]),
+                   (3, "bottom-right", [w - i, h - i])]
 
 
 def test_the_marks_are_printed_where_the_side_file_says(tmp_path):
@@ -166,7 +168,7 @@ def test_the_marks_are_printed_where_the_side_file_says(tmp_path):
     s = 150 / 25.4
     for m in side["marks_mm"]:
         cx, cy = m["centre_mm"]
-        for dx, dy in ((0, 0), (3.5, 0), (-3.5, 0), (0, 3.5), (0, -3.5)):
+        for dx, dy in ((0, 0), (2.8, 0), (-2.8, 0), (0, 2.8), (0, -2.8)):
             assert img[round((cy + dy) * s), round((cx + dx) * s)] < 100
     w, _ = side["paper_mm"]
     corner = img[: round(20 * s), round((w - 20) * s):]
@@ -331,3 +333,21 @@ def test_a_patch_set_fills_the_pages_in_order(tmp_path):
     ids = sorted(p["sample_id"] for pg in side["pages"] for r in pg["rows"]
                  for p in r["patches"])
     assert ids == list(range(1, 967))
+
+
+@pytest.mark.parametrize("paper,along,rows,count", [
+    ("A4R", None, None, 483), ("A4R", 0.0, 0.0, 525), ("A4R", 1.0, 1.0, 437),
+    ("LetterR", None, None, 462), ("LetterR", 0.0, 0.0, 506),
+    ("LetterR", 1.0, 1.0, 420), ("A4R", 9.0, 9.0, 336)])
+def test_the_two_gaps_are_the_engines_own_controls_kept_apart(paper, along,
+                                                             rows, count):
+    """"Strip gap" is the separator along the scan (default 1 mm, at most
+    20 % of the patch length), "Inter-patch gap" the gap between rows
+    (default none, at most 3 mm). Each changes the capacity on its own."""
+    from workflow.layout_engine import geometry, instruments, papers
+    kw = {"instrument": "IO2", "paper": paper}
+    if along is not None:
+        kw.update(strip_gap=along, inter_patch=rows)
+    g = instruments.geom_from_build_kwargs(kw)
+    w, h = papers.dimensions_mm(paper)
+    assert geometry.patches_per_sheet(g, w, h) == count
