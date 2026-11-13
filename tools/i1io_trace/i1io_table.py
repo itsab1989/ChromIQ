@@ -4,12 +4,15 @@
 
 Standard library only. pyusb is imported only when the REAL table is opened.
 
-THE ONE RULE OF THIS FILE: the program can put exactly EIGHT different lines
+THE ONE RULE OF THIS FILE: the program can put exactly FIVE different lines
 on the wire, listed in :data:`WIRE`, and every one of them is a line that
 X-Rite's i1Profiler sent to the tester's own table in his two recordings,
 byte for byte (GitHub issue #129, recordings R1 and R2, decoded 2026-11-13).
-There is no function that builds a command from numbers: the eight lines are
-fixed at import and :func:`check_outgoing` refuses every other byte string.
+Four only ask; the fifth (``;i12b``) asks the table to run to its resting
+place, and the program sends it once, only while the arm is already there.
+There is no move command in this package at all, and no function that builds
+a command from numbers: the five lines are fixed at import and
+:func:`check_outgoing` refuses every other byte string.
 
 Line format (the decode, held on all 2,475 recorded lines): host to table
 ``;`` + command id + arguments (lower-case hex) + checksum + CR; the table
@@ -18,8 +21,8 @@ answers every command with two lines, ``:!`` id checksum (accepted) at once and
 two's complement of the 8-bit sum of every character before it.
 
 Table positions are in the table's own units (most likely 0.1 mm). Home, where
-the arm rests over the white tile at the back of the table, is X 1102, Y 0;
-Y grows towards the front of the table.
+the arm rests over the white tile (at the back of the table, as we read the
+recordings), is X 1102, Y 0.
 """
 from __future__ import annotations
 
@@ -34,7 +37,7 @@ VID, PID = 0x0971, 0x2004
 
 
 class ForbiddenLine(Exception):
-    """A line that is not one of the eight (a bug; it is never written)."""
+    """A line that is not one of the five (a bug; it is never written)."""
 
 
 class ProtocolError(Exception):
@@ -74,52 +77,43 @@ def _frame(cid: str, args: str = "") -> bytes:
     return (body + checksum(body) + "\r").encode("ascii")
 
 
-# ---- THE EIGHT LINES ---------------------------------------------------------------
+# ---- THE FIVE LINES ----------------------------------------------------------------
 
 #: Everything this program can send. Each line is verbatim from the recordings
 #: (where, in :data:`RECORDED_AT`); `tests/test_i1io_trace_tool.py` pins the bytes.
 WIRE = {
-    "status":   _frame("s0"),                    # ;s022
     "identity": _frame("a1"),                    # ;a133
+    "status":   _frame("s0"),                    # ;s022
     "arm_mode": _frame("f4"),                    # ;f42b
     "position": _frame("p0"),                    # ;p025
     "home":     _frame("i1"),                    # ;i12b
-    # m0 X Y speed: X 0x044e = 1102, Y 0x00fa = 250, speed 0x012c = 300
-    "out":      _frame("m0", "044e00fa012c"),    # ;m0044e00fa012c0e
-    # m0 X Y speed: X 0x0422 = 1058, Y 0x04b2 = 1202, speed 0x00c8 = 200
-    "forward":  _frame("m0", "042204b200c8"),    # ;m0042204b200c86d
-    # m0 X Y speed: X 0x044e = 1102, Y 0x04b2 = 1202, speed 0x00c8 = 200
-    "approach": _frame("m0", "044e04b200c8"),    # ;m0044e04b200c838
 }
 
 #: Where each line was recorded (seconds from the start of the recording).
 RECORDED_AT = {
-    "status":   "R1 84.051, R2 34.932 (at every open)",
     "identity": "R2 34.546 and 34.715 (first and second line at every open)",
+    "status":   "R1 84.051, R2 34.932 (at every open)",
     "arm_mode": "R1 84.062, R2 34.940 (four times at every open)",
     "position": "R2 35.017 (just before the start-up homing), before nearly every move",
-    "home":     "R2 35.033 from (1102, 47) at start-up; R1 85.848 from (1102, 1202)",
-    "out":      "R1 197.917 from (1102, 5); R2 142.056 from (1102, 6); R2 425.038 from (1102, 4)",
-    "forward":  "R1 84.153 from (1058, 317): first leg of i1Profiler's start-up approach, 1.375 s",
-    "approach": "R1 85.529 from (1058, 1202): second leg of the same approach, 0.319 s",
+    "home":     "R2 35.033 from (1102, 47), right after the opening; also R2 378.632 "
+                "from (1102, 24) and R1 190.093 from (1102, 32)",
 }
 
 ALLOWED_LINES = frozenset(WIRE.values())
-MOTION_LINES = frozenset({WIRE["home"], WIRE["out"], WIRE["forward"], WIRE["approach"]})
-MOTION_KEYS = frozenset({"home", "out", "forward", "approach"})
-#: Where each movement line sends the arm (decoded from the line itself).
-TARGETS = {"home": (1102, 0), "out": (1102, 250), "forward": (1058, 1202),
-           "approach": (1102, 1202)}
+MOTION_LINES = frozenset({WIRE["home"]})
+MOTION_KEYS = frozenset({"home"})
+#: Where the movement line sends the arm.
+TARGETS = {"home": (1102, 0)}
 
 #: Data characters in the ':$' reply of each command id.
-DATA_LEN = {"s0": 0, "a1": 10, "f4": 2, "p0": 8, "i1": 0, "m0": 0}
+DATA_LEN = {"a1": 10, "s0": 0, "f4": 2, "p0": 8, "i1": 0}
 
 
 def check_outgoing(line: bytes) -> str:
-    """THE GATE. Return the command id if *line* is exactly one of the eight
+    """THE GATE. Return the command id if *line* is exactly one of the five
     lines; raise ForbiddenLine otherwise."""
     if not isinstance(line, (bytes, bytearray)) or bytes(line) not in ALLOWED_LINES:
-        raise ForbiddenLine(f"not one of the eight allowed lines: {line!r}")
+        raise ForbiddenLine(f"not one of the five allowed lines: {line!r}")
     return bytes(line)[1:3].decode("ascii")
 
 
@@ -176,38 +170,22 @@ class Box:
         return self.xmin <= p[0] <= self.xmax and self.ymin <= p[1] <= self.ymax
 
 
-def around(x: int, y: int, tol: int = 10) -> Box:
-    return Box(x - tol, x + tol, y - tol, y + tol)
-
-
-def after_a_pause(x: int, y: int) -> Box:
-    """Where a step may start when the arm stood still for a while since the
-    step before: the reported Y creeps at rest (recorded at home: 6 units in
-    7 s, up to 47 over minutes), so 10 units in X and 50 in Y. The targets are
-    fixed, so a crept start only makes the next move a few millimetres longer
-    or shorter."""
-    return Box(x - TOLERANCE, x + TOLERANCE, y - CREEP_Y, y + CREEP_Y)
-
-
 #: The identity reply of the one table we know (constant at all four recorded
 #: opens). It carries no serial number. Any other answer: nothing moves.
 KNOWN_IDENTITY = "005D010702"
 
 #: Where the arm rests. Every recorded start or calibration read X 1102 and
 #: Y 0, 2, 22, 24, 32, 36 or 47 (the reading creeps while the arm stands); the
-#: box adds 5 units of margin on each side. The program starts only from here.
+#: box adds 5 units of margin on each side. The homing is sent only from here.
 HOME_CLUSTER = Box(1097, 1107, -5, 50)
+#: Where the arm must report itself right after the homing: the recorded
+#: readings right after an i1 were X 1102, Y 0 and Y 2 (R1 190.412, R2 134.610);
+#: 3 units of margin for the reading's own jitter.
+HOMED = Box(1099, 1105, -3, 5)
 
-#: After a completed move the position must be this close to the target, per
-#: axis (220 recorded moves: worst 4, median 1).
-TOLERANCE = 10
-#: How far the reported Y may creep while the tester answers questions.
-CREEP_Y = 50
-
-#: Longest recorded: quick commands 0.21 s, m0 1.76 s, i1 4.02 s. These are
-#: how long the program waits before it treats a missing answer as a fault.
+#: Longest recorded: quick commands 0.21 s, i1 4.02 s (from 120 mm out; at home
+#: 0.27 to 0.35 s). How long the program waits before a missing answer is a fault.
 QUICK_TIMEOUT = 1.0
-MOVE_TIMEOUT = 8.0
 HOME_TIMEOUT = 12.0
 #: No read is shorter than this. On a Mac, a USB read that times out is
 #: cancelled, which can cost bytes arriving at that instant; the FTDI chip
@@ -217,7 +195,7 @@ MIN_READ_S = 0.05
 #: Before every command the program listens this long (by the clock, over as
 #: many reads as it takes) for anything unasked.
 QUIET_CHECK_S = 0.05
-#: The longest answer line to any of the eight lines (":$a1" + 10 + checksum).
+#: The longest answer line to any of the five lines (":$a1" + 10 + checksum).
 LONGEST_REPLY = 17
 
 #: After opening, the table must be silent this long before the first command.
@@ -237,45 +215,26 @@ class Motion:
     timeout: float
     what: str          # what the tester will see, in plain words
     seconds: str       # how long this line took in the recordings
-    recorded: str      # where i1Profiler sent this line, and how this step differs
+    recorded: str      # where i1Profiler sent this line, and how this run differs
 
 
-#: THE PLAN. The whole of what the program can make the arm do, in this order,
-#: each step only after the tester typed yes. Nothing else moves the arm.
-#: Steps 3 to 5 are i1Profiler's own recorded start-up approach (R1 84.153 to
-#: 87.448: forward, approach, home); only the start of step 3 differs.
+#: THE PLAN: one homing at the resting place, and nothing else that moves.
 PLAN = (
-    Motion(1, "home", HOME_CLUSTER, HOME_CLUSTER, HOME_TIMEOUT,
-           "The arm finds its exact resting place. It is already there, so it moves "
-           "very little or not at all; you may hear the motors for a moment.",
-           "0.3 s", "i1Profiler sent this same line in this same situation (R2 35.033, from "
-           "X 1102, Y 47, right after it opened the table; also R2 378.632)"),
-    Motion(2, "out", HOME_CLUSTER, around(1102, 250), MOVE_TIMEOUT,
-           "The arm moves about 25 mm (1 inch) straight towards the front of the "
-           "table, away from its resting place, and stops.",
-           "0.7 s", "i1Profiler sent this same line from the resting place three times "
-           "(R1 197.917, R2 142.056, R2 425.038)"),
-    Motion(3, "forward", after_a_pause(1102, 250), around(1058, 1202), MOVE_TIMEOUT,
-           "The arm moves about 95 mm (3.7 inches) further towards the front of the "
-           "table, and about 4 mm sideways, and stops about 12 cm from its resting place.",
-           "1.4 s", "i1Profiler sent this same line as the first leg of its start-up "
-           "approach (R1 84.153), from X 1058, Y 317. Here it starts from X 1102, Y 250, "
-           "so the path is about 7 mm longer and 4 mm sideways. This is the one movement "
-           "that was not recorded exactly like this"),
-    Motion(4, "approach", after_a_pause(1058, 1202), around(1102, 1202), MOVE_TIMEOUT,
-           "The arm moves about 4 mm sideways and stops.",
-           "0.3 s", "i1Profiler sent this same line from this same place, as the second "
-           "leg of its start-up approach (R1 85.529)"),
-    Motion(5, "home", after_a_pause(1102, 1202), HOME_CLUSTER, HOME_TIMEOUT,
-           "The arm goes back to its resting place at the back of the table by itself.",
-           "1.6 s", "i1Profiler sent this same line from this same place, right after "
-           "the approach (R1 85.848)"),
+    Motion(1, "home", HOME_CLUSTER, HOMED, HOME_TIMEOUT,
+           "The arm finds its exact resting place. It is already there, so it should "
+           "move very little or not at all; you may hear the motors for a moment.",
+           "0.3 s",
+           "i1Profiler sent this same line from the resting place right after it opened "
+           "the table (R2 35.033, from X 1102, Y 47). Before it, i1Profiler also sent a "
+           "few lines that only fetch data from the table (k2, two u8 and a0), which this "
+           "program leaves out. If the table needed them, the expected result is an error "
+           "reply and a harmless stop"),
 )
 
-#: Hard caps, checked on every write: no run can make more motions than the
-#: plan has, nor send more lines (the full plan sends 30).
-MAX_MOTIONS = len(PLAN)
-MAX_LINES = 40
+#: Hard caps, checked on every write: one movement, and at most 12 lines (the
+#: whole run sends 10).
+MAX_MOTIONS = 1
+MAX_LINES = 12
 
 
 # ---- the session ------------------------------------------------------------------------
@@ -408,6 +367,10 @@ class Table:
         self.busy += 1
         try:
             self._quiet_check()
+            if honour_stop:
+                # a stop noticed during the listening above (MAJOR 1 of the
+                # safety review): the line is not written
+                self._stop_if_requested()
             cid = self._write(line)
             start = self.t.now()
             parse_ack(self._read_line(start + QUICK_TIMEOUT), cid)
@@ -418,6 +381,8 @@ class Table:
             raise self._doubt(str(exc)) from None
         except TransportError as exc:
             raise self._doubt(f"the USB link failed: {exc}") from None
+        except Stopped:
+            raise
         except (Doubt, ForbiddenLine):
             self.close_for_sending("an internal check refused a line")
             raise
@@ -577,6 +542,11 @@ class Transport:
         pass
 
 
+#: i1Profiler's five set-up requests were 2 to 5 ms apart (R1 83.646-83.665,
+#: R2 34.534-34.546, 378.128-378.147).
+SETUP_GAP_S = 0.004
+
+
 class FtdiUsb(Transport):
     """The real table through pyusb + libusb, set up exactly as i1Profiler
     does it (recorded at every open): FTDI reset, purge RX, purge TX, 57600
@@ -622,7 +592,9 @@ class FtdiUsb(Transport):
                 "try again; if it still fails, send the log. Nothing was sent to the table. "
                 f"({getattr(exc, 'strerror', None) or type(exc).__name__})") from None
         try:
-            for req, val, idx in self.SETUP:
+            for n, (req, val, idx) in enumerate(self.SETUP):
+                if n:
+                    time.sleep(SETUP_GAP_S)       # as recorded: 2 to 5 ms apart
                 self.dev.ctrl_transfer(0x40, req, val, idx, None, 1000)
         except USBError as exc:
             raise TransportError(f"could not set up the table's USB link "
@@ -710,6 +682,49 @@ def libusb_backend(libusb1):
     return None
 
 
+def libusb_version(backend) -> str:
+    """libusb's own version number, for the log (asks the loaded library; no device)."""
+    try:
+        import ctypes
+
+        class _V(ctypes.Structure):
+            _fields_ = [("major", ctypes.c_uint16), ("minor", ctypes.c_uint16),
+                        ("micro", ctypes.c_uint16), ("nano", ctypes.c_uint16),
+                        ("rc", ctypes.c_char_p), ("describe", ctypes.c_char_p)]
+        fn = backend.lib.libusb_get_version
+        fn.restype = ctypes.POINTER(_V)
+        v = fn().contents
+        return f"{v.major}.{v.minor}.{v.micro}"
+    except Exception:
+        return "version unknown"
+
+
+def check_usb_available() -> str:
+    """Before any question of the real run: is this a Mac, and are pyusb and
+    libusb there? Returns their versions for the log. Opens no device."""
+    if sys.platform == "win32":
+        raise NotAvailable(
+            "On Windows, X-Rite's own driver owns the i1iO, and this test program cannot "
+            "open it next to that driver. Please run it on a Mac instead.")
+    if sys.platform != "darwin":
+        raise NotAvailable("This test program opens the real table only on a Mac (it was "
+                           "never tried anywhere else).")
+    try:
+        import usb
+        import usb.backend.libusb1
+    except ImportError:
+        raise NotAvailable(
+            "The real table needs the Python package pyusb and the libusb library: "
+            "see 'What to install' in the README, and start the program with "
+            "venv/bin/python3 as shown there.") from None
+    backend = libusb_backend(usb.backend.libusb1)
+    if backend is None:
+        raise NotAvailable("pyusb is installed but finds no libusb library. "
+                           "On a Mac: 'HOMEBREW_NO_AUTO_UPDATE=1 brew install libusb'.")
+    return (f"pyusb {getattr(usb, '__version__', 'version unknown')}; "
+            f"libusb {libusb_version(backend)}")
+
+
 def open_table() -> FtdiUsb:
     """Find and open the table, or raise NotAvailable. Sends no table command;
     only the FTDI set-up after the descriptor check."""
@@ -749,7 +764,7 @@ def open_table() -> FtdiUsb:
     t = FtdiUsb(dev, usb.core, usb.util)
     try:
         t.setup()
-    except TransportError:
+    except BaseException:       # also Ctrl-C during the set-up: release the device
         t.close()
         raise
     return t

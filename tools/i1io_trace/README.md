@@ -1,16 +1,18 @@
-# ChromIQ i1iO test program (first table test)
+# ChromIQ i1iO test program 0.1.0 (a first sign of life)
 
 This is a very small test program for the **X-Rite i1iO 2** scanning table
 with an **i1Pro 2**. It was written for ChromIQ issue #129, from the USB
 recordings a table owner made with i1Profiler. It is the first time anything
-other than X-Rite's software talks to the table, so it does as little as
-possible: it checks that the table answers, moves the arm about 12 cm towards
-the front of the table and sends it back. **It never measures.**
+other than X-Rite's software talks to the table, so it does almost nothing on
+purpose: it reads the table's identity, status and position, and asks the
+table **once** to run to its resting place, where the arm already is. The arm
+should barely move. **It never measures.**
 
 It is not part of the ChromIQ app, and it does not need ChromIQ.
 
-Nothing here is promised. Whether you try it is entirely your choice, and you
-can stop at every step.
+Nothing here is promised. Whether you try it is entirely your choice, there is
+no warranty, and you can stop at every step. Nobody on the ChromIQ project owns
+a table, so you would be the first person ever to run it on one.
 
 ---
 
@@ -18,33 +20,22 @@ can stop at every step.
 
 With `--real` the program does exactly this, and nothing else:
 
-1. **Reads** the table's identity, its status, its position and whether the
-   motors hold the arm. Nothing moves. If the table is not exactly the model
-   the recordings came from, or the arm is not at its resting place at the
-   back of the table, or the motors do not hold it, the program stops here.
-2. **Step 1:** sends the arm to its resting place (it is already there, so it
-   moves very little or not at all). This is what i1Profiler does when it
-   connects to the table.
-3. **Step 2:** moves the arm about **25 mm** (1 inch) straight towards the
-   front of the table.
-4. **Step 3:** moves it about **95 mm** further towards the front, and about
-   4 mm sideways, so it stops about 12 cm from its resting place.
-5. **Step 4:** moves it about **4 mm** sideways.
-6. **Step 5:** sends the arm back to its resting place.
+1. It **reads** the table's identity (twice), its status, whether the motors
+   hold the arm, and where the arm is. Nothing moves. If the table is not
+   exactly the model the recordings came from, or the motors do not hold the
+   arm, or the arm is not at its resting place, the program stops here.
+2. It asks you to look: is the arm at its resting place? And, as a separate
+   question: is the table empty?
+3. It reads the motors and the position once more, and then sends the one line
+   that can make the arm move: **"go to your resting place"**. The arm is
+   already there, so it should move very little or not at all; you may hear
+   the motors for a moment. Then it reads the position (it must be the resting
+   place) and the motors once more.
+4. It asks you to look under the instrument holder: does it rest on the white
+   tile, or is there a gap?
 
-Steps 3, 4 and 5 send the same three lines, in the same order, with which
-i1Profiler brought the arm home when it started up in the first recording.
-One difference: i1Profiler sent the step 3 line with the arm about 7 mm
-further out and 4 mm to the side, so on the tester's table it made a straight
-88 mm move, while here the same line makes a 95 mm move with a 4 mm sideways
-part. It ends at the same place.
-
-Before each of the five steps it shows you the exact line it is about to send
-and what you should see, and it waits until you type `yes`. After each step it
-asks you whether the arm did what was described.
-
-It can send only **eight different lines** to the table, and every one of
-them is a line i1Profiler itself sent to the tester's table in the
+That is all. It can send only **five different lines** to the table, and
+every one of them is a line i1Profiler itself sent to the tester's table in the
 recordings, byte for byte:
 
 | Line | What it does |
@@ -53,41 +44,27 @@ recordings, byte for byte:
 | `;s022` | asks for the table's status (nothing moves) |
 | `;f42b` | asks whether the motors hold the arm (nothing moves) |
 | `;p025` | asks where the arm is (nothing moves) |
-| `;i12b` | sends the arm to its resting place |
-| `;m0044e00fa012c0e` | moves the arm to the place 25 mm in front of its resting place |
-| `;m0042204b200c86d` | moves the arm to the place 12 cm in front of its resting place, 4 mm to the side |
-| `;m0044e04b200c838` | moves the arm to the place 12 cm in front of its resting place |
+| `;i12b` | asks the arm to go to its resting place (sent once, only while it is already there) |
 
-`python3 i1io_trace.py --plan` prints the whole sequence, in order.
+The program contains **no command for any other movement**. `python3
+i1io_trace.py --plan` prints the whole sequence, in order.
+
+When i1Profiler connects to the table, it also sends a few lines that only
+fetch data from the table before it sends the arm home. This program leaves
+those out. If the table needed them first, the most likely result is an error
+reply and a harmless stop, and that would be a useful answer too.
 
 **It never** sends a command of its own to lower or lift the measuring head,
 never measures, never talks to the i1Pro 2 at all, and never reads or writes
-the table's memory. It never reads the table's serial number. (The table
-itself may lower or lift the head when the arm leaves or reaches its resting
-place; nobody knows that yet, which is why the program asks you to look.)
+the table's memory. It never reads the table's serial number. It cannot see
+the measuring head, which is why it asks you to look.
 
 **If anything is not as expected** (no answer, a strange answer, an error, the
-arm not where it was sent, the cable gone) the program stops and sends
-**nothing more at all**. It does not try to tidy up or bring the arm home by
-itself; the arm simply stays where it is.
+arm not where it should be, the cable gone) the program stops and sends
+**nothing more at all**.
 
----
-
-## What could go wrong
-
-In plain words: the arm could bump into something left on the table, or into a
-hand. The table could do something the recordings never showed; nobody has
-ever seen how it reacts to an obstacle or an error. In the worst case the
-mechanism could be strained. That is why:
-
-* the table must be **completely empty** (no paper, no chart, nothing on it);
-* every movement waits for you;
-* the table's **power switch or power plug** should be within reach.
-
-**Switching the table off or pulling its power plug is always allowed**, at
-any moment, and it will most likely stop the motors at once. Pulling the USB
-cable alone most likely does not stop a movement that has already started,
-because the table has its own power supply.
+(Words like "back of the table" and "resting place" are our reading of the
+recordings; the table itself only reports numbers.)
 
 ---
 
@@ -101,8 +78,8 @@ Check Python in the Terminal app:
 python3 --version
 ```
 
-If macOS offers to install the "command line developer tools", that is
-Apple's own package and includes Python; you can accept it. Python from
+If macOS offers to install the "command line developer tools" at this point,
+that is Apple's own package and includes Python; you can accept it. Python from
 Homebrew (`brew install python`) works too.
 
 Unpack the zip, then open the Terminal in that folder (type `cd ` with a space,
@@ -119,53 +96,57 @@ python3 i1io_trace.py
 This runs on a **simulated table**. Nothing is opened and nothing is sent to
 any device, so the table can even stay switched off. It asks you the same
 questions as the real run and prints every line the real run would send and
-receive, so you can see exactly what will happen. It writes a log file
-ending in `-simulated.txt`.
+receive. It writes a log file ending in `-simulated.txt`.
 
 ---
 
 ## 2. What to install for the real table
 
-The real run needs two things: the **libusb** library (from Homebrew) and the
-Python package **pyusb**. The commands below put pyusb into a small folder
-called `venv` inside the program's folder, so nothing else on your Mac
-changes.
+The real run needs the **libusb** library and the Python package **pyusb**.
+libusb comes from Homebrew. If you do not have Homebrew, please either install
+it first from its website (https://brew.sh), or do not run the real test; the
+practice run works without it.
 
 ```
-brew list libusb || brew install libusb
+HOMEBREW_NO_AUTO_UPDATE=1 brew install libusb
 python3 -m venv venv
-venv/bin/python3 -m pip install pyusb==1.2.1
+venv/bin/python3 -m pip install --no-cache-dir pyusb==1.2.1
 ```
 
-(The first line installs libusb only if it is not there yet. If it prints a
-list of files instead, libusb was already installed: please note that, so you
-know not to remove it later.)
+If Homebrew says libusb is already installed, please note that, so you know
+not to remove it later. The last two lines put pyusb into a small folder called
+`venv` inside the program's folder, so nothing else on your Mac changes.
 
-### How to undo the installs afterwards
+### How to undo it all afterwards
 
 * pyusb: delete the program's folder (the `venv` folder inside it holds
-  pyusb). Nothing else was changed.
+  pyusb).
 * libusb: only if you installed it for this test, `brew uninstall libusb`.
   If Homebrew says another package needs it, keep it.
+* If macOS installed the command line developer tools for Python, they can
+  stay (they are Apple's own and harmless).
+* The program leaves one empty file, `chromiq-i1io-trace.lock`, in your
+  temporary folder. It makes sure two copies never run at once; deleting it
+  could defeat that, so the program leaves it. It takes no space, and macOS
+  clears the temporary folder by itself.
 
 ---
 
 ## 3. Preparing the table
 
-* **Quit i1Profiler.** The program refuses to start while it runs, because two
-  programs must never talk to the table at the same time.
-* The **arm must be at its resting place** at the back of the table, with the
-  motors holding it, as i1Profiler leaves it. If it is not, open i1Profiler
-  once, let it connect to the table (it sends the arm home by itself), then
-  quit i1Profiler.
+* **Quit i1Profiler, and X-Rite's helper programs for the duration of the
+  test.** If X-Rite's software has the table open while this program talks to
+  it, nobody knows what happens. The program checks for `i1Profiler`, its
+  menu-bar helper `i1ProfilerTray` and X-Rite Device Services `xrdd`, refuses
+  to start while any of them runs, and tells you how to quit them. Restarting
+  your Mac afterwards starts them all again as before.
+* The **arm must be at its resting place**, with the motors holding it, as
+  i1Profiler leaves it.
 * **Leave the i1Pro 2 seated in the arm's holder and connected**, exactly as
-  when you use it with i1Profiler. Every movement in the recordings was made
-  like that, and the table may sense the instrument, so this is the situation
-  the program's lines are known to work in. The program never talks to the
-  i1Pro 2.
+  when you use it with i1Profiler (every recording was made like that). The
+  program never talks to it.
 * **Take everything off the table**: no paper, no chart, nothing.
-* Have the table's **power switch or plug** within reach.
-* Stand where you can see the arm.
+* Have the table's **power switch or plug** within reach, and look at the arm.
 
 ---
 
@@ -175,47 +156,38 @@ know not to remove it later.)
 venv/bin/python3 i1io_trace.py --real
 ```
 
-It explains the risks, asks three short questions (power within reach,
-instrument seated, table empty) and then asks you to type this sentence:
+It first checks that pyusb and libusb are there, then explains the risks,
+asks three short questions (power within reach, instrument seated, table
+empty) and asks you to type this sentence:
 
 ```
 I understand that this moves my table
 ```
 
-Then it reads the table, tells you what it found, and goes through the five
-steps. Answer each question by typing the whole word (`yes`, `no`, `stop`,
-`gap`, ...) and pressing Enter. Pressing Enter alone, or a single letter, never
-answers.
-
-Two times it asks you to look at the bottom of the instrument holder, where
-the round measuring opening is: after step 1, at the resting place (does it
-rest on the white tile, or is there a gap?), and after step 2 (does it touch
-the table, or is there a gap?). Please look closely: this is one of the things
-we most want to know. If it touches the table after step 2, or you are not
-sure, the program stops there.
-
-At the end it asks two short questions about sounds and anything that
-surprised you.
+Then it reads the table and goes through the steps above. Answer each question
+by typing the whole word (`yes`, `no`, `stop`, `rests`, `gap`, ...) and
+pressing Enter. Pressing Enter alone, or a single letter, never answers.
 
 ### How to stop
 
-* Type `stop` at any question (at "Send step ... now?" `no` works too).
-* Press **Ctrl-C** at any time. If a movement is under way, the table finishes
-  that movement and the program checks where the arm arrived, then stops; it
-  never sends a movement after you pressed Ctrl-C.
-* **Switch the table off or pull its power plug.** Always allowed.
+* Type `stop` at any question (at "Send step 1 now?" `no` works too).
+* Press **Ctrl-C** at any time. After Ctrl-C has been noticed, the program
+  never starts a movement. A movement that has already begun is not stopped by
+  Ctrl-C: only the power switch or plug stops it.
+* **Switch the table off or pull its power plug.** Always allowed, at any
+  moment; it is the way to stop a movement that has begun. Pulling the USB
+  cable alone does not do that: the table has its own power supply.
 
-If the program stops in the middle, the arm stays where it is. To bring it
-home, open i1Profiler once and let it connect to the table, then quit it.
-Please do not start this program again until i1Profiler has brought the arm
-home.
+If the program stops and the arm is not at its resting place, the arm stays
+where it is. To bring it home, open i1Profiler once and let it connect to the
+table, then quit it. Please do not start this program again until i1Profiler
+has brought the arm home.
 
-If the program says the table **never reported that its last movement had
+If the program says the table **never reported that its movement had
 finished**, please keep your hands away from the arm, switch the table off,
 wait ten seconds and switch it on again before you open i1Profiler, and keep
 your hands away when you switch it on as well (nobody knows yet whether the
-table moves by itself then). That way a movement the table may still be
-waiting to make cannot start later.
+table moves by itself then).
 
 ---
 
@@ -223,16 +195,18 @@ waiting to make cannot start later.
 
 The program writes a log file into the folder, named
 `i1io-trace-<date>-<time>.txt`. It holds every line sent and received, with
-times, your answers, the macOS and Python versions, and **no serial number**.
-Please **read it before you post it**, then attach it to issue #129 (the log
-file itself, not a copy of the Terminal window), together with a few words:
+times, your answers, the macOS, Python, pyusb and libusb versions, and **no
+serial number**. Please **read it before you post it**, then attach it to
+issue #129 (the log file itself, not a copy of the Terminal window), together
+with a few words:
 
-* what the arm did at each step (did it move as described?);
-* any sounds (grinding, knocking, clicking, a long buzz) and at which step;
-* what you saw under the instrument holder after step 1 and after step 2;
+* did the arm move at all, and how much;
+* any sounds, and when;
+* what you saw under the instrument holder;
 * anything unexpected at all.
 
-Thank you for trying it.
+Thank you for trying it. A second small test, with a short movement, may
+follow once your log is in.
 
 ---
 

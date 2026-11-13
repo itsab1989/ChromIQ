@@ -10,21 +10,12 @@ no real time. Its values are invented where the recordings say nothing.
 It is STRICT: it raises :class:`SimViolation` (and a test fails) the moment
 it receives anything the real program must never send:
 
-* any command other than s0, a1, f4, p0, i1, m0, or a line with a bad checksum
-  or without its CR;
+* any command other than a1, s0, f4, p0, i1 (it knows no move command at all),
+  or a line with a bad checksum or without its CR;
 * anything at all while the arm is still moving;
-* an m0 or i1 while the arm is free;
-* an m0 or i1 that is not one of the RECORDED pairs below (line and the place
-  it was sent from, from the decoded timelines), apart from the one deviation
-  the program names:
-
-  - i1 from the resting place (R2 35.033 from (1102, 47)) or from (1102, 1202)
-    (R1 85.848);
-  - m0 (1102, 250) at 300 from the resting place (R1 197.917, R2 142.056,
-    425.038);
-  - m0 (1058, 1202) at 200 from (1058, 317) (R1 84.153), and, as THE ONE
-    DEVIATION, from (1102, 250) after the move above;
-  - m0 (1102, 1202) at 200 from (1058, 1202) (R1 85.529).
+* an i1 while the arm is free, or from anywhere but the resting place (the
+  recorded start-up homing, R2 35.033 from (1102, 47));
+* a second i1 in one run.
 
 These rules are written from the recordings, on purpose not imported from
 `i1io_table`, so that a mistake in one is caught by the other.
@@ -47,23 +38,13 @@ class SimViolation(AssertionError):
 
 IDENTITY = "005D010702"       # the recorded constant identity reply (no serial number)
 HOME = (1102, 0)
-ACCEL = 2000.0                # units/s^2, fitted on the recorded m0 times
+ACCEL = 2000.0                # units/s^2, fitted on the recorded travel-move times
 _HOST_RE = re.compile(r";([a-z][0-9])([0-9a-f]*)([0-9a-f]{2})")
-KNOWN_IDS = {"s0": "", "a1": "", "f4": "", "p0": "", "i1": "", "m0": "[0-9a-f]{12}"}
-
-
-def creep(table, units: float) -> None:
-    """Test hook: the reported Y creeps while the arm stands (as at home in
-    the recordings)."""
-    table.pos[1] += units
+KNOWN_IDS = {"s0": "", "a1": "", "f4": "", "p0": "", "i1": ""}
 
 
 def _at_home(p) -> bool:
     return abs(p[0] - 1102) <= 5 and -5 <= p[1] <= 50
-
-
-def _near(p, q, tol=10) -> bool:
-    return abs(p[0] - q[0]) <= tol and abs(p[1] - q[1]) <= tol
 
 
 def move_time(distance: float, speed: int) -> float:
@@ -160,22 +141,14 @@ class SimTable:
 
     def _check(self, cid: str, args: str) -> None:
         here = (self.pos[0], self.pos[1])
-        if cid in ("m0", "i1"):
+        if cid == "i1":
             if self.arm != "00":
-                raise SimViolation(f"{cid} while the arm is free")
-        if cid == "i1" and not (_at_home(here) or _near(here, (1102, 1202), 60)):
-            raise SimViolation(f"i1 from {here}, where it was never recorded")
-        if cid == "m0":
-            x, y, v = int(args[0:4], 16), int(args[4:8], 16), int(args[8:12], 16)
-            if (x, y, v) == (1102, 250, 300) and _at_home(here):
-                return                       # recorded
-            if (x, y, v) == (1058, 1202, 200) and _near(here, (1058, 317)):
-                return                       # recorded
-            if (x, y, v) == (1058, 1202, 200) and _near(here, (1102, 250), 60):
-                return                       # THE ONE DEVIATION (start of step 3)
-            if (x, y, v) == (1102, 1202, 200) and _near(here, (1058, 1202), 60):
-                return                       # recorded (60: the reading creeps at rest)
-            raise SimViolation(f"m0 to ({x}, {y}) at {v} from {here}: not a recorded move")
+                raise SimViolation("i1 while the arm is free")
+            if not _at_home(here):
+                raise SimViolation(f"i1 from {here}: only the start-up homing at the resting "
+                                   "place may be sent")
+            if self.motions:
+                raise SimViolation("a second i1 in one run")
 
     def _command(self, line: str) -> None:
         self.received.append(line)
@@ -246,14 +219,10 @@ class SimTable:
             jx, jy = self._rng.choice((-1, 0, 0, 1)), self._rng.choice((-1, 0, 0, 1))
             return 0, self._xy(self.pos[0] + drift + jx, self.pos[1] + drift + jy), 0.0
         self.motions += 1
-        if cid == "i1":
-            dist = math.hypot(self.pos[0] - HOME[0], self.pos[1] - HOME[1])
-            t = 0.05 + (0.3 if dist > 20 else 0.25) + move_time(dist, 300)
-            target = (float(HOME[0]), float(self._rng.choice((0, 1, 2))))
-        else:  # m0
-            x, y, v = int(a[0:4], 16), int(a[4:8], 16), int(a[8:12], 16)
-            t = move_time(math.hypot(x - self.pos[0], y - self.pos[1]), v)
-            target = (x + self._rng.choice((-1, 0, 0, 1)), y + self._rng.choice((-1, 0, 0, 1)))
+        # i1 (the only movement it knows)
+        dist = math.hypot(self.pos[0] - HOME[0], self.pos[1] - HOME[1])
+        t = 0.05 + (0.3 if dist > 20 else 0.25) + move_time(dist, 300)
+        target = (float(HOME[0]), float(self._rng.choice((0, 1, 2))))
         if kind == "blocked":
             f = max(0.0, min(1.0, fault.value))
             target = (self.pos[0] + f * (target[0] - self.pos[0]),

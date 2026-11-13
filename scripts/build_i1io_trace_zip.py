@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 the ChromIQ authors. Part of ChromIQ (https://github.com/itsab1989/ChromIQ).
 """Build the standalone i1iO tester package as one zip.
 
     python3 scripts/build_i1io_trace_zip.py --out FOLDER

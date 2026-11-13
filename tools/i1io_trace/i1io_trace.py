@@ -8,12 +8,11 @@ X-Rite i1iO 2 table. It never measures.
     python3 i1io_trace.py --plan     print every line it could send, in order, and stop
     python3 i1io_trace.py --real     the real table (asks you to type a sentence first)
 
-With --real it reads the table's identity and position, sends the arm to its
-resting place, moves it about 12 cm towards the front of the table in two
-moves (25 mm, then 95 mm), makes a 4 mm sideways move there, and sends it home:
-the moves i1Profiler itself made on the tester's table. Before every movement
-it shows the exact line it will send and what you should see, and waits until
-you type yes. Everything sent and received goes into a log file. See README.md.
+With --real it reads the table's identity, status and position and then asks
+the table ONCE to run to its resting place, where the arm already is, so the
+arm should barely move. That is the only line that can make anything move,
+and it is shown, with what you should see, before you type yes. Everything
+sent and received goes into a log file. See README.md.
 """
 from __future__ import annotations
 
@@ -33,13 +32,33 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import i1io_table as tbl  # noqa: E402
 from i1io_table import Doubt, Stopped  # noqa: E402
 
-TITLE = f"ChromIQ i1iO test program {tbl.TOOL_VERSION} (moves the arm a little, never measures)"
+TITLE = (f"ChromIQ i1iO test program {tbl.TOOL_VERSION} (a first sign of life: one homing "
+         "at the resting place, never measures)")
 CONFIRM_SENTENCE = "i understand that this moves my table"
 HANDS = "Keep your hands and everything else away from the arm while it moves."
 PLUG = ("If anything looks or sounds wrong while the arm moves, switch the table off at its "
-        "power switch or pull its power plug. That is always allowed, and it will most likely "
-        "stop the motors at once. Pulling the USB cable alone most likely does not stop a "
-        "movement that has already started, because the table has its own power supply.")
+        "power switch or pull its power plug. That is always allowed, and it is the way to "
+        "stop a movement that has begun. Pulling the USB cable alone does not do that: the "
+        "table has its own power supply, so a movement it has started most likely goes on.")
+PLUG_SHORT = "If it sounds or looks wrong, switch the table off at its power switch."
+STOP_PROMISE = ("Ctrl-C works at any time: after Ctrl-C has been noticed, the program never "
+                "starts a movement. A movement that has already begun is not stopped by "
+                "Ctrl-C; only the power switch or plug stops it.")
+#: X-Rite programs that may talk to the table or to its instrument. The names
+#: are those installed on a Mac with i1Profiler 3.8: the app, its menu-bar
+#: helper (/Library/LaunchAgents/com.xrite.i1Profiler.tray.plist) and X-Rite
+#: Device Services (/Library/LaunchDaemons/com.xrite.device.xrdd.plist).
+XRITE_NAMES = ("i1Profiler", "i1ProfilerTray", "xrdd")
+XRITE_HOWTO = (
+    "How to quit them, only for this test:\n"
+    "  i1Profiler: quit the app (i1Profiler menu, Quit).\n"
+    "  i1ProfilerTray (the menu-bar helper): in the Terminal,\n"
+    "    launchctl bootout gui/$(id -u) /Library/LaunchAgents/com.xrite.i1Profiler.tray.plist\n"
+    "  xrdd (X-Rite Device Services): in the Terminal (asks for your password),\n"
+    "    sudo launchctl bootout system /Library/LaunchDaemons/com.xrite.device.xrdd.plist\n"
+    "Afterwards, restart your Mac: that starts all of them again as before. (These commands "
+    "were written from the files i1Profiler installs; they were not tried on a Mac with a "
+    "table. If one does not work, restarting the Mac still undoes everything.)")
 RECOVERY = ("To bring the arm back to its resting place, start i1Profiler once and let it "
             "connect to the table: it sends the arm home by itself. Then quit i1Profiler. "
             "Please do not start this program again until i1Profiler has brought the arm home.")
@@ -53,17 +72,17 @@ RECOVERY_UNFINISHED = (
 RISKS = (
     "Please read this before you go on.\n"
     "This is a test program written by ChromIQ, not by X-Rite, and it has never run on a "
-    "real table before: you would be the first. It can send only eight different lines to "
-    "the table, and each of them is a line that i1Profiler itself sent to your table in "
-    "the recordings you made: four that only ask (identity, status, position, whether the "
-    "motors hold the arm), the command that sends the arm to its resting place, and three "
-    "moves. It sends no command of its own to lower or lift the measuring head, never "
-    "measures, never talks to the i1Pro 2, and never reads or writes the table's memory.\n"
-    "What could still go wrong, in plain words: the arm could bump into something left "
-    "on the table, or a hand; the table could do something the recordings never showed. "
-    "In the worst case the mechanism could be strained. That is why the table must be "
-    "empty, why every movement waits for you, and why you should keep the power switch "
-    "or plug within reach.\n"
+    "real table before: you would be the first, and nobody on the ChromIQ project owns a "
+    "table. It can send only five different lines to the table, and each of them is a line "
+    "that i1Profiler itself sent to your table in the recordings you made: four that only "
+    "ask (identity, status, position, whether the motors hold the arm), and one that asks "
+    "the table to run to its resting place. The arm is already there, so it should barely "
+    "move. The program has no command for any other movement, sends no command of its own "
+    "to lower or lift the measuring head, never measures, never talks to the i1Pro 2, and "
+    "never reads or writes the table's memory. It cannot see the measuring head.\n"
+    "What could still go wrong, in plain words: the table could do something the recordings "
+    "never showed. That is why the table should be empty, why the one movement waits for "
+    "you, and why you should keep the power switch or plug within reach.\n"
     "Nothing leaves your computer unless you send the log file yourself.")
 
 
@@ -166,11 +185,7 @@ class AutoConsole(Console):
 
 def describe(step: tbl.Motion) -> str:
     line = tbl.WIRE[step.key].decode("ascii").rstrip("\r")
-    if step.key == "home":
-        meaning = "i1: go to the resting place"
-    else:
-        x, y, v = (int(line[3:7], 16), int(line[7:11], 16), int(line[11:15], 16))
-        meaning = f"m0: move to table position X {x}, Y {y} at speed {v}"
+    meaning = "i1: go to the resting place"          # the only movement line there is
     return (f"Step {step.number} of {len(tbl.PLAN)}. The program will send the line "
             f"{line} ({meaning}).\n"
             f"What you should see: {step.what} When i1Profiler sent this line, it took "
@@ -233,25 +248,32 @@ class Run:
                         f"was made from, its motors hold the arm, and the arm reports table "
                         f"position X {pos[0]}, Y {pos[1]}, which is its resting place.")
             ans = self.look("Please look at the table now. Is the arm at its resting place "
-                            "at the back of the table, and is the table completely empty "
-                            "(no paper, nothing lying on it)?", ("yes", "no", "stop"),
-                            "arm at rest and table empty")
+                            "(where i1Profiler leaves it, over the white tile)?",
+                            ("yes", "no", "stop"), "arm at its resting place")
+            if ans != "yes":
+                raise Stopped("Then the program does not move anything. Please use "
+                              "i1Profiler once to bring the arm to its resting place, quit "
+                              "i1Profiler, then start again.")
+            ans = self.look("And is the table completely empty (no paper, no chart, nothing "
+                            "lying on it)?", ("yes", "no", "stop"), "table empty")
             if ans != "yes":
                 raise Stopped("Then the program does not move anything. Please clear the "
-                              "table, or if the arm is not at its resting place, use "
-                              "i1Profiler once to bring it there, then start again.")
+                              "table, then start again.")
             for step in tbl.PLAN:
                 self.ui.say("")
                 self.ui.say(describe(step))
                 if step.number == 1:
                     self.ui.say(PLUG)
+                    self.ui.say(STOP_PROMISE)
+                self.ui.say(PLUG_SHORT)
                 go = self.ui.ask(f"{HANDS} Send step {step.number} now?", ("yes", "no", "stop"))
                 if go != "yes":
                     raise Stopped(f"You stopped before step {step.number}.")
                 if self.other_program():
-                    self.d.close_for_sending("i1Profiler was started during the run")
-                    raise Stopped("i1Profiler is running now, so the program stops here: two "
-                                  "programs must never talk to the table at the same time.")
+                    self.d.close_for_sending("an X-Rite program was started during the run")
+                    raise Stopped("An X-Rite program has started, so the program stops here: "
+                                  "two programs must never talk to the table at the same "
+                                  "time.")
                 got = self.d.motion(step)
                 self.done_steps = step.number
                 self.ui.say(f"The table reports that it has finished step {step.number}; "
@@ -265,22 +287,13 @@ class Run:
                     raise Stopped("Thank you, that is exactly what we need to know. The "
                                   "program stops here.")
                 if step.number == 1:
-                    self.look("While the arm is at its resting place, look at the bottom of "
-                              "the instrument holder, where the round measuring opening is. "
-                              "Does it rest on the white tile, or is there a gap?",
+                    self.look("Now please look at the bottom of the instrument holder, where "
+                              "the round measuring opening is. Does it rest on the white "
+                              "tile, or is there a gap between it and the tile?",
                               ("rests", "gap", "not sure", "stop"), "opening at home")
-                if step.key == "out":
-                    ring = self.look("Now look at the bottom of the instrument holder again. "
-                                     "Does it touch the table, or is there a gap between it "
-                                     "and the table?", ("gap", "touches", "not sure", "stop"),
-                                     "opening after step 2")
-                    if ring != "gap":
-                        raise Stopped("Thank you, that is important to know. Because the "
-                                      "head may rest on the table, the program does not "
-                                      "move the arm any further.")
             self.ui.say("")
-            self.ui.say(f"All {len(tbl.PLAN)} steps are done, and the arm is back at its "
-                        "resting place.")
+            self.ui.say("That was all: the table answered, and the arm is at its resting "
+                        "place. Thank you.")
             return 0
         except Stopped as exc:
             self.ui.say(str(exc))
@@ -357,20 +370,16 @@ def _pgrep(*args) -> "list[str]":
     return [line for line in out.stdout.splitlines() if line.strip()]
 
 
+def xrite_running() -> "list[str]":
+    """Which of X-Rite's programs (by exact name) are running now. Any of them
+    could have the table or its instrument open, and the outcome of two
+    programs talking to the table at once is unknown, so the real run refuses."""
+    return [name for name in XRITE_NAMES if _pgrep("-x", "-i", name)]
+
+
 def i1profiler_running() -> bool:
-    """i1Profiler talking to the table at the same time would be two masters."""
-    return bool(_pgrep("-x", "-i", "i1Profiler"))
-
-
-def xrite_processes() -> "list[str]":
-    """Names of X-Rite programs and services that are running (for the log
-    and the tester; X-Rite's background services normally run all the time)."""
-    names = set()
-    for line in _pgrep("-l", "-i", "x-?rite|xrdd|i1profiler"):
-        parts = line.split(None, 1)
-        if len(parts) == 2:
-            names.add(parts[1].strip())
-    return sorted(names)
+    """Kept for the step check: any X-Rite program counts."""
+    return bool(xrite_running())
 
 
 class Lock:
@@ -512,10 +521,20 @@ def main(argv=None, sim_table=None, console=None) -> int:
                 ui.say("The real table can only be used from a Mac with this program "
                        "(it was never tried on Windows or Linux). Nothing was sent.")
                 return 2
+            try:
+                usb_info = tbl.check_usb_available()
+            except tbl.NotAvailable as exc:
+                ui.say(str(exc) + " Nothing was sent.")
+                return 2
+            log("INFO", usb_info)
             ui.say(RISKS)
-            if i1profiler_running():
-                ui.say("i1Profiler is running. Please quit it first: two programs must never "
-                       "talk to the table at the same time. Nothing was sent.")
+            running = xrite_running()
+            if running:
+                log("INFO", f"X-Rite programs running: {running}")
+                ui.say("These X-Rite programs are running: " + ", ".join(running) + ". "
+                       "Please quit them first: if X-Rite's software has the table open "
+                       "while this program talks to it, nobody knows what happens. "
+                       "Nothing was sent.\n" + XRITE_HOWTO)
                 return 2
             if not lock.acquire():
                 ui.say("Another copy of this program is running. Please let it finish first. "
@@ -534,17 +553,16 @@ def main(argv=None, sim_table=None, console=None) -> int:
                                CONFIRM_SENTENCE):
                 ui.say("That was not the sentence, so nothing was sent to the table.")
                 return 1
-            if i1profiler_running():       # it may have been opened while he read
-                ui.say("i1Profiler is running now. Please quit it first. Nothing was sent.")
+            running = xrite_running()       # one may have started while he read
+            if running:
+                ui.say("These X-Rite programs are running now: " + ", ".join(running) + ". "
+                       "Please quit them first. Nothing was sent.\n" + XRITE_HOWTO)
                 return 2
-            others = xrite_processes()
-            log("INFO", f"X-Rite programs running: {others or 'none'}")
+            log("INFO", "X-Rite programs running: none")
             try:
                 transport = tbl.open_table()
             except (tbl.NotAvailable, tbl.TransportError) as exc:
                 ui.say(str(exc))
-                if others:
-                    ui.say("These X-Rite programs were running: " + ", ".join(others) + ".")
                 return 2
         else:
             from i1io_sim import SimTable, SimTransport
