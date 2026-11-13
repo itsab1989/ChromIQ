@@ -197,6 +197,18 @@ class Cr30SpotManager(QObject):
         # a wait is not a rare race: it is what happens every time somebody
         # shuts the window without pressing Stop first. Measured: it aborted
         # the test run outright, in `QThread::~QThread`.
+        #
+        # ONE LOOP PER MANAGER. A loop still going when a new one starts (a
+        # "Look again" while the old loop had not reported the loss yet) was
+        # simply forgotten here: nobody could stop it any more, and once the
+        # session ended and cancelled the reader, every read it tried failed at
+        # once and it went round again, for ever, at full speed. It took the
+        # GIL from the GUI thread: in the release gate of 4.3.33 it starved a
+        # whole test worker, and an engine test that takes 86 s ran for 40
+        # minutes behind it. Told to stop, it ends after the read in hand.
+        previous, self._worker = self._worker, None
+        if previous is not None:
+            previous.stop()
         from core.thread_stack import roomy
         thread, worker = roomy(QThread()), _ReadLoop(self._reader)
         worker.moveToThread(thread)
