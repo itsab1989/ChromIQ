@@ -313,6 +313,25 @@ possible"; what follows is how it was built, awaiting confirmation.)
   preset bar compares an i1iO layout on the fields its chart reads, so a
   fresh i1iO layout is not "modified".
 
+### On: Review 3 corrections (2026-11-13)
+
+**Confirmed by:** *nobody yet.*
+
+* Choosing the i1iO from another instrument shows the i1iO's own values of
+  the options opened above (what it had when last left in the session,
+  else the safe factory values); leaving it gives the other instrument
+  back what it had.
+* "Clip" places the printed patch numbers (from 1 mm on the i1iO; unset is
+  10 mm).
+* "Label offset" X is held inside the side text distance of both paper
+  edges, as on every chart; the panel's notice and the build use the same
+  answer. Strip letters or their underline on a patch, on an aiming cross
+  or partly past the paper's edge, and patch numbers on a cross or partly
+  past it, are said in the log and under "Measured from Preview"
+  (M-I1IO-FURNITURE-PARTS, proposed); wholly off the sheet is refused.
+* A chart 4.3.33 made with the aiming crosses off reopens with its own
+  smaller right margin.
+
 ### On: Verification and Calibration
 
 *The owner, relayed 2026-11-13: "verification and calibration runs must work
