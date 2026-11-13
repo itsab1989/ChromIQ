@@ -409,3 +409,125 @@ def test_the_line_is_centred_between_the_bottom_corner_patches(off_chart):
     assert plan["spot"] == "bottom edge"
     last = max(c[5] for c in chart.page_patches(geom, layout, w, h, 0))
     assert plan["line_x"] > last
+
+
+# ---- every page on its own (X-Rite: each sheet is laid down by hand) -------
+
+def test_every_page_has_its_own_aim_points_and_names(tmp_path):
+    """Two full pages and a third of two strips: every page records its own
+    three patches by the names printed on it, the letters running on."""
+    from workflow.i1io import chart
+    _build(tmp_path, 552 * 2 + 48, i1io_crosses=False)
+    side = json.loads((tmp_path / "c.i1io.json").read_text("utf-8"))
+    pages = side["pages"]
+    assert [p["aim"] for p in pages] == ["corner patches"] * 3
+    assert pages[0]["aim_patches"] == ["A1", "W1", "W24"]
+    assert pages[1]["aim_patches"] == ["X1", "AT1", "AT24"]
+    assert pages[2]["aim_patches"] == ["AU1", "AV1", "AV24"]
+    for p in pages:
+        assert [a["patch"] for a in p["aim_points"]] == p["aim_patches"]
+    text = (tmp_path / "c.ti2").read_text("utf-8")
+    assert 'KEYWORD "CHROMIQ_I1IO_AIM_PATCHES"' in text
+    assert ('CHROMIQ_I1IO_AIM_PATCHES "1: A1 W1 W24; 2: X1 AT1 AT24; '
+            '3: AU1 AV1 AV24"') in text
+    d = chart.aim_details(tmp_path / "c.ti2")
+    assert d["aim"] == "corner patches" and d["labels"] is True
+    assert [p["patches"] for p in d["pages"]] == [
+        p["aim_patches"] for p in pages]
+
+
+def test_a_last_page_of_one_strip_keeps_its_crosses(tmp_path):
+    """Never aim at a patch that is not there: a last page of ONE strip has
+    no bottom-left corner apart from its top-left one, so it keeps the three
+    crosses (and they are printed there and only there)."""
+    from PIL import Image
+    from workflow.i1io import chart
+    _build(tmp_path, 552 + 24, i1io_crosses=False)
+    side = json.loads((tmp_path / "c.i1io.json").read_text("utf-8"))
+    assert [p["aim"] for p in side["pages"]] == ["corner patches", "crosses"]
+    assert side["pages"][1]["aim_patches"] == []
+    assert {a["target"] for a in side["pages"][1]["aim_points"]} == {"cross"}
+    assert 'CHROMIQ_I1IO_AIM_PATCHES "1: A1 W1 W24; 2: crosses"' in (
+        tmp_path / "c.ti2").read_text("utf-8")
+    w, h = side["paper_mm"]
+    s = 100 / 25.4
+    for page, inked in ((1, False), (2, True)):
+        img = np.asarray(Image.open(tmp_path / f"c_0{page}.tif").convert("L"))
+        for m in chart.marks(w, h):
+            x, y = (int(round(v * s)) for v in m.centre_mm)
+            assert (img[y - 3:y + 4, x - 3:x + 4].min() < 100) == inked
+
+
+def test_every_aimed_corner_patch_is_a_visible_patch_of_the_set(tmp_path):
+    """On every page aimed at its corners, each of the three is one of the
+    set's own patches (never the padding paper) and visible."""
+    from workflow.i1io import chart
+    _build(tmp_path, 552 + 48 + 7, i1io_crosses=False)
+    rows = _ti2_rows(tmp_path / "c.ti2")
+    side = json.loads((tmp_path / "c.i1io.json").read_text("utf-8"))
+    for p in side["pages"]:
+        for name in p["aim_patches"]:
+            lab = _lab(rows[name])
+            assert lab[0] < 85.0, (p["page"], name)
+
+
+def test_a_pale_set_keeps_the_crosses():
+    """A set with nothing that can be aimed at keeps the crosses on every
+    page rather than send the person to paper."""
+    from workflow.i1io import chart
+    from workflow.layout_engine import geometry, instruments, papers
+    from workflow.layout_engine.permutation import location_permutation
+
+    class T:
+        color_rep = "RGB"
+        patches = [((99.0, 99.0, 99.0), (90.0, 95.0, 100.0))] * 552
+
+        def media_patch(self):
+            return ((100.0, 100.0, 100.0), (95.0, 100.0, 108.0))
+    w, h = papers.dimensions_mm("A4")
+    geom = instruments.geom_from_build_kwargs(
+        {"instrument": "IO2", "paper": "A4", chart.CROSSES_KEY: False})
+    layout = geometry.compute(geom, w, h, 552)
+    slots = location_permutation(552, 3, True)
+    assert chart.page_crosses(T(), layout, geom, w, h, slots, False) == [True]
+
+
+# ---- the texts that say what to aim at follow the record -------------------
+
+def test_the_aim_text_follows_the_record():
+    from workflow import measurement_messages as M
+    crosses = M.i1io_aim_text({"aim": "crosses"})
+    assert "cross 1" in crosses and "patch" in crosses
+    assert "every page is aimed at on its own" in crosses
+    corners = M.i1io_aim_text({"aim": "corner patches", "labels": True,
+                               "pages": [{"page": 1, "aim": "corner patches",
+                                          "patches": ["A1", "W1", "W24"]},
+                                         {"page": 2, "aim": "crosses",
+                                          "patches": []}]})
+    assert "Page 1: patch A1 (top-left corner), then patch W1 (bottom-left " \
+        "corner), then patch W24 (bottom-right corner)." in corners
+    assert "Page 2: this page carries the three numbered crosses" in corners
+    assert "cross 1 at the top left" not in corners
+    bare = M.i1io_aim_text({"aim": "corner patches", "labels": False,
+                            "pages": [{"page": 1, "aim": "corner patches",
+                                       "patches": ["A1", "W1", "W24"]}]})
+    assert "A1" not in bare and "top-left corner" in bare
+    unknown = M.i1io_aim_text({"aim": "unknown"})
+    assert "cross 1" in unknown and "top-left patch" in unknown
+    for text in (crosses, corners, bare, unknown):
+        assert "—" not in text
+
+
+def test_the_crosses_help_counts_and_names_live():
+    from ui.dialogs.layout_options_panel import i1io_crosses_help
+    text = i1io_crosses_help({"paper": "A4", "instrument": "IO2"},
+                             name="My chart", sheet_text="", pages=1,
+                             paper_label="A4")
+    assert "528 patches with the crosses, 552 without them" in text
+    assert "gains 24 patches" in text
+    assert "patch A1 (top-left corner)" in text and "W24" in text
+    assert "—" not in text
+    letter = i1io_crosses_help({"paper": "Letter", "instrument": "IO2"},
+                               name="My chart", paper_label="Letter")
+    assert "506 patches with the crosses, 528 without them" in letter
+    assert "move to the top edge" in letter

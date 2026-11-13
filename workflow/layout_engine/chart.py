@@ -636,10 +636,22 @@ def build_chart(
     if _i1io:
         _slots = _i1io_chart.sheet_slots(target, layout, geom, w_mm, h_mm,
                                          seed, randomize, _i1io_crosses)
-        # what the person aims at, recorded (`chart.aim_recorded`)
+        # Which pages carry the crosses: all of them, or without them only
+        # a page whose corner patches cannot be aimed at (`page_crosses`).
+        _i1io_pages = _i1io_chart.page_crosses(target, layout, geom, w_mm,
+                                               h_mm, _slots, _i1io_crosses)
+        _i1io_chart.check_sheet(geom, layout, w_mm, h_mm,
+                                crosses=_i1io_pages)
+        # what the person aims at, recorded (`chart.aim_recorded`), and on
+        # every page the names of the three patches when they are patches
         from dataclasses import replace as _replace
         _ti2_geom = _replace(geom, extra_keywords=tuple(geom.extra_keywords) + (
-            (_i1io_chart.AIM_KEYWORD, _i1io_chart.aim_of(_i1io_crosses)),))
+            (_i1io_chart.AIM_KEYWORD, _i1io_chart.aim_of(_i1io_crosses)),)
+            + (() if _i1io_crosses else (
+                (_i1io_chart.AIM_PATCHES_KEYWORD,
+                 _i1io_chart.aim_patches_value(
+                     geom, layout, w_mm, h_mm, _i1io_pages,
+                     (strip_pattern, patch_pattern, label_rule))),)))
     ti2_writer.write_ti2(
         ti2_path, target.patches, target.device_fields, layout, _ti2_geom,
         color_rep=target.color_rep, seed=seed, randomize=randomize,
@@ -728,7 +740,7 @@ def build_chart(
                                    patterns=(strip_pattern, patch_pattern,
                                              label_rule),
                                    sheet_text=_i1io_sheet_text,
-                                   text_ctx=_ctx, crosses=_i1io_crosses)
+                                   text_ctx=_ctx, crosses=_i1io_pages)
     if target.n_channels >= 4:
         device_pages = raster.build_device_pages(render, printed, bit16=bit16)
         tiff_paths = raster.save_separated_tiffs(
@@ -782,7 +794,7 @@ def build_chart(
             label_rule=label_rule, designed=len(target.patches),
             labels=_i1io_labels, name=project or Path(out_base).name,
             sheet_text=_i1io_sheet_text, text_ctx=_ctx,
-            crosses=_i1io_crosses, slots=_slots)
+            crosses=_i1io_pages, slots=_slots)
 
     cht_paths: list[Path] | None = None
     if emit_cht:
