@@ -4053,15 +4053,18 @@ def i1io_instrument_bullet_sheet() -> str:
     return tr(
         "  •  i1iO 2 + i1Pro 2 (X-Rite): a motorised scanning table that "
         "moves your i1Pro 2 over the chart by itself. The chart is printed on "
-        "a portrait A4 or Letter sheet that you lay across the table, so its "
+        "an upright (portrait) sheet, A4, Letter or any smaller size the table "
+        "takes, that you lay across the table, so its "
         "strips run along the arm: patches of 10 × 8 mm with coloured "
         "spacers between them, and blank paper at both ends of every strip "
         "so the arm can speed up and slow down. To show the table where the "
         "sheet lies, you aim its arm at three points on it: by default three "
         "small numbered aiming crosses in the corners (1 top left, 2 bottom "
         "left, 3 bottom right, as the sheet lies on the table). You can "
-        "switch the crosses off to fit more patches on every sheet; you then "
-        "aim at the centres of three corner patches instead. As on every "
+        "switch the crosses off; you then aim at the centres of three corner "
+        "patches instead. In Guided their room is kept for the line with the "
+        "chart's name and page number, so the patch count stays the same; in "
+        "Manual, with smaller margins, more patches can fit. As on every "
         "ChromIQ chart, each strip has a letter and the patches along it are "
         "numbered, so “C7” is the 7th patch of strip C.")
 

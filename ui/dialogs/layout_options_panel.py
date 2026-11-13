@@ -489,6 +489,10 @@ def i1io_crosses_help(kw: "dict | None", *, name: str = "",
            "puts clearly visible, darker or more colourful patches from your "
            "patch set into the four corners, so they are easy to find. No "
            "patch is added or left out; only their places change."),
+        tr("In Guided the room the crosses take is kept for the line with "
+           "the chart's name and page number, so switching them off changes "
+           "how you aim, not the patch count. In Manual, with smaller "
+           "margins, it can fit more patches."),
     ]
     if kw:
         try:
