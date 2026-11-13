@@ -372,6 +372,8 @@ def build_chart(
             "strip_label_offset_x_mm", "indicator_rotation",
             "row_indicator_rotation"))
         _i1io_labels = _f[_i1io_chart.LABELS_KEY]
+        # never above the i1iO's largest label size (review r3 M1)
+        indicator_size_mm = _f["indicator_size_mm"]
         hflag = False          # an i1iO grid is never a honeycomb
         # Letters for the strips and numbers along them, by ArgyllCMS's
         # rule, whatever a recipe holds ("C7" means the same everywhere).

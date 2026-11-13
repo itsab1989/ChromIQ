@@ -17,7 +17,7 @@ fixes (:func:`fixed_build_kwargs`). This module adds the rest:
 
 * three numbered aiming marks. On the table (sheet turned) they sit top-left
   (1), bottom-left (2) and bottom-right (3), the order i1Profiler asks for;
-  on the portrait page that is top-right, top-left and bottom-left. Their
+  on the portrait page that is bottom-left, bottom-right and top-right. Their
   digits, the chart's name, the page "N/M", the sheet text and the ChromIQ
   wordmark are printed turned, so they read the right way up on the table.
   No arrow: the person aims at the numbers, so either quarter turn is aimed
@@ -77,8 +77,38 @@ def label_wishes(kw: dict) -> Labels:
     """The engine's label switches as *kw* holds them."""
     return Labels(columns=kw.get("row_indicators") is not False,
                   rows=kw.get("draw_indicators", True) is not False,
-                  size=float(kw.get("indicator_size_mm") or 0.0)
+                  size=label_size_mm(kw.get("indicator_size_mm"))
                   or F.LABEL_SIZE_MM.value)
+
+
+def label_size_mm(asked) -> float:
+    """The label size an i1iO chart prints for *asked* (0 = the engine's
+    automatic size): never above `table_facts.LABEL_MAX_MM` (review r3 M1)."""
+    try:
+        size = float(asked or 0.0)
+    except (TypeError, ValueError):
+        size = 0.0
+    return min(max(size, 0.0), F.LABEL_MAX_MM.value)
+
+
+def settle_letter_band(geom):
+    """*geom* with its top margin raised, if need be, so the strip letters'
+    ink (the engine's own measure of it, `Geom.label_ink_bottom_mm`, which
+    allows for the widest label: two letters once a chart has more than 26
+    strips) ends `table_facts.LABEL_CLEAR_MM` before every strip's run-in
+    (review r3 M1, m2). Nothing is printed on a scan line outside the
+    patches. Called by `instruments.geom_from_build_kwargs`, so the capacity
+    estimate and the build agree."""
+    from dataclasses import replace
+    from workflow.layout_engine import geometry
+    ink = float(getattr(geom, "label_ink_bottom_mm", 0.0) or 0.0)
+    if ink <= 0.0:
+        return geom
+    need = (geometry.strip_label_leader_top_mm(geom) + ink
+            + F.LABEL_CLEAR_MM.value + F.RUN_MM.value)
+    if geom.margin_t >= need - 1e-9:
+        return geom
+    return replace(geom, margin_t=round(need, 3))
 
 
 def fixed_build_kwargs(kw: dict) -> dict:
@@ -123,6 +153,7 @@ def fixed_build_kwargs(kw: dict) -> dict:
         offset_y=0.0, nolpcbord=True, nolimit=True, clip_band=0.0,
         clip_content_mode="off", helper_markers=False, chart_text="",
         stamp_command=False, side_stamp=False, strip_indicator_gap=0.0,
+        indicator_size_mm=label_size_mm(kw.get("indicator_size_mm")),
         text_edge_top=4.0, strip_label_offset_mm=0.0,
         strip_label_offset_x_mm=0.0,
         # the letters and numbers turned to read upright on the table

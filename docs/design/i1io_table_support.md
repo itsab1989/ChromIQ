@@ -75,7 +75,8 @@ instrument to name.
 * Manual: margins (down to the safe minimum), patch size (8.9 to 20 mm along
   the strip, 7 to 20 mm across), spacers (Coloured, Black & white, None),
   Inter-patch gap (along a strip, at most 20 % of the patch length), Strip gap
-  (between strips, 0 to 3 mm), strip letters and patch numbers on/off and size,
+  (between strips, 0 to 3 mm), strip letters and patch numbers on/off and size
+  (at most 6 mm; a larger size moves the strips down, never into the letters),
   sheet text, paper, pages, randomisation, calibration and output are live;
   every other layout control is greyed with the reason and shows the value
   that applies.

@@ -849,6 +849,10 @@ def geom_from_build_kwargs(kw: dict) -> Geom:
     )
     from . import raster   # lazy: raster imports this module
     geom = raster.apply_furniture_reserves(geom, kw)
+    if kw.get("instrument") == "IO2" and _i1io_on():
+        # The strip letters end before every strip's run-in (review r3).
+        from workflow.i1io.chart import settle_letter_band
+        geom = settle_letter_band(geom)
     if (float(getattr(geom, "lbord", 0.0) or 0.0) > 0
             and not old_clip_border_rule(kw)
             and (kw.get("clip_side") or "left") == "left"

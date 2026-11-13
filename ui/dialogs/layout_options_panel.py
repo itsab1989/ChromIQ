@@ -3424,11 +3424,13 @@ class LayoutOptionsPanel(QWidget):
         self._loading = True
         try:
             # The margins are LIVE for the i1iO (any value at or above its
-            # minimum); only a value below the minimum is raised to it.
+            # minimum), and the box offers nothing below it (review r3 m1).
             for k, v in want["margins"].items():
                 box = self.margins.get(k)
-                if box is not None and box.value() < v - 1e-9:
-                    box.setValue(v)
+                if box is not None:
+                    box.setMinimum(v)
+                    if box.value() < v - 1e-9:
+                        box.setValue(v)
             for name in ("layout_mode",):
                 combo = getattr(self, name, None)
                 if combo is None:
@@ -3483,6 +3485,18 @@ class LayoutOptionsPanel(QWidget):
                 c.setRange(lo, hi)
             self.strip_gap.setToolTip(i1io_gap_help("between"))
             self.inter_patch.setToolTip(i1io_gap_help("along"))
+            # The margins offer nothing below the safe minimum, and the label
+            # size nothing above the largest an i1iO chart prints (review r3
+            # m1, M1); `_i1io_show_what_applies` sets the margins' minimums.
+            from workflow.i1io.table_facts import LABEL_MAX_MM
+            for c in (*self.margins.values(),
+                      getattr(self, "indicator_size", None)):
+                if c is not None:
+                    saved["ranges"].append((c, c.minimum(), c.maximum(),
+                                            c.value(), c.specialValueText()))
+            size = getattr(self, "indicator_size", None)
+            if size is not None:
+                size.setMaximum(round(mm_to_pt(LABEL_MAX_MM.value), 1))
             # The margins are the person's for the i1iO, so "Use instrument
             # margins" (which locks them to another instrument's minimums)
             # is off while it is chosen, and comes back on leaving.

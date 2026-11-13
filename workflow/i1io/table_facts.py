@@ -221,6 +221,13 @@ RUN_MM = Fact(10.0, "ours: run_in_mm(88) = 8.8, rounded up", OURS)
 LABEL_SIZE_MM = Fact(2.5, "ours: the smallest size that still reads well "
                      "in print", OURS)
 LABEL_SIZE_RANGE_MM = Fact((2.0, 4.0), "ours", OURS)
+#: The largest label size an i1iO chart prints (review r3 M1): the letters
+#: stand side by side at the strip pitch (7 mm at the narrowest patch and no
+#: strip gap) and the numbers at the patch pitch (8.9 mm at the shortest), so
+#: a label above 6 mm ran into its neighbours and, two characters long, into
+#: the run-in. A larger size asked for is printed at this one.
+LABEL_MAX_MM = Fact(6.0, "ours: the narrowest strip pitch (7 mm) less 1 mm",
+                    OURS)
 #: Clear paper between a label and the nearest patch edge across the scan.
 #: The aperture is 4.5 mm on an 8 mm row, so it keeps 1.75 mm inside the
 #: row's edges; with an alignment or arm error of that size it reaches the
@@ -313,9 +320,13 @@ def row_label_band_mm(size_mm: "float | None" = None) -> float:
 
 
 #: The strip letters' band at the top of the page, before the run-in: the
-#: engine's text edge (4 mm), a letter (3.5 mm) and LABEL_CLEAR_MM.
-STRIP_LETTER_BAND_MM = Fact(8.5, "ours: text edge 4 + letter 3.5 + 1 clear",
-                            OURS)
+#: engine's text edge (4 mm), the letters' ink at the automatic size (6.86 mm
+#: by the engine's own measure, which allows for two letters: turned, a
+#: chart of more than 26 strips needs that much, review r3 m2) and
+#: LABEL_CLEAR_MM. A larger label size raises the build's top margin past
+#: this (`chart.settle_letter_band`); A4 still holds 504 and Letter 462.
+STRIP_LETTER_BAND_MM = Fact(11.9, "ours: text edge 4 + two turned letters "
+                            "6.86 + 1 clear", OURS)
 
 #: Paper at the left and right of the strips for the marks: a mark's zone
 #: (inset 11 + half the cross 3 + 1 clear + its digit 4 + 1) is 20 mm from

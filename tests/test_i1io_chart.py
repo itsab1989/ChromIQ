@@ -249,6 +249,62 @@ def test_no_ink_on_a_scan_line_outside_the_patches(tmp_path, paper, kw):
             assert band.size and band.min() >= 250, (x, a, b)
 
 
+@pytest.mark.parametrize("n,kw", [(700, {}), (504, {"indicator_size_mm": 20.0})])
+def test_the_strip_letters_end_before_every_run_in(tmp_path, n, kw):
+    """Review r3 M1 and m2: a large label size, and the two-letter labels of
+    a chart of more than 26 strips (padded on page 1 too, so turned they
+    reach further down), printed into the run-in. Measured on the raster:
+    over each strip's width, the last ink above the run-in ends at least
+    LABEL_CLEAR_MM before it."""
+    from PIL import Image
+    from workflow.i1io import table_facts as F
+    result, side = _build(tmp_path, n, **kw)
+    img = np.asarray(Image.open(result.tiff_paths[0]).convert("L"))
+    s = 150 / 25.4
+    for strip in side["pages"][0]["strips"]:
+        y0 = strip["run_mm"][0]
+        x = strip["x_mm"]
+        left, right = round((x - 4.0) * s) + 1, round((x + 4.0) * s) - 1
+        rows = np.where((img[:round(y0 * s), left:right] < 200).any(axis=1))[0]
+        assert len(rows), x                     # the letter is there
+        assert rows.max() / s <= y0 - F.LABEL_CLEAR_MM.value + 0.2, (x, y0)
+
+
+def test_the_label_size_is_never_above_the_i1ios_largest():
+    """Review r3 M1: what Manual's size box may ask for (up to 72 pt) is
+    printed at no more than LABEL_MAX_MM, so letters never run into each
+    other at the narrowest strip pitch."""
+    from workflow.i1io import chart, table_facts as F
+    assert chart.label_size_mm(20.0) == F.LABEL_MAX_MM.value
+    assert chart.label_size_mm(3.0) == 3.0
+    assert chart.label_size_mm(None) == 0.0          # the engine's auto size
+    assert chart.fixed_build_kwargs(
+        {"indicator_size_mm": 40.0})["indicator_size_mm"] == F.LABEL_MAX_MM.value
+
+
+def test_manuals_boxes_offer_only_what_the_i1io_prints(qapp, qtbot):
+    """Review r3 m1 and M1: with the i1iO chosen, a margin box offers nothing
+    below the safe minimum and the label size nothing above LABEL_MAX_MM;
+    leaving the i1iO gives the other instrument its own ranges back."""
+    from ui.dialogs.layout_options_panel import LayoutOptionsPanel, mm_to_pt
+    from workflow.i1io import table_facts as F
+    panel = LayoutOptionsPanel(with_selectors=True)
+    qtbot.addWidget(panel)
+    panel.instr.setCurrentIndex(panel.instr.findData("i1"))
+    before = {k: b.minimum() for k, b in panel.margins.items()}
+    size_max = panel.indicator_size.maximum()
+    panel.instr.setCurrentIndex(panel.instr.findData("IO2"))
+    least = dict(zip("trbl", F.margins_mm(True)))
+    for k, box in panel.margins.items():
+        box.setValue(1.0)
+        assert box.value() >= least[k] - 1e-6, k
+    panel.indicator_size.setValue(72.0)
+    assert panel.indicator_size.value() <= round(mm_to_pt(F.LABEL_MAX_MM.value), 1)
+    panel.instr.setCurrentIndex(panel.instr.findData("i1"))
+    assert {k: b.minimum() for k, b in panel.margins.items()} == before
+    assert panel.indicator_size.maximum() == size_max
+
+
 def test_a_chart_of_several_sheets_has_marks_and_a_page_on_each(tmp_path):
     from PIL import Image
     result, side = _build(tmp_path, 700)
