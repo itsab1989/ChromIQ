@@ -32,6 +32,8 @@ NOT_A_SETTING = {
     "cal_auto_retries": "a Preferences value, global by §1.1",
     "engine_safenet":   "a Preferences value, global by §1.1",
     "engine_xy_chart":  "a Preferences (Beta) value, global by §1.1",
+    "engine_i1pro2_lights": ("a Preferences (Beta) value, global by §1.1 "
+                             "(the i1Pro 2 lights, 2026-11-13)"),
     "page_pause":       ("a Preferences value, global by §1.1 (the pause "
                          "between pages, 4.3.10)"),
     "gesture_args":     ("the instrument button shortcuts, a Preferences "

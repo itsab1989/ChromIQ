@@ -557,3 +557,55 @@ incomplete sheet. No new home, eject or reset command is introduced.
 A two-page, 2,040-patch M0 run on 2026-11-03 passed automatic exit-sensor
 clearance and second-sheet insertion on one owned FD-9. Stop during this wait
 is covered by synthetic tests; no physical stop during the new wait was tested.
+
+## The i1Pro 2 lights (Beta) at every ending
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+With Preferences > Beta "X-Rite i1Pro 2: white light while the instrument
+waits for you (beta)" ON, and only while the engine reports
+`{"event":"lights","active":true}` for the session (a real i1Pro 2, reflective
+strip or patch-by-patch reading), every ending switches the instrument's
+lights off before the reader is gone. With the option OFF, or for any other
+instrument, every row of Table 1 is unchanged.
+
+| ending | what changes with the lights in use |
+|---|---|
+| Save and stop, Esc / quit, a finished chart, an error the reader closes on (`it->del`) | the close sends the immediate "off" first (`del_i1proimp`) |
+| Discard and stop, declining to measure, a lost instrument (`abort()`) | instead of the kill, `{"cmd":"lights_off_exit"}`: the reader switches the lights off at its next poll (within 100 ms while it waits for the button) and then ends itself exactly as the kill would (SIGKILL; on Windows TerminateProcess with Qt's kill code), writing nothing. The kill follows after 1 s regardless, bound to that one process |
+| the app quits mid-measurement (`ArgyllRunner.cleanup`) | the same command, after the runner's signals are disconnected; it waits up to 1 s, then kills as before |
+| ChromIQ's end of stdin (ChromIQ crashed) | the reader switches the lights off at its next poll; the exit guard ends it 1.5 s later as before |
+| an `error()` exit inside the reader | the lights go off on the way out (`atexit`, main thread only) |
+| a signal, or the exit guard's `_exit` on a stuck close | nothing can be sent; the lights may stay white until the instrument is unplugged |
+
+What this does not change: the session's verdict, the files kept or
+discarded, and `ended_by_the_user()`; the process still ends without writing.
+Built and tested on 2026-11-13 without an i1Pro 2 (fake USB layer and replay
+instrument); nobody has confirmed it on hardware.
+
+### ⏳ Awaiting confirmation: the endings that may leave the lights on
+
+**Confirmed by:** *nobody yet.*
+
+The last two rows above can leave the white light on, and so can a helper
+crash or a kill the helper did not answer. With the option ON, ChromIQ keeps a
+small marker for that (`core/i1pro2_lights_marker.py`, in ChromIQ's settings
+folder beside the presets, or beside `CHROMIQ_SETTINGS_FILE` when that is set;
+it holds the instrument type and a time):
+
+| what happens | the marker |
+|---|---|
+| the engine reports `{"event":"lights","active":true}` (the white light is on) | written |
+| `{"event":"lights","state":"off"}` (lights_off / lights_off_exit, ChromIQ's end of stdin, an `error()` exit) | removed |
+| the helper exits normally (code 0 or 1): its close switched the lights off | removed |
+| the app quits mid-measurement and the helper answers lights_off_exit with "off" | removed |
+| a crash, the 1 s backstop kill, the exit guard (code 4), a signal, a failed light request | kept |
+
+At the next Start of a chart for the i1Pro family with the option on and the
+marker there, ChromIQ asks M-I1PRO2-LIGHTS-LEFT-ON (unified measurement
+management §M-PROPOSED) before anything is armed, archived or connected:
+Continue removes the marker and starts; Cancel keeps it and starts nothing.
+With the option OFF the marker is never written or read, and the window
+cannot appear; a chart for any other instrument never shows it.

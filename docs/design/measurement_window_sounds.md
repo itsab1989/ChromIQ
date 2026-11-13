@@ -248,6 +248,19 @@ option on is after the pause, when Continue is clicked.
 
 With Preferences ▸ Measurement ▸ *Instrument button shortcuts* on, a double or triple press of the instrument's button moves the reader or pauses it (`measurement_exit_strategy.md` note 13, M-GESTURE-STATUS). It plays **no sound**: the quick taps already sound the instrument's own ready beep, which ChromIQ plays exactly as the driver would (§4a), the strip arrow moving and the status line are the feedback, and a second sound would land on top of that beep. No *Strip read failed* sound plays for the taps either, because no failure is reported for them.
 
+## 4g. The i1Pro 2 lights' replug window plays nothing (2026-11-13)
+
+⏳ **Awaiting confirmation.** **Confirmed by:** *nobody yet.* (The owner asked
+for the window on 2026-11-13 in "the usual message style"; that no sound goes
+with it is ours.)
+
+M-I1PRO2-LIGHTS-LEFT-ON (Preferences ▸ Beta, the i1Pro 2's lights; unified
+measurement management §M-PROPOSED) is asked at Start, before the
+measurement's sounds are armed and before anything is connected, like the
+other windows a Start raises before anything is opened (M-INSTRUMENT-BUSY,
+M-FD9-SUPPORT-OFF) and like *Calibrate the instrument*, which plays no sound
+(§1). It plays **no sound** and has no row in §1.
+
 ## 5. Related documents
 
 - [`measurement_exit_strategy.md`](measurement_exit_strategy.md) — the same windows, from the point of view of how each one ends a session

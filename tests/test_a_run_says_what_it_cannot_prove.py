@@ -207,7 +207,9 @@ def test_eight_files_skip_wholesale_without_it():
     # 21 in part with the instrument button shortcuts (4.3.14, Basti
     # 2026-10-25): the engine's press groups and the app's mapping, on the
     # replay instrument.
-    assert len(whole) == 10 and len(partial) == 21, (
+    # 22 in part with the i1Pro 2 lights (Beta, 2026-11-13): the helper's
+    # --caps, its replay instrument with and without --i1pro2-lights.
+    assert len(whole) == 10 and len(partial) == 22, (
         "the number of files gated on the chart-reading helper has changed "
         f"({len(whole)} wholesale, {len(partial)} in part) -> update the "
         f"header in tests/conftest.py. wholesale={whole} partial={partial}")

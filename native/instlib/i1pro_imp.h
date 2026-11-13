@@ -340,6 +340,11 @@ struct _i1proimp {
 	volatile double whitestamp;	/* meas_delay() white timestamp */
 	volatile double trigstamp;	/* meas_delay() trigger timestamp */
 
+	/* CHROMIQ PATCH: i1Pro 2 indicator lights (Beta). cq_lights 0 = not in
+	 * use, the calloc default, and then every light hook returns at once. */
+	int cq_lights;
+	unsigned int cq_lights_slow_ms;	/* msec_time() of the last slow off */
+
 }; typedef struct _i1proimp i1proimp;
 
 /* Add an implementation structure */
@@ -1454,6 +1459,15 @@ struct _i1data {
 	int (*checksum)(struct _i1data *d, i1key keyoffset); 
 
 }; typedef struct _i1data i1data;
+
+/* CHROMIQ PATCH: i1Pro 2 indicator lights (Beta), see i1pro_imp.c. Every
+ * entry returns at once unless ChromIQ's helper called ..._begin(). */
+int i1pro2_cq_lights_begin(void *pp);	/* ChromIQ's helper only */
+void i1pro2_cq_lights_end(void *pp);	/* off now if needed, then never again */
+void i1pro2_cq_lights_ready(void *pp);	/* white, if in use and off */
+void i1pro2_cq_lights_trigger(void *pp);	/* off, before a trigger */
+void i1pro2_cq_lights_eeprom(void *pp);	/* off now, before an EEPROM read */
+extern void (*i1pro2_cq_lights_note)(int seq, int icom_err);
 
 #ifdef __cplusplus
 	}

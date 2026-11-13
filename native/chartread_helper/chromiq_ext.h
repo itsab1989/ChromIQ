@@ -20,6 +20,34 @@ extern int cq_json;      /* 1 = emit JSON events, accept JSON commands     */
 extern int cq_autosave;  /* 1 = write .ti3 after every accepted strip      */
 extern int cq_safenet;   /* 1 = misalignment safety net (opt-in, #50)      */
 extern int cq_xychart;   /* 1 = engine handles XY/chart modes (else fall back) */
+extern int cq_i1pro2_lights; /* --i1pro2-lights: Preferences > Beta, the
+                              i1Pro 2 indicator lights (2026-11-13) */
+
+/* ---- the i1Pro 2 indicator lights (Beta, 2026-11-13) ---------------------
+ * Without --i1pro2-lights nothing here runs and the driver's light code
+ * (native/instlib/i1pro_imp.c, CHROMIQ PATCH) never sends anything.
+ *
+ * {"cmd":"lights_off_exit"} is how ChromIQ ends a session it would otherwise
+ * kill (Discard and stop, declining to measure, quitting the app) while the
+ * lights are in use: the lights go off, then the process ends itself exactly
+ * as a kill ends it (SIGKILL; on Windows TerminateProcess with Qt's kill
+ * code), writing nothing. The reader thread only sets cq_lights_off_pending
+ * (CQ_LIGHTS_REQ_EXIT); the main thread, the one that drives the instrument,
+ * carries it out at its next poll of the command queue (cq_cmd_take_key).
+ * End of stdin asks for the same off (CQ_LIGHTS_REQ_OFF) without the kill:
+ * the exit guard ends the process 1.5 s later as before. cq_lights_service is
+ * NULL whenever the lights are not in use, and is cleared before the
+ * instrument is closed. */
+#define CQ_LIGHTS_REQ_OFF  1
+#define CQ_LIGHTS_REQ_EXIT 2
+extern volatile int cq_lights_off_pending;
+extern void (*cq_lights_service)(void);
+extern volatile int cq_exiting_on_signal;   /* set by the signal handler */
+void cq_end_process_like_a_kill(void);      /* never returns */
+/* In the vendored driver (i1pro_imp.c); the same prototypes as i1pro_imp.h. */
+int i1pro2_cq_lights_begin(void *pp);
+void i1pro2_cq_lights_end(void *pp);
+extern void (*i1pro2_cq_lights_note)(int seq, int icom_err);
 
 /* ---- JSON event emission (no-ops when cq_json == 0) ------------------- */
 void cq_emit_raw(const char *fmt, ...);   /* fmt is a complete JSON object */
@@ -53,7 +81,7 @@ void cq_json_escape(char *dst, size_t dstlen, const char *src);
  *
  * ⚠ BUMP THIS IN THE SAME COMMIT AS ANY CHANGE TO THE HELPER, and rebuild and
  * commit native/chromiq-chartread. The test tells you the expected value. */
-#define CQ_HELPER_BUILD "chromiq-chartread 2026-10-25 legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures+exit-guard+save-after-close"
+#define CQ_HELPER_BUILD "chromiq-chartread 2026-11-13 legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures+exit-guard+save-after-close+i1pro2-lights"
 const char *cq_helper_build_string(void);
 
 

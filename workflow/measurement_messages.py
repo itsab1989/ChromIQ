@@ -9777,7 +9777,43 @@ M_QUIT_DURING_BUILD = _m(
     approved=False)
 
 
+# --- PROPOSED: the i1Pro 2 lights (Preferences > Beta) may still be on -------
+#: 2026-11-13. A precaution the owner asked for: ArgyllCMS's notes say a light
+#: pattern that is still running can disturb the instrument's EEPROM read at
+#: start-up, and a helper that crashed or was killed while the white light was
+#: on could not switch it off. Asked at Start, before anything is connected,
+#: only with the option on, only for a chart of the i1Pro family, and only
+#: while core/i1pro2_lights_marker.py's marker says the last such session did
+#: not end cleanly. Continue removes the marker; Cancel keeps it and starts
+#: nothing. Shown by `TabMeasure._i1pro2_lights_left_on_window`.
+M_I1PRO2_LIGHTS_LEFT_ON = _m(
+    "M-I1PRO2-LIGHTS-LEFT-ON",
+    "Please unplug the i1Pro 2 and plug it in again",
+    "Your last measurement with the i1Pro 2 ended unexpectedly, before "
+    "ChromIQ could switch the instrument's lights off. This can happen when "
+    "ChromIQ, or the ChromIQ chart-reading engine that measures for it, "
+    "stops suddenly, for example after a crash. So the white light on the "
+    "instrument may still be on.\n\n"
+    "ArgyllCMS, which ChromIQ measures with, notes that the instrument's "
+    "lights can disturb the instrument while it starts up if they are still "
+    "switched on. To be on the safe side, please restart the instrument "
+    "before measuring:\n\n"
+    "•  unplug the instrument's USB cable;\n"
+    "•  wait a few seconds;\n"
+    "•  plug it in again.\n\n"
+    "Then press “Continue” and the measurement starts as usual. If you are "
+    "measuring with a different instrument this time, you can simply press "
+    "“Continue”.\n\n"
+    "If you would rather not measure now, press “Cancel”. Nothing has been "
+    "changed, and ChromIQ will ask again the next time you start a "
+    "measurement.\n\n"
+    "This window belongs to the beta option for the i1Pro 2's lights in "
+    "Preferences, on the Beta tab.",
+    approved=False)
+
+
 CATALOGUE = {m.id: m for m in (
+    M_I1PRO2_LIGHTS_LEFT_ON,
     M_READINGS_NOT_SAME_CHART, M_READINGS_UNUSABLE,
     M_IMPORT_TURNED_GRID_COLOURS,
     M_IMPORT_CXF_CONDITION, M_IMPORT_CXF_CONDITION_PARTS,

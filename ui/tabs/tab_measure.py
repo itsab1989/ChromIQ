@@ -6605,6 +6605,62 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         fit_message_box_buttons(box)
         box.exec()
 
+    def _blocked_by_i1pro2_lights_left_on(self) -> bool:
+        """M-I1PRO2-LIGHTS-LEFT-ON (§M-PROPOSED): the i1Pro 2 lights
+        (Preferences > Beta) were on when the last session's helper ended
+        without switching them off, so they may still be on, and ArgyllCMS's
+        notes say a running light pattern can disturb the instrument's start-up.
+
+        Asked only with the option on and only for a chart of the i1Pro
+        family, so it never stands in front of another instrument; with the
+        option off the marker is not even looked at
+        (core/i1pro2_lights_marker.py). Continue removes the marker and the
+        Start carries on; Cancel keeps it and nothing is started."""
+        from core import i1pro2_lights_marker as marker
+        option = marker.option_on(getattr(self, "_settings", None))
+        if not option:
+            return False
+        if not marker.left_on(option, self._chart_instrument_code()):
+            return False
+        log.info("i1Pro 2 lights: the last session ended with the lights "
+                 "possibly on; asking for a replug before connecting")
+        if self._i1pro2_lights_left_on_window():
+            marker.clear()
+            log.info("i1Pro 2 lights: replug confirmed, marker removed")
+            return False
+        self._log.appendPlainText("\n" + tr(
+            "Measurement not started. Nothing has been changed. Unplug the "
+            "i1Pro 2, wait a few seconds, plug it in again and then press "
+            "“{start}”.").format(start=self._start_button_name()))
+        self._log.ensureCursorVisible()
+        return True
+
+    def _i1pro2_lights_left_on_window(self) -> bool:
+        """M-I1PRO2-LIGHTS-LEFT-ON on screen; True for Continue. Plays no
+        sound, like the other windows a Start raises before anything is
+        opened (M-INSTRUMENT-BUSY, the calibration window)."""
+        from PyQt6.QtWidgets import QMessageBox
+        from workflow import measurement_messages as M
+        from ui.widgets import (fit_message_box_buttons,
+                                keep_message_box_inside_the_work_area,
+                                order_message_box_buttons)
+        title, body = M.M_I1PRO2_LIGHTS_LEFT_ON.render()
+        box = QMessageBox(self)
+        box.setObjectName("i1pro2_lights_left_on")
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        go = box.addButton(tr("Continue"), QMessageBox.ButtonRole.AcceptRole)
+        cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(go)
+        box.setEscapeButton(cancel)
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        fit_message_box_buttons(box)
+        order_message_box_buttons(box, [go, cancel])
+        box.exec()
+        return box.clickedButton() is go
+
     def _cr30_stock_reader_window(self) -> bool:
         """Show §M's M-CR30-STOCK-READER and return True when the user accepts
         the switch to ChromIQ's own chart reader.
@@ -8120,6 +8176,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # rewrites the header on a resume, so the mixed file would say
         # nothing, or the new half's condition, about readings of both.
         if self._blocked_by_a_differing_condition():
+            return
+        # …and when the last measurement with an i1Pro 2 ended while its white
+        # light was on (Preferences > Beta, the lights): replug it first.
+        # Before anything is armed, archived or opened, and never for a chart
+        # of another instrument.
+        if self._blocked_by_i1pro2_lights_left_on():
             return
         # #131: enter measurement mode so per-patch/strip sounds are allowed and
         # the selected clips are pre-loaded for zero-latency playback. On stock
@@ -21610,6 +21672,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         from workflow import button_gestures as _bg
         p.gesture_args = _bg.engine_args(_bg.config_from(self._settings))
         p.engine_xy_chart = bool(self._settings.get("engine_all_modes", False))
+        p.engine_i1pro2_lights = bool(
+            self._settings.get("i1pro2_lights_beta", False))
         p.cal_auto_retries = int(self._settings.get("cal_auto_retries", 3))
         import os as _os
         replay = _os.environ.get("CHROMIQ_REPLAY")

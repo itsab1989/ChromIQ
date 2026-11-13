@@ -120,6 +120,9 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 # M-PATCH-SIMILAR joined on 2026-10-15 (4.3.5 beta 8): Knut confirmed the
 # similar-patch rule for both tests (#182 6196599132); its card texts are ours.
 AWAITING_APPROVAL: "set[str]" = {
+    # The i1Pro 2 lights (Preferences > Beta), 2026-11-13: at Start, the
+    # lights of the last session may still be on; replug before connecting.
+    "M-I1PRO2-LIGHTS-LEFT-ON",
     # Tools > Inspect a measurement compares with another reading of the same
     # chart, and refuses two files it cannot pair (jctay, forum 2026-11-10;
     # Basti 2026-11-11 "do both"), 4.3.32.
@@ -1089,6 +1092,8 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_chart", "TabChart", "_refresh_pattern_gate"),
     # #182 5958921500: Continue to next / Jump to unread.
     ("ui.tabs.tab_measure", "TabMeasure", "_unread_choice_window"),
+    # The i1Pro 2 lights (Beta), 2026-11-13: replug before connecting.
+    ("ui.tabs.tab_measure", "TabMeasure", "_i1pro2_lights_left_on_window"),
     # #182 5963903650 Q5: "Was a strip read twice?"
     ("ui.tabs.tab_measure", "TabMeasure", "_strip_read_twice_window"),
     # The pause between pages (jctay 149802, Basti 2026-10-23).

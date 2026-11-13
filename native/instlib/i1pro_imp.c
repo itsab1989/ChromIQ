@@ -406,6 +406,10 @@ void del_i1proimp(i1pro *p) {
 		i1pro_state *s;
 		i1pro_code ev;
 
+		/* CHROMIQ PATCH: lights off before the instrument is let go (Beta, */
+		/* a no-op unless ChromIQ's helper switched them on). */
+		i1pro2_cq_lights_end(p);
+
 		if (p->dtype != instI1Pro2 && (ev = i1pro_update_log(p)) != I1PRO_OK) {
 			a1logd(p->log,2,"i1pro_update_log: Updating the cal and log parameters to"
 			                                              " EEProm failed failed\n");
@@ -6016,6 +6020,10 @@ i1pro_trigger_one_measure(
 	int measmodeflags;	/* Measurement mode command flags */
 	int measmodeflags2;	/* Rev E Measurement mode command flags */
 
+	/* CHROMIQ PATCH: the indicator lights go off before every trigger (Beta, */
+	/* a no-op unless ChromIQ's helper switched them on). */
+	i1pro2_cq_lights_trigger(p);
+
 	/* Sanity check in case bad value was restored, due to switch */
 	/* from Rev A-D to Rev E mode. */
 	if (*inttime < m->min_int_time)
@@ -11235,6 +11243,10 @@ i1pro_readEEProm(
 	if (size >= 0x10000)
 		return I1PRO_INT_EETOOBIG;
 
+	/* CHROMIQ PATCH: no light sequence may run during an EEPROM read (Beta, */
+	/* a no-op unless ChromIQ's helper switched the lights on). */
+	i1pro2_cq_lights_eeprom(p);
+
 	a1logd(p->log,2,"i1pro_readEEProm: address 0x%x size 0x%x @ %d msec\n",
 	                           addr, size, (stime = msec_time()) - m->msec);
 
@@ -12375,6 +12387,220 @@ i1pro2_indLEDoff(void *pp) {
 	a1logd(p->log,2,"i1pro2_indLEDoff: returning ICOM err 0x%x\n",rv);
 
 	return rv;
+}
+
+/* ============================================================ */
+/* CHROMIQ PATCH: the i1Pro 2 indicator lights (Preferences > Beta, 2026-11-13).
+ *
+ * Where the knowledge comes from: the request and the sequence format are
+ * Argyll's own (i1pro2_indLEDseq above; all its callers are under #ifdef NEVER;
+ * its notes say a running sequence interferes with an EEPROM read). The three
+ * sequences are byte for byte the ones X-Rite's i1Profiler 3.8.6 sent to a
+ * user's own i1Pro 2 Rev E in two USB recordings (ChromIQ issue #129), each
+ * used where i1Profiler used it:
+ *   WHITE     once the instrument was open and ready;
+ *   OFF_SLOW  before every calibration and every scan;
+ *   OFF_NOW   when it let the instrument go, directly before EEPROM access.
+ * Argyll's own i1pro2_indLEDoff bytes were never seen on the wire and are not
+ * used. Nothing else is ever sent from here, and no EEPROM write is added.
+ * Sending WHITE again after every reading is ChromIQ's use of the recorded
+ * WHITE (the recording was made on a measuring table, where i1Profiler kept
+ * the lights dark): it is not something i1Profiler was seen doing.
+ *
+ * Rules, all enforced in this block:
+ *  - nothing happens until ChromIQ's helper calls i1pro2_cq_lights_begin(),
+ *    which it does only when the user switched the option on, and which
+ *    refuses anything but an inited i1Pro 2 whose EEPROM says it has the user
+ *    indicator LEDs (I1PRO_CAP2_IND_LED). Every entry checks dtype first and
+ *    returns at once while cq_lights is 0;
+ *  - OFF_SLOW before every measurement trigger (i1pro_trigger_one_measure,
+ *    which every calibration and reading of this driver passes through);
+ *    OFF_NOW before any EEPROM read and when the instrument is closed, so no
+ *    sequence is left running; WHITE when a measurement or a calibration has
+ *    returned and the instrument waits for the user again;
+ *  - every send is made on the thread that called into the driver, never
+ *    while a trigger thread may still send its 0xD4: WHITE is skipped while
+ *    one is pending, and nothing is lit once a trigger has been prepared;
+ *  - a request that fails is never retried and never fails anything: the
+ *    lights are given up for the rest of the session (cq_lights = DONE, not
+ *    even a final off, because the instrument may still be waiting for the
+ *    bytes of the failed one), the helper is told once, the caller carries on.
+ */
+
+#define CQ_LIGHTS_UNUSED 0	/* the default: never asked for, never sends */
+#define CQ_LIGHTS_DARK   1	/* in use, the last sequence was an off (or none yet) */
+#define CQ_LIGHTS_LIT    2	/* in use, the last sequence was WHITE */
+#define CQ_LIGHTS_DONE   3	/* ended or given up: never sends again */
+
+#define CQ_LIGHTS_WHITE    1
+#define CQ_LIGHTS_OFF_SLOW 2
+#define CQ_LIGHTS_OFF_NOW  3
+
+#define CQ_LIGHTS_TOUT       1.0	/* s per transfer; a good one takes a few ms */
+#define CQ_LIGHTS_TOUT_TRIGGER 0.25	/* between the button and the trigger: short */
+#define CQ_LIGHTS_TOUT_CLOSE 0.5	/* at the close, inside the helper's 1.5 s */
+#define CQ_LIGHTS_SLOW_MS    2500	/* OFF_SLOW plays for about 2 s */
+
+/* WHITE: "off for 0x3640 clocks (about 1 s), then all six LEDs on, forever" */
+static const unsigned char cq_lights_seq_white[32] = {
+	0x00, 0x00, 0x00, 0x02,					/* two blocks */
+	0x00, 0x00, 0x00, 0x0a,					/* block 1: 10 bytes */
+	0x00, 0x00, 0x00, 0x01,					/*   played once */
+	0x00, 0x36, 0x40,						/*   mask 00 for 0x3640 clocks */
+	0x00, 0x00, 0x01,						/*   mask 00 for 1 clock */
+	0x00, 0x00, 0x00, 0x0a,					/* block 2: 10 bytes */
+	0xff, 0xff, 0xff, 0xff,					/*   repeated forever */
+	0x3f, 0x36, 0x40,						/*   mask 3f for 0x3640 clocks */
+	0x00, 0x00, 0x01						/*   mask 00 for 1 clock */
+};
+
+/* OFF_SLOW: "off for 0x3640 clocks, then 1 clock, played twice, then end" */
+static const unsigned char cq_lights_seq_off_slow[18] = {
+	0x00, 0x00, 0x00, 0x01,					/* one block */
+	0x00, 0x00, 0x00, 0x0a,					/* 10 bytes */
+	0x00, 0x00, 0x00, 0x02,					/* played twice */
+	0x00, 0x36, 0x40,						/* mask 00 for 0x3640 clocks */
+	0x00, 0x00, 0x01						/* mask 00 for 1 clock */
+};
+
+/* OFF_NOW: "off for 1 clock, played twice, then end" */
+static const unsigned char cq_lights_seq_off_now[15] = {
+	0x00, 0x00, 0x00, 0x01,					/* one block */
+	0x00, 0x00, 0x00, 0x07,					/* 7 bytes */
+	0x00, 0x00, 0x00, 0x02,					/* played twice */
+	0x00, 0x00, 0x01						/* mask 00 for 1 clock */
+};
+
+/* Set by ChromIQ's helper to hear about a failed light request (one call per
+ * session at most). seq is CQ_LIGHTS_WHITE / _OFF_SLOW / _OFF_NOW (1/2/3). */
+void (*i1pro2_cq_lights_note)(int seq, int icom_err) = NULL;
+
+/* The i1proimp of an i1Pro 2 whose lights are in use, else NULL. dtype is
+ * read first: it is in every instrument's base object, so this is safe to
+ * ask of any inst, and only an i1Pro 2 object is ever looked into. */
+static i1proimp *cq_lights_m(i1pro *p) {
+	i1proimp *m;
+	if (p == NULL || p->dtype != instI1Pro2 || (m = (i1proimp *)p->m) == NULL
+	 || p->icom == NULL)
+		return NULL;
+	if (m->cq_lights != CQ_LIGHTS_DARK && m->cq_lights != CQ_LIGHTS_LIT)
+		return NULL;
+	return m;
+}
+
+/* A trigger thread that has not sent its 0xD4 yet. */
+static int cq_lights_trigger_pending(i1proimp *m) {
+	return m->trig_thread != NULL && m->tr_t2 == 0;
+}
+
+/* Send one of the three sequences. The only place a light request is made. */
+static void cq_lights_send(i1pro *p, int which, double tout) {
+	i1proimp *m = (i1proimp *)p->m;
+	const unsigned char *seq;
+	int size;
+	unsigned char pbuf[4];
+	int wbytes = 0;
+	int se;
+
+	if (which == CQ_LIGHTS_WHITE) {
+		seq = cq_lights_seq_white;    size = (int)sizeof(cq_lights_seq_white);
+	} else if (which == CQ_LIGHTS_OFF_SLOW) {
+		seq = cq_lights_seq_off_slow; size = (int)sizeof(cq_lights_seq_off_slow);
+	} else {
+		which = CQ_LIGHTS_OFF_NOW;
+		seq = cq_lights_seq_off_now;  size = (int)sizeof(cq_lights_seq_off_now);
+	}
+
+	int2buf(pbuf, size);
+	se = p->icom->usb_control(p->icom,
+		               IUSB_ENDPOINT_OUT | IUSB_REQ_TYPE_VENDOR | IUSB_REQ_RECIP_DEVICE,
+	                   0xD6, 0, 0, pbuf, 4, NULL, tout);
+	if (icoms2i1pro_err(se) == I1PRO_OK)
+		se = p->icom->usb_write(p->icom, NULL, 0x03, (unsigned char *)seq, size,
+		                        &wbytes, tout);
+
+	if (icoms2i1pro_err(se) != I1PRO_OK || wbytes != size) {
+		m->cq_lights = CQ_LIGHTS_DONE;		/* given up for this session */
+		a1logd(p->log,1,"i1pro2 lights: sequence %d failed, ICOM err 0x%x, wrote %d of %d;"
+		                " lights not used again\n", which, se, wbytes, size);
+		if (i1pro2_cq_lights_note != NULL)
+			i1pro2_cq_lights_note(which, se);
+		return;
+	}
+	if (which == CQ_LIGHTS_WHITE)
+		m->cq_lights = CQ_LIGHTS_LIT;
+	else
+		m->cq_lights = CQ_LIGHTS_DARK;
+	if (which == CQ_LIGHTS_OFF_SLOW)
+		m->cq_lights_slow_ms = msec_time();
+	else
+		m->cq_lights_slow_ms = 0;
+	a1logd(p->log,2,"i1pro2 lights: sequence %d sent\n", which);
+}
+
+/* Something may still be playing: WHITE, or an OFF_SLOW of the last 2.5 s. */
+static int cq_lights_playing(i1proimp *m) {
+	return m->cq_lights == CQ_LIGHTS_LIT
+	    || (m->cq_lights_slow_ms != 0
+	        && (msec_time() - m->cq_lights_slow_ms) < CQ_LIGHTS_SLOW_MS);
+}
+
+/* Before a trigger: OFF_SLOW, as i1Profiler sends before calibrations and
+ * scans, when lit. */
+void i1pro2_cq_lights_trigger(void *pp) {
+	i1pro *p = (i1pro *)pp;
+	i1proimp *m = cq_lights_m(p);
+	if (m == NULL || m->cq_lights != CQ_LIGHTS_LIT)
+		return;
+	cq_lights_send(p, CQ_LIGHTS_OFF_SLOW, CQ_LIGHTS_TOUT_TRIGGER);
+}
+
+/* Before an EEPROM read: OFF_NOW, when anything may still be playing. */
+void i1pro2_cq_lights_eeprom(void *pp) {
+	i1pro *p = (i1pro *)pp;
+	i1proimp *m = cq_lights_m(p);
+	if (m == NULL || !cq_lights_playing(m))
+		return;
+	cq_lights_send(p, CQ_LIGHTS_OFF_NOW, CQ_LIGHTS_TOUT);
+}
+
+/* WHITE, when in use and off, and no trigger is still to be sent. */
+void i1pro2_cq_lights_ready(void *pp) {
+	i1pro *p = (i1pro *)pp;
+	i1proimp *m = cq_lights_m(p);
+	if (m == NULL || m->cq_lights != CQ_LIGHTS_DARK || cq_lights_trigger_pending(m))
+		return;
+	cq_lights_send(p, CQ_LIGHTS_WHITE, CQ_LIGHTS_TOUT);
+}
+
+/* Start using the lights. ChromIQ's helper calls this, and only when the user
+ * switched the option on. Returns non-zero when they are in use. */
+int i1pro2_cq_lights_begin(void *pp) {
+	i1pro *p = (i1pro *)pp;
+	i1proimp *m;
+
+	if (p == NULL || p->dtype != instI1Pro2 || !p->gotcoms || !p->inited
+	 || (m = (i1proimp *)p->m) == NULL || p->icom == NULL)
+		return 0;
+	if ((m->capabilities2 & I1PRO_CAP2_IND_LED) == 0)
+		return 0;
+	if (m->cq_lights == CQ_LIGHTS_UNUSED) {
+		m->cq_lights = CQ_LIGHTS_DARK;
+		i1pro2_cq_lights_ready(p);
+	}
+	return m->cq_lights == CQ_LIGHTS_DARK || m->cq_lights == CQ_LIGHTS_LIT;
+}
+
+/* Stop using the lights: OFF_NOW when anything may still be playing (and no
+ * trigger is still to be sent), then never send again. */
+void i1pro2_cq_lights_end(void *pp) {
+	i1pro *p = (i1pro *)pp;
+	i1proimp *m = cq_lights_m(p);
+	if (m == NULL)
+		return;
+	if (cq_lights_playing(m) && !cq_lights_trigger_pending(m))
+		cq_lights_send(p, CQ_LIGHTS_OFF_NOW, CQ_LIGHTS_TOUT_CLOSE);
+	m->cq_lights = CQ_LIGHTS_DONE;
 }
 
 #ifdef NEVER
