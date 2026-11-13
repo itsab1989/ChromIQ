@@ -49,42 +49,47 @@ instrument to name.
 
 * Guided and Manual: "i1iO 2 + i1Pro 2" (code `IO2`) in the Instrument lists,
   the layout panel and Preferences > Chart Layout.
-* Sheets: A4 landscape and Letter landscape (Guided picks Letter landscape
-  for someone on a US sheet, A4 landscape otherwise). The engine refuses a
-  portrait sheet or one larger than the reach.
-* Laid out by the layout engine for scanning STRIPS along the sheet's long
-  side. As on every ChromIQ chart, each strip (the line the arm scans in one
-  move) has a letter and the patches along it are numbered: "C7" is the 7th
-  patch of strip C, in the `.ti2`, on the sheet, in the side file and in
-  every window. Patches 10 x 8 mm, a 1 mm white gap between neighbours along
-  a strip (the engine's "Strip gap"), none between strips (its "Inter-patch
-  gap"), 10 mm of blank paper before the first and after the last patch of
-  every strip, three numbered aiming marks at the sheet corners (1 top left,
-  2 bottom left, 3 bottom right) with the strips starting right next to them,
-  patch numbers above the patches and strip letters beyond the left end of
-  every strip's blank paper, the ChromIQ wordmark beside mark 1 (left off
-  where it would touch the numbers), the page "N/M", the chart name and
-  Manual's sheet text on one line at the bottom. **Nothing is printed on a
-  scan line outside the patches**, and a label keeps 1 mm from the patches
-  across the scan; a label that cannot be placed safely is left off, never
-  its clearance. No arrow, no helper markers, no clip border, no spacers.
-  Per sheet: A4 528 (594 with no labels and no gap), Letter 506 (575).
-  Every number, its source and its confidence are in
-  `workflow/i1io/table_facts.py`.
-* Manual: the margins (down to the safe minimum), the patch size (8.9 to 20 mm
-  along the strip, 7 to 20 mm across it), both gaps (along a strip at most
-  20 % of the patch length, between strips 0 to 3 mm), the strip letters and
-  patch numbers on/off and their size, the sheet text, paper, pages,
-  randomisation, calibration and output are live; every other layout control
-  is greyed with the reason and shows the value that applies.
+* An ordinary ChromIQ strip chart on a PORTRAIT A4 or Letter sheet (Guided
+  picks Letter for someone on a US sheet, A4 otherwise), laid ACROSS the table
+  a quarter turn clockwise, so its strips run along the arm (the table's scan
+  moves change its X, along the 32 cm side: PROTOCOL 3.1, 4.4). Each strip is
+  one line the arm scans in one move; strip letters, patch numbers ("C7" =
+  the 7th patch of strip C), the spacers between the patches of a strip, the
+  strip gap and the `.ti2`'s strip structure mean what they mean on every
+  ChromIQ chart. The engine refuses a landscape sheet or one larger than the
+  reach.
+* Defaults, chosen for ChromIQ's own reading with the table and to be
+  confirmed by the first real scan: patches 10 mm along the strip x 8 mm
+  across, Coloured contrast spacers of 1 mm between them (the layout
+  ArgyllCMS gives every i1Pro strip, read by the same driver's patch finder),
+  no gap between strips, 10 mm of blank paper before the first and after the
+  last patch of every strip, the strip letters beyond the run-in and the patch
+  numbers beside the first strip (both turned to read upright on the table),
+  three numbered aiming marks (on the table 1 top left, 2 bottom left, 3
+  bottom right), the ChromIQ wordmark, the page "N/M", the chart name and
+  Manual's sheet text on one turned line along the table's bottom edge.
+  **Nothing is printed on a scan line outside the patches** (no edge
+  spacers, no labels in a run). No arrow, no helper markers, no clip border.
+  Per sheet: A4 504 (546 without spacers), Letter 462 (504). Every number,
+  its source and its confidence are in `workflow/i1io/table_facts.py`.
+* Manual: margins (down to the safe minimum), patch size (8.9 to 20 mm along
+  the strip, 7 to 20 mm across), spacers (Coloured, Black & white, None),
+  Inter-patch gap (along a strip, at most 20 % of the patch length), Strip gap
+  (between strips, 0 to 3 mm), strip letters and patch numbers on/off and size,
+  sheet text, paper, pages, randomisation, calibration and output are live;
+  every other layout control is greyed with the reason and shows the value
+  that applies.
+* The ChromIQ logo never costs a patch: it is no layout input, it is drawn in
+  the turned text line beside the strips, shrunk down to 2 mm before it is
+  left off.
 * Generate refuses, before anything is written, a layout where a patch, a run
   or a mark leaves the sheet or touches a mark.
 * Files: `.ti2` `TARGET_INSTRUMENT "X-Rite i1iO"` (the family), declared
-  keywords `CHROMIQ_I1IO_LAYOUT "1"` and `CHROMIQ_I1IO_TABLE "i1iO 2"`, the
-  strips as strips (`STEPS_IN_PASS` = patches per strip); `<stem>.i1io.json`
-  with every mark, strip, run, label and patch centre in mm and the gaps used.
-  A later i1iO / i1iO 3 entry gets its own code and writes the same family
-  name, so no file already written is renamed.
+  keywords `CHROMIQ_I1IO_LAYOUT "1"` and `CHROMIQ_I1IO_TABLE "i1iO 2"`;
+  `<stem>.i1io.json` with every mark, strip, run and patch centre in mm on
+  the page, the turn, the spacers and gaps used. A later i1iO / i1iO 3 entry
+  gets its own code and writes the same family name, so no file already
+  written is renamed.
 * The patch set editor lays an i1iO chart out again as one (switch on).
 * The separate Beta "Also write an i1Profiler chart that matches the printed
   ChromIQ sheet" says, for an i1iO chart, that it cannot write a matching
