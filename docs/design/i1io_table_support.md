@@ -261,12 +261,12 @@ the sheet text and the labels).*
   cannot hold across is reduced to the largest that fits. Bold is the
   i1iO's own (on, as the whole line was in 4.3.33) unless unticked
   (`LayoutRecipe.i1io_text_bold`, written only when False).
-* An i1iO recipe saved before these options (4.3.33 greyed the label
-  controls and ignored them, so it may carry another instrument's style)
-  has no `i1io_label_options` mark and builds exactly as 4.3.33 built it;
-  Manual shows it that way and marks it as soon as a label control is
-  changed. With the Beta off the mark, `i1io_text_bold` and
-  `i1io_clip_border` are carried untouched.
+* An i1iO recipe 4.3.33 saved loads with the values it carries (fields it
+  lacks take their defaults) and is built like any other: what the panel
+  shows is what prints (the owner, 2026-11-13: the Beta is hours old, so a
+  4.3.33 i1iO chart may lay out differently when generated again). With
+  the Beta off, `i1io_text_bold` and `i1io_clip_border` are carried
+  untouched.
 * Still greyed, each with its reason: the sheet text's alignment (the line
   sits in free paper, between crosses 2 and 3 or two corner patches, with no
   margin to align to), the label rotations, the strip-indicator gap, the
@@ -303,8 +303,6 @@ possible"; what follows is how it was built, awaiting confirmation.)
   layout well: ...`: a strip's blank paper near the paper edge or touching a
   cross or the clip border, the clip border's content within 1 mm of a
   patch, edge spacers, ruler helper markers along the top and bottom.
-* A recipe saved before the label options (4.3.33's) ignores every one of
-  these and builds as 4.3.33 did.
 * Every option is kept by Save as Defaults, the layout preset bar, a named
   preset and the target's own stored state (§4 of
   `per_target_settings.md`); `tests/test_i1io_every_option_persists.py`
@@ -329,6 +327,11 @@ possible"; what follows is how it was built, awaiting confirmation.)
   or partly past the paper's edge, and patch numbers on a cross or partly
   past it, are said in the log and under "Measured from Preview"
   (M-I1IO-FURNITURE-PARTS, proposed); wholly off the sheet is refused.
+  So are letters or their underline on the blank paper of a strip's run
+  (the table may take them for a patch) and patch numbers left off for
+  want of room beside the strips (review 4).
+* Opening another project's recipe keeps each instrument's own values: an
+  i1Pro project's ruler helper markers do not become the i1iO's.
 * A chart 4.3.33 made with the aiming crosses off reopens with its own
   smaller right margin.
 
