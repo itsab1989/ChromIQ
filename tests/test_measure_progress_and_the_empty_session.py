@@ -109,11 +109,42 @@ def _write_ti3(p: Path, n: int) -> Path:
     return p
 
 
+_TABS: list = []
+
+
+@pytest.fixture(autouse=True)
+def _no_session_outlives_its_test():
+    """A TAB WHOSE READ WAS STARTED HERE DOES NOT KEEP THE KEYBOARD.
+
+    `_on_start` marks the session live and installs the tab as an event filter
+    on the whole APPLICATION, to route keys to the reader; only the end of the
+    session takes it off. The stubbed reader here never ends, so two tests
+    left a live Measure tab behind, and until the suite's timed garbage
+    collection (core/gc_guard.py) happened to reach it, it ate every key press
+    in the process ("send_key 'x': no active process"):
+    tests/test_typing_a_project_name_is_not_a_target_change.py lost its typed
+    letters when xdist put it next on the same worker (9 failures in the
+    4.3.33 review's everyday run; it passes alone). The session ends here,
+    the way every ending does: not live, filter off."""
+    yield
+    from PyQt6 import sip
+    app = QApplication.instance()
+    while _TABS:
+        tab = _TABS.pop()
+        if sip.isdeleted(tab):
+            continue
+        tab._session_live = False
+        app.removeEventFilter(tab)
+        tab.deleteLater()
+
+
 def _make_tab(settings=None):
     from core.argyll_runner import ArgyllRunner
     from ui.tabs.tab_measure import TabMeasure
     s = settings or _Settings()
-    return TabMeasure(ArgyllRunner(s), s)
+    tab = TabMeasure(ArgyllRunner(s), s)
+    _TABS.append(tab)
+    return tab
 
 
 def _his_chart(tmp_path: Path):
@@ -394,3 +425,20 @@ def test_a_session_that_really_measured_still_reports(tmp_path, monkeypatch):
 
     assert [p.name for p in finished] == ["CR30-Test.ti3"]
     assert tab._progress_base == 200
+
+
+def test_zz_a_key_typed_after_these_sessions_reaches_its_widget():
+    """Last in the file on purpose (pytest runs a file top to bottom): after
+    every read the tests above started, a letter typed into an unrelated field
+    arrives there. It used to go to a Measure tab left behind with its session
+    live, and was eaten (see `_no_session_outlives_its_test`)."""
+    from PyQt6.QtTest import QTest
+    from PyQt6.QtWidgets import QLineEdit
+    field = QLineEdit()
+    try:
+        QTest.keyClicks(field, "xyz")
+        assert field.text() == "xyz", (
+            "a key typed after this file's measurements did not arrive: a "
+            "Measure tab from an earlier test still holds the keyboard")
+    finally:
+        field.deleteLater()
