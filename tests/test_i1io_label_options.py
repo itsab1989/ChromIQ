@@ -324,7 +324,7 @@ def test_manual_wires_the_label_options(panel):
               panel.chart_text_font, panel.chart_text_size, panel.ct_bold):
         assert c.isEnabled(), c
         assert c in panel._i1io_live_controls()
-    assert not panel.chart_text_align.isEnabled()      # stays greyed
+    assert panel.chart_text_align.isEnabled()          # Job D: open
     assert panel.ct_bold.isChecked()                    # the i1iO's own
     assert panel.get_recipe().i1io_text_bold is None
     panel.ct_bold.setChecked(False)

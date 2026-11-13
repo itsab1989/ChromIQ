@@ -4069,14 +4069,14 @@ def i1io_instrument_bullet_sheet() -> str:
 def i1io_instrument_bullet_manual() -> str:
     """The i1iO bullet's second part: what Manual can change."""
     return tr(
-        "In Manual you can change the margins, the patch size (8.9 to 20 mm "
-        "along the strip, 7 to 20 mm across it), the spacers, the gaps, the "
-        "letters and numbers (their patterns, typeface, underline and "
-        "alignment) and the sheet text's typeface and size, and you can add "
-        "a clip border for notes along one long edge of the sheet (off by "
-        "default; Guided offers it too); the other layout controls are "
-        "greyed, "
-        "because the table needs this layout.")
+        "In Manual you can change nearly every layout option, as for the "
+        "other instruments: the margins, the patch size (8.9 to 20 mm along "
+        "the strip, 7 to 20 mm across it), the spacers and gaps, the letters "
+        "and numbers with their patterns, typefaces, underline, offsets and "
+        "distances, the sheet text, the ruler helper markers, and a clip "
+        "border for notes along one long edge of the sheet (off by default; "
+        "Guided offers it too). The defaults are the safe choice for the "
+        "table; the few controls that have no meaning for it are greyed.")
 
 
 def i1io_instrument_bullet_rest() -> str:

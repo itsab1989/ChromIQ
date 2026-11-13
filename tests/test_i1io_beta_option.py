@@ -210,6 +210,11 @@ def test_manual_offers_the_i1io_and_greys_what_it_does_not_read(chart_tab):
             continue
         if c in (panel.underline_thickness, panel.underline_gap):
             continue           # live, enabled by an underline
+        if c in (panel.helper_marker_edge, panel.helper_marker_len,
+                 panel.helper_marker_per_patch,
+                 panel.helper_markers_top_bottom,
+                 panel.helper_markers_sides, panel.max_strip):
+            continue           # live, enabled by their own switch
         assert c.isEnabled(), c.objectName() or type(c).__name__
     panel.custom_spacer_cb.setChecked(True)
     assert all(b.isEnabled() for b in panel._spacer_swatches)

@@ -37,6 +37,9 @@ class ChartResult:
     #: Paper whites added so each calibration ramp starts its own strip
     #: (``ramps_per_strip``); 0 when nothing was rearranged.
     ramp_whites_added: int = 0
+    #: Why the layout may read less well (an i1iO chart, Job D: risky
+    #: options are warned about, not refused), translated, for the log.
+    warnings: tuple = ()
 
 
 def build_ti2_from_ti1(
@@ -327,6 +330,11 @@ def build_chart(
     #: review F4/R1); False = a recipe from before them, built as 4.3.33
     #: built it. No other instrument reads it.
     i1io_label_options: bool = True,
+    #: i1iO only (Job D): the patch numbers' distance from the paper edge
+    #: (0 = the i1iO's own 10 mm) and where the name line sits in its room
+    #: ("" = centred, "start"). No other instrument reads them.
+    i1io_numbers_edge_mm: float = 0.0,
+    i1io_text_align: str = "",
 ) -> ChartResult:
     """Full chart build: write ``out_base.ti2`` + page TIFF(s) + strip geometry.
 
@@ -389,7 +397,20 @@ def build_chart(
             _i1io_chart.ALIGN_KEY: i1io_align,
             _i1io_chart.CROSSES_KEY: i1io_crosses,
             _i1io_chart.CLIP_KEY: i1io_clip_border,
-            _i1io_chart.OPTIONS_KEY: bool(i1io_label_options)})
+            _i1io_chart.OPTIONS_KEY: bool(i1io_label_options),
+            # options open, defaults safe (Job D): what a person set
+            "edge_spacers": edge_spacers, "max_strip": max_strip,
+            "nolimit": nolimit, "offset_x": offset_x, "offset_y": offset_y,
+            "helper_markers": helper_markers,
+            "helper_marker_edge": helper_marker_edge,
+            "helper_marker_len": helper_marker_len,
+            "helper_markers_top_bottom": helper_markers_top_bottom,
+            "strip_indicator_gap": strip_indicator_gap,
+            "strip_label_offset_mm": strip_label_offset_mm,
+            "strip_label_offset_x_mm": strip_label_offset_x_mm,
+            "text_edge": text_edge,
+            _i1io_chart.NUMBERS_EDGE_KEY: i1io_numbers_edge_mm,
+            _i1io_chart.TEXT_ALIGN_KEY: i1io_text_align})
         _i1io_chart.sheet_size(paper)
         (patch_w, patch_h, pscale, sscale, spacer_on, spacer_mode,
          spacer_width, inter_patch, strip_gap, edge_spacers, margins,
@@ -694,8 +715,9 @@ def build_chart(
         # a page whose corner patches cannot be aimed at (`page_crosses`).
         _i1io_pages = _i1io_chart.page_crosses(target, layout, geom, w_mm,
                                                h_mm, _slots, _i1io_crosses)
-        _i1io_chart.check_sheet(geom, layout, w_mm, h_mm,
-                                crosses=_i1io_pages)
+        _i1io_warnings = list(_i1io_chart.check_sheet(
+            geom, layout, w_mm, h_mm, crosses=_i1io_pages))
+        _i1io_warnings += _i1io_chart.option_warnings(_f)
         # what the person aims at, recorded (`chart.aim_recorded`), and on
         # every page the names of the three patches when they are patches
         from dataclasses import replace as _replace
@@ -797,7 +819,8 @@ def build_chart(
                                              label_rule),
                                    sheet_text=_i1io_sheet_text,
                                    text_ctx=_ctx, crosses=_i1io_pages,
-                                   text_style=_i1io_text_style)
+                                   text_style=_i1io_text_style,
+                                   text_align=_i1io_chart.text_align_of(_f))
     if target.n_channels >= 4:
         device_pages = raster.build_device_pages(render, printed, bit16=bit16)
         tiff_paths = raster.save_separated_tiffs(
@@ -853,7 +876,8 @@ def build_chart(
             sheet_text=_i1io_sheet_text, text_ctx=_ctx,
             crosses=_i1io_pages, slots=_slots,
             clip_content=clip_content_mode if _i1io_clip else "off",
-            text_style=_i1io_text_style)
+            text_style=_i1io_text_style,
+            text_align=_i1io_chart.text_align_of(_f))
 
     cht_paths: list[Path] | None = None
     if emit_cht:
@@ -891,6 +915,7 @@ def build_chart(
         # back to a later rebuild.
         chart_date=_ctx["date"],
         ramp_whites_added=ramps_arranged,
+        warnings=tuple(_i1io_warnings) if _i1io else (),
     )
 
 

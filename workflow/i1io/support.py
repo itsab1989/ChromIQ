@@ -143,7 +143,8 @@ CHART_RECIPE_KEYS = ("instrument", "paper", "border", "margin_top",
                      "margin_right", "margin_bottom", "margin_left",
                      "use_instrument_margins", "patch_w_mm", "patch_h_mm",
                      "layout_mode", "i1io_crosses", "i1io_clip_border",
-                     "i1io_text_bold", "i1io_label_options")
+                     "i1io_text_bold", "i1io_label_options",
+                     "i1io_numbers_edge_mm", "i1io_text_align")
 
 
 def target_names_i1io(stored_params: "dict | None",

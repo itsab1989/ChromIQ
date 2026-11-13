@@ -59,28 +59,30 @@ def _panel_on_i1io(tab):
     return panel
 
 
-def test_manual_the_box_takes_the_helper_markers_slot(chart_tab):
-    panel = chart_tab._manual_layout_panel or None
+def test_manual_the_box_sits_with_the_helper_markers(chart_tab):
+    """The crosses' box and (i) sit in the ruler helper markers' group, on
+    a row of their own under the markers' rows: since Job D the markers
+    are an i1iO option too, so both are shown while the i1iO is chosen."""
     chart_tab._init_manual_layout_panel()
     panel = chart_tab._manual_layout_panel
     grid = panel._hm_grid
     grp = panel._helper_markers_grp
     title = grp.title()
-    # the same grid cells as "Print helper markers" and its (i)
-    assert grid.itemAtPosition(0, 0) is not None
     idx_cb = grid.indexOf(panel.i1io_crosses_cb)
-    idx_hm = grid.indexOf(panel.helper_markers_cb)
-    assert grid.getItemPosition(idx_cb)[:2] == grid.getItemPosition(idx_hm)[:2]
     idx_tip = grid.indexOf(panel._i1io_crosses_tip)
-    assert grid.getItemPosition(idx_tip)[:2] == (0, 2)
+    row = grid.getItemPosition(idx_cb)[0]
+    assert row > max(grid.getItemPosition(grid.indexOf(w))[0]
+                     for r in panel._hm_rows for w in r
+                     if grid.indexOf(w) >= 0)
+    assert grid.getItemPosition(idx_tip)[:2] == (row, 2)
     assert not panel.i1io_crosses_cb.isVisibleTo(grp)
     panel.instr.setCurrentIndex(panel.instr.findData("IO2"))
     assert panel.i1io_crosses_cb.isVisibleTo(grp)
     assert panel.i1io_crosses_cb.isEnabled()
     assert panel._i1io_crosses_tip.isVisibleTo(grp)
-    assert not panel.helper_markers_cb.isVisibleTo(grp)
-    assert all(not w.isVisibleTo(grp) for row in panel._hm_rows for w in row)
-    assert grp.title() == "Aiming marks"
+    assert panel.helper_markers_cb.isVisibleTo(grp)
+    assert panel.helper_markers_cb.isEnabled()
+    assert grp.title() == "Aiming crosses and ruler helper markers"
     panel.instr.setCurrentIndex(panel.instr.findData("i1"))
     assert grp.title() == title
     assert panel.helper_markers_cb.isVisibleTo(grp)

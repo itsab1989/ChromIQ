@@ -265,7 +265,6 @@ def test_the_greyed_boxes_show_what_an_i1io_chart_uses(panel):
     assert panel.indicator_rotation.currentData() == F.LABEL_TURN_DEG.value
     assert panel.row_indicator_rotation.currentData() == F.LABEL_TURN_DEG.value
     assert panel.text_edge_clip.value() == F.NUMBERS_EDGE_MM.value
-    assert panel.nolimit.isChecked()
     assert panel.layout_mode.currentData() == "patch_first"
     assert panel.patch_align.currentData() == "center"
     assert panel.spacer_width.value() == F.SPACER_MM.value

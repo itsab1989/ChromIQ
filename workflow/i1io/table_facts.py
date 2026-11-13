@@ -431,6 +431,7 @@ def margins_mm(strip_letters: bool = True,
                label_size_mm: "float | None" = None, numbers: bool = True,
                crosses: bool = True, clip_mm: float = 0.0,
                letter_band: "float | None" = None,
+               numbers_edge: "float | None" = None,
                ) -> "tuple[float, float, float, float]":
     """The patch block's smallest margins ``(top, right, bottom, left)`` on
     the PORTRAIT page: at the top a run, at the bottom a run and the strip
@@ -462,7 +463,8 @@ def margins_mm(strip_letters: bool = True,
         left = max(side, numbers_band_mm(label_size_mm, start_mm=clip)
                    if numbers else clip + LABEL_CLEAR_MM.value)
     else:
-        left = max(side, numbers_band_mm(label_size_mm) if numbers else 0.0)
+        left = max(side, numbers_band_mm(label_size_mm, start_mm=numbers_edge)
+                   if numbers else 0.0)
     return top, right, bottom, left
 
 

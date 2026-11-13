@@ -91,8 +91,9 @@ def test_the_capacity_is_the_geometrys_own(paper, kw, count):
 
 
 def test_whatever_a_recipe_asks_for_the_i1io_keeps_its_own_layout():
-    """A clip border, helper markers, edge spacers, an area-first layout or
-    margins below the safe minimum change nothing; a patch size is kept
+    """A clip border asked for the old way, an area-first layout or
+    margins below the safe minimum change nothing (helper markers and edge
+    spacers are a person's options since Job D); a patch size is kept
     inside the table's limits (engine terms: width across a strip, height
     along it)."""
     from workflow.layout_engine import geometry, instruments, papers
@@ -101,7 +102,6 @@ def test_whatever_a_recipe_asks_for_the_i1io_keeps_its_own_layout():
         {"instrument": "IO2", "paper": "A4"}), w, h)
     noisy = geometry.patches_per_sheet(instruments.geom_from_build_kwargs(
         {"instrument": "IO2", "paper": "A4", "margins": (3, 3, 3, 3),
-         "helper_markers": True, "edge_spacers": True,
          "layout_mode": "area_first", "clip_content_mode": "notes",
          "clip_band": 26.0}), w, h)
     assert noisy == plain

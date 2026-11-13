@@ -126,10 +126,8 @@ def edge_spacers_effect(recipe: "LayoutRecipe") -> str:
         from workflow.fd9.support import fd9_enabled
         if fd9_enabled():
             return "fixed"
-    if recipe.instrument == "IO2":
-        from workflow.i1io.support import i1io_enabled
-        if i1io_enabled():
-            return "fixed"
+    # The i1iO reads it since Job D (owner, 2026-11-13: options open,
+    # defaults safe), so it is measured like every other chart below.
     from . import instruments
     kw = replace(recipe, edge_spacers=True).build_kwargs()
     g = instruments.geom_from_build_kwargs(kw)
@@ -245,6 +243,13 @@ class LayoutRecipe:
     #: label fields to what that build prints, so what is shown, recorded
     #: and printed agree. Written for every "IO2" recipe, never for others.
     i1io_label_options: bool = True
+    #: Job D (options open, defaults safe): the patch numbers' distance from
+    #: the paper edge on an i1iO chart (Manual's "Clip" box while the i1iO
+    #: is chosen; 0 = its own 10 mm) and where its name line sits ("" =
+    #: centred, "start"). Their own fields: the shared boxes default to
+    #: other values for every other chart. Written only for "IO2" when set.
+    i1io_numbers_edge_mm: float = 0.0
+    i1io_text_align: str = ""
     # Layout strategy (#93, Knut). "patch_first" (default) = size the patches
     # (above) and fit as many as possible to the page. "area_first" = fit a
     # target grid into the usable area and SIZE the patches to fill it:
@@ -491,6 +496,10 @@ class LayoutRecipe:
             d.pop("i1io_text_bold", None)
         if self.instrument != "IO2":
             d.pop("i1io_label_options", None)
+        if self.instrument != "IO2" or not self.i1io_numbers_edge_mm:
+            d.pop("i1io_numbers_edge_mm", None)
+        if self.instrument != "IO2" or not self.i1io_text_align:
+            d.pop("i1io_text_align", None)
         d[HIDES_PATCH_CONTROLS_KEY] = True      # B8-1570; not a field
         # Left out at 0, so a recipe that does not move its labels sideways
         # writes exactly the dict it wrote before the field existed (see the
@@ -586,6 +595,8 @@ class LayoutRecipe:
                             else None),
             # LIVE build kwargs: a missing mark is this version's (R1)
             i1io_label_options=d.get("i1io_label_options", True) is not False,
+            i1io_numbers_edge_mm=float(d.get("i1io_numbers_edge_mm") or 0.0),
+            i1io_text_align=str(d.get("i1io_text_align") or ""),
             show_strip_indicators=bool(d.get("draw_indicators", True)),
             show_row_indicators=(None if d.get("row_indicators") is None
                                  else bool(d.get("row_indicators"))),
@@ -882,6 +893,10 @@ class LayoutRecipe:
         # recipe from before the label options as 4.3.33 built it.
         if self.instrument == "IO2":
             kw["i1io_label_options"] = bool(self.i1io_label_options)
+        if self.instrument == "IO2" and self.i1io_numbers_edge_mm:
+            kw["i1io_numbers_edge_mm"] = float(self.i1io_numbers_edge_mm)
+        if self.instrument == "IO2" and self.i1io_text_align:
+            kw["i1io_text_align"] = self.i1io_text_align
         # Only when it moves anything, so the kwargs of every chart that does
         # not use it are the ones it had before the field existed.
         if self.strip_label_offset_x_mm:
@@ -1008,7 +1023,13 @@ def i1io_legacy_recipe(r: "LayoutRecipe") -> "LayoutRecipe":
                    patch_pattern=permutation.DEFAULT_PATCH_PATTERN,
                    underline_mode="off", indicator_align="left",
                    chart_text_font="Inter", chart_text_size_mm=0.0,
-                   chart_text_italic=False, i1io_text_bold=None)
+                   chart_text_italic=False, i1io_text_bold=None,
+                   # …and what Job D opened, which 4.3.33 fixed
+                   edge_spacers=False, max_strip_mm=0.0, nolimit=True,
+                   offset_x_mm=0.0, offset_y_mm=0.0, helper_markers=False,
+                   strip_indicator_gap_mm=0.0, strip_label_offset_mm=0.0,
+                   strip_label_offset_x_mm=0.0, text_edge_mm=4.0,
+                   i1io_numbers_edge_mm=0.0, i1io_text_align="")
 
 
 class PresetStore:

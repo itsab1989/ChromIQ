@@ -1982,6 +1982,11 @@ class ChartCreator:
         on_line(_engine_summary_log_line(
             result.layout.total_patches, result.layout.steps_in_pass,
             result.layout.passes, result.layout.pages, result.seed))
+        # An i1iO chart built with a risky option (Job D: allowed, and
+        # said, as other instruments' charts are)
+        for why in getattr(result, "warnings", ()) or ():
+            on_line(tr("[WARNING] The i1iO table may not read this layout "
+                       "well: {why}").format(why=why))
         # Explain a total that grew past the designed count: a partial last
         # strip is topped up with paper-white patches so the instrument reads
         # whole strips (printtarg behaviour, mirrored by the engine). Knut
