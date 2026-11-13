@@ -20516,21 +20516,8 @@ class TabChart(QWidget):
                 self._refresh_after_rename(new_name)
         elif action == TargetChangeAction.DELETE:
             self._file_mgr.delete_project_folder(old_root)
-        if action in (TargetChangeAction.KEEP, TargetChangeAction.DELETE):
-            # A NEW PROJECT IS MADE NOW, SO IT IS MODERN (review R1 b, R3):
-            # an i1iO recipe from before the label options on screen goes
-            # into it with the mark, and the label style it shows
-            self._i1io_mark_modern()
         # KEEP: leave the old folder; set_target_name creates the fresh one.
         return True
-
-    def _i1io_mark_modern(self) -> None:
-        """The Manual panel's i1iO recipe takes the label-options mark
-        (`LayoutRecipe.i1io_label_options`): it now belongs to a chart
-        made by this version."""
-        panel = getattr(self, "_manual_layout_panel", None)
-        if panel is not None and hasattr(panel, "_i1io_label_options"):
-            panel._i1io_label_options = True
 
     def _refresh_after_rename(self, new_name: str) -> None:
         """Re-push the renamed run's files to every tab holding absolute paths.
@@ -32073,13 +32060,6 @@ class TabChart(QWidget):
         if not _recipe_is_for(rec.to_dict(), instr_now, paper_now) or (
                 rec.instrument != _engine_instrument(rec.instrument)):
             rec = self._retargeted(rec, instr_now, paper_now)
-        if rec.instrument == "IO2" and not rec.i1io_label_options:
-            # DEFAULTS ARE FOR NEW CHARTS, AND A NEW CHART IS MODERN (review
-            # R3): a panel holding a recipe from before the label options
-            # saves the label style it shows (the one that recipe printed),
-            # with the mark, so a new project uses the options.
-            from dataclasses import replace as _rp
-            rec = _rp(rec, i1io_label_options=True)
         return rec.to_dict()
 
     # ------------------------------------------------------------------

@@ -326,10 +326,6 @@ def build_chart(
     #: i1iO only: the sheet text's Bold (`workflow.i1io.chart.TEXT_BOLD_KEY`,
     #: None = the i1iO's own, bold). No other instrument reads it.
     i1io_text_bold: "bool | None" = None,
-    #: i1iO only: the label-options mark (`workflow.i1io.chart.OPTIONS_KEY`,
-    #: review F4/R1); False = a recipe from before them, built as 4.3.33
-    #: built it. No other instrument reads it.
-    i1io_label_options: bool = True,
     #: i1iO only (Job D): the patch numbers' distance from the paper edge
     #: (0 = the i1iO's own 10 mm) and where the name line sits in its room
     #: ("" = centred, "start"). No other instrument reads them.
@@ -397,7 +393,6 @@ def build_chart(
             _i1io_chart.ALIGN_KEY: i1io_align,
             _i1io_chart.CROSSES_KEY: i1io_crosses,
             _i1io_chart.CLIP_KEY: i1io_clip_border,
-            _i1io_chart.OPTIONS_KEY: bool(i1io_label_options),
             # options open, defaults safe (Job D): what a person set
             "edge_spacers": edge_spacers, "max_strip": max_strip,
             "nolimit": nolimit, "offset_x": offset_x, "offset_y": offset_y,
@@ -449,10 +444,6 @@ def build_chart(
         draw_indicators = _f["draw_indicators"]
         row_indicators = _f["row_indicators"]
         hflag = False          # an i1iO grid is never a honeycomb
-        if i1io_label_options is False:
-            # a recipe from before the label options: 4.3.33's patterns
-            strip_pattern = permutation.DEFAULT_STRIP_PATTERN
-            patch_pattern = permutation.DEFAULT_PATCH_PATTERN
         # THE LABEL PATTERNS ARE THE RECIPE'S (2026-11-13): the `.ti2`, the
         # patch numbers, the strip letters (`draw_furniture`), the aiming
         # names and the side file all take them, so "C7" still means the
@@ -463,7 +454,6 @@ def build_chart(
         # and size (2026-11-13; the name and the logo keep theirs).
         _i1io_sheet_text = _i1io_chart_text
         _i1io_text_style = _i1io_chart.text_style_of({
-            _i1io_chart.OPTIONS_KEY: bool(i1io_label_options),
             "chart_text_font": chart_text_font,
             _i1io_chart.TEXT_BOLD_KEY: i1io_text_bold,
             "chart_text_italic": chart_text_italic,
@@ -519,9 +509,7 @@ def build_chart(
             _i1io_chart.CLIP_KEY: _i1io_clip,
             # the patch numbers' distance (review 3, item 3): without it
             # the geometry re-derived the default and the numbers never moved
-            _i1io_chart.NUMBERS_EDGE_KEY: (
-                None if i1io_label_options is False
-                else i1io_numbers_edge_mm)}
+            _i1io_chart.NUMBERS_EDGE_KEY: i1io_numbers_edge_mm}
            if _i1io else {}),
         "instrument": instrument, "paper": paper, "hflag": hflag,
         "hex_flat_top": hex_flat_top,

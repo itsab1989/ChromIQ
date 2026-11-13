@@ -113,3 +113,26 @@ def test_a_loaded_recipe_brings_its_own(panel):
     r = panel.get_recipe()
     assert (r.offset_x_mm, r.helper_markers) == (2.0, True)
     assert r.offset_y_mm == 0.0
+
+
+def test_a_loaded_i1pro_recipes_markers_stay_the_i1pros(panel):
+    """Review 4, item 4: open an i1iO project, then an i1Pro project whose
+    recipe has the ruler helper markers on, then choose the i1iO by hand:
+    the markers were written before the instrument switched and kept as the
+    i1iO's own. Each instrument's own values stay its own."""
+    from dataclasses import replace
+    from workflow.layout_engine.presets import default_recipe
+    _to(panel, "IO2")
+    pro = replace(default_recipe("i1", "A4"), helper_markers=True,
+                  helper_marker_edge_mm=3.0, helper_marker_len_mm=4.0,
+                  helper_marker_per_patch=2)
+    panel.set_recipe(pro)
+    assert panel.get_recipe().helper_markers is True        # the i1Pro's
+    _to(panel, "IO2")
+    r = panel.get_recipe()
+    assert r.helper_markers is False
+    _to(panel, "i1")
+    r = panel.get_recipe()
+    assert (r.helper_markers, r.helper_marker_edge_mm,
+            r.helper_marker_len_mm, r.helper_marker_per_patch) == (
+        True, 3.0, 4.0, 2)

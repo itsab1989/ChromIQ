@@ -45,18 +45,6 @@ from . import table_facts as F
 #: The sheets Guided offers for the i1iO: portrait, laid across the table.
 GUIDED_PAPERS = ("A4", "Letter")
 
-#: THE MARK of an i1iO recipe with the label options, under its one name
-#: everywhere (`LayoutRecipe.i1io_label_options`, review F4/R1). Only an
-#: explicit False is a recipe from before them (4.3.33 greyed and ignored the
-#: label controls): its strip letters, patterns and sheet text are drawn as
-#: 4.3.33 drew them. Absent = this version's.
-OPTIONS_KEY = "i1io_label_options"
-
-
-def legacy_labels(kw: dict) -> bool:
-    """Whether *kw* is an i1iO recipe from before the label options."""
-    return kw.get(OPTIONS_KEY) is False
-
 
 #: The `LayoutRecipe` fields an i1iO chart reads. The preset bar compares an
 #: i1iO layout on these alone (`TabChart._layout_recipe_values`), so a greyed
@@ -70,7 +58,7 @@ READ_RECIPE_FIELDS = frozenset((
     "spacer_palette", "spacer_overrides", "edge_spacers", "margin_top",
     "margin_right", "margin_bottom", "margin_left", "patch_w_mm",
     "patch_h_mm", "i1io_crosses", "i1io_align", "i1io_clip_border",
-    "i1io_text_bold", "i1io_label_options", "i1io_numbers_edge_mm",
+    "i1io_text_bold", "i1io_numbers_edge_mm",
     "i1io_text_align", "spacer_width_mm", "inter_patch_mm", "strip_gap_mm",
     "max_strip_mm", "strip_indicator_gap_mm", "offset_x_mm", "offset_y_mm",
     "bit16", "compression", "export_pdf", "show_strip_indicators",
@@ -196,12 +184,6 @@ def label_wishes(kw: dict) -> Labels:
     held = kw.get(LABELS_KEY)
     if isinstance(held, Labels):
         return held
-    if legacy_labels(kw):
-        # an i1iO recipe from before the label options (review F4): only
-        # what 4.3.33 read, the switches and the size
-        return Labels(columns=kw.get("row_indicators") is not False,
-                      rows=kw.get("draw_indicators", True) is not False,
-                      size=label_size_mm(kw.get("indicator_size_mm")))
     under = str(kw.get("underline_mode") or "off")
     if under == "colored":
         under = "segments"
@@ -280,7 +262,6 @@ def fixed_build_kwargs(kw: dict) -> dict:
         mode = "none"
     crosses = crosses_of(kw)
     clip = clip_width_of(kw)
-    legacy = legacy_labels(kw)
     least = least_margins_mm(kw)
     asked = kw.get("margins")
     try:
@@ -300,14 +281,13 @@ def fixed_build_kwargs(kw: dict) -> dict:
         # OPTIONS OPEN, DEFAULTS SAFE (the owner, 2026-11-13, Job D): the
         # edge spacers, the strip-length cap, the chart offset and the ruler
         # helper markers are a person's, as on every chart (their defaults
-        # are off/none/0); a recipe from before the label options keeps
-        # 4.3.33's (`legacy_labels`)
-        edge_spacers=bool(kw.get("edge_spacers")) and not legacy,
-        max_strip=(None if legacy else kw.get("max_strip")),
-        nolimit=True if legacy else kw.get("nolimit", True),
-        offset_x=0.0 if legacy else _mm(kw.get("offset_x"), 0.0),
-        offset_y=0.0 if legacy else _mm(kw.get("offset_y"), 0.0),
-        helper_markers=bool(kw.get("helper_markers")) and not legacy,
+        # are off/none/0)
+        edge_spacers=bool(kw.get("edge_spacers")),
+        max_strip=kw.get("max_strip"),
+        nolimit=kw.get("nolimit", True),
+        offset_x=_mm(kw.get("offset_x"), 0.0),
+        offset_y=_mm(kw.get("offset_y"), 0.0),
+        helper_markers=bool(kw.get("helper_markers")),
         margins=margins, use_instrument_margins=True,
         layout_mode="patch_first",
         # Manual's "Patch area alignment" when a person chose one for the
@@ -382,14 +362,10 @@ TEXT_ALIGN_KEY = "i1io_text_align"
 
 
 def text_align_of(kw: dict) -> str:
-    if legacy_labels(kw):
-        return ""
     return "start" if str(kw.get(TEXT_ALIGN_KEY) or "") == "start" else ""
 
 
 def numbers_edge_of(kw: dict) -> float:
-    if legacy_labels(kw):
-        return F.NUMBERS_EDGE_MM.value
     # None (absent) = the default; any number, 0 included, is the person's
     # (review 3, nit 6a: typing 0 stores, builds and shows 0)
     v = kw.get(NUMBERS_EDGE_KEY)
@@ -1400,8 +1376,6 @@ def text_style_of(kw: dict) -> "SheetTextStyle | None":
     """The sheet text's style as build kwargs *kw* hold it, or None when it
     is the name line's own (Inter Bold, its capitals): then the line is set
     exactly as in 4.3.33, as one run of text."""
-    if legacy_labels(kw):
-        return None                 # 4.3.33's line (review F4)
     try:
         size = max(0.0, float(kw.get("chart_text_size_mm") or 0.0))
     except (TypeError, ValueError):
@@ -1984,10 +1958,9 @@ def crosses_off_effects(kw: dict, name: str = "", sheet_text: str = "",
     head, extra = page_line_parts(name, 0, layout.pages, sheet_text, None)
     kept = plan.get("kept", ())
     from workflow.layout_engine import permutation
-    legacy = legacy_labels(kw)
-    patterns = (str((not legacy and kw.get("strip_pattern"))
+    patterns = (str(kw.get("strip_pattern")
                     or permutation.DEFAULT_STRIP_PATTERN),
-                str((not legacy and kw.get("patch_pattern"))
+                str(kw.get("patch_pattern")
                     or permutation.DEFAULT_PATCH_PATTERN), permutation.ARGYLL)
     names = [p["patch"] for p in aim_points(geom, layout, w, h, 0, False,
                                             patterns)]

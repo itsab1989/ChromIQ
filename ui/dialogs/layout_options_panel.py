@@ -886,10 +886,6 @@ class LayoutOptionsPanel(QWidget):
         #: for it (`LayoutRecipe.i1io_text_bold`); the box shows the
         #: i1iO's own state while it is chosen.
         self._i1io_text_bold_off = False
-        #: Whether the panel's i1iO recipe has the label options (review
-        #: F4): False only for an i1iO recipe saved before them, until a
-        #: person changes a label control (`LayoutRecipe.i1io_label_options`).
-        self._i1io_label_options = True
         #: True once a PERSON has set one of the ten label-style controls, or a
         #: recipe that already owned its style was loaded. Mirrors
         #: `LayoutRecipe.label_style_explicit` in both directions.
@@ -3998,9 +3994,6 @@ class LayoutOptionsPanel(QWidget):
             self._i1io_set_checked(self.ct_bold, not self._i1io_text_bold_off)
             self._i1io_saved = saved
             self._i1io_prev_least = None
-            if not self._loading:
-                # a person chose the i1iO: a new chart, with the options
-                self._i1io_label_options = True
             self._i1io_show_crosses_slot(saved)
             self._i1io_apply_clip_state()
             self._i1io_show_what_applies()
@@ -4045,25 +4038,6 @@ class LayoutOptionsPanel(QWidget):
                     w = getattr(self, name, None)
                     if w is not None:
                         getattr(w, sig).connect(self._i1io_inputs_changed)
-                # a person's label choice gives an old recipe the options
-                for name, sig in (("strip_pat", "textChanged"),
-                                  ("patch_pat", "textChanged"),
-                                  ("indicator_font", "currentIndexChanged"),
-                                  ("ind_bold", "toggled"),
-                                  ("ind_italic", "toggled"),
-                                  ("underline_mode", "currentIndexChanged"),
-                                  ("underline_thickness", "valueChanged"),
-                                  ("underline_gap", "valueChanged"),
-                                  ("ind_align_left", "toggled"),
-                                  ("ind_align_center", "toggled"),
-                                  ("ind_align_right", "toggled"),
-                                  ("chart_text_font", "currentIndexChanged"),
-                                  ("chart_text_size", "valueChanged"),
-                                  ("ct_bold", "toggled"),
-                                  ("ct_italic", "toggled")):
-                    w = getattr(self, name, None)
-                    if w is not None:
-                        getattr(w, sig).connect(self._i1io_label_touched)
                 self._i1io_rows_wired = True
             return
         self._i1io_remember_clip_state()
@@ -4432,30 +4406,6 @@ class LayoutOptionsPanel(QWidget):
         self._sync_clip_content_enabled()
         self._sync_clip_enable_display()
         self._update_clip_visibility()
-
-    def _i1io_label_recipe(self, r):
-        """*r* (an i1iO recipe) as the panel shows it: one saved before the
-        label options (review F4) shows what 4.3.33 printed for the controls
-        it ignored (default patterns, no underline, Left, the sheet text in
-        the line's own face) and stays without the options until a person
-        changes a label control."""
-        from dataclasses import replace
-        from workflow.layout_engine.permutation import (DEFAULT_PATCH_PATTERN,
-                                                        DEFAULT_STRIP_PATTERN)
-        self._i1io_label_options = bool(getattr(r, "i1io_label_options",
-                                                True))
-        if self._i1io_label_options:
-            return r
-        return replace(r, strip_pattern=DEFAULT_STRIP_PATTERN,
-                       patch_pattern=DEFAULT_PATCH_PATTERN,
-                       underline_mode="off", indicator_align="left",
-                       chart_text_font="Inter", chart_text_size_mm=0.0,
-                       chart_text_italic=False)
-
-    def _i1io_label_touched(self, *_a) -> None:
-        """A PERSON changed a label control while the i1iO is chosen."""
-        if getattr(self, "_i1io_saved", None) is not None and not self._loading:
-            self._i1io_label_options = True
 
     def _i1io_text_bold_now(self) -> bool:
         """The i1iO's sheet-text Bold as the panel holds it."""
@@ -7544,7 +7494,6 @@ class LayoutOptionsPanel(QWidget):
                     # which must not switch the band on. The box shows the
                     # i1iO's state: its content when on, "off" when off.
                     r = self._i1io_clip_recipe(r)
-                    r = self._i1io_label_recipe(r)
                     from dataclasses import replace as _rp
                     self._i1io_text_bold_off = (
                         getattr(r, "i1io_text_bold", None) is False)
@@ -7598,18 +7547,10 @@ class LayoutOptionsPanel(QWidget):
         # #158 — they used to be carried as plain state because their widgets
         # lived under the preview, and that split is exactly what let a loaded
         # preset show the wrong tick (Basti, 2026-08-16).
-        self.helper_markers_cb.setChecked(bool(getattr(r, "helper_markers", False)))
-        self.helper_marker_edge.setValue(
-            float(getattr(r, "helper_marker_edge_mm", 2.0)))
-        self.helper_marker_len.setValue(
-            float(getattr(r, "helper_marker_len_mm", 2.0)))
-        self.helper_marker_per_patch.setValue(
-            int(getattr(r, "helper_marker_per_patch", 3) or 3))
-        self.helper_markers_top_bottom.setChecked(
-            bool(getattr(r, "helper_markers_top_bottom", True)))
-        self.helper_markers_sides.setChecked(
-            bool(getattr(r, "helper_markers_sides", True)))
-        self._update_helper_marker_rows()
+        # (written AFTER the instrument below: switching instrument keeps
+        # each instrument's own values, so the recipe's must land on the
+        # instrument it is for, never be kept as the outgoing one's; review
+        # 4, item 4: an i1Pro project's markers became the i1iO's own)
         self._loading = True
         if self.instr is not None:
             ii = self.instr.findData(r.instrument)
@@ -7636,6 +7577,18 @@ class LayoutOptionsPanel(QWidget):
         i = self.spacer_mode.findData(r.spacer_mode)
         self.spacer_mode.setCurrentIndex(i if i >= 0 else 0)
         self.spacer_width.setValue(r.spacer_width_mm)
+        self.helper_markers_cb.setChecked(bool(getattr(r, "helper_markers", False)))
+        self.helper_marker_edge.setValue(
+            float(getattr(r, "helper_marker_edge_mm", 2.0)))
+        self.helper_marker_len.setValue(
+            float(getattr(r, "helper_marker_len_mm", 2.0)))
+        self.helper_marker_per_patch.setValue(
+            int(getattr(r, "helper_marker_per_patch", 3) or 3))
+        self.helper_markers_top_bottom.setChecked(
+            bool(getattr(r, "helper_markers_top_bottom", True)))
+        self.helper_markers_sides.setChecked(
+            bool(getattr(r, "helper_markers_sides", True)))
+        self._update_helper_marker_rows()
         self.edge_spacers_cb.setChecked(bool(r.edge_spacers))
         self.cm_stagger_cb.setChecked(bool(getattr(r, "cm_stagger", False)))
         self.hex_flat_top_cb.setChecked(bool(getattr(r, "hex_flat_top", False)))
@@ -7696,8 +7649,7 @@ class LayoutOptionsPanel(QWidget):
             # floors every margin at that minimum anyway. A recipe from
             # before the label options keeps 4.3.33's reading.
             io2_own = (r.instrument == "IO2"
-                       and getattr(self, "_i1io_saved", None) is not None
-                       and getattr(r, "i1io_label_options", True))
+                       and getattr(self, "_i1io_saved", None) is not None)
             self.use_instr_margins.setChecked(bool(getattr(
                 r, "use_instrument_margins", False)) and not io2_own)
             self.use_instr_margins.blockSignals(False)
@@ -7927,9 +7879,6 @@ class LayoutOptionsPanel(QWidget):
                              if r.instrument == "IO2" else "")
         r.i1io_clip_border = (self._i1io_clip_now()
                               if r.instrument == "IO2" else False)
-        r.i1io_label_options = (bool(getattr(self, "_i1io_label_options",
-                                             True))
-                                if r.instrument == "IO2" else False)
         r.i1io_text_bold = (False if (r.instrument == "IO2"
                                       and not self._i1io_text_bold_now())
                             else None)

@@ -1,26 +1,17 @@
-"""AN i1iO PROJECT 4.3.33 MADE IS LAID OUT AS 4.3.33 LAID IT OUT (review 3,
-items 1 and 7).
+"""AN i1iO PROJECT MADE BY 4.3.33 OPENS AND GENERATES (owner, 2026-11-13).
 
-Three projects made by 4.3.33 itself on screen (`tests/data/i1io_4333_
-projects`, see its README) are opened on the REAL main window with the i1iO
-switch on and a Preferences label style set (black underline, Inter bold,
-centred), and walked through the modes as a person does: as stored, to the
-other mode, and back. At every stop the chart a Generate would build is
-built and compared with the one 4.3.33 built, strip by strip and patch by
-patch (positions, counts, what is printed; not the shuffle):
+The owner: the i1iO is a Beta released a few hours before this, so a chart
+4.3.33 made need not print as it did; it must open, show a panel that says
+what prints, and build without error. Two projects made by 4.3.33 itself on
+screen (`tests/data/i1io_4333_projects`, see its README) are opened on the
+REAL main window with a Preferences label style set, walked through the
+modes, and built at every stop:
 
-* the recipe read from the project keeps its "made before the label
-  options" mark through every apply on open, Guided and Manual alike, so
-  nothing the Preferences style or Job D added reaches the sheet (item 1);
+* the build succeeds, and in Manual the label style the panel shows is the
+  one the build draws (Preferences' style for a recipe without its own);
 * a chart 4.3.33 made with the aiming crosses OFF comes back with them off
-  and with its smaller right margin: 552 patches, not 528 (item 7).
-
-THE MARK, BY DESIGN: a recipe this version makes in memory is stamped
-modern by the constructor (`LayoutRecipe.i1io_label_options = True`); every
-reader of a stored recipe (`from_dict`, and through it channels.json, the
-target's state, presets and saved defaults) reads a missing mark as "made
-before", and never invents one. Held for the readers by
-`tests/test_i1io_label_mark.py`; held here end to end.
+  and with its smaller right margin, so more strips than a sheet with
+  crosses (review 3, item 7, a bug 4.3.33 had too).
 """
 from __future__ import annotations
 
@@ -105,11 +96,17 @@ def stop(tag):
     side = json.loads((folder / "c.i1io.json").read_text(encoding="utf-8"))
     panel = getattr(tab, "_manual_layout_panel", None)
     rec = tab._current_layout_recipe() if panel is not None else None
+    lab = C.label_wishes(kw)
     stops.append({
         "tag": tag, "mode": tab._current_mode(),
-        "legacy": C.legacy_labels(kw),
-        "default_labels": C.label_wishes(kw) == C.Labels(),
-        "panel_mark": None if rec is None else rec.i1io_label_options,
+        "printed_underline": lab.underline, "printed_align": lab.align,
+        "shown_underline": (panel.underline_mode.currentData()
+                            if panel is not None else None),
+        "shown_align": (("left", "center", "right")[
+            [panel.ind_align_left.isChecked(),
+             panel.ind_align_center.isChecked(),
+             panel.ind_align_right.isChecked()].index(True)]
+            if panel is not None else None),
         "panel_crosses": None if rec is None else rec.i1io_crosses,
         "side": side})
 
@@ -124,34 +121,12 @@ for m in (other, first, other):
 """
 
 
-def _geometry(side: dict) -> dict:
-    """What a person sees on the sheet, without the shuffle."""
-    pages = []
-    for p in side["pages"]:
-        pages.append({
-            "strips": [(s["x_mm"], tuple(s["run_mm"]),
-                        [tuple(c["centre_mm"]) for c in s["patches"]],
-                        [c["loc"] for c in s["patches"]])
-                       for s in p["strips"]],
-            "aim": p["aim"], "digits": p.get("digits_printed"),
-            "aim_points": [a["page_mm"] for a in p.get("aim_points", [])]})
-    return {"paper": side["paper_mm"], "patch": side["patch_mm"],
-            "spacer": side["spacer_mm"], "gap": side["strip_gap_mm"],
-            "labels": side.get("labels_printed"), "pages": pages}
-
-
 @pytest.mark.slow
-@pytest.mark.parametrize("name,patches", [
-    ("m-style", 528), ("g-style", None), ("m-lock-nox", 552)])
-def test_a_4333_project_reopens_as_4333_made_it(tmp_path, name, patches):
+@pytest.mark.parametrize("name,patches", [("m-style", None),
+                                          ("m-lock-nox", 552)])
+def test_a_4333_project_opens_and_generates(tmp_path, name, patches):
     out = tmp_path / "out"
     shutil.copytree(DATA / name, out / name)
-    made = json.loads((DATA / name / "runs" / "run1" /
-                       f"{name}.i1io.json").read_text(encoding="utf-8"))
-    want = _geometry(made)
-    if patches is not None:
-        assert sum(len(s["patches"]) for s in made["pages"][0]["strips"]) \
-            == patches
     env = dict(os.environ, CHROMIQ_ROOT=str(ROOT),
                CHROMIQ_PROBE_OUT=str(out), CHROMIQ_PROBE_NAME=name,
                CHROMIQ_SETTINGS_FILE=str(tmp_path / "s.ini"),
@@ -166,19 +141,13 @@ def test_a_4333_project_reopens_as_4333_made_it(tmp_path, name, patches):
     for st in stops:
         where = f"{name} " + str({k: v for k, v in st.items() if k != "side"})
         if st["mode"] == "manual":
-            # Manual builds from the recipe read from the project
-            assert st["legacy"] is True, where
-        # Guided builds from its own live choices, never a stored recipe:
-        # what it prints with no label options is 4.3.33's (geometry below)
-        assert st["default_labels"] is True, where
-        if st["panel_mark"] is not None:
-            assert st["panel_mark"] is False, where
-        if name == "m-lock-nox" and st["mode"] == "guided":
-            # the crosses were switched off in MANUAL; Guided keeps its own
-            # answer (on), as 4.3.33 stored it, so its sheet has crosses
-            assert st["side"]["pages"][0]["aim"] == "crosses", where
-            continue
-        assert _geometry(st["side"]) == want, where
-    if name == "m-lock-nox":
-        manual = [st for st in stops if st["mode"] == "manual"]
-        assert manual and all(st["panel_crosses"] is False for st in manual)
+            assert st["shown_underline"] == st["printed_underline"], where
+            assert st["shown_align"] == st["printed_align"], where
+        n = sum(len(s["patches"]) for s in st["side"]["pages"][0]["strips"])
+        assert n > 0, where
+        if patches is not None and st["mode"] == "manual":
+            # crosses off as stored, and their room given to patches: more
+            # strips than a sheet with crosses holds (12 x 22 = 528)
+            assert st["panel_crosses"] is False, where
+            assert st["side"]["pages"][0]["aim"] != "crosses", where
+            assert len(st["side"]["pages"][0]["strips"]) > 22, where

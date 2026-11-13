@@ -128,7 +128,6 @@ NOT_AN_I1IO_OPTION = {
                               "i1iO; greyed",
     "fd9_gap_mm": "FD-9 only",
     "fd9_clip_border": "FD-9 only",
-    "i1io_label_options": "the recipe's version mark, not an option",
     "layout_mode": "area-first sizing; greyed for the i1iO (engine work)",
     "area_method": "area-first sizing; greyed for the i1iO",
     "area_cols": "area-first sizing; greyed for the i1iO",

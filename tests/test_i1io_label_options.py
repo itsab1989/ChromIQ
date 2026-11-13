@@ -353,7 +353,6 @@ def test_a_loaded_recipe_shows_the_i1ios_bold(panel):
     assert panel.ct_bold.isChecked()
     panel.set_recipe(LayoutRecipe.from_dict({"instrument": "IO2",
                                              "paper": "A4",
-                                             "i1io_label_options": True,
                                              "i1io_text_bold": False}))
     assert not panel.ct_bold.isChecked()
     assert panel.get_recipe().i1io_text_bold is False
@@ -462,75 +461,12 @@ def test_the_i1io_margin_boxes_are_the_builds(prefs_tab):
     panel = tab._manual_layout_panel
     QApplication.processEvents()
     assert panel.instr.currentData() == "IO2"
-    r = tab._current_layout_recipe()
-    assert r.i1io_label_options is True    # a chart made now is modern
     least = C.least_margins_mm({**tab._current_layout_recipe().build_kwargs(),
                                 "instrument": "IO2"})
     assert least[2] > 21.0
     # the box shows one decimal
     assert panel.margins["b"].minimum() == pytest.approx(least[2], abs=0.05)
     assert panel.margins["b"].value() >= least[2] - 0.05
-
-
-# ---- review F4: an i1iO recipe from 4.3.33 builds as 4.3.33 built it ----------
-
-#: The reviewer's case: an i1iO recipe 4.3.33 could have saved, with another
-#: instrument's label style left in its greyed (and ignored) boxes.
-OLD_CARRIED = dict(instrument="IO2", paper="A4", label_style_explicit=True,
-                   indicator_font="Inter", indicator_bold=True,
-                   underline_mode="colored", indicator_align="center",
-                   chart_text="Hi", chart_text_font="Inter",
-                   clip_content_mode="notes", strip_pattern="A-Z",
-                   patch_pattern="0-9@-9")
-
-
-def test_an_old_i1io_recipe_builds_with_4333s_labels(tmp_path):
-    from workflow.layout_engine.presets import LayoutRecipe
-    old = LayoutRecipe.from_dict(dict(OLD_CARRIED))
-    assert old.i1io_label_options is False
-    kw = old.build_kwargs()
-    assert kw["i1io_label_options"] is False
-    for k in ("instrument", "paper", "seed", "dpi"):
-        kw.pop(k, None)
-    a, side_a = _build(tmp_path / "old", 600, **kw)
-    # what 4.3.33 printed: the default letters, patterns and line, with the
-    # recipe's face for the patch numbers only (as 4.3.33 passed it on);
-    # compared byte for byte with 4.3.33 in the review's matrix
-    from workflow.i1io import chart as C
-    labels = C.label_wishes({**kw})
-    assert labels == C.Labels()
-    assert C.text_style_of(kw) is None
-    assert a.layout.steps_in_pass == 24          # 600 at 24 per strip, as 4.3.33
-    locs = [p["loc"] for st in side_a["pages"][0]["strips"]
-            for p in st["patches"]]
-    assert locs[0] == "A1"
-    marked = LayoutRecipe.from_dict({**OLD_CARRIED,
-                                     "i1io_label_options": True})
-    assert marked.build_kwargs()["i1io_label_options"] is True
-    assert marked.to_dict()["i1io_label_options"] is True
-
-
-def test_a_new_i1io_recipe_has_the_options():
-    from workflow.layout_engine.presets import default_recipe
-    assert default_recipe("IO2", "A4").i1io_label_options is True
-
-
-def test_the_panel_keeps_an_old_recipe_old_until_a_label_is_touched(panel):
-    from workflow.layout_engine.presets import LayoutRecipe
-    _to(panel, "IO2")
-    assert panel.get_recipe().i1io_label_options is True    # a new chart
-    panel.set_recipe(LayoutRecipe.from_dict(dict(OLD_CARRIED)))
-    r = panel.get_recipe()
-    assert r.i1io_label_options is False
-    assert r.build_kwargs()["i1io_label_options"] is False
-    # it shows what 4.3.33 printed for the controls it ignored
-    assert panel.underline_mode.currentData() == "off"
-    assert panel.strip_pat.text() == "A-Z, A-Z"
-    panel.underline_mode.setCurrentIndex(
-        panel.underline_mode.findData("black"))
-    r = panel.get_recipe()
-    assert r.i1io_label_options is True
-    assert r.build_kwargs()["i1io_label_options"] is True
 
 
 # ---- review R4: a larger sheet-text size never loses more than a smaller ----

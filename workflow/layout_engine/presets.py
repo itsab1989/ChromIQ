@@ -233,16 +233,6 @@ class LayoutRecipe:
     #: `chart_text_bold`, whose default False would have changed every i1iO
     #: chart with a sheet text. Written only when False.
     i1io_text_bold: "bool | None" = None
-    #: THE ONE MARK of an i1iO recipe with the label options (review F4,
-    #: R1): True for every recipe this version makes (the default here,
-    #: `from_build_kwargs`, presets, Save as Defaults); False ONLY for an
-    #: i1iO recipe READ FROM DISK that a version before the options saved
-    #: (`from_dict` finds no key). 4.3.33 greyed the label controls on an
-    #: i1iO chart and ignored them, so such a recipe builds as 4.3.33 built
-    #: it (`workflow.i1io.chart.OPTIONS_KEY`), and `from_dict` sets its
-    #: label fields to what that build prints, so what is shown, recorded
-    #: and printed agree. Written for every "IO2" recipe, never for others.
-    i1io_label_options: bool = True
     #: Job D (options open, defaults safe): the patch numbers' distance from
     #: the paper edge on an i1iO chart (Manual's "Clip" box while the i1iO
     #: is chosen; None = its own 10 mm, any number is a person's) and where its name line sits ("" =
@@ -494,8 +484,6 @@ class LayoutRecipe:
             d.pop("i1io_clip_border", None)
         if self.instrument != "IO2" or self.i1io_text_bold is not False:
             d.pop("i1io_text_bold", None)
-        if self.instrument != "IO2":
-            d.pop("i1io_label_options", None)
         if self.instrument != "IO2" or self.i1io_numbers_edge_mm is None:
             d.pop("i1io_numbers_edge_mm", None)
         if self.instrument != "IO2" or not self.i1io_text_align:
@@ -520,10 +508,6 @@ class LayoutRecipe:
             # stored build kwargs are from before 4.3.14 unless they say so
             r.clip_border_free_space = bool(d.get("clip_border_free_space",
                                                   False))
-            # …and an i1iO one from before the label options unless it has
-            # the mark (review R1: read from disk)
-            if r.instrument == "IO2" and "i1io_label_options" not in d:
-                r = i1io_legacy_recipe(r)
             return r
         known = {f.name for f in fields(cls)}
         kw = {k: v for k, v in d.items() if k in known}
@@ -532,13 +516,7 @@ class LayoutRecipe:
         # SAVED BEFORE 4.3.14: the old clip-border rule (see the field).
         kw["clip_border_free_space"] = bool(d.get("clip_border_free_space",
                                                   False))
-        r = cls(**kw)
-        # AN i1iO RECIPE SAVED BEFORE THE LABEL OPTIONS (review F4, R1): no
-        # mark in the stored dict. It builds as 4.3.33 built it, and shows
-        # and records what that build prints.
-        if r.instrument == "IO2" and "i1io_label_options" not in d:
-            r = i1io_legacy_recipe(r)
-        return r
+        return cls(**kw)
 
     @classmethod
     def from_build_kwargs(cls, d: dict) -> "LayoutRecipe":
@@ -593,8 +571,6 @@ class LayoutRecipe:
             i1io_clip_border=bool(d.get("i1io_clip_border", False)),
             i1io_text_bold=(False if d.get("i1io_text_bold") is False
                             else None),
-            # LIVE build kwargs: a missing mark is this version's (R1)
-            i1io_label_options=d.get("i1io_label_options", True) is not False,
             i1io_numbers_edge_mm=(None if d.get("i1io_numbers_edge_mm")
                                   is None
                                   else float(d["i1io_numbers_edge_mm"])),
@@ -891,10 +867,6 @@ class LayoutRecipe:
             kw["i1io_clip_border"] = True
         if self.instrument == "IO2" and self.i1io_text_bold is False:
             kw["i1io_text_bold"] = False
-        # THE MARK, under its one name (review R1): False builds an i1iO
-        # recipe from before the label options as 4.3.33 built it.
-        if self.instrument == "IO2":
-            kw["i1io_label_options"] = bool(self.i1io_label_options)
         if (self.instrument == "IO2"
                 and self.i1io_numbers_edge_mm is not None):
             kw["i1io_numbers_edge_mm"] = float(self.i1io_numbers_edge_mm)
@@ -945,7 +917,6 @@ def default_recipe(instrument: str = "i1", paper: str = "A4", *, mode: str | Non
             r.margin_top, r.margin_right = t, rt
             r.margin_bottom, r.margin_left = b, lt
             r.helper_markers = False
-            r.i1io_label_options = True     # a new i1iO recipe (F4)
     # The SpectroScan is a flatbed XY-table: it reads a FIXED 2-D grid, so
     # "prioritise patch size, then fit to page" (patch_first) is its natural
     # layout — it gives the proper grid of hexagons/squares. The generic
@@ -1014,27 +985,6 @@ def fd9_fixed_fields(r: "LayoutRecipe") -> "LayoutRecipe":
                    show_strip_indicators=False, show_row_indicators=False)
 
 
-def i1io_legacy_recipe(r: "LayoutRecipe") -> "LayoutRecipe":
-    """*r*, an i1iO recipe read from disk that a version before the label
-    options saved (review F4, R1): marked as such, and its label fields set
-    to what 4.3.33 printed for them (it ignored them): ArgyllCMS's default
-    patterns, no underline, Left, the sheet text in the name line's own face
-    and size, bold. The label face, Bold, Italic and size stay: 4.3.33 used
-    them for the patch numbers."""
-    return replace(r, i1io_label_options=False,
-                   strip_pattern=permutation.DEFAULT_STRIP_PATTERN,
-                   patch_pattern=permutation.DEFAULT_PATCH_PATTERN,
-                   underline_mode="off", indicator_align="left",
-                   chart_text_font="Inter", chart_text_size_mm=0.0,
-                   chart_text_italic=False, i1io_text_bold=None,
-                   # …and what Job D opened, which 4.3.33 fixed
-                   edge_spacers=False, max_strip_mm=0.0, nolimit=True,
-                   offset_x_mm=0.0, offset_y_mm=0.0, helper_markers=False,
-                   strip_indicator_gap_mm=0.0, strip_label_offset_mm=0.0,
-                   strip_label_offset_x_mm=0.0, text_edge_mm=4.0,
-                   i1io_numbers_edge_mm=None, i1io_text_align="")
-
-
 class PresetStore:
     """A keyed collection of :class:`LayoutRecipe` presets (JSON-backed)."""
 
@@ -1059,12 +1009,8 @@ class PresetStore:
     def set(self, recipe: LayoutRecipe) -> None:
         # Presets store layout, not the per-chart seed -- nor the tick that goes
         # with it, which would otherwise arrive with no number to apply it to.
-        # …and a preset saved now is this version's (review R3): an i1iO
-        # recipe from before the label options is saved with the mark
-        self._presets[recipe.preset_key()] = replace(
-            recipe, seed=None, seed_fixed=None,
-            **({"i1io_label_options": True} if recipe.instrument == "IO2"
-               else {}))
+        self._presets[recipe.preset_key()] = replace(recipe, seed=None,
+                                                     seed_fixed=None)
 
     def delete(self, instrument: str, paper: str, mode: str) -> bool:
         return self._presets.pop(f"{instrument}|{paper}|{mode}", None) is not None

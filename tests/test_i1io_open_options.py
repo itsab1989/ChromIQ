@@ -14,7 +14,6 @@ measured. Held here, one option at a time, on a real build:
 * the sheet text's line can start at the left end of its paper;
 * the strip-length cap is a person's;
 * a patch off the sheet is still refused; a run near the edge is a warning;
-* a recipe from before the options (4.3.33's) ignores every one of them.
 """
 from __future__ import annotations
 
@@ -208,48 +207,6 @@ def test_the_strip_length_cap_is_a_persons(tmp_path):
     _r, base = _build(tmp_path / "a")
     _r, capped = _build(tmp_path / "b", nolimit=False, max_strip=120.0)
     assert len(_strip(capped)["patches"]) < len(_strip(base)["patches"])
-
-
-# ---- 4.3.33's recipes ignore them ---------------------------------------------
-
-OPENED = dict(edge_spacers=True, max_strip=120.0, nolimit=False,
-              offset_x=2.0, offset_y=3.0, helper_markers=True,
-              text_edge=8.0, strip_indicator_gap=2.0,
-              strip_label_offset_mm=1.0, strip_label_offset_x_mm=1.0,
-              i1io_numbers_edge_mm=6.0, i1io_text_align="start")
-
-
-def test_a_recipe_from_before_the_options_ignores_them():
-    from workflow.i1io import chart as C
-    kw = dict(OPENED, **{C.OPTIONS_KEY: False})
-    out = C.fixed_build_kwargs(kw)
-    assert (out["edge_spacers"], out["max_strip"], out["nolimit"],
-            out["offset_x"], out["offset_y"], out["helper_markers"]) == (
-        False, None, True, 0.0, 0.0, False)
-    labels = C.label_wishes(kw)
-    assert (labels.edge, labels.gap, labels.off_x, labels.off_y) == (
-        4.0, 0.0, 0.0, 0.0)
-    assert C.numbers_edge_of(kw) == 10.0
-    assert C.text_align_of(kw) == ""
-    assert C.option_warnings(out) == []
-
-
-def test_reading_a_4333_recipe_resets_the_new_fields():
-    from workflow.layout_engine.presets import LayoutRecipe
-    d = LayoutRecipe(instrument="IO2", edge_spacers=True, offset_x_mm=2.0,
-                     offset_y_mm=1.0, helper_markers=True, max_strip_mm=120.0,
-                     nolimit=False, strip_indicator_gap_mm=2.0,
-                     strip_label_offset_mm=1.0, text_edge_mm=8.0,
-                     i1io_numbers_edge_mm=6.0,
-                     i1io_text_align="start").to_dict()
-    d.pop("i1io_label_options")
-    r = LayoutRecipe.from_dict(d)
-    assert r.i1io_label_options is False
-    assert (r.edge_spacers, r.offset_x_mm, r.offset_y_mm, r.helper_markers,
-            r.max_strip_mm, r.nolimit, r.strip_indicator_gap_mm,
-            r.strip_label_offset_mm, r.text_edge_mm, r.i1io_numbers_edge_mm,
-            r.i1io_text_align) == (False, 0.0, 0.0, False, 0.0, True, 0.0,
-                                   0.0, 4.0, None, "")
 
 
 def test_a_build_logs_its_warnings():
