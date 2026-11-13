@@ -6762,9 +6762,20 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         return True
 
     def _i1io_not_yet_window(self) -> None:
-        """M-I1IO-NOT-YET on screen: the text is the catalogue's."""
+        """M-I1IO-NOT-YET on screen: the text is the catalogue's. For a
+        verification or calibration chart (decided by the chart's folder, as
+        `_chart_is_calibration` decides it) M-I1IO-NOT-YET-BY-HAND: the
+        i1Profiler way ends in building a profile, which those are not for."""
         from workflow import measurement_messages as M
-        self._i1io_window(*M.M_I1IO_NOT_YET.render())
+        self._i1io_window(*self._i1io_not_yet_message(M).render())
+
+    def _i1io_not_yet_message(self, M):
+        """Which of the two i1iO "not yet" messages the loaded chart gets."""
+        ti1 = getattr(self, "_ti1_path", None)
+        folder = Path(ti1).parent.name if ti1 else ""
+        if folder in ("cal", "verifications"):
+            return M.M_I1IO_NOT_YET_BY_HAND
+        return M.M_I1IO_NOT_YET
 
     def _i1io_support_off_window(self) -> None:
         """M-I1IO-SUPPORT-OFF on screen: the text is the catalogue's."""

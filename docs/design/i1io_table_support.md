@@ -105,6 +105,36 @@ instrument to name.
   ChromIQ sheet" says, for an i1iO chart, that it cannot write a matching
   i1Profiler chart for the table yet and what has to be measured first.
 
+### On: Verification and Calibration
+
+*The owner, relayed 2026-11-13: "verification and calibration runs must work
+like for other instruments."*
+
+* Run type Verification and Calibration offer the i1iO and make their charts
+  for it as for any instrument: the same options and flow, the files in
+  `runs/runN/verifications/<stem>-verify.*` and `cal/<stem>-cal.*`, each with
+  its `.i1io.json` and the `.ti2` keywords above, laid out with the i1iO's
+  rules (a calibration's ink ramps each start their own strip, as on every
+  calibration chart). FROM PROFILE GAMUT and printing through the profile
+  work on it as on any chart; nothing there depends on the instrument.
+* Which instrument a target with nothing stored opens on is
+  `per_target_settings.md` §4 S5 / S8 (Knut's ruling): the saved defaults,
+  else the factory i1Pro, for every instrument, so a fresh verification of
+  an i1iO run opens on the i1Pro unless Save as Defaults holds the i1iO, as
+  it does after a ColorMunki run. Once chosen, each target keeps the i1iO
+  (§4 S1 to S3).
+* A verification build puts the run's profiling chart back with its
+  `.i1io.json` (it was archived without it before 2026-11-13).
+* Start on a verification or calibration chart for the table shows
+  M-I1IO-NOT-YET-BY-HAND: M-I1IO-NOT-YET's i1Profiler way ends in building a
+  profile, which those charts are not for, so it names the table's own
+  i1Pro 2, measured by hand, instead.
+* The Measurement Report's evenness check applies to an i1iO chart
+  unchanged: its nine areas are whole strips and rows by the chart's own
+  labels, each one physical ninth of the portrait page (patch 1 at the
+  bottom only mirrors which band is named first), and an area is named by
+  the strips and rows printed on it (`tests/test_i1io_evenness.py`).
+
 ### On: Measure
 
 Start on an i1iO chart shows M-I1IO-NOT-YET before anything is recovered,

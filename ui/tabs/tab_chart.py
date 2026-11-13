@@ -24863,9 +24863,14 @@ class TabChart(QWidget):
         # `adopt_run_chart_as_verify` actually moves such a chart, an empty
         # snapshot would mean the run really did lose its profile.
         stem = run.stem
+        # `.i1io.json`: an i1iO chart's side file (Beta) is what makes it an
+        # i1iO chart on screen and at the printer's edge; without it here a
+        # verification build archived it and put the profiling chart back
+        # without it. A file that only exists when an i1iO chart was made, so
+        # every other run is untouched.
         srcs = [run.artefact(ext) for ext in
                 (".ti1", ".ti2", ".cht", ".channels.json", ".strips.json",
-                 ".tif", ".ti3", ".icc", ".icm")]
+                 ".tif", ".ti3", ".icc", ".icm", ".i1io.json")]
         srcs += run.stem_files(stem, "_*.tif")
         present = [p for p in srcs if p.is_file()]
         if not present:

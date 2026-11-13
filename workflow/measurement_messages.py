@@ -604,6 +604,28 @@ M_I1IO_NOT_YET = _m(
     "i1Profiler → TI3”, and build the profile as usual.",
     approved=False)
 
+#: The same for a VERIFICATION or CALIBRATION chart made for the table
+#: (2026-11-13, the owner: those run types make i1iO charts as they do for
+#: other instruments). The first paragraph is M-I1IO-NOT-YET's; the i1Profiler
+#: way in its second ends in building a profile, which these charts are not
+#: for, so the way offered is the table's own head, measured by hand.
+M_I1IO_NOT_YET_BY_HAND = _m(
+    "M-I1IO-NOT-YET-BY-HAND",
+    "Measuring with the i1iO table is not available yet",
+    "This chart was made for the X-Rite i1iO scanning table. This version "
+    "of ChromIQ can make charts for the table, but it cannot measure with "
+    "it yet: reading with the table is being prepared for a later version. "
+    "So this chart cannot be measured here at the moment. Nothing is wrong "
+    "with the chart. Please keep in mind that the layout may still change "
+    "once an i1iO owner has tested it, so a later version may ask you to "
+    "print the chart again.\n\n"
+    "What you can do today: the i1Pro 2 from your table's arm also measures "
+    "by hand, and ChromIQ reads it that way. On the Create Chart tab, choose "
+    "“i1Pro / i1Pro 2 / i1Pro 3” as the instrument for this chart and "
+    "create it again. Then print it on the Print Chart tab as usual and "
+    "measure it by hand on this tab.",
+    approved=False)
+
 #: Start pressed on an X-Rite i1iO table chart while i1iO support is off.
 M_I1IO_SUPPORT_OFF = _m(
     "M-I1IO-SUPPORT-OFF",
@@ -9997,7 +10019,7 @@ CATALOGUE = {m.id: m for m in (
     M_CR30_HOW_TO_MEASURE, M_CR30_READ_FAILED,
     M_CR30_LEARN_TILE, M_CR30_TRIGGER_NOT_ARMED,
     M_INSTRUMENT_BUSY,
-    M_I1IO_NOT_YET, M_I1IO_SUPPORT_OFF,
+    M_I1IO_NOT_YET, M_I1IO_NOT_YET_BY_HAND, M_I1IO_SUPPORT_OFF,
     M_I1IO_EDGE_MARKS_NOT_PRINTED, M_I1IO_EDGE_TEXT_NOT_PRINTED,
     M_I1IO_EDGE_TEXT_PARTS,
     M_FD9_SUPPORT_OFF, M_FD9_NO_ADDRESS, M_FD9_INSERT_SHEET, M_FD9_NEXT_PAGE,

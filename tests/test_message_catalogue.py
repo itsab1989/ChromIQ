@@ -619,6 +619,9 @@ AWAITING_APPROVAL: "set[str]" = {
                                  # 2026-11-13: the X-Rite i1iO table Beta
                                  # (charts only; measuring comes later).
                                  "M-I1IO-NOT-YET", "M-I1IO-SUPPORT-OFF",
+                                 # the same for a verification or a
+                                 # calibration chart made for the table
+                                 "M-I1IO-NOT-YET-BY-HAND",
                                  # review r3 m3: its crosses and lettering
                                  # in a printer's unprinted edge.
                                  "M-I1IO-EDGE-MARKS-NOT-PRINTED",
