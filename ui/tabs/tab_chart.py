@@ -8778,6 +8778,11 @@ class TabChart(QWidget):
         # The i1iO's "Aiming crosses" (i) names the chart and its pages (a
         # bound method, as above).
         self._manual_layout_panel.i1io_context = self._manual_i1io_context
+        # …and the recipe the build really uses (Preferences' label style
+        # overlaid while the recipe has none of its own, as for every
+        # instrument), so the i1iO's margin minimums are the build's (F2)
+        self._manual_layout_panel.i1io_effective_recipe = \
+            self._current_layout_recipe
         # Preferences → Chart Layout is the SEED for a chart with no label style
         # of its own; the panel shows those values so the controls never lie.
         # `getattr` because a test double may be a settings stand-in without it;

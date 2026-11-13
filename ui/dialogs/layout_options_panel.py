@@ -4145,7 +4145,11 @@ class LayoutOptionsPanel(QWidget):
         (`workflow.i1io.chart.least_margins_mm`, the build's own floor)."""
         from workflow.i1io.chart import least_margins_mm
         try:
-            kw = {**self.get_recipe().build_kwargs(), "instrument": "IO2"}
+            # THE RECIPE THE BUILD USES: the tab's, with Preferences' label
+            # style overlaid as for every instrument (review F2), else ours
+            src = getattr(self, "i1io_effective_recipe", None)
+            r = src() if callable(src) else self.get_recipe()
+            kw = {**r.build_kwargs(), "instrument": "IO2"}
         except Exception:      # noqa: BLE001 - mid-construction: the basics
             log.debug("i1iO margins from the basics", exc_info=True)
             rows = getattr(self, "show_indicators", None)
@@ -4154,8 +4158,13 @@ class LayoutOptionsPanel(QWidget):
         return least_margins_mm(kw)
 
     def _i1io_crosses_source(self) -> dict:
-        """What the crosses' (i) is worked out from: this panel's recipe."""
-        r = self.get_recipe()
+        """What the crosses' (i) is worked out from: the recipe the build
+        uses (`i1io_effective_recipe`, review F2), else this panel's."""
+        src = getattr(self, "i1io_effective_recipe", None)
+        try:
+            r = src() if callable(src) else self.get_recipe()
+        except Exception:      # noqa: BLE001
+            r = self.get_recipe()
         out = {"kw": {**r.build_kwargs(), "instrument": "IO2"},
                "sheet_text": r.chart_text or "", "name": "", "pages": 1,
                "paper_label": (self.paper.currentText()

@@ -398,3 +398,70 @@ def test_a_sheet_text_that_cannot_fit_is_left_off_not_the_name():
                             style=style)
     assert "name" in plan["kept"]
     assert plan["text"].startswith("1/2  ·  Chart")
+
+
+# ---- review F2: Preferences' label style, as for every instrument -----------
+
+@pytest.fixture
+def prefs_tab(qapp, tmp_path):
+    from PyQt6.QtCore import QSettings
+    from core.argyll_runner import ArgyllRunner
+    from core.file_manager import FileManager
+    from core.settings import AppSettings
+    from ui.tabs.tab_chart import TabChart
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "app.ini"), QSettings.Format.IniFormat)
+    s.set("custom_output_path", str(tmp_path / "out"))
+    s.set("strip_underline_mode", "black")
+    s.set("strip_indicator_font", "Inter")
+    s.set("strip_indicator_bold", True)
+    tab = TabChart(ArgyllRunner(s), FileManager(s), s)
+    yield tab
+    tab.deleteLater()
+
+
+@pytest.mark.parametrize("code", ["i1", "IO2"])
+def test_preferences_label_style_is_treated_as_for_the_i1pro(prefs_tab, code):
+    """Guided ignores Preferences' label style (no recipe: the engine's
+    defaults), Manual uses it while the recipe has no style of its own,
+    for the i1Pro and the i1iO alike."""
+    from PyQt6.QtWidgets import QApplication
+    tab = prefs_tab
+    tab._switch_mode("guided")
+    i = tab._instr_combo.findData(code)
+    tab._instr_combo.setCurrentIndex(i)
+    tab._instr_combo.activated.emit(i)
+    QApplication.processEvents()
+    kw = tab._creator._engine_kwargs(tab._collect_guided())
+    assert "underline_mode" not in kw and "indicator_font" not in kw
+    tab._switch_mode("manual")
+    tab._init_manual_layout_panel()
+    panel = tab._manual_layout_panel
+    j = panel.instr.findData(code)
+    panel.instr.setCurrentIndex(j)
+    panel.instr.activated.emit(j)
+    QApplication.processEvents()
+    r = tab._current_layout_recipe()
+    assert (r.underline_mode, r.indicator_font, r.indicator_bold) == \
+        ("black", "Inter", True)
+
+
+def test_the_i1io_margin_boxes_are_the_builds(prefs_tab):
+    """Review F2: the Bottom box showed 21.0 while the build used 26.38."""
+    from PyQt6.QtWidgets import QApplication
+    from workflow.i1io import chart as C
+    tab = prefs_tab
+    tab._switch_mode("manual")
+    tab._init_manual_layout_panel()
+    panel = tab._manual_layout_panel
+    j = panel.instr.findData("IO2")
+    panel.instr.setCurrentIndex(j)
+    panel.instr.activated.emit(j)
+    QApplication.processEvents()
+    panel._i1io_show_what_applies()
+    least = C.least_margins_mm({**tab._current_layout_recipe().build_kwargs(),
+                                "instrument": "IO2"})
+    assert least[2] > 21.0
+    # the box shows one decimal
+    assert panel.margins["b"].minimum() == pytest.approx(least[2], abs=0.05)
+    assert panel.margins["b"].value() >= least[2] - 0.05
