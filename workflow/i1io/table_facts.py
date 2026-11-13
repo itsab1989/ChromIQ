@@ -351,14 +351,30 @@ def letter_band_mm(size_mm: "float | None" = None) -> float:
                  + LABEL_CLEAR_MM.value, 3)
 
 
-#: Paper at the left and right of the strips for the marks: a mark's zone
-#: (inset 11 + half the cross 3 + 1 clear + its digit 4 + 1) is 20 mm from
-#: the edge, and no strip's run may cross it.
-MARK_SIDE_MM = Fact(20.0, "ours: the marks' zones", OURS)
+#: THE MARKS COST AS LITTLE AS THEY CAN (the owner, 2026-11-13: "do they
+#: use space that could be used for printing more patches?"). A cross sits
+#: in its corner, MARK_INSET_MM in from both edges (its arms 8 mm from the
+#: paper edge, clear of the widest unprintable edge seen); its DIGIT sits
+#: beside it along the strips, towards the middle of the page, in paper the
+#: strips' runs and labels never use, so it widens nothing. What a side band
+#: needs is then only the cross and MARK_CLEAR_MM: 15 mm. Until 2026-11-13
+#: the digit sat beside the cross ACROSS the strips and every side band was
+#: 20 mm, which cost one strip on A4 (504 instead of 528) and two on Letter
+#: (462 instead of 506).
+MARK_SIDE_MM = Fact(15.0, "ours: mark inset 11 + half the cross 3 + 1 clear",
+                    OURS)
+
+
+def numbers_band_mm(size_mm: "float | None" = None) -> float:
+    """Paper the patch numbers take at the page's left (the table's top), from
+    the page edge to the strips: NUMBERS_EDGE_MM, the numbers turned (as wide
+    on the page as their size) and ROW_LABEL_GAP_MM before the first strip."""
+    size = float(size_mm or 0.0) or LETTER_AUTO_MM.value
+    return round(NUMBERS_EDGE_MM.value + size + ROW_LABEL_GAP_MM.value, 3)
 
 
 def margins_mm(strip_letters: bool = True,
-               label_size_mm: "float | None" = None
+               label_size_mm: "float | None" = None, numbers: bool = True
                ) -> "tuple[float, float, float, float]":
     """The patch block's smallest margins ``(top, right, bottom, left)`` on
     the PORTRAIT page: at the top a run, at the bottom a run and the strip
@@ -368,8 +384,10 @@ def margins_mm(strip_letters: bool = True,
     top = RUN_EDGE_MM.value + RUN_MM.value
     bottom = RUN_MM.value + (letter_band_mm(label_size_mm) if strip_letters
                              else RUN_EDGE_MM.value)
-    side = MARK_SIDE_MM.value
-    return top, side, bottom, side
+    right = MARK_SIDE_MM.value
+    left = max(MARK_SIDE_MM.value, numbers_band_mm(label_size_mm)
+               if numbers else 0.0)
+    return top, right, bottom, left
 
 
 def patch_limits_mm() -> "tuple[tuple[float, float], tuple[float, float]]":

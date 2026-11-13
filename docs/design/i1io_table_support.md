@@ -83,14 +83,16 @@ instrument to name.
   patch numbers along the top (both upright on the table), the numbers 10 mm
   in from the paper edge so a printer's unprinted edge leaves them whole,
   three numbered aiming marks (on the table 1 top left, 2 bottom left, 3
-  bottom right), the ChromIQ wordmark, the page "N/M", the chart name and
+  bottom right; each digit beside its cross along the strip direction, so
+  the side bands are only the cross and its clearance and the marks cost one
+  strip on A4 and none on Letter), the ChromIQ wordmark, the page "N/M", the chart name and
   Manual's sheet text as one group centred between crosses 2 and 3 along
   the table's bottom edge, each part's visual middle on the line through
   their centres (a long text is shortened before the logo shrinks); the
   wordmark set as on every other chart, one baseline for Chrom and IQ.
   **Nothing is printed on a scan line outside the patches** (no edge
   spacers, no labels in a run). No arrow, no helper markers, no clip border.
-  Per sheet: A4 504 (546 without spacers), Letter 462 (504). Every number,
+  Per sheet: A4 528 (572 without spacers), Letter 506 (552). Every number,
   its source and its confidence are in `workflow/i1io/table_facts.py`.
 * Manual: margins (down to the safe minimum), patch size (8.9 to 20 mm along
   the strip, 7 to 20 mm across), spacers (Coloured, Black & white, None),

@@ -128,7 +128,7 @@ def fixed_build_kwargs(kw: dict) -> dict:
         mode = F.SPACER_MODE.value
     if kw.get("spacer_on") is False and kw.get("spacer_mode") is None:
         mode = "none"
-    least = F.margins_mm(labels.rows, labels.size)
+    least = F.margins_mm(labels.rows, labels.size, numbers=labels.columns)
     asked = kw.get("margins")
     try:
         asked = tuple(float(v) for v in asked) if asked else None
@@ -203,11 +203,16 @@ def marks(w: float, h: float) -> "list[Mark]":
 
 
 def digit_offset(mark: Mark) -> "tuple[float, float]":
-    """Where a mark's digit sits from its centre, on the page: towards the
-    middle of the sheet across the strips, never towards a paper edge."""
+    """Where a mark's digit sits from its centre, on the page: beside the
+    cross ALONG the strips, towards the middle of the page, in the side band
+    the cross needs anyway, where no strip, run or label ever is. It costs
+    no patch: beside the cross ACROSS the strips it widened both side bands
+    by 5 mm and cost a strip on A4 and two on Letter (the owner, 2026-11-13).
+    On the table the digit stands to the right of crosses 1 and 2 and to the
+    left of cross 3, towards the middle of the edge, upright."""
     away = F.MARK_CROSS_MM.value / 2.0 + 1.0 + F.MARK_DIGIT_MM.value / 2.0
-    cx = mark.centre_mm[0]
-    return ((-away, 0.0) if cx > F.MARK_INSET_MM.value * 2 else (away, 0.0))
+    cy = mark.centre_mm[1]
+    return ((0.0, -away) if cy > F.MARK_INSET_MM.value * 2 else (0.0, away))
 
 
 def mark_zone(mark: Mark) -> "tuple[float, float, float, float]":
@@ -215,10 +220,11 @@ def mark_zone(mark: Mark) -> "tuple[float, float, float, float]":
     cx, cy = mark.centre_mm
     half = F.MARK_CROSS_MM.value / 2.0
     clear = F.MARK_CLEAR_MM.value
-    dx, _dy = digit_offset(mark)
+    dx, dy = digit_offset(mark)
     dh = F.MARK_DIGIT_MM.value / 2.0
     x0, x1 = min(cx - half, cx + dx - dh), max(cx + half, cx + dx + dh)
-    return (x0 - clear, cy - half - clear, x1 + clear, cy + half + clear)
+    y0, y1 = min(cy - half, cy + dy - dh), max(cy + half, cy + dy + dh)
+    return (x0 - clear, y0 - clear, x1 + clear, y1 + clear)
 
 
 def page_patches(geom, layout, w: float, h: float, page: int
