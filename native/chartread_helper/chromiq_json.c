@@ -23,6 +23,10 @@ int cq_json = 0;
 int cq_autosave = 0;
 int cq_safenet = 0;
 int cq_xychart = 0;
+int cq_i1pro2_lights = 0;
+volatile int cq_lights_off_pending = 0;
+void (*cq_lights_service)(void) = NULL;
+volatile int cq_exiting_on_signal = 0;
 
 /* ------------------------------------------------------------------ */
 /* Emission: every event is one complete JSON object on one line,      */
@@ -203,6 +207,14 @@ static void cq_handle_line(const char *line) {
 
 	if (!cq_json_get(line, "cmd", cmd, sizeof(cmd)))
 		return;
+
+	/* The i1Pro 2 lights (Beta): only noted here. The main thread switches
+	 * them off at its next poll (cq_cmd_take_key); this thread never touches
+	 * the instrument. Not a key, so nothing waiting for one is disturbed. */
+	if (strcmp(cmd, "lights_off_exit") == 0) {
+		cq_lights_off_pending = CQ_LIGHTS_REQ_EXIT;
+		return;
+	}
 
 	if (strcmp(cmd, "swipe") == 0) {
 		/* Replay only: trigger reading the armed strip, with optional
@@ -455,6 +467,8 @@ static void *cq_reader(void *arg) {
 		cq_handle_line(line);
 	}
 	cq_stdin_eof = 1;
+	if (cq_lights_service != NULL && cq_lights_off_pending == 0)
+		cq_lights_off_pending = CQ_LIGHTS_REQ_OFF;	/* i1Pro 2 lights (Beta) */
 	cq_exit_deadline_arm(CQ_EXIT_GRACE_MS);
 	return NULL;
 }
@@ -469,6 +483,8 @@ static void *cq_reader(void *arg) {
 	while (fgets(line, sizeof(line), stdin) != NULL)
 		cq_handle_line(line);
 	cq_stdin_eof = 1;
+	if (cq_lights_service != NULL && cq_lights_off_pending == 0)
+		cq_lights_off_pending = CQ_LIGHTS_REQ_OFF;	/* i1Pro 2 lights (Beta) */
 	cq_exit_deadline_arm(CQ_EXIT_GRACE_MS);
 #ifdef NT
 	return 0;
@@ -492,6 +508,20 @@ void cq_cmd_start(void) {
 
 int cq_cmd_take_key(void) {
 	int k;
+	/* The i1Pro 2 lights (Beta): a {"cmd":"lights_off_exit"}, or the end of
+	 * stdin, is carried out here, on the thread that drives the instrument,
+	 * between two of its requests. cq_lights_service is NULL unless the
+	 * lights are in use; the exit is honoured either way, because ChromIQ
+	 * would otherwise kill the process at this point. */
+	if (cq_lights_off_pending) {
+		void (*svc)(void) = cq_lights_service;
+		int req = cq_lights_off_pending;
+		cq_lights_off_pending = 0;
+		if (svc != NULL)
+			svc();
+		if (req == CQ_LIGHTS_REQ_EXIT)
+			cq_end_process_like_a_kill();
+	}
 	cq_lock_take();
 	k = cq_pending_key;
 	cq_pending_key = CQ_KEY_NONE;
@@ -985,6 +1015,7 @@ static void (*cq_old_hup)(int) = SIG_DFL;
 static void cq_exit_signal(int sig) {
 	void (*old)(int) = sig == SIGINT ? cq_old_int
 	                 : sig == SIGTERM ? cq_old_term : cq_old_hup;
+	cq_exiting_on_signal = 1;	/* no light request from an exit handler now */
 	cq_exit_deadline_arm(CQ_EXIT_GRACE_MS);
 	if (old != SIG_DFL && old != SIG_IGN && old != cq_exit_signal) {
 		old(sig);
@@ -993,6 +1024,19 @@ static void cq_exit_signal(int sig) {
 	_exit(128 + sig);
 }
 #endif
+
+/* The i1Pro 2 lights (Beta): {"cmd":"lights_off_exit"} ends the process the
+ * way ChromIQ's kill would have, so nothing about the ending changes but the
+ * one light request before it: no clean-up, no file written. */
+void cq_end_process_like_a_kill(void) {
+	fflush(stdout);
+#ifdef NT
+	TerminateProcess(GetCurrentProcess(), 0xf291);	/* QProcess::kill()'s code */
+#else
+	kill(getpid(), SIGKILL);
+#endif
+	_exit(137);			/* not reached */
+}
 
 void cq_exit_guard_signals(void) {
 #ifndef NT

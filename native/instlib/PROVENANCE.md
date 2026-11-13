@@ -1,7 +1,7 @@
 # Vendored ArgyllCMS standalone instrument library
 
 These files are a subset of ArgyllCMS 3.5.0 by Graeme W. Gill, copied
-byte-identical from the official source distribution (except the two
+byte-identical from the official source distribution (except the
 patched files listed below), following the file list of Graeme's own
 standalone packaging script
 `spectro/instlib.ksh` (the "instlib" distribution, GPLv2-or-later —
@@ -15,8 +15,8 @@ against the new source tree and rebuild.
 
 ## ChromIQ patches
 
-Two library files depart from upstream. `scripts/vendor_instlib.py`
-re-applies both patches on every re-vendor (its `PATCHES` table), and
+Five library files depart from upstream. `scripts/vendor_instlib.py`
+re-applies every patch on every re-vendor (its `PATCHES` table), and
 stops if one no longer applies.
 
 - **`rspl1.c`, `set_rspl`**: upstream writes the grid index at
@@ -31,11 +31,38 @@ stops if one no longer applies.
   `CHROMIQ_APPLE_BEEP` the beep plays through AudioToolbox instead of
   writing a BEL to stdout, which is the engine's JSON channel. The macOS
   build is deliberately not `UNIX_APPLE` (see `CMakeLists.txt`).
+- **`i1pro_imp.c`, `i1pro_imp.h`, `i1pro.c`: the i1Pro 2 indicator
+  lights** (Preferences > Beta, 2026-11-13). A separate path that can send
+  exactly three light sequences to an i1Pro 2 (request 0xD6, then the
+  bytes on bulk endpoint 0x03): WHITE (32 bytes, off about 1 s, then all
+  six LEDs on) when the instrument waits for the user, OFF_SLOW (18 bytes)
+  before every measurement trigger, and OFF_NOW (15 bytes, off at once)
+  before any EEPROM read and when the instrument is closed. Inert until
+  ChromIQ's helper calls `i1pro2_cq_lights_begin` (only with the option
+  on, `--i1pro2-lights`), which refuses anything but an inited i1Pro 2
+  whose EEPROM reports the user indicator LEDs (`I1PRO_CAP2_IND_LED`); a
+  failed request gives the lights up for the session and fails nothing.
+  Nothing is written to the EEPROM. Where the knowledge comes from:
+  Argyll's own request and sequence format (`i1pro2_indLEDseq` and its
+  comment; every caller is under `#ifdef NEVER`, and Argyll's notes say a
+  running sequence interferes with an EEPROM read), and two USB
+  recordings a user made of X-Rite's i1Profiler 3.8.6 with his own
+  i1Pro 2 Rev E (ChromIQ issue #129), in which i1Profiler sent exactly
+  these three sequences byte for byte, each where ChromIQ sends it
+  (WHITE at open, OFF_SLOW before calibrations and scans, OFF_NOW at
+  release). WHITE after every reading is ChromIQ's own use of the
+  recorded WHITE (the recording was made on a measuring table, where
+  i1Profiler kept the lights dark). Argyll's own `i1pro2_indLEDoff` bytes
+  were never seen on the wire and are not used.
+  Not tested on a real i1Pro 2 by the project.
 
 | patched file | upstream sha256 (first 16) | shipped sha256 (first 16) |
 |---|---|---|
 | `rspl1.c` | `5c7b0509abf97f44…` | `d53a8d37b30b6e14…` |
 | `conv.c` | `c6b04014888cb6f4…` | `1b88327ee6e6d9df…` |
+| `i1pro.c` | `ac75b6e3f47537b8…` | `90b196908646ba2f…` |
+| `i1pro_imp.h` | `c37813e4b43a9bff…` | `4762e1d402c0562d…` |
+| `i1pro_imp.c` | `8b8516cdd89e21de…` | `8e45d0f5a948180e…` |
 
 ## Files
 

@@ -1313,7 +1313,13 @@ static void cq_gestures_for_session(inst *it, int uswitch, const char *unit) {
  * nothing; one that blocks ends with the process, which frees the device. */
 static void (*cq_real_del)(inst *p) = NULL;
 
+static void cq_lights_forget(void);
+
 static void cq_guarded_del(inst *p) {
+	/* The i1Pro 2 lights: nothing may reach the instrument through the
+	 * command queue once it is being closed (the close itself switches the
+	 * lights off, i1pro_imp.c del_i1proimp). */
+	cq_lights_forget();
 	cq_exit_close_begin();
 	if (cq_real_del != NULL)
 		cq_real_del(p);
@@ -1326,6 +1332,91 @@ static void cq_guard_inst(inst *it) {
 		return;
 	cq_real_del = it->del;
 	it->del = cq_guarded_del;
+}
+
+/* CHROMIQ_EXT: the i1Pro 2 indicator lights (Preferences > Beta, 2026-11-13).
+ *
+ * Asked for with --i1pro2-lights, and then only used for a real i1Pro 2,
+ * reading reflective strips or single patches by hand (never XY or chart
+ * modes, so never an instrument on a table), in JSON mode, never in a replay.
+ * The driver does the rest (i1pro_imp.c, CHROMIQ PATCH): white while the
+ * instrument waits for the user, off before every trigger and at the close.
+ * The GUI hears {"event":"lights","active":b,"why":...} once, after the mode
+ * is set and before the first calibration. */
+static inst *cq_lights_it = NULL;
+#ifdef NT
+static DWORD cq_lights_thread = 0;
+# define CQ_THIS_THREAD() GetCurrentThreadId()
+# define CQ_SAME_THREAD(a) ((a) == GetCurrentThreadId())
+#else
+static pthread_t cq_lights_thread;
+# define CQ_THIS_THREAD() pthread_self()
+# define CQ_SAME_THREAD(a) pthread_equal((a), pthread_self())
+#endif
+
+static void cq_lights_forget(void) {
+	cq_lights_service = NULL;
+	cq_lights_it = NULL;
+}
+
+/* The lights go off on the main thread (cq_cmd_take_key, see chromiq_ext.h),
+ * on the way out through exit() (an error() after the session began), and in
+ * the close itself (i1pro_imp.c del_i1proimp). */
+static void cq_lights_do_off(void) {
+	inst *it = cq_lights_it;
+	if (it == NULL)
+		return;
+	cq_lights_forget();
+	i1pro2_cq_lights_end(it);
+	cq_emit_raw("{\"event\":\"lights\",\"state\":\"off\"}");
+}
+
+static void cq_lights_atexit(void) {
+	/* Only from the thread that drives the instrument, never from a signal
+	 * handler's exit, and never once the instrument is being closed. */
+	if (cq_lights_it == NULL || cq_exiting_on_signal
+	 || !CQ_SAME_THREAD(cq_lights_thread))
+		return;
+	cq_lights_do_off();
+}
+
+/* The driver says a light request failed; it has given the lights up, and
+ * they may stay as they were (an off may not have arrived). */
+static void cq_lights_failed(int seq, int icom_err) {
+	cq_lights_forget();
+	cq_emit_raw("{\"event\":\"lights\",\"state\":\"failed\",\"step\":\"%s\","
+	            "\"err\":%d}", seq == 1 ? "white" : "off", icom_err);
+}
+
+static void cq_lights_for_session(inst *it, int rmode, int emis, int trans,
+                                  int displ) {
+	const char *why = NULL;
+	if (!cq_i1pro2_lights || !cq_json)
+		return;
+	if (it == NULL || cq_replay_active() || it->dtype != instI1Pro2)
+		why = "instrument";
+	else if (emis || trans || displ || (rmode != 0 && rmode != 1))
+		why = "mode";
+	else {
+		static int registered = 0;
+		i1pro2_cq_lights_note = cq_lights_failed;
+		cq_lights_thread = CQ_THIS_THREAD();
+		cq_lights_it = it;
+		cq_lights_service = cq_lights_do_off;
+		if (!registered) {
+			registered = 1;
+			atexit(cq_lights_atexit);
+		}
+		if (!i1pro2_cq_lights_begin(it)) {
+			cq_lights_forget();
+			why = "lights";
+		}
+	}
+	if (why == NULL)
+		cq_emit_raw("{\"event\":\"lights\",\"active\":true}");
+	else
+		cq_emit_raw("{\"event\":\"lights\",\"active\":false,\"why\":\"%s\"}",
+		            why);
 }
 
 /* A scan that took longer than this from its trigger to its end was a real
@@ -2090,6 +2181,11 @@ a1log *log			/* verb, debug & error log */
 			free(pfname);
 		return -1;
 	}
+
+	/* CHROMIQ_EXT: the i1Pro 2 lights (Beta), before the first calibration.
+	 * Without --i1pro2-lights this does nothing at all. */
+	if (xtern == 0)
+		cq_lights_for_session(it, rmode, emis, trans, displ);
 
 	/* -------------------------------------------------- */
 	if (rmode == 3) {		/* For chart mode, read all at once */
@@ -4643,12 +4739,16 @@ int main(int argc, char *argv[]) {
 			} else if (strcmp(argv[ai], "--xychart") == 0) {
 				cq_xychart = 1;
 				eat = 1;
+			} else if (strcmp(argv[ai], "--i1pro2-lights") == 0) {
+				/* CHROMIQ_EXT: Preferences > Beta, the i1Pro 2 lights. */
+				cq_i1pro2_lights = 1;
+				eat = 1;
 			} else if (strcmp(argv[ai], "--caps") == 0) {
 				/* CHROMIQ_EXT: what this build can do, so the GUI can ask
 				 * before it relies on it. One JSON line, then exit 0.
 				 * "legacy_labels": reads sheets ChromIQ's layout engine
 				 * printed with its pre-4.3.3-beta.7 labels as printed. */
-				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"gestures\",\"button_test\"],\"build\":\"%s\"}\n",
+				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"gestures\",\"button_test\",\"i1pro2_lights\"],\"build\":\"%s\"}\n",
 				       cq_helper_build_string());
 				fflush(stdout);
 				return 0;
