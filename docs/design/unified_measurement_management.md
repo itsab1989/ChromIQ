@@ -9018,7 +9018,7 @@ alone.
 >
 > Your last measurement with the i1Pro 2 ended unexpectedly, before ChromIQ could switch the instrument's lights off. This can happen when ChromIQ, or the ChromIQ chart-reading engine that measures for it, stops suddenly, for example after a crash. So the white light on the instrument may still be on.
 >
-> ArgyllCMS, which ChromIQ measures with, notes that the instrument's lights can disturb it while it starts up if they are still switched on. To be on the safe side, please give it a fresh start before measuring:
+> ArgyllCMS, which ChromIQ measures with, notes that the instrument's lights can disturb the instrument while it starts up if they are still switched on. To be on the safe side, please restart the instrument before measuring:
 >
 > •  unplug the instrument's USB cable;
 > •  wait a few seconds;
