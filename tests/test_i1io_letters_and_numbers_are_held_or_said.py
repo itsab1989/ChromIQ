@@ -78,9 +78,9 @@ def test_what_is_risky_is_said_in_the_log_and_the_panel(tmp_path, kw, want):
     for key in want:
         assert any(key in w for w in got), (key, got)
     assert len(got) == len(want), got
-    # the panel says the same words
+    # the panel says the same words as the log, all of them
     _shift, notes = _preview(**kw)
-    assert sorted(notes) == sorted(got)
+    assert sorted(notes) == sorted(result.warnings)
 
 
 @pytest.mark.parametrize("kw", [{"strip_label_offset_mm": 30.0},

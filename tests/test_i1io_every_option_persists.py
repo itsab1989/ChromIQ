@@ -445,3 +445,26 @@ def test_every_option_changed_lights_modified(chart_tab):
     assert quiet == []
     _show(tab, panel, start)
     assert _modified(tab) is False
+
+
+# ---- what Generate hands the build is what the chart records ----------------
+
+@pytest.mark.parametrize("name", sorted(KEPT))
+def test_generate_builds_what_the_recipe_records(chart_tab, name):
+    """Review 5 brief, item 1: for every i1iO option, the build kwargs the
+    Generate path passes (`ChartCreator._engine_kwargs`) equal the ones
+    derived from the recipe the chart records (`_current_layout_recipe`,
+    written to channels.json), but for what a build adds of its own (the
+    project's name, the date, the run's description, the side stamp)."""
+    tab, _s, _t = chart_tab
+    panel = _manual_io2(tab)
+    rec = replace(_base(), margins_explicit=True, label_style_explicit=True,
+                  **{name: KEPT[name]})
+    _show(tab, panel, rec)
+    recorded = tab._current_layout_recipe().build_kwargs()
+    built = tab._creator._engine_kwargs(tab._collect_params())
+    own = {"project", "chart_date", "rundescription", "side_stamp"}
+    diff = {k: (recorded.get(k), built.get(k))
+            for k in set(recorded) | set(built)
+            if k not in own and recorded.get(k) != built.get(k)}
+    assert diff == {}

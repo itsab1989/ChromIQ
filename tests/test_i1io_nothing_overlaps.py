@@ -92,12 +92,16 @@ def test_a_chart_offset_onto_the_name_line_is_said():
     last strip, its letter and the underline on the logo, silently. Said by
     `furniture_warnings`, which the build's log and "Measured from Preview"
     both use (`preview_checks`)."""
-    from tests.test_i1io_letters_and_numbers_are_held_or_said import _preview
-    _s, notes = _preview(offset_x=2.0, strip_label_offset_x_mm=1.0,
-                         underline_mode="black")
+    from workflow.i1io import chart as C
+    base = {"instrument": "IO2", "paper": "Letter", "dpi": DPI,
+            "area_target_count": 900}
+    _s, notes = C.preview_checks(dict(base, offset_x=2.0, max_strip=200.0,
+                                      nolimit=False,
+                                      strip_label_offset_x_mm=1.0,
+                                      underline_mode="black"))
     assert any("would touch the line with the chart's name" in w
                for w in notes), notes
-    _s, quiet = _preview()
+    _s, quiet = C.preview_checks(base)
     assert quiet == []
 
 

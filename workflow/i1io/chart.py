@@ -2230,7 +2230,8 @@ def furniture_warnings(geom, layout, w: float, h: float, dpi: int,
 
 def preview_checks(kw: dict):
     """``(shift, warnings)`` for the panel's "Measured from Preview": the
-    letters' sideways hold (`held_letters`) and `furniture_warnings`, worked
+    letters' sideways hold (`held_letters`) and every warning the build
+    logs (`check_sheet`, `option_warnings`, `furniture_warnings`), worked
     out on the layout the build makes from the same build kwargs, so the
     notice says what the sheet will show. ``(None, [])`` when the layout
     cannot be worked out yet; a refusal is listed as a warning here (the
@@ -2249,11 +2250,21 @@ def preview_checks(kw: dict):
         labels = fixed[LABELS_KEY]
         rule = kw.get("label_rule")
         labels, shift = held_letters(geom, layout, w, h, dpi, labels, rule)
+        # EVERYTHING THE BUILD SAYS, said here too (the owner: risky is
+        # allowed, silent is not; the whole-workflow drive's chart 4 showed
+        # the edge-spacer and ruler-marker warnings in the log only): the
+        # sheet's own check, the options' and the letters' and numbers'
+        warn: "list[str]" = []
         try:
-            warn = furniture_warnings(geom, layout, w, h, dpi, labels,
-                                      fixed[CROSSES_KEY], rule)
+            warn += check_sheet(geom, layout, w, h,
+                                crosses=fixed[CROSSES_KEY])
+            warn += option_warnings(fixed)
+            for why in furniture_warnings(geom, layout, w, h, dpi, labels,
+                                          fixed[CROSSES_KEY], rule):
+                if why not in warn:
+                    warn.append(why)
         except I1ioSheetRefused as exc:
-            warn = [str(exc)]
+            warn.append(str(exc))
         return shift, warn
     except Exception:            # noqa: BLE001 - a notice never blocks
         return None, []
