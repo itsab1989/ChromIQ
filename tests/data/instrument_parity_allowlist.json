@@ -1,0 +1,2448 @@
+{
+ "about": "Intended differences between each instrument and the reference on the Create Chart tab, checked by tests/test_instrument_parity.py (how to read and extend it: scripts/instrument_parity.py). 'intended' entries were judged; 'known_to_review' entries were seen and recorded honestly but not judged yet. Every entry must still match what the app does, or the test fails.",
+ "reference": "i1",
+ "shared": {
+  "fields": [
+   "area_cols",
+   "area_min_patch_mm",
+   "area_ratio",
+   "area_rows",
+   "bit16",
+   "chart_text_font",
+   "chart_text_italic",
+   "chart_text_size_mm",
+   "clip_border_width_mm",
+   "clip_flip_180",
+   "clip_side",
+   "clip_text",
+   "clip_text_font",
+   "cm_stagger",
+   "compression",
+   "dpi",
+   "export_pdf",
+   "hex_flat_top",
+   "indicator_align",
+   "indicator_bold",
+   "indicator_font",
+   "indicator_italic",
+   "indicator_rotation",
+   "indicator_size_mm",
+   "pscale",
+   "randomize",
+   "row_indicator_rotation",
+   "sscale",
+   "stamp_command",
+   "strip_label_offset_mm",
+   "strip_label_offset_x_mm",
+   "text_edge_top_mm",
+   "underline_gap_mm",
+   "underline_mode",
+   "underline_thickness_mm"
+  ],
+  "reason": "These follow a person from one instrument to the next because they describe the person's print, not the instrument (resolution, bit depth, compression, PDF, the label and sheet-text style, the clip text), or because the new instrument does not use them and keeps them unchanged (area sizing, scales, stagger, hexagon orientation, rotations, the summary stamp)."
+ },
+ "intended": [
+  {
+   "check": "control",
+   "mode": "guided",
+   "instrument": [
+    "CM",
+    "CR30",
+    "FD9",
+    "IO2",
+    "SS"
+   ],
+   "item": [
+    "_lb_check",
+    "_nsl_check"
+   ],
+   "aspect": "present",
+   "expected": false,
+   "reason": "\"Left border\" and \"No strip limit\" belong to the i1Pro's clip band and ruler; this instrument has neither."
+  },
+  {
+   "check": "control",
+   "mode": "guided",
+   "instrument": [
+    "CM",
+    "CR30",
+    "SS"
+   ],
+   "item": "_dd_check",
+   "aspect": "present",
+   "expected": true,
+   "reason": "The density (ColorMunki) or hexagon (SpectroScan, CR30) choice is this instrument's own; the i1Pro has none."
+  },
+  {
+   "check": "control",
+   "mode": "guided",
+   "instrument": "CM",
+   "item": "_td_check",
+   "aspect": "present",
+   "expected": true,
+   "reason": "Triple density exists only for the ColorMunki."
+  },
+  {
+   "check": "control",
+   "mode": "guided",
+   "instrument": "IO2",
+   "item": [
+    "_i1io_aim_check",
+    "_i1io_clip_check"
+   ],
+   "aspect": "present",
+   "expected": true,
+   "reason": "Aiming crosses and the clip border of the i1iO table are its own options (Beta); the i1Pro's clip band is a different control."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": [
+    "CR30",
+    "FD9",
+    "IO2"
+   ],
+   "item": "_manual_engine_check",
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "Only ChromIQ's layout engine can lay out this instrument's chart (printtarg cannot), so the engine switch is on and greyed, with its reason."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": [
+    "CR30",
+    "SS"
+   ],
+   "item": "panel.max_strip",
+   "aspect": "enabled",
+   "expected": true,
+   "reason": "The i1Pro's strip length is set by its ruler; an instrument without that ruler gets the strip-length cap open."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "CR30",
+   "item": "panel.spacer_width",
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "The CR30 starts without spacers, so their width is greyed until spacers are switched on (the spacer row beside it is the reason)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "FD9",
+   "item": [
+    "panel.area_cols",
+    "panel.area_method",
+    "panel.area_min_patch",
+    "panel.area_ratio",
+    "panel.area_rows",
+    "panel.chart_text",
+    "panel.chart_text_align",
+    "panel.chart_text_font",
+    "panel.chart_text_size",
+    "panel.clip_flip_180",
+    "panel.clip_side",
+    "panel.clip_width",
+    "panel.cm_stagger_cb",
+    "panel.ct_bold",
+    "panel.custom_spacer_cb",
+    "panel.helper_markers_cb",
+    "panel.hex_flat_top_cb",
+    "panel.i1io_crosses_cb",
+    "panel.ind_bold",
+    "panel.indicator_font",
+    "panel.indicator_rotation",
+    "panel.indicator_size",
+    "panel.layout_mode",
+    "panel.mode",
+    "panel.nolimit",
+    "panel.offx",
+    "panel.offy",
+    "panel.patch_align",
+    "panel.patch_pat",
+    "panel.pscale",
+    "panel.row_indicator_rotation",
+    "panel.show_indicators",
+    "panel.show_row_indicators",
+    "panel.sig",
+    "panel.spacer_mode",
+    "panel.spacer_width",
+    "panel.sscale",
+    "panel.stamp_command",
+    "panel.strip_label_offset",
+    "panel.strip_label_offset_x",
+    "panel.strip_pat",
+    "panel.text_edge",
+    "panel.text_edge_clip",
+    "panel.text_edge_top",
+    "panel.underline_mode",
+    "panel.use_instr_margins"
+   ],
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "The FD-9 Beta builds its chart with its own layout and greys these options of the shared panel, each with its reason (the FD-9 is a contributed Beta: observed only, never changed here)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "IO2",
+   "item": [
+    "panel.area_cols",
+    "panel.area_method",
+    "panel.area_min_patch",
+    "panel.area_ratio",
+    "panel.area_rows",
+    "panel.clip_side",
+    "panel.clip_text_font",
+    "panel.cm_stagger_cb",
+    "panel.hex_flat_top_cb",
+    "panel.indicator_rotation",
+    "panel.layout_mode",
+    "panel.mode",
+    "panel.pscale",
+    "panel.row_indicator_rotation",
+    "panel.sscale",
+    "panel.stamp_command",
+    "panel.text_edge_top",
+    "panel.use_instr_margins"
+   ],
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "Options of the shared strip layout (area-first sizing, scales, mode, rotation, the summary stamp, the clip side) that the FD-9 and i1iO builders do not use; greyed with their reason."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "IO2",
+   "item": [
+    "panel.edge_spacers_cb",
+    "panel.ind_align_center",
+    "panel.ind_align_left",
+    "panel.ind_align_right",
+    "panel.margins[b]",
+    "panel.margins[l]",
+    "panel.margins[r]",
+    "panel.margins[t]",
+    "panel.max_strip"
+   ],
+   "aspect": "enabled",
+   "expected": true,
+   "reason": "The i1iO's table moves to every patch by its corner crosses, so its margins, edge spacers, label alignment and strip-length cap are open, where the i1Pro takes them from its instrument margins and ruler."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "isis",
+   "item": [
+    "pw.printtarg-A/ElidingCheckBox",
+    "pw.printtarg-b/QCheckBox",
+    "pw.printtarg-c/QCheckBox"
+   ],
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "Charts for the i1iSis are recomputed by i1Profiler; printtarg's rows take its own defaults: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": [
+    "CM",
+    "CR30",
+    "FD9",
+    "IO2",
+    "SS"
+   ],
+   "item": "panel.clip_enable",
+   "aspect": "present",
+   "expected": true,
+   "reason": "The i1Pro chooses its clip band with the Mode row; the other instruments get a separate Clip border On/Off."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "CM",
+   "item": "panel.cm_stagger_cb",
+   "aspect": "present",
+   "expected": true,
+   "reason": "The stagger of every second strip exists only for the ColorMunki."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": [
+    "CR30",
+    "FD9",
+    "IO2",
+    "SS"
+   ],
+   "item": [
+    "panel.area_method",
+    "panel.area_min_patch",
+    "panel.area_ratio"
+   ],
+   "aspect": "present",
+   "expected": false,
+   "reason": "Area-first sizing belongs to the strip readers; these instruments are laid out patch-first."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": [
+    "CR30",
+    "FD9",
+    "IO2",
+    "SS"
+   ],
+   "item": [
+    "panel.nolimit",
+    "panel.offx",
+    "panel.offy",
+    "panel.patch_align",
+    "panel.patch_x",
+    "panel.patch_y",
+    "panel.pscale"
+   ],
+   "aspect": "present",
+   "expected": true,
+   "reason": "Patch-first instruments (read at a position, or laid out by their own builder) set the patch size, offsets and alignment directly; the strip readers size patches from the page (area-first)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "IO2",
+   "item": [
+    "panel.clip_content_mode",
+    "panel.clip_flip_180",
+    "panel.clip_side",
+    "panel.clip_text_font",
+    "panel.clip_text_size",
+    "panel.clip_width"
+   ],
+   "aspect": "present",
+   "expected": false,
+   "reason": "The i1iO's clip border is a fixed left band with an On/Off of its own; the i1Pro clip band's width, side, text and flip do not apply."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "IO2",
+   "item": "panel.i1io_crosses_cb",
+   "aspect": "present",
+   "expected": true,
+   "reason": "Aiming crosses are the i1iO table's own option (Beta)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": [
+    "CM",
+    "CR30",
+    "FD9",
+    "IO2",
+    "SS",
+    "p3"
+   ],
+   "item": "pw.printtarg-a/NoScrollDoubleSpinBox",
+   "aspect": "value",
+   "expected": 1.0,
+   "reason": "printtarg's patch scale (-a) starts at 0.95 only for the i1Pro, from its default layout preset; every other instrument starts at 1.0."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": [
+    "CM",
+    "CR30",
+    "SS"
+   ],
+   "item": "panel.margins[r]",
+   "aspect": "value",
+   "expected": 6.0,
+   "reason": "Each instrument starts from its own default margins (its default layout preset)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": [
+    "CM",
+    "FD9",
+    "IO2",
+    "SS",
+    "p3"
+   ],
+   "item": "pw.printtarg-m/NoScrollSpinBox",
+   "aspect": "value",
+   "expected": 6,
+   "reason": "printtarg's margin (-m) starts from each instrument's own default margin."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "CM",
+   "item": "panel.margins[b]",
+   "aspect": "value",
+   "expected": 10.0,
+   "reason": "Each instrument starts from its own default margins (its default layout preset)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "CM",
+   "item": "panel.margins[l]",
+   "aspect": "value",
+   "expected": 6.0,
+   "reason": "Each instrument starts from its own default margins (its default layout preset)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "CM",
+   "item": "panel.margins[t]",
+   "aspect": "value",
+   "expected": 33.0,
+   "reason": "Each instrument starts from its own default margins (its default layout preset)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "CM",
+   "item": "panel.mode",
+   "aspect": "value",
+   "expected": "freehand",
+   "reason": "The Mode row names this instrument's own choice (density, patch shape, or none), so its first value differs from the i1Pro's clip band."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": [
+    "CR30",
+    "FD9"
+   ],
+   "item": "panel.spacer_mode",
+   "aspect": "value",
+   "expected": "none",
+   "reason": "The CR30 (read patch by patch) and the FD-9 start from their own factory layouts, which have no spacers."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": [
+    "CR30",
+    "FD9",
+    "SS"
+   ],
+   "item": "panel.layout_mode",
+   "aspect": "value",
+   "expected": "patch_first",
+   "reason": "These instruments are laid out patch-first; the strip readers start area-first."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": [
+    "CR30",
+    "SS"
+   ],
+   "item": [
+    "panel.margins[b]",
+    "panel.margins[t]"
+   ],
+   "aspect": "value",
+   "expected": 6.0,
+   "reason": "Each instrument starts from its own default margins (its default layout preset)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": [
+    "CR30",
+    "SS"
+   ],
+   "item": "panel.mode",
+   "aspect": "value",
+   "expected": "flat",
+   "reason": "The Mode row names this instrument's own choice (density, patch shape, or none), so its first value differs from the i1Pro's clip band."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": [
+    "CR30",
+    "SS"
+   ],
+   "item": "panel.show_row_indicators",
+   "aspect": "value",
+   "expected": true,
+   "reason": "Instruments read patch by patch (and the i1iO) label rows as well as strips by default, so a person can find a patch."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "CR30",
+   "item": "panel.margins[l]",
+   "aspect": "value",
+   "expected": 14.5,
+   "reason": "Each instrument starts from its own default margins (its default layout preset)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "CR30",
+   "item": "pw.printtarg-m/NoScrollSpinBox",
+   "aspect": "value",
+   "expected": 5,
+   "reason": "printtarg's margin (-m) starts from each instrument's own default margin."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "FD9",
+   "item": [
+    "panel.inter_patch",
+    "panel.strip_gap"
+   ],
+   "aspect": "value",
+   "expected": 1.0,
+   "reason": "The FD-9's own factory layout (8 mm patches, 1 mm gaps, its margins) (the FD-9 is a contributed Beta: observed only, never changed here)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "FD9",
+   "item": "panel.margins[b]",
+   "aspect": "value",
+   "expected": 33.0,
+   "reason": "Each instrument starts from its own default margins (its default layout preset)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "FD9",
+   "item": [
+    "panel.margins[l]",
+    "panel.margins[r]"
+   ],
+   "aspect": "value",
+   "expected": 15.0,
+   "reason": "Each instrument starts from its own default margins (its default layout preset)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "FD9",
+   "item": "panel.mode",
+   "aspect": "value",
+   "expected": "default",
+   "reason": "The Mode row names this instrument's own choice (density, patch shape, or none), so its first value differs from the i1Pro's clip band."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "FD9",
+   "item": [
+    "panel.patch_x",
+    "panel.patch_y"
+   ],
+   "aspect": "value",
+   "expected": 8.0,
+   "reason": "The FD-9's own factory layout (8 mm patches, 1 mm gaps, its margins) (the FD-9 is a contributed Beta: observed only, never changed here)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "IO2",
+   "item": "panel.chart_text_align",
+   "aspect": "value",
+   "expected": "available",
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "IO2",
+   "item": [
+    "panel.clip_content_mode",
+    "panel.clip_enable"
+   ],
+   "aspect": "value",
+   "expected": "off",
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "IO2",
+   "item": [
+    "panel.ct_bold",
+    "panel.show_row_indicators"
+   ],
+   "aspect": "value",
+   "expected": true,
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "IO2",
+   "item": [
+    "panel.indicator_rotation",
+    "panel.row_indicator_rotation"
+   ],
+   "aspect": "value",
+   "expected": 90,
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "IO2",
+   "item": "panel.layout_mode",
+   "aspect": "value",
+   "expected": "patch_first",
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "IO2",
+   "item": "panel.margins[b]",
+   "aspect": "value",
+   "expected": 21.0,
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "IO2",
+   "item": "panel.margins[l]",
+   "aspect": "value",
+   "expected": 16.0,
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "IO2",
+   "item": "panel.margins[r]",
+   "aspect": "value",
+   "expected": 15.0,
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "IO2",
+   "item": "panel.margins[t]",
+   "aspect": "value",
+   "expected": 12.0,
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "IO2",
+   "item": "panel.mode",
+   "aspect": "value",
+   "expected": "default",
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "IO2",
+   "item": "panel.patch_align",
+   "aspect": "value",
+   "expected": "center",
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "IO2",
+   "item": "panel.patch_x",
+   "aspect": "value",
+   "expected": 8.0,
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "IO2",
+   "item": [
+    "panel.patch_y",
+    "panel.text_edge_clip"
+   ],
+   "aspect": "value",
+   "expected": 10.0,
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "IO2",
+   "item": "panel.spacer_width",
+   "aspect": "value",
+   "expected": 1.0,
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "IO2",
+   "item": "panel.use_instr_margins",
+   "aspect": "value",
+   "expected": false,
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "SS",
+   "item": "panel.area_method",
+   "aspect": "value",
+   "expected": "by_grid",
+   "reason": "The SpectroScan's area sizing starts by grid; the strip readers by width."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "SS",
+   "item": "panel.margins[l]",
+   "aspect": "value",
+   "expected": 11.2,
+   "reason": "Each instrument starts from its own default margins (its default layout preset)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "isis",
+   "item": [
+    "pw.printtarg-P/QCheckBox",
+    "pw.printtarg-n/QCheckBox"
+   ],
+   "aspect": "value",
+   "expected": true,
+   "reason": "Charts for the i1iSis are recomputed by i1Profiler; printtarg's rows take its own defaults: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "isis",
+   "item": "pw.printtarg-a/NoScrollDoubleSpinBox",
+   "aspect": "value",
+   "expected": 1.0,
+   "reason": "Charts for the i1iSis are recomputed by i1Profiler; printtarg's rows take its own defaults: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "isis",
+   "item": "pw.printtarg-m/NoScrollSpinBox",
+   "aspect": "value",
+   "expected": 6,
+   "reason": "Charts for the i1iSis are recomputed by i1Profiler; printtarg's rows take its own defaults: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "isis",
+   "item": "pw.printtarg-p/NoScrollComboBox",
+   "aspect": "value",
+   "expected": "329x483",
+   "reason": "Charts for the i1iSis are recomputed by i1Profiler; printtarg's rows take its own defaults: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "p3",
+   "item": "panel.margins[b]",
+   "aspect": "value",
+   "expected": 9.0,
+   "reason": "Each instrument starts from its own default margins (its default layout preset)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "p3",
+   "item": "panel.margins[l]",
+   "aspect": "value",
+   "expected": 28.0,
+   "reason": "Each instrument starts from its own default margins (its default layout preset)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "p3",
+   "item": "panel.margins[t]",
+   "aspect": "value",
+   "expected": 40.0,
+   "reason": "Each instrument starts from its own default margins (its default layout preset)."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": [
+    "CR30",
+    "FD9",
+    "IO2"
+   ],
+   "item": "_manual_engine_check",
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "Only ChromIQ's layout engine can lay out this instrument's chart (printtarg cannot), so the engine switch is on and greyed, with its reason."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": [
+    "CR30",
+    "IO2"
+   ],
+   "item": "panel.max_strip",
+   "aspect": "enabled",
+   "expected": true,
+   "reason": "The engine lays this instrument out even with the engine switch off, and a strip-length cap is open for it as on every instrument without a fixed ruler."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "CR30",
+   "item": "panel.spacer_width",
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "The CR30 starts without spacers, so their width is greyed until spacers are switched on (the spacer row beside it is the reason)."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "FD9",
+   "item": [
+    "panel.area_cols",
+    "panel.area_method",
+    "panel.area_min_patch",
+    "panel.area_ratio",
+    "panel.area_rows",
+    "panel.chart_text",
+    "panel.chart_text_align",
+    "panel.chart_text_font",
+    "panel.chart_text_size",
+    "panel.clip_flip_180",
+    "panel.clip_side",
+    "panel.clip_width",
+    "panel.cm_stagger_cb",
+    "panel.ct_bold",
+    "panel.custom_spacer_cb",
+    "panel.helper_markers_cb",
+    "panel.hex_flat_top_cb",
+    "panel.i1io_crosses_cb",
+    "panel.ind_bold",
+    "panel.indicator_font",
+    "panel.indicator_rotation",
+    "panel.indicator_size",
+    "panel.layout_mode",
+    "panel.mode",
+    "panel.nolimit",
+    "panel.offx",
+    "panel.offy",
+    "panel.patch_align",
+    "panel.patch_pat",
+    "panel.pscale",
+    "panel.row_indicator_rotation",
+    "panel.show_indicators",
+    "panel.show_row_indicators",
+    "panel.sig",
+    "panel.spacer_mode",
+    "panel.spacer_width",
+    "panel.sscale",
+    "panel.stamp_command",
+    "panel.strip_label_offset",
+    "panel.strip_label_offset_x",
+    "panel.strip_pat",
+    "panel.text_edge",
+    "panel.text_edge_clip",
+    "panel.text_edge_top",
+    "panel.underline_mode",
+    "panel.use_instr_margins"
+   ],
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "The FD-9 Beta builds its chart with its own layout and greys these options of the shared panel, each with its reason (the FD-9 is a contributed Beta: observed only, never changed here)."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "IO2",
+   "item": [
+    "panel.area_cols",
+    "panel.area_method",
+    "panel.area_min_patch",
+    "panel.area_ratio",
+    "panel.area_rows",
+    "panel.clip_side",
+    "panel.clip_text_font",
+    "panel.cm_stagger_cb",
+    "panel.hex_flat_top_cb",
+    "panel.indicator_rotation",
+    "panel.layout_mode",
+    "panel.mode",
+    "panel.pscale",
+    "panel.row_indicator_rotation",
+    "panel.sscale",
+    "panel.stamp_command",
+    "panel.text_edge_top",
+    "panel.use_instr_margins"
+   ],
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "Options of the shared strip layout (area-first sizing, scales, mode, rotation, the summary stamp, the clip side) that the FD-9 and i1iO builders do not use; greyed with their reason."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "IO2",
+   "item": [
+    "panel.edge_spacers_cb",
+    "panel.ind_align_center",
+    "panel.ind_align_left",
+    "panel.ind_align_right",
+    "panel.margins[b]",
+    "panel.margins[l]",
+    "panel.margins[r]",
+    "panel.margins[t]"
+   ],
+   "aspect": "enabled",
+   "expected": true,
+   "reason": "The i1iO's table moves to every patch by its corner crosses, so its margins, edge spacers, label alignment and strip-length cap are open, where the i1Pro takes them from its instrument margins and ruler."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "isis",
+   "item": [
+    "pw.printtarg-A/ElidingCheckBox",
+    "pw.printtarg-b/QCheckBox",
+    "pw.printtarg-c/QCheckBox"
+   ],
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "Charts for the i1iSis are recomputed by i1Profiler; printtarg's rows take its own defaults: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": [
+    "CM",
+    "SS"
+   ],
+   "item": "pw.printtarg-h/QCheckBox",
+   "aspect": "present",
+   "expected": true,
+   "reason": "printtarg's density (ColorMunki) or hexagon (SpectroScan) row exists only for the instruments that have that choice."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": [
+    "CM",
+    "SS",
+    "isis"
+   ],
+   "item": "pw.printtarg-L/QCheckBox",
+   "aspect": "present",
+   "expected": false,
+   "reason": "printtarg's \"Left border\" (-L) is the i1Pro family's clip band; other instruments have none."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "CM",
+   "item": "_manual_td_check",
+   "aspect": "present",
+   "expected": true,
+   "reason": "printtarg's density (ColorMunki) or hexagon (SpectroScan) row exists only for the instruments that have that choice."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": [
+    "CR30",
+    "FD9"
+   ],
+   "item": [
+    "panel.clip_content_mode",
+    "panel.clip_flip_180",
+    "panel.clip_side",
+    "panel.clip_text_font",
+    "panel.clip_text_size",
+    "panel.clip_width"
+   ],
+   "aspect": "present",
+   "expected": true,
+   "reason": "Only ChromIQ's layout engine can lay out this instrument's chart, so with the engine switched off Manual still shows the engine's panel, not printtarg's rows."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": [
+    "CR30",
+    "FD9",
+    "IO2"
+   ],
+   "item": [
+    "_bit16_radio",
+    "_bit8_radio",
+    "_manual_pages_spin",
+    "pw.printtarg-A/ElidingCheckBox",
+    "pw.printtarg-A/NoScrollDoubleSpinBox",
+    "pw.printtarg-C/QCheckBox",
+    "pw.printtarg-D/QCheckBox",
+    "pw.printtarg-I/ElidingCheckBox",
+    "pw.printtarg-I/QLineEdit",
+    "pw.printtarg-K/ElidingCheckBox",
+    "pw.printtarg-K/QLineEdit",
+    "pw.printtarg-L/QCheckBox",
+    "pw.printtarg-P/QCheckBox",
+    "pw.printtarg-Q/ElidingCheckBox",
+    "pw.printtarg-Q/NoScrollSpinBox",
+    "pw.printtarg-R/ElidingCheckBox",
+    "pw.printtarg-R/NoScrollSpinBox",
+    "pw.printtarg-U/QCheckBox",
+    "pw.printtarg-a/NoScrollDoubleSpinBox",
+    "pw.printtarg-b/QCheckBox",
+    "pw.printtarg-c/QCheckBox",
+    "pw.printtarg-i/NoScrollComboBox",
+    "pw.printtarg-m/ElidingCheckBox",
+    "pw.printtarg-m/NoScrollSpinBox",
+    "pw.printtarg-n/QCheckBox",
+    "pw.printtarg-p/NoScrollComboBox",
+    "pw.printtarg-r/QCheckBox",
+    "pw.printtarg-t/NoScrollSpinBox"
+   ],
+   "aspect": "present",
+   "expected": false,
+   "reason": "Only ChromIQ's layout engine can lay out this instrument's chart, so with the engine switched off Manual still shows the engine's panel, not printtarg's rows."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": [
+    "CR30",
+    "FD9",
+    "IO2"
+   ],
+   "item": [
+    "panel.bit_depth",
+    "panel.cal_mode",
+    "panel.cal_path_edit",
+    "panel.chart_text",
+    "panel.chart_text_align",
+    "panel.chart_text_font",
+    "panel.chart_text_size",
+    "panel.clip_enable",
+    "panel.compression",
+    "panel.ct_bold",
+    "panel.ct_italic",
+    "panel.custom_spacer_cb",
+    "panel.dpi",
+    "panel.edge_spacers_cb",
+    "panel.export_pdf",
+    "panel.fixed_seed_cb",
+    "panel.helper_marker_edge",
+    "panel.helper_marker_len",
+    "panel.helper_marker_per_patch",
+    "panel.helper_markers_cb",
+    "panel.helper_markers_sides",
+    "panel.helper_markers_top_bottom",
+    "panel.ind_align_center",
+    "panel.ind_align_left",
+    "panel.ind_align_right",
+    "panel.ind_bold",
+    "panel.ind_italic",
+    "panel.indicator_font",
+    "panel.indicator_rotation",
+    "panel.indicator_size",
+    "panel.instr",
+    "panel.inter_patch",
+    "panel.layout_mode",
+    "panel.margins[b]",
+    "panel.margins[l]",
+    "panel.margins[r]",
+    "panel.margins[t]",
+    "panel.max_strip",
+    "panel.mode",
+    "panel.nolimit",
+    "panel.offx",
+    "panel.offy",
+    "panel.pages",
+    "panel.paper",
+    "panel.patch_align",
+    "panel.patch_pat",
+    "panel.patch_x",
+    "panel.patch_y",
+    "panel.pscale",
+    "panel.randomize_cb",
+    "panel.row_indicator_rotation",
+    "panel.seed_spin",
+    "panel.show_indicators",
+    "panel.show_row_indicators",
+    "panel.sig",
+    "panel.spacer_mode",
+    "panel.spacer_width",
+    "panel.sscale",
+    "panel.stamp_command",
+    "panel.strip_gap",
+    "panel.strip_label_offset",
+    "panel.strip_label_offset_x",
+    "panel.strip_pat",
+    "panel.text_edge",
+    "panel.text_edge_clip",
+    "panel.text_edge_top",
+    "panel.underline_gap",
+    "panel.underline_mode",
+    "panel.underline_thickness",
+    "panel.use_instr_margins"
+   ],
+   "aspect": "present",
+   "expected": true,
+   "reason": "Only ChromIQ's layout engine can lay out this instrument's chart, so with the engine switched off Manual still shows the engine's panel, not printtarg's rows."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "IO2",
+   "item": "panel.i1io_crosses_cb",
+   "aspect": "present",
+   "expected": true,
+   "reason": "Only ChromIQ's layout engine can lay out this instrument's chart, so with the engine switched off Manual still shows the engine's panel, not printtarg's rows."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": [
+    "CM",
+    "CR30",
+    "FD9",
+    "IO2",
+    "SS",
+    "p3"
+   ],
+   "item": "pw.printtarg-a/NoScrollDoubleSpinBox",
+   "aspect": "value",
+   "expected": 1.0,
+   "reason": "printtarg's patch scale (-a) starts at 0.95 only for the i1Pro, from its default layout preset; every other instrument starts at 1.0."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": [
+    "CM",
+    "FD9",
+    "IO2",
+    "SS",
+    "p3"
+   ],
+   "item": "pw.printtarg-m/NoScrollSpinBox",
+   "aspect": "value",
+   "expected": 6,
+   "reason": "printtarg's margin (-m) starts from each instrument's own default margin."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": [
+    "CR30",
+    "FD9"
+   ],
+   "item": "panel.layout_mode",
+   "aspect": "value",
+   "expected": "patch_first",
+   "reason": "These instruments are laid out patch-first; the strip readers start area-first."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": [
+    "CR30",
+    "FD9"
+   ],
+   "item": "panel.spacer_mode",
+   "aspect": "value",
+   "expected": "none",
+   "reason": "The CR30 (read patch by patch) and the FD-9 start from their own factory layouts, which have no spacers."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": [
+    "CR30",
+    "FD9",
+    "IO2"
+   ],
+   "item": "_manual_engine_check",
+   "aspect": "value",
+   "expected": true,
+   "reason": "Only ChromIQ's layout engine can lay out this instrument's chart (printtarg cannot), so the engine switch is on and greyed, with its reason."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "CR30",
+   "item": [
+    "panel.margins[b]",
+    "panel.margins[r]",
+    "panel.margins[t]"
+   ],
+   "aspect": "value",
+   "expected": 6.0,
+   "reason": "Each instrument starts from its own default margins (its default layout preset)."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "CR30",
+   "item": "panel.margins[l]",
+   "aspect": "value",
+   "expected": 14.5,
+   "reason": "Each instrument starts from its own default margins (its default layout preset)."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "CR30",
+   "item": "panel.mode",
+   "aspect": "value",
+   "expected": "flat",
+   "reason": "The Mode row names this instrument's own choice (density, patch shape, or none), so its first value differs from the i1Pro's clip band."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "CR30",
+   "item": "panel.show_row_indicators",
+   "aspect": "value",
+   "expected": true,
+   "reason": "Instruments read patch by patch (and the i1iO) label rows as well as strips by default, so a person can find a patch."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "CR30",
+   "item": "pw.printtarg-m/NoScrollSpinBox",
+   "aspect": "value",
+   "expected": 5,
+   "reason": "printtarg's margin (-m) starts from each instrument's own default margin."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "FD9",
+   "item": [
+    "panel.inter_patch",
+    "panel.strip_gap"
+   ],
+   "aspect": "value",
+   "expected": 1.0,
+   "reason": "The FD-9's own factory layout (8 mm patches, 1 mm gaps, its margins) (the FD-9 is a contributed Beta: observed only, never changed here)."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "FD9",
+   "item": "panel.margins[b]",
+   "aspect": "value",
+   "expected": 33.0,
+   "reason": "Each instrument starts from its own default margins (its default layout preset)."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "FD9",
+   "item": [
+    "panel.margins[l]",
+    "panel.margins[r]"
+   ],
+   "aspect": "value",
+   "expected": 15.0,
+   "reason": "Each instrument starts from its own default margins (its default layout preset)."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "FD9",
+   "item": "panel.mode",
+   "aspect": "value",
+   "expected": "default",
+   "reason": "The Mode row names this instrument's own choice (density, patch shape, or none), so its first value differs from the i1Pro's clip band."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "FD9",
+   "item": [
+    "panel.patch_x",
+    "panel.patch_y"
+   ],
+   "aspect": "value",
+   "expected": 8.0,
+   "reason": "The FD-9's own factory layout (8 mm patches, 1 mm gaps, its margins) (the FD-9 is a contributed Beta: observed only, never changed here)."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "IO2",
+   "item": "panel.chart_text_align",
+   "aspect": "value",
+   "expected": "available",
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "IO2",
+   "item": [
+    "panel.clip_content_mode",
+    "panel.clip_enable"
+   ],
+   "aspect": "value",
+   "expected": "off",
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "IO2",
+   "item": [
+    "panel.ct_bold",
+    "panel.show_row_indicators"
+   ],
+   "aspect": "value",
+   "expected": true,
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "IO2",
+   "item": [
+    "panel.indicator_rotation",
+    "panel.row_indicator_rotation"
+   ],
+   "aspect": "value",
+   "expected": 90,
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "IO2",
+   "item": "panel.layout_mode",
+   "aspect": "value",
+   "expected": "patch_first",
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "IO2",
+   "item": "panel.margins[b]",
+   "aspect": "value",
+   "expected": 21.0,
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "IO2",
+   "item": "panel.margins[l]",
+   "aspect": "value",
+   "expected": 16.0,
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "IO2",
+   "item": "panel.margins[r]",
+   "aspect": "value",
+   "expected": 15.0,
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "IO2",
+   "item": "panel.margins[t]",
+   "aspect": "value",
+   "expected": 12.0,
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "IO2",
+   "item": "panel.mode",
+   "aspect": "value",
+   "expected": "default",
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "IO2",
+   "item": "panel.patch_align",
+   "aspect": "value",
+   "expected": "center",
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "IO2",
+   "item": "panel.patch_x",
+   "aspect": "value",
+   "expected": 8.0,
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "IO2",
+   "item": [
+    "panel.patch_y",
+    "panel.text_edge_clip"
+   ],
+   "aspect": "value",
+   "expected": 10.0,
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "IO2",
+   "item": "panel.spacer_width",
+   "aspect": "value",
+   "expected": 1.0,
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "IO2",
+   "item": "panel.use_instr_margins",
+   "aspect": "value",
+   "expected": false,
+   "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "isis",
+   "item": [
+    "pw.printtarg-P/QCheckBox",
+    "pw.printtarg-n/QCheckBox"
+   ],
+   "aspect": "value",
+   "expected": true,
+   "reason": "Charts for the i1iSis are recomputed by i1Profiler; printtarg's rows take its own defaults: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "isis",
+   "item": "pw.printtarg-a/NoScrollDoubleSpinBox",
+   "aspect": "value",
+   "expected": 1.0,
+   "reason": "Charts for the i1iSis are recomputed by i1Profiler; printtarg's rows take its own defaults: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "isis",
+   "item": "pw.printtarg-m/NoScrollSpinBox",
+   "aspect": "value",
+   "expected": 6,
+   "reason": "Charts for the i1iSis are recomputed by i1Profiler; printtarg's rows take its own defaults: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "isis",
+   "item": "pw.printtarg-p/NoScrollComboBox",
+   "aspect": "value",
+   "expected": "329x483",
+   "reason": "Charts for the i1iSis are recomputed by i1Profiler; printtarg's rows take its own defaults: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
+  },
+  {
+   "check": "greyed_without_reason",
+   "mode": "manual",
+   "instrument": "CR30",
+   "item": "panel.spacer_width",
+   "aspect": "reason",
+   "expected": false,
+   "reason": "Greyed only because the CR30 starts without spacers; the spacer row directly beside it, set to none, is what the person sees and changes."
+  },
+  {
+   "check": "greyed_without_reason",
+   "mode": "manual_engine_off",
+   "instrument": "CR30",
+   "item": "panel.spacer_width",
+   "aspect": "reason",
+   "expected": false,
+   "reason": "Greyed only because the CR30 starts without spacers; the spacer row directly beside it, set to none, is what the person sees and changes."
+  },
+  {
+   "check": "kept",
+   "mode": "guided",
+   "instrument": [
+    "CM",
+    "CR30",
+    "FD9",
+    "IO2",
+    "SS",
+    "i1",
+    "p3"
+   ],
+   "item": "_guided_precond_check",
+   "aspect": "controls:save_defaults",
+   "expected": "lost",
+   "reason": "The refinement box is ticked only together with a chosen profile; ticked with none, nothing is kept (every instrument)."
+  },
+  {
+   "check": "kept",
+   "mode": "guided",
+   "instrument": [
+    "CM",
+    "CR30",
+    "FD9",
+    "IO2",
+    "SS",
+    "i1",
+    "p3"
+   ],
+   "item": "_guided_run_desc_edit",
+   "aspect": "controls:save_defaults",
+   "expected": "lost",
+   "reason": "The run description and the chart notes belong to one run, not to the defaults (per_run_description.md), for every instrument."
+  },
+  {
+   "check": "kept",
+   "mode": "guided",
+   "instrument": [
+    "CM",
+    "CR30",
+    "FD9",
+    "IO2",
+    "SS",
+    "i1",
+    "p3"
+   ],
+   "item": "_guided_precond_check",
+   "aspect": "controls:target_state",
+   "expected": "lost",
+   "reason": "The refinement box is ticked only together with a chosen profile; ticked with none, nothing is kept (every instrument)."
+  },
+  {
+   "check": "kept",
+   "mode": "manual",
+   "instrument": [
+    "CM",
+    "CR30",
+    "FD9",
+    "IO2",
+    "SS",
+    "i1",
+    "isis",
+    "p3"
+   ],
+   "item": [
+    "_manual_chart_notes_edit",
+    "_manual_run_desc_edit"
+   ],
+   "aspect": "controls:save_defaults",
+   "expected": "lost",
+   "reason": "The run description and the chart notes belong to one run, not to the defaults (per_run_description.md), for every instrument."
+  },
+  {
+   "check": "lacks_option",
+   "mode": "manual",
+   "instrument": "IO2",
+   "item": [
+    "layout_mode",
+    "patch_area_align",
+    "row_indicator_rotation",
+    "text_edge_clip_mm",
+    "use_instrument_margins"
+   ],
+   "aspect": "panel keeps it",
+   "expected": false,
+   "reason": "Greyed for the i1iO with its reason: its page is always patch-first, centred and turned, its numbers' edge and alignment are its own i1io_* fields, and it has no instrument margins to follow."
+  },
+  {
+   "check": "listed",
+   "mode": "",
+   "instrument": [
+    "CR30",
+    "FD9",
+    "IO2",
+    "SS"
+   ],
+   "item": "ti2 re-layout dialog",
+   "aspect": "listed",
+   "expected": false,
+   "reason": "The .ti2 re-layout dialog lays out printtarg strip charts only (i1Pro, i1Pro 3 Plus, ColorMunki); other instruments are laid out again through Create Chart."
+  },
+  {
+   "check": "listed",
+   "mode": "",
+   "instrument": [
+    "FD9",
+    "IO2"
+   ],
+   "item": [
+    "engine.supported()",
+    "presets.SUPPORTED_INSTRUMENTS"
+   ],
+   "aspect": "listed",
+   "expected": false,
+   "reason": "The FD-9 and the i1iO are laid out by their own builders (workflow/fd9, workflow/i1io), not by the shared strip layout these lists describe."
+  },
+  {
+   "check": "listed",
+   "mode": "",
+   "instrument": "isis",
+   "item": [
+    "Preferences chart layout",
+    "TARGET_INSTRUMENT_NAME",
+    "chart_creator.ENGINE_INSTRUMENTS",
+    "engine.supported()",
+    "presets.SUPPORTED_INSTRUMENTS",
+    "ti2 re-layout dialog",
+    "ti2_loader.KNOWN_INSTRUMENTS"
+   ],
+   "aspect": "listed",
+   "expected": false,
+   "reason": "The i1iSis is not laid out or read by ChromIQ, so the layout and chart-reading lists do not name it: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
+  },
+  {
+   "check": "listed",
+   "mode": "",
+   "instrument": "isis",
+   "item": [
+    "guided",
+    "layout_panel"
+   ],
+   "aspect": "listed",
+   "expected": false,
+   "reason": "The i1iSis is not offered in Guided or in the layout panel: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
+  },
+  {
+   "check": "prefs_style",
+   "mode": "guided",
+   "instrument": "isis",
+   "item": "label style",
+   "aspect": "state",
+   "expected": "instrument not offered",
+   "reason": "The i1iSis is not offered in Guided: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
+  },
+  {
+   "check": "prefs_style",
+   "mode": "manual_engine_off",
+   "instrument": [
+    "CR30",
+    "IO2"
+   ],
+   "item": "label style",
+   "aspect": "state",
+   "expected": "follows Preferences",
+   "reason": "Only the layout engine lays this instrument out, so its chart takes Preferences' label style even with the engine switch off, where printtarg's i1Pro chart has no label style at all."
+  },
+  {
+   "check": "run_type",
+   "mode": "guided",
+   "instrument": "isis",
+   "item": [
+    "calibration",
+    "profiling",
+    "verification"
+   ],
+   "aspect": "state",
+   "expected": "instrument not offered",
+   "reason": "The i1iSis is not offered in Guided: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
+  }
+ ],
+ "known_to_review": [
+  {
+   "check": "inherits",
+   "mode": "manual",
+   "instrument": "CM",
+   "item": "CM -> i1",
+   "aspect": "back and forth",
+   "expected": [
+    "area_method",
+    "chart_text",
+    "chart_text_bold",
+    "clip_content_mode",
+    "clip_content_when_on",
+    "clip_text_size_mm",
+    "edge_spacers",
+    "helper_marker_edge_mm",
+    "helper_marker_len_mm",
+    "helper_marker_per_patch",
+    "helper_markers",
+    "helper_markers_sides",
+    "helper_markers_top_bottom",
+    "inter_patch_mm",
+    "layout_mode",
+    "margin_bottom",
+    "margin_left",
+    "margin_right",
+    "margin_top",
+    "max_strip_mm",
+    "nolimit",
+    "offset_x_mm",
+    "offset_y_mm",
+    "patch_area_align",
+    "patch_h_mm",
+    "patch_pattern",
+    "patch_w_mm",
+    "show_row_indicators",
+    "show_strip_indicators",
+    "spacer_mode",
+    "spacer_width_mm",
+    "strip_gap_mm",
+    "strip_indicator_gap_mm",
+    "strip_pattern",
+    "text_edge_clip_mm",
+    "text_edge_mm",
+    "use_instrument_margins"
+   ],
+   "reason": "One panel for all classic instruments: margins, patch size, offsets, helper markers and the other risky layout values set for one follow a person to the next and back, as they did for the i1iO before review 3 item 4; seen 2026-11-13, not judged yet."
+  },
+  {
+   "check": "inherits",
+   "mode": "manual",
+   "instrument": "CR30",
+   "item": "CR30 -> i1",
+   "aspect": "back and forth",
+   "expected": [
+    "area_method",
+    "chart_text",
+    "chart_text_bold",
+    "clip_content_mode",
+    "clip_content_when_on",
+    "clip_text_size_mm",
+    "edge_spacers",
+    "helper_marker_edge_mm",
+    "helper_marker_len_mm",
+    "helper_marker_per_patch",
+    "helper_markers",
+    "helper_markers_sides",
+    "helper_markers_top_bottom",
+    "inter_patch_mm",
+    "layout_mode",
+    "margin_bottom",
+    "margin_left",
+    "margin_right",
+    "margin_top",
+    "max_strip_mm",
+    "nolimit",
+    "offset_x_mm",
+    "offset_y_mm",
+    "patch_area_align",
+    "patch_h_mm",
+    "patch_pattern",
+    "patch_w_mm",
+    "show_row_indicators",
+    "show_strip_indicators",
+    "spacer_mode",
+    "spacer_width_mm",
+    "strip_gap_mm",
+    "strip_indicator_gap_mm",
+    "strip_pattern",
+    "text_edge_clip_mm",
+    "text_edge_mm",
+    "use_instrument_margins"
+   ],
+   "reason": "One panel for all classic instruments: margins, patch size, offsets, helper markers and the other risky layout values set for one follow a person to the next and back, as they did for the i1iO before review 3 item 4; seen 2026-11-13, not judged yet."
+  },
+  {
+   "check": "inherits",
+   "mode": "manual",
+   "instrument": "FD9",
+   "item": "FD9 -> i1",
+   "aspect": "back and forth",
+   "expected": [
+    "area_method",
+    "chart_text_bold",
+    "edge_spacers",
+    "helper_marker_edge_mm",
+    "helper_marker_len_mm",
+    "helper_marker_per_patch",
+    "helper_markers_sides",
+    "helper_markers_top_bottom",
+    "max_strip_mm",
+    "nolimit",
+    "offset_x_mm",
+    "offset_y_mm",
+    "show_row_indicators",
+    "show_strip_indicators",
+    "spacer_width_mm",
+    "strip_indicator_gap_mm",
+    "text_edge_mm",
+    "use_instrument_margins"
+   ],
+   "reason": "Strip-reader options (offsets, helper markers, strip cap, label distances) follow a person between the i1Pro and the FD-9 panel (the FD-9 is a contributed Beta: observed only, never changed here); seen 2026-11-13."
+  },
+  {
+   "check": "inherits",
+   "mode": "manual",
+   "instrument": "IO2",
+   "item": "IO2 -> i1",
+   "aspect": "back and forth",
+   "expected": [
+    "area_method",
+    "patch_pattern",
+    "show_row_indicators",
+    "show_strip_indicators",
+    "strip_pattern"
+   ],
+   "reason": "Label patterns, label visibility and the sheet text follow a person between the i1Pro and the i1iO (its risky values do not); seen 2026-11-13, not judged yet."
+  },
+  {
+   "check": "inherits",
+   "mode": "manual",
+   "instrument": "SS",
+   "item": "SS -> i1",
+   "aspect": "back and forth",
+   "expected": [
+    "area_method",
+    "chart_text",
+    "chart_text_bold",
+    "clip_content_mode",
+    "clip_content_when_on",
+    "clip_text_size_mm",
+    "edge_spacers",
+    "helper_marker_edge_mm",
+    "helper_marker_len_mm",
+    "helper_marker_per_patch",
+    "helper_markers",
+    "helper_markers_sides",
+    "helper_markers_top_bottom",
+    "inter_patch_mm",
+    "layout_mode",
+    "margin_bottom",
+    "margin_left",
+    "margin_right",
+    "margin_top",
+    "max_strip_mm",
+    "nolimit",
+    "offset_x_mm",
+    "offset_y_mm",
+    "patch_area_align",
+    "patch_h_mm",
+    "patch_pattern",
+    "patch_w_mm",
+    "show_row_indicators",
+    "show_strip_indicators",
+    "spacer_mode",
+    "spacer_width_mm",
+    "strip_gap_mm",
+    "strip_indicator_gap_mm",
+    "strip_pattern",
+    "text_edge_clip_mm",
+    "text_edge_mm",
+    "use_instrument_margins"
+   ],
+   "reason": "One panel for all classic instruments: margins, patch size, offsets, helper markers and the other risky layout values set for one follow a person to the next and back, as they did for the i1iO before review 3 item 4; seen 2026-11-13, not judged yet."
+  },
+  {
+   "check": "inherits",
+   "mode": "manual",
+   "instrument": "p3",
+   "item": "p3 -> i1",
+   "aspect": "back and forth",
+   "expected": [
+    "area_method",
+    "chart_text",
+    "chart_text_bold",
+    "clip_content_mode",
+    "clip_content_when_on",
+    "clip_text_size_mm",
+    "edge_spacers",
+    "helper_marker_edge_mm",
+    "helper_marker_len_mm",
+    "helper_marker_per_patch",
+    "helper_markers",
+    "helper_markers_sides",
+    "helper_markers_top_bottom",
+    "inter_patch_mm",
+    "layout_mode",
+    "margin_bottom",
+    "margin_left",
+    "margin_right",
+    "margin_top",
+    "max_strip_mm",
+    "nolimit",
+    "offset_x_mm",
+    "offset_y_mm",
+    "patch_area_align",
+    "patch_h_mm",
+    "patch_pattern",
+    "patch_w_mm",
+    "show_row_indicators",
+    "show_strip_indicators",
+    "spacer_mode",
+    "spacer_width_mm",
+    "strip_gap_mm",
+    "strip_indicator_gap_mm",
+    "strip_pattern",
+    "text_edge_clip_mm",
+    "text_edge_mm",
+    "use_instrument_margins"
+   ],
+   "reason": "One panel for all classic instruments: margins, patch size, offsets, helper markers and the other risky layout values set for one follow a person to the next and back, as they did for the i1iO before review 3 item 4; seen 2026-11-13, not judged yet."
+  },
+  {
+   "check": "inherits",
+   "mode": "manual",
+   "instrument": "CM",
+   "item": "i1 -> CM",
+   "aspect": "there and back",
+   "expected": [
+    "area_method",
+    "chart_text",
+    "chart_text_bold",
+    "clip_content_mode",
+    "clip_content_when_on",
+    "clip_text_size_mm",
+    "edge_spacers",
+    "helper_marker_edge_mm",
+    "helper_marker_len_mm",
+    "helper_marker_per_patch",
+    "helper_markers",
+    "helper_markers_sides",
+    "helper_markers_top_bottom",
+    "inter_patch_mm",
+    "layout_mode",
+    "margin_bottom",
+    "margin_left",
+    "margin_right",
+    "margin_top",
+    "max_strip_mm",
+    "nolimit",
+    "offset_x_mm",
+    "offset_y_mm",
+    "patch_area_align",
+    "patch_h_mm",
+    "patch_pattern",
+    "patch_w_mm",
+    "show_row_indicators",
+    "show_strip_indicators",
+    "spacer_mode",
+    "spacer_width_mm",
+    "strip_gap_mm",
+    "strip_indicator_gap_mm",
+    "strip_pattern",
+    "text_edge_clip_mm",
+    "text_edge_mm",
+    "use_instrument_margins"
+   ],
+   "reason": "One panel for all classic instruments: margins, patch size, offsets, helper markers and the other risky layout values set for one follow a person to the next and back, as they did for the i1iO before review 3 item 4; seen 2026-11-13, not judged yet."
+  },
+  {
+   "check": "inherits",
+   "mode": "manual",
+   "instrument": "CR30",
+   "item": "i1 -> CR30",
+   "aspect": "there and back",
+   "expected": [
+    "area_method",
+    "chart_text",
+    "chart_text_bold",
+    "clip_content_mode",
+    "clip_content_when_on",
+    "clip_text_size_mm",
+    "edge_spacers",
+    "helper_marker_edge_mm",
+    "helper_marker_len_mm",
+    "helper_marker_per_patch",
+    "helper_markers",
+    "helper_markers_sides",
+    "helper_markers_top_bottom",
+    "inter_patch_mm",
+    "margin_bottom",
+    "margin_left",
+    "margin_right",
+    "margin_top",
+    "max_strip_mm",
+    "nolimit",
+    "offset_x_mm",
+    "offset_y_mm",
+    "patch_area_align",
+    "patch_h_mm",
+    "patch_pattern",
+    "patch_w_mm",
+    "show_row_indicators",
+    "show_strip_indicators",
+    "spacer_width_mm",
+    "strip_gap_mm",
+    "strip_indicator_gap_mm",
+    "strip_pattern",
+    "text_edge_clip_mm",
+    "text_edge_mm",
+    "use_instrument_margins"
+   ],
+   "reason": "One panel for all classic instruments: margins, patch size, offsets, helper markers and the other risky layout values set for one follow a person to the next and back, as they did for the i1iO before review 3 item 4; seen 2026-11-13, not judged yet."
+  },
+  {
+   "check": "inherits",
+   "mode": "manual",
+   "instrument": "FD9",
+   "item": "i1 -> FD9",
+   "aspect": "there and back",
+   "expected": [
+    "area_method",
+    "chart_text_bold",
+    "edge_spacers",
+    "helper_marker_edge_mm",
+    "helper_marker_len_mm",
+    "helper_marker_per_patch",
+    "helper_markers_sides",
+    "helper_markers_top_bottom",
+    "max_strip_mm",
+    "nolimit",
+    "offset_x_mm",
+    "offset_y_mm",
+    "patch_area_align",
+    "spacer_width_mm",
+    "strip_indicator_gap_mm",
+    "text_edge_clip_mm",
+    "text_edge_mm",
+    "use_instrument_margins"
+   ],
+   "reason": "Strip-reader options (offsets, helper markers, strip cap, label distances) follow a person between the i1Pro and the FD-9 panel (the FD-9 is a contributed Beta: observed only, never changed here); seen 2026-11-13."
+  },
+  {
+   "check": "inherits",
+   "mode": "manual",
+   "instrument": "IO2",
+   "item": "i1 -> IO2",
+   "aspect": "there and back",
+   "expected": [
+    "area_method",
+    "chart_text",
+    "patch_pattern",
+    "show_row_indicators",
+    "show_strip_indicators",
+    "spacer_width_mm",
+    "strip_pattern"
+   ],
+   "reason": "Label patterns, label visibility and the sheet text follow a person between the i1Pro and the i1iO (its risky values do not); seen 2026-11-13, not judged yet."
+  },
+  {
+   "check": "inherits",
+   "mode": "manual",
+   "instrument": "SS",
+   "item": "i1 -> SS",
+   "aspect": "there and back",
+   "expected": [
+    "chart_text",
+    "chart_text_bold",
+    "clip_content_mode",
+    "clip_content_when_on",
+    "clip_text_size_mm",
+    "edge_spacers",
+    "helper_marker_edge_mm",
+    "helper_marker_len_mm",
+    "helper_marker_per_patch",
+    "helper_markers",
+    "helper_markers_sides",
+    "helper_markers_top_bottom",
+    "inter_patch_mm",
+    "margin_bottom",
+    "margin_left",
+    "margin_right",
+    "margin_top",
+    "max_strip_mm",
+    "nolimit",
+    "offset_x_mm",
+    "offset_y_mm",
+    "patch_area_align",
+    "patch_h_mm",
+    "patch_pattern",
+    "patch_w_mm",
+    "show_row_indicators",
+    "show_strip_indicators",
+    "spacer_mode",
+    "spacer_width_mm",
+    "strip_gap_mm",
+    "strip_indicator_gap_mm",
+    "strip_pattern",
+    "text_edge_clip_mm",
+    "text_edge_mm",
+    "use_instrument_margins"
+   ],
+   "reason": "One panel for all classic instruments: margins, patch size, offsets, helper markers and the other risky layout values set for one follow a person to the next and back, as they did for the i1iO before review 3 item 4; seen 2026-11-13, not judged yet."
+  },
+  {
+   "check": "inherits",
+   "mode": "manual",
+   "instrument": "p3",
+   "item": "i1 -> p3",
+   "aspect": "there and back",
+   "expected": [
+    "area_method",
+    "chart_text",
+    "chart_text_bold",
+    "clip_content_mode",
+    "clip_content_when_on",
+    "clip_text_size_mm",
+    "edge_spacers",
+    "helper_marker_edge_mm",
+    "helper_marker_len_mm",
+    "helper_marker_per_patch",
+    "helper_markers",
+    "helper_markers_sides",
+    "helper_markers_top_bottom",
+    "inter_patch_mm",
+    "layout_mode",
+    "margin_bottom",
+    "margin_left",
+    "margin_right",
+    "margin_top",
+    "max_strip_mm",
+    "nolimit",
+    "offset_x_mm",
+    "offset_y_mm",
+    "patch_area_align",
+    "patch_h_mm",
+    "patch_pattern",
+    "patch_w_mm",
+    "show_row_indicators",
+    "show_strip_indicators",
+    "spacer_mode",
+    "spacer_width_mm",
+    "strip_gap_mm",
+    "strip_indicator_gap_mm",
+    "strip_pattern",
+    "text_edge_clip_mm",
+    "text_edge_mm",
+    "use_instrument_margins"
+   ],
+   "reason": "One panel for all classic instruments: margins, patch size, offsets, helper markers and the other risky layout values set for one follow a person to the next and back, as they did for the i1iO before review 3 item 4; seen 2026-11-13, not judged yet."
+  },
+  {
+   "check": "kept",
+   "mode": "manual",
+   "instrument": [
+    "CM",
+    "CR30",
+    "FD9",
+    "IO2",
+    "SS",
+    "i1",
+    "p3"
+   ],
+   "item": [
+    "area_cols",
+    "area_method",
+    "area_min_patch_mm",
+    "area_ratio",
+    "area_rows",
+    "bit16",
+    "chart_text_bold",
+    "chart_text_font",
+    "chart_text_italic",
+    "chart_text_size_mm",
+    "clip_border_width_mm",
+    "clip_content_mode",
+    "clip_flip_180",
+    "clip_side",
+    "clip_text",
+    "clip_text_font",
+    "clip_text_size_mm",
+    "cm_stagger",
+    "compression",
+    "dpi",
+    "edge_spacers",
+    "export_pdf",
+    "helper_marker_edge_mm",
+    "helper_marker_len_mm",
+    "helper_marker_per_patch",
+    "helper_markers_sides",
+    "helper_markers_top_bottom",
+    "hex_flat_top",
+    "indicator_align",
+    "indicator_bold",
+    "indicator_font",
+    "indicator_italic",
+    "indicator_rotation",
+    "indicator_size_mm",
+    "max_strip_mm",
+    "nolimit",
+    "offset_x_mm",
+    "offset_y_mm",
+    "paper",
+    "patch_h_mm",
+    "patch_w_mm",
+    "pscale",
+    "randomize",
+    "spacer_width_mm",
+    "sscale",
+    "stamp_command",
+    "strip_indicator_gap_mm",
+    "strip_label_offset_mm",
+    "strip_label_offset_x_mm",
+    "text_edge_mm",
+    "text_edge_top_mm",
+    "underline_gap_mm",
+    "underline_mode",
+    "underline_thickness_mm"
+   ],
+   "aspect": "new_target_after_defaults",
+   "expected": "lost",
+   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here."
+  },
+  {
+   "check": "kept",
+   "mode": "manual",
+   "instrument": [
+    "CM",
+    "CR30",
+    "FD9",
+    "SS",
+    "i1",
+    "p3"
+   ],
+   "item": [
+    "patch_area_align",
+    "row_indicator_rotation",
+    "text_edge_clip_mm",
+    "use_instrument_margins"
+   ],
+   "aspect": "new_target_after_defaults",
+   "expected": "lost",
+   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here."
+  },
+  {
+   "check": "kept",
+   "mode": "manual",
+   "instrument": [
+    "CM",
+    "CR30",
+    "IO2",
+    "SS",
+    "i1",
+    "p3"
+   ],
+   "item": [
+    "chart_text",
+    "helper_markers",
+    "inter_patch_mm",
+    "margin_bottom",
+    "margin_left",
+    "margin_right",
+    "margin_top",
+    "patch_pattern",
+    "show_row_indicators",
+    "show_strip_indicators",
+    "spacer_mode",
+    "strip_gap_mm",
+    "strip_pattern"
+   ],
+   "aspect": "new_target_after_defaults",
+   "expected": "lost",
+   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here."
+  },
+  {
+   "check": "kept",
+   "mode": "manual",
+   "instrument": [
+    "CM",
+    "CR30",
+    "SS",
+    "i1",
+    "p3"
+   ],
+   "item": "layout_mode",
+   "aspect": "new_target_after_defaults",
+   "expected": "lost",
+   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here."
+  },
+  {
+   "check": "kept",
+   "mode": "manual",
+   "instrument": "CM",
+   "item": "cm_density",
+   "aspect": "new_target_after_defaults",
+   "expected": "lost",
+   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here."
+  },
+  {
+   "check": "kept",
+   "mode": "manual",
+   "instrument": [
+    "CR30",
+    "SS"
+   ],
+   "item": "hflag",
+   "aspect": "new_target_after_defaults",
+   "expected": "lost",
+   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here."
+  },
+  {
+   "check": "kept",
+   "mode": "manual",
+   "instrument": "FD9",
+   "item": "fd9_clip_border",
+   "aspect": "new_target_after_defaults",
+   "expected": "lost",
+   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here."
+  },
+  {
+   "check": "kept",
+   "mode": "manual",
+   "instrument": "IO2",
+   "item": [
+    "i1io_align",
+    "i1io_clip_border",
+    "i1io_crosses",
+    "i1io_numbers_edge_mm",
+    "i1io_text_align",
+    "i1io_text_bold"
+   ],
+   "aspect": "new_target_after_defaults",
+   "expected": "lost",
+   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, while docs/design/per_target_settings.md section 4 says it opens on the saved defaults if the user has any; a contradiction of the spec in the app, every instrument, seen 2026-11-13, not fixed here."
+  },
+  {
+   "check": "lacks_option",
+   "mode": "manual",
+   "instrument": "FD9",
+   "item": [
+    "chart_text",
+    "helper_markers",
+    "inter_patch_mm",
+    "layout_mode",
+    "margin_bottom",
+    "margin_left",
+    "margin_right",
+    "margin_top",
+    "patch_pattern",
+    "show_row_indicators",
+    "show_strip_indicators",
+    "spacer_mode",
+    "strip_gap_mm",
+    "strip_pattern"
+   ],
+   "aspect": "panel keeps it",
+   "expected": false,
+   "reason": "A value a preset or a saved layout sets on this option is not kept by the FD-9 panel (it shows its own) (the FD-9 is a contributed Beta: observed only, never changed here); seen 2026-11-13, not judged yet."
+  },
+  {
+   "check": "listed",
+   "mode": "",
+   "instrument": [
+    "FD9",
+    "IO2"
+   ],
+   "item": "Preferences chart layout",
+   "aspect": "listed",
+   "expected": false,
+   "reason": "Preferences > Chart Layout cannot set a default layout for this instrument, while it can for the i1Pro; seen 2026-11-13, not judged yet."
+  },
+  {
+   "check": "listed",
+   "mode": "",
+   "instrument": [
+    "FD9",
+    "IO2"
+   ],
+   "item": "ti2_loader.KNOWN_INSTRUMENTS",
+   "aspect": "listed",
+   "expected": false,
+   "reason": "A chart for this instrument is not in the list of charts stock ArgyllCMS chartread is known to read; whether the Measure tab should say more for it was not judged yet (seen 2026-11-13)."
+  },
+  {
+   "check": "prefs_style",
+   "mode": "manual",
+   "instrument": "FD9",
+   "item": "label style",
+   "aspect": "state",
+   "expected": "ignores Preferences",
+   "reason": "The FD-9's Manual chart does not take Preferences' label style, while the i1Pro's does (the FD-9 is a contributed Beta: observed only, never changed here); seen 2026-11-13."
+  },
+  {
+   "check": "switch_back",
+   "mode": "manual",
+   "instrument": "CM",
+   "item": "cm_density",
+   "aspect": "CM -> i1 -> CM",
+   "expected": "lost",
+   "reason": "After visiting the i1Pro the ColorMunki comes back on its default density, not the one set before; seen 2026-11-13, not judged yet."
+  },
+  {
+   "check": "switch_back",
+   "mode": "manual",
+   "instrument": "CR30",
+   "item": [
+    "hflag",
+    "spacer_on"
+   ],
+   "aspect": "CR30 -> i1 -> CR30",
+   "expected": "lost",
+   "reason": "Visiting the CR30 drops the spacer and patch-shape choice of the instrument switched from (both directions); seen 2026-11-13, not judged yet."
+  },
+  {
+   "check": "switch_back",
+   "mode": "manual",
+   "instrument": "FD9",
+   "item": [
+    "clip_content_mode",
+    "clip_content_when_on",
+    "fd9_clip_border",
+    "inter_patch_mm",
+    "patch_area_align",
+    "patch_h_mm",
+    "patch_w_mm",
+    "strip_gap_mm",
+    "text_edge_clip_mm"
+   ],
+   "aspect": "FD9 -> i1 -> FD9",
+   "expected": "lost",
+   "reason": "After visiting the i1Pro the FD-9 comes back on its factory layout values, not those set before (the FD-9 is a contributed Beta: observed only, never changed here); seen 2026-11-13."
+  },
+  {
+   "check": "switch_back",
+   "mode": "manual",
+   "instrument": "IO2",
+   "item": [
+    "chart_text",
+    "inter_patch_mm",
+    "margin_bottom",
+    "margin_left",
+    "margin_right",
+    "margin_top",
+    "patch_h_mm",
+    "patch_w_mm",
+    "spacer_mode",
+    "spacer_width_mm",
+    "strip_gap_mm"
+   ],
+   "aspect": "IO2 -> i1 -> IO2",
+   "expected": "lost",
+   "reason": "After visiting the i1Pro the i1iO keeps its risky values (offsets, markers) but comes back on its factory margins, patch size, spacers and sheet text; seen 2026-11-13, not judged yet."
+  },
+  {
+   "check": "switch_back",
+   "mode": "manual",
+   "instrument": "SS",
+   "item": "hflag",
+   "aspect": "SS -> i1 -> SS",
+   "expected": "lost",
+   "reason": "After visiting the i1Pro the SpectroScan comes back on flat patches, not the hexagons set before; seen 2026-11-13, not judged yet."
+  }
+ ]
+}
