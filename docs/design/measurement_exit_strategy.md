@@ -602,6 +602,7 @@ it holds the instrument type and a time):
 | the helper exits normally (code 0 or 1): its close switched the lights off | removed |
 | the app quits mid-measurement and the helper answers lights_off_exit with "off" | removed |
 | a crash, the 1 s backstop kill, the exit guard (code 4), a signal, a failed light request | kept |
+| `{"event":"lights","state":"unknown"}` (2026-11-13: the off could not be confirmed, a trigger was still pending or the off failed) | kept |
 
 At the next Start of a chart for the i1Pro family with the option on and the
 marker there, ChromIQ asks M-I1PRO2-LIGHTS-LEFT-ON (unified measurement
@@ -609,6 +610,24 @@ management §M-PROPOSED) before anything is armed, archived or connected:
 Continue removes the marker and starts; Cancel keeps it and starts nothing.
 With the option OFF the marker is never written or read, and the window
 cannot appear; a chart for any other instrument never shows it.
+
+## The i1Pro 2 lights' two choices (Beta, 2026-11-13)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+Inside the same option, two Preferences choices for the i1Pro 2 only
+(`i1pro2_lights_signals`, default on when the option is first switched on;
+`i1pro2_lights_during_reading`, default off). With both at "as in ChromIQ
+4.3.33" the instrument receives byte for byte what 4.3.33 sent
+(`tests/test_i1pro2_lights_modes.py` against a trace of the 4.3.33 driver), and
+every ending above is unchanged. With either choice, the endings are the same
+rows: the close still sends the immediate off, the marker is kept or removed
+exactly as above. The choices are used only on firmware 634 (the firmware of
+every recording); any other firmware gets 4.3.33's lights. Programs and their
+moments: `measurement_window_sounds.md` §4h. Built and tested on 2026-11-13
+without an i1Pro 2; nobody has confirmed it on hardware.
 
 ## The i1Pro 3 lights (Beta) at every ending
 
