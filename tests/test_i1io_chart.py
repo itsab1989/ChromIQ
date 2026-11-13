@@ -351,3 +351,40 @@ def test_the_two_gaps_are_the_engines_own_controls_kept_apart(paper, along,
     g = instruments.geom_from_build_kwargs(kw)
     w, h = papers.dimensions_mm(paper)
     assert geometry.patches_per_sheet(g, w, h) == count
+
+
+@pytest.mark.parametrize("n,partial", [(483, False), (470, True)])
+def test_the_i1profiler_route_of_the_notice_works_for_an_i1io_run(tmp_path,
+                                                                  n, partial):
+    """What M-I1IO-NOT-YET says works today: the run's i1Profiler patch-set
+    files are written for an i1iO chart (as for any RGB chart), and a
+    measurement made in i1Profiler from them, which comes back in the patch
+    list's order with its device values, is accepted as a measurement of the
+    i1iO chart. A full sheet (what Guided always makes) comes in whole; a
+    chart with fill-up patches comes in as partial, because fill-up patches
+    count and i1Profiler's own chart has none (Knut's confirmed ruling,
+    `measurement_state.expected_patches`), exactly as for any engine chart."""
+    from workflow.chart_exports import write_sidecars
+    from workflow.layout_engine.ti1_reader import read_ti1
+    from workflow.measurement_import import assess
+    result, _side = _build(tmp_path, n)
+    exports = write_sidecars(tmp_path / "c.ti1", tmp_path / "exports", "c")
+    names = sorted(p.name for p in exports)
+    assert "c-i1profiler.txt" in names and "c-i1profiler.pxf" in names
+    ti1 = read_ti1(tmp_path / "c.ti1")
+    body = []
+    for i, (dev, _xyz) in enumerate(ti1.patches, start=1):
+        y = 5.0 + 0.9 * (dev[0] + dev[1] + dev[2]) / 3.0
+        body.append(f'{i} "P{i}" ' + " ".join(f"{v:.4f}" for v in dev)
+                    + f" {y * 0.95:.4f} {y:.4f} {y * 0.82:.4f}")
+    m = tmp_path / "measured.ti3"
+    m.write_text(
+        'CTI3   \n\nDESCRIPTOR "i1Profiler export, converted"\n'
+        'DEVICE_CLASS "OUTPUT"\nCOLOR_REP "RGB_XYZ"\n\n'
+        "NUMBER_OF_FIELDS 8\nBEGIN_DATA_FORMAT\n"
+        "SAMPLE_ID SAMPLE_LOC RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z\n"
+        f"END_DATA_FORMAT\n\nNUMBER_OF_SETS {len(body)}\nBEGIN_DATA\n"
+        + "\n".join(body) + "\nEND_DATA\n", encoding="utf-8")
+    verdict = assess(m, result.ti2_path)
+    assert verdict.ok, verdict
+    assert verdict.partial is partial
