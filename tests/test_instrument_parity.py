@@ -43,7 +43,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from scripts import instrument_parity as ip  # noqa: E402
 
-EM_DASH = "—"
+EM_DASH = chr(0x2014)
 
 
 @pytest.fixture(scope="module")
