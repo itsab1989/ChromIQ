@@ -564,3 +564,111 @@ def test_the_edge_note_for_an_i1io_chart_names_only_live_controls(tmp_path):
                         loss)
     assert "Show row indicators" in note
     assert "Text distance from edge" not in note
+
+
+def _wordmark_ink(tmp_path, dpi=300, **kw):
+    """The page, the plan, and the ink masks of "Chrom" (near-black) and
+    "IQ" (magenta) of a 1-page chart, in page pixels."""
+    from PIL import Image
+    from workflow.i1io import chart as C
+    from workflow.layout_engine import chart
+    ti1 = _ti1(tmp_path / "w.ti1", 50)
+    r = chart.build_chart(ti1, tmp_path / "w", instrument="IO2", paper="A4",
+                          dpi=dpi, project="Logo-test", **kw)
+    img = np.asarray(Image.open(r.tiff_paths[0]).convert("RGB")).astype(int)
+    side = json.loads((tmp_path / "w.i1io.json").read_text(encoding="utf-8"))
+    w, h = side["paper_mm"]
+    plan = C.text_line_plan(w, h, C.page_line_text("Logo-test", 0, 1,
+                                                   kw.get("chart_text", "")),
+                            dpi)
+    chrom = (np.abs(img - np.array(C.WORDMARK_RGB)).sum(axis=2) < 60)
+    iq = (np.abs(img - np.array(C.WORDMARK_IQ_RGB)).sum(axis=2) < 90)
+    # only the wordmark's own paper: between the crosses, near their line
+    s = dpi / 25.4
+    keep = np.zeros(chrom.shape, bool)
+    box = plan["wordmark"]["box"]
+    keep[round((box[1] - 1) * s):round((box[3] + 1) * s),
+         round((box[0] - 3) * s):round((box[2] + 3) * s)] = True
+    return img, plan, chrom & keep, iq & keep, w, h
+
+
+@pytest.mark.parametrize("size", [4.0, 3.0, 2.0])
+def test_the_wordmarks_iq_sits_on_chroms_baseline(tmp_path, monkeypatch,
+                                                   size):
+    """The owner, 2026-11-13: "the IQ is too high". Each part was centred by
+    its own ink, and the italic Q's tail made the "IQ" taller, so its
+    baseline stood above "Chrom"'s. As the engine sets the wordmark on every
+    other chart (`raster._wordmark_geometry`: one baseline, the same size,
+    "IQ" after "Chrom"'s advance and 0.02 of the size), at every size the
+    shrink rule can give. Measured on the printed raster: the bottom of the
+    "I" (no tail) is the bottom of "Chrom" (no descender), to a pixel."""
+    from workflow.i1io import chart as C, table_facts as F
+    monkeypatch.setattr(F, "WORDMARK_MM", F.Fact(size, "test", F.OURS))
+    img, plan, chrom, iq, w, h = _wordmark_ink(tmp_path)
+    assert plan["wordmark"]["size_mm"] == size
+    s = 300 / 25.4
+    # on the page, the baseline is the LARGEST x of the ink (turned text)
+    cy, cx = np.nonzero(chrom)
+    iy, ix = np.nonzero(iq)
+    assert len(cx) and len(ix)
+    chrom_base = cx.max()
+    # the "I" is the first letter of "IQ", at the LARGER page y end (the
+    # text runs up the page); the Q's tail is left out by taking that end
+    i_rows = iy > iy.max() - 0.25 * (iy.max() - iy.min())
+    i_base = ix[i_rows].max()
+    assert abs(int(i_base) - int(chrom_base)) <= 1, (i_base, chrom_base)
+    # and the IQ starts where the engine's would: Chrom's advance + kern
+    wm = plan["wordmark"]
+    assert wm["chrom_y"] - wm["iq_y"] == pytest.approx(
+        (wm["iq_y"] - wm["chrom_y"]) * -1)
+    assert iy.max() / s < wm["iq_y"] + 0.3
+
+
+def test_the_text_line_is_centred_between_crosses_2_and_3(tmp_path):
+    """The owner, 2026-11-13: the logo and the text line, as one group,
+    centred between crosses 2 and 3: horizontally halfway between them on
+    the table (the page's middle y) and vertically with each part's visual
+    middle (half its capital height above its baseline) on the line
+    through the crosses' centres. Measured on the raster."""
+    from workflow.i1io import chart as C
+    img, plan, chrom, iq, w, h = _wordmark_ink(tmp_path)
+    s = 300 / 25.4
+    marks = C.marks(w, h)
+    line_x = marks[1].centre_mm[0]
+    assert marks[2].centre_mm[0] == line_x
+    mid_y = (marks[1].centre_mm[1] + marks[2].centre_mm[1]) / 2.0
+    # the whole group's ink along the page's y (the table's horizontal)
+    band = img[:, round((line_x - 6) * s):round((line_x + 6) * s)]
+    ink = (band < 200).any(axis=2)
+    zone_top = C.mark_zone(marks[2])[3]
+    zone_bottom = C.mark_zone(marks[1])[1]
+    rows = np.nonzero(ink.any(axis=1))[0] / s
+    rows = rows[(rows > zone_top) & (rows < zone_bottom)]
+    assert abs((rows.min() + rows.max()) / 2.0 - mid_y) < 0.6
+    # visual middles on the crosses' line: the wordmark (no descender in
+    # "Chrom") and the plan's text baseline, half a capital above
+    from PIL import ImageFont  # noqa: F401
+    wm = plan["wordmark"]
+    cap = wm["box"][2] - wm["box"][0]
+    cy, cx = np.nonzero(chrom)
+    assert abs(cx.max() / s - cap / 2.0 - line_x) < 0.25
+    assert plan["text_baseline_x"] > line_x
+    assert plan["text"] == "Logo-test"
+
+
+def test_a_long_text_is_shortened_before_the_logo_shrinks():
+    """Too long for the room between the crosses: the text is shortened
+    ("…") first, and the wordmark keeps its full size while that is enough;
+    on a page too small for both, the wordmark shrinks; the group stays
+    centred either way."""
+    from workflow.i1io import chart as C, table_facts as F
+    w, h = 210.0, 297.0
+    long_text = "Name · " + "a sheet text that goes on and on " * 20
+    plan = C.text_line_plan(w, h, long_text, 300)
+    assert plan["text"].endswith("…")
+    assert plan["wordmark"]["size_mm"] == F.WORDMARK_MM.value
+    m = C.marks(w, h)
+    mid_y = (m[1].centre_mm[1] + m[2].centre_mm[1]) / 2.0
+    assert sum(plan["group"]) / 2.0 == pytest.approx(mid_y)
+    small = C.text_line_plan(w, 66.0, long_text, 300)
+    assert small["wordmark"] is None or small["wordmark"]["size_mm"] < 4.0

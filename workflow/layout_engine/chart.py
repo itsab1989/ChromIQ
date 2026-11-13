@@ -755,7 +755,8 @@ def build_chart(
             h=h_mm, paper=paper, dpi=dpi, seed=seed, randomize=randomize,
             strip_pattern=strip_pattern, patch_pattern=patch_pattern,
             label_rule=label_rule, designed=len(target.patches),
-            labels=_i1io_labels)
+            labels=_i1io_labels, name=project or Path(out_base).name,
+            sheet_text=_i1io_sheet_text, text_ctx=_ctx)
 
     cht_paths: list[Path] | None = None
     if emit_cht:

@@ -330,7 +330,6 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
     half = F.MARK_CROSS_MM.value / 2.0
     fhalf = F.MARK_FRAME_MM.value / 2.0
     digit_px = px(F.MARK_DIGIT_MM.value / 0.73)
-    small_px = px(3.0 / 0.73)
     for index, img in enumerate(render.images):
         draw = ImageDraw.Draw(img)
         geom_list = (render.patch_geom[index]
@@ -349,8 +348,13 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
                         anchor: str = "centre") -> "tuple[int, int]":
             """*txt* turned a quarter turn anticlockwise, centred on
             *centre* (mm), or with its START at *centre* (the text then runs
-            UP the page from there) when *anchor* is "start". Returns its
-            (width, height) on the page in pixels."""
+            UP the page from there) when *anchor* is "start". With *anchor*
+            "pen", *centre* is ``(baseline x, pen origin y)`` in mm: the
+            text's BASELINE lies on that page x and its pen starts at that
+            page y, as type is set, so two runs given the same baseline sit
+            on it together whatever their ink (the wordmark: an italic "IQ"
+            whose Q has a tail was centred by its ink and stood too high).
+            Returns its (width, height) on the page in pixels."""
             font, path, var = _font(size_px, family, italic, bold)
             bb = draw.textbbox((0, 0), txt, font=font)
             tw, th = bb[2] - bb[0], bb[3] - bb[1]
@@ -359,9 +363,18 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
                                       fill=255)
             tile = tile.rotate(90, expand=True)           # anticlockwise
             cx, cy = px(centre[0]), px(centre[1])
-            x0 = cx - tile.width // 2
-            y0 = (cy - tile.height if anchor == "start"
-                  else cy - tile.height // 2)
+            if anchor == "pen":
+                # Turned anticlockwise, the tile's row y of the ink box is
+                # page column y, and its column x is page row (tw - 1 - x):
+                # the baseline (ascent from the em top) is column
+                # ascent - bb[1], the pen origin row tw - 1 + bb[0].
+                ascent = font.getmetrics()[0]
+                x0 = cx - (ascent - bb[1])
+                y0 = cy - (tw - 1 + bb[0])
+            else:
+                x0 = cx - tile.width // 2
+                y0 = (cy - tile.height if anchor == "start"
+                      else cy - tile.height // 2)
             img.paste(Image.new("RGB", tile.size, rgb), (x0, y0), tile)
             if geom_list is not None and path:
                 ascent = font.getmetrics()[0]
@@ -397,43 +410,154 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
                                                     dpi, labels, draw):
                 turned_text(text, centre, size, family=LETTER_FONT,
                             bold=False, anchor="start")
-        # THE TEXT LINE, turned, in the right-hand margin below mark 1 (on the
-        # table: along the top edge, right of mark 1): the ChromIQ wordmark,
-        # then the page "N/M", the chart's name and Manual's sheet text, cut
-        # to fit with "…". Paper no strip can use, so none of it costs a patch.
-        x0, y0, x1, y1 = text_column(w, h)
-        cx = (x0 + x1) / 2.0
-        y = y1                       # the text starts at the bottom, runs up
-        wm = wordmark_box(geom, layout, w, h, index, labels)
-        if wm is not None:
-            wpx = px(wm[4] / 0.74)
-            ww, wh = turned_text("Chrom", (cx, y), wpx, family="Instrument Serif",
-                                 bold=False, rgb=(28, 27, 24), anchor="start")
-            turned_text("IQ", (cx, y - wh / s - 0.3), wpx,
-                        family="Instrument Serif", italic=True, bold=False,
-                        rgb=(255, 69, 115), anchor="start")
-            y = wm[1] - 4.0
-        full = str(name or "")
-        if pages > 1:
-            full = f"{index + 1}/{pages}  ·  {full}" if full else \
-                f"{index + 1}/{pages}"
-        extra = str(sheet_text or "").strip()
-        if extra:
-            for key, value in (text_ctx or {}).items():
-                extra = extra.replace("{" + key + "}", str(value))
-            extra = extra.replace("{page}", f"{index + 1}/{pages}")
-            full = f"{full}  ·  {extra}" if full else extra
-        room = px(y - y0)
-        font, _p, _v = _font(small_px)
-        label, keep = full, len(full)
-        while label:
-            bb = draw.textbbox((0, 0), label, font=font)
-            if (bb[2] - bb[0]) <= room:
-                break
+        # THE TEXT LINE: the ChromIQ wordmark, then the page "N/M", the
+        # chart's name and Manual's sheet text, as ONE GROUP centred between
+        # crosses 2 and 3 (the owner, 2026-11-13): on the table halfway
+        # between them, and with each part's visual middle on the line
+        # through their centres (`text_line_plan`). Paper no strip can use,
+        # so none of it costs a patch.
+        plan = text_line_plan(w, h, page_line_text(name, index, pages,
+                                                   sheet_text, text_ctx),
+                              dpi)
+        if plan["wordmark"] is not None:
+            wm = plan["wordmark"]
+            turned_text("Chrom", (wm["baseline_x"], wm["chrom_y"]),
+                        wm["size_px"], family=WORDMARK_FONT, bold=False,
+                        rgb=WORDMARK_RGB, anchor="pen")
+            turned_text("IQ", (wm["baseline_x"], wm["iq_y"]), wm["size_px"],
+                        family=WORDMARK_FONT, italic=True, bold=False,
+                        rgb=WORDMARK_IQ_RGB, anchor="pen")
+        if plan["text"]:
+            turned_text(plan["text"], (plan["text_baseline_x"],
+                                       plan["text_y"]),
+                        plan["text_size_px"], anchor="pen")
+
+
+#: The wordmark as the engine draws it on every other chart
+#: (`raster._wordmark_geometry`): Instrument Serif, "Chrom" near-black and an
+#: italic "IQ" in the magenta accent, on ONE baseline, the same size, the
+#: "IQ" set after "Chrom"'s advance and a kern of 0.02 of the size.
+WORDMARK_FONT = "Instrument Serif"
+WORDMARK_RGB = (28, 27, 24)
+WORDMARK_IQ_RGB = (255, 69, 115)
+WORDMARK_KERN = 0.02
+#: The text line's size: 3 mm capitals.
+TEXT_CAP_MM = 3.0
+#: Paper between the wordmark and the text after it.
+WORDMARK_GAP_MM = 4.0
+#: The text is shortened before the wordmark shrinks, down to this many
+#: characters (and "…"); below that the wordmark shrinks first.
+TEXT_MIN_CHARS = 12
+
+
+def page_line_text(name, index: int, pages: int, sheet_text: str = "",
+                   text_ctx: "dict | None" = None) -> str:
+    """The text line of page *index*: the page "N/M" (more than one page),
+    the chart's name and Manual's sheet text with its fields filled in."""
+    full = str(name or "")
+    if pages > 1:
+        full = f"{index + 1}/{pages}  ·  {full}" if full else \
+            f"{index + 1}/{pages}"
+    extra = str(sheet_text or "").strip()
+    if extra:
+        for key, value in (text_ctx or {}).items():
+            extra = extra.replace("{" + key + "}", str(value))
+        extra = extra.replace("{page}", f"{index + 1}/{pages}")
+        full = f"{full}  ·  {extra}" if full else extra
+    return full
+
+
+def _cap_mm(font, s: float) -> float:
+    """The height of a capital "H" in *font*, in mm at *s* px per mm."""
+    bb = font.getbbox("H")
+    return (bb[3] - bb[1]) / s
+
+
+def text_line_plan(w: float, h: float, full: str, dpi: int) -> dict:
+    """Where the text line goes on a page, in mm (page x is the table's
+    vertical, page y its horizontal, the text running UP the page):
+
+    * every part's VISUAL MIDDLE (half its capital height above its
+      baseline) lies on the line through the centres of crosses 2 and 3;
+    * the group, wordmark + WORDMARK_GAP_MM + text, is centred halfway
+      between the two crosses;
+    * too long for the room between their zones, the text is shortened
+      ("…") first, down to TEXT_MIN_CHARS characters, and only then does
+      the wordmark shrink (4 mm down to 2 mm) or, at last, stay off.
+
+    Returns ``{"wordmark": {...} | None, "text", "text_baseline_x",
+    "text_y", "text_size_px", "group": (y_start, y_end), "line_x"}``."""
+    from PIL import Image, ImageDraw
+    s = dpi / 25.4
+    probe = ImageDraw.Draw(Image.new("L", (1, 1)))
+    m = marks(w, h)
+    line_x = m[1].centre_mm[0]                 # crosses 2 and 3: one x
+    mid_y = (m[1].centre_mm[1] + m[2].centre_mm[1]) / 2.0
+    _x0, room_y0, _x1, room_y1 = text_column(w, h)
+    room = room_y1 - room_y0
+    # the text size: TEXT_CAP_MM capitals (an "H" measured at 200 px)
+    probe_font, _p, _v = _font(200, "Inter")
+    cap200 = _cap_mm(probe_font, 1.0)
+    text_px = max(1, int(round(200 * (TEXT_CAP_MM * s) / cap200)))
+    text_font, _p, _v = _font(text_px, "Inter")
+
+    def text_len(t: str) -> float:
+        return probe.textlength(t, font=text_font) / s if t else 0.0
+
+    def wordmark(size_mm: float):
+        size_px = max(1, int(round(size_mm / 0.74 * s)))
+        f, _p, _v = _font(size_px, WORDMARK_FONT, bold=False)
+        fi, _p, _v = _font(size_px, WORDMARK_FONT, italic=True, bold=False)
+        chrom = probe.textlength("Chrom", font=f) / s
+        iq = probe.textlength("IQ", font=fi) / s
+        kern = WORDMARK_KERN * size_px / s
+        return {"size_mm": size_mm, "size_px": size_px, "font": f,
+                "chrom_len": chrom, "kern": kern,
+                "length": chrom + kern + iq}
+
+    def fit(t: str, length: float) -> str:
+        keep = len(t)
+        label = t
+        while label and text_len(label) > length + 1e-9:
             keep -= 1
-            label = full[:keep] + "…" if keep > 0 else ""
-        if label:
-            turned_text(label, (cx, y), small_px, anchor="start")
+            label = t[:keep] + "…" if keep > 0 else ""
+        return label
+
+    def short_min(t: str) -> float:
+        return text_len(t if len(t) <= TEXT_MIN_CHARS
+                        else t[:TEXT_MIN_CHARS] + "…")
+
+    full = str(full or "")
+    chosen, label = None, full
+    size = F.WORDMARK_MM.value
+    while size >= F.WORDMARK_MIN_MM.value - 1e-9:
+        wm = wordmark(size)
+        left = room - wm["length"] - (WORDMARK_GAP_MM if full else 0.0)
+        if left >= (short_min(full) if full else 0.0) - 1e-9:
+            chosen, label = wm, fit(full, max(0.0, left))
+            break
+        size -= 0.5
+    if chosen is None:
+        label = fit(full, room)
+    total = ((chosen["length"] if chosen else 0.0)
+             + (WORDMARK_GAP_MM if chosen and label else 0.0)
+             + text_len(label))
+    start = mid_y + total / 2.0                 # the text runs UP the page
+    out = {"line_x": line_x, "group": (start - total, start), "text": label,
+           "text_size_px": text_px, "wordmark": None}
+    y = start
+    if chosen is not None:
+        cap = _cap_mm(chosen["font"], s)
+        out["wordmark"] = {
+            "size_mm": chosen["size_mm"], "size_px": chosen["size_px"],
+            "baseline_x": line_x + cap / 2.0, "chrom_y": y,
+            "iq_y": y - chosen["chrom_len"] - chosen["kern"],
+            "box": (line_x - cap / 2.0, y - chosen["length"],
+                    line_x + cap / 2.0, y)}
+        y -= chosen["length"] + (WORDMARK_GAP_MM if label else 0.0)
+    out["text_baseline_x"] = line_x + _cap_mm(text_font, s) / 2.0
+    out["text_y"] = y
+    return out
 
 
 #: The face of the strip letters: the engine's own label face, as the patch
@@ -477,22 +601,20 @@ def strip_letters(geom, layout, w: float, h: float, page: int, dpi: int,
 
 
 def wordmark_box(geom, layout, w: float, h: float, page: int,
-                 labels: "Labels | None" = None):
-    """Where the ChromIQ wordmark goes, ``(x0, y0, x1, y1, height)`` in mm on
-    the page, or None when it is left off.
+                 labels: "Labels | None" = None, full: str = "",
+                 dpi: int = 300):
+    """Where the ChromIQ wordmark goes on page *page* with the text line
+    *full*, ``(x0, y0, x1, y1, height)`` in mm on the page, or None when it
+    is left off (`text_line_plan`).
 
     THE LOGO NEVER COSTS A PATCH (Basti, 2026-11-13): it is no layout input,
-    it is drawn only in the text column (`text_column`), where no strip and no
-    run ever is, tried at full size and then smaller down to the smallest
-    legible size, and left off only when even that does not fit."""
-    x0, y0, x1, y1 = text_column(w, h)
-    size = F.WORDMARK_MM.value
-    while size >= F.WORDMARK_MIN_MM.value - 1e-9:
-        length = 5.0 * size
-        if size + 1.0 <= (x1 - x0) and y1 - length >= y0:
-            return (x0, y1 - length, x1, y1, size)
-        size -= 0.5
-    return None
+    it is drawn only between crosses 2 and 3 in the margin no strip and no
+    run ever is, shrunk to the smallest legible size, and left off only when
+    even that does not fit."""
+    wm = text_line_plan(w, h, full, dpi)["wordmark"]
+    if wm is None:
+        return None
+    return (*wm["box"], wm["size_mm"])
 
 
 # ---- the side file -----------------------------------------------------------
@@ -500,7 +622,9 @@ def wordmark_box(geom, layout, w: float, h: float, page: int,
 def write_side_file(path: Path, *, geom, layout, w: float, h: float,
                     paper: str, dpi: int, seed: int, randomize: bool,
                     strip_pattern: str, patch_pattern: str, label_rule: str,
-                    designed: int, labels: "Labels | None" = None) -> Path:
+                    designed: int, labels: "Labels | None" = None,
+                    name: str = "", sheet_text: str = "",
+                    text_ctx: "dict | None" = None) -> Path:
     """Write ``<stem>.i1io.json``: every mark, strip and patch in mm on the
     portrait page, for the measuring step."""
     from workflow.layout_engine import permutation
@@ -525,7 +649,10 @@ def write_side_file(path: Path, *, geom, layout, w: float, h: float,
                                   round((c[4] + c[6]) / 2.0, 4)],
                 } for c in col],
             })
-        wm = wordmark_box(geom, layout, w, h, page, labels)
+        wm = wordmark_box(geom, layout, w, h, page, labels,
+                          full=page_line_text(name, page, layout.pages,
+                                              sheet_text, text_ctx),
+                          dpi=dpi)
         pages.append({"page": page + 1, "strips": strips,
                       "wordmark_mm": list(wm) if wm else None,
                       "text_column_mm": list(text_column(w, h))})
