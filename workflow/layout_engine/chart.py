@@ -323,6 +323,9 @@ def build_chart(
     #: i1iO only: the sheet text's Bold (`workflow.i1io.chart.TEXT_BOLD_KEY`,
     #: None = the i1iO's own, bold). No other instrument reads it.
     i1io_text_bold: "bool | None" = None,
+    #: i1iO only: a recipe saved before the i1iO label options (review F4,
+    #: `workflow.i1io.chart.LEGACY_LABELS_KEY`): built as 4.3.33 built it.
+    i1io_legacy_labels: bool = False,
 ) -> ChartResult:
     """Full chart build: write ``out_base.ti2`` + page TIFF(s) + strip geometry.
 
@@ -384,7 +387,8 @@ def build_chart(
             "clip_content_mode": clip_content_mode,
             _i1io_chart.ALIGN_KEY: i1io_align,
             _i1io_chart.CROSSES_KEY: i1io_crosses,
-            _i1io_chart.CLIP_KEY: i1io_clip_border})
+            _i1io_chart.CLIP_KEY: i1io_clip_border,
+            _i1io_chart.LEGACY_LABELS_KEY: i1io_legacy_labels})
         _i1io_chart.sheet_size(paper)
         (patch_w, patch_h, pscale, sscale, spacer_on, spacer_mode,
          spacer_width, inter_patch, strip_gap, edge_spacers, margins,
@@ -423,6 +427,10 @@ def build_chart(
         draw_indicators = _f["draw_indicators"]
         row_indicators = _f["row_indicators"]
         hflag = False          # an i1iO grid is never a honeycomb
+        if i1io_legacy_labels:
+            # a recipe from before the label options: 4.3.33's patterns
+            strip_pattern = permutation.DEFAULT_STRIP_PATTERN
+            patch_pattern = permutation.DEFAULT_PATCH_PATTERN
         # THE LABEL PATTERNS ARE THE RECIPE'S (2026-11-13): the `.ti2`, the
         # patch numbers, the strip letters (`draw_furniture`), the aiming
         # names and the side file all take them, so "C7" still means the
@@ -433,6 +441,7 @@ def build_chart(
         # and size (2026-11-13; the name and the logo keep theirs).
         _i1io_sheet_text = _i1io_chart_text
         _i1io_text_style = _i1io_chart.text_style_of({
+            _i1io_chart.LEGACY_LABELS_KEY: i1io_legacy_labels,
             "chart_text_font": chart_text_font,
             _i1io_chart.TEXT_BOLD_KEY: i1io_text_bold,
             "chart_text_italic": chart_text_italic,

@@ -235,6 +235,13 @@ class LayoutRecipe:
     #: `chart_text_bold`, whose default False would have changed every i1iO
     #: chart with a sheet text. Written only when False.
     i1io_text_bold: "bool | None" = None
+    #: True for an i1iO recipe written with the i1iO label options
+    #: (2026-11-13, review F4). 4.3.33 greyed the label controls on an i1iO
+    #: chart and ignored them, so an i1iO recipe it saved can carry another
+    #: instrument's label style; without this mark that recipe builds as
+    #: 4.3.33 built it (`workflow.i1io.chart.LEGACY_LABELS_KEY`). Written
+    #: only for an "IO2" recipe that has it.
+    i1io_label_options: bool = False
     # Layout strategy (#93, Knut). "patch_first" (default) = size the patches
     # (above) and fit as many as possible to the page. "area_first" = fit a
     # target grid into the usable area and SIZE the patches to fill it:
@@ -479,6 +486,8 @@ class LayoutRecipe:
             d.pop("i1io_clip_border", None)
         if self.instrument != "IO2" or self.i1io_text_bold is not False:
             d.pop("i1io_text_bold", None)
+        if self.instrument != "IO2" or not self.i1io_label_options:
+            d.pop("i1io_label_options", None)
         d[HIDES_PATCH_CONTROLS_KEY] = True      # B8-1570; not a field
         # Left out at 0, so a recipe that does not move its labels sideways
         # writes exactly the dict it wrote before the field existed (see the
@@ -562,6 +571,7 @@ class LayoutRecipe:
             i1io_clip_border=bool(d.get("i1io_clip_border", False)),
             i1io_text_bold=(False if d.get("i1io_text_bold") is False
                             else None),
+            i1io_label_options=bool(d.get("i1io_label_options", False)),
             show_strip_indicators=bool(d.get("draw_indicators", True)),
             show_row_indicators=(None if d.get("row_indicators") is None
                                  else bool(d.get("row_indicators"))),
@@ -854,6 +864,10 @@ class LayoutRecipe:
             kw["i1io_clip_border"] = True
         if self.instrument == "IO2" and self.i1io_text_bold is False:
             kw["i1io_text_bold"] = False
+        # An i1iO recipe from before the label options builds as 4.3.33
+        # built it (review F4): its label controls were greyed and ignored.
+        if self.instrument == "IO2" and not self.i1io_label_options:
+            kw["i1io_legacy_labels"] = True
         # Only when it moves anything, so the kwargs of every chart that does
         # not use it are the ones it had before the field existed.
         if self.strip_label_offset_x_mm:
@@ -899,6 +913,7 @@ def default_recipe(instrument: str = "i1", paper: str = "A4", *, mode: str | Non
             r.margin_top, r.margin_right = t, rt
             r.margin_bottom, r.margin_left = b, lt
             r.helper_markers = False
+            r.i1io_label_options = True     # a new i1iO recipe (F4)
     # The SpectroScan is a flatbed XY-table: it reads a FIXED 2-D grid, so
     # "prioritise patch size, then fit to page" (patch_first) is its natural
     # layout — it gives the proper grid of hexagons/squares. The generic

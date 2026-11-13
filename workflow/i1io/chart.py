@@ -43,6 +43,13 @@ from . import table_facts as F
 #: The sheets Guided offers for the i1iO: portrait, laid across the table.
 GUIDED_PAPERS = ("A4", "Letter")
 
+#: The build-kwargs key of an i1iO recipe saved before the label options
+#: (`LayoutRecipe.i1io_label_options` False, review F4): 4.3.33 greyed and
+#: ignored the label controls, so such a recipe can carry another
+#: instrument's style. With it the strip letters, patterns and the sheet
+#: text are drawn as 4.3.33 drew them.
+LEGACY_LABELS_KEY = "i1io_legacy_labels"
+
 #: The build-kwargs key that carries the label wishes past
 #: `fixed_build_kwargs` (kept for callers; the labels are the engine's own).
 LABELS_KEY = "_i1io_labels"
@@ -130,6 +137,12 @@ def label_wishes(kw: dict) -> Labels:
     held = kw.get(LABELS_KEY)
     if isinstance(held, Labels):
         return held
+    if kw.get(LEGACY_LABELS_KEY):
+        # an i1iO recipe from before the label options (review F4): only
+        # what 4.3.33 read, the switches and the size
+        return Labels(columns=kw.get("row_indicators") is not False,
+                      rows=kw.get("draw_indicators", True) is not False,
+                      size=label_size_mm(kw.get("indicator_size_mm")))
     under = str(kw.get("underline_mode") or "off")
     if under == "colored":
         under = "segments"
@@ -1205,6 +1218,8 @@ def text_style_of(kw: dict) -> "SheetTextStyle | None":
     """The sheet text's style as build kwargs *kw* hold it, or None when it
     is the name line's own (Inter Bold, its capitals): then the line is set
     exactly as in 4.3.33, as one run of text."""
+    if kw.get(LEGACY_LABELS_KEY):
+        return None                 # 4.3.33's line (review F4)
     try:
         size = max(0.0, float(kw.get("chart_text_size_mm") or 0.0))
     except (TypeError, ValueError):
@@ -1729,9 +1744,10 @@ def crosses_off_effects(kw: dict, name: str = "", sheet_text: str = "",
     head, extra = page_line_parts(name, 0, layout.pages, sheet_text, None)
     kept = plan.get("kept", ())
     from workflow.layout_engine import permutation
-    patterns = (str(kw.get("strip_pattern")
+    legacy = bool(kw.get(LEGACY_LABELS_KEY))
+    patterns = (str((not legacy and kw.get("strip_pattern"))
                     or permutation.DEFAULT_STRIP_PATTERN),
-                str(kw.get("patch_pattern")
+                str((not legacy and kw.get("patch_pattern"))
                     or permutation.DEFAULT_PATCH_PATTERN), permutation.ARGYLL)
     names = [p["patch"] for p in aim_points(geom, layout, w, h, 0, False,
                                             patterns)]

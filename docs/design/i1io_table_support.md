@@ -260,6 +260,12 @@ the sheet text and the labels).*
   cannot hold across is reduced to the largest that fits. Bold is the
   i1iO's own (on, as the whole line was in 4.3.33) unless unticked
   (`LayoutRecipe.i1io_text_bold`, written only when False).
+* An i1iO recipe saved before these options (4.3.33 greyed the label
+  controls and ignored them, so it may carry another instrument's style)
+  has no `i1io_label_options` mark and builds exactly as 4.3.33 built it;
+  Manual shows it that way and marks it as soon as a label control is
+  changed. With the Beta off the mark, `i1io_text_bold` and
+  `i1io_clip_border` are carried untouched.
 * Still greyed, each with its reason: the sheet text's alignment (the line
   sits in free paper, between crosses 2 and 3 or two corner patches, with no
   margin to align to), the label rotations, the strip-indicator gap, the
