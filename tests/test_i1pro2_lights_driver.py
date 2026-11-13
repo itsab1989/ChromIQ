@@ -286,7 +286,8 @@ def traces(tmp_path_factory):
     for target in ("i1pro2_lights_test", "i1pro2_lights_test_upstream"):
         r = subprocess.run([cmake, "--build", str(build), "--target", target,
                             "-j", jobs], capture_output=True, text=True,
-                           timeout=900, env=env)
+                           encoding="utf-8", errors="replace", timeout=900,
+                           env=env)
         assert r.returncode == 0, r.stdout[-3000:] + r.stderr[-3000:]
     out = {}
     for name, target in (("patched", "i1pro2_lights_test"),
@@ -295,7 +296,7 @@ def traces(tmp_path_factory):
                    if p.is_file() and os.access(p, os.X_OK)
                    and p.name in (target, target + ".exe"))
         r = subprocess.run([str(exe)], capture_output=True, text=True,
-                           timeout=120)
+                           encoding="utf-8", timeout=120)
         assert r.returncode == 0 and r.stdout.rstrip().endswith("ALL DONE"), \
             r.stdout[-2000:] + r.stderr[-2000:]
         out[name] = r.stdout

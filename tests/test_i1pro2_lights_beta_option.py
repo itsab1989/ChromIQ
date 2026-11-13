@@ -194,7 +194,7 @@ def test_off_abort_kills_at_once_and_sends_nothing(runner, tmp_path):
     runner.abort()
     gone, _t = _wait_gone(runner, 3000)
     assert gone
-    assert log.read_text() == ""
+    assert log.read_text(encoding="utf-8") == ""
 
 
 def test_on_abort_asks_first_then_the_process_ends(runner, tmp_path):
@@ -203,7 +203,7 @@ def test_on_abort_asks_first_then_the_process_ends(runner, tmp_path):
     runner.abort()
     gone, took = _wait_gone(runner, 5000)
     assert gone
-    assert log.read_text() == '{"cmd":"lights_off_exit"}\n'
+    assert log.read_text(encoding="utf-8") == '{"cmd":"lights_off_exit"}\n'
     assert runner._kill_courtesy is None
 
 
@@ -231,14 +231,14 @@ def test_the_courtesy_never_reaches_a_later_run(runner, tmp_path):
     assert runner._process is not first and runner._kill_courtesy is None
     runner.abort()
     gone, _t = _wait_gone(runner, 3000)
-    assert gone and log2.read_text() == ""
+    assert gone and log2.read_text(encoding="utf-8") == ""
 
 
 def test_quitting_the_app_asks_first_too(runner, tmp_path):
     log = _sleeper(runner, tmp_path)
     runner.set_kill_courtesy('{"cmd":"lights_off_exit"}\n')
     runner.cleanup()
-    assert log.read_text() == '{"cmd":"lights_off_exit"}\n'
+    assert log.read_text(encoding="utf-8") == '{"cmd":"lights_off_exit"}\n'
 
 
 # ---------------------------------------------------------------------------
@@ -247,7 +247,7 @@ def test_quitting_the_app_asks_first_too(runner, tmp_path):
 @needs_helper
 def test_caps_name_the_lights():
     r = subprocess.run([str(HELPER), "--caps"], capture_output=True, text=True,
-                       timeout=20)
+                       encoding="utf-8", timeout=20)
     assert "i1pro2_lights" in json.loads(r.stdout.strip())["caps"]
 
 
