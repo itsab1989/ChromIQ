@@ -138,13 +138,31 @@ def text_placeholder_context(*, project: str = "", rundescription: str = "",
         "project": project,
         "rundescription": rundescription,
         "instrument": friendly_instrument(instrument),
-        "paper": papers.friendly_label(paper) if paper else "",
+        "paper": (_i1io_paper_name(paper) if instrument == "IO2"
+                  else papers.friendly_label(paper)) if paper else "",
         "dpi": f"{dpi} dpi",
         "patchcount": f"{patches} patches",
         "pages": str(pages),
         "date": chart_date or _time.strftime("%Y-%m-%d"),
         "seed": f"seed {seed}",
     }
+
+
+def _i1io_paper_name(paper: str) -> str:
+    """The paper an i1iO chart's notes name (review 6, nit): the app's own
+    name where it has one ("A4 portrait"), A5 and 13 x 18 cm by name, any
+    other custom size by its millimetres, never the raw code ("148x210")."""
+    from data.patch_db import PAPER_LABELS
+    if paper in PAPER_LABELS:
+        return papers.friendly_label(paper)
+    named = {"148x210": "A5 portrait", "130x180": "13 × 18 cm portrait"}
+    if paper in named:
+        return named[paper]
+    try:
+        w, h = papers.dimensions_mm(paper)
+    except (ValueError, TypeError):
+        return str(paper)
+    return f"{w:g} × {h:g} mm"
 
 
 def stamp_summary_line(instrument: str, paper: str, dpi: int, patches: int,
