@@ -235,13 +235,16 @@ class LayoutRecipe:
     #: `chart_text_bold`, whose default False would have changed every i1iO
     #: chart with a sheet text. Written only when False.
     i1io_text_bold: "bool | None" = None
-    #: True for an i1iO recipe written with the i1iO label options
-    #: (2026-11-13, review F4). 4.3.33 greyed the label controls on an i1iO
-    #: chart and ignored them, so an i1iO recipe it saved can carry another
-    #: instrument's label style; without this mark that recipe builds as
-    #: 4.3.33 built it (`workflow.i1io.chart.LEGACY_LABELS_KEY`). Written
-    #: only for an "IO2" recipe that has it.
-    i1io_label_options: bool = False
+    #: THE ONE MARK of an i1iO recipe with the label options (review F4,
+    #: R1): True for every recipe this version makes (the default here,
+    #: `from_build_kwargs`, presets, Save as Defaults); False ONLY for an
+    #: i1iO recipe READ FROM DISK that a version before the options saved
+    #: (`from_dict` finds no key). 4.3.33 greyed the label controls on an
+    #: i1iO chart and ignored them, so such a recipe builds as 4.3.33 built
+    #: it (`workflow.i1io.chart.OPTIONS_KEY`), and `from_dict` sets its
+    #: label fields to what that build prints, so what is shown, recorded
+    #: and printed agree. Written for every "IO2" recipe, never for others.
+    i1io_label_options: bool = True
     # Layout strategy (#93, Knut). "patch_first" (default) = size the patches
     # (above) and fit as many as possible to the page. "area_first" = fit a
     # target grid into the usable area and SIZE the patches to fill it:
@@ -486,7 +489,7 @@ class LayoutRecipe:
             d.pop("i1io_clip_border", None)
         if self.instrument != "IO2" or self.i1io_text_bold is not False:
             d.pop("i1io_text_bold", None)
-        if self.instrument != "IO2" or not self.i1io_label_options:
+        if self.instrument != "IO2":
             d.pop("i1io_label_options", None)
         d[HIDES_PATCH_CONTROLS_KEY] = True      # B8-1570; not a field
         # Left out at 0, so a recipe that does not move its labels sideways
@@ -508,6 +511,10 @@ class LayoutRecipe:
             # stored build kwargs are from before 4.3.14 unless they say so
             r.clip_border_free_space = bool(d.get("clip_border_free_space",
                                                   False))
+            # …and an i1iO one from before the label options unless it has
+            # the mark (review R1: read from disk)
+            if r.instrument == "IO2" and "i1io_label_options" not in d:
+                r = i1io_legacy_recipe(r)
             return r
         known = {f.name for f in fields(cls)}
         kw = {k: v for k, v in d.items() if k in known}
@@ -516,7 +523,13 @@ class LayoutRecipe:
         # SAVED BEFORE 4.3.14: the old clip-border rule (see the field).
         kw["clip_border_free_space"] = bool(d.get("clip_border_free_space",
                                                   False))
-        return cls(**kw)
+        r = cls(**kw)
+        # AN i1iO RECIPE SAVED BEFORE THE LABEL OPTIONS (review F4, R1): no
+        # mark in the stored dict. It builds as 4.3.33 built it, and shows
+        # and records what that build prints.
+        if r.instrument == "IO2" and "i1io_label_options" not in d:
+            r = i1io_legacy_recipe(r)
+        return r
 
     @classmethod
     def from_build_kwargs(cls, d: dict) -> "LayoutRecipe":
@@ -571,7 +584,8 @@ class LayoutRecipe:
             i1io_clip_border=bool(d.get("i1io_clip_border", False)),
             i1io_text_bold=(False if d.get("i1io_text_bold") is False
                             else None),
-            i1io_label_options=bool(d.get("i1io_label_options", False)),
+            # LIVE build kwargs: a missing mark is this version's (R1)
+            i1io_label_options=d.get("i1io_label_options", True) is not False,
             show_strip_indicators=bool(d.get("draw_indicators", True)),
             show_row_indicators=(None if d.get("row_indicators") is None
                                  else bool(d.get("row_indicators"))),
@@ -864,10 +878,10 @@ class LayoutRecipe:
             kw["i1io_clip_border"] = True
         if self.instrument == "IO2" and self.i1io_text_bold is False:
             kw["i1io_text_bold"] = False
-        # An i1iO recipe from before the label options builds as 4.3.33
-        # built it (review F4): its label controls were greyed and ignored.
-        if self.instrument == "IO2" and not self.i1io_label_options:
-            kw["i1io_legacy_labels"] = True
+        # THE MARK, under its one name (review R1): False builds an i1iO
+        # recipe from before the label options as 4.3.33 built it.
+        if self.instrument == "IO2":
+            kw["i1io_label_options"] = bool(self.i1io_label_options)
         # Only when it moves anything, so the kwargs of every chart that does
         # not use it are the ones it had before the field existed.
         if self.strip_label_offset_x_mm:
@@ -980,6 +994,21 @@ def fd9_fixed_fields(r: "LayoutRecipe") -> "LayoutRecipe":
                    margin_left=lt, spacer_mode="none",
                    layout_mode="patch_first", helper_markers=False,
                    show_strip_indicators=False, show_row_indicators=False)
+
+
+def i1io_legacy_recipe(r: "LayoutRecipe") -> "LayoutRecipe":
+    """*r*, an i1iO recipe read from disk that a version before the label
+    options saved (review F4, R1): marked as such, and its label fields set
+    to what 4.3.33 printed for them (it ignored them): ArgyllCMS's default
+    patterns, no underline, Left, the sheet text in the name line's own face
+    and size, bold. The label face, Bold, Italic and size stay: 4.3.33 used
+    them for the patch numbers."""
+    return replace(r, i1io_label_options=False,
+                   strip_pattern=permutation.DEFAULT_STRIP_PATTERN,
+                   patch_pattern=permutation.DEFAULT_PATCH_PATTERN,
+                   underline_mode="off", indicator_align="left",
+                   chart_text_font="Inter", chart_text_size_mm=0.0,
+                   chart_text_italic=False, i1io_text_bold=None)
 
 
 class PresetStore:

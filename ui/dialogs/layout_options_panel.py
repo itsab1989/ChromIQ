@@ -4308,7 +4308,7 @@ class LayoutOptionsPanel(QWidget):
         from workflow.layout_engine.permutation import (DEFAULT_PATCH_PATTERN,
                                                         DEFAULT_STRIP_PATTERN)
         self._i1io_label_options = bool(getattr(r, "i1io_label_options",
-                                                False))
+                                                True))
         if self._i1io_label_options:
             return r
         return replace(r, strip_pattern=DEFAULT_STRIP_PATTERN,

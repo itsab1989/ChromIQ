@@ -45,12 +45,17 @@ from . import table_facts as F
 #: The sheets Guided offers for the i1iO: portrait, laid across the table.
 GUIDED_PAPERS = ("A4", "Letter")
 
-#: The build-kwargs key of an i1iO recipe saved before the label options
-#: (`LayoutRecipe.i1io_label_options` False, review F4): 4.3.33 greyed and
-#: ignored the label controls, so such a recipe can carry another
-#: instrument's style. With it the strip letters, patterns and the sheet
-#: text are drawn as 4.3.33 drew them.
-LEGACY_LABELS_KEY = "i1io_legacy_labels"
+#: THE MARK of an i1iO recipe with the label options, under its one name
+#: everywhere (`LayoutRecipe.i1io_label_options`, review F4/R1). Only an
+#: explicit False is a recipe from before them (4.3.33 greyed and ignored the
+#: label controls): its strip letters, patterns and sheet text are drawn as
+#: 4.3.33 drew them. Absent = this version's.
+OPTIONS_KEY = "i1io_label_options"
+
+
+def legacy_labels(kw: dict) -> bool:
+    """Whether *kw* is an i1iO recipe from before the label options."""
+    return kw.get(OPTIONS_KEY) is False
 
 #: The build-kwargs key that carries the label wishes past
 #: `fixed_build_kwargs` (kept for callers; the labels are the engine's own).
@@ -139,7 +144,7 @@ def label_wishes(kw: dict) -> Labels:
     held = kw.get(LABELS_KEY)
     if isinstance(held, Labels):
         return held
-    if kw.get(LEGACY_LABELS_KEY):
+    if legacy_labels(kw):
         # an i1iO recipe from before the label options (review F4): only
         # what 4.3.33 read, the switches and the size
         return Labels(columns=kw.get("row_indicators") is not False,
@@ -1225,7 +1230,7 @@ def text_style_of(kw: dict) -> "SheetTextStyle | None":
     """The sheet text's style as build kwargs *kw* hold it, or None when it
     is the name line's own (Inter Bold, its capitals): then the line is set
     exactly as in 4.3.33, as one run of text."""
-    if kw.get(LEGACY_LABELS_KEY):
+    if legacy_labels(kw):
         return None                 # 4.3.33's line (review F4)
     try:
         size = max(0.0, float(kw.get("chart_text_size_mm") or 0.0))
@@ -1751,7 +1756,7 @@ def crosses_off_effects(kw: dict, name: str = "", sheet_text: str = "",
     head, extra = page_line_parts(name, 0, layout.pages, sheet_text, None)
     kept = plan.get("kept", ())
     from workflow.layout_engine import permutation
-    legacy = bool(kw.get(LEGACY_LABELS_KEY))
+    legacy = legacy_labels(kw)
     patterns = (str((not legacy and kw.get("strip_pattern"))
                     or permutation.DEFAULT_STRIP_PATTERN),
                 str((not legacy and kw.get("patch_pattern"))

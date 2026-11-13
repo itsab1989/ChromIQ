@@ -353,6 +353,7 @@ def test_a_loaded_recipe_shows_the_i1ios_bold(panel):
     assert panel.ct_bold.isChecked()
     panel.set_recipe(LayoutRecipe.from_dict({"instrument": "IO2",
                                              "paper": "A4",
+                                             "i1io_label_options": True,
                                              "i1io_text_bold": False}))
     assert not panel.ct_bold.isChecked()
     assert panel.get_recipe().i1io_text_bold is False
@@ -434,13 +435,13 @@ def test_preferences_label_style_is_treated_as_for_the_i1pro(prefs_tab, code):
     QApplication.processEvents()
     kw = tab._creator._engine_kwargs(tab._collect_guided())
     assert "underline_mode" not in kw and "indicator_font" not in kw
+    # Guided -> Manual as a person does it: the panel follows Guided's
+    # instrument, nothing is picked again (review R1 d)
     tab._switch_mode("manual")
     tab._init_manual_layout_panel()
     panel = tab._manual_layout_panel
-    j = panel.instr.findData(code)
-    panel.instr.setCurrentIndex(j)
-    panel.instr.activated.emit(j)
     QApplication.processEvents()
+    assert panel.instr.currentData() == code
     r = tab._current_layout_recipe()
     assert (r.underline_mode, r.indicator_font, r.indicator_bold) == \
         ("black", "Inter", True)
@@ -451,14 +452,18 @@ def test_the_i1io_margin_boxes_are_the_builds(prefs_tab):
     from PyQt6.QtWidgets import QApplication
     from workflow.i1io import chart as C
     tab = prefs_tab
-    tab._switch_mode("manual")
+    tab._switch_mode("guided")
+    i = tab._instr_combo.findData("IO2")
+    tab._instr_combo.setCurrentIndex(i)
+    tab._instr_combo.activated.emit(i)
+    QApplication.processEvents()
+    tab._switch_mode("manual")            # no re-pick (review R1 d)
     tab._init_manual_layout_panel()
     panel = tab._manual_layout_panel
-    j = panel.instr.findData("IO2")
-    panel.instr.setCurrentIndex(j)
-    panel.instr.activated.emit(j)
     QApplication.processEvents()
-    panel._i1io_show_what_applies()
+    assert panel.instr.currentData() == "IO2"
+    r = tab._current_layout_recipe()
+    assert r.i1io_label_options is True    # a chart made now is modern
     least = C.least_margins_mm({**tab._current_layout_recipe().build_kwargs(),
                                 "instrument": "IO2"})
     assert least[2] > 21.0
@@ -484,7 +489,7 @@ def test_an_old_i1io_recipe_builds_with_4333s_labels(tmp_path):
     old = LayoutRecipe.from_dict(dict(OLD_CARRIED))
     assert old.i1io_label_options is False
     kw = old.build_kwargs()
-    assert kw["i1io_legacy_labels"] is True
+    assert kw["i1io_label_options"] is False
     for k in ("instrument", "paper", "seed", "dpi"):
         kw.pop(k, None)
     a, side_a = _build(tmp_path / "old", 600, **kw)
@@ -501,7 +506,7 @@ def test_an_old_i1io_recipe_builds_with_4333s_labels(tmp_path):
     assert locs[0] == "A1"
     marked = LayoutRecipe.from_dict({**OLD_CARRIED,
                                      "i1io_label_options": True})
-    assert "i1io_legacy_labels" not in marked.build_kwargs()
+    assert marked.build_kwargs()["i1io_label_options"] is True
     assert marked.to_dict()["i1io_label_options"] is True
 
 
@@ -517,7 +522,7 @@ def test_the_panel_keeps_an_old_recipe_old_until_a_label_is_touched(panel):
     panel.set_recipe(LayoutRecipe.from_dict(dict(OLD_CARRIED)))
     r = panel.get_recipe()
     assert r.i1io_label_options is False
-    assert r.build_kwargs()["i1io_legacy_labels"] is True
+    assert r.build_kwargs()["i1io_label_options"] is False
     # it shows what 4.3.33 printed for the controls it ignored
     assert panel.underline_mode.currentData() == "off"
     assert panel.strip_pat.text() == "A-Z, A-Z"
@@ -525,4 +530,4 @@ def test_the_panel_keeps_an_old_recipe_old_until_a_label_is_touched(panel):
         panel.underline_mode.findData("black"))
     r = panel.get_recipe()
     assert r.i1io_label_options is True
-    assert "i1io_legacy_labels" not in r.build_kwargs()
+    assert r.build_kwargs()["i1io_label_options"] is True
