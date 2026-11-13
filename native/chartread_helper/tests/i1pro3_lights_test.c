@@ -39,7 +39,7 @@ void i1pro2_cq_lights_trigger(void *pp);
 void i1pro2_cq_lights_eeprom(void *pp);
 
 static const char *scn = "?";
-static int fail_29_at = 0, n_29 = 0;
+static int fail_29_at = 0, n_29 = 0, short_wr_at = 0, n_wr02 = 0;
 static volatile int hold_trigger = 0;
 static volatile int trig_sent = 0;	/* a measure request (0x22/0x27) went out */
 
@@ -82,6 +82,11 @@ static int fake_write(icoms *p, usb_cancelt *c, int ep, unsigned char *wbuf,
 	printf(" tout=%.2f\n", tout);
 	fflush(stdout);
 	*bwritten = wsize;
+	if (ep == 0x02) {
+		n_wr02++;
+		if (short_wr_at && n_wr02 == short_wr_at)
+			*bwritten = 0;
+	}
 	return ICOM_OK;
 }
 
@@ -150,7 +155,7 @@ static i1pro3 *make(devType dtype, int caps, int inited) {
 	m->nsen2 = 282;
 	m->nraw = 128;
 	m->msec = msec_time();
-	n_29 = 0;
+	n_29 = n_wr02 = 0;
 	return p;
 }
 
@@ -279,6 +284,12 @@ int main(void) {
 	fail_29_at = 2;
 	session("fail_off", instI1Pro3, I1PRO3_CAP_IND_LED, 1, 1);
 	fail_29_at = 0;
+
+	/* The bytes of the first pattern do not arrive (a short bulk write):
+	 * noted once, nothing more is sent. */
+	short_wr_at = 1;
+	session("fail_write", instI1Pro3, I1PRO3_CAP_IND_LED, 1, 1);
+	short_wr_at = 0;
 
 	/* end() while lit (lights_off_exit, end of stdin, atexit). */
 	scn = "end_cmd";

@@ -3249,12 +3249,12 @@ class MeasureManager(QObject):
             log.info("instrument lights: in use for this session (%s)", which)
             if which == "i1pro3":
                 on_line(tr(
-                    "[Engine] Instrument lights (beta): on. The i1Pro 3 "
-                    "switches its lights off while it calibrates or measures. "
-                    "Afterwards it shows the patterns X-Rite's i1Profiler "
-                    "uses: after a reading two green blinks, when a reading "
-                    "could not be taken two red blinks, each followed by a "
-                    "slowly breathing white light."))
+                    "[Engine] Instrument lights (beta): on. While the i1Pro 3 "
+                    "calibrates or measures, its lights behave as without this "
+                    "option. Afterwards it shows the patterns X-Rite's "
+                    "i1Profiler uses: after a reading two green blinks, when a "
+                    "reading could not be taken two blinks we expect to be "
+                    "red, each followed by a slowly breathing white light."))
             else:
                 on_line(tr(
                     "[Engine] Instrument lights (beta): on. The i1Pro 2 shows "

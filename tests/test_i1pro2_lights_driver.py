@@ -329,9 +329,9 @@ def _d6(lines):
     return [ln for ln in lines if ln.startswith(("CTL d6", "WR 03"))]
 
 
-WHITE = ["CTL d6 00000020 tout=1.00", f"WR 03 {RECORDED['white']} tout=1.00"]
+WHITE = ["CTL d6 00000020 tout=0.25", f"WR 03 {RECORDED['white']} tout=0.25"]
 OFF_SLOW = ["CTL d6 00000012 tout=0.25", f"WR 03 {RECORDED['off_slow']} tout=0.25"]
-OFF_NOW = ["CTL d6 0000000f tout=1.00", f"WR 03 {RECORDED['off_now']} tout=1.00"]
+OFF_NOW = ["CTL d6 0000000f tout=0.25", f"WR 03 {RECORDED['off_now']} tout=0.25"]
 OFF_CLOSE = ["CTL d6 0000000f tout=0.50", f"WR 03 {RECORDED['off_now']} tout=0.50"]
 
 

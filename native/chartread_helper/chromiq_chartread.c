@@ -1385,8 +1385,10 @@ static void cq_lights_atexit(void) {
 	 || !CQ_SAME_THREAD(cq_lights_thread))
 		return;
 	/* If the off cannot complete (a stuck transfer, a lock never released),
-	 * the exit guard ends the process 1.5 s later as it would anyway. */
-	cq_exit_deadline_arm(CQ_EXIT_GRACE_MS);
+	 * the exit guard ends the process; with the deadline a closed instrument
+	 * gets for the rest of the exit (30 s), so an ordinary exit keeps its
+	 * own exit code. */
+	cq_exit_deadline_arm(CQ_EXIT_AFTER_CLOSE_MS);
 	cq_lights_do_off();
 }
 

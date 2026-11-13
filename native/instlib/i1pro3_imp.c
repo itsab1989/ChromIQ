@@ -6259,9 +6259,9 @@ i1pro3_indLEDoff(void *pp) {
 #define CQ3_LIGHTS_BAD   3
 #define CQ3_LIGHTS_OFF   4
 
-#define CQ3_LIGHTS_TOUT         1.0	/* s per transfer; a good one takes a few ms */
+#define CQ3_LIGHTS_TOUT         0.25	/* s per transfer; a good one takes a few ms */
 #define CQ3_LIGHTS_TOUT_MEASURE 0.25	/* between the button and the measurement */
-#define CQ3_LIGHTS_TOUT_CLOSE   0.5	/* at the close, inside the helper's 1.5 s */
+#define CQ3_LIGHTS_TOUT_CLOSE   0.25	/* at the close, inside the helper's 1.5 s */
 
 static const unsigned char cq3_lights_seq_ready[6] = { 0x01, 0xfa, 0x04,  0x12, 0x05, 0x00 };
 static const unsigned char cq3_lights_seq_good[6]  = { 0x0a, 0x14, 0x02,  0x12, 0x05, 0x00 };

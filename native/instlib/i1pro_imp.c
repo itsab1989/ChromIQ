@@ -12436,7 +12436,7 @@ i1pro2_indLEDoff(void *pp) {
 #define CQ_LIGHTS_OFF_SLOW 2
 #define CQ_LIGHTS_OFF_NOW  3
 
-#define CQ_LIGHTS_TOUT       1.0	/* s per transfer; a good one takes a few ms */
+#define CQ_LIGHTS_TOUT       0.25	/* s per transfer; a good one takes a few ms */
 #define CQ_LIGHTS_TOUT_TRIGGER 0.25	/* between the button and the trigger: short */
 #define CQ_LIGHTS_TOUT_CLOSE 0.5	/* at the close, inside the helper's 1.5 s */
 #define CQ_LIGHTS_SLOW_MS    2500	/* OFF_SLOW plays for about 2 s */

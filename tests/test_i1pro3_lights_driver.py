@@ -66,8 +66,10 @@ def test_the_off_is_argylls_own():
     assert "unsigned char seq[] = { 0x00 };" in argyll
 
 
-def test_the_patterns_decode_as_white_green_red():
-    """Argyll's format: 3-byte groups type, timing, count (0 = forever)."""
+def test_the_patterns_end_in_the_recorded_white_pulse_forever():
+    """Argyll's format: 3-byte groups type, timing, count (0 = forever). The
+    colours of 0x0a and 0x06 come from the tester's notes (LIKELY), not from
+    here: this only pins the bytes and their structure."""
     for name, bytes_hex in RECORDED.items():
         b = bytes.fromhex(bytes_hex)
         groups = [b[i:i + 3] for i in range(0, len(b), 3)]
@@ -170,9 +172,9 @@ def _pat(seq_hex, tout):
     return [f"CTL 29 {n:02x}000000 tout={tout}", f"WR 02 {seq_hex} tout={tout}"]
 
 
-READY, GOOD, BAD = (_pat(RECORDED[k], "1.00") for k in ("ready", "good", "bad"))
+READY, GOOD, BAD = (_pat(RECORDED[k], "0.25") for k in ("ready", "good", "bad"))
 OFF_MEASURE = _pat("00", "0.25")
-OFF_CLOSE = _pat("00", "0.50")
+OFF_CLOSE = _pat("00", "0.25")
 
 
 def test_option_off_puts_on_the_wire_exactly_what_argyll_does(traces3):
@@ -213,6 +215,13 @@ def test_a_failed_request_is_noted_once_and_ends_the_lights(traces3):
     assert [ln for ln in lines if ln.startswith("NOTE")] == ["NOTE seq=4 err=0x200"]
     assert _d29(lines) == READY + ["CTL 29 01000000 tout=0.25"]
     assert sum(ln.startswith("CTL 27") for ln in lines) == 5    # measuring went on
+
+
+def test_a_short_bulk_write_ends_the_lights_too(traces3):
+    lines = _scenario(traces3["patched"], "fail_write")
+    assert [ln for ln in lines if ln.startswith("NOTE")] == ["NOTE seq=1 err=0x0"]
+    assert _d29(lines) == READY                    # the short one, then nothing
+    assert sum(ln.startswith("CTL 27") for ln in lines) == 5
 
 
 def test_the_end_paths(traces3):

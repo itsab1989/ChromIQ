@@ -147,7 +147,7 @@ def test_an_i1pro3_session_says_what_it_shows_and_writes_no_i1pro2_marker(
     m._handle_engine_line(json.dumps(
         {"event": "lights", "active": True, "instrument": "i1pro3"}),
         lines.append)
-    assert len(lines) == 1 and "The i1Pro 3" in lines[0]
+    assert len(lines) == 1 and "the i1Pro 3" in lines[0]
     assert "two green blinks" in lines[0] and "\u2014" not in lines[0]
     assert written == [] and m._lights_marker_live is False
     assert runner.courtesy == ['{"cmd":"lights_off_exit"}\n']
@@ -358,7 +358,8 @@ def test_the_row_is_off_and_says_what_it_does(dialog):
     body = tips[0]._body
     for needed in ("white while it waits for you",
                    "no light while it calibrates or measures",
-                   "two green blinks", "two red blinks",
+                   "two green blinks", "two blinks that we expect to be red",
+                   "the lights behave exactly as without this option",
                    "breathing white light", "i1Pro 3 Plus",
                    "Green only means that the instrument took a reading",
                    "Only for the i1Pro 2 and the i1Pro 3", "ColorMunki",

@@ -142,7 +142,7 @@ I1PRO_IMP_C_LIGHTS_BLOCK = r"""
 #define CQ_LIGHTS_OFF_SLOW 2
 #define CQ_LIGHTS_OFF_NOW  3
 
-#define CQ_LIGHTS_TOUT       1.0	/* s per transfer; a good one takes a few ms */
+#define CQ_LIGHTS_TOUT       0.25	/* s per transfer; a good one takes a few ms */
 #define CQ_LIGHTS_TOUT_TRIGGER 0.25	/* between the button and the trigger: short */
 #define CQ_LIGHTS_TOUT_CLOSE 0.5	/* at the close, inside the helper's 1.5 s */
 #define CQ_LIGHTS_SLOW_MS    2500	/* OFF_SLOW plays for about 2 s */
@@ -432,9 +432,9 @@ I1PRO3_IMP_C_LIGHTS_BLOCK = r"""
 #define CQ3_LIGHTS_BAD   3
 #define CQ3_LIGHTS_OFF   4
 
-#define CQ3_LIGHTS_TOUT         1.0	/* s per transfer; a good one takes a few ms */
+#define CQ3_LIGHTS_TOUT         0.25	/* s per transfer; a good one takes a few ms */
 #define CQ3_LIGHTS_TOUT_MEASURE 0.25	/* between the button and the measurement */
-#define CQ3_LIGHTS_TOUT_CLOSE   0.5	/* at the close, inside the helper's 1.5 s */
+#define CQ3_LIGHTS_TOUT_CLOSE   0.25	/* at the close, inside the helper's 1.5 s */
 
 static const unsigned char cq3_lights_seq_ready[6] = { 0x01, 0xfa, 0x04,  0x12, 0x05, 0x00 };
 static const unsigned char cq3_lights_seq_good[6]  = { 0x0a, 0x14, 0x02,  0x12, 0x05, 0x00 };
