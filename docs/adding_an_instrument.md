@@ -124,7 +124,7 @@ The **ChromIQ X-Rite instrument probe** is a free, open-source tool:
 [github.com/itsab1989/chromiq-i1io-probe](https://github.com/itsab1989/chromiq-i1io-probe).
 Its README has the step-by-step instructions for each system; please follow
 those, because they are kept up to date with the tool. What follows is a short
-summary, checked against version 1.5.5.
+summary, checked against version 1.6.0.
 
 - **What it does.** It looks for your instrument, writes a plain-text report
   about it and your computer, and can then guide you through a few short steps
@@ -141,8 +141,18 @@ summary, checked against version 1.5.5.
   again as administrator.
 - **Which instruments it covers today**: X-Rite instruments only, namely the
   i1iO scanning table, the i1Pro family (original i1Pro, i1Pro 2, i1Pro 3 and
-  i1Pro 3 Plus), the ColorMunki Photo / Design and the i1Studio. Instruments
-  by other makers are not covered by it yet.
+  i1Pro 3 Plus), the ColorMunki Photo / Design, the i1Studio, and since
+  version 1.6 the i1iSis chart readers (i1iSis, i1iSis XL, i1iSis 2 and
+  i1iSis 2 XL). Instruments by other makers are not covered by it yet.
+- **About the i1iSis session**: it is new in version 1.6 and, in the words of
+  that release, "it has not been tried with a real i1iSis yet: everything was
+  tested with invented recordings only, so your first session is the real
+  test." ChromIQ cannot use an i1iSis today. A recording helps us learn the
+  basics; whether ChromIQ can ever use an i1iSis is a separate question, and
+  nothing is promised. The README's section "The i1iSis session" says what to
+  prepare (a printed i1iSis chart page and a plain sheet) and what such a
+  recording also contains: the colour values the i1iSis measured from your
+  chart page and, if the chart has a barcode, what the barcode holds.
 - **Which systems**: downloads for Windows, macOS (Intel and Apple Silicon)
   and Linux. The report works on all of them. A **recording** needs more:
   - **Windows** on a PC with an Intel or AMD processor: the free USBPcap,
@@ -152,14 +162,16 @@ summary, checked against version 1.5.5.
   - **macOS**: only with System Integrity Protection (SIP) fully switched off
     for the time of the recording, and switched back on afterwards. The
     README explains how, and the risk, honestly.
-  - **Linux**: `usbmon` and `tcpdump`; the makers' programs themselves do not
-    run on Linux.
+  - **Linux**: `usbmon` and `tcpdump`. The makers' programs do not run on
+    Linux, so a recording works only when they run in a virtual machine that
+    the instrument is passed through to.
 
   The README also lists which versions of X-Rite's i1Profiler and of Windows
   still work with which instrument; please check it before you start.
 - **What a recording contains.** Necessarily your instrument's **serial
   number and its factory calibration data**, because the maker's program reads
-  them every time it connects. They identify your instrument, not you. So
+  them every time it connects (for the i1iSis the README says "very likely",
+  because it is not proven yet). They identify your instrument, not you. So
   please share a recording deliberately. The tool keeps a copy that holds only
   the instrument's traffic, and offers to delete the full recordings, which
   can contain other USB devices such as a keyboard.
