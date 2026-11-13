@@ -34,6 +34,16 @@ from . import table_facts as F
 #: The sheets Guided offers for the i1iO: landscape, inside the arm's reach.
 GUIDED_PAPERS = ("A4R", "LetterR")
 
+def landscape_for(paper) -> str:
+    """The i1iO sheet for a person coming from *paper*: Letter landscape for
+    anyone on a US sheet (Letter, Legal, Tabloid), A4 landscape for everyone
+    else. Guided picks no paper by locale anywhere, so the paper already on
+    screen is the best evidence of which family a person prints on."""
+    return ("LetterR" if str(paper or "") in ("Letter", "LetterR", "Legal",
+                                              "11x17", "203x254")
+            else "A4R")
+
+
 #: Schema of the side file (also in the `.ti2` keyword CHROMIQ_I1IO_LAYOUT).
 SCHEMA = 1
 

@@ -2298,28 +2298,6 @@ class MainWindow(QMainWindow):
         preset_recipe = None
         if key == "ti2_relayout":
             initial_chart = self._current_chart_ti2()
-            # AN i1iO TABLE CHART IS NOT EDITED HERE YET (Beta, 2026-11-13):
-            # the editor hands its patch set back to Manual, which does not
-            # offer the i1iO, so the chart would come back as an i1Pro strip
-            # chart. Asked only while i1iO support is on; off, the editor
-            # opens as in 4.3.32 and nothing is read for it.
-            from workflow.i1io.support import i1io_enabled
-            if i1io_enabled() and initial_chart is not None:
-                from workflow.i1io.support import chart_names_i1io
-                if chart_names_i1io(initial_chart) is True:
-                    from ui.warning_sign import inform
-                    inform(self, tr(
-                        "The patch set editor cannot open an i1iO chart yet"),
-                        tr("This run's chart was made for the X-Rite i1iO "
-                           "table. The patch set editor hands its result back "
-                           "to Manual mode, and Manual mode does not offer the "
-                           "i1iO yet, so the chart would come back laid out "
-                           "for a hand-held i1Pro instead.\n\n"
-                           "To change the patches of an i1iO chart, make a "
-                           "new chart in Create Chart > Guided with "
-                           "“i1iO 2 + i1Pro 2” chosen. Nothing has been "
-                           "changed."))
-                    return
             # "New Patch Set…" opens with the SELECTED preset's design, not the
             # run's last build (Knut, #182 5872273862).
             try:

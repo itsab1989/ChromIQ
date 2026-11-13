@@ -46,28 +46,37 @@ instrument to name.
 
 ### On: Create Chart
 
-* Guided only: "i1iO 2 + i1Pro 2" (code `IO2`). Manual, the layout panel,
-  Preferences > Chart Layout and the presets do not offer it yet; Guided's
-  settings are not carried into Manual for an i1iO chart (a log line says so),
-  and Tools > Edit patch set refuses an i1iO chart with a window.
-* Sheets: A4 landscape and Letter landscape. The engine refuses a portrait
-  sheet or one larger than the reach.
+* Guided and Manual: "i1iO 2 + i1Pro 2" (code `IO2`) in the Instrument lists,
+  the layout panel and Preferences > Chart Layout.
+* Sheets: A4 landscape and Letter landscape (Guided picks Letter landscape
+  for someone on a US sheet, A4 landscape otherwise). The engine refuses a
+  portrait sheet or one larger than the reach.
 * Laid out by the layout engine for scanning rows along the sheet's long side:
-  patches 10 x 8 mm, no gaps or spacers, 15 mm of blank paper before the first
-  and after the last patch of every row with a 2 mm black bar 5 mm from the
-  patches, three numbered aiming marks at the sheet corners (1 top left, 2
-  bottom left, 3 bottom right), an arrow at the top centre towards the arm's
-  resting place, "N/M" beside it on a multi-sheet chart, the chart name at the
-  bottom. No labels, clip border, helper markers or stamp. 546 patches per
-  A4 sheet, 528 per Letter sheet. Every number, its source and its confidence
-  are in `workflow/i1io/table_facts.py`.
+  patches 10 x 8 mm with a 1 mm white gap between neighbours along the row
+  (none between rows), 15 mm of blank paper before the first and after the
+  last patch of every row, three numbered aiming marks at the sheet corners
+  (1 top left, 2 bottom left, 3 bottom right), column letters above the
+  patches and row numbers beyond the left end of every run, the ChromIQ
+  wordmark beside mark 1, "N/M" at the top centre on a multi-sheet chart, the
+  chart name (and Manual's sheet text) at the bottom. **Nothing is printed on a
+  scan line outside the patches**, and a label keeps 1 mm from the patches
+  across the scan; a label that cannot be placed safely on a sheet is left
+  off there, never its clearance. No arrow: the numbered marks define the
+  orientation. Capacity per sheet: A4 483 (504 without row numbers), Letter
+  462 (484). Every number, its source and its confidence are in
+  `workflow/i1io/table_facts.py`.
+* Manual: the patch size (8.9 to 20 mm along the row, 7 to 20 mm across it),
+  the strip letters and row numbers on/off and their size, the sheet text,
+  paper, pages, randomisation, calibration and output are live; every other
+  layout control is greyed with the reason and shows the value that applies.
 * Generate refuses, before anything is written, a layout where a patch, a run
   or a mark leaves the sheet or touches a mark.
 * Files: `.ti2` `TARGET_INSTRUMENT "X-Rite i1iO"` (the family), declared
   keywords `CHROMIQ_I1IO_LAYOUT "1"` and `CHROMIQ_I1IO_TABLE "i1iO 2"`;
-  `<stem>.i1io.json` with every mark, row, run, bar and patch centre in mm.
+  `<stem>.i1io.json` with every mark, row, run, label and patch centre in mm.
   A later i1iO / i1iO 3 entry gets its own code and writes the same family
   name, so no file already written is renamed.
+* The patch set editor lays an i1iO chart out again as one (switch on).
 
 ### On: Measure
 

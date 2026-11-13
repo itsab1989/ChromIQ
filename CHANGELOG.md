@@ -3,7 +3,7 @@
 ## Unreleased
 
 ### New
-- **Preparing for the X-Rite i1iO scanning table (beta).** A new option in Preferences › Beta, “X-Rite i1iO support (beta)”, off by default. Turned on (after a window that explains the state of things and asks you to confirm), Create Chart › Guided offers “i1iO 2 + i1Pro 2” and makes a chart designed for the table: landscape A4 or Letter, rows of 10 × 8 mm patches along the long side for fast scanning, blank paper with a black bar at both ends of every row, three numbered aiming marks in the corners and an arrow for the edge that goes towards the arm. This version only makes charts: it sends nothing to a table, and the Measure tab says so kindly when you press Start, with the way to measure the run in i1Profiler today. Only the i1iO 2 with an i1Pro 2 is supported. With the option off, ChromIQ works exactly as before.
+- **Preparing for the X-Rite i1iO scanning table (beta).** A new option in Preferences › Beta, “X-Rite i1iO support (beta)”, off by default. Turned on (after a window that explains the state of things and asks you to confirm), Create Chart offers “i1iO 2 + i1Pro 2” in Guided and in Manual and makes a chart designed for the table: landscape A4 or Letter, rows of 10 × 8 mm patches along the long side for fast scanning, blank paper at both ends of every row, three numbered aiming marks in the corners, column letters and row numbers. In Manual you can change the patch size and switch the labels off. This version only makes charts: it sends nothing to a table, and the Measure tab says so kindly when you press Start, with the way to measure the run in i1Profiler today. Only the i1iO 2 with an i1Pro 2 is supported. With the option off, ChromIQ works exactly as before.
 
 ## v4.3.32
 

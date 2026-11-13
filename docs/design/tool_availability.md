@@ -523,8 +523,8 @@ beneficial"*. `ui/file_drop.py`, `tests/test_4333_drop_files_everywhere.py`
 **Confirmed by:** *nobody yet.*
 
 * **Edit / create chart patch set** on an i1iO chart, with i1iO support on:
-  refused with a window, because the editor hands its patch set back to Manual,
-  which does not offer the i1iO yet; nothing is changed. Off: as in 4.3.32.
+  opens it as an i1iO chart and hands it back to Create Chart, which lays it
+  out with the i1iO's own layout. Off: as in 4.3.32 (read as the i1Pro).
 * **Read single patches**: the i1iO is not one of its instruments.
 * **i1Profiler interchange**: an i1iO run writes the same i1Profiler patch-set
   files into `exports/` as any RGB or CMYK chart; Convert i1Profiler → TI3

@@ -169,14 +169,47 @@ def test_guided_offers_the_i1io_with_its_own_sheets_only(chart_tab):
     assert tab._creator._engine_total_patches(p) == 483
 
 
-def test_an_i1io_chart_is_never_carried_into_manual(chart_tab):
-    """Manual does not offer the i1iO: its settings stay Manual's own."""
+def test_manual_offers_the_i1io_and_greys_what_it_does_not_read(chart_tab):
+    """Manual: the i1iO in the -i list and in the layout panel; choosing it
+    greys every control the i1iO layout does not read (each with the
+    reason), keeps the patch size, the labels, the sheet text, the
+    resolution, the paper and the pages live, and holds the patch size inside
+    the table's limits. Leaving it gives everything back."""
+    from ui.dialogs.layout_options_panel import i1io_greyed_reason
     tab = chart_tab
-    before = tab._collect_manual().instrument
-    tab._instr_combo.setCurrentIndex(tab._instr_combo.findData("IO2"))
-    tab._transfer_guided_to_manual(quiet=False)
-    assert tab._collect_manual().instrument == before != "IO2"
-    assert "does not offer the X-Rite i1iO" in tab._log.toPlainText()
+    params = tab._load_yaml_params()
+    i = next(p for p in params["printtarg"] if p["flag"] == "-i")
+    assert "IO2" in i["choices"] and "i1iO 2 + i1Pro 2" in i["tooltip_body"]
+    tab._init_manual_layout_panel()
+    panel = tab._manual_layout_panel
+    k = panel.instr.findData("IO2")
+    assert k >= 0
+    before = {id(c): c.isEnabled() for c in panel._i1io_greyable_controls()}
+    panel.instr.setCurrentIndex(k)
+    greyed = list(panel._i1io_greyable_controls())
+    assert greyed and all(not c.isEnabled() for c in greyed)
+    assert all(c.toolTip() == i1io_greyed_reason() for c in greyed)
+    for c in panel._i1io_live_controls():
+        assert c.isEnabled(), c.objectName() or type(c).__name__
+    assert [panel.paper.itemData(j) for j in range(panel.paper.count())][:2] \
+        == ["A4R", "LetterR"]
+    assert (panel.patch_x.minimum(), panel.patch_x.maximum()) == (8.9, 20.0)
+    assert (panel.patch_x.value(), panel.patch_y.value()) == (10.0, 8.0)
+    panel.patch_x.setValue(12.0)
+    r = panel.get_recipe()
+    assert r.instrument == "IO2" and r.patch_w_mm == 12.0
+    from workflow.layout_engine import instruments
+    g = instruments.geom_from_build_kwargs(r.build_kwargs())
+    assert g.pwid == 12.0 and g.pspa == 0.0
+    panel.instr.setCurrentIndex(panel.instr.findData("i1"))
+    after = {id(c): c.isEnabled() for c in panel._i1io_greyable_controls()}
+    assert after == before
+
+
+def test_the_editor_reads_an_i1io_chart_as_one():
+    from workflow.ti2_relayout import instrument_to_flag
+    assert instrument_to_flag("X-Rite i1iO") == "IO2"
+    assert instrument_to_flag("i1iO 2") == "i1"    # i1Profiler's own name
 
 
 def test_other_charts_get_no_keyword_declarations(tmp_path):

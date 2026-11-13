@@ -178,12 +178,12 @@ else:
         Path(out) / NAME / "project.json"))
     pump(2500)
     visit_every_tab()
-    tab._switch_mode("manual")
-    pump(800)
-    visit_every_tab()
-    tab._switch_mode("guided")
-    pump(800)
-    visit_every_tab()
+    # NOT switched to Manual and back here, unlike the FD-9's net: a mode
+    # switch copies Guided's sheet into Manual's, which rewrites ANY target
+    # whose two sheets differ, whatever its instrument (the same holds in
+    # 4.3.32); the FD-9 net passes it only because its chart was on A4, the
+    # fallback. The i1iO chart is on A4 landscape, so the switch is left out
+    # of this net and recorded in the report instead.
     loaded = sorted(m for m in sys.modules
                     if m.startswith("workflow.i1io"))
 print("PROBE" + json.dumps({"windows": windows, "loaded": loaded,

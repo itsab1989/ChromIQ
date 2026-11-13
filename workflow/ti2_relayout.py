@@ -161,6 +161,14 @@ def instrument_to_flag(target_instrument: str | None) -> str:
         from workflow.fd9.support import fd9_enabled
         if fd9_enabled():
             return "FD9"
+    # The X-Rite i1iO table (a Beta): its own layout key while i1iO support
+    # is on, so the editor lays an i1iO chart out again as one. Off, it reads
+    # as 4.3.32 read an instrument it did not know (the i1Pro default).
+    if "i1io" in name:
+        from workflow.i1io.support import i1io_enabled, is_i1io_instrument_name
+        if i1io_enabled() and is_i1io_instrument_name(target_instrument):
+            from workflow.i1io.support import CODE
+            return CODE
     # The CR30 is checked FIRST and is not a printtarg code at all (#159):
     # printtarg has no -iCR30 and never lays this chart out. It is returned so
     # a CR30 chart relayouts as a CR30 rather than silently falling through to

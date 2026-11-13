@@ -264,6 +264,28 @@ def fd9_greyed_reason() -> str:
         "border and the output settings.")
 
 
+def i1io_greyed_reason() -> str:
+    """The tooltip of a Create Chart control an i1iO table chart does not
+    use (Beta). Says what the layout is, why, and where the controls it does
+    read are."""
+    return tr(
+        "Not used for the i1iO table. An i1iO chart has a layout of its own, "
+        "made for the table reading it row by row: the patches lie in rows "
+        "along the long side of a landscape sheet with a 1 mm white gap "
+        "between neighbours, every row has 15 mm of blank paper at both ends "
+        "so the arm can speed up and slow down, and three numbered aiming "
+        "marks sit in the corners. Nothing is printed where the instrument "
+        "reads, so there are no spacers and no clip border, and the labels "
+        "have fixed places beside the rows and above the patches. The greyed "
+        "boxes show the values an i1iO chart uses.\n\n"
+        "What you can set for the i1iO: the paper and the number of pages; "
+        "under “Expert Options”, the patch size (8.9 to 20 mm along the row, "
+        "7 to 20 mm across it), the strip letters and row numbers on or off "
+        "and their size, the sheet text (printed on the line with the chart "
+        "name), the randomisation, the printer calibration and the output "
+        "settings.")
+
+
 class LayoutOptionsPanel(QWidget):
     """All layout-engine controls except instrument/paper/mode."""
 
@@ -353,6 +375,8 @@ class LayoutOptionsPanel(QWidget):
     #: Offered only while FD-9 support is on (Preferences > Beta, restart to
     #: apply, `workflow.fd9.support`); `instruments()` adds it then.
     FD9_INSTRUMENT = ("FD9", "FD-9")
+    #: The X-Rite i1iO table (Beta, `workflow.i1io.support`), likewise.
+    I1IO_INSTRUMENT = ("IO2", "i1iO 2 + i1Pro 2")
 
     @classmethod
     def instruments(cls) -> "list[tuple[str, str]]":
@@ -362,6 +386,9 @@ class LayoutOptionsPanel(QWidget):
         out = list(cls.INSTRUMENTS)
         if fd9_enabled():
             out.append(cls.FD9_INSTRUMENT)
+        from workflow.i1io.support import i1io_enabled
+        if i1io_enabled():
+            out.append(cls.I1IO_INSTRUMENT)
         return out
 
     @staticmethod
@@ -586,6 +613,8 @@ class LayoutOptionsPanel(QWidget):
         # whether the FD-9 is offered at all.
         from workflow.fd9.support import fd9_enabled
         self._fd9_support = bool(fd9_enabled())
+        from workflow.i1io.support import i1io_enabled
+        self._i1io_support = bool(i1io_enabled())
         if with_selectors:
             sel = QGridLayout()
             # Instrument and Mode each get a full-width row.
@@ -3183,6 +3212,9 @@ class LayoutOptionsPanel(QWidget):
         if self._fd9_support:
             # Only while FD-9 support is on.
             self._sync_fd9_widgets(inst == "FD9")
+        if getattr(self, "_i1io_support", False):
+            # Only while i1iO support is on.
+            self._sync_i1io_widgets(inst == "IO2")
         # The extra clip-border On/Off selector — and its tooltip — are for CM/SS
         # only (i1/p3 use their Mode selector for the clip border).
         if hasattr(self, "clip_enable"):
@@ -3301,6 +3333,175 @@ class LayoutOptionsPanel(QWidget):
             self.custom_h.setRange(hmin, hmax)
             self.custom_w.setValue(wval)
             self.custom_h.setValue(hval)
+
+    # ---- the X-Rite i1iO table (Beta): its own fixed layout ----------------
+
+    #: What an i1iO chart honours besides the groups of `_FD9_LIVE_GROUPS`'s
+    #: kind: output, calibration and randomisation, found at any depth.
+    _I1IO_LIVE_GROUPS = ("Output", "Printer calibration", "Randomisation")
+
+    def _i1io_live_controls(self) -> tuple:
+        """Controls outside the live groups that an i1iO chart reads: the
+        resolution, the patch size, the strip letters and row numbers and
+        their size, and the sheet text (printed on the name line)."""
+        return tuple(c for c in (
+            self.dpi, self.patch_x, self.patch_y,
+            getattr(self, "show_indicators", None),
+            getattr(self, "show_row_indicators", None),
+            getattr(self, "indicator_size", None),
+            getattr(self, "chart_text", None)) if c is not None)
+
+    def _i1io_greyable_controls(self):
+        """Every input the i1iO layout does not read (as the FD-9's, found
+        independently of any list), except the (i) buttons and the live
+        ones."""
+        from PyQt6.QtWidgets import (QAbstractButton, QAbstractSpinBox,
+                                     QComboBox, QGroupBox, QLineEdit,
+                                     QPlainTextEdit, QTextEdit)
+        live = {tr(t) for t in self._I1IO_LIVE_GROUPS}
+        keep = self._i1io_live_controls()
+        for control in self.findChildren(
+                (QAbstractSpinBox, QAbstractButton, QComboBox, QLineEdit,
+                 QPlainTextEdit, QTextEdit)):
+            if isinstance(control, TooltipButton) or control in keep:
+                continue
+            if isinstance(control, QLineEdit) and isinstance(
+                    control.parentWidget(), (QAbstractSpinBox, QComboBox)):
+                continue
+            groups = []
+            p = control.parentWidget()
+            while p is not None and p is not self:
+                if isinstance(p, QGroupBox):
+                    groups.append(p.title())
+                p = p.parentWidget()
+            if not groups or any(t in live for t in groups):
+                continue
+            yield control
+
+    def _i1io_fixed_shown(self) -> dict:
+        """What the greyed controls show for an i1iO chart: its margins (the
+        mark bands, the runs and, with row numbers on, their band), no
+        spacers, patch-first, the default label patterns."""
+        from workflow.i1io.table_facts import margins_mm
+        from workflow.layout_engine.permutation import (DEFAULT_PATCH_PATTERN,
+                                                        DEFAULT_STRIP_PATTERN)
+        rows = getattr(self, "show_row_indicators", None)
+        t, r, b, lt = margins_mm(bool(rows is None or rows.isChecked()))
+        return {"margins": {"t": t, "r": r, "b": b, "l": lt},
+                "spacer_mode": "none", "layout_mode": "patch_first",
+                "texts": {"strip_pat": DEFAULT_STRIP_PATTERN,
+                          "patch_pat": DEFAULT_PATCH_PATTERN}}
+
+    def _i1io_show_what_applies(self) -> None:
+        want = self._i1io_fixed_shown()
+        was_loading = self._loading
+        self._loading = True
+        try:
+            for k, v in want["margins"].items():
+                box = self.margins.get(k)
+                if box is not None and abs(box.value() - v) > 1e-9:
+                    box.setValue(v)
+            for name in ("spacer_mode", "layout_mode"):
+                combo = getattr(self, name, None)
+                if combo is None:
+                    continue
+                i = combo.findData(want[name])
+                if i >= 0 and combo.currentIndex() != i:
+                    combo.setCurrentIndex(i)
+            for name, text in want["texts"].items():
+                box = getattr(self, name, None)
+                if box is not None and box.text() != text:
+                    box.setText(text)
+        finally:
+            self._loading = was_loading
+
+    def _sync_i1io_widgets(self, on: bool) -> None:
+        """Enter or leave the i1iO's layout, ONLY ON A CHANGE: entering greys
+        what the i1iO does not read (each with `i1io_greyed_reason`), holds
+        the patch size inside the table's limits and shows the values that
+        apply; leaving puts back exactly what was there."""
+        was = getattr(self, "_i1io_saved", None)
+        if on == (was is not None):
+            return
+        if on:
+            from workflow.i1io.table_facts import patch_limits_mm
+            why = i1io_greyed_reason()
+            saved = {"controls": [], "ranges": [], "shown": None}
+            for control in self._i1io_greyable_controls():
+                saved["controls"].append((control, control.isEnabled(),
+                                          control.toolTip()))
+                control.setEnabled(False)
+                control.setToolTip(why)
+            (alo, ahi), (clo, chi) = patch_limits_mm()
+            for c, lo, hi, default in ((self.patch_x, alo, ahi, 10.0),
+                                       (self.patch_y, clo, chi, 8.0)):
+                saved["ranges"].append((c, c.minimum(), c.maximum(), c.value(),
+                                        c.specialValueText()))
+                was_value = c.value()
+                c.setSpecialValueText("")
+                c.setRange(lo, hi)
+                if not was_value:
+                    c.setValue(default)
+            saved["shown"] = self._fd9_capture_shown()
+            self._i1io_saved = saved
+            self._i1io_show_what_applies()
+            if not getattr(self, "_i1io_rows_wired", False):
+                rows = getattr(self, "show_row_indicators", None)
+                if rows is not None:
+                    rows.toggled.connect(self._i1io_rows_toggled)
+                self._i1io_rows_wired = True
+            return
+        self._i1io_saved = None
+        for control, enabled, tip in was["controls"]:
+            try:
+                control.setEnabled(enabled)
+                control.setToolTip(tip)
+            except RuntimeError:
+                pass
+        self._fd9_restore_shown(was.get("shown"))
+        for control, lo, hi, value, special in was.get("ranges", []):
+            control.setSpecialValueText(special)
+            control.setRange(lo, hi)
+            control.setValue(value)
+
+    def _i1io_rows_toggled(self, *_a) -> None:
+        """The greyed left margin follows the row numbers' band."""
+        if getattr(self, "_i1io_saved", None) is not None:
+            self._i1io_show_what_applies()
+
+    def _load_i1io_layout_values(self) -> None:
+        """A person has just chosen the i1iO: its own patch size, never the
+        previous instrument's (the FD-9's H1 lesson)."""
+        from workflow.i1io.table_facts import PATCH_ACROSS_MM, PATCH_ALONG_MM
+        self.patch_x.setValue(PATCH_ALONG_MM.value)
+        self.patch_y.setValue(PATCH_ACROSS_MM.value)
+
+    def _hold_i1io_greying(self) -> None:
+        """While the i1iO is selected, grey again what a recipe load or one
+        of the panel's own rules has just enabled (as `_hold_fd9_greying`)."""
+        saved = getattr(self, "_i1io_saved", None)
+        if saved is None:
+            return
+        self._i1io_show_what_applies()
+        why = i1io_greyed_reason()
+        index = {id(c): i for i, (c, _e, _t) in enumerate(saved["controls"])}
+        for control in self._i1io_greyable_controls():
+            enabled, tip = control.isEnabled(), control.toolTip()
+            i = index.get(id(control))
+            if i is None:
+                saved["controls"].append((control, enabled, tip))
+            elif enabled or tip != why:
+                # A rule that only changed the TOOLTIP of a control greyed
+                # here says nothing about whether it should be enabled: keep
+                # the state from before the i1iO (a rule that enabled it is
+                # taken at its word).
+                _c, old_enabled, old_tip = saved["controls"][i]
+                saved["controls"][i] = (control, enabled or old_enabled,
+                                        tip if tip != why else old_tip)
+            else:
+                continue
+            control.setEnabled(False)
+            control.setToolTip(why)
 
     def _fd9_fixed_shown(self) -> dict:
         """What the greyed controls show while the FD-9 is selected: the
@@ -3588,11 +3789,15 @@ class LayoutOptionsPanel(QWidget):
             self._mode_tip.set_content(*self.mode_tooltip_for(inst))
         entering_fd9 = (inst == "FD9" and self._fd9_support
                         and getattr(self, "_fd9_saved", None) is None)
+        entering_i1io = (inst == "IO2" and getattr(self, "_i1io_support", False)
+                         and getattr(self, "_i1io_saved", None) is None)
         self._sync_instrument_widgets(inst)
         if entering_fd9 and not was_loading:
             # A recipe being loaded brings its own sizes; a person choosing
             # the FD-9 gets the FD-9's (H1).
             self._load_fd9_layout_values()
+        if entering_i1io and not was_loading:
+            self._load_i1io_layout_values()
         # Picking the SpectroScan defaults the layout to patch-first (a flatbed
         # reads a fixed grid; area-first + By-minimum-width collapses it to
         # useless full-width bands). Its area method also defaults to
@@ -5883,6 +6088,8 @@ class LayoutOptionsPanel(QWidget):
         """
         from dataclasses import replace
         from workflow.layout_engine import instruments
+        if getattr(r, "instrument", None) == "IO2":
+            return True       # the i1iO's row numbers, drawn by its own code
         try:
             return instruments.geom_from_build_kwargs(
                 replace(r, show_row_indicators=None).build_kwargs()).rlwi > 0
@@ -6295,6 +6502,7 @@ class LayoutOptionsPanel(QWidget):
                     self._fd9_clip_chosen = r.fd9_clip_border is not None
                 self._set_recipe_impl(r)
                 self._hold_fd9_greying()          # review r1 F5
+                self._hold_i1io_greying()
             finally:
                 # A HALF-DONE LOAD MUST NOT KILL THE PANEL. `_set_recipe_impl`
                 # clears `_loading` on its last line only, so a raise part way
@@ -6759,11 +6967,14 @@ def _holds_fd9_greying(method):
         finally:
             if getattr(self, "_fd9_saved", None) is not None:
                 self._hold_fd9_greying()
+            if getattr(self, "_i1io_saved", None) is not None:
+                self._hold_i1io_greying()
     return held
 
 
 for _name in [n for n in vars(LayoutOptionsPanel)
-              if n.startswith("_sync_") and n != "_sync_fd9_widgets"
+              if n.startswith("_sync_")
+              and n not in ("_sync_fd9_widgets", "_sync_i1io_widgets")
               and callable(vars(LayoutOptionsPanel)[n])]:
     setattr(LayoutOptionsPanel, _name,
             _holds_fd9_greying(vars(LayoutOptionsPanel)[_name]))

@@ -205,13 +205,42 @@ def test_the_layout_engine_knows_no_i1io_while_off(monkeypatch):
                                             "paper": "A4R"})
 
 
-def test_the_editor_flag_and_the_lists_are_4332s():
-    from data.patch_db import INSTRUMENT_LABELS
+def test_the_editor_flag_and_the_lists_are_4332s(qapp):
+    """The shared label table names the i1iO (as it names the FD-9), and
+    every list built from it leaves it out while the option is off: Guided,
+    Manual's -i, the layout panel, the papers; the editor reads an i1iO
+    chart's name as 4.3.32 did."""
     from ui.dialogs.layout_options_panel import LayoutOptionsPanel
+    from workflow.layout_engine.papers import list_papers
     from workflow.ti2_relayout import instrument_to_flag
-    assert "IO2" not in INSTRUMENT_LABELS
+    import ui.tabs.tab_chart as tc
     assert "IO2" not in dict(LayoutOptionsPanel.instruments())
     assert instrument_to_flag("X-Rite i1iO") == "i1"
+    assert [p[0] for p in list_papers("IO2", for_engine=True)] == \
+        [p[0] for p in list_papers("i1iSis-unknown", for_engine=True)]
+    params = tc._without_choice(
+        {"printtarg": [{"flag": "-i", "choices": ["i1", "IO2"],
+                        "labels": ["a", "b"]}]}, "IO2")
+    assert params["printtarg"][0]["choices"] == ["i1"]
+
+
+def test_manuals_instrument_list_is_4332s_while_off(qapp, tmp_path):
+    from PyQt6.QtCore import QSettings
+    from core.argyll_runner import ArgyllRunner
+    from core.file_manager import FileManager
+    from core.settings import AppSettings
+    from ui.tabs.tab_chart import TabChart
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "app.ini"), QSettings.Format.IniFormat)
+    s.set("custom_output_path", str(tmp_path / "out"))
+    tab = TabChart(ArgyllRunner(s), FileManager(s), s)
+    try:
+        params = tab._load_yaml_params()
+        i = next(p for p in params["printtarg"] if p["flag"] == "-i")
+        assert "IO2" not in i["choices"] and "i1iO" not in i["tooltip_body"]
+        assert tab._instr_combo.findData("IO2") < 0
+    finally:
+        tab.deleteLater()
 
 
 #: Files outside the i1iO's own modules that name it, each of which asks the
@@ -221,15 +250,19 @@ I1IO_OWN = ("workflow/i1io/",)
 HOOKED_FILES = {
     "core/file_manager.py",          # .i1io.json companion (no switch: a name)
     "core/settings.py",              # the switch's default
+    "data/patch_db.py",              # the label; filtered by the switch
     "main.py",                       # latches the switch
     "ui/dialogs/settings_dialog.py",  # the Beta row and its consent window
-    "ui/main_window.py",             # the patch set editor refuses it (on)
+    "ui/dialogs/layout_options_panel.py",  # Manual's panel: its greying
     "ui/tabs/tab_chart.py",          # Guided entry, papers, carry, transfer
     "ui/tabs/tab_measure.py",        # the two Start windows
     "workflow/chart_creator.py",     # engine-only; no stamp; its error words
     "workflow/chart_import.py",      # .i1io.json companion
     "workflow/layout_engine/chart.py",
     "workflow/layout_engine/instruments.py",
+    "workflow/layout_engine/papers.py",
+    "workflow/layout_engine/presets.py",
+    "workflow/ti2_relayout.py",      # the editor's instrument (on only)
     # declares the i1iO's CHROMIQ_I1IO_* keywords (any CHROMIQ_ keyword);
     # every other chart's .ti2 is byte for byte as before
     "workflow/layout_engine/ti2_writer.py",

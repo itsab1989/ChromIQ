@@ -126,6 +126,10 @@ def edge_spacers_effect(recipe: "LayoutRecipe") -> str:
         from workflow.fd9.support import fd9_enabled
         if fd9_enabled():
             return "fixed"
+    if recipe.instrument == "IO2":
+        from workflow.i1io.support import i1io_enabled
+        if i1io_enabled():
+            return "fixed"
     from . import instruments
     kw = replace(recipe, edge_spacers=True).build_kwargs()
     g = instruments.geom_from_build_kwargs(kw)
@@ -830,6 +834,23 @@ def default_recipe(instrument: str = "i1", paper: str = "A4", *, mode: str | Non
             r.inter_patch_mm = r.strip_gap_mm = 1.0
             r.fd9_gap_mm = None
             r = fd9_fixed_fields(r)
+    if instrument == "IO2":
+        from workflow.i1io.support import i1io_enabled
+        if i1io_enabled():
+            # The i1iO table's own layout (`workflow.i1io.chart`): its patch
+            # size, patch-first, no spacers, no clip border, and its margins
+            # as the greyed boxes show them. The build fixes all of it except
+            # the patch size and the labels.
+            from workflow.i1io.table_facts import (PATCH_ACROSS_MM,
+                                                   PATCH_ALONG_MM, margins_mm)
+            t, rt, b, lt = margins_mm(True)
+            r.patch_w_mm, r.patch_h_mm = PATCH_ALONG_MM.value, PATCH_ACROSS_MM.value
+            r.layout_mode = "patch_first"
+            r.spacer_mode = "none"
+            r.clip_content_mode = "off"
+            r.margin_top, r.margin_right = t, rt
+            r.margin_bottom, r.margin_left = b, lt
+            r.helper_markers = False
     # The SpectroScan is a flatbed XY-table: it reads a FIXED 2-D grid, so
     # "prioritise patch size, then fit to page" (patch_first) is its natural
     # layout — it gives the proper grid of hexagons/squares. The generic

@@ -96,6 +96,13 @@ def list_papers(instrument: str | None = None, *, for_engine: bool = False
     if instrument == "FD9" and fd9_enabled():
         from workflow.fd9.chart import PAPERS
         return [(code, label(code), dimensions_mm(code)) for code in PAPERS]
+    # The i1iO table's landscape sheets, only while its Beta is on.
+    if instrument == "IO2":
+        from workflow.i1io.support import i1io_enabled
+        if i1io_enabled():
+            from workflow.i1io.chart import GUIDED_PAPERS
+            return [(code, label(code), dimensions_mm(code))
+                    for code in GUIDED_PAPERS]
     table = ENGINE_EXCLUDED_PAPERS if for_engine else EXCLUDED_PAPERS
     excluded = table.get(instrument or "", set())
     out: list[tuple[str, str, tuple[float, float]]] = []

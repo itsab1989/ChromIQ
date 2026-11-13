@@ -307,3 +307,27 @@ def test_every_number_has_a_source_and_a_confidence():
         assert fact["source"], name
         assert fact["confidence"] in (F.VERIFIED, F.PUBLISHED, F.LIKELY,
                                       F.OURS), name
+
+
+def test_a_patch_set_fills_the_pages_in_order(tmp_path):
+    """Any patch set (targen's, a loaded file, the editor's) is laid out
+    whole: two full A4 pages hold exactly 966 patches with no padding, and
+    every .ti2 SAMPLE_ID carries the .ti1 patch of the same number, so the
+    patch set's order is the measurement's order whatever the randomising
+    put where; the side file names every one of them once."""
+    from workflow.layout_engine.ti1_reader import read_ti1
+    result, side = _build(tmp_path, 966)
+    assert (result.layout.pages, result.layout.padding) == (2, 0)
+    ti1 = read_ti1(tmp_path / "c.ti1")
+    rows = {}
+    for line in result.ti2_path.read_text().split("BEGIN_DATA\n", 1)[1].splitlines():
+        if line.startswith("END_DATA"):
+            break
+        tok = line.split()
+        rows[int(tok[0])] = [float(v) for v in tok[2:5]]
+    assert len(rows) == 966
+    for i, (dev, _xyz) in enumerate(ti1.patches, start=1):
+        assert rows[i] == pytest.approx(list(dev), abs=1e-6)
+    ids = sorted(p["sample_id"] for pg in side["pages"] for r in pg["rows"]
+                 for p in r["patches"])
+    assert ids == list(range(1, 967))

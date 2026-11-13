@@ -4042,15 +4042,17 @@ def i1io_instrument_bullet() -> str:
         "  •  i1iO 2 + i1Pro 2 (X-Rite): a motorised scanning table that "
         "moves your i1Pro 2 over the chart by itself. The chart is made for "
         "reading row by row with the table: a landscape A4 or Letter sheet, "
-        "patches of 10 × 8 mm in rows along the long side, blank paper with a "
-        "black bar at both ends of every row so the arm can speed up and slow "
-        "down, and three numbered aiming marks in the corners (1 top left, 2 "
-        "bottom left, 3 bottom right). In Manual you can change the patch "
-        "size, 9.7 to 20 mm along the row and 7 to 20 mm across it; the other "
-        "layout controls are greyed, because the table needs this layout. "
-        "Because the table reads every sheet by itself, Guided always fills "
-        "whole sheets: one sheet holds 546 patches on A4 and 528 on Letter, "
-        "and each extra page adds as many again at no extra effort for you. "
+        "patches of 10 × 8 mm in rows along the long side with a thin white "
+        "gap between neighbours, blank paper at both ends of every row so "
+        "the arm can speed up and slow down, three numbered aiming marks in "
+        "the corners (1 top left, 2 bottom left, 3 bottom right), column "
+        "letters and row numbers so you can find a patch. In Manual you can "
+        "change the patch size (8.9 to 20 mm along the row, 7 to 20 mm "
+        "across it) and switch the letters and numbers off; the other layout "
+        "controls are greyed, because the table needs this layout. Because "
+        "the table reads every sheet by itself, Guided always fills whole "
+        "sheets, and each extra page adds a full sheet of patches at no extra "
+        "effort for you. "
         "The layout may still change once an i1iO owner has tested it. This "
         "version can make these charts but cannot measure with the table "
         "yet; the Measure tab tells you what you can do today. Only the i1iO "
@@ -4699,6 +4701,11 @@ def _engine_instrument(code) -> str:
         # border answer (and every other FD-9 option) was never stored.
         from workflow.fd9.support import fd9_enabled
         return "FD9" if fd9_enabled() else "i1"
+    if eng == "IO2":
+        # The i1iO table, the panel's own name for it too while its Beta is
+        # on; off, as 4.3.32 named an instrument it did not know.
+        from workflow.i1io.support import i1io_enabled
+        return "IO2" if i1io_enabled() else "i1"
     return eng if eng in ("i1", "p3", "CM", "SS", "CR30") else "i1"
 
 
@@ -9797,6 +9804,11 @@ class TabChart(QWidget):
                 log.info("the stored layout recipe is for the FD-9 and FD-9 "
                          "support (Beta) is off: read as none")
                 return None
+        if _saved_beta_instrument_is_off(saved.get("instrument")):
+            # The same for an i1iO recipe with i1iO support (Beta) off.
+            log.info("the stored layout recipe is for the i1iO table and i1iO "
+                     "support (Beta) is off: read as none")
+            return None
         shape = _unseen_panel_shape(saved)
         if shape is not None:
             log.info("the stored layout recipe is the placeholder of a panel "
@@ -9846,7 +9858,8 @@ class TabChart(QWidget):
             return
         _flag = instr if instr is not None else self._active_instrument_flag()
         eng = {"3p": "p3"}.get(_flag, _flag)
-        if eng not in ("i1", "p3", "CM", "SS", "CR30", "FD9"):
+        if eng not in ("i1", "p3", "CM", "SS", "CR30", "FD9") and not (
+                eng == "IO2" and p.instr.findData("IO2") >= 0):
             eng = "i1"
         paper = (paper if paper is not None
                  else self._active_paper_code()) or "A4"
@@ -12298,19 +12311,6 @@ class TabChart(QWidget):
         except Exception:
             log.warning("Guided→Manual transfer skipped (could not read guided "
                         "settings)", exc_info=True)
-            return
-        # AN i1iO CHART IS GUIDED'S ONLY, FOR NOW (Beta, 2026-11-13). Manual
-        # does not offer the i1iO yet, so carrying its settings across would
-        # make Manual's next chart an i1Pro strip chart with the i1iO's
-        # spacer-less, label-less layout, which a strip reader cannot read.
-        # Manual keeps its own settings, and the log says why.
-        from workflow.i1io.support import is_i1io_code
-        if is_i1io_code(p.instrument):
-            if not quiet:
-                self._log.appendPlainText(tr(
-                    "Manual mode does not offer the X-Rite i1iO table yet, so "
-                    "the settings of this i1iO chart were not copied into "
-                    "Manual. Manual keeps its own settings."))
             return
         # Instrument + paper first: changing the instrument can cascade (reset
         # -a/-m to the instrument default), so scale/margin are set afterwards.
@@ -19569,8 +19569,8 @@ class TabChart(QWidget):
             return tr(
                 "ChromIQ layout engine, i1iO table, {paper}, {dpi} dpi: "
                 "patches {w:g} × {h:g} mm in rows along the long side, "
-                "{run:g} mm of blank paper with a black bar at both ends of "
-                "every row, three numbered aiming marks."
+                "{run:g} mm of blank paper at both ends of every row, three "
+                "numbered aiming marks."
             ).format(paper=paper, dpi=dpi, w=_F.PATCH_ALONG_MM.value,
                      h=_F.PATCH_ACROSS_MM.value, run=_F.RUN_MM.value)
         bits = [tr("ChromIQ layout engine"), instr, paper, f"{dpi} dpi",
@@ -19963,10 +19963,10 @@ class TabChart(QWidget):
             # The i1iO's sheets: landscape, inside the arm's reach
             # (`workflow.i1io.chart.GUIDED_PAPERS`). Only reachable with i1iO
             # support on: the entry is not in the list otherwise.
-            from workflow.i1io.chart import GUIDED_PAPERS
+            from workflow.i1io.chart import GUIDED_PAPERS, landscape_for
             sizes = list(GUIDED_PAPERS)
             if current not in sizes:
-                current = sizes[0]
+                current = landscape_for(current)
         for size in sizes:
             if size not in excluded:
                 self._paper_combo.addItem(paper_display_label(size), size)
@@ -22597,10 +22597,25 @@ class TabChart(QWidget):
                 from workflow.i1io.support import off_snapshot
                 from workflow.per_target_settings import snapshot
                 meta = store.load_meta()
+                stored_blocks = (getattr(meta, "create_chart_settings", None),
+                                 getattr(meta, "create_chart_ui", None))
                 self._fd9_off_screens()[fingerprint] = off_snapshot(
-                    snapshot(self), self._collect_ui_state(),
-                    getattr(meta, "create_chart_settings", None),
-                    getattr(meta, "create_chart_ui", None))
+                    snapshot(self), self._collect_ui_state(), *stored_blocks)
+
+                # THE SCREEN AS THE LOAD LEAVES IT, NOT HALF WAY: an i1iO
+                # target's row cannot be shown as it is (its instrument and
+                # sheet), so the panels settle on the fallback a moment
+                # later, through queued syncs. Taken again once the queue is
+                # empty, unless the user has had something written since.
+                def _settled(fp=fingerprint):
+                    snap = self._fd9_off_screens().get(fp)
+                    if snap is None or snap.own:
+                        return
+                    self._fd9_off_screens()[fp] = off_snapshot(
+                        snapshot(self), self._collect_ui_state(),
+                        *stored_blocks)
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(0, _settled)
                 return
             if fd9_enabled() or not target_names_fd9(stored, ui_state):
                 return
@@ -30643,7 +30658,8 @@ class TabChart(QWidget):
             pass
         instr = {"3p": "p3"}.get(self._active_instrument_flag(),
                                  self._active_instrument_flag())
-        if instr not in ("i1", "p3", "CM", "SS", "CR30", "FD9"):
+        if instr not in ("i1", "p3", "CM", "SS", "CR30", "FD9") and not (
+                instr == "IO2" and _saved_beta_instrument_is_off(instr) is False):
             instr = "i1"
         paper = self._active_paper_code() or "A4"
         try:
