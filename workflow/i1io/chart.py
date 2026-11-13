@@ -7,10 +7,13 @@ fixes (:func:`fixed_build_kwargs`). This module adds the rest:
 
 * three numbered aiming marks at the sheet's corners, top-left (1),
   bottom-left (2) and bottom-right (3), the order i1Profiler asks for;
-* an arrow at the top centre (this edge goes towards the back of the table,
-  where the arm parks), the page "N/M" beside it on a chart of several sheets,
-  and the chart's name at the bottom, all without words, so nothing printed
-  needs translating;
+* the page "N/M" at the top centre on a chart of several sheets, and the
+  chart's name at the bottom, without words, so nothing printed needs
+  translating. NO ARROW (Basti asked whether it is needed, 2026-11-13): the
+  person aims at mark 1, 2 and 3 by their printed numbers, so a sheet laid
+  the other way round is still aimed in the right order and the fit from
+  the three points places every patch; an arrow would prevent no mistake the
+  numbers do not;
 * a check, before anything is written, that every patch, every row's run-in and
   run-out and every mark is on the sheet, inside the arm's reach and clear of
   each other (:func:`check_sheet`);
@@ -39,19 +42,52 @@ class I1ioSheetRefused(ValueError):
     """The sheet cannot hold an i1iO chart (the reason is in the message)."""
 
 
+@dataclass(frozen=True)
+class Labels:
+    """The person's labels on an i1iO sheet: column letters above the
+    patches, row numbers beyond the left end of each row's run, *size* mm
+    high. The table needs none of them (`table_facts.LABEL_SIZE_MM`)."""
+    columns: bool = True
+    rows: bool = True
+    size: float = F.LABEL_SIZE_MM.value
+
+
+def label_wishes(kw: dict) -> Labels:
+    """What a build-kwargs dict asks for, from the layout engine's OWN label
+    controls: the strip letters on/off (``draw_indicators``, here the column
+    letters), the row labels (``row_indicators``; None, "this instrument's
+    own behaviour", is ON for the i1iO) and the label size
+    (``indicator_size_mm``; 0 is automatic, here the default), held inside
+    `table_facts.LABEL_SIZE_RANGE_MM`. Their position is the i1iO's own."""
+    lo, hi = F.LABEL_SIZE_RANGE_MM.value
+    size = float(kw.get("indicator_size_mm") or 0.0) or F.LABEL_SIZE_MM.value
+    return Labels(columns=kw.get("draw_indicators", True) is not False,
+                  rows=kw.get("row_indicators") is not False,
+                  size=min(max(size, lo), hi))
+
+
+#: The build-kwargs key that carries the wishes past `fixed_build_kwargs`.
+LABELS_KEY = "_i1io_labels"
+
+
 def fixed_build_kwargs(kw: dict) -> dict:
     """*kw* (a layout-engine build-kwargs dict) with everything an i1iO chart
-    fixes set to the i1iO's value: its patch size, no gaps or spacers, its
-    margins, centred patches, and none of the engine's own furniture (labels,
+    fixes set to the i1iO's value: no gaps or spacers, its margins, centred
+    patches, and none of the engine's own furniture (the engine's labels,
     clip border, helper markers, bottom text, the right-edge stamp), whose
-    place on the sheet belongs to the marks. Used by the capacity estimate and
-    by the build alike, so the two cannot disagree."""
+    place on the sheet belongs to the marks and the runs. What a person may
+    set is kept, inside the table's limits: the patch size and the labels
+    (`label_wishes`, drawn by this module in their safe places). Used by the
+    capacity estimate and by the build alike, so the two cannot disagree."""
     out = dict(kw)
+    along, across = F.patch_size_mm(kw.get("patch_w"), kw.get("patch_h"))
+    labels = kw.get(LABELS_KEY) or label_wishes(kw)
     out.update(
-        patch_w=F.PATCH_ALONG_MM.value, patch_h=F.PATCH_ACROSS_MM.value,
+        patch_w=along, patch_h=across,
         pscale=1.0, sscale=1.0, spacer_on=False, spacer_mode="none",
         spacer_width=None, inter_patch=0.0, strip_gap=0.0, edge_spacers=False,
-        margins=F.margins_mm(), use_instrument_margins=True,
+        margins=F.margins_mm(labels.rows, labels.size),
+        use_instrument_margins=True,
         layout_mode="patch_first", patch_area_align="center",
         hflag=False, hex_flat_top=False, density=1, cm_stagger=False,
         max_strip=None, offset_x=0.0, offset_y=0.0, nolpcbord=True,
@@ -59,6 +95,7 @@ def fixed_build_kwargs(kw: dict) -> dict:
         draw_indicators=False, row_indicators=False, helper_markers=False,
         chart_text="", stamp_command=False, side_stamp=False,
     )
+    out[LABELS_KEY] = labels
     return out
 
 
@@ -137,14 +174,64 @@ def _overlap(a, b) -> bool:
     return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
 
 
-def anchor_bars(row) -> "list[tuple[float, float, float, float]]":
-    """The two black bars of a scan row, ``(x0, y0, x1, y1)``: one in the
-    run-in before the first patch and one in the run-out after the last."""
-    gap, bar = F.ANCHOR_BAR_GAP_MM.value, F.ANCHOR_BAR_MM.value
-    y0, y1 = row[0][4], row[0][6]
-    left, right = row[0][3], row[-1][5]
-    return [(left - gap - bar, y0, left - gap, y1),
-            (right + gap, y0, right + gap + bar, y1)]
+def _split_loc(loc: str) -> "tuple[str, str]":
+    """``("C", "7")`` for "C7": the column letters and the row number."""
+    import re
+    m = re.fullmatch(r"([A-Za-z]+)(\d+)", str(loc))
+    return (m.group(1), m.group(2)) if m else (str(loc), "")
+
+
+def label_boxes(geom, layout, w: float, h: float, page: int, labels: Labels,
+                *, strip_pattern: str = "A-Z, A-Z",
+                patch_pattern: str = "0-9,@-9,@-9;1-999",
+                label_rule: str = "argyll"):
+    """``(columns, rows)``: the label boxes of *page* as ``[(text, x0, y0,
+    x1, y1)]`` in mm, each list empty when that kind is off OR cannot be
+    placed safely on this sheet (then it is dropped, never its clearance):
+    clear of every mark, on the paper, and where the aperture never passes."""
+    from workflow.layout_engine import permutation
+    cells = page_patches(geom, layout, w, h, page)
+    if not cells:
+        return [], []
+    size, clear = labels.size, F.LABEL_CLEAR_MM.value
+    zones = [mark_zone(m) for m in marks(w, h)]
+    edge = F.RUN_EDGE_MM.value
+
+    def loc(slot):
+        return permutation.location_label(slot, layout.steps_in_pass,
+                                          strip_pattern, patch_pattern,
+                                          label_rule)
+
+    def safe(box):
+        return (box[0] >= edge and box[2] <= w - edge and box[1] >= edge
+                and box[3] <= h - edge
+                and not any(_overlap(box, z) for z in zones))
+
+    def width(text):
+        return F.LABEL_CHAR_WIDTH * size * len(text)
+
+    top = min(c[4] for c in cells)
+    columns = []
+    if labels.columns:
+        for c in cells:
+            if c[2] != 0:
+                continue
+            text = _split_loc(loc(c[0]))[0]
+            cx = (c[3] + c[5]) / 2.0
+            box = (cx - width(text) / 2, top - clear - size,
+                   cx + width(text) / 2, top - clear)
+            columns.append((text,) + box)
+        if not all(safe(b[1:]) for b in columns):
+            columns = []
+    rows = []
+    if labels.rows:
+        for y, x_start, _x_end, row in scan_rows(cells, w):
+            text = _split_loc(loc(row[0][0]))[1]
+            x1 = x_start - F.ROW_LABEL_GAP_MM.value
+            rows.append((text, x1 - width(text), y - size / 2, x1, y + size / 2))
+        if not all(safe(b[1:]) for b in rows):
+            rows = []
+    return columns, rows
 
 
 def scan_rows(cells, w: float):
@@ -187,9 +274,6 @@ def check_sheet(geom, layout, w: float, h: float) -> None:
             run = (x_start, row[0][4], x_end, row[0][6])
             if any(_overlap(run, z) for z in zones):
                 raise I1ioSheetRefused("A row's run would cross an aiming mark.")
-            for bar in anchor_bars(row):
-                if bar[0] < x_start - 1e-6 or bar[2] > x_end + 1e-6:
-                    raise I1ioSheetRefused("A row's bar would lie outside its run.")
 
 
 # ---- drawing ---------------------------------------------------------------
@@ -201,8 +285,9 @@ def _font(px: int):
 
 
 def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
-                   geom=None, layout=None) -> None:
-    """Draw the marks, the arrow, the page and the name onto every page of
+                   geom=None, layout=None, labels: "Labels | None" = None,
+                   patterns: "tuple | None" = None) -> None:
+    """Draw the marks, the labels, the page and the name onto every page of
     *render* (`raster.RenderResult`): into the page image, from which the
     separated TIFF folds them into the black ink, and into the PDF display
     list when there is one. In place."""
@@ -244,13 +329,22 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
                                   size, 0, 0, black, var))
             return bb[2] - bb[0]
 
-        # The rows' anchor bars (`anchor_bars`): black, drawn per row, so
-        # rows that touch make one continuous bar down each side.
-        if geom is not None and layout is not None:
-            for _y, _x0, _x1, row in scan_rows(
-                    page_patches(geom, layout, w, h, index), w):
-                for bx0, by0, bx1, by1 in anchor_bars(row):
-                    rect(px(bx0), px(by0), px(bx1), px(by1))
+        # The person's labels, each centred in its safe box (`label_boxes`).
+        if geom is not None and layout is not None and labels is not None:
+            lab_px = px(labels.size / F.LABEL_CAP_HEIGHT)
+            lfont, lpath, lvar = _font(lab_px)
+            sp, pp, rule = patterns or ("A-Z, A-Z", "0-9,@-9,@-9;1-999",
+                                        "argyll")
+            cols, rows_ = label_boxes(geom, layout, w, h, index, labels,
+                                      strip_pattern=sp, patch_pattern=pp,
+                                      label_rule=rule)
+            for txt, x0, y0, x1, y1 in cols + rows_:
+                bb = draw.textbbox((0, 0), txt, font=lfont)
+                tw = bb[2] - bb[0]
+                left_px = (px(x1) - tw if (txt, x0, y0, x1, y1) in rows_
+                           else px((x0 + x1) / 2.0) - tw // 2)
+                text(left_px, px((y0 + y1) / 2.0), txt, lfont, lpath, lvar,
+                     lab_px)
         for mark in marks(w, h):
             cx, cy = mark.centre_mm
             x, y = px(cx), px(cy)
@@ -269,18 +363,11 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
             else:
                 left = px(cx + half + 1.0)
             text(left, y, str(mark.number), dfont, dpath, dvar, digit_px)
-        # The arrow: this edge towards the back of the table.
         cx, cy = w / 2.0, F.MARK_INSET_MM.value
-        tip, base, hw = cy - 3.5, cy + 0.5, 2.5
-        steps = max(1, px(base - tip))
-        for k in range(steps):
-            y0 = px(tip) + k
-            half_w = hw * (k + 1) / steps
-            rect(px(cx - half_w), y0, px(cx + half_w), y0 + 1)
-        rect(px(cx - 0.6), px(base), px(cx + 0.6), px(cy + 3.5))
         if pages > 1:
-            text(px(cx + 4.0), px(cy), f"{index + 1}/{pages}", sfont, spath,
-                 svar, small_px)
+            label_w = draw.textbbox((0, 0), f"{index + 1}/{pages}", font=sfont)
+            text(px(cx) - (label_w[2] - label_w[0]) // 2, px(cy),
+                 f"{index + 1}/{pages}", sfont, spath, svar, small_px)
         # The chart's name, centred between marks 2 and 3, cut to fit.
         left = mark_zone(marks(w, h)[1])[2] + 4.0
         right = mark_zone(marks(w, h)[2])[0] - 4.0
@@ -305,7 +392,7 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
 def write_side_file(path: Path, *, geom, layout, w: float, h: float,
                     paper: str, dpi: int, seed: int, randomize: bool,
                     strip_pattern: str, patch_pattern: str, label_rule: str,
-                    designed: int) -> Path:
+                    designed: int, labels: "Labels | None" = None) -> Path:
     """Write ``<stem>.i1io.json``: every mark and patch in mm, and the rows."""
     from workflow.layout_engine import permutation
     from .support import HEAD_MODEL, TABLE_MODEL, TARGET_INSTRUMENT
@@ -320,8 +407,6 @@ def write_side_file(path: Path, *, geom, layout, w: float, h: float,
             rows.append({
                 "y_mm": round(y, 4),
                 "run_mm": [round(x_start, 4), round(x_end, 4)],
-                "anchor_bars_mm": [[round(v, 4) for v in (b[0], b[2])]
-                                   for b in anchor_bars(row)],
                 "patches": [{
                     "loc": permutation.location_label(
                         c[0], layout.steps_in_pass, strip_pattern,
@@ -331,7 +416,16 @@ def write_side_file(path: Path, *, geom, layout, w: float, h: float,
                                   round((c[4] + c[6]) / 2.0, 4)],
                 } for c in row],
             })
-        pages.append({"page": page + 1, "rows": rows})
+        entry = {"page": page + 1, "rows": rows}
+        if labels is not None:
+            cols, rws = label_boxes(geom, layout, w, h, page, labels,
+                                    strip_pattern=strip_pattern,
+                                    patch_pattern=patch_pattern,
+                                    label_rule=label_rule)
+            entry["labels_mm"] = {
+                "columns": [[t] + [round(v, 3) for v in b] for t, *b in cols],
+                "rows": [[t] + [round(v, 3) for v in b] for t, *b in rws]}
+        pages.append(entry)
     doc = {
         "schema": SCHEMA,
         "instrument": TARGET_INSTRUMENT,

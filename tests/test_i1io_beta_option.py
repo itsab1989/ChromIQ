@@ -166,7 +166,7 @@ def test_guided_offers_the_i1io_with_its_own_sheets_only(chart_tab):
     p = tab._collect_guided()
     assert (p.instrument, p.paper) == ("IO2", "A4R")
     # the engine's own count for that sheet
-    assert tab._creator._engine_total_patches(p) == 546
+    assert tab._creator._engine_total_patches(p) == 525
 
 
 def test_an_i1io_chart_is_never_carried_into_manual(chart_tab):

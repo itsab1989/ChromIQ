@@ -160,13 +160,35 @@ PATCH_ACROSS_MM = Fact(8.0, "ours: aperture plus 1.75 mm each side", OURS)
 #: the tester must confirm.
 RUN_MM = Fact(15.0, "ours: run_in_mm(138) = 13.8, rounded up", OURS)
 
-#: A solid black bar across every row inside the run-in and the run-out, at
-#: this distance before the first and after the last patch and this wide: a
-#: dark-to-white edge at a known place, so a scan can be lined up by position
-#: even when the first or last patch is pale. The challenge of 2026-11-13
-#: asked for a timing aid that a printed sheet can no longer get later.
-ANCHOR_BAR_GAP_MM = Fact(5.0, "ours", OURS)
-ANCHOR_BAR_MM = Fact(2.0, "ours", OURS)
+#: NOTHING IS PRINTED ON A SCAN LINE OUTSIDE THE PATCHES (Basti, 2026-11-13):
+#: the instrument reads all through the run-in and the run-out, and a patch
+#: finder working on the stream of readings would take any ink there for a
+#: patch. So the runs are blank paper, and a label sits only where the
+#: aperture never passes during a scan: a row label beyond the end of its
+#: run, a column label above the first row, at least LABEL_CLEAR_MM from the
+#: patch edge across the scan. (An earlier draft put a black timing bar in
+#: every run-in; it was taken out for exactly this reason.)
+#:
+#: The labels themselves are only for the person: the table needs none, the
+#: positions come from the three marks. Column letters above the patches,
+#: row numbers beside the rows, as SAMPLE_LOC names a patch ("C7" = column C,
+#: row 7), so a warning and the sheet use the same name.
+LABEL_SIZE_MM = Fact(2.5, "ours: the smallest size that still reads well "
+                     "in print", OURS)
+LABEL_SIZE_RANGE_MM = Fact((2.0, 4.0), "ours", OURS)
+#: Clear paper between a label and the nearest patch edge across the scan.
+#: The aperture is 4.5 mm on an 8 mm row, so it keeps 1.75 mm inside the
+#: row's edges; with an alignment or arm error of that size it reaches the
+#: edge, and 1 mm more keeps a label out of its sight.
+LABEL_CLEAR_MM = Fact(1.0, "ours: aperture 4.5 mm in an 8 mm row, plus 1 mm",
+                      OURS)
+#: The label font's capital height and digit width as fractions of its size
+#: (Inter Bold, the engine's label face), so a box in mm holds its text.
+LABEL_CAP_HEIGHT = 0.73
+LABEL_CHAR_WIDTH = 0.85
+
+#: Clear paper between a row label and the end of the row's run.
+ROW_LABEL_GAP_MM = Fact(1.0, "ours", OURS)
 
 #: Blank paper outside each run, to the sheet's left and right edges.
 RUN_EDGE_MM = Fact(2.0, "ours: so a run never starts on the paper edge", OURS)
@@ -202,7 +224,42 @@ def as_record() -> dict:
     return out
 
 
-def margins_mm() -> "tuple[float, float, float, float]":
-    """The patch block's margins ``(top, right, bottom, left)``."""
+def row_label_band_mm(size_mm: "float | None" = None) -> float:
+    """Paper a column of row numbers (up to two digits) takes beside the
+    runs, its gap included."""
+    size = LABEL_SIZE_MM.value if not size_mm else float(size_mm)
+    return round(2 * LABEL_CHAR_WIDTH * size + ROW_LABEL_GAP_MM.value, 3)
+
+
+def margins_mm(row_labels: bool = False,
+               label_size_mm: "float | None" = None
+               ) -> "tuple[float, float, float, float]":
+    """The patch block's margins ``(top, right, bottom, left)``: the mark
+    bands above and below, the runs at the sides, and with *row_labels* a
+    band for the row numbers beyond the left run."""
     side = RUN_MM.value + RUN_EDGE_MM.value
-    return BAND_MM.value, side, BAND_MM.value, side
+    left = side + (row_label_band_mm(label_size_mm) if row_labels else 0.0)
+    return BAND_MM.value, side, BAND_MM.value, left
+
+
+def patch_limits_mm() -> "tuple[tuple[float, float], tuple[float, float]]":
+    """``((along_min, along_max), (across_min, across_max))``: what Manual
+    may set. Along the row, no shorter than a patch that still gets
+    SCAN_SAFE_READINGS at the fastest speed seen (rounded UP to 0.1 mm, so
+    9.7 mm) and no longer than i1Profiler's own maximum; across it,
+    i1Profiler's own range for the i1iO 2."""
+    import math
+    lo = math.ceil(min_patch_length_mm(max(SCAN_SPEEDS_MM_S.value)) * 10) / 10
+    along = (max(lo, PATCH_RANGE_ALONG_MM.value[0]), PATCH_RANGE_ALONG_MM.value[1])
+    return along, tuple(PATCH_RANGE_ACROSS_MM.value)
+
+
+def patch_size_mm(along: "float | None" = None,
+                  across: "float | None" = None) -> "tuple[float, float]":
+    """The patch size an i1iO chart is laid out with: *along* x *across* when
+    given (Manual's patch size), held inside :func:`patch_limits_mm`, else the
+    defaults."""
+    (alo, ahi), (clo, chi) = patch_limits_mm()
+    a = float(along) if along else PATCH_ALONG_MM.value
+    c = float(across) if across else PATCH_ACROSS_MM.value
+    return min(max(a, alo), ahi), min(max(c, clo), chi)

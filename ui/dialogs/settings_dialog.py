@@ -6602,7 +6602,7 @@ class SettingsDialog(QDialog):
                                | QMessageBox.StandardButton.Cancel)
         ok_btn = box.button(QMessageBox.StandardButton.Ok)
         cancel_btn = box.button(QMessageBox.StandardButton.Cancel)
-        ok_btn.setText(tr("Turn on i1iO support"))
+        ok_btn.setText(tr("Turn it on"))
         from ui.default_button import mark_destructive
         mark_destructive(ok_btn)
         cancel_btn.setText(tr("Keep it off"))
@@ -9083,15 +9083,15 @@ def i1io_support_help() -> str:
            "is being prepared for a later version."),
         tr("What turning this on adds, after a restart of ChromIQ:\n"
            "  •  Create Chart: “i1iO 2 + i1Pro 2” in the Instrument list of "
-           "Guided. The chart is laid out for reading row by row with the "
-           "table: a landscape A4 or Letter sheet, patches of 10 × 8 mm in "
-           "rows along the long side of the sheet, blank paper with a black "
-           "bar at both ends of every row so the arm can speed up and slow "
-           "down, three numbered aiming marks in the corners, and an arrow "
-           "that shows which edge goes towards the arm's resting place. When "
-           "a chart has more patches than one sheet holds, it is printed on "
-           "several numbered sheets. The layout may still change once an "
-           "i1iO owner has tested it.\n"
+           "Guided and of Manual. The chart is laid out for reading row by "
+           "row with the table: a landscape A4 or Letter sheet, patches of "
+           "10 × 8 mm (in Manual you can change the size) in rows along the "
+           "long side of the sheet, blank paper with a black bar at both ends "
+           "of every row so the arm can speed up and slow down, and three "
+           "numbered aiming marks in the corners. When a chart has more "
+           "patches than one sheet holds, it is printed on several numbered "
+           "sheets. The layout may still change once an i1iO owner has tested "
+           "it.\n"
            "  •  Measure: when you press Start with such a chart, ChromIQ "
            "tells you that measuring with the table is not available yet, and "
            "how you can measure that run today."),

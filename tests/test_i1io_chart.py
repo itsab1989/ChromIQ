@@ -67,38 +67,48 @@ def _build(tmp_path, n, paper="A4R", rep="RGB", **kw):
     return result, side
 
 
-@pytest.mark.parametrize("paper,cols,rows", [("A4R", 26, 21),
-                                             ("LetterR", 24, 22)])
-def test_the_capacity_is_the_geometrys_own(paper, cols, rows):
-    """546 patches on A4 landscape and 528 on Letter landscape, computed from
-    the patch size and the margins of `table_facts`, not looked up."""
+@pytest.mark.parametrize("paper,labels,cols,rows", [
+    ("A4R", True, 25, 21), ("A4R", False, 26, 21),
+    ("LetterR", True, 24, 22), ("LetterR", False, 24, 22)])
+def test_the_capacity_is_the_geometrys_own(paper, labels, cols, rows):
+    """525 patches on A4 landscape with the row numbers (the default), 546
+    without them; 528 on Letter landscape either way. Computed from the patch
+    size and the margins of `table_facts`, not looked up."""
     from workflow.layout_engine import geometry, instruments, papers
-    g = instruments.geom_from_build_kwargs({"instrument": "IO2",
-                                            "paper": paper})
+    g = instruments.geom_from_build_kwargs(
+        {"instrument": "IO2", "paper": paper,
+         "row_indicators": None if labels else False})
     w, h = papers.dimensions_mm(paper)
     assert geometry.patches_per_sheet(g, w, h) == cols * rows
     assert (g.pwid, g.plen, g.pspa) == (10.0, 8.0, 0.0)
 
 
 def test_whatever_a_recipe_asks_for_the_i1io_keeps_its_own_layout():
-    """Labels, spacers, a clip border, helper markers, other margins or
-    patch sizes asked of an i1iO chart change nothing: its capacity is the
-    same as with nothing asked."""
+    """Spacers, a clip border, helper markers, other margins or an
+    area-first layout asked of an i1iO chart change nothing: its capacity is
+    the same as with nothing asked. A patch size is kept inside the table's
+    limits: 6 x 6 mm comes out 9.7 x 7 mm, 30 x 30 mm comes out 20 x 20."""
     from workflow.layout_engine import geometry, instruments, papers
     w, h = papers.dimensions_mm("A4R")
     plain = geometry.patches_per_sheet(instruments.geom_from_build_kwargs(
         {"instrument": "IO2", "paper": "A4R"}), w, h)
     noisy = geometry.patches_per_sheet(instruments.geom_from_build_kwargs(
-        {"instrument": "IO2", "paper": "A4R", "patch_w": 6.0, "patch_h": 6.0,
+        {"instrument": "IO2", "paper": "A4R",
          "spacer_on": True, "inter_patch": 2.0, "margins": (3, 3, 3, 3),
-         "row_indicators": True, "helper_markers": True,
+         "helper_markers": True,
          "layout_mode": "area_first", "clip_content_mode": "notes",
          "clip_band": 26.0}), w, h)
     assert noisy == plain
+    for asked, got in (((6.0, 6.0), (9.7, 7.0)), ((30.0, 30.0), (20.0, 20.0)),
+                       ((12.0, 9.0), (12.0, 9.0))):
+        g = instruments.geom_from_build_kwargs(
+            {"instrument": "IO2", "paper": "A4R", "patch_w": asked[0],
+             "patch_h": asked[1]})
+        assert (g.pwid, g.plen) == got
 
 
 @pytest.mark.parametrize("paper", ["A4R", "LetterR"])
-@pytest.mark.parametrize("n", [1, 37, 546, 1300])
+@pytest.mark.parametrize("n", [1, 37, 525, 1300])
 def test_every_patch_run_and_mark_is_on_the_sheet_and_clear(tmp_path, paper,
                                                             n):
     from workflow.i1io import table_facts as F
@@ -120,9 +130,6 @@ def test_every_patch_run_and_mark_is_on_the_sheet_and_clear(tmp_path, paper,
             assert centres == sorted(centres)
             assert centres[0][0] - 5.0 - x0 == pytest.approx(F.RUN_MM.value)
             assert x1 - (centres[-1][0] + 5.0) == pytest.approx(F.RUN_MM.value)
-            (b0, b1), (b2, b3) = row["anchor_bars_mm"]
-            assert x0 <= b0 < b1 < centres[0][0] - 5.0
-            assert centres[-1][0] + 5.0 < b2 < b3 <= x1
             for cx, cy in centres:
                 box = (cx - 5.0, cy - 4.0, cx + 5.0, cy + 4.0)
                 assert 0 <= box[0] and box[2] <= w and 0 <= box[1] and box[3] <= h
@@ -275,6 +282,49 @@ def test_the_scan_numbers_follow_from_the_recorded_timing():
     assert lo <= F.PATCH_ALONG_MM.value <= hi
     lo, hi = F.PATCH_RANGE_ACROSS_MM.value
     assert lo <= F.PATCH_ACROSS_MM.value <= hi
+
+
+@pytest.mark.parametrize("paper", ["A4R", "LetterR"])
+def test_no_ink_on_a_scan_line_outside_the_patches(tmp_path, paper):
+    """Basti, 2026-11-13: the instrument reads all through the run-in and the
+    run-out, so nothing may be printed there, and a label sits only where the
+    aperture never passes. Measured on the printed raster: every pixel of
+    every run, over the row's full height, is paper white; every label box
+    is clear of every run and keeps LABEL_CLEAR_MM from the patches."""
+    from PIL import Image
+    from workflow.i1io import table_facts as F
+    result, side = _build(tmp_path, 525, paper)
+    img = np.asarray(Image.open(result.tiff_paths[0]).convert("L"))
+    s = 150 / 25.4
+    page = side["pages"][0]
+    for row in page["rows"]:
+        x0, x1 = row["run_mm"]
+        y = row["y_mm"]
+        first = row["patches"][0]["centre_mm"][0] - 5.0
+        last = row["patches"][-1]["centre_mm"][0] + 5.0
+        top, bottom = round((y - 4.0) * s) + 1, round((y + 4.0) * s) - 1
+        for a, b in ((x0, first), (last, x1)):
+            band = img[top:bottom, round(a * s) + 1:round(b * s) - 1]
+            assert band.size and band.min() >= 250, (row["y_mm"], a, b)
+    labels = page["labels_mm"]
+    assert labels["rows"] and labels["columns"]
+    rows = page["rows"]
+    block_top = min(r["y_mm"] for r in rows) - 4.0
+    for _t, bx0, by0, bx1, by1 in labels["columns"]:
+        assert by1 <= block_top - F.LABEL_CLEAR_MM.value + 1e-6
+    for (t, bx0, by0, bx1, by1), row in zip(labels["rows"], rows):
+        assert bx1 <= row["run_mm"][0] - F.ROW_LABEL_GAP_MM.value + 1e-6
+        assert t == row["patches"][0]["loc"].lstrip("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    assert [c[0] for c in labels["columns"]][:3] == ["A", "B", "C"]
+
+
+def test_labels_follow_the_engines_own_controls(tmp_path):
+    """The strip-letters switch, the row-label switch and the label size of
+    the layout engine are the i1iO's too; switched off, nothing is drawn and
+    the row band is given back to the patches."""
+    _r, side = _build(tmp_path, 40, draw_indicators=False,
+                      row_indicators=False)
+    assert side["pages"][0]["labels_mm"] == {"columns": [], "rows": []}
 
 
 def test_every_number_has_a_source_and_a_confidence():

@@ -4036,23 +4036,28 @@ def _saved_beta_instrument_is_off(code) -> bool:
 
 
 def i1io_instrument_bullet() -> str:
-    """The i1iO's bullet in Guided's Instrument (i). Only shown while i1iO
-    support (Preferences > Beta) is on."""
+    """The i1iO's bullet in the Instrument (i) of Guided and Manual. Only
+    shown while i1iO support (Preferences > Beta) is on."""
     return tr(
         "  •  i1iO 2 + i1Pro 2 (X-Rite): a motorised scanning table that "
         "moves your i1Pro 2 over the chart by itself. The chart is made for "
         "reading row by row with the table: a landscape A4 or Letter sheet, "
         "patches of 10 × 8 mm in rows along the long side, blank paper with a "
         "black bar at both ends of every row so the arm can speed up and slow "
-        "down, three numbered aiming marks in the corners (1 top left, 2 "
-        "bottom left, 3 bottom right) and an arrow that shows which edge goes "
-        "towards the arm's resting place. The layout may still change once "
-        "an i1iO owner has tested it. This version can make these charts but "
-        "cannot measure with the table yet; the Measure tab tells you what "
-        "you can do today. Only the i1iO 2 with an i1Pro 2 is "
-        "supported: other i1iO tables and other instruments on the arm are "
-        "not supported yet. If you own one, please tell us in the project's "
-        "GitHub issues. i1iO support is a beta (Preferences → Beta).")
+        "down, and three numbered aiming marks in the corners (1 top left, 2 "
+        "bottom left, 3 bottom right). In Manual you can change the patch "
+        "size, 9.7 to 20 mm along the row and 7 to 20 mm across it; the other "
+        "layout controls are greyed, because the table needs this layout. "
+        "Because the table reads every sheet by itself, Guided always fills "
+        "whole sheets: one sheet holds 546 patches on A4 and 528 on Letter, "
+        "and each extra page adds as many again at no extra effort for you. "
+        "The layout may still change once an i1iO owner has tested it. This "
+        "version can make these charts but cannot measure with the table "
+        "yet; the Measure tab tells you what you can do today. Only the i1iO "
+        "2 with an i1Pro 2 is supported: other i1iO tables and other "
+        "instruments on the arm are not supported yet. If you own one, please "
+        "tell us in the project's GitHub issues. i1iO support is a beta "
+        "(Preferences → Beta).")
 
 
 def _without_choice(params: dict, value: str) -> dict:
@@ -19547,6 +19552,17 @@ class TabChart(QWidget):
                     "sheet into the FD-9 arrow first, printed side up."
                 ).format(paper=paper, dpi=dpi, w=w, h=h, along=along,
                          across=across)
+        from workflow.i1io.support import i1io_enabled, is_i1io_code
+        if is_i1io_code(instr) and i1io_enabled():
+            # Its own fixed layout, not a margin it does not use.
+            from workflow.i1io import table_facts as _F
+            return tr(
+                "ChromIQ layout engine, i1iO table, {paper}, {dpi} dpi: "
+                "patches {w:g} × {h:g} mm in rows along the long side, "
+                "{run:g} mm of blank paper with a black bar at both ends of "
+                "every row, three numbered aiming marks."
+            ).format(paper=paper, dpi=dpi, w=_F.PATCH_ALONG_MM.value,
+                     h=_F.PATCH_ACROSS_MM.value, run=_F.RUN_MM.value)
         bits = [tr("ChromIQ layout engine"), instr, paper, f"{dpi} dpi",
                 tr("margin {mm:g} mm").format(mm=margin)]
         if abs(pscale - 1.0) > 0.01:
@@ -26846,6 +26862,15 @@ class TabChart(QWidget):
         if fd9_chart:
             # Fixed native geometry; never substitute i1Pro's ruler/margins.
             thresholds = {"T": 23.0, "B": 33.0, "L": 4.0, "R": 4.0}
+        # An i1iO table chart (Beta, on): judged against its OWN fixed
+        # margins (`workflow.i1io.table_facts.margins_mm`: the mark bands and
+        # the rows' run-in), never against the i1Pro's clip and leader. Off,
+        # it is judged as an unknown instrument is, against the i1Pro's.
+        from workflow.i1io.support import i1io_enabled, is_i1io_code
+        if is_i1io_code(instr_flag) and i1io_enabled():
+            from workflow.i1io.table_facts import margins_mm
+            _t, _r, _b, _l = margins_mm()
+            thresholds = {"T": _t, "B": _b, "L": _l, "R": _r}
 
         # Strip-length (ruler) limit: the per-combo value configured in
         # Preferences → Instrument Limits wins; else the instrument's built-in ruler

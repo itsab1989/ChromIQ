@@ -342,7 +342,18 @@ def build_chart(
     _i1io = is_i1io_code(instrument) and i1io_enabled()
     if _i1io:
         from workflow.i1io import chart as _i1io_chart
-        _f = _i1io_chart.fixed_build_kwargs({})
+        # What the person asked for (patch size, labels) is kept inside the
+        # table's limits; everything else is the i1iO's own.
+        _f = _i1io_chart.fixed_build_kwargs({
+            "patch_w": patch_w, "patch_h": patch_h,
+            "draw_indicators": draw_indicators,
+            "row_indicators": row_indicators,
+            "indicator_size_mm": indicator_size_mm})
+        _i1io_labels = _f[_i1io_chart.LABELS_KEY]
+        # Its labels name patches as SAMPLE_LOC does, column letters and
+        # row numbers: the default patterns, whatever a recipe holds.
+        strip_pattern = permutation.DEFAULT_STRIP_PATTERN
+        patch_pattern = permutation.DEFAULT_PATCH_PATTERN
         _i1io_chart.sheet_size(paper)
         (patch_w, patch_h, pscale, sscale, spacer_on, spacer_mode,
          spacer_width, inter_patch, strip_gap, edge_spacers, margins,
@@ -403,6 +414,8 @@ def build_chart(
     # change it.
     def _geom_for(npat: int):
         return instruments.geom_from_build_kwargs({
+        # the i1iO's labels as asked for, past the fixed settings above
+        **({_i1io_chart.LABELS_KEY: _i1io_labels} if _i1io else {}),
         "instrument": instrument, "paper": paper, "hflag": hflag,
         "hex_flat_top": hex_flat_top,
         "density": density, "cm_stagger": cm_stagger,
@@ -667,7 +680,10 @@ def build_chart(
         # the table can read this layout at all, and before anything is saved.
         _i1io_chart.draw_furniture(render, w_mm, h_mm, dpi,
                                    name=project or Path(out_base).name,
-                                   geom=geom, layout=layout)
+                                   geom=geom, layout=layout,
+                                   labels=_i1io_labels,
+                                   patterns=(strip_pattern, patch_pattern,
+                                             label_rule))
     if target.n_channels >= 4:
         device_pages = raster.build_device_pages(render, printed, bit16=bit16)
         tiff_paths = raster.save_separated_tiffs(
@@ -718,7 +734,8 @@ def build_chart(
             artefact(stem, ".i1io.json"), geom=geom, layout=layout, w=w_mm,
             h=h_mm, paper=paper, dpi=dpi, seed=seed, randomize=randomize,
             strip_pattern=strip_pattern, patch_pattern=patch_pattern,
-            label_rule=label_rule, designed=len(target.patches))
+            label_rule=label_rule, designed=len(target.patches),
+            labels=_i1io_labels)
 
     cht_paths: list[Path] | None = None
     if emit_cht:
