@@ -58,6 +58,34 @@ def legacy_labels(kw: dict) -> bool:
     return kw.get(OPTIONS_KEY) is False
 
 
+#: `LayoutRecipe` fields an i1iO chart does not read: greyed controls, the
+#: values the panel only SHOWS for the i1iO (its alignment, its sheet text's
+#: bold and place, its numbers' edge have their own fields), and other
+#: instruments' options. The preset bar compares an i1iO layout without them
+#: (`TabChart._layout_recipe_values`), so a value nobody can change and the
+#: build never reads does not light "modified" (Job D).
+UNREAD_RECIPE_FIELDS = (
+    "hflag", "cm_density", "cm_stagger", "hex_flat_top", "pscale", "sscale",
+    "border", "use_instrument_margins", "fd9_gap_mm", "fd9_clip_border",
+    "layout_mode", "area_method", "area_cols", "area_rows", "area_ratio",
+    "area_min_patch_mm", "patch_area_align", "indicator_rotation",
+    "row_indicator_rotation", "chart_text_bold", "chart_text_align",
+    "text_edge_top_mm", "text_edge_clip_mm", "stamp_command", "clip_border",
+    "clip_side", "clip_content_when_on")
+
+
+def comparable_recipe_values(d: dict) -> dict:
+    """An i1iO recipe's ``to_dict()`` as the preset bar compares it: the
+    fields the chart reads, the spacer width the chart uses (0 = the table's
+    own, `table_facts.SPACER_MM`)."""
+    out = {k: v for k, v in d.items() if k not in UNREAD_RECIPE_FIELDS}
+    try:
+        if float(out.get("spacer_width_mm") or 0.0) == F.SPACER_MM.value:
+            out["spacer_width_mm"] = 0.0
+    except (TypeError, ValueError):
+        pass
+    return out
+
 #: The build-kwargs key that carries the label wishes past
 #: `fixed_build_kwargs` (kept for callers; the labels are the engine's own).
 LABELS_KEY = "_i1io_labels"

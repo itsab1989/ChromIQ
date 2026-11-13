@@ -10266,6 +10266,14 @@ class TabChart(QWidget):
         # never stores it, so a chart that does would always read as "modified".
         d.pop("seed_fixed", None)
         d.pop("chart_text", None)
+        if getattr(r, "instrument", None) == "IO2":
+            from workflow.i1io.support import i1io_enabled
+            if i1io_enabled():
+                # An i1iO layout is compared on what its chart reads (Job D):
+                # the greyed controls and the values the panel only shows
+                # for the table never differ by a person's choice.
+                from workflow.i1io.chart import comparable_recipe_values
+                d = comparable_recipe_values(d)
         return d
 
     def _layout_preset_status(self):

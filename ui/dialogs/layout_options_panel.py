@@ -7599,8 +7599,18 @@ class LayoutOptionsPanel(QWidget):
         self.margins["l"].setValue(r.margin_left)
         if hasattr(self, "use_instr_margins"):
             self.use_instr_margins.blockSignals(True)
+            # THE i1iO HAS NO INSTRUMENT MARGINS TO LOCK TO (Job D): the box
+            # is greyed for it, so a recipe that carried it ticked (one made
+            # by `default_recipe`, a Guided chart taken to Manual) locked the
+            # four margins at the table's minimum with nothing on screen to
+            # unlock them, and a saved margin never came back. The build
+            # floors every margin at that minimum anyway. A recipe from
+            # before the label options keeps 4.3.33's reading.
+            io2_own = (r.instrument == "IO2"
+                       and getattr(self, "_i1io_saved", None) is not None
+                       and getattr(r, "i1io_label_options", True))
             self.use_instr_margins.setChecked(bool(getattr(
-                r, "use_instrument_margins", False)))
+                r, "use_instrument_margins", False)) and not io2_own)
             self.use_instr_margins.blockSignals(False)
             self._sync_instr_margins()     # fill from thresholds when ticked
         self._border = r.border        # preserve base margin across the round-trip
