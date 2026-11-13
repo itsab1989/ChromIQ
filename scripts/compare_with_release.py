@@ -17,9 +17,16 @@ The "switched off changes nothing" proof, in one command. It
 5. removes the worktree again (the charts stay in FOLDER for a look).
 
 ``--betas off`` (the default) builds with every Beta switch off, which is
-what a person who never touches Preferences > Beta gets: the proof that your
-change, switched off, changes nothing. ``--betas on`` switches every Beta the
-tree has on, to compare Beta instruments too.
+what a person who never touches Preferences > Beta gets. ``--betas on``
+switches EVERY Beta the tree has on, not only yours.
+
+WHAT IT PROVES, AND WHAT IT DOES NOT: it compares charts built by the layout
+engine, from its plain defaults and from each instrument's
+``default_recipe()``. It does not build through Guided, printtarg or the
+app's own paths (presets, saved projects, the Create Chart tab), so a change
+there needs the on-screen drive (``scripts/instrument_parity_drive.py``) and
+the tests. It is also the place where a changed ``default_recipe()`` value
+shows up, which the parity test does not compare with the last release.
 
 Exit status: 0 when every chart is the same, 1 when one differs, 2 when the
 comparison could not run. Needs git and this repository's Python
@@ -216,23 +223,32 @@ def main(argv=None) -> int:
         codes = [c for c in codes if c in args.only]
     print(f"comparing {args.tag} with {REPO} (betas {args.betas}); "
           f"instruments: {', '.join(codes)}", flush=True)
+    def _drop_tree() -> None:
+        subprocess.run(["git", "-C", str(REPO), "worktree", "remove",
+                        "--force", str(tree)], capture_output=True)
+        subprocess.run(["git", "-C", str(REPO), "worktree", "prune"],
+                       capture_output=True)
+
+    # a tree left by an interrupted run (Ctrl-C during the add) is removed
+    # first, or the add below fails on it
+    if tree.exists():
+        _drop_tree()
     try:
-        subprocess.run(["git", "-C", str(REPO), "worktree", "add", "--detach",
-                        str(tree), args.tag], check=True,
-                       capture_output=True, text=True, encoding="utf-8",
-                       errors="replace")
-    except subprocess.CalledProcessError as exc:
-        print(f"could not check {args.tag} out: {exc.stderr.strip()}")
-        return 2
-    try:
+        try:
+            subprocess.run(["git", "-C", str(REPO), "worktree", "add",
+                            "--detach", str(tree), args.tag], check=True,
+                           capture_output=True, text=True, encoding="utf-8",
+                           errors="replace")
+        except subprocess.CalledProcessError as exc:
+            print(f"could not check {args.tag} out: {exc.stderr.strip()}")
+            return 2
         rel = build(tree, out / f"charts-{args.tag}", args.betas, codes)
         here = build(REPO, out / "charts-this-tree", args.betas, codes)
     except Exception as exc:      # noqa: BLE001
         print(exc)
         return 2
     finally:
-        subprocess.run(["git", "-C", str(REPO), "worktree", "remove",
-                        "--force", str(tree)], capture_output=True)
+        _drop_tree()
     rows, bad = [], 0
     for key in sorted(set(rel) | set(here)):
         ra, rb = rel.get(key, "absent"), here.get(key, "absent")
