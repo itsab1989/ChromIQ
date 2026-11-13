@@ -51,32 +51,43 @@ instrument to name.
   the layout panel and Preferences > Chart Layout.
 * An ordinary ChromIQ strip chart on a PORTRAIT A4 or Letter sheet (Guided
   picks Letter for someone on a US sheet, A4 otherwise), laid ACROSS the table
-  a quarter turn anticlockwise (its top edge to the left), so its strips run
-  along the arm (the table's scan
-  moves change its X, along the 32 cm side: PROTOCOL 3.1, 4.4). Each strip is
-  one line the arm scans in one move; strip letters, patch numbers ("C7" =
-  the 7th patch of strip C), the spacers between the patches of a strip, the
-  strip gap and the `.ti2`'s strip structure mean what they mean on every
-  ChromIQ chart. The engine refuses a landscape sheet or one larger than the
-  reach.
-* On the table every strip reads from the left like a line of text: its
-  letter at the left end, patch 1 at the left and the numbers rising to the
-  right (the coordinator's ruling, 2026-11-13). Strip A is the BOTTOM strip
-  and the letters rise upwards: the engine lays strip A at the page's left,
-  and putting it at the top would mean laying the strips right to left, new
-  engine work for every instrument (the same turn as 4.3.17's anticlockwise
-  i1Profiler chart).
+  a quarter turn clockwise (its top edge to the right), so its strips run
+  along the arm (the table's scan moves change its X, along the 32 cm side:
+  PROTOCOL 3.1, 4.4). Each strip is one line the arm scans in one move; strip
+  letters, patch numbers ("C7" = the 7th patch of strip C), the spacers
+  between the patches of a strip, the strip gap and the `.ti2`'s strip
+  structure mean what they mean on every ChromIQ chart. The engine refuses a
+  landscape sheet or one larger than the reach.
+* Held as it lies on the table (landscape, cross 1 top left, 2 bottom left, 3
+  bottom right), the sheet reads like text (the owner, 2026-11-13): strip A
+  at the top, every strip's letter at its LEFT end, patch 1 at the left and
+  the numbers 1, 2, 3 rising to the right along the top, every text upright.
+  For this the patches of an i1iO strip run from the page's bottom up
+  (`Geom.reverse_steps`, False for every other chart), the patch numbers are
+  the engine's row labels beside strip A, and the strip letters are drawn by
+  the i1iO at the strips' other end.
+* Shown the way it is used: every preview (Create Chart, Print Chart,
+  Measure, soft proof) turns an i1iO chart a quarter turn clockwise on screen
+  through the preview's own view rotation, so overlays, the pointer readout,
+  clicks and the strip highlight turn with it; the paper lists name the sheet
+  "A4 (297 × 210 mm) Landscape" and "Letter (11 × 8.5") Landscape"; the Print
+  tab says that the page prints upright and how to lay it on the table. The
+  files, the PDF and printing stay portrait. Not turned yet: the patch set
+  editor's page view and the measurement report's pictures.
 * Defaults, chosen for ChromIQ's own reading with the table and to be
   confirmed by the first real scan: patches 10 mm along the strip x 8 mm
   across, Coloured contrast spacers of 1 mm between them (the layout
   ArgyllCMS gives every i1Pro strip, read by the same driver's patch finder),
   no gap between strips, 10 mm of blank paper before the first and after the
-  last patch of every strip, the strip letters beyond the run-in and the patch
-  numbers below strip A (both turned to read upright on the table),
+  last patch of every strip, the strip letters beyond every strip's left end and the
+  patch numbers along the top (both upright on the table), the numbers 10 mm
+  in from the paper edge so a printer's unprinted edge leaves them whole,
   three numbered aiming marks (on the table 1 top left, 2 bottom left, 3
   bottom right), the ChromIQ wordmark, the page "N/M", the chart name and
-  Manual's sheet text on one turned line along the table's top edge, right
-  of mark 1.
+  Manual's sheet text as one group centred between crosses 2 and 3 along
+  the table's bottom edge, each part's visual middle on the line through
+  their centres (a long text is shortened before the logo shrinks); the
+  wordmark set as on every other chart, one baseline for Chrom and IQ.
   **Nothing is printed on a scan line outside the patches** (no edge
   spacers, no labels in a run). No arrow, no helper markers, no clip border.
   Per sheet: A4 504 (546 without spacers), Letter 462 (504). Every number,
