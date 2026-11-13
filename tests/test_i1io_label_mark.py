@@ -141,3 +141,33 @@ def test_a_targets_stored_state_keeps_the_mark(chart_tab, make):
     tab._apply_ui_state(state)
     QApplication.processEvents()
     assert panel.get_recipe().i1io_label_options is want
+
+
+# ---- review R3: saved defaults, presets and new projects are modern ----------
+
+def test_save_as_defaults_from_a_legacy_panel_is_modern(chart_tab):
+    from PyQt6.QtWidgets import QApplication
+    from workflow.layout_engine.presets import LayoutRecipe
+    tab = chart_tab
+    tab._switch_mode("manual")
+    tab._init_manual_layout_panel()
+    panel = tab._manual_layout_panel
+    tab._set_manual_value("printtarg", "-i", "IO2")
+    panel.instr.setCurrentIndex(panel.instr.findData("IO2"))
+    QApplication.processEvents()
+    panel.set_recipe(_legacy())
+    QApplication.processEvents()
+    assert panel.get_recipe().i1io_label_options is False
+    saved = tab._recipe_to_save()
+    assert saved["i1io_label_options"] is True
+    # what it shows is what it saves: the style the old recipe printed
+    assert saved["underline_mode"] == "off"
+    assert saved["indicator_align"] == "left"
+    assert LayoutRecipe.from_dict(saved).i1io_label_options is True
+
+
+def test_a_preset_saved_now_is_modern():
+    from workflow.layout_engine.presets import PresetStore
+    store = PresetStore()
+    store.set(_legacy())
+    assert all(r.i1io_label_options for r in store._presets.values())

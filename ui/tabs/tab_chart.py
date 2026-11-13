@@ -32036,6 +32036,13 @@ class TabChart(QWidget):
         if not _recipe_is_for(rec.to_dict(), instr_now, paper_now) or (
                 rec.instrument != _engine_instrument(rec.instrument)):
             rec = self._retargeted(rec, instr_now, paper_now)
+        if rec.instrument == "IO2" and not rec.i1io_label_options:
+            # DEFAULTS ARE FOR NEW CHARTS, AND A NEW CHART IS MODERN (review
+            # R3): a panel holding a recipe from before the label options
+            # saves the label style it shows (the one that recipe printed),
+            # with the mark, so a new project uses the options.
+            from dataclasses import replace as _rp
+            rec = _rp(rec, i1io_label_options=True)
         return rec.to_dict()
 
     # ------------------------------------------------------------------

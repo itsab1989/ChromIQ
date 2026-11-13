@@ -1035,8 +1035,12 @@ class PresetStore:
     def set(self, recipe: LayoutRecipe) -> None:
         # Presets store layout, not the per-chart seed -- nor the tick that goes
         # with it, which would otherwise arrive with no number to apply it to.
-        self._presets[recipe.preset_key()] = replace(recipe, seed=None,
-                                                     seed_fixed=None)
+        # …and a preset saved now is this version's (review R3): an i1iO
+        # recipe from before the label options is saved with the mark
+        self._presets[recipe.preset_key()] = replace(
+            recipe, seed=None, seed_fixed=None,
+            **({"i1io_label_options": True} if recipe.instrument == "IO2"
+               else {}))
 
     def delete(self, instrument: str, paper: str, mode: str) -> bool:
         return self._presets.pop(f"{instrument}|{paper}|{mode}", None) is not None
