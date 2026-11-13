@@ -135,6 +135,10 @@ def test_the_full_recipe_really_is_full():
         # FD-9 recipes only (the sample is an i1Pro's, and the instrument is
         # the key); its own round trip: tests/test_fd9_4325_panel.py.
         "fd9_clip_border",
+        # i1iO recipes only (written only for an "IO2" recipe, and the sample
+        # is an i1Pro's); their round trips: tests/test_i1io_aiming_crosses_ui
+        # .py and tests/test_i1io_layout_options.py.
+        "i1io_crosses", "i1io_align",
     }
     missing = [f.name for f in fields(LayoutRecipe)
                if f.name not in skip and f"{f.name}=" not in src]

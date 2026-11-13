@@ -3,11 +3,12 @@
 # A fork of ArgyllCMS chartread.c (AGPL-3.0, Graeme W. Gill) linked against
 # the vendored standalone instrument library under ../instlib (GPLv2+, the
 # file set of Graeme's own instlib.ksh packaging). Library sources are
-# compiled byte-identical to upstream except two recorded patches: rspl1.c's
+# compiled byte-identical to upstream except recorded patches: rspl1.c's
 # set_rspl grid index (iv[-0-1], not upstream's iv[-1-1]; without it every
-# -K/-I chart's .ti3 got an all-nan CAL table) and conv.c's #148 beep. Both
-# are listed in ../instlib/PROVENANCE.md and re-applied by
-# scripts/vendor_instlib.py. Every other ChromIQ change lives in
+# -K/-I chart's .ti3 got an all-nan CAL table), conv.c's #148 beep, and the
+# i1Pro 2 indicator lights (i1pro_imp.c/.h, i1pro.c; Preferences > Beta,
+# inert unless the helper is started with --i1pro2-lights). All are listed
+# in ../instlib/PROVENANCE.md and re-applied by scripts/vendor_instlib.py. Every other ChromIQ change lives in
 # chromiq_chartread.c / chromiq_json.c behind CHROMIQ_EXT, so a new Argyll
 # release rebases by re-vendoring + re-applying a small diff.
 cmake_minimum_required(VERSION 3.15)
@@ -96,22 +97,90 @@ target_include_directories(chromiq-chartread PRIVATE
   ${INSTLIB} ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(chromiq-chartread PRIVATE instlib)
 
+# The i1Pro 2 lights test (Preferences > Beta, 2026-11-13): the real vendored
+# driver on a fake USB layer. Not part of a normal build (EXCLUDE_FROM_ALL);
+# tests/test_i1pro2_lights_driver.py builds it with
+#   cmake --build <build> --target i1pro2_lights_test
+add_executable(i1pro2_lights_test EXCLUDE_FROM_ALL
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests/i1pro2_lights_test.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_stubs.c
+  ${INSTLIB}/alphix.c
+)
+target_include_directories(i1pro2_lights_test PRIVATE
+  ${INSTLIB} ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(i1pro2_lights_test PRIVATE instlib)
+add_executable(i1pro3_lights_test EXCLUDE_FROM_ALL
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests/i1pro3_lights_test.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_stubs.c
+  ${INSTLIB}/alphix.c
+)
+target_include_directories(i1pro3_lights_test PRIVATE
+  ${INSTLIB} ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(i1pro3_lights_test PRIVATE instlib)
+
+# ...and the same tests against Argyll's own, UNPATCHED i1pro_imp.c, i1pro.c,
+# i1pro_imp.h and the i1pro3 counterparts, for the option-off wire trace to be compared byte for byte. The
+# test writes those three files (the vendored ones with the recorded patches
+# undone, checked against PROVENANCE.md's upstream sha256) into a folder of
+# its own and configures with -DCQ_UPSTREAM_I1PRO_DIR=<that folder>.
+if(CQ_UPSTREAM_I1PRO_DIR)
+  set(_cq_up_sources ${INSTLIB_SOURCES})
+  list(REMOVE_ITEM _cq_up_sources "${INSTLIB}/i1pro.c" "${INSTLIB}/i1pro_imp.c"
+    "${INSTLIB}/i1pro3.c" "${INSTLIB}/i1pro3_imp.c")
+  add_library(instlib_upstream_i1pro STATIC EXCLUDE_FROM_ALL ${_cq_up_sources}
+    "${CQ_UPSTREAM_I1PRO_DIR}/i1pro.c" "${CQ_UPSTREAM_I1PRO_DIR}/i1pro_imp.c"
+    "${CQ_UPSTREAM_I1PRO_DIR}/i1pro3.c" "${CQ_UPSTREAM_I1PRO_DIR}/i1pro3_imp.c"
+    ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_utf_compat.c)
+  get_target_property(_cq_defs instlib COMPILE_DEFINITIONS)
+  get_target_property(_cq_idefs instlib INTERFACE_COMPILE_DEFINITIONS)
+  get_target_property(_cq_opts instlib COMPILE_OPTIONS)
+  target_compile_definitions(instlib_upstream_i1pro PUBLIC ${_cq_defs} ${_cq_idefs})
+  if(_cq_opts)
+    target_compile_options(instlib_upstream_i1pro PRIVATE ${_cq_opts})
+  endif()
+  target_include_directories(instlib_upstream_i1pro BEFORE PUBLIC
+    "${CQ_UPSTREAM_I1PRO_DIR}")
+  target_include_directories(instlib_upstream_i1pro PUBLIC
+    ${INSTLIB} ${CMAKE_CURRENT_SOURCE_DIR})
+  add_executable(i1pro2_lights_test_upstream EXCLUDE_FROM_ALL
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/i1pro2_lights_test.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_stubs.c
+    ${INSTLIB}/alphix.c
+  )
+  target_compile_definitions(i1pro2_lights_test_upstream PRIVATE CQ_UPSTREAM)
+  target_link_libraries(i1pro2_lights_test_upstream PRIVATE instlib_upstream_i1pro)
+  add_executable(i1pro3_lights_test_upstream EXCLUDE_FROM_ALL
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/i1pro3_lights_test.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_stubs.c
+    ${INSTLIB}/alphix.c
+  )
+  target_compile_definitions(i1pro3_lights_test_upstream PRIVATE CQ_UPSTREAM)
+  target_link_libraries(i1pro3_lights_test_upstream PRIVATE instlib_upstream_i1pro)
+endif()
+
 # Windows: a VERSIONINFO like ChromIQ.exe's (native/win_version.cmake).
 include(${CMAKE_CURRENT_SOURCE_DIR}/../win_version.cmake)
 chromiq_add_win_version(chromiq-chartread
   "ChromIQ chart-reading engine (ArgyllCMS chartread)"
   "Copyright (c) Graeme W. Gill (ArgyllCMS) and Sebastian Reiprich, AGPL-3.0")
 
+set(_cq_link_targets chromiq-chartread i1pro2_lights_test i1pro3_lights_test)
+if(CQ_UPSTREAM_I1PRO_DIR)
+  list(APPEND _cq_link_targets i1pro2_lights_test_upstream
+       i1pro3_lights_test_upstream)
+endif()
+foreach(_tgt ${_cq_link_targets})
 if(APPLE)
   # Makefile.OSX LINKFLAGSDEF, verbatim.
-  target_link_libraries(chromiq-chartread PRIVATE
+  target_link_libraries(${_tgt} PRIVATE
     "-framework Carbon" "-framework Cocoa" "-framework IOKit"
     "-framework CoreFoundation" "-framework AudioToolbox" "-framework AppKit"
     m)
 elseif(WIN32)
-  target_link_libraries(chromiq-chartread PRIVATE
+  target_link_libraries(${_tgt} PRIVATE
     winmm setupapi ws2_32 gdi32 user32 advapi32 shell32 ole32)
 else()
   find_package(Threads REQUIRED)
-  target_link_libraries(chromiq-chartread PRIVATE Threads::Threads m rt)
+  target_link_libraries(${_tgt} PRIVATE Threads::Threads m rt)
 endif()
+endforeach()

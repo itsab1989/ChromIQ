@@ -120,6 +120,9 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 # M-PATCH-SIMILAR joined on 2026-10-15 (4.3.5 beta 8): Knut confirmed the
 # similar-patch rule for both tests (#182 6196599132); its card texts are ours.
 AWAITING_APPROVAL: "set[str]" = {
+    # The i1Pro 2 lights (Preferences > Beta), 2026-11-13: at Start, the
+    # lights of the last session may still be on; replug before connecting.
+    "M-I1PRO2-LIGHTS-LEFT-ON",
     # Tools > Inspect a measurement compares with another reading of the same
     # chart, and refuses two files it cannot pair (jctay, forum 2026-11-10;
     # Basti 2026-11-11 "do both"), 4.3.32.
@@ -616,6 +619,23 @@ AWAITING_APPROVAL: "set[str]" = {
                                  # Konica Minolta FD-9 Beta. ChromIQ drives
                                  # the FD-9 itself, so its windows are its
                                  # own; shown from the beta that proposes them.
+                                 # 2026-11-13: the X-Rite i1iO table Beta
+                                 # (charts only; measuring comes later).
+                                 "M-I1IO-NOT-YET", "M-I1IO-SUPPORT-OFF",
+                                 # the same for a verification or a
+                                 # calibration chart made for the table
+                                 "M-I1IO-NOT-YET-BY-HAND",
+                                 # the "Aiming crosses" option: what to aim
+                                 # at, by what the chart records
+                                 "M-I1IO-AIM-CROSSES", "M-I1IO-AIM-CORNERS",
+                                 "M-I1IO-AIM-UNKNOWN",
+                                 "M-I1IO-AIM-CORNERS-UNLABELLED",
+                                 "M-I1IO-AIM-PAGE-PARTS",
+                                 # review r3 m3: its crosses and lettering
+                                 # in a printer's unprinted edge.
+                                 "M-I1IO-EDGE-MARKS-NOT-PRINTED",
+                                 "M-I1IO-EDGE-TEXT-NOT-PRINTED",
+                                 "M-I1IO-EDGE-TEXT-PARTS",
                                  "M-FD9-SUPPORT-OFF", "M-FD9-NO-ADDRESS",
                                  "M-FD9-INSERT-SHEET", "M-FD9-NEXT-PAGE", "M-FD9-NO-CONNECTION",
                                  "M-FD9-WRONG-FIRMWARE",
@@ -1040,6 +1060,9 @@ def test_the_revision_note_names_what_awaits_review():
 
 # ---- 2. the windows render from the catalogue ----------------------------
 WINDOW_SOURCES = [
+    # 2026-11-13: the X-Rite i1iO table Beta's two Start windows.
+    ("ui.tabs.tab_measure", "TabMeasure", "_i1io_not_yet_window"),
+    ("ui.tabs.tab_measure", "TabMeasure", "_i1io_support_off_window"),
     # 4.3.23: which measurement condition of an i1Profiler CxF to import.
     ("ui.dialogs.cxf_condition_dialog", "CxfConditionDialog", "__init__"),
     ("ui.tabs.tab_measure", "TabMeasure", "_replace_message"),
@@ -1089,6 +1112,8 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_chart", "TabChart", "_refresh_pattern_gate"),
     # #182 5958921500: Continue to next / Jump to unread.
     ("ui.tabs.tab_measure", "TabMeasure", "_unread_choice_window"),
+    # The i1Pro 2 lights (Beta), 2026-11-13: replug before connecting.
+    ("ui.tabs.tab_measure", "TabMeasure", "_i1pro2_lights_left_on_window"),
     # #182 5963903650 Q5: "Was a strip read twice?"
     ("ui.tabs.tab_measure", "TabMeasure", "_strip_read_twice_window"),
     # The pause between pages (jctay 149802, Basti 2026-10-23).

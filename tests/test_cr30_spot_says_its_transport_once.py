@@ -145,6 +145,28 @@ def _end(dlg):
     dlg.deleteLater()
 
 
+def _running_loops():
+    from workflow import cr30_spot_manager as M
+    return [t for (t, _w) in M._LIVE if not t.isFinished()]
+
+
+@pytest.fixture(autouse=True)
+def _no_read_loop_outlives_its_test():
+    """EVERY READ LOOP A TEST STARTS HAS ENDED WHEN IT IS OVER.
+
+    The reconnect test below used to leave its first loop running: the
+    manager forgot it when the second started, and once the session ended and
+    cancelled this file's fake reader, every read failed at once and the loop
+    went round again at full speed for the rest of the worker's life. It took
+    the GIL from the main thread: in the 4.3.33 gate an engine test that takes
+    86 s on its own ran for 40 minutes on that worker and the gate never
+    finished."""
+    yield
+    assert _wait(lambda: not _running_loops()), (
+        f"{len(_running_loops())} CR30 read loop(s) still running after the "
+        "test: a leaked loop spins once its reader is cancelled")
+
+
 @pytest.mark.parametrize("kind, words", [("ble", "over Bluetooth"),
                                          ("usb", "over the USB cable")])
 def test_the_connection_is_named_once_after_the_calibration(
@@ -188,6 +210,23 @@ def test_a_reconnect_names_the_new_connection(monkeypatch):
             "a reconnect did not say which way it connected:\n"
             + dlg._log.toPlainText())
         assert "USB cable" in _notes(dlg)[1]
+    finally:
+        _end(dlg)
+
+
+def test_a_reconnect_while_a_loop_is_reading_leaves_one_loop(monkeypatch):
+    """"Look again" while the old loop is still in a read: the old loop is
+    told to stop and ends after that read, so exactly one loop reads."""
+    dlg = _dialog(monkeypatch, "ble")
+    try:
+        dlg._start_cr30_session()
+        assert _wait(lambda: _ready(dlg)), "the window never said Ready"
+        first = dlg._cr30._thread
+        dlg._cr30.reconnect()
+        assert _wait(first.isFinished), (
+            "the loop from before the reconnect is still running")
+        assert _wait(lambda: len(_running_loops()) == 1), (
+            f"{len(_running_loops())} read loops running, expected one")
     finally:
         _end(dlg)
 

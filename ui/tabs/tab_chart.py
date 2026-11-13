@@ -4029,6 +4029,40 @@ def fd9_instrument_bullet() -> str:
 
 
 
+def _saved_beta_instrument_is_off(code) -> bool:
+    """True for a stored i1iO instrument code while i1iO support is off."""
+    from workflow.i1io.support import i1io_enabled, is_i1io_code
+    return is_i1io_code(code) and not i1io_enabled()
+
+
+def i1io_instrument_bullet() -> str:
+    """The i1iO's bullet in the Instrument (i) of Guided and Manual. Only
+    shown while i1iO support (Preferences > Beta) is on."""
+    return tr(
+        "  •  i1iO 2 + i1Pro 2 (X-Rite): a motorised scanning table that "
+        "moves your i1Pro 2 over the chart by itself. The chart is printed on "
+        "a portrait A4 or Letter sheet that you lay across the table, so its "
+        "strips run along the arm: patches of 10 × 8 mm with coloured "
+        "spacers between them, blank paper at both ends of every strip so the "
+        "arm can speed up and slow down, and three numbered aiming marks in "
+        "the corners (1 top left, 2 bottom left, 3 bottom right, as the sheet "
+        "lies on the table). As on every ChromIQ chart, each strip has a "
+        "letter and the patches along it are numbered, so “C7” is the 7th "
+        "patch of strip C. In Manual you can change the margins, the patch "
+        "size (8.9 to 20 mm along the strip, 7 to 20 mm across it), the "
+        "spacers, the gaps and the letters and numbers; the other layout "
+        "controls are greyed, because the table needs this layout. Because "
+        "the table reads every sheet by itself, Guided always fills whole "
+        "sheets, and each extra page adds a full sheet of patches at no extra "
+        "effort for you. The layout may still change once an i1iO owner has "
+        "tested it. This version can make these charts but cannot measure "
+        "with the table yet; the Measure tab tells you what you can do today. "
+        "Only the i1iO 2 with an i1Pro 2 is supported: other i1iO tables and "
+        "other instruments on the arm are not supported yet. If you own one, "
+        "please tell us in the project's GitHub issues. i1iO support is a "
+        "beta (Preferences → Beta).")
+
+
 def _without_choice(params: dict, value: str) -> dict:
     """*params* (parameters.yaml, translated) with the choice *value* and its
     label removed from every choice list that offers it.
@@ -4668,6 +4702,11 @@ def _engine_instrument(code) -> str:
         # border answer (and every other FD-9 option) was never stored.
         from workflow.fd9.support import fd9_enabled
         return "FD9" if fd9_enabled() else "i1"
+    if eng == "IO2":
+        # The i1iO table, the panel's own name for it too while its Beta is
+        # on; off, as 4.3.32 named an instrument it did not know.
+        from workflow.i1io.support import i1io_enabled
+        return "IO2" if i1io_enabled() else "i1"
     return eng if eng in ("i1", "p3", "CM", "SS", "CR30") else "i1"
 
 
@@ -7257,12 +7296,17 @@ class TabChart(QWidget):
         # instrument, but for these devices the layout is recomputed by an
         # external tool (i1Profiler) — so there's nothing to optimise here.
         from workflow.fd9.support import fd9_enabled
+        from workflow.i1io.support import i1io_enabled
         for code, label in INSTRUMENT_LABELS.items():
             if code in EXTERNAL_INSTRUMENTS:
                 continue
             # The FD-9 is a Beta (Preferences > Beta, restart to apply): off,
             # the list is exactly 4.3.21's.
             if code == "FD9" and not fd9_enabled():
+                continue
+            # The i1iO table is a Beta too (Preferences > Beta, restart to
+            # apply): off, the list is exactly 4.3.32's.
+            if code == "IO2" and not i1io_enabled():
                 continue
             self._instr_combo.addItem(label, code)
         self._instr_combo.currentIndexChanged.connect(self._update_patch_count)
@@ -7315,7 +7359,9 @@ class TabChart(QWidget):
             "engine, and can only be read by ChromIQ — standard ArgyllCMS "
             "chartread does not know this instrument and will refuse the "
             "chart.") + (("\n\n" + fd9_instrument_bullet())
-                         if fd9_enabled() else ""),
+                         if fd9_enabled() else "")
+            + (("\n\n" + i1io_instrument_bullet())
+               if i1io_enabled() else ""),
             inner,
             min_width=600,
         ))
@@ -7377,6 +7423,23 @@ class TabChart(QWidget):
             inner,
             min_width=600,
         )
+        from workflow.i1io.support import i1io_enabled as _i1io_on
+        if _i1io_on():
+            # THE i1iO's "Aiming crosses" (a Beta), on the line where the
+            # other instruments keep their own second option (a SpectroScan's
+            # or CR30's "Hexagon patches"): a tick box at the line's start
+            # and its (i) beside it, the same widgets and spacing. Built only
+            # while i1iO support is on, shown only for the i1iO.
+            from ui.dialogs.layout_options_panel import I1ioCrossesTip
+            self._i1io_aim_check = QCheckBox(tr("Aiming crosses"), inner)
+            self._i1io_aim_check.setChecked(True)
+            self._i1io_aim_check.toggled.connect(self._update_patch_count)
+            self._i1io_aim_tooltip = I1ioCrossesTip(
+                self._guided_i1io_crosses_source, inner)
+            self._i1io_aim_check.setVisible(False)
+            self._i1io_aim_tooltip.setVisible(False)
+            dd_row.addWidget(self._i1io_aim_check)
+            dd_row.addWidget(self._i1io_aim_tooltip)
         dd_row.addWidget(self._dd_check)
         dd_row.addWidget(self._dd_tooltip)
         dd_row.addSpacing(20)
@@ -8667,6 +8730,9 @@ class TabChart(QWidget):
         # A newly chosen FD-9 takes its own stored layout (H1). A bound method,
         # never a lambda that captures self (CLAUDE.md).
         self._manual_layout_panel.set_fd9_layout_lookup(self._fd9_layout_preset)
+        # The i1iO's "Aiming crosses" (i) names the chart and its pages (a
+        # bound method, as above).
+        self._manual_layout_panel.i1io_context = self._manual_i1io_context
         # Preferences → Chart Layout is the SEED for a chart with no label style
         # of its own; the panel shows those values so the controls never lie.
         # `getattr` because a test double may be a settings stand-in without it;
@@ -9759,6 +9825,11 @@ class TabChart(QWidget):
                 log.info("the stored layout recipe is for the FD-9 and FD-9 "
                          "support (Beta) is off: read as none")
                 return None
+        if _saved_beta_instrument_is_off(saved.get("instrument")):
+            # The same for an i1iO recipe with i1iO support (Beta) off.
+            log.info("the stored layout recipe is for the i1iO table and i1iO "
+                     "support (Beta) is off: read as none")
+            return None
         shape = _unseen_panel_shape(saved)
         if shape is not None:
             log.info("the stored layout recipe is the placeholder of a panel "
@@ -9808,7 +9879,8 @@ class TabChart(QWidget):
             return
         _flag = instr if instr is not None else self._active_instrument_flag()
         eng = {"3p": "p3"}.get(_flag, _flag)
-        if eng not in ("i1", "p3", "CM", "SS", "CR30", "FD9"):
+        if eng not in ("i1", "p3", "CM", "SS", "CR30", "FD9") and not (
+                eng == "IO2" and p.instr.findData("IO2") >= 0):
             eng = "i1"
         paper = (paper if paper is not None
                  else self._active_paper_code()) or "A4"
@@ -12062,6 +12134,17 @@ class TabChart(QWidget):
                         param["tooltip_body"] = (
                             str(param.get("tooltip_body", "")).rstrip()
                             + "\n\n" + fd9_instrument_bullet())
+            # The i1iO table, a Beta too: off, the -i list is 4.3.32's.
+            from workflow.i1io.support import CODE as _IO, i1io_enabled
+            if not i1io_enabled():
+                params = _without_choice(params, _IO)
+            else:
+                for param in params.get("printtarg", []) or []:
+                    if param.get("flag") == "-i" and _IO in (
+                            param.get("choices") or []):
+                        param["tooltip_body"] = (
+                            str(param.get("tooltip_body", "")).rstrip()
+                            + "\n\n" + i1io_instrument_bullet())
             return params
         except Exception as exc:
             log.error("Cannot load parameters.yaml: %s", exc)
@@ -12337,6 +12420,12 @@ class TabChart(QWidget):
                 "left_border": self._lb_check.isChecked(),
                 "no_strip_limit": self._nsl_check.isChecked(),
                 "precond": precond,
+                # the i1iO's "Aiming crosses" (Beta): only for an i1iO row,
+                # so every other target's record is the one it was
+                **({"i1io_crosses": self._i1io_aim_check.isChecked()}
+                   if (getattr(self, "_i1io_aim_check", None) is not None
+                       and self._instr_combo.currentData() == "IO2")
+                   else {}),
             }
         # manual
         toks = []
@@ -12392,6 +12481,10 @@ class TabChart(QWidget):
             elif field == "precond":
                 self._guided_precond_path.setText(str(value or ""))
                 self._guided_precond_check.setChecked(bool(value))
+            elif field == "i1io_crosses":
+                aim = getattr(self, "_i1io_aim_check", None)
+                if aim is not None:
+                    aim.setChecked(bool(value))
         else:  # manual (a superset of guided's options)
             if field == "instrument":
                 self._set_manual_value("printtarg", "-i", value)
@@ -19463,6 +19556,11 @@ class TabChart(QWidget):
                           dpi=int(self._settings.get("printtarg_dpi", 300) or 300))
             elif getattr(self, "_manual_layout_panel", None) is not None:
                 kw.update(self._manual_layout_panel.get_recipe().build_kwargs())
+        if (instr == "IO2" and guided
+                and getattr(self, "_i1io_aim_check", None) is not None
+                and not self._i1io_aim_check.isChecked()):
+            # Guided's "Aiming crosses" off (i1iO Beta), as the build has it
+            kw["i1io_crosses"] = False
         return instruments.geom_from_build_kwargs(kw)
 
     def _engine_capacity(self, instr: str, paper: str, *, dd: bool, td: bool,
@@ -19500,6 +19598,27 @@ class TabChart(QWidget):
                     "sheet into the FD-9 arrow first, printed side up."
                 ).format(paper=paper, dpi=dpi, w=w, h=h, along=along,
                          across=across)
+        from workflow.i1io.support import i1io_enabled, is_i1io_code
+        if is_i1io_code(instr) and i1io_enabled():
+            # Its own fixed layout, not a margin it does not use.
+            from workflow.i1io import table_facts as _F
+            aim = getattr(self, "_i1io_aim_check", None)
+            if aim is not None and not aim.isChecked():
+                return tr(
+                    "ChromIQ layout engine, i1iO table, {paper}, {dpi} dpi: "
+                    "patches {w:g} × {h:g} mm in strips along the long side "
+                    "(lay the sheet across the table), {run:g} mm of blank "
+                    "paper at both ends of every strip, no aiming crosses: "
+                    "you aim at the centres of three corner patches."
+                ).format(paper=paper, dpi=dpi, w=_F.PATCH_ALONG_MM.value,
+                         h=_F.PATCH_ACROSS_MM.value, run=_F.RUN_MM.value)
+            return tr(
+                "ChromIQ layout engine, i1iO table, {paper}, {dpi} dpi: "
+                "patches {w:g} × {h:g} mm in strips along the long side (lay "
+                "the sheet across the table), {run:g} mm of blank paper at "
+                "both ends of every strip, three numbered aiming marks."
+            ).format(paper=paper, dpi=dpi, w=_F.PATCH_ALONG_MM.value,
+                     h=_F.PATCH_ACROSS_MM.value, run=_F.RUN_MM.value)
         bits = [tr("ChromIQ layout engine"), instr, paper, f"{dpi} dpi",
                 tr("margin {mm:g} mm").format(mm=margin)]
         if abs(pscale - 1.0) > 0.01:
@@ -19873,6 +19992,19 @@ class TabChart(QWidget):
         instr    = self._instr_combo.currentData() or "i1"
         excluded = EXCLUDED_PAPERS.get(instr, set())
         current  = self._paper_combo.currentData()
+        # THE SHEET BEFORE THE i1iO COMES BACK when the i1iO is left (review
+        # r2): the i1iO offers only A4 and Letter, and the sheet it picked
+        # used to stay for the next instrument. Remembered on entering it,
+        # given back (if still offered) on leaving it, and only then.
+        was_io2 = getattr(self, "_paper_instr_before", None) == "IO2"
+        if instr == "IO2" and not was_io2:
+            self._paper_before_i1io = current
+        elif was_io2 and instr != "IO2":
+            before = getattr(self, "_paper_before_i1io", None)
+            if before:
+                current = before
+            self._paper_before_i1io = None
+        self._paper_instr_before = instr
 
         self._paper_combo.blockSignals(True)
         self._paper_combo.clear()
@@ -19886,9 +20018,22 @@ class TabChart(QWidget):
                     sizes.append(current)
             except (ValueError, TypeError, AttributeError):
                 current = "137x300"
+        elif instr == "IO2":
+            # The i1iO's sheets: landscape, inside the arm's reach
+            # (`workflow.i1io.chart.GUIDED_PAPERS`). Only reachable with i1iO
+            # support on: the entry is not in the list otherwise.
+            from workflow.i1io.chart import GUIDED_PAPERS, paper_for
+            sizes = list(GUIDED_PAPERS)
+            if current not in sizes:
+                current = paper_for(current)
+        _label_code = (lambda c: c)
+        if instr == "IO2":
+            # shown as the sheet is used: landscape, on the table
+            from workflow.i1io.chart import paper_label_code as _label_code
         for size in sizes:
             if size not in excluded:
-                self._paper_combo.addItem(paper_display_label(size), size)
+                self._paper_combo.addItem(
+                    paper_display_label(_label_code(size)), size)
         self._paper_combo.blockSignals(False)
 
         target = current if current not in excluded else PAPER_FALLBACK.get(current, "A4")
@@ -20080,6 +20225,11 @@ class TabChart(QWidget):
             # the next time the user goes back to CM/SS without re-touching it.
             if self._dd_check.isChecked():
                 self._dd_check.setChecked(False)
+        aim = getattr(self, "_i1io_aim_check", None)
+        if aim is not None:
+            # the i1iO's "Aiming crosses" (Beta), for the i1iO only
+            aim.setVisible(instr == "IO2")
+            self._i1io_aim_tooltip.setVisible(instr == "IO2")
         # Triple density: CM-only, hidden everywhere else.
         td_visible = instr == "CM"
         self._td_check.setVisible(td_visible)
@@ -22190,7 +22340,8 @@ class TabChart(QWidget):
             # The memory below holds what the TAB wanted, before the carry,
             # so a repeat with nothing changed still reads nothing.
             from workflow.fd9.support import fd9_enabled
-            if fd9_enabled():
+            from workflow.i1io.support import i1io_enabled
+            if fd9_enabled() and i1io_enabled():
                 at_load = None
                 screen = (wanted, ui_state)    # the carry does nothing then
             else:
@@ -22508,6 +22659,33 @@ class TabChart(QWidget):
             from workflow.fd9.support import fd9_enabled, target_names_fd9
             fingerprint = str(getattr(store, "dir", store))
             self._fd9_off_screens().pop(fingerprint, None)
+            # The same for an i1iO table target (a Beta too): its own
+            # snapshot, the same carry rules (`workflow.beta_chart_carry`).
+            from workflow.i1io.support import i1io_enabled, target_names_i1io
+            if not i1io_enabled() and target_names_i1io(stored, ui_state):
+                from workflow.i1io.support import off_snapshot
+                from workflow.per_target_settings import snapshot
+                meta = store.load_meta()
+                stored_blocks = (getattr(meta, "create_chart_settings", None),
+                                 getattr(meta, "create_chart_ui", None))
+                self._fd9_off_screens()[fingerprint] = off_snapshot(
+                    snapshot(self), self._collect_ui_state(), *stored_blocks)
+
+                # THE SCREEN AS THE LOAD LEAVES IT, NOT HALF WAY: an i1iO
+                # target's row cannot be shown as it is (its instrument and
+                # sheet), so the panels settle on the fallback a moment
+                # later, through queued syncs. Taken again once the queue is
+                # empty, unless the user has had something written since.
+                def _settled(fp=fingerprint):
+                    snap = self._fd9_off_screens().get(fp)
+                    if snap is None or snap.own:
+                        return
+                    self._fd9_off_screens()[fp] = off_snapshot(
+                        snapshot(self), self._collect_ui_state(),
+                        *stored_blocks)
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(0, _settled)
+                return
             if fd9_enabled() or not target_names_fd9(stored, ui_state):
                 return
             from workflow.fd9.support import Fd9OffSnapshot
@@ -22544,7 +22722,6 @@ class TabChart(QWidget):
         at_load = self._fd9_off_screens().get(fingerprint)
         if at_load is None:
             return None
-        from workflow.fd9.support import chart_names_fd9
         chart = None
         for name in ("chart_ti2", "ti2"):
             try:
@@ -22553,7 +22730,8 @@ class TabChart(QWidget):
                 chart = None
             if chart is not None:
                 break
-        if chart is not None and chart_names_fd9(chart) is False:
+        # The snapshot knows its own instrument's chart (FD-9 or i1iO).
+        if chart is not None and at_load.chart_names(chart) is False:
             self._fd9_off_screens().pop(fingerprint, None)
             return None
         return at_load
@@ -22952,8 +23130,11 @@ class TabChart(QWidget):
             # leaked into a brand-new run and were written into its meta.json —
             # and a preconditioning `.ti3` path changes the targen command for
             # a run that never asked for one.
-            guided = {"instrument": self._settings.get("chart_instrument", "i1"),
-                      "paper": self._settings.get("chart_paper", "A4"),
+            _saved = self._settings.get("chart_instrument", "i1")
+            _off = _saved_beta_instrument_is_off(_saved)
+            guided = {"instrument": "i1" if _off else _saved,
+                      "paper": ("A4" if _off
+                                else self._settings.get("chart_paper", "A4")),
                       # …from the saved defaults where there IS one, the same
                       # as instrument and paper above. Hard-coding these gave
                       # somebody with 3 pages saved a 1-page chart.
@@ -22968,12 +23149,28 @@ class TabChart(QWidget):
                           self._settings.get("chart_left_clip_info", False)),
                       "no_strip_limit": False,
                       "precond": ""}
+            if getattr(self, "_i1io_aim_check", None) is not None:
+                # the i1iO's "Aiming crosses" (Beta): the saved default
+                guided["i1io_crosses"] = bool(
+                    self._settings.get("chart_i1io_crosses", True))
             for fld, val in guided.items():
                 try:
                     self._shared_set("guided", fld, val)
                 except Exception:      # noqa: BLE001
                     log.debug("ui-state: guided %s not reset", fld)
         elif isinstance(guided, dict):
+            # AN i1iO ROW WITH i1iO SUPPORT OFF: the tab cannot show the
+            # instrument, and the row's sheet was chosen for the table, so
+            # neither is put on screen (the carry keeps both in the file,
+            # `workflow.beta_chart_carry`). Its sheet on the fallback i1Pro
+            # would also drag Manual's paper with it and rewrite the target.
+            if _saved_beta_instrument_is_off(guided.get("instrument")):
+                guided = {k: v for k, v in guided.items()
+                          if k not in ("instrument", "paper")}
+            if (getattr(self, "_i1io_aim_check", None) is not None
+                    and "i1io_crosses" not in guided):
+                # a row without the i1iO's crosses answer had them on
+                guided = {**guided, "i1io_crosses": True}
             for fld, val in guided.items():
                 try:
                     self._shared_set("guided", fld, val)
@@ -24724,9 +24921,14 @@ class TabChart(QWidget):
         # `adopt_run_chart_as_verify` actually moves such a chart, an empty
         # snapshot would mean the run really did lose its profile.
         stem = run.stem
+        # `.i1io.json`: an i1iO chart's side file (Beta) is what makes it an
+        # i1iO chart on screen and at the printer's edge; without it here a
+        # verification build archived it and put the profiling chart back
+        # without it. A file that only exists when an i1iO chart was made, so
+        # every other run is untouched.
         srcs = [run.artefact(ext) for ext in
                 (".ti1", ".ti2", ".cht", ".channels.json", ".strips.json",
-                 ".tif", ".ti3", ".icc", ".icm")]
+                 ".tif", ".ti3", ".icc", ".icm", ".i1io.json")]
         srcs += run.stem_files(stem, "_*.tif")
         present = [p for p in srcs if p.is_file()]
         if not present:
@@ -26767,6 +26969,23 @@ class TabChart(QWidget):
         if fd9_chart:
             # Fixed native geometry; never substitute i1Pro's ruler/margins.
             thresholds = {"T": 23.0, "B": 33.0, "L": 4.0, "R": 4.0}
+        # An i1iO table chart (Beta, on): judged against its OWN fixed
+        # margins (`workflow.i1io.table_facts.margins_mm`: the mark bands and
+        # the rows' run-in), never against the i1Pro's clip and leader. Off,
+        # it is judged as an unknown instrument is, against the i1Pro's.
+        from workflow.i1io.support import i1io_enabled, is_i1io_code
+        if is_i1io_code(instr_flag) and i1io_enabled():
+            from workflow.i1io.table_facts import margins_mm
+            # …with or without the aiming crosses, as the chart records
+            _crosses = True
+            if self._margin_ti2 is not None:
+                try:
+                    from workflow.i1io.chart import AIM_CORNERS, aim_recorded
+                    _crosses = aim_recorded(self._margin_ti2) != AIM_CORNERS
+                except Exception:      # noqa: BLE001
+                    _crosses = True
+            _t, _r, _b, _l = margins_mm(crosses=_crosses)
+            thresholds = {"T": _t, "B": _b, "L": _l, "R": _r}
 
         # Strip-length (ruler) limit: the per-combo value configured in
         # Preferences → Instrument Limits wins; else the instrument's built-in ruler
@@ -30529,7 +30748,8 @@ class TabChart(QWidget):
             pass
         instr = {"3p": "p3"}.get(self._active_instrument_flag(),
                                  self._active_instrument_flag())
-        if instr not in ("i1", "p3", "CM", "SS", "CR30", "FD9"):
+        if instr not in ("i1", "p3", "CM", "SS", "CR30", "FD9") and not (
+                instr == "IO2" and _saved_beta_instrument_is_off(instr) is False):
             instr = "i1"
         paper = self._active_paper_code() or "A4"
         try:
@@ -31552,6 +31772,10 @@ class TabChart(QWidget):
             s.set("chart_fd9_strip_gap_mm",
                   params.fd9_gap_mm if params.fd9_strip_gap_mm is None
                   else params.fd9_strip_gap_mm)
+        if (params.instrument == "IO2"          # i1iO (Beta) only
+                and getattr(self, "_i1io_aim_check", None) is not None):
+            s.set("chart_i1io_crosses",
+                  bool(self._i1io_aim_check.isChecked()))
         s.set("chart_pages",               params.pages)
         s.set("chart_double_density",      params.double_density)
         s.set("chart_triple_density",      params.triple_density)
@@ -31786,7 +32010,27 @@ class TabChart(QWidget):
             # no "Stamp settings down the right edge" control, so a Guided
             # chart is printed WITHOUT the stamp (ChartParams defaults on)
             stamp_commands       = False,
+            # the i1iO's "Aiming crosses" (Beta)
+            i1io_crosses         = (instr != "IO2"
+                                    or getattr(self, "_i1io_aim_check", None)
+                                    is None
+                                    or self._i1io_aim_check.isChecked()),
         )
+
+    def _manual_i1io_context(self) -> dict:
+        """The chart name and pages Manual's "Aiming crosses" (i) uses."""
+        spin = getattr(self, "_manual_pages_spin", None)
+        return {"name": self._preview_target_name("manual") or "",
+                "pages": int(spin.value()) if spin is not None else 1}
+
+    def _guided_i1io_crosses_source(self) -> dict:
+        """What Guided's "Aiming crosses" (i) is worked out from: the chart
+        Guided would build now (`ChartCreator._engine_build_kwargs`)."""
+        params = self._collect_guided()
+        kw = self._creator._engine_build_kwargs(params)
+        return {"kw": kw, "name": self._preview_target_name("guided") or "",
+                "pages": int(params.pages or 1),
+                "paper_label": self._paper_combo.currentText()}
 
     def _collect_manual(self) -> ChartParams:
         p = ChartParams()
@@ -32014,6 +32258,9 @@ class TabChart(QWidget):
         stored_i = (self._instrument_b8_1288_left_behind(saved_recipe)
                     or s.get(_pw_settings_key("printtarg", "-i")) or "i1")
         stored_p = str(s.get(_pw_settings_key("printtarg", "-p")) or "A4")
+        if _saved_beta_instrument_is_off(stored_i):
+            # an i1iO default with i1iO support off reads as none (both)
+            stored_i, stored_p = "i1", "A4"
         recipe_paper = None
         if (_layout_panel_lays_out(
                     stored_i, s.get("use_chromiq_layout_engine", False))
@@ -32116,6 +32363,12 @@ class TabChart(QWidget):
                        if s.is_stored("chart_fd9_strip_gap_mm") else _along)
             self._fd9_guided = (_w, _h, _along, _across)
         paper = s.get("chart_paper", "A4")
+        # A saved i1iO with i1iO support (Beta) off is no choice at all: its
+        # sheet (landscape, chosen for the table) is read as none too, so the
+        # off app opens on the factory sheet, as 4.3.32 would have.
+        if (_saved_beta_instrument_is_off(instr)
+                and self._instr_combo.findData(instr) < 0):
+            paper = "A4"
         # The COMBO's instrument, not the saved one: with FD-9 support (Beta)
         # off, a saved "FD9" is not in the list, and its sheet must not be
         # added to the i1Pro's papers either, nor workflow.fd9 imported for it
@@ -32152,6 +32405,9 @@ class TabChart(QWidget):
         self._td_check.setChecked(bool(s.get("chart_triple_density", False)))
         self._lb_check.setChecked(bool(s.get("chart_disable_left_border", True)))
         self._nsl_check.setChecked(bool(s.get("chart_no_strip_limit", False)))
+        if getattr(self, "_i1io_aim_check", None) is not None:
+            self._i1io_aim_check.setChecked(
+                bool(s.get("chart_i1io_crosses", True)))
         self._update_dd_visibility()
         self._update_patch_count()
 
@@ -32171,6 +32427,11 @@ class TabChart(QWidget):
         healed_i = self._instrument_b8_1288_left_behind(
             self._stored_defaults_recipe())
         _i, _p, recipe_paper = self._stored_defaults_selection()
+        # A Manual default saved on the i1iO table while i1iO support (Beta)
+        # is off: its instrument and its landscape sheet read as none, as
+        # Guided's do (review of 2026-11-13, D-off).
+        _stale_i1io = _saved_beta_instrument_is_off(
+            s.get(_pw_settings_key("printtarg", "-i")))
         for tool, widgets in self._manual_widgets.items():
             for pw in widgets:
                 if pw in self._d_cascade_widgets:
@@ -32179,6 +32440,9 @@ class TabChart(QWidget):
                 v = s.get(new_key)
                 if tool == "printtarg" and pw.flag == "-i" and healed_i:
                     v = healed_i
+                if (_stale_i1io and tool == "printtarg"
+                        and pw.flag in ("-i", "-p")):
+                    v = None
                 if v is None:
                     legacy_key = f"manual_{tool}_{pw.flag}"
                     if legacy_key != new_key:

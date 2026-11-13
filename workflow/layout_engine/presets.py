@@ -126,6 +126,10 @@ def edge_spacers_effect(recipe: "LayoutRecipe") -> str:
         from workflow.fd9.support import fd9_enabled
         if fd9_enabled():
             return "fixed"
+    if recipe.instrument == "IO2":
+        from workflow.i1io.support import i1io_enabled
+        if i1io_enabled():
+            return "fixed"
     from . import instruments
     kw = replace(recipe, edge_spacers=True).build_kwargs()
     g = instruments.geom_from_build_kwargs(kw)
@@ -207,6 +211,18 @@ class LayoutRecipe:
     #: `clip_content_mode`, whose default "notes" would have switched it on
     #: for every FD-9 recipe saved before it existed. Written only when set.
     fd9_clip_border: "bool | None" = None
+    #: The i1iO table's numbered aiming crosses (a Beta, 2026-11-13): on by
+    #: default; off, the person aims at the corner patches and the paper the
+    #: crosses held goes to patches (`workflow.i1io.chart`). Written only for
+    #: an i1iO recipe that switches them off, so every other recipe's dict and
+    #: build kwargs are the ones they were.
+    i1io_crosses: bool = True
+    #: Manual's "Patch area alignment" as a person chose it for the i1iO
+    #: ("" = the i1iO's own: centred between the crosses, or at the patch
+    #: numbers without them, `workflow.i1io.chart.align_of`). Its own field,
+    #: not `patch_area_align`, which an i1iO recipe carried over from the
+    #: previous instrument while the box was greyed. Written only when set.
+    i1io_align: str = ""
     # Layout strategy (#93, Knut). "patch_first" (default) = size the patches
     # (above) and fit as many as possible to the page. "area_first" = fit a
     # target grid into the usable area and SIZE the patches to fill it:
@@ -443,6 +459,10 @@ class LayoutRecipe:
             d.pop("fd9_gap_mm", None)
         if self.instrument != "FD9" or self.fd9_clip_border is None:
             d.pop("fd9_clip_border", None)
+        if self.instrument != "IO2" or self.i1io_crosses:
+            d.pop("i1io_crosses", None)
+        if self.instrument != "IO2" or not self.i1io_align:
+            d.pop("i1io_align", None)
         d[HIDES_PATCH_CONTROLS_KEY] = True      # B8-1570; not a field
         # Left out at 0, so a recipe that does not move its labels sideways
         # writes exactly the dict it wrote before the field existed (see the
@@ -521,6 +541,8 @@ class LayoutRecipe:
             offset_y_mm=float(d.get("offset_y", 0.0)),
             bit16=bool(d.get("bit16", False)), compression=d.get("compression", "lzw"),
             export_pdf=bool(d.get("export_pdf", False)),
+            i1io_crosses=bool(d.get("i1io_crosses", True)),
+            i1io_align=str(d.get("i1io_align") or ""),
             show_strip_indicators=bool(d.get("draw_indicators", True)),
             show_row_indicators=(None if d.get("row_indicators") is None
                                  else bool(d.get("row_indicators"))),
@@ -803,6 +825,12 @@ class LayoutRecipe:
                 # Preserve an explicit zero instead of the generic None/auto.
                 kw["inter_patch"] = self.inter_patch_mm
                 kw["strip_gap"] = self.strip_gap_mm
+        # The i1iO's crosses, only when switched off (see the field).
+        if self.instrument == "IO2" and not self.i1io_crosses:
+            kw["i1io_crosses"] = False
+        # The alignment chosen for the i1iO, only when chosen (see the field).
+        if self.instrument == "IO2" and self.i1io_align:
+            kw["i1io_align"] = self.i1io_align
         # Only when it moves anything, so the kwargs of every chart that does
         # not use it are the ones it had before the field existed.
         if self.strip_label_offset_x_mm:
@@ -830,6 +858,24 @@ def default_recipe(instrument: str = "i1", paper: str = "A4", *, mode: str | Non
             r.inter_patch_mm = r.strip_gap_mm = 1.0
             r.fd9_gap_mm = None
             r = fd9_fixed_fields(r)
+    if instrument == "IO2":
+        from workflow.i1io.support import i1io_enabled
+        if i1io_enabled():
+            # The i1iO table's own layout (`workflow.i1io.chart`): strips
+            # along the arm, its patch size, coloured contrast spacers,
+            # patch-first, no clip border, its smallest safe margins.
+            from workflow.i1io.table_facts import (PATCH_ACROSS_MM,
+                                                   PATCH_ALONG_MM, ROW_GAP_MM,
+                                                   SPACER_MODE, margins_mm)
+            t, rt, b, lt = margins_mm(True)
+            r.patch_w_mm, r.patch_h_mm = PATCH_ACROSS_MM.value, PATCH_ALONG_MM.value
+            r.strip_gap_mm, r.inter_patch_mm = ROW_GAP_MM.value, 0.0
+            r.layout_mode = "patch_first"
+            r.spacer_mode = SPACER_MODE.value
+            r.clip_content_mode = "off"
+            r.margin_top, r.margin_right = t, rt
+            r.margin_bottom, r.margin_left = b, lt
+            r.helper_markers = False
     # The SpectroScan is a flatbed XY-table: it reads a FIXED 2-D grid, so
     # "prioritise patch size, then fit to page" (patch_first) is its natural
     # layout — it gives the proper grid of hexagons/squares. The generic

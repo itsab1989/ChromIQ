@@ -186,7 +186,7 @@ _PRINTTARG_CAL_MISMATCH = re.compile(
 
 
 # Instruments the ChromIQ layout engine can lay out itself (issue #93).
-ENGINE_INSTRUMENTS = {"i1", "p3", "CM", "SS", "CR30", "FD9"}
+ENGINE_INSTRUMENTS = {"i1", "p3", "CM", "SS", "CR30", "FD9", "IO2"}
 
 # Instruments the engine is the ONLY route for - printtarg cannot lay them out
 # at all, so the printtarg path is not a fallback, it is a fault (#159).
@@ -201,7 +201,7 @@ ENGINE_INSTRUMENTS = {"i1", "p3", "CM", "SS", "CR30", "FD9"}
 # to printtarg once per probe. So the CR30 is forced onto the engine in
 # _should_use_engine, and _build_printtarg_args REFUSES to build an argv for it
 # rather than emitting a flag printtarg will reject.
-ENGINE_ONLY_INSTRUMENTS = {"CR30", "FD9"}
+ENGINE_ONLY_INSTRUMENTS = {"CR30", "FD9", "IO2"}
 
 # printtarg's ColorMunki triple-density trick (-ii1) uses -a1.3 by default; the
 # engine's native extra-high-density (pscale 1.0) reproduces exactly that size,
@@ -798,6 +798,9 @@ class ChartParams:
     #: leaves the FD-9's own default; Manual's recipe is used instead when
     #: there is one.
     fd9_clip_border: "bool | None" = None
+    #: Guided's i1iO "Aiming crosses" (a Beta): Guided carries no layout
+    #: recipe, so its choice rides here; Manual's recipe holds its own.
+    i1io_crosses: bool = True
     fd9_clip_options: "dict | None" = None
     # When True, the .icc/.ti3 from a prior session in the same working folder
     # are renamed to pre_*.icc/pre_*.ti3 instead of being overwritten on the
@@ -1724,6 +1727,11 @@ class ChartCreator:
                 # an absent key still reads False, so reprinting a lost sheet
                 # reproduces the sheet that was printed.
                 kw["hex_flat_top"] = bool(kw.get("hflag"))
+        elif params.instrument == "IO2" and not getattr(params, "i1io_crosses",
+                                                         True):
+            # Guided's "Aiming crosses" for the i1iO (a Beta), only when off,
+            # so every other chart's kwargs are the ones they were.
+            kw["i1io_crosses"] = False
         return kw
 
     def _engine_total_patches(self, params: "ChartParams") -> int | None:
@@ -1940,10 +1948,26 @@ class ChartCreator:
                 redraw = bool(str(getattr(params, "chart_date", "") or ""))
                 msg = (M.M_CHART_ENGINE_REDRAW_FAILED if redraw
                        else M.M_CHART_ENGINE_FAILED)
+                reason = str(exc)
+                from workflow.i1io.support import i1io_enabled, is_i1io_code
+                if is_i1io_code(params.instrument):
+                    # An i1iO chart drawn again with i1iO support off, or a
+                    # sheet the table cannot take: said in words, never as
+                    # "unknown instrument 'IO2'".
+                    if not i1io_enabled():
+                        reason = tr(
+                            "This chart was made for the X-Rite i1iO table, "
+                            "and i1iO support is switched off in Preferences "
+                            "→ Beta. Turn it on and restart ChromIQ to draw "
+                            "this chart again.")
+                    elif type(exc).__name__ == "I1ioSheetRefused":
+                        reason = tr(
+                            "The i1iO table cannot read this layout: {why}"
+                        ).format(why=reason)
                 self._matched_errors.append(
                     ("engine", "engine_redraw_failed" if redraw
                      else "engine_failed",
-                     msg.render(reason=str(exc))[1]))
+                     msg.render(reason=reason)[1]))
             self._finish([])
             return
 
@@ -1974,7 +1998,9 @@ class ChartCreator:
             self._write_channel_sidecar(work_dir, stem, self._pending_params,
                                         engine="chromiq")
             self._embed_layout_geometry(work_dir, stem, result, params)
-            if params.instrument != "FD9":
+            # Not on an FD-9 or i1iO sheet: their corners and edges hold the
+            # marks the instrument or the person aims at.
+            if params.instrument not in ("FD9", "IO2"):
                 self._stamp_tiff_metadata(tiffs, self._pending_params)
 
         self._finish(tiffs)

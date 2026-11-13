@@ -6605,6 +6605,62 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         fit_message_box_buttons(box)
         box.exec()
 
+    def _blocked_by_i1pro2_lights_left_on(self) -> bool:
+        """M-I1PRO2-LIGHTS-LEFT-ON (§M-PROPOSED): the i1Pro 2 lights
+        (Preferences > Beta) were on when the last session's helper ended
+        without switching them off, so they may still be on, and ArgyllCMS's
+        notes say a running light pattern can disturb the instrument's start-up.
+
+        Asked only with the option on and only for a chart of the i1Pro
+        family, so it never stands in front of another instrument; with the
+        option off the marker is not even looked at
+        (core/i1pro2_lights_marker.py). Continue removes the marker and the
+        Start carries on; Cancel keeps it and nothing is started."""
+        from core import i1pro2_lights_marker as marker
+        option = marker.option_on(getattr(self, "_settings", None))
+        if not option:
+            return False
+        if not marker.left_on(option, self._chart_instrument_code()):
+            return False
+        log.info("i1Pro 2 lights: the last session ended with the lights "
+                 "possibly on; asking for a replug before connecting")
+        if self._i1pro2_lights_left_on_window():
+            marker.clear()
+            log.info("i1Pro 2 lights: replug confirmed, marker removed")
+            return False
+        self._log.appendPlainText("\n" + tr(
+            "Measurement not started. Nothing has been changed. Unplug the "
+            "i1Pro 2, wait a few seconds, plug it in again and then press "
+            "“{start}”.").format(start=self._start_button_name()))
+        self._log.ensureCursorVisible()
+        return True
+
+    def _i1pro2_lights_left_on_window(self) -> bool:
+        """M-I1PRO2-LIGHTS-LEFT-ON on screen; True for Continue. Plays no
+        sound, like the other windows a Start raises before anything is
+        opened (M-INSTRUMENT-BUSY, the calibration window)."""
+        from PyQt6.QtWidgets import QMessageBox
+        from workflow import measurement_messages as M
+        from ui.widgets import (fit_message_box_buttons,
+                                keep_message_box_inside_the_work_area,
+                                order_message_box_buttons)
+        title, body = M.M_I1PRO2_LIGHTS_LEFT_ON.render()
+        box = QMessageBox(self)
+        box.setObjectName("i1pro2_lights_left_on")
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        go = box.addButton(tr("Continue"), QMessageBox.ButtonRole.AcceptRole)
+        cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(go)
+        box.setEscapeButton(cancel)
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        fit_message_box_buttons(box)
+        order_message_box_buttons(box, [go, cancel])
+        box.exec()
+        return box.clickedButton() is go
+
     def _cr30_stock_reader_window(self) -> bool:
         """Show §M's M-CR30-STOCK-READER and return True when the user accepts
         the switch to ChromIQ's own chart reader.
@@ -6677,6 +6733,27 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # this far (`_on_start` hands it to the FD-9 worker); with it off, the
         # chart cannot be measured and M-FD9-SUPPORT-OFF says how to change
         # that, instead of offering to "correct" a name that is right.
+        # An X-Rite i1iO table chart (a Beta), read HERE for the same reason:
+        # no chart is read for it that 4.3.32 did not read. On, the table
+        # cannot be driven yet and M-I1IO-NOT-YET says what can be done
+        # today; off, M-I1IO-SUPPORT-OFF says how to turn it on. Never the
+        # repair below, which would rename it an i1Pro strip chart.
+        from workflow.i1io.support import is_i1io_instrument_name
+        if is_i1io_instrument_name(name):
+            from workflow.i1io.support import i1io_enabled
+            if i1io_enabled():
+                self._i1io_not_yet_window()
+                self._log.appendPlainText(tr(
+                    "Measurement not started: this chart is for the X-Rite "
+                    "i1iO table, and measuring with the table is not "
+                    "available in this version of ChromIQ yet."))
+            else:
+                self._i1io_support_off_window()
+                self._log.appendPlainText(tr(
+                    "Measurement not started: this chart is for the X-Rite "
+                    "i1iO table, and i1iO support is switched off in "
+                    "Preferences → Beta."))
+            return True
         from workflow.fd9.support import is_fd9_instrument_name
         if is_fd9_instrument_name(name):
             self._fd9_support_off_window()
@@ -6718,6 +6795,75 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if not self._repair_target_instrument(chart, name):
             return True
         return False           # repaired — carry on and measure
+
+    def _refused_as_an_i1io_chart(self) -> bool:
+        """True, with M-I1IO-NOT-YET shown, when i1iO support is on and the
+        loaded chart is an i1iO table chart. Reads the chart's header only
+        while the switch is on, and never raises."""
+        from workflow.i1io.support import i1io_enabled
+        if not i1io_enabled() or not self._ti1_path:
+            return False
+        try:
+            from workflow.i1io.support import chart_names_i1io
+            chart = self._chart_file_for(self._ti1_path)
+            if chart_names_i1io(chart) is not True:
+                return False
+        except Exception:      # noqa: BLE001 - never block a read on this
+            return False
+        self._i1io_not_yet_window()
+        self._log.appendPlainText(tr(
+            "Measurement not started: this chart is for the X-Rite i1iO "
+            "table, and measuring with the table is not available in this "
+            "version of ChromIQ yet."))
+        return True
+
+    def _i1io_not_yet_window(self) -> None:
+        """M-I1IO-NOT-YET on screen: the text is the catalogue's. For a
+        verification or calibration chart (decided by the chart's folder, as
+        `_chart_is_calibration` decides it) M-I1IO-NOT-YET-BY-HAND: the
+        i1Profiler way ends in building a profile, which those are not for."""
+        from workflow import measurement_messages as M
+        title, body = self._i1io_not_yet_message(M).render()
+        self._i1io_window(title, body + "\n\n"
+                          + M.i1io_aim_text(self._i1io_aim_details()))
+
+    def _i1io_aim_details(self) -> dict:
+        """What the loaded i1iO chart records about aiming
+        (`workflow.i1io.chart.aim_details`): the crosses, the corner patches
+        by name page by page, or nothing (then both are explained)."""
+        try:
+            from workflow.i1io.chart import aim_details
+            return aim_details(self._chart_file_for(self._ti1_path))
+        except Exception:      # noqa: BLE001 - a notice, never a blocker
+            log.debug("i1iO aim not read", exc_info=True)
+            return {"aim": "unknown", "pages": [], "labels": True}
+
+    def _i1io_not_yet_message(self, M):
+        """Which of the two i1iO "not yet" messages the loaded chart gets."""
+        ti1 = getattr(self, "_ti1_path", None)
+        folder = Path(ti1).parent.name if ti1 else ""
+        if folder in ("cal", "verifications"):
+            return M.M_I1IO_NOT_YET_BY_HAND
+        return M.M_I1IO_NOT_YET
+
+    def _i1io_support_off_window(self) -> None:
+        """M-I1IO-SUPPORT-OFF on screen: the text is the catalogue's."""
+        from workflow import measurement_messages as M
+        self._i1io_window(*M.M_I1IO_SUPPORT_OFF.render())
+
+    def _i1io_window(self, title: str, body: str) -> None:
+        from PyQt6.QtWidgets import QMessageBox
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        from ui.widgets import (fit_message_box_buttons,
+                                keep_message_box_inside_the_work_area)
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        fit_message_box_buttons(box)
+        box.exec()
 
     def _fd9_support_off_window(self) -> None:
         """M-FD9-SUPPORT-OFF on screen: the text is the catalogue's."""
@@ -8075,6 +8221,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if _fd9_ask(self, "_is_fd9_target"):
             self._start_fd9_measurement()
             return
+        # An X-Rite i1iO table chart with i1iO support on (Beta): the table
+        # cannot be driven yet, so Start says so BEFORE anything is recovered,
+        # armed or written. With the switch off nothing is read here; the
+        # chart is refused where 4.3.32 already reads its instrument name
+        # (`_blocked_by_unusable_target_instrument`).
+        if self._refused_as_an_i1io_chart():
+            return
         if not self._ti1_path:
             self._log.appendPlainText("[ERROR] No .ti2 file selected.")
             self._log.ensureCursorVisible()
@@ -8120,6 +8273,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # rewrites the header on a resume, so the mixed file would say
         # nothing, or the new half's condition, about readings of both.
         if self._blocked_by_a_differing_condition():
+            return
+        # …and when the last measurement with an i1Pro 2 ended while its white
+        # light was on (Preferences > Beta, the lights): replug it first.
+        # Before anything is armed, archived or opened, and never for a chart
+        # of another instrument.
+        if self._blocked_by_i1pro2_lights_left_on():
             return
         # #131: enter measurement mode so per-patch/strip sounds are allowed and
         # the selected clips are pre-loaded for zero-latency playback. On stock
@@ -21610,6 +21769,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         from workflow import button_gestures as _bg
         p.gesture_args = _bg.engine_args(_bg.config_from(self._settings))
         p.engine_xy_chart = bool(self._settings.get("engine_all_modes", False))
+        p.engine_i1pro2_lights = bool(
+            self._settings.get("i1pro2_lights_beta", False))
         p.cal_auto_retries = int(self._settings.get("cal_auto_retries", 3))
         import os as _os
         replay = _os.environ.get("CHROMIQ_REPLAY")

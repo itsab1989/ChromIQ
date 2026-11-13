@@ -3606,6 +3606,28 @@ class SettingsDialog(QDialog):
         _i1prow.addWidget(i1p_turned_tip)
         _beta.addLayout(_i1prow)
 
+        # THE i1Pro 2 AND i1Pro 3 LIGHTS (Basti, 2026-11-13: "build the lights
+        # option for i1pro 2 owners too", then the i1Pro 3 from jctay's
+        # recording; i1pro3_imp.c). Read at every Start: the helper is given
+        # --i1pro2-lights, and the driver patch (native/instlib/i1pro_imp.c,
+        # PROVENANCE.md) sends only the light sequences X-Rite's i1Profiler
+        # was recorded sending. Off = nothing is sent, exactly 4.3.32.
+        self._i1pro2_lights_check = QCheckBox(
+            tr("X-Rite i1Pro 2 and i1Pro 3: show the instrument's state with "
+               "its lights (beta)"), self)
+        i1pro2_lights_tip = TooltipButton(
+            tr("i1Pro 2 and i1Pro 3 Lights (beta)"), i1pro2_lights_help(), self,
+            min_width=680)
+        self._i1pro2_lights_check.clicked.connect(
+            self._on_i1pro2_lights_clicked)
+        _lightsrow = QHBoxLayout()
+        _lightsrow.addWidget(self._i1pro2_lights_check)
+        _lightsrow.addStretch()
+        _lightsrow.addWidget(i1pro2_lights_tip)
+        _beta.addLayout(_lightsrow)
+        # kept by name for the tests and the on-screen drivers
+        self._i1pro2_lights_tip = i1pro2_lights_tip
+
         # Konica Minolta FD-9 support (PR #213, written and contributed by
         # lessbones). Restart-to-apply: `workflow.fd9.support` reads it once
         # per run, so the lists built at start-up and the Measure tab agree.
@@ -3721,6 +3743,27 @@ class SettingsDialog(QDialog):
         _beta.addLayout(_fd9rot)
         self._fd9_support_check.toggled.connect(self._fd9_rotation_follow)
 
+        # X-Rite i1iO scanning table (i1iO 2 with an i1Pro 2). Restart to
+        # apply, like the FD-9 (`workflow.i1io.support`). Switching it ON asks
+        # first, in the profile engine's pattern (`_on_i1io_support_clicked`).
+        self._i1io_support_check = QCheckBox(
+            tr("X-Rite i1iO support (beta)"), self)
+        i1io_support_tip = TooltipButton(
+            tr("X-Rite i1iO support (beta)"), i1io_support_help(), self,
+            min_width=680)
+        self._i1io_support_restart_hint = QLabel(
+            tr("Takes effect after you restart ChromIQ."), self)
+        _ink(self._i1io_support_restart_hint, "#e6a23c", " font-size: 11px;")
+        self._i1io_support_restart_hint.setVisible(False)
+        self._i1io_support_check.toggled.connect(self._i1io_support_toggled)
+        self._i1io_support_check.clicked.connect(self._on_i1io_support_clicked)
+        _i1iorow = QHBoxLayout()
+        _i1iorow.addWidget(self._i1io_support_check)
+        _i1iorow.addStretch()
+        _i1iorow.addWidget(i1io_support_tip)
+        _beta.addLayout(_i1iorow)
+        _beta.addWidget(self._i1io_support_restart_hint)
+
         # THE SPLASH ESCAPE HATCH, WITH A ROW OF ITS OWN.
         #
         # The setting existed and the changelog told users to reach for it, but
@@ -3777,35 +3820,38 @@ class SettingsDialog(QDialog):
             tr("ChromIQ Chart-Reading Engine"),
             tr("This box changes how ChromIQ reads your printed chart in the "
             "Measure tab.\n\n"
-            "When it is ON — the default — ChromIQ reads charts with its "
+            "When it is ON (the default), ChromIQ reads charts with its "
             "own engine. Switch it OFF and ChromIQ measures with Argyll's "
             "own chartread program instead, exactly the way plain ArgyllCMS "
             "works; the measured numbers are the same either way.\n\n"
             "When it is ON, ChromIQ uses its own chart-reading engine. The "
             "engine is built from the very same ArgyllCMS source code and "
-            "talks to your instrument through Argyll's own, unmodified "
-            "drivers — so the measurements themselves are identical, down to "
-            "the numbers in your file. What the engine adds is everything "
-            "around the measuring:\n\n"
+            "talks to your instrument through Argyll's own drivers, "
+            "unmodified. The one exception is the beta option for the lights "
+            "of the i1Pro 2 and i1Pro 3 (Preferences, Beta tab): when you "
+            "switch it on, the engine also sends these two instruments the "
+            "commands that switch their lights, and nothing else. Either way the measurements themselves "
+            "are identical, down to the numbers in your file. What the engine "
+            "adds is everything around the measuring:\n\n"
             "  • Your readings are saved to disk after every single strip. "
             "If the instrument loses its connection, the app closes, or the "
-            "power goes out, you lose at most the one strip you were reading "
-            "— never the whole session.\n\n"
+            "power goes out, you lose at most the one strip you were reading, "
+            "never the whole session.\n\n"
             "  • You can click any strip in the chart preview to jump "
-            "straight to it — handy when you want to measure one strip again, "
+            "straight to it: handy when you want to measure one strip again, "
             "or when Check & Refine has flagged a few strips as worth a "
             "second pass.\n\n"
             "  • After each swipe, the preview fills in what the instrument "
             "actually saw, patch by patch, split diagonally against what the "
-            "chart expected — so a smudged or mixed-up row jumps out at you "
+            "chart expected, so a smudged or mixed-up row jumps out at you "
             "immediately, instead of quietly spoiling the profile.\n\n"
             "  • On charts whose patches are printed in a fixed order (not "
-            "shuffled), the engine checks — wherever that is mathematically "
-            "possible — that you really swiped the row it expected, and warns "
+            "shuffled), the engine checks, wherever that is mathematically "
+            "possible, that you really swiped the row it expected, and warns "
             "you on the spot. Regular chartread trusts you silently there.\n\n"
             "The measurement file has exactly the same format either way, "
-            "and you can switch this box on or off between sessions freely "
-            "— even resume a measurement started the other way.\n\n"
+            "and you can switch this box on or off between sessions freely, "
+            "and even resume a measurement started the other way.\n\n"
             "If the engine is missing on your computer, or a mode needs "
             "something it does not cover yet (patch-by-patch reading, XY "
             "tables), ChromIQ simply falls back to the normal chartread for "
@@ -3833,7 +3879,7 @@ class SettingsDialog(QDialog):
             "the exact moment the instrument fires, so a swipe can be timed. "
             "The separate chartread program only prints that it is ready and "
             "then that the strip was read, and the time between those two "
-            "includes you picking the instrument up and lining it up — so it "
+            "includes you picking the instrument up and lining it up, so it "
             "cannot be used to judge how fast you swiped.\n\n"
             "**The last row has the same cause:** the beeps built into ArgyllCMS "
             "are silenced in the engine, because it runs inside ChromIQ. The "
@@ -4506,6 +4552,45 @@ class SettingsDialog(QDialog):
                            "CR30")
     _MARGIN_PAPERS = ("A4", "Letter", "Legal", "A3", "A3+", "A2", "Tabloid")
     _MARGIN_ORIENTS = ("Portrait", "Landscape")
+
+    def _on_i1pro2_lights_clicked(self, checked: bool) -> None:
+        """The i1Pro 2 lights (beta): say once more what switching them on
+        means, and keep the box off unless the user confirms. The profile
+        engine's consent window, the same way (Cancel is the default)."""
+        if not checked:
+            return
+        from PyQt6.QtWidgets import QMessageBox, QSpacerItem, QSizePolicy
+        box = QMessageBox(self)
+        box.setWindowTitle(tr("i1Pro 2 and i1Pro 3 Lights (beta)"))
+        box.setIcon(QMessageBox.Icon.NoIcon)   # no exclamation mark
+        box.setText(i1pro2_lights_confirmation())
+        box.setStandardButtons(QMessageBox.StandardButton.Ok
+                               | QMessageBox.StandardButton.Cancel)
+        ok_btn = box.button(QMessageBox.StandardButton.Ok)
+        cancel_btn = box.button(QMessageBox.StandardButton.Cancel)
+        ok_btn.setText(tr("Use the lights"))
+        from ui.default_button import mark_destructive
+        mark_destructive(ok_btn)
+        cancel_btn.setText(tr("Leave them off"))
+        from PyQt6.QtGui import QFontMetrics
+        from PyQt6.QtWidgets import QDialogButtonBox
+        for b in (ok_btn, cancel_btn):
+            w = QFontMetrics(b.font()).horizontalAdvance(b.text()) + 44
+            b.setMinimumWidth(w)
+        bbox = box.findChild(QDialogButtonBox)
+        if bbox is not None:
+            bbox.setCenterButtons(True)
+        grid = box.layout()
+        if grid is not None:
+            spacer = QSpacerItem(620, 1, QSizePolicy.Policy.Minimum,
+                                 QSizePolicy.Policy.Minimum)
+            grid.addItem(spacer, grid.rowCount(), 0, 1,
+                         grid.columnCount())
+        box.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        if box.exec() != QMessageBox.StandardButton.Ok:
+            self._i1pro2_lights_check.setChecked(False)
 
     def _on_profile_engine_clicked(self, checked: bool) -> None:
         """Friendly beta consent dialog when the engine is switched on."""
@@ -6306,11 +6391,16 @@ class SettingsDialog(QDialog):
             str(s.get("chartread_engine", "argyll")) == "chromiq")
         self._scanner_hex_check.setChecked(
             bool(s.get("scanner_hex_charts", False)))
+        self._i1pro2_lights_check.setChecked(
+            bool(s.get("i1pro2_lights_beta", False)))
         self._i1p_turned_check.setChecked(
             bool(s.get("i1profiler_turned_export", False)))
         self._fd9_support_check.setChecked(
             bool(s.get("fd9_support_beta", False)))
         self._fd9_support_toggled()
+        self._i1io_support_check.setChecked(
+            bool(s.get("i1io_support_beta", False)))
+        self._i1io_support_toggled()
         from workflow.fd9.support import stored_rotation as _fd9_rot
         _i = self._fd9_rotation_combo.findData(_fd9_rot(s))
         self._fd9_rotation_combo.setCurrentIndex(max(0, _i))
@@ -6551,6 +6641,53 @@ class SettingsDialog(QDialog):
         from workflow.fd9.support import fd9_enabled
         self._fd9_support_restart_hint.setVisible(
             self._fd9_support_check.isChecked() != fd9_enabled())
+
+    def _i1io_support_toggled(self, *_a) -> None:
+        """i1iO support is restart-to-apply (`workflow.i1io.support`): say so
+        while the box differs from what THIS run of ChromIQ is using."""
+        from workflow.i1io.support import i1io_enabled
+        self._i1io_support_restart_hint.setVisible(
+            self._i1io_support_check.isChecked() != i1io_enabled())
+
+    def _on_i1io_support_clicked(self, checked: bool) -> None:
+        """THE i1iO IS SWITCHED ON AT THE USER'S OWN RISK, AND SAYS SO FIRST
+        (Basti, 2026-11-13). The profile engine's consent window
+        (`_on_profile_engine_clicked`): the app's own message box, no icon,
+        Cancel the default, the confirm marked as the risky choice. Nothing
+        is asked on switching off; switching on again asks again."""
+        if not checked:
+            return
+        from PyQt6.QtWidgets import (QDialogButtonBox, QMessageBox,
+                                     QSizePolicy, QSpacerItem)
+        from PyQt6.QtGui import QFontMetrics
+        box = QMessageBox(self)
+        box.setWindowTitle(tr("X-Rite i1iO support (beta)"))
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setText(i1io_consent_text())
+        box.setStandardButtons(QMessageBox.StandardButton.Ok
+                               | QMessageBox.StandardButton.Cancel)
+        ok_btn = box.button(QMessageBox.StandardButton.Ok)
+        cancel_btn = box.button(QMessageBox.StandardButton.Cancel)
+        ok_btn.setText(tr("Turn it on"))
+        from ui.default_button import mark_destructive
+        mark_destructive(ok_btn)
+        cancel_btn.setText(tr("Keep it off"))
+        for b in (ok_btn, cancel_btn):
+            w = QFontMetrics(b.font()).horizontalAdvance(b.text()) + 44
+            b.setMinimumWidth(w)
+        bbox = box.findChild(QDialogButtonBox)
+        if bbox is not None:
+            bbox.setCenterButtons(True)
+        grid = box.layout()
+        if grid is not None:
+            grid.addItem(QSpacerItem(620, 1, QSizePolicy.Policy.Minimum,
+                                     QSizePolicy.Policy.Minimum),
+                         grid.rowCount(), 0, 1, grid.columnCount())
+        box.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        if box.exec() != QMessageBox.StandardButton.Ok:
+            self._i1io_support_check.setChecked(False)
 
     def _on_language_changed(self, _index: int) -> None:
         # Language is restart-to-apply (strings are translated at widget
@@ -7793,8 +7930,10 @@ class SettingsDialog(QDialog):
         s.set("measure_calibrate_button",
               self._calibrate_button_check.isChecked())
         s.set("scanner_hex_charts", self._scanner_hex_check.isChecked())
+        s.set("i1pro2_lights_beta", self._i1pro2_lights_check.isChecked())
         s.set("i1profiler_turned_export", self._i1p_turned_check.isChecked())
         s.set("fd9_support_beta", self._fd9_support_check.isChecked())
+        s.set("i1io_support_beta", self._i1io_support_check.isChecked())
         s.set("fd9_display_rotation",
               int(self._fd9_rotation_combo.currentData() or 0))
         s.set("splash_classic", self._splash_classic_check.isChecked())
@@ -8916,6 +9055,127 @@ def preview_legend_help() -> str:
         "**Default:** on.")
 
 
+def i1pro2_lights_help() -> str:
+    """The ⓘ of Preferences ▸ Beta ▸ the i1Pro 2 and i1Pro 3 lights (Basti,
+    2026-11-13; the i1Pro 3 from jctay's recording, the same day).
+
+    Every sentence is checked against the code: the helper flag and its gates
+    (chromiq_chartread.c ``cq_lights_for_session``: JSON engine, reflective
+    strip or spot reading, an i1Pro 2), the driver patch (i1pro_imp.c: three
+    recorded sequences, white after a measurement or calibration, off before
+    every trigger, at the close and before an EEPROM read; a failed request
+    gives the lights up) and the recording it comes from (issue #129)."""
+    return "\n\n".join((
+        tr("The X-Rite i1Pro 2 and i1Pro 3 have small indicator lights. "
+           "X-Rite's own program, i1Profiler, uses them to show what the "
+           "instrument is doing. ArgyllCMS, which ChromIQ measures with, does "
+           "not use them: it leaves the i1Pro 2's lights as they are and "
+           "switches the i1Pro 3's off when it connects."),
+        tr("**With this on, an i1Pro 2 shows:**\n"
+           "  •  white while it waits for you, for example for you to press "
+           "its button and read the next strip;\n"
+           "  •  no light while it calibrates or measures;\n"
+           "  •  no light when the measurement ends.\n"
+           "The white comes on about a second after the instrument is ready, "
+           "so after a quick press you may not see it at all."),
+        tr("**With this on, an i1Pro 3 shows** (an i1Pro 3 Plus too, which "
+           "ArgyllCMS handles in exactly the same way):\n"
+           "  •  while it calibrates or measures, the lights behave exactly as "
+           "without this option;\n"
+           "  •  after a successful calibration, the pattern i1Profiler shows "
+           "after its own calibration (we expect a short white blink), then a "
+           "slowly breathing white light;\n"
+           "  •  after a reading, two green blinks, then the breathing white "
+           "light;\n"
+           "  •  when the instrument could not take a reading (for example a "
+           "strip swiped too quickly), two blinks that we expect to be red, "
+           "then the breathing white light;\n"
+           "  •  no light when the measurement ends.\n"
+           "Green only means that the instrument took a reading. Whether "
+           "ChromIQ accepts it for your chart is shown on screen, as before."),
+        tr("In rare cases (ChromIQ is forced to quit, or a light command "
+           "fails) the lights can stay on until you unplug the instrument."),
+        tr("**Only for the i1Pro 2 and the i1Pro 3.** The original i1Pro, the "
+           "ColorMunki and every other instrument are left exactly as they "
+           "are: ChromIQ sends them nothing new."),
+        tr("**Where it works:** only while you measure a chart with the "
+           "ChromIQ chart-reading engine (Preferences > Measurement, “ChromIQ "
+           "chart-reading engine”; it is on unless you switched it off), "
+           "reading strips or single patches by hand. Measuring with "
+           "ArgyllCMS's own chartread, the “Read single patches” tool, “Try "
+           "it” for the instrument button shortcuts and measuring tables do "
+           "not use it."),
+        tr("**Please read this: it has not been tried on a real i1Pro 2 or "
+           "i1Pro 3 yet.** Nobody on the ChromIQ team owns either. The two "
+           "instruments use different light commands. For each one, how the "
+           "lights are switched was worked out from ArgyllCMS's own program "
+           "code and from one recording of what X-Rite's i1Profiler sent to "
+           "one user's own instrument. ChromIQ sends only light commands seen "
+           "in that recording, each at the moment i1Profiler sent it, and on "
+           "the i1Pro 3 also the “off” that ArgyllCMS itself sends whenever it "
+           "connects. Two things are ChromIQ's own choice: the i1Pro 2 shows "
+           "white again after every reading (its recording was made on a "
+           "measuring table, where i1Profiler kept the lights dark), and the "
+           "i1Pro 3's lights are switched off while it measures (i1Profiler "
+           "leaves them on), so every reading is taken with the lights just as "
+           "without this option. ChromIQ sends nothing else that is new, and "
+           "it never writes anything into the instrument's memory."),
+        tr("If a light command fails, ChromIQ stops using the lights for the "
+           "rest of that measurement, says so in the measurement log and "
+           "carries on measuring as normal. The lights may then stay as they "
+           "were, even while you measure: if that happens, please compare a "
+           "reading with this option off. A measurement is never stopped "
+           "because of the lights; at worst it waits a fraction of a second, "
+           "once."),
+        tr("**If anything looks wrong**, for example the instrument does not "
+           "start, readings look different or the lights do something odd: "
+           "switch this off, unplug the instrument and plug it back in, and "
+           "please tell us what you saw with “Report a Bug…” at the bottom of "
+           "Preferences, which opens a form on GitHub."),
+        tr("**If you try it, these four things would help us most:**\n"
+           "  1.  Do the lights do what is described above for your "
+           "instrument?\n"
+           "  2.  Are they off while you calibrate and measure?\n"
+           "  3.  Does the same chart, or one strip of it, read the same with "
+           "this on and with it off? Measure it once each way and compare the "
+           "numbers.\n"
+           "  4.  Does the instrument start normally about ten times in a row? "
+           "Start a measurement, let it calibrate, stop, and start again.\n"
+           "Please also tell us which instrument you have (i1Pro 2, i1Pro 3 or "
+           "i1Pro 3 Plus) and which system you use (macOS, Windows or "
+           "Linux)."),
+        tr("With this off (the default), ChromIQ sends the instrument no light "
+           "commands and works exactly as before. A change applies from the "
+           "next measurement you start."),
+        tr("**Default:** off")))
+
+
+def i1pro2_lights_confirmation() -> str:
+    """The window shown when the i1Pro 2 and i1Pro 3 lights are switched on."""
+    return tr(
+        "You are switching on the instrument lights for the i1Pro 2 and the "
+        "i1Pro 3. Here is what that means.\n\n"
+        "•  While ChromIQ's chart-reading engine measures with one of them, "
+        "its lights show the instrument's state between readings: an i1Pro 2 "
+        "shows white while it waits for you and no light while it calibrates "
+        "or measures; an i1Pro 3 shows i1Profiler's patterns after a "
+        "calibration or a reading (green blinks after a reading, blinks we "
+        "expect to be red when it could not take one, then breathing white), "
+        "and while it calibrates or measures its lights behave as without this "
+        "option. Other instruments are not affected.\n\n"
+        "•  This has not been tried on a real i1Pro 2 or i1Pro 3 yet. It was "
+        "worked out from ArgyllCMS's program code and from one recording of "
+        "X-Rite's i1Profiler for each instrument, and ChromIQ sends only light "
+        "commands seen there, plus ArgyllCMS's own “off”. It never writes "
+        "anything into the instrument's memory.\n\n"
+        "•  You use it at your own risk. If the instrument does not start, "
+        "readings look different or the lights behave oddly, switch this "
+        "off, unplug the instrument and plug it back in, and tell us what "
+        "you saw with “Report a Bug…”.\n\n"
+        "•  You can switch it off again at any time.\n\n"
+        "Would you like to use the lights?")
+
+
 def fd9_rotation_help() -> str:
     """The ⓘ of Preferences ▸ Beta ▸ "Turn FD-9 charts on screen" (the
     owner, 2026-11-04). Display only."""
@@ -8990,3 +9250,92 @@ def page_pause_note_help() -> str:
         "This option is only available while “Pause after each page so I "
         "can check it” is on.\n\n"
         "**Default:** on.")
+
+
+# ---- X-Rite i1iO support (Beta) --------------------------------------------
+#
+# THE ONE SENTENCE TO CHANGE WHEN MEASURING ARRIVES is the second paragraph of
+# both texts ("This version ... sends nothing at all to a table"); the spec
+# `docs/design/i1io_table_support.md` names it too. Everything else stays true.
+
+def i1io_support_help() -> str:
+    """The (i) of Preferences > Beta > "X-Rite i1iO support (beta)"."""
+    return "\n\n".join((
+        tr("The X-Rite i1iO is a motorised scanning table. Your i1Pro 2 "
+           "clicks into a holder on its arm, the printed chart lies on the "
+           "table, and the arm moves the i1Pro along every strip of the chart "
+           "by itself, so you do not swipe the strips by hand."),
+        tr("This version prepares for the table. It can make charts for it, "
+           "but it cannot measure with the table yet, and it sends nothing at "
+           "all to a table. Reading with the table, quickly and strip by strip, "
+           "is being prepared for a later version."),
+        tr("What turning this on adds, after a restart of ChromIQ:\n"
+           "  •  Create Chart: “i1iO 2 + i1Pro 2” in the Instrument list of "
+           "Guided and of Manual. The chart is laid out for reading strip by "
+           "strip with the table: a portrait A4 or Letter sheet that you lay "
+           "across the table, so its strips run along the arm, patches of "
+           "10 × 8 mm (in Manual you can change the size) with coloured "
+           "spacers between them, blank paper at both ends of every strip so "
+           "the arm can speed up and slow down, and three numbered aiming "
+           "marks in the corners. When a chart has more "
+           "patches than one sheet holds, it is printed on several numbered "
+           "sheets. The layout may still change once an i1iO owner has tested "
+           "it.\n"
+           "  •  Measure: when you press Start with such a chart, ChromIQ "
+           "tells you that measuring with the table is not available yet, and "
+           "how you can measure that run today."),
+        tr("Only the i1iO 2 with an i1Pro 2 is supported, because that is the "
+           "only combination we have information about. Other i1iO tables "
+           "(the first i1iO and the i1iO 3) and other instruments on the arm "
+           "are not supported yet. If you own one and would like to help, "
+           "please tell us in the project's GitHub issues, so that support "
+           "can be added later."),
+        tr("Please read this part carefully. X-Rite has not published how the "
+           "table is controlled. What we know was worked out from recordings "
+           "that one i1iO owner made of his own table while he used X-Rite's "
+           "software, not from X-Rite's documentation. Not every command is "
+           "understood yet, and ChromIQ will only ever send the commands "
+           "whose meaning is known. Nobody on the ChromIQ team owns a table, "
+           "so everything that involves the table is tested by users who own "
+           "one. Using this beta is at your own risk."),
+        tr("Why it may still be worth it: X-Rite has ended support for these "
+           "tables. i1Profiler 3.8.7 (July 2026) removed the i1Pro 2 and the "
+           "i1iO 2, and 3.8.6 is the last version that works with them. "
+           "ChromIQ may become a way to keep using your table."),
+        tr("If you turn this off again, an i1iO chart stays as it is, and "
+           "when you press Start, ChromIQ tells you that it needs i1iO "
+           "support."),
+        tr("With this off (the default), nothing changes: the i1iO is not "
+           "offered anywhere and ChromIQ works exactly as before."),
+        tr("The change takes effect the next time you start ChromIQ."),
+        tr("**Default:** off")))
+
+
+def i1io_consent_text() -> str:
+    """What the window asks when "X-Rite i1iO support (beta)" is ticked."""
+    return "\n\n".join((
+        tr("You are switching on support for the X-Rite i1iO scanning table. "
+           "Here is what that means, in plain words."),
+        tr("This version prepares for the table. It can make charts for the "
+           "i1iO 2 with an i1Pro 2, but it cannot measure with the table yet, "
+           "and it sends nothing at all to a table. Reading with the table, "
+           "quickly and strip by strip, is being prepared for a later version."),
+        tr("•  X-Rite has not published how the table is controlled. What we "
+           "know was worked out from recordings that one i1iO owner made of "
+           "his own table while he used X-Rite's software, not from X-Rite's "
+           "documentation.\n\n"
+           "•  Not every command is understood yet. ChromIQ will only ever "
+           "send the commands whose meaning is known, to keep the risk to "
+           "your table as small as we can.\n\n"
+           "•  Nobody on the ChromIQ team owns a table, so everything that "
+           "involves the table is tested by users who own one, not by us.\n\n"
+           "•  Only the i1iO 2 with an i1Pro 2 is supported. Other i1iO tables "
+           "and other instruments on the arm are not supported yet.\n\n"
+           "•  You can switch this off again at any time, and ChromIQ then "
+           "works exactly as before."),
+        tr("Please read this part carefully: this is a beta, and using it is "
+           "at your own risk. X-Rite no longer services these tables, so if "
+           "anything ever behaves in a way you do not expect, stop and tell "
+           "us what you saw in the project's GitHub issues. Every report "
+           "helps."),
+        tr("Would you like to switch it on?")))

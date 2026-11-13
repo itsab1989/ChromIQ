@@ -504,6 +504,7 @@ parameters:
         - "SpectroScan (vlakbed)"
         - "CR30 (meetveld voor meetveld)"
         - "FD-9"
+        - "i1iO 2 + i1Pro 2"
         - "i1iSis (via i1Profiler)"
     "-h":
       name: "Double density"

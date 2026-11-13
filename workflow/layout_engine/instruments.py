@@ -98,7 +98,17 @@ TARGET_INSTRUMENT_NAME: dict[str, str] = {
     # named "CR30". A CR30 chart is readable only by ChromIQ's own chartread
     # fork. The UI must say so at chart creation and at measure time.
     "CR30": "CR30",
+    # X-Rite i1iO 2 with an i1Pro 2 (a Beta, Preferences > Beta): the files
+    # carry the table FAMILY, and the generation is recorded beside it
+    # (`workflow.i1io.support`), so a later i1iO / i1iO 3 entry writes the
+    # same name and no chart already made is renamed.
+    "IO2": "X-Rite i1iO",
 }
+
+#: The schema of an i1iO chart's side file (`<stem>.i1io.json`), which the
+#: `.ti2` names in its `CHROMIQ_I1IO_LAYOUT` keyword so a chart that lost its
+#: side file is recognised as one.
+I1IO_LAYOUT_SCHEMA = 1
 
 # Instruments ChromIQ never lays out itself (delegated to i1Profiler).
 DELEGATED = {"isis"}
@@ -108,6 +118,13 @@ def _fd9_on() -> bool:
     instrument the layout engine does not know, as in 4.3.21 (review r2 S2)."""
     from workflow.fd9.support import fd9_enabled
     return fd9_enabled()
+
+
+def _i1io_on() -> bool:
+    """i1iO support (Preferences > Beta). Off, an i1iO chart is a chart for an
+    instrument the layout engine does not know, as in 4.3.32."""
+    from workflow.i1io.support import i1io_enabled
+    return i1io_enabled()
 
 
 def _inch(mm: float) -> float:
@@ -241,6 +258,12 @@ class Geom:
     # brick wall (#93, Knut). 0 = no stagger. Render + patch_rects honour it; the
     # hxeh reservation makes room so capacity reflects it.
     row_stagger_mm: float = 0.0
+    # THE PATCHES OF A STRIP FROM THE BOTTOM OF THE PAGE UP (the X-Rite i1iO
+    # Beta only): slot 0 of every strip at the strip's BOTTOM end. The sheet
+    # lies across the table a quarter turn clockwise, so this puts patch 1 at
+    # the table's left and the numbers rising to the right (the owner,
+    # 2026-11-13). False everywhere else: every other chart is untouched.
+    reverse_steps: bool = False
     # Minimum distance (mm) from the PAPER EDGE to the start of text on that side
     # (Knut #93): strip labels (top) and the clip/notes band (clip side) sit this
     # far in from the edge. Independent of the margins; if a margin is too small
@@ -747,6 +770,11 @@ def geom_from_build_kwargs(kw: dict) -> Geom:
     the margins laid out (Knut's model, #93). The clamp that once sat here,
     ``margins_fit`` and a ``thresholds`` argument, was only ever called with
     ``None`` and was removed in 4.3.19 (review r1 N8)."""
+    if kw.get("instrument") == "IO2" and _i1io_on():
+        # What an i1iO chart fixes, for the capacity estimate exactly as for
+        # the build (`workflow.i1io.chart.fixed_build_kwargs`).
+        from workflow.i1io.chart import fixed_build_kwargs
+        kw = fixed_build_kwargs(kw)
     if kw.get("instrument") == "FD9" and _fd9_on():
         from workflow.fd9.chart import patch_dimensions
         w, h, gap = patch_dimensions(kw.get("patch_w") or 8.0, kw.get("patch_h"),
@@ -874,6 +902,29 @@ def _build_base(
                        pspa=1.0, txhisl=0.0, rlwi=0.0, mxpprow=25,
                        padlrow=True, margin_t=38.0, margin_b=33.0,
                        margin_l=15.0, margin_r=15.0)
+    if key == "IO2" and not _i1io_on():
+        # i1iO support (Preferences > Beta) is off: 4.3.32 knew no i1iO.
+        raise ValueError(f"unknown instrument {key!r}")
+    if key == "IO2":
+        # A chart for the i1iO table, laid out as every ChromIQ chart is: the
+        # engine's STRIPS are the lines the arm scans in one move (down the
+        # long side of the portrait page; the sheet lies across the table, a
+        # quarter turn, so they run along the arm). Strip letters, patch
+        # numbers, the contrast spacers between the patches of a strip and
+        # the .ti2's strip structure mean what they mean everywhere else.
+        # Every number comes from `workflow.i1io.table_facts`, with its
+        # source; the margins and the label places are fixed in
+        # `workflow.i1io.chart.fixed_build_kwargs`.
+        from workflow.i1io import table_facts as F
+        along, across = F.PATCH_ALONG_MM.value, F.PATCH_ACROSS_MM.value
+        return replace(_build_base("SS", spacer_on=False), key="IO2",
+                       target_name=TARGET_INSTRUMENT_NAME["IO2"],
+                       plen=along, pwid=across, rrsp=across,
+                       pspa=F.SPACER_MM.value if spacer_on else 0.0,
+                       padlrow=True, reverse_steps=True,
+                       extra_keywords=(
+                           ("CHROMIQ_I1IO_LAYOUT", str(I1IO_LAYOUT_SCHEMA)),
+                           ("CHROMIQ_I1IO_TABLE", "i1iO 2")))
     if key == "CM" and hflag and density < 2:
         density = 2   # back-compat: hflag meant "rig" (double density)
     if key in DELEGATED:

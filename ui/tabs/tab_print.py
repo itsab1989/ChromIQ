@@ -1051,6 +1051,14 @@ class TabPrint(QWidget):
         self._edge_note_lbl.setVisible(False)
         ll.addWidget(self._edge_note_lbl)
 
+        # AN i1iO CHART IS SHOWN AS IT LIES ON THE TABLE (Beta; the owner,
+        # 2026-11-13), so the preview is landscape while the page prints
+        # upright: one plain line says so (`_update_i1io_load_note`).
+        self._i1io_load_lbl = QLabel("", left)
+        self._i1io_load_lbl.setWordWrap(True)
+        self._i1io_load_lbl.setVisible(False)
+        ll.addWidget(self._i1io_load_lbl)
+
         # Status bar (replaces main-window status bar)
         self._status_bar_lbl = QLabel("", left)
         self._status_bar_lbl.setWordWrap(True)
@@ -2501,10 +2509,65 @@ class TabPrint(QWidget):
         self._printer_dirty = True
         self._on_printer_changed()
 
+    def _update_i1io_load_note(self) -> None:
+        """For an i1iO chart (Beta on): how the upright page is printed and
+        laid on the table, since the preview shows it landscape. Hidden for
+        every other chart, and with i1iO support off nothing is read."""
+        lbl = getattr(self, "_i1io_load_lbl", None)
+        if lbl is None:
+            return
+        text = ""
+        try:
+            from workflow.i1io.support import i1io_enabled
+            if i1io_enabled():
+                from workflow.i1io.support import pages_are_i1io_chart
+                pages = [p for p, _f in (getattr(self._preview, "_pages", None)
+                                         or [])]
+                from workflow.i1io.support import aim_for_pages
+                aim = (aim_for_pages(pages[:1])
+                       if pages and pages_are_i1io_chart(pages[:1]) else None)
+                if aim == "corner patches":
+                    text = tr(
+                        "This i1iO chart is shown as it lies on the table. It "
+                        "prints on an upright (portrait) sheet like any other "
+                        "page, so there is nothing to turn in the print "
+                        "settings. After printing, lay the sheet on the table "
+                        "a quarter turn clockwise, so that strip A is at the "
+                        "top and its patch 1 at the top left. This chart has "
+                        "no aiming crosses: you aim at the centres of the "
+                        "top-left, bottom-left and bottom-right patches.")
+                elif aim == "unknown":
+                    text = tr(
+                        "This i1iO chart is shown as it lies on the table. It "
+                        "prints on an upright (portrait) sheet like any other "
+                        "page, so there is nothing to turn in the print "
+                        "settings. After printing, lay the sheet on the table "
+                        "a quarter turn clockwise, so that strip A is at the "
+                        "top and the letters and numbers read the right way "
+                        "up. If the sheet has numbered aiming crosses, cross 1 "
+                        "is then at the top left; if it has none, you aim at "
+                        "the centres of the top-left, bottom-left and "
+                        "bottom-right patches.")
+                elif aim == "crosses":
+                    text = tr(
+                        "This i1iO chart is shown as it lies on the table. It "
+                        "prints on an upright (portrait) sheet like any other "
+                        "page, so there is nothing to turn in the print "
+                        "settings. After printing, lay the sheet on the table "
+                        "a quarter turn clockwise, so that cross 1 is at the "
+                        "top left and the chart\u2019s name reads the right "
+                        "way up.")
+        except Exception:      # noqa: BLE001 - a note, never a blocker
+            log.debug("i1iO load note not worked out", exc_info=True)
+            text = ""
+        lbl.setText(text)
+        lbl.setVisible(bool(text))
+
     def _update_edge_note(self) -> None:
         """Say which ruler helper markers or text of the chart fall into the
         edge the chosen printer does not print (M-EDGE-NOT-PRINTED), placed
         as the print will place it; hidden when nothing does."""
+        self._update_i1io_load_note()
         lbl = getattr(self, "_edge_note_lbl", None)
         if lbl is None:
             return

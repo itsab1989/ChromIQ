@@ -203,6 +203,10 @@ class MeasureParams:
     # (i1iSis/DTP70) reading too. Off by default → those modes fall back to
     # stock chartread. Passed as --xychart.
     engine_xy_chart: bool = False
+    #: Preferences > Beta, the X-Rite i1Pro 2's indicator lights (2026-11-13):
+    #: pass --i1pro2-lights, and only to a helper that says it knows the flag
+    #: (``helper_caps``). Off: the command line is exactly the one it was.
+    engine_i1pro2_lights: bool = False
     #: Preferences ▸ Measurement ▸ "Pause after each page so I can check it"
     #: (jctay, forum 149802; Basti 2026-10-23). Off by default. Engine strip
     #: reading only: the manager asks the engine to hold after a strip
@@ -401,6 +405,12 @@ class MeasureManager(QObject):
     #: at after one ({"where", "label"}), until it offers one again.
     gestures_active: bool = False
     gesture_unit: str = "strip"
+    #: The i1Pro 2 lights (Beta): the engine said this session uses them,
+    #: and whether a light request failed in it (said once, not twice).
+    lights_active: bool = False
+    _lights_failed: bool = False
+    _lights_option: bool = False
+    _lights_marker_live: bool = False
     _gesture_held: "dict | None" = None
     _gesture_moving: "dict | None" = None
     _in_strip_ready: bool = False
@@ -815,6 +825,11 @@ class MeasureManager(QObject):
         # The engine now covers patch-by-patch (spot) mode too — the spot loop
         # speaks the same JSON protocol as the strip loop (#126 follow-up).
         self._engine_active = params.engine_helper is not None
+        #: The i1Pro 2 lights (Beta): whether this session's helper was given
+        #: --i1pro2-lights, and whether its "lights may still be on" marker is
+        #: written and not yet cleared (core/i1pro2_lights_marker.py).
+        self._lights_option = False
+        self._lights_marker_live = False
         #: External values (-x): ChromIQ reads the instrument itself and the
         #: helper opens none. Kept because the SAVE-AND-STOP path differs — see
         #: `save_partial_and_quit`.
@@ -848,6 +863,7 @@ class MeasureManager(QObject):
         self._cal_retries_left = self._cal_auto_retries
 
         def _on_finish(code: int) -> None:
+            self._lights_session_ended(code)
             self._pending_post_retry_key = None
             self._engine_held = None
             self._window_hold = None
@@ -973,6 +989,14 @@ class MeasureManager(QObject):
                 eargs += ["--safenet"]
             if params.engine_xy_chart:
                 eargs += ["--xychart"]
+            if params.engine_i1pro2_lights:
+                from workflow.chartread_engine import helper_caps
+                if "i1pro2_lights" in helper_caps(params.engine_helper):
+                    eargs += ["--i1pro2-lights"]
+                    self._lights_option = True
+                else:
+                    log.info("i1Pro 2 lights: this helper does not know "
+                             "--i1pro2-lights; not passed")
             if params.engine_replay is not None:
                 eargs += ["--replay", str(params.engine_replay)]
             eargs += list(params.gesture_args or [])
@@ -3174,6 +3198,118 @@ class MeasureManager(QObject):
             return False
         return wanted <= self._strips_read_this_session
 
+    #: What ChromIQ sends the helper instead of killing it while the i1Pro 2
+    #: lights are in use (`ArgyllRunner.set_kill_courtesy`).
+    LIGHTS_OFF_EXIT = '{"cmd":"lights_off_exit"}\n'
+
+    def _on_lights_event(self, ev: dict,
+                         on_line: Callable[[str], None]) -> None:
+        """The i1Pro 2 and i1Pro 3 lights (Preferences > Beta, 2026-11-13).
+
+        The helper reports once whether this session uses them (and for which
+        instrument: "i1pro2" or "i1pro3"), and later if a
+        light request failed or the lights were switched off. Only ever seen
+        when the option is on (the helper is started with --i1pro2-lights)."""
+        from core import i1pro2_lights_marker as _marker
+        state = ev.get("state")
+        if state == "failed":
+            # The marker stays: after a failed request the lights may still be
+            # on, and the close will not try again.
+            self._lights_failed = True
+            self._runner.set_kill_courtesy(None)
+            log.warning("i1Pro 2 lights: the instrument did not accept a "
+                        "light request (%s, err %s); not used again in this "
+                        "session", ev.get("step"), ev.get("err"))
+            on_line(tr(
+                "[Engine] Instrument lights (beta): the instrument did not "
+                "accept a light request, so ChromIQ stops using its lights for this "
+                "measurement. Measuring carries on as usual. The lights may "
+                "stay as they are now, even while you measure: if they stay "
+                "on, unplug the instrument and plug it back in once you have "
+                "finished, and compare a reading with the option off."))
+            return
+        if state == "off":
+            self._runner.set_kill_courtesy(None)
+            log.info("i1Pro 2 lights: switched off")
+            if self._lights_marker_live:
+                _marker.note_lights_off(self._lights_option)
+                self._lights_marker_live = False
+            return
+        if ev.get("active"):
+            self.lights_active = True
+            which = str(ev.get("instrument") or "i1pro2")
+            # The "lights may still be on" marker and its replug window are
+            # the i1Pro 2's alone: their reason is ArgyllCMS's note about the
+            # i1Pro 2's start-up (core/i1pro2_lights_marker.py). An i1Pro 3
+            # opens today after i1Profiler left its lights running.
+            if self._lights_option and which == "i1pro2":
+                _marker.note_white_on(True)
+                self._lights_marker_live = True
+            self._runner.set_kill_courtesy(self.LIGHTS_OFF_EXIT)
+            log.info("instrument lights: in use for this session (%s)", which)
+            if which == "i1pro3":
+                on_line(tr(
+                    "[Engine] Instrument lights (beta): on. While the i1Pro 3 "
+                    "calibrates or measures, its lights behave as without this "
+                    "option. Afterwards it shows the patterns X-Rite's "
+                    "i1Profiler uses: after a reading two green blinks, when a "
+                    "reading could not be taken two blinks we expect to be "
+                    "red, each followed by a slowly breathing white light."))
+            else:
+                on_line(tr(
+                    "[Engine] Instrument lights (beta): on. The i1Pro 2 shows "
+                    "white while it waits for you and switches its lights off "
+                    "while it calibrates or measures."))
+            return
+        why = str(ev.get("why") or "")
+        log.info("i1Pro 2 lights: not used for this session (%s)", why)
+        if why == "lights" and self._lights_failed:
+            return          # the failure has already been said, once
+        if why == "instrument":
+            on_line(tr(
+                "[Engine] Instrument lights (beta): ChromIQ uses the lights "
+                "only on an i1Pro 2 or an i1Pro 3, so it leaves this "
+                "instrument's lights alone."))
+        elif why == "mode":
+            on_line(tr(
+                "[Engine] Instrument lights (beta): they are only used while "
+                "you read strips or single patches by hand, so ChromIQ leaves "
+                "them alone for this measurement."))
+        else:
+            on_line(tr(
+                "[Engine] Instrument lights (beta): ChromIQ could not use the "
+                "lights of this instrument, so it leaves them alone for this "
+                "measurement. Measuring works as usual."))
+
+    #: Exit codes of a helper whose close ran: 0 (the end of a chart), 1 (an
+    #: ArgyllCMS error(), whose atexit hook switches the lights off). 4 is the
+    #: exit guard on a close that did not come back, 128 + n a signal: after
+    #: those the lights may still be on.
+    _LIGHTS_CLEAN_EXIT_CODES = (0, 1)
+
+    def _lights_session_ended(self, code: int) -> None:
+        """The helper of a session whose white light was on has ended.
+
+        A normal exit means its close ran, and the close switches the lights
+        off first (``del_i1proimp``): the marker goes. A crash, a kill the
+        helper did not answer with its own "off", the exit guard or a failed
+        light request leave it for the next Start (M-I1PRO2-LIGHTS-LEFT-ON)."""
+        if not getattr(self, "_lights_marker_live", False):
+            return
+        self._lights_marker_live = False
+        crashed = getattr(self._runner, "last_exit_crashed", True)
+        if (not crashed and code in self._LIGHTS_CLEAN_EXIT_CODES
+                and not self._lights_failed):
+            from core import i1pro2_lights_marker as _marker
+            _marker.note_lights_off(self._lights_option)
+            log.info("i1Pro 2 lights: the helper closed normally (%d), so "
+                     "its lights were switched off", code)
+        else:
+            log.warning("i1Pro 2 lights: the helper ended without switching "
+                        "the lights off (code %d, crashed %s, failed %s); "
+                        "the marker stays for the next Start", code, crashed,
+                        self._lights_failed)
+
     def _handle_engine_line(self, line: str,
                             on_line: Callable[[str], None]) -> None:
         """Engine mode: typed events replace the regex forest. Prose lines
@@ -3259,6 +3395,8 @@ class MeasureManager(QObject):
 
         if kind == "session_start":
             self.gestures_active = False
+            self.lights_active = False
+            self._lights_failed = False
             self._gesture_held = None
             self._saw_spot_ready = False
             self._ending_already_answered = False
@@ -3415,6 +3553,9 @@ class MeasureManager(QObject):
                      "%s ms)", "on" if self.gestures_active else
                      "not available for this instrument", self.gesture_unit,
                      ev.get("wait_ms"))
+
+        elif kind == "lights":
+            self._on_lights_event(ev, on_line)
 
         elif kind == "gesture":
             # Button shortcuts: a double or triple press. At a waiting strip

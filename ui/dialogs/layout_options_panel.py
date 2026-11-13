@@ -264,6 +264,272 @@ def fd9_greyed_reason() -> str:
         "border and the output settings.")
 
 
+def i1io_greyed_reason(why: str = "") -> str:
+    """The tooltip of a Create Chart control an i1iO table chart does not
+    use (Beta): the reason for this control (*why*, a key of
+    `i1io_greyed_why`), then what the layout is and which controls it reads.
+    Every control was reviewed one by one (2026-11-13, DESIGN_NOTE §22): a
+    control is greyed only where it would put ink where the aperture passes,
+    leave the area the table reaches or a printer prints, break the scan,
+    or has no meaning on a table."""
+    general = tr(
+        "Not used for the i1iO table. An i1iO chart has a layout of its own, "
+        "made for the table reading it strip by strip: it is printed on a "
+        "portrait sheet that you lay across the table, so its strips run "
+        "along the arm; every strip has blank paper at both ends so the arm "
+        "can speed up and slow down, and three numbered aiming marks sit in "
+        "the corners. The greyed boxes show the values an i1iO chart uses."
+        "\n\n"
+        "What you can set for the i1iO: the paper and the number of pages; "
+        "the margins (at least what the marks, the blank paper at both ends "
+        "of every strip and the strip letters need; ChromIQ raises a smaller "
+        "value to that); where the patches sit in the space the margins "
+        "leave (“Patch area alignment”); under “Expert Options”, the patch "
+        "size (8.9 to 20 mm along the strip, 7 to 20 mm across it), the "
+        "spacers between the patches (Coloured, the default, Black & white "
+        "or None), their size (1 mm up to a fifth of the patch length) and "
+        "your own spacer colours, the “Inter-patch gap” along the strips and "
+        "the “Strip gap” between them, the aiming crosses, the strip letters "
+        "and patch numbers on or off and their size, the sheet text (printed "
+        "on the line with the chart name), the randomisation, the printer "
+        "calibration and the output settings.")
+    own = i1io_greyed_why().get(why, "")
+    return f"{own}\n\n{general}" if own else general
+
+
+def i1io_greyed_why() -> dict:
+    """Why each greyed control has no say on an i1iO chart, by reason key
+    (`LayoutOptionsPanel._I1IO_WHY` maps the controls to these keys)."""
+    return {
+        "layout": tr(
+            "The i1iO lays the patches out by their size, never to fill the "
+            "page: the length of a patch along its strip decides how many "
+            "readings the table takes of it while the arm moves, so it is "
+            "held at 8.9 mm or more."),
+        "scale": tr(
+            "An i1iO patch and its spacers are set in millimetres (“Patch "
+            "size” and “Spacer size”), so there is no base size here to "
+            "scale."),
+        "mode": tr("The i1iO has one layout, so there is nothing to choose "
+                   "here."),
+        "clip": tr(
+            "The table holds the sheet flat by itself, so there is no clip "
+            "border, and the sides of the sheet hold the aiming crosses."),
+        "stagger": tr(
+            "This is for the ColorMunki only: the table reads every strip on "
+            "its own, in a straight line."),
+        "instr_margins": tr(
+            "Preferences holds no measured instrument margins for the i1iO. "
+            "The margin boxes already offer nothing below what the table "
+            "needs."),
+        "strip_length": tr(
+            "An i1iO strip runs the whole length of the sheet, and the arm "
+            "reaches it from end to end, so there is no strip length to "
+            "cap."),
+        "offset": tr(
+            "An offset would move the patches past the margins that keep the "
+            "blank paper at the strip ends and the aiming crosses clear. "
+            "Place the patches with the margins or “Patch area alignment” "
+            "instead."),
+        "patterns": tr(
+            "An i1iO chart names its strips and patches the way ArgyllCMS "
+            "does by default, so that a name such as C7 means the same on "
+            "the sheet, in the Measure tab and in the aiming instructions. "
+            "The band for the strip letters is sized for those names."),
+        "edge_spacers": tr(
+            "A spacer at the end of a strip would print on the blank paper "
+            "where the arm speeds up and slows down, and that paper must "
+            "stay blank."),
+        "hex": tr("An i1iO chart is never a honeycomb."),
+        "markers": tr(
+            "The table needs no ruler, and markers at the ends of the strips "
+            "would print where the arm runs in and out."),
+        "stamp": tr(
+            "On an i1iO chart the bottom of the page is the table's left "
+            "edge, where the strip letters stand. A summary line there would "
+            "read sideways on the table, so it is not printed."),
+        "text_edges": tr(
+            "These distances are fixed on an i1iO chart: the patch numbers "
+            "start 10 mm from the paper edge, past the widest edge a printer "
+            "leaves unprinted, and the strip letters 4 mm from it."),
+        "sheet_text_style": tr(
+            "The sheet text shares one line with the chart name and the page "
+            "number. That line is printed in one typeface, sized and placed "
+            "so that it costs no patch."),
+        "sig": tr(
+            "The strip letters stand at the far end of every strip, 1 mm "
+            "beyond the blank paper the arm runs out on. That distance is "
+            "fixed."),
+        "label_style": tr(
+            "The strip letters and patch numbers are printed in one "
+            "typeface, without underlines, in a band sized for exactly that, "
+            "clear of the blank paper the arm runs on."),
+        "rotation": tr(
+            "The letters and numbers are turned a quarter turn, so they read "
+            "the right way up on the sheet lying across the table."),
+        "label_offset": tr(
+            "Moving the strip letters could put them on the blank paper "
+            "where the arm runs out, which must stay blank."),
+    }
+
+
+def i1io_gap_help(which: str) -> str:
+    """The tooltip of "Inter-patch gap" (*which* "along") or "Strip gap"
+    ("between") while the i1iO table is chosen."""
+    if which == "along":
+        return tr(
+            "For the i1iO: an extra white gap between neighbouring patches "
+            "along a strip, the direction the arm scans, on top of the "
+            "spacers. None is the default: the spacers already give every "
+            "patch boundary a clear edge. Each millimetre here costs patches; "
+            "at most 20 % of the patch length is used, as i1Profiler allows.")
+    return tr(
+        "For the i1iO: a white gap between the strips. None is the default: "
+        "the i1Pro 2 reads a circle 4.5 mm across in the middle of each 8 mm "
+        "wide strip, so it does not see the neighbouring strips anyway. A "
+        "gap here only costs strips; add one only if a table owner finds that "
+        "readings pick up the strip next to them.")
+
+
+def i1io_crosses_title() -> str:
+    return tr("Aiming crosses (i1iO)")
+
+
+def i1io_crosses_help(kw: "dict | None", *, name: str = "",
+                      sheet_text: str = "", pages: int = 1,
+                      paper_label: str = "") -> str:
+    """The (i) of "Aiming crosses" for the i1iO table, the same in Guided and
+    Manual (the owner, 2026-11-13): what the crosses are for, that the table
+    needs three points and not crosses, what switching them off gains on
+    this paper (live, from the i1iO build kwargs *kw*), what else changes on
+    the sheet, what to aim at without them, and that the chart remembers."""
+    parts = [
+        tr("The three small numbered crosses in the corners of the sheet are "
+           "what you aim at when you show the i1iO table where the chart "
+           "lies. You lay the sheet on the table as the preview shows it, "
+           "then push the arm until the cross hair of its sight sits on "
+           "cross 1 at the top left, then on cross 2 at the bottom left, then "
+           "on cross 3 at the bottom right. From these three points the table "
+           "works out where every patch is. Every sheet is laid down by hand, "
+           "so every page has its own three crosses and is aimed at on its "
+           "own."),
+        tr("The table itself does not need the crosses: it only needs three "
+           "points on the sheet that it knows the position of. A cross is "
+           "simply easier and safer to aim at than the middle of a coloured "
+           "patch, so the crosses are on unless you switch them off."),
+        tr("Without the crosses you aim at the centres of three corner "
+           "patches instead, as X-Rite’s own software does: the top-left "
+           "patch, the bottom-left patch and the bottom-right patch, with the "
+           "sheet lying on the table as the preview shows it. ChromIQ then "
+           "puts clearly visible, darker or more colourful patches from your "
+           "patch set into the four corners, so they are easy to find. No "
+           "patch is added or left out; only their places change."),
+    ]
+    if kw:
+        try:
+            from workflow.i1io import chart as _C
+            on = _C.capacity(kw, True)
+            off = _C.capacity(kw, False)
+            where = paper_label or str(kw.get("paper") or "")
+            if off > on:
+                parts.append(tr(
+                    "On this sheet, {paper}, with the patch size and spacers "
+                    "set now: {on} patches with the crosses, {off} without "
+                    "them. Switching them off gains {gain} patches on every "
+                    "page.").format(paper=where, on=on, off=off,
+                                    gain=off - on))
+            else:
+                parts.append(tr(
+                    "On this sheet, {paper}, with the patch size and spacers "
+                    "set now, switching the crosses off gains no patches: "
+                    "{on} either way.").format(paper=where, on=on))
+            fx = _C.crosses_off_effects(kw, name=name, sheet_text=sheet_text,
+                                        pages=pages)
+            names = fx.get("aim_patches") or []
+            if fx.get("labels") and len(names) == 3:
+                parts.append(tr(
+                    "Without the crosses, on page 1 of this chart you would "
+                    "aim at the centre of patch {first} (top-left corner), "
+                    "then patch {second} (bottom-left corner), then patch "
+                    "{third} (bottom-right corner). Every sheet is laid down "
+                    "by hand, so every page is aimed at on its own, at its "
+                    "own three corner patches; the Measure tab names them "
+                    "page by page.").format(first=names[0], second=names[1],
+                                            third=names[2]))
+            else:
+                parts.append(tr(
+                    "This chart prints no strip letters or patch numbers, so "
+                    "without the crosses you go by the corners of the block "
+                    "of patches. Every sheet is laid down by hand, so every "
+                    "page is aimed at on its own."))
+            what = [tr("With the crosses, the ChromIQ logo, the chart name, "
+                       "the page number and your sheet text sit on one line "
+                       "between crosses 2 and 3. Without them, they are "
+                       "printed only where they cost no patch. On this sheet "
+                       "that means:")]
+            if fx["name"] == "none":
+                what.append(tr(
+                    "There is no room left for the chart name and the page "
+                    "number. Please write the name and the page number on "
+                    "each sheet by hand, so you can tell your sheets apart."))
+            else:
+                if fx["spot"] == "top edge":
+                    what.append(tr("The chart name and the page number move "
+                                   "to the top edge, above the patch "
+                                   "numbers."))
+                else:
+                    what.append(tr("The chart name and the page number stay "
+                                   "along the bottom edge."))
+                if fx["name"] == "small":
+                    what.append(tr("They are printed a little smaller, to "
+                                   "fit."))
+                elif fx["name"] == "shortened":
+                    what.append(tr("The name is shortened to fit; the page "
+                                   "number stays whole."))
+                if fx["sheet_text"] == "kept":
+                    what.append(tr("Your sheet text stays."))
+                elif fx["sheet_text"] == "shortened":
+                    what.append(tr("Your sheet text is shortened to fit."))
+                elif fx["sheet_text"] == "dropped":
+                    what.append(tr("Your sheet text is left off, because "
+                                   "there is no room for it."))
+                what.append(tr("The ChromIQ logo stays.") if fx["logo"]
+                            else tr("The ChromIQ logo is left off."))
+            what.append(tr("The strip letters and the patch numbers stay "
+                           "where they are."))
+            parts.append(what[0] + "\n" + "\n".join(
+                "  •  " + line for line in what[1:]))
+        except Exception:      # noqa: BLE001 - a help text, never a blocker
+            log.debug("i1iO crosses help: counts not worked out",
+                      exc_info=True)
+    parts.append(tr(
+        "ChromIQ writes your choice into the chart’s files, so the "
+        "Measure tab can later tell you what to aim at on this chart."))
+    parts.append(tr("**Default:** on."))
+    return "\n\n".join(parts)
+
+
+class I1ioCrossesTip(TooltipButton):
+    """The (i) of "Aiming crosses": its text is worked out when it is
+    opened, from *source* (a callable returning the keyword arguments of
+    `i1io_crosses_help` plus ``kw``), so the patch counts are live."""
+
+    def __init__(self, source, parent=None):
+        super().__init__(i1io_crosses_title(),
+                         i1io_crosses_help(None), parent, min_width=600)
+        self._source = source
+
+    def _show_dialog(self) -> None:
+        try:
+            args = dict(self._source() or {})
+            kw = args.pop("kw", None)
+            self.set_content(i1io_crosses_title(),
+                             i1io_crosses_help(kw, **args))
+        except Exception:      # noqa: BLE001
+            log.debug("i1iO crosses help not refreshed", exc_info=True)
+        super()._show_dialog()
+
+
 class LayoutOptionsPanel(QWidget):
     """All layout-engine controls except instrument/paper/mode."""
 
@@ -353,6 +619,8 @@ class LayoutOptionsPanel(QWidget):
     #: Offered only while FD-9 support is on (Preferences > Beta, restart to
     #: apply, `workflow.fd9.support`); `instruments()` adds it then.
     FD9_INSTRUMENT = ("FD9", "FD-9")
+    #: The X-Rite i1iO table (Beta, `workflow.i1io.support`), likewise.
+    I1IO_INSTRUMENT = ("IO2", "i1iO 2 + i1Pro 2")
 
     @classmethod
     def instruments(cls) -> "list[tuple[str, str]]":
@@ -362,6 +630,9 @@ class LayoutOptionsPanel(QWidget):
         out = list(cls.INSTRUMENTS)
         if fd9_enabled():
             out.append(cls.FD9_INSTRUMENT)
+        from workflow.i1io.support import i1io_enabled
+        if i1io_enabled():
+            out.append(cls.I1IO_INSTRUMENT)
         return out
 
     @staticmethod
@@ -532,6 +803,9 @@ class LayoutOptionsPanel(QWidget):
         #: seed moves the block to centre-left only while this is False
         #: (B8-965, extended to every field the seed writes).
         self._align_chosen = False
+        #: "Patch area alignment" as a person chose it for the i1iO ("" =
+        #: the i1iO's own, `workflow.i1io.chart.align_of`).
+        self._i1io_align = ""
         #: True once a PERSON has set one of the ten label-style controls, or a
         #: recipe that already owned its style was loaded. Mirrors
         #: `LayoutRecipe.label_style_explicit` in both directions.
@@ -586,6 +860,8 @@ class LayoutOptionsPanel(QWidget):
         # whether the FD-9 is offered at all.
         from workflow.fd9.support import fd9_enabled
         self._fd9_support = bool(fd9_enabled())
+        from workflow.i1io.support import i1io_enabled
+        self._i1io_support = bool(i1io_enabled())
         if with_selectors:
             sel = QGridLayout()
             # Instrument and Mode each get a full-width row.
@@ -1975,6 +2251,10 @@ class LayoutOptionsPanel(QWidget):
             ("bottom-right", tr("Bottom-right")),
         ):
             self.patch_align.addItem(_lbl, _key)
+        # FIRST, before `_emit`: a pick made while the i1iO is chosen is the
+        # i1iO's alignment (`_i1io_align_picked`), and every rule `_emit`
+        # sets off shows that alignment again.
+        self.patch_align.currentIndexChanged.connect(self._i1io_align_picked)
         self.patch_align.currentIndexChanged.connect(self._emit)
         # A person's pick is theirs (B8-965): see `_apply_mode_defaults`.
         # `activated` too, because a re-pick of the row already shown is an
@@ -2331,6 +2611,24 @@ class LayoutOptionsPanel(QWidget):
                "greyed out and the other one stays available. If you then "
                "untick the pair that is left, this box can be ticked and "
                "still print nothing."), self), 0, 2)
+        self._hm_tip = hmg.itemAtPosition(0, 2).widget()
+        self._hm_grid = hmg
+        if self._i1io_support:
+            # THE i1iO's "Aiming crosses" (a Beta) TAKES THIS SLOT: an i1iO
+            # chart prints no ruler helper markers, so while the i1iO is
+            # chosen the marker controls are hidden and this box and its (i)
+            # stand exactly where "Print helper markers" and its (i) stand
+            # (the owner, 2026-11-13). Built only while i1iO support is on.
+            self.i1io_crosses_cb = WrappingCheckBox(tr("Aiming crosses"), self)
+            self.i1io_crosses_cb.setChecked(True)
+            self.i1io_crosses_cb.setVisible(False)
+            self.i1io_crosses_cb.toggled.connect(self._i1io_crosses_toggled)
+            self._i1io_crosses_tip = I1ioCrossesTip(self._i1io_crosses_source,
+                                                    self)
+            self._i1io_crosses_tip.setVisible(False)
+            hmg.addWidget(self.i1io_crosses_cb, 0, 0,
+                          _QtAlign.AlignmentFlag.AlignLeft)
+            hmg.addWidget(self._i1io_crosses_tip, 0, 2)
         self._hm_rows = []
         self._hm_rows.append(add_row(hmg, 1, tr("Distance from page edge (mm):"),
                 cell(self.helper_marker_edge), align_left=True,
@@ -3183,6 +3481,9 @@ class LayoutOptionsPanel(QWidget):
         if self._fd9_support:
             # Only while FD-9 support is on.
             self._sync_fd9_widgets(inst == "FD9")
+        if getattr(self, "_i1io_support", False):
+            # Only while i1iO support is on.
+            self._sync_i1io_widgets(inst == "IO2")
         # The extra clip-border On/Off selector — and its tooltip — are for CM/SS
         # only (i1/p3 use their Mode selector for the clip border).
         if hasattr(self, "clip_enable"):
@@ -3302,6 +3603,515 @@ class LayoutOptionsPanel(QWidget):
             self.custom_w.setValue(wval)
             self.custom_h.setValue(hval)
 
+    # ---- the X-Rite i1iO table (Beta): its own fixed layout ----------------
+
+    #: What an i1iO chart honours besides the groups of `_FD9_LIVE_GROUPS`'s
+    #: kind: output, calibration and randomisation, found at any depth.
+    _I1IO_LIVE_GROUPS = ("Output", "Printer calibration", "Randomisation")
+
+    def _i1io_live_controls(self) -> tuple:
+        """Controls outside the live groups that an i1iO chart reads: the
+        resolution, the patch size, the spacers (kind, size, own colours),
+        the gaps, the margins, the patch-area alignment, the strip letters
+        and row numbers and their size, the aiming crosses, and the sheet
+        text with its token menu (printed on the name line). The option
+        audit (2026-11-13, DESIGN_NOTE §22) un-greyed the alignment, the
+        spacer size, the spacer colours and the token menu."""
+        return tuple(c for c in (
+            self.dpi, self.patch_x, self.patch_y,
+            getattr(self, "spacer_mode", None),
+            getattr(self, "spacer_width", None),
+            getattr(self, "custom_spacer_cb", None),
+            *getattr(self, "_spacer_swatches", []),
+            getattr(self, "strip_gap", None), getattr(self, "inter_patch", None),
+            *getattr(self, "margins", {}).values(),
+            getattr(self, "patch_align", None),
+            getattr(self, "show_indicators", None),
+            getattr(self, "show_row_indicators", None),
+            getattr(self, "indicator_size", None),
+            getattr(self, "i1io_crosses_cb", None),
+            getattr(self, "chart_text", None),
+            getattr(self, "insert_token_btn", None)) if c is not None)
+
+    #: Each greyed control's reason (`i1io_greyed_why`), by attribute name.
+    _I1IO_WHY = {
+        **dict.fromkeys(("layout_mode", "area_method", "area_min_patch",
+                         "area_ratio", "area_cols", "area_rows"), "layout"),
+        **dict.fromkeys(("pscale", "sscale"), "scale"),
+        "mode": "mode",
+        **dict.fromkeys(("clip_enable", "clip_width", "clip_content_mode",
+                         "clip_text",
+                         "clip_side", "clip_flip_180", "clip_insert_btn",
+                         "clip_text_font", "clip_text_size",
+                         "clip_image_path", "clip_image_browse",
+                         "clip_image_rotation", "clip_image_scale",
+                         "clip_image_offx", "clip_image_offy",
+                         "clip_export_btn"), "clip"),
+        "cm_stagger_cb": "stagger",
+        "use_instr_margins": "instr_margins",
+        **dict.fromkeys(("max_strip", "nolimit"), "strip_length"),
+        **dict.fromkeys(("offx", "offy"), "offset"),
+        **dict.fromkeys(("strip_pat", "patch_pat"), "patterns"),
+        "edge_spacers_cb": "edge_spacers",
+        "hex_flat_top_cb": "hex",
+        **dict.fromkeys(("helper_markers_cb", "helper_marker_edge",
+                         "helper_marker_len", "helper_marker_per_patch",
+                         "helper_markers_top_bottom", "helper_markers_sides"),
+                        "markers"),
+        "stamp_command": "stamp",
+        **dict.fromkeys(("text_edge_top", "text_edge", "text_edge_clip"),
+                        "text_edges"),
+        **dict.fromkeys(("chart_text_font", "chart_text_size", "ct_bold",
+                         "ct_italic", "chart_text_align"),
+                        "sheet_text_style"),
+        "sig": "sig",
+        **dict.fromkeys(("indicator_font", "ind_bold", "ind_italic",
+                         "underline_mode", "underline_thickness",
+                         "underline_gap", "ind_align_left",
+                         "ind_align_center", "ind_align_right"),
+                        "label_style"),
+        **dict.fromkeys(("indicator_rotation", "row_indicator_rotation"),
+                        "rotation"),
+        **dict.fromkeys(("strip_label_offset_x", "strip_label_offset"),
+                        "label_offset"),
+    }
+
+    def _i1io_reason_for(self, control) -> str:
+        """The tooltip a greyed *control* carries while the i1iO is chosen:
+        its own reason, then the i1iO's layout in general."""
+        for name, why in self._I1IO_WHY.items():
+            if getattr(self, name, None) is control:
+                return i1io_greyed_reason(why)
+        return i1io_greyed_reason()
+
+    def _i1io_greyable_controls(self):
+        """Every input the i1iO layout does not read (as the FD-9's, found
+        independently of any list), except the (i) buttons and the live
+        ones."""
+        from PyQt6.QtWidgets import (QAbstractButton, QAbstractSpinBox,
+                                     QComboBox, QGroupBox, QLineEdit,
+                                     QPlainTextEdit, QTextEdit)
+        live = {tr(t) for t in self._I1IO_LIVE_GROUPS}
+        keep = self._i1io_live_controls()
+        for control in self.findChildren(
+                (QAbstractSpinBox, QAbstractButton, QComboBox, QLineEdit,
+                 QPlainTextEdit, QTextEdit)):
+            if isinstance(control, TooltipButton) or control in keep:
+                continue
+            if isinstance(control, QLineEdit) and isinstance(
+                    control.parentWidget(), (QAbstractSpinBox, QComboBox)):
+                continue
+            groups = []
+            p = control.parentWidget()
+            while p is not None and p is not self:
+                if isinstance(p, QGroupBox):
+                    groups.append(p.title())
+                p = p.parentWidget()
+            if not groups or any(t in live for t in groups):
+                continue
+            yield control
+
+    def _i1io_fixed_shown(self) -> dict:
+        """What the greyed controls show for an i1iO chart: its margins (the
+        mark bands, the runs and, with row numbers on, their band), no
+        spacers, patch-first, the default label patterns."""
+        from workflow.i1io.table_facts import margins_mm
+        from workflow.layout_engine.permutation import (DEFAULT_PATCH_PATTERN,
+                                                        DEFAULT_STRIP_PATTERN)
+        rows = getattr(self, "show_indicators", None)
+        t, r, b, lt = margins_mm(bool(rows is None or rows.isChecked()),
+                                 crosses=self._i1io_crosses_on())
+        from workflow.i1io import table_facts as F
+        from workflow.i1io.chart import align_of
+        return {"margins": {"t": t, "r": r, "b": b, "l": lt},
+                "layout_mode": "patch_first",
+                # the live alignment box shows the chosen one, else the
+                # i1iO's own for the crosses as they are set
+                "patch_align": align_of(
+                    {"i1io_align": getattr(self, "_i1io_align", "")},
+                    self._i1io_crosses_on()),
+                # what the greyed boxes show: the values an i1iO chart uses
+                "combos": {"indicator_rotation": F.LABEL_TURN_DEG.value,
+                           "row_indicator_rotation": F.LABEL_TURN_DEG.value,
+                           "chart_text_font": "Inter"},
+                "values": {"text_edge_clip": F.NUMBERS_EDGE_MM.value,
+                           "text_edge": F.LETTER_EDGE_MM.value},
+                "checks": {"nolimit": True},
+                "texts": {"strip_pat": DEFAULT_STRIP_PATTERN,
+                          "patch_pat": DEFAULT_PATCH_PATTERN}}
+
+    def _i1io_show_what_applies(self) -> None:
+        want = self._i1io_fixed_shown()
+        was_loading = self._loading
+        self._loading = True
+        try:
+            # The margins are LIVE for the i1iO (any value at or above its
+            # minimum), and the box offers nothing below it (review r3 m1).
+            for k, v in want["margins"].items():
+                box = self.margins.get(k)
+                if box is not None:
+                    box.setMinimum(v)
+                    if box.value() < v - 1e-9:
+                        box.setValue(v)
+            for name, data in (("layout_mode", want["layout_mode"]),
+                               ("patch_align", want["patch_align"]),
+                               *want["combos"].items()):
+                combo = getattr(self, name, None)
+                if combo is None:
+                    continue
+                i = combo.findData(data)
+                if i >= 0 and combo.currentIndex() != i:
+                    combo.setCurrentIndex(i)
+            for name, value in want["values"].items():
+                box = getattr(self, name, None)
+                if box is not None and abs(box.value() - value) > 1e-9:
+                    box.setValue(value)
+            for name, on in want["checks"].items():
+                box = getattr(self, name, None)
+                if box is not None and box.isChecked() != on:
+                    box.setChecked(on)
+            for name, text in want["texts"].items():
+                box = getattr(self, name, None)
+                if box is not None and box.text() != text:
+                    box.setText(text)
+        finally:
+            self._loading = was_loading
+
+    def _sync_i1io_widgets(self, on: bool) -> None:
+        """Enter or leave the i1iO's layout, ONLY ON A CHANGE: entering greys
+        what the i1iO does not read (each with `i1io_greyed_reason`), holds
+        the patch size inside the table's limits and shows the values that
+        apply; leaving puts back exactly what was there."""
+        was = getattr(self, "_i1io_saved", None)
+        if on == (was is not None):
+            return
+        if on:
+            from workflow.i1io.table_facts import patch_limits_mm
+            saved = {"controls": [], "ranges": [], "shown": None}
+            for control in self._i1io_greyable_controls():
+                saved["controls"].append((control, control.isEnabled(),
+                                          control.toolTip()))
+                control.setEnabled(False)
+                control.setToolTip(self._i1io_reason_for(control))
+            (alo, ahi), (clo, chi) = patch_limits_mm()
+            # The engine's patch WIDTH is across a strip, its HEIGHT along it
+            # (the scan direction).
+            for c, lo, hi, default in ((self.patch_x, clo, chi, 8.0),
+                                       (self.patch_y, alo, ahi, 10.0)):
+                saved["ranges"].append((c, c.minimum(), c.maximum(), c.value(),
+                                        c.specialValueText()))
+                was_value = c.value()
+                c.setSpecialValueText("")
+                c.setRange(lo, hi)
+                if not was_value:
+                    c.setValue(default)
+            # The two gaps, in the i1iO's words and limits (`i1io_gap_help`).
+            saved["gap_tips"] = [(c, c.toolTip()) for c in
+                                 (self.strip_gap, self.inter_patch)]
+            for c, lo, hi in ((self.strip_gap, 0.0, 3.0),
+                              (self.inter_patch, 0.0,
+                               0.2 * max(self.patch_y.value(), 1.0))):
+                saved["ranges"].append((c, c.minimum(), c.maximum(), c.value(),
+                                        c.specialValueText()))
+                c.setRange(lo, hi)
+            self.strip_gap.setToolTip(i1io_gap_help("between"))
+            self.inter_patch.setToolTip(i1io_gap_help("along"))
+            # The spacer size, inside the table's limits
+            # (`table_facts.spacer_width_mm`): 1 mm up to a fifth of the
+            # patch length; "auto" (0) is the 1 mm default.
+            from workflow.i1io.table_facts import SPACER_MM
+            sw = getattr(self, "spacer_width", None)
+            if sw is not None:
+                saved["ranges"].append((sw, sw.minimum(), sw.maximum(),
+                                        sw.value(), sw.specialValueText()))
+                was_value = sw.value()
+                sw.setSpecialValueText("")
+                sw.setRange(SPACER_MM.value,
+                            max(SPACER_MM.value,
+                                round(0.2 * max(self.patch_y.value(), 1.0), 2)))
+                if not was_value:
+                    sw.setValue(SPACER_MM.value)
+            # The margins offer nothing below the safe minimum, and the label
+            # size nothing above the largest an i1iO chart prints (review r3
+            # m1, M1); `_i1io_show_what_applies` sets the margins' minimums.
+            from workflow.i1io.table_facts import LABEL_MAX_MM
+            for c in (*self.margins.values(),
+                      getattr(self, "indicator_size", None)):
+                if c is not None:
+                    saved["ranges"].append((c, c.minimum(), c.maximum(),
+                                            c.value(), c.specialValueText()))
+            size = getattr(self, "indicator_size", None)
+            if size is not None:
+                size.setMaximum(round(mm_to_pt(LABEL_MAX_MM.value), 1))
+            # The margins are the person's for the i1iO, so "Use instrument
+            # margins" (which locks them to another instrument's minimums)
+            # is off while it is chosen, and comes back on leaving.
+            um = getattr(self, "use_instr_margins", None)
+            saved["instr_margins"] = bool(um is not None and um.isChecked())
+            if um is not None and um.isChecked():
+                um.setChecked(False)
+            saved["shown"] = self._i1io_capture_shown()
+            self._i1io_saved = saved
+            self._i1io_show_crosses_slot(saved)
+            self._i1io_show_what_applies()
+            if not getattr(self, "_i1io_rows_wired", False):
+                # The strip letters (the engine's strip indicators) sit in
+                # the left margin's band on an i1iO chart.
+                rows = getattr(self, "show_indicators", None)
+                if rows is not None:
+                    rows.toggled.connect(self._i1io_rows_toggled)
+                self.patch_y.valueChanged.connect(
+                    self._i1io_patch_length_changed)
+                self._i1io_rows_wired = True
+            return
+        self._i1io_saved = None
+        self._i1io_hide_crosses_slot(was)
+        for control, enabled, tip in was["controls"]:
+            try:
+                control.setEnabled(enabled)
+                control.setToolTip(tip)
+            except RuntimeError:
+                pass
+        self._i1io_restore_shown(was.get("shown"))
+        for control, lo, hi, value, special in was.get("ranges", []):
+            control.setSpecialValueText(special)
+            control.setRange(lo, hi)
+            control.setValue(value)
+        for control, tip in was.get("gap_tips", []):
+            control.setToolTip(tip)
+        um = getattr(self, "use_instr_margins", None)
+        if um is not None and was.get("instr_margins"):
+            um.setChecked(True)
+
+    # The i1iO's own copies of what the FD-9 keeps for itself (the owner,
+    # 2026-11-13: a later FD-9 change by its contributor must not be able to
+    # break the i1iO), so the two Betas share no helper here.
+    _I1IO_SHOWN_TEXTS = ("strip_pat", "patch_pat", "chart_text")
+    _I1IO_SHOWN_COMBOS = ("spacer_mode", "layout_mode", "patch_align",
+                          "indicator_rotation", "row_indicator_rotation",
+                          "chart_text_font")
+    _I1IO_SHOWN_VALUES = ("text_edge_clip", "text_edge")
+    _I1IO_SHOWN_CHECKS = ("nolimit",)
+
+    def _i1io_capture_shown(self) -> dict:
+        """The values `_i1io_show_what_applies` is about to replace, so that
+        leaving the i1iO gives the previous instrument exactly what it had."""
+        out = {"margins": {k: self.margins[k].value() for k in self.margins}}
+        for name in self._I1IO_SHOWN_COMBOS:
+            combo = getattr(self, name, None)
+            if combo is not None:
+                out[name] = combo.currentIndex()
+        out["values"] = {name: getattr(self, name).value()
+                         for name in self._I1IO_SHOWN_VALUES
+                         if getattr(self, name, None) is not None}
+        out["checks"] = {name: getattr(self, name).isChecked()
+                         for name in self._I1IO_SHOWN_CHECKS
+                         if getattr(self, name, None) is not None}
+        out["texts"] = {name: getattr(self, name).text()
+                        for name in self._I1IO_SHOWN_TEXTS
+                        if getattr(self, name, None) is not None}
+        return out
+
+    def _i1io_restore_shown(self, shown) -> None:
+        """Give back what `_i1io_capture_shown` kept, on leaving the i1iO."""
+        if not shown:
+            return
+        was_loading = self._loading
+        self._loading = True
+        try:
+            for k, v in shown.get("margins", {}).items():
+                box = self.margins.get(k)
+                if box is not None:
+                    box.setValue(v)
+            for name in self._I1IO_SHOWN_COMBOS:
+                combo = getattr(self, name, None)
+                if combo is not None and name in shown:
+                    combo.setCurrentIndex(shown[name])
+            for name, value in shown.get("values", {}).items():
+                box = getattr(self, name, None)
+                if box is not None:
+                    box.setValue(value)
+            for name, on in shown.get("checks", {}).items():
+                box = getattr(self, name, None)
+                if box is not None:
+                    box.setChecked(on)
+            for name, text in shown.get("texts", {}).items():
+                box = getattr(self, name, None)
+                if box is not None:
+                    box.setText(text)
+        finally:
+            self._loading = was_loading
+
+    # ---- "Aiming crosses" in the ruler helper markers' slot ----------------
+
+    def _i1io_crosses_on(self) -> bool:
+        cb = getattr(self, "i1io_crosses_cb", None)
+        return True if cb is None else bool(cb.isChecked())
+
+    def _i1io_marker_widgets(self) -> list:
+        """The ruler helper marker controls the crosses' row stands in for."""
+        out = [getattr(self, "helper_markers_cb", None),
+               getattr(self, "_hm_tip", None)]
+        for row in getattr(self, "_hm_rows", []):
+            out.extend(row)
+        return [w for w in out if w is not None]
+
+    def _i1io_show_crosses_slot(self, saved: dict) -> None:
+        """While the i1iO is chosen, its "Aiming crosses" box and (i) take the
+        place of "Print helper markers" and its (i); the marker rows are
+        hidden (an i1iO chart prints none) and the group is titled for what
+        it holds. Everything is put back on leaving."""
+        cb = getattr(self, "i1io_crosses_cb", None)
+        grp = getattr(self, "_helper_markers_grp", None)
+        if cb is None or grp is None:
+            return
+        saved["crosses_slot"] = {
+            "title": grp.title(),
+            "shown": [(w, w.isVisibleTo(grp)) for w in
+                      self._i1io_marker_widgets()]}
+        for w, _v in saved["crosses_slot"]["shown"]:
+            w.setVisible(False)
+        grp.setTitle(tr("Aiming marks"))
+        cb.setVisible(True)
+        cb.setEnabled(True)
+        self._i1io_crosses_tip.setVisible(True)
+
+    def _i1io_hide_crosses_slot(self, was: dict) -> None:
+        slot = (was or {}).get("crosses_slot")
+        cb = getattr(self, "i1io_crosses_cb", None)
+        if cb is not None:
+            cb.setVisible(False)
+            self._i1io_crosses_tip.setVisible(False)
+        if not slot:
+            return
+        grp = getattr(self, "_helper_markers_grp", None)
+        if grp is not None:
+            grp.setTitle(slot["title"])
+        for w, visible in slot["shown"]:
+            try:
+                w.setVisible(visible)
+            except RuntimeError:
+                pass
+
+    def _i1io_crosses_toggled(self, on: bool) -> None:
+        """The margins follow the crosses: their minimums are the crosses'
+        bands with them and the printer's edge without, and a margin that
+        stood at the old minimum moves to the new one, so the paper the
+        crosses held goes to patches (and comes back with them)."""
+        if getattr(self, "_i1io_saved", None) is not None:
+            from workflow.i1io.table_facts import margins_mm
+            rows = getattr(self, "show_indicators", None)
+            letters = bool(rows is None or rows.isChecked())
+            before = margins_mm(letters, crosses=not on)
+            after = margins_mm(letters, crosses=on)
+            was_loading = self._loading
+            self._loading = True
+            try:
+                for k, old, new in zip(("t", "r", "b", "l"), before, after):
+                    box = self.margins.get(k)
+                    if box is None:
+                        continue
+                    box.setMinimum(new)
+                    if abs(box.value() - old) < 1e-6 or box.value() < new:
+                        box.setValue(new)
+            finally:
+                self._loading = was_loading
+            # an alignment nobody chose follows the crosses
+            if not getattr(self, "_i1io_align", ""):
+                self._i1io_show_what_applies()
+        self._emit()
+
+    def _i1io_crosses_source(self) -> dict:
+        """What the crosses' (i) is worked out from: this panel's recipe."""
+        r = self.get_recipe()
+        out = {"kw": {**r.build_kwargs(), "instrument": "IO2"},
+               "sheet_text": r.chart_text or "", "name": "", "pages": 1,
+               "paper_label": (self.paper.currentText()
+                               if getattr(self, "paper", None) is not None
+                               else "")}
+        # The chart's name, pages and paper label, from the tab holding the
+        # panel (`TabChart`), when it says.
+        ctx = getattr(self, "i1io_context", None)
+        if callable(ctx):
+            try:
+                out.update({k: v for k, v in (ctx() or {}).items()
+                            if k in ("name", "pages", "paper_label")})
+            except Exception:      # noqa: BLE001
+                log.debug("i1iO context not read", exc_info=True)
+        return out
+
+    def _i1io_align_picked(self, *_a) -> None:
+        """A PERSON picked a "Patch area alignment" while the i1iO is chosen:
+        it is the i1iO's from now on (`LayoutRecipe.i1io_align`). The app's
+        own writes hold `_loading`; leaving the i1iO gives the box back."""
+        if (getattr(self, "_i1io_saved", None) is not None
+                and not self._loading):
+            self._i1io_align = self.patch_align.currentData() or ""
+
+    def _i1io_rows_toggled(self, *_a) -> None:
+        """The greyed left margin follows the row numbers' band."""
+        if getattr(self, "_i1io_saved", None) is not None:
+            self._i1io_show_what_applies()
+
+    def _i1io_patch_length_changed(self, *_a) -> None:
+        """The gap along a row may be at most 20 % of the patch length (what
+        the build uses, `table_facts.gaps_mm`): the box offers no more."""
+        if getattr(self, "_i1io_saved", None) is not None:
+            self.inter_patch.setMaximum(round(0.2 * self.patch_y.value(), 2))
+            from workflow.i1io.table_facts import SPACER_MM
+            sw = getattr(self, "spacer_width", None)
+            if sw is not None:
+                sw.setMaximum(max(SPACER_MM.value,
+                                  round(0.2 * self.patch_y.value(), 2)))
+
+    def _load_i1io_layout_values(self) -> None:
+        """A person has just chosen the i1iO: its own patch size, never the
+        previous instrument's (the FD-9's H1 lesson)."""
+        from workflow.i1io.table_facts import (PATCH_ACROSS_MM, PATCH_ALONG_MM,
+                                               ROW_GAP_MM, SPACER_MODE)
+        self.patch_x.setValue(PATCH_ACROSS_MM.value)
+        self.patch_y.setValue(PATCH_ALONG_MM.value)
+        self.strip_gap.setValue(ROW_GAP_MM.value)
+        self.inter_patch.setValue(0.0)
+        i = self.spacer_mode.findData(SPACER_MODE.value)
+        if i >= 0:
+            self.spacer_mode.setCurrentIndex(i)
+        # …and the smallest safe margins: as much of the sheet for patches
+        # as it allows (`table_facts.margins_mm`).
+        from workflow.i1io.table_facts import margins_mm
+        rows = getattr(self, "show_indicators", None)
+        t, r, b, lt = margins_mm(bool(rows is None or rows.isChecked()),
+                                 crosses=self._i1io_crosses_on())
+        for k, v in (("t", t), ("r", r), ("b", b), ("l", lt)):
+            self.margins[k].setValue(v)
+
+    def _hold_i1io_greying(self) -> None:
+        """While the i1iO is selected, grey again what a recipe load or one
+        of the panel's own rules has just enabled (as `_hold_fd9_greying`)."""
+        saved = getattr(self, "_i1io_saved", None)
+        if saved is None:
+            return
+        self._i1io_show_what_applies()
+        index = {id(c): i for i, (c, _e, _t) in enumerate(saved["controls"])}
+        for control in self._i1io_greyable_controls():
+            why = self._i1io_reason_for(control)
+            enabled, tip = control.isEnabled(), control.toolTip()
+            i = index.get(id(control))
+            if i is None:
+                saved["controls"].append((control, enabled, tip))
+            elif enabled or tip != why:
+                # A rule that only changed the TOOLTIP of a control greyed
+                # here says nothing about whether it should be enabled: keep
+                # the state from before the i1iO (a rule that enabled it is
+                # taken at its word).
+                _c, old_enabled, old_tip = saved["controls"][i]
+                saved["controls"][i] = (control, enabled or old_enabled,
+                                        tip if tip != why else old_tip)
+            else:
+                continue
+            control.setEnabled(False)
+            control.setToolTip(why)
+
     def _fd9_fixed_shown(self) -> dict:
         """What the greyed controls show while the FD-9 is selected: the
         values that really apply to an FD-9 chart (L3). The margins are the
@@ -3335,10 +4145,16 @@ class LayoutOptionsPanel(QWidget):
         """The values `_fd9_show_what_applies` is about to replace, so that
         leaving the FD-9 gives the previous instrument exactly what it had."""
         out = {"margins": {k: self.margins[k].value() for k in self.margins}}
-        for name in ("spacer_mode", "layout_mode"):
+        for name in self._I1IO_SHOWN_COMBOS:
             combo = getattr(self, name, None)
             if combo is not None:
                 out[name] = combo.currentIndex()
+        out["values"] = {name: getattr(self, name).value()
+                         for name in self._I1IO_SHOWN_VALUES
+                         if getattr(self, name, None) is not None}
+        out["checks"] = {name: getattr(self, name).isChecked()
+                         for name in self._I1IO_SHOWN_CHECKS
+                         if getattr(self, name, None) is not None}
         out["texts"] = {name: getattr(self, name).text()
                         for name in self._FD9_SHOWN_TEXTS
                         if getattr(self, name, None) is not None}
@@ -3381,10 +4197,18 @@ class LayoutOptionsPanel(QWidget):
                 box = self.margins.get(k)
                 if box is not None:
                     box.setValue(v)
-            for name in ("spacer_mode", "layout_mode"):
+            for name in self._I1IO_SHOWN_COMBOS:
                 combo = getattr(self, name, None)
                 if combo is not None and name in shown:
                     combo.setCurrentIndex(shown[name])
+            for name, value in shown.get("values", {}).items():
+                box = getattr(self, name, None)
+                if box is not None:
+                    box.setValue(value)
+            for name, on in shown.get("checks", {}).items():
+                box = getattr(self, name, None)
+                if box is not None:
+                    box.setChecked(on)
             for name, text in shown.get("texts", {}).items():
                 box = getattr(self, name, None)
                 if box is not None:
@@ -3588,11 +4412,15 @@ class LayoutOptionsPanel(QWidget):
             self._mode_tip.set_content(*self.mode_tooltip_for(inst))
         entering_fd9 = (inst == "FD9" and self._fd9_support
                         and getattr(self, "_fd9_saved", None) is None)
+        entering_i1io = (inst == "IO2" and getattr(self, "_i1io_support", False)
+                         and getattr(self, "_i1io_saved", None) is None)
         self._sync_instrument_widgets(inst)
         if entering_fd9 and not was_loading:
             # A recipe being loaded brings its own sizes; a person choosing
             # the FD-9 gets the FD-9's (H1).
             self._load_fd9_layout_values()
+        if entering_i1io and not was_loading:
+            self._load_i1io_layout_values()
         # Picking the SpectroScan defaults the layout to patch-first (a flatbed
         # reads a fixed grid; area-first + By-minimum-width collapses it to
         # useless full-width bands). Its area method also defaults to
@@ -5883,6 +6711,8 @@ class LayoutOptionsPanel(QWidget):
         """
         from dataclasses import replace
         from workflow.layout_engine import instruments
+        if getattr(r, "instrument", None) == "IO2":
+            return True       # the i1iO's row numbers, drawn by its own code
         try:
             return instruments.geom_from_build_kwargs(
                 replace(r, show_row_indicators=None).build_kwargs()).rlwi > 0
@@ -6295,6 +7125,7 @@ class LayoutOptionsPanel(QWidget):
                     self._fd9_clip_chosen = r.fd9_clip_border is not None
                 self._set_recipe_impl(r)
                 self._hold_fd9_greying()          # review r1 F5
+                self._hold_i1io_greying()
             finally:
                 # A HALF-DONE LOAD MUST NOT KILL THE PANEL. `_set_recipe_impl`
                 # clears `_loading` on its last line only, so a raise part way
@@ -6402,6 +7233,21 @@ class LayoutOptionsPanel(QWidget):
         self.inter_patch.setValue(r.inter_patch_mm)
         self.strip_gap.setValue(r.strip_gap_mm)
         self.sig.setValue(r.strip_indicator_gap_mm)
+        # The alignment chosen for the i1iO ("" = its own), before anything
+        # below shows the i1iO's values.
+        self._i1io_align = (str(getattr(r, "i1io_align", "") or "")
+                            if r.instrument == "IO2" else "")
+        cb = getattr(self, "i1io_crosses_cb", None)
+        if cb is not None:
+            # BEFORE the margins: without the crosses the right margin may
+            # be smaller than the crosses' band, and the box's minimum has
+            # to allow it first.
+            cb.blockSignals(True)
+            cb.setChecked(bool(getattr(r, "i1io_crosses", True))
+                          if r.instrument == "IO2" else True)
+            cb.blockSignals(False)
+            if getattr(self, "_i1io_saved", None) is not None:
+                self._i1io_show_what_applies()
         self.margins["t"].setValue(r.margin_top)
         self.margins["r"].setValue(r.margin_right)
         self.margins["b"].setValue(r.margin_bottom)
@@ -6626,6 +7472,10 @@ class LayoutOptionsPanel(QWidget):
         r.inter_patch_mm = self.inter_patch.value()
         r.strip_gap_mm = self.strip_gap.value()
         r.strip_indicator_gap_mm = self.sig.value()
+        r.i1io_crosses = (self._i1io_crosses_on() if r.instrument == "IO2"
+                          else True)
+        r.i1io_align = (getattr(self, "_i1io_align", "")
+                        if r.instrument == "IO2" else "")
         r.margin_top = self.margins["t"].value()
         r.margin_right = self.margins["r"].value()
         r.margin_bottom = self.margins["b"].value()
@@ -6759,11 +7609,14 @@ def _holds_fd9_greying(method):
         finally:
             if getattr(self, "_fd9_saved", None) is not None:
                 self._hold_fd9_greying()
+            if getattr(self, "_i1io_saved", None) is not None:
+                self._hold_i1io_greying()
     return held
 
 
 for _name in [n for n in vars(LayoutOptionsPanel)
-              if n.startswith("_sync_") and n != "_sync_fd9_widgets"
+              if n.startswith("_sync_")
+              and n not in ("_sync_fd9_widgets", "_sync_i1io_widgets")
               and callable(vars(LayoutOptionsPanel)[n])]:
     setattr(LayoutOptionsPanel, _name,
             _holds_fd9_greying(vars(LayoutOptionsPanel)[_name]))

@@ -1,7 +1,7 @@
 # Vendored ArgyllCMS standalone instrument library
 
 These files are a subset of ArgyllCMS 3.5.0 by Graeme W. Gill, copied
-byte-identical from the official source distribution (except the two
+byte-identical from the official source distribution (except the
 patched files listed below), following the file list of Graeme's own
 standalone packaging script
 `spectro/instlib.ksh` (the "instlib" distribution, GPLv2-or-later —
@@ -15,8 +15,8 @@ against the new source tree and rebuild.
 
 ## ChromIQ patches
 
-Two library files depart from upstream. `scripts/vendor_instlib.py`
-re-applies both patches on every re-vendor (its `PATCHES` table), and
+Eight library files depart from upstream. `scripts/vendor_instlib.py`
+re-applies every patch on every re-vendor (its `PATCHES` table), and
 stops if one no longer applies.
 
 - **`rspl1.c`, `set_rspl`**: upstream writes the grid index at
@@ -31,11 +31,55 @@ stops if one no longer applies.
   `CHROMIQ_APPLE_BEEP` the beep plays through AudioToolbox instead of
   writing a BEL to stdout, which is the engine's JSON channel. The macOS
   build is deliberately not `UNIX_APPLE` (see `CMakeLists.txt`).
+- **`i1pro_imp.c`, `i1pro_imp.h`, `i1pro.c`: the i1Pro 2 indicator
+  lights** (Preferences > Beta, 2026-11-13). A separate path that can send
+  exactly three light sequences to an i1Pro 2 (request 0xD6, then the
+  bytes on bulk endpoint 0x03): WHITE (32 bytes, off about 1 s, then all
+  six LEDs on) when the instrument waits for the user, OFF_SLOW (18 bytes)
+  before every measurement trigger, and OFF_NOW (15 bytes, off at once)
+  before any EEPROM read and when the instrument is closed. Inert until
+  ChromIQ's helper calls `i1pro2_cq_lights_begin` (only with the option
+  on, `--i1pro2-lights`), which refuses anything but an inited i1Pro 2
+  whose EEPROM reports the user indicator LEDs (`I1PRO_CAP2_IND_LED`); a
+  failed request gives the lights up for the session and fails nothing.
+  Nothing is written to the EEPROM. Where the knowledge comes from:
+  Argyll's own request and sequence format (`i1pro2_indLEDseq` and its
+  comment; every caller is under `#ifdef NEVER`, and Argyll's notes say a
+  running sequence interferes with an EEPROM read), and two USB
+  recordings a user made of X-Rite's i1Profiler 3.8.6 with his own
+  i1Pro 2 Rev E (ChromIQ issue #129), in which i1Profiler sent exactly
+  these three sequences byte for byte, each where ChromIQ sends it
+  (WHITE at open, OFF_SLOW before calibrations and scans, OFF_NOW at
+  release). WHITE after every reading is ChromIQ's own use of the
+  recorded WHITE (the recording was made on a measuring table, where
+  i1Profiler kept the lights dark). Argyll's own `i1pro2_indLEDoff` bytes
+  were never seen on the wire and are not used.
+- **`i1pro3_imp.c`, `i1pro3_imp.h`, `i1pro3.c`: the same Beta for the
+  i1Pro 3** (2026-11-13). Its own request and format (0x29, LE32 length,
+  bytes on bulk endpoint 0x02, Argyll's `i1pro3_indLEDseq`). Exactly four
+  sequences: Argyll's own off `00` (sent by unpatched Argyll at every open)
+  before every measurement (top of `i1pro3_do_measure`) and at the close;
+  and, only after a measurement has returned, three patterns X-Rite's
+  i1Profiler 3.8.5 sent to a user's own i1Pro 3 in one USB recording, each
+  where i1Profiler sent it: READY `01 fa 04 12 05 00` after a successful
+  calibration, GOOD `0a 14 02 12 05 00` after a reading, BAD
+  `06 14 02 12 05 00` after a reading the instrument could not take. Inert
+  until the helper calls `i1pro3_cq_lights_begin` (option on), which
+  refuses anything but an inited i1Pro 3 (3 and 3 Plus, one dtype) whose
+  EEPROM reports the indicator LEDs. No 0x3B, no memory write. Not tested
+  on a real i1Pro 3 by the project.
+  Not tested on a real i1Pro 2 by the project.
 
 | patched file | upstream sha256 (first 16) | shipped sha256 (first 16) |
 |---|---|---|
 | `rspl1.c` | `5c7b0509abf97f44…` | `d53a8d37b30b6e14…` |
 | `conv.c` | `c6b04014888cb6f4…` | `1b88327ee6e6d9df…` |
+| `i1pro.c` | `ac75b6e3f47537b8…` | `90b196908646ba2f…` |
+| `i1pro_imp.h` | `c37813e4b43a9bff…` | `4762e1d402c0562d…` |
+| `i1pro_imp.c` | `8b8516cdd89e21de…` | `568d926e36a5fc56…` |
+| `i1pro3.c` | `9c4b1ac9f8af507a…` | `1ce2195c7b12f562…` |
+| `i1pro3_imp.h` | `190cceb46fe8bc33…` | `7c467ee1045ec4f4…` |
+| `i1pro3_imp.c` | `42c684afa3bbb15d…` | `d68c41018148a61d…` |
 
 ## Files
 

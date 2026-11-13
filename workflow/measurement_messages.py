@@ -580,6 +580,185 @@ M_FD9_SUPPORT_OFF = _m(
     "is changed.",
     approved=False)
 
+#: Start pressed on an X-Rite i1iO table chart while i1iO support (Beta) is
+#: on: this version makes charts for the table but cannot drive it yet.
+M_I1IO_NOT_YET = _m(
+    "M-I1IO-NOT-YET",
+    "Measuring with the i1iO table is not available yet",
+    "This chart was made for the X-Rite i1iO scanning table. This version "
+    "of ChromIQ can make charts for the table, but it cannot measure with "
+    "it yet: reading with the table is being prepared for a later version. "
+    "So this chart cannot be measured here at the moment. Nothing is wrong "
+    "with the chart. Please keep in mind that the layout may still change "
+    "once an i1iO owner has tested it, so a later version may ask you to "
+    "print the chart again.\n\n"
+    "What you can do today, if you still have i1Profiler 3.8.6 or an older "
+    "version and your printer uses RGB or CMYK: when the chart was made, "
+    "ChromIQ also saved its patches as i1Profiler patch-set files in the "
+    "“exports” folder beside the chart. Open one of them in i1Profiler, print the "
+    "chart that i1Profiler lays out for the table (i1Profiler cannot read "
+    "ChromIQ's own i1iO sheet), and measure it there with the table. Save "
+    "the measurement as an .mxf file, or as a CGATS text export that "
+    "includes the RGB or CMYK values, so that ChromIQ can tell which reading "
+    "belongs to which patch. Then bring it in with Tools → “Convert "
+    "i1Profiler → TI3”, and build the profile as usual.",
+    approved=False)
+
+#: The same for a VERIFICATION or CALIBRATION chart made for the table
+#: (2026-11-13, the owner: those run types make i1iO charts as they do for
+#: other instruments). The first paragraph is M-I1IO-NOT-YET's; the i1Profiler
+#: way in its second ends in building a profile, which these charts are not
+#: for, so the way offered is the table's own head, measured by hand.
+M_I1IO_NOT_YET_BY_HAND = _m(
+    "M-I1IO-NOT-YET-BY-HAND",
+    "Measuring with the i1iO table is not available yet",
+    "This chart was made for the X-Rite i1iO scanning table. This version "
+    "of ChromIQ can make charts for the table, but it cannot measure with "
+    "it yet: reading with the table is being prepared for a later version. "
+    "So this chart cannot be measured here at the moment. Nothing is wrong "
+    "with the chart. Please keep in mind that the layout may still change "
+    "once an i1iO owner has tested it, so a later version may ask you to "
+    "print the chart again.\n\n"
+    "What you can do today: the i1Pro 2 from your table's arm also measures "
+    "by hand, and ChromIQ reads it that way. On the Create Chart tab, choose "
+    "“i1Pro / i1Pro 2 / i1Pro 3” as the instrument for this chart and "
+    "create it again. Then print it on the Print Chart tab as usual and "
+    "measure it by hand on this tab.",
+    approved=False)
+
+#: What to aim at on an i1iO chart, by what the chart records
+#: (`workflow.i1io.chart.aim_details`, 2026-11-13: the owner's "Aiming
+#: crosses" option). Appended as their last paragraph to M-I1IO-NOT-YET and
+#: M-I1IO-NOT-YET-BY-HAND; the title names the paragraph in the catalogue
+#: and is not shown. X-Rite's manuals align every page again, because each
+#: sheet is laid down by hand, so every page has its own three points.
+M_I1IO_AIM_CROSSES = _m(
+    "M-I1IO-AIM-CROSSES",
+    "What to aim at on this i1iO chart: the crosses",
+    "Good to know for later: this chart has three small numbered aiming "
+    "crosses on every page. When the table measures it, you lay each sheet "
+    "on the table as the preview shows it, a quarter turn clockwise from "
+    "how it was printed, and show the table where it lies: push the arm "
+    "until the cross hair of its sight sits exactly on the centre of cross "
+    "1 at the top left, then on cross 2 at the bottom left, then on cross 3 "
+    "at the bottom right. From these three points the table works out where "
+    "every patch is. Every sheet is laid down by hand, so every page is "
+    "aimed at on its own, at its own three crosses.",
+    approved=False)
+
+#: {pages}: one line per page, from M-I1IO-AIM-PAGE-PARTS.
+M_I1IO_AIM_CORNERS = _m(
+    "M-I1IO-AIM-CORNERS",
+    "What to aim at on this i1iO chart: the corner patches",
+    "Good to know for later: this chart was made without aiming crosses, "
+    "so that more patches fit on it. When the table measures it, you lay "
+    "each sheet on the table as the preview shows it, a quarter turn "
+    "clockwise from how it was printed, and show the table where it lies by "
+    "aiming at three corner patches instead: push the arm until the cross "
+    "hair of its sight sits on the centre of the top-left patch, then on "
+    "the centre of the bottom-left patch, then on the centre of the "
+    "bottom-right patch. Every sheet is laid down by hand, so every page is "
+    "aimed at on its own. On this chart that means:\n{pages}\n"
+    "ChromIQ has put clearly visible patches into those corners, so they "
+    "are easy to find. From these three points the table works out where "
+    "every patch is.",
+    approved=False)
+
+#: The same when the chart prints no strip letters or patch numbers, so its
+#: patches have no names on the sheet: position words only.
+M_I1IO_AIM_CORNERS_UNLABELLED = _m(
+    "M-I1IO-AIM-CORNERS-UNLABELLED",
+    "What to aim at on this i1iO chart: the corner patches, unlabelled",
+    "Good to know for later: this chart was made without aiming crosses, "
+    "so that more patches fit on it. When the table measures it, you lay "
+    "each sheet on the table as the preview shows it, a quarter turn "
+    "clockwise from how it was printed, and show the table where it lies by "
+    "aiming at three corner patches instead: push the arm until the cross "
+    "hair of its sight sits on the centre of the patch in the top-left "
+    "corner of the block of patches, then on the centre of the one in the "
+    "bottom-left corner, then on the centre of the one in the bottom-right "
+    "corner. The strip letters and patch numbers are not printed on this "
+    "chart, so go by the corners. ChromIQ has put clearly visible patches "
+    "there, so they are easy to find. Every sheet is laid down by hand, so "
+    "every page is aimed at on its own, at its own three corners.",
+    approved=False)
+
+M_I1IO_AIM_UNKNOWN = _m(
+    "M-I1IO-AIM-UNKNOWN",
+    "What to aim at on this i1iO chart: not recorded",
+    "Good to know for later: this chart does not record what to aim at, "
+    "because it was made by an earlier version of ChromIQ. When the table "
+    "measures it, you lay each sheet on the table as the preview shows it, "
+    "a quarter turn clockwise from how it was printed, and show the table "
+    "where it lies at three points. If the sheet has three small numbered "
+    "crosses in its corners, push the arm until the cross hair of its sight "
+    "sits on the centre of cross 1 at the top left, then of cross 2 at the "
+    "bottom left, then of cross 3 at the bottom right. If it has no "
+    "crosses, aim at the centre of the top-left patch (on page 1 that is "
+    "patch A1, the first patch of strip A), then of the bottom-left patch "
+    "(the first patch of the last strip), then of the bottom-right patch "
+    "(the last patch of the last strip) instead. Every sheet is laid down "
+    "by hand, so every page is aimed at on its own.",
+    approved=False)
+
+#: The lines of M-I1IO-AIM-CORNERS's {pages}: a page aimed at its corner
+#: patches (named as printed), and a page that keeps its crosses
+#: (`workflow.i1io.chart.page_crosses`: one strip, or no visible corner).
+_I1IO_AIM_PAGE_PATCHES = ("Page {page}: patch {first} (top-left corner), "
+                          "then patch {second} (bottom-left corner), then "
+                          "patch {third} (bottom-right corner).")
+_I1IO_AIM_PAGE_CROSSES = ("Page {page}: this page carries the three "
+                          "numbered crosses, because its corner patches "
+                          "cannot be aimed at (it has only one strip, or no "
+                          "clearly visible patch in a corner). Aim at "
+                          "cross 1, 2 and 3 there.")
+M_I1IO_AIM_PAGE_PARTS = _m(
+    "M-I1IO-AIM-PAGE-PARTS",
+    "What to aim at on this i1iO chart: the lines per page",
+    "\n".join((_I1IO_AIM_PAGE_PATCHES, _I1IO_AIM_PAGE_CROSSES)),
+    approved=False)
+
+
+def i1io_aim_text(details: dict) -> str:
+    """The paragraph of M-I1IO-AIM-* for a chart's aiming record
+    (`workflow.i1io.chart.aim_details`), rendered and translated."""
+    aim = details.get("aim")
+    if aim == "crosses":
+        return M_I1IO_AIM_CROSSES.render()[1]
+    if aim == "corner patches":
+        if not details.get("labels", True):
+            return M_I1IO_AIM_CORNERS_UNLABELLED.render()[1]
+        lines = []
+        for page in details.get("pages") or []:
+            names = list(page.get("patches") or [])
+            if page.get("aim") == "crosses" or len(names) < 3:
+                lines.append(tr(_I1IO_AIM_PAGE_CROSSES).format(
+                    page=page.get("page")))
+            else:
+                lines.append(tr(_I1IO_AIM_PAGE_PATCHES).format(
+                    page=page.get("page"), first=names[0], second=names[1],
+                    third=names[2]))
+        if not lines:
+            return M_I1IO_AIM_CORNERS_UNLABELLED.render()[1]
+        return M_I1IO_AIM_CORNERS.render(
+            pages="\n".join("  \u2022  " + ln for ln in lines))[1]
+    return M_I1IO_AIM_UNKNOWN.render()[1]
+
+
+#: Start pressed on an X-Rite i1iO table chart while i1iO support is off.
+M_I1IO_SUPPORT_OFF = _m(
+    "M-I1IO-SUPPORT-OFF",
+    "Turn on i1iO support to see what you can do with this chart",
+    "This chart was made for the X-Rite i1iO scanning table. i1iO support "
+    "is a beta, and it is switched off at the moment, so ChromIQ does not "
+    "measure this chart.\n\n"
+    "To find out what you can do with it, open Preferences, go to the Beta "
+    "tab, tick “X-Rite i1iO support (beta)” and restart ChromIQ. Then press "
+    "Start again.\n\n"
+    "Nothing is wrong with the chart, and nothing you have already measured "
+    "is changed.",
+    approved=False)
+
 #: Start pressed and no address has been entered in "FD-9 setup…".
 M_FD9_NO_ADDRESS = _m(
     "M-FD9-NO-ADDRESS",
@@ -7494,6 +7673,53 @@ M_FD9_EDGE_SHEET_TEXT_PARTS = _m(
     "\n".join((_FD9_EDGE_LOST_LABEL, _FD9_EDGE_LOST_CLIP,
                _FD9_EDGE_FIX_LABEL, _FD9_EDGE_FIX_CLIP)),
     approved=False)
+#: 2026-11-13 (i1iO table Beta, review r3 m3): an i1iO chart's numbered
+#: aiming marks in the edge a printer does not print. The person aims the
+#: table's sight at them, and no control moves them. {where}: the sides, in
+#: the _EDGE_AT_* words.
+M_I1IO_EDGE_MARKS_NOT_PRINTED = _m(
+    "M-I1IO-EDGE-MARKS-NOT-PRINTED",
+    "The i1iO chart's aiming marks fall where your printer does not print",
+    "\u26a0 {printer} leaves an edge of the paper unprinted: {edges} "
+    "({source}). On this i1iO chart, the small numbered crosses that you aim "
+    "the table's sight at lie in that edge {where}, so they would be missing "
+    "or cut off on paper. ChromIQ finds every patch on the table from those "
+    "three crosses, so please do not print the chart like this. The crosses "
+    "have to be where they are, so the chart cannot simply be moved in. What "
+    "you can do: print it on a printer that prints closer to the edge of the "
+    "paper, or print it on a larger sheet of paper and cut the sheet to the "
+    "chart's size before you measure it. If your printer leaves a different "
+    "edge than this, set it under Preferences \u25b8 Printing \u25b8 "
+    "\u201cEdge this printer does not print\u201d.",
+    approved=False)
+#: The same for its strip letters, patch numbers and name line, which the
+#: table does not read and which sit in fixed places: never "printed text"
+#: with the text advice, which names controls an i1iO chart greys. {lost}:
+#: _I1IO_EDGE_LOST_TEXT; {fix}: _I1IO_EDGE_FIX_TEXT.
+_I1IO_EDGE_LOST_TEXT = ("part of the strip letters, the patch numbers or the "
+                        "line with the chart\u2019s name {where}")
+_I1IO_EDGE_FIX_TEXT = ("On an i1iO chart they always sit in the same places, "
+                       "so they cannot be moved in. If you would rather leave "
+                       "the strip letters or the patch numbers off, untick "
+                       "\u201cShow strip indicators\u201d or \u201cShow row "
+                       "indicators\u201d in the layout settings of Create "
+                       "Chart\u2019s Manual mode.")
+M_I1IO_EDGE_TEXT_NOT_PRINTED = _m(
+    "M-I1IO-EDGE-TEXT-NOT-PRINTED",
+    "Part of the i1iO chart's lettering will not be printed",
+    "\u26a0 {printer} leaves an edge of the paper unprinted: {edges} "
+    "({source}). On this i1iO chart, this lies in that edge and would be "
+    "missing or cut off on paper: {lost}. The table does not read any of it, "
+    "so your measurement is not affected, and you can print the chart like "
+    "this. {fix} If your printer leaves a different edge than this, set it "
+    "under Preferences \u25b8 Printing \u25b8 \u201cEdge this printer does "
+    "not print\u201d.",
+    approved=False)
+M_I1IO_EDGE_TEXT_PARTS = _m(
+    "M-I1IO-EDGE-TEXT-PARTS",
+    "The i1iO chart's lettering in the edge: the parts of the note",
+    "\n".join((_I1IO_EDGE_LOST_TEXT, _I1IO_EDGE_FIX_TEXT)),
+    approved=False)
 #: The spooler refused the raw job (``win_spooler.SpoolerError``); {reason}
 #: is Windows' own sentence. Replaces, on Windows, "CUPS rejected the print
 #: job (exit code ...)", which names a system Windows does not have.
@@ -9777,7 +10003,43 @@ M_QUIT_DURING_BUILD = _m(
     approved=False)
 
 
+# --- PROPOSED: the i1Pro 2 lights (Preferences > Beta) may still be on -------
+#: 2026-11-13. A precaution the owner asked for: ArgyllCMS's notes say a light
+#: pattern that is still running can disturb the instrument's EEPROM read at
+#: start-up, and a helper that crashed or was killed while the white light was
+#: on could not switch it off. Asked at Start, before anything is connected,
+#: only with the option on, only for a chart of the i1Pro family, and only
+#: while core/i1pro2_lights_marker.py's marker says the last such session did
+#: not end cleanly. Continue removes the marker; Cancel keeps it and starts
+#: nothing. Shown by `TabMeasure._i1pro2_lights_left_on_window`.
+M_I1PRO2_LIGHTS_LEFT_ON = _m(
+    "M-I1PRO2-LIGHTS-LEFT-ON",
+    "Please unplug the i1Pro 2 and plug it in again",
+    "Your last measurement with the i1Pro 2 ended unexpectedly, before "
+    "ChromIQ could switch the instrument's lights off. This can happen when "
+    "ChromIQ, or the ChromIQ chart-reading engine that measures for it, "
+    "stops suddenly, for example after a crash. So the white light on the "
+    "instrument may still be on.\n\n"
+    "ArgyllCMS, which ChromIQ measures with, notes that the instrument's "
+    "lights can disturb the instrument while it starts up if they are still "
+    "switched on. To be on the safe side, please restart the instrument "
+    "before measuring:\n\n"
+    "•  unplug the instrument's USB cable;\n"
+    "•  wait a few seconds;\n"
+    "•  plug it in again.\n\n"
+    "Then press “Continue” and the measurement starts as usual. If you are "
+    "measuring with a different instrument this time, you can simply press "
+    "“Continue”.\n\n"
+    "If you would rather not measure now, press “Cancel”. Nothing has been "
+    "changed, and ChromIQ will ask again the next time you start a "
+    "measurement.\n\n"
+    "This window belongs to the beta option for the i1Pro 2's lights in "
+    "Preferences, on the Beta tab.",
+    approved=False)
+
+
 CATALOGUE = {m.id: m for m in (
+    M_I1PRO2_LIGHTS_LEFT_ON,
     M_READINGS_NOT_SAME_CHART, M_READINGS_UNUSABLE,
     M_IMPORT_TURNED_GRID_COLOURS,
     M_IMPORT_CXF_CONDITION, M_IMPORT_CXF_CONDITION_PARTS,
@@ -9912,6 +10174,11 @@ CATALOGUE = {m.id: m for m in (
     M_CR30_HOW_TO_MEASURE, M_CR30_READ_FAILED,
     M_CR30_LEARN_TILE, M_CR30_TRIGGER_NOT_ARMED,
     M_INSTRUMENT_BUSY,
+    M_I1IO_NOT_YET, M_I1IO_NOT_YET_BY_HAND, M_I1IO_SUPPORT_OFF,
+    M_I1IO_AIM_CROSSES, M_I1IO_AIM_CORNERS, M_I1IO_AIM_CORNERS_UNLABELLED,
+    M_I1IO_AIM_UNKNOWN, M_I1IO_AIM_PAGE_PARTS,
+    M_I1IO_EDGE_MARKS_NOT_PRINTED, M_I1IO_EDGE_TEXT_NOT_PRINTED,
+    M_I1IO_EDGE_TEXT_PARTS,
     M_FD9_SUPPORT_OFF, M_FD9_NO_ADDRESS, M_FD9_INSERT_SHEET, M_FD9_NEXT_PAGE,
     M_FD9_NO_CONNECTION, M_FD9_WRONG_FIRMWARE, M_FD9_MARKS_NOT_FOUND,
     M_FD9_SHEET_STILL_INSIDE, M_FD9_RESUME_REFUSED, M_FD9_FAILED,
@@ -9986,6 +10253,25 @@ def edge_note(printer: str, edges, loss) -> "str | None":
             bottom=f(edges.bottom))
     source = tr({"driver": _EDGE_SRC_DRIVER, "ppd": _EDGE_SRC_PPD}.get(
         edges.source, _EDGE_SRC_OVERRIDE))
+    # AN i1iO CHART'S CROSSES, LETTERS AND NAME LINE (review r3 m3): its own
+    # words, never advice that names a control an i1iO chart greys.
+    io_marks = list(getattr(loss, "i1io_marks", []) or [])
+    if io_marks:
+        _t, body = M_I1IO_EDGE_MARKS_NOT_PRINTED.render(
+            printer=printer, edges=edge_txt, source=source,
+            where=", ".join(where[s] for s in order if s in io_marks))
+        return body
+    io_text = list(getattr(loss, "i1io_text", []) or [])
+    io_lost = ([tr(_I1IO_EDGE_LOST_TEXT).format(
+        where=", ".join(where[s] for s in order if s in io_text))]
+        if io_text else [])
+    io_fixes = [tr(_I1IO_EDGE_FIX_TEXT)] if io_text else []
+    if io_lost and not (loss.patches or loss.markers or loss.caption
+                        or loss.text):
+        _t, body = M_I1IO_EDGE_TEXT_NOT_PRINTED.render(
+            printer=printer, edges=edge_txt, source=source,
+            lost="; ".join(io_lost), fix=" ".join(io_fixes))
+        return body
     fd9 = list(getattr(loss, "fd9_marks", []) or [])
     if fd9:
         # The FD-9's own words: its marks are what it measures by, and no
@@ -10053,6 +10339,8 @@ def edge_note(printer: str, edges, loss) -> "str | None":
     # …and, beside other losses, the FD-9 sheet's own parts with their fixes.
     lost.extend(fd9_lost)
     fixes.extend(fd9_fixes)
+    lost.extend(io_lost)
+    fixes.extend(io_fixes)
     _t, body = M_EDGE_NOT_PRINTED.render(
         printer=printer, edges=edge_txt, source=source, lost="; ".join(lost),
         safe=tr(_EDGE_SAFE_NOT if patches else _EDGE_SAFE),

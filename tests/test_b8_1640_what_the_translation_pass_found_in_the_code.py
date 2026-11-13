@@ -50,7 +50,9 @@ def test_the_paper_combos_carry_the_code_not_the_label():
     import ui.dialogs.ti2_relayout_dialog as rd
     import ui.tabs.tab_chart as tc
     src = inspect.getsource(tc.TabChart._rebuild_paper_combo)
-    assert "addItem(paper_display_label(size), size)" in src
+    # the data is the paper CODE; the label may be the i1iO's landscape
+    # twin of it (`workflow.i1io.chart.paper_label_code`), never the data
+    assert "paper_display_label(_label_code(size)), size)" in src
     assert "_paper_row_label(code), code)" in inspect.getsource(rd)
 
 

@@ -3095,6 +3095,7 @@ def render_pages(
     helper_markers_top_bottom: bool = True,
     helper_markers_sides: bool = True,
     collect_device_geom: bool = False,
+    slots: "list[int] | None" = None,
 ) -> RenderResult:
     """Render one :class:`PIL.Image` per page for *target*.
 
@@ -3110,7 +3111,8 @@ def render_pages(
     media = target.media_patch()
     patches = list(target.patches) + [media] * layout.padding
     total = len(patches)
-    slots = permutation.location_permutation(total, seed, randomize)
+    if slots is None:      # a chart's own order (the i1iO's), else the seed's
+        slots = permutation.location_permutation(total, seed, randomize)
     rgb_by_slot: list[tuple[int, int, int]] = [(255, 255, 255)] * total
     # Device values by slot mirror the RGB fills, so Tier D can paint the exact
     # ink coverage of each patch into the separated raster (the RGB preview is a
@@ -3713,6 +3715,12 @@ def render_pages(
                             ("rect", (x0, y0, xR, yB), dev_by_slot[gslot]))
                 if sp_px > 0 and spacer_mode != "none" and j + 1 < len(col_slots):
                     y_next = px(place.y_of(j + 1)) + _stag     # next patch top
+                    _gap_top = yB
+                    if place.reverse_steps:
+                        # the next slot is ABOVE this one (the i1iO): the
+                        # spacer runs from its bottom down to this patch's top
+                        _gap_top = px(place.y_of(j + 1) + place.plen) + _stag
+                        y_next = y0
                     nxt = rgb_by_slot[col_slots[j + 1]]
                     # A per-spacer manual override (keyed by flat geometric index)
                     # wins over the auto/contrast colour.
@@ -3720,10 +3728,10 @@ def render_pages(
                     _ov = spacer_overrides.get(_flat) if spacer_overrides else None
                     _fill = _ov if _ov is not None else contrast.spacer_for_mode(
                         spacer_mode, rgb, nxt, spacer_palette)
-                    if _fill_rect(draw, [x0, yB, xR - 1, y_next - 1], _fill) \
+                    if _fill_rect(draw, [x0, _gap_top, xR - 1, y_next - 1], _fill) \
                             and collect_device_geom:  # coloured spacer → device ink
                         _geom_rows.append(
-                            ("spacer", (x0, yB, xR, y_next), _fill))
+                            ("spacer", (x0, _gap_top, xR, y_next), _fill))
             # Bracket the strip with a leading + trailing spacer (printtarg does
             # this). Fits in space the layout already reserves, so it doesn't
             # change the patch count. Auto-coloured against the paper white on the
