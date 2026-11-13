@@ -12726,6 +12726,16 @@ class TabChart(QWidget):
             from workflow.layout_engine.presets import LayoutRecipe
             kw = self._creator._engine_build_kwargs(guided_params)
             recipe = LayoutRecipe.from_build_kwargs(kw)
+            if recipe.instrument == "IO2" and not (recipe.patch_w_mm
+                                                   and recipe.patch_h_mm):
+                # THE SIZE GUIDED REALLY USED (review 5, item 6; 4.3.33
+                # too): Guided's automatic size arrived as 0, which Manual
+                # showed as the table's minimum, 7 x 8.9 mm, and so built 650
+                # patches where Guided built 528 (A4)
+                from workflow.i1io.chart import fixed_build_kwargs
+                _f = fixed_build_kwargs(kw)
+                recipe.patch_w_mm = float(_f["patch_w"])
+                recipe.patch_h_mm = float(_f["patch_h"])
             self._set_engine_recipe(recipe)
             if (getattr(panel, "pages", None) is not None
                     and self._manual_pages_spin is not None):
