@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- **The chart file for i1Profiler now carries ChromIQ's patch names.** The turned test chart file (.txf) that the beta option writes for i1Profiler now gives every patch the name printed on your sheet, such as 7G, so the names appear in i1Profiler's measurement files and other programs that read them can show them instead of i1Profiler's own grid position. Importing such a measurement into ChromIQ works exactly as before. Thanks to the tester on the printerknowledge forum who asked for this.
+
 ## v4.3.32
 
 **For everyone updating from 4.3.31: you can now drag files and folders from your file manager and drop them on almost every file and folder row in ChromIQ instead of using its browse button, and in the Measurement info window the notice about files that were not added now names each file and the reason, in the app's own colours. An argument that starts with “=” is now quoted in the ArgyllCMS command boxes, so the command pastes correctly into zsh on macOS, and the beta option “Darkest black” has moved to the Build Profile tab. Your charts, measurements and profiles do not change.**

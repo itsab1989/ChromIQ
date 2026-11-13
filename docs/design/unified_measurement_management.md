@@ -9449,8 +9449,11 @@ what it measures 1..N in THAT order and names each patch by its OWN grid, row
 letter and column number. Measured in i1Profiler 3.8.8 (Patch Set page, Save,
 i1Profiler CGATS, 2026-10-27): entry 1 was saved as `SAMPLE_ID 1`,
 `SAMPLE_NAME A1`, and it is ChromIQ's patch `V1`; ChromIQ's own `A1` is
-i1Profiler's `V1`. Its CxF measurement objects carry no trace of ChromIQ's ids
-either (§I.5, the 2026-08-08 round trip). So:
+i1Profiler's `V1`. Its CxF measurement objects carry nothing the import pairs
+them by either (§I.5, the 2026-08-08 round trip): since 4.3.33 the turned
+`.txf` gives every patch the chart's printed name as `SampleName` and its entry
+number 1..N as `SampleID`, which i1Profiler copies into the `.mxf` for other
+tools to show, but the import does not pair by them. So:
 
 * by `SAMPLE_ID` every reading lands on the wrong patch, and §I.5's identity
   check refuses the file (safe, but it cannot be imported);
@@ -9458,6 +9461,13 @@ either (§I.5, the 2026-08-08 round trip). So:
   would notice: on a turned chart i1Profiler's names are the very set ChromIQ
   printed (rows A.. = strips A.., columns 1.. = places 1..), each on another
   patch.
+
+*Changed 2026-11-13 (4.3.33, forum report by jctay): the sentence above read
+"Its CxF measurement objects carry no trace of ChromIQ's ids either (§I.5, the
+2026-08-08 round trip)", which stopped being true once the turned `.txf` named
+its patches. **Confirmed by:** Basti, 2026-11-13 (*"yes add the labels in
+4.3.33"*), for this wording change only; points 1 to 4 of I.14 and every other
+line of this section are unchanged.*
 
 **I.14 · A measurement of the turned chart is paired by the turned order, and
 only when its device values then agree on every patch.**

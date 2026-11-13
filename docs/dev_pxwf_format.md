@@ -110,8 +110,10 @@ When present, each Object gets:
     `workflow/i1profiler_export.py`;
     `tests/test_i1profiler_turned_grid_check.py::test_write_pwxf_puts_every_patch_where_i1profiler_put_it`
     checks it against pharmacist's files and X-Rite's own `.mxf` when they
-    are on disk). Nothing in
-    ChromIQ writes Location tags itself; the probe scripts do.
+    are on disk). The probe scripts write Location tags, and since 4.3.33
+    so does the turned export, with ChromIQ's patch names (see `SampleID` /
+    `SampleName` below); the plain `.pxf` and the Tools `.pwxf` still write
+    none.
   - X-Rite's `RGB_default-i1iO.mxf` (the i1iO table, 4 pages) does NOT follow
     this rule: of its 2033 patches only 71 are where the rule puts them and
     1962 are elsewhere. The i1iO lays its pages out by its own rules, and
@@ -162,8 +164,29 @@ When present, each Object gets:
   pages first" and "fill each page, the rest last", so the rule itself is
   still open (review 4.3.21 r1). `i1p_page_rows` stays what `write_pwxf`
   writes.
-- `SampleID = -1` and `SampleName = ""` for **every** patch — the layout is
-  purely positional, not name-keyed. We don't need to invent IDs.
+- `SampleID = -1` and `SampleName = ""` for **every** patch in i1Profiler's
+  own charts and measurements of unnamed charts: the layout is purely
+  positional, not name-keyed, so i1Profiler needs no IDs to lay a chart out.
+  - **Readers of the `.mxf` outside ChromIQ do want names** (jctay,
+    2026-11-13). i1Profiler copies a `.txf`'s `SampleID` and `SampleName`
+    unchanged into the `.mxf` it measures (630/630 in his file), and tools
+    such as ScanDeltaE and PatchTool can then show the name printed on the
+    sheet (`7G`) instead of the grid cell (`P1R7C8`). The CxF3 schema allows
+    the tags and does not define them; X-Rite's own charts ship both ways.
+  - **So since 4.3.33 the turned `.txf` names its patches**
+    (`write_pwxf(sample_names=...)`, from `i1profiler_turned._write_txf`):
+    `SampleName` = the chart's `SAMPLE_LOC` of the patch at that entry (the
+    turned order, so both turns, both label patterns and the fill-up
+    patches), `SampleID` = the entry number 1..N, and Column/Row/Page = the
+    cell `i1p_location(j, R, [R])` gives on one page. `SampleID` is the LIST
+    POSITION and never the chart's `SAMPLE_ID`, because `turned_match` reads
+    a measured `SAMPLE_ID` as that position; 1..N is safe whatever
+    i1Profiler does with the tag in a CGATS export. ChromIQ's import does not
+    use the names: it still pairs by the order file (§I.14).
+    `tests/test_4333_turned_txf_names_its_patches.py` pins it.
+  - Not yet seen: whether i1Profiler 3.8.8 keeps a ChromIQ-written name in
+    the `.mxf` (jctay's i1Profiler did, version not in his files), and what
+    it writes as `SAMPLE_NAME` in its CGATS export of such a chart.
 
 **Presence is inconsistent** across the sample set (see table below) — it tracks
 how far the chart was taken in i1Profiler before saving, not a clean version
@@ -189,7 +212,9 @@ whether we:
 
 Recommend shipping **(A)** first (omit Location tags, set
 `UsePatchSettingDefaults="True"`), and only add (B) if a test shows i1Profiler
-needs an explicit grid.
+needs an explicit grid. (4.3.33: the turned `.txf` writes Location tags after
+all, not for the grid, which i1Profiler ignores, but to carry the patch
+names; see `SampleID` / `SampleName` above.)
 
 ## Patch size & header length (the slider-percent encoding)
 
