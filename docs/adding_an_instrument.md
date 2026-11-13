@@ -124,12 +124,14 @@ The **ChromIQ X-Rite instrument probe** is a free, open-source tool:
 [github.com/itsab1989/chromiq-i1io-probe](https://github.com/itsab1989/chromiq-i1io-probe).
 Its README has the step-by-step instructions for each system; please follow
 those, because they are kept up to date with the tool. What follows is a short
-summary, checked against version 1.6.1.
+summary, checked against version 1.6.2.
 
 - **What it does.** It looks for your instrument, writes a plain-text report
   about it and your computer, and can then guide you through a few short steps
   in the instrument's own program while it records the USB traffic between
-  that program and the instrument. You can read the report before you send
+  that program and the instrument. Each step is a short numbered list, one
+  action per line, and the README shows them all. You can read the report
+  before you send
   it, and by default it hides serial numbers, your user name and your home
   folder.
 - **It never sends anything to the instrument.** It does not even open a
@@ -172,9 +174,28 @@ summary, checked against version 1.6.1.
   number and its factory calibration data**, because the maker's program reads
   them every time it connects (for the i1iSis the README says "very likely",
   because it is not proven yet). They identify your instrument, not you. So
-  please share a recording deliberately. The tool keeps a copy that holds only
-  the instrument's traffic, and offers to delete the full recordings, which
-  can contain other USB devices such as a keyboard.
+  please share a recording deliberately.
+- **Other USB devices: use version 1.6.2 or newer, and unplug what you can.**
+  The tool makes a copy for you to send that is meant to hold only the
+  instrument's traffic, and offers to delete the full recordings, which can
+  hold everything else on those USB connections. Versions up to 1.6.1 could
+  still keep some traffic of another USB device that shared the instrument's
+  USB hub, such as a USB disk or memory stick, in that copy, in the analysis
+  and in the report. Version 1.6.2 leaves that out in the cases its README
+  names, and says honestly what it still cannot tell apart: a device that was
+  given the instrument's USB address and uses the same endpoint numbers (for
+  example a USB 3 "UAS" disk, a printer, a phone or a USB-serial adapter). So while
+  you record, please unplug every other USB device you can from that
+  computer, or at least from the same hub or dock: disks, memory sticks,
+  printers, phones, adapters and card readers. A keyboard and a mouse may
+  stay. The README's section
+  ["Which traffic is the instrument's"](https://github.com/itsab1989/chromiq-i1io-probe#which-traffic-is-the-instruments-since-162)
+  explains all of it.
+- **Made a recording with version 1.6.1 or older?** Version 1.6.2 can make a
+  cleaned copy of it with `--clean`, next to the original, and says what it
+  removed; the README's section ["Running from source"](https://github.com/itsab1989/chromiq-i1io-probe#running-from-source)
+  and its notice at the top give the exact command. Or simply delete the old
+  files. If you already sent one, please say so in the issue.
 - **Nothing is uploaded.** You decide whether to send anything. To send it,
   open a [new issue](https://github.com/itsab1989/ChromIQ/issues/new) in the
   ChromIQ repository and attach it there; for the i1iO table, attach it to
@@ -244,6 +265,13 @@ before you design anything, and write down where each one came from.
 5. **Your own careful measurement**: a ruler on a printed chart, a timed
    scan.
 
+**Check a recording before you build on it.** One recording is a lead, not a
+fact. Compare it with the same action done by ArgyllCMS, where ArgyllCMS
+drives the instrument, and with a second recording of the same steps, and
+only then build on it. A byte sequence is sent to an instrument only if it was
+seen from the maker's own program on that same generation of the instrument
+([section 12](#12-talking-to-the-hardware)).
+
 **How sure is each fact?** Keep every number about one instrument in one
 module, each with its value, its source and one of four levels, and have the
 layout code read its numbers from there and nowhere else; then the next
@@ -269,8 +297,11 @@ the traffic of your own device, to make another program work with it, is
 what this project does. It never copies the maker's program code, firmware,
 calibration data, stored instrument memory, chart files or tables into the
 repository. Facts are written down in our own words, with a note of where
-they came from. Recordings stay outside the repository and its tests. An
-owner who attaches one to a GitHub issue makes it public, so it is shared
+they came from. Treat every recording as private evidence: it may hold more
+than the instrument (another USB device's traffic, for example), which is why
+the recording tool is used in its newest version with other devices
+unplugged. Recordings stay outside the repository and its tests. An owner who
+attaches one to a GitHub issue makes it public, so it is shared
 deliberately, by its owner's choice
 ([section 2](#2-you-own-an-instrument-chromiq-does-not-support-yet-this-is-how-you-can-help)).
 
