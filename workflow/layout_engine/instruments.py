@@ -917,7 +917,13 @@ def _build_base(
         # `workflow.i1io.chart.fixed_build_kwargs`.
         from workflow.i1io import table_facts as F
         along, across = F.PATCH_ALONG_MM.value, F.PATCH_ACROSS_MM.value
-        return replace(_build_base("SS", spacer_on=False), key="IO2",
+        # The clip border (an option, off by default) is the SpectroScan
+        # base's own notes band: `clip_band` is its width from the paper edge
+        # (`workflow.i1io.chart.fixed_build_kwargs`), 0 without one, which
+        # leaves the geometry exactly as it was.
+        return replace(_build_base("SS", spacer_on=False,
+                                   clip_band=float(clip_band or 0.0)),
+                       key="IO2",
                        target_name=TARGET_INSTRUMENT_NAME["IO2"],
                        plen=along, pwid=across, rrsp=across,
                        pspa=F.SPACER_MM.value if spacer_on else 0.0,

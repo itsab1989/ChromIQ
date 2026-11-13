@@ -1696,6 +1696,14 @@ def _fd9_ask(tab, name: str) -> bool:
     return bool(fn()) if callable(fn) else False
 
 
+def _is_i1io_chart_instrument(name) -> bool:
+    """True for a chart's TARGET_INSTRUMENT naming the X-Rite i1iO while
+    i1iO support (Beta) is on. Off, False without looking at the name, so
+    the log reads exactly as 4.3.33's."""
+    from workflow.i1io.support import i1io_enabled, is_i1io_instrument_name
+    return i1io_enabled() and is_i1io_instrument_name(name)
+
+
 class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
     """Step 3: interactive chart measurement with chartread."""
     #: The hue of this tab's step header, its accent: file-drop frames
@@ -5475,9 +5483,14 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             self._clear_previous_instrument_log()
             if instr:
                 label = instrument_label(instr)
-                if is_spectroscan(instr) or _fd9_ask(self, "_is_fd9_target"):
+                if (is_spectroscan(instr) or _fd9_ask(self, "_is_fd9_target")
+                        or _is_i1io_chart_instrument(instr)):
                     # XY table — reads patches individually, so the
                     # bidirectional "reading direction" note does not apply.
+                    # Nor to an i1iO table chart (a Beta): it cannot be
+                    # measured yet, and Start says so (M-I1IO-NOT-YET); a
+                    # line about strip recognition would promise a reading
+                    # that does not happen.
                     msg = tr("Chart instrument: {label}.").format(label=label)
                 else:
                     value = self._detected_bidir_value()

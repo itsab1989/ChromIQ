@@ -4037,21 +4037,55 @@ def _saved_beta_instrument_is_off(code) -> bool:
 
 def i1io_instrument_bullet() -> str:
     """The i1iO's bullet in the Instrument (i) of Guided and Manual. Only
-    shown while i1iO support (Preferences > Beta) is on."""
+    shown while i1iO support (Preferences > Beta) is on.
+
+    Three parts, so a change to one (what Manual can change) leaves the
+    others' translations alone."""
+    return " ".join((i1io_instrument_bullet_sheet(),
+                     i1io_instrument_bullet_manual(),
+                     i1io_instrument_bullet_rest()))
+
+
+def i1io_instrument_bullet_sheet() -> str:
+    """The i1iO bullet's first part: the table and what is on the sheet,
+    right for a chart with and without the aiming crosses (4.3.33 made them
+    an option)."""
     return tr(
         "  •  i1iO 2 + i1Pro 2 (X-Rite): a motorised scanning table that "
         "moves your i1Pro 2 over the chart by itself. The chart is printed on "
-        "a portrait A4 or Letter sheet that you lay across the table, so its "
+        "an upright (portrait) sheet, A4, Letter or any smaller size the table "
+        "takes, that you lay across the table, so its "
         "strips run along the arm: patches of 10 × 8 mm with coloured "
-        "spacers between them, blank paper at both ends of every strip so the "
-        "arm can speed up and slow down, and three numbered aiming marks in "
-        "the corners (1 top left, 2 bottom left, 3 bottom right, as the sheet "
-        "lies on the table). As on every ChromIQ chart, each strip has a "
-        "letter and the patches along it are numbered, so “C7” is the 7th "
-        "patch of strip C. In Manual you can change the margins, the patch "
-        "size (8.9 to 20 mm along the strip, 7 to 20 mm across it), the "
-        "spacers, the gaps and the letters and numbers; the other layout "
-        "controls are greyed, because the table needs this layout. Because "
+        "spacers between them, and blank paper at both ends of every strip "
+        "so the arm can speed up and slow down. To show the table where the "
+        "sheet lies, you aim its arm at three points on it: by default three "
+        "small numbered aiming crosses in the corners (1 top left, 2 bottom "
+        "left, 3 bottom right, as the sheet lies on the table). You can "
+        "switch the crosses off; you then aim at the centres of three corner "
+        "patches instead. In Guided their room is kept for the line with the "
+        "chart's name and page number, so the patch count stays the same; in "
+        "Manual, with smaller margins, more patches can fit. As on every "
+        "ChromIQ chart, each strip has a letter and the patches along it are "
+        "numbered, so “C7” is the 7th patch of strip C.")
+
+
+def i1io_instrument_bullet_manual() -> str:
+    """The i1iO bullet's second part: what Manual can change."""
+    return tr(
+        "In Manual you can change nearly every layout option, as for the "
+        "other instruments: the margins, the patch size (8.9 to 20 mm along "
+        "the strip, 7 to 20 mm across it), the spacers and gaps, the letters "
+        "and numbers with their patterns, typefaces, underline, offsets and "
+        "distances, the sheet text, the ruler helper markers, and a clip "
+        "border for notes along one long edge of the sheet (off by default; "
+        "Guided offers it too). The defaults are the safe choice for the "
+        "table; the few controls that have no meaning for it are greyed.")
+
+
+def i1io_instrument_bullet_rest() -> str:
+    """The i1iO bullet's last part: Guided, the state of the Beta."""
+    return tr(
+        "Because "
         "the table reads every sheet by itself, Guided always fills whole "
         "sheets, and each extra page adds a full sheet of patches at no extra "
         "effort for you. The layout may still change once an i1iO owner has "
@@ -7440,6 +7474,20 @@ class TabChart(QWidget):
             self._i1io_aim_tooltip.setVisible(False)
             dd_row.addWidget(self._i1io_aim_check)
             dd_row.addWidget(self._i1io_aim_tooltip)
+            # …and its "Clip border" (an option, off by default,
+            # 2026-11-13): the notes band down the sheet's left edge.
+            from ui.dialogs.layout_options_panel import i1io_clip_help
+            self._i1io_clip_check = QCheckBox(tr("Clip border"), inner)
+            self._i1io_clip_check.setChecked(False)
+            self._i1io_clip_check.toggled.connect(self._update_patch_count)
+            self._i1io_clip_tooltip = TooltipButton(
+                tr("Clip border (i1iO)"), i1io_clip_help(), inner,
+                min_width=600)
+            self._i1io_clip_check.setVisible(False)
+            self._i1io_clip_tooltip.setVisible(False)
+            dd_row.addSpacing(20)
+            dd_row.addWidget(self._i1io_clip_check)
+            dd_row.addWidget(self._i1io_clip_tooltip)
         dd_row.addWidget(self._dd_check)
         dd_row.addWidget(self._dd_tooltip)
         dd_row.addSpacing(20)
@@ -8733,6 +8781,11 @@ class TabChart(QWidget):
         # The i1iO's "Aiming crosses" (i) names the chart and its pages (a
         # bound method, as above).
         self._manual_layout_panel.i1io_context = self._manual_i1io_context
+        # …and the recipe the build really uses (Preferences' label style
+        # overlaid while the recipe has none of its own, as for every
+        # instrument), so the i1iO's margin minimums are the build's (F2)
+        self._manual_layout_panel.i1io_effective_recipe = \
+            self._current_layout_recipe
         # Preferences → Chart Layout is the SEED for a chart with no label style
         # of its own; the panel shows those values so the controls never lie.
         # `getattr` because a test double may be a settings stand-in without it;
@@ -8776,6 +8829,8 @@ class TabChart(QWidget):
                     _box.valueChanged.connect(
                         self._sync_manual_selection_from_panel)
         self._manual_layout_panel.changed.connect(self._refresh_manual_command_preview)
+        # the panel's own lines for the log (an i1iO custom size turned upright)
+        self._manual_layout_panel.notice.connect(self._on_log_line)
         # Picking SpectroScan + Hexagonal must grey the ruler-marker controls
         # straight away, not only once a chart has been generated (#152, Knut):
         # the inspector's own refresh runs on chart/page changes, which is far
@@ -10216,6 +10271,14 @@ class TabChart(QWidget):
         # never stores it, so a chart that does would always read as "modified".
         d.pop("seed_fixed", None)
         d.pop("chart_text", None)
+        if getattr(r, "instrument", None) == "IO2":
+            from workflow.i1io.support import i1io_enabled
+            if i1io_enabled():
+                # An i1iO layout is compared on what its chart reads (Job D):
+                # the greyed controls and the values the panel only shows
+                # for the table never differ by a person's choice.
+                from workflow.i1io.chart import comparable_recipe_values
+                d = comparable_recipe_values(d)
         return d
 
     def _layout_preset_status(self):
@@ -12426,6 +12489,12 @@ class TabChart(QWidget):
                    if (getattr(self, "_i1io_aim_check", None) is not None
                        and self._instr_combo.currentData() == "IO2")
                    else {}),
+                # …and its clip border, only when switched on
+                **({"i1io_clip_border": True}
+                   if (getattr(self, "_i1io_clip_check", None) is not None
+                       and self._instr_combo.currentData() == "IO2"
+                       and self._i1io_clip_check.isChecked())
+                   else {}),
             }
         # manual
         toks = []
@@ -12485,6 +12554,10 @@ class TabChart(QWidget):
                 aim = getattr(self, "_i1io_aim_check", None)
                 if aim is not None:
                     aim.setChecked(bool(value))
+            elif field == "i1io_clip_border":
+                clip = getattr(self, "_i1io_clip_check", None)
+                if clip is not None:
+                    clip.setChecked(bool(value))
         else:  # manual (a superset of guided's options)
             if field == "instrument":
                 self._set_manual_value("printtarg", "-i", value)
@@ -12658,6 +12731,10 @@ class TabChart(QWidget):
             from workflow.layout_engine.presets import LayoutRecipe
             kw = self._creator._engine_build_kwargs(guided_params)
             recipe = LayoutRecipe.from_build_kwargs(kw)
+            if recipe.instrument == "IO2":
+                # the size Guided really used (review 5, item 6)
+                from workflow.i1io.chart import with_guided_size
+                recipe = with_guided_size(recipe, kw)
             self._set_engine_recipe(recipe)
             if (getattr(panel, "pages", None) is not None
                     and self._manual_pages_spin is not None):
@@ -19561,6 +19638,15 @@ class TabChart(QWidget):
                 and not self._i1io_aim_check.isChecked()):
             # Guided's "Aiming crosses" off (i1iO Beta), as the build has it
             kw["i1io_crosses"] = False
+        if instr == "IO2" and guided:
+            # Guided has no margin boxes, whatever this estimate hands on: the
+            # same floor as the build (`workflow.i1io.chart.GUIDED_KEY`)
+            kw["i1io_guided"] = True
+        if (instr == "IO2" and guided
+                and getattr(self, "_i1io_clip_check", None) is not None
+                and self._i1io_clip_check.isChecked()):
+            # Guided's "Clip border" on (i1iO Beta), as the build has it
+            kw.update(i1io_clip_border=True, clip_content_mode="notes")
         return instruments.geom_from_build_kwargs(kw)
 
     def _engine_capacity(self, instr: str, paper: str, *, dd: bool, td: bool,
@@ -20029,7 +20115,7 @@ class TabChart(QWidget):
         _label_code = (lambda c: c)
         if instr == "IO2":
             # shown as the sheet is used: landscape, on the table
-            from workflow.i1io.chart import paper_label_code as _label_code
+            from workflow.i1io.chart import i1io_paper_label as _label_code
         for size in sizes:
             if size not in excluded:
                 self._paper_combo.addItem(
@@ -20230,6 +20316,11 @@ class TabChart(QWidget):
             # the i1iO's "Aiming crosses" (Beta), for the i1iO only
             aim.setVisible(instr == "IO2")
             self._i1io_aim_tooltip.setVisible(instr == "IO2")
+        clip = getattr(self, "_i1io_clip_check", None)
+        if clip is not None:
+            # …and its "Clip border", for the i1iO only
+            clip.setVisible(instr == "IO2")
+            self._i1io_clip_tooltip.setVisible(instr == "IO2")
         # Triple density: CM-only, hidden everywhere else.
         td_visible = instr == "CM"
         self._td_check.setVisible(td_visible)
@@ -22676,15 +22767,12 @@ class TabChart(QWidget):
                 # sheet), so the panels settle on the fallback a moment
                 # later, through queued syncs. Taken again once the queue is
                 # empty, unless the user has had something written since.
-                def _settled(fp=fingerprint):
-                    snap = self._fd9_off_screens().get(fp)
-                    if snap is None or snap.own:
-                        return
-                    self._fd9_off_screens()[fp] = off_snapshot(
-                        snapshot(self), self._collect_ui_state(),
-                        *stored_blocks)
+                # A BOUND METHOD, not a closure over `self` (CLAUDE.md: a
+                # Python closure parked in Qt is the crash class of
+                # `ui/fade_scroll.py`); what it needs waits on the tab.
+                self._i1io_off_screen_pending()[fingerprint] = stored_blocks
                 from PyQt6.QtCore import QTimer
-                QTimer.singleShot(0, _settled)
+                QTimer.singleShot(0, self._i1io_off_screen_settled)
                 return
             if fd9_enabled() or not target_names_fd9(stored, ui_state):
                 return
@@ -22699,6 +22787,36 @@ class TabChart(QWidget):
                 getattr(meta, "create_chart_ui", None))
         except Exception:      # noqa: BLE001 — never block a load over it
             log.warning("Could not note the FD-9 target's screen",
+                        exc_info=True)
+
+    def _i1io_off_screen_pending(self) -> dict:
+        """The i1iO targets (opened with i1iO support off) whose screen is
+        taken again once the queued syncs have run: fingerprint -> the
+        target's stored blocks (`_remember_fd9_off_screen`)."""
+        if "_i1io_off_screen_waiting" not in self.__dict__:
+            self._i1io_off_screen_waiting = {}
+        return self._i1io_off_screen_waiting
+
+    def _i1io_off_screen_settled(self) -> None:
+        """THE SCREEN AS THE LOAD LEAVES IT, for every i1iO target waiting
+        (`_i1io_off_screen_pending`): its snapshot taken again, unless the
+        user has had something written since. Queued by
+        `_remember_fd9_off_screen` with QTimer.singleShot(0, ...)."""
+        waiting = self._i1io_off_screen_pending()
+        if not waiting:
+            return
+        try:
+            from workflow.i1io.support import off_snapshot
+            from workflow.per_target_settings import snapshot
+            for fp, stored_blocks in list(waiting.items()):
+                waiting.pop(fp, None)
+                snap = self._fd9_off_screens().get(fp)
+                if snap is None or snap.own:
+                    continue
+                self._fd9_off_screens()[fp] = off_snapshot(
+                    snapshot(self), self._collect_ui_state(), *stored_blocks)
+        except Exception:      # noqa: BLE001 — never block a load over it
+            log.warning("Could not note the i1iO target's screen",
                         exc_info=True)
 
     def _forget_fd9_off_screen(self) -> None:
@@ -23153,6 +23271,8 @@ class TabChart(QWidget):
                 # the i1iO's "Aiming crosses" (Beta): the saved default
                 guided["i1io_crosses"] = bool(
                     self._settings.get("chart_i1io_crosses", True))
+                guided["i1io_clip_border"] = bool(
+                    self._settings.get("chart_i1io_clip_border", False))
             for fld, val in guided.items():
                 try:
                     self._shared_set("guided", fld, val)
@@ -23171,6 +23291,10 @@ class TabChart(QWidget):
                     and "i1io_crosses" not in guided):
                 # a row without the i1iO's crosses answer had them on
                 guided = {**guided, "i1io_crosses": True}
+            if (getattr(self, "_i1io_clip_check", None) is not None
+                    and "i1io_clip_border" not in guided):
+                # …and one without its clip border answer had none
+                guided = {**guided, "i1io_clip_border": False}
             for fld, val in guided.items():
                 try:
                     self._shared_set("guided", fld, val)
@@ -26862,6 +26986,41 @@ class TabChart(QWidget):
         except Exception:      # noqa: BLE001
             return False
 
+    def _i1io_chart_minimums(self, crosses: bool, plain):
+        """The smallest margins ``(top, right, bottom, left)`` of the i1iO
+        chart in the preview (review F7: Left showed 16.0 for a chart with a
+        clip border, whose minimum is 32), from the DISPLAYED chart's own
+        files, never from the panel (review R2: a Guided chart was judged
+        against Manual's recipe and Preferences' label style): its labels
+        from the recipe its channels.json records, its clip border from its
+        side file (`workflow.i1io.chart.least_margins_mm`). *plain* when
+        anything cannot be read."""
+        try:
+            from workflow.i1io.chart import CLIP_KEY, least_margins_mm
+            from workflow.layout_engine.presets import LayoutRecipe
+            kw = {}
+            ti2 = getattr(self, "_margin_ti2", None)
+            if ti2 is not None:
+                rec = LayoutRecipe.from_channels_json(
+                    str(ti2)[:-4] + ".channels.json")
+                if rec is not None and rec.instrument == "IO2":
+                    kw = dict(rec.build_kwargs())
+            kw.update(instrument="IO2", i1io_crosses=bool(crosses))
+            kw[CLIP_KEY] = False
+            if ti2 is not None:
+                side = Path(str(ti2)[:-4] + ".i1io.json")
+                if side.is_file():
+                    clip = json.loads(side.read_text(
+                        encoding="utf-8")).get("clip_border")
+                    if clip:
+                        kw[CLIP_KEY] = True
+                        kw["clip_border_width"] = float(
+                            clip.get("width_mm") or 26.0)
+            return least_margins_mm(kw)
+        except Exception:      # noqa: BLE001 - the plain minimums stand
+            log.debug("i1iO margin minimums from the chart", exc_info=True)
+            return plain
+
     def _update_margin_inspector(self) -> None:
         panel = getattr(self, "_margin_panel", None)
         if panel is None:
@@ -26985,6 +27144,9 @@ class TabChart(QWidget):
                 except Exception:      # noqa: BLE001
                     _crosses = True
             _t, _r, _b, _l = margins_mm(crosses=_crosses)
+            # …and with the chart's own clip border and labels (review F7)
+            _t, _r, _b, _l = self._i1io_chart_minimums(
+                _crosses, (_t, _r, _b, _l))
             thresholds = {"T": _t, "B": _b, "L": _l, "R": _r}
 
         # Strip-length (ruler) limit: the per-combo value configured in
@@ -27930,9 +28092,18 @@ class TabChart(QWidget):
             # (Basti, 2026-10-24). Worked out by the renderer's own limits on
             # this chart's strips, so the sentence describes the sheet that
             # is printed.
+            _i1io_furniture = []
             try:
                 from workflow.layout_engine import raster as _raster
                 _xs = _raster.strip_label_x_shift(geom, _kw_notes)
+                if _kw_notes.get("instrument") == "IO2":
+                    from workflow.i1io.support import i1io_enabled
+                    if i1io_enabled():
+                        # the i1iO's own letters, held and checked as the
+                        # build holds and checks them (review 3, items 2, 5)
+                        from workflow.i1io import chart as _i1io_chart
+                        _xs, _i1io_furniture = _i1io_chart.preview_checks(
+                            _kw_notes)
             except Exception:      # noqa: BLE001 — a notice, never a blocker
                 _xs = None
             _xs_line = strip_label_x_held_notice(_xs)
@@ -27943,6 +28114,10 @@ class TabChart(QWidget):
             _xn_line = strip_label_x_neighbour_notice(_xs)
             if _xn_line:
                 over.append(_xn_line)
+            # …and what an i1iO's options put on a patch, a cross or past
+            # the paper's edge: the same words the build logs
+            for _why in _i1io_furniture:
+                over.append(_why)
             # (A letter in the instrument's reading path is no longer pointed
             # out. Basti, 2026-10-25, on Knut's forum post 149832: the
             # centred default sits in that path with no notice, so a letter
@@ -31776,6 +31951,9 @@ class TabChart(QWidget):
                 and getattr(self, "_i1io_aim_check", None) is not None):
             s.set("chart_i1io_crosses",
                   bool(self._i1io_aim_check.isChecked()))
+            if getattr(self, "_i1io_clip_check", None) is not None:
+                s.set("chart_i1io_clip_border",
+                      bool(self._i1io_clip_check.isChecked()))
         s.set("chart_pages",               params.pages)
         s.set("chart_double_density",      params.double_density)
         s.set("chart_triple_density",      params.triple_density)
@@ -32015,6 +32193,11 @@ class TabChart(QWidget):
                                     or getattr(self, "_i1io_aim_check", None)
                                     is None
                                     or self._i1io_aim_check.isChecked()),
+            # …and its clip border (off by default)
+            i1io_clip_border     = (instr == "IO2"
+                                    and getattr(self, "_i1io_clip_check",
+                                                None) is not None
+                                    and self._i1io_clip_check.isChecked()),
         )
 
     def _manual_i1io_context(self) -> dict:
@@ -32408,6 +32591,9 @@ class TabChart(QWidget):
         if getattr(self, "_i1io_aim_check", None) is not None:
             self._i1io_aim_check.setChecked(
                 bool(s.get("chart_i1io_crosses", True)))
+        if getattr(self, "_i1io_clip_check", None) is not None:
+            self._i1io_clip_check.setChecked(
+                bool(s.get("chart_i1io_clip_border", False)))
         self._update_dd_visibility()
         self._update_patch_count()
 

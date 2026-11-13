@@ -801,6 +801,9 @@ class ChartParams:
     #: Guided's i1iO "Aiming crosses" (a Beta): Guided carries no layout
     #: recipe, so its choice rides here; Manual's recipe holds its own.
     i1io_crosses: bool = True
+    #: …and its "Clip border" (off by default): the notes band down the
+    #: sheet's left edge (`workflow.i1io.chart.CLIP_KEY`).
+    i1io_clip_border: bool = False
     fd9_clip_options: "dict | None" = None
     # When True, the .icc/.ti3 from a prior session in the same working folder
     # are renamed to pre_*.icc/pre_*.ti3 instead of being overwritten on the
@@ -1727,11 +1730,16 @@ class ChartCreator:
                 # an absent key still reads False, so reprinting a lost sheet
                 # reproduces the sheet that was printed.
                 kw["hex_flat_top"] = bool(kw.get("hflag"))
-        elif params.instrument == "IO2" and not getattr(params, "i1io_crosses",
-                                                         True):
+        elif params.instrument == "IO2":
             # Guided's "Aiming crosses" for the i1iO (a Beta), only when off,
-            # so every other chart's kwargs are the ones they were.
-            kw["i1io_crosses"] = False
+            # and its "Clip border" only when on (with the Notes box, as
+            # Guided's i1Pro clip band), so every other chart's kwargs are
+            # the ones they were.
+            if not getattr(params, "i1io_crosses", True):
+                kw["i1io_crosses"] = False
+            if getattr(params, "i1io_clip_border", False):
+                kw["i1io_clip_border"] = True
+                kw["clip_content_mode"] = "notes"
         return kw
 
     def _engine_total_patches(self, params: "ChartParams") -> int | None:
@@ -1974,6 +1982,11 @@ class ChartCreator:
         on_line(_engine_summary_log_line(
             result.layout.total_patches, result.layout.steps_in_pass,
             result.layout.passes, result.layout.pages, result.seed))
+        # An i1iO chart built with a risky option (Job D: allowed, and
+        # said, as other instruments' charts are)
+        for why in getattr(result, "warnings", ()) or ():
+            on_line(tr("[WARNING] The i1iO table may not read this layout "
+                       "well: {why}").format(why=why))
         # Explain a total that grew past the designed count: a partial last
         # strip is topped up with paper-white patches so the instrument reads
         # whole strips (printtarg behaviour, mirrored by the engine). Knut
@@ -2048,8 +2061,14 @@ class ChartCreator:
                 # lose fields like clip_border (which kwargs spell as nolpcbord)
                 # and the editor reproduces the exact layout (#93).
                 from workflow.layout_engine.presets import LayoutRecipe
-                layout["recipe"] = LayoutRecipe.from_build_kwargs(
-                    self._engine_build_kwargs(params)).to_dict()
+                _gkw = self._engine_build_kwargs(params)
+                _grec = LayoutRecipe.from_build_kwargs(_gkw)
+                if _grec.instrument == "IO2":
+                    # the size Guided really used, recorded as such, so
+                    # Manual opens on it (review 5, item 6)
+                    from workflow.i1io.chart import with_guided_size
+                    _grec = with_guided_size(_grec, _gkw)
+                layout["recipe"] = _grec.to_dict()
                 # NOBODY CHOSE A GUIDED CHART'S MARGINS, AND THE NUMBERS THE
                 # RECIPE CARRIES ARE NOT THE ONES THE SHEET WAS LAID OUT TO.
                 #

@@ -2018,8 +2018,12 @@ def apply_row_label_geometry(geom, kw: dict):
         # The band already begins with 1 mm of air before the widest label
         # (`row_label_band_mm`'s gap, §R1.1), so a floor AT the content's
         # inner edge leaves the labels' text the 1 mm Basti asked for.
+        # an instrument may ask for more air than the default (the i1iO:
+        # `table_facts.CLIP_TO_NUMBERS_MM`); absent, the default
+        _clr = float(kw.get("row_label_clip_clearance_mm")
+                     or ROW_LABEL_CLIP_CLEARANCE_MM)
         _border_floor = (_bw if _reach is None
-                         else min(_bw, _reach + ROW_LABEL_CLIP_CLEARANCE_MM
+                         else min(_bw, _reach + _clr
                                   - ROW_LABEL_BAND_GAP_MM))
         _left_furniture = 0.0
     floor = max(_left_furniture, _clip_floor, _border_floor, _marker_floor)

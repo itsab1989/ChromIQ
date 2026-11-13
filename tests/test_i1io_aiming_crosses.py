@@ -73,9 +73,26 @@ def _build(folder: Path, n: int, paper="A4", instrument="IO2", **kw):
     from workflow.layout_engine import chart
     folder.mkdir(parents=True, exist_ok=True)
     ti1 = _ti1(folder / "c.ti1", n)
+    if instrument == "IO2" and kw.get("i1io_crosses") is False:
+        # MANUAL'S margins (its boxes give the floor): Guided keeps the right
+        # edge for the name line without the crosses (review 5, item 4,
+        # tests/test_i1io_offset_and_guided_line.py); these tests are about
+        # the sheet without crosses at its own floor
+        from workflow.i1io import chart as _C
+        kw.setdefault("margins", _C.least_margins_mm(
+            {"paper": paper, **kw}))
     result = chart.build_chart(ti1, folder / "c", instrument=instrument,
                                paper=paper, dpi=100, seed=4242, **kw)
     return result
+
+
+def _manual_off(paper="A4"):
+    """Manual's build kwargs without the crosses, at Manual's floor (its
+    margin boxes); Guided keeps the right edge for the name line instead
+    (review 5, item 4)."""
+    from workflow.i1io import chart
+    kw = {"instrument": "IO2", "paper": paper, chart.CROSSES_KEY: False}
+    return {**kw, "margins": chart.least_margins_mm(kw)}
 
 
 def _ti2_rows(path: Path) -> "dict[str, tuple]":
@@ -109,7 +126,14 @@ def test_the_capacity_both_ways(paper, kw, on, off):
     and the maximum (no spacers, 7 mm across x 8.9 mm along)."""
     from workflow.i1io import chart
     assert chart.capacity({"paper": paper, **kw}, True) == on
-    assert chart.capacity({"paper": paper, **kw}, False) == off
+    # Manual, at its floor: the crosses' room goes to patches
+    floor = chart.least_margins_mm({"paper": paper, **kw,
+                                    chart.CROSSES_KEY: False})
+    assert chart.capacity({"paper": paper, **kw, "margins": floor},
+                          False) == off
+    # Guided (no margin boxes) keeps that edge for the name line (review 5,
+    # item 4): the same count as with the crosses
+    assert chart.capacity({"paper": paper, **kw}, False) == on
 
 
 def test_the_crosses_default_on():
@@ -318,8 +342,7 @@ def test_the_corner_order_is_only_swaps():
     from workflow.i1io import chart
     from workflow.layout_engine import geometry, instruments, papers
     w, h = papers.dimensions_mm("A4")
-    geom = instruments.geom_from_build_kwargs(
-        {"instrument": "IO2", "paper": "A4", chart.CROSSES_KEY: False})
+    geom = instruments.geom_from_build_kwargs(_manual_off())
     layout = geometry.compute(geom, w, h, 552)
     from workflow.layout_engine.permutation import location_permutation
     slots = location_permutation(552, 7, True)
@@ -404,8 +427,7 @@ def test_the_line_is_centred_between_the_bottom_corner_patches(off_chart):
     from workflow.i1io import chart
     from workflow.layout_engine import geometry, instruments, papers
     w, h = papers.dimensions_mm("A4")
-    geom = instruments.geom_from_build_kwargs(
-        {"instrument": "IO2", "paper": "A4", chart.CROSSES_KEY: False})
+    geom = instruments.geom_from_build_kwargs(_manual_off())
     layout = geometry.compute(geom, w, h, 13 * 24)
     plan = chart.line_plan(geom, layout, w, h, 0, name="My chart",
                            sheet_text="", dpi=300, crosses=False)
@@ -496,8 +518,7 @@ def test_a_pale_set_keeps_the_crosses():
         def media_patch(self):
             return ((100.0, 100.0, 100.0), (95.0, 100.0, 108.0))
     w, h = papers.dimensions_mm("A4")
-    geom = instruments.geom_from_build_kwargs(
-        {"instrument": "IO2", "paper": "A4", chart.CROSSES_KEY: False})
+    geom = instruments.geom_from_build_kwargs(_manual_off())
     layout = geometry.compute(geom, w, h, 552)
     slots = location_permutation(552, 3, True)
     assert chart.page_crosses(T(), layout, geom, w, h, slots, False) == [True]
@@ -531,14 +552,14 @@ def test_the_aim_text_follows_the_record():
 
 def test_the_crosses_help_counts_and_names_live():
     from ui.dialogs.layout_options_panel import i1io_crosses_help
-    text = i1io_crosses_help({"paper": "A4", "instrument": "IO2"},
+    text = i1io_crosses_help(_manual_off("A4"),
                              name="My chart", sheet_text="", pages=1,
                              paper_label="A4")
     assert "528 patches with the crosses, 552 without them" in text
     assert "gains 24 patches" in text
     assert "patch A1 (top-left corner)" in text and "W24" in text
     assert "—" not in text
-    letter = i1io_crosses_help({"paper": "Letter", "instrument": "IO2"},
+    letter = i1io_crosses_help(_manual_off("Letter"),
                                name="My chart", paper_label="Letter")
     assert "506 patches with the crosses, 528 without them" in letter
     # Letter leaves no free paper 10 mm from the edge on a full page (it
@@ -558,8 +579,7 @@ def test_a_part_filled_last_page_uses_the_engines_own_fill_up(tmp_path):
     from workflow.i1io import chart
     from workflow.layout_engine import geometry, instruments, papers
     w, h = papers.dimensions_mm("A4")
-    geom = instruments.geom_from_build_kwargs(
-        {"instrument": "IO2", "paper": "A4", chart.CROSSES_KEY: False})
+    geom = instruments.geom_from_build_kwargs(_manual_off())
     layout = geometry.compute(geom, w, h, 552 + 30)
     assert geometry.patches_per_sheet(geom, w, h) == 552
     assert layout.pages == 2 and layout.padding == 18
@@ -618,12 +638,19 @@ def test_a_full_a4_or_letter_page_without_crosses_leaves_the_name_off():
     from ui.dialogs.layout_options_panel import i1io_crosses_help
     from workflow.i1io import chart
     for paper in ("A4", "Letter"):
-        fx = chart.crosses_off_effects({"paper": paper}, name="My chart")
+        manual = _manual_off(paper)
+        fx = chart.crosses_off_effects(manual, name="My chart")
         assert fx["name"] == "none" and fx["spot"] is None, (paper, fx)
-        text = i1io_crosses_help({"paper": paper, "instrument": "IO2"},
-                                 name="My chart", paper_label=paper)
+        text = i1io_crosses_help(manual, name="My chart", paper_label=paper)
         assert "write the name and the page number on each sheet by hand" \
             in text
+        # Guided has no margin boxes: it keeps the edge for the line
+        # (review 5, item 4), and the help says nothing is gained
+        fx = chart.crosses_off_effects({"paper": paper}, name="My chart")
+        assert fx["name"] == "whole", (paper, fx)
+        text = i1io_crosses_help({"paper": paper, "instrument": "IO2"},
+                                 name="My chart", paper_label=paper)
+        assert "gains no patches" in text
 
 
 @pytest.mark.parametrize("n", [100, 552])

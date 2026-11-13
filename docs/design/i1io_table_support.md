@@ -84,7 +84,9 @@ instrument to name.
   last patch of every strip, the strip letters beyond every strip's left end and the
   patch numbers along the top (both upright on the table), the numbers 10 mm
   in from the paper edge so a printer's unprinted edge leaves them whole,
-  three numbered aiming marks (on the table 1 top left, 2 bottom left, 3
+  three numbered aiming crosses, on by default and an option (see "Aiming
+  crosses" below; the Instrument (i), the Beta's (i) and every greyed
+  control's tooltip say so) (on the table 1 top left, 2 bottom left, 3
   bottom right; each digit beside its cross along the strip direction, so
   the side bands are only the cross and its clearance and the marks cost one
   strip on A4 and none on Letter), the ChromIQ wordmark, the page "N/M", the chart name and
@@ -93,7 +95,8 @@ instrument to name.
   their centres (a long text is shortened before the logo shrinks); the
   wordmark set as on every other chart, one baseline for Chrom and IQ.
   **Nothing is printed on a scan line outside the patches** (no edge
-  spacers, no labels in a run). No arrow, no helper markers, no clip border.
+  spacers, no labels in a run). No arrow, no helper markers, and no clip
+  border unless one is switched on (see "Clip border" below).
   Per sheet: A4 528 (572 without spacers), Letter 506 (552); without the aiming crosses more (see below). Every number,
   its source and its confidence are in `workflow/i1io/table_facts.py`.
 * Manual: margins (down to the safe minimum), patch area alignment (any of
@@ -104,8 +107,10 @@ instrument to name.
   (along a strip, at most 20 % of the patch length), Strip gap (between
   strips, 0 to 3 mm), the aiming crosses, strip letters and patch numbers
   on/off and size (at most 6 mm; a larger size moves the strips down, never
-  into the letters), sheet text and its Insert menu, paper, pages,
-  randomisation, calibration and output are live. Every other layout
+  into the letters), their label patterns, face, underline and alignment,
+  sheet text with its Insert menu, face and size, the clip border, paper,
+  pages, randomisation, calibration and output are live (see "Label
+  options" and "Clip border" below). Every other layout
   control was reviewed one by one (2026-11-13) and is greyed only for a
   concrete reason (ink where the aperture passes, leaving the area a printer
   prints or the table reaches, breaking the scan, or no meaning on a table);
@@ -194,6 +199,177 @@ away"; "guided mode gets the option as well".*
 | no spacers | 572 | 598 | 552 | 576 |
 | maximum (no spacers, 7 mm across x 8.9 mm along) | 725 | 783 | 702 | 729 |
 
+The "none" columns are Manual at its floor. Guided, which has no margin
+boxes, keeps the right edge's room for the name and page line without the
+crosses (review 5, item 4, awaiting confirmation; the owner: the name and
+page number come first), so there the count is the same as with them.
+A chart offset is fitted into the layout (review 5, item 2): the floor on the
+side the patch block moves towards grows by the offset, so fewer patches fit
+and the chart builds as estimated; only an offset that leaves no room for one
+strip is refused.
+
+### On: Clip border, an option off by default (2026-11-13)
+
+*The owner, 2026-11-13: "the clip border should be possible to enable if a
+user wants it as an option. just off by default".*
+
+* The table holds the sheet, so the band holds no clip: it is the engine's
+  notes band (Notes box, custom text, ChromIQ branding or an image, the
+  "Clip-border content" group), as on a ColorMunki, SpectroScan or CR30
+  chart. Manual: the "Clip border" Off/On selector those instruments have,
+  shown for the i1iO, Off by default; the content controls live; "Side"
+  greyed on Left with its reason. Guided: its own "Clip border" box on the
+  i1iO's option line, unticked by default (setting `chart_i1io_clip_border`),
+  the Notes box at 26 mm. Recipe field `i1io_clip_border` (written only when
+  on), never `clip_content_mode`, whose default "notes" would have switched
+  the band on for every recipe saved before.
+* Always on the page's LEFT edge (the table's top edge): the other long edge
+  holds crosses 2 and 3 and the name line. Width from the paper edge, at
+  least 20 mm (default 26). Content from 10 mm in (the "Clip" distance the
+  patch numbers keep) and 10 mm from the page's top; at the bottom it ends
+  21 mm from the edge, 1 mm above cross 1's zone, with the crosses on or off
+  (without them a short last page still keeps its crosses).
+* Clear of every run, cross, strip letter and patch: `check_sheet` refuses a
+  band touching a cross or a run, or content within 1 mm of a patch; the
+  patch numbers follow the band (the engine's own row-label rule) and the
+  left margin's minimum includes it. Without crosses the free "top edge"
+  spot for the name line starts past the band.
+* Capacity from the one geometry, shown live: A4 528 -> 480 with crosses,
+  552 -> 504 without; Letter 506 -> 462 and 528 -> 484 (26 mm, defaults).
+* Side file `"clip_border": {"side", "width_mm", "content", "area_mm"}`
+  (written only when on); the `.ti2` gains nothing.
+
+### On: Label options (2026-11-13)
+
+*The owner, 2026-11-13: "cue up the label options for later" (queued after
+4.3.33: label patterns, and the font / underline / alignment controls for
+the sheet text and the labels).*
+
+* With every option at its default the chart is 4.3.33's, file for file
+  (the `.ti2`, the TIFF, the PDF, the `.strips.json` and the side file's
+  geometry compared byte for byte on eleven charts).
+* Strip and patch label patterns: the recipe's, as on every chart; the
+  `.ti2`, the patch numbers, the strip letters, the side file, the aiming
+  patch names and the Measure tab follow; an unreadable pair is refused.
+* Label face, Bold, Italic: the strip letters (drawn by the i1iO) and the
+  patch numbers (the engine's).
+* The strip letters' band (bottom margin): 4 mm edge + the longest label the
+  strip pattern can print in that face (never less than two letters of the
+  engine's face, which is today's band) + 1 mm + the underline's gap and
+  thickness. The longest label is the widest glyph of every position of the
+  pattern, so the estimate and the build agree without a strip count.
+* Underline: the engine's rule between the labels and the patches, here
+  1 mm past every run-out (never on a run): Black across the block,
+  Coloured (5 segments) across it, Coloured (per strip) per strip.
+* Letter alignment, the engine's rule for a side-turned label: Left ends
+  each letter at its strip (today's place), Centre centres it in the band,
+  Right starts every letter 4 mm from the paper edge.
+* Sheet text face, size, Italic: the sheet text part of the name line only;
+  the page number, the chart name and the logo keep Inter Bold 3 mm
+  capitals. Auto size = those capitals in the chosen face; a size the band
+  cannot hold across is reduced to the largest that fits. Bold is the
+  i1iO's own (on, as the whole line was in 4.3.33) unless unticked
+  (`LayoutRecipe.i1io_text_bold`, written only when False).
+* An i1iO recipe 4.3.33 saved loads with the values it carries (fields it
+  lacks take their defaults) and is built like any other: what the panel
+  shows is what prints (the owner, 2026-11-13: the Beta is hours old, so a
+  4.3.33 i1iO chart may lay out differently when generated again). With
+  the Beta off, `i1io_text_bold` and `i1io_clip_border` are carried
+  untouched.
+* Still greyed, each with its reason: the sheet text's alignment (the line
+  sits in free paper, between crosses 2 and 3 or two corner patches, with no
+  margin to align to), the label rotations, the strip-indicator gap, the
+  label offsets and the text distances.
+
+### On: Options open, defaults safe (2026-11-13, Job D)
+
+**Confirmed by:** *nobody yet.* (The owner's rule, 2026-11-13: "our defaults
+should be safe but advanced users should be able to tweak as much as
+possible"; what follows is how it was built, awaiting confirmation.)
+
+* Live on the i1iO as on every instrument, defaults unchanged (a chart with
+  the defaults is byte-identical to 4.3.33's): Chart offset X / Y, Edge
+  spacers (switched off when the i1iO is chosen), Max strip length / Don't
+  cap, the ruler helper markers (their group is now "Aiming crosses and
+  ruler helper markers"), text distance B (the strip letters' distance from
+  the page's bottom edge, and always past the markers' ink + 1 mm), Clip
+  (the patch numbers' own distance from the page's left edge, its own
+  field `i1io_numbers_edge_mm`, default 10 mm), the strip-indicator gap
+  (extra paper beyond the 1 mm clearance), the strip letters' label offsets,
+  and the sheet text's Alignment (its own field `i1io_text_align`: "Left
+  margin" starts the line at the left end of its paper, either centre
+  option centres it, the default).
+* Still greyed, each with its reason: patch and spacer scale, Mode, the
+  area-first layout, the clip border's side, Offset every second strip,
+  Use instrument margins, straight strips (hexagons), the layout summary
+  stamp, text distance T (nothing is printed at the top) and the label
+  rotations.
+* Refused (nothing is built, the reason is shown): an aiming cross off the
+  sheet, a patch off the sheet, a patch touching a cross, a patch in the
+  clip border, the clip border touching a cross, the clip border's content
+  over a patch. The first two name the chart offset among the fixes.
+* Built and said in the log as `[WARNING] The i1iO table may not read this
+  layout well: ...`: a strip's blank paper near the paper edge or touching a
+  cross or the clip border, the clip border's content within 1 mm of a
+  patch, edge spacers, ruler helper markers along the top and bottom.
+* Every option is kept by Save as Defaults, the layout preset bar, a named
+  preset and the target's own stored state (§4 of
+  `per_target_settings.md`); `tests/test_i1io_every_option_persists.py`
+  walks every recipe field. An i1iO recipe that carries "Use instrument
+  margins" no longer locks the four margins at the table's minimum. The
+  preset bar compares an i1iO layout on the fields its chart reads, so a
+  fresh i1iO layout is not "modified".
+
+### On: Review 3 corrections (2026-11-13)
+
+**Confirmed by:** *nobody yet.*
+
+* Choosing the i1iO from another instrument shows the i1iO's own values of
+  the options opened above (what it had when last left in the session,
+  else the safe factory values); leaving it gives the other instrument
+  back what it had.
+* "Clip" places the printed patch numbers (from 1 mm on the i1iO; unset is
+  10 mm).
+* "Label offset" X is held inside the side text distance of both paper
+  edges, as on every chart; the panel's notice and the build use the same
+  answer. Strip letters or their underline on a patch, on an aiming cross
+  or partly past the paper's edge, and patch numbers on a cross or partly
+  past it, are said in the log and under "Measured from Preview"
+  (M-I1IO-FURNITURE-PARTS, proposed); wholly off the sheet is refused.
+  So are letters or their underline on the blank paper of a strip's run
+  (the table may take them for a patch) and patch numbers left off for
+  want of room beside the strips (review 4).
+* Opening another project's recipe keeps each instrument's own values: an
+  i1Pro project's ruler helper markers do not become the i1iO's.
+* A chart 4.3.33 made with the aiming crosses off reopens with its own
+  smaller right margin.
+
+### On: Any sheet inside the table's reach (review 5, item 7, 2026-11-13)
+
+**Confirmed by:** *nobody yet.* (The owner asked: "does the i1iO allow for
+smaller and custom paper sizes as well?")
+
+* Offered in Guided and Manual: A4, Letter, 8x10", A5, 13 x 18 cm, 5x7",
+  4x6", 10 x 15 cm and the postcard; Manual's "Custom..." takes any size.
+  Every one is named as it lies on the table (landscape), and printed, like
+  A4, on an upright (portrait) sheet.
+* How a small sheet lies on the table: like A4, across the table, its long
+  edge along the arm's travel, so the strips (which run down the portrait
+  page) run along the arm; the corner the strips start from is the same, so
+  the aiming crosses, the letters, the numbers and the name line keep their
+  places relative to the sheet. The previews turn it as they turn A4.
+* The limit is the arm's reach as X-Rite publishes it (`table_facts.
+  REACH_MM`, 320 x 230 mm; a PUBLISHED figure, not yet confirmed on a
+  table): a sheet that, laid across the table, lies outside it is refused,
+  and so is a landscape code and a sheet too small for one strip, each with
+  its reason (M-I1IO-SHEET-CHECK-PARTS). A sheet larger than A4 or Letter in
+  one direction but inside the reach is built and said to be untested.
+* Everything adapts to the sheet: the capacity, the letter and number
+  bands, the crosses (on a small sheet they may take paper patches would
+  have; they can be switched off), and the name line, which is dropped
+  before a patch is lost, and said.
+* A4 and Letter charts are byte-identical to before.
+
 ### On: Verification and Calibration
 
 *The owner, relayed 2026-11-13: "verification and calibration runs must work
@@ -229,6 +405,9 @@ like for other instruments."*
 Start on an i1iO chart shows M-I1IO-NOT-YET before anything is recovered,
 armed or written: measuring with the table is being prepared, the layout may
 still change, and the i1Profiler route that works today.
+Loading such a chart logs "Chart instrument: X-Rite i1iO." without the
+strip-recognition detail other strip charts get, since no strip is read
+(with the option off the line is 4.3.33's).
 
 ### Proposed for the measuring step (not built)
 

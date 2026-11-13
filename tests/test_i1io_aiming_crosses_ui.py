@@ -59,28 +59,30 @@ def _panel_on_i1io(tab):
     return panel
 
 
-def test_manual_the_box_takes_the_helper_markers_slot(chart_tab):
-    panel = chart_tab._manual_layout_panel or None
+def test_manual_the_box_sits_with_the_helper_markers(chart_tab):
+    """The crosses' box and (i) sit in the ruler helper markers' group, on
+    a row of their own under the markers' rows: since Job D the markers
+    are an i1iO option too, so both are shown while the i1iO is chosen."""
     chart_tab._init_manual_layout_panel()
     panel = chart_tab._manual_layout_panel
     grid = panel._hm_grid
     grp = panel._helper_markers_grp
     title = grp.title()
-    # the same grid cells as "Print helper markers" and its (i)
-    assert grid.itemAtPosition(0, 0) is not None
     idx_cb = grid.indexOf(panel.i1io_crosses_cb)
-    idx_hm = grid.indexOf(panel.helper_markers_cb)
-    assert grid.getItemPosition(idx_cb)[:2] == grid.getItemPosition(idx_hm)[:2]
     idx_tip = grid.indexOf(panel._i1io_crosses_tip)
-    assert grid.getItemPosition(idx_tip)[:2] == (0, 2)
+    row = grid.getItemPosition(idx_cb)[0]
+    assert row > max(grid.getItemPosition(grid.indexOf(w))[0]
+                     for r in panel._hm_rows for w in r
+                     if grid.indexOf(w) >= 0)
+    assert grid.getItemPosition(idx_tip)[:2] == (row, 2)
     assert not panel.i1io_crosses_cb.isVisibleTo(grp)
     panel.instr.setCurrentIndex(panel.instr.findData("IO2"))
     assert panel.i1io_crosses_cb.isVisibleTo(grp)
     assert panel.i1io_crosses_cb.isEnabled()
     assert panel._i1io_crosses_tip.isVisibleTo(grp)
-    assert not panel.helper_markers_cb.isVisibleTo(grp)
-    assert all(not w.isVisibleTo(grp) for row in panel._hm_rows for w in row)
-    assert grp.title() == "Aiming marks"
+    assert panel.helper_markers_cb.isVisibleTo(grp)
+    assert panel.helper_markers_cb.isEnabled()
+    assert grp.title() == "Aiming crosses and ruler helper markers"
     panel.instr.setCurrentIndex(panel.instr.findData("i1"))
     assert grp.title() == title
     assert panel.helper_markers_cb.isVisibleTo(grp)
@@ -189,13 +191,15 @@ def test_guided_the_count_and_the_build_follow_the_box(chart_tab):
     tab._i1io_aim_check.setChecked(False)
     p = tab._collect_guided()
     assert p.i1io_crosses is False
-    assert tab._creator._engine_total_patches(p) == 552
+    # Guided keeps the right edge for the name line without the crosses
+    # (review 5, item 4): the same count as with them
+    assert tab._creator._engine_total_patches(p) == 528
     assert tab._creator._engine_build_kwargs(p)["i1io_crosses"] is False
     from workflow.layout_engine import geometry, papers
     w, h = papers.dimensions_mm("A4")
     geom = tab._engine_geom("IO2", "A4", dd=False, td=False, eff_lb=True,
                             nsl=False, pscale=1.0, margin=6.0, guided=True)
-    assert geometry.patches_per_sheet(geom, w, h) == 552
+    assert geometry.patches_per_sheet(geom, w, h) == 528
     # the run's Guided row keeps it, and gives it back
     row = tab._shared_get("guided")
     assert row["i1io_crosses"] is False
@@ -271,7 +275,7 @@ def test_the_guided_help_is_live(chart_tab):
     from ui.dialogs.layout_options_panel import i1io_crosses_help
     kw = src.pop("kw")
     text = i1io_crosses_help(kw, **src)
-    assert "528 patches with the crosses, 552 without them" in text
+    assert "gains no patches: 528 either way" in text
     assert "A1" in text
 
 
