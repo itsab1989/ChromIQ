@@ -270,47 +270,43 @@ def i1io_greyed_reason() -> str:
     read are."""
     return tr(
         "Not used for the i1iO table. An i1iO chart has a layout of its own, "
-        "made for the table reading it strip by strip: the strips run along "
-        "the long side of a landscape sheet, every strip has blank paper at "
-        "both ends so the arm can speed up and slow down, and three numbered "
-        "aiming marks sit in the corners. Nothing is printed where the "
-        "instrument reads, so there is no clip border and there are no "
-        "helper markers (the table needs no ruler), and the letters and "
-        "numbers have fixed places beside the strips and above the patches. "
-        "Spacers are not used: on this chart they would lie between the "
-        "strips, where the instrument does not look, and only cost patches; "
-        "the white gap between neighbours along a strip is the “Strip gap”. "
-        "The greyed boxes show the values an i1iO chart uses.\n\n"
+        "made for the table reading it strip by strip: it is printed on a "
+        "portrait sheet that you lay across the table, so its strips run "
+        "along the arm; every strip has blank paper at both ends so the arm "
+        "can speed up and slow down, and three numbered aiming marks sit in "
+        "the corners. Nothing is printed where the instrument reads outside "
+        "the patches, so there is no clip border, there are no spacers at "
+        "the ends of a strip and there are no helper markers (the table "
+        "needs no ruler), and the letters and numbers have fixed places. The "
+        "greyed boxes show the values an i1iO chart uses.\n\n"
         "What you can set for the i1iO: the paper and the number of pages; "
         "the margins (at least what the marks, the blank paper at both ends "
         "of every strip and the strip letters need; ChromIQ raises a smaller "
         "value to that); under “Expert Options”, the patch size (8.9 to 20 mm "
-        "along the strip, 7 to 20 mm across it), the “Strip gap” along the "
-        "strips and the “Inter-patch gap” between them, the strip letters and "
-        "patch numbers on or off and their size, the sheet text (printed on "
-        "the line with the chart name), the randomisation, the printer "
-        "calibration and the output settings.")
+        "along the strip, 7 to 20 mm across it), the spacers between the "
+        "patches (Coloured, the default, Black & white or None), the "
+        "“Inter-patch gap” along the strips and the “Strip gap” between them, "
+        "the strip letters and patch numbers on or off and their size, the "
+        "sheet text (printed on the line with the chart name), the "
+        "randomisation, the printer calibration and the output settings.")
 
 
 def i1io_gap_help(which: str) -> str:
-    """The tooltip of "Strip gap" (*which* "along") or "Inter-patch gap"
-    ("rows") while the i1iO table is chosen."""
+    """The tooltip of "Inter-patch gap" (*which* "along") or "Strip gap"
+    ("between") while the i1iO table is chosen."""
     if which == "along":
         return tr(
-            "For the i1iO: the thin white gap between neighbouring patches "
-            "along a strip, the direction the arm scans. When the table scans "
-            "a strip, ChromIQ has to find where one patch ends and the next "
-            "begins in the stream of readings; a white gap makes every "
-            "boundary visible, also between two similar colours. 1 mm is the "
-            "default. 0 gives more patches per sheet but makes the scan "
-            "harder to read; at most 20 % of the patch length is used, as "
-            "i1Profiler allows. Untested on a real table so far.")
+            "For the i1iO: an extra white gap between neighbouring patches "
+            "along a strip, the direction the arm scans, on top of the "
+            "spacers. None is the default: the spacers already give every "
+            "patch boundary a clear edge. Each millimetre here costs patches; "
+            "at most 20 % of the patch length is used, as i1Profiler allows.")
     return tr(
         "For the i1iO: a white gap between the strips. None is the default: "
         "the i1Pro 2 reads a circle 4.5 mm across in the middle of each 8 mm "
-        "strip, so it does not see the neighbouring strips anyway. A gap here "
-        "only costs strips; add one only if a table owner finds that readings "
-        "pick up the strip next to them.")
+        "wide strip, so it does not see the neighbouring strips anyway. A "
+        "gap here only costs strips; add one only if a table owner finds that "
+        "readings pick up the strip next to them.")
 
 
 class LayoutOptionsPanel(QWidget):
@@ -3373,6 +3369,7 @@ class LayoutOptionsPanel(QWidget):
         their size, and the sheet text (printed on the name line)."""
         return tuple(c for c in (
             self.dpi, self.patch_x, self.patch_y,
+            getattr(self, "spacer_mode", None),
             getattr(self, "strip_gap", None), getattr(self, "inter_patch", None),
             *getattr(self, "margins", {}).values(),
             getattr(self, "show_indicators", None),
@@ -3417,7 +3414,7 @@ class LayoutOptionsPanel(QWidget):
         rows = getattr(self, "show_indicators", None)
         t, r, b, lt = margins_mm(bool(rows is None or rows.isChecked()))
         return {"margins": {"t": t, "r": r, "b": b, "l": lt},
-                "spacer_mode": "none", "layout_mode": "patch_first",
+                "layout_mode": "patch_first",
                 "texts": {"strip_pat": DEFAULT_STRIP_PATTERN,
                           "patch_pat": DEFAULT_PATCH_PATTERN}}
 
@@ -3432,7 +3429,7 @@ class LayoutOptionsPanel(QWidget):
                 box = self.margins.get(k)
                 if box is not None and box.value() < v - 1e-9:
                     box.setValue(v)
-            for name in ("spacer_mode", "layout_mode"):
+            for name in ("layout_mode",):
                 combo = getattr(self, name, None)
                 if combo is None:
                     continue
@@ -3464,8 +3461,10 @@ class LayoutOptionsPanel(QWidget):
                 control.setEnabled(False)
                 control.setToolTip(why)
             (alo, ahi), (clo, chi) = patch_limits_mm()
-            for c, lo, hi, default in ((self.patch_x, alo, ahi, 10.0),
-                                       (self.patch_y, clo, chi, 8.0)):
+            # The engine's patch WIDTH is across a strip, its HEIGHT along it
+            # (the scan direction).
+            for c, lo, hi, default in ((self.patch_x, clo, chi, 8.0),
+                                       (self.patch_y, alo, ahi, 10.0)):
                 saved["ranges"].append((c, c.minimum(), c.maximum(), c.value(),
                                         c.specialValueText()))
                 was_value = c.value()
@@ -3476,14 +3475,14 @@ class LayoutOptionsPanel(QWidget):
             # The two gaps, in the i1iO's words and limits (`i1io_gap_help`).
             saved["gap_tips"] = [(c, c.toolTip()) for c in
                                  (self.strip_gap, self.inter_patch)]
-            for c, lo, hi in ((self.strip_gap, 0.0,
-                               0.2 * max(self.patch_x.value(), 1.0)),
-                              (self.inter_patch, 0.0, 3.0)):
+            for c, lo, hi in ((self.strip_gap, 0.0, 3.0),
+                              (self.inter_patch, 0.0,
+                               0.2 * max(self.patch_y.value(), 1.0))):
                 saved["ranges"].append((c, c.minimum(), c.maximum(), c.value(),
                                         c.specialValueText()))
                 c.setRange(lo, hi)
-            self.strip_gap.setToolTip(i1io_gap_help("along"))
-            self.inter_patch.setToolTip(i1io_gap_help("rows"))
+            self.strip_gap.setToolTip(i1io_gap_help("between"))
+            self.inter_patch.setToolTip(i1io_gap_help("along"))
             # The margins are the person's for the i1iO, so "Use instrument
             # margins" (which locks them to another instrument's minimums)
             # is off while it is chosen, and comes back on leaving.
@@ -3500,7 +3499,7 @@ class LayoutOptionsPanel(QWidget):
                 rows = getattr(self, "show_indicators", None)
                 if rows is not None:
                     rows.toggled.connect(self._i1io_rows_toggled)
-                self.patch_x.valueChanged.connect(
+                self.patch_y.valueChanged.connect(
                     self._i1io_patch_length_changed)
                 self._i1io_rows_wired = True
             return
@@ -3531,17 +3530,20 @@ class LayoutOptionsPanel(QWidget):
         """The gap along a row may be at most 20 % of the patch length (what
         the build uses, `table_facts.gaps_mm`): the box offers no more."""
         if getattr(self, "_i1io_saved", None) is not None:
-            self.strip_gap.setMaximum(round(0.2 * self.patch_x.value(), 2))
+            self.inter_patch.setMaximum(round(0.2 * self.patch_y.value(), 2))
 
     def _load_i1io_layout_values(self) -> None:
         """A person has just chosen the i1iO: its own patch size, never the
         previous instrument's (the FD-9's H1 lesson)."""
         from workflow.i1io.table_facts import (PATCH_ACROSS_MM, PATCH_ALONG_MM,
-                                               ROW_GAP_MM, SCAN_GAP_MM)
-        self.patch_x.setValue(PATCH_ALONG_MM.value)
-        self.patch_y.setValue(PATCH_ACROSS_MM.value)
-        self.strip_gap.setValue(SCAN_GAP_MM.value)
-        self.inter_patch.setValue(ROW_GAP_MM.value)
+                                               ROW_GAP_MM, SPACER_MODE)
+        self.patch_x.setValue(PATCH_ACROSS_MM.value)
+        self.patch_y.setValue(PATCH_ALONG_MM.value)
+        self.strip_gap.setValue(ROW_GAP_MM.value)
+        self.inter_patch.setValue(0.0)
+        i = self.spacer_mode.findData(SPACER_MODE.value)
+        if i >= 0:
+            self.spacer_mode.setCurrentIndex(i)
         # …and the smallest safe margins: as much of the sheet for patches
         # as it allows (`table_facts.margins_mm`).
         from workflow.i1io.table_facts import margins_mm

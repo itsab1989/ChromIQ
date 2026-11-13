@@ -900,19 +900,22 @@ def _build_base(
         # i1iO support (Preferences > Beta) is off: 4.3.32 knew no i1iO.
         raise ValueError(f"unknown instrument {key!r}")
     if key == "IO2":
-        # A grid for the i1iO table, made for scanning along the rows: no
-        # spacers, no labels, no leader or trailer of the strip readers. The
-        # patch size and the margins are the table's own and are FIXED here
-        # and in `workflow.i1io.chart.fixed_build_kwargs` (every number from
-        # `workflow.i1io.table_facts`, with its source).
+        # A chart for the i1iO table, laid out as every ChromIQ chart is: the
+        # engine's STRIPS are the lines the arm scans in one move (down the
+        # long side of the portrait page; the sheet lies across the table, a
+        # quarter turn, so they run along the arm). Strip letters, patch
+        # numbers, the contrast spacers between the patches of a strip and
+        # the .ti2's strip structure mean what they mean everywhere else.
+        # Every number comes from `workflow.i1io.table_facts`, with its
+        # source; the margins and the label places are fixed in
+        # `workflow.i1io.chart.fixed_build_kwargs`.
         from workflow.i1io import table_facts as F
-        t_, r_, b_, l_ = F.margins_mm()
         along, across = F.PATCH_ALONG_MM.value, F.PATCH_ACROSS_MM.value
         return replace(_build_base("SS", spacer_on=False), key="IO2",
                        target_name=TARGET_INSTRUMENT_NAME["IO2"],
-                       plen=across, pwid=along, rrsp=along, pspa=0.0,
-                       txhisl=0.0, rlwi=0.0, lspa=0.0, padlrow=True,
-                       margin_t=t_, margin_r=r_, margin_b=b_, margin_l=l_,
+                       plen=along, pwid=across, rrsp=across,
+                       pspa=F.SPACER_MM.value if spacer_on else 0.0,
+                       padlrow=True,
                        extra_keywords=(
                            ("CHROMIQ_I1IO_LAYOUT", str(I1IO_LAYOUT_SCHEMA)),
                            ("CHROMIQ_I1IO_TABLE", "i1iO 2")))

@@ -340,6 +340,7 @@ def build_chart(
     # unknown instrument (`instruments._build_base`), as 4.3.32 did.
     from workflow.i1io.support import i1io_enabled, is_i1io_code
     _i1io = is_i1io_code(instrument) and i1io_enabled()
+    _i1io_chart_text = chart_text
     if _i1io:
         from workflow.i1io import chart as _i1io_chart
         # What the person asked for (patch size, labels) is kept inside the
@@ -347,35 +348,38 @@ def build_chart(
         _f = _i1io_chart.fixed_build_kwargs({
             "patch_w": patch_w, "patch_h": patch_h,
             "strip_gap": strip_gap, "inter_patch": inter_patch,
-            "margins": margins,
+            "margins": margins, "spacer_mode": spacer_mode,
             "draw_indicators": draw_indicators,
             "row_indicators": row_indicators,
             "indicator_size_mm": indicator_size_mm})
-        _i1io_labels = _f[_i1io_chart.LABELS_KEY]
-        hflag = False          # an i1iO grid is never a honeycomb
-        # Manual's "Sheet text" goes on the name line in the bottom band
-        # (`draw_furniture`), where it costs no patch, not under the patches.
-        _i1io_sheet_text = chart_text
-        # Its labels name patches as SAMPLE_LOC does, column letters and
-        # row numbers: the default patterns, whatever a recipe holds.
-        strip_pattern = permutation.DEFAULT_STRIP_PATTERN
-        patch_pattern = permutation.DEFAULT_PATCH_PATTERN
         _i1io_chart.sheet_size(paper)
         (patch_w, patch_h, pscale, sscale, spacer_on, spacer_mode,
          spacer_width, inter_patch, strip_gap, edge_spacers, margins,
          use_instrument_margins, layout_mode, patch_area_align,
          density, cm_stagger, max_strip, offset_x, offset_y,
-         nolpcbord, nolimit, clip_content_mode, draw_indicators,
-         row_indicators, helper_markers, chart_text, stamp_command,
-         side_stamp) = (_f[k] for k in (
+         nolpcbord, nolimit, clip_content_mode, helper_markers, chart_text,
+         stamp_command, side_stamp, strip_indicator_gap, text_edge_top,
+         strip_label_offset_mm, strip_label_offset_x_mm, indicator_rotation,
+         row_indicator_rotation) = (_f[k] for k in (
             "patch_w", "patch_h", "pscale", "sscale", "spacer_on",
             "spacer_mode", "spacer_width", "inter_patch", "strip_gap",
             "edge_spacers", "margins", "use_instrument_margins",
             "layout_mode", "patch_area_align",
             "density", "cm_stagger", "max_strip", "offset_x", "offset_y",
-            "nolpcbord", "nolimit", "clip_content_mode", "draw_indicators",
-            "row_indicators", "helper_markers", "chart_text",
-            "stamp_command", "side_stamp"))
+            "nolpcbord", "nolimit", "clip_content_mode", "helper_markers",
+            "chart_text", "stamp_command", "side_stamp",
+            "strip_indicator_gap", "text_edge_top", "strip_label_offset_mm",
+            "strip_label_offset_x_mm", "indicator_rotation",
+            "row_indicator_rotation"))
+        _i1io_labels = _f[_i1io_chart.LABELS_KEY]
+        hflag = False          # an i1iO grid is never a honeycomb
+        # Letters for the strips and numbers along them, by ArgyllCMS's
+        # rule, whatever a recipe holds ("C7" means the same everywhere).
+        strip_pattern = permutation.DEFAULT_STRIP_PATTERN
+        patch_pattern = permutation.DEFAULT_PATCH_PATTERN
+        # Manual's "Sheet text" goes on the turned text line (`draw_furniture`),
+        # where it costs no patch, not under the patches.
+        _i1io_sheet_text = _i1io_chart_text
     if instrument == "FD9" and fd9_enabled():
         from workflow.fd9.chart import build_chart as build_fd9
         return build_fd9(ti1_path, out_base, paper=paper, dpi=dpi,
@@ -744,11 +748,6 @@ def build_chart(
             strip_pattern=strip_pattern, patch_pattern=patch_pattern,
             label_rule=label_rule, designed=len(target.patches),
             labels=_i1io_labels)
-
-    if _i1io:
-        # Every scanned row is a lettered strip, as on every ChromIQ chart.
-        rects = _i1io_chart.rows_as_strips(ti2_path, strips_path, geom, layout,
-                                           w_mm, h_mm, dpi)
 
     cht_paths: list[Path] | None = None
     if emit_cht:

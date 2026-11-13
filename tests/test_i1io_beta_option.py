@@ -162,11 +162,11 @@ def test_guided_offers_the_i1io_with_its_own_sheets_only(chart_tab):
     tab._instr_combo.setCurrentIndex(i)
     papers = [tab._paper_combo.itemData(k)
               for k in range(tab._paper_combo.count())]
-    assert papers == ["A4R", "LetterR"]
+    assert papers == ["A4", "Letter"]
     p = tab._collect_guided()
-    assert (p.instrument, p.paper) == ("IO2", "A4R")
+    assert (p.instrument, p.paper) == ("IO2", "A4")
     # the engine's own count for that sheet
-    assert tab._creator._engine_total_patches(p) == 528
+    assert tab._creator._engine_total_patches(p) == 504
 
 
 def test_manual_offers_the_i1io_and_greys_what_it_does_not_read(chart_tab):
@@ -192,15 +192,19 @@ def test_manual_offers_the_i1io_and_greys_what_it_does_not_read(chart_tab):
     for c in panel._i1io_live_controls():
         assert c.isEnabled(), c.objectName() or type(c).__name__
     assert [panel.paper.itemData(j) for j in range(panel.paper.count())][:2] \
-        == ["A4R", "LetterR"]
-    assert (panel.patch_x.minimum(), panel.patch_x.maximum()) == (8.9, 20.0)
-    assert (panel.patch_x.value(), panel.patch_y.value()) == (10.0, 8.0)
-    panel.patch_x.setValue(12.0)
+        == ["A4", "Letter"]
+    # width across a strip, height along it (the scan)
+    assert (panel.patch_y.minimum(), panel.patch_y.maximum()) == (8.9, 20.0)
+    assert (panel.patch_x.minimum(), panel.patch_x.maximum()) == (7.0, 20.0)
+    assert (panel.patch_x.value(), panel.patch_y.value()) == (8.0, 10.0)
+    assert panel.spacer_mode.currentData() == "colored"
+    assert panel.spacer_mode.isEnabled()
+    panel.patch_y.setValue(12.0)
     r = panel.get_recipe()
-    assert r.instrument == "IO2" and r.patch_w_mm == 12.0
+    assert r.instrument == "IO2" and r.patch_h_mm == 12.0
     from workflow.layout_engine import instruments
     g = instruments.geom_from_build_kwargs(r.build_kwargs())
-    assert g.pwid == 12.0 and g.pspa == 0.0
+    assert g.plen == 12.0 and g.pspa == 1.0
     panel.instr.setCurrentIndex(panel.instr.findData("i1"))
     after = {id(c): c.isEnabled() for c in panel._i1io_greyable_controls()}
     assert after == before

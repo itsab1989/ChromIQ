@@ -118,6 +118,19 @@ SCAN_SAFE_READINGS = Fact(20, "ours: about 1.5 x the fastest recorded pass",
 #:   recommends for the i1iO too. UNPROVEN until a tester has scanned it.
 SCAN_GAP_MM = Fact(1.0, "ours: X-Rite's supported-targets note; i1Profiler's "
                    "20 % gap limit", OURS)
+#: THE STRIPS RUN ALONG THE ARM (the coordinator and Basti, 2026-11-13): the
+#: engine's strips are the lines the arm scans in one move, so ChromIQ's own
+#: CONTRAST SPACERS lie between the patches of a scan line, exactly where a
+#: stream patch finder needs an edge. ArgyllCMS lays every i1Pro strip out
+#: with 1 mm spacers (printtarg; `instruments._build_base`, the i1 branch),
+#: and the table's scan will go through the same i1Pro driver's patch finder
+#: (`i1pro_extract_patches_multimeas`), so the default is what that finder
+#: was designed for: coloured contrast spacers, 1 mm. UNPROVEN on a table.
+SPACER_MM = Fact(1.0, "printtarg's i1Pro spacer (instruments.py, i1 branch)",
+                 VERIFIED)
+SPACER_MODE = Fact("colored", "ours: the contrast-maximising spacers ChromIQ "
+                   "prints for handheld strips", OURS)
+
 #: Between ROWS (across the scan) there is no gap by default: the 4.5 mm
 #: aperture keeps 1.75 mm inside an 8 mm row on each side, and the arm's
 #: positioning error is not published (the recordings show the encoder
@@ -224,6 +237,11 @@ LABEL_CHAR_WIDTH = 0.85
 #: MARK_INSET_MM); on A4 and Letter it costs no column.
 ROW_LABEL_EDGE_MM = Fact(5.0, "ours", OURS)
 
+#: The engine's strip letters and patch numbers are turned this far on the
+#: page so they read the right way up on the sheet laid across the table.
+LABEL_TURN_DEG = Fact(90, "ours: the sheet lies a quarter turn clockwise",
+                      OURS)
+
 #: Clear paper between a row label and the end of the row's run.
 ROW_LABEL_GAP_MM = Fact(1.0, "ours", OURS)
 
@@ -294,15 +312,30 @@ def row_label_band_mm(size_mm: "float | None" = None) -> float:
                  + ROW_LABEL_EDGE_MM.value - RUN_EDGE_MM.value, 3)
 
 
-def margins_mm(row_labels: bool = False,
+#: The strip letters' band at the top of the page, before the run-in: the
+#: engine's text edge (4 mm), a letter (3.5 mm) and LABEL_CLEAR_MM.
+STRIP_LETTER_BAND_MM = Fact(8.5, "ours: text edge 4 + letter 3.5 + 1 clear",
+                            OURS)
+
+#: Paper at the left and right of the strips for the marks: a mark's zone
+#: (inset 11 + half the cross 3 + 1 clear + its digit 4 + 1) is 20 mm from
+#: the edge, and no strip's run may cross it.
+MARK_SIDE_MM = Fact(20.0, "ours: the marks' zones", OURS)
+
+
+def margins_mm(strip_letters: bool = True,
                label_size_mm: "float | None" = None
                ) -> "tuple[float, float, float, float]":
-    """The patch block's margins ``(top, right, bottom, left)``: the mark
-    bands above and below, the runs at the sides, and with *row_labels* a
-    band for the row numbers beyond the left run."""
-    side = RUN_MM.value + RUN_EDGE_MM.value
-    left = side + (row_label_band_mm(label_size_mm) if row_labels else 0.0)
-    return BAND_MM.value, side, BAND_MM.value, left
+    """The patch block's smallest margins ``(top, right, bottom, left)`` on
+    the PORTRAIT page: at the top the strip letters (if on) and the run-in,
+    at the bottom the run-out, at the sides the marks' zones (the patch
+    numbers live in the left one, beside the first strip, clear of the
+    marks and of every scan line)."""
+    top = (STRIP_LETTER_BAND_MM.value if strip_letters
+           else RUN_EDGE_MM.value) + RUN_MM.value
+    bottom = RUN_MM.value + RUN_EDGE_MM.value
+    side = MARK_SIDE_MM.value
+    return top, side, bottom, side
 
 
 def patch_limits_mm() -> "tuple[tuple[float, float], tuple[float, float]]":
@@ -317,18 +350,20 @@ def patch_limits_mm() -> "tuple[tuple[float, float], tuple[float, float]]":
     return along, tuple(PATCH_RANGE_ACROSS_MM.value)
 
 
-def gaps_mm(along_gap: "float | None" = None,
-            row_gap: "float | None" = None,
+def gaps_mm(strip_gap: "float | None" = None,
+            inter_patch: "float | None" = None,
             patch_along: "float | None" = None) -> "tuple[float, float]":
-    """``(gap along the row, gap between rows)`` an i1iO chart is laid out
-    with: the given values (Manual's "Strip gap" and "Inter-patch gap"),
-    held to 0 .. 20 % of the patch length along the row and 0 ..
-    ROW_GAP_MAX_MM between rows; None takes the defaults."""
+    """``(gap between strips, extra white gap between the patches of a
+    strip)`` an i1iO chart is laid out with: Manual's "Strip gap" (default
+    none, at most ROW_GAP_MAX_MM: the aperture does not see the next strip)
+    and "Inter-patch gap" (default none: the spacers make the edge; at most
+    20 % of the patch length, i1Profiler's own rule); None takes the
+    defaults."""
     length = patch_along or PATCH_ALONG_MM.value
-    a = SCAN_GAP_MM.value if along_gap is None else float(along_gap)
-    r = ROW_GAP_MM.value if row_gap is None else float(row_gap)
-    return (min(max(a, 0.0), GAP_MAX_FRACTION.value * length),
-            min(max(r, 0.0), ROW_GAP_MAX_MM.value))
+    g = ROW_GAP_MM.value if strip_gap is None else float(strip_gap)
+    i = 0.0 if inter_patch is None else float(inter_patch)
+    return (min(max(g, 0.0), ROW_GAP_MAX_MM.value),
+            min(max(i, 0.0), GAP_MAX_FRACTION.value * length))
 
 
 def patch_size_mm(along: "float | None" = None,

@@ -4040,27 +4040,27 @@ def i1io_instrument_bullet() -> str:
     shown while i1iO support (Preferences > Beta) is on."""
     return tr(
         "  •  i1iO 2 + i1Pro 2 (X-Rite): a motorised scanning table that "
-        "moves your i1Pro 2 over the chart by itself. The chart is made for "
-        "reading strip by strip with the table: a landscape A4 or Letter "
-        "sheet, patches of 10 × 8 mm in strips along the long side with a "
-        "thin white gap between neighbours, blank paper at both ends of every "
-        "strip so the arm can speed up and slow down, and three numbered "
-        "aiming marks in the corners (1 top left, 2 bottom left, 3 bottom "
-        "right). As on every ChromIQ chart, each strip has a letter and the "
-        "patches along it are numbered, so “C7” is the 7th patch of strip C. "
-        "In Manual you can change the margins, the patch size (8.9 to 20 mm "
-        "along the strip, 7 to 20 mm across it), the two gaps and the "
-        "letters and numbers; the other layout controls are greyed, because "
-        "the table needs this layout. Because the table reads every sheet by "
-        "itself, Guided always fills whole sheets, and each extra page adds a "
-        "full sheet of patches at no extra effort for you. The layout may "
-        "still change once an i1iO owner has tested it. This version can "
-        "make these charts but cannot measure with the table yet; the "
-        "Measure tab tells you what you can do today. Only the i1iO 2 with an "
-        "i1Pro 2 is supported: other i1iO tables and other instruments on the "
-        "arm are not supported yet. If you own one, please tell us in the "
-        "project's GitHub issues. i1iO support is a beta (Preferences → "
-        "Beta).")
+        "moves your i1Pro 2 over the chart by itself. The chart is printed on "
+        "a portrait A4 or Letter sheet that you lay across the table, so its "
+        "strips run along the arm: patches of 10 × 8 mm with coloured "
+        "spacers between them, blank paper at both ends of every strip so the "
+        "arm can speed up and slow down, and three numbered aiming marks in "
+        "the corners (1 top left, 2 bottom left, 3 bottom right, as the sheet "
+        "lies on the table). As on every ChromIQ chart, each strip has a "
+        "letter and the patches along it are numbered, so “C7” is the 7th "
+        "patch of strip C. In Manual you can change the margins, the patch "
+        "size (8.9 to 20 mm along the strip, 7 to 20 mm across it), the "
+        "spacers, the gaps and the letters and numbers; the other layout "
+        "controls are greyed, because the table needs this layout. Because "
+        "the table reads every sheet by itself, Guided always fills whole "
+        "sheets, and each extra page adds a full sheet of patches at no extra "
+        "effort for you. The layout may still change once an i1iO owner has "
+        "tested it. This version can make these charts but cannot measure "
+        "with the table yet; the Measure tab tells you what you can do today. "
+        "Only the i1iO 2 with an i1Pro 2 is supported: other i1iO tables and "
+        "other instruments on the arm are not supported yet. If you own one, "
+        "please tell us in the project's GitHub issues. i1iO support is a "
+        "beta (Preferences → Beta).")
 
 
 def _without_choice(params: dict, value: str) -> dict:
@@ -19569,9 +19569,9 @@ class TabChart(QWidget):
             from workflow.i1io import table_facts as _F
             return tr(
                 "ChromIQ layout engine, i1iO table, {paper}, {dpi} dpi: "
-                "patches {w:g} × {h:g} mm in strips along the long side, "
-                "{run:g} mm of blank paper at both ends of every strip, three "
-                "numbered aiming marks."
+                "patches {w:g} × {h:g} mm in strips along the long side (lay "
+                "the sheet across the table), {run:g} mm of blank paper at "
+                "both ends of every strip, three numbered aiming marks."
             ).format(paper=paper, dpi=dpi, w=_F.PATCH_ALONG_MM.value,
                      h=_F.PATCH_ACROSS_MM.value, run=_F.RUN_MM.value)
         bits = [tr("ChromIQ layout engine"), instr, paper, f"{dpi} dpi",
@@ -19964,10 +19964,10 @@ class TabChart(QWidget):
             # The i1iO's sheets: landscape, inside the arm's reach
             # (`workflow.i1io.chart.GUIDED_PAPERS`). Only reachable with i1iO
             # support on: the entry is not in the list otherwise.
-            from workflow.i1io.chart import GUIDED_PAPERS, landscape_for
+            from workflow.i1io.chart import GUIDED_PAPERS, paper_for
             sizes = list(GUIDED_PAPERS)
             if current not in sizes:
-                current = landscape_for(current)
+                current = paper_for(current)
         for size in sizes:
             if size not in excluded:
                 self._paper_combo.addItem(paper_display_label(size), size)
