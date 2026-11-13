@@ -84,7 +84,9 @@ instrument to name.
   last patch of every strip, the strip letters beyond every strip's left end and the
   patch numbers along the top (both upright on the table), the numbers 10 mm
   in from the paper edge so a printer's unprinted edge leaves them whole,
-  three numbered aiming marks (on the table 1 top left, 2 bottom left, 3
+  three numbered aiming crosses, on by default and an option (see "Aiming
+  crosses" below; the Instrument (i), the Beta's (i) and every greyed
+  control's tooltip say so) (on the table 1 top left, 2 bottom left, 3
   bottom right; each digit beside its cross along the strip direction, so
   the side bands are only the cross and its clearance and the marks cost one
   strip on A4 and none on Letter), the ChromIQ wordmark, the page "N/M", the chart name and
@@ -229,6 +231,9 @@ like for other instruments."*
 Start on an i1iO chart shows M-I1IO-NOT-YET before anything is recovered,
 armed or written: measuring with the table is being prepared, the layout may
 still change, and the i1Profiler route that works today.
+Loading such a chart logs "Chart instrument: X-Rite i1iO." without the
+strip-recognition detail other strip charts get, since no strip is read
+(with the option off the line is 4.3.33's).
 
 ### Proposed for the measuring step (not built)
 

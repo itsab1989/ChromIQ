@@ -272,14 +272,28 @@ def i1io_greyed_reason(why: str = "") -> str:
     control is greyed only where it would put ink where the aperture passes,
     leave the area the table reaches or a printer prints, break the scan,
     or has no meaning on a table."""
-    general = tr(
+    general = i1io_layout_summary() + "\n\n" + i1io_settable_summary()
+    own = i1io_greyed_why().get(why, "")
+    return f"{own}\n\n{general}" if own else general
+
+
+def i1io_layout_summary() -> str:
+    """The first half of every greyed control's tooltip for the i1iO: what
+    the layout is (right with and without the aiming crosses)."""
+    return tr(
         "Not used for the i1iO table. An i1iO chart has a layout of its own, "
         "made for the table reading it strip by strip: it is printed on a "
         "portrait sheet that you lay across the table, so its strips run "
-        "along the arm; every strip has blank paper at both ends so the arm "
-        "can speed up and slow down, and three numbered aiming marks sit in "
-        "the corners. The greyed boxes show the values an i1iO chart uses."
-        "\n\n"
+        "along the arm, and every strip has blank paper at both ends so the "
+        "arm can speed up and slow down. Unless you switch them off, three "
+        "small numbered aiming crosses sit in the corners; without them you "
+        "aim at three corner patches. The greyed boxes show the values an "
+        "i1iO chart uses.")
+
+
+def i1io_settable_summary() -> str:
+    """The second half: which controls an i1iO chart reads."""
+    return tr(
         "What you can set for the i1iO: the paper and the number of pages; "
         "the margins (at least what the marks, the blank paper at both ends "
         "of every strip and the strip letters need; ChromIQ raises a smaller "
@@ -293,8 +307,6 @@ def i1io_greyed_reason(why: str = "") -> str:
         "and patch numbers on or off and their size, the sheet text (printed "
         "on the line with the chart name), the randomisation, the printer "
         "calibration and the output settings.")
-    own = i1io_greyed_why().get(why, "")
-    return f"{own}\n\n{general}" if own else general
 
 
 def i1io_greyed_why() -> dict:

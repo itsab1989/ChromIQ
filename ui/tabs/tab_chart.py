@@ -4037,21 +4037,48 @@ def _saved_beta_instrument_is_off(code) -> bool:
 
 def i1io_instrument_bullet() -> str:
     """The i1iO's bullet in the Instrument (i) of Guided and Manual. Only
-    shown while i1iO support (Preferences > Beta) is on."""
+    shown while i1iO support (Preferences > Beta) is on.
+
+    Three parts, so a change to one (what Manual can change) leaves the
+    others' translations alone."""
+    return " ".join((i1io_instrument_bullet_sheet(),
+                     i1io_instrument_bullet_manual(),
+                     i1io_instrument_bullet_rest()))
+
+
+def i1io_instrument_bullet_sheet() -> str:
+    """The i1iO bullet's first part: the table and what is on the sheet,
+    right for a chart with and without the aiming crosses (4.3.33 made them
+    an option)."""
     return tr(
         "  •  i1iO 2 + i1Pro 2 (X-Rite): a motorised scanning table that "
         "moves your i1Pro 2 over the chart by itself. The chart is printed on "
         "a portrait A4 or Letter sheet that you lay across the table, so its "
         "strips run along the arm: patches of 10 × 8 mm with coloured "
-        "spacers between them, blank paper at both ends of every strip so the "
-        "arm can speed up and slow down, and three numbered aiming marks in "
-        "the corners (1 top left, 2 bottom left, 3 bottom right, as the sheet "
-        "lies on the table). As on every ChromIQ chart, each strip has a "
-        "letter and the patches along it are numbered, so “C7” is the 7th "
-        "patch of strip C. In Manual you can change the margins, the patch "
+        "spacers between them, and blank paper at both ends of every strip "
+        "so the arm can speed up and slow down. To show the table where the "
+        "sheet lies, you aim its arm at three points on it: by default three "
+        "small numbered aiming crosses in the corners (1 top left, 2 bottom "
+        "left, 3 bottom right, as the sheet lies on the table). You can "
+        "switch the crosses off to fit more patches on every sheet; you then "
+        "aim at the centres of three corner patches instead. As on every "
+        "ChromIQ chart, each strip has a letter and the patches along it are "
+        "numbered, so “C7” is the 7th patch of strip C.")
+
+
+def i1io_instrument_bullet_manual() -> str:
+    """The i1iO bullet's second part: what Manual can change."""
+    return tr(
+        "In Manual you can change the margins, the patch "
         "size (8.9 to 20 mm along the strip, 7 to 20 mm across it), the "
         "spacers, the gaps and the letters and numbers; the other layout "
-        "controls are greyed, because the table needs this layout. Because "
+        "controls are greyed, because the table needs this layout.")
+
+
+def i1io_instrument_bullet_rest() -> str:
+    """The i1iO bullet's last part: Guided, the state of the Beta."""
+    return tr(
+        "Because "
         "the table reads every sheet by itself, Guided always fills whole "
         "sheets, and each extra page adds a full sheet of patches at no extra "
         "effort for you. The layout may still change once an i1iO owner has "
@@ -22676,15 +22703,12 @@ class TabChart(QWidget):
                 # sheet), so the panels settle on the fallback a moment
                 # later, through queued syncs. Taken again once the queue is
                 # empty, unless the user has had something written since.
-                def _settled(fp=fingerprint):
-                    snap = self._fd9_off_screens().get(fp)
-                    if snap is None or snap.own:
-                        return
-                    self._fd9_off_screens()[fp] = off_snapshot(
-                        snapshot(self), self._collect_ui_state(),
-                        *stored_blocks)
+                # A BOUND METHOD, not a closure over `self` (CLAUDE.md: a
+                # Python closure parked in Qt is the crash class of
+                # `ui/fade_scroll.py`); what it needs waits on the tab.
+                self._i1io_off_screen_pending()[fingerprint] = stored_blocks
                 from PyQt6.QtCore import QTimer
-                QTimer.singleShot(0, _settled)
+                QTimer.singleShot(0, self._i1io_off_screen_settled)
                 return
             if fd9_enabled() or not target_names_fd9(stored, ui_state):
                 return
@@ -22699,6 +22723,36 @@ class TabChart(QWidget):
                 getattr(meta, "create_chart_ui", None))
         except Exception:      # noqa: BLE001 — never block a load over it
             log.warning("Could not note the FD-9 target's screen",
+                        exc_info=True)
+
+    def _i1io_off_screen_pending(self) -> dict:
+        """The i1iO targets (opened with i1iO support off) whose screen is
+        taken again once the queued syncs have run: fingerprint -> the
+        target's stored blocks (`_remember_fd9_off_screen`)."""
+        if "_i1io_off_screen_waiting" not in self.__dict__:
+            self._i1io_off_screen_waiting = {}
+        return self._i1io_off_screen_waiting
+
+    def _i1io_off_screen_settled(self) -> None:
+        """THE SCREEN AS THE LOAD LEAVES IT, for every i1iO target waiting
+        (`_i1io_off_screen_pending`): its snapshot taken again, unless the
+        user has had something written since. Queued by
+        `_remember_fd9_off_screen` with QTimer.singleShot(0, ...)."""
+        waiting = self._i1io_off_screen_pending()
+        if not waiting:
+            return
+        try:
+            from workflow.i1io.support import off_snapshot
+            from workflow.per_target_settings import snapshot
+            for fp, stored_blocks in list(waiting.items()):
+                waiting.pop(fp, None)
+                snap = self._fd9_off_screens().get(fp)
+                if snap is None or snap.own:
+                    continue
+                self._fd9_off_screens()[fp] = off_snapshot(
+                    snapshot(self), self._collect_ui_state(), *stored_blocks)
+        except Exception:      # noqa: BLE001 — never block a load over it
+            log.warning("Could not note the i1iO target's screen",
                         exc_info=True)
 
     def _forget_fd9_off_screen(self) -> None:
