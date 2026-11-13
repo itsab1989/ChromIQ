@@ -619,6 +619,17 @@ AWAITING_APPROVAL: "set[str]" = {
                                  # Konica Minolta FD-9 Beta. ChromIQ drives
                                  # the FD-9 itself, so its windows are its
                                  # own; shown from the beta that proposes them.
+                                 # 2026-11-13: the X-Rite i1iO table Beta
+                                 # (charts only; measuring comes later).
+                                 "M-I1IO-NOT-YET", "M-I1IO-SUPPORT-OFF",
+                                 # the same for a verification or a
+                                 # calibration chart made for the table
+                                 "M-I1IO-NOT-YET-BY-HAND",
+                                 # review r3 m3: its crosses and lettering
+                                 # in a printer's unprinted edge.
+                                 "M-I1IO-EDGE-MARKS-NOT-PRINTED",
+                                 "M-I1IO-EDGE-TEXT-NOT-PRINTED",
+                                 "M-I1IO-EDGE-TEXT-PARTS",
                                  "M-FD9-SUPPORT-OFF", "M-FD9-NO-ADDRESS",
                                  "M-FD9-INSERT-SHEET", "M-FD9-NEXT-PAGE", "M-FD9-NO-CONNECTION",
                                  "M-FD9-WRONG-FIRMWARE",
@@ -1043,6 +1054,9 @@ def test_the_revision_note_names_what_awaits_review():
 
 # ---- 2. the windows render from the catalogue ----------------------------
 WINDOW_SOURCES = [
+    # 2026-11-13: the X-Rite i1iO table Beta's two Start windows.
+    ("ui.tabs.tab_measure", "TabMeasure", "_i1io_not_yet_window"),
+    ("ui.tabs.tab_measure", "TabMeasure", "_i1io_support_off_window"),
     # 4.3.23: which measurement condition of an i1Profiler CxF to import.
     ("ui.dialogs.cxf_condition_dialog", "CxfConditionDialog", "__init__"),
     ("ui.tabs.tab_measure", "TabMeasure", "_replace_message"),

@@ -580,6 +580,66 @@ M_FD9_SUPPORT_OFF = _m(
     "is changed.",
     approved=False)
 
+#: Start pressed on an X-Rite i1iO table chart while i1iO support (Beta) is
+#: on: this version makes charts for the table but cannot drive it yet.
+M_I1IO_NOT_YET = _m(
+    "M-I1IO-NOT-YET",
+    "Measuring with the i1iO table is not available yet",
+    "This chart was made for the X-Rite i1iO scanning table. This version "
+    "of ChromIQ can make charts for the table, but it cannot measure with "
+    "it yet: reading with the table is being prepared for a later version. "
+    "So this chart cannot be measured here at the moment. Nothing is wrong "
+    "with the chart. Please keep in mind that the layout may still change "
+    "once an i1iO owner has tested it, so a later version may ask you to "
+    "print the chart again.\n\n"
+    "What you can do today, if you still have i1Profiler 3.8.6 or an older "
+    "version and your printer uses RGB or CMYK: when the chart was made, "
+    "ChromIQ also saved its patches as i1Profiler patch-set files in the "
+    "“exports” folder beside the chart. Open one of them in i1Profiler, print the "
+    "chart that i1Profiler lays out for the table (i1Profiler cannot read "
+    "ChromIQ's own i1iO sheet), and measure it there with the table. Save "
+    "the measurement as an .mxf file, or as a CGATS text export that "
+    "includes the RGB or CMYK values, so that ChromIQ can tell which reading "
+    "belongs to which patch. Then bring it in with Tools → “Convert "
+    "i1Profiler → TI3”, and build the profile as usual.",
+    approved=False)
+
+#: The same for a VERIFICATION or CALIBRATION chart made for the table
+#: (2026-11-13, the owner: those run types make i1iO charts as they do for
+#: other instruments). The first paragraph is M-I1IO-NOT-YET's; the i1Profiler
+#: way in its second ends in building a profile, which these charts are not
+#: for, so the way offered is the table's own head, measured by hand.
+M_I1IO_NOT_YET_BY_HAND = _m(
+    "M-I1IO-NOT-YET-BY-HAND",
+    "Measuring with the i1iO table is not available yet",
+    "This chart was made for the X-Rite i1iO scanning table. This version "
+    "of ChromIQ can make charts for the table, but it cannot measure with "
+    "it yet: reading with the table is being prepared for a later version. "
+    "So this chart cannot be measured here at the moment. Nothing is wrong "
+    "with the chart. Please keep in mind that the layout may still change "
+    "once an i1iO owner has tested it, so a later version may ask you to "
+    "print the chart again.\n\n"
+    "What you can do today: the i1Pro 2 from your table's arm also measures "
+    "by hand, and ChromIQ reads it that way. On the Create Chart tab, choose "
+    "“i1Pro / i1Pro 2 / i1Pro 3” as the instrument for this chart and "
+    "create it again. Then print it on the Print Chart tab as usual and "
+    "measure it by hand on this tab.",
+    approved=False)
+
+#: Start pressed on an X-Rite i1iO table chart while i1iO support is off.
+M_I1IO_SUPPORT_OFF = _m(
+    "M-I1IO-SUPPORT-OFF",
+    "Turn on i1iO support to see what you can do with this chart",
+    "This chart was made for the X-Rite i1iO scanning table. i1iO support "
+    "is a beta, and it is switched off at the moment, so ChromIQ does not "
+    "measure this chart.\n\n"
+    "To find out what you can do with it, open Preferences, go to the Beta "
+    "tab, tick “X-Rite i1iO support (beta)” and restart ChromIQ. Then press "
+    "Start again.\n\n"
+    "Nothing is wrong with the chart, and nothing you have already measured "
+    "is changed.",
+    approved=False)
+
 #: Start pressed and no address has been entered in "FD-9 setup…".
 M_FD9_NO_ADDRESS = _m(
     "M-FD9-NO-ADDRESS",
@@ -7494,6 +7554,53 @@ M_FD9_EDGE_SHEET_TEXT_PARTS = _m(
     "\n".join((_FD9_EDGE_LOST_LABEL, _FD9_EDGE_LOST_CLIP,
                _FD9_EDGE_FIX_LABEL, _FD9_EDGE_FIX_CLIP)),
     approved=False)
+#: 2026-11-13 (i1iO table Beta, review r3 m3): an i1iO chart's numbered
+#: aiming marks in the edge a printer does not print. The person aims the
+#: table's sight at them, and no control moves them. {where}: the sides, in
+#: the _EDGE_AT_* words.
+M_I1IO_EDGE_MARKS_NOT_PRINTED = _m(
+    "M-I1IO-EDGE-MARKS-NOT-PRINTED",
+    "The i1iO chart's aiming marks fall where your printer does not print",
+    "\u26a0 {printer} leaves an edge of the paper unprinted: {edges} "
+    "({source}). On this i1iO chart, the small numbered crosses that you aim "
+    "the table's sight at lie in that edge {where}, so they would be missing "
+    "or cut off on paper. ChromIQ finds every patch on the table from those "
+    "three crosses, so please do not print the chart like this. The crosses "
+    "have to be where they are, so the chart cannot simply be moved in. What "
+    "you can do: print it on a printer that prints closer to the edge of the "
+    "paper, or print it on a larger sheet of paper and cut the sheet to the "
+    "chart's size before you measure it. If your printer leaves a different "
+    "edge than this, set it under Preferences \u25b8 Printing \u25b8 "
+    "\u201cEdge this printer does not print\u201d.",
+    approved=False)
+#: The same for its strip letters, patch numbers and name line, which the
+#: table does not read and which sit in fixed places: never "printed text"
+#: with the text advice, which names controls an i1iO chart greys. {lost}:
+#: _I1IO_EDGE_LOST_TEXT; {fix}: _I1IO_EDGE_FIX_TEXT.
+_I1IO_EDGE_LOST_TEXT = ("part of the strip letters, the patch numbers or the "
+                        "line with the chart\u2019s name {where}")
+_I1IO_EDGE_FIX_TEXT = ("On an i1iO chart they always sit in the same places, "
+                       "so they cannot be moved in. If you would rather leave "
+                       "the strip letters or the patch numbers off, untick "
+                       "\u201cShow strip indicators\u201d or \u201cShow row "
+                       "indicators\u201d in the layout settings of Create "
+                       "Chart\u2019s Manual mode.")
+M_I1IO_EDGE_TEXT_NOT_PRINTED = _m(
+    "M-I1IO-EDGE-TEXT-NOT-PRINTED",
+    "Part of the i1iO chart's lettering will not be printed",
+    "\u26a0 {printer} leaves an edge of the paper unprinted: {edges} "
+    "({source}). On this i1iO chart, this lies in that edge and would be "
+    "missing or cut off on paper: {lost}. The table does not read any of it, "
+    "so your measurement is not affected, and you can print the chart like "
+    "this. {fix} If your printer leaves a different edge than this, set it "
+    "under Preferences \u25b8 Printing \u25b8 \u201cEdge this printer does "
+    "not print\u201d.",
+    approved=False)
+M_I1IO_EDGE_TEXT_PARTS = _m(
+    "M-I1IO-EDGE-TEXT-PARTS",
+    "The i1iO chart's lettering in the edge: the parts of the note",
+    "\n".join((_I1IO_EDGE_LOST_TEXT, _I1IO_EDGE_FIX_TEXT)),
+    approved=False)
 #: The spooler refused the raw job (``win_spooler.SpoolerError``); {reason}
 #: is Windows' own sentence. Replaces, on Windows, "CUPS rejected the print
 #: job (exit code ...)", which names a system Windows does not have.
@@ -9948,6 +10055,9 @@ CATALOGUE = {m.id: m for m in (
     M_CR30_HOW_TO_MEASURE, M_CR30_READ_FAILED,
     M_CR30_LEARN_TILE, M_CR30_TRIGGER_NOT_ARMED,
     M_INSTRUMENT_BUSY,
+    M_I1IO_NOT_YET, M_I1IO_NOT_YET_BY_HAND, M_I1IO_SUPPORT_OFF,
+    M_I1IO_EDGE_MARKS_NOT_PRINTED, M_I1IO_EDGE_TEXT_NOT_PRINTED,
+    M_I1IO_EDGE_TEXT_PARTS,
     M_FD9_SUPPORT_OFF, M_FD9_NO_ADDRESS, M_FD9_INSERT_SHEET, M_FD9_NEXT_PAGE,
     M_FD9_NO_CONNECTION, M_FD9_WRONG_FIRMWARE, M_FD9_MARKS_NOT_FOUND,
     M_FD9_SHEET_STILL_INSIDE, M_FD9_RESUME_REFUSED, M_FD9_FAILED,
@@ -10022,6 +10132,25 @@ def edge_note(printer: str, edges, loss) -> "str | None":
             bottom=f(edges.bottom))
     source = tr({"driver": _EDGE_SRC_DRIVER, "ppd": _EDGE_SRC_PPD}.get(
         edges.source, _EDGE_SRC_OVERRIDE))
+    # AN i1iO CHART'S CROSSES, LETTERS AND NAME LINE (review r3 m3): its own
+    # words, never advice that names a control an i1iO chart greys.
+    io_marks = list(getattr(loss, "i1io_marks", []) or [])
+    if io_marks:
+        _t, body = M_I1IO_EDGE_MARKS_NOT_PRINTED.render(
+            printer=printer, edges=edge_txt, source=source,
+            where=", ".join(where[s] for s in order if s in io_marks))
+        return body
+    io_text = list(getattr(loss, "i1io_text", []) or [])
+    io_lost = ([tr(_I1IO_EDGE_LOST_TEXT).format(
+        where=", ".join(where[s] for s in order if s in io_text))]
+        if io_text else [])
+    io_fixes = [tr(_I1IO_EDGE_FIX_TEXT)] if io_text else []
+    if io_lost and not (loss.patches or loss.markers or loss.caption
+                        or loss.text):
+        _t, body = M_I1IO_EDGE_TEXT_NOT_PRINTED.render(
+            printer=printer, edges=edge_txt, source=source,
+            lost="; ".join(io_lost), fix=" ".join(io_fixes))
+        return body
     fd9 = list(getattr(loss, "fd9_marks", []) or [])
     if fd9:
         # The FD-9's own words: its marks are what it measures by, and no
@@ -10089,6 +10218,8 @@ def edge_note(printer: str, edges, loss) -> "str | None":
     # …and, beside other losses, the FD-9 sheet's own parts with their fixes.
     lost.extend(fd9_lost)
     fixes.extend(fd9_fixes)
+    lost.extend(io_lost)
+    fixes.extend(io_fixes)
     _t, body = M_EDGE_NOT_PRINTED.render(
         printer=printer, edges=edge_txt, source=source, lost="; ".join(lost),
         safe=tr(_EDGE_SAFE_NOT if patches else _EDGE_SAFE),

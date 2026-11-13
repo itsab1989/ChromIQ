@@ -51,7 +51,10 @@ DEVICES = {
 #: Not timed, by Knut's ruling: no strips.
 # FD9 is driven by its native acquisition worker; its motor controls motion.
 # It never enters the chartread swipe-pace manager and needs no manual-rate row.
-NO_STRIPS = {"SS": "spectroscan", "CR30": "cr30", "FD9": "native-fd9"}
+# IO2: the X-Rite i1iO table (Beta) moves the i1Pro itself; no hand swipe
+# exists to time, and this step does not measure with it at all.
+NO_STRIPS = {"SS": "spectroscan", "CR30": "cr30", "FD9": "native-fd9",
+             "IO2": "i1io-table"}
 
 CASES = [(code, name, where, key)
          for code, devs in DEVICES.items() for name, where, key in devs]

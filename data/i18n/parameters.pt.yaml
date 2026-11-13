@@ -519,6 +519,7 @@ parameters:
         - "SpectroScan (plano)"
         - "CR30 (amostra a amostra)"
         - "FD-9"
+        - "i1iO 2 + i1Pro 2"
         - "i1iSis (via i1Profiler)"
     "-h":
       name: "Double density"

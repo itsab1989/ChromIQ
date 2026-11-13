@@ -297,6 +297,9 @@ def main() -> int:
     # answer before any list that offers the FD-9 is built.
     from workflow.fd9.support import latch_from as _latch_fd9
     _latch_fd9(settings)
+    # …and i1iO table support (Preferences > Beta), the same way.
+    from workflow.i1io.support import latch_from as _latch_i1io
+    _latch_i1io(settings)
 
     # Heavy UI import + construction, now visibly covered by the splash.
     from ui.main_window import MainWindow

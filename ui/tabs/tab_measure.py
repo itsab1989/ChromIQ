@@ -6733,6 +6733,27 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # this far (`_on_start` hands it to the FD-9 worker); with it off, the
         # chart cannot be measured and M-FD9-SUPPORT-OFF says how to change
         # that, instead of offering to "correct" a name that is right.
+        # An X-Rite i1iO table chart (a Beta), read HERE for the same reason:
+        # no chart is read for it that 4.3.32 did not read. On, the table
+        # cannot be driven yet and M-I1IO-NOT-YET says what can be done
+        # today; off, M-I1IO-SUPPORT-OFF says how to turn it on. Never the
+        # repair below, which would rename it an i1Pro strip chart.
+        from workflow.i1io.support import is_i1io_instrument_name
+        if is_i1io_instrument_name(name):
+            from workflow.i1io.support import i1io_enabled
+            if i1io_enabled():
+                self._i1io_not_yet_window()
+                self._log.appendPlainText(tr(
+                    "Measurement not started: this chart is for the X-Rite "
+                    "i1iO table, and measuring with the table is not "
+                    "available in this version of ChromIQ yet."))
+            else:
+                self._i1io_support_off_window()
+                self._log.appendPlainText(tr(
+                    "Measurement not started: this chart is for the X-Rite "
+                    "i1iO table, and i1iO support is switched off in "
+                    "Preferences → Beta."))
+            return True
         from workflow.fd9.support import is_fd9_instrument_name
         if is_fd9_instrument_name(name):
             self._fd9_support_off_window()
@@ -6774,6 +6795,62 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if not self._repair_target_instrument(chart, name):
             return True
         return False           # repaired — carry on and measure
+
+    def _refused_as_an_i1io_chart(self) -> bool:
+        """True, with M-I1IO-NOT-YET shown, when i1iO support is on and the
+        loaded chart is an i1iO table chart. Reads the chart's header only
+        while the switch is on, and never raises."""
+        from workflow.i1io.support import i1io_enabled
+        if not i1io_enabled() or not self._ti1_path:
+            return False
+        try:
+            from workflow.i1io.support import chart_names_i1io
+            chart = self._chart_file_for(self._ti1_path)
+            if chart_names_i1io(chart) is not True:
+                return False
+        except Exception:      # noqa: BLE001 - never block a read on this
+            return False
+        self._i1io_not_yet_window()
+        self._log.appendPlainText(tr(
+            "Measurement not started: this chart is for the X-Rite i1iO "
+            "table, and measuring with the table is not available in this "
+            "version of ChromIQ yet."))
+        return True
+
+    def _i1io_not_yet_window(self) -> None:
+        """M-I1IO-NOT-YET on screen: the text is the catalogue's. For a
+        verification or calibration chart (decided by the chart's folder, as
+        `_chart_is_calibration` decides it) M-I1IO-NOT-YET-BY-HAND: the
+        i1Profiler way ends in building a profile, which those are not for."""
+        from workflow import measurement_messages as M
+        self._i1io_window(*self._i1io_not_yet_message(M).render())
+
+    def _i1io_not_yet_message(self, M):
+        """Which of the two i1iO "not yet" messages the loaded chart gets."""
+        ti1 = getattr(self, "_ti1_path", None)
+        folder = Path(ti1).parent.name if ti1 else ""
+        if folder in ("cal", "verifications"):
+            return M.M_I1IO_NOT_YET_BY_HAND
+        return M.M_I1IO_NOT_YET
+
+    def _i1io_support_off_window(self) -> None:
+        """M-I1IO-SUPPORT-OFF on screen: the text is the catalogue's."""
+        from workflow import measurement_messages as M
+        self._i1io_window(*M.M_I1IO_SUPPORT_OFF.render())
+
+    def _i1io_window(self, title: str, body: str) -> None:
+        from PyQt6.QtWidgets import QMessageBox
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        from ui.widgets import (fit_message_box_buttons,
+                                keep_message_box_inside_the_work_area)
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        fit_message_box_buttons(box)
+        box.exec()
 
     def _fd9_support_off_window(self) -> None:
         """M-FD9-SUPPORT-OFF on screen: the text is the catalogue's."""
@@ -8130,6 +8207,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             return
         if _fd9_ask(self, "_is_fd9_target"):
             self._start_fd9_measurement()
+            return
+        # An X-Rite i1iO table chart with i1iO support on (Beta): the table
+        # cannot be driven yet, so Start says so BEFORE anything is recovered,
+        # armed or written. With the switch off nothing is read here; the
+        # chart is refused where 4.3.32 already reads its instrument name
+        # (`_blocked_by_unusable_target_instrument`).
+        if self._refused_as_an_i1io_chart():
             return
         if not self._ti1_path:
             self._log.appendPlainText("[ERROR] No .ti2 file selected.")

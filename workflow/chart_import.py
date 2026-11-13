@@ -34,7 +34,7 @@ log = get_logger(__name__)
 # declaration of which patches make up its control strip, and leaving it behind
 # would silently discard a declaration the user or another tool wrote.
 _CHART_EXTS = (".cht", ".channels.json", ".strips.json", ".cie", ".pdf",
-               ".control-strip.json", ".fd9.json")
+               ".control-strip.json", ".fd9.json", ".i1io.json")
 
 
 def resolve_import_run(project: Project, target) -> Run:

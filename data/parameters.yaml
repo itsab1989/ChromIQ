@@ -623,7 +623,7 @@ parameters:
     - flag: "-i"
       name: "Measurement Instrument"
       type: choice
-      choices: ["i1", "p3", "CM", "SS", "CR30", "FD9", "isis"]
+      choices: ["i1", "p3", "CM", "SS", "CR30", "FD9", "IO2", "isis"]
       labels:
         - "i1Pro / i1Pro 2 / i1Pro 3"
         - "i1Pro 3 Plus"
@@ -631,6 +631,7 @@ parameters:
         - "SpectroScan (flatbed)"
         - "CR30 (patch by patch)"
         - "FD-9"
+        - "i1iO 2 + i1Pro 2"
         - "i1iSis (via i1Profiler)"
       default: "i1"
       no_space: true

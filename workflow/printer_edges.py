@@ -325,10 +325,19 @@ class Loss:
     #: FD-9 elements with their own advice, never "printed text".
     fd9_page_label: "list[str]" = field(default_factory=list)
     fd9_clip: "list[str]" = field(default_factory=list)
+    #: sides on which an i1iO chart's numbered aiming crosses fall into the
+    #: edge (review r3 m3): the person aims the table's sight at them, so
+    #: they are needed for measuring. Only filled while i1iO support is on.
+    i1io_marks: "list[str]" = field(default_factory=list)
+    #: sides on which its strip letters, patch numbers or name line fall
+    #: into the edge: fixed places, not read by the table, never "printed
+    #: text" with the text advice (which names controls an i1iO chart greys).
+    i1io_text: "list[str]" = field(default_factory=list)
 
     def any(self) -> bool:
         return bool(self.markers or self.caption or self.text or self.patches
-                    or self.fd9_marks or self.fd9_page_label or self.fd9_clip)
+                    or self.fd9_marks or self.fd9_page_label or self.fd9_clip
+                    or self.i1io_marks or self.i1io_text)
 
 
 def _limits_on_chart(edges: Edges, chart_mm, paper_mm, shift_mm=(0.0, 0.0)):
@@ -372,6 +381,35 @@ def _fd9_page(tiff_path) -> "dict | None":
         page = pages[int(number) - 1] if number else pages[0]
         return page if isinstance(page, dict) else None
     except Exception:      # noqa: BLE001 — not a readable FD-9 layout
+        return None
+
+
+def _i1io_mark_boxes(tiff_path) -> "list[tuple[float, float, float, float]] | None":
+    """An i1iO chart's three aiming crosses with their digits, as (x0, y0,
+    x1, y1) in mm on the page, from the chart's ``.i1io.json``; None for any
+    other chart and always None while i1iO support is off (nothing is read
+    then)."""
+    from workflow.i1io.support import i1io_enabled
+    if not i1io_enabled():
+        return None
+    import json
+    import re
+    path = Path(tiff_path)
+    side = path.with_name(path.stem + ".i1io.json")
+    if not side.is_file():
+        m = re.fullmatch(r"(.+?)_(\d{2,})", path.stem)
+        if m is None:
+            return None
+        side = path.with_name(m.group(1) + ".i1io.json")
+        if not side.is_file():
+            return None
+    try:
+        from workflow.i1io.chart import Mark, mark_zone
+        doc = json.loads(side.read_text(encoding="utf-8"))
+        return [mark_zone(Mark(int(m["number"]), str(m["corner_on_table"]),
+                               tuple(float(v) for v in m["centre_mm"])))
+                for m in doc["marks_mm"]]
+    except Exception:      # noqa: BLE001 — not a readable i1iO side file
         return None
 
 
@@ -491,6 +529,18 @@ def losses(tiff_path, frame: int, edges: Edges, paper_mm,
                           ("right", (cols[-1] + 1) * mm > hi_x)):
             if hit and side not in sides:
                 sides.append(side)
+    # AN i1iO CHART'S CROSSES ARE NOT TEXT EITHER (review r3 m3).
+    io_boxes = _i1io_mark_boxes(tiff_path)
+    for x0m, y0m, x1m, y1m in io_boxes or []:
+        x0, y0 = max(0, int((x0m - 0.5) / mm)), max(0, int((y0m - 0.5) / mm))
+        x1 = int(np.ceil((x1m + 0.5) / mm))
+        y1 = int(np.ceil((y1m + 0.5) / mm))
+        known[y0:y1, x0:x1] = True
+        if lost[y0:y1, x0:x1].any():
+            for side, hit in (("left", x0m < lo_x), ("right", x1m > hi_x),
+                              ("top", y0m < lo_y), ("bottom", y1m > hi_y)):
+                if hit and side not in out.i1io_marks:
+                    out.i1io_marks.append(side)
     marker_lost = np.zeros_like(ink, dtype=bool)
     try:
         marks = O.helper_markers(tiff_path, frame) or {}
@@ -557,6 +607,12 @@ def losses(tiff_path, frame: int, edges: Edges, paper_mm,
             out.text["top"] = lo_y - rows[0] * mm
         if rows.size and (rows[-1] + 1) * mm > hi_y:
             out.text["bottom"] = (rows[-1] + 1) * mm - hi_y
+    if io_boxes is not None and out.text:
+        # …and everything else of an i1iO chart's in the edge is its fixed
+        # letters, numbers and name line (no helper markers, no caption).
+        out.i1io_text = [side for side in ("top", "bottom", "left", "right")
+                         if side in out.text]
+        out.text = {}
     # how much further in everything lost would have to start, per side
     allx = np.where(lost.any(axis=0))[0]
     ally = np.where(lost.any(axis=1))[0]
@@ -681,6 +737,12 @@ def _losses_for_chart(pages, edges: Edges, paper_mm, shift_mm=(0.0, 0.0)
         for s in one.fd9_clip:
             if s not in out.fd9_clip:
                 out.fd9_clip.append(s)
+        for s in one.i1io_marks:
+            if s not in out.i1io_marks:
+                out.i1io_marks.append(s)
+        for s in one.i1io_text:
+            if s not in out.i1io_text:
+                out.i1io_text.append(s)
         for k, v in one.text.items():
             out.text[k] = max(out.text.get(k, 0.0), v)
         for k, v in one.needed_mm.items():

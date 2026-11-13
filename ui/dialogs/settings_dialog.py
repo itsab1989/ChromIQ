@@ -3742,6 +3742,27 @@ class SettingsDialog(QDialog):
         _beta.addLayout(_fd9rot)
         self._fd9_support_check.toggled.connect(self._fd9_rotation_follow)
 
+        # X-Rite i1iO scanning table (i1iO 2 with an i1Pro 2). Restart to
+        # apply, like the FD-9 (`workflow.i1io.support`). Switching it ON asks
+        # first, in the profile engine's pattern (`_on_i1io_support_clicked`).
+        self._i1io_support_check = QCheckBox(
+            tr("X-Rite i1iO support (beta)"), self)
+        i1io_support_tip = TooltipButton(
+            tr("X-Rite i1iO support (beta)"), i1io_support_help(), self,
+            min_width=680)
+        self._i1io_support_restart_hint = QLabel(
+            tr("Takes effect after you restart ChromIQ."), self)
+        _ink(self._i1io_support_restart_hint, "#e6a23c", " font-size: 11px;")
+        self._i1io_support_restart_hint.setVisible(False)
+        self._i1io_support_check.toggled.connect(self._i1io_support_toggled)
+        self._i1io_support_check.clicked.connect(self._on_i1io_support_clicked)
+        _i1iorow = QHBoxLayout()
+        _i1iorow.addWidget(self._i1io_support_check)
+        _i1iorow.addStretch()
+        _i1iorow.addWidget(i1io_support_tip)
+        _beta.addLayout(_i1iorow)
+        _beta.addWidget(self._i1io_support_restart_hint)
+
         # THE SPLASH ESCAPE HATCH, WITH A ROW OF ITS OWN.
         #
         # The setting existed and the changelog told users to reach for it, but
@@ -6376,6 +6397,9 @@ class SettingsDialog(QDialog):
         self._fd9_support_check.setChecked(
             bool(s.get("fd9_support_beta", False)))
         self._fd9_support_toggled()
+        self._i1io_support_check.setChecked(
+            bool(s.get("i1io_support_beta", False)))
+        self._i1io_support_toggled()
         from workflow.fd9.support import stored_rotation as _fd9_rot
         _i = self._fd9_rotation_combo.findData(_fd9_rot(s))
         self._fd9_rotation_combo.setCurrentIndex(max(0, _i))
@@ -6616,6 +6640,53 @@ class SettingsDialog(QDialog):
         from workflow.fd9.support import fd9_enabled
         self._fd9_support_restart_hint.setVisible(
             self._fd9_support_check.isChecked() != fd9_enabled())
+
+    def _i1io_support_toggled(self, *_a) -> None:
+        """i1iO support is restart-to-apply (`workflow.i1io.support`): say so
+        while the box differs from what THIS run of ChromIQ is using."""
+        from workflow.i1io.support import i1io_enabled
+        self._i1io_support_restart_hint.setVisible(
+            self._i1io_support_check.isChecked() != i1io_enabled())
+
+    def _on_i1io_support_clicked(self, checked: bool) -> None:
+        """THE i1iO IS SWITCHED ON AT THE USER'S OWN RISK, AND SAYS SO FIRST
+        (Basti, 2026-11-13). The profile engine's consent window
+        (`_on_profile_engine_clicked`): the app's own message box, no icon,
+        Cancel the default, the confirm marked as the risky choice. Nothing
+        is asked on switching off; switching on again asks again."""
+        if not checked:
+            return
+        from PyQt6.QtWidgets import (QDialogButtonBox, QMessageBox,
+                                     QSizePolicy, QSpacerItem)
+        from PyQt6.QtGui import QFontMetrics
+        box = QMessageBox(self)
+        box.setWindowTitle(tr("X-Rite i1iO support (beta)"))
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setText(i1io_consent_text())
+        box.setStandardButtons(QMessageBox.StandardButton.Ok
+                               | QMessageBox.StandardButton.Cancel)
+        ok_btn = box.button(QMessageBox.StandardButton.Ok)
+        cancel_btn = box.button(QMessageBox.StandardButton.Cancel)
+        ok_btn.setText(tr("Turn it on"))
+        from ui.default_button import mark_destructive
+        mark_destructive(ok_btn)
+        cancel_btn.setText(tr("Keep it off"))
+        for b in (ok_btn, cancel_btn):
+            w = QFontMetrics(b.font()).horizontalAdvance(b.text()) + 44
+            b.setMinimumWidth(w)
+        bbox = box.findChild(QDialogButtonBox)
+        if bbox is not None:
+            bbox.setCenterButtons(True)
+        grid = box.layout()
+        if grid is not None:
+            grid.addItem(QSpacerItem(620, 1, QSizePolicy.Policy.Minimum,
+                                     QSizePolicy.Policy.Minimum),
+                         grid.rowCount(), 0, 1, grid.columnCount())
+        box.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        if box.exec() != QMessageBox.StandardButton.Ok:
+            self._i1io_support_check.setChecked(False)
 
     def _on_language_changed(self, _index: int) -> None:
         # Language is restart-to-apply (strings are translated at widget
@@ -7861,6 +7932,7 @@ class SettingsDialog(QDialog):
         s.set("i1pro2_lights_beta", self._i1pro2_lights_check.isChecked())
         s.set("i1profiler_turned_export", self._i1p_turned_check.isChecked())
         s.set("fd9_support_beta", self._fd9_support_check.isChecked())
+        s.set("i1io_support_beta", self._i1io_support_check.isChecked())
         s.set("fd9_display_rotation",
               int(self._fd9_rotation_combo.currentData() or 0))
         s.set("splash_classic", self._splash_classic_check.isChecked())
@@ -9151,3 +9223,92 @@ def page_pause_note_help() -> str:
         "This option is only available while “Pause after each page so I "
         "can check it” is on.\n\n"
         "**Default:** on.")
+
+
+# ---- X-Rite i1iO support (Beta) --------------------------------------------
+#
+# THE ONE SENTENCE TO CHANGE WHEN MEASURING ARRIVES is the second paragraph of
+# both texts ("This version ... sends nothing at all to a table"); the spec
+# `docs/design/i1io_table_support.md` names it too. Everything else stays true.
+
+def i1io_support_help() -> str:
+    """The (i) of Preferences > Beta > "X-Rite i1iO support (beta)"."""
+    return "\n\n".join((
+        tr("The X-Rite i1iO is a motorised scanning table. Your i1Pro 2 "
+           "clicks into a holder on its arm, the printed chart lies on the "
+           "table, and the arm moves the i1Pro along every strip of the chart "
+           "by itself, so you do not swipe the strips by hand."),
+        tr("This version prepares for the table. It can make charts for it, "
+           "but it cannot measure with the table yet, and it sends nothing at "
+           "all to a table. Reading with the table, quickly and strip by strip, "
+           "is being prepared for a later version."),
+        tr("What turning this on adds, after a restart of ChromIQ:\n"
+           "  •  Create Chart: “i1iO 2 + i1Pro 2” in the Instrument list of "
+           "Guided and of Manual. The chart is laid out for reading strip by "
+           "strip with the table: a portrait A4 or Letter sheet that you lay "
+           "across the table, so its strips run along the arm, patches of "
+           "10 × 8 mm (in Manual you can change the size) with coloured "
+           "spacers between them, blank paper at both ends of every strip so "
+           "the arm can speed up and slow down, and three numbered aiming "
+           "marks in the corners. When a chart has more "
+           "patches than one sheet holds, it is printed on several numbered "
+           "sheets. The layout may still change once an i1iO owner has tested "
+           "it.\n"
+           "  •  Measure: when you press Start with such a chart, ChromIQ "
+           "tells you that measuring with the table is not available yet, and "
+           "how you can measure that run today."),
+        tr("Only the i1iO 2 with an i1Pro 2 is supported, because that is the "
+           "only combination we have information about. Other i1iO tables "
+           "(the first i1iO and the i1iO 3) and other instruments on the arm "
+           "are not supported yet. If you own one and would like to help, "
+           "please tell us in the project's GitHub issues, so that support "
+           "can be added later."),
+        tr("Please read this part carefully. X-Rite has not published how the "
+           "table is controlled. What we know was worked out from recordings "
+           "that one i1iO owner made of his own table while he used X-Rite's "
+           "software, not from X-Rite's documentation. Not every command is "
+           "understood yet, and ChromIQ will only ever send the commands "
+           "whose meaning is known. Nobody on the ChromIQ team owns a table, "
+           "so everything that involves the table is tested by users who own "
+           "one. Using this beta is at your own risk."),
+        tr("Why it may still be worth it: X-Rite has ended support for these "
+           "tables. i1Profiler 3.8.7 (July 2026) removed the i1Pro 2 and the "
+           "i1iO 2, and 3.8.6 is the last version that works with them. "
+           "ChromIQ may become a way to keep using your table."),
+        tr("If you turn this off again, an i1iO chart stays as it is, and "
+           "when you press Start, ChromIQ tells you that it needs i1iO "
+           "support."),
+        tr("With this off (the default), nothing changes: the i1iO is not "
+           "offered anywhere and ChromIQ works exactly as before."),
+        tr("The change takes effect the next time you start ChromIQ."),
+        tr("**Default:** off")))
+
+
+def i1io_consent_text() -> str:
+    """What the window asks when "X-Rite i1iO support (beta)" is ticked."""
+    return "\n\n".join((
+        tr("You are switching on support for the X-Rite i1iO scanning table. "
+           "Here is what that means, in plain words."),
+        tr("This version prepares for the table. It can make charts for the "
+           "i1iO 2 with an i1Pro 2, but it cannot measure with the table yet, "
+           "and it sends nothing at all to a table. Reading with the table, "
+           "quickly and strip by strip, is being prepared for a later version."),
+        tr("•  X-Rite has not published how the table is controlled. What we "
+           "know was worked out from recordings that one i1iO owner made of "
+           "his own table while he used X-Rite's software, not from X-Rite's "
+           "documentation.\n\n"
+           "•  Not every command is understood yet. ChromIQ will only ever "
+           "send the commands whose meaning is known, to keep the risk to "
+           "your table as small as we can.\n\n"
+           "•  Nobody on the ChromIQ team owns a table, so everything that "
+           "involves the table is tested by users who own one, not by us.\n\n"
+           "•  Only the i1iO 2 with an i1Pro 2 is supported. Other i1iO tables "
+           "and other instruments on the arm are not supported yet.\n\n"
+           "•  You can switch this off again at any time, and ChromIQ then "
+           "works exactly as before."),
+        tr("Please read this part carefully: this is a beta, and using it is "
+           "at your own risk. X-Rite no longer services these tables, so if "
+           "anything ever behaves in a way you do not expect, stop and tell "
+           "us what you saw in the project's GitHub issues. Every report "
+           "helps."),
+        tr("Would you like to switch it on?")))

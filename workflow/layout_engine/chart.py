@@ -334,6 +334,60 @@ def build_chart(
     printer, and ``applycal`` then calibrated it a second time.
     """
     from workflow.fd9.support import fd9_enabled
+    # An X-Rite i1iO chart (a Beta): the engine's own grid with the settings
+    # an i1iO chart fixes (`workflow.i1io.chart.fixed_build_kwargs`), and its
+    # marks and side file added below. Off, the engine refuses "IO2" as an
+    # unknown instrument (`instruments._build_base`), as 4.3.32 did.
+    from workflow.i1io.support import i1io_enabled, is_i1io_code
+    _i1io = is_i1io_code(instrument) and i1io_enabled()
+    _i1io_chart_text = chart_text
+    if _i1io:
+        from workflow.i1io import chart as _i1io_chart
+        # What the person asked for (patch size, labels) is kept inside the
+        # table's limits; everything else is the i1iO's own.
+        _f = _i1io_chart.fixed_build_kwargs({
+            "patch_w": patch_w, "patch_h": patch_h,
+            "strip_gap": strip_gap, "inter_patch": inter_patch,
+            "margins": margins, "spacer_mode": spacer_mode,
+            "draw_indicators": draw_indicators,
+            "row_indicators": row_indicators,
+            "indicator_size_mm": indicator_size_mm})
+        _i1io_chart.sheet_size(paper)
+        (patch_w, patch_h, pscale, sscale, spacer_on, spacer_mode,
+         spacer_width, inter_patch, strip_gap, edge_spacers, margins,
+         use_instrument_margins, layout_mode, patch_area_align,
+         density, cm_stagger, max_strip, offset_x, offset_y,
+         nolpcbord, nolimit, clip_content_mode, helper_markers, chart_text,
+         stamp_command, side_stamp, strip_indicator_gap, text_edge_top,
+         strip_label_offset_mm, strip_label_offset_x_mm, indicator_rotation,
+         row_indicator_rotation) = (_f[k] for k in (
+            "patch_w", "patch_h", "pscale", "sscale", "spacer_on",
+            "spacer_mode", "spacer_width", "inter_patch", "strip_gap",
+            "edge_spacers", "margins", "use_instrument_margins",
+            "layout_mode", "patch_area_align",
+            "density", "cm_stagger", "max_strip", "offset_x", "offset_y",
+            "nolpcbord", "nolimit", "clip_content_mode", "helper_markers",
+            "chart_text", "stamp_command", "side_stamp",
+            "strip_indicator_gap", "text_edge_top", "strip_label_offset_mm",
+            "strip_label_offset_x_mm", "indicator_rotation",
+            "row_indicator_rotation"))
+        _i1io_labels = _f[_i1io_chart.LABELS_KEY]
+        # never above the i1iO's largest label size (review r3 M1)
+        indicator_size_mm = _f["indicator_size_mm"]
+        # the patch numbers beside the strips, clear of a printer's edge
+        text_edge_clip = _f["text_edge_clip"]
+        # the strip letters are the i1iO's own (`draw_furniture`); the
+        # engine draws the patch numbers only
+        draw_indicators = _f["draw_indicators"]
+        row_indicators = _f["row_indicators"]
+        hflag = False          # an i1iO grid is never a honeycomb
+        # Letters for the strips and numbers along them, by ArgyllCMS's
+        # rule, whatever a recipe holds ("C7" means the same everywhere).
+        strip_pattern = permutation.DEFAULT_STRIP_PATTERN
+        patch_pattern = permutation.DEFAULT_PATCH_PATTERN
+        # Manual's "Sheet text" goes on the turned text line (`draw_furniture`),
+        # where it costs no patch, not under the patches.
+        _i1io_sheet_text = _i1io_chart_text
     if instrument == "FD9" and fd9_enabled():
         from workflow.fd9.chart import build_chart as build_fd9
         return build_fd9(ti1_path, out_base, paper=paper, dpi=dpi,
@@ -378,6 +432,8 @@ def build_chart(
     # change it.
     def _geom_for(npat: int):
         return instruments.geom_from_build_kwargs({
+        # the i1iO's labels as asked for, past the fixed settings above
+        **({_i1io_chart.LABELS_KEY: _i1io_labels} if _i1io else {}),
         "instrument": instrument, "paper": paper, "hflag": hflag,
         "hex_flat_top": hex_flat_top,
         "density": density, "cm_stagger": cm_stagger,
@@ -500,6 +556,10 @@ def build_chart(
     # Refused BEFORE a calibration's ramps rewrite the .ti1 on disk, and again
     # on the layout those ramps settle on (it can have a different strip count).
     _refuse_unreadable_patterns(layout)
+    if _i1io:
+        # The table must be able to read this layout at all: refused BEFORE
+        # anything is written (and again below if calibration ramps re-lay it).
+        _i1io_chart.check_sheet(geom, layout, w_mm, h_mm)
 
     # EACH INK'S RAMP ON ITS OWN STRIP (#182, Knut 5965186237). Only for a
     # calibration build, and only when the .ti1 is targen's pure ramp set:
@@ -536,6 +596,8 @@ def build_chart(
                 layout = geometry.compute(geom, w_mm, h_mm,
                                           len(target.patches))
                 _refuse_unreadable_patterns(layout)
+                if _i1io:
+                    _i1io_chart.check_sheet(geom, layout, w_mm, h_mm)
     if cal is not None and apply_cal:
         from . import calibration
         printed = calibration.apply_to_target(target, cal)
@@ -631,6 +693,17 @@ def build_chart(
         collect_device_geom=(target.n_channels >= 4 or export_pdf
                              or raster.is_cmy_target(target)),
     )
+    if _i1io:
+        # The marks, the arrow, the page and the name, after the check that
+        # the table can read this layout at all, and before anything is saved.
+        _i1io_chart.draw_furniture(render, w_mm, h_mm, dpi,
+                                   name=project or Path(out_base).name,
+                                   geom=geom, layout=layout,
+                                   labels=_i1io_labels,
+                                   patterns=(strip_pattern, patch_pattern,
+                                             label_rule),
+                                   sheet_text=_i1io_sheet_text,
+                                   text_ctx=_ctx)
     if target.n_channels >= 4:
         device_pages = raster.build_device_pages(render, printed, bit16=bit16)
         tiff_paths = raster.save_separated_tiffs(
@@ -675,6 +748,15 @@ def build_chart(
         "patch_ink_top_px": render.patch_ink_top_px,
         "strips": rects, "patches": patch_rects,
     }, indent=2), encoding="utf-8")
+
+    if _i1io:
+        _i1io_chart.write_side_file(
+            artefact(stem, ".i1io.json"), geom=geom, layout=layout, w=w_mm,
+            h=h_mm, paper=paper, dpi=dpi, seed=seed, randomize=randomize,
+            strip_pattern=strip_pattern, patch_pattern=patch_pattern,
+            label_rule=label_rule, designed=len(target.patches),
+            labels=_i1io_labels, name=project or Path(out_base).name,
+            sheet_text=_i1io_sheet_text, text_ctx=_ctx)
 
     cht_paths: list[Path] | None = None
     if emit_cht:
