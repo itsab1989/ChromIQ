@@ -69,16 +69,17 @@ def _build(tmp_path, n, paper="A4", rep="RGB", **kw):
 
 
 @pytest.mark.parametrize("paper,kw,count", [
-    ("A4", {}, 504), ("A4", {"spacer_mode": "bw"}, 504),
-    ("A4", {"spacer_mode": "none"}, 546),
+    ("A4", {}, 528), ("A4", {"spacer_mode": "bw"}, 528),
+    ("A4", {"spacer_mode": "none"}, 572),
     ("A4", {"spacer_mode": "none", "draw_indicators": False,
-            "row_indicators": False}, 567),
-    ("Letter", {}, 462), ("Letter", {"spacer_mode": "none"}, 504),
+            "row_indicators": False}, 594),
+    ("Letter", {}, 506), ("Letter", {"spacer_mode": "none"}, 552),
     ("Letter", {"spacer_mode": "none", "draw_indicators": False,
-                "row_indicators": False}, 525)])
+                "row_indicators": False}, 575)])
 def test_the_capacity_is_the_geometrys_own(paper, kw, count):
-    """Per sheet: A4 504 with the default contrast spacers (546 without, 567
-    with no spacers and no labels), Letter 462 (504, 525). Computed from the
+    """Per sheet: A4 528 with the default contrast spacers (572 without, 594
+    with no spacers and no labels), Letter 506 (552, 575). (Until the digits
+    moved beside their crosses along the strips: 504 and 462.) Computed from the
     patch size, the spacers and the smallest safe margins of `table_facts`,
     not looked up."""
     from workflow.layout_engine import geometry, instruments, papers
@@ -448,7 +449,7 @@ def test_the_logo_never_costs_a_patch(tmp_path):
 def test_margins_are_the_persons_but_never_below_the_safe_minimum():
     from workflow.layout_engine import geometry, instruments, papers
     w, h = papers.dimensions_mm("A4")
-    for asked, count in (((3, 3, 3, 3), 504), ((40, 40, 40, 40), 304)):
+    for asked, count in (((3, 3, 3, 3), 528), ((40, 40, 40, 40), 304)):
         g = instruments.geom_from_build_kwargs(
             {"instrument": "IO2", "paper": "A4", "margins": asked})
         assert geometry.patches_per_sheet(g, w, h) == count
@@ -536,8 +537,8 @@ def test_a_pro300_letter_edge_cuts_nothing_of_an_i1io_chart(tmp_path):
     control. They now start 10 mm in, at no cost in patches, and nothing of
     the chart falls into that edge."""
     from workflow import printer_edges as PE
-    result, side = _build(tmp_path, 462, "Letter")
-    assert result.layout.patches_per_page == 462
+    result, side = _build(tmp_path, 506, "Letter")
+    assert result.layout.patches_per_page == 506
     edges = PE.Edges(left=6.4, right=6.3, top=3.0, bottom=5.0, source="ppd")
     loss = PE.losses(result.tiff_paths[0], 0, edges, tuple(side["paper_mm"]))
     assert not loss.any(), loss
@@ -672,3 +673,33 @@ def test_a_long_text_is_shortened_before_the_logo_shrinks():
     assert sum(plan["group"]) / 2.0 == pytest.approx(mid_y)
     small = C.text_line_plan(w, 66.0, long_text, 300)
     assert small["wordmark"] is None or small["wordmark"]["size_mm"] < 4.0
+
+
+def test_the_marks_cost_one_strip_on_a4_and_nothing_on_letter():
+    """The owner, 2026-11-13: "do they use space that could be used for
+    printing more patches?" The digits sit beside their crosses ALONG the
+    strips, in the side band the cross needs anyway, so they cost nothing;
+    the side bands are the cross and its clearance (15 mm) and, at the left,
+    the patch numbers (16 mm). Against a sheet with no marks at all (the
+    text line alone needs 10 mm at the right), the crosses cost one strip on
+    A4 and none on Letter: to cost nothing on A4 a cross would have to come
+    within 6 mm of the paper edge, where a PRO-300 leaves Letter paper
+    unprinted, or shrink below 3 mm."""
+    from workflow.i1io import chart as C, table_facts as F
+    from workflow.layout_engine import geometry, instruments, papers
+    def per_sheet(paper, right=None):
+        g = instruments.geom_from_build_kwargs({"instrument": "IO2",
+                                                "paper": paper})
+        if right is not None:
+            from dataclasses import replace
+            g = replace(g, margin_r=right)
+        w, h = papers.dimensions_mm(paper)
+        return geometry.patches_per_sheet(g, w, h)
+    assert per_sheet("A4") == 528 and per_sheet("Letter") == 506
+    assert per_sheet("A4", right=10.0) == 552          # no crosses: +1 strip
+    assert per_sheet("Letter", right=10.0) == 506      # no crosses: the same
+    for m in C.marks(210.0, 297.0):
+        dx, dy = C.digit_offset(m)
+        assert dx == 0.0 and dy != 0.0                 # along the strips
+        z = C.mark_zone(m)
+        assert z[2] - z[0] <= F.MARK_CROSS_MM.value + 2 * F.MARK_CLEAR_MM.value + 1e-9
