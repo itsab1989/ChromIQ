@@ -229,6 +229,12 @@ class LayoutRecipe:
     #: `clip_content_mode`, whose default "notes" would have switched it on
     #: for every i1iO recipe saved before it existed. Written only when on.
     i1io_clip_border: bool = False
+    #: The sheet text's Bold on an i1iO chart (`workflow.i1io.chart.
+    #: TEXT_BOLD_KEY`): None = the i1iO's own, bold (its name line was bold
+    #: in 4.3.33); False when a person unticked it. Its own field, not
+    #: `chart_text_bold`, whose default False would have changed every i1iO
+    #: chart with a sheet text. Written only when False.
+    i1io_text_bold: "bool | None" = None
     # Layout strategy (#93, Knut). "patch_first" (default) = size the patches
     # (above) and fit as many as possible to the page. "area_first" = fit a
     # target grid into the usable area and SIZE the patches to fill it:
@@ -471,6 +477,8 @@ class LayoutRecipe:
             d.pop("i1io_align", None)
         if self.instrument != "IO2" or not self.i1io_clip_border:
             d.pop("i1io_clip_border", None)
+        if self.instrument != "IO2" or self.i1io_text_bold is not False:
+            d.pop("i1io_text_bold", None)
         d[HIDES_PATCH_CONTROLS_KEY] = True      # B8-1570; not a field
         # Left out at 0, so a recipe that does not move its labels sideways
         # writes exactly the dict it wrote before the field existed (see the
@@ -552,6 +560,8 @@ class LayoutRecipe:
             i1io_crosses=bool(d.get("i1io_crosses", True)),
             i1io_align=str(d.get("i1io_align") or ""),
             i1io_clip_border=bool(d.get("i1io_clip_border", False)),
+            i1io_text_bold=(False if d.get("i1io_text_bold") is False
+                            else None),
             show_strip_indicators=bool(d.get("draw_indicators", True)),
             show_row_indicators=(None if d.get("row_indicators") is None
                                  else bool(d.get("row_indicators"))),
@@ -842,6 +852,8 @@ class LayoutRecipe:
             kw["i1io_align"] = self.i1io_align
         if self.instrument == "IO2" and self.i1io_clip_border:
             kw["i1io_clip_border"] = True
+        if self.instrument == "IO2" and self.i1io_text_bold is False:
+            kw["i1io_text_bold"] = False
         # Only when it moves anything, so the kwargs of every chart that does
         # not use it are the ones it had before the field existed.
         if self.strip_label_offset_x_mm:

@@ -296,17 +296,19 @@ def i1io_settable_summary() -> str:
     return tr(
         "What you can set for the i1iO: the paper and the number of pages; "
         "the margins (at least what the marks, the blank paper at both ends "
-        "of every strip and the strip letters need; ChromIQ raises a smaller "
-        "value to that); where the patches sit in the space the margins "
-        "leave (“Patch area alignment”); under “Expert Options”, the patch "
+        "of every strip, the strip letters and a clip border need; ChromIQ "
+        "raises a smaller value to that); where the patches sit in the space "
+        "the margins leave (“Patch area alignment”); the clip border (off "
+        "by default) and what it holds; under “Expert Options”, the patch "
         "size (8.9 to 20 mm along the strip, 7 to 20 mm across it), the "
         "spacers between the patches (Coloured, the default, Black & white "
         "or None), their size (1 mm up to a fifth of the patch length) and "
         "your own spacer colours, the “Inter-patch gap” along the strips and "
         "the “Strip gap” between them, the aiming crosses, the strip letters "
-        "and patch numbers on or off and their size, the sheet text (printed "
-        "on the line with the chart name), the randomisation, the printer "
-        "calibration and the output settings.")
+        "and patch numbers on or off with their size, label patterns, "
+        "typeface, underline and alignment, the sheet text (printed on the "
+        "line with the chart name) with its typeface and size, the "
+        "randomisation, the printer calibration and the output settings.")
 
 
 def i1io_greyed_why() -> dict:
@@ -345,11 +347,6 @@ def i1io_greyed_why() -> dict:
             "blank paper at the strip ends and the aiming crosses clear. "
             "Place the patches with the margins or “Patch area alignment” "
             "instead."),
-        "patterns": tr(
-            "An i1iO chart names its strips and patches the way ArgyllCMS "
-            "does by default, so that a name such as C7 means the same on "
-            "the sheet, in the Measure tab and in the aiming instructions. "
-            "The band for the strip letters is sized for those names."),
         "edge_spacers": tr(
             "A spacer at the end of a strip would print on the blank paper "
             "where the arm speeds up and slows down, and that paper must "
@@ -366,18 +363,17 @@ def i1io_greyed_why() -> dict:
             "These distances are fixed on an i1iO chart: the patch numbers "
             "start 10 mm from the paper edge, past the widest edge a printer "
             "leaves unprinted, and the strip letters 4 mm from it."),
-        "sheet_text_style": tr(
-            "The sheet text shares one line with the chart name and the page "
-            "number. That line is printed in one typeface, sized and placed "
-            "so that it costs no patch."),
+        "sheet_text_align": tr(
+            "The sheet text shares one line with the page number and the "
+            "chart name, and ChromIQ places that line in free paper where it "
+            "costs no patch: between aiming crosses 2 and 3, or without the "
+            "crosses between two corner patches. There is no margin to align "
+            "it to, so its place is fixed. Its typeface, size, bold and "
+            "italic do apply."),
         "sig": tr(
             "The strip letters stand at the far end of every strip, 1 mm "
             "beyond the blank paper the arm runs out on. That distance is "
             "fixed."),
-        "label_style": tr(
-            "The strip letters and patch numbers are printed in one "
-            "typeface, without underlines, in a band sized for exactly that, "
-            "clear of the blank paper the arm runs on."),
         "rotation": tr(
             "The letters and numbers are turned a quarter turn, so they read "
             "the right way up on the sheet lying across the table."),
@@ -433,6 +429,30 @@ def i1io_clip_help() -> str:
         "line with the chart name."
         "\n\n"
         "**Default:** Off.")
+
+
+def i1io_label_align_help() -> str:
+    """The tooltip of the strip letters' alignment while the i1iO is
+    chosen: the engine's rule for side-turned labels, in the i1iO's words."""
+    return tr(
+        "For the i1iO: where each strip letter sits in its band below the "
+        "strip, which is at the strip's left end as the sheet lies on the "
+        "table. Left: right next to its strip, 1 mm past the blank paper the "
+        "arm runs out on; this is the default. Centre: in the middle of the "
+        "band. Right: at the band's outer edge, 4 mm from the edge of the "
+        "paper, so all letters start at the same distance from it.")
+
+
+def i1io_underline_help() -> str:
+    """The tooltip of the label underline while the i1iO is chosen."""
+    return tr(
+        "For the i1iO: a line between the strip letters and the strips, "
+        "1 mm past the blank paper the arm runs out on, so the arm never "
+        "reads it. Black: one black line across all strips. Coloured "
+        "(5 segments): the same line in ChromIQ's five accent colours. "
+        "Coloured (per strip): a short line in an accent colour at each "
+        "strip's letter. The band for the letters grows by the line and its "
+        "distance, which can cost a row of patches.")
 
 
 def i1io_crosses_title() -> str:
@@ -856,6 +876,10 @@ class LayoutOptionsPanel(QWidget):
         #: `_i1io_apply_clip_state`. `LayoutRecipe.i1io_clip_border`.
         self._i1io_clip_on = False
         self._i1io_clip_kind = "notes"
+        #: The i1iO's sheet text is bold unless a person unticked "Bold"
+        #: for it (`LayoutRecipe.i1io_text_bold`); the box shows the
+        #: i1iO's own state while it is chosen.
+        self._i1io_text_bold_off = False
         #: True once a PERSON has set one of the ten label-style controls, or a
         #: recipe that already owned its style was loaded. Mirrors
         #: `LayoutRecipe.label_style_explicit` in both directions.
@@ -3683,7 +3707,20 @@ class LayoutOptionsPanel(QWidget):
             getattr(self, "insert_token_btn", None),
             # THE CLIP BORDER, an option off by default (2026-11-13): every
             # control but its side (`i1io_greyed_why`, "clip_side")
-            *self._i1io_clip_controls()) if c is not None)
+            *self._i1io_clip_controls(),
+            # THE LABEL OPTIONS (2026-11-13): the patterns, the label face,
+            # underline and alignment, and the sheet text's face and size
+            *self._i1io_label_controls()) if c is not None)
+
+    def _i1io_label_controls(self) -> tuple:
+        """The label and sheet-text style controls an i1iO chart reads
+        (2026-11-13): all but the sheet text's alignment."""
+        return tuple(getattr(self, n, None) for n in (
+            "strip_pat", "patch_pat", "indicator_font", "ind_bold",
+            "ind_italic", "underline_mode", "underline_thickness",
+            "underline_gap", "ind_align_left", "ind_align_center",
+            "ind_align_right", "chart_text_font", "chart_text_size",
+            "ct_bold", "ct_italic"))
 
     def _i1io_clip_controls(self) -> tuple:
         """The clip-border controls an i1iO chart reads (all but the side)."""
@@ -3706,7 +3743,6 @@ class LayoutOptionsPanel(QWidget):
         "use_instr_margins": "instr_margins",
         **dict.fromkeys(("max_strip", "nolimit"), "strip_length"),
         **dict.fromkeys(("offx", "offy"), "offset"),
-        **dict.fromkeys(("strip_pat", "patch_pat"), "patterns"),
         "edge_spacers_cb": "edge_spacers",
         "hex_flat_top_cb": "hex",
         **dict.fromkeys(("helper_markers_cb", "helper_marker_edge",
@@ -3716,15 +3752,8 @@ class LayoutOptionsPanel(QWidget):
         "stamp_command": "stamp",
         **dict.fromkeys(("text_edge_top", "text_edge", "text_edge_clip"),
                         "text_edges"),
-        **dict.fromkeys(("chart_text_font", "chart_text_size", "ct_bold",
-                         "ct_italic", "chart_text_align"),
-                        "sheet_text_style"),
+        "chart_text_align": "sheet_text_align",
         "sig": "sig",
-        **dict.fromkeys(("indicator_font", "ind_bold", "ind_italic",
-                         "underline_mode", "underline_thickness",
-                         "underline_gap", "ind_align_left",
-                         "ind_align_center", "ind_align_right"),
-                        "label_style"),
         **dict.fromkeys(("indicator_rotation", "row_indicator_rotation"),
                         "rotation"),
         **dict.fromkeys(("strip_label_offset_x", "strip_label_offset"),
@@ -3770,8 +3799,6 @@ class LayoutOptionsPanel(QWidget):
         """What the greyed controls show for an i1iO chart: its margins (the
         mark bands, the runs and, with row numbers on, their band), no
         spacers, patch-first, the default label patterns."""
-        from workflow.layout_engine.permutation import (DEFAULT_PATCH_PATTERN,
-                                                        DEFAULT_STRIP_PATTERN)
         t, r, b, lt = self._i1io_least_margins()
         from workflow.i1io import table_facts as F
         from workflow.i1io.chart import align_of
@@ -3784,13 +3811,12 @@ class LayoutOptionsPanel(QWidget):
                     self._i1io_crosses_on()),
                 # what the greyed boxes show: the values an i1iO chart uses
                 "combos": {"indicator_rotation": F.LABEL_TURN_DEG.value,
-                           "row_indicator_rotation": F.LABEL_TURN_DEG.value,
-                           "chart_text_font": "Inter"},
+                           "row_indicator_rotation": F.LABEL_TURN_DEG.value},
                 "values": {"text_edge_clip": F.NUMBERS_EDGE_MM.value,
                            "text_edge": F.LETTER_EDGE_MM.value},
                 "checks": {"nolimit": True},
-                "texts": {"strip_pat": DEFAULT_STRIP_PATTERN,
-                          "patch_pat": DEFAULT_PATCH_PATTERN}}
+                # the label patterns are the chart's own since 2026-11-13
+                "texts": {}}
 
     def _i1io_show_what_applies(self) -> None:
         want = self._i1io_fixed_shown()
@@ -3876,6 +3902,15 @@ class LayoutOptionsPanel(QWidget):
                 c.setRange(lo, hi)
             self.strip_gap.setToolTip(i1io_gap_help("between"))
             self.inter_patch.setToolTip(i1io_gap_help("along"))
+            # …and the label options whose meaning is the i1iO's own
+            for name, tip in (("ind_align_left", i1io_label_align_help()),
+                              ("ind_align_center", i1io_label_align_help()),
+                              ("ind_align_right", i1io_label_align_help()),
+                              ("underline_mode", i1io_underline_help())):
+                c = getattr(self, name, None)
+                if c is not None:
+                    saved["gap_tips"].append((c, c.toolTip()))
+                    c.setToolTip(tip)
             # The spacer size, inside the table's limits
             # (`table_facts.spacer_width_mm`): 1 mm up to a fifth of the
             # patch length; "auto" (0) is the 1 mm default.
@@ -3916,6 +3951,9 @@ class LayoutOptionsPanel(QWidget):
             ccm = getattr(self, "clip_content_mode", None)
             saved["clip_content"] = (ccm.currentIndex() if ccm is not None
                                      else -1)
+            # …and its sheet-text Bold: the i1iO's own (bold unless unticked)
+            saved["ct_bold"] = self.ct_bold.isChecked()
+            self._i1io_set_checked(self.ct_bold, not self._i1io_text_bold_off)
             self._i1io_saved = saved
             self._i1io_prev_least = None
             self._i1io_show_crosses_slot(saved)
@@ -3935,13 +3973,23 @@ class LayoutOptionsPanel(QWidget):
                                    "currentIndexChanged"),
                                   ("clip_width", "valueChanged"),
                                   ("show_row_indicators", "toggled"),
-                                  ("indicator_size", "valueChanged")):
+                                  ("indicator_size", "valueChanged"),
+                                  # the letters' band follows the labels
+                                  ("strip_pat", "textChanged"),
+                                  ("indicator_font", "currentIndexChanged"),
+                                  ("ind_bold", "toggled"),
+                                  ("ind_italic", "toggled"),
+                                  ("underline_mode", "currentIndexChanged"),
+                                  ("underline_thickness", "valueChanged"),
+                                  ("underline_gap", "valueChanged")):
                     w = getattr(self, name, None)
                     if w is not None:
                         getattr(w, sig).connect(self._i1io_inputs_changed)
                 self._i1io_rows_wired = True
             return
         self._i1io_remember_clip_state()
+        self._i1io_text_bold_off = not self.ct_bold.isChecked()
+        self._i1io_set_checked(self.ct_bold, bool(was.get("ct_bold", False)))
         self._i1io_saved = None
         self._i1io_prev_least = None
         self._i1io_hide_crosses_slot(was)
@@ -3967,10 +4015,9 @@ class LayoutOptionsPanel(QWidget):
     # The i1iO's own copies of what the FD-9 keeps for itself (the owner,
     # 2026-11-13: a later FD-9 change by its contributor must not be able to
     # break the i1iO), so the two Betas share no helper here.
-    _I1IO_SHOWN_TEXTS = ("strip_pat", "patch_pat", "chart_text")
+    _I1IO_SHOWN_TEXTS = ("chart_text",)
     _I1IO_SHOWN_COMBOS = ("spacer_mode", "layout_mode", "patch_align",
-                          "indicator_rotation", "row_indicator_rotation",
-                          "chart_text_font")
+                          "indicator_rotation", "row_indicator_rotation")
     _I1IO_SHOWN_VALUES = ("text_edge_clip", "text_edge")
     _I1IO_SHOWN_CHECKS = ("nolimit",)
 
@@ -4213,6 +4260,20 @@ class LayoutOptionsPanel(QWidget):
         self._sync_clip_content_enabled()
         self._sync_clip_enable_display()
         self._update_clip_visibility()
+
+    def _i1io_text_bold_now(self) -> bool:
+        """The i1iO's sheet-text Bold as the panel holds it."""
+        if getattr(self, "_i1io_saved", None) is not None:
+            return bool(self.ct_bold.isChecked())
+        return not getattr(self, "_i1io_text_bold_off", False)
+
+    @staticmethod
+    def _i1io_set_checked(box, on: bool) -> None:
+        b = box.blockSignals(True)
+        try:
+            box.setChecked(bool(on))
+        finally:
+            box.blockSignals(b)
 
     def _i1io_remember_clip_state(self) -> None:
         """Leaving the i1iO: keep its clip border for when it comes back."""
@@ -7279,6 +7340,10 @@ class LayoutOptionsPanel(QWidget):
                     # which must not switch the band on. The box shows the
                     # i1iO's state: its content when on, "off" when off.
                     r = self._i1io_clip_recipe(r)
+                    from dataclasses import replace as _rp
+                    self._i1io_text_bold_off = (
+                        getattr(r, "i1io_text_bold", None) is False)
+                    r = _rp(r, chart_text_bold=not self._i1io_text_bold_off)
                 self._set_recipe_impl(r)
                 self._hold_fd9_greying()          # review r1 F5
                 # a loaded recipe's margins are its own: they are raised to
@@ -7637,6 +7702,9 @@ class LayoutOptionsPanel(QWidget):
                         if r.instrument == "IO2" else "")
         r.i1io_clip_border = (self._i1io_clip_now()
                               if r.instrument == "IO2" else False)
+        r.i1io_text_bold = (False if (r.instrument == "IO2"
+                                      and not self._i1io_text_bold_now())
+                            else None)
         r.margin_top = self.margins["t"].value()
         r.margin_right = self.margins["r"].value()
         r.margin_bottom = self.margins["b"].value()

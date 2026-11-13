@@ -196,6 +196,11 @@ def test_manual_offers_the_i1io_and_greys_what_it_does_not_read(chart_tab):
             continue           # live, and enabled by "Custom spacer colours"
         if c in clip_content:
             continue           # live, and enabled by "Clip border" On
+        if c in (panel.ind_italic, panel.ct_italic, panel.ind_bold,
+                 panel.ct_bold):
+            continue           # live, enabled where the face has the style
+        if c in (panel.underline_thickness, panel.underline_gap):
+            continue           # live, enabled by an underline
         assert c.isEnabled(), c.objectName() or type(c).__name__
     panel.custom_spacer_cb.setChecked(True)
     assert all(b.isEnabled() for b in panel._spacer_swatches)

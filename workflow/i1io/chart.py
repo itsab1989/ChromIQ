@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 from . import table_facts as F
@@ -78,10 +79,47 @@ class Labels:
     strip, beyond its run-out: on the table the strip's left end, drawn by
     `draw_furniture`) and the patch numbers (the engine's row indicators,
     beside the first strip: on the table along the top). The table needs
-    neither; the person does."""
+    neither; the person does.
+
+    And their style (2026-11-13, Manual's label options): the strip
+    pattern the letters are made from, the face (the patch numbers already
+    take it from the engine), the underline between the letters and the
+    run-outs, and where a letter sits in its band. Every default is what
+    4.3.33 printed."""
     columns: bool = True     # the patch numbers (the engine's row indicators)
     rows: bool = True        # the strip letters (Manual's "strip indicators")
     size: float = 0.0        # 0 = automatic, as the engine's labels
+    pattern: str = ""        # "" = ArgyllCMS's default strip pattern
+    font: str = ""           # "" = LETTER_FONT, the engine's label face
+    bold: bool = False
+    italic: bool = False
+    underline: str = "off"   # "off" | "black" | "segments" | "cycle"
+    underline_mm: float = 0.5
+    underline_gap_mm: float = 0.5
+    align: str = "left"      # "left" (at the strip) | "center" | "right"
+
+    @property
+    def face(self) -> str:
+        return self.font or LETTER_FONT
+
+    @property
+    def strip_pattern(self) -> str:
+        from workflow.layout_engine import permutation
+        return self.pattern or permutation.DEFAULT_STRIP_PATTERN
+
+    @property
+    def rule_mm(self) -> float:
+        """Paper the underline takes between the letters and the run-outs
+        (gap + thickness), 0 without one."""
+        if self.underline not in UNDERLINES:
+            return 0.0
+        return max(0.0, float(self.underline_gap_mm or 0.0)) + max(
+            0.0, float(self.underline_mm or 0.0))
+
+
+#: The underline kinds an i1iO chart draws (the engine's own; "colored" is
+#: its old name for "segments").
+UNDERLINES = ("black", "segments", "cycle")
 
 
 def label_wishes(kw: dict) -> Labels:
@@ -92,9 +130,36 @@ def label_wishes(kw: dict) -> Labels:
     held = kw.get(LABELS_KEY)
     if isinstance(held, Labels):
         return held
+    under = str(kw.get("underline_mode") or "off")
+    if under == "colored":
+        under = "segments"
+    align = str(kw.get("indicator_align") or "left")
+    from workflow.layout_engine import permutation
+    pattern = str(kw.get("strip_pattern") or "")
+    font = str(kw.get("indicator_font") or "")
     return Labels(columns=kw.get("row_indicators") is not False,
                   rows=kw.get("draw_indicators", True) is not False,
-                  size=label_size_mm(kw.get("indicator_size_mm")))
+                  size=label_size_mm(kw.get("indicator_size_mm")),
+                  pattern=("" if pattern == permutation.DEFAULT_STRIP_PATTERN
+                           else pattern),
+                  font="" if font == LETTER_FONT else font,
+                  bold=bool(kw.get("indicator_bold")),
+                  italic=bool(kw.get("indicator_italic")),
+                  underline=under if under in UNDERLINES else "off",
+                  # as the engine draws it: a thickness of 0 is its 0.5 mm
+                  underline_mm=_mm(kw.get("underline_thickness_mm") or None,
+                                   0.5),
+                  underline_gap_mm=max(0.0, _mm(kw.get("underline_gap_mm"),
+                                                0.5)),
+                  align=align if align in ("left", "center", "right")
+                  else "left")
+
+
+def _mm(value, default: float) -> float:
+    try:
+        return float(default if value is None else value)
+    except (TypeError, ValueError):
+        return default
 
 
 def label_size_mm(asked) -> float:
@@ -196,7 +261,8 @@ def least_margins_mm(kw: dict) -> "tuple[float, float, float, float]":
     margins with this, and Manual's margin boxes offer nothing below it."""
     labels = label_wishes(kw)
     return F.margins_mm(labels.rows, labels.size, numbers=labels.columns,
-                        crosses=crosses_of(kw), clip_mm=clip_width_of(kw))
+                        crosses=crosses_of(kw), clip_mm=clip_width_of(kw),
+                        letter_band=letter_band_for(labels))
 
 
 #: The build-kwargs key for "Aiming crosses" (Manual, Guided, recipes).
@@ -821,7 +887,8 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
                    geom=None, layout=None, labels: "Labels | None" = None,
                    patterns: "tuple | None" = None, sheet_text: str = "",
                    text_ctx: "dict | None" = None,
-                   crosses: "bool | list" = True) -> None:
+                   crosses: "bool | list" = True,
+                   text_style: "SheetTextStyle | None" = None) -> None:
     """Draw the marks and the turned text line onto every page of *render*:
     into the page image, from which the separated TIFF folds them into the
     black ink, and into the PDF display list when there is one. In place.
@@ -846,12 +913,12 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
         geom_list = (render.patch_geom[index]
                      if getattr(render, "patch_geom", None) is not None else None)
 
-        def rect(x0: int, y0: int, x1: int, y1: int) -> None:
+        def rect(x0: int, y0: int, x1: int, y1: int, rgb=black) -> None:
             if x1 <= x0 or y1 <= y0:
                 return
-            draw.rectangle((x0, y0, x1 - 1, y1 - 1), fill=black)
+            draw.rectangle((x0, y0, x1 - 1, y1 - 1), fill=rgb)
             if geom_list is not None:
-                geom_list.append(("vrect", (x0, y0, x1, y1), black))
+                geom_list.append(("vrect", (x0, y0, x1, y1), rgb))
 
         def turned_text(txt: str, centre: "tuple[float, float]", size_px: int,
                         family: str = "Inter", italic: bool = False,
@@ -918,10 +985,18 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
         # widest (`table_facts.letter_band_mm`).
         if geom is not None and layout is not None and (
                 labels is None or labels.rows):
-            for text, centre, size in strip_letters(geom, layout, w, h, index,
-                                                    dpi, labels, draw):
-                turned_text(text, centre, size, family=LETTER_FONT,
-                            bold=False, anchor="start")
+            _lab = labels or Labels()
+            for text, centre, size in strip_letters(
+                    geom, layout, w, h, index, dpi, labels, draw,
+                    rule=(patterns[2] if patterns else None)):
+                turned_text(text, centre, size, family=_lab.face,
+                            italic=_lab.italic, bold=_lab.bold,
+                            anchor="start")
+            # …and their underline, between them and the run-outs
+            for (ux0, uy0, ux1, uy1), rgb in underline_rects(
+                    geom, layout, w, h, index, labels):
+                rect(px(ux0), px(uy0), px(ux1), max(px(uy1), px(uy0) + 1),
+                     rgb)
         # THE TEXT LINE: the ChromIQ wordmark, then the page "N/M", the
         # chart's name and Manual's sheet text, as ONE GROUP centred between
         # crosses 2 and 3 (the owner, 2026-11-13): on the table halfway
@@ -930,14 +1005,15 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
         # so none of it costs a patch.
         # WITHOUT THE CROSSES only where it costs nothing, shrunk before a
         # part is left off (`crosses_off_plan`).
-        if here or geom is None or layout is None:
+        if geom is None or layout is None:
             plan = text_line_plan(w, h, page_line_text(name, index, pages,
                                                        sheet_text, text_ctx),
                                   dpi)
         else:
             plan = line_plan(geom, layout, w, h, index, name=name,
                              sheet_text=sheet_text, text_ctx=text_ctx,
-                             dpi=dpi, labels=labels, crosses=False)
+                             dpi=dpi, labels=labels, crosses=here,
+                             style=text_style)
         if plan["wordmark"] is not None:
             wm = plan["wordmark"]
             turned_text("Chrom", (wm["baseline_x"], wm["chrom_y"]),
@@ -946,7 +1022,15 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
             turned_text("IQ", (wm["baseline_x"], wm["iq_y"]), wm["size_px"],
                         family=WORDMARK_FONT, italic=True, bold=False,
                         rgb=WORDMARK_IQ_RGB, anchor="pen")
-        if plan["text"]:
+        if plan.get("parts"):
+            # the sheet text in its own face and size (`SheetTextStyle`),
+            # every part's visual middle on the one line
+            for part in plan["parts"]:
+                turned_text(part["text"], (part["baseline_x"], part["y"]),
+                            part["size_px"], family=part["family"],
+                            italic=part["italic"], bold=part["bold"],
+                            anchor="pen")
+        elif plan["text"]:
             turned_text(plan["text"], (plan["text_baseline_x"],
                                        plan["text_y"]),
                         plan["text_size_px"], anchor="pen")
@@ -1093,6 +1177,187 @@ def text_line_plan(w: float, h: float, full: str, dpi: int) -> dict:
     return out
 
 
+# ---- the sheet text in its own face (Manual's sheet-text options) -----------
+
+@dataclass(frozen=True)
+class SheetTextStyle:
+    """Manual's sheet-text face, size, bold and italic, for the SHEET TEXT
+    part of the name line only (2026-11-13): the page number, the chart name
+    and the logo keep Inter Bold at TEXT_CAP_MM capitals. Size 0 = the
+    line's own capitals, in this face."""
+    family: str = "Inter"
+    bold: bool = False
+    italic: bool = False
+    size_mm: float = 0.0
+
+
+#: The build-kwargs key for the sheet text's Bold on an i1iO chart: False
+#: only when a person unticked it (`LayoutRecipe.i1io_text_bold`). The i1iO
+#: prints its sheet text bold, as the whole name line was in 4.3.33, so its
+#: own key and not `chart_text_bold`, whose recipe default is False.
+TEXT_BOLD_KEY = "i1io_text_bold"
+
+#: The sheet text's style when nobody changed it: the name line's own.
+DEFAULT_TEXT_STYLE = SheetTextStyle(family="Inter", bold=True)
+
+
+def text_style_of(kw: dict) -> "SheetTextStyle | None":
+    """The sheet text's style as build kwargs *kw* hold it, or None when it
+    is the name line's own (Inter Bold, its capitals): then the line is set
+    exactly as in 4.3.33, as one run of text."""
+    try:
+        size = max(0.0, float(kw.get("chart_text_size_mm") or 0.0))
+    except (TypeError, ValueError):
+        size = 0.0
+    style = SheetTextStyle(family=str(kw.get("chart_text_font") or "Inter"),
+                           bold=kw.get(TEXT_BOLD_KEY) is not False,
+                           italic=bool(kw.get("chart_text_italic")),
+                           size_mm=size)
+    return None if style == DEFAULT_TEXT_STYLE else style
+
+
+def _style_px(style: SheetTextStyle, s: float) -> int:
+    """The sheet text's font size in px at *s* px per mm: the size asked
+    for (an em in mm, as on every chart), or with "auto" the size whose
+    capitals are TEXT_CAP_MM, as the name's, in this face."""
+    if style.size_mm > 0:
+        return max(1, int(round(style.size_mm * s)))
+    probe, _p, _v = _font(200, style.family, style.italic, style.bold)
+    cap200 = _cap_mm(probe, 1.0)
+    return max(1, int(round(200 * (TEXT_CAP_MM * s) / cap200)))
+
+
+def _parts_at(parts, line_x: float, y: float, s: float, probe) -> list:
+    """Where each part of the line goes: ``[{"text", "family", "italic",
+    "bold", "size_px", "baseline_x", "y"}]``, the text running UP the page
+    from *y* (each part's pen starting where the one before it ended), and
+    every part's visual middle on *line_x*."""
+    out = []
+    for text, family, italic, bold, size_px, font in parts:
+        if not text:
+            continue
+        out.append({"text": text, "family": family, "italic": bool(italic),
+                    "bold": bool(bold), "size_px": int(size_px),
+                    "baseline_x": line_x + _cap_mm(font, s) / 2.0, "y": y})
+        y -= probe.textlength(text, font=font) / s
+    return out
+
+
+def styled_line_plan(w: float, h: float, head: str, extra: str, dpi: int,
+                     style: SheetTextStyle) -> dict:
+    """`text_line_plan` with the sheet text *extra* set in its own *style*:
+    the same room between crosses 2 and 3, the same order (the sheet text is
+    shortened first, then the logo shrinks), every part's visual middle on
+    the line through the crosses' centres. A sheet-text size the band cannot
+    hold across (towards the strips and towards the paper edge) is reduced
+    to the largest that fits, so it never costs a patch and never reaches
+    the printer's edge."""
+    from PIL import Image, ImageDraw
+    s = dpi / 25.4
+    probe = ImageDraw.Draw(Image.new("L", (1, 1)))
+    m = marks(w, h)
+    line_x = m[1].centre_mm[0]
+    mid_y = (m[1].centre_mm[1] + m[2].centre_mm[1]) / 2.0
+    col_x0, room_y0, col_x1, room_y1 = text_column(w, h)
+    room = room_y1 - room_y0
+    probe_font, _p, _v = _font(200, "Inter")
+    cap200 = _cap_mm(probe_font, 1.0)
+    text_px = max(1, int(round(200 * (TEXT_CAP_MM * s) / cap200)))
+    text_font, _p, _v = _font(text_px, "Inter")
+    # the sheet text's size, held inside the band across the line
+    up_room, down_room = line_x - col_x0, col_x1 - line_x
+    xpx = _style_px(style, s)
+    while True:
+        xfont, _p, _v = _font(xpx, style.family, style.italic, style.bold)
+        up, down = _across(probe, xfont, (extra + "Hgy…").strip(), s)
+        if (up <= up_room + 1e-9 and down <= down_room + 1e-9) or xpx <= 1:
+            break
+        xpx = max(1, int(xpx * 0.95))
+    head_part = f"{head}{TEXT_SEP}" if head else ""
+
+    def plen(parts) -> float:
+        return sum(probe.textlength(t, font=f) for t, f in parts if t) / s
+
+    def fit(length: float):
+        """(head part, sheet text) shortened from the end with "…" until
+        they fit *length*: the sheet text first, then the head."""
+        ht, xt = head_part, extra
+        while plen(((ht, text_font), (xt, xfont))) > length + 1e-9:
+            if xt:
+                core = xt[:-1] if xt.endswith("…") else xt
+                core = core[:-1].rstrip()
+                xt = core + "…" if core else ""
+                if not xt:
+                    ht = head      # no sheet text: no separator either
+            elif ht:
+                core = ht[:-1] if ht.endswith("…") else ht
+                core = core[:-1].rstrip()
+                ht = core + "…" if core else ""
+            else:
+                break
+        return ht, xt
+
+    def short_min() -> float:
+        joined = head_part + extra
+        if len(joined) <= TEXT_MIN_CHARS:
+            return plen(((head_part, text_font), (extra, xfont)))
+        keep = TEXT_MIN_CHARS
+        if keep <= len(head_part):
+            return plen(((head_part[:keep] + "…", text_font),))
+        return plen(((head_part, text_font),
+                     (extra[:keep - len(head_part)] + "…", xfont)))
+
+    def wordmark(size_mm: float):
+        size_px = max(1, int(round(size_mm / 0.74 * s)))
+        f, _p, _v = _font(size_px, WORDMARK_FONT, bold=False)
+        fi, _p, _v = _font(size_px, WORDMARK_FONT, italic=True, bold=False)
+        chrom = probe.textlength("Chrom", font=f) / s
+        iq = probe.textlength("IQ", font=fi) / s
+        kern = WORDMARK_KERN * size_px / s
+        return {"size_mm": size_mm, "size_px": size_px, "font": f,
+                "chrom_len": chrom, "kern": kern,
+                "length": chrom + kern + iq}
+
+    chosen = None
+    size = F.WORDMARK_MM.value
+    while size >= F.WORDMARK_MIN_MM.value - 1e-9:
+        wm = wordmark(size)
+        left = room - wm["length"] - WORDMARK_GAP_MM
+        if left >= short_min() - 1e-9:
+            chosen = wm
+            ht, xt = fit(max(0.0, left))
+            break
+        size -= 0.5
+    if chosen is None:
+        ht, xt = fit(room)
+    if not xt:
+        ht = ht[:-len(TEXT_SEP)] if ht.endswith(TEXT_SEP) else ht
+    text_len = plen(((ht, text_font), (xt, xfont)))
+    label = ht + xt
+    total = ((chosen["length"] if chosen else 0.0)
+             + (WORDMARK_GAP_MM if chosen and label else 0.0) + text_len)
+    start = mid_y + total / 2.0
+    out = {"line_x": line_x, "group": (start - total, start), "text": label,
+           "text_size_px": text_px, "wordmark": None}
+    y = start
+    if chosen is not None:
+        cap = _cap_mm(chosen["font"], s)
+        out["wordmark"] = {
+            "size_mm": chosen["size_mm"], "size_px": chosen["size_px"],
+            "baseline_x": line_x + cap / 2.0, "chrom_y": y,
+            "iq_y": y - chosen["chrom_len"] - chosen["kern"],
+            "box": (line_x - cap / 2.0, y - chosen["length"],
+                    line_x + cap / 2.0, y)}
+        y -= chosen["length"] + (WORDMARK_GAP_MM if label else 0.0)
+    out["text_baseline_x"] = line_x + _cap_mm(text_font, s) / 2.0
+    out["text_y"] = y
+    out["parts"] = _parts_at(
+        [(ht, "Inter", False, True, text_px, text_font),
+         (xt, style.family, style.italic, style.bold, xpx, xfont)],
+        line_x, y, s, probe)
+    return out
+
+
 # ---- without the crosses: the text line only where it costs nothing --------
 
 def free_spots(geom, layout, w: float, h: float, page: int,
@@ -1157,13 +1422,18 @@ def _across(probe, font, txt: str, s: float) -> "tuple[float, float]":
     return max(up, cap / 2.0), max(down, 0.0)
 
 
-def free_text_plan(spot: dict, head: str, extra: str, dpi: int) -> dict:
+def free_text_plan(spot: dict, head: str, extra: str, dpi: int,
+                   style: "SheetTextStyle | None" = None) -> dict:
     """The text line in one free *spot* (`free_spots`) of a chart without the
     crosses: as much of it as costs nothing, by the owner's priorities
     (2026-11-13): 1. the chart name with the page N/M, 2. (the strip letters
     and patch numbers keep their own places), 3. the sheet text, 4. the
     logo. Each is shrunk first and only then left off; a long sheet text is
     shortened before the logo shrinks, as with the crosses.
+
+    With *style* (Manual's sheet-text face and size) the sheet text is set
+    in its own face, at its own size shrunk in step with the name; without
+    it, as before, in the name's.
 
     Returns the dict `text_line_plan` returns, plus ``"spot"``, ``"kept"``
     (a subset of ``("name", "sheet text", "logo")``), ``"name_whole"`` and
@@ -1178,16 +1448,36 @@ def free_text_plan(spot: dict, head: str, extra: str, dpi: int) -> dict:
     probe_font, _p, _v = _font(200, "Inter")
     cap200 = _cap_mm(probe_font, 1.0)
     every = (head + extra + "Hgy…").strip()
+    styled = style is not None and bool(extra)
+    full_px = _style_px(style, s) if styled else 0
 
     def text_font(cap_mm: float):
         px_ = max(1, int(round(200 * (cap_mm * s) / cap200)))
         return px_, _font(px_, "Inter")[0]
 
+    def extra_font(cap_mm: float):
+        """The sheet text's font at the name's *cap_mm*: its own size,
+        shrunk in step with the name."""
+        px_ = max(1, int(round(full_px * cap_mm / TEXT_CAP_MM)))
+        return px_, _font(px_, style.family, style.italic, style.bold)[0]
+
+    def across_all(f, fx, name_t: str, extra_t: str) -> "tuple[float, float]":
+        if fx is None:
+            return _across(probe, f, (name_t + extra_t) or "H", s)
+        u1, d1 = _across(probe, f, (name_t + "Hgy…").strip(), s)
+        u2, d2 = _across(probe, fx, (extra_t + "Hgy…").strip(), s)
+        return max(u1, u2), max(d1, d2)
+
     caps = []
+    xfont = {}
     c = TEXT_CAP_MM
     while c >= F.TEXT_MIN_CAP_MM.value - 1e-9:
         px_, f = text_font(c)
-        up, down = _across(probe, f, every, s)
+        if styled:
+            xfont[c] = extra_font(c)
+            up, down = across_all(f, xfont[c][1], head, extra)
+        else:
+            up, down = _across(probe, f, every, s)
         if up + down <= width + 1e-9:
             caps.append((c, px_, f))
         c = round(c - 0.25, 4)
@@ -1243,8 +1533,10 @@ def free_text_plan(spot: dict, head: str, extra: str, dpi: int) -> dict:
         """One arrangement: the text at *cap* (``(mm, px, font)``), the
         wordmark *wm* (or None), the sheet text kept down to *extra_least*
         characters (None: left off), the name shortened down to
-        *name_least* characters (None: whole). Returns (label, wm) or None."""
+        *name_least* characters (None: whole). Returns (label, wm, name,
+        sheet text) or None."""
         _c, _px, f = cap
+        fx = xfont[_c][1] if styled else f
         left = room - (wm["length"] + WORDMARK_GAP_MM if wm else 0.0)
         if left < 0:
             return None
@@ -1258,11 +1550,11 @@ def free_text_plan(spot: dict, head: str, extra: str, dpi: int) -> dict:
                 return None
         if extra and extra_least is not None:
             rest = left - tlen(f, name) - tlen(f, TEXT_SEP)
-            ex = fit(f, extra, rest, min(extra_least, len(extra)))
+            ex = fit(fx, extra, rest, min(extra_least, len(extra)))
             if ex is None:
                 return None
-            return join(name, ex), wm
-        return name, wm
+            return join(name, ex), wm, name, ex
+        return name, wm, name, ""
 
     big = caps[0]
     tries = []
@@ -1285,14 +1577,22 @@ def free_text_plan(spot: dict, head: str, extra: str, dpi: int) -> dict:
         got = attempt(cap, wm, ex_least, name_least)
         if got is None:
             continue
-        label, wm = got
+        label, wm, name_t, ex_t = got
         if not label and not wm:
             continue
         _c, px_, f = cap
+        two = styled and bool(ex_t)
+        fx_px, fx = xfont[_c] if two else (px_, f)
+        if two:
+            head_part = f"{name_t}{TEXT_SEP}" if name_t else ""
+            text_len = tlen(f, head_part) + tlen(fx, ex_t)
+            up, down = across_all(f, fx, name_t, ex_t)
+        else:
+            text_len = tlen(f, label)
+            up, down = _across(probe, f, label, s)
         total = ((wm["length"] if wm else 0.0)
                  + (WORDMARK_GAP_MM if wm and label else 0.0)
-                 + tlen(f, label))
-        up, down = _across(probe, f, label, s)
+                 + text_len)
         if wm:
             up, down = max(up, wm["up"]), max(down, wm["down"])
         # every part's visual middle on one line, the ink inside the spot
@@ -1322,6 +1622,11 @@ def free_text_plan(spot: dict, head: str, extra: str, dpi: int) -> dict:
         out["kept"] = tuple(kept)
         out["text_baseline_x"] = line_x + _cap_mm(f, s) / 2.0
         out["text_y"] = y
+        if two:
+            out["parts"] = _parts_at(
+                [(head_part, "Inter", False, True, px_, f),
+                 (ex_t, style.family, style.italic, style.bold, fx_px, fx)],
+                line_x, y, s, probe)
         return out
     return empty
 
@@ -1336,13 +1641,14 @@ def _rank(plan: dict) -> tuple:
 
 def crosses_off_plan(geom, layout, w: float, h: float, page: int, head: str,
                      extra: str, dpi: int,
-                     labels: "Labels | None" = None) -> dict:
+                     labels: "Labels | None" = None,
+                     style: "SheetTextStyle | None" = None) -> dict:
     """The text line of page *page* of a chart without the crosses: the best
     of the free spots (`free_spots`, `free_text_plan`), the bottom edge
     when it keeps as much."""
     best = None
     for spot in free_spots(geom, layout, w, h, page, labels):
-        plan = free_text_plan(spot, head, extra, dpi)
+        plan = free_text_plan(spot, head, extra, dpi, style=style)
         if best is None or _rank(plan) > _rank(best):
             best = plan
     if best is None:
@@ -1356,18 +1662,25 @@ def crosses_off_plan(geom, layout, w: float, h: float, page: int, head: str,
 def line_plan(geom, layout, w: float, h: float, page: int, *, name: str,
               sheet_text: str = "", text_ctx: "dict | None" = None,
               dpi: int = 300, labels: "Labels | None" = None,
-              crosses: bool = True) -> dict:
+              crosses: bool = True,
+              style: "SheetTextStyle | None" = None) -> dict:
     """The text line of page *page*, with the crosses (`text_line_plan`,
-    between crosses 2 and 3) or without them (`crosses_off_plan`)."""
+    between crosses 2 and 3) or without them (`crosses_off_plan`). With a
+    sheet text and its *style* (Manual's sheet-text face and size), the
+    sheet text is fitted as a part of its own (`styled_line_plan`); the
+    page number, the chart name and the logo keep theirs."""
     pages = layout.pages
+    head, extra = page_line_parts(name, page, pages, sheet_text, text_ctx)
     if crosses:
-        plan = text_line_plan(w, h, page_line_text(name, page, pages,
-                                                   sheet_text, text_ctx), dpi)
+        if style is not None and extra:
+            plan = styled_line_plan(w, h, head, extra, dpi, style)
+        else:
+            plan = text_line_plan(w, h, page_line_text(
+                name, page, pages, sheet_text, text_ctx), dpi)
         plan.setdefault("spot", "between crosses 2 and 3")
         return plan
-    head, extra = page_line_parts(name, page, pages, sheet_text, text_ctx)
     return crosses_off_plan(geom, layout, w, h, page, head, extra, dpi,
-                            labels)
+                            labels, style=style)
 
 
 def crosses_off_effects(kw: dict, name: str = "", sheet_text: str = "",
@@ -1386,10 +1699,17 @@ def crosses_off_effects(kw: dict, name: str = "", sheet_text: str = "",
     layout = geometry.compute(geom, w, h, max(1, per) * pages)
     labels = label_wishes(fixed_build_kwargs(k))
     plan = line_plan(geom, layout, w, h, 0, name=name, sheet_text=sheet_text,
-                     dpi=dpi, labels=labels, crosses=False)
+                     dpi=dpi, labels=labels, crosses=False,
+                     style=text_style_of(kw))
     head, extra = page_line_parts(name, 0, layout.pages, sheet_text, None)
     kept = plan.get("kept", ())
-    names = [p["patch"] for p in aim_points(geom, layout, w, h, 0, False)]
+    from workflow.layout_engine import permutation
+    patterns = (str(kw.get("strip_pattern")
+                    or permutation.DEFAULT_STRIP_PATTERN),
+                str(kw.get("patch_pattern")
+                    or permutation.DEFAULT_PATCH_PATTERN), permutation.ARGYLL)
+    names = [p["patch"] for p in aim_points(geom, layout, w, h, 0, False,
+                                            patterns)]
     if "name" not in kept:
         state = "none"
     elif not plan.get("name_whole"):
@@ -1430,27 +1750,120 @@ def letter_size_mm(geom, dpi: int, labels: "Labels | None") -> float:
 
 
 def strip_letters(geom, layout, w: float, h: float, page: int, dpi: int,
-                  labels: "Labels | None" = None, draw=None):
+                  labels: "Labels | None" = None, draw=None,
+                  rule: "str | None" = None):
     """``[(text, start (x, y) in mm, size px)]`` for the strip letters of
     *page*: one per strip, its START (the turned text runs up the page from
-    there, so it reads left to right on the table) placed so its END is
-    LABEL_CLEAR_MM below the strip's run-out."""
+    there, so it reads left to right on the table) placed in the letters'
+    band by the label alignment (`Labels.align`, the engine's rule for a
+    side-turned label, which is about the side of the band): "left" ends it
+    LABEL_CLEAR_MM (and an underline) past the strip's run-out, as 4.3.33
+    did; "right" starts it at the band's outer line, LETTER_EDGE_MM from the
+    paper edge; "center" centres it between the two. Made from the strip
+    pattern, in the label face."""
     from PIL import ImageDraw, Image
     from workflow.layout_engine import permutation
+    labels = labels or Labels()
     s = dpi / 25.4
     size_px = max(1, int(round(letter_size_mm(geom, dpi, labels) * s)))
-    font, _p, _v = _font(size_px, LETTER_FONT, bold=False)
+    font, _p, _v = _font(size_px, labels.face, labels.italic, labels.bold)
     if draw is None:
         draw = ImageDraw.Draw(Image.new("L", (1, 1)))
-    name = permutation.make_labeller(permutation.DEFAULT_STRIP_PATTERN)
+    name = permutation.make_labeller(labels.strip_pattern,
+                                     rule or permutation.ARGYLL)
     steps = max(1, layout.steps_in_pass)
+    outer = h - F.LETTER_EDGE_MM.value
     out = []
     for x, _y0, y1, col in scan_strips(page_patches(geom, layout, w, h, page)):
         text = str(name(col[0][0] // steps + 1)).strip()
         bb = draw.textbbox((0, 0), text, font=font)
         length = (bb[2] - bb[0]) / s
-        out.append((text, (x, y1 + F.LABEL_CLEAR_MM.value + length), size_px))
+        inner = y1 + F.LABEL_CLEAR_MM.value + labels.rule_mm
+        if labels.align == "right":
+            start = max(outer, inner + length)
+        elif labels.align == "center":
+            start = max((inner + outer + length) / 2.0, inner + length)
+        else:
+            start = inner + length
+        out.append((text, (x, start), size_px))
     return out
+
+
+def underline_rects(geom, layout, w: float, h: float, page: int,
+                    labels: "Labels | None") -> "list[tuple]":
+    """``[((x0, y0, x1, y1) mm, rgb)]``: the underline of the strip letters
+    on *page* (the engine's underline, between the labels and the patches):
+    LABEL_CLEAR_MM past every run-out, so nothing is printed on a run;
+    "black" one line across the block, "segments" its five accent segments
+    across it, "cycle" one accent per strip across its own width."""
+    from workflow.layout_engine.raster import ACCENT_RGB
+    if labels is None or not labels.rows or labels.underline not in UNDERLINES:
+        return []
+    strips = scan_strips(page_patches(geom, layout, w, h, page))
+    if not strips:
+        return []
+    thick = max(0.0, float(labels.underline_mm or 0.0))
+    if thick <= 0:
+        return []
+    half = float(geom.pwid) / 2.0
+    steps = max(1, layout.steps_in_pass)
+    out = []
+    if labels.underline == "cycle":
+        for x, _y0, y1, col in strips:
+            y = y1 + F.LABEL_CLEAR_MM.value
+            k = (col[0][0] // steps) % len(ACCENT_RGB)
+            out.append(((x - half, y, x + half, y + thick), ACCENT_RGB[k]))
+        return out
+    y = max(st[2] for st in strips) + F.LABEL_CLEAR_MM.value
+    x0 = min(st[0] for st in strips) - half
+    x1 = max(st[0] for st in strips) + half
+    if labels.underline == "black":
+        return [((x0, y, x1, y + thick), (0, 0, 0))]
+    n = len(ACCENT_RGB)
+    for k in range(n):
+        out.append(((x0 + (x1 - x0) * k / n, y, x0 + (x1 - x0) * (k + 1) / n,
+                     y + thick), ACCENT_RGB[k]))
+    return out
+
+
+@lru_cache(maxsize=256)
+def _widest_label_per_mm(pattern: str, face: str, bold: bool,
+                         italic: bool) -> float:
+    """The longest a label of the strip *pattern* can be, in mm per mm of
+    label size, in that face: the widest glyph of every position of the
+    pattern (`alphix.Alphix`), side by side. An upper bound that needs no
+    strip count, so the estimate and the build agree."""
+    from workflow.layout_engine import alphix
+    from PIL import Image, ImageDraw
+    ref = 1000
+    font, _p, _v = _font(ref, face, italic, bold)
+    probe = ImageDraw.Draw(Image.new("L", (1, 1)))
+    try:
+        digits = alphix.Alphix(pattern, strict=False).ds
+    except Exception:      # noqa: BLE001 - an unreadable pattern is refused
+        return 0.0         # by the engine's own check before anything else
+    total = 0.0
+    for d in digits:
+        total += max((probe.textlength(c, font=font) for c in d.seq
+                      if c and c != "\0"), default=0.0)
+    return total / ref
+
+
+def letter_band_for(labels: "Labels | None") -> float:
+    """Paper the strip letters take below the run-outs, from the page edge
+    (`table_facts.letter_band_mm`, sized for two letters of the engine's
+    face): LETTER_EDGE_MM, the longest label the strip pattern can print in
+    the chosen face (never less than those two letters), LABEL_CLEAR_MM,
+    and the underline when there is one. With the defaults it is exactly
+    `letter_band_mm`, so the chart is laid out as in 4.3.33."""
+    labels = labels or Labels()
+    size = float(labels.size or 0.0) or F.LETTER_AUTO_MM.value
+    base = 2 * F.LETTER_ADVANCE * size
+    widest = _widest_label_per_mm(labels.strip_pattern, labels.face,
+                                  bool(labels.bold), bool(labels.italic)) * size
+    length = widest if widest > base + 1e-6 else base
+    return round(F.LETTER_EDGE_MM.value + length + F.LABEL_CLEAR_MM.value
+                 + labels.rule_mm, 3)
 
 
 def wordmark_box(geom, layout, w: float, h: float, page: int,
@@ -1492,7 +1905,8 @@ def write_side_file(path: Path, *, geom, layout, w: float, h: float,
                     text_ctx: "dict | None" = None,
                     crosses: "bool | list" = True,
                     slots: "list[int] | None" = None,
-                    clip_content: str = "off") -> Path:
+                    clip_content: str = "off",
+                    text_style: "SheetTextStyle | None" = None) -> Path:
     """Write ``<stem>.i1io.json``: every mark, strip and patch in mm on the
     portrait page, what to aim at and where, for the measuring step.
     *slots* is the chart's own patch order (`sheet_slots`)."""
@@ -1522,7 +1936,7 @@ def write_side_file(path: Path, *, geom, layout, w: float, h: float,
         here = on_page(crosses, page)
         plan = line_plan(geom, layout, w, h, page, name=name,
                          sheet_text=sheet_text, text_ctx=text_ctx, dpi=dpi,
-                         labels=labels, crosses=here)
+                         labels=labels, crosses=here, style=text_style)
         wm = wordmark_box(geom, layout, w, h, page, labels, dpi=dpi,
                           plan=plan)
         points = aim_points(geom, layout, w, h, page, here,

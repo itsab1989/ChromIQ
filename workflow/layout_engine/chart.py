@@ -320,6 +320,9 @@ def build_chart(
     #: edge, with the clip-border content asked for. No other instrument
     #: reads it.
     i1io_clip_border: bool = False,
+    #: i1iO only: the sheet text's Bold (`workflow.i1io.chart.TEXT_BOLD_KEY`,
+    #: None = the i1iO's own, bold). No other instrument reads it.
+    i1io_text_bold: "bool | None" = None,
 ) -> ChartResult:
     """Full chart build: write ``out_base.ti2`` + page TIFF(s) + strip geometry.
 
@@ -367,6 +370,16 @@ def build_chart(
             "row_indicators": row_indicators,
             "indicator_size_mm": indicator_size_mm,
             "spacer_width": spacer_width,
+            # the label options (2026-11-13): the strip letters' pattern,
+            # face, underline and place in their band
+            "strip_pattern": strip_pattern,
+            "indicator_font": indicator_font,
+            "indicator_bold": indicator_bold,
+            "indicator_italic": indicator_italic,
+            "indicator_align": indicator_align,
+            "underline_mode": underline_mode,
+            "underline_thickness_mm": underline_thickness_mm,
+            "underline_gap_mm": underline_gap_mm,
             "clip_border_width": clip_border_width,
             "clip_content_mode": clip_content_mode,
             _i1io_chart.ALIGN_KEY: i1io_align,
@@ -410,13 +423,20 @@ def build_chart(
         draw_indicators = _f["draw_indicators"]
         row_indicators = _f["row_indicators"]
         hflag = False          # an i1iO grid is never a honeycomb
-        # Letters for the strips and numbers along them, by ArgyllCMS's
-        # rule, whatever a recipe holds ("C7" means the same everywhere).
-        strip_pattern = permutation.DEFAULT_STRIP_PATTERN
-        patch_pattern = permutation.DEFAULT_PATCH_PATTERN
+        # THE LABEL PATTERNS ARE THE RECIPE'S (2026-11-13): the `.ti2`, the
+        # patch numbers, the strip letters (`draw_furniture`), the aiming
+        # names and the side file all take them, so "C7" still means the
+        # same everywhere; a pair the readers could not read back is refused
+        # below, as on every chart.
         # Manual's "Sheet text" goes on the turned text line (`draw_furniture`),
-        # where it costs no patch, not under the patches.
+        # where it costs no patch, not under the patches, in its own face
+        # and size (2026-11-13; the name and the logo keep theirs).
         _i1io_sheet_text = _i1io_chart_text
+        _i1io_text_style = _i1io_chart.text_style_of({
+            "chart_text_font": chart_text_font,
+            _i1io_chart.TEXT_BOLD_KEY: i1io_text_bold,
+            "chart_text_italic": chart_text_italic,
+            "chart_text_size_mm": chart_text_size_mm})
     if instrument == "FD9" and fd9_enabled():
         from workflow.fd9.chart import build_chart as build_fd9
         return build_fd9(ti1_path, out_base, paper=paper, dpi=dpi,
@@ -766,7 +786,8 @@ def build_chart(
                                    patterns=(strip_pattern, patch_pattern,
                                              label_rule),
                                    sheet_text=_i1io_sheet_text,
-                                   text_ctx=_ctx, crosses=_i1io_pages)
+                                   text_ctx=_ctx, crosses=_i1io_pages,
+                                   text_style=_i1io_text_style)
     if target.n_channels >= 4:
         device_pages = raster.build_device_pages(render, printed, bit16=bit16)
         tiff_paths = raster.save_separated_tiffs(
@@ -821,7 +842,8 @@ def build_chart(
             labels=_i1io_labels, name=project or Path(out_base).name,
             sheet_text=_i1io_sheet_text, text_ctx=_ctx,
             crosses=_i1io_pages, slots=_slots,
-            clip_content=clip_content_mode if _i1io_clip else "off")
+            clip_content=clip_content_mode if _i1io_clip else "off",
+            text_style=_i1io_text_style)
 
     cht_paths: list[Path] | None = None
     if emit_cht:

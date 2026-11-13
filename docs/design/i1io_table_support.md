@@ -107,8 +107,10 @@ instrument to name.
   (along a strip, at most 20 % of the patch length), Strip gap (between
   strips, 0 to 3 mm), the aiming crosses, strip letters and patch numbers
   on/off and size (at most 6 mm; a larger size moves the strips down, never
-  into the letters), sheet text and its Insert menu, paper, pages,
-  randomisation, calibration and output are live. Every other layout
+  into the letters), their label patterns, face, underline and alignment,
+  sheet text with its Insert menu, face and size, the clip border, paper,
+  pages, randomisation, calibration and output are live (see "Label
+  options" and "Clip border" below). Every other layout
   control was reviewed one by one (2026-11-13) and is greyed only for a
   concrete reason (ink where the aperture passes, leaving the area a printer
   prints or the table reaches, breaking the scan, or no meaning on a table);
@@ -226,6 +228,42 @@ user wants it as an option. just off by default".*
   552 -> 504 without; Letter 506 -> 462 and 528 -> 484 (26 mm, defaults).
 * Side file `"clip_border": {"side", "width_mm", "content", "area_mm"}`
   (written only when on); the `.ti2` gains nothing.
+
+### On: Label options (2026-11-13)
+
+*The owner, 2026-11-13: "cue up the label options for later" (queued after
+4.3.33: label patterns, and the font / underline / alignment controls for
+the sheet text and the labels).*
+
+* With every option at its default the chart is 4.3.33's, file for file
+  (the `.ti2`, the TIFF, the PDF, the `.strips.json` and the side file's
+  geometry compared byte for byte on eleven charts).
+* Strip and patch label patterns: the recipe's, as on every chart; the
+  `.ti2`, the patch numbers, the strip letters, the side file, the aiming
+  patch names and the Measure tab follow; an unreadable pair is refused.
+* Label face, Bold, Italic: the strip letters (drawn by the i1iO) and the
+  patch numbers (the engine's).
+* The strip letters' band (bottom margin): 4 mm edge + the longest label the
+  strip pattern can print in that face (never less than two letters of the
+  engine's face, which is today's band) + 1 mm + the underline's gap and
+  thickness. The longest label is the widest glyph of every position of the
+  pattern, so the estimate and the build agree without a strip count.
+* Underline: the engine's rule between the labels and the patches, here
+  1 mm past every run-out (never on a run): Black across the block,
+  Coloured (5 segments) across it, Coloured (per strip) per strip.
+* Letter alignment, the engine's rule for a side-turned label: Left ends
+  each letter at its strip (today's place), Centre centres it in the band,
+  Right starts every letter 4 mm from the paper edge.
+* Sheet text face, size, Italic: the sheet text part of the name line only;
+  the page number, the chart name and the logo keep Inter Bold 3 mm
+  capitals. Auto size = those capitals in the chosen face; a size the band
+  cannot hold across is reduced to the largest that fits. Bold is the
+  i1iO's own (on, as the whole line was in 4.3.33) unless unticked
+  (`LayoutRecipe.i1io_text_bold`, written only when False).
+* Still greyed, each with its reason: the sheet text's alignment (the line
+  sits in free paper, between crosses 2 and 3 or two corner patches, with no
+  margin to align to), the label rotations, the strip-indicator gap, the
+  label offsets and the text distances.
 
 ### On: Verification and Calibration
 
