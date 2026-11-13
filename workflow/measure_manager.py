@@ -409,6 +409,8 @@ class MeasureManager(QObject):
     #: and whether a light request failed in it (said once, not twice).
     lights_active: bool = False
     _lights_failed: bool = False
+    _lights_option: bool = False
+    _lights_marker_live: bool = False
     _gesture_held: "dict | None" = None
     _gesture_moving: "dict | None" = None
     _in_strip_ready: bool = False
@@ -823,6 +825,11 @@ class MeasureManager(QObject):
         # The engine now covers patch-by-patch (spot) mode too — the spot loop
         # speaks the same JSON protocol as the strip loop (#126 follow-up).
         self._engine_active = params.engine_helper is not None
+        #: The i1Pro 2 lights (Beta): whether this session's helper was given
+        #: --i1pro2-lights, and whether its "lights may still be on" marker is
+        #: written and not yet cleared (core/i1pro2_lights_marker.py).
+        self._lights_option = False
+        self._lights_marker_live = False
         #: External values (-x): ChromIQ reads the instrument itself and the
         #: helper opens none. Kept because the SAVE-AND-STOP path differs — see
         #: `save_partial_and_quit`.
@@ -856,6 +863,7 @@ class MeasureManager(QObject):
         self._cal_retries_left = self._cal_auto_retries
 
         def _on_finish(code: int) -> None:
+            self._lights_session_ended(code)
             self._pending_post_retry_key = None
             self._engine_held = None
             self._window_hold = None
@@ -985,6 +993,7 @@ class MeasureManager(QObject):
                 from workflow.chartread_engine import helper_caps
                 if "i1pro2_lights" in helper_caps(params.engine_helper):
                     eargs += ["--i1pro2-lights"]
+                    self._lights_option = True
                 else:
                     log.info("i1Pro 2 lights: this helper does not know "
                              "--i1pro2-lights; not passed")
@@ -3200,8 +3209,11 @@ class MeasureManager(QObject):
         The helper reports once whether this session uses them, and later if a
         light request failed or the lights were switched off. Only ever seen
         when the option is on (the helper is started with --i1pro2-lights)."""
+        from core import i1pro2_lights_marker as _marker
         state = ev.get("state")
         if state == "failed":
+            # The marker stays: after a failed request the lights may still be
+            # on, and the close will not try again.
             self._lights_failed = True
             self._runner.set_kill_courtesy(None)
             log.warning("i1Pro 2 lights: the instrument did not accept a "
@@ -3218,9 +3230,15 @@ class MeasureManager(QObject):
         if state == "off":
             self._runner.set_kill_courtesy(None)
             log.info("i1Pro 2 lights: switched off")
+            if self._lights_marker_live:
+                _marker.note_lights_off(self._lights_option)
+                self._lights_marker_live = False
             return
         if ev.get("active"):
             self.lights_active = True
+            if self._lights_option:
+                _marker.note_white_on(True)
+                self._lights_marker_live = True
             self._runner.set_kill_courtesy(self.LIGHTS_OFF_EXIT)
             log.info("i1Pro 2 lights: in use for this session")
             on_line(tr(
@@ -3247,6 +3265,35 @@ class MeasureManager(QObject):
                 "[Engine] Instrument lights (beta): ChromIQ could not use the "
                 "lights of this i1Pro 2, so it leaves them alone for this "
                 "measurement. Measuring works as usual."))
+
+    #: Exit codes of a helper whose close ran: 0 (the end of a chart), 1 (an
+    #: ArgyllCMS error(), whose atexit hook switches the lights off). 4 is the
+    #: exit guard on a close that did not come back, 128 + n a signal: after
+    #: those the lights may still be on.
+    _LIGHTS_CLEAN_EXIT_CODES = (0, 1)
+
+    def _lights_session_ended(self, code: int) -> None:
+        """The helper of a session whose white light was on has ended.
+
+        A normal exit means its close ran, and the close switches the lights
+        off first (``del_i1proimp``): the marker goes. A crash, a kill the
+        helper did not answer with its own "off", the exit guard or a failed
+        light request leave it for the next Start (M-I1PRO2-LIGHTS-LEFT-ON)."""
+        if not getattr(self, "_lights_marker_live", False):
+            return
+        self._lights_marker_live = False
+        crashed = getattr(self._runner, "last_exit_crashed", True)
+        if (not crashed and code in self._LIGHTS_CLEAN_EXIT_CODES
+                and not self._lights_failed):
+            from core import i1pro2_lights_marker as _marker
+            _marker.note_lights_off(self._lights_option)
+            log.info("i1Pro 2 lights: the helper closed normally (%d), so "
+                     "its lights were switched off", code)
+        else:
+            log.warning("i1Pro 2 lights: the helper ended without switching "
+                        "the lights off (code %d, crashed %s, failed %s); "
+                        "the marker stays for the next Start", code, crashed,
+                        self._lights_failed)
 
     def _handle_engine_line(self, line: str,
                             on_line: Callable[[str], None]) -> None:

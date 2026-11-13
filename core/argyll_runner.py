@@ -489,6 +489,12 @@ class ArgyllRunner(QObject):
             return None
         return c[1]
 
+    def _hear_lights_off(self, line: str) -> None:
+        """While the app quits: did the helper say its lights are off?"""
+        from core.i1pro2_lights_marker import is_lights_off_line
+        if is_lights_off_line(line):
+            self._lights_off_heard = True
+
     def abort(self) -> None:
         if self._pty_proc is not None:
             self._pty_proc.kill()
@@ -586,10 +592,24 @@ class ArgyllRunner(QObject):
         line = self._courtesy_for_running_process()
         self._kill_courtesy = None
         if line is not None:
+            # Its answer is the one line still listened for: a helper that
+            # says the lights are off takes the "may still be on" marker with
+            # it (core/i1pro2_lights_marker.py). The courtesy is only ever set
+            # while the option is on and the lights are in use.
+            self._lights_off_heard = False
+            self.line_received.connect(self._hear_lights_off)
             self._process.write(line)
             self._process.waitForFinished(self.KILL_COURTESY_MS)
+            try:
+                self.line_received.disconnect(self._hear_lights_off)
+            except (TypeError, RuntimeError):
+                pass
+            if self._lights_off_heard:
+                from core import i1pro2_lights_marker
+                i1pro2_lights_marker.clear()
             log.info("ArgyllRunner: the helper was asked to switch the "
-                     "instrument's lights off before the app quits")
+                     "instrument's lights off before the app quits (%s)",
+                     "it did" if self._lights_off_heard else "no answer")
 
         # Kill subprocess(es).
         if self._pty_proc is not None and self._pty_proc.poll() is None:
@@ -1159,8 +1179,16 @@ class ArgyllRunner(QObject):
         self.last_failed_to_start = tool
         self._on_finished(-1, None)
 
+    #: Whether the last run that finished ended by a crash or a kill rather
+    #: than by exiting (QProcess's CrashExit). Read by the i1Pro 2 lights'
+    #: marker (Beta): a helper that exited ran its close, which switches the
+    #: lights off; one that was killed did not.
+    last_exit_crashed: bool = False
+
     def _on_finished(self, exit_code: int, _exit_status: object) -> None:
         log.info("ArgyllRunner: finished with code %d", exit_code)
+        self.last_exit_crashed = (
+            _exit_status == QProcess.ExitStatus.CrashExit)
         try:
             _tool = self._run_tool
         except Exception:      # noqa: BLE001 - a stand-in runner has none

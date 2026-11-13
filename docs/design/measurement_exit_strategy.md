@@ -584,3 +584,28 @@ What this does not change: the session's verdict, the files kept or
 discarded, and `ended_by_the_user()`; the process still ends without writing.
 Built and tested on 2026-11-13 without an i1Pro 2 (fake USB layer and replay
 instrument); nobody has confirmed it on hardware.
+
+### ⏳ Awaiting confirmation: the endings that may leave the lights on
+
+**Confirmed by:** *nobody yet.*
+
+The last two rows above can leave the white light on, and so can a helper
+crash or a kill the helper did not answer. With the option ON, ChromIQ keeps a
+small marker for that (`core/i1pro2_lights_marker.py`, in ChromIQ's settings
+folder beside the presets, or beside `CHROMIQ_SETTINGS_FILE` when that is set;
+it holds the instrument type and a time):
+
+| what happens | the marker |
+|---|---|
+| the engine reports `{"event":"lights","active":true}` (the white light is on) | written |
+| `{"event":"lights","state":"off"}` (lights_off / lights_off_exit, ChromIQ's end of stdin, an `error()` exit) | removed |
+| the helper exits normally (code 0 or 1): its close switched the lights off | removed |
+| the app quits mid-measurement and the helper answers lights_off_exit with "off" | removed |
+| a crash, the 1 s backstop kill, the exit guard (code 4), a signal, a failed light request | kept |
+
+At the next Start of a chart for the i1Pro family with the option on and the
+marker there, ChromIQ asks M-I1PRO2-LIGHTS-LEFT-ON (unified measurement
+management §M-PROPOSED) before anything is armed, archived or connected:
+Continue removes the marker and starts; Cancel keeps it and starts nothing.
+With the option OFF the marker is never written or read, and the window
+cannot appear; a chart for any other instrument never shows it.
