@@ -26965,6 +26965,38 @@ class TabChart(QWidget):
         except Exception:      # noqa: BLE001
             return False
 
+    def _i1io_chart_minimums(self, crosses: bool, plain):
+        """The smallest margins ``(top, right, bottom, left)`` of the i1iO
+        chart in the preview (review F7: Left showed 16.0 for a chart with a
+        clip border, whose minimum is 32): its clip border from its side
+        file, its labels from the recipe Manual builds with when that is an
+        i1iO one (`workflow.i1io.chart.least_margins_mm`). *plain* when
+        anything cannot be read."""
+        try:
+            from workflow.i1io.chart import CLIP_KEY, least_margins_mm
+            kw = {}
+            if (getattr(self, "_manual_layout_panel", None) is not None
+                    and getattr(self, "_manual_panel_inited", False)):
+                rk = self._current_layout_recipe().build_kwargs()
+                if rk.get("instrument") == "IO2":
+                    kw = dict(rk)
+            kw.update(instrument="IO2", i1io_crosses=bool(crosses))
+            kw[CLIP_KEY] = False
+            ti2 = getattr(self, "_margin_ti2", None)
+            if ti2 is not None:
+                side = Path(str(ti2)[:-4] + ".i1io.json")
+                if side.is_file():
+                    clip = json.loads(side.read_text(
+                        encoding="utf-8")).get("clip_border")
+                    if clip:
+                        kw[CLIP_KEY] = True
+                        kw["clip_border_width"] = float(
+                            clip.get("width_mm") or 26.0)
+            return least_margins_mm(kw)
+        except Exception:      # noqa: BLE001 - the plain minimums stand
+            log.debug("i1iO margin minimums from the chart", exc_info=True)
+            return plain
+
     def _update_margin_inspector(self) -> None:
         panel = getattr(self, "_margin_panel", None)
         if panel is None:
@@ -27088,6 +27120,9 @@ class TabChart(QWidget):
                 except Exception:      # noqa: BLE001
                     _crosses = True
             _t, _r, _b, _l = margins_mm(crosses=_crosses)
+            # …and with the chart's own clip border and labels (review F7)
+            _t, _r, _b, _l = self._i1io_chart_minimums(
+                _crosses, (_t, _r, _b, _l))
             thresholds = {"T": _t, "B": _b, "L": _l, "R": _r}
 
         # Strip-length (ruler) limit: the per-combo value configured in

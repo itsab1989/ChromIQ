@@ -400,3 +400,23 @@ def test_a_refusal_reason_is_in_the_persons_language(monkeypatch, tmp_path):
     with pytest.raises(C.I1ioSheetRefused, match="^«The clip border's"):
         C.check_sheet(replace(geom, clip_content_reach_mm=200.0), layout,
                       w, h, True)
+
+
+def test_measured_from_preview_judges_against_the_charts_minimums(
+        chart_tab, tmp_path):
+    """Review F7: "Measured from Preview" showed a Left minimum of 16.0 for
+    an i1iO chart with a clip border, whose real minimum is 32."""
+    from workflow.i1io import chart as C
+    (tmp_path / "on").mkdir()
+    (tmp_path / "off").mkdir()
+    on, side = _build(tmp_path / "on", 300, "A4", **{C.CLIP_KEY: True})
+    tab = chart_tab
+    tab._margin_ti2 = on.ti2_path
+    t, r, b, l = tab._i1io_chart_minimums(True, (0, 0, 0, 0))
+    assert l == pytest.approx(C.least_margins_mm(
+        {"instrument": "IO2", C.CLIP_KEY: True})[3])
+    assert l > 30.0
+    off, _side = _build(tmp_path / "off", 300, "A4")
+    tab._margin_ti2 = off.ti2_path
+    assert tab._i1io_chart_minimums(True, (0, 0, 0, 0))[3] == \
+        pytest.approx(16.0)
