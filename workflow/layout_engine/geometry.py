@@ -1288,6 +1288,10 @@ def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
     # width is then the only rhythm there is, and there is no spacer to include.
     x_pitch = (place.x_of(1) - place.x_of(0)) if passes > 1 else place.pwid
     y_pitch = (place.y_of(1) - place.y_of(0)) if steps > 1 else place.plen
+    # A strip whose slot 0 is at its BOTTOM (`Geom.reverse_steps`, the i1iO)
+    # steps UP the page: the pitch is the same distance, and a negative one
+    # gave the comb no dash at all (review 5: "Sides" printed nothing)
+    y_pitch = abs(y_pitch)
     # ANCHORED ON THE MIDDLE OF THE GAP, NOT ON THE EDGE OF THE PATCH.
     #
     # Knut, after seeing beta.7 on paper: *"the dashes at the start of each patch
