@@ -796,7 +796,8 @@ def option_warnings(kw: dict) -> "list[str]":
         out.append(tr(
             "Edge spacers print a spacer on the blank paper where the arm "
             "starts and stops every strip. The table may take it for a "
-            "patch; switch “Edge spacers” off if a strip is read wrongly."))
+            "patch; switch “Edge spacers (bracket each strip)” off if a "
+            "strip is read wrongly."))
     if kw.get("helper_markers") and kw.get("helper_markers_top_bottom", True):
         out.append(tr(
             "The ruler helper markers along the top and bottom edges print "
@@ -2069,6 +2070,194 @@ def strip_letters(geom, layout, w: float, h: float, page: int, dpi: int,
         # the page (Y) and across it (X), as on every chart (Job D)
         out.append((text, (x + labels.off_x, start + labels.off_y), size_px))
     return out
+
+
+def _letter_font_and_scale(geom, dpi: int, labels: "Labels"):
+    s = dpi / 25.4
+    size_px = max(1, int(round(letter_size_mm(geom, dpi, labels) * s)))
+    font, _p, _v = _font(size_px, labels.face, labels.italic, labels.bold)
+    return font, s
+
+
+def letter_boxes(geom, layout, w: float, h: float, page: int, dpi: int,
+                 labels: "Labels | None", rule: "str | None" = None
+                 ) -> "list[tuple[float, float, float, float]]":
+    """``(x0, y0, x1, y1)`` in mm: the ink box of every strip letter on
+    *page*, as `draw_furniture` draws it (the turned text's START at the
+    point `strip_letters` gives, running up the page, centred across)."""
+    from PIL import Image, ImageDraw
+    labels = labels or Labels()
+    if not labels.rows:
+        return []
+    font, s = _letter_font_and_scale(geom, dpi, labels)
+    draw = ImageDraw.Draw(Image.new("L", (1, 1)))
+    out = []
+    for text, (x, start), _size in strip_letters(geom, layout, w, h, page,
+                                                  dpi, labels, draw,
+                                                  rule=rule):
+        bb = draw.textbbox((0, 0), text, font=font)
+        across = (bb[3] - bb[1]) / s
+        length = (bb[2] - bb[0]) / s
+        out.append((x - across / 2.0, start - length, x + across / 2.0,
+                    start))
+    return out
+
+
+def held_letters(geom, layout, w: float, h: float, dpi: int,
+                 labels: "Labels | None", rule: "str | None" = None):
+    """``(labels, shift)``: "Label offset" X held as on every chart
+    (`raster.strip_label_x_plan`, review 3 item 2): the letters move
+    sideways only as far as keeps every page's letters inside the side
+    text distance of both paper edges (`text_edge_fit.
+    geom_side_text_edge_mm`). *shift* is a `raster.StripLabelShift` (None
+    when the box is at 0 or there are no letters); *labels* carries the
+    X actually used. One answer for the build and the panel's notice."""
+    from dataclasses import replace as _rp
+    from workflow import text_edge_fit as _tef
+    from workflow.layout_engine.raster import (StripLabelShift,
+                                               _near_neighbour_tolerance_px)
+    if labels is None or not labels.rows or not labels.off_x:
+        return labels, None
+    asked = float(labels.off_x)
+    side = float(_tef.geom_side_text_edge_mm(geom))
+    flat = _rp(labels, off_x=0.0)
+    lo, hi = None, None
+    pitch = 0.0
+    for page in range(layout.pages):
+        boxes = letter_boxes(geom, layout, w, h, page, dpi, flat, rule)
+        if not boxes:
+            continue
+        need = max(side - b[0] for b in boxes)
+        room = min((w - side) - b[2] for b in boxes)
+        lo = need if lo is None else max(lo, need)
+        hi = room if hi is None else min(hi, room)
+        if len(boxes) > 1 and not pitch:
+            pitch = abs((boxes[1][0] + boxes[1][2]) - (boxes[0][0]
+                                                         + boxes[0][2])) / 2
+    if lo is None:
+        return labels, None
+    lo, hi = min(0.0, lo), max(0.0, hi)
+    used = min(max(asked, lo), hi)
+    mm2px = dpi / 25.4
+    tol = _near_neighbour_tolerance_px(round(pitch * mm2px), mm2px) / mm2px
+    shift = StripLabelShift(
+        asked_mm=asked, used_mm=used, left_mm=-lo, right_mm=hi,
+        held_by="" if abs(used - asked) < 1e-9 else "edge", pitch_mm=pitch,
+        near_neighbour=bool(pitch) and abs(used) > pitch / 2.0 + tol,
+        used_px=round(used * mm2px))
+    return _rp(labels, off_x=used), shift
+
+
+def _number_boxes(geom, layout, w: float, h: float, page: int, dpi: int,
+                  labels: "Labels"):
+    """The patch numbers' ink boxes on *page*, beside the first strip in the
+    engine's row-label band (`raster`: from its floor, the Clip distance,
+    turned, each centred on its row)."""
+    from PIL import Image, ImageDraw
+    from workflow.layout_engine import raster
+    band = float(getattr(geom, "rlwi", 0.0) or 0.0)
+    if not labels.columns or band <= 0:
+        return []
+    cells = [c for c in page_patches(geom, layout, w, h, page) if c[1] == 0]
+    if not cells:
+        return []
+    floor = float(getattr(geom, "row_label_floor", 0.0) or 0.0)
+    right = min(floor + band, cells[0][3] - 1.0) if floor > 0 else (
+        cells[0][3] - 1.0)
+    s = dpi / 25.4
+    size = raster.effective_row_label_size_mm(geom, dpi, labels.face,
+                                              float(labels.size or 0.0))
+    font, _p, _v = _font(max(1, int(round(size * s))), labels.face,
+                         labels.italic, labels.bold)
+    draw = ImageDraw.Draw(Image.new("L", (1, 1)))
+    out = []
+    for c in cells:
+        bb = draw.textbbox((0, 0), str(c[2] + 1), font=font)
+        across, along = (bb[3] - bb[1]) / s, (bb[2] - bb[0]) / s
+        x1 = right
+        x0 = max(floor, x1 - across)
+        cy = (c[4] + c[6]) / 2.0
+        out.append((x0, cy - along / 2.0, x0 + across, cy + along / 2.0))
+    return out
+
+
+def furniture_warnings(geom, layout, w: float, h: float, dpi: int,
+                       labels: "Labels | None", crosses: "bool | list" = True,
+                       rule: "str | None" = None) -> "list[str]":
+    """The strip letters (and their underline) and the patch numbers where
+    a person's options put them (review 3, items 2 and 5; the owner: risky
+    is allowed, silent is not). Returned, translated, for the log and for
+    "Measured from Preview": on a patch, on an aiming cross, partly off
+    the sheet. Refused (`I1ioSheetRefused`): wholly off the sheet."""
+    from workflow import measurement_messages as _mm
+    labels = labels or Labels()
+    warn: "list[str]" = []
+
+    def say(text: str) -> None:
+        if text not in warn:
+            warn.append(text)
+
+    def off(b) -> bool:
+        return b[2] <= 0 or b[0] >= w or b[3] <= 0 or b[1] >= h
+
+    def part_off(b) -> bool:
+        return b[0] < 0 or b[1] < 0 or b[2] > w or b[3] > h
+
+    for page in range(layout.pages):
+        zones = ([mark_zone(m) for m in marks(w, h)]
+                 if on_page(crosses, page) else [])
+        cells = [c[3:] for c in page_patches(geom, layout, w, h, page)]
+        letters = letter_boxes(geom, layout, w, h, page, dpi, labels, rule)
+        letters += [r for r, _rgb in underline_rects(geom, layout, w, h,
+                                                     page, labels)]
+        for b in letters:
+            if off(b):
+                raise I1ioSheetRefused(tr(_mm._I1IO_LETTERS_OFF_SHEET))
+            if part_off(b):
+                say(tr(_mm._I1IO_LETTERS_PAST_EDGE))
+            if any(_overlap(b, c) for c in cells):
+                say(tr(_mm._I1IO_LETTERS_ON_PATCHES))
+            if any(_overlap(b, z) for z in zones):
+                say(tr(_mm._I1IO_LETTERS_ON_CROSS))
+        for b in _number_boxes(geom, layout, w, h, page, dpi, labels):
+            if off(b):
+                raise I1ioSheetRefused(tr(_mm._I1IO_NUMBERS_OFF_SHEET))
+            if part_off(b):
+                say(tr(_mm._I1IO_NUMBERS_PAST_EDGE))
+            if any(_overlap(b, z) for z in zones):
+                say(tr(_mm._I1IO_NUMBERS_ON_CROSS))
+    return warn
+
+
+def preview_checks(kw: dict):
+    """``(shift, warnings)`` for the panel's "Measured from Preview": the
+    letters' sideways hold (`held_letters`) and `furniture_warnings`, worked
+    out on the layout the build makes from the same build kwargs, so the
+    notice says what the sheet will show. ``(None, [])`` when the layout
+    cannot be worked out yet; a refusal is listed as a warning here (the
+    build refuses it)."""
+    from workflow.layout_engine import geometry, instruments, papers
+    try:
+        count = int(kw.get("area_target_count") or 0)
+        if count <= 0:
+            return None, []
+        dpi = int(kw.get("dpi") or 150)
+        w, h = (float(v) for v in papers.dimensions_mm(kw.get("paper")
+                                                       or "A4"))
+        fixed = fixed_build_kwargs(kw)
+        geom = instruments.geom_from_build_kwargs(kw)
+        layout = geometry.compute(geom, w, h, count)
+        labels = fixed[LABELS_KEY]
+        rule = kw.get("label_rule")
+        labels, shift = held_letters(geom, layout, w, h, dpi, labels, rule)
+        try:
+            warn = furniture_warnings(geom, layout, w, h, dpi, labels,
+                                      fixed[CROSSES_KEY], rule)
+        except I1ioSheetRefused as exc:
+            warn = [str(exc)]
+        return shift, warn
+    except Exception:            # noqa: BLE001 - a notice never blocks
+        return None, []
 
 
 def underline_rects(geom, layout, w: float, h: float, page: int,

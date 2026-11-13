@@ -7720,6 +7720,35 @@ M_I1IO_EDGE_TEXT_PARTS = _m(
     "The i1iO chart's lettering in the edge: the parts of the note",
     "\n".join((_I1IO_EDGE_LOST_TEXT, _I1IO_EDGE_FIX_TEXT)),
     approved=False)
+#: An i1iO chart's strip letters (and their underline) and patch numbers where
+#: a person's options put them (review 3 of the i1iO Beta, items 2 and 5):
+#: one line each, said in the build's log and under "Measured from Preview";
+#: the two "off the sheet" lines are the build's refusals.
+_I1IO_LETTERS_ON_PATCHES = ("The strip letters would print on the patches, and the table may "
+                            "read them as part of a patch. Change “Label offset” (Y) or the "
+                            "strip-indicator gap.")
+_I1IO_LETTERS_ON_CROSS = ("The strip letters would touch an aiming cross. Change “Label "
+                          "offset”, or switch the aiming crosses off.")
+_I1IO_LETTERS_PAST_EDGE = ("The strip letters would reach past the edge of the sheet, so part "
+                           "of them may not be printed. Change “Label offset” or the text "
+                           "distance “B”.")
+_I1IO_LETTERS_OFF_SHEET = ("The strip letters would lie off the sheet. Change “Label offset” "
+                           "or the chart offset.")
+_I1IO_NUMBERS_ON_CROSS = ("A patch number would touch an aiming cross. Change the chart "
+                          "offset or the margins, or switch the aiming crosses off.")
+_I1IO_NUMBERS_PAST_EDGE = ("The patch numbers would reach past the edge of the sheet, so part "
+                           "of them may not be printed. Change the chart offset or the "
+                           "margins.")
+_I1IO_NUMBERS_OFF_SHEET = ("The patch numbers would lie off the sheet. Change the chart offset"
+                           " or the margins.")
+M_I1IO_FURNITURE_PARTS = _m(
+    "M-I1IO-FURNITURE-PARTS",
+    "The i1iO chart's strip letters and patch numbers: the parts of the note",
+    "\n".join((_I1IO_LETTERS_ON_PATCHES, _I1IO_LETTERS_ON_CROSS,
+               _I1IO_LETTERS_PAST_EDGE, _I1IO_LETTERS_OFF_SHEET,
+               _I1IO_NUMBERS_ON_CROSS, _I1IO_NUMBERS_PAST_EDGE,
+               _I1IO_NUMBERS_OFF_SHEET)),
+    approved=False)
 #: The spooler refused the raw job (``win_spooler.SpoolerError``); {reason}
 #: is Windows' own sentence. Replaces, on Windows, "CUPS rejected the print
 #: job (exit code ...)", which names a system Windows does not have.
@@ -10178,7 +10207,7 @@ CATALOGUE = {m.id: m for m in (
     M_I1IO_AIM_CROSSES, M_I1IO_AIM_CORNERS, M_I1IO_AIM_CORNERS_UNLABELLED,
     M_I1IO_AIM_UNKNOWN, M_I1IO_AIM_PAGE_PARTS,
     M_I1IO_EDGE_MARKS_NOT_PRINTED, M_I1IO_EDGE_TEXT_NOT_PRINTED,
-    M_I1IO_EDGE_TEXT_PARTS,
+    M_I1IO_EDGE_TEXT_PARTS, M_I1IO_FURNITURE_PARTS,
     M_FD9_SUPPORT_OFF, M_FD9_NO_ADDRESS, M_FD9_INSERT_SHEET, M_FD9_NEXT_PAGE,
     M_FD9_NO_CONNECTION, M_FD9_WRONG_FIRMWARE, M_FD9_MARKS_NOT_FOUND,
     M_FD9_SHEET_STILL_INSIDE, M_FD9_RESUME_REFUSED, M_FD9_FAILED,

@@ -724,6 +724,16 @@ def build_chart(
         _i1io_warnings = list(_i1io_chart.check_sheet(
             geom, layout, w_mm, h_mm, crosses=_i1io_pages))
         _i1io_warnings += _i1io_chart.option_warnings(_f)
+        # "Label offset" X held as on every chart, and the letters and the
+        # numbers where the options put them: said, or refused when wholly
+        # off the sheet (review 3, items 2 and 5)
+        _i1io_labels, _i1io_xs = _i1io_chart.held_letters(
+            geom, layout, w_mm, h_mm, dpi, _i1io_labels, label_rule)
+        for _why in _i1io_chart.furniture_warnings(
+                geom, layout, w_mm, h_mm, dpi, _i1io_labels, _i1io_pages,
+                label_rule):
+            if _why not in _i1io_warnings:
+                _i1io_warnings.append(_why)
         # what the person aims at, recorded (`chart.aim_recorded`), and on
         # every page the names of the three patches when they are patches
         from dataclasses import replace as _replace

@@ -28092,9 +28092,18 @@ class TabChart(QWidget):
             # (Basti, 2026-10-24). Worked out by the renderer's own limits on
             # this chart's strips, so the sentence describes the sheet that
             # is printed.
+            _i1io_furniture = []
             try:
                 from workflow.layout_engine import raster as _raster
                 _xs = _raster.strip_label_x_shift(geom, _kw_notes)
+                if _kw_notes.get("instrument") == "IO2":
+                    from workflow.i1io.support import i1io_enabled
+                    if i1io_enabled():
+                        # the i1iO's own letters, held and checked as the
+                        # build holds and checks them (review 3, items 2, 5)
+                        from workflow.i1io import chart as _i1io_chart
+                        _xs, _i1io_furniture = _i1io_chart.preview_checks(
+                            _kw_notes)
             except Exception:      # noqa: BLE001 — a notice, never a blocker
                 _xs = None
             _xs_line = strip_label_x_held_notice(_xs)
@@ -28105,6 +28114,10 @@ class TabChart(QWidget):
             _xn_line = strip_label_x_neighbour_notice(_xs)
             if _xn_line:
                 over.append(_xn_line)
+            # …and what an i1iO's options put on a patch, a cross or past
+            # the paper's edge: the same words the build logs
+            for _why in _i1io_furniture:
+                over.append(_why)
             # (A letter in the instrument's reading path is no longer pointed
             # out. Basti, 2026-10-25, on Knut's forum post 149832: the
             # centred default sits in that path with no notice, so a letter
