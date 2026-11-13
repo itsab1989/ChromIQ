@@ -603,6 +603,9 @@ class LayoutOptionsPanel(QWidget):
     """All layout-engine controls except instrument/paper/mode."""
 
     changed = pyqtSignal()
+    #: A line for the tab's log, said by the panel itself (review 6, item 2:
+    #: an i1iO custom size typed lying down is turned upright, and said)
+    notice = pyqtSignal(str)
     #: Whether the FD-9 is offered (Preferences > Beta); set in __init__.
     _fd9_support = False
     #: Whether the FD-9 clip border On/Off is a person's answer rather than
@@ -1000,17 +1003,25 @@ class LayoutOptionsPanel(QWidget):
             self._custom_paper_w = QWidget(self)
             _cpl = QHBoxLayout(self._custom_paper_w)
             _cpl.setContentsMargins(0, 0, 0, 0); _cpl.setSpacing(6)
-            _cpl.addWidget(QLabel(tr("Custom size (mm):"), self))
+            self._custom_size_lbl = QLabel(tr("Custom size (mm):"), self)
+            _cpl.addWidget(self._custom_size_lbl)
             self.custom_w = NoScrollDoubleSpinBox(self)
             self.custom_h = NoScrollDoubleSpinBox(self)
             for _cs in (self.custom_w, self.custom_h):
                 _cs.setRange(20, 2000); _cs.setDecimals(0); _cs.setMaximumWidth(80)
                 _cs.valueChanged.connect(self._emit)
+                _cs.valueChanged.connect(self._custom_size_edited)
+                _cs.editingFinished.connect(self._turn_custom_upright)
             self.custom_w.setValue(210); self.custom_h.setValue(297)
             _cpl.addWidget(self.custom_w); _cpl.addWidget(QLabel("×", self))
             _cpl.addWidget(self.custom_h); _cpl.addStretch()
             sel.addWidget(self._custom_paper_w, 2, 0, 1, 4)   # directly below Paper
             self._custom_paper_w.setVisible(False)
+            # the i1iO's custom size turned upright, said (review 6, item 2)
+            self._custom_turned_lbl = QLabel("", self)
+            self._custom_turned_lbl.setWordWrap(True)
+            self._custom_turned_lbl.setVisible(False)
+            sel.addWidget(self._custom_turned_lbl, 3, 0, 1, 4)
             sel.setColumnStretch(1, 1)        # paper / instrument / mode expand
             v.addLayout(sel)
 
@@ -3574,6 +3585,8 @@ class LayoutOptionsPanel(QWidget):
         if getattr(self, "_i1io_support", False):
             # Only while i1iO support is on.
             self._sync_i1io_widgets(inst == "IO2")
+        self._sync_custom_size_words()
+        self._turn_custom_upright()
         # The extra clip-border On/Off selector — and its tooltip — are for CM/SS
         # only (i1/p3 use their Mode selector for the clip border).
         if hasattr(self, "clip_enable"):
@@ -7238,9 +7251,60 @@ class LayoutOptionsPanel(QWidget):
     def _on_paper_changed(self, *_a) -> None:
         if self.paper is not None:
             self._custom_paper_w.setVisible(self.paper.currentData() == "__custom__")
+        self._sync_custom_size_words()
+        self._turn_custom_upright()
         # Re-pull instrument margins for the new instrument/paper combo (#93).
         if hasattr(self, "use_instr_margins") and self.use_instr_margins.isChecked():
             self._sync_instr_margins()
+        self._emit()
+
+    def _i1io_chosen(self) -> bool:
+        return (self.instr is not None and getattr(self, "_i1io_support", False)
+                and self.instr.currentData() == "IO2")
+
+    def _sync_custom_size_words(self) -> None:
+        """The custom boxes' label: for the i1iO they are the PRINTED sheet,
+        upright (the list names its sizes lying down, as the table takes
+        them; review 6, item 2). Other instruments keep their words."""
+        if not hasattr(self, "_custom_size_lbl"):
+            return
+        i1io = self._i1io_chosen()
+        self._custom_size_lbl.setText(
+            tr("Printed sheet, upright (mm), width × height:") if i1io
+            else tr("Custom size (mm):"))
+        if not (i1io and self.paper is not None
+                and self.paper.currentData() == "__custom__"):
+            self._custom_turned_lbl.setVisible(False)
+
+    def _custom_size_edited(self, *_a) -> None:
+        # a size typed again: the last "turned" line no longer applies
+        if hasattr(self, "_custom_turned_lbl"):
+            self._custom_turned_lbl.setVisible(False)
+
+    def _turn_custom_upright(self) -> None:
+        """AN i1iO CUSTOM SIZE IS THE PRINTED SHEET, UPRIGHT (review 6, item
+        2). One typed lying down (210 × 148) was taken as it stood, the
+        Preview said nothing, and only Generate refused it, calling it a
+        reading problem. It is turned upright here, in the boxes, and that is
+        said once, under the boxes and in the log. `selection` gives the
+        upright size in any case, so the Preview, the estimate and the build
+        all lay out the same sheet. Other instruments: unchanged."""
+        if not (hasattr(self, "custom_w") and self._i1io_chosen()
+                and self.paper is not None
+                and self.paper.currentData() == "__custom__"):
+            return
+        w, h = self.custom_w.value(), self.custom_h.value()
+        if w <= h:
+            return
+        for box, value in ((self.custom_w, h), (self.custom_h, w)):
+            box.blockSignals(True)
+            box.setValue(value)
+            box.blockSignals(False)
+        from workflow import measurement_messages as _mm
+        text = tr(_mm._I1IO_CUSTOM_TURNED).format(w=f"{h:g}", h=f"{w:g}")
+        self._custom_turned_lbl.setText(text)
+        self._custom_turned_lbl.setVisible(True)
+        self.notice.emit(text)
         self._emit()
 
     def selection(self) -> tuple[str, str, str]:
@@ -7249,7 +7313,11 @@ class LayoutOptionsPanel(QWidget):
             return "i1", "A4", "default"
         paper = self.paper.currentData() or "A4"
         if paper == "__custom__":
-            paper = f"{int(self.custom_w.value())}x{int(self.custom_h.value())}"
+            w, h = int(self.custom_w.value()), int(self.custom_h.value())
+            if self._i1io_chosen() and w > h:
+                # the printed sheet, upright (`_turn_custom_upright`)
+                w, h = h, w
+            paper = f"{w}x{h}"
         return (self.instr.currentData() or "i1", paper,
                 self.mode.currentData() or "default")
 
@@ -7626,6 +7694,8 @@ class LayoutOptionsPanel(QWidget):
                     self.custom_w.setValue(dims[0])
                     self.custom_h.setValue(dims[1])
             self._custom_paper_w.setVisible(self.paper.currentData() == "__custom__")
+            self._sync_custom_size_words()
+            self._turn_custom_upright()
             mi = self.mode.findData(r.mode())
             if mi >= 0:
                 self.mode.setCurrentIndex(mi)

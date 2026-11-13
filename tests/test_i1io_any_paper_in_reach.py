@@ -144,3 +144,48 @@ def test_a_name_line_with_no_room_on_a_tiny_sheet_is_said_rightly(tmp_path):
                                   "dpi": 100, "area_target_count": 300,
                                   "project": "Small"})
     assert sorted(notes) == sorted(r.warnings)
+
+
+def test_a_custom_size_typed_lying_down_is_turned_upright(qtbot):
+    """Review 6, item 2: the i1iO's custom boxes are the printed sheet,
+    upright. 210 x 148 is turned to 148 x 210 in the boxes, said under them
+    and in the log, and `selection` (what the Preview, the estimate and the
+    build read) gives the upright size. Another instrument keeps its size and
+    its words."""
+    from workflow import measurement_messages as _mm
+    from ui.dialogs.layout_options_panel import LayoutOptionsPanel
+    p = LayoutOptionsPanel(with_selectors=True)
+    qtbot.addWidget(p)
+    said = []
+    p.notice.connect(said.append)
+    p.instr.setCurrentIndex(p.instr.findData("IO2"))
+    p.paper.setCurrentIndex(p.paper.findData("__custom__"))
+    p.custom_w.setValue(210)
+    p.custom_h.setValue(148)
+    assert p.selection()[1] == "148x210"      # even before editing finishes
+    p.custom_h.editingFinished.emit()
+    assert (p.custom_w.value(), p.custom_h.value()) == (148.0, 210.0)
+    assert said == [_mm._I1IO_CUSTOM_TURNED.format(w="148", h="210")]
+    assert p._custom_turned_lbl.isVisibleTo(p)
+    assert "upright" in p._custom_size_lbl.text()
+    # another instrument: unchanged
+    p.instr.setCurrentIndex(p.instr.findData("i1"))
+    p.paper.setCurrentIndex(p.paper.findData("__custom__"))
+    p.custom_w.setValue(210)
+    p.custom_h.setValue(148)
+    p.custom_h.editingFinished.emit()
+    assert p.selection()[1] == "210x148"
+    assert (p.custom_w.value(), p.custom_h.value()) == (210.0, 148.0)
+    assert len(said) == 1 and not p._custom_turned_lbl.isVisibleTo(p)
+    assert p._custom_size_lbl.text() == "Custom size (mm):"
+
+
+def test_the_notes_name_a_custom_sheet_properly():
+    """Review 6, nit: the clip border's notes printed the raw code
+    ("IO2 · 148x210"); they name the sheet as for A4 now. i1iO only."""
+    from workflow.layout_engine import chart, papers
+    assert chart._i1io_paper_name("A4") == papers.friendly_label("A4")
+    assert chart._i1io_paper_name("148x210") == "A5 portrait"
+    assert chart._i1io_paper_name("130x180") == "13 × 18 cm portrait"
+    assert chart._i1io_paper_name("155x205") == "155 × 205 mm"
+    assert "x" not in chart._i1io_paper_name("155x205")

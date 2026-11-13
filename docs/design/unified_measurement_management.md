@@ -8773,7 +8773,7 @@ alone.
 
 ### M-I1IO-SHEET-CHECK-PARTS · PROPOSED · an i1iO sheet's own check and its options' warnings, the build's log and Create Chart's "Measured from Preview"
 
-*New 2026-11-13 (i1iO table Beta, review round 5, nit and item 7). One line each: the refusals that end a build (a cross, a patch or the clip border where it cannot be, a landscape sheet, a sheet outside the table's published reach, a sheet too small for one strip) and the warnings it is built with (runs near the edge, a cross or the clip border; the clip border's content near the patches; a sheet larger than A4 or Letter in one direction but inside the reach; edge spacers; ruler markers along the top and bottom). {w} {h} the sheet, {rx} {ry} the reach, in mm.*
+*New 2026-11-13 (i1iO table Beta, review round 5, nit and item 7). One line each: the refusals that end a build (a cross, a patch or the clip border where it cannot be, a landscape sheet, a sheet outside the table's published reach, a sheet too small for one strip) and the warnings it is built with (runs near the edge, a cross or the clip border; the clip border's content near the patches; a sheet larger than A4 or Letter in one direction but inside the reach; edge spacers; ruler markers along the top and bottom). {w} {h} the sheet, {rx} {ry} the reach, in mm. Review round 6 added two lines: from 21 sheets, under "Measured from Preview" only and never a refusal, the page count ({pages}) and the patches one sheet takes ({per_page}); and, under the custom size boxes and in the log, a custom size typed lying down that the panel turned upright.*
 
 > **The i1iO sheet's own check: the parts of the note**
 >
@@ -8782,6 +8782,8 @@ alone.
 > This sheet ({w} x {h} mm), laid across the table, is larger than the area the i1iO's arm can reach ({rx} x {ry} mm). Choose a smaller sheet.
 > This sheet is too small for one strip of patches with the margins, the aiming crosses and the labels it needs. Choose a larger sheet, make the patches or the margins smaller, or switch the aiming crosses off.
 > This sheet ({w} x {h} mm) is larger than A4 or Letter in one direction. It lies inside the area the arm can reach as X-Rite publishes it, but no sheet of this size has been tried on a table yet.
+> This chart needs {pages} sheets, because only {per_page} patches fit on one sheet of this size. That is a lot of printing and of loading the table; a larger sheet, or fewer patches, takes fewer pages.
+> Turned to {w} x {h} mm, upright: the i1iO's sheet is printed upright and laid across the table a quarter turn.
 > A patch would lie partly off the sheet. Make the margins, the chart offset or the patch size smaller.
 > A patch would touch an aiming cross. Make the margins larger or the chart offset smaller, or switch the aiming crosses off.
 > A patch would lie in the clip border. Make the clip border narrower, or the left margin larger.
@@ -8805,6 +8807,7 @@ alone.
 > The strip letters would reach past the edge of the sheet, so part of them may not be printed. Change “Label offset” or the text distance “B”.
 > The strip letters would lie off the sheet. Change “Label offset” or the chart offset.
 > The patch numbers do not fit beside the strips and are left off. Make the left margin larger or the chart offset smaller.
+> The chart offset X moves the patches but not the patch numbers: they keep their distance from the edge of the sheet (“Clip”), so they now sit a little farther from or closer to the first strip. They still name the right rows. To move them with the patches, change “Clip” by the same amount.
 > The line with the chart's name and page number has no free paper on this sheet and is left off. Make the right margin larger, or switch the aiming crosses on.
 > The line with the chart's name and page number does not fit between aiming crosses 2 and 3 on this small sheet and is left off. Choose a larger sheet, or write the name and the page number on the sheet by hand.
 > The patches, the strip letters or their underline would touch the line with the chart's name. Make the chart offset or “Label offset” smaller, or the right margin larger.

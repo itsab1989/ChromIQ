@@ -8829,6 +8829,8 @@ class TabChart(QWidget):
                     _box.valueChanged.connect(
                         self._sync_manual_selection_from_panel)
         self._manual_layout_panel.changed.connect(self._refresh_manual_command_preview)
+        # the panel's own lines for the log (an i1iO custom size turned upright)
+        self._manual_layout_panel.notice.connect(self._on_log_line)
         # Picking SpectroScan + Hexagonal must grey the ruler-marker controls
         # straight away, not only once a chart has been generated (#152, Knut):
         # the inspector's own refresh runs on chart/page changes, which is far

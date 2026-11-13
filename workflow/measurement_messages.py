@@ -7737,6 +7737,20 @@ _I1IO_SHEET_TOO_SMALL = ("This sheet is too small for one strip of patches "
                          "it needs. Choose a larger sheet, make the patches "
                          "or the margins smaller, or switch the aiming "
                          "crosses off.")
+#: {pages} and {per_page}: the layout's own numbers (review 6, nit: a 40 x 60
+#: mm custom sheet took 2 patches a page and 264 pages, unsaid). A notice
+#: under "Measured from Preview" before anything is built, never a refusal.
+_I1IO_MANY_PAGES = ("This chart needs {pages} sheets, because only "
+                    "{per_page} patches fit on one sheet of this size. That "
+                    "is a lot of printing and of loading the table; a larger "
+                    "sheet, or fewer patches, takes fewer pages.")
+#: An i1iO custom size typed lying down, turned upright in the panel (review
+#: 6, item 2); said under the size boxes and in the log.
+_I1IO_CUSTOM_TURNED = ("Turned to {w} x {h} mm, upright: the i1iO's sheet "
+                       "is printed upright and laid across the table a "
+                       "quarter turn.")
+#: The page count from which `_I1IO_MANY_PAGES` is said.
+I1IO_MANY_PAGES_FROM = 21
 _I1IO_SIZE_UNTESTED = ("This sheet ({w} x {h} mm) is larger than A4 or Letter "
                        "in one direction. It lies inside the area the arm can "
                        "reach as X-Rite publishes it, but no sheet of this "
@@ -7772,7 +7786,7 @@ M_I1IO_SHEET_CHECK_PARTS = _m(
     "The i1iO sheet's own check: the parts of the note",
     "\n".join((_I1IO_CROSS_OFF_SHEET, _I1IO_SHEET_NOT_PORTRAIT,
                _I1IO_SHEET_OVER_REACH, _I1IO_SHEET_TOO_SMALL,
-               _I1IO_SIZE_UNTESTED,
+               _I1IO_SIZE_UNTESTED, _I1IO_MANY_PAGES, _I1IO_CUSTOM_TURNED,
                _I1IO_PATCH_OFF_SHEET,
                _I1IO_PATCH_ON_CROSS,
                _I1IO_PATCH_IN_CLIP,
@@ -7804,6 +7818,13 @@ _I1IO_LETTERS_ON_RUN = ("The strip letters or their underline would print "
 _I1IO_NUMBERS_LEFT_OFF = ("The patch numbers do not fit beside the strips "
                           "and are left off. Make the left margin larger or "
                           "the chart offset smaller.")
+_I1IO_NUMBERS_STAY = ("The chart offset X moves the patches but not the "
+                      "patch numbers: they keep their distance from the "
+                      "edge of the sheet (\u201cClip\u201d), so they now "
+                      "sit a little farther from or closer to the first "
+                      "strip. They still name the right rows. To move them "
+                      "with the patches, change \u201cClip\u201d by the "
+                      "same amount.")
 _I1IO_LETTERS_OFF_SHEET = ("The strip letters would lie off the sheet. Change “Label offset” "
                            "or the chart offset.")
 _I1IO_LINE_LEFT_OFF = ("The line with the chart's name and page number has "
@@ -7832,8 +7853,8 @@ M_I1IO_FURNITURE_PARTS = _m(
     "\n".join((_I1IO_LETTERS_ON_PATCHES, _I1IO_LETTERS_ON_RUN,
                _I1IO_LETTERS_ON_CROSS,
                _I1IO_LETTERS_PAST_EDGE, _I1IO_LETTERS_OFF_SHEET,
-               _I1IO_NUMBERS_LEFT_OFF, _I1IO_LINE_LEFT_OFF,
-               _I1IO_LINE_LEFT_OFF_SMALL,
+               _I1IO_NUMBERS_LEFT_OFF, _I1IO_NUMBERS_STAY,
+               _I1IO_LINE_LEFT_OFF, _I1IO_LINE_LEFT_OFF_SMALL,
                _I1IO_ON_NAME_LINE,
                _I1IO_NUMBERS_ON_CROSS, _I1IO_NUMBERS_PAST_EDGE,
                _I1IO_NUMBERS_OFF_SHEET)),
