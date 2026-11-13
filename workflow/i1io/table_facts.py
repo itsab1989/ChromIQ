@@ -246,7 +246,8 @@ ROW_LABEL_EDGE_MM = Fact(5.0, "ours", OURS)
 
 #: The engine's strip letters and patch numbers are turned this far on the
 #: page so they read the right way up on the sheet laid across the table.
-LABEL_TURN_DEG = Fact(90, "ours: the sheet lies a quarter turn clockwise",
+LABEL_TURN_DEG = Fact(270, "ours: the sheet lies a quarter turn "
+                      "anticlockwise (labels turned clockwise on the page)",
                       OURS)
 
 #: Clear paper between a row label and the end of the row's run.

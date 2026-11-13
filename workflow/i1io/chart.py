@@ -17,7 +17,7 @@ fixes (:func:`fixed_build_kwargs`). This module adds the rest:
 
 * three numbered aiming marks. On the table (sheet turned) they sit top-left
   (1), bottom-left (2) and bottom-right (3), the order i1Profiler asks for;
-  on the portrait page that is bottom-left, bottom-right and top-right. Their
+  on the portrait page that is top-right, top-left and bottom-left. Their
   digits, the chart's name, the page "N/M", the sheet text and the ChromIQ
   wordmark are printed turned, so they read the right way up on the table.
   No arrow: the person aims at the numbers, so either quarter turn is aimed
@@ -193,13 +193,20 @@ class Mark:
 
 def marks(w: float, h: float) -> "list[Mark]":
     """The three aiming marks, in the order the person aims at them. The
-    sheet lies across the table turned a quarter turn CLOCKWISE (its top edge
-    to the person's right, so strip A is the top strip on the table), so the
-    table's top-left is the page's bottom-left, and so on."""
+    sheet lies across the table turned a quarter turn ANTICLOCKWISE (its top
+    edge to the person's LEFT), so on the table every strip reads from the
+    left like a line of text: the strip letters at the left end, the patch
+    numbers rising 1, 2, 3 from left to right (the coordinator's ruling,
+    2026-11-13). The one thing that is not like text: strip A is the BOTTOM
+    strip and the letters rise upwards, because the engine lays strip A at
+    the page's left and putting it at the top would mean laying the strips
+    right to left, new engine work for every instrument. It is the same
+    turn as 4.3.17's anticlockwise i1Profiler chart. The table's top-left
+    is the page's top-right, and so on."""
     i = F.MARK_INSET_MM.value
-    return [Mark(1, "top-left", (i, h - i)),
-            Mark(2, "bottom-left", (w - i, h - i)),
-            Mark(3, "bottom-right", (w - i, i))]
+    return [Mark(1, "top-left", (w - i, i)),
+            Mark(2, "bottom-left", (i, i)),
+            Mark(3, "bottom-right", (i, h - i))]
 
 
 def digit_offset(mark: Mark) -> "tuple[float, float]":
@@ -287,10 +294,11 @@ def check_sheet(geom, layout, w: float, h: float) -> None:
 
 def text_column(w: float, h: float) -> "tuple[float, float, float, float]":
     """The paper the turned text line may use, ``(x0, y0, x1, y1)``: the
-    right-hand margin between marks 3 and 2 (on the table, the bottom edge
-    between marks 2 and 3), where no strip and no run ever is."""
-    top = mark_zone(marks(w, h)[2])[3] + 2.0
-    bottom = mark_zone(marks(w, h)[1])[1] - 2.0
+    right-hand margin below mark 1 (on the table, along the top edge right of
+    mark 1), where no strip and no run ever is. It ends as far from the
+    page's bottom as it starts from its top."""
+    top = mark_zone(marks(w, h)[0])[3] + 2.0
+    bottom = h - top
     return (w - F.MARK_SIDE_MM.value + 1.0, top,
             w - F.PRINTER_EDGE_MM.value, bottom)
 
@@ -312,9 +320,9 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
     into the page image, from which the separated TIFF folds them into the
     black ink, and into the PDF display list when there is one. In place.
 
-    THE TEXT IS TURNED a quarter turn anticlockwise on the page, so it reads
-    the right way up on the sheet laid across the table (turned clockwise),
-    from the page's bottom upwards."""
+    THE TEXT IS TURNED a quarter turn clockwise on the page, so it reads
+    the right way up on the sheet laid across the table (turned
+    anticlockwise), from the page's top downwards."""
     from PIL import Image, ImageDraw
     s = dpi / 25.4
 
@@ -344,28 +352,29 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
                         family: str = "Inter", italic: bool = False,
                         bold: bool = True, rgb=black,
                         anchor: str = "centre") -> "tuple[int, int]":
-            """*txt* turned a quarter turn anticlockwise, centred on
-            *centre* (mm), or with its START at *centre* (the text then runs
-            UP the page from there) when *anchor* is "start". Returns its
-            (width, height) on the page in pixels."""
+            """*txt* turned a quarter turn clockwise, centred on *centre*
+            (mm), or with its START at *centre* (the text then runs DOWN the
+            page from there) when *anchor* is "start". Returns its (width,
+            height) on the page in pixels."""
             font, path, var = _font(size_px, family, italic, bold)
             bb = draw.textbbox((0, 0), txt, font=font)
             tw, th = bb[2] - bb[0], bb[3] - bb[1]
             tile = Image.new("L", (max(1, tw), max(1, th)), 0)
             ImageDraw.Draw(tile).text((-bb[0], -bb[1]), txt, font=font,
                                       fill=255)
-            tile = tile.rotate(90, expand=True)           # anticlockwise
+            tile = tile.rotate(-90, expand=True)          # clockwise
             cx, cy = px(centre[0]), px(centre[1])
             x0 = cx - tile.width // 2
-            y0 = (cy - tile.height if anchor == "start"
+            y0 = (cy if anchor == "start"
                   else cy - tile.height // 2)
             img.paste(Image.new("RGB", tile.size, rgb), (x0, y0), tile)
             if geom_list is not None and path:
                 ascent = font.getmetrics()[0]
                 # The run turned about its (left, baseline) anchor: on the
-                # page the baseline runs UP the tile at ascent from its left.
-                geom_list.append(("text", x0 + (ascent - bb[1]),
-                                  y0 + tw + bb[0], txt, path, size_px, 0, 90,
+                # page the baseline runs DOWN the tile, ascent in from its
+                # right (as `raster`'s own 270-degree labels).
+                geom_list.append(("text", x0 + th - 1 - (ascent - bb[1]),
+                                  y0 - bb[0], txt, path, size_px, 0, 270,
                                   rgb, var))
             return tile.width, tile.height
 
@@ -389,16 +398,16 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
         # to fit with "…". Paper no strip can use, so none of it costs a patch.
         x0, y0, x1, y1 = text_column(w, h)
         cx = (x0 + x1) / 2.0
-        y = y1                       # the text starts at the bottom, runs up
+        y = y0                       # the text starts at the top, runs down
         wm = wordmark_box(geom, layout, w, h, index, labels)
         if wm is not None:
             wpx = px(wm[4] / 0.74)
             ww, wh = turned_text("Chrom", (cx, y), wpx, family="Instrument Serif",
                                  bold=False, rgb=(28, 27, 24), anchor="start")
-            turned_text("IQ", (cx, y - wh / s - 0.3), wpx,
+            turned_text("IQ", (cx, y + wh / s + 0.3), wpx,
                         family="Instrument Serif", italic=True, bold=False,
                         rgb=(255, 69, 115), anchor="start")
-            y = wm[1] - 4.0
+            y = wm[3] + 4.0
         full = str(name or "")
         if pages > 1:
             full = f"{index + 1}/{pages}  ·  {full}" if full else \
@@ -409,7 +418,7 @@ def draw_furniture(render, w: float, h: float, dpi: int, *, name: str,
                 extra = extra.replace("{" + key + "}", str(value))
             extra = extra.replace("{page}", f"{index + 1}/{pages}")
             full = f"{full}  ·  {extra}" if full else extra
-        room = px(y - y0)
+        room = px(y1 - y)
         font, _p, _v = _font(small_px)
         label, keep = full, len(full)
         while label:
@@ -436,7 +445,7 @@ def wordmark_box(geom, layout, w: float, h: float, page: int,
     while size >= F.WORDMARK_MIN_MM.value - 1e-9:
         length = 5.0 * size
         if size + 1.0 <= (x1 - x0) and y1 - length >= y0:
-            return (x0, y1 - length, x1, y1, size)
+            return (x0, y0, x1, y0 + length, size)
         size -= 0.5
     return None
 
@@ -483,8 +492,8 @@ def write_side_file(path: Path, *, geom, layout, w: float, h: float,
         "paper": paper,
         "paper_mm": [w, h],
         "orientation": "portrait page laid across the table, a quarter turn "
-                       "clockwise (its top edge to the right): its Y is the "
-                       "table's X",
+                       "anticlockwise (its top edge to the left): its Y is "
+                       "the table's X",
         "scan_axis": "y",
         "patch_mm": [geom.pwid, geom.plen],
         "spacer_mm": round(geom.pspa, 4),

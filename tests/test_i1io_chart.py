@@ -140,18 +140,18 @@ def test_every_patch_run_and_mark_is_on_the_sheet_and_clear(tmp_path, paper,
 
 
 def test_the_marks_are_in_the_order_the_person_aims(tmp_path):
-    """On the table (the sheet a quarter turn clockwise) 1 is top-left, 2
-    bottom-left, 3 bottom-right; on the page bottom-left, bottom-right and
-    top-right."""
+    """On the table (the sheet a quarter turn anticlockwise) 1 is top-left,
+    2 bottom-left, 3 bottom-right; on the page top-right, top-left and
+    bottom-left."""
     from workflow.i1io.table_facts import MARK_INSET_MM
     _, side = _build(tmp_path, 50)
     w, h = side["paper_mm"]
     i = MARK_INSET_MM.value
     got = [(m["number"], m["corner_on_table"], m["centre_mm"])
            for m in side["marks_mm"]]
-    assert got == [(1, "top-left", [i, h - i]),
-                   (2, "bottom-left", [w - i, h - i]),
-                   (3, "bottom-right", [w - i, i])]
+    assert got == [(1, "top-left", [w - i, i]),
+                   (2, "bottom-left", [i, i]),
+                   (3, "bottom-right", [i, h - i])]
 
 
 def test_the_marks_are_printed_where_the_side_file_says(tmp_path):
@@ -163,8 +163,30 @@ def test_the_marks_are_printed_where_the_side_file_says(tmp_path):
         cx, cy = m["centre_mm"]
         for dx, dy in ((0, 0), (2.8, 0), (-2.8, 0), (0, 2.8), (0, -2.8)):
             assert img[round((cy + dy) * s), round((cx + dx) * s)] < 100
-    corner = img[: round(20 * s), : round(20 * s)]
-    assert corner.min() > 200          # the page's top-left: no mark
+    corner = img[-round(20 * s):, -round(20 * s):]
+    assert corner.min() > 200          # the page's bottom-right: no mark
+
+
+def test_on_the_table_the_sheet_reads_from_the_left(tmp_path):
+    """The coordinator's ruling (2026-11-13): laid on the table (a quarter
+    turn anticlockwise), every strip reads from the left like a line of
+    text. Strip letters at the LEFT end of their strip, patch 1 at the left
+    and the numbers rising to the right; strip A the bottom strip (the one
+    order that is not like text, see `chart.marks`). Measured on the page:
+    patch 1 of every strip is nearest the page's top (the table's left), the
+    strip letters are above the strips (left on the table), and strip A is
+    the page's leftmost strip (the bottom on the table)."""
+    _, side = _build(tmp_path, 504)
+    strips = side["pages"][0]["strips"]
+    xs = [st["x_mm"] for st in strips]
+    assert xs == sorted(xs)                              # A leftmost on the page
+    assert strips[0]["patches"][0]["loc"].startswith("A")
+    for st in strips:
+        ys = [p["centre_mm"][1] for p in st["patches"]]
+        assert ys == sorted(ys)                          # 1 at the page's top
+        assert st["patches"][0]["loc"].endswith("1")
+        assert st["patches"][0]["loc"][:-1].strip() == st["patches"][1]["loc"][:-1].strip()
+    assert "anticlockwise" in side["orientation"]
 
 
 def test_the_ti2_names_the_family_and_the_table_and_round_trips(tmp_path):

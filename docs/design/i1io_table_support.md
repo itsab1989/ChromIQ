@@ -51,23 +51,32 @@ instrument to name.
   the layout panel and Preferences > Chart Layout.
 * An ordinary ChromIQ strip chart on a PORTRAIT A4 or Letter sheet (Guided
   picks Letter for someone on a US sheet, A4 otherwise), laid ACROSS the table
-  a quarter turn clockwise, so its strips run along the arm (the table's scan
+  a quarter turn anticlockwise (its top edge to the left), so its strips run
+  along the arm (the table's scan
   moves change its X, along the 32 cm side: PROTOCOL 3.1, 4.4). Each strip is
   one line the arm scans in one move; strip letters, patch numbers ("C7" =
   the 7th patch of strip C), the spacers between the patches of a strip, the
   strip gap and the `.ti2`'s strip structure mean what they mean on every
   ChromIQ chart. The engine refuses a landscape sheet or one larger than the
   reach.
+* On the table every strip reads from the left like a line of text: its
+  letter at the left end, patch 1 at the left and the numbers rising to the
+  right (the coordinator's ruling, 2026-11-13). Strip A is the BOTTOM strip
+  and the letters rise upwards: the engine lays strip A at the page's left,
+  and putting it at the top would mean laying the strips right to left, new
+  engine work for every instrument (the same turn as 4.3.17's anticlockwise
+  i1Profiler chart).
 * Defaults, chosen for ChromIQ's own reading with the table and to be
   confirmed by the first real scan: patches 10 mm along the strip x 8 mm
   across, Coloured contrast spacers of 1 mm between them (the layout
   ArgyllCMS gives every i1Pro strip, read by the same driver's patch finder),
   no gap between strips, 10 mm of blank paper before the first and after the
   last patch of every strip, the strip letters beyond the run-in and the patch
-  numbers beside the first strip (both turned to read upright on the table),
+  numbers below strip A (both turned to read upright on the table),
   three numbered aiming marks (on the table 1 top left, 2 bottom left, 3
   bottom right), the ChromIQ wordmark, the page "N/M", the chart name and
-  Manual's sheet text on one turned line along the table's bottom edge.
+  Manual's sheet text on one turned line along the table's top edge, right
+  of mark 1.
   **Nothing is printed on a scan line outside the patches** (no edge
   spacers, no labels in a run). No arrow, no helper markers, no clip border.
   Per sheet: A4 504 (546 without spacers), Letter 462 (504). Every number,
