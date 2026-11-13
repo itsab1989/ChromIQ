@@ -1117,6 +1117,10 @@ def main(argv: "list[str] | None" = None) -> int:
         un, stale, mis = compare(rows, allow, obs["instruments"])
         print(f"instruments: {', '.join(obs['instruments'])} "
               f"(reference {REFERENCE})")
+        for mode in MODES:
+            tabs = [t for (m, _c), t in obs["controls"].items() if m == mode]
+            print(f"  {mode}: {len(tabs)} instrument(s) x "
+                  f"{max((len(t) for t in tabs), default=0)} controls")
         print(f"differences observed: {len(rows)}; not on the allow-list: "
               f"{len(un)}; allow-list entries that no longer match: "
               f"{len(stale) + len(mis)}")
