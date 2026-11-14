@@ -35,7 +35,6 @@ from ui.warning_sign import ask, inform
 from workflow import text_edge_fit as _TEF
 from workflow.hex_support import hex_two_heights_note
 from workflow.layout_engine.presets import LayoutRecipe
-from ui.dialogs.isis_panel import IsisPanelMixin
 
 log = get_logger(__name__)
 
@@ -600,7 +599,7 @@ class I1ioCrossesTip(TooltipButton):
         super()._show_dialog()
 
 
-class LayoutOptionsPanel(IsisPanelMixin, QWidget):
+class LayoutOptionsPanel(QWidget):
     """All layout-engine controls except instrument/paper/mode."""
 
     changed = pyqtSignal()
@@ -715,6 +714,35 @@ class LayoutOptionsPanel(IsisPanelMixin, QWidget):
         if isis_enabled():
             out.append((cls.ISIS_INSTRUMENT[0], tr(cls.ISIS_INSTRUMENT[1])))
         return out
+
+    # ---- the X-Rite i1iSis family (Beta): `ui.dialogs.isis_panel` -------
+    # Thin calls, the module imported only while the Beta is on, so with it
+    # off nothing of the i1iSis is loaded (tests/test_isis_off_changes_
+    # nothing.py).
+
+    def _isis_call(self, name: str, *args):
+        if not getattr(self, "_isis_support", False):
+            return None
+        from ui.dialogs import isis_panel
+        return getattr(isis_panel.IsisPanelMixin, name)(self, *args)
+
+    def _isis_build_group(self, parent_layout) -> None:
+        self._isis_call("_isis_build_group", parent_layout)
+
+    def _sync_isis_widgets(self, on: bool) -> None:
+        self._isis_call("_sync_isis_widgets", on)
+
+    def _isis_align_picked(self, *_a) -> None:
+        self._isis_call("_isis_align_picked")
+
+    def _isis_apply_to_recipe(self, r) -> None:
+        self._isis_call("_isis_apply_to_recipe", r)
+
+    def _isis_set_from_recipe(self, r) -> None:
+        self._isis_call("_isis_set_from_recipe", r)
+
+    def _isis_option_changed(self, *_a) -> None:
+        self._isis_call("_isis_option_changed")
 
     @staticmethod
     def mode_label_for(inst: str) -> str:

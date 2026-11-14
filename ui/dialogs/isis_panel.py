@@ -1,8 +1,10 @@
 """Manual's layout panel for the X-Rite i1iSis family (a Beta).
 
-`ui.dialogs.layout_options_panel.LayoutOptionsPanel` takes this mixin. With
-the Beta "X-Rite i1iSis charts" off nothing here is built or called, so the
-panel is 4.3.37's widget for widget (`tests/test_isis_off_changes_nothing.py`).
+`ui.dialogs.layout_options_panel.LayoutOptionsPanel` calls these methods
+through thin delegations (`_isis_call`), importing this module only while
+the Beta "X-Rite i1iSis charts" is on. Off, nothing here is imported, built
+or called, so the panel is 4.3.37's widget for widget
+(`tests/test_isis_off_changes_nothing.py`).
 
 On (and the i1iSis chosen):
 
@@ -244,6 +246,9 @@ class IsisPanelMixin:
         parent_layout.addWidget(g)
 
     def _isis_option_changed(self, *_a) -> None:
+        IsisPanelMixin._isis_option_changed_body(self)
+
+    def _isis_option_changed_body(self, *_a) -> None:
         self.isis_band_place.setEnabled(self.isis_band.isChecked())
         self.isis_band_height.setEnabled(self.isis_band.isChecked())
         if not getattr(self, "_loading", False):
@@ -284,7 +289,7 @@ class IsisPanelMixin:
             was_loading = getattr(self, "_loading", False)
             self._loading = True
             try:
-                for c, why in self._isis_greyed_controls():
+                for c, why in IsisPanelMixin._isis_greyed_controls(self):
                     saved["controls"].append((c, c.isEnabled(), c.toolTip()))
                     c.setEnabled(False)
                     c.setToolTip(isis_greyed_reason(why))
@@ -390,7 +395,7 @@ class IsisPanelMixin:
 
         def val(name):
             return getattr(r, name, D[name]) if own else D[name]
-        for w in self._isis_controls():
+        for w in IsisPanelMixin._isis_controls(self):
             w.blockSignals(True)
         try:
             i = self.isis_model.findData(val("isis_model") or "standard")
@@ -412,7 +417,7 @@ class IsisPanelMixin:
             self.isis_band_height.setValue(float(val("isis_notes_height_mm")))
             self._isis_align = str(val("isis_align") or "")
         finally:
-            for w in self._isis_controls():
+            for w in IsisPanelMixin._isis_controls(self):
                 w.blockSignals(False)
         self.isis_band_place.setEnabled(self.isis_band.isChecked())
         self.isis_band_height.setEnabled(self.isis_band.isChecked())
