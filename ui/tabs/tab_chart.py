@@ -7073,17 +7073,31 @@ class TabChart(QWidget):
         # triangle) should collapse both at once"). Open by default, so
         # nothing changes for anyone who never clicks it; folded, the preview
         # above takes the room and the line still repeats the verdict.
+        # NO LINE OF ITS OWN ("the purpose of this is to save space"): the
+        # triangle and the folded verdict sit at the two ends of the preview's
+        # own "Page N / M" line.
         from ui.preview_details_fold import PreviewDetailsFold
+        import os as _os
+        _style = _os.environ.get("CHROMIQ_FOLD_STYLE", "C")   # PROTOTYPE
         self._preview_fold = PreviewDetailsFold(
-            right, collapsed=bool(self._settings.get(
+            self, collapsed=bool(self._settings.get(
                 "preview_details_collapsed", False)),
-            accent=SPEC_MAGENTA)
-        right_layout.addWidget(self._preview_fold)
+            accent=SPEC_MAGENTA, style=_style)
+        if _style == "A":
+            self._preview.set_nav_extras(self._preview_fold.group, None, "A")
+        elif _style == "B":
+            self._preview.add_corner_extras(self._preview_fold.corner,
+                                            self._preview_fold.badge)
+        else:
+            self._preview.set_nav_extras(self._preview_fold.triangle,
+                                         self._preview_fold.status, "C")
         right_layout.addWidget(self._info_scroll)
         self._info_scroll.setVisible(not self._preview_fold.is_collapsed())
         self._preview_fold.toggled.connect(self._on_preview_details_toggled)
         self._margin_panel.verdict_changed.connect(
             self._refresh_preview_details_verdict)
+        self._preview.pages_shown.connect(self._on_preview_pages_shown)
+        self._refresh_preview_details_verdict()
         self._margin_panel.set_guides_checked(
             bool(self._settings.get("margin_guides_show", False)))
         self._margin_panel.set_measured_guides_checked(
@@ -30858,6 +30872,11 @@ class TabChart(QWidget):
         self._settings.set("preview_details_collapsed", bool(collapsed))
         self._refresh_preview_details_verdict()
 
+    def _on_preview_pages_shown(self, n: int) -> None:
+        fold = getattr(self, "_preview_fold", None)
+        if fold is not None:
+            fold.set_has_chart(n > 0)
+
     def _refresh_preview_details_verdict(self) -> None:
         """Repeat the frames' verdict on the fold's line (shown only while
         they are hidden), and hide the line when Preferences hides both
@@ -30865,7 +30884,7 @@ class TabChart(QWidget):
         fold = getattr(self, "_preview_fold", None)
         if fold is None:
             return
-        fold.setVisible(
+        fold.set_available(
             bool(self._settings.get("margin_inspector_show", True))
             or bool(self._settings.get("layout_info_show", True)))
         kind, n = ("none", 0)

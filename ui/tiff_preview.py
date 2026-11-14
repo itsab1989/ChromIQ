@@ -2044,6 +2044,9 @@ class TiffPreview(QWidget):
     # Emitted (with the new 0-based page index) when the shown page changes, so
     # observers like the margin inspector can re-measure the visible page.
     page_changed = pyqtSignal(int)
+    #: The number of pages the page line now describes (0: no chart), after
+    #: every load, clear and page turn.
+    pages_shown = pyqtSignal(int)
     # #126: user clicked a strip in the preview (page index, local stripe
     # index on that page). Only emitted while set_stripe_click_enabled(True).
     stripe_clicked = pyqtSignal(int, int)
@@ -2661,6 +2664,88 @@ class TiffPreview(QWidget):
         k = 25.4 / dpi
         return ix * k, iy * k
 
+    def set_nav_extras(self, left=None, right=None, style: str = "C") -> None:
+        """Put the Create Chart fold into the page line (PROTOTYPES A / C,
+        2026-11-14; only the owner's choice stays).
+
+        A: *left* (one group) at the far left of the original row; an
+        invisible twin of its width at the far right keeps the page text
+        centred. C: Prev, "Page N / M" and Next as one compact centred group;
+        *left* at the far left, *right* at the far right, in two columns of
+        equal stretch. A preview never given extras keeps its original row.
+        """
+        from PyQt6.QtWidgets import QGridLayout, QHBoxLayout, QWidget
+        nav = self._nav
+        old = nav.layout()
+        if style == "A":
+            self._nav_balance = QWidget(nav)
+            self._nav_balance.setFixedHeight(1)
+            old.insertWidget(0, left)
+            old.insertSpacing(1, 12)
+            old.addSpacing(12)
+            old.addWidget(self._nav_balance)
+            self._nav_left = left
+            left.installEventFilter(self)
+            self._update_nav()
+            return
+        m = old.contentsMargins()
+        # A widget takes a new layout only once the old one is gone. Its
+        # items are taken out first, so the buttons and the label survive.
+        while old.count():
+            old.takeAt(0)
+        from PyQt6 import sip
+        sip.delete(old)
+        grid = QGridLayout(nav)
+        grid.setContentsMargins(m)
+        grid.setSpacing(0)
+        lbox = QHBoxLayout()
+        lbox.setContentsMargins(0, 0, 0, 0)
+        if left is not None:
+            lbox.addWidget(left)
+            left.setParent(nav)
+        lbox.addStretch(1)
+        mid = QHBoxLayout()
+        mid.setContentsMargins(0, 0, 0, 0)
+        mid.setSpacing(10)
+        mid.addWidget(self._prev_btn)
+        mid.addWidget(self._page_label)
+        mid.addWidget(self._next_btn)
+        rbox = QHBoxLayout()
+        rbox.setContentsMargins(0, 0, 0, 0)
+        rbox.addStretch(1)
+        if right is not None:
+            rbox.addWidget(right, 4)
+            right.setParent(nav)
+        grid.addLayout(lbox, 0, 0)
+        grid.addLayout(mid, 0, 1)
+        grid.addLayout(rbox, 0, 2)
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(2, 1)
+        self._update_nav()
+
+    def add_corner_extras(self, button, badge) -> None:
+        """PROTOTYPE B: a round button in the image area's bottom-right
+        corner, a badge to its left; they float, the layout does not move."""
+        button.setParent(self)
+        badge.setParent(self)
+        self._corner_extras = (button, badge)
+        self._place_corner_extras()
+
+    def _place_corner_extras(self) -> None:
+        ex = getattr(self, "_corner_extras", None)
+        if not ex or self._img_label is None or sip.isdeleted(self._img_label):
+            return
+        button, badge = ex
+        origin = self._img_label.mapTo(self, QPoint(0, 0))
+        x = origin.x() + self._img_label.width() - 10 - button.width() + 3
+        y = origin.y() + self._img_label.height() - 10 - button.height() + 3
+        button.move(max(0, x), max(0, y))
+        button.raise_()
+        badge.adjustSize()
+        badge.move(max(0, x - badge.width() - 4),
+                   y + (button.height() - badge.height()) // 2)
+        badge.raise_()
+
     def set_navigation_visible(self, visible: bool) -> None:
         """Hide the page count + Prev/Next bar for single-image use (e.g. the
         soft-proof tool, which only ever shows one image at a time)."""
@@ -2992,6 +3077,10 @@ class TiffPreview(QWidget):
             # honesty badge shares the anchor, so it follows the same way.
             self._place_print_chip()
             self._place_render_badge()
+            self._place_corner_extras()
+        if obj is getattr(self, "_nav_left", None) \
+                and ev.type() == _QEvent.Type.Resize:
+            self._nav_balance.setFixedWidth(obj.width())
         if obj in (self._caption_lbl, self._filename_lbl, self._img_label):
             t = ev.type()
             if t == _QEvent.Type.ToolTip:
@@ -4323,6 +4412,7 @@ class TiffPreview(QWidget):
             self._page_label.setText("")
         self._prev_btn.setEnabled(self._current > 0)
         self._next_btn.setEnabled(self._current < n - 1)
+        self.pages_shown.emit(n)
 
     def _hand_over_nav_focus(self, visible: bool, prev_ok: bool,
                              next_ok: bool) -> None:
