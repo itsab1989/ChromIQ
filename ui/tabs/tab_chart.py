@@ -10772,7 +10772,8 @@ class TabChart(QWidget):
         cleaned = self._file_mgr.strip_workfile_ext(raw)
         if cleaned != raw:
             removed = raw[len(cleaned):]
-            edit.setText(cleaned)
+            # The person's own name, minus the extension: still typed.
+            self._put_the_persons_name(edit, cleaned)
             hint.setText(
                 tr("Removed “{removed}” — the printer profile project name is used for the project folder and every generated file, so it shouldn't include a file extension.").format(removed=removed)
             )
@@ -16320,6 +16321,27 @@ class TabChart(QWidget):
         """
         self._name_typed_by_user = True
 
+    def _put_the_persons_name(self, field, name: str) -> None:
+        """Write a name THE PERSON gave into the name box, as typed.
+
+        4.3.28 made typing in the box quiet: a typed name is no change of
+        target, so a Create Chart change not yet generated stays on screen
+        (`MeasurementTargetController.note_typed_project_name`). Two routes
+        put the person's own name there with `setText`, which Qt reports as
+        the app writing it: the answer in the project-name window (a box left
+        empty, or a name a folder cannot take), and the typed name with a file
+        extension taken off. Both then counted as a project switch: the open
+        project's stored settings were loaded back over the screen, and the
+        new project was built from them (driven 2026-11-14: Letter chosen,
+        "Beta.icc" typed, Beta built on A4). Telling the bar first that the
+        name is typed makes the `setText` that follows a no-op for it.
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        note = getattr(ctl, "note_typed_project_name", None)
+        if callable(note):
+            note(name)
+        field.setText(name)
+
     def _focus_project_name_field(self) -> None:
         """"Use a different name" — put the cursor back where the answer goes."""
         from PyQt6.QtCore import Qt as _Qt
@@ -20636,7 +20658,7 @@ class TabChart(QWidget):
         if not name:
             return False
         if field is not None:
-            field.setText(name)
+            self._put_the_persons_name(field, name)
             field.setFocus()
         # A PERSON TYPED THIS, SO §S4.7 MUST SPEAK FOR IT.
         # `setText` never emits `textEdited`, which is the only thing that sets
