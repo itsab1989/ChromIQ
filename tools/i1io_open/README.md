@@ -35,7 +35,8 @@ reading lines, moves nothing, and asks you to open i1Profiler once (so that
 i1Profiler starts the table), quit it, and run the program again.
 
 **It never measures, never talks to the i1Pro 2, and never moves the arm out
-over the table.** It is not part of the ChromIQ app and does not need it.
+over the table.** So the instrument's own light will not come on, unlike when
+i1Profiler starts the table. It is not part of the ChromIQ app and does not need it.
 
 Nothing here is promised, and you can stop at every step.
 
@@ -63,13 +64,14 @@ it with every byte.
 | `;s022` | asks for the status | no |
 | `;f42b` | we believe it asks whether the motors hold the arm (four times) | no |
 | `;p025` | asks where the arm is (before the homing) | no |
-| `;i12b` | **go to the resting place** (the arm is already there), once | **barely** |
+| `;i12b` | **go to the resting place** (the arm is already there), once | **barely, about a third of a second** |
 | `;f02f` | first closing line | no |
 | `;f32c` | second closing line | no |
 
 After your yes, the program asks for the status and where the arm is, and
 sends the homing at once if the arm is at its resting place, as i1Profiler
-does.
+does. On your table, with version 0.2.0, the homing took about a third of a
+second.
 
 About the memory block: i1Profiler reads it every time it connects, so this
 program does too, to keep the same order. It holds the table's serial number.

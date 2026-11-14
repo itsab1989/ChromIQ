@@ -983,6 +983,21 @@ def test_the_zip_is_reproducible_and_runs_from_a_clean_folder(tmp_path):
         assert "Traceback" not in r.stdout + r.stderr
 
 
+def test_the_timing_text_is_his_tables_and_the_light_is_explained(tmp_path):
+    """Safety review S1: no 'twentieth of a second' (there is one homing, and on his table it
+    took 0.336 s), and the missing light of the i1Pro 2 is said before the movement."""
+    for name in PROGRAM_FILES + ("README.md", "BYTES.md"):
+        text = " ".join(_source(name).split()).lower()
+        assert "twentieth" not in text and "quarter of a second" not in text, name
+    code, sim, log = _run(tmp_path, sim_mod.SimTable())
+    flat = " ".join(log.split())
+    go = flat.index("Send it now?")
+    assert flat.index("about a third of a second") < go
+    assert flat.index(" ".join(prog.NO_LIGHT.split())) < go
+    assert "never talks to the i1Pro 2" in prog.NO_LIGHT
+    assert "light will not come on" in " ".join(_source("README.md").split())
+
+
 def test_the_loose_arm_advice_has_no_power_cycle(tmp_path):
     """Safety review M2: he described the start after a power cycle as a hard movement, so the
     loose-arm advice (screen, log, README) is only: leave it, open i1Profiler once, let it

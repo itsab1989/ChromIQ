@@ -65,6 +65,8 @@ ASK_TOUCH = ("Please touch the instrument holder very gently with one finger, si
 TOUCH_CHOICES = ("holds", "free", "not sure", "skip")
 #: How long the program waits after letting go of the USB connection before the second touch.
 RELEASE_WAIT_S = 10.0
+NO_LIGHT = ("The instrument's own light will not come on, because this program never talks "
+            "to the i1Pro 2 (when i1Profiler starts the table, that light does come on).")
 LOOSE_ADVICE = (
     "If the arm is loose (it moves freely when you touch it gently), that is, as far as we "
     "know, the same harmless state as a table that is switched off. Please do not push it "
@@ -334,7 +336,7 @@ class Run:
                 f"sends {_bare('home')} (i1, go to the resting place) if the arm is there. The "
                 "arm is already at its resting place, so it should move very little or not at "
                 "all; you may hear the motors for a moment. With version 0.2.0 on your table "
-                "the homing took a third of a second.")
+                "the homing took about a third of a second. " + NO_LIGHT)
             self.d.home()
             self.ui.say(f"The table reports that the homing has finished (after "
                         f"{self.d.homing_times[-1]:.2f} s).")
