@@ -122,85 +122,169 @@ recordings of what the instrument's own program says to it.
 ### The recording tool
 
 The **ChromIQ X-Rite instrument probe** is a free, open-source tool:
-[github.com/itsab1989/chromiq-i1io-probe](https://github.com/itsab1989/chromiq-i1io-probe).
-Its README has the step-by-step instructions for each system; please follow
-those, because they are kept up to date with the tool. What follows is a short
-summary, checked against version 1.6.2.
+[github.com/itsab1989/chromiq-i1io-probe](https://github.com/itsab1989/chromiq-i1io-probe). Its README has the full
+step-by-step instructions for each system and is kept up to date with the
+tool, so please follow it. What follows is a short summary of what the
+[latest release](https://github.com/itsab1989/chromiq-i1io-probe/releases/latest) does.
 
-- **What it does.** It looks for your instrument, writes a plain-text report
-  about it and your computer, and can then guide you through a few short steps
-  in the instrument's own program while it records the USB traffic between
-  that program and the instrument. Each step is a short numbered list, one
-  action per line, and the README shows them all. You can read the report
-  before you send
-  it, and by default it hides serial numbers, your user name and your home
-  folder.
-- **It never sends anything to the instrument.** It does not even open a
-  connection to it. It changes nothing on your computer unless you say yes
-  first: on a Mac, if you agree to a recording, it switches the Mac's USB
-  recording interfaces on for the recording and off again afterwards; on
-  Windows, if USBPcap (below) is missing, it can, after asking you, download
-  USBPcap's own installer and start it, and it can offer to start itself
-  again as administrator.
-- **Which instruments it covers today**: X-Rite instruments only, namely the
-  i1iO scanning table, the i1Pro family (original i1Pro, i1Pro 2, i1Pro 3 and
-  i1Pro 3 Plus), the ColorMunki Photo / Design, the i1Studio, and since
-  version 1.6 the i1iSis chart readers (i1iSis, i1iSis XL, i1iSis 2 and
-  i1iSis 2 XL). Instruments by other makers are not covered by it yet.
-- **About the i1iSis session**: it is new in version 1.6, and the README says
-  plainly: "this session has not been tried with a real i1iSis yet. We built
-  and tested it with made-up recordings only." ChromIQ cannot use an i1iSis
-  today. A recording helps us learn the
-  basics; whether ChromIQ can ever use an i1iSis is a separate question, and
-  nothing is promised. The README's section "The i1iSis session" says what to
-  prepare (a printed i1iSis chart page and a plain sheet) and what such a
-  recording also contains: the colour values the i1iSis measured from your
-  chart page and, if the chart has a barcode, what the barcode holds.
-- **Which systems**: downloads for Windows, macOS (Intel and Apple Silicon)
-  and Linux. The report works on all of them. A **recording** needs more:
-  - **Windows** on a PC with an Intel or AMD processor: the free USBPcap,
-    which comes with Wireshark. It installs a capture driver into Windows, and
-    the tool must run as administrator to record. Windows on ARM, including a
-    Windows virtual machine on an Apple Silicon Mac, cannot record.
-  - **macOS**: only with System Integrity Protection (SIP) fully switched off
-    for the time of the recording, and switched back on afterwards. The
-    README explains how, and the risk, honestly.
-  - **Linux**: `usbmon` and `tcpdump`. The makers' programs do not run on
-    Linux, so a recording works only when they run in a virtual machine that
-    the instrument is passed through to.
+**Is it safe?**
 
-  The README also lists which versions of X-Rite's i1Profiler and of Windows
-  still work with which instrument; please check it before you start.
-- **What a recording contains.** Necessarily your instrument's **serial
-  number and its factory calibration data**, because the maker's program reads
-  them every time it connects (for the i1iSis the README says "very likely",
-  because it is not proven yet). They identify your instrument, not you. So
-  please share a recording deliberately.
-- **Other USB devices: use version 1.6.2 or newer, and unplug what you can.**
-  The tool makes a copy for you to send that is meant to hold only the
-  instrument's traffic, and offers to delete the full recordings, which can
-  hold everything else on those USB connections. Versions up to 1.6.1 could
-  still keep some traffic of another USB device that shared the instrument's
-  USB hub, such as a USB disk or memory stick, in that copy, in the analysis
-  and in the report. Version 1.6.2 leaves that out in the cases its README
-  names, and says honestly what it still cannot tell apart: a device that was
-  given the instrument's USB address and uses the same endpoint numbers (for
-  example a USB 3 "UAS" disk, a printer, a phone or a USB-serial adapter). So while
-  you record, please unplug every other USB device you can from that
-  computer, or at least from the same hub or dock: disks, memory sticks,
-  printers, phones, adapters and card readers. A keyboard and a mouse may
-  stay. The README's section
+- **It never sends anything to the instrument**, not one byte, and it does
+  not even open a connection to it.
+- **It changes nothing on your computer unless you say yes first.** On a Mac,
+  if you agree to a recording, it switches the Mac's USB recording interfaces
+  on for the recording and off again afterwards. On Windows, if USBPcap
+  (below) is missing, it can, after asking you, download USBPcap's own
+  installer and start it, and it can offer to start itself again as
+  administrator.
+- **Nothing is uploaded.** You decide whether to send anything, and you can
+  read every file before you do.
+
+**Which instruments it covers today**: X-Rite instruments only, namely the
+i1iO scanning table, the i1Pro family (original i1Pro, i1Pro 2, i1Pro 3 and
+i1Pro 3 Plus), the ColorMunki Photo / Design, the i1Studio, and the i1iSis
+chart readers (i1iSis, i1iSis XL, i1iSis 2 and i1iSis 2 XL). Instruments by
+other makers are not covered by it yet.
+
+**About the i1iSis session**: the README says plainly: "this session has not
+been tried with a real i1iSis yet. We built and tested it with made-up
+recordings only." ChromIQ cannot use an i1iSis today. A recording helps us
+learn the basics; whether ChromIQ can ever use an i1iSis is a separate
+question, and nothing is promised. The README's section "The i1iSis session"
+says what to prepare (a printed i1iSis chart page and a plain sheet).
+
+**How it goes, step by step**
+
+1. **Download** the one file for your system from the
+   [latest release](https://github.com/itsab1989/chromiq-i1io-probe/releases/latest): Windows, macOS (one file for Intel
+   and Apple Silicon) or Linux. The downloads are not code-signed, so your
+   computer warns you the first time; the README shows how to start the tool
+   on each system. For a recording on Windows, start it as administrator.
+2. **Plug in your instrument and switch it on.** An i1iSis is the exception:
+   switch it on first, then plug in its USB cable.
+3. **Start the tool.** It looks for your X-Rite instruments, collects the
+   details, and then asks what you would like to do:
+   - **1.** record an i1iO table,
+   - **2.** record a handheld instrument or an i1iSis,
+   - **3.** nothing more: just make the report,
+   - **a.** look again (after plugging something in).
+
+   The answer that fits what is plugged in is suggested, so pressing Enter is
+   usually right. For the i1iO table (1) it asks three short questions about
+   your table, its instrument and your software, and then offers the
+   recording.
+4. **For choice 2, it asks which instrument you use**, and marks the one it
+   saw on your computer:
+   - **1.** i1Pro 2,
+   - **2.** original i1Pro (the first generation),
+   - **3.** i1Pro 3 or i1Pro 3 Plus,
+   - **4.** ColorMunki Photo / Design or i1Studio,
+   - **5.** i1iSis, i1iSis XL, i1iSis 2 or i1iSis 2 XL,
+   - **6.** another X-Rite instrument.
+
+   The i1Pro and the i1Pro 2 look the same to the computer: if you are not
+   sure which one you have, choose 1, and the recording tells them apart. If
+   you have both, plug in only the one you record with.
+5. **Work through the steps** in your instrument's own program, for example
+   X-Rite's i1Profiler. Each step is a short numbered list, one action per
+   line. You can skip or repeat any step, and stop at any time; the steps you
+   finished are kept. After each step you type a line or two about what you
+   did and what you saw.
+6. **At the end** the tool saves a plain-text report and, for a handheld
+   instrument or an i1iSis, one `SEND-THIS-<date>.zip` with everything to
+   send. Have a look at them before you send anything.
+
+**If you chose the wrong instrument**: when a step's recording holds only
+another instrument's traffic (you chose the i1Pro 2, say, but an i1Pro 3 is
+plugged in), the tool says that first: which instrument the recording shows,
+that nothing was kept, and which number to choose when you start it again. It
+offers to stop right there (pressing Enter stops). That is no harm done:
+simply start the tool again and choose the number it named.
+
+**If a step keeps nothing**: the tool keeps only traffic it can attribute to
+your instrument. When a step kept nothing, it says what the recording did
+hold (as counts and kinds of device, never contents) and what you can try,
+one action per line. If no step kept anything, it still writes one small
+`SEND-THIS-<date>-report-only.zip` with the report and no recording, which
+helps us find out why.
+
+**What the report hides**
+
+- Serial numbers are replaced by short codes. The code is mixed with a random
+  value that is made new for every run and never written anywhere, so it
+  cannot be traced back to the serial number, and it differs between runs and
+  between people. Within one report or zip, the same serial number still gets
+  the same code.
+- Your user name and home folder are removed.
+- Other USB devices on your computer appear only with their USB vendor and
+  product numbers (and their kind, where the list has one), not their names.
+- The option `--no-redact` shows everything as your system lists it. A
+  report made with it must not be posted publicly.
+
+**What a recording still contains, said honestly**
+
+- **Your instrument's serial number and its factory calibration data.** The
+  maker's program reads them from the instrument every time it connects, so
+  they are necessarily in the USB conversation (for the i1iSis the README
+  says "very likely", because it is not proven yet). They identify your
+  instrument, not you. An i1iSis recording also holds the colour values it
+  measured from your chart page and, if the chart has a barcode, what the
+  barcode holds.
+- **Possibly a little of another USB device's traffic.** The copy for you to
+  send is meant to hold only the traffic of the instrument family you chose,
+  and the tool offers to delete the full recordings, which can hold
+  everything else on those USB connections. But the README says honestly
+  that the tool cannot tell every device apart from the instrument: a device
+  that was given the instrument's USB address and uses the same endpoint
+  numbers (for example a USB 3 "UAS" disk, a printer, a phone or a USB-serial
+  adapter) looks exactly like it. So while you record, please unplug every
+  other USB device you can from that computer, or at least from the same hub
+  or dock: disks, memory sticks, printers, phones, adapters and card readers.
+  A keyboard and a mouse may stay. The README's section
   ["Which traffic is the instrument's"](https://github.com/itsab1989/chromiq-i1io-probe#which-traffic-is-the-instruments-since-162)
-  explains all of it.
-- **Made a recording with version 1.6.1 or older?** Version 1.6.2 can make a
-  cleaned copy of it with `--clean`, next to the original, and says what it
-  removed; the README's section ["Running from source"](https://github.com/itsab1989/chromiq-i1io-probe#running-from-source)
-  and its notice at the top give the exact command. Or simply delete the old
-  files. If you already sent one, please say so in the issue.
-- **Nothing is uploaded.** You decide whether to send anything. To send it,
-  open a [new issue](https://github.com/itsab1989/ChromIQ/issues/new) in the
-  ChromIQ repository and attach it there; for the i1iO table, attach it to
-  [issue #129](https://github.com/itsab1989/ChromIQ/issues/129).
+  explains it in full.
+
+So please share a recording deliberately, knowing what is in it.
+
+**Reports and recordings made with an older version**
+
+- Versions up to 1.6.1 could keep traffic of another USB device that shared
+  the instrument's USB hub (a USB disk or memory stick, for example) in the
+  files meant for sending.
+- Reports made before 1.6.3 list the other USB devices by name, and their
+  serial-number codes could be traced back by trying numbers.
+- The latest release can make a cleaned copy of such a zip, session folder or
+  recording with `--clean`: it leaves out the other devices' traffic, hides
+  the other devices' names in the report, writes the copy next to the
+  original and says what it removed. The codes in an older report stay as
+  they were. The README's section
+  ["Running from source"](https://github.com/itsab1989/chromiq-i1io-probe#running-from-source) gives the command.
+- So please do not post an older report publicly. Make a new one with the
+  latest release, send the cleaned copy, or simply delete the old files. If
+  you already sent one, please say so in the issue.
+
+**Which systems can record**: the report works on Windows, macOS and Linux.
+A **recording** needs more:
+
+- **Windows** on a PC with an Intel or AMD processor: the free USBPcap, which
+  comes with Wireshark. It installs a capture driver into Windows, and the
+  tool must run as administrator to record. Windows on ARM, including a
+  Windows virtual machine on an Apple Silicon Mac, cannot record.
+- **macOS**: only with System Integrity Protection (SIP) fully switched off
+  for the time of the recording, and switched back on afterwards. The README
+  explains how, and the risk, honestly.
+- **Linux**: `usbmon` and `tcpdump`. The makers' programs do not run on
+  Linux, so a recording works only when they run in a virtual machine that
+  the instrument is passed through to.
+
+The README also lists which versions of X-Rite's i1Profiler and of Windows
+still work with which instrument; please check it before you start.
+
+**Where to send it**: open a
+[new issue](https://github.com/itsab1989/ChromIQ/issues/new) in the ChromIQ
+repository and attach the files there; for the i1iO table, attach them to
+[issue #129](https://github.com/itsab1989/ChromIQ/issues/129). An issue is
+public, so attach only what you are happy to share.
 
 ### What helps even without a recording
 

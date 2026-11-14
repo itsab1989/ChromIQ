@@ -613,7 +613,9 @@ request.
 - **The owners' section of the guide (section 2) must be re-checked whenever
   the recording tool
   ([chromiq-i1io-probe](https://github.com/itsab1989/chromiq-i1io-probe)) gets
-  a release**: which instruments and systems it covers, what it needs
-  installed, what a recording contains (including what it may still hold of
-  other USB devices, and how older recordings are cleaned), and where to send
-  it. Last checked against version 1.6.2.
+  a release**: which instruments and systems it covers, the choices it
+  offers, what it needs installed, what the report hides (serial numbers,
+  other devices), what a recording still contains (including what it may
+  still hold of other USB devices, and how older files are cleaned), and
+  where to send it. The guide itself names no current version; this note
+  does. Last checked against version 1.6.3.
