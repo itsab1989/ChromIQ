@@ -674,3 +674,28 @@ switches an i1Pro 3's lights off itself (no marker, no replug window). The
 engine reports the i1Pro 3's firmware; the log names it with either new choice.
 Patterns and their moments: `measurement_window_sounds.md` §4i. Built and
 tested on 2026-11-14 without an i1Pro 3; nobody has confirmed it on hardware.
+
+## The ruler check's question (Beta, 2026-11-14)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+With Preferences ▸ Beta ▸ the ruler check on, the Measure tab can ask one more
+question about an accepted strip, *"Strip {strip} may not have been read all
+the way"* (M-STRIP-RULER-NOT-COVERED, `TabMeasure._prompt_ruler_not_covered`),
+beside *Strip may be misaligned*, *Was a strip read twice?* and *Strip read
+quickly*, and never together with one of them for the same strip (those win;
+`TabMeasure._strip_verdict`). It is not an exit and ends nothing:
+
+| answer | what is sent to the engine | the strip |
+|---|---|---|
+| Re-read Strip (the default) | `{"cmd":"goto","strip":"<strip>"}` (`MeasureManager.goto_strip`), as *Strip read quickly*'s Re-read Strip | read again; the next swipe replaces this reading; "Strip read OK" is not printed for it |
+| Continue Anyway | nothing | kept, and the reader goes on as it would have |
+| Escape or the title-bar X | nothing | kept, exactly as Continue Anyway (as *Strip read quickly*) |
+
+While the window is open the reader holds nothing of its own: the engine is at
+its strip menu, the window's nested event loop holds back the "All Strips Read"
+window as for *Strip read quickly* (`_pace_prompt_open`), and a key pressed at
+the window stays with the window (note 8a). The answer is written into the
+measurement's ruler diagnostics file.
