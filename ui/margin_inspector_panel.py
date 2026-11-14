@@ -464,6 +464,13 @@ class MarginInspectorPanel(QGroupBox):
         self._status.setVisible(False)
         self._show_text_notes([])
         self._last_status = None
+        # NO WARNING HEADER WITHOUT A CHART (review of 2026-11-14). An i1iO
+        # sheet too big for the arm is refused and the preview empties, but the
+        # red "1 warning" header of the PREVIOUS chart stayed in the frame
+        # while the fold's badge, which reads `verdict()`, already said
+        # nothing. Clearing the count and re-applying the fold hides it.
+        self._warning_count = 0
+        self._apply_warning_fold()
         self.verdict_changed.emit()
 
     def verdict(self) -> "tuple[str, int]":
