@@ -344,8 +344,11 @@ def test_the_items_say_which_is_4_3_33(dialog):
     rd = [dlg._lights_reading_combo.itemText(i) for i in range(2)]
     assert "4.3.33" in sig[0] and "green / red" in sig[1]
     assert "4.3.33" in rd[0] and "i1Profiler" in rd[1]
-    assert "i1Pro 2" in dlg._lights_signals_label.text()
-    assert "i1Pro 2" in dlg._lights_reading_label.text()
+    # 2026-11-14: both choices apply to the i1Pro 2 and the i1Pro 3, so the
+    # labels name no instrument; item 0 says what it means on an i1Pro 2.
+    assert dlg._lights_signals_label.text() == "What the lights show:"
+    assert dlg._lights_reading_label.text() == "During a reading:"
+    assert "i1Pro 2: ready light only" in sig[0]
     for t in sig + rd:
         assert "—" not in t
 
