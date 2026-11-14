@@ -187,3 +187,25 @@ def test_the_timer_is_the_panels_child_and_a_bound_method():
     assert "self._custom_turn_timer = QTimer(self)" in src
     assert "timeout.connect(\n                self._turn_custom_upright_when_left)" in src
     assert "editingFinished.connect(self._turn_custom_upright)" not in src
+
+
+def test_moving_between_the_boxes_in_an_inactive_window_does_not_turn(
+        qtbot, io_panel):
+    """The application's focus widget is None while another window is
+    active; the panel asks its own window where the focus is."""
+    p = io_panel
+    _set(p, 320, 297)
+    other = QWidget()
+    qtbot.addWidget(other)
+    other.show()
+    other.activateWindow()
+    qtbot.wait(50)
+    p.custom_h.setFocus(Qt.FocusReason.OtherFocusReason)
+    assert p.window().focusWidget() is p.custom_h
+    p.custom_w.editingFinished.emit()
+    qtbot.wait(50)
+    assert _sizes(p) == (320.0, 297.0)
+    p._elsewhere.setFocus(Qt.FocusReason.OtherFocusReason)
+    p.custom_h.editingFinished.emit()
+    qtbot.waitUntil(lambda: p.custom_w.value() == 297.0, timeout=2000)
+    assert _sizes(p) == (297.0, 320.0)

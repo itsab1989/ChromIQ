@@ -7295,7 +7295,10 @@ class LayoutOptionsPanel(QWidget):
             self._custom_turned_lbl.setVisible(False)
 
     def _custom_box_has_focus(self) -> bool:
-        fw = QApplication.focusWidget()
+        # The WINDOW's focus widget, not the application's: the latter is
+        # None while the window is not the active one, and a box the person
+        # left the window from is still where they are typing.
+        fw = self.window().focusWidget() or QApplication.focusWidget()
         if fw is None:
             return False
         for box in (self.custom_w, self.custom_h):
