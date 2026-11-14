@@ -105,9 +105,15 @@ def _wire(lines):
 
 def _no_timing(lines):
     # MEASURE-MS, and since 4.3.37 the i1Pro 2's GAPMS / HELD / LOST lines
-    # of the slow-instrument lives, carry real times
+    # of the slow-instrument lives, carry real times; so do the ruler scan's
+    # RULER / READS85 / CLOSED / CLEARHALTS lines in the lives whose stream
+    # runs until it is cancelled ("noend", "stall", "late"): their byte
+    # counts depend on how busy the machine is (an everyday run under load,
+    # 2026-11-14: 53248 against 49152 bytes in on_noend)
     return [ln for ln in lines
-            if not ln.startswith(("MEASURE-MS", "GAPMS", "HELD", "LOST"))]
+            if not ln.startswith(("MEASURE-MS", "GAPMS", "HELD", "LOST",
+                                  "RULER", "READS85", "CLOSED",
+                                  "CLEARHALTS"))]
 
 
 # ---------------------------------------------------------------------------
