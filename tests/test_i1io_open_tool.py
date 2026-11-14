@@ -730,11 +730,144 @@ def test_no_touch_question_while_a_movement_may_still_run_or_the_arm_was_not_at_
         assert prog.LOOSE_ADVICE not in log.replace("\n", " ")
 
 
-def test_ctrl_c_at_a_touch_question_sends_nothing_and_keeps_the_result(tmp_path):
-    for k in (3, 4):
-        con = prog.AutoConsole(lambda a, b: None, interrupt_at=k)
-        code, sim, log = _run(tmp_path, sim_mod.SimTable(), console=con)
-        assert code == 0 and sim.received == WARM and "skipped" in log
+class _Asked(prog.AutoConsole):
+    """Records every question (and free-text question) with the lines sent so far."""
+
+    def __init__(self, sim, **kw):
+        super().__init__(lambda k, t: None, **kw)
+        self.sim, self.seen = sim, []
+
+    def ask(self, question, choices=("yes", "no")):
+        self.seen.append((question, len(self.sim.received)))
+        return super().ask(question, choices)
+
+    def text(self, question):
+        self.seen.append((question, len(self.sim.received)))
+        return super().text(question)
+
+
+def _touches(con):
+    return [q for q, _ in con.seen if q == prog.ASK_TOUCH]
+
+
+def test_ctrl_c_at_the_first_touch_ends_cleanly_without_the_wait_or_another_question(
+        tmp_path, monkeypatch):
+    """Safety review S2: a Ctrl-C at the first touch question means no 10 s wait, no second
+    touch, no report questions; only the closing text. Nothing is sent either way."""
+    monkeypatch.setattr(prog.time, "sleep", lambda s: pytest.fail("waited after a Ctrl-C"))
+    sim = sim_mod.SimTable()
+    con = _Asked(sim, interrupt_at=3)            # 1 go ahead, 2 look, 3 first touch
+    code, sim, log = _run(tmp_path, sim, console=con)
+    assert code == 0 and sim.received == WARM
+    assert len(con.seen) == 3 and len(_touches(con)) == 1     # go ahead, look, first touch
+    assert "('arm held? (while the program still held the USB connection)', " \
+           "'stopped with Ctrl-C')" in log
+    assert "about ten seconds after" not in log.split("INFO   result")[1].split("answers")[0]
+    assert "stopped by you: no more questions" in log
+    assert "Did you hear anything unusual" not in log
+    assert " ".join(prog.LOOSE_ADVICE.split()) in " ".join(log.split())   # the closing text
+
+
+def test_ctrl_c_at_the_first_touch_on_the_real_path_skips_the_ten_second_wait(tmp_path):
+    """The same through after_the_run with real=True: the wait would be a 10 s sleep."""
+    sim = sim_mod.SimTable()
+    tr = sim_mod.SimTransport(sim)
+    table = tbl.Table(tr)
+    con = _Asked(sim, interrupt_at=3)
+    r = prog.Run(table, con, simulated=False)
+    assert r.go() == 0
+    slept = []
+    real_sleep = prog.time.sleep
+    prog.time.sleep = lambda s: slept.append(s)
+    try:
+        r.after_the_run(tr, real=True)
+    finally:
+        prog.time.sleep = real_sleep
+    assert slept == [] and len(_touches(con)) == 1 and tr.closed and r.stopped_by_person
+
+
+def test_ctrl_c_during_the_ten_second_wait_asks_nothing_more(tmp_path):
+    sim = sim_mod.SimTable()
+    tr = sim_mod.SimTransport(sim)
+    con = _Asked(sim)
+    r = prog.Run(tbl.Table(tr), con, simulated=False)
+    assert r.go() == 0
+
+    def sleep(s):
+        raise KeyboardInterrupt
+    real_sleep = prog.time.sleep
+    prog.time.sleep = sleep
+    try:
+        r.after_the_run(tr, real=True)
+    finally:
+        prog.time.sleep = real_sleep
+    assert len(_touches(con)) == 1 and r.stopped_by_person
+    assert not any("Did you hear" in q for q, _ in con.seen)
+
+
+def test_ctrl_c_at_the_second_touch_asks_nothing_more(tmp_path):
+    sim = sim_mod.SimTable()
+    con = _Asked(sim, interrupt_at=4)
+    code, sim, log = _run(tmp_path, sim, console=con)
+    assert code == 0 and sim.received == WARM and len(_touches(con)) == 2
+    assert len(con.seen) == 4 and "Did you hear anything unusual" not in log
+
+
+@pytest.mark.parametrize("how", ["ctrl-c at the look", "stop at the look", "stop at the go-ahead",
+                                 "ctrl-c during an exchange", "slow homing", "refused homing"])
+def test_no_touch_question_after_a_stop_or_without_a_yes_at_rest(tmp_path, how):
+    """Safety review S2: the touches only when nothing moved or the person's last word was
+    "yes, at its resting place"; never after Ctrl-C or "stop"."""
+    sim = sim_mod.SimTable()
+    kw = {}
+    if how == "ctrl-c at the look":
+        kw["interrupt_at"] = 2
+    elif how == "stop at the look":
+        kw["script"] = {"Is the arm at": "stop"}
+    elif how == "stop at the go-ahead":
+        kw["script"] = {"Send it now": "stop"}
+    elif how == "slow homing":
+        sim.inject_at(HOME_AT, "late", 1.0)
+    elif how == "refused homing":
+        sim.inject_at(HOME_AT, "refuse", 1.0)
+    else:
+        def hook(i):
+            if i == HOME_AT + 1:
+                signal.raise_signal(signal.SIGINT)
+        sim.on_command = hook
+    con = _Asked(sim, **kw)
+    code, sim, log = _run(tmp_path, sim, console=con)
+    assert code in (1, 2) and not _touches(con), how
+    assert "arm held?" not in log
+    if how.startswith(("ctrl-c", "stop")):
+        assert "Did you hear anything unusual" not in log, how
+
+
+def test_the_touches_are_still_asked_when_nothing_moved(tmp_path):
+    for sim, script in ((sim_mod.SimTable(cold=True), {}),
+                        (sim_mod.SimTable(), {"Send it now": "no"})):
+        con = _Asked(sim, script=script)
+        code, sim, log = _run(tmp_path, sim, console=con)
+        assert code == 1 and sim.motions == 0 and len(_touches(con)) == 2
+
+
+def test_the_run_is_closed_for_sending_before_the_first_touch_question(tmp_path, monkeypatch):
+    """Review N1 (a planted fault survived): the final lock at the end of go() is pinned.
+    Before the first touch the table refuses every line without writing it."""
+    seen = []
+    real_touch = prog.Run.touch
+
+    def touch(self, when):
+        seen.append(self.d.closed_reason)
+        n = len(self.d.t.writes)
+        with pytest.raises(tbl.Doubt):
+            self.d.exchange("status")
+        assert len(self.d.t.writes) == n
+        return real_touch(self, when)
+    monkeypatch.setattr(prog.Run, "touch", touch)
+    code, sim, _ = _run(tmp_path, sim_mod.SimTable())
+    assert code == 0 and sim.received == WARM
+    assert seen and seen[0] == "the run is over"
 
 
 def test_the_wait_before_the_second_touch_is_only_for_the_real_table(tmp_path, monkeypatch):

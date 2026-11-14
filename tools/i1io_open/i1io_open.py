@@ -286,6 +286,11 @@ class Run:
         self.answers: "list[tuple[str, str]]" = []
         #: False when the person said the arm is not at its resting place
         self.seen_at_rest: "bool | None" = None
+        #: True after Ctrl-C (anywhere) or a typed "stop": from then on nothing is sent AND
+        #: nothing more is asked; only the closing text is shown (safety review S2)
+        self.stopped_by_person = False
+        #: True once a touch question has been put to the person
+        self.touch_asked = False
 
     def note(self, question: str, answer: str) -> None:
         self.answers.append((question, answer))
@@ -294,6 +299,7 @@ class Run:
         ans = self.ui.ask(question, choices)
         self.note(key, ans)
         if ans == "stop":
+            self.stopped_by_person = True
             raise Stopped(STOPPED)
         return ans
 
@@ -304,6 +310,8 @@ class Run:
         self.ui.say(STOP_PROMISE)
         go = self.ui.ask(f"{HANDS} Send it now?", ("yes", "no", "stop"))
         self.note("go ahead", go)
+        if go == "stop":
+            self.stopped_by_person = True
         if go != "yes":
             raise Stopped("You chose not to go on. Nothing more is sent to the table.")
         if self.other_program():
@@ -362,9 +370,12 @@ class Run:
                         "is at its resting place. Nothing more is sent to the table.")
             return 0
         except Stopped as exc:
+            if self.d.stop_requested:          # Ctrl-C noticed during an exchange
+                self.stopped_by_person = True
             self.ui.say(str(exc))
             return 1
         except KeyboardInterrupt:
+            self.stopped_by_person = True
             self.d.close_for_sending("stopped with Ctrl-C")
             self.ui.say(STOPPED)
             return 1
@@ -413,19 +424,64 @@ class Run:
             pass
 
     def may_touch(self) -> bool:
-        """The touch questions are asked only when the arm is known to be still: no
-        movement whose end the table never reported, and not after the person said
-        the arm is not at its resting place."""
+        """The touch questions are asked only when the arm is known to be still and at
+        rest (safety review S2): something was sent, no movement whose end the table never
+        reported, no stop by the person (Ctrl-C or "stop"), and either nothing moved or
+        the person's last word about the arm was "yes, at its resting place"."""
         return (self.d.lines_sent > 0 and not self.d.motion_unconfirmed
-                and self.seen_at_rest is not False)
+                and not self.stopped_by_person
+                and (self.d.motions_sent == 0 or self.seen_at_rest is True))
 
-    def touch(self, when: str) -> None:
-        """One gentle touch, as the person reports it. Sends nothing."""
+    def touch(self, when: str) -> bool:
+        """One gentle touch, as the person reports it. Sends nothing. Returns False when
+        the person stopped (Ctrl-C): then nothing more is asked."""
+        self.touch_asked = True
         try:
             ans = self.ui.ask(ASK_TOUCH, TOUCH_CHOICES)
+        except KeyboardInterrupt:
+            self.stopped_by_person = True
+            self.note(f"arm held? ({when})", "stopped with Ctrl-C")
+            return False
         except BaseException:
             ans = "skipped"
         self.note(f"arm held? ({when})", ans)
+        return True
+
+    def after_the_run(self, transport, real: bool) -> None:
+        """Everything after go(): the touch question while the USB connection is still
+        held, the release, ten seconds (real table only), the second touch, the report
+        questions, the closing text. Sends nothing (go() has closed the table for
+        sending). After a stop by the person nothing more is ASKED either."""
+        log = self.ui.log
+        touch = self.may_touch()
+        if touch:
+            self.ui.say("")
+            self.ui.say("The program still holds the table's USB connection, and it sends "
+                        "nothing more.")
+            touch = self.touch("while the program still held the USB connection")
+        transport.close()
+        log("INFO", "the program has let go of the table's USB connection (nothing is "
+                    "sent when it does)")
+        if touch:
+            self.ui.say("The program has now let go of the table's USB connection, as it does "
+                        "when it ends. It waits ten seconds; then please touch the holder "
+                        "gently once more, the same way.")
+            if real:
+                try:
+                    time.sleep(RELEASE_WAIT_S)
+                except KeyboardInterrupt:      # a stop: no second touch, no more questions
+                    self.stopped_by_person = True
+                    self.note("arm held? (about ten seconds after the program let go of the "
+                              "USB connection)", "stopped with Ctrl-C during the wait")
+                    touch = False
+            if touch:
+                self.touch("about ten seconds after the program let go of the USB connection")
+        if self.stopped_by_person:
+            log("INFO", "stopped by you: no more questions")
+        else:
+            self.questions()
+        if self.touch_asked:
+            self.advice()
 
     def advice(self) -> None:
         try:
@@ -714,28 +770,7 @@ def main(argv=None, sim_table=None, console=None) -> int:
                     other_program=i1profiler_running if args.real else None)
             code = r.go()
             r.ending(code)
-            touch = r.may_touch()
-            if touch:
-                ui.say("")
-                ui.say("The program still holds the table's USB connection, and it sends "
-                       "nothing more.")
-                r.touch("while the program still held the USB connection")
-            transport.close()
-            log("INFO", "the program has let go of the table's USB connection (nothing is "
-                        "sent when it does)")
-            if touch:
-                ui.say("The program has now let go of the table's USB connection, as it does "
-                       "when it ends. It waits ten seconds; then please touch the holder "
-                       "gently once more, the same way.")
-                if args.real:
-                    try:
-                        time.sleep(RELEASE_WAIT_S)
-                    except KeyboardInterrupt:      # nothing can be sent any more anyway
-                        pass
-                r.touch("about ten seconds after the program let go of the USB connection")
-            r.questions()
-            if touch:
-                r.advice()
+            r.after_the_run(transport, real=args.real)
             log("INFO", f"result {code}; table {table.state or 'not asked'}; "
                         f"{table.lines_sent} lines sent, {table.motions_sent} movements; "
                         f"closed {'yes' if table.closed_table else 'no'}; answers {r.answers}")
