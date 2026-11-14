@@ -2,9 +2,9 @@
 
 ## v4.3.36
 
-**For everyone updating from 4.3.35: this is a small safety update for two beta options and the X-Rite i1Pro 2. A tester who used the lights beta option with a real i1Pro 2 found that, with the green / red result signals on, the strip after every accepted one could fail with “The instrument lost communication with the computer”. Until a change has been tried and confirmed on a real i1Pro 2, ChromIQ 4.3.36 pauses the result signals and “Left on during a reading” for the i1Pro 2, and also pauses the ruler check for it. Both options stay beta and off by default. Nothing else changes: with every beta option off, and with any instrument other than an i1Pro 2, ChromIQ works exactly as 4.3.35, and your charts, measurements and profiles do not change.**
+**For everyone updating from 4.3.35: this is a small safety update for two beta options and the X-Rite i1Pro 2. A tester who used the lights beta option with a real i1Pro 2 found that, with the green / red result signals on, the strip after every accepted one could fail with “The instrument lost communication with the computer”. Until a change has been tried and confirmed on a real i1Pro 2, ChromIQ 4.3.36 pauses the result signals and “Left on during a reading” for the i1Pro 2, and also pauses the ruler check for it. Both options stay beta and off by default. With any instrument other than an i1Pro 2, ChromIQ measures exactly as 4.3.35, and your charts, measurements and profiles do not change; the only addition is a new technical line after a communication failure (see below).**
 
-**If you see “The instrument lost communication with the computer” with the lights option on in 4.3.34 or 4.3.35: please update, or set “What the lights show” to its first choice.**
+**If you see “The instrument lost communication with the computer” with the lights option on in 4.3.34 or 4.3.35: please update, or set both “What the lights show” and “During a reading” to their first choice, or switch the lights option off.**
 
 ### Changed
 - **The i1Pro 2's result signals are paused (lights beta).** A tester's own i1Pro 2, on Windows, showed the green and red signals correctly, but the next strip after every accepted one then failed with “The instrument lost communication with the computer”; Retry worked. The likely cause, not proven yet: just before such a reading, ChromIQ replaced a light pattern that was still playing on the instrument with an “off” pattern and started measuring a moment later, a step that neither X-Rite's i1Profiler nor ChromIQ 4.3.33 ever sent. So, whatever you choose under “What the lights show” and “During a reading”, an i1Pro 2 now gets only the ready light, exactly as with the first choice of each: white while it waits for you, and no light while it calibrates or measures. That is what ChromIQ 4.3.33 sent.
@@ -16,7 +16,7 @@
 
 ### Fixed
 - **A lost connection now says which step failed.** When a strip or patch reading with an X-Rite i1Pro, i1Pro 2 or i1Pro 3 ends with a communication failure, the ChromIQ chart-reading engine now records which USB step failed: the measure trigger, the measurement data read, the button read, a light command or the ruler read, with the instrument's error code, how long it took and the last light pattern sent. All of it goes into ChromIQ's log file, and the bottom of the “Strip Read Failed” window shows it in one short line, “Technical detail for a report”, which helps us find the cause when you report it. The engine only watches the transfers: it sends, retries and resets nothing new, and the window's buttons work as before.
-- **A failed light command is named correctly in the log.** Every light pattern except the white one used to be logged as “off”.
+- **A failed light command is named correctly in the log.** When a light command failed, the log named it wrongly: for an i1Pro 2, every light pattern except the white one was logged as “off”; for an i1Pro 3, every pattern except the off was logged as “pattern”. The log now names the pattern that failed.
 
 ## v4.3.35
 
