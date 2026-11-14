@@ -4,22 +4,24 @@
 
 Standard library only. pyusb is imported only when the REAL table is opened.
 
-THE ONE RULE OF THIS FILE: the program can put exactly TWELVE different lines
+THE ONE RULE OF THIS FILE: the program can put exactly ELEVEN different lines
 on the wire, listed in :data:`WIRE` (and, with where each was recorded, in
 BYTES.md beside this file). Every one of them is a line that X-Rite's
-i1Profiler sent to the tester's own i1iO 2, byte for byte, in the same place
-of the same sequence: the opening of the table, cold (right after the table
-was switched on) and warm, and the closing. There is no command in this
-package that moves the arm anywhere but its own resting place, and no function
-that builds a command from numbers: the twelve lines are fixed at import and
-:func:`check_outgoing` refuses every other byte string.
+i1Profiler sent to the tester's own i1iO 2, byte for byte, in the place where
+i1Profiler sent it when it opened an already started ("warm") table and when it
+closed the table. There is no command in this package that moves the arm
+anywhere but its own resting place, and no function that builds a command from
+numbers: the eleven lines are fixed at import and :func:`check_outgoing`
+refuses every other byte string.
 
-Two of the twelve make the arm move: ``;i02c`` (i0, the start-up of a table
-that has just been switched on: i1Profiler sent it once, 3.2 s, the arm at its
-resting place before and after) and ``;i12b`` (i1, run to the resting place,
-sent only while the arm is already there). Two read the table's memory
-(``u8``): their answers hold the table's serial number, so they are checked for
-their form and length only and are never logged, shown or kept.
+ONE line makes the arm move: ``;i12b`` (i1, run to the resting place), sent
+only while the arm is already there, right after ``s0`` and ``p0`` as
+i1Profiler sends it. i1Profiler's start-up line for a table that has just been
+switched on (i0) is NOT in this program (safety review 2026-11-14, B1): on such
+a table the program sends only the six reading lines of the opening and stops.
+Two lines read the table's memory (``u8``): their answers hold the table's
+serial number, so they are checked for their form and length only and are never
+logged, shown or kept.
 
 Line format (held on every recorded line): host to table ``;`` + command id +
 arguments (lower-case hex) + checksum + CR; the table answers every command
@@ -34,6 +36,7 @@ the arm stands over the table's white tile, is X 1102, Y 0.
 from __future__ import annotations
 
 import re
+import signal
 import sys
 import time
 from dataclasses import dataclass
@@ -55,7 +58,8 @@ class ProtocolError(Exception):
 class TableRefused(ProtocolError):
     """The table answered ``:#`` + id + code: it refused the command. Seen on
     the tester's table (0.1.0, run 1: ``:#s01CF`` to ``;s022`` on a table that had
-    been switched on and not yet started); never in the recordings."""
+    been switched on and not yet started; whether k2, u8 or a0 would have
+    changed that is not known); never in the recordings."""
 
     def __init__(self, cid: str, code: int, line: str):
         super().__init__(f"the table refused {cid} with code {code} ({line!r})")
@@ -118,7 +122,6 @@ WIRE = {
     "memory_a":  _frame("u8", "000060000100"),     # ;u8000060000100d1
     "memory_b":  _frame("u8", "000061000068"),     # ;u8000061000068c3
     "a0":        _frame("a0"),                     # ;a034
-    "start":     _frame("i0"),                     # ;i02c
     "status":    _frame("s0"),                     # ;s022
     "arm_mode":  _frame("f4"),                     # ;f42b
     "position":  _frame("p0"),                     # ;p025
@@ -135,26 +138,25 @@ RECORDED_AT = {
     "memory_a": "S1 1.343 (cold); R2 34.747 and 378.347 (warm)",
     "memory_b": "S1 1.450 (cold); R2 34.853 and 378.453 (warm)",
     "a0":       "S1 1.502 answered 111800 (cold); R2 34.906 and 378.505 answered 130000 (warm)",
-    "start":    "S1 1.517, the one i0: right after a0 = 111800, done after 3.167 s, "
-                "arm at X 1102, Y 14 afterwards",
-    "status":   "S1 4.693/4.766/5.020/22.919; R2 34.932/378.530/378.602/378.905/361.579",
-    "arm_mode": "four times after the first s0 at every open: S1 4.706-4.748, R2 378.539-378.585",
-    "position": "S1 4.780 and R2 378.617, just before the homing at the opening",
-    "home":     "S1 4.796 from (1102, 14), 0.224 s; R2 378.632 from (1102, 24), 0.272 s; "
-                "R2 35.033 from (1102, 47), 0.35 s",
+    "status":   "R2 34.932 (after a0), 378.602 (right before p0, i1), 378.905 (after i1), "
+                "361.579 and S1 22.919 (right before f0)",
+    "arm_mode": "four times after the first s0 at every open: R2 34.940-34.985, 378.539-378.585",
+    "position": "R2 35.017 and 378.617, right before the homing at the opening",
+    "home":     "R2 378.632 from (1102, 24), 0.272 s; R2 35.033 from (1102, 47), 0.35 s; "
+                "S1 4.796 from (1102, 14), 0.224 s",
     "f0":       "S1 22.935 (closing, after s0, arm at rest); R2 361.594",
     "f3":       "S1 22.951 (closing, right after f0); R2 361.611",
 }
 
 ALLOWED_LINES = frozenset(WIRE.values())
-MOTION_KEYS = frozenset({"start", "home"})
+MOTION_KEYS = frozenset({"home"})
 MOTION_LINES = frozenset(WIRE[k] for k in MOTION_KEYS)
 #: Replies that hold the table's serial number: checked, never logged or kept.
 SECRET_KEYS = frozenset({"memory_a", "memory_b"})
 
 #: Data characters in the ':$' reply to each line (as recorded).
 DATA_LEN = {"identity": 10, "k2": 14, "memory_a": 512, "memory_b": 208, "a0": 6,
-            "start": 0, "status": 0, "arm_mode": 2, "position": 8, "home": 0,
+            "status": 0, "arm_mode": 2, "position": 8, "home": 0,
             "f0": 2, "f3": 2}
 #: The recorded constant answers (identical at every recorded open and close).
 EXACT_DATA = {"identity": "005D010702", "k2": "0B600000000013", "f0": "00", "f3": "00",
@@ -274,14 +276,13 @@ HOME_CLUSTER = Box(1097, 1107, -5, 50)
 HOMED = Box(1099, 1105, -3, 8)
 
 #: How long the program waits for an answer before it counts as missing.
-#: Recorded: quick lines 0.005-0.022 s, u8 0.051-0.106 s, i0 3.167 s (once),
+#: Recorded: quick lines 0.005-0.022 s, u8 0.051-0.106 s,
 #: i1 0.048-0.352 s at the resting place (4.02 s from far out).
 QUICK_TIMEOUT = 1.0
-START_TIMEOUT = 15.0
 HOME_TIMEOUT = 12.0
 #: A movement that finished, but took far longer than recorded, is a doubt:
 #: the arm may not have done what the recordings show (nothing more is sent).
-SLOW_AFTER = {"start": 9.0, "home": 2.0}
+SLOW_AFTER = {"home": 2.0}
 #: No read is shorter than this (macOS cancels a timed-out USB read).
 MIN_READ_S = 0.05
 #: Before every command the program listens this long for anything unasked.
@@ -291,9 +292,10 @@ DRAIN_QUIET_S = 1.0
 DRAIN_SETTLE_S = 15.0
 DRAIN_MAX_S = 60.0
 
-#: Hard caps, checked on every write. A cold run sends exactly 20 lines, a warm one 19.
-MAX_LINES = 20
-MAX_MOTIONS = 2
+#: Hard caps, checked on every write. A complete (warm) run sends exactly 21
+#: lines; a cold table gets the six reading lines of the opening only.
+MAX_LINES = 21
+MAX_MOTIONS = 1
 
 
 # ---- the session ------------------------------------------------------------------------
@@ -309,6 +311,29 @@ class Doubt(Exception):
 
 class Stopped(Exception):
     """The tester stopped the run. From now on NOTHING more is sent."""
+
+
+#: The signals that ask the program to stop (Ctrl-C and the like).
+_STOP_SIGNALS = tuple(getattr(signal, n) for n in ("SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT")
+                      if hasattr(signal, n))
+
+
+def hold_stop_signals():
+    """Hold the stop signals back (they stay pending, nothing is lost).
+    Returns what to restore; None where the system cannot do it."""
+    try:
+        return signal.pthread_sigmask(signal.SIG_BLOCK, _STOP_SIGNALS)
+    except (AttributeError, ValueError, OSError):
+        return None
+
+
+def release_stop_signals(held) -> None:
+    if held is None:
+        return
+    try:
+        signal.pthread_sigmask(signal.SIG_SETMASK, held)
+    except (AttributeError, ValueError, OSError):
+        pass
 
 
 REFUSED_TEXT = ("The table answered, but refused the line {line} (code {code}). The recordings "
@@ -339,7 +364,6 @@ class Table:
         self.arrival_unknown = False
         self.heading_to: "tuple[int, int] | None" = None
         self.state: "str | None" = None      # "cold" / "warm" after a0
-        self.started = False                 # i0 answered done
         self.homed = False                   # i1 answered done
         self.closed_table = False            # f0, f3 answered
 
@@ -366,7 +390,13 @@ class Table:
 
     # ---- the wire ---------------------------------------------------------------------
     def _write(self, line: bytes) -> str:
-        """The ONLY place that writes to the transport."""
+        """The ONLY place that writes to the transport.
+
+        The stop signals are held back from the last stop check until the line
+        has been handed to the transport (safety review M1): a Ctrl-C is then
+        either handled before that check, and the line is never written, or
+        after the write, when the line was already on its way before the stop
+        was noticed."""
         if self.closed_reason is not None:
             raise Doubt(f"not sending: {self.closed_reason}")
         cid = check_outgoing(line)
@@ -375,12 +405,19 @@ class Table:
         is_motion = line in MOTION_LINES
         if is_motion and self.motions_sent >= MAX_MOTIONS:
             raise self._doubt("the program reached its limit of movements for one run")
-        self.lines_sent += 1
-        if is_motion:
-            self.motions_sent += 1
-            self.motion_unconfirmed = True
-        self.log("SEND", line.decode("ascii").rstrip("\r"))
-        self.t.write(bytes(line))
+        held = hold_stop_signals()
+        try:
+            self._stop_if_requested()          # the last check, with the signals held
+            if self.closed_reason is not None:
+                raise Doubt(f"not sending: {self.closed_reason}")
+            self.lines_sent += 1
+            if is_motion:
+                self.motions_sent += 1
+                self.motion_unconfirmed = True
+            self.log("SEND", line.decode("ascii").rstrip("\r"))
+            self.t.write(bytes(line))
+        finally:
+            release_stop_signals(held)
         return cid
 
     def _read_line(self, deadline: float, max_len: int, secret: bool = False) -> str:
@@ -474,7 +511,7 @@ class Table:
             self.motion_unconfirmed = False
             if took > SLOW_AFTER[key]:
                 raise self._doubt(f"{cid} took {took:.1f} s; the recordings show at most "
-                                  f"{'3.2' if key == 'start' else '0.4'} s from the resting "
+                                  "0.4 s from the resting "
                                   "place")
         return reply
 
@@ -525,21 +562,11 @@ class Table:
         self.log("DATA", f"a0 = {a0}: the table is {self.state}")
         return self.state
 
-    def start(self) -> None:
-        """i0, only on a cold table, right after the opening (S1 1.517)."""
-        if self.state != "cold" or self.started or self.lines_sent != 6:
-            raise self._doubt("i0 asked for outside its recorded place (a bug)")
-        self.arrival_unknown = True
-        self.heading_to = (1102, 0)
-        self.position_now = None
-        self.exchange("start", START_TIMEOUT)
-        self.started = True
-
-    def after_start(self) -> "tuple[int, int]":
+    def follow_up(self) -> "tuple[int, int]":
         """s0, f4 x4 (each 00), s0, p0: recorded right after a0 on a warm table
-        and right after i0 on a cold one. The arm must report its resting place."""
-        if self.state is None or (self.state == "cold" and not self.started):
-            raise self._doubt("the follow-up asked for outside its recorded place (a bug)")
+        (R2 34.932-35.017, 378.530-378.617). The arm must report its resting place."""
+        if self.state != "warm":
+            raise self._doubt("the follow-up asked for on a table that is not started (a bug)")
         self.busy += 1
         try:
             self.exchange("status")
@@ -560,12 +587,22 @@ class Table:
         return pos
 
     def home(self) -> "tuple[int, int]":
-        """i1 right after the p0 that read the resting place (as recorded),
-        then s0 and p0: the arm must report the homed position."""
-        if self.homed or self.position_now is None or not HOME_CLUSTER.contains(self.position_now):
+        """After the person's yes: s0 and p0 AGAIN, the home box checked again,
+        then i1 at once, as i1Profiler sends s0, p0, i1 back to back (safety
+        review M3; S1 4.766-4.796, R2 35.003-35.033, 378.602-378.632). Then s0
+        and p0: the arm must report the homed position."""
+        if self.homed or self.state != "warm" or self.position_now is None:
             raise self._doubt("i1 asked for while the arm is not known to be at rest (a bug)")
         self.busy += 1
         try:
+            self.exchange("status")
+            again = self.position()
+            self.log("DATA", f"right before the homing the arm reports {again}")
+            if not HOME_CLUSTER.contains(again):
+                raise self._doubt(
+                    f"right before the homing the arm reports {again}, not its resting place",
+                    f"Right before the homing the arm reports table position X {again[0]}, "
+                    f"Y {again[1]}, which is not its resting place. Nothing more is sent.")
             self.arrival_unknown = True
             self.heading_to = (1102, 0)
             self.position_now = None

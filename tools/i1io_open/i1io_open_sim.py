@@ -4,8 +4,8 @@
 
 It answers like the tester's table did in the recordings (two lines per
 command, correct checksums, the recorded constant answers, a0 111800 when it
-has just been switched on and 130000 once started, i0 in about 3.2 s, i1 at the
-resting place in about 0.25 s), on a VIRTUAL clock, so a run takes no real
+has just been switched on and 130000 once started, i1 at the resting place in
+about 0.25 s), on a VIRTUAL clock, so a run takes no real
 time. Where the recordings say nothing, its values are invented; its memory
 block is SYNTHETIC (a made-up serial number, never the tester's).
 
@@ -13,9 +13,9 @@ It is STRICT. It holds its own copy of the two recorded sequences (written
 here from the recordings, on purpose NOT imported from `i1io_open_table`, so that a
 mistake in one is caught by the other) and raises :class:`SimViolation` (and a
 test fails) the moment the program sends anything that is not the next line of
-the sequence for the table's state, or sends a line while the arm moves, or i0
-to a table whose arm was not at its resting place when it was switched on, or
-i1 from anywhere but the resting place.
+the sequence for the table's state (on a table just switched on: the six
+reading lines of the opening and nothing else), or sends a line while the arm
+moves, or i1 from anywhere but the resting place, or i0 at all.
 
 Faults can be injected for the tests (:meth:`SimTable.inject`, :meth:`inject_at`).
 """
@@ -35,12 +35,14 @@ class SimViolation(AssertionError):
 
 #: The recorded opening, the same cold (S1 1.141-1.502) and warm (R2 34.546-34.906).
 REC_OPEN = [";a133", ";a133", ";k228", ";u8000060000100d1", ";u8000061000068c3", ";a034"]
-#: After a0 on a warm table (R2 378.530-378.905) or after i0 on a cold one (S1
-#: 4.693-5.020): s0, f4 x4, s0, p0, i1, s0; then this program's p0 after the
-#: homing and i1Profiler's closing (S1 22.919-22.951).
-REC_FOLLOW = [";s022", ";f42b", ";f42b", ";f42b", ";f42b", ";s022", ";p025", ";i12b",
-              ";s022", ";p025", ";s022", ";f02f", ";f32c"]
-REC_COLD = REC_OPEN + [";i02c"] + REC_FOLLOW
+#: After a0 on a warm table (R2 34.932-35.033, 378.530-378.905): s0, f4 x4, s0,
+#: p0; after the person's yes s0, p0 again and i1 at once (as i1Profiler sends
+#: s0, p0, i1 back to back); s0, p0 to read where the homing ended; then
+#: i1Profiler's closing (S1 22.919-22.951, R2 361.579-361.611).
+REC_FOLLOW = [";s022", ";f42b", ";f42b", ";f42b", ";f42b", ";s022", ";p025",
+              ";s022", ";p025", ";i12b", ";s022", ";p025", ";s022", ";f02f", ";f32c"]
+#: A table just switched on gets the opening's six reading lines and nothing more.
+REC_COLD = list(REC_OPEN)
 REC_WARM = REC_OPEN + REC_FOLLOW
 
 IDENTITY = "005D010702"
@@ -85,7 +87,6 @@ FAULT_KINDS = ("no_answer", "no_done", "late", "bad_checksum", "garbled", "statu
 @dataclass
 class SimTable:
     cold: bool = False                # True: switched on and not yet started (a0 111800)
-    parked: bool = True               # the arm stood at its resting place when switched on
     pos: "list[float]" = field(default_factory=lambda: [1102.0, 30.0])
     arm: str = "00"
     clock: float = 0.0
@@ -161,11 +162,7 @@ class SimTable:
             raise SimViolation(f"{cid} sent while the arm is still moving")
         here = (self.pos[0], self.pos[1])
         if cid == "i0":
-            if not self.cold:
-                raise SimViolation("i0 to a table that is already started")
-            if not self.parked:
-                raise SimViolation("i0 to a table whose arm was not at its resting place "
-                                   "when it was switched on (never recorded)")
+            raise SimViolation("i0 is not in this program")
         if cid == "i1":
             if self.arm != "00":
                 raise SimViolation("i1 while the arm is free")
@@ -203,9 +200,11 @@ class SimTable:
             other = "s0" if cid != "s0" else "p0"
             self._reply(t0 + 0.01, f":!{other}")
             return
-        # a table just switched on refuses everything but the opening and i0
-        # (recorded: s0 -> ':#s01', the tester's run 1 of 0.1.0)
-        if self.cold and cid not in ("a1", "k2", "u8", "a0", "i0"):
+        # A BELIEF, not a recording: a table just switched on refuses everything
+        # but the opening. Observed only once: ':#s01' to s0 after a1, a1 (the
+        # tester's run 1 of 0.1.0, without k2, u8, a0). The sequence check above
+        # stops the program's lines before this matters.
+        if self.cold and cid not in ("a1", "k2", "u8", "a0"):
             self._reply(t0 + 0.016, f":#{cid}1")
             return
         self._reply(t0 + 0.01, f":!{cid}")
@@ -229,7 +228,7 @@ class SimTable:
             self._reply(t_done, done)
         if kind == "extra_line":
             self._reply(t_done, ":$p00")
-        if cid in ("i0", "i1"):
+        if cid == "i1":
             self._busy_until = t_done
 
     def _xy(self, x: float, y: float) -> str:
@@ -264,14 +263,9 @@ class SimTable:
             return 0, self._xy(self.pos[0] + drift + jx, self.pos[1] + drift + jy), 0.0
         self.motions += 1
         slow = 8.0 if kind == "slow_motion" else 0.0
-        if cid == "i0":
-            # recorded: 3.167 s, the arm at X 1102, Y 14 afterwards (S1)
-            self.cold = False
-            target = (1102.0, 14.0)
-            t = 3.167
-        else:   # i1 at the resting place: recorded 0.224-0.352 s
-            target = (float(HOME[0]), float(self._rng.choice((0, 1, 2))))
-            t = 0.2 + abs(self.pos[1]) * 0.003
+        # i1 at the resting place: recorded 0.224-0.352 s
+        target = (float(HOME[0]), float(self._rng.choice((0, 1, 2))))
+        t = 0.2 + abs(self.pos[1]) * 0.003
         if kind == "blocked":
             f = max(0.0, min(1.0, fault.value))
             target = (self.pos[0] + f * (target[0] - self.pos[0]) + 300,

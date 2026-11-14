@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 the ChromIQ authors. Part of ChromIQ (https://github.com/itsab1989/ChromIQ).
-"""ChromIQ i1iO test program 0.2.0: open an X-Rite i1iO 2 table exactly the way
-i1Profiler opens it, cold or warm, and close it again. It never measures.
+"""ChromIQ i1iO test program 0.2.0: open an X-Rite i1iO 2 table that is already
+started, the way i1Profiler opens it, send the arm to its resting place where it
+already is, and close the table again. It never measures.
 
     python3 i1io_open.py              practice run on a SIMULATED table (nothing is opened)
-    python3 i1io_open.py --sim warm   the same, for a table that is already started
+    python3 i1io_open.py --sim cold   the same, for a table that has just been switched on
     python3 i1io_open.py --plan       print every line it could send, in order, and stop
     python3 i1io_open.py --dry-run    the same as --plan, with every byte in hex
     python3 i1io_open.py --real       the real table (asks you to type a sentence first)
 
 With --real it sends i1Profiler's own opening lines. If the table has just been
-switched on, it then sends i1Profiler's start-up line (i0, about 3 seconds,
-the arm at its resting place before and after), and in every case the line
-that sends the arm to its resting place, where it already is. Then it closes
-the table as i1Profiler does. Both movements are shown, with what you should
-see, before you type yes. Everything sent and received goes into a log file
-without the table's serial number. See README.md.
+switched on, it stops there (this version does not start a table; i1Profiler
+does). On a started table it sends the line that sends the arm to its resting
+place, where it already is, and closes the table as i1Profiler does. The one
+movement is shown, with what you should see, before you type yes. Everything
+sent and received goes into a log file without the table's serial number.
+See README.md.
 """
 from __future__ import annotations
 
@@ -36,13 +37,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import i1io_open_table as tbl  # noqa: E402
 from i1io_open_table import Doubt, Stopped  # noqa: E402
 
-TITLE = (f"ChromIQ i1iO test program {tbl.TOOL_VERSION} (opens and closes the table the way "
-         "i1Profiler does; never measures)")
+TITLE = (f"ChromIQ i1iO test program {tbl.TOOL_VERSION} (opens and closes a started table "
+         "the way i1Profiler does; never measures)")
 CONFIRM_SENTENCE = "i understand that this moves my table"
 HANDS = "Keep your hands and everything else away from the arm while it moves."
 PLUG = ("If anything looks or sounds wrong while the arm moves, switch the table off at its "
         "power switch or pull its power plug. That is always allowed. Pulling the USB cable "
-        "alone does not stop a movement: the table has its own power supply.")
+        "is not a way to stop a movement: the table has its own power supply.")
 PLUG_SHORT = "If it sounds or looks wrong, switch the table off at its power switch."
 STOP_PROMISE = ("Ctrl-C works at any time: after Ctrl-C has been noticed, the program sends "
                 "nothing more to the table at all. A movement that has already begun is not "
@@ -67,25 +68,33 @@ REST_PLACE = ("its resting place, where i1Profiler leaves it when you quit it: t
               "holder over the table's small white tile, with the round measuring opening "
               "resting on that tile")
 
+COLD_TEXT = ("Your table has just been switched on and needs its start-up, which this "
+             "version does not send. Please open i1Profiler, wait until it shows the table, "
+             "quit i1Profiler, and run this program again. Nothing was moved.")
+
 RISKS = (
     "Please read this before you go on.\n"
-    "This is a test program written by ChromIQ, not by X-Rite. Its first version ran once on "
-    "your table. This version sends a few more lines, and each of them is a line that "
-    "i1Profiler itself sent to your table in your recordings, byte for byte and in the same "
-    "order: the lines with which i1Profiler opens the table, the start-up line it sends when "
-    "the table has just been switched on, the line that sends the arm to its resting place, "
-    "and the two lines with which it closes the table. Two of these lines make the arm move: "
-    "the start-up (only on a table that has just been switched on; with i1Profiler it took "
-    "about 3 seconds and the arm ended at its resting place) and the homing (the arm is "
-    "already at its resting place, so it should barely move). The program has no command "
-    "for any other movement, never lowers or lifts the measuring head by itself, never "
-    "measures and never talks to the i1Pro 2.\n"
+    "This is an unofficial test program written by ChromIQ. It is not from X-Rite, and X-Rite "
+    "has nothing to do with it. Running it is entirely your choice. Its first version ran on "
+    "your table twice (the first time the table refused it, the second time it worked). This "
+    "version sends a few more lines. Each of them is a line that i1Profiler itself sent to your "
+    "table in your recordings, byte for byte, and in the order i1Profiler sent them, except for "
+    "one extra 'where is the arm' question after the homing: the lines with which i1Profiler "
+    "opens the table, the line that sends the arm to its resting place, and the two lines with "
+    "which it closes the table. Only the homing makes the arm move, and the arm is already at its "
+    "resting place, so it should barely move. If the table has just been switched on, the "
+    "program stops after the opening and asks you to let i1Profiler start the table first. The "
+    "program has no command for any other movement, never measures and never talks to the "
+    "i1Pro 2. It sends no line of its own for the measuring head. Whether the table lifts and "
+    "lowers the head by itself as part of the homing is not known; with the first program the "
+    "arm moved very little and nothing unusual was seen.\n"
     "It also asks for the table's memory block, as i1Profiler does when it opens the table. "
     "That block holds the table's serial number. The program checks only its length and its "
     "first eight bytes, and never writes it down or shows it.\n"
     "What could still go wrong, in plain words: the table could do something the recordings "
-    "never showed. That is why the table should be empty, why both movements wait for your "
-    "yes, and why you should keep the power switch or plug within reach.\n"
+    "never showed. That is why the table should be empty, why the movement waits for your yes, "
+    "why you should keep your hands and everything else away from the arm, and why you should "
+    "keep the power switch or plug within reach.\n"
     "Nothing leaves your computer unless you send the log file yourself.")
 
 
@@ -189,17 +198,16 @@ def _bare(key: str) -> str:
 
 OPENING = ("identity", "identity", "k2", "memory_a", "memory_b", "a0")
 FOLLOW = ("status", "arm_mode", "arm_mode", "arm_mode", "arm_mode", "status", "position")
-HOMING = ("home", "status", "position")
+HOMING = ("status", "position", "home", "status", "position")
 CLOSING = ("status", "f0", "f3")
 MEANING = {
     "identity": "identity (must be 005D010702)",
     "k2": "k2, a fixed answer (must be 0B600000000013)",
     "memory_a": "the table's memory, part 1 (256 bytes; not written down)",
     "memory_b": "the table's memory, part 2 (104 bytes; not written down)",
-    "a0": "a0: 111800 = just switched on (cold), 130000 = started (warm)",
-    "start": "i0: START-UP of a cold table. MOVES: about 3 s, ends at the resting place",
+    "a0": "a0: we believe 111800 = just switched on (cold: stop here), 130000 = started",
     "status": "status (must be accepted)",
-    "arm_mode": "do the motors hold the arm? (must be 00)",
+    "arm_mode": "we believe: do the motors hold the arm? (must be 00)",
     "position": "where the arm is",
     "home": "i1: GO TO THE RESTING PLACE. MOVES very little (it is already there)",
     "f0": "f0, first closing line (must answer 00)",
@@ -214,20 +222,21 @@ def plan_text(hex_bytes: bool = False) -> str:
         return f"  {_bare(key):20} {MEANING[key]}{note}{extra}"
     out = [f"Every line this program can send, in order. Nothing else can be sent: "
            f"{len(tbl.WIRE)} different lines, at most {tbl.MAX_LINES} lines and "
-           f"{tbl.MAX_MOTIONS} movements in one run. After any stop or any doubt, nothing "
+           f"{tbl.MAX_MOTIONS} movement in one run. After any stop or any doubt, nothing "
            "more is sent at all.", "",
            "Before anything: the USB set-up i1Profiler uses (FTDI reset, purge, purge, "
            "57600 baud, 8 data bits, no parity, 1 stop bit), then 1 s of listening.", "",
            "1. Opening (only reads; nothing moves):"]
     out += [row(k) for k in OPENING]
-    out += ["", "2a. Only if a0 answered 111800 (cold), and only after you type yes:",
-            row("start"), "",
-            "2b. If a0 answered 130000 (warm): nothing here. Any other answer: stop.", "",
-            "3. Follow-up (only reads):"]
+    out += ["", "2. If a0 answered 111800 (just switched on): STOP here, nothing more is sent;",
+            "   you are asked to let i1Profiler start the table and to run the program again.",
+            "   Any answer other than 111800 or 130000: stop, nothing more is sent.", "",
+            "3. Follow-up on a started table (only reads):"]
     out += [row(k) for k in FOLLOW]
     out += ["  checks: every arm answer 00; the arm at its resting place (X 1097..1107, "
             "Y -5..50); otherwise stop.", "",
-            "4. Homing (warm: only after you type yes; cold: covered by your yes in 2a):"]
+            "4. Homing, only after you type yes (status and position asked again, the place "
+            "checked again, then the homing at once, as i1Profiler does):"]
     out += [row(k) for k in HOMING]
     out += ["  checks: the arm at X 1099..1105, Y -3..8 afterwards; otherwise stop.", "",
             "5. Closing, after you have looked at the arm:"]
@@ -275,40 +284,22 @@ class Run:
             self.ui.say("Talking to the table. Nothing moves yet.")
             state = self.d.opening()
             if state == "cold":
-                self.ui.say("The table answered as expected, and it says it has just been "
-                            "switched on and not started yet (a0 = 111800). i1Profiler "
-                            "starts such a table with one line, i0.")
-                self._go_ahead(
-                    f"Next the program sends {_bare('start')} (i0, the table's start-up). With "
-                    "i1Profiler on your table it took about 3 seconds, and the arm was at its "
-                    "resting place afterwards; what the arm does during those 3 seconds is "
-                    "not known (it may move a little away and back). Right after it, the "
-                    f"program asks where the arm is and sends {_bare('home')} (i1, go to the "
-                    "resting place), about a quarter of a second, the arm should barely move. "
-                    "Your yes now is for both movements.")
-                self.d.start()
-                self.ui.say("The table reports that its start-up has finished.")
-                pos = self.d.after_start()
-                self.ui.say(f"The arm reports table position X {pos[0]}, Y {pos[1]}: its "
-                            "resting place. Now the homing.")
-            else:
-                pos = self.d.after_start()
-                self.ui.say(f"The table answered as expected. It was already started "
-                            f"(a0 = 130000), its motors hold the arm, and the arm reports table "
-                            f"position X {pos[0]}, Y {pos[1]}, which is its resting place.")
-                self._go_ahead(
-                    f"Next the program sends {_bare('home')} (i1, go to the resting place). "
-                    "The arm is already there, so it should move very little or not at all; "
-                    "you may hear the motors for a moment. With i1Profiler it took about a "
-                    "quarter of a second.")
+                self.ui.say("The table answered as expected, and we believe it says it has just "
+                            "been switched on (a0 = 111800).")
+                raise Stopped(COLD_TEXT)
+            pos = self.d.follow_up()
+            self.ui.say(f"The table answered as expected. It is started (a0 = 130000), its "
+                        f"motors hold the arm, and the arm reports table position X {pos[0]}, "
+                        f"Y {pos[1]}, which is its resting place.")
+            self._go_ahead(
+                f"Next the program asks once more for the status and where the arm is, and if "
+                f"the arm is still at its resting place it sends {_bare('home')} (i1, go to the "
+                "resting place) at once, as i1Profiler does. The arm is already there, so it "
+                "should move very little or not at all; you may hear the motors for a moment. "
+                "With i1Profiler it took about a quarter of a second.")
             got = self.d.home()
             self.ui.say(f"The table reports that the homing has finished; the arm reports "
                         f"table position X {got[0]}, Y {got[1]}.")
-            if state == "cold":
-                self.look("During the start-up (the first movement, about 3 seconds), what "
-                          "did the arm do?",
-                          ("stayed", "moved a little", "moved a lot", "not sure", "stop"),
-                          "arm during the start-up")
             seen = self.look(f"Please look at the table now. Is the arm at {REST_PLACE}?",
                              ("yes", "no", "not sure", "stop"), "arm at its resting place")
             if seen != "yes":
@@ -326,10 +317,8 @@ class Run:
             finally:
                 self.d.busy -= 1
             self.ui.say("")
-            self.ui.say("That was all: the table was opened"
-                        + (", started" if state == "cold" else "")
-                        + " and closed the way i1Profiler does it, and the arm is at its "
-                        "resting place. Thank you.")
+            self.ui.say("That was all: the table was opened and closed the way i1Profiler does "
+                        "it, and the arm is at its resting place. Thank you.")
             return 0
         except Stopped as exc:
             self.ui.say(str(exc))
@@ -355,10 +344,7 @@ class Run:
         try:
             d = self.d
             pos = None if d.arrival_unknown else d.position_now
-            if d.state == "cold" and not d.started and d.motions_sent == 0:
-                self.ui.say("Nothing was moved. The table has not been started; i1Profiler "
-                            "starts it by itself the next time it opens the table.")
-            elif d.motions_sent == 0:
+            if d.motions_sent == 0:
                 self.ui.say("Nothing was moved.")
             elif code == 0:
                 pass
@@ -409,8 +395,15 @@ def _pgrep(*args) -> "list[str]":
     return [line for line in out.stdout.splitlines() if line.strip()]
 
 
+#: i1Profiler's program inside its app bundle (the second, independent check).
+I1PROFILER_PATH = "i1Profiler.app/Contents/MacOS"
+
+
 def i1profiler_running() -> bool:
-    return bool(_pgrep("-x", "-i", I1PROFILER))
+    """By its process name, and by its path inside the app bundle (the real
+    process name was never checked on the tester's Mac). The hard guard stays
+    libusb's exclusive claim of the table's interface."""
+    return bool(_pgrep("-x", "-i", I1PROFILER)) or bool(_pgrep("-f", I1PROFILER_PATH))
 
 
 def xrite_helpers_running() -> "list[str]":
@@ -493,8 +486,8 @@ PRE_QUESTIONS = (
     "with i1Profiler?",
     "Is the table completely empty: no paper, no chart, nothing lying on it?",
     f"Is the arm at {REST_PLACE}?",
-    "Has the arm stayed there since the table was last switched on? (It was there when you "
-    "switched the table on, and nobody has pushed it by hand since.)",
+    "Since the table was last switched on, has i1Profiler connected to it and been quit "
+    "again?",
 )
 
 
@@ -504,8 +497,8 @@ def main(argv=None, sim_table=None, console=None) -> int:
     ap = argparse.ArgumentParser(description=TITLE)
     ap.add_argument("--real", action="store_true",
                     help="use the REAL table (without it: a simulated table)")
-    ap.add_argument("--sim", choices=("cold", "warm"), default="cold",
-                    help="simulated table: just switched on (cold, the default) or started")
+    ap.add_argument("--sim", choices=("cold", "warm"), default="warm",
+                    help="simulated table: started (warm, the default) or just switched on")
     ap.add_argument("--plan", action="store_true",
                     help="print every line the program can send, and stop")
     ap.add_argument("--dry-run", action="store_true",
@@ -674,7 +667,8 @@ def main(argv=None, sim_table=None, console=None) -> int:
         try:
             print(f"The log is in: {args.log or log_path.name}")
             if args.real:
-                print("Please read the log before you post it anywhere, and post the log, "
+                print("The log file is in the folder you started the program from. "
+                  "Please read the log before you post it anywhere, and post the log, "
                       "not a copy of this Terminal window. It holds every line sent and "
                       "received and your answers, and no serial number.")
         except OSError:
