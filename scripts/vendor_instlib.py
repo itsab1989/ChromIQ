@@ -1020,12 +1020,8 @@ I1PRO_IMP_H_RULER = [
      "\tint cq_ruler_given_up;\t/* CQ_RULER_GIVEUP_*: never again this session */\n"
      "\tint cq_ruler_inscan;\t/* this lit scan carries the bits */\n"
      "\tint cq_ruler_recording;\t/* the recogniser's copies go to the record */\n"
-     "\tint cq_ruler_cinit;\t\t/* the cancel token is initialised */\n"
      "\tathread *cq_ruler_th;\t/* the 0x85 reader */\n"
-     "\tusb_cancelt cq_ruler_cancel;\n"
-     "\tvolatile int cq_ruler_stop, cq_ruler_done, cq_ruler_end, cq_ruler_err;\n"
-     "\tunsigned char *cq_ruler_buf;\n"
-     "\tvolatile long cq_ruler_nbytes, cq_ruler_extra;\n"
+     "\tvoid *cq_ruler_ctx;\t\t/* what the reader touches (cq_ruler_ctx) */\n"
      "\tunsigned int cq_ruler_t0;\t/* msec_time() when the reader started */\n"
      "\tvoid *cq_ruler_rec;\t\t/* cq_ruler_rec (cq_ruler.h) */\n\n"
      "\tvolatile double whitestamp;\t/* meas_delay() white timestamp */\n"),
@@ -1041,7 +1037,8 @@ I1PRO_IMP_H_RULER = [
      "void i1pro2_cq_ruler_finish(void *pp, int nreadings, int ev);\n"
      "void i1pro2_cq_ruler_trace(void *pp, double **multimeas, int nummeas, double *maxval);\n"
      "void i1pro2_cq_ruler_cut(void *pp, int pix, int ss, int no);\n"
-     "void i1pro2_cq_ruler_close(void *pp);\n\n"
+     "void i1pro2_cq_ruler_close(void *pp);\n"
+     "extern int i1pro2_cq_ruler_fail_start_for_test;\t/* the fake-USB harness only */\n\n"
      "/* CHROMIQ PATCH: i1Pro 2 indicator lights (Beta), see i1pro_imp.c. Every\n"),
 ]
 I1PRO_IMP_C_RULER_BLOCK = r"""
@@ -1064,12 +1061,16 @@ I1PRO_IMP_C_RULER_BLOCK = r"""
  * Safety rules (ChromIQ's design review of 2026-11-14):
  *   - the trigger never waits for the ruler: the thread is started before the
  *     trigger thread and submits its first read at once;
- *   - a read's timeout is never shorter than the longest scan, so no timeout
- *     (and on macOS no abort, which IOKit follows with a clear-halt request)
- *     can fall inside a scan; the normal end is the instrument's short read;
- *   - the thread checks a stop flag before every read; it is joined before
- *     the measurement returns, or, if the stream did not end by itself, kept
- *     draining (never stopped) until it does or the instrument is closed;
+ *   - a ruler read never times out while the instrument is in use (its
+ *     timeout is a day), so a timeout, and on macOS the clear-halt request
+ *     IOKit sends after any aborted read, can only come from the close; the
+ *     normal end is the instrument's short read;
+ *   - the reader works on a context of its own (cq_ruler_ctx), checks a stop
+ *     flag before every read and is joined before the measurement returns,
+ *     or, if the stream did not end by itself, kept draining (never stopped)
+ *     until it does or the instrument is closed; the close stops it host
+ *     side within about 2 s, and a read that cannot be aborted is left to
+ *     the process's end with its context (never freed memory);
  *   - anything unusual (a USB error on 0x85, no data, a stream that did not
  *     end, a failed measurement read, readings faster than the clock allows,
  *     a thread that cannot start) gives the ruler up for the rest of the
@@ -1085,6 +1086,23 @@ I1PRO_IMP_C_RULER_BLOCK = r"""
 #define CQ_RULER_KEEP         (1 << 20)	/* bytes kept, about 37 s of stream */
 #define CQ_RULER_END_WAIT_MS  250	/* after the measurement read ended */
 #define CQ_RULER_MAX_ERRS     20	/* USB errors retried while the scan runs */
+#define CQ_RULER_READ_TOUT    86400.0	/* s: only the close ends a pending read */
+#define CQ_RULER_CLOSE_MS     2000	/* the close's bound on stopping the reader */
+
+/* Test hook (the fake-USB harness only): make the reader's start fail. */
+int i1pro2_cq_ruler_fail_start_for_test = 0;
+
+/* Everything the reader thread touches. Allocated per reader and freed only
+ * after a join; a reader the close could not stop keeps its context (and the
+ * cancel token in it) until the process ends. */
+typedef struct {
+	i1pro *p;
+	icoms *icom;
+	usb_cancelt cancel;
+	volatile int stop, done, end, err;
+	unsigned char *buf;
+	volatile long nbytes, extra;
+} cq_ruler_ctx;
 
 static cq_ruler_rec *cq_ruler_r(i1proimp *m) {
 	return (cq_ruler_rec *)m->cq_ruler_rec;
@@ -1100,11 +1118,18 @@ static void cq_ruler_give_up(i1proimp *m, int why) {
 }
 
 static void cq_ruler_join(i1proimp *m) {
+	cq_ruler_ctx *c = (cq_ruler_ctx *)m->cq_ruler_ctx;
 	if (m->cq_ruler_th == NULL)
 		return;
 	m->cq_ruler_th->wait(m->cq_ruler_th);
 	m->cq_ruler_th->del(m->cq_ruler_th);
 	m->cq_ruler_th = NULL;
+	if (c != NULL) {
+		usb_uninit_cancel(&c->cancel);
+		free(c->buf);
+		free(c);
+		m->cq_ruler_ctx = NULL;
+	}
 }
 
 /* The helper: on (1) for this session, if this is an i1Pro 2 whose EEPROM
@@ -1120,10 +1145,6 @@ int i1pro2_cq_ruler_options(void *pp, int on) {
 	if (m->cq_ruler_rec == NULL
 	 && (m->cq_ruler_rec = calloc(1, sizeof(cq_ruler_rec))) == NULL)
 		return 0;
-	if (!m->cq_ruler_cinit) {
-		usb_init_cancel(&m->cq_ruler_cancel);
-		m->cq_ruler_cinit = 1;
-	}
 	m->cq_ruler_on = 1;
 	return 1;
 }
@@ -1135,7 +1156,8 @@ void i1pro2_cq_ruler_arm(void *pp, int on) {
 	i1proimp *m;
 	if (p == NULL || (m = (i1proimp *)p->m) == NULL || !m->cq_ruler_on)
 		return;
-	if (m->cq_ruler_th != NULL && m->cq_ruler_done)
+	if (m->cq_ruler_th != NULL && m->cq_ruler_ctx != NULL
+	 && ((cq_ruler_ctx *)m->cq_ruler_ctx)->done)
 		cq_ruler_join(m);		/* a drained stream that has ended since */
 	if (on && cq_ruler_r(m) != NULL)
 		cq_ruler_rec_clear(cq_ruler_r(m));
@@ -1193,30 +1215,26 @@ int i1pro2_cq_ruler_bits(void *pp, int mmodif) {
 }
 
 static int cq_ruler_thread(void *pp) {
-	i1pro *p = (i1pro *)pp;
-	i1proimp *m = (i1proimp *)p->m;
-	i1pro_state *s = &m->ms[m->mmode];
+	cq_ruler_ctx *c = (cq_ruler_ctx *)pp;	/* never the driver's own memory */
 	unsigned char scratch[CQ_RULER_CHUNK];
-	double top = s->maxscantime + s->lamptime + 2.0;	/* never inside a scan */
 	int errs = 0, end = CQ_RULER_END_NONE;
 
 	for (;;) {
 		unsigned char *dst;
 		int rw = 0, se;
-		if (m->cq_ruler_stop) {		/* checked before EVERY read */
+		if (c->stop) {			/* checked before EVERY read */
 			end = CQ_RULER_END_CANCELLED;
 			break;
 		}
-		dst = (m->cq_ruler_buf != NULL
-		       && m->cq_ruler_nbytes + CQ_RULER_CHUNK <= CQ_RULER_KEEP)
-		    ? m->cq_ruler_buf + m->cq_ruler_nbytes : scratch;
-		se = p->icom->usb_read(p->icom, &m->cq_ruler_cancel, 0x85, dst,
-		                       CQ_RULER_CHUNK, &rw, top);
+		dst = (c->buf != NULL && c->nbytes + CQ_RULER_CHUNK <= CQ_RULER_KEEP)
+		    ? c->buf + c->nbytes : scratch;
+		se = c->icom->usb_read(c->icom, &c->cancel, 0x85, dst,
+		                       CQ_RULER_CHUNK, &rw, CQ_RULER_READ_TOUT);
 		if (rw > 0) {
 			if (dst != scratch)
-				m->cq_ruler_nbytes += rw;
+				c->nbytes += rw;
 			else
-				m->cq_ruler_extra += rw;	/* drained, not kept */
+				c->extra += rw;		/* drained, not kept */
 		}
 		if (se == ICOM_OK)
 			continue;
@@ -1232,15 +1250,15 @@ static int cq_ruler_thread(void *pp) {
 			end = CQ_RULER_END_TIMEOUT;
 			break;
 		}
-		m->cq_ruler_err = se;		/* a USB error: retried while the scan runs */
-		if (++errs > CQ_RULER_MAX_ERRS || m->cq_ruler_stop) {
+		c->err = se;			/* a USB error: retried while the scan runs */
+		if (++errs > CQ_RULER_MAX_ERRS || c->stop) {
 			end = CQ_RULER_END_ERROR;
 			break;
 		}
 		msec_sleep(5);
 	}
-	m->cq_ruler_end = end;
-	m->cq_ruler_done = 1;
+	c->end = end;
+	c->done = 1;
 	return 0;
 }
 
@@ -1249,22 +1267,37 @@ void i1pro2_cq_ruler_start(void *pp) {
 	i1pro *p = (i1pro *)pp;
 	i1proimp *m = (i1proimp *)p->m;
 	cq_ruler_rec *r = cq_ruler_r(m);
+	cq_ruler_ctx *c;
 	if (!m->cq_ruler_inscan || r == NULL)
 		return;
 	cq_ruler_rec_clear(r);
-	m->cq_ruler_stop = m->cq_ruler_done = 0;
-	m->cq_ruler_end = CQ_RULER_END_NONE;
-	m->cq_ruler_err = 0;
-	m->cq_ruler_nbytes = m->cq_ruler_extra = 0;
 	m->cq_ruler_t0 = msec_time();
-	if (m->cq_ruler_buf == NULL)
-		m->cq_ruler_buf = (unsigned char *)malloc(CQ_RULER_KEEP);
-	if ((m->cq_ruler_th = new_athread(cq_ruler_thread, (void *)p)) == NULL) {
-		m->cq_ruler_inscan = 0;		/* this strip without the ruler... */
+	c = (cq_ruler_ctx *)calloc(1, sizeof(cq_ruler_ctx));
+	if (c != NULL) {
+		c->p = p;
+		c->icom = p->icom;
+		c->buf = (unsigned char *)malloc(CQ_RULER_KEEP);
+		usb_init_cancel(&c->cancel);
+		m->cq_ruler_ctx = c;
+	}
+	if (c == NULL || i1pro2_cq_ruler_fail_start_for_test
+	 || (m->cq_ruler_th = new_athread(cq_ruler_thread, (void *)c)) == NULL) {
+		/* This strip without the ruler: the bits must not go out with
+		 * nobody reading 0x85 (the trigger thread sends c_measmodeflags2
+		 * later), and the rest of the session without it. */
+		m->c_measmodeflags2 &= ~(I1PRO2_MMF_RULER_START | I1PRO2_MMF_RULER_END);
+		m->cq_ruler_inscan = 0;
+		m->cq_ruler_th = NULL;
+		if (c != NULL) {
+			usb_uninit_cancel(&c->cancel);
+			free(c->buf);
+			free(c);
+			m->cq_ruler_ctx = NULL;
+		}
 		r->valid = 1;
 		r->gen = 2;
 		r->ended = CQ_RULER_END_NOSTART;
-		cq_ruler_give_up(m, CQ_RULER_GIVEUP_NOSTART);	/* ...and the rest */
+		cq_ruler_give_up(m, CQ_RULER_GIVEUP_NOSTART);
 	}
 }
 
@@ -1275,14 +1308,15 @@ void i1pro2_cq_ruler_finish(void *pp, int nreadings, int ev) {
 	i1pro *p = (i1pro *)pp;
 	i1proimp *m = (i1proimp *)p->m;
 	cq_ruler_rec *r = cq_ruler_r(m);
-	long pos = 0, last_at = -1;
+	cq_ruler_ctx *c = (cq_ruler_ctx *)m->cq_ruler_ctx;
+	long pos = 0, last_at = -1, kept;
 	int last_code = -1;
 	unsigned int t1;
-	if (!m->cq_ruler_inscan || r == NULL)
+	if (!m->cq_ruler_inscan || r == NULL || c == NULL)
 		return;
 	m->cq_ruler_inscan = 0;
 	t1 = msec_time();
-	while (!m->cq_ruler_done && (msec_time() - t1) < CQ_RULER_END_WAIT_MS)
+	while (!c->done && (msec_time() - t1) < CQ_RULER_END_WAIT_MS)
 		msec_sleep(5);
 	r->valid = 1;
 	r->gen = 2;
@@ -1291,21 +1325,22 @@ void i1pro2_cq_ruler_finish(void *pp, int nreadings, int ev) {
 	r->clock_s = m->intclkp;
 	r->inttime = m->c_inttime;
 	r->rate_ms = (int)(t1 - m->cq_ruler_t0);
-	if (m->cq_ruler_done) {
+	kept = c->nbytes;
+	r->icom_err = c->err;
+	r->bytes = kept + c->extra;
+	if (c->buf != NULL)
+		cq_ruler_rec_feed(r, c->buf, kept, &pos, &last_at, &last_code);
+	r->samples = r->bytes;
+	if (c->done) {
+		r->ended = c->end;
 		cq_ruler_join(m);
-		r->ended = m->cq_ruler_end;
 	} else {
 		/* The stream did not end by itself: it is drained on (never stopped,
-		 * never 0xD7) until it does or the instrument is closed. */
+		 * never 0xD7) until it does or the instrument is closed. Its reads
+		 * never time out before the close. */
 		r->ended = CQ_RULER_END_RUNNING;
 		r->stream_did_not_end = 1;
 	}
-	r->icom_err = m->cq_ruler_err;
-	r->bytes = m->cq_ruler_nbytes + m->cq_ruler_extra;
-	if (m->cq_ruler_buf != NULL)
-		cq_ruler_rec_feed(r, m->cq_ruler_buf, m->cq_ruler_nbytes, &pos,
-		                  &last_at, &last_code);
-	r->samples = r->bytes;
 	m->cq_ruler_recording = 1;		/* the recogniser's cut and trace follow */
 
 	if (r->stream_did_not_end)
@@ -1348,27 +1383,31 @@ void i1pro2_cq_ruler_cut(void *pp, int pix, int ss, int no) {
 void i1pro2_cq_ruler_close(void *pp) {
 	i1pro *p = (i1pro *)pp;
 	i1proimp *m;
-	int i;
+	cq_ruler_ctx *c;
+	unsigned int t0;
 	if (p == NULL || (m = (i1proimp *)p->m) == NULL)
 		return;
-	if (m->cq_ruler_th != NULL) {
-		m->cq_ruler_stop = 1;
-		for (i = 0; !m->cq_ruler_done && i < 20; i++) {
-			p->icom->usb_cancel_io(p->icom, &m->cq_ruler_cancel);
+	c = (cq_ruler_ctx *)m->cq_ruler_ctx;
+	if (m->cq_ruler_th != NULL && c != NULL) {
+		c->stop = 1;
+		t0 = msec_time();
+		while (!c->done && (msec_time() - t0) < CQ_RULER_CLOSE_MS) {
+			c->icom->usb_cancel_io(c->icom, &c->cancel);
 			msec_sleep(10);
 		}
-		cq_ruler_join(m);
+		if (c->done)
+			cq_ruler_join(m);
+		else {
+			/* A read that cannot be aborted: the process is ending; the
+			 * reader keeps its context, nothing it uses is freed here. */
+			m->cq_ruler_th = NULL;
+			m->cq_ruler_ctx = NULL;
+		}
 	}
 	if (m->cq_ruler_rec != NULL) {
 		cq_ruler_rec_clear(cq_ruler_r(m));
 		free(m->cq_ruler_rec);
 		m->cq_ruler_rec = NULL;
-	}
-	free(m->cq_ruler_buf);
-	m->cq_ruler_buf = NULL;
-	if (m->cq_ruler_cinit) {
-		usb_uninit_cancel(&m->cq_ruler_cancel);
-		m->cq_ruler_cinit = 0;
 	}
 	m->cq_ruler_on = m->cq_ruler_armed = m->cq_ruler_inscan = 0;
 }

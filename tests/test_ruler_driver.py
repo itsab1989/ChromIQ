@@ -25,8 +25,12 @@ def test_i1pro2_block_reads_only_0x85_and_sends_nothing():
     for never in ("usb_control(", "usb_write(", "0xD7", "0xd7", "stop_ruler",
                   "EEProm", "update_log"):
         assert never not in b, never
-    # the read's timeout is never shorter than the longest scan
-    assert "s->maxscantime + s->lamptime + 2.0" in b
+    # a ruler read never times out while the instrument is in use: only the
+    # close ends a pending read (review item 2, 2026-11-14)
+    assert "CQ_RULER_READ_TOUT    86400.0" in _vendor()["I1PRO_IMP_C_RULER_BLOCK"]
+    assert "CQ_RULER_READ_TOUT);" in b
+    # ...and the close is bounded (review item 3)
+    assert "CQ_RULER_CLOSE_MS     2000" in _vendor()["I1PRO_IMP_C_RULER_BLOCK"]
 
 
 def test_i1pro2_bits_only_for_an_armed_lit_scan_of_a_real_i1pro2():

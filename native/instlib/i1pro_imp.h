@@ -343,12 +343,8 @@ struct _i1proimp {
 	int cq_ruler_given_up;	/* CQ_RULER_GIVEUP_*: never again this session */
 	int cq_ruler_inscan;	/* this lit scan carries the bits */
 	int cq_ruler_recording;	/* the recogniser's copies go to the record */
-	int cq_ruler_cinit;		/* the cancel token is initialised */
 	athread *cq_ruler_th;	/* the 0x85 reader */
-	usb_cancelt cq_ruler_cancel;
-	volatile int cq_ruler_stop, cq_ruler_done, cq_ruler_end, cq_ruler_err;
-	unsigned char *cq_ruler_buf;
-	volatile long cq_ruler_nbytes, cq_ruler_extra;
+	void *cq_ruler_ctx;		/* what the reader touches (cq_ruler_ctx) */
 	unsigned int cq_ruler_t0;	/* msec_time() when the reader started */
 	void *cq_ruler_rec;		/* cq_ruler_rec (cq_ruler.h) */
 
@@ -1494,6 +1490,7 @@ void i1pro2_cq_ruler_finish(void *pp, int nreadings, int ev);
 void i1pro2_cq_ruler_trace(void *pp, double **multimeas, int nummeas, double *maxval);
 void i1pro2_cq_ruler_cut(void *pp, int pix, int ss, int no);
 void i1pro2_cq_ruler_close(void *pp);
+extern int i1pro2_cq_ruler_fail_start_for_test;	/* the fake-USB harness only */
 
 /* CHROMIQ PATCH: i1Pro 2 indicator lights (Beta), see i1pro_imp.c. Every
  * entry returns at once unless ChromIQ's helper called ..._begin(). */

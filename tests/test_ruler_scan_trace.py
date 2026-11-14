@@ -152,3 +152,40 @@ def test_i1pro3_hooks_record_only_an_armed_strip(trace3):
         "samples=103200") == 1
     assert next(ln for ln in lines if ln.startswith("failed REC")).startswith(
         "failed REC gen=3 ended=4")
+
+
+# ---- review round 1 (2026-11-14): items 2, 3 and 5 ------------------------
+
+@pytest.mark.parametrize("scn", ["on_late", "on_noend", "on_stall", "on_stallnc",
+                                 "on_huge", "on_gone", "on_late200", "on_fail82",
+                                 "on_failstart", "on_clean", "on_error", "on_zero"])
+def test_no_clear_halt_request_before_the_close(trace, scn):
+    """On macOS an aborted or timed-out read is followed by a clear-halt
+    request; a ruler read never times out before the close, so the request
+    can only come when the instrument is let go (review item 2)."""
+    assert f"{scn} CLEARHALTS before close 0" in trace
+
+
+@pytest.mark.parametrize("scn", ["on_noend", "on_stall", "on_stallnc"])
+def test_the_close_is_bounded_even_when_a_cancel_cannot_abort(trace, scn):
+    assert f"{scn} CLOSED cancels=1 within2600=1" in trace      # review item 3
+
+
+def test_the_reviewers_faults_change_no_reading(trace):
+    for scn, why in (("on_stall", 3), ("on_stallnc", 3), ("on_gone", 1),
+                     ("on_fail82", 4)):
+        r = _ruler(trace, scn)
+        assert r[0]["giveup"] == why
+        assert _d4(trace, scn)[1:] == ["0101", "0101"]
+    for scn in ("on_stall", "on_stallnc", "on_gone", "on_huge", "on_late200"):
+        assert all(" RESULT ev=0x0 readings=120" in ln for ln in _scn(trace, scn)
+                   if " RESULT " in ln)
+    huge = _ruler(trace, "on_huge")[0]
+    assert huge["giveup"] == 0 and huge["bytes"] > 3 * 1024 * 1024
+    assert _ruler(trace, "on_late200")[0]["giveup"] == 0
+
+
+def test_a_reader_that_cannot_start_sends_no_ruler_bits(trace):
+    """Review item 5: the bits never go out with nobody reading 0x85."""
+    assert _d4(trace, "on_failstart") == ["0101"] * 3
+    assert _ruler(trace, "on_failstart")[0]["giveup"] == 6
