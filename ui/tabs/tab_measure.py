@@ -6872,6 +6872,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         except Exception:      # noqa: BLE001 - never block a read on this
             return False
         self._isis_not_yet_window()
+        self._log.appendPlainText(tr(
+            "Measurement not started: this chart is for the X-Rite i1iSis, "
+            "which ChromIQ cannot talk to; it is measured in i1Profiler "
+            "(the window says how)."))
         return True
 
     def _isis_not_yet_window(self) -> None:
@@ -6898,10 +6902,6 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             multipage_note=(tr(M.M_ISIS_MULTIPAGE_NOTE).format(pages=pages)
                             if pages > 1 else ""))
         self._i1io_window(title, body)
-        self._log.appendPlainText(tr(
-            "Measurement not started: this chart is for the X-Rite i1iSis, "
-            "which ChromIQ cannot talk to; it is measured in i1Profiler "
-            "(the window says how)."))
 
     def _isis_support_off_window(self) -> None:
         """M-ISIS-SUPPORT-OFF on screen: the text is the catalogue's."""

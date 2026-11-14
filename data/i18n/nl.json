@@ -2243,7 +2243,6 @@
  "Layout mode": "Indelingsmodus",
  "Layout options (printtarg)": "Indelingsopties (printtarg)",
  "Layout preset: {i} · {p} · {m}": "Indelingspreset: {i} · {p} · {m}",
- "Layout preview only — i1Profiler will lay out the actual chart from the patch list when you load the .pxf, so the printed chart will look different from what's shown here.": "Alleen een indelingsvoorbeeld: i1Profiler maakt de eigenlijke kaartindeling uit de meetveldlijst wanneer je de .pxf laadt, dus de afgedrukte kaart ziet er anders uit dan wat hier staat.",
  "Leave blank to save as calibrated.icc beside the profile": "Leeg laten om op te slaan als calibrated.icc naast het profiel",
  "Leave it as it is": "Zo laten",
  "Leave the “Auto” box on the “Strip recognition” row ticked.": "Laat het vakje “Auto” in de regel “Strookherkenning” aangevinkt.",

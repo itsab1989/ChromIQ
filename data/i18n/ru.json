@@ -3265,7 +3265,6 @@
  "Layout mode": "Режим раскладки",
  "Layout options (printtarg)": "Параметры раскладки (printtarg)",
  "Layout preset: {i} · {p} · {m}": "Пресет раскладки: {i} · {p} · {m}",
- "Layout preview only — i1Profiler will lay out the actual chart from the patch list when you load the .pxf, so the printed chart will look different from what's shown here.": "Только предпросмотр раскладки — i1Profiler разложит настоящую мишень по списку патчей, когда вы загрузите .pxf, поэтому напечатанная мишень будет выглядеть иначе, чем показано здесь.",
  "Leave blank to save as calibrated.icc beside the profile": "Оставьте пустым, чтобы сохранить как calibrated.icc рядом с профилем",
  "Leave it as it is": "Оставить как есть",
  "Leave the “Auto” box on the “Strip recognition” row ticked.": "Оставьте отмеченным флажок «Авто» в строке «Распознавание полос».",

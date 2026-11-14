@@ -2243,7 +2243,6 @@
  "Layout mode": "Mode de mise en page",
  "Layout options (printtarg)": "Options de disposition (printtarg)",
  "Layout preset: {i} · {p} · {m}": "Préréglage de mise en page : {i} · {p} · {m}",
- "Layout preview only — i1Profiler will lay out the actual chart from the patch list when you load the .pxf, so the printed chart will look different from what's shown here.": "Aperçu de mise en page uniquement : i1Profiler mettra en page la mire réelle à partir de la liste de plages quand tu chargeras le .pxf, la mire imprimée aura donc un autre aspect que celui montré ici.",
  "Leave blank to save as calibrated.icc beside the profile": "Laisse vide pour enregistrer en tant que calibrated.icc à côté du profil",
  "Leave it as it is": "Laisser tel quel",
  "Leave the “Auto” box on the “Strip recognition” row ticked.": "Laisse cochée la case « Auto » de la ligne « Reconnaissance des bandes ».",

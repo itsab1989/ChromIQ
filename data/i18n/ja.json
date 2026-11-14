@@ -2243,7 +2243,6 @@
  "Layout mode": "レイアウトモード",
  "Layout options (printtarg)": "レイアウトオプション (printtarg)",
  "Layout preset: {i} · {p} · {m}": "レイアウトプリセット: {i} · {p} · {m}",
- "Layout preview only — i1Profiler will lay out the actual chart from the patch list when you load the .pxf, so the printed chart will look different from what's shown here.": "レイアウトのプレビューのみ — .pxf を読み込むと i1Profiler がパッチ一覧から実際のチャートを組み直すため、印刷されるチャートはここに表示されているものとは異なります。",
  "Leave blank to save as calibrated.icc beside the profile": "空欄にすると、プロファイルの隣に calibrated.icc として保存します",
  "Leave it as it is": "そのままにする",
  "Leave the “Auto” box on the “Strip recognition” row ticked.": "「ストリップ認識」の行の「自動」にはチェックを入れたままにしてください。",

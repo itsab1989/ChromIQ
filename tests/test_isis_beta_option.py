@@ -134,7 +134,7 @@ def test_start_on_an_i1isis_chart_explains_the_i1profiler_way(
     title, body = shown[0]
     assert title == "Measuring with an i1iSis happens in i1Profiler"
     for part in ("isischart-i1profiler-isis.txf", "28 columns", "35 rows",
-                 "2 page(s)", "Cut the sheet along the dashed outline",
+                 "and 2 pages", "Cut the sheet along the dashed outline",
                  "This chart has 2 pages", "Import Measurement",
                  "Dual scan", "(M2)"):
         assert part in body, part

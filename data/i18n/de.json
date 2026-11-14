@@ -2243,7 +2243,6 @@
  "Layout mode": "Layout-Modus",
  "Layout options (printtarg)": "Layout-Optionen (printtarg)",
  "Layout preset: {i} · {p} · {m}": "Layout-Preset: {i} · {p} · {m}",
- "Layout preview only — i1Profiler will lay out the actual chart from the patch list when you load the .pxf, so the printed chart will look different from what's shown here.": "Nur eine Layout-Vorschau — i1Profiler baut das eigentliche Chart aus der Messfeldliste auf, wenn du die .pxf lädst, deshalb sieht das gedruckte Chart anders aus als das hier gezeigte.",
  "Leave blank to save as calibrated.icc beside the profile": "Leer lassen, dann wird neben dem Profil als calibrated.icc gespeichert",
  "Leave it as it is": "So lassen",
  "Leave the “Auto” box on the “Strip recognition” row ticked.": "Lass das Kästchen „Auto“ in der Zeile „Streifenerkennung“ angehakt.",

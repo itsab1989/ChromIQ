@@ -2243,7 +2243,6 @@
  "Layout mode": "Layoutläge",
  "Layout options (printtarg)": "Layoutalternativ (printtarg)",
  "Layout preset: {i} · {p} · {m}": "Layoutförinställning: {i} · {p} · {m}",
- "Layout preview only — i1Profiler will lay out the actual chart from the patch list when you load the .pxf, so the printed chart will look different from what's shown here.": "Endast förhandsvisning av layouten: i1Profiler placerar ut det verkliga diagrammet från fältlistan när du läser in .pxf-filen, så det utskrivna diagrammet kommer att se annorlunda ut än det som visas här.",
  "Leave blank to save as calibrated.icc beside the profile": "Lämna tomt för att spara som calibrated.icc bredvid profilen",
  "Leave it as it is": "Låt det vara",
  "Leave the “Auto” box on the “Strip recognition” row ticked.": "Låt rutan ”Auto” på raden ”Remsidentifiering” vara ibockad.",

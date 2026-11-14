@@ -764,9 +764,7 @@ M_I1IO_SUPPORT_OFF = _m(
 #: measured in i1Profiler (PROPOSAL v2 §10). {cut_or_not} is
 #: `workflow.isis.chart.cut_instruction`, {multipage_note} empty or
 #: M_ISIS_MULTIPAGE_NOTE.
-M_ISIS_NOT_YET = _m(
-    "M-ISIS-NOT-YET",
-    "Measuring with an i1iSis happens in i1Profiler",
+_ISIS_NOT_YET_BODY = (
     "ChromIQ cannot talk to the X-Rite i1iSis family, so this chart is "
     "measured in X-Rite's i1Profiler and the measurement is brought back "
     "here. Nothing is wrong with the chart.\n\n"
@@ -775,7 +773,7 @@ M_ISIS_NOT_YET = _m(
     "the Test Chart page, click Load and pick {txf} from this run's exports "
     "folder. Answer No when i1Profiler asks to copy it.\n"
     "3. Check that i1Profiler shows {cols} columns, {rows} rows and {pages} "
-    "page(s). Change nothing on that page and do not go back to the Patch "
+    "pages. Change nothing on that page and do not go back to the Patch "
     "Set page: any change makes i1Profiler expect a different sheet.\n"
     "4. On the next page choose Single scan (M2), or Dual scan if you want "
     "M0 for brightener (FWA) compensation (and M1 on an i1iSis 2). Measure, "
@@ -785,8 +783,16 @@ M_ISIS_NOT_YET = _m(
     "6. Back in ChromIQ, use Import Measurement on this run.\n"
     "{multipage_note}\n"
     "This chart has not yet been read by a real i1iSis. If i1Profiler or the "
-    "instrument refuses it, please tell us on GitHub.",
-    approved=False)
+    "instrument refuses it, please tell us on GitHub.")
+M_ISIS_NOT_YET = _m(
+    "M-ISIS-NOT-YET",
+    "Measuring with an i1iSis happens in i1Profiler",
+    _ISIS_NOT_YET_BODY,
+    approved=False,
+    # one page said in the singular (house rule: no "page(s)")
+    body_one=_ISIS_NOT_YET_BODY.replace(
+        "{rows} rows and {pages} pages.", "{rows} rows and 1 page."),
+    count_key="pages")
 
 #: {multipage_note} of M-ISIS-NOT-YET for a chart of several pages (stage 1).
 M_ISIS_MULTIPAGE_NOTE = ("This chart has {pages} pages. Bringing a "
@@ -10483,6 +10489,7 @@ CATALOGUE = {m.id: m for m in (
     M_CR30_LEARN_TILE, M_CR30_TRIGGER_NOT_ARMED,
     M_INSTRUMENT_BUSY,
     M_I1IO_NOT_YET, M_I1IO_NOT_YET_BY_HAND, M_I1IO_SUPPORT_OFF,
+    M_ISIS_NOT_YET, M_ISIS_SUPPORT_OFF, M_ISIS_SHEET_CHECK,
     M_I1IO_AIM_CROSSES, M_I1IO_AIM_CORNERS, M_I1IO_AIM_CORNERS_UNLABELLED,
     M_I1IO_AIM_UNKNOWN, M_I1IO_AIM_PAGE_PARTS,
     M_I1IO_EDGE_MARKS_NOT_PRINTED, M_I1IO_EDGE_TEXT_NOT_PRINTED,

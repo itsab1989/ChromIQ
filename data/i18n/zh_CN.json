@@ -2243,7 +2243,6 @@
  "Layout mode": "布局模式",
  "Layout options (printtarg)": "布局选项（printtarg）",
  "Layout preset: {i} · {p} · {m}": "布局预设：{i} · {p} · {m}",
- "Layout preview only — i1Profiler will lay out the actual chart from the patch list when you load the .pxf, so the printed chart will look different from what's shown here.": "仅为布局预览——当你载入 .pxf 时，i1Profiler 会根据色块列表重新排布实际的色卡，因此打印出来的色卡会与这里显示的不同。",
  "Leave blank to save as calibrated.icc beside the profile": "留空则在配置文件旁边保存为 calibrated.icc",
  "Leave it as it is": "保持原样",
  "Leave the “Auto” box on the “Strip recognition” row ticked.": "保持「色条识别」一行中的「自动」框为勾选状态。",

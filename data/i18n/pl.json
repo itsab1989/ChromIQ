@@ -3271,7 +3271,6 @@
  "Layout mode": "Tryb układu",
  "Layout options (printtarg)": "Opcje układu (printtarg)",
  "Layout preset: {i} · {p} · {m}": "Preset układu: {i} · {p} · {m}",
- "Layout preview only — i1Profiler will lay out the actual chart from the patch list when you load the .pxf, so the printed chart will look different from what's shown here.": "Tylko podgląd układu – i1Profiler ułoży właściwy wzorzec z listy pól, gdy wczytasz plik .pxf, więc wydrukowany wzorzec będzie wyglądał inaczej niż to, co widać tutaj.",
  "Leave blank to save as calibrated.icc beside the profile": "Pozostaw puste, aby zapisać jako calibrated.icc obok profilu",
  "Leave it as it is": "Zostaw tak jak jest",
  "Leave the “Auto” box on the “Strip recognition” row ticked.": "Zostaw zaznaczone pole „Auto” w wierszu „Rozpoznawanie pasków”.",

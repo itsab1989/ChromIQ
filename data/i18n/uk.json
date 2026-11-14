@@ -3301,7 +3301,6 @@
  "Layout mode": "Режим макета",
  "Layout options (printtarg)": "Параметри макета (printtarg)",
  "Layout preset: {i} · {p} · {m}": "Пресет макета: {i} · {p} · {m}",
- "Layout preview only — i1Profiler will lay out the actual chart from the patch list when you load the .pxf, so the printed chart will look different from what's shown here.": "Лише попередній перегляд макета — i1Profiler розмістить фактичну діаграму зі списку патчів, коли ви завантажите .pxf, тому надрукована діаграма виглядатиме інакше, ніж показано тут.",
  "Leave blank to save as calibrated.icc beside the profile": "Залиште порожнім, щоб зберегти як calibrated.icc поруч із профілем",
  "Leave it as it is": "Залишити як є",
  "Leave the “Auto” box on the “Strip recognition” row ticked.": "Залиште позначеним прапорець «Авто» в рядку «Розпізнавання смуги».",

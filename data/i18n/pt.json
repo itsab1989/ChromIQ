@@ -2243,7 +2243,6 @@
  "Layout mode": "Modo de disposição",
  "Layout options (printtarg)": "Opções de disposição (printtarg)",
  "Layout preset: {i} · {p} · {m}": "Predefinição de disposição: {i} · {p} · {m}",
- "Layout preview only — i1Profiler will lay out the actual chart from the patch list when you load the .pxf, so the printed chart will look different from what's shown here.": "Apenas pré-visualização da disposição: o i1Profiler dispõe a carta verdadeira a partir da lista de amostras quando carregar o .pxf, por isso a carta impressa terá um aspeto diferente do que aqui se mostra.",
  "Leave blank to save as calibrated.icc beside the profile": "Deixe em branco para guardar como calibrated.icc ao lado do perfil",
  "Leave it as it is": "Deixar como está",
  "Leave the “Auto” box on the “Strip recognition” row ticked.": "Deixe assinalada a caixa «Automático» na linha «Leitura de tiras».",

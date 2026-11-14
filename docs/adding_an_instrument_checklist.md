@@ -500,7 +500,10 @@ and the full session runs against the simulator.
       (`ui/tabs/tab_print.py`); the instrument named in the Measurement
       Report (`workflow/measurement_report.py`); and the i1Profiler hand-off
       files (`workflow/i1profiler_turned.py`), which say plainly when no
-      matching file can be written for the instrument's chart.
+      matching file can be written for the instrument's chart, and the
+      patch set beside every chart (`workflow/chart_exports.py::write_sidecars`),
+      whose `.pxf` names the device i1Profiler itself writes for the
+      instrument (`workflow/chart_exports.py::i1profiler_device_for`).
 - [ ] **9.7** The `HOOKED_FILES` pin lists every shared file that now names
       the instrument.
 
