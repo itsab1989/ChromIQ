@@ -101,14 +101,16 @@ class Diagnostics:
 
     def __init__(self, path: Path, *, instrument: str, firmware: "int | None",
                  helper_build: str = "", geometry: "dict | None" = None,
-                 verification: bool = False):
+                 verification: bool = False, argyll: str = ""):
         from core.version import APP_VERSION as _v
         from workflow import ruler_check
         self.path = Path(path)
         self.doc = {
             "format": FORMAT, "version": VERSION,
             "chromiq": str(_v), "engine_build": helper_build,
-            "argyllcms": "3.5.0", "os": _os_text(),
+            # the vendored ArgyllCMS's own version (ARGYLL_VERSION_STR),
+            # as the engine reports it (review item 9)
+            "argyllcms": argyll or None, "os": _os_text(),
             "instrument": instrument, "firmware": firmware,
             "measurement": "verification" if verification else "profiling",
             "thresholds": ruler_check.THRESHOLDS,

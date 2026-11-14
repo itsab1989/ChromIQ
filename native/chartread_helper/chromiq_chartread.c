@@ -1633,9 +1633,9 @@ static void cq_ruler_for_session(inst *it, int rmode, int emis, int trans,
 		cq_ruler_it = it;
 	if (why == NULL)
 		cq_emit_raw("{\"event\":\"ruler\",\"active\":true,\"instrument\":\"%s\","
-		            "\"firmware\":%d,\"sensor\":%s}",
+		            "\"firmware\":%d,\"sensor\":%s,\"argyll\":\"%s\"}",
 		            cq_ruler_gen == 3 ? "i1pro3" : "i1pro2", fw,
-		            sensor ? "true" : "false");
+		            sensor ? "true" : "false", ARGYLL_VERSION_STR);
 	else
 		cq_emit_raw("{\"event\":\"ruler\",\"active\":false,\"why\":\"%s\"%s%s%s}",
 		            why, cq_ruler_gen ? ",\"instrument\":\"" : "",

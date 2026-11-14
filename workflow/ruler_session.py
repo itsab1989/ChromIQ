@@ -54,6 +54,19 @@ class RulerSession:
         self.pitch_steps: "list[float]" = []     # session pitch (no geometry)
         self.forward_sign = 0
         self.said: "set[str]" = set()
+        self.argyll = ""
+
+    #: Accepted strips needed before this session trusts a step size it
+    #: worked out itself (the i1Pro 2; review item 6, 2026-11-14), and before
+    #: any distance is shown in mm on that instrument.
+    STRIPS_FOR_STEP = 3
+
+    def derived_step(self) -> "float | None":
+        """The i1Pro 2 step size (mm) this session worked out, once it has
+        STRIPS_FOR_STEP accepted strips to work it out from."""
+        if len(self.derived) < self.STRIPS_FOR_STEP:
+            return None
+        return statistics.median(self.derived)
 
     # ---- the session ---------------------------------------------------
     def diagnostics_path(self) -> "Path | None":
@@ -78,6 +91,7 @@ class RulerSession:
             return [tr("Ruler (beta): the ruler check works with the X-Rite "
                        "i1Pro 2 and i1Pro 3 only. This instrument is measured "
                        "exactly as it is without the option.")]
+        self.argyll = str(ev.get("argyll") or "")
         try:
             self.firmware = int(ev.get("firmware"))
         except (TypeError, ValueError):
@@ -94,7 +108,7 @@ class RulerSession:
                 self.diag = rd.Diagnostics(
                     path, instrument=self.gen, firmware=self.firmware,
                     helper_build=self.helper_build, geometry=self.geometry,
-                    verification=self.verification)
+                    verification=self.verification, argyll=self.argyll)
                 self.diag.write()
             except Exception:      # noqa: BLE001 - never stop a measurement
                 log.warning("ruler: no diagnostics file", exc_info=True)
@@ -166,7 +180,11 @@ class RulerSession:
                      rec.get("samples"), f.expected_samples, f.illegal,
                      rec.get("ended"))
         else:
-            lines.append(self._motion_line(strip, rec, f))
+            self._unit_line = ""
+            line = self._motion_line(strip, rec, f)
+            if self._unit_line:
+                lines.append(self._unit_line)
+            lines.append(line)
         if result == "read":
             self.pending = (strip, rec, f)
         else:
@@ -191,7 +209,7 @@ class RulerSession:
         pitch_mm = geo.get("pitch_mm")
         coverage, followed = rc.cut_coverage(rec)
         pitch_cut = rc.cut_pitch_steps(rec)
-        derived = statistics.median(self.derived) if self.derived else None
+        derived = self.derived_step()
         session_pitch = (statistics.median(self.pitch_steps)
                          if len(self.pitch_steps)
                          >= rc.MIN_STRIPS_FOR_SESSION_PITCH else None)
@@ -274,8 +292,15 @@ class RulerSession:
         return " " + tr("It went from the last patch to the first.")
 
     def _motion_line(self, strip: str, rec: dict, f) -> str:
-        derived = statistics.median(self.derived) if self.derived else None
-        mm = rc.mm_per_step(self.gen, derived)
+        mm = rc.mm_per_step(self.gen, self.derived_step())
+        prefix = ""
+        if mm and self.gen == "i1pro2" and "mm_now" not in self.said:
+            # Never switch units silently (review item 9).
+            self.said.add("mm_now")
+            prefix = tr("Ruler (beta): from now on the distances are shown in "
+                        "mm. After three strips, ChromIQ has worked out how "
+                        "long one ruler step is on this i1Pro 2: about {mm} "
+                        "mm.").format(mm=_num(mm, 2))
         if mm:
             text = tr("Ruler (beta), strip {strip}: the instrument moved {dist} "
                       "mm along the ruler, at about {avg} mm per second on "
@@ -292,6 +317,7 @@ class RulerSession:
                           strip=strip, dist=_num(f.travel_steps),
                           avg=_num(f.mean_steps_s), peak=_num(f.peak_steps_s))
         text += self._direction(f)
+        self._unit_line = prefix
         if self.gen == "i1pro3" and not rec.get("argyll_used"):
             text += " " + tr("ArgyllCMS did not use the ruler to place the "
                              "patches of this strip and placed them by time "

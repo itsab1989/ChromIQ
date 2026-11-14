@@ -59,6 +59,7 @@ def test_on_reports_each_strip_before_its_reading(tmp_path, monkeypatch, gen):
     names = [e.get("event") for e in s.events]
     head = next(e for e in s.events if e.get("event") == "ruler")
     assert head["active"] is True and head["instrument"] == gen
+    assert head["argyll"] == "3.5.0"        # ARGYLL_VERSION_STR (review item 9)
     strips = [e for e in s.events if e.get("event") == "ruler_strip"]
     assert len(strips) == 2
     for k in [i for i, n in enumerate(names) if n == "ruler_strip"]:

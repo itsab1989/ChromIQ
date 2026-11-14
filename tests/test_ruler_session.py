@@ -240,3 +240,67 @@ def test_the_preferences_row_its_help_and_its_confirmation(qapp, monkeypatch):
     finally:
         dlg.reject()
         dlg.deleteLater()
+
+
+# ---- review round 1 (2026-11-14): items 6 and 9 --------------------------
+def test_i1pro2_with_chart_geometry_needs_three_strips_before_asking(tmp_path):
+    rs, _ = _session(tmp_path, chart=True)
+    n = rs.geometry["A"]["patches"]
+    for i, s in enumerate("ABC"):
+        rs.on_strip(_cut(_rec(s, 340), n=n))
+        assert rs.derived_step() is None or i == 2
+        rs.on_strip_read(_strip_read(s, n=n), other_question=False)
+    assert rs.derived_step() is not None
+    # after one or two strips a short strip was only reported
+    rs2, _ = _session(tmp_path / "two", chart=True)
+    rs2.on_strip(_cut(_rec("A", 340), n=n))
+    rs2.on_strip_read(_strip_read("A", n=n), other_question=False)
+    rs2.on_strip(_cut(_rec("B", 60), n=n))
+    assert not rs2.on_strip_read(_strip_read("B", n=n), other_question=False)["ask"]
+
+
+def test_units_switch_once_with_a_line_that_says_so(tmp_path):
+    rs, _ = _session(tmp_path, chart=True)
+    n = rs.geometry["A"]["patches"]
+    seen = []
+    for s in "ABCDE":
+        seen += rs.on_strip(_cut(_rec(s, 340), n=n))
+        rs.on_strip_read(_strip_read(s, n=n), other_question=False)
+    steps = [ln for ln in seen if "ruler steps" in ln]
+    mm = [ln for ln in seen if " mm along the ruler" in ln]
+    switch = [ln for ln in seen if "from now on the distances are shown in mm" in ln]
+    assert len(steps) == 3 and len(mm) == 2 and len(switch) == 1
+    assert seen.index(switch[0]) < seen.index(mm[0])
+
+
+def test_the_file_takes_argyll_s_version_from_the_engine(tmp_path):
+    ti1 = tmp_path / "c.ti1"
+    rs = RulerSession(ti1_path=ti1)
+    rs.on_session({"active": True, "instrument": "i1pro2", "firmware": 634,
+                   "argyll": "3.5.0"})
+    doc = json.loads(rs.diagnostics_path().read_text(encoding="utf-8"))
+    assert doc["argyllcms"] == "3.5.0"
+    import inspect
+    from workflow import ruler_diagnostics
+    assert '"3.5.0"' not in inspect.getsource(ruler_diagnostics)
+
+
+def test_strip_read_ok_waits_for_the_answer(qapp, tmp_path, monkeypatch):
+    """Review item 9: "Strip read OK" is not shown for a strip the person
+    chose to read again after the ruler question."""
+    from workflow.measure_manager import MeasureManager
+    m = MeasureManager(_Runner())
+    lines = []
+    rs, _ = _session(tmp_path)
+    m._ruler = rs
+    for s in "BCD":
+        rs.on_strip(_rec(s, 340))
+        m._handle_engine_line(json.dumps(_strip_read(s)), lines.append)
+    rs.on_strip(_rec("E", 60))
+    m.strip_measured.connect(
+        lambda ev: m.ruler_answer(ev["strip"], "reread")
+        if (ev.get("ruler") or {}).get("ask") else None)
+    m._handle_engine_line(json.dumps(_strip_read("E")), lines.append)
+    assert not any("Strip read OK — E " in ln for ln in lines)
+    assert any("Strip E: you chose to read it again" in ln for ln in lines)
+    assert any("Strip read OK — D" in ln for ln in lines)

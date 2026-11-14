@@ -3514,6 +3514,9 @@ class MeasureManager(QObject):
 
     def ruler_answer(self, strip: str, answer: str) -> None:
         """The person's answer to the ruler question, for the file."""
+        if not hasattr(self, "_ruler_answers"):
+            self._ruler_answers = {}
+        self._ruler_answers[str(strip).strip()] = answer
         rs = getattr(self, "_ruler", None)
         if rs is not None:
             rs.note_answer(strip, answer)
@@ -3927,8 +3930,17 @@ class MeasureManager(QObject):
                 self.strip_partly_misaligned.emit(_part)
             if _twice is not None:
                 self.strip_read_twice.emit(_twice.strip, _twice.like)
-            on_line(f" Strip read OK — {ev.get('strip', '?')} "
-                    f"(worst patch ΔE {ev.get('worst_de', 0):.1f})")
+            # The ruler question (Beta) wins over "Strip read OK": OK only
+            # once the person kept the strip (review item 9).
+            _asked = bool((ev.get("ruler") or {}).get("ask"))
+            _answer = (getattr(self, "_ruler_answers", {}) or {}).pop(_s, None)
+            if _asked and _answer == "reread":
+                on_line(" " + tr("Strip {strip}: you chose to read it again, "
+                                 "so this reading will be replaced.").format(
+                                     strip=_s or "?"))
+            else:
+                on_line(f" Strip read OK — {ev.get('strip', '?')} "
+                        f"(worst patch ΔE {ev.get('worst_de', 0):.1f})")
             if self._guided_state == "waiting":
                 self._advance_guided_strip(on_line)
 
