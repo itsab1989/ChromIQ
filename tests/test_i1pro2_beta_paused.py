@@ -89,6 +89,9 @@ def test_the_quiet_time_is_said_once_per_session(mgr):
     said = [ln for ln in lines if "wait a moment before it measured" in ln]
     assert len(said) == 1
     assert "about two seconds" in said[0] and "—" not in said[0]
+    # 4.3.37 review (M1): what to do while it waits
+    assert "keep the instrument still on the white paper" in said[0]
+    assert "Start sliding at the beep." in said[0]
     assert not any("leaves them alone" in ln for ln in lines)
 
 
@@ -288,6 +291,8 @@ def test_the_lights_help_opens_with_the_new_order():
                                "X-Rite's own order.**")
     assert "not yet been confirmed on a real i1Pro 2" in paras[1]
     assert "page read without a single" in paras[1]
+    assert "keep the instrument still" in paras[1]
+    assert "Start sliding at the beep." in paras[1]
     assert "paused for the i1Pro 2" not in help_.replace(
         "paused for it", "")
     # the i1Pro 3: one honest sentence

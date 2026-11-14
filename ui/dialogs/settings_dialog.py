@@ -9201,8 +9201,11 @@ def i1pro2_lights_help() -> str:
            "does the same on an i1Pro 2. It sends no light command between "
            "your button press and the end of the reading, and after every "
            "light change it leaves about two seconds before the instrument "
-           "measures: if you press sooner, the reading simply starts a moment "
-           "later. This has not yet been confirmed on a real i1Pro 2. A "
+           "measures. So after pressing the button, keep the instrument still "
+           "on the white paper before the strip until it beeps: with the "
+           "lights on, the beep can come up to about two seconds later than "
+           "usual. Start sliding at the beep. This has not yet been confirmed "
+           "on a real i1Pro 2. A "
            "tester's page read without a single “lost communication” window "
            "is what will confirm it. If you see that window with this option "
            "on, please switch the option off and tell us."),
