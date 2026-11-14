@@ -6884,15 +6884,21 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         from workflow import measurement_messages as M
         from workflow.isis.support import read_side_file
         from workflow.isis.chart import cut_instruction
-        from workflow.isis.export import txf_name
         chart = self._chart_file_for(self._ti1_path)
         side = read_side_file(chart) or {}
         # the .txf the window names is there (written again if a later build
         # swept it: it is derived from the chart and its side file)
-        from workflow.isis.export import ensure_export
+        from workflow.isis.export import ensure_export, txf_name
         ensure_export(chart)
         stem = Path(str(chart)).name
         stem = stem[:-4] if stem.lower().endswith(".ti2") else stem
+        from core.file_manager import exports_subdir
+        if (not (exports_subdir(Path(str(chart)).parent)
+                 / txf_name(stem)).is_file()
+                and not _chart_is_rgb(chart)):
+            # not an RGB chart: no test chart, said (M-ISIS-NO-TXF)
+            self._i1io_window(*M.M_ISIS_NO_TXF.render())
+            return
         pages = int(side.get("pages") or 1)
         title, body = M.M_ISIS_NOT_YET.render(
             cut_or_not=cut_instruction(bool(side.get("fed_as_printed",
@@ -22430,3 +22436,18 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # Reflect the restored Auto toggles (grey out / sync the combos).
         self._apply_bidir_auto_state("guided")
         self._apply_bidir_auto_state("manual")
+
+
+def _chart_is_rgb(chart) -> bool:
+    """True when the chart's header says COLOR_REP "RGB..." (or says
+    nothing); read from the header bytes only, never raises."""
+    try:
+        with open(chart, "rb") as f:
+            head = f.read(65536).split(b"BEGIN_DATA_FORMAT", 1)[0]
+    except (OSError, TypeError):
+        return True
+    for raw in head.splitlines():
+        line = raw.strip()
+        if line.upper().startswith(b"COLOR_REP"):
+            return line[9:].strip().strip(b'"').upper().startswith(b"RGB")
+    return True

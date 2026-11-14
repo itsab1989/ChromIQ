@@ -794,6 +794,29 @@ M_ISIS_NOT_YET = _m(
         "{rows} rows and {pages} pages.", "{rows} rows and 1 page."),
     count_key="pages")
 
+#: Start pressed on an i1iSis chart that is not an RGB chart: no i1Profiler
+#: test chart could be written for it in this version.
+M_ISIS_NO_TXF = _m(
+    "M-ISIS-NO-TXF",
+    "This i1iSis chart has no i1Profiler test chart",
+    "ChromIQ cannot talk to the X-Rite i1iSis family, so an i1iSis chart is "
+    "measured in X-Rite's i1Profiler. For that, ChromIQ saves an i1Profiler "
+    "test chart (.txf) beside the chart, which makes i1Profiler expect "
+    "exactly this sheet. In this version that file is written for RGB "
+    "charts only, and this chart uses other inks, so there is none, and "
+    "i1Profiler would expect a sheet of its own instead of this one.\n\n"
+    "What you can do: make the chart again as an RGB chart if your printer "
+    "takes RGB, or wait for a later version. Nothing is wrong with the chart "
+    "itself.",
+    approved=False)
+
+#: The Create Chart log line for an i1iSis chart that is not RGB.
+ISIS_NO_TXF_LOG = ("[WARNING] No i1Profiler test chart (.txf) was written "
+                   "for this i1iSis chart: in this version it is written for "
+                   "RGB charts only, so this chart cannot be measured in "
+                   "i1Profiler as it is printed. Make it as an RGB chart to "
+                   "measure it with an i1iSis.")
+
 #: {multipage_note} of M-ISIS-NOT-YET for a chart of several pages (stage 1).
 M_ISIS_MULTIPAGE_NOTE = ("This chart has {pages} pages. Bringing a "
                          "measurement of several pages back into ChromIQ "
@@ -10516,7 +10539,7 @@ CATALOGUE = {m.id: m for m in (
     M_CR30_LEARN_TILE, M_CR30_TRIGGER_NOT_ARMED,
     M_INSTRUMENT_BUSY,
     M_I1IO_NOT_YET, M_I1IO_NOT_YET_BY_HAND, M_I1IO_SUPPORT_OFF,
-    M_ISIS_NOT_YET, M_ISIS_SUPPORT_OFF, M_ISIS_SHEET_CHECK,
+    M_ISIS_NOT_YET, M_ISIS_SUPPORT_OFF, M_ISIS_SHEET_CHECK, M_ISIS_NO_TXF,
     M_I1IO_AIM_CROSSES, M_I1IO_AIM_CORNERS, M_I1IO_AIM_CORNERS_UNLABELLED,
     M_I1IO_AIM_UNKNOWN, M_I1IO_AIM_PAGE_PARTS,
     M_I1IO_EDGE_MARKS_NOT_PRINTED, M_I1IO_EDGE_TEXT_NOT_PRINTED,

@@ -26508,6 +26508,14 @@ class TabChart(QWidget):
                     also_shuffled=self._settings.get("export_shuffled_pxf", False))
                 for e in extras:
                     self._log.appendPlainText(f"wrote {e.name}")
+                # an i1iSis chart (a Beta) that got no i1Profiler test chart
+                # (not RGB): said, not only logged to the file
+                from workflow.isis.support import chart_names_isis, isis_enabled
+                if (isis_enabled() and chart_names_isis(ti2) is True
+                        and not any(e.name.endswith("-i1profiler-isis.txf")
+                                    for e in extras)):
+                    from workflow import measurement_messages as _mm
+                    self._log.appendPlainText(tr(_mm.ISIS_NO_TXF_LOG))
             except Exception:  # noqa: BLE001 — never block on the sidecars
                 log.warning("chart sidecar export failed", exc_info=True)
             # If this chart was laid out in fixed order (-r "Preserve Patch

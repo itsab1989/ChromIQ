@@ -638,7 +638,7 @@ AWAITING_APPROVAL: "set[str]" = {
                                  # (charts measured in i1Profiler): Start's
                                  # two windows and the layout refusal.
                                  "M-ISIS-NOT-YET", "M-ISIS-SUPPORT-OFF",
-                                 "M-ISIS-SHEET-CHECK",
+                                 "M-ISIS-SHEET-CHECK", "M-ISIS-NO-TXF",
                                  # the same for a verification or a
                                  # calibration chart made for the table
                                  "M-I1IO-NOT-YET-BY-HAND",
