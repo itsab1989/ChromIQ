@@ -1,5 +1,31 @@
 # Changelog
 
+## v4.3.34
+
+**For everyone updating from 4.3.33: both beta options in Preferences › Beta have grown, and both are still off by default. The i1iO chart option has many more layout choices: label options, a clip border for notes, smaller and custom paper sizes, and everything you set is kept in your defaults and presets. The lights option for the X-Rite i1Pro 2 can now also show the result of every strip in green or red. Neither option has been tested by the project on real hardware yet, so please treat them as a first try; if you have an i1iO or an i1Pro 2 and would like to help test, you are very welcome. With every beta option off, ChromIQ works exactly as 4.3.33, and your charts, measurements and profiles do not change.**
+
+### New
+- **More choices for i1iO charts (beta).** With “X-Rite i1iO support (beta)” on, the i1iO chart now offers nearly every layout option the other instruments have, and its defaults stay the safe choice for the table:
+  - **Label options:** the patterns of the strip letters and patch numbers, their typeface, bold and italic, underline, alignment, offsets and text distances, and the typeface and size of the sheet text.
+  - **A clip border** for notes along one long edge of the sheet, as an option that is off by default, in Guided and in Manual mode.
+  - **More layout options in Manual mode:** the chart offset, the edge spacers, the strip length limit, the ruler helper markers and the text distances, which were greyed before, now work as for the other instruments. Only the few controls that have no meaning for the table stay greyed, and each says why.
+  - **Smaller and custom paper sizes:** besides A4 and Letter, Guided offers smaller sheets such as A5, 13 × 18 cm and 10 × 15 cm, and in Manual mode you can type any custom size up to the area the table's arm can reach. A sheet larger than A4 or Letter in one direction is built with a warning that no sheet of that size has been tried on a table yet, and a custom size typed lying down is turned upright for you, with a note in the log.
+  - **Everything is kept:** every i1iO option is saved with Save as Defaults, in presets and with each target, like the options of the other instruments, and switching from the i1iO to another instrument and back gives each one its own settings back.
+  - The letters, numbers, notes and the line with the chart's name keep at least 2 mm from each other and from the strips. When a setting may make the chart harder for the table to read, ChromIQ builds it and says so in the log, and it refuses only a layout it cannot print or the table cannot measure at all, saying why and what to change.
+- **Result signals for the lights of an X-Rite i1Pro 2 (beta).** With “X-Rite i1Pro 2 and i1Pro 3: show the instrument's state with its lights (beta)” on, there are two new choices for the i1Pro 2 in Preferences › Beta:
+  - **What the lights show:** “Ready light and result signals (green / red)” shows a softly pulsing white light while the instrument waits for you, a green blink twice after a strip or patch that ChromIQ accepted, and a red blink twice when ChromIQ wants you to look at the screen, for example to read a strip again. “Ready light only” works as in 4.3.33. If you already had the option on in 4.3.33, you keep “Ready light only” until you change it; if you switch it on now, the result signals are chosen for you.
+  - **During a reading:** “Off during a reading” (the default) switches the lights off before every calibration and reading, as in 4.3.33. “Left on during a reading” does not switch them off before a strip you read by hand, as i1Profiler does.
+
+  The patterns are the ones X-Rite's i1Profiler showed on a user's own i1Pro 2, recorded on firmware 634; the measurement log names your instrument's firmware, so you can tell us if yours differs. The lights are used only while you measure a chart with the ChromIQ chart-reading engine, not with ArgyllCMS's own chartread. The i1Pro 3 behaves as in 4.3.33, and every other instrument is unchanged.
+
+### Changed
+- **i1iO charts in Guided mode keep the line with the chart's name and page number when the aiming crosses are off.** The room the crosses used is now kept for that line, so switching the crosses off in Guided mode no longer adds patches. In Manual mode, with smaller margins, more patches can still fit.
+- **i1iO charts made with 4.3.33 open as before, but may lay out differently when you generate them again**, because the i1iO layout has new options and clearances.
+
+### For developers
+- **A guide for adding a measuring instrument** (`docs/adding_an_instrument.md`), with a strict checklist for coding agents and reviewers (`docs/adding_an_instrument_checklist.md`): what an instrument needs, in the order of the work, and how owners of an unsupported instrument can help without writing code.
+- **Three tools that compare an instrument with the others:** `tests/test_instrument_parity.py` with `scripts/instrument_parity.py` checks every Create Chart control, every saved option, instrument switching, run types and the label style against the i1Pro, with every known difference written down with its reason; `scripts/instrument_parity_drive.py` drives the same sequence in the real window for each instrument and puts the photographs side by side; and `scripts/compare_with_release.py` builds the same charts with a release and with your tree and compares every file byte for byte.
+
 ## v4.3.33
 
 **For everyone updating from 4.3.32: there are two new beta options in Preferences › Beta, both off by default. One prepares ChromIQ for the X-Rite i1iO scanning table: it makes charts for the table, and measuring with the table comes in a later version. The other lets ChromIQ switch the lights of an X-Rite i1Pro 2 or i1Pro 3 while you measure. Neither option has been tested by the project on real hardware yet, so please treat them as a first try, and if you have an i1iO, an i1Pro 2 or an i1Pro 3 and would like to help test, you are very welcome. The chart file that ChromIQ writes for i1Profiler now carries ChromIQ's patch names. With both options off, ChromIQ works exactly as before, and your charts, measurements and profiles do not change.**
