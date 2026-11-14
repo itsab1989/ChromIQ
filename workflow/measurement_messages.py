@@ -9876,12 +9876,17 @@ M_STRIP_REVERSED = _m(
     "readings of this strip were probably filed in the "
     "wrong order: patches {first} to {last} hold the readings of other "
     "patches of the strip, not their own.{middle_line}\n\n"
-    "A strip can be read in either direction, and ChromIQ files each strip "
-    "in the direction its colours fit best. When the reading slips by one or "
-    "two patches on the way, for example because the instrument took the "
-    "white paper in front of the first patch for a patch, the colours can "
-    "fit the "
-    "wrong direction better, and the strip is then filed back to front.\n\n"
+    "A strip can be read in either direction, and the reader decides from "
+    "its colours which way round to file it. That decision can go wrong: "
+    "when the reading slips by one or two patches on the way, for example "
+    "because the instrument took the white paper in front of the first "
+    "patch for a patch, or when this strip, read the other way round, looks "
+    "much like another strip of the chart. And with “Bidirectional disabled "
+    "(-B)” the reader always files a strip as if it had been read from its "
+    "first patch to its last, so a strip read from the other end is filed "
+    "back to front without a warning. Whatever the cause, what ChromIQ "
+    "found is the same: this strip matches the chart far better turned "
+    "round.\n\n"
     + _slip_tail(),
     approved=False)
 
