@@ -282,7 +282,7 @@ def test_too_fast_is_red(qapp):
 
 
 def test_nothing_is_sent_when_nothing_is_owed(qapp):
-    """Stock chartread, the i1Pro 3, the choice off, "I read strip B": the
+    """Stock chartread, the choice off, "I read strip B": the
     engine never says lights_owed, so the tab's verdict sends nothing."""
     m, runner = _manager()
     m.lights_strip_verdict(too_fast=False)
@@ -361,3 +361,99 @@ def test_both_choices_are_saved(dialog):
     dlg._save_and_close()
     assert s.get("i1pro2_lights_signals") is False
     assert s.get("i1pro2_lights_during_reading") is True
+
+
+# ---------------------------------------------------------------------------
+# The i1Pro 3 (2026-11-14): the same two choices, its own words
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("signals,reading,needles,absent", [
+    (False, "off", ["green twice after every reading the instrument took",
+                    "whether ChromIQ accepts it is shown on screen",
+                    "calibrates or measures, its lights are off"],
+     ["ChromIQ accepted"]),
+    (True, "off", ["slowly blinking white", "green twice when ChromIQ "
+                   "accepted it", "red twice", "calibrates or measures, its "
+                   "lights are off"], ["no off command"]),
+    (False, "on", ["no off command before a", "switches its lights off by "
+                   "itself", "green twice, and red twice when it could not "
+                   "take one", "While it calibrates, its lights are off"],
+     ["ChromIQ accepted", "except the first reading"]),
+    (True, "on", ["no off command before a", "green twice when ChromIQ "
+                  "accepted it", "While it calibrates, its lights are off"],
+     ["except the first reading"]),
+])
+def test_the_i1pro3_session_line_says_what_was_chosen(qapp, signals, reading,
+                                                      needles, absent):
+    m, _r = _manager()
+    lines = []
+    m._handle_engine_line(json.dumps(
+        {"event": "lights", "active": True, "instrument": "i1pro3",
+         "signals": signals, "during_reading": reading, "firmware": -1}),
+        lines.append)
+    assert len(lines) == 1 and "i1Pro 3" in lines[0]
+    for n in needles:
+        assert n in lines[0], n
+    for n in absent:
+        assert n not in lines[0], n
+    assert "\u2014" not in lines[0]
+
+
+def test_an_older_helpers_i1pro3_event_reads_as_both_choices_off(qapp):
+    """A 4.3.34 helper said only "instrument": "i1pro3" and firmware -1."""
+    m, _r = _manager()
+    lines = []
+    m._handle_engine_line(json.dumps(
+        {"event": "lights", "active": True, "instrument": "i1pro3"}),
+        lines.append)
+    assert len(lines) == 1
+    assert "green twice after every reading the instrument took" in lines[0]
+
+
+@pytest.mark.parametrize("fw,shown", [(123, "1.23"), (200, "2.00")])
+def test_the_i1pro3_firmware_is_said_with_either_choice(qapp, fw, shown):
+    m, _r = _manager()
+    lines = []
+    m._handle_engine_line(json.dumps(
+        {"event": "lights", "active": True, "instrument": "i1pro3",
+         "signals": False, "during_reading": "on", "firmware": fw}),
+        lines.append)
+    assert len(lines) == 2
+    assert f"firmware {shown}." in lines[1] and "634" not in lines[1]
+    m2, _r2 = _manager()
+    lines2 = []
+    m2._handle_engine_line(json.dumps(
+        {"event": "lights", "active": True, "instrument": "i1pro3",
+         "signals": False, "during_reading": "off", "firmware": fw}),
+        lines2.append)
+    assert len(lines2) == 1          # both off: as 4.3.34, no firmware line
+
+
+@pytest.mark.parametrize("sent,needle", [("green2", "green twice"),
+                                         ("red2", "red twice"),
+                                         ("ready", None),
+                                         ("instrument_green2", None),
+                                         ("instrument_red2", None)])
+def test_each_sent_i1pro3_pattern(qapp, sent, needle):
+    """green2/red2 are ChromIQ's verdict (result signals); the driver's own
+    verdict of "as in 4.3.33" goes to the app log only, as in 4.3.34."""
+    m, _r = _manager()
+    lines = []
+    m._handle_engine_line(json.dumps({"event": "lights", "sent": sent}),
+                          lines.append)
+    if needle is None:
+        assert lines == []
+    else:
+        assert len(lines) == 1 and needle in lines[0]
+
+
+def test_unknown_off_on_an_i1pro3_promises_no_reminder(qapp):
+    m, runner = _manager()
+    lines = []
+    m._handle_engine_line(json.dumps(
+        {"event": "lights", "active": True, "instrument": "i1pro3"}),
+        lambda _l: None)
+    m._handle_engine_line(json.dumps({"event": "lights", "state": "unknown"}),
+                          lines.append)
+    assert len(lines) == 1 and "unplug it and plug it back in" in lines[0]
+    assert "reminds you" not in lines[0]
+    assert m._lights_failed is True and m._lights_marker_live is False

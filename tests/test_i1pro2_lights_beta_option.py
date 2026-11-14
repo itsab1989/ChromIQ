@@ -148,7 +148,10 @@ def test_an_i1pro3_session_says_what_it_shows_and_writes_no_i1pro2_marker(
         {"event": "lights", "active": True, "instrument": "i1pro3"}),
         lines.append)
     assert len(lines) == 1 and "the i1Pro 3" in lines[0]
-    assert "two green blinks" in lines[0] and "\u2014" not in lines[0]
+    # 2026-11-14: both choices off = 4.3.34's i1Pro 3 behaviour, whose green
+    # and red are the instrument's own verdict
+    assert "green twice after every reading the instrument took" in lines[0]
+    assert "\u2014" not in lines[0]
     assert written == [] and m._lights_marker_live is False
     assert runner.courtesy == ['{"cmd":"lights_off_exit"}\n']
     # ...while an i1Pro 2 session does write it, as before
