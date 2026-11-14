@@ -844,6 +844,25 @@ def test_no_touch_question_after_a_stop_or_without_a_yes_at_rest(tmp_path, how):
         assert "Did you hear anything unusual" not in log, how
 
 
+def test_may_touch_itself_refuses_while_a_movement_is_unconfirmed():
+    """The guard on its own (a planted fault removing it survived the fix round's first
+    mutation pass: since S2 an unconfirmed movement never reaches the look, so the yes-at-rest
+    rule hides it). Even with a yes at rest, an unreported movement end means no touch."""
+    sim = sim_mod.SimTable()
+    r = prog.Run(tbl.Table(sim_mod.SimTransport(sim)), prog.AutoConsole(lambda k, t: None),
+                 simulated=True)
+    r.d.lines_sent, r.d.motions_sent, r.seen_at_rest = 18, 1, True
+    assert r.may_touch() is True
+    r.d.motion_unconfirmed = True
+    assert r.may_touch() is False
+    r.d.motion_unconfirmed, r.stopped_by_person = False, True
+    assert r.may_touch() is False
+    r.stopped_by_person, r.seen_at_rest = False, None
+    assert r.may_touch() is False
+    r.d.motions_sent = 0
+    assert r.may_touch() is True
+
+
 def test_the_touches_are_still_asked_when_nothing_moved(tmp_path):
     for sim, script in ((sim_mod.SimTable(cold=True), {}),
                         (sim_mod.SimTable(), {"Send it now": "no"})):
