@@ -1,14 +1,13 @@
-"""4.3.36: the i1Pro 2's paused Beta parts and the technical line of a
+"""The i1Pro 2's Beta parts since 4.3.36 and the technical line of a
 communication failure, on the app's side.
 
-The helper decides the pause (native/chartread_helper/cq_beta_pause.h; the
-wire is proved in tests/test_usb_failure_detail.py) and says so in its events;
-the app:
+4.3.36 paused both in the helper (native/chartread_helper/cq_beta_pause.h);
+4.3.37 ended the lights' pause and 4.3.38 the ruler check's, and the header
+is gone (the wire: tests/test_usb_failure_detail.py). The app:
 
-* says it once in the Measure log, with a line per paused choice, and never
-  for an i1Pro 3;
+* says the lights' quiet time once in the Measure log, never for an i1Pro 3;
 * keeps the stored choices (and the command line it passes) as they were;
-* says the ruler check is paused, and writes no diagnostics file;
+* opens an i1Pro 2 ruler session like an i1Pro 3 one, with its file;
 * writes a communication failure's USB detail into the app log and shows
   one technical line at the bottom of the Strip Read Failed window, with
   the window's buttons unchanged.
@@ -134,20 +133,23 @@ def test_the_stored_choices_and_the_command_line_are_untouched(settings):
     assert TabMeasure is not None
 
 
-def test_the_ruler_says_it_is_paused_and_writes_no_file(tmp_path):
+def test_an_i1pro2_ruler_session_is_active_and_writes_its_file(tmp_path):
+    """4.3.38: the ruler check is back for the i1Pro 2 (4.3.36 and 4.3.37
+    paused it): an active session opens as for the i1Pro 3, and the "paused"
+    line is gone from the app."""
+    import inspect
+    from workflow import ruler_session
     from workflow.ruler_session import RulerSession
+    assert '"paused"' not in inspect.getsource(ruler_session)
     ti1 = tmp_path / "runs" / "run1" / "chart.ti1"
     ti1.parent.mkdir(parents=True)
     ti1.write_text("CTI1\n", encoding="utf-8")
     rs = RulerSession(ti1_path=ti1, verification=False)
-    lines = rs.on_session({"event": "ruler", "active": False,
-                           "why": "paused", "instrument": "i1pro2"})
-    assert len(lines) == 1
-    assert "paused for the i1Pro 2" in lines[0]
-    assert "exactly as it is without the option" in lines[0]
-    assert "On an i1Pro 3 the ruler check works as before." in lines[0]
-    assert rs.on_end() == []
-    assert not list(tmp_path.rglob("ruler_diagnostics_*"))
+    lines = rs.on_session({"event": "ruler", "active": True,
+                           "instrument": "i1pro2", "firmware": 634,
+                           "sensor": True, "argyll": "3.5.0"})
+    assert lines and not any("paused" in ln for ln in lines)
+    assert rs.active and rs.diagnostics_path() is not None
 
 
 # ---------------------------------------------------------------------------

@@ -34,9 +34,6 @@
 #include "inst.h"
 #include "i1pro.h"
 #include "i1pro_imp.h"
-#ifndef CQ_V4333
-#include "cq_beta_pause.h"	/* 4.3.36: the choices an i1Pro 2 is given */
-#endif
 #ifdef CQ_WATCHED
 #include "chromiq_usbwatch.h"	/* 4.3.36: the helper's read-only USB watch */
 #endif
@@ -493,16 +490,18 @@ int main(void) {
 		}
 		fwrev = 634;
 	}
-	/* 4.3.36: every stored combination, through the helper's own mapping
-	 * (cq_beta_pause.h): an i1Pro 2 is given both choices off, so each life
-	 * must be 4.3.33's (the fixture's on_ready_off). */
+	/* Every stored combination as the helper hands it on. 4.3.36 and 4.3.37
+	 * mapped an i1Pro 2 to both choices off here (cq_beta_pause.h); since
+	 * 4.3.38 it is given what was asked, so each life must be the one of the
+	 * same combination in the paths above. */
 	{
 		static char pnames[4][32];
 		int c, s2, l2;
 		for (c = 0; c < 4; c++) {
 			snprintf(pnames[c], 32, "v4336_%s_%s", c & 1 ? "signals" : "ready",
 			         c & 2 ? "lefton" : "off");
-			cq_lights_choices_for(2, c & 1, (c >> 1) & 1, &s2, &l2);
+			s2 = c & 1;
+			l2 = (c >> 1) & 1;		/* 4.3.38: no pause any more: as asked */
 			life(pnames[c], instI1Pro2, 1, s2, l2);
 		}
 	}
