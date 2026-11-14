@@ -747,6 +747,9 @@ class LayoutOptionsPanel(QWidget):
     def _isis_letters_toggled(self, on: bool) -> None:
         self._isis_call("_isis_letters_toggled", on)
 
+    def _isis_mode_changed(self, *_a) -> None:
+        self._isis_call("_isis_mode_changed")
+
     @staticmethod
     def mode_label_for(inst: str) -> str:
         """The selector's label — it isn't really a generic "Mode" (#93, Knut):

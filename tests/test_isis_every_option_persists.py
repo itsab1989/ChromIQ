@@ -115,3 +115,51 @@ def test_manuals_panel_shows_and_gives_back_every_option(qapp):
     finally:
         p.deleteLater()
         qapp.processEvents()
+
+
+def _choose(p, qapp, code):
+    i = p.instr.findData(code)
+    p.instr.setCurrentIndex(i)
+    p.instr.activated.emit(i)
+    qapp.processEvents()
+
+
+def test_the_i1iSis_keeps_its_own_mode_and_strip_letters(qapp):
+    """Choosing the i1iSis after another instrument gives ITS defaults
+    (patch-first at 6 x 6 mm, no strip letters, as i1Profiler), not the
+    other instrument's; what the person sets for the i1iSis comes back
+    with it, and the other instrument gets its own back."""
+    from ui.dialogs.layout_options_panel import LayoutOptionsPanel
+    p = LayoutOptionsPanel(with_selectors=True)
+    try:
+        _choose(p, qapp, "i1")
+        i1 = p.get_recipe()
+        _choose(p, qapp, "XRISIS")
+        r = p.get_recipe()
+        assert r.layout_mode == "patch_first"
+        assert r.show_strip_indicators is False
+        assert (r.patch_w_mm, r.patch_h_mm) == (6.0, 6.0)
+        # the person's own choices for the i1iSis
+        p.layout_mode.setCurrentIndex(p.layout_mode.findData("area_first"))
+        p.show_indicators.setChecked(True)
+        qapp.processEvents()
+        _choose(p, qapp, "i1")
+        back = p.get_recipe()
+        assert back.layout_mode == i1.layout_mode
+        assert back.show_strip_indicators == i1.show_strip_indicators
+        _choose(p, qapp, "XRISIS")
+        r = p.get_recipe()
+        assert r.layout_mode == "area_first"
+        assert r.show_strip_indicators is True
+        # a preset for the i1iSis loaded from another instrument: its own
+        # values win
+        _choose(p, qapp, "i1")
+        p.set_recipe(_recipe(layout_mode="patch_first",
+                             show_strip_indicators=False))
+        qapp.processEvents()
+        r = p.get_recipe()
+        assert (r.instrument, r.layout_mode, r.show_strip_indicators) == \
+            ("XRISIS", "patch_first", False)
+    finally:
+        p.deleteLater()
+        qapp.processEvents()

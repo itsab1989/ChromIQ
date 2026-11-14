@@ -235,6 +235,9 @@ class IsisPanelMixin:
         si = getattr(self, "show_indicators", None)
         if si is not None:
             si.toggled.connect(self._isis_letters_toggled)
+        lm = getattr(self, "layout_mode", None)
+        if lm is not None:
+            lm.currentIndexChanged.connect(self._isis_mode_changed)
         self._isis_align = ""
         self._isis_saved = None
         parent_layout.addWidget(g)
@@ -249,6 +252,12 @@ class IsisPanelMixin:
         self._update_clip_visibility()
         if not getattr(self, "_loading", False):
             self._emit()
+
+    def _isis_mode_changed(self, *_a) -> None:
+        # the mode chosen while the i1iSis is chosen is its own (entering
+        # and leaving set it while _isis_saved is None)
+        if self._isis_saved is not None:
+            self._isis_own_mode = self.layout_mode.currentData()
 
     def _isis_letters_toggled(self, on: bool) -> None:
         # a tick while the i1iSis is chosen is its own, whether the person
@@ -333,6 +342,17 @@ class IsisPanelMixin:
                     # i1iSis's own (`_isis_letters_toggled`)
                     si.setChecked(bool(getattr(self, "_isis_own_letters",
                                                False)))
+                # patch-first by default (i1Profiler's 6 x 6 mm), whatever
+                # mode the instrument before had; the person's own mode
+                # for the i1iSis comes back with it, and a recipe being
+                # loaded sets its mode after this (`_set_recipe_impl`)
+                lm = getattr(self, "layout_mode", None)
+                if lm is not None:
+                    saved["layout_mode"] = lm.currentIndex()
+                    i = lm.findData(getattr(self, "_isis_own_mode", None)
+                                    or "patch_first")
+                    if i >= 0:
+                        lm.setCurrentIndex(i)
                 pa = getattr(self, "patch_align", None)
                 if pa is not None:
                     saved["align"] = pa.currentIndex()
@@ -369,6 +389,9 @@ class IsisPanelMixin:
             si = getattr(self, "show_indicators", None)
             if si is not None and "show_indicators" in was:
                 si.setChecked(was["show_indicators"])
+            lm = getattr(self, "layout_mode", None)
+            if lm is not None and "layout_mode" in was:
+                lm.setCurrentIndex(was["layout_mode"])
         finally:
             self._loading = was_loading
 
