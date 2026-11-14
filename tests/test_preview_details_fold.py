@@ -329,3 +329,39 @@ def test_the_badge_reads_on_its_own_ground():
         return 0.2126 * r + 0.7152 * g + 0.0722 * b
     for c in (BADGE_RED, BADGE_GREEN):
         assert 1.05 / (lum(c) + 0.05) >= 4.5, c
+
+
+@pytest.mark.parametrize("lang", ["en", "de", "ru"])
+def test_a_narrow_row_keeps_the_page_text_whole(qapp, settings, one_page_tif,
+                                                lang):
+    """In the smallest window the worded buttons and the page text did not
+    fit (the page text ran under a button, the other left the window): the
+    buttons then show their arrows only, nothing overlaps, and the words
+    come back when there is room."""
+    from core.i18n import set_language, tr
+    set_language(lang)
+    try:
+        w = _window(qapp, settings, (900, 951))
+        try:
+            _show_chart(qapp, w, one_page_tif, pages=10)
+            prev = w._tab_chart._preview
+            for _ in range(10):
+                qapp.processEvents()
+            p, lab, n = (prev._prev_btn.geometry(),
+                         prev._page_label.geometry(),
+                         prev._next_btn.geometry())
+            assert p.right() < lab.left() and lab.right() < n.left(), (
+                "the page text and a button overlap")
+            assert n.right() <= prev._nav.width(), "a button left the row"
+            text = prev._page_label.text()
+            assert lab.width() >= prev._page_label.fontMetrics(
+                ).horizontalAdvance(text), "the page text is cut"
+            w.resize(1500, 1000)
+            for _ in range(10):
+                qapp.processEvents()
+            assert prev._prev_btn.text() == tr("‹ Prev")
+            assert prev._next_btn.text() == tr("Next ›")
+        finally:
+            w.close()
+    finally:
+        set_language("en")

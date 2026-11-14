@@ -4383,7 +4383,57 @@ class TiffPreview(QWidget):
             self._page_label.setMinimumWidth(0)
         self._prev_btn.setEnabled(self._current > 0)
         self._next_btn.setEnabled(self._current < n - 1)
+        self._fit_nav_to_width()
         self.pages_shown.emit(n)
+
+    #: The page buttons' labels in the compact row, and their width there.
+    _NAV_COMPACT = ("‹", "›")
+    _NAV_COMPACT_W = 40
+
+    def _fit_nav_to_width(self) -> None:
+        """Words on the page buttons when the row has room for them, the
+        arrows alone when it has not (2026-11-14). In a narrow window
+        (900 px wide, the right pane 316 px) the two worded buttons and the
+        page text needed more than the row had, so the page text ran under
+        a button and the other button left the window: measured in Russian,
+        and in every language once the buttons stand together. The page text
+        keeps its full width either way; the words go to the tooltips."""
+        prev = getattr(self, "_prev_btn", None)
+        nxt = getattr(self, "_next_btn", None)
+        nav = getattr(self, "_nav", None)
+        if prev is None or nxt is None or nav is None or sip.isdeleted(nav):
+            return
+        full = (tr("‹ Prev"), tr("Next ›"))
+        if not getattr(self, "_nav_compact", False):
+            # measured in the worded state, so the app's own button style
+            # (its minimum width and padding) is in the number
+            self._nav_full_w = max(prev.sizeHint().width(),
+                                   nxt.sizeHint().width(), 84)
+        lay = nav.layout()
+        m = lay.contentsMargins()
+        need = (2 * getattr(self, "_nav_full_w", 84)
+                + self._page_label.minimumWidth()
+                + 2 * lay.spacing() + m.left() + m.right())
+        compact = nav.width() < need and prev.isVisible()
+        if compact == getattr(self, "_nav_compact", False):
+            return
+        self._nav_compact = compact
+        for btn, word, arrow in ((prev, full[0], self._NAV_COMPACT[0]),
+                                 (nxt, full[1], self._NAV_COMPACT[1])):
+            if compact:
+                # the app's own sheet for the worded button (its per-label
+                # minimum width, `fit_button_width`) comes back with the words
+                btn.setProperty("_nav_full_qss", btn.styleSheet())
+                btn.setText(arrow)
+                btn.setToolTip(word.replace("‹", "").replace("›", "").strip())
+                btn.setStyleSheet("QPushButton { min-width: 0px;"
+                                  " padding-left: 0px; padding-right: 0px; }")
+                btn.setFixedWidth(self._NAV_COMPACT_W)
+            else:
+                btn.setText(word)
+                btn.setToolTip("")
+                btn.setFixedWidth(84)
+                btn.setStyleSheet(btn.property("_nav_full_qss") or "")
 
     def _hand_over_nav_focus(self, visible: bool, prev_ok: bool,
                              next_ok: bool) -> None:
@@ -7462,6 +7512,7 @@ class TiffPreview(QWidget):
         QTimer.singleShot(0, self._reconcile_legend_hover)
         self._place_print_chip()
         self._place_render_badge()
+        self._fit_nav_to_width()
 
     def showEvent(self, event) -> None:  # type: ignore[override]
         super().showEvent(event)
