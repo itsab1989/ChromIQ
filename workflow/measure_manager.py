@@ -942,6 +942,9 @@ class MeasureManager(QObject):
         self._lights_owed_n = None
         #: "i1pro2" or "i1pro3": the instrument whose lights this session uses.
         self._lights_instrument = "i1pro2"
+        #: 4.3.37: the i1Pro 2's driver held a trigger for the quiet time; the
+        #: Measure log says so once per session.
+        self._lights_held_said = False
         #: External values (-x): ChromIQ reads the instrument itself and the
         #: helper opens none. Kept because the SAVE-AND-STOP path differs — see
         #: `save_partial_and_quit`.
@@ -3358,6 +3361,24 @@ class MeasureManager(QObject):
         light request failed or the lights were switched off. Only ever seen
         when the option is on (the helper is started with --i1pro2-lights)."""
         from core import i1pro2_lights_marker as _marker
+        if "held_ms" in ev:
+            # 4.3.37 (RULE B): a trigger waited until the quiet time after a
+            # light write had passed. Every one in the app log; once in the
+            # Measure log.
+            log.info("i1Pro 2 lights: a measurement waited %s ms for the "
+                     "quiet time after a light change", ev.get("held_ms"))
+            if not getattr(self, "_lights_held_said", False):
+                self._lights_held_said = True
+                on_line(tr(
+                    "[Engine] Instrument lights (beta): ChromIQ let the "
+                    "i1Pro 2 wait a moment before it measured, because its "
+                    "light had just changed. This is on purpose: a tester's "
+                    "i1Pro 2 lost readings that started right after a light "
+                    "change, so ChromIQ now always leaves about two seconds "
+                    "between the two. You do not need to do anything; if you "
+                    "pressed the button, the reading simply starts a little "
+                    "later."))
+            return
         sent = ev.get("sent")
         if sent:
             # Every sequence the i1Pro 2's driver sent (2026-11-13), and every
@@ -3459,18 +3480,8 @@ class MeasureManager(QObject):
                         "this number.").format(fw=f"{fw / 100:.2f}"))
             else:
                 on_line(self._i1pro2_lights_line(signals, left_on))
-                # 4.3.36: the choices the helper did not give this i1Pro 2
-                # (native/chartread_helper/cq_beta_pause.h). The stored
-                # choices are not changed.
-                paused_line = self._i1pro2_paused_line(
-                    bool(ev.get("paused_signals")),
-                    bool(ev.get("paused_during_reading")))
-                if paused_line:
-                    log.info("i1Pro 2 lights: paused in this version "
-                             "(signals %s, left on %s)",
-                             bool(ev.get("paused_signals")),
-                             bool(ev.get("paused_during_reading")))
-                    on_line(paused_line)
+                # (4.3.36's "paused" line is gone: since 4.3.37 the helper
+                # pauses no lights choice; the i1Pro 2's sequence was rebuilt.)
                 # With either choice, which firmware this instrument has: the
                 # patterns were recorded on 634 (2026-11-14: no firmware gate,
                 # so a tester's report says which one they ran on).
@@ -3543,79 +3554,33 @@ class MeasureManager(QObject):
             "ChromIQ accepts it is shown on screen.")
 
     @staticmethod
-    def _i1pro2_paused_line(signals: bool, left_on: bool) -> str:
-        """4.3.36: the Measure log's line when the helper did not give an
-        i1Pro 2 a stored choice (cq_beta_pause.h), "" when nothing was
-        paused. A tester's real i1Pro 2 lost its connection on the strip
-        after every accepted one with the result signals on."""
-        if signals and left_on:
-            return tr(
-                "[Engine] Instrument lights (beta): in this version the green "
-                "/ red result signals and “Left on during a reading” are "
-                "paused for the i1Pro 2, because a tester found that with "
-                "them a reading can end with “The instrument lost "
-                "communication with the computer”. Your i1Pro 2 shows the "
-                "ready light as before: white while it waits for you, and no "
-                "light while it calibrates or measures. Your choices stay "
-                "saved for when these come back. The i1Pro 3 is not "
-                "affected.")
-        if signals:
-            return tr(
-                "[Engine] Instrument lights (beta): in this version the green "
-                "/ red result signals are paused for the i1Pro 2, because a "
-                "tester found that with them a reading can end with “The "
-                "instrument lost communication with the computer”. Your "
-                "i1Pro 2 shows the ready light as before: white while it "
-                "waits for you, and no light while it calibrates or measures. "
-                "Your choice stays saved for when they come back. The i1Pro 3 "
-                "is not affected.")
-        if left_on:
-            return tr(
-                "[Engine] Instrument lights (beta): in this version “Left on "
-                "during a reading” is paused for the i1Pro 2. A tester found "
-                "that a closely related light step can end a reading with "
-                "“The instrument lost communication with the computer”, so "
-                "to be on the safe side your i1Pro 2 switches its lights off "
-                "for every calibration and reading, as before, and shows "
-                "white while it waits for you. Your choice stays saved for "
-                "when it comes back. The i1Pro 3 is not affected.")
-        return ""
-
-    @staticmethod
     def _i1pro2_lights_line(signals: bool, left_on: bool) -> str:
-        """The Measure log's line when an i1Pro 2 session uses the lights,
-        worded for the two choices (2026-11-13)."""
-        if signals and left_on:
-            return tr(
-                "[Engine] Instrument lights (beta): on. The i1Pro 2 shows a "
-                "softly pulsing white while it waits for you. As X-Rite's "
-                "i1Profiler does, ChromIQ sends it no off command before a "
-                "reading (except the first reading after connecting, if no "
-                "calibration was needed): the instrument most likely dims "
-                "its lights by itself while it measures. After a "
-                "reading it blinks green twice when ChromIQ accepted it, and "
-                "red twice when ChromIQ asks you to look at the screen or to "
-                "read it again. While it calibrates, its lights are off.")
+        """The Measure log's line when an i1Pro 2 session uses the lights
+        (4.3.37: i1Profiler's hand-held order; "During a reading" makes no
+        difference on an i1Pro 2, so *left_on* is not part of the text)."""
         if signals:
             return tr(
-                "[Engine] Instrument lights (beta): on. The i1Pro 2 shows a "
-                "softly pulsing white while it waits for you. After a reading "
-                "it blinks green twice when ChromIQ accepted it, and red twice "
-                "when ChromIQ asks you to look at the screen or to read it "
-                "again. While it calibrates or measures, its lights are off.")
-        if left_on:
-            return tr(
-                "[Engine] Instrument lights (beta): on. The i1Pro 2 shows a "
-                "softly pulsing white while it waits for you. As X-Rite's "
-                "i1Profiler does, ChromIQ sends it no off command before a "
-                "reading (except the first reading after connecting, if no "
-                "calibration was needed): the instrument most likely dims "
-                "its lights by itself while it measures. While it "
-                "calibrates, its lights are off.")
+                "[Engine] Instrument lights (beta): on. The i1Pro 2 shows "
+                "white when ChromIQ connects to it, its lights go off while it "
+                "calibrates, and afterwards it shows a softly pulsing white. "
+                "After a reading it blinks green twice when ChromIQ accepted "
+                "it, and red twice when ChromIQ asks you to look at the screen "
+                "or to read it again. As X-Rite's i1Profiler does, ChromIQ "
+                "sends no light command while you read: the instrument "
+                "measures with whatever light it shows. After every light "
+                "change ChromIQ leaves about two seconds before the instrument "
+                "measures. This way of using the lights has not yet been "
+                "confirmed on a real i1Pro 2.")
         return tr(
-            "[Engine] Instrument lights (beta): on. The i1Pro 2 shows "
-            "white while it waits for you and switches its lights off "
-            "while it calibrates or measures.")
+            "[Engine] Instrument lights (beta): on. The i1Pro 2 shows white "
+            "when ChromIQ connects to it, its lights go off while it "
+            "calibrates, and afterwards it shows a softly pulsing white. As "
+            "X-Rite's i1Profiler does, ChromIQ sends no light command while "
+            "you read: the instrument measures with whatever light it shows, "
+            "and afterwards the light stays as the instrument shows it. After "
+            "every light change ChromIQ leaves about two seconds before the "
+            "instrument measures. This way of using the lights has not yet "
+            "been confirmed on a real i1Pro 2.")
 
     def lights_strip_verdict(self, too_fast: bool) -> None:
         """The Measure tab's one verdict on an accepted strip (the strip cue,

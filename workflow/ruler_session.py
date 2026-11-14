@@ -202,7 +202,12 @@ class RulerSession:
         if result == "read":
             self.pending = (strip, rec, f)
         else:
-            self._write(rec, strip, f, "refused")
+            # A strip the reader refused (it could not find the patches) is
+            # the most useful case for the ruler work (4.3.37): filed with the
+            # driver's own reason, same privacy as every other entry.
+            self._write(rec, strip, f, "refused",
+                        {"refused_because": str(rec.get("reason") or "")
+                         or result})
         return lines
 
     def on_strip_read(self, ev: dict, *, other_question: bool) -> "dict | None":

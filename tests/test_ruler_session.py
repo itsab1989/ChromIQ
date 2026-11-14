@@ -338,3 +338,17 @@ def test_the_steps_line_names_the_part_over_the_patches_too(tmp_path):
     rs, _ = _session(tmp_path)
     line = rs.on_strip(_rec("A", 340))[0]
     assert "ruler steps in all, about " in line and "of them over the patches" in line
+
+
+def test_a_refused_strip_keeps_why_it_was_refused(tmp_path):
+    """4.3.37: the driver's reason for a strip it could not read goes into
+    the diagnostics file with the strip (the most useful case)."""
+    rs, _lines = _session(tmp_path)
+    rec = _rec("A", 60, result="misread")
+    rec["reason"] = "Not enough patches"
+    rs.on_strip(rec)
+    rs.flush()
+    doc = json.loads(rs.diagnostics_path().read_text(encoding="utf-8"))
+    st = doc["strips"][0]
+    assert st["verdict"] == "refused"
+    assert "Not enough patches" in json.dumps(st)
