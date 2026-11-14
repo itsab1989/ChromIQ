@@ -366,8 +366,7 @@ def test_the_row_is_off_and_says_what_it_does(dialog):
                    "i1Pro 3 Plus", "he saw them as green twice and red twice",
                    "Nobody has seen them with ChromIQ yet",
                    "after a single patch that was accepted",
-                   "only say whether the instrument itself could take a "
-                   "reading",
+                   "only tell you that the instrument itself took a reading",
                    "During a reading (i1Pro 2 and i1Pro 3)",
                    "flashes green once when you press its button",
                    "Both choices apply to the i1Pro 2 and to the i1Pro 3",
@@ -388,7 +387,14 @@ def test_the_row_is_off_and_says_what_it_does(dialog):
                    "measure when “Off during a reading” is chosen",
                    # the two choices (2026-11-13)
                    "Ready light and result signals", "green twice",
-                   "red twice", "recorded on firmware 634", "As in ChromIQ 4.3.33",
+                   "red twice", "recorded on firmware 634",
+                   "With “Ready light; the instrument's own green / red”, an "
+                   "i1Pro 2 shows only a ready light",
+                   "If you switched this on in ChromIQ 4.3.34 and use an "
+                   "i1Pro 3", "the default then",
+                   "Green and red now follow ChromIQ's verdict on the strip",
+                   "to keep what your i1Pro 3 showed before",
+                   "not tell you whether ChromIQ accepted the strip",
                    "except", "first reading after connecting",
                    "Off during a reading", "the cautious choice",
                    "Left on during a reading",

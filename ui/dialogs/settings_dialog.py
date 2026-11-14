@@ -3637,7 +3637,7 @@ class SettingsDialog(QDialog):
             tr("What the lights show:"), self)
         self._lights_signals_combo = QComboBox(self)
         self._lights_signals_combo.addItem(
-            tr("As in ChromIQ 4.3.33 (i1Pro 2: ready light only)"), False)
+            tr("Ready light; the instrument's own green / red (i1Pro 3)"), False)
         self._lights_signals_combo.addItem(
             tr("Ready light and result signals (green / red)"), True)
         self._lights_signals_label.setBuddy(self._lights_signals_combo)
@@ -9146,8 +9146,8 @@ def i1pro2_lights_help() -> str:
            "on a user's own i1Pro 2, recorded on firmware 634. The measurement "
            "log shows your instrument's firmware: if it is another one, please "
            "tell us whether the lights behave as described."),
-        tr("**With “As in ChromIQ 4.3.33”, an i1Pro 2 shows only a ready "
-           "light:**\n"
+        tr("**With “Ready light; the instrument's own green / red”, an "
+           "i1Pro 2 shows only a ready light, as in ChromIQ 4.3.33:**\n"
            "  •  white while it waits for you, for example for you to press "
            "its button and read the next strip;\n"
            "  •  no light while it calibrates or measures;\n"
@@ -9174,12 +9174,19 @@ def i1pro2_lights_help() -> str:
            "patch that was accepted. The measurement log shows your "
            "instrument's firmware: please tell us the number if you report "
            "anything."),
-        tr("**With “As in ChromIQ 4.3.33”, an i1Pro 3 shows** the same "
-           "patterns, but green and red then only say whether the instrument "
-           "itself could take a reading: green twice after every reading it "
-           "took, red twice when it could not take one (for example a strip "
-           "swiped too quickly). Whether ChromIQ accepts a reading for your "
-           "chart is then shown on screen only."),
+        tr("**With “Ready light; the instrument's own green / red”, an "
+           "i1Pro 3 shows** the ready light and the same green and red as in "
+           "ChromIQ 4.3.34, but green and red then only tell you that the "
+           "instrument itself took a reading (green twice) or could not take "
+           "one (red twice, for example a strip swiped too quickly). They do "
+           "not tell you whether ChromIQ accepted the strip: that is shown on "
+           "screen only."),
+        tr("**If you switched this on in ChromIQ 4.3.34 and use an i1Pro 3:** "
+           "your i1Pro 3 now uses “Ready light and result signals”, the "
+           "default then (in 4.3.34 this choice applied to the i1Pro 2 only). "
+           "Green and red now follow ChromIQ's verdict on the strip. Choose "
+           "“Ready light; the instrument's own green / red” to keep what your "
+           "i1Pro 3 showed before."),
         tr("**During a reading (i1Pro 2 and i1Pro 3):**\n"
            "  •  “Off during a reading” (the default) sends the instrument an "
            "“off” command before every calibration and every reading, as "
@@ -9224,8 +9231,9 @@ def i1pro2_lights_help() -> str:
            "own instruments. ChromIQ sends only light commands seen in those "
            "recordings, each at the moment i1Profiler sent it, and on "
            "the i1Pro 3 also the “off” that ArgyllCMS itself sends whenever it "
-           "connects. Some things are ChromIQ's own choice: with “As in "
-           "ChromIQ 4.3.33”, the i1Pro 2 shows white again after every reading "
+           "connects. Some things are ChromIQ's own choice: with “Ready light; "
+           "the instrument's own green / red”, the i1Pro 2 shows white again "
+           "after every reading "
            "(its recording was made on a measuring table, where i1Profiler "
            "kept the lights dark); before every calibration, and with “Off "
            "during a reading” before every reading, both instruments get an "

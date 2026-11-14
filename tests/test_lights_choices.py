@@ -342,13 +342,16 @@ def test_the_items_say_which_is_4_3_33(dialog):
     dlg, _s = dialog
     sig = [dlg._lights_signals_combo.itemText(i) for i in range(2)]
     rd = [dlg._lights_reading_combo.itemText(i) for i in range(2)]
-    assert "4.3.33" in sig[0] and "green / red" in sig[1]
+    assert "green / red" in sig[1]
     assert "4.3.33" in rd[0] and "i1Profiler" in rd[1]
     # 2026-11-14: both choices apply to the i1Pro 2 and the i1Pro 3, so the
     # labels name no instrument; item 0 says what it means on an i1Pro 2.
     assert dlg._lights_signals_label.text() == "What the lights show:"
     assert dlg._lights_reading_label.text() == "During a reading:"
-    assert "i1Pro 2: ready light only" in sig[0]
+    # 2026-11-14 review item 4: no version number in the first item; it names
+    # what it shows (an i1Pro 2: the ready light; an i1Pro 3: its own green
+    # / red as well), so a stored 4.3.34 choice still reads as chosen.
+    assert sig[0] == "Ready light; the instrument's own green / red (i1Pro 3)"
     for t in sig + rd:
         assert "—" not in t
 
