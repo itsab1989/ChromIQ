@@ -338,12 +338,19 @@ def test_the_rows_are_greyed_until_the_lights_are_on(dialog):
     assert dlg._lights_reading_combo.isEnabled() is True
 
 
-def test_the_items_say_which_is_4_3_33(dialog):
+def test_the_items_say_what_they_are(dialog):
     dlg, _s = dialog
     sig = [dlg._lights_signals_combo.itemText(i) for i in range(2)]
     rd = [dlg._lights_reading_combo.itemText(i) for i in range(2)]
     assert "green / red" in sig[1]
-    assert "4.3.33" in rd[0] and "i1Profiler" in rd[1]
+    # Combined review of 4.3.35: "(as in ChromIQ 4.3.33)" was wrong for the
+    # i1Pro 3, so the first item names what it is, and no version. Its data
+    # (False) and the settings key are unchanged: a stored 4.3.34 choice
+    # still selects it.
+    assert rd[0] == "Off during a reading (the cautious choice)"
+    assert dlg._lights_reading_combo.itemData(0) is False
+    assert "i1Profiler" in rd[1]
+    assert not any(ch.isdigit() for ch in rd[0])
     # 2026-11-14: both choices apply to the i1Pro 2 and the i1Pro 3, so the
     # labels name no instrument; item 0 says what it means on an i1Pro 2.
     assert dlg._lights_signals_label.text() == "What the lights show:"

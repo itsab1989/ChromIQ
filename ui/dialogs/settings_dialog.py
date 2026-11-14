@@ -3651,7 +3651,7 @@ class SettingsDialog(QDialog):
             tr("During a reading:"), self)
         self._lights_reading_combo = QComboBox(self)
         self._lights_reading_combo.addItem(
-            tr("Off during a reading (as in ChromIQ 4.3.33)"), False)
+            tr("Off during a reading (the cautious choice)"), False)
         self._lights_reading_combo.addItem(
             tr("Left on during a reading (as i1Profiler does by hand)"), True)
         self._lights_reading_label.setBuddy(self._lights_reading_combo)
@@ -9249,7 +9249,8 @@ def i1pro2_lights_help() -> str:
         tr("**During a reading (i1Pro 2 and i1Pro 3):**\n"
            "  •  “Off during a reading” (the default) sends the instrument an "
            "“off” command before every calibration and every reading, as "
-           "ChromIQ 4.3.33 does. This is the cautious choice: ChromIQ makes "
+           "ChromIQ did before this choice existed. This is the cautious "
+           "choice: ChromIQ makes "
            "sure the lights are dark while it measures.\n"
            "  •  “Left on during a reading” sends no “off” command before a "
            "strip or patch you read by hand, as i1Profiler does. On an i1Pro 2 "

@@ -662,7 +662,8 @@ it on hardware.
 
 The two Preferences choices of the option (now labelled "What the lights
 show" and "During a reading", same settings keys) apply to the i1Pro 3 and
-i1Pro 3 Plus too. With both at "as in ChromIQ 4.3.33" the i1Pro 3 receives
+i1Pro 3 Plus too. With "Ready light; the instrument's own green / red (i1Pro 3)" and "Off
+during a reading (the cautious choice)" the i1Pro 3 receives
 byte for byte what 4.3.34 sent (`tests/test_i1pro3_lights_modes.py` against a
 trace of the 4.3.34 driver), and the i1Pro 2 receives what 4.3.34 sent in all
 four combinations. Every ending above is unchanged, with one addition: the

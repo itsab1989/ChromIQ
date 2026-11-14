@@ -3,7 +3,8 @@ the (fake) USB wire in one whole i1Pro 2 life and one whole i1Pro 3 life.
 
 After 4.3.34 the lights Beta's two choices (result signals, lights left on
 during a reading) also apply to the i1Pro 3 (2026-11-14). The owner's rule:
-with the option off, and with both choices at "as in ChromIQ 4.3.33", nothing
+with the option off, and with both choices at the first ("Ready light; the instrument's own green /
+red (i1Pro 3)", "Off during a reading (the cautious choice)"), nothing
 may change on the wire; and the i1Pro 2 must behave as in 4.3.34 in all four
 combinations. This script takes i1pro.c, i1pro_imp.c, i1pro_imp.h, i1pro3.c,
 i1pro3_imp.c and i1pro3_imp.h from git at the v4.3.34 tag, builds

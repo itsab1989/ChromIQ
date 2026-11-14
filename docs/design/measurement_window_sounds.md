@@ -310,7 +310,7 @@ the tester as green twice) where the i1Pro 2 shows GREEN2, BAD
 (`01 fa 04 12 05 00`) where it shows PULSE. The lights play no sound and
 change no sound.
 
-| moment | "as in ChromIQ 4.3.33" (= 4.3.34) | "Ready light and result signals" | who decides |
+| moment | "Ready light; the instrument's own green / red" (= 4.3.34) | "Ready light and result signals" | who decides |
 |---|---|---|---|
 | a calibration returned | READY | READY | driver |
 | a reading returned (the instrument took it / could not) | GOOD / BAD | nothing | driver |
