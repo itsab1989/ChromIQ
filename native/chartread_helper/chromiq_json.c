@@ -553,13 +553,14 @@ void cq_lights_drop_verdict(void) {
 	cq_lock_give();
 }
 
-int cq_cmd_take_key(void) {
-	int k;
-	/* The i1Pro 2 lights (Beta): a {"cmd":"lights_off_exit"}, or the end of
-	 * stdin, is carried out here, on the thread that drives the instrument,
-	 * between two of its requests. cq_lights_service is NULL unless the
-	 * lights are in use; the exit is honoured either way, because ChromIQ
-	 * would otherwise kill the process at this point. */
+/* The i1Pro 2 lights (Beta): a {"cmd":"lights_off_exit"}, or the end of
+ * stdin, is carried out here, on the thread that drives the instrument,
+ * between two of its requests (cq_cmd_take_key), and since 4.3.37 also while
+ * the driver holds a trigger for the quiet time (i1pro2_cq_lights_hold_poll):
+ * ChromIQ ends the process 1 s after asking, and a hold lasts up to 2.1 s.
+ * cq_lights_service is NULL unless the lights are in use; the exit is
+ * honoured either way, because ChromIQ would otherwise kill the process. */
+void cq_lights_take_pending(void) {
 	if (cq_lights_off_pending) {
 		void (*svc)(void) = cq_lights_service;
 		int req = cq_lights_off_pending;
@@ -569,6 +570,11 @@ int cq_cmd_take_key(void) {
 		if (req == CQ_LIGHTS_REQ_EXIT)
 			cq_end_process_like_a_kill();
 	}
+}
+
+int cq_cmd_take_key(void) {
+	int k;
+	cq_lights_take_pending();
 	cq_lock_take();
 	k = cq_pending_key;
 	cq_pending_key = CQ_KEY_NONE;

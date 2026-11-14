@@ -223,3 +223,51 @@ def test_option_off_never_waits_or_writes():
     first = body.index("m->cq_lights == CQ_LIGHTS_UNUSED)")
     assert first < body.index("cq_lights_quiet(m)")
     assert first < body.index("cq_lights_send(")
+
+
+# ---------------------------------------------------------------------------
+# Stop during a hold (4.3.37 review, M3)
+# ---------------------------------------------------------------------------
+def test_stop_during_a_hold_switches_the_lights_off_at_once(runs):
+    """ChromIQ asks the helper to switch the lights off and end, and kills it
+    1 s later; a hold lasts up to 2.1 s. The hold now asks the helper every
+    20 ms, so the off goes out during the hold, the lights are reported off
+    (the app then removes its "lights may still be on" marker), and a
+    trigger after it still waits the quiet time."""
+    lines = _lines(runs["i1pro2_lights_modes_test"], "stop_in_hold")
+    i = lines.index("STEP stop-requested")
+    j = lines.index("STEP read-dark", 0)
+    assert j < i                              # inside the strip's hold
+    assert lines[i + 1].startswith("CTL d6 0000000f")      # OFF_NOW
+    assert lines[i + 3] == "LIGHTS-END 1"     # known off: the marker goes
+    gaps = [int(ln.split()[1]) for ln in lines[i:] if ln.startswith("GAPMS")]
+    assert gaps and min(gaps) >= 150
+
+
+def test_the_helper_carries_out_a_stop_during_a_hold():
+    src = (HELPER_SRC / "chromiq_chartread.c").read_text(
+        encoding="utf-8", errors="surrogateescape")
+    assert "i1pro2_cq_lights_hold_poll = cq_lights_take_pending;" in src
+    js = (HELPER_SRC / "chromiq_json.c").read_text(encoding="utf-8")
+    take = js[js.index("int cq_cmd_take_key(void) {"):]
+    assert take.index("cq_lights_take_pending();") < take.index("cq_lock_take();")
+    drv = (INSTLIB / "i1pro_imp.c").read_text(encoding="utf-8",
+                                              errors="surrogateescape")
+    body = drv[drv.index("static void cq_lights_quiet(i1proimp *m) {"):]
+    body = body[:body.index("\n}\n")]
+    assert "msec_sleep(quiet - since < 20 ? quiet - since : 20);" in body
+    assert "i1pro2_cq_lights_hold_poll();" in body
+
+
+def test_the_provenance_note_is_written_by_the_vendor_script():
+    """4.3.37 review nit: scripts/vendor_instlib.py writes PROVENANCE.md
+    from its own text, so a paragraph kept only in the file would be lost
+    on the next re-vendor. Every prose line of the file's patch notes is in
+    the script."""
+    root = INSTLIB.parent.parent
+    prov = (INSTLIB / "PROVENANCE.md").read_text(encoding="utf-8")
+    notes = prov.split("## ChromIQ patches", 1)[1].split("| patched file", 1)[0]
+    script = (root / "scripts" / "vendor_instlib.py").read_text(encoding="utf-8")
+    for ln in notes.splitlines():
+        if ln.strip():
+            assert ln.replace("\\", "\\\\").replace('"', '\\"') in script, ln

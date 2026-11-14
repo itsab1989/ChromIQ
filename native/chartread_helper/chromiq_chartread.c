@@ -1577,6 +1577,7 @@ static void cq_lights_for_session(inst *it, int rmode, int emis, int trans,
 			i1pro2_cq_lights_options(it, sig, left);
 			i1pro2_cq_lights_sent = cq_lights_sent2;
 			i1pro2_cq_lights_held = cq_lights_held2;
+			i1pro2_cq_lights_hold_poll = cq_lights_take_pending;	/* 4.3.37 M3 */
 		} else {
 			i1pro3_cq_lights_options(it, sig, left);
 			i1pro3_cq_lights_sent = cq_lights_sent3;
