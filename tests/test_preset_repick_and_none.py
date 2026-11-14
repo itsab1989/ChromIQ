@@ -188,3 +188,44 @@ def test_the_built_in_repick_is_as_in_4334():
     guard = sel.index('getattr(self, "_preset_reloading", False)')
     assert sel.index("if data in BUILTIN_PRESET_KEYS:") < guard
     assert sel.index('pdata.get("auto_run")') < guard
+
+
+def test_a_bound_patch_set_preset_picked_again_keeps_its_set_and_builds_nothing(
+        qapp, tab, monkeypatch):
+    """Review of 2026-11-14, item 5: a preset with its own patch set, picked
+    again after a margin change, comes back bound to the same set and
+    builds nothing."""
+    import shutil
+    from ui.tabs.tab_chart import _find_preset_sidecar
+    built = []
+    monkeypatch.setattr(tab, "_on_generate", lambda *a, **k: built.append(1))
+    monkeypatch.setattr(tab, "_generate_from_ti1",
+                        lambda *a, **k: built.append(2))
+    _choose_instr(qapp, tab, "i1")
+    p = tab._manual_layout_panel
+    if p.use_instr_margins.isChecked():
+        p.use_instr_margins.click()
+    p.margins["l"].setValue(26.0)
+    _pump(qapp)
+    presets = tab._load_presets_from_settings()
+    data = tab._preset_capture()
+    data["attached_ti1"] = True
+    data["auto_run"] = True
+    presets["bound"] = data
+    side = _find_preset_sidecar("create_chart", "bound", ".ti1")
+    side.parent.mkdir(parents=True, exist_ok=True)
+    from pathlib import Path
+    shutil.copy(Path(__file__).resolve().parents[1] / "assets/charts/redriver/rgb/standard_patch_set_v25/chart.ti1", side)
+    tab._save_presets_to_settings(presets)
+    tab._populate_preset_combo(presets)
+    _pump(qapp)
+    idx = tab._preset_combo.findData("bound")
+    _pick(qapp, tab, idx)                      # a first pick generates
+    assert built and tab._preset_ti1_path == side
+    built.clear()
+    p.margins["l"].setValue(30.0)
+    _pump(qapp)
+    _pick(qapp, tab, idx)
+    assert built == [], "the re-pick built a chart"
+    assert tab._preset_ti1_path == side, "the patch set is no longer bound"
+    assert p.margins["l"].value() == 26.0
