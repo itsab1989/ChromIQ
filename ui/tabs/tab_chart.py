@@ -7073,24 +7073,15 @@ class TabChart(QWidget):
         # triangle) should collapse both at once"). Open by default, so
         # nothing changes for anyone who never clicks it; folded, the preview
         # above takes the room and the line still repeats the verdict.
-        # NO LINE OF ITS OWN ("the purpose of this is to save space"): the
-        # triangle and the folded verdict sit at the two ends of the preview's
-        # own "Page N / M" line.
+        # NO LINE OF ITS OWN ("the purpose of this is to save space"): a
+        # round button floated in the preview's bottom right corner, the
+        # owner's choice of three photographed placements ("option b").
         from ui.preview_details_fold import PreviewDetailsFold
-        import os as _os
-        _style = _os.environ.get("CHROMIQ_FOLD_STYLE", "C")   # PROTOTYPE
         self._preview_fold = PreviewDetailsFold(
             self, collapsed=bool(self._settings.get(
-                "preview_details_collapsed", False)),
-            accent=SPEC_MAGENTA, style=_style)
-        if _style == "A":
-            self._preview.set_nav_extras(self._preview_fold.group, None, "A")
-        elif _style == "B":
-            self._preview.add_corner_extras(self._preview_fold.corner,
-                                            self._preview_fold.badge)
-        else:
-            self._preview.set_nav_extras(self._preview_fold.triangle,
-                                         self._preview_fold.status, "C")
+                "preview_details_collapsed", False)))
+        self._preview.add_corner_extras(self._preview_fold.button,
+                                        self._preview_fold.badge)
         right_layout.addWidget(self._info_scroll)
         self._info_scroll.setVisible(not self._preview_fold.is_collapsed())
         self._preview_fold.toggled.connect(self._on_preview_details_toggled)

@@ -2664,72 +2664,27 @@ class TiffPreview(QWidget):
         k = 25.4 / dpi
         return ix * k, iy * k
 
-    def set_nav_extras(self, left=None, right=None, style: str = "C") -> None:
-        """Put the Create Chart fold into the page line (PROTOTYPES A / C,
-        2026-11-14; only the owner's choice stays).
-
-        A: *left* (one group) at the far left of the original row; an
-        invisible twin of its width at the far right keeps the page text
-        centred. C: Prev, "Page N / M" and Next as one compact centred group;
-        *left* at the far left, *right* at the far right, in two columns of
-        equal stretch. A preview never given extras keeps its original row.
-        """
-        from PyQt6.QtWidgets import QGridLayout, QHBoxLayout, QWidget
-        nav = self._nav
-        old = nav.layout()
-        if style == "A":
-            self._nav_balance = QWidget(nav)
-            self._nav_balance.setFixedHeight(1)
-            old.insertWidget(0, left)
-            old.insertSpacing(1, 12)
-            old.addSpacing(12)
-            old.addWidget(self._nav_balance)
-            self._nav_left = left
-            left.installEventFilter(self)
-            self._update_nav()
-            return
-        m = old.contentsMargins()
-        # A widget takes a new layout only once the old one is gone. Its
-        # items are taken out first, so the buttons and the label survive.
-        while old.count():
-            old.takeAt(0)
-        from PyQt6 import sip
-        sip.delete(old)
-        grid = QGridLayout(nav)
-        grid.setContentsMargins(m)
-        grid.setSpacing(0)
-        lbox = QHBoxLayout()
-        lbox.setContentsMargins(0, 0, 0, 0)
-        if left is not None:
-            lbox.addWidget(left)
-            left.setParent(nav)
-        lbox.addStretch(1)
-        mid = QHBoxLayout()
-        mid.setContentsMargins(0, 0, 0, 0)
-        mid.setSpacing(10)
-        mid.addWidget(self._prev_btn)
-        mid.addWidget(self._page_label)
-        mid.addWidget(self._next_btn)
-        rbox = QHBoxLayout()
-        rbox.setContentsMargins(0, 0, 0, 0)
-        rbox.addStretch(1)
-        if right is not None:
-            rbox.addWidget(right, 4)
-            right.setParent(nav)
-        grid.addLayout(lbox, 0, 0)
-        grid.addLayout(mid, 0, 1)
-        grid.addLayout(rbox, 0, 2)
-        grid.setColumnStretch(0, 1)
-        grid.setColumnStretch(2, 1)
-        self._update_nav()
-
     def add_corner_extras(self, button, badge) -> None:
-        """PROTOTYPE B: a round button in the image area's bottom-right
-        corner, a badge to its left; they float, the layout does not move."""
+        """A round button in the image area's bottom-right corner and a
+        badge to its left, in the style of the top-right chip (Create
+        Chart's fold, 2026-11-14). They float over the image area, so
+        nothing in the preview's layout moves for them."""
         button.setParent(self)
         badge.setParent(self)
         self._corner_extras = (button, badge)
+        self._style_corner_extras()
         self._place_corner_extras()
+
+    def _style_corner_extras(self) -> None:
+        ex = getattr(self, "_corner_extras", None)
+        if not ex or sip.isdeleted(ex[0]):
+            return
+        extra = _CHIP_BY_MODE.get(self._mode, _CHIP_BY_MODE["dark"])
+        mode = self._mode if self._mode in _CHIP_BY_MODE else "dark"
+        ink = (chip_icon_ink(self._chip_accent, mode) if self._chip_accent
+               else extra["text"])
+        ex[0].set_colours(extra["ground"], ink, extra["focus_ring"],
+                          extra["badge_edge"])
 
     def _place_corner_extras(self) -> None:
         ex = getattr(self, "_corner_extras", None)
@@ -3078,9 +3033,6 @@ class TiffPreview(QWidget):
             self._place_print_chip()
             self._place_render_badge()
             self._place_corner_extras()
-        if obj is getattr(self, "_nav_left", None) \
-                and ev.type() == _QEvent.Type.Resize:
-            self._nav_balance.setFixedWidth(obj.width())
         if obj in (self._caption_lbl, self._filename_lbl, self._img_label):
             t = ev.type()
             if t == _QEvent.Type.ToolTip:
@@ -4233,22 +4185,31 @@ class TiffPreview(QWidget):
         nav_layout = QHBoxLayout(nav)
         nav_layout.setContentsMargins(12, 0, 12, 0)
 
+        # ONE COMPACT GROUP IN THE MIDDLE (Basti, 2026-11-14: "the buttons
+        # for skipping through the pages should be closer together anyway
+        # ... because if you want to go back and forth between pages the
+        # mouse then has less travel"). They sat at the two ends of the row.
+        # Every preview (Create Chart, Print Chart, Measure) has this row, so
+        # all of them change alike. The page text keeps one width for the
+        # chart's page count (`_update_nav`), so neither button moves when
+        # "Page 9 / 10" becomes "Page 10 / 10".
+        nav_layout.setSpacing(10)
+        nav_layout.addStretch(1)
         self._prev_btn = QPushButton(tr("‹ Prev"), nav)
         self._prev_btn.setFixedWidth(84)
         self._prev_btn.clicked.connect(self._go_prev)
         nav_layout.addWidget(self._prev_btn)
 
-        nav_layout.addStretch()
         self._page_label = QLabel("", nav)
         self._page_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._page_label.setStyleSheet("color: #909090; font-size: 12px;")
         nav_layout.addWidget(self._page_label)
-        nav_layout.addStretch()
 
         self._next_btn = QPushButton(tr("Next ›"), nav)
         self._next_btn.setFixedWidth(84)
         self._next_btn.clicked.connect(self._go_next)
         nav_layout.addWidget(self._next_btn)
+        nav_layout.addStretch(1)
 
         layout.addWidget(nav)
 
@@ -4408,8 +4369,18 @@ class TiffPreview(QWidget):
         if n > 0:
             self._page_label.setText(
                 tr("Page {page} / {total}").format(page=self._current + 1, total=n))
+            # The widest this chart's page text can be, so the buttons
+            # beside it never move as the page number changes.
+            fm = self._page_label.fontMetrics()
+            digits = len(str(n))
+            widest = max(
+                fm.horizontalAdvance(tr("Page {page} / {total}").format(
+                    page=d * digits, total=n))
+                for d in "0123456789")
+            self._page_label.setMinimumWidth(widest + 4)
         else:
             self._page_label.setText("")
+            self._page_label.setMinimumWidth(0)
         self._prev_btn.setEnabled(self._current > 0)
         self._next_btn.setEnabled(self._current < n - 1)
         self.pages_shown.emit(n)
@@ -4894,6 +4865,7 @@ class TiffPreview(QWidget):
             chip.setVisible(False)
 
     def _style_print_chip(self) -> None:
+        self._style_corner_extras()
         chip = self._print_chip
         if chip is None or sip.isdeleted(chip):
             return

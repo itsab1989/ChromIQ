@@ -316,7 +316,9 @@ def _REREAD_TOOLTIP() -> str:
         "complete there is no second “All strips read” window to wait for.")
 
 #: The preview's nav row is inset by 12 px, so the reading-times frame uses the
-#: same inset and its edges line up with the PREV and NEXT buttons (Knut, #131).
+#: same inset (Knut, #131: its edges lined up with the PREV and NEXT buttons
+#: while those stood at the row's two ends; since 2026-11-14 they are one
+#: centred group and the frame keeps the row's inset).
 _PACE_SIDE_MARGIN = 12
 #: ~2-3 mm of air above and below the frame, so the page buttons and the warning
 #: line are not crammed against it (Knut, #131 2026-07-27).
