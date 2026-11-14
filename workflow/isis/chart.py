@@ -1129,6 +1129,14 @@ def plan_page(sheet: Sheet, page: int, *, name: str = "",
         size = 2.4
         while size > 1.2 and _text_box(0, 0, size, line)[2] > sheet.grid_w:
             size -= 0.1
+        if _text_box(0, 0, size, line)[2] > sheet.grid_w:
+            # too long even small: shortened, never past the chart
+            while len(line) > 4 and \
+                    _text_box(0, 0, size, line + "…")[2] > sheet.grid_w:
+                line = line[:-1]
+            line = line.rstrip() + "…"
+            if "trailer_text" not in left_off:
+                left_off.append("trailer_text")
         role = "stamp" if (o.stamp and stamp_text and i == 0) else "notes"
         items.append(Item("text", _text_box(sheet.x0 + sheet.width / 2.0, y,
                                             size, line),
@@ -1610,6 +1618,9 @@ def cut_instruction(fed_as_printed: bool) -> str:
 def keep_out_message(what: str) -> str:
     """M-ISIS-KEEP-OUT for a label left off."""
     from core.i18n import tr
+    if what == "trailer_text":
+        return tr("The chart notes are longer than the chart is wide, so "
+                  "their end was left off in the trailer.")
     names = {"row_numbers": tr("The row numbers"),
              "strip_letters": tr("The strip letters")}
     return tr("{what} would print where the i1iSis looks for its markers, so "

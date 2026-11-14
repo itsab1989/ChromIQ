@@ -40,8 +40,29 @@ def _random_options(rng):
         C.ARROWS_KEY: rng.random() < 0.8,
         C.OUTLINE_KEY: rng.random() < 0.8,
         C.CORNERS_KEY: rng.random() < 0.8,
-        C.LETTERS_KEY: rng.choice(["off", "top", "bottom"]),
-        C.NUMBERS_KEY: rng.random() < 0.5,
+        C.LETTERS_KEY: rng.choice(["top", "bottom"]),
+        # the engine's own label controls (one control each, 2026-11-14)
+        "draw_indicators": rng.random() < 0.5,
+        "row_indicators": rng.random() < 0.5,
+        "indicator_font": rng.choice(["Inter", "JetBrains Mono"]),
+        "indicator_size_mm": rng.choice([0.0, 1.0, 2.5, 6.0]),
+        "indicator_bold": rng.random() < 0.5,
+        "indicator_italic": rng.random() < 0.5,
+        "indicator_rotation": rng.choice([0, 90, 180, 270]),
+        "row_indicator_rotation": rng.choice([0, 90, 180, 270]),
+        "indicator_align": rng.choice(["left", "center", "right"]),
+        "underline_mode": rng.choice(["off", "black", "segments", "cycle"]),
+        "underline_thickness_mm": rng.choice([0.3, 1.0, 2.0]),
+        "underline_gap_mm": rng.choice([0.0, 0.5, 3.0]),
+        "strip_label_offset_mm": rng.choice([-20.0, 0.0, 2.0, 30.0]),
+        "strip_label_offset_x_mm": rng.choice([-10.0, 0.0, 3.0, 10.0]),
+        "layout_mode": rng.choice(["patch_first", "patch_first",
+                                   "area_first"]),
+        "area_method": rng.choice(["by_width", "by_grid"]),
+        "area_cols": rng.choice([0, 10, 30]),
+        "area_rows": rng.choice([0, 12, 40]),
+        C.NOTES_LINES_KEY: rng.choice([(), ("Run 1 notes",),
+                                       ("a" * 200, "settings line")]),
         C.BAND_KEY: rng.random() < 0.5,
         C.BAND_PLACE_KEY: rng.choice(["header", "trailer"]),
         C.BAND_HEIGHT_KEY: rng.choice([4, 12, 24, 48]),
@@ -57,8 +78,9 @@ def test_no_option_combination_enters_a_keep_out_zone():
         kw = _random_options(rng)
         w, h = rng.choice(PAPERS)
         N = rng.choice([1, 4, 24, 100, 957, 1617, 2900])
+        kw["paper"] = f"{w}x{h}"
         try:
-            _o, g, s = C.layout_for(N, w, h, kw)
+            _o, g, s = C.layout_for(N, w, h, {**kw, C.COUNT_KEY: N})
         except C.IsisSheetRefused:
             continue
         for page in range(min(g.P, 3)):
