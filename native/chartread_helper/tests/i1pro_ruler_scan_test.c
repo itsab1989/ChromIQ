@@ -208,8 +208,7 @@ static void life(const char *name, devType dtype) {
 
 int main(void) {
 	life("off_i1pro2", instI1Pro2);
-	if (getenv("CQ_SCAN_REVAD") != NULL)	/* the original i1Pro (Rev A-D) */
-		life("off_i1pro", instI1Pro);
+	life("off_i1pro", instI1Pro);		/* the original i1Pro (Rev A-D) */
 	printf("ALL DONE\n");
 	return 0;
 }
