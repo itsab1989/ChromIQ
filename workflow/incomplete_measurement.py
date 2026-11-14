@@ -44,8 +44,31 @@ class MissingReadings:
 
 
 def _strip_of(loc: str) -> "str | None":
+    """The old rule (letters, then digits: "A12" -> "A"), for a chart whose
+    own labels cannot place *loc*."""
     m = _STRIP_LOC.match(loc.strip())
     return m.group(1) if m else None
+
+
+def _strip_reader(ti2: Path):
+    """(label, sort key) of a location's strip, through the chart's OWN label
+    scheme (4.3.37 review: on ChromIQ's engine charts strips are numbers and
+    patches letters, "9I", which the old rule took for no strip at all), and
+    the old rule as the fallback."""
+    try:
+        from workflow.layout_engine.labels import labels_for_chart
+        labels = labels_for_chart(ti2)
+    except Exception:      # noqa: BLE001
+        labels = None
+
+    def read(loc: str):
+        if labels is not None:
+            sp = labels.split(loc)
+            if sp is not None:
+                return labels.strip(sp[0]), (0, sp[0], "")
+        s = _strip_of(loc)
+        return (s, (1, len(s), s.upper())) if s is not None else (None, None)
+    return read
 
 
 def missing_readings(ti3_path: "Path | str | None",
@@ -73,26 +96,30 @@ def missing_readings(ti3_path: "Path | str | None",
         if not expected:
             return None
         padding = padding_locations(ti2)
+        read_strip = _strip_reader(ti2)
         per_strip: "dict[str, int]" = {}
         order: "list[str]" = []
+        keys: "dict[str, tuple]" = {}
         for loc in chart_locations(ti2):
             if loc in padding:
                 continue
-            s = _strip_of(loc)
+            s, key = read_strip(loc)
             if s is None:
                 continue
             if s not in per_strip:
                 per_strip[s] = 0
                 order.append(s)
+                keys[s] = key
             per_strip[s] += 1
         gaps: "dict[str, int]" = {}
         for loc in unread:
-            s = _strip_of(loc)
+            s, _key = read_strip(loc)
             if s is not None:
                 gaps[s] = gaps.get(s, 0) + 1
-        # In the order the sheet prints them (A..Z, AA..), not the file's row
-        # order, which a randomised chart shuffles.
-        order.sort(key=lambda x: (len(x), x.upper()))
+        # In the order the sheet prints them (its own strip order: A..Z,
+        # AA.., or 1, 2, .. 10), not the file's row order, which a
+        # randomised chart shuffles.
+        order.sort(key=lambda x: keys[x])
         strips = [StripGap(s, gaps[s], per_strip[s]) for s in order if s in gaps]
         missing = len(unread)
         return MissingReadings(expected=int(expected),
