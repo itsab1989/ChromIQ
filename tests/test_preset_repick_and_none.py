@@ -123,3 +123,68 @@ def test_q6_none_leaves_the_instrument_alone(qapp, tab, code):
     assert tab._manual_layout_panel.instr.currentData() == code
     assert tab._manual_instr_pw.get_raw_value() == code
     assert tab._instr_combo.currentData() == code, "Guided disagrees"
+
+
+# ---- review of 2026-11-14 (major): a re-pick loads, it never rebuilds -------
+
+def _files(root):
+    import hashlib
+    return {p.relative_to(root).as_posix():
+            (p.stat().st_mtime_ns, hashlib.sha256(p.read_bytes()).hexdigest())
+            for p in root.rglob("*") if p.is_file()}
+
+
+def test_a_repick_with_generate_immediately_loads_and_never_rebuilds(
+        qapp, tab, monkeypatch, tmp_path):
+    """Saved with "Generate the chart immediately when this preset is
+    selected" ticked (the Save window's default), picked again while the
+    screen differs: the values come back, nothing is built, one line says
+    so. The first pick of the preset still generates, as in 4.3.34."""
+    from core.i18n import tr
+    work = tmp_path / "w"
+    work.mkdir(exist_ok=True)
+    (work / "chart.tif").write_bytes(b"the run's chart")
+    built = []
+    monkeypatch.setattr(tab, "_on_generate", lambda *a, **k: built.append(1))
+    _choose_instr(qapp, tab, "i1")
+    p = tab._manual_layout_panel
+    if p.use_instr_margins.isChecked():
+        p.use_instr_margins.click()
+    p.margins["l"].setValue(26.0)
+    _pump(qapp)
+    presets = tab._load_presets_from_settings()
+    data = tab._preset_capture()
+    data["auto_run"] = True
+    presets["auto"] = data
+    tab._save_presets_to_settings(presets)
+    tab._populate_preset_combo(presets)          # "none" showing
+    _pump(qapp)
+    idx = tab._preset_combo.findData("auto")
+    _pick(qapp, tab, idx)                        # a first pick: generates
+    assert built == [1], "the first pick no longer generates"
+    p.margins["l"].setValue(30.0)
+    _pump(qapp)
+    before = _files(work)
+    log_before = tab._log.toPlainText()
+    _pick(qapp, tab, idx)                        # the entry already showing
+    assert built == [1], "a re-pick rebuilt the chart"
+    assert p.margins["l"].value() == 26.0, "the values did not come back"
+    assert _files(work) == before
+    said = tab._log.toPlainText()[len(log_before):]
+    assert tr("Preset loaded again. The chart was not rebuilt: press "
+              "Generate Chart when you want it.") in said
+
+
+def test_the_built_in_repick_is_as_in_4334():
+    """Built-in presets: re-choosing the one showing re-dispatches (the
+    #175 ruling), so it builds as a first pick does. Not changed here."""
+    import inspect
+    from ui.tabs.tab_chart import TabChart
+    src = inspect.getsource(TabChart._on_preset_activated)
+    assert "not in BUILTIN_PRESET_KEYS" in src
+    assert "_preset_reloading" in src
+    sel = inspect.getsource(TabChart._on_preset_selected)
+    # the no-rebuild guard sits only on the saved presets' auto_run branch
+    guard = sel.index('getattr(self, "_preset_reloading", False)')
+    assert sel.index("if data in BUILTIN_PRESET_KEYS:") < guard
+    assert sel.index('pdata.get("auto_run")') < guard

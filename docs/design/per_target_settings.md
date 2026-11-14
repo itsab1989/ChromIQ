@@ -226,7 +226,12 @@ other in beta.150.
 >   and the rest come back. When nothing differs the pick changes nothing,
 >   and "none" picked again changes nothing, as before
 >   (`TabChart._on_preset_activated`, `_screen_differs_from_saved_preset`).
->   Built-in presets re-apply on every pick, as since #175.
+>   Picked again, it only LOADS: it never rebuilds the chart, even when the
+>   preset was saved with "Generate the chart immediately when this preset
+>   is selected"; the log then says "Preset loaded again. The chart was not
+>   rebuilt: press Generate Chart when you want it." A first pick of a
+>   preset behaves as before, its immediate build included. Built-in
+>   presets re-apply on every pick, as since #175.
 > * **"none"** takes the preset away and leaves the instrument alone: the
 >   printtarg instrument row is no longer put back to the saved default or
 >   the i1Pro, so Guided (linked to that row) and the layout panel keep the

@@ -15173,7 +15173,17 @@ class TabChart(QWidget):
                 log.info("Create Chart: the saved preset %r picked again "
                          "while the screen differs from it: loaded again",
                          self._preset_combo.currentData())
-                self._on_preset_selected(index)
+                # …AND ONLY LOADED (review of 2026-11-14, major): a preset
+                # saved with "Generate the chart immediately" ticked (the
+                # Save window's default) rebuilt the open run's chart with no
+                # question, which is the very accident #175 made the re-pick
+                # a no-op for. The owner agreed to the values coming back,
+                # not to a rebuild.
+                self._preset_reloading = True
+                try:
+                    self._on_preset_selected(index)
+                finally:
+                    self._preset_reloading = False
                 return
             log.debug("Create Chart: %r was already the selection; a re-pick "
                       "of a non-built-in entry changes nothing", index)
@@ -15605,6 +15615,13 @@ class TabChart(QWidget):
                 presets = self._load_presets_from_settings()
                 pdata = presets.get(data, {})
                 if isinstance(pdata, dict) and pdata.get("auto_run"):
+                    if getattr(self, "_preset_reloading", False):
+                        # picked again: loaded, never rebuilt (see
+                        # `_on_preset_activated`)
+                        self._log.appendPlainText(tr(
+                            "Preset loaded again. The chart was not rebuilt: "
+                            "press Generate Chart when you want it."))
+                        return
                     if self._runner.is_running:
                         return
                     self._on_generate()
