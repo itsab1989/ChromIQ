@@ -234,19 +234,6 @@
   {
    "check": "control",
    "mode": "manual",
-   "instrument": "isis",
-   "item": [
-    "pw.printtarg-A/ElidingCheckBox",
-    "pw.printtarg-b/QCheckBox",
-    "pw.printtarg-c/QCheckBox"
-   ],
-   "aspect": "enabled",
-   "expected": false,
-   "reason": "Charts for the i1iSis are recomputed by i1Profiler; printtarg's rows take its own defaults: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
-  },
-  {
-   "check": "control",
-   "mode": "manual",
    "instrument": [
     "CM",
     "CR30",
@@ -717,45 +704,6 @@
   {
    "check": "control",
    "mode": "manual",
-   "instrument": "isis",
-   "item": [
-    "pw.printtarg-P/QCheckBox",
-    "pw.printtarg-n/QCheckBox"
-   ],
-   "aspect": "value",
-   "expected": true,
-   "reason": "Charts for the i1iSis are recomputed by i1Profiler; printtarg's rows take its own defaults: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
-  },
-  {
-   "check": "control",
-   "mode": "manual",
-   "instrument": "isis",
-   "item": "pw.printtarg-a/NoScrollDoubleSpinBox",
-   "aspect": "value",
-   "expected": 1.0,
-   "reason": "Charts for the i1iSis are recomputed by i1Profiler; printtarg's rows take its own defaults: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
-  },
-  {
-   "check": "control",
-   "mode": "manual",
-   "instrument": "isis",
-   "item": "pw.printtarg-m/NoScrollSpinBox",
-   "aspect": "value",
-   "expected": 6,
-   "reason": "Charts for the i1iSis are recomputed by i1Profiler; printtarg's rows take its own defaults: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
-  },
-  {
-   "check": "control",
-   "mode": "manual",
-   "instrument": "isis",
-   "item": "pw.printtarg-p/NoScrollComboBox",
-   "aspect": "value",
-   "expected": "329x483",
-   "reason": "Charts for the i1iSis are recomputed by i1Profiler; printtarg's rows take its own defaults: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
-  },
-  {
-   "check": "control",
-   "mode": "manual",
    "instrument": "p3",
    "item": "panel.margins[b]",
    "aspect": "value",
@@ -919,19 +867,6 @@
   {
    "check": "control",
    "mode": "manual_engine_off",
-   "instrument": "isis",
-   "item": [
-    "pw.printtarg-A/ElidingCheckBox",
-    "pw.printtarg-b/QCheckBox",
-    "pw.printtarg-c/QCheckBox"
-   ],
-   "aspect": "enabled",
-   "expected": false,
-   "reason": "Charts for the i1iSis are recomputed by i1Profiler; printtarg's rows take its own defaults: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
-  },
-  {
-   "check": "control",
-   "mode": "manual_engine_off",
    "instrument": [
     "CM",
     "SS"
@@ -946,8 +881,7 @@
    "mode": "manual_engine_off",
    "instrument": [
     "CM",
-    "SS",
-    "isis"
+    "SS"
    ],
    "item": "pw.printtarg-L/QCheckBox",
    "aspect": "present",
@@ -1436,45 +1370,6 @@
    "reason": "The i1iO starts from its own safe factory layout (its turned page, centred patches, bold sheet text, its own margins and patch size), documented in docs/design/i1io_table_support.md."
   },
   {
-   "check": "control",
-   "mode": "manual_engine_off",
-   "instrument": "isis",
-   "item": [
-    "pw.printtarg-P/QCheckBox",
-    "pw.printtarg-n/QCheckBox"
-   ],
-   "aspect": "value",
-   "expected": true,
-   "reason": "Charts for the i1iSis are recomputed by i1Profiler; printtarg's rows take its own defaults: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
-  },
-  {
-   "check": "control",
-   "mode": "manual_engine_off",
-   "instrument": "isis",
-   "item": "pw.printtarg-a/NoScrollDoubleSpinBox",
-   "aspect": "value",
-   "expected": 1.0,
-   "reason": "Charts for the i1iSis are recomputed by i1Profiler; printtarg's rows take its own defaults: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
-  },
-  {
-   "check": "control",
-   "mode": "manual_engine_off",
-   "instrument": "isis",
-   "item": "pw.printtarg-m/NoScrollSpinBox",
-   "aspect": "value",
-   "expected": 6,
-   "reason": "Charts for the i1iSis are recomputed by i1Profiler; printtarg's rows take its own defaults: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
-  },
-  {
-   "check": "control",
-   "mode": "manual_engine_off",
-   "instrument": "isis",
-   "item": "pw.printtarg-p/NoScrollComboBox",
-   "aspect": "value",
-   "expected": "329x483",
-   "reason": "Charts for the i1iSis are recomputed by i1Profiler; printtarg's rows take its own defaults: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
-  },
-  {
    "check": "greyed_without_reason",
    "mode": "manual",
    "instrument": "CR30",
@@ -1553,7 +1448,6 @@
     "IO2",
     "SS",
     "i1",
-    "isis",
     "p3"
    ],
    "item": [
@@ -1609,44 +1503,6 @@
    "reason": "The FD-9 and the i1iO are laid out by their own builders (workflow/fd9, workflow/i1io), not by the shared strip layout these lists describe."
   },
   {
-   "check": "listed",
-   "mode": "",
-   "instrument": "isis",
-   "item": [
-    "Preferences chart layout",
-    "TARGET_INSTRUMENT_NAME",
-    "chart_creator.ENGINE_INSTRUMENTS",
-    "engine.supported()",
-    "presets.SUPPORTED_INSTRUMENTS",
-    "ti2 re-layout dialog",
-    "ti2_loader.KNOWN_INSTRUMENTS"
-   ],
-   "aspect": "listed",
-   "expected": false,
-   "reason": "The i1iSis is not laid out or read by ChromIQ, so the layout and chart-reading lists do not name it: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
-  },
-  {
-   "check": "listed",
-   "mode": "",
-   "instrument": "isis",
-   "item": [
-    "guided",
-    "layout_panel"
-   ],
-   "aspect": "listed",
-   "expected": false,
-   "reason": "The i1iSis is not offered in Guided or in the layout panel: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
-  },
-  {
-   "check": "prefs_style",
-   "mode": "guided",
-   "instrument": "isis",
-   "item": "label style",
-   "aspect": "state",
-   "expected": "instrument not offered",
-   "reason": "The i1iSis is not offered in Guided: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
-  },
-  {
    "check": "prefs_style",
    "mode": "manual_engine_off",
    "instrument": [
@@ -1659,17 +1515,755 @@
    "reason": "Only the layout engine lays this instrument out, so its chart takes Preferences' label style even with the engine switch off, where printtarg's i1Pro chart has no label style at all."
   },
   {
-   "check": "run_type",
-   "mode": "guided",
-   "instrument": "isis",
+   "check": "listed",
+   "mode": "",
+   "instrument": "XRISIS",
    "item": [
-    "calibration",
-    "profiling",
-    "verification"
+    "engine.supported()",
+    "presets.SUPPORTED_INSTRUMENTS"
    ],
+   "aspect": "listed",
+   "expected": false,
+   "reason": "The i1iSis family is laid out by its own module (workflow/isis) through the engine, behind its Beta, not by the shared strip layout these lists describe."
+  },
+  {
+   "check": "listed",
+   "mode": "",
+   "instrument": "XRISIS",
+   "item": "ti2 re-layout dialog",
+   "aspect": "listed",
+   "expected": false,
+   "reason": "The .ti2 re-layout dialog lays out printtarg strip charts only; an i1iSis chart is laid out again through Create Chart."
+  },
+  {
+   "check": "listed",
+   "mode": "",
+   "instrument": "XRISIS",
+   "item": "ti2_loader.KNOWN_INSTRUMENTS",
+   "aspect": "listed",
+   "expected": false,
+   "reason": "An i1iSis chart is not a chart stock ArgyllCMS chartread reads; the Measure tab answers Start with the i1Profiler way (M-ISIS-NOT-YET)."
+  },
+  {
+   "check": "control",
+   "mode": "guided",
+   "instrument": "XRISIS",
+   "item": [
+    "_isis_band_check",
+    "_isis_model_combo"
+   ],
+   "aspect": "present",
+   "expected": true,
+   "reason": "The i1iSis chart's own Guided choices (Beta): the model width and the notes band."
+  },
+  {
+   "check": "control",
+   "mode": "guided",
+   "instrument": "XRISIS",
+   "item": [
+    "_lb_check",
+    "_nsl_check"
+   ],
+   "aspect": "present",
+   "expected": false,
+   "reason": "No clip border or strip-length cap applies to an i1iSis chart in Guided."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "FD9",
+   "item": [
+    "panel.isis_arrows",
+    "panel.isis_band",
+    "panel.isis_barcode",
+    "panel.isis_corners",
+    "panel.isis_header",
+    "panel.isis_letters",
+    "panel.isis_model",
+    "panel.isis_numbers",
+    "panel.isis_outline",
+    "panel.isis_tight",
+    "panel.isis_trailer"
+   ],
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "The i1iSis chart's group (a Beta) is hidden for this instrument; this instrument's own greying of every input in the panel reaches the hidden group too, so nothing on screen changes."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "IO2",
+   "item": [
+    "panel.isis_arrows",
+    "panel.isis_band",
+    "panel.isis_barcode",
+    "panel.isis_corners",
+    "panel.isis_header",
+    "panel.isis_letters",
+    "panel.isis_model",
+    "panel.isis_numbers",
+    "panel.isis_outline",
+    "panel.isis_tight",
+    "panel.isis_trailer"
+   ],
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "The i1iSis chart's group (a Beta) is hidden for this instrument; this instrument's own greying of every input in the panel reaches the hidden group too, so nothing on screen changes."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": "_manual_engine_check",
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "Only ChromIQ's layout engine lays this instrument out."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.area_cols",
+    "panel.area_method",
+    "panel.area_min_patch",
+    "panel.area_ratio",
+    "panel.area_rows",
+    "panel.layout_mode"
+   ],
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "Patch-first only for the i1iSis in stage 1 (said in the tooltip)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.clip_content_mode",
+    "panel.clip_flip_180",
+    "panel.clip_text_font",
+    "panel.clip_text_size"
+   ],
+   "aspect": "present",
+   "expected": false,
+   "reason": "The clip-border content controls show only while the i1iSis notes band (off by default) is on; it fills the band."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.clip_enable",
+    "panel.clip_side",
+    "panel.text_edge_clip"
+   ],
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "No side clip band; the notes band is in the header or trailer."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.clip_side",
+    "panel.clip_width"
+   ],
+   "aspect": "present",
+   "expected": false,
+   "reason": "No side clip band; the notes band is in the header or trailer."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.cm_stagger_cb",
+    "panel.hex_flat_top_cb"
+   ],
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "The i1iSis needs straight rows with a marker at each end."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.custom_spacer_cb",
+    "panel.inter_patch",
+    "panel.sig",
+    "panel.spacer_mode",
+    "panel.spacer_width",
+    "panel.strip_gap"
+   ],
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "The i1iSis reads patches side by side without gaps (X-Rite's chart rules)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": "panel.helper_markers_cb",
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "No ruler; the bar and diamonds take that place."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.indicator_rotation",
+    "panel.row_indicator_rotation",
+    "panel.strip_label_offset",
+    "panel.strip_label_offset_x",
+    "panel.underline_mode"
+   ],
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "Not used on an i1iSis chart in stage 1: its letters and numbers have their own place and size (said in the tooltip)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.isis_arrows",
+    "panel.isis_band",
+    "panel.isis_band_height",
+    "panel.isis_band_place",
+    "panel.isis_barcode",
+    "panel.isis_corners",
+    "panel.isis_header",
+    "panel.isis_letters",
+    "panel.isis_model",
+    "panel.isis_numbers",
+    "panel.isis_outline",
+    "panel.isis_tight",
+    "panel.isis_trailer"
+   ],
+   "aspect": "present",
+   "expected": true,
+   "reason": "The i1iSis chart's own options (Beta)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.margins[b]",
+    "panel.margins[l]",
+    "panel.margins[r]",
+    "panel.margins[t]"
+   ],
+   "aspect": "value",
+   "expected": 5.0,
+   "reason": "Starts from i1Profiler's own chart: 6 x 6 mm patches, 5 mm margins, the chart top-left."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.mode",
+    "panel.pscale",
+    "panel.sscale"
+   ],
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "No base patch size or alternative layout for this instrument."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": "panel.mode",
+   "aspect": "value",
+   "expected": "default",
+   "reason": "No base patch size or alternative layout for this instrument."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": "panel.nolimit",
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "The page height decides the rows."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.patch_x",
+    "panel.patch_y"
+   ],
+   "aspect": "value",
+   "expected": 6.0,
+   "reason": "Starts from i1Profiler's own chart: 6 x 6 mm patches, 5 mm margins, the chart top-left."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.show_indicators",
+    "panel.show_row_indicators"
+   ],
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "The i1iSis chart's strip letters and row numbers have their own controls in its group, kept clear of the markers."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": "panel.spacer_mode",
+   "aspect": "value",
+   "expected": "none",
+   "reason": "The i1iSis reads patches side by side without gaps (X-Rite's chart rules)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": "pw.printtarg-a/NoScrollDoubleSpinBox",
+   "aspect": "value",
+   "expected": 1.0,
+   "reason": "printtarg's fields are not used for an engine-only instrument; they show printtarg's own defaults, not the i1Pro preset's."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": "pw.printtarg-m/NoScrollSpinBox",
+   "aspect": "value",
+   "expected": 6,
+   "reason": "printtarg's fields are not used for an engine-only instrument; they show printtarg's own defaults, not the i1Pro preset's."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "FD9",
+   "item": [
+    "panel.isis_arrows",
+    "panel.isis_band",
+    "panel.isis_barcode",
+    "panel.isis_corners",
+    "panel.isis_header",
+    "panel.isis_letters",
+    "panel.isis_model",
+    "panel.isis_numbers",
+    "panel.isis_outline",
+    "panel.isis_tight",
+    "panel.isis_trailer"
+   ],
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "The i1iSis chart's group (a Beta) is hidden for this instrument; this instrument's own greying of every input in the panel reaches the hidden group too, so nothing on screen changes."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "IO2",
+   "item": [
+    "panel.isis_arrows",
+    "panel.isis_band",
+    "panel.isis_barcode",
+    "panel.isis_corners",
+    "panel.isis_header",
+    "panel.isis_letters",
+    "panel.isis_model",
+    "panel.isis_numbers",
+    "panel.isis_outline",
+    "panel.isis_tight",
+    "panel.isis_trailer"
+   ],
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "The i1iSis chart's group (a Beta) is hidden for this instrument; this instrument's own greying of every input in the panel reaches the hidden group too, so nothing on screen changes."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "XRISIS",
+   "item": [
+    "_bit16_radio",
+    "_bit8_radio",
+    "_manual_pages_spin",
+    "pw.printtarg-A/ElidingCheckBox",
+    "pw.printtarg-A/NoScrollDoubleSpinBox",
+    "pw.printtarg-C/QCheckBox",
+    "pw.printtarg-D/QCheckBox",
+    "pw.printtarg-I/ElidingCheckBox",
+    "pw.printtarg-I/QLineEdit",
+    "pw.printtarg-K/ElidingCheckBox",
+    "pw.printtarg-K/QLineEdit",
+    "pw.printtarg-L/QCheckBox",
+    "pw.printtarg-P/QCheckBox",
+    "pw.printtarg-Q/ElidingCheckBox",
+    "pw.printtarg-Q/NoScrollSpinBox",
+    "pw.printtarg-R/ElidingCheckBox",
+    "pw.printtarg-R/NoScrollSpinBox",
+    "pw.printtarg-U/QCheckBox",
+    "pw.printtarg-a/NoScrollDoubleSpinBox",
+    "pw.printtarg-b/QCheckBox",
+    "pw.printtarg-c/QCheckBox",
+    "pw.printtarg-i/NoScrollComboBox",
+    "pw.printtarg-m/ElidingCheckBox",
+    "pw.printtarg-m/NoScrollSpinBox",
+    "pw.printtarg-n/QCheckBox",
+    "pw.printtarg-p/NoScrollComboBox",
+    "pw.printtarg-r/QCheckBox",
+    "pw.printtarg-t/NoScrollSpinBox"
+   ],
+   "aspect": "present",
+   "expected": false,
+   "reason": "Only ChromIQ's layout engine lays the i1iSis out, so with the engine box unticked Manual still shows the layout panel instead of printtarg's fields (as for the CR30, FD-9 and i1iO)."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "XRISIS",
+   "item": "_manual_engine_check",
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "Only ChromIQ's layout engine lays this instrument out."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "XRISIS",
+   "item": "_manual_engine_check",
+   "aspect": "value",
+   "expected": true,
+   "reason": "Only ChromIQ's layout engine lays this instrument out."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.area_cols",
+    "panel.area_method",
+    "panel.area_min_patch",
+    "panel.area_ratio",
+    "panel.area_rows",
+    "panel.layout_mode"
+   ],
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "Patch-first only for the i1iSis in stage 1 (said in the tooltip)."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.area_method",
+    "panel.area_min_patch",
+    "panel.area_ratio",
+    "panel.bit_depth",
+    "panel.cal_mode",
+    "panel.cal_path_edit",
+    "panel.chart_text",
+    "panel.chart_text_align",
+    "panel.chart_text_font",
+    "panel.chart_text_size",
+    "panel.compression",
+    "panel.ct_bold",
+    "panel.ct_italic",
+    "panel.custom_spacer_cb",
+    "panel.dpi",
+    "panel.edge_spacers_cb",
+    "panel.export_pdf",
+    "panel.fixed_seed_cb",
+    "panel.helper_marker_edge",
+    "panel.helper_marker_len",
+    "panel.helper_marker_per_patch",
+    "panel.helper_markers_cb",
+    "panel.helper_markers_sides",
+    "panel.helper_markers_top_bottom",
+    "panel.ind_align_center",
+    "panel.ind_align_left",
+    "panel.ind_align_right",
+    "panel.ind_bold",
+    "panel.ind_italic",
+    "panel.indicator_font",
+    "panel.indicator_rotation",
+    "panel.indicator_size",
+    "panel.instr",
+    "panel.inter_patch",
+    "panel.isis_arrows",
+    "panel.isis_band",
+    "panel.isis_band_height",
+    "panel.isis_band_place",
+    "panel.isis_barcode",
+    "panel.isis_corners",
+    "panel.isis_header",
+    "panel.isis_letters",
+    "panel.isis_model",
+    "panel.isis_numbers",
+    "panel.isis_outline",
+    "panel.isis_tight",
+    "panel.isis_trailer",
+    "panel.layout_mode",
+    "panel.margins[b]",
+    "panel.margins[l]",
+    "panel.margins[r]",
+    "panel.margins[t]",
+    "panel.max_strip",
+    "panel.mode",
+    "panel.pages",
+    "panel.paper",
+    "panel.patch_pat",
+    "panel.randomize_cb",
+    "panel.row_indicator_rotation",
+    "panel.seed_spin",
+    "panel.show_indicators",
+    "panel.show_row_indicators",
+    "panel.sig",
+    "panel.spacer_mode",
+    "panel.spacer_width",
+    "panel.sscale",
+    "panel.stamp_command",
+    "panel.strip_gap",
+    "panel.strip_label_offset",
+    "panel.strip_label_offset_x",
+    "panel.strip_pat",
+    "panel.text_edge",
+    "panel.text_edge_clip",
+    "panel.text_edge_top",
+    "panel.underline_gap",
+    "panel.underline_mode",
+    "panel.underline_thickness",
+    "panel.use_instr_margins"
+   ],
+   "aspect": "present",
+   "expected": true,
+   "reason": "Only ChromIQ's layout engine lays the i1iSis out, so with the engine box unticked Manual still shows the layout panel instead of printtarg's fields (as for the CR30, FD-9 and i1iO)."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.clip_enable",
+    "panel.clip_side",
+    "panel.text_edge_clip"
+   ],
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "No side clip band; the notes band is in the header or trailer."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.cm_stagger_cb",
+    "panel.hex_flat_top_cb"
+   ],
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "The i1iSis needs straight rows with a marker at each end."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.custom_spacer_cb",
+    "panel.inter_patch",
+    "panel.sig",
+    "panel.spacer_mode",
+    "panel.spacer_width",
+    "panel.strip_gap"
+   ],
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "The i1iSis reads patches side by side without gaps (X-Rite's chart rules)."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "XRISIS",
+   "item": "panel.helper_markers_cb",
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "No ruler; the bar and diamonds take that place."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.indicator_rotation",
+    "panel.row_indicator_rotation",
+    "panel.strip_label_offset",
+    "panel.strip_label_offset_x",
+    "panel.underline_mode"
+   ],
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "Not used on an i1iSis chart in stage 1: its letters and numbers have their own place and size (said in the tooltip)."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.margins[b]",
+    "panel.margins[l]",
+    "panel.margins[r]",
+    "panel.margins[t]"
+   ],
+   "aspect": "value",
+   "expected": 5.0,
+   "reason": "Starts from i1Profiler's own chart: 6 x 6 mm patches, 5 mm margins, the chart top-left."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.mode",
+    "panel.pscale",
+    "panel.sscale"
+   ],
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "No base patch size or alternative layout for this instrument."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "XRISIS",
+   "item": "panel.mode",
+   "aspect": "value",
+   "expected": "default",
+   "reason": "No base patch size or alternative layout for this instrument."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "XRISIS",
+   "item": "panel.nolimit",
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "The page height decides the rows."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.patch_x",
+    "panel.patch_y"
+   ],
+   "aspect": "value",
+   "expected": 6.0,
+   "reason": "Starts from i1Profiler's own chart: 6 x 6 mm patches, 5 mm margins, the chart top-left."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.show_indicators",
+    "panel.show_row_indicators"
+   ],
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "The i1iSis chart's strip letters and row numbers have their own controls in its group, kept clear of the markers."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "XRISIS",
+   "item": "panel.spacer_mode",
+   "aspect": "value",
+   "expected": "none",
+   "reason": "The i1iSis reads patches side by side without gaps (X-Rite's chart rules)."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "XRISIS",
+   "item": "pw.printtarg-a/NoScrollDoubleSpinBox",
+   "aspect": "value",
+   "expected": 1.0,
+   "reason": "printtarg's fields are not used for an engine-only instrument; they show printtarg's own defaults, not the i1Pro preset's."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "XRISIS",
+   "item": "pw.printtarg-m/NoScrollSpinBox",
+   "aspect": "value",
+   "expected": 6,
+   "reason": "printtarg's fields are not used for an engine-only instrument; they show printtarg's own defaults, not the i1Pro preset's."
+  },
+  {
+   "check": "kept",
+   "mode": "guided",
+   "instrument": "XRISIS",
+   "item": [
+    "_guided_precond_check",
+    "_guided_run_desc_edit"
+   ],
+   "aspect": "controls:save_defaults",
+   "expected": "lost",
+   "reason": "The run description, the chart notes and the refinement box belong to one run, not to the defaults, as for every instrument."
+  },
+  {
+   "check": "kept",
+   "mode": "guided",
+   "instrument": "XRISIS",
+   "item": "_guided_precond_check",
+   "aspect": "controls:target_state",
+   "expected": "lost",
+   "reason": "The run description, the chart notes and the refinement box belong to one run, not to the defaults, as for every instrument."
+  },
+  {
+   "check": "kept",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": [
+    "_manual_chart_notes_edit",
+    "_manual_run_desc_edit"
+   ],
+   "aspect": "controls:save_defaults",
+   "expected": "lost",
+   "reason": "The run description, the chart notes and the refinement box belong to one run, not to the defaults, as for every instrument."
+  },
+  {
+   "check": "lacks_option",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": [
+    "edge_spacers",
+    "inter_patch_mm",
+    "layout_mode",
+    "spacer_mode",
+    "strip_gap_mm"
+   ],
+   "aspect": "panel keeps it",
+   "expected": false,
+   "reason": "The i1iSis reads patches side by side without gaps (X-Rite's chart rules). Spacers, gaps, edge spacers and the area-first layout are not kept for an i1iSis chart (patch-first only in stage 1)."
+  },
+  {
+   "check": "prefs_style",
+   "mode": "manual_engine_off",
+   "instrument": "XRISIS",
+   "item": "label style",
    "aspect": "state",
-   "expected": "instrument not offered",
-   "reason": "The i1iSis is not offered in Guided: the i1iSis is laid out by X-Rite's i1Profiler, not by ChromIQ (observed only)."
+   "expected": "follows Preferences",
+   "reason": "With the engine off the i1iSis is still laid out by the engine (engine-only), so its labels follow Preferences as every engine chart does."
   }
  ],
  "known_to_review": [
@@ -2407,6 +3001,187 @@
    "aspect": "SS -> i1 -> SS",
    "expected": "lost",
    "reason": "After visiting the i1Pro the SpectroScan comes back on flat patches, not the hexagons set before; seen 2026-11-13. The owner chose to leave this as it is for now (2026-11-13); it stays listed for review."
+  },
+  {
+   "check": "listed",
+   "mode": "",
+   "instrument": "XRISIS",
+   "item": "Preferences chart layout",
+   "aspect": "listed",
+   "expected": false,
+   "reason": "Preferences > Chart Layout cannot set a default layout for the i1iSis, as for the FD-9 and the i1iO; PROPOSAL v2 asked for it, not built in stage 1; Save as Defaults in Manual keeps every i1iSis option."
+  },
+  {
+   "check": "kept",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": [
+    "area_cols",
+    "area_method",
+    "area_min_patch_mm",
+    "area_ratio",
+    "area_rows",
+    "bit16",
+    "chart_text",
+    "chart_text_bold",
+    "chart_text_font",
+    "chart_text_italic",
+    "chart_text_size_mm",
+    "clip_border_width_mm",
+    "clip_content_mode",
+    "clip_flip_180",
+    "clip_side",
+    "clip_text",
+    "clip_text_font",
+    "clip_text_size_mm",
+    "cm_stagger",
+    "compression",
+    "dpi",
+    "export_pdf",
+    "helper_marker_edge_mm",
+    "helper_marker_len_mm",
+    "helper_marker_per_patch",
+    "helper_markers",
+    "helper_markers_sides",
+    "helper_markers_top_bottom",
+    "hex_flat_top",
+    "indicator_align",
+    "indicator_bold",
+    "indicator_font",
+    "indicator_italic",
+    "indicator_rotation",
+    "indicator_size_mm",
+    "isis_align",
+    "isis_arrows",
+    "isis_barcode",
+    "isis_corner_labels",
+    "isis_header_mm",
+    "isis_model",
+    "isis_notes_band",
+    "isis_notes_height_mm",
+    "isis_notes_place",
+    "isis_outline",
+    "isis_row_numbers",
+    "isis_strip_letters",
+    "isis_tight",
+    "isis_trailer_mm",
+    "margin_bottom",
+    "margin_left",
+    "margin_right",
+    "margin_top",
+    "max_strip_mm",
+    "nolimit",
+    "offset_x_mm",
+    "offset_y_mm",
+    "paper",
+    "patch_area_align",
+    "patch_h_mm",
+    "patch_pattern",
+    "patch_w_mm",
+    "pscale",
+    "randomize",
+    "row_indicator_rotation",
+    "show_row_indicators",
+    "show_strip_indicators",
+    "spacer_width_mm",
+    "sscale",
+    "stamp_command",
+    "strip_indicator_gap_mm",
+    "strip_label_offset_mm",
+    "strip_label_offset_x_mm",
+    "strip_pattern",
+    "text_edge_clip_mm",
+    "text_edge_mm",
+    "text_edge_top_mm",
+    "underline_gap_mm",
+    "underline_mode",
+    "underline_thickness_mm",
+    "use_instrument_margins"
+   ],
+   "aspect": "new_target_after_defaults",
+   "expected": "lost",
+   "reason": "A new target (New run, project open) after Save as Defaults does not take the saved layout recipe, as for every instrument (the same known_to_review rows of the others); seen 2026-11-14, not judged yet."
+  },
+  {
+   "check": "inherits",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": "XRISIS -> i1",
+   "aspect": "back and forth",
+   "expected": [
+    "area_method",
+    "chart_text",
+    "chart_text_bold",
+    "clip_content_mode",
+    "clip_content_when_on",
+    "clip_text_size_mm",
+    "helper_marker_edge_mm",
+    "helper_marker_len_mm",
+    "helper_marker_per_patch",
+    "helper_markers",
+    "helper_markers_sides",
+    "helper_markers_top_bottom",
+    "layout_mode",
+    "margin_bottom",
+    "margin_left",
+    "margin_right",
+    "margin_top",
+    "max_strip_mm",
+    "nolimit",
+    "offset_x_mm",
+    "offset_y_mm",
+    "patch_pattern",
+    "show_row_indicators",
+    "show_strip_indicators",
+    "spacer_width_mm",
+    "strip_indicator_gap_mm",
+    "strip_pattern",
+    "text_edge_clip_mm",
+    "text_edge_mm",
+    "use_instrument_margins"
+   ],
+   "reason": "Switching between the i1iSis and another instrument carries the options both use and gives each back its own, as the i1iO does; the listed ones are the person's (text, clip content) or greyed for the i1iSis."
+  },
+  {
+   "check": "inherits",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": "i1 -> XRISIS",
+   "aspect": "there and back",
+   "expected": [
+    "area_method",
+    "chart_text",
+    "chart_text_bold",
+    "clip_content_mode",
+    "clip_content_when_on",
+    "clip_text_size_mm",
+    "helper_marker_edge_mm",
+    "helper_marker_len_mm",
+    "helper_marker_per_patch",
+    "helper_markers",
+    "helper_markers_sides",
+    "helper_markers_top_bottom",
+    "margin_bottom",
+    "margin_left",
+    "margin_right",
+    "margin_top",
+    "max_strip_mm",
+    "nolimit",
+    "offset_x_mm",
+    "offset_y_mm",
+    "patch_h_mm",
+    "patch_pattern",
+    "patch_w_mm",
+    "show_row_indicators",
+    "show_strip_indicators",
+    "spacer_width_mm",
+    "strip_indicator_gap_mm",
+    "strip_pattern",
+    "text_edge_clip_mm",
+    "text_edge_mm",
+    "use_instrument_margins"
+   ],
+   "reason": "Switching between the i1iSis and another instrument carries the options both use and gives each back its own, as the i1iO does; the listed ones are the person's (text, clip content) or greyed for the i1iSis."
   }
  ]
 }

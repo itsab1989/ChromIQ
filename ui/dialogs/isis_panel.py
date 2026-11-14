@@ -317,7 +317,7 @@ class IsisPanelMixin:
                     c.setRange(lo, hi)
                     # the i1iSis's own size comes back when it is chosen
                     # again (i1iSis -> another -> i1iSis)
-                    if mine and not was_loading:
+                    if mine:
                         c.setValue(mine)
                     elif not v:
                         c.setValue(F.PATCH_DEFAULT_MM.value)
@@ -424,6 +424,13 @@ class IsisPanelMixin:
             self.isis_band_place.setCurrentIndex(max(0, i))
             self.isis_band_height.setValue(float(val("isis_notes_height_mm")))
             self._isis_align = str(val("isis_align") or "")
+            if own and self._isis_saved is not None:
+                # a recipe's own patch size wins over the size the i1iSis
+                # had when it was last chosen (`_sync_isis_widgets`)
+                for box, v in ((self.patch_x, getattr(r, "patch_w_mm", 0)),
+                               (self.patch_y, getattr(r, "patch_h_mm", 0))):
+                    if v:
+                        box.setValue(float(v))
         finally:
             for w in IsisPanelMixin._isis_controls(self):
                 w.blockSignals(False)
