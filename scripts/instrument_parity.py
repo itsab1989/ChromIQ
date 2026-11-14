@@ -114,6 +114,13 @@ CANDIDATES: dict[str, Any] = {
     "i1io_text_align": "start", "hflag": True, "cm_density": 2,
     "cm_stagger": True, "hex_flat_top": True, "fd9_gap_mm": 2.0,
     "fd9_clip_border": True,
+    # the i1iSis family's own (a Beta, 2026-11-14)
+    "isis_model": "xl", "isis_header_mm": 56.0, "isis_tight": True,
+    "isis_barcode": True, "isis_trailer_mm": 40.0, "isis_arrows": False,
+    "isis_outline": False, "isis_corner_labels": False,
+    "isis_strip_letters": "bottom", "isis_row_numbers": True,
+    "isis_notes_band": True, "isis_notes_place": "trailer",
+    "isis_notes_height_mm": 12.0, "isis_align": "center",
     # the rest of the panel
     "pscale": 1.1, "sscale": 1.2, "use_instrument_margins": False,
     "indicator_rotation": 90, "row_indicator_rotation": 180,
