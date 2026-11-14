@@ -9489,6 +9489,27 @@ M_RESUME_RESOLUTION = _m(
     "Nothing has been measured or changed yet.",
     approved=False)
 
+# --- PROPOSED: high resolution, continued with an instrument without it ---
+#: 4.3.37 review (M4). {instrument}: the chart's (or the reported)
+#: instrument name; {box}: the resume box's own text. Cancel only.
+M_RESUME_RESOLUTION_INSTRUMENT = _m(
+    "M-RESUME-RESOLUTION-INSTRUMENT",
+    "This measurement cannot be continued with this instrument",
+    "The measurement you are continuing was measured in high resolution. "
+    "The instrument this chart is made for, {instrument}, has no "
+    "high-resolution mode, so new strips could only be measured in "
+    "standard resolution.\n\n"
+    "All readings in one measurement file have to have the same spectral "
+    "resolution. If they did not, the measurement could not be saved at the "
+    "end, and the strips you read now would be lost.\n\n"
+    "To continue this measurement, use an instrument that can measure in "
+    "high resolution, such as an X-Rite i1Pro, i1Pro 2 or i1Pro 3, or a "
+    "ColorMunki. If you want to measure the whole chart with this "
+    "instrument instead, untick “{box}” and press Start again: your current "
+    "measurement is then moved to the run's old folder, not deleted.\n\n"
+    "Nothing has been measured or changed.",
+    approved=False)
+
 # --- PROPOSED: the technical line under a communication failure (4.3.36) ---
 #: A tester's i1Pro 2 lost communication on every second strip and nothing
 #: said which USB transfer had failed. The engine now says (the helper's
@@ -10274,6 +10295,7 @@ CATALOGUE = {m.id: m for m in (
     M_I1PRO2_LIGHTS_LEFT_ON,
     M_STRIP_FAILED_COMS_DETAIL,
     M_RESUME_RESOLUTION,
+    M_RESUME_RESOLUTION_INSTRUMENT,
     M_STRIP_RULER_DIRECTION,
     M_READINGS_NOT_SAME_CHART, M_READINGS_UNUSABLE,
     M_IMPORT_TURNED_GRID_COLOURS,
