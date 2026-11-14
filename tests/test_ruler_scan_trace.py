@@ -189,3 +189,84 @@ def test_a_reader_that_cannot_start_sends_no_ruler_bits(trace):
     """Review item 5: the bits never go out with nobody reading 0x85."""
     assert _d4(trace, "on_failstart") == ["0101"] * 3
     assert _ruler(trace, "on_failstart")[0]["giveup"] == 6
+
+
+# ---- 4.3.38: the lights and the ruler together, each off and on ----------
+# (i1pro_ruler_scan_test.c combo_life: a calibration and four strips under
+# the slow instrument, whose window is one ms short of the quiet time)
+
+COMBOS = ["combo_lights0_ruler0", "combo_lights0_ruler1",
+          "combo_lights1_ruler0", "combo_lights1_ruler1",
+          "combo_full_lights1_ruler1"]
+
+
+def _wire_of(trace: str, scn: str) -> "list[str]":
+    return [ln.split(" ", 1)[1] for ln in _scn(trace, scn)
+            if ln.split()[1] in ("CTL", "WR", "RD")]
+
+
+@pytest.mark.parametrize("scn", COMBOS)
+def test_every_combination_loses_no_trigger_and_writes_nothing_in_a_reading(
+        trace, scn):
+    lines = _scn(trace, scn)
+    assert lines and lines[-1] == f"{scn} END"
+    for bad in ("LOST", "WR-IN-READING", "NO-DATA", "TRIGGER-FAILED"):
+        assert not any(ln.split()[1] == bad for ln in lines), (scn, bad)
+    assert [ln for ln in lines if " RESULT " in ln] == \
+        [f"{scn} RESULT ev=0x0 readings=120"] * 4
+
+
+@pytest.mark.parametrize("scn", COMBOS)
+def test_rule_b_holds_with_the_ruler_bits_set(trace, scn):
+    """Every trigger after a light write comes at least the quiet time after
+    it (150 ms here, 2100 ms in the full life), the ruler on or off."""
+    quiet = 2100 if scn.startswith("combo_full") else 150
+    gaps = [int(ln.split()[2]) for ln in _scn(trace, scn) if " GAPMS " in ln]
+    if "lights0" in scn:
+        assert gaps == []
+    else:
+        assert len(gaps) == 10 and min(gaps) >= quiet, gaps
+
+
+@pytest.mark.parametrize("lights", ["lights0", "lights1"])
+def test_the_ruler_adds_only_its_two_bits_and_no_write(trace, lights):
+    """Ruler on against off, the lights the same: the same requests in the
+    same order, every light write the same; the only difference is the two
+    ruler bits in each lit scan's 0xD4 (0x0101 -> 0x010d)."""
+    off = _wire_of(trace, f"combo_{lights}_ruler0")
+    on = _wire_of(trace, f"combo_{lights}_ruler1")
+    assert len(on) == len(off)
+    diff = [(a, b) for a, b in zip(off, on) if a != b]
+    assert len(diff) == 4
+    for a, b in diff:
+        assert a.startswith("CTL d4 ") and b.startswith("CTL d4 ")
+        assert a.split()[2][-4:] == "0101" and b.split()[2][-4:] == "010d"
+        assert a.split()[2][:-4] == b.split()[2][:-4]
+    assert [w for w in on if w.startswith("WR ")] == \
+        [w for w in off if w.startswith("WR ")]
+
+
+@pytest.mark.parametrize("scn", ["combo_lights0_ruler1", "combo_lights1_ruler1",
+                                 "combo_full_lights1_ruler1"])
+def test_the_hold_does_not_starve_the_ruler(trace, scn):
+    """The hold comes before the reader starts (i1pro_trigger_one_measure:
+    the lights' trigger hook first, the ruler's bits and reader after), so
+    every strip is recorded whole, even after ChromIQ's own 2100 ms."""
+    recs = _ruler(trace, scn)
+    assert len(recs) == 4
+    for r in recs:
+        assert r["ended"] == 1 and r["giveup"] == 0 and r["err"] == 0
+        assert r["samples"] == 120 * 136 - 5 and r["notend"] == 0
+    assert f"{scn} READS85 1 max=4096" in trace
+
+
+def test_with_the_lights_the_ruler_strips_are_the_ones_without(trace):
+    """The ruler records are the same with the lights on as off."""
+    assert _ruler(trace, "combo_lights1_ruler1") == \
+        _ruler(trace, "combo_lights0_ruler1")
+
+
+def test_the_combinations_send_no_new_request(trace):
+    for scn in COMBOS:
+        reqs = {ln.split()[2] for ln in _scn(trace, scn) if " CTL " in ln}
+        assert reqs <= {"d4", "c1", "c0", "d6"}, scn
