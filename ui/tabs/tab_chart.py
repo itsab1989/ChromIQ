@@ -19917,6 +19917,11 @@ class TabChart(QWidget):
             kw.pop("margins", None)
             kw.update(spacer_on=False, spacer_mode="none",
                       layout_mode="patch_first")
+            # a short sheet's margins, as the build has them (5 x 7 in)
+            from workflow.isis.chart import guided_margins
+            _gm = guided_margins(paper)
+            if _gm is not None:
+                kw["margins"] = _gm
             box = getattr(self, "_isis_model_combo", None)
             if box is not None and box.currentData() == "xl":
                 kw["isis_model"] = "xl"
@@ -20178,11 +20183,22 @@ class TabChart(QWidget):
                 # the Calculated-Patches figure went right while the
                 # Chart-layout-information panel next to it still described a
                 # rectangular, spacered chart (Basti, 2026-08-28).
-                geom = self._engine_geom(instr, paper, dd=dd, td=td, eff_lb=eff_lb,
-                                         nsl=nsl_eff, pscale=eff_scale,
-                                         margin=eff_margin, guided=guided_active)
-                lay = self._predict_layout_info(geom, paper, pages,
-                                                npat=fixed or None)
+                try:
+                    geom = self._engine_geom(instr, paper, dd=dd, td=td, eff_lb=eff_lb,
+                                             nsl=nsl_eff, pscale=eff_scale,
+                                             margin=eff_margin, guided=guided_active)
+                except ValueError as e:
+                    # a sheet the i1iSis cannot take (Beta): no estimate, and
+                    # Generate says why (M-ISIS-SHEET-CHECK); anything else
+                    # is raised as before
+                    if type(e).__name__ != "IsisSheetRefused":
+                        raise
+                    geom = None
+                if geom is not None:
+                    lay = self._predict_layout_info(geom, paper, pages,
+                                                    npat=fixed or None)
+                else:
+                    self._layout_info_panel.clear_estimate()
             else:
                 self._layout_info_panel.clear_estimate()
 

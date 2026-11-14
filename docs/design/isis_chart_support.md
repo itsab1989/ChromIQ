@@ -62,6 +62,17 @@ read; a target made with the Beta on keeps its stored values untouched.
   wordmark share one baseline, and its ink stays 0.75 mm under the outline
   and clear of the strip letters' zone and of the 20 mm before the bar (set
   smaller, down to half, when the band cannot hold it). On every page.
+* The name line never touches the top corner labels: measured with the
+  real type (accents and other scripts included), 1.5 mm from each label.
+  Too wide: the sheet text goes, the name is shortened with "…" in its
+  middle (at least 8 characters; the files keep the full name), then the
+  line is set smaller down to 1.8 mm; then, when the strip letters are not
+  at the top, two lines (the wordmark between the corner labels, the name
+  and page under them between the feed arrows); last the least needed part
+  is left off and said (M-ISIS-NAME-LINE): the wordmark, then on a one-page
+  chart the page, then the name. Never the page of a multi-page chart, never
+  the corner labels. Strip letters and row numbers are measured in their
+  own face and set smaller until neighbours cannot touch.
 * The grid is i1Profiler's rule (T = ceil(N / Cmax), P = ceil(T / Rmax),
   R = ceil(T / P), C = ceil(N / (R x P)); column-major; unused cells at the
   end white), reproducing all 38 layouts measured in i1Profiler.

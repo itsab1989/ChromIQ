@@ -708,7 +708,9 @@ def sheet_for(grid: Grid, paper_w: float, paper_h: float,
         # number, when the page has that paper inside its right margin
         size = opts.letter_size or min(3.0, max(1.2, opts.ph * 0.5))
         txt = "9" * len(str(grid.R))
-        _x, _y, nw, _nh = _label_box(0, 0, size, txt, opts.number_rotation)
+        _x, _y, nw, _nh = _label_box(0, 0, size, txt, opts.number_rotation,
+                                     opts.letter_font, opts.letter_bold,
+                                     opts.letter_italic)
         need = (nominal_w - opts.d1 + F.DIAMOND_CLEAR_MM.value
                 + max(0.0, opts.label_offset_x) + nw + 0.5)
         room = paper_w - opts.margins[1] - opts.margins[3] - opts.offset[0]
@@ -1109,6 +1111,22 @@ def wordmark_metrics(band_mm: float) -> dict:
             "down": (tile.height - base_y) / s}
 
 
+def text_ink_mm(text: str, size: float, bold: bool = False,
+                family: str = "Inter", italic: bool = False) -> tuple:
+    """The ink of *text* at cap height *size*, from its pen on the
+    baseline, in mm: ``(left, up, right, down)`` (``up`` above the baseline,
+    ``down`` below it). Accents, descenders and other scripts' glyphs reach
+    beyond the cap height, so a box from the cap height alone is not where
+    the ink is."""
+    s = _MEASURE_DPI / 25.4
+    font = _font(max(6, int(round(size / 0.73 * s))), bold=bold,
+                 family=family, italic=italic)[0]
+    if not text:
+        return (0.0, 0.0, 0.0, 0.0)
+    l, t, r, b = font.getbbox(text, anchor="ls")
+    return (l / s, -t / s, r / s, b / s)
+
+
 def text_width_mm(text: str, size: float, bold: bool = False,
                   family: str = "Inter") -> float:
     """The real advance of *text* at cap height *size* (mm), as `draw_page`
@@ -1152,68 +1170,13 @@ def plan_page(sheet: Sheet, page: int, *, name: str = "",
     if o.outline:
         items.append(Item("dash", (sheet.x0, sheet.y0, sheet.width,
                                    sheet.height), role="outline"))
-    # the name and page line, centred in the text band (Z1)
+    # the name and page line and the wordmark, in the text band (Z1),
+    # never touching the corner labels (`_plan_name_line`)
     letters_top = o.strip_letters == "top"
-    if letters_top:
-        line_top, line_h = sheet.y0 + 1.25, 3.0
-    else:
-        line_top = sheet.y0 + F.NAME_LINE_TOP_MM.value
-        line_h = 3.5
     cl_size = 2.2
-    corner_w = 0.0
-    if o.corner_labels:
-        corner_w = 0.62 * cl_size * 1.45 * 5 + 2.0
-    room = max(10.0, sheet.width - 2.0 * (o.d1 + corner_w))
-    def band_for(sz: float) -> float:
-        return round(sz * WORDMARK_BAND_PER_CAP, 2)
-
-    def group(t: str, sz: float, wmw: "float | None" = None) -> float:
-        if wmw is None:
-            wmw = wordmark_metrics(band_for(sz))["width"]
-        return text_width_mm(t, sz, bold=True) + WORDMARK_GAP_MM + wmw
-
-    text = page_line(name, page + 1, g.P, sheet_text)
-    size = line_h
-    while size > 1.6 and group(text, size) > room:
-        size = round(size - 0.1, 3)
-    band = band_for(size)
-    wm = wordmark_metrics(band)
-    if group(text, size, wm["width"]) > room:
-        # shorten the sheet text, then the name, never the page
-        text = page_line(name, page + 1, g.P, "")
-        if group(text, size, wm["width"]) > room:
-            text = f"page {page + 1}/{g.P}"
-    while band > WORDMARK_BAND_MIN_MM + 1e-9 and \
-            group(text, size, wm["width"]) > room:
-        # then, at last, the wordmark is set smaller
-        band = round(band - 0.25, 3)
-        wm = wordmark_metrics(band)
-    # ONE BASELINE for the text and the wordmark, the wordmark's ink kept
-    # clear of the outline above and of the strip letters' zone (or the
-    # 20 mm before the bar) below; the wordmark is set smaller if the
-    # band cannot hold it
-    ink_top = sheet.y0 + F.OUTLINE_LINE_MM.value + 0.75
-    ink_bottom = (sheet.y0 + LETTER_ZONE_TOP_MM[0] - 0.25 if letters_top
-                  else sheet.bar_y - F.CLEAR_ABOVE_BAR_MM.value - 0.25)
-    while True:
-        baseline = max(line_top + size, ink_top + wm["up"])
-        if (baseline + max(wm["down"], 0.0) <= ink_bottom + 1e-9
-                or band <= WORDMARK_BAND_MIN_MM + 1e-9):
-            break
-        band = round(band - 0.25, 3)
-        wm = wordmark_metrics(band)
-    tw = text_width_mm(text, size, bold=True)
-    gx = sheet.x0 + sheet.width / 2.0 - (tw + WORDMARK_GAP_MM
-                                         + wm["width"]) / 2.0
-    items.append(Item("text", (gx, line_top, tw, size), text=text,
-                      size=size, anchor="left", role="name_line",
-                      pen=(gx, baseline)))
-    px0 = gx + tw + WORDMARK_GAP_MM
-    items.append(Item("wordmark",
-                      (px0 + wm["left"], baseline - wm["up"],
-                       wm["right"] - wm["left"], wm["up"] + wm["down"]),
-                      text="ChromIQ", size=band, role="wordmark",
-                      pen=(px0, baseline)))
+    items_n, off = _plan_name_line(sheet, page, name, sheet_text, patterns)
+    items += items_n
+    left_off += off
     # corner labels: the first and last column and row of THIS page, the
     # columns continuing over the pages (R§3)
     if o.corner_labels:
@@ -1227,7 +1190,9 @@ def plan_page(sheet: Sheet, page: int, *, name: str = "",
                 ((lx, "left", 0), (by, g.R - 1)),
                 ((rx, "right", g.C - 1), (by, g.R - 1))):
             t = cell_name(sheet, page, col, row, patterns)
-            items.append(Item("text", _text_box(x, y, cl_size, t, anchor),
+            tw_ = text_width_mm(t, cl_size)
+            items.append(Item("text", (x if anchor == "left" else x - tw_, y,
+                                       tw_, cl_size),
                               text=t, size=cl_size, anchor=anchor,
                               role="corner"))
     # strip letters, one per column, in Z1 or Z8 only, in the engine's own
@@ -1278,6 +1243,222 @@ def plan_page(sheet: Sheet, page: int, *, name: str = "",
     return items, left_off
 
 
+#: THE NAME LINE (the text band's first 12 mm). Its type is measured, never
+#: estimated, and it keeps NAME_GAP_MM of paper to each top corner label.
+NAME_GAP_MM = 1.5
+#: The smallest cap height the name line is set at (legible on paper).
+NAME_MIN_MM = 1.8
+#: The fewest characters a shortened chart name keeps (with "…" inside).
+NAME_MIN_CHARS = 8
+#: Where the second line starts when the line moves under the corner labels.
+NAME_LINE2_TOP_MM = 7.0
+NAME_LINE2_MAX_MM = 3.0
+
+
+def mid_ellipsis(text: str, keep: int) -> str:
+    """*text* shortened to *keep* characters with "…" in the middle (the
+    start and the end of a chart name are what tell charts apart)."""
+    text = str(text or "")
+    if len(text) <= keep:
+        return text
+    keep = max(2, keep)
+    a = (keep - 1 + 1) // 2
+    b = keep - 1 - a
+    return text[:a] + "…" + (text[-b:] if b > 0 else "")
+
+
+def _plan_name_line(sheet: "Sheet", page: int, name: str, sheet_text: str,
+                    patterns) -> "tuple[list[Item], list[str]]":
+    """The chart's name, the page and the ChromIQ wordmark in the text band.
+
+    One line between the top corner labels, at the full size; when it does
+    not fit: the sheet text goes, then the chart name is shortened with "…"
+    in its middle (the full name is in the chart's files), then the line is
+    set smaller, down to NAME_MIN_MM. Still too wide, and with the strip
+    letters elsewhere: two lines, the wordmark between the corner labels and
+    the name and page under them, between the feed arrows. Last, the least
+    needed element is left off and said: the wordmark, then on a one-page
+    chart the page, then the name; never the page of a multi-page chart,
+    never the corner labels."""
+    o, g = sheet.opts, sheet.grid
+    items: "list[Item]" = []
+    left_off: "list[str]" = []
+    letters_top = o.strip_letters == "top"
+    cl_size = 2.2
+    if letters_top:
+        line_top, line_h = sheet.y0 + 1.25, 3.0
+    else:
+        line_top, line_h = sheet.y0 + F.NAME_LINE_TOP_MM.value, 3.5
+    cx = sheet.x0 + sheet.width / 2.0
+    # the room between the top corner labels (or the diamond columns)
+    lo = sheet.x0 + o.d1 + F.DIAMOND_W_MM.value + NAME_GAP_MM
+    hi = sheet.x0 + sheet.width - o.d1 - F.DIAMOND_W_MM.value - NAME_GAP_MM
+    lo2, hi2 = lo, hi
+    if o.corner_labels:
+        tl = cell_name(sheet, page, 0, 0, patterns)
+        tr_ = cell_name(sheet, page, g.C - 1, 0, patterns)
+        lo = max(lo, sheet.grid_x + text_width_mm(tl, cl_size) + NAME_GAP_MM)
+        hi = min(hi, sheet.grid_x + sheet.grid_w
+                 - text_width_mm(tr_, cl_size) - NAME_GAP_MM)
+    # centred on the chart, so the room is twice the nearer side
+    room1 = max(0.0, 2.0 * min(cx - lo, hi - cx))
+    room2 = max(0.0, 2.0 * min(cx - lo2, hi2 - cx))
+    page_txt = f"page {page + 1}/{g.P}"
+    full = str(name or "").strip()
+
+    def band_for(sz: float) -> float:
+        return round(sz * WORDMARK_BAND_PER_CAP, 2)
+
+    def tw(t: str, sz: float) -> float:
+        # the advance or the ink, whichever reaches further
+        if not t:
+            return 0.0
+        il, _u, ir, _d = text_ink_mm(t, sz, bold=True)
+        return max(text_width_mm(t, sz, bold=True), ir) - min(0.0, il)
+
+    def ink(t: str, sz: float) -> "tuple[float, float, float]":
+        """(left of the pen, up, down) of the line's real ink."""
+        il, iu, _ir, idn = text_ink_mm(t, sz, bold=True)
+        return min(0.0, il), max(iu, sz), max(idn, 0.0)
+
+    def line(nm: str, with_page: bool, extra: str = "") -> str:
+        parts = [nm, page_txt if with_page else "", extra]
+        return "  ·  ".join(p for p in parts if p)
+
+    def fit_name(sz: float, room: float, with_page: bool, wm_w: float,
+                 extra: str = "") -> "str | None":
+        """The name (whole, or shortened in its middle) that fits *room*
+        at *sz* beside the page and the wordmark; None when none does."""
+        gap = WORDMARK_GAP_MM if wm_w > 0 else 0.0
+        if tw(line(full, with_page, extra), sz) + gap + wm_w <= room:
+            return full
+        if not full or extra:
+            return None
+        lo_k, hi_k, best = NAME_MIN_CHARS, len(full) - 1, None
+        while lo_k <= hi_k:
+            k = (lo_k + hi_k) // 2
+            if tw(line(mid_ellipsis(full, k), with_page), sz) + gap \
+                    + wm_w <= room:
+                best, lo_k = mid_ellipsis(full, k), k + 1
+            else:
+                hi_k = k - 1
+        return best
+
+    sizes = []
+    v = line_h
+    while v >= NAME_MIN_MM - 1e-9:
+        sizes.append(round(v, 2))
+        v -= 0.1
+
+    plan = None             # (mode, size, text, wordmark band or 0)
+    # 1. one line: the sheet text too, at the full size only
+    if sheet_text and sheet_text.strip():
+        b = band_for(line_h)
+        if fit_name(line_h, room1, True, wordmark_metrics(b)["width"],
+                    sheet_text.strip()) is not None:
+            plan = ("one", line_h, line(full, True, sheet_text.strip()), b)
+    # 2. one line: the name shortened, then smaller
+    if plan is None:
+        for sz in sizes:
+            b = band_for(sz)
+            nm = fit_name(sz, room1, True, wordmark_metrics(b)["width"])
+            if nm is not None:
+                plan = ("one", sz, line(nm, True), b)
+                break
+    # 3. two lines (the strip letters' zone must be free): the wordmark
+    #    between the corner labels, the name and page under them
+    if plan is None and not letters_top:
+        b1 = None
+        for sz in sizes:
+            if wordmark_metrics(band_for(sz))["width"] <= room1:
+                b1 = band_for(sz)
+                break
+        for sz in [x for x in sizes if x <= NAME_LINE2_MAX_MM + 1e-9]:
+            nm = fit_name(sz, room2, True, 0.0)
+            if nm is not None:
+                plan = ("two", sz, line(nm, True), b1 or 0.0)
+                if b1 is None:
+                    left_off.append("name_wordmark")
+                break
+    # 4. one line, the least needed left off: the wordmark, then on a
+    #    one-page chart the page, then the name
+    if plan is None:
+        sz = NAME_MIN_MM
+        left_off.append("name_wordmark")
+        nm = fit_name(sz, room1, True, 0.0)
+        if nm is not None:
+            plan = ("one", sz, line(nm, True), 0.0)
+        elif g.P == 1 and fit_name(sz, room1, False, 0.0) is not None:
+            left_off.append("name_page")
+            plan = ("one", sz, line(fit_name(sz, room1, False, 0.0), False),
+                    0.0)
+        else:
+            if full:
+                left_off.append("name_text")
+            t = page_txt
+            if tw(t, sz) > room1:
+                t = f"{page + 1}/{g.P}"
+            plan = ("one", sz, t, 0.0)
+
+    mode, size, text, band = plan
+    ink_top = sheet.y0 + F.OUTLINE_LINE_MM.value + 0.75
+    zone_bottom = (sheet.y0 + LETTER_ZONE_TOP_MM[0] - 0.25 if letters_top
+                   else sheet.bar_y - F.CLEAR_ABOVE_BAR_MM.value - 0.25)
+
+    def place_wordmark(band_mm: float, x_pen: float, baseline: float):
+        wm = wordmark_metrics(band_mm)
+        items.append(Item("wordmark",
+                          (x_pen + wm["left"], baseline - wm["up"],
+                           wm["right"] - wm["left"], wm["up"] + wm["down"]),
+                          text="ChromIQ", size=band_mm, role="wordmark",
+                          pen=(x_pen, baseline)))
+
+    if mode == "one":
+        wm = wordmark_metrics(band) if band else None
+        ink_bottom = zone_bottom
+        while wm is not None:
+            baseline = max(line_top + size, ink_top + wm["up"])
+            if (baseline + wm["down"] <= ink_bottom + 1e-9
+                    or band <= WORDMARK_BAND_MIN_MM + 1e-9):
+                break
+            band = round(band - 0.25, 3)
+            wm = wordmark_metrics(band)
+        il, iu, idn = ink(text, size)
+        baseline = max(line_top + size, ink_top + iu,
+                       ink_top + (wm["up"] if wm else 0.0))
+        w_text = tw(text, size)
+        w_all = w_text + ((WORDMARK_GAP_MM + wm["width"]) if wm else 0.0)
+        gx = cx - w_all / 2.0
+        items.append(Item("text", (gx, baseline - iu, w_text, iu + idn),
+                          text=text, size=size, anchor="left",
+                          role="name_line", pen=(gx - il, baseline)))
+        if wm is not None:
+            place_wordmark(band, gx + w_text + WORDMARK_GAP_MM, baseline)
+    else:
+        # line 1: the wordmark alone, its ink inside the corner labels' rows
+        top2 = sheet.y0 + NAME_LINE2_TOP_MM
+        wm_bottom = ink_top
+        if band:
+            wm = wordmark_metrics(band)
+            while band > WORDMARK_BAND_MIN_MM + 1e-9 and \
+                    ink_top + wm["up"] + wm["down"] > top2 - 0.5:
+                band = round(band - 0.25, 3)
+                wm = wordmark_metrics(band)
+            place_wordmark(band, cx - wm["width"] / 2.0,
+                           ink_top + wm["up"])
+            wm_bottom = ink_top + wm["up"] + wm["down"]
+        # line 2: the name and the page, under the corner labels and the
+        # wordmark (its accents and tall glyphs too), between the arrows
+        il, iu, idn = ink(text, size)
+        baseline = max(top2 + size, wm_bottom + 0.5 + iu)
+        w_text = tw(text, size)
+        gx = cx - w_text / 2.0
+        items.append(Item("text", (gx, baseline - iu, w_text, iu + idn),
+                          text=text, size=size, anchor="left",
+                          role="name_line", pen=(gx - il, baseline)))
+    return items, left_off
+
+
 #: The smallest label ChromIQ prints on an i1iSis chart (cap height, mm):
 #: below it a label is left off and the log says so (M-ISIS-KEEP-OUT).
 LABEL_MIN_MM = 1.5
@@ -1290,10 +1471,15 @@ UNDERLINE_CYCLE = ((230, 25, 75), (60, 180, 75), (0, 130, 200),
 
 
 def _label_box(cx: float, cy: float, size: float, text: str,
-               rotation: int) -> tuple:
+               rotation: int, family: str = "JetBrains Mono",
+               bold: bool = False, italic: bool = False) -> tuple:
     """The box of a label of cap height *size* centred on (cx, cy), turned
-    by *rotation* (90 / 270 run along y)."""
-    x, y, w, h = _text_box(0, 0, size, text)
+    by *rotation* (90 / 270 run along y): its real ink, measured in its
+    own face, with 0.1 mm to spare on each side."""
+    il, _iu, ir, _id = text_ink_mm(text, size, bold, family or "Inter",
+                                   italic)
+    w = max(ir - il, 0.0) + 0.2
+    h = size + 0.2
     if rotation in (90, 270):
         w, h = h, w
     return (cx - w / 2.0, cy - h / 2.0, w, h)
@@ -1310,7 +1496,9 @@ def _plan_letters(sheet: Sheet, page: int, patterns, z0: float, z1: float):
 
     def fits(sz):
         for t in texts:
-            x, y, w, h = _label_box(0, 0, sz, t, o.letter_rotation)
+            x, y, w, h = _label_box(0, 0, sz, t, o.letter_rotation,
+                                     o.letter_font, o.letter_bold,
+                                     o.letter_italic)
             if w > o.pw + 1e-6 or h + ul_room > room_h + 1e-6:
                 return False
         return True
@@ -1319,7 +1507,9 @@ def _plan_letters(sheet: Sheet, page: int, patterns, z0: float, z1: float):
     if not fits(size):
         return [], ["strip_letters"]
     for c, t in enumerate(texts):
-        x, y, w, h = _label_box(0, 0, size, t, o.letter_rotation)
+        x, y, w, h = _label_box(0, 0, size, t, o.letter_rotation,
+                                 o.letter_font, o.letter_bold,
+                                 o.letter_italic)
         col0 = sheet.grid_x + c * o.pw
         if o.letter_align == "left":
             lx = col0
@@ -1356,7 +1546,9 @@ def _plan_numbers(sheet: Sheet, patterns):
 
     def fits(sz):
         for t in texts:
-            _x, _y, w, h = _label_box(0, 0, sz, t, o.number_rotation)
+            _x, _y, w, h = _label_box(0, 0, sz, t, o.number_rotation,
+                                        o.letter_font, o.letter_bold,
+                                        o.letter_italic)
             if h > o.ph + 1e-6 or x0 + w > limit + 1e-6:
                 return False
         return True
@@ -1366,7 +1558,9 @@ def _plan_numbers(sheet: Sheet, patterns):
         return [], ["row_numbers"]
     items = []
     for r, t in enumerate(texts):
-        _x, _y, w, h = _label_box(0, 0, size, t, o.number_rotation)
+        _x, _y, w, h = _label_box(0, 0, size, t, o.number_rotation,
+                                        o.letter_font, o.letter_bold,
+                                        o.letter_italic)
         items.append(Item("text", (x0, sheet.row_centre(r) - h / 2.0, w, h),
                           text=t, size=size, anchor="left",
                           role="row_number", family=o.letter_font,
@@ -1446,7 +1640,8 @@ def _font(px: int, bold: bool = False, family: str = "Inter",
 
 
 def draw_page(img, page_geom: "list | None", sheet: Sheet, items, dpi: int,
-              *, band_images: "dict | None" = None) -> None:
+              *, band_images: "dict | None" = None,
+              ink_boxes: "list | None" = None) -> None:
     """Draw *items* (mm) onto one page image (PIL, RGB) and, when a display
     list is collected (PDF, separated TIFF), as vector rectangles and text
     runs. Diamonds and arrows are drawn as rows of thin rectangles, exact to
@@ -1537,6 +1732,9 @@ def draw_page(img, page_geom: "list | None", sheet: Sheet, items, dpi: int,
             # sits on too
             top = int(round(it.pen[1] * s)) - font.getmetrics()[0]
         draw.text((left - bb[0], top), it.text, font=font, fill=it.rgb)
+        if ink_boxes is not None:
+            ink_boxes.append((it.role, draw.textbbox((left - bb[0], top),
+                                                     it.text, font=font)))
         if page_geom is not None and path:
             ascent = font.getmetrics()[0]
             page_geom.append(("text", left - bb[0], top + ascent, it.text,
@@ -1559,6 +1757,10 @@ def draw_page(img, page_geom: "list | None", sheet: Sheet, items, dpi: int,
         x0, y0 = cx - tile.width // 2, cy - tile.height // 2
         ink = Image.new("RGB", tile.size, it.rgb)
         img.paste(ink, (x0, y0), tile)
+        if ink_boxes is not None:
+            ib = tile.getbbox() or (0, 0, 0, 0)
+            ink_boxes.append((it.role, (x0 + ib[0], y0 + ib[1],
+                                        x0 + ib[2], y0 + ib[3])))
         if page_geom is not None:
             art = Image.new("RGB", tile.size, (255, 255, 255))
             art.paste(ink, (0, 0), tile)
@@ -1575,6 +1777,9 @@ def draw_page(img, page_geom: "list | None", sheet: Sheet, items, dpi: int,
         # its ink box holds nothing else (planned clear of the outline, the
         # name line and every zone), so the white tile lies on white paper
         img.paste(tile, (x0, y0))
+        if ink_boxes is not None:
+            ink_boxes.append((it.role, (x0, y0, x0 + tile.width,
+                                        y0 + tile.height)))
         if page_geom is not None:
             import numpy as np
             page_geom.append(("clip", (x0, y0), np.asarray(tile)))
@@ -1779,6 +1984,15 @@ def keep_out_message(what: str) -> str:
     if what == "trailer_text":
         return tr("The chart notes are longer than the chart is wide, so "
                   "their end was left off in the trailer.")
+    parts = {"name_wordmark": tr("the ChromIQ logo"),
+             "name_page": tr("the page number"),
+             "name_text": tr("the chart's name")}
+    if what in parts:
+        return tr("This chart is too narrow for its whole name line between "
+                  "the corner labels, even with the name shortened and the "
+                  "text set small, so {what} was left off the top of the "
+                  "sheet. The chart's files keep its full name.").format(
+                      what=parts[what])
     names = {"row_numbers": tr("The row numbers"),
              "strip_letters": tr("The strip letters")}
     return tr("{what} would print where the i1iSis looks for its markers, so "
