@@ -308,6 +308,12 @@ def test_the_ruler_help_and_confirmation_say_it_is_paused():
     assert ("For the i1Pro 2 the ruler check is paused in this version, until "
             "it has been tried step by step on a real instrument") in conf
     assert "An i1Pro 3 gets nothing new" in conf
+    # review nit 6: the file is written only where the check runs
+    assert ("Each measurement with an i1Pro 3 writes a small diagnostics "
+            "file") in conf
+    assert "With an i1Pro 2 no file is written while the check is paused." \
+        in conf
+    assert "Each measurement writes" not in conf
     assert "—" not in paras[1] + conf
 
 
