@@ -20,6 +20,10 @@ The "switched off changes nothing" proof, in one command. It
 what a person who never touches Preferences > Beta gets. ``--betas on``
 switches EVERY Beta the tree has on, not only yours.
 
+Beside every chart it also writes the exports the app writes (the colour
+list and the i1Profiler .txt / .pxf, `chart_exports.write_sidecars`), so
+they are compared byte for byte too.
+
 WHAT IT PROVES, AND WHAT IT DOES NOT: it compares charts built by the layout
 engine, from its plain defaults and from each instrument's
 ``default_recipe()``. It does not build through Guided, printtarg or the
@@ -114,6 +118,14 @@ for code in json.loads(sys.argv[7]):
                 kw = rk
             chart.build_chart(src, d / "chart", **kw)
             result["%s/%s" % (code, name)] = "built"
+            # THE EXPORTS TOO (review of a7ca1489e, M3): the colour list
+            # and the i1Profiler pair, written as the app writes them
+            # beside the chart (its .ti1 beside its .ti2), so a change to
+            # them is seen, not only one to the chart
+            import shutil
+            shutil.copyfile(src, d / "chart.ti1")
+            from workflow.chart_exports import write_sidecars
+            write_sidecars(d / "chart.ti1", d, "chart")
         except Exception as exc:
             result["%s/%s" % (code, name)] = "refused: %s: %s" % (
                 type(exc).__name__, str(exc).splitlines()[0][:120]

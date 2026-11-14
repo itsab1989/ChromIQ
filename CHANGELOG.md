@@ -4,7 +4,10 @@
 
 ### New
 - **Charts for the X-Rite i1iSis family (beta, off by default).** Preferences → Beta → “X-Rite i1iSis charts (beta)” adds “i1iSis family” to the Instrument list of Guided and Manual, with a choice for the XL models' wider sheets. ChromIQ lays the chart out with its own layout engine exactly as X-Rite's chart rules and i1Profiler 3.8.8 lay it out (the black bar, a diamond at both ends of every row, 6 × 6 mm patches without gaps by default), and saves an i1Profiler test chart (`.txf`) beside it that makes i1Profiler expect exactly that sheet. You measure the printed sheet in i1Profiler and bring a one-page measurement back with Import Measurement; when you press Start, the Measure tab explains the steps. In Manual nearly every layout option stays open, including a notes band in the header (off by default). Nobody on the team owns an i1iSis, so no ChromIQ chart has been read by one yet: if you own one, please try it and tell us.
-- **The i1Profiler patch set (`.pxf`) of an i1iSis or i1iO chart names that device** as i1Profiler itself does (only while that beta option is on); every other chart's file is unchanged.
+- **The i1Profiler patch set (`.pxf`) of an i1iSis chart names the i1iSis or the i1iSis XL** as i1Profiler itself does (only while that beta option is on); every other chart's file is unchanged.
+
+### Fixed
+- **i1iO charts (beta): the i1Profiler export of an i1iO chart now names the right measuring device.** Its patch set (`.pxf`) said “i1iSis”; it now says “i1iO 2”, the name i1Profiler's own i1iO charts carry (found from a real i1iO owner's files). Only while “X-Rite i1iO support (beta)” is on, whatever the i1iSis option says; with it off, and for every other instrument, the file is byte for byte as before.
 
 ### Removed
 - **The Instrument entry “i1iSis (via i1Profiler)”.** It printed an i1Pro chart that an i1iSis could not read, and the new beta option replaces it. A saved setting that still names it opens on the i1Pro and A4, and nothing is changed until you save.
