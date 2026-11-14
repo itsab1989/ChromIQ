@@ -168,6 +168,9 @@ def test_a_custom_size_typed_lying_down_is_turned_upright(qtbot):
     p.custom_h.setValue(148)
     assert p.selection()[1] == "148x210"      # even before editing finishes
     p.custom_h.editingFinished.emit()
+    # the turn waits one event-loop turn for the focus to settle (4.3.34
+    # review: it must not turn while the person moves from width to height)
+    qtbot.waitUntil(lambda: p.custom_w.value() == 148.0, timeout=2000)
     assert (p.custom_w.value(), p.custom_h.value()) == (148.0, 210.0)
     assert said == [_mm._I1IO_CUSTOM_TURNED.format(w="148", h="210")]
     assert p._custom_turned_lbl.isVisibleTo(p)
@@ -178,6 +181,7 @@ def test_a_custom_size_typed_lying_down_is_turned_upright(qtbot):
     p.custom_w.setValue(210)
     p.custom_h.setValue(148)
     p.custom_h.editingFinished.emit()
+    qtbot.wait(50)
     assert p.selection()[1] == "210x148"
     assert (p.custom_w.value(), p.custom_h.value()) == (210.0, 148.0)
     assert len(said) == 1 and not p._custom_turned_lbl.isVisibleTo(p)

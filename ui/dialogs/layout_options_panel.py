@@ -13,9 +13,9 @@ from __future__ import annotations
 import time
 from contextlib import contextmanager
 
-from PyQt6.QtCore import pyqtSignal, Qt
+from PyQt6.QtCore import QTimer, pyqtSignal, Qt
 from PyQt6.QtWidgets import (
-    QButtonGroup, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QMenu,
+    QApplication, QButtonGroup, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QMenu,
     QSizePolicy, QSpacerItem, QToolButton, QVBoxLayout, QWidget,
 )
 
@@ -1014,7 +1014,17 @@ class LayoutOptionsPanel(QWidget):
                 _cs.setRange(20, 2000); _cs.setDecimals(0); _cs.setMaximumWidth(80)
                 _cs.valueChanged.connect(self._emit)
                 _cs.valueChanged.connect(self._custom_size_edited)
-                _cs.editingFinished.connect(self._turn_custom_upright)
+                # Not at once: Tab from width to height also finishes the
+                # width, and a size turned then is turned half-typed (4.3.34
+                # review, major). The turn waits until focus has left both.
+                _cs.editingFinished.connect(self._turn_custom_upright_soon)
+            # A child of the panel, so it never outlives it (CLAUDE.md: no
+            # self-capturing lambda as a slot).
+            self._custom_turn_timer = QTimer(self)
+            self._custom_turn_timer.setSingleShot(True)
+            self._custom_turn_timer.setInterval(0)
+            self._custom_turn_timer.timeout.connect(
+                self._turn_custom_upright_when_left)
             self.custom_w.setValue(210); self.custom_h.setValue(297)
             _cpl.addWidget(self.custom_w); _cpl.addWidget(QLabel("×", self))
             _cpl.addWidget(self.custom_h); _cpl.addStretch()
@@ -7284,6 +7294,29 @@ class LayoutOptionsPanel(QWidget):
         if hasattr(self, "_custom_turned_lbl"):
             self._custom_turned_lbl.setVisible(False)
 
+    def _custom_box_has_focus(self) -> bool:
+        fw = QApplication.focusWidget()
+        if fw is None:
+            return False
+        for box in (self.custom_w, self.custom_h):
+            if fw is box or fw is box.lineEdit():
+                return True
+        return False
+
+    def _turn_custom_upright_soon(self, *_a) -> None:
+        """`editingFinished` of either custom box: look again once the
+        focus has moved (the next event-loop turn)."""
+        self._custom_turn_timer.start()
+
+    def _turn_custom_upright_when_left(self) -> None:
+        """Turn only once the person has left BOTH boxes: moving from width
+        to height is still typing the size (4.3.34 review, major: 230, Tab,
+        320 was built as 210 x 320). The build itself never depends on
+        this: `selection` gives the upright size in any case."""
+        if self._custom_box_has_focus():
+            return
+        self._turn_custom_upright()
+
     def _turn_custom_upright(self) -> None:
         """AN i1iO CUSTOM SIZE IS THE PRINTED SHEET, UPRIGHT (review 6, item
         2). One typed lying down (210 × 148) was taken as it stood, the
@@ -7292,6 +7325,8 @@ class LayoutOptionsPanel(QWidget):
         said once, under the boxes and in the log. `selection` gives the
         upright size in any case, so the Preview, the estimate and the build
         all lay out the same sheet. Other instruments: unchanged."""
+        if getattr(self, "_custom_turn_held", False):
+            return
         if not (hasattr(self, "custom_w") and self._i1io_chosen()
                 and self.paper is not None
                 and self.paper.currentData() == "__custom__"):
@@ -7644,6 +7679,7 @@ class LayoutOptionsPanel(QWidget):
                 # user would be left designing against a picture of the chart
                 # they had open before.
                 self._loading = False
+                self._custom_turn_held = False
 
     def _set_recipe_impl(self, r: LayoutRecipe) -> None:
         # WHO OVERWROTE THE PANEL? Sebastian watched his spacer and gap
@@ -7681,6 +7717,13 @@ class LayoutOptionsPanel(QWidget):
         # 4, item 4: an i1Pro project's markers became the i1iO's own)
         self._loading = True
         if self.instr is not None:
+            # A LOAD NEVER TURNS WHAT WAS ON SCREEN BEFORE IT (4.3.34 review):
+            # the instrument sync below would turn a half-typed size and say
+            # so, before the recipe's own size is in the boxes. Held until
+            # then, and a turn still pending from typing is dropped.
+            if hasattr(self, "_custom_turn_timer"):
+                self._custom_turn_timer.stop()
+            self._custom_turn_held = True
             ii = self.instr.findData(r.instrument)
             self.instr.setCurrentIndex(ii if ii >= 0 else 0)
             self._on_instr_changed()
@@ -7698,6 +7741,7 @@ class LayoutOptionsPanel(QWidget):
                     self.custom_h.setValue(dims[1])
             self._custom_paper_w.setVisible(self.paper.currentData() == "__custom__")
             self._sync_custom_size_words()
+            self._custom_turn_held = False
             self._turn_custom_upright()
             mi = self.mode.findData(r.mode())
             if mi >= 0:
