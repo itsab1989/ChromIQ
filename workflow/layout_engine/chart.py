@@ -349,6 +349,25 @@ def build_chart(
     #: ("" = centred, "start"). No other instrument reads them.
     i1io_numbers_edge_mm: "float | None" = None,
     i1io_text_align: str = "",
+    #: i1iSis only (a Beta, `workflow.isis.chart`): the model width, the
+    #: header, tight margins, barcode, trailer, arrows, outline, corner
+    #: labels, strip letters, row numbers, the notes band and the chart's
+    #: alignment (None / "" = the i1iSis chart's own). No other instrument
+    #: reads them.
+    isis_model: str = "",
+    isis_header_mm: "float | None" = None,
+    isis_tight: "bool | None" = None,
+    isis_barcode: "bool | None" = None,
+    isis_trailer_mm: "float | None" = None,
+    isis_arrows: "bool | None" = None,
+    isis_outline: "bool | None" = None,
+    isis_corner_labels: "bool | None" = None,
+    isis_strip_letters: str = "",
+    isis_row_numbers: "bool | None" = None,
+    isis_notes_band: "bool | None" = None,
+    isis_notes_place: str = "",
+    isis_notes_height_mm: "float | None" = None,
+    isis_align: str = "",
 ) -> ChartResult:
     """Full chart build: write ``out_base.ti2`` + page TIFF(s) + strip geometry.
 
@@ -476,6 +495,59 @@ def build_chart(
             _i1io_chart.TEXT_BOLD_KEY: i1io_text_bold,
             "chart_text_italic": chart_text_italic,
             "chart_text_size_mm": chart_text_size_mm})
+    # An X-Rite i1iSis chart (a Beta): the engine's own grid at the place
+    # and with the furniture i1Profiler uses (`workflow.isis.chart`). Off,
+    # the engine refuses "XRISIS" as an unknown instrument.
+    from workflow.isis.support import isis_enabled, is_isis_code
+    _isis = is_isis_code(instrument) and isis_enabled()
+    if _isis:
+        from workflow.isis import chart as _isis_chart
+        _isis_kw = {
+            "paper": paper, "patch_w": patch_w, "patch_h": patch_h,
+            "margins": margins, "offset_x": offset_x, "offset_y": offset_y,
+            "max_strip": max_strip, "stamp_command": stamp_command,
+            _isis_chart.MODEL_KEY: isis_model,
+            _isis_chart.HEADER_KEY: isis_header_mm,
+            _isis_chart.TIGHT_KEY: isis_tight,
+            _isis_chart.BARCODE_KEY: isis_barcode,
+            _isis_chart.TRAILER_KEY: isis_trailer_mm,
+            _isis_chart.ARROWS_KEY: isis_arrows,
+            _isis_chart.OUTLINE_KEY: isis_outline,
+            _isis_chart.CORNERS_KEY: isis_corner_labels,
+            _isis_chart.LETTERS_KEY: isis_strip_letters,
+            _isis_chart.NUMBERS_KEY: isis_row_numbers,
+            _isis_chart.BAND_KEY: isis_notes_band,
+            _isis_chart.BAND_PLACE_KEY: isis_notes_place,
+            _isis_chart.BAND_HEIGHT_KEY: isis_notes_height_mm,
+            _isis_chart.ALIGN_KEY: isis_align}
+        # Refused before anything is read or written when no page of this
+        # size can carry an i1iSis chart at all.
+        _f = _isis_chart.fixed_build_kwargs(_isis_kw)
+        _isis_sheet_text = chart_text
+        _isis_stamp = stamp_command
+        # the notes band's content, as the clip border's content box says
+        # ("off" there means the band's own default, the Notes box)
+        clip_content_mode_asked = (clip_content_mode
+                                   if clip_content_mode not in (None, "", "off")
+                                   else "notes")
+        (patch_w, patch_h, pscale, sscale, spacer_on, spacer_mode,
+         spacer_width, inter_patch, strip_gap, edge_spacers,
+         use_instrument_margins, layout_mode, patch_area_align, density,
+         cm_stagger, nolpcbord, nolimit, clip_content_mode, helper_markers,
+         chart_text, stamp_command, side_stamp, strip_indicator_gap,
+         draw_indicators, row_indicators, underline_mode, hflag,
+         hex_flat_top, strip_label_offset_mm, strip_label_offset_x_mm,
+         indicator_rotation, row_indicator_rotation) = (_f[k] for k in (
+            "patch_w", "patch_h", "pscale", "sscale", "spacer_on",
+            "spacer_mode", "spacer_width", "inter_patch", "strip_gap",
+            "edge_spacers", "use_instrument_margins", "layout_mode",
+            "patch_area_align", "density", "cm_stagger", "nolpcbord",
+            "nolimit", "clip_content_mode", "helper_markers", "chart_text",
+            "stamp_command", "side_stamp", "strip_indicator_gap",
+            "draw_indicators", "row_indicators", "underline_mode", "hflag",
+            "hex_flat_top", "strip_label_offset_mm",
+            "strip_label_offset_x_mm", "indicator_rotation",
+            "row_indicator_rotation"))
     if instrument == "FD9" and fd9_enabled():
         from workflow.fd9.chart import build_chart as build_fd9
         return build_fd9(ti1_path, out_base, paper=paper, dpi=dpi,
@@ -520,6 +592,8 @@ def build_chart(
     # change it.
     def _geom_for(npat: int):
         return instruments.geom_from_build_kwargs({
+        # an i1iSis chart's own options, so the margins hold its grid
+        **(dict(_isis_kw) if _isis else {}),
         # the i1iO's labels as asked for, past the fixed settings above
         **({_i1io_chart.LABELS_KEY: _i1io_labels,
             _i1io_chart.ALIGN_KEY: patch_area_align,
@@ -657,9 +731,25 @@ def build_chart(
         if problem is not None:
             raise alphix.PatternRefused(problem)
 
+    def _isis_check(layout_now, npat: int):
+        """The i1iSis chart of *npat* patches, checked, and the engine's
+        grid proved to be that chart's grid (the margins put it there)."""
+        _o, _g, _s = _isis_chart.layout_for(npat, w_mm, h_mm, _isis_kw)
+        _per = (layout_now.patches_per_page // layout_now.steps_in_pass
+                if layout_now.steps_in_pass else 0)
+        if (layout_now.steps_in_pass, _per, layout_now.pages,
+                layout_now.padding) != (_g.R, _g.C, _g.P, 0):
+            raise RuntimeError(
+                f"i1iSis grid mismatch: engine {layout_now.steps_in_pass} "
+                f"rows x {_per} columns x {layout_now.pages} pages, chart "
+                f"{_g.R} x {_g.C} x {_g.P}")
+        return _s
+
     # Refused BEFORE a calibration's ramps rewrite the .ti1 on disk, and again
     # on the layout those ramps settle on (it can have a different strip count).
     _refuse_unreadable_patterns(layout)
+    if _isis:
+        _isis_sheet = _isis_check(layout, len(target.patches))
     if _i1io:
         # The table must be able to read this layout at all: refused BEFORE
         # anything is written (and again below if calibration ramps re-lay it).
@@ -704,6 +794,8 @@ def build_chart(
                 if _i1io:
                     _i1io_chart.check_sheet(geom, layout, w_mm, h_mm,
                                         crosses=_i1io_crosses)
+                if _isis:
+                    _isis_sheet = _isis_check(layout, len(target.patches))
     if cal is not None and apply_cal:
         from . import calibration
         printed = calibration.apply_to_target(target, cal)
@@ -761,6 +853,10 @@ def build_chart(
                  _i1io_chart.aim_patches_value(
                      geom, layout, w_mm, h_mm, _i1io_pages,
                      (strip_pattern, patch_pattern, label_rule))),)))
+    if _isis:
+        from dataclasses import replace as _replace
+        _ti2_geom = _replace(geom, extra_keywords=tuple(geom.extra_keywords) + (
+            (_isis_chart.MODEL_KEYWORD, _isis_sheet.opts.model),))
     ti2_writer.write_ti2(
         ti2_path, target.patches, target.device_fields, layout, _ti2_geom,
         color_rep=target.color_rep, seed=seed, randomize=randomize,
@@ -852,6 +948,31 @@ def build_chart(
                                    text_ctx=_ctx, crosses=_i1io_pages,
                                    text_style=_i1io_text_style,
                                    text_align=_i1io_chart.text_align_of(_f))
+    _isis_warnings: list = []
+    if _isis:
+        # The bar, the diamonds, the arrows, the outline, the labels, the
+        # barcode and the notes band, after the check that an i1iSis can read
+        # this layout at all, and before anything is saved.
+        _isis_name = project or Path(out_base).name
+        _isis_left_off = _isis_chart.draw_furniture(
+            render, _isis_sheet, dpi, name=_isis_name,
+            sheet_text=_isis_sheet_text,
+            patterns=(strip_pattern, patch_pattern, label_rule),
+            title=_isis_name,
+            stamp_text=(stamp_summary_line(instrument, paper, dpi,
+                                           layout.total_patches, seed)
+                        if _isis_stamp else ""),
+            band=dict(mode=clip_content_mode_asked, text=clip_text,
+                      font_family=clip_text_font, ctx=_ctx,
+                      text_size_mm=clip_text_size_mm,
+                      image_path=clip_image_path,
+                      image_rotation=clip_image_rotation,
+                      image_scale=clip_image_scale,
+                      image_offset_x_mm=clip_image_offset_x,
+                      image_offset_y_mm=clip_image_offset_y,
+                      flip=clip_flip_180))
+        _isis_warnings = [_isis_chart.keep_out_message(w)
+                          for w in _isis_left_off]
     if target.n_channels >= 4:
         device_pages = raster.build_device_pages(render, printed, bit16=bit16)
         tiff_paths = raster.save_separated_tiffs(
@@ -930,6 +1051,14 @@ def build_chart(
             if _why not in _i1io_warnings:
                 _i1io_warnings.append(_why)
 
+    if _isis:
+        _isis_chart.write_side_file(
+            artefact(stem, ".isis.json"), _isis_sheet, paper=paper,
+            name=project or Path(out_base).name,
+            title=project or Path(out_base).name,
+            patterns=(strip_pattern, patch_pattern, label_rule),
+            designed=len(target.patches))
+
     cht_paths: list[Path] | None = None
     if emit_cht:
         from . import cht_writer
@@ -966,7 +1095,8 @@ def build_chart(
         # back to a later rebuild.
         chart_date=_ctx["date"],
         ramp_whites_added=ramps_arranged,
-        warnings=tuple(_i1io_warnings) if _i1io else (),
+        warnings=(tuple(_i1io_warnings) if _i1io
+                  else tuple(_isis_warnings) if _isis else ()),
     )
 
 
