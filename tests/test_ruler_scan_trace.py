@@ -130,3 +130,25 @@ def test_the_recogniser_gives_identical_values_with_the_record_open(trace):
 def test_never_0xd7_nor_any_new_request(trace):
     reqs = {ln.split()[2] for ln in trace.splitlines() if " CTL " in ln}
     assert reqs <= {"d4", "c1", "c0", "d6"}
+
+
+# ---- the i1Pro 3: copies only (native/chartread_helper/tests/i1pro3_ruler_test.c)
+
+@pytest.fixture(scope="module")
+def trace3(tmp_path_factory) -> str:
+    return _build_and_run(tmp_path_factory, "i1pro3_ruler_test")
+
+
+def test_i1pro3_hooks_record_only_an_armed_strip(trace3):
+    lines = trace3.splitlines()
+    assert "off REC none" in lines and "off STATE -1" in lines
+    assert "unarmed REC none" in lines
+    armed = next(ln for ln in lines if ln.startswith("armed REC"))
+    for part in ("gen=3", "ended=6", "samples=103200", "nch=343", "readings=600",
+                 "clocks=172", "used=1", "ncut=16", "domain=1", "ntrace=100"):
+        assert part in armed, part
+    # one-shot: the second scan of the same strip was not recorded over it
+    assert next(ln for ln in lines if ln.startswith("oneshot REC")).count(
+        "samples=103200") == 1
+    assert next(ln for ln in lines if ln.startswith("failed REC")).startswith(
+        "failed REC gen=3 ended=4")
