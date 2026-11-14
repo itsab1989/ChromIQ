@@ -290,9 +290,11 @@ class SimTable:
 def tonights_table(**kw) -> SimTable:
     """The tester's real table as it answered version 0.2.0 on 14 Nov 2026 (his log; no
     serial in it): started (a0 130000), every arm answer 00, the arm at (1101, 46) before
-    the homing, the homing answered after 0.336 s, the arm at (1102, 19) after it (0.2.1
-    reads no position after the homing; the value is kept for the replay of 0.2.0)."""
-    return SimTable(cold=False, pos=[1101.0, 46.0], home_y=19.0, home_s=0.336, jitter=False,
+    the homing, the homing answered 0.352 s after the line was sent (0.336 s after its
+    acceptance; the recordings' times, like this program's, run from the line to the answer),
+    the arm at (1102, 19) after it (0.2.1 reads no position after the homing; the value is
+    kept for the replay of 0.2.0)."""
+    return SimTable(cold=False, pos=[1101.0, 46.0], home_y=19.0, home_s=0.352, jitter=False,
                     **kw)
 
 

@@ -374,11 +374,12 @@ def test_the_check_before_the_homing_at_its_edges(tmp_path, x, y, ok):
 
 def test_tonights_real_replies_now_end_with_the_recorded_close(tmp_path):
     """The tester's table as it answered 0.2.0 on 14 Nov 2026 ((1101, 46) before, homing
-    0.336 s): 0.2.1 reads no position after the homing and finishes with s0 f0 f3."""
+    0.352 s from the line, 0.336 s from its acceptance): 0.2.1 reads no position after the
+    homing and finishes with s0 f0 f3."""
     code, sim, log = _run(tmp_path, sim_mod.tonights_table())
     assert code == 0 and sim.received == WARM
     assert "right before the homing the arm reports (1101, 46)" in log
-    assert "the homing took 0.336 s" in log
+    assert "the homing took 0.352 s" in log
     assert "result 0; table warm; 18 lines sent, 1 movements; closed yes" in log
 
 
@@ -1135,7 +1136,7 @@ def test_the_zip_is_reproducible_and_runs_from_a_clean_folder(tmp_path):
 
 def test_the_timing_text_is_his_tables_and_the_light_is_explained(tmp_path):
     """Safety review S1: no 'twentieth of a second' (there is one homing, and on his table it
-    took 0.336 s), and the missing light of the i1Pro 2 is said before the movement."""
+    took 0.352 s), and the missing light of the i1Pro 2 is said before the movement."""
     for name in PROGRAM_FILES + ("README.md", "BYTES.md"):
         text = " ".join(_source(name).split()).lower()
         assert "twentieth" not in text and "quarter of a second" not in text, name

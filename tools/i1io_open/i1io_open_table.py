@@ -302,7 +302,9 @@ HOME_TIMEOUT = 12.0
 #: arm may have done something no recording shows (a travel, a search like i0's 3.17 s),
 #: so nothing more is sent, not even the close. Every recorded homing from the resting
 #: place took 0.047-0.352 s (from Y 0..2 0.047-0.048 s; from Y 14..47 0.224-0.352 s); the
-#: tester's own table took 0.336 s from Y 46 (0.2.0). 0.6 s is 1.7 times the slowest.
+#: tester's own table took 0.352 s from Y 46 (0.2.0's log: line 7879.843, acceptance 7879.859,
+#: answer 7880.195; like the recordings, measured from the line to the answer). 0.6 s is 1.7
+#: times the slowest.
 #: There is NO lower bound: the arm can rest at Y 0..2 (read there after a homing), where a
 #: homing answered in 0.047 s, and no recording shows a time a real homing cannot beat.
 SLOW_AFTER = {"home": 0.6}
@@ -310,7 +312,7 @@ SLOW_AFTER = {"home": 0.6}
 SLOWEST_RECORDED_HOME_S = 0.352
 SLOW_HOME_TEXT = (
     "The table reported that the homing had finished, but it took {took:.2f} seconds. On "
-    "your table it took 0.34 seconds (version 0.2.0), and in every recording a homing from "
+    "your table it took 0.35 seconds (version 0.2.0), and in every recording a homing from "
     "the resting place took at most 0.35 seconds. Because it took longer than anything we "
     "know, the arm may have done something no recording shows, so the program does not "
     "close the table and sends nothing more.")
