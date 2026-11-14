@@ -551,14 +551,20 @@ def _shuffled_target(target: Target, seed: int | None = None) -> Target:
 
 
 def _write_pair(
-    target: Target, out_dir: Path, base_name: str, descriptor: str
+    target: Target, out_dir: Path, base_name: str, descriptor: str,
+    measurement_device: "str | None" = None,
 ) -> tuple[Path | None, Path]:
     """Write ``<base_name>.pxf`` (always) and ``<base_name>.txt`` (RGB/CMYK
-    only) for *target*. Returns (txt_or_None, pxf)."""
+    only) for *target*. Returns (txt_or_None, pxf). *measurement_device*
+    None keeps the file exactly as before (`write_pxf`'s own default)."""
     txt_out = out_dir / f"{base_name}.txt"
     pxf_out = out_dir / f"{base_name}.pxf"
     wrote_txt = write_txt(target, txt_out, descriptor)
-    write_pxf(target, pxf_out, descriptor)
+    if measurement_device:
+        write_pxf(target, pxf_out, descriptor,
+                  measurement_device=measurement_device)
+    else:
+        write_pxf(target, pxf_out, descriptor)
     return (txt_out if wrote_txt else None), pxf_out
 
 
@@ -569,6 +575,7 @@ def export_from_ti1(
     descriptor: str | None = None,
     also_shuffled: bool = False,
     shuffle_seed: int | None = None,
+    measurement_device: "str | None" = None,
 ) -> tuple[Path | None, Path]:
     """Read TI1, write ``<base_name>.pxf`` (always) and ``<base_name>.txt``
     (RGB/CMYK only) into ``out_dir``.
@@ -591,14 +598,21 @@ def export_from_ti1(
     ``<base_name>-shuffled.pxf`` (+ ``.txt``). The returned paths are always
     those of the primary, unshuffled pair. ``shuffle_seed`` makes the shuffle
     reproducible (used by tests); the UI leaves it None for a fresh order.
+
+    ``measurement_device`` names the device in the ``.pxf``; None keeps the
+    file's long-standing "i1iSis" (`workflow.chart_exports.
+    i1profiler_device_for` passes i1Profiler's own name for an i1iSis or an
+    i1iO chart).
     """
     target = parse_ti1(ti1_path)
     desc = descriptor or ti1_path.stem
     out_dir.mkdir(parents=True, exist_ok=True)
-    txt_out, pxf_out = _write_pair(target, out_dir, base_name, desc)
+    txt_out, pxf_out = _write_pair(target, out_dir, base_name, desc,
+                                   measurement_device)
     if also_shuffled:
         _write_pair(_shuffled_target(target, seed=shuffle_seed),
-                    out_dir, f"{base_name}-shuffled", desc)
+                    out_dir, f"{base_name}-shuffled", desc,
+                    measurement_device)
     return txt_out, pxf_out
 
 
