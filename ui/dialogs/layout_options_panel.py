@@ -3642,15 +3642,28 @@ class LayoutOptionsPanel(QWidget):
         for every instrument — e.g. "Offset every second strip" (a ColorMunki-
         only option) showed for SpectroScan / i1Pro / DTP41 / DTP51 until the
         user manually changed the instrument (Knut)."""
+        # EVERY LEAVING SYNC BEFORE THE ENTERING ONE (review of a7ca1489e,
+        # M1): each Beta's leave puts back what it found when it was
+        # entered, so a leave that ran after another Beta's enter restored
+        # its old ranges and tooltips over the new instrument's (i1iSis ->
+        # FD-9 gave FD-9 the i1Pro's patch range). Each sync acts only on a
+        # change, so the order is the only thing this moves.
+        syncs = []
         if self._fd9_support:
             # Only while FD-9 support is on.
-            self._sync_fd9_widgets(inst == "FD9")
+            syncs.append((self._sync_fd9_widgets, inst == "FD9"))
         if getattr(self, "_i1io_support", False):
             # Only while i1iO support is on.
-            self._sync_i1io_widgets(inst == "IO2")
+            syncs.append((self._sync_i1io_widgets, inst == "IO2"))
         if getattr(self, "_isis_support", False):
             # Only while i1iSis charts are on.
-            self._sync_isis_widgets(inst == "XRISIS")
+            syncs.append((self._sync_isis_widgets, inst == "XRISIS"))
+        for sync, on in syncs:
+            if not on:
+                sync(False)
+        for sync, on in syncs:
+            if on:
+                sync(True)
         self._sync_custom_size_words()
         # not while the person is still typing in a box (4.3.34 review r2, b)
         self._turn_custom_upright_when_left()
@@ -5101,6 +5114,9 @@ class LayoutOptionsPanel(QWidget):
                 self._refresh_clip_preview()
         # Floor the clip-side margin at the clip width whenever a band is active.
         self._update_clip_margin_conflict()
+        # the i1iSis's greyed controls stay greyed whatever ran after its
+        # entering sync (Beta; review of a7ca1489e, M1)
+        self._isis_call("_isis_hold_greyed")
 
     # ---- Clip-border content -------------------------------------------
     def _sync_clip_content_enabled(self) -> None:

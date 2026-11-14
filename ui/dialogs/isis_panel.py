@@ -253,6 +253,16 @@ class IsisPanelMixin:
         if not getattr(self, "_loading", False):
             self._emit()
 
+    def _isis_hold_greyed(self) -> None:
+        """After an instrument change has run to its end: while the i1iSis
+        is chosen, its greyed controls are greyed again with their reason
+        (the shared margin rule enables "Clip" on every change)."""
+        if self._isis_saved is None:
+            return
+        for c, why in IsisPanelMixin._isis_greyed_controls(self):
+            c.setEnabled(False)
+            c.setToolTip(isis_greyed_reason(why))
+
     def _isis_mode_changed(self, *_a) -> None:
         # the mode chosen while the i1iSis is chosen is its own (entering
         # and leaving set it while _isis_saved is None)
@@ -362,6 +372,19 @@ class IsisPanelMixin:
             finally:
                 self._loading = was_loading
             self._isis_saved = saved
+            # the states that follow from the values (mode, clip content,
+            # spacers, underline) worked out for the i1iSis, whatever the
+            # instrument before left them as; then the greyed set again, as
+            # those rules know nothing of the i1iSis (review of a7ca1489e,
+            # M1: an i1iSis entered after the i1iO kept "Clip" enabled)
+            for name in ("_sync_layout_mode", "_sync_clip_content_enabled",
+                         "_sync_spacer_swatches", "_sync_underline_enabled"):
+                fn = getattr(self, name, None)
+                if fn is not None:
+                    fn()
+            for c, why in IsisPanelMixin._isis_greyed_controls(self):
+                c.setEnabled(False)
+                c.setToolTip(isis_greyed_reason(why))
             return
         self._isis_saved = None
         self._isis_own_patch = (self.patch_x.value(), self.patch_y.value())
@@ -394,6 +417,14 @@ class IsisPanelMixin:
                 lm.setCurrentIndex(was["layout_mode"])
         finally:
             self._loading = was_loading
+        # the states that follow from the values just put back (the spacer
+        # size row and swatches follow the spacers, the underline boxes the
+        # strip letters): worked out again for the instrument chosen now, as
+        # the enabled states saved on entering were the i1iSis's
+        for name in ("_sync_spacer_swatches", "_sync_underline_enabled"):
+            fn = getattr(self, name, None)
+            if fn is not None:
+                fn()
 
     def _isis_align_picked(self, *_a) -> None:
         """A PERSON picked "Patch area alignment" while the i1iSis is chosen:
