@@ -516,6 +516,12 @@ struct _i1pro3imp {
 	int ee_unk32[4];
 	int ee_unk33[256];
 
+	/* CHROMIQ PATCH: the ruler check (Beta, 2026-11-14). All 0 = not in use. */
+	int cq_ruler_on;
+	int cq_ruler_armed;
+	int cq_ruler_recording;
+	void *cq_ruler_rec;		/* cq_ruler_rec (cq_ruler.h) */
+
 	/* Block 6 */
 	int ee_unk34;
 
@@ -1563,6 +1569,20 @@ struct _i1data3 {
 
 /* Constructor. Construct from the EEprom calibration contents */
 extern i1data3 *new_i1data3(i1pro3 *p, unsigned char *buf, int len);
+
+/* CHROMIQ PATCH: the ruler check (Beta), see i1pro3_imp.c. Nothing new is sent. */
+int i1pro3_cq_ruler_options(void *pp, int on);
+void i1pro3_cq_ruler_arm(void *pp, int on);
+int i1pro3_cq_ruler_state(void *pp);
+int i1pro3_cq_ruler_firmware(void *pp);
+int i1pro3_cq_ruler_sensor(void *pp);
+int i1pro3_cq_ruler_take(void *pp, void *out);
+void i1pro3_cq_ruler_zeb(void *pp, unsigned char *zeb, int numzeb, int nummeas, int intclocks, double inttime, int zbytes);
+void i1pro3_cq_ruler_used(void *pp, int used, int npos);
+void i1pro3_cq_ruler_failed(void *pp, int err);
+void i1pro3_cq_ruler_trace(void *pp, double **rawmeas, int nummeas, double *maxval, int slots);
+void i1pro3_cq_ruler_cut(void *pp, void *pat, int npat, int slots);
+void i1pro3_cq_ruler_close(void *pp);
 
 /* CHROMIQ PATCH: i1Pro 3 indicator lights (Beta), see i1pro3_imp.c. Every
  * entry returns at once unless ChromIQ's helper called ..._begin(). */

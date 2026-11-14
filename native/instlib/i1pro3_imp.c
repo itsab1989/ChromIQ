@@ -450,6 +450,7 @@ void del_i1pro3imp(i1pro3 *p) {
 		i1pro3_cq_lights_end(p);
 
 		/* Terminate event monitor thread */
+		i1pro3_cq_ruler_close(p);	/* CHROMIQ PATCH: ruler check (Beta), frees its record */
 		if (m->th != NULL) {
 			m->th_term = 1;			/* Tell thread to exit on error */
 			i1pro3_terminate_event(p);
@@ -6575,6 +6576,179 @@ int i1pro3_cq_lights_end(void *pp) {
 }
 
 /* ============================================================ */
+/* CHROMIQ PATCH: the ruler check (Preferences > Beta, 2026-11-14; stage 1,
+ * CHECK ONLY), the i1Pro 3 / 3 Plus. NOTHING NEW IS SENT: ArgyllCMS already
+ * asks for the zebra ruler on every hand-held strip scan and reads it on 0x84
+ * (i1pro3_do_measure, i1pro3_zebra_proc). While ChromIQ's helper has armed one
+ * read_strip, these hooks only COPY what the driver already has: the decoded
+ * ruler samples (before ArgyllCMS frees them), the counts, whether ArgyllCMS
+ * placed the patches by the ruler (p2m), where its recogniser cut and a coarse
+ * trace. ArgyllCMS's own behaviour (a failed ruler read fails the strip; its
+ * own count check) is unchanged, option on or off.
+ */
+#include "cq_ruler.h"
+
+static cq_ruler_rec *cq3_ruler_r(i1pro3imp *m) {
+	return (cq_ruler_rec *)m->cq_ruler_rec;
+}
+
+int i1pro3_cq_ruler_options(void *pp, int on) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m;
+	if (p == NULL || (m = (i1pro3imp *)p->m) == NULL)
+		return 0;
+	if (!on || p->dtype != instI1Pro3 || !p->inited)
+		return 0;
+	if (m->cq_ruler_rec == NULL
+	 && (m->cq_ruler_rec = calloc(1, sizeof(cq_ruler_rec))) == NULL)
+		return 0;
+	m->cq_ruler_on = 1;
+	return 1;
+}
+
+void i1pro3_cq_ruler_arm(void *pp, int on) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m;
+	if (p == NULL || (m = (i1pro3imp *)p->m) == NULL || !m->cq_ruler_on)
+		return;
+	if (on && cq3_ruler_r(m) != NULL)
+		cq_ruler_rec_clear(cq3_ruler_r(m));
+	m->cq_ruler_armed = on;
+	m->cq_ruler_recording = 0;
+}
+
+/* -1 = not in use, 0 = in use (the i1Pro 3 never gives the ruler up: nothing
+ * of ChromIQ's runs on its USB). */
+int i1pro3_cq_ruler_state(void *pp) {
+	i1pro3 *p = (i1pro3 *)pp;
+	if (p == NULL || p->m == NULL || !((i1pro3imp *)p->m)->cq_ruler_on)
+		return -1;
+	return 0;
+}
+
+/* The firmware (version x 100), as the lights report it. */
+int i1pro3_cq_ruler_firmware(void *pp) {
+	i1pro3 *p = (i1pro3 *)pp;
+	if (p == NULL || p->m == NULL)
+		return -1;
+	return ((i1pro3imp *)p->m)->fwver;
+}
+
+/* Whether the instrument's EEPROM says it has the ruler sensor. */
+int i1pro3_cq_ruler_sensor(void *pp) {
+	i1pro3 *p = (i1pro3 *)pp;
+	if (p == NULL || p->m == NULL)
+		return 0;
+	return (((i1pro3imp *)p->m)->capabilities & I1PRO3_CAP_ZEB_RUL) != 0;
+}
+
+int i1pro3_cq_ruler_take(void *pp, void *vout) {
+	i1pro3 *p = (i1pro3 *)pp;
+	cq_ruler_rec *out = (cq_ruler_rec *)vout;
+	i1pro3imp *m;
+	cq_ruler_rec *r;
+	if (out != NULL)
+		memset(out, 0, sizeof(*out));
+	if (p == NULL || (m = (i1pro3imp *)p->m) == NULL
+	 || (r = cq3_ruler_r(m)) == NULL || !r->valid || out == NULL)
+		return 0;
+	*out = *r;
+	memset(r, 0, sizeof(*r));
+	m->cq_ruler_recording = 0;
+	return 1;
+}
+
+/* i1pro3_do_measure: the decoded samples, before ArgyllCMS processes and
+ * frees them. One-shot: only the armed strip's scan. */
+void i1pro3_cq_ruler_zeb(void *pp, unsigned char *zeb, int numzeb,
+                         int nummeas, int intclocks, double inttime, int zbytes) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m = (i1pro3imp *)p->m;
+	cq_ruler_rec *r = cq3_ruler_r(m);
+	long pos = 0, last_at = -1;
+	int last_code = -1;
+	if (!m->cq_ruler_on || !m->cq_ruler_armed || r == NULL)
+		return;
+	m->cq_ruler_armed = 0;
+	cq_ruler_rec_clear(r);
+	r->valid = 1;
+	r->gen = 3;
+	r->ended = CQ_RULER_END_ARGYLL;
+	r->readings = nummeas;
+	r->clocks = intclocks;
+	r->clock_s = m->intclkp;
+	r->inttime = inttime;
+	r->bytes = zbytes;
+	if (zeb != NULL && numzeb > 0)
+		cq_ruler_rec_feed(r, zeb, numzeb, &pos, &last_at, &last_code);
+	r->samples = numzeb > 0 ? numzeb : 0;
+	m->cq_ruler_recording = 1;
+}
+
+/* ...and whether ArgyllCMS then used it to place the patches. */
+void i1pro3_cq_ruler_used(void *pp, int used, int npos) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m = (i1pro3imp *)p->m;
+	if (m->cq_ruler_recording && cq3_ruler_r(m) != NULL) {
+		cq3_ruler_r(m)->argyll_used = used;
+		cq3_ruler_r(m)->npos = npos;
+	}
+}
+
+/* ArgyllCMS's own ruler read failed (it fails the strip, as always). */
+void i1pro3_cq_ruler_failed(void *pp, int err) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m = (i1pro3imp *)p->m;
+	cq_ruler_rec *r = cq3_ruler_r(m);
+	if (!m->cq_ruler_on || !m->cq_ruler_armed || r == NULL)
+		return;
+	m->cq_ruler_armed = 0;
+	cq_ruler_rec_clear(r);
+	r->valid = 1;
+	r->gen = 3;
+	r->ended = CQ_RULER_END_ERROR;
+	r->icom_err = err;
+}
+
+/* i1pro3_locate_patches: copies only, while a record is open. */
+void i1pro3_cq_ruler_trace(void *pp, double **rawmeas, int nummeas,
+                           double *maxval, int slots) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m = (i1pro3imp *)p->m;
+	if (m->cq_ruler_recording && cq3_ruler_r(m) != NULL)
+		cq_ruler_rec_trace(cq3_ruler_r(m), rawmeas, nummeas, maxval,
+		                   m->nraw, slots ? 1 : 0);
+}
+
+void i1pro3_cq_ruler_cut(void *pp, void *vpat, int npat, int slots) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m = (i1pro3imp *)p->m;
+	i1pro3_patch *pat = (i1pro3_patch *)vpat;
+	int k, pix = 0;
+	if (!m->cq_ruler_recording || cq3_ruler_r(m) == NULL || pat == NULL)
+		return;
+	for (k = 1; k < (npat - 1); k++) {
+		if (!pat[k].use)
+			continue;
+		cq_ruler_rec_cut(cq3_ruler_r(m), pix++, pat[k].ss, pat[k].no,
+		                 slots ? 1 : 0);
+	}
+}
+
+void i1pro3_cq_ruler_close(void *pp) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m;
+	if (p == NULL || (m = (i1pro3imp *)p->m) == NULL)
+		return;
+	if (m->cq_ruler_rec != NULL) {
+		cq_ruler_rec_clear(cq3_ruler_r(m));
+		free(m->cq_ruler_rec);
+		m->cq_ruler_rec = NULL;
+	}
+	m->cq_ruler_on = m->cq_ruler_armed = m->cq_ruler_recording = 0;
+}
+
+/* ============================================================ */
 /* Parse the EEProm contents */
 
 /* Initialise the calibration from the EEProm contents. */
@@ -10407,6 +10581,7 @@ i1pro3_code i1pro3_locate_patches(
 		if (maxval[j] < 1.0)
 			maxval[j] = 1.0;
 	}
+	i1pro3_cq_ruler_trace(p, rawmeas, nummeas, maxval, p2m != NULL);	/* CHROMIQ PATCH: ruler check, a copy */
 
 #ifdef PATREC_DEBUG
 	plot = dmatrixz(0, 10, 0, nummeas-1);			/* Up to 11 values */  
@@ -10965,6 +11140,7 @@ i1pro3_code i1pro3_locate_patches(
 		pat[k].ss += trim;
 		pat[k].no = nnn;
 	}
+	i1pro3_cq_ruler_cut(p, pat, npat, p2m != NULL);	/* CHROMIQ PATCH: ruler check, a copy */
 
 #ifdef PATREC_SAVETRIMMED			/* Save debugging file */
 	{
@@ -13486,6 +13662,7 @@ i1pro3_code i1pro3_do_measure(
 		zebra_th->del(zebra_th);
 
 		if (m->zebra_rv != I1PRO3_OK) {
+			i1pro3_cq_ruler_failed(p, m->zebra_rv);	/* CHROMIQ PATCH: ruler check, a note */
 			a1logd(p->log,1,"i1pro3_zebra_thread failed with %d\n",m->zebra_rv);
 			return m->zebra_rv;
 		}
@@ -13547,9 +13724,13 @@ i1pro3_code i1pro3_do_measure(
 			adump_bytes(p->log, "", zeb, 0, numzeb);
 		}
 
+		/* CHROMIQ PATCH: ruler check (Beta): a copy, a no-op unless armed */
+		i1pro3_cq_ruler_zeb(p, zeb, numzeb, nummeas, intclocks, inttime, m->zebra_bread);
+
 		/* Process the raw data into a list of meas patches at each 0.2 mm location */
 		if ((ev = i1pro3_zebra_proc(p, p_p2m, p_npos, zeb, numzeb, inttime, nummeas)) != I1PRO3_OK)
 			return ev;
+		i1pro3_cq_ruler_used(p, *p_p2m != NULL, p_npos != NULL ? *p_npos : 0);	/* CHROMIQ PATCH: ruler check */
 
 		free(zeb);
 	}

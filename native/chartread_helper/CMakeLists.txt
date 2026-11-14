@@ -127,6 +127,50 @@ add_executable(i1pro2_lights_modes_test EXCLUDE_FROM_ALL
 target_include_directories(i1pro2_lights_modes_test PRIVATE
   ${INSTLIB} ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(i1pro2_lights_modes_test PRIVATE instlib)
+# The ruler check Beta (2026-11-14): a strip scan through the real driver on
+# the fake USB layer (tests/test_ruler_scan_trace.py).
+add_executable(i1pro_ruler_scan_test EXCLUDE_FROM_ALL
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests/i1pro_ruler_scan_test.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_stubs.c
+  ${INSTLIB}/alphix.c
+)
+target_include_directories(i1pro_ruler_scan_test PRIVATE
+  ${INSTLIB} ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(i1pro_ruler_scan_test PRIVATE instlib)
+add_executable(i1pro3_ruler_test EXCLUDE_FROM_ALL
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests/i1pro3_ruler_test.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_stubs.c
+  ${INSTLIB}/alphix.c
+)
+target_include_directories(i1pro3_ruler_test PRIVATE
+  ${INSTLIB} ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(i1pro3_ruler_test PRIVATE instlib)
+# ...and against the base branch's i1pro.c / i1pro_imp.c / i1pro_imp.h
+# (feat/lights-i1pro3-signals 6de402163) for tests/data/i1pro_ruler_base_trace.txt
+# (scripts/make_ruler_base_fixtures.py, -DCQ_BASE_I1PRO_DIR=<folder>).
+if(CQ_BASE_I1PRO_DIR)
+  set(_cq_base_sources ${INSTLIB_SOURCES})
+  list(REMOVE_ITEM _cq_base_sources "${INSTLIB}/i1pro.c" "${INSTLIB}/i1pro_imp.c")
+  add_library(instlib_base_i1pro STATIC EXCLUDE_FROM_ALL ${_cq_base_sources}
+    "${CQ_BASE_I1PRO_DIR}/i1pro.c" "${CQ_BASE_I1PRO_DIR}/i1pro_imp.c"
+    ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_utf_compat.c)
+  get_target_property(_cq_defsb instlib COMPILE_DEFINITIONS)
+  get_target_property(_cq_idefsb instlib INTERFACE_COMPILE_DEFINITIONS)
+  get_target_property(_cq_optsb instlib COMPILE_OPTIONS)
+  target_compile_definitions(instlib_base_i1pro PUBLIC ${_cq_defsb} ${_cq_idefsb})
+  if(_cq_optsb)
+    target_compile_options(instlib_base_i1pro PRIVATE ${_cq_optsb})
+  endif()
+  target_include_directories(instlib_base_i1pro BEFORE PUBLIC "${CQ_BASE_I1PRO_DIR}")
+  target_include_directories(instlib_base_i1pro PUBLIC ${INSTLIB} ${CMAKE_CURRENT_SOURCE_DIR})
+  add_executable(i1pro_ruler_scan_test_base EXCLUDE_FROM_ALL
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/i1pro_ruler_scan_test.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_stubs.c
+    ${INSTLIB}/alphix.c
+  )
+  target_compile_definitions(i1pro_ruler_scan_test_base PRIVATE CQ_BASE)
+  target_link_libraries(i1pro_ruler_scan_test_base PRIVATE instlib_base_i1pro)
+endif()
 # ...and for the i1Pro 3 (2026-11-14): tests/test_i1pro3_lights_modes.py.
 add_executable(i1pro3_lights_modes_test EXCLUDE_FROM_ALL
   ${CMAKE_CURRENT_SOURCE_DIR}/tests/i1pro3_lights_modes_test.c
@@ -255,6 +299,10 @@ chromiq_add_win_version(chromiq-chartread
 
 set(_cq_link_targets chromiq-chartread i1pro2_lights_test i1pro3_lights_test)
 list(APPEND _cq_link_targets i1pro2_lights_modes_test i1pro3_lights_modes_test)
+list(APPEND _cq_link_targets i1pro_ruler_scan_test i1pro3_ruler_test)
+if(CQ_BASE_I1PRO_DIR)
+  list(APPEND _cq_link_targets i1pro_ruler_scan_test_base)
+endif()
 if(CQ_V4334_I1PRO_DIR)
   list(APPEND _cq_link_targets i1pro2_lights_modes_test_v4334
        i1pro3_lights_modes_test_v4334)

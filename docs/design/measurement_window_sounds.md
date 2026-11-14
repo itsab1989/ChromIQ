@@ -325,6 +325,24 @@ the instrument's single green flash at the press and lets the lights go dark
 by themselves (as the tester saw with i1Profiler), and what GOOD looks like
 after a single patch.
 
+## 4j. The ruler check's question plays Strip read failed (2026-11-14)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+With Preferences ▸ Beta, the ruler check on, an i1Pro 2 or i1Pro 3 and the
+ChromIQ chart-reading engine, the window *"Strip {strip} may not have been read
+all the way"* (M-STRIP-RULER-NOT-COVERED, §M-PROPOSED;
+`TabMeasure._prompt_ruler_not_covered`) plays **Strip read failed**, as "Strip
+may be misaligned" does: it is an accepted strip ChromIQ asks about. It is the
+strip's only cue and only window (`TabMeasure._strip_verdict`): no "Strip read
+OK" beside it, and when "Strip read quickly" is shown for the same strip (Slow
+down), the ruler question is not, and the ruler finding stays in the log. With
+the lights Beta on, the lights go red, as §4h and §4i say of any strip ChromIQ
+asks about. The per-strip ruler lines in the Measure log play nothing. No new
+sound was added.
+
 ## 5. Related documents
 
 - [`measurement_exit_strategy.md`](measurement_exit_strategy.md) — the same windows, from the point of view of how each one ends a session

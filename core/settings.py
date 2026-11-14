@@ -303,6 +303,16 @@ DEFAULTS: dict[str, Any] = {
     #: readings with the lights on). True = "left on during a reading", as
     #: X-Rite's i1Profiler does by hand (--lights-during-reading).
     "i1pro2_lights_during_reading": False,
+    #: Beta (Settings -> Beta, 2026-11-14): the i1Pro 2 / i1Pro 3 ruler check
+    #: (stage 1, CHECK ONLY; workflow/ruler_check.py). With the ChromIQ
+    #: chart-reading engine: after each strip the ruler's travel, direction and
+    #: speed, one question for an accepted strip the ruler says was clearly not
+    #: covered, and a diagnostics file per measurement in the run's reports/.
+    #: The i1Pro 2 is asked for its ruler (two bits in the measure command and
+    #: the ruler channel 0x85, as X-Rite's i1Profiler does); the i1Pro 3 gets
+    #: nothing new. Values and patch assignment never change. Off = the helper
+    #: is started without --ruler: exactly the base branch. Read at every Start.
+    "ruler_check_beta":          False,
     #: Beta (Settings -> Beta): also write the "turned" i1Profiler chart files
     #: (`workflow.i1profiler_turned`) into a chart's exports/ folder, so the
     #: printed ChromIQ sheet can be read in i1Profiler too after a quarter

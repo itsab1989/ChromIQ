@@ -1579,6 +1579,154 @@ static void cq_lights_for_session(inst *it, int rmode, int emis, int trans,
 		            why);
 }
 
+/* CHROMIQ_EXT: the ruler check (Preferences > Beta, 2026-11-14; stage 1, CHECK
+ * ONLY). Asked for with --ruler, and then used only for a real i1Pro 2 (whose
+ * EEPROM reports the ruler sensor) or i1Pro 3, as the driver itself identifies
+ * it, reading reflective STRIPS by hand, in JSON mode; in a replay only when
+ * CHROMIQ_REPLAY_INSTRUMENT names an i1Pro 2 or 3. Around each read_strip the
+ * driver is armed for that one strip; afterwards its record goes to the GUI as
+ * ONE {"event":"ruler_strip",...} line, before anything else is said about
+ * the strip. Nothing here touches a reading: the record is a copy. Once per
+ * session: {"event":"ruler","active":b,"instrument":...,"firmware":n,...}. */
+#include "cq_ruler.h"
+static inst *cq_ruler_it = NULL;
+static int cq_ruler_gen = 0;		/* 2 = i1Pro 2, 3 = i1Pro 3 */
+static int cq_ruler_replay = 0;
+
+static void cq_ruler_for_session(inst *it, int rmode, int emis, int trans,
+                                 int displ) {
+	const char *why = NULL;
+	int fw = -1, sensor = 0;
+	if (!cq_ruler || !cq_json)
+		return;
+	cq_ruler_it = NULL;
+	cq_ruler_gen = 0;
+	cq_ruler_replay = 0;
+	if (it == NULL)
+		why = "instrument";
+	else if (emis || trans || displ || rmode != 1)
+		why = "mode";
+	else if (cq_replay_active()) {
+		cq_ruler_gen = cq_replay_ruler_gen();
+		if (cq_ruler_gen == 0)
+			why = "instrument";
+		else {
+			cq_ruler_replay = 1;
+			fw = cq_ruler_gen == 2 ? 634 : 105;
+			sensor = 1;
+		}
+	} else if (it->dtype == instI1Pro2) {
+		cq_ruler_gen = 2;
+		fw = i1pro2_cq_ruler_firmware(it);
+		sensor = i1pro2_cq_ruler_options(it, 1);
+		if (!sensor)
+			why = "sensor";
+	} else if (it->dtype == instI1Pro3) {
+		cq_ruler_gen = 3;
+		fw = i1pro3_cq_ruler_firmware(it);
+		sensor = i1pro3_cq_ruler_sensor(it);
+		if (!i1pro3_cq_ruler_options(it, 1))
+			why = "instrument";
+	} else
+		why = "instrument";
+	if (why == NULL)
+		cq_ruler_it = it;
+	if (why == NULL)
+		cq_emit_raw("{\"event\":\"ruler\",\"active\":true,\"instrument\":\"%s\","
+		            "\"firmware\":%d,\"sensor\":%s,\"argyll\":\"%s\"}",
+		            cq_ruler_gen == 3 ? "i1pro3" : "i1pro2", fw,
+		            sensor ? "true" : "false", ARGYLL_VERSION_STR);
+	else
+		cq_emit_raw("{\"event\":\"ruler\",\"active\":false,\"why\":\"%s\"%s%s%s}",
+		            why, cq_ruler_gen ? ",\"instrument\":\"" : "",
+		            cq_ruler_gen == 3 ? "i1pro3" : cq_ruler_gen == 2 ? "i1pro2" : "",
+		            cq_ruler_gen ? "\"" : "");
+}
+
+/* Around one read_strip (both no-ops when the ruler is not in use). */
+static void cq_ruler_arm(int on) {
+	if (cq_ruler_it == NULL)
+		return;
+	if (cq_ruler_replay)
+		return;
+	if (cq_ruler_gen == 3)
+		i1pro3_cq_ruler_arm(cq_ruler_it, on);
+	else
+		i1pro2_cq_ruler_arm(cq_ruler_it, on);
+}
+
+static const char *cq_ruler_end_name(int e) {
+	switch (e) {
+	case CQ_RULER_END_SHORT:     return "short";
+	case CQ_RULER_END_CANCELLED: return "cancelled";
+	case CQ_RULER_END_TIMEOUT:   return "timeout";
+	case CQ_RULER_END_ERROR:     return "error";
+	case CQ_RULER_END_NOSTART:   return "not_started";
+	case CQ_RULER_END_ARGYLL:    return "argyll";
+	case CQ_RULER_END_RUNNING:   return "running";
+	default:                     return "none";
+	}
+}
+
+static const char *cq_ruler_giveup_name(int g) {
+	static const char *n[] = { "none", "error", "no_data", "stream_did_not_end",
+	                           "measurement_failed", "rate", "not_started",
+	                           "timeout" };
+	return g >= 0 && g <= 7 ? n[g] : "other";
+}
+
+/* After read_strip, whatever it returned: the record, if the driver made one
+ * for this strip. One line, written whole (cq_out_lock); numbers only. */
+static void cq_ruler_after_strip(const char *label, int rv) {
+	cq_ruler_rec r;
+	char esc[64];
+	int i, got, state;
+	if (cq_ruler_it == NULL)
+		return;
+	if (cq_ruler_replay)
+		got = cq_replay_ruler_take(&r);
+	else if (cq_ruler_gen == 3)
+		got = i1pro3_cq_ruler_take(cq_ruler_it, &r);
+	else
+		got = i1pro2_cq_ruler_take(cq_ruler_it, &r);
+	cq_ruler_arm(0);
+	if (!got)
+		return;
+	state = cq_ruler_replay ? r.giveup
+	      : cq_ruler_gen == 3 ? i1pro3_cq_ruler_state(cq_ruler_it)
+	                          : i1pro2_cq_ruler_state(cq_ruler_it);
+	cq_json_escape(esc, sizeof(esc), label != NULL ? label : "");
+	cq_out_lock();
+	fprintf(stdout, "\n{\"event\":\"ruler_strip\",\"strip\":\"%s\","
+	        "\"instrument\":\"%s\",\"result\":\"%s\",\"ended\":\"%s\","
+	        "\"icom_err\":%d,\"samples\":%ld,\"bytes\":%ld,\"readings\":%d,"
+	        "\"clocks\":%d,\"clock_s\":%.9g,\"inttime\":%.9g,\"first\":%d,"
+	        "\"changes_dropped\":%ld,\"argyll_used\":%s,\"npos\":%d,"
+	        "\"giveup\":\"%s\",\"given_up\":%s,\"stream_did_not_end\":%s,"
+	        "\"rate_ms\":%d,\"changes\":[",
+	        esc, cq_ruler_gen == 3 ? "i1pro3" : "i1pro2",
+	        rv == inst_ok ? "read" : (rv & inst_mask) == inst_misread
+	            ? "misread" : "other",
+	        cq_ruler_end_name(r.ended), r.icom_err, r.samples, r.bytes,
+	        r.readings, r.clocks, r.clock_s, r.inttime, r.first,
+	        r.ch_dropped, r.argyll_used ? "true" : "false", r.npos,
+	        cq_ruler_giveup_name(r.giveup), state > 0 ? "true" : "false",
+	        r.stream_did_not_end ? "true" : "false", r.rate_ms);
+	for (i = 0; i < r.nch && r.ch_gap != NULL; i++)
+		fprintf(stdout, "%s%d,%d", i ? "," : "", r.ch_gap[i], r.ch_code[i]);
+	fprintf(stdout, "],\"cut_domain\":%d,\"cut\":[", r.cut_domain);
+	for (i = 0; i < r.ncut; i++)
+		fprintf(stdout, "%s%d,%d", i ? "," : "", r.cut_ss[i], r.cut_no[i]);
+	fprintf(stdout, "],\"trace_domain\":%d,\"trace_step\":%d,\"trace\":[",
+	        r.trace_domain, r.trace_step);
+	for (i = 0; i < r.ntrace * 3 && r.trace != NULL; i++)
+		fprintf(stdout, "%s%u", i ? "," : "", (unsigned)r.trace[i]);
+	fprintf(stdout, "]}\n");
+	fflush(stdout);
+	cq_out_unlock();
+	cq_ruler_rec_clear(&r);
+}
+
 /* A scan that took longer than this from its trigger to its end was a real
  * attempt at a strip, however it failed, and is never part of a gesture. A
  * quick tap ends in about 0.2-0.3 s on a ColorMunki (Basti's hand test,
@@ -2346,6 +2494,9 @@ a1log *log			/* verb, debug & error log */
 	 * Without --i1pro2-lights this does nothing at all. */
 	if (xtern == 0)
 		cq_lights_for_session(it, rmode, emis, trans, displ);
+	/* CHROMIQ_EXT: the ruler check (Beta). Without --ruler nothing at all. */
+	if (xtern == 0)
+		cq_ruler_for_session(it, rmode, emis, trans, displ);
 
 	/* -------------------------------------------------- */
 	if (rmode == 3) {		/* For chart mode, read all at once */
@@ -2969,7 +3120,9 @@ a1log *log			/* verb, debug & error log */
 					cq_cal_gate_set(1);
 				cq_press_listen(0);		/* CHROMIQ_EXT: a fresh group */
 				cq_lights_prompt();		/* CHROMIQ_EXT: lights (Beta) */
+				cq_ruler_arm(1);		/* CHROMIQ_EXT: ruler check (Beta) */
 				rv = it->read_strip(it, "STRIP", stipa+nextrap, nn, guide, plen, glen, tlen, vals);
+				cq_ruler_after_strip(nn, rv);	/* CHROMIQ_EXT: ruler check (Beta) */
 				if (cq_json)
 					cq_cal_gate_set(0);
 				/* CHROMIQ_EXT: button gestures. How long the scan took from
@@ -4923,12 +5076,16 @@ int main(int argc, char *argv[]) {
 				 * left on during a hand-held reading, as i1Profiler does. */
 				cq_lights_left_on = 1;
 				eat = 1;
+			} else if (strcmp(argv[ai], "--ruler") == 0) {
+				/* CHROMIQ_EXT: Preferences > Beta, the ruler check. */
+				cq_ruler = 1;
+				eat = 1;
 			} else if (strcmp(argv[ai], "--caps") == 0) {
 				/* CHROMIQ_EXT: what this build can do, so the GUI can ask
 				 * before it relies on it. One JSON line, then exit 0.
 				 * "legacy_labels": reads sheets ChromIQ's layout engine
 				 * printed with its pre-4.3.3-beta.7 labels as printed. */
-				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\",\"lights_signals\",\"lights_during_reading\"],\"build\":\"%s\"}\n",
+				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\",\"lights_signals\",\"lights_during_reading\",\"ruler_check\"],\"build\":\"%s\"}\n",
 				       cq_helper_build_string());
 				fflush(stdout);
 				return 0;

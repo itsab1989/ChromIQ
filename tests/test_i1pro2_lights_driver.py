@@ -149,8 +149,16 @@ def test_undoing_the_patches_gives_argylls_own_file_back(dest):
 
 
 def _added_lines(dest: str) -> "list[str]":
+    """The lines the LIGHTS patches add (the ruler check's patches, which share
+    these files since 2026-11-14, are pinned in tests/test_ruler_driver.py)."""
+    v = _vendor()
+    ruler = [pt for k in ("I1PRO_IMP_H_RULER", "I1PRO_IMP_C_RULER",
+                          "I1PRO3_IMP_H_RULER", "I1PRO3_IMP_C_RULER")
+             for pt in v.get(k, [])]
     added = []
-    for old, new in _vendor()["PATCHES"].get(dest, []):
+    for old, new in v["PATCHES"].get(dest, []):
+        if (old, new) in ruler:
+            continue
         o = set(old.splitlines())
         added += [ln for ln in new.splitlines() if ln not in o]
     return added
@@ -265,12 +273,15 @@ def test_every_entry_asks_dtype_first():
 
 def test_no_other_driver_is_touched():
     patched = set(_vendor()["PATCHES"])
+    # usbio.c since 2026-11-14: its transfer counter is atomic (the ruler
+    # check's review, item 4; tests/test_ruler_driver.py), no wire change.
     assert patched == {"rspl1.c", "conv.c", "i1pro_imp.c", "i1pro_imp.h", "i1pro.c",
-                       "i1pro3_imp.c", "i1pro3_imp.h", "i1pro3.c"}
+                       "i1pro3_imp.c", "i1pro3_imp.h", "i1pro3.c", "usbio.c"}
     up = _provenance_upstream_sha()
     for name in ("munki_imp.c",
                  "munki.c", "i1d3.c", "ss_imp.c", "dtp20.c", "icoms.c",
-                 "usbio.c", "inst.c"):
+                 "usbio_ox.c", "usbio_lx.c", "usbio_w0.c", "usbio_dk.c",
+                 "inst.c"):
         have = hashlib.sha256((INSTLIB / name).read_bytes()).hexdigest()[:16]
         assert have == up[name], name
 

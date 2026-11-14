@@ -76,6 +76,17 @@ correction that it must be **all** of them, not a selection.
 | Preferences → everything | your setup |
 | the instrument and paper **defaults** in Preferences | the seed for a new target, not the target's own value |
 
+
+#### ⏳ Awaiting confirmation: the ruler check is global (2026-11-14)
+
+**Confirmed by:** *nobody yet.*
+
+Preferences ▸ Beta ▸ "X-Rite i1Pro 2 and i1Pro 3: check each strip with the
+ruler (beta)" (`ruler_check_beta`, off by default) describes your equipment
+(an instrument with its striped ruler), like the instrument lights, so it is
+global by this section and read at every Start. No target's `meta.json`
+changes with it.
+
 ### 1.2 Becomes per target
 
 | Group | Where it lives today |

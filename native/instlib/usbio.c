@@ -44,7 +44,15 @@
 
 /* Counter set when we're in a USB read or write */
 /* Note - this isn't perfectly thread safe */
+/* CHROMIQ PATCH: atomic, so that two transfers on different threads can */
+/* never lose an update and end the process through the exit(0) below */
+/* (see scripts/vendor_instlib.py, USBIO_PATCHES). No wire change. */
+#if !defined(__STDC_NO_ATOMICS__) && (defined(__GNUC__) || defined(__clang__) \
+     || (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L))
+_Atomic int in_usb_rw = 0;
+#else
 int in_usb_rw = 0;
+#endif
 
 /*  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /* Cancel token utility functions */
