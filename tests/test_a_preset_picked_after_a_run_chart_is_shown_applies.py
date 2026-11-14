@@ -16,14 +16,21 @@ class _Combo:
     def itemData(self, i):
         return "My-preset"
 
+    def currentData(self):
+        return "My-preset"
+
 
 class _Tab:
     _on_preset_activated = TabChart._on_preset_activated
 
-    def __init__(self, last):
+    def __init__(self, last, differs=False):
         self._last_preset_index = last
         self._preset_combo = _Combo()
         self.applied = []
+        self._differs = differs
+
+    def _screen_differs_from_saved_preset(self, i):
+        return self._differs
 
     def _on_preset_selected(self, i):
         self.applied.append(i)
@@ -41,4 +48,7 @@ def test_after_that_the_same_entry_is_applied_and_a_real_repick_is_not():
     assert t.applied == [3]
     t = _Tab(last=3)           # the preset itself was the last thing applied
     t._on_preset_activated(3)
-    assert t.applied == []     # #175: a re-pick changes nothing
+    assert t.applied == []     # #175: a re-pick of a matching preset: nothing
+    t = _Tab(last=3, differs=True)
+    t._on_preset_activated(3)  # Basti, 2026-11-14: the screen differs: again
+    assert t.applied == [3]

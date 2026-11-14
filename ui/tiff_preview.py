@@ -2044,6 +2044,9 @@ class TiffPreview(QWidget):
     # Emitted (with the new 0-based page index) when the shown page changes, so
     # observers like the margin inspector can re-measure the visible page.
     page_changed = pyqtSignal(int)
+    #: The number of pages the page line now describes (0: no chart), after
+    #: every load, clear and page turn.
+    pages_shown = pyqtSignal(int)
     # #126: user clicked a strip in the preview (page index, local stripe
     # index on that page). Only emitted while set_stripe_click_enabled(True).
     stripe_clicked = pyqtSignal(int, int)
@@ -2661,6 +2664,43 @@ class TiffPreview(QWidget):
         k = 25.4 / dpi
         return ix * k, iy * k
 
+    def add_corner_extras(self, button, badge) -> None:
+        """A round button in the image area's bottom-right corner and a
+        badge to its left, in the style of the top-right chip (Create
+        Chart's fold, 2026-11-14). They float over the image area, so
+        nothing in the preview's layout moves for them."""
+        button.setParent(self)
+        badge.setParent(self)
+        self._corner_extras = (button, badge)
+        self._style_corner_extras()
+        self._place_corner_extras()
+
+    def _style_corner_extras(self) -> None:
+        ex = getattr(self, "_corner_extras", None)
+        if not ex or sip.isdeleted(ex[0]):
+            return
+        extra = _CHIP_BY_MODE.get(self._mode, _CHIP_BY_MODE["dark"])
+        mode = self._mode if self._mode in _CHIP_BY_MODE else "dark"
+        ink = (chip_icon_ink(self._chip_accent, mode) if self._chip_accent
+               else extra["text"])
+        ex[0].set_colours(extra["ground"], ink, extra["focus_ring"],
+                          extra["badge_edge"])
+
+    def _place_corner_extras(self) -> None:
+        ex = getattr(self, "_corner_extras", None)
+        if not ex or self._img_label is None or sip.isdeleted(self._img_label):
+            return
+        button, badge = ex
+        origin = self._img_label.mapTo(self, QPoint(0, 0))
+        x = origin.x() + self._img_label.width() - 10 - button.width() + 3
+        y = origin.y() + self._img_label.height() - 10 - button.height() + 3
+        button.move(max(0, x), max(0, y))
+        button.raise_()
+        badge.adjustSize()
+        badge.move(max(0, x - badge.width() - 4),
+                   y + (button.height() - badge.height()) // 2)
+        badge.raise_()
+
     def set_navigation_visible(self, visible: bool) -> None:
         """Hide the page count + Prev/Next bar for single-image use (e.g. the
         soft-proof tool, which only ever shows one image at a time)."""
@@ -2992,6 +3032,7 @@ class TiffPreview(QWidget):
             # honesty badge shares the anchor, so it follows the same way.
             self._place_print_chip()
             self._place_render_badge()
+            self._place_corner_extras()
         if obj in (self._caption_lbl, self._filename_lbl, self._img_label):
             t = ev.type()
             if t == _QEvent.Type.ToolTip:
@@ -4144,22 +4185,31 @@ class TiffPreview(QWidget):
         nav_layout = QHBoxLayout(nav)
         nav_layout.setContentsMargins(12, 0, 12, 0)
 
+        # ONE COMPACT GROUP IN THE MIDDLE (Basti, 2026-11-14: "the buttons
+        # for skipping through the pages should be closer together anyway
+        # ... because if you want to go back and forth between pages the
+        # mouse then has less travel"). They sat at the two ends of the row.
+        # Every preview (Create Chart, Print Chart, Measure) has this row, so
+        # all of them change alike. The page text keeps one width for the
+        # chart's page count (`_update_nav`), so neither button moves when
+        # "Page 9 / 10" becomes "Page 10 / 10".
+        nav_layout.setSpacing(10)
+        nav_layout.addStretch(1)
         self._prev_btn = QPushButton(tr("‹ Prev"), nav)
         self._prev_btn.setFixedWidth(84)
         self._prev_btn.clicked.connect(self._go_prev)
         nav_layout.addWidget(self._prev_btn)
 
-        nav_layout.addStretch()
         self._page_label = QLabel("", nav)
         self._page_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._page_label.setStyleSheet("color: #909090; font-size: 12px;")
         nav_layout.addWidget(self._page_label)
-        nav_layout.addStretch()
 
         self._next_btn = QPushButton(tr("Next ›"), nav)
         self._next_btn.setFixedWidth(84)
         self._next_btn.clicked.connect(self._go_next)
         nav_layout.addWidget(self._next_btn)
+        nav_layout.addStretch(1)
 
         layout.addWidget(nav)
 
@@ -4319,10 +4369,71 @@ class TiffPreview(QWidget):
         if n > 0:
             self._page_label.setText(
                 tr("Page {page} / {total}").format(page=self._current + 1, total=n))
+            # The widest this chart's page text can be, so the buttons
+            # beside it never move as the page number changes.
+            fm = self._page_label.fontMetrics()
+            digits = len(str(n))
+            widest = max(
+                fm.horizontalAdvance(tr("Page {page} / {total}").format(
+                    page=d * digits, total=n))
+                for d in "0123456789")
+            self._page_label.setMinimumWidth(widest + 4)
         else:
             self._page_label.setText("")
+            self._page_label.setMinimumWidth(0)
         self._prev_btn.setEnabled(self._current > 0)
         self._next_btn.setEnabled(self._current < n - 1)
+        self._fit_nav_to_width()
+        self.pages_shown.emit(n)
+
+    #: The page buttons' labels in the compact row, and their width there.
+    _NAV_COMPACT = ("‹", "›")
+    _NAV_COMPACT_W = 40
+
+    def _fit_nav_to_width(self) -> None:
+        """Words on the page buttons when the row has room for them, the
+        arrows alone when it has not (2026-11-14). In a narrow window
+        (900 px wide, the right pane 316 px) the two worded buttons and the
+        page text needed more than the row had, so the page text ran under
+        a button and the other button left the window: measured in Russian,
+        and in every language once the buttons stand together. The page text
+        keeps its full width either way; the words go to the tooltips."""
+        prev = getattr(self, "_prev_btn", None)
+        nxt = getattr(self, "_next_btn", None)
+        nav = getattr(self, "_nav", None)
+        if prev is None or nxt is None or nav is None or sip.isdeleted(nav):
+            return
+        full = (tr("‹ Prev"), tr("Next ›"))
+        if not getattr(self, "_nav_compact", False):
+            # measured in the worded state, so the app's own button style
+            # (its minimum width and padding) is in the number
+            self._nav_full_w = max(prev.sizeHint().width(),
+                                   nxt.sizeHint().width(), 84)
+        lay = nav.layout()
+        m = lay.contentsMargins()
+        need = (2 * getattr(self, "_nav_full_w", 84)
+                + self._page_label.minimumWidth()
+                + 2 * lay.spacing() + m.left() + m.right())
+        compact = nav.width() < need and prev.isVisible()
+        if compact == getattr(self, "_nav_compact", False):
+            return
+        self._nav_compact = compact
+        for btn, word, arrow in ((prev, full[0], self._NAV_COMPACT[0]),
+                                 (nxt, full[1], self._NAV_COMPACT[1])):
+            if compact:
+                # the app's own sheet for the worded button (its per-label
+                # minimum width, `fit_button_width`) comes back with the words
+                btn.setProperty("_nav_full_qss", btn.styleSheet())
+                btn.setText(arrow)
+                btn.setToolTip(word.replace("‹", "").replace("›", "").strip())
+                btn.setStyleSheet("QPushButton { min-width: 0px;"
+                                  " padding-left: 0px; padding-right: 0px; }")
+                btn.setFixedWidth(self._NAV_COMPACT_W)
+            else:
+                btn.setText(word)
+                btn.setToolTip("")
+                btn.setFixedWidth(84)
+                btn.setStyleSheet(btn.property("_nav_full_qss") or "")
 
     def _hand_over_nav_focus(self, visible: bool, prev_ok: bool,
                              next_ok: bool) -> None:
@@ -4804,6 +4915,7 @@ class TiffPreview(QWidget):
             chip.setVisible(False)
 
     def _style_print_chip(self) -> None:
+        self._style_corner_extras()
         chip = self._print_chip
         if chip is None or sip.isdeleted(chip):
             return
@@ -7400,6 +7512,7 @@ class TiffPreview(QWidget):
         QTimer.singleShot(0, self._reconcile_legend_hover)
         self._place_print_chip()
         self._place_render_badge()
+        self._fit_nav_to_width()
 
     def showEvent(self, event) -> None:  # type: ignore[override]
         super().showEvent(event)

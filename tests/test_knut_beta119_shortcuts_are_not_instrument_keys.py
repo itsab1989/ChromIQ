@@ -46,7 +46,7 @@ class _Mgr:
 
 
 @pytest.fixture
-def tab(qapp, tmp_path):
+def tab(qapp, tmp_path, monkeypatch):
     from PyQt6.QtCore import QSettings
     from core.argyll_runner import ArgyllRunner
     from core.settings import AppSettings
@@ -56,6 +56,10 @@ def tab(qapp, tmp_path):
     s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
     s.set("custom_output_path", str(tmp_path / "out"))
     t = TabMeasure(ArgyllRunner(s), s)
+    # A reader really runs (2026-11-14: the key filter asks the process,
+    # not only the session flag).
+    monkeypatch.setattr(type(t._runner), "is_running",
+                        property(lambda _self: True))
     t._manager = _Mgr()
     t._arm_key_watchdog = lambda: None
     # These tests are about a reader that is WAITING FOR A KEY, which is the

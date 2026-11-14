@@ -73,6 +73,9 @@ class MarginInspectorPanel(QGroupBox):
     #: QApplication teardown is the leak `tests/conftest.py` had to be rewritten
     #: for (CLAUDE.md), and a display panel has no business owning that.
     warnings_expanded_changed = pyqtSignal(bool)
+    #: Emitted whenever the verdict changes (a new report, the placeholder),
+    #: so a folded header above the panel can repeat it (`verdict`).
+    verdict_changed = pyqtSignal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(tr("Measured from Preview"), parent)
@@ -460,6 +463,38 @@ class MarginInspectorPanel(QGroupBox):
         self._table.setVisible(False)
         self._status.setVisible(False)
         self._show_text_notes([])
+        self._last_status = None
+        self.verdict_changed.emit()
+
+    def verdict(self) -> "tuple[str, int]":
+        """What the panel is telling the reader, in one word and a count.
+
+        ``("warnings", n)`` while the frame shows n red notices (the count
+        of its red "N warnings" header); ``("notes", n)`` when nothing is red
+        and n notices sit on its ⓘ; ``("ok", 0)`` for the green "Margins: OK";
+        ``("unset", 0)`` when no instrument margins exist for the chart;
+        ``("none", 0)`` when there is no chart, or warnings are switched off
+        in Preferences. Read by the fold above the two frames, which repeats
+        it while the frames are hidden (Basti, 2026-11-14).
+        """
+        if self._last_status is None:
+            return "none", 0
+        violations, kw = self._last_status
+        if not kw.get("notify", True):
+            return "none", 0
+        # WHAT IS RED WHEN OPENED, AND ONLY THAT, IS A WARNING (review of
+        # 2026-11-14): the count is the panel's own red "N warnings" header.
+        # Notices that sit on the ⓘ alone are not red when the frame is
+        # opened, so they are counted apart, as notices, and the fold shows
+        # them in a neutral badge.
+        if self._warning_count:
+            return "warnings", self._warning_count
+        notes = len(kw.get("text_warnings") or [])
+        if notes:
+            return "notes", notes
+        if not kw.get("thresholds_defined", True):
+            return "unset", 0
+        return "ok", 0
 
     def update_report(
         self,
@@ -573,6 +608,7 @@ class MarginInspectorPanel(QGroupBox):
                             notify=notify, text_warnings=text_warnings,
                             overlap_warnings=overlap_warnings,
                             notice_preamble=notice_preamble)
+        self.verdict_changed.emit()
 
     # ------------------------------------------------------------------
     def _repaint_status(self) -> None:

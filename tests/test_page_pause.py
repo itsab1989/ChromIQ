@@ -53,6 +53,10 @@ def tab(qapp, tmp_path, monkeypatch):
     from ui.tabs.tab_measure import TabMeasure
     s = _settings(tmp_path)
     t = TabMeasure(ArgyllRunner(s), s)
+    # A reader really runs (2026-11-14: the key filter asks the process,
+    # not only the session flag).
+    monkeypatch.setattr(type(t._runner), "is_running",
+                        property(lambda _self: True))
     mgr = t._manager
     written = []
     monkeypatch.setattr(mgr._runner, "write_stdin",

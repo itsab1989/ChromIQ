@@ -263,10 +263,14 @@ class _Settings:
 
 
 @pytest.fixture
-def tab(qapp):
+def tab(qapp, monkeypatch):
     from core.argyll_runner import ArgyllRunner
     from ui.tabs.tab_measure import TabMeasure
     t = TabMeasure(ArgyllRunner(_Settings()), _Settings())
+    # A reader really runs (2026-11-14: the key filter asks the process,
+    # not only the session flag).
+    monkeypatch.setattr(type(t._runner), "is_running",
+                        property(lambda _self: True))
     sent: list[str] = []
     mgr = t._manager
     mgr._runner.write_stdin = sent.append

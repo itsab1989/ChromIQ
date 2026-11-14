@@ -209,3 +209,95 @@ def test_moving_between_the_boxes_in_an_inactive_window_does_not_turn(
     p.custom_h.editingFinished.emit()
     qtbot.waitUntil(lambda: p.custom_w.value() == 297.0, timeout=2000)
     assert _sizes(p) == (297.0, 320.0)
+
+
+# ---- the three leftovers of the release review (r2), 2026-11-14 -------------
+
+def test_r2a_paper_away_and_back_while_typing_does_not_turn(qtbot, io_panel):
+    """Paper away from Custom and back with 230 half typed turned it at once."""
+    p = io_panel
+    _set(p, 148, 210)
+    _type(qtbot, p.custom_w, "230")
+    # The window's focus stays in the box when the combo is changed from
+    # outside it (the release review's case: a window that is not the
+    # active one keeps its focus widget); here it is put back the same way.
+    p._custom_box_has_focus = lambda: True
+    p.paper.setCurrentIndex(p.paper.findData("A4"))
+    p.paper.setCurrentIndex(p.paper.findData("__custom__"))
+    qtbot.wait(30)
+    assert _sizes(p) == (230.0, 210.0), "turned while still typing"
+    assert p.selection()[1] == "210x230", "the build reads it upright anyway"
+    del p._custom_box_has_focus
+    assert p._said == []
+    _focus(qtbot, p.custom_w)           # the person goes on in the box …
+    _leave(qtbot, p)                    # … and leaves it
+    assert _sizes(p) == (210.0, 230.0)
+    assert len(p._said) == 1 and p._custom_turned_lbl.isVisibleTo(p)
+
+
+def test_r2b_instrument_away_and_back_keeps_the_note_with_the_size(
+        qtbot, io_panel):
+    """A turned size came back from another instrument upright with its
+    line gone; the line belongs to the size until a size is typed."""
+    p = io_panel
+    _set(p, 148, 210)
+    _type(qtbot, p.custom_w, "230")
+    _leave(qtbot, p)
+    assert _sizes(p) == (210.0, 230.0) and p._custom_turned_lbl.isVisibleTo(p)
+    note = p._custom_turned_lbl.text()
+    p.instr.setCurrentIndex(p.instr.findData("i1"))
+    assert not p._custom_turned_lbl.isVisibleTo(p), "the i1Pro says nothing"
+    p.instr.setCurrentIndex(p.instr.findData("IO2"))
+    p.paper.setCurrentIndex(p.paper.findData("__custom__"))
+    assert _sizes(p) == (210.0, 230.0)
+    assert p._custom_turned_lbl.isVisibleTo(p)
+    assert p._custom_turned_lbl.text() == note
+    # a size typed again takes the line away
+    _type(qtbot, p.custom_h, "250")
+    assert not p._custom_turned_lbl.isVisibleTo(p)
+
+
+def test_r2c_a_build_shows_the_size_it_uses_in_the_boxes(qtbot, io_panel):
+    """Return in a box, then Generate with the cursor still there: the
+    boxes and the line now show the upright size the build uses."""
+    p = io_panel
+    _set(p, 148, 210)
+    _type(qtbot, p.custom_w, "300")
+    _tab_to(qtbot, p.custom_w, p.custom_h)
+    _type(qtbot, p.custom_h, "200")
+    QTest.keyClick(p.custom_h.lineEdit(), Qt.Key.Key_Return)
+    qtbot.wait(30)
+    assert p.custom_h.hasFocus() and _sizes(p) == (300.0, 200.0)
+    built = p.selection()[1]
+    p.commit_custom_size()              # what Generate calls first
+    assert built == "200x300"
+    assert _sizes(p) == (200.0, 300.0)
+    assert p._custom_turned_lbl.isVisibleTo(p) and len(p._said) == 1
+    _leave(qtbot, p)
+    assert len(p._said) == 1, "said once, not again on leaving"
+
+
+def test_r2c_generate_calls_the_commit_first():
+    import inspect
+    from ui.tabs.tab_chart import TabChart
+    src = inspect.getsource(TabChart._on_generate)
+    assert src.index("commit_custom_size()") < src.index("_mode_name() == \"gamut\"")
+
+
+def test_r2b_leaving_the_i1io_while_typing_turns_it_and_says_so(qtbot,
+                                                                io_panel):
+    """Typing 230, then another instrument and back: the size came back
+    upright with no line. It is turned on leaving, and the line comes back
+    with it."""
+    p = io_panel
+    _set(p, 148, 210)
+    _type(qtbot, p.custom_w, "230")
+    p.instr.setCurrentIndex(p.instr.findData("i1"))
+    qtbot.wait(30)
+    p.instr.setCurrentIndex(p.instr.findData("IO2"))
+    if p.paper.currentData() != "__custom__":
+        p.paper.setCurrentIndex(p.paper.findData("__custom__"))
+    qtbot.wait(30)
+    assert _sizes(p) == (210.0, 230.0)
+    assert p._custom_turned_lbl.isVisibleTo(p), "upright, but nothing said"
+    assert "210 x 230" in p._custom_turned_lbl.text()

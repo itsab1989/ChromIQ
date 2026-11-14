@@ -316,7 +316,9 @@ def _REREAD_TOOLTIP() -> str:
         "complete there is no second “All strips read” window to wait for.")
 
 #: The preview's nav row is inset by 12 px, so the reading-times frame uses the
-#: same inset and its edges line up with the PREV and NEXT buttons (Knut, #131).
+#: same inset (Knut, #131: its edges lined up with the PREV and NEXT buttons
+#: while those stood at the row's two ends; since 2026-11-14 they are one
+#: centred group and the frame keeps the row's inset).
 _PACE_SIDE_MARGIN = 12
 #: ~2-3 mm of air above and below the frame, so the page buttons and the warning
 #: line are not crammed against it (Knut, #131 2026-07-27).
@@ -9672,6 +9674,22 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
     # Quitting the application, which is an ending like any other
     # ------------------------------------------------------------------
 
+    def _a_reader_takes_keys(self) -> bool:
+        """Whether a key pressed now has a reader to go to: the session is
+        live AND its process (chartread, or ChromIQ's own reader, which also
+        drives the CR30) is running. Asked through the class by the key
+        filter, so the stand-in tabs of older tests need nothing new: one
+        without a runner is answered as before (live is enough)."""
+        if not getattr(self, "_session_live", False):
+            return False
+        runner = getattr(self, "_runner", None)
+        if runner is None:
+            return True
+        try:
+            return bool(runner.is_running)
+        except Exception:      # noqa: BLE001 — never eat a keystroke on doubt
+            return False
+
     def a_measurement_is_running(self) -> bool:
         """True while a reader is live and waiting for this tab's keys."""
         if (_fd9_ask(self, "_fd9_engaged")
@@ -16902,6 +16920,20 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             # session that ended in one of those windows.
             if not getattr(self, "_session_live", False):
                 QApplication.instance().removeEventFilter(self)
+                return False
+            # …AND A SESSION MARKED LIVE IS NOT YET A READER LISTENING
+            # (2026-11-14). `_session_live` goes up at Start, before the
+            # reader is launched, and comes down in `_on_measure_done`, after
+            # it has ended; in between and around it nothing reads the keys,
+            # and a driven test once lost its keyboard to this filter after
+            # its reading was over. A key is taken only while the reader's
+            # process really runs; otherwise it goes where it would go
+            # without a measurement. A person measuring sees no change: the
+            # keys that reach a waiting reader are the same, and a key with
+            # no process behind it had nowhere to go before either ("send_key
+            # ...: no active process"). The filter itself stays installed,
+            # because the reader may be about to start.
+            if not TabMeasure._a_reader_takes_keys(self):
                 return False
             # NO KEY PRESSED AT ONE OF OUR OWN WINDOWS REACHES THE INSTRUMENT.
             #
