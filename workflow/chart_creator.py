@@ -189,7 +189,7 @@ _PRINTTARG_CAL_MISMATCH = re.compile(
 # ADDING AN INSTRUMENT? Read docs/adding_an_instrument.md and work through
 # docs/adding_an_instrument_checklist.md first: they list every place an
 # instrument is registered (this is one of them) and how each is tested.
-ENGINE_INSTRUMENTS = {"i1", "p3", "CM", "SS", "CR30", "FD9", "IO2"}
+ENGINE_INSTRUMENTS = {"i1", "p3", "CM", "SS", "CR30", "FD9", "IO2", "XRISIS"}
 
 # Instruments the engine is the ONLY route for - printtarg cannot lay them out
 # at all, so the printtarg path is not a fallback, it is a fault (#159).
@@ -204,7 +204,7 @@ ENGINE_INSTRUMENTS = {"i1", "p3", "CM", "SS", "CR30", "FD9", "IO2"}
 # to printtarg once per probe. So the CR30 is forced onto the engine in
 # _should_use_engine, and _build_printtarg_args REFUSES to build an argv for it
 # rather than emitting a flag printtarg will reject.
-ENGINE_ONLY_INSTRUMENTS = {"CR30", "FD9", "IO2"}
+ENGINE_ONLY_INSTRUMENTS = {"CR30", "FD9", "IO2", "XRISIS"}
 
 # printtarg's ColorMunki triple-density trick (-ii1) uses -a1.3 by default; the
 # engine's native extra-high-density (pscale 1.0) reproduces exactly that size,
@@ -807,6 +807,11 @@ class ChartParams:
     #: …and its "Clip border" (off by default): the notes band down the
     #: sheet's left edge (`workflow.i1io.chart.CLIP_KEY`).
     i1io_clip_border: bool = False
+    #: Guided's i1iSis choices (a Beta, `workflow.isis.chart`): the model
+    #: width ("standard" or "xl") and the notes band in the header (off by
+    #: default). Manual's recipe holds its own.
+    isis_model: str = ""
+    isis_notes_band: bool = False
     fd9_clip_options: "dict | None" = None
     # When True, the .icc/.ti3 from a prior session in the same working folder
     # are renamed to pre_*.icc/pre_*.ti3 instead of being overwritten on the
@@ -1743,6 +1748,18 @@ class ChartCreator:
             if getattr(params, "i1io_clip_border", False):
                 kw["i1io_clip_border"] = True
                 kw["clip_content_mode"] = "notes"
+        elif params.instrument == "XRISIS":
+            # Guided's i1iSis choices (a Beta): the XL models' width and the
+            # notes band, only when chosen, so the kwargs are i1Profiler's
+            # own default chart otherwise. No spacers ever: the i1iSis reads
+            # patches side by side without gaps.
+            kw["spacer_on"], kw["spacer_mode"] = False, "none"
+            kw["layout_mode"] = "patch_first"
+            if str(getattr(params, "isis_model", "") or "") == "xl":
+                kw["isis_model"] = "xl"
+            if getattr(params, "isis_notes_band", False):
+                kw["isis_notes_band"] = True
+                kw["clip_content_mode"] = "notes"
         return kw
 
     def _engine_total_patches(self, params: "ChartParams") -> int | None:
@@ -1975,6 +1992,15 @@ class ChartCreator:
                         reason = tr(
                             "The i1iO table cannot read this layout: {why}"
                         ).format(why=reason)
+                from workflow.isis.support import isis_enabled, is_isis_code
+                if is_isis_code(params.instrument):
+                    # An i1iSis chart drawn again with the Beta off, or a
+                    # layout no i1iSis can read (M-ISIS-SHEET-CHECK).
+                    if not isis_enabled():
+                        reason = tr(M._ISIS_SUPPORT_OFF_TEXT)
+                    elif type(exc).__name__ == "IsisSheetRefused":
+                        reason = M.isis_sheet_check_text(
+                            str(exc), getattr(params, "layout_recipe", None))
                 self._matched_errors.append(
                     ("engine", "engine_redraw_failed" if redraw
                      else "engine_failed",
@@ -1987,9 +2013,24 @@ class ChartCreator:
             result.layout.passes, result.layout.pages, result.seed))
         # An i1iO chart built with a risky option (Job D: allowed, and
         # said, as other instruments' charts are)
+        from workflow.isis.support import is_isis_code as _is_isis
         for why in getattr(result, "warnings", ()) or ():
+            if _is_isis(params.instrument):
+                # M-ISIS-KEEP-OUT, said as it is
+                on_line(tr("[WARNING] {why}").format(why=why))
+                continue
             on_line(tr("[WARNING] The i1iO table may not read this layout "
                        "well: {why}").format(why=why))
+        if _is_isis(params.instrument):
+            # Feed as printed, or cut along the outline (M-ISIS-CUT)
+            try:
+                from workflow.isis.support import read_side_file
+                from workflow.isis.chart import cut_instruction
+                _side = read_side_file(result.ti2_path) or {}
+                on_line(cut_instruction(bool(_side.get("fed_as_printed",
+                                                       True))))
+            except Exception:  # noqa: BLE001 - a line, never a failure
+                log.debug("i1iSis cut line unavailable", exc_info=True)
         # Explain a total that grew past the designed count: a partial last
         # strip is topped up with paper-white patches so the instrument reads
         # whole strips (printtarg behaviour, mirrored by the engine). Knut
@@ -2014,9 +2055,9 @@ class ChartCreator:
             self._write_channel_sidecar(work_dir, stem, self._pending_params,
                                         engine="chromiq")
             self._embed_layout_geometry(work_dir, stem, result, params)
-            # Not on an FD-9 or i1iO sheet: their corners and edges hold the
-            # marks the instrument or the person aims at.
-            if params.instrument not in ("FD9", "IO2"):
+            # Not on an FD-9, i1iO or i1iSis sheet: their corners and edges
+            # hold the marks the instrument or the person aims at.
+            if params.instrument not in ("FD9", "IO2", "XRISIS"):
                 self._stamp_tiff_metadata(tiffs, self._pending_params)
 
         self._finish(tiffs)
@@ -2812,10 +2853,9 @@ class ChartCreator:
         if triple:
             pt_instr = "i1"
         elif p.instrument in EXTERNAL_INSTRUMENTS:
-            # i1iSis is driven by i1Profiler, not Argyll. We still run printtarg
-            # to give the user a layout preview, but i1Profiler re-lays-out the
-            # actual chart from the patch list, so a generic strip layout (i1)
-            # is fine here.
+            # An instrument another program lays out (none since the i1iSis
+            # printtarg entry was removed, 2026-11-14): a generic strip
+            # layout for the preview.
             pt_instr = "i1"
         else:
             # printtarg uses "3p" for i1Pro 3 Plus; help text lists "p3" but that's a typo

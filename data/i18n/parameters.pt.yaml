@@ -502,13 +502,6 @@ parameters:
              amostra individualmente, levando muito mais cores por folha
              do que qualquer leitor de tiras.
 
-          •  i1iSis (via i1Profiler) — leitor de folhas automático.
-             O ChromIQ não pode comandar este dispositivo diretamente: em
-             vez disso guarda a lista de amostras no formato próprio do
-             i1Profiler ao lado da carta, e o fluxo termina lá (imprimir,
-             digitalizar, criar o perfil). Os separadores Imprimir e
-             Medir do ChromIQ não são usados com este dispositivo.
-
         Escolher o instrumento errado produz uma carta que o dispositivo
         não consegue alinhar nem ler de forma fiável — na medição verá erros de \"patches not found\" ou de alinhamento. No modo guiado,
         a disposição adapta-se automaticamente a esta escolha.
@@ -520,7 +513,7 @@ parameters:
         - "CR30 (amostra a amostra)"
         - "FD-9"
         - "i1iO 2 + i1Pro 2"
-        - "i1iSis (via i1Profiler)"
+        - "Família i1iSis"
     "-h":
       name: "Double density"
       tooltip_title: "Double density (-h)"

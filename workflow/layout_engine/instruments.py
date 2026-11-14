@@ -117,9 +117,6 @@ TARGET_INSTRUMENT_NAME: dict[str, str] = {
 #: side file is recognised as one.
 I1IO_LAYOUT_SCHEMA = 1
 
-# Instruments ChromIQ never lays out itself (delegated to i1Profiler).
-DELEGATED = {"isis"}
-
 def _fd9_on() -> bool:
     """FD-9 support (Preferences > Beta). Off, an FD-9 chart is a chart for an
     instrument the layout engine does not know, as in 4.3.21 (review r2 S2)."""
@@ -452,6 +449,7 @@ def default_ruler_mm(key: str) -> float:
 _MARGIN_LABEL_TO_KEY = {
     "i1Pro": "i1", "i1Pro 3+": "p3", "ColorMunki": "CM", "SpectroScan": "SS",
     "CR30": "CR30",   # friendly label == device key (#159)
+    "i1iSis (Beta)": "XRISIS",   # the i1iSis family (a Beta)
 }
 
 
@@ -972,8 +970,6 @@ def _build_base(
                        extra_keywords=(("CHROMIQ_ISIS_LAYOUT", "1"),))
     if key == "CM" and hflag and density < 2:
         density = 2   # back-compat: hflag meant "rig" (double density)
-    if key in DELEGATED:
-        raise ValueError(f"instrument {key!r} is delegated to i1Profiler, not laid out here")
     if key not in TARGET_INSTRUMENT_NAME:
         raise ValueError(f"unknown instrument {key!r}")
 

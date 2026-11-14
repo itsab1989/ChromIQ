@@ -474,12 +474,6 @@ parameters:
              varje fält individuellt och packar därmed betydligt fler
              färger per ark än någon remsläsare.
 
-          •  i1iSis (via i1Profiler) — automatisk arkmatad diagramläsare.
-             ChromIQ kan inte styra denna enhet direkt: i stället sparas
-             fältlistan i i1Profilers eget format bredvid diagrammet, och
-             du slutför arbetsflödet där (skriv ut, skanna, bygg profil).
-             ChromIQs flikar Skriv ut och Mät används inte för denna enhet.
-
         Fel instrument ger ett diagram din enhet inte kan rikta in sig mot
         eller läsa tillförlitligt — du ser \"patches not found\" eller
         inriktningsfel vid mätning. I guidat läge anpassas layouten
@@ -492,7 +486,7 @@ parameters:
         - "CR30 (fält för fält)"
         - "FD-9"
         - "i1iO 2 + i1Pro 2"
-        - "i1iSis (via i1Profiler)"
+        - "i1iSis-familjen"
     "-h":
       name: "Double density"
       tooltip_title: "Double density (-h)"

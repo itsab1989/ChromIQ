@@ -491,7 +491,7 @@ parameters:
         - "CR30 (Feld für Feld)"
         - "FD-9"
         - "i1iO 2 + i1Pro 2"
-        - "i1iSis (über i1Profiler)"
+        - "i1iSis-Familie"
       tooltip_title: "Messgerät (-i)"
       tooltip_body: |
         Teilt dem Chart-Generator mit, mit welchem Spektralfotometer du
@@ -527,14 +527,6 @@ parameters:
              gesetzt und kann nur von ChromIQ gelesen werden: Das normale
              chartread von ArgyllCMS kennt dieses Gerät nicht und lehnt das
              Chart ab.
-
-          •  i1iSis (über i1Profiler): automatischer Einzelblatt-Chartleser,
-             den ChromIQ nicht ansteuern kann. Wähle ihn nur, wenn du das
-             Chart in i1Profiler messen und die Messwerte anschließend in
-             ChromIQ importieren wirst, zum Beispiel für einen Messbericht.
-             ChromIQ speichert die Feldliste im i1Profiler-eigenen Format
-             neben dem Chart; die Druck- und Mess-Tabs von ChromIQ werden
-             für dieses Gerät nicht verwendet.
 
         Die falsche Gerätewahl ergibt ein Chart, an dem sich dein Gerät
         nicht ausrichten kann oder das es nicht zuverlässig liest, und beim

@@ -759,6 +759,79 @@ M_I1IO_SUPPORT_OFF = _m(
     "is changed.",
     approved=False)
 
+#: Start pressed on an X-Rite i1iSis chart while the Beta "X-Rite i1iSis
+#: charts" is on: ChromIQ cannot talk to the instrument, the chart is
+#: measured in i1Profiler (PROPOSAL v2 §10). {cut_or_not} is
+#: `workflow.isis.chart.cut_instruction`, {multipage_note} empty or
+#: M_ISIS_MULTIPAGE_NOTE.
+M_ISIS_NOT_YET = _m(
+    "M-ISIS-NOT-YET",
+    "Measuring with an i1iSis happens in i1Profiler",
+    "ChromIQ cannot talk to the X-Rite i1iSis family, so this chart is "
+    "measured in X-Rite's i1Profiler and the measurement is brought back "
+    "here. Nothing is wrong with the chart.\n\n"
+    "1. {cut_or_not}\n"
+    "2. In i1Profiler choose Advanced mode, then Printer > Profiling. Go to "
+    "the Test Chart page, click Load and pick {txf} from this run's exports "
+    "folder. Answer No when i1Profiler asks to copy it.\n"
+    "3. Check that i1Profiler shows {cols} columns, {rows} rows and {pages} "
+    "page(s). Change nothing on that page and do not go back to the Patch "
+    "Set page: any change makes i1Profiler expect a different sheet.\n"
+    "4. On the next page choose Single scan (M2), or Dual scan if you want "
+    "M0 for brightener (FWA) compensation (and M1 on an i1iSis 2). Measure, "
+    "feeding the sheet bar end first against the left guide.\n"
+    "5. Save the measurement (as .mxf for Dual scan; .txt works for Single "
+    "scan). You do not need to build a profile in i1Profiler.\n"
+    "6. Back in ChromIQ, use Import Measurement on this run.\n"
+    "{multipage_note}\n"
+    "This chart has not yet been read by a real i1iSis. If i1Profiler or the "
+    "instrument refuses it, please tell us on GitHub.",
+    approved=False)
+
+#: {multipage_note} of M-ISIS-NOT-YET for a chart of several pages (stage 1).
+M_ISIS_MULTIPAGE_NOTE = ("This chart has {pages} pages. Bringing a "
+                         "measurement of several pages back into ChromIQ "
+                         "needs a later version; measuring it in i1Profiler "
+                         "works today.\n")
+
+#: Start pressed on an X-Rite i1iSis chart while the Beta is off.
+_ISIS_SUPPORT_OFF_TEXT = (
+    "This chart was made for the X-Rite i1iSis with the Beta option "
+    "“X-Rite i1iSis charts”. Switch it on in Preferences > Beta to work "
+    "with this chart.")
+M_ISIS_SUPPORT_OFF = _m(
+    "M-ISIS-SUPPORT-OFF",
+    "Turn on i1iSis charts to work with this chart",
+    _ISIS_SUPPORT_OFF_TEXT + "\n\n"
+    "Nothing is wrong with the chart, and nothing you have already measured "
+    "is changed.",
+    approved=False)
+
+#: A layout no i1iSis can read even when the sheet is cut along its outline
+#: (`workflow.isis.chart.IsisSheetRefused`): {reason} is the refusal's own
+#: words.
+M_ISIS_SHEET_CHECK = _m(
+    "M-ISIS-SHEET-CHECK",
+    "An i1iSis cannot read this chart",
+    "This chart cannot be read by an {model}: {reason}. {what_to_do}",
+    approved=False)
+_ISIS_WHAT_TO_DO = ("Choose a larger page, smaller margins or a smaller "
+                    "patch size, or the XL models if you have one.")
+
+
+def isis_sheet_check_text(reason: str, recipe=None) -> str:
+    """M-ISIS-SHEET-CHECK's body for a refusal *reason*."""
+    from workflow.isis.support import device_name
+    model = device_name(getattr(recipe, "isis_model", "") if recipe else "")
+    return M_ISIS_SHEET_CHECK.render(model=model, reason=reason,
+                                     what_to_do=tr(_ISIS_WHAT_TO_DO))[1]
+
+
+#: The Print tab's note for a loaded i1iSis chart (M-ISIS-CUT in it when the
+#: sheet must be cut).
+M_ISIS_PRINT_NOTE = ("Feed this sheet into the i1iSis with the black bar "
+                     "first, against the left guide. {cut_or_not}")
+
 #: Start pressed and no address has been entered in "FD-9 setup…".
 M_FD9_NO_ADDRESS = _m(
     "M-FD9-NO-ADDRESS",

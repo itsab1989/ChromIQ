@@ -486,13 +486,6 @@ parameters:
              elk meetveld afzonderlijk en pakt zo veel meer kleuren per vel dan
              welke strooklezer ook.
 
-          •  i1iSis (via i1Profiler) — automatische kaartlezer met
-             velinvoer. ChromIQ kan dit apparaat niet rechtstreeks
-             aansturen: het bewaart de meetveldlijst in i1Profilers eigen
-             formaat naast de kaart, en je rondt de werkstroom daar af
-             (afdrukken, scannen, profiel bouwen). De tabbladen ‘Afdrukken’
-             en ‘Meten’ van ChromIQ worden voor dit apparaat niet gebruikt.
-
         Het verkeerde instrument kiezen levert een kaart op waar je apparaat
         zich niet op kan uitlijnen of die het niet betrouwbaar kan lezen —
         bij het meten zie je dan "patches not found" of uitlijnfouten. In de
@@ -505,7 +498,7 @@ parameters:
         - "CR30 (meetveld voor meetveld)"
         - "FD-9"
         - "i1iO 2 + i1Pro 2"
-        - "i1iSis (via i1Profiler)"
+        - "i1iSis-familie"
     "-h":
       name: "Double density"
       tooltip_title: "Double density (-h)"

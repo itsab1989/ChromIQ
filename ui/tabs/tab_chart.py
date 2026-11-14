@@ -2238,7 +2238,9 @@ def _paper_area_mm2(paper: str) -> float:
 # _MARGIN_INSTRUMENTS and core.settings seed keys).
 _MARGIN_INSTR_LABEL = {
     "i1": "i1Pro", "p3": "i1Pro 3+", "CM": "ColorMunki",
-    "SS": "SpectroScan", "isis": "i1iSis", "CR30": "CR30", "FD9": "FD-9",
+    "SS": "SpectroScan", "CR30": "CR30", "FD9": "FD-9",
+    # the i1iSis family (a Beta), `core.settings.THRESHOLD_INSTR_LABEL`
+    "XRISIS": "i1iSis (Beta)",
 }
 
 # Canonical sheet name keyed by sorted (short, long) mm, rounded — so any paper
@@ -4029,10 +4031,53 @@ def fd9_instrument_bullet() -> str:
 
 
 
+def _isis_on() -> bool:
+    """i1iSis charts (Preferences > Beta, `workflow.isis.support`)."""
+    from workflow.isis.support import isis_enabled
+    return isis_enabled()
+
+
 def _saved_beta_instrument_is_off(code) -> bool:
-    """True for a stored i1iO instrument code while i1iO support is off."""
+    """True for a stored instrument code this ChromIQ does not offer: an
+    i1iO code while i1iO support is off, the i1iSis family while its Beta is
+    off, and a REMOVED code (`data.patch_db.REMOVED_INSTRUMENT_CODES`: the
+    printtarg entry "i1iSis (via i1Profiler)", removed by the owner's ruling
+    of 2026-11-14). Every caller then reads the instrument and its sheet as
+    none (the i1Pro on A4), says so in one log line and writes nothing back
+    until the person saves."""
+    from data.patch_db import REMOVED_INSTRUMENT_CODES
+    if str(code or "") in REMOVED_INSTRUMENT_CODES:
+        log.info("The saved instrument %r no longer exists (the printtarg "
+                 "entry \"i1iSis (via i1Profiler)\" was removed); the i1Pro "
+                 "is used.", code)
+        return True
+    from workflow.isis.support import is_isis_code
+    if is_isis_code(code) and not _isis_on():
+        return True
     from workflow.i1io.support import i1io_enabled, is_i1io_code
     return is_i1io_code(code) and not i1io_enabled()
+
+
+def isis_instrument_bullet() -> str:
+    """The i1iSis family's bullet in the Instrument (i) of Guided and
+    Manual, only while its Beta (Preferences > Beta) is on."""
+    return tr(
+        "  •  i1iSis family (X-Rite i1iSis, i1iSis 2 and their XL models): "
+        "automatic sheet-fed chart readers. You feed the printed sheet into "
+        "the instrument, and it finds the black bar at the top and a small "
+        "black diamond at both ends of every row by itself. ChromIQ cannot "
+        "talk to these instruments: it lays the chart out to X-Rite's chart "
+        "rules, exactly as i1Profiler 3.8.8 lays out the same settings, and "
+        "saves an i1Profiler test chart (.txf) with it, so you measure the "
+        "printed sheet in i1Profiler and bring the measurement back with "
+        "Import Measurement. Choose “XL models” for sheets wider than A4 or "
+        "Letter. The defaults give i1Profiler's own default chart: 6 × 6 mm "
+        "patches without gaps, 5 mm margins, the chart in the top-left "
+        "corner of the page. In Manual nearly every layout option stays "
+        "open; only gaps, spacers, offset strips and hexagons are greyed, "
+        "because the instrument cannot read them. Nobody on the team owns "
+        "an i1iSis, so no ChromIQ chart has been read by one yet. i1iSis "
+        "charts are a beta (Preferences → Beta).")
 
 
 def i1io_instrument_bullet() -> str:
@@ -4095,6 +4140,32 @@ def i1io_instrument_bullet_rest() -> str:
         "other instruments on the arm are not supported yet. If you own one, "
         "please tell us in the project's GitHub issues. i1iO support is a "
         "beta (Preferences → Beta).")
+
+
+def isis_model_help() -> str:
+    """The (i) beside Guided's i1iSis model choice."""
+    return tr(
+        "Which i1iSis you measure with. “i1iSis / i1iSis 2” takes sheets up "
+        "to 230 mm wide (A4 and Letter fit), and reads markers up to 218 mm "
+        "from the sheet's left edge. “XL models” (i1iSis XL and i1iSis 2 XL) "
+        "take sheets up to 330 mm wide, such as A3 and A3+, and read up to "
+        "318 mm. The chart itself is the same for both generations; only "
+        "the width it may use differs. In i1Profiler, choose the same model "
+        "on the Test Chart page (the .txf ChromIQ saves already names it).")
+
+
+def isis_notes_band_help() -> str:
+    """The (i) beside the i1iSis's "Notes band"."""
+    return tr(
+        "A band for your notes in the chart's header, above the black bar. "
+        "X-Rite allows a longer header for exactly this (“If you wish to add "
+        "graphics in the header to personalize your target, the header "
+        "length may be increased”), so switching it on makes the header "
+        "24 mm longer and fills the band with the chart's details, as the "
+        "clip border does on other charts. The 20 mm right above the bar "
+        "always stay blank, because the i1iSis needs them clear. Off by "
+        "default. In Manual you can choose the band's place (header or "
+        "trailer), its height and what it shows.")
 
 
 def _without_choice(params: dict, value: str) -> dict:
@@ -7361,6 +7432,9 @@ class TabChart(QWidget):
             # apply): off, the list is exactly 4.3.32's.
             if code == "IO2" and not i1io_enabled():
                 continue
+            # The i1iSis family, a Beta as well: off, not offered.
+            if code == "XRISIS" and not _isis_on():
+                continue
             self._instr_combo.addItem(label, code)
         self._instr_combo.currentIndexChanged.connect(self._update_patch_count)
         self._instr_combo.currentIndexChanged.connect(self._update_dd_visibility)
@@ -7414,7 +7488,9 @@ class TabChart(QWidget):
             "chart.") + (("\n\n" + fd9_instrument_bullet())
                          if fd9_enabled() else "")
             + (("\n\n" + i1io_instrument_bullet())
-               if i1io_enabled() else ""),
+               if i1io_enabled() else "")
+            + (("\n\n" + isis_instrument_bullet())
+               if _isis_on() else ""),
             inner,
             min_width=600,
         ))
@@ -7507,6 +7583,33 @@ class TabChart(QWidget):
             dd_row.addSpacing(20)
             dd_row.addWidget(self._i1io_clip_check)
             dd_row.addWidget(self._i1io_clip_tooltip)
+        if _isis_on():
+            # THE i1iSis's GUIDED CHOICES (a Beta): the model width ("XL
+            # models" for sheets wider than A4 or Letter) and the notes band
+            # in the header (off by default, the owner's ruling). Built only
+            # while the Beta is on, shown only for the i1iSis.
+            self._isis_model_combo = QComboBox(inner)
+            self._isis_model_combo.addItem(tr("i1iSis / i1iSis 2"),
+                                           "standard")
+            self._isis_model_combo.addItem(tr("XL models"), "xl")
+            self._isis_model_combo.currentIndexChanged.connect(
+                self._isis_model_changed)
+            self._isis_model_tooltip = TooltipButton(
+                tr("i1iSis model"), isis_model_help(), inner, min_width=600)
+            self._isis_band_check = QCheckBox(tr("Notes band"), inner)
+            self._isis_band_check.setChecked(False)
+            self._isis_band_check.toggled.connect(self._update_patch_count)
+            self._isis_band_tooltip = TooltipButton(
+                tr("Notes band (i1iSis)"), isis_notes_band_help(), inner,
+                min_width=600)
+            for w in (self._isis_model_combo, self._isis_model_tooltip,
+                      self._isis_band_check, self._isis_band_tooltip):
+                w.setVisible(False)
+            dd_row.addWidget(self._isis_model_combo)
+            dd_row.addWidget(self._isis_model_tooltip)
+            dd_row.addSpacing(20)
+            dd_row.addWidget(self._isis_band_check)
+            dd_row.addWidget(self._isis_band_tooltip)
         dd_row.addWidget(self._dd_check)
         dd_row.addWidget(self._dd_tooltip)
         dd_row.addSpacing(20)
@@ -8620,7 +8723,6 @@ class TabChart(QWidget):
                     self._manual_instr_pw = pw
                     pw.value_changed.connect(self._update_manual_lb_visibility)
                     pw.value_changed.connect(self._apply_instrument_default_margin)
-                    pw.value_changed.connect(self._update_isis_preview_banner)
                 if tool == "printtarg" and flag == "-p":
                     self._manual_paper_pw = pw
                     pw.value_changed.connect(self._update_manual_lb_visibility)
@@ -8737,9 +8839,6 @@ class TabChart(QWidget):
 
         self._update_manual_lb_visibility()
         self._apply_instrument_default_margin()
-        # Note: _update_isis_preview_banner() is NOT called here — self._preview
-        # doesn't exist yet during _make_manual_panel(). It's wired to the
-        # instrument-selector signal and called once more after settings load.
         self._connect_cal_mutex()
         self._connect_spacer_mutex()
         self._connect_neutral_dep()
@@ -9900,9 +9999,11 @@ class TabChart(QWidget):
                          "support (Beta) is off: read as none")
                 return None
         if _saved_beta_instrument_is_off(saved.get("instrument")):
-            # The same for an i1iO recipe with i1iO support (Beta) off.
-            log.info("the stored layout recipe is for the i1iO table and i1iO "
-                     "support (Beta) is off: read as none")
+            # The same for an i1iO or i1iSis recipe with its Beta off, and
+            # for an instrument that was removed.
+            log.info("the stored layout recipe is for an instrument this "
+                     "ChromIQ does not offer (%s): read as none",
+                     saved.get("instrument"))
             return None
         shape = _unseen_panel_shape(saved)
         if shape is not None:
@@ -12253,6 +12354,17 @@ class TabChart(QWidget):
                             str(param.get("tooltip_body", "")).rstrip()
                             + "\n\n" + fd9_instrument_bullet())
             # The i1iO table, a Beta too: off, the -i list is 4.3.32's.
+            # The i1iSis family, a Beta too: off, not offered.
+            from workflow.isis.support import CODE as _IS
+            if not _isis_on():
+                params = _without_choice(params, _IS)
+            else:
+                for param in params.get("printtarg", []) or []:
+                    if param.get("flag") == "-i" and _IS in (
+                            param.get("choices") or []):
+                        param["tooltip_body"] = (
+                            str(param.get("tooltip_body", "")).rstrip()
+                            + "\n\n" + isis_instrument_bullet())
             from workflow.i1io.support import CODE as _IO, i1io_enabled
             if not i1io_enabled():
                 params = _without_choice(params, _IO)
@@ -12349,7 +12461,6 @@ class TabChart(QWidget):
         self._manual_btn.setChecked(mode == "manual")
         self._gamut_btn.setChecked(mode == "gamut")
         self._update_header_buttons_for_mode()
-        self._update_isis_preview_banner()
         self._refresh_name_prefix()     # apply the prefix to the now-active field
         # Auto-update-preview is a Manual-only control (Knut).
         if getattr(self, "_auto_preview_row_w", None) is not None:
@@ -12550,6 +12661,13 @@ class TabChart(QWidget):
                        and self._instr_combo.currentData() == "IO2"
                        and self._i1io_clip_check.isChecked())
                    else {}),
+                # the i1iSis's model width and notes band (Beta), only for an
+                # i1iSis row
+                **({"isis_model": self._isis_model_combo.currentData(),
+                    "isis_notes_band": self._isis_band_check.isChecked()}
+                   if (getattr(self, "_isis_model_combo", None) is not None
+                       and self._instr_combo.currentData() == "XRISIS")
+                   else {}),
             }
         # manual
         toks = []
@@ -12613,6 +12731,15 @@ class TabChart(QWidget):
                 clip = getattr(self, "_i1io_clip_check", None)
                 if clip is not None:
                     clip.setChecked(bool(value))
+            elif field == "isis_model":
+                box = getattr(self, "_isis_model_combo", None)
+                if box is not None:
+                    i = box.findData(str(value or "standard"))
+                    box.setCurrentIndex(max(0, i))
+            elif field == "isis_notes_band":
+                band = getattr(self, "_isis_band_check", None)
+                if band is not None:
+                    band.setChecked(bool(value))
         else:  # manual (a superset of guided's options)
             if field == "instrument":
                 self._set_manual_value("printtarg", "-i", value)
@@ -13214,52 +13341,8 @@ class TabChart(QWidget):
                     and abs(current_a - target_scale) > 0.01):
                 self._manual_a_pw.set_value(target_scale)
 
-        # i1iSis: default to A3+ portrait, no spacers, and unlimited strip
-        # length — i1Profiler re-lays-out the chart anyway, so the values
-        # printtarg ends up using only affect the layout preview. The
-        # matched-default guards mirror the margin logic above so a user
-        # who picked different values keeps their choice when flipping
-        # instruments.
-        #
-        # ONLY WHEN THE INSTRUMENT MOVES INTO OR OUT OF i1iSis (B8-1261, beta
-        # 44 challenge F2). This block used to run on EVERY call and read
-        # "not i1iSis, on A3+ Portrait" as i1iSis's paper left behind. The
-        # start-up restore calls this method after it has set -p from the
-        # store, so a person's own "Save as Defaults" on A3+ Portrait (any
-        # instrument but the i1iSis) came back as A4 in Manual with the
-        # engine off, while Guided and the store said A3+ (with the engine on
-        # the saved recipe put -p back, B8-1228, and hid it). The same held
-        # for a saved -n or -P, and for any other call: a preset reset, the
-        # panel build. What the person set is not the i1iSis's default.
-        #
-        # AT START-UP, ONLY WHAT THE STORE DOES NOT HOLD (B8-1280). A session
-        # that opens on the i1iSis came from the factory instrument, so a flag
-        # nobody saved gets the i1iSis's default (a store holding only the
-        # instrument opens on A3+ Portrait, -n and -P, as it always did); a
-        # flag that was saved comes back as saved, A4 and -n off included.
-        prev = getattr(self, "_isis_defaults_instr", None)
-        self._isis_defaults_instr = instr
-        if saved is not None:
-            entering, leaving = instr == "isis", False
-        else:
-            entering = instr == "isis" and prev is not None and prev != "isis"
-            leaving = prev == "isis" and instr != "isis"
-        if self._manual_paper_pw is not None and "-p" not in keep:
-            current_paper = self._manual_paper_pw.get_raw_value() or ""
-            if entering and current_paper == "A4":
-                self._manual_paper_pw.set_value("329x483")
-            elif leaving and current_paper == "329x483":
-                self._manual_paper_pw.set_value("A4")
-
-        for pw_attr in ("_manual_n_pw", "_manual_P_pw"):
-            pw = getattr(self, pw_attr, None)
-            if pw is None or pw.flag in keep:
-                continue
-            current = bool(pw.get_raw_value())
-            if entering and not current:
-                pw.set_value(True)
-            elif leaving and current:
-                pw.set_value(False)
+        # (The i1iSis printtarg entry's A3+ / -n / -P defaults went with the
+        # entry, removed by the owner's ruling of 2026-11-14.)
 
     def i1pro_preset(self) -> str:
         """Preferences > i1Pro Chart Defaults, as stored."""
@@ -19820,6 +19903,19 @@ class TabChart(QWidget):
                 and self._i1io_clip_check.isChecked()):
             # Guided's "Clip border" on (i1iO Beta), as the build has it
             kw.update(i1io_clip_border=True, clip_content_mode="notes")
+        if instr == "XRISIS" and guided:
+            # Guided's i1iSis choices (Beta), as the build has them: no
+            # margin boxes (5 mm each, i1Profiler's), the model width, the
+            # notes band
+            kw.pop("margins", None)
+            kw.update(spacer_on=False, spacer_mode="none",
+                      layout_mode="patch_first")
+            box = getattr(self, "_isis_model_combo", None)
+            if box is not None and box.currentData() == "xl":
+                kw["isis_model"] = "xl"
+            band = getattr(self, "_isis_band_check", None)
+            if band is not None and band.isChecked():
+                kw.update(isis_notes_band=True, clip_content_mode="notes")
         return instruments.geom_from_build_kwargs(kw)
 
     def _engine_capacity(self, instr: str, paper: str, *, dd: bool, td: bool,
@@ -20247,6 +20343,14 @@ class TabChart(QWidget):
         return bool(panel is not None and self._manual_panel_lays_out()
                     and panel.instr.currentData() == "FD9")
 
+    def _isis_model_changed(self, *_a) -> None:
+        """Guided's i1iSis model width changed: the sheets it offers follow
+        (the XL models take A3, 11 x 17 in and A3+ as well)."""
+        if (self._instr_combo.currentData() or "") == "XRISIS":
+            self._rebuild_paper_combo()
+        else:
+            self._update_patch_count()
+
     def _rebuild_paper_combo(self) -> None:
         instr    = self._instr_combo.currentData() or "i1"
         excluded = EXCLUDED_PAPERS.get(instr, set())
@@ -20277,6 +20381,15 @@ class TabChart(QWidget):
                     sizes.append(current)
             except (ValueError, TypeError, AttributeError):
                 current = "137x300"
+        elif instr == "XRISIS":
+            # The i1iSis's sheets (PROPOSAL §6): A4, Letter, A5, 5 x 7 in,
+            # 8 x 10 in; with the XL models also A3, 11 x 17 in and A3+.
+            from workflow.isis.chart import GUIDED_PAPERS, GUIDED_PAPERS_XL
+            box = getattr(self, "_isis_model_combo", None)
+            sizes = list(GUIDED_PAPERS_XL if box is not None
+                         and box.currentData() == "xl" else GUIDED_PAPERS)
+            if current not in sizes:
+                current = "A4"
         elif instr == "IO2":
             # The i1iO's sheets: landscape, inside the arm's reach
             # (`workflow.i1io.chart.GUIDED_PAPERS`). Only reachable with i1iO
@@ -20494,6 +20607,11 @@ class TabChart(QWidget):
             # …and its "Clip border", for the i1iO only
             clip.setVisible(instr == "IO2")
             self._i1io_clip_tooltip.setVisible(instr == "IO2")
+        if getattr(self, "_isis_model_combo", None) is not None:
+            # the i1iSis's model width and notes band, for the i1iSis only
+            for w in (self._isis_model_combo, self._isis_model_tooltip,
+                      self._isis_band_check, self._isis_band_tooltip):
+                w.setVisible(instr == "XRISIS")
         # Triple density: CM-only, hidden everywhere else.
         td_visible = instr == "CM"
         self._td_check.setVisible(td_visible)
@@ -21808,152 +21926,6 @@ class TabChart(QWidget):
             self._log.appendPlainText(text)
             self._progress_line_active = True
         self._log.ensureCursorVisible()
-
-    def _is_isis_selected(self) -> bool:
-        """Read the instrument from the *active* mode's selector.
-
-        i1iSis is intentionally absent from the Guided combo, so this only
-        returns True from Manual mode in practice — but consulting the active
-        selector keeps the check robust if that ever changes.
-        """
-        if self._current_mode() == "guided":
-            code = (self._instr_combo.currentData() or "") if hasattr(self, "_instr_combo") else ""
-        else:
-            code = (self._manual_instr_pw.get_raw_value() or "") if self._manual_instr_pw else ""
-        return code == "isis"
-
-    def _update_isis_preview_banner(self) -> None:
-        # The instrument signal can fire before _build_ui finishes constructing
-        # the preview pane (during _make_manual_panel). Guard accordingly.
-        if getattr(self, "_preview", None) is None:
-            return
-        if self._is_isis_selected():
-            self._preview.set_banner(tr(
-                "Layout preview only — i1Profiler will lay out the actual chart "
-                "from the patch list when you load the .pxf, so the printed "
-                "chart will look different from what's shown here."
-            ))
-        else:
-            self._preview.set_banner(None)
-
-    def _export_for_i1profiler_and_notify(
-        self, work_dir: Path, stem: str, preview_available: bool
-    ) -> bool:
-        """Convert the TI1 to .txt + .pxf and show the i1Profiler hand-off popup.
-
-        Returns True if the export succeeded (so the caller can suppress the
-        generic "chart generation failed" path when printtarg crashed but the
-        TI1 from targen is still usable).
-        """
-        ti1 = work_dir / f"{stem}.ti1"
-        if not ti1.is_file():
-            self._log.appendPlainText(
-                f"[i1iSis] expected TI1 not found: {ti1}; skipping i1Profiler export."
-            )
-            return False
-        try:
-            target = parse_ti1(ti1)
-            project = self._file_mgr.project()
-            exports_dir = project.ensure_exports_dir()
-            # Project-named export so the file is self-identifying when handed
-            # to i1Profiler (e.g. printer-test-file-i1profiler.pxf).
-            base_name = f"{project.current_run().stem}-i1profiler"
-            txt_path, pxf_path = export_from_ti1(
-                ti1, exports_dir, base_name=base_name,
-                also_shuffled=self._settings.get("export_shuffled_pxf", False))
-        except Exception as exc:  # noqa: BLE001
-            log.exception("i1Profiler export failed")
-            self._log.appendPlainText(f"[i1iSis] export failed: {exc}")
-            InfoDialog(
-                "i1Profiler export failed",
-                f"ChromIQ could not write the i1Profiler patch-set files:\n\n{exc}",
-                self,
-                min_width=520,
-            ).exec()
-            return False
-
-        if txt_path is not None:
-            self._log.appendPlainText(f"[i1iSis] wrote {txt_path.name}")
-        self._log.appendPlainText(f"[i1iSis] wrote {pxf_path.name}")
-        if self._settings.get("export_shuffled_pxf", False):
-            shuf = pxf_path.with_name(f"{pxf_path.stem}-shuffled.pxf")
-            if shuf.is_file():
-                self._log.appendPlainText(f"[i1iSis] wrote {shuf.name} (shuffled)")
-
-        # Colorspace label for the popup. i1Profiler does not read the colour
-        # space from the patch set — the user must select it in the workflow —
-        # so spell out which one this chart is for.
-        if target.kind == "RGB":
-            cs_label = "RGB"
-        elif target.kind == "CMYK":
-            cs_label = "CMYK"
-        else:
-            cs_label = f"CMYK + {len(target.extras)}"
-
-        files_lines = [
-            f"  • {pxf_path.name}   (recommended — i1Profiler's native format)"
-        ]
-        if txt_path is not None:
-            files_lines.append(f"  • {txt_path.name}   (CGATS text, as a fallback)")
-        files_block = "\n".join(files_lines)
-
-        steps = [
-            "Connect your i1iSis and open i1Profiler.",
-            "On the start screen, choose Advanced User Mode.",
-            "In the menu on the left, under Printer, click Profiling.",
-        ]
-        if target.kind != "RGB":
-            ink_note = ""
-            if target.extras:
-                inks = ", ".join(EXTRA_INK[c][0] for c in target.extras)
-                ink_note = f", and define the {len(target.extras)} extra inks ({inks})"
-            steps.append(
-                f'Set the printer colour space to "{cs_label}" first — i1Profiler '
-                f"does not read it from the file, so you must choose it here"
-                f"{ink_note}."
-            )
-        steps.append(
-            "In the Patch Set window, click Load and select the .pxf file above. "
-            "Leave i1Profiler's Smart patch generator alone afterwards — changing "
-            "its patch count or Scramble option replaces the loaded patches with "
-            "freshly generated ones."
-        )
-        steps.append(
-            "Continue through i1Profiler's wizard — it will lay out and print the "
-            "chart, then ask you to scan it on the i1iSis and build the ICC profile."
-        )
-        steps_block = "\n".join(f"  {i}. {s}" for i, s in enumerate(steps, 1))
-
-        preview_note = (
-            "\n\nNote on the preview shown to the right: it is ChromIQ's own "
-            "layout, meant only as a sanity check of the patches. The actual "
-            "chart that gets printed will be laid out by i1Profiler and will "
-            "look different."
-            if preview_available else
-            "\n\nNote: ChromIQ couldn't render a layout preview for this run, "
-            "but the patch-set files above are still valid — i1Profiler builds "
-            "its own layout from them, so the missing preview doesn't affect "
-            "the workflow."
-        )
-        file_word = "file was" if txt_path is None else "files were"
-        body = (
-            f"Your {cs_label} chart is ready for i1Profiler. The following "
-            f"{file_word} saved next to the chart:\n\n"
-            f"{files_block}\n\n"
-            f"Folder:  {work_dir}\n\n"
-            f"Next steps in i1Profiler:\n"
-            f"{steps_block}\n\n"
-            f"ChromIQ's Print, Measure and Profile tabs are not used for this "
-            f"instrument — the rest of the workflow happens entirely in i1Profiler."
-            f"{preview_note}"
-        )
-        InfoDialog(
-            "Next steps in i1Profiler",
-            body,
-            self,
-            min_width=620,
-        ).exec()
-        return True
 
     def set_target_controller(self, controller) -> None:
         """Receive the shared Profile-run / Run-type controller (#130) so a
@@ -23450,6 +23422,13 @@ class TabChart(QWidget):
                     self._settings.get("chart_i1io_crosses", True))
                 guided["i1io_clip_border"] = bool(
                     self._settings.get("chart_i1io_clip_border", False))
+            if getattr(self, "_isis_model_combo", None) is not None:
+                # the i1iSis's choices (Beta): the saved defaults
+                guided["isis_model"] = str(
+                    self._settings.get("chart_isis_model", "standard")
+                    or "standard")
+                guided["isis_notes_band"] = bool(
+                    self._settings.get("chart_isis_notes_band", False))
             for fld, val in guided.items():
                 try:
                     self._shared_set("guided", fld, val)
@@ -23472,6 +23451,10 @@ class TabChart(QWidget):
                     and "i1io_clip_border" not in guided):
                 # …and one without its clip border answer had none
                 guided = {**guided, "i1io_clip_border": False}
+            if getattr(self, "_isis_model_combo", None) is not None:
+                # an i1iSis-less row: the standard model, no notes band
+                guided = {"isis_model": "standard",
+                          "isis_notes_band": False, **guided}
             for fld, val in guided.items():
                 try:
                     self._shared_set("guided", fld, val)
@@ -26326,7 +26309,6 @@ class TabChart(QWidget):
             self._restore_profiling_chart()
             self._show_restored_chart_after_a_stop()
             return
-        is_isis = self._is_isis_selected()
         # File stem is fixed by the folder layout ("chart" / "calibration").
         # Derive it from the actual page bitmaps so it's correct regardless of
         # which flow produced them; fall back to "chart" when none exist.
@@ -26436,18 +26418,6 @@ class TabChart(QWidget):
             # failed, so put the snapshot back rather than dropping it — a failed
             # verification chart must not cost the run its profiling work.
             self._restore_profiling_chart()
-
-        # For i1iSis the load-bearing artifact is the TI1 from targen, not the
-        # printtarg TIFF. Run the export off the TI1 so users still get their
-        # patch-set files even if printtarg fails for an unrelated reason
-        # (e.g. paper-size validation crash). work_dir is wherever the TI1 lives
-        # — derive from tiffs when present, else from the current run folder.
-        isis_export_ok = False
-        if is_isis:
-            work_dir = tiffs[0].parent if tiffs else self._file_mgr.project().current_run().dir
-            isis_export_ok = self._export_for_i1profiler_and_notify(
-                work_dir, stem, preview_available=bool(tiffs),
-            )
 
         if tiffs:
             self._preview.set_notice(None)   # chart just made — drop any guidance
@@ -26561,62 +26531,60 @@ class TabChart(QWidget):
             # So the build reports that it has finished, and THEN asks its
             # question. The offer to edit the patch set is unaffected: it is
             # about the sheet that now exists (#93, Knut).
-            self.chart_finished.emit(tiffs, ti2, is_isis)
+            # (The third argument said "an i1iSis hand-off chart"; that
+            # printtarg entry was removed by the owner's ruling of
+            # 2026-11-14, so it is always False now.)
+            self.chart_finished.emit(tiffs, ti2, False)
             self._maybe_warn_partial_last_page(ti2)
         else:
             self._set_margin_chart([], None)
             self._log.appendPlainText("[ERROR] Chart generation failed.")
             self._log.ensureCursorVisible()
-            # When the i1iSis hand-off already succeeded the user doesn't need
-            # a second failure dialog telling them printtarg crashed — the
-            # popup we already showed explained that the preview is optional
-            # and the workflow continues in i1Profiler.
-            if not isis_export_ok:
-                failure = self._creator.primary_failure()
-                if failure is not None:
-                    tool, _key, friendly = failure
-                    from workflow import measurement_messages as _M
-                    title = (
-                        "Chart Generation Failed (targen)"
-                        if tool == "targen"
-                        else _M.M_CHART_ENGINE_FAILED.render(reason="")[0]
-                        if (tool, _key) == ("engine", "engine_failed")
-                        else _M.M_CHART_ENGINE_REDRAW_FAILED.render(reason="")[0]
-                        if (tool, _key) == ("engine", "engine_redraw_failed")
-                        else _M.M_FD9_CHART_UNDETECTABLE.render(
-                            page=1, pages=1, reason="")[0]
-                        if (tool, _key) == ("engine", "fd9_undetectable")
-                        else tr("The chart could not be built")
-                        if tool == "engine"
-                        else "Chart Layout Failed (printtarg)"
-                    )
-                    InfoDialog(title, friendly, self, min_width=520).exec()
-                elif self._creator.unmatched_failure() is not None:
-                    # No pattern recognised the message — but the tool DID report
-                    # one, and the user is still owed a word rather than an empty
-                    # preview (Knut, #130 2026-07-30: printtarg refused his chart
-                    # with "Input file doesn't contain two or three tables", which
-                    # nothing here knew, so no window ever appeared).
-                    #
-                    # Gated on the tool having said something: a build that ends
-                    # with no output at all — a cancel, or a caller driving this
-                    # handler directly — has nothing to report, and a window
-                    # saying "no further detail" would be noise. It also kept a
-                    # test waiting forever on a modal nobody could dismiss.
-                    raw = self._creator.unmatched_failure()
-                    said = raw[1]
-                    InfoDialog(
-                        tr("The chart could not be built"),
-                        tr("ChromIQ could not build this chart, so the preview "
-                           "is empty. Your chart files and any measurement in "
-                           "this run are untouched.\n\n"
-                           "This is what the tool reported:\n\n{said}\n\n"
-                           "If this happened just after “Restore Used Chart”, the "
-                           "chart itself is safely back — only its printable "
-                           "pages could not be redrawn, and you can create the "
-                           "chart again in this tab when you need to print it."
-                           ).format(said=said),
-                        self, min_width=560).exec()
+            failure = self._creator.primary_failure()
+            if failure is not None:
+                tool, _key, friendly = failure
+                from workflow import measurement_messages as _M
+                title = (
+                    "Chart Generation Failed (targen)"
+                    if tool == "targen"
+                    else _M.M_CHART_ENGINE_FAILED.render(reason="")[0]
+                    if (tool, _key) == ("engine", "engine_failed")
+                    else _M.M_CHART_ENGINE_REDRAW_FAILED.render(reason="")[0]
+                    if (tool, _key) == ("engine", "engine_redraw_failed")
+                    else _M.M_FD9_CHART_UNDETECTABLE.render(
+                        page=1, pages=1, reason="")[0]
+                    if (tool, _key) == ("engine", "fd9_undetectable")
+                    else tr("The chart could not be built")
+                    if tool == "engine"
+                    else "Chart Layout Failed (printtarg)"
+                )
+                InfoDialog(title, friendly, self, min_width=520).exec()
+            elif self._creator.unmatched_failure() is not None:
+                # No pattern recognised the message — but the tool DID report
+                # one, and the user is still owed a word rather than an empty
+                # preview (Knut, #130 2026-07-30: printtarg refused his chart
+                # with "Input file doesn't contain two or three tables", which
+                # nothing here knew, so no window ever appeared).
+                #
+                # Gated on the tool having said something: a build that ends
+                # with no output at all — a cancel, or a caller driving this
+                # handler directly — has nothing to report, and a window
+                # saying "no further detail" would be noise. It also kept a
+                # test waiting forever on a modal nobody could dismiss.
+                raw = self._creator.unmatched_failure()
+                said = raw[1]
+                InfoDialog(
+                    tr("The chart could not be built"),
+                    tr("ChromIQ could not build this chart, so the preview "
+                       "is empty. Your chart files and any measurement in "
+                       "this run are untouched.\n\n"
+                       "This is what the tool reported:\n\n{said}\n\n"
+                       "If this happened just after “Restore Used Chart”, the "
+                       "chart itself is safely back — only its printable "
+                       "pages could not be redrawn, and you can create the "
+                       "chart again in this tab when you need to print it."
+                       ).format(said=said),
+                    self, min_width=560).exec()
         # THE CHART THAT WAS JUST BUILT IS NOW THIS RUN'S OWN SETTINGS.
         #
         # §3 lists Generate Chart as a write event, and save_target_settings'
@@ -32159,6 +32127,12 @@ class TabChart(QWidget):
             if getattr(self, "_i1io_clip_check", None) is not None:
                 s.set("chart_i1io_clip_border",
                       bool(self._i1io_clip_check.isChecked()))
+        if (params.instrument == "XRISIS"       # i1iSis (Beta) only
+                and getattr(self, "_isis_model_combo", None) is not None):
+            s.set("chart_isis_model",
+                  str(self._isis_model_combo.currentData() or "standard"))
+            s.set("chart_isis_notes_band",
+                  bool(self._isis_band_check.isChecked()))
         s.set("chart_pages",               params.pages)
         s.set("chart_double_density",      params.double_density)
         s.set("chart_triple_density",      params.triple_density)
@@ -32403,6 +32377,16 @@ class TabChart(QWidget):
                                     and getattr(self, "_i1io_clip_check",
                                                 None) is not None
                                     and self._i1io_clip_check.isChecked()),
+            # the i1iSis's model width and notes band (Beta)
+            isis_model           = (str(self._isis_model_combo.currentData()
+                                        or "standard")
+                                    if instr == "XRISIS" and getattr(
+                                        self, "_isis_model_combo", None)
+                                    is not None else ""),
+            isis_notes_band      = (instr == "XRISIS"
+                                    and getattr(self, "_isis_band_check",
+                                                None) is not None
+                                    and self._isis_band_check.isChecked()),
         )
 
     def _manual_i1io_context(self) -> dict:
@@ -32799,6 +32783,12 @@ class TabChart(QWidget):
         if getattr(self, "_i1io_clip_check", None) is not None:
             self._i1io_clip_check.setChecked(
                 bool(s.get("chart_i1io_clip_border", False)))
+        if getattr(self, "_isis_model_combo", None) is not None:
+            i = self._isis_model_combo.findData(
+                str(s.get("chart_isis_model", "standard") or "standard"))
+            self._isis_model_combo.setCurrentIndex(max(0, i))
+            self._isis_band_check.setChecked(
+                bool(s.get("chart_isis_notes_band", False)))
         self._update_dd_visibility()
         self._update_patch_count()
 
@@ -32823,6 +32813,9 @@ class TabChart(QWidget):
         # Guided's do (review of 2026-11-13, D-off).
         _stale_i1io = _saved_beta_instrument_is_off(
             s.get(_pw_settings_key("printtarg", "-i")))
+        from data.patch_db import REMOVED_INSTRUMENT_CODES as _REMOVED
+        _stale_removed = str(s.get(_pw_settings_key("printtarg", "-i"))
+                             or "") in _REMOVED
         for tool, widgets in self._manual_widgets.items():
             for pw in widgets:
                 if pw in self._d_cascade_widgets:
@@ -32833,6 +32826,12 @@ class TabChart(QWidget):
                     v = healed_i
                 if (_stale_i1io and tool == "printtarg"
                         and pw.flag in ("-i", "-p")):
+                    v = None
+                # THE REMOVED i1iSis ENTRY'S OWN DEFAULTS go with it: it
+                # stored A3+, -n and -P on (owner's ruling of 2026-11-14, the
+                # challenge's M5), so those read as none too.
+                if (_stale_removed and tool == "printtarg"
+                        and pw.flag in ("-n", "-P")):
                     v = None
                 if v is None:
                     legacy_key = f"manual_{tool}_{pw.flag}"
@@ -32914,7 +32913,6 @@ class TabChart(QWidget):
             self._manual_td_check.setChecked(td_saved)
         self._update_manual_lb_visibility()
         self._apply_instrument_default_margin(saved=frozenset(saved_printtarg))
-        self._update_isis_preview_banner()
 
         presets = self._load_presets_from_settings()
         self._populate_preset_combo(presets)

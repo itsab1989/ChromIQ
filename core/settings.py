@@ -338,6 +338,12 @@ DEFAULTS: dict[str, Any] = {
     #: i1Pro 2. This first step makes charts only and sends nothing to any
     #: table. Off = exactly 4.3.32. Restart to apply (`workflow.i1io.support`).
     "i1io_support_beta":         False,
+    #: Beta (Settings -> Beta): X-Rite i1iSis family charts, laid out by
+    #: ChromIQ and measured in i1Profiler. Off = 4.3.37 except the one stated
+    #: exception: the old printtarg entry "i1iSis (via i1Profiler)" is gone
+    #: for everybody (`data.patch_db.REMOVED_INSTRUMENT_CODES`). Restart to
+    #: apply (`workflow.isis.support`).
+    "isis_charts_beta":          False,
     # Qt's QSplashScreen burns ~1 s inside its own show() waiting on a
     # condition that never becomes true; the plain window paints the same
     # pixmap in 9-66 ms. This restores the old one if it ever matters.
@@ -1093,7 +1099,11 @@ def margin_combo_key(instrument: str, paper: str, orientation: str) -> str:
 # keys + settings_dialog._MARGIN_INSTRUMENTS).
 THRESHOLD_INSTR_LABEL = {
     "i1": "i1Pro", "p3": "i1Pro 3+", "CM": "ColorMunki",
-    "SS": "SpectroScan", "isis": "i1iSis", "CR30": "CR30",
+    "SS": "SpectroScan", "CR30": "CR30",
+    # The i1iSis family (a Beta). NOT "i1iSis": that was the label of the
+    # printtarg entry removed on 2026-11-14, and thresholds stored under it
+    # must not be picked up by the new entry.
+    "XRISIS": "i1iSis (Beta)",
 }
 
 # Canonical sheet name keyed by sorted (short, long) mm — so any paper code
