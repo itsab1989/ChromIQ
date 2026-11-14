@@ -965,6 +965,11 @@ class MeasureManager(QObject):
         #: because `_engine_fatal is not None` is a fallback trigger and this
         #: must not change behaviour for any other instrument.
         self._engine_error_prose = None
+        #: 4.3.37: the reader stopped because a resumed file's spectra differ
+        #: from the new readings ("The resumed spectral type seems to have
+        #: changed!"). Never a lost connection, and never a reason to fall
+        #: back: stock chartread stops the same way at the end.
+        self._resume_spectral_changed = False
         self._user_quit = False
         self._reset_requested_calibration()
         # The user can raise this for an ageing instrument (Settings → Beta);
@@ -1387,6 +1392,9 @@ class MeasureManager(QObject):
         `{"event":"error","kind":"chart_refused"}` before the `error()` call —
         and is requested in `docs/cr30_reports/09-impl-measure.md`.
         """
+        if getattr(self, "_resume_spectral_changed", False):
+            return ("the measurement being continued was taken at another "
+                    "spectral resolution (High resolution spectral mode, -H)")
         return (self._engine_fatal
                 or self._chart_unreadable
                 or self._engine_error_prose
@@ -1411,6 +1419,8 @@ class MeasureManager(QObject):
         never put us in a restart loop."""
         if code == 0 or self._engine_progress or self._user_quit:
             return False
+        if getattr(self, "_resume_spectral_changed", False):
+            return False        # 4.3.37: stock chartread stops the same way
         if self._engine_fallback_used or self._cal_request_used:
             return False
         if self._chart_unreadable is not None or self._stock_cannot_read_chart:
@@ -1513,6 +1523,8 @@ class MeasureManager(QObject):
         not something to silently retry."""
         if code == 0 or self._user_quit or self._engine_fallback_used:
             return False
+        if getattr(self, "_resume_spectral_changed", False):
+            return False        # 4.3.37: stock chartread stops the same way
         if self._cal_request_used:
             return False
         if self._chart_unreadable is not None or self._stock_cannot_read_chart:
@@ -3711,6 +3723,9 @@ class MeasureManager(QObject):
                 m = _HELPER_FATAL_RE.match(line)
                 if m:
                     self._engine_error_prose = m.group(1).strip()
+                from workflow.resume_resolution import SPECTRAL_CHANGED_RE
+                if SPECTRAL_CHANGED_RE.search(line):
+                    self._resume_spectral_changed = True
                 # The helper prints chartread's own startup failures as prose,
                 # and they have to raise their window here too — this parser is
                 # the only one that runs in engine mode (Knut, beta.141).

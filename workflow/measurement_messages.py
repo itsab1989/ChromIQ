@@ -9437,6 +9437,31 @@ M_STRIP_FAILED_BUTTON = _m(
     "back to reading this strip.",
     approved=False)
 
+# --- PROPOSED: a resume at another spectral resolution (4.3.37) -----------
+#: A tester's re-read strips were lost: the measurement was taken without -H,
+#: the resume with it, and the reader only noticed when it wrote the file.
+#: Asked at Start before anything is measured (`TabMeasure.
+#: _blocked_by_a_resume_resolution`); the button measures as before for this
+#: session only. {before}/{now}: "in high resolution" / "in standard
+#: resolution"; {option}: the -H row's label; {box}: the resume box's text.
+M_RESUME_RESOLUTION = _m(
+    "M-RESUME-RESOLUTION",
+    "This measurement was taken at another spectral resolution",
+    "The measurement you are continuing was measured {before}. With the "
+    "settings as they are now, the new strips would be measured {now}.\n\n"
+    "All readings in one measurement file have to have the same spectral "
+    "resolution. If they did not, the measurement could not be saved at the "
+    "end, and the strips you read now would be lost.\n\n"
+    "What each button does:\n\n"
+    "•  Measure {before}: continue the measurement as it was started. This "
+    "applies to this measurement only; “{option}” in the Measure tab stays "
+    "as you set it.\n\n"
+    "•  Cancel: start nothing. If you want the whole chart {now}, untick "
+    "“{box}” and press Start again: your current measurement is then moved to "
+    "the run's old folder, not deleted.\n\n"
+    "Nothing has been measured or changed yet.",
+    approved=False)
+
 # --- PROPOSED: the technical line under a communication failure (4.3.36) ---
 #: A tester's i1Pro 2 lost communication on every second strip and nothing
 #: said which USB transfer had failed. The engine now says (the helper's
@@ -10221,6 +10246,7 @@ CATALOGUE = {m.id: m for m in (
     M_STRIP_RULER_NOT_COVERED,
     M_I1PRO2_LIGHTS_LEFT_ON,
     M_STRIP_FAILED_COMS_DETAIL,
+    M_RESUME_RESOLUTION,
     M_READINGS_NOT_SAME_CHART, M_READINGS_UNUSABLE,
     M_IMPORT_TURNED_GRID_COLOURS,
     M_IMPORT_CXF_CONDITION, M_IMPORT_CXF_CONDITION_PARTS,

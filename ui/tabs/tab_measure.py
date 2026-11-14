@@ -8160,6 +8160,86 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._say_on_screen(title, body)
         return True
 
+    def _blocked_by_a_resume_resolution(self) -> bool:
+        """True when Refine / resume would continue a measurement taken at
+        another spectral resolution than "High resolution spectral mode (-H)"
+        gives now, and the person chose Cancel (M-RESUME-RESOLUTION, 4.3.37).
+        With "Measure as before" it returns False and sets
+        ``_session_highres`` to the file's resolution: _on_start applies it to
+        this session's arguments only; the stored preference is not changed."""
+        try:
+            ti3 = self._measurement_to_continue()
+            if ti3 is None:
+                return False
+            from workflow.resume_resolution import resume_mismatch
+            # the reader's own arguments, as the Start below collects them
+            # (without the engine's: those cannot carry -H)
+            raw = (self._collect_guided() if self._current_mode() == "guided"
+                   else self._collect_manual())
+            extra = getattr(raw, "extra_args", "") or ""
+            mm = resume_mismatch(ti3, extra,
+                                 getattr(self, "_detected_instrument", None))
+            if mm is None:
+                return False
+        except Exception:      # noqa: BLE001 — never block a read on this check
+            log.debug("could not compare the spectral resolution",
+                      exc_info=True)
+            return False
+        log.warning("Refine / resume: %s was measured %s, and this read would "
+                    "measure %s", ti3,
+                    "in high resolution" if mm.file_high else "in standard resolution",
+                    "in high resolution" if mm.read_high else "in standard resolution")
+        if self._resume_resolution_window(mm):
+            self._session_highres = mm.file_high
+            return False
+        self._log.appendPlainText("\n" + tr(
+            "Measurement not started. Nothing has been measured or changed."))
+        self._log.ensureCursorVisible()
+        if getattr(self, "_sound", None) is not None:
+            try:
+                self._sound.disarm()
+            except Exception:      # noqa: BLE001
+                pass
+        return True
+
+    def _resume_resolution_window(self, mm) -> bool:
+        """M-RESUME-RESOLUTION on screen and in the log; True for the button
+        that measures as before. No sound, like the other windows a Start
+        raises before anything is opened."""
+        from PyQt6.QtWidgets import QMessageBox
+        from workflow import measurement_messages as M
+        from ui.widgets import (fit_message_box_buttons,
+                                keep_message_box_inside_the_work_area,
+                                order_message_box_buttons)
+        high, std = (tr("in high resolution"), tr("in standard resolution"))
+        box_cb = (self._resume_cb if self._current_mode() == "guided"
+                  else self._m_resume_cb)
+        title, body = M.M_RESUME_RESOLUTION.render(
+            before=high if mm.file_high else std,
+            now=high if mm.read_high else std,
+            option=tr("High resolution spectral mode (-H)"),
+            box=box_cb.text() if box_cb is not None else "")
+        self._log.appendPlainText(f"[{title}]\n{body}")
+        self._log.ensureCursorVisible()
+        box = QMessageBox(self)
+        box.setObjectName("resume_resolution_window")
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        go = box.addButton(
+            tr("Measure in high resolution") if mm.file_high
+            else tr("Measure in standard resolution"),
+            QMessageBox.ButtonRole.AcceptRole)
+        cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(go)
+        box.setEscapeButton(cancel)
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        fit_message_box_buttons(box)
+        order_message_box_buttons(box, [go, cancel])
+        box.exec()
+        return box.clickedButton() is go
+
     def _chart_legacy_stock_window(self, detail: str) -> None:
         """M-CHART-LEGACY-STOCK: only ChromIQ's engine can read this sheet,
         and Preferences selects ArgyllCMS chartread."""
@@ -8300,6 +8380,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # nothing, or the new half's condition, about readings of both.
         if self._blocked_by_a_differing_condition():
             return
+        # …and when it was measured at another spectral resolution than
+        # "High resolution spectral mode (-H)" gives now (4.3.37): the reader
+        # would only notice when it writes the file, after measuring, and the
+        # new strips were lost. Asked before anything is armed or archived.
+        self._session_highres = None
+        if self._blocked_by_a_resume_resolution():
+            return
         # …and when the last measurement with an i1Pro 2 ended while its white
         # light was on (Preferences > Beta, the lights): replug it first.
         # Before anything is armed, archived or opened, and never for a chart
@@ -8355,6 +8442,15 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             return          # the user chose not to replace the stored chart
 
         params = self._collect_params()
+        # 4.3.37: "Measure as before" in M-RESUME-RESOLUTION: -H as the
+        # measurement being continued was taken, for this session only.
+        _hr = getattr(self, "_session_highres", None)
+        if _hr is not None:
+            from workflow.resume_resolution import with_highres
+            params.extra_args = with_highres(params.extra_args, _hr)
+            log.info("Refine / resume: -H %s for this session only, as the "
+                     "measurement being continued was taken",
+                     "on" if _hr else "off")
         if not self._confirm_nonrandom_bidir(params):
             return
         # A REFINEMENT: re-reading a finished measurement the run has built a
