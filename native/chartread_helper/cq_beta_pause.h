@@ -1,4 +1,5 @@
-/* CHROMIQ_EXT: Beta parts PAUSED on the i1Pro 2 in ChromIQ 4.3.36
+/* CHROMIQ_EXT: Beta parts PAUSED on the i1Pro 2 (4.3.36; since 4.3.37 the
+ * ruler check only: the lights got a rebuilt sequence instead, see below)
  * (2026-11-14, interim; ~/Desktop/ChromIQ-work/2026-11-14_lights_comm_loss).
  *
  * A tester with a real i1Pro 2 (4.3.34, Windows) found that, with the lights
@@ -27,18 +28,15 @@
  * for the ones asked for; returns which asked-for ones are paused. */
 static inline int cq_lights_choices_for(int gen, int signals, int left_on,
                                         int *sig_out, int *left_out) {
-	int paused = 0;
+	/* 4.3.37: nothing is paused any more. The i1Pro 2's light sequence was
+	 * rebuilt in the driver instead (i1pro_imp.c, CHROMIQ PATCH: i1Profiler's
+	 * hand-held order and the quiet time before every trigger), so both
+	 * generations are given what was asked. Kept as the one place a pause
+	 * would go again. */
+	(void)gen;
 	*sig_out = signals;
 	*left_out = left_on;
-	if (gen == 2) {
-		if (signals)
-			paused |= CQ_PAUSED_SIGNALS;
-		if (left_on)
-			paused |= CQ_PAUSED_LEFT_ON;
-		*sig_out = 0;
-		*left_out = 0;
-	}
-	return paused;
+	return 0;
 }
 
 /* Whether the ruler check is paused for generation `gen`. */

@@ -9437,6 +9437,79 @@ M_STRIP_FAILED_BUTTON = _m(
     "back to reading this strip.",
     approved=False)
 
+# --- PROPOSED: the ruler and the filing disagree about a strip's direction --
+#: 4.3.37 (the ruler check Beta, i1Pro 3): a tester's strip was saved back to
+#: front by the reader's recognition (48-66 dE00 off) while the ruler showed
+#: an ordinary stroke. "Forward" is learned from the majority of accepted
+#: strips. Same window and buttons as M-STRIP-RULER-NOT-COVERED.
+M_STRIP_RULER_DIRECTION = _m(
+    "M-STRIP-RULER-DIRECTION",
+    "Strip {strip} may have been saved back to front",
+    "ChromIQ accepted the readings of strip {strip}, but they do not agree "
+    "with the instrument's ruler about the direction. The ruler says the "
+    "instrument moved the same way as on the other strips you read, yet the "
+    "readings were saved as if the strip had been read the other way round. "
+    "Then every patch of this strip would have the colour of another patch.\n\n"
+    "This can happen when the colours of this strip, read backwards, look "
+    "much like another strip of the chart.\n\n"
+    "What each button does:\n\n"
+    "•  Re-read Strip: read strip {strip} again, from the white paper before "
+    "the first patch to the white paper after the last, in one steady "
+    "movement. The new reading replaces this one.\n\n"
+    "•  Continue Anyway: keep what was just read and carry on with the next "
+    "strip.\n\n"
+    "This question comes from the ruler check, a beta option in Preferences, "
+    "on the Beta tab. ChromIQ never changes a reading by itself. If you are "
+    "sure the strip was saved the right way, please press Continue Anyway, "
+    "and tell us about it with the diagnostics file this measurement writes.",
+    approved=False)
+
+# --- PROPOSED: a resume at another spectral resolution (4.3.37) -----------
+#: A tester's re-read strips were lost: the measurement was taken without -H,
+#: the resume with it, and the reader only noticed when it wrote the file.
+#: Asked at Start before anything is measured (`TabMeasure.
+#: _blocked_by_a_resume_resolution`); the button measures as before for this
+#: session only. {before}/{now}: "in high resolution" / "in standard
+#: resolution"; {option}: the -H row's label; {box}: the resume box's text.
+M_RESUME_RESOLUTION = _m(
+    "M-RESUME-RESOLUTION",
+    "This measurement was taken at another spectral resolution",
+    "The measurement you are continuing was measured {before}. With the "
+    "settings as they are now, the new strips would be measured {now}.\n\n"
+    "All readings in one measurement file have to have the same spectral "
+    "resolution. If they did not, the measurement could not be saved at the "
+    "end, and the strips you read now would be lost.\n\n"
+    "What each button does:\n\n"
+    "•  Measure {before}: continue the measurement as it was started. This "
+    "applies to this measurement only; “{option}” in the Measure tab stays "
+    "as you set it.\n\n"
+    "•  Cancel: start nothing. If you want the whole chart {now}, untick "
+    "“{box}” and press Start again: your current measurement is then moved to "
+    "the run's old folder, not deleted.\n\n"
+    "Nothing has been measured or changed yet.",
+    approved=False)
+
+# --- PROPOSED: high resolution, continued with an instrument without it ---
+#: 4.3.37 review (M4). {instrument}: the chart's (or the reported)
+#: instrument name; {box}: the resume box's own text. Cancel only.
+M_RESUME_RESOLUTION_INSTRUMENT = _m(
+    "M-RESUME-RESOLUTION-INSTRUMENT",
+    "This measurement cannot be continued with this instrument",
+    "The measurement you are continuing was measured in high resolution. "
+    "The instrument this chart is made for, {instrument}, has no "
+    "high-resolution mode, so new strips could only be measured in "
+    "standard resolution.\n\n"
+    "All readings in one measurement file have to have the same spectral "
+    "resolution. If they did not, the measurement could not be saved at the "
+    "end, and the strips you read now would be lost.\n\n"
+    "To continue this measurement, use an instrument that can measure in "
+    "high resolution, such as an X-Rite i1Pro, i1Pro 2 or i1Pro 3, or a "
+    "ColorMunki. If you want to measure the whole chart with this "
+    "instrument instead, untick “{box}” and press Start again: your current "
+    "measurement is then moved to the run's old folder, not deleted.\n\n"
+    "Nothing has been measured or changed.",
+    approved=False)
+
 # --- PROPOSED: the technical line under a communication failure (4.3.36) ---
 #: A tester's i1Pro 2 lost communication on every second strip and nothing
 #: said which USB transfer had failed. The engine now says (the helper's
@@ -9803,12 +9876,17 @@ M_STRIP_REVERSED = _m(
     "readings of this strip were probably filed in the "
     "wrong order: patches {first} to {last} hold the readings of other "
     "patches of the strip, not their own.{middle_line}\n\n"
-    "A strip can be read in either direction, and ChromIQ files each strip "
-    "in the direction its colours fit best. When the reading slips by one or "
-    "two patches on the way, for example because the instrument took the "
-    "white paper in front of the first patch for a patch, the colours can "
-    "fit the "
-    "wrong direction better, and the strip is then filed back to front.\n\n"
+    "A strip can be read in either direction, and the reader decides from "
+    "its colours which way round to file it. That decision can go wrong: "
+    "when the reading slips by one or two patches on the way, for example "
+    "because the instrument took the white paper in front of the first "
+    "patch for a patch, or when this strip, read the other way round, looks "
+    "much like another strip of the chart. And with “Bidirectional disabled "
+    "(-B)” the reader always files a strip as if it had been read from its "
+    "first patch to its last, so a strip read from the other end is filed "
+    "back to front without a warning. Whatever the cause, what ChromIQ "
+    "found is the same: this strip matches the chart far better turned "
+    "round.\n\n"
     + _slip_tail(),
     approved=False)
 
@@ -10221,6 +10299,9 @@ CATALOGUE = {m.id: m for m in (
     M_STRIP_RULER_NOT_COVERED,
     M_I1PRO2_LIGHTS_LEFT_ON,
     M_STRIP_FAILED_COMS_DETAIL,
+    M_RESUME_RESOLUTION,
+    M_RESUME_RESOLUTION_INSTRUMENT,
+    M_STRIP_RULER_DIRECTION,
     M_READINGS_NOT_SAME_CHART, M_READINGS_UNUSABLE,
     M_IMPORT_TURNED_GRID_COLOURS,
     M_IMPORT_CXF_CONDITION, M_IMPORT_CXF_CONDITION_PARTS,

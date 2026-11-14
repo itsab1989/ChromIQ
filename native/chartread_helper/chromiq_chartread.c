@@ -1416,6 +1416,12 @@ static const char *cq_lights_name2(int seq) {
 	return seq >= 1 && seq <= 6 ? names[seq] : "?";
 }
 
+/* The i1Pro 2's driver held a trigger for the quiet time after a light write
+ * (RULE B, 4.3.37): one event per hold; ChromIQ says it once per session. */
+static void cq_lights_held2(int ms) {
+	cq_emit_raw("{\"event\":\"lights\",\"held_ms\":%d}", ms);
+}
+
 /* A sequence the i1Pro 2's driver sent: one line for ChromIQ's log. */
 static void cq_lights_sent2(int seq) {
 	cq_usbwatch_light(cq_lights_name2(seq));	/* 4.3.36: for an error event */
@@ -1570,6 +1576,8 @@ static void cq_lights_for_session(inst *it, int rmode, int emis, int trans,
 		if (cq_lights_gen == 2) {
 			i1pro2_cq_lights_options(it, sig, left);
 			i1pro2_cq_lights_sent = cq_lights_sent2;
+			i1pro2_cq_lights_held = cq_lights_held2;
+			i1pro2_cq_lights_hold_poll = cq_lights_take_pending;	/* 4.3.37 M3 */
 		} else {
 			i1pro3_cq_lights_options(it, sig, left);
 			i1pro3_cq_lights_sent = cq_lights_sent3;
@@ -1730,7 +1738,7 @@ static const char *cq_ruler_giveup_name(int g) {
  * for this strip. One line, written whole (cq_out_lock); numbers only. */
 static void cq_ruler_after_strip(const char *label, int rv) {
 	cq_ruler_rec r;
-	char esc[64];
+	char esc[64], reason[256];
 	int i, got, state;
 	if (cq_ruler_it == NULL)
 		return;
@@ -1747,15 +1755,23 @@ static void cq_ruler_after_strip(const char *label, int rv) {
 	      : cq_ruler_gen == 3 ? i1pro3_cq_ruler_state(cq_ruler_it)
 	                          : i1pro2_cq_ruler_state(cq_ruler_it);
 	cq_json_escape(esc, sizeof(esc), label != NULL ? label : "");
+	/* 4.3.37: why a strip that was not read was refused (the driver's own
+	 * words, e.g. "Not enough patches"), for the diagnostics file: the most
+	 * useful case for the ruler work. "" for a strip that was read. */
+	reason[0] = '\0';
+	if (rv != inst_ok && cq_ruler_it->interp_error != NULL)
+		cq_json_escape(reason, sizeof(reason),
+		               cq_ruler_it->interp_error(cq_ruler_it, (inst_code)rv));
 	cq_out_lock();
 	fprintf(stdout, "\n{\"event\":\"ruler_strip\",\"strip\":\"%s\","
+	        "\"reason\":\"%s\","
 	        "\"instrument\":\"%s\",\"result\":\"%s\",\"ended\":\"%s\","
 	        "\"icom_err\":%d,\"samples\":%ld,\"bytes\":%ld,\"readings\":%d,"
 	        "\"clocks\":%d,\"clock_s\":%.9g,\"inttime\":%.9g,\"first\":%d,"
 	        "\"changes_dropped\":%ld,\"argyll_used\":%s,\"npos\":%d,"
 	        "\"giveup\":\"%s\",\"given_up\":%s,\"stream_did_not_end\":%s,"
 	        "\"rate_ms\":%d,\"changes\":[",
-	        esc, cq_ruler_gen == 3 ? "i1pro3" : "i1pro2",
+	        esc, reason, cq_ruler_gen == 3 ? "i1pro3" : "i1pro2",
 	        rv == inst_ok ? "read" : (rv & inst_mask) == inst_misread
 	            ? "misread" : "other",
 	        cq_ruler_end_name(r.ended), r.icom_err, r.samples, r.bytes,

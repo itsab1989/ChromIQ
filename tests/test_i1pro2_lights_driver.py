@@ -387,29 +387,30 @@ def test_option_off_on_an_i1pro2_is_the_option_on_session_minus_the_lights(trace
     assert on == off
 
 
+def _pulse_lines() -> "list[str]":
+    from tests.test_i1pro2_lights_modes import _programs
+    hexes = {v: k for k, v in _programs().items()}
+    pulse = hexes["PULSE"]
+    return [f"CTL d6 {len(pulse) // 2:08x} tout=0.25", f"WR 03 {pulse} tout=0.25"]
+
+
 def test_option_on_a_whole_i1pro2_session(traces):
+    """4.3.37, i1Profiler's hand-held order: WHITE at open, the recorded off
+    before a calibration, PULSE after it, NOTHING around a reading, and the
+    offs before an EEPROM read and at the close."""
     lines = _scenario(traces["patched"], "on_i1pro2")
     w = _wire(lines)
     trig = "CTL d4 0000022c00000029000000010100 tout=2.00"
     eeprom = ["CTL c4 00000c140040 tout=2.00", "RD 82 64"]
+    pulse = _pulse_lines()
     assert w == (WHITE                       # begin: ready
                  + OFF_SLOW + [trig]         # calibration's first trigger
                  + [trig]                    # its second: already off
-                 + WHITE                     # calibration returned
-                 + OFF_SLOW + [trig]         # the strip
-                 + WHITE                     # the strip returned
+                 + pulse                     # calibration returned
+                 + [trig]                    # the strip: nothing before it
                  + OFF_NOW + eeprom          # nothing may play during a read
-                 + WHITE                     # ready again
+                 + pulse                     # ready again (after an off)
                  + OFF_CLOSE)                # the close
-    # every trigger comes after an off (or after nothing lit)
-    lit = False
-    for ln in w:
-        if ln == WHITE[1]:
-            lit = True
-        elif ln.startswith("WR 03"):
-            lit = False
-        elif ln.startswith("CTL d4") or ln.startswith("CTL c4"):
-            assert not lit, ln
 
 
 def test_a_failed_request_is_noted_once_and_ends_the_lights(traces):

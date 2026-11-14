@@ -45,12 +45,18 @@ RECORD_KEYS = ("instrument", "ended", "icom_err", "samples", "bytes",
 _MM_PER_INCH = 25.4
 
 
-def strip_geometry(channels_json: "Path | str | None") -> "dict[str, dict]":
+def strip_geometry(channels_json: "Path | str | None",
+                   ti2: "Path | str | None" = None) -> "dict[str, dict]":
     """Per strip label: patch count, patch length, pitch and span in mm, from
     an engine chart's ``<stem>.channels.json``. ``{}`` for any other chart.
 
-    The strip label is the patch location without its trailing number
-    (``A1`` -> ``A``, ``AB12`` -> ``AB``); a strip runs down the page."""
+    The strip label is the one the chart prints, through the chart's own
+    label scheme (``labels_for_chart(ti2).strip_of``): ``A1`` -> ``A`` on a
+    chart with letter strips, ``9I`` -> ``9`` on ChromIQ's engine charts with
+    number strips and letter patches (4.3.37: the old rule, the location
+    without its trailing digits, made every patch of such a chart a strip of
+    its own). Without a readable .ti2, or for a location the scheme does not
+    know, the old rule. A strip runs down the page."""
     if not channels_json:
         return {}
     try:
@@ -63,11 +69,19 @@ def strip_geometry(channels_json: "Path | str | None") -> "dict[str, dict]":
     except (OSError, ValueError, KeyError, TypeError):
         return {}
     px = _MM_PER_INCH / dpi
+    labels = None
+    if ti2:
+        try:
+            from workflow.layout_engine.labels import labels_for_chart
+            labels = labels_for_chart(ti2)
+        except Exception:      # noqa: BLE001 - the old rule then
+            labels = None
     strips: "dict[str, list]" = {}
     for r in rects:
         try:
             loc = str(r["loc"])
-            lab = loc.rstrip("0123456789")
+            lab = (labels.strip_of(loc) if labels is not None else None) \
+                or loc.rstrip("0123456789")
             strips.setdefault(lab, []).append(
                 (float(r["y"]), float(r["h"])))
         except (KeyError, TypeError, ValueError):
@@ -103,7 +117,8 @@ class Diagnostics:
 
     def __init__(self, path: Path, *, instrument: str, firmware: "int | None",
                  helper_build: str = "", geometry: "dict | None" = None,
-                 verification: bool = False, argyll: str = ""):
+                 verification: bool = False, argyll: str = "",
+                 condition: "str | None" = None):
         from core.version import APP_VERSION as _v
         from workflow import ruler_check
         self.path = Path(path)
@@ -115,6 +130,9 @@ class Diagnostics:
             "argyllcms": argyll or None, "os": _os_text(),
             "instrument": instrument, "firmware": firmware,
             "measurement": "verification" if verification else "profiling",
+            # 4.3.37: the condition chosen with -F (M0 / M1 / M2 / M3), or
+            # null without -F: the instrument's normal mode
+            "measurement_condition": condition,
             "thresholds": ruler_check.THRESHOLDS,
             "chart_geometry": geometry or {},
             "strips": [],

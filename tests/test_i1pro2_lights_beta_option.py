@@ -113,7 +113,7 @@ def _manager_with_lines():
 
 @pytest.mark.parametrize("ev,courtesy,needle", [
     ({"event": "lights", "active": True}, ['{"cmd":"lights_off_exit"}\n'],
-     "white while it waits for you"),
+     "shows white when ChromIQ connects to it"),
     ({"event": "lights", "active": False, "why": "instrument"}, [],
      "only on an i1Pro 2 or an i1Pro 3"),
     ({"event": "lights", "active": False, "why": "mode"}, [],
@@ -359,31 +359,32 @@ def test_the_row_is_off_and_says_what_it_does(dialog):
             if b._title == "i1Pro 2 and i1Pro 3 Lights (beta)"]
     assert len(tips) == 1
     body = tips[0]._body
-    for needed in ("white while it waits for you",
-                   "no light while it calibrates or measures",
+    for needed in ("white when ChromIQ connects to it",
+                   "no light while it calibrates, then a softly pulsing white",
                    # the i1Pro 3 (2026-11-14: both choices apply to it)
                    "an i1Pro 3 shows", "slowly blinking white light",
                    "i1Pro 3 Plus", "he saw them as green twice and red twice",
                    "Nobody has seen them with ChromIQ yet",
                    "after a single patch that was accepted",
                    "only tell you that the instrument itself took a reading",
-                   "During a reading (i1Pro 2 and i1Pro 3)",
+                   "**During a reading:**",
                    "flashes green once when you press its button",
                    # 4.3.36: two choices paused for the i1Pro 2
-                   "Paused for the i1Pro 2 in this version",
+                   # 4.3.37: the i1Pro 2 follows i1Profiler's order
+                   "New for the i1Pro 2: the lights follow X-Rite's own order",
                    "The instrument lost communication with the computer",
-                   "whatever you choose below",
-                   "Your choices stay saved",
-                   "Nothing changes for the i1Pro 3",
-                   "Both choices apply to the i1Pro 3, and to the i1Pro 2 when "
-                   "they are not paused for it",
+                   "about two seconds",
+                   "not yet been confirmed on a real i1Pro 2",
+                   "On an i1Pro 2 both choices work the same",
+                   "“During a "
+                   "reading” changes something only on the i1Pro 3",
                    "Only for the i1Pro 2 and the i1Pro 3", "ColorMunki",
                    "chart-reading engine", "Read single patches",
                    "has not been tried on a real instrument with ChromIQ yet",
                    "nobody on the ChromIQ team owns an i1Pro 2",
                    "different light commands",
                    "ArgyllCMS's own program code", "recordings of what",
-                   "only light commands seen in those recordings",
+                   "only the light patterns seen in those recordings",
                    "the “off” that ArgyllCMS itself sends",
                    "that i1Profiler does not send to an i1Pro 3",
                    "never writes anything into the instrument's memory",
@@ -402,7 +403,7 @@ def test_the_row_is_off_and_says_what_it_does(dialog):
                    "Green and red now follow ChromIQ's verdict on the strip",
                    "to keep what your i1Pro 3 showed before",
                    "not tell you whether ChromIQ accepted the strip",
-                   "except", "first reading after connecting",
+                   "Your choice is kept, and it still applies to the i1Pro 3",
                    "Off during a reading", "the cautious choice",
                    "Left on during a reading",
                    "has not compared readings taken both ways",

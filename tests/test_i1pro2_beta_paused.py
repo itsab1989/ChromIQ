@@ -79,23 +79,20 @@ ACTIVE2 = {"event": "lights", "active": True, "instrument": "i1pro2",
            "signals": False, "during_reading": "off", "firmware": 634}
 
 
-@pytest.mark.parametrize("sig,left", [(True, False), (False, True),
-                                      (True, True)])
-def test_a_paused_choice_gets_one_line_of_its_own(mgr, sig, left):
-    ev = dict(ACTIVE2, paused_signals=sig, paused_during_reading=left)
-    lines = _lights_lines(mgr, ev)
-    # the true description (the ready light), then the paused line
-    assert lines[0] == MeasureManager._i1pro2_lights_line(False, False)
-    paused = [ln for ln in lines if "paused for the i1Pro 2" in ln]
-    assert len(paused) == 1
-    p = paused[0]
-    assert ("result signals" in p) == sig
-    assert ("Left on during a reading" in p) == left
-    assert "The instrument lost communication with the computer" in p
-    assert "The i1Pro 3 is not affected." in p
-    assert "—" not in p
-    # no firmware line: the signals are not in use
-    assert not any("firmware" in ln for ln in lines)
+def test_the_quiet_time_is_said_once_per_session(mgr):
+    """4.3.37: the i1Pro 2's driver holds a trigger after a light change (the
+    helper's held_ms event): the Measure log says so once, the app log every
+    time; it is never taken for a session line."""
+    lines = _lights_lines(mgr, dict(ACTIVE2))
+    for _ in range(3):
+        lines += _lights_lines(mgr, {"event": "lights", "held_ms": 1800})
+    said = [ln for ln in lines if "wait a moment before it measured" in ln]
+    assert len(said) == 1
+    assert "about two seconds" in said[0] and "—" not in said[0]
+    # 4.3.37 review (M1): what to do while it waits
+    assert "keep the instrument still on the white paper" in said[0]
+    assert "Start sliding at the beep." in said[0]
+    assert not any("leaves them alone" in ln for ln in lines)
 
 
 def test_nothing_paused_says_nothing_new(mgr):
@@ -272,28 +269,38 @@ def test_the_message_is_proposed_and_its_detail_untranslated():
 # ---------------------------------------------------------------------------
 # Preferences > Beta: the help and the confirmations say it
 # ---------------------------------------------------------------------------
-def test_the_lights_confirmation_says_what_is_paused_and_names_no_version():
+def test_the_lights_confirmation_says_the_new_order_and_names_no_version():
     from ui.dialogs.settings_dialog import i1pro2_lights_confirmation
     text = i1pro2_lights_confirmation()
-    assert "4.3." not in text                  # the 4.3.35 review's nit
+    assert "4.3." not in text
+    assert "paused" not in text
     assert "Below you can choose a ready light only instead" in text
-    assert ("For the i1Pro 2, the green / red result signals and “Left on "
-            "during a reading” are paused in this version") in text
-    assert "The instrument lost communication with the computer" in text
-    assert "shows its ready light as before" in text
-    assert "has not been tried on a real i1Pro 2 or i1Pro 3 with ChromIQ yet" \
+    assert "On an i1Pro 2, ChromIQ now follows the order X-Rite's i1Profiler" \
         in text
+    assert "about two seconds" in text
+    assert "has not yet been confirmed on a real i1Pro 2" in text
+    assert "The instrument lost communication with the computer" in text
     assert "—" not in text
 
 
-def test_the_lights_help_opens_with_the_pause():
+def test_the_lights_help_opens_with_the_new_order():
     from ui.dialogs.settings_dialog import i1pro2_lights_help
-    paras = i1pro2_lights_help().split("\n\n")
-    assert paras[1].startswith("**Paused for the i1Pro 2 in this version: "
-                               "the green / red result signals and “Left on "
-                               "during a reading”.**")
-    assert "Nothing changes for the i1Pro 3." in paras[1]
-    assert "—" not in paras[1]
+    help_ = i1pro2_lights_help()
+    paras = help_.split("\n\n")
+    assert paras[1].startswith("**New for the i1Pro 2: the lights follow "
+                               "X-Rite's own order.**")
+    assert "not yet been confirmed on a real i1Pro 2" in paras[1]
+    assert "page read without a single" in paras[1]
+    assert "keep the instrument still" in paras[1]
+    assert "Start sliding at the beep." in paras[1]
+    assert "paused for the i1Pro 2" not in help_.replace(
+        "paused for it", "")
+    # the i1Pro 3: one honest sentence
+    assert ("The i1Pro 3's lights have not been confirmed on a real i1Pro 3: "
+            "if “The instrument lost communication with the computer” appears "
+            "with this option on, please switch it off and tell us.") in help_
+    assert "On an i1Pro 2 both choices work the same" in help_
+    assert "—" not in help_
 
 
 def test_the_ruler_help_and_confirmation_say_it_is_paused():
@@ -330,3 +337,15 @@ def test_the_light_timing_reads_the_right_way_round(ms, said):
     line = coms_failure_detail(ev)
     assert said in line
     assert "-" not in line.split("light off_slow", 1)[1].split(";", 1)[0]
+
+
+def test_the_help_claims_only_what_is_true_about_the_moments():
+    """4.3.37 review (M2): the same recorded patterns at the same moments;
+    two situations on an i1Pro 2 differ in what was showing before."""
+    from ui.dialogs.settings_dialog import i1pro2_lights_help
+    h = i1pro2_lights_help()
+    assert "each at the moment i1Profiler sent it" not in h
+    assert "light patterns seen in those recordings, at the moments" in h
+    assert "two situations differ from the recordings" in h
+    assert "a calibration that comes after the first one" in h
+    assert "under the steady white of connecting" in h

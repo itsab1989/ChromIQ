@@ -125,3 +125,30 @@ def test_an_i1pro2_is_paused_and_measured_as_with_the_option_off(tmp_path,
     assert ti3_on == _ti3(base2)
     assert [e for e in on.events if e.get("event") == "strip_read"] == \
         [e for e in off.events if e.get("event") == "strip_read"]
+
+
+@needs_helper
+def test_a_strip_the_reader_refuses_is_reported_with_its_reason(tmp_path,
+                                                                monkeypatch):
+    """4.3.37: a strip that fails recognition still sends its ruler record,
+    with the reader's own reason, before the misread window."""
+    monkeypatch.setenv("CHROMIQ_REPLAY_INSTRUMENT", "i1pro3")
+    base, replay = _chart(tmp_path)
+    with ReplaySession(base, replay, extra_args=["--ruler"]) as s:
+        s.wait_event("strip_ready")
+        i = s.event_index()
+        s.send(cmd="swipe", ruler="clean", fault="misread",
+               reason="Not enough patches")
+        rec = s.wait_event("ruler_strip", after=i)
+        err = s.wait_event("error", after=i)
+        s.send(cmd="quit")
+        try:
+            s.wait_event("strip_interrupted", timeout=3)
+            s.send(cmd="quit")
+        except TimeoutError:
+            pass
+        s.finish()
+    assert rec["result"] == "misread"
+    assert rec["reason"] and err["kind"] == "misread"
+    names = [e.get("event") for e in s.events]
+    assert names.index("ruler_strip") < names.index("error")

@@ -151,8 +151,12 @@ def test_the_i1pro2_fixture_has_every_combination():
         assert needed in scns, needed
 
 
-@pytest.mark.parametrize("scn", _i1pro2_scenarios())
-def test_the_i1pro2_is_4_3_34s_in_every_combination(trace2, scn):
+@pytest.mark.parametrize("scn", [s for s in _i1pro2_scenarios()
+                                 if s.startswith(("off_", "revad_"))])
+def test_the_i1pro2_is_4_3_34s_with_the_option_off(trace2, scn):
+    """With the option off, and on an original i1Pro, nothing changed. With
+    the option on, an i1Pro 2 follows i1Profiler's hand-held order since
+    4.3.37 (tests/test_i1pro2_lights_quiet.py): not 4.3.34's wire any more."""
     assert _lines(trace2, scn) == _lines(_fixture(FIX2), scn)
 
 

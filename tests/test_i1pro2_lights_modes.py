@@ -118,9 +118,11 @@ def test_the_fixture_is_4_3_33s():
     assert _fixture().rstrip().endswith("ALL DONE")
 
 
-@pytest.mark.parametrize("scn", ["off_i1pro2", "off_i1pro", "on_ready_off",
-                                 "revad_ready_off"])
+@pytest.mark.parametrize("scn", ["off_i1pro2", "off_i1pro", "revad_ready_off"])
 def test_with_the_choices_off_the_wire_is_4_3_33s(trace, scn):
+    """The option off, and an original i1Pro with it on: 4.3.33's wire. (An
+    i1Pro 2 with the option on and both choices off no longer gets 4.3.33's
+    bytes since 4.3.37: tests/test_i1pro2_lights_quiet.py.)"""
     expected = _lines(_fixture(), scn)
     assert expected, f"{scn} is not in the fixture"
     assert _lines(trace, scn) == expected
@@ -146,40 +148,40 @@ def test_every_firmware_gets_the_programs_when_chosen(trace, fw):
 
 
 @pytest.mark.parametrize("fw", [600, 635, 700])
-def test_ready_only_and_off_is_4_3_33s_on_every_firmware(trace, fw):
-    """4.3.33 sends the same bytes whatever the firmware: the fixture's
-    firmware-634 life is the reference for every other firmware too."""
+def test_ready_only_is_the_same_on_every_firmware(trace, fw):
+    """No firmware condition: the firmware-634 life is the reference for
+    every other firmware too."""
     assert _wire(_lines(trace, f"fw{fw}_ready_off")) == \
-        _wire(_lines(_fixture(), "on_ready_off"))
+        _wire(_lines(trace, "on_ready_off"))
 
 
 # ---------------------------------------------------------------------------
 # The new combinations
 # ---------------------------------------------------------------------------
 def test_signals_with_the_lights_off_during_a_reading(trace):
+    """4.3.37 (i1Profiler's hand-held order): no off before a reading, no
+    ChromIQ-only PULSE on Retry or without a verdict; a calibration starts
+    with the recorded off; results after the data. "Off during a reading"
+    therefore sends exactly what "Left on" sends (below)."""
     assert _programs_by_step(_lines(trace, "on_signals_off")) == [
         ("begin", "WHITE"),
         ("cal-dark", "OFF_SLOW"), ("cal-returned", "PULSE"),
-        ("read-dark", "OFF_SLOW"), ("verdict-good", "GREEN2"),      # A
-        ("read-dark", "OFF_SLOW"), ("helper-red", "RED2"),          # B
-        ("read-dark", "OFF_SLOW"), ("verdict-bad", "RED2"),         # C
-        ("read-dark", "OFF_SLOW"), ("verdict-timeout", "PULSE"),    # D
-        ("read-dark", "OFF_SLOW"),                                  # E
-        ("verdict-good-F", "GREEN2"),                               # F
-        ("read-dark", "OFF_SLOW"),                                  # H
-        # H's verdict came after the next press: refused, so the patch's
-        # reading finds the lights already dark and needs no off
-        ("helper-green", "GREEN2"),                                 # patch
+        ("verdict-good", "GREEN2"), ("helper-red", "RED2"),
+        ("verdict-bad", "RED2"),
+        ("verdict-good-F", "GREEN2"), ("helper-green", "GREEN2"),
         ("cal-dark", "OFF_SLOW"), ("cal-returned", "PULSE"),
-        ("read-dark", "OFF_SLOW"), ("helper-red", "RED2"),          # G
+        ("helper-red", "RED2"),
         ("eeprom", "OFF_NOW"),
     ]
 
 
 def test_ready_light_left_on_during_a_reading(trace):
-    """i1Profiler's hand-held way without result signals: the open's steady
-    WHITE never runs through a measurement; the calibration starts dark; the
-    pulse is left running through every reading (dark and lit parts)."""
+    """i1Profiler's hand-held way without result signals: the calibration
+    starts dark; the pulse is left running through every reading (dark and
+    lit parts). Since 4.3.37 "Off during a reading" is the same on an
+    i1Pro 2."""
+    assert _programs_by_step(_lines(trace, "on_ready_off")) == \
+        _programs_by_step(_lines(trace, "on_ready_lefton"))
     assert _programs_by_step(_lines(trace, "on_ready_lefton")) == [
         ("begin", "WHITE"),
         ("cal-dark", "OFF_SLOW"), ("cal-returned", "PULSE"),

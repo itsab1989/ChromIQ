@@ -71,6 +71,9 @@ void i1pro2_cq_lights_owe(void *pp);
 int i1pro2_cq_lights_owed_ms(void *pp);
 void i1pro2_cq_lights_result(void *pp, int good);
 extern void (*i1pro2_cq_lights_sent)(int seq);
+extern void (*i1pro2_cq_lights_held)(int ms);	/* 4.3.37: a trigger waited for the quiet time */
+extern void (*i1pro2_cq_lights_hold_poll)(void);	/* 4.3.37: asked during that wait */
+void cq_lights_take_pending(void);	/* carries out a pending lights off / exit */
 /* ...and the i1Pro 3's (i1pro3_imp.c), the same prototypes as i1pro3_imp.h. */
 int i1pro3_cq_lights_begin(void *pp);
 int i1pro3_cq_lights_end(void *pp);
@@ -132,7 +135,7 @@ void cq_json_escape(char *dst, size_t dstlen, const char *src);
  *
  * ⚠ BUMP THIS IN THE SAME COMMIT AS ANY CHANGE TO THE HELPER, and rebuild and
  * commit native/chromiq-chartread. The test tells you the expected value. */
-#define CQ_HELPER_BUILD "chromiq-chartread 2026-11-14b legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures+exit-guard+save-after-close+i1pro2-lights+i1pro3-lights+i1pro3-lights-choices+ruler-check+usb-step-detail+i1pro2-beta-paused"
+#define CQ_HELPER_BUILD "chromiq-chartread 2026-11-14d legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures+exit-guard+save-after-close+i1pro2-lights+i1pro3-lights+i1pro3-lights-choices+ruler-check+usb-step-detail+i1pro2-beta-paused+i1pro2-lights-quiet+resume-spectral-check+hold-interruptible"
 const char *cq_helper_build_string(void);
 
 

@@ -186,13 +186,17 @@ def _manager():
 
 
 @pytest.mark.parametrize("signals,reading,needles", [
-    (False, "off", ["shows white while it waits"]),
+    # 4.3.37: i1Profiler's order on an i1Pro 2; "During a reading" makes no
+    # difference to it, and the line says it is not yet confirmed
+    (False, "off", ["softly pulsing white", "sends no light command while",
+                    "light stays as the instrument shows it", "about two seconds",
+                    "not yet been confirmed on a real i1Pro 2"]),
     (True, "off", ["softly pulsing white", "green twice", "red twice",
-                   "calibrates or measures, its lights are off"]),
-    (False, "on", ["no off command before a", "dims its lights by",
-                   "except the first reading after connecting"]),
-    (True, "on", ["no off command before a", "green twice",
-                  "While it calibrates, its lights are off"]),
+                   "sends no light command while", "about two seconds"]),
+    (False, "on", ["softly pulsing white", "sends no light command while",
+                   "light stays as the instrument shows it"]),
+    (True, "on", ["green twice", "sends no light command while",
+                  "not yet been confirmed on a real i1Pro 2"]),
 ])
 def test_the_session_line_says_what_was_chosen(qapp, signals, reading, needles):
     m, _r = _manager()
