@@ -94,6 +94,22 @@ GUIDED_PAPERS = ("A4", "Letter", "148x210", "127x178", "203x254")
 GUIDED_PAPERS_XL = GUIDED_PAPERS + ("A3", "279x432", "329x483")
 
 
+def guided_margins(paper: str) -> "tuple | None":
+    """Guided's page margins (top, right, bottom, left) for *paper* when the
+    usual 5 mm would leave less than the 171 mm an i1iSis chart needs along
+    the feed; None otherwise (the usual margins)."""
+    from workflow.layout_engine import papers
+    try:
+        _w, h = papers.dimensions_mm(paper)
+    except Exception:  # noqa: BLE001 - an unknown paper: the usual margins
+        return None
+    need = F.CHART_MIN_LENGTH_MM.value
+    if h - 10.0 >= need - 1e-9:
+        return None
+    v = max(0.0, math.floor((h - need) / 2.0 * 10.0) / 10.0)
+    return (v, 5.0, v, 5.0)
+
+
 class IsisSheetRefused(ValueError):
     """A layout no i1iSis can read even when the sheet is cut along its
     outline. ``kind`` names the reason (M-ISIS-SHEET-CHECK)."""

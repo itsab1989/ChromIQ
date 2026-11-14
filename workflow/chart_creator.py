@@ -1759,6 +1759,15 @@ class ChartCreator:
             kw["draw_indicators"] = False
             if str(getattr(params, "isis_model", "") or "") == "xl":
                 kw["isis_model"] = "xl"
+            # A SHORT GUIDED SHEET STILL HOLDS THE 171 mm CHART. On 5 x 7 in
+            # (177.8 mm) the usual 5 mm page margins leave 167.8 mm and
+            # every Guided chart was refused; the top and bottom margins
+            # shrink to what the paper leaves (3.4 mm there), the sides
+            # keep 5 mm. Only Guided: Manual's margins are the person's.
+            from workflow.isis.chart import guided_margins
+            m = guided_margins(params.paper)
+            if m is not None:
+                kw["margins"] = m
             if getattr(params, "isis_notes_band", False):
                 kw["isis_notes_band"] = True
                 kw["clip_content_mode"] = "notes"
