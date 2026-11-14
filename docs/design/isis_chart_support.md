@@ -54,6 +54,14 @@ read; a target made with the Beta on keeps its stored values untouched.
   markers when narrower); two feed arrows in the diamond columns; a dashed
   outline; the name and page line and the corner labels in the first 12 mm,
   the bottom corner labels in the last 3.5 mm.
+* The name and page line ends in THE ChromIQ wordmark, drawn by the engine's
+  own routine (`raster._draw_wordmark_h`, as the clip border's branding and
+  the notes design draw it: Instrument Serif "Chrom", the magenta italic
+  "IQ" after it on the same baseline), never the word typed as text. Its
+  capital C stands as tall as the line's capitals, the text and the
+  wordmark share one baseline, and its ink stays 0.75 mm under the outline
+  and clear of the strip letters' zone and of the 20 mm before the bar (set
+  smaller, down to half, when the band cannot hold it). On every page.
 * The grid is i1Profiler's rule (T = ceil(N / Cmax), P = ceil(T / Rmax),
   R = ceil(T / P), C = ceil(N / (R x P)); column-major; unused cells at the
   end white), reproducing all 38 layouts measured in i1Profiler.
@@ -66,17 +74,25 @@ read; a target made with the Beta on keeps its stored values untouched.
   every instruction says to cut along the dashed outline. Refused
   (M-ISIS-SHEET-CHECK) only what cannot be read even when cut. More than 3000
   patches a page, or a chart over 660 mm, takes more pages instead.
-* Options: as the options table of PROPOSAL v2 §4; greyed with their own
-  reason are the spacers and gaps, edge spacers, patch and spacer scale, the
-  mode row, offset strips and hexagons, "Don't cap strip length", the side
-  clip band and "Clip", the ruler helper markers; in this version also the
-  area-first layout and the engine's own strip and row label boxes and their
-  rotation, underline, alignment and offsets (the chart's own strip letters
-  and row numbers are in its group). Every option persists through Save as
-  Defaults, presets, the target's settings and the chart's record.
+* Options: every engine option that has a meaning on this chart works.
+  Greyed, each with its own reason, are only the spacers and gaps, edge
+  spacers and the strip-indicator gap (an i1iSis chart has no gaps), patch
+  and spacer scale (no base size to scale), the mode row (one layout),
+  offset strips and hexagons (the i1iSis reads a plain grid), "Don't cap
+  strip length" (the page decides the rows), the side clip band and "Clip"
+  (the band is the header or the trailer), the ruler helper markers (no
+  ruler). Area-first, and the engine's own "Show strip indicators" and
+  "Show row indicators" with their face, size, rotation, alignment,
+  underline and offsets, draw the strip letters (top or trailer) and the
+  row numbers, held inside their zone: clamped, or left off and said
+  (M-ISIS-KEEP-OUT). Every option persists through Save as Defaults,
+  presets, the target's settings and the chart's record.
 * The notes band (off by default): in the header (the header grows by the
   band's height, up to 80 mm; the band ends 20 mm above the bar) or the
-  trailer (from 22 mm after the last row), filled by the clip-border content.
+  trailer (from 22 mm after the last row), filled by the clip-border content
+  and drawn for each page (its page number and the i1iSis's name, never the
+  code). With the band off the run's chart notes and the settings line are
+  printed in the trailer, one line each, shortened with "…" when too long.
 * Papers in Guided: A4, Letter, A5, 5 x 7 in, 8 x 10 in; with XL also A3,
   11 x 17 in and A3+ (329 x 483). Manual: every engine paper and Custom.
 * Every run type (profiling, verification, calibration) makes i1iSis charts

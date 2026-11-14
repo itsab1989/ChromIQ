@@ -1006,6 +1006,10 @@ class Item:
     italic: bool = False
     rotation: int = 0
     rgb: tuple = (0, 0, 0)
+    #: (x, baseline) in mm: a text run with a pen is set on that baseline
+    #: from that left edge; the wordmark's pen is where the engine's routine
+    #: starts "Chrom"
+    pen: tuple = ()
 
 
 def _text_box(x: float, y_top: float, size: float, text: str,
@@ -1020,12 +1024,85 @@ def _text_box(x: float, y_top: float, size: float, text: str,
 
 
 def page_line(name: str, page: int, pages: int, sheet_text: str = "") -> str:
-    """The name and page line (i1Profiler: the name, then the page)."""
+    """The name and page line (i1Profiler: the name, then the page). The
+    ChromIQ wordmark follows it, drawn by the engine's own routine
+    (`wordmark_metrics`), never as text."""
     parts = [str(name or "").strip(), f"page {page}/{pages}"]
     if sheet_text and sheet_text.strip():
         parts.append(sheet_text.strip())
-    parts.append("ChromIQ")
     return "  ·  ".join(p for p in parts if p)
+
+
+#: THE ChromIQ WORDMARK on the name line is the one every other chart
+#: carries: `raster._draw_wordmark_h` draws it (Instrument Serif "Chrom",
+#: the magenta italic "IQ" on the same baseline after "Chrom"'s advance and
+#: a kern of 0.02 of the size) in a band this many times the name line's
+#: cap height: "Chrom"'s capital C then stands as tall as the line's
+#: capitals (measured: the routine's C is 0.47 of its band).
+WORDMARK_BAND_PER_CAP = 2.15
+#: The smallest band it is drawn in, when the line is short of room (the
+#: text is shortened first).
+WORDMARK_BAND_MIN_MM = 3.0
+#: Paper between the name line's text and the wordmark.
+WORDMARK_GAP_MM = 3.0
+#: The resolution the plan measures text and wordmark at (mm come out).
+_MEASURE_DPI = 1200
+
+
+_WM_CACHE: dict = {}
+
+
+def wordmark_tile(band_px: float):
+    """The wordmark as `raster._draw_wordmark_h` draws it for a band of
+    *band_px*: ``(RGB tile cropped to its ink, pen x in the tile, baseline
+    y in the tile, width the routine consumed)``, all in px. Drawn on white
+    paper exactly as the clip border's branding is (a transparent canvas
+    would thin the anti-aliased edges twice over)."""
+    key = round(float(band_px), 3)
+    hit = _WM_CACHE.get(key)
+    if hit is not None:
+        return hit
+    from PIL import Image, ImageChops, ImageDraw
+    from workflow.layout_engine import raster
+    h = float(band_px)
+    x = int(round(h * 0.5))
+    size = (int(h * 8) + 2 * x, int(h * 3))
+    canvas = Image.new("RGB", size, (255, 255, 255))
+    draw = ImageDraw.Draw(canvas)
+    used = raster._draw_wordmark_h(canvas, draw, x, h, h, max_w=1e9)
+    base = raster.wordmark_h_baseline(h, h)
+    box = ImageChops.difference(
+        canvas, Image.new("RGB", size, (255, 255, 255))).getbbox() \
+        or (0, 0, 1, 1)
+    out = (canvas.crop(box), x - box[0], base - box[1], used)
+    if len(_WM_CACHE) > 64:
+        _WM_CACHE.clear()
+    _WM_CACHE[key] = out
+    return out
+
+
+def wordmark_metrics(band_mm: float) -> dict:
+    """The wordmark in mm, measured from the routine's own drawing: its
+    ``width`` (pen to the end of "IQ"'s ink, as the routine counts it) and
+    its ink box from the pen and the baseline (``left``, ``up`` above the
+    baseline, ``right``, ``down`` below it, for the italic Q's tail)."""
+    s = _MEASURE_DPI / 25.4
+    tile, pen_x, base_y, used = wordmark_tile(band_mm * s)
+    return {"width": used / s, "left": -pen_x / s,
+            "up": base_y / s, "right": (tile.width - pen_x) / s,
+            "down": (tile.height - base_y) / s}
+
+
+def text_width_mm(text: str, size: float, bold: bool = False,
+                  family: str = "Inter") -> float:
+    """The real advance of *text* at cap height *size* (mm), as `draw_page`
+    sets it."""
+    from PIL import Image, ImageDraw
+    s = _MEASURE_DPI / 25.4
+    font = _font(max(6, int(round(size / 0.73 * s))), bold=bold,
+                 family=family)[0]
+    d = ImageDraw.Draw(Image.new("L", (1, 1)))
+    return d.textlength(text, font=font) / s
 
 
 def plan_page(sheet: Sheet, page: int, *, name: str = "",
@@ -1071,18 +1148,56 @@ def plan_page(sheet: Sheet, page: int, *, name: str = "",
     if o.corner_labels:
         corner_w = 0.62 * cl_size * 1.45 * 5 + 2.0
     room = max(10.0, sheet.width - 2.0 * (o.d1 + corner_w))
+    def band_for(sz: float) -> float:
+        return round(sz * WORDMARK_BAND_PER_CAP, 2)
+
+    def group(t: str, sz: float, wmw: "float | None" = None) -> float:
+        if wmw is None:
+            wmw = wordmark_metrics(band_for(sz))["width"]
+        return text_width_mm(t, sz, bold=True) + WORDMARK_GAP_MM + wmw
+
     text = page_line(name, page + 1, g.P, sheet_text)
     size = line_h
-    while size > 1.6 and _text_box(0, 0, size, text)[2] > room:
-        size -= 0.1
-    if _text_box(0, 0, size, text)[2] > room:
+    while size > 1.6 and group(text, size) > room:
+        size = round(size - 0.1, 3)
+    band = band_for(size)
+    wm = wordmark_metrics(band)
+    if group(text, size, wm["width"]) > room:
         # shorten the sheet text, then the name, never the page
         text = page_line(name, page + 1, g.P, "")
-        if _text_box(0, 0, size, text)[2] > room:
-            text = f"page {page + 1}/{g.P}  ·  ChromIQ"
-    items.append(Item("text", _text_box(sheet.x0 + sheet.width / 2.0,
-                                        line_top, size, text),
-                      text=text, size=size, role="name_line"))
+        if group(text, size, wm["width"]) > room:
+            text = f"page {page + 1}/{g.P}"
+    while band > WORDMARK_BAND_MIN_MM + 1e-9 and \
+            group(text, size, wm["width"]) > room:
+        # then, at last, the wordmark is set smaller
+        band = round(band - 0.25, 3)
+        wm = wordmark_metrics(band)
+    # ONE BASELINE for the text and the wordmark, the wordmark's ink kept
+    # clear of the outline above and of the strip letters' zone (or the
+    # 20 mm before the bar) below; the wordmark is set smaller if the
+    # band cannot hold it
+    ink_top = sheet.y0 + F.OUTLINE_LINE_MM.value + 0.75
+    ink_bottom = (sheet.y0 + LETTER_ZONE_TOP_MM[0] - 0.25 if letters_top
+                  else sheet.bar_y - F.CLEAR_ABOVE_BAR_MM.value - 0.25)
+    while True:
+        baseline = max(line_top + size, ink_top + wm["up"])
+        if (baseline + max(wm["down"], 0.0) <= ink_bottom + 1e-9
+                or band <= WORDMARK_BAND_MIN_MM + 1e-9):
+            break
+        band = round(band - 0.25, 3)
+        wm = wordmark_metrics(band)
+    tw = text_width_mm(text, size, bold=True)
+    gx = sheet.x0 + sheet.width / 2.0 - (tw + WORDMARK_GAP_MM
+                                         + wm["width"]) / 2.0
+    items.append(Item("text", (gx, line_top, tw, size), text=text,
+                      size=size, anchor="left", role="name_line",
+                      pen=(gx, baseline)))
+    px0 = gx + tw + WORDMARK_GAP_MM
+    items.append(Item("wordmark",
+                      (px0 + wm["left"], baseline - wm["up"],
+                       wm["right"] - wm["left"], wm["up"] + wm["down"]),
+                      text="ChromIQ", size=band, role="wordmark",
+                      pen=(px0, baseline)))
     # corner labels: the first and last column and row of THIS page, the
     # columns continuing over the pages (R§3)
     if o.corner_labels:
@@ -1401,6 +1516,10 @@ def draw_page(img, page_geom: "list | None", sheet: Sheet, items, dpi: int,
         # the cap height starts where the ink of a capital starts
         cbb = draw.textbbox((0, 0), "H", font=font)
         top = cap_top - cbb[1]
+        if it.pen:
+            # set on its baseline, the pixel row the wordmark beside it
+            # sits on too
+            top = int(round(it.pen[1] * s)) - font.getmetrics()[0]
         draw.text((left - bb[0], top), it.text, font=font, fill=it.rgb)
         if page_geom is not None and path:
             ascent = font.getmetrics()[0]
@@ -1429,10 +1548,27 @@ def draw_page(img, page_geom: "list | None", sheet: Sheet, items, dpi: int,
             art.paste(ink, (0, 0), tile)
             page_geom.append(("clip", (x0, y0), np.asarray(art)))
 
+    def wordmark(it: Item) -> None:
+        """The ChromIQ wordmark, drawn by the engine's own routine at this
+        resolution and set with its pen and baseline on the item's; carried
+        into the PDF and the separated TIFF as artwork, like the clip
+        border's branding."""
+        tile, pen_x, base_y, _used = wordmark_tile(it.size * s)
+        x0 = int(round(it.pen[0] * s - pen_x))
+        y0 = int(round(it.pen[1] * s)) - int(round(base_y))
+        # its ink box holds nothing else (planned clear of the outline, the
+        # name line and every zone), so the white tile lies on white paper
+        img.paste(tile, (x0, y0))
+        if page_geom is not None:
+            import numpy as np
+            page_geom.append(("clip", (x0, y0), np.asarray(tile)))
+
     for it in items:
         if it.kind == "rect":
             x, y, w, h = it.box
             rect(px(x), px(y), px(x + w), px(y + h), it.rgb)
+        elif it.kind == "wordmark":
+            wordmark(it)
         elif it.kind == "diamond":
             rhombus(*it.box)
         elif it.kind == "arrow":
@@ -1495,16 +1631,22 @@ def draw_furniture(render, sheet: Sheet, dpi: int, *, name: str,
         images = {}
         for it in items:
             if it.kind == "band":
-                if it.box not in band_cache:
+                # one per page: it carries the page number
+                key = (it.box, index)
+                if key not in band_cache:
                     ctx = dict((band or {}).get("ctx") or {})
                     ctx["page"] = f"{index + 1}/{sheet.grid.P}"
+                    # the i1iSis reads the chart row by row: its "strips"
+                    # are the rows, each with its pair of diamonds
+                    ctx["strips"] = str(sheet.grid.R)
+                    ctx["instrument"] = device_name(sheet.opts.model)
                     try:
-                        band_cache[it.box] = band_image(
+                        band_cache[key] = band_image(
                             it.box, dpi, **{k: v for k, v in (band or {}).items()
                                             if k != "ctx"}, ctx=ctx)
                     except Exception:  # noqa: BLE001 - a blank band
-                        band_cache[it.box] = None
-                images[it.box] = band_cache[it.box]
+                        band_cache[key] = None
+                images[it.box] = band_cache[key]
         geom_list = (render.patch_geom[index]
                      if getattr(render, "patch_geom", None) is not None
                      else None)
