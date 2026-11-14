@@ -531,6 +531,7 @@ struct _i1pro3imp {
 	int cq_lights_owed;			/* a result is owed for the last reading */
 	unsigned int cq_lights_owed_ms;
 	int cq_lights_force_off;	/* a pattern went out as the button was pressed */
+	int cq_lights_maybe_dark;	/* "left on": a reading ran without our off */
 
 }; typedef struct _i1pro3imp i1pro3imp;
 

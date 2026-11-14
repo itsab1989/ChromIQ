@@ -6346,6 +6346,7 @@ static void cq3_lights_send(i1pro3 *p, int which, double tout) {
 		return;
 	}
 	m->cq_lights = which == CQ3_LIGHTS_OFF ? CQ3_LIGHTS_DARK : CQ3_LIGHTS_LIT;
+	m->cq_lights_maybe_dark = 0;
 	a1logd(p->log,2,"i1pro3 lights: sequence %d sent\n", which);
 	/* Patterns only: an OFF can go out between the press and the trigger,
 	 * where the helper must not write (a full pipe would hold the scan). */
@@ -6364,8 +6365,13 @@ void i1pro3_cq_lights_measure(void *pp) {
 	m->cq_lights_owed = 0;
 	if (m->cq_lights != CQ3_LIGHTS_LIT)
 		return;
-	if (m->cq_lights_left_on && m->cq_lights_reading && !m->cq_lights_force_off)
+	if (m->cq_lights_left_on && m->cq_lights_reading && !m->cq_lights_force_off) {
+		/* The instrument most likely went dark by itself at the press (the
+		 * tester's observation with i1Profiler): for the ready fallback
+		 * only, the lights now count as dark. */
+		m->cq_lights_maybe_dark = 1;
 		return;
+	}
 	m->cq_lights_force_off = 0;
 	cq3_lights_send(p, CQ3_LIGHTS_OFF, CQ3_LIGHTS_TOUT_MEASURE);
 }
@@ -6461,7 +6467,9 @@ int i1pro3_cq_lights_owed_ms(void *pp) {
 }
 
 /* The helper's, with result signals only: 1 = GOOD (accepted), 0 = BAD
- * (refused, please look at the screen), -1 = READY if dark. Never while a
+ * (refused, please look at the screen), -1 = READY if dark (or, with "left
+ * on", if a reading ran since the last pattern: the instrument most likely
+ * went dark by itself at the press). Never while a
  * trigger is still to be sent, never once the button was pressed for the next
  * reading. Ends an owed result. */
 void i1pro3_cq_lights_result(void *pp, int good) {
@@ -6472,7 +6480,7 @@ void i1pro3_cq_lights_result(void *pp, int good) {
 	 || cq3_lights_pressed(m))
 		return;
 	m->cq_lights_owed = 0;
-	if (good < 0 && m->cq_lights != CQ3_LIGHTS_DARK)
+	if (good < 0 && m->cq_lights != CQ3_LIGHTS_DARK && !m->cq_lights_maybe_dark)
 		return;
 	count = m->switch_count;
 	cq3_lights_send(p, good < 0 ? CQ3_LIGHTS_READY

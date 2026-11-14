@@ -193,10 +193,13 @@ def test_as_in_4_3_33_with_the_lights_left_on(trace):
 
 
 def test_result_signals_with_the_lights_left_on(trace):
+    """The review of 2026-11-14 (item 1): after a reading under "left on" the
+    instrument most likely went dark by itself at the press, so the 3-second
+    fallback (strip D: no verdict) shows READY, as with the lights off."""
     assert _sent(_lines(trace, "on_signals_lefton")) == [
         ("cal-returned", "READY"),
         ("verdict-good", "GOOD"), ("helper-red", "BAD"),
-        ("verdict-bad", "BAD"),
+        ("verdict-bad", "BAD"), ("verdict-timeout", "READY"),
         ("verdict-good-F", "GOOD"), ("helper-green", "GOOD"),
         ("cal-dark", "OFF"), ("cal-returned", "READY"),
         ("helper-red", "BAD"),
