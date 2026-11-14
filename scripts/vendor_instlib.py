@@ -1671,9 +1671,41 @@ I1PRO3_IMP_C_RULER = [
      + "\n/* ============================================================ */\n/* Parse the EEProm contents */"),
 ]
 # ---- END RULER CHECK ----
+# ChromIQ (2026-11-14, the ruler check's review, item 4): ArgyllCMS counts
+# the USB transfers in progress in a plain shared int (`in_usb_rw`). Every
+# back end (usbio_ox.c, usbio_lx.c, usbio_w0.c, usbio_dk.c, usbio_bsd.c, all
+# #included into usbio.c) increments it before a transfer and decrements it
+# after, and a transfer that finds it below zero calls exit(0), meant for the
+# signal handler's cleanup. Two threads updating it at once can lose an update
+# and end the helper silently with status 0 in the middle of a measurement.
+# Today two threads already overlap (a measurement read and the i1Pro's button
+# thread); the ruler check adds a third. Making the counter atomic (C11
+# `_Atomic`, which GCC and Clang accept in this build's gnu99 mode, as
+# every ChromIQ helper build uses: Apple Clang, GCC on Linux, MinGW GCC and
+# LLVM-MinGW on Windows) turns every ++, -- and comparison into an atomic
+# operation without touching any back-end line. It is not part of any
+# request: nothing on the wire changes. A compiler without atomics keeps the
+# plain int (upstream behaviour).
+USBIO_PATCHES = [
+    ("/* Counter set when we're in a USB read or write */\n"
+     "/* Note - this isn't perfectly thread safe */\n"
+     "int in_usb_rw = 0;\n",
+     "/* Counter set when we're in a USB read or write */\n"
+     "/* Note - this isn't perfectly thread safe */\n"
+     "/* CHROMIQ PATCH: atomic, so that two transfers on different threads can */\n"
+     "/* never lose an update and end the process through the exit(0) below */\n"
+     "/* (see scripts/vendor_instlib.py, USBIO_PATCHES). No wire change. */\n"
+     "#if !defined(__STDC_NO_ATOMICS__) && (defined(__GNUC__) || defined(__clang__) \\\n"
+     "     || (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L))\n"
+     "_Atomic int in_usb_rw = 0;\n"
+     "#else\n"
+     "int in_usb_rw = 0;\n"
+     "#endif\n"),
+]
 PATCHES = {
     "rspl1.c": [(RSPL1_UPSTREAM, RSPL1_PATCHED)],
     "conv.c": CONV_PATCHES,
+    "usbio.c": USBIO_PATCHES,
     "i1pro_imp.h": I1PRO_IMP_H_LIGHTS + I1PRO_IMP_H_RULER,
     "i1pro_imp.c": I1PRO_IMP_C_LIGHTS + I1PRO_IMP_C_RULER,
     "i1pro.c": I1PRO_C_LIGHTS,
@@ -1766,7 +1798,7 @@ prov.write_text(
     "`chartread.c.orig`. To bump Argyll: re-run `scripts/vendor_instlib.py`\n"
     "against the new source tree and rebuild.\n\n"
     "## ChromIQ patches\n\n"
-    "Eight library files depart from upstream. `scripts/vendor_instlib.py`\n"
+    "Nine library files depart from upstream. `scripts/vendor_instlib.py`\n"
     "re-applies every patch on every re-vendor (its `PATCHES` table), and\n"
     "stops if one no longer applies.\n\n"
     "- **`rspl1.c`, `set_rspl`**: upstream writes the grid index at\n"
@@ -1855,7 +1887,14 @@ prov.write_text(
     "  already reads. Both: read-only copies of where the recogniser cut and a\n"
     "  coarse trace, into ChromIQ's own `cq_ruler.h` record (not an Argyll file;\n"
     "  this script never writes it). Values and patch assignment never change.\n"
-    "  Not tested on a real instrument by the project.\n\n"
+    "  Not tested on a real instrument by the project.\n"
+    "- **`usbio.c`, the transfer counter `in_usb_rw`** (2026-11-14): made\n"
+    "  atomic (C11 `_Atomic`, kept plain where a compiler has no atomics).\n"
+    "  Every USB back end (macOS, Linux, Windows) counts transfers in it and\n"
+    "  calls exit(0) when it goes below zero; two threads updating the plain\n"
+    "  int at once could lose an update and end the helper silently. This is\n"
+    "  shared USB code, so it concerns every USB instrument the ChromIQ helper\n"
+    "  drives. Nothing on the wire changes.\n\n"
     "| patched file | upstream sha256 (first 16) | shipped sha256 (first 16) |\n"
     "|---|---|---|\n" + "\n".join(patched) + "\n\n"
     "## Files\n\n"

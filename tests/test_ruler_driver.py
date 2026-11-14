@@ -69,3 +69,20 @@ def test_every_hook_line_names_the_ruler_and_changes_no_argyll_variable():
                 if not ln:
                     continue
                 assert "cq_ruler" in ln or ln in ("}", "return ev;"), ln
+
+
+def test_the_usb_transfer_counter_is_atomic():
+    """Review item 4 (2026-11-14): ArgyllCMS's shared `in_usb_rw` (every USB
+    back end counts its transfers in it and calls exit(0) below zero) is
+    atomic, so a third thread (the ruler reader) cannot make two updates
+    collide and end the helper silently. Shared USB code: every instrument
+    the helper drives over USB. Not part of any request."""
+    v = _vendor()
+    assert "usbio.c" in v["PATCHES"]
+    from pathlib import Path
+    src = (Path(__file__).resolve().parent.parent / "native" / "instlib"
+           / "usbio.c").read_text(encoding="utf-8", errors="replace")
+    assert "_Atomic int in_usb_rw = 0;" in src
+    # the back ends are untouched: they still use plain ++ / -- / < 0
+    for backend in ("usbio_ox.c", "usbio_lx.c", "usbio_w0.c", "usbio_dk.c"):
+        assert backend not in v["PATCHES"]

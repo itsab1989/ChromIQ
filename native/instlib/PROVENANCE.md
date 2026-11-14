@@ -15,7 +15,7 @@ against the new source tree and rebuild.
 
 ## ChromIQ patches
 
-Eight library files depart from upstream. `scripts/vendor_instlib.py`
+Nine library files depart from upstream. `scripts/vendor_instlib.py`
 re-applies every patch on every re-vendor (its `PATCHES` table), and
 stops if one no longer applies.
 
@@ -106,6 +106,13 @@ stops if one no longer applies.
   coarse trace, into ChromIQ's own `cq_ruler.h` record (not an Argyll file;
   this script never writes it). Values and patch assignment never change.
   Not tested on a real instrument by the project.
+- **`usbio.c`, the transfer counter `in_usb_rw`** (2026-11-14): made
+  atomic (C11 `_Atomic`, kept plain where a compiler has no atomics).
+  Every USB back end (macOS, Linux, Windows) counts transfers in it and
+  calls exit(0) when it goes below zero; two threads updating the plain
+  int at once could lose an update and end the helper silently. This is
+  shared USB code, so it concerns every USB instrument the ChromIQ helper
+  drives. Nothing on the wire changes.
 
 | patched file | upstream sha256 (first 16) | shipped sha256 (first 16) |
 |---|---|---|
@@ -117,6 +124,7 @@ stops if one no longer applies.
 | `i1pro3.c` | `9c4b1ac9f8af507a…` | `347235c6d10f9677…` |
 | `i1pro3_imp.h` | `190cceb46fe8bc33…` | `e6d2c5f364eaca29…` |
 | `i1pro3_imp.c` | `42c684afa3bbb15d…` | `1d4fb6f133715469…` |
+| `usbio.c` | `fd86ede3492ae1a0…` | `f68f42c726d77dd8…` |
 
 ## Files
 
