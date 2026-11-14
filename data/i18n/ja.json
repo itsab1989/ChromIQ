@@ -8248,5 +8248,7 @@
  "[Engine] Instrument lights (beta): this i1Pro 2 has firmware {fw}. The light patterns were recorded on an i1Pro 2 with firmware 634. If anything looks odd, please tell us the firmware number.": "[Engine] 測定器のライト（ベータ）：この i1Pro 2 のファームウェアは {fw} です。ライトのパターンは、ファームウェア 634 の i1Pro 2 で記録されたものです。何かおかしいと感じたら、ファームウェアの番号を教えてください。",
  "[Engine] Instrument lights (beta): ChromIQ could not make sure that the instrument's lights went off at the end. If they are still on, unplug the instrument and plug it back in. While this option is on, ChromIQ reminds you of it the next time you start a measurement.": "[Engine] 測定器のライト（ベータ）：ChromIQ は、終了時に測定器のライトが消えたことを確認できませんでした。まだ点いている場合は、測定器を抜いて挿し直してください。このオプションがオンの間、次に測定を始めるときに ChromIQ がもう一度お知らせします。",
  "i1Pro 2, during a reading:": "i1Pro 2、読み取り中：",
- "i1Pro 2, what the lights show:": "i1Pro 2、ライトの表示："
+ "i1Pro 2, what the lights show:": "i1Pro 2、ライトの表示：",
+ "Preview details": "プレビューの詳細",
+ "Show or hide the two boxes under the chart preview, “Measured from Preview” and “Chart layout information”, both at once.\n\nHidden, the chart preview gets their room. This line then still tells you how the chart's margins look: “Margins: OK” in green when everything fits, or the number of warnings in red. Click the line (or press Space when it is selected) to see them again.\n\nChromIQ remembers your choice, also after a restart.": "チャートプレビューの下にある 2 つの枠、「プレビューから測定」と「チャートレイアウト情報」を、まとめて表示または非表示にします。\n\n非表示にすると、その分の場所をチャートプレビューが使います。その間もこの行で、チャートの余白の状態がわかります。すべて収まっていれば緑で「余白: OK」、警告があれば赤でその件数が表示されます。もう一度表示するには、この行をクリックします（選択されているときはスペースキーでも切り替えられます）。\n\nこの設定は ChromIQ が覚えていて、再起動後もそのままです。"
 }

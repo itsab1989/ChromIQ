@@ -8248,5 +8248,7 @@
  "[Engine] Instrument lights (beta): this i1Pro 2 has firmware {fw}. The light patterns were recorded on an i1Pro 2 with firmware 634. If anything looks odd, please tell us the firmware number.": "[Engine] 仪器指示灯（测试版）：这台 i1Pro 2 的固件是 {fw}。灯光模式是在固件为 634 的 i1Pro 2 上录制的。如果有任何异常，请告诉我们固件版本号。",
  "[Engine] Instrument lights (beta): ChromIQ could not make sure that the instrument's lights went off at the end. If they are still on, unplug the instrument and plug it back in. While this option is on, ChromIQ reminds you of it the next time you start a measurement.": "[Engine] 仪器指示灯（测试版）：ChromIQ 无法确保结束时仪器的指示灯已熄灭。如果指示灯仍亮着，请拔下仪器再重新插上。此选项开启期间，ChromIQ 会在你下次开始测量时再次提醒你。",
  "i1Pro 2, during a reading:": "i1Pro 2，读数时：",
- "i1Pro 2, what the lights show:": "i1Pro 2，指示灯显示："
+ "i1Pro 2, what the lights show:": "i1Pro 2，指示灯显示：",
+ "Preview details": "预览详情",
+ "Show or hide the two boxes under the chart preview, “Measured from Preview” and “Chart layout information”, both at once.\n\nHidden, the chart preview gets their room. This line then still tells you how the chart's margins look: “Margins: OK” in green when everything fits, or the number of warnings in red. Click the line (or press Space when it is selected) to see them again.\n\nChromIQ remembers your choice, also after a restart.": "同时显示或隐藏色卡预览下方的两个框：“根据预览测量”和“色卡布局信息”。\n\n隐藏后，色卡预览会占用它们的空间。这一行仍会告诉你色卡边距的情况：一切都放得下时显示绿色的“边距：正常”，否则用红色显示警告数量。点击这一行（或在它被选中时按空格键）即可再次显示它们。\n\nChromIQ 会记住你的选择，重启后也一样。"
 }

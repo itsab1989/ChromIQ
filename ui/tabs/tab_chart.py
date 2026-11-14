@@ -7069,7 +7069,21 @@ class TabChart(QWidget):
         _info_box.setMinimumWidth(1)
         self._info_scroll = _InfoRowScroll(right)
         self._info_scroll.setWidget(_info_box)
+        # ONE FOLD FOR BOTH FRAMES (Basti, 2026-11-14: "one button (or
+        # triangle) should collapse both at once"). Open by default, so
+        # nothing changes for anyone who never clicks it; folded, the preview
+        # above takes the room and the line still repeats the verdict.
+        from ui.preview_details_fold import PreviewDetailsFold
+        self._preview_fold = PreviewDetailsFold(
+            right, collapsed=bool(self._settings.get(
+                "preview_details_collapsed", False)),
+            accent=SPEC_MAGENTA)
+        right_layout.addWidget(self._preview_fold)
         right_layout.addWidget(self._info_scroll)
+        self._info_scroll.setVisible(not self._preview_fold.is_collapsed())
+        self._preview_fold.toggled.connect(self._on_preview_details_toggled)
+        self._margin_panel.verdict_changed.connect(
+            self._refresh_preview_details_verdict)
         self._margin_panel.set_guides_checked(
             bool(self._settings.get("margin_guides_show", False)))
         self._margin_panel.set_measured_guides_checked(
@@ -30791,6 +30805,29 @@ class TabChart(QWidget):
         self._settings.set("margin_coords_show", bool(on))
         self._preview.set_coord_readout(
             bool(on), float(self._settings.get("printtarg_dpi", 300) or 300))
+
+    def _on_preview_details_toggled(self, collapsed: bool) -> None:
+        """The person folded or unfolded the two frames under the preview:
+        hide or show them, and remember it (a view choice of the window, not
+        a target's setting: per_target_settings §1.1)."""
+        self._info_scroll.setVisible(not collapsed)
+        self._settings.set("preview_details_collapsed", bool(collapsed))
+        self._refresh_preview_details_verdict()
+
+    def _refresh_preview_details_verdict(self) -> None:
+        """Repeat the frames' verdict on the fold's line (shown only while
+        they are hidden), and hide the line when Preferences hides both
+        frames, since it would then fold nothing."""
+        fold = getattr(self, "_preview_fold", None)
+        if fold is None:
+            return
+        fold.setVisible(
+            bool(self._settings.get("margin_inspector_show", True))
+            or bool(self._settings.get("layout_info_show", True)))
+        kind, n = ("none", 0)
+        if bool(self._settings.get("margin_inspector_show", True)):
+            kind, n = self._margin_panel.verdict()
+        fold.set_verdict(kind, n)
 
     def _on_margin_warnings_expanded(self, expanded: bool) -> None:
         """Remember whether the red warning paragraph is folded (Basti,

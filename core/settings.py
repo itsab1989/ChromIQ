@@ -565,6 +565,11 @@ DEFAULTS: dict[str, Any] = {
     # nobody has hidden yet is one nobody has read yet; once it is shut it
     # stays shut, across charts and across restarts.
     "margin_warnings_expanded":  True,
+    # Whether the two frames under the Create Chart preview ("Measured from
+    # Preview" and "Chart layout information") are folded away by the one
+    # triangle above them (Basti, 2026-11-14). A view choice of the window:
+    # not per target, not in a preset. Open by default.
+    "preview_details_collapsed": False,
     "margin_guides_show":        False,   # dotted threshold guide lines on preview
     "margin_measured_guides_show": False,  # long dotted lines at the measured margins
     "margin_coords_show":         False,   # cross-hair + paper-mm/inch readout on pointer (#29)
