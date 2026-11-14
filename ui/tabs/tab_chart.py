@@ -19392,6 +19392,11 @@ class TabChart(QWidget):
             # logged as "live preview" (Knut's log, 02:27:01) and read as one.
             self._log_chart_build("live preview" if preview else "user", ti1_path)
             self._cancel_pending_auto_preview()
+            if not preview:
+                # the boxes show the size this build uses (4.3.34 r2, c)
+                _panel = getattr(self, "_manual_layout_panel", None)
+                if _panel is not None and hasattr(_panel, "commit_custom_size"):
+                    _panel.commit_custom_size()
             # `preview` IS THE ONE CALLER THAT MAY NOT OPEN A WINDOW.
             # The live auto-update preview re-renders on every turn of a knob, so a
             # modal here would be thrown at somebody repeatedly while they drag a
@@ -20742,6 +20747,10 @@ class TabChart(QWidget):
                 return
             self._log_chart_build("Generate Chart", "targen")
             self._cancel_pending_auto_preview()
+            # The boxes show the size this build uses (4.3.34 review r2, c).
+            _panel = getattr(self, "_manual_layout_panel", None)
+            if _panel is not None and hasattr(_panel, "commit_custom_size"):
+                _panel.commit_custom_size()
             # #133: the FROM PROFILE GAMUT module has its own generate route — the
             # colours come from the master set through this run's profile, and the
             # layout from Manual via the ordinary from-.ti1 build (which asks the
