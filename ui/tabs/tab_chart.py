@@ -22906,6 +22906,21 @@ class TabChart(QWidget):
             from workflow.fd9.support import fd9_enabled, target_names_fd9
             fingerprint = str(getattr(store, "dir", store))
             self._fd9_off_screens().pop(fingerprint, None)
+            # The same for an i1iSis target (a Beta too): its own snapshot,
+            # the same carry rules and the same settle step as the i1iO's.
+            from workflow.isis.support import isis_enabled, target_names_isis
+            if not isis_enabled() and target_names_isis(stored, ui_state):
+                from workflow.isis.support import off_snapshot as _isis_snap
+                from workflow.per_target_settings import snapshot
+                meta = store.load_meta()
+                stored_blocks = (getattr(meta, "create_chart_settings", None),
+                                 getattr(meta, "create_chart_ui", None))
+                self._fd9_off_screens()[fingerprint] = _isis_snap(
+                    snapshot(self), self._collect_ui_state(), *stored_blocks)
+                self._isis_off_screen_pending()[fingerprint] = stored_blocks
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(0, self._isis_off_screen_settled)
+                return
             # The same for an i1iO table target (a Beta too): its own
             # snapshot, the same carry rules (`workflow.beta_chart_carry`).
             from workflow.i1io.support import i1io_enabled, target_names_i1io
@@ -22973,6 +22988,32 @@ class TabChart(QWidget):
                     snapshot(self), self._collect_ui_state(), *stored_blocks)
         except Exception:      # noqa: BLE001 — never block a load over it
             log.warning("Could not note the i1iO target's screen",
+                        exc_info=True)
+
+    def _isis_off_screen_pending(self) -> dict:
+        """The i1iSis targets opened with its Beta off whose screen is taken
+        again once the queued syncs have run (as `_i1io_off_screen_pending`)."""
+        if "_isis_off_screen_waiting" not in self.__dict__:
+            self._isis_off_screen_waiting = {}
+        return self._isis_off_screen_waiting
+
+    def _isis_off_screen_settled(self) -> None:
+        """`_i1io_off_screen_settled` for the i1iSis's targets."""
+        waiting = self._isis_off_screen_pending()
+        if not waiting:
+            return
+        try:
+            from workflow.isis.support import off_snapshot
+            from workflow.per_target_settings import snapshot
+            for fp, stored_blocks in list(waiting.items()):
+                waiting.pop(fp, None)
+                snap = self._fd9_off_screens().get(fp)
+                if snap is None or snap.own:
+                    continue
+                self._fd9_off_screens()[fp] = off_snapshot(
+                    snapshot(self), self._collect_ui_state(), *stored_blocks)
+        except Exception:      # noqa: BLE001 — never block a load over it
+            log.warning("Could not note the i1iSis target's screen",
                         exc_info=True)
 
     def _forget_fd9_off_screen(self) -> None:
