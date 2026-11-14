@@ -374,13 +374,14 @@ def test_the_row_is_off_and_says_what_it_does(dialog):
                    "New for the i1Pro 2: the lights follow X-Rite's own order",
                    "The instrument lost communication with the computer",
                    "about two seconds",
-                   "not yet been confirmed on a real i1Pro 2",
+                   # 4.3.38: a tester's confirmation (14 Nov 2026)
+                   "a tester confirmed with a real i1Pro 2 on Windows",
                    "On an i1Pro 2 both choices work the same",
                    "“During a "
                    "reading” changes something only on the i1Pro 3",
                    "Only for the i1Pro 2 and the i1Pro 3", "ColorMunki",
                    "chart-reading engine", "Read single patches",
-                   "has not been tried on a real instrument with ChromIQ yet",
+                   "have not been tried on a real i1Pro 3 with ChromIQ yet",
                    "nobody on the ChromIQ team owns an i1Pro 2",
                    "different light commands",
                    "ArgyllCMS's own program code", "recordings of what",

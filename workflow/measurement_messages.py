@@ -9438,7 +9438,8 @@ M_STRIP_FAILED_BUTTON = _m(
     approved=False)
 
 # --- PROPOSED: the ruler and the filing disagree about a strip's direction --
-#: 4.3.37 (the ruler check Beta, i1Pro 3): a tester's strip was saved back to
+#: 4.3.37 (the ruler check Beta, i1Pro 3; 4.3.38 the i1Pro 2 too): a
+#: tester's strip was saved back to
 #: front by the reader's recognition (48-66 dE00 off) while the ruler showed
 #: an ordinary stroke. "Forward" is learned from the majority of accepted
 #: strips. Same window and buttons as M-STRIP-RULER-NOT-COVERED.
@@ -9490,13 +9491,15 @@ M_RESUME_RESOLUTION = _m(
     approved=False)
 
 # --- PROPOSED: high resolution, continued with an instrument without it ---
-#: 4.3.37 review (M4). {instrument}: the chart's (or the reported)
-#: instrument name; {box}: the resume box's own text. Cancel only.
+#: 4.3.37 review (M4). {instrument}: the instrument in use (the one the
+#: engine reports, `TabMeasure._detected_instrument`); {box}: the resume
+#: box's own text. Cancel only. 4.3.38: "The instrument in use", not "The
+#: instrument this chart is made for", which the name did not always match.
 M_RESUME_RESOLUTION_INSTRUMENT = _m(
     "M-RESUME-RESOLUTION-INSTRUMENT",
     "This measurement cannot be continued with this instrument",
     "The measurement you are continuing was measured in high resolution. "
-    "The instrument this chart is made for, {instrument}, has no "
+    "The instrument in use, {instrument}, has no "
     "high-resolution mode, so new strips could only be measured in "
     "standard resolution.\n\n"
     "All readings in one measurement file have to have the same spectral "
