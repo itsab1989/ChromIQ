@@ -55,7 +55,8 @@ def main() -> int:
     src.mkdir(parents=True, exist_ok=True)
     commit = subprocess.run(
         ["git", "-C", str(ROOT), "rev-parse", V4334 + "^{commit}"],
-        check=True, capture_output=True, text=True, timeout=60).stdout.strip()
+        check=True, capture_output=True, text=True, encoding="utf-8",
+        timeout=60).stdout.strip()
     for name in FILES:
         data = subprocess.run(
             ["git", "-C", str(ROOT), "show", f"{commit}:native/instlib/{name}"],
