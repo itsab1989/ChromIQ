@@ -104,7 +104,10 @@ def _wire(lines):
 
 
 def _no_timing(lines):
-    return [ln for ln in lines if not ln.startswith("MEASURE-MS")]
+    # MEASURE-MS, and since 4.3.37 the i1Pro 2's GAPMS / HELD / LOST lines
+    # of the slow-instrument lives, carry real times
+    return [ln for ln in lines
+            if not ln.startswith(("MEASURE-MS", "GAPMS", "HELD", "LOST"))]
 
 
 # ---------------------------------------------------------------------------
@@ -139,6 +142,8 @@ def test_the_watched_lights_lives_match_the_release_fixtures(runs, fixture,
             got = [ln for ln in _no_timing(_lines(runs[target], scn))
                    if ln.split(" ", 1)[0] not in ("CHOICES", "SENT")]
         else:
+            if not scn.startswith(("off_", "revad_")):
+                continue        # 4.3.37: the i1Pro 2 with the option on changed
             want, got = _lines(fx, scn), _lines(runs[target], scn)
         assert got == want, scn
         checked += 1
@@ -161,14 +166,12 @@ COMBOS = ["ready_off", "signals_off", "ready_lefton", "signals_lefton"]
 
 
 @pytest.mark.parametrize("combo", COMBOS)
-def test_an_i1pro2_gets_4_3_33s_bytes_whatever_is_stored(runs, combo):
-    """Through the helper's own mapping (cq_lights_choices_for): with the
-    lights option on and any stored combination, an i1Pro 2's whole life is
-    byte for byte 4.3.33's (the fixture's "on_ready_off")."""
-    want = _lines(_fixture(FIX_4333), "on_ready_off")
-    assert want
-    got = _lines(runs["i1pro2_lights_modes_test"], f"v4336_{combo}")
-    assert got == want
+def test_an_i1pro2_is_given_what_is_stored_since_4_3_37(runs, combo):
+    """4.3.36 gave an i1Pro 2 both choices off (cq_beta_pause.h); since
+    4.3.37 the lights are not paused (its sequence was rebuilt in the
+    driver), so the helper's mapping gives what was asked."""
+    t = runs["i1pro2_lights_modes_test"]
+    assert _wire(_lines(t, f"v4336_{combo}")) == _wire(_lines(t, f"on_{combo}"))
 
 
 @pytest.mark.parametrize("combo", COMBOS)
@@ -187,19 +190,6 @@ def test_an_i1pro3_gets_what_4_3_35_gave_it(runs, combo):
     assert _wire(_lines(t, f"v4336_{combo}")) == _wire(_lines(t, f"on_{combo}"))
 
 
-def test_only_these_wire_sequences_reach_an_i1pro2():
-    """What 4.3.36 leaves an i1Pro 2: steady white, the 2-second off over the
-    white, the immediate off at the close (and no result programs)."""
-    from tests.test_i1pro2_lights_modes import _programs
-    names = _programs()
-    sent = []
-    for ln in _lines(_fixture(FIX_4333), "on_ready_off"):
-        p = ln.split(" ")
-        if p[0] == "WR" and p[1] == "03":
-            sent.append(names.get(p[2], "UNKNOWN"))
-    assert set(sent) == {"WHITE", "OFF_SLOW", "OFF_NOW"}
-
-
 def test_the_pause_lives_in_the_helper_in_one_place():
     src = (HELPER_SRC / "chromiq_chartread.c").read_text(
         encoding="utf-8", errors="surrogateescape")
@@ -210,7 +200,9 @@ def test_the_pause_lives_in_the_helper_in_one_place():
     assert "i1pro3_cq_lights_options(it, sig, left);" in sess
     assert "_cq_lights_options(it, cq_lights_signals" not in sess
     hdr = (HELPER_SRC / "cq_beta_pause.h").read_text(encoding="utf-8")
-    assert "if (gen == 2) {" in hdr and "return gen == 2;" in hdr
+    # 4.3.37: the lights are no longer paused, the ruler check still is
+    assert "if (gen == 2) {" not in hdr and "return 0;" in hdr
+    assert "return gen == 2;" in hdr
     # the ruler: for an i1Pro 2 nothing of the driver is called
     rul = src[src.index("static void cq_ruler_for_session("):]
     rul = rul[:rul.index("\n}\n")]

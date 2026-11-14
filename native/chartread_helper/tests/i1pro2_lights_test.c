@@ -231,8 +231,16 @@ static void session(const char *name, devType dtype, int caps2, int inited,
 	trigger(p);			/* calibration */
 	trigger(p);			/* its second reading: still off, nothing sent */
 	ready(p);			/* calibration returned */
+#ifndef CQ_UPSTREAM
+	i1pro2_cq_lights_reading(p, 1);	/* read_strip began (i1pro.c) */
+#endif
 	trigger(p);			/* the strip */
+#ifndef CQ_UPSTREAM
+	step("ready");			/* the strip returned: i1pro.c's after-read */
+	i1pro2_cq_lights_after_read(p);
+#else
 	ready(p);			/* the strip returned */
+#endif
 	eeprom(p);
 	ready(p);
 	close_it(p);
@@ -240,6 +248,9 @@ static void session(const char *name, devType dtype, int caps2, int inited,
 
 int main(void) {
 	i1pro *p;
+#ifndef CQ_UPSTREAM
+	i1pro2_cq_lights_quiet_ms_for_test = 50;	/* 4.3.37: 2100 ms in ChromIQ */
+#endif
 
 	/* 1. Option off: the helper never calls begin(). Upstream runs only this
 	 *    (and the original i1Pro and i1Monitor sessions, option off). */
