@@ -71,8 +71,15 @@ void i1pro2_cq_lights_result(void *pp, int good);
 extern void (*i1pro2_cq_lights_sent)(int seq);
 /* ...and the i1Pro 3's (i1pro3_imp.c), the same prototypes as i1pro3_imp.h. */
 int i1pro3_cq_lights_begin(void *pp);
-void i1pro3_cq_lights_end(void *pp);
+int i1pro3_cq_lights_end(void *pp);
 extern void (*i1pro3_cq_lights_note)(int seq, int icom_err);
+void i1pro3_cq_lights_options(void *pp, int signals, int left_on);
+void i1pro3_cq_lights_owe(void *pp);
+int i1pro3_cq_lights_owed_ms(void *pp);
+void i1pro3_cq_lights_result(void *pp, int good);
+int i1pro3_cq_lights_choices(void *pp);
+int i1pro3_cq_lights_firmware(void *pp);
+extern void (*i1pro3_cq_lights_sent)(int seq);
 
 /* ---- JSON event emission (no-ops when cq_json == 0) ------------------- */
 void cq_emit_raw(const char *fmt, ...);   /* fmt is a complete JSON object */
@@ -106,7 +113,7 @@ void cq_json_escape(char *dst, size_t dstlen, const char *src);
  *
  * ⚠ BUMP THIS IN THE SAME COMMIT AS ANY CHANGE TO THE HELPER, and rebuild and
  * commit native/chromiq-chartread. The test tells you the expected value. */
-#define CQ_HELPER_BUILD "chromiq-chartread 2026-11-13 legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures+exit-guard+save-after-close+i1pro2-lights+i1pro3-lights"
+#define CQ_HELPER_BUILD "chromiq-chartread 2026-11-14 legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures+exit-guard+save-after-close+i1pro2-lights+i1pro3-lights+i1pro3-lights-choices"
 const char *cq_helper_build_string(void);
 
 

@@ -522,6 +522,16 @@ struct _i1pro3imp {
 	/* CHROMIQ PATCH: i1Pro 3 indicator lights (Beta). 0 = not in use, the
 	 * calloc default, and then every light hook returns at once. */
 	int cq_lights;
+	/* ...and the two choices (2026-11-14; both 0 = ChromIQ 4.3.34), the
+	 * reading in progress, and a result ChromIQ owes for the last reading. */
+	int cq_lights_signals;		/* ChromIQ's verdict, not the driver's */
+	int cq_lights_left_on;		/* no off before a reading's measurements */
+	int cq_lights_reading;		/* inside read_strip / read_sample */
+	int cq_lights_press_count;	/* switch_count when the reading began */
+	int cq_lights_owed;			/* a result is owed for the last reading */
+	unsigned int cq_lights_owed_ms;
+	int cq_lights_force_off;	/* a pattern went out as the button was pressed */
+	int cq_lights_maybe_dark;	/* "left on": a reading ran without our off */
 
 }; typedef struct _i1pro3imp i1pro3imp;
 
@@ -1557,11 +1567,19 @@ extern i1data3 *new_i1data3(i1pro3 *p, unsigned char *buf, int len);
 /* CHROMIQ PATCH: i1Pro 3 indicator lights (Beta), see i1pro3_imp.c. Every
  * entry returns at once unless ChromIQ's helper called ..._begin(). */
 int i1pro3_cq_lights_begin(void *pp);	/* ChromIQ's helper only */
-void i1pro3_cq_lights_end(void *pp);	/* off if lit, then never again */
+int i1pro3_cq_lights_end(void *pp);	/* off if lit, then never again; 1 = known off */
 void i1pro3_cq_lights_measure(void *pp);	/* off, before a measurement */
 void i1pro3_cq_lights_after_read(void *pp, int rv);	/* GOOD / BAD */
 void i1pro3_cq_lights_after_cal(void *pp, int rv);	/* READY on success */
 extern void (*i1pro3_cq_lights_note)(int seq, int icom_err);
+void i1pro3_cq_lights_options(void *pp, int signals, int left_on);	/* before begin */
+void i1pro3_cq_lights_reading(void *pp, int on);	/* around a reading */
+void i1pro3_cq_lights_owe(void *pp);	/* ChromIQ's helper: result owed */
+int i1pro3_cq_lights_owed_ms(void *pp);	/* -1 = none owed */
+void i1pro3_cq_lights_result(void *pp, int good);	/* 1 GOOD, 0 BAD, -1 READY */
+int i1pro3_cq_lights_choices(void *pp);	/* bit 0 signals, bit 1 left_on */
+int i1pro3_cq_lights_firmware(void *pp);	/* version x 100, -1 */
+extern void (*i1pro3_cq_lights_sent)(int seq);
 
 #ifdef __cplusplus
 	}

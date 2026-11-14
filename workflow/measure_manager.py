@@ -207,7 +207,7 @@ class MeasureParams:
     #: pass --i1pro2-lights, and only to a helper that says it knows the flag
     #: (``helper_caps``). Off: the command line is exactly the one it was.
     engine_i1pro2_lights: bool = False
-    #: ...and its two choices (2026-11-13, the i1Pro 2 only): result signals
+    #: ...and its two choices (2026-11-13; the i1Pro 3 too since 2026-11-14): result signals
     #: (--lights-signals) and the lights left on during a reading
     #: (--lights-during-reading). Passed only with --i1pro2-lights and only to
     #: a helper whose caps name them; both off = exactly 4.3.33's command line.
@@ -840,6 +840,8 @@ class MeasureManager(QObject):
         self._lights_option = False
         self._lights_marker_live = False
         self._lights_owed_n = None
+        #: "i1pro2" or "i1pro3": the instrument whose lights this session uses.
+        self._lights_instrument = "i1pro2"
         #: External values (-x): ChromIQ reads the instrument itself and the
         #: helper opens none. Kept because the SAVE-AND-STOP path differs — see
         #: `save_partial_and_quit`.
@@ -3232,11 +3234,13 @@ class MeasureManager(QObject):
         from core import i1pro2_lights_marker as _marker
         sent = ev.get("sent")
         if sent:
-            # Every sequence the i1Pro 2's driver sent (2026-11-13). The
-            # result signals get a line of their own in the Measure log, so a
-            # tester can match what the instrument showed with what ChromIQ
-            # decided; everything else only goes to the app log.
-            log.info("i1Pro 2 lights: sent %s", sent)
+            # Every sequence the i1Pro 2's driver sent (2026-11-13), and every
+            # pattern the i1Pro 3's (2026-11-14). The result signals get a
+            # line of their own in the Measure log, so a tester can match what
+            # the instrument showed with what ChromIQ decided; everything else
+            # (the i1Pro 3's own "instrument_green2"/"instrument_red2" of "as
+            # in ChromIQ 4.3.33" too) only goes to the app log.
+            log.info("instrument lights: sent %s", sent)
             if sent == "green2":
                 on_line(tr(
                     "[Engine] Instrument lights (beta): green twice. ChromIQ "
@@ -3254,8 +3258,18 @@ class MeasureManager(QObject):
             # may still be on" marker stays for the next Start.
             self._lights_failed = True
             self._runner.set_kill_courtesy(None)
-            log.warning("i1Pro 2 lights: the helper could not confirm the "
+            log.warning("instrument lights: the helper could not confirm the "
                         "lights are off; the marker stays")
+            if getattr(self, "_lights_instrument", "i1pro2") == "i1pro3":
+                # 2026-11-14: an i1Pro 3 has no marker and no reminder
+                # (ArgyllCMS's own open switches its lights off).
+                on_line(tr(
+                    "[Engine] Instrument lights (beta): ChromIQ could not make "
+                    "sure that the instrument's lights went off at the end. "
+                    "They go off by themselves the next time ChromIQ or "
+                    "ArgyllCMS connects to the instrument, or you can unplug "
+                    "it and plug it back in."))
+                return
             on_line(tr(
                 "[Engine] Instrument lights (beta): ChromIQ could not make "
                 "sure that the instrument's lights went off at the end. If "
@@ -3289,6 +3303,7 @@ class MeasureManager(QObject):
         if ev.get("active"):
             self.lights_active = True
             which = str(ev.get("instrument") or "i1pro2")
+            self._lights_instrument = which
             # The "lights may still be on" marker and its replug window are
             # the i1Pro 2's alone: their reason is ArgyllCMS's note about the
             # i1Pro 2's start-up (core/i1pro2_lights_marker.py). An i1Pro 3
@@ -3298,25 +3313,29 @@ class MeasureManager(QObject):
                 self._lights_marker_live = True
             self._runner.set_kill_courtesy(self.LIGHTS_OFF_EXIT)
             log.info("instrument lights: in use for this session (%s)", which)
+            signals = bool(ev.get("signals"))
+            left_on = str(ev.get("during_reading") or "off") == "on"
+            try:
+                fw = int(ev.get("firmware", -1))
+            except (TypeError, ValueError):
+                fw = -1
             if which == "i1pro3":
-                on_line(tr(
-                    "[Engine] Instrument lights (beta): on. While the i1Pro 3 "
-                    "calibrates or measures, its lights behave as without this "
-                    "option. Afterwards it shows the patterns X-Rite's "
-                    "i1Profiler uses: after a reading two green blinks, when a "
-                    "reading could not be taken two blinks we expect to be "
-                    "red, each followed by a slowly breathing white light."))
+                on_line(self._i1pro3_lights_line(signals, left_on))
+                # With either choice, which firmware it has (2026-11-14): the
+                # project does not know the recordings' firmware, so a
+                # tester's report should say it. Argyll reads it x 100.
+                if (signals or left_on) and fw > 0:
+                    on_line(tr(
+                        "[Engine] Instrument lights (beta): this i1Pro 3 "
+                        "reports firmware {fw}. We do not know which firmware "
+                        "the i1Pro 3 had on which the light patterns were "
+                        "recorded, so if anything looks odd, please tell us "
+                        "this number.").format(fw=f"{fw / 100:.2f}"))
             else:
-                signals = bool(ev.get("signals"))
-                left_on = str(ev.get("during_reading") or "off") == "on"
                 on_line(self._i1pro2_lights_line(signals, left_on))
                 # With either choice, which firmware this instrument has: the
                 # patterns were recorded on 634 (2026-11-14: no firmware gate,
                 # so a tester's report says which one they ran on).
-                try:
-                    fw = int(ev.get("firmware", -1))
-                except (TypeError, ValueError):
-                    fw = -1
                 if (signals or left_on) and fw > 0:
                     on_line(tr(
                         "[Engine] Instrument lights (beta): this i1Pro 2 has "
@@ -3343,6 +3362,47 @@ class MeasureManager(QObject):
                 "[Engine] Instrument lights (beta): ChromIQ could not use the "
                 "lights of this instrument, so it leaves them alone for this "
                 "measurement. Measuring works as usual."))
+
+    @staticmethod
+    def _i1pro3_lights_line(signals: bool, left_on: bool) -> str:
+        """The Measure log's line when an i1Pro 3 session uses the lights,
+        worded for the two choices (2026-11-14). Both off is 4.3.34's
+        behaviour: green and red are then the instrument's own verdict."""
+        if signals and left_on:
+            return tr(
+                "[Engine] Instrument lights (beta): on. The i1Pro 3 shows a "
+                "slowly blinking white while it waits for you. As X-Rite's "
+                "i1Profiler does, ChromIQ sends it no off command before a "
+                "reading: the instrument most likely switches its lights off "
+                "by itself while it measures. After a reading it blinks green "
+                "twice when ChromIQ accepted it, and red twice when ChromIQ "
+                "asks you to look at the screen or to read it again. While it "
+                "calibrates, its lights are off.")
+        if signals:
+            return tr(
+                "[Engine] Instrument lights (beta): on. The i1Pro 3 shows a "
+                "slowly blinking white while it waits for you. After a reading "
+                "it blinks green twice when ChromIQ accepted it, and red twice "
+                "when ChromIQ asks you to look at the screen or to read it "
+                "again. While it calibrates or measures, its lights are off.")
+        if left_on:
+            return tr(
+                "[Engine] Instrument lights (beta): on. The i1Pro 3 shows a "
+                "slowly blinking white while it waits for you. As X-Rite's "
+                "i1Profiler does, ChromIQ sends it no off command before a "
+                "reading: the instrument most likely switches its lights off "
+                "by itself while it measures. After every reading the "
+                "instrument took it blinks green twice, and red twice when it "
+                "could not take one; whether ChromIQ accepts a reading is "
+                "shown on screen. While it calibrates, its lights are off.")
+        return tr(
+            "[Engine] Instrument lights (beta): on. While the i1Pro 3 "
+            "calibrates or measures, its lights are off. Afterwards it shows "
+            "the patterns X-Rite's i1Profiler uses: after a calibration a "
+            "slowly blinking white light, green twice after every reading the "
+            "instrument took, and red twice when it could not take one. Green "
+            "here only means that the instrument took a reading: whether "
+            "ChromIQ accepts it is shown on screen.")
 
     @staticmethod
     def _i1pro2_lights_line(signals: bool, left_on: bool) -> str:
@@ -3382,11 +3442,12 @@ class MeasureManager(QObject):
 
     def lights_strip_verdict(self, too_fast: bool) -> None:
         """The Measure tab's one verdict on an accepted strip (the strip cue,
-        "one strip, one sound", Knut #131): with the i1Pro 2's result signals,
+        "one strip, one sound", Knut #131): with result signals (the i1Pro 2,
+        and since 2026-11-14 the i1Pro 3),
         green when the strip was kept as it is, red when ChromIQ asks about it
         (read too fast). The doubts the manager itself found are sent before
         the tab is asked (`_lights_doubt_first`). No-op unless a result is
-        owed, so stock chartread, the i1Pro 3, the choice off and a strip
+        owed, so stock chartread, the choice off and a strip
         moved by "I read strip B" never send anything."""
         self._send_lights_result(not too_fast)
 

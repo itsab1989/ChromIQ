@@ -233,6 +233,7 @@ ipatch *vals) {		/* Pointer to array of instrument patch values */
 	if (!p->inited)
 		return inst_no_init;
 
+	i1pro3_cq_lights_reading(p, 1);	/* CHROMIQ PATCH: Beta lights, no-op unless on */
 	rv = i1pro3_imp_measure(p, vals, npatch, instClamp);
 	i1pro3_cq_lights_after_read(p, rv);	/* CHROMIQ PATCH: Beta lights, no-op unless on */
 
@@ -254,6 +255,7 @@ instClamping clamp) {		/* Clamp XYZ/Lab to be +ve */
 	if (!p->inited)
 		return inst_no_init;
 
+	i1pro3_cq_lights_reading(p, 1);	/* CHROMIQ PATCH: Beta lights, no-op unless on */
 	rv = i1pro3_imp_measure(p, val, 1, clamp);
 	i1pro3_cq_lights_after_read(p, rv);	/* CHROMIQ PATCH: Beta lights, no-op unless on */
 
@@ -336,6 +338,7 @@ char id[CALIDLEN]		/* Condition identifier (ie. white reference ID) */
 	if (!p->inited)
 		return inst_no_init;
 
+	i1pro3_cq_lights_reading(p, 0);	/* CHROMIQ PATCH: Beta lights, no-op unless on */
 	rv = i1pro3_imp_calibrate(p, calt, calc, idtype, id);
 	i1pro3_cq_lights_after_cal(p, rv);	/* CHROMIQ PATCH: Beta lights, no-op unless on */
 	return i1pro3_interp_code(p, rv);

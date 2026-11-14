@@ -80,6 +80,14 @@ stops if one no longer applies.
   refuses anything but an inited i1Pro 3 (3 and 3 Plus, one dtype) whose
   EEPROM reports the indicator LEDs. No 0x3B, no memory write. Not tested
   on a real i1Pro 3 by the project.
+  Since 2026-11-14 the i1Pro 2's two choices apply here too
+  (`i1pro3_cq_lights_options`; both 0 = the 4.3.34 behaviour above, byte
+  for byte): result signals (GOOD / BAD / READY sent by the helper for
+  ChromIQ's own verdict on a strip or patch, only while one is owed and
+  never once the button was pressed for the next reading) and lights left
+  on during a reading (no off before the measurements of a hand-held
+  reading, as i1Profiler; a calibration still gets the off). The same
+  four sequences, nothing else.
   Not tested on a real i1Pro 2 by the project.
 
 | patched file | upstream sha256 (first 16) | shipped sha256 (first 16) |
@@ -89,9 +97,9 @@ stops if one no longer applies.
 | `i1pro.c` | `ac75b6e3f47537b8…` | `833d46b27134f93e…` |
 | `i1pro_imp.h` | `c37813e4b43a9bff…` | `fdeee113ccf24d86…` |
 | `i1pro_imp.c` | `8b8516cdd89e21de…` | `768237badecbd06a…` |
-| `i1pro3.c` | `9c4b1ac9f8af507a…` | `1ce2195c7b12f562…` |
-| `i1pro3_imp.h` | `190cceb46fe8bc33…` | `7c467ee1045ec4f4…` |
-| `i1pro3_imp.c` | `42c684afa3bbb15d…` | `d68c41018148a61d…` |
+| `i1pro3.c` | `9c4b1ac9f8af507a…` | `347235c6d10f9677…` |
+| `i1pro3_imp.h` | `190cceb46fe8bc33…` | `93c8298b8dbea546…` |
+| `i1pro3_imp.c` | `42c684afa3bbb15d…` | `5d63232b1e09a9ee…` |
 
 ## Files
 

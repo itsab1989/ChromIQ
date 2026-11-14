@@ -1371,12 +1371,24 @@ static void cq_lights_forget(void) {
 	cq_lights_it = NULL;
 }
 
-/* The i1Pro 2's choices inside the option (2026-11-13): whether this session
- * gives result signals, i.e. whether the helper owes the driver a word after
- * every reading. */
+/* The choices inside the option (the i1Pro 2 2026-11-13, the i1Pro 3 too
+ * since 2026-11-14): whether this session gives result signals, i.e. whether
+ * the helper owes the driver a word after every reading. The same code path
+ * for both generations; only the driver entry differs. */
 static int cq_lights_sig_active = 0;	/* the driver took the choice */
 static int cq_lights_signals_on(void) {
-	return cq_lights_it != NULL && cq_lights_gen == 2 && cq_lights_sig_active;
+	return cq_lights_it != NULL && (cq_lights_gen == 2 || cq_lights_gen == 3)
+	    && cq_lights_sig_active;
+}
+static void cq_lights_drv_result(int good) {
+	if (cq_lights_gen == 3)
+		i1pro3_cq_lights_result(cq_lights_it, good);
+	else
+		i1pro2_cq_lights_result(cq_lights_it, good);
+}
+static int cq_lights_drv_owed_ms(void) {
+	return cq_lights_gen == 3 ? i1pro3_cq_lights_owed_ms(cq_lights_it)
+	                          : i1pro2_cq_lights_owed_ms(cq_lights_it);
 }
 
 /* A sequence the i1Pro 2's driver sent: one line for ChromIQ's log. */
@@ -1385,6 +1397,21 @@ static void cq_lights_sent2(int seq) {
 	                               "pulse", "green2", "red2" };
 	cq_emit_raw("{\"event\":\"lights\",\"sent\":\"%s\"}",
 	            seq >= 1 && seq <= 6 ? names[seq] : "?");
+}
+
+/* A pattern the i1Pro 3's driver sent (never its off). With result signals
+ * green and red are ChromIQ's verdict and get the i1Pro 2's names, so the
+ * Measure log says them in the same words; otherwise they are the driver's
+ * own (did the instrument take a reading) and only go to the app log. */
+static void cq_lights_sent3(int seq) {
+	const char *name = "?";
+	if (seq == 1)
+		name = "ready";
+	else if (seq == 2)
+		name = cq_lights_sig_active ? "green2" : "instrument_green2";
+	else if (seq == 3)
+		name = cq_lights_sig_active ? "red2" : "instrument_red2";
+	cq_emit_raw("{\"event\":\"lights\",\"sent\":\"%s\"}", name);
 }
 
 /* The number of the strip whose result is owed ({"event":"lights_owed"}). */
@@ -1397,7 +1424,7 @@ static int cq_lights_seq = 0;
 static void cq_lights_say(int good) {
 	if (!cq_lights_signals_on())
 		return;
-	i1pro2_cq_lights_result(cq_lights_it, good);
+	cq_lights_drv_result(good);
 }
 
 /* An accepted strip has been reported: its result is ChromIQ's to give. */
@@ -1406,7 +1433,10 @@ static void cq_lights_owe_strip(void) {
 		return;
 	cq_lights_seq++;
 	cq_lights_drop_verdict();	/* anything stored is for an earlier strip */
-	i1pro2_cq_lights_owe(cq_lights_it);
+	if (cq_lights_gen == 3)
+		i1pro3_cq_lights_owe(cq_lights_it);
+	else
+		i1pro2_cq_lights_owe(cq_lights_it);
 	cq_emit_raw("{\"event\":\"lights_owed\",\"n\":%d}", cq_lights_seq);
 }
 
@@ -1414,9 +1444,9 @@ static void cq_lights_owe_strip(void) {
  * and no result is owed (a calibration, a command or a failed transfer may
  * have left them dark). */
 static void cq_lights_prompt(void) {
-	if (!cq_lights_signals_on() || i1pro2_cq_lights_owed_ms(cq_lights_it) >= 0)
+	if (!cq_lights_signals_on() || cq_lights_drv_owed_ms() >= 0)
 		return;
-	i1pro2_cq_lights_result(cq_lights_it, -1);
+	cq_lights_drv_result(-1);
 }
 
 /* Where the instrument is idle (cq_lights_poll): ChromIQ's verdict on the
@@ -1430,7 +1460,7 @@ static void cq_lights_poll_fn(void) {
 	/* Read and cleared at once: a verdict the reader thread stores in
 	 * between is kept for the next poll, never wiped. */
 	v = cq_lights_take_verdict(&n);
-	owed = i1pro2_cq_lights_owed_ms(cq_lights_it);
+	owed = cq_lights_drv_owed_ms();
 	if (owed < 0)
 		return;
 	if (v != 0 && n == cq_lights_seq)
@@ -1449,12 +1479,12 @@ static void cq_lights_do_off(void) {
 		return;
 	cq_lights_forget();
 	if (cq_lights_gen == 3)
-		i1pro3_cq_lights_end(it);
+		off = i1pro3_cq_lights_end(it);
 	else
 		off = i1pro2_cq_lights_end(it);
-	/* The i1Pro 2 says whether its lights are known to be off: when a
-	 * trigger was still pending or the off failed they may still play, and
-	 * ChromIQ keeps its "lights may still be on" marker for the next Start. */
+	/* Both say whether their lights are known to be off: when a trigger was
+	 * still pending or the off failed they may still play. The i1Pro 2 keeps
+	 * its "lights may still be on" marker for the next Start then. */
 	if (off)
 		cq_emit_raw("{\"event\":\"lights\",\"state\":\"off\"}");
 	else
@@ -1504,10 +1534,14 @@ static void cq_lights_for_session(inst *it, int rmode, int emis, int trans,
 	else {
 		static int registered = 0;
 		cq_lights_gen = it->dtype == instI1Pro3 ? 3 : 2;
-		/* The two choices are the i1Pro 2's only (both 0 = 4.3.33). */
+		/* The two choices, for both generations since 2026-11-14 (both 0 =
+		 * 4.3.33 on an i1Pro 2, 4.3.34 on an i1Pro 3). */
 		if (cq_lights_gen == 2) {
 			i1pro2_cq_lights_options(it, cq_lights_signals, cq_lights_left_on);
 			i1pro2_cq_lights_sent = cq_lights_sent2;
+		} else {
+			i1pro3_cq_lights_options(it, cq_lights_signals, cq_lights_left_on);
+			i1pro3_cq_lights_sent = cq_lights_sent3;
 		}
 		i1pro2_cq_lights_note = cq_lights_failed;
 		i1pro3_cq_lights_note = cq_lights_failed3;
@@ -1522,9 +1556,10 @@ static void cq_lights_for_session(inst *it, int rmode, int emis, int trans,
 		                         : i1pro2_cq_lights_begin(it))) {
 			cq_lights_forget();
 			why = "lights";
-		} else if (cq_lights_gen == 2) {
-			/* What the driver took (both choices, on any i1Pro 2). */
-			choices = i1pro2_cq_lights_choices(it);
+		} else {
+			/* What the driver took (both choices, on any i1Pro 2 or 3). */
+			choices = cq_lights_gen == 3 ? i1pro3_cq_lights_choices(it)
+			                             : i1pro2_cq_lights_choices(it);
 			cq_lights_sig_active = (choices & 1) != 0;
 			if (cq_lights_sig_active)
 				cq_lights_poll = cq_lights_poll_fn;
@@ -1537,7 +1572,8 @@ static void cq_lights_for_session(inst *it, int rmode, int emis, int trans,
 		            cq_lights_gen == 3 ? "i1pro3" : "i1pro2",
 		            choices & 1 ? "true" : "false",
 		            choices & 2 ? "on" : "off",
-		            cq_lights_gen == 2 ? i1pro2_cq_lights_firmware(it) : -1);
+		            cq_lights_gen == 3 ? i1pro3_cq_lights_firmware(it)
+		                               : i1pro2_cq_lights_firmware(it));
 	else
 		cq_emit_raw("{\"event\":\"lights\",\"active\":false,\"why\":\"%s\"}",
 		            why);

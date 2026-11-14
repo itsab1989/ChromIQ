@@ -148,7 +148,10 @@ def test_an_i1pro3_session_says_what_it_shows_and_writes_no_i1pro2_marker(
         {"event": "lights", "active": True, "instrument": "i1pro3"}),
         lines.append)
     assert len(lines) == 1 and "the i1Pro 3" in lines[0]
-    assert "two green blinks" in lines[0] and "\u2014" not in lines[0]
+    # 2026-11-14: both choices off = 4.3.34's i1Pro 3 behaviour, whose green
+    # and red are the instrument's own verdict
+    assert "green twice after every reading the instrument took" in lines[0]
+    assert "\u2014" not in lines[0]
     assert written == [] and m._lights_marker_live is False
     assert runner.courtesy == ['{"cmd":"lights_off_exit"}\n']
     # ...while an i1Pro 2 session does write it, as before
@@ -358,10 +361,15 @@ def test_the_row_is_off_and_says_what_it_does(dialog):
     body = tips[0]._body
     for needed in ("white while it waits for you",
                    "no light while it calibrates or measures",
-                   "two green blinks", "two blinks that we expect to be red",
-                   "the lights behave exactly as without this option",
-                   "breathing white light", "i1Pro 3 Plus",
-                   "Green only means that the instrument took a reading",
+                   # the i1Pro 3 (2026-11-14: both choices apply to it)
+                   "an i1Pro 3 shows", "slowly blinking white light",
+                   "i1Pro 3 Plus", "he saw them as green twice and red twice",
+                   "Nobody has seen them with ChromIQ yet",
+                   "after a single patch that was accepted",
+                   "only tell you that the instrument itself took a reading",
+                   "During a reading (i1Pro 2 and i1Pro 3)",
+                   "flashes green once when you press its button",
+                   "Both choices apply to the i1Pro 2 and to the i1Pro 3",
                    "Only for the i1Pro 2 and the i1Pro 3", "ColorMunki",
                    "chart-reading engine", "Read single patches",
                    "has not been tried on a real i1Pro 2",
@@ -370,7 +378,7 @@ def test_the_row_is_off_and_says_what_it_does(dialog):
                    "ArgyllCMS's own program code", "recordings of what",
                    "only light commands seen in those recordings",
                    "the “off” that ArgyllCMS itself sends",
-                   "i1Profiler leaves them on",
+                   "that i1Profiler does not send to an i1Pro 3",
                    "never writes anything into the instrument's memory",
                    "switch this off, unplug the instrument",
                    "Report a Bug", "GitHub",
@@ -379,13 +387,20 @@ def test_the_row_is_off_and_says_what_it_does(dialog):
                    "measure when “Off during a reading” is chosen",
                    # the two choices (2026-11-13)
                    "Ready light and result signals", "green twice",
-                   "red twice", "recorded on firmware 634", "Ready light only",
+                   "red twice", "recorded on firmware 634",
+                   "With “Ready light; the instrument's own green / red”, an "
+                   "i1Pro 2 shows only a ready light",
+                   "If you switched this on in ChromIQ 4.3.34 and use an "
+                   "i1Pro 3", "the default then",
+                   "Green and red now follow ChromIQ's verdict on the strip",
+                   "to keep what your i1Pro 3 showed before",
+                   "not tell you whether ChromIQ accepted the strip",
                    "except", "first reading after connecting",
                    "Off during a reading", "the cautious choice",
                    "Left on during a reading",
                    "has not compared readings taken both ways",
                    "most likely does this on its own",
-                   "The two choices change only the i1Pro 2",
+                   "whichever you choose",
                    "i1Pro 2, i1Pro 3 or i1Pro 3 Plus",
                    "3.  Does the same chart",
                    "4.  Does the instrument start normally about ten times",
