@@ -188,7 +188,7 @@ CHART_RECIPE_KEYS = ("instrument", "paper", "border", "margin_top",
                      "layout_mode", "isis_model", "isis_header_mm",
                      "isis_tight", "isis_barcode", "isis_trailer_mm",
                      "isis_arrows", "isis_outline", "isis_corner_labels",
-                     "isis_row_numbers", "isis_strip_letters",
+                     "isis_strip_letters",
                      "isis_notes_band", "isis_notes_place",
                      "isis_notes_height_mm")
 

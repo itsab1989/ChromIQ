@@ -243,8 +243,10 @@ class LayoutRecipe:
     #: THE i1iSis CHART'S OWN OPTIONS (a Beta, `workflow.isis.chart`): the
     #: model width ("" / "standard" or "xl"), the header length, tight
     #: margins, the barcode, the trailer, the feed arrows, the dashed
-    #: outline, the corner labels, the strip letters ("off", "top",
-    #: "bottom"), the row numbers, the notes band (on, place, height) and
+    #: outline, the corner labels, WHERE the strip letters go ("top" or
+    #: "bottom"; whether they are drawn is the engine's own "Show strip
+    #: indicators", the row numbers its "Show row indicators"), the notes
+    #: band (on, place, height) and
     #: the chart's alignment on the page ("" = top-left, i1Profiler's own).
     #: Each is written to the dict and the build kwargs ONLY for an
     #: "XRISIS" recipe that differs from the default
@@ -258,8 +260,7 @@ class LayoutRecipe:
     isis_arrows: bool = True
     isis_outline: bool = True
     isis_corner_labels: bool = True
-    isis_strip_letters: str = "off"
-    isis_row_numbers: bool = False
+    isis_strip_letters: str = "top"
     isis_notes_band: bool = False
     isis_notes_place: str = "header"
     isis_notes_height_mm: float = 24.0
@@ -930,8 +931,7 @@ ISIS_FIELD_DEFAULTS: dict = {
     "isis_arrows": True,
     "isis_outline": True,
     "isis_corner_labels": True,
-    "isis_strip_letters": "off",
-    "isis_row_numbers": False,
+    "isis_strip_letters": "top",
     "isis_notes_band": False,
     "isis_notes_place": "header",
     "isis_notes_height_mm": 24.0,
@@ -973,6 +973,9 @@ def default_recipe(instrument: str = "i1", paper: str = "A4", *, mode: str | Non
             r.margin_top = r.margin_right = _m
             r.margin_bottom = r.margin_left = _m
             r.patch_area_align = "top-left"
+            # no strip letters or row numbers by default, as i1Profiler
+            r.show_strip_indicators = False
+            r.show_row_indicators = False
     if instrument == "IO2":
         from workflow.i1io.support import i1io_enabled
         if i1io_enabled():

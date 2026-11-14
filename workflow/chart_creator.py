@@ -1755,6 +1755,8 @@ class ChartCreator:
             # patches side by side without gaps.
             kw["spacer_on"], kw["spacer_mode"] = False, "none"
             kw["layout_mode"] = "patch_first"
+            # no strip letters in Guided, as i1Profiler prints none
+            kw["draw_indicators"] = False
             if str(getattr(params, "isis_model", "") or "") == "xl":
                 kw["isis_model"] = "xl"
             if getattr(params, "isis_notes_band", False):
@@ -1886,6 +1888,8 @@ class ChartCreator:
             # 4.3.19, review r1 N8).
             if _in_order:
                 kw["randomize"] = False
+            if params.instrument == "XRISIS":
+                kw["isis_trailer_lines"] = self._isis_trailer_lines(params)
             return kw
         # Guided mode has no editable margin boxes and no "Use instrument
         # margins" toggle, so the jig-safety threshold clamp is intentionally
@@ -1897,7 +1901,23 @@ class ChartCreator:
         kw = self._engine_build_kwargs(params)
         if _in_order:
             kw["randomize"] = False
+        if params.instrument == "XRISIS":
+            kw["isis_trailer_lines"] = self._isis_trailer_lines(params)
         return kw
+
+    def _isis_trailer_lines(self, params: "ChartParams") -> list:
+        """An i1iSis chart's notes and settings line (a Beta): nothing is
+        stamped down the right edge of an i1iSis sheet, where it would sit
+        outside the dashed outline, so the run's chart notes and the
+        "Stamp settings" line are printed in the chart's trailer instead
+        (`workflow.isis.chart`), one line each, the same lines the right
+        edge carries on every other chart (`stamp_lines`)."""
+        try:
+            return self.stamp_lines(params,
+                                    int(self._pending_patch_count or 0))
+        except Exception:  # noqa: BLE001 - notes, never a failed build
+            log.debug("i1iSis trailer lines unavailable", exc_info=True)
+            return []
 
     def _run_engine(
         self,

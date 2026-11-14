@@ -25,7 +25,7 @@ CHANGED = {
     "isis_model": "xl", "isis_header_mm": 56.0, "isis_tight": True,
     "isis_barcode": True, "isis_trailer_mm": 40.0, "isis_arrows": False,
     "isis_outline": False, "isis_corner_labels": False,
-    "isis_strip_letters": "bottom", "isis_row_numbers": True,
+    "isis_strip_letters": "bottom",
     "isis_notes_band": True, "isis_notes_place": "trailer",
     "isis_notes_height_mm": 12.0, "isis_align": "center",
 }

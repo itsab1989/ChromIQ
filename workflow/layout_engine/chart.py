@@ -363,11 +363,14 @@ def build_chart(
     isis_outline: "bool | None" = None,
     isis_corner_labels: "bool | None" = None,
     isis_strip_letters: str = "",
-    isis_row_numbers: "bool | None" = None,
     isis_notes_band: "bool | None" = None,
     isis_notes_place: str = "",
     isis_notes_height_mm: "float | None" = None,
     isis_align: str = "",
+    #: i1iSis only: the run's chart-note lines (and the settings line),
+    #: printed in the trailer when no notes band holds them. No other
+    #: instrument reads it.
+    isis_trailer_lines: "tuple | list | None" = None,
 ) -> ChartResult:
     """Full chart build: write ``out_base.ti2`` + page TIFF(s) + strip geometry.
 
@@ -515,11 +518,30 @@ def build_chart(
             _isis_chart.OUTLINE_KEY: isis_outline,
             _isis_chart.CORNERS_KEY: isis_corner_labels,
             _isis_chart.LETTERS_KEY: isis_strip_letters,
-            _isis_chart.NUMBERS_KEY: isis_row_numbers,
             _isis_chart.BAND_KEY: isis_notes_band,
             _isis_chart.BAND_PLACE_KEY: isis_notes_place,
             _isis_chart.BAND_HEIGHT_KEY: isis_notes_height_mm,
-            _isis_chart.ALIGN_KEY: isis_align}
+            _isis_chart.ALIGN_KEY: isis_align,
+            # the engine's own label controls and layout mode, which the
+            # i1iSis chart honours in its own zones (`workflow.isis.chart`)
+            "draw_indicators": draw_indicators,
+            "row_indicators": row_indicators,
+            "indicator_font": indicator_font,
+            "indicator_size_mm": indicator_size_mm,
+            "indicator_bold": indicator_bold,
+            "indicator_italic": indicator_italic,
+            "indicator_rotation": indicator_rotation,
+            "row_indicator_rotation": row_indicator_rotation,
+            "indicator_align": indicator_align,
+            "underline_mode": underline_mode,
+            "underline_thickness_mm": underline_thickness_mm,
+            "underline_gap_mm": underline_gap_mm,
+            "strip_label_offset_mm": strip_label_offset_mm,
+            "strip_label_offset_x_mm": strip_label_offset_x_mm,
+            "layout_mode": layout_mode, "area_method": area_method,
+            "area_cols": area_cols, "area_rows": area_rows,
+            "area_ratio": area_ratio, "area_min_patch": area_min_patch,
+            _isis_chart.NOTES_LINES_KEY: tuple(isis_trailer_lines or ())}
         # Refused before anything is read or written when no page of this
         # size can carry an i1iSis chart at all.
         _f = _isis_chart.fixed_build_kwargs(_isis_kw)
@@ -592,8 +614,6 @@ def build_chart(
     # change it.
     def _geom_for(npat: int):
         return instruments.geom_from_build_kwargs({
-        # an i1iSis chart's own options, so the margins hold its grid
-        **(dict(_isis_kw) if _isis else {}),
         # the i1iO's labels as asked for, past the fixed settings above
         **({_i1io_chart.LABELS_KEY: _i1io_labels,
             _i1io_chart.ALIGN_KEY: patch_area_align,
@@ -700,7 +720,10 @@ def build_chart(
         # …AND WHICH CLIP-BORDER RULE THE RECIPE WAS SAVED UNDER (Basti,
         # 2026-10-25): a recipe saved before 4.3.14 lays out as it did.
         **({} if clip_border_free_space else
-           {"clip_border_free_space": False})})
+           {"clip_border_free_space": False}),
+        # an i1iSis chart's own options LAST, as the person asked for them
+        # (patch size, layout mode, labels), so the margins hold its grid
+        **({**_isis_kw, "area_target_count": npat} if _isis else {})})
     w_mm, h_mm = papers.dimensions_mm(paper)
     geom = _geom_for(len(target.patches))
     try:
@@ -734,7 +757,8 @@ def build_chart(
     def _isis_check(layout_now, npat: int):
         """The i1iSis chart of *npat* patches, checked, and the engine's
         grid proved to be that chart's grid (the margins put it there)."""
-        _o, _g, _s = _isis_chart.layout_for(npat, w_mm, h_mm, _isis_kw)
+        _o, _g, _s = _isis_chart.layout_for(
+            npat, w_mm, h_mm, {**_isis_kw, _isis_chart.COUNT_KEY: npat})
         _per = (layout_now.patches_per_page // layout_now.steps_in_pass
                 if layout_now.steps_in_pass else 0)
         if (layout_now.steps_in_pass, _per, layout_now.pages,
@@ -975,6 +999,13 @@ def build_chart(
                       flip=clip_flip_180))
         _isis_warnings = [_isis_chart.keep_out_message(w)
                           for w in _isis_left_off]
+        # more pages than the paper needs (3000 patches / 660 mm): said
+        _isis_more = _isis_chart.extra_page_message(
+            _isis_chart.extra_page_reasons(layout.total_patches, w_mm, h_mm,
+                                           _isis_sheet.opts),
+            _isis_sheet.grid.P)
+        if _isis_more:
+            _isis_warnings.append(_isis_more)
     if target.n_channels >= 4:
         device_pages = raster.build_device_pages(render, printed, bit16=bit16)
         tiff_paths = raster.save_separated_tiffs(

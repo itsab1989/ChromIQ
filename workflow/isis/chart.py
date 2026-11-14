@@ -63,18 +63,19 @@ ARROWS_KEY = "isis_arrows"
 OUTLINE_KEY = "isis_outline"
 CORNERS_KEY = "isis_corner_labels"
 LETTERS_KEY = "isis_strip_letters"
-NUMBERS_KEY = "isis_row_numbers"
 BAND_KEY = "isis_notes_band"
 BAND_PLACE_KEY = "isis_notes_place"
 BAND_HEIGHT_KEY = "isis_notes_height_mm"
 ALIGN_KEY = "isis_align"
+#: The build-kwargs key with the run's chart-note lines for the trailer.
+NOTES_LINES_KEY = "_isis_trailer_lines"
 #: The build-kwargs key that carries the parsed options past
 #: :func:`fixed_build_kwargs`.
 OPTIONS_KEY = "_isis_options"
 
 #: Every i1iSis-only build-kwargs key (the engine ignores them all).
 OWN_KEYS = (MODEL_KEY, HEADER_KEY, TIGHT_KEY, BARCODE_KEY, TRAILER_KEY,
-            ARROWS_KEY, OUTLINE_KEY, CORNERS_KEY, LETTERS_KEY, NUMBERS_KEY,
+            ARROWS_KEY, OUTLINE_KEY, CORNERS_KEY, LETTERS_KEY,
             BAND_KEY, BAND_PLACE_KEY, BAND_HEIGHT_KEY, ALIGN_KEY)
 
 #: The notes band's default height (header 56 mm, PROPOSAL §4.5).
@@ -143,6 +144,28 @@ class Options:
     #: rows per page asked for (Manual's "Max strip length"); None = auto
     max_rows: "int | None" = None
     stamp: bool = False
+    #: The strip letters and row numbers, with the engine's OWN label
+    #: controls (owner, 2026-11-14: one control, no duplicates): on/off from
+    #: "Show strip indicators" / "Show row indicators", the face, size,
+    #: bold, italic, rotation, alignment, underline and offsets from the
+    #: label style; only the PLACE of the letters is the i1iSis's own.
+    letter_font: str = "Inter"
+    letter_size: float = 0.0
+    letter_bold: bool = False
+    letter_italic: bool = False
+    letter_rotation: int = 0
+    number_rotation: int = 0
+    letter_align: str = "center"
+    underline: str = "off"
+    underline_mm: float = 0.5
+    underline_gap: float = 0.5
+    label_offset_y: float = 0.0
+    label_offset_x: float = 0.0
+    #: The run's chart notes (and the settings line) printed in the trailer
+    #: when no notes band holds them, one line each.
+    trailer_lines: tuple = ()
+    #: How the patch size was chosen ("patch_first" or "area_first").
+    layout_mode: str = "patch_first"
 
     @property
     def xl(self) -> bool:
@@ -181,6 +204,7 @@ class Options:
             need += TRAILER_LINE_MM
         if self.stamp:
             need += TRAILER_LINE_MM
+        need += TRAILER_LINE_MM * len(self.trailer_lines)
         return max(t, need)
 
     @property
@@ -223,14 +247,21 @@ def options_from(kw: dict) -> Options:
     if margins is None:
         m = F.MARGIN_DEFAULT_MM.value
         margins = (m, m, m, m)
-    letters = str(kw.get(LETTERS_KEY) or "off")
+    # where the letters go (the i1iSis's own: the text band at the top or
+    # the trailer); whether they are drawn is the engine's own "Show strip
+    # indicators" (draw_indicators, default off on an i1iSis recipe)
+    letters = str(kw.get(LETTERS_KEY) or "top")
+    if letters not in ("top", "bottom"):
+        letters = "top"
+    if not kw.get("draw_indicators", False):
+        letters = "off"
     place = str(kw.get(BAND_PLACE_KEY) or "header")
     ph = clamp_patch_mm(kw.get("patch_h"))
     max_rows = None
     ms = _num(kw.get("max_strip"), 0.0)
     if ms > 0:
         max_rows = max(1, int(math.floor(ms / ph + 1e-9)))
-    return Options(
+    opts = Options(
         model=model_of(kw.get(MODEL_KEY)),
         pw=clamp_patch_mm(kw.get("patch_w")),
         ph=ph,
@@ -243,8 +274,9 @@ def options_from(kw: dict) -> Options:
         arrows=_flag(kw.get(ARROWS_KEY), True),
         outline=_flag(kw.get(OUTLINE_KEY), True),
         corner_labels=_flag(kw.get(CORNERS_KEY), True),
-        strip_letters=letters if letters in LETTERS_PLACES else "off",
-        row_numbers=_flag(kw.get(NUMBERS_KEY), False),
+        strip_letters=letters,
+        # "Show row indicators": None (the instrument's own) is off here
+        row_numbers=bool(kw.get("row_indicators")),
         notes_band=_flag(kw.get(BAND_KEY), False),
         notes_place=place if place in BAND_PLACES else "header",
         notes_height=min(max(_num(kw.get(BAND_HEIGHT_KEY),
@@ -256,8 +288,83 @@ def options_from(kw: dict) -> Options:
         align=str(kw.get(ALIGN_KEY) or DEFAULT_ALIGN),
         max_rows=max_rows,
         stamp=bool(kw.get("stamp_command")),
+        letter_font=str(kw.get("indicator_font") or "Inter"),
+        letter_size=max(0.0, _num(kw.get("indicator_size_mm"), 0.0)),
+        letter_bold=bool(kw.get("indicator_bold")),
+        letter_italic=bool(kw.get("indicator_italic")),
+        letter_rotation=_quarter(kw.get("indicator_rotation")),
+        number_rotation=_quarter(kw.get("row_indicator_rotation")),
+        letter_align=(str(kw.get("indicator_align") or "center")
+                      if kw.get("indicator_align") in ("left", "center",
+                                                       "right") else "center"),
+        underline=str(kw.get("underline_mode") or "off"),
+        underline_mm=min(max(_num(kw.get("underline_thickness_mm"), 0.5),
+                             0.1), 2.0),
+        underline_gap=min(max(_num(kw.get("underline_gap_mm"), 0.5), 0.0),
+                          3.0),
+        label_offset_y=_num(kw.get("strip_label_offset_mm"), 0.0),
+        label_offset_x=_num(kw.get("strip_label_offset_x_mm"), 0.0),
+        trailer_lines=tuple(str(x) for x in (kw.get(NOTES_LINES_KEY) or ())
+                            if str(x).strip()),
+        layout_mode=("area_first" if kw.get("layout_mode") == "area_first"
+                     else "patch_first"),
     )
+    if opts.layout_mode == "area_first":
+        opts = _area_first(opts, kw)
+    return opts
 
+
+def _quarter(v) -> int:
+    try:
+        d = int(v or 0) % 360
+    except (TypeError, ValueError):
+        return 0
+    return d if d in (0, 90, 180, 270) else 0
+
+
+def _area_first(opts: Options, kw: dict) -> Options:
+    """"Prioritise chart area" for an i1iSis chart: the patch size that
+    fills the page, then the grid follows i1Profiler's rule. By columns and
+    rows when both are set; otherwise the LARGEST patch (in X-Rite's 6 to
+    20 mm, in 0.25 mm steps so the barcode can state it, at the chosen
+    height-to-width ratio, never below the minimum patch) at which the
+    chart's patches fit on one page; with no patch count known, the
+    minimum. Any size it picks is clamped to 6 .. 20 mm."""
+    from dataclasses import replace as _rep
+    from workflow.layout_engine import papers
+    try:
+        w, h = papers.dimensions_mm(kw.get("paper") or "A4")
+    except (ValueError, TypeError):
+        return opts
+    step = F.BARCODE_STEP_MM.value
+    lo, hi = F.PATCH_MIN_MM.value, F.PATCH_MAX_MM.value
+
+    def q(v):
+        return min(max(math.floor(v / step + 1e-9) * step, lo), hi)
+    mt, mr, mb, ml = opts.margins
+    ox, oy = opts.offset
+    cols = int(_num(kw.get("area_cols"), 0))
+    rows = int(_num(kw.get("area_rows"), 0))
+    if str(kw.get("area_method") or "") == "by_grid" and cols > 0 and rows > 0:
+        pw = q((w - ml - mr - ox - 2 * opts.side) / cols)
+        ph = q((h - mt - mb - oy - opts.grid_top - opts.trailer_mm) / rows)
+        return _rep(opts, pw=pw, ph=ph)
+    ratio = _num(kw.get("area_ratio"), 0.0) or 1.0
+    floor = max(lo, _num(kw.get("area_min_patch"), 0.0))
+    try:
+        n = int(kw.get(COUNT_KEY) or 0)
+    except (TypeError, ValueError):
+        n = 0
+    if n < 1:
+        return _rep(opts, pw=q(floor), ph=q(floor * ratio))
+    s_ = hi
+    while s_ >= floor - 1e-9:
+        cand = _rep(opts, pw=q(s_), ph=q(s_ * ratio))
+        c, r = limits(cand, w, h)
+        if c >= 1 and r >= 1 and c * r >= n:
+            return cand
+        s_ -= step
+    return _rep(opts, pw=q(floor), ph=q(floor * ratio))
 
 # ---------------------------------------------------------------------------
 # the grid
@@ -331,6 +438,49 @@ def limits(opts: Options, paper_w: float, paper_h: float
     if opts.max_rows:
         rmax = min(rmax, opts.max_rows)
     return cmax, rmax
+
+
+def extra_page_reasons(N: int, paper_w: float, paper_h: float,
+                       opts: Options) -> "list[str]":
+    """Why the chart takes more pages than its paper alone would need:
+    "patches" (no more than 3000 patches on one page, X-Rite's limit) and
+    "length" (no chart longer than 660 mm). Empty when neither binds."""
+    mt, mr, mb, ml = opts.margins
+    oy = opts.offset[1]
+    cmax, rmax = limits(opts, paper_w, paper_h)
+    if cmax < 1:
+        return []
+    page_rows = int(math.floor((paper_h - mt - mb - oy - overhead_mm(opts))
+                               / opts.ph + 1e-9))
+    if opts.max_rows:
+        page_rows = min(page_rows, opts.max_rows)
+    if page_rows <= rmax or page_rows < 1:
+        return []
+    free = split(max(1, int(N)), cmax, page_rows)[2]
+    used = split(max(1, int(N)), cmax, rmax)[2]
+    if used <= free:
+        return []
+    out = []
+    if cmax * page_rows > F.PATCHES_PER_PAGE_MAX.value:
+        out.append("patches")
+    if overhead_mm(opts) + page_rows * opts.ph > F.CHART_MAX_LENGTH_MM.value:
+        out.append("length")
+    return out
+
+
+def extra_page_message(reasons: "list[str]", pages: int) -> str:
+    """The Create Chart log line for :func:`extra_page_reasons`."""
+    from core.i18n import tr
+    if not reasons:
+        return ""
+    why = []
+    if "patches" in reasons:
+        why.append(tr("an i1iSis reads at most 3000 patches on one page"))
+    if "length" in reasons:
+        why.append(tr("an i1iSis takes no chart longer than 660 mm"))
+    return tr("This chart was spread over {pages} pages because {why}. Each "
+              "page is measured on its own in i1Profiler.").format(
+                  pages=pages, why=tr(" and ").join(why))
 
 
 def grid_for(N: int, paper_w: float, paper_h: float, opts: Options) -> Grid:
@@ -536,6 +686,18 @@ def sheet_for(grid: Grid, paper_w: float, paper_h: float,
     """Place the chart of *grid* on the page."""
     nominal_w = 2.0 * opts.side + grid.C * opts.pw
     width = max(nominal_w, F.CHART_MIN_WIDTH_MM.value)
+    if opts.row_numbers:
+        # ROOM FOR THE ROW NUMBERS INSIDE THE OUTLINE (so a cut sheet keeps
+        # them): 3 mm of white after the right marker, then the widest
+        # number, when the page has that paper inside its right margin
+        size = opts.letter_size or min(3.0, max(1.2, opts.ph * 0.5))
+        txt = "9" * len(str(grid.R))
+        _x, _y, nw, _nh = _label_box(0, 0, size, txt, opts.number_rotation)
+        need = (nominal_w - opts.d1 + F.DIAMOND_CLEAR_MM.value
+                + max(0.0, opts.label_offset_x) + nw + 0.5)
+        room = paper_w - opts.margins[1] - opts.margins[3] - opts.offset[0]
+        if need <= room + 1e-6:
+            width = max(width, need)
     natural_h = opts.grid_top + grid.R * opts.ph + opts.trailer_mm
     height = max(natural_h, F.CHART_MIN_LENGTH_MM.value)
     trailer = height - opts.grid_top - grid.R * opts.ph
@@ -839,6 +1001,11 @@ class Item:
     size: float = 0.0
     anchor: str = "centre"
     role: str = ""
+    family: str = "Inter"
+    bold: bool = False
+    italic: bool = False
+    rotation: int = 0
+    rgb: tuple = (0, 0, 0)
 
 
 def _text_box(x: float, y_top: float, size: float, text: str,
@@ -932,57 +1099,141 @@ def plan_page(sheet: Sheet, page: int, *, name: str = "",
             items.append(Item("text", _text_box(x, y, cl_size, t, anchor),
                               text=t, size=cl_size, anchor=anchor,
                               role="corner"))
-    # strip letters, one per column, in Z1 or Z8 only
+    # strip letters, one per column, in Z1 or Z8 only, in the engine's own
+    # label style (face, size, bold, italic, rotation, alignment, offsets,
+    # underline), held inside their zone (clamped, or left off and said)
     if o.strip_letters in ("top", "bottom"):
-        size = min(3.0, max(1.2, o.pw * 0.5))
-        y = (sheet.y0 + 8.2 if o.strip_letters == "top"
-             else sheet.y0 + sheet.height - F.TRAILER_TEXT_MM.value
-             - TRAILER_LINE_MM + 0.75)
-        for c in range(g.C):
-            t = strip_name(sheet, page, c, patterns)
-            cx = sheet.grid_x + (c + 0.5) * o.pw
-            box = _text_box(cx, y, size, t)
-            if box[2] > o.pw:
-                size2 = size * o.pw / box[2]
-                if size2 < 1.0:
-                    left_off.append("strip_letters")
-                    break
-                box = _text_box(cx, y, size2, t)
-                items.append(Item("text", box, text=t, size=size2,
-                                  role="strip_letter"))
-            else:
-                items.append(Item("text", box, text=t, size=size,
-                                  role="strip_letter"))
-    # row numbers right of the right diamonds, 3 mm clear
-    if o.row_numbers:
-        size = min(3.0, max(1.2, o.ph * 0.5))
-        x = sheet.right_marker_edge + F.DIAMOND_CLEAR_MM.value
-        widest = max(_text_box(x, 0, size, row_name(r, patterns),
-                               "left")[2] for r in range(g.R))
-        if x + widest > sheet.x0 + sheet.width + 1e-6:
-            left_off.append("row_numbers")
+        if o.strip_letters == "top":
+            z0, z1 = sheet.y0 + LETTER_ZONE_TOP_MM[0], \
+                sheet.y0 + LETTER_ZONE_TOP_MM[1]
         else:
-            for r in range(g.R):
-                t = row_name(r, patterns)
-                items.append(Item("text", _text_box(
-                    x, sheet.row_centre(r) - size / 2.0, size, t, "left"),
-                    text=t, size=size, anchor="left", role="row_number"))
-    # the layout summary in the trailer's text room
-    if o.stamp and stamp_text:
-        y = (sheet.y0 + sheet.height - F.TRAILER_TEXT_MM.value
-             - TRAILER_LINE_MM * (2 if o.strip_letters == "bottom" else 1)
-             + 0.75)
+            z1 = sheet.y0 + sheet.height - F.TRAILER_TEXT_MM.value - 0.25
+            z0 = z1 - TRAILER_LINE_MM + 0.5
+        items_l, off = _plan_letters(sheet, page, patterns, z0, z1)
+        items += items_l
+        left_off += off
+    # row numbers right of the right diamonds, 3 mm clear, in the same style
+    if o.row_numbers:
+        items_n, off = _plan_numbers(sheet, patterns)
+        items += items_n
+        left_off += off
+    # the layout summary and the run's chart notes, one line each, in the
+    # trailer's text room above the bottom corner labels (and above the
+    # bottom strip letters); the trailer grew to hold them
+    lines = list(o.trailer_lines) + ([stamp_text] if o.stamp and stamp_text
+                                     else [])
+    base = (sheet.y0 + sheet.height - F.TRAILER_TEXT_MM.value
+            - (TRAILER_LINE_MM if o.strip_letters == "bottom" else 0.0))
+    for i, line in enumerate(reversed(lines)):
+        y = base - TRAILER_LINE_MM * (i + 1) + 0.75
         size = 2.4
-        while size > 1.2 and _text_box(0, 0, size, stamp_text)[2] > \
-                sheet.grid_w:
+        while size > 1.2 and _text_box(0, 0, size, line)[2] > sheet.grid_w:
             size -= 0.1
+        role = "stamp" if (o.stamp and stamp_text and i == 0) else "notes"
         items.append(Item("text", _text_box(sheet.x0 + sheet.width / 2.0, y,
-                                            size, stamp_text),
-                          text=stamp_text, size=size, role="stamp"))
+                                            size, line),
+                          text=line, size=size, role=role))
     for band in (sheet.header_band(), sheet.trailer_band()):
         if band is not None:
             items.append(Item("band", band, role="notes_band"))
     return items, left_off
+
+
+#: The smallest label ChromIQ prints on an i1iSis chart (cap height, mm):
+#: below it a label is left off and the log says so (M-ISIS-KEEP-OUT).
+LABEL_MIN_MM = 1.5
+#: Where the top strip letters may go inside the text band (Z1), from the
+#: chart's leading edge: below the name line, above the band's end.
+LETTER_ZONE_TOP_MM = (6.75, 11.75)
+#: The colours "Coloured (per strip)" underlines cycle through.
+UNDERLINE_CYCLE = ((230, 25, 75), (60, 180, 75), (0, 130, 200),
+                   (245, 130, 48), (145, 30, 180), (70, 70, 70))
+
+
+def _label_box(cx: float, cy: float, size: float, text: str,
+               rotation: int) -> tuple:
+    """The box of a label of cap height *size* centred on (cx, cy), turned
+    by *rotation* (90 / 270 run along y)."""
+    x, y, w, h = _text_box(0, 0, size, text)
+    if rotation in (90, 270):
+        w, h = h, w
+    return (cx - w / 2.0, cy - h / 2.0, w, h)
+
+
+def _plan_letters(sheet: Sheet, page: int, patterns, z0: float, z1: float):
+    o, g = sheet.opts, sheet.grid
+    items, off = [], []
+    room_h = z1 - z0
+    ul = o.underline not in ("off", "", None)
+    ul_room = (o.underline_gap + o.underline_mm) if ul else 0.0
+    size = o.letter_size or min(3.0, max(1.2, o.pw * 0.5))
+    texts = [strip_name(sheet, page, c, patterns) for c in range(g.C)]
+
+    def fits(sz):
+        for t in texts:
+            x, y, w, h = _label_box(0, 0, sz, t, o.letter_rotation)
+            if w > o.pw + 1e-6 or h + ul_room > room_h + 1e-6:
+                return False
+        return True
+    while size > LABEL_MIN_MM and not fits(size):
+        size -= 0.1
+    if not fits(size):
+        return [], ["strip_letters"]
+    for c, t in enumerate(texts):
+        x, y, w, h = _label_box(0, 0, size, t, o.letter_rotation)
+        col0 = sheet.grid_x + c * o.pw
+        if o.letter_align == "left":
+            lx = col0
+        elif o.letter_align == "right":
+            lx = col0 + o.pw - w
+        else:
+            lx = col0 + (o.pw - w) / 2.0
+        # the offsets move the letters, held inside their column and zone
+        lx = min(max(lx + o.label_offset_x, col0), col0 + o.pw - w)
+        ly = z0 + (room_h - h - ul_room) / 2.0 + o.label_offset_y
+        ly = min(max(ly, z0), z1 - h - ul_room)
+        items.append(Item("text", (lx, ly, w, h), text=t, size=size,
+                          role="strip_letter", family=o.letter_font,
+                          bold=o.letter_bold, italic=o.letter_italic,
+                          rotation=o.letter_rotation))
+        if ul:
+            rgb = (UNDERLINE_CYCLE[(page * g.C + c) % len(UNDERLINE_CYCLE)]
+                   if o.underline == "cycle" else (0, 0, 0))
+            uw = o.pw if o.underline == "segments" else w
+            ux = col0 if o.underline == "segments" else lx
+            items.append(Item("rect", (ux, ly + h + o.underline_gap, uw,
+                                       o.underline_mm), role="underline",
+                              rgb=rgb))
+    return items, off
+
+
+def _plan_numbers(sheet: Sheet, patterns):
+    o, g = sheet.opts, sheet.grid
+    x0 = sheet.right_marker_edge + F.DIAMOND_CLEAR_MM.value \
+        + max(0.0, o.label_offset_x)
+    limit = sheet.x0 + sheet.width
+    texts = [row_name(r, patterns) for r in range(g.R)]
+    size = o.letter_size or min(3.0, max(1.2, o.ph * 0.5))
+
+    def fits(sz):
+        for t in texts:
+            _x, _y, w, h = _label_box(0, 0, sz, t, o.number_rotation)
+            if h > o.ph + 1e-6 or x0 + w > limit + 1e-6:
+                return False
+        return True
+    while size > LABEL_MIN_MM and not fits(size):
+        size -= 0.1
+    if not fits(size):
+        return [], ["row_numbers"]
+    items = []
+    for r, t in enumerate(texts):
+        _x, _y, w, h = _label_box(0, 0, size, t, o.number_rotation)
+        items.append(Item("text", (x0, sheet.row_centre(r) - h / 2.0, w, h),
+                          text=t, size=size, anchor="left",
+                          role="row_number", family=o.letter_font,
+                          bold=o.letter_bold, italic=o.letter_italic,
+                          rotation=o.number_rotation))
+    return items, []
 
 
 def _intersects(a, b) -> bool:
@@ -1040,10 +1291,19 @@ def keep_out_violations(sheet: Sheet, items: "list[Item]") -> "list[str]":
 # drawing
 # ---------------------------------------------------------------------------
 
-def _font(px: int, bold: bool = False):
+def _font(px: int, bold: bool = False, family: str = "Inter",
+          italic: bool = False):
     from workflow.layout_engine import raster
-    path, variation = raster._font_file_and_variation("Inter", bold, False)
-    return raster._font(px, "Inter", bold=bold, italic=False), path, variation
+    try:
+        path, variation = raster._font_file_and_variation(family, bold,
+                                                          italic)
+        return (raster._font(px, family, bold=bold, italic=italic), path,
+                variation)
+    except Exception:  # noqa: BLE001 - an unknown face: the house face
+        path, variation = raster._font_file_and_variation("Inter", bold,
+                                                          False)
+        return raster._font(px, "Inter", bold=bold, italic=False), path, \
+            variation
 
 
 def draw_page(img, page_geom: "list | None", sheet: Sheet, items, dpi: int,
@@ -1060,12 +1320,12 @@ def draw_page(img, page_geom: "list | None", sheet: Sheet, items, dpi: int,
     def px(mm: float) -> int:
         return int(round(mm * s))
 
-    def rect(x0: int, y0: int, x1: int, y1: int) -> None:
+    def rect(x0: int, y0: int, x1: int, y1: int, rgb=black) -> None:
         if x1 <= x0 or y1 <= y0:
             return
-        draw.rectangle((x0, y0, x1 - 1, y1 - 1), fill=black)
+        draw.rectangle((x0, y0, x1 - 1, y1 - 1), fill=rgb)
         if page_geom is not None:
-            page_geom.append(("vrect", (x0, y0, x1, y1), black))
+            page_geom.append(("vrect", (x0, y0, x1, y1), rgb))
 
     def rhombus(x: float, y: float, w: float, h: float,
                 arrow: bool = False) -> None:
@@ -1115,7 +1375,11 @@ def draw_page(img, page_geom: "list | None", sheet: Sheet, items, dpi: int,
 
     def text(it: Item) -> None:
         size_px = max(6, int(round(it.size / 0.73 * s)))
-        font, path, var = _font(size_px, bold=it.role == "name_line")
+        if it.rotation:
+            return turned(it, size_px)
+        font, path, var = _font(size_px, bold=(it.bold or
+                                               it.role == "name_line"),
+                                family=it.family, italic=it.italic)
         bb = draw.textbbox((0, 0), it.text, font=font)
         tw = bb[2] - bb[0]
         x, y, w, h = it.box
@@ -1129,16 +1393,38 @@ def draw_page(img, page_geom: "list | None", sheet: Sheet, items, dpi: int,
         # the cap height starts where the ink of a capital starts
         cbb = draw.textbbox((0, 0), "H", font=font)
         top = cap_top - cbb[1]
-        draw.text((left - bb[0], top), it.text, font=font, fill=black)
+        draw.text((left - bb[0], top), it.text, font=font, fill=it.rgb)
         if page_geom is not None and path:
             ascent = font.getmetrics()[0]
             page_geom.append(("text", left - bb[0], top + ascent, it.text,
-                              path, size_px, 0, 0, black, var))
+                              path, size_px, 0, 0, it.rgb, var))
+
+    def turned(it: Item, size_px: int) -> None:
+        """A label turned by 90, 180 or 270 degrees, centred in its box;
+        carried into the PDF and the separated TIFF as artwork."""
+        import numpy as np
+        font, _path, _var = _font(size_px, bold=it.bold, family=it.family,
+                                  italic=it.italic)
+        bb = draw.textbbox((0, 0), it.text, font=font)
+        tw, th = max(1, bb[2] - bb[0]), max(1, bb[3] - bb[1])
+        tile = Image.new("L", (tw, th), 0)
+        ImageDraw.Draw(tile).text((-bb[0], -bb[1]), it.text, font=font,
+                                  fill=255)
+        tile = tile.rotate(it.rotation, expand=True)
+        x, y, w, h = it.box
+        cx, cy = px(x + w / 2.0), px(y + h / 2.0)
+        x0, y0 = cx - tile.width // 2, cy - tile.height // 2
+        ink = Image.new("RGB", tile.size, it.rgb)
+        img.paste(ink, (x0, y0), tile)
+        if page_geom is not None:
+            art = Image.new("RGB", tile.size, (255, 255, 255))
+            art.paste(ink, (0, 0), tile)
+            page_geom.append(("clip", (x0, y0), np.asarray(art)))
 
     for it in items:
         if it.kind == "rect":
             x, y, w, h = it.box
-            rect(px(x), px(y), px(x + w), px(y + h))
+            rect(px(x), px(y), px(x + w), px(y + h), it.rgb)
         elif it.kind == "diamond":
             rhombus(*it.box)
         elif it.kind == "arrow":

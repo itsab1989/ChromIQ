@@ -113,7 +113,7 @@ NOT_AN_I1IO_OPTION = {
     **dict.fromkeys(("isis_model", "isis_header_mm", "isis_tight",
                      "isis_barcode", "isis_trailer_mm", "isis_arrows",
                      "isis_outline", "isis_corner_labels",
-                     "isis_strip_letters", "isis_row_numbers",
+                     "isis_strip_letters",
                      "isis_notes_band", "isis_notes_place",
                      "isis_notes_height_mm", "isis_align"),
                     "the i1iSis chart's own option; not the i1iO's"),

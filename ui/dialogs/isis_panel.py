@@ -44,16 +44,10 @@ def isis_greyed_why() -> dict:
                    "(Beta)”), and the content options here fill it."),
         "markers": tr("No ruler: the black bar and the diamonds take the "
                       "ruler helper markers' place on an i1iSis chart."),
-        "labels": tr("The i1iSis chart's strip letters and row numbers are "
-                     "in its own group, where they are kept clear of the "
-                     "markers."),
-        "label_style": tr("Not used on an i1iSis chart in this version: its "
-                          "letters and numbers are set in their own place "
-                          "and size (the pattern, typeface, size, bold and "
-                          "italic are used)."),
-        "layout": tr("An i1iSis chart is laid out patch first in this "
-                     "version: set the patch size (6 to 20 mm) and the grid "
-                     "follows i1Profiler's rule."),
+        "letter_gap": tr("The strip letters of an i1iSis chart sit in their "
+                         "own place, the text band or the trailer, away from "
+                         "the patches, so there is no gap to the strips to "
+                         "set; “Label offset” moves them inside that place."),
     }
 
 
@@ -68,8 +62,9 @@ def isis_greyed_reason(why: str = "") -> str:
 #: Each greyed control by attribute name, with its reason key.
 ISIS_GREYED = {
     **dict.fromkeys(("spacer_mode", "spacer_width", "custom_spacer_cb",
-                     "inter_patch", "strip_gap", "edge_spacers_cb", "sig"),
+                     "inter_patch", "strip_gap", "edge_spacers_cb"),
                     "gaps"),
+    "sig": "letter_gap",
     **dict.fromkeys(("pscale", "sscale"), "scale"),
     "mode": "mode",
     **dict.fromkeys(("cm_stagger_cb", "hex_flat_top_cb"), "shape"),
@@ -80,14 +75,6 @@ ISIS_GREYED = {
                      "helper_marker_len", "helper_marker_per_patch",
                      "helper_markers_top_bottom", "helper_markers_sides"),
                     "markers"),
-    **dict.fromkeys(("show_indicators", "show_row_indicators"), "labels"),
-    **dict.fromkeys(("indicator_rotation", "row_indicator_rotation",
-                     "underline_mode", "underline_thickness", "underline_gap",
-                     "ind_align_left", "ind_align_center", "ind_align_right",
-                     "strip_label_offset", "strip_label_offset_x"),
-                    "label_style"),
-    **dict.fromkeys(("layout_mode", "area_method", "area_min_patch",
-                     "area_ratio", "area_cols", "area_rows"), "layout"),
 }
 
 
@@ -134,15 +121,18 @@ def isis_option_help(which: str) -> str:
             "i1Profiler prints them, in the text band at the top and the "
             "last 3.5 mm at the bottom. **Default:** on."),
         "letters": tr(
-            "A letter above or below every column, only in the places the "
-            "i1iSis does not look at: the text band at the top, or the "
-            "trailer (which grows to hold them). Left off, with a line in "
-            "the log, where they do not fit. **Default:** off."),
-        "numbers": tr(
-            "The row numbers to the right of the right diamonds, with 3 mm "
-            "of blank paper between, inside the chart's outline (the chart "
-            "grows wider to hold them when the paper allows). Not yet read "
-            "by a real i1iSis. **Default:** off."),
+            "Where the strip letters go when “Show strip indicators” is "
+            "ticked: the text band at the top of the chart, or the trailer "
+            "(which grows to hold them). Only these two places, because the "
+            "i1iSis looks everywhere else. The letters take the label style "
+            "under “Labels” (typeface, size, bold, italic, rotation, "
+            "alignment, underline and offsets), held inside their place; a "
+            "label that would be smaller than 1.5 mm there is left off, and "
+            "the log says so. “Show row indicators” prints the row numbers "
+            "to the right of the right diamonds, with 3 mm of blank paper "
+            "between, inside the chart's outline (the chart grows wider to "
+            "hold them when the paper allows). Neither has been read by a "
+            "real i1iSis yet. **Default:** top text band; both off."),
         "band": tr(
             "A band for notes in the header (the header grows by the band's "
             "height, up to 80 mm) or in the trailer (the trailer grows). It "
@@ -210,13 +200,13 @@ class IsisPanelMixin:
         self.isis_corners = QCheckBox(tr("Corner labels"), g)
         self.isis_corners.setChecked(True)
         put("", self.isis_corners, "corners")
+        # WHERE the strip letters go: the i1iSis's own (only where the
+        # instrument does not look). Whether they and the row numbers are
+        # printed, and in which style, is the engine's own label controls.
         self.isis_letters = QComboBox(g)
-        self.isis_letters.addItem(tr("Off"), "off")
         self.isis_letters.addItem(tr("Top text band"), "top")
         self.isis_letters.addItem(tr("Trailer"), "bottom")
-        put(tr("Strip letters:"), self.isis_letters, "letters")
-        self.isis_numbers = QCheckBox(tr("Row numbers"), g)
-        put("", self.isis_numbers, "numbers")
+        put(tr("Strip letters place:"), self.isis_letters, "letters")
         self.isis_band = QCheckBox(tr("Notes band"), g)
         put("", self.isis_band, "band")
         self.isis_band_place = QComboBox(g)
@@ -234,7 +224,6 @@ class IsisPanelMixin:
                        (self.isis_outline, "toggled"),
                        (self.isis_corners, "toggled"),
                        (self.isis_letters, "currentIndexChanged"),
-                       (self.isis_numbers, "toggled"),
                        (self.isis_band, "toggled"),
                        (self.isis_band_place, "currentIndexChanged"),
                        (self.isis_band_height, "valueChanged")):
@@ -260,7 +249,7 @@ class IsisPanelMixin:
         return (self.isis_model, self.isis_header, self.isis_trailer,
                 self.isis_tight, self.isis_barcode, self.isis_arrows,
                 self.isis_outline, self.isis_corners, self.isis_letters,
-                self.isis_numbers, self.isis_band, self.isis_band_place,
+                self.isis_band, self.isis_band_place,
                 self.isis_band_height)
 
     # ---- entering and leaving ------------------------------------------------
@@ -321,6 +310,14 @@ class IsisPanelMixin:
                         c.setValue(mine)
                     elif not v:
                         c.setValue(F.PATCH_DEFAULT_MM.value)
+                # no strip letters by default, as i1Profiler prints none;
+                # the person's own tick for the i1iSis comes back with it
+                si = getattr(self, "show_indicators", None)
+                if si is not None:
+                    saved["show_indicators"] = si.isChecked()
+                    if not was_loading:
+                        si.setChecked(bool(getattr(self, "_isis_own_letters",
+                                                   False)))
                 pa = getattr(self, "patch_align", None)
                 if pa is not None:
                     saved["align"] = pa.currentIndex()
@@ -333,6 +330,8 @@ class IsisPanelMixin:
             return
         self._isis_saved = None
         self._isis_own_patch = (self.patch_x.value(), self.patch_y.value())
+        si = getattr(self, "show_indicators", None)
+        self._isis_own_letters = bool(si is not None and si.isChecked())
         was_loading = getattr(self, "_loading", False)
         self._loading = True
         try:
@@ -354,6 +353,9 @@ class IsisPanelMixin:
             pa = getattr(self, "patch_align", None)
             if pa is not None and "align" in was:
                 pa.setCurrentIndex(was["align"])
+            si = getattr(self, "show_indicators", None)
+            if si is not None and "show_indicators" in was:
+                si.setChecked(was["show_indicators"])
         finally:
             self._loading = was_loading
 
@@ -382,8 +384,7 @@ class IsisPanelMixin:
         r.isis_arrows = self.isis_arrows.isChecked()
         r.isis_outline = self.isis_outline.isChecked()
         r.isis_corner_labels = self.isis_corners.isChecked()
-        r.isis_strip_letters = self.isis_letters.currentData() or "off"
-        r.isis_row_numbers = self.isis_numbers.isChecked()
+        r.isis_strip_letters = self.isis_letters.currentData() or "top"
         r.isis_notes_band = self.isis_band.isChecked()
         r.isis_notes_place = self.isis_band_place.currentData() or "header"
         r.isis_notes_height_mm = float(self.isis_band_height.value())
@@ -392,7 +393,6 @@ class IsisPanelMixin:
         r.spacer_mode, r.spacer_on = "none", False
         r.inter_patch_mm = r.strip_gap_mm = 0.0
         r.edge_spacers = False
-        r.layout_mode = "patch_first"
 
     def _isis_set_from_recipe(self, r) -> None:
         """Show an "XRISIS" recipe's own options (any other: the defaults)."""
@@ -415,9 +415,8 @@ class IsisPanelMixin:
             self.isis_arrows.setChecked(bool(val("isis_arrows")))
             self.isis_outline.setChecked(bool(val("isis_outline")))
             self.isis_corners.setChecked(bool(val("isis_corner_labels")))
-            i = self.isis_letters.findData(val("isis_strip_letters") or "off")
+            i = self.isis_letters.findData(val("isis_strip_letters") or "top")
             self.isis_letters.setCurrentIndex(max(0, i))
-            self.isis_numbers.setChecked(bool(val("isis_row_numbers")))
             self.isis_band.setChecked(bool(val("isis_notes_band")))
             i = self.isis_band_place.findData(val("isis_notes_place")
                                               or "header")
