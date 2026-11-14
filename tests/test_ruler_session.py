@@ -56,7 +56,8 @@ def _session(tmp_path, gen="i1pro2", chart=False):
     ti1 = tmp_path / "runs" / "run1" / "chart.ti1"
     ti1.parent.mkdir(parents=True)
     if chart:
-        (ti1.parent / "chart.channels.json").write_text(CHART.read_text())
+        (ti1.parent / "chart.channels.json").write_text(
+            CHART.read_text(encoding="utf-8"), encoding="utf-8")
     rs = RulerSession(ti1_path=ti1)
     lines = rs.on_session({"event": "ruler", "active": True,
                            "instrument": gen, "firmware": 634})
@@ -89,7 +90,7 @@ def test_a_strip_line_and_no_question_on_a_full_strip(tmp_path):
     assert lines and "strip A" in lines[0] and "ruler steps" in lines[0]
     summ = rs.on_strip_read(_strip_read("A"), other_question=False)
     assert summ["usable"] and not summ["ask"]
-    doc = json.loads(rs.diagnostics_path().read_text())
+    doc = json.loads(rs.diagnostics_path().read_text(encoding="utf-8"))
     assert doc["strips"][0]["verdict"] == "accepted"
     assert doc["strips"][0]["stream_did_not_end"] is False
 
@@ -145,7 +146,7 @@ def test_a_given_up_ruler_is_said_once_and_filed(tmp_path):
     assert len(lines) == 1 and "stopped using" in lines[0]
     assert "did not end by itself" in lines[0]
     rs.on_strip_read(_strip_read("A"), other_question=False)
-    doc = json.loads(rs.diagnostics_path().read_text())
+    doc = json.loads(rs.diagnostics_path().read_text(encoding="utf-8"))
     assert doc["strips"][0]["stream_did_not_end"] is True
 
 
@@ -153,7 +154,7 @@ def test_a_refused_strip_is_filed_without_a_question(tmp_path):
     rs, _ = _session(tmp_path)
     rs.on_strip(_rec("A", 60, result="misread"))
     assert rs.on_strip_read(_strip_read("A"), other_question=False) is None
-    doc = json.loads(rs.diagnostics_path().read_text())
+    doc = json.loads(rs.diagnostics_path().read_text(encoding="utf-8"))
     assert doc["strips"][0]["verdict"] == "refused"
 
 

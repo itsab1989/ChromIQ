@@ -209,7 +209,9 @@ def test_eight_files_skip_wholesale_without_it():
     # replay instrument.
     # 22 in part with the i1Pro 2 lights (Beta, 2026-11-13): the helper's
     # --caps, its replay instrument with and without --i1pro2-lights.
-    assert len(whole) == 10 and len(partial) == 22, (
+    # 23 in part with the ruler check (Beta, 2026-11-14): the replay
+    # instrument as an i1Pro 2 / i1Pro 3 with and without --ruler.
+    assert len(whole) == 10 and len(partial) == 23, (
         "the number of files gated on the chart-reading helper has changed "
         f"({len(whole)} wholesale, {len(partial)} in part) -> update the "
         f"header in tests/conftest.py. wholesale={whole} partial={partial}")
