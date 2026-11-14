@@ -430,6 +430,9 @@ def test_the_direction_message_is_proposed():
     m = M.CATALOGUE["M-STRIP-RULER-DIRECTION"]
     assert m.id in M.PROPOSED
     title, body = m.render(strip="9")
-    assert "saved back to front" in title and "Re-read Strip" in body
+    # 4.3.38 review (minor 1): neutral, true whichever of the two is wrong
+    assert "the ruler and the saved readings disagree" in title
+    assert "One of the two is wrong, and ChromIQ cannot tell which." in body
+    assert "saved back to front" in body and "Re-read Strip" in body
     assert "ChromIQ never changes a reading by itself" in body
     assert "—" not in title + body

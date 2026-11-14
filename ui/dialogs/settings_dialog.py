@@ -9557,7 +9557,8 @@ def ruler_check_help() -> str:
         tr("This is a beta, and its limits are provisional. It works only "
            "with ChromIQ's chart-reading engine and strips read by hand. "
            "Other instruments and the ArgyllCMS reading path are not "
-           "affected. It works together with the instrument lights option."),
+           "affected. It can be used together with the instrument lights "
+           "option."),
         tr("**With an i1Pro 2, please try the lights and the ruler check one "
            "at a time first.** Switch on one of the two beta options, read a "
            "page, then switch it off and try the other. If something goes "

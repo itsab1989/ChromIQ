@@ -51,6 +51,7 @@ static int reading_bytes = 268;
 static int slow_w = 0;
 static unsigned int last_wr_end = 0;
 static volatile int in_reading = 0;
+static volatile int in_lit_scan = 0;	/* scan(): only its data ends in_reading */
 
 #ifndef CQ_BASE
 #include "cq_ruler.h"
@@ -281,8 +282,8 @@ static int fake_read(icoms *p, usb_cancelt *c, int ep, unsigned char *buf,
 		for (i = 0; i < n * reading_bytes; i += 2)
 			buf[i] = 0x10;		/* a flat, unsaturated level */
 		*bread = n * reading_bytes;
-		if (n > 0)
-			in_reading = 0;		/* the strip's data has come */
+		if (n > 0 && in_lit_scan)
+			in_reading = 0;		/* the lit scan's data has come (4.3.38 review nit) */
 		printf("%s RD 82 %d -> %d tout=%.2f\n", scn, bsize, *bread, tout);
 		fflush(stdout);
 		return *bread < bsize ? ICOM_SHORT : ICOM_OK;
@@ -380,7 +381,9 @@ static void scan(i1pro *p, const char *what, int nread) {
 	if (armed)
 		i1pro2_cq_ruler_arm(p, 1);
 #endif
+	in_lit_scan = 1;
 	ev = i1pro_read_patches_1(p, 10, maxn, &inttime, 0, &nmeas, buf, bsize);
+	in_lit_scan = 0;
 	if (m->trig_thread != NULL) {
 		m->trig_thread->del(m->trig_thread);
 		m->trig_thread = NULL;

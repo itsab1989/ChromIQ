@@ -9547,14 +9547,16 @@ M_STRIP_FAILED_BUTTON = _m(
 #: strips. Same window and buttons as M-STRIP-RULER-NOT-COVERED.
 M_STRIP_RULER_DIRECTION = _m(
     "M-STRIP-RULER-DIRECTION",
-    "Strip {strip} may have been saved back to front",
-    "ChromIQ accepted the readings of strip {strip}, but they do not agree "
-    "with the instrument's ruler about the direction. The ruler says the "
-    "instrument moved the same way as on the other strips you read, yet the "
-    "readings were saved as if the strip had been read the other way round. "
-    "Then every patch of this strip would have the colour of another patch.\n\n"
-    "This can happen when the colours of this strip, read backwards, look "
-    "much like another strip of the chart.\n\n"
+    "Strip {strip}: the ruler and the saved readings disagree about the direction",
+    "The instrument's ruler and the saved readings disagree about the "
+    "direction of strip {strip}. The ruler says the instrument moved the same "
+    "way as on most of the other strips you read, but the readings were saved "
+    "as if this strip had been read the other way round.\n\n"
+    "One of the two is wrong, and ChromIQ cannot tell which. If the readings "
+    "were saved back to front, every patch of this strip has the colour of "
+    "another patch: this can happen when the colours of this strip, read "
+    "backwards, look much like another strip of the chart. If the ruler is "
+    "wrong, the readings are fine as they are.\n\n"
     "What each button does:\n\n"
     "•  Re-read Strip: read strip {strip} again, from the white paper before "
     "the first patch to the white paper after the last, in one steady "
@@ -9604,6 +9606,27 @@ M_RESUME_RESOLUTION_INSTRUMENT = _m(
     "The instrument in use, {instrument}, has no "
     "high-resolution mode, so new strips could only be measured in "
     "standard resolution.\n\n"
+    "All readings in one measurement file have to have the same spectral "
+    "resolution. If they did not, the measurement could not be saved at the "
+    "end, and the strips you read now would be lost.\n\n"
+    "To continue this measurement, use an instrument that can measure in "
+    "high resolution, such as an X-Rite i1Pro, i1Pro 2 or i1Pro 3, or a "
+    "ColorMunki. If you want to measure the whole chart with this "
+    "instrument instead, untick “{box}” and press Start again: your current "
+    "measurement is then moved to the run's old folder, not deleted.\n\n"
+    "Nothing has been measured or changed.",
+    approved=False)
+
+# --- PROPOSED: the same, when the instrument's name is not known (4.3.38) --
+#: 4.3.38 (the ruler review, minor 2): M-RESUME-RESOLUTION-INSTRUMENT must
+#: never show "The instrument in use, ?". Used when neither the engine nor the
+#: chart names the instrument. {box}: the resume box's own text.
+M_RESUME_RESOLUTION_INSTRUMENT_UNNAMED = _m(
+    "M-RESUME-RESOLUTION-INSTRUMENT-UNNAMED",
+    "This measurement cannot be continued with this instrument",
+    "The measurement you are continuing was measured in high resolution. "
+    "The instrument in use has no high-resolution mode, so new strips could "
+    "only be measured in standard resolution.\n\n"
     "All readings in one measurement file have to have the same spectral "
     "resolution. If they did not, the measurement could not be saved at the "
     "end, and the strips you read now would be lost.\n\n"
@@ -10406,6 +10429,7 @@ CATALOGUE = {m.id: m for m in (
     M_STRIP_FAILED_COMS_DETAIL,
     M_RESUME_RESOLUTION,
     M_RESUME_RESOLUTION_INSTRUMENT,
+    M_RESUME_RESOLUTION_INSTRUMENT_UNNAMED,
     M_STRIP_RULER_DIRECTION,
     M_READINGS_NOT_SAME_CHART, M_READINGS_UNUSABLE,
     M_IMPORT_TURNED_GRID_COLOURS,
