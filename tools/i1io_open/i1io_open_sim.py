@@ -35,12 +35,14 @@ class SimViolation(AssertionError):
 
 #: The recorded opening, the same cold (S1 1.141-1.502) and warm (R2 34.546-34.906).
 REC_OPEN = [";a133", ";a133", ";k228", ";u8000060000100d1", ";u8000061000068c3", ";a034"]
-#: After a0 on a warm table (R2 34.932-35.033, 378.530-378.905): s0, f4 x4, s0,
-#: p0; after the person's yes s0, p0 again and i1 at once (as i1Profiler sends
-#: s0, p0, i1 back to back); s0, p0 to read where the homing ended; then
-#: i1Profiler's closing (S1 22.919-22.951, R2 361.579-361.611).
-REC_FOLLOW = [";s022", ";f42b", ";f42b", ";f42b", ";f42b", ";s022", ";p025",
-              ";s022", ";p025", ";i12b", ";s022", ";p025", ";s022", ";f02f", ";f32c"]
+#: After a0 on a warm table (R2 34.932-34.985, 378.530-378.585): s0, f4 x4; after the
+#: person's yes i1Profiler's double homing before a calibration, line for line: s0 p0 i1
+#: p0 i1 s0 f4 f4 (R1 190.077-197.900, R2 134.258-142.039, 417.165-425.021, each after an
+#: s0); then i1Profiler's closing (S1 22.919-22.951, R2 361.579-361.611). No p0 after the
+#: second homing: no recording follows p0 with s0.
+REC_FOLLOW = [";s022", ";f42b", ";f42b", ";f42b", ";f42b",
+              ";s022", ";p025", ";i12b", ";p025", ";i12b", ";s022", ";f42b", ";f42b",
+              ";s022", ";f02f", ";f32c"]
 #: A table just switched on gets the opening's six reading lines and nothing more.
 REC_COLD = list(REC_OPEN)
 REC_WARM = REC_OPEN + REC_FOLLOW
@@ -94,6 +96,11 @@ class SimTable:
     unplugged: bool = False
     #: at most this many bytes per read (the FTDI chip: 62 per packet)
     chunk: int = 62
+    #: replay of a real run: where the homing leaves the arm and how long it takes
+    #: (None: invented values), and no +-1 jitter on the position reads
+    home_y: "float | None" = None
+    home_s: "float | None" = None
+    jitter: bool = True
 
     def __post_init__(self):
         self._rng = random.Random(self.seed)
@@ -259,19 +266,36 @@ class SimTable:
             return 0, "00", 0.0
         if cid == "p0":
             drift = fault.value if kind == "drift" else 0.0
-            jx, jy = self._rng.choice((-1, 0, 0, 1)), self._rng.choice((-1, 0, 0, 1))
+            jx, jy = ((self._rng.choice((-1, 0, 0, 1)), self._rng.choice((-1, 0, 0, 1)))
+                      if self.jitter else (0, 0))
             return 0, self._xy(self.pos[0] + drift + jx, self.pos[1] + drift + jy), 0.0
         self.motions += 1
         slow = 8.0 if kind == "slow_motion" else 0.0
         # i1 at the resting place: recorded 0.224-0.352 s
-        target = (float(HOME[0]), float(self._rng.choice((0, 1, 2))))
-        t = 0.2 + abs(self.pos[1]) * 0.003
+        # a replayed first homing ends where the real one ended; the second (not seen on
+        # the real table) ends as in the recordings (Y 0..2, 0.048 s from there)
+        replay = self.home_y is not None and self.motions == 1
+        target = (float(HOME[0]), float(self.home_y if replay else self._rng.choice((0, 1, 2))))
+        # recorded at rest: 0.047-0.048 s from Y 0..2, 0.224-0.352 s from Y 14..47
+        t = (self.home_s if (replay and self.home_s is not None)
+             else 0.048 if abs(self.pos[1]) <= 3 else 0.17 + abs(self.pos[1]) * 0.0038)
         if kind == "blocked":
             f = max(0.0, min(1.0, fault.value))
             target = (self.pos[0] + f * (target[0] - self.pos[0]) + 300,
                       self.pos[1] + f * (target[1] - self.pos[1]) + 300)
         self.pos = [target[0], target[1]]
         return 0, "", t + slow
+
+
+def tonights_table(**kw) -> SimTable:
+    """The tester's real table as it answered version 0.2.0 on 14 Nov 2026 (his log; no
+    serial in it): started (a0 130000), every arm answer 00, the arm at (1101, 46) before
+    the homing, the homing answered after 0.336 s, the arm at (1102, 19) after it. What
+    0.2.1 does beyond that (the second homing from there, f4 twice after it) is a BELIEF
+    taken from the recordings (the second homing ends at Y 0..2; f4 00: R1 197.884, R2
+    142.023, 425.005)."""
+    return SimTable(cold=False, pos=[1101.0, 46.0], home_y=19.0, home_s=0.336, jitter=False,
+                    **kw)
 
 
 class SimTransport:

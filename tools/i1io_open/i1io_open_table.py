@@ -15,8 +15,16 @@ numbers: the eleven lines are fixed at import and :func:`check_outgoing`
 refuses every other byte string.
 
 ONE line makes the arm move: ``;i12b`` (i1, run to the resting place), sent
-only while the arm is already there, right after ``s0`` and ``p0`` as
-i1Profiler sends it. i1Profiler's start-up line for a table that has just been
+only while the arm is already there, each time right after a ``p0`` that read
+the resting place, as i1Profiler sends it. Version 0.2.1 (after the tester's
+real run of 0.2.0) sends it twice, as i1Profiler's own double homing before a
+calibration: ``s0 p0 i1 p0 i1 s0 f4 f4`` (R1 190.077-197.900, R2
+134.258-142.039, R2 417.165-425.021, each preceded by ``s0``). The position
+read between the two homings is checked; after the second homing no position is
+read, because in every recording ``p0`` is followed only by a movement, ``c4``
+or another ``p0``, never by ``s0``, ``f4`` or ``f0``. After the person has
+looked, the recorded close ``s0 f0 f3`` follows. Every neighbouring pair of the
+whole run occurs in the recordings. i1Profiler's start-up line for a table that has just been
 switched on (i0) is NOT in this program (safety review 2026-11-14, B1): on such
 a table the program sends only the six reading lines of the opening and stops.
 Two lines read the table's memory (``u8``): their answers hold the table's
@@ -42,7 +50,7 @@ import time
 from dataclasses import dataclass
 
 TOOL_NAME = "chromiq-i1io-open"
-TOOL_VERSION = "0.2.0"
+TOOL_VERSION = "0.2.1"
 
 VID, PID = 0x0971, 0x2004
 
@@ -140,10 +148,15 @@ RECORDED_AT = {
     "a0":       "S1 1.502 answered 111800 (cold); R2 34.906 and 378.505 answered 130000 (warm)",
     "status":   "R2 34.932 (after a0), 378.602 (right before p0, i1), 378.905 (after i1), "
                 "361.579 and S1 22.919 (right before f0)",
-    "arm_mode": "four times after the first s0 at every open: R2 34.940-34.985, 378.539-378.585",
-    "position": "R2 35.017 and 378.617, right before the homing at the opening",
+    "arm_mode": "four times after the first s0 at every open: R2 34.940-34.985, 378.539-378.585; "
+                "twice after the s0 that follows a homing at rest: R1 197.871/197.885, R2 "
+                "142.010/142.024, 424.993/425.006 (answered 00)",
+    "position": "R2 35.017 and 378.617, right before the homing at the opening; between the "
+                "two homings of a double homing R1 190.404, R2 134.587, 417.445",
     "home":     "R2 378.632 from (1102, 24), 0.272 s; R2 35.033 from (1102, 47), 0.35 s; "
-                "S1 4.796 from (1102, 14), 0.224 s",
+                "S1 4.796 from (1102, 14), 0.224 s; the double homing p0 i1 p0 i1: R1 "
+                "190.093 + 190.412, R2 134.274 + 134.610, R2 417.181 + 417.453 (second one "
+                "0.048 s)",
     "f0":       "S1 22.935 (closing, after s0, arm at rest); R2 361.594",
     "f3":       "S1 22.951 (closing, right after f0); R2 361.611",
 }
@@ -161,6 +174,9 @@ DATA_LEN = {"identity": 10, "k2": 14, "memory_a": 512, "memory_b": 208, "a0": 6,
 #: The recorded constant answers (identical at every recorded open and close).
 EXACT_DATA = {"identity": "005D010702", "k2": "0B600000000013", "f0": "00", "f3": "00",
               "arm_mode": "00"}
+#: f4's answer wherever this program reads it (we believe: the motors hold the arm; 01 was
+#: only ever read after f1, which frees the arm for aligning by hand and is never sent here).
+ARM_HELD = "00"
 #: The first 8 bytes of the memory block, the same at every recorded open:
 #: the block length 360 and the text "V1.1" (no serial number in them).
 MEMORY_A_START = "6801000056312E31"
@@ -266,14 +282,16 @@ class Box:
         return self.xmin <= p[0] <= self.xmax and self.ymin <= p[1] <= self.ymax
 
 
-#: Where the arm rests. Every recorded start read X 1101 or 1102 and Y between
-#: 0 and 47 (R1, R2, S1 14, S2 31..41; the reading creeps while the arm
-#: stands); 5 units of margin on each side. i1 is sent only from here.
+#: Where the arm rests. Every position read at rest, in every recording and in both of the
+#: tester's real runs, is X 1101 or 1102 and Y 0 to 47 (25 reads: before a homing Y 14..47,
+#: 0.016-0.032 s after one Y 0..2, 0.08 s after Y 5 (0.1.0), 0.16 s after Y 19 (0.2.0, the
+#: tester's table, 14 Nov 2026), 3-163 s after one Y 4..37; the reading creeps while the arm
+#: stands). 5 units of margin on each side. i1 is sent only from here.
+#: 0.2.0 also demanded X 1099..1105, Y -3..8 right after the homing (from three reads at
+#: 0.016-0.032 s and one at 0.08 s); the tester's table read Y 19 at 0.16 s and the run
+#: stopped without its close. That narrower box is withdrawn: no position is read after the
+#: homing any more (see the module text).
 HOME_CLUSTER = Box(1097, 1107, -5, 50)
-#: Where the arm must report itself right after the homing: recorded Y 0 and 2
-#: (R1 190.412, R2 134.610), the tester's run of 0.1.1 read Y 5 64 ms after the
-#: answer; the reading creeps (Y 0 -> 6 in 7 s, R2 134.6-142.1). X 3 units.
-HOMED = Box(1099, 1105, -3, 8)
 
 #: How long the program waits for an answer before it counts as missing.
 #: Recorded: quick lines 0.005-0.022 s, u8 0.051-0.106 s,
@@ -292,10 +310,11 @@ DRAIN_QUIET_S = 1.0
 DRAIN_SETTLE_S = 15.0
 DRAIN_MAX_S = 60.0
 
-#: Hard caps, checked on every write. A complete (warm) run sends exactly 21
-#: lines; a cold table gets the six reading lines of the opening only.
-MAX_LINES = 21
-MAX_MOTIONS = 1
+#: Hard caps, checked on every write. A complete (warm) run sends exactly 22
+#: lines with 2 movements (both homings at the resting place); a cold table gets
+#: the six reading lines of the opening only.
+MAX_LINES = 22
+MAX_MOTIONS = 2
 
 
 # ---- the session ------------------------------------------------------------------------
@@ -365,6 +384,9 @@ class Table:
         self.heading_to: "tuple[int, int] | None" = None
         self.state: "str | None" = None      # "cold" / "warm" after a0
         self.homed = False                   # i1 answered done
+        self.arm_after_homing: "str | None" = None   # f4's answer right after the homings
+        self.homing_times: "list[float]" = []
+        self.homings_done = 0
         self.closed_table = False            # f0, f3 answered
 
     # ---- logging and stopping ------------------------------------------------------
@@ -509,6 +531,7 @@ class Table:
             self.busy -= 1
         if line in MOTION_LINES:
             self.motion_unconfirmed = False
+            self.homing_times.append(took)
             if took > SLOW_AFTER[key]:
                 raise self._doubt(f"{cid} took {took:.1f} s; the recordings show at most "
                                   "0.4 s from the resting "
@@ -562,66 +585,71 @@ class Table:
         self.log("DATA", f"a0 = {a0}: the table is {self.state}")
         return self.state
 
-    def follow_up(self) -> "tuple[int, int]":
-        """s0, f4 x4 (each 00), s0, p0: recorded right after a0 on a warm table
-        (R2 34.932-35.017, 378.530-378.617). The arm must report its resting place."""
+    def _arm(self) -> str:
+        got = self.exchange("arm_mode").data
+        if got != ARM_HELD:
+            raise self._doubt(f"f4 answered {got} where the recordings show {ARM_HELD}")
+        return got
+
+    def follow_up(self) -> None:
+        """s0, f4 x4 (each 00): recorded right after a0 on a warm table (R2
+        34.932-34.985, 378.530-378.585). The person's yes comes next: f4 then s0
+        after a pause is recorded 13 times (up to 162 s, R1 550.730-713.337)."""
         if self.state != "warm":
             raise self._doubt("the follow-up asked for on a table that is not started (a bug)")
         self.busy += 1
         try:
             self.exchange("status")
             for _ in range(4):
-                self.exchange("arm_mode")
-            self.exchange("status")
-            pos = self.position()
+                self._arm()
         finally:
             self.busy -= 1
-        self.log("DATA", f"the arm reports {pos}")
+        self._stop_if_requested()
+
+    def _at_rest(self, what: str) -> "tuple[int, int]":
+        pos = self.position()
+        self.log("DATA", f"{what} the arm reports {pos}")
         if not HOME_CLUSTER.contains(pos):
             raise self._doubt(
-                f"the arm reports table position {pos}, not its resting place",
-                f"The arm reports table position X {pos[0]}, Y {pos[1]}, which is not its "
-                "resting place (X 1097 to 1107, Y -5 to 50). This program only goes on from "
-                "there, so nothing more is sent.")
-        self._stop_if_requested()
+                f"{what} the arm reports {pos}, not its resting place",
+                f"{what[0].upper()}{what[1:]} the arm reports table position X {pos[0]}, "
+                f"Y {pos[1]}, which is not its resting place (X 1097 to 1107, Y -5 to 50). "
+                "This program only goes on from there, so nothing more is sent.")
         return pos
 
-    def home(self) -> "tuple[int, int]":
-        """After the person's yes: s0 and p0 AGAIN, the home box checked again,
-        then i1 at once, as i1Profiler sends s0, p0, i1 back to back (safety
-        review M3; S1 4.766-4.796, R2 35.003-35.033, 378.602-378.632). Then s0
-        and p0: the arm must report the homed position."""
-        if self.homed or self.state != "warm" or self.position_now is None:
+    def _homing(self) -> None:
+        self.arrival_unknown = True
+        self.heading_to = (1102, 0)
+        self.position_now = None
+        self.exchange("home", HOME_TIMEOUT)
+        self.homings_done += 1
+
+    def home(self) -> str:
+        """After the person's yes, i1Profiler's double homing before a calibration,
+        line for line: s0 p0 i1 p0 i1 s0 f4 f4 (R1 190.077-197.900, R2
+        134.258-142.039, 417.165-425.021; each time preceded by s0, as here by the
+        follow-up's s0 f4 block and the yes). Each i1 is sent right after a p0 that
+        read the resting place. After the second homing no position is read: no
+        recording follows a p0 with s0, f4 or f0. Returns f4's answer."""
+        if self.homed or self.state != "warm":
             raise self._doubt("i1 asked for while the arm is not known to be at rest (a bug)")
         self.busy += 1
         try:
             self.exchange("status")
-            again = self.position()
-            self.log("DATA", f"right before the homing the arm reports {again}")
-            if not HOME_CLUSTER.contains(again):
-                raise self._doubt(
-                    f"right before the homing the arm reports {again}, not its resting place",
-                    f"Right before the homing the arm reports table position X {again[0]}, "
-                    f"Y {again[1]}, which is not its resting place. Nothing more is sent.")
-            self.arrival_unknown = True
-            self.heading_to = (1102, 0)
-            self.position_now = None
-            self.exchange("home", HOME_TIMEOUT)
+            self._at_rest("right before the homing")
+            self._homing()
+            self._at_rest("after the first homing")
+            self._homing()
             self.homed = True
             self.exchange("status")
-            got = self.position()
+            self._arm()
+            self.arm_after_homing = self._arm()
         finally:
             self.busy -= 1
-        self.log("DATA", f"after the homing the arm reports {got}")
-        if not HOMED.contains(got):
-            raise self._doubt(
-                f"after the homing the arm reports {got}",
-                f"After the homing the arm reports X {got[0]}, Y {got[1]}, a little different "
-                "from what i1Profiler's table reported right after homing (Y 0 to 5). "
-                + ("The arm is at its resting place. " if HOME_CLUSTER.contains(got) else "")
-                + "Nothing more is sent.")
+        self.log("DATA", f"the homings took {', '.join(f'{t:.3f}' for t in self.homing_times)} s; "
+                         f"right after them f4 = {self.arm_after_homing}")
         self._stop_if_requested()
-        return got
+        return self.arm_after_homing
 
     def closing(self) -> None:
         """s0, f0, f3: i1Profiler's closing, recorded with the arm at rest and

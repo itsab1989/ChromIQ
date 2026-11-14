@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 the ChromIQ authors. Part of ChromIQ (https://github.com/itsab1989/ChromIQ).
-"""ChromIQ i1iO test program 0.2.0: open an X-Rite i1iO 2 table that is already
+"""ChromIQ i1iO test program 0.2.1: open an X-Rite i1iO 2 table that is already
 started, the way i1Profiler opens it, send the arm to its resting place where it
-already is, and close the table again. It never measures.
+already is, and close the table again. It never measures. At the end it asks you
+to feel gently whether the arm is held, once before and once after it lets go of
+the table's USB connection.
 
     python3 i1io_open.py              practice run on a SIMULATED table (nothing is opened)
     python3 i1io_open.py --sim cold   the same, for a table that has just been switched on
@@ -29,6 +31,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import time
 from pathlib import Path
 
 # the program's own folder, also when started with "python3 -I"
@@ -56,6 +59,18 @@ I1PROFILER_RUNNING = (
     "X-Rite Device Services) can keep running; you do not need to stop them, and please do "
     "not try to stop them by hand.")
 STOPPED = "You stopped the program. Nothing more is sent to the table."
+ASK_TOUCH = ("Please touch the instrument holder very gently with one finger, sideways, as "
+             "if to move it by about a millimetre, and let go at once. Do not force it. Does the "
+             "arm hold its place (it resists or springs back), or does it move freely?")
+TOUCH_CHOICES = ("holds", "free", "not sure", "skip")
+#: How long the program waits after letting go of the USB connection before the second touch.
+RELEASE_WAIT_S = 10.0
+LOOSE_ADVICE = (
+    "If the arm is loose (it moves freely when you touch it gently), that is, as far as we "
+    "know, the same harmless state as a table that is switched off. Please do not push it "
+    "around. Leave it at its resting place, with the measuring opening on the white tile, "
+    "switch the table off, wait about ten seconds and switch it on again, then open "
+    "i1Profiler once, let it start the table as usual, and quit it.")
 RECOVERY = ("To bring the arm back to its resting place, start i1Profiler once and let it "
             "connect to the table: it sends the arm home by itself. Then quit i1Profiler. "
             "Please do not start this program again until i1Profiler has done that.")
@@ -76,14 +91,17 @@ RISKS = (
     "Please read this before you go on.\n"
     "This is an unofficial test program written by ChromIQ. It is not from X-Rite, and X-Rite "
     "has nothing to do with it. Running it is entirely your choice. Its first version ran on "
-    "your table twice (the first time the table refused it, the second time it worked). This "
-    "version sends a few more lines. Each of them is a line that i1Profiler itself sent to your "
-    "table in your recordings, byte for byte, and in the order i1Profiler sent them, except that "
-    "the status and position questions are asked again before and after the homing: the lines "
-    "with which i1Profiler "
-    "opens the table, the line that sends the arm to its resting place, and the two lines with "
-    "which it closes the table. Only the homing makes the arm move, and the arm is already at its "
-    "resting place, so it should barely move. If the table has just been switched on, the "
+    "your table twice (the first time the table refused it, the second time it worked), and "
+    "version 0.2.0 ran once: it opened the table and sent the arm home, and then stopped "
+    "before the closing lines, because the position it read after the homing was not one it "
+    "expected. This version no longer reads the position after the homing (i1Profiler never "
+    "does that right before it closes the table), so it can finish with the closing lines. "
+    "Each line it sends is a line that i1Profiler itself sent to your table in your "
+    "recordings, byte for byte, and every two lines that follow each other here also follow "
+    "each other in your recordings: the lines with which i1Profiler opens the table, the line "
+    "that sends the arm to its resting place, two questions i1Profiler also asks right after "
+    "a homing, and the two lines with which it closes the table. Only the homing makes the "
+    "arm move, and the arm is already at its resting place, so it should barely move. If the table has just been switched on, the "
     "program stops after the opening and asks you to let i1Profiler start the table first. The "
     "program has no command for any other movement, never measures and never talks to the "
     "i1Pro 2. It sends no line of its own for the measuring head. Whether the table lifts and "
@@ -96,6 +114,10 @@ RISKS = (
     "never showed. That is why the table should be empty, why the movement waits for your yes, "
     "why you should keep your hands and everything else away from the arm, and why you should "
     "keep the power switch or plug within reach.\n"
+    "After version 0.2.0 you found the arm loose, as when the table is switched off. We do "
+    "not know yet why. At the end this program asks you twice to feel gently whether the arm "
+    "is held: once while it still holds the table's USB connection, and once after it has let "
+    "go of it. That tells us when the table lets the arm go.\n"
     "Nothing leaves your computer unless you send the log file yourself.")
 
 
@@ -198,8 +220,8 @@ def _bare(key: str) -> str:
 
 
 OPENING = ("identity", "identity", "k2", "memory_a", "memory_b", "a0")
-FOLLOW = ("status", "arm_mode", "arm_mode", "arm_mode", "arm_mode", "status", "position")
-HOMING = ("status", "position", "home", "status", "position")
+FOLLOW = ("status", "arm_mode", "arm_mode", "arm_mode", "arm_mode")
+HOMING = ("status", "position", "home", "position", "home", "status", "arm_mode", "arm_mode")
 CLOSING = ("status", "f0", "f3")
 MEANING = {
     "identity": "identity (must be 005D010702)",
@@ -234,14 +256,19 @@ def plan_text(hex_bytes: bool = False) -> str:
             "   Any answer other than 111800 or 130000: stop, nothing more is sent.", "",
             "3. Follow-up on a started table (only reads):"]
     out += [row(k) for k in FOLLOW]
-    out += ["  checks: every arm answer 00; the arm at its resting place (X 1097..1107, "
-            "Y -5..50); otherwise stop.", "",
-            "4. Homing, only after you type yes (status and position asked again, the place "
-            "checked again, then the homing at once, as i1Profiler does):"]
+    out += ["  checks: every arm answer 00; otherwise stop.", "",
+            "4. Homing, only after you type yes: i1Profiler's own double homing before a "
+            "calibration, line for line (status, position, homing, position, homing, status, "
+            "the arm question twice):"]
     out += [row(k) for k in HOMING]
-    out += ["  checks: the arm at X 1099..1105, Y -3..8 afterwards; otherwise stop.", "",
+    out += ["  checks: the arm at its resting place (X 1097..1107, Y -5..50) right before "
+            "each homing; each homing answered within 2 s; both arm answers 00; otherwise "
+            "stop. No position is read after the second homing (i1Profiler never follows a "
+            "position question with the closing lines).", "",
             "5. Closing, after you have looked at the arm:"]
     out += [row(k) for k in CLOSING]
+    out += ["", "6. Nothing more is sent. You are asked to feel gently whether the arm is held, "
+            "once before and once after the program lets go of the USB connection."]
     return "\n".join(out)
 
 
@@ -253,6 +280,8 @@ class Run:
         self.d, self.ui, self.simulated = table, ui, simulated
         self.other_program = other_program or (lambda: False)
         self.answers: "list[tuple[str, str]]" = []
+        #: False when the person said the arm is not at its resting place
+        self.seen_at_rest: "bool | None" = None
 
     def note(self, question: str, answer: str) -> None:
         self.answers.append((question, answer))
@@ -294,21 +323,26 @@ class Run:
                 self.ui.say("The table answered as expected, and we believe it says it has just "
                             "been switched on (a0 = 111800).")
                 raise Stopped(COLD_TEXT)
-            pos = self.d.follow_up()
-            self.ui.say(f"The table answered as expected. It is started (a0 = 130000), its "
-                        f"motors hold the arm, and the arm reports table position X {pos[0]}, "
-                        f"Y {pos[1]}, which is its resting place.")
+            self.d.follow_up()
+            self.ui.say("The table answered as expected: it is started (a0 = 130000) and, we "
+                        "believe, its motors hold the arm (f4 = 00).")
             self._go_ahead(
-                f"Next the program asks once more for the status and where the arm is, and if "
-                f"the arm is still at its resting place it sends {_bare('home')} (i1, go to the "
-                "resting place) at once, as i1Profiler does. The arm is already there, so it "
-                "should move very little or not at all; you may hear the motors for a moment. "
-                "With i1Profiler it took about a quarter of a second.")
-            got = self.d.home()
-            self.ui.say(f"The table reports that the homing has finished; the arm reports "
-                        f"table position X {got[0]}, Y {got[1]}.")
+                f"Next the program sends the arm to its resting place twice in a row, exactly as "
+                f"i1Profiler does before it calibrates: it asks where the arm is, sends "
+                f"{_bare('home')} (i1, go to the resting place) if the arm is there, asks again, "
+                "and sends the second one if the arm is still there. The arm is already at its "
+                "resting place, so it should move very little or not at all; you may hear the "
+                "motors twice for a moment. With i1Profiler the first took about a quarter of a "
+                "second and the second a twentieth; with version 0.2.0 on your table the "
+                "homing took a third of a second.")
+            arm = self.d.home()
+            took = ", ".join(f"{t:.2f}" for t in self.d.homing_times)
+            self.ui.say(f"The table reports that both homings have finished (after {took} s), "
+                        f"and right after them it answered the arm question with {arm} (we "
+                        "believe: its motors hold the arm).")
             seen = self.look(f"Please look at the table now. Is the arm at {REST_PLACE}?",
                              ("yes", "no", "not sure", "stop"), "arm at its resting place")
+            self.seen_at_rest = seen == "yes"
             if seen != "yes":
                 self.note("arm instead", self.ui.text(
                     "What do you see instead? (type a few words, then Enter)"))
@@ -324,8 +358,8 @@ class Run:
             finally:
                 self.d.busy -= 1
             self.ui.say("")
-            self.ui.say("That was all: the table was opened and closed the way i1Profiler does "
-                        "it, and the arm is at its resting place. Thank you.")
+            self.ui.say("The table was opened and closed the way i1Profiler does it, and the arm "
+                        "is at its resting place. Nothing more is sent to the table.")
             return 0
         except Stopped as exc:
             self.ui.say(str(exc))
@@ -350,25 +384,55 @@ class Run:
         """Say where the arm is and what to do. Sends nothing."""
         try:
             d = self.d
-            pos = None if d.arrival_unknown else d.position_now
             if d.motions_sent == 0:
                 self.ui.say("Nothing was moved.")
             elif code == 0:
                 pass
-            elif pos is not None and tbl.HOME_CLUSTER.contains(pos):
+            elif d.homed and not d.motion_unconfirmed:
+                self.ui.say("The table reported that both homings had finished, so the arm "
+                            "should be at its resting place (its position is not read after the "
+                            "second homing). The table was not closed; i1Profiler opens it "
+                            "normally the next time.")
+            elif (not d.arrival_unknown and d.position_now is not None
+                  and tbl.HOME_CLUSTER.contains(d.position_now)):
                 self.ui.say("The arm was last reported at its resting place.")
             else:
                 if d.arrival_unknown and d.heading_to:
                     where = (" Its last movement was towards its resting place, and where it "
                              "stopped has not been read.")
-                elif pos is not None:
-                    where = f" It was last reported at table position X {pos[0]}, Y {pos[1]}."
+                elif d.position_now is not None:
+                    where = (f" It was last reported at table position X {d.position_now[0]}, "
+                             f"Y {d.position_now[1]}.")
                 else:
                     where = ""
                 self.ui.say("The arm stays where it is now; the program does not move it "
                             "again." + where + " "
                             + (RECOVERY_UNFINISHED if d.motion_unconfirmed else "")
                             + RECOVERY)
+        except BaseException:
+            pass
+
+    def may_touch(self) -> bool:
+        """The touch questions are asked only when the arm is known to be still: no
+        movement whose end the table never reported, and not after the person said
+        the arm is not at its resting place."""
+        return (self.d.lines_sent > 0 and not self.d.motion_unconfirmed
+                and self.seen_at_rest is not False)
+
+    def touch(self, when: str) -> None:
+        """One gentle touch, as the person reports it. Sends nothing."""
+        try:
+            ans = self.ui.ask(ASK_TOUCH, TOUCH_CHOICES)
+        except BaseException:
+            ans = "skipped"
+        self.note(f"arm held? ({when})", ans)
+
+    def advice(self) -> None:
+        try:
+            self.ui.say("")
+            self.ui.say(LOOSE_ADVICE)
+            self.ui.say("If you have a moment, please touch the holder gently once more in "
+                        "about ten minutes and add one line to the log about what you felt.")
         except BaseException:
             pass
 
@@ -650,7 +714,25 @@ def main(argv=None, sim_table=None, console=None) -> int:
                     other_program=i1profiler_running if args.real else None)
             code = r.go()
             r.ending(code)
+            touch = r.may_touch()
+            if touch:
+                ui.say("")
+                ui.say("The program still holds the table's USB connection, and it sends "
+                       "nothing more.")
+                r.touch("while the program still held the USB connection")
+            transport.close()
+            log("INFO", "the program has let go of the table's USB connection (nothing is "
+                        "sent when it does)")
+            if touch:
+                ui.say("The program has now let go of the table's USB connection, as it does "
+                       "when it ends. It waits ten seconds; then please touch the holder "
+                       "gently once more, the same way.")
+                if args.real:
+                    time.sleep(RELEASE_WAIT_S)
+                r.touch("about ten seconds after the program let go of the USB connection")
             r.questions()
+            if touch:
+                r.advice()
             log("INFO", f"result {code}; table {table.state or 'not asked'}; "
                         f"{table.lines_sent} lines sent, {table.motions_sent} movements; "
                         f"closed {'yes' if table.closed_table else 'no'}; answers {r.answers}")
