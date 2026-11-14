@@ -982,11 +982,16 @@ def build_chart(
         # barcode and the notes band, after the check that an i1iSis can read
         # this layout at all, and before anything is saved.
         _isis_name = project or Path(out_base).name
+        # THE BARCODE CARRIES THE .txf's TitleString, the chart's file name
+        # (review of a7ca1489e, M2: "My Printer Glossy" in the barcode,
+        # "My-Printer-Glossy" in the .txf); the name line keeps the
+        # project's own name
+        _isis_title = Path(out_base).name
         _isis_left_off = _isis_chart.draw_furniture(
             render, _isis_sheet, dpi, name=_isis_name,
             sheet_text=_isis_sheet_text,
             patterns=(strip_pattern, patch_pattern, label_rule),
-            title=_isis_name,
+            title=_isis_title,
             stamp_text=_isis_stamp_text,
             band=dict(mode=clip_content_mode_asked, text=clip_text,
                       font_family=clip_text_font, ctx=_ctx,
@@ -1088,7 +1093,7 @@ def build_chart(
         _isis_chart.write_side_file(
             artefact(stem, ".isis.json"), _isis_sheet, paper=paper,
             name=project or Path(out_base).name,
-            title=project or Path(out_base).name,
+            title=Path(out_base).name,
             patterns=(strip_pattern, patch_pattern, label_rule),
             designed=len(target.patches))
 
