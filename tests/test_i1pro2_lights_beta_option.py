@@ -384,7 +384,7 @@ def test_the_row_is_off_and_says_what_it_does(dialog):
                    "nobody on the ChromIQ team owns an i1Pro 2",
                    "different light commands",
                    "ArgyllCMS's own program code", "recordings of what",
-                   "only light commands seen in those recordings",
+                   "only the light patterns seen in those recordings",
                    "the “off” that ArgyllCMS itself sends",
                    "that i1Profiler does not send to an i1Pro 3",
                    "never writes anything into the instrument's memory",

@@ -337,3 +337,15 @@ def test_the_light_timing_reads_the_right_way_round(ms, said):
     line = coms_failure_detail(ev)
     assert said in line
     assert "-" not in line.split("light off_slow", 1)[1].split(";", 1)[0]
+
+
+def test_the_help_claims_only_what_is_true_about_the_moments():
+    """4.3.37 review (M2): the same recorded patterns at the same moments;
+    two situations on an i1Pro 2 differ in what was showing before."""
+    from ui.dialogs.settings_dialog import i1pro2_lights_help
+    h = i1pro2_lights_help()
+    assert "each at the moment i1Profiler sent it" not in h
+    assert "light patterns seen in those recordings, at the moments" in h
+    assert "two situations differ from the recordings" in h
+    assert "a calibration that comes after the first one" in h
+    assert "under the steady white of connecting" in h
