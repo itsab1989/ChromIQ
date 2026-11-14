@@ -20,6 +20,8 @@ extern int cq_json;      /* 1 = emit JSON events, accept JSON commands     */
 extern int cq_autosave;  /* 1 = write .ti3 after every accepted strip      */
 extern int cq_safenet;   /* 1 = misalignment safety net (opt-in, #50)      */
 extern int cq_xychart;   /* 1 = engine handles XY/chart modes (else fall back) */
+extern int cq_ruler;      /* --ruler: Preferences > Beta, the ruler check
+                              (2026-11-14); see chromiq_chartread.c */
 extern int cq_i1pro2_lights; /* --i1pro2-lights: Preferences > Beta, the
                               i1Pro 2 indicator lights (2026-11-13) */
 
@@ -81,6 +83,23 @@ int i1pro3_cq_lights_choices(void *pp);
 int i1pro3_cq_lights_firmware(void *pp);
 extern void (*i1pro3_cq_lights_sent)(int seq);
 
+/* ---- the ruler check (Beta, 2026-11-14): the drivers' entries ---------- */
+int i1pro2_cq_ruler_options(void *pp, int on);
+void i1pro2_cq_ruler_arm(void *pp, int on);
+int i1pro2_cq_ruler_state(void *pp);
+int i1pro2_cq_ruler_firmware(void *pp);
+int i1pro2_cq_ruler_take(void *pp, void *out);
+int i1pro3_cq_ruler_options(void *pp, int on);
+void i1pro3_cq_ruler_arm(void *pp, int on);
+int i1pro3_cq_ruler_state(void *pp);
+int i1pro3_cq_ruler_firmware(void *pp);
+int i1pro3_cq_ruler_sensor(void *pp);
+int i1pro3_cq_ruler_take(void *pp, void *out);
+/* Replay: CHROMIQ_REPLAY_INSTRUMENT=i1pro2|i1pro3 (2 / 3, else 0), and the
+ * record a {"cmd":"swipe","ruler":"<mode>"} asked for (1 = one). */
+int cq_replay_ruler_gen(void);
+int cq_replay_ruler_take(void *out);
+
 /* ---- JSON event emission (no-ops when cq_json == 0) ------------------- */
 void cq_emit_raw(const char *fmt, ...);   /* fmt is a complete JSON object */
 
@@ -113,7 +132,7 @@ void cq_json_escape(char *dst, size_t dstlen, const char *src);
  *
  * ⚠ BUMP THIS IN THE SAME COMMIT AS ANY CHANGE TO THE HELPER, and rebuild and
  * commit native/chromiq-chartread. The test tells you the expected value. */
-#define CQ_HELPER_BUILD "chromiq-chartread 2026-11-14 legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures+exit-guard+save-after-close+i1pro2-lights+i1pro3-lights+i1pro3-lights-choices"
+#define CQ_HELPER_BUILD "chromiq-chartread 2026-11-14 legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures+exit-guard+save-after-close+i1pro2-lights+i1pro3-lights+i1pro3-lights-choices+ruler-check"
 const char *cq_helper_build_string(void);
 
 
@@ -300,6 +319,7 @@ extern char cq_swipe_as[8];
 extern int  cq_swipe_reversed;
 extern char cq_swipe_fault[16];
 extern char cq_swipe_reason[96];   /* B1: a misread's driver sentence */
+extern char cq_swipe_ruler[16];    /* the ruler check: the fake ruler's mode */
 
 /* #202: a pending instrument trigger injected by {"cmd":"trigger"} (replay
  * only). The replay instrument then does what the i1Pro driver does when its

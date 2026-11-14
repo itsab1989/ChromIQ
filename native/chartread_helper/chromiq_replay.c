@@ -110,6 +110,105 @@ int cq_replay_load(const char *path) {
 	return cq_nstrips == 0;
 }
 
+/* ---------------- the ruler check (Beta, 2026-11-14) ----------------
+ * A fake ruler record per swipe, shaped like the drivers' (cq_ruler.h), so
+ * the helper's event, the GUI and the diagnostics file can be exercised
+ * without an instrument. The model follows the i1Pro 2 recordings: one
+ * sample per clock, samples = readings x clocks - 5, quadrature codes.
+ * Modes ("ruler" on a swipe): clean (a whole strip, 340 steps), partial
+ * (only 40 % of it), fast, none (no ruler), garbled (an impossible jump),
+ * short (half the samples), late (the stream did not end: the driver gives
+ * the ruler up), failed (a USB error on the ruler channel). No "ruler": as
+ * clean. */
+#include "cq_ruler.h"
+static char cq_rr_mode[16] = "";
+static int cq_rr_pending = 0;
+static int cq_rr_npatch = 0;
+static int cq_rr_given_up = 0;		/* as the i1Pro 2 driver: for the session */
+
+int cq_replay_ruler_gen(void) {
+	const char *ri = getenv("CHROMIQ_REPLAY_INSTRUMENT");
+	if (ri != NULL && strcmp(ri, "i1pro2") == 0)
+		return 2;
+	if (ri != NULL && strcmp(ri, "i1pro3") == 0)
+		return 3;
+	return 0;
+}
+
+static void cq_replay_ruler_note(const char *mode, int npatch) {
+	strncpy(cq_rr_mode, mode != NULL && mode[0] ? mode : "clean",
+	        sizeof(cq_rr_mode) - 1);
+	cq_rr_mode[sizeof(cq_rr_mode) - 1] = '\0';
+	cq_rr_npatch = npatch;
+	cq_rr_pending = 1;
+}
+
+int cq_replay_ruler_take(void *vout) {
+	cq_ruler_rec *r = (cq_ruler_rec *)vout;
+	static const unsigned char cyc[4] = { 0, 2, 3, 1 };
+	int gen = cq_replay_ruler_gen(), readings, clocks, travel = 340, n, k;
+	long total, i, a, b, pos = 0, last_at = -1;
+	int last_code = -1;
+	unsigned char *zeb;
+	memset(r, 0, sizeof(*r));
+	if (!cq_rr_pending || gen == 0 || cq_rr_given_up)
+		return 0;
+	cq_rr_pending = 0;
+	clocks = gen == 2 ? 136 : 172;
+	readings = strcmp(cq_rr_mode, "fast") == 0 ? 220 : 600;
+	total = (long)readings * clocks - (gen == 2 ? 5 : 0);
+	if (strcmp(cq_rr_mode, "partial") == 0)
+		travel = 136;
+	if (strcmp(cq_rr_mode, "short") == 0)
+		total /= 2;
+	r->valid = 1;
+	r->gen = gen;
+	r->readings = readings;
+	r->clocks = clocks;
+	r->clock_s = gen == 2 ? 36e-6 : 15.3e-6;
+	r->inttime = clocks * r->clock_s;
+	r->ended = gen == 2 ? CQ_RULER_END_SHORT : CQ_RULER_END_ARGYLL;
+	r->argyll_used = gen == 3 && strcmp(cq_rr_mode, "none") != 0
+	                 && strcmp(cq_rr_mode, "garbled") != 0;
+	if (strcmp(cq_rr_mode, "failed") == 0) {
+		r->ended = CQ_RULER_END_ERROR;
+		r->icom_err = 0x100;
+		r->giveup = gen == 2 ? CQ_RULER_GIVEUP_ERROR : 0;
+		cq_rr_given_up = r->giveup;
+		return 1;
+	}
+	if (strcmp(cq_rr_mode, "late") == 0) {
+		r->ended = CQ_RULER_END_RUNNING;
+		r->stream_did_not_end = 1;
+		r->giveup = CQ_RULER_GIVEUP_NOTEND;
+		cq_rr_given_up = r->giveup;
+		return 1;
+	}
+	if ((zeb = (unsigned char *)malloc(total)) == NULL)
+		return 1;
+	/* the instrument rests on the lead-in for 10 %, then moves evenly */
+	a = total / 10;
+	b = total - total / 10;
+	for (i = 0; i < total; i++) {
+		long step = i < a ? 0 : i >= b ? travel : (i - a) * travel / (b - a);
+		zeb[i] = strcmp(cq_rr_mode, "none") == 0 ? 3 : cyc[(4 - (step & 3)) & 3];
+		if (strcmp(cq_rr_mode, "garbled") == 0 && i == total / 2)
+			zeb[i] = cyc[(4 - (step & 3) + 2) & 3];
+	}
+	cq_ruler_rec_feed(r, zeb, total, &pos, &last_at, &last_code);
+	free(zeb);
+	r->bytes = r->samples;
+	/* today's cut: the patches evenly between 15 % and 85 % of the readings */
+	n = cq_rr_npatch > 0 && cq_rr_npatch <= CQ_RULER_MAXPATCH ? cq_rr_npatch : 0;
+	for (k = 0; k < n; k++) {
+		int s0 = (int)(readings * (0.15 + 0.70 * k / n));
+		int s1 = (int)(readings * (0.15 + 0.70 * (k + 1) / n));
+		int len = s1 - s0, no = len * 2 / 3;
+		cq_ruler_rec_cut(r, k, s0 + (len - no) / 2, no, 0);
+	}
+	return 1;
+}
+
 static cq_strip *cq_find(const char *label) {
 	int i;
 	for (i = 0; i < cq_nstrips; i++)
@@ -570,6 +669,7 @@ static inst_code cq_read_strip(inst *p, char *name, int npatch, char *pname,
 		if (cq_swipe_pending) {
 			char fault[16];
 			cq_swipe_pending = 0;
+			cq_replay_ruler_note(cq_swipe_ruler, npatch);
 			cq_replay_waiting = 0;
 			strncpy(fault, cq_swipe_fault, sizeof(fault) - 1);
 			fault[sizeof(fault) - 1] = '\0';
@@ -769,6 +869,10 @@ inst *cq_new_replay_inst(a1log *log,
 			p->dtype = instColorMunki;
 		else if (ri != NULL && strcmp(ri, "dtp20") == 0)
 			p->dtype = instDTP20;
+		else if (ri != NULL && strcmp(ri, "i1pro2") == 0)
+			p->dtype = instI1Pro2;	/* the ruler check (Beta) */
+		else if (ri != NULL && strcmp(ri, "i1pro3") == 0)
+			p->dtype = instI1Pro3;
 	}
 	cq_fake_icom.port_type = cq_icom_port_type;
 	cq_fake_icom.port_attr = cq_icom_port_attr;
