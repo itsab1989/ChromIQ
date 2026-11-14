@@ -41,6 +41,92 @@ static volatile int trig_sent = 0;	/* the D4 / C0 trigger went out */
 static int readings_left = 0;		/* readings the fake still has */
 static int reading_bytes = 268;
 
+#ifndef CQ_BASE
+#include "cq_ruler.h"
+/* ---- the ruler channel 0x85 (the ruler check Beta) ----------------------
+ * What the fake i1Pro 2 streams: modelled on the two USB recordings (one byte
+ * per integration clock, codes 0..3 in quadrature, 4096-byte reads, the last
+ * one short, samples = readings x clocks - 5). Modes:
+ *   clean    the stream as recorded, moving TRAVEL steps
+ *   none     no ruler under the instrument: the code never changes
+ *   garbled  clean, plus impossible jumps
+ *   short    only half the samples, then the short read (dropped data)
+ *   late     the whole stream arrives 400 ms after the scan ended
+ *   error    every read fails with a USB error
+ *   zero     the stream ends at once with no data
+ *   noend    full reads every 50 ms and never a short read (only a cancel,
+ *            and only one that lands DURING a read, as the real layers do)
+ */
+static int pace = 0;			/* 0x82 answers at the real reading rate */
+static const char *ruler_mode = "clean";
+static int ruler_travel = 300;
+static volatile int scan_over = 0;	/* the fake's 0x82 stream has ended */
+static volatile long r_total = 0, r_pos = 0;
+static volatile int r_reads = 0, r_maxsize = 0, r_cancels = 0, r_in_read = 0;
+static volatile int r_cancel_hit = 0;
+
+static unsigned char ruler_code(long i, long total) {
+	static const unsigned char cyc[4] = { 0, 2, 3, 1 };	/* +1 in Argyll's table */
+	long a = total / 10, b = total - total / 10, step;
+	if (strcmp(ruler_mode, "none") == 0)
+		return 3;
+	if (i < a)
+		step = 0;
+	else if (i >= b)
+		step = ruler_travel;
+	else
+		step = (i - a) * ruler_travel / (b - a);
+	if (strcmp(ruler_mode, "garbled") == 0 && i == total / 2)
+		return cyc[(4 - (step & 3) + 2) & 3];	/* an impossible jump */
+	return cyc[(4 - (step & 3)) & 3];		/* moving the negative way */
+}
+
+static int ruler_read(unsigned char *buf, int bsize, int *bread) {
+	int i, n;
+	r_reads++;
+	if (bsize > r_maxsize)
+		r_maxsize = bsize;
+	*bread = 0;
+	if (strcmp(ruler_mode, "error") == 0) {
+		msec_sleep(2);
+		return ICOM_USBR;
+	}
+	if (strcmp(ruler_mode, "zero") == 0)
+		return ICOM_SHORT;
+	if (strcmp(ruler_mode, "noend") == 0) {
+		r_in_read = 1;
+		for (i = 0; i < 50 && !r_cancel_hit; i++)
+			msec_sleep(1);
+		r_in_read = 0;
+		if (r_cancel_hit) {
+			r_cancel_hit = 0;
+			return ICOM_CANC;
+		}
+		memset(buf, 3, bsize);
+		*bread = bsize;
+		return ICOM_OK;
+	}
+	if (strcmp(ruler_mode, "late") == 0) {
+		while (!scan_over)
+			msec_sleep(2);
+		msec_sleep(400);
+	} else {
+		while (!scan_over && r_pos + bsize > r_total / 3)
+			msec_sleep(2);		/* the stream runs with the scan */
+	}
+	n = (int)((strcmp(ruler_mode, "short") == 0 ? r_total / 2 : r_total) - r_pos);
+	if (n < 0)
+		n = 0;
+	if (n > bsize)
+		n = bsize;
+	for (i = 0; i < n; i++)
+		buf[i] = ruler_code(r_pos + i, r_total);
+	r_pos += n;
+	*bread = n;
+	return n < bsize ? ICOM_SHORT : ICOM_OK;
+}
+#endif
+
 static void hex(const unsigned char *b, int n) {
 	int i;
 	for (i = 0; i < n; i++)
@@ -105,6 +191,12 @@ static int fake_read(icoms *p, usb_cancelt *c, int ep, unsigned char *buf,
 		if (n > readings_left)
 			n = readings_left;
 		readings_left -= n;
+#ifndef CQ_BASE
+		if (pace)
+			msec_sleep((int)(n * 4.896 + 0.5));
+		if (n * reading_bytes < bsize)
+			scan_over = 1;
+#endif
 		memset(buf, 0, bsize);
 		for (i = 0; i < n * reading_bytes; i += 2)
 			buf[i] = 0x10;		/* a flat, unsaturated level */
@@ -113,6 +205,10 @@ static int fake_read(icoms *p, usb_cancelt *c, int ep, unsigned char *buf,
 		fflush(stdout);
 		return *bread < bsize ? ICOM_SHORT : ICOM_OK;
 	}
+#ifndef CQ_BASE
+	if ((ep & 0xff) == 0x85)		/* the ruler: its own thread, not printed */
+		return ruler_read(buf, bsize, bread);
+#endif
 	printf("%s RD %02x %d tout=%.2f\n", scn, ep & 0xff, bsize, tout);
 	fflush(stdout);
 	memset(buf, 0, bsize);
@@ -129,8 +225,14 @@ static int fake_wait_io(icoms *p, usb_cancelt *c) {
 
 static int fake_cancel_io(icoms *p, usb_cancelt *c) {
 	(void)p; (void)c;
+#ifndef CQ_BASE
+	r_cancels++;
+	if (r_in_read)			/* as the real layers: only a pending read */
+		r_cancel_hit = 1;
+#else
 	printf("%s CANCEL\n", scn);
 	fflush(stdout);
+#endif
 	return ICOM_OK;
 }
 
@@ -171,6 +273,8 @@ static i1pro *make(devType dtype, int caps2) {
 }
 
 /* One lit strip scan of *nread* readings, as i1pro_imp_measure makes it. */
+static int armed = 0;			/* the helper arms each strip (option on) */
+
 static void scan(i1pro *p, const char *what, int nread) {
 	i1proimp *m = (i1proimp *)p->m;
 	double inttime = m->min_int_time;
@@ -183,6 +287,13 @@ static void scan(i1pro *p, const char *what, int nread) {
 	fflush(stdout);
 	trig_sent = 0;
 	readings_left = nread;
+#ifndef CQ_BASE
+	scan_over = 0;
+	r_pos = 0;
+	r_total = (long)nread * 136 - 5;
+	if (armed)
+		i1pro2_cq_ruler_arm(p, 1);
+#endif
 	ev = i1pro_read_patches_1(p, 10, maxn, &inttime, 0, &nmeas, buf, bsize);
 	if (m->trig_thread != NULL) {
 		m->trig_thread->del(m->trig_thread);
@@ -190,6 +301,22 @@ static void scan(i1pro *p, const char *what, int nread) {
 	}
 	printf("%s RESULT ev=0x%x readings=%d\n", scn, ev, nmeas);
 	fflush(stdout);
+#ifndef CQ_BASE
+	if (armed) {
+		cq_ruler_rec r;
+		if (i1pro2_cq_ruler_take(p, &r)) {
+			printf("%s RULER ended=%d bytes=%ld samples=%ld nch=%d first=%d "
+			       "readings=%d clocks=%d giveup=%d notend=%d err=0x%x state=%d\n",
+			       scn, r.ended, r.bytes, r.samples, r.nch, r.first, r.readings,
+			       r.clocks, r.giveup, r.stream_did_not_end, r.icom_err,
+			       i1pro2_cq_ruler_state(p));
+			cq_ruler_rec_clear(&r);
+		} else
+			printf("%s RULER none state=%d\n", scn, i1pro2_cq_ruler_state(p));
+		i1pro2_cq_ruler_arm(p, 0);
+		fflush(stdout);
+	}
+#endif
 	free(buf);
 }
 
@@ -206,9 +333,128 @@ static void life(const char *name, devType dtype) {
 	fflush(stdout);
 }
 
+#ifndef CQ_BASE
+/* The option on: the helper switches the ruler on for the session and arms
+ * every strip. *mode* is what the fake instrument streams; the second and
+ * third scans show what happens to the strips after it. */
+static void ruler_life(const char *name, devType dtype, int caps2,
+                       const char *mode, int lights) {
+	i1pro *p;
+	scn = name;
+	ruler_mode = mode;
+	r_reads = r_maxsize = r_cancels = 0;
+	p = make(dtype, caps2);
+	pace = 1;
+	if (lights) {
+		i1pro2_cq_lights_options(p, 1, 0);
+		printf("%s LIGHTS %d\n", scn, i1pro2_cq_lights_begin(p));
+	}
+	printf("%s OPTIONS %d\n", scn, i1pro2_cq_ruler_options(p, 1));
+	armed = 1;
+	scan(p, "strip-1", 120);
+	ruler_mode = "clean";
+	scan(p, "strip-2", 120);
+	scan(p, "strip-3", 120);
+	armed = 0;
+	pace = 0;
+	printf("%s READS85 %d max=%d\n", scn, r_reads > 0, r_maxsize);
+	i1pro2_cq_ruler_close(p);
+	printf("%s CLOSED cancels=%d\n", scn, r_cancels > 0);
+	if (lights)
+		i1pro2_cq_lights_end(p);
+	free(p->icom);
+	p->icom = NULL;
+	printf("%s END\n", scn);
+	fflush(stdout);
+}
+#endif
+
+#ifndef CQ_BASE
+/* The recogniser with the ruler record open and closed: the patch values must
+ * be bit for bit the same (the hooks only copy). A synthetic strip of 16
+ * plateaus with sharp edges, as absolute raw values. */
+static void extract_check(void) {
+	i1pro *p;
+	i1proimp *m;
+	int n = 16, per = 30, lead = 40, nummeas = 16 * 30 + 80, i, j, k, f1 = 0, f2 = 0;
+	double **mm, **pa1, **pa2;
+	cq_ruler_rec r;
+	scn = "extract";
+	p = make(instI1Pro2, 0x08);
+	m = (i1proimp *)p->m;
+	m->scan_toll_ratio = 1.0;
+	mm = dmatrix(0, nummeas - 1, -1, m->nraw - 1);
+	pa1 = dmatrix(0, n - 1, -1, m->nraw - 1);
+	pa2 = dmatrix(0, n - 1, -1, m->nraw - 1);
+	for (i = 0; i < nummeas; i++) {
+		int pi = (i - lead) / per;
+		for (j = -1; j < m->nraw; j++) {
+			double v = 9000.0;		/* paper */
+			if (i >= lead && pi < n)
+				v = 1500.0 + 450.0 * ((pi * 7 + j / 16) % 16);
+			mm[i][j] = v + (double)((i * 31 + j * 17) % 13);
+		}
+	}
+	i1pro2_cq_ruler_options(p, 1);
+	m->cq_ruler_recording = 0;
+	k = i1pro_extract_patches_multimeas(p, &f1, pa1, n, mm, nummeas, NULL, 0.0, 0.0049);
+	((cq_ruler_rec *)m->cq_ruler_rec)->valid = 1;
+	m->cq_ruler_recording = 1;
+	j = i1pro_extract_patches_multimeas(p, &f2, pa2, n, mm, nummeas, NULL, 0.0, 0.0049);
+	{
+		int same = (k == j) && (f1 == f2);
+		for (i = 0; i < n && same; i++)
+			same = memcmp(&pa1[i][-1], &pa2[i][-1], sizeof(double) * (m->nraw + 1)) == 0;
+		i1pro2_cq_ruler_take(p, &r);
+		printf("%s EXTRACT ev=0x%x identical=%d ncut=%d ntrace=%d\n", scn, k, same,
+		       r.ncut, r.ntrace);
+		cq_ruler_rec_clear(&r);
+	}
+	i1pro2_cq_ruler_close(p);
+	free(p->icom);
+	p->icom = NULL;
+	printf("%s END\n", scn);
+	fflush(stdout);
+}
+#endif
+
 int main(void) {
 	life("off_i1pro2", instI1Pro2);
 	life("off_i1pro", instI1Pro);		/* the original i1Pro (Rev A-D) */
+#ifndef CQ_BASE
+	extract_check();
+	ruler_life("on_clean", instI1Pro2, 0x08, "clean", 0);
+	ruler_life("on_none", instI1Pro2, 0x08, "none", 0);
+	ruler_life("on_garbled", instI1Pro2, 0x08, "garbled", 0);
+	ruler_life("on_short", instI1Pro2, 0x08, "short", 0);
+	ruler_life("on_late", instI1Pro2, 0x08, "late", 0);
+	ruler_life("on_error", instI1Pro2, 0x08, "error", 0);
+	ruler_life("on_zero", instI1Pro2, 0x08, "zero", 0);
+	ruler_life("on_noend", instI1Pro2, 0x08, "noend", 0);
+	/* no ruler sensor in the EEPROM, and the original i1Pro: never */
+	ruler_life("on_nosensor", instI1Pro2, 0x00, "clean", 0);
+	ruler_life("on_revad", instI1Pro, 0x08, "clean", 0);
+	/* with the lights on (signals): both work, independently */
+	ruler_life("on_clean_lights", instI1Pro2, 0x18, "clean", 1);
+	/* readings faster than the clock: the rate guard */
+	{
+		ruler_mode = "clean";
+		scn = "on_rate";
+		{
+			i1pro *p = make(instI1Pro2, 0x08);
+			pace = 0;
+			printf("%s OPTIONS %d\n", scn, i1pro2_cq_ruler_options(p, 1));
+			armed = 1;
+			scan(p, "strip-1", 120);
+			scan(p, "strip-2", 120);
+			armed = 0;
+			i1pro2_cq_ruler_close(p);
+			free(p->icom);
+			p->icom = NULL;
+			printf("%s END\n", scn);
+		}
+	}
+#endif
 	printf("ALL DONE\n");
 	return 0;
 }

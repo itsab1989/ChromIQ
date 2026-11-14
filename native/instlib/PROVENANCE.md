@@ -89,17 +89,34 @@ stops if one no longer applies.
   reading, as i1Profiler; a calibration still gets the off). The same
   four sequences, nothing else.
   Not tested on a real i1Pro 2 by the project.
+- **`i1pro_imp.c`, `i1pro_imp.h`, `i1pro3_imp.c`, `i1pro3_imp.h`: the ruler
+  check** (Preferences > Beta, 2026-11-14; stage 1, check only). Inert
+  until ChromIQ's helper switches it on (`--ruler`) and arms one strip.
+  i1Pro 2 (EEPROM reports `I1PRO_CAP2_ZEB_RUL`): the armed strip's lit
+  scan gets RULER_START | RULER_END (0x0004 | 0x0008) in the 0xD4 flags,
+  and the ruler stream is read on bulk IN 0x85 in 4096-byte reads until a
+  short read ends it: exactly what X-Rite's i1Profiler 3.8.6 does on every
+  strip scan in two USB recordings of a user's own i1Pro 2 (firmware 634).
+  Never 0xD7 (stop ruler), never anything else. Anything unusual gives the
+  ruler up for the session; a stream that does not end by itself is
+  drained until it does or the instrument is closed (on macOS that close
+  is a host-side abort, which IOKit follows with a clear-halt request).
+  i1Pro 3: nothing new on the wire; copies of the ruler samples ArgyllCMS
+  already reads. Both: read-only copies of where the recogniser cut and a
+  coarse trace, into ChromIQ's own `cq_ruler.h` record (not an Argyll file;
+  this script never writes it). Values and patch assignment never change.
+  Not tested on a real instrument by the project.
 
 | patched file | upstream sha256 (first 16) | shipped sha256 (first 16) |
 |---|---|---|
 | `rspl1.c` | `5c7b0509abf97f44…` | `d53a8d37b30b6e14…` |
 | `conv.c` | `c6b04014888cb6f4…` | `1b88327ee6e6d9df…` |
 | `i1pro.c` | `ac75b6e3f47537b8…` | `833d46b27134f93e…` |
-| `i1pro_imp.h` | `c37813e4b43a9bff…` | `fdeee113ccf24d86…` |
-| `i1pro_imp.c` | `8b8516cdd89e21de…` | `768237badecbd06a…` |
+| `i1pro_imp.h` | `c37813e4b43a9bff…` | `e6f2e48da080ca1c…` |
+| `i1pro_imp.c` | `8b8516cdd89e21de…` | `0df1be99347eda8a…` |
 | `i1pro3.c` | `9c4b1ac9f8af507a…` | `347235c6d10f9677…` |
-| `i1pro3_imp.h` | `190cceb46fe8bc33…` | `93c8298b8dbea546…` |
-| `i1pro3_imp.c` | `42c684afa3bbb15d…` | `5d63232b1e09a9ee…` |
+| `i1pro3_imp.h` | `190cceb46fe8bc33…` | `e6d2c5f364eaca29…` |
+| `i1pro3_imp.c` | `42c684afa3bbb15d…` | `1d4fb6f133715469…` |
 
 ## Files
 

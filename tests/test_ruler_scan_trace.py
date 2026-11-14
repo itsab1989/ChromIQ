@@ -40,3 +40,93 @@ def test_off_never_touches_the_ruler_channel(trace):
         assert " RD 85 " not in ln and " CANCEL" not in ln
     d4 = [ln for ln in _scn(trace, "off_i1pro2") if " CTL d4 " in ln]
     assert d4 and all(ln.split()[3].endswith("0101") for ln in d4)
+
+
+# ---- the option on (the helper switched the ruler on and arms each strip) --
+
+def _ruler(trace: str, scn: str) -> "list[dict]":
+    out = []
+    for ln in _scn(trace, scn):
+        parts = ln.split()
+        if parts[1] != "RULER":
+            continue
+        if parts[2] == "none":
+            out.append({"none": True, "state": int(parts[3].split("=")[1])})
+        else:
+            out.append({k: (int(v, 0) if k == "err" else int(v))
+                        for k, v in (p.split("=") for p in parts[2:])})
+    return out
+
+
+def _d4(trace: str, scn: str) -> "list[str]":
+    return [ln.split()[3][-4:] for ln in _scn(trace, scn) if " CTL d4 " in ln]
+
+
+def test_on_only_the_two_bits_are_new_and_the_reads_are_4096(trace):
+    assert _d4(trace, "on_clean") == ["010d"] * 3          # i1Profiler's flags
+    assert f"on_clean READS85 1 max=4096" in trace
+    # nothing else differs from an unarmed scan of the same strip
+    on = [ln.split(" ", 1)[1] for ln in _scn(trace, "on_clean")
+          if " RD 82 " in ln]
+    assert on == ["RD 82 1072000 -> 32160 tout=21.78"] * 3
+    r = _ruler(trace, "on_clean")
+    assert all(x["ended"] == 1 and x["bytes"] == 120 * 136 - 5 and x["nch"] == 300
+               and x["giveup"] == 0 for x in r)
+
+
+def test_no_sensor_or_an_original_i1pro_never_get_the_ruler(trace):
+    assert _d4(trace, "on_nosensor") == ["0101"] * 3
+    assert "on_nosensor READS85 0 max=0" in trace
+    assert "on_revad READS85 0 max=0" in trace
+    assert not any(" CTL d4 " in ln for ln in _scn(trace, "on_revad"))
+    assert all(x.get("none") for x in _ruler(trace, "on_revad"))
+
+
+@pytest.mark.parametrize("scn,why", [("on_error", 1), ("on_zero", 2),
+                                     ("on_late", 3), ("on_noend", 3),
+                                     ("on_rate", 5)])
+def test_anything_unusual_gives_the_ruler_up_and_the_scans_go_on(trace, scn, why):
+    r = _ruler(trace, scn)
+    assert r[0].get("giveup") == why
+    assert all(x.get("none") and x["state"] == why for x in r[1:])
+    d4 = _d4(trace, scn)
+    assert d4[0] == "010d" and all(f == "0101" for f in d4[1:])
+    # every measurement still read all its readings
+    assert all(ln.endswith("readings=120") for ln in _scn(trace, scn)
+               if " RESULT " in ln)
+    assert all(" RESULT ev=0x0 " in ln for ln in _scn(trace, scn)
+               if " RESULT " in ln)
+
+
+def test_a_stream_that_does_not_end_is_drained_never_stopped_by_request(trace):
+    for scn in ("on_late", "on_noend"):
+        assert _ruler(trace, scn)[0]["notend"] == 1
+        # only ever a host-side cancel at the close; no request was sent
+        assert not any(" CTL d7 " in ln for ln in _scn(trace, scn))
+    assert "on_noend CLOSED cancels=1" in trace
+
+
+def test_no_ruler_short_and_garbled_streams_are_recorded_as_they_are(trace):
+    assert _ruler(trace, "on_none")[0]["nch"] == 0
+    assert _ruler(trace, "on_short")[0]["bytes"] < 120 * 136 // 2 + 10
+    assert _ruler(trace, "on_garbled")[0]["nch"] == 301
+    for scn in ("on_none", "on_short", "on_garbled"):
+        assert _ruler(trace, scn)[0]["giveup"] == 0
+
+
+def test_the_lights_and_the_ruler_work_together(trace):
+    lines = _scn(trace, "on_clean_lights")
+    assert "on_clean_lights LIGHTS 1" in lines
+    assert _d4(trace, "on_clean_lights") == ["010d"] * 3
+    assert all(x["giveup"] == 0 for x in _ruler(trace, "on_clean_lights"))
+    # the lights' own requests are unchanged: 0xD6 then the bytes on 0x03
+    assert any(" CTL d6 " in ln for ln in lines)
+
+
+def test_the_recogniser_gives_identical_values_with_the_record_open(trace):
+    assert "extract EXTRACT ev=0x0 identical=1 ncut=16 ntrace=560" in trace
+
+
+def test_never_0xd7_nor_any_new_request(trace):
+    reqs = {ln.split()[2] for ln in trace.splitlines() if " CTL " in ln}
+    assert reqs <= {"d4", "c1", "c0", "d6"}

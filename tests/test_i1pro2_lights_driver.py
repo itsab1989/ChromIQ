@@ -149,8 +149,16 @@ def test_undoing_the_patches_gives_argylls_own_file_back(dest):
 
 
 def _added_lines(dest: str) -> "list[str]":
+    """The lines the LIGHTS patches add (the ruler check's patches, which share
+    these files since 2026-11-14, are pinned in tests/test_ruler_driver.py)."""
+    v = _vendor()
+    ruler = [pt for k in ("I1PRO_IMP_H_RULER", "I1PRO_IMP_C_RULER",
+                          "I1PRO3_IMP_H_RULER", "I1PRO3_IMP_C_RULER")
+             for pt in v.get(k, [])]
     added = []
-    for old, new in _vendor()["PATCHES"].get(dest, []):
+    for old, new in v["PATCHES"].get(dest, []):
+        if (old, new) in ruler:
+            continue
         o = set(old.splitlines())
         added += [ln for ln in new.splitlines() if ln not in o]
     return added
