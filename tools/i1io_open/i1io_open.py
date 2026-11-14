@@ -264,7 +264,8 @@ def plan_text(hex_bytes: bool = False) -> str:
             "before it closed the table (status, position, homing, status):"]
     out += [row(k) for k in HOMING]
     out += ["  checks: the arm at its resting place (X 1097..1107, Y -5..50) right before "
-            "the homing; the homing answered within 2 s; otherwise stop. No position is "
+            "the homing; the homing answered within 0.6 s (every recorded one took at most 0.35 s); "
+            "otherwise stop, without the closing lines. No position is "
             "read after the homing (i1Profiler never follows a position question with "
             "the closing lines).", "",
             "5. Closing, after you have looked at the arm:"]

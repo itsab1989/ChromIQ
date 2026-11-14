@@ -223,7 +223,7 @@ def test_the_simulator_does_not_import_the_programs_sequences():
 def test_the_timeouts_and_slow_limits_are_pinned():
     assert tbl.QUICK_TIMEOUT == 1.0
     assert tbl.HOME_TIMEOUT == 12.0
-    assert tbl.SLOW_AFTER == {"home": 2.0}
+    assert tbl.SLOW_AFTER == {"home": 0.6}
     assert not hasattr(tbl, "START_TIMEOUT")
     assert prog.RELEASE_WAIT_S == 10.0
 
@@ -472,6 +472,47 @@ def test_a_reply_that_comes_slowly_but_in_time_is_fine(tmp_path):
     sim.inject("late", "s0", 0.5)
     code, sim, _ = _run(tmp_path, sim)
     assert code == 0 and sim.received == WARM
+
+
+HOME_AT = len(OPEN + FOLLOW) + 2          # the index of the one i1 in the run
+
+
+@pytest.mark.parametrize("took,ok", [(0.047, True), (0.336, True), (0.352, True), (0.595, True),
+                                     (0.605, False), (0.8, False), (1.55, False), (11.0, False)])
+def test_the_homing_window_at_its_edges(tmp_path, took, ok):
+    """Safety review M1: every recorded homing from rest took 0.047-0.352 s, so 0.6 s is the
+    limit. A homing outside it stops the run with NOTHING further sent (no close)."""
+    sim = sim_mod.SimTable(pos=[1102.0, 30.0], home_y=0.0, home_s=took, jitter=False)
+    code, sim, log = _run(tmp_path, sim)
+    flat = " ".join(log.split())
+    if ok:
+        assert code == 0 and sim.received == WARM and "closed yes" in log
+    else:
+        assert code == 2 and sim.received == WARM[:HOME_AT + 1], sim.received
+        assert sim.received[-1] == ";i12b" and "closed no" in log
+        assert f"i1 took {took:.3f} s, more than the 0.6 s allowed" in log
+        assert f"it took {took:.2f} seconds" in flat and "does not close the table" in flat
+        assert "the homing has finished" not in flat
+        assert "opened and closed the way i1Profiler does it" not in flat
+
+
+def test_the_reviewers_slow_homing_no_longer_reports_success(tmp_path):
+    """The reviewer's case (second_slow.py): a homing 1.55 s late was accepted, the table
+    closed and the run reported success. It must stop, unclosed, after the i1."""
+    sim = sim_mod.SimTable()
+    sim.inject_at(HOME_AT, "late", 1.55)
+    code, sim, log = _run(tmp_path, sim)
+    assert code == 2 and sim.received[-1] == ";i12b" and len(sim.received) == HOME_AT + 1
+    assert "result 2;" in log and "closed no" in log and "1 movements" in log
+    assert "the homing has finished" not in " ".join(log.split())
+
+
+def test_there_is_no_lower_limit_on_the_homing_time():
+    """The recordings show a homing from Y 0..2 answered in 0.047 s and no faster time a real
+    homing could not beat, so no lower bound is set (decision in the source)."""
+    assert set(tbl.SLOW_AFTER) == {"home"}
+    assert not any(n.startswith(("FAST", "MIN_HOME")) for n in dir(tbl))
+    assert "There is NO lower bound" in _source("i1io_open_table.py")
 
 
 def test_a_homing_that_takes_far_longer_than_recorded_stops_right_after_it(tmp_path):

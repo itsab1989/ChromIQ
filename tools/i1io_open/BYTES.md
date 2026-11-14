@@ -94,7 +94,7 @@ Every line must have a valid checksum. The acceptance `:!` + id + checksum must 
 | s0 | `:$s00CF` | 75 times |
 | f4 | `:$f400078` (00) (01 was only ever read after f1, which is never sent) | every open |
 | p0 | status 0 and 8 hex characters; then the arm must be at its resting place, X 1097..1107, Y -5..50 (every read at rest in R1, R2, S1, S2 and both real runs: X 1101..1102, Y 0..47; 0.16 s after the homing on the tester's table Y 19) | 457 times |
-| i1 | `:$i10D8`, within 12 s; stop if it took longer than 2 s (recorded at rest 0.047-0.352 s; 0.336 s on the tester's table) | 22 times; status 3 once (R1 272.555, free arm): stops here |
+| i1 | `:$i10D8`, within 12 s; stop, without the close, if it took longer than 0.6 s (recorded from the resting place 0.047-0.352 s: from Y 0..2 0.047-0.048 s, from Y 14..47 0.224-0.352 s; 0.336 s on the tester's table). No lower limit: the recordings show none a real homing could not beat | 22 times; status 3 once (R1 272.555, free arm): stops here |
 | f0 | `:$f00007C` (00) | 11 times |
 | f3 | `:$f300079` (00) | 13 times |
 

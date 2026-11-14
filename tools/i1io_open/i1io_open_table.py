@@ -298,9 +298,22 @@ HOME_CLUSTER = Box(1097, 1107, -5, 50)
 #: i1 0.048-0.352 s at the resting place (4.02 s from far out).
 QUICK_TIMEOUT = 1.0
 HOME_TIMEOUT = 12.0
-#: A movement that finished, but took far longer than recorded, is a doubt:
-#: the arm may not have done what the recordings show (nothing more is sent).
-SLOW_AFTER = {"home": 2.0}
+#: A homing that finished, but took longer than this, is a doubt (safety review M1): the
+#: arm may have done something no recording shows (a travel, a search like i0's 3.17 s),
+#: so nothing more is sent, not even the close. Every recorded homing from the resting
+#: place took 0.047-0.352 s (from Y 0..2 0.047-0.048 s; from Y 14..47 0.224-0.352 s); the
+#: tester's own table took 0.336 s from Y 46 (0.2.0). 0.6 s is 1.7 times the slowest.
+#: There is NO lower bound: the arm can rest at Y 0..2 (read there after a homing), where a
+#: homing answered in 0.047 s, and no recording shows a time a real homing cannot beat.
+SLOW_AFTER = {"home": 0.6}
+#: The slowest recorded homing from the resting place, for the texts.
+SLOWEST_RECORDED_HOME_S = 0.352
+SLOW_HOME_TEXT = (
+    "The table reported that the homing had finished, but it took {took:.2f} seconds. On "
+    "your table it took 0.34 seconds (version 0.2.0), and in every recording a homing from "
+    "the resting place took at most 0.35 seconds. Because it took longer than anything we "
+    "know, the arm may have done something no recording shows, so the program does not "
+    "close the table and sends nothing more.")
 #: No read is shorter than this (macOS cancels a timed-out USB read).
 MIN_READ_S = 0.05
 #: Before every command the program listens this long for anything unasked.
@@ -532,9 +545,10 @@ class Table:
             self.motion_unconfirmed = False
             self.homing_times.append(took)
             if took > SLOW_AFTER[key]:
-                raise self._doubt(f"{cid} took {took:.1f} s; the recordings show at most "
-                                  "0.4 s from the resting "
-                                  "place")
+                raise self._doubt(f"{cid} took {took:.3f} s, more than the {SLOW_AFTER[key]} s "
+                                  f"allowed; the recordings show at most "
+                                  f"{SLOWEST_RECORDED_HOME_S} s from the resting place",
+                                  SLOW_HOME_TEXT.format(took=took))
         return reply
 
     def drain(self) -> None:
