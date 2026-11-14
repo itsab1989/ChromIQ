@@ -88,17 +88,6 @@ class RulerSession:
         self.gen = str(ev.get("instrument") or "")
         why = str(ev.get("why") or "")
         if not self.active:
-            if why == "paused":
-                # 4.3.36 (native/chartread_helper/cq_beta_pause.h): nothing
-                # was asked of the instrument, so it is measured exactly as
-                # with the option off.
-                return [tr("Ruler (beta): in this version the ruler check is "
-                           "paused for the i1Pro 2, until it has been tried "
-                           "step by step on a real instrument. This i1Pro 2 "
-                           "is measured exactly as it is without the option, "
-                           "and no ruler diagnostics file is written. Your "
-                           "setting stays saved. On an i1Pro 3 the ruler "
-                           "check works as before.")]
             if why == "sensor":
                 return [tr("Ruler (beta): this i1Pro 2 does not report a ruler "
                            "sensor, so the ruler check is not used. The "
@@ -265,13 +254,17 @@ class RulerSession:
         ask = bool(can_ask and not other_question and rc.not_covered(
             f, span, pitch=pitch, patches=patches, coverage=coverage,
             followed=followed))
-        # 4.3.37: the ruler and the filing disagree about the direction (the
-        # i1Pro 3 only): the strip was most likely saved back to front.
+        # 4.3.37: the ruler and the filing disagree about the direction: the
+        # strip was most likely saved back to front. 4.3.38: for the i1Pro 2
+        # as well. The question uses only the sign of the net count and the
+        # session's majority, never a step size, and the i1Pro 2's encoder
+        # gives that sign the same way (its one real strip in a tester's log,
+        # 2026-11-14: 339 transitions, none illegal, net -339 = the travel).
         filed_sign = (-f.sign if ev.get("reversed") else f.sign) \
             if f.usable and f.sign else 0
         majority = self._majority_direction()
         ask_direction = bool(
-            self.gen == "i1pro3" and not ask and not other_question
+            self.gen in NAMES and not ask and not other_question
             and filed_sign and majority and filed_sign != majority
             and patches >= rc.MIN_PATCHES_FOR_QUESTION)
         # learn from the strips that look right

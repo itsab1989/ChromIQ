@@ -39,9 +39,6 @@
 #include "inst.h"
 #include "i1pro3.h"
 #include "i1pro3_imp.h"
-#ifndef CQ_V4334
-#include "cq_beta_pause.h"	/* 4.3.36: the choices an i1Pro 3 is given */
-#endif
 #ifdef CQ_WATCHED
 #include "chromiq_usbwatch.h"	/* 4.3.36: the helper's read-only USB watch */
 #endif
@@ -464,16 +461,17 @@ int main(void) {
 		}
 		fail_29_at = 0;
 	}
-	/* 4.3.36: every stored combination through the helper's own mapping
-	 * (cq_beta_pause.h): an i1Pro 3 is given what was asked, so each life
-	 * must be the one of the same combination above. */
+	/* Every stored combination as the helper hands it on (an i1Pro 3 was
+	 * always given what was asked; cq_beta_pause.h is gone since 4.3.38), so
+	 * each life must be the one of the same combination above. */
 	{
 		static char pnames[4][32];
 		int c, s3, l3;
 		for (c = 0; c < 4; c++) {
 			snprintf(pnames[c], 32, "v4336_%s_%s", c & 1 ? "signals" : "ready",
 			         c & 2 ? "lefton" : "off");
-			cq_lights_choices_for(3, c & 1, (c >> 1) & 1, &s3, &l3);
+			s3 = c & 1;
+			l3 = (c >> 1) & 1;		/* 4.3.38: no pause any more: as asked */
 			life(pnames[c], 1, s3, l3, 0);
 		}
 	}

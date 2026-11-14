@@ -1,14 +1,13 @@
-"""4.3.36: the i1Pro 2's paused Beta parts and the technical line of a
+"""The i1Pro 2's Beta parts since 4.3.36 and the technical line of a
 communication failure, on the app's side.
 
-The helper decides the pause (native/chartread_helper/cq_beta_pause.h; the
-wire is proved in tests/test_usb_failure_detail.py) and says so in its events;
-the app:
+4.3.36 paused both in the helper (native/chartread_helper/cq_beta_pause.h);
+4.3.37 ended the lights' pause and 4.3.38 the ruler check's, and the header
+is gone (the wire: tests/test_usb_failure_detail.py). The app:
 
-* says it once in the Measure log, with a line per paused choice, and never
-  for an i1Pro 3;
+* says the lights' quiet time once in the Measure log, never for an i1Pro 3;
 * keeps the stored choices (and the command line it passes) as they were;
-* says the ruler check is paused, and writes no diagnostics file;
+* opens an i1Pro 2 ruler session like an i1Pro 3 one, with its file;
 * writes a communication failure's USB detail into the app log and shows
   one technical line at the bottom of the Strip Read Failed window, with
   the window's buttons unchanged.
@@ -134,20 +133,23 @@ def test_the_stored_choices_and_the_command_line_are_untouched(settings):
     assert TabMeasure is not None
 
 
-def test_the_ruler_says_it_is_paused_and_writes_no_file(tmp_path):
+def test_an_i1pro2_ruler_session_is_active_and_writes_its_file(tmp_path):
+    """4.3.38: the ruler check is back for the i1Pro 2 (4.3.36 and 4.3.37
+    paused it): an active session opens as for the i1Pro 3, and the "paused"
+    line is gone from the app."""
+    import inspect
+    from workflow import ruler_session
     from workflow.ruler_session import RulerSession
+    assert '"paused"' not in inspect.getsource(ruler_session)
     ti1 = tmp_path / "runs" / "run1" / "chart.ti1"
     ti1.parent.mkdir(parents=True)
     ti1.write_text("CTI1\n", encoding="utf-8")
     rs = RulerSession(ti1_path=ti1, verification=False)
-    lines = rs.on_session({"event": "ruler", "active": False,
-                           "why": "paused", "instrument": "i1pro2"})
-    assert len(lines) == 1
-    assert "paused for the i1Pro 2" in lines[0]
-    assert "exactly as it is without the option" in lines[0]
-    assert "On an i1Pro 3 the ruler check works as before." in lines[0]
-    assert rs.on_end() == []
-    assert not list(tmp_path.rglob("ruler_diagnostics_*"))
+    lines = rs.on_session({"event": "ruler", "active": True,
+                           "instrument": "i1pro2", "firmware": 634,
+                           "sensor": True, "argyll": "3.5.0"})
+    assert lines and not any("paused" in ln for ln in lines)
+    assert rs.active and rs.diagnostics_path() is not None
 
 
 # ---------------------------------------------------------------------------
@@ -278,7 +280,12 @@ def test_the_lights_confirmation_says_the_new_order_and_names_no_version():
     assert "On an i1Pro 2, ChromIQ now follows the order X-Rite's i1Profiler" \
         in text
     assert "about two seconds" in text
-    assert "has not yet been confirmed on a real i1Pro 2" in text
+    # 4.3.38: a tester's confirmation, without claiming the losses are gone
+    assert ("A tester has since confirmed with a real i1Pro 2 on Windows "
+            "that the lights now behave as described") in text
+    assert "whether the connection losses are gone for good has not been " \
+        "confirmed yet" in text
+    assert "has not been tried on a real i1Pro 2" not in text
     assert "The instrument lost communication with the computer" in text
     assert "—" not in text
 
@@ -289,8 +296,10 @@ def test_the_lights_help_opens_with_the_new_order():
     paras = help_.split("\n\n")
     assert paras[1].startswith("**New for the i1Pro 2: the lights follow "
                                "X-Rite's own order.**")
-    assert "not yet been confirmed on a real i1Pro 2" in paras[1]
-    assert "page read without a single" in paras[1]
+    assert ("On 14 November 2026 a tester confirmed with a real i1Pro 2 on "
+            "Windows that the lights now behave as described here.") in paras[1]
+    assert "is gone for good has not been confirmed yet" in paras[1]
+    assert "pages read without a single" in paras[1]
     assert "keep the instrument still" in paras[1]
     assert "Start sliding at the beep." in paras[1]
     assert "paused for the i1Pro 2" not in help_.replace(
@@ -303,25 +312,39 @@ def test_the_lights_help_opens_with_the_new_order():
     assert "—" not in help_
 
 
-def test_the_ruler_help_and_confirmation_say_it_is_paused():
+def test_the_ruler_help_and_confirmation_say_what_is_confirmed():
+    """4.3.38: the i1Pro 2 has the ruler check back. The texts say what has
+    been confirmed on a real i1Pro 2 (one strip in a tester's log, nothing
+    more), what the person will see, which file we would like, and to try
+    the lights and the ruler one at a time first."""
     from ui.dialogs.settings_dialog import (ruler_check_confirmation,
                                             ruler_check_help)
-    paras = ruler_check_help().split("\n\n")
-    assert paras[1].startswith("**Paused for the i1Pro 2 in this version.**")
-    assert "exactly as with it off" in paras[1]
-    assert "until it has been tried step by step on a real i1Pro 2" in paras[1]
-    assert "nothing new is sent to it" in paras[1]
+    help_ = ruler_check_help()
+    paras = help_.split("\n\n")
+    assert paras[1].startswith("**Back for the i1Pro 2, and confirmed on one "
+                               "strip so far.**")
+    assert "one strip, in one tester's log" in paras[1]
+    assert "Nothing more has been confirmed on a real i1Pro 2 yet" in paras[1]
+    assert "paused" not in help_.replace("paused the ruler check", "")
+    assert ("After every strip the Measure log shows how far, which way and "
+            "how fast the instrument moved.") in help_
+    assert "saved back to front" in help_
+    assert ("Every measurement with this option on writes a small diagnostics "
+            "file") in help_
+    assert "With an i1Pro 2 this file is what we would most like to receive" \
+        in help_
+    assert ("**With an i1Pro 2, please try the lights and the ruler check one "
+            "at a time first.**") in help_
     conf = ruler_check_confirmation()
-    assert ("For the i1Pro 2 the ruler check is paused in this version, until "
-            "it has been tried step by step on a real instrument") in conf
+    assert "paused" not in conf
+    assert ("On a real i1Pro 2 this has been confirmed for one strip in a "
+            "tester's log so far, nothing more.") in conf
     assert "An i1Pro 3 gets nothing new" in conf
-    # review nit 6: the file is written only where the check runs
-    assert ("Each measurement with an i1Pro 3 writes a small diagnostics "
-            "file") in conf
-    assert "With an i1Pro 2 no file is written while the check is paused." \
+    assert "please try the lights and the ruler check one at a time first" \
         in conf
-    assert "Each measurement writes" not in conf
-    assert "—" not in paras[1] + conf
+    assert "“ruler_diagnostics_”" in conf
+    assert "Each measurement writes a small diagnostics file" in conf
+    assert "—" not in help_ + conf
 
 
 @pytest.mark.parametrize("ms,said", [(12, "light off_slow 12 ms before trigger 1"),

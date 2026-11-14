@@ -700,3 +700,24 @@ its strip menu, the window's nested event loop holds back the "All Strips Read"
 window as for *Strip read quickly* (`_pace_prompt_open`), and a key pressed at
 the window stays with the window (note 8a). The answer is written into the
 measurement's ruler diagnostics file.
+
+### ⏳ Awaiting confirmation: the i1Pro 2 has the ruler check again (4.3.38)
+
+**Confirmed by:** *nobody yet.*
+
+ChromIQ 4.3.36 and 4.3.37 paused the ruler check for the i1Pro 2 in the helper
+(`cq_beta_pause.h`); 4.3.38 removes the pause. An i1Pro 2 is armed exactly as
+in 4.3.35 (`cq_ruler_for_session` is 4.3.35's line for line): the two ruler
+bits in the lit scan's measure command, the 0x85 reader, check only, never
+0xD7, nothing written into the instrument's memory, and the strip read the
+usual way when the ruler data is missing or late. The question about a strip
+that may have been saved back to front (M-STRIP-RULER-DIRECTION) is asked for
+the i1Pro 2 too, by the same rule as for the i1Pro 3.
+
+With the lights on as well, the lights' hold before a trigger (rule B) comes
+before the ruler's reader starts (`i1pro_trigger_one_measure`: the lights'
+hook first, the ruler's bits and reader after), so the hold does not cut the
+ruler's stream short, and the ruler sends no light write and no other write
+during a reading (rule A). Proved on the fake USB layer for the lights off
+and on with the ruler off and on (`tests/test_ruler_scan_trace.py`, the
+`combo_*` lives), not yet on a real i1Pro 2.
