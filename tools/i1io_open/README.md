@@ -191,12 +191,10 @@ pressing Enter.
 ### If the arm is loose afterwards
 
 As far as we know, that is the same harmless state as a table that is switched
-off. Please do not push it around. Leave it at its resting place, with the
-measuring opening on the white tile, switch the table off, wait about ten
-seconds and switch it on again, then open i1Profiler once, let it start the
-table as usual, and quit it. If you have a moment, touch the holder gently once
-more about ten minutes after the run and add a line to the log about what you
-felt.
+off. Please do not push it around. Leave the arm where it is, at its resting
+place. Then open i1Profiler once, let it start the table as usual, and quit it.
+If you have a moment, touch the holder gently once more about ten minutes after
+the run and add a line to the log about what you felt.
 
 ### How to stop
 

@@ -68,9 +68,8 @@ RELEASE_WAIT_S = 10.0
 LOOSE_ADVICE = (
     "If the arm is loose (it moves freely when you touch it gently), that is, as far as we "
     "know, the same harmless state as a table that is switched off. Please do not push it "
-    "around. Leave it at its resting place, with the measuring opening on the white tile, "
-    "switch the table off, wait about ten seconds and switch it on again, then open "
-    "i1Profiler once, let it start the table as usual, and quit it.")
+    "around. Leave the arm where it is, at its resting place. Then open i1Profiler once, let "
+    "it start the table as usual, and quit it.")
 RECOVERY = ("To bring the arm back to its resting place, start i1Profiler once and let it "
             "connect to the table: it sends the arm home by itself. Then quit i1Profiler. "
             "Please do not start this program again until i1Profiler has done that.")

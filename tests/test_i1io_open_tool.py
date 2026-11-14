@@ -983,6 +983,29 @@ def test_the_zip_is_reproducible_and_runs_from_a_clean_folder(tmp_path):
         assert "Traceback" not in r.stdout + r.stderr
 
 
+def test_the_loose_arm_advice_has_no_power_cycle(tmp_path):
+    """Safety review M2: he described the start after a power cycle as a hard movement, so the
+    loose-arm advice (screen, log, README) is only: leave it, open i1Profiler once, let it
+    start the table, quit it. The power switch stays the emergency stop during a movement,
+    and the power cycle stays only for a movement that never reported its end."""
+    advice = " ".join(prog.LOOSE_ADVICE.split())
+    assert advice.endswith("Leave the arm where it is, at its resting place. Then open "
+                           "i1Profiler once, let it start the table as usual, and quit it.")
+    readme = " ".join(_source("README.md").split())
+    loose = readme.split("### If the arm is loose afterwards", 1)[1].split("###", 1)[0]
+    for text in (advice, loose):
+        for power in ("switch the table off", "switch it on", "switched off and on",
+                      "wait about ten seconds"):
+            assert power not in text, power
+    code, sim, log = _run(tmp_path, sim_mod.SimTable())
+    said = " ".join(line[7:] for line in log.splitlines() if line.startswith("SAY"))
+    assert advice in " ".join(said.split())
+    assert "switch the table off at its power switch" in prog.PLUG
+    assert "switch the table off, wait ten seconds" in prog.RECOVERY_UNFINISHED
+    assert "switch the table off" not in prog.RECOVERY
+    assert "Switch the table off or pull its power plug" in readme
+
+
 def test_the_readme_names_every_line_and_says_what_matters():
     readme = _source("README.md")
     for line in RECORDED:
@@ -990,7 +1013,8 @@ def test_the_readme_names_every_line_and_says_what_matters():
     for needed in ("power switch", "Ctrl-C", "--plan", "not from X-Rite", "unofficial",
                    "hands and everything else away from the arm",
                    "folder you started it from", "has just been switched on",
-                   "loose", "switch the table off, wait about ten seconds"):
+                   "loose", "Leave the arm where it is, at its resting place. Then open "
+                   "i1Profiler once, let it start the table as usual, and quit it."):
         assert needed in " ".join(readme.split()), needed
     assert "—" not in readme
     assert not re.search(r"macOS 2\d|Python 3\.1\d", readme)
