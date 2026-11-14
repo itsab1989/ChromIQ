@@ -1,6 +1,7 @@
 """Orchestrates chartread for interactive measurement."""
 from __future__ import annotations
 
+import json
 import re
 import shlex
 import shutil
@@ -141,6 +142,88 @@ _SPOT_READY_RE         = re.compile(r"Ready to read patch\s+'([^']+)'", re.IGNOR
 _SPOT_AT_RE            = re.compile(r"Ready to read patch\s+'[^']*'\s+at\s+'([^']+)'", re.IGNORECASE)
 _ABORT_CONFIRM_RE      = re.compile(r"Abort\s*\?\s*-\s*Are you sure\s*\?\s*\[y/n\]", re.IGNORECASE)
 _PATCH_NOT_FOUND_RE    = re.compile(r"Patch\s+'([^']+)'\s+not found", re.IGNORECASE)
+
+
+#: The ICOM error bits (native/instlib/icoms.h) in words, for the technical
+#: line of a communication failure (4.3.36).
+_ICOM_BITS = (
+    (0x004000, "timed out"), (0x008000, "short"), (0x010000, "cancelled"),
+    (0x000100, "USB read error"), (0x000200, "USB write error"),
+    (0x020000, "system error"), (0x040000, "driver version"),
+    (0x001000, "not supported"), (0x002000, "size"),
+)
+
+#: The steps the helper's USB watch names (chromiq_usbwatch.c), in words.
+_USB_STEPS = {
+    "measure_trigger": "measure trigger",
+    "measurement_read": "measurement data read",
+    "button_read": "button read",
+    "light": "light command",
+    "ruler_read": "ruler read",
+}
+
+
+def _icom_words(code: object) -> str:
+    try:
+        n = int(str(code), 16)
+    except (TypeError, ValueError):
+        return "?"
+    words = [w for bit, w in _ICOM_BITS if n & bit]
+    return " + ".join(words) if words else ("OK" if n == 0 else "other")
+
+
+def coms_failure_detail(ev: dict) -> str:
+    """The technical line for a report, from the engine's coms event (4.3.36).
+
+    The helper's read-only USB watch (native/chartread_helper/
+    chromiq_usbwatch.c) names the first transfer that failed in the reading:
+    the measure trigger, the measurement data read, the button read, a light
+    command or the ruler read; for an i1Pro or i1Pro 2 the trigger number
+    also says which part of the strip it was (1: the dark reading the
+    instrument takes at the start of every strip, a calibration step; 2: the
+    scan). Technical on purpose and not translated: it is for a bug report.
+    "" when the event carries nothing beyond the old two fields."""
+    parts: "list[str]" = []
+    usb = [f for f in (ev.get("usb") if isinstance(ev.get("usb"), list)
+                       else []) if isinstance(f, dict)]
+    last_trig = None
+    for k, f in enumerate(usb[:2]):
+        step = str(f.get("step") or "")
+        name = _USB_STEPS.get(step, step or "USB transfer")
+        code = str(f.get("code") or "?")
+        bits = [f"USB {f.get('kind') or ''} {code}".replace("  ", " ")]
+        trig = f.get("trigger")
+        if (code in ("0xD4", "0xC0", "0x82") and isinstance(trig, int)
+                and trig > 0 and trig != last_trig):
+            bits.append(f"trigger {trig} ("
+                        + ("dark reading at strip start" if trig == 1
+                           else "the scan") + ")")
+            last_trig = trig
+        bits.append(f"ICOM {f.get('icom')} {_icom_words(f.get('icom'))}")
+        if isinstance(f.get("bytes"), int) and f.get("bytes") >= 0 \
+                and f.get("asked"):
+            bits.append(f"{f.get('bytes')}/{f.get('asked')} bytes")
+        bits.append(f"{f.get('took_ms')} of {f.get('tout_ms')} ms")
+        parts.append(("" if k == 0 else "then ") + f"{name} failed: "
+                     + ", ".join(bits))
+    try:
+        more = int(ev.get("usb_failures") or 0) - len(usb[:2])
+    except (TypeError, ValueError):
+        more = 0
+    if more > 0:
+        parts.append(f"+{more} more")
+    if not usb and str(ev.get("usb_step") or "") == "none":
+        parts.append("no failed USB transfer seen")
+    light = ev.get("light")
+    if light:
+        ms = ev.get("light_to_trigger_ms")
+        parts.append(f"light {light}" + (
+            f" {ms} ms before trigger 1" if isinstance(ms, int) else ""))
+    drv = str(ev.get("driver") or "").strip()
+    code = str(ev.get("inst_code") or "").strip()
+    if drv or code:
+        parts.append(" ".join(x for x in ("driver", code, drv) if x))
+    return "; ".join(parts)
 
 
 def _instrument_text(raw: object) -> str:
@@ -398,6 +481,10 @@ class MeasureManager(QObject):
     #: True only while strip_error is being delivered for an engine misread
     #: whose instrument can answer it with its button ("button_retry").
     misread_button_retry: bool = False
+    #: 4.3.36: the technical line of the last engine communication failure
+    #: (`coms_failure_detail`), "" when it said nothing more. The Strip Read
+    #: Failed window shows it as M-STRIP-FAILED-COMS-DETAIL.
+    last_coms_detail: str = ""
     #: The pause between pages, per session (see :meth:`start`).
     _page_pause_on: bool = False
     _engine_holds: bool = False
@@ -3351,6 +3438,18 @@ class MeasureManager(QObject):
                         "this number.").format(fw=f"{fw / 100:.2f}"))
             else:
                 on_line(self._i1pro2_lights_line(signals, left_on))
+                # 4.3.36: the choices the helper did not give this i1Pro 2
+                # (native/chartread_helper/cq_beta_pause.h). The stored
+                # choices are not changed.
+                paused_line = self._i1pro2_paused_line(
+                    bool(ev.get("paused_signals")),
+                    bool(ev.get("paused_during_reading")))
+                if paused_line:
+                    log.info("i1Pro 2 lights: paused in this version "
+                             "(signals %s, left on %s)",
+                             bool(ev.get("paused_signals")),
+                             bool(ev.get("paused_during_reading")))
+                    on_line(paused_line)
                 # With either choice, which firmware this instrument has: the
                 # patterns were recorded on 634 (2026-11-14: no firmware gate,
                 # so a tester's report says which one they ran on).
@@ -3421,6 +3520,45 @@ class MeasureManager(QObject):
             "instrument took, and red twice when it could not take one. Green "
             "here only means that the instrument took a reading: whether "
             "ChromIQ accepts it is shown on screen.")
+
+    @staticmethod
+    def _i1pro2_paused_line(signals: bool, left_on: bool) -> str:
+        """4.3.36: the Measure log's line when the helper did not give an
+        i1Pro 2 a stored choice (cq_beta_pause.h), "" when nothing was
+        paused. A tester's real i1Pro 2 lost its connection on the strip
+        after every accepted one with the result signals on."""
+        if signals and left_on:
+            return tr(
+                "[Engine] Instrument lights (beta): in this version the green "
+                "/ red result signals and “Left on during a reading” are "
+                "paused for the i1Pro 2, because a tester found that with "
+                "them a reading can end with “The instrument lost "
+                "communication with the computer”. Your i1Pro 2 shows the "
+                "ready light as before: white while it waits for you, and no "
+                "light while it calibrates or measures. Your choices stay "
+                "saved for when these come back. The i1Pro 3 is not "
+                "affected.")
+        if signals:
+            return tr(
+                "[Engine] Instrument lights (beta): in this version the green "
+                "/ red result signals are paused for the i1Pro 2, because a "
+                "tester found that with them a reading can end with “The "
+                "instrument lost communication with the computer”. Your "
+                "i1Pro 2 shows the ready light as before: white while it "
+                "waits for you, and no light while it calibrates or measures. "
+                "Your choice stays saved for when they come back. The i1Pro 3 "
+                "is not affected.")
+        if left_on:
+            return tr(
+                "[Engine] Instrument lights (beta): in this version “Left on "
+                "during a reading” is paused for the i1Pro 2. A tester found "
+                "that a closely related light step can end a reading with "
+                "“The instrument lost communication with the computer”, so "
+                "to be on the safe side your i1Pro 2 switches its lights off "
+                "for every calibration and reading, as before, and shows "
+                "white while it waits for you. Your choice stays saved for "
+                "when it comes back. The i1Pro 3 is not affected.")
+        return ""
 
     @staticmethod
     def _i1pro2_lights_line(signals: bool, left_on: bool) -> str:
@@ -4340,6 +4478,15 @@ class MeasureManager(QObject):
             elif ekind == "coms":
                 self._at_retry_prompt = True
                 self._engine_fatal = "communication problem"
+                # 4.3.36: which USB step failed (the helper's read-only watch,
+                # chromiq_usbwatch.c). Into the app log in full, and one
+                # technical line the Strip Read Failed window shows.
+                self.last_coms_detail = coms_failure_detail(ev)
+                log.warning("engine: communication failure: %s | %s",
+                            self.last_coms_detail or "no detail",
+                            json.dumps({k: v for k, v in ev.items()
+                                        if k not in ("event", "kind")},
+                                       sort_keys=True))
                 self.strip_error.emit("communication problem")
             elif ekind == "read_error":
                 # The helper's generic ierror() path — where "Wrong Sensor
@@ -4672,6 +4819,7 @@ class MeasureManager(QObject):
                 self.strip_error.emit(m.group(1).strip())
             elif _STRIP_COMS_FAIL_RE.search(line):
                 self._at_retry_prompt = True      # chartread.c:1671-1673, same prompt
+                self.last_coms_detail = ""        # stock chartread says nothing more
                 self.strip_error.emit("communication problem")
 
         # A. Mid-measurement recovery prompts ------------------------------
