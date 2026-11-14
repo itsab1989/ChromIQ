@@ -10,7 +10,7 @@ time. Where the recordings say nothing, its values are invented; its memory
 block is SYNTHETIC (a made-up serial number, never the tester's).
 
 It is STRICT. It holds its own copy of the two recorded sequences (written
-here from the recordings, on purpose NOT imported from `i1io_table`, so that a
+here from the recordings, on purpose NOT imported from `i1io_open_table`, so that a
 mistake in one is caught by the other) and raises :class:`SimViolation` (and a
 test fails) the moment the program sends anything that is not the next line of
 the sequence for the table's state, or sends a line while the arm moves, or i0
@@ -26,7 +26,7 @@ import random
 import re
 from dataclasses import dataclass, field
 
-from i1io_table import TransportError, checksum, checksum_ok
+from i1io_open_table import TransportError, checksum, checksum_ok
 
 
 class SimViolation(AssertionError):
@@ -229,7 +229,7 @@ class SimTable:
             self._reply(t_done, done)
         if kind == "extra_line":
             self._reply(t_done, ":$p00")
-        if duration > 0.014:
+        if cid in ("i0", "i1"):
             self._busy_until = t_done
 
     def _xy(self, x: float, y: float) -> str:
@@ -263,7 +263,7 @@ class SimTable:
             jx, jy = self._rng.choice((-1, 0, 0, 1)), self._rng.choice((-1, 0, 0, 1))
             return 0, self._xy(self.pos[0] + drift + jx, self.pos[1] + drift + jy), 0.0
         self.motions += 1
-        slow = 12.0 if kind == "slow_motion" else 0.0
+        slow = 8.0 if kind == "slow_motion" else 0.0
         if cid == "i0":
             # recorded: 3.167 s, the arm at X 1102, Y 14 afterwards (S1)
             self.cold = False

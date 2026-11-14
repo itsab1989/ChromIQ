@@ -1,7 +1,7 @@
 # BYTES.md: everything chromiq-i1io-open 0.2.0 can send to the table
 
 This file is the allow-list. `tests/test_i1io_open_tool.py` reads the table below and
-fails if the program's own list (`i1io_table.WIRE`) differs from it by a single byte, or
+fails if the program's own list (`i1io_open_table.WIRE`) differs from it by a single byte, or
 if any simulated run, on any path and with any fault, writes a byte string that is not in
 it. Nothing outside this file is ever written to the table's bulk OUT endpoint 0x02.
 

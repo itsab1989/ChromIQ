@@ -33,8 +33,8 @@ from pathlib import Path
 # the program's own folder, also when started with "python3 -I"
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import i1io_table as tbl  # noqa: E402
-from i1io_table import Doubt, Stopped  # noqa: E402
+import i1io_open_table as tbl  # noqa: E402
+from i1io_open_table import Doubt, Stopped  # noqa: E402
 
 TITLE = (f"ChromIQ i1iO test program {tbl.TOOL_VERSION} (opens and closes the table the way "
          "i1Profiler does; never measures)")
@@ -617,7 +617,7 @@ def main(argv=None, sim_table=None, console=None) -> int:
                 ui.say(str(exc))
                 return 2
         else:
-            from i1io_sim import SimTable, SimTransport
+            from i1io_open_sim import SimTable, SimTransport
             sim = sim_table or SimTable(cold=(args.sim == "cold"))
             transport = SimTransport(sim)
             if console is None and (args.auto or not sys.stdin.isatty()):
