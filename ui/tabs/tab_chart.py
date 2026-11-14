@@ -15164,10 +15164,66 @@ class TabChart(QWidget):
         """
         if index == self._last_preset_index \
                 and self._preset_combo.itemData(index) not in BUILTIN_PRESET_KEYS:
+            # A SAVED PRESET PICKED AGAIN LOADS AGAIN WHEN THE SCREEN NO
+            # LONGER MATCHES IT (Basti, 2026-11-14, agreed to the question
+            # of the small-fixes round): margins, paper and the rest come
+            # back. Picking it when nothing differs, and "none" again, still
+            # change nothing, for the reason above.
+            if index > 0 and self._screen_differs_from_saved_preset(index):
+                log.info("Create Chart: the saved preset %r picked again "
+                         "while the screen differs from it: loaded again",
+                         self._preset_combo.currentData())
+                self._on_preset_selected(index)
+                return
             log.debug("Create Chart: %r was already the selection; a re-pick "
                       "of a non-built-in entry changes nothing", index)
             return
         self._on_preset_selected(index)
+
+    def _screen_differs_from_saved_preset(self, index: int) -> bool:
+        """Whether the screen differs from the saved preset at *index*, in
+        anything the preset stores (`_preset_capture`). A key the preset
+        does not carry (one saved before the key existed) is not compared;
+        a layout recipe is compared as the preset bar compares one."""
+        name = self._preset_combo.itemData(index)
+        if not name:
+            return False
+        pdata = self._load_presets_from_settings().get(name)
+        if not isinstance(pdata, dict):
+            return False
+        try:
+            now = self._preset_capture()
+        except Exception:      # noqa: BLE001 — never load on a doubt
+            log.debug("could not read the screen for the preset compare",
+                      exc_info=True)
+            return False
+        from workflow.layout_engine.presets import LayoutRecipe
+        for key, saved in pdata.items():
+            if key not in now:
+                continue
+            cur = now[key]
+            if key == "layout_recipe":
+                if not isinstance(saved, dict) or not isinstance(cur, dict):
+                    if bool(saved) != bool(cur):
+                        return True
+                    continue
+                a = self._layout_recipe_values(LayoutRecipe.from_dict(saved))
+                b = self._layout_recipe_values(LayoutRecipe.from_dict(cur))
+                # Who chose the layout is provenance: a preset loaded by
+                # name marks its layout as chosen (`layout_explicit`), the
+                # same layout saved from the screen may not.
+                a.pop("layout_explicit", None)
+                b.pop("layout_explicit", None)
+                if a != b:
+                    return True
+                continue
+            if cur != saved and str(cur) != str(saved):
+                return True
+        # a preset saved with the layout engine and a screen without (or
+        # the other way round)
+        if bool(pdata.get("layout_recipe")) != bool(now.get("layout_recipe")):
+            return True
+        return False
 
     def _on_preset_selected(self, index: int) -> None:
         # Group-divider separators aren't real choices. The combo skips them on
@@ -16556,7 +16612,12 @@ class TabChart(QWidget):
             edit.set_prefix("")        # remove the lock
             edit.setText(prefix)       # the generated name, fully editable
 
-    def _on_preset_save(self) -> None:
+    def _preset_capture(self) -> dict:
+        """What a saved preset stores of the screen as it is now: every
+        Manual row, the tick boxes beside them, the layout recipe when the
+        layout panel lays the chart out, the chart notes and the stamp.
+        Shared by Save Preset and by the question whether the screen still
+        matches the saved preset showing in the list (2026-11-14)."""
         capture: dict = {}
         # Store the EFFECTIVE widget values, including the triple-density layout
         # (-a / -m / -P / -L) when TD is on — so the preset round-trips with the
@@ -16630,6 +16691,10 @@ class TabChart(QWidget):
         capture["stamp_commands"] = bool(
             self._manual_stamp_cmd_check is not None
             and self._manual_stamp_cmd_check.isChecked())
+        return capture
+
+    def _on_preset_save(self) -> None:
+        capture = self._preset_capture()
         (_prefill_name, prefill_run, prefill_attach,
          prefilled_from_target) = self._preset_save_prefill()
         # A patch set can only be attached if one is currently loaded.
