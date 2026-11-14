@@ -115,8 +115,8 @@ int cq_replay_load(const char *path) {
  * the helper's event, the GUI and the diagnostics file can be exercised
  * without an instrument. The model follows the i1Pro 2 recordings: one
  * sample per clock, samples = readings x clocks - 5, quadrature codes.
- * Modes ("ruler" on a swipe): clean (a whole strip, 340 steps), partial
- * (only 40 % of it), fast, none (no ruler), garbled (an impossible jump),
+ * Modes ("ruler" on a swipe): clean (a whole strip: 340 steps on an i1Pro 2,
+ * 560 on an i1Pro 3), partial (about 40 % of it), fast, none (no ruler), garbled (an impossible jump),
  * short (half the samples), late (the stream did not end: the driver gives
  * the ruler up), failed (a USB error on the ruler channel). No "ruler": as
  * clean. */
@@ -157,8 +157,10 @@ int cq_replay_ruler_take(void *vout) {
 	clocks = gen == 2 ? 136 : 172;
 	readings = strcmp(cq_rr_mode, "fast") == 0 ? 220 : 600;
 	total = (long)readings * clocks - (gen == 2 ? 5 : 0);
+	if (gen == 3)
+		travel = 560;		/* 0.5 mm per step: a 280 mm swipe */
 	if (strcmp(cq_rr_mode, "partial") == 0)
-		travel = 136;
+		travel = gen == 3 ? 200 : 136;
 	if (strcmp(cq_rr_mode, "short") == 0)
 		total /= 2;
 	r->valid = 1;
