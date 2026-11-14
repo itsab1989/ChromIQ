@@ -312,8 +312,12 @@ def test_the_helper_dispatches_both_generations_the_same_way():
     assert "cq_lights_gen == 2 || cq_lights_gen == 3" in body
     sess = src[src.index("static void cq_lights_for_session("):]
     sess = sess[:sess.index("\n}\n")]
-    assert "i1pro3_cq_lights_options(it, cq_lights_signals, cq_lights_left_on);" in sess
-    assert "i1pro2_cq_lights_options(it, cq_lights_signals, cq_lights_left_on);" in sess
+    # 4.3.36: both through the one mapping (cq_beta_pause.h), which gives
+    # the i1Pro 3 what was asked and pauses both choices on the i1Pro 2
+    # (tests/test_usb_failure_detail.py)
+    assert "cq_lights_choices_for(cq_lights_gen, cq_lights_signals," in sess
+    assert "i1pro3_cq_lights_options(it, sig, left);" in sess
+    assert "i1pro2_cq_lights_options(it, sig, left);" in sess
     # the i1Pro 3's off never reaches the helper's log callback
     imp = (ROOT / "native" / "instlib" / "i1pro3_imp.c").read_text(
         encoding="utf-8", errors="surrogateescape")

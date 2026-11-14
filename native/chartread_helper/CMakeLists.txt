@@ -91,6 +91,7 @@ add_executable(chromiq-chartread
   ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_replay.c
   ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_cal.c
   ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_stubs.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_usbwatch.c
   ${INSTLIB}/alphix.c
 )
 target_include_directories(chromiq-chartread PRIVATE
@@ -291,6 +292,33 @@ if(CQ_V4334_I1PRO_DIR)
   target_link_libraries(i1pro3_lights_modes_test_v4334 PRIVATE instlib_v4334_i1pro)
 endif()
 
+# 4.3.36: the same fake-USB lives with the helper's USB watch installed
+# (chromiq_usbwatch.c, read-only), for tests/test_usb_failure_detail.py to
+# prove the wire is byte for byte the same; and the watch's own test, with
+# failures injected on the fake layer.
+foreach(_cq_w i1pro2_lights_modes_test i1pro3_lights_modes_test
+        i1pro_ruler_scan_test)
+  add_executable(${_cq_w}_watched EXCLUDE_FROM_ALL
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/${_cq_w}.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_stubs.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_usbwatch.c
+    ${INSTLIB}/alphix.c
+  )
+  target_compile_definitions(${_cq_w}_watched PRIVATE CQ_WATCHED)
+  target_include_directories(${_cq_w}_watched PRIVATE
+    ${INSTLIB} ${CMAKE_CURRENT_SOURCE_DIR})
+  target_link_libraries(${_cq_w}_watched PRIVATE instlib)
+endforeach()
+add_executable(usb_failure_detail_test EXCLUDE_FROM_ALL
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests/usb_failure_detail_test.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_stubs.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_usbwatch.c
+  ${INSTLIB}/alphix.c
+)
+target_include_directories(usb_failure_detail_test PRIVATE
+  ${INSTLIB} ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(usb_failure_detail_test PRIVATE instlib)
+
 # Windows: a VERSIONINFO like ChromIQ.exe's (native/win_version.cmake).
 include(${CMAKE_CURRENT_SOURCE_DIR}/../win_version.cmake)
 chromiq_add_win_version(chromiq-chartread
@@ -300,6 +328,9 @@ chromiq_add_win_version(chromiq-chartread
 set(_cq_link_targets chromiq-chartread i1pro2_lights_test i1pro3_lights_test)
 list(APPEND _cq_link_targets i1pro2_lights_modes_test i1pro3_lights_modes_test)
 list(APPEND _cq_link_targets i1pro_ruler_scan_test i1pro3_ruler_test)
+list(APPEND _cq_link_targets i1pro2_lights_modes_test_watched
+     i1pro3_lights_modes_test_watched i1pro_ruler_scan_test_watched
+     usb_failure_detail_test)
 if(CQ_BASE_I1PRO_DIR)
   list(APPEND _cq_link_targets i1pro_ruler_scan_test_base)
 endif()

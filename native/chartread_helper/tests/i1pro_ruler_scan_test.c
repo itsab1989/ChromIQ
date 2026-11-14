@@ -35,6 +35,9 @@
 #include "inst.h"
 #include "i1pro.h"
 #include "i1pro_imp.h"
+#ifdef CQ_WATCHED
+#include "chromiq_usbwatch.h"	/* 4.3.36: the helper's read-only USB watch */
+#endif
 
 static const char *scn = "?";
 static volatile int trig_sent = 0;	/* the D4 / C0 trigger went out */
@@ -300,6 +303,10 @@ static i1pro *make(devType dtype, int caps2) {
 	ic->usb_read = fake_read;
 	ic->usb_wait_io = fake_wait_io;
 	ic->usb_cancel_io = fake_cancel_io;
+#ifdef CQ_WATCHED
+	cq_usbwatch_install(ic, CQ_UW_I1PRO);	/* the same life, watched */
+	cq_usbwatch_begin();
+#endif
 	p->log = new_a1log_d(NULL);
 	p->dtype = dtype;
 	p->icom = ic;

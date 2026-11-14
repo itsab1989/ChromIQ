@@ -211,6 +211,8 @@ typedef struct {
  * build can do as one JSON line and exits. */
 #define CHROMIQ_EXT 1
 #include "chromiq_ext.h"
+#include "chromiq_usbwatch.h"	/* CHROMIQ_EXT 4.3.36: which USB step failed */
+#include "cq_beta_pause.h"		/* CHROMIQ_EXT 4.3.36: Beta parts paused on the i1Pro 2 */
 
 /* CHROMIQ_EXT: ChromIQ owns measurement sound (#131, Knut 2026-07-26).
  *
@@ -1327,6 +1329,7 @@ static void cq_guarded_del(inst *p) {
 	 * command queue once it is being closed (the close itself switches the
 	 * lights off, i1pro_imp.c del_i1proimp). */
 	cq_lights_forget();
+	cq_usbwatch_forget();	/* 4.3.36: the originals back before the close */
 	cq_exit_close_begin();
 	if (cq_real_del != NULL)
 		cq_real_del(p);
@@ -1339,6 +1342,21 @@ static void cq_guard_inst(inst *it) {
 		return;
 	cq_real_del = it->del;
 	it->del = cq_guarded_del;
+}
+
+/* CHROMIQ_EXT 4.3.36: a reading ended in a communication failure. The event
+ * kept its two fields ("kind":"coms","detail":"") and gains: the driver's
+ * own code and text, and, for an i1Pro, i1Pro 2 or i1Pro 3, which USB
+ * transfer failed first and how (chromiq_usbwatch.c). Nothing is sent. */
+static void cq_emit_coms_error(inst *it, int rv) {
+	char usb[1600], esc[512];
+	cq_usbwatch_json(usb, sizeof(usb));
+	cq_json_escape(esc, sizeof(esc),
+	               it != NULL && it->interp_error != NULL
+	               ? it->interp_error(it, (inst_code)rv) : "");
+	cq_emit_raw("{\"event\":\"error\",\"kind\":\"coms\",\"detail\":\"\","
+	            "\"inst_code\":\"0x%08X\",\"driver\":\"%s\"%s}",
+	            (unsigned int)rv, esc, usb);
 }
 
 /* CHROMIQ_EXT: the i1Pro 2 and i1Pro 3 indicator lights (Preferences > Beta,
@@ -1391,12 +1409,18 @@ static int cq_lights_drv_owed_ms(void) {
 	                          : i1pro2_cq_lights_owed_ms(cq_lights_it);
 }
 
-/* A sequence the i1Pro 2's driver sent: one line for ChromIQ's log. */
-static void cq_lights_sent2(int seq) {
+/* The i1Pro 2 driver's sequence numbers (i1pro_imp.c CQ_LIGHTS_*). */
+static const char *cq_lights_name2(int seq) {
 	static const char *names[] = { "?", "white", "off_slow", "off_now",
 	                               "pulse", "green2", "red2" };
+	return seq >= 1 && seq <= 6 ? names[seq] : "?";
+}
+
+/* A sequence the i1Pro 2's driver sent: one line for ChromIQ's log. */
+static void cq_lights_sent2(int seq) {
+	cq_usbwatch_light(cq_lights_name2(seq));	/* 4.3.36: for an error event */
 	cq_emit_raw("{\"event\":\"lights\",\"sent\":\"%s\"}",
-	            seq >= 1 && seq <= 6 ? names[seq] : "?");
+	            cq_lights_name2(seq));
 }
 
 /* A pattern the i1Pro 3's driver sent (never its off). With result signals
@@ -1411,6 +1435,7 @@ static void cq_lights_sent3(int seq) {
 		name = cq_lights_sig_active ? "green2" : "instrument_green2";
 	else if (seq == 3)
 		name = cq_lights_sig_active ? "red2" : "instrument_red2";
+	cq_usbwatch_light(name);	/* 4.3.36: for an error event */
 	cq_emit_raw("{\"event\":\"lights\",\"sent\":\"%s\"}", name);
 }
 
@@ -1506,24 +1531,27 @@ static void cq_lights_atexit(void) {
 }
 
 /* The driver says a light request failed; it has given the lights up, and
- * they may stay as they were (an off may not have arrived). */
+ * they may stay as they were (an off may not have arrived). Since 4.3.36 the
+ * event names the program (before, every one but white was "off"). */
 static void cq_lights_failed(int seq, int icom_err) {
 	cq_lights_forget();
 	cq_emit_raw("{\"event\":\"lights\",\"state\":\"failed\",\"step\":\"%s\","
-	            "\"err\":%d}", seq == 1 ? "white" : "off", icom_err);
+	            "\"err\":%d}", cq_lights_name2(seq), icom_err);
 }
 
-/* The i1Pro 3's: seq 1-3 are its patterns, 4 its off. */
+/* The i1Pro 3's: seq 1-3 are its patterns, 4 its off (named since 4.3.36,
+ * as the i1Pro 2's are: before, every one but the off was "pattern"). */
 static void cq_lights_failed3(int seq, int icom_err) {
+	static const char *names[] = { "?", "ready", "green2", "red2", "off" };
 	cq_lights_forget();
 	cq_emit_raw("{\"event\":\"lights\",\"state\":\"failed\",\"step\":\"%s\","
-	            "\"err\":%d}", seq == 4 ? "off" : "pattern", icom_err);
+	            "\"err\":%d}", seq >= 1 && seq <= 4 ? names[seq] : "?", icom_err);
 }
 
 static void cq_lights_for_session(inst *it, int rmode, int emis, int trans,
                                   int displ) {
 	const char *why = NULL;
-	int choices = 0;
+	int choices = 0, paused = 0, sig = 0, left = 0;
 	if (!cq_i1pro2_lights || !cq_json)
 		return;
 	if (it == NULL || cq_replay_active()
@@ -1535,12 +1563,15 @@ static void cq_lights_for_session(inst *it, int rmode, int emis, int trans,
 		static int registered = 0;
 		cq_lights_gen = it->dtype == instI1Pro3 ? 3 : 2;
 		/* The two choices, for both generations since 2026-11-14 (both 0 =
-		 * 4.3.33 on an i1Pro 2, 4.3.34 on an i1Pro 3). */
+		 * 4.3.33 on an i1Pro 2, 4.3.34 on an i1Pro 3). 4.3.36: an i1Pro 2
+		 * is given neither (cq_beta_pause.h); the i1Pro 3 both, as asked. */
+		paused = cq_lights_choices_for(cq_lights_gen, cq_lights_signals,
+		                               cq_lights_left_on, &sig, &left);
 		if (cq_lights_gen == 2) {
-			i1pro2_cq_lights_options(it, cq_lights_signals, cq_lights_left_on);
+			i1pro2_cq_lights_options(it, sig, left);
 			i1pro2_cq_lights_sent = cq_lights_sent2;
 		} else {
-			i1pro3_cq_lights_options(it, cq_lights_signals, cq_lights_left_on);
+			i1pro3_cq_lights_options(it, sig, left);
 			i1pro3_cq_lights_sent = cq_lights_sent3;
 		}
 		i1pro2_cq_lights_note = cq_lights_failed;
@@ -1565,7 +1596,20 @@ static void cq_lights_for_session(inst *it, int rmode, int emis, int trans,
 				cq_lights_poll = cq_lights_poll_fn;
 		}
 	}
-	if (why == NULL)
+	if (why == NULL && paused != 0)
+		/* 4.3.36: which asked-for choices this instrument is not given. */
+		cq_emit_raw("{\"event\":\"lights\",\"active\":true,"
+		            "\"instrument\":\"%s\",\"signals\":%s,"
+		            "\"during_reading\":\"%s\",\"firmware\":%d,"
+		            "\"paused_signals\":%s,\"paused_during_reading\":%s}",
+		            cq_lights_gen == 3 ? "i1pro3" : "i1pro2",
+		            choices & 1 ? "true" : "false",
+		            choices & 2 ? "on" : "off",
+		            cq_lights_gen == 3 ? i1pro3_cq_lights_firmware(it)
+		                               : i1pro2_cq_lights_firmware(it),
+		            paused & CQ_PAUSED_SIGNALS ? "true" : "false",
+		            paused & CQ_PAUSED_LEFT_ON ? "true" : "false");
+	else if (why == NULL)
 		cq_emit_raw("{\"event\":\"lights\",\"active\":true,"
 		            "\"instrument\":\"%s\",\"signals\":%s,"
 		            "\"during_reading\":\"%s\",\"firmware\":%d}",
@@ -1610,11 +1654,18 @@ static void cq_ruler_for_session(inst *it, int rmode, int emis, int trans,
 		cq_ruler_gen = cq_replay_ruler_gen();
 		if (cq_ruler_gen == 0)
 			why = "instrument";
+		else if (cq_ruler_paused_for(cq_ruler_gen))
+			why = "paused";		/* 4.3.36, cq_beta_pause.h */
 		else {
 			cq_ruler_replay = 1;
 			fw = cq_ruler_gen == 2 ? 634 : 105;
 			sensor = 1;
 		}
+	} else if (it->dtype == instI1Pro2 && cq_ruler_paused_for(2)) {
+		/* 4.3.36 (cq_beta_pause.h): nothing is asked of the driver, so the
+		 * wire is the option-off one. */
+		cq_ruler_gen = 2;
+		why = "paused";
 	} else if (it->dtype == instI1Pro2) {
 		cq_ruler_gen = 2;
 		fw = i1pro2_cq_ruler_firmware(it);
@@ -2490,6 +2541,17 @@ a1log *log			/* verb, debug & error log */
 		return -1;
 	}
 
+	/* CHROMIQ_EXT 4.3.36: which USB step failed, for the error event of a
+	 * reading that ends in a communication failure. READ-ONLY: it watches
+	 * the transfers the driver makes and changes none (chromiq_usbwatch.h).
+	 * The i1Pro family and the i1Pro 3 only, never in a replay. */
+	if (xtern == 0 && cq_json && it != NULL && !cq_replay_active()) {
+		if (it->dtype == instI1Pro || it->dtype == instI1Pro2)
+			cq_usbwatch_install(it->icom, CQ_UW_I1PRO);
+		else if (it->dtype == instI1Pro3)
+			cq_usbwatch_install(it->icom, CQ_UW_I1PRO3);
+	}
+
 	/* CHROMIQ_EXT: the i1Pro 2 lights (Beta), before the first calibration.
 	 * Without --i1pro2-lights this does nothing at all. */
 	if (xtern == 0)
@@ -3121,6 +3183,7 @@ a1log *log			/* verb, debug & error log */
 				cq_press_listen(0);		/* CHROMIQ_EXT: a fresh group */
 				cq_lights_prompt();		/* CHROMIQ_EXT: lights (Beta) */
 				cq_ruler_arm(1);		/* CHROMIQ_EXT: ruler check (Beta) */
+				cq_usbwatch_begin();	/* CHROMIQ_EXT 4.3.36: a reading begins */
 				rv = it->read_strip(it, "STRIP", stipa+nextrap, nn, guide, plen, glen, tlen, vals);
 				cq_ruler_after_strip(nn, rv);	/* CHROMIQ_EXT: ruler check (Beta) */
 				if (cq_json)
@@ -3482,7 +3545,7 @@ a1log *log			/* verb, debug & error log */
 						 * instrument — written BEFORE asking what to do,
 						 * so even a killed GUI can resume later. */
 						cq_write_ti3_atomic();
-						cq_emit_error("coms", "");
+						cq_emit_coms_error(it, rv);	/* 4.3.36: + which step */
 						ch = cq_json ? cq_wait_char() : next_con_char();
 						if (ch == 0x1b || ch == 0x3 || ch == 'q' || ch == 'Q') {
 							printf("\n");
@@ -4195,6 +4258,7 @@ a1log *log			/* verb, debug & error log */
 					cq_cal_gate_set(1);
 				cq_press_listen(0);		/* CHROMIQ_EXT: a fresh group */
 				cq_lights_prompt();		/* CHROMIQ_EXT: lights (Beta) */
+				cq_usbwatch_begin();	/* CHROMIQ_EXT 4.3.36: a reading begins */
 				rv = it->read_sample(it, "SPOT", &val, 1);
 				if (cq_json)
 					cq_cal_gate_set(0);
@@ -4326,7 +4390,7 @@ a1log *log			/* verb, debug & error log */
 					empty_con_chars();
 					printf("\nStrip read failed due to communication problem.\n");
 					printf("Hit Esc or 'q' to give up, any other key to retry:%s",fl_end); do_fflush();
-					cq_emit_error("coms", "");	/* CHROMIQ_EXT */
+					cq_emit_coms_error(it, rv);	/* CHROMIQ_EXT; 4.3.36: + which step */
 					if ((ch = cq_prompt_char()) == 0x1b || ch == 0x3 || ch == 'q' || ch == 'Q') {
 						printf("\n");
 						/* CHROMIQ_EXT #159: `it` is only created inside
