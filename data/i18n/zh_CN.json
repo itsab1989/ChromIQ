@@ -8416,5 +8416,12 @@
  "Where the strip letters go when “Show strip indicators” is ticked: the text band at the top of the chart, or the trailer (which grows to hold them). Only these two places, because the i1iSis looks everywhere else. The letters take the label style under “Labels” (typeface, size, bold, italic, rotation, alignment, underline and offsets), held inside their place; a label that would be smaller than 1.5 mm there is left off, and the log says so. “Show row indicators” prints the row numbers to the right of the right diamonds, with 3 mm of blank paper between, inside the chart's outline (the chart grows wider to hold them when the paper allows). Neither has been read by a real i1iSis yet. **Default:** top text band; both off.": "勾选「显示色条标记」时，色条字母放在哪里：色卡顶部的文字带，或页尾 (页尾会变长以容纳它们)。只有这两个位置，因为 i1iSis 会查看其他所有地方。字母采用「标签」下的标签样式 (字体、大小、粗体、斜体、旋转、对齐、下划线和偏移)，并保持在各自的位置内；在那里会小于 1.5 mm 的标签会被省略，日志中会有说明。「显示行号」会把行号印在右侧菱形的右边，中间隔着 3 mm 的空白纸，位于色卡轮廓之内 (纸张允许时，色卡会变宽以容纳它们)。这两项都还没有被真正的 i1iSis 读取过。**默认：** 顶部文字带；两者都关闭。",
  "[WARNING] No i1Profiler test chart (.txf) was written for this i1iSis chart: in this version it is written for RGB charts only, so this chart cannot be measured in i1Profiler as it is printed. Make it as an RGB chart to measure it with an i1iSis.": "[WARNING] 没有为这张 i1iSis 色卡生成 i1Profiler 测试色卡 (.txf)：在这个版本中它只为 RGB 色卡生成，所以这张色卡按印出的样子无法在 i1Profiler 中测量。请把它做成 RGB 色卡，以便用 i1iSis 测量。",
  "an i1iSis reads at most 3000 patches on one page": "i1iSis 每页最多只能读取 3000 个色块",
- "an i1iSis takes no chart longer than 660 mm": "i1iSis 不接受长于 660 mm 的色卡"
+ "an i1iSis takes no chart longer than 660 mm": "i1iSis 不接受长于 660 mm 的色卡",
+ "This chart is too narrow for its whole name line between the corner labels, even with the name shortened and the text set small, so {what} was left off the top of the sheet. The chart's files keep its full name.": "这张色卡太窄，即使缩短名称并使用小字号，也放不下角标签之间完整的名称行，因此纸张顶部省略了{what}。色卡的文件保留完整名称。",
+ "the ChromIQ logo": "ChromIQ 标志",
+ "the chart's name": "色卡名称",
+ "the page number": "页码",
+ "the page margins leave {room} mm across and this chart is {need} mm wide. It fits only with no left and right margins": "页面边距只剩下 {room} 毫米的宽度，而色卡宽 {need} 毫米。只有不留左右边距才放得下",
+ "the page margins leave {room} mm across and this chart is {need} mm wide. It fits with left and right margins of {m} mm or less": "页面边距只剩下 {room} 毫米的宽度，而色卡宽 {need} 毫米。左右边距不超过 {m} 毫米时可以放下",
+ "the page margins leave {room} mm along the feed and an i1iSis chart needs {need} mm. It fits with top and bottom margins of {m} mm or less": "页面边距只剩下 {room} 毫米的送纸方向长度，而 i1iSis 色卡需要 {need} 毫米。上下边距不超过 {m} 毫米时可以放下"
 }

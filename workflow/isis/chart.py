@@ -510,7 +510,17 @@ def grid_for(N: int, paper_w: float, paper_h: float, opts: Options) -> Grid:
         raise IsisSheetRefused("narrow", tr(
             "the page is too narrow for even one column of patches with the "
             "markers on both sides"))
-    if paper_h - mt - mb - oy < F.CHART_MIN_LENGTH_MM.value - 1e-6:
+    need = F.CHART_MIN_LENGTH_MM.value
+    if paper_h - mt - mb - oy < need - 1e-6 and paper_h - oy >= need - 1e-6:
+        # THE MARGINS, NOT THE PAPER: say how small they must be (5 x 7 in
+        # with 5 mm margins, 2026-11-14)
+        m = math.floor((paper_h - oy - need) / 2.0 * 10.0) / 10.0
+        raise IsisSheetRefused("short", tr(
+            "the page margins leave {room} mm along the feed and an i1iSis "
+            "chart needs {need} mm. It fits with top and bottom margins of "
+            "{m} mm or less").format(room=f"{paper_h - mt - mb - oy:.1f}",
+                                     need=f"{need:g}", m=f"{m:.1f}"))
+    if paper_h - mt - mb - oy < need - 1e-6:
         raise IsisSheetRefused("short", tr(
             "the chart would be shorter than 170 mm along the feed, and the "
             "i1iSis does not take sheets that short"))
@@ -754,6 +764,25 @@ def check_sheet(sheet: Sheet) -> None:
     if g.C * g.R > F.PATCHES_PER_PAGE_MAX.value:
         raise IsisSheetRefused("many", tr(
             "more than 3000 patches on one page"))
+    if sheet.x0 + sheet.width > sheet.paper_w + 1e-6 and \
+            sheet.width <= sheet.paper_w - o.offset[0] + 1e-6:
+        # the side margins, not the paper (a 60 mm sheet with 5 mm margins
+        # cannot hold the 60 mm the narrowest chart is wide)
+        m = math.floor((sheet.paper_w - o.offset[0] - sheet.width)
+                       / 2.0 * 10.0) / 10.0
+        room = sheet.paper_w - o.margins[1] - o.margins[3] - o.offset[0]
+        if m <= 0:
+            raise IsisSheetRefused("off_page", tr(
+                "the page margins leave {room} mm across and this chart is "
+                "{need} mm wide. It fits only with no left and right "
+                "margins").format(room=f"{room:.1f}",
+                                  need=f"{sheet.width:.1f}"))
+        raise IsisSheetRefused("off_page", tr(
+            "the page margins leave {room} mm across and this chart is "
+            "{need} mm wide. It fits with left and right margins of {m} mm "
+            "or less").format(
+                room=f"{sheet.paper_w - o.margins[1] - o.margins[3] - o.offset[0]:.1f}",
+                need=f"{sheet.width:.1f}", m=f"{max(m, 0.0):.1f}"))
     if (sheet.x0 + sheet.width > sheet.paper_w + 1e-6
             or sheet.y0 + sheet.height > sheet.paper_h + 1e-6):
         raise IsisSheetRefused("off_page", tr(
