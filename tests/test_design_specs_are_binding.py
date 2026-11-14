@@ -26,6 +26,7 @@ BINDING = [
     "tool_availability.md",
     "verification_printing_and_target.md",
     "i1io_table_support.md",
+    "isis_chart_support.md",
 ]
 
 

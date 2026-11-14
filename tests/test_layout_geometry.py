@@ -58,7 +58,9 @@ def test_tiny_paper_raises():
         geometry.compute(geom, 40.0, 40.0, 60)
 
 
-def test_delegated_instrument_rejected():
+def test_an_unknown_instrument_is_refused():
+    """The i1iSis printtarg entry ("isis") was removed by the owner's ruling of
+    2026-11-14; its code is now an unknown key, refused as every one is."""
     with pytest.raises(ValueError):
         instruments.build("isis")
 

@@ -178,6 +178,22 @@ the chart that is really there. Guided's Save as Defaults naming the i1iO is
 read as none (instrument and sheet) while the option is off
 (`tests/test_i1io_off_stale_project.py`, `tests/test_i1io_off_changes_nothing.py`).
 
+### 1.6 ⏳ Awaiting confirmation: an i1iSis target with the Beta off (2026-11-14)
+
+**Confirmed by:** *nobody yet.*
+
+The i1iSis chart Beta (`isis_chart_support.md`) adds no per-target key of
+its own beyond the Guided row's `isis_model` and `isis_notes_band` (written
+only for an i1iSis row) and the recipe's `isis_*` fields (written only for an
+"XRISIS" recipe that differs from the default). A target made with the Beta
+on and opened with it off follows §1.5's carry rules for the i1iO exactly
+(`workflow.isis.support.off_snapshot`, `workflow.beta_chart_carry`): its
+`meta.json` stays byte-identical until the user changes something, a change
+the user makes is kept, and a chart generated into it leaves no i1iSis trace
+(`tests/test_isis_off_stale_project.py`). A stored `isis` (the removed
+printtarg entry) reads as no instrument (i1Pro, A4) and is written back only
+when the person saves (`tests/test_a_removed_instrument_reads_as_none.py`).
+
 ## 2. When settings are loaded
 
 Knut asked for this to be pinned down and checked:

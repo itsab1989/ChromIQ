@@ -1,0 +1,1031 @@
+{
+ "what": "i1Profiler 3.8.8's i1iSis grids, measured in the TIFFs it saved (study 2026-11-14, REQUIREMENTS v2 \u00a79, \u00a711-\u00a713; results/grid_rule_check.txt). Inputs: page, margins (top, right, bottom, left), patch size, model width, tight margins, header, barcode; measured: columns, rows per page, pages.",
+ "layouts": [
+  {
+   "run": "V01",
+   "N": 957,
+   "page_mm": [
+    215.9,
+    279.4
+   ],
+   "margins_trbl": [
+    5,
+    5,
+    5,
+    5
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": false,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    29,
+    33,
+    1
+   ]
+  },
+  {
+   "run": "V02",
+   "N": 957,
+   "page_mm": [
+    210,
+    297
+   ],
+   "margins_trbl": [
+    5,
+    5,
+    5,
+    5
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": false,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    28,
+    35,
+    1
+   ]
+  },
+  {
+   "run": "V04",
+   "N": 957,
+   "page_mm": [
+    297,
+    420
+   ],
+   "margins_trbl": [
+    5,
+    5,
+    5,
+    5
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": true,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    42,
+    23,
+    1
+   ]
+  },
+  {
+   "run": "V06",
+   "N": 957,
+   "page_mm": [
+    210,
+    297
+   ],
+   "margins_trbl": [
+    5,
+    5,
+    5,
+    5
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": false,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": true,
+   "measured_CRP": [
+    27,
+    18,
+    2
+   ]
+  },
+  {
+   "run": "V07",
+   "N": 957,
+   "page_mm": [
+    210,
+    297
+   ],
+   "margins_trbl": [
+    5,
+    5,
+    5,
+    5
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": false,
+   "tight": true,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    29,
+    33,
+    1
+   ]
+  },
+  {
+   "run": "V08",
+   "N": 957,
+   "page_mm": [
+    210,
+    297
+   ],
+   "margins_trbl": [
+    5,
+    5,
+    5,
+    5
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": false,
+   "tight": false,
+   "header_mm": 80,
+   "barcode": false,
+   "measured_CRP": [
+    27,
+    18,
+    2
+   ]
+  },
+  {
+   "run": "V17",
+   "N": 957,
+   "page_mm": [
+    210,
+    297
+   ],
+   "margins_trbl": [
+    5,
+    5,
+    5,
+    5
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": false,
+   "tight": false,
+   "header_mm": 56,
+   "barcode": false,
+   "measured_CRP": [
+    27,
+    18,
+    2
+   ]
+  },
+  {
+   "run": "V13",
+   "N": 957,
+   "page_mm": [
+    215.9,
+    279.4
+   ],
+   "margins_trbl": [
+    5,
+    5,
+    5,
+    5
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": false,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    29,
+    33,
+    1
+   ]
+  },
+  {
+   "run": "V14",
+   "N": 957,
+   "page_mm": [
+    297,
+    420
+   ],
+   "margins_trbl": [
+    5,
+    5,
+    5,
+    5
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": false,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    31,
+    31,
+    1
+   ]
+  },
+  {
+   "run": "V15",
+   "N": 957,
+   "page_mm": [
+    210,
+    297
+   ],
+   "margins_trbl": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": false,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    30,
+    32,
+    1
+   ]
+  },
+  {
+   "run": "V16",
+   "N": 957,
+   "page_mm": [
+    297,
+    420
+   ],
+   "margins_trbl": [
+    5,
+    5,
+    5,
+    5
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": true,
+   "tight": true,
+   "header_mm": 32.0,
+   "barcode": true,
+   "measured_CRP": [
+    42,
+    23,
+    1
+   ]
+  },
+  {
+   "run": "V18",
+   "N": 957,
+   "page_mm": [
+    329,
+    483
+   ],
+   "margins_trbl": [
+    5,
+    5,
+    5,
+    5
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": true,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    48,
+    20,
+    1
+   ]
+  },
+  {
+   "run": "V19",
+   "N": 957,
+   "page_mm": [
+    297,
+    210
+   ],
+   "margins_trbl": [
+    5,
+    5,
+    5,
+    5
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": false,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    30,
+    16,
+    2
+   ]
+  },
+  {
+   "run": "W01",
+   "N": 957,
+   "page_mm": [
+    210,
+    297
+   ],
+   "margins_trbl": [
+    5,
+    5,
+    5,
+    5
+   ],
+   "patch_mm": [
+    10,
+    10
+   ],
+   "xl": false,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    17,
+    19,
+    3
+   ]
+  },
+  {
+   "run": "W02",
+   "N": 957,
+   "page_mm": [
+    210,
+    297
+   ],
+   "margins_trbl": [
+    5,
+    5,
+    5,
+    5
+   ],
+   "patch_mm": [
+    8,
+    7
+   ],
+   "xl": false,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    21,
+    23,
+    2
+   ]
+  },
+  {
+   "run": "W03",
+   "N": 957,
+   "page_mm": [
+    210,
+    297
+   ],
+   "margins_trbl": [
+    5,
+    5,
+    5,
+    5
+   ],
+   "patch_mm": [
+    20,
+    20
+   ],
+   "xl": false,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    8,
+    10,
+    12
+   ]
+  },
+  {
+   "run": "W04",
+   "N": 957,
+   "page_mm": [
+    210,
+    297
+   ],
+   "margins_trbl": [
+    5,
+    5,
+    5,
+    5
+   ],
+   "patch_mm": [
+    7.1,
+    7.1
+   ],
+   "xl": false,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    24,
+    20,
+    2
+   ]
+  },
+  {
+   "run": "W05",
+   "N": 957,
+   "page_mm": [
+    194,
+    297
+   ],
+   "margins_trbl": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "patch_mm": [
+    8,
+    8
+   ],
+   "xl": false,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    20,
+    24,
+    2
+   ]
+  },
+  {
+   "run": "W06",
+   "N": 957,
+   "page_mm": [
+    300,
+    297
+   ],
+   "margins_trbl": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": false,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    31,
+    31,
+    1
+   ]
+  },
+  {
+   "run": "W07",
+   "N": 957,
+   "page_mm": [
+    340,
+    420
+   ],
+   "margins_trbl": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": true,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    48,
+    20,
+    1
+   ]
+  },
+  {
+   "run": "W08",
+   "N": 957,
+   "page_mm": [
+    210,
+    700
+   ],
+   "margins_trbl": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": false,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    30,
+    32,
+    1
+   ]
+  },
+  {
+   "run": "W09",
+   "N": 957,
+   "page_mm": [
+    210,
+    150
+   ],
+   "margins_trbl": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": false,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    29,
+    11,
+    3
+   ]
+  },
+  {
+   "run": "W10",
+   "N": 957,
+   "page_mm": [
+    210,
+    297
+   ],
+   "margins_trbl": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": false,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    30,
+    32,
+    1
+   ]
+  },
+  {
+   "run": "W12",
+   "N": 957,
+   "page_mm": [
+    300,
+    297
+   ],
+   "margins_trbl": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": false,
+   "tight": true,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    33,
+    29,
+    1
+   ]
+  },
+  {
+   "run": "W13",
+   "N": 957,
+   "page_mm": [
+    340,
+    420
+   ],
+   "margins_trbl": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": true,
+   "tight": true,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    48,
+    20,
+    1
+   ]
+  },
+  {
+   "run": "W14",
+   "N": 957,
+   "page_mm": [
+    300,
+    297
+   ],
+   "margins_trbl": [
+    0,
+    0,
+    0,
+    20
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": false,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    31,
+    31,
+    1
+   ]
+  },
+  {
+   "run": "X01",
+   "N": 74,
+   "page_mm": [
+    240,
+    160
+   ],
+   "margins_trbl": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "patch_mm": [
+    20,
+    20
+   ],
+   "xl": true,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    10,
+    4,
+    2
+   ]
+  },
+  {
+   "run": "X02",
+   "N": 100,
+   "page_mm": [
+    240,
+    160
+   ],
+   "margins_trbl": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "patch_mm": [
+    20,
+    20
+   ],
+   "xl": true,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    9,
+    4,
+    3
+   ]
+  },
+  {
+   "run": "X03",
+   "N": 109,
+   "page_mm": [
+    280,
+    140
+   ],
+   "margins_trbl": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "patch_mm": [
+    20,
+    20
+   ],
+   "xl": true,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    10,
+    3,
+    4
+   ]
+  },
+  {
+   "run": "X04",
+   "N": 34,
+   "page_mm": [
+    300,
+    297
+   ],
+   "margins_trbl": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": false,
+   "tight": true,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    17,
+    2,
+    1
+   ]
+  },
+  {
+   "run": "X05",
+   "N": 50,
+   "page_mm": [
+    400,
+    420
+   ],
+   "margins_trbl": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": true,
+   "tight": true,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    25,
+    2,
+    1
+   ]
+  },
+  {
+   "run": "X06",
+   "N": 49,
+   "page_mm": [
+    400,
+    420
+   ],
+   "margins_trbl": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": true,
+   "tight": true,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    49,
+    1,
+    1
+   ]
+  },
+  {
+   "run": "X07",
+   "N": 24,
+   "page_mm": [
+    300,
+    297
+   ],
+   "margins_trbl": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "patch_mm": [
+    8,
+    8
+   ],
+   "xl": false,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    12,
+    2,
+    1
+   ]
+  },
+  {
+   "run": "X08",
+   "N": 4,
+   "page_mm": [
+    210,
+    297
+   ],
+   "margins_trbl": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": false,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    4,
+    1,
+    1
+   ]
+  },
+  {
+   "run": "R249",
+   "N": 300,
+   "page_mm": [
+    93,
+    249
+   ],
+   "margins_trbl": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": false,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    10,
+    15,
+    2
+   ]
+  },
+  {
+   "run": "R250",
+   "N": 300,
+   "page_mm": [
+    93,
+    250
+   ],
+   "margins_trbl": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": false,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": false,
+   "measured_CRP": [
+    10,
+    30,
+    1
+   ]
+  },
+  {
+   "run": "B262",
+   "N": 300,
+   "page_mm": [
+    93,
+    262
+   ],
+   "margins_trbl": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": false,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": true,
+   "measured_CRP": [
+    10,
+    15,
+    2
+   ]
+  },
+  {
+   "run": "B264",
+   "N": 300,
+   "page_mm": [
+    93,
+    264
+   ],
+   "margins_trbl": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "patch_mm": [
+    6,
+    6
+   ],
+   "xl": false,
+   "tight": false,
+   "header_mm": 32.0,
+   "barcode": true,
+   "measured_CRP": [
+    10,
+    30,
+    1
+   ]
+  }
+ ]
+}

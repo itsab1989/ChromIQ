@@ -228,8 +228,29 @@ INSTRUMENT_LABELS: dict[str, str] = {
     # X-Rite i1iO 2 table with an i1Pro 2 (Beta; offered only while
     # Preferences > Beta turns it on, `workflow.i1io.support`).
     "IO2": "i1iO 2 + i1Pro 2",
-    "isis": "i1iSis (via i1Profiler)",
+    # X-Rite i1iSis family (Beta; offered only while Preferences > Beta
+    # turns it on, `workflow.isis.support`): ChromIQ's own layout, measured
+    # in i1Profiler. It replaces the printtarg entry "isis", removed by the
+    # owner's ruling of 2026-11-14 (REMOVED_INSTRUMENT_CODES below).
+    "XRISIS": "i1iSis family",
 }
+
+#: Instrument codes ChromIQ once offered and offers no more. A stored value
+#: naming one (Save as Defaults, a preset, a target's settings, an old run's
+#: meta.json) reads as no instrument, the i1Pro on A4, with one log line and
+#: nothing written back until the person saves
+#: (`ui.tabs.tab_chart._saved_beta_instrument_is_off`). No migration.
+#:
+#: * ``isis``, the printtarg entry "i1iSis (via i1Profiler)": removed by the
+#:   owner's ruling of 2026-11-14 (Basti: "the isis entry without the beta
+#:   option enabled is removed. and with the new option in beta the users get
+#:   the new improved isis/xl entry"). ``isis`` lives on as the model FAMILY
+#:   of imported measurements (`INSTRUMENT_MODEL_WORDS`).
+REMOVED_INSTRUMENT_CODES: frozenset[str] = frozenset({"isis"})
+
+#: Names for instrument FAMILIES that are no Create Chart entry (an imported
+#: i1iSis measurement), for `instrument_mismatch`.
+_FAMILY_LABELS: dict[str, str] = {"isis": "i1iSis"}
 
 # ChromIQ-only sentinel instrument codes that must NOT be passed to printtarg.
 # These represent devices ChromIQ supports through an external workflow.
@@ -241,7 +262,11 @@ INSTRUMENT_LABELS: dict[str, str] = {
 # out by our own engine, and Guided is exactly where a first-time user picks it,
 # so hiding it would be wrong. printtarg is kept away from the CR30 by forcing
 # the layout engine instead - chart_creator._should_use_engine / _printtarg_args.
-EXTERNAL_INSTRUMENTS: frozenset[str] = frozenset({"isis"})
+#
+# EMPTY since 2026-11-14: its one member, the i1iSis printtarg entry, was
+# removed by the owner's ruling (REMOVED_INSTRUMENT_CODES). Kept, so its
+# readers stay valid for a later instrument of this kind.
+EXTERNAL_INSTRUMENTS: frozenset[str] = frozenset()
 
 PAPER_SIZES: list[str] = [
     "A2", "594x420",
@@ -1358,5 +1383,6 @@ def instrument_mismatch(chart_code: str, model: str) -> "tuple[str, str] | None"
     # larger than it needs. Everything else is a genuine mismatch.
     if chart_code == "i1" and found == "p3":
         return None
-    return (INSTRUMENT_LABELS.get(chart_code, chart_code),
-            INSTRUMENT_LABELS.get(found, found))
+    return (INSTRUMENT_LABELS.get(chart_code)
+            or _FAMILY_LABELS.get(chart_code, chart_code),
+            INSTRUMENT_LABELS.get(found) or _FAMILY_LABELS.get(found, found))

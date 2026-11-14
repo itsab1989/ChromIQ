@@ -1237,6 +1237,10 @@ class TurnedOrder:
     #: of the same chart, so they share it.
     rows: int = 0
     columns: int = 0
+    #: "turned", or "isis" for the order file of an i1iSis chart (a Beta,
+    #: `workflow.isis.export`), whose grid may have several pages.
+    kind: str = "turned"
+    pages: int = 1
 
     def candidates(self) -> list:
         """This order first, then the earlier ones."""
@@ -1255,6 +1259,10 @@ def turned_order_for(chart_ti2: "str | Path | None") -> "TurnedOrder | None":
     # measurement reaches this, and with the option off there is none: a stat
     # per candidate folder is all it may cost then, never a hash of the chart.
     candidates = [f.order for f in TurnedFiles.for_chart(chart_ti2)]
+    # AN i1iSis CHART'S ORDER FILE (a Beta, `workflow.isis.export`): the
+    # same kind of order, i1Profiler's entry j is the patch named, so its
+    # measurement pairs back the same way. Only while the Beta is on.
+    candidates += _isis_order_paths(chart_ti2)
     candidates = [p for p in candidates if p.is_file()]
     if not candidates or not chart_ti2.is_file():
         return None
@@ -1270,6 +1278,22 @@ def turned_order_for(chart_ti2: "str | Path | None") -> "TurnedOrder | None":
     found = [o for o in (_order_in(p, chart_ti2, digest) for p in candidates)
              if o is not None]
     return _merged(found) if found else None
+
+
+def _isis_order_paths(chart_ti2: Path) -> list:
+    """Where an i1iSis chart's order file is (exports/ and beside the chart),
+    only while i1iSis charts are on and *chart_ti2* is one; else nothing."""
+    try:
+        from workflow.isis.support import chart_names_isis, isis_enabled
+        if not isis_enabled() or chart_names_isis(chart_ti2) is not True:
+            return []
+        from core.file_manager import exports_subdir
+        from workflow.isis.export import order_name
+        stem = chart_ti2.name[:-4]
+        return [exports_subdir(chart_ti2.parent) / order_name(stem),
+                chart_ti2.parent / order_name(stem)]
+    except Exception:  # noqa: BLE001 - no order, never a failure
+        return []
 
 
 def _merged(found: list) -> "TurnedOrder":
@@ -1289,7 +1313,8 @@ def _merged(found: list) -> "TurnedOrder":
                                        rows=main.rows, columns=main.columns))
     return TurnedOrder(main.path, main.sample_ids, main.locs, turn=main.turn,
                        earlier=tuple(earlier), version=main.version,
-                       rows=main.rows, columns=main.columns)
+                       rows=main.rows, columns=main.columns,
+                       kind=main.kind, pages=main.pages)
 
 
 def _order_in(path: Path, chart_ti2: "str | Path",
@@ -1349,6 +1374,12 @@ def _order_in(path: Path, chart_ti2: "str | Path",
             # order of this chart's patch list and is ignored.
             if o is not None and sorted(o.sample_ids) == sorted(main.sample_ids):
                 earlier.append(o)
+    if doc.get("kind") == "isis":
+        return TurnedOrder(main.path, main.sample_ids, main.locs,
+                           turn=main.turn, earlier=tuple(earlier),
+                           version=main.version, rows=main.rows,
+                           columns=main.columns, kind="isis",
+                           pages=max(1, _count("pages")))
     return TurnedOrder(main.path, main.sample_ids, main.locs, turn=main.turn,
                        earlier=tuple(earlier), version=main.version,
                        rows=main.rows, columns=main.columns)

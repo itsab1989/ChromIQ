@@ -2415,6 +2415,27 @@ screen (`~/Desktop/ChromIQ-beta44-proof/k53/`):
   locked on and its own layout (B8-1353).
 
 
+### Newer ruling: the owner, 2026-11-14 (Basti)
+
+**Confirmed by:** Basti, 2026-11-14 (relayed by the coordinator the same
+day).
+
+> *"the isis entry without the beta option enabled is removed. and with the
+> new option in beta the users get the new improved isis/xl entry"*
+
+and, on the old entry: *"yes remove it - nobody used this anyway. i think
+there is nothing to loose here and the new beta option will be better"*;
+*"i think no migration is really needed for it"*.
+
+So, replacing §2y and §2z where they differ: with the Beta option "X-Rite
+i1iSis charts" OFF there is no i1iSis entry anywhere (the printtarg
+instrument "i1iSis (via i1Profiler)" and the help text accepted in §2z are
+gone for everybody; a stale saved value reads as no instrument). With the
+option ON, Guided, Manual, the layout engine's panel and Preferences >
+Chart Layout offer the new "i1iSis family" entry (i1iSis and XL), laid out
+by ChromIQ's layout engine (`isis_chart_support.md`). Knut's ruling of
+2026-09-26 and his accepted text above are kept as he confirmed them.
+
 ## 2aa. Knut's ruling of 2026-09-27: in "Prioritise chart area" the patch scale is neither shown nor used (B8-1540, B8-1590)
 
 ### Confirmed behaviour

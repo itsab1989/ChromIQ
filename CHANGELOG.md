@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### New
+- **Charts for the X-Rite i1iSis family (beta, off by default).** Preferences → Beta → “X-Rite i1iSis charts (beta)” adds “i1iSis family” to the Instrument list of Guided and Manual, with a choice for the XL models' wider sheets. ChromIQ lays the chart out with its own layout engine exactly as X-Rite's chart rules and i1Profiler 3.8.8 lay it out (the black bar, a diamond at both ends of every row, 6 × 6 mm patches without gaps by default), and saves an i1Profiler test chart (`.txf`) beside it that makes i1Profiler expect exactly that sheet. You measure the printed sheet in i1Profiler and bring a one-page measurement back with Import Measurement; when you press Start, the Measure tab explains the steps. In Manual nearly every layout option stays open, including a notes band in the header (off by default). Nobody on the team owns an i1iSis, so no ChromIQ chart has been read by one yet: if you own one, please try it and tell us.
+- **The i1Profiler patch set (`.pxf`) of an i1iSis chart names the i1iSis or the i1iSis XL** as i1Profiler itself does (only while that beta option is on); every other chart's file is unchanged.
+
+### Fixed
+- **i1iO charts (beta): the i1Profiler export of an i1iO chart now names the right measuring device.** Its patch set (`.pxf`) said “i1iSis”; it now says “i1iO 2”, the name i1Profiler's own i1iO charts carry (found from a real i1iO owner's files). Only while “X-Rite i1iO support (beta)” is on, whatever the i1iSis option says; with it off, and for every other instrument, the file is byte for byte as before.
+
+### Removed
+- **The Instrument entry “i1iSis (via i1Profiler)”.** It printed an i1Pro chart that an i1iSis could not read, and the new beta option replaces it. A saved setting that still names it opens on the i1Pro and A4, and nothing is changed until you save.
+
 ## v4.3.37
 
 **For everyone updating from 4.3.36: fixes for measuring. With the lights beta option on, an X-Rite i1Pro 2 now gets its lights in the same order as X-Rite's own program, i1Profiler, which a tester's log shows should stop the readings that ended with “The instrument lost communication with the computer”; this has not yet been confirmed on a real i1Pro 2. And continuing a measurement with “High resolution spectral mode (-H)” set differently from when it was started can no longer lose the strips you read: ChromIQ now asks before anything is measured. A strip that the instrument reader saved back to front is now also found when the print is far from the chart's design colours, and with the ruler check beta an i1Pro 3 asks about such a strip. With every beta option off, ChromIQ measures exactly as 4.3.36, apart from two new questions that are not beta: one before continuing a measurement at another spectral resolution, and one about a strip that matches the chart far better turned round. Your charts, measurements and profiles do not change.**

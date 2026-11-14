@@ -6780,6 +6780,20 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                     "i1iO table, and i1iO support is switched off in "
                     "Preferences → Beta."))
             return True
+        # An X-Rite i1iSis chart (a Beta), read HERE for the same reason. On,
+        # `_on_start` has already answered it; off, M-ISIS-SUPPORT-OFF.
+        from workflow.isis.support import is_isis_instrument_name
+        if is_isis_instrument_name(name):
+            from workflow.isis.support import isis_enabled
+            if isis_enabled():
+                self._isis_not_yet_window()
+            else:
+                self._isis_support_off_window()
+                self._log.appendPlainText(tr(
+                    "Measurement not started: this chart is for the X-Rite "
+                    "i1iSis, and “X-Rite i1iSis charts” is switched off in "
+                    "Preferences → Beta."))
+            return True
         from workflow.fd9.support import is_fd9_instrument_name
         if is_fd9_instrument_name(name):
             self._fd9_support_off_window()
@@ -6842,6 +6856,63 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             "table, and measuring with the table is not available in this "
             "version of ChromIQ yet."))
         return True
+
+    def _refused_as_an_isis_chart(self) -> bool:
+        """True, with M-ISIS-NOT-YET shown, when i1iSis charts are on and the
+        loaded chart is an i1iSis chart. Reads the chart's header only while
+        the switch is on, and never raises."""
+        from workflow.isis.support import isis_enabled
+        if not isis_enabled() or not self._ti1_path:
+            return False
+        try:
+            from workflow.isis.support import chart_names_isis
+            chart = self._chart_file_for(self._ti1_path)
+            if chart_names_isis(chart) is not True:
+                return False
+        except Exception:      # noqa: BLE001 - never block a read on this
+            return False
+        self._isis_not_yet_window()
+        self._log.appendPlainText(tr(
+            "Measurement not started: this chart is for the X-Rite i1iSis, "
+            "which ChromIQ cannot talk to; it is measured in i1Profiler "
+            "(the window says how)."))
+        return True
+
+    def _isis_not_yet_window(self) -> None:
+        """M-ISIS-NOT-YET on screen, filled from the chart's side file and
+        its i1Profiler test chart; the text is the catalogue's."""
+        from workflow import measurement_messages as M
+        from workflow.isis.support import read_side_file
+        from workflow.isis.chart import cut_instruction
+        chart = self._chart_file_for(self._ti1_path)
+        side = read_side_file(chart) or {}
+        # the .txf the window names is there (written again if a later build
+        # swept it: it is derived from the chart and its side file)
+        from workflow.isis.export import ensure_export, txf_name
+        ensure_export(chart)
+        stem = Path(str(chart)).name
+        stem = stem[:-4] if stem.lower().endswith(".ti2") else stem
+        from core.file_manager import exports_subdir
+        if (not (exports_subdir(Path(str(chart)).parent)
+                 / txf_name(stem)).is_file()
+                and not _chart_is_rgb(chart)):
+            # not an RGB chart: no test chart, said (M-ISIS-NO-TXF)
+            self._i1io_window(*M.M_ISIS_NO_TXF.render())
+            return
+        pages = int(side.get("pages") or 1)
+        title, body = M.M_ISIS_NOT_YET.render(
+            cut_or_not=cut_instruction(bool(side.get("fed_as_printed",
+                                                     True))),
+            txf=txf_name(stem), cols=side.get("columns", "?"),
+            rows=side.get("rows", "?"), pages=pages,
+            multipage_note=(tr(M.M_ISIS_MULTIPAGE_NOTE).format(pages=pages)
+                            if pages > 1 else ""))
+        self._i1io_window(title, body)
+
+    def _isis_support_off_window(self) -> None:
+        """M-ISIS-SUPPORT-OFF on screen: the text is the catalogue's."""
+        from workflow import measurement_messages as M
+        self._i1io_window(*M.M_ISIS_SUPPORT_OFF.render())
 
     def _i1io_not_yet_window(self) -> None:
         """M-I1IO-NOT-YET on screen: the text is the catalogue's. For a
@@ -8363,6 +8434,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # chart is refused where 4.3.32 already reads its instrument name
         # (`_blocked_by_unusable_target_instrument`).
         if self._refused_as_an_i1io_chart():
+            return
+        # An X-Rite i1iSis chart with its Beta on: ChromIQ cannot talk to the
+        # instrument, so Start explains the i1Profiler way (M-ISIS-NOT-YET)
+        # BEFORE anything is recovered, armed or written. Off, nothing is
+        # read here (`_blocked_by_unusable_target_instrument` says it).
+        if self._refused_as_an_isis_chart():
             return
         if not self._ti1_path:
             self._log.appendPlainText("[ERROR] No .ti2 file selected.")
@@ -22359,3 +22436,18 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # Reflect the restored Auto toggles (grey out / sync the combos).
         self._apply_bidir_auto_state("guided")
         self._apply_bidir_auto_state("manual")
+
+
+def _chart_is_rgb(chart) -> bool:
+    """True when the chart's header says COLOR_REP "RGB..." (or says
+    nothing); read from the header bytes only, never raises."""
+    try:
+        with open(chart, "rb") as f:
+            head = f.read(65536).split(b"BEGIN_DATA_FORMAT", 1)[0]
+    except (OSError, TypeError):
+        return True
+    for raw in head.splitlines():
+        line = raw.strip()
+        if line.upper().startswith(b"COLOR_REP"):
+            return line[9:].strip().strip(b'"').upper().startswith(b"RGB")
+    return True

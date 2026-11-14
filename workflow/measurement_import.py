@@ -333,6 +333,19 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
             # for the same chart, each putting readings on other patches.
             return ImportVerdict(False, turned_ambiguous_reason(),
                                  n_chart=n_chart or 0, n_measured=n_got)
+        if (turned.applies and turned.verified
+                and getattr(turned.order, "kind", "") == "isis"
+                and int(getattr(turned.order, "pages", 1) or 1) > 1):
+            # AN i1iSis CHART OF SEVERAL PAGES (a Beta, stage 1): measuring
+            # it in i1Profiler works, bringing it back needs a later version
+            # (the pages' places are not read yet). Said, never guessed.
+            return ImportVerdict(False, tr(
+                "this file is a measurement of an i1iSis chart with {pages} "
+                "pages. Bringing a measurement of several pages back into "
+                "ChromIQ needs a later version of ChromIQ; the measurement "
+                "itself is fine, so keep the file").format(
+                    pages=int(turned.order.pages)),
+                n_chart=n_chart or 0, n_measured=n_got)
         if turned.applies and turned.verified:
             # …AND ONLY WHEN i1PROFILER LAID IT OUT ON THE GRID THE .TXF ASKS
             # FOR (4.3.19). The device values repeat the patch list whatever

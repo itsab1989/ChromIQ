@@ -43,8 +43,10 @@ def test_the_instrument_is_registered_everywhere_the_engine_looks() -> None:
         "the honest name: the device reports CR30 for itself (#159 ruling)"
     assert KEY in instruments.supported()
     assert instruments._MARGIN_LABEL_TO_KEY["CR30"] == KEY
-    assert KEY not in instruments.DELEGATED, \
-        "a CR30 chart is laid out here, not by i1Profiler"
+    # A CR30 chart is laid out here, not by i1Profiler. (The DELEGATED set
+    # that held the i1iSis went with that printtarg entry, removed by the
+    # owner's ruling of 2026-11-14; building is the test now.)
+    assert instruments.build(KEY).key == KEY
 
 
 def test_the_base_geometry_is_a_hand_placed_spot_grid() -> None:
@@ -74,7 +76,9 @@ def test_an_unknown_instrument_key_still_raises() -> None:
     with pytest.raises(ValueError):
         instruments.build("CR31")
     with pytest.raises(ValueError):
-        instruments.build("isis")      # DELEGATED, and still refused
+        # the removed i1iSis entry's code (owner's ruling of 2026-11-14): an
+        # unknown key, refused as every unknown key is
+        instruments.build("isis")
 
 
 # ---------------------------------------------------------------------------

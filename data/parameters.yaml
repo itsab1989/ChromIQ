@@ -623,7 +623,7 @@ parameters:
     - flag: "-i"
       name: "Measurement Instrument"
       type: choice
-      choices: ["i1", "p3", "CM", "SS", "CR30", "FD9", "IO2", "isis"]
+      choices: ["i1", "p3", "CM", "SS", "CR30", "FD9", "IO2", "XRISIS"]
       labels:
         - "i1Pro / i1Pro 2 / i1Pro 3"
         - "i1Pro 3 Plus"
@@ -632,7 +632,7 @@ parameters:
         - "CR30 (patch by patch)"
         - "FD-9"
         - "i1iO 2 + i1Pro 2"
-        - "i1iSis (via i1Profiler)"
+        - "i1iSis family"
       default: "i1"
       no_space: true
       affects_preview: true
@@ -672,14 +672,6 @@ parameters:
              ALWAYS laid out by ChromIQ's own layout engine, and can
              only be read by ChromIQ: standard ArgyllCMS chartread does
              not know this instrument and refuses the chart.
-
-          •  i1iSis (via i1Profiler): automatic sheet-fed chart reader
-             that ChromIQ cannot drive. Choose it only when you will
-             measure the chart in i1Profiler and import the measurements
-             back into ChromIQ, for example to make a Measurement Report.
-             ChromIQ saves the patch list in i1Profiler's own format
-             beside the chart; its Print and Measure tabs are not used
-             for this device.
 
         Picking the wrong instrument produces a chart your device cannot
         align to or read reliably, and you'll see "patches not found" or

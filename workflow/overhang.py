@@ -591,8 +591,7 @@ def caption_box(tiff_path: "str | Path", frame: int = 0,
 #: * the ruler helper markers: a visual aid only -- MAY be cut.
 #:
 #: The engine prints no scanner fiducials (scanin is given the corners by
-#: hand, ``cht_writer``), and nothing here touches an i1iSis chart (its
-#: layout is i1Profiler's, ``instruments.DELEGATED``). A dash is recognised
+#: hand, ``cht_writer``). A dash is recognised
 #: only as the engine draws it: a straight run the marker length long, at
 #: most ``MARKER_WIDTH_MAX_MM`` thick, starting the marker distance from its
 #: edge, with nothing else beside it in its band. A dash that crosses other

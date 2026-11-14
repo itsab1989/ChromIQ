@@ -507,14 +507,6 @@ parameters:
              plage individuellement, et stocke bien plus de couleurs par
              feuille que tout lecteur de bandes.
 
-          •  i1iSis (via i1Profiler) — lecteur de feuilles automatique.
-             ChromIQ ne peut pas piloter directement cet appareil : à la
-             place, il enregistre la liste de plages au format propre
-             d'i1Profiler à côté de la mire, et tu termines le flux
-             là-bas (impression, scan, création du profil). Les onglets
-             Imprimer et Mesurer de ChromIQ ne servent pas pour cet
-             appareil.
-
         Choisir le mauvais instrument produit une mire que ton appareil
         ne peut ni aligner ni lire de façon fiable — à la mesure tu
         verras des erreurs « patches not found » ou d'alignement. En mode
@@ -527,7 +519,7 @@ parameters:
         - "CR30 (plage par plage)"
         - "FD-9"
         - "i1iO 2 + i1Pro 2"
-        - "i1iSis (via i1Profiler)"
+        - "Famille i1iSis"
     "-h":
       name: "Double density"
       tooltip_title: "Double density (-h)"

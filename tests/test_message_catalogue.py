@@ -634,6 +634,11 @@ AWAITING_APPROVAL: "set[str]" = {
                                  # 2026-11-13: the X-Rite i1iO table Beta
                                  # (charts only; measuring comes later).
                                  "M-I1IO-NOT-YET", "M-I1IO-SUPPORT-OFF",
+                                 # 2026-11-14: the X-Rite i1iSis chart Beta
+                                 # (charts measured in i1Profiler): Start's
+                                 # two windows and the layout refusal.
+                                 "M-ISIS-NOT-YET", "M-ISIS-SUPPORT-OFF",
+                                 "M-ISIS-SHEET-CHECK", "M-ISIS-NO-TXF",
                                  # the same for a verification or a
                                  # calibration chart made for the table
                                  "M-I1IO-NOT-YET-BY-HAND",
@@ -1080,6 +1085,9 @@ WINDOW_SOURCES = [
     # 2026-11-13: the X-Rite i1iO table Beta's two Start windows.
     ("ui.tabs.tab_measure", "TabMeasure", "_i1io_not_yet_window"),
     ("ui.tabs.tab_measure", "TabMeasure", "_i1io_support_off_window"),
+    # 2026-11-14: the X-Rite i1iSis chart Beta's two Start windows.
+    ("ui.tabs.tab_measure", "TabMeasure", "_isis_not_yet_window"),
+    ("ui.tabs.tab_measure", "TabMeasure", "_isis_support_off_window"),
     # 4.3.23: which measurement condition of an i1Profiler CxF to import.
     ("ui.dialogs.cxf_condition_dialog", "CxfConditionDialog", "__init__"),
     ("ui.tabs.tab_measure", "TabMeasure", "_replace_message"),

@@ -43,7 +43,7 @@ def _finish_body() -> str:
             src = inspect.getsource(fn)
         except (OSError, TypeError):
             continue
-        if ("chart_finished.emit(tiffs, ti2, is_isis)" in src
+        if ("chart_finished.emit(tiffs, ti2, False)" in src
                 and "_maybe_warn_partial_last_page" in src):
             return src
     raise AssertionError(
@@ -51,11 +51,13 @@ def _finish_body() -> str:
         "warning; this test has lost its subject")
 
 
+# The emit's third argument was `is_isis` (the printtarg i1iSis entry); the
+# entry was removed by the owner's ruling of 2026-11-14, so it is `False`.
 def test_the_completion_signal_goes_before_the_partial_page_dialog():
     """MUTATION: move `_maybe_warn_partial_last_page(ti2)` back above the emit
     and this goes red. Watched."""
     src = _finish_body()
-    emit = src.index("chart_finished.emit(tiffs, ti2, is_isis)")
+    emit = src.index("chart_finished.emit(tiffs, ti2, False)")
     warn = src.index("self._maybe_warn_partial_last_page(ti2)")
     assert emit < warn, (
         "the build opens a modal before it reports that it has finished, so "

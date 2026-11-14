@@ -3822,6 +3822,27 @@ class SettingsDialog(QDialog):
         _beta.addLayout(_i1iorow)
         _beta.addWidget(self._i1io_support_restart_hint)
 
+        # X-Rite i1iSis family charts (ChromIQ's layout, measured in
+        # i1Profiler). Restart to apply, like the i1iO (`workflow.isis.
+        # support`). Switching it ON asks first (`_on_isis_charts_clicked`).
+        self._isis_charts_check = QCheckBox(
+            tr("X-Rite i1iSis charts (beta)"), self)
+        isis_charts_tip = TooltipButton(
+            tr("X-Rite i1iSis charts (beta)"), isis_charts_help(), self,
+            min_width=680)
+        self._isis_charts_restart_hint = QLabel(
+            tr("Takes effect after you restart ChromIQ."), self)
+        _ink(self._isis_charts_restart_hint, "#e6a23c", " font-size: 11px;")
+        self._isis_charts_restart_hint.setVisible(False)
+        self._isis_charts_check.toggled.connect(self._isis_charts_toggled)
+        self._isis_charts_check.clicked.connect(self._on_isis_charts_clicked)
+        _isisrow = QHBoxLayout()
+        _isisrow.addWidget(self._isis_charts_check)
+        _isisrow.addStretch()
+        _isisrow.addWidget(isis_charts_tip)
+        _beta.addLayout(_isisrow)
+        _beta.addWidget(self._isis_charts_restart_hint)
+
         # THE SPLASH ESCAPE HATCH, WITH A ROW OF ITS OWN.
         #
         # The setting existed and the changelog told users to reach for it, but
@@ -6249,7 +6270,13 @@ class SettingsDialog(QDialog):
         sel = QGridLayout()
         sel.addWidget(QLabel(tr("Instrument:"), self), 0, 0)
         self._margin_instr = NoScrollComboBox(self)
-        self._margin_instr.addItems(list(self._MARGIN_INSTRUMENTS))
+        _margin_instruments = list(self._MARGIN_INSTRUMENTS)
+        # The i1iSis family (a Beta, restart to apply): its own limits, only
+        # while it is offered (`workflow.isis.support`).
+        from workflow.isis.support import THRESHOLD_LABEL, isis_enabled
+        if isis_enabled():
+            _margin_instruments.append(THRESHOLD_LABEL)
+        self._margin_instr.addItems(_margin_instruments)
         sel.addWidget(self._margin_instr, 0, 1)
         sel.addWidget(QLabel(tr("Paper size:"), self), 0, 2)
         self._margin_paper = NoScrollComboBox(self)
@@ -6504,6 +6531,9 @@ class SettingsDialog(QDialog):
         self._i1io_support_check.setChecked(
             bool(s.get("i1io_support_beta", False)))
         self._i1io_support_toggled()
+        self._isis_charts_check.setChecked(
+            bool(s.get("isis_charts_beta", False)))
+        self._isis_charts_toggled()
         from workflow.fd9.support import stored_rotation as _fd9_rot
         _i = self._fd9_rotation_combo.findData(_fd9_rot(s))
         self._fd9_rotation_combo.setCurrentIndex(max(0, _i))
@@ -6802,6 +6832,53 @@ class SettingsDialog(QDialog):
         keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         if box.exec() != QMessageBox.StandardButton.Ok:
             self._i1io_support_check.setChecked(False)
+
+    def _isis_charts_toggled(self, *_a) -> None:
+        """i1iSis charts are restart-to-apply (`workflow.isis.support`): say
+        so while the box differs from what THIS run of ChromIQ is using."""
+        from workflow.isis.support import isis_enabled
+        self._isis_charts_restart_hint.setVisible(
+            self._isis_charts_check.isChecked() != isis_enabled())
+
+    def _on_isis_charts_clicked(self, checked: bool) -> None:
+        """i1iSis charts are switched on at the user's own risk, and the
+        window says so first: the i1iO's consent window
+        (`_on_i1io_support_clicked`), no icon, "Keep it off" the default,
+        the confirm marked as the risky choice. Nothing is asked on switching
+        off; switching on again asks again."""
+        if not checked:
+            return
+        from PyQt6.QtWidgets import (QDialogButtonBox, QMessageBox,
+                                     QSizePolicy, QSpacerItem)
+        from PyQt6.QtGui import QFontMetrics
+        box = QMessageBox(self)
+        box.setWindowTitle(tr("X-Rite i1iSis charts (beta)"))
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setText(isis_consent_text())
+        box.setStandardButtons(QMessageBox.StandardButton.Ok
+                               | QMessageBox.StandardButton.Cancel)
+        ok_btn = box.button(QMessageBox.StandardButton.Ok)
+        cancel_btn = box.button(QMessageBox.StandardButton.Cancel)
+        ok_btn.setText(tr("Turn it on"))
+        from ui.default_button import mark_destructive
+        mark_destructive(ok_btn)
+        cancel_btn.setText(tr("Keep it off"))
+        for b in (ok_btn, cancel_btn):
+            w = QFontMetrics(b.font()).horizontalAdvance(b.text()) + 44
+            b.setMinimumWidth(w)
+        bbox = box.findChild(QDialogButtonBox)
+        if bbox is not None:
+            bbox.setCenterButtons(True)
+        grid = box.layout()
+        if grid is not None:
+            grid.addItem(QSpacerItem(620, 1, QSizePolicy.Policy.Minimum,
+                                     QSizePolicy.Policy.Minimum),
+                         grid.rowCount(), 0, 1, grid.columnCount())
+        box.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        if box.exec() != QMessageBox.StandardButton.Ok:
+            self._isis_charts_check.setChecked(False)
 
     def _on_language_changed(self, _index: int) -> None:
         # Language is restart-to-apply (strings are translated at widget
@@ -8053,6 +8130,7 @@ class SettingsDialog(QDialog):
         s.set("i1profiler_turned_export", self._i1p_turned_check.isChecked())
         s.set("fd9_support_beta", self._fd9_support_check.isChecked())
         s.set("i1io_support_beta", self._i1io_support_check.isChecked())
+        s.set("isis_charts_beta", self._isis_charts_check.isChecked())
         s.set("fd9_display_rotation",
               int(self._fd9_rotation_combo.currentData() or 0))
         s.set("splash_classic", self._splash_classic_check.isChecked())
@@ -9687,5 +9765,86 @@ def i1io_consent_text() -> str:
            "at your own risk. X-Rite no longer services these tables, so if "
            "anything ever behaves in a way you do not expect, stop and tell "
            "us what you saw in the project's GitHub issues. Every report "
+           "helps."),
+        tr("Would you like to switch it on?")))
+
+
+# ---- X-Rite i1iSis charts (Beta) ---------------------------------------------
+#
+# ChromIQ MAKES the charts; i1Profiler measures them. The one sentence to
+# change when importing several pages arrives is the "Today" paragraph.
+
+def isis_charts_help() -> str:
+    """The (i) of Preferences > Beta > "X-Rite i1iSis charts (beta)"."""
+    return "\n\n".join((
+        tr("The X-Rite i1iSis family (the i1iSis, the i1iSis 2 and their XL "
+           "models) are automatic chart readers. You feed the printed sheet "
+           "into a slot, and the instrument finds a black bar and a small "
+           "black diamond at both ends of every row of patches and reads the "
+           "whole sheet by itself."),
+        tr("ChromIQ cannot talk to these instruments, and it sends nothing "
+           "to them. What this option adds is the chart: ChromIQ lays it out "
+           "with its own layout engine, following X-Rite's published chart "
+           "design rules and the layout X-Rite's i1Profiler 3.8.8 computes "
+           "for the same settings, and saves an i1Profiler test chart file "
+           "(.txf) with it. Loaded in i1Profiler, that file makes i1Profiler "
+           "expect exactly the sheet ChromIQ printed. You measure the sheet "
+           "in i1Profiler and bring the measurement back into ChromIQ with "
+           "Import Measurement."),
+        tr("What turning this on adds, after a restart of ChromIQ:\n"
+           "  •  Create Chart: “i1iSis family” in the Instrument list of "
+           "Guided and of Manual, with a choice for the XL models' wider "
+           "sheets. The defaults give the same chart i1Profiler makes by "
+           "default: 6 × 6 mm patches, 5 mm page margins, the black bar 32 mm "
+           "from the chart's top edge, no barcode. In Manual nearly every "
+           "layout option stays open, as for the other instruments; only the "
+           "controls that would make the chart unreadable (gaps and spacers "
+           "between patches, offset strips, hexagons) are greyed. A notes "
+           "band in the header is there too, switched off by default.\n"
+           "  •  Measure: when you press Start with such a chart, ChromIQ "
+           "explains, step by step, how to measure it in i1Profiler."),
+        tr("Today a measurement of a one-page chart can be imported back. "
+           "Importing a measurement of a chart with several pages needs a "
+           "later version; measuring such a chart in i1Profiler already "
+           "works."),
+        tr("Please read this part carefully. Nobody on the ChromIQ team owns "
+           "an i1iSis, and no ChromIQ chart has been read by a real i1iSis "
+           "yet. Every number was checked against X-Rite's rules and against "
+           "charts i1Profiler drew, without an instrument. If you own one, "
+           "the most useful test is to print the default chart, load its "
+           ".txf in i1Profiler, measure it and tell us in the project's "
+           "GitHub issues what happened, with a photo of the sheet and a "
+           "screenshot of any message. Using this beta is at your own risk."),
+        tr("This option replaces the old Instrument entry “i1iSis (via "
+           "i1Profiler)”, which has been removed: that entry printed an "
+           "i1Pro chart that an i1iSis could not read."),
+        tr("If you turn this off again, an i1iSis chart stays as it is, and "
+           "when you press Start, ChromIQ tells you that it needs this "
+           "option."),
+        tr("With this off (the default), nothing else changes: the i1iSis is "
+           "not offered anywhere and ChromIQ works as before."),
+        tr("The change takes effect the next time you start ChromIQ."),
+        tr("**Default:** off")))
+
+
+def isis_consent_text() -> str:
+    """What the window asks when "X-Rite i1iSis charts (beta)" is ticked."""
+    return "\n\n".join((
+        tr("You are switching on charts for the X-Rite i1iSis family. Here "
+           "is what that means, in plain words."),
+        tr("ChromIQ makes the charts, and i1Profiler measures them. ChromIQ "
+           "sends nothing to the instrument."),
+        tr("•  The layout follows X-Rite's published chart design rules and "
+           "the layout i1Profiler 3.8.8 computes for the same settings. Both "
+           "were checked carefully, but without an instrument.\n\n"
+           "•  Nobody on the ChromIQ team owns an i1iSis, so no ChromIQ chart "
+           "has been read by a real i1iSis yet. Owners who try it are the "
+           "first to test it.\n\n"
+           "•  You can switch this off again at any time, and ChromIQ then "
+           "works as before."),
+        tr("Please read this part carefully: this is a beta, and using it is "
+           "at your own risk. If i1Profiler or the instrument refuses a "
+           "chart, or anything behaves in a way you do not expect, please "
+           "tell us what you saw in the project's GitHub issues. Every report "
            "helps."),
         tr("Would you like to switch it on?")))

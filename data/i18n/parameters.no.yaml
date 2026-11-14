@@ -472,12 +472,6 @@ parameters:
              felt enkeltvis og pakker dermed langt flere farger per ark
              enn noen stripeleser.
 
-          •  i1iSis (via i1Profiler) — automatisk arkmatet kartleser.
-             ChromIQ kan ikke styre denne enheten direkte: i stedet lagres
-             feltlisten i i1Profilers eget format ved siden av kartet, og
-             du fullfører arbeidsflyten der (skriv ut, skann, bygg profil).
-             ChromIQs faner Skriv ut og Mål brukes ikke for denne enheten.
-
         Feil instrument gir et kart enheten din ikke klarer å justere seg
         etter eller lese pålitelig — du ser \"patches not found\" eller
         justeringsfeil ved måling. I veiledet modus tilpasser oppsettet
@@ -490,7 +484,7 @@ parameters:
         - "CR30 (felt for felt)"
         - "FD-9"
         - "i1iO 2 + i1Pro 2"
-        - "i1iSis (via i1Profiler)"
+        - "i1iSis-familien"
     "-h":
       name: "Double density"
       tooltip_title: "Double density (-h)"

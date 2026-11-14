@@ -92,19 +92,22 @@ def test_the_link_does_not_bounce(qapp, tab):
 
 
 def test_an_instrument_guided_cannot_show_is_left_alone(qapp, tab):
-    """Guided deliberately omits the external-workflow instruments (i1iSis),
-    because their layout is recomputed by another program. Manual may still
-    select one — guided must not be forced to a wrong value, and nothing may
-    crash."""
-    from workflow.chart_creator import EXTERNAL_INSTRUMENTS
-    external = next(iter(EXTERNAL_INSTRUMENTS))
+    """Guided ignores a code it does not offer: Manual may hold one, guided
+    must not be forced to a wrong value, and nothing may crash.
+
+    The code was the i1iSis printtarg entry ("isis", the only external-
+    workflow instrument), removed by the owner's ruling of 2026-11-14, which
+    left EXTERNAL_INSTRUMENTS empty. A synthetic code Guided does not offer
+    keeps the property, which is exactly what a stale saved value needs."""
+    external = "XRISIS-not-offered"
     assert tab._instr_combo.findData(external) < 0, "guided should not offer it"
 
     before = _guided(tab)
     tab._set_manual_value("printtarg", "-i", external)
     qapp.processEvents()
 
-    assert _manual(tab) == external, "manual must keep what was asked for"
+    # (Manual's combo offers no such code either now, so it keeps its own
+    # choice; the entry was removed by the owner's ruling of 2026-11-14.)
     assert _guided(tab) == before, "guided should have been left as it was"
 
 

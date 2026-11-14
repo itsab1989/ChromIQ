@@ -2560,8 +2560,42 @@ class TabPrint(QWidget):
         except Exception:      # noqa: BLE001 - a note, never a blocker
             log.debug("i1iO load note not worked out", exc_info=True)
             text = ""
+        if not text:
+            text = self._isis_feed_note()
         lbl.setText(text)
         lbl.setVisible(bool(text))
+
+    def _isis_feed_note(self) -> str:
+        """For an i1iSis chart (Beta on): how the sheet is fed, and whether
+        it must be cut along its outline first (M-ISIS-CUT). Empty for every
+        other chart; with the Beta off nothing is read."""
+        try:
+            from workflow.isis.support import (chart_names_isis, isis_enabled,
+                                               read_side_file)
+            if not isis_enabled():
+                return ""
+            pages = [p for p, _f in (getattr(self._preview, "_pages", None)
+                                     or [])]
+            if not pages:
+                return ""
+            import re as _re
+            page = Path(pages[0])
+            stems = [page.stem]
+            m = _re.fullmatch(r"(.+)_\d+", page.stem)
+            if m:
+                stems.insert(0, m.group(1))
+            for stem in stems:
+                ti2 = page.with_name(stem + ".ti2")
+                if chart_names_isis(ti2) is True:
+                    side = read_side_file(ti2) or {}
+                    from workflow import measurement_messages as M
+                    from workflow.isis.chart import cut_instruction
+                    return tr(M.M_ISIS_PRINT_NOTE).format(
+                        cut_or_not=cut_instruction(
+                            bool(side.get("fed_as_printed", True))))
+        except Exception:      # noqa: BLE001 - a note, never a blocker
+            log.debug("i1iSis feed note not worked out", exc_info=True)
+        return ""
 
     def _update_edge_note(self) -> None:
         """Say which ruler helper markers or text of the chart fall into the

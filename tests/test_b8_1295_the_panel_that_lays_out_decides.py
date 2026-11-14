@@ -224,7 +224,9 @@ def test_the_tick_does_not_carry_the_half_spacer_scale(qapp, store):
 # ---------------------------------------------------------------------------
 @pytest.mark.parametrize("instr,setting,want", [
     ("CR30", False, True), ("CR30", True, True), ("i1", True, True),
-    ("i1", False, False), ("p3", False, False), ("isis", True, True),
+    ("i1", False, False), ("p3", False, False),
+    # (the i1iSis printtarg entry's case went with the entry, removed by the
+    # owner's ruling of 2026-11-14)
     ("CM", False, False)])
 def test_the_predicate(instr, setting, want):
     assert TC._layout_panel_lays_out(instr, setting) is want

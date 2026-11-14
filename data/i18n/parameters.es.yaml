@@ -504,13 +504,6 @@ parameters:
              parche individualmente, metiendo muchos más colores por hoja
              que cualquier lector de tiras.
 
-          •  i1iSis (vía i1Profiler) — lector automático de hojas.
-             ChromIQ no puede controlar directamente este dispositivo: en
-             su lugar guarda la lista de parches en el formato propio de
-             i1Profiler junto a la carta, y tú completas el flujo allí
-             (imprimir, escanear, crear el perfil). Las pestañas Imprimir
-             y Medir de ChromIQ no se usan con este dispositivo.
-
         Elegir el instrumento equivocado produce una carta que tu
         dispositivo no puede alinear ni leer con fiabilidad — al medir
         verás "patches not found" o errores de alineación. En modo guiado
@@ -523,7 +516,7 @@ parameters:
         - "CR30 (parche a parche)"
         - "FD-9"
         - "i1iO 2 + i1Pro 2"
-        - "i1iSis (vía i1Profiler)"
+        - "Familia i1iSis"
     "-h":
       name: "Double density"
       tooltip_title: "Double density (-h)"
