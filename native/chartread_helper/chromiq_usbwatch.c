@@ -168,6 +168,14 @@ void cq_usbwatch_install(icoms *ic, int family) {
 	cq_uw_wr = ic->usb_write;
 	cq_uw_t0 = msec_time();
 	cq_uw_ic = ic;
+	/* The originals must be visible to every thread before a wrapper that
+	 * calls them can be (the switch thread may call in at any moment): a full
+	 * fence between saving them and publishing the wrappers (4.3.37 review). */
+#if defined(__GNUC__) || defined(__clang__)
+	__atomic_thread_fence(__ATOMIC_SEQ_CST);
+#elif defined(_MSC_VER)
+	MemoryBarrier();
+#endif
 	ic->usb_control = cq_uw_control;
 	ic->usb_read = cq_uw_read;
 	ic->usb_write = cq_uw_write;

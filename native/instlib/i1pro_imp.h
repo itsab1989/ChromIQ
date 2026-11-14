@@ -362,6 +362,7 @@ struct _i1proimp {
 	int cq_lights_press_count;	/* switch_count when that reading began */
 	int cq_lights_owed;		/* a result for a reported strip is owed */
 	unsigned int cq_lights_owed_ms;
+	unsigned int cq_lights_end_ms;	/* msec_time() a light write ended, 0 = none (4.3.37) */
 
 }; typedef struct _i1proimp i1proimp;
 
@@ -1496,19 +1497,21 @@ extern int i1pro2_cq_ruler_fail_start_for_test;	/* the fake-USB harness only */
  * entry returns at once unless ChromIQ's helper called ..._begin(). */
 int i1pro2_cq_lights_begin(void *pp);	/* ChromIQ's helper only */
 int i1pro2_cq_lights_end(void *pp);	/* off now if needed, then never again; 1 = known off */
-void i1pro2_cq_lights_ready(void *pp);	/* white, if in use and off */
-void i1pro2_cq_lights_trigger(void *pp);	/* off, before a trigger */
+void i1pro2_cq_lights_ready(void *pp);	/* the ready light, if in use and off */
+void i1pro2_cq_lights_trigger(void *pp);	/* before a trigger: off before a calibration, then the quiet time */
 void i1pro2_cq_lights_eeprom(void *pp);	/* off now, before an EEPROM read */
 void i1pro2_cq_lights_reading(void *pp, int on);	/* around a reading */
-void i1pro2_cq_lights_after_read(void *pp);	/* ready, unless the helper decides */
+void i1pro2_cq_lights_after_read(void *pp);	/* end of a reading; sends nothing */
 void i1pro2_cq_lights_options(void *pp, int signals, int left_on);	/* before begin */
 void i1pro2_cq_lights_owe(void *pp);	/* a result is owed for a reported strip */
 int i1pro2_cq_lights_owed_ms(void *pp);	/* how long; -1 = none */
-void i1pro2_cq_lights_result(void *pp, int good);	/* 1 green, 0 red, -1 ready */
+void i1pro2_cq_lights_result(void *pp, int good);	/* 1 green, 0 red, -1 nothing */
 int i1pro2_cq_lights_choices(void *pp);	/* in use: 1 signals, 2 left on */
 int i1pro2_cq_lights_firmware(void *pp);	/* firmware, -1 = not in use */
 extern void (*i1pro2_cq_lights_note)(int seq, int icom_err);
 extern void (*i1pro2_cq_lights_sent)(int seq);	/* each sequence sent */
+extern void (*i1pro2_cq_lights_held)(int ms);	/* a trigger waited for the quiet time (4.3.37) */
+extern int i1pro2_cq_lights_quiet_ms_for_test;	/* fake-USB tests only; 0 = 2100 ms */
 
 #ifdef __cplusplus
 	}

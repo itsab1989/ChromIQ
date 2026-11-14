@@ -1416,6 +1416,12 @@ static const char *cq_lights_name2(int seq) {
 	return seq >= 1 && seq <= 6 ? names[seq] : "?";
 }
 
+/* The i1Pro 2's driver held a trigger for the quiet time after a light write
+ * (RULE B, 4.3.37): one event per hold; ChromIQ says it once per session. */
+static void cq_lights_held2(int ms) {
+	cq_emit_raw("{\"event\":\"lights\",\"held_ms\":%d}", ms);
+}
+
 /* A sequence the i1Pro 2's driver sent: one line for ChromIQ's log. */
 static void cq_lights_sent2(int seq) {
 	cq_usbwatch_light(cq_lights_name2(seq));	/* 4.3.36: for an error event */
@@ -1570,6 +1576,7 @@ static void cq_lights_for_session(inst *it, int rmode, int emis, int trans,
 		if (cq_lights_gen == 2) {
 			i1pro2_cq_lights_options(it, sig, left);
 			i1pro2_cq_lights_sent = cq_lights_sent2;
+			i1pro2_cq_lights_held = cq_lights_held2;
 		} else {
 			i1pro3_cq_lights_options(it, sig, left);
 			i1pro3_cq_lights_sent = cq_lights_sent3;

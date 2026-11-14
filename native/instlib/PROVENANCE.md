@@ -66,6 +66,17 @@ stops if one no longer applies.
   `tests/test_i1pro2_light_programs.py`. They were recorded on firmware
   634 and go, like the three above, to any i1Pro 2 the block accepts
   (no firmware condition, as in Argyll's own light code).
+  **Since ChromIQ 4.3.37 the i1Pro 2 follows i1Profiler's hand-held order**
+  (a tester's i1Pro 2 lost the strip's first reading about 2 times in 3
+  when any light write ended 10-25 ms before a measurement trigger, and
+  never without one): no light write before a reading's triggers (the
+  reading is measured over whatever plays); OFF_SLOW only before a
+  calibration's first trigger; PULSE after every calibration (both
+  choices); nothing after a reading except GREEN2 / RED2 with result
+  signals; and every trigger waits until `CQ_LIGHTS_QUIET_MS` (2100 ms)
+  after the END of the last light write, a plain wait. No new byte; the
+  same six recorded sequences; WHITE now only at open. Not yet confirmed
+  on a real i1Pro 2.
 - **`i1pro3_imp.c`, `i1pro3_imp.h`, `i1pro3.c`: the same Beta for the
   i1Pro 3** (2026-11-13). Its own request and format (0x29, LE32 length,
   bytes on bulk endpoint 0x02, Argyll's `i1pro3_indLEDseq`). Exactly four
@@ -119,8 +130,8 @@ stops if one no longer applies.
 | `rspl1.c` | `5c7b0509abf97f44…` | `d53a8d37b30b6e14…` |
 | `conv.c` | `c6b04014888cb6f4…` | `1b88327ee6e6d9df…` |
 | `i1pro.c` | `ac75b6e3f47537b8…` | `833d46b27134f93e…` |
-| `i1pro_imp.h` | `c37813e4b43a9bff…` | `5f1dc8aeeff00332…` |
-| `i1pro_imp.c` | `8b8516cdd89e21de…` | `ba3ec768669c1e2b…` |
+| `i1pro_imp.h` | `c37813e4b43a9bff…` | `6a3f575f754fbfa1…` |
+| `i1pro_imp.c` | `8b8516cdd89e21de…` | `01fd407d28406608…` |
 | `i1pro3.c` | `9c4b1ac9f8af507a…` | `347235c6d10f9677…` |
 | `i1pro3_imp.h` | `190cceb46fe8bc33…` | `e6d2c5f364eaca29…` |
 | `i1pro3_imp.c` | `42c684afa3bbb15d…` | `1d4fb6f133715469…` |

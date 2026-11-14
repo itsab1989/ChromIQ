@@ -43,6 +43,23 @@
 
 static const char *scn = "?";
 
+/* ---- the "slow instrument" (4.3.37) -------------------------------------
+ * A tester's i1Pro 2 lost the strip's first reading about 2 times in 3 when
+ * a light write ended 10-25 ms before the measurement trigger, never without
+ * one. The model: a trigger (0xD4) that comes within slow_w ms after the END
+ * of the last light write (bulk 0x03) is lost with probability slow_p
+ * ("<scn> LOST"; on the instrument the data then never comes and the read
+ * times out after 2 s). Every trigger after a light write prints the gap
+ * ("<scn> GAPMS n"). Off (slow_w 0) in every life of the regression traces. */
+static int slow_w = 0;
+static double slow_p = 1.0;
+static unsigned int slow_seed = 4337;
+static unsigned int last_wr_end = 0;	/* msec_time() of the last 0x03 write */
+static double slow_rand(void) {
+	slow_seed = slow_seed * 1103515245u + 12345u;
+	return (double)((slow_seed >> 8) & 0xffffff) / (double)0x1000000;
+}
+
 static void hex(const unsigned char *b, int n) {
 	int i;
 	for (i = 0; i < n; i++)
@@ -64,6 +81,13 @@ static int fake_control(icoms *p, int requesttype, int request, int value,
 		*xferred = rwsize;
 	if ((requesttype & IUSB_ENDPOINT_DIR_MASK) != IUSB_ENDPOINT_OUT && rwbuf != NULL)
 		memset(rwbuf, 0, rwsize);
+	if ((request & 0xff) == 0xD4 && slow_w > 0 && last_wr_end != 0) {
+		int gap = (int)(msec_time() - last_wr_end);
+		printf("%s GAPMS %d\n", scn, gap);
+		if (gap < slow_w && slow_rand() < slow_p)
+			printf("%s LOST gap=%d\n", scn, gap);
+		fflush(stdout);
+	}
 	return ICOM_OK;
 }
 
@@ -75,6 +99,8 @@ static int fake_write(icoms *p, usb_cancelt *c, int ep, unsigned char *wbuf,
 	printf(" tout=%.2f\n", tout);
 	fflush(stdout);
 	*bwritten = wsize;
+	if ((ep & 0xff) == 0x03 && (last_wr_end = msec_time()) == 0)
+		last_wr_end = 1;
 	return ICOM_OK;
 }
 
@@ -247,6 +273,7 @@ static void life(const char *name, devType dtype, int asked, int signals,
 	unsigned char ee[64];
 	scn = name;
 	sig = asked ? signals : 0;
+	last_wr_end = 0;
 	p = make(dtype, I1PRO_CAP2_IND_LED);
 	if (asked) {
 		step("begin");
@@ -318,7 +345,85 @@ static void life(const char *name, devType dtype, int asked, int signals,
 	close_it(p);
 }
 
+#if !defined(CQ_V4333) && !defined(CQ_V4336)
+static void held(int ms) {
+	(void)ms;
+	printf("%s HELD\n", scn);
+	fflush(stdout);
+}
+
+/* The paths a person can take that life() does not: three calibrations in a
+ * row (a calibration retried), Retry after a refused strip at once, a quick
+ * press right after a green, a read straight after a result, a resume (a
+ * reading after a re-open, no calibration). */
+static void paths_life(const char *name, int signals) {
+	i1pro *p;
+	scn = name;
+	sig = signals;
+	last_wr_end = 0;
+	p = make(instI1Pro2, I1PRO_CAP2_IND_LED);
+	step("begin");
+	i1pro2_cq_lights_options(p, signals, 0);
+	printf("%s BEGIN %d\n", scn, i1pro2_cq_lights_begin(p));
+	calibrate(p);			/* the first try */
+	calibrate(p);			/* retried */
+	calibrate(p);			/* retried again */
+	helper_prompt(p);
+	reading(p, "strip-A");
+	helper_say(p, 0, "helper-red");	/* refused: red ... */
+	helper_prompt(p);			/* ... Retry at once */
+	reading(p, "strip-A-again");
+	helper_owe(p);
+	helper_poll(p, 1, "verdict-good");
+	reading(p, "strip-B-quick");	/* pressed right after the green */
+	helper_say(p, 1, "helper-green");
+	reading(p, "patch-quick");
+	close_it(p);
+	/* a resume: a new open, no calibration, a reading at once */
+	scn = name;
+	p = make(instI1Pro2, I1PRO_CAP2_IND_LED);
+	step("resume-begin");
+	i1pro2_cq_lights_options(p, signals, 0);
+	printf("%s BEGIN %d\n", scn, i1pro2_cq_lights_begin(p));
+	reading(p, "strip-resumed");
+	close_it(p);
+}
+#endif
+
+/* Under the slow instrument: every combination of the two choices. */
+static void slow_lives(const char *prefix, int w, double prob) {
+	static char names[8][4][40];
+	static int k = 0;
+	int c;
+	slow_w = w;
+	slow_p = prob;
+	slow_seed = 4337;
+	for (c = 0; c < 4; c++) {
+		snprintf(names[k][c], 40, "%s_%s_%s", prefix, c & 1 ? "signals" : "ready",
+		         c & 2 ? "lefton" : "off");
+		life(names[k][c], instI1Pro2, 1, c & 1, (c >> 1) & 1);
+	}
+	k++;
+	slow_w = 0;
+}
+
 int main(void) {
+#ifdef CQ_V4336
+	/* Built against ChromIQ 4.3.36's driver (= 4.3.34 / 4.3.35 for the
+	 * i1Pro 2's lights; 4.3.36's helper gave it both choices off): every
+	 * combination must LOSE triggers under the slow instrument. */
+	slow_lives("old_p100", 700, 1.0);
+	slow_lives("old_p068", 700, 0.68);
+	printf("ALL DONE\n");
+	return 0;
+#endif
+#if !defined(CQ_V4333) && !defined(CQ_V4336)
+	/* 4.3.37: the quiet time is 2100 ms; the lives below would take minutes,
+	 * so they run with 150 ms and the slow instrument's window one ms short
+	 * of it; one life runs with the real 2100 ms. */
+	i1pro2_cq_lights_quiet_ms_for_test = 150;
+	i1pro2_cq_lights_held = held;
+#endif
 	/* The Beta option off: the helper never calls begin(). */
 	life("off_i1pro2", instI1Pro2, 0, 0, 0);
 	life("off_i1pro", instI1Pro, 0, 0, 0);
@@ -362,6 +467,21 @@ int main(void) {
 			life(pnames[c], instI1Pro2, 1, s2, l2);
 		}
 	}
+#ifndef CQ_V4336
+	/* 4.3.37: the slow instrument, every combination and every other path,
+	 * with the window one ms short of the quiet time: nothing may be lost. */
+	slow_lives("new_q150", 149, 1.0);
+	slow_w = 149;
+	slow_p = 1.0;
+	paths_life("paths_ready", 0);
+	paths_life("paths_signals", 1);
+	/* ...and once with ChromIQ's own quiet time, 2100 ms. */
+	i1pro2_cq_lights_quiet_ms_for_test = 0;
+	slow_w = 2099;
+	paths_life("full_signals", 1);
+	slow_w = 0;
+	i1pro2_cq_lights_quiet_ms_for_test = 150;
+#endif
 #endif
 	printf("ALL DONE\n");
 	return 0;

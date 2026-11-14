@@ -319,6 +319,37 @@ target_include_directories(usb_failure_detail_test PRIVATE
   ${INSTLIB} ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(usb_failure_detail_test PRIVATE instlib)
 
+# 4.3.37: the same lives against ChromIQ 4.3.36's i1pro.c / i1pro_imp.c /
+# i1pro_imp.h (the v4.3.36 tag; = 4.3.34 / 4.3.35 for the i1Pro 2's lights),
+# built with CQ_V4336: under the slow instrument they must LOSE triggers
+# (tests/test_i1pro2_lights_quiet.py writes those files and configures with
+# -DCQ_V4336_I1PRO_DIR=<that folder>).
+if(CQ_V4336_I1PRO_DIR)
+  set(_cq_v36_sources ${INSTLIB_SOURCES})
+  list(REMOVE_ITEM _cq_v36_sources "${INSTLIB}/i1pro.c" "${INSTLIB}/i1pro_imp.c")
+  add_library(instlib_v4336_i1pro STATIC EXCLUDE_FROM_ALL ${_cq_v36_sources}
+    "${CQ_V4336_I1PRO_DIR}/i1pro.c" "${CQ_V4336_I1PRO_DIR}/i1pro_imp.c"
+    ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_utf_compat.c)
+  get_target_property(_cq_defs36 instlib COMPILE_DEFINITIONS)
+  get_target_property(_cq_idefs36 instlib INTERFACE_COMPILE_DEFINITIONS)
+  get_target_property(_cq_opts36 instlib COMPILE_OPTIONS)
+  target_compile_definitions(instlib_v4336_i1pro PUBLIC ${_cq_defs36} ${_cq_idefs36})
+  if(_cq_opts36)
+    target_compile_options(instlib_v4336_i1pro PRIVATE ${_cq_opts36})
+  endif()
+  target_include_directories(instlib_v4336_i1pro BEFORE PUBLIC
+    "${CQ_V4336_I1PRO_DIR}")
+  target_include_directories(instlib_v4336_i1pro PUBLIC
+    ${INSTLIB} ${CMAKE_CURRENT_SOURCE_DIR})
+  add_executable(i1pro2_lights_modes_test_v4336 EXCLUDE_FROM_ALL
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/i1pro2_lights_modes_test.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_stubs.c
+    ${INSTLIB}/alphix.c
+  )
+  target_compile_definitions(i1pro2_lights_modes_test_v4336 PRIVATE CQ_V4336)
+  target_link_libraries(i1pro2_lights_modes_test_v4336 PRIVATE instlib_v4336_i1pro)
+endif()
+
 # Windows: a VERSIONINFO like ChromIQ.exe's (native/win_version.cmake).
 include(${CMAKE_CURRENT_SOURCE_DIR}/../win_version.cmake)
 chromiq_add_win_version(chromiq-chartread
@@ -340,6 +371,9 @@ if(CQ_V4334_I1PRO_DIR)
 endif()
 if(CQ_V4333_I1PRO_DIR)
   list(APPEND _cq_link_targets i1pro2_lights_modes_test_v4333)
+endif()
+if(CQ_V4336_I1PRO_DIR)
+  list(APPEND _cq_link_targets i1pro2_lights_modes_test_v4336)
 endif()
 if(CQ_UPSTREAM_I1PRO_DIR)
   list(APPEND _cq_link_targets i1pro2_lights_test_upstream
