@@ -653,3 +653,24 @@ ArgyllCMS's note about the i1Pro 2's start-up, and Argyll's i1Pro 3 open reads
 the instrument's memory and then switches the lights off itself. Built and
 tested on 2026-11-13 without an i1Pro 3 (fake USB layer); nobody has confirmed
 it on hardware.
+
+## The lights' two choices on an i1Pro 3 (Beta, 2026-11-14)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+The two Preferences choices of the option (now labelled "What the lights
+show" and "During a reading", same settings keys) apply to the i1Pro 3 and
+i1Pro 3 Plus too. With both at "as in ChromIQ 4.3.33" the i1Pro 3 receives
+byte for byte what 4.3.34 sent (`tests/test_i1pro3_lights_modes.py` against a
+trace of the 4.3.34 driver), and the i1Pro 2 receives what 4.3.34 sent in all
+four combinations. Every ending above is unchanged, with one addition: the
+engine now reports `{"event":"lights","state":"unknown"}` for an i1Pro 3 too
+when its off could not be confirmed (with "Left on during a reading" a pattern
+can still play when a trigger was pending at the close); the Measure log says
+so in one line and asks for nothing at the next Start, because Argyll's open
+switches an i1Pro 3's lights off itself (no marker, no replug window). The
+engine reports the i1Pro 3's firmware; the log names it with either new choice.
+Patterns and their moments: `measurement_window_sounds.md` §4i. Built and
+tested on 2026-11-14 without an i1Pro 3; nobody has confirmed it on hardware.
