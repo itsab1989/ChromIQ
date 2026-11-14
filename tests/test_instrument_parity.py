@@ -156,6 +156,23 @@ def test_an_entry_for_an_instrument_no_longer_listed_fails(allow):
     assert [s["instrument"] for s in stale] == ["GONE"]
 
 
+def test_only_judges_the_instruments_it_ran(allow):
+    """4.3.34 review: `--only IO2` listed 890 entries of the instruments it
+    did not run as "no longer match" and exited 1. An entry is judged only
+    for an instrument the run observed, or one the app no longer lists."""
+    def entry(code):
+        return {"check": "control", "mode": "guided", "instrument": code,
+                "item": "_lb_check", "aspect": "present", "expected": False,
+                "reason": "x"}
+    fake = {"intended": [entry("CM"), entry("GONE")], "known_to_review": [],
+            "shared": allow.get("shared")}
+    listed = [ip.REFERENCE, "CM", "IO2"]
+    _un, stale, _mis = ip.compare([], fake, [ip.REFERENCE, "IO2"], listed)
+    assert [s["instrument"] for s in stale] == ["GONE"]
+    _un, stale, _mis = ip.compare([], fake, [ip.REFERENCE, "CM"], listed)
+    assert sorted(s["instrument"] for s in stale) == ["CM", "GONE"]
+
+
 # ---- the comparison ---------------------------------------------------------
 
 def _explain(rows, title):

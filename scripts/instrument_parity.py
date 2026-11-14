@@ -968,6 +968,7 @@ def observe(root: Path, only: "list[str] | None" = None,
         bench.drop(tab)
         codes = all_instruments(obs["lists"])
         obs["registries"] = registries()
+        obs["listed"] = list(codes)          # every instrument the app lists
         if only:
             codes = [c for c in codes if c == REFERENCE or c in only]
         obs["instruments"] = codes
@@ -1159,8 +1160,15 @@ def shared_fields(allow: dict) -> set[str]:
     return set((allow.get("shared") or {}).get("fields", []))
 
 
-def compare(rows: list[dict], allow: dict, codes: list[str]):
-    """(unexplained rows, stale entries, mismatched rows)."""
+def compare(rows: list[dict], allow: dict, codes: list[str],
+            listed: "list[str] | None" = None):
+    """(unexplained rows, stale entries, mismatched rows).
+
+    *codes* are the instruments this run observed; *listed* every instrument
+    the app lists (default: *codes*). An entry is stale only for an
+    instrument that was run, or one the app no longer lists at all: with
+    ``--only`` the entries of the instruments not run are not judged (4.3.34
+    review: ``--only IO2`` reported 890 entries of other instruments)."""
     allowed = expand(allow, codes)
     shared = shared_fields(allow)
     unexplained, mismatched = [], []
@@ -1182,7 +1190,8 @@ def compare(rows: list[dict], allow: dict, codes: list[str]):
     stale = [{"check": k[0], "mode": k[1], "instrument": k[2], "item": k[3],
               "aspect": k[4], "expected": e.get("expected")}
              for k, e in sorted(allowed.items(), key=lambda kv: str(kv[0]))
-             if k not in used]
+             if k not in used
+             and (k[2] in codes or k[2] not in (listed or codes))]
     return unexplained, stale, mismatched
 
 
@@ -1246,7 +1255,8 @@ def main(argv: "list[str] | None" = None) -> int:
             Path(args.rows).write_text(json.dumps(rows, indent=1),
                                        encoding="utf-8")
         allow = load_allowlist() if ALLOWLIST.exists() else {}
-        un, stale, mis = compare(rows, allow, obs["instruments"])
+        un, stale, mis = compare(rows, allow, obs["instruments"],
+                                obs.get("listed"))
         print(f"instruments: {', '.join(obs['instruments'])} "
               f"(reference {REFERENCE})")
         for mode in MODES:
