@@ -125,7 +125,7 @@ def _close_preferences(qapp, t, s, choose=None, result=ACCEPTED):
 # the challenge round's table (b8-1284-prefs), its custom pair the control
 _B8_1284 = [("CM", 10, 1.0, ACCEPTED), ("CM", 10, 1.0, REJECTED),
             ("CM", 6, 0.95, ACCEPTED), ("i1", 6, 1.0, REJECTED),
-            ("i1", 6, 1.0, ACCEPTED), ("isis", 10, 1.0, REJECTED),
+            ("i1", 6, 1.0, ACCEPTED),
             ("SS", 10, 0.95, ACCEPTED), ("p3", 10, 0.95, ACCEPTED),
             ("i1", 12, 0.85, REJECTED), ("i1", 10, 0.95, ACCEPTED)]
 
@@ -179,7 +179,9 @@ def test_a_changed_preset_reaches_manual_on_the_i1pro(
         _close(qapp, t)
 
 
-@pytest.mark.parametrize("instr", ["p3", "CM", "SS", "isis"])
+# The i1iSis printtarg entry ("isis") was removed by the owner's ruling of
+# 2026-11-14 (data.patch_db.REMOVED_INSTRUMENT_CODES): its cases are gone.
+@pytest.mark.parametrize("instr", ["p3", "CM", "SS"])
 def test_a_changed_preset_never_touches_another_instrument(qapp, store, instr):
     _seed(store, instr)
     t = _session(qapp, store)
@@ -252,7 +254,7 @@ def test_a_saved_custom_pair_survives_a_preset_change(qapp, store):
     assert back == (12, 0.85)
 
 
-@pytest.mark.parametrize("instr", ["p3", "CM", "SS", "isis"])
+@pytest.mark.parametrize("instr", ["p3", "CM", "SS"])
 def test_a_preset_change_leaves_another_instruments_save(qapp, store, instr):
     _save(qapp, store, instr, 10, 0.95)
     back, got, _ = _restart(qapp, store)
@@ -407,10 +409,9 @@ def test_a_recipe_for_the_saved_instrument_is_still_restored(qapp, store):
     ({"instrument": "p3", "paper": "A4"}, "p3", "A4", True),
     ({"instrument": "p3", "paper": "A4"}, "3p", "A4", True),
     ({"instrument": "CM", "paper": "A4"}, "SS", "A4", False),
-    ({}, "CM", "Letter", True),
-    # the i1iSis has no engine layout; the panel shows the i1Pro for it
-    # (B8-1283, open), so an i1Pro recipe beside it is not a mismatch here
-    ({"instrument": "i1", "paper": "329x483"}, "isis", "329x483", True)])
+    # (the i1iSis printtarg entry's case went with the entry, removed by the
+    # owner's ruling of 2026-11-14)
+    ({}, "CM", "Letter", True)])
 def test_which_recipe_is_for_what_manual_is_on(recipe, manual, paper, fits):
     assert TC._recipe_is_for(recipe, manual, paper) is fits
 

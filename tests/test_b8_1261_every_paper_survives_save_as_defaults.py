@@ -183,29 +183,6 @@ def test_a_saved_unlimited_strip_is_not_the_isis_default_undone(qapp, store):
         _close(qapp, t2)
 
 
-def test_the_isis_defaults_still_come_and_go_with_the_isis(qapp, store):
-    """What the block is for: choosing the i1iSis moves A4 to A3+ Portrait and
-    turns -n and -P on; leaving it undoes that."""
-    store.set("chart_instrument", "CM")
-    store.set("manual_printtarg_-i_l", "CM")
-    store.set("use_chromiq_layout_engine", False)
-    store.set("chart_mode", "manual")
-    t = _session(qapp, store)
-    try:
-        t._manual_paper_pw.set_value("A4")
-        t._manual_P_pw.set_value(False)
-        t._manual_instr_pw.set_value("isis")
-        qapp.processEvents()
-        assert t._manual_paper_pw.get_raw_value() == "329x483"
-        assert bool(t._manual_P_pw.get_raw_value()) is True
-        t._manual_instr_pw.set_value("CM")
-        qapp.processEvents()
-        assert t._manual_paper_pw.get_raw_value() == "A4"
-        assert bool(t._manual_P_pw.get_raw_value()) is False
-        # …and a later call with the instrument unchanged leaves a person's
-        # A3+ Portrait alone.
-        t._manual_paper_pw.set_value("329x483")
-        t._apply_instrument_default_margin()
-        assert t._manual_paper_pw.get_raw_value() == "329x483"
-    finally:
-        _close(qapp, t)
+# test_the_isis_defaults_still_come_and_go_with_the_isis: removed with the
+# i1iSis printtarg entry and its A3+ / -n / -P defaults (the owner's ruling of
+# 2026-11-14, data.patch_db.REMOVED_INSTRUMENT_CODES).

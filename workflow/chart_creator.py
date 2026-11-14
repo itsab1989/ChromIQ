@@ -2112,6 +2112,10 @@ class ChartCreator:
                     # Manual opens on it (review 5, item 6)
                     from workflow.i1io.chart import with_guided_size
                     _grec = with_guided_size(_grec, _gkw)
+                if _grec.instrument == "XRISIS":
+                    # what Guided's i1iSis chart really used (a Beta)
+                    from workflow.isis.chart import with_guided_values
+                    _grec = with_guided_values(_grec)
                 layout["recipe"] = _grec.to_dict()
                 # NOBODY CHOSE A GUIDED CHART'S MARGINS, AND THE NUMBERS THE
                 # RECIPE CARRIES ARE NOT THE ONES THE SHEET WAS LAID OUT TO.

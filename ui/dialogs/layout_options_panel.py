@@ -35,6 +35,7 @@ from ui.warning_sign import ask, inform
 from workflow import text_edge_fit as _TEF
 from workflow.hex_support import hex_two_heights_note
 from workflow.layout_engine.presets import LayoutRecipe
+from ui.dialogs.isis_panel import IsisPanelMixin
 
 log = get_logger(__name__)
 
@@ -599,7 +600,7 @@ class I1ioCrossesTip(TooltipButton):
         super()._show_dialog()
 
 
-class LayoutOptionsPanel(QWidget):
+class LayoutOptionsPanel(IsisPanelMixin, QWidget):
     """All layout-engine controls except instrument/paper/mode."""
 
     changed = pyqtSignal()
@@ -696,6 +697,8 @@ class LayoutOptionsPanel(QWidget):
     FD9_INSTRUMENT = ("FD9", "FD-9")
     #: The X-Rite i1iO table (Beta, `workflow.i1io.support`), likewise.
     I1IO_INSTRUMENT = ("IO2", "i1iO 2 + i1Pro 2")
+    #: The X-Rite i1iSis family (Beta, `workflow.isis.support`), likewise.
+    ISIS_INSTRUMENT = ("XRISIS", "i1iSis family")
 
     @classmethod
     def instruments(cls) -> "list[tuple[str, str]]":
@@ -708,6 +711,9 @@ class LayoutOptionsPanel(QWidget):
         from workflow.i1io.support import i1io_enabled
         if i1io_enabled():
             out.append(cls.I1IO_INSTRUMENT)
+        from workflow.isis.support import isis_enabled
+        if isis_enabled():
+            out.append((cls.ISIS_INSTRUMENT[0], tr(cls.ISIS_INSTRUMENT[1])))
         return out
 
     @staticmethod
@@ -953,6 +959,8 @@ class LayoutOptionsPanel(QWidget):
         self._fd9_support = bool(fd9_enabled())
         from workflow.i1io.support import i1io_enabled
         self._i1io_support = bool(i1io_enabled())
+        from workflow.isis.support import isis_enabled
+        self._isis_support = bool(isis_enabled())
         if with_selectors:
             sel = QGridLayout()
             # Instrument and Mode each get a full-width row.
@@ -2365,6 +2373,10 @@ class LayoutOptionsPanel(QWidget):
         # i1iO's alignment (`_i1io_align_picked`), and every rule `_emit`
         # sets off shows that alignment again.
         self.patch_align.currentIndexChanged.connect(self._i1io_align_picked)
+        if self._isis_support:
+            # …and the i1iSis's (a Beta), the same way
+            self.patch_align.currentIndexChanged.connect(
+                self._isis_align_picked)
         self.patch_align.currentIndexChanged.connect(self._emit)
         # A person's pick is theirs (B8-965): see `_apply_mode_defaults`.
         # `activated` too, because a re-pick of the row already shown is an
@@ -2552,6 +2564,10 @@ class LayoutOptionsPanel(QWidget):
             _basic_v.insertWidget(_lg_idx + 1, pg)
         else:
             _basic_v.addWidget(pg)
+        if self._isis_support:
+            # The i1iSis chart's own options (a Beta), under the page
+            # geometry; built only while its Beta is on.
+            self._isis_build_group(_basic_v)
         self._update_clip_visibility()
 
         # ---- Output ----
@@ -3598,6 +3614,9 @@ class LayoutOptionsPanel(QWidget):
         if getattr(self, "_i1io_support", False):
             # Only while i1iO support is on.
             self._sync_i1io_widgets(inst == "IO2")
+        if getattr(self, "_isis_support", False):
+            # Only while i1iSis charts are on.
+            self._sync_isis_widgets(inst == "XRISIS")
         self._sync_custom_size_words()
         # not while the person is still typing in a box (4.3.34 review r2, b)
         self._turn_custom_upright_when_left()
@@ -5592,9 +5611,19 @@ class LayoutOptionsPanel(QWidget):
                         # was locked to the margins WITH them (552 patches
                         # became 528; 4.3.33 too).
                         _fkw["i1io_crosses"] = bool(_cb.isChecked())
+                    if inst == "XRISIS":
+                        # the i1iSis's own: i1Profiler's 5 mm page margins
+                        # (its geometry's margins place the grid, they are
+                        # no page margins, `workflow.isis.chart`)
+                        from workflow.isis.chart_facts import \
+                            MARGIN_DEFAULT_MM as _IM
+                        raise LookupError(_IM.value)
                     g = _ins.geom_from_build_kwargs(_fkw)
                     fb = {"t": g.margin_t, "r": g.margin_r,
                           "b": g.margin_b, "l": g.margin_l}
+                except LookupError as _own:
+                    fb = dict.fromkeys(("t", "r", "b", "l"),
+                                       float(_own.args[0]))
                 except Exception:
                     pass
                 for k, v in fb.items():
@@ -8048,6 +8077,9 @@ class LayoutOptionsPanel(QWidget):
         # set_recipe) — without it "Offset every second strip" showed for every
         # instrument there, not just the ColorMunki (Knut).
         self._sync_instrument_widgets(r.instrument)
+        if getattr(self, "_isis_support", False):
+            # the i1iSis chart's own options (a Beta)
+            self._isis_set_from_recipe(r)
         self._loading = False
         # Final pass with loading off: computes the real conflict state for
         # the values just loaded (during loading only the clean-up runs).
@@ -8248,6 +8280,9 @@ class LayoutOptionsPanel(QWidget):
         # into makes new recipes, which get the 4.3.14 rule.
         r.clip_border_free_space = bool(
             getattr(self, "_clip_border_free_space", True))
+        if getattr(self, "_isis_support", False):
+            # the i1iSis chart's own options (a Beta), for its recipe only
+            self._isis_apply_to_recipe(r)
         return r
 
 

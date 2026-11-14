@@ -666,6 +666,27 @@ def fixed_build_kwargs(kw: dict) -> dict:
     return out
 
 
+def with_guided_values(recipe):
+    """*recipe* (rebuilt from Guided's build kwargs, which carry no margins
+    or patch size) with what Guided's i1iSis chart really used: i1Profiler's
+    6 x 6 mm patches, 5 mm margins, the chart top-left, no spacers. So Manual
+    opens on the chart Guided made, and the chart's record says so."""
+    if getattr(recipe, "instrument", None) != "XRISIS":
+        return recipe
+    if not (recipe.patch_w_mm and recipe.patch_h_mm):
+        recipe.patch_w_mm = recipe.patch_h_mm = F.PATCH_DEFAULT_MM.value
+    m = F.MARGIN_DEFAULT_MM.value
+    recipe.margin_top = recipe.margin_right = m
+    recipe.margin_bottom = recipe.margin_left = m
+    recipe.use_instrument_margins = False
+    recipe.patch_area_align = DEFAULT_ALIGN
+    recipe.spacer_mode, recipe.spacer_on = "none", False
+    recipe.inter_patch_mm = recipe.strip_gap_mm = 0.0
+    recipe.edge_spacers = False
+    recipe.layout_mode = "patch_first"
+    return recipe
+
+
 def capacity(kw: dict) -> int:
     """Patches one page of the chart *kw* holds (Guided's count)."""
     from workflow.layout_engine import papers

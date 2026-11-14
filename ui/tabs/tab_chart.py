@@ -4797,8 +4797,7 @@ def _is_house_scale(value) -> bool:
 def _engine_instrument(code) -> str:
     """printtarg's -i as the layout panel names it: the i1Pro 3 Plus is "p3"
     (printtarg itself says "3p"), and an instrument the engine does not lay
-    out (the i1iSis) is shown as the i1Pro, as `_sync_engine_panel_selection`
-    does (B8-1283 is open on that)."""
+    out is shown as the i1Pro, as `_sync_engine_panel_selection` does."""
     eng = {"3p": "p3"}.get(str(code or "i1"), str(code or "i1"))
     if eng == "FD9":
         # THE FD-9 IS THE PANEL'S OWN NAME FOR IT TOO (4.3.26, review r1 M1),
@@ -4812,6 +4811,10 @@ def _engine_instrument(code) -> str:
         # on; off, as 4.3.32 named an instrument it did not know.
         from workflow.i1io.support import i1io_enabled
         return "IO2" if i1io_enabled() else "i1"
+    if eng == "XRISIS":
+        # The i1iSis family, the panel's own name for it too while its Beta
+        # is on; off, an instrument this ChromIQ does not offer.
+        return "XRISIS" if _isis_on() else "i1"
     return eng if eng in ("i1", "p3", "CM", "SS", "CR30") else "i1"
 
 
@@ -10055,7 +10058,7 @@ class TabChart(QWidget):
         _flag = instr if instr is not None else self._active_instrument_flag()
         eng = {"3p": "p3"}.get(_flag, _flag)
         if eng not in ("i1", "p3", "CM", "SS", "CR30", "FD9") and not (
-                eng == "IO2" and p.instr.findData("IO2") >= 0):
+                eng in ("IO2", "XRISIS") and p.instr.findData(eng) >= 0):
             eng = "i1"
         paper = (paper if paper is not None
                  else self._active_paper_code()) or "A4"
@@ -12917,6 +12920,10 @@ class TabChart(QWidget):
                 # the size Guided really used (review 5, item 6)
                 from workflow.i1io.chart import with_guided_size
                 recipe = with_guided_size(recipe, kw)
+            if recipe.instrument == "XRISIS":
+                # what Guided's i1iSis chart really used (a Beta)
+                from workflow.isis.chart import with_guided_values
+                recipe = with_guided_values(recipe)
             self._set_engine_recipe(recipe)
             if (getattr(panel, "pages", None) is not None
                     and self._manual_pages_spin is not None):
@@ -31097,7 +31104,8 @@ class TabChart(QWidget):
         instr = {"3p": "p3"}.get(self._active_instrument_flag(),
                                  self._active_instrument_flag())
         if instr not in ("i1", "p3", "CM", "SS", "CR30", "FD9") and not (
-                instr == "IO2" and _saved_beta_instrument_is_off(instr) is False):
+                instr in ("IO2", "XRISIS")
+                and _saved_beta_instrument_is_off(instr) is False):
             instr = "i1"
         paper = self._active_paper_code() or "A4"
         try:
