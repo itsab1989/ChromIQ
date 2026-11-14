@@ -375,6 +375,15 @@ def test_tonights_lines_up_to_the_homing_are_the_ones_his_table_already_answered
     assert ":$p00044E001331" in recv          # (1102, 19), likewise
 
 
+def test_the_arm_check_itself_refuses_anything_but_00():
+    """The M3 lesson: parse_done demands 00 too, so this check is tested on its own."""
+    sim, tr, d = _opened_warm()
+    d.exchange = lambda key, timeout=1.0: tbl.Reply("f4", 0, "01")
+    with pytest.raises(tbl.Doubt):
+        d._arm()
+    assert d.closed_reason
+
+
 def test_an_arm_answer_other_than_00_right_after_the_homings_means_no_close(tmp_path):
     for index in (len(OPEN + FOLLOW) + 6, len(OPEN + FOLLOW) + 7):
         sim = sim_mod.SimTable()

@@ -94,14 +94,16 @@ RISKS = (
     "your table twice (the first time the table refused it, the second time it worked), and "
     "version 0.2.0 ran once: it opened the table and sent the arm home, and then stopped "
     "before the closing lines, because the position it read after the homing was not one it "
-    "expected. This version no longer reads the position after the homing (i1Profiler never "
-    "does that right before it closes the table), so it can finish with the closing lines. "
-    "Each line it sends is a line that i1Profiler itself sent to your table in your "
-    "recordings, byte for byte, and every two lines that follow each other here also follow "
-    "each other in your recordings: the lines with which i1Profiler opens the table, the line "
-    "that sends the arm to its resting place, two questions i1Profiler also asks right after "
-    "a homing, and the two lines with which it closes the table. Only the homing makes the "
-    "arm move, and the arm is already at its resting place, so it should barely move. If the table has just been switched on, the "
+    "expected (that expectation was too narrow; your table did nothing wrong). This version "
+    "sends the arm to its resting place twice in a row, as i1Profiler does before it "
+    "calibrates, reads the position between the two homings and accepts every position any "
+    "recording has shown at the resting place; it reads no position right before the closing "
+    "lines, because i1Profiler never does. Each line it sends is a line that i1Profiler itself "
+    "sent to your table in your recordings, byte for byte, and every two lines that follow "
+    "each other here also follow each other in your recordings: the lines with which "
+    "i1Profiler opens the table, the lines of its double homing, and the two lines with which "
+    "it closes the table. Only the homings make the arm move, and the arm is already at its "
+    "resting place, so it should barely move. If the table has just been switched on, the "
     "program stops after the opening and asks you to let i1Profiler start the table first. The "
     "program has no command for any other movement, never measures and never talks to the "
     "i1Pro 2. It sends no line of its own for the measuring head. Whether the table lifts and "
@@ -245,7 +247,7 @@ def plan_text(hex_bytes: bool = False) -> str:
         return f"  {_bare(key):20} {MEANING[key]}{note}{extra}"
     out = [f"Every line this program can send, in order. Nothing else can be sent: "
            f"{len(tbl.WIRE)} different lines, at most {tbl.MAX_LINES} lines and "
-           f"{tbl.MAX_MOTIONS} movement in one run. After any stop or any doubt, nothing "
+           f"{tbl.MAX_MOTIONS} movements in one run. After any stop or any doubt, nothing "
            "more is sent at all.", "",
            "Before anything: the USB set-up i1Profiler uses (FTDI reset, purge, purge, "
            "57600 baud, 8 data bits, no parity, 1 stop bit), then 1 s of listening.", "",
@@ -728,7 +730,10 @@ def main(argv=None, sim_table=None, console=None) -> int:
                        "when it ends. It waits ten seconds; then please touch the holder "
                        "gently once more, the same way.")
                 if args.real:
-                    time.sleep(RELEASE_WAIT_S)
+                    try:
+                        time.sleep(RELEASE_WAIT_S)
+                    except KeyboardInterrupt:      # nothing can be sent any more anyway
+                        pass
                 r.touch("about ten seconds after the program let go of the USB connection")
             r.questions()
             if touch:
