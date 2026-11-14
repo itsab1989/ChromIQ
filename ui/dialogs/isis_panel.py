@@ -251,6 +251,8 @@ class IsisPanelMixin:
     def _isis_option_changed_body(self, *_a) -> None:
         self.isis_band_place.setEnabled(self.isis_band.isChecked())
         self.isis_band_height.setEnabled(self.isis_band.isChecked())
+        # the content group shows while the band is on
+        self._update_clip_visibility()
         if not getattr(self, "_loading", False):
             self._emit()
 
@@ -306,13 +308,18 @@ class IsisPanelMixin:
                     if i >= 0:
                         sm.setCurrentIndex(i)
                 lo, hi = F.PATCH_MIN_MM.value, F.PATCH_MAX_MM.value
-                for c in (self.patch_x, self.patch_y):
+                own = getattr(self, "_isis_own_patch", None) or (None, None)
+                for c, mine in zip((self.patch_x, self.patch_y), own):
                     saved["ranges"].append((c, c.minimum(), c.maximum(),
                                             c.value(), c.specialValueText()))
                     v = c.value()
                     c.setSpecialValueText("")
                     c.setRange(lo, hi)
-                    if not v:
+                    # the i1iSis's own size comes back when it is chosen
+                    # again (i1iSis -> another -> i1iSis)
+                    if mine and not was_loading:
+                        c.setValue(mine)
+                    elif not v:
                         c.setValue(F.PATCH_DEFAULT_MM.value)
                 pa = getattr(self, "patch_align", None)
                 if pa is not None:
@@ -325,6 +332,7 @@ class IsisPanelMixin:
             self._isis_saved = saved
             return
         self._isis_saved = None
+        self._isis_own_patch = (self.patch_x.value(), self.patch_y.value())
         was_loading = getattr(self, "_loading", False)
         self._loading = True
         try:

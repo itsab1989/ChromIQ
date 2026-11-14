@@ -5073,6 +5073,11 @@ class LayoutOptionsPanel(QWidget):
         # so the i1Pro is left as it was.
         always = self._clip_content_always_shown and is_band_inst
         show_group = clip_mode or (is_band_inst and content_on) or always
+        if (inst == "XRISIS" and getattr(self, "_isis_support", False)
+                and getattr(self, "isis_band", None) is not None
+                and self.isis_band.isChecked()):
+            # the i1iSis's notes band (a Beta) is filled by this content
+            show_group = True
         if getattr(self, "_clip_content_note", None) is not None:
             self._clip_content_note.setVisible(always)
             if always and hasattr(self, "clip_text_size"):
