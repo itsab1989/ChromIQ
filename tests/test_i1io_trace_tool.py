@@ -938,12 +938,12 @@ def test_the_log_holds_every_line_and_no_serial_number(tmp_path):
 
 
 def test_unexpected_bytes_are_described_never_copied_into_the_log():
-    secret = "SERIAL1234567"
+    fake_serial = "SERIAL1234567"
     t = tbl.Table(sim_mod.SimTransport(sim_mod.SimTable()))
-    t._buf = (":$u80" + secret).encode()
+    t._buf = (":$u80" + fake_serial).encode()
     with pytest.raises(tbl.Doubt):
         t.exchange("status", 1.0)
-    assert secret not in str(t.closed_reason)
+    assert fake_serial not in str(t.closed_reason)
 
 
 def test_the_power_cycle_advice_comes_only_after_an_unfinished_movement(tmp_path):

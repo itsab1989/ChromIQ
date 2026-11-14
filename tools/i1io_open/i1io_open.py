@@ -284,6 +284,12 @@ class Run:
             self.ui.say("Talking to the table. Nothing moves yet.")
             state = self.d.opening()
             if state == "cold":
+                # listen once more (sends nothing): a late line is reported like any surprise
+                self.d.busy += 1
+                try:
+                    self.d._quiet_check()
+                finally:
+                    self.d.busy -= 1
                 self.ui.say("The table answered as expected, and we believe it says it has just "
                             "been switched on (a0 = 111800).")
                 raise Stopped(COLD_TEXT)
