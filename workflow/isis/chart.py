@@ -656,7 +656,7 @@ def fixed_build_kwargs(kw: dict) -> dict:
         helper_markers=False, margins=engine_margins(sheet),
         use_instrument_margins=True, layout_mode="patch_first",
         patch_area_align="top-left", density=1, cm_stagger=False,
-        hflag=False, hex_flat_top=False, nolpcbord=True, clip_band=0.0,
+        hflag=False, nolpcbord=True, clip_band=0.0,
         clip_content_mode="off", chart_text="", stamp_command=False,
         side_stamp=False, strip_indicator_gap=0.0, draw_indicators=False,
         row_indicators=False, underline_mode="off", text_edge_top=4.0,

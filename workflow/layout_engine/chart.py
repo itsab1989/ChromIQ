@@ -536,7 +536,7 @@ def build_chart(
          cm_stagger, nolpcbord, nolimit, clip_content_mode, helper_markers,
          chart_text, stamp_command, side_stamp, strip_indicator_gap,
          draw_indicators, row_indicators, underline_mode, hflag,
-         hex_flat_top, strip_label_offset_mm, strip_label_offset_x_mm,
+         strip_label_offset_mm, strip_label_offset_x_mm,
          indicator_rotation, row_indicator_rotation) = (_f[k] for k in (
             "patch_w", "patch_h", "pscale", "sscale", "spacer_on",
             "spacer_mode", "spacer_width", "inter_patch", "strip_gap",
@@ -545,7 +545,7 @@ def build_chart(
             "nolimit", "clip_content_mode", "helper_markers", "chart_text",
             "stamp_command", "side_stamp", "strip_indicator_gap",
             "draw_indicators", "row_indicators", "underline_mode", "hflag",
-            "hex_flat_top", "strip_label_offset_mm",
+            "strip_label_offset_mm",
             "strip_label_offset_x_mm", "indicator_rotation",
             "row_indicator_rotation"))
     if instrument == "FD9" and fd9_enabled():
@@ -880,7 +880,11 @@ def build_chart(
         chart_date=chart_date)
     stamp_text = (stamp_summary_line(instrument, paper, dpi,
                                      layout.total_patches, seed)
-                  if stamp_command else "")
+                  if (stamp_command or (_isis and _isis_stamp)) else "")
+    # an i1iSis chart draws the summary in its own trailer (draw_furniture)
+    _isis_stamp_text = stamp_text if _isis else ""
+    if _isis:
+        stamp_text = ""
     def _to_rgb(c):
         if isinstance(c, str):
             h = c.lstrip("#")
@@ -959,9 +963,7 @@ def build_chart(
             sheet_text=_isis_sheet_text,
             patterns=(strip_pattern, patch_pattern, label_rule),
             title=_isis_name,
-            stamp_text=(stamp_summary_line(instrument, paper, dpi,
-                                           layout.total_patches, seed)
-                        if _isis_stamp else ""),
+            stamp_text=_isis_stamp_text,
             band=dict(mode=clip_content_mode_asked, text=clip_text,
                       font_family=clip_text_font, ctx=_ctx,
                       text_size_mm=clip_text_size_mm,

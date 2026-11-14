@@ -2014,14 +2014,14 @@ class ChartCreator:
         # An i1iO chart built with a risky option (Job D: allowed, and
         # said, as other instruments' charts are)
         from workflow.isis.support import is_isis_code as _is_isis
-        for why in getattr(result, "warnings", ()) or ():
-            if _is_isis(params.instrument):
-                # M-ISIS-KEEP-OUT, said as it is
-                on_line(tr("[WARNING] {why}").format(why=why))
-                continue
-            on_line(tr("[WARNING] The i1iO table may not read this layout "
-                       "well: {why}").format(why=why))
+        if not _is_isis(params.instrument):
+            for why in getattr(result, "warnings", ()) or ():
+                on_line(tr("[WARNING] The i1iO table may not read this layout "
+                           "well: {why}").format(why=why))
         if _is_isis(params.instrument):
+            # M-ISIS-KEEP-OUT, said as it is
+            for why in list(getattr(result, "warnings", None) or []):
+                on_line(tr("[WARNING] {why}").format(why=why))
             # Feed as printed, or cut along the outline (M-ISIS-CUT)
             try:
                 from workflow.isis.support import read_side_file

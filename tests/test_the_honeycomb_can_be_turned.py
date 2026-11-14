@@ -705,6 +705,9 @@ def test_no_reader_outside_the_engine_asks_the_flag_raw():
                "workflow/layout_engine/chart.py",
                "workflow/hex_support.py",
                "ui/dialogs/layout_options_panel.py",
+               # the i1iSis panel (a Beta) names the box only to grey it
+               # ("The i1iSis needs straight rows"); it reads no flag
+               "ui/dialogs/isis_panel.py",
                # The scanner marquee holds the orientation as its OWN state, on
                # the GridSpec, the way the preview holds `_hex_flat_top`. It is
                # fed from `recipe_is_flat_top` at the one call site, which the

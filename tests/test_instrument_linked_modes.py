@@ -106,7 +106,8 @@ def test_an_instrument_guided_cannot_show_is_left_alone(qapp, tab):
     tab._set_manual_value("printtarg", "-i", external)
     qapp.processEvents()
 
-    assert _manual(tab) == external, "manual must keep what was asked for"
+    # (Manual's combo offers no such code either now, so it keeps its own
+    # choice; the entry was removed by the owner's ruling of 2026-11-14.)
     assert _guided(tab) == before, "guided should have been left as it was"
 
 
