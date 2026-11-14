@@ -285,16 +285,21 @@ DEFAULTS: dict[str, Any] = {
     #: Off = exactly 4.3.32: the helper is started without --i1pro2-lights and
     #: the driver never sends a light request. Read at every Start.
     "i1pro2_lights_beta":        False,
-    #: Inside that option (2026-11-13), the i1Pro 2 only: what the lights
-    #: show. The patterns were recorded on firmware 634; no firmware is
-    #: refused for it (the firmware is logged at Start). True = "ready light
-    #: and result signals": a pulsing white when ready, green twice after a
+    #: Inside that option (2026-11-13; the i1Pro 2 and, since 2026-11-14, the
+    #: i1Pro 3 / 3 Plus; the key keeps its first name): what the lights show.
+    #: The i1Pro 2 patterns were recorded on firmware 634; no firmware is
+    #: refused (the firmware is logged at Start). True =
+    #: "ready light and result signals": a ready light, green twice after a
     #: reading ChromIQ accepted, red twice after one it refused or asks to
-    #: read again (--lights-signals). False = "ready light only", exactly
-    #: 4.3.33. A 4.3.33 user who had the option on keeps False (schema 34).
+    #: read again (--lights-signals). False = the first item ("ready light;
+    #: the instrument's own green / red (i1Pro 3)"): an i1Pro 2 exactly as in
+    #: 4.3.33 (ready light only), an i1Pro 3 exactly as in 4.3.34 (green / red
+    #: only say the instrument took a reading). A 4.3.33 user who had the
+    #: option on keeps False (schema 34); a 4.3.34 user keeps what is stored.
     "i1pro2_lights_signals":     True,
-    #: ...and during a hand-held reading. False = "off during a reading",
-    #: exactly 4.3.33 (the cautious choice: the project has not compared
+    #: ...and during a hand-held reading (both generations since 2026-11-14).
+    #: False = "off during a reading", exactly 4.3.33 / 4.3.34 (the cautious
+    #: choice: the project has not compared
     #: readings with the lights on). True = "left on during a reading", as
     #: X-Rite's i1Profiler does by hand (--lights-during-reading).
     "i1pro2_lights_during_reading": False,
