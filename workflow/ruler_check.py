@@ -193,10 +193,77 @@ def span_steps(gen: str, span_mm: "float | None",
     return None
 
 
-def not_covered(f: StripFigures, span: "float | None") -> bool:
+#: No question for strips shorter than this (challenger M1: too little data
+#: on short strips; their files are still written).
+MIN_PATCHES_FOR_QUESTION = 8
+#: ArgyllCMS's i1Pro 3 position slots: 0.3 mm at 0.5 mm per step.
+SLOT_STEPS = 0.3 / 0.5
+THRESHOLDS["min_patches_for_question"] = MIN_PATCHES_FOR_QUESTION
+THRESHOLDS["span_minus_pitches"] = 2
+
+
+def _pos_at(d: Decoded, sample: float) -> int:
+    """The count at *sample* (the last change at or before it)."""
+    import bisect
+    k = bisect.bisect_right(d.at, sample) - 1
+    return d.pos[k] if k >= 0 else 0
+
+
+def cut_coverage(rec: dict) -> "tuple[float | None, bool]":
+    """Challenger M5: how far the ruler moved between the first and the last
+    reading today's cut kept, in steps, and whether the cut's patches sit at
+    distinct positions that move one way (the ruler followed the strip).
+    ``(None, False)`` when there is no cut to judge by."""
+    try:
+        cut = list(rec.get("cut") or [])          # [ss0, no0, ss1, no1, ...]
+        pairs = [(int(cut[k]), int(cut[k + 1]))
+                 for k in range(0, len(cut) - 1, 2)]
+        if len(pairs) < 2:
+            return None, False
+        if int(rec.get("cut_domain") or 0) == 1:    # ArgyllCMS's slots
+            first = pairs[0][0]
+            last = pairs[-1][0] + pairs[-1][1]
+            return (last - first) * SLOT_STEPS, True
+        clocks = int(rec.get("clocks") or 0)
+        if clocks <= 0:
+            return None, False
+        d = decode(int(rec.get("first") or 0), list(rec.get("changes") or []))
+        centres = [_pos_at(d, (ss + no / 2.0) * clocks) for ss, no in pairs]
+        steps = [b - a for a, b in zip(centres, centres[1:])]
+        mono = all(x > 0 for x in steps) or all(x < 0 for x in steps)
+        a = _pos_at(d, pairs[0][0] * clocks)
+        b = _pos_at(d, (pairs[-1][0] + pairs[-1][1]) * clocks)
+        return float(abs(b - a)), mono
+    except (TypeError, ValueError, IndexError):
+        return None, False
+
+
+def question_threshold(span: "float | None", pitch: "float | None") -> "float | None":
+    """Challenger M1: min(0.9 x span, span - 2 x pitch), in steps."""
+    if not span:
+        return None
+    t = COVER_FRACTION * span
+    if pitch:
+        t = min(t, span - 2 * pitch)
+    return t if t > 0 else None
+
+
+def not_covered(f: StripFigures, span: "float | None", *,
+                pitch: "float | None" = None, patches: int = 0,
+                coverage: "float | None" = None,
+                followed: bool = True) -> bool:
     """True when the accepted strip was clearly not covered: only with usable
-    ruler data and a known span."""
-    return bool(f.usable and span and f.travel_steps < COVER_FRACTION * span)
+    ruler data, a known span, a strip of at least MIN_PATCHES_FOR_QUESTION
+    patches, and a ruler that followed the cut's patches (challenger M5).
+    *coverage* (from :func:`cut_coverage`) replaces the whole travel when
+    known."""
+    if not f.usable or patches < MIN_PATCHES_FOR_QUESTION or not followed:
+        return False
+    t = question_threshold(span, pitch)
+    if t is None:
+        return False
+    moved = coverage if coverage is not None else f.travel_steps
+    return moved < t
 
 
 def mm_per_step(gen: str, derived: "float | None" = None) -> "float | None":

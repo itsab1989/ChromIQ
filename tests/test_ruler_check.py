@@ -74,15 +74,43 @@ def test_garbage_never_raises():
 def test_the_question_on_the_recordings_figures():
     # span 277 steps known from today's cut in this session
     span = 16 * 17.3
+    kw = {"pitch": 17.3, "patches": 16}
     for full in (318, 337, 345, 353):
-        assert not rc.not_covered(rc.figures(stream(full, 600)), span)
-    assert rc.not_covered(rc.figures(stream(224, 300)), span)
-    assert not rc.not_covered(rc.figures(stream(262, 550)), span)  # a miss
+        assert not rc.not_covered(rc.figures(stream(full, 600)), span, **kw)
+    assert rc.not_covered(rc.figures(stream(224, 300)), span, **kw)
+    assert not rc.not_covered(rc.figures(stream(262, 550)), span, **kw)  # a miss
+
+
+def test_no_question_on_short_strips_or_when_the_ruler_lost_the_strip():
+    f = rc.figures(stream(100, 300))
+    assert not rc.not_covered(f, 277, pitch=17.3, patches=6)
+    assert not rc.not_covered(f, 277, pitch=17.3, patches=16, followed=False)
+
+
+def test_the_threshold_allows_two_pitches_short_of_the_span():
+    assert rc.question_threshold(100.0, 17.3) == 100.0 - 34.6
+    assert rc.question_threshold(277.0, 10.0) == 0.9 * 277.0
+
+
+def test_cut_coverage_follows_the_ruler():
+    rec = stream(318, 570)
+    # 16 patches of 30 readings, evenly from reading 60
+    cut = []
+    for k in range(16):
+        cut += [60 + 28 * k + 5, 18]
+    rec["cut"] = cut
+    cov, followed = rc.cut_coverage(rec)
+    assert followed and cov > 200
+    rec2 = stream(5 * 0 + 12, 570, start_frac=0.0, end_frac=0.05)  # moved early, then stopped
+    rec2["cut"] = cut
+    cov2, followed2 = rc.cut_coverage(rec2)
+    assert not followed2
 
 
 def test_the_question_needs_usable_data_and_a_span():
-    assert not rc.not_covered(rc.figures(stream(100, 300)), None)
-    assert not rc.not_covered(rc.figures(stream(100, 300, illegal=2)), 277)
+    kw = {"pitch": 17.3, "patches": 16}
+    assert not rc.not_covered(rc.figures(stream(100, 300)), None, **kw)
+    assert not rc.not_covered(rc.figures(stream(100, 300, illegal=2)), 277, **kw)
 
 
 def test_an_unknown_step_size_makes_the_span_shorter_never_longer():
