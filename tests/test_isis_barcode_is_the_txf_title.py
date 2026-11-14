@@ -67,3 +67,23 @@ def test_the_barcode_and_the_txf_carry_one_title(tmp_path, project):
         assert int(check) == sum(ord(c) for c in body + "*"), code
     # the sheet's name line keeps the project's own name
     assert side["name"] == project
+
+
+def test_the_layout_panel_shows_the_nominal_patch(tmp_path):
+    """Review NIT: an i1iSis chart's "Patch size" reads its nominal 6 x 6
+    mm (what its .txf names), not the 6.01 its pixels round to; the pixels
+    are unchanged."""
+    from ui.tabs.tab_chart import TabChart
+    from workflow.layout_engine import chart
+    ti1 = _ti1(tmp_path / "c.ti1", 300)
+    chart.build_chart(ti1, tmp_path / "nominal", instrument="XRISIS",
+                      paper="A4", dpi=300, project="nominal")
+    # the chart's channels.json as Create Chart writes it: the first patch
+    # rect in pixels (71 px = 6.01 mm at 300 dpi)
+    import json
+    (tmp_path / "nominal.channels.json").write_text(json.dumps({
+        "layout": {"dpi": 300, "recipe": {"instrument": "XRISIS"},
+                   "patches": [{"x": 0, "y": 0, "w": 71, "h": 71}]}}),
+        encoding="utf-8")
+    pw, ph, _pitch = TabChart._chart_patch_size_mm(tmp_path / "nominal.ti2")
+    assert (pw, ph) == (6.0, 6.0)

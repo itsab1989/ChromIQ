@@ -27057,7 +27057,11 @@ class TabChart(QWidget):
             # tolerance. The first slot of the same layout, snapped by the same
             # function at the chart's dpi, is the number on screen after
             # Generate.
-            if dpi:
+            # an i1iSis chart (Beta) shows its NOMINAL patch: the size its
+            # .txf and barcode name and i1Profiler expects (review of
+            # a7ca1489e: "6,01 x 6,01" for 6 mm patches); the pixels drawn
+            # are unchanged
+            if dpi and getattr(geom, "key", "") != "XRISIS":
                 try:
                     _r0 = geometry.patch_rects_px(geom, w_mm, h_mm, lay,
                                                   int(dpi))[0]
@@ -27162,6 +27166,16 @@ class TabChart(QWidget):
             # NEVER guess 300 — an unknown dpi means an unknown size, and the
             # panel already renders that honestly as "—".
             dpi = float(layout.get("dpi") or recipe.get("dpi") or 0)
+            if recipe.get("instrument") == "XRISIS":
+                # an i1iSis chart (Beta): its nominal patch, from its side
+                # file, as its .txf names it
+                try:
+                    from workflow.isis.support import read_side_file
+                    pm = (read_side_file(Path(ti2)) or {}).get("patch_mm")
+                    if pm:
+                        return (float(pm[0]), float(pm[1]), 0.0)
+                except Exception:  # noqa: BLE001 - the drawn size then
+                    pass
             if not rects or dpi <= 0:
                 return (0.0, 0.0, 0.0)
             r0 = rects[0]
