@@ -38,7 +38,7 @@ def main() -> int:
     for name in FILES:
         data = subprocess.run(
             ["git", "-C", str(ROOT), "show", f"{V4333}:native/instlib/{name}"],
-            check=True, capture_output=True).stdout
+            check=True, capture_output=True, timeout=60).stdout
         (src / name).write_bytes(data)
     cmake = shutil.which("cmake")
     if cmake is None:

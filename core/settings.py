@@ -285,8 +285,9 @@ DEFAULTS: dict[str, Any] = {
     #: Off = exactly 4.3.32: the helper is started without --i1pro2-lights and
     #: the driver never sends a light request. Read at every Start.
     "i1pro2_lights_beta":        False,
-    #: Inside that option (2026-11-13), the i1Pro 2 only (firmware 634, the
-    #: firmware of every recording): what the lights show. True = "ready light
+    #: Inside that option (2026-11-13), the i1Pro 2 only: what the lights
+    #: show. The patterns were recorded on firmware 634; no firmware is
+    #: refused for it (the firmware is logged at Start). True = "ready light
     #: and result signals": a pulsing white when ready, green twice after a
     #: reading ChromIQ accepted, red twice after one it refused or asks to
     #: read again (--lights-signals). False = "ready light only", exactly
@@ -1373,13 +1374,19 @@ class AppSettings:
             dropped.append("profile_engine_black_depth (\"Darkest black\" is "
                            "a Build Profile option now; a Deepest choice is "
                            "carried into its saved default)")
+        # A value WRITTEN, not dropped: logged on its own line (4.3.34 review
+        # nit: it was listed under "dropped stale defaults").
+        written = []
         if stored_schema < 34 and self._migrate_lights_signals_keep_4333():
-            dropped.append("i1pro2_lights_signals (the lights Beta was already "
-                           "on: kept as in 4.3.33, ready light only)")
+            written.append("i1pro2_lights_signals = false (the lights Beta was "
+                           "already on: kept as in 4.3.33, ready light only)")
         self._qs.setValue("settings_schema", SETTINGS_SCHEMA)
         if dropped:
             log.info("Settings migrated to schema %d; dropped stale defaults: %s",
                      SETTINGS_SCHEMA, ", ".join(dropped))
+        if written:
+            log.info("Settings migrated to schema %d; written: %s",
+                     SETTINGS_SCHEMA, ", ".join(written))
         return dropped
 
     def _migrate_lights_signals_keep_4333(self) -> bool:

@@ -225,9 +225,10 @@ def main(argv=None) -> int:
           f"instruments: {', '.join(codes)}", flush=True)
     def _drop_tree() -> None:
         subprocess.run(["git", "-C", str(REPO), "worktree", "remove",
-                        "--force", str(tree)], capture_output=True)
+                        "--force", str(tree)], capture_output=True,
+                       timeout=300)
         subprocess.run(["git", "-C", str(REPO), "worktree", "prune"],
-                       capture_output=True)
+                       capture_output=True, timeout=120)
 
     # a tree left by an interrupted run (Ctrl-C during the add) is removed
     # first, or the add below fails on it
@@ -238,7 +239,7 @@ def main(argv=None) -> int:
             subprocess.run(["git", "-C", str(REPO), "worktree", "add",
                             "--detach", str(tree), args.tag], check=True,
                            capture_output=True, text=True, encoding="utf-8",
-                           errors="replace")
+                           errors="replace", timeout=600)
         except subprocess.CalledProcessError as exc:
             print(f"could not check {args.tag} out: {exc.stderr.strip()}")
             return 2

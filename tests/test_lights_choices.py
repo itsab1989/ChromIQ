@@ -70,6 +70,30 @@ def test_the_upgrade_step_runs_once(qapp, tmp_path):
     assert s.get("i1pro2_lights_signals") is True
 
 
+def test_the_upgrade_step_is_logged_as_written_not_dropped(qapp, tmp_path,
+                                                          caplog):
+    """4.3.34 review nit: the value is WRITTEN, so it is not listed under
+    "dropped stale defaults", and migrate() does not return it as dropped."""
+    import logging
+    s = _settings(tmp_path, {"i1pro2_lights_beta": True}, 33)
+    with caplog.at_level(logging.INFO, logger="core.settings"):
+        dropped = s.migrate()
+    assert not any("i1pro2_lights_signals" in d for d in dropped)
+    lines = [r.getMessage() for r in caplog.records
+             if "i1pro2_lights_signals" in r.getMessage()]
+    assert len(lines) == 1 and "written: i1pro2_lights_signals = false" in lines[0]
+    assert "dropped" not in lines[0]
+
+
+def test_the_comment_does_not_call_firmware_634_a_gate():
+    text = (ROOT / "core" / "settings.py").read_text(encoding="utf-8")
+    i = text.index('"i1pro2_lights_signals":     True')
+    block = " ".join(ln.strip().lstrip("#:").strip() for ln in
+                     text[text.rindex("#: Inside that option", 0, i):i].splitlines())
+    assert "no firmware is refused" in block
+    assert "only (firmware 634" not in block
+
+
 # ---------------------------------------------------------------------------
 # The helper's command line
 # ---------------------------------------------------------------------------
