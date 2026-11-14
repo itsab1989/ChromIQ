@@ -7384,6 +7384,10 @@ class LayoutOptionsPanel(QWidget):
         to height is still typing the size (4.3.34 review, major: 230, Tab,
         320 was built as 210 x 320). The build itself never depends on
         this: `selection` gives the upright size in any case."""
+        # A panel without the paper selectors (Preferences > Chart Layout)
+        # has no custom boxes at all (the 2026-11-14 gate).
+        if not hasattr(self, "custom_w"):
+            return
         if self._custom_box_has_focus():
             return
         self._turn_custom_upright()
