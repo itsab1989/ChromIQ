@@ -76,6 +76,17 @@ correction that it must be **all** of them, not a selection.
 | Preferences → everything | your setup |
 | the instrument and paper **defaults** in Preferences | the seed for a new target, not the target's own value |
 
+
+#### ⏳ Awaiting confirmation: the ruler check is global (2026-11-14)
+
+**Confirmed by:** *nobody yet.*
+
+Preferences ▸ Beta ▸ "X-Rite i1Pro 2 and i1Pro 3: check each strip with the
+ruler (beta)" (`ruler_check_beta`, off by default) describes your equipment
+(an instrument with its striped ruler), like the instrument lights, so it is
+global by this section and read at every Start. No target's `meta.json`
+changes with it.
+
 ### 1.2 Becomes per target
 
 | Group | Where it lives today |
@@ -212,6 +223,33 @@ other in beta.150.
 > PROFILE GAMUT one turn of the event loop later, after that load, and it is
 > not recorded as a choice by hand; nothing is generated. The module the user
 > then leaves Create Chart on is written by W6, as for any visit.
+
+> **⏳ Awaiting confirmation: the presets list picked again, and "none" (2026-11-14).**
+>
+> **Confirmed by:** *nobody yet.*
+>
+> L6 as built for two picks that used to do nothing or too much:
+>
+> * **A saved preset picked again** while it is already showing in the list
+>   loads again when the screen differs from it in anything it stores (the
+>   Manual rows and their tick boxes, the layout recipe compared as the
+>   preset bar compares one, the chart notes, the stamp): its margins, paper
+>   and the rest come back. When nothing differs the pick changes nothing,
+>   and "none" picked again changes nothing, as before
+>   (`TabChart._on_preset_activated`, `_screen_differs_from_saved_preset`).
+>   Picked again, it only LOADS: it never rebuilds the chart, even when the
+>   preset was saved with "Generate the chart immediately when this preset
+>   is selected"; the log then says "Preset loaded again. The chart was not
+>   rebuilt: press Generate Chart when you want it." A first pick of a
+>   preset behaves as before, its immediate build included. Built-in
+>   presets re-apply on every pick, as since #175.
+> * **"none"** takes the preset away and leaves the instrument alone: the
+>   printtarg instrument row is no longer put back to the saved default or
+>   the i1Pro, so Guided (linked to that row) and the layout panel keep the
+>   instrument that was chosen. Every other row still returns to the saved
+>   defaults or the factory values, as before.
+>
+> Tests: `tests/test_preset_repick_and_none.py`.
 
 ### 2.0 The scope of every load and every write
 

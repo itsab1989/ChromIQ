@@ -2423,6 +2423,22 @@ class Run:
     def ensure_exports_dir(self) -> Path:     return ensure_subdir(self.exports_dir)
     def ensure_cache_dir(self) -> Path:       return ensure_subdir(self.cache_dir)
 
+    # The ruler check (Preferences > Beta, 2026-11-14): one diagnostics file
+    # per measurement session in reports/ (not cache/: it is evidence a
+    # tester sends, and cache/ is "always safe to delete").
+    RULER_DIAGNOSTICS_GLOB = "ruler_diagnostics_*.json"
+
+    def ruler_diagnostics_path(self, stamp: str) -> Path:
+        """``reports/ruler_diagnostics_<stamp>.json`` (stamp YYYYMMDD-HHMMSS)."""
+        return self.reports_dir / f"ruler_diagnostics_{stamp}.json"
+
+    def ruler_diagnostics_files(self) -> "list[Path]":
+        """This run's ruler diagnostics files, oldest first."""
+        try:
+            return sorted(self.reports_dir.glob(self.RULER_DIAGNOSTICS_GLOB))
+        except OSError:
+            return []
+
     @property
     def i1profiler_turned(self) -> I1ProfilerTurnedFiles:
         """The run chart's beta "turned" i1Profiler export, in ``exports/``."""

@@ -146,8 +146,16 @@ def test_the_gaps_and_the_alignment_are_the_ones_asked_for(tab, tmp_path):
     gx, gy, gw, gh = geo(tab._pace_group)
     lx, ly, lw, _lh = geo(tab._pace_verdict_lbl)
 
-    assert gx == px, f"frame starts at {gx}, PREV at {px}"
-    assert gx + gw == nx + nw, f"frame ends at {gx+gw}, NEXT at {nx+nw}"
+    # THE PAGE ROW'S OWN INSET, NOT THE BUTTONS (2026-11-14). The frame
+    # lined up with PREV and NEXT while they stood at the two ends of the
+    # row (Knut, #131); since the page buttons are one compact centred group
+    # (Basti, 2026-11-14, every preview alike), the frame keeps the edges
+    # they used to mark: the row's 12 px inset on each side.
+    vx, _vy, vw, _vh = geo(tab._preview._nav)
+    m = tab._preview._nav.layout().contentsMargins()
+    assert gx == vx + m.left(), f"frame starts at {gx}, row inset {vx + m.left()}"
+    assert gx + gw == vx + vw - m.right(), "frame ends off the row's inset"
+    assert gx < px and nx + nw < gx + gw, "the buttons sit inside the frame"
     assert lx == gx and lx + lw == gx + gw, "the warning shares those edges"
     # 2-3 mm — call it 8-16 px at ordinary screen densities.
     assert 8 <= gy - (py + ph) <= 16, f"{gy - (py+ph)}px above the frame"

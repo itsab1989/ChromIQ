@@ -10175,7 +10175,38 @@ M_I1PRO2_LIGHTS_LEFT_ON = _m(
     approved=False)
 
 
+#: The ruler check (Preferences > Beta, 2026-11-14; §M-PROPOSED): an
+#: accepted strip that the instrument's ruler says was clearly not read all
+#: the way. Re-read Strip (the default) / Continue Anyway, as "Strip Read
+#: Quickly"; sound Strip read failed. Shown by
+#: `TabMeasure._prompt_ruler_not_covered`.
+M_STRIP_RULER_NOT_COVERED = _m(
+    "M-STRIP-RULER-NOT-COVERED",
+    "Strip {strip} may not have been read all the way",
+    "ChromIQ accepted the readings of strip {strip}, but the instrument's "
+    "ruler says that it moved only {moved} while the strip was read. The "
+    "patches of this strip take up {need}, so the instrument cannot have "
+    "passed over all of them.\n\n"
+    "ArgyllCMS still found the right number of patches, which is why the "
+    "readings were accepted. But when part of a strip is missed, a reading "
+    "can be taken in the wrong place, and a patch can end up with the colour "
+    "of its neighbour.\n\n"
+    "What each button does:\n\n"
+    "•  Re-read Strip: read strip {strip} again, from the white paper before "
+    "the first patch to the white paper after the last, in one steady "
+    "movement. The new reading replaces this one.\n\n"
+    "•  Continue Anyway: keep what was just read and carry on with the next "
+    "strip.\n\n"
+    "This question comes from the ruler check, a beta option in Preferences, "
+    "on the Beta tab. Its limits are still provisional. If you are sure the "
+    "whole strip was read, please press Continue Anyway, and tell us about it "
+    "with the diagnostics file this measurement writes: that helps us set "
+    "the limits right.",
+    approved=False)
+
+
 CATALOGUE = {m.id: m for m in (
+    M_STRIP_RULER_NOT_COVERED,
     M_I1PRO2_LIGHTS_LEFT_ON,
     M_READINGS_NOT_SAME_CHART, M_READINGS_UNUSABLE,
     M_IMPORT_TURNED_GRID_COLOURS,

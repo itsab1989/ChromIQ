@@ -207,12 +207,16 @@ class MeasureParams:
     #: pass --i1pro2-lights, and only to a helper that says it knows the flag
     #: (``helper_caps``). Off: the command line is exactly the one it was.
     engine_i1pro2_lights: bool = False
-    #: ...and its two choices (2026-11-13, the i1Pro 2 only): result signals
+    #: ...and its two choices (2026-11-13; the i1Pro 3 too since 2026-11-14): result signals
     #: (--lights-signals) and the lights left on during a reading
     #: (--lights-during-reading). Passed only with --i1pro2-lights and only to
     #: a helper whose caps name them; both off = exactly 4.3.33's command line.
     engine_lights_signals: bool = False
     engine_lights_during_reading: bool = False
+    #: Preferences > Beta, the ruler check (2026-11-14; stage 1, check only):
+    #: pass --ruler, and only to a helper whose caps name "ruler_check". Off:
+    #: the command line is exactly the one it was.
+    engine_ruler_check: bool = False
     #: Preferences ▸ Measurement ▸ "Pause after each page so I can check it"
     #: (jctay, forum 149802; Basti 2026-10-23). Off by default. Engine strip
     #: reading only: the manager asks the engine to hold after a strip
@@ -840,6 +844,8 @@ class MeasureManager(QObject):
         self._lights_option = False
         self._lights_marker_live = False
         self._lights_owed_n = None
+        #: "i1pro2" or "i1pro3": the instrument whose lights this session uses.
+        self._lights_instrument = "i1pro2"
         #: External values (-x): ChromIQ reads the instrument itself and the
         #: helper opens none. Kept because the SAVE-AND-STOP path differs — see
         #: `save_partial_and_quit`.
@@ -874,6 +880,7 @@ class MeasureManager(QObject):
 
         def _on_finish(code: int) -> None:
             self._lights_session_ended(code)
+            self._ruler_session_ended(on_line)
             self._pending_post_retry_key = None
             self._engine_held = None
             self._window_hold = None
@@ -1016,6 +1023,19 @@ class MeasureManager(QObject):
                 else:
                     log.info("i1Pro 2 lights: this helper does not know "
                              "--i1pro2-lights; not passed")
+            self._ruler = None
+            if params.engine_ruler_check:
+                from workflow.chartread_engine import helper_caps
+                if "ruler_check" in helper_caps(params.engine_helper):
+                    from workflow.ruler_session import RulerSession
+                    eargs += ["--ruler"]
+                    self._ruler = RulerSession(
+                        ti1_path=Path(params.ti1_path),
+                        verification="verifications" in Path(
+                            params.ti1_path).parts)
+                else:
+                    log.info("ruler check: this helper does not know --ruler; "
+                             "not passed")
             if params.engine_replay is not None:
                 eargs += ["--replay", str(params.engine_replay)]
             eargs += list(params.gesture_args or [])
@@ -3232,11 +3252,13 @@ class MeasureManager(QObject):
         from core import i1pro2_lights_marker as _marker
         sent = ev.get("sent")
         if sent:
-            # Every sequence the i1Pro 2's driver sent (2026-11-13). The
-            # result signals get a line of their own in the Measure log, so a
-            # tester can match what the instrument showed with what ChromIQ
-            # decided; everything else only goes to the app log.
-            log.info("i1Pro 2 lights: sent %s", sent)
+            # Every sequence the i1Pro 2's driver sent (2026-11-13), and every
+            # pattern the i1Pro 3's (2026-11-14). The result signals get a
+            # line of their own in the Measure log, so a tester can match what
+            # the instrument showed with what ChromIQ decided; everything else
+            # (the i1Pro 3's own "instrument_green2"/"instrument_red2" of "as
+            # in ChromIQ 4.3.33" too) only goes to the app log.
+            log.info("instrument lights: sent %s", sent)
             if sent == "green2":
                 on_line(tr(
                     "[Engine] Instrument lights (beta): green twice. ChromIQ "
@@ -3254,8 +3276,18 @@ class MeasureManager(QObject):
             # may still be on" marker stays for the next Start.
             self._lights_failed = True
             self._runner.set_kill_courtesy(None)
-            log.warning("i1Pro 2 lights: the helper could not confirm the "
+            log.warning("instrument lights: the helper could not confirm the "
                         "lights are off; the marker stays")
+            if getattr(self, "_lights_instrument", "i1pro2") == "i1pro3":
+                # 2026-11-14: an i1Pro 3 has no marker and no reminder
+                # (ArgyllCMS's own open switches its lights off).
+                on_line(tr(
+                    "[Engine] Instrument lights (beta): ChromIQ could not make "
+                    "sure that the instrument's lights went off at the end. "
+                    "They go off by themselves the next time ChromIQ or "
+                    "ArgyllCMS connects to the instrument, or you can unplug "
+                    "it and plug it back in."))
+                return
             on_line(tr(
                 "[Engine] Instrument lights (beta): ChromIQ could not make "
                 "sure that the instrument's lights went off at the end. If "
@@ -3289,6 +3321,7 @@ class MeasureManager(QObject):
         if ev.get("active"):
             self.lights_active = True
             which = str(ev.get("instrument") or "i1pro2")
+            self._lights_instrument = which
             # The "lights may still be on" marker and its replug window are
             # the i1Pro 2's alone: their reason is ArgyllCMS's note about the
             # i1Pro 2's start-up (core/i1pro2_lights_marker.py). An i1Pro 3
@@ -3298,25 +3331,29 @@ class MeasureManager(QObject):
                 self._lights_marker_live = True
             self._runner.set_kill_courtesy(self.LIGHTS_OFF_EXIT)
             log.info("instrument lights: in use for this session (%s)", which)
+            signals = bool(ev.get("signals"))
+            left_on = str(ev.get("during_reading") or "off") == "on"
+            try:
+                fw = int(ev.get("firmware", -1))
+            except (TypeError, ValueError):
+                fw = -1
             if which == "i1pro3":
-                on_line(tr(
-                    "[Engine] Instrument lights (beta): on. While the i1Pro 3 "
-                    "calibrates or measures, its lights behave as without this "
-                    "option. Afterwards it shows the patterns X-Rite's "
-                    "i1Profiler uses: after a reading two green blinks, when a "
-                    "reading could not be taken two blinks we expect to be "
-                    "red, each followed by a slowly breathing white light."))
+                on_line(self._i1pro3_lights_line(signals, left_on))
+                # With either choice, which firmware it has (2026-11-14): the
+                # project does not know the recordings' firmware, so a
+                # tester's report should say it. Argyll reads it x 100.
+                if (signals or left_on) and fw > 0:
+                    on_line(tr(
+                        "[Engine] Instrument lights (beta): this i1Pro 3 "
+                        "reports firmware {fw}. We do not know which firmware "
+                        "the i1Pro 3 had on which the light patterns were "
+                        "recorded, so if anything looks odd, please tell us "
+                        "this number.").format(fw=f"{fw / 100:.2f}"))
             else:
-                signals = bool(ev.get("signals"))
-                left_on = str(ev.get("during_reading") or "off") == "on"
                 on_line(self._i1pro2_lights_line(signals, left_on))
                 # With either choice, which firmware this instrument has: the
                 # patterns were recorded on 634 (2026-11-14: no firmware gate,
                 # so a tester's report says which one they ran on).
-                try:
-                    fw = int(ev.get("firmware", -1))
-                except (TypeError, ValueError):
-                    fw = -1
                 if (signals or left_on) and fw > 0:
                     on_line(tr(
                         "[Engine] Instrument lights (beta): this i1Pro 2 has "
@@ -3343,6 +3380,47 @@ class MeasureManager(QObject):
                 "[Engine] Instrument lights (beta): ChromIQ could not use the "
                 "lights of this instrument, so it leaves them alone for this "
                 "measurement. Measuring works as usual."))
+
+    @staticmethod
+    def _i1pro3_lights_line(signals: bool, left_on: bool) -> str:
+        """The Measure log's line when an i1Pro 3 session uses the lights,
+        worded for the two choices (2026-11-14). Both off is 4.3.34's
+        behaviour: green and red are then the instrument's own verdict."""
+        if signals and left_on:
+            return tr(
+                "[Engine] Instrument lights (beta): on. The i1Pro 3 shows a "
+                "slowly blinking white while it waits for you. As X-Rite's "
+                "i1Profiler does, ChromIQ sends it no off command before a "
+                "reading: the instrument most likely switches its lights off "
+                "by itself while it measures. After a reading it blinks green "
+                "twice when ChromIQ accepted it, and red twice when ChromIQ "
+                "asks you to look at the screen or to read it again. While it "
+                "calibrates, its lights are off.")
+        if signals:
+            return tr(
+                "[Engine] Instrument lights (beta): on. The i1Pro 3 shows a "
+                "slowly blinking white while it waits for you. After a reading "
+                "it blinks green twice when ChromIQ accepted it, and red twice "
+                "when ChromIQ asks you to look at the screen or to read it "
+                "again. While it calibrates or measures, its lights are off.")
+        if left_on:
+            return tr(
+                "[Engine] Instrument lights (beta): on. The i1Pro 3 shows a "
+                "slowly blinking white while it waits for you. As X-Rite's "
+                "i1Profiler does, ChromIQ sends it no off command before a "
+                "reading: the instrument most likely switches its lights off "
+                "by itself while it measures. After every reading the "
+                "instrument took it blinks green twice, and red twice when it "
+                "could not take one; whether ChromIQ accepts a reading is "
+                "shown on screen. While it calibrates, its lights are off.")
+        return tr(
+            "[Engine] Instrument lights (beta): on. While the i1Pro 3 "
+            "calibrates or measures, its lights are off. Afterwards it shows "
+            "the patterns X-Rite's i1Profiler uses: after a calibration a "
+            "slowly blinking white light, green twice after every reading the "
+            "instrument took, and red twice when it could not take one. Green "
+            "here only means that the instrument took a reading: whether "
+            "ChromIQ accepts it is shown on screen.")
 
     @staticmethod
     def _i1pro2_lights_line(signals: bool, left_on: bool) -> str:
@@ -3382,11 +3460,12 @@ class MeasureManager(QObject):
 
     def lights_strip_verdict(self, too_fast: bool) -> None:
         """The Measure tab's one verdict on an accepted strip (the strip cue,
-        "one strip, one sound", Knut #131): with the i1Pro 2's result signals,
+        "one strip, one sound", Knut #131): with result signals (the i1Pro 2,
+        and since 2026-11-14 the i1Pro 3),
         green when the strip was kept as it is, red when ChromIQ asks about it
         (read too fast). The doubts the manager itself found are sent before
         the tab is asked (`_lights_doubt_first`). No-op unless a result is
-        owed, so stock chartread, the i1Pro 3, the choice off and a strip
+        owed, so stock chartread, the choice off and a strip
         moved by "I read strip B" never send anything."""
         self._send_lights_result(not too_fast)
 
@@ -3408,6 +3487,43 @@ class MeasureManager(QObject):
     #: exit guard on a close that did not come back, 128 + n a signal: after
     #: those the lights may still be on.
     _LIGHTS_CLEAN_EXIT_CODES = (0, 1)
+
+    # ---- the ruler check (Preferences > Beta, 2026-11-14) ------------------
+    def _on_ruler_event(self, kind: str, ev: dict, on_line) -> None:
+        rs = getattr(self, "_ruler", None)
+        if rs is None:
+            return
+        try:
+            lines = rs.on_session(ev) if kind == "ruler" else rs.on_strip(ev)
+        except Exception:      # noqa: BLE001 - a check never stops a read
+            log.warning("ruler: %s not understood", kind, exc_info=True)
+            return
+        for ln in lines:
+            on_line(" " + ln)
+
+    def _ruler_session_ended(self, on_line) -> None:
+        rs = getattr(self, "_ruler", None)
+        if rs is None:
+            return
+        self._ruler = None
+        try:
+            for ln in rs.on_end():
+                on_line(" " + ln)
+        except Exception:      # noqa: BLE001
+            log.warning("ruler: session end", exc_info=True)
+
+    def ruler_answer(self, strip: str, answer: str) -> None:
+        """The person's answer to the ruler question, for the file."""
+        if not hasattr(self, "_ruler_answers"):
+            self._ruler_answers = {}
+        self._ruler_answers[str(strip).strip()] = answer
+        rs = getattr(self, "_ruler", None)
+        if rs is not None:
+            rs.note_answer(strip, answer)
+
+    def ruler_diagnostics_path(self) -> "Path | None":
+        rs = getattr(self, "_ruler", None)
+        return rs.diagnostics_path() if rs is not None else None
 
     def _lights_session_ended(self, code: int) -> None:
         """The helper of a session whose white light was on has ended.
@@ -3679,6 +3795,11 @@ class MeasureManager(QObject):
         elif kind == "lights":
             self._on_lights_event(ev, on_line)
 
+        elif kind in ("ruler", "ruler_strip"):
+            # The ruler check (Preferences > Beta, 2026-11-14): lines for the
+            # log and the diagnostics file; never a window, never a reading.
+            self._on_ruler_event(kind, ev, on_line)
+
         elif kind == "lights_owed":
             # The engine reported an accepted strip and waits for ChromIQ's
             # result for the i1Pro 2's lights (2026-11-13); it follows with
@@ -3784,6 +3905,21 @@ class MeasureManager(QObject):
             if (ev.get("misaligned") or _part is not None
                     or _twice is not None):
                 self._send_lights_result(False)
+            # The ruler check (Beta): a summary for the tab's strip verdict,
+            # which asks about it only when nothing else does (challenger M6).
+            _rs = getattr(self, "_ruler", None)
+            if _rs is not None:
+                try:
+                    _summ = _rs.on_strip_read(ev, other_question=bool(
+                        ev.get("misaligned") or _part is not None
+                        or _twice is not None))
+                except Exception:      # noqa: BLE001 - never stop a read
+                    log.warning("ruler: strip summary failed", exc_info=True)
+                    _summ = None
+                if _summ is not None:
+                    ev["ruler"] = _summ
+                    if _summ.get("ask"):
+                        self._send_lights_result(False)
             self.strip_measured.emit(ev)
             if _part is not None:
                 # One question, worded for what was found: part of the strip,
@@ -3794,8 +3930,17 @@ class MeasureManager(QObject):
                 self.strip_partly_misaligned.emit(_part)
             if _twice is not None:
                 self.strip_read_twice.emit(_twice.strip, _twice.like)
-            on_line(f" Strip read OK — {ev.get('strip', '?')} "
-                    f"(worst patch ΔE {ev.get('worst_de', 0):.1f})")
+            # The ruler question (Beta) wins over "Strip read OK": OK only
+            # once the person kept the strip (review item 9).
+            _asked = bool((ev.get("ruler") or {}).get("ask"))
+            _answer = (getattr(self, "_ruler_answers", {}) or {}).pop(_s, None)
+            if _asked and _answer == "reread":
+                on_line(" " + tr("Strip {strip}: you chose to read it again, "
+                                 "so this reading will be replaced.").format(
+                                     strip=_s or "?"))
+            else:
+                on_line(f" Strip read OK — {ev.get('strip', '?')} "
+                        f"(worst patch ΔE {ev.get('worst_de', 0):.1f})")
             if self._guided_state == "waiting":
                 self._advance_guided_strip(on_line)
 

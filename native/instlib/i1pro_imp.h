@@ -337,6 +337,17 @@ struct _i1proimp {
 	int trig_se;			/* Delayed trigger icoms error */
 	i1pro_code trig_rv;		/* Delayed trigger result */
 
+	/* CHROMIQ PATCH: the ruler check (Beta, 2026-11-14). All 0 = not in use. */
+	int cq_ruler_on;			/* the helper's option, this session */
+	int cq_ruler_armed;		/* armed for one read_strip */
+	int cq_ruler_given_up;	/* CQ_RULER_GIVEUP_*: never again this session */
+	int cq_ruler_inscan;	/* this lit scan carries the bits */
+	int cq_ruler_recording;	/* the recogniser's copies go to the record */
+	athread *cq_ruler_th;	/* the 0x85 reader */
+	void *cq_ruler_ctx;		/* what the reader touches (cq_ruler_ctx) */
+	unsigned int cq_ruler_t0;	/* msec_time() when the reader started */
+	void *cq_ruler_rec;		/* cq_ruler_rec (cq_ruler.h) */
+
 	volatile double whitestamp;	/* meas_delay() white timestamp */
 	volatile double trigstamp;	/* meas_delay() trigger timestamp */
 
@@ -1466,6 +1477,20 @@ struct _i1data {
 	int (*checksum)(struct _i1data *d, i1key keyoffset); 
 
 }; typedef struct _i1data i1data;
+
+/* CHROMIQ PATCH: the ruler check (Beta), see i1pro_imp.c. */
+int i1pro2_cq_ruler_options(void *pp, int on);	/* 1 = usable */
+void i1pro2_cq_ruler_arm(void *pp, int on);	/* around one read_strip */
+int i1pro2_cq_ruler_state(void *pp);	/* -1 off, 0 in use, >0 given up */
+int i1pro2_cq_ruler_firmware(void *pp);
+int i1pro2_cq_ruler_take(void *pp, void *out);	/* cq_ruler_rec, 1 = one */
+int i1pro2_cq_ruler_bits(void *pp, int mmodif);
+void i1pro2_cq_ruler_start(void *pp);
+void i1pro2_cq_ruler_finish(void *pp, int nreadings, int ev);
+void i1pro2_cq_ruler_trace(void *pp, double **multimeas, int nummeas, double *maxval);
+void i1pro2_cq_ruler_cut(void *pp, int pix, int ss, int no);
+void i1pro2_cq_ruler_close(void *pp);
+extern int i1pro2_cq_ruler_fail_start_for_test;	/* the fake-USB harness only */
 
 /* CHROMIQ PATCH: i1Pro 2 indicator lights (Beta), see i1pro_imp.c. Every
  * entry returns at once unless ChromIQ's helper called ..._begin(). */

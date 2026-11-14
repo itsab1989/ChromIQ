@@ -295,6 +295,54 @@ A verdict is acted on only while the engine waits for the next strip or patch
 (before any trigger) or at its prompts, only for the strip it was given for,
 and never once the button has been pressed for the next reading.
 
+## 4i. The i1Pro 3's result signals follow the same verdicts (2026-11-14)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+With Preferences ▸ Beta, the instrument lights on and "Ready light and result
+signals" chosen, an i1Pro 3 or i1Pro 3 Plus shows the patterns X-Rite's
+i1Profiler 3.8.5 sent to a tester's own i1Pro 3 where ChromIQ decides about a
+reading, with exactly the verdicts of §4h: GOOD (`0a 14 02 12 05 00`, seen by
+the tester as green twice) where the i1Pro 2 shows GREEN2, BAD
+(`06 14 02 12 05 00`, red twice) where it shows RED2, READY
+(`01 fa 04 12 05 00`) where it shows PULSE. The lights play no sound and
+change no sound.
+
+| moment | "Ready light; the instrument's own green / red" (= 4.3.34) | "Ready light and result signals" | who decides |
+|---|---|---|---|
+| a calibration returned | READY | READY | driver |
+| a reading returned (the instrument took it / could not) | GOOD / BAD | nothing | driver |
+| ChromIQ kept the strip or patch / asks about it or refused it | nothing | GOOD / BAD | as §4h |
+| no verdict within 3 s, or dark at the next prompt | nothing | READY | the engine |
+| before each measurement of a calibration | the off `00` while a pattern plays | the same | driver |
+| before each measurement of a hand-held reading | the off `00` while a pattern plays ("Off during a reading"); nothing ("Left on during a reading", and the driver's GOOD / BAD is then sent over the playing pattern) | the same | driver |
+| the close | the off `00` while a pattern plays | the same | driver |
+
+Not yet seen with ChromIQ on a real instrument: whether its own trigger shows
+the instrument's single green flash at the press and lets the lights go dark
+by themselves (as the tester saw with i1Profiler), and what GOOD looks like
+after a single patch.
+
+## 4j. The ruler check's question plays Strip read failed (2026-11-14)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+With Preferences ▸ Beta, the ruler check on, an i1Pro 2 or i1Pro 3 and the
+ChromIQ chart-reading engine, the window *"Strip {strip} may not have been read
+all the way"* (M-STRIP-RULER-NOT-COVERED, §M-PROPOSED;
+`TabMeasure._prompt_ruler_not_covered`) plays **Strip read failed**, as "Strip
+may be misaligned" does: it is an accepted strip ChromIQ asks about. It is the
+strip's only cue and only window (`TabMeasure._strip_verdict`): no "Strip read
+OK" beside it, and when "Strip read quickly" is shown for the same strip (Slow
+down), the ruler question is not, and the ruler finding stays in the log. With
+the lights Beta on, the lights go red, as §4h and §4i say of any strip ChromIQ
+asks about. The per-strip ruler lines in the Measure log play nothing. No new
+sound was added.
+
 ## 5. Related documents
 
 - [`measurement_exit_strategy.md`](measurement_exit_strategy.md) — the same windows, from the point of view of how each one ends a session

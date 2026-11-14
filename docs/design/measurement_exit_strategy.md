@@ -653,3 +653,50 @@ ArgyllCMS's note about the i1Pro 2's start-up, and Argyll's i1Pro 3 open reads
 the instrument's memory and then switches the lights off itself. Built and
 tested on 2026-11-13 without an i1Pro 3 (fake USB layer); nobody has confirmed
 it on hardware.
+
+## The lights' two choices on an i1Pro 3 (Beta, 2026-11-14)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+The two Preferences choices of the option (now labelled "What the lights
+show" and "During a reading", same settings keys) apply to the i1Pro 3 and
+i1Pro 3 Plus too. With "Ready light; the instrument's own green / red (i1Pro 3)" and "Off
+during a reading (the cautious choice)" the i1Pro 3 receives
+byte for byte what 4.3.34 sent (`tests/test_i1pro3_lights_modes.py` against a
+trace of the 4.3.34 driver), and the i1Pro 2 receives what 4.3.34 sent in all
+four combinations. Every ending above is unchanged, with one addition: the
+engine now reports `{"event":"lights","state":"unknown"}` for an i1Pro 3 too
+when its off could not be confirmed (with "Left on during a reading" a pattern
+can still play when a trigger was pending at the close); the Measure log says
+so in one line and asks for nothing at the next Start, because Argyll's open
+switches an i1Pro 3's lights off itself (no marker, no replug window). The
+engine reports the i1Pro 3's firmware; the log names it with either new choice.
+Patterns and their moments: `measurement_window_sounds.md` §4i. Built and
+tested on 2026-11-14 without an i1Pro 3; nobody has confirmed it on hardware.
+
+## The ruler check's question (Beta, 2026-11-14)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+With Preferences ▸ Beta ▸ the ruler check on, the Measure tab can ask one more
+question about an accepted strip, *"Strip {strip} may not have been read all
+the way"* (M-STRIP-RULER-NOT-COVERED, `TabMeasure._prompt_ruler_not_covered`),
+beside *Strip may be misaligned*, *Was a strip read twice?* and *Strip read
+quickly*, and never together with one of them for the same strip (those win;
+`TabMeasure._strip_verdict`). It is not an exit and ends nothing:
+
+| answer | what is sent to the engine | the strip |
+|---|---|---|
+| Re-read Strip (the default) | `{"cmd":"goto","strip":"<strip>"}` (`MeasureManager.goto_strip`), as *Strip read quickly*'s Re-read Strip | read again; the next swipe replaces this reading; "Strip read OK" is not printed for it |
+| Continue Anyway | nothing | kept, and the reader goes on as it would have |
+| Escape or the title-bar X | nothing | kept, exactly as Continue Anyway (as *Strip read quickly*) |
+
+While the window is open the reader holds nothing of its own: the engine is at
+its strip menu, the window's nested event loop holds back the "All Strips Read"
+window as for *Strip read quickly* (`_pace_prompt_open`), and a key pressed at
+the window stays with the window (note 8a). The answer is written into the
+measurement's ruler diagnostics file.

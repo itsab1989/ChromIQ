@@ -450,6 +450,7 @@ void del_i1pro3imp(i1pro3 *p) {
 		i1pro3_cq_lights_end(p);
 
 		/* Terminate event monitor thread */
+		i1pro3_cq_ruler_close(p);	/* CHROMIQ PATCH: ruler check (Beta), frees its record */
 		if (m->th != NULL) {
 			m->th_term = 1;			/* Tell thread to exit on error */
 			i1pro3_terminate_event(p);
@@ -6208,29 +6209,42 @@ i1pro3_indLEDoff(void *pp) {
 }
 
 /* ============================================================ */
-/* CHROMIQ PATCH: the i1Pro 3 indicator lights (Preferences > Beta, 2026-11-13).
+/* CHROMIQ PATCH: the i1Pro 3 indicator lights (Preferences > Beta, 2026-11-13;
+ * the two choices since 2026-11-14).
  *
  * Where the knowledge comes from: the request (0x29, i1p3cc_set_ind) and the
  * format are Argyll's own (i1pro3_indLEDseq above and its comment; Argyll uses
  * it only for its off, `00`, at every open). The three patterns are byte for
- * byte what X-Rite's i1Profiler 3.8.5 sent to a user's own i1Pro 3 (one USB
- * recording, 46 light requests), each sent here where i1Profiler sent it:
- *   READY  `01 fa 04 12 05 00`  after a calibration (8x after its calibration
- *                               readings; look: GUESS, white blink then
- *                               white breathing);
- *   GOOD   `0a 14 02 12 05 00`  after a reading (33x after good scans and spot
- *                               readings; tester: two green blinks, then white);
- *   BAD    `06 14 02 12 05 00`  after a reading the instrument could not take
- *                               (4x after scans i1Profiler rejected as
- *                               incomplete; LIKELY two red blinks, then white).
+ * byte what X-Rite's i1Profiler 3.8.5 sent to a user's own i1Pro 3 (two USB
+ * recordings), each sent here where i1Profiler sent it:
+ *   READY  `01 fa 04 12 05 00`  after its calibration readings (look of the
+ *                               first part: GUESS, white blinks; the tester
+ *                               saw slow white blinking after calibration);
+ *   GOOD   `0a 14 02 12 05 00`  after every reading it accepted (strips and
+ *                               spots; the tester saw green twice);
+ *   BAD    `06 14 02 12 05 00`  after every strip it refused (partial swipe,
+ *                               no ruler, incomplete; the tester saw red twice).
  *   OFF    `00`                 Argyll's own off, the bytes every ChromIQ sends
- *                               every i1Pro 3 at every open today; sent before
- *                               every measurement and at the close.
- * i1Profiler never sent an off, and kept the lights breathing through its
- * measurements; ChromIQ switches them off before every measurement, so every
- * reading is taken with the lights as they are today. A wrong guess about a
- * pattern's look can therefore change a colour, never a reading. Nothing else
- * is sent from here: no 0x3B, no memory write.
+ *                               every i1Pro 3 at every open.
+ * All three patterns end in `12 05 00`, the white pulse forever, so "lit"
+ * always means one of them plays. i1Profiler never sent an off and kept them
+ * playing through its readings; nothing else is sent from here: no 0x3B, no
+ * memory write.
+ *
+ * Two choices, passed in by the helper before ..._begin (both 0 = exactly
+ * what ChromIQ 4.3.34 sent):
+ *   signals  0: after a reading the driver's own verdict: GOOD when the
+ *               instrument returned a reading, BAD for a read error.
+ *            1: after a reading nothing here: the helper sends GOOD / BAD /
+ *               READY (..._result) once ChromIQ has decided about the strip
+ *               or patch, as for the i1Pro 2.
+ *   left_on  0: OFF before every measurement while lit (4.3.34).
+ *            1: i1Profiler's hand-held way: no off before the measurements of
+ *               a reading the instrument's button started (read_strip /
+ *               read_sample: its dark and lit parts), and a reading's pattern
+ *               is sent over the one playing. A calibration, and a reading
+ *               started from the keyboard, still get the off before each
+ *               measurement.
  *
  * Rules, all enforced in this block:
  *  - nothing happens until ChromIQ's helper calls i1pro3_cq_lights_begin(),
@@ -6238,13 +6252,16 @@ i1pro3_indLEDoff(void *pp) {
  *    refuses anything but an inited i1Pro 3 (the driver's dtype, i1Pro 3 and
  *    3 Plus alike) whose EEPROM reports the indicator LEDs
  *    (I1PRO3_CAP_IND_LED). Every entry checks dtype first;
- *  - OFF at the top of i1pro3_do_measure, the one function every calibration
- *    and reading of this driver passes through, before its 0x3B and trigger;
+ *  - the off decision at the top of i1pro3_do_measure, the one function every
+ *    calibration and reading of this driver passes through, before its 0x3B
+ *    and trigger; every measurement also ends a result that is still owed;
  *  - the sender holds m->lock across the 0x29 request and its bytes, so no
  *    other request of this driver can come between them; it is never called
  *    with the lock held;
  *  - a pattern only once a measurement has returned and no trigger thread is
- *    still to send its request;
+ *    still to send its request; a result from the helper only while one is
+ *    owed or for its own refusal, and never once the button was pressed for
+ *    the next reading;
  *  - a request that fails is never retried and fails nothing: the lights are
  *    given up for the session (not even a final off), the helper is told once.
  */
@@ -6271,6 +6288,9 @@ static const unsigned char cq3_lights_seq_off[1]   = { 0x00 };
 /* Set by ChromIQ's helper to hear about a failed light request (one call per
  * session at most). seq is CQ3_LIGHTS_READY / _GOOD / _BAD / _OFF (1-4). */
 void (*i1pro3_cq_lights_note)(int seq, int icom_err) = NULL;
+
+/* Set by ChromIQ's helper to hear about every pattern sent (for its log). */
+void (*i1pro3_cq_lights_sent)(int seq) = NULL;
 
 /* The i1pro3imp of an i1Pro 3 whose lights are in use, else NULL. dtype is in
  * every instrument's base object, so this is safe to ask of any inst. */
@@ -6321,6 +6341,7 @@ static void cq3_lights_send(i1pro3 *p, int which, double tout) {
 
 	if (icoms2i1pro3_err(se) != I1PRO3_OK || wbytes != size) {
 		m->cq_lights = CQ3_LIGHTS_DONE;		/* given up for this session */
+		m->cq_lights_owed = 0;
 		a1logd(p->log,1,"i1pro3 lights: sequence %d failed, ICOM err 0x%x, wrote %d of %d;"
 		                " lights not used again\n", which, se, wbytes, size);
 		if (i1pro3_cq_lights_note != NULL)
@@ -6328,31 +6349,90 @@ static void cq3_lights_send(i1pro3 *p, int which, double tout) {
 		return;
 	}
 	m->cq_lights = which == CQ3_LIGHTS_OFF ? CQ3_LIGHTS_DARK : CQ3_LIGHTS_LIT;
+	m->cq_lights_maybe_dark = 0;
 	a1logd(p->log,2,"i1pro3 lights: sequence %d sent\n", which);
+	/* Patterns only: an OFF can go out between the press and the trigger,
+	 * where the helper must not write (a full pipe would hold the scan). */
+	if (which != CQ3_LIGHTS_OFF && i1pro3_cq_lights_sent != NULL)
+		i1pro3_cq_lights_sent(which);
 }
 
-/* Before a measurement: OFF, when a pattern is playing. */
+/* Before a measurement (the top of i1pro3_do_measure): it ends a result that
+ * is still owed; then OFF when a pattern is playing, except inside a reading
+ * with "left on" that the instrument's button started (the switch thread
+ * counted a press since the reading began). A reading started from the
+ * keyboard gets the off as in 4.3.34: i1Profiler was only ever recorded
+ * measuring with a pattern playing after a press, when the instrument goes
+ * dark by itself. */
 void i1pro3_cq_lights_measure(void *pp) {
 	i1pro3 *p = (i1pro3 *)pp;
 	i1pro3imp *m = cq3_lights_m(p);
-	if (m == NULL || m->cq_lights != CQ3_LIGHTS_LIT)
+	if (m == NULL)
 		return;
+	m->cq_lights_owed = 0;
+	if (m->cq_lights != CQ3_LIGHTS_LIT)
+		return;
+	if (m->cq_lights_left_on && m->cq_lights_reading && !m->cq_lights_force_off
+	 && m->switch_count != m->cq_lights_press_count) {
+		/* The instrument most likely went dark by itself at the press (the
+		 * tester's observation with i1Profiler): for the ready fallback
+		 * only, the lights now count as dark. */
+		m->cq_lights_maybe_dark = 1;
+		return;
+	}
+	m->cq_lights_force_off = 0;
 	cq3_lights_send(p, CQ3_LIGHTS_OFF, CQ3_LIGHTS_TOUT_MEASURE);
 }
 
-/* A pattern after a measurement, only when off and no trigger is pending. */
+/* A pattern after a measurement: only when no trigger is pending, and (as
+ * 4.3.34) only when off, unless "left on" keeps a pattern playing through the
+ * reading: then the new one is sent over it, as i1Profiler does. */
 static void cq3_lights_show(i1pro3 *p, int which) {
 	i1pro3imp *m = cq3_lights_m(p);
-	if (m == NULL || m->cq_lights != CQ3_LIGHTS_DARK || cq3_lights_trigger_pending(m))
+	if (m == NULL || cq3_lights_trigger_pending(m))
+		return;
+	if (m->cq_lights != CQ3_LIGHTS_DARK && !m->cq_lights_left_on)
 		return;
 	cq3_lights_send(p, which, CQ3_LIGHTS_TOUT);
 }
 
-/* After i1pro3_imp_measure: GOOD for a reading, BAD for a reading the
- * instrument could not take; nothing for anything else (an abort, a command,
- * a calibration needed, a USB or hardware fault). */
+/* Around i1pro3_imp_measure in read_strip / read_sample (i1pro3.c): 1 before.
+ * ..._after_read ends it. imp_measure never calibrates (it returns
+ * I1PRO3_RD_NEEDS_CAL instead), so every measurement in between is the
+ * reading's. */
+void i1pro3_cq_lights_reading(void *pp, int on) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m = cq3_lights_m(p);
+	if (m == NULL)
+		return;
+	m->cq_lights_reading = on;
+	m->cq_lights_force_off = 0;
+	if (on)
+		m->cq_lights_press_count = m->switch_count;
+}
+
+/* The instrument's button was pressed since the current reading began (the
+ * switch thread counts presses): its measurement is about to start. */
+static int cq3_lights_pressed(i1pro3imp *m) {
+	return m->cq_lights_reading && m->switch_count != m->cq_lights_press_count;
+}
+
+/* After i1pro3_imp_measure: ends the reading. Without result signals, GOOD
+ * for a reading, BAD for a reading the instrument could not take; nothing for
+ * anything else (an abort, a command, a calibration needed, a USB or hardware
+ * fault). With result signals nothing: ChromIQ's helper decides. */
 void i1pro3_cq_lights_after_read(void *pp, int rv) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m;
 	int which;
+	if (p != NULL && p->dtype == instI1Pro3 && p->m != NULL) {
+		((i1pro3imp *)p->m)->cq_lights_reading = 0;	/* whatever the state */
+		((i1pro3imp *)p->m)->cq_lights_force_off = 0;
+	}
+	if ((m = cq3_lights_m(p)) == NULL)
+		return;
+	if (m->cq_lights_signals)
+		return;
 	if (rv == I1PRO3_OK)
 		which = CQ3_LIGHTS_GOOD;
 	else if (rv == I1PRO3_RD_SHORTMEAS || rv == I1PRO3_RD_READINCONS
@@ -6362,14 +6442,75 @@ void i1pro3_cq_lights_after_read(void *pp, int rv) {
 		which = CQ3_LIGHTS_BAD;
 	else
 		return;
-	cq3_lights_show((i1pro3 *)pp, which);
+	cq3_lights_show(p, which);
 }
 
 /* After i1pro3_imp_calibrate: READY when it succeeded, nothing otherwise. */
 void i1pro3_cq_lights_after_cal(void *pp, int rv) {
-	if (rv != I1PRO3_OK)
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m = cq3_lights_m(p);
+	if (rv != I1PRO3_OK || m == NULL || m->cq_lights != CQ3_LIGHTS_DARK
+	 || cq3_lights_trigger_pending(m))
 		return;
-	cq3_lights_show((i1pro3 *)pp, CQ3_LIGHTS_READY);
+	cq3_lights_send(p, CQ3_LIGHTS_READY, CQ3_LIGHTS_TOUT);
+}
+
+/* The helper's: a result is owed for the strip it has just reported. */
+void i1pro3_cq_lights_owe(void *pp) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m = cq3_lights_m(p);
+	if (m == NULL || !m->cq_lights_signals)
+		return;
+	m->cq_lights_owed = 1;
+	m->cq_lights_owed_ms = msec_time();
+}
+
+/* How long a result has been owed, in ms; -1 when none is. */
+int i1pro3_cq_lights_owed_ms(void *pp) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m = cq3_lights_m(p);
+	if (m == NULL || !m->cq_lights_owed)
+		return -1;
+	return (int)(msec_time() - m->cq_lights_owed_ms);
+}
+
+/* The helper's, with result signals only: 1 = GOOD (accepted), 0 = BAD
+ * (refused, please look at the screen), -1 = READY if dark (or, with "left
+ * on", if a reading ran since the last pattern: the instrument most likely
+ * went dark by itself at the press). Never while a
+ * trigger is still to be sent, never once the button was pressed for the next
+ * reading. Ends an owed result. */
+void i1pro3_cq_lights_result(void *pp, int good) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m = cq3_lights_m(p);
+	int count;
+	if (m == NULL || !m->cq_lights_signals || cq3_lights_trigger_pending(m)
+	 || cq3_lights_pressed(m))
+		return;
+	m->cq_lights_owed = 0;
+	if (good < 0 && m->cq_lights != CQ3_LIGHTS_DARK && !m->cq_lights_maybe_dark)
+		return;
+	count = m->switch_count;
+	cq3_lights_send(p, good < 0 ? CQ3_LIGHTS_READY
+	                            : good ? CQ3_LIGHTS_GOOD : CQ3_LIGHTS_BAD,
+	                CQ3_LIGHTS_TOUT);
+	/* The button may have been pressed while the bytes were on their way
+	 * (the switch thread sees a press a few ms late): then this reading's
+	 * measurements get the off after all, even with "left on", so a pattern
+	 * started at the press never plays through it. */
+	if (m->cq_lights_reading && m->switch_count != count)
+		m->cq_lights_force_off = 1;
+}
+
+/* The two choices, from the helper, before ..._begin (0/0 = 4.3.34). */
+void i1pro3_cq_lights_options(void *pp, int signals, int left_on) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m;
+	if (p == NULL || p->dtype != instI1Pro3 || (m = (i1pro3imp *)p->m) == NULL
+	 || m->cq_lights != CQ3_LIGHTS_UNUSED)
+		return;
+	m->cq_lights_signals = signals ? 1 : 0;
+	m->cq_lights_left_on = left_on ? 1 : 0;
 }
 
 /* Start using the lights. ChromIQ's helper calls this, and only when the user
@@ -6389,16 +6530,222 @@ int i1pro3_cq_lights_begin(void *pp) {
 	return m->cq_lights == CQ3_LIGHTS_DARK || m->cq_lights == CQ3_LIGHTS_LIT;
 }
 
-/* Stop using the lights: OFF when a pattern is playing (and no trigger is
- * still to be sent), then never send again. */
-void i1pro3_cq_lights_end(void *pp) {
+/* The choices in use after ..._begin (bit 0 signals, bit 1 left_on); 0 when
+ * the lights are not in use. */
+int i1pro3_cq_lights_choices(void *pp) {
 	i1pro3 *p = (i1pro3 *)pp;
 	i1pro3imp *m = cq3_lights_m(p);
 	if (m == NULL)
-		return;
-	if (m->cq_lights == CQ3_LIGHTS_LIT && !cq3_lights_trigger_pending(m))
-		cq3_lights_send(p, CQ3_LIGHTS_OFF, CQ3_LIGHTS_TOUT_CLOSE);
+		return 0;
+	return (m->cq_lights_signals ? 1 : 0) | (m->cq_lights_left_on ? 2 : 0);
+}
+
+/* The firmware (version x 100, as Argyll reads it at open) of an i1Pro 3
+ * whose lights are in use, for the helper's report; -1 otherwise. Only
+ * reported, never a condition: Argyll's light code has none. */
+int i1pro3_cq_lights_firmware(void *pp) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m = cq3_lights_m(p);
+	if (m == NULL)
+		return -1;
+	return m->fwver;
+}
+
+/* Stop using the lights: OFF when a pattern is playing (and no trigger is
+ * still to be sent), then never send again. Returns 1 when the lights are
+ * known to be off afterwards (an off went out, or nothing was playing), 0
+ * when they may still play: not in use (nothing to say), a trigger still
+ * pending, or the off failed. */
+int i1pro3_cq_lights_end(void *pp) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m = cq3_lights_m(p);
+	int off = 1;
+	if (m == NULL)
+		return 0;
+	if (m->cq_lights == CQ3_LIGHTS_LIT) {
+		if (cq3_lights_trigger_pending(m))
+			off = 0;
+		else {
+			cq3_lights_send(p, CQ3_LIGHTS_OFF, CQ3_LIGHTS_TOUT_CLOSE);
+			off = m->cq_lights == CQ3_LIGHTS_DARK;
+		}
+	}
 	m->cq_lights = CQ3_LIGHTS_DONE;
+	m->cq_lights_owed = 0;
+	return off;
+}
+
+/* ============================================================ */
+/* CHROMIQ PATCH: the ruler check (Preferences > Beta, 2026-11-14; stage 1,
+ * CHECK ONLY), the i1Pro 3 / 3 Plus. NOTHING NEW IS SENT: ArgyllCMS already
+ * asks for the zebra ruler on every hand-held strip scan and reads it on 0x84
+ * (i1pro3_do_measure, i1pro3_zebra_proc). While ChromIQ's helper has armed one
+ * read_strip, these hooks only COPY what the driver already has: the decoded
+ * ruler samples (before ArgyllCMS frees them), the counts, whether ArgyllCMS
+ * placed the patches by the ruler (p2m), where its recogniser cut and a coarse
+ * trace. ArgyllCMS's own behaviour (a failed ruler read fails the strip; its
+ * own count check) is unchanged, option on or off.
+ */
+#include "cq_ruler.h"
+
+static cq_ruler_rec *cq3_ruler_r(i1pro3imp *m) {
+	return (cq_ruler_rec *)m->cq_ruler_rec;
+}
+
+int i1pro3_cq_ruler_options(void *pp, int on) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m;
+	if (p == NULL || (m = (i1pro3imp *)p->m) == NULL)
+		return 0;
+	if (!on || p->dtype != instI1Pro3 || !p->inited)
+		return 0;
+	if (m->cq_ruler_rec == NULL
+	 && (m->cq_ruler_rec = calloc(1, sizeof(cq_ruler_rec))) == NULL)
+		return 0;
+	m->cq_ruler_on = 1;
+	return 1;
+}
+
+void i1pro3_cq_ruler_arm(void *pp, int on) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m;
+	if (p == NULL || (m = (i1pro3imp *)p->m) == NULL || !m->cq_ruler_on)
+		return;
+	if (on && cq3_ruler_r(m) != NULL)
+		cq_ruler_rec_clear(cq3_ruler_r(m));
+	m->cq_ruler_armed = on;
+	m->cq_ruler_recording = 0;
+}
+
+/* -1 = not in use, 0 = in use (the i1Pro 3 never gives the ruler up: nothing
+ * of ChromIQ's runs on its USB). */
+int i1pro3_cq_ruler_state(void *pp) {
+	i1pro3 *p = (i1pro3 *)pp;
+	if (p == NULL || p->m == NULL || !((i1pro3imp *)p->m)->cq_ruler_on)
+		return -1;
+	return 0;
+}
+
+/* The firmware (version x 100), as the lights report it. */
+int i1pro3_cq_ruler_firmware(void *pp) {
+	i1pro3 *p = (i1pro3 *)pp;
+	if (p == NULL || p->m == NULL)
+		return -1;
+	return ((i1pro3imp *)p->m)->fwver;
+}
+
+/* Whether the instrument's EEPROM says it has the ruler sensor. */
+int i1pro3_cq_ruler_sensor(void *pp) {
+	i1pro3 *p = (i1pro3 *)pp;
+	if (p == NULL || p->m == NULL)
+		return 0;
+	return (((i1pro3imp *)p->m)->capabilities & I1PRO3_CAP_ZEB_RUL) != 0;
+}
+
+int i1pro3_cq_ruler_take(void *pp, void *vout) {
+	i1pro3 *p = (i1pro3 *)pp;
+	cq_ruler_rec *out = (cq_ruler_rec *)vout;
+	i1pro3imp *m;
+	cq_ruler_rec *r;
+	if (out != NULL)
+		memset(out, 0, sizeof(*out));
+	if (p == NULL || (m = (i1pro3imp *)p->m) == NULL
+	 || (r = cq3_ruler_r(m)) == NULL || !r->valid || out == NULL)
+		return 0;
+	*out = *r;
+	memset(r, 0, sizeof(*r));
+	m->cq_ruler_recording = 0;
+	return 1;
+}
+
+/* i1pro3_do_measure: the decoded samples, before ArgyllCMS processes and
+ * frees them. One-shot: only the armed strip's scan. */
+void i1pro3_cq_ruler_zeb(void *pp, unsigned char *zeb, int numzeb,
+                         int nummeas, int intclocks, double inttime, int zbytes) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m = (i1pro3imp *)p->m;
+	cq_ruler_rec *r = cq3_ruler_r(m);
+	long pos = 0, last_at = -1;
+	int last_code = -1;
+	if (!m->cq_ruler_on || !m->cq_ruler_armed || r == NULL)
+		return;
+	m->cq_ruler_armed = 0;
+	cq_ruler_rec_clear(r);
+	r->valid = 1;
+	r->gen = 3;
+	r->ended = CQ_RULER_END_ARGYLL;
+	r->readings = nummeas;
+	r->clocks = intclocks;
+	r->clock_s = m->intclkp;
+	r->inttime = inttime;
+	r->bytes = zbytes;
+	if (zeb != NULL && numzeb > 0)
+		cq_ruler_rec_feed(r, zeb, numzeb, &pos, &last_at, &last_code);
+	r->samples = numzeb > 0 ? numzeb : 0;
+	m->cq_ruler_recording = 1;
+}
+
+/* ...and whether ArgyllCMS then used it to place the patches. */
+void i1pro3_cq_ruler_used(void *pp, int used, int npos) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m = (i1pro3imp *)p->m;
+	if (m->cq_ruler_recording && cq3_ruler_r(m) != NULL) {
+		cq3_ruler_r(m)->argyll_used = used;
+		cq3_ruler_r(m)->npos = npos;
+	}
+}
+
+/* ArgyllCMS's own ruler read failed (it fails the strip, as always). */
+void i1pro3_cq_ruler_failed(void *pp, int err) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m = (i1pro3imp *)p->m;
+	cq_ruler_rec *r = cq3_ruler_r(m);
+	if (!m->cq_ruler_on || !m->cq_ruler_armed || r == NULL)
+		return;
+	m->cq_ruler_armed = 0;
+	cq_ruler_rec_clear(r);
+	r->valid = 1;
+	r->gen = 3;
+	r->ended = CQ_RULER_END_ERROR;
+	r->icom_err = err;
+}
+
+/* i1pro3_locate_patches: copies only, while a record is open. */
+void i1pro3_cq_ruler_trace(void *pp, double **rawmeas, int nummeas,
+                           double *maxval, int slots) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m = (i1pro3imp *)p->m;
+	if (m->cq_ruler_recording && cq3_ruler_r(m) != NULL)
+		cq_ruler_rec_trace(cq3_ruler_r(m), rawmeas, nummeas, maxval,
+		                   m->nraw, slots ? 1 : 0);
+}
+
+void i1pro3_cq_ruler_cut(void *pp, void *vpat, int npat, int slots) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m = (i1pro3imp *)p->m;
+	i1pro3_patch *pat = (i1pro3_patch *)vpat;
+	int k, pix = 0;
+	if (!m->cq_ruler_recording || cq3_ruler_r(m) == NULL || pat == NULL)
+		return;
+	for (k = 1; k < (npat - 1); k++) {
+		if (!pat[k].use)
+			continue;
+		cq_ruler_rec_cut(cq3_ruler_r(m), pix++, pat[k].ss, pat[k].no,
+		                 slots ? 1 : 0);
+	}
+}
+
+void i1pro3_cq_ruler_close(void *pp) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m;
+	if (p == NULL || (m = (i1pro3imp *)p->m) == NULL)
+		return;
+	if (m->cq_ruler_rec != NULL) {
+		cq_ruler_rec_clear(cq3_ruler_r(m));
+		free(m->cq_ruler_rec);
+		m->cq_ruler_rec = NULL;
+	}
+	m->cq_ruler_on = m->cq_ruler_armed = m->cq_ruler_recording = 0;
 }
 
 /* ============================================================ */
@@ -10234,6 +10581,7 @@ i1pro3_code i1pro3_locate_patches(
 		if (maxval[j] < 1.0)
 			maxval[j] = 1.0;
 	}
+	i1pro3_cq_ruler_trace(p, rawmeas, nummeas, maxval, p2m != NULL);	/* CHROMIQ PATCH: ruler check, a copy */
 
 #ifdef PATREC_DEBUG
 	plot = dmatrixz(0, 10, 0, nummeas-1);			/* Up to 11 values */  
@@ -10792,6 +11140,7 @@ i1pro3_code i1pro3_locate_patches(
 		pat[k].ss += trim;
 		pat[k].no = nnn;
 	}
+	i1pro3_cq_ruler_cut(p, pat, npat, p2m != NULL);	/* CHROMIQ PATCH: ruler check, a copy */
 
 #ifdef PATREC_SAVETRIMMED			/* Save debugging file */
 	{
@@ -13313,6 +13662,7 @@ i1pro3_code i1pro3_do_measure(
 		zebra_th->del(zebra_th);
 
 		if (m->zebra_rv != I1PRO3_OK) {
+			i1pro3_cq_ruler_failed(p, m->zebra_rv);	/* CHROMIQ PATCH: ruler check, a note */
 			a1logd(p->log,1,"i1pro3_zebra_thread failed with %d\n",m->zebra_rv);
 			return m->zebra_rv;
 		}
@@ -13374,9 +13724,13 @@ i1pro3_code i1pro3_do_measure(
 			adump_bytes(p->log, "", zeb, 0, numzeb);
 		}
 
+		/* CHROMIQ PATCH: ruler check (Beta): a copy, a no-op unless armed */
+		i1pro3_cq_ruler_zeb(p, zeb, numzeb, nummeas, intclocks, inttime, m->zebra_bread);
+
 		/* Process the raw data into a list of meas patches at each 0.2 mm location */
 		if ((ev = i1pro3_zebra_proc(p, p_p2m, p_npos, zeb, numzeb, inttime, nummeas)) != I1PRO3_OK)
 			return ev;
+		i1pro3_cq_ruler_used(p, *p_p2m != NULL, p_npos != NULL ? *p_npos : 0);	/* CHROMIQ PATCH: ruler check */
 
 		free(zeb);
 	}

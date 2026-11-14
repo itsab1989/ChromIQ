@@ -3599,7 +3599,8 @@ class LayoutOptionsPanel(QWidget):
             # Only while i1iO support is on.
             self._sync_i1io_widgets(inst == "IO2")
         self._sync_custom_size_words()
-        self._turn_custom_upright()
+        # not while the person is still typing in a box (4.3.34 review r2, b)
+        self._turn_custom_upright_when_left()
         # The extra clip-border On/Off selector — and its tooltip — are for CM/SS
         # only (i1/p3 use their Mode selector for the clip border).
         if hasattr(self, "clip_enable"):
@@ -4764,6 +4765,12 @@ class LayoutOptionsPanel(QWidget):
         restore = None
         if person and prev is not None and prev != new and (
                 prev == "IO2" or new == "IO2"):
+            if prev == "IO2":
+                # LEAVING THE i1iO LEAVES ITS BOXES (4.3.34 review r2, b): a
+                # size still lying there is turned now, while the i1iO is
+                # the one it is for, and the line goes with the size, so the
+                # way back shows both (`_i1io_left_note`).
+                self._i1io_left_note = self._turn_on_leaving_i1io()
             snap = self._recipe_as(prev)
             if prev == "IO2":
                 self._i1io_last_recipe = snap
@@ -4781,10 +4788,53 @@ class LayoutOptionsPanel(QWidget):
                     self.set_recipe(restore)
                 finally:
                     self._restoring_on_switch = False
+                if new == "IO2":
+                    self._give_back_the_turned_note()
         finally:
             self._instr_changing = False
             self._panel_inst = (self.instr.currentData()
                                 if self.instr is not None else None)
+
+    def _turn_on_leaving_i1io(self) -> "tuple[str, str] | None":
+        """Turn a lying custom size of the i1iO being left, and return
+        ``(paper, line)`` for the size and its "Turned to" line (also when it
+        was turned before), or None. Called before the paper list is rebuilt
+        for the new instrument, so Paper still says Custom; nothing is
+        emitted, the build of the instrument chosen next is not touched."""
+        if not hasattr(self, "custom_w") or self.paper is None \
+                or self.paper.currentData() != "__custom__":
+            return None
+        if hasattr(self, "_custom_turn_timer"):
+            self._custom_turn_timer.stop()
+        w, h = self.custom_w.value(), self.custom_h.value()
+        if w > h:
+            for box, value in ((self.custom_w, h), (self.custom_h, w)):
+                box.blockSignals(True)
+                box.setValue(value)
+                box.blockSignals(False)
+            from workflow import measurement_messages as _mm
+            text = tr(_mm._I1IO_CUSTOM_TURNED).format(w=f"{h:g}", h=f"{w:g}")
+            self._custom_turned_note = text
+            self._custom_turned_lbl.setText(text)
+            self.notice.emit(text)
+        note = getattr(self, "_custom_turned_note", "")
+        if not note:
+            return None
+        cw, ch = int(self.custom_w.value()), int(self.custom_h.value())
+        return (f"{cw}x{ch}", note)
+
+    def _give_back_the_turned_note(self) -> None:
+        """Back on the i1iO with the size it was left with: its line too."""
+        left = getattr(self, "_i1io_left_note", None)
+        if not left or self.paper is None \
+                or self.paper.currentData() != "__custom__":
+            return
+        paper, note = left
+        if self.selection()[1] != paper:
+            return
+        self._custom_turned_note = note
+        self._custom_turned_lbl.setText(note)
+        self._sync_custom_size_words()
 
     def _recipe_as(self, code: str):
         """`get_recipe` as the panel held it while *code* was chosen: the
@@ -7265,7 +7315,10 @@ class LayoutOptionsPanel(QWidget):
         if self.paper is not None:
             self._custom_paper_w.setVisible(self.paper.currentData() == "__custom__")
         self._sync_custom_size_words()
-        self._turn_custom_upright()
+        # NOT WHILE THE PERSON IS STILL TYPING IN A BOX (4.3.34 review r2, a):
+        # Paper away from Custom and back, with 230 half typed in the width
+        # box, turned it at once. Leaving the box turns it, and says so.
+        self._turn_custom_upright_when_left()
         # Re-pull instrument margins for the new instrument/paper combo (#93).
         if hasattr(self, "use_instr_margins") and self.use_instr_margins.isChecked():
             self._sync_instr_margins()
@@ -7285,14 +7338,29 @@ class LayoutOptionsPanel(QWidget):
         self._custom_size_lbl.setText(
             tr("Printed sheet, upright (mm), width × height:") if i1io
             else tr("Custom size (mm):"))
-        if not (i1io and self.paper is not None
-                and self.paper.currentData() == "__custom__"):
-            self._custom_turned_lbl.setVisible(False)
+        shown = (i1io and self.paper is not None
+                 and self.paper.currentData() == "__custom__")
+        # THE NOTE BELONGS TO THE TURNED SIZE (4.3.34 review r2, b): the
+        # instrument away and back brought the size back upright with the
+        # line gone. It comes back with the size, until a size is typed.
+        self._custom_turned_lbl.setVisible(
+            bool(shown and getattr(self, "_custom_turned_note", "")))
 
     def _custom_size_edited(self, *_a) -> None:
         # a size typed again: the last "turned" line no longer applies
+        self._custom_turned_note = ""
         if hasattr(self, "_custom_turned_lbl"):
             self._custom_turned_lbl.setVisible(False)
+
+    def commit_custom_size(self) -> None:
+        """Show in the boxes the size a build is about to use (4.3.34 review
+        r2, c): Return in a box and then Generate, the cursor still there,
+        built the upright sheet while the boxes still showed it lying and no
+        line said so. Called by the tab when a build starts; the turn that
+        waits for the person to leave the boxes is not needed after it."""
+        if hasattr(self, "_custom_turn_timer"):
+            self._custom_turn_timer.stop()
+        self._turn_custom_upright()
 
     def _custom_box_has_focus(self) -> bool:
         # The WINDOW's focus widget, not the application's: the latter is
@@ -7316,6 +7384,10 @@ class LayoutOptionsPanel(QWidget):
         to height is still typing the size (4.3.34 review, major: 230, Tab,
         320 was built as 210 x 320). The build itself never depends on
         this: `selection` gives the upright size in any case."""
+        # A panel without the paper selectors (Preferences > Chart Layout)
+        # has no custom boxes at all (the 2026-11-14 gate).
+        if not hasattr(self, "custom_w"):
+            return
         if self._custom_box_has_focus():
             return
         self._turn_custom_upright()
@@ -7343,6 +7415,7 @@ class LayoutOptionsPanel(QWidget):
             box.blockSignals(False)
         from workflow import measurement_messages as _mm
         text = tr(_mm._I1IO_CUSTOM_TURNED).format(w=f"{h:g}", h=f"{w:g}")
+        self._custom_turned_note = text
         self._custom_turned_lbl.setText(text)
         self._custom_turned_lbl.setVisible(True)
         self.notice.emit(text)

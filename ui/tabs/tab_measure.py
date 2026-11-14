@@ -316,7 +316,9 @@ def _REREAD_TOOLTIP() -> str:
         "complete there is no second “All strips read” window to wait for.")
 
 #: The preview's nav row is inset by 12 px, so the reading-times frame uses the
-#: same inset and its edges line up with the PREV and NEXT buttons (Knut, #131).
+#: same inset (Knut, #131: its edges lined up with the PREV and NEXT buttons
+#: while those stood at the row's two ends; since 2026-11-14 they are one
+#: centred group and the frame keeps the row's inset).
 _PACE_SIDE_MARGIN = 12
 #: ~2-3 mm of air above and below the frame, so the page buttons and the warning
 #: line are not crammed against it (Knut, #131 2026-07-27).
@@ -9672,6 +9674,22 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
     # Quitting the application, which is an ending like any other
     # ------------------------------------------------------------------
 
+    def _a_reader_takes_keys(self) -> bool:
+        """Whether a key pressed now has a reader to go to: the session is
+        live AND its process (chartread, or ChromIQ's own reader, which also
+        drives the CR30) is running. Asked through the class by the key
+        filter, so the stand-in tabs of older tests need nothing new: one
+        without a runner is answered as before (live is enough)."""
+        if not getattr(self, "_session_live", False):
+            return False
+        runner = getattr(self, "_runner", None)
+        if runner is None:
+            return True
+        try:
+            return bool(runner.is_running)
+        except Exception:      # noqa: BLE001 — never eat a keystroke on doubt
+            return False
+
     def a_measurement_is_running(self) -> bool:
         """True while a reader is live and waiting for this tab's keys."""
         if (_fd9_ask(self, "_fd9_engaged")
@@ -16903,6 +16921,20 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             if not getattr(self, "_session_live", False):
                 QApplication.instance().removeEventFilter(self)
                 return False
+            # …AND A SESSION MARKED LIVE IS NOT YET A READER LISTENING
+            # (2026-11-14). `_session_live` goes up at Start, before the
+            # reader is launched, and comes down in `_on_measure_done`, after
+            # it has ended; in between and around it nothing reads the keys,
+            # and a driven test once lost its keyboard to this filter after
+            # its reading was over. A key is taken only while the reader's
+            # process really runs; otherwise it goes where it would go
+            # without a measurement. A person measuring sees no change: the
+            # keys that reach a waiting reader are the same, and a key with
+            # no process behind it had nowhere to go before either ("send_key
+            # ...: no active process"). The filter itself stays installed,
+            # because the reader may be about to start.
+            if not TabMeasure._a_reader_takes_keys(self):
+                return False
             # NO KEY PRESSED AT ONE OF OUR OWN WINDOWS REACHES THE INSTRUMENT.
             #
             # This filter is installed on the whole APPLICATION, so it is first
@@ -17898,6 +17930,107 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         import core.sound as _snd
         self._sound.play(_snd.SLOW_DOWN if too_fast else _snd.STRIP_OK)
 
+    def _strip_verdict(self, ev: "dict | None", *, too_fast: bool) -> bool:
+        """The one cue of an accepted strip, and the ruler question (the
+        ruler check, Preferences > Beta, 2026-11-14). Returns True when the
+        ruler question was asked (then it is this strip's only window).
+
+        "Read quickly" wins: its window opens and the ruler finding stays in
+        the log (challenger M6, one window per strip). The ruler question
+        plays Strip read failed, as "Strip may be misaligned" does
+        (measurement_window_sounds.md), and the lights go red.
+        """
+        ruler = (ev or {}).get("ruler") or {}
+        if too_fast or not ruler.get("ask"):
+            self._play_strip_cue(too_fast=too_fast)
+            return False
+        _v = getattr(getattr(self, "_manager", None), "lights_strip_verdict",
+                     None)
+        if callable(_v):
+            try:
+                _v(True)                    # red: ChromIQ asks about it
+            except Exception:      # noqa: BLE001
+                pass
+        self._prompt_ruler_not_covered(str((ev or {}).get("strip", "")), ruler)
+        return True
+
+    def _prompt_ruler_not_covered(self, strip: str, ruler: dict) -> None:
+        """M-STRIP-RULER-NOT-COVERED (§M-PROPOSED): an accepted strip the
+        ruler says was clearly not read all the way. Re-read Strip (the
+        default) or Continue Anyway, as "Strip Read Quickly"."""
+        from PyQt6.QtWidgets import (QDialog, QHBoxLayout, QLabel,
+                                     QPushButton, QVBoxLayout)
+        from workflow import measurement_messages as M
+        if not self._manager.engine_active or not strip:
+            return
+        msg = M.CATALOGUE["M-STRIP-RULER-NOT-COVERED"]
+        mm = ruler.get("mm_per_step")
+        if mm and ruler.get("span_mm"):
+            moved = tr("about {n} mm").format(
+                n=int(round((ruler.get("coverage_steps")
+                             or ruler.get("travel_steps") or 0) * mm)))
+            need = tr("about {n} mm").format(n=int(round(ruler["span_mm"])))
+        else:
+            moved = tr("about {n} ruler steps").format(
+                n=int(round(ruler.get("coverage_steps")
+                            or ruler.get("travel_steps") or 0)))
+            need = tr("at least about {n} ruler steps").format(
+                n=int(round(ruler.get("span_steps") or 0)))
+        QApplication.instance().removeEventFilter(self)
+        dlg = QDialog(self)
+        dlg.setObjectName("ruler_not_covered_window")
+        title, body = msg.render(strip=strip, moved=moved, need=need)
+        dlg.setWindowTitle(title)
+        dlg.setMinimumWidth(560)
+        layout = QVBoxLayout(dlg)
+        layout.setSpacing(16)
+        layout.setContentsMargins(24, 20, 24, 20)
+        text = QLabel("<b>" + title + "</b><br><br>"
+                      + body.replace("\n", "<br>"), dlg)
+        text.setWordWrap(True)
+        layout.addWidget(text)
+        chosen = ["continue"]
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        row.addStretch(1)
+        again = QPushButton(tr("Re-read Strip"), dlg)
+        again.setObjectName("primary")
+        again.setFixedHeight(32)
+        again.clicked.connect(lambda: (chosen.__setitem__(0, "reread"),
+                                       dlg.accept()))
+        keep = QPushButton(tr("Continue Anyway"), dlg)
+        keep.setFixedHeight(32)
+        keep.clicked.connect(lambda: (chosen.__setitem__(0, "continue"),
+                                      dlg.accept()))
+        row.addWidget(keep)
+        row.addWidget(again)
+        again.setDefault(True)
+        layout.addLayout(row)
+        tint_dialog_primary(dlg, _TAB_COLOR)
+        self._pace_prompt_open = True
+        try:
+            self._cue_window("STRIP_FAIL")
+            self._exec_measurement_window(dlg)
+        finally:
+            self._pace_prompt_open = False
+        QApplication.instance().installEventFilter(self)
+        try:
+            self._manager.ruler_answer(strip, chosen[0])
+        except Exception:      # noqa: BLE001
+            pass
+        if chosen[0] == "reread":
+            self._all_done_deferred = False
+            self._skip_next_all_done = True
+            self._manager.goto_strip(strip)
+            self._log.appendPlainText(
+                "\n" + tr("Re-reading strip {name}: please read it from the "
+                          "white paper before the first patch to the white "
+                          "paper after the last.").format(name=strip))
+            self._log.ensureCursorVisible()
+        elif getattr(self, "_all_done_deferred", False):
+            self._all_done_deferred = False
+            self._on_all_stripes_done()
+
     def _on_scan_started(self) -> None:
         """The instrument fired: the swipe starts now (#131, Knut 2026-07-26).
 
@@ -17948,7 +18081,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._scan_awaiting_ready = False
         if not self._settings.get("pace_hint_enabled", True):
             # No pace judgement wanted, so the strip simply sounds as read.
-            self._play_strip_cue(too_fast=False)
+            self._strip_verdict(ev, too_fast=False)
             return
         try:
             import time
@@ -17963,7 +18096,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 # Nothing to judge: no scan start (stock chartread reports none)
                 # or no patches (a strip that failed is handled separately).
                 # The strip was still read, so it still gets its cue.
-                self._play_strip_cue(too_fast=False)
+                self._strip_verdict(ev, too_fast=False)
                 return
             pace = tracker.strip_timed(time.monotonic() - started, patches)
             self._scan_started_at = None
@@ -17981,8 +18114,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             # accepted but read too fast used to sound its "strip read OK" cue
             # and the slow-down cue together. The verdict is only known here,
             # which is why the cue is chosen here and nowhere else.
-            self._play_strip_cue(too_fast=pace.too_fast)
-            if pace.too_fast:
+            if not self._strip_verdict(ev, too_fast=pace.too_fast) \
+                    and pace.too_fast:
                 # Accepted, but under the threshold: offer the same choice a
                 # failed strip gets — read it again, or keep it (Knut, #131).
                 self._prompt_too_fast_strip(str((ev or {}).get("strip", "")),
@@ -21798,6 +21931,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             self._settings.get("i1pro2_lights_signals", True))
         p.engine_lights_during_reading = bool(
             self._settings.get("i1pro2_lights_during_reading", False))
+        p.engine_ruler_check = bool(
+            self._settings.get("ruler_check_beta", False))
         p.cal_auto_retries = int(self._settings.get("cal_auto_retries", 3))
         import os as _os
         replay = _os.environ.get("CHROMIQ_REPLAY")

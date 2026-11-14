@@ -3627,16 +3627,17 @@ class SettingsDialog(QDialog):
         _beta.addLayout(_lightsrow)
         # kept by name for the tests and the on-screen drivers
         self._i1pro2_lights_tip = i1pro2_lights_tip
-        # ...and its two choices for the i1Pro 2 (Basti, 2026-11-13: "safe
-        # defaults, advanced users may tweak", and "can you make the user
-        # choose this?"): dependent options, indented under the box and greyed
-        # (keeping their values) while it is off. Both on their first entry =
-        # exactly 4.3.33. The (i) of the box explains both.
+        # ...and its two choices (Basti, 2026-11-13: "safe defaults, advanced
+        # users may tweak", and "can you make the user choose this?"; the
+        # i1Pro 2 first, the i1Pro 3 too since 2026-11-14): dependent options,
+        # indented under the box and greyed (keeping their values) while it is
+        # off. Both on their first entry = exactly 4.3.33 / 4.3.34 for both
+        # instruments. The (i) of the box explains both.
         self._lights_signals_label = QLabel(
-            tr("i1Pro 2, what the lights show:"), self)
+            tr("What the lights show:"), self)
         self._lights_signals_combo = QComboBox(self)
         self._lights_signals_combo.addItem(
-            tr("Ready light only (as in ChromIQ 4.3.33)"), False)
+            tr("Ready light; the instrument's own green / red (i1Pro 3)"), False)
         self._lights_signals_combo.addItem(
             tr("Ready light and result signals (green / red)"), True)
         self._lights_signals_label.setBuddy(self._lights_signals_combo)
@@ -3647,10 +3648,10 @@ class SettingsDialog(QDialog):
         _lsig.addStretch()
         _beta.addLayout(_lsig)
         self._lights_reading_label = QLabel(
-            tr("i1Pro 2, during a reading:"), self)
+            tr("During a reading:"), self)
         self._lights_reading_combo = QComboBox(self)
         self._lights_reading_combo.addItem(
-            tr("Off during a reading (as in ChromIQ 4.3.33)"), False)
+            tr("Off during a reading (the cautious choice)"), False)
         self._lights_reading_combo.addItem(
             tr("Left on during a reading (as i1Profiler does by hand)"), True)
         self._lights_reading_label.setBuddy(self._lights_reading_combo)
@@ -3666,6 +3667,24 @@ class SettingsDialog(QDialog):
         self._lights_signals_label.setMinimumWidth(_lw)
         self._lights_reading_label.setMinimumWidth(_lw)
         self._i1pro2_lights_check.toggled.connect(self._lights_choices_follow)
+
+        # THE RULER CHECK (Basti, 2026-11-14: "build the first ruler Beta now
+        # ... clearly labeled as a beta option anyway and off by default").
+        # Read at every Start: the helper is given --ruler, and the drivers
+        # (native/instlib, PROVENANCE.md) report how the instrument moved
+        # along its ruler. Values never change. Off = the base command line.
+        self._ruler_check_check = QCheckBox(
+            tr("X-Rite i1Pro 2 and i1Pro 3: check each strip with the "
+               "ruler (beta)"), self)
+        ruler_tip = TooltipButton(
+            tr("Ruler Check (beta)"), ruler_check_help(), self, min_width=680)
+        self._ruler_check_check.clicked.connect(self._on_ruler_check_clicked)
+        _rulerrow = QHBoxLayout()
+        _rulerrow.addWidget(self._ruler_check_check)
+        _rulerrow.addStretch()
+        _rulerrow.addWidget(ruler_tip)
+        _beta.addLayout(_rulerrow)
+        self._ruler_check_tip = ruler_tip
 
         # Konica Minolta FD-9 support (PR #213, written and contributed by
         # lessbones). Restart-to-apply: `workflow.fd9.support` reads it once
@@ -4630,6 +4649,44 @@ class SettingsDialog(QDialog):
         keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         if box.exec() != QMessageBox.StandardButton.Ok:
             self._i1pro2_lights_check.setChecked(False)
+
+    def _on_ruler_check_clicked(self, checked: bool) -> None:
+        """The ruler check (beta): the own-risk confirmation, as the lights'
+        (Cancel is the default and leaves the box off)."""
+        if not checked:
+            return
+        from PyQt6.QtWidgets import QMessageBox, QSpacerItem, QSizePolicy
+        box = QMessageBox(self)
+        box.setObjectName("ruler_check_confirmation")
+        box.setWindowTitle(tr("Ruler Check (beta)"))
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setText(ruler_check_confirmation())
+        box.setStandardButtons(QMessageBox.StandardButton.Ok
+                               | QMessageBox.StandardButton.Cancel)
+        ok_btn = box.button(QMessageBox.StandardButton.Ok)
+        cancel_btn = box.button(QMessageBox.StandardButton.Cancel)
+        ok_btn.setText(tr("Use the ruler check"))
+        from ui.default_button import mark_destructive
+        mark_destructive(ok_btn)
+        cancel_btn.setText(tr("Leave it off"))
+        from PyQt6.QtGui import QFontMetrics
+        from PyQt6.QtWidgets import QDialogButtonBox
+        for b in (ok_btn, cancel_btn):
+            w = QFontMetrics(b.font()).horizontalAdvance(b.text()) + 44
+            b.setMinimumWidth(w)
+        bbox = box.findChild(QDialogButtonBox)
+        if bbox is not None:
+            bbox.setCenterButtons(True)
+        grid = box.layout()
+        if grid is not None:
+            spacer = QSpacerItem(620, 1, QSizePolicy.Policy.Minimum,
+                                 QSizePolicy.Policy.Minimum)
+            grid.addItem(spacer, grid.rowCount(), 0, 1, grid.columnCount())
+        box.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        if box.exec() != QMessageBox.StandardButton.Ok:
+            self._ruler_check_check.setChecked(False)
 
     def _on_profile_engine_clicked(self, checked: bool) -> None:
         """Friendly beta consent dialog when the engine is switched on."""
@@ -6432,6 +6489,8 @@ class SettingsDialog(QDialog):
             bool(s.get("scanner_hex_charts", False)))
         self._i1pro2_lights_check.setChecked(
             bool(s.get("i1pro2_lights_beta", False)))
+        self._ruler_check_check.setChecked(
+            bool(s.get("ruler_check_beta", False)))
         self._lights_signals_combo.setCurrentIndex(
             1 if bool(s.get("i1pro2_lights_signals", True)) else 0)
         self._lights_reading_combo.setCurrentIndex(
@@ -7986,6 +8045,7 @@ class SettingsDialog(QDialog):
               self._calibrate_button_check.isChecked())
         s.set("scanner_hex_charts", self._scanner_hex_check.isChecked())
         s.set("i1pro2_lights_beta", self._i1pro2_lights_check.isChecked())
+        s.set("ruler_check_beta", self._ruler_check_check.isChecked())
         s.set("i1pro2_lights_signals",
               bool(self._lights_signals_combo.currentData()))
         s.set("i1pro2_lights_during_reading",
@@ -9145,52 +9205,72 @@ def i1pro2_lights_help() -> str:
            "on a user's own i1Pro 2, recorded on firmware 634. The measurement "
            "log shows your instrument's firmware: if it is another one, please "
            "tell us whether the lights behave as described."),
-        tr("**With “Ready light only” (as in ChromIQ 4.3.33), an i1Pro 2 "
-           "shows:**\n"
+        tr("**With “Ready light; the instrument's own green / red”, an "
+           "i1Pro 2 shows only a ready light, as in ChromIQ 4.3.33:**\n"
            "  •  white while it waits for you, for example for you to press "
            "its button and read the next strip;\n"
            "  •  no light while it calibrates or measures;\n"
            "  •  no light when the measurement ends.\n"
            "The white comes on about a second after the instrument is ready, "
            "so after a quick press you may not see it at all."),
-        tr("**During a reading (i1Pro 2 only):**\n"
+        tr("**With this on and “Ready light and result signals”, an i1Pro 3 "
+           "shows** (an i1Pro 3 Plus too, which ArgyllCMS handles in exactly "
+           "the same way):\n"
+           "  •  no light while it calibrates;\n"
+           "  •  after a successful calibration, the pattern i1Profiler shows "
+           "after its own calibration (we expect a short white blink), then a "
+           "slowly blinking white light while it waits for you;\n"
+           "  •  green twice after a strip or patch that ChromIQ accepted;\n"
+           "  •  red twice when ChromIQ did not accept a reading as it is, for "
+           "the same reasons as on the i1Pro 2. Please look at the screen "
+           "then: ChromIQ says what happened and whether to read it again;\n"
+           "  •  then the slowly blinking white again;\n"
+           "  •  no light when the measurement ends.\n"
+           "These are, byte for byte, the patterns X-Rite's i1Profiler sent to "
+           "a tester's own i1Pro 3, and with i1Profiler he saw them as green "
+           "twice and red twice. Nobody has seen them with ChromIQ yet, and "
+           "nobody has described yet what the instrument shows after a single "
+           "patch that was accepted. The measurement log shows your "
+           "instrument's firmware: please tell us the number if you report "
+           "anything."),
+        tr("**With “Ready light; the instrument's own green / red”, an "
+           "i1Pro 3 shows** the ready light and the same green and red as in "
+           "ChromIQ 4.3.34, but green and red then only tell you that the "
+           "instrument itself took a reading (green twice) or could not take "
+           "one (red twice, for example a strip swiped too quickly). They do "
+           "not tell you whether ChromIQ accepted the strip: that is shown on "
+           "screen only."),
+        tr("**If you switched this on in ChromIQ 4.3.34 and use an i1Pro 3:** "
+           "your i1Pro 3 now uses “Ready light and result signals”, the "
+           "default then (in 4.3.34 this choice applied to the i1Pro 2 only). "
+           "Green and red now follow ChromIQ's verdict on the strip. Choose "
+           "“Ready light; the instrument's own green / red” to keep what your "
+           "i1Pro 3 showed before."),
+        tr("**During a reading (i1Pro 2 and i1Pro 3):**\n"
            "  •  “Off during a reading” (the default) sends the instrument an "
            "“off” command before every calibration and every reading, as "
-           "ChromIQ 4.3.33 does. This is the cautious choice: ChromIQ makes "
+           "ChromIQ did before this choice existed. This is the cautious "
+           "choice: ChromIQ makes "
            "sure the lights are dark while it measures.\n"
            "  •  “Left on during a reading” sends no “off” command before a "
-           "strip or patch you read by hand, as i1Profiler does. The one "
-           "exception is the first reading after connecting, if no calibration "
-           "was needed: the steady white light from connecting is switched off "
-           "first, because i1Profiler was never seen measuring under it. A "
-           "tester who "
-           "measured with i1Profiler saw the lights dim by themselves while "
-           "the instrument measured, so the instrument most likely does this "
-           "on its own; nobody has seen it with ChromIQ yet. Before every "
-           "calibration ChromIQ still sends the “off” command, as i1Profiler "
-           "does too.\n"
+           "strip or patch you read by hand, as i1Profiler does. On an i1Pro 2 "
+           "the one exception is the first reading after connecting, if no "
+           "calibration was needed: the steady white light from connecting is "
+           "switched off first, because i1Profiler was never seen measuring "
+           "under it. Testers who measured with i1Profiler saw the lights of "
+           "both instruments go dark by themselves while the instrument "
+           "measured (the i1Pro 3 first flashes green once when you press its "
+           "button), so the instrument most likely does this on its own; "
+           "nobody has seen it with ChromIQ yet. Before every calibration "
+           "ChromIQ still sends the “off” command, whichever you choose.\n"
            "The ChromIQ team has not compared readings taken both ways, so we "
            "cannot promise that they are the same. If you try it, please "
            "compare a strip read both ways, and tell us whether the lights "
-           "dim while you measure."),
-        tr("The two choices change only the i1Pro 2. An i1Pro 3 always "
-           "behaves as described next, whatever you choose: its recording does "
-           "not show its lights in enough detail to offer more."),
-        tr("**With this on, an i1Pro 3 shows** (an i1Pro 3 Plus too, which "
-           "ArgyllCMS handles in exactly the same way):\n"
-           "  •  while it calibrates or measures, the lights behave exactly as "
-           "without this option;\n"
-           "  •  after a successful calibration, the pattern i1Profiler shows "
-           "after its own calibration (we expect a short white blink), then a "
-           "slowly breathing white light;\n"
-           "  •  after a reading, two green blinks, then the breathing white "
-           "light;\n"
-           "  •  when the instrument could not take a reading (for example a "
-           "strip swiped too quickly), two blinks that we expect to be red, "
-           "then the breathing white light;\n"
-           "  •  no light when the measurement ends.\n"
-           "Green only means that the instrument took a reading. Whether "
-           "ChromIQ accepts it for your chart is shown on screen, as before."),
+           "go dark while you measure."),
+        tr("Both choices apply to the i1Pro 2 and to the i1Pro 3. The two "
+           "instruments use different light commands, so each one gets only "
+           "the patterns recorded from i1Profiler on its own kind of "
+           "instrument."),
         tr("In rare cases (ChromIQ is forced to quit, or a light command "
            "fails) the lights can stay on until you unplug the instrument."),
         tr("**Only for the i1Pro 2 and the i1Pro 3.** The original i1Pro, the "
@@ -9211,13 +9291,16 @@ def i1pro2_lights_help() -> str:
            "own instruments. ChromIQ sends only light commands seen in those "
            "recordings, each at the moment i1Profiler sent it, and on "
            "the i1Pro 3 also the “off” that ArgyllCMS itself sends whenever it "
-           "connects. Two things are ChromIQ's own choice: with “Ready light "
-           "only”, the i1Pro 2 shows white again after every reading (its recording was made on a "
-           "measuring table, where i1Profiler kept the lights dark), and the "
-           "i1Pro 3's lights are switched off while it measures (i1Profiler "
-           "leaves them on), so every reading is taken with the lights just as "
-           "without this option. ChromIQ sends nothing else that is new, and "
-           "it never writes anything into the instrument's memory."),
+           "connects. Some things are ChromIQ's own choice: with “Ready light; "
+           "the instrument's own green / red”, the i1Pro 2 shows white again "
+           "after every reading "
+           "(its recording was made on a measuring table, where i1Profiler "
+           "kept the lights dark); before every calibration, and with “Off "
+           "during a reading” before every reading, both instruments get an "
+           "“off” command that i1Profiler does not send to an i1Pro 3, so "
+           "those measurements are taken with the lights just as without this "
+           "option. ChromIQ sends nothing else that is new, and it never "
+           "writes anything into the instrument's memory."),
         tr("If a light command fails, ChromIQ stops using the lights for the "
            "rest of that measurement, says so in the measurement log and "
            "carries on measuring as normal. The lights may then stay as they "
@@ -9256,18 +9339,13 @@ def i1pro2_lights_confirmation() -> str:
         "You are switching on the instrument lights for the i1Pro 2 and the "
         "i1Pro 3. Here is what that means.\n\n"
         "•  While ChromIQ's chart-reading engine measures with one of them, "
-        "its lights show the instrument's state between readings: an i1Pro 2 "
-        "shows a softly pulsing white while it waits for you, green twice "
+        "its lights show the instrument's state between readings: a softly "
+        "pulsing or slowly blinking white while it waits for you, green twice "
         "after a reading ChromIQ accepted and red twice when ChromIQ asks you "
-        "to look at the screen (patterns recorded on an i1Pro 2 with firmware "
-        "634), and no light while it calibrates or measures "
-        "(you can choose below to send no off command before a reading, as "
-        "i1Profiler does, or the plain white light of ChromIQ 4.3.33); an "
-        "i1Pro 3 shows i1Profiler's patterns after a "
-        "calibration or a reading (green blinks after a reading, blinks we "
-        "expect to be red when it could not take one, then breathing white), "
-        "and while it calibrates or measures its lights behave as without this "
-        "option. Other instruments are not affected.\n\n"
+        "to look at the screen, and no light while it calibrates or measures. "
+        "Below you can choose ChromIQ 4.3.33's way instead, and whether "
+        "ChromIQ sends no off command before a reading, as i1Profiler does. "
+        "Other instruments are not affected.\n\n"
         "•  This has not been tried on a real i1Pro 2 or i1Pro 3 yet. It was "
         "worked out from ArgyllCMS's program code and from recordings of "
         "X-Rite's i1Profiler with users' own instruments, and ChromIQ sends "
@@ -9279,6 +9357,90 @@ def i1pro2_lights_confirmation() -> str:
         "you saw with “Report a Bug…”.\n\n"
         "•  You can switch it off again at any time.\n\n"
         "Would you like to use the lights?")
+
+
+def ruler_check_help() -> str:
+    """The ⓘ of Preferences ▸ Beta ▸ the ruler check (2026-11-14). Every
+    sentence is checked against the code: the helper's --ruler and its gates
+    (chromiq_chartread.c ``cq_ruler_for_session``), the drivers' patches
+    (native/instlib/PROVENANCE.md), workflow/ruler_check.py and
+    workflow/ruler_session.py."""
+    return "\n\n".join((
+        tr("When you scan a strip with an X-Rite i1Pro 2 or i1Pro 3, the "
+           "instrument slides along its plastic ruler. The ruler has a "
+           "striped track, and the instrument counts the stripes as it "
+           "passes. So it can tell how far it moved, in which direction and "
+           "how fast. X-Rite's i1Profiler uses this on every strip."),
+        tr("With this option on, ChromIQ's chart-reading engine uses the "
+           "ruler to CHECK each strip. After every strip the Measure log "
+           "shows how far, which way and how fast the instrument moved. "
+           "When ChromIQ has accepted a strip but the ruler says the "
+           "instrument clearly did not pass over all of its patches, "
+           "ChromIQ asks whether you would like to read that strip again."),
+        tr("Your readings are never changed by this. The colour values and "
+           "which reading belongs to which patch are worked out exactly as "
+           "without the option. When the ruler data is missing or "
+           "incomplete, the strip is simply read the usual way, and the log "
+           "says so. Reading without the ruler under the instrument is fine "
+           "too: ChromIQ mentions it once and carries on."),
+        tr("What changes for the instrument: an i1Pro 3 already reports its "
+           "ruler to ArgyllCMS on every strip, so nothing new is sent to it. "
+           "An i1Pro 2 is asked to report its ruler while a strip is read, "
+           "in exactly the way i1Profiler asks for it: two extra switches in "
+           "the measure command, and its ruler channel is read during the "
+           "strip. Nothing else is sent, and nothing is ever written into "
+           "the instrument's memory. If anything about the ruler looks "
+           "unusual, ChromIQ stops using it for the rest of the measurement "
+           "and says so in the log."),
+        tr("ChromIQ's own program code is checked to work out the readings "
+           "exactly as before. Whether an i1Pro 2 itself behaves exactly "
+           "the same while it reports its ruler has not been measured by "
+           "the project, because nobody on the project owns one. On a Mac, "
+           "if the ruler signal of an i1Pro 2 does not end by itself, "
+           "ChromIQ ends it on the computer's side when the instrument is "
+           "let go, which macOS follows with one standard reset request on "
+           "that channel."),
+        tr("Every measurement with this option on writes a small diagnostics "
+           "file into the run's “reports” folder, named "
+           "“ruler_diagnostics_” with the date and time. The Measure log "
+           "names the file. It holds how the instrument moved along the "
+           "ruler, where the patches were found, the chart's layout and a "
+           "coarse brightness trace in three colour bands, relative to the "
+           "paper, from which the rough colour of each patch can be seen. It "
+           "holds no serial number, no calibration data, no file paths and no "
+           "names. "
+           "Sending it to us (in the ChromIQ forum thread or on GitHub) helps "
+           "us make the ruler check, and later perhaps a better way of "
+           "finding patches, work well with ChromIQ's own charts."),
+        tr("This is a beta, and its limits are provisional. It works only "
+           "with ChromIQ's chart-reading engine and strips read by hand. "
+           "Other instruments and the ArgyllCMS reading path are not "
+           "affected. It works together with the instrument lights option."),
+        tr("With this off (the default), nothing changes: the instrument is "
+           "driven exactly as before."),
+        tr("**Default:** off")))
+
+
+def ruler_check_confirmation() -> str:
+    """The window shown when the ruler check is switched on."""
+    return tr(
+        "You are switching on the ruler check for the i1Pro 2 and the "
+        "i1Pro 3. Here is what that means.\n\n"
+        "•  After each strip, ChromIQ shows how far, which way and how fast "
+        "the instrument moved along its ruler, and asks about a strip the "
+        "ruler says was not read all the way. Your readings themselves are "
+        "never changed.\n\n"
+        "•  An i1Pro 2 is asked to report its ruler while a strip is read, "
+        "as X-Rite's i1Profiler does. An i1Pro 3 gets nothing new. This has "
+        "not been tried on a real instrument by the project yet.\n\n"
+        "•  Each measurement writes a small diagnostics file without a "
+        "serial number or personal data, which you can send us to help.\n\n"
+        "•  You use it at your own risk. If the instrument does not start, "
+        "readings look different or strips fail more often, switch this "
+        "off, unplug the instrument and plug it back in, and tell us what "
+        "you saw with “Report a Bug…”.\n\n"
+        "•  You can switch it off again at any time.\n\n"
+        "Would you like to use the ruler check?")
 
 
 def fd9_rotation_help() -> str:

@@ -1,0 +1,640 @@
+# ChromIQ 4.3.34 (6a94a4ed8): the fake-USB trace of
+# native/chartread_helper/tests/i1pro3_lights_modes_test.c built with CQ_V4334 against 4.3.34's
+# i1pro3.c / i1pro3_imp.c / i1pro3_imp.h.
+# Made by scripts/make_lights_v4334_fixtures.py; do not edit.
+off STEP cal-dark
+off CTL 3b 0000 tout=2.00
+off CTL 27 010000008e02000000000000 tout=2.00
+off RD 81 268
+off CTL 2b in4 tout=2.00
+off CTL 2b in4 tout=2.00
+off MEASURE-MS 7
+off STEP cal-white
+off CTL 3b 0000 tout=2.00
+off CTL 27 010000008e02000000000000 tout=2.00
+off RD 81 268
+off CTL 2b in4 tout=2.00
+off CTL 2b in4 tout=2.00
+off MEASURE-MS 6
+off STEP cal-returned
+off STEP strip-A-start
+off STEP read-dark
+off CTL 3b 0000 tout=2.00
+off CTL 27 010000008e02000000000000 tout=2.00
+off RD 81 268
+off CTL 2b in4 tout=2.00
+off CTL 2b in4 tout=2.00
+off MEASURE-MS 6
+off STEP read-lit
+off CTL 3b 0000 tout=2.00
+off CTL 27 010000008e02000000000000 tout=2.00
+off RD 81 268
+off CTL 2b in4 tout=2.00
+off CTL 2b in4 tout=2.00
+off MEASURE-MS 7
+off STEP strip-A-returned
+off STEP strip-B-start
+off STEP read-dark
+off CTL 3b 0000 tout=2.00
+off CTL 27 010000008e02000000000000 tout=2.00
+off RD 81 268
+off CTL 2b in4 tout=2.00
+off CTL 2b in4 tout=2.00
+off MEASURE-MS 6
+off STEP read-lit
+off CTL 3b 0000 tout=2.00
+off CTL 27 010000008e02000000000000 tout=2.00
+off RD 81 268
+off CTL 2b in4 tout=2.00
+off CTL 2b in4 tout=2.00
+off MEASURE-MS 6
+off STEP strip-B-returned
+off STEP strip-C-start
+off STEP read-dark
+off CTL 3b 0000 tout=2.00
+off CTL 27 010000008e02000000000000 tout=2.00
+off RD 81 268
+off CTL 2b in4 tout=2.00
+off CTL 2b in4 tout=2.00
+off MEASURE-MS 7
+off STEP read-lit
+off CTL 3b 0000 tout=2.00
+off CTL 27 010000008e02000000000000 tout=2.00
+off RD 81 268
+off CTL 2b in4 tout=2.00
+off CTL 2b in4 tout=2.00
+off MEASURE-MS 6
+off STEP strip-C-returned
+off STEP strip-D-start
+off STEP read-dark
+off CTL 3b 0000 tout=2.00
+off CTL 27 010000008e02000000000000 tout=2.00
+off RD 81 268
+off CTL 2b in4 tout=2.00
+off CTL 2b in4 tout=2.00
+off MEASURE-MS 6
+off STEP read-lit
+off CTL 3b 0000 tout=2.00
+off CTL 27 010000008e02000000000000 tout=2.00
+off RD 81 268
+off CTL 2b in4 tout=2.00
+off CTL 2b in4 tout=2.00
+off MEASURE-MS 7
+off STEP strip-D-returned
+off STEP strip-E-start
+off STEP read-dark
+off CTL 3b 0000 tout=2.00
+off CTL 27 010000008e02000000000000 tout=2.00
+off RD 81 268
+off CTL 2b in4 tout=2.00
+off CTL 2b in4 tout=2.00
+off MEASURE-MS 6
+off STEP read-lit
+off CTL 3b 0000 tout=2.00
+off CTL 27 010000008e02000000000000 tout=2.00
+off RD 81 268
+off CTL 2b in4 tout=2.00
+off CTL 2b in4 tout=2.00
+off MEASURE-MS 6
+off STEP strip-E-returned
+off STEP strip-F-start
+off STEP read-dark
+off CTL 3b 0000 tout=2.00
+off CTL 27 010000008e02000000000000 tout=2.00
+off RD 81 268
+off CTL 2b in4 tout=2.00
+off CTL 2b in4 tout=2.00
+off MEASURE-MS 7
+off STEP read-lit
+off CTL 3b 0000 tout=2.00
+off CTL 27 010000008e02000000000000 tout=2.00
+off RD 81 268
+off CTL 2b in4 tout=2.00
+off CTL 2b in4 tout=2.00
+off MEASURE-MS 6
+off STEP strip-F-returned
+off STEP strip-H-start
+off STEP read-dark
+off CTL 3b 0000 tout=2.00
+off CTL 27 010000008e02000000000000 tout=2.00
+off RD 81 268
+off CTL 2b in4 tout=2.00
+off CTL 2b in4 tout=2.00
+off MEASURE-MS 6
+off STEP read-lit
+off CTL 3b 0000 tout=2.00
+off CTL 27 010000008e02000000000000 tout=2.00
+off RD 81 268
+off CTL 2b in4 tout=2.00
+off CTL 2b in4 tout=2.00
+off MEASURE-MS 7
+off STEP strip-H-returned
+off STEP patch-1-start
+off STEP read-dark
+off CTL 3b 0000 tout=2.00
+off CTL 27 010000008e02000000000000 tout=2.00
+off RD 81 268
+off CTL 2b in4 tout=2.00
+off CTL 2b in4 tout=2.00
+off MEASURE-MS 6
+off STEP read-lit
+off CTL 3b 0000 tout=2.00
+off CTL 27 010000008e02000000000000 tout=2.00
+off RD 81 268
+off CTL 2b in4 tout=2.00
+off CTL 2b in4 tout=2.00
+off MEASURE-MS 6
+off STEP patch-1-returned
+off STEP strip-X-start
+off STEP strip-X-returned
+off STEP cal-dark
+off CTL 3b 0000 tout=2.00
+off CTL 27 010000008e02000000000000 tout=2.00
+off RD 81 268
+off CTL 2b in4 tout=2.00
+off CTL 2b in4 tout=2.00
+off MEASURE-MS 7
+off STEP cal-white
+off CTL 3b 0000 tout=2.00
+off CTL 27 010000008e02000000000000 tout=2.00
+off RD 81 268
+off CTL 2b in4 tout=2.00
+off CTL 2b in4 tout=2.00
+off MEASURE-MS 6
+off STEP cal-returned
+off STEP strip-G-start
+off STEP read-dark
+off CTL 3b 0000 tout=2.00
+off CTL 27 010000008e02000000000000 tout=2.00
+off RD 81 268
+off CTL 2b in4 tout=2.00
+off CTL 2b in4 tout=2.00
+off MEASURE-MS 7
+off STEP read-lit
+off CTL 3b 0000 tout=2.00
+off CTL 27 010000008e02000000000000 tout=2.00
+off RD 81 268
+off CTL 2b in4 tout=2.00
+off CTL 2b in4 tout=2.00
+off MEASURE-MS 6
+off STEP strip-G-returned
+off STEP eeprom
+off CTL 24 1800000040000000 tout=2.00
+off RD 81 64
+off STEP close
+off END
+on_ready_off STEP begin
+on_ready_off BEGIN 1
+on_ready_off STEP cal-dark
+on_ready_off CTL 3b 0000 tout=2.00
+on_ready_off CTL 27 010000008e02000000000000 tout=2.00
+on_ready_off RD 81 268
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off MEASURE-MS 7
+on_ready_off STEP cal-white
+on_ready_off CTL 3b 0000 tout=2.00
+on_ready_off CTL 27 010000008e02000000000000 tout=2.00
+on_ready_off RD 81 268
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off MEASURE-MS 6
+on_ready_off STEP cal-returned
+on_ready_off CTL 29 06000000 tout=0.25
+on_ready_off WR 02 01fa04120500 tout=0.25
+on_ready_off STEP strip-A-start
+on_ready_off STEP read-dark
+on_ready_off CTL 29 01000000 tout=0.25
+on_ready_off WR 02 00 tout=0.25
+on_ready_off CTL 3b 0000 tout=2.00
+on_ready_off CTL 27 010000008e02000000000000 tout=2.00
+on_ready_off RD 81 268
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off MEASURE-MS 7
+on_ready_off STEP read-lit
+on_ready_off CTL 3b 0000 tout=2.00
+on_ready_off CTL 27 010000008e02000000000000 tout=2.00
+on_ready_off RD 81 268
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off MEASURE-MS 6
+on_ready_off STEP strip-A-returned
+on_ready_off CTL 29 06000000 tout=0.25
+on_ready_off WR 02 0a1402120500 tout=0.25
+on_ready_off STEP strip-B-start
+on_ready_off STEP read-dark
+on_ready_off CTL 29 01000000 tout=0.25
+on_ready_off WR 02 00 tout=0.25
+on_ready_off CTL 3b 0000 tout=2.00
+on_ready_off CTL 27 010000008e02000000000000 tout=2.00
+on_ready_off RD 81 268
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off MEASURE-MS 7
+on_ready_off STEP read-lit
+on_ready_off CTL 3b 0000 tout=2.00
+on_ready_off CTL 27 010000008e02000000000000 tout=2.00
+on_ready_off RD 81 268
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off MEASURE-MS 6
+on_ready_off STEP strip-B-returned
+on_ready_off CTL 29 06000000 tout=0.25
+on_ready_off WR 02 061402120500 tout=0.25
+on_ready_off STEP strip-C-start
+on_ready_off STEP read-dark
+on_ready_off CTL 29 01000000 tout=0.25
+on_ready_off WR 02 00 tout=0.25
+on_ready_off CTL 3b 0000 tout=2.00
+on_ready_off CTL 27 010000008e02000000000000 tout=2.00
+on_ready_off RD 81 268
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off MEASURE-MS 7
+on_ready_off STEP read-lit
+on_ready_off CTL 3b 0000 tout=2.00
+on_ready_off CTL 27 010000008e02000000000000 tout=2.00
+on_ready_off RD 81 268
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off MEASURE-MS 6
+on_ready_off STEP strip-C-returned
+on_ready_off CTL 29 06000000 tout=0.25
+on_ready_off WR 02 0a1402120500 tout=0.25
+on_ready_off STEP strip-D-start
+on_ready_off STEP read-dark
+on_ready_off CTL 29 01000000 tout=0.25
+on_ready_off WR 02 00 tout=0.25
+on_ready_off CTL 3b 0000 tout=2.00
+on_ready_off CTL 27 010000008e02000000000000 tout=2.00
+on_ready_off RD 81 268
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off MEASURE-MS 7
+on_ready_off STEP read-lit
+on_ready_off CTL 3b 0000 tout=2.00
+on_ready_off CTL 27 010000008e02000000000000 tout=2.00
+on_ready_off RD 81 268
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off MEASURE-MS 6
+on_ready_off STEP strip-D-returned
+on_ready_off CTL 29 06000000 tout=0.25
+on_ready_off WR 02 0a1402120500 tout=0.25
+on_ready_off STEP strip-E-start
+on_ready_off STEP read-dark
+on_ready_off CTL 29 01000000 tout=0.25
+on_ready_off WR 02 00 tout=0.25
+on_ready_off CTL 3b 0000 tout=2.00
+on_ready_off CTL 27 010000008e02000000000000 tout=2.00
+on_ready_off RD 81 268
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off MEASURE-MS 7
+on_ready_off STEP read-lit
+on_ready_off CTL 3b 0000 tout=2.00
+on_ready_off CTL 27 010000008e02000000000000 tout=2.00
+on_ready_off RD 81 268
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off MEASURE-MS 6
+on_ready_off STEP strip-E-returned
+on_ready_off CTL 29 06000000 tout=0.25
+on_ready_off WR 02 0a1402120500 tout=0.25
+on_ready_off STEP strip-F-start
+on_ready_off STEP read-dark
+on_ready_off CTL 29 01000000 tout=0.25
+on_ready_off WR 02 00 tout=0.25
+on_ready_off CTL 3b 0000 tout=2.00
+on_ready_off CTL 27 010000008e02000000000000 tout=2.00
+on_ready_off RD 81 268
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off MEASURE-MS 7
+on_ready_off STEP read-lit
+on_ready_off CTL 3b 0000 tout=2.00
+on_ready_off CTL 27 010000008e02000000000000 tout=2.00
+on_ready_off RD 81 268
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off MEASURE-MS 6
+on_ready_off STEP strip-F-returned
+on_ready_off CTL 29 06000000 tout=0.25
+on_ready_off WR 02 0a1402120500 tout=0.25
+on_ready_off STEP strip-H-start
+on_ready_off STEP read-dark
+on_ready_off CTL 29 01000000 tout=0.25
+on_ready_off WR 02 00 tout=0.25
+on_ready_off CTL 3b 0000 tout=2.00
+on_ready_off CTL 27 010000008e02000000000000 tout=2.00
+on_ready_off RD 81 268
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off MEASURE-MS 7
+on_ready_off STEP read-lit
+on_ready_off CTL 3b 0000 tout=2.00
+on_ready_off CTL 27 010000008e02000000000000 tout=2.00
+on_ready_off RD 81 268
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off MEASURE-MS 6
+on_ready_off STEP strip-H-returned
+on_ready_off CTL 29 06000000 tout=0.25
+on_ready_off WR 02 0a1402120500 tout=0.25
+on_ready_off STEP patch-1-start
+on_ready_off STEP read-dark
+on_ready_off CTL 29 01000000 tout=0.25
+on_ready_off WR 02 00 tout=0.25
+on_ready_off CTL 3b 0000 tout=2.00
+on_ready_off CTL 27 010000008e02000000000000 tout=2.00
+on_ready_off RD 81 268
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off MEASURE-MS 7
+on_ready_off STEP read-lit
+on_ready_off CTL 3b 0000 tout=2.00
+on_ready_off CTL 27 010000008e02000000000000 tout=2.00
+on_ready_off RD 81 268
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off MEASURE-MS 6
+on_ready_off STEP patch-1-returned
+on_ready_off CTL 29 06000000 tout=0.25
+on_ready_off WR 02 0a1402120500 tout=0.25
+on_ready_off STEP strip-X-start
+on_ready_off STEP strip-X-returned
+on_ready_off STEP cal-dark
+on_ready_off CTL 29 01000000 tout=0.25
+on_ready_off WR 02 00 tout=0.25
+on_ready_off CTL 3b 0000 tout=2.00
+on_ready_off CTL 27 010000008e02000000000000 tout=2.00
+on_ready_off RD 81 268
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off MEASURE-MS 7
+on_ready_off STEP cal-white
+on_ready_off CTL 3b 0000 tout=2.00
+on_ready_off CTL 27 010000008e02000000000000 tout=2.00
+on_ready_off RD 81 268
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off MEASURE-MS 6
+on_ready_off STEP cal-returned
+on_ready_off CTL 29 06000000 tout=0.25
+on_ready_off WR 02 01fa04120500 tout=0.25
+on_ready_off STEP strip-G-start
+on_ready_off STEP read-dark
+on_ready_off CTL 29 01000000 tout=0.25
+on_ready_off WR 02 00 tout=0.25
+on_ready_off CTL 3b 0000 tout=2.00
+on_ready_off CTL 27 010000008e02000000000000 tout=2.00
+on_ready_off RD 81 268
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off MEASURE-MS 7
+on_ready_off STEP read-lit
+on_ready_off CTL 3b 0000 tout=2.00
+on_ready_off CTL 27 010000008e02000000000000 tout=2.00
+on_ready_off RD 81 268
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off CTL 2b in4 tout=2.00
+on_ready_off MEASURE-MS 6
+on_ready_off STEP strip-G-returned
+on_ready_off CTL 29 06000000 tout=0.25
+on_ready_off WR 02 061402120500 tout=0.25
+on_ready_off STEP eeprom
+on_ready_off CTL 24 1800000040000000 tout=2.00
+on_ready_off RD 81 64
+on_ready_off STEP close
+on_ready_off CTL 29 01000000 tout=0.25
+on_ready_off WR 02 00 tout=0.25
+on_ready_off END
+plus_ready_off STEP begin
+plus_ready_off BEGIN 1
+plus_ready_off STEP cal-dark
+plus_ready_off CTL 3b 0000 tout=2.00
+plus_ready_off CTL 27 010000008e02000000000000 tout=2.00
+plus_ready_off RD 81 268
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off MEASURE-MS 7
+plus_ready_off STEP cal-white
+plus_ready_off CTL 3b 0000 tout=2.00
+plus_ready_off CTL 27 010000008e02000000000000 tout=2.00
+plus_ready_off RD 81 268
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off MEASURE-MS 6
+plus_ready_off STEP cal-returned
+plus_ready_off CTL 29 06000000 tout=0.25
+plus_ready_off WR 02 01fa04120500 tout=0.25
+plus_ready_off STEP strip-A-start
+plus_ready_off STEP read-dark
+plus_ready_off CTL 29 01000000 tout=0.25
+plus_ready_off WR 02 00 tout=0.25
+plus_ready_off CTL 3b 0000 tout=2.00
+plus_ready_off CTL 27 010000008e02000000000000 tout=2.00
+plus_ready_off RD 81 268
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off MEASURE-MS 7
+plus_ready_off STEP read-lit
+plus_ready_off CTL 3b 0000 tout=2.00
+plus_ready_off CTL 27 010000008e02000000000000 tout=2.00
+plus_ready_off RD 81 268
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off MEASURE-MS 6
+plus_ready_off STEP strip-A-returned
+plus_ready_off CTL 29 06000000 tout=0.25
+plus_ready_off WR 02 0a1402120500 tout=0.25
+plus_ready_off STEP strip-B-start
+plus_ready_off STEP read-dark
+plus_ready_off CTL 29 01000000 tout=0.25
+plus_ready_off WR 02 00 tout=0.25
+plus_ready_off CTL 3b 0000 tout=2.00
+plus_ready_off CTL 27 010000008e02000000000000 tout=2.00
+plus_ready_off RD 81 268
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off MEASURE-MS 7
+plus_ready_off STEP read-lit
+plus_ready_off CTL 3b 0000 tout=2.00
+plus_ready_off CTL 27 010000008e02000000000000 tout=2.00
+plus_ready_off RD 81 268
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off MEASURE-MS 6
+plus_ready_off STEP strip-B-returned
+plus_ready_off CTL 29 06000000 tout=0.25
+plus_ready_off WR 02 061402120500 tout=0.25
+plus_ready_off STEP strip-C-start
+plus_ready_off STEP read-dark
+plus_ready_off CTL 29 01000000 tout=0.25
+plus_ready_off WR 02 00 tout=0.25
+plus_ready_off CTL 3b 0000 tout=2.00
+plus_ready_off CTL 27 010000008e02000000000000 tout=2.00
+plus_ready_off RD 81 268
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off MEASURE-MS 6
+plus_ready_off STEP read-lit
+plus_ready_off CTL 3b 0000 tout=2.00
+plus_ready_off CTL 27 010000008e02000000000000 tout=2.00
+plus_ready_off RD 81 268
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off MEASURE-MS 7
+plus_ready_off STEP strip-C-returned
+plus_ready_off CTL 29 06000000 tout=0.25
+plus_ready_off WR 02 0a1402120500 tout=0.25
+plus_ready_off STEP strip-D-start
+plus_ready_off STEP read-dark
+plus_ready_off CTL 29 01000000 tout=0.25
+plus_ready_off WR 02 00 tout=0.25
+plus_ready_off CTL 3b 0000 tout=2.00
+plus_ready_off CTL 27 010000008e02000000000000 tout=2.00
+plus_ready_off RD 81 268
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off MEASURE-MS 6
+plus_ready_off STEP read-lit
+plus_ready_off CTL 3b 0000 tout=2.00
+plus_ready_off CTL 27 010000008e02000000000000 tout=2.00
+plus_ready_off RD 81 268
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off MEASURE-MS 6
+plus_ready_off STEP strip-D-returned
+plus_ready_off CTL 29 06000000 tout=0.25
+plus_ready_off WR 02 0a1402120500 tout=0.25
+plus_ready_off STEP strip-E-start
+plus_ready_off STEP read-dark
+plus_ready_off CTL 29 01000000 tout=0.25
+plus_ready_off WR 02 00 tout=0.25
+plus_ready_off CTL 3b 0000 tout=2.00
+plus_ready_off CTL 27 010000008e02000000000000 tout=2.00
+plus_ready_off RD 81 268
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off MEASURE-MS 7
+plus_ready_off STEP read-lit
+plus_ready_off CTL 3b 0000 tout=2.00
+plus_ready_off CTL 27 010000008e02000000000000 tout=2.00
+plus_ready_off RD 81 268
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off MEASURE-MS 6
+plus_ready_off STEP strip-E-returned
+plus_ready_off CTL 29 06000000 tout=0.25
+plus_ready_off WR 02 0a1402120500 tout=0.25
+plus_ready_off STEP strip-F-start
+plus_ready_off STEP read-dark
+plus_ready_off CTL 29 01000000 tout=0.25
+plus_ready_off WR 02 00 tout=0.25
+plus_ready_off CTL 3b 0000 tout=2.00
+plus_ready_off CTL 27 010000008e02000000000000 tout=2.00
+plus_ready_off RD 81 268
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off MEASURE-MS 6
+plus_ready_off STEP read-lit
+plus_ready_off CTL 3b 0000 tout=2.00
+plus_ready_off CTL 27 010000008e02000000000000 tout=2.00
+plus_ready_off RD 81 268
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off MEASURE-MS 7
+plus_ready_off STEP strip-F-returned
+plus_ready_off CTL 29 06000000 tout=0.25
+plus_ready_off WR 02 0a1402120500 tout=0.25
+plus_ready_off STEP strip-H-start
+plus_ready_off STEP read-dark
+plus_ready_off CTL 29 01000000 tout=0.25
+plus_ready_off WR 02 00 tout=0.25
+plus_ready_off CTL 3b 0000 tout=2.00
+plus_ready_off CTL 27 010000008e02000000000000 tout=2.00
+plus_ready_off RD 81 268
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off MEASURE-MS 6
+plus_ready_off STEP read-lit
+plus_ready_off CTL 3b 0000 tout=2.00
+plus_ready_off CTL 27 010000008e02000000000000 tout=2.00
+plus_ready_off RD 81 268
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off MEASURE-MS 6
+plus_ready_off STEP strip-H-returned
+plus_ready_off CTL 29 06000000 tout=0.25
+plus_ready_off WR 02 0a1402120500 tout=0.25
+plus_ready_off STEP patch-1-start
+plus_ready_off STEP read-dark
+plus_ready_off CTL 29 01000000 tout=0.25
+plus_ready_off WR 02 00 tout=0.25
+plus_ready_off CTL 3b 0000 tout=2.00
+plus_ready_off CTL 27 010000008e02000000000000 tout=2.00
+plus_ready_off RD 81 268
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off MEASURE-MS 7
+plus_ready_off STEP read-lit
+plus_ready_off CTL 3b 0000 tout=2.00
+plus_ready_off CTL 27 010000008e02000000000000 tout=2.00
+plus_ready_off RD 81 268
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off MEASURE-MS 6
+plus_ready_off STEP patch-1-returned
+plus_ready_off CTL 29 06000000 tout=0.25
+plus_ready_off WR 02 0a1402120500 tout=0.25
+plus_ready_off STEP strip-X-start
+plus_ready_off STEP strip-X-returned
+plus_ready_off STEP cal-dark
+plus_ready_off CTL 29 01000000 tout=0.25
+plus_ready_off WR 02 00 tout=0.25
+plus_ready_off CTL 3b 0000 tout=2.00
+plus_ready_off CTL 27 010000008e02000000000000 tout=2.00
+plus_ready_off RD 81 268
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off MEASURE-MS 6
+plus_ready_off STEP cal-white
+plus_ready_off CTL 3b 0000 tout=2.00
+plus_ready_off CTL 27 010000008e02000000000000 tout=2.00
+plus_ready_off RD 81 268
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off MEASURE-MS 7
+plus_ready_off STEP cal-returned
+plus_ready_off CTL 29 06000000 tout=0.25
+plus_ready_off WR 02 01fa04120500 tout=0.25
+plus_ready_off STEP strip-G-start
+plus_ready_off STEP read-dark
+plus_ready_off CTL 29 01000000 tout=0.25
+plus_ready_off WR 02 00 tout=0.25
+plus_ready_off CTL 3b 0000 tout=2.00
+plus_ready_off CTL 27 010000008e02000000000000 tout=2.00
+plus_ready_off RD 81 268
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off MEASURE-MS 6
+plus_ready_off STEP read-lit
+plus_ready_off CTL 3b 0000 tout=2.00
+plus_ready_off CTL 27 010000008e02000000000000 tout=2.00
+plus_ready_off RD 81 268
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off CTL 2b in4 tout=2.00
+plus_ready_off MEASURE-MS 6
+plus_ready_off STEP strip-G-returned
+plus_ready_off CTL 29 06000000 tout=0.25
+plus_ready_off WR 02 061402120500 tout=0.25
+plus_ready_off STEP eeprom
+plus_ready_off CTL 24 1800000040000000 tout=2.00
+plus_ready_off RD 81 64
+plus_ready_off STEP close
+plus_ready_off CTL 29 01000000 tout=0.25
+plus_ready_off WR 02 00 tout=0.25
+plus_ready_off END
+ALL DONE

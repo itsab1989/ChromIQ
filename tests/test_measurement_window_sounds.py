@@ -159,7 +159,12 @@ def test_the_strip_windows_keep_their_own_arrangements():
         "_play_strip_cue" in err
 
     pace = inspect.getsource(TabMeasure._report_strip_pace)
-    assert "_play_strip_cue" in pace
+    # Since the ruler check (2026-11-14) the cue is chosen in one place,
+    # _strip_verdict, which plays the strip cue or opens the ruler question.
+    assert "_strip_verdict" in pace
+    verdict = inspect.getsource(TabMeasure._strip_verdict)
+    assert "_play_strip_cue" in verdict and "STRIP_FAIL" in inspect.getsource(
+        TabMeasure._prompt_ruler_not_covered)
 
 
 def test_only_one_cue_can_sound_for_one_strip():

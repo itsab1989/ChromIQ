@@ -7069,7 +7069,26 @@ class TabChart(QWidget):
         _info_box.setMinimumWidth(1)
         self._info_scroll = _InfoRowScroll(right)
         self._info_scroll.setWidget(_info_box)
+        # ONE FOLD FOR BOTH FRAMES (Basti, 2026-11-14: "one button (or
+        # triangle) should collapse both at once"). Open by default, so
+        # nothing changes for anyone who never clicks it; folded, the preview
+        # above takes the room and the line still repeats the verdict.
+        # NO LINE OF ITS OWN ("the purpose of this is to save space"): a
+        # round button floated in the preview's bottom right corner, the
+        # owner's choice of three photographed placements ("option b").
+        from ui.preview_details_fold import PreviewDetailsFold
+        self._preview_fold = PreviewDetailsFold(
+            self, collapsed=bool(self._settings.get(
+                "preview_details_collapsed", False)))
+        self._preview.add_corner_extras(self._preview_fold.button,
+                                        self._preview_fold.badge)
         right_layout.addWidget(self._info_scroll)
+        self._info_scroll.setVisible(not self._preview_fold.is_collapsed())
+        self._preview_fold.toggled.connect(self._on_preview_details_toggled)
+        self._margin_panel.verdict_changed.connect(
+            self._refresh_preview_details_verdict)
+        self._preview.pages_shown.connect(self._on_preview_pages_shown)
+        self._refresh_preview_details_verdict()
         self._margin_panel.set_guides_checked(
             bool(self._settings.get("margin_guides_show", False)))
         self._margin_panel.set_measured_guides_checked(
@@ -10271,6 +10290,41 @@ class TabChart(QWidget):
         # never stores it, so a chart that does would always read as "modified".
         d.pop("seed_fixed", None)
         d.pop("chart_text", None)
+        # …AND EQUAL MEANINGS ARE EQUAL (2026-11-14). The preset bar lit
+        # "modified" for every classic instrument right after "Reset to
+        # preset" (driven on screen: i1Pro, i1Pro 3, ColorMunki, SpectroScan,
+        # CR30), because the panel and the stored preset write the same layout
+        # in two spellings. Each pair below is the same layout once the panel
+        # holds it, which is what Reset does:
+        #
+        # * `area_ratio` 0: the panel's percentage box cannot hold it (it
+        #   starts at 10 %) and shows a stored 0 as 100 %, so the preset as
+        #   the panel applies it is 1.0;
+        # * `clip_content_when_on` "" is "the notes box", which the panel
+        #   writes as "notes";
+        # * `spacer_on` is what `spacer_mode` says (the build reads the mode,
+        #   `build_kwargs`); a stored recipe can carry a stale True beside
+        #   "none" (the CR30's preset);
+        # * with "Use instrument margins" ticked on both sides, the four
+        #   margins are the instrument's minimums the panel fills in, not the
+        #   numbers the recipe happens to hold (6 mm in a factory preset), so
+        #   they are not compared; ticked on one side only still differs.
+        try:
+            if float(d.get("area_ratio") or 0.0) == 0.0:
+                d["area_ratio"] = 1.0
+        except (TypeError, ValueError):
+            pass
+        if (d.get("clip_content_when_on") or "") == "":
+            d["clip_content_when_on"] = "notes"
+        if "spacer_mode" in d:
+            d["spacer_on"] = d.get("spacer_mode") != "none"
+        # (Not for the i1iO: it has no instrument margins to tick, its panel
+        # holds the box off and compares the margins themselves, below.)
+        if d.get("use_instrument_margins") \
+                and getattr(r, "instrument", None) != "IO2":
+            for k in ("margin_top", "margin_right", "margin_bottom",
+                      "margin_left"):
+                d.pop(k, None)
         if getattr(r, "instrument", None) == "IO2":
             from workflow.i1io.support import i1io_enabled
             if i1io_enabled():
@@ -10772,7 +10826,8 @@ class TabChart(QWidget):
         cleaned = self._file_mgr.strip_workfile_ext(raw)
         if cleaned != raw:
             removed = raw[len(cleaned):]
-            edit.setText(cleaned)
+            # The person's own name, minus the extension: still typed.
+            self._put_the_persons_name(edit, cleaned)
             hint.setText(
                 tr("Removed “{removed}” — the printer profile project name is used for the project folder and every generated file, so it shouldn't include a file extension.").format(removed=removed)
             )
@@ -15109,10 +15164,76 @@ class TabChart(QWidget):
         """
         if index == self._last_preset_index \
                 and self._preset_combo.itemData(index) not in BUILTIN_PRESET_KEYS:
+            # A SAVED PRESET PICKED AGAIN LOADS AGAIN WHEN THE SCREEN NO
+            # LONGER MATCHES IT (Basti, 2026-11-14, agreed to the question
+            # of the small-fixes round): margins, paper and the rest come
+            # back. Picking it when nothing differs, and "none" again, still
+            # change nothing, for the reason above.
+            if index > 0 and self._screen_differs_from_saved_preset(index):
+                log.info("Create Chart: the saved preset %r picked again "
+                         "while the screen differs from it: loaded again",
+                         self._preset_combo.currentData())
+                # …AND ONLY LOADED (review of 2026-11-14, major): a preset
+                # saved with "Generate the chart immediately" ticked (the
+                # Save window's default) rebuilt the open run's chart with no
+                # question, which is the very accident #175 made the re-pick
+                # a no-op for. The owner agreed to the values coming back,
+                # not to a rebuild.
+                self._preset_reloading = True
+                try:
+                    self._on_preset_selected(index)
+                finally:
+                    self._preset_reloading = False
+                return
             log.debug("Create Chart: %r was already the selection; a re-pick "
                       "of a non-built-in entry changes nothing", index)
             return
         self._on_preset_selected(index)
+
+    def _screen_differs_from_saved_preset(self, index: int) -> bool:
+        """Whether the screen differs from the saved preset at *index*, in
+        anything the preset stores (`_preset_capture`). A key the preset
+        does not carry (one saved before the key existed) is not compared;
+        a layout recipe is compared as the preset bar compares one."""
+        name = self._preset_combo.itemData(index)
+        if not name:
+            return False
+        pdata = self._load_presets_from_settings().get(name)
+        if not isinstance(pdata, dict):
+            return False
+        try:
+            now = self._preset_capture()
+        except Exception:      # noqa: BLE001 — never load on a doubt
+            log.debug("could not read the screen for the preset compare",
+                      exc_info=True)
+            return False
+        from workflow.layout_engine.presets import LayoutRecipe
+        for key, saved in pdata.items():
+            if key not in now:
+                continue
+            cur = now[key]
+            if key == "layout_recipe":
+                if not isinstance(saved, dict) or not isinstance(cur, dict):
+                    if bool(saved) != bool(cur):
+                        return True
+                    continue
+                a = self._layout_recipe_values(LayoutRecipe.from_dict(saved))
+                b = self._layout_recipe_values(LayoutRecipe.from_dict(cur))
+                # Who chose the layout is provenance: a preset loaded by
+                # name marks its layout as chosen (`layout_explicit`), the
+                # same layout saved from the screen may not.
+                a.pop("layout_explicit", None)
+                b.pop("layout_explicit", None)
+                if a != b:
+                    return True
+                continue
+            if cur != saved and str(cur) != str(saved):
+                return True
+        # a preset saved with the layout engine and a screen without (or
+        # the other way round)
+        if bool(pdata.get("layout_recipe")) != bool(now.get("layout_recipe")):
+            return True
+        return False
 
     def _on_preset_selected(self, index: int) -> None:
         # Group-divider separators aren't real choices. The combo skips them on
@@ -15355,6 +15476,16 @@ class TabChart(QWidget):
                     for pw in widgets:
                         if pw in self._d_cascade_widgets:
                             continue
+                        # THE INSTRUMENT STAYS (Basti, 2026-11-14, agreed to
+                        # the question of the small-fixes round): "none"
+                        # takes the preset away, not the instrument. Reset
+                        # to the saved default or the i1Pro, this row moved
+                        # Guided with it (the two are linked) while the
+                        # layout panel kept the chosen one, so the three
+                        # disagreed (driven on screen: ColorMunki, a preset,
+                        # "none" -> Guided and -i on i1Pro, panel ColorMunki).
+                        if tool == "printtarg" and pw.flag == "-i":
+                            continue
                         # Use the same case-disambiguated key that _on_save_defaults
                         # writes, so single-char flags (-l, -g, …) round-trip here too.
                         key = _pw_settings_key(tool, pw.flag)
@@ -15484,6 +15615,13 @@ class TabChart(QWidget):
                 presets = self._load_presets_from_settings()
                 pdata = presets.get(data, {})
                 if isinstance(pdata, dict) and pdata.get("auto_run"):
+                    if getattr(self, "_preset_reloading", False):
+                        # picked again: loaded, never rebuilt (see
+                        # `_on_preset_activated`)
+                        self._log.appendPlainText(tr(
+                            "Preset loaded again. The chart was not rebuilt: "
+                            "press Generate Chart when you want it."))
+                        return
                     if self._runner.is_running:
                         return
                     self._on_generate()
@@ -16320,6 +16458,27 @@ class TabChart(QWidget):
         """
         self._name_typed_by_user = True
 
+    def _put_the_persons_name(self, field, name: str) -> None:
+        """Write a name THE PERSON gave into the name box, as typed.
+
+        4.3.28 made typing in the box quiet: a typed name is no change of
+        target, so a Create Chart change not yet generated stays on screen
+        (`MeasurementTargetController.note_typed_project_name`). Two routes
+        put the person's own name there with `setText`, which Qt reports as
+        the app writing it: the answer in the project-name window (a box left
+        empty, or a name a folder cannot take), and the typed name with a file
+        extension taken off. Both then counted as a project switch: the open
+        project's stored settings were loaded back over the screen, and the
+        new project was built from them (driven 2026-11-14: Letter chosen,
+        "Beta.icc" typed, Beta built on A4). Telling the bar first that the
+        name is typed makes the `setText` that follows a no-op for it.
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        note = getattr(ctl, "note_typed_project_name", None)
+        if callable(note):
+            note(name)
+        field.setText(name)
+
     def _focus_project_name_field(self) -> None:
         """"Use a different name" — put the cursor back where the answer goes."""
         from PyQt6.QtCore import Qt as _Qt
@@ -16480,7 +16639,12 @@ class TabChart(QWidget):
             edit.set_prefix("")        # remove the lock
             edit.setText(prefix)       # the generated name, fully editable
 
-    def _on_preset_save(self) -> None:
+    def _preset_capture(self) -> dict:
+        """What a saved preset stores of the screen as it is now: every
+        Manual row, the tick boxes beside them, the layout recipe when the
+        layout panel lays the chart out, the chart notes and the stamp.
+        Shared by Save Preset and by the question whether the screen still
+        matches the saved preset showing in the list (2026-11-14)."""
         capture: dict = {}
         # Store the EFFECTIVE widget values, including the triple-density layout
         # (-a / -m / -P / -L) when TD is on — so the preset round-trips with the
@@ -16554,6 +16718,10 @@ class TabChart(QWidget):
         capture["stamp_commands"] = bool(
             self._manual_stamp_cmd_check is not None
             and self._manual_stamp_cmd_check.isChecked())
+        return capture
+
+    def _on_preset_save(self) -> None:
+        capture = self._preset_capture()
         (_prefill_name, prefill_run, prefill_attach,
          prefilled_from_target) = self._preset_save_prefill()
         # A patch set can only be attached if one is currently loaded.
@@ -19321,6 +19489,11 @@ class TabChart(QWidget):
             # logged as "live preview" (Knut's log, 02:27:01) and read as one.
             self._log_chart_build("live preview" if preview else "user", ti1_path)
             self._cancel_pending_auto_preview()
+            if not preview:
+                # the boxes show the size this build uses (4.3.34 r2, c)
+                _panel = getattr(self, "_manual_layout_panel", None)
+                if _panel is not None and hasattr(_panel, "commit_custom_size"):
+                    _panel.commit_custom_size()
             # `preview` IS THE ONE CALLER THAT MAY NOT OPEN A WINDOW.
             # The live auto-update preview re-renders on every turn of a knob, so a
             # modal here would be thrown at somebody repeatedly while they drag a
@@ -20636,7 +20809,7 @@ class TabChart(QWidget):
         if not name:
             return False
         if field is not None:
-            field.setText(name)
+            self._put_the_persons_name(field, name)
             field.setFocus()
         # A PERSON TYPED THIS, SO §S4.7 MUST SPEAK FOR IT.
         # `setText` never emits `textEdited`, which is the only thing that sets
@@ -20671,6 +20844,10 @@ class TabChart(QWidget):
                 return
             self._log_chart_build("Generate Chart", "targen")
             self._cancel_pending_auto_preview()
+            # The boxes show the size this build uses (4.3.34 review r2, c).
+            _panel = getattr(self, "_manual_layout_panel", None)
+            if _panel is not None and hasattr(_panel, "commit_custom_size"):
+                _panel.commit_custom_size()
             # #133: the FROM PROFILE GAMUT module has its own generate route — the
             # colours come from the master set through this run's profile, and the
             # layout from Manual via the ordinary from-.ti1 build (which asks the
@@ -30769,6 +30946,34 @@ class TabChart(QWidget):
         self._settings.set("margin_coords_show", bool(on))
         self._preview.set_coord_readout(
             bool(on), float(self._settings.get("printtarg_dpi", 300) or 300))
+
+    def _on_preview_details_toggled(self, collapsed: bool) -> None:
+        """The person folded or unfolded the two frames under the preview:
+        hide or show them, and remember it (a view choice of the window, not
+        a target's setting: per_target_settings §1.1)."""
+        self._info_scroll.setVisible(not collapsed)
+        self._settings.set("preview_details_collapsed", bool(collapsed))
+        self._refresh_preview_details_verdict()
+
+    def _on_preview_pages_shown(self, n: int) -> None:
+        fold = getattr(self, "_preview_fold", None)
+        if fold is not None:
+            fold.set_has_chart(n > 0)
+
+    def _refresh_preview_details_verdict(self) -> None:
+        """Repeat the frames' verdict on the fold's line (shown only while
+        they are hidden), and hide the line when Preferences hides both
+        frames, since it would then fold nothing."""
+        fold = getattr(self, "_preview_fold", None)
+        if fold is None:
+            return
+        fold.set_available(
+            bool(self._settings.get("margin_inspector_show", True))
+            or bool(self._settings.get("layout_info_show", True)))
+        kind, n = ("none", 0)
+        if bool(self._settings.get("margin_inspector_show", True)):
+            kind, n = self._margin_panel.verdict()
+        fold.set_verdict(kind, n)
 
     def _on_margin_warnings_expanded(self, expanded: bool) -> None:
         """Remember whether the red warning paragraph is folded (Basti,

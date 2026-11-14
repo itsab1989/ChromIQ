@@ -285,19 +285,34 @@ DEFAULTS: dict[str, Any] = {
     #: Off = exactly 4.3.32: the helper is started without --i1pro2-lights and
     #: the driver never sends a light request. Read at every Start.
     "i1pro2_lights_beta":        False,
-    #: Inside that option (2026-11-13), the i1Pro 2 only: what the lights
-    #: show. The patterns were recorded on firmware 634; no firmware is
-    #: refused for it (the firmware is logged at Start). True = "ready light
-    #: and result signals": a pulsing white when ready, green twice after a
+    #: Inside that option (2026-11-13; the i1Pro 2 and, since 2026-11-14, the
+    #: i1Pro 3 / 3 Plus; the key keeps its first name): what the lights show.
+    #: The i1Pro 2 patterns were recorded on firmware 634; no firmware is
+    #: refused (the firmware is logged at Start). True =
+    #: "ready light and result signals": a ready light, green twice after a
     #: reading ChromIQ accepted, red twice after one it refused or asks to
-    #: read again (--lights-signals). False = "ready light only", exactly
-    #: 4.3.33. A 4.3.33 user who had the option on keeps False (schema 34).
+    #: read again (--lights-signals). False = the first item ("ready light;
+    #: the instrument's own green / red (i1Pro 3)"): an i1Pro 2 exactly as in
+    #: 4.3.33 (ready light only), an i1Pro 3 exactly as in 4.3.34 (green / red
+    #: only say the instrument took a reading). A 4.3.33 user who had the
+    #: option on keeps False (schema 34); a 4.3.34 user keeps what is stored.
     "i1pro2_lights_signals":     True,
-    #: ...and during a hand-held reading. False = "off during a reading",
-    #: exactly 4.3.33 (the cautious choice: the project has not compared
+    #: ...and during a hand-held reading (both generations since 2026-11-14).
+    #: False = "off during a reading", exactly 4.3.33 / 4.3.34 (the cautious
+    #: choice: the project has not compared
     #: readings with the lights on). True = "left on during a reading", as
     #: X-Rite's i1Profiler does by hand (--lights-during-reading).
     "i1pro2_lights_during_reading": False,
+    #: Beta (Settings -> Beta, 2026-11-14): the i1Pro 2 / i1Pro 3 ruler check
+    #: (stage 1, CHECK ONLY; workflow/ruler_check.py). With the ChromIQ
+    #: chart-reading engine: after each strip the ruler's travel, direction and
+    #: speed, one question for an accepted strip the ruler says was clearly not
+    #: covered, and a diagnostics file per measurement in the run's reports/.
+    #: The i1Pro 2 is asked for its ruler (two bits in the measure command and
+    #: the ruler channel 0x85, as X-Rite's i1Profiler does); the i1Pro 3 gets
+    #: nothing new. Values and patch assignment never change. Off = the helper
+    #: is started without --ruler: exactly the base branch. Read at every Start.
+    "ruler_check_beta":          False,
     #: Beta (Settings -> Beta): also write the "turned" i1Profiler chart files
     #: (`workflow.i1profiler_turned`) into a chart's exports/ folder, so the
     #: printed ChromIQ sheet can be read in i1Profiler too after a quarter
@@ -565,6 +580,12 @@ DEFAULTS: dict[str, Any] = {
     # nobody has hidden yet is one nobody has read yet; once it is shut it
     # stays shut, across charts and across restarts.
     "margin_warnings_expanded":  True,
+    # Whether the two frames under the Create Chart preview ("Measured from
+    # Preview" and "Chart layout information") are folded away by the round
+    # button in the preview's bottom right corner (Basti, 2026-11-14). A view
+    # choice of the window:
+    # not per target, not in a preset. Open by default.
+    "preview_details_collapsed": False,
     "margin_guides_show":        False,   # dotted threshold guide lines on preview
     "margin_measured_guides_show": False,  # long dotted lines at the measured margins
     "margin_coords_show":         False,   # cross-hair + paper-mm/inch readout on pointer (#29)
