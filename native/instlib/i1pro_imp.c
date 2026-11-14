@@ -6027,8 +6027,9 @@ i1pro_trigger_one_measure(
 	int measmodeflags;	/* Measurement mode command flags */
 	int measmodeflags2;	/* Rev E Measurement mode command flags */
 
-	/* CHROMIQ PATCH: the indicator lights go off before every trigger (Beta, */
-	/* a no-op unless ChromIQ's helper switched them on). */
+	/* CHROMIQ PATCH: the indicator lights before a trigger (Beta, a no-op */
+	/* unless ChromIQ's helper switched them on): off before a calibration, */
+	/* then the quiet time (4.3.37). */
 	i1pro2_cq_lights_trigger(p);
 
 	/* Sanity check in case bad value was restored, due to switch */
@@ -12544,6 +12545,13 @@ void (*i1pro2_cq_lights_held)(int ms) = NULL;
  * does not take minutes. 0 (always, in ChromIQ) = CQ_LIGHTS_QUIET_MS. */
 int i1pro2_cq_lights_quiet_ms_for_test = 0;
 
+/* Set by ChromIQ's helper: asked every few ms while a trigger is held for the
+ * quiet time, so a request to switch the lights off and end (Stop, quitting
+ * ChromIQ) is carried out at once on this thread, as between two requests,
+ * instead of after the wait, when ChromIQ may already have ended the process
+ * with the lights on (4.3.37 review, M3). */
+void (*i1pro2_cq_lights_hold_poll)(void) = NULL;
+
 /* The i1proimp of an i1Pro 2 whose lights are in use, else NULL. dtype is
  * read first: it is in every instrument's base object, so this is safe to
  * ask of any inst, and only an i1Pro 2 object is ever looked into. */
@@ -12642,17 +12650,25 @@ static int cq_lights_ready_prog(i1proimp *m) {
 static void cq_lights_quiet(i1proimp *m) {
 	int quiet = i1pro2_cq_lights_quiet_ms_for_test > 0
 	          ? i1pro2_cq_lights_quiet_ms_for_test : CQ_LIGHTS_QUIET_MS;
-	int since;
-	if (m->cq_lights_end_ms == 0)
-		return;
-	since = (int)(msec_time() - m->cq_lights_end_ms);
-	if (since < 0)
-		since = 0;		/* never skip the wait on a clock oddity */
-	if (since >= quiet)
-		return;
-	msec_sleep(quiet - since);
-	if (i1pro2_cq_lights_held != NULL)
-		i1pro2_cq_lights_held(quiet - since);
+	int since, waited = 0;
+	unsigned int t0 = msec_time();
+	for (;;) {
+		if (m->cq_lights_end_ms == 0)
+			break;
+		/* again every time: a request carried out below (an off) is a
+		 * light write of its own, and the quiet time counts from it */
+		since = (int)(msec_time() - m->cq_lights_end_ms);
+		if (since < 0)
+			since = 0;		/* never skip the wait on a clock oddity */
+		if (since >= quiet)
+			break;
+		msec_sleep(quiet - since < 20 ? quiet - since : 20);
+		waited = 1;
+		if (i1pro2_cq_lights_hold_poll != NULL)
+			i1pro2_cq_lights_hold_poll();	/* may switch the lights off, or end */
+	}
+	if (waited && i1pro2_cq_lights_held != NULL)
+		i1pro2_cq_lights_held((int)(msec_time() - t0));
 }
 
 /* Before every trigger (4.3.37, i1Profiler's hand-held order):

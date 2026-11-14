@@ -8254,7 +8254,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                     "measure %s", ti3,
                     "in high resolution" if mm.file_high else "in standard resolution",
                     "in high resolution" if mm.read_high else "in standard resolution")
-        if self._resume_resolution_window(mm):
+        if getattr(mm, "instrument_cannot", False):
+            self._resume_resolution_cannot_window()
+        elif self._resume_resolution_window(mm):
             self._session_highres = mm.file_high
             return False
         self._log.appendPlainText("\n" + tr(
@@ -8266,6 +8268,34 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             except Exception:      # noqa: BLE001
                 pass
         return True
+
+    def _resume_resolution_cannot_window(self) -> None:
+        """M-RESUME-RESOLUTION-INSTRUMENT (4.3.37 review, M4): a measurement
+        taken in high resolution, continued with an instrument that has no
+        high-resolution mode. Only Cancel: nothing can make it fit."""
+        from PyQt6.QtWidgets import QMessageBox
+        from workflow import measurement_messages as M
+        from ui.widgets import (fit_message_box_buttons,
+                                keep_message_box_inside_the_work_area)
+        box_cb = (self._resume_cb if self._current_mode() == "guided"
+                  else self._m_resume_cb)
+        title, body = M.M_RESUME_RESOLUTION_INSTRUMENT.render(
+            instrument=str(getattr(self, "_detected_instrument", "") or "?"),
+            box=box_cb.text() if box_cb is not None else "")
+        self._log.appendPlainText(f"[{title}]\n{body}")
+        self._log.ensureCursorVisible()
+        box = QMessageBox(self)
+        box.setObjectName("resume_resolution_instrument_window")
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(cancel)
+        box.setEscapeButton(cancel)
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        fit_message_box_buttons(box)
+        box.exec()
 
     def _resume_resolution_window(self, mm) -> bool:
         """M-RESUME-RESOLUTION on screen and in the log; True for the button

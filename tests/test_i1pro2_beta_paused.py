@@ -89,6 +89,9 @@ def test_the_quiet_time_is_said_once_per_session(mgr):
     said = [ln for ln in lines if "wait a moment before it measured" in ln]
     assert len(said) == 1
     assert "about two seconds" in said[0] and "—" not in said[0]
+    # 4.3.37 review (M1): what to do while it waits
+    assert "keep the instrument still on the white paper" in said[0]
+    assert "Start sliding at the beep." in said[0]
     assert not any("leaves them alone" in ln for ln in lines)
 
 
@@ -288,6 +291,8 @@ def test_the_lights_help_opens_with_the_new_order():
                                "X-Rite's own order.**")
     assert "not yet been confirmed on a real i1Pro 2" in paras[1]
     assert "page read without a single" in paras[1]
+    assert "keep the instrument still" in paras[1]
+    assert "Start sliding at the beep." in paras[1]
     assert "paused for the i1Pro 2" not in help_.replace(
         "paused for it", "")
     # the i1Pro 3: one honest sentence
@@ -332,3 +337,15 @@ def test_the_light_timing_reads_the_right_way_round(ms, said):
     line = coms_failure_detail(ev)
     assert said in line
     assert "-" not in line.split("light off_slow", 1)[1].split(";", 1)[0]
+
+
+def test_the_help_claims_only_what_is_true_about_the_moments():
+    """4.3.37 review (M2): the same recorded patterns at the same moments;
+    two situations on an i1Pro 2 differ in what was showing before."""
+    from ui.dialogs.settings_dialog import i1pro2_lights_help
+    h = i1pro2_lights_help()
+    assert "each at the moment i1Profiler sent it" not in h
+    assert "light patterns seen in those recordings, at the moments" in h
+    assert "two situations differ from the recordings" in h
+    assert "a calibration that comes after the first one" in h
+    assert "under the steady white of connecting" in h

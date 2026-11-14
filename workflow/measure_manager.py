@@ -3383,9 +3383,11 @@ class MeasureManager(QObject):
                     "light had just changed. This is on purpose: a tester's "
                     "i1Pro 2 lost readings that started right after a light "
                     "change, so ChromIQ now always leaves about two seconds "
-                    "between the two. You do not need to do anything; if you "
-                    "pressed the button, the reading simply starts a little "
-                    "later."))
+                    "between the two. So after pressing the button, keep the "
+                    "instrument still on the white paper before the strip "
+                    "until it beeps: with the lights on, the beep can come up "
+                    "to about two seconds later than usual. Start sliding at "
+                    "the beep."))
             return
         sent = ev.get("sent")
         if sent:

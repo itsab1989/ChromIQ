@@ -94,6 +94,10 @@ class Mismatch:
     #: this read would measure in high resolution
     read_high: bool
     resolution: Resolution
+    #: 4.3.37 review (M4): the measurement was taken in high resolution and
+    #: the instrument has no high-resolution mode at all: it cannot be
+    #: continued in the same resolution with this instrument
+    instrument_cannot: bool = False
 
 
 def resume_mismatch(ti3: "str | Path | None", extra_args: str,
@@ -108,7 +112,12 @@ def resume_mismatch(ti3: "str | Path | None", extra_args: str,
     read_high = asks_for_highres(extra_args) and instrument_can_highres(
         instrument)
     if not instrument_can_highres(instrument):
-        return None          # -H is ignored; the file decides nothing new
+        # -H is ignored by such an instrument; a measurement taken in high
+        # resolution cannot be continued with it at all (M4)
+        if res.high:
+            return Mismatch(file_high=True, read_high=False, resolution=res,
+                            instrument_cannot=True)
+        return None
     if res.high == read_high:
         return None
     return Mismatch(file_high=res.high, read_high=read_high, resolution=res)

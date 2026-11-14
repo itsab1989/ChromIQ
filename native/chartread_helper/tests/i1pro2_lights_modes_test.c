@@ -390,6 +390,45 @@ static void paths_life(const char *name, int signals) {
 }
 #endif
 
+#if !defined(CQ_V4333) && !defined(CQ_V4336)
+/* 4.3.37 review M3: Stop while a trigger is held. The helper's poll (here:
+ * this function) carries out the pending "lights off" at once, on this
+ * thread, as cq_lights_take_pending does: the lights go off (OFF_NOW) during
+ * the hold, the end reports them off, and the trigger still waits the quiet
+ * time after that off. */
+static i1pro *stop_p = NULL;
+static int stop_polls = 0, stop_off = -1;
+static void stop_poll(void) {
+	if (stop_p != NULL && ++stop_polls == 2) {
+		step("stop-requested");
+		stop_off = i1pro2_cq_lights_end(stop_p);
+		printf("%s LIGHTS-END %d\n", scn, stop_off);
+		fflush(stdout);
+	}
+}
+
+static void stop_life(const char *name) {
+	i1pro *p;
+	scn = name;
+	sig = 1;
+	last_wr_end = 0;
+	p = make(instI1Pro2, I1PRO_CAP2_IND_LED);
+	step("begin");
+	i1pro2_cq_lights_options(p, 1, 0);
+	printf("%s BEGIN %d\n", scn, i1pro2_cq_lights_begin(p));
+	calibrate(p);
+	helper_owe(p);
+	helper_poll(p, 1, "verdict-good");	/* GREEN2: the next press holds */
+	stop_p = p;
+	stop_polls = 0;
+	i1pro2_cq_lights_hold_poll = stop_poll;
+	reading(p, "strip-held");		/* Stop arrives during its hold */
+	i1pro2_cq_lights_hold_poll = NULL;
+	stop_p = NULL;
+	close_it(p);
+}
+#endif
+
 /* Under the slow instrument: every combination of the two choices. */
 static void slow_lives(const char *prefix, int w, double prob) {
 	static char names[8][4][40];
@@ -475,6 +514,7 @@ int main(void) {
 	slow_p = 1.0;
 	paths_life("paths_ready", 0);
 	paths_life("paths_signals", 1);
+	stop_life("stop_in_hold");
 	/* ...and once with ChromIQ's own quiet time, 2100 ms. */
 	i1pro2_cq_lights_quiet_ms_for_test = 0;
 	slow_w = 2099;

@@ -1512,6 +1512,7 @@ extern void (*i1pro2_cq_lights_note)(int seq, int icom_err);
 extern void (*i1pro2_cq_lights_sent)(int seq);	/* each sequence sent */
 extern void (*i1pro2_cq_lights_held)(int ms);	/* a trigger waited for the quiet time (4.3.37) */
 extern int i1pro2_cq_lights_quiet_ms_for_test;	/* fake-USB tests only; 0 = 2100 ms */
+extern void (*i1pro2_cq_lights_hold_poll)(void);	/* asked during a hold (4.3.37) */
 
 #ifdef __cplusplus
 	}

@@ -112,6 +112,7 @@ I1PRO_IMP_H_LIGHTS = [
      "extern void (*i1pro2_cq_lights_sent)(int seq);\t/* each sequence sent */\n"
      "extern void (*i1pro2_cq_lights_held)(int ms);\t/* a trigger waited for the quiet time (4.3.37) */\n"
      "extern int i1pro2_cq_lights_quiet_ms_for_test;\t/* fake-USB tests only; 0 = 2100 ms */\n"
+     "extern void (*i1pro2_cq_lights_hold_poll)(void);\t/* asked during a hold (4.3.37) */\n"
      "\n"
      "#ifdef __cplusplus\n"
      "\t}\n"
@@ -259,6 +260,13 @@ void (*i1pro2_cq_lights_held)(int ms) = NULL;
  * does not take minutes. 0 (always, in ChromIQ) = CQ_LIGHTS_QUIET_MS. */
 int i1pro2_cq_lights_quiet_ms_for_test = 0;
 
+/* Set by ChromIQ's helper: asked every few ms while a trigger is held for the
+ * quiet time, so a request to switch the lights off and end (Stop, quitting
+ * ChromIQ) is carried out at once on this thread, as between two requests,
+ * instead of after the wait, when ChromIQ may already have ended the process
+ * with the lights on (4.3.37 review, M3). */
+void (*i1pro2_cq_lights_hold_poll)(void) = NULL;
+
 /* The i1proimp of an i1Pro 2 whose lights are in use, else NULL. dtype is
  * read first: it is in every instrument's base object, so this is safe to
  * ask of any inst, and only an i1Pro 2 object is ever looked into. */
@@ -357,17 +365,25 @@ static int cq_lights_ready_prog(i1proimp *m) {
 static void cq_lights_quiet(i1proimp *m) {
 	int quiet = i1pro2_cq_lights_quiet_ms_for_test > 0
 	          ? i1pro2_cq_lights_quiet_ms_for_test : CQ_LIGHTS_QUIET_MS;
-	int since;
-	if (m->cq_lights_end_ms == 0)
-		return;
-	since = (int)(msec_time() - m->cq_lights_end_ms);
-	if (since < 0)
-		since = 0;		/* never skip the wait on a clock oddity */
-	if (since >= quiet)
-		return;
-	msec_sleep(quiet - since);
-	if (i1pro2_cq_lights_held != NULL)
-		i1pro2_cq_lights_held(quiet - since);
+	int since, waited = 0;
+	unsigned int t0 = msec_time();
+	for (;;) {
+		if (m->cq_lights_end_ms == 0)
+			break;
+		/* again every time: a request carried out below (an off) is a
+		 * light write of its own, and the quiet time counts from it */
+		since = (int)(msec_time() - m->cq_lights_end_ms);
+		if (since < 0)
+			since = 0;		/* never skip the wait on a clock oddity */
+		if (since >= quiet)
+			break;
+		msec_sleep(quiet - since < 20 ? quiet - since : 20);
+		waited = 1;
+		if (i1pro2_cq_lights_hold_poll != NULL)
+			i1pro2_cq_lights_hold_poll();	/* may switch the lights off, or end */
+	}
+	if (waited && i1pro2_cq_lights_held != NULL)
+		i1pro2_cq_lights_held((int)(msec_time() - t0));
 }
 
 /* Before every trigger (4.3.37, i1Profiler's hand-held order):
@@ -556,8 +572,9 @@ I1PRO_IMP_C_LIGHTS = [
     ("\tint measmodeflags2;\t/* Rev E Measurement mode command flags */\n\n"
      "\t/* Sanity check in case bad value was restored, due to switch */\n",
      "\tint measmodeflags2;\t/* Rev E Measurement mode command flags */\n\n"
-     "\t/* CHROMIQ PATCH: the indicator lights go off before every trigger (Beta, */\n"
-     "\t/* a no-op unless ChromIQ's helper switched them on). */\n"
+     "\t/* CHROMIQ PATCH: the indicator lights before a trigger (Beta, a no-op */\n"
+     "\t/* unless ChromIQ's helper switched them on): off before a calibration, */\n"
+     "\t/* then the quiet time (4.3.37). */\n"
      "\ti1pro2_cq_lights_trigger(p);\n\n"
      "\t/* Sanity check in case bad value was restored, due to switch */\n"),
     # OFF_NOW before any EEPROM read (Argyll: a running sequence interferes).
@@ -1893,6 +1910,17 @@ prov.write_text(
     "  `tests/test_i1pro2_light_programs.py`. They were recorded on firmware\n"
     "  634 and go, like the three above, to any i1Pro 2 the block accepts\n"
     "  (no firmware condition, as in Argyll's own light code).\n"
+    "  **Since ChromIQ 4.3.37 the i1Pro 2 follows i1Profiler's hand-held order**\n"
+    "  (a tester's i1Pro 2 lost the strip's first reading about 2 times in 3\n"
+    "  when any light write ended 10-25 ms before a measurement trigger, and\n"
+    "  never without one): no light write before a reading's triggers (the\n"
+    "  reading is measured over whatever plays); OFF_SLOW only before a\n"
+    "  calibration's first trigger; PULSE after every calibration (both\n"
+    "  choices); nothing after a reading except GREEN2 / RED2 with result\n"
+    "  signals; and every trigger waits until `CQ_LIGHTS_QUIET_MS` (2100 ms)\n"
+    "  after the END of the last light write, a plain wait. No new byte; the\n"
+    "  same six recorded sequences; WHITE now only at open. Not yet confirmed\n"
+    "  on a real i1Pro 2.\n"
     "- **`i1pro3_imp.c`, `i1pro3_imp.h`, `i1pro3.c`: the same Beta for the\n"
     "  i1Pro 3** (2026-11-13). Its own request and format (0x29, LE32 length,\n"
     "  bytes on bulk endpoint 0x02, Argyll's `i1pro3_indLEDseq`). Exactly four\n"

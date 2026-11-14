@@ -292,3 +292,36 @@ def test_the_real_helper_stops_only_when_it_writes(tmp_path):
     for ln in s2.raw_lines:
         m._handle_engine_line(ln, lambda _l: None)
     assert m._engine_should_resume_fallback(code or 1) is False
+
+
+# ---------------------------------------------------------------------------
+# M4: high resolution, continued with an instrument without it
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("args", ["", "-H"])
+def test_a_high_resolution_file_with_an_instrument_without_it(tmp_path, args):
+    mm = rr.resume_mismatch(_ti3(tmp_path / "h.ti3", *HIGH), args,
+                            "X-Rite DTP20")
+    assert mm is not None and mm.instrument_cannot and mm.file_high
+
+
+def test_that_window_offers_cancel_only_and_starts_nothing(tab, monkeypatch,
+                                                            tmp_path):
+    from PyQt6.QtWidgets import QMessageBox
+    _with_highres_ticked(tab, monkeypatch, False,
+                         _ti3(tmp_path / "c.ti3", *HIGH))
+    tab._detected_instrument = "X-Rite DTP20"
+    seen = {}
+
+    def run(box):
+        seen["name"] = box.objectName()
+        seen["buttons"] = [b.text() for b in box.buttons()]
+        seen["text"] = box.informativeText()
+        return 0
+    monkeypatch.setattr(QMessageBox, "exec", run)
+    tab._session_highres = None
+    assert tab._blocked_by_a_resume_resolution() is True
+    assert seen["name"] == "resume_resolution_instrument_window"
+    assert seen["buttons"] == ["Cancel"]
+    assert "X-Rite DTP20" in seen["text"]
+    assert tab._session_highres is None
+    assert M.M_RESUME_RESOLUTION_INSTRUMENT.id in M.PROPOSED

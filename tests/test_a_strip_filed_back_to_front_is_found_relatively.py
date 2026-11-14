@@ -136,3 +136,13 @@ def test_the_rule_is_relative_and_written_down():
     src = open(ss.__file__, encoding="utf-8").read()
     assert "REV_RATIO = 0.5" in src and "REV_MIN_GAIN = 20.0" in src
     assert "def _turned_round(" in src
+
+
+def test_the_question_names_every_cause_and_says_what_was_found():
+    """4.3.37 review (M5): M-STRIP-REVERSED no longer blames a slip alone."""
+    from workflow import measurement_messages as M
+    assert M.M_STRIP_REVERSED.id in M.PROPOSED          # still a proposal
+    body = M.M_STRIP_REVERSED.body
+    assert "looks much like another strip of the chart" in body
+    assert "Bidirectional disabled (-B)" in body
+    assert "this strip matches the chart far better turned round" in body

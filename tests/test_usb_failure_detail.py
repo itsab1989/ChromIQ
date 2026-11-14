@@ -103,17 +103,18 @@ def _wire(lines):
     return [ln for ln in lines if _WIRE.match(ln)]
 
 
-def _no_timing(lines):
+def _no_timing(lines, scn: str = ""):
     # MEASURE-MS, and since 4.3.37 the i1Pro 2's GAPMS / HELD / LOST lines
-    # of the slow-instrument lives, carry real times; so do the ruler scan's
-    # RULER / READS85 / CLOSED / CLEARHALTS lines in the lives whose stream
-    # runs until it is cancelled ("noend", "stall", "late"): their byte
-    # counts depend on how busy the machine is (an everyday run under load,
-    # 2026-11-14: 53248 against 49152 bytes in on_noend)
-    return [ln for ln in lines
-            if not ln.startswith(("MEASURE-MS", "GAPMS", "HELD", "LOST",
-                                  "RULER", "READS85", "CLOSED",
-                                  "CLEARHALTS"))]
+    # of the slow-instrument lives, carry real times. So do the ruler scan's
+    # RULER / READS85 / CLOSED / CLEARHALTS lines, but ONLY in the three
+    # lives whose stream runs until it is cancelled ("noend", "stall",
+    # "late"): their byte counts depend on how busy the machine is (an
+    # everyday run under load, 2026-11-14: 53248 against 49152 bytes in
+    # on_noend). Every other ruler life is compared line for line.
+    drop = ("MEASURE-MS", "GAPMS", "HELD", "LOST")
+    if scn.startswith(("on_noend", "on_stall", "on_late")):
+        drop += ("RULER", "READS85", "CLOSED", "CLEARHALTS")
+    return [ln for ln in lines if not ln.startswith(drop)]
 
 
 # ---------------------------------------------------------------------------
@@ -127,7 +128,8 @@ def test_every_existing_life_is_the_same_with_the_watch(runs, target):
     scns = _scenarios(plain)
     assert len(scns) >= 10 and scns == _scenarios(watched)
     for scn in scns:
-        a, b = _no_timing(_lines(plain, scn)), _no_timing(_lines(watched, scn))
+        a = _no_timing(_lines(plain, scn), scn)
+        b = _no_timing(_lines(watched, scn), scn)
         assert _wire(a) == _wire(b), scn
         assert a == b, scn
 
