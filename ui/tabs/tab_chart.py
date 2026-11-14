@@ -15466,6 +15466,16 @@ class TabChart(QWidget):
                     for pw in widgets:
                         if pw in self._d_cascade_widgets:
                             continue
+                        # THE INSTRUMENT STAYS (Basti, 2026-11-14, agreed to
+                        # the question of the small-fixes round): "none"
+                        # takes the preset away, not the instrument. Reset
+                        # to the saved default or the i1Pro, this row moved
+                        # Guided with it (the two are linked) while the
+                        # layout panel kept the chosen one, so the three
+                        # disagreed (driven on screen: ColorMunki, a preset,
+                        # "none" -> Guided and -i on i1Pro, panel ColorMunki).
+                        if tool == "printtarg" and pw.flag == "-i":
+                            continue
                         # Use the same case-disambiguated key that _on_save_defaults
                         # writes, so single-char flags (-l, -g, …) round-trip here too.
                         key = _pw_settings_key(tool, pw.flag)
