@@ -48,7 +48,7 @@ VID, PID = 0x0971, 0x2004
 
 
 class ForbiddenLine(Exception):
-    """A line that is not one of the twelve (a bug; it is never written)."""
+    """A line that is not one of the eleven (a bug; it is never written)."""
 
 
 class ProtocolError(Exception):
@@ -111,7 +111,7 @@ def _frame(cid: str, args: str = "") -> bytes:
     return (body + checksum(body) + "\r").encode("ascii")
 
 
-# ---- THE TWELVE LINES -------------------------------------------------------------
+# ---- THE ELEVEN LINES -------------------------------------------------------------
 
 #: Everything this program can send. Each line is verbatim from the recordings
 #: (where: :data:`RECORDED_AT` and BYTES.md); the tests pin the bytes and check
@@ -170,10 +170,10 @@ A0_WARM = "130000"
 
 
 def check_outgoing(line: bytes) -> str:
-    """THE GATE. Return the command id if *line* is exactly one of the twelve
+    """THE GATE. Return the command id if *line* is exactly one of the eleven
     lines; raise ForbiddenLine otherwise."""
     if not isinstance(line, (bytes, bytearray)) or bytes(line) not in ALLOWED_LINES:
-        raise ForbiddenLine(f"not one of the twelve allowed lines: {line!r}")
+        raise ForbiddenLine(f"not one of the eleven allowed lines: {line!r}")
     return bytes(line)[1:3].decode("ascii")
 
 

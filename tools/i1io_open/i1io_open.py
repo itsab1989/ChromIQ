@@ -78,8 +78,9 @@ RISKS = (
     "has nothing to do with it. Running it is entirely your choice. Its first version ran on "
     "your table twice (the first time the table refused it, the second time it worked). This "
     "version sends a few more lines. Each of them is a line that i1Profiler itself sent to your "
-    "table in your recordings, byte for byte, and in the order i1Profiler sent them, except for "
-    "one extra 'where is the arm' question after the homing: the lines with which i1Profiler "
+    "table in your recordings, byte for byte, and in the order i1Profiler sent them, except that "
+    "the status and position questions are asked again before and after the homing: the lines "
+    "with which i1Profiler "
     "opens the table, the line that sends the arm to its resting place, and the two lines with "
     "which it closes the table. Only the homing makes the arm move, and the arm is already at its "
     "resting place, so it should barely move. If the table has just been switched on, the "
@@ -409,7 +410,18 @@ def i1profiler_running() -> bool:
     """By its process name, and by its path inside the app bundle (the real
     process name was never checked on the tester's Mac). The hard guard stays
     libusb's exclusive claim of the table's interface."""
-    return bool(_pgrep("-x", "-i", I1PROFILER)) or bool(_pgrep("-f", I1PROFILER_PATH))
+    return bool(i1profiler_matches())
+
+
+def i1profiler_matches() -> "list[str]":
+    """What was found: 'name' and/or 'app path' (the app-path check could also match a helper
+    inside i1Profiler's bundle; the log then names it, so a refusal is never a mystery)."""
+    found = []
+    if _pgrep("-x", "-i", I1PROFILER):
+        found.append("a process named i1Profiler")
+    if _pgrep("-f", I1PROFILER_PATH):
+        found.append("a process inside i1Profiler.app (i1Profiler itself or one of its helpers)")
+    return found
 
 
 def xrite_helpers_running() -> "list[str]":
@@ -585,8 +597,8 @@ def main(argv=None, sim_table=None, console=None) -> int:
             log("INFO", usb_info)
             ui.say(RISKS)
             if i1profiler_running():
-                log("INFO", "i1Profiler is running: refused")
-                ui.say(I1PROFILER_RUNNING)
+                log("INFO", "i1Profiler is running: refused; found " + "; ".join(i1profiler_matches()))
+                ui.say(I1PROFILER_RUNNING + " (Found: " + "; ".join(i1profiler_matches()) + ".)")
                 return 2
             if not lock.acquire():
                 ui.say("Another copy of this program is running. Please let it finish first. "
@@ -605,8 +617,8 @@ def main(argv=None, sim_table=None, console=None) -> int:
                 ui.say("That was not the sentence, so nothing was sent to the table.")
                 return 1
             if i1profiler_running():
-                log("INFO", "i1Profiler is running: refused")
-                ui.say(I1PROFILER_RUNNING)
+                log("INFO", "i1Profiler is running: refused; found " + "; ".join(i1profiler_matches()))
+                ui.say(I1PROFILER_RUNNING + " (Found: " + "; ".join(i1profiler_matches()) + ".)")
                 return 2
             helpers = xrite_helpers_running()
             log("INFO", f"X-Rite background helpers running: {helpers or 'none'}")

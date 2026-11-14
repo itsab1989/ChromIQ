@@ -31,8 +31,8 @@ Nothing here is promised, and you can stop at every step.
 
 The program can send only **eleven different lines** to the table. Each one is
 a line i1Profiler itself sent to your table in your recordings, byte for byte,
-and in the order i1Profiler sent them, except for one extra "where is the arm"
-question after the homing. The file `BYTES.md` lists them with the exact place
+and in the order i1Profiler sent them, except that the status and position
+questions are asked again before and after the homing. The file `BYTES.md` lists them with the exact place
 in your recordings where i1Profiler sent each one. `python3 i1io_open.py
 --plan` prints the whole sequence; `--dry-run` prints it with every byte.
 
