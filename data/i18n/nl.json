@@ -8253,6 +8253,7 @@
  "1 warning: click to show the details": "1 waarschuwing: klik om de details te zien",
  "{n} warnings: click to show the details": "{n} waarschuwingen: klik om de details te zien",
  "Preset loaded again. The chart was not rebuilt: press Generate Chart when you want it.": "Preset opnieuw geladen. De kaart is niet opnieuw gemaakt: druk op “Genereren” wanneer je die wilt.",
+ "Hide or show the measurements and the chart layout information": "De metingen en de kaartindelingsinformatie verbergen of tonen",
  "1 notice: click to show the details": "1 opmerking: klik om de details te zien",
  "{n} notices: click to show the details": "{n} opmerkingen: klik om de details te zien"
 }

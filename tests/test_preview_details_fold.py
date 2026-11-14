@@ -399,3 +399,41 @@ def test_the_badge_counts_what_the_open_frame_shows(qapp, settings, case):
             assert red_lines == 1
     finally:
         w.close()
+
+
+def test_the_fold_button_says_what_it_does(qapp, settings):
+    from core.i18n import tr
+    w = _window(qapp, settings)
+    try:
+        assert w._tab_chart._preview_fold.button.accessibleName() == tr(
+            "Hide or show the measurements and the chart layout information")
+    finally:
+        w.close()
+
+
+def test_switching_appearance_while_compact_brings_back_a_fresh_style(
+        qapp, settings, one_page_tif):
+    """The worded buttons' own sheet is put back when the row widens; an
+    appearance switch meanwhile must not leave a stale sheet on them."""
+    from ui.theme import apply_appearance
+    w = _window(qapp, settings, (900, 951))
+    try:
+        _show_chart(qapp, w, one_page_tif, pages=3)
+        prev = w._tab_chart._preview
+        prev._prev_btn.setStyleSheet("QPushButton { min-width: 200px; }")
+        prev._nav_compact = False
+        prev._fit_nav_to_width()
+        compact = prev._nav_compact
+        apply_appearance(qapp, w, "dark")
+        for _ in range(10):
+            qapp.processEvents()
+        w.resize(1500, 1000)
+        for _ in range(10):
+            qapp.processEvents()
+        assert prev._prev_btn.text() != "‹" or not compact
+        assert prev._next_btn.isVisible()
+        g1, g2 = prev._prev_btn.geometry(), prev._next_btn.geometry()
+        assert g1.right() < prev._page_label.geometry().left() < g2.left()
+    finally:
+        apply_appearance(qapp, w, "light")
+        w.close()

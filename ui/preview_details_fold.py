@@ -203,7 +203,8 @@ class PreviewDetailsFold(QObject):
         self.button = CornerFoldButton(self)
         self.badge = VerdictBadge(self)
         self.button.setToolTip(fold_tooltip())
-        self.button.setAccessibleName(tr("Measured from Preview"))
+        self.button.setAccessibleName(tr(
+            "Hide or show the measurements and the chart layout information"))
         self.button.clicked.connect(self.toggle)
         self._render()
 

@@ -8253,6 +8253,7 @@
  "1 warning: click to show the details": "1 aviso: clique para ver os detalhes",
  "{n} warnings: click to show the details": "{n} avisos: clique para ver os detalhes",
  "Preset loaded again. The chart was not rebuilt: press Generate Chart when you want it.": "Predefinição carregada de novo. A carta não foi gerada de novo: prima «Gerar» quando a quiser.",
+ "Hide or show the measurements and the chart layout information": "Ocultar ou mostrar as medições e a informação da disposição da carta",
  "1 notice: click to show the details": "1 nota: clique para ver os detalhes",
  "{n} notices: click to show the details": "{n} notas: clique para ver os detalhes"
 }

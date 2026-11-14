@@ -9275,6 +9275,7 @@
  "1 warning: click to show the details": "1 предупреждение: нажмите, чтобы увидеть подробности",
  "{n} warnings: click to show the details": "Предупреждений: {n}. Нажмите, чтобы увидеть подробности",
  "Preset loaded again. The chart was not rebuilt: press Generate Chart when you want it.": "Пресет загружен заново. Мишень не создавалась заново: нажмите «Создать», когда она понадобится.",
+ "Hide or show the measurements and the chart layout information": "Скрыть или показать измерения и сведения о раскладке мишени",
  "1 notice: click to show the details": "1 примечание: нажмите, чтобы увидеть подробности",
  "{n} notices: click to show the details": "Примечаний: {n}. Нажмите, чтобы увидеть подробности"
 }

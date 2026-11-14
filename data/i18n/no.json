@@ -8253,6 +8253,7 @@
  "1 warning: click to show the details": "1 advarsel: klikk for å se detaljene",
  "{n} warnings: click to show the details": "{n} advarsler: klikk for å se detaljene",
  "Preset loaded again. The chart was not rebuilt: press Generate Chart when you want it.": "Forvalget er lastet inn på nytt. Kartet ble ikke laget på nytt: trykk «Generer» når du vil ha det.",
+ "Hide or show the measurements and the chart layout information": "Skjul eller vis målingene og kartoppsettsinformasjonen",
  "1 notice: click to show the details": "1 merknad: klikk for å se detaljene",
  "{n} notices: click to show the details": "{n} merknader: klikk for å se detaljene"
 }

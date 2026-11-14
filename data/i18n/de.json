@@ -8253,6 +8253,7 @@
  "1 warning: click to show the details": "1 Warnung: zum Anzeigen der Einzelheiten klicken",
  "{n} warnings: click to show the details": "{n} Warnungen: zum Anzeigen der Einzelheiten klicken",
  "Preset loaded again. The chart was not rebuilt: press Generate Chart when you want it.": "Preset erneut geladen. Das Chart wurde nicht neu erzeugt: Drücke „Erzeugen“, wenn du es neu haben möchtest.",
+ "Hide or show the measurements and the chart layout information": "Messwerte und Chart-Layout-Informationen aus- oder einblenden",
  "1 notice: click to show the details": "1 Hinweis: zum Anzeigen der Einzelheiten klicken",
  "{n} notices: click to show the details": "{n} Hinweise: zum Anzeigen der Einzelheiten klicken"
 }

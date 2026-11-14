@@ -566,8 +566,9 @@ DEFAULTS: dict[str, Any] = {
     # stays shut, across charts and across restarts.
     "margin_warnings_expanded":  True,
     # Whether the two frames under the Create Chart preview ("Measured from
-    # Preview" and "Chart layout information") are folded away by the one
-    # triangle above them (Basti, 2026-11-14). A view choice of the window:
+    # Preview" and "Chart layout information") are folded away by the round
+    # button in the preview's bottom right corner (Basti, 2026-11-14). A view
+    # choice of the window:
     # not per target, not in a preset. Open by default.
     "preview_details_collapsed": False,
     "margin_guides_show":        False,   # dotted threshold guide lines on preview

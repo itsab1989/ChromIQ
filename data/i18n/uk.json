@@ -9311,6 +9311,7 @@
  "1 warning: click to show the details": "1 попередження: натисніть, щоб побачити подробиці",
  "{n} warnings: click to show the details": "Попереджень: {n}. Натисніть, щоб побачити подробиці",
  "Preset loaded again. The chart was not rebuilt: press Generate Chart when you want it.": "Пресет завантажено знову. Діаграму не створено заново: натисніть «Створити діаграму», коли вона знадобиться.",
+ "Hide or show the measurements and the chart layout information": "Сховати або показати вимірювання та інформацію про макет діаграми",
  "1 notice: click to show the details": "1 примітка: натисніть, щоб побачити подробиці",
  "{n} notices: click to show the details": "Приміток: {n}. Натисніть, щоб побачити подробиці"
 }

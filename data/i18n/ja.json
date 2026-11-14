@@ -8253,6 +8253,7 @@
  "1 warning: click to show the details": "警告 1 件: クリックすると詳細を表示します",
  "{n} warnings: click to show the details": "警告 {n} 件: クリックすると詳細を表示します",
  "Preset loaded again. The chart was not rebuilt: press Generate Chart when you want it.": "プリセットを再読み込みしました。チャートは作り直していません。必要なときに「生成」を押してください。",
+ "Hide or show the measurements and the chart layout information": "測定値とチャートレイアウト情報を非表示または表示",
  "1 notice: click to show the details": "お知らせ 1 件: クリックすると詳細を表示します",
  "{n} notices: click to show the details": "お知らせ {n} 件: クリックすると詳細を表示します"
 }

@@ -8253,6 +8253,7 @@
  "1 warning: click to show the details": "1 条警告：点击查看详情",
  "{n} warnings: click to show the details": "{n} 条警告：点击查看详情",
  "Preset loaded again. The chart was not rebuilt: press Generate Chart when you want it.": "已重新载入预设。色卡没有重新生成：需要时请点击“生成色卡”。",
+ "Hide or show the measurements and the chart layout information": "隐藏或显示测量值和色卡布局信息",
  "1 notice: click to show the details": "1 条提示：点击查看详情",
  "{n} notices: click to show the details": "{n} 条提示：点击查看详情"
 }

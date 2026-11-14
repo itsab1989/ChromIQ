@@ -9281,6 +9281,7 @@
  "1 warning: click to show the details": "1 ostrzeżenie: kliknij, aby zobaczyć szczegóły",
  "{n} warnings: click to show the details": "Ostrzeżenia: {n}. Kliknij, aby zobaczyć szczegóły",
  "Preset loaded again. The chart was not rebuilt: press Generate Chart when you want it.": "Preset wczytano ponownie. Wzorca nie wygenerowano od nowa: naciśnij „Generuj”, gdy będziesz go potrzebować.",
+ "Hide or show the measurements and the chart layout information": "Ukryj lub pokaż pomiary i informacje o układzie wzorca",
  "1 notice: click to show the details": "1 uwaga: kliknij, aby zobaczyć szczegóły",
  "{n} notices: click to show the details": "Uwagi: {n}. Kliknij, aby zobaczyć szczegóły"
 }

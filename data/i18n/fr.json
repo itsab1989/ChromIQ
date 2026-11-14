@@ -8253,6 +8253,7 @@
  "1 warning: click to show the details": "1 avertissement : clique pour voir le détail",
  "{n} warnings: click to show the details": "{n} avertissements : clique pour voir le détail",
  "Preset loaded again. The chart was not rebuilt: press Generate Chart when you want it.": "Préréglage rechargé. La mire n'a pas été régénérée : appuie sur « Générer » quand tu la veux.",
+ "Hide or show the measurements and the chart layout information": "Masquer ou afficher les mesures et les informations de mise en page de la mire",
  "1 notice: click to show the details": "1 remarque : clique pour voir le détail",
  "{n} notices: click to show the details": "{n} remarques : clique pour voir le détail"
 }

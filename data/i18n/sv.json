@@ -8253,6 +8253,7 @@
  "1 warning: click to show the details": "1 varning: klicka för att se detaljerna",
  "{n} warnings: click to show the details": "{n} varningar: klicka för att se detaljerna",
  "Preset loaded again. The chart was not rebuilt: press Generate Chart when you want it.": "Förvalet har lästs in igen. Diagrammet skapades inte om: tryck på ”Generera” när du vill ha det.",
+ "Hide or show the measurements and the chart layout information": "Dölj eller visa mätningarna och diagramlayoutinformationen",
  "1 notice: click to show the details": "1 anmärkning: klicka för att se detaljerna",
  "{n} notices: click to show the details": "{n} anmärkningar: klicka för att se detaljerna"
 }
