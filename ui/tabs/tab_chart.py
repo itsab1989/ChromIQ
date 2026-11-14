@@ -25219,7 +25219,9 @@ class TabChart(QWidget):
         # every other run is untouched.
         srcs = [run.artefact(ext) for ext in
                 (".ti1", ".ti2", ".cht", ".channels.json", ".strips.json",
-                 ".tif", ".ti3", ".icc", ".icm", ".i1io.json")]
+                 ".tif", ".ti3", ".icc", ".icm", ".i1io.json",
+                 # …and an i1iSis chart's (a Beta) the same way
+                 ".isis.json")]
         srcs += run.stem_files(stem, "_*.tif")
         present = [p for p in srcs if p.is_file()]
         if not present:
@@ -25245,6 +25247,12 @@ class TabChart(QWidget):
             run = self._file_mgr.project().current_run()
             for p in Path(bak).iterdir():
                 shutil.move(str(p), str(run.dir / p.name))
+            # AN i1iSis CHART MEASURES THROUGH ITS .txf (a Beta): exports/
+            # is swept by every build, so the profiling chart that comes back
+            # gets its i1Profiler test chart and order file again
+            # (`workflow.isis.export`). Only for an i1iSis chart, while on.
+            from workflow.isis.export import ensure_export
+            ensure_export(run.chart_ti2)
         except Exception:      # noqa: BLE001 — never break a finished generation
             log.warning("Could not restore the profiling chart after verify "
                         "generation", exc_info=True)

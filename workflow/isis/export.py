@@ -293,3 +293,25 @@ def write_isis_export(ti2: "str | Path", out_dir: "str | Path",
         res.skipped = tr("The i1Profiler test chart could not be written; "
                          "the chart itself is fine.")
     return res
+
+
+def ensure_export(ti2: "str | Path") -> "IsisExport | None":
+    """Write the ``.txf`` and order file of the i1iSis chart *ti2* into its
+    exports folder when either is missing (they are derived files, swept by
+    every build; the chart and its side file are what they come from). None
+    for any other chart, and with the Beta off nothing is read. Never
+    raises."""
+    try:
+        from .support import chart_names_isis, isis_enabled
+        ti2 = Path(ti2)
+        if not isis_enabled() or chart_names_isis(ti2) is not True:
+            return None
+        from core.file_manager import exports_subdir
+        out = exports_subdir(ti2.parent)
+        stem = ti2.name[:-4]
+        if (out / txf_name(stem)).is_file() and (out / order_name(stem)).is_file():
+            return None
+        return write_isis_export(ti2, out, stem)
+    except Exception:  # noqa: BLE001 - a derived file, never a failure
+        log.warning("i1iSis export not written again", exc_info=True)
+        return None

@@ -6883,6 +6883,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         from workflow.isis.export import txf_name
         chart = self._chart_file_for(self._ti1_path)
         side = read_side_file(chart) or {}
+        # the .txf the window names is there (written again if a later build
+        # swept it: it is derived from the chart and its side file)
+        from workflow.isis.export import ensure_export
+        ensure_export(chart)
         stem = Path(str(chart)).name
         stem = stem[:-4] if stem.lower().endswith(".ti2") else stem
         pages = int(side.get("pages") or 1)
