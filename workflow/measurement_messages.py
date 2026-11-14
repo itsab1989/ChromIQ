@@ -811,7 +811,7 @@ M_ISIS_NO_TXF = _m(
     approved=False)
 
 #: The Create Chart log line for an i1iSis chart that is not RGB.
-ISIS_NO_TXF_LOG = ("[WARNING] No i1Profiler test chart (.txf) was written "
+_ISIS_NO_TXF_LOG = ("[WARNING] No i1Profiler test chart (.txf) was written "
                    "for this i1iSis chart: in this version it is written for "
                    "RGB charts only, so this chart cannot be measured in "
                    "i1Profiler as it is printed. Make it as an RGB chart to "

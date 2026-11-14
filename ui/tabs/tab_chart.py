@@ -26515,7 +26515,7 @@ class TabChart(QWidget):
                         and not any(e.name.endswith("-i1profiler-isis.txf")
                                     for e in extras)):
                     from workflow import measurement_messages as _mm
-                    self._log.appendPlainText(tr(_mm.ISIS_NO_TXF_LOG))
+                    self._log.appendPlainText(tr(_mm._ISIS_NO_TXF_LOG))
             except Exception:  # noqa: BLE001 — never block on the sidecars
                 log.warning("chart sidecar export failed", exc_info=True)
             # If this chart was laid out in fixed order (-r "Preserve Patch
