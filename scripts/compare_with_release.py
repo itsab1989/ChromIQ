@@ -161,6 +161,9 @@ def _digest(p: Path) -> str:
     if p.suffix == ".ti2":                   # the clock, not the chart
         data = b"\n".join(ln for ln in data.split(b"\n")
                           if not ln.startswith(b"CREATED "))
+    elif p.suffix == ".pxf":                 # the export's clock likewise
+        data = b"\n".join(ln for ln in data.split(b"\n")
+                          if b"<cc:CreationDate>" not in ln)
     return hashlib.sha256(data).hexdigest()
 
 
