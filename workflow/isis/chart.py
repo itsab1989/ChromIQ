@@ -1213,11 +1213,11 @@ def plan_page(sheet: Sheet, page: int, *, name: str = "",
         ty = sheet.y0 + F.CORNER_LABEL_TOP_MM.value[0]
         # inside the last 3.5 mm, clear of the dashed outline's 0.5 mm
         by = sheet.y0 + sheet.height - F.TRAILER_TEXT_MM.value + 0.3
-        for (x, anchor, col), (y, row) in (
-                ((lx, "left", 0), (ty, 0)),
-                ((rx, "right", g.C - 1), (ty, 0)),
-                ((lx, "left", 0), (by, g.R - 1)),
-                ((rx, "right", g.C - 1), (by, g.R - 1))):
+        corners = [((lx, "left", 0), (ty, 0)), ((lx, "left", 0), (by, g.R - 1))]
+        if _right_corner_drawn(sheet, page, patterns):
+            corners += [((rx, "right", g.C - 1), (ty, 0)),
+                        ((rx, "right", g.C - 1), (by, g.R - 1))]
+        for (x, anchor, col), (y, row) in corners:
             t = cell_name(sheet, page, col, row, patterns)
             tw_ = text_width_mm(t, cl_size)
             items.append(Item("text", (x if anchor == "left" else x - tw_, y,
@@ -1296,6 +1296,22 @@ def mid_ellipsis(text: str, keep: int) -> str:
     return text[:a] + "…" + (text[-b:] if b > 0 else "")
 
 
+def _right_corner_drawn(sheet: "Sheet", page: int, patterns) -> bool:
+    """Whether the right-hand corner labels are drawn: not on a one-column
+    chart (they would name the same cell on top of the left ones), and not
+    where the two labels of a row would come closer than NAME_GAP_MM (a
+    two-column chart of small patches); the left ones always are."""
+    g = sheet.grid
+    if g.C < 2:
+        return False
+    cl = 2.2
+    widths = [text_width_mm(cell_name(sheet, page, c, r, patterns), cl)
+              for c in (0, g.C - 1) for r in (0, g.R - 1)]
+    left = max(widths[0], widths[1])
+    right = max(widths[2], widths[3])
+    return left + right + NAME_GAP_MM <= sheet.grid_w + 1e-9
+
+
 def _plan_name_line(sheet: "Sheet", page: int, name: str, sheet_text: str,
                     patterns) -> "tuple[list[Item], list[str]]":
     """The chart's name, the page and the ChromIQ wordmark in the text band.
@@ -1325,10 +1341,11 @@ def _plan_name_line(sheet: "Sheet", page: int, name: str, sheet_text: str,
     lo2, hi2 = lo, hi
     if o.corner_labels:
         tl = cell_name(sheet, page, 0, 0, patterns)
-        tr_ = cell_name(sheet, page, g.C - 1, 0, patterns)
         lo = max(lo, sheet.grid_x + text_width_mm(tl, cl_size) + NAME_GAP_MM)
-        hi = min(hi, sheet.grid_x + sheet.grid_w
-                 - text_width_mm(tr_, cl_size) - NAME_GAP_MM)
+        if _right_corner_drawn(sheet, page, patterns):
+            tr_ = cell_name(sheet, page, g.C - 1, 0, patterns)
+            hi = min(hi, sheet.grid_x + sheet.grid_w
+                     - text_width_mm(tr_, cl_size) - NAME_GAP_MM)
     # centred on the chart, so the room is twice the nearer side
     room1 = max(0.0, 2.0 * min(cx - lo, hi - cx))
     room2 = max(0.0, 2.0 * min(cx - lo2, hi2 - cx))
@@ -1409,25 +1426,39 @@ def _plan_name_line(sheet: "Sheet", page: int, name: str, sheet_text: str,
                 if b1 is None:
                     left_off.append("name_wordmark")
                 break
-    # 4. one line, the least needed left off: the wordmark, then on a
-    #    one-page chart the page, then the name
+    # 4. the least needed left off: the wordmark, then on a one-page chart
+    #    the page, then the name; each tried between the corner labels and,
+    #    with the strip letters elsewhere, under them (a 1- or 2-column
+    #    chart has almost no room between its corner labels)
     if plan is None:
         sz = NAME_MIN_MM
         left_off.append("name_wordmark")
-        nm = fit_name(sz, room1, True, 0.0)
-        if nm is not None:
-            plan = ("one", sz, line(nm, True), 0.0)
-        elif g.P == 1 and fit_name(sz, room1, False, 0.0) is not None:
-            left_off.append("name_page")
-            plan = ("one", sz, line(fit_name(sz, room1, False, 0.0), False),
-                    0.0)
-        else:
+        places = [("one", room1)] + ([("two", room2)] if not letters_top
+                                     else [])
+        tries = [((lambda r: fit_name(sz, r, True, 0.0)), True, [])]
+        if g.P == 1:
+            tries.append(((lambda r: fit_name(sz, r, False, 0.0)), False,
+                          ["name_page"]))
+        for find, with_page, extra in tries:
+            for mode_, room in places:
+                nm = find(room)
+                if nm is not None:
+                    plan = (mode_, sz, line(nm, with_page), 0.0)
+                    left_off += extra
+                    break
+            if plan is not None:
+                break
+        if plan is None:
             if full:
                 left_off.append("name_text")
-            t = page_txt
-            if tw(t, sz) > room1:
-                t = f"{page + 1}/{g.P}"
-            plan = ("one", sz, t, 0.0)
+            mode_, room = places[-1]
+            t = page_txt if tw(page_txt, sz) <= room else \
+                f"{page + 1}/{g.P}"
+            # the page alone, set smaller still until it fits (never off
+            # a multi-page chart)
+            while sz > 1.0 + 1e-9 and tw(t, sz) > room:
+                sz = round(sz - 0.1, 2)
+            plan = (mode_, sz, t, 0.0)
 
     mode, size, text, band = plan
     ink_top = sheet.y0 + F.OUTLINE_LINE_MM.value + 0.75

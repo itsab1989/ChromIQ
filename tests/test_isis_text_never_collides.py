@@ -59,7 +59,23 @@ def _cases():
                                  C.NOTES_LINES_KEY: ("a" * 120,
                                                      "settings line")}),
             ("A4", "", 957, {C.TIGHT_KEY: True, C.BARCODE_KEY: True,
-                             C.HEADER_KEY: 80.0})]
+                             C.HEADER_KEY: 80.0}),
+            # one and two columns (review of a7ca1489e, m1), the reviewer's
+            # own repro among them
+            ("60x200", "", 30, {"patch_w": 20, "patch_h": 20,
+                                "margins": (5, 0, 5, 0)}),
+            ("60x200", "", 300, {"patch_w": 20, "patch_h": 8,
+                                 "margins": (5, 0, 5, 0)}),
+            ("60x200", "", 40, {"patch_w": 12, "patch_h": 12,
+                                "margins": (5, 0, 5, 0)}),
+            ("60x200", "", 600, {"patch_w": 12, "patch_h": 6,
+                                 "margins": (5, 0, 5, 0),
+                                 "draw_indicators": True,
+                                 C.LETTERS_KEY: "top"}),
+            ("80x250", "", 900, {"patch_w": 10.4, "patch_h": 10.4,
+                                 C.TIGHT_KEY: True, C.ALIGN_KEY: "center",
+                                 "margins": (15.6, 10.8, 9.3, 12.4),
+                                 "offset_x": 4.72})]
     return out
 
 
@@ -75,7 +91,7 @@ def test_no_text_collides_and_all_stays_in_its_zone(paper, model, n, extra,
     kw = {**extra, C.MODEL_KEY: model or "standard", C.COUNT_KEY: n,
           "paper": paper}
     gm = C.guided_margins(paper)
-    if gm is not None:
+    if gm is not None and "margins" not in kw:
         kw["margins"] = gm
     try:
         _o, g, sheet = C.layout_for(n, w, h, kw)
@@ -96,8 +112,11 @@ def test_no_text_collides_and_all_stays_in_its_zone(paper, model, n, extra,
         C.draw_page(img, None, sheet, items, DPI, ink_boxes=boxes)
         boxes = [(r, b) for r, b in boxes if r in TEXT_ROLES
                  and b[2] > b[0] and b[3] > b[1]]
-        # corner labels are always drawn while their option is on
-        assert sum(r == "corner" for r, _b in boxes) == 4
+        # corner labels are always drawn while their option is on: all four,
+        # or the left two where the right ones would name the same cell or
+        # touch them (one or two narrow columns)
+        want = 4 if C._right_corner_drawn(sheet, page, None) else 2
+        assert sum(r == "corner" for r, _b in boxes) == want
         top_band = (sheet.x0 * S, sheet.y0 * S,
                     (sheet.x0 + sheet.width) * S,
                     (sheet.bar_y - F.CLEAR_ABOVE_BAR_MM.value) * S)
