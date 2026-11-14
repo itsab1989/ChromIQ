@@ -724,7 +724,11 @@ def sheet_for(grid: Grid, paper_w: float, paper_h: float,
         need = (nominal_w - opts.d1 + F.DIAMOND_CLEAR_MM.value
                 + max(0.0, opts.label_offset_x) + nw + 0.5)
         room = paper_w - opts.margins[1] - opts.margins[3] - opts.offset[0]
-        if need <= room + 1e-6:
+        # and never wider than the sheet the model takes, so a sheet cut
+        # along the outline still feeds (review of a7ca1489e, m2); without
+        # the room the row numbers are left off and said
+        widest = F.PAPER_W_MM.value[opts.model][1]
+        if need <= room + 1e-6 and need <= widest + 1e-6:
             width = max(width, need)
     natural_h = opts.grid_top + grid.R * opts.ph + opts.trailer_mm
     height = max(natural_h, F.CHART_MIN_LENGTH_MM.value)

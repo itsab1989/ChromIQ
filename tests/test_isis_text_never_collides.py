@@ -143,3 +143,29 @@ def test_no_text_collides_and_all_stays_in_its_zone(paper, model, n, extra,
 def test_the_name_is_shortened_in_its_middle():
     assert C.mid_ellipsis("Canon-PRO-1000-Baryta", 9) == "Cano…ryta"
     assert C.mid_ellipsis("short", 9) == "short"
+
+
+@pytest.mark.parametrize("model,patch", [("standard", 6.0), ("standard", 7.25),
+                                         ("xl", 6.0), ("xl", 9.0)])
+def test_row_numbers_never_make_a_cut_sheet_wider_than_the_model_takes(
+        model, patch):
+    """Review m2: the outline widened for the row numbers (tight margins,
+    a full-width grid, a wide sheet) stays within the 230 / 330 mm the model
+    takes; without the room the numbers are left off and said."""
+    widest = F.PAPER_W_MM.value[C.model_of(model)][1]
+    kw = {C.MODEL_KEY: model, C.TIGHT_KEY: True, "row_indicators": True,
+          "patch_w": patch, "patch_h": patch, "margins": (5, 0, 5, 0),
+          # big numbers pushed out: the widest outline a person can ask for
+          "indicator_size_mm": 5.0, "strip_label_offset_x_mm": 6.0}
+    for n in (200, 1000, 3000):
+        kw[C.COUNT_KEY] = n
+        try:
+            _o, g, sheet = C.layout_for(n, 420.0, 594.0, kw)
+        except C.IsisSheetRefused:
+            continue
+        assert sheet.width <= widest + 1e-6, (model, patch, n, sheet.width)
+        items, off = C.plan_page(sheet, 0, name="rows")
+        numbers = [i for i in items if i.role == "row_number"]
+        assert numbers or "row_numbers" in off
+        for it in numbers:
+            assert it.box[0] + it.box[2] <= sheet.x0 + sheet.width + 1e-6
