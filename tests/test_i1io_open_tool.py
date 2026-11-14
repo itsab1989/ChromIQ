@@ -870,6 +870,23 @@ def test_the_run_is_closed_for_sending_before_the_first_touch_question(tmp_path,
     assert seen and seen[0] == "the run is over"
 
 
+def test_the_touch_question_is_gentle_and_names_the_direction_and_the_feel():
+    """Safety review S3 and N2 (a planted fault removing "Do not force it" survived): the
+    gentle wording, the direction (towards the front, the way the arm travels) and what
+    holds and free feel like are pinned, in the program and in the README."""
+    q = prog.ASK_TOUCH
+    readme = " ".join(_source("README.md").split())
+    for text in (q, readme):
+        for needed in ("very gently", "towards the front of the table",
+                       "the way the arm travels over the table", "about a millimetre",
+                       "let go at once", "Do not force it.", "resists your finger",
+                       "springs back when you let go", "almost no effort"):
+            assert needed in text, needed
+    assert "sideways" not in q and "sideways" not in readme
+    assert prog.TOUCH_CHOICES == ("holds", "free", "not sure", "skip")
+    assert '"holds"' in q and '"free"' in q
+
+
 def test_the_wait_before_the_second_touch_is_only_for_the_real_table(tmp_path, monkeypatch):
     monkeypatch.setattr(prog.time, "sleep", lambda s: pytest.fail("waited in a practice run"))
     code, sim, _ = _run(tmp_path, sim_mod.SimTable())

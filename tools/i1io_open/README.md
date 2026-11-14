@@ -182,11 +182,14 @@ Then it opens the table (nothing moves). Before the homing it stops, tells
 you exactly what will move, and asks `Send it now?`. Afterwards it asks you to
 look at the arm. If the arm is at its resting place, it closes the table.
 
-Then it sends nothing more, and asks you twice to touch the instrument holder
-very gently with one finger, sideways, as if to move it by about a millimetre,
-and to say whether the arm **holds** its place or moves **free**ly: once while
-the program still holds the table's USB connection, and once ten seconds after
-it has let go of it. Do not force it. Answer each question by typing the whole
+Then it sends nothing more, and asks you twice to put one finger on the
+instrument holder and push it very gently towards the front of the table (the
+way the arm travels over the table), as if to move it by about a millimetre,
+then let go at once. Do not force it. Then you say whether the arm **holds**
+its place (it resists your finger, or springs back when you let go) or moves
+**free**ly (it gives way with almost no effort, as when the table is switched
+off): once while the program still holds the table's USB connection, and once
+ten seconds after it has let go of it. Answer each question by typing the whole
 word or words (`yes`, `no`, `not sure`, `stop`, `holds`, `free`, `skip`) and
 pressing Enter.
 

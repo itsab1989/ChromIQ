@@ -59,9 +59,12 @@ I1PROFILER_RUNNING = (
     "X-Rite Device Services) can keep running; you do not need to stop them, and please do "
     "not try to stop them by hand.")
 STOPPED = "You stopped the program. Nothing more is sent to the table."
-ASK_TOUCH = ("Please touch the instrument holder very gently with one finger, sideways, as "
-             "if to move it by about a millimetre, and let go at once. Do not force it. Does the "
-             "arm hold its place (it resists or springs back), or does it move freely?")
+ASK_TOUCH = ("Please put one finger on the instrument holder and push it very gently towards "
+             "the front of the table (the way the arm travels over the table), as if to move it "
+             "by about a millimetre, then let go at once. Do not force it. Does the arm hold its "
+             "place, or does it move freely? \"holds\": it resists your finger, or springs back "
+             "when you let go. \"free\": it gives way with almost no effort, as when the table "
+             "is switched off.")
 TOUCH_CHOICES = ("holds", "free", "not sure", "skip")
 #: How long the program waits after letting go of the USB connection before the second touch.
 RELEASE_WAIT_S = 10.0
