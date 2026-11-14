@@ -1,13 +1,14 @@
 """THE i1iO TESTER PROGRAM 0.2.1 SENDS ONLY THE ELEVEN RECORDED LINES OF BYTES.md,
-EVERY TWO NEIGHBOURING LINES A PAIR i1Profiler ALSO SENT, MOVES ONLY BY i1Profiler'S
-DOUBLE HOMING AT THE RESTING PLACE OF A STARTED TABLE, AND STOPS ON ANY DOUBT.
+EVERY STRETCH OF UP TO TEN NEIGHBOURING LINES ONE i1Profiler ALSO SENT, MOVES ONLY BY
+ONE HOMING AT THE RESTING PLACE OF A STARTED TABLE, AND STOPS ON ANY DOUBT.
 
 `tools/i1io_open/` is a standalone program for the one tester who owns an i1iO 2
 (issue #129). It is WARM ONLY (safety review 2026-11-14): on a started table it
-opens it the way i1Profiler does, sends the arm to its resting place twice as
-i1Profiler does before a calibration (s0 p0 i1 p0 i1 s0) and closes it the way
-i1Profiler does, after a homing and a pause, as recorded; on a table that has just been switched on (a0 = 111800) it
-sends the six reading lines of the opening and nothing else. 0.2.1 follows the
+opens it the way i1Profiler does, sends the arm to its resting place once and closes
+the table, exactly as i1Profiler ended two recorded sessions (s0 p0 i1 s0, a pause,
+s0 f0 f3: S1, R2; safety review after the real run, M3); on a table that has just
+been switched on (a0 = 111800) it sends the six reading lines of the opening and
+nothing else. 0.2.1 follows the
 tester's real run of 0.2.0 (14 Nov 2026): the position check after the homing
 uses the whole recorded resting range, and no position is read before the close.
 These tests hold its claims:
@@ -52,37 +53,49 @@ RECORDED = {
 }
 OPEN = [";a133", ";a133", ";k228", ";u8000060000100d1", ";u8000061000068c3", ";a034"]
 FOLLOW = [";s022", ";f42b", ";f42b", ";f42b", ";f42b"]
-HOMING = [";s022", ";p025", ";i12b", ";p025", ";i12b", ";s022"]
+HOMING = [";s022", ";p025", ";i12b", ";s022"]
 CLOSING = [";s022", ";f02f", ";f32c"]
 COLD = list(OPEN)
 WARM = OPEN + FOLLOW + HOMING + CLOSING
 FORBIDDEN_IDS = ("i0", "m0", "m1", "m2", "c3", "c4", "d1", "a3", "f1", "p1")
-#: Every pair of lines this run sends one after the other, with how often i1Profiler sent
-#: that pair in R1, R2, S1 and S2 together (after_real_run/pairs_all.txt). A pair not in
-#: here was never recorded; in particular p0 is never followed by s0, f4 or f0.
-RECORDED_PAIRS = {
-    (";a133", ";a133"): 4, (";a133", ";k228"): 4, (";k228", ";u8000060000100d1"): 4,
-    (";u8000060000100d1", ";u8000061000068c3"): 4, (";u8000061000068c3", ";a034"): 4,
-    (";a034", ";s022"): 3, (";s022", ";f42b"): 37, (";f42b", ";f42b"): 93,
-    (";f42b", ";s022"): 13, (";s022", ";p025"): 20, (";p025", ";i12b"): 21,
-    (";i12b", ";p025"): 3, (";i12b", ";s022"): 19, (";s022", ";s022"): 6,
-    (";s022", ";f02f"): 11, (";f02f", ";f32c"): 3,
+#: The recorded stretches the whole run is made of, (seconds, line) as decoded from the
+#: recordings (the same lines also at R1 83.666 and R2 378.147 for the opening). Every
+#: window of 2 to 10 neighbouring lines of the run must occur in one of them; the work
+#: folder's fix_round/tools/ngram_pause_audit.py checks the same against the whole of R1,
+#: R2, S1 and S2.
+RECORDED_STRETCHES = {
+    "R2 34.546-35.385 (a warm opening and its homing)": [
+        (34.546, ";a133"), (34.715, ";a133"), (34.731, ";k228"),
+        (34.747, ";u8000060000100d1"), (34.853, ";u8000061000068c3"), (34.906, ";a034"),
+        (34.932, ";s022"), (34.940, ";f42b"), (34.953, ";f42b"), (34.976, ";f42b"),
+        (34.985, ";f42b"), (35.003, ";s022"), (35.017, ";p025"), (35.033, ";i12b"),
+        (35.385, ";s022")],
+    "S1 4.693-22.951 (after the start-up: homing, pause, close)": [
+        (4.693, ";s022"), (4.706, ";f42b"), (4.716, ";f42b"), (4.738, ";f42b"),
+        (4.748, ";f42b"), (4.766, ";s022"), (4.780, ";p025"), (4.796, ";i12b"),
+        (5.020, ";s022"), (22.919, ";s022"), (22.935, ";f02f"), (22.951, ";f32c")],
+    "R2 268.621-361.611 (homing at rest, pause, close)": [
+        (268.621, ";s022"), (268.637, ";p025"), (268.653, ";i12b"), (268.909, ";s022"),
+        (361.579, ";s022"), (361.594, ";f02f"), (361.611, ";f32c")],
 }
-#: Every run of three lines this run sends, with how often i1Profiler sent the same three
-#: one after the other (after_real_run/triple_audit_021.txt). The close in particular
-#: keeps its recorded context: i1, s0, (pause), s0, f0, f3.
-RECORDED_TRIPLES = {
-    (";a133", ";a133", ";k228"): 4, (";a133", ";k228", ";u8000060000100d1"): 4,
-    (";k228", ";u8000060000100d1", ";u8000061000068c3"): 4,
-    (";u8000060000100d1", ";u8000061000068c3", ";a034"): 4,
-    (";u8000061000068c3", ";a034", ";s022"): 3, (";a034", ";s022", ";f42b"): 3,
-    (";s022", ";f42b", ";f42b"): 37, (";f42b", ";f42b", ";f42b"): 28,
-    (";f42b", ";f42b", ";s022"): 13, (";f42b", ";s022", ";p025"): 7,
-    (";s022", ";p025", ";i12b"): 18, (";p025", ";i12b", ";p025"): 3,
-    (";i12b", ";p025", ";i12b"): 3, (";p025", ";i12b", ";s022"): 18,
-    (";i12b", ";s022", ";s022"): 3, (";s022", ";s022", ";f02f"): 2,
-    (";s022", ";f02f", ";f32c"): 3,
-}
+
+
+def _recorded_window(window):
+    """Where the window occurs in a recorded stretch, or None."""
+    n = len(window)
+    for name, stretch in RECORDED_STRETCHES.items():
+        lines = [line for _, line in stretch]
+        for j in range(len(lines) - n + 1):
+            if lines[j:j + n] == list(window):
+                return name, j
+    return None
+
+
+def _windows_ok(seq, longest=10):
+    return all(_recorded_window(seq[i:i + n]) for n in range(2, longest + 1)
+               for i in range(len(seq) - n + 1))
+
+
 #: Where the program may wait for the person: only between lines i1Profiler also paused
 #: between for long (f4 then s0: up to 162.6 s, R1 550.730-713.337).
 LONG_PAUSE_PAIRS = {(";f42b", ";s022"), (";s022", ";s022")}
@@ -93,11 +106,6 @@ REST_READS = [(1102, 32), (1102, 2), (1102, 5), (1102, 29), (1102, 29), (1102, 4
               (1102, 2), (1102, 4), (1102, 14), (1101, 41), (1102, 37), (1102, 31),
               (1102, 32), (1102, 34), (1102, 25), (1102, 5), (1101, 46), (1101, 46),
               (1102, 19)]
-
-
-def _pairs_ok(seq):
-    return all(pair in RECORDED_PAIRS for pair in zip(seq, seq[1:])) and \
-        all(t in RECORDED_TRIPLES for t in zip(seq, seq[1:], seq[2:]))
 
 
 def _bytes_md_lines():
@@ -175,7 +183,7 @@ def test_i0_and_every_move_or_unknown_command_are_absent_from_the_package():
              and getattr(n.func, "id", None) == "_frame"]
     assert all(all(isinstance(a, ast.Constant) for a in c.args) for c in calls)
     assert len(calls) == 11
-    assert tbl.MOTION_KEYS == {"home"} and tbl.MAX_MOTIONS == 2 and tbl.MAX_LINES == len(WARM)
+    assert tbl.MOTION_KEYS == {"home"} and tbl.MAX_MOTIONS == 1 and tbl.MAX_LINES == len(WARM)
 
 
 def test_the_program_writes_only_in_one_place_and_through_the_gate():
@@ -226,14 +234,27 @@ def test_the_resting_place_box_holds_every_recorded_rest_read_and_nothing_narrow
     assert not hasattr(tbl, "HOMED")          # 0.2.0's Y -3..8 after the homing is withdrawn
 
 
-def test_every_neighbouring_pair_of_the_run_was_sent_by_i1profiler():
-    assert _pairs_ok(WARM) and _pairs_ok(COLD)
-    assert set(zip(WARM, WARM[1:])) == set(RECORDED_PAIRS)
-    assert set(zip(WARM, WARM[1:], WARM[2:])) == set(RECORDED_TRIPLES)
-    assert WARM[-5:] == [";i12b", ";s022", ";s022", ";f02f", ";f32c"]   # S1, R2 close context
+def test_every_window_of_up_to_ten_lines_of_the_run_was_sent_by_i1profiler(tmp_path):
+    """The n-gram audit, n = 2..10, on the lines a simulated run really sends (safety review
+    after the real run, M3)."""
+    code, sim, _ = _run(tmp_path, sim_mod.SimTable())
+    assert code == 0 and sim.received == WARM and len(WARM) == 18
+    for n in range(2, 11):
+        for i in range(len(WARM) - n + 1):
+            assert _recorded_window(WARM[i:i + n]), (n, i, WARM[i:i + n])
+    assert _windows_ok(COLD)
+    assert WARM[-7:] == [";s022", ";p025", ";i12b", ";s022", ";s022", ";f02f", ";f32c"]
+    assert WARM.count(";i12b") == 1
     for a, b in zip(WARM, WARM[1:]):
         if a == ";p025":
             assert b == ";i12b"
+
+
+def test_the_old_double_homing_would_fail_the_audit():
+    """The audit has teeth: 0.2.1's first ending (s0 p0 i1 p0 i1 s0) is not recorded at five
+    lines (the reviewer's finding)."""
+    old = OPEN + FOLLOW + [";s022", ";p025", ";i12b", ";p025", ";i12b", ";s022"] + CLOSING
+    assert not _windows_ok(old, longest=5)
 
 
 def test_the_person_is_only_asked_where_i1profiler_also_paused(tmp_path):
@@ -249,6 +270,14 @@ def test_the_person_is_only_asked_where_i1profiler_also_paused(tmp_path):
     for n in at:
         if n < len(WARM):
             assert (WARM[n - 1], WARM[n]) in LONG_PAUSE_PAIRS, (n, WARM[n - 1], WARM[n])
+    # the look sits between the homing's s0 and the closing s0, where i1Profiler paused
+    # 17.9 s (S1) and 92.7 s (R2) in the very stretches the ending is made of
+    look = len(OPEN + FOLLOW + HOMING)
+    assert look in at
+    for name in ("S1", "R2 268"):
+        stretch = next(v for k, v in RECORDED_STRETCHES.items() if k.startswith(name))
+        j = [line for _, line in stretch].index(";i12b") + 1
+        assert stretch[j + 1][0] - stretch[j][0] > 15.0
 
 
 @pytest.mark.parametrize("key,good,bad", [
@@ -276,9 +305,9 @@ def test_a_homing_answer_later_than_the_timeout_is_a_missing_answer(tmp_path):
 def test_a_started_table_gets_the_recorded_open_homing_and_close(tmp_path):
     code, sim, log = _run(tmp_path, sim_mod.SimTable(cold=False))
     assert code == 0
-    assert sim.received == WARM and len(WARM) == 20
-    assert sim.motions == 2
-    assert "result 0; table warm; 20 lines sent, 2 movements; closed yes" in log
+    assert sim.received == WARM and len(WARM) == 18
+    assert sim.motions == 1
+    assert "result 0; table warm; 18 lines sent, 1 movements; closed yes" in log
 
 
 def test_the_homing_follows_s0_and_p0_back_to_back_after_the_yes(tmp_path):
@@ -292,7 +321,7 @@ def test_the_homing_follows_s0_and_p0_back_to_back_after_the_yes(tmp_path):
     code, sim, _ = _run(tmp_path, sim, console=C(lambda k, t: None))
     assert code == 0
     n = next(count for q, count in events if "Send it now" in q)
-    assert sim.received[n:n + 5] == [";s022", ";p025", ";i12b", ";p025", ";i12b"]
+    assert sim.received[n:n + 4] == [";s022", ";p025", ";i12b", ";s022"]
     assert sim.received[n - 1] == ";f42b"     # the yes comes right after the f4 block (nit 1)
 
 
@@ -328,33 +357,13 @@ def test_the_arm_moved_away_while_the_person_read_stops_before_i1(tmp_path):
     assert "right before the homing" in log
 
 
-def test_the_arm_away_after_the_first_homing_stops_before_the_second(tmp_path):
-    sim = sim_mod.SimTable()
-    sim.inject_at(len(OPEN + FOLLOW) + 3, "drift", 200.0)     # the p0 between the homings
-    code, sim, log = _run(tmp_path, sim)
-    assert code == 2 and sim.received == OPEN + FOLLOW + HOMING[:4]
-    assert "after the first homing" in log and "closed no" in log
-
-
 @pytest.mark.parametrize("x,y,ok", [
-    (1102, 19, True), (1102, 50, True), (1102, -5, True), (1097, 19, True), (1107, 19, True),
-    (1102, 51, False), (1102, -6, False), (1096, 19, False), (1108, 19, False),
-    (1102, 300, False)])
-def test_the_check_between_the_homings_at_its_edges(tmp_path, x, y, ok):
-    """The planted-fault edges of the tolerance: tonight's Y 19 and every recorded rest
-    read pass; one unit outside the box, or a homing that ended 3 cm out, stops."""
-    sim = sim_mod.SimTable(home_x=x, home_y=y, jitter=False)
-    code, sim, log = _run(tmp_path, sim)
-    if ok:
-        assert code == 0 and sim.received == WARM and "closed yes" in log
-    else:
-        assert code == 2 and sim.received == OPEN + FOLLOW + HOMING[:4]
-        assert "closed no" in log and f"({x}, {y})" in log
-
-
-@pytest.mark.parametrize("x,y,ok", [
-    (1101, 46, True), (1102, 50, True), (1097, -5, True), (1102, 51, False), (1096, 30, False)])
-def test_the_check_before_the_first_homing_at_its_edges(tmp_path, x, y, ok):
+    (1101, 46, True), (1102, 19, True), (1102, 50, True), (1102, -5, True), (1097, 19, True),
+    (1107, 19, True), (1097, -5, True), (1102, 51, False), (1102, -6, False), (1096, 19, False),
+    (1108, 19, False), (1096, 30, False), (1102, 300, False)])
+def test_the_check_before_the_homing_at_its_edges(tmp_path, x, y, ok):
+    """The box on the p0 right before the one homing: every recorded rest read passes; one
+    unit outside, or an arm 3 cm out, stops with no homing sent."""
     sim = sim_mod.SimTable(pos=[float(x), float(y)], jitter=False)
     code, sim, log = _run(tmp_path, sim)
     if ok:
@@ -365,20 +374,18 @@ def test_the_check_before_the_first_homing_at_its_edges(tmp_path, x, y, ok):
 
 def test_tonights_real_replies_now_end_with_the_recorded_close(tmp_path):
     """The tester's table as it answered 0.2.0 on 14 Nov 2026 ((1101, 46) before, homing
-    0.336 s, (1102, 19) after): 0.2.1 checks (1102, 19) against the resting range and
-    finishes with s0 f0 f3."""
+    0.336 s): 0.2.1 reads no position after the homing and finishes with s0 f0 f3."""
     code, sim, log = _run(tmp_path, sim_mod.tonights_table())
     assert code == 0 and sim.received == WARM
     assert "right before the homing the arm reports (1101, 46)" in log
-    assert "after the first homing the arm reports (1102, 19)" in log
-    assert "the homings took 0.336," in log
-    assert "result 0; table warm; 20 lines sent, 2 movements; closed yes" in log
+    assert "the homing took 0.336 s" in log
+    assert "result 0; table warm; 18 lines sent, 1 movements; closed yes" in log
 
 
 def test_tonights_lines_up_to_the_homing_are_the_ones_his_table_already_answered(tmp_path):
     """Every reply 0.2.0 got from his table, in its form, is what the replay gives; the
-    only lines 0.2.1 sends that 0.2.0 did not are the second p0 i1 and s0 f4 f4 (all
-    recorded), and the first s0 p0 pair before the yes is gone (nit 1)."""
+    only lines 0.2.1 sends that 0.2.0 did not are the closing s0 f0 f3, and the first s0 p0
+    pair before the yes is gone (nit 1)."""
     seen_by_020 = [";a133", ";a133", ";k228", ";u8000060000100d1", ";u8000061000068c3",
                    ";a034", ";s022", ";f42b", ";f42b", ";f42b", ";f42b", ";s022", ";p025",
                    ";s022", ";p025", ";i12b", ";s022", ";p025"]
@@ -390,7 +397,7 @@ def test_tonights_lines_up_to_the_homing_are_the_ones_his_table_already_answered
     for want in replies_020.values():
         assert want in recv
     assert ":$p00044D002E1F" in recv          # (1101, 46), byte for byte as his table said it
-    assert ":$p00044E001331" in recv          # (1102, 19), likewise
+    assert ":$p00044E001331" not in recv      # (1102, 19) after the homing: no longer read
 
 
 def test_the_arm_check_itself_refuses_anything_but_00():
@@ -404,8 +411,8 @@ def test_the_arm_check_itself_refuses_anything_but_00():
     assert d.closed_reason
 
 
-def test_no_line_after_the_second_homing_but_the_recorded_close(tmp_path):
-    """No p0 and no f4 after the last homing: the close follows i1, s0 as recorded."""
+def test_no_line_after_the_homing_but_the_recorded_close(tmp_path):
+    """No p0 and no f4 after the homing: the close follows i1, s0 as recorded."""
     code, sim, _ = _run(tmp_path, sim_mod.SimTable())
     last_i1 = len(sim.received) - 1 - sim.received[::-1].index(";i12b")
     assert sim.received[last_i1:] == [";i12b", ";s022", ";s022", ";f02f", ";f32c"]
@@ -427,7 +434,7 @@ VALUES = {"drift": 200.0, "blocked": 0.5, "late": 30.0, "status": 3.0, "refuse":
 
 def _applies(kind, line, seq=None, index=None):
     if kind == "blocked" and seq is not None and ";p025" not in seq[index:]:
-        return False        # after the second homing nothing reads the position: the look does
+        return False        # after the homing nothing reads the position: the look does
     want = ONLY_FOR.get(kind)
     if want is None:
         return True
@@ -446,7 +453,7 @@ def test_any_fault_at_any_line_stops_with_nothing_more_sent(tmp_path, cold, kind
         code, sim, log = _run(tmp_path, sim)
         assert all((r + "\r").encode() in ALLOWED for r in sim.received)
         assert sim.received == seq[:len(sim.received)]
-        assert _pairs_ok(sim.received)
+        assert _windows_ok(sim.received)
         if _applies(kind, line, seq, index):
             assert code == 2, (kind, index, line)
             stop_at = seq.index(";p025", index) if kind == "blocked" else index
@@ -538,7 +545,7 @@ def test_stop_or_ctrl_c_at_every_question_sends_nothing_more(tmp_path, cold):
             assert sim.received == WARM
             continue
         assert code == 1
-        assert sent in (11, 17)       # before the homing's s0, or before the closing
+        assert sent in (11, 15)       # before the homing's s0, or before the closing
 
 
 def _opened_warm():
@@ -627,11 +634,11 @@ def test_reviewer_ctrl_c_at_every_question(tmp_path):
                 assert len(sim.received) == before["n"], (cold, k)
 
 
-def test_a_blocked_second_homing_is_not_seen_by_the_program_but_by_the_persons_look(tmp_path):
-    """The weakest point, pinned: no position is read after the second homing, so a homing
-    that reports done in time but ended elsewhere is caught only by the person's look."""
+def test_a_blocked_homing_is_not_seen_by_the_program_but_by_the_persons_look(tmp_path):
+    """The weakest point, pinned: no position is read after the homing, so a homing that
+    reports done in time but ended elsewhere is caught only by the person's look."""
     sim = sim_mod.SimTable()
-    sim.inject_at(len(OPEN + FOLLOW) + 4, "blocked", 0.5)
+    sim.inject_at(len(OPEN + FOLLOW) + 2, "blocked", 0.5)
     con = prog.AutoConsole(lambda k, t: None, script={"Is the arm at": "no"})
     code, sim, log = _run(tmp_path, sim, console=con)
     assert code == 1 and sim.received == WARM[:-3] and "closed no" in log

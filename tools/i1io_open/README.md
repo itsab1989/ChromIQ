@@ -11,9 +11,9 @@ questions and sent the arm home once. This one does what i1Profiler does when
 it connects to a table that is already started, and when you quit it:
 
 * it **opens** the table with i1Profiler's own opening lines;
-* it sends the arm to its **resting place** twice in a row, where it already
-  is, exactly as i1Profiler does before it calibrates (a quarter of a second
-  and a twentieth of a second; the arm should barely move);
+* it sends the arm to its **resting place** once, where it already is,
+  exactly as i1Profiler did right before it closed the table in your
+  recordings (the arm should barely move);
 * it **closes** the table with i1Profiler's own two closing lines;
 * it asks you to **feel gently whether the arm is held**, once before and once
   after it lets go of the table's USB connection.
@@ -22,11 +22,10 @@ it connects to a table that is already started, and when you quit it:
 sent the arm home, then read the arm's position (X 1102, Y 19, which is its
 resting place) and stopped, because it expected a value between Y -3 and Y 8.
 That expectation came from too few readings and was wrong; your table did
-nothing wrong. This version checks the position between its two homings
-against everything any recording has ever read at the resting place
-(X 1097 to 1107, Y -5 to 50), and it reads no position after the second homing,
-because i1Profiler never asks for the position right before it closes the
-table. Afterwards you found the arm **loose**, as when the table is switched
+nothing wrong. This version checks the position before its one homing against
+everything any recording has ever read at the resting place (X 1097 to 1107,
+Y -5 to 50), and it reads no position after the homing, because i1Profiler
+never asks for the position right before it closes the table. Afterwards you found the arm **loose**, as when the table is switched
 off. We do not know yet why; the two touch questions at the end are there to
 find out when it happens.
 
@@ -46,11 +45,10 @@ Nothing here is promised, and you can stop at every step.
 
 The program can send only **eleven different lines** to the table. Each one is
 a line i1Profiler itself sent to your table in your recordings, byte for byte,
-and every two lines that follow each other here also follow each other in your
-recordings (even every three). The opening is i1Profiler's opening; the homings
-are its double homing before a calibration (status, position, homing, position,
-homing, status); the closing is its closing, after a homing, as i1Profiler
-closes. The file `BYTES.md`
+and every stretch of up to ten lines that follow each other here also follows in
+the same order in your recordings. The opening is i1Profiler's opening; the
+homing (status, position, homing, status), the pause and the closing are
+exactly how i1Profiler ended one of your sessions. The file `BYTES.md`
 lists every line with the exact place in your recordings where i1Profiler sent
 it. `python3 i1io_open.py --plan` prints the whole sequence; `--dry-run` prints
 it with every byte.
@@ -64,15 +62,14 @@ it with every byte.
 | `;a034` | we believe it tells whether the table has just been switched on (111800) or is started (130000) | no |
 | `;s022` | asks for the status | no |
 | `;f42b` | we believe it asks whether the motors hold the arm (four times) | no |
-| `;p025` | asks where the arm is (before each homing) | no |
-| `;i12b` | **go to the resting place** (the arm is already there), twice | **barely, about 0.3 s and 0.05 s** |
+| `;p025` | asks where the arm is (before the homing) | no |
+| `;i12b` | **go to the resting place** (the arm is already there), once | **barely** |
 | `;f02f` | first closing line | no |
 | `;f32c` | second closing line | no |
 
 After your yes, the program asks for the status and where the arm is, and
-sends the homing at once if the arm is at its resting place; then it asks where
-the arm is again and sends the second homing at once if it is still there, as
-i1Profiler does.
+sends the homing at once if the arm is at its resting place, as i1Profiler
+does.
 
 About the memory block: i1Profiler reads it every time it connects, so this
 program does too, to keep the same order. It holds the table's serial number.
@@ -179,7 +176,7 @@ on). Then it asks you to type this sentence:
 I understand that this moves my table
 ```
 
-Then it opens the table (nothing moves). Before the homings it stops, tells
+Then it opens the table (nothing moves). Before the homing it stops, tells
 you exactly what will move, and asks `Send it now?`. Afterwards it asks you to
 look at the arm. If the arm is at its resting place, it closes the table.
 
@@ -236,7 +233,7 @@ few words:
 
 * had the table been switched off and on before, and had i1Profiler been
   opened since;
-* what the arm did during the homings;
+* what the arm did during the homing;
 * when you found the arm held or loose (the program asks twice; anything you
   felt later is welcome too, with the time);
 * any sounds, and when;

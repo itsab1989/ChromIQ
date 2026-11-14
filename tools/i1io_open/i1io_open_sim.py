@@ -36,13 +36,11 @@ class SimViolation(AssertionError):
 #: The recorded opening, the same cold (S1 1.141-1.502) and warm (R2 34.546-34.906).
 REC_OPEN = [";a133", ";a133", ";k228", ";u8000060000100d1", ";u8000061000068c3", ";a034"]
 #: After a0 on a warm table (R2 34.932-34.985, 378.530-378.585): s0, f4 x4; after the
-#: person's yes i1Profiler's double homing before a calibration, line for line: s0 p0 i1
-#: p0 i1 s0 (R1 190.077-197.852, R2 134.258-141.991, 417.165-424.974, each after an s0);
-#: then, after the look, i1Profiler's closing in its recorded context (i1 s0, pause, s0 f0
-#: f3: S1 4.796-22.967, R2 268.653-361.611). No p0 after the second homing: no recording
-#: follows p0 with s0.
+#: person's yes ONE homing as i1Profiler sent it right before a close: s0 p0 i1 s0, then,
+#: after the look, s0 f0 f3 (S1 4.766-22.951, R2 268.621-361.611). No p0 after the
+#: homing: no recording follows p0 with s0.
 REC_FOLLOW = [";s022", ";f42b", ";f42b", ";f42b", ";f42b",
-              ";s022", ";p025", ";i12b", ";p025", ";i12b", ";s022",
+              ";s022", ";p025", ";i12b", ";s022",
               ";s022", ";f02f", ";f32c"]
 #: A table just switched on gets the opening's six reading lines and nothing more.
 REC_COLD = list(REC_OPEN)
@@ -274,8 +272,7 @@ class SimTable:
         self.motions += 1
         slow = 8.0 if kind == "slow_motion" else 0.0
         # i1 at the resting place: recorded 0.224-0.352 s
-        # a replayed first homing ends where the real one ended; the second (not seen on
-        # the real table) ends as in the recordings (Y 0..2, 0.048 s from there)
+        # a replayed homing ends where the real one ended, after the real one's time
         replay = self.home_y is not None and self.motions == 1
         target = (float(self.home_x if (replay and self.home_x is not None) else HOME[0]),
                   float(self.home_y if replay else self._rng.choice((0, 1, 2))))
@@ -293,9 +290,8 @@ class SimTable:
 def tonights_table(**kw) -> SimTable:
     """The tester's real table as it answered version 0.2.0 on 14 Nov 2026 (his log; no
     serial in it): started (a0 130000), every arm answer 00, the arm at (1101, 46) before
-    the homing, the homing answered after 0.336 s, the arm at (1102, 19) after it. What
-    0.2.1 does beyond that (the second homing from there) is a BELIEF taken from the
-    recordings (a second homing ends at Y 0..2, R1 190.460, R2 134.658, 417.500)."""
+    the homing, the homing answered after 0.336 s, the arm at (1102, 19) after it (0.2.1
+    reads no position after the homing; the value is kept for the replay of 0.2.0)."""
     return SimTable(cold=False, pos=[1101.0, 46.0], home_y=19.0, home_s=0.336, jitter=False,
                     **kw)
 

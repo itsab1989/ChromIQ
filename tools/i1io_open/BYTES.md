@@ -15,23 +15,26 @@ Sources (times are seconds from the start of each recording, as `io_decode.py` p
 * **S2** the tester's measuring recording of 14 Nov 2026 (five i1Profiler sessions).
 
 Every line below is byte-identical to a line i1Profiler sent, and is sent here only in the
-place where i1Profiler sent it (column "context"). Every two lines, and every three lines,
-that follow each other in this program also follow each other in the recordings (the tests
-carry the pair list; the work folder has `pair_audit_021.txt` and `triple_audit_021.txt`
-over R1, R2, S1 and S2). The whole warm run is:
+place where i1Profiler sent it (column "context"). Every stretch of up to TEN lines that
+follow each other in this program also follows in the same order in the recordings (the
+tests carry the recorded stretches and check every window of 2 to 10 lines; the work folder
+has `fix_round/ngram_pause_audit.txt` over the whole of R1, R2, S1 and S2). The whole warm run
+is 18 lines with one movement:
 
 ```
 opening   a1 a1 k2 u8 u8 a0                      (every recorded open)
           s0 f4 f4 f4 f4                         (R2 34.932-34.985, 378.530-378.585)
           ... the person's yes ...               (f4 then s0 after a pause: 13x, up to 162 s)
-homings   s0 p0 i1 p0 i1 s0                      (R1 87.464 + 190.077-197.852, R2 35.401 +
-                                                  134.258-141.991, R2 378.905 +
-                                                  417.165-424.974: i1Profiler's double
-                                                  homing before a calibration)
-          ... the person looks at the arm ...     (i1, s0, pause, s0: S1 4.796-22.919,
-                                                  R2 268.653-361.579, up to 92.7 s)
+homing    s0 p0 i1 s0                            (R2 35.003-35.385 at a warm opening;
+                                                  S1 4.766-5.020 and R2 268.621-268.909,
+                                                  each followed by the pause and the close)
+          ... the person looks at the arm ...     (s0, pause, s0: S1 5.020-22.919 (17.9 s),
+                                                  R2 268.909-361.579 (92.7 s))
 closing   s0 f0 f3                               (S1 22.919-22.951, R2 361.579-361.611)
 ```
+
+From `s0 f4 f4 f4 f4` on, the run is line for line S1 4.693-22.951, i1Profiler's own end of
+that session; up to its homing it is line for line R2 34.546-35.385.
 
 0.2.0 read `p0` after the homing and then sent `s0`: that pair is never recorded (no
 recording follows `p0` with anything but a movement, `c4` or another `p0`), and on the
@@ -51,10 +54,10 @@ one CR (0x0D).
 | 3 | `;u8000060000100d1` | `3b 75 38 30 30 30 30 36 30 30 30 30 31 30 30 64 31 0d` | 4th line | S1 1.343; R2 34.747, 378.347. Right after k2 |
 | 4 | `;u8000061000068c3` | `3b 75 38 30 30 30 30 36 31 30 30 30 30 36 38 63 33 0d` | 5th line | S1 1.450; R2 34.853, 378.453. Right after the first u8 |
 | 5 | `;a034` | `3b 61 30 33 34 0d` | 6th line. Answer 111800: STOP here (nothing more is sent). Answer 130000: go on. Anything else: stop | S1 1.502 (answer 111800); R2 34.906, 378.505 (answer 130000). Right after the second u8 |
-| 6 | `;s022` | `3b 73 30 32 32 0d` | after a0 (warm); after the person's yes, right before p0; after the second i1; after the look, before f0 | R2 34.932 + 378.530 (after a0, warm); R1 87.464 / R2 378.905 (an s0 before the p0 of a double homing); R1 197.852, R2 141.991, 424.974 (after the second i1); S1 5.020 + 22.919, R2 268.909 + 361.579 (s0 after a homing, then s0 before f0) |
+| 6 | `;s022` | `3b 73 30 32 32 0d` | after a0 (warm); after the person's yes, right before p0; after the i1; after the look, before f0 | R2 34.932 + 378.530 (after a0, warm); S1 4.766, R2 35.003, 268.621 (right before the p0 of a homing); S1 5.020 + 22.919, R2 268.909 + 361.579 (s0 after a homing, then s0 before f0) |
 | 7 | `;f42b` | `3b 66 34 32 62 0d` | four times after the first s0 | R2 34.940-34.985, 378.539-378.585; S1 4.706-4.748. Always answered 00 there |
-| 8 | `;p025` | `3b 70 30 32 35 0d` | after the person's yes, right after s0 and right before the first i1; right after the first i1 and right before the second | R1 190.077 + 190.404, R2 134.258 + 134.587, R2 417.165 + 417.445 (the double homing); R2 35.017, 378.617 (before the opening's i1). Never followed by s0, f4 or f0 in any recording, so never sent after the second i1 |
-| 9 | `;i12b` | `3b 69 31 32 62 0d` | twice, each right after the p0 that read the resting place | R1 190.093 (from (1102, 32), 0.304 s) + 190.412 (from (1102, 2), 0.048 s); R2 134.274 + 134.610; R2 417.181 + 417.453; at the opening R2 378.632, R2 35.033, S1 4.796. On the tester's table with 0.2.0: from (1101, 46), 0.336 s |
+| 8 | `;p025` | `3b 70 30 32 35 0d` | once: after the person's yes, right after s0 and right before the i1 | S1 4.780, R2 268.637 (before the homing that the close followed); R2 35.017, 378.617 (before the opening's i1). Never followed by s0, f4 or f0 in any recording, so never sent after the i1 |
+| 9 | `;i12b` | `3b 69 31 32 62 0d` | once, right after the p0 that read the resting place | S1 4.796 (from (1102, 14), 0.224 s), R2 268.653 (from (1102, 24), 0.256 s), each followed by s0, the pause and the close; R2 35.033 (from (1102, 47), 0.352 s), 378.632 (from (1102, 24), 0.272 s). On the tester's table with 0.2.0: from (1101, 46), 0.336 s |
 | 10 | `;f02f` | `3b 66 30 32 66 0d` | after the closing s0, arm at rest, motors holding (f4 00) | S1 22.935; R2 361.594; R1 0.017 |
 | 11 | `;f32c` | `3b 66 33 32 63 0d` | right after f0 | S1 22.951; R2 361.611; R1 0.033 |
 

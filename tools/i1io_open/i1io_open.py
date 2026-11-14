@@ -95,16 +95,16 @@ RISKS = (
     "version 0.2.0 ran once: it opened the table and sent the arm home, and then stopped "
     "before the closing lines, because the position it read after the homing was not one it "
     "expected (that expectation was too narrow; your table did nothing wrong). This version "
-    "sends the arm to its resting place twice in a row, as i1Profiler does before it "
-    "calibrates, reads the position between the two homings and accepts every position any "
-    "recording has shown at the resting place; it reads no position right before the closing "
-    "lines, because i1Profiler never does. Each line it sends is a line that i1Profiler itself "
-    "sent to your table in your recordings, byte for byte, and every two lines that follow "
-    "each other here (even every three) also follow each other in your recordings: the lines "
-    "with which "
-    "i1Profiler opens the table, the lines of its double homing, and the two lines with which "
-    "it closes the table. Only the homings make the arm move, and the arm is already at its "
-    "resting place, so it should barely move. If the table has just been switched on, the "
+    "sends the arm to its resting place once, where it already is, exactly as i1Profiler did "
+    "right before it closed the table in your recordings. It reads the arm's position first "
+    "and sends the homing only if the arm is at its resting place (it accepts every position "
+    "any recording has shown there), and it reads no position after the homing, because "
+    "i1Profiler never does right before the closing lines. Each line it sends is a line that "
+    "i1Profiler itself sent to your table in your recordings, byte for byte, and every stretch "
+    "of up to ten lines that follow each other here also follows in the same order in your "
+    "recordings: the lines with which i1Profiler opens the table, its homing, and the two "
+    "lines with which it closes the table. Only the homing makes the arm move, and the arm is "
+    "already at its resting place, so it should barely move. If the table has just been switched on, the "
     "program stops after the opening and asks you to let i1Profiler start the table first. The "
     "program has no command for any other movement, never measures and never talks to the "
     "i1Pro 2. It sends no line of its own for the measuring head. Whether the table lifts and "
@@ -224,7 +224,7 @@ def _bare(key: str) -> str:
 
 OPENING = ("identity", "identity", "k2", "memory_a", "memory_b", "a0")
 FOLLOW = ("status", "arm_mode", "arm_mode", "arm_mode", "arm_mode")
-HOMING = ("status", "position", "home", "position", "home", "status")
+HOMING = ("status", "position", "home", "status")
 CLOSING = ("status", "f0", "f3")
 MEANING = {
     "identity": "identity (must be 005D010702)",
@@ -260,12 +260,12 @@ def plan_text(hex_bytes: bool = False) -> str:
             "3. Follow-up on a started table (only reads):"]
     out += [row(k) for k in FOLLOW]
     out += ["  checks: every arm answer 00; otherwise stop.", "",
-            "4. Homing, only after you type yes: i1Profiler's own double homing before a "
-            "calibration, line for line (status, position, homing, position, homing, status):"]
+            "4. Homing, only after you type yes: one homing, as i1Profiler sent it right "
+            "before it closed the table (status, position, homing, status):"]
     out += [row(k) for k in HOMING]
     out += ["  checks: the arm at its resting place (X 1097..1107, Y -5..50) right before "
-            "each homing; each homing answered within 2 s; otherwise stop. No position is "
-            "read after the second homing (i1Profiler never follows a position question with "
+            "the homing; the homing answered within 2 s; otherwise stop. No position is "
+            "read after the homing (i1Profiler never follows a position question with "
             "the closing lines).", "",
             "5. Closing, after you have looked at the arm:"]
     out += [row(k) for k in CLOSING]
@@ -329,17 +329,15 @@ class Run:
             self.ui.say("The table answered as expected: it is started (a0 = 130000) and, we "
                         "believe, its motors hold the arm (f4 = 00).")
             self._go_ahead(
-                f"Next the program sends the arm to its resting place twice in a row, exactly as "
-                f"i1Profiler does before it calibrates: it asks where the arm is, sends "
-                f"{_bare('home')} (i1, go to the resting place) if the arm is there, asks again, "
-                "and sends the second one if the arm is still there. The arm is already at its "
-                "resting place, so it should move very little or not at all; you may hear the "
-                "motors twice for a moment. With i1Profiler the first took about a quarter of a "
-                "second and the second a twentieth; with version 0.2.0 on your table the "
-                "homing took a third of a second.")
+                f"Next the program sends the arm to its resting place once, exactly as "
+                f"i1Profiler did right before it closed the table: it asks where the arm is and "
+                f"sends {_bare('home')} (i1, go to the resting place) if the arm is there. The "
+                "arm is already at its resting place, so it should move very little or not at "
+                "all; you may hear the motors for a moment. With version 0.2.0 on your table "
+                "the homing took a third of a second.")
             self.d.home()
-            took = ", ".join(f"{t:.2f}" for t in self.d.homing_times)
-            self.ui.say(f"The table reports that both homings have finished (after {took} s).")
+            self.ui.say(f"The table reports that the homing has finished (after "
+                        f"{self.d.homing_times[-1]:.2f} s).")
             seen = self.look(f"Please look at the table now. Is the arm at {REST_PLACE}?",
                              ("yes", "no", "not sure", "stop"), "arm at its resting place")
             self.seen_at_rest = seen == "yes"
@@ -389,9 +387,9 @@ class Run:
             elif code == 0:
                 pass
             elif d.homed and not d.motion_unconfirmed:
-                self.ui.say("The table reported that both homings had finished, so the arm "
+                self.ui.say("The table reported that the homing had finished, so the arm "
                             "should be at its resting place (its position is not read after the "
-                            "second homing). The table was not closed; i1Profiler opens it "
+                            "homing). The table was not closed; i1Profiler opens it "
                             "normally the next time.")
             elif (not d.arrival_unknown and d.position_now is not None
                   and tbl.HOME_CLUSTER.contains(d.position_now)):

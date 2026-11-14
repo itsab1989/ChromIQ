@@ -15,18 +15,16 @@ numbers: the eleven lines are fixed at import and :func:`check_outgoing`
 refuses every other byte string.
 
 ONE line makes the arm move: ``;i12b`` (i1, run to the resting place), sent
-only while the arm is already there, each time right after a ``p0`` that read
-the resting place, as i1Profiler sends it. Version 0.2.1 (after the tester's
-real run of 0.2.0) sends it twice, as i1Profiler's own double homing before a
-calibration: ``s0 p0 i1 p0 i1 s0`` (R1 87.464 + 190.077-197.852, R2
-35.401 + 134.258-141.991, R2 378.905 + 417.165-424.974). The position read
-between the two homings is checked; after the second homing no position is
-read, because in every recording ``p0`` is followed only by a movement, ``c4``
-or another ``p0``, never by ``s0``, ``f4`` or ``f0``. After the person has
-looked, the recorded close ``s0 f0 f3`` follows, in its recorded context: a
-homing at rest, ``s0``, a pause, then ``s0 f0 f3`` (S1 4.796-22.967, R2
-268.653-361.611). Every run of three neighbouring lines of the whole run occurs
-in the recordings (not only every pair). i1Profiler's start-up line for a table that has just been
+ONCE, only while the arm is already there, right after a ``p0`` that read the
+resting place, as i1Profiler sends it. Version 0.2.1 (after the tester's real
+run of 0.2.0 and the safety review that followed it, M3) ends exactly as
+i1Profiler ended two recorded sessions: ``s0 p0 i1 s0``, a pause, ``s0 f0 f3``
+(S1 4.766-22.951, R2 268.621-361.611). No position is read after the homing,
+because in every recording ``p0`` is followed only by a movement, ``c4`` or
+another ``p0``, never by ``s0``, ``f4`` or ``f0``; the homing's own time is the
+check on the wire (it must answer within :data:`SLOW_AFTER`), and the person's
+look is the check by eye. Every run of up to ten neighbouring lines of the whole
+run occurs in the recordings. i1Profiler's start-up line for a table that has just been
 switched on (i0) is NOT in this program (safety review 2026-11-14, B1): on such
 a table the program sends only the six reading lines of the opening and stops.
 Two lines read the table's memory (``u8``): their answers hold the table's
@@ -151,12 +149,11 @@ RECORDED_AT = {
     "status":   "R2 34.932 (after a0), 378.602 (right before p0, i1), 378.905 (after i1), "
                 "361.579 and S1 22.919 (right before f0)",
     "arm_mode": "four times after the first s0 at every open: R2 34.940-34.985, 378.539-378.585",
-    "position": "R2 35.017 and 378.617, right before the homing at the opening; between the "
-                "two homings of a double homing R1 190.404, R2 134.587, 417.445",
-    "home":     "R2 378.632 from (1102, 24), 0.272 s; R2 35.033 from (1102, 47), 0.35 s; "
-                "S1 4.796 from (1102, 14), 0.224 s; the double homing p0 i1 p0 i1: R1 "
-                "190.093 + 190.412, R2 134.274 + 134.610, R2 417.181 + 417.453 (second one "
-                "0.048 s)",
+    "position": "R2 35.017 and 378.617, right before the homing at the opening; S1 4.780 and "
+                "R2 268.637, right before the homing that the close followed",
+    "home":     "S1 4.796 from (1102, 14), 0.224 s, and R2 268.653 from (1102, 24), 0.256 s, "
+                "each followed by s0, a pause and the close; R2 378.632 from (1102, 24), "
+                "0.272 s; R2 35.033 from (1102, 47), 0.35 s",
     "f0":       "S1 22.935 (closing, after s0, arm at rest); R2 361.594",
     "f3":       "S1 22.951 (closing, right after f0); R2 361.611",
 }
@@ -288,7 +285,8 @@ class Box:
 #: tester's real runs, is X 1101 or 1102 and Y 0 to 47 (25 reads: before a homing Y 14..47,
 #: 0.016-0.032 s after one Y 0..2, 0.08 s after Y 5 (0.1.0), 0.16 s after Y 19 (0.2.0, the
 #: tester's table, 14 Nov 2026), 3-163 s after one Y 4..37; the reading creeps while the arm
-#: stands). 5 units of margin on each side. i1 is sent only from here.
+#: stands). 5 units of margin on each side. The one i1 is sent only from here, checked on the
+#: p0 right before it.
 #: 0.2.0 also demanded X 1099..1105, Y -3..8 right after the homing (from three reads at
 #: 0.016-0.032 s and one at 0.08 s); the tester's table read Y 19 at 0.16 s and the run
 #: stopped without its close. That narrower box is withdrawn: no position is read after the
@@ -312,11 +310,11 @@ DRAIN_QUIET_S = 1.0
 DRAIN_SETTLE_S = 15.0
 DRAIN_MAX_S = 60.0
 
-#: Hard caps, checked on every write. A complete (warm) run sends exactly 20
-#: lines with 2 movements (both homings at the resting place); a cold table gets
+#: Hard caps, checked on every write. A complete (warm) run sends exactly 18
+#: lines with 1 movement (the homing at the resting place); a cold table gets
 #: the six reading lines of the opening only.
-MAX_LINES = 20
-MAX_MOTIONS = 2
+MAX_LINES = 18
+MAX_MOTIONS = 1
 
 
 # ---- the session ------------------------------------------------------------------------
@@ -626,12 +624,12 @@ class Table:
         self.homings_done += 1
 
     def home(self) -> None:
-        """After the person's yes, i1Profiler's double homing before a calibration,
-        line for line: s0 p0 i1 p0 i1 s0 (R1 87.464 + 190.077-197.852, R2 35.401 +
-        134.258-141.991, 378.905 + 417.165-424.974). Each i1 is sent right after a p0
-        that read the resting place. After the second homing no position is read: no
-        recording follows a p0 with s0, f4 or f0. The s0 after it is the one the
-        recorded close follows (i1 s0, pause, s0 f0 f3: S1, R2)."""
+        """After the person's yes, ONE homing, as i1Profiler sent it right before it
+        closed the table: s0 p0 i1 s0 (S1 4.766-5.020, R2 268.621-268.909; the
+        recorded pause and close follow). The i1 is sent right after a p0 that read
+        the resting place. After the homing no position is read: no recording
+        follows a p0 with s0, f4 or f0. The homing must answer within
+        :data:`SLOW_AFTER` (safety review M1), or nothing more is sent."""
         if self.homed or self.state != "warm":
             raise self._doubt("i1 asked for while the arm is not known to be at rest (a bug)")
         self.busy += 1
@@ -639,13 +637,11 @@ class Table:
             self.exchange("status")
             self._at_rest("right before the homing")
             self._homing()
-            self._at_rest("after the first homing")
-            self._homing()
             self.homed = True
             self.exchange("status")
         finally:
             self.busy -= 1
-        self.log("DATA", f"the homings took {', '.join(f'{t:.3f}' for t in self.homing_times)} s")
+        self.log("DATA", f"the homing took {self.homing_times[-1]:.3f} s")
         self._stop_if_requested()
 
     def closing(self) -> None:
