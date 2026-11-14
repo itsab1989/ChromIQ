@@ -6239,9 +6239,11 @@ i1pro3_indLEDoff(void *pp) {
  *               or patch, as for the i1Pro 2.
  *   left_on  0: OFF before every measurement while lit (4.3.34).
  *            1: i1Profiler's hand-held way: no off before the measurements of
- *               a reading (read_strip / read_sample: its dark and lit parts),
- *               and a reading's pattern is sent over the one playing. A
- *               calibration still gets the off before each measurement.
+ *               a reading the instrument's button started (read_strip /
+ *               read_sample: its dark and lit parts), and a reading's pattern
+ *               is sent over the one playing. A calibration, and a reading
+ *               started from the keyboard, still get the off before each
+ *               measurement.
  *
  * Rules, all enforced in this block:
  *  - nothing happens until ChromIQ's helper calls i1pro3_cq_lights_begin(),
@@ -6356,7 +6358,11 @@ static void cq3_lights_send(i1pro3 *p, int which, double tout) {
 
 /* Before a measurement (the top of i1pro3_do_measure): it ends a result that
  * is still owed; then OFF when a pattern is playing, except inside a reading
- * with "left on". */
+ * with "left on" that the instrument's button started (the switch thread
+ * counted a press since the reading began). A reading started from the
+ * keyboard gets the off as in 4.3.34: i1Profiler was only ever recorded
+ * measuring with a pattern playing after a press, when the instrument goes
+ * dark by itself. */
 void i1pro3_cq_lights_measure(void *pp) {
 	i1pro3 *p = (i1pro3 *)pp;
 	i1pro3imp *m = cq3_lights_m(p);
@@ -6365,7 +6371,8 @@ void i1pro3_cq_lights_measure(void *pp) {
 	m->cq_lights_owed = 0;
 	if (m->cq_lights != CQ3_LIGHTS_LIT)
 		return;
-	if (m->cq_lights_left_on && m->cq_lights_reading && !m->cq_lights_force_off) {
+	if (m->cq_lights_left_on && m->cq_lights_reading && !m->cq_lights_force_off
+	 && m->switch_count != m->cq_lights_press_count) {
 		/* The instrument most likely went dark by itself at the press (the
 		 * tester's observation with i1Profiler): for the ready fallback
 		 * only, the lights now count as dark. */

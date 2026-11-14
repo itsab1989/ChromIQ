@@ -205,7 +205,10 @@ static void calibrate(i1pro3 *p) {
 }
 
 /* i1pro3_read_strip / i1pro3_read_sample (i1pro3.c): the reading's dark and
- * lit measurements between the reading hooks; rv is what imp_measure returns. */
+ * lit measurements between the reading hooks; rv is what imp_measure returns.
+ * The instrument's button starts it (the switch thread counts the press),
+ * unless by_keyboard is set. */
+static int by_keyboard = 0;
 static void reading(i1pro3 *p, const char *what, int rv) {
 	char b[64];
 	snprintf(b, sizeof(b), "%s-start", what);
@@ -213,6 +216,8 @@ static void reading(i1pro3 *p, const char *what, int rv) {
 #ifndef CQ_V4334
 	i1pro3_cq_lights_reading(p, 1);
 #endif
+	if (rv != I1PRO3_USER_ABORT && !by_keyboard)
+		((i1pro3imp *)p->m)->switch_count++;	/* the press */
 	if (rv != I1PRO3_USER_ABORT) {
 		measure(p, "read-dark");
 		measure(p, "read-lit");
@@ -402,6 +407,7 @@ int main(void) {
 		i1pro3_cq_lights_reading(p, 1);	/* read_strip began, armed wait */
 		press_on_write = 1;
 		helper_poll(p, 1, "verdict-good");	/* sent, the press lands in it */
+		/* (the PRESS of the fake moved switch_count: a button reading) */
 		measure(p, "read-dark");			/* the off after all */
 		measure(p, "read-lit");
 		step("strip-B-returned");
@@ -409,6 +415,23 @@ int main(void) {
 		helper_owe(p);
 		helper_poll(p, 1, "verdict-good-B");
 		reading(p, "strip-C", I1PRO3_OK);	/* left on again: no off */
+		close_it(p);
+	}
+	/* A patch started from the keyboard (no press) under "left on": the off
+	 * as in 4.3.34 (review item 2); the next one by the button: none. */
+	{
+		i1pro3 *p;
+		scn = "keyboard_spot_lefton";
+		sig = 0;
+		p = make(0);
+		step("begin");
+		i1pro3_cq_lights_options(p, 0, 1);
+		printf("%s BEGIN %d\n", scn, i1pro3_cq_lights_begin(p));
+		calibrate(p);
+		by_keyboard = 1;
+		reading(p, "patch-key", I1PRO3_OK);
+		by_keyboard = 0;
+		reading(p, "patch-button", I1PRO3_OK);
 		close_it(p);
 	}
 	/* The firmware is only reported, never a condition. */

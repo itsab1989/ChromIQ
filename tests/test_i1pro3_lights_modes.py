@@ -319,3 +319,17 @@ def test_the_helper_dispatches_both_generations_the_same_way():
         encoding="utf-8", errors="surrogateescape")
     assert re.search(r"which != CQ3_LIGHTS_OFF && i1pro3_cq_lights_sent != NULL",
                      imp)
+
+
+def test_a_keyboard_started_reading_gets_the_off_even_when_left_on(trace):
+    """The review of 2026-11-14 (item 2): i1Profiler was only recorded
+    measuring with a pattern playing after a press of the instrument's
+    button, when the instrument goes dark by itself. A reading started from
+    the keyboard (no press) gets the off as in 4.3.34; the next one, started
+    by the button, does not."""
+    assert _sent(_lines(trace, "keyboard_spot_lefton")) == [
+        ("cal-returned", "READY"),
+        ("read-dark", "OFF"), ("patch-key-returned", "GOOD"),
+        ("patch-button-returned", "GOOD"),
+        ("close", "OFF"),
+    ]
