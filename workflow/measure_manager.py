@@ -1131,12 +1131,20 @@ class MeasureManager(QObject):
             if params.engine_ruler_check:
                 from workflow.chartread_engine import helper_caps
                 if "ruler_check" in helper_caps(params.engine_helper):
+                    from workflow.chartread_engine import helper_build
+                    from workflow.measurement_condition import (
+                        condition_for_filter, filter_code_from_args)
                     from workflow.ruler_session import RulerSession
                     eargs += ["--ruler"]
                     self._ruler = RulerSession(
                         ti1_path=Path(params.ti1_path),
                         verification="verifications" in Path(
-                            params.ti1_path).parts)
+                            params.ti1_path).parts,
+                        # 4.3.37: the engine's build and the condition chosen
+                        # go into the diagnostics file
+                        helper_build=helper_build(params.engine_helper),
+                        condition=condition_for_filter(filter_code_from_args(
+                            params.extra_args)))
                 else:
                     log.info("ruler check: this helper does not know --ruler; "
                              "not passed")

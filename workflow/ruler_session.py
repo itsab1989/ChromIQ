@@ -40,9 +40,13 @@ def _num(x: float, digits: int = 0) -> str:
 
 class RulerSession:
     def __init__(self, *, ti1_path: "Path | None", helper_build: str = "",
-                 verification: bool = False):
+                 verification: bool = False, condition: "str | None" = None):
         self.ti1_path = Path(ti1_path) if ti1_path else None
         self.helper_build = helper_build
+        #: 4.3.37: the measurement condition the person chose (the -F of this
+        #: read: "M0", "M1", "M2", "M3"), or None without -F (the
+        #: instrument's normal mode), for the diagnostics file.
+        self.condition = condition
         self.verification = verification
         self.active = False
         self.gen = ""
@@ -110,7 +114,8 @@ class RulerSession:
         if self.ti1_path is not None:
             stem = self.ti1_path.with_suffix("")
             self.geometry = rd.strip_geometry(
-                stem.parent / (stem.name + ".channels.json"))
+                stem.parent / (stem.name + ".channels.json"),
+                stem.parent / (stem.name + ".ti2"))
             try:
                 from core.file_manager import Run
                 stamp = time.strftime("%Y%m%d-%H%M%S")
@@ -119,6 +124,7 @@ class RulerSession:
                 self.diag = rd.Diagnostics(
                     path, instrument=self.gen, firmware=self.firmware,
                     helper_build=self.helper_build, geometry=self.geometry,
+                    condition=self.condition,
                     verification=self.verification, argyll=self.argyll)
                 self.diag.write()
             except Exception:      # noqa: BLE001 - never stop a measurement

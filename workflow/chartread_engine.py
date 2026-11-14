@@ -101,11 +101,27 @@ def helper_caps(helper: "Path | None" = None) -> frozenset:
                     except ValueError:
                         continue
                     caps = frozenset(str(c) for c in doc.get("caps", ()))
+                    _BUILD_CACHE[key] = str(doc.get("build") or "")
                     break
     except Exception as exc:   # noqa: BLE001 — no answer is "cannot"
         log.debug("could not ask the helper what it can do: %s", exc)
     _CAPS_CACHE[key] = caps
     return caps
+
+
+#: The helper's build string, as its --caps line gives it (4.3.37: for the
+#: ruler diagnostics file's "engine_build", which was always empty).
+_BUILD_CACHE: dict = {}
+
+
+def helper_build(helper: "Path | None" = None) -> str:
+    """The helper's build string ("" when it cannot say)."""
+    helper_caps(helper)
+    try:
+        p = Path(helper) if helper is not None else helper_path()
+        return _BUILD_CACHE.get((str(p), p.stat().st_mtime_ns), "")
+    except (EngineUnavailable, OSError):
+        return ""
 
 
 def reads_legacy_labels(helper: "Path | None" = None) -> bool:
