@@ -213,6 +213,10 @@ class MeasureParams:
     #: a helper whose caps name them; both off = exactly 4.3.33's command line.
     engine_lights_signals: bool = False
     engine_lights_during_reading: bool = False
+    #: Preferences > Beta, the ruler check (2026-11-14; stage 1, check only):
+    #: pass --ruler, and only to a helper whose caps name "ruler_check". Off:
+    #: the command line is exactly the one it was.
+    engine_ruler_check: bool = False
     #: Preferences ▸ Measurement ▸ "Pause after each page so I can check it"
     #: (jctay, forum 149802; Basti 2026-10-23). Off by default. Engine strip
     #: reading only: the manager asks the engine to hold after a strip
@@ -876,6 +880,7 @@ class MeasureManager(QObject):
 
         def _on_finish(code: int) -> None:
             self._lights_session_ended(code)
+            self._ruler_session_ended(on_line)
             self._pending_post_retry_key = None
             self._engine_held = None
             self._window_hold = None
@@ -1018,6 +1023,19 @@ class MeasureManager(QObject):
                 else:
                     log.info("i1Pro 2 lights: this helper does not know "
                              "--i1pro2-lights; not passed")
+            self._ruler = None
+            if params.engine_ruler_check:
+                from workflow.chartread_engine import helper_caps
+                if "ruler_check" in helper_caps(params.engine_helper):
+                    from workflow.ruler_session import RulerSession
+                    eargs += ["--ruler"]
+                    self._ruler = RulerSession(
+                        ti1_path=Path(params.ti1_path),
+                        verification="verifications" in Path(
+                            params.ti1_path).parts)
+                else:
+                    log.info("ruler check: this helper does not know --ruler; "
+                             "not passed")
             if params.engine_replay is not None:
                 eargs += ["--replay", str(params.engine_replay)]
             eargs += list(params.gesture_args or [])
@@ -3470,6 +3488,40 @@ class MeasureManager(QObject):
     #: those the lights may still be on.
     _LIGHTS_CLEAN_EXIT_CODES = (0, 1)
 
+    # ---- the ruler check (Preferences > Beta, 2026-11-14) ------------------
+    def _on_ruler_event(self, kind: str, ev: dict, on_line) -> None:
+        rs = getattr(self, "_ruler", None)
+        if rs is None:
+            return
+        try:
+            lines = rs.on_session(ev) if kind == "ruler" else rs.on_strip(ev)
+        except Exception:      # noqa: BLE001 - a check never stops a read
+            log.warning("ruler: %s not understood", kind, exc_info=True)
+            return
+        for ln in lines:
+            on_line(" " + ln)
+
+    def _ruler_session_ended(self, on_line) -> None:
+        rs = getattr(self, "_ruler", None)
+        if rs is None:
+            return
+        self._ruler = None
+        try:
+            for ln in rs.on_end():
+                on_line(" " + ln)
+        except Exception:      # noqa: BLE001
+            log.warning("ruler: session end", exc_info=True)
+
+    def ruler_answer(self, strip: str, answer: str) -> None:
+        """The person's answer to the ruler question, for the file."""
+        rs = getattr(self, "_ruler", None)
+        if rs is not None:
+            rs.note_answer(strip, answer)
+
+    def ruler_diagnostics_path(self) -> "Path | None":
+        rs = getattr(self, "_ruler", None)
+        return rs.diagnostics_path() if rs is not None else None
+
     def _lights_session_ended(self, code: int) -> None:
         """The helper of a session whose white light was on has ended.
 
@@ -3740,6 +3792,11 @@ class MeasureManager(QObject):
         elif kind == "lights":
             self._on_lights_event(ev, on_line)
 
+        elif kind in ("ruler", "ruler_strip"):
+            # The ruler check (Preferences > Beta, 2026-11-14): lines for the
+            # log and the diagnostics file; never a window, never a reading.
+            self._on_ruler_event(kind, ev, on_line)
+
         elif kind == "lights_owed":
             # The engine reported an accepted strip and waits for ChromIQ's
             # result for the i1Pro 2's lights (2026-11-13); it follows with
@@ -3845,6 +3902,21 @@ class MeasureManager(QObject):
             if (ev.get("misaligned") or _part is not None
                     or _twice is not None):
                 self._send_lights_result(False)
+            # The ruler check (Beta): a summary for the tab's strip verdict,
+            # which asks about it only when nothing else does (challenger M6).
+            _rs = getattr(self, "_ruler", None)
+            if _rs is not None:
+                try:
+                    _summ = _rs.on_strip_read(ev, other_question=bool(
+                        ev.get("misaligned") or _part is not None
+                        or _twice is not None))
+                except Exception:      # noqa: BLE001 - never stop a read
+                    log.warning("ruler: strip summary failed", exc_info=True)
+                    _summ = None
+                if _summ is not None:
+                    ev["ruler"] = _summ
+                    if _summ.get("ask"):
+                        self._send_lights_result(False)
             self.strip_measured.emit(ev)
             if _part is not None:
                 # One question, worded for what was found: part of the strip,

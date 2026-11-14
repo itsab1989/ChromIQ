@@ -120,6 +120,9 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 # M-PATCH-SIMILAR joined on 2026-10-15 (4.3.5 beta 8): Knut confirmed the
 # similar-patch rule for both tests (#182 6196599132); its card texts are ours.
 AWAITING_APPROVAL: "set[str]" = {
+    # The ruler check (Preferences > Beta), 2026-11-14: an accepted strip
+    # the instrument's ruler says was clearly not read all the way.
+    "M-STRIP-RULER-NOT-COVERED",
     # The i1Pro 2 lights (Preferences > Beta), 2026-11-13: at Start, the
     # lights of the last session may still be on; replug before connecting.
     "M-I1PRO2-LIGHTS-LEFT-ON",

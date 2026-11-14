@@ -39,6 +39,8 @@ NOT_A_SETTING = {
     "engine_lights_during_reading": ("a Preferences (Beta) value, global by "
                                      "§1.1 (the lights during a reading, "
                                      "2026-11-13)"),
+    "engine_ruler_check": ("a Preferences (Beta) value, global by §1.1 "
+                           "(the ruler check, 2026-11-14)"),
     "page_pause":       ("a Preferences value, global by §1.1 (the pause "
                          "between pages, 4.3.10)"),
     "gesture_args":     ("the instrument button shortcuts, a Preferences "

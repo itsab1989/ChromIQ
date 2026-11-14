@@ -271,3 +271,33 @@ def mm_per_step(gen: str, derived: "float | None" = None) -> "float | None":
     if gen in MM_PER_STEP_KNOWN:
         return MM_PER_STEP_KNOWN[gen]
     return derived
+
+
+def cut_pitch_steps(rec: dict) -> "float | None":
+    """The pitch of today's cut in ruler steps: a straight line through the
+    ruler positions of the patch centres (>= 3 patches), absolute value.
+    None without a usable cut."""
+    try:
+        cut = list(rec.get("cut") or [])
+        pairs = [(int(cut[k]), int(cut[k + 1]))
+                 for k in range(0, len(cut) - 1, 2)]
+        if len(pairs) < 3:
+            return None
+        if int(rec.get("cut_domain") or 0) == 1:
+            ys = [(ss + no / 2.0) * SLOT_STEPS for ss, no in pairs]
+        else:
+            clocks = int(rec.get("clocks") or 0)
+            if clocks <= 0:
+                return None
+            d = decode(int(rec.get("first") or 0),
+                       list(rec.get("changes") or []))
+            ys = [float(_pos_at(d, (ss + no / 2.0) * clocks))
+                  for ss, no in pairs]
+        n = len(ys)
+        xm = (n - 1) / 2.0
+        ym = sum(ys) / n
+        sxx = sum((i - xm) ** 2 for i in range(n))
+        slope = sum((i - xm) * (y - ym) for i, y in enumerate(ys)) / sxx
+        return abs(slope) if slope else None
+    except (TypeError, ValueError, IndexError, ZeroDivisionError):
+        return None
