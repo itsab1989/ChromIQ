@@ -217,8 +217,17 @@ def coms_failure_detail(ev: dict) -> str:
     light = ev.get("light")
     if light:
         ms = ev.get("light_to_trigger_ms")
-        parts.append(f"light {light}" + (
-            f" {ms} ms before trigger 1" if isinstance(ms, int) else ""))
+        # The helper gives trigger 1's time minus the light's: negative when
+        # the light was sent after the reading's first trigger.
+        if not isinstance(ms, int) or isinstance(ms, bool):
+            when = ""
+        elif ms > 0:
+            when = f" {ms} ms before trigger 1"
+        elif ms < 0:
+            when = f" {-ms} ms after trigger 1"
+        else:
+            when = " at trigger 1"
+        parts.append(f"light {light}{when}")
     drv = str(ev.get("driver") or "").strip()
     code = str(ev.get("inst_code") or "").strip()
     if drv or code:

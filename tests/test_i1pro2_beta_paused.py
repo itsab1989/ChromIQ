@@ -309,3 +309,18 @@ def test_the_ruler_help_and_confirmation_say_it_is_paused():
             "it has been tried step by step on a real instrument") in conf
     assert "An i1Pro 3 gets nothing new" in conf
     assert "—" not in paras[1] + conf
+
+
+@pytest.mark.parametrize("ms,said", [(12, "light off_slow 12 ms before trigger 1"),
+                                     (-40, "light off_slow 40 ms after trigger 1"),
+                                     (0, "light off_slow at trigger 1"),
+                                     (None, "light off_slow;")])
+def test_the_light_timing_reads_the_right_way_round(ms, said):
+    """Review nit 5: a light sent after the first trigger is "after", never
+    "-40 ms before"."""
+    ev = json.loads(json.dumps(COMS_EVENT))
+    ev["light"] = "off_slow"
+    ev["light_to_trigger_ms"] = ms
+    line = coms_failure_detail(ev)
+    assert said in line
+    assert "-" not in line.split("light off_slow", 1)[1].split(";", 1)[0]
