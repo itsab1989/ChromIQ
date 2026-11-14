@@ -1,4 +1,4 @@
-# ChromIQ i1iO test program 0.2.0 (open and close a started table like i1Profiler)
+# ChromIQ i1iO test program 0.2.1 (open and close a started table like i1Profiler)
 
 **This is an unofficial test program. It is not from X-Rite, and X-Rite has
 nothing to do with it.** Running it is entirely your choice, without any
@@ -11,9 +11,24 @@ questions and sent the arm home once. This one does what i1Profiler does when
 it connects to a table that is already started, and when you quit it:
 
 * it **opens** the table with i1Profiler's own opening lines;
-* it sends the arm to its **resting place**, where it already is (about a
-  quarter of a second; the arm should barely move);
-* it **closes** the table with i1Profiler's own two closing lines.
+* it sends the arm to its **resting place** twice in a row, where it already
+  is, exactly as i1Profiler does before it calibrates (a quarter of a second
+  and a twentieth of a second; the arm should barely move);
+* it **closes** the table with i1Profiler's own two closing lines;
+* it asks you to **feel gently whether the arm is held**, once before and once
+  after it lets go of the table's USB connection.
+
+**What changed since 0.2.0.** On your table, version 0.2.0 opened the table and
+sent the arm home, then read the arm's position (X 1102, Y 19, which is its
+resting place) and stopped, because it expected a value between Y -3 and Y 8.
+That expectation came from too few readings and was wrong; your table did
+nothing wrong. This version checks the position between its two homings
+against everything any recording has ever read at the resting place
+(X 1097 to 1107, Y -5 to 50), and it reads no position after the second homing,
+because i1Profiler never asks for the position right before it closes the
+table. Afterwards you found the arm **loose**, as when the table is switched
+off. We do not know yet why; the two touch questions at the end are there to
+find out when it happens.
 
 If the table **has just been switched on**, it needs a start-up first, which
 this version does **not** send: the program then stops after the opening's
@@ -31,10 +46,13 @@ Nothing here is promised, and you can stop at every step.
 
 The program can send only **eleven different lines** to the table. Each one is
 a line i1Profiler itself sent to your table in your recordings, byte for byte,
-and in the order i1Profiler sent them, except that the status and position
-questions are asked again before and after the homing. The file `BYTES.md` lists them with the exact place
-in your recordings where i1Profiler sent each one. `python3 i1io_open.py
---plan` prints the whole sequence; `--dry-run` prints it with every byte.
+and every two lines that follow each other here also follow each other in your
+recordings. The opening is i1Profiler's opening; the homings are its double
+homing before a calibration (status, position, homing, position, homing,
+status, two arm questions); the closing is its closing. The file `BYTES.md`
+lists every line with the exact place in your recordings where i1Profiler sent
+it. `python3 i1io_open.py --plan` prints the whole sequence; `--dry-run` prints
+it with every byte.
 
 | Line | What it does (as far as we know) | Moves? |
 |---|---|---|
@@ -44,14 +62,16 @@ in your recordings where i1Profiler sent each one. `python3 i1io_open.py
 | `;u8000061000068c3` | asks for part 2 of the memory block | no |
 | `;a034` | we believe it tells whether the table has just been switched on (111800) or is started (130000) | no |
 | `;s022` | asks for the status | no |
-| `;f42b` | we believe it asks whether the motors hold the arm (four times) | no |
-| `;p025` | asks where the arm is | no |
-| `;i12b` | **go to the resting place** (the arm is already there) | **barely, about 0.25 s** |
+| `;f42b` | we believe it asks whether the motors hold the arm (four times, and twice after the homings) | no |
+| `;p025` | asks where the arm is (before each homing) | no |
+| `;i12b` | **go to the resting place** (the arm is already there), twice | **barely, about 0.3 s and 0.05 s** |
 | `;f02f` | first closing line | no |
 | `;f32c` | second closing line | no |
 
-Right before the homing, after your yes, the program asks once more for the
-status and where the arm is, and sends the homing at once, as i1Profiler does.
+After your yes, the program asks for the status and where the arm is, and
+sends the homing at once if the arm is at its resting place; then it asks where
+the arm is again and sends the second homing at once if it is still there, as
+i1Profiler does.
 
 About the memory block: i1Profiler reads it every time it connects, so this
 program does too, to keep the same order. It holds the table's serial number.
@@ -158,11 +178,27 @@ on). Then it asks you to type this sentence:
 I understand that this moves my table
 ```
 
-Then it opens the table (nothing moves). Before the homing it stops, tells you
-exactly what will move, and asks `Send it now?`. Afterwards it asks you to look
-at the arm. If the arm is at its resting place, it closes the table and
-finishes. Answer each question by typing the whole word or words (`yes`, `no`,
-`not sure`, `stop`) and pressing Enter.
+Then it opens the table (nothing moves). Before the homings it stops, tells
+you exactly what will move, and asks `Send it now?`. Afterwards it asks you to
+look at the arm. If the arm is at its resting place, it closes the table.
+
+Then it sends nothing more, and asks you twice to touch the instrument holder
+very gently with one finger, sideways, as if to move it by about a millimetre,
+and to say whether the arm **holds** its place or moves **free**ly: once while
+the program still holds the table's USB connection, and once ten seconds after
+it has let go of it. Do not force it. Answer each question by typing the whole
+word or words (`yes`, `no`, `not sure`, `stop`, `holds`, `free`, `skip`) and
+pressing Enter.
+
+### If the arm is loose afterwards
+
+As far as we know, that is the same harmless state as a table that is switched
+off. Please do not push it around. Leave it at its resting place, with the
+measuring opening on the white tile, switch the table off, wait about ten
+seconds and switch it on again, then open i1Profiler once, let it start the
+table as usual, and quit it. If you have a moment, touch the holder gently once
+more about ten minutes after the run and add a line to the log about what you
+felt.
 
 ### How to stop
 
@@ -199,7 +235,9 @@ few words:
 
 * had the table been switched off and on before, and had i1Profiler been
   opened since;
-* what the arm did during the homing;
+* what the arm did during the homings;
+* when you found the arm held or loose (the program asks twice; anything you
+  felt later is welcome too, with the time);
 * any sounds, and when;
 * anything unexpected at all.
 

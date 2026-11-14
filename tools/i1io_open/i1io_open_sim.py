@@ -100,6 +100,7 @@ class SimTable:
     #: (None: invented values), and no +-1 jitter on the position reads
     home_y: "float | None" = None
     home_s: "float | None" = None
+    home_x: "float | None" = None
     jitter: bool = True
 
     def __post_init__(self):
@@ -275,7 +276,8 @@ class SimTable:
         # a replayed first homing ends where the real one ended; the second (not seen on
         # the real table) ends as in the recordings (Y 0..2, 0.048 s from there)
         replay = self.home_y is not None and self.motions == 1
-        target = (float(HOME[0]), float(self.home_y if replay else self._rng.choice((0, 1, 2))))
+        target = (float(self.home_x if (replay and self.home_x is not None) else HOME[0]),
+                  float(self.home_y if replay else self._rng.choice((0, 1, 2))))
         # recorded at rest: 0.047-0.048 s from Y 0..2, 0.224-0.352 s from Y 14..47
         t = (self.home_s if (replay and self.home_s is not None)
              else 0.048 if abs(self.pos[1]) <= 3 else 0.17 + abs(self.pos[1]) * 0.0038)

@@ -1,13 +1,16 @@
-"""THE i1iO TESTER PROGRAM 0.2.0 SENDS ONLY THE ELEVEN RECORDED LINES OF BYTES.md,
-IN THE RECORDED ORDER, MOVES ONLY BY ONE HOMING AT THE RESTING PLACE OF A STARTED
-TABLE, AND STOPS ON ANY DOUBT.
+"""THE i1iO TESTER PROGRAM 0.2.1 SENDS ONLY THE ELEVEN RECORDED LINES OF BYTES.md,
+EVERY TWO NEIGHBOURING LINES A PAIR i1Profiler ALSO SENT, MOVES ONLY BY i1Profiler'S
+DOUBLE HOMING AT THE RESTING PLACE OF A STARTED TABLE, AND STOPS ON ANY DOUBT.
 
 `tools/i1io_open/` is a standalone program for the one tester who owns an i1iO 2
-(issue #129). After the independent safety review of 2026-11-14 it is WARM ONLY:
-on a started table it opens it the way i1Profiler does, sends the arm to its
-resting place where it already is (s0, p0, i1 back to back) and closes it the way
-i1Profiler does; on a table that has just been switched on (a0 = 111800) it sends
-the six reading lines of the opening and nothing else. These tests hold its claims:
+(issue #129). It is WARM ONLY (safety review 2026-11-14): on a started table it
+opens it the way i1Profiler does, sends the arm to its resting place twice as
+i1Profiler does before a calibration (s0 p0 i1 p0 i1 s0 f4 f4) and closes it the
+way i1Profiler does; on a table that has just been switched on (a0 = 111800) it
+sends the six reading lines of the opening and nothing else. 0.2.1 follows the
+tester's real run of 0.2.0 (14 Nov 2026): the position check after the homing
+uses the whole recorded resting range, and no position is read before the close.
+These tests hold its claims:
 
 * BYTES.md and the program's own list agree byte for byte; every write on every
   path, with every injected fault, is in that list; i0 exists nowhere;
@@ -48,12 +51,37 @@ RECORDED = {
     ";s022", ";f42b", ";p025", ";i12b", ";f02f", ";f32c",
 }
 OPEN = [";a133", ";a133", ";k228", ";u8000060000100d1", ";u8000061000068c3", ";a034"]
-FOLLOW = [";s022", ";f42b", ";f42b", ";f42b", ";f42b", ";s022", ";p025"]
-HOMING = [";s022", ";p025", ";i12b", ";s022", ";p025"]
+FOLLOW = [";s022", ";f42b", ";f42b", ";f42b", ";f42b"]
+HOMING = [";s022", ";p025", ";i12b", ";p025", ";i12b", ";s022", ";f42b", ";f42b"]
 CLOSING = [";s022", ";f02f", ";f32c"]
 COLD = list(OPEN)
 WARM = OPEN + FOLLOW + HOMING + CLOSING
 FORBIDDEN_IDS = ("i0", "m0", "m1", "m2", "c3", "c4", "d1", "a3", "f1", "p1")
+#: Every pair of lines this run sends one after the other, with how often i1Profiler sent
+#: that pair in R1, R2, S1 and S2 together (after_real_run/pairs_all.txt). A pair not in
+#: here was never recorded; in particular p0 is never followed by s0, f4 or f0.
+RECORDED_PAIRS = {
+    (";a133", ";a133"): 4, (";a133", ";k228"): 4, (";k228", ";u8000060000100d1"): 4,
+    (";u8000060000100d1", ";u8000061000068c3"): 4, (";u8000061000068c3", ";a034"): 4,
+    (";a034", ";s022"): 3, (";s022", ";f42b"): 37, (";f42b", ";f42b"): 93,
+    (";f42b", ";s022"): 13, (";s022", ";p025"): 20, (";p025", ";i12b"): 21,
+    (";i12b", ";p025"): 3, (";i12b", ";s022"): 19, (";s022", ";f02f"): 11,
+    (";f02f", ";f32c"): 3,
+}
+#: Where the program may wait for the person: only between lines i1Profiler also paused
+#: between for long (f4 then s0: up to 162.6 s, R1 550.730-713.337).
+LONG_PAUSE_PAIRS = {(";f42b", ";s022")}
+#: Every position read at rest in R1, R2, S1, S2 and the tester's two real runs
+#: (after_real_run/rest_reads.txt plus the logs of 0.1.0 and 0.2.0).
+REST_READS = [(1102, 32), (1102, 2), (1102, 5), (1102, 29), (1102, 29), (1102, 47),
+              (1102, 36), (1102, 0), (1102, 6), (1102, 24), (1102, 24), (1102, 22),
+              (1102, 2), (1102, 4), (1102, 14), (1101, 41), (1102, 37), (1102, 31),
+              (1102, 32), (1102, 34), (1102, 25), (1102, 5), (1101, 46), (1101, 46),
+              (1102, 19)]
+
+
+def _pairs_ok(seq):
+    return all(pair in RECORDED_PAIRS for pair in zip(seq, seq[1:]))
 
 
 def _bytes_md_lines():
@@ -131,7 +159,7 @@ def test_i0_and_every_move_or_unknown_command_are_absent_from_the_package():
              and getattr(n.func, "id", None) == "_frame"]
     assert all(all(isinstance(a, ast.Constant) for a in c.args) for c in calls)
     assert len(calls) == 11
-    assert tbl.MOTION_KEYS == {"home"} and tbl.MAX_MOTIONS == 1 and tbl.MAX_LINES == len(WARM)
+    assert tbl.MOTION_KEYS == {"home"} and tbl.MAX_MOTIONS == 2 and tbl.MAX_LINES == len(WARM)
 
 
 def test_the_program_writes_only_in_one_place_and_through_the_gate():
@@ -173,6 +201,48 @@ def test_the_timeouts_and_slow_limits_are_pinned():
     assert tbl.HOME_TIMEOUT == 12.0
     assert tbl.SLOW_AFTER == {"home": 2.0}
     assert not hasattr(tbl, "START_TIMEOUT")
+    assert prog.RELEASE_WAIT_S == 10.0
+
+
+def test_the_resting_place_box_holds_every_recorded_rest_read_and_nothing_narrower():
+    assert tbl.HOME_CLUSTER == tbl.Box(1097, 1107, -5, 50)
+    assert all(tbl.HOME_CLUSTER.contains(p) for p in REST_READS)
+    assert not hasattr(tbl, "HOMED")          # 0.2.0's Y -3..8 after the homing is withdrawn
+
+
+def test_every_neighbouring_pair_of_the_run_was_sent_by_i1profiler():
+    assert _pairs_ok(WARM) and _pairs_ok(COLD)
+    assert set(zip(WARM, WARM[1:])) == set(RECORDED_PAIRS)
+    for a, b in zip(WARM, WARM[1:]):
+        if a == ";p025":
+            assert b == ";i12b"
+
+
+def test_the_person_is_only_asked_where_i1profiler_also_paused(tmp_path):
+    sim = sim_mod.SimTable()
+    at = []
+
+    class C(prog.AutoConsole):
+        def ask(self, question, choices=("yes", "no")):
+            at.append(len(sim.received))
+            return super().ask(question, choices)
+    code, sim, _ = _run(tmp_path, sim, console=C(lambda k, t: None))
+    assert code == 0 and at
+    for n in at:
+        if n < len(WARM):
+            assert (WARM[n - 1], WARM[n]) in LONG_PAUSE_PAIRS, (n, WARM[n - 1], WARM[n])
+
+
+@pytest.mark.parametrize("key,good,bad", [
+    ("identity", "005D010702", "005D010800"), ("k2", "0B600000000013", "0B600000000014"),
+    ("arm_mode", "00", "01"), ("f0", "00", "01"), ("f3", "00", "01"),
+    ("a0", "130000", "120000")])
+def test_every_constant_answer_the_program_relies_on_is_checked_exactly(key, good, bad):
+    body = f":${tbl.WIRE[key][1:3].decode()}0{good}"
+    assert tbl.parse_done(body + tbl.checksum(body).upper(), key).data == good
+    body = f":${tbl.WIRE[key][1:3].decode()}0{bad}"
+    with pytest.raises(tbl.ProtocolError):
+        tbl.parse_done(body + tbl.checksum(body).upper(), key)
 
 
 def test_a_homing_answer_later_than_the_timeout_is_a_missing_answer(tmp_path):
@@ -188,9 +258,9 @@ def test_a_homing_answer_later_than_the_timeout_is_a_missing_answer(tmp_path):
 def test_a_started_table_gets_the_recorded_open_homing_and_close(tmp_path):
     code, sim, log = _run(tmp_path, sim_mod.SimTable(cold=False))
     assert code == 0
-    assert sim.received == WARM and len(WARM) == 21
-    assert sim.motions == 1
-    assert "result 0; table warm; 21 lines sent, 1 movements; closed yes" in log
+    assert sim.received == WARM and len(WARM) == 22
+    assert sim.motions == 2
+    assert "result 0; table warm; 22 lines sent, 2 movements; closed yes" in log
 
 
 def test_the_homing_follows_s0_and_p0_back_to_back_after_the_yes(tmp_path):
@@ -204,7 +274,8 @@ def test_the_homing_follows_s0_and_p0_back_to_back_after_the_yes(tmp_path):
     code, sim, _ = _run(tmp_path, sim, console=C(lambda k, t: None))
     assert code == 0
     n = next(count for q, count in events if "Send it now" in q)
-    assert sim.received[n:n + 3] == [";s022", ";p025", ";i12b"]
+    assert sim.received[n:n + 5] == [";s022", ";p025", ";i12b", ";p025", ";i12b"]
+    assert sim.received[n - 1] == ";f42b"     # the yes comes right after the f4 block (nit 1)
 
 
 def test_a_cold_table_gets_the_six_reading_lines_and_nothing_else(tmp_path):
@@ -239,6 +310,79 @@ def test_the_arm_moved_away_while_the_person_read_stops_before_i1(tmp_path):
     assert "right before the homing" in log
 
 
+def test_the_arm_away_after_the_first_homing_stops_before_the_second(tmp_path):
+    sim = sim_mod.SimTable()
+    sim.inject_at(len(OPEN + FOLLOW) + 3, "drift", 200.0)     # the p0 between the homings
+    code, sim, log = _run(tmp_path, sim)
+    assert code == 2 and sim.received == OPEN + FOLLOW + HOMING[:4]
+    assert "after the first homing" in log and "closed no" in log
+
+
+@pytest.mark.parametrize("x,y,ok", [
+    (1102, 19, True), (1102, 50, True), (1102, -5, True), (1097, 19, True), (1107, 19, True),
+    (1102, 51, False), (1102, -6, False), (1096, 19, False), (1108, 19, False),
+    (1102, 300, False)])
+def test_the_check_between_the_homings_at_its_edges(tmp_path, x, y, ok):
+    """The planted-fault edges of the tolerance: tonight's Y 19 and every recorded rest
+    read pass; one unit outside the box, or a homing that ended 3 cm out, stops."""
+    sim = sim_mod.SimTable(home_x=x, home_y=y, jitter=False)
+    code, sim, log = _run(tmp_path, sim)
+    if ok:
+        assert code == 0 and sim.received == WARM and "closed yes" in log
+    else:
+        assert code == 2 and sim.received == OPEN + FOLLOW + HOMING[:4]
+        assert "closed no" in log and f"({x}, {y})" in log
+
+
+@pytest.mark.parametrize("x,y,ok", [
+    (1101, 46, True), (1102, 50, True), (1097, -5, True), (1102, 51, False), (1096, 30, False)])
+def test_the_check_before_the_first_homing_at_its_edges(tmp_path, x, y, ok):
+    sim = sim_mod.SimTable(pos=[float(x), float(y)], jitter=False)
+    code, sim, log = _run(tmp_path, sim)
+    if ok:
+        assert code == 0 and sim.received == WARM
+    else:
+        assert code == 2 and sim.received == OPEN + FOLLOW + HOMING[:2] and sim.motions == 0
+
+
+def test_tonights_real_replies_now_end_with_the_recorded_close(tmp_path):
+    """The tester's table as it answered 0.2.0 on 14 Nov 2026 ((1101, 46) before, homing
+    0.336 s, (1102, 19) after): 0.2.1 checks (1102, 19) against the resting range and
+    finishes with s0 f0 f3."""
+    code, sim, log = _run(tmp_path, sim_mod.tonights_table())
+    assert code == 0 and sim.received == WARM
+    assert "right before the homing the arm reports (1101, 46)" in log
+    assert "after the first homing the arm reports (1102, 19)" in log
+    assert "the homings took 0.336," in log
+    assert "result 0; table warm; 22 lines sent, 2 movements; closed yes" in log
+
+
+def test_tonights_lines_up_to_the_homing_are_the_ones_his_table_already_answered(tmp_path):
+    """Every reply 0.2.0 got from his table, in its form, is what the replay gives; the
+    only lines 0.2.1 sends that 0.2.0 did not are the second p0 i1 and s0 f4 f4 (all
+    recorded), and the first s0 p0 pair before the yes is gone (nit 1)."""
+    seen_by_020 = [";a133", ";a133", ";k228", ";u8000060000100d1", ";u8000061000068c3",
+                   ";a034", ";s022", ";f42b", ";f42b", ";f42b", ";f42b", ";s022", ";p025",
+                   ";s022", ";p025", ";i12b", ";s022", ";p025"]
+    replies_020 = {";a034": ":$a00130000BD", ";f42b": ":$f400078", ";s022": ":$s00CF",
+                   ";i12b": ":$i10D8"}
+    code, sim, log = _run(tmp_path, sim_mod.tonights_table())
+    assert set(WARM[:16]) <= set(seen_by_020)
+    recv = re.findall(r"^RECV\s+\S+\s+(:\$\S+)", log, re.M)
+    for want in replies_020.values():
+        assert want in recv
+    assert ":$p00044D002E1F" in recv          # (1101, 46), byte for byte as his table said it
+    assert ":$p00044E001331" in recv          # (1102, 19), likewise
+
+
+def test_an_arm_answer_other_than_00_right_after_the_homings_means_no_close(tmp_path):
+    for index in (len(OPEN + FOLLOW) + 6, len(OPEN + FOLLOW) + 7):
+        sim = sim_mod.SimTable()
+        sim.inject_at(index, "free")
+        code, sim, log = _run(tmp_path, sim)
+        assert code == 2 and len(sim.received) == index + 1 and "closed no" in log
+
+
 def test_the_arm_not_seen_at_rest_means_no_closing(tmp_path):
     con = prog.AutoConsole(lambda k, t: None, script={"Is the arm at": "no"})
     code, sim, _ = _run(tmp_path, sim_mod.SimTable(), console=con)
@@ -253,7 +397,9 @@ ONLY_FOR = {"identity": "a1", "k2_other": "k2", "a0_other": "a0", "memory_short"
 VALUES = {"drift": 200.0, "blocked": 0.5, "late": 30.0, "status": 3.0, "refuse": 1.0}
 
 
-def _applies(kind, line):
+def _applies(kind, line, seq=None, index=None):
+    if kind == "blocked" and seq is not None and ";p025" not in seq[index:]:
+        return False        # after the second homing nothing reads the position: the look does
     want = ONLY_FOR.get(kind)
     if want is None:
         return True
@@ -272,7 +418,8 @@ def test_any_fault_at_any_line_stops_with_nothing_more_sent(tmp_path, cold, kind
         code, sim, log = _run(tmp_path, sim)
         assert all((r + "\r").encode() in ALLOWED for r in sim.received)
         assert sim.received == seq[:len(sim.received)]
-        if _applies(kind, line):
+        assert _pairs_ok(sim.received)
+        if _applies(kind, line, seq, index):
             assert code == 2, (kind, index, line)
             stop_at = seq.index(";p025", index) if kind == "blocked" else index
             assert len(sim.received) == stop_at + 1, (kind, index, line, sim.received)
@@ -349,7 +496,7 @@ def test_ctrl_c_during_any_exchange_sends_nothing_more(tmp_path, cold):
 
 @pytest.mark.parametrize("cold", (True, False), ids=("cold", "warm"))
 def test_stop_or_ctrl_c_at_every_question_sends_nothing_more(tmp_path, cold):
-    for n in range(1, 8):
+    for n in range(1, 10):
         sim = sim_mod.SimTable(cold=cold)
         con = prog.AutoConsole(lambda k, t: None, interrupt_at=n)
         code, sim, _ = _run(tmp_path, sim, console=con)
@@ -363,7 +510,7 @@ def test_stop_or_ctrl_c_at_every_question_sends_nothing_more(tmp_path, cold):
             assert sim.received == WARM
             continue
         assert code == 1
-        assert sent in (13, 18)       # before the homing's s0, or before the closing
+        assert sent in (11, 19)       # before the homing's s0, or before the closing
 
 
 def _opened_warm():
@@ -450,6 +597,86 @@ def test_reviewer_ctrl_c_at_every_question(tmp_path):
             _run(tmp_path, sim, console=C(lambda a, b: None))
             if "n" in before:
                 assert len(sim.received) == before["n"], (cold, k)
+
+
+def test_a_blocked_second_homing_is_not_seen_by_the_program_but_by_the_persons_look(tmp_path):
+    """The weakest point, pinned: no position is read after the second homing, so a homing
+    that reports done in time but ended elsewhere is caught only by the person's look."""
+    sim = sim_mod.SimTable()
+    sim.inject_at(len(OPEN + FOLLOW) + 4, "blocked", 0.5)
+    con = prog.AutoConsole(lambda k, t: None, script={"Is the arm at": "no"})
+    code, sim, log = _run(tmp_path, sim, console=con)
+    assert code == 1 and sim.received == WARM[:-3] and "closed no" in log
+
+
+# ---- the touch questions: before and after the USB connection is let go --------------------
+
+def test_the_touch_questions_come_after_the_close_once_before_and_once_after_the_release(tmp_path):
+    seen = []
+    sim = sim_mod.SimTable()
+
+    class C(prog.AutoConsole):
+        def ask(self, question, choices=("yes", "no")):
+            if question == prog.ASK_TOUCH:
+                seen.append((len(sim.received), self.transport.closed))
+            return super().ask(question, choices)
+    con = C(lambda k, t: None)
+    real_init = sim_mod.SimTransport.__init__
+
+    def init(self, table=None):
+        real_init(self, table)
+        con.transport = self
+    sim_mod.SimTransport.__init__ = init
+    try:
+        code, sim, log = _run(tmp_path, sim, console=con)
+    finally:
+        sim_mod.SimTransport.__init__ = real_init
+    assert code == 0 and seen == [(len(WARM), False), (len(WARM), True)]
+    first = log.index("ASK    " + prog.ASK_TOUCH)
+    let_go = log.index("INFO   the program has let go of the table's USB connection")
+    assert first < let_go < log.index("ASK    " + prog.ASK_TOUCH, first + 1)
+    assert "('arm held? (while the program still held the USB connection)', 'holds')" in log
+
+
+def test_no_touch_question_while_a_movement_may_still_run_or_the_arm_was_not_at_rest(tmp_path):
+    for script, inject in (({}, ("no_done", "i1")), ({"Is the arm at": "no"}, None)):
+        sim = sim_mod.SimTable()
+        if inject:
+            sim.inject(*inject)
+        asked = []
+
+        class C(prog.AutoConsole):
+            def ask(self, question, choices=("yes", "no")):
+                asked.append(question)
+                return super().ask(question, choices)
+        code, sim, log = _run(tmp_path, sim, console=C(lambda k, t: None, script=script))
+        assert prog.ASK_TOUCH not in asked and "arm held?" not in log
+        assert prog.LOOSE_ADVICE not in log.replace("\n", " ")
+
+
+def test_ctrl_c_at_a_touch_question_sends_nothing_and_keeps_the_result(tmp_path):
+    for k in (3, 4):
+        con = prog.AutoConsole(lambda a, b: None, interrupt_at=k)
+        code, sim, log = _run(tmp_path, sim_mod.SimTable(), console=con)
+        assert code == 0 and sim.received == WARM and "skipped" in log
+
+
+def test_the_wait_before_the_second_touch_is_only_for_the_real_table(tmp_path, monkeypatch):
+    monkeypatch.setattr(prog.time, "sleep", lambda s: pytest.fail("waited in a practice run"))
+    code, sim, _ = _run(tmp_path, sim_mod.SimTable())
+    assert code == 0
+
+
+def test_the_i1profiler_check_names_what_it_found(monkeypatch):
+    monkeypatch.setattr(prog, "_pgrep", lambda *a: ["123"] if a[0] == "-f" else [])
+    assert prog.i1profiler_matches() == [
+        "a process inside i1Profiler.app (i1Profiler itself or one of its helpers)"]
+    assert prog.i1profiler_running() is True
+
+
+def test_no_stale_count_word_anywhere():
+    for name in PROGRAM_FILES + ("README.md", "BYTES.md"):
+        assert "twelve" not in _source(name).lower(), name
 
 
 # ---- privacy ---------------------------------------------------------------------------------
@@ -686,7 +913,8 @@ def test_the_readme_names_every_line_and_says_what_matters():
         assert line in readme, line
     for needed in ("power switch", "Ctrl-C", "--plan", "not from X-Rite", "unofficial",
                    "hands and everything else away from the arm",
-                   "folder you started it from", "has just been switched on"):
-        assert needed in readme, needed
+                   "folder you started it from", "has just been switched on",
+                   "loose", "switch the table off, wait about ten seconds"):
+        assert needed in " ".join(readme.split()), needed
     assert "—" not in readme
     assert not re.search(r"macOS 2\d|Python 3\.1\d", readme)
