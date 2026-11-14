@@ -67,3 +67,11 @@ def test_patch_then_strip_order_as_an_i1io_sheet_may_print_it(tmp_path):
                       order="PATCH_THEN_STRIP", steps=8)
     m = missing_readings(ti3, ti2)
     assert [(g.strip, g.missing, g.total) for g in m.strips] == [("3", 8, 8)]
+
+
+def test_patch_flags_sort_both_label_schemes_in_reading_order():
+    from workflow.patch_flags import sorted_locs
+    assert sorted_locs(["A10", "B1", "A9", "AA1", "Z3"]) == \
+        ["A9", "A10", "B1", "Z3", "AA1"]
+    assert sorted_locs(["10A", "9I", "1AA", "1B", "1Z", "2A"]) == \
+        ["1B", "1Z", "1AA", "2A", "9I", "10A"]

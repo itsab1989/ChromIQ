@@ -495,10 +495,14 @@ def chart_device_ranges(chart: "str | Path | None") -> "dict[str, str] | None":
 
 @functools.lru_cache(maxsize=8192)
 def _loc_key(loc: str):
-    """A natural sort key for a chart location: A9 before A10, Z before AA."""
+    """A natural sort key for a chart location: A9 before A10, Z before AA,
+    and on ChromIQ's engine charts with number strips and letter patches
+    9I before 10A and 1Z before 1AA (4.3.37 review, M7: the letters after
+    the number sorted as plain text, AA before B)."""
     m = re.match(r"^([A-Za-z]*)(\d*)(.*)$", str(loc))
     letters, digits, rest = m.groups() if m else (str(loc), "", "")
-    return (len(letters), letters.upper(), int(digits) if digits else -1, rest)
+    return (len(letters), letters.upper(), int(digits) if digits else -1,
+            len(rest), rest.upper())
 
 
 def sorted_locs(locs) -> "list[str]":
