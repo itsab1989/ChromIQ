@@ -10285,6 +10285,41 @@ class TabChart(QWidget):
         # never stores it, so a chart that does would always read as "modified".
         d.pop("seed_fixed", None)
         d.pop("chart_text", None)
+        # …AND EQUAL MEANINGS ARE EQUAL (2026-11-14). The preset bar lit
+        # "modified" for every classic instrument right after "Reset to
+        # preset" (driven on screen: i1Pro, i1Pro 3, ColorMunki, SpectroScan,
+        # CR30), because the panel and the stored preset write the same layout
+        # in two spellings. Each pair below is the same layout once the panel
+        # holds it, which is what Reset does:
+        #
+        # * `area_ratio` 0: the panel's percentage box cannot hold it (it
+        #   starts at 10 %) and shows a stored 0 as 100 %, so the preset as
+        #   the panel applies it is 1.0;
+        # * `clip_content_when_on` "" is "the notes box", which the panel
+        #   writes as "notes";
+        # * `spacer_on` is what `spacer_mode` says (the build reads the mode,
+        #   `build_kwargs`); a stored recipe can carry a stale True beside
+        #   "none" (the CR30's preset);
+        # * with "Use instrument margins" ticked on both sides, the four
+        #   margins are the instrument's minimums the panel fills in, not the
+        #   numbers the recipe happens to hold (6 mm in a factory preset), so
+        #   they are not compared; ticked on one side only still differs.
+        try:
+            if float(d.get("area_ratio") or 0.0) == 0.0:
+                d["area_ratio"] = 1.0
+        except (TypeError, ValueError):
+            pass
+        if (d.get("clip_content_when_on") or "") == "":
+            d["clip_content_when_on"] = "notes"
+        if "spacer_mode" in d:
+            d["spacer_on"] = d.get("spacer_mode") != "none"
+        # (Not for the i1iO: it has no instrument margins to tick, its panel
+        # holds the box off and compares the margins themselves, below.)
+        if d.get("use_instrument_margins") \
+                and getattr(r, "instrument", None) != "IO2":
+            for k in ("margin_top", "margin_right", "margin_bottom",
+                      "margin_left"):
+                d.pop(k, None)
         if getattr(r, "instrument", None) == "IO2":
             from workflow.i1io.support import i1io_enabled
             if i1io_enabled():
