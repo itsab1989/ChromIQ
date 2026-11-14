@@ -182,3 +182,23 @@ def test_a_chart_offset_keeps_every_clearance(paper, crosses, offset):
                         if c[1] == 0), key=lambda c: c[2])
         for n, c in zip(numbers, first):
             assert abs((n[1] + n[3]) / 2 - (c[4] + c[6]) / 2) < 0.05
+
+
+def test_the_offset_x_note_gives_no_advice_that_moves_the_block():
+    """4.3.34 review, minor: "change Clip by the same amount" also moved the
+    patch block (A4, offset X 6, Clip 10 -> 16: first strip 28.5 -> 35.5 mm,
+    504 -> 480 patches, gap unchanged). Only the true part is said, in every
+    language."""
+    import json
+    from pathlib import Path
+    from workflow import measurement_messages as _mm
+    text = _mm._I1IO_NUMBERS_STAY
+    assert text.endswith("They still name the right rows.")
+    assert "same amount" not in text
+    root = Path(__file__).resolve().parent.parent / "data" / "i18n"
+    for f in sorted(root.glob("*.json")):
+        if f.name.startswith("parameters"):
+            continue
+        cat = json.loads(f.read_text(encoding="utf-8"))
+        if text in cat:
+            assert cat[text].rstrip()[-1] in ".。", f.name

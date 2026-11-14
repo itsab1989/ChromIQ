@@ -7822,9 +7822,7 @@ _I1IO_NUMBERS_STAY = ("The chart offset X moves the patches but not the "
                       "patch numbers: they keep their distance from the "
                       "edge of the sheet (\u201cClip\u201d), so they now "
                       "sit a little farther from or closer to the first "
-                      "strip. They still name the right rows. To move them "
-                      "with the patches, change \u201cClip\u201d by the "
-                      "same amount.")
+                      "strip. They still name the right rows.")
 _I1IO_LETTERS_OFF_SHEET = ("The strip letters would lie off the sheet. Change “Label offset” "
                            "or the chart offset.")
 _I1IO_LINE_LEFT_OFF = ("The line with the chart's name and page number has "

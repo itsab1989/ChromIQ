@@ -8807,7 +8807,7 @@ alone.
 > The strip letters would reach past the edge of the sheet, so part of them may not be printed. Change “Label offset” or the text distance “B”.
 > The strip letters would lie off the sheet. Change “Label offset” or the chart offset.
 > The patch numbers do not fit beside the strips and are left off. Make the left margin larger or the chart offset smaller.
-> The chart offset X moves the patches but not the patch numbers: they keep their distance from the edge of the sheet (“Clip”), so they now sit a little farther from or closer to the first strip. They still name the right rows. To move them with the patches, change “Clip” by the same amount.
+> The chart offset X moves the patches but not the patch numbers: they keep their distance from the edge of the sheet (“Clip”), so they now sit a little farther from or closer to the first strip. They still name the right rows.
 > The line with the chart's name and page number has no free paper on this sheet and is left off. Make the right margin larger, or switch the aiming crosses on.
 > The line with the chart's name and page number does not fit between aiming crosses 2 and 3 on this small sheet and is left off. Choose a larger sheet, or write the name and the page number on the sheet by hand.
 > The patches, the strip letters or their underline would touch the line with the chart's name. Make the chart offset or “Label offset” smaller, or the right margin larger.
