@@ -108,7 +108,7 @@ def _sent(lines) -> "list[tuple[str, str]]":
 def test_the_fixtures_are_4_3_34s():
     tag = subprocess.run(["git", "-C", str(ROOT), "rev-parse",
                           "v4.3.34^{commit}"], capture_output=True, text=True,
-                         timeout=60)
+                         encoding="utf-8", timeout=60)
     for fix in (FIX2, FIX3):
         head = fix.read_text(encoding="utf-8").splitlines()[0]
         assert "ChromIQ 4.3.34 (" in head
