@@ -304,3 +304,37 @@ def test_strip_read_ok_waits_for_the_answer(qapp, tmp_path, monkeypatch):
     assert not any("Strip read OK — E " in ln for ln in lines)
     assert any("Strip E: you chose to read it again" in ln for ln in lines)
     assert any("Strip read OK — D" in ln for ln in lines)
+
+
+# ---- combined review of 4.3.35: the log line and the question agree -------
+def test_the_strip_line_names_the_part_over_the_patches_the_question_uses(tmp_path):
+    """The per-strip line said "moved 105 mm ... It went from the first patch
+    to the last." and the question right after it "moved only about 90 mm ...
+    cannot have passed over all of them". The line now gives the whole stroke
+    AND the part over the patches, the very number the question shows, and
+    the direction sentence says only which way the instrument moved."""
+    rs, _ = _session(tmp_path, gen="i1pro3", chart=True)
+    geo = rs.geometry["A"]
+    n = geo["patches"]
+    full = int(geo["span_mm"] / 0.5 * 1.3)
+    rs.on_strip(_cut(_rec("A", full, gen="i1pro3"), n=n))
+    rs.on_strip_read(_strip_read("A", n=n), other_question=False)
+    lines = rs.on_strip(_cut(_rec("B", full // 4, gen="i1pro3"), n=n))
+    summ = rs.on_strip_read(_strip_read("B", n=n), other_question=False)
+    line = lines[-1]
+    # the question's own figure (TabMeasure._prompt_ruler_not_covered)
+    moved = int(round((summ["coverage_steps"] or summ["travel_steps"])
+                      * summ["mm_per_step"]))
+    whole = int(round(summ["travel_steps"] * summ["mm_per_step"]))
+    assert f"moved {whole} mm along the ruler in all" in line, line
+    assert f"about {moved} mm of it over the patches" in line, line
+    assert "It went from" not in line
+    assert ("It moved in the reading direction, from the first patch towards "
+            "the last." in line) or ("It moved against the reading direction"
+                                     in line), line
+
+
+def test_the_steps_line_names_the_part_over_the_patches_too(tmp_path):
+    rs, _ = _session(tmp_path)
+    line = rs.on_strip(_rec("A", 340))[0]
+    assert "ruler steps in all, about " in line and "of them over the patches" in line

@@ -290,9 +290,14 @@ class RulerSession:
     def _direction(self, f) -> str:
         if not self.forward_sign or not f.sign:
             return ""
+        # A DIRECTION, NOT A VERDICT (review of 4.3.35): "it went from the
+        # first patch to the last" read as "it covered every patch", right
+        # before a question saying that it did not. Only the way it moved.
         if f.sign == self.forward_sign:
-            return " " + tr("It went from the first patch to the last.")
-        return " " + tr("It went from the last patch to the first.")
+            return " " + tr("It moved in the reading direction, from the first "
+                            "patch towards the last.")
+        return " " + tr("It moved against the reading direction, from the last "
+                        "patch towards the first.")
 
     def _motion_line(self, strip: str, rec: dict, f) -> str:
         mm = rc.mm_per_step(self.gen, self.derived_step())
@@ -304,13 +309,40 @@ class RulerSession:
                         "mm. After three strips, ChromIQ has worked out how "
                         "long one ruler step is on this i1Pro 2: about {mm} "
                         "mm.").format(mm=_num(mm, 2))
-        if mm:
+        # THE WHOLE STROKE AND THE PART OVER THE PATCHES (review of 4.3.35).
+        # The figure here is the whole movement; the ruler question counts
+        # only the part between the first and the last patch reading
+        # (`rc.cut_coverage`, the same number `on_strip_read` hands it). Shown
+        # side by side, "105 mm" here and "only about 90 mm" in the question
+        # read as a contradiction, so the line names both when it has both.
+        over, _followed = rc.cut_coverage(rec)
+        over = over or None     # as the question: no coverage -> the travel
+        if mm and over is not None:
+            text = tr("Ruler (beta), strip {strip}: the instrument moved {dist} "
+                      "mm along the ruler in all, about {over} mm of it over "
+                      "the patches, at about {avg} mm per second on average "
+                      "and {peak} mm per second at its fastest.").format(
+                          strip=strip, dist=_num(f.travel_steps * mm),
+                          over=_num(over * mm),
+                          avg=_num(f.mean_steps_s * mm),
+                          peak=_num(f.peak_steps_s * mm))
+        elif mm:
             text = tr("Ruler (beta), strip {strip}: the instrument moved {dist} "
                       "mm along the ruler, at about {avg} mm per second on "
                       "average and {peak} mm per second at its fastest.").format(
                           strip=strip, dist=_num(f.travel_steps * mm),
                           avg=_num(f.mean_steps_s * mm),
                           peak=_num(f.peak_steps_s * mm))
+        elif over is not None:
+            text = tr("Ruler (beta), strip {strip}: the instrument moved {dist} "
+                      "ruler steps in all, about {over} of them over the "
+                      "patches, at about {avg} steps per second on average "
+                      "and {peak} at its fastest. How long one ruler step is "
+                      "on this instrument is not known yet, so the figures "
+                      "are in steps.").format(
+                          strip=strip, dist=_num(f.travel_steps),
+                          over=_num(over),
+                          avg=_num(f.mean_steps_s), peak=_num(f.peak_steps_s))
         else:
             text = tr("Ruler (beta), strip {strip}: the instrument moved {dist} "
                       "ruler steps, at about {avg} steps per second on average "
