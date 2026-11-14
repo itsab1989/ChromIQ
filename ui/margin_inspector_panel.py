@@ -469,8 +469,9 @@ class MarginInspectorPanel(QGroupBox):
     def verdict(self) -> "tuple[str, int]":
         """What the panel is telling the reader, in one word and a count.
 
-        ``("warnings", n)`` while n notices are live (the count of the red
-        "N warnings" header; with no red line, the notices on the ⓘ); ``("ok", 0)`` for the green "Margins: OK";
+        ``("warnings", n)`` while the frame shows n red notices (the count
+        of its red "N warnings" header); ``("notes", n)`` when nothing is red
+        and n notices sit on its ⓘ; ``("ok", 0)`` for the green "Margins: OK";
         ``("unset", 0)`` when no instrument margins exist for the chart;
         ``("none", 0)`` when there is no chart, or warnings are switched off
         in Preferences. Read by the fold above the two frames, which repeats
@@ -481,13 +482,16 @@ class MarginInspectorPanel(QGroupBox):
         violations, kw = self._last_status
         if not kw.get("notify", True):
             return "none", 0
-        # The same count as the panel's own red "N warnings" header, so the
-        # folded line and the open frame never disagree. Only when the frame
-        # has no red line at all and its notices sit on the ⓘ alone are those
-        # counted, or the folded line would say nothing about them.
-        n = self._warning_count or len(kw.get("text_warnings") or [])
-        if n:
-            return "warnings", n
+        # WHAT IS RED WHEN OPENED, AND ONLY THAT, IS A WARNING (review of
+        # 2026-11-14): the count is the panel's own red "N warnings" header.
+        # Notices that sit on the ⓘ alone are not red when the frame is
+        # opened, so they are counted apart, as notices, and the fold shows
+        # them in a neutral badge.
+        if self._warning_count:
+            return "warnings", self._warning_count
+        notes = len(kw.get("text_warnings") or [])
+        if notes:
+            return "notes", notes
         if not kw.get("thresholds_defined", True):
             return "unset", 0
         return "ok", 0

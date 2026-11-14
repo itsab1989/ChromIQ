@@ -248,7 +248,9 @@ def test_folded_the_line_repeats_the_verdict_live(qapp, settings):
         panel.update_report(
             _report(), [], thresholds_defined=True, notify=True,
             text_warnings=["⚠ Strip length 300 mm exceeds the ruler"])
-        assert fold.status_text() == tr("1 warning: click to show the details")
+        # nothing red when opened: a neutral notice, never a red warning
+        assert fold.status_text() == tr("1 notice: click to show the details")
+        assert fold.badge.text() == "ⓘ 1"
         # one red line and one note on the ⓘ: the same "1 warning" the open
         # frame's own header says, never a different number
         panel.update_report(
@@ -318,8 +320,8 @@ def test_the_boxes_inside_keep_their_state_while_hidden(qapp, settings):
 
 
 def test_the_badge_reads_on_its_own_ground():
-    """White on the badge's red and green: at least 4.5:1 (WCAG AA)."""
-    from ui.preview_details_fold import BADGE_GREEN, BADGE_RED
+    """White on the badge's red, green and grey: at least 4.5:1 (WCAG AA)."""
+    from ui.preview_details_fold import BADGE_GREEN, BADGE_NOTE, BADGE_RED
 
     def lum(hexc):
         def ch(c):
@@ -327,7 +329,7 @@ def test_the_badge_reads_on_its_own_ground():
             return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
         r, g, b = (ch(hexc[i:i + 2]) for i in (1, 3, 5))
         return 0.2126 * r + 0.7152 * g + 0.0722 * b
-    for c in (BADGE_RED, BADGE_GREEN):
+    for c in (BADGE_RED, BADGE_GREEN, BADGE_NOTE):
         assert 1.05 / (lum(c) + 0.05) >= 4.5, c
 
 
@@ -365,3 +367,35 @@ def test_a_narrow_row_keeps_the_page_text_whole(qapp, settings, one_page_tif,
             w.close()
     finally:
         set_language("en")
+
+
+@pytest.mark.parametrize("case", ["ok", "notice", "warning", "both"])
+def test_the_badge_counts_what_the_open_frame_shows(qapp, settings, case):
+    """Red only for what is red when opened (review of 2026-11-14)."""
+    from core.i18n import tr
+    from ui.preview_details_fold import BADGE_GREEN, BADGE_NOTE, BADGE_RED
+    w = _window(qapp, settings)
+    try:
+        tab = w._tab_chart
+        fold, panel = tab._preview_fold, tab._margin_panel
+        fold.toggle()
+        viol = ([Violation(edge="Top", measured_mm=4.0, threshold_mm=8.0)]
+                if case in ("warning", "both") else [])
+        notes = (["⚠ The sheet text runs into the patches."]
+                 if case in ("notice", "both") else [])
+        panel.update_report(_report(), viol, thresholds_defined=True,
+                            notify=True, text_warnings=notes)
+        red_lines = panel._warning_count
+        sheet = fold.badge.styleSheet()
+        if case == "ok":
+            assert fold.badge.text() == "✓" and BADGE_GREEN in sheet
+            assert fold.status_text() == tr("Margins: OK")
+        elif case == "notice":
+            assert red_lines == 0
+            assert fold.badge.text() == "ⓘ 1" and BADGE_NOTE in sheet
+            assert BADGE_RED not in sheet
+        else:
+            assert fold.badge.text() == f"⚠ {red_lines}" and BADGE_RED in sheet
+            assert red_lines == 1
+    finally:
+        w.close()

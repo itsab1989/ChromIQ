@@ -8252,5 +8252,7 @@
  "Hide or show the measurements and the chart layout information: the two boxes under the chart preview, “Measured from Preview” and “Chart layout information”, both at once.\n\nHidden, the chart preview gets their room. A small badge beside this button then still tells you how the chart's margins look: a green tick when everything fits, or the number of warnings in red. Point at the badge to read it, and click this button or the badge (or press Space while the button is selected) to see the boxes again.\n\nChromIQ remembers your choice, also after a restart.": "隐藏或显示测量值和色卡布局信息：即色卡预览下方的两个框“根据预览测量”和“色卡布局信息”，两者同时切换。\n\n隐藏后，色卡预览会占用它们的空间。此按钮旁边的小徽标仍会告诉你色卡边距的情况：一切都放得下时显示绿色对勾，否则用红色显示警告数量。将指针悬停在徽标上即可阅读内容；点击此按钮或徽标（或在按钮被选中时按空格键）即可再次显示这两个框。\n\nChromIQ 会记住你的选择，重启后也一样。",
  "1 warning: click to show the details": "1 条警告：点击查看详情",
  "{n} warnings: click to show the details": "{n} 条警告：点击查看详情",
- "Preset loaded again. The chart was not rebuilt: press Generate Chart when you want it.": "已重新载入预设。色卡没有重新生成：需要时请点击“生成色卡”。"
+ "Preset loaded again. The chart was not rebuilt: press Generate Chart when you want it.": "已重新载入预设。色卡没有重新生成：需要时请点击“生成色卡”。",
+ "1 notice: click to show the details": "1 条提示：点击查看详情",
+ "{n} notices: click to show the details": "{n} 条提示：点击查看详情"
 }

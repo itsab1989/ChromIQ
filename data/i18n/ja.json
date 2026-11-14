@@ -8252,5 +8252,7 @@
  "Hide or show the measurements and the chart layout information: the two boxes under the chart preview, “Measured from Preview” and “Chart layout information”, both at once.\n\nHidden, the chart preview gets their room. A small badge beside this button then still tells you how the chart's margins look: a green tick when everything fits, or the number of warnings in red. Point at the badge to read it, and click this button or the badge (or press Space while the button is selected) to see the boxes again.\n\nChromIQ remembers your choice, also after a restart.": "測定値とチャートレイアウト情報を非表示または表示にします。チャートプレビューの下にある 2 つの枠、「プレビューから測定」と「チャートレイアウト情報」をまとめて切り替えます。\n\n非表示にすると、その分の場所をチャートプレビューが使います。その間もこのボタンの横の小さなバッジで、チャートの余白の状態がわかります。すべて収まっていれば緑のチェック、警告があれば赤でその件数が表示されます。バッジにポインタを合わせると内容を読めます。枠をもう一度表示するには、このボタンかバッジをクリックします（ボタンが選択されているときはスペースキーでも切り替えられます）。\n\nこの設定は ChromIQ が覚えていて、再起動後もそのままです。",
  "1 warning: click to show the details": "警告 1 件: クリックすると詳細を表示します",
  "{n} warnings: click to show the details": "警告 {n} 件: クリックすると詳細を表示します",
- "Preset loaded again. The chart was not rebuilt: press Generate Chart when you want it.": "プリセットを再読み込みしました。チャートは作り直していません。必要なときに「生成」を押してください。"
+ "Preset loaded again. The chart was not rebuilt: press Generate Chart when you want it.": "プリセットを再読み込みしました。チャートは作り直していません。必要なときに「生成」を押してください。",
+ "1 notice: click to show the details": "お知らせ 1 件: クリックすると詳細を表示します",
+ "{n} notices: click to show the details": "お知らせ {n} 件: クリックすると詳細を表示します"
 }

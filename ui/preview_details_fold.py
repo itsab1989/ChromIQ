@@ -41,6 +41,11 @@ RING = 3
 #: says it in the glyph (⚠ or ✓) and the tooltip.
 BADGE_RED = "#c0392b"
 BADGE_GREEN = "#2e7d4f"
+#: Notices that are not red when the frames are opened (they sit on the ⓘ):
+#: neither red nor the green tick, but the chip's own grey ink, 7.3:1 with
+#: white (review of 2026-11-14: red here sent people looking for a red line
+#: that is not there).
+BADGE_NOTE = "#5a5650"
 
 
 def fold_tooltip() -> str:
@@ -61,6 +66,9 @@ def verdict_words(kind: str, n: int) -> str:
     if kind == "warnings":
         return (tr("1 warning: click to show the details") if n == 1
                 else tr("{n} warnings: click to show the details").format(n=n))
+    if kind == "notes":
+        return (tr("1 notice: click to show the details") if n == 1
+                else tr("{n} notices: click to show the details").format(n=n))
     if kind == "ok":
         return tr("Margins: OK")
     return ""
@@ -153,6 +161,8 @@ class VerdictBadge(QLabel):
             return
         if kind == "warnings":
             glyph, ground = f"⚠ {n}", BADGE_RED
+        elif kind == "notes":
+            glyph, ground = f"ⓘ {n}", BADGE_NOTE
         else:
             glyph, ground = "✓", BADGE_GREEN
         if active_mode() == "neutral":
