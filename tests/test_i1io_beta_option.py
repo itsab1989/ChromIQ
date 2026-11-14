@@ -162,7 +162,10 @@ def test_guided_offers_the_i1io_with_its_own_sheets_only(chart_tab):
     tab._instr_combo.setCurrentIndex(i)
     papers = [tab._paper_combo.itemData(k)
               for k in range(tab._paper_combo.count())]
-    assert papers == ["A4", "Letter"]
+    # every sheet inside the table's reach, A4 and Letter first (review 5,
+    # item 7)
+    from workflow.i1io.chart import GUIDED_PAPERS
+    assert papers == list(GUIDED_PAPERS) and papers[:2] == ["A4", "Letter"]
     p = tab._collect_guided()
     assert (p.instrument, p.paper) == ("IO2", "A4")
     # the engine's own count for that sheet
@@ -190,9 +193,31 @@ def test_manual_offers_the_i1io_and_greys_what_it_does_not_read(chart_tab):
     assert greyed and all(not c.isEnabled() for c in greyed)
     assert all(c.toolTip() == panel._i1io_reason_for(c) for c in greyed)
     assert all(c.toolTip().endswith(i1io_greyed_reason()) for c in greyed)
+    clip_content = set(panel._i1io_clip_controls()) - {panel.clip_enable}
     for c in panel._i1io_live_controls():
         if c in panel._spacer_swatches:
             continue           # live, and enabled by "Custom spacer colours"
+        if c in clip_content:
+            continue           # live, and enabled by "Clip border" On
+        if c in (panel.ind_italic, panel.ct_italic, panel.ind_bold,
+                 panel.ct_bold):
+            # live, and enabled exactly where the typeface has that style
+            from workflow.layout_engine.raster import font_supports
+            combo = (panel.indicator_font
+                     if c in (panel.ind_bold, panel.ind_italic)
+                     else panel.chart_text_font)
+            has_bold, has_italic = font_supports(combo.currentData() or "")
+            want = has_bold if c in (panel.ind_bold, panel.ct_bold) \
+                else has_italic
+            assert c.isEnabled() == want, (c.text(), combo.currentData())
+            continue
+        if c in (panel.underline_thickness, panel.underline_gap):
+            continue           # live, enabled by an underline
+        if c in (panel.helper_marker_edge, panel.helper_marker_len,
+                 panel.helper_marker_per_patch,
+                 panel.helper_markers_top_bottom,
+                 panel.helper_markers_sides, panel.max_strip):
+            continue           # live, enabled by their own switch
         assert c.isEnabled(), c.objectName() or type(c).__name__
     panel.custom_spacer_cb.setChecked(True)
     assert all(b.isEnabled() for b in panel._spacer_swatches)
@@ -231,3 +256,21 @@ def test_other_charts_get_no_keyword_declarations(tmp_path):
                           instrument="SS", paper="A4", dpi=100, hflag=True)
     text = r.ti2_path.read_text(encoding="utf-8")
     assert 'HEXAGON_PATCHES "True"' in text and "KEYWORD" not in text
+
+
+def test_the_i1io_style_boxes_follow_the_typeface(chart_tab):
+    """Review F6: Bold and Italic are live for the i1iO wherever the chosen
+    typeface has the style, for the labels and for the sheet text."""
+    from workflow.layout_engine.raster import font_supports
+    tab = chart_tab
+    tab._init_manual_layout_panel()
+    panel = tab._manual_layout_panel
+    panel.instr.setCurrentIndex(panel.instr.findData("IO2"))
+    for face in ("JetBrains Mono", "Inter", "Instrument Serif"):
+        for combo, bold, italic in (
+                (panel.indicator_font, panel.ind_bold, panel.ind_italic),
+                (panel.chart_text_font, panel.ct_bold, panel.ct_italic)):
+            combo.setCurrentIndex(combo.findData(face))
+            has_bold, has_italic = font_supports(face)
+            assert bold.isEnabled() == has_bold, (face, bold.text())
+            assert italic.isEnabled() == has_italic, (face, italic.text())

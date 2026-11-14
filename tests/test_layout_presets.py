@@ -137,8 +137,10 @@ def test_the_full_recipe_really_is_full():
         "fd9_clip_border",
         # i1iO recipes only (written only for an "IO2" recipe, and the sample
         # is an i1Pro's); their round trips: tests/test_i1io_aiming_crosses_ui
-        # .py and tests/test_i1io_layout_options.py.
-        "i1io_crosses", "i1io_align",
+        # .py and tests/test_i1io_layout_options.py; the clip border's in
+        # tests/test_i1io_clip_border.py.
+        "i1io_crosses", "i1io_align", "i1io_clip_border", "i1io_text_bold",
+        "i1io_numbers_edge_mm", "i1io_text_align",
     }
     missing = [f.name for f in fields(LayoutRecipe)
                if f.name not in skip and f"{f.name}=" not in src]

@@ -80,6 +80,9 @@ CR30_APERTURE_DIAMETER_MM = 4.0
 STRIP_READ_APERTURE_MM: dict[str, float] = {"i1": 4.5, "p3": 8.0, "CM": 6.0}
 
 # Instrument flag (printtarg -i value) -> CGATS TARGET_INSTRUMENT string.
+# ADDING AN INSTRUMENT? Read docs/adding_an_instrument.md and work through
+# docs/adding_an_instrument_checklist.md first: they list every place an
+# instrument is registered (this is one of them) and how each is tested.
 TARGET_INSTRUMENT_NAME: dict[str, str] = {
     "i1": "GretagMacbeth i1 Pro",
     "p3": "GretagMacbeth i1 Pro",      # printtarg stamps the 3+ the same way
@@ -917,7 +920,13 @@ def _build_base(
         # `workflow.i1io.chart.fixed_build_kwargs`.
         from workflow.i1io import table_facts as F
         along, across = F.PATCH_ALONG_MM.value, F.PATCH_ACROSS_MM.value
-        return replace(_build_base("SS", spacer_on=False), key="IO2",
+        # The clip border (an option, off by default) is the SpectroScan
+        # base's own notes band: `clip_band` is its width from the paper edge
+        # (`workflow.i1io.chart.fixed_build_kwargs`), 0 without one, which
+        # leaves the geometry exactly as it was.
+        return replace(_build_base("SS", spacer_on=False,
+                                   clip_band=float(clip_band or 0.0)),
+                       key="IO2",
                        target_name=TARGET_INSTRUMENT_NAME["IO2"],
                        plen=along, pwid=across, rrsp=across,
                        pspa=F.SPACER_MM.value if spacer_on else 0.0,

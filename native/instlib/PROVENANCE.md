@@ -54,6 +54,18 @@ stops if one no longer applies.
   recorded WHITE (the recording was made on a measuring table, where
   i1Profiler kept the lights dark). Argyll's own `i1pro2_indLEDoff` bytes
   were never seen on the wire and are not used.
+  Two choices inside the option (2026-11-13, both off = the above, byte
+  for byte): result signals (`--lights-signals`) and lights left on during
+  a hand-held reading (`--lights-during-reading`). They add three more
+  sequences, all sent by i1Profiler 3.8.6 to a user's own i1Pro 2 in a
+  hand-held Windows recording: PULSE (2306 bytes, a soft white pulse,
+  byte for byte Argyll's own `b3`) as the ready light, GREEN2 (2990
+  bytes) after a reading ChromIQ accepted and RED2 (2990 bytes) after one
+  it refused. They live in ChromIQ's own `cq_i1pro2_programs.h` (not an
+  Argyll file; this script never writes it), pinned by sha256 in
+  `tests/test_i1pro2_light_programs.py`. They were recorded on firmware
+  634 and go, like the three above, to any i1Pro 2 the block accepts
+  (no firmware condition, as in Argyll's own light code).
 - **`i1pro3_imp.c`, `i1pro3_imp.h`, `i1pro3.c`: the same Beta for the
   i1Pro 3** (2026-11-13). Its own request and format (0x29, LE32 length,
   bytes on bulk endpoint 0x02, Argyll's `i1pro3_indLEDseq`). Exactly four
@@ -74,9 +86,9 @@ stops if one no longer applies.
 |---|---|---|
 | `rspl1.c` | `5c7b0509abf97f44…` | `d53a8d37b30b6e14…` |
 | `conv.c` | `c6b04014888cb6f4…` | `1b88327ee6e6d9df…` |
-| `i1pro.c` | `ac75b6e3f47537b8…` | `90b196908646ba2f…` |
-| `i1pro_imp.h` | `c37813e4b43a9bff…` | `4762e1d402c0562d…` |
-| `i1pro_imp.c` | `8b8516cdd89e21de…` | `568d926e36a5fc56…` |
+| `i1pro.c` | `ac75b6e3f47537b8…` | `833d46b27134f93e…` |
+| `i1pro_imp.h` | `c37813e4b43a9bff…` | `fdeee113ccf24d86…` |
+| `i1pro_imp.c` | `8b8516cdd89e21de…` | `768237badecbd06a…` |
 | `i1pro3.c` | `9c4b1ac9f8af507a…` | `1ce2195c7b12f562…` |
 | `i1pro3_imp.h` | `190cceb46fe8bc33…` | `7c467ee1045ec4f4…` |
 | `i1pro3_imp.c` | `42c684afa3bbb15d…` | `d68c41018148a61d…` |

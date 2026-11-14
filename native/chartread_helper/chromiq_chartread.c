@@ -1158,6 +1158,13 @@ inst_code cq_uicallback(void *cntx, inst_ui_purp purp) {
 	 * calibration runs there. */
 	if (purp == inst_negcoms || purp == inst_armed || purp == inst_measuring) {
 		int c = cq_cmd_take_key();
+		/* CHROMIQ_EXT: the i1Pro 2 lights' result (Beta), only in the armed
+		 * wait and only when no key is waiting: the driver polls this before
+		 * any trigger of the next reading, on this thread, so nothing is ever
+		 * sent during a measurement; and the driver refuses it once the
+		 * button has been pressed for that reading. */
+		if (purp == inst_armed && c == CQ_KEY_NONE && cq_lights_poll != NULL)
+			cq_lights_poll();
 		/* CHROMIQ_EXT: a resume belongs to the pause between pages and
 		 * nowhere else; here its low byte would be a trigger. */
 		if (c == CQ_KEY_RESUME)
@@ -1360,7 +1367,76 @@ static pthread_t cq_lights_thread;
 
 static void cq_lights_forget(void) {
 	cq_lights_service = NULL;
+	cq_lights_poll = NULL;
 	cq_lights_it = NULL;
+}
+
+/* The i1Pro 2's choices inside the option (2026-11-13): whether this session
+ * gives result signals, i.e. whether the helper owes the driver a word after
+ * every reading. */
+static int cq_lights_sig_active = 0;	/* the driver took the choice */
+static int cq_lights_signals_on(void) {
+	return cq_lights_it != NULL && cq_lights_gen == 2 && cq_lights_sig_active;
+}
+
+/* A sequence the i1Pro 2's driver sent: one line for ChromIQ's log. */
+static void cq_lights_sent2(int seq) {
+	static const char *names[] = { "?", "white", "off_slow", "off_now",
+	                               "pulse", "green2", "red2" };
+	cq_emit_raw("{\"event\":\"lights\",\"sent\":\"%s\"}",
+	            seq >= 1 && seq <= 6 ? names[seq] : "?");
+}
+
+/* The number of the strip whose result is owed ({"event":"lights_owed"}). */
+static int cq_lights_seq = 0;
+
+/* Green twice (good 1), red twice (0), or the ready light if dark (-1), when
+ * this session gives result signals. Only ever called on this thread with no
+ * driver call in progress: after read_strip / read_sample returned, or from
+ * cq_lights_poll_fn. */
+static void cq_lights_say(int good) {
+	if (!cq_lights_signals_on())
+		return;
+	i1pro2_cq_lights_result(cq_lights_it, good);
+}
+
+/* An accepted strip has been reported: its result is ChromIQ's to give. */
+static void cq_lights_owe_strip(void) {
+	if (!cq_lights_signals_on())
+		return;
+	cq_lights_seq++;
+	cq_lights_drop_verdict();	/* anything stored is for an earlier strip */
+	i1pro2_cq_lights_owe(cq_lights_it);
+	cq_emit_raw("{\"event\":\"lights_owed\",\"n\":%d}", cq_lights_seq);
+}
+
+/* Before the next strip or patch is waited for: the ready light, if dark
+ * and no result is owed (a calibration, a command or a failed transfer may
+ * have left them dark). */
+static void cq_lights_prompt(void) {
+	if (!cq_lights_signals_on() || i1pro2_cq_lights_owed_ms(cq_lights_it) >= 0)
+		return;
+	i1pro2_cq_lights_result(cq_lights_it, -1);
+}
+
+/* Where the instrument is idle (cq_lights_poll): ChromIQ's verdict on the
+ * owed strip, if it is for that strip; without one after 3 s, the ready
+ * light. A verdict for any other strip, or when none is owed, is dropped. */
+#define CQ_LIGHTS_VERDICT_WAIT_MS 3000
+static void cq_lights_poll_fn(void) {
+	int owed, v, n;
+	if (!cq_lights_signals_on())
+		return;
+	/* Read and cleared at once: a verdict the reader thread stores in
+	 * between is kept for the next poll, never wiped. */
+	v = cq_lights_take_verdict(&n);
+	owed = i1pro2_cq_lights_owed_ms(cq_lights_it);
+	if (owed < 0)
+		return;
+	if (v != 0 && n == cq_lights_seq)
+		cq_lights_say(v == 1);
+	else if (owed >= CQ_LIGHTS_VERDICT_WAIT_MS)
+		cq_lights_say(-1);
 }
 
 /* The lights go off on the main thread (cq_cmd_take_key, see chromiq_ext.h),
@@ -1368,14 +1444,21 @@ static void cq_lights_forget(void) {
  * the close itself (i1pro_imp.c del_i1proimp). */
 static void cq_lights_do_off(void) {
 	inst *it = cq_lights_it;
+	int off = 1;
 	if (it == NULL)
 		return;
 	cq_lights_forget();
 	if (cq_lights_gen == 3)
 		i1pro3_cq_lights_end(it);
 	else
-		i1pro2_cq_lights_end(it);
-	cq_emit_raw("{\"event\":\"lights\",\"state\":\"off\"}");
+		off = i1pro2_cq_lights_end(it);
+	/* The i1Pro 2 says whether its lights are known to be off: when a
+	 * trigger was still pending or the off failed they may still play, and
+	 * ChromIQ keeps its "lights may still be on" marker for the next Start. */
+	if (off)
+		cq_emit_raw("{\"event\":\"lights\",\"state\":\"off\"}");
+	else
+		cq_emit_raw("{\"event\":\"lights\",\"state\":\"unknown\"}");
 }
 
 static void cq_lights_atexit(void) {
@@ -1410,6 +1493,7 @@ static void cq_lights_failed3(int seq, int icom_err) {
 static void cq_lights_for_session(inst *it, int rmode, int emis, int trans,
                                   int displ) {
 	const char *why = NULL;
+	int choices = 0;
 	if (!cq_i1pro2_lights || !cq_json)
 		return;
 	if (it == NULL || cq_replay_active()
@@ -1420,6 +1504,11 @@ static void cq_lights_for_session(inst *it, int rmode, int emis, int trans,
 	else {
 		static int registered = 0;
 		cq_lights_gen = it->dtype == instI1Pro3 ? 3 : 2;
+		/* The two choices are the i1Pro 2's only (both 0 = 4.3.33). */
+		if (cq_lights_gen == 2) {
+			i1pro2_cq_lights_options(it, cq_lights_signals, cq_lights_left_on);
+			i1pro2_cq_lights_sent = cq_lights_sent2;
+		}
 		i1pro2_cq_lights_note = cq_lights_failed;
 		i1pro3_cq_lights_note = cq_lights_failed3;
 		cq_lights_thread = CQ_THIS_THREAD();
@@ -1433,12 +1522,22 @@ static void cq_lights_for_session(inst *it, int rmode, int emis, int trans,
 		                         : i1pro2_cq_lights_begin(it))) {
 			cq_lights_forget();
 			why = "lights";
+		} else if (cq_lights_gen == 2) {
+			/* What the driver took (both choices, on any i1Pro 2). */
+			choices = i1pro2_cq_lights_choices(it);
+			cq_lights_sig_active = (choices & 1) != 0;
+			if (cq_lights_sig_active)
+				cq_lights_poll = cq_lights_poll_fn;
 		}
 	}
 	if (why == NULL)
 		cq_emit_raw("{\"event\":\"lights\",\"active\":true,"
-		            "\"instrument\":\"%s\"}",
-		            cq_lights_gen == 3 ? "i1pro3" : "i1pro2");
+		            "\"instrument\":\"%s\",\"signals\":%s,"
+		            "\"during_reading\":\"%s\",\"firmware\":%d}",
+		            cq_lights_gen == 3 ? "i1pro3" : "i1pro2",
+		            choices & 1 ? "true" : "false",
+		            choices & 2 ? "on" : "off",
+		            cq_lights_gen == 2 ? i1pro2_cq_lights_firmware(it) : -1);
 	else
 		cq_emit_raw("{\"event\":\"lights\",\"active\":false,\"why\":\"%s\"}",
 		            why);
@@ -2833,6 +2932,7 @@ a1log *log			/* verb, debug & error log */
 				if (cq_json)
 					cq_cal_gate_set(1);
 				cq_press_listen(0);		/* CHROMIQ_EXT: a fresh group */
+				cq_lights_prompt();		/* CHROMIQ_EXT: lights (Beta) */
 				rv = it->read_strip(it, "STRIP", stipa+nextrap, nn, guide, plen, glen, tlen, vals);
 				if (cq_json)
 					cq_cal_gate_set(0);
@@ -3150,6 +3250,7 @@ a1log *log			/* verb, debug & error log */
 							bad_beep();
 						if (!cq_json)
 							empty_con_chars();
+						cq_lights_say(0);	/* CHROMIQ_EXT: red twice (Beta) */
 						printf("\nStrip read failed due to misread (%s)\n",it->interp_error(it, rv));
 						printf("Hit Esc to give up, any other key to retry%s:",fl_end); do_fflush();
 						/* CHROMIQ_EXT B1: the event says whether this
@@ -3236,6 +3337,7 @@ a1log *log			/* verb, debug & error log */
 					} else {
 						if (cap2 & inst2_no_feedback)
 							bad_beep();
+						cq_lights_say(0);	/* CHROMIQ_EXT: red twice (Beta) */
 						printf("\nStrip read failed due unexpected error :'%s' (%s)\n",
 				       	       it->inst_interp_error(it, rv), it->interp_error(it, rv));
 						printf("Hit Esc or 'q' to give up, any other key to retry:%s",fl_end); do_fflush();
@@ -3393,6 +3495,7 @@ a1log *log			/* verb, debug & error log */
 							bad_beep();
 						if (!cq_json)
 							empty_con_chars();
+						cq_lights_say(0);	/* CHROMIQ_EXT: red twice (Beta) */
 						printf("\n(Warning) Seem to have read strip pass %s rather than %s!\n",mm,nn);
 						printf("Hit Return to use it anyway, any other key to retry, Esc or 'q' to give up:%s",fl_end); do_fflush();
 						cq_emit_raw("{\"event\":\"strip_warning\",\"kind\":\"wrong_strip\","
@@ -3432,6 +3535,7 @@ a1log *log			/* verb, debug & error log */
 							bad_beep();
 						if (!cq_json)
 							empty_con_chars();
+						cq_lights_say(0);	/* CHROMIQ_EXT: red twice (Beta) */
 						printf("\nThere is at least one patch with an very unexpected response! (DeltaE %f)\n",werror);
 						printf("Hit Return to use it anyway, any other key to retry, Esc or  'q' to give up:%s",fl_end); do_fflush();
 						cq_emit_raw("{\"event\":\"strip_warning\",\"kind\":\"unexpected_response\","
@@ -3530,6 +3634,7 @@ a1log *log			/* verb, debug & error log */
 					                         &flipped);
 				/* CHROMIQ_EXT: per-patch data + confidence for the GUI, then
 				 * the accepted strip goes straight to disk. */
+				cq_lights_owe_strip();	/* CHROMIQ_EXT: ChromIQ gives its result */
 				cq_emit_strip_read(scb, stipa, snn != NULL ? snn : "?",
 				                   bdir, cq_last_bcorr, cq_last_xbcorr,
 				                   cq_last_werror, rand || cq_elig(oroi), mis);
@@ -3900,6 +4005,7 @@ a1log *log			/* verb, debug & error log */
 				if (cq_json)
 					cq_cal_gate_set(1);
 				cq_press_listen(0);		/* CHROMIQ_EXT: a fresh group */
+				cq_lights_prompt();		/* CHROMIQ_EXT: lights (Beta) */
 				rv = it->read_sample(it, "SPOT", &val, 1);
 				if (cq_json)
 					cq_cal_gate_set(0);
@@ -4007,6 +4113,7 @@ a1log *log			/* verb, debug & error log */
 					if (cap2 & inst2_no_feedback)
 						bad_beep();
 					empty_con_chars();
+					cq_lights_say(0);	/* CHROMIQ_EXT: red twice (Beta) */
 					printf("\nStrip read failed due to misread (%s)\n",it->interp_error(it, rv));
 					printf("Hit Esc or 'q' to give up, any other key to retry:%s",fl_end); do_fflush();
 					cq_emit_error("misread", it->interp_error(it, rv));	/* CHROMIQ_EXT */
@@ -4077,6 +4184,7 @@ a1log *log			/* verb, debug & error log */
 					/* Some other error. Treat it as fatal */
 					if (cap2 & inst2_no_feedback)
 						bad_beep();
+					cq_lights_say(0);	/* CHROMIQ_EXT: red twice (Beta) */
 					printf("\nPatch read failed due unexpected error :'%s' (%s)\n",
 			       	       it->inst_interp_error(it, rv), it->interp_error(it, rv));
 					printf("Hit Esc or 'q' to give up, any other key to retry:%s",fl_end); do_fflush();
@@ -4298,6 +4406,7 @@ a1log *log			/* verb, debug & error log */
 				}
 				scols[pix]->rr = 1;		/* Has been read */
 				printf(" Patch read OK\n");
+				cq_lights_say(1);	/* CHROMIQ_EXT: green twice (Beta) */
 				cq_emit_patch_read(scols[pix]);		/* CHROMIQ_EXT */
 				cq_write_ti3_atomic();			/* CHROMIQ_EXT: autosave per patch */
 
@@ -4768,12 +4877,22 @@ int main(int argc, char *argv[]) {
 				/* CHROMIQ_EXT: Preferences > Beta, the i1Pro 2 lights. */
 				cq_i1pro2_lights = 1;
 				eat = 1;
+			} else if (strcmp(argv[ai], "--lights-signals") == 0) {
+				/* CHROMIQ_EXT: inside that option, the i1Pro 2's result
+				 * signals (green / red) and pulsing ready light. */
+				cq_lights_signals = 1;
+				eat = 1;
+			} else if (strcmp(argv[ai], "--lights-during-reading") == 0) {
+				/* CHROMIQ_EXT: inside that option, the i1Pro 2's lights are
+				 * left on during a hand-held reading, as i1Profiler does. */
+				cq_lights_left_on = 1;
+				eat = 1;
 			} else if (strcmp(argv[ai], "--caps") == 0) {
 				/* CHROMIQ_EXT: what this build can do, so the GUI can ask
 				 * before it relies on it. One JSON line, then exit 0.
 				 * "legacy_labels": reads sheets ChromIQ's layout engine
 				 * printed with its pre-4.3.3-beta.7 labels as printed. */
-				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\"],\"build\":\"%s\"}\n",
+				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\",\"lights_signals\",\"lights_during_reading\"],\"build\":\"%s\"}\n",
 				       cq_helper_build_string());
 				fflush(stdout);
 				return 0;

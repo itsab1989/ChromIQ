@@ -37,6 +37,9 @@ class ChartResult:
     #: Paper whites added so each calibration ramp starts its own strip
     #: (``ramps_per_strip``); 0 when nothing was rearranged.
     ramp_whites_added: int = 0
+    #: Why the layout may read less well (an i1iO chart, Job D: risky
+    #: options are warned about, not refused), translated, for the log.
+    warnings: tuple = ()
 
 
 def build_ti2_from_ti1(
@@ -135,13 +138,31 @@ def text_placeholder_context(*, project: str = "", rundescription: str = "",
         "project": project,
         "rundescription": rundescription,
         "instrument": friendly_instrument(instrument),
-        "paper": papers.friendly_label(paper) if paper else "",
+        "paper": (_i1io_paper_name(paper) if instrument == "IO2"
+                  else papers.friendly_label(paper)) if paper else "",
         "dpi": f"{dpi} dpi",
         "patchcount": f"{patches} patches",
         "pages": str(pages),
         "date": chart_date or _time.strftime("%Y-%m-%d"),
         "seed": f"seed {seed}",
     }
+
+
+def _i1io_paper_name(paper: str) -> str:
+    """The paper an i1iO chart's notes name (review 6, nit): the app's own
+    name where it has one ("A4 portrait"), A5 and 13 x 18 cm by name, any
+    other custom size by its millimetres, never the raw code ("148x210")."""
+    from data.patch_db import PAPER_LABELS
+    if paper in PAPER_LABELS:
+        return papers.friendly_label(paper)
+    named = {"148x210": "A5 portrait", "130x180": "13 × 18 cm portrait"}
+    if paper in named:
+        return named[paper]
+    try:
+        w, h = papers.dimensions_mm(paper)
+    except (ValueError, TypeError):
+        return str(paper)
+    return f"{w:g} × {h:g} mm"
 
 
 def stamp_summary_line(instrument: str, paper: str, dpi: int, patches: int,
@@ -315,6 +336,19 @@ def build_chart(
     #: the i1iO's own, `workflow.i1io.chart.align_of`). No other instrument
     #: reads it.
     i1io_align: str = "",
+    #: i1iO only: the clip border On/Off (an option, off by default,
+    #: `workflow.i1io.chart.CLIP_KEY`): the notes band down the page's left
+    #: edge, with the clip-border content asked for. No other instrument
+    #: reads it.
+    i1io_clip_border: bool = False,
+    #: i1iO only: the sheet text's Bold (`workflow.i1io.chart.TEXT_BOLD_KEY`,
+    #: None = the i1iO's own, bold). No other instrument reads it.
+    i1io_text_bold: "bool | None" = None,
+    #: i1iO only (Job D): the patch numbers' distance from the paper edge
+    #: (0 = the i1iO's own 10 mm) and where the name line sits in its room
+    #: ("" = centred, "start"). No other instrument reads them.
+    i1io_numbers_edge_mm: "float | None" = None,
+    i1io_text_align: str = "",
 ) -> ChartResult:
     """Full chart build: write ``out_base.ti2`` + page TIFF(s) + strip geometry.
 
@@ -362,8 +396,34 @@ def build_chart(
             "row_indicators": row_indicators,
             "indicator_size_mm": indicator_size_mm,
             "spacer_width": spacer_width,
+            # the label options (2026-11-13): the strip letters' pattern,
+            # face, underline and place in their band
+            "strip_pattern": strip_pattern,
+            "indicator_font": indicator_font,
+            "indicator_bold": indicator_bold,
+            "indicator_italic": indicator_italic,
+            "indicator_align": indicator_align,
+            "underline_mode": underline_mode,
+            "underline_thickness_mm": underline_thickness_mm,
+            "underline_gap_mm": underline_gap_mm,
+            "clip_border_width": clip_border_width,
+            "clip_content_mode": clip_content_mode,
             _i1io_chart.ALIGN_KEY: i1io_align,
-            _i1io_chart.CROSSES_KEY: i1io_crosses})
+            _i1io_chart.CROSSES_KEY: i1io_crosses,
+            _i1io_chart.CLIP_KEY: i1io_clip_border,
+            # options open, defaults safe (Job D): what a person set
+            "edge_spacers": edge_spacers, "max_strip": max_strip,
+            "nolimit": nolimit, "offset_x": offset_x, "offset_y": offset_y,
+            "helper_markers": helper_markers,
+            "helper_marker_edge": helper_marker_edge,
+            "helper_marker_len": helper_marker_len,
+            "helper_markers_top_bottom": helper_markers_top_bottom,
+            "strip_indicator_gap": strip_indicator_gap,
+            "strip_label_offset_mm": strip_label_offset_mm,
+            "strip_label_offset_x_mm": strip_label_offset_x_mm,
+            "text_edge": text_edge,
+            _i1io_chart.NUMBERS_EDGE_KEY: i1io_numbers_edge_mm,
+            _i1io_chart.TEXT_ALIGN_KEY: i1io_text_align})
         _i1io_chart.sheet_size(paper)
         (patch_w, patch_h, pscale, sscale, spacer_on, spacer_mode,
          spacer_width, inter_patch, strip_gap, edge_spacers, margins,
@@ -385,6 +445,14 @@ def build_chart(
             "row_indicator_rotation"))
         _i1io_labels = _f[_i1io_chart.LABELS_KEY]
         _i1io_crosses = _f[_i1io_chart.CROSSES_KEY]
+        _i1io_clip = _f[_i1io_chart.CLIP_KEY]
+        if _i1io_clip:
+            # the clip border's band, on the page's left edge, its content
+            # clear of the crosses and inside the printable area
+            # (`workflow.i1io.chart.fixed_build_kwargs`)
+            clip_border_width = _f["clip_border_width"]
+            clip_side = _f["clip_side"]
+            text_edge = _f["text_edge"]
         # never above the i1iO's largest label size (review r3 M1)
         indicator_size_mm = _f["indicator_size_mm"]
         # the patch numbers beside the strips, clear of a printer's edge
@@ -394,13 +462,20 @@ def build_chart(
         draw_indicators = _f["draw_indicators"]
         row_indicators = _f["row_indicators"]
         hflag = False          # an i1iO grid is never a honeycomb
-        # Letters for the strips and numbers along them, by ArgyllCMS's
-        # rule, whatever a recipe holds ("C7" means the same everywhere).
-        strip_pattern = permutation.DEFAULT_STRIP_PATTERN
-        patch_pattern = permutation.DEFAULT_PATCH_PATTERN
+        # THE LABEL PATTERNS ARE THE RECIPE'S (2026-11-13): the `.ti2`, the
+        # patch numbers, the strip letters (`draw_furniture`), the aiming
+        # names and the side file all take them, so "C7" still means the
+        # same everywhere; a pair the readers could not read back is refused
+        # below, as on every chart.
         # Manual's "Sheet text" goes on the turned text line (`draw_furniture`),
-        # where it costs no patch, not under the patches.
+        # where it costs no patch, not under the patches, in its own face
+        # and size (2026-11-13; the name and the logo keep theirs).
         _i1io_sheet_text = _i1io_chart_text
+        _i1io_text_style = _i1io_chart.text_style_of({
+            "chart_text_font": chart_text_font,
+            _i1io_chart.TEXT_BOLD_KEY: i1io_text_bold,
+            "chart_text_italic": chart_text_italic,
+            "chart_text_size_mm": chart_text_size_mm})
     if instrument == "FD9" and fd9_enabled():
         from workflow.fd9.chart import build_chart as build_fd9
         return build_fd9(ti1_path, out_base, paper=paper, dpi=dpi,
@@ -448,7 +523,12 @@ def build_chart(
         # the i1iO's labels as asked for, past the fixed settings above
         **({_i1io_chart.LABELS_KEY: _i1io_labels,
             _i1io_chart.ALIGN_KEY: patch_area_align,
-            _i1io_chart.CROSSES_KEY: _i1io_crosses} if _i1io else {}),
+            _i1io_chart.CROSSES_KEY: _i1io_crosses,
+            _i1io_chart.CLIP_KEY: _i1io_clip,
+            # the patch numbers' distance (review 3, item 3): without it
+            # the geometry re-derived the default and the numbers never moved
+            _i1io_chart.NUMBERS_EDGE_KEY: i1io_numbers_edge_mm}
+           if _i1io else {}),
         "instrument": instrument, "paper": paper, "hflag": hflag,
         "hex_flat_top": hex_flat_top,
         "density": density, "cm_stagger": cm_stagger,
@@ -549,7 +629,16 @@ def build_chart(
            {"clip_border_free_space": False})})
     w_mm, h_mm = papers.dimensions_mm(paper)
     geom = _geom_for(len(target.patches))
-    layout = geometry.compute(geom, w_mm, h_mm, len(target.patches))
+    try:
+        layout = geometry.compute(geom, w_mm, h_mm, len(target.patches))
+    except geometry.LayoutError:
+        if not _i1io:
+            raise
+        # A SHEET TOO SMALL FOR ONE STRIP, said in words (review 5, item 7):
+        # any size inside the table's reach may be chosen now
+        from workflow import measurement_messages as _mm
+        from core.i18n import tr as _tr
+        raise _i1io_chart.I1ioSheetRefused(_tr(_mm._I1IO_SHEET_TOO_SMALL))
 
     def _refuse_unreadable_patterns(layout_now) -> None:
         if label_rule == permutation.LEGACY:
@@ -647,8 +736,19 @@ def build_chart(
         # a page whose corner patches cannot be aimed at (`page_crosses`).
         _i1io_pages = _i1io_chart.page_crosses(target, layout, geom, w_mm,
                                                h_mm, _slots, _i1io_crosses)
-        _i1io_chart.check_sheet(geom, layout, w_mm, h_mm,
-                                crosses=_i1io_pages)
+        _i1io_warnings = list(_i1io_chart.check_sheet(
+            geom, layout, w_mm, h_mm, crosses=_i1io_pages))
+        _i1io_warnings += _i1io_chart.option_warnings(_f)
+        # "Label offset" X held as on every chart, and the letters and the
+        # numbers where the options put them: said, or refused when wholly
+        # off the sheet (review 3, items 2 and 5)
+        _i1io_labels, _i1io_xs = _i1io_chart.held_letters(
+            geom, layout, w_mm, h_mm, dpi, _i1io_labels, label_rule)
+        for _why in _i1io_chart.furniture_warnings(
+                geom, layout, w_mm, h_mm, dpi, _i1io_labels, _i1io_pages,
+                label_rule):
+            if _why not in _i1io_warnings:
+                _i1io_warnings.append(_why)
         # what the person aims at, recorded (`chart.aim_recorded`), and on
         # every page the names of the three patches when they are patches
         from dataclasses import replace as _replace
@@ -749,7 +849,9 @@ def build_chart(
                                    patterns=(strip_pattern, patch_pattern,
                                              label_rule),
                                    sheet_text=_i1io_sheet_text,
-                                   text_ctx=_ctx, crosses=_i1io_pages)
+                                   text_ctx=_ctx, crosses=_i1io_pages,
+                                   text_style=_i1io_text_style,
+                                   text_align=_i1io_chart.text_align_of(_f))
     if target.n_channels >= 4:
         device_pages = raster.build_device_pages(render, printed, bit16=bit16)
         tiff_paths = raster.save_separated_tiffs(
@@ -803,7 +905,30 @@ def build_chart(
             label_rule=label_rule, designed=len(target.patches),
             labels=_i1io_labels, name=project or Path(out_base).name,
             sheet_text=_i1io_sheet_text, text_ctx=_ctx,
-            crosses=_i1io_pages, slots=_slots)
+            crosses=_i1io_pages, slots=_slots,
+            clip_content=clip_content_mode if _i1io_clip else "off",
+            text_style=_i1io_text_style,
+            text_align=_i1io_chart.text_align_of(_f))
+        # A NAME LINE WITH NO PAPER LEFT IS SAID, never dropped silently
+        # (the whole-workflow drive: crosses off, a small right margin and
+        # a strip cap left no free paper beside the last strip)
+        try:
+            _pages = json.loads(artefact(stem, ".i1io.json").read_text(
+                encoding="utf-8")).get("pages") or []
+        except (OSError, ValueError):
+            _pages = []
+        _lost = [pg for pg in _pages
+                 if not (pg.get("text_line") or {}).get("text")]
+        if _lost:
+            from workflow import measurement_messages as _mm
+            from core.i18n import tr as _tr
+            # with the crosses on the sheet is simply too small for it
+            # (review 5, item 7: any size inside the reach)
+            _why = _tr(_mm._I1IO_LINE_LEFT_OFF_SMALL
+                       if any(pg.get("aim") == "crosses" for pg in _lost)
+                       else _mm._I1IO_LINE_LEFT_OFF)
+            if _why not in _i1io_warnings:
+                _i1io_warnings.append(_why)
 
     cht_paths: list[Path] | None = None
     if emit_cht:
@@ -841,6 +966,7 @@ def build_chart(
         # back to a later rebuild.
         chart_date=_ctx["date"],
         ramp_whites_added=ramps_arranged,
+        warnings=tuple(_i1io_warnings) if _i1io else (),
     )
 
 

@@ -636,6 +636,11 @@ AWAITING_APPROVAL: "set[str]" = {
                                  "M-I1IO-EDGE-MARKS-NOT-PRINTED",
                                  "M-I1IO-EDGE-TEXT-NOT-PRINTED",
                                  "M-I1IO-EDGE-TEXT-PARTS",
+                                 # review 3, items 2 and 5: its letters and
+                                 # numbers where the options put them.
+                                 "M-I1IO-FURNITURE-PARTS",
+                                 # review 5: the sheet's own check
+                                 "M-I1IO-SHEET-CHECK-PARTS",
                                  "M-FD9-SUPPORT-OFF", "M-FD9-NO-ADDRESS",
                                  "M-FD9-INSERT-SHEET", "M-FD9-NEXT-PAGE", "M-FD9-NO-CONNECTION",
                                  "M-FD9-WRONG-FIRMWARE",

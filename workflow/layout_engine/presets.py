@@ -126,10 +126,8 @@ def edge_spacers_effect(recipe: "LayoutRecipe") -> str:
         from workflow.fd9.support import fd9_enabled
         if fd9_enabled():
             return "fixed"
-    if recipe.instrument == "IO2":
-        from workflow.i1io.support import i1io_enabled
-        if i1io_enabled():
-            return "fixed"
+    # The i1iO reads it since Job D (owner, 2026-11-13: options open,
+    # defaults safe), so it is measured like every other chart below.
     from . import instruments
     kw = replace(recipe, edge_spacers=True).build_kwargs()
     g = instruments.geom_from_build_kwargs(kw)
@@ -223,6 +221,25 @@ class LayoutRecipe:
     #: not `patch_area_align`, which an i1iO recipe carried over from the
     #: previous instrument while the box was greyed. Written only when set.
     i1io_align: str = ""
+    #: The i1iO's clip border On/Off (a Beta option, off by default,
+    #: `workflow.i1io.chart.CLIP_KEY`): the notes band down the page's left
+    #: edge, filled with `clip_content_mode`. Its own field, not
+    #: `clip_content_mode`, whose default "notes" would have switched it on
+    #: for every i1iO recipe saved before it existed. Written only when on.
+    i1io_clip_border: bool = False
+    #: The sheet text's Bold on an i1iO chart (`workflow.i1io.chart.
+    #: TEXT_BOLD_KEY`): None = the i1iO's own, bold (its name line was bold
+    #: in 4.3.33); False when a person unticked it. Its own field, not
+    #: `chart_text_bold`, whose default False would have changed every i1iO
+    #: chart with a sheet text. Written only when False.
+    i1io_text_bold: "bool | None" = None
+    #: Job D (options open, defaults safe): the patch numbers' distance from
+    #: the paper edge on an i1iO chart (Manual's "Clip" box while the i1iO
+    #: is chosen; None = its own 10 mm, any number is a person's) and where its name line sits ("" =
+    #: centred, "start"). Their own fields: the shared boxes default to
+    #: other values for every other chart. Written only for "IO2" when set.
+    i1io_numbers_edge_mm: "float | None" = None
+    i1io_text_align: str = ""
     # Layout strategy (#93, Knut). "patch_first" (default) = size the patches
     # (above) and fit as many as possible to the page. "area_first" = fit a
     # target grid into the usable area and SIZE the patches to fill it:
@@ -463,6 +480,14 @@ class LayoutRecipe:
             d.pop("i1io_crosses", None)
         if self.instrument != "IO2" or not self.i1io_align:
             d.pop("i1io_align", None)
+        if self.instrument != "IO2" or not self.i1io_clip_border:
+            d.pop("i1io_clip_border", None)
+        if self.instrument != "IO2" or self.i1io_text_bold is not False:
+            d.pop("i1io_text_bold", None)
+        if self.instrument != "IO2" or self.i1io_numbers_edge_mm is None:
+            d.pop("i1io_numbers_edge_mm", None)
+        if self.instrument != "IO2" or not self.i1io_text_align:
+            d.pop("i1io_text_align", None)
         d[HIDES_PATCH_CONTROLS_KEY] = True      # B8-1570; not a field
         # Left out at 0, so a recipe that does not move its labels sideways
         # writes exactly the dict it wrote before the field existed (see the
@@ -543,6 +568,13 @@ class LayoutRecipe:
             export_pdf=bool(d.get("export_pdf", False)),
             i1io_crosses=bool(d.get("i1io_crosses", True)),
             i1io_align=str(d.get("i1io_align") or ""),
+            i1io_clip_border=bool(d.get("i1io_clip_border", False)),
+            i1io_text_bold=(False if d.get("i1io_text_bold") is False
+                            else None),
+            i1io_numbers_edge_mm=(None if d.get("i1io_numbers_edge_mm")
+                                  is None
+                                  else float(d["i1io_numbers_edge_mm"])),
+            i1io_text_align=str(d.get("i1io_text_align") or ""),
             show_strip_indicators=bool(d.get("draw_indicators", True)),
             show_row_indicators=(None if d.get("row_indicators") is None
                                  else bool(d.get("row_indicators"))),
@@ -831,6 +863,15 @@ class LayoutRecipe:
         # The alignment chosen for the i1iO, only when chosen (see the field).
         if self.instrument == "IO2" and self.i1io_align:
             kw["i1io_align"] = self.i1io_align
+        if self.instrument == "IO2" and self.i1io_clip_border:
+            kw["i1io_clip_border"] = True
+        if self.instrument == "IO2" and self.i1io_text_bold is False:
+            kw["i1io_text_bold"] = False
+        if (self.instrument == "IO2"
+                and self.i1io_numbers_edge_mm is not None):
+            kw["i1io_numbers_edge_mm"] = float(self.i1io_numbers_edge_mm)
+        if self.instrument == "IO2" and self.i1io_text_align:
+            kw["i1io_text_align"] = self.i1io_text_align
         # Only when it moves anything, so the kwargs of every chart that does
         # not use it are the ones it had before the field existed.
         if self.strip_label_offset_x_mm:

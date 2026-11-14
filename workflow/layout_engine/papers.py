@@ -100,9 +100,9 @@ def list_papers(instrument: str | None = None, *, for_engine: bool = False
     if instrument == "IO2":
         from workflow.i1io.support import i1io_enabled
         if i1io_enabled():
-            from workflow.i1io.chart import GUIDED_PAPERS, paper_label_code
+            from workflow.i1io.chart import GUIDED_PAPERS, i1io_paper_label
             # labelled as the sheet is used: landscape, on the table
-            return [(code, label(paper_label_code(code)), dimensions_mm(code))
+            return [(code, i1io_paper_label(code), dimensions_mm(code))
                     for code in GUIDED_PAPERS]
     table = ENGINE_EXCLUDED_PAPERS if for_engine else EXCLUDED_PAPERS
     excluded = table.get(instrument or "", set())

@@ -8,8 +8,8 @@ these files. So:
 
 * every repository path, test file and ``path::symbol`` the guide, its agent
   prompt and the pointer files name (in backticks or as a link) exists;
-* every shared file the FD-9 hooks (``HOOKED_FILES`` in
-  `tests/test_fd9_off_changes_nothing.py`) is named in the guide's checklist,
+* every shared file an instrument Beta hooks (the ``HOOKED_FILES`` pin of
+  every `tests/test_*_off_changes_nothing.py`) is named in the checklist,
   so a new registration point cannot be added there and forgotten here;
 * every pointer file (AGENTS.md, CONTRIBUTING.md, CLAUDE.md, README.md and the
   two files under .github/) links to the guide;
@@ -33,10 +33,12 @@ ROOT = Path(__file__).resolve().parent.parent
 
 GUIDE = "docs/adding_an_instrument.md"
 PROMPT = "docs/adding_an_instrument_agent_prompt.md"
+CHECKLIST = "docs/adding_an_instrument_checklist.md"
 
 #: Files written for this guide, checked whole.
 NEW_FILES = (
     GUIDE,
+    CHECKLIST,
     PROMPT,
     "AGENTS.md",
     "CONTRIBUTING.md",
@@ -51,7 +53,7 @@ SECTIONS = {
 }
 
 #: Every file that must lead a reader (or an agent) to the guide.
-POINTERS = ("AGENTS.md", "CONTRIBUTING.md", "CLAUDE.md", "README.md",
+POINTERS = (CHECKLIST, "AGENTS.md", "CONTRIBUTING.md", "CLAUDE.md", "README.md",
             ".github/copilot-instructions.md",
             ".github/PULL_REQUEST_TEMPLATE.md", PROMPT)
 
@@ -245,24 +247,30 @@ def test_every_section_the_prompt_cites_exists():
 
 
 def _hooked_files() -> "set[str]":
-    tree = ast.parse((ROOT / "tests" / "test_fd9_off_changes_nothing.py")
-                     .read_text(encoding="utf-8"))
-    for node in tree.body:
-        if (isinstance(node, ast.Assign)
-                and any(getattr(t, "id", None) == "HOOKED_FILES"
-                        for t in node.targets)):
-            return set(ast.literal_eval(node.value))
-    raise AssertionError("HOOKED_FILES is no longer in "
-                         "tests/test_fd9_off_changes_nothing.py")
+    """The union of every instrument Beta's pinned list of hooked files."""
+    found: "set[str]" = set()
+    pins = sorted((ROOT / "tests").glob("test_*_off_changes_nothing.py"))
+    assert len(pins) >= 2, [p.name for p in pins]
+    for pin in pins:
+        tree = ast.parse(pin.read_text(encoding="utf-8"))
+        for node in tree.body:
+            if (isinstance(node, ast.Assign)
+                    and any(getattr(t, "id", None) == "HOOKED_FILES"
+                            for t in node.targets)):
+                found |= set(ast.literal_eval(node.value))
+                break
+        else:
+            raise AssertionError(f"HOOKED_FILES is no longer in {pin.name}")
+    return found
 
 
-def test_the_checklist_names_every_file_the_fd9_hooks():
-    """The FD-9's pinned list of hooked shared files is the most complete
-    record of where an instrument has to be registered. A file added there
-    belongs in the guide's checklist too."""
-    guide = (ROOT / GUIDE).read_text(encoding="utf-8")
-    missing = sorted(f for f in _hooked_files() if f"`{f}" not in guide)
-    assert not missing, f"hooked by the FD-9, not in the guide: {missing}"
+def test_the_checklist_names_every_file_an_instrument_hooks():
+    """The pinned lists of shared files that instrument Betas hook are the
+    most complete record of where an instrument has to be registered. A
+    file added to any of them belongs in the checklist too."""
+    checklist = (ROOT / CHECKLIST).read_text(encoding="utf-8")
+    missing = sorted(f for f in _hooked_files() if f"`{f}" not in checklist)
+    assert not missing, f"hooked by an instrument, not in the checklist: {missing}"
 
 
 @pytest.mark.parametrize("rel", POINTERS)
@@ -294,7 +302,7 @@ _PIPED_GATE = re.compile(r"pytest[^\n`]*--runslow[^\n`]*\|")
 
 def test_the_gate_command_reads_pytests_own_exit_code():
     """The guide must not teach `pytest | tail; echo $?` (CLAUDE.md)."""
-    for rel in (GUIDE, "AGENTS.md", "CONTRIBUTING.md"):
+    for rel in (GUIDE, CHECKLIST, "AGENTS.md", "CONTRIBUTING.md"):
         text = (ROOT / rel).read_text(encoding="utf-8")
         assert "--runslow -n auto" in text, rel
         assert re.search(r"--runslow -n auto -q > \S+ 2>&1", text), rel
