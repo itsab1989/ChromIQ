@@ -14,10 +14,12 @@ needs and nothing personal:
   its firmware, the provisional thresholds, the chart's strip geometry (patch
   count, patch length, pitch and span in mm when known), and per strip the
   engine's ruler record (the ruler code stream, counts, today's patch cut, a
-  three-band colour trace divided by its own maximum) with ChromIQ's figures
-  and verdict.
+  coarse brightness trace in three colour bands, each divided by its own
+  maximum over the strip, which is usually the paper, so the rough colour of
+  each patch relative to the paper CAN be seen from it) with ChromIQ's
+  figures and verdict.
 * NOT IN: a serial number (this code never reads one), calibration data,
-  file paths, project, chart or user names, measured colour values.
+  file paths, project, chart or user names.
 """
 from __future__ import annotations
 

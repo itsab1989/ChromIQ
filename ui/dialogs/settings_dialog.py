@@ -9403,8 +9403,11 @@ def ruler_check_help() -> str:
            "file into the run's “reports” folder, named "
            "“ruler_diagnostics_” with the date and time. The Measure log "
            "names the file. It holds how the instrument moved along the "
-           "ruler, where the patches were found and the chart's layout. It "
-           "holds no serial number, no measured colours and no personal data. "
+           "ruler, where the patches were found, the chart's layout and a "
+           "coarse brightness trace in three colour bands, relative to the "
+           "paper, from which the rough colour of each patch can be seen. It "
+           "holds no serial number, no calibration data, no file paths and no "
+           "names. "
            "Sending it to us (in the ChromIQ forum thread or on GitHub) helps "
            "us make the ruler check, and later perhaps a better way of "
            "finding patches, work well with ChromIQ's own charts."),

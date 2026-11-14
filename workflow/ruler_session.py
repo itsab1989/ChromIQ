@@ -134,8 +134,11 @@ class RulerSession:
         return [tr("Ruler (beta): the diagnostics for this measurement are in "
                    "{path}. If you would like to help us make the ruler check "
                    "better, please attach this file in the ChromIQ forum "
-                   "thread or on GitHub. It holds no serial number, no "
-                   "measured colours and no personal data.").format(
+                   "thread or on GitHub. Besides how the instrument moved, "
+                   "it holds a coarse brightness trace in three colour bands, "
+                   "relative to the paper, from which the rough colour of each "
+                   "patch can be seen; it holds no serial number, no "
+                   "calibration data, no file paths and no names.").format(
                        path=str(self.diag.path))]
 
     # ---- one strip -----------------------------------------------------
