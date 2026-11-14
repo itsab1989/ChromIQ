@@ -57,6 +57,12 @@ class RulerSession:
         self.derived: "list[float]" = []         # mm per step, accepted strips
         self.pitch_steps: "list[float]" = []     # session pitch (no geometry)
         self.forward_sign = 0
+        #: 4.3.37 (the i1Pro 3): the way the ruler says the instrument moved
+        #: on each accepted strip, turned round where the strip was FILED
+        #: back to front ("reversed"), so that every strip read and filed
+        #: correctly votes the same way, in whichever direction it was
+        #: scanned. "Forward" is the majority of these, never strip 1 alone.
+        self.direction_votes: "list[int]" = []
         self.said: "set[str]" = set()
         self.argyll = ""
 
@@ -259,6 +265,15 @@ class RulerSession:
         ask = bool(can_ask and not other_question and rc.not_covered(
             f, span, pitch=pitch, patches=patches, coverage=coverage,
             followed=followed))
+        # 4.3.37: the ruler and the filing disagree about the direction (the
+        # i1Pro 3 only): the strip was most likely saved back to front.
+        filed_sign = (-f.sign if ev.get("reversed") else f.sign) \
+            if f.usable and f.sign else 0
+        majority = self._majority_direction()
+        ask_direction = bool(
+            self.gen == "i1pro3" and not ask and not other_question
+            and filed_sign and majority and filed_sign != majority
+            and patches >= rc.MIN_PATCHES_FOR_QUESTION)
         # learn from the strips that look right
         if f.usable and followed and not ask:
             if pitch_cut and pitch_mm:
@@ -267,9 +282,12 @@ class RulerSession:
                 self.pitch_steps.append(pitch_cut)
             if not self.forward_sign and not ev.get("reversed") and f.sign:
                 self.forward_sign = f.sign
+        if filed_sign and not ask_direction:
+            self.direction_votes.append(filed_sign)
         mm_step = rc.mm_per_step(self.gen, derived)
         summary = {
             "strip": strip, "usable": f.usable, "ask": ask,
+            "ask_direction": ask_direction,
             "travel_steps": f.travel_steps, "coverage_steps": coverage,
             "span_steps": span, "patches": patches,
             "mm_per_step": mm_step,
@@ -283,11 +301,31 @@ class RulerSession:
                  "pitch_steps": pitch_cut, "coverage_steps": coverage,
                  "followed": followed, "span_steps_used": span,
                  "question": ask, "other_question": other_question,
+                 "direction_question": ask_direction,
                  "direction_agrees": (f.sign == self.forward_sign) !=
                  bool(ev.get("reversed")) if self.forward_sign and f.sign
                  else None}
-        self._write(rec, strip, f, "asked" if ask else "accepted", extra)
+        self._write(rec, strip, f, "asked" if (ask or ask_direction)
+                    else "accepted", extra)
         return summary
+
+    #: The fewest accepted strips whose directions make a majority, and the
+    #: share the majority must hold (4.3.37).
+    DIRECTION_MIN_VOTES = 3
+    DIRECTION_SHARE = 0.75
+
+    def _majority_direction(self) -> int:
+        """+1 / -1: the direction most accepted strips agree on, or 0 when
+        there are too few or no clear majority."""
+        v = self.direction_votes
+        if len(v) < self.DIRECTION_MIN_VOTES:
+            return 0
+        plus = sum(1 for x in v if x > 0)
+        if plus >= self.DIRECTION_SHARE * len(v):
+            return 1
+        if len(v) - plus >= self.DIRECTION_SHARE * len(v):
+            return -1
+        return 0
 
     def note_answer(self, strip: str, answer: str) -> None:
         if self.diag is not None:

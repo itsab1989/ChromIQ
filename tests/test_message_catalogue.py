@@ -125,6 +125,8 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-STRIP-FAILED-COMS-DETAIL",
     # 4.3.37: Refine / resume at another spectral resolution (-H).
     "M-RESUME-RESOLUTION",
+    # 4.3.37: the ruler and the filing disagree about a strip's direction.
+    "M-STRIP-RULER-DIRECTION",
     # The ruler check (Preferences > Beta), 2026-11-14: an accepted strip
     # the instrument's ruler says was clearly not read all the way.
     "M-STRIP-RULER-NOT-COVERED",

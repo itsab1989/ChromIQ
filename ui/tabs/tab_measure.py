@@ -18054,7 +18054,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         (measurement_window_sounds.md), and the lights go red.
         """
         ruler = (ev or {}).get("ruler") or {}
-        if too_fast or not ruler.get("ask"):
+        if too_fast or not (ruler.get("ask") or ruler.get("ask_direction")):
             self._play_strip_cue(too_fast=too_fast)
             return False
         _v = getattr(getattr(self, "_manager", None), "lights_strip_verdict",
@@ -18067,6 +18067,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._prompt_ruler_not_covered(str((ev or {}).get("strip", "")), ruler)
         return True
 
+    def _ruler_direction_texts(self, strip: str) -> "tuple[str, str]":
+        """M-STRIP-RULER-DIRECTION (4.3.37, §M-PROPOSED)."""
+        from workflow import measurement_messages as M
+        return M.CATALOGUE["M-STRIP-RULER-DIRECTION"].render(strip=strip)
+
     def _prompt_ruler_not_covered(self, strip: str, ruler: dict) -> None:
         """M-STRIP-RULER-NOT-COVERED (§M-PROPOSED): an accepted strip the
         ruler says was clearly not read all the way. Re-read Strip (the
@@ -18077,6 +18082,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if not self._manager.engine_active or not strip:
             return
         msg = M.CATALOGUE["M-STRIP-RULER-NOT-COVERED"]
+        direction = bool(ruler.get("ask_direction")) and not ruler.get("ask")
         mm = ruler.get("mm_per_step")
         if mm and ruler.get("span_mm"):
             moved = tr("about {n} mm").format(
@@ -18092,7 +18098,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         QApplication.instance().removeEventFilter(self)
         dlg = QDialog(self)
         dlg.setObjectName("ruler_not_covered_window")
-        title, body = msg.render(strip=strip, moved=moved, need=need)
+        if direction:
+            # 4.3.37: the same window and buttons for a strip the ruler says
+            # was scanned the other way than it was saved
+            dlg.setObjectName("ruler_direction_window")
+            title, body = self._ruler_direction_texts(strip)
+        else:
+            title, body = msg.render(strip=strip, moved=moved, need=need)
         dlg.setWindowTitle(title)
         dlg.setMinimumWidth(560)
         layout = QVBoxLayout(dlg)

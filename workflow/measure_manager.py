@@ -4053,7 +4053,7 @@ class MeasureManager(QObject):
                     _summ = None
                 if _summ is not None:
                     ev["ruler"] = _summ
-                    if _summ.get("ask"):
+                    if _summ.get("ask") or _summ.get("ask_direction"):
                         self._send_lights_result(False)
             self.strip_measured.emit(ev)
             if _part is not None:
@@ -4067,7 +4067,8 @@ class MeasureManager(QObject):
                 self.strip_read_twice.emit(_twice.strip, _twice.like)
             # The ruler question (Beta) wins over "Strip read OK": OK only
             # once the person kept the strip (review item 9).
-            _asked = bool((ev.get("ruler") or {}).get("ask"))
+            _asked = bool((ev.get("ruler") or {}).get("ask")
+                          or (ev.get("ruler") or {}).get("ask_direction"))
             _answer = (getattr(self, "_ruler_answers", {}) or {}).pop(_s, None)
             if _asked and _answer == "reread":
                 on_line(" " + tr("Strip {strip}: you chose to read it again, "

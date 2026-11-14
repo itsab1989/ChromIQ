@@ -9437,6 +9437,33 @@ M_STRIP_FAILED_BUTTON = _m(
     "back to reading this strip.",
     approved=False)
 
+# --- PROPOSED: the ruler and the filing disagree about a strip's direction --
+#: 4.3.37 (the ruler check Beta, i1Pro 3): a tester's strip was saved back to
+#: front by the reader's recognition (48-66 dE00 off) while the ruler showed
+#: an ordinary stroke. "Forward" is learned from the majority of accepted
+#: strips. Same window and buttons as M-STRIP-RULER-NOT-COVERED.
+M_STRIP_RULER_DIRECTION = _m(
+    "M-STRIP-RULER-DIRECTION",
+    "Strip {strip} may have been saved back to front",
+    "ChromIQ accepted the readings of strip {strip}, but they do not agree "
+    "with the instrument's ruler about the direction. The ruler says the "
+    "instrument moved the same way as on the other strips you read, yet the "
+    "readings were saved as if the strip had been read the other way round. "
+    "Then every patch of this strip would have the colour of another patch.\n\n"
+    "This can happen when the colours of this strip, read backwards, look "
+    "much like another strip of the chart.\n\n"
+    "What each button does:\n\n"
+    "•  Re-read Strip: read strip {strip} again, from the white paper before "
+    "the first patch to the white paper after the last, in one steady "
+    "movement. The new reading replaces this one.\n\n"
+    "•  Continue Anyway: keep what was just read and carry on with the next "
+    "strip.\n\n"
+    "This question comes from the ruler check, a beta option in Preferences, "
+    "on the Beta tab. ChromIQ never changes a reading by itself. If you are "
+    "sure the strip was saved the right way, please press Continue Anyway, "
+    "and tell us about it with the diagnostics file this measurement writes.",
+    approved=False)
+
 # --- PROPOSED: a resume at another spectral resolution (4.3.37) -----------
 #: A tester's re-read strips were lost: the measurement was taken without -H,
 #: the resume with it, and the reader only noticed when it wrote the file.
@@ -10247,6 +10274,7 @@ CATALOGUE = {m.id: m for m in (
     M_I1PRO2_LIGHTS_LEFT_ON,
     M_STRIP_FAILED_COMS_DETAIL,
     M_RESUME_RESOLUTION,
+    M_STRIP_RULER_DIRECTION,
     M_READINGS_NOT_SAME_CHART, M_READINGS_UNUSABLE,
     M_IMPORT_TURNED_GRID_COLOURS,
     M_IMPORT_CXF_CONDITION, M_IMPORT_CXF_CONDITION_PARTS,

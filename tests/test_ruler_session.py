@@ -352,3 +352,72 @@ def test_a_refused_strip_keeps_why_it_was_refused(tmp_path):
     st = doc["strips"][0]
     assert st["verdict"] == "refused"
     assert "Not enough patches" in json.dumps(st)
+
+
+# ---------------------------------------------------------------------------
+# 4.3.37: the ruler and the filing disagree about the direction (i1Pro 3)
+# ---------------------------------------------------------------------------
+def _strip(rs, name, sign, reversed_=False, gen="i1pro3"):
+    rs.on_strip(_rec(name, 300, gen=gen, sign=sign))
+    return rs.on_strip_read(_strip_read(name, reversed=reversed_),
+                            other_question=False)
+
+
+def test_a_strip_saved_back_to_front_is_asked_about(tmp_path):
+    """The tester's file in miniature: every strip scanned the same way and
+    filed in order, then one scanned the same way but FILED back to front."""
+    rs, _ = _session(tmp_path, gen="i1pro3")
+    for s in "ABCD":
+        assert not _strip(rs, s, -1)["ask_direction"]
+    summ = _strip(rs, "E", -1, reversed_=True)
+    assert summ["ask_direction"] and not summ["ask"]
+    rs.flush()
+    doc = json.loads(rs.diagnostics_path().read_text(encoding="utf-8"))
+    assert doc["strips"][-1]["verdict"] == "asked"
+
+
+def test_a_strip_scanned_the_other_way_and_filed_so_is_not_asked(tmp_path):
+    """Reading some strips from the far end is allowed (bidirectional
+    recognition): scanned the other way AND filed reversed agrees."""
+    rs, _ = _session(tmp_path, gen="i1pro3")
+    for s in "ABC":
+        _strip(rs, s, -1)
+    assert not _strip(rs, "D", +1, reversed_=True)["ask_direction"]
+    assert not _strip(rs, "E", -1)["ask_direction"]
+
+
+def test_forward_is_the_majority_not_strip_one(tmp_path):
+    """A first strip that is itself the odd one out cannot set "forward"."""
+    rs, _ = _session(tmp_path, gen="i1pro3")
+    first = _strip(rs, "A", -1, reversed_=True)   # the odd one, first
+    assert not first["ask_direction"]              # nothing to compare yet
+    for s in "BCDE":
+        assert not _strip(rs, s, -1)["ask_direction"]
+    assert rs._majority_direction() == -1
+    assert _strip(rs, "F", -1, reversed_=True)["ask_direction"]
+
+
+def test_no_majority_no_question(tmp_path):
+    rs, _ = _session(tmp_path, gen="i1pro3")
+    for s, sign, rev in (("A", -1, False), ("B", -1, True), ("C", -1, False),
+                         ("D", -1, True)):
+        _strip(rs, s, sign, reversed_=rev)
+    assert rs._majority_direction() == 0
+    assert not _strip(rs, "E", -1, reversed_=True)["ask_direction"]
+
+
+def test_the_i1pro2_is_never_asked_about_the_direction(tmp_path):
+    rs, _ = _session(tmp_path, gen="i1pro2")
+    for s in "ABCD":
+        _strip(rs, s, -1, gen="i1pro2")
+    assert not _strip(rs, "E", -1, reversed_=True, gen="i1pro2")["ask_direction"]
+
+
+def test_the_direction_message_is_proposed():
+    from workflow import measurement_messages as M
+    m = M.CATALOGUE["M-STRIP-RULER-DIRECTION"]
+    assert m.id in M.PROPOSED
+    title, body = m.render(strip="9")
+    assert "saved back to front" in title and "Re-read Strip" in body
+    assert "ChromIQ never changes a reading by itself" in body
+    assert "—" not in title + body
