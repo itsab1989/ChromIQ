@@ -1,16 +1,35 @@
 # Changelog
 
-## Unreleased
+## v4.3.38
+
+**For everyone updating from 4.3.37: two beta options for X-Rite instruments. The ruler check works with the i1Pro 2 again, now that a tester has confirmed with a real i1Pro 2 that 4.3.37's rebuilt lights behave as described. And a new beta option, “X-Rite i1iSis charts”, makes charts for the i1iSis family that you measure in X-Rite's i1Profiler. With every beta option off, ChromIQ works exactly as 4.3.37, except that the old “i1iSis (via i1Profiler)” entry in Create Chart is gone. Your charts, measurements and profiles do not change.**
 
 ### New
-- **Charts for the X-Rite i1iSis family (beta, off by default).** Preferences → Beta → “X-Rite i1iSis charts (beta)” adds “i1iSis family” to the Instrument list of Guided and Manual, with a choice for the XL models' wider sheets. ChromIQ lays the chart out with its own layout engine exactly as X-Rite's chart rules and i1Profiler 3.8.8 lay it out (the black bar, a diamond at both ends of every row, 6 × 6 mm patches without gaps by default), and saves an i1Profiler test chart (`.txf`) beside it that makes i1Profiler expect exactly that sheet. You measure the printed sheet in i1Profiler and bring a one-page measurement back with Import Measurement; when you press Start, the Measure tab explains the steps. In Manual nearly every layout option stays open, including a notes band in the header (off by default). Nobody on the team owns an i1iSis, so no ChromIQ chart has been read by one yet: if you own one, please try it and tell us.
-- **The i1Profiler patch set (`.pxf`) of an i1iSis chart names the i1iSis or the i1iSis XL** as i1Profiler itself does (only while that beta option is on); every other chart's file is unchanged.
+- **Charts for the X-Rite i1iSis family (beta, off by default).** Preferences → Beta → “X-Rite i1iSis charts (beta)” adds “i1iSis family” to the Instrument list of Guided and Manual, with a choice for the XL models' wider sheets. ChromIQ lays the chart out exactly as X-Rite's chart rules and i1Profiler 3.8.8 lay it out (the black bar, a diamond at both ends of every row, 6 × 6 mm patches without gaps by default), and saves an i1Profiler test chart (`.txf`) beside it that makes i1Profiler expect exactly that sheet.
+  - **You measure in i1Profiler, not in ChromIQ.** Measure the printed sheet in i1Profiler, then bring the measurement back with Import Measurement. When you press Start on such a chart, the Measure tab explains the steps.
+  - **One page at a time for now:** importing a measurement of several pages is not supported yet.
+  - In Manual nearly every layout option stays open, including a notes band in the header (off by default).
+  - **Nobody on the team owns an i1iSis, so no real i1iSis has read such a sheet yet.** If you own one, please try it and tell us.
+- **The i1Profiler patch set (`.pxf`) of an i1iSis chart names the i1iSis or the i1iSis XL**, as i1Profiler itself does (only while that beta option is on). Every other chart's file is unchanged.
+- **The ruler check works with the i1Pro 2 again (beta).** 4.3.36 and 4.3.37 paused it for the i1Pro 2 so that only one thing changed at a time. It is back exactly as 4.3.35 sent it to the instrument: two extra switches in the measure command and the ruler channel read during the strip. It only checks, writes nothing into the instrument's memory, and reads the strip the usual way when the ruler data is missing or late. It also gets everything added since: the diagnostics file groups ChromIQ's own charts correctly, records the measurement condition, and says why a strip could not be read.
+  - **What has been confirmed on a real i1Pro 2 is one strip**, in a tester's log: it was read normally, and the ruler counted cleanly along the whole strip in one direction. Nothing more yet.
+  - **What you will see:** after every strip, the Measure log shows how far, which way and how fast the instrument moved. The diagnostics file in the run's “reports” folder (“ruler_diagnostics_” with the date and time) is what we would most like to receive.
+  - **Please try the lights and the ruler check one at a time first**, so that if something goes wrong we know which one it was. Both together have been checked on a simulated instrument only.
+- **The question about a strip whose direction does not agree with the ruler now also comes with an i1Pro 2** (ruler check beta). It uses only which way the ruler moved, compared with most of your other strips, so it works the same for both instruments. It now says plainly that the ruler and the saved readings disagree and that ChromIQ cannot tell which of the two is wrong.
+
+### Changed
+- **The lights help says what a tester confirmed** (beta): on 14 November 2026 a tester confirmed with a real i1Pro 2 on Windows that the lights behave as described. Whether the “lost communication” window is gone for good has not been confirmed yet.
+- **“This measurement cannot be continued with this instrument”** now names “the instrument in use”, not “the instrument this chart is made for”, because the name shown is the one the instrument reported. When no name is known, it says so without a name.
+- **French:** the strings changed in 4.3.36 and 4.3.37 now say “calibration”, like the rest of the French translation, instead of “étalonnage”.
 
 ### Fixed
-- **i1iO charts (beta): the i1Profiler export of an i1iO chart now names the right measuring device.** Its patch set (`.pxf`) said “i1iSis”; it now says “i1iO 2”, the name i1Profiler's own i1iO charts carry (found from a real i1iO owner's files). Only while “X-Rite i1iO support (beta)” is on, whatever the i1iSis option says; with it off, and for every other instrument, the file is byte for byte as before.
+- **i1iO charts (beta): the i1Profiler export of an i1iO chart now names the right measuring device.** Its patch set (`.pxf`) said “i1iSis”; it now says “i1iO 2”, the name i1Profiler's own i1iO charts carry (found from a real i1iO owner's files). This applies only while “X-Rite i1iO support (beta)” is on, whatever the i1iSis option says. With it off, and for every other instrument, the file is byte for byte as before.
 
 ### Removed
 - **The Instrument entry “i1iSis (via i1Profiler)”.** It printed an i1Pro chart that an i1iSis could not read, and the new beta option replaces it. A saved setting that still names it opens on the i1Pro and A4, and nothing is changed until you save.
+
+### Checked
+- With the lights and the ruler check each off and on, on a simulated i1Pro 2 that loses a measurement when a light changes too shortly before it: no measurement lost, no light command during a reading, and the ruler adds nothing but its two switches. With both options off, and with the ruler off for every lights setting, an i1Pro 2 gets byte for byte what 4.3.37 sent it; an i1Pro 3 gets what 4.3.37 sent it in every combination.
 
 ## v4.3.37
 
