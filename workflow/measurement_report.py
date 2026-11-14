@@ -737,6 +737,23 @@ def _i1io_chart_instrument(ti3_path) -> "str | None":
     return None
 
 
+def _isis_chart_instrument(ti3_path) -> "str | None":
+    """The same for an i1iSis chart (a Beta): "X-Rite i1iSis" for a
+    measurement that names no instrument, only while i1iSis charts are on
+    and its own chart is an i1iSis chart; None otherwise."""
+    try:
+        from workflow.isis.support import (chart_names_isis, isis_enabled,
+                                           TARGET_INSTRUMENT)
+        if not isis_enabled():
+            return None
+        ti2 = _find_reference_ti2(Path(ti3_path))
+        if ti2 is not None and chart_names_isis(ti2) is True:
+            return TARGET_INSTRUMENT
+    except Exception:      # noqa: BLE001 - a label, never a failure
+        return None
+    return None
+
+
 def _clean_instrument(raw: "str | None") -> str:
     """Tidy the .ti3 TARGET_INSTRUMENT string for display, or a clear fallback."""
     s = str(raw or "").strip().strip('"').strip()
@@ -1833,7 +1850,8 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
         # different instruments are mixed into one report (Knut).
         "instrument": _clean_instrument(
             data.keywords.get("TARGET_INSTRUMENT")
-            or _i1io_chart_instrument(ti3_path)),
+            or _i1io_chart_instrument(ti3_path)
+            or _isis_chart_instrument(ti3_path)),
         # True when this measurement is a colour-managed verification (carries
         # CHROMIQ_VERIFICATION) — chooses the report's title/scope wording and
         # keeps verification trends separate from profiling ones (#130).
