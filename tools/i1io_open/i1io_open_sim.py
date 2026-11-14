@@ -55,14 +55,14 @@ FAKE_SERIAL = "SIM0000TEST"
 
 def _memory_a() -> str:
     head = "6801000056312E31"
-    filler = "13000000C409000076050000"                  # invented constants
+    filler = "0102030405060708090A0B0C"                  # invented, not the table's
     serial = FAKE_SERIAL.encode("ascii").hex().upper()
     body = head + filler + serial
     return body + "AB" * ((512 - len(body)) // 2)
 
 
 def _memory_b() -> str:
-    return "FF" * 96 + "50C300002C49FFFF"
+    return "FF" * 96 + "0102030405060708"           # invented, not the table's
 
 
 def _at_home(p) -> bool:
