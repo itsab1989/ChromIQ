@@ -256,6 +256,13 @@ saved at each slider extreme (`_PWXF_DEVICES` in `ui/dialogs/tools_dialogs.py`):
     confirmed by re-saving i1Profiler's own 56 mm workflow and reopening it (also
     32 mm). So ChromIQ writes `0` (= 32 mm) for i1iSis and offers no UI for it.
     The range/formula above are kept only as documented knowledge.
+  - **…BUT A TEST CHART (`.txf`) KEEPS IT** (i1iSis chart study, 2026-11-14,
+    i1Profiler 3.8.8): loaded on the Test Chart page, a `.txf` with
+    `HeaderEdgeSizePercent="100"` drew the bar's top at 80.5 mm (V08) and one
+    with `"50"` at 56.5 mm (V17), and i1Profiler's grid followed the longer
+    header. The reset above holds for workflow files (`.pwxf`), not for `.txf`
+    test charts. The i1iSis chart Beta's `.txf` therefore writes the header it
+    was laid out with (`workflow/isis/export.py`).
 
 ## Gotchas
 
