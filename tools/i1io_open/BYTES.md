@@ -15,18 +15,21 @@ Sources (times are seconds from the start of each recording, as `io_decode.py` p
 * **S2** the tester's measuring recording of 14 Nov 2026 (five i1Profiler sessions).
 
 Every line below is byte-identical to a line i1Profiler sent, and is sent here only in the
-place where i1Profiler sent it (column "context"). Every two lines that follow each other in
-this program also follow each other in the recordings (the tests carry the pair list, from
-`pairs_all.py` over R1, R2, S1 and S2). The whole warm run is:
+place where i1Profiler sent it (column "context"). Every two lines, and every three lines,
+that follow each other in this program also follow each other in the recordings (the tests
+carry the pair list; the work folder has `pair_audit_021.txt` and `triple_audit_021.txt`
+over R1, R2, S1 and S2). The whole warm run is:
 
 ```
 opening   a1 a1 k2 u8 u8 a0                      (every recorded open)
           s0 f4 f4 f4 f4                         (R2 34.932-34.985, 378.530-378.585)
           ... the person's yes ...               (f4 then s0 after a pause: 13x, up to 162 s)
-homings   s0 p0 i1 p0 i1 s0 f4 f4                (R1 190.077-197.900, R2 134.258-142.039,
-                                                  R2 417.165-425.021: i1Profiler's double
-                                                  homing before a calibration, after an s0)
-          ... the person looks at the arm ...     (f4 then s0 after a pause, as above)
+homings   s0 p0 i1 p0 i1 s0                      (R1 87.464 + 190.077-197.852, R2 35.401 +
+                                                  134.258-141.991, R2 378.905 +
+                                                  417.165-424.974: i1Profiler's double
+                                                  homing before a calibration)
+          ... the person looks at the arm ...     (i1, s0, pause, s0: S1 4.796-22.919,
+                                                  R2 268.653-361.579, up to 92.7 s)
 closing   s0 f0 f3                               (S1 22.919-22.951, R2 361.579-361.611)
 ```
 
@@ -48,8 +51,8 @@ one CR (0x0D).
 | 3 | `;u8000060000100d1` | `3b 75 38 30 30 30 30 36 30 30 30 30 31 30 30 64 31 0d` | 4th line | S1 1.343; R2 34.747, 378.347. Right after k2 |
 | 4 | `;u8000061000068c3` | `3b 75 38 30 30 30 30 36 31 30 30 30 30 36 38 63 33 0d` | 5th line | S1 1.450; R2 34.853, 378.453. Right after the first u8 |
 | 5 | `;a034` | `3b 61 30 33 34 0d` | 6th line. Answer 111800: STOP here (nothing more is sent). Answer 130000: go on. Anything else: stop | S1 1.502 (answer 111800); R2 34.906, 378.505 (answer 130000). Right after the second u8 |
-| 6 | `;s022` | `3b 73 30 32 32 0d` | after a0 (warm); after the person's yes, right before p0; after the second i1; before f0 | R2 34.932 + 378.530 (after a0, warm); R1 87.464 / R2 378.905 (an s0 before the p0 of a double homing); R1 197.852, R2 141.991, 424.974 (after the second i1); R2 361.579 and S1 22.919 (before f0) |
-| 7 | `;f42b` | `3b 66 34 32 62 0d` | four times after the first s0; twice after the s0 that follows the second i1 | R2 34.940-34.985, 378.539-378.585; S1 4.706-4.748; R1 197.871/197.885, R2 142.010/142.024, 424.993/425.006. Always answered 00 there |
+| 6 | `;s022` | `3b 73 30 32 32 0d` | after a0 (warm); after the person's yes, right before p0; after the second i1; after the look, before f0 | R2 34.932 + 378.530 (after a0, warm); R1 87.464 / R2 378.905 (an s0 before the p0 of a double homing); R1 197.852, R2 141.991, 424.974 (after the second i1); S1 5.020 + 22.919, R2 268.909 + 361.579 (s0 after a homing, then s0 before f0) |
+| 7 | `;f42b` | `3b 66 34 32 62 0d` | four times after the first s0 | R2 34.940-34.985, 378.539-378.585; S1 4.706-4.748. Always answered 00 there |
 | 8 | `;p025` | `3b 70 30 32 35 0d` | after the person's yes, right after s0 and right before the first i1; right after the first i1 and right before the second | R1 190.077 + 190.404, R2 134.258 + 134.587, R2 417.165 + 417.445 (the double homing); R2 35.017, 378.617 (before the opening's i1). Never followed by s0, f4 or f0 in any recording, so never sent after the second i1 |
 | 9 | `;i12b` | `3b 69 31 32 62 0d` | twice, each right after the p0 that read the resting place | R1 190.093 (from (1102, 32), 0.304 s) + 190.412 (from (1102, 2), 0.048 s); R2 134.274 + 134.610; R2 417.181 + 417.453; at the opening R2 378.632, R2 35.033, S1 4.796. On the tester's table with 0.2.0: from (1101, 46), 0.336 s |
 | 10 | `;f02f` | `3b 66 30 32 66 0d` | after the closing s0, arm at rest, motors holding (f4 00) | S1 22.935; R2 361.594; R1 0.017 |
@@ -86,7 +89,7 @@ Every line must have a valid checksum. The acceptance `:!` + id + checksum must 
 | u8 6100/0068 | status 0 and 208 hex characters; content never logged | every open |
 | a0 | `:$a00111800B6` (cold) or `:$a00130000BD` (warm) | S1 1.517; R2 34.906, 378.520 |
 | s0 | `:$s00CF` | 75 times |
-| f4 | `:$f400078` (00), everywhere it is read (01 was only ever read after f1, which is never sent) | every open; after every double homing |
+| f4 | `:$f400078` (00) (01 was only ever read after f1, which is never sent) | every open |
 | p0 | status 0 and 8 hex characters; then the arm must be at its resting place, X 1097..1107, Y -5..50 (every read at rest in R1, R2, S1, S2 and both real runs: X 1101..1102, Y 0..47; 0.16 s after the homing on the tester's table Y 19) | 457 times |
 | i1 | `:$i10D8`, within 12 s; stop if it took longer than 2 s (recorded at rest 0.047-0.352 s; 0.336 s on the tester's table) | 22 times; status 3 once (R1 272.555, free arm): stops here |
 | f0 | `:$f00007C` (00) | 11 times |

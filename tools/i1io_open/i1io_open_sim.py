@@ -37,11 +37,12 @@ class SimViolation(AssertionError):
 REC_OPEN = [";a133", ";a133", ";k228", ";u8000060000100d1", ";u8000061000068c3", ";a034"]
 #: After a0 on a warm table (R2 34.932-34.985, 378.530-378.585): s0, f4 x4; after the
 #: person's yes i1Profiler's double homing before a calibration, line for line: s0 p0 i1
-#: p0 i1 s0 f4 f4 (R1 190.077-197.900, R2 134.258-142.039, 417.165-425.021, each after an
-#: s0); then i1Profiler's closing (S1 22.919-22.951, R2 361.579-361.611). No p0 after the
-#: second homing: no recording follows p0 with s0.
+#: p0 i1 s0 (R1 190.077-197.852, R2 134.258-141.991, 417.165-424.974, each after an s0);
+#: then, after the look, i1Profiler's closing in its recorded context (i1 s0, pause, s0 f0
+#: f3: S1 4.796-22.967, R2 268.653-361.611). No p0 after the second homing: no recording
+#: follows p0 with s0.
 REC_FOLLOW = [";s022", ";f42b", ";f42b", ";f42b", ";f42b",
-              ";s022", ";p025", ";i12b", ";p025", ";i12b", ";s022", ";f42b", ";f42b",
+              ";s022", ";p025", ";i12b", ";p025", ";i12b", ";s022",
               ";s022", ";f02f", ";f32c"]
 #: A table just switched on gets the opening's six reading lines and nothing more.
 REC_COLD = list(REC_OPEN)
@@ -293,9 +294,8 @@ def tonights_table(**kw) -> SimTable:
     """The tester's real table as it answered version 0.2.0 on 14 Nov 2026 (his log; no
     serial in it): started (a0 130000), every arm answer 00, the arm at (1101, 46) before
     the homing, the homing answered after 0.336 s, the arm at (1102, 19) after it. What
-    0.2.1 does beyond that (the second homing from there, f4 twice after it) is a BELIEF
-    taken from the recordings (the second homing ends at Y 0..2; f4 00: R1 197.884, R2
-    142.023, 425.005)."""
+    0.2.1 does beyond that (the second homing from there) is a BELIEF taken from the
+    recordings (a second homing ends at Y 0..2, R1 190.460, R2 134.658, 417.500)."""
     return SimTable(cold=False, pos=[1101.0, 46.0], home_y=19.0, home_s=0.336, jitter=False,
                     **kw)
 

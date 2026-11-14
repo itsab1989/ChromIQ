@@ -5,8 +5,8 @@ DOUBLE HOMING AT THE RESTING PLACE OF A STARTED TABLE, AND STOPS ON ANY DOUBT.
 `tools/i1io_open/` is a standalone program for the one tester who owns an i1iO 2
 (issue #129). It is WARM ONLY (safety review 2026-11-14): on a started table it
 opens it the way i1Profiler does, sends the arm to its resting place twice as
-i1Profiler does before a calibration (s0 p0 i1 p0 i1 s0 f4 f4) and closes it the
-way i1Profiler does; on a table that has just been switched on (a0 = 111800) it
+i1Profiler does before a calibration (s0 p0 i1 p0 i1 s0) and closes it the way
+i1Profiler does, after a homing and a pause, as recorded; on a table that has just been switched on (a0 = 111800) it
 sends the six reading lines of the opening and nothing else. 0.2.1 follows the
 tester's real run of 0.2.0 (14 Nov 2026): the position check after the homing
 uses the whole recorded resting range, and no position is read before the close.
@@ -52,7 +52,7 @@ RECORDED = {
 }
 OPEN = [";a133", ";a133", ";k228", ";u8000060000100d1", ";u8000061000068c3", ";a034"]
 FOLLOW = [";s022", ";f42b", ";f42b", ";f42b", ";f42b"]
-HOMING = [";s022", ";p025", ";i12b", ";p025", ";i12b", ";s022", ";f42b", ";f42b"]
+HOMING = [";s022", ";p025", ";i12b", ";p025", ";i12b", ";s022"]
 CLOSING = [";s022", ";f02f", ";f32c"]
 COLD = list(OPEN)
 WARM = OPEN + FOLLOW + HOMING + CLOSING
@@ -65,12 +65,27 @@ RECORDED_PAIRS = {
     (";u8000060000100d1", ";u8000061000068c3"): 4, (";u8000061000068c3", ";a034"): 4,
     (";a034", ";s022"): 3, (";s022", ";f42b"): 37, (";f42b", ";f42b"): 93,
     (";f42b", ";s022"): 13, (";s022", ";p025"): 20, (";p025", ";i12b"): 21,
-    (";i12b", ";p025"): 3, (";i12b", ";s022"): 19, (";s022", ";f02f"): 11,
-    (";f02f", ";f32c"): 3,
+    (";i12b", ";p025"): 3, (";i12b", ";s022"): 19, (";s022", ";s022"): 6,
+    (";s022", ";f02f"): 11, (";f02f", ";f32c"): 3,
+}
+#: Every run of three lines this run sends, with how often i1Profiler sent the same three
+#: one after the other (after_real_run/triple_audit_021.txt). The close in particular
+#: keeps its recorded context: i1, s0, (pause), s0, f0, f3.
+RECORDED_TRIPLES = {
+    (";a133", ";a133", ";k228"): 4, (";a133", ";k228", ";u8000060000100d1"): 4,
+    (";k228", ";u8000060000100d1", ";u8000061000068c3"): 4,
+    (";u8000060000100d1", ";u8000061000068c3", ";a034"): 4,
+    (";u8000061000068c3", ";a034", ";s022"): 3, (";a034", ";s022", ";f42b"): 3,
+    (";s022", ";f42b", ";f42b"): 37, (";f42b", ";f42b", ";f42b"): 28,
+    (";f42b", ";f42b", ";s022"): 13, (";f42b", ";s022", ";p025"): 7,
+    (";s022", ";p025", ";i12b"): 18, (";p025", ";i12b", ";p025"): 3,
+    (";i12b", ";p025", ";i12b"): 3, (";p025", ";i12b", ";s022"): 18,
+    (";i12b", ";s022", ";s022"): 3, (";s022", ";s022", ";f02f"): 2,
+    (";s022", ";f02f", ";f32c"): 3,
 }
 #: Where the program may wait for the person: only between lines i1Profiler also paused
 #: between for long (f4 then s0: up to 162.6 s, R1 550.730-713.337).
-LONG_PAUSE_PAIRS = {(";f42b", ";s022")}
+LONG_PAUSE_PAIRS = {(";f42b", ";s022"), (";s022", ";s022")}
 #: Every position read at rest in R1, R2, S1, S2 and the tester's two real runs
 #: (after_real_run/rest_reads.txt plus the logs of 0.1.0 and 0.2.0).
 REST_READS = [(1102, 32), (1102, 2), (1102, 5), (1102, 29), (1102, 29), (1102, 47),
@@ -81,7 +96,8 @@ REST_READS = [(1102, 32), (1102, 2), (1102, 5), (1102, 29), (1102, 29), (1102, 4
 
 
 def _pairs_ok(seq):
-    return all(pair in RECORDED_PAIRS for pair in zip(seq, seq[1:]))
+    return all(pair in RECORDED_PAIRS for pair in zip(seq, seq[1:])) and \
+        all(t in RECORDED_TRIPLES for t in zip(seq, seq[1:], seq[2:]))
 
 
 def _bytes_md_lines():
@@ -213,6 +229,8 @@ def test_the_resting_place_box_holds_every_recorded_rest_read_and_nothing_narrow
 def test_every_neighbouring_pair_of_the_run_was_sent_by_i1profiler():
     assert _pairs_ok(WARM) and _pairs_ok(COLD)
     assert set(zip(WARM, WARM[1:])) == set(RECORDED_PAIRS)
+    assert set(zip(WARM, WARM[1:], WARM[2:])) == set(RECORDED_TRIPLES)
+    assert WARM[-5:] == [";i12b", ";s022", ";s022", ";f02f", ";f32c"]   # S1, R2 close context
     for a, b in zip(WARM, WARM[1:]):
         if a == ";p025":
             assert b == ";i12b"
@@ -258,9 +276,9 @@ def test_a_homing_answer_later_than_the_timeout_is_a_missing_answer(tmp_path):
 def test_a_started_table_gets_the_recorded_open_homing_and_close(tmp_path):
     code, sim, log = _run(tmp_path, sim_mod.SimTable(cold=False))
     assert code == 0
-    assert sim.received == WARM and len(WARM) == 22
+    assert sim.received == WARM and len(WARM) == 20
     assert sim.motions == 2
-    assert "result 0; table warm; 22 lines sent, 2 movements; closed yes" in log
+    assert "result 0; table warm; 20 lines sent, 2 movements; closed yes" in log
 
 
 def test_the_homing_follows_s0_and_p0_back_to_back_after_the_yes(tmp_path):
@@ -354,7 +372,7 @@ def test_tonights_real_replies_now_end_with_the_recorded_close(tmp_path):
     assert "right before the homing the arm reports (1101, 46)" in log
     assert "after the first homing the arm reports (1102, 19)" in log
     assert "the homings took 0.336," in log
-    assert "result 0; table warm; 22 lines sent, 2 movements; closed yes" in log
+    assert "result 0; table warm; 20 lines sent, 2 movements; closed yes" in log
 
 
 def test_tonights_lines_up_to_the_homing_are_the_ones_his_table_already_answered(tmp_path):
@@ -377,19 +395,20 @@ def test_tonights_lines_up_to_the_homing_are_the_ones_his_table_already_answered
 
 def test_the_arm_check_itself_refuses_anything_but_00():
     """The M3 lesson: parse_done demands 00 too, so this check is tested on its own."""
-    sim, tr, d = _opened_warm()
+    sim = sim_mod.SimTable()
+    d = tbl.Table(sim_mod.SimTransport(sim))
+    d.opening()
     d.exchange = lambda key, timeout=1.0: tbl.Reply("f4", 0, "01")
     with pytest.raises(tbl.Doubt):
         d._arm()
     assert d.closed_reason
 
 
-def test_an_arm_answer_other_than_00_right_after_the_homings_means_no_close(tmp_path):
-    for index in (len(OPEN + FOLLOW) + 6, len(OPEN + FOLLOW) + 7):
-        sim = sim_mod.SimTable()
-        sim.inject_at(index, "free")
-        code, sim, log = _run(tmp_path, sim)
-        assert code == 2 and len(sim.received) == index + 1 and "closed no" in log
+def test_no_line_after_the_second_homing_but_the_recorded_close(tmp_path):
+    """No p0 and no f4 after the last homing: the close follows i1, s0 as recorded."""
+    code, sim, _ = _run(tmp_path, sim_mod.SimTable())
+    last_i1 = len(sim.received) - 1 - sim.received[::-1].index(";i12b")
+    assert sim.received[last_i1:] == [";i12b", ";s022", ";s022", ";f02f", ";f32c"]
 
 
 def test_the_arm_not_seen_at_rest_means_no_closing(tmp_path):
@@ -519,7 +538,7 @@ def test_stop_or_ctrl_c_at_every_question_sends_nothing_more(tmp_path, cold):
             assert sim.received == WARM
             continue
         assert code == 1
-        assert sent in (11, 19)       # before the homing's s0, or before the closing
+        assert sent in (11, 17)       # before the homing's s0, or before the closing
 
 
 def _opened_warm():

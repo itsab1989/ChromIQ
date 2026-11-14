@@ -100,7 +100,8 @@ RISKS = (
     "recording has shown at the resting place; it reads no position right before the closing "
     "lines, because i1Profiler never does. Each line it sends is a line that i1Profiler itself "
     "sent to your table in your recordings, byte for byte, and every two lines that follow "
-    "each other here also follow each other in your recordings: the lines with which "
+    "each other here (even every three) also follow each other in your recordings: the lines "
+    "with which "
     "i1Profiler opens the table, the lines of its double homing, and the two lines with which "
     "it closes the table. Only the homings make the arm move, and the arm is already at its "
     "resting place, so it should barely move. If the table has just been switched on, the "
@@ -223,7 +224,7 @@ def _bare(key: str) -> str:
 
 OPENING = ("identity", "identity", "k2", "memory_a", "memory_b", "a0")
 FOLLOW = ("status", "arm_mode", "arm_mode", "arm_mode", "arm_mode")
-HOMING = ("status", "position", "home", "position", "home", "status", "arm_mode", "arm_mode")
+HOMING = ("status", "position", "home", "position", "home", "status")
 CLOSING = ("status", "f0", "f3")
 MEANING = {
     "identity": "identity (must be 005D010702)",
@@ -260,13 +261,12 @@ def plan_text(hex_bytes: bool = False) -> str:
     out += [row(k) for k in FOLLOW]
     out += ["  checks: every arm answer 00; otherwise stop.", "",
             "4. Homing, only after you type yes: i1Profiler's own double homing before a "
-            "calibration, line for line (status, position, homing, position, homing, status, "
-            "the arm question twice):"]
+            "calibration, line for line (status, position, homing, position, homing, status):"]
     out += [row(k) for k in HOMING]
     out += ["  checks: the arm at its resting place (X 1097..1107, Y -5..50) right before "
-            "each homing; each homing answered within 2 s; both arm answers 00; otherwise "
-            "stop. No position is read after the second homing (i1Profiler never follows a "
-            "position question with the closing lines).", "",
+            "each homing; each homing answered within 2 s; otherwise stop. No position is "
+            "read after the second homing (i1Profiler never follows a position question with "
+            "the closing lines).", "",
             "5. Closing, after you have looked at the arm:"]
     out += [row(k) for k in CLOSING]
     out += ["", "6. Nothing more is sent. You are asked to feel gently whether the arm is held, "
@@ -337,11 +337,9 @@ class Run:
                 "motors twice for a moment. With i1Profiler the first took about a quarter of a "
                 "second and the second a twentieth; with version 0.2.0 on your table the "
                 "homing took a third of a second.")
-            arm = self.d.home()
+            self.d.home()
             took = ", ".join(f"{t:.2f}" for t in self.d.homing_times)
-            self.ui.say(f"The table reports that both homings have finished (after {took} s), "
-                        f"and right after them it answered the arm question with {arm} (we "
-                        "believe: its motors hold the arm).")
+            self.ui.say(f"The table reports that both homings have finished (after {took} s).")
             seen = self.look(f"Please look at the table now. Is the arm at {REST_PLACE}?",
                              ("yes", "no", "not sure", "stop"), "arm at its resting place")
             self.seen_at_rest = seen == "yes"

@@ -47,9 +47,10 @@ Nothing here is promised, and you can stop at every step.
 The program can send only **eleven different lines** to the table. Each one is
 a line i1Profiler itself sent to your table in your recordings, byte for byte,
 and every two lines that follow each other here also follow each other in your
-recordings. The opening is i1Profiler's opening; the homings are its double
-homing before a calibration (status, position, homing, position, homing,
-status, two arm questions); the closing is its closing. The file `BYTES.md`
+recordings (even every three). The opening is i1Profiler's opening; the homings
+are its double homing before a calibration (status, position, homing, position,
+homing, status); the closing is its closing, after a homing, as i1Profiler
+closes. The file `BYTES.md`
 lists every line with the exact place in your recordings where i1Profiler sent
 it. `python3 i1io_open.py --plan` prints the whole sequence; `--dry-run` prints
 it with every byte.
@@ -62,7 +63,7 @@ it with every byte.
 | `;u8000061000068c3` | asks for part 2 of the memory block | no |
 | `;a034` | we believe it tells whether the table has just been switched on (111800) or is started (130000) | no |
 | `;s022` | asks for the status | no |
-| `;f42b` | we believe it asks whether the motors hold the arm (four times, and twice after the homings) | no |
+| `;f42b` | we believe it asks whether the motors hold the arm (four times) | no |
 | `;p025` | asks where the arm is (before each homing) | no |
 | `;i12b` | **go to the resting place** (the arm is already there), twice | **barely, about 0.3 s and 0.05 s** |
 | `;f02f` | first closing line | no |

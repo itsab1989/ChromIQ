@@ -18,13 +18,15 @@ ONE line makes the arm move: ``;i12b`` (i1, run to the resting place), sent
 only while the arm is already there, each time right after a ``p0`` that read
 the resting place, as i1Profiler sends it. Version 0.2.1 (after the tester's
 real run of 0.2.0) sends it twice, as i1Profiler's own double homing before a
-calibration: ``s0 p0 i1 p0 i1 s0 f4 f4`` (R1 190.077-197.900, R2
-134.258-142.039, R2 417.165-425.021, each preceded by ``s0``). The position
-read between the two homings is checked; after the second homing no position is
+calibration: ``s0 p0 i1 p0 i1 s0`` (R1 87.464 + 190.077-197.852, R2
+35.401 + 134.258-141.991, R2 378.905 + 417.165-424.974). The position read
+between the two homings is checked; after the second homing no position is
 read, because in every recording ``p0`` is followed only by a movement, ``c4``
 or another ``p0``, never by ``s0``, ``f4`` or ``f0``. After the person has
-looked, the recorded close ``s0 f0 f3`` follows. Every neighbouring pair of the
-whole run occurs in the recordings. i1Profiler's start-up line for a table that has just been
+looked, the recorded close ``s0 f0 f3`` follows, in its recorded context: a
+homing at rest, ``s0``, a pause, then ``s0 f0 f3`` (S1 4.796-22.967, R2
+268.653-361.611). Every run of three neighbouring lines of the whole run occurs
+in the recordings (not only every pair). i1Profiler's start-up line for a table that has just been
 switched on (i0) is NOT in this program (safety review 2026-11-14, B1): on such
 a table the program sends only the six reading lines of the opening and stops.
 Two lines read the table's memory (``u8``): their answers hold the table's
@@ -148,9 +150,7 @@ RECORDED_AT = {
     "a0":       "S1 1.502 answered 111800 (cold); R2 34.906 and 378.505 answered 130000 (warm)",
     "status":   "R2 34.932 (after a0), 378.602 (right before p0, i1), 378.905 (after i1), "
                 "361.579 and S1 22.919 (right before f0)",
-    "arm_mode": "four times after the first s0 at every open: R2 34.940-34.985, 378.539-378.585; "
-                "twice after the s0 that follows a homing at rest: R1 197.871/197.885, R2 "
-                "142.010/142.024, 424.993/425.006 (answered 00)",
+    "arm_mode": "four times after the first s0 at every open: R2 34.940-34.985, 378.539-378.585",
     "position": "R2 35.017 and 378.617, right before the homing at the opening; between the "
                 "two homings of a double homing R1 190.404, R2 134.587, 417.445",
     "home":     "R2 378.632 from (1102, 24), 0.272 s; R2 35.033 from (1102, 47), 0.35 s; "
@@ -176,6 +176,8 @@ EXACT_DATA = {"identity": "005D010702", "k2": "0B600000000013", "f0": "00", "f3"
               "arm_mode": "00"}
 #: f4's answer wherever this program reads it (we believe: the motors hold the arm; 01 was
 #: only ever read after f1, which frees the arm for aligning by hand and is never sent here).
+#: f4 is LIKELY a mode flag rather than a reading of the motors: R1's opening read 00 with
+#: the arm found 3 cm away from its resting place after a close and a USB replug.
 ARM_HELD = "00"
 #: The first 8 bytes of the memory block, the same at every recorded open:
 #: the block length 360 and the text "V1.1" (no serial number in them).
@@ -310,10 +312,10 @@ DRAIN_QUIET_S = 1.0
 DRAIN_SETTLE_S = 15.0
 DRAIN_MAX_S = 60.0
 
-#: Hard caps, checked on every write. A complete (warm) run sends exactly 22
+#: Hard caps, checked on every write. A complete (warm) run sends exactly 20
 #: lines with 2 movements (both homings at the resting place); a cold table gets
 #: the six reading lines of the opening only.
-MAX_LINES = 22
+MAX_LINES = 20
 MAX_MOTIONS = 2
 
 
@@ -384,7 +386,6 @@ class Table:
         self.heading_to: "tuple[int, int] | None" = None
         self.state: "str | None" = None      # "cold" / "warm" after a0
         self.homed = False                   # i1 answered done
-        self.arm_after_homing: "str | None" = None   # f4's answer right after the homings
         self.homing_times: "list[float]" = []
         self.homings_done = 0
         self.closed_table = False            # f0, f3 answered
@@ -624,13 +625,13 @@ class Table:
         self.exchange("home", HOME_TIMEOUT)
         self.homings_done += 1
 
-    def home(self) -> str:
+    def home(self) -> None:
         """After the person's yes, i1Profiler's double homing before a calibration,
-        line for line: s0 p0 i1 p0 i1 s0 f4 f4 (R1 190.077-197.900, R2
-        134.258-142.039, 417.165-425.021; each time preceded by s0, as here by the
-        follow-up's s0 f4 block and the yes). Each i1 is sent right after a p0 that
-        read the resting place. After the second homing no position is read: no
-        recording follows a p0 with s0, f4 or f0. Returns f4's answer."""
+        line for line: s0 p0 i1 p0 i1 s0 (R1 87.464 + 190.077-197.852, R2 35.401 +
+        134.258-141.991, 378.905 + 417.165-424.974). Each i1 is sent right after a p0
+        that read the resting place. After the second homing no position is read: no
+        recording follows a p0 with s0, f4 or f0. The s0 after it is the one the
+        recorded close follows (i1 s0, pause, s0 f0 f3: S1, R2)."""
         if self.homed or self.state != "warm":
             raise self._doubt("i1 asked for while the arm is not known to be at rest (a bug)")
         self.busy += 1
@@ -642,14 +643,10 @@ class Table:
             self._homing()
             self.homed = True
             self.exchange("status")
-            self._arm()
-            self.arm_after_homing = self._arm()
         finally:
             self.busy -= 1
-        self.log("DATA", f"the homings took {', '.join(f'{t:.3f}' for t in self.homing_times)} s; "
-                         f"right after them f4 = {self.arm_after_homing}")
+        self.log("DATA", f"the homings took {', '.join(f'{t:.3f}' for t in self.homing_times)} s")
         self._stop_if_requested()
-        return self.arm_after_homing
 
     def closing(self) -> None:
         """s0, f0, f3: i1Profiler's closing, recorded with the arm at rest and
