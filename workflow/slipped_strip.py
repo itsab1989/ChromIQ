@@ -81,6 +81,21 @@ from typing import Sequence
 TRIGGER_DE = 12.0
 GOOD_DE = 35.0
 RATIO = 0.5
+#: A WHOLE STRIP FILED BACK TO FRONT, judged RELATIVELY (4.3.37). The run
+#: search above asks the turned-round fit to be good in absolute terms
+#: (`GOOD_DE` against the DESIGN colours), and a tester's strip 9 (i1Pro 3,
+#: a chart in plain order) was filed back to front with its turned-round
+#: readings still 46.9 from the design colours (as filed 104.1): missed. So a
+#: whole strip also counts as filed back to front when, turned round with no
+#: offset, its readings fit at most `REV_RATIO` of how they fit as filed, the
+#: fit improves by at least `REV_MIN_GAIN`, the turned-round colours differ
+#: from their own by `MIN_NEIGHBOUR_DE` (a strip that reads the same both
+#: ways cannot be told), and `MOST` of its patches fit better turned round.
+#: On that file the other 15 strips stood at 1.79 to 3.98 times WORSE turned
+#: round. This also covers a strip scanned last to first with bidirectional
+#: recognition switched off (-B), which the reader then files as read.
+REV_RATIO = 0.5
+REV_MIN_GAIN = 20.0
 #: The fewest neighbouring patches a run may hold. Two or three patches can
 #: resemble their neighbours by chance; four in a row that each match the
 #: colour beside them instead of their own is a slip.
@@ -348,6 +363,9 @@ def find_slipped_run(measured: "Sequence[Sequence[float]]",
              else None)
     if found is not None:
         return found
+    found = _turned_round(m, e, own, n) if n >= MIN_RUN + 1 else None
+    if found is not None:
+        return found
     # Nothing of four or more: a short slip with its fingerprint.
     ramp = _is_ramp(known, spread)
     return (_short_slip_at_an_end(m, e, own, n, ramp, paper)
@@ -430,6 +448,34 @@ def _long_run(m, e, own, n, spread, paper) -> "SlippedRun | None":
                       run_first=run_first, run_last=run_last,
                       base_de00=base00, shifted_de00=sh00, lead=lead,
                       lead_paper=lead_paper, kind=kind)
+
+
+def _turned_round(m, e, own, n) -> "SlippedRun | None":
+    """The whole strip filed back to front, judged relatively (`REV_RATIO`,
+    `REV_MIN_GAIN`), when the run search found nothing."""
+    pts = [i for i in range(n)
+           if own[i] is not None and e[n - 1 - i] is not None
+           and i != n - 1 - i]
+    if len(pts) < MOST * (n - 1) or not pts:
+        return None
+    filed = sum(own[i] for i in pts) / len(pts)
+    turned_each = {i: _de(m[i], e[n - 1 - i]) for i in pts}
+    turned = sum(turned_each.values()) / len(pts)
+    mirror = sum(_de(e[i], e[n - 1 - i]) for i in pts) / len(pts)
+    better = sum(1 for i in pts if turned_each[i] < own[i])
+    if not (filed >= TRIGGER_DE and turned <= REV_RATIO * filed
+            and filed - turned >= REV_MIN_GAIN
+            and mirror >= MIN_NEIGHBOUR_DE and better >= MOST * len(pts)):
+        return None
+    try:
+        base00 = round(sum(_de00(m[i], e[i]) for i in pts) / len(pts), 1)
+        sh00 = round(sum(_de00(m[i], e[n - 1 - i]) for i in pts) / len(pts), 1)
+    except Exception:            # noqa: BLE001 - the figures are a courtesy
+        base00 = sh00 = None
+    return SlippedRun(offset=0, first=0, last=n - 1, base_de=round(filed, 2),
+                      shifted_de=round(turned, 2), reversed=True,
+                      run_first=0, run_last=n - 1, base_de00=base00,
+                      shifted_de00=sh00, lead=None, lead_paper=False, kind="")
 
 
 def _is_ramp(known, spread: float) -> bool:
