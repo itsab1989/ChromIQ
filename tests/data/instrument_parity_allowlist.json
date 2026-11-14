@@ -1580,7 +1580,6 @@
     "panel.isis_header",
     "panel.isis_letters",
     "panel.isis_model",
-    "panel.isis_numbers",
     "panel.isis_outline",
     "panel.isis_tight",
     "panel.isis_trailer"
@@ -1601,7 +1600,6 @@
     "panel.isis_header",
     "panel.isis_letters",
     "panel.isis_model",
-    "panel.isis_numbers",
     "panel.isis_outline",
     "panel.isis_tight",
     "panel.isis_trailer"
@@ -1618,22 +1616,6 @@
    "aspect": "enabled",
    "expected": false,
    "reason": "Only ChromIQ's layout engine lays this instrument out."
-  },
-  {
-   "check": "control",
-   "mode": "manual",
-   "instrument": "XRISIS",
-   "item": [
-    "panel.area_cols",
-    "panel.area_method",
-    "panel.area_min_patch",
-    "panel.area_ratio",
-    "panel.area_rows",
-    "panel.layout_mode"
-   ],
-   "aspect": "enabled",
-   "expected": false,
-   "reason": "Patch-first only for the i1iSis in stage 1 (said in the tooltip)."
   },
   {
    "check": "control",
@@ -1716,21 +1698,6 @@
    "mode": "manual",
    "instrument": "XRISIS",
    "item": [
-    "panel.indicator_rotation",
-    "panel.row_indicator_rotation",
-    "panel.strip_label_offset",
-    "panel.strip_label_offset_x",
-    "panel.underline_mode"
-   ],
-   "aspect": "enabled",
-   "expected": false,
-   "reason": "Not used on an i1iSis chart in stage 1: its letters and numbers have their own place and size (said in the tooltip)."
-  },
-  {
-   "check": "control",
-   "mode": "manual",
-   "instrument": "XRISIS",
-   "item": [
     "panel.isis_arrows",
     "panel.isis_band",
     "panel.isis_band_height",
@@ -1740,7 +1707,6 @@
     "panel.isis_header",
     "panel.isis_letters",
     "panel.isis_model",
-    "panel.isis_numbers",
     "panel.isis_outline",
     "panel.isis_tight",
     "panel.isis_trailer"
@@ -1810,18 +1776,6 @@
    "check": "control",
    "mode": "manual",
    "instrument": "XRISIS",
-   "item": [
-    "panel.show_indicators",
-    "panel.show_row_indicators"
-   ],
-   "aspect": "enabled",
-   "expected": false,
-   "reason": "The i1iSis chart's strip letters and row numbers have their own controls in its group, kept clear of the markers."
-  },
-  {
-   "check": "control",
-   "mode": "manual",
-   "instrument": "XRISIS",
    "item": "panel.spacer_mode",
    "aspect": "value",
    "expected": "none",
@@ -1857,7 +1811,6 @@
     "panel.isis_header",
     "panel.isis_letters",
     "panel.isis_model",
-    "panel.isis_numbers",
     "panel.isis_outline",
     "panel.isis_tight",
     "panel.isis_trailer"
@@ -1878,7 +1831,6 @@
     "panel.isis_header",
     "panel.isis_letters",
     "panel.isis_model",
-    "panel.isis_numbers",
     "panel.isis_outline",
     "panel.isis_tight",
     "panel.isis_trailer"
@@ -1948,22 +1900,6 @@
    "mode": "manual_engine_off",
    "instrument": "XRISIS",
    "item": [
-    "panel.area_cols",
-    "panel.area_method",
-    "panel.area_min_patch",
-    "panel.area_ratio",
-    "panel.area_rows",
-    "panel.layout_mode"
-   ],
-   "aspect": "enabled",
-   "expected": false,
-   "reason": "Patch-first only for the i1iSis in stage 1 (said in the tooltip)."
-  },
-  {
-   "check": "control",
-   "mode": "manual_engine_off",
-   "instrument": "XRISIS",
-   "item": [
     "panel.area_method",
     "panel.area_min_patch",
     "panel.area_ratio",
@@ -2007,7 +1943,6 @@
     "panel.isis_header",
     "panel.isis_letters",
     "panel.isis_model",
-    "panel.isis_numbers",
     "panel.isis_outline",
     "panel.isis_tight",
     "panel.isis_trailer",
@@ -2102,21 +2037,6 @@
    "mode": "manual_engine_off",
    "instrument": "XRISIS",
    "item": [
-    "panel.indicator_rotation",
-    "panel.row_indicator_rotation",
-    "panel.strip_label_offset",
-    "panel.strip_label_offset_x",
-    "panel.underline_mode"
-   ],
-   "aspect": "enabled",
-   "expected": false,
-   "reason": "Not used on an i1iSis chart in stage 1: its letters and numbers have their own place and size (said in the tooltip)."
-  },
-  {
-   "check": "control",
-   "mode": "manual_engine_off",
-   "instrument": "XRISIS",
-   "item": [
     "panel.margins[b]",
     "panel.margins[l]",
     "panel.margins[r]",
@@ -2168,18 +2088,6 @@
    "aspect": "value",
    "expected": 6.0,
    "reason": "Starts from i1Profiler's own chart: 6 x 6 mm patches, 5 mm margins, the chart top-left."
-  },
-  {
-   "check": "control",
-   "mode": "manual_engine_off",
-   "instrument": "XRISIS",
-   "item": [
-    "panel.show_indicators",
-    "panel.show_row_indicators"
-   ],
-   "aspect": "enabled",
-   "expected": false,
-   "reason": "The i1iSis chart's strip letters and row numbers have their own controls in its group, kept clear of the markers."
   },
   {
    "check": "control",
@@ -2248,7 +2156,6 @@
    "item": [
     "edge_spacers",
     "inter_patch_mm",
-    "layout_mode",
     "spacer_mode",
     "strip_gap_mm"
    ],
@@ -2264,6 +2171,84 @@
    "aspect": "state",
    "expected": "follows Preferences",
    "reason": "With the engine off the i1iSis is still laid out by the engine (engine-only), so its labels follow Preferences as every engine chart does."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.ind_bold",
+    "panel.indicator_font",
+    "panel.indicator_size",
+    "panel.strip_label_offset",
+    "panel.strip_label_offset_x",
+    "panel.underline_mode"
+   ],
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "The i1iSis prints no strip letters until \"Show strip indicators\" is ticked (i1Profiler prints none, the owner 2026-11-14), and the label style is greyed while that box is off, as on every instrument with it off."
+  },
+  {
+   "check": "greyed_without_reason",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.ind_bold",
+    "panel.indicator_size",
+    "panel.strip_label_offset",
+    "panel.strip_label_offset_x"
+   ],
+   "aspect": "reason",
+   "expected": false,
+   "reason": "These label-style boxes are greyed only because \"Show strip indicators\" is off, which is the engine's own rule on every instrument with that box off; the i1iSis simply starts with it off."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": "panel.show_indicators",
+   "aspect": "value",
+   "expected": false,
+   "reason": "The i1iSis starts with \"Show strip indicators\" off, because i1Profiler prints no strip letters; the person's own tick is kept for the i1iSis when switching away and back."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.ind_bold",
+    "panel.indicator_font",
+    "panel.indicator_size",
+    "panel.strip_label_offset",
+    "panel.strip_label_offset_x",
+    "panel.underline_mode"
+   ],
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "The i1iSis prints no strip letters until \"Show strip indicators\" is ticked (i1Profiler prints none, the owner 2026-11-14), and the label style is greyed while that box is off, as on every instrument with it off."
+  },
+  {
+   "check": "greyed_without_reason",
+   "mode": "manual_engine_off",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.ind_bold",
+    "panel.indicator_size",
+    "panel.strip_label_offset",
+    "panel.strip_label_offset_x"
+   ],
+   "aspect": "reason",
+   "expected": false,
+   "reason": "These label-style boxes are greyed only because \"Show strip indicators\" is off, which is the engine's own rule on every instrument with that box off; the i1iSis simply starts with it off."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "XRISIS",
+   "item": "panel.show_indicators",
+   "aspect": "value",
+   "expected": false,
+   "reason": "The i1iSis starts with \"Show strip indicators\" off, because i1Profiler prints no strip letters; the person's own tick is kept for the i1iSis when switching away and back."
   }
  ],
  "known_to_review": [
@@ -3061,7 +3046,6 @@
     "isis_notes_height_mm",
     "isis_notes_place",
     "isis_outline",
-    "isis_row_numbers",
     "isis_strip_letters",
     "isis_tight",
     "isis_trailer_mm",
@@ -3132,7 +3116,6 @@
     "offset_y_mm",
     "patch_pattern",
     "show_row_indicators",
-    "show_strip_indicators",
     "spacer_width_mm",
     "strip_indicator_gap_mm",
     "strip_pattern",
@@ -3161,6 +3144,7 @@
     "helper_markers",
     "helper_markers_sides",
     "helper_markers_top_bottom",
+    "layout_mode",
     "margin_bottom",
     "margin_left",
     "margin_right",
@@ -3173,7 +3157,6 @@
     "patch_pattern",
     "patch_w_mm",
     "show_row_indicators",
-    "show_strip_indicators",
     "spacer_width_mm",
     "strip_indicator_gap_mm",
     "strip_pattern",
@@ -3182,6 +3165,15 @@
     "use_instrument_margins"
    ],
    "reason": "Switching between the i1iSis and another instrument carries the options both use and gives each back its own, as the i1iO does; the listed ones are the person's (text, clip content) or greyed for the i1iSis."
+  },
+  {
+   "check": "kept",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": "layout_mode",
+   "aspect": "new_target_after_defaults",
+   "expected": "lost",
+   "reason": "A new target (New run, project open) after Save as Defaults does not take the saved layout recipe, as for every instrument (the same known_to_review rows of the others); seen 2026-11-14, not judged yet."
   }
  ]
 }

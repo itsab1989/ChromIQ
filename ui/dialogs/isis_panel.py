@@ -230,6 +230,11 @@ class IsisPanelMixin:
             getattr(w, sig).connect(self._isis_option_changed)
         g.setVisible(False)
         self._isis_group = g
+        # the person's own "Show strip indicators" for the i1iSis, kept for
+        # when it is chosen again (i1iSis -> another -> i1iSis)
+        si = getattr(self, "show_indicators", None)
+        if si is not None:
+            si.toggled.connect(self._isis_letters_toggled)
         self._isis_align = ""
         self._isis_saved = None
         parent_layout.addWidget(g)
@@ -244,6 +249,13 @@ class IsisPanelMixin:
         self._update_clip_visibility()
         if not getattr(self, "_loading", False):
             self._emit()
+
+    def _isis_letters_toggled(self, on: bool) -> None:
+        # a tick while the i1iSis is chosen is its own, whether the person
+        # set it or a preset or saved default did; entering and leaving set
+        # the box while _isis_saved is None, so they never count
+        if self._isis_saved is not None:
+            self._isis_own_letters = bool(on)
 
     def _isis_controls(self) -> tuple:
         return (self.isis_model, self.isis_header, self.isis_trailer,
@@ -315,9 +327,12 @@ class IsisPanelMixin:
                 si = getattr(self, "show_indicators", None)
                 if si is not None:
                     saved["show_indicators"] = si.isChecked()
-                    if not was_loading:
-                        si.setChecked(bool(getattr(self, "_isis_own_letters",
-                                                   False)))
+                    # also inside a load: a recipe being loaded sets the
+                    # instrument BEFORE this box (`_set_recipe_impl`), so
+                    # its own value still wins and is recorded as the
+                    # i1iSis's own (`_isis_letters_toggled`)
+                    si.setChecked(bool(getattr(self, "_isis_own_letters",
+                                               False)))
                 pa = getattr(self, "patch_align", None)
                 if pa is not None:
                     saved["align"] = pa.currentIndex()
@@ -330,8 +345,6 @@ class IsisPanelMixin:
             return
         self._isis_saved = None
         self._isis_own_patch = (self.patch_x.value(), self.patch_y.value())
-        si = getattr(self, "show_indicators", None)
-        self._isis_own_letters = bool(si is not None and si.isChecked())
         was_loading = getattr(self, "_loading", False)
         self._loading = True
         try:
