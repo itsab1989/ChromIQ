@@ -69,7 +69,7 @@ read; a target made with the Beta on keeps its stored values untouched.
   line is set smaller down to 1.8 mm; then, when the strip letters are not
   at the top, two lines (the wordmark between the corner labels, the name
   and page under them between the feed arrows); last the least needed part
-  is left off and said (M-ISIS-NAME-LINE): the wordmark, then on a one-page
+  is left off and said (the M-ISIS-KEEP-OUT log line): the wordmark, then on a one-page
   chart the page, then the name. Never the page of a multi-page chart, never
   the corner labels. Strip letters and row numbers are measured in their
   own face and set smaller until neighbours cannot touch.
