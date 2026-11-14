@@ -126,7 +126,20 @@ def test_patterns_follow_every_measure_and_calibrate_in_i1pro3_c():
              "i1pro3_cq_lights_after_cal(p, rv);")):
         i = text.index(call) + len(call)
         assert text[i:].lstrip("\t").startswith(hook)
-    assert text.count("i1pro3_cq_lights_") == 3
+    # 2026-11-14: a reading is marked before imp_measure (after the gotcoms
+    # and inited checks), and a calibration can never inherit the mark.
+    for call, before in (
+            ("rv = i1pro3_imp_measure(p, vals, npatch, instClamp);\n",
+             "i1pro3_cq_lights_reading(p, 1);"),
+            ("rv = i1pro3_imp_measure(p, val, 1, clamp);\n",
+             "i1pro3_cq_lights_reading(p, 1);"),
+            ("rv = i1pro3_imp_calibrate(p, calt, calc, idtype, id);\n",
+             "i1pro3_cq_lights_reading(p, 0);")):
+        i = text.index(call)
+        prev = text[:i].rstrip("\t").splitlines()[-1]
+        assert prev.lstrip("\t").startswith(before), call
+        assert text[:i].rindex("return inst_no_init;") < text[:i].rindex(before)
+    assert text.count("i1pro3_cq_lights_") == 6
 
 
 def test_every_entry_asks_dtype_first_and_the_sender_holds_the_lock():
@@ -137,7 +150,10 @@ def test_every_entry_asks_dtype_first_and_the_sender_holds_the_lock():
     assert helper.index("p->dtype != instI1Pro3") < helper.index("p->m")
     for fn in ("void i1pro3_cq_lights_measure(void *pp) {",
                "static void cq3_lights_show(i1pro3 *p, int which) {",
-               "void i1pro3_cq_lights_end(void *pp) {"):
+               "int i1pro3_cq_lights_end(void *pp) {",
+               "void i1pro3_cq_lights_result(void *pp, int good) {",
+               "void i1pro3_cq_lights_owe(void *pp) {",
+               "void i1pro3_cq_lights_reading(void *pp, int on) {"):
         body = block[block.index(fn):]
         assert "cq3_lights_m(p)" in body[:body.index("\n}\n")], fn
     send = block[block.index("static void cq3_lights_send("):]

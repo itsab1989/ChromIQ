@@ -43,6 +43,8 @@
 static const char *scn = "?";
 static int fail_29_at = 0, n_29 = 0;
 static volatile int trig_sent = 0;	/* a measure request (0x22/0x27) went out */
+static i1pro3imp *cur_m = NULL;		/* the instrument of the current life */
+static int press_on_write = 0;		/* the button is pressed during a light's bytes */
 
 static void hex(const unsigned char *b, int n) {
 	int i;
@@ -88,6 +90,12 @@ static int fake_write(icoms *p, usb_cancelt *c, int ep, unsigned char *wbuf,
 	printf(" tout=%.2f\n", tout);
 	fflush(stdout);
 	*bwritten = wsize;
+	if (press_on_write && ep == 0x02 && cur_m != NULL) {
+		press_on_write = 0;
+		cur_m->switch_count++;		/* the switch thread saw a press */
+		printf("%s PRESS\n", scn);
+		fflush(stdout);
+	}
 	return ICOM_OK;
 }
 
@@ -160,6 +168,7 @@ static i1pro3 *make(int aperture) {
 	m->nraw = 128;
 	m->msec = msec_time();
 	n_29 = 0;
+	cur_m = m;
 	return p;
 }
 
@@ -266,6 +275,7 @@ static void close_it(i1pro3 *p) {
 	icoms *ic = p->icom;
 	a1log *lg = p->log;
 	step("close");
+	cur_m = NULL;
 	del_i1pro3imp(p);
 	free(p);
 	free(ic);
@@ -374,6 +384,33 @@ int main(void) {
 	life("plus_signals_off", 1, 1, 0, 1);
 	life("plus_ready_lefton", 1, 0, 1, 1);
 	life("plus_signals_lefton", 1, 1, 1, 1);
+	/* The button is pressed while a result's bytes are on their way (the
+	 * switch thread sees it a few ms late): with "left on" the reading that
+	 * press starts still gets the off before its measurements. */
+	{
+		i1pro3 *p;
+		scn = "press_during_result";
+		sig = 1;
+		p = make(0);
+		step("begin");
+		i1pro3_cq_lights_options(p, 1, 1);
+		printf("%s BEGIN %d\n", scn, i1pro3_cq_lights_begin(p));
+		calibrate(p);
+		reading(p, "strip-A", I1PRO3_OK);
+		helper_owe(p);
+		step("next-reading-waits");
+		i1pro3_cq_lights_reading(p, 1);	/* read_strip began, armed wait */
+		press_on_write = 1;
+		helper_poll(p, 1, "verdict-good");	/* sent, the press lands in it */
+		measure(p, "read-dark");			/* the off after all */
+		measure(p, "read-lit");
+		step("strip-B-returned");
+		i1pro3_cq_lights_after_read(p, I1PRO3_OK);
+		helper_owe(p);
+		helper_poll(p, 1, "verdict-good-B");
+		reading(p, "strip-C", I1PRO3_OK);	/* left on again: no off */
+		close_it(p);
+	}
 	/* The firmware is only reported, never a condition. */
 	fwver = 123;
 	life("fw123_signals_lefton", 1, 1, 1, 0);

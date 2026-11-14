@@ -71,8 +71,15 @@ void i1pro2_cq_lights_result(void *pp, int good);
 extern void (*i1pro2_cq_lights_sent)(int seq);
 /* ...and the i1Pro 3's (i1pro3_imp.c), the same prototypes as i1pro3_imp.h. */
 int i1pro3_cq_lights_begin(void *pp);
-void i1pro3_cq_lights_end(void *pp);
+int i1pro3_cq_lights_end(void *pp);
 extern void (*i1pro3_cq_lights_note)(int seq, int icom_err);
+void i1pro3_cq_lights_options(void *pp, int signals, int left_on);
+void i1pro3_cq_lights_owe(void *pp);
+int i1pro3_cq_lights_owed_ms(void *pp);
+void i1pro3_cq_lights_result(void *pp, int good);
+int i1pro3_cq_lights_choices(void *pp);
+int i1pro3_cq_lights_firmware(void *pp);
+extern void (*i1pro3_cq_lights_sent)(int seq);
 
 /* ---- JSON event emission (no-ops when cq_json == 0) ------------------- */
 void cq_emit_raw(const char *fmt, ...);   /* fmt is a complete JSON object */
