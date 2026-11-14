@@ -445,6 +445,17 @@ def _strip_failed_advice_html(reason: str) -> str:
     return _catalogue_html(*msg.render(reason=reason or "misread"))
 
 
+def _coms_detail_html(detail: str) -> str:
+    """M-STRIP-FAILED-COMS-DETAIL (4.3.36): the one technical line at the
+    bottom of the window, for a report; "" when the engine said nothing."""
+    if not detail:
+        return ""
+    from workflow import measurement_messages as M
+    title, body = M.M_STRIP_FAILED_COMS_DETAIL.render(detail=detail)
+    return (f"<br><br><small>{html.escape(title)}: "
+            f"{html.escape(body)}</small>")
+
+
 def _strip_failed_button_html() -> str:
     """M-STRIP-FAILED-BUTTON: shown only when the instrument's button can
     answer the window (B1)."""
@@ -11683,7 +11694,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 "you have read so far. Next time you load this chart, "
                 "<i>Continue Measurement</i> will pick up where you left off."
             ).format(save_partial=_save_partial_name())
-        msg = QLabel(advice + choices + save_text, dlg)
+        # 4.3.36: which USB step failed, for a report (the engine's coms
+        # event; one line, nothing else in the window changes).
+        detail_text = ""
+        if is_coms and self._manager.engine_active:
+            detail_text = _coms_detail_html(
+                str(getattr(self._manager, "last_coms_detail", "") or ""))
+        msg = QLabel(advice + choices + save_text + detail_text, dlg)
         msg.setWordWrap(True)
         # THE TEXT SCROLLS RATHER THAN BEING CUT OFF (review of B1/M1). Left
         # to itself Qt opens a dialog at no more than 2/3 of the screen height

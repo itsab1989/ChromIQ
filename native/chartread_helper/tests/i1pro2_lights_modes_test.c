@@ -34,6 +34,12 @@
 #include "inst.h"
 #include "i1pro.h"
 #include "i1pro_imp.h"
+#ifndef CQ_V4333
+#include "cq_beta_pause.h"	/* 4.3.36: the choices an i1Pro 2 is given */
+#endif
+#ifdef CQ_WATCHED
+#include "chromiq_usbwatch.h"	/* 4.3.36: the helper's read-only USB watch */
+#endif
 
 static const char *scn = "?";
 
@@ -98,6 +104,10 @@ static i1pro *make(devType dtype, int caps2) {
 	ic->usb_write = fake_write;
 	ic->usb_read = fake_read;
 	ic->usb_wait_io = fake_wait_io;
+#ifdef CQ_WATCHED
+	cq_usbwatch_install(ic, CQ_UW_I1PRO);	/* the same life, watched */
+	cq_usbwatch_begin();
+#endif
 	p->log = new_a1log_d(NULL);
 	p->dtype = dtype;
 	p->icom = ic;
@@ -338,6 +348,19 @@ int main(void) {
 			life(names[k][1], instI1Pro2, 1, 0, 0);
 		}
 		fwrev = 634;
+	}
+	/* 4.3.36: every stored combination, through the helper's own mapping
+	 * (cq_beta_pause.h): an i1Pro 2 is given both choices off, so each life
+	 * must be 4.3.33's (the fixture's on_ready_off). */
+	{
+		static char pnames[4][32];
+		int c, s2, l2;
+		for (c = 0; c < 4; c++) {
+			snprintf(pnames[c], 32, "v4336_%s_%s", c & 1 ? "signals" : "ready",
+			         c & 2 ? "lefton" : "off");
+			cq_lights_choices_for(2, c & 1, (c >> 1) & 1, &s2, &l2);
+			life(pnames[c], instI1Pro2, 1, s2, l2);
+		}
 	}
 #endif
 	printf("ALL DONE\n");

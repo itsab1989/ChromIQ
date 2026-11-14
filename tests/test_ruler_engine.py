@@ -8,7 +8,10 @@ chromiq-chartread, through its replay instrument
   ruler up (here: "late", a stream that did not end) no more records;
 * the .ti3 written for the same readings is byte for byte the same with the
   option on and off (CREATED aside);
-* an instrument without a ruler (the replay's default i1Pro) never gets it.
+* an instrument without a ruler (the replay's default i1Pro) never gets it;
+* 4.3.36: on an i1Pro 2 (also a replayed one) the check is paused
+  (native/chartread_helper/cq_beta_pause.h): one ``ruler`` event saying so,
+  no record, and the .ti3 of the option off. The i1Pro 3 keeps it.
 """
 from __future__ import annotations
 
@@ -51,7 +54,7 @@ def _ti3(base: Path) -> str:
 
 
 @needs_helper
-@pytest.mark.parametrize("gen", ["i1pro2", "i1pro3"])
+@pytest.mark.parametrize("gen", ["i1pro3"])
 def test_on_reports_each_strip_before_its_reading(tmp_path, monkeypatch, gen):
     monkeypatch.setenv("CHROMIQ_REPLAY_INSTRUMENT", gen)
     base, replay = _chart(tmp_path)
@@ -70,7 +73,7 @@ def test_on_reports_each_strip_before_its_reading(tmp_path, monkeypatch, gen):
 
 @needs_helper
 def test_a_given_up_ruler_reports_nothing_more(tmp_path, monkeypatch):
-    monkeypatch.setenv("CHROMIQ_REPLAY_INSTRUMENT", "i1pro2")
+    monkeypatch.setenv("CHROMIQ_REPLAY_INSTRUMENT", "i1pro3")
     base, replay = _chart(tmp_path)
     s = _session(base, replay, ["--ruler"], ["late", "clean"])
     strips = [e for e in s.events if e.get("event") == "ruler_strip"]
@@ -81,7 +84,7 @@ def test_a_given_up_ruler_reports_nothing_more(tmp_path, monkeypatch):
 
 @needs_helper
 def test_off_says_nothing_and_the_ti3_is_the_same(tmp_path, monkeypatch):
-    monkeypatch.setenv("CHROMIQ_REPLAY_INSTRUMENT", "i1pro2")
+    monkeypatch.setenv("CHROMIQ_REPLAY_INSTRUMENT", "i1pro3")
     base, replay = _chart(tmp_path / "on")
     on = _session(base, replay, ["--ruler"], ["clean", "partial"])
     ti3_on = _ti3(base)
@@ -103,3 +106,22 @@ def test_an_instrument_without_a_ruler_never_gets_it(tmp_path, monkeypatch):
     head = next(e for e in s.events if e.get("event") == "ruler")
     assert head["active"] is False and head["why"] == "instrument"
     assert not any(e.get("event") == "ruler_strip" for e in s.events)
+
+
+@needs_helper
+def test_an_i1pro2_is_paused_and_measured_as_with_the_option_off(tmp_path,
+                                                                 monkeypatch):
+    monkeypatch.setenv("CHROMIQ_REPLAY_INSTRUMENT", "i1pro2")
+    base, replay = _chart(tmp_path / "on")
+    on = _session(base, replay, ["--ruler"], ["clean", "partial"])
+    ti3_on = _ti3(base)
+    heads = [e for e in on.events if e.get("event") == "ruler"]
+    assert len(heads) == 1
+    assert heads[0]["active"] is False and heads[0]["why"] == "paused"
+    assert heads[0]["instrument"] == "i1pro2"
+    assert not any(e.get("event") == "ruler_strip" for e in on.events)
+    base2, replay2 = _chart(tmp_path / "off")
+    off = _session(base2, replay2, [], ["clean", "partial"])
+    assert ti3_on == _ti3(base2)
+    assert [e for e in on.events if e.get("event") == "strip_read"] == \
+        [e for e in off.events if e.get("event") == "strip_read"]

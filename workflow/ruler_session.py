@@ -78,6 +78,17 @@ class RulerSession:
         self.gen = str(ev.get("instrument") or "")
         why = str(ev.get("why") or "")
         if not self.active:
+            if why == "paused":
+                # 4.3.36 (native/chartread_helper/cq_beta_pause.h): nothing
+                # was asked of the instrument, so it is measured exactly as
+                # with the option off.
+                return [tr("Ruler (beta): in this version the ruler check is "
+                           "paused for the i1Pro 2, until it has been tried "
+                           "step by step on a real instrument. This i1Pro 2 "
+                           "is measured exactly as it is without the option, "
+                           "and no ruler diagnostics file is written. Your "
+                           "setting stays saved. On an i1Pro 3 the ruler "
+                           "check works as before.")]
             if why == "sensor":
                 return [tr("Ruler (beta): this i1Pro 2 does not report a ruler "
                            "sensor, so the ruler check is not used. The "

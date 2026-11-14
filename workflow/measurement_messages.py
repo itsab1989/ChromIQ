@@ -9437,6 +9437,18 @@ M_STRIP_FAILED_BUTTON = _m(
     "back to reading this strip.",
     approved=False)
 
+# --- PROPOSED: the technical line under a communication failure (4.3.36) ---
+#: A tester's i1Pro 2 lost communication on every second strip and nothing
+#: said which USB transfer had failed. The engine now says (the helper's
+#: read-only USB watch); the window shows it in one line at the bottom, for a
+#: report. {detail} is technical and not translated
+#: (`workflow.measure_manager.coms_failure_detail`).
+M_STRIP_FAILED_COMS_DETAIL = _m(
+    "M-STRIP-FAILED-COMS-DETAIL",
+    "Technical detail for a report",
+    "{detail}",
+    approved=False)
+
 #: misread_kind() -> the message for it.
 STRIP_FAILED_ADVICE = {
     "too_many": M_STRIP_FAILED_TOO_MANY,
@@ -10208,6 +10220,7 @@ M_STRIP_RULER_NOT_COVERED = _m(
 CATALOGUE = {m.id: m for m in (
     M_STRIP_RULER_NOT_COVERED,
     M_I1PRO2_LIGHTS_LEFT_ON,
+    M_STRIP_FAILED_COMS_DETAIL,
     M_READINGS_NOT_SAME_CHART, M_READINGS_UNUSABLE,
     M_IMPORT_TURNED_GRID_COLOURS,
     M_IMPORT_CXF_CONDITION, M_IMPORT_CXF_CONDITION_PARTS,
