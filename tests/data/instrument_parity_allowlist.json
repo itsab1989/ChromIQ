@@ -1900,9 +1900,6 @@
    "mode": "manual_engine_off",
    "instrument": "XRISIS",
    "item": [
-    "panel.area_method",
-    "panel.area_min_patch",
-    "panel.area_ratio",
     "panel.bit_depth",
     "panel.cal_mode",
     "panel.cal_path_edit",
@@ -2249,6 +2246,89 @@
    "aspect": "value",
    "expected": false,
    "reason": "The i1iSis starts with \"Show strip indicators\" off, because i1Profiler prints no strip letters; the person's own tick is kept for the i1iSis when switching away and back."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.area_method",
+    "panel.area_min_patch",
+    "panel.area_ratio"
+   ],
+   "aspect": "present",
+   "expected": false,
+   "reason": "Choosing the i1iSis gives its own default, patch-first (i1Profiler's 6 x 6 mm), so the patch-size, alignment and offset rows show and the area-first rows hide, whatever mode the instrument before had; area-first stays open for the i1iSis."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": "panel.layout_mode",
+   "aspect": "value",
+   "expected": "patch_first",
+   "reason": "The i1iSis starts in patch-first (i1Profiler's 6 x 6 mm), not in the mode of the instrument chosen before; a person's own mode for the i1iSis is kept."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": "panel.max_strip",
+   "aspect": "enabled",
+   "expected": true,
+   "reason": "\"Strip length\" works in patch-first, the i1iSis's own default mode (the reference starts in area-first, where it is greyed)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.nolimit",
+    "panel.offx",
+    "panel.offy",
+    "panel.patch_align",
+    "panel.patch_x",
+    "panel.patch_y",
+    "panel.pscale"
+   ],
+   "aspect": "present",
+   "expected": true,
+   "reason": "Choosing the i1iSis gives its own default, patch-first (i1Profiler's 6 x 6 mm), so the patch-size, alignment and offset rows show and the area-first rows hide, whatever mode the instrument before had; area-first stays open for the i1iSis."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "XRISIS",
+   "item": "panel.layout_mode",
+   "aspect": "value",
+   "expected": "patch_first",
+   "reason": "The i1iSis starts in patch-first (i1Profiler's 6 x 6 mm), not in the mode of the instrument chosen before; a person's own mode for the i1iSis is kept."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "XRISIS",
+   "item": "panel.max_strip",
+   "aspect": "enabled",
+   "expected": true,
+   "reason": "\"Strip length\" works in patch-first, the i1iSis's own default mode (the reference starts in area-first, where it is greyed)."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "XRISIS",
+   "item": [
+    "panel.nolimit",
+    "panel.offx",
+    "panel.offy",
+    "panel.patch_align",
+    "panel.patch_x",
+    "panel.patch_y",
+    "panel.pscale"
+   ],
+   "aspect": "present",
+   "expected": true,
+   "reason": "Choosing the i1iSis gives its own default, patch-first (i1Profiler's 6 x 6 mm), so the patch-size, alignment and offset rows show and the area-first rows hide, whatever mode the instrument before had; area-first stays open for the i1iSis."
   }
  ],
  "known_to_review": [
@@ -3105,7 +3185,6 @@
     "helper_markers",
     "helper_markers_sides",
     "helper_markers_top_bottom",
-    "layout_mode",
     "margin_bottom",
     "margin_left",
     "margin_right",
@@ -3144,7 +3223,6 @@
     "helper_markers",
     "helper_markers_sides",
     "helper_markers_top_bottom",
-    "layout_mode",
     "margin_bottom",
     "margin_left",
     "margin_right",
