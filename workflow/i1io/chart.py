@@ -2530,6 +2530,14 @@ def write_side_file(path: Path, *, geom, layout, w: float, h: float,
                  "wordmark_mm": list(wm) if wm else None,
                  "text_line": {"text": plan.get("text", ""),
                                "spot": plan.get("spot")}}
+        # WHAT i1Profiler's "MEASURE CHART" NEEDS (the import of 2026-11-15):
+        # the grid to type and the three corner patches to aim at, derived
+        # from these strips exactly as the importer derives them, so a chart
+        # made before this record keeps working without it.
+        from .measure_chart import grid_record, measure_chart_grid
+        mc = measure_chart_grid({"pages": [entry]}, 1)
+        if mc is not None:
+            entry["measure_chart"] = grid_record(mc)
         if here:
             entry["text_column_mm"] = list(text_column(w, h))
         else:

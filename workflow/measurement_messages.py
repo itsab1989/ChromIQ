@@ -596,8 +596,8 @@ M_I1IO_NOT_YET = _m(
     "version and your printer uses RGB or CMYK: when the chart was made, "
     "ChromIQ also saved its patches as i1Profiler patch-set files in the "
     "“exports” folder beside the chart. Open one of them in i1Profiler, print the "
-    "chart that i1Profiler lays out for the table (i1Profiler cannot read "
-    "ChromIQ's own i1iO sheet), and measure it there with the table. Save "
+    "chart that i1Profiler lays out for the table from it, and measure that "
+    "chart there with the table. Save "
     "the measurement as an .mxf file, or as a CGATS text export that "
     "includes the RGB or CMYK values, so that ChromIQ can tell which reading "
     "belongs to which patch. Then bring it in with Tools → “Convert "
@@ -758,6 +758,443 @@ M_I1IO_SUPPORT_OFF = _m(
     "Nothing is wrong with the chart, and nothing you have already measured "
     "is changed.",
     approved=False)
+
+# --- PROPOSED: an i1Profiler "Measure Chart" measurement of ChromIQ's own
+#: i1iO sheet (the i1iO Beta, one page; design 2026-11-14 with its challenge).
+#: The Start window of an i1iO chart of ONE page, while the Beta is on, offers
+#: it as the first way: the steps with the chart's own numbers
+#: (`workflow.i1io.measure_chart.instruction_numbers`). {lay} and {aim} are
+#: parts of M-I1IO-MEASURE-CHART-PARTS (the patches by their printed names, or
+#: by position when the chart prints no names). The menu path in i1Profiler is
+#: not named: it is not proved by any screenshot yet.
+_I1IO_MC_LAY_NAMED = (
+    "Lay the sheet on the table as the preview shows it, a quarter turn "
+    "clockwise from how it was printed, so that the strips run from left to "
+    "right, with patch {p1} at the top left, patch {p2} at the bottom left "
+    "and patch {p3} at the bottom right of the block of patches.")
+_I1IO_MC_LAY_UNNAMED = (
+    "Lay the sheet on the table as the preview shows it, a quarter turn "
+    "clockwise from how it was printed, so that the strips run from left to "
+    "right.")
+_I1IO_MC_AIM_NAMED = (
+    "When i1Profiler asks for the corners, push the arm until the cross hair "
+    "of its sight sits on the centre of patch {p1} at the top left, then on "
+    "the centre of patch {p2} at the bottom left, then on the centre of "
+    "patch {p3} at the bottom right, in that order, and press the button on "
+    "the i1Pro each time. Aim at these three patches even if one of them is "
+    "white.")
+_I1IO_MC_AIM_UNNAMED = (
+    "When i1Profiler asks for the corners, push the arm until the cross hair "
+    "of its sight sits on the centre of the patch in the top-left corner of "
+    "the block of patches, then on the centre of the one in the bottom-left "
+    "corner, then on the centre of the one in the bottom-right corner, in "
+    "that order, and press the button on the i1Pro each time. The patches "
+    "have no printed names on this chart, so go by the corners.")
+#: M3 of the challenge: on a chart WITH crosses this replaces the aiming
+#: paragraph (M-I1IO-AIM-*), which would tell the person to aim at the crosses.
+_I1IO_MC_CROSSES = (
+    "About the three small numbered crosses on this sheet: they are for "
+    "measuring with the table in ChromIQ itself, which comes in a later "
+    "version. Do not aim at them for i1Profiler: they sit 10 to 15 mm "
+    "outside the patches, and i1Profiler needs the centres of the three "
+    "corner patches of step 4.")
+#: A chart of several pages: the Measure Chart way is not offered; this note
+#: is added to M-I1IO-NOT-YET / -BY-HAND instead.
+_I1IO_MC_PAGES = (
+    "This chart has {pages} pages. ChromIQ can bring back an i1Profiler "
+    "measurement of an i1iO chart of one page only, so far; bringing back a "
+    "chart of several pages needs a later version.")
+M_I1IO_MEASURE_CHART_PARTS = _m(
+    "M-I1IO-MEASURE-CHART-PARTS",
+    "Measure this i1iO chart with i1Profiler: the parts",
+    "\n".join((_I1IO_MC_LAY_NAMED, _I1IO_MC_LAY_UNNAMED, _I1IO_MC_AIM_NAMED,
+               _I1IO_MC_AIM_UNNAMED, _I1IO_MC_CROSSES, _I1IO_MC_PAGES)),
+    approved=False)
+
+M_I1IO_MEASURE_CHART = _m(
+    "M-I1IO-MEASURE-CHART",
+    "Measure this i1iO chart with i1Profiler",
+    "This chart was made for the X-Rite i1iO scanning table. ChromIQ cannot "
+    "drive the table itself yet; that is being prepared for a later version. "
+    "Until then you can measure this chart on the table with X-Rite's "
+    "i1Profiler and bring the measurement back here. ChromIQ then puts every "
+    "reading on its own patch and checks from the colours that the sheet lay "
+    "the right way. Nothing is wrong with the chart. Please keep in mind "
+    "that the layout may still change once more i1iO owners have tested it, "
+    "so a later version may ask you to print the chart again.\n\n"
+    "1. {lay}\n"
+    "2. In i1Profiler, start the chart measurement for the i1iO that asks "
+    "only for the number of columns and rows (X-Rite calls it \"Measure "
+    "Chart\"), and choose \"Single scan\".\n"
+    "3. When i1Profiler asks for the size of the chart, set it to {cols} "
+    "columns and {rows} rows. Columns are the patches along one strip, rows "
+    "are the strips.\n"
+    "4. {aim} Then check the corners i1Profiler shows and confirm them.\n"
+    "5. When the scan has finished, save the measurement as a .cmxf file "
+    "(\"Measurement only\"). A text export is not enough, because only the "
+    ".cmxf file says where on the sheet each reading was taken.\n"
+    "6. Back in ChromIQ, press the green folder button under Import "
+    "Measurement on this tab, choose that file and press Import "
+    "Measurement.\n\n"
+    "The words in quotation marks are i1Profiler's own, as the English "
+    "i1Profiler shows them. If your i1Profiler runs in another language, it "
+    "shows them in that language, in the same places.",
+    approved=False)
+
+#: The other way, after the steps above (profiling charts): M-I1IO-NOT-YET's
+#: second paragraph, offered second now.
+_I1IO_OTHER_WAY_PATCH_SETS = (
+    "Another way, if you still have i1Profiler 3.8.6 or an older version and "
+    "your printer uses RGB or CMYK: when the chart was made, ChromIQ also "
+    "saved its patches as i1Profiler patch-set files in the “exports” folder "
+    "beside the chart. Open one of them in i1Profiler, print the chart that "
+    "i1Profiler lays out for the table from it, and measure that chart there "
+    "with the table. Save the measurement as an .mxf file, or as a CGATS "
+    "text export that includes the RGB or CMYK values, so that ChromIQ can "
+    "tell which reading belongs to which patch. Then bring it in with Tools "
+    "→ “Convert i1Profiler → TI3”, and build the profile as usual.")
+#: …and for a verification or calibration chart: M-I1IO-NOT-YET-BY-HAND's.
+_I1IO_OTHER_WAY_BY_HAND = (
+    "Another way: the i1Pro 2 from your table's arm also measures by hand, "
+    "and ChromIQ reads it that way. On the Create Chart tab, choose “i1Pro / "
+    "i1Pro 2 / i1Pro 3” as the instrument for this chart and create it "
+    "again. Then print it on the Print Chart tab as usual and measure it by "
+    "hand on this tab.")
+M_I1IO_MEASURE_CHART_OTHER_WAY = _m(
+    "M-I1IO-MEASURE-CHART-OTHER-WAY",
+    "Measure this i1iO chart with i1Profiler: the other way",
+    "\n".join((_I1IO_OTHER_WAY_PATCH_SETS, _I1IO_OTHER_WAY_BY_HAND)),
+    approved=False)
+
+
+def i1io_measure_chart_window(nums: dict, by_hand: bool
+                              ) -> "tuple[str, str]":
+    """(title, body) of the i1iO Start window with the Measure Chart way, for
+    a chart of one page (*nums*: `measure_chart.instruction_numbers`)."""
+    named = bool(nums.get("labelled", True))
+    kw = dict(p1=nums.get("p1", ""), p2=nums.get("p2", ""),
+              p3=nums.get("p3", ""))
+    lay = tr(_I1IO_MC_LAY_NAMED if named else _I1IO_MC_LAY_UNNAMED
+             ).format(**kw)
+    aim = tr(_I1IO_MC_AIM_NAMED if named else _I1IO_MC_AIM_UNNAMED
+             ).format(**kw)
+    title, body = M_I1IO_MEASURE_CHART.render(
+        lay=lay, aim=aim, cols=nums.get("cols", "?"),
+        rows=nums.get("rows", "?"))
+    if nums.get("crosses"):
+        body += "\n\n" + tr(_I1IO_MC_CROSSES)
+    body += "\n\n" + tr(_I1IO_OTHER_WAY_BY_HAND if by_hand
+                        else _I1IO_OTHER_WAY_PATCH_SETS)
+    return title, body
+
+
+def i1io_pages_note(pages: int) -> str:
+    """The note M-I1IO-NOT-YET gets for an i1iO chart of several pages."""
+    return tr(_I1IO_MC_PAGES).format(pages=pages)
+
+
+#: Why an i1Profiler Measure Chart measurement of an i1iO chart is refused
+#: (`workflow.i1io.measure_chart.assess_file`), the {reason} of the import's
+#: refusal window. {aim}: one of the two aim parts below.
+_I1IO_IMPORT_AIM_NAMED = (
+    "aim at the centre of patch {p1} first, then of patch {p2}, then of "
+    "patch {p3}")
+_I1IO_IMPORT_AIM_UNNAMED = (
+    "aim at the centre of the top-left corner patch of the block of patches "
+    "first, then of the bottom-left one, then of the bottom-right one")
+_I1IO_IMPORT_GRID = (
+    "i1Profiler measured this sheet as a grid of {got_cols} columns and "
+    "{got_rows} rows, but this chart needs {cols} columns and {rows} rows "
+    "({cols} patches along each strip, and {rows} strips). With other "
+    "numbers i1Profiler spreads its grid over other places on the sheet, so "
+    "the readings are not readings of this chart's patches. Measure the "
+    "sheet again and set the size of the chart to {cols} columns and {rows} "
+    "rows when i1Profiler asks for it")
+_I1IO_IMPORT_COUNT = (
+    "this file holds {got} readings in its grid, and this chart's page has "
+    "{total} places. Some readings are missing or appear twice, so ChromIQ "
+    "cannot tell which reading belongs to which patch. Measure the whole "
+    "sheet again and save the measurement once the scan has finished")
+_I1IO_IMPORT_PLACES = (
+    "the places i1Profiler wrote into this file for its readings do not "
+    "agree with its own list of patches, so ChromIQ cannot tell where on the "
+    "sheet each reading was taken. Save the measurement again in i1Profiler "
+    "as a .cmxf file (\"Measurement only\") and import that file, or measure the "
+    "sheet again")
+_I1IO_IMPORT_PAGES = (
+    "this chart has {pages} pages, and ChromIQ can bring back an i1Profiler "
+    "measurement of an i1iO chart of one page only, so far. Bringing back a "
+    "chart of several pages needs a later version; the measurement itself "
+    "may well be fine, so keep the file")
+_I1IO_IMPORT_SIDE = (
+    "the table layout file saved with this chart ({side}) does not belong to "
+    "this chart any more, so ChromIQ does not know where each patch sat on "
+    "the sheet. Make the chart again on the Create Chart tab, print it again "
+    "and measure the new sheet")
+_I1IO_IMPORT_TURNED = (
+    "the measured colours fit this chart much better if the sheet is taken "
+    "as turned half round than as it was recorded. The sheet probably lay "
+    "the wrong way round on the table. Lay it on the table as the preview "
+    "shows it, a quarter turn clockwise from how it was printed, {aim}, and "
+    "measure again")
+_I1IO_IMPORT_AIMED = (
+    "the measured colours fit this chart better with the readings in another "
+    "order ({how}). The three corner patches were probably aimed at in "
+    "another order, or one patch or one strip away from them. Lay the sheet "
+    "on the table as the preview shows it, {aim}, and measure again")
+_I1IO_IMPORT_UNSURE = (
+    "the measured colours fit this chart only partly, so ChromIQ cannot be "
+    "sure that every reading was taken on its own patch, and it files such a "
+    "measurement only when the colours show that clearly. Most often one of "
+    "the three corner patches was aimed at a little off, or the sheet moved "
+    "during the scan. Check that the sheet lies flat and straight, {aim}, "
+    "and measure again")
+_I1IO_IMPORT_STRIP = (
+    "strip {strip} does not fit its own patches: its readings look like the "
+    "patches next to them. The table may have read that strip a little out "
+    "of place, or the sheet moved during the scan. Check that the sheet lies "
+    "flat and straight and cannot move, and measure again")
+_I1IO_IMPORT_STRIP_UNNAMED = (
+    "one strip (number {number}, counted from the top of the sheet as it "
+    "lies on the table) does not fit its own patches: its readings look like "
+    "the patches next to them. The table may have read that strip a little "
+    "out of place, or the sheet moved during the scan. Check that the sheet "
+    "lies flat and straight and cannot move, and measure again")
+_I1IO_IMPORT_OTHER_CHART = (
+    "the measured colours do not look like this chart's colours at all. "
+    "Either this is a measurement of another sheet (for example one printed "
+    "from an earlier version of this chart), or the three corner patches "
+    "were aimed at in the wrong order. Check that you measured the sheet of "
+    "this run's chart, lay it on the table as the preview shows it, {aim}, "
+    "and measure again")
+_I1IO_IMPORT_PAPER = (
+    "many readings in this file look like blank paper, more than this chart "
+    "has white patches. The table read paper where patches should be: the "
+    "three points were probably aimed at the crosses or beside the patches, "
+    "not at the centres of the corner patches. Lay the sheet on the table as "
+    "the preview shows it, {aim}, and measure again")
+_I1IO_IMPORT_BESIDE = (
+    "the readings of strip {strip} carry part of the colour of the strip "
+    "next to it. That happens when a corner patch is aimed a little beside "
+    "its centre, across the strips, so that the table reads along the edge "
+    "between two strips. Lay the sheet on the table as the preview shows "
+    "it, {aim}, taking care to hit the centres, and measure again")
+_I1IO_IMPORT_BESIDE_UNNAMED = (
+    "the readings of one strip (number {number}, counted from the top of the "
+    "sheet as it lies on the table) carry part of the colour of the strip "
+    "next to it. That happens when a corner patch is aimed a little beside "
+    "its centre, across the strips, so that the table reads along the edge "
+    "between two strips. Lay the sheet on the table as the preview shows "
+    "it, {aim}, taking care to hit the centres, and measure again")
+#: S3: a text export of an i1iO chart without device values, or with one
+#: value for every patch (Measure Chart's placeholders).
+_I1IO_IMPORT_TEXT = (
+    "this is a text export without this chart's colours, and for an i1iO "
+    "chart measured with i1Profiler's \"Measure Chart\" ChromIQ needs the "
+    ".cmxf file, because only that file says where on the sheet each "
+    "reading was taken. In i1Profiler, save the measurement again as a "
+    ".cmxf file (\"Measurement only\") and import that file")
+#: The other import doors (Build Profile tab): one sentence that sends a
+#: Measure Chart measurement to the Measure tab.
+_I1IO_IMPORT_OTHER_DOOR = (
+    "this looks like an i1Profiler \"Measure Chart\" measurement of this i1iO "
+    "chart, which carries no colours of its own for the patches. Bring it "
+    "in with Import Measurement on the Measure tab: only there ChromIQ reads "
+    "where on the sheet each reading was taken")
+#: {how}: the arrangement that fits better, in a few words.
+_I1IO_HOW_MIRRORED_ALONG = "mirrored along the strips"
+_I1IO_HOW_MIRRORED_STRIPS = "mirrored across the strips"
+_I1IO_HOW_SWAPPED = "rows and columns swapped"
+_I1IO_HOW_ALONG = "one patch along the strips"
+_I1IO_HOW_ACROSS = "one strip across"
+_I1IO_HOW_ONE = "shifted by one reading"
+_I1IO_HOW_TWO = "shifted by two readings"
+_I1IO_HOW_TURNED = "turned half round"
+M_IMPORT_I1IO_REASONS = _m(
+    "M-IMPORT-I1IO-REASONS",
+    "An i1Profiler \"Measure Chart\" measurement of an i1iO chart: the reasons",
+    "\n".join((_I1IO_IMPORT_GRID, _I1IO_IMPORT_COUNT, _I1IO_IMPORT_PLACES,
+               _I1IO_IMPORT_PAGES, _I1IO_IMPORT_SIDE, _I1IO_IMPORT_TURNED,
+               _I1IO_IMPORT_AIMED, _I1IO_IMPORT_UNSURE, _I1IO_IMPORT_STRIP,
+               _I1IO_IMPORT_STRIP_UNNAMED, _I1IO_IMPORT_OTHER_CHART,
+               _I1IO_IMPORT_PAPER, _I1IO_IMPORT_BESIDE,
+               _I1IO_IMPORT_BESIDE_UNNAMED, _I1IO_IMPORT_TEXT,
+               _I1IO_IMPORT_OTHER_DOOR, _I1IO_IMPORT_AIM_NAMED,
+               _I1IO_IMPORT_AIM_UNNAMED, _I1IO_HOW_MIRRORED_ALONG,
+               _I1IO_HOW_MIRRORED_STRIPS, _I1IO_HOW_SWAPPED, _I1IO_HOW_ALONG,
+               _I1IO_HOW_ACROSS, _I1IO_HOW_ONE, _I1IO_HOW_TWO,
+               _I1IO_HOW_TURNED)),
+    approved=False)
+_I1IO_HOW_TEXT = {
+    "mirrored-along": _I1IO_HOW_MIRRORED_ALONG,
+    "mirrored-strips": _I1IO_HOW_MIRRORED_STRIPS,
+    "rows-and-columns-swapped": _I1IO_HOW_SWAPPED,
+    "along+1": _I1IO_HOW_ALONG, "along-1": _I1IO_HOW_ALONG,
+    "strip+1": _I1IO_HOW_ACROSS, "strip-1": _I1IO_HOW_ACROSS,
+    "entries+1": _I1IO_HOW_ONE, "entries-1": _I1IO_HOW_ONE,
+    "entries+2": _I1IO_HOW_TWO, "entries-2": _I1IO_HOW_TWO,
+    "half-turn": _I1IO_HOW_TURNED,
+}
+
+
+def i1io_import_reason(code: str, **kw) -> str:
+    """The {reason} of a refused Measure Chart import, by the net's *code*
+    (`workflow.i1io.measure_chart`)."""
+    named = bool(kw.get("labelled", True))
+    p = dict(p1=kw.get("p1", ""), p2=kw.get("p2", ""), p3=kw.get("p3", ""))
+    aim = tr(_I1IO_IMPORT_AIM_NAMED if named else _I1IO_IMPORT_AIM_UNNAMED
+             ).format(**p)
+    number = kw.get("number", "")
+    if code == "grid":
+        return tr(_I1IO_IMPORT_GRID).format(
+            got_cols=kw.get("got_cols", 0), got_rows=kw.get("got_rows", 0),
+            cols=kw.get("cols", 0), rows=kw.get("rows", 0))
+    if code == "count":
+        return tr(_I1IO_IMPORT_COUNT).format(got=kw.get("got", 0),
+                                             total=kw.get("total", 0))
+    if code == "places":
+        return tr(_I1IO_IMPORT_PLACES)
+    if code == "pages":
+        return tr(_I1IO_IMPORT_PAGES).format(pages=kw.get("pages", 0))
+    if code == "side":
+        return tr(_I1IO_IMPORT_SIDE).format(side=kw.get("side", ""))
+    if code == "turned":
+        return tr(_I1IO_IMPORT_TURNED).format(aim=aim)
+    if code == "aimed":
+        how = _I1IO_HOW_TEXT.get(kw.get("how") or "")
+        if not how:
+            return tr(_I1IO_IMPORT_UNSURE).format(aim=aim)
+        return tr(_I1IO_IMPORT_AIMED).format(how=tr(how), aim=aim)
+    if code == "strip":
+        if named and kw.get("strip"):
+            return tr(_I1IO_IMPORT_STRIP).format(strip=kw.get("strip", ""))
+        return tr(_I1IO_IMPORT_STRIP_UNNAMED).format(number=number)
+    if code == "beside":
+        if named and kw.get("strip"):
+            return tr(_I1IO_IMPORT_BESIDE).format(strip=kw.get("strip", ""),
+                                                  aim=aim)
+        return tr(_I1IO_IMPORT_BESIDE_UNNAMED).format(number=number, aim=aim)
+    if code == "paper":
+        return tr(_I1IO_IMPORT_PAPER).format(aim=aim)
+    if code == "text":
+        return tr(_I1IO_IMPORT_TEXT)
+    if code == "other-door":
+        return tr(_I1IO_IMPORT_OTHER_DOOR)
+    return tr(_I1IO_IMPORT_OTHER_CHART).format(aim=aim)
+
+
+#: The window of a refused Measure Chart import, both doors (review
+#: 2026-11-15, m3): a title that does not say "another chart" when the reason
+#: says the sheet lay turned or was aimed off. {reason}: one of
+#: M-IMPORT-I1IO-REASONS.
+M_IMPORT_I1IO_REFUSED = _m(
+    "M-IMPORT-I1IO-REFUSED",
+    "This measurement does not fit the chart as it was measured",
+    "Before filing anything, ChromIQ checks an i1Profiler measurement of an "
+    "i1iO chart against the chart, and this one was not filed:\n\n"
+    "{reason}.\n\n"
+    "Nothing has been imported and nothing has been changed. Your file is "
+    "untouched where it is.",
+    approved=False)
+
+#: The question when the chart's colours cannot tell (M1/M2 of the
+#: challenge: asked only for these reasons, and only after the checks by fit,
+#: by paper and by blend found nothing). Cancel is the default. {why}: one of
+#: the parts below; {aim}: as in M-IMPORT-I1IO-REASONS.
+_I1IO_WHY_SIMILAR = "many of its patches are very similar"
+_I1IO_WHY_NEIGHBOURS = "its colours run in order along the strips"
+_I1IO_WHY_FEW = "it has only a few patches"
+_I1IO_WHY_SHORT = "its strips are very short"
+_I1IO_WHY_NO_COLOURS = ("ChromIQ cannot work out which colours this chart "
+                        "should have")
+M_IMPORT_I1IO_CANNOT_CHECK = _m(
+    "M-IMPORT-I1IO-CANNOT-CHECK",
+    "ChromIQ cannot check this sheet from its colours",
+    "This is an i1Profiler \"Measure Chart\" measurement of this chart's sheet. "
+    "ChromIQ puts every reading on the patch at its place in i1Profiler's "
+    "grid, and before it does, it normally checks from the colours that the "
+    "sheet lay the right way and that the three corner patches were aimed "
+    "at correctly. On this chart the colours cannot show that, because "
+    "{why}.\n\n"
+    "ChromIQ has checked what it can: the grid, the number of readings, and "
+    "that the readings do not fit a turned, mirrored or shifted sheet "
+    "clearly better. The import is right only if you laid the sheet on the "
+    "table as the preview shows it and, when i1Profiler asked for the "
+    "corners, you did {aim}, in that order.\n\n"
+    "Import the measurement?",
+    approved=False)
+M_IMPORT_I1IO_CANNOT_CHECK_PARTS = _m(
+    "M-IMPORT-I1IO-CANNOT-CHECK-PARTS",
+    "ChromIQ cannot check this sheet from its colours: the reasons",
+    "\n".join((_I1IO_WHY_SIMILAR, _I1IO_WHY_NEIGHBOURS, _I1IO_WHY_FEW,
+               _I1IO_WHY_SHORT, _I1IO_WHY_NO_COLOURS)),
+    approved=False)
+_I1IO_WHY_TEXT = {"similar": _I1IO_WHY_SIMILAR,
+                  "neighbours": _I1IO_WHY_NEIGHBOURS,
+                  "few-patches": _I1IO_WHY_FEW,
+                  "short-strips": _I1IO_WHY_SHORT,
+                  "no-colours": _I1IO_WHY_NO_COLOURS}
+
+
+def i1io_cannot_check_kw(why: str, nums: dict) -> dict:
+    """The placeholders of M-IMPORT-I1IO-CANNOT-CHECK."""
+    named = bool(nums.get("labelled", True))
+    aim = tr(_I1IO_IMPORT_AIM_NAMED if named else _I1IO_IMPORT_AIM_UNNAMED
+             ).format(p1=nums.get("p1", ""), p2=nums.get("p2", ""),
+                      p3=nums.get("p3", ""))
+    return dict(why=tr(_I1IO_WHY_TEXT.get(why, _I1IO_WHY_NO_COLOURS)),
+                aim=aim)
+
+
+#: The log line of a filed Measure Chart measurement. The "[OK]" prefix stays
+#: English as in every log line.
+_I1IO_FILED_AGREE = (
+    "[OK] This is an i1Profiler \"Measure Chart\" measurement of this chart's "
+    "sheet, so ChromIQ put each of its {count} readings on the patch at its "
+    "place in the grid ({cols} columns, {rows} rows). The colours agree with "
+    "the chart (agreement {score} on a scale where 1 is a perfect match).")
+_I1IO_FILED_ASKED = (
+    "[OK] This is an i1Profiler \"Measure Chart\" measurement of this chart's "
+    "sheet, so ChromIQ put each of its {count} readings on the patch at its "
+    "place in the grid ({cols} columns, {rows} rows). You confirmed that the "
+    "sheet lay the right way; the colours of this chart could not show it.")
+M_IMPORT_I1IO_FILED = _m(
+    "M-IMPORT-I1IO-FILED",
+    "An i1Profiler \"Measure Chart\" measurement was filed: the log line",
+    "\n".join((_I1IO_FILED_AGREE, _I1IO_FILED_ASKED)),
+    approved=False)
+
+
+def i1io_filed_line(count: int, cols: int, rows: int, score: float,
+                    asked: bool) -> str:
+    from core.i18n import decimal_text
+    if asked or score != score:
+        return tr(_I1IO_FILED_ASKED).format(count=count, cols=cols, rows=rows)
+    return tr(_I1IO_FILED_AGREE).format(count=count, cols=cols, rows=rows,
+                                        score=decimal_text(score, 2))
+
+
+#: G1 of the design (the i1iSis Beta, one page): the device values agree with
+#: the chart's i1Profiler test chart on every patch, and the colours clearly
+#: show that the readings are not of their own patches ("cannot tell" files,
+#: review m5).
+_ISIS_IMPORT_COLOURS = (
+    "the device values in this file agree with this chart's i1Profiler test "
+    "chart, but the measured colours do not fit the chart's patches in that "
+    "order. The device values only prove which test chart i1Profiler used, "
+    "not how the sheet went through the instrument, so the sheet was "
+    "probably fed the wrong way round, or another printout was measured. "
+    "Feed the sheet as the Start window of this chart describes, bar end "
+    "first against the left guide, and measure again")
+M_IMPORT_ISIS_COLOURS = _m(
+    "M-IMPORT-ISIS-COLOURS",
+    "An i1iSis measurement whose colours do not fit the chart",
+    _ISIS_IMPORT_COLOURS,
+    approved=False)
+
+
+def isis_colours_reason() -> str:
+    return tr(_ISIS_IMPORT_COLOURS)
 
 #: Start pressed on an X-Rite i1iSis chart while the Beta "X-Rite i1iSis
 #: charts" is on: ChromIQ cannot talk to the instrument, the chart is
@@ -10561,6 +10998,10 @@ CATALOGUE = {m.id: m for m in (
     M_CR30_LEARN_TILE, M_CR30_TRIGGER_NOT_ARMED,
     M_INSTRUMENT_BUSY,
     M_I1IO_NOT_YET, M_I1IO_NOT_YET_BY_HAND, M_I1IO_SUPPORT_OFF,
+    M_I1IO_MEASURE_CHART, M_I1IO_MEASURE_CHART_PARTS,
+    M_I1IO_MEASURE_CHART_OTHER_WAY, M_IMPORT_I1IO_REASONS,
+    M_IMPORT_I1IO_CANNOT_CHECK, M_IMPORT_I1IO_CANNOT_CHECK_PARTS,
+    M_IMPORT_I1IO_FILED, M_IMPORT_ISIS_COLOURS, M_IMPORT_I1IO_REFUSED,
     M_ISIS_NOT_YET, M_ISIS_SUPPORT_OFF, M_ISIS_SHEET_CHECK, M_ISIS_NO_TXF,
     M_GUIDED_SET_PAGES,
     M_I1IO_AIM_CROSSES, M_I1IO_AIM_CORNERS, M_I1IO_AIM_CORNERS_UNLABELLED,
