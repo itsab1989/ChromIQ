@@ -20909,7 +20909,7 @@ class TabChart(QWidget):
             set_pages=count_phrase(set_pages, tr("1 page"), tr("{n} pages")),
             asked=count_phrase(asked, tr("1 page"), tr("{n} pages")))
         box = QMessageBox(self)
-        box.setIcon(QMessageBox.Icon.Question)
+        set_question_icon(box)
         box.setWindowTitle(title)
         box.setText(f"<b>{title}</b>")
         box.setInformativeText(body)
@@ -20921,6 +20921,8 @@ class TabChart(QWidget):
                                  QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(keep_btn)
         box.setEscapeButton(keep_btn)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         box.exec()
         ans = "new" if box.clickedButton() is new_btn else "keep"
         log.info("Create Chart: the run's own patch set (%d patches) takes "
