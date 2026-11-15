@@ -1,5 +1,27 @@
 # Changelog
 
+## v4.3.40
+
+**For everyone updating from 4.3.39: a fix for the ruler check (beta), which asked about strips that were read correctly when the sheet or the ruler had been turned round, and two small fixes for i1iSis charts and the Measure tab. Your charts, measurements and profiles do not change.**
+
+### Fixed
+- **Ruler check (beta): a turned sheet or ruler no longer brings up a question when the strip's own colours confirm the order it was saved in.** The check puts two things side by side: which way the ruler saw the instrument move, and in which order the readings were saved. Together they show how the sheet lay, so turning the sheet or the ruler round looks the same to the ruler as a strip saved back to front. In 4.3.39 one turn meant a question about every strip after it. Now ChromIQ also compares the strip's colours with the chart, both ways round. When they clearly match the order the strip was saved in, there is no window: the Measure log says in one line that the strip lay the other way round and that its readings were saved the right way round, and the following strips are compared with the new way round.
+- **Ruler check (beta): a strip counts once, however often it is read.** Reading a strip again replaces what its earlier reading told the check, and a strip ChromIQ thinks was saved back to front does not count at all. Before, every reading counted, so a few readings of one strip could decide how the next strip was judged.
+- **Ruler check (beta): the log says which way the instrument moved over the patches only when the ruler and the saved readings agree.** It is now its own line, written once the strip is saved. Before, it could say “against the reading direction” for a strip read from the first patch to the last after the sheet was turned.
+- **i1iSis charts (beta): the row numbers keep a small gap (0.5 mm) to the dashed outline.** In 4.3.39 some layouts printed them on the line. Where they do not seem to fit with that gap, ChromIQ checks the chart's actual numbers before giving up; if they still do not fit they are left off, and the log and the “i1iSis chart (Beta)” group say so and what makes room.
+- **Measure tab: no strip-scanning hint for charts measured in i1Profiler** (i1iSis and i1iO charts, with their beta option on), because ChromIQ does not read those sheets itself. The log no longer says that strip recognition is used for an i1iSis chart or for the CR30, which is set down on each patch by hand.
+
+### Changed
+- **Ruler check (beta): the window about the direction is rewritten.** It says what is compared, names a turned sheet or ruler as the likeliest harmless reason, then the case it guards against, then what each button does. When the strip's colours point to back to front, a separate window says so and does not call it harmless.
+- **Ruler check (beta): “Continue Anyway” on the direction window tells the check how the sheet now lies**, so after a turn on a chart whose colours cannot tell, the questions stop after one or two strips. Closing the window with Escape keeps the reading, as before, but does not count as that answer.
+- **Ruler check (beta): the diagnostics file records more about the direction** (what the colours said, which strips counted, and which answer a strip's count waited for). Its format stays compatible.
+
+### Honest limits
+- **On charts whose strips look alike in both directions (ramps, calibration charts), a turn is still asked about**, because the colours cannot confirm the order there. Answer “Continue Anyway” if you turned the sheet or the ruler.
+- **Right after a turn, one or two strips are not compared at all**, until enough of the strips read since then agree on the new way round. The Measure log says so in one line when that happens.
+- **If “Continue Anyway” is pressed on two such strips in a row while the sheet was not turned, the check pauses the direction question for a few strips** until enough strips agree again, and says so in the Measure log.
+- **The ruler check is still a beta and has seen few real sessions.** If you use it, the diagnostics file it writes helps us most.
+
 ## v4.3.39
 
 **For everyone updating from 4.3.38: fixes for measuring with the i1Pro family and the ColorMunki, and for the two X-Rite beta options. The most important fix: on a chart in fixed order (not randomised), ChromIQ's instrument reader could save a strip back to front because it looked a little more like another strip turned round, on every attempt. That is fixed. New are a “Turn this strip round” button, an explanation when a strip is refused twice as “Reading is inconsistent”, notes about patches that are too short or charts without spacers, and, behind the i1iO beta option, the import of a measurement made with i1Profiler's “Measure Chart”. Your charts, measurements and profiles do not change.**

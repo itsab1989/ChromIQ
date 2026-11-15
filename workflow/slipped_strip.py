@@ -715,6 +715,87 @@ def xyz_to_lab(xyz: "Sequence[float]") -> "tuple[float, float, float]":
     return (116.0 * fy - 16.0, 500.0 * (fx - fy), 200.0 * (fy - fz))
 
 
+#: CAN THE COLOURS VOUCH FOR THE DIRECTION A STRIP WAS SAVED IN? (4.3.40, the
+#: ruler check, a tester's turned sheet.) The strip's own row is scored both
+#: ways, exactly as `_turned_round` does: as saved (each reading against its
+#: own expected colour) and turned round (against the colour of the patch at
+#: the other end), mean CIE76 ΔE, no offset. The colours VOUCH for the saved
+#: order when, as saved, the readings fit at most `VOUCH_RATIO` of how they
+#: fit turned round, at least `VOUCH_MIN_GAIN` better, the row differs from
+#: its own reverse by `MIN_NEIGHBOUR_DE` (a ramp or a row that reads alike
+#: both ways cannot vouch) and `MOST` of the patches fit better as saved. The
+#: mirror of the back-to-front rule, with a smaller gain floor: measured on
+#: 217 real strips (four of Basti's prints and jctay's two 192-patch files)
+#: and 6,948 simulated ones (the reader review's chart corpus under six
+#: print-deviation models), it vouches for 99.1 % of the real strips and
+#: 69.8 % of the simulated ones, and for NO strip saved back to front: to be
+#: vouched, a strip saved back to front would need its true order to fit
+#: twice as badly as the reversed one; the worst honest strip seen fits 0.68
+#: times as well (real) and 1.25 times (simulated, the heaviest model).
+#: jctay's strip 9, saved back to front in 4.3.38, scores 109.9 as saved and
+#: 53.7 turned round: the colours point the other way and the question is
+#: asked. The gain floor is 10, not `REV_MIN_GAIN`'s 20: jctay's strip 13
+#: (5.4 as saved, 21.6 turned, every patch better as saved) is clear at any
+#: ratio but misses 20. Scripts and figures: report folder
+#: 2026-11-15_ruler_turned_sheet (vouch_study.py, vouch_analysis.txt).
+VOUCH_RATIO = REV_RATIO
+VOUCH_MIN_GAIN = 10.0
+
+
+@dataclass(frozen=True)
+class OwnRowDirection:
+    """The strip's own row scored both ways (`own_row_direction`).
+
+    ``verdict``: "saved" (the colours clearly confirm the order the strip
+    was saved in), "other" (they clearly point the other way round) or
+    "unsure" (they cannot tell)."""
+    saved_de: float
+    turned_de: float
+    mirror_de: float
+    better_share: float
+    verdict: str
+
+    def as_dict(self) -> dict:
+        return {"saved_de": round(self.saved_de, 2),
+                "turned_de": round(self.turned_de, 2),
+                "mirror_de": round(self.mirror_de, 2),
+                "better_share": round(self.better_share, 3),
+                "verdict": self.verdict}
+
+
+def own_row_direction(patches: "Sequence[dict]") -> "OwnRowDirection | None":
+    """The ``strip_read`` event's patches (as FILED) scored both ways, or
+    None when too few of them carry a reading and an expected colour. Never
+    raises."""
+    try:
+        m, e = strip_read_labs(patches)
+        n = len(m)
+        pts = [i for i in range(n)
+               if m[i] is not None and e[i] is not None
+               and e[n - 1 - i] is not None and i != n - 1 - i]
+        if not pts or len(pts) < MOST * (n - 1):
+            return None
+        saved_each = {i: _de(m[i], e[i]) for i in pts}
+        turned_each = {i: _de(m[i], e[n - 1 - i]) for i in pts}
+        saved = sum(saved_each.values()) / len(pts)
+        turned = sum(turned_each.values()) / len(pts)
+        mirror = sum(_de(e[i], e[n - 1 - i]) for i in pts) / len(pts)
+        better = sum(1 for i in pts
+                     if saved_each[i] < turned_each[i]) / len(pts)
+        verdict = "unsure"
+        if mirror >= MIN_NEIGHBOUR_DE:
+            if (saved <= VOUCH_RATIO * turned
+                    and turned - saved >= VOUCH_MIN_GAIN and better >= MOST):
+                verdict = "saved"
+            elif (turned <= VOUCH_RATIO * saved
+                  and saved - turned >= VOUCH_MIN_GAIN
+                  and 1.0 - better >= MOST):
+                verdict = "other"
+        return OwnRowDirection(saved, turned, mirror, better, verdict)
+    except Exception:            # noqa: BLE001 - a check, never a failure
+        return None
+
+
 def slipped_run_in_strip_read(patches: "Sequence[dict]") -> "SlippedRun | None":
     """`find_slipped_run` over the engine's ``strip_read`` event patches
     (``{"loc", "xyz", "exyz", …}`` in strip order, as FILED). Never raises."""

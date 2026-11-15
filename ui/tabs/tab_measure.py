@@ -1717,6 +1717,40 @@ def _is_i1io_chart_instrument(name) -> bool:
     return i1io_enabled() and is_i1io_instrument_name(name)
 
 
+def _is_i1profiler_chart_instrument(name) -> bool:
+    """True for a chart ChromIQ never reads itself: it is measured in
+    i1Profiler and the measurement imported. That is an i1iO table chart or
+    an i1iSis chart, each only while its Beta is on; off, False without
+    looking at the name, so the tab reads exactly as 4.3.39's."""
+    if _is_i1io_chart_instrument(name):
+        return True
+    from workflow.isis.support import is_isis_instrument_name, isis_enabled
+    return isis_enabled() and is_isis_instrument_name(name)
+
+
+#: Instruments behind a Beta switch: their chart lines follow their own
+#: switch (`_fd9_ask`, `_is_i1profiler_chart_instrument`), so that with the
+#: switch off the tab reads exactly as before the Beta.
+_BETA_INSTRUMENT_KEYS = frozenset({"FD9", "IO2", "XRISIS"})
+
+
+def _chart_reads_by_position(name) -> bool:
+    """True when the chart's TARGET_INSTRUMENT names an instrument that
+    never finds patches by colour edges along a strip, by the one registry
+    that answers it (`instruments.FINDS_PATCHES_BY_EDGES`): ArgyllCMS's strip
+    recognition does not apply to it, so the log must not say it is used
+    (4.3.40, the CR30). The Beta instruments are left to their own switch."""
+    text = str(name or "").strip().strip('"').strip().casefold()
+    if not text:
+        return False
+    from workflow.layout_engine.instruments import (
+        FINDS_PATCHES_BY_EDGES, TARGET_INSTRUMENT_NAME)
+    keys = {k for k, v in TARGET_INSTRUMENT_NAME.items()
+            if v.casefold() == text and k not in _BETA_INSTRUMENT_KEYS}
+    return bool(keys) and not any(FINDS_PATCHES_BY_EDGES.get(k, True)
+                                  for k in keys)
+
+
 class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
     """Step 3: interactive chart measurement with chartread."""
     #: The hue of this tab's step header, its accent: file-drop frames
@@ -2436,7 +2470,20 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         label = getattr(self, "_calm_subtext", None)
         if label is None:
             return
+        # NO STRIP TO SCAN ON A CHART MEASURED IN i1PROFILER (4.3.40, F2):
+        # an i1iSis or i1iO chart is read by i1Profiler and imported here,
+        # so advice on how to move an instrument is not true for it. The
+        # line is hidden, nothing else changes; Start says what to do
+        # (M-ISIS-NOT-YET, M-I1IO-NOT-YET).
         try:
+            from ui.ti2_loader import read_target_instrument
+            chart = self._chart_file_for(getattr(self, "_ti1_path", None))
+            elsewhere = bool(chart) and chart.exists() and \
+                _is_i1profiler_chart_instrument(read_target_instrument(chart))
+        except Exception:      # noqa: BLE001 - advice, never block on it
+            elsewhere = False
+        try:
+            label.setVisible(not elsewhere)
             label.setText(
                 tr("Rest the instrument on the highlighted patch and press "
                    "its button.")
@@ -5499,13 +5546,17 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             if instr:
                 label = instrument_label(instr)
                 if (is_spectroscan(instr) or _fd9_ask(self, "_is_fd9_target")
-                        or _is_i1io_chart_instrument(instr)):
+                        or _is_i1profiler_chart_instrument(instr)
+                        or _chart_reads_by_position(instr)):
                     # XY table — reads patches individually, so the
                     # bidirectional "reading direction" note does not apply.
-                    # Nor to an i1iO table chart (a Beta): it cannot be
-                    # measured yet, and Start says so (M-I1IO-NOT-YET); a
-                    # line about strip recognition would promise a reading
-                    # that does not happen.
+                    # Nor to an i1iO table chart or an i1iSis chart (Betas,
+                    # 4.3.40 F2 for the i1iSis): ChromIQ never reads them,
+                    # i1Profiler does, and Start says so (M-I1IO-NOT-YET,
+                    # M-ISIS-NOT-YET); a line about strip recognition would
+                    # promise a reading that does not happen. Nor to any
+                    # other instrument the registry says reads by position
+                    # (the CR30, set down on each patch by hand; 4.3.40).
                     msg = tr("Chart instrument: {label}.").format(label=label)
                 else:
                     value = self._detected_bidir_value()
@@ -5543,6 +5594,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
 
         self._apply_bidir_auto_state("guided")
         self._apply_bidir_auto_state("manual")
+        # the advice line follows the chart too, also when it is cleared
+        self._refresh_calm_subtext()
 
     def _clear_previous_instrument_log(self) -> None:
         """Remove the last logged "Chart instrument:" line, if still present.
@@ -18456,10 +18509,16 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._prompt_ruler_not_covered(str((ev or {}).get("strip", "")), ruler)
         return True
 
-    def _ruler_direction_texts(self, strip: str) -> "tuple[str, str]":
-        """M-STRIP-RULER-DIRECTION (4.3.37, §M-PROPOSED)."""
+    def _ruler_direction_texts(self, strip: str,
+                               verdict: "str | None" = None
+                               ) -> "tuple[str, str]":
+        """M-STRIP-RULER-DIRECTION (4.3.37, §M-PROPOSED), or, when the
+        strip's own colours point to back to front (*verdict* "other"),
+        M-STRIP-RULER-DIRECTION-COLOURS (4.3.40)."""
         from workflow import measurement_messages as M
-        return M.CATALOGUE["M-STRIP-RULER-DIRECTION"].render(strip=strip)
+        mid = ("M-STRIP-RULER-DIRECTION-COLOURS" if verdict == "other"
+               else "M-STRIP-RULER-DIRECTION")
+        return M.CATALOGUE[mid].render(strip=strip)
 
     def _prompt_ruler_not_covered(self, strip: str, ruler: dict) -> None:
         """M-STRIP-RULER-NOT-COVERED (§M-PROPOSED): an accepted strip the
@@ -18491,7 +18550,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             # 4.3.37: the same window and buttons for a strip the ruler says
             # was scanned the other way than it was saved
             dlg.setObjectName("ruler_direction_window")
-            title, body = self._ruler_direction_texts(strip)
+            title, body = self._ruler_direction_texts(
+                strip, ruler.get("direction_colours_verdict"))
         else:
             title, body = msg.render(strip=strip, moved=moved, need=need)
         dlg.setWindowTitle(title)
@@ -18503,7 +18563,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                       + body.replace("\n", "<br>"), dlg)
         text.setWordWrap(True)
         layout.addWidget(text)
-        chosen = ["continue"]
+        # Escape / the title-bar X: kept as Continue Anyway (exit spec),
+        # recorded as "closed" so that it is not taken as an answer about
+        # how the sheet lies (4.3.40, second look MINOR-B)
+        chosen = ["closed"]
         row = QHBoxLayout()
         row.setSpacing(8)
         row.addStretch(1)

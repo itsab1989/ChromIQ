@@ -693,7 +693,7 @@ quickly*, and never together with one of them for the same strip (those win;
 |---|---|---|
 | Re-read Strip (the default) | `{"cmd":"goto","strip":"<strip>"}` (`MeasureManager.goto_strip`), as *Strip read quickly*'s Re-read Strip | read again; the next swipe replaces this reading; "Strip read OK" is not printed for it |
 | Continue Anyway | nothing | kept, and the reader goes on as it would have |
-| Escape or the title-bar X | nothing | kept, exactly as Continue Anyway (as *Strip read quickly*) |
+| Escape or the title-bar X | nothing | kept, exactly as Continue Anyway (as *Strip read quickly*); since 4.3.40 written into the diagnostics file as "closed", and on the direction windows (M-STRIP-RULER-DIRECTION, M-STRIP-RULER-DIRECTION-COLOURS) not taken as an answer about how the sheet lies: only Continue Anyway on M-STRIP-RULER-DIRECTION tells the check that |
 
 While the window is open the reader holds nothing of its own: the engine is at
 its strip menu, the window's nested event loop holds back the "All Strips Read"
