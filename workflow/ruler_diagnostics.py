@@ -18,6 +18,21 @@ needs and nothing personal:
   maximum over the strip, which is usually the paper, so the rough colour of
   each patch relative to the paper CAN be seen from it) with ChromIQ's
   figures and verdict.
+* PER ACCEPTED STRIP, the direction check (revision 2, ChromIQ 4.3.40):
+  ``direction_question`` (the window was shown), ``direction_agrees`` (the
+  ruler's direction times the saved order agrees with the reference;
+  before 4.3.40 the reference was the first strip not saved reversed, since
+  then it is the one the question uses), ``direction_reference`` (+1 / -1,
+  that reference: the majority of the recent votes, or before there is one
+  the earlier votes when they all agree; null when there is none),
+  ``direction_votes_before`` (the recent votes the majority was taken
+  over), ``direction_colours`` (only when the ruler disagreed: the strip's
+  own row scored as saved and turned round, ``saved_de``, ``turned_de``,
+  ``mirror_de``, ``better_share`` and the ``verdict`` "saved", "other" or
+  "unsure"), ``direction_confirmed_by_colours`` (the colours vouched for
+  the saved order, so no window was shown and the log says so) and
+  ``voted`` (this reading counts towards the reference: only a reading
+  nothing was asked about does).
 * NOT IN: a serial number (this code never reads one), calibration data,
   file paths, project, chart or user names.
 """
@@ -34,6 +49,9 @@ log = logging.getLogger(__name__)
 
 FORMAT = "chromiq-ruler-diagnostics"
 VERSION = 1
+#: Additive revisions of version 1 (a reader of an older revision only meets
+#: keys it does not know): 2 = ChromIQ 4.3.40, the direction fields below.
+REVISION = 2
 
 #: Keys of the engine's ruler record copied into the file. Anything else the
 #: engine might add is left out until it is reviewed for privacy.
@@ -124,7 +142,7 @@ class Diagnostics:
         from workflow import ruler_check
         self.path = Path(path)
         self.doc = {
-            "format": FORMAT, "version": VERSION,
+            "format": FORMAT, "version": VERSION, "revision": REVISION,
             "chromiq": str(_v), "engine_build": helper_build,
             # the vendored ArgyllCMS's own version (ARGYLL_VERSION_STR),
             # as the engine reports it (review item 9)

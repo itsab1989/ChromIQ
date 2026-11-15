@@ -64,7 +64,14 @@ class RulerSession:
         #: back to front ("reversed"), so that every strip read and filed
         #: correctly votes the same way, in whichever direction it was
         #: scanned. "Forward" is the majority of these, never strip 1 alone.
-        self.direction_votes: "list[int]" = []
+        #: The swipe direction cancels out of that product, so what a vote
+        #: really records is how the SHEET (or the ruler) lay under the
+        #: instrument (pharmacist, 2026-11-15).
+        #: 4.3.40: one vote per strip, keyed by its name, in the order cast
+        #: (a later reading of the same strip replaces its vote and moves to
+        #: the end), so a re-read never leaves a stale vote behind; and only
+        #: from a reading nothing was asked about (F3).
+        self._votes: "dict[str, int]" = {}
         self.said: "set[str]" = set()
         self.argyll = ""
 
@@ -222,6 +229,9 @@ class RulerSession:
         has no record. *other_question*: the engine's net, ChromIQ's slip
         check or read-twice already ask about it (they win)."""
         strip = str(ev.get("strip") or "").strip()
+        # This reading replaces whatever the strip's earlier reading voted
+        # (4.3.40, F3), with or without a ruler record of its own.
+        self._votes.pop(strip, None)
         if self.pending is None or self.pending[0] != strip:
             self.flush()
             return None
@@ -268,10 +278,24 @@ class RulerSession:
         filed_sign = (-f.sign if ev.get("reversed") else f.sign) \
             if f.usable and f.sign else 0
         majority = self._majority_direction()
-        ask_direction = bool(
+        window = self._recent()
+        disagrees = bool(
             self.gen in NAMES and not ask and not other_question
             and filed_sign and majority and filed_sign != majority
             and patches >= rc.MIN_PATCHES_FOR_QUESTION)
+        # 4.3.40 (pharmacist, 2026-11-15): a disagreement is what a TURNED
+        # SHEET (or ruler) looks like as much as a strip saved back to front.
+        # Asked only when the strip's own colours cannot vouch for the order
+        # it was saved in (`slipped_strip.own_row_direction`); when they
+        # clearly do, one calm line in the log instead of a window, and the
+        # strip votes, so the reference follows the new way round.
+        colours = None
+        if disagrees:
+            from workflow.slipped_strip import own_row_direction
+            colours = own_row_direction(ev.get("patches") or [])
+        vouched = bool(disagrees and colours is not None
+                       and colours.verdict == "saved")
+        ask_direction = disagrees and not vouched
         # learn from the strips that look right
         if f.usable and followed and not ask:
             if pitch_cut and pitch_mm:
@@ -280,8 +304,26 @@ class RulerSession:
                 self.pitch_steps.append(pitch_cut)
             if not self.forward_sign and not ev.get("reversed") and f.sign:
                 self.forward_sign = f.sign
-        if filed_sign and not ask_direction:
-            self.direction_votes.append(filed_sign)
+        # F3 (4.3.40): only a reading nothing was asked about votes, whatever
+        # the question was and whatever the answer: a strip ChromIQ had a
+        # doubt about never shapes the reference, and its re-read votes on
+        # its own (the earlier vote was dropped above).
+        reference = majority or self._early_reference()
+        voted = bool(filed_sign and not (ask or ask_direction
+                                          or other_question))
+        if voted:
+            self._votes[strip] = filed_sign
+        log_lines: "list[str]" = []
+        if vouched:
+            log_lines.append(self._turned_note(strip))
+        elif filed_sign and reference and filed_sign == reference \
+                and not ask_direction:
+            # F4 (4.3.40): which way the instrument moved over the patches,
+            # said only when the ruler and the saving agree against the same
+            # reference the question uses; decided here, where the saving is
+            # known, never from the ruler alone.
+            log_lines.append(self._direction_line(
+                strip, bool(ev.get("reversed"))))
         mm_step = rc.mm_per_step(self.gen, derived)
         summary = {
             "strip": strip, "usable": f.usable, "ask": ask,
@@ -292,6 +334,10 @@ class RulerSession:
             "travel_mm": (f.travel_steps * mm_step) if mm_step else None,
             "span_mm": span_mm,
             "other_question": other_question,
+            # 4.3.40: lines the manager writes into the log before the
+            # strip's verdict (the direction, or the turned-sheet note)
+            "log_lines": log_lines,
+            "direction_confirmed_by_colours": vouched,
         }
         # R5 (4.3.39): WHICH question this strip got, by name (the ruler's
         # own, or ChromIQ's: the engine's net, a slip or a strip filed back
@@ -310,9 +356,18 @@ class RulerSession:
                  "followed": followed, "span_steps_used": span,
                  "question": ask, "other_question": other_question,
                  "direction_question": ask_direction,
-                 "direction_agrees": (f.sign == self.forward_sign) !=
-                 bool(ev.get("reversed")) if self.forward_sign and f.sign
-                 else None}
+                 # 4.3.40 (F4): against the reference the question uses
+                 # (the majority of the recent votes; before there is one,
+                 # the earlier votes when they all agree), no longer the
+                 # first strip that was not saved reversed
+                 "direction_agrees": (filed_sign == reference)
+                 if filed_sign and reference else None,
+                 # 4.3.40, additive (revision 2 of the file):
+                 "direction_reference": reference or None,
+                 "direction_votes_before": window,
+                 "direction_colours": colours.as_dict() if colours else None,
+                 "direction_confirmed_by_colours": vouched,
+                 "voted": voted}
         self._write(rec, strip, f, "asked" if (ask or ask_direction)
                     else "accepted", extra)
         return summary
@@ -321,11 +376,45 @@ class RulerSession:
     #: share the majority must hold (4.3.37).
     DIRECTION_MIN_VOTES = 3
     DIRECTION_SHARE = 0.75
+    #: 4.3.40: the majority is taken over the most RECENT votes only, so
+    #: that after a turned sheet (or ruler) it follows the new way round
+    #: within a strip or two. Over every vote of the session, 26 strips read
+    #: one way held the majority for nine strips read the other way, each
+    #: of them noted or asked, and then none at all (pharmacist's page 3,
+    #: replay). Every vote in the window is a strip the ruler and the saving
+    #: agreed on, or one whose colours vouched for it (F3): a strip ChromIQ
+    #: asked about never votes, so a run of real back-to-front strips cannot
+    #: move it. In a session read one way round every vote is the same and
+    #: the window changes nothing.
+    DIRECTION_RECENT = 5
+
+    @property
+    def direction_votes(self) -> "list[int]":
+        """Every vote of this session, oldest first (one per strip)."""
+        return list(self._votes.values())
+
+    def _recent(self) -> "list[int]":
+        return list(self._votes.values())[-self.DIRECTION_RECENT:]
+
+    def forget(self, strip: str) -> None:
+        """A strip's reading was replaced outside a ``strip_read`` ("I read
+        strip B", a strip turned round): its vote no longer describes the
+        reading in the file (F3)."""
+        self._votes.pop(str(strip or "").strip(), None)
+
+    def _early_reference(self) -> int:
+        """Before there is a majority (fewer than DIRECTION_MIN_VOTES), the
+        earlier votes when they all agree, for the log line only (the
+        question waits for a majority)."""
+        v = self.direction_votes
+        if v and len(v) < self.DIRECTION_MIN_VOTES and len(set(v)) == 1:
+            return v[0]
+        return 0
 
     def _majority_direction(self) -> int:
-        """+1 / -1: the direction most accepted strips agree on, or 0 when
-        there are too few or no clear majority."""
-        v = self.direction_votes
+        """+1 / -1: the direction most of the recent accepted strips agree
+        on, or 0 when there are too few or no clear majority."""
+        v = self._recent()
         if len(v) < self.DIRECTION_MIN_VOTES:
             return 0
         plus = sum(1 for x in v if x > 0)
@@ -374,17 +463,30 @@ class RulerSession:
         self.diag.add_strip(rec, strip=strip, figures=figs, verdict=verdict,
                             extra=e)
 
-    def _direction(self, f) -> str:
-        if not self.forward_sign or not f.sign:
-            return ""
+    def _direction_line(self, strip: str, reversed_: bool) -> str:
         # A DIRECTION, NOT A VERDICT (review of 4.3.35): "it went from the
         # first patch to the last" read as "it covered every patch", right
         # before a question saying that it did not. Only the way it moved.
-        if f.sign == self.forward_sign:
-            return " " + tr("It moved in the reading direction, from the first "
-                            "patch towards the last.")
-        return " " + tr("It moved against the reading direction, from the last "
-                        "patch towards the first.")
+        # 4.3.40 (F4): its own line, written once the saving is known, and
+        # only when the ruler and the saving agree (`on_strip_read`); then
+        # the way it moved over the patches is the way it was saved.
+        if not reversed_:
+            return tr("Ruler (beta), strip {strip}: the instrument moved in "
+                      "the reading direction, from the first patch towards "
+                      "the last.").format(strip=strip)
+        return tr("Ruler (beta), strip {strip}: the instrument moved against "
+                  "the reading direction, from the last patch towards the "
+                  "first.").format(strip=strip)
+
+    def _turned_note(self, strip: str) -> str:
+        """4.3.40: the ruler disagrees with the earlier strips, the colours
+        vouch for the saved order: no window, this line."""
+        return tr("Ruler (beta), strip {strip}: the ruler saw this strip the "
+                  "other way round compared with the strips before it. That "
+                  "is what it looks like when the sheet or the ruler has been "
+                  "turned round. The colours of this strip clearly match the "
+                  "order in which it was saved, so the readings are fine and "
+                  "there is nothing you need to do.").format(strip=strip)
 
     def _motion_line(self, strip: str, rec: dict, f) -> str:
         mm = rc.mm_per_step(self.gen, self.derived_step())
@@ -438,7 +540,6 @@ class RulerSession:
                       "are in steps.").format(
                           strip=strip, dist=_num(f.travel_steps),
                           avg=_num(f.mean_steps_s), peak=_num(f.peak_steps_s))
-        text += self._direction(f)
         self._unit_line = prefix
         if self.gen == "i1pro3" and not rec.get("argyll_used"):
             text += " " + tr("ArgyllCMS did not use the ruler to place the "

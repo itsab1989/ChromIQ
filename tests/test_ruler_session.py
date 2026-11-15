@@ -329,9 +329,12 @@ def test_the_strip_line_names_the_part_over_the_patches_the_question_uses(tmp_pa
     assert f"moved {whole} mm along the ruler in all" in line, line
     assert f"about {moved} mm of it over the patches" in line, line
     assert "It went from" not in line
-    assert ("It moved in the reading direction, from the first patch towards "
-            "the last." in line) or ("It moved against the reading direction"
-                                     in line), line
+    # 4.3.40 (F4): the direction is its own line, written once the saving is
+    # known and only when the ruler and the saving agree
+    assert "reading direction" not in line, line
+    assert summ["log_lines"] == [
+        "Ruler (beta), strip B: the instrument moved in the reading "
+        "direction, from the first patch towards the last."], summ
 
 
 def test_the_steps_line_names_the_part_over_the_patches_too(tmp_path):
@@ -430,9 +433,14 @@ def test_the_direction_message_is_proposed():
     m = M.CATALOGUE["M-STRIP-RULER-DIRECTION"]
     assert m.id in M.PROPOSED
     title, body = m.render(strip="9")
-    # 4.3.38 review (minor 1): neutral, true whichever of the two is wrong
-    assert "the ruler and the saved readings disagree" in title
-    assert "One of the two is wrong, and ChromIQ cannot tell which." in body
-    assert "saved back to front" in body and "Re-read Strip" in body
+    # 4.3.40 (pharmacist): what is compared, the harmless cause first (a
+    # turned sheet or ruler), then the case it guards against, the buttons
+    assert "turned round" in title
+    assert body.index("the sheet or the ruler was turned") < body.index(
+        "saved back to front") < body.index("What each button does")
+    assert "which way the instrument's ruler saw it move" in body
+    assert "in which order the readings were saved" in body
+    assert "Continue Anyway is the right choice" in body
+    assert "Re-read Strip" in body
     assert "ChromIQ never changes a reading by itself" in body
     assert "—" not in title + body

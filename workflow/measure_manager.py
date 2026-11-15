@@ -3702,6 +3702,17 @@ class MeasureManager(QObject):
         for ln in lines:
             on_line(" " + ln)
 
+    def _ruler_forget(self, strip: str) -> None:
+        """A strip's reading was replaced outside a strip_read: its ruler
+        vote goes (4.3.40, F3). Nothing without the ruler check."""
+        rs = getattr(self, "_ruler", None)
+        if rs is None:
+            return
+        try:
+            rs.forget(strip)
+        except Exception:      # noqa: BLE001 - a check never stops a read
+            log.debug("ruler: vote not forgotten", exc_info=True)
+
     def _ruler_session_ended(self, on_line) -> None:
         rs = getattr(self, "_ruler", None)
         if rs is None:
@@ -4150,6 +4161,10 @@ class MeasureManager(QObject):
                     ev["ruler"] = _summ
                     if _summ.get("ask") or _summ.get("ask_direction"):
                         self._send_lights_result(False)
+                    # 4.3.40: the direction, or the turned-sheet note, once
+                    # the saving is known (before the strip's verdict)
+                    for _ln in _summ.get("log_lines") or ():
+                        on_line(" " + _ln)
             self.strip_measured.emit(ev)
             if _part is not None:
                 # One question, worded for what was found: part of the strip,
@@ -4229,6 +4244,9 @@ class MeasureManager(QObject):
             elif _asked:
                 log.warning("strip %s's earlier reading did not come back; "
                             "it is unread and has to be measured", _fr)
+            # The ruler check (Beta, 4.3.40 F3): B's earlier vote belonged
+            # to a reading that is gone now.
+            self._ruler_forget(_to)
             out = {"event": "strip_read", "strip": _to, "filed_from": _fr,
                    "patches": list(_patches or [])}
             if _back is not None:
@@ -4257,6 +4275,7 @@ class MeasureManager(QObject):
                             exc_info=True)
             log.info("strip %s's readings were turned round and saved so, "
                      "as the person asked", _st)
+            self._ruler_forget(_st)
             self.strip_turned.emit({"event": "strip_read", "strip": _st,
                                     "turned": True,
                                     "patches": list(_patches or [])})

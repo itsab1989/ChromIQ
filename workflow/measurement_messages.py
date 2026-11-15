@@ -10276,28 +10276,40 @@ M_STRIP_FAILED_BUTTON = _m(
 #: front by the reader's recognition (48-66 dE00 off) while the ruler showed
 #: an ordinary stroke. "Forward" is learned from the majority of accepted
 #: strips. Same window and buttons as M-STRIP-RULER-NOT-COVERED.
+#: 4.3.40 (pharmacist, 2026-11-15): what is compared is the ruler's direction
+#: times the saved order, which shows how the SHEET lay; a turned sheet looks
+#: the same as a strip saved back to front. Asked only when the strip's own
+#: colours do not confirm the saved order (otherwise a log line); the text
+#: says what is compared and names the harmless cause first.
 M_STRIP_RULER_DIRECTION = _m(
     "M-STRIP-RULER-DIRECTION",
-    "Strip {strip}: the ruler and the saved readings disagree about the direction",
-    "The instrument's ruler and the saved readings disagree about the "
-    "direction of strip {strip}. The ruler says the instrument moved the same "
-    "way as on most of the other strips you read, but the readings were saved "
-    "as if this strip had been read the other way round.\n\n"
-    "One of the two is wrong, and ChromIQ cannot tell which. If the readings "
-    "were saved back to front, every patch of this strip has the colour of "
-    "another patch: this can happen when the colours of this strip, read "
-    "backwards, look much like another strip of the chart. If the ruler is "
-    "wrong, the readings are fine as they are.\n\n"
+    "Strip {strip} looks turned round compared with the strips before it",
+    "For every strip, ChromIQ puts two things side by side: which way the "
+    "instrument's ruler saw it move, and in which order the readings were "
+    "saved. Together, they show how the sheet lay under the instrument. For "
+    "strip {strip}, they show it lying the other way round from most of the "
+    "strips you read just before it.\n\n"
+    "The likeliest reason is harmless: the sheet or the ruler was turned "
+    "round compared with those strips. If that is what happened, the "
+    "readings of strip {strip} are fine, and Continue Anyway is the right "
+    "choice.\n\n"
+    "ChromIQ still asks, because to the ruler a strip saved back to front "
+    "looks exactly the same. In that case every patch of strip {strip} would "
+    "carry the colour of another patch. ChromIQ also compared the colours of "
+    "this strip with the colours the chart expects, but they do not confirm "
+    "that it was saved the right way round, so ChromIQ cannot tell the two "
+    "cases apart by itself.\n\n"
     "What each button does:\n\n"
     "•  Re-read Strip: read strip {strip} again, from the white paper before "
     "the first patch to the white paper after the last, in one steady "
-    "movement. The new reading replaces this one.\n\n"
+    "movement. The new reading replaces this one. Choose this if you did not "
+    "turn anything round.\n\n"
     "•  Continue Anyway: keep what was just read and carry on with the next "
-    "strip.\n\n"
+    "strip. Choose this if you turned the sheet or the ruler round.\n\n"
     "This question comes from the ruler check, a beta option in Preferences, "
-    "on the Beta tab. ChromIQ never changes a reading by itself. If you are "
-    "sure the strip was saved the right way, please press Continue Anyway, "
-    "and tell us about it with the diagnostics file this measurement writes.",
+    "on the Beta tab. ChromIQ never changes a reading by itself. If this "
+    "question appeared although you did not turn anything round, please tell "
+    "us about it and send the diagnostics file this measurement writes.",
     approved=False)
 
 # --- PROPOSED: a resume at another spectral resolution (4.3.37) -----------
