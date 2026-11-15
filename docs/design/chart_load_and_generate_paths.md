@@ -89,6 +89,23 @@ may not show according to the settings, margins and other features in the Create
 Chart tab in ChromIQ (it may also come from a completely different external
 source)."*
 
+### ⏳ Awaiting confirmation: Guided keeps its pages, or asks (2026-11-15)
+
+**Confirmed by:** *nobody yet.*
+
+The owner, 2026-11-15, after an i1iSis chart came out on two pages with
+"Number of pages: 1": *"i think clicking generate in guided should give new
+patches anyway so the user gets the layout and number of pages he selected"*.
+What the app now does: a run's own patch set (made in the patch set tool,
+edited, loaded, or an older chart's that targen does not make) is still bound
+when the run is opened (#147) and still laid out by Generate in Guided as
+well as in Manual. Only when, in Guided, that set laid out with the settings
+on screen takes another number of pages than "Number of pages" asks for,
+Generate first asks (M-GUIDED-SET-PAGES): make a new patch set for the pages
+asked (targen, as for a new chart), or keep the set (the default). A set that
+fits the pages, Manual and calibration charts are unchanged. On a measured run
+the §4 window still follows on the way to the new chart.
+
 ## Two ways of laying a chart out again, and they give different sheets
 
 This is the one thing in this area a user can get wrong, and it is worth stating

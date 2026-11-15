@@ -639,6 +639,7 @@ AWAITING_APPROVAL: "set[str]" = {
                                  # two windows and the layout refusal.
                                  "M-ISIS-NOT-YET", "M-ISIS-SUPPORT-OFF",
                                  "M-ISIS-SHEET-CHECK", "M-ISIS-NO-TXF",
+                                 "M-GUIDED-SET-PAGES",
                                  # the same for a verification or a
                                  # calibration chart made for the table
                                  "M-I1IO-NOT-YET-BY-HAND",
