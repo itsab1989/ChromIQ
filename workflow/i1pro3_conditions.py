@@ -416,3 +416,68 @@ def average_missing_reason(main: Path, cond: str) -> str:
         "{condition} readings, so there are none for the average either. "
         "Only a condition every read has is averaged.").format(
             n=len(reads), read=lacking[0], condition=cond)
+
+
+# ---------------------------------------------------------------------------
+# Housekeeping: pairs that no measurement in the run names any more
+# ---------------------------------------------------------------------------
+
+_PAIR_NAME_RE = re.compile(r"^(\d+-[0-9a-f]{8})-M[012]\.ti3$")
+
+
+def prune_pairs(cond_dir: "str | Path", owner: "str | Path") -> "list[Path]":
+    """Delete the condition files in *cond_dir* whose readings no measurement
+    file anywhere under *owner* holds any more (its ``.ti3``, ``reads/``,
+    ``old/``, a dated verification and its archives; *cond_dir* itself left
+    out), and return them. Only files named as the engine names them
+    (``<hash>-M0|M1|M2.ti3``) are ever looked at; anything else is left
+    alone, and so is anything changed in the last 10 minutes (a session that
+    is still writing). Never raises."""
+    import time
+    cond_dir, owner = Path(cond_dir), Path(owner)
+    gone: "list[Path]" = []
+    try:
+        if not cond_dir.is_dir():
+            return gone
+        files = [p for p in cond_dir.iterdir()
+                 if p.is_file() and _PAIR_NAME_RE.match(p.name)]
+        if not files:
+            return gone
+        held: "set[str]" = set()
+        for p in owner.rglob("*"):
+            if not p.is_file() or ".ti3" not in p.name:
+                continue
+            try:
+                p.relative_to(cond_dir)
+                continue
+            except ValueError:
+                pass
+            if p.parent.name == CONDITION_DIRNAME:
+                continue           # another conditions/ folder's files
+            key = data_block_hash(p)
+            if key:
+                held.add(key)
+        now = time.time()
+        for f in files:
+            m = _PAIR_NAME_RE.match(f.name)
+            if m is None or m.group(1) in held:
+                continue
+            try:
+                if now - f.stat().st_mtime < 600:
+                    continue
+                f.unlink()
+                gone.append(f)
+            except OSError:
+                continue
+    except Exception:  # noqa: BLE001 - housekeeping never stops anything
+        return gone
+    return gone
+
+
+def prune_run(run) -> "list[Path]":
+    """:func:`prune_pairs` for a run's ``conditions/`` (held by any
+    measurement file in the run) and its ``verifications/conditions/`` (held
+    by any under ``verifications/``)."""
+    gone = prune_pairs(run.condition_dir, run.dir)
+    gone += prune_pairs(run.verification_condition_dir, run.verifications_dir)
+    return gone

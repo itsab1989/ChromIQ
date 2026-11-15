@@ -16439,6 +16439,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # beta.139). First, before any of the tidying below, so a window that
         # is still spinning its own event loop cannot answer into a process
         # that has already gone.
+        self._prune_condition_pairs()
         self._close_cr30_bridge()
         self._close_measurement_windows()
         self._end_page_pause()
@@ -22576,6 +22577,29 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if replay:
             p.engine_replay = Path(replay)
         return p
+
+    def _prune_condition_pairs(self) -> None:
+        """The M0/M1/M2 Beta, at the end of every session: condition files
+        that no measurement file of this run holds the readings of any more
+        (a measurement replaced, a read discarded) are deleted, so the
+        folder does not grow (`i1pro3_conditions.prune_run`). Run while the
+        session's measurement and every copy of an earlier one (old/, reads/)
+        are still on disk, so nothing in use is taken. Nothing with the
+        option off."""
+        from workflow import i1pro3_conditions as _c
+        if not _c.stored_value(self._settings) or self._ti1_path is None:
+            return
+        try:
+            from core.file_manager import VERIFICATIONS_DIRNAME
+            d = Path(self._ti1_path).parent
+            if d.name == VERIFICATIONS_DIRNAME:
+                d = d.parent
+            gone = _c.prune_run(Run.for_dir(d))
+            if gone:
+                log.info("M0/M1/M2: %d condition file(s) no measurement "
+                         "holds any more were removed", len(gone))
+        except Exception:      # noqa: BLE001 - never stop an ending
+            log.debug("M0/M1/M2: no pruning", exc_info=True)
 
     def _condition_dir_for(self, p: MeasureParams) -> "Path | None":
         """"X-Rite i1Pro 3: keep M0, M1 and M2 from every scan" (Beta): the

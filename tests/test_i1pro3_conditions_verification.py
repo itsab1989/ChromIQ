@@ -238,3 +238,59 @@ def test_check_and_refine_checks_a_verification_in_the_profiles_condition(
     fake._settings = _S({C.SETTING: False})
     assert TabCheckRefine._readings_for_the_profile(fake) is None
     assert TabCheckRefine._other_condition_warning(fake) == ""
+
+
+# ---------------------------------------------------------------------------
+# housekeeping at the end of a session
+# ---------------------------------------------------------------------------
+
+def _age(p: Path, seconds=3600):
+    import os
+    import time
+    t = time.time() - seconds
+    os.utime(p, (t, t))
+
+
+def test_pairs_no_measurement_holds_are_pruned_and_nothing_else(tmp_path):
+    run = _run(tmp_path)
+    main = _ti3(run.dir / "Paper.ti3", w="85")
+    keep_main = _pair(main, "M1", "90")
+    old = _ti3(run.dir / "old" / "2026-11-14_101010" / "Paper.ti3", w="80")
+    keep_old = _pair(old, "M1", "84")
+    read = _ti3(run.reads_dir / "read1.ti3", w="83")
+    keep_read = _pair(read, "M2", "79")
+    gone_main = _ti3(tmp_path / "elsewhere.ti3", w="70")
+    orphan = _pair(gone_main, "M1", "75")          # loose: elsewhere/conditions
+    orphan = orphan.replace(run.condition_dir / orphan.name)
+    fresh = run.condition_dir / "12-0000abcd-M2.ti3"
+    fresh.write_text("x")                          # a session still writing
+    stranger = run.condition_dir / "notes.txt"
+    stranger.write_text("Basti's")
+    ver = _verification(run)
+    keep_ver = _pair(ver, "M1", "91")
+    v_orphan = run.verification_condition_dir / "99-0badf00d-M1.ti3"
+    v_orphan.write_text("x")
+    for p in (keep_main, keep_old, keep_read, orphan, stranger, keep_ver,
+              v_orphan):
+        _age(p)
+    gone = C.prune_run(run)
+    assert sorted(gone) == sorted([orphan, v_orphan])
+    for p in (keep_main, keep_old, keep_read, fresh, stranger, keep_ver):
+        assert p.is_file(), p
+
+
+def test_the_measure_tab_prunes_only_with_the_beta_on(tmp_path):
+    from types import SimpleNamespace
+    from ui.tabs.tab_measure import TabMeasure
+    run = _run(tmp_path)
+    orphan = run.condition_dir / "12-0000abcd-M1.ti3"
+    orphan.parent.mkdir(parents=True)
+    orphan.write_text("x")
+    _age(orphan)
+    fake = SimpleNamespace(_settings=_S({C.SETTING: False}),
+                           _ti1_path=run.dir / "Paper.ti1")
+    TabMeasure._prune_condition_pairs(fake)
+    assert orphan.is_file()
+    fake._settings = _S({C.SETTING: True})
+    TabMeasure._prune_condition_pairs(fake)
+    assert not orphan.exists()
