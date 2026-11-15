@@ -93,6 +93,10 @@ class ImportVerdict:
     #: chart's colours cannot tell); filed as it is, the placeholders in it
     #: would be taken for device values.
     i1io_grid: object = None
+    #: True when the i1iO Beta's Measure Chart route refused the file: the
+    #: doors show it under M-IMPORT-I1IO-REFUSED, whose title does not say
+    #: "another chart" (review m3).
+    i1io_refusal: bool = False
 
     @property
     def patches_read(self) -> int:
@@ -484,7 +488,8 @@ def _i1io_route(ti3: Path, chart_ti2: "Path | None",
         if v is None:
             return None
         if not v.ok:
-            return ImportVerdict(False, v.reason, n_chart=n_chart or 0)
+            return ImportVerdict(False, v.reason, n_chart=n_chart or 0,
+                                 i1io_refusal=True)
         n = len(v.sample_of_row)
         return ImportVerdict(True, "", n_chart=n_chart or 0, n_measured=n,
                              i1io_grid=v)
@@ -496,7 +501,7 @@ def _i1io_route(ti3: Path, chart_ti2: "Path | None",
             if one is None and not _has_readings(ti3):
                 return None
             return ImportVerdict(False, MM.i1io_import_reason("text"),
-                                 n_chart=n_chart or 0)
+                                 n_chart=n_chart or 0, i1io_refusal=True)
         return None
     if one:
         return ImportVerdict(False, MM.i1io_import_reason("other-door"),

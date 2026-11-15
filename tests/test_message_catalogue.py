@@ -646,6 +646,7 @@ AWAITING_APPROVAL: "set[str]" = {
                                  "M-IMPORT-I1IO-CANNOT-CHECK-PARTS",
                                  "M-IMPORT-I1IO-FILED",
                                  "M-IMPORT-ISIS-COLOURS",
+                                 "M-IMPORT-I1IO-REFUSED",
                                  # 2026-11-14: the X-Rite i1iSis chart Beta
                                  # (charts measured in i1Profiler): Start's
                                  # two windows and the layout refusal.

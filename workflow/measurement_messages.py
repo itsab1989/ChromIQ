@@ -1080,6 +1080,20 @@ def i1io_import_reason(code: str, **kw) -> str:
     return tr(_I1IO_IMPORT_OTHER_CHART).format(aim=aim)
 
 
+#: The window of a refused Measure Chart import, both doors (review
+#: 2026-11-15, m3): a title that does not say "another chart" when the reason
+#: says the sheet lay turned or was aimed off. {reason}: one of
+#: M-IMPORT-I1IO-REASONS.
+M_IMPORT_I1IO_REFUSED = _m(
+    "M-IMPORT-I1IO-REFUSED",
+    "This measurement does not fit the chart as it was measured",
+    "Before filing anything, ChromIQ checks an i1Profiler measurement of an "
+    "i1iO chart against the chart, and this one was not filed:\n\n"
+    "{reason}.\n\n"
+    "Nothing has been imported and nothing has been changed. Your file is "
+    "untouched where it is.",
+    approved=False)
+
 #: The question when the chart's colours cannot tell (M1/M2 of the
 #: challenge: asked only for these reasons, and only after the checks by fit,
 #: by paper and by blend found nothing). Cancel is the default. {why}: one of
@@ -10965,7 +10979,7 @@ CATALOGUE = {m.id: m for m in (
     M_I1IO_MEASURE_CHART, M_I1IO_MEASURE_CHART_PARTS,
     M_I1IO_MEASURE_CHART_OTHER_WAY, M_IMPORT_I1IO_REASONS,
     M_IMPORT_I1IO_CANNOT_CHECK, M_IMPORT_I1IO_CANNOT_CHECK_PARTS,
-    M_IMPORT_I1IO_FILED, M_IMPORT_ISIS_COLOURS,
+    M_IMPORT_I1IO_FILED, M_IMPORT_ISIS_COLOURS, M_IMPORT_I1IO_REFUSED,
     M_ISIS_NOT_YET, M_ISIS_SUPPORT_OFF, M_ISIS_SHEET_CHECK, M_ISIS_NO_TXF,
     M_I1IO_AIM_CROSSES, M_I1IO_AIM_CORNERS, M_I1IO_AIM_CORNERS_UNLABELLED,
     M_I1IO_AIM_UNKNOWN, M_I1IO_AIM_PAGE_PARTS,

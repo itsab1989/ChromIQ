@@ -323,6 +323,7 @@ def test_another_grid_typed_is_refused_with_the_right_numbers(
     cxf = F.measure(sh, tmp_path / "g.cmxf", typed=typed)
     v, _ = _assess(cxf, charts["random"], tmp_path)
     assert not v.ok and _refused_with(v, charts["random"]) == "grid"
+    assert v.i1io_refusal                  # its own window (review m3)
     assert f"grid of {typed[0]} columns and {typed[1]} rows" in v.reason
     assert "needs 24 columns and 22 rows" in v.reason
 

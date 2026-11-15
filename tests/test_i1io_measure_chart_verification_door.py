@@ -95,4 +95,6 @@ def test_a_turned_sheet_is_refused_at_the_verification_door(
     assert not done
     assert len(refused) == 1 and "turned half round" in \
         refused[0][1]["reason"], refused
+    # review m3: its own window, whose title does not say "another chart"
+    assert refused[0][0] == "M-IMPORT-I1IO-REFUSED"
     assert not list(run.verifications_dir.rglob("*.ti3"))

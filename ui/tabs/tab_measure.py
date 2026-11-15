@@ -15399,7 +15399,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                          chart=verdict.n_chart, got=verdict.patches_read)
                   if verdict.partial else "")
         if reason:
-            self._show_import_refusal(M.M_IMPORT_MISMATCH, reason=reason)
+            self._show_import_refusal(
+                M.M_IMPORT_I1IO_REFUSED if getattr(verdict, "i1io_refusal",
+                                                   False)
+                else M.M_IMPORT_MISMATCH, reason=reason)
             return
 
         # 2c) An i1Profiler Measure Chart measurement of this i1iO chart (the
@@ -15583,6 +15586,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         verdict = self._import_verdict(converted, run.chart_ti2,
                                        source=path)
         if not verdict.ok:
+            if getattr(verdict, "i1io_refusal", False):
+                from workflow import measurement_messages as M
+                self._show_import_refusal(M.M_IMPORT_I1IO_REFUSED,
+                                          reason=verdict.reason)
+                return
             refuse_it_does_not_belong(self, verdict.reason)
             return
 
