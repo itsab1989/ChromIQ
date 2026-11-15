@@ -111,7 +111,10 @@ def build_ti2_from_ti1(
 #: engine know", not a coincidence that happens to work.
 _INSTR_FRIENDLY = {"i1": "i1Pro", "p3": "i1Pro3+", "CM": "ColorMunki",
                    "SS": "SpectroScan", "41": "DTP41", "51": "DTP51",
-                   "CR30": "CR30"}
+                   "CR30": "CR30",
+                   # R8 (4.3.39): the i1iO's clip-border notes printed the
+                   # internal code "IO2" for {instrument}
+                   "IO2": "i1iO"}
 
 
 def friendly_instrument(instrument: str) -> str:

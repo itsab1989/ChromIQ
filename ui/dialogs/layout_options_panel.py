@@ -7184,9 +7184,9 @@ class LayoutOptionsPanel(QWidget):
         inst, paper = "i1", "A4"
         if self.instr is not None:
             inst, paper, _ = self.selection()
-        _instr_friendly = {"i1": "i1Pro", "p3": "i1Pro3+", "CM": "ColorMunki",
-                           "SS": "SpectroScan", "41": "DTP41", "51": "DTP51",
-                           "CR30": "CR30"}
+        # the build's own table, so the preview and the sheet name the same
+        # instrument (R8, 4.3.39: this copy lacked the i1iO)
+        from workflow.layout_engine.chart import friendly_instrument
         _plabel = PAPER_LABELS.get(paper, paper)
         _pname = _plabel.split(" (")[0]
         _porient = (" landscape" if "Landscape" in _plabel
@@ -7196,7 +7196,7 @@ class LayoutOptionsPanel(QWidget):
             "project": "MyChart", "page": f"page 1/{_pages}",
             "date": time.strftime("%Y-%m-%d"),
             "paper": f"{_pname}{_porient}",
-            "instrument": _instr_friendly.get(inst, inst),
+            "instrument": friendly_instrument(inst),
             "patchcount": "600 patches",
             "pages": str(_pages), "seed": "seed 12345",
             "dpi": f"{int(self.dpi.value())} dpi",
