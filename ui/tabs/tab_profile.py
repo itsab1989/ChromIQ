@@ -778,6 +778,19 @@ class TabProfile(QWidget):
         _paint_note(self._file_lbl)
         self._file_lbl.setWordWrap(True)
         fg.addWidget(self._file_lbl, stretch=1)
+        # "Build from" (Preferences > Beta, "X-Rite i1Pro 3: keep M0, M1 and
+        # M2 from every scan", 2026-11-15): shown only with the Beta on, for
+        # Guided and Manual alike (this box is above both).
+        self._build_from = ""
+        self._cond_lbl = QLabel(tr("Build from:"), file_grp)
+        self._cond_combo = QComboBox(file_grp)
+        self._cond_combo.setObjectName("build_from_condition")
+        self._cond_combo.setMinimumContentsLength(24)
+        self._cond_combo.activated.connect(self._on_build_from_chosen)
+        self._cond_lbl.setVisible(False)
+        self._cond_combo.setVisible(False)
+        fg.addWidget(self._cond_lbl)
+        fg.addWidget(self._cond_combo)
         cc.addWidget(file_grp)
         # A measurement dropped from the file manager on this box is loaded
         # as the header's load icon loads the file chosen with it (4.3.33).
@@ -3024,6 +3037,144 @@ class TabProfile(QWidget):
             except Exception:      # noqa: BLE001
                 log.debug("guided profile field %s not applied", key)
 
+    # ------------------------------------------------------------------
+    # "Build from" (Preferences > Beta, M0/M1/M2 from one scan, 2026-11-15)
+    # ------------------------------------------------------------------
+    def _conditions_on(self) -> bool:
+        from workflow.i1pro3_conditions import stored_value
+        return stored_value(self._settings)
+
+    def _build_from_choices(self):
+        from workflow.i1pro3_conditions import choices_for
+        merging = (bool(self._settings.get("chromiq_refinement", False))
+                   and self._preconditioning_source is not None
+                   and Path(self._preconditioning_source).exists())
+        return choices_for(self._ti3_path, merging=merging)
+
+    def _refresh_build_from(self) -> None:
+        """Fill "Build from" for the measurement shown, or hide it (Beta off,
+        no measurement). A stored choice that is not usable now stays chosen
+        and greyed, and Build is refused until another one is chosen: a
+        profile is never built from another condition than the one asked
+        for without the person seeing it."""
+        combo = getattr(self, "_cond_combo", None)
+        if combo is None:
+            return
+        on = self._conditions_on() and self._ti3_path is not None
+        choices = self._build_from_choices() if on else []
+        self._cond_lbl.setVisible(bool(choices))
+        combo.setVisible(bool(choices))
+        combo.blockSignals(True)
+        try:
+            combo.clear()
+            from workflow.measurement_condition import condition_name
+            pick = 0
+            for i, ch in enumerate(choices):
+                text = condition_name(ch.cond)
+                if ch.main:
+                    text = tr("{condition}, as measured").format(condition=text)
+                combo.addItem(text, ch.cond)
+                item = combo.model().item(i)
+                if item is not None:
+                    item.setEnabled(ch.usable)
+                    item.setToolTip(ch.reason or tr(
+                        "Build the profile from the {condition} readings of "
+                        "this measurement.").format(condition=ch.cond))
+                if self._build_from and ch.cond == self._build_from:
+                    pick = i
+            if choices:
+                combo.setCurrentIndex(pick)
+        finally:
+            combo.blockSignals(False)
+        self._apply_build_from_state(choices)
+
+    def _apply_build_from_state(self, choices=None) -> None:
+        if choices is None:
+            choices = (self._build_from_choices()
+                       if self._conditions_on() and self._ti3_path else [])
+        chosen = self._chosen_build_from(choices)
+        combo = self._cond_combo
+        if chosen is not None and not chosen.usable:
+            combo.setToolTip(chosen.reason)
+            self._build_btn.setEnabled(False)
+            self._build_btn.setToolTip(tr(
+                "This measurement has no {condition} readings. {reason} "
+                "Choose another condition under \u201cBuild from\u201d to "
+                "build the profile.").format(condition=chosen.cond,
+                                              reason=chosen.reason))
+        else:
+            combo.setToolTip(tr(
+                "Which of the three measurement conditions the profile is "
+                "made from. The first one is the condition the measurement "
+                "was made in."))
+        # the FWA gate looks at the file the readings come from
+        target = (chosen.path if chosen is not None and chosen.usable
+                  else self._ti3_path)
+        if target is not None and target != self._ti3_path:
+            self._detect_instrument(target)
+
+    def _chosen_build_from(self, choices):
+        if not choices:
+            return None
+        want = self._build_from or choices[0].cond
+        for ch in choices:
+            if ch.cond == want:
+                return ch
+        return choices[0]
+
+    def _on_build_from_chosen(self, index: int) -> None:
+        cond = self._cond_combo.itemData(index)
+        choices = self._build_from_choices()
+        main = choices[0].cond if choices else ""
+        self._build_from = "" if cond == main else str(cond or "")
+        log.info("Build Profile: build from %s", cond)
+        if self._ti3_path is not None:
+            self.set_ti3_path(self._ti3_path, propagate=False)
+        try:
+            self.save_target_settings()
+        except Exception:      # noqa: BLE001
+            log.debug("build-from not stored", exc_info=True)
+
+    def _build_from_file(self) -> "Path | None":
+        """The file the readings come from when it is not the measurement
+        itself (Beta on, another condition chosen and usable), else None."""
+        if not self._conditions_on() or not self._build_from:
+            return None
+        ch = self._chosen_build_from(self._build_from_choices())
+        if ch is None or ch.main or not ch.usable:
+            return None
+        return ch.path
+
+    def _built_from_record(self) -> dict:
+        from workflow import i1pro3_conditions as _c
+        if not self._conditions_on() or self._ti3_path is None:
+            return {}
+        rf = self._build_from_file()
+        cond = (_c.file_condition(rf) if rf is not None
+                else _c.file_condition(self._ti3_path))
+        return {_c.BUILT_FROM_KEY: cond,
+                _c.BUILT_FILE_KEY: (f"{_c.CONDITION_DIRNAME}/{rf.name}"
+                                    if rf is not None
+                                    else Path(self._ti3_path).name)}
+
+    def _load_build_from(self, stored) -> None:
+        from workflow.i1pro3_conditions import BUILD_FROM_KEY
+        self._build_from = str((stored or {}).get(BUILD_FROM_KEY) or "")
+        self._refresh_build_from()
+
+    def _carry_build_from(self, store, wanted: dict) -> None:
+        from workflow.i1pro3_conditions import BUILD_FROM_KEY
+        try:
+            old = (getattr(store.load_meta(), "profile_settings", None)
+                   or {}).get(BUILD_FROM_KEY)
+        except Exception:      # noqa: BLE001
+            old = None
+        if self._conditions_on():
+            if self._build_from or old is not None:
+                wanted[BUILD_FROM_KEY] = self._build_from
+        elif old is not None:
+            wanted[BUILD_FROM_KEY] = old
+
     def save_target_settings(self, store=None, key=None) -> bool:
         """Record this tab's settings against the selected target.
 
@@ -3070,6 +3221,12 @@ class TabProfile(QWidget):
             if black_combo is not None:
                 wanted["black_depth"] = black_depth_value(
                     black_combo.currentData())
+            # "Build from" (the M0/M1/M2 Beta): written only while the Beta is
+            # on, and carried back unchanged while it is off, so a target
+            # never changes because the option exists.
+            _carry = getattr(self, "_carry_build_from", None)
+            if _carry is not None:
+                _carry(store, wanted)
             fingerprint = str(getattr(store, "dir", store))
             if self._profile_written_cache().get(fingerprint) == wanted:
                 return False
@@ -3110,6 +3267,8 @@ class TabProfile(QWidget):
                 # leaves the PREVIOUS target's values on screen, which is how a
                 # setting leaks from one run to another.
                 self._restore_defaults()
+                if hasattr(self, "_load_build_from"):
+                    self._load_build_from(None)
                 return False
             self._m_apply_preset_data(stored)
             set_black = getattr(self, "_m_set_black", None)
@@ -3119,6 +3278,8 @@ class TabProfile(QWidget):
                 # (settings schema 33), until it is changed here.
                 set_black(_black_for_older_targets(self._settings))
             self._apply_guided_profile_fields(stored)
+            if hasattr(self, "_load_build_from"):
+                self._load_build_from(stored)
             return True
         except Exception:      # noqa: BLE001
             log.warning("Could not apply the target's Build Profile settings",
@@ -5257,6 +5418,8 @@ class TabProfile(QWidget):
         # nothing to compose a description from yet.
         self._apply_profile_description_default(fallback=path.stem)
         self._detect_instrument(path)
+        if hasattr(self, "_refresh_build_from"):
+            self._refresh_build_from()
         if propagate:
             # Under the per-run layout the measurement is chart.ti3 sitting
             # next to chart.ti2 in the same run folder, so no suffix-stripping
@@ -6983,6 +7146,11 @@ class TabProfile(QWidget):
             info = dict(info)
             info["at"] = datetime.now().isoformat(timespec="seconds")
             info["profile"] = Path(icc).name
+            # the M0/M1/M2 Beta: which readings the profile was built from
+            built = (self._built_from_record()
+                     if hasattr(self, "_built_from_record") else {})
+            if built:
+                info.update(built)
             run.record_profile_build(info)
         except Exception:      # noqa: BLE001 - a record never fails a build
             log.warning("could not record the profile build", exc_info=True)
@@ -7046,10 +7214,11 @@ class TabProfile(QWidget):
                 return False
             work = Path(tempfile.mkdtemp(prefix="chromiq-colprof-comparison-"))
             copy = work / params.ti3_path.name
-            shutil.copy2(params.ti3_path, copy)
+            # the readings the profile was built from (M0/M1/M2 Beta)
+            shutil.copy2(params.readings_from or params.ti3_path, copy)
             desc = params.description or params.ti3_path.stem
             cparams = dataclasses.replace(
-                params, ti3_path=copy,
+                params, ti3_path=copy, readings_from=None,
                 description=f"{desc} (colprof)",
                 model=params.model or desc,
                 spectral_physics=False, icc_version="2",
@@ -7616,6 +7785,10 @@ class TabProfile(QWidget):
         # does too), so it never reaches a command line or the command box,
         # whether the box, a preset, a saved setting or the extra arguments
         # asked for it. `_on_build` says so in the log.
+        rf = (self._build_from_file() if hasattr(self, "_build_from_file")
+              else None)
+        if rf is not None:
+            params = replace(params, readings_from=rf)
         from workflow.fwa_gate import drop_fwa
         refusal = self._fwa_refused()
         self._fwa_dropped_by_collect = (

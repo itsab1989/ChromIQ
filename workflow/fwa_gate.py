@@ -353,7 +353,9 @@ def without_refused_fwa(params, keywords_from=None):
     if keywords_from is not None and Path(keywords_from).is_file():
         asked = keywords_from
     else:
-        asked = getattr(params, "ti3_path", None)
+        # the file the readings come from (the M0/M1/M2 Beta), else the run's
+        asked = (getattr(params, "readings_from", None)
+                 or getattr(params, "ti3_path", None))
     refusal = fwa_refusal_for_file(asked)
     if refusal is None:
         return params, None
