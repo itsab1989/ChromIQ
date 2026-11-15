@@ -256,8 +256,10 @@ def test_back_from_the_cr30_to_the_i1pro_is_printtarg_again(qapp, settings):
         _close(qapp, t)
 
 
+# The i1iSis printtarg entry ("isis") was removed by the owner's ruling of
+# 2026-11-14 (data.patch_db.REMOVED_INSTRUMENT_CODES), so its case is gone.
 @pytest.mark.parametrize("instr,flag", [
-    ("i1", "i1"), ("p3", "3p"), ("CM", "CM"), ("SS", "SS"), ("isis", "isis")])
+    ("i1", "i1"), ("p3", "3p"), ("CM", "CM"), ("SS", "SS")])
 def test_every_other_instrument_through_i_after_the_panel_was_shown(
         qapp, settings, instr, flag):
     t = _tab(qapp, settings, True)

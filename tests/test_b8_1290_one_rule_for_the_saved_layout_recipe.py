@@ -201,8 +201,10 @@ def test_the_nearest_recipe_a_person_can_make_is_not_the_placeholder(
 # ---------------------------------------------------------------------------
 # F1: a beta-43 placeholder store opens as the saved instrument and paper
 # ---------------------------------------------------------------------------
-@pytest.mark.parametrize("instr,paper", [("i1", "Letter"), ("isis", "329x483"),
-                                         ("CM", "A4"), ("i1", "A4")])
+# The i1iSis printtarg entry ("isis") was removed by the owner's ruling of
+# 2026-11-14 (data.patch_db.REMOVED_INSTRUMENT_CODES), so its case is gone.
+@pytest.mark.parametrize("instr,paper", [("i1", "Letter"), ("CM", "A4"),
+                                         ("i1", "A4")])
 def test_a_placeholder_store_opens_on_what_was_saved(qapp, store, instr, paper):
     _seed(store, use_chromiq_layout_engine=True, chart_instrument=instr,
           chart_paper=paper, **{"manual_printtarg_-i_l": instr,

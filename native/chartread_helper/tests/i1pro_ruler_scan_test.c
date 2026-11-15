@@ -43,6 +43,15 @@ static const char *scn = "?";
 static volatile int trig_sent = 0;	/* the D4 / C0 trigger went out */
 static int readings_left = 0;		/* readings the fake still has */
 static int reading_bytes = 268;
+/* 4.3.38, the lights and the ruler together (combo_life): the slow
+ * instrument of i1pro2_lights_modes_test.c (a D4 within slow_w ms after the
+ * END of the last light write on 0x03 is lost: "<scn> LOST"), and a light
+ * write between a press and that strip's first data ("<scn> WR-IN-READING",
+ * rule A). Both off (slow_w 0, in_reading 0) in every other life. */
+static int slow_w = 0;
+static unsigned int last_wr_end = 0;
+static volatile int in_reading = 0;
+static volatile int in_lit_scan = 0;	/* scan(): only its data ends in_reading */
 
 #ifndef CQ_BASE
 #include "cq_ruler.h"
@@ -198,6 +207,13 @@ static int fake_control(icoms *p, int requesttype, int request, int value,
 		*xferred = rwsize;
 	if ((requesttype & IUSB_ENDPOINT_DIR_MASK) != IUSB_ENDPOINT_OUT && rwbuf != NULL)
 		memset(rwbuf, 0, rwsize);
+	if ((request & 0xff) == 0xD4 && slow_w > 0 && last_wr_end != 0) {
+		int gap = (int)(msec_time() - last_wr_end);
+		printf("%s GAPMS %d\n", scn, gap);
+		if (gap < slow_w)
+			printf("%s LOST gap=%d\n", scn, gap);
+		fflush(stdout);
+	}
 	if ((request & 0xff) == 0xD4 || (request & 0xff) == 0xC0)
 		trig_sent = 1;
 	return ICOM_OK;
@@ -211,6 +227,14 @@ static int fake_write(icoms *p, usb_cancelt *c, int ep, unsigned char *wbuf,
 	printf(" tout=%.2f\n", tout);
 	fflush(stdout);
 	*bwritten = wsize;
+	if ((ep & 0xff) == 0x03) {
+		if (in_reading) {
+			printf("%s WR-IN-READING\n", scn);
+			fflush(stdout);
+		}
+		if ((last_wr_end = msec_time()) == 0)
+			last_wr_end = 1;
+	}
 	return ICOM_OK;
 }
 
@@ -258,6 +282,8 @@ static int fake_read(icoms *p, usb_cancelt *c, int ep, unsigned char *buf,
 		for (i = 0; i < n * reading_bytes; i += 2)
 			buf[i] = 0x10;		/* a flat, unsaturated level */
 		*bread = n * reading_bytes;
+		if (n > 0 && in_lit_scan)
+			in_reading = 0;		/* the lit scan's data has come (4.3.38 review nit) */
 		printf("%s RD 82 %d -> %d tout=%.2f\n", scn, bsize, *bread, tout);
 		fflush(stdout);
 		return *bread < bsize ? ICOM_SHORT : ICOM_OK;
@@ -355,7 +381,9 @@ static void scan(i1pro *p, const char *what, int nread) {
 	if (armed)
 		i1pro2_cq_ruler_arm(p, 1);
 #endif
+	in_lit_scan = 1;
 	ev = i1pro_read_patches_1(p, 10, maxn, &inttime, 0, &nmeas, buf, bsize);
+	in_lit_scan = 0;
 	if (m->trig_thread != NULL) {
 		m->trig_thread->del(m->trig_thread);
 		m->trig_thread = NULL;
@@ -430,6 +458,103 @@ static void ruler_life(const char *name, devType dtype, int caps2,
 	}
 	if (lights)
 		i1pro2_cq_lights_end(p);
+	free(p->icom);
+	p->icom = NULL;
+	printf("%s END\n", scn);
+	fflush(stdout);
+}
+#endif
+
+#ifndef CQ_BASE
+/* 4.3.38: the lights (result signals) and the ruler check, each off and on,
+ * on an i1Pro 2 under the slow instrument: one life of a calibration and
+ * four strips as the helper and i1pro.c make the calls (read_strip: the
+ * reading hooks around a dark trigger and the lit scan; the helper's green
+ * or red after it). With the lights on, every trigger after a light write
+ * must come at least the quiet time after it (rule B: no LOST), no light
+ * write may come between a press and that strip's data (rule A: no
+ * WR-IN-READING), and with the ruler on every strip must still be recorded
+ * (the hold comes before the reader starts, so it cannot starve it). */
+static void combo_held(int ms) {
+	(void)ms;
+	printf("%s HELD\n", scn);
+	fflush(stdout);
+}
+
+static void combo_trigger(i1pro *p, i1p_mmodif mod, const char *what) {
+	i1proimp *m = (i1proimp *)p->m;
+	double inttime = m->min_int_time;
+	printf("%s STEP %s\n", scn, what);
+	fflush(stdout);
+	trig_sent = 0;
+	if (i1pro_trigger_one_measure(p, 1, &inttime, 0, mod) != I1PRO_OK)
+		printf("%s TRIGGER-FAILED\n", scn);
+	amutex_unlock(m->rd_sync.condx);
+	if (m->trig_thread != NULL) {
+		m->trig_thread->del(m->trig_thread);
+		m->trig_thread = NULL;
+	}
+}
+
+static void combo_life(const char *name, int lights, int ruler, int quiet_ms) {
+	static const char *strips[4] = { "strip-A", "strip-B", "strip-C", "strip-D" };
+	static const int verdict[4] = { 1, 0, 1, 1 };	/* B refused: red */
+	i1pro *p;
+	int k;
+	char b[48];
+	scn = name;
+	ruler_mode = "clean";
+	r_reads = r_maxsize = r_cancels = r_clearhalts = 0;
+	r_cancel_hit = 0;
+	last_wr_end = 0;
+	in_reading = 0;
+	i1pro2_cq_lights_quiet_ms_for_test = quiet_ms;
+	slow_w = (quiet_ms > 0 ? quiet_ms : 2100) - 1;
+	p = make(instI1Pro2, 0x18);		/* ruler sensor and indicator lights */
+	pace = 1;
+	if (lights) {
+		i1pro2_cq_lights_options(p, 1, 0);
+		printf("%s LIGHTS %d\n", scn, i1pro2_cq_lights_begin(p));
+		i1pro2_cq_lights_held = combo_held;
+	}
+	if (ruler)
+		printf("%s OPTIONS %d\n", scn, i1pro2_cq_ruler_options(p, 1));
+	/* the calibration (i1pro_calibrate): dark, white, then the ready light */
+	combo_trigger(p, i1p_dark_cal, "cal-dark");
+	combo_trigger(p, i1p_cal, "cal-white");
+	i1pro2_cq_lights_ready(p);
+	for (k = 0; k < 4; k++) {
+		snprintf(b, sizeof(b), "%s-press", strips[k]);
+		printf("%s STEP %s\n", scn, b);
+		fflush(stdout);
+		in_reading = 1;
+		i1pro2_cq_lights_reading(p, 1);
+			combo_trigger(p, i1p_dark_cal, "read-dark");
+			armed = ruler;
+		scan(p, strips[k], 120);
+		armed = 0;
+		i1pro2_cq_lights_after_read(p);
+		if (in_reading) {
+			printf("%s NO-DATA\n", scn);
+			in_reading = 0;
+		}
+		if (lights) {
+			printf("%s STEP %s\n", scn, verdict[k] ? "helper-green" : "helper-red");
+			fflush(stdout);
+			i1pro2_cq_lights_result(p, verdict[k]);
+		}
+	}
+	pace = 0;
+	if (ruler) {
+		printf("%s READS85 %d max=%d\n", scn, r_reads > 0, r_maxsize);
+		i1pro2_cq_ruler_close(p);
+	}
+	if (lights) {
+		printf("%s LIGHTS-END %d\n", scn, i1pro2_cq_lights_end(p));
+		i1pro2_cq_lights_held = NULL;
+	}
+	slow_w = 0;
+	i1pro2_cq_lights_quiet_ms_for_test = 0;
 	free(p->icom);
 	p->icom = NULL;
 	printf("%s END\n", scn);
@@ -519,6 +644,14 @@ int main(void) {
 	ruler_life("on_revad", instI1Pro, 0x08, "clean", 0);
 	/* with the lights on (signals): both work, independently */
 	ruler_life("on_clean_lights", instI1Pro2, 0x18, "clean", 1);
+	/* 4.3.38: the lights and the ruler, each off and on, under the slow
+	 * instrument (the quiet time 150 ms, the window one ms short of it), and
+	 * both on once with ChromIQ's own 2100 ms */
+	combo_life("combo_lights0_ruler0", 0, 0, 150);
+	combo_life("combo_lights0_ruler1", 0, 1, 150);
+	combo_life("combo_lights1_ruler0", 1, 0, 150);
+	combo_life("combo_lights1_ruler1", 1, 1, 150);
+	combo_life("combo_full_lights1_ruler1", 1, 1, 0);
 	/* readings faster than the clock: the rate guard */
 	{
 		ruler_mode = "clean";

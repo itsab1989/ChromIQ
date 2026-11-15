@@ -2819,10 +2819,11 @@ def _notes_sample_ctx() -> dict:
             "project": "My printer profile"}
 
 
-def _draw_wordmark_h(canvas: Image.Image, draw: "ImageDraw.ImageDraw",
-                     x: float, top: float, height: float, max_w: float) -> float:
-    """Draw the ChromIQ wordmark (serif "Chrom" + italic-magenta "IQ") left-
-    anchored in a band of *height* at (x, top); returns the width consumed."""
+def _wordmark_h_fit(draw: "ImageDraw.ImageDraw", height: float,
+                    max_w: float) -> tuple:
+    """The size `_draw_wordmark_h` sets the wordmark at in a band of *height*
+    no wider than *max_w*: ``(font, IQ tile, IQ baseline in the tile, IQ
+    tile's left pad, "Chrom"'s advance, kern)``."""
     size = max(8, int(height * 0.74))
     f = _font(size, WORDMARK_FONT)
     for _ in range(24):
@@ -2838,6 +2839,27 @@ def _draw_wordmark_h(canvas: Image.Image, draw: "ImageDraw.ImageDraw",
         size = int(size * 0.9)
         if size <= 8:
             break
+    return f, iq_tile, iq_base, iq_left, chrom_w, kern
+
+
+def wordmark_h_baseline(top: float, height: float,
+                        max_w: float = 1e9) -> float:
+    """Where `_draw_wordmark_h` puts the wordmark's baseline (px) for a band
+    of *height* at *top*: "Chrom" and "IQ" both sit on it. The i1iSis chart
+    sets its name line on the same baseline (workflow/isis/chart.py)."""
+    from PIL import Image, ImageDraw
+    d = ImageDraw.Draw(Image.new("L", (1, 1)))
+    f = _wordmark_h_fit(d, height, max_w)[0]
+    asc, desc = f.getmetrics()
+    return top + height * 0.5 + (asc - desc) / 2
+
+
+def _draw_wordmark_h(canvas: Image.Image, draw: "ImageDraw.ImageDraw",
+                     x: float, top: float, height: float, max_w: float) -> float:
+    """Draw the ChromIQ wordmark (serif "Chrom" + italic-magenta "IQ") left-
+    anchored in a band of *height* at (x, top); returns the width consumed."""
+    f, iq_tile, iq_base, iq_left, chrom_w, kern = _wordmark_h_fit(
+        draw, height, max_w)
     asc, desc = f.getmetrics()
     baseline = top + height * 0.5 + (asc - desc) / 2
     try:

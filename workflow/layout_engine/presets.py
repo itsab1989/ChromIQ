@@ -240,6 +240,31 @@ class LayoutRecipe:
     #: other values for every other chart. Written only for "IO2" when set.
     i1io_numbers_edge_mm: "float | None" = None
     i1io_text_align: str = ""
+    #: THE i1iSis CHART'S OWN OPTIONS (a Beta, `workflow.isis.chart`): the
+    #: model width ("" / "standard" or "xl"), the header length, tight
+    #: margins, the barcode, the trailer, the feed arrows, the dashed
+    #: outline, the corner labels, WHERE the strip letters go ("top" or
+    #: "bottom"; whether they are drawn is the engine's own "Show strip
+    #: indicators", the row numbers its "Show row indicators"), the notes
+    #: band (on, place, height) and
+    #: the chart's alignment on the page ("" = top-left, i1Profiler's own).
+    #: Each is written to the dict and the build kwargs ONLY for an
+    #: "XRISIS" recipe that differs from the default
+    #: (`ISIS_FIELD_DEFAULTS`), so every other recipe is byte for byte as
+    #: before.
+    isis_model: str = ""
+    isis_header_mm: float = 32.0
+    isis_tight: bool = False
+    isis_barcode: bool = False
+    isis_trailer_mm: float = 25.5
+    isis_arrows: bool = True
+    isis_outline: bool = True
+    isis_corner_labels: bool = True
+    isis_strip_letters: str = "top"
+    isis_notes_band: bool = False
+    isis_notes_place: str = "header"
+    isis_notes_height_mm: float = 24.0
+    isis_align: str = ""
     # Layout strategy (#93, Knut). "patch_first" (default) = size the patches
     # (above) and fit as many as possible to the page. "area_first" = fit a
     # target grid into the usable area and SIZE the patches to fill it:
@@ -488,6 +513,9 @@ class LayoutRecipe:
             d.pop("i1io_numbers_edge_mm", None)
         if self.instrument != "IO2" or not self.i1io_text_align:
             d.pop("i1io_text_align", None)
+        for _f, _dflt in ISIS_FIELD_DEFAULTS.items():
+            if self.instrument != "XRISIS" or d.get(_f) == _dflt:
+                d.pop(_f, None)
         d[HIDES_PATCH_CONTROLS_KEY] = True      # B8-1570; not a field
         # Left out at 0, so a recipe that does not move its labels sideways
         # writes exactly the dict it wrote before the field existed (see the
@@ -575,6 +603,7 @@ class LayoutRecipe:
                                   is None
                                   else float(d["i1io_numbers_edge_mm"])),
             i1io_text_align=str(d.get("i1io_text_align") or ""),
+            **{_f: d[_f] for _f in ISIS_FIELD_DEFAULTS if _f in d},
             show_strip_indicators=bool(d.get("draw_indicators", True)),
             show_row_indicators=(None if d.get("row_indicators") is None
                                  else bool(d.get("row_indicators"))),
@@ -872,6 +901,13 @@ class LayoutRecipe:
             kw["i1io_numbers_edge_mm"] = float(self.i1io_numbers_edge_mm)
         if self.instrument == "IO2" and self.i1io_text_align:
             kw["i1io_text_align"] = self.i1io_text_align
+        # The i1iSis chart's own options, only those that differ from its
+        # defaults (see the fields).
+        if self.instrument == "XRISIS":
+            for _f, _dflt in ISIS_FIELD_DEFAULTS.items():
+                _v = getattr(self, _f)
+                if _v != _dflt:
+                    kw[_f] = _v
         # Only when it moves anything, so the kwargs of every chart that does
         # not use it are the ones it had before the field existed.
         if self.strip_label_offset_x_mm:
@@ -883,6 +919,24 @@ class LayoutRecipe:
         if not self.clip_border_free_space:
             kw["clip_border_free_space"] = False
         return kw
+
+
+#: The i1iSis recipe fields and their defaults (`LayoutRecipe.isis_*`).
+ISIS_FIELD_DEFAULTS: dict = {
+    "isis_model": "",
+    "isis_header_mm": 32.0,
+    "isis_tight": False,
+    "isis_barcode": False,
+    "isis_trailer_mm": 25.5,
+    "isis_arrows": True,
+    "isis_outline": True,
+    "isis_corner_labels": True,
+    "isis_strip_letters": "top",
+    "isis_notes_band": False,
+    "isis_notes_place": "header",
+    "isis_notes_height_mm": 24.0,
+    "isis_align": "",
+}
 
 
 def default_recipe(instrument: str = "i1", paper: str = "A4", *, mode: str | None = None
@@ -899,6 +953,29 @@ def default_recipe(instrument: str = "i1", paper: str = "A4", *, mode: str | Non
             r.inter_patch_mm = r.strip_gap_mm = 1.0
             r.fd9_gap_mm = None
             r = fd9_fixed_fields(r)
+    if instrument == "XRISIS":
+        from workflow.isis.support import isis_enabled
+        if isis_enabled():
+            # i1Profiler's own default chart (`workflow.isis.chart_facts`):
+            # 6 x 6 mm patches, no spacers or gaps, patch-first, 5 mm margins,
+            # the chart top-left, no clip border, no helper markers.
+            from workflow.isis import chart_facts as _IF
+            r.patch_w_mm = r.patch_h_mm = _IF.PATCH_DEFAULT_MM.value
+            r.spacer_mode, r.spacer_on = "none", False
+            r.inter_patch_mm = r.strip_gap_mm = 0.0
+            r.edge_spacers = False
+            r.layout_mode = "patch_first"
+            r.clip_content_mode = "off"
+            r.helper_markers = False
+            r.use_instrument_margins = False
+            r.nolimit = True
+            _m = _IF.MARGIN_DEFAULT_MM.value
+            r.margin_top = r.margin_right = _m
+            r.margin_bottom = r.margin_left = _m
+            r.patch_area_align = "top-left"
+            # no strip letters or row numbers by default, as i1Profiler
+            r.show_strip_indicators = False
+            r.show_row_indicators = False
     if instrument == "IO2":
         from workflow.i1io.support import i1io_enabled
         if i1io_enabled():

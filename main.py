@@ -300,6 +300,9 @@ def main() -> int:
     # …and i1iO table support (Preferences > Beta), the same way.
     from workflow.i1io.support import latch_from as _latch_i1io
     _latch_i1io(settings)
+    # …and i1iSis charts (Preferences > Beta), the same way.
+    from workflow.isis.support import latch_from as _latch_isis
+    _latch_isis(settings)
 
     # Heavy UI import + construction, now visibly covered by the splash.
     from ui.main_window import MainWindow

@@ -495,13 +495,6 @@ parameters:
              legge ogni tassello individualmente, stipando molti più
              colori per foglio di qualsiasi lettore a strisce.
 
-          •  i1iSis (via i1Profiler) — lettore automatico a fogli.
-             ChromIQ non può pilotare direttamente questo dispositivo: al
-             suo posto salva la lista tasselli nel formato proprio di
-             i1Profiler accanto al grafico, e tu completi il flusso là
-             (stampa, scansione, creazione profilo). Le schede Stampa e
-             Misura di ChromIQ non vengono usate per questo dispositivo.
-
         Scegliere lo strumento sbagliato produce un grafico che il tuo
         dispositivo non può allineare o leggere in modo affidabile —
         durante la misura vedrai \"patches not found\" o errori di
@@ -515,7 +508,7 @@ parameters:
         - "CR30 (tassello per tassello)"
         - "FD-9"
         - "i1iO 2 + i1Pro 2"
-        - "i1iSis (via i1Profiler)"
+        - "Famiglia i1iSis"
     "-h":
       name: "Double density"
       tooltip_title: "Double density (-h)"

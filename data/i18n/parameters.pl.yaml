@@ -492,13 +492,6 @@ parameters:
              każde pole z osobna, upychając znacznie więcej kolorów na
              arkusz niż jakikolwiek czytnik pasków.
 
-          •  i1iSis (przez i1Profiler) — automatyczny czytnik arkuszy.
-             ChromIQ nie może sterować tym urządzeniem bezpośrednio:
-             zamiast tego zapisuje listę pól w formacie i1Profiler obok
-             wzorca, a ty kończysz przepływ tam (druk, skan, budowa
-             profilu). Karty Drukuj i Zmierz ChromIQ nie są używane z
-             tym urządzeniem.
-
         Wybór złego przyrządu daje wzorzec, do którego urządzenie nie
         umie się wyrównać ani go pewnie odczytać — przy pomiarze
         zobaczysz „patches not found” albo błędy wyrównania. W trybie
@@ -511,7 +504,7 @@ parameters:
         - "CR30 (pole po polu)"
         - "FD-9"
         - "i1iO 2 + i1Pro 2"
-        - "i1iSis (przez i1Profiler)"
+        - "Rodzina i1iSis"
     "-h":
       name: "Double density"
       tooltip_title: "Double density (-h)"

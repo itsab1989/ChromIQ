@@ -4005,7 +4005,7 @@ class TiffPreview(QWidget):
         hl.addWidget(self._filename_lbl)
 
         # Advisory banner — shown only when something noteworthy needs to be
-        # communicated about the preview (e.g. i1iSis layout-only preview).
+        # communicated about the preview.
         # Hidden by default so it consumes no vertical space.
         self._banner_lbl = QLabel("", header)
         self._banner_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)

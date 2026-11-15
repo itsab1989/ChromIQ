@@ -1,13 +1,13 @@
-"""Which USB step failed, and the i1Pro 2's paused Beta parts (4.3.36).
+"""Which USB step failed (4.3.36), and the end of the i1Pro 2's pause (4.3.38).
 
 A tester's real i1Pro 2 ended strips with "The instrument lost communication
 with the computer", and nothing said which transfer had failed (the helper
 sent ``"detail":""``; ArgyllCMS's driver folds every USB error into one code).
 Since 4.3.36 the helper WATCHES the instrument's USB entry points
 (native/chartread_helper/chromiq_usbwatch.c) and puts the first failed
-transfer of the reading into the error event. And until a tester confirms a
-fix, an i1Pro 2 is given neither lights choice and no ruler check
-(native/chartread_helper/cq_beta_pause.h).
+transfer of the reading into the error event. 4.3.36 also paused an i1Pro 2's
+lights choices and its ruler check (native/chartread_helper/cq_beta_pause.h);
+4.3.37 ended the lights' pause and 4.3.38 the ruler's, and the header is gone.
 
 Both are proved here on the FAKE USB layer, through the REAL vendored driver:
 
@@ -168,7 +168,7 @@ def test_the_watched_ruler_scans_match_the_base_fixture(runs, scn):
 
 
 # ---------------------------------------------------------------------------
-# The i1Pro 2's paused choices, and the i1Pro 3's unchanged ones
+# Every stored choice as the helper hands it on (4.3.36 paused the i1Pro 2's)
 # ---------------------------------------------------------------------------
 COMBOS = ["ready_off", "signals_off", "ready_lefton", "signals_lefton"]
 
@@ -198,26 +198,28 @@ def test_an_i1pro3_gets_what_4_3_35_gave_it(runs, combo):
     assert _wire(_lines(t, f"v4336_{combo}")) == _wire(_lines(t, f"on_{combo}"))
 
 
-def test_the_pause_lives_in_the_helper_in_one_place():
+def test_nothing_is_paused_any_more():
+    """4.3.38: the pause header is gone, the helper hands both generations
+    the stored choices, and the ruler session is 4.3.35's (the i1Pro 2 armed
+    as then: its driver's options, firmware and sensor)."""
+    assert not (HELPER_SRC / "cq_beta_pause.h").exists()
     src = (HELPER_SRC / "chromiq_chartread.c").read_text(
         encoding="utf-8", errors="surrogateescape")
+    assert '#include "cq_beta_pause.h"' not in src
+    assert "cq_lights_choices_for" not in src and "cq_ruler_paused_for" not in src
     sess = src[src.index("static void cq_lights_for_session("):]
     sess = sess[:sess.index("\n}\n")]
-    assert "cq_lights_choices_for(cq_lights_gen, cq_lights_signals," in sess
-    assert "i1pro2_cq_lights_options(it, sig, left);" in sess
-    assert "i1pro3_cq_lights_options(it, sig, left);" in sess
-    assert "_cq_lights_options(it, cq_lights_signals" not in sess
-    hdr = (HELPER_SRC / "cq_beta_pause.h").read_text(encoding="utf-8")
-    # 4.3.37: the lights are no longer paused, the ruler check still is
-    assert "if (gen == 2) {" not in hdr and "return 0;" in hdr
-    assert "return gen == 2;" in hdr
-    # the ruler: for an i1Pro 2 nothing of the driver is called
+    assert ("i1pro2_cq_lights_options(it, cq_lights_signals, "
+            "cq_lights_left_on);") in sess
+    assert ("i1pro3_cq_lights_options(it, cq_lights_signals, "
+            "cq_lights_left_on);") in sess
     rul = src[src.index("static void cq_ruler_for_session("):]
     rul = rul[:rul.index("\n}\n")]
-    paused = rul[rul.index("it->dtype == instI1Pro2 && cq_ruler_paused_for(2)"):]
-    paused = paused[:paused.index("} else if")]
-    assert 'why = "paused";' in paused
-    assert "i1pro2_cq_ruler" not in paused
+    assert '"paused"' not in rul
+    two = rul[rul.index("} else if (it->dtype == instI1Pro2) {"):]
+    two = two[:two.index("} else if (it->dtype == instI1Pro3)")]
+    assert "i1pro2_cq_ruler_options(it, 1);" in two
+    assert "i1pro2_cq_ruler_firmware(it);" in two
 
 
 # ---------------------------------------------------------------------------

@@ -108,6 +108,15 @@ KEPT = {
 
 #: Fields that are not an option of an i1iO chart, and why.
 NOT_AN_I1IO_OPTION = {
+    # the i1iSis family's own options (a Beta), written only for an
+    # "XRISIS" recipe; tests/test_isis_every_option_persists.py
+    **dict.fromkeys(("isis_model", "isis_header_mm", "isis_tight",
+                     "isis_barcode", "isis_trailer_mm", "isis_arrows",
+                     "isis_outline", "isis_corner_labels",
+                     "isis_strip_letters",
+                     "isis_notes_band", "isis_notes_place",
+                     "isis_notes_height_mm", "isis_align"),
+                    "the i1iSis chart's own option; not the i1iO's"),
     "instrument": "the instrument itself, set by its own selector",
     "seed": "the shuffle seed of one build, not a setting",
     "seed_fixed": "kept by the randomisation row; walked for every "

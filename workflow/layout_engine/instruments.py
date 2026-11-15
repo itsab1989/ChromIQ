@@ -106,15 +106,16 @@ TARGET_INSTRUMENT_NAME: dict[str, str] = {
     # (`workflow.i1io.support`), so a later i1iO / i1iO 3 entry writes the
     # same name and no chart already made is renamed.
     "IO2": "X-Rite i1iO",
+    # X-Rite i1iSis family (a Beta, Preferences > Beta): one entry for the
+    # i1iSis, i1iSis 2 and their XL models (`workflow.isis.support`); the
+    # model width is recorded in the side file and a .ti2 keyword.
+    "XRISIS": "X-Rite i1iSis",
 }
 
 #: The schema of an i1iO chart's side file (`<stem>.i1io.json`), which the
 #: `.ti2` names in its `CHROMIQ_I1IO_LAYOUT` keyword so a chart that lost its
 #: side file is recognised as one.
 I1IO_LAYOUT_SCHEMA = 1
-
-# Instruments ChromIQ never lays out itself (delegated to i1Profiler).
-DELEGATED = {"isis"}
 
 def _fd9_on() -> bool:
     """FD-9 support (Preferences > Beta). Off, an FD-9 chart is a chart for an
@@ -128,6 +129,13 @@ def _i1io_on() -> bool:
     instrument the layout engine does not know, as in 4.3.32."""
     from workflow.i1io.support import i1io_enabled
     return i1io_enabled()
+
+
+def _isis_on() -> bool:
+    """i1iSis charts (Preferences > Beta). Off, an i1iSis chart is a chart for
+    an instrument the layout engine does not know."""
+    from workflow.isis.support import isis_enabled
+    return isis_enabled()
 
 
 def _inch(mm: float) -> float:
@@ -441,6 +449,7 @@ def default_ruler_mm(key: str) -> float:
 _MARGIN_LABEL_TO_KEY = {
     "i1Pro": "i1", "i1Pro 3+": "p3", "ColorMunki": "CM", "SpectroScan": "SS",
     "CR30": "CR30",   # friendly label == device key (#159)
+    "i1iSis (Beta)": "XRISIS",   # the i1iSis family (a Beta)
 }
 
 
@@ -778,6 +787,11 @@ def geom_from_build_kwargs(kw: dict) -> Geom:
         # the build (`workflow.i1io.chart.fixed_build_kwargs`).
         from workflow.i1io.chart import fixed_build_kwargs
         kw = fixed_build_kwargs(kw)
+    if kw.get("instrument") == "XRISIS" and _isis_on():
+        # What an i1iSis chart fixes, for the capacity estimate exactly as
+        # for the build (`workflow.isis.chart.fixed_build_kwargs`).
+        from workflow.isis.chart import fixed_build_kwargs as _isis_fixed
+        kw = _isis_fixed(kw)
     if kw.get("instrument") == "FD9" and _fd9_on():
         from workflow.fd9.chart import patch_dimensions
         w, h, gap = patch_dimensions(kw.get("patch_w") or 8.0, kw.get("patch_h"),
@@ -934,10 +948,28 @@ def _build_base(
                        extra_keywords=(
                            ("CHROMIQ_I1IO_LAYOUT", str(I1IO_LAYOUT_SCHEMA)),
                            ("CHROMIQ_I1IO_TABLE", "i1iO 2")))
+    if key == "XRISIS" and not _isis_on():
+        # i1iSis charts (Preferences > Beta) are off: no i1iSis entry.
+        raise ValueError(f"unknown instrument {key!r}")
+    if key == "XRISIS":
+        # A chart for the X-Rite i1iSis family, laid out by the engine as
+        # every ChromIQ chart is: a column is a strip, a row is the patch
+        # number down it, no spacers and no gaps (X-Rite's chart rules). The
+        # margins that put the grid where the bar and the diamonds need it,
+        # and everything else the chart fixes, come from
+        # `workflow.isis.chart.fixed_build_kwargs`; every number from
+        # `workflow.isis.chart_facts`. Unused cells at the end stay white
+        # (`padlrow=False`), as i1Profiler leaves them.
+        from workflow.isis import chart_facts as _IF
+        _p = _IF.PATCH_DEFAULT_MM.value
+        return replace(_build_base("SS", spacer_on=False),
+                       key="XRISIS",
+                       target_name=TARGET_INSTRUMENT_NAME["XRISIS"],
+                       plen=_p, pwid=_p, rrsp=_p, pspa=0.0, tspa=0.0,
+                       lcar=0.0, txhisl=0.0, rlwi=0.0, padlrow=False,
+                       extra_keywords=(("CHROMIQ_ISIS_LAYOUT", "1"),))
     if key == "CM" and hflag and density < 2:
         density = 2   # back-compat: hflag meant "rig" (double density)
-    if key in DELEGATED:
-        raise ValueError(f"instrument {key!r} is delegated to i1Profiler, not laid out here")
     if key not in TARGET_INSTRUMENT_NAME:
         raise ValueError(f"unknown instrument {key!r}")
 

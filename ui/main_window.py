@@ -1084,10 +1084,11 @@ class MainWindow(QMainWindow):
     def _on_chart_generated(
         self, tiffs: object, ti2: object, is_external_workflow: bool = False
     ) -> None:
-        if is_external_workflow:
-            # i1iSis: i1Profiler drives print + measure, so don't push the
-            # ChromIQ preview TIFFs or TI2 into those tabs.
-            return
+        # *is_external_workflow* was True for the printtarg entry "i1iSis (via
+        # i1Profiler)", whose chart skipped the Print and Measure tabs; that
+        # entry was removed by the owner's ruling of 2026-11-14, and every
+        # chart, an i1iSis chart of the Beta included, goes to both tabs.
+        del is_external_workflow
         tiff_list = list(tiffs)
         self._tab_print.load_tiffs(tiff_list)
         if ti2 and Path(ti2).exists():

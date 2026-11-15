@@ -3822,6 +3822,27 @@ class SettingsDialog(QDialog):
         _beta.addLayout(_i1iorow)
         _beta.addWidget(self._i1io_support_restart_hint)
 
+        # X-Rite i1iSis family charts (ChromIQ's layout, measured in
+        # i1Profiler). Restart to apply, like the i1iO (`workflow.isis.
+        # support`). Switching it ON asks first (`_on_isis_charts_clicked`).
+        self._isis_charts_check = QCheckBox(
+            tr("X-Rite i1iSis charts (beta)"), self)
+        isis_charts_tip = TooltipButton(
+            tr("X-Rite i1iSis charts (beta)"), isis_charts_help(), self,
+            min_width=680)
+        self._isis_charts_restart_hint = QLabel(
+            tr("Takes effect after you restart ChromIQ."), self)
+        _ink(self._isis_charts_restart_hint, "#e6a23c", " font-size: 11px;")
+        self._isis_charts_restart_hint.setVisible(False)
+        self._isis_charts_check.toggled.connect(self._isis_charts_toggled)
+        self._isis_charts_check.clicked.connect(self._on_isis_charts_clicked)
+        _isisrow = QHBoxLayout()
+        _isisrow.addWidget(self._isis_charts_check)
+        _isisrow.addStretch()
+        _isisrow.addWidget(isis_charts_tip)
+        _beta.addLayout(_isisrow)
+        _beta.addWidget(self._isis_charts_restart_hint)
+
         # THE SPLASH ESCAPE HATCH, WITH A ROW OF ITS OWN.
         #
         # The setting existed and the changelog told users to reach for it, but
@@ -6249,7 +6270,13 @@ class SettingsDialog(QDialog):
         sel = QGridLayout()
         sel.addWidget(QLabel(tr("Instrument:"), self), 0, 0)
         self._margin_instr = NoScrollComboBox(self)
-        self._margin_instr.addItems(list(self._MARGIN_INSTRUMENTS))
+        _margin_instruments = list(self._MARGIN_INSTRUMENTS)
+        # The i1iSis family (a Beta, restart to apply): its own limits, only
+        # while it is offered (`workflow.isis.support`).
+        from workflow.isis.support import THRESHOLD_LABEL, isis_enabled
+        if isis_enabled():
+            _margin_instruments.append(THRESHOLD_LABEL)
+        self._margin_instr.addItems(_margin_instruments)
         sel.addWidget(self._margin_instr, 0, 1)
         sel.addWidget(QLabel(tr("Paper size:"), self), 0, 2)
         self._margin_paper = NoScrollComboBox(self)
@@ -6504,6 +6531,9 @@ class SettingsDialog(QDialog):
         self._i1io_support_check.setChecked(
             bool(s.get("i1io_support_beta", False)))
         self._i1io_support_toggled()
+        self._isis_charts_check.setChecked(
+            bool(s.get("isis_charts_beta", False)))
+        self._isis_charts_toggled()
         from workflow.fd9.support import stored_rotation as _fd9_rot
         _i = self._fd9_rotation_combo.findData(_fd9_rot(s))
         self._fd9_rotation_combo.setCurrentIndex(max(0, _i))
@@ -6802,6 +6832,53 @@ class SettingsDialog(QDialog):
         keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         if box.exec() != QMessageBox.StandardButton.Ok:
             self._i1io_support_check.setChecked(False)
+
+    def _isis_charts_toggled(self, *_a) -> None:
+        """i1iSis charts are restart-to-apply (`workflow.isis.support`): say
+        so while the box differs from what THIS run of ChromIQ is using."""
+        from workflow.isis.support import isis_enabled
+        self._isis_charts_restart_hint.setVisible(
+            self._isis_charts_check.isChecked() != isis_enabled())
+
+    def _on_isis_charts_clicked(self, checked: bool) -> None:
+        """i1iSis charts are switched on at the user's own risk, and the
+        window says so first: the i1iO's consent window
+        (`_on_i1io_support_clicked`), no icon, "Keep it off" the default,
+        the confirm marked as the risky choice. Nothing is asked on switching
+        off; switching on again asks again."""
+        if not checked:
+            return
+        from PyQt6.QtWidgets import (QDialogButtonBox, QMessageBox,
+                                     QSizePolicy, QSpacerItem)
+        from PyQt6.QtGui import QFontMetrics
+        box = QMessageBox(self)
+        box.setWindowTitle(tr("X-Rite i1iSis charts (beta)"))
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setText(isis_consent_text())
+        box.setStandardButtons(QMessageBox.StandardButton.Ok
+                               | QMessageBox.StandardButton.Cancel)
+        ok_btn = box.button(QMessageBox.StandardButton.Ok)
+        cancel_btn = box.button(QMessageBox.StandardButton.Cancel)
+        ok_btn.setText(tr("Turn it on"))
+        from ui.default_button import mark_destructive
+        mark_destructive(ok_btn)
+        cancel_btn.setText(tr("Keep it off"))
+        for b in (ok_btn, cancel_btn):
+            w = QFontMetrics(b.font()).horizontalAdvance(b.text()) + 44
+            b.setMinimumWidth(w)
+        bbox = box.findChild(QDialogButtonBox)
+        if bbox is not None:
+            bbox.setCenterButtons(True)
+        grid = box.layout()
+        if grid is not None:
+            grid.addItem(QSpacerItem(620, 1, QSizePolicy.Policy.Minimum,
+                                     QSizePolicy.Policy.Minimum),
+                         grid.rowCount(), 0, 1, grid.columnCount())
+        box.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        if box.exec() != QMessageBox.StandardButton.Ok:
+            self._isis_charts_check.setChecked(False)
 
     def _on_language_changed(self, _index: int) -> None:
         # Language is restart-to-apply (strings are translated at widget
@@ -8053,6 +8130,7 @@ class SettingsDialog(QDialog):
         s.set("i1profiler_turned_export", self._i1p_turned_check.isChecked())
         s.set("fd9_support_beta", self._fd9_support_check.isChecked())
         s.set("i1io_support_beta", self._i1io_support_check.isChecked())
+        s.set("isis_charts_beta", self._isis_charts_check.isChecked())
         s.set("fd9_display_rotation",
               int(self._fd9_rotation_combo.currentData() or 0))
         s.set("splash_classic", self._splash_classic_check.isChecked())
@@ -9204,11 +9282,12 @@ def i1pro2_lights_help() -> str:
            "measures. So after pressing the button, keep the instrument still "
            "on the white paper before the strip until it beeps: with the "
            "lights on, the beep can come up to about two seconds later than "
-           "usual. Start sliding at the beep. This has not yet been confirmed "
-           "on a real i1Pro 2. A "
-           "tester's page read without a single “lost communication” window "
-           "is what will confirm it. If you see that window with this option "
-           "on, please switch the option off and tell us."),
+           "usual. Start sliding at the beep. On 14 November 2026 a tester "
+           "confirmed with a real i1Pro 2 on Windows that the lights now "
+           "behave as described here. Whether the “lost communication” window "
+           "is gone for good has not been confirmed yet: pages read without a "
+           "single one are what will confirm it. If you see that window with "
+           "this option on, please switch the option off and tell us."),
         tr("**With this on, an i1Pro 2 shows, with “Ready light and result "
            "signals” (chosen for you when you switch this on):**\n"
            "  •  white when ChromIQ connects to it;\n"
@@ -9306,9 +9385,10 @@ def i1pro2_lights_help() -> str:
         tr("**Please read this: nobody on the ChromIQ team owns an i1Pro 2 "
            "or an i1Pro 3.** So far one tester has used the lights with a "
            "real i1Pro 2 (what was found there is why the i1Pro 2 now follows "
-           "i1Profiler's order, see above), and what this version sends to an "
-           "i1Pro 2 or an i1Pro 3 has not been tried on a real instrument with "
-           "ChromIQ yet. The two instruments use different light commands. For "
+           "i1Profiler's order, and a tester has since seen the new order "
+           "work, see above), and the lights have not been tried on a real "
+           "i1Pro 3 with ChromIQ yet. The two instruments use different light "
+           "commands. For "
            "each one, how the lights are switched was worked out from "
            "ArgyllCMS's own program code and from recordings of what X-Rite's "
            "i1Profiler sent to users' own instruments. ChromIQ sends only the "
@@ -9381,10 +9461,12 @@ def i1pro2_lights_confirmation() -> str:
         "every light change before the instrument measures, so a reading may "
         "start a moment later than you are used to. A tester found that an "
         "i1Pro 2 could lose its connection when the light changed just before "
-        "a reading. This new order has not yet been confirmed on a real "
-        "i1Pro 2.\n\n"
-        "•  What this version sends has not been tried on a real i1Pro 2 or "
-        "i1Pro 3 with ChromIQ yet. It was worked out from ArgyllCMS's program "
+        "a reading. A tester has since confirmed with a real i1Pro 2 "
+        "on Windows that the lights now behave as described; whether the "
+        "connection losses are gone for good has not been confirmed yet.\n\n"
+        "•  What this version sends to an i1Pro 3 has not been tried on a "
+        "real i1Pro 3 with ChromIQ yet. For both instruments it was worked "
+        "out from ArgyllCMS's program "
         "code and from recordings of X-Rite's i1Profiler with users' own "
         "instruments, and ChromIQ sends only light commands seen there, plus "
         "ArgyllCMS's own “off”. It never writes anything into the "
@@ -9410,24 +9492,29 @@ def ruler_check_help() -> str:
            "striped track, and the instrument counts the stripes as it "
            "passes. So it can tell how far it moved, in which direction and "
            "how fast. X-Rite's i1Profiler uses this on every strip."),
-        # 4.3.36 (native/chartread_helper/cq_beta_pause.h)
-        tr("**Paused for the i1Pro 2 in this version.** On an i1Pro 2 the "
-           "ruler check needs two extra switches in the measure command and "
-           "a ruler channel that is read during the strip, and this has "
-           "never been tried on a real instrument. While we look into a "
-           "problem a tester had with the i1Pro 2's lights, ChromIQ sends "
-           "none of it: with this option on, an i1Pro 2 is measured exactly "
-           "as with it off, and the measurement log says so once. It stays "
-           "paused until it has been tried step by step on a real i1Pro 2. "
-           "Your setting stays saved. On an i1Pro 3 the ruler check works as "
-           "described below, and nothing new is sent to it, because it "
-           "already reports its ruler to ArgyllCMS on every strip."),
+        # 4.3.38: back for the i1Pro 2 (4.3.36 and 4.3.37 paused it)
+        tr("**Back for the i1Pro 2, and confirmed on one strip so far.** "
+           "ChromIQ 4.3.36 and 4.3.37 paused the ruler check for the i1Pro 2 "
+           "while a problem with its lights was looked into. It works again "
+           "now, the same way as before the pause, together with what was "
+           "added since for both instruments (described below). What has "
+           "been confirmed on a real i1Pro 2 is one strip, in one tester's "
+           "log: the instrument read the strip normally, and the ruler "
+           "counted cleanly along the whole strip, in one direction, as far "
+           "as the strip was long. Nothing more has been confirmed on a real "
+           "i1Pro 2 yet: not other strips, not other firmware, not other "
+           "computers."),
         tr("With this option on, ChromIQ's chart-reading engine uses the "
            "ruler to CHECK each strip. After every strip the Measure log "
            "shows how far, which way and how fast the instrument moved. "
            "When ChromIQ has accepted a strip but the ruler says the "
            "instrument clearly did not pass over all of its patches, "
-           "ChromIQ asks whether you would like to read that strip again."),
+           "ChromIQ asks whether you would like to read that strip again. "
+           "It also asks when the ruler says the instrument moved the same "
+           "way as on your other strips, but the strip was saved as if it "
+           "had been read the other way round: then it may have been saved "
+           "back to front. A strip the reader could not read is noted in "
+           "the diagnostics file with the reader's reason."),
         tr("Your readings are never changed by this. The colour values and "
            "which reading belongs to which patch are worked out exactly as "
            "without the option. When the ruler data is missing or "
@@ -9444,17 +9531,17 @@ def ruler_check_help() -> str:
            "unusual, ChromIQ stops using it for the rest of the measurement "
            "and says so in the log."),
         tr("ChromIQ's own program code is checked to work out the readings "
-           "exactly as before. Whether an i1Pro 2 itself behaves exactly "
-           "the same while it reports its ruler has not been measured by "
-           "the project, because nobody on the project owns one. On a Mac, "
+           "exactly as before. Whether an i1Pro 2 itself always behaves "
+           "exactly the same while it reports its ruler has not been "
+           "measured by the project, because nobody on the project owns one: "
+           "the one strip in the tester's log was read as usual. On a Mac, "
            "if the ruler signal of an i1Pro 2 does not end by itself, "
            "ChromIQ ends it on the computer's side when the instrument is "
            "let go, which macOS follows with one standard reset request on "
            "that channel."),
-        tr("Every measurement with this option on and an i1Pro 3 writes a "
-           "small diagnostics file into the run's “reports” folder, named "
-           "“ruler_diagnostics_” with the date and time (with an i1Pro 2 none "
-           "is written while the check is paused for it). The Measure log "
+        tr("Every measurement with this option on writes a small diagnostics "
+           "file into the run's “reports” folder, named "
+           "“ruler_diagnostics_” with the date and time. The Measure log "
            "names the file. It holds how the instrument moved along the "
            "ruler, where the patches were found, why a strip that could not "
            "be read was refused, the chart's layout and a "
@@ -9464,11 +9551,20 @@ def ruler_check_help() -> str:
            "names. "
            "Sending it to us (in the ChromIQ forum thread or on GitHub) helps "
            "us make the ruler check, and later perhaps a better way of "
-           "finding patches, work well with ChromIQ's own charts."),
+           "finding patches, work well with ChromIQ's own charts. With an "
+           "i1Pro 2 this file is what we would most like to receive, "
+           "together with a word on whether the strips were read correctly."),
         tr("This is a beta, and its limits are provisional. It works only "
            "with ChromIQ's chart-reading engine and strips read by hand. "
            "Other instruments and the ArgyllCMS reading path are not "
-           "affected. It works together with the instrument lights option."),
+           "affected. It can be used together with the instrument lights "
+           "option."),
+        tr("**With an i1Pro 2, please try the lights and the ruler check one "
+           "at a time first.** Switch on one of the two beta options, read a "
+           "page, then switch it off and try the other. If something goes "
+           "wrong, we then know which of the two it was. Both options "
+           "together have been checked on a simulated instrument only, not "
+           "yet on a real i1Pro 2."),
         tr("With this off (the default), nothing changes: the instrument is "
            "driven exactly as before."),
         tr("**Default:** off")))
@@ -9483,16 +9579,18 @@ def ruler_check_confirmation() -> str:
         "the instrument moved along its ruler, and asks about a strip the "
         "ruler says was not read all the way. Your readings themselves are "
         "never changed.\n\n"
-        "•  For the i1Pro 2 the ruler check is paused in this version, until "
-        "it has been tried step by step on a real instrument: an i1Pro 2 is "
-        "measured exactly as with this option off. An i1Pro 3 gets nothing "
-        "new, because it already reports its ruler on every strip. The "
-        "ruler check has not been tried on a real instrument by the project "
-        "yet.\n\n"
-        "•  Each measurement with an i1Pro 3 writes a small diagnostics "
-        "file without a serial number or personal data, which you can send "
-        "us to help. With an i1Pro 2 no file is written while the check is "
-        "paused.\n\n"
+        "•  An i1Pro 2 is asked to report its ruler while a strip is read, "
+        "as X-Rite's i1Profiler does. On a real i1Pro 2 this has been "
+        "confirmed for one strip in a tester's log so far, nothing more. An "
+        "i1Pro 3 gets nothing new, because it already reports its ruler on "
+        "every strip. Nobody on the ChromIQ team owns either instrument.\n\n"
+        "•  With an i1Pro 2, please try the lights and the ruler check one at "
+        "a time first, not both at once, so that we know which one it was "
+        "if something goes wrong.\n\n"
+        "•  Each measurement writes a small diagnostics file into the run's "
+        "“reports” folder (“ruler_diagnostics_” with the date and time), "
+        "without a serial number or personal data. It is what we would most "
+        "like to receive from you.\n\n"
         "•  You use it at your own risk. If the instrument does not start, "
         "readings look different or strips fail more often, switch this "
         "off, unplug the instrument and plug it back in, and tell us what "
@@ -9668,5 +9766,86 @@ def i1io_consent_text() -> str:
            "at your own risk. X-Rite no longer services these tables, so if "
            "anything ever behaves in a way you do not expect, stop and tell "
            "us what you saw in the project's GitHub issues. Every report "
+           "helps."),
+        tr("Would you like to switch it on?")))
+
+
+# ---- X-Rite i1iSis charts (Beta) ---------------------------------------------
+#
+# ChromIQ MAKES the charts; i1Profiler measures them. The one sentence to
+# change when importing several pages arrives is the "Today" paragraph.
+
+def isis_charts_help() -> str:
+    """The (i) of Preferences > Beta > "X-Rite i1iSis charts (beta)"."""
+    return "\n\n".join((
+        tr("The X-Rite i1iSis family (the i1iSis, the i1iSis 2 and their XL "
+           "models) are automatic chart readers. You feed the printed sheet "
+           "into a slot, and the instrument finds a black bar and a small "
+           "black diamond at both ends of every row of patches and reads the "
+           "whole sheet by itself."),
+        tr("ChromIQ cannot talk to these instruments, and it sends nothing "
+           "to them. What this option adds is the chart: ChromIQ lays it out "
+           "with its own layout engine, following X-Rite's published chart "
+           "design rules and the layout X-Rite's i1Profiler 3.8.8 computes "
+           "for the same settings, and saves an i1Profiler test chart file "
+           "(.txf) with it. Loaded in i1Profiler, that file makes i1Profiler "
+           "expect exactly the sheet ChromIQ printed. You measure the sheet "
+           "in i1Profiler and bring the measurement back into ChromIQ with "
+           "Import Measurement."),
+        tr("What turning this on adds, after a restart of ChromIQ:\n"
+           "  •  Create Chart: “i1iSis family” in the Instrument list of "
+           "Guided and of Manual, with a choice for the XL models' wider "
+           "sheets. The defaults give the same chart i1Profiler makes by "
+           "default: 6 × 6 mm patches, 5 mm page margins, the black bar 32 mm "
+           "from the chart's top edge, no barcode. In Manual nearly every "
+           "layout option stays open, as for the other instruments; only the "
+           "controls that would make the chart unreadable (gaps and spacers "
+           "between patches, offset strips, hexagons) are greyed. A notes "
+           "band in the header is there too, switched off by default.\n"
+           "  •  Measure: when you press Start with such a chart, ChromIQ "
+           "explains, step by step, how to measure it in i1Profiler."),
+        tr("Today a measurement of a one-page chart can be imported back. "
+           "Importing a measurement of a chart with several pages needs a "
+           "later version; measuring such a chart in i1Profiler already "
+           "works."),
+        tr("Please read this part carefully. Nobody on the ChromIQ team owns "
+           "an i1iSis, and no ChromIQ chart has been read by a real i1iSis "
+           "yet. Every number was checked against X-Rite's rules and against "
+           "charts i1Profiler drew, without an instrument. If you own one, "
+           "the most useful test is to print the default chart, load its "
+           ".txf in i1Profiler, measure it and tell us in the project's "
+           "GitHub issues what happened, with a photo of the sheet and a "
+           "screenshot of any message. Using this beta is at your own risk."),
+        tr("This option replaces the old Instrument entry “i1iSis (via "
+           "i1Profiler)”, which has been removed: that entry printed an "
+           "i1Pro chart that an i1iSis could not read."),
+        tr("If you turn this off again, an i1iSis chart stays as it is, and "
+           "when you press Start, ChromIQ tells you that it needs this "
+           "option."),
+        tr("With this off (the default), nothing else changes: the i1iSis is "
+           "not offered anywhere and ChromIQ works as before."),
+        tr("The change takes effect the next time you start ChromIQ."),
+        tr("**Default:** off")))
+
+
+def isis_consent_text() -> str:
+    """What the window asks when "X-Rite i1iSis charts (beta)" is ticked."""
+    return "\n\n".join((
+        tr("You are switching on charts for the X-Rite i1iSis family. Here "
+           "is what that means, in plain words."),
+        tr("ChromIQ makes the charts, and i1Profiler measures them. ChromIQ "
+           "sends nothing to the instrument."),
+        tr("•  The layout follows X-Rite's published chart design rules and "
+           "the layout i1Profiler 3.8.8 computes for the same settings. Both "
+           "were checked carefully, but without an instrument.\n\n"
+           "•  Nobody on the ChromIQ team owns an i1iSis, so no ChromIQ chart "
+           "has been read by a real i1iSis yet. Owners who try it are the "
+           "first to test it.\n\n"
+           "•  You can switch this off again at any time, and ChromIQ then "
+           "works as before."),
+        tr("Please read this part carefully: this is a beta, and using it is "
+           "at your own risk. If i1Profiler or the instrument refuses a "
+           "chart, or anything behaves in a way you do not expect, please "
+           "tell us what you saw in the project's GitHub issues. Every report "
            "helps."),
         tr("Would you like to switch it on?")))

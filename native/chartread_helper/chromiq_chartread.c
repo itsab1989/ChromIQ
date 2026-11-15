@@ -212,7 +212,6 @@ typedef struct {
 #define CHROMIQ_EXT 1
 #include "chromiq_ext.h"
 #include "chromiq_usbwatch.h"	/* CHROMIQ_EXT 4.3.36: which USB step failed */
-#include "cq_beta_pause.h"		/* CHROMIQ_EXT 4.3.36: Beta parts paused on the i1Pro 2 */
 
 /* CHROMIQ_EXT: ChromIQ owns measurement sound (#131, Knut 2026-07-26).
  *
@@ -1557,7 +1556,7 @@ static void cq_lights_failed3(int seq, int icom_err) {
 static void cq_lights_for_session(inst *it, int rmode, int emis, int trans,
                                   int displ) {
 	const char *why = NULL;
-	int choices = 0, paused = 0, sig = 0, left = 0;
+	int choices = 0;
 	if (!cq_i1pro2_lights || !cq_json)
 		return;
 	if (it == NULL || cq_replay_active()
@@ -1568,18 +1567,16 @@ static void cq_lights_for_session(inst *it, int rmode, int emis, int trans,
 	else {
 		static int registered = 0;
 		cq_lights_gen = it->dtype == instI1Pro3 ? 3 : 2;
-		/* The two choices, for both generations since 2026-11-14 (both 0 =
-		 * 4.3.33 on an i1Pro 2, 4.3.34 on an i1Pro 3). 4.3.36: an i1Pro 2
-		 * is given neither (cq_beta_pause.h); the i1Pro 3 both, as asked. */
-		paused = cq_lights_choices_for(cq_lights_gen, cq_lights_signals,
-		                               cq_lights_left_on, &sig, &left);
+		/* The two choices, for both generations since 2026-11-14, as asked
+		 * (4.3.36's pause of the i1Pro 2's, cq_beta_pause.h, ended with
+		 * 4.3.37's rebuilt order and is gone since 4.3.38). */
 		if (cq_lights_gen == 2) {
-			i1pro2_cq_lights_options(it, sig, left);
+			i1pro2_cq_lights_options(it, cq_lights_signals, cq_lights_left_on);
 			i1pro2_cq_lights_sent = cq_lights_sent2;
 			i1pro2_cq_lights_held = cq_lights_held2;
 			i1pro2_cq_lights_hold_poll = cq_lights_take_pending;	/* 4.3.37 M3 */
 		} else {
-			i1pro3_cq_lights_options(it, sig, left);
+			i1pro3_cq_lights_options(it, cq_lights_signals, cq_lights_left_on);
 			i1pro3_cq_lights_sent = cq_lights_sent3;
 		}
 		i1pro2_cq_lights_note = cq_lights_failed;
@@ -1604,20 +1601,7 @@ static void cq_lights_for_session(inst *it, int rmode, int emis, int trans,
 				cq_lights_poll = cq_lights_poll_fn;
 		}
 	}
-	if (why == NULL && paused != 0)
-		/* 4.3.36: which asked-for choices this instrument is not given. */
-		cq_emit_raw("{\"event\":\"lights\",\"active\":true,"
-		            "\"instrument\":\"%s\",\"signals\":%s,"
-		            "\"during_reading\":\"%s\",\"firmware\":%d,"
-		            "\"paused_signals\":%s,\"paused_during_reading\":%s}",
-		            cq_lights_gen == 3 ? "i1pro3" : "i1pro2",
-		            choices & 1 ? "true" : "false",
-		            choices & 2 ? "on" : "off",
-		            cq_lights_gen == 3 ? i1pro3_cq_lights_firmware(it)
-		                               : i1pro2_cq_lights_firmware(it),
-		            paused & CQ_PAUSED_SIGNALS ? "true" : "false",
-		            paused & CQ_PAUSED_LEFT_ON ? "true" : "false");
-	else if (why == NULL)
+	if (why == NULL)
 		cq_emit_raw("{\"event\":\"lights\",\"active\":true,"
 		            "\"instrument\":\"%s\",\"signals\":%s,"
 		            "\"during_reading\":\"%s\",\"firmware\":%d}",
@@ -1662,19 +1646,13 @@ static void cq_ruler_for_session(inst *it, int rmode, int emis, int trans,
 		cq_ruler_gen = cq_replay_ruler_gen();
 		if (cq_ruler_gen == 0)
 			why = "instrument";
-		else if (cq_ruler_paused_for(cq_ruler_gen))
-			why = "paused";		/* 4.3.36, cq_beta_pause.h */
 		else {
 			cq_ruler_replay = 1;
 			fw = cq_ruler_gen == 2 ? 634 : 105;
 			sensor = 1;
 		}
-	} else if (it->dtype == instI1Pro2 && cq_ruler_paused_for(2)) {
-		/* 4.3.36 (cq_beta_pause.h): nothing is asked of the driver, so the
-		 * wire is the option-off one. */
-		cq_ruler_gen = 2;
-		why = "paused";
 	} else if (it->dtype == instI1Pro2) {
+		/* 4.3.38: back as 4.3.35 shipped it (4.3.36 and 4.3.37 paused it). */
 		cq_ruler_gen = 2;
 		fw = i1pro2_cq_ruler_firmware(it);
 		sensor = i1pro2_cq_ruler_options(it, 1);

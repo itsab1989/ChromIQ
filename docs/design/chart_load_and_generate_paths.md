@@ -352,3 +352,17 @@ Used Chart redraws an i1iO chart only with the option on; off, it fails with a
 reason that names the option. The patch set editor opens an i1iO chart as one
 while the option is on and hands it back to Create Chart; off, it opens as in
 4.3.32.
+
+## i1iSis (Beta): creating and loading an i1iSis chart (2026-11-14)
+
+> **⏳ Awaiting confirmation. Confirmed by:** *nobody yet.* With the Beta
+> "X-Rite i1iSis charts" on, every path that BUILDS a chart (Guided, Manual,
+> the three run types) builds an i1iSis chart with the layout engine only
+> (`ENGINE_ONLY_INSTRUMENTS`), writing `<stem>.isis.json` beside it and the
+> `.txf` and order file into `exports/`; every path that SHOWS a stored
+> chart carries `<stem>.isis.json` as a chart companion
+> (`CHART_COMPANION_SUFFIXES`, the duplicate and import groups) and writes
+> the `.txf` and order file again when a later build swept `exports/`
+> (`workflow.isis.export.ensure_export`). With the Beta off an i1iSis chart
+> is shown as it is and refused at Start (M-ISIS-SUPPORT-OFF); redrawing it
+> fails with the same words. See `isis_chart_support.md`.

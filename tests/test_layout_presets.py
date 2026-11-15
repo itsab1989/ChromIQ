@@ -141,6 +141,14 @@ def test_the_full_recipe_really_is_full():
         # tests/test_i1io_clip_border.py.
         "i1io_crosses", "i1io_align", "i1io_clip_border", "i1io_text_bold",
         "i1io_numbers_edge_mm", "i1io_text_align",
+        # i1iSis recipes only (written only for an "XRISIS" recipe, and the
+        # sample is an i1Pro's); their round trip through all four places:
+        # tests/test_isis_every_option_persists.py.
+        "isis_model", "isis_header_mm", "isis_tight", "isis_barcode",
+        "isis_trailer_mm", "isis_arrows", "isis_outline",
+        "isis_corner_labels", "isis_strip_letters",
+        "isis_notes_band", "isis_notes_place", "isis_notes_height_mm",
+        "isis_align",
     }
     missing = [f.name for f in fields(LayoutRecipe)
                if f.name not in skip and f"{f.name}=" not in src]

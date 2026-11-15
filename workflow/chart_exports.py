@@ -52,6 +52,33 @@ def write_colours_txt(ti1_path: str | Path, txt_path: str | Path) -> Path | None
     return txt_path
 
 
+def i1profiler_device_for(ti1_path: "str | Path") -> "str | None":
+    """The device i1Profiler itself names for the chart beside *ti1_path*,
+    or None to keep the ``.pxf`` exactly as it has always been written.
+
+    Only for the instruments whose Beta is on, and only then is the chart
+    file read: an i1iSis chart (`workflow.isis`) gets "i1iSis" or
+    "i1iSis XL" (its side file's model width), an i1iO chart (`workflow.
+    i1io`) "i1iO 2", the name in i1Profiler's own shipped i1iO 2 charts.
+    Every other chart keeps the long-standing default ("i1iSis"), so its
+    files stay byte for byte as they were. Never raises."""
+    try:
+        ti2 = Path(str(ti1_path)[:-4] + ".ti2") \
+            if str(ti1_path).lower().endswith(".ti1") else None
+        if ti2 is None or not ti2.is_file():
+            return None
+        from workflow.isis.support import (chart_names_isis, device_name,
+                                           isis_enabled, read_side_file)
+        if isis_enabled() and chart_names_isis(ti2):
+            return device_name((read_side_file(ti2) or {}).get("model"))
+        from workflow.i1io.support import chart_names_i1io, i1io_enabled
+        if i1io_enabled() and chart_names_i1io(ti2):
+            return "i1iO 2"
+    except Exception:  # noqa: BLE001 - the default name, never a failure
+        return None
+    return None
+
+
 def write_sidecars(ti1_path: str | Path, out_dir: str | Path,
                    base_name: str, also_shuffled: bool = False) -> list[Path]:
     """Write the colour list and i1Profiler pair into *out_dir*.
@@ -84,7 +111,9 @@ def write_sidecars(ti1_path: str | Path, out_dir: str | Path,
         txt, pxf = export_from_ti1(ti1_path, out_dir,
                                    base_name=f"{base_name}-i1profiler",
                                    descriptor=base_name,
-                                   also_shuffled=also_shuffled)
+                                   also_shuffled=also_shuffled,
+                                   measurement_device=i1profiler_device_for(
+                                       ti1_path))
         written += [q for q in (txt, pxf) if q is not None]
         if also_shuffled:
             for suffix in (".pxf", ".txt"):
@@ -99,4 +128,18 @@ def write_sidecars(ti1_path: str | Path, out_dir: str | Path,
             log.info("i1Profiler export skipped: %s", exc)
         else:
             log.warning("i1Profiler export failed", exc_info=True)
+    # An i1iSis chart (a Beta): the test chart that makes i1Profiler expect
+    # exactly this sheet, and its order file (`workflow.isis.export`).
+    try:
+        from workflow.isis.support import chart_names_isis, isis_enabled
+        ti2 = ti1_path.with_name(ti1_path.name[:-4] + ".ti2") \
+            if ti1_path.name.lower().endswith(".ti1") else None
+        if isis_enabled() and ti2 is not None and chart_names_isis(ti2):
+            from workflow.isis.export import write_isis_export
+            res = write_isis_export(ti2, out_dir, base_name)
+            written += res.written
+            if res.skipped:
+                log.info("%s", res.skipped)
+    except Exception:  # noqa: BLE001 - never block on the sidecars
+        log.warning("i1iSis i1Profiler export failed", exc_info=True)
     return written
