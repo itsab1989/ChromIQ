@@ -588,7 +588,8 @@ def test_the_colours_variant_does_not_call_it_harmless():
     title, body = m.render(strip="9")
     assert "back to front" in title
     assert "harmless" not in body and "likeliest" not in body
-    assert "Reading the strip again is the safe answer" in body
+    assert "Reading the strip again cannot make anything worse" in body
+    assert "safe" not in body
     assert "—" not in title + body
 
 

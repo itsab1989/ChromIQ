@@ -9486,11 +9486,11 @@ alone.
 >
 > For every strip, ChromIQ puts two things side by side: which way the instrument's ruler saw it move, and in which order the readings were saved. Together, they show how the sheet lay under the instrument. For strip {strip}, they show it lying the other way round from most of the strips you read just before it.
 >
-> On its own, that could mean that the sheet or the ruler was turned round. But ChromIQ also compared the colours of this strip with the colours the chart expects, and they suggest that the strip was saved back to front: taken the other way round, they fit the chart clearly better. In that case every patch of strip {strip} would carry the colour of another patch. Reading the strip again is the safe answer.
+> On its own, that could mean that the sheet or the ruler was turned round. But ChromIQ also compared the colours of this strip with the colours the chart expects, and they suggest that the strip was saved back to front: taken the other way round, they fit the chart clearly better. In that case every patch of strip {strip} would carry the colour of another patch. Reading the strip again cannot make anything worse, and it usually settles the question.
 >
 > What each button does:
 >
-> •  Re-read Strip: read strip {strip} again, from the white paper before the first patch to the white paper after the last, in one steady movement. The new reading replaces this one. This is the safe choice.
+> •  Re-read Strip: read strip {strip} again, from the white paper before the first patch to the white paper after the last, in one steady movement. The new reading replaces this one.
 >
 > •  Continue Anyway: keep what was just read and carry on with the next strip. Choose this only if you are sure that the strip was saved the right way round.
 >

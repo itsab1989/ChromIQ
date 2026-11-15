@@ -31,8 +31,11 @@ needs and nothing personal:
   ``mirror_de``, ``better_share`` and the ``verdict`` "saved", "other" or
   "unsure"), ``direction_confirmed_by_colours`` (the colours vouched for
   the saved order, so no window was shown and the log says so) and
-  ``voted`` (this reading counts towards the reference: only a reading
-  nothing was asked about does).
+  ``voted`` (this reading counted towards the reference at once) and
+  ``vote_waits_for`` (the questions whose answer this reading's vote waits
+  for: "read_twice" is cast on Keep, "ruler_direction" on Continue Anyway
+  only; empty when it voted at once or casts no vote, for example after a
+  question about its order).
 * NOT IN: a serial number (this code never reads one), calibration data,
   file paths, project, chart or user names.
 """
