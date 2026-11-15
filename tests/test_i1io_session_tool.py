@@ -819,3 +819,139 @@ def test_a_free_arm_pushed_off_its_place_stops_without_the_homing(tmp_path):
     assert code == 2 and sim.received == OPEN + lines[:lines.index(";p025", lines.index(";f12e")) + 1]
     assert "not where the step needed it" in log and "may stay free" in log
     assert prog.ASK_TOUCH not in [q for q, *_ in con.seen]
+
+
+# ---- guards pinned on their own (planted faults had survived the first pass) ----------------
+
+def test_the_arrival_boxes_are_five_units_and_six_off_stops(tmp_path):
+    assert tbl.AT_1000 == tbl.Box(995, 1005, 1495, 1505)
+    assert tbl.AT_250 == tbl.Box(1097, 1107, 245, 255)
+    assert tbl.AT_1498 == tbl.Box(1097, 1107, 1493, 1503)
+    assert tbl.AT_2507 == tbl.Box(2502, 2512, 1493, 1503)
+    lines = _lines("near")
+    at = len(OPEN) + lines.index(";m003e805dc012c06") + 5      # the p0 after ARRIVE
+    assert (OPEN + lines)[at] == ";p025"
+    for drift, ok in ((5.0, True), (6.0, False)):
+        sim = sim_mod.SimTable(jitter=False)
+        sim.inject_at(at, "drift", drift)
+        code, sim, log, con = _choose(tmp_path, {"near"}, sim=sim)
+        if ok:
+            assert sim.received == OPEN + lines
+        else:
+            assert code == 2 and sim.received == OPEN + lines[:lines.index(";m003e805dc012c06") + 6]
+
+
+def test_a_step_runs_at_most_once():
+    sim = sim_mod.SimTable()
+    d = tbl.Table(sim_mod.SimTransport(sim))
+    d.opening()
+    home = tbl.STEPS[STEP_KEYS.index("home")]
+    d.run_step(home)
+    assert not d.can_run(home)
+    n = len(d.t.writes)
+    with pytest.raises(tbl.Doubt):
+        d.run_step(home)
+    assert len(d.t.writes) == n
+
+
+def test_a_stop_noticed_inside_write_before_the_wire_writes_nothing(monkeypatch):
+    sim = sim_mod.SimTable()
+    d = tbl.Table(sim_mod.SimTransport(sim))
+    real_hold = tbl.hold_stop_signals
+
+    def hold():
+        d.request_stop()            # a Ctrl-C arriving between the checks and the write
+        return real_hold()
+    monkeypatch.setattr(tbl, "hold_stop_signals", hold)
+    with pytest.raises(tbl.Stopped):
+        d.exchange("identity")
+    assert d.t.writes == []
+
+
+def test_the_stop_signals_are_held_while_a_line_is_written():
+    sim = sim_mod.SimTable()
+    t = sim_mod.SimTransport(sim)
+    seen = []
+    real_write = t.write
+
+    def write(data):
+        seen.append(signal.SIGINT in signal.pthread_sigmask(signal.SIG_BLOCK, []))
+        real_write(data)
+    t.write = write
+    d = tbl.Table(t)
+    d.exchange("identity")
+    assert seen == [True]
+    assert signal.SIGINT not in signal.pthread_sigmask(signal.SIG_BLOCK, [])
+
+
+def test_the_memory_answers_are_logged_only_as_not_written_down(tmp_path):
+    code, sim, log, con = _run(tmp_path)
+    mem = [ln for ln in log.splitlines() if ln.startswith("RECV") and ":$u8" in ln]
+    assert len(mem) == 2 and all("not written down" in ln for ln in mem)
+
+
+def test_the_session_is_closed_for_sending_before_the_first_touch(tmp_path, monkeypatch):
+    seen = []
+    real_touch = prog.Session.touch
+
+    def touch(self, when):
+        seen.append(self.d.closed_reason)
+        n = len(self.d.t.writes)
+        with pytest.raises(tbl.Doubt):
+            self.d.exchange("status")
+        assert len(self.d.t.writes) == n
+        return real_touch(self, when)
+    monkeypatch.setattr(prog.Session, "touch", touch)
+    code, sim, log, con = _run(tmp_path)
+    assert code == 0 and seen and seen[0] in ("the table is closed", "the session is over")
+
+
+def _drive(sim, lines):
+    t = sim_mod.SimTransport(sim)
+    for line in lines:
+        t.write((line + "\r").encode())
+        while t.table.next_time() is not None or t.table.moving:
+            t.read(1.0)
+    return t
+
+
+@pytest.mark.parametrize("y", [121, 200, -2])
+def test_the_simulator_refuses_a_homing_outside_its_own_guard(y):
+    sim = sim_mod.SimTable(pos=[1102.0, float(y)], jitter=False)
+    t = _drive(sim, OPEN + [";s022", ";p025"])
+    with pytest.raises(sim_mod.SimViolation, match="not a place this copy allows"):
+        t.write(b";i12b\r")
+
+
+def test_the_simulator_refuses_a_move_with_the_arm_free_and_f1_away_from_rest():
+    sim = sim_mod.SimTable()
+    sim.free_arm = True
+    with pytest.raises(sim_mod.SimViolation, match="while the arm is free"):
+        sim._physics(";m0044e00fa012c0e")
+    sim = sim_mod.SimTable(pos=[1102.0, 1498.0])
+    with pytest.raises(sim_mod.SimViolation, match="away from the resting place"):
+        sim._physics(";f12e")
+
+
+def test_i1profiler_is_checked_again_right_before_the_first_touch(tmp_path, monkeypatch):
+    dev = FakeDev(cold=False)
+    calls, events = [], []
+
+    def running():
+        calls.append(1)
+        return len(calls) == 2
+    monkeypatch.setattr(sys, "stdin", _TTY())
+    monkeypatch.setattr(tbl, "check_usb_available", lambda: "pyusb test; libusb test")
+    monkeypatch.setattr(prog, "i1profiler_running", running)
+    monkeypatch.setattr(prog, "i1profiler_matches", lambda: ["a process named i1Profiler"])
+    monkeypatch.setattr(prog.Lock, "acquire", lambda self: True)
+    monkeypatch.setattr(tbl, "open_table", lambda: events.append("open"))
+
+    class C(Script):
+        def ask(self, question, choices=("yes", "no")):
+            events.append(question)
+            return super().ask(question, choices)
+    log = tmp_path / "l.txt"
+    assert prog.main(["--real", "--log", str(log)], console=C(dev.sim)) == 2
+    assert prog.ASK_TOUCH not in events and "open" not in events
+    assert "refused before the first touch" in log.read_text(encoding="utf-8")
