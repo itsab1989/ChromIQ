@@ -782,3 +782,50 @@ def test_each_window_and_each_way_of_leaving_it(qapp, tmp_path, kind, how,
     if kind != "cover":
         assert seen["name"] == "ruler_direction_window"
         assert ("back to front" in seen["title"]) == (kind == "other")
+
+
+# ---------------------------------------------------------------- MINOR-A
+def _lost(summ):
+    return [ln for ln in summ["log_lines"]
+            if "do not agree about which way round the sheet lies" in ln]
+
+
+def test_two_wrong_answers_in_a_row_say_the_reference_is_lost(tmp_path):
+    """The reviewer's sequence: Continue Anyway twice on strips really saved
+    back to front. The gap that follows is said once, in the log, on the
+    first strip that cannot be compared; not again for the next ones."""
+    rs = _session3(tmp_path)
+    for s in _names(8):
+        _read(rs, s, -1, False)
+    for s, k in (("I", 1), ("J", 2)):
+        assert _read(rs, s, -1, True, expected=_ramp(k))["ask_direction"]
+        rs.note_answer(s, "continue")
+    out = [_read(rs, s, -1, False) for s in _names(5, 10)]
+    assert [len(_lost(x)) for x in out] == [1, 0, 0, 0, 0]
+
+
+def test_a_ramp_chart_turned_says_the_reference_is_lost_once(tmp_path):
+    rs = _session3(tmp_path)
+    for k, s in enumerate(_names(6)):
+        _read(rs, s, -1, False, expected=_ramp(k))
+    lost = []
+    for k, s in enumerate(_names(10, 6)):
+        summ = _read(rs, s, -1, True, expected=_ramp(k))
+        lost += [s] * len(_lost(summ))
+        if summ["ask_direction"]:
+            rs.note_answer(s, "continue")
+    assert lost == ["I"]
+
+
+def test_no_lost_line_before_there_was_a_reference_or_without_a_turn(tmp_path):
+    rs = _session3(tmp_path)
+    out = [_read(rs, s, -1 if i % 2 else +1, i % 2 == 0)
+           for i, s in enumerate(_names(12))]
+    assert not any(_lost(x) for x in out)
+
+
+def test_continue_anyway_says_it_steers_the_next_strips():
+    from workflow import measurement_messages as M
+    _t, body = M.CATALOGUE["M-STRIP-RULER-DIRECTION"].render(strip="9")
+    assert ("ChromIQ then takes this as the way the sheet lies for the next "
+            "strips.") in body

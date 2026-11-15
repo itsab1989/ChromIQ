@@ -74,6 +74,10 @@ class RulerSession:
         #: Votes waiting for an answer (review of 4.3.40, MINOR-1/3): strip
         #: -> (vote, the questions whose "keep" answer still has to come).
         self._pending_votes: "dict[str, tuple[int, set]]" = {}
+        #: Second look, MINOR-A: there was a majority, and whether the loss
+        #: of it has been said in the log (once per loss).
+        self._had_majority = False
+        self._loss_said = False
         self.said: "set[str]" = set()
         self.argyll = ""
 
@@ -282,6 +286,12 @@ class RulerSession:
             if f.usable and f.sign else 0
         majority = self._majority_direction()
         window = self._recent()
+        lost_line = None
+        if majority:
+            self._had_majority, self._loss_said = True, False
+        elif self._had_majority and not self._loss_said:
+            self._loss_said = True
+            lost_line = self._lost_line()
         disagrees = bool(
             self.gen in NAMES and not ask and not other_question
             and filed_sign and majority and filed_sign != majority
@@ -335,7 +345,7 @@ class RulerSession:
             self._votes[strip] = filed_sign
         elif filed_sign and not blocked:
             self._pending_votes[strip] = (filed_sign, wait)
-        log_lines: "list[str]" = []
+        log_lines: "list[str]" = [lost_line] if lost_line else []
         if vouched:
             log_lines.append(self._turned_note(strip))
         elif filed_sign and reference and filed_sign == reference \
@@ -543,6 +553,16 @@ class RulerSession:
         return tr("Ruler (beta), strip {strip}: the instrument moved against "
                   "the reading direction, from the last patch towards the "
                   "first.").format(strip=strip)
+
+    def _lost_line(self) -> str:
+        """Second look of 4.3.40, MINOR-A: the recent strips no longer agree
+        on how the sheet lies (a turn in progress, or answers that point
+        both ways): said once, until they agree again."""
+        return tr("Ruler (beta): the last strips do not agree about which way "
+                  "round the sheet lies, so for the moment the ruler check "
+                  "has no clear picture of it. It will not ask about the "
+                  "direction again until a few more strips agree. Your "
+                  "readings are not affected by this.")
 
     def _turned_note(self, strip: str) -> str:
         """4.3.40: the ruler disagrees with the earlier strips, the colours
