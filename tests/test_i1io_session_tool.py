@@ -1293,3 +1293,9 @@ def test_the_check_homing_at_rest_from_y49_to_80_keeps_1_1_s(tmp_path):
         d._home_from_rest()
         assert seen[-1] == want, y
     assert tbl.TIME_WINDOW["home_wide"] == (0.0, 1.1)
+
+
+def test_the_readme_does_not_claim_the_later_touches_pushed_the_arm_out():
+    readme = " ".join(_source("README.md").split())
+    assert "the touches after each stop probably pushed it further (we did not measure that)" in readme
+    assert "the touches after each stop pushed it further" not in readme
