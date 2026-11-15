@@ -93,7 +93,7 @@ def test_the_engine_turns_a_strip_round_and_saves_it(chart):
 def test_the_caps_say_turn():
     import subprocess
     out = subprocess.run([str(HELPER), "--caps"], capture_output=True,
-                         text=True, timeout=30).stdout
+                         text=True, encoding="utf-8", timeout=30).stdout
     assert "turn" in json.loads(out.strip().splitlines()[-1])["caps"]
 
 

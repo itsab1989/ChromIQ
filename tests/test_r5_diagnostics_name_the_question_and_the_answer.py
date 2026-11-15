@@ -33,7 +33,7 @@ def test_answers_are_kept_in_order(tmp_path):
     d = _diag(tmp_path)
     d.note_question_answer("9", "back_to_front", "remeasure")
     d.note_question_answer("9", "back_to_front", "turn")
-    doc = json.loads((tmp_path / "d.json").read_text())
+    doc = json.loads((tmp_path / "d.json").read_text(encoding="utf-8"))
     e = doc["strips"][-1]
     assert e["questions_asked"] == ["back_to_front"]
     assert e["answers"] == [
@@ -46,7 +46,7 @@ def test_the_ruler_answer_keeps_its_old_key_and_is_listed(tmp_path):
     rs = RulerSession(ti1_path=None)
     rs.diag = _diag(tmp_path)
     rs.note_answer("9", "continue")
-    e = json.loads((tmp_path / "d.json").read_text())["strips"][-1]
+    e = json.loads((tmp_path / "d.json").read_text(encoding="utf-8"))["strips"][-1]
     assert e["answer"] == "continue"
     assert e["answers"] == [{"question": "ruler", "answer": "continue"}]
 

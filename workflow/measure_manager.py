@@ -4363,7 +4363,7 @@ class MeasureManager(QObject):
 
         elif kind == "instrument":
             # The engine opened the device and reports what it actually is.
-            self._engine_model = str(ev.get("model") or "")
+            self._engine_model = str(ev.get("model") or "")  # R4
             self.instrument_detected.emit(str(ev.get("model") or ""))
 
         elif kind == "filter":
@@ -4371,10 +4371,11 @@ class MeasureManager(QObject):
             # (a physical UV-cut filter, or its mode's), for the measurement
             # condition this session records when no -F was chosen.
             self.engine_filter = str(ev.get("filter") or "") or None
-            if self._ruler is not None:
+            _rs = getattr(self, "_ruler", None)
+            if _rs is not None:
                 from workflow.measurement_condition import default_condition
-                self._ruler.set_default_condition(default_condition(
-                    self._engine_model, self.engine_filter))
+                _rs.set_default_condition(default_condition(
+                    getattr(self, "_engine_model", ""), self.engine_filter))
 
         elif kind == "patch_read":
             self._engine_progress = True

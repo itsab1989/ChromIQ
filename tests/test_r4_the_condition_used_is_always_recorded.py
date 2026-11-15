@@ -75,7 +75,7 @@ def test_only_a_default_m0_resumes_without_minus_f(tmp_path):
     # an explicit choice over a default takes the source line out
     record_condition(d, "M0")
     assert not condition_fits_normal_mode(d)
-    assert "MEASUREMENT_CONDITION_SOURCE" not in d.read_text()
+    assert "MEASUREMENT_CONDITION_SOURCE" not in d.read_text(encoding="utf-8")
     assert not condition_fits_normal_mode(tmp_path / "missing.ti3")
 
 
@@ -159,10 +159,10 @@ def test_the_diagnostics_file_carries_condition_and_source(tmp_path):
     from workflow.ruler_diagnostics import Diagnostics
     d = Diagnostics(tmp_path / "d.json", instrument="i1pro3", firmware=1)
     d.write()
-    assert json.loads((tmp_path / "d.json").read_text())[
+    assert json.loads((tmp_path / "d.json").read_text(encoding="utf-8"))[
         "measurement_condition"] is None
     d.set_condition("M0", "instrument default")
-    doc = json.loads((tmp_path / "d.json").read_text())
+    doc = json.loads((tmp_path / "d.json").read_text(encoding="utf-8"))
     assert doc["measurement_condition"] == "M0"
     assert doc["measurement_condition_source"] == "instrument default"
     d2 = Diagnostics(tmp_path / "e.json", instrument="i1pro3", firmware=1,
@@ -225,13 +225,27 @@ def test_colprof_and_average_take_the_keyword(measured, tmp_path):
     work.mkdir()
     shutil.copy(keyed, work / "K.ti3")
     r = subprocess.run([_argyll("colprof"), "-v0", "-ql", "K"],
-                       cwd=work, capture_output=True, text=True, timeout=600,
+                       cwd=work, capture_output=True, text=True,
+                       encoding="utf-8", errors="replace", timeout=600,
                        env=helper_env())
     assert r.returncode == 0, (r.stdout + r.stderr)[-1500:]
     assert (work / "K.icc").exists() or (work / "K.icm").exists()
     if _argyll("average"):
         r = subprocess.run([_argyll("average"), str(work / "K.ti3"),
                             str(work / "K.ti3"), str(work / "A.ti3")],
-                           capture_output=True, text=True, timeout=120,
+                           capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", timeout=120,
                            env=helper_env())
         assert r.returncode == 0, (r.stdout + r.stderr)[-1500:]
+
+
+def test_a_filter_event_before_any_session_breaks_nothing(qapp):
+    """The everyday tier found it: a manager that never started a session
+    (no `_ruler` yet) took the new "filter" event and raised."""
+    from workflow.measure_manager import MeasureManager
+    from test_knut_5956210745_next_strip_after_a_read import _Runner, _feed
+    m = MeasureManager(_Runner())
+    if hasattr(m, "_ruler"):
+        del m._ruler
+    _feed(m, {"event": "filter", "filter": "none"})
+    assert m.engine_filter == "none"

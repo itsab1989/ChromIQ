@@ -61,7 +61,8 @@ def _channels(tmp_path, inst, h_px, dpi=300, engine="chromiq"):
     p = tmp_path / "c.channels.json"
     p.write_text(json.dumps({"layout": {
         "engine": engine, "dpi": dpi, "recipe": {"instrument": inst},
-        "patches": [{"loc": "1A", "h": h_px}, {"loc": "1B", "h": h_px + 2}]}}))
+        "patches": [{"loc": "1A", "h": h_px}, {"loc": "1B", "h": h_px + 2}]}}),
+        encoding="utf-8")
     return p
 
 
@@ -103,7 +104,7 @@ def test_the_measure_log_says_it_once(qapp, tmp_path, monkeypatch):
     s = AppSettings()
     tab = TabMeasure(ArgyllRunner(s), s)
     ti1 = tmp_path / "c.ti1"
-    ti1.write_text("CTI1\n")
+    ti1.write_text("CTI1\n", encoding="utf-8")
     _channels(tmp_path, "i1", 94)
     tab._ti1_path = ti1
     tab._say_short_patches()
