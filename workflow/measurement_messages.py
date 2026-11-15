@@ -9529,21 +9529,27 @@ M_CHART_NEIGHBOURS_MOVED = _m(
     "M-CHART-NEIGHBOURS-MOVED",
     "Very dark patches moved away from very light ones",
     "To keep very dark patches away from very light ones along a strip, "
-    "these patches changed places: {pairs}. A very dark patch read straight "
-    "after a very light one can pick up light from it, and the instrument "
-    "then refuses the strip more often. Every other patch is where the patch "
-    "order puts it, and the chart file records the new places, so measuring, "
-    "the reports and an i1Profiler export all use them. You can switch this "
-    "off with “Keep very dark patches away from very light ones” under "
-    "Randomisation.",
+    "these patches changed places: {pairs}. Patches moved: {n}. A very dark "
+    "patch read straight after a very light one can pick up light from it, "
+    "and the instrument then refuses the strip more often. Every other patch "
+    "is where the patch order puts it.\n\n"
+    "Where each patch sits is recorded in the chart file (.ti2) and in the "
+    "chart's other layout files, so ChromIQ measures and reports the printed "
+    "sheet correctly, just as for a randomised chart. The patch set itself "
+    "is unchanged, and so are its exports (the colour list and the "
+    "i1Profiler patch set): they list the colours, not their places on the "
+    "sheet. To measure this printed sheet in another program, give it the "
+    "chart file, not the patch set. You can switch this off with “Keep very "
+    "dark patches away from very light ones” under Randomisation.",
     approved=False)
 
 M_CHART_NEIGHBOURS_LEFT = _m(
     "M-CHART-NEIGHBOURS-LEFT",
     "Some very dark patches still sit next to very light ones",
     "In some places along a strip, a very dark patch still sits straight "
-    "next to a very light one, because no small change of places could "
-    "clear them without making another such pair. Such a strip may be "
+    "next to a very light one, because no swap with another patch on the "
+    "same page could clear them without making another such pair. Such a "
+    "strip may be "
     "refused now and then with “Reading is inconsistent”; reading it patch by "
     "patch helps.",
     approved=False)

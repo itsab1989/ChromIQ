@@ -45,6 +45,8 @@ class ChartResult:
     #: pairs left because no swap could clear them.
     neighbour_moves: tuple = ()
     neighbour_pairs_left: int = 0
+    #: how many patches sit somewhere else than the patch order puts them
+    neighbour_patches_moved: int = 0
     #: The chart's own slot list when it has one (canonical patch -> sheet
     #: slot: R7's, an i1iO's), else None (the seed's permutation).
     slots: "list[int] | None" = None
@@ -905,19 +907,33 @@ def build_chart(
     # when nothing has to move, and the chart is then written as before.
     _nb_moves: "list[tuple[str, str]]" = []
     _nb_left = 0
+    _nb_count = 0
     if (avoid_dark_light_neighbours and not randomize and _slots is None
             and not ramps_per_strip and not _i1io and not _isis
             and instrument in ("i1", "p3", "CM")):
         from . import neighbour_order as _nb
         _all = list(target.patches) + [media] * layout.padding
         _xyzs = [xyz for _dev, xyz in _all]
-        _nb_slots, _mv = _nb.arrange(_xyzs, layout.total_patches,
-                                     layout.steps_in_pass,
-                                     len(target.patches),
-                                     layout.patches_per_page)
-        _nb_left = _nb.remaining_pairs(_xyzs, _nb_slots,
-                                       layout.total_patches,
-                                       layout.steps_in_pass)
+        # judged against the paper the patch set names, not its lightest
+        # patch (review of 4.3.39)
+        _wy = _nb.white_y_of_ti1(ti1_path)
+        # a spacer drawn between two patches separates them: nothing is a
+        # neighbour pair then, and nothing moves (review of 4.3.39)
+        _separated = bool(spacer_on and float(geom.pspa or 0) > 0
+                          and str(spacer_mode or "none") != "none")
+        if _separated:
+            _nb_slots, _mv = None, []
+            _nb_left = 0
+        else:
+            _nb_slots, _mv = _nb.arrange(_xyzs, layout.total_patches,
+                                         layout.steps_in_pass,
+                                         len(target.patches),
+                                         layout.patches_per_page, _wy)
+            _nb_left = _nb.remaining_pairs(_xyzs, _nb_slots,
+                                           layout.total_patches,
+                                           layout.steps_in_pass, _wy)
+        _nb_count = (sum(1 for i, sl in enumerate(_nb_slots) if i != sl)
+                     if _nb_slots is not None else 0)
         if _nb_slots is not None:
             _slots = _nb_slots
 
@@ -1181,6 +1197,7 @@ def build_chart(
         warnings=(tuple(_i1io_warnings) if _i1io
                   else tuple(_isis_warnings) if _isis else ()),
         neighbour_moves=tuple(_nb_moves), neighbour_pairs_left=_nb_left,
+        neighbour_patches_moved=_nb_count,
         slots=(list(_slots) if _slots is not None else None),
     )
 

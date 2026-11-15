@@ -1993,13 +1993,18 @@ class LayoutOptionsPanel(QWidget):
                "off). A very dark patch read straight after a very light one "
                "can pick up a little light from it, and the instrument then "
                "refuses that strip more often, often with “Reading is "
-               "inconsistent”. With this on, ChromIQ swaps the fewest patches "
-               "needed so that no such pair sits side by side along a strip, "
-               "and the Create Chart log names every patch that moved. The "
-               "patches themselves stay the same, and the chart file records "
-               "where each one is, so measuring and every report follow it. "
-               "Switch it off when you need the patches exactly in the order "
-               "of your patch set."), self), 3, 2)
+               "inconsistent”. With this on, ChromIQ swaps as few patches as "
+               "it can so that no such pair sits side by side along a strip, "
+               "and the Create Chart log names every patch that moved. It "
+               "does nothing where a spacer is drawn between the patches (the "
+               "spacer already separates them), on calibration charts, and "
+               "on the i1iO and i1iSis tables. The patches themselves stay "
+               "the same, and the chart file (.ti2) records where each one "
+               "is, so ChromIQ measures and reports the printed sheet "
+               "correctly. Another program that measures the sheet needs the "
+               "chart file, not the patch set. It is off unless you switch it "
+               "on, and whether it really means fewer refused strips has not "
+               "been measured on real prints yet."), self), 3, 2)
         rgg.addWidget(TooltipButton(
             tr("Randomisation"),
             tr("Patches are shuffled across the sheet so a streak of similar "

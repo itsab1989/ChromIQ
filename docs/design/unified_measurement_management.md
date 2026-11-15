@@ -8572,11 +8572,13 @@ alone.
 
 ### M-CHART-NEIGHBOURS-MOVED · PROPOSED · the patches the layout engine swapped on a chart in fixed order — Create Chart log
 
-*New 2026-11-15 (ChromIQ 4.3.39, R7; jctay, forum 150236). Written into the Create Chart log when “Keep very dark patches away from very light ones” (off by default, only with “Randomise patch order” off) swapped patches so that no near-black patch (L* 20 or below) sits straight next to a near-white one (L* 80 or above) along a strip (`workflow/layout_engine/neighbour_order.py`). {pairs}: “9I and 10I, 12I and 13I”, the locations that changed places. Shown from the beta that proposes it, translated.*
+*New 2026-11-15 (ChromIQ 4.3.39, R7; jctay, forum 150236). Written into the Create Chart log when “Keep very dark patches away from very light ones” (off by default, only with “Randomise patch order” off) swapped patches so that no near-black patch (L* 20 or below) sits straight next to a near-white one (L* 80 or above) along a strip (`workflow/layout_engine/neighbour_order.py`). {pairs}: “9I and 10I, 12I and 13I”, the locations that changed places; {n}: how many patches sit elsewhere than the patch order puts them. Revised in the review of 4.3.39: the exports sentence said the i1Profiler export uses the new places; it lists colours, not places. Shown from the beta that proposes it, translated.*
 
 > **Very dark patches moved away from very light ones**
 >
-> To keep very dark patches away from very light ones along a strip, these patches changed places: {pairs}. A very dark patch read straight after a very light one can pick up light from it, and the instrument then refuses the strip more often. Every other patch is where the patch order puts it, and the chart file records the new places, so measuring, the reports and an i1Profiler export all use them. You can switch this off with “Keep very dark patches away from very light ones” under Randomisation.
+> To keep very dark patches away from very light ones along a strip, these patches changed places: {pairs}. Patches moved: {n}. A very dark patch read straight after a very light one can pick up light from it, and the instrument then refuses the strip more often. Every other patch is where the patch order puts it.
+>
+> Where each patch sits is recorded in the chart file (.ti2) and in the chart's other layout files, so ChromIQ measures and reports the printed sheet correctly, just as for a randomised chart. The patch set itself is unchanged, and so are its exports (the colour list and the i1Profiler patch set): they list the colours, not their places on the sheet. To measure this printed sheet in another program, give it the chart file, not the patch set. You can switch this off with “Keep very dark patches away from very light ones” under Randomisation.
 
 ### M-CHART-NEIGHBOURS-LEFT · PROPOSED · the same, pairs no swap could clear — Create Chart log
 
@@ -8584,7 +8586,7 @@ alone.
 
 > **Some very dark patches still sit next to very light ones**
 >
-> In some places along a strip, a very dark patch still sits straight next to a very light one, because no small change of places could clear them without making another such pair. Such a strip may be refused now and then with “Reading is inconsistent”; reading it patch by patch helps.
+> In some places along a strip, a very dark patch still sits straight next to a very light one, because no swap with another patch on the same page could clear them without making another such pair. Such a strip may be refused now and then with “Reading is inconsistent”; reading it patch by patch helps.
 
 ### M-STRIP-FAILED-EDGES · PROPOSED · Strip Read Failed, the driver reported “Swipe didn't start and end on the media” — Measure tab, strip mode
 

@@ -22,7 +22,16 @@ near-black patch sits directly next to a near-white one along a strip:
 The thresholds come from the tester's failing pair, the 94 % grey (L* about
 97) before the 7/7/8 % near-black (L* about 6), with a margin of about 15 L*
 on each side: near-black is L* 20 or below, near-white L* 80 or above, judged
-on the chart's own expected colours, relative to its lightest patch.
+on the chart's own expected colours against the PAPER: the white point the
+patch set names (targen's APPROX_WHITE_POINT), else Y = 100, never the
+lightest patch (on a shadow-only set an L* 41 grey is no near-white).
+
+Two patches with a drawn spacer between them are not neighbours (the caller
+passes no work then). The search (review of 4.3.39): for each pair, the
+patch to move is tried at every other place on the same page, nearest first
+(the same strip before any other), the dark one before the light one, and a
+swap is taken only when it leaves fewer such pairs around both places and
+clears this one; a pair is left only when no swap on the page can do that.
 """
 from __future__ import annotations
 
@@ -60,92 +69,111 @@ def _kind(lstar: float) -> int:
     return 0
 
 
+def white_y_of_ti1(ti1_path) -> float:
+    """The paper's luminance the patch set names (APPROX_WHITE_POINT's Y,
+    targen writes it), else 100: expected XYZ in a .ti1 are relative to it."""
+    try:
+        import re
+        from pathlib import Path
+        head = Path(ti1_path).read_text(encoding="latin-1", errors="replace")
+        head = head[:head.find("BEGIN_DATA")] if "BEGIN_DATA" in head else head
+        m = re.search(r'APPROX_WHITE_POINT\s+"?\s*([-\d.eE+]+)\s+([-\d.eE+]+)', head)
+        if m and float(m.group(2)) > 0:
+            return float(m.group(2))
+    except (OSError, ValueError):
+        pass
+    return 100.0
+
+
 def arrange(xyzs, total: int, steps_in_pass: int, movable: int,
-            per_page: int = 0) -> "tuple[list[int] | None, list[Move]]":
+            per_page: int = 0, white_y: float = 100.0
+            ) -> "tuple[list[int] | None, list[Move]]":
     """``(slots, moves)`` for a fixed-order chart.
 
     *xyzs*: the expected XYZ of every patch in canonical order (padding
     included, *total* of them); *movable*: how many of them are real patches
     (the padding after them is the paper white and never moves);
     *steps_in_pass*: patches per strip; *per_page*: patches per page (a
-    patch never moves to another sheet). ``slots[i]`` is the sheet slot of
-    patch *i* (the identity, apart from the moves), or None when nothing had
-    to move. Pairs no swap can clear without making another are left as they
-    are (they stay in *unfixed* of :func:`describe`)."""
+    patch never moves to another sheet); *white_y*: the paper's Y.
+    ``slots[i]`` is the sheet slot of patch *i*, or None when nothing had to
+    move. A pair is left only when no swap on its page clears it."""
     n = int(total)
     steps = int(steps_in_pass or 0)
-    if n < 2 or steps < 2 or len(xyzs) < n:
-        return None, []
-    white_y = max((float(x[1]) for x in xyzs[:n]), default=0.0)
-    if white_y <= 0:
+    if n < 2 or steps < 2 or len(xyzs) < n or not white_y or white_y <= 0:
         return None, []
     kinds = [_kind(lightness(x, white_y)) for x in xyzs[:n]]
-    # slot -> patch (start: the identity)
-    at = list(range(n))
+    if not (any(k < 0 for k in kinds) and any(k > 0 for k in kinds)):
+        return None, []
+    at = list(range(n))                     # slot -> patch
 
-    def k(slot: int) -> int:
-        return kinds[at[slot]]
+    def bad_edge(a: int) -> bool:           # slots a and a+1
+        return (0 <= a and a + 1 < n and a // steps == (a + 1) // steps
+                and kinds[at[a]] * kinds[at[a + 1]] == -1)
 
-    def same_strip(a: int, b: int) -> bool:
-        return 0 <= a < n and 0 <= b < n and a // steps == b // steps
+    def local(slots) -> int:
+        edges = set()
+        for t in slots:
+            edges.add(t - 1)
+            edges.add(t)
+        return sum(1 for e in edges if bad_edge(e))
 
-    def bad_at(slot: int) -> bool:
-        """Is *slot* in a near-black / near-white pair with a neighbour?"""
-        ks = k(slot)
-        if ks == 0:
-            return False
-        for nb in (slot - 1, slot + 1):
-            if same_strip(slot, nb) and k(nb) == -ks:
-                return True
-        return False
+    def page(s: int) -> int:
+        return s // per_page if per_page else 0
 
-    def can_move(slot: int) -> bool:
-        return 0 <= slot < n and at[slot] < movable
+    def candidates(src: int):
+        pg, strip, pos = page(src), src // steps, src % steps
+        cs = [c for c in range(n) if c != src and at[c] < movable
+              and page(c) == pg]
+        cs.sort(key=lambda c: (c // steps != strip,
+                               abs(c // steps - strip), abs(c % steps - pos),
+                               c))
+        return cs
 
-    moves: list[Move] = []
-    for slot in range(n - 1):
-        nxt = slot + 1
-        if not same_strip(slot, nxt) or k(slot) * k(nxt) != -1:
-            continue
-        dark = slot if k(slot) == -1 else nxt
-        light = nxt if dark == slot else slot
-        away = dark + (dark - light)           # the dark patch's other side
-        cands = [away, dark + 2 * (dark - light),
-                 dark + steps, dark - steps]
-        for c in cands:
-            if c < 0 or c >= n or c == light:
-                continue
-            if c in (away, dark + 2 * (dark - light)) and not same_strip(dark, c):
-                continue
-            if per_page and dark // per_page != c // per_page:
-                continue
-            if not (can_move(dark) and can_move(c)):
-                continue
-            at[dark], at[c] = at[c], at[dark]
-            touched = {dark, c, light}
-            if any(bad_at(t) for t in touched) or any(
-                    bad_at(t) for t in (dark - 1, dark + 1, c - 1, c + 1)
-                    if 0 <= t < n):
-                at[dark], at[c] = at[c], at[dark]      # undo: not clean
-                continue
-            moves.append(Move(at[c], at[dark], c, dark))
+    moves: "list[Move]" = []
+    unfixable: "set[tuple[int, int]]" = set()
+    for _guard in range(4 * n):
+        edge = next((e for e in range(n - 1) if bad_edge(e)
+                     and (at[e], at[e + 1]) not in unfixable), None)
+        if edge is None:
             break
+        dark, light = ((edge, edge + 1) if kinds[at[edge]] < 0
+                       else (edge + 1, edge))
+        done = False
+        for src in (dark, light):
+            if at[src] >= movable:
+                continue
+            for c in candidates(src):
+                if c in (dark, light):
+                    continue
+                before = local((src, c))
+                at[src], at[c] = at[c], at[src]
+                if not bad_edge(edge) and local((src, c)) < before:
+                    moves.append(Move(at[c], at[src], c, src))
+                    done = True
+                    break
+                at[src], at[c] = at[c], at[src]
+            if done:
+                break
+        if not done:
+            unfixable.add((at[edge], at[edge + 1]))
     if not moves:
         return None, []
     slots = [0] * n
-    for s, p in enumerate(at):
-        slots[p] = s
+    for s_, p_ in enumerate(at):
+        slots[p_] = s_
+    if slots == list(range(n)):
+        return None, []
     return slots, moves
 
 
-def remaining_pairs(xyzs, slots, total: int, steps_in_pass: int) -> int:
+def remaining_pairs(xyzs, slots, total: int, steps_in_pass: int,
+                    white_y: float = 100.0) -> int:
     """How many near-black / near-white neighbour pairs the order *slots*
     (None: the identity) still has. For the log and the tests."""
     n = int(total)
     steps = int(steps_in_pass or 0)
-    if n < 2 or steps < 2:
+    if n < 2 or steps < 2 or not white_y:
         return 0
-    white_y = max((float(x[1]) for x in xyzs[:n]), default=0.0) or 1.0
     at = list(range(n))
     if slots is not None:
         for p, s in enumerate(slots):
