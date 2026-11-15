@@ -215,6 +215,15 @@ class IsisPanelMixin:
         put(tr("Notes band place:"), self.isis_band_place, "band")
         self.isis_band_height = spin(4.0, 48.0, 24.0, 1.0)
         put(tr("Notes band height:"), self.isis_band_height, "band")
+        # "Show row indicators" ticked, but the chart in the preview has no
+        # room for the numbers (M-ISIS-ROW-NUMBERS-NO-ROOM): said here, not
+        # only in the log; hidden otherwise
+        self.isis_row_note = QLabel("", g)
+        self.isis_row_note.setObjectName("isis_row_note")
+        self.isis_row_note.setWordWrap(True)
+        self.isis_row_note.setVisible(False)
+        grid.addWidget(self.isis_row_note, row, 0, 1, 3)
+        row += 1
         for w, sig in ((self.isis_model, "currentIndexChanged"),
                        (self.isis_header, "valueChanged"),
                        (self.isis_trailer, "valueChanged"),
@@ -248,6 +257,7 @@ class IsisPanelMixin:
     def _isis_option_changed_body(self, *_a) -> None:
         self.isis_band_place.setEnabled(self.isis_band.isChecked())
         self.isis_band_height.setEnabled(self.isis_band.isChecked())
+        IsisPanelMixin._isis_sync_letters_place(self)
         # the content group shows while the band is on
         self._update_clip_visibility()
         if not getattr(self, "_loading", False):
@@ -275,6 +285,39 @@ class IsisPanelMixin:
         # the box while _isis_saved is None, so they never count
         if self._isis_saved is not None:
             self._isis_own_letters = bool(on)
+        IsisPanelMixin._isis_sync_letters_place(self)
+
+    def _isis_sync_letters_place(self) -> None:
+        """"Strip letters place" only chooses WHERE the letters go; whether
+        they print is the engine's own "Show strip indicators". The owner,
+        2026-11-15, on 4.3.38: *"in manual i can select strip letters place
+        ... there are none shown at all"*: the place was live while the box
+        was off (the i1iSis default) and nothing said why. So it is greyed
+        while the box is off, as the notes band's place is while the band is
+        off, and its tooltip is its own help, which names the box."""
+        box = getattr(self, "isis_letters", None)
+        if box is None:
+            return
+        si = getattr(self, "show_indicators", None)
+        on = bool(si is None or si.isChecked())
+        box.setEnabled(on)
+        if on:
+            box.setToolTip("")
+        else:
+            import html
+            import re
+            text = html.escape(isis_option_help("letters"))
+            text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
+            box.setToolTip(f"<p>{text}</p>")
+
+    def _isis_row_numbers_note(self, text) -> None:
+        """Show *text* (M-ISIS-ROW-NUMBERS-NO-ROOM) under the group's
+        controls, or hide the note (None / "")."""
+        note = getattr(self, "isis_row_note", None)
+        if note is None:
+            return
+        note.setText(("⚠ " + text) if text else "")
+        note.setVisible(bool(text))
 
     def _isis_controls(self) -> tuple:
         return (self.isis_model, self.isis_header, self.isis_trailer,

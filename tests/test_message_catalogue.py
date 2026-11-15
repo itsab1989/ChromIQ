@@ -120,6 +120,27 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 # M-PATCH-SIMILAR joined on 2026-10-15 (4.3.5 beta 8): Knut confirmed the
 # similar-patch rule for both tests (#182 6196599132); its card texts are ours.
 AWAITING_APPROVAL: "set[str]" = {
+    # 4.3.39 integration: a Measure Chart import whose aim the checks could
+    # not prove says so after filing; the i1iSis row numbers without room.
+    "M-IMPORT-I1IO-AIM-UNCHECKED", "M-ISIS-ROW-NUMBERS-NO-ROOM",
+    # combined review of 4.3.39, MAJOR-2: the calm short-patch line.
+    "M-CHART-PATCHES-SHORT-AUTO",
+    # 4.3.39 (R2, jctay 150222 / 150236): the back-to-front question with
+    # "Turn this strip round", and the log line once it is done.
+    "M-STRIP-REVERSED-TURN", "M-STRIP-TURNED",
+    # 4.3.39 (R3, jctay 150236): the same strip refused again as inconsistent.
+    "M-STRIP-FAILED-INCONSISTENT-AGAIN",
+    # 4.3.39 (R6): patches shorter than ArgyllCMS's minimum, a note only.
+    "M-CHART-PATCHES-SHORT", "M-MEASURE-PATCHES-SHORT",
+    # 4.3.39 (R7): Create Chart kept very dark patches from very light ones.
+    "M-CHART-NEIGHBOURS-MOVED", "M-CHART-NEIGHBOURS-LEFT",
+    # 4.3.39 review (R4): resuming a normal-mode M0 file with -F set.
+    "M-RESUME-CONDITION-DEFAULT",
+    # 4.3.39 review (R6): the Extra-high density words and the panel line.
+    "M-CHART-PATCHES-SHORT-EXTRA", "M-CHART-PATCHES-SHORT-PANEL",
+    "M-MEASURE-PATCHES-SHORT-EXTRA",
+    # Owner's question 2026-11-15: no spacers, neighbours nothing tells apart.
+    "M-CHART-ALIKE-NO-SPACER", "M-CHART-ALIKE-NO-SPACER-PANEL",
     # 4.3.36, 2026-11-14: the technical line under a communication failure
     # (which USB step failed), for a report.
     "M-STRIP-FAILED-COMS-DETAIL",
@@ -634,11 +655,25 @@ AWAITING_APPROVAL: "set[str]" = {
                                  # 2026-11-13: the X-Rite i1iO table Beta
                                  # (charts only; measuring comes later).
                                  "M-I1IO-NOT-YET", "M-I1IO-SUPPORT-OFF",
+                                 # 2026-11-15: the i1iO Measure Chart import
+                                 # (Start's steps, the refusals, the
+                                 # question, the log line) and the i1iSis
+                                 # colour guard.
+                                 "M-I1IO-MEASURE-CHART",
+                                 "M-I1IO-MEASURE-CHART-PARTS",
+                                 "M-I1IO-MEASURE-CHART-OTHER-WAY",
+                                 "M-IMPORT-I1IO-REASONS",
+                                 "M-IMPORT-I1IO-CANNOT-CHECK",
+                                 "M-IMPORT-I1IO-CANNOT-CHECK-PARTS",
+                                 "M-IMPORT-I1IO-FILED",
+                                 "M-IMPORT-ISIS-COLOURS",
+                                 "M-IMPORT-I1IO-REFUSED",
                                  # 2026-11-14: the X-Rite i1iSis chart Beta
                                  # (charts measured in i1Profiler): Start's
                                  # two windows and the layout refusal.
                                  "M-ISIS-NOT-YET", "M-ISIS-SUPPORT-OFF",
                                  "M-ISIS-SHEET-CHECK", "M-ISIS-NO-TXF",
+                                 "M-GUIDED-SET-PAGES",
                                  # the same for a verification or a
                                  # calibration chart made for the table
                                  "M-I1IO-NOT-YET-BY-HAND",

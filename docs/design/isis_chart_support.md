@@ -62,6 +62,14 @@ read; a target made with the Beta on keeps its stored values untouched.
   wordmark share one baseline, and its ink stays 0.75 mm under the outline
   and clear of the strip letters' zone and of the 20 mm before the bar (set
   smaller, down to half, when the band cannot hold it). On every page.
+* *(2026-11-15, awaiting confirmation; the owner: "when the clipborder is
+  turned on the information included in it don't need to double on the
+  chart")* With the notes band on, the name line leaves out what the band on
+  the same page prints legibly: the notes design's wordmark always, its
+  profile name and "page x/y" when its text is set at 1.5 mm or more (the
+  default 24 mm band sets 1.69 mm); the branding's wordmark when it fills the
+  band; nothing for plain text or an image. With nothing left (no sheet text
+  either) the line is not drawn; nothing else moves (`band_shows`).
 * The name line never touches the top corner labels: measured with the
   real type (accents and other scripts included), 1.5 mm from each label.
   Too wide: the sheet text goes, the name is shortened with "…" in its

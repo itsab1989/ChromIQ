@@ -213,7 +213,12 @@ def test_eight_files_skip_wholesale_without_it():
     # instrument as an i1Pro 2 / i1Pro 3 with and without --ruler.
     # 24 in part with Refine / resume at another spectral resolution (4.3.37):
     # the real helper stops when it writes a resumed file of another type.
-    assert len(whole) == 10 and len(partial) == 24, (
+    # 25 in part with R1 (4.3.39): a strip filed under its own row takes that
+    # row's direction, on the replay instrument. 26 with R2: the engine turns
+    # a strip round on {"cmd":"turn"}. 27 with R3: patch-by-patch resume
+    # starts at the strip a strip measurement left unread. 28 with R4: the
+    # helper's filter event, and a real engine .ti3 read with the keyword.
+    assert len(whole) == 10 and len(partial) == 28, (
         "the number of files gated on the chart-reading helper has changed "
         f"({len(whole)} wholesale, {len(partial)} in part) -> update the "
         f"header in tests/conftest.py. wholesale={whole} partial={partial}")

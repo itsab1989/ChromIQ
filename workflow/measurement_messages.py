@@ -596,8 +596,8 @@ M_I1IO_NOT_YET = _m(
     "version and your printer uses RGB or CMYK: when the chart was made, "
     "ChromIQ also saved its patches as i1Profiler patch-set files in the "
     "“exports” folder beside the chart. Open one of them in i1Profiler, print the "
-    "chart that i1Profiler lays out for the table (i1Profiler cannot read "
-    "ChromIQ's own i1iO sheet), and measure it there with the table. Save "
+    "chart that i1Profiler lays out for the table from it, and measure that "
+    "chart there with the table. Save "
     "the measurement as an .mxf file, or as a CGATS text export that "
     "includes the RGB or CMYK values, so that ChromIQ can tell which reading "
     "belongs to which patch. Then bring it in with Tools → “Convert "
@@ -759,6 +759,480 @@ M_I1IO_SUPPORT_OFF = _m(
     "is changed.",
     approved=False)
 
+# --- PROPOSED: an i1Profiler "Measure Chart" measurement of ChromIQ's own
+#: i1iO sheet (the i1iO Beta, one page; design 2026-11-14 with its challenge).
+#: The Start window of an i1iO chart of ONE page, while the Beta is on, offers
+#: it as the first way: the steps with the chart's own numbers
+#: (`workflow.i1io.measure_chart.instruction_numbers`). {lay} and {aim} are
+#: parts of M-I1IO-MEASURE-CHART-PARTS (the patches by their printed names, or
+#: by position when the chart prints no names). The menu path in i1Profiler is
+#: not named: it is not proved by any screenshot yet.
+_I1IO_MC_LAY_NAMED = (
+    "Lay the sheet on the table as the preview shows it, a quarter turn "
+    "clockwise from how it was printed, so that the strips run from left to "
+    "right, with patch {p1} at the top left, patch {p2} at the bottom left "
+    "and patch {p3} at the bottom right of the block of patches.")
+_I1IO_MC_LAY_UNNAMED = (
+    "Lay the sheet on the table as the preview shows it, a quarter turn "
+    "clockwise from how it was printed, so that the strips run from left to "
+    "right.")
+_I1IO_MC_AIM_NAMED = (
+    "When i1Profiler asks for the corners, push the arm until the cross hair "
+    "of its sight sits on the centre of patch {p1} at the top left, then on "
+    "the centre of patch {p2} at the bottom left, then on the centre of "
+    "patch {p3} at the bottom right, in that order, and press the button on "
+    "the i1Pro each time. Aim at these three patches even if one of them is "
+    "white.")
+_I1IO_MC_AIM_UNNAMED = (
+    "When i1Profiler asks for the corners, push the arm until the cross hair "
+    "of its sight sits on the centre of the patch in the top-left corner of "
+    "the block of patches, then on the centre of the one in the bottom-left "
+    "corner, then on the centre of the one in the bottom-right corner, in "
+    "that order, and press the button on the i1Pro each time. The patches "
+    "have no printed names on this chart, so go by the corners.")
+#: M3 of the challenge: on a chart WITH crosses this replaces the aiming
+#: paragraph (M-I1IO-AIM-*), which would tell the person to aim at the crosses.
+_I1IO_MC_CROSSES = (
+    "About the three small numbered crosses on this sheet: they are for "
+    "measuring with the table in ChromIQ itself, which comes in a later "
+    "version. Do not aim at them for i1Profiler: they sit 10 to 15 mm "
+    "outside the patches, and i1Profiler needs the centres of the three "
+    "corner patches of step 4.")
+#: A chart of several pages: the Measure Chart way is not offered; this note
+#: is added to M-I1IO-NOT-YET / -BY-HAND instead.
+_I1IO_MC_PAGES = (
+    "This chart has {pages} pages. ChromIQ can bring back an i1Profiler "
+    "measurement of an i1iO chart of one page only, so far; bringing back a "
+    "chart of several pages needs a later version.")
+M_I1IO_MEASURE_CHART_PARTS = _m(
+    "M-I1IO-MEASURE-CHART-PARTS",
+    "Measure this i1iO chart with i1Profiler: the parts",
+    "\n".join((_I1IO_MC_LAY_NAMED, _I1IO_MC_LAY_UNNAMED, _I1IO_MC_AIM_NAMED,
+               _I1IO_MC_AIM_UNNAMED, _I1IO_MC_CROSSES, _I1IO_MC_PAGES)),
+    approved=False)
+
+M_I1IO_MEASURE_CHART = _m(
+    "M-I1IO-MEASURE-CHART",
+    "Measure this i1iO chart with i1Profiler",
+    "This chart was made for the X-Rite i1iO scanning table. ChromIQ cannot "
+    "drive the table itself yet; that is being prepared for a later version. "
+    "Until then you can measure this chart on the table with X-Rite's "
+    "i1Profiler and bring the measurement back here. ChromIQ then puts every "
+    "reading on its own patch and checks from the colours that the sheet lay "
+    "the right way. Nothing is wrong with the chart. Please keep in mind "
+    "that the layout may still change once more i1iO owners have tested it, "
+    "so a later version may ask you to print the chart again.\n\n"
+    "1. {lay}\n"
+    "2. In i1Profiler, start the chart measurement for the i1iO that asks "
+    "only for the number of columns and rows (X-Rite calls it \"Measure "
+    "Chart\"), and choose \"Single scan\".\n"
+    "3. When i1Profiler asks for the size of the chart, set it to {cols} "
+    "columns and {rows} rows. Columns are the patches along one strip, rows "
+    "are the strips.\n"
+    "4. {aim} Then check the corners i1Profiler shows and confirm them.\n"
+    "5. When the scan has finished, save the measurement as a .cmxf file "
+    "(\"Measurement only\"). A text export is not enough, because only the "
+    ".cmxf file says where on the sheet each reading was taken.\n"
+    "6. Back in ChromIQ, press the green folder button under Import "
+    "Measurement on this tab, choose that file and press Import "
+    "Measurement.\n\n"
+    "The words in quotation marks are i1Profiler's own, as the English "
+    "i1Profiler shows them. If your i1Profiler runs in another language, it "
+    "shows them in that language, in the same places.",
+    approved=False)
+
+#: The other way, after the steps above (profiling charts): M-I1IO-NOT-YET's
+#: second paragraph, offered second now.
+_I1IO_OTHER_WAY_PATCH_SETS = (
+    "Another way, if you still have i1Profiler 3.8.6 or an older version and "
+    "your printer uses RGB or CMYK: when the chart was made, ChromIQ also "
+    "saved its patches as i1Profiler patch-set files in the “exports” folder "
+    "beside the chart. Open one of them in i1Profiler, print the chart that "
+    "i1Profiler lays out for the table from it, and measure that chart there "
+    "with the table. Save the measurement as an .mxf file, or as a CGATS "
+    "text export that includes the RGB or CMYK values, so that ChromIQ can "
+    "tell which reading belongs to which patch. Then bring it in with Tools "
+    "→ “Convert i1Profiler → TI3”, and build the profile as usual.")
+#: …and for a verification or calibration chart: M-I1IO-NOT-YET-BY-HAND's.
+_I1IO_OTHER_WAY_BY_HAND = (
+    "Another way: the i1Pro 2 from your table's arm also measures by hand, "
+    "and ChromIQ reads it that way. On the Create Chart tab, choose “i1Pro / "
+    "i1Pro 2 / i1Pro 3” as the instrument for this chart and create it "
+    "again. Then print it on the Print Chart tab as usual and measure it by "
+    "hand on this tab.")
+M_I1IO_MEASURE_CHART_OTHER_WAY = _m(
+    "M-I1IO-MEASURE-CHART-OTHER-WAY",
+    "Measure this i1iO chart with i1Profiler: the other way",
+    "\n".join((_I1IO_OTHER_WAY_PATCH_SETS, _I1IO_OTHER_WAY_BY_HAND)),
+    approved=False)
+
+
+def i1io_measure_chart_window(nums: dict, by_hand: bool
+                              ) -> "tuple[str, str]":
+    """(title, body) of the i1iO Start window with the Measure Chart way, for
+    a chart of one page (*nums*: `measure_chart.instruction_numbers`)."""
+    named = bool(nums.get("labelled", True))
+    kw = dict(p1=nums.get("p1", ""), p2=nums.get("p2", ""),
+              p3=nums.get("p3", ""))
+    lay = tr(_I1IO_MC_LAY_NAMED if named else _I1IO_MC_LAY_UNNAMED
+             ).format(**kw)
+    aim = tr(_I1IO_MC_AIM_NAMED if named else _I1IO_MC_AIM_UNNAMED
+             ).format(**kw)
+    title, body = M_I1IO_MEASURE_CHART.render(
+        lay=lay, aim=aim, cols=nums.get("cols", "?"),
+        rows=nums.get("rows", "?"))
+    if nums.get("crosses"):
+        body += "\n\n" + tr(_I1IO_MC_CROSSES)
+    body += "\n\n" + tr(_I1IO_OTHER_WAY_BY_HAND if by_hand
+                        else _I1IO_OTHER_WAY_PATCH_SETS)
+    return title, body
+
+
+def i1io_pages_note(pages: int) -> str:
+    """The note M-I1IO-NOT-YET gets for an i1iO chart of several pages."""
+    return tr(_I1IO_MC_PAGES).format(pages=pages)
+
+
+#: Why an i1Profiler Measure Chart measurement of an i1iO chart is refused
+#: (`workflow.i1io.measure_chart.assess_file`), the {reason} of the import's
+#: refusal window. {aim}: one of the two aim parts below.
+_I1IO_IMPORT_AIM_NAMED = (
+    "aim at the centre of patch {p1} first, then of patch {p2}, then of "
+    "patch {p3}")
+_I1IO_IMPORT_AIM_UNNAMED = (
+    "aim at the centre of the top-left corner patch of the block of patches "
+    "first, then of the bottom-left one, then of the bottom-right one")
+_I1IO_IMPORT_GRID = (
+    "i1Profiler measured this sheet as a grid of {got_cols} columns and "
+    "{got_rows} rows, but this chart needs {cols} columns and {rows} rows "
+    "({cols} patches along each strip, and {rows} strips). With other "
+    "numbers i1Profiler spreads its grid over other places on the sheet, so "
+    "the readings are not readings of this chart's patches. Measure the "
+    "sheet again and set the size of the chart to {cols} columns and {rows} "
+    "rows when i1Profiler asks for it")
+_I1IO_IMPORT_COUNT = (
+    "this file holds {got} readings in its grid, and this chart's page has "
+    "{total} places. Some readings are missing or appear twice, so ChromIQ "
+    "cannot tell which reading belongs to which patch. Measure the whole "
+    "sheet again and save the measurement once the scan has finished")
+_I1IO_IMPORT_PLACES = (
+    "the places i1Profiler wrote into this file for its readings do not "
+    "agree with its own list of patches, so ChromIQ cannot tell where on the "
+    "sheet each reading was taken. Save the measurement again in i1Profiler "
+    "as a .cmxf file (\"Measurement only\") and import that file, or measure the "
+    "sheet again")
+_I1IO_IMPORT_PAGES = (
+    "this chart has {pages} pages, and ChromIQ can bring back an i1Profiler "
+    "measurement of an i1iO chart of one page only, so far. Bringing back a "
+    "chart of several pages needs a later version; the measurement itself "
+    "may well be fine, so keep the file")
+_I1IO_IMPORT_SIDE = (
+    "the table layout file saved with this chart ({side}) does not belong to "
+    "this chart any more, so ChromIQ does not know where each patch sat on "
+    "the sheet. Make the chart again on the Create Chart tab, print it again "
+    "and measure the new sheet")
+_I1IO_IMPORT_TURNED = (
+    "the measured colours fit this chart much better if the sheet is taken "
+    "as turned half round than as it was recorded. The sheet probably lay "
+    "the wrong way round on the table. Lay it on the table as the preview "
+    "shows it, a quarter turn clockwise from how it was printed, {aim}, and "
+    "measure again")
+_I1IO_IMPORT_AIMED = (
+    "the measured colours fit this chart better with the readings in another "
+    "order ({how}). The three corner patches were probably aimed at in "
+    "another order, or one patch or one strip away from them. Lay the sheet "
+    "on the table as the preview shows it, {aim}, and measure again")
+_I1IO_IMPORT_UNSURE = (
+    "the measured colours fit this chart only partly, so ChromIQ cannot be "
+    "sure that every reading was taken on its own patch, and it files such a "
+    "measurement only when the colours show that clearly. Most often one of "
+    "the three corner patches was aimed at a little off, or the sheet moved "
+    "during the scan. Check that the sheet lies flat and straight, {aim}, "
+    "and measure again")
+_I1IO_IMPORT_STRIP = (
+    "strip {strip} does not fit its own patches: its readings look like the "
+    "patches next to them. The table may have read that strip a little out "
+    "of place, or the sheet moved during the scan. Check that the sheet lies "
+    "flat and straight and cannot move, and measure again")
+_I1IO_IMPORT_STRIP_UNNAMED = (
+    "one strip (number {number}, counted from the top of the sheet as it "
+    "lies on the table) does not fit its own patches: its readings look like "
+    "the patches next to them. The table may have read that strip a little "
+    "out of place, or the sheet moved during the scan. Check that the sheet "
+    "lies flat and straight and cannot move, and measure again")
+_I1IO_IMPORT_OTHER_CHART = (
+    "the measured colours do not look like this chart's colours at all. "
+    "Either this is a measurement of another sheet (for example one printed "
+    "from an earlier version of this chart), or the three corner patches "
+    "were aimed at in the wrong order. Check that you measured the sheet of "
+    "this run's chart, lay it on the table as the preview shows it, {aim}, "
+    "and measure again")
+_I1IO_IMPORT_PAPER = (
+    "many readings in this file look like blank paper, more than this chart "
+    "has white patches. The table read paper where patches should be: the "
+    "three points were probably aimed at the crosses or beside the patches, "
+    "not at the centres of the corner patches. Lay the sheet on the table as "
+    "the preview shows it, {aim}, and measure again")
+_I1IO_IMPORT_BESIDE = (
+    "the readings of strip {strip} carry part of the colour of the strip "
+    "next to it. That happens when a corner patch is aimed a little beside "
+    "its centre, across the strips, so that the table reads along the edge "
+    "between two strips. Lay the sheet on the table as the preview shows "
+    "it, {aim}, taking care to hit the centres, and measure again")
+_I1IO_IMPORT_BESIDE_UNNAMED = (
+    "the readings of one strip (number {number}, counted from the top of the "
+    "sheet as it lies on the table) carry part of the colour of the strip "
+    "next to it. That happens when a corner patch is aimed a little beside "
+    "its centre, across the strips, so that the table reads along the edge "
+    "between two strips. Lay the sheet on the table as the preview shows "
+    "it, {aim}, taking care to hit the centres, and measure again")
+#: S3: a text export of an i1iO chart without device values, or with one
+#: value for every patch (Measure Chart's placeholders).
+_I1IO_IMPORT_TEXT = (
+    "this is a text export without this chart's colours, and for an i1iO "
+    "chart measured with i1Profiler's \"Measure Chart\" ChromIQ needs the "
+    ".cmxf file, because only that file says where on the sheet each "
+    "reading was taken. In i1Profiler, save the measurement again as a "
+    ".cmxf file (\"Measurement only\") and import that file")
+#: The other import doors (Build Profile tab): one sentence that sends a
+#: Measure Chart measurement to the Measure tab.
+_I1IO_IMPORT_OTHER_DOOR = (
+    "this looks like an i1Profiler \"Measure Chart\" measurement of this i1iO "
+    "chart, which carries no colours of its own for the patches. Bring it "
+    "in with Import Measurement on the Measure tab: only there ChromIQ reads "
+    "where on the sheet each reading was taken")
+#: {how}: the arrangement that fits better, in a few words.
+_I1IO_HOW_MIRRORED_ALONG = "mirrored along the strips"
+_I1IO_HOW_MIRRORED_STRIPS = "mirrored across the strips"
+_I1IO_HOW_SWAPPED = "rows and columns swapped"
+_I1IO_HOW_ALONG = "one patch along the strips"
+_I1IO_HOW_ACROSS = "one strip across"
+_I1IO_HOW_ONE = "shifted by one reading"
+_I1IO_HOW_TWO = "shifted by two readings"
+_I1IO_HOW_TURNED = "turned half round"
+M_IMPORT_I1IO_REASONS = _m(
+    "M-IMPORT-I1IO-REASONS",
+    "An i1Profiler \"Measure Chart\" measurement of an i1iO chart: the reasons",
+    "\n".join((_I1IO_IMPORT_GRID, _I1IO_IMPORT_COUNT, _I1IO_IMPORT_PLACES,
+               _I1IO_IMPORT_PAGES, _I1IO_IMPORT_SIDE, _I1IO_IMPORT_TURNED,
+               _I1IO_IMPORT_AIMED, _I1IO_IMPORT_UNSURE, _I1IO_IMPORT_STRIP,
+               _I1IO_IMPORT_STRIP_UNNAMED, _I1IO_IMPORT_OTHER_CHART,
+               _I1IO_IMPORT_PAPER, _I1IO_IMPORT_BESIDE,
+               _I1IO_IMPORT_BESIDE_UNNAMED, _I1IO_IMPORT_TEXT,
+               _I1IO_IMPORT_OTHER_DOOR, _I1IO_IMPORT_AIM_NAMED,
+               _I1IO_IMPORT_AIM_UNNAMED, _I1IO_HOW_MIRRORED_ALONG,
+               _I1IO_HOW_MIRRORED_STRIPS, _I1IO_HOW_SWAPPED, _I1IO_HOW_ALONG,
+               _I1IO_HOW_ACROSS, _I1IO_HOW_ONE, _I1IO_HOW_TWO,
+               _I1IO_HOW_TURNED)),
+    approved=False)
+_I1IO_HOW_TEXT = {
+    "mirrored-along": _I1IO_HOW_MIRRORED_ALONG,
+    "mirrored-strips": _I1IO_HOW_MIRRORED_STRIPS,
+    "rows-and-columns-swapped": _I1IO_HOW_SWAPPED,
+    "along+1": _I1IO_HOW_ALONG, "along-1": _I1IO_HOW_ALONG,
+    "strip+1": _I1IO_HOW_ACROSS, "strip-1": _I1IO_HOW_ACROSS,
+    "entries+1": _I1IO_HOW_ONE, "entries-1": _I1IO_HOW_ONE,
+    "entries+2": _I1IO_HOW_TWO, "entries-2": _I1IO_HOW_TWO,
+    "half-turn": _I1IO_HOW_TURNED,
+}
+
+
+def i1io_import_reason(code: str, **kw) -> str:
+    """The {reason} of a refused Measure Chart import, by the net's *code*
+    (`workflow.i1io.measure_chart`)."""
+    named = bool(kw.get("labelled", True))
+    p = dict(p1=kw.get("p1", ""), p2=kw.get("p2", ""), p3=kw.get("p3", ""))
+    aim = tr(_I1IO_IMPORT_AIM_NAMED if named else _I1IO_IMPORT_AIM_UNNAMED
+             ).format(**p)
+    number = kw.get("number", "")
+    if code == "grid":
+        return tr(_I1IO_IMPORT_GRID).format(
+            got_cols=kw.get("got_cols", 0), got_rows=kw.get("got_rows", 0),
+            cols=kw.get("cols", 0), rows=kw.get("rows", 0))
+    if code == "count":
+        return tr(_I1IO_IMPORT_COUNT).format(got=kw.get("got", 0),
+                                             total=kw.get("total", 0))
+    if code == "places":
+        return tr(_I1IO_IMPORT_PLACES)
+    if code == "pages":
+        return tr(_I1IO_IMPORT_PAGES).format(pages=kw.get("pages", 0))
+    if code == "side":
+        return tr(_I1IO_IMPORT_SIDE).format(side=kw.get("side", ""))
+    if code == "turned":
+        return tr(_I1IO_IMPORT_TURNED).format(aim=aim)
+    if code == "aimed":
+        how = _I1IO_HOW_TEXT.get(kw.get("how") or "")
+        if not how:
+            return tr(_I1IO_IMPORT_UNSURE).format(aim=aim)
+        return tr(_I1IO_IMPORT_AIMED).format(how=tr(how), aim=aim)
+    if code == "strip":
+        if named and kw.get("strip"):
+            return tr(_I1IO_IMPORT_STRIP).format(strip=kw.get("strip", ""))
+        return tr(_I1IO_IMPORT_STRIP_UNNAMED).format(number=number)
+    if code == "beside":
+        if named and kw.get("strip"):
+            return tr(_I1IO_IMPORT_BESIDE).format(strip=kw.get("strip", ""),
+                                                  aim=aim)
+        return tr(_I1IO_IMPORT_BESIDE_UNNAMED).format(number=number, aim=aim)
+    if code == "paper":
+        return tr(_I1IO_IMPORT_PAPER).format(aim=aim)
+    if code == "text":
+        return tr(_I1IO_IMPORT_TEXT)
+    if code == "other-door":
+        return tr(_I1IO_IMPORT_OTHER_DOOR)
+    return tr(_I1IO_IMPORT_OTHER_CHART).format(aim=aim)
+
+
+#: The window of a refused Measure Chart import, both doors (review
+#: 2026-11-15, m3): a title that does not say "another chart" when the reason
+#: says the sheet lay turned or was aimed off. {reason}: one of
+#: M-IMPORT-I1IO-REASONS.
+M_IMPORT_I1IO_REFUSED = _m(
+    "M-IMPORT-I1IO-REFUSED",
+    "This measurement does not fit the chart as it was measured",
+    "Before filing anything, ChromIQ checks an i1Profiler measurement of an "
+    "i1iO chart against the chart, and this one was not filed:\n\n"
+    "{reason}.\n\n"
+    "Nothing has been imported and nothing has been changed. Your file is "
+    "untouched where it is.",
+    approved=False)
+
+#: The question when the chart's colours cannot tell (M1/M2 of the
+#: challenge: asked only for these reasons, and only after the checks by fit,
+#: by paper and by blend found nothing). Cancel is the default. {why}: one of
+#: the parts below; {aim}: as in M-IMPORT-I1IO-REASONS.
+_I1IO_WHY_SIMILAR = "many of its patches are very similar"
+_I1IO_WHY_NEIGHBOURS = "its colours run in order along the strips"
+_I1IO_WHY_FEW = "it has only a few patches"
+_I1IO_WHY_SHORT = "its strips are very short"
+_I1IO_WHY_NO_COLOURS = ("ChromIQ cannot work out which colours this chart "
+                        "should have")
+M_IMPORT_I1IO_CANNOT_CHECK = _m(
+    "M-IMPORT-I1IO-CANNOT-CHECK",
+    "ChromIQ cannot check this sheet from its colours",
+    "This is an i1Profiler \"Measure Chart\" measurement of this chart's sheet. "
+    "ChromIQ puts every reading on the patch at its place in i1Profiler's "
+    "grid, and before it does, it normally checks from the colours that the "
+    "sheet lay the right way and that the three corner patches were aimed "
+    "at correctly. On this chart the colours cannot show that, because "
+    "{why}.\n\n"
+    "ChromIQ has checked what it can: the grid, the number of readings, and "
+    "that the readings do not fit a turned, mirrored or shifted sheet "
+    "clearly better. The import is right only if you laid the sheet on the "
+    "table as the preview shows it and, when i1Profiler asked for the "
+    "corners, you did {aim}, in that order.\n\n"
+    "Import the measurement?",
+    approved=False)
+M_IMPORT_I1IO_CANNOT_CHECK_PARTS = _m(
+    "M-IMPORT-I1IO-CANNOT-CHECK-PARTS",
+    "ChromIQ cannot check this sheet from its colours: the reasons",
+    "\n".join((_I1IO_WHY_SIMILAR, _I1IO_WHY_NEIGHBOURS, _I1IO_WHY_FEW,
+               _I1IO_WHY_SHORT, _I1IO_WHY_NO_COLOURS)),
+    approved=False)
+_I1IO_WHY_TEXT = {"similar": _I1IO_WHY_SIMILAR,
+                  "neighbours": _I1IO_WHY_NEIGHBOURS,
+                  "few-patches": _I1IO_WHY_FEW,
+                  "short-strips": _I1IO_WHY_SHORT,
+                  "no-colours": _I1IO_WHY_NO_COLOURS}
+
+
+def i1io_cannot_check_kw(why: str, nums: dict) -> dict:
+    """The placeholders of M-IMPORT-I1IO-CANNOT-CHECK."""
+    named = bool(nums.get("labelled", True))
+    aim = tr(_I1IO_IMPORT_AIM_NAMED if named else _I1IO_IMPORT_AIM_UNNAMED
+             ).format(p1=nums.get("p1", ""), p2=nums.get("p2", ""),
+                      p3=nums.get("p3", ""))
+    return dict(why=tr(_I1IO_WHY_TEXT.get(why, _I1IO_WHY_NO_COLOURS)),
+                aim=aim)
+
+
+#: The log line of a filed Measure Chart measurement. The "[OK]" prefix stays
+#: English as in every log line.
+_I1IO_FILED_AGREE = (
+    "[OK] This is an i1Profiler \"Measure Chart\" measurement of this chart's "
+    "sheet, so ChromIQ put each of its {count} readings on the patch at its "
+    "place in the grid ({cols} columns, {rows} rows). The colours agree with "
+    "the chart (agreement {score} on a scale where 1 is a perfect match).")
+_I1IO_FILED_ASKED = (
+    "[OK] This is an i1Profiler \"Measure Chart\" measurement of this chart's "
+    "sheet, so ChromIQ put each of its {count} readings on the patch at its "
+    "place in the grid ({cols} columns, {rows} rows). You confirmed that the "
+    "sheet lay the right way; the colours of this chart could not show it.")
+M_IMPORT_I1IO_FILED = _m(
+    "M-IMPORT-I1IO-FILED",
+    "An i1Profiler \"Measure Chart\" measurement was filed: the log line",
+    "\n".join((_I1IO_FILED_AGREE, _I1IO_FILED_ASKED)),
+    approved=False)
+
+
+def i1io_filed_line(count: int, cols: int, rows: int, score: float,
+                    asked: bool) -> str:
+    from core.i18n import decimal_text
+    if asked or score != score:
+        return tr(_I1IO_FILED_ASKED).format(count=count, cols=cols, rows=rows)
+    return tr(_I1IO_FILED_AGREE).format(count=count, cols=cols, rows=rows,
+                                        score=decimal_text(score, 2))
+
+
+#: After filing, on a chart too small or too uniform for the checks to prove
+#: the aim (4.3.39 integration): the chart could not tell (the question was
+#: answered with Import), or it has so few strips that the neighbour check
+#: has little to compare (§I.17 point 9: the two-strip verification chart).
+#: Said in the log and in the "done" window, below its approved text, so
+#: nothing is presented as checked when it was not. {why}: one line of
+#: M-IMPORT-I1IO-CANNOT-CHECK-PARTS, or the few-strips line below; {aim}: an
+#: aim part of M-IMPORT-I1IO-REASONS.
+_I1IO_WHY_FEW_STRIPS = ("it has too few strips for ChromIQ to compare them "
+                        "with each other")
+M_IMPORT_I1IO_AIM_UNCHECKED = _m(
+    "M-IMPORT-I1IO-AIM-UNCHECKED",
+    "ChromIQ could not check the aim on this chart",
+    "The measurement was filed, but ChromIQ could not check that the three "
+    "corner patches were aimed at correctly, because {why}. Nothing in this "
+    "import proves the aim, so the measurement is right only if you aimed "
+    "at the corners as i1Profiler asked.\n\n"
+    "To be sure, you can:\n"
+    "•  measure the sheet again in i1Profiler and aim carefully at the "
+    "three corner patches: when i1Profiler asks for the corners, {aim}. "
+    "Then import that measurement instead;\n"
+    "•  compare a few patches by eye: look at some patches in the preview "
+    "and check that each shows the colour of the patch at the same place on "
+    "your printed sheet.",
+    approved=False)
+_I1IO_AIM_WHY_TEXT = dict(_I1IO_WHY_TEXT, **{"few-strips":
+                                             _I1IO_WHY_FEW_STRIPS})
+
+
+def i1io_aim_unchecked_text(why: str, nums: dict) -> "tuple[str, str]":
+    """(title, body) of M-IMPORT-I1IO-AIM-UNCHECKED for the reason *why*
+    (`workflow.i1io.measure_chart.aim_unchecked_why`)."""
+    kw = i1io_cannot_check_kw(why, nums)
+    kw["why"] = tr(_I1IO_AIM_WHY_TEXT.get(why, _I1IO_WHY_NO_COLOURS))
+    return M_IMPORT_I1IO_AIM_UNCHECKED.render(**kw)
+
+
+#: G1 of the design (the i1iSis Beta, one page): the device values agree with
+#: the chart's i1Profiler test chart on every patch, and the colours clearly
+#: show that the readings are not of their own patches ("cannot tell" files,
+#: review m5).
+_ISIS_IMPORT_COLOURS = (
+    "the device values in this file agree with this chart's i1Profiler test "
+    "chart, but the measured colours do not fit the chart's patches in that "
+    "order. The device values only prove which test chart i1Profiler used, "
+    "not how the sheet went through the instrument, so the sheet was "
+    "probably fed the wrong way round, or another printout was measured. "
+    "Feed the sheet as the Start window of this chart describes, bar end "
+    "first against the left guide, and measure again")
+M_IMPORT_ISIS_COLOURS = _m(
+    "M-IMPORT-ISIS-COLOURS",
+    "An i1iSis measurement whose colours do not fit the chart",
+    _ISIS_IMPORT_COLOURS,
+    approved=False)
+
+
+def isis_colours_reason() -> str:
+    return tr(_ISIS_IMPORT_COLOURS)
+
 #: Start pressed on an X-Rite i1iSis chart while the Beta "X-Rite i1iSis
 #: charts" is on: ChromIQ cannot talk to the instrument, the chart is
 #: measured in i1Profiler (PROPOSAL v2 §10). {cut_or_not} is
@@ -808,6 +1282,54 @@ M_ISIS_NO_TXF = _m(
     "What you can do: make the chart again as an RGB chart if your printer "
     "takes RGB, or wait for a later version. Nothing is wrong with the chart "
     "itself.",
+    approved=False)
+
+#: "Show row indicators" is on for an i1iSis chart, but the row numbers could
+#: not be drawn: they go right of the right diamonds, inside the outline, and
+#: the chart already fills the width it may take on this paper, even with the
+#: numbers at their smallest size (4.3.39 integration). The Create Chart log
+#: line, and a note on the panel's "i1iSis chart (Beta)" group. What makes
+#: room was measured on the layout (A4 / Letter with tight margins: off,
+#: wider side margins or A3 each leave room).
+M_ISIS_ROW_NUMBERS_NO_ROOM = _m(
+    "M-ISIS-ROW-NUMBERS-NO-ROOM",
+    "No room for the row numbers on this sheet",
+    "“Show row indicators” is on, but the row numbers were left off this "
+    "sheet: they print to the right of the chart, inside its dashed outline, "
+    "and on this paper the chart already takes all the width it may, even "
+    "with the numbers set at their smallest size. To make room, switch off "
+    "“Tight margins” if it is on, set wider left and right page margins (the "
+    "chart then gets fewer columns and the numbers fit beside it), or use "
+    "wider paper. The chart can be printed and measured as it is.",
+    approved=False)
+
+
+def isis_row_numbers_no_room_text() -> str:
+    """The body of M-ISIS-ROW-NUMBERS-NO-ROOM (the log line, the panel
+    note)."""
+    return M_ISIS_ROW_NUMBERS_NO_ROOM.render()[1]
+
+#: Generate in Guided, with the run's own patch set bound, when that set
+#: laid out with the settings on screen takes another number of pages than
+#: "Number of pages" asks for (the owner, 2026-11-15). {set_pages} and
+#: {asked} are "1 page" / "{n} pages" phrases; {n} and {cap} patch counts.
+M_GUIDED_SET_PAGES = _m(
+    "M-GUIDED-SET-PAGES",
+    "Your own patch set does not fit the pages you chose",
+    "This run uses its own patch set of {n} patches, one you made, "
+    "edited or loaded. With the settings on screen it takes "
+    "{set_pages}, but “Number of pages” asks for {asked}.\n\nMake a new "
+    "patch set: ChromIQ makes a new set of {cap} patches that fills "
+    "{asked}, as Guided does for a new chart. Your own patch set is "
+    "then replaced in this run.\n\nKeep my patches and lay them out "
+    "again: the same patches are laid out again on {set_pages}. On a "
+    "randomised chart, as Guided makes them, their order is shuffled "
+    "again, so the chart you get is a new one to print.\n\nDo not "
+    "generate: nothing is changed. Choose this if the chart is already "
+    "printed and you want to measure the sheets you have.\n\nIf the run "
+    "already has a measurement, ChromIQ has asked you about it just "
+    "before this question, as always. It is only moved aside if you "
+    "generate a chart.",
     approved=False)
 
 #: The Create Chart log line for an i1iSis chart that is not RGB.
@@ -9081,6 +9603,30 @@ M_RESUME_CONDITION = _m(
     "run's old folder, not deleted.\n\n"
     "Nothing has been measured or changed.",
     approved=False)
+#: R4 review (4.3.39): the same refusal for a measurement whose condition
+#: ChromIQ recorded from the instrument's NORMAL mode (-F was off when it was
+#: started, MEASUREMENT_CONDITION_SOURCE "INSTRUMENT_DEFAULT"): the plain way
+#: to continue it is to switch -F off again, not to set it to M0.
+M_RESUME_CONDITION_DEFAULT = _m(
+    "M-RESUME-CONDITION-DEFAULT",
+    "This measurement cannot be continued with this setting",
+    "The measurement you are continuing was started with “Spectral filter "
+    "type (-F)” switched off, so the instrument measured in its normal mode, "
+    "{before}. The Measure tab is now set to another measurement condition.\n\n"
+    "The measurement so far: {before}\n"
+    "The Measure tab now: {now}\n\n"
+    "The measurement condition is the light the instrument shines on the "
+    "paper. Optical brighteners in the paper read differently under each "
+    "one, so new readings taken now would not belong with the ones already "
+    "there.\n\n"
+    "To continue this measurement, switch “Spectral filter type (-F)” off "
+    "again (the option is in Manual mode), as it was when the measurement "
+    "was started, then press Start again. Or untick “{box}” to measure the "
+    "whole chart again under the new setting: your current measurement is "
+    "then moved to the run's old folder, not deleted.\n\n"
+    "Nothing has been measured or changed.",
+    approved=False)
+
 #: {now} when the row is off, and when it names a filter that is no
 #: measurement condition (D65); and the log line when the measurement so
 #: far records nothing (S-A1: allowed, and nothing is recorded at the end).
@@ -9449,6 +9995,191 @@ M_STRIP_FAILED_INCONSISTENT = _m(
     "forgiving from the next measurement on. ChromIQ starts it at 0.7, which "
     "is a little stricter than the instrument's own 1.0.\n\n"
     "What the instrument reported: {reason}",
+    approved=False)
+
+# --- PROPOSED: the same strip refused a second time as inconsistent (R3) ----
+#: 4.3.39 (jctay, forum 150236): strip 12 of his fixed-order chart was refused
+#: 15 times out of 15 with "Reading is inconsistent". The text is the
+#: instrument driver's own, the same in the i1Pro, i1Pro 2, i1Pro 3 and
+#: ColorMunki drivers; its check compares the many readings the instrument
+#: takes inside each patch with each other. On his chart a near-black patch
+#: (7/7/8 %) came right after an almost white grey (94 %) on 8 mm patches:
+#: the first readings of the dark patch still caught light from the bright
+#: one, just past the limit. Added under M-STRIP-FAILED-INCONSISTENT from the
+#: second such refusal of the same strip in one measurement.
+M_STRIP_FAILED_INCONSISTENT_AGAIN = _m(
+    "M-STRIP-FAILED-INCONSISTENT-AGAIN",
+    "Strip {strip} was refused again for the same reason",
+    "When the same strip is refused again and again with “Reading is "
+    "inconsistent”, the way you read it is usually not the problem, and "
+    "reading it more slowly or more carefully rarely helps. Most often, a very "
+    "dark patch sits right next to a very light one on this strip. While the "
+    "instrument moves from the light patch onto the dark one, its first "
+    "readings of the dark patch still catch a little light from its bright "
+    "neighbour, and the readings of that patch then disagree with each other "
+    "by more than the instrument accepts. Patches that are shorter than the "
+    "instrument likes make this worse, because fewer of its readings lie well "
+    "inside each patch.\n\n"
+    "What helps:\n"
+    "• Read this strip patch by patch. A patch read on its own has no "
+    "neighbour to pick up light from. ChromIQ cannot switch to patch by patch "
+    "in the middle of a strip measurement, but it can finish this strip that "
+    "way afterwards: choose {skip} (or {save_partial} when it is the last "
+    "strip), finish the other strips, and then start measuring again with "
+    "“Patch-by-patch mode” and “Refine / resume existing measurement (-r)” "
+    "ticked. ChromIQ then starts at the patches that are still missing, "
+    "which are the patches of this strip; once they are read, every patch of "
+    "the chart has a reading and you can finish.\n"
+    "• For your next chart: a randomised patch order, which rarely puts a "
+    "very dark patch straight after a very light one, or longer patches in "
+    "the direction you move the instrument. Create Chart says when a chart's "
+    "patches are shorter than ArgyllCMS recommends for your instrument.",
+    approved=False)
+
+# --- PROPOSED: patches shorter than ArgyllCMS's minimum (R6, 4.3.39) ---------
+#: A chart whose patches are shorter along the strip than printtarg's minimum
+#: for the instrument (workflow/patch_size_check.py: i1Pro family 10 mm,
+#: i1Pro 3 Plus 20 mm, ColorMunki 14 mm). A note, never a refusal: shown under
+#: the Create Chart preview's measurements and, once per measurement, in the
+#: Measure log. {patch} and {min} in mm, {instrument} the shared name.
+M_CHART_PATCHES_SHORT = _m(
+    "M-CHART-PATCHES-SHORT",
+    "Patches shorter than ArgyllCMS recommends for this instrument",
+    "The patches of this chart are {patch} mm long in the direction you move "
+    "the instrument. ArgyllCMS makes them at least {min} mm long for the "
+    "{instrument}, because the instrument needs enough readings well inside "
+    "each patch. You can still print and measure this chart. With shorter "
+    "patches, strips are refused more often (for example with “Too many "
+    "patches” or “Reading is inconsistent”), especially where a very dark "
+    "patch follows a very light one, and now and then a reading can land on "
+    "the wrong patch. For dependable readings, make the patches at least "
+    "{min} mm long: fewer patches per strip, a larger patch size or a larger "
+    "paper.",
+    approved=False)
+
+#: The calm variant (combined review of 4.3.39, MAJOR-2): the patch length
+#: is ChromIQ's own automatic choice (a Guided chart, or Manual area-first
+#: with no patch size or minimum set) and longer than 8.0 mm, as on the
+#: default Guided i1Pro chart on A4 (484 patches, 9.5 mm). An [INFO] line in
+#: the Create Chart and Measure logs, nothing red on the panel
+#: (`patch_size_check.CALM_ABOVE_MM` says why 8.0). {patch} and {min} in mm.
+M_CHART_PATCHES_SHORT_AUTO = _m(
+    "M-CHART-PATCHES-SHORT-AUTO",
+    "Patches a little shorter than ArgyllCMS recommends",
+    "The patches on this chart are {patch} mm long along the strip, a little "
+    "below the {min} mm ArgyllCMS recommends for this instrument. Most strips "
+    "read fine. If strips are refused or read wrongly, choose fewer patches "
+    "per page.",
+    approved=False)
+
+#: The same for ChromIQ's own ColorMunki "Extra-high density" mode, which
+#: lays patches out shorter than ArgyllCMS's usual 14 mm on purpose (its help
+#: says to watch this warning): no blame, what the mode is for, what helps.
+M_CHART_PATCHES_SHORT_EXTRA = _m(
+    "M-CHART-PATCHES-SHORT-EXTRA",
+    "Extra-high density: patches shorter than ArgyllCMS's usual length",
+    "This chart uses the ColorMunki's “Extra-high density”, a ChromIQ "
+    "extension that fits more patches on a sheet. Its patches are {patch} mm "
+    "long in the direction you move the instrument, shorter than the {min} mm "
+    "ArgyllCMS uses for the {instrument}. Many sheets read well like this, "
+    "but strips may be refused more often (for example with “Too many "
+    "patches” or “Reading is inconsistent”), especially where a very dark "
+    "patch follows a very light one. If that happens, choose “High density "
+    "(rig)” or “Hand-held”, or a larger patch size, for your next chart.",
+    approved=False)
+
+#: The one line on the surface of the "Measured from Preview" frame (the full
+#: note is in the frame's ⓘ and in the Create Chart log).
+M_CHART_PATCHES_SHORT_PANEL = _m(
+    "M-CHART-PATCHES-SHORT-PANEL",
+    "Patches shorter than ArgyllCMS recommends",
+    "Patches {patch} mm long along the strip; ArgyllCMS uses at least {min} "
+    "mm for the {instrument}, so strips may be refused more often. More in "
+    "the Create Chart log.",
+    approved=False)
+
+M_MEASURE_PATCHES_SHORT_EXTRA = _m(
+    "M-MEASURE-PATCHES-SHORT-EXTRA",
+    "Extra-high density: patches shorter than ArgyllCMS's usual length",
+    "Note: this chart uses the ColorMunki's “Extra-high density”, with "
+    "patches {patch} mm long along the strip, shorter than the {min} mm "
+    "ArgyllCMS uses. Strips may be refused more often. If a strip keeps "
+    "being refused, reading it patch by patch helps, and “High density "
+    "(rig)” or “Hand-held” avoid it on your next chart.",
+    approved=False)
+
+# --- PROPOSED: no spacers, and neighbours nothing tells apart (2026-11-15) ---
+#: The owner saw a chart without spacers where whites stood next to whites
+#: and blacks next to blacks, and asked how that can be read. With spacers
+#: switched off (an open option) nothing marks the edge between two such
+#: patches. Said in the Create Chart log and on the Measured from Preview
+#: frame; nothing is refused, greyed or moved. {n}: how many pairs.
+M_CHART_ALIKE_NO_SPACER = _m(
+    "M-CHART-ALIKE-NO-SPACER",
+    "Neighbouring patches that cannot be told apart without spacers",
+    "This chart has no spacers between its patches, and some neighbouring "
+    "patches along a strip have the same or almost the same colour (for "
+    "example two whites or two blacks next to each other). Nothing marks the "
+    "edge between such patches, so the instrument cannot tell where one ends "
+    "and the next begins, and the strip may be refused (for example with "
+    "“Not enough patches”) or its readings filed under the wrong patches. "
+    "Neighbouring pairs that cannot be told apart: {n}.\n\n"
+    "What helps: switch the spacers on again (ChromIQ chooses each spacer to "
+    "stand out from both patches beside it), or use a randomised patch order, "
+    "which puts such patches next to each other far less often. You can still print and "
+    "measure this chart as it is.",
+    approved=False)
+
+M_CHART_ALIKE_NO_SPACER_PANEL = _m(
+    "M-CHART-ALIKE-NO-SPACER-PANEL",
+    "Neighbouring patches that cannot be told apart without spacers",
+    "No spacers, and neighbouring patches with the same colour along a "
+    "strip. Pairs the instrument cannot tell apart: {n}. Switch the spacers "
+    "on, or use a randomised order. More in the Create Chart log.",
+    approved=False)
+
+M_MEASURE_PATCHES_SHORT = _m(
+    "M-MEASURE-PATCHES-SHORT",
+    "Patches shorter than ArgyllCMS recommends",
+    "Note: the patches of this chart are {patch} mm long along the strip, "
+    "shorter than the {min} mm ArgyllCMS uses for the {instrument}. Strips "
+    "may be refused more often, especially where a very dark patch follows a "
+    "very light one. If a strip keeps being refused, reading it patch by "
+    "patch helps, and a chart with longer patches avoids it.",
+    approved=False)
+
+# --- PROPOSED: Create Chart moved patches apart (R7, 4.3.39) -----------------
+#: A chart in fixed order with a near-black patch straight next to a
+#: near-white one along a strip: the layout engine swapped the fewest patches
+#: needed (workflow/layout_engine/neighbour_order.py). The Create Chart log
+#: names each swap; {pairs} is "9I and 10I, 12I and 13I" (locations).
+M_CHART_NEIGHBOURS_MOVED = _m(
+    "M-CHART-NEIGHBOURS-MOVED",
+    "Very dark patches moved away from very light ones",
+    "To keep very dark patches away from very light ones along a strip, "
+    "these patches changed places: {pairs}. Patches moved: {n}. A very dark "
+    "patch read straight after a very light one can pick up light from it, "
+    "and the instrument then refuses the strip more often. Every other patch "
+    "is where the patch order puts it.\n\n"
+    "Where each patch sits is recorded in the chart file (.ti2) and in the "
+    "chart's other layout files, so ChromIQ measures and reports the printed "
+    "sheet correctly, just as for a randomised chart. The patch set itself "
+    "is unchanged, and so are its exports (the colour list and the "
+    "i1Profiler patch set): they list the colours, not their places on the "
+    "sheet. To measure this printed sheet in another program, give it the "
+    "chart file, not the patch set. You can switch this off with “Keep very "
+    "dark patches away from very light ones” under Randomisation.",
+    approved=False)
+
+M_CHART_NEIGHBOURS_LEFT = _m(
+    "M-CHART-NEIGHBOURS-LEFT",
+    "Some very dark patches still sit next to very light ones",
+    "In some places along a strip, a very dark patch still sits straight "
+    "next to a very light one, because no swap with another patch on the "
+    "same page could clear them without making another such pair. Such a "
+    "strip may be "
+    "refused now and then with “Reading is inconsistent”; reading it patch by "
+    "patch helps.",
     approved=False)
 
 M_STRIP_FAILED_EDGES = _m(
@@ -9995,6 +10726,62 @@ M_STRIP_REVERSED = _m(
     + _slip_tail(),
     approved=False)
 
+#: R2 (4.3.39; jctay, forum 150222 / 150236): the same question with a fourth
+#: answer, "Turn this strip round", shown instead of M-STRIP-REVERSED when the
+#: strip is filed back to front IN STEP (no slip: turning it round puts every
+#: reading on its own patch) and the engine can turn it ({"cmd":"turn"}). On
+#: the tester's chart re-measuring came back back to front seven times; the
+#: helper's own fix (R1) removes that loop on his chart, the button is for
+#: the cases left. The readings are turned only on the person's click.
+M_STRIP_REVERSED_TURN = _m(
+    "M-STRIP-REVERSED-TURN",
+    "Strip {strip} was probably filed back to front",
+    "The readings of strip {strip} fit its patches far better when they are "
+    "taken the other way round, from its last patch back to its first. "
+    "{lead_line}On average, patches {first} to {last} miss their own expected "
+    "colours by {base} ΔE00. Taken the other way round, so that the reading "
+    "of the strip's first patch is compared with the expected colour of its "
+    "last patch, the reading of its second patch with the patch before the "
+    "last, and so on, they miss by only {best} ΔE00. So the readings of this "
+    "strip were probably filed in the wrong order: patches {first} to {last} "
+    "hold the readings of other patches of the strip, not their own."
+    "{middle_line}\n\n"
+    "A strip can be read in either direction, and the reader decides from "
+    "its colours which way round to file it. That decision can go wrong, for "
+    "example when this strip, read the other way round, looks much like "
+    "another strip of the chart. And with “Bidirectional disabled (-B)” the "
+    "reader always files a strip as if it had been read from its first patch "
+    "to its last, so a strip read from the other end is filed back to front "
+    "without a warning. Whatever the cause, what ChromIQ found is the same: "
+    "this strip matches the chart far better turned round.\n\n"
+    "Readings filed under the wrong patch would make the profile, or a "
+    "verification report, wrong for those colours, so it is best not to "
+    "keep this strip as it is. Nothing else is affected: your other strips "
+    "and everything read so far are saved.\n\n"
+    "{remeasure}: go back to strip {strip} and read it again (recommended). "
+    "Put the instrument down on the white paper before the first patch, and "
+    "if it gives a short beep when it is ready, wait for it. Then move in one "
+    "smooth movement at an even speed until it is on the white paper after "
+    "the last patch.\n"
+    "{turn}: keep these readings, but turn them round, so that the reading "
+    "taken last goes to the first patch, and save them in that order. Nothing "
+    "is read again, and ChromIQ then checks the strip as if it had been read "
+    "that way round. Choose this when the same question comes back after you "
+    "have read the strip again, or when you are sure you read the whole strip "
+    "in one smooth movement and only the order is wrong.\n"
+    "{keep}: keep this reading as it is. Closing this window does the same.\n"
+    "{stop}: stop measuring for now.",
+    approved=False)
+
+#: R2: the Measure log's line once the engine has turned a strip round.
+M_STRIP_TURNED = _m(
+    "M-STRIP-TURNED",
+    "Strip {strip} turned round",
+    "Strip {strip}: as you asked, its readings were turned round and saved in "
+    "that order. The reading taken last now belongs to the strip's first "
+    "patch. Nothing was read again.",
+    approved=False)
+
 #: The same finding in the Measurement Report, beside its Worst patches table
 #: and under its Report Results, one paragraph per strip
 #: (`report["shifted_strips"]`). {first}/{last}, {base}/{best} and
@@ -10401,6 +11188,20 @@ M_STRIP_RULER_NOT_COVERED = _m(
 
 
 CATALOGUE = {m.id: m for m in (
+    M_CHART_ALIKE_NO_SPACER,
+    M_CHART_ALIKE_NO_SPACER_PANEL,
+    M_CHART_PATCHES_SHORT_EXTRA,
+    M_CHART_PATCHES_SHORT_PANEL,
+    M_CHART_PATCHES_SHORT_AUTO,
+    M_MEASURE_PATCHES_SHORT_EXTRA,
+    M_RESUME_CONDITION_DEFAULT,
+    M_CHART_NEIGHBOURS_MOVED,
+    M_CHART_NEIGHBOURS_LEFT,
+    M_CHART_PATCHES_SHORT,
+    M_MEASURE_PATCHES_SHORT,
+    M_STRIP_FAILED_INCONSISTENT_AGAIN,
+    M_STRIP_REVERSED_TURN,
+    M_STRIP_TURNED,
     M_STRIP_RULER_NOT_COVERED,
     M_I1PRO2_LIGHTS_LEFT_ON,
     M_STRIP_FAILED_COMS_DETAIL,
@@ -10542,7 +11343,14 @@ CATALOGUE = {m.id: m for m in (
     M_CR30_LEARN_TILE, M_CR30_TRIGGER_NOT_ARMED,
     M_INSTRUMENT_BUSY,
     M_I1IO_NOT_YET, M_I1IO_NOT_YET_BY_HAND, M_I1IO_SUPPORT_OFF,
+    M_I1IO_MEASURE_CHART, M_I1IO_MEASURE_CHART_PARTS,
+    M_I1IO_MEASURE_CHART_OTHER_WAY, M_IMPORT_I1IO_REASONS,
+    M_IMPORT_I1IO_CANNOT_CHECK, M_IMPORT_I1IO_CANNOT_CHECK_PARTS,
+    M_IMPORT_I1IO_AIM_UNCHECKED,
+    M_IMPORT_I1IO_FILED, M_IMPORT_ISIS_COLOURS, M_IMPORT_I1IO_REFUSED,
     M_ISIS_NOT_YET, M_ISIS_SUPPORT_OFF, M_ISIS_SHEET_CHECK, M_ISIS_NO_TXF,
+    M_ISIS_ROW_NUMBERS_NO_ROOM,
+    M_GUIDED_SET_PAGES,
     M_I1IO_AIM_CROSSES, M_I1IO_AIM_CORNERS, M_I1IO_AIM_CORNERS_UNLABELLED,
     M_I1IO_AIM_UNKNOWN, M_I1IO_AIM_PAGE_PARTS,
     M_I1IO_EDGE_MARKS_NOT_PRINTED, M_I1IO_EDGE_TEXT_NOT_PRINTED,

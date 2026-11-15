@@ -566,6 +566,11 @@ static double cq_row_dist(chcol **scols, int stipa, int r, int s, int rev) {
  * way — a reading is never rejected automatically. */
 #define CQ_ELIG_TH 8.0
 
+/* R1 (4.3.39): how much better a row's own fit must be one way round than
+ * the other before a reading filed under that row takes the row's own
+ * direction instead of the best row's (see the row loop in read_strips). */
+#define CQ_OWN_DIR_RATIO 0.5
+
 static void cq_compute_row_eligibility(chcol **scols, int stipa, int totpa) {
 	int r, s;
 
@@ -786,15 +791,11 @@ static double cq_row_mean_de(chcol **scols, int stipa, int to, int rev) {
 	return n > 0 ? sum / (double)n : 0.0;
 }
 
-static int cq_orient_moved_row(chcol **scols, int stipa, int to, int may_flip) {
+/* Reverse the order of the readings filed under row *to* (XYZ, spectra,
+ * measurement type and condition, read flags): the move above when the
+ * mirrored order fits better, and "Turn this strip round" (R2, 4.3.39). */
+static void cq_flip_row(chcol **scols, int stipa, int to) {
 	int i, j;
-	double fwd, rev;
-	if (!may_flip)
-		return 0;
-	fwd = cq_row_mean_de(scols, stipa, to, 0);
-	rev = cq_row_mean_de(scols, stipa, to, 1);
-	if (!(rev < fwd))
-		return 0;
 	for (i = 0; i < stipa / 2; i++) {
 		chcol *a = scols[to * stipa + i], *b = scols[to * stipa + stipa - 1 - i];
 		double t3[3];
@@ -810,7 +811,33 @@ static int cq_orient_moved_row(chcol **scols, int stipa, int to, int may_flip) {
 		tc = a->mcond; a->mcond = b->mcond; b->mcond = tc;
 		tr = a->rr; a->rr = b->rr; b->rr = tr;
 	}
+}
+
+static int cq_orient_moved_row(chcol **scols, int stipa, int to, int may_flip) {
+	double fwd, rev;
+	if (!may_flip)
+		return 0;
+	fwd = cq_row_mean_de(scols, stipa, to, 0);
+	rev = cq_row_mean_de(scols, stipa, to, 1);
+	if (!(rev < fwd))
+		return 0;
+	cq_flip_row(scols, stipa, to);
 	return 1;
+}
+
+static void cq_emit_patch_list(chcol **scb, int stipa);
+
+/* R2: the strip "Turn this strip round" reversed, with its patches. */
+static void cq_emit_strip_turned(chcol **scb, int stipa, const char *label) {
+	if (!cq_json)
+		return;
+	cq_out_lock();
+	fprintf(stdout, "\n{\"event\":\"strip_turned\",\"strip\":\"%s\",\"patches\":[",
+	        label);
+	cq_emit_patch_list(scb, stipa);
+	fprintf(stdout, "]}\n");
+	fflush(stdout);
+	cq_out_unlock();
 }
 
 /* The strip a file_as moved, with its patches under their new locations:
@@ -1096,6 +1123,7 @@ static int cq_jumped = 0;
 /* CHROMIQ_EXT (Knut #182 6102031563): the two labels of a file_as command,
  * consumed at the strip menu ('m'). */
 static char cq_file_from[16] = "";
+static char cq_turn_strip[16] = "";	/* R2: {"cmd":"turn"}'s strip */
 static char cq_file_to[16] = "";
 /* ...and whether the strip it came off gets its earlier reading back
  * ("earlier":"keep", 2026-10-21). */
@@ -1185,6 +1213,17 @@ inst_code cq_uicallback(void *cntx, inst_ui_purp purp) {
 			strncpy(cq_goto_target, cq_take_goto(), sizeof(cq_goto_target) - 1);
 			cq_goto_target[sizeof(cq_goto_target) - 1] = '\0';
 			c = 'g';			/* classified as DUIH_CMND by the uih table */
+		}
+		if (c == CQ_KEY_TURN) {
+			/* R2: only where the strip loop registered 'u' as a command
+			 * (JSON strip mode): anywhere else 'u' would be a trigger. */
+			if (p->uih['u'] & DUIH_CMND) {
+				strncpy(cq_turn_strip, cq_take_goto(), sizeof(cq_turn_strip) - 1);
+				cq_turn_strip[sizeof(cq_turn_strip) - 1] = '\0';
+				c = 'u';
+			} else {
+				c = CQ_KEY_NONE;
+			}
 		}
 		if (c == CQ_KEY_FILE_AS) {
 			/* Only where the strip loop registered 'm' as a command: anywhere
@@ -2257,6 +2296,28 @@ a1log *log			/* verb, debug & error log */
 				}
 			}
 
+			/* CHROMIQ_EXT (R4, 4.3.39): which filter the i1Pro family's
+			 * driver says it reads through, so ChromIQ can record the
+			 * measurement condition actually used. The i1Pro / i1Pro 2
+			 * answer from the calibration data read at open (a physical
+			 * UV-cut filter, i1pro.c inst_stat_get_filter), the i1Pro 3
+			 * from its selected mode (i1pro3.c): no request goes to the
+			 * instrument. Reflective readings only. */
+			if (cq_json && !trans && !emis && !displ
+			 && (it->dtype == instI1Pro || it->dtype == instI1Pro2
+			  || it->dtype == instI1Pro3)) {
+				inst_opt_filter pf = inst_opt_filter_unknown;
+				const char *pn = "unknown";
+				if (it->get_set_opt(it, inst_stat_get_filter, &pf) == inst_ok) {
+					if (pf == inst_opt_filter_none) pn = "none";
+					else if (pf == inst_opt_filter_UVCut) pn = "uvcut";
+					else if (pf == inst_opt_filter_D50) pn = "d50";
+					else if (pf == inst_opt_filter_D65) pn = "d65";
+					else if (pf == inst_opt_filter_pol) pn = "polarised";
+				}
+				cq_emit_raw("{\"event\":\"filter\",\"filter\":\"%s\"}", pn);
+			}
+
 			/* If it battery powered, show the status of the battery */
 			if ((cap2 & inst2_has_battery)) {
 				double batstat = 0.0;
@@ -3062,6 +3123,10 @@ a1log *log			/* verb, debug & error log */
 			/* CHROMIQ_EXT: 'm', a file_as command (Knut #182 6102031563).
 			 * Only ever produced by cq_uicallback from that command. */
 			inst_set_uih('m', 'm', DUIH_CMND);
+			/* CHROMIQ_EXT: 'u', turn a strip round ({"cmd":"turn"}, R2,
+			 * 4.3.39). Only ever produced by cq_uicallback from that
+			 * command. */
+			inst_set_uih('u', 'u', DUIH_CMND);
 			/* CHROMIQ_EXT: 'h', hold here ({"cmd":"hold"}, 2026-10-23).
 			 * Only ever produced by cq_uicallback from that command. */
 			inst_set_uih('h', 'h', DUIH_CMND);
@@ -3300,6 +3365,30 @@ a1log *log			/* verb, debug & error log */
 								}
 								cq_file_from[0] = cq_file_to[0] = '\0';
 								cq_file_keep = 0;
+								break;
+							} else if (cq_json && ch == 'u') {
+								/* CHROMIQ_EXT (R2, 4.3.39): "Turn this strip
+								 * round", the person's answer to the
+								 * back-to-front question. The readings filed
+								 * under cq_turn_strip are reversed in place
+								 * (spectra included) and saved; the reader
+								 * stays on the strip it was on. A strip with
+								 * nothing read is refused. No reading
+								 * happened here, nothing goes to the
+								 * instrument. */
+								int tr_ = cq_strip_row(paix, totpa, cq_turn_strip);
+								cq_jumped = 1;
+								if (tr_ >= 0 && cq_row_read(scols, stipa, tr_)) {
+									cq_flip_row(scols, stipa, tr_);
+									cq_emit_strip_turned(&scols[tr_ * stipa],
+									    stipa, cq_turn_strip);
+									cq_write_ti3_atomic();
+								} else {
+									cq_emit_raw("{\"event\":\"turn_refused\","
+									            "\"strip\":\"%s\"}", cq_turn_strip);
+								}
+								cq_turn_strip[0] = '\0';
+								incflag = 0;
 								break;
 							} else if (cq_json && ch == 'h') {
 								/* CHROMIQ_EXT (agent 30, 2026-10-23): hold
@@ -3619,6 +3708,7 @@ a1log *log			/* verb, debug & error log */
 					int xboff;				/* Expected pass best offset */
 					int xbdir;				/* Expected pass overall pass direction */
 					double xwerror = 0.0;	/* Expected pass worst patcch error */
+					double xdcorr[2] = { 1e9, 1e9 };	/* CHROMIQ_EXT (R1): expected row's best fit per direction */
 
 					if (((rand && disbidi == 0) || disbidi == 2
 					     /* CHROMIQ_EXT (F7-R): also for fixed-order charts
@@ -3698,6 +3788,8 @@ a1log *log			/* verb, debug & error log */
 #endif
 								/* If this is the expected strip, */
 								/* note correlation and best fit to off by 1 and direction */
+								if (choroi == oroi && corr < xdcorr[dir])
+									xdcorr[dir] = corr;	/* CHROMIQ_EXT (R1) */
 								if (choroi == oroi && corr < xbcorr) { 
 									xbcorr = corr;		/* Expected strip correlation */
 									xboff = toff;
@@ -3766,6 +3858,35 @@ a1log *log			/* verb, debug & error log */
 						printf("\n");
 
 						/* Switch to state for expected strip */
+						bcorr = xbcorr;
+						boff = xboff;
+						bdir = xbdir;
+						werror = xwerror;
+					}
+					/* CHROMIQ_EXT (R1, 4.3.39, jctay 150222/150236): on a
+					 * FIXED-ORDER chart a reading is always filed under the
+					 * expected row oroi. When no wrong-strip prompt switched
+					 * to that row's own fit above (-S, or a row too like
+					 * another to be checked), upstream still filed it with
+					 * the direction / DTP51 offset of the best row OVERALL:
+					 * a strip that fits another row turned round slightly
+					 * better than its own row forward (strip 9 vs row 13
+					 * reversed, 40.0 vs 42.6) went in back to front on every
+					 * pass. File it with oroi's own best fit, exactly as the
+					 * "use it anyway" answer does. When boroi == oroi the
+					 * values are equal already, so nothing else changes.
+					 * Only when both directions were tried and the row's own
+					 * fit says which way round CLEARLY: turned the other way it
+					 * must fit at least twice as badly (CQ_OWN_DIR_RATIO, the
+					 * same 0.5 as the Measure tab's back-to-front check,
+					 * slipped_strip.REV_RATIO; strip 9: 42.6 vs 110.1). On a
+					 * print so far off its design that the row cannot tell its
+					 * own direction, upstream's choice stands: measured on 35%
+					 * per-channel noise, the guard is what keeps a reading
+					 * that is filed the right way today from being turned.
+					 * Randomised charts keep upstream's behaviour. */
+					if (cq_json && !rand && boroi != oroi && dirrg == 2
+					 && xdcorr[xbdir] <= CQ_OWN_DIR_RATIO * xdcorr[1 - xbdir]) {
 						bcorr = xbcorr;
 						boff = xboff;
 						bdir = xbdir;
@@ -5143,7 +5264,7 @@ int main(int argc, char *argv[]) {
 				 * before it relies on it. One JSON line, then exit 0.
 				 * "legacy_labels": reads sheets ChromIQ's layout engine
 				 * printed with its pre-4.3.3-beta.7 labels as printed. */
-				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\",\"lights_signals\",\"lights_during_reading\",\"ruler_check\"],\"build\":\"%s\"}\n",
+				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"turn\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\",\"lights_signals\",\"lights_during_reading\",\"ruler_check\"],\"build\":\"%s\"}\n",
 				       cq_helper_build_string());
 				fflush(stdout);
 				return 0;
@@ -6133,6 +6254,7 @@ int main(int argc, char *argv[]) {
 		        "\"hold_after\":true,"	/* the pause between pages (2026-10-23) */
 		        "\"hold_here\":true,"	/* {"cmd":"hold"} at a strip menu (2026-10-23) */
 		        "\"hold_here_patch\":true,"	/* ...and at the patch menu (agent 33) */
+		        "\"turn\":true,"	/* {"cmd":"turn"}: turn a strip round (R2, 4.3.39) */
 		        "\"patches\":%d,\"steps_per_pass\":%d,\"strips\":[",
 		        cesc, rand ? "true" : "false", npat, stipa);
 		for (ri = 0, acc = 0, six = 0; ri < totpa; ri++) {

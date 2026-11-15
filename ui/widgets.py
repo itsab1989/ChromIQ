@@ -1884,6 +1884,215 @@ def fit_message_box_buttons(box, stack_when_too_wide: bool = False) -> None:
 
 
 
+# ---- message boxes with long buttons: one row, else even rows ------------
+#
+# The 4.3.39 integration (the owner: two German buttons overlapped; the
+# combined review: Cancel below the edge of a 1280 x 800 laptop when stacked
+# one per row). ONE rule for any message box whose buttons may not fit side
+# by side: `arrange_message_box_buttons`. Callers so far: the loader's choice
+# windows (`ui.ti2_loader._choice_box`) and the Guided question
+# M-GUIDED-SET-PAGES (`ui.tabs.tab_chart`).
+
+#: Space between the buttons of a wrapped row, in both directions.
+LONG_BUTTON_GAP = 12
+
+
+def long_buttons_work_area(box):
+    """The work area a message box with long buttons must fit (a test or a
+    driver may stand in a smaller screen here)."""
+    from PyQt6.QtGui import QGuiApplication
+    screen = box.screen() or QGuiApplication.primaryScreen()
+    return screen.availableGeometry() if screen is not None else None
+
+
+def long_buttons_width_limit(box) -> int:
+    """The widest the box may be: Qt's own message-box limit
+    (`_message_box_width_limit`), and the same rule applied to
+    :func:`long_buttons_work_area`, whichever is smaller."""
+    limit = _message_box_width_limit(box)
+    work = long_buttons_work_area(box)
+    if work is not None:
+        w = work.width()
+        limit = min(limit, w if w <= 1024 else min(w - 480, 1000))
+    return limit
+
+
+def _long_buttons_room(box) -> int:
+    """The width the buttons have: the box's limit less its margins, and on
+    macOS less the icon's column, as Qt puts a message box's buttons under
+    its text only (measured on screen, the Guided question: the row starts
+    86 px in, after its question-mark icon; the same allowance as
+    `_stack_buttons_when_too_wide`)."""
+    import sys as _sys
+    m = box.contentsMargins()
+    lay = box.layout()
+    lm = lay.contentsMargins() if lay is not None else m
+    room = (long_buttons_width_limit(box) - m.left() - m.right()
+            - lm.left() - lm.right())
+    if _sys.platform == "darwin":
+        icon_w = 0
+        for lbl in box.findChildren(QLabel):
+            pm = lbl.pixmap()
+            if pm is not None and not pm.isNull():
+                icon_w = max(icon_w, lbl.sizeHint().width() + 14)
+        room -= icon_w
+    return room
+
+
+def _button_need(btn) -> int:
+    return max(btn.sizeHint().width(), btn.minimumWidth())
+
+
+class _ReturnPresses(QObject):
+    """Return / Enter on the box presses *button* (the wrapped layout's
+    shown default): Qt clears a default flag set before the box is shown,
+    so the flag alone does not hold (round-2 review of 4.3.39, MINOR-1)."""
+
+    def __init__(self, box, button):
+        super().__init__(box)
+        self._button = weakref.ref(button)
+
+    def eventFilter(self, obj, event):  # noqa: N802 — Qt's name
+        if (event.type() == QEvent.Type.KeyPress
+                and event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter)
+                and not event.modifiers()):
+            btn = self._button()
+            if btn is not None and btn.isVisible() and btn.isEnabled():
+                btn.click()
+                return True
+        return False
+
+
+def arrange_message_box_buttons(box, ordered, default) -> int:
+    """Lay out a message box's buttons so none overlaps or is cut, on any
+    screen; returns the number of rows. Call it after
+    `keep_message_box_inside_the_work_area`, instead of
+    `fit_message_box_buttons`. *ordered*: the box's buttons in the order
+    they are to be read (the way out last); *default*: the button Return
+    presses (also the box's default and, if the caller set it, Escape).
+
+    * ONE ROW when they fit side by side in the widest the box may be
+      (measured with the button box's own spacing): exactly
+      `fit_message_box_buttons`, Qt's own row.
+    * Otherwise AS FEW ROWS AS FIT, side by side in each row, all of one
+      width, left-aligned with the text, in *ordered*'s order. Qt's own
+      buttons stay in the box, hidden, and each shown button presses its
+      twin, so the box still reports the button pressed and Escape still
+      presses the box's escape button. Return presses *default*'s twin.
+      The box keeps the widest width it may have, so its text stays short.
+    * A paragraph's space above the buttons in both cases.
+    * Only when the box is still taller than the work area does its
+      informative text go into a scroll area just tall enough that every
+      button stays on screen."""
+    from PyQt6.QtWidgets import (QDialogButtonBox, QGridLayout, QSizePolicy,
+                                 QSpacerItem)
+    rows = 1
+    try:
+        for b in ordered:
+            ButtonFontFilter.fit(b)
+        bb = box.findChild(QDialogButtonBox)
+        bl = bb.layout() if bb is not None else None
+        gap = bl.spacing() if bl is not None and bl.spacing() >= 0 else 6
+        need = sum(_button_need(b) for b in ordered) + gap * (len(ordered) - 1)
+        lay = box.layout()
+        if need <= _long_buttons_room(box) or lay is None or bb is None:
+            fit_message_box_buttons(box)
+        else:
+            room = _long_buttons_room(box)
+            shown = []
+            for real in ordered:
+                twin = QPushButton(real.text(), box)
+                ButtonFontFilter.fit(twin)
+                twin.clicked.connect(real.click)
+                twin.setAutoDefault(False)
+                shown.append(twin)
+            width = max(_button_need(b) for b in shown)
+            per_row = max(1, min(len(shown), (room + LONG_BUTTON_GAP)
+                                 // (width + LONG_BUTTON_GAP)))
+            holder = QWidget(box)
+            holder.setObjectName("long_buttons")
+            grid = QGridLayout(holder)
+            grid.setContentsMargins(0, 0, 0, 0)
+            grid.setHorizontalSpacing(LONG_BUTTON_GAP)
+            grid.setVerticalSpacing(LONG_BUTTON_GAP)
+            # ONE WIDTH FOR ALL: the columns carry it and the buttons fill
+            # their column (the button-font filter re-fits a button's own
+            # minimum width when it is polished, so a width set on the button
+            # would not hold)
+            for i, twin in enumerate(shown):
+                twin.setParent(holder)
+                twin.setSizePolicy(QSizePolicy.Policy.Expanding,
+                                   QSizePolicy.Policy.Fixed)
+                grid.addWidget(twin, i // per_row, i % per_row)
+            for col in range(per_row):
+                grid.setColumnMinimumWidth(col, width)
+            grid.setColumnStretch(per_row, 1)
+            twin_default = shown[ordered.index(default)] \
+                if default in ordered else shown[-1]
+            twin_default.setDefault(True)
+            box._return_presses = _ReturnPresses(box, twin_default)
+            box.installEventFilter(box._return_presses)
+            bb.hide()
+            r, c, rs, cs = lay.getItemPosition(lay.indexOf(bb))
+            lay.addWidget(holder, r, c, rs, cs)
+            lay.addItem(QSpacerItem(room, 0, QSizePolicy.Policy.Minimum,
+                                    QSizePolicy.Policy.Expanding),
+                        lay.rowCount(), 0, 1, lay.columnCount())
+            lay.activate()
+            rows = -(-len(shown) // per_row)
+        _space_above_buttons(box)
+        _scroll_text_when_too_tall(box)
+    except Exception:      # noqa: BLE001 — sizing must never raise
+        _log.debug("could not arrange the message box's buttons", exc_info=True)
+    return rows
+
+
+def _space_above_buttons(box) -> None:
+    """One blank line of the text (the gap between two of its paragraphs)
+    between the text and the buttons, one row or several (the owner,
+    4.3.39: the first button sat too close to the text)."""
+    from PyQt6.QtWidgets import QDialogButtonBox
+    label = box.findChild(QLabel, "qt_msgbox_informativelabel")
+    gap = (label or box).fontMetrics().lineSpacing()
+    target = box.findChild(QWidget, "long_buttons") or box.findChild(
+        QDialogButtonBox)
+    if target is not None:
+        m = target.contentsMargins()
+        target.setContentsMargins(m.left(), gap, m.right(), m.bottom())
+
+
+def _scroll_text_when_too_tall(box) -> None:
+    """Only when the box, buttons in rows, is still taller than the work
+    area: its informative text goes into a scroll area just tall enough that
+    the whole box, and so every button, stays on screen."""
+    from PyQt6.QtWidgets import QFrame, QScrollArea
+    work = long_buttons_work_area(box)
+    lay = box.layout()
+    label = box.findChild(QLabel, "qt_msgbox_informativelabel")
+    if work is None or lay is None or label is None:
+        return
+    lay.activate()
+    width = max(box.sizeHint().width(), long_buttons_width_limit(box))
+    height = (lay.totalHeightForWidth(width)
+              if lay.hasHeightForWidth() else box.sizeHint().height())
+    over = height - (work.height() - 60)       # the caption and a margin
+    if over <= 0:
+        return
+    text_h = label.heightForWidth(max(100, _long_buttons_room(box)))
+    if text_h <= 0:
+        text_h = label.sizeHint().height()
+    r, c, rs, cs = lay.getItemPosition(lay.indexOf(label))
+    area = QScrollArea(box)
+    area.setFrameShape(QFrame.Shape.NoFrame)
+    area.setWidgetResizable(True)
+    area.setObjectName("long_buttons_text_scroll")
+    lay.removeWidget(label)
+    area.setWidget(label)
+    area.setFixedHeight(max(120, text_h - over))
+    lay.addWidget(area, r, c, rs, cs)
+    lay.activate()
+
+
 def _message_box_width_limit(box) -> int:
     """The widest Qt lets a QMessageBox be (``QMessageBoxPrivate::updateSize``):
     the work area's width less 480, at most 1000, and the whole width on a work

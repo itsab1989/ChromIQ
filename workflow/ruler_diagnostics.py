@@ -118,7 +118,8 @@ class Diagnostics:
     def __init__(self, path: Path, *, instrument: str, firmware: "int | None",
                  helper_build: str = "", geometry: "dict | None" = None,
                  verification: bool = False, argyll: str = "",
-                 condition: "str | None" = None):
+                 condition: "str | None" = None,
+                 condition_source: "str | None" = None):
         from core.version import APP_VERSION as _v
         from workflow import ruler_check
         self.path = Path(path)
@@ -133,6 +134,10 @@ class Diagnostics:
             # 4.3.37: the condition chosen with -F (M0 / M1 / M2 / M3), or
             # null without -F: the instrument's normal mode
             "measurement_condition": condition,
+            # 4.3.39 (R4): "chosen" (-F), "instrument default" (the
+            # instrument's normal mode, where it is known), or null
+            "measurement_condition_source": condition_source or (
+                "chosen" if condition else None),
             "thresholds": ruler_check.THRESHOLDS,
             "chart_geometry": geometry or {},
             "strips": [],
@@ -150,6 +155,32 @@ class Diagnostics:
             self.write()
         except Exception:      # noqa: BLE001
             log.warning("ruler diagnostics: could not add strip %s", strip,
+                        exc_info=True)
+
+    def set_condition(self, condition: "str | None",
+                      source: "str | None") -> None:
+        """R4: the measurement condition learnt after the file was begun."""
+        try:
+            self.doc["measurement_condition"] = condition
+            self.doc["measurement_condition_source"] = source
+            self.write()
+        except Exception:      # noqa: BLE001
+            log.warning("ruler diagnostics: could not note the condition",
+                        exc_info=True)
+
+    def note_question_answer(self, strip: str, question: str,
+                             answer: str) -> None:
+        """R5 (4.3.39): one {"question", "answer"} more on the strip's last
+        entry, in the order they were given."""
+        try:
+            for e in reversed(self.doc["strips"]):
+                if e.get("strip") == strip:
+                    e.setdefault("answers", []).append(
+                        {"question": str(question), "answer": str(answer)})
+                    break
+            self.write()
+        except Exception:      # noqa: BLE001
+            log.warning("ruler diagnostics: could not note an answer",
                         exc_info=True)
 
     def note_answer(self, strip: str, answer: str) -> None:

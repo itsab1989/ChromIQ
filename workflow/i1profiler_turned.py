@@ -408,6 +408,11 @@ def plan_for(ti2: "str | Path", turn: "str | None" = None) -> TurnedPlan:
         # twice a ChromIQ strip on A4 or A3 [measured on A2, test P].
         from workflow.layout_engine.chart import friendly_instrument
         name = "i1Pro 3 Plus" if inst == "p3" else friendly_instrument(inst)
+        from workflow.isis.support import device_name, is_isis_code
+        if is_isis_code(inst):
+            # by its name, not its code "XRISIS" (combined review of
+            # 4.3.39, NIT): "i1iSis" or "i1iSis XL", as i1Profiler names it
+            name = device_name(recipe.get("isis_model"))
         plan.reasons.append(tr(
             "the chart is laid out for the {instrument}, not for the i1Pro 2 "
             "or i1Pro 3").format(instrument=name))
@@ -1513,9 +1518,36 @@ def fits_straight_and_turned(measured, match: TurnedMatch) -> bool:
 
 def grid_mismatch(ti3_path: "str | Path",
                   order: "TurnedOrder | None",
-                  chart_ti2: "str | Path | None" = None) -> str:
-    """The reason of :func:`turned_grid_verdict`, or ``""``."""
-    return turned_grid_verdict(ti3_path, order, chart_ti2)[0]
+                  chart_ti2: "str | Path | None" = None,
+                  grid=None) -> str:
+    """The reason of :func:`turned_grid_verdict`, or ``""``. *grid*: see
+    there."""
+    return turned_grid_verdict(ti3_path, order, chart_ti2, grid=grid)[0]
+
+
+def isis_grid_from_source(source) -> "object | None":
+    """G2 of the i1iSis import: i1Profiler's grid read from the picked CxF
+    *source* with ``NumberPatchPages "0"`` taken as one page, by the
+    converter's own reader (`reference_convert._cxf_i1p_grid`, unchanged),
+    or None. For an i1iSis chart only (`measurement_import.assess`)."""
+    from workflow.reference_convert import (_CXF_NS, _cxf_i1p_grid,
+                                            is_cxf)
+    import xml.etree.ElementTree as ET
+    if not is_cxf(Path(str(source))):
+        return None
+    try:
+        root = ET.parse(str(source)).getroot()
+    except (ET.ParseError, OSError):
+        return None
+    for el in root.iter():
+        if el.tag.rsplit("}", 1)[-1] == "CustomAttributes" and (
+                el.get("NumberPatchColumns") is not None):
+            if str(el.get("NumberPatchPages") or "").strip() == "0":
+                el.set("NumberPatchPages", "1")
+            break
+    targets = [o for o in root.findall(".//cc:Object", _CXF_NS)
+               if o.get("ObjectType") == "Target"]
+    return _cxf_i1p_grid(root, targets)
 
 
 #: Header keyword written into a turned measurement on another grid that was
@@ -1544,7 +1576,8 @@ def colour_check_fields(ti3_path: "str | Path") -> "dict[str, str] | None":
 
 def turned_grid_verdict(ti3_path: "str | Path",
                         order: "TurnedOrder | None",
-                        chart_ti2: "str | Path | None" = None):
+                        chart_ti2: "str | Path | None" = None,
+                        grid=None):
     """(reason, colour) for :func:`grid_mismatch`: *reason* ``""`` when the
     file may be filed; *colour* the `turned_colour_check.ColourJudgement`
     when the colours were asked (another grid, with *chart_ti2* given).
@@ -1611,7 +1644,10 @@ def turned_grid_verdict(ti3_path: "str | Path",
     from workflow.reference_convert import i1p_grid_of
     if order is None or order.rows <= 0 or order.columns <= 0:
         return "", None
-    grid = i1p_grid_of(ti3_path)
+    # *grid* (G2, the i1iSis Beta only): the grid read from the picked file
+    # when the converted copy carries none; otherwise the copy's own.
+    if grid is None:
+        grid = i1p_grid_of(ti3_path)
     if grid is None:
         return "", None
     if grid.pages > 1 and grid.columns == order.columns:

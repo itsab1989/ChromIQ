@@ -967,6 +967,7 @@
     "IO2"
    ],
    "item": [
+    "panel.avoid_dark_light_cb",
     "panel.bit_depth",
     "panel.cal_mode",
     "panel.cal_path_edit",
@@ -1900,6 +1901,7 @@
    "mode": "manual_engine_off",
    "instrument": "XRISIS",
    "item": [
+    "panel.avoid_dark_light_cb",
     "panel.bit_depth",
     "panel.cal_mode",
     "panel.cal_path_edit",
@@ -2329,6 +2331,24 @@
    "aspect": "present",
    "expected": true,
    "reason": "Choosing the i1iSis gives its own default, patch-first (i1Profiler's 6 x 6 mm), so the patch-size, alignment and offset rows show and the area-first rows hide, whatever mode the instrument before had; area-first stays open for the i1iSis."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": "panel.isis_letters",
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "'Strip letters place' is greyed while 'Show strip indicators' is off (the i1iSis default): it only chooses where the letters go (the owner, 2026-11-15)."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "XRISIS",
+   "item": "panel.isis_letters",
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "'Strip letters place' is greyed while 'Show strip indicators' is off (the i1iSis default): it only chooses where the letters go (the owner, 2026-11-15)."
   }
  ],
  "known_to_review": [
@@ -2340,6 +2360,7 @@
    "aspect": "back and forth",
    "expected": [
     "area_method",
+    "avoid_dark_light_neighbours",
     "chart_text",
     "chart_text_bold",
     "clip_content_mode",
@@ -2387,6 +2408,7 @@
    "aspect": "back and forth",
    "expected": [
     "area_method",
+    "avoid_dark_light_neighbours",
     "chart_text",
     "chart_text_bold",
     "clip_content_mode",
@@ -2434,6 +2456,7 @@
    "aspect": "back and forth",
    "expected": [
     "area_method",
+    "avoid_dark_light_neighbours",
     "chart_text_bold",
     "edge_spacers",
     "helper_marker_edge_mm",
@@ -2462,6 +2485,7 @@
    "aspect": "back and forth",
    "expected": [
     "area_method",
+    "avoid_dark_light_neighbours",
     "chart_text",
     "chart_text_bold",
     "clip_content_mode",
@@ -2509,6 +2533,7 @@
    "aspect": "back and forth",
    "expected": [
     "area_method",
+    "avoid_dark_light_neighbours",
     "chart_text",
     "chart_text_bold",
     "clip_content_mode",
@@ -2556,6 +2581,7 @@
    "aspect": "there and back",
    "expected": [
     "area_method",
+    "avoid_dark_light_neighbours",
     "chart_text",
     "chart_text_bold",
     "clip_content_mode",
@@ -2603,6 +2629,7 @@
    "aspect": "there and back",
    "expected": [
     "area_method",
+    "avoid_dark_light_neighbours",
     "chart_text",
     "chart_text_bold",
     "clip_content_mode",
@@ -2648,6 +2675,7 @@
    "aspect": "there and back",
    "expected": [
     "area_method",
+    "avoid_dark_light_neighbours",
     "chart_text_bold",
     "edge_spacers",
     "helper_marker_edge_mm",
@@ -2676,6 +2704,7 @@
    "aspect": "there and back",
    "expected": [
     "area_method",
+    "avoid_dark_light_neighbours",
     "chart_text",
     "patch_pattern",
     "show_row_indicators",
@@ -2692,6 +2721,7 @@
    "item": "i1 -> SS",
    "aspect": "there and back",
    "expected": [
+    "avoid_dark_light_neighbours",
     "chart_text",
     "chart_text_bold",
     "clip_content_mode",
@@ -2738,6 +2768,7 @@
    "aspect": "there and back",
    "expected": [
     "area_method",
+    "avoid_dark_light_neighbours",
     "chart_text",
     "chart_text_bold",
     "clip_content_mode",
@@ -2795,6 +2826,7 @@
     "area_min_patch_mm",
     "area_ratio",
     "area_rows",
+    "avoid_dark_light_neighbours",
     "bit16",
     "chart_text_bold",
     "chart_text_font",
@@ -3086,6 +3118,7 @@
     "area_min_patch_mm",
     "area_ratio",
     "area_rows",
+    "avoid_dark_light_neighbours",
     "bit16",
     "chart_text",
     "chart_text_bold",
@@ -3174,6 +3207,7 @@
    "aspect": "back and forth",
    "expected": [
     "area_method",
+    "avoid_dark_light_neighbours",
     "chart_text",
     "chart_text_bold",
     "clip_content_mode",
@@ -3212,6 +3246,7 @@
    "aspect": "there and back",
    "expected": [
     "area_method",
+    "avoid_dark_light_neighbours",
     "chart_text",
     "chart_text_bold",
     "clip_content_mode",

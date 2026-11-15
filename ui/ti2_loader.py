@@ -750,6 +750,23 @@ def _choice_dialog(parent, title, intro_html, choices):
     same shape the measurement windows use, so the reader learns one layout
     instead of two.
     """
+    return _choice_box(parent, title, intro_html, choices)
+
+
+def _exec_choice_box(box):
+    """The one door a choice window is shown through: run it, return the
+    button pressed. A test hands :func:`_choice_box` its own door to measure
+    the shown window in every language (tests/test_4339_choice_window_
+    buttons_never_overlap.py); the work-area rule lists it among its show
+    wrappers (tests/test_every_message_box_is_kept_inside_the_work_area.py)."""
+    box.exec()
+    return box.clickedButton()
+
+
+def _choice_box(parent, title, intro_html, choices,
+                _exec_choice_box=_exec_choice_box):
+    """:func:`_choice_dialog`, with the door it is shown through as a
+    parameter."""
     from PyQt6.QtWidgets import QMessageBox
 
     box = QMessageBox(parent)
@@ -787,30 +804,34 @@ def _choice_dialog(parent, title, intro_html, choices):
     cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
     box.setDefaultButton(cancel)
 
-    from ui.widgets import fit_message_box_buttons
     from ui.widgets import keep_message_box_inside_the_work_area
     keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
-    fit_message_box_buttons(box)
-
-    # THE CHOICES TOGETHER ON THE LEFT, CANCEL ON ITS OWN AT THE RIGHT.
-    #
-    # Qt lays all three out as one group, so "Cancel" sat shoulder to shoulder
-    # with the two actions and read like a third thing you might want to do
-    # (Basti, 2026-08-08). Separating it says what it is: the way out, not an
-    # option. A stretch inside the button box does it without disturbing the
-    # order the app's button-layout style produces.
-    try:
-        from PyQt6.QtWidgets import QDialogButtonBox
-        bb = box.findChild(QDialogButtonBox)
-        if bb is not None and bb.layout() is not None:
-            idx = bb.layout().indexOf(cancel)
-            if idx > 0:
-                bb.layout().insertStretch(idx, 1)
-    except Exception:      # noqa: BLE001 — a layout tweak must never block the window
-        pass
-
-    box.exec()
-    return buttons.get(box.clickedButton())
+    # ONE ROW WHEN IT FITS, ELSE ROWS, NEVER OVERLAPPING (the owner, 4.3.39:
+    # in German "Lieber als neuen Lauf bauen" ran under "Nur das Chart
+    # ersetzen"; four choices and Cancel need about 1090 px there, Qt holds
+    # a message box at 1000 at most, and the row was squeezed). The shared
+    # rule for message boxes with long buttons, `arrange_message_box_buttons`.
+    from ui.widgets import arrange_message_box_buttons
+    rows = arrange_message_box_buttons(box, list(buttons) + [cancel], cancel)
+    if rows == 1:
+        # THE CHOICES TOGETHER ON THE LEFT, CANCEL ON ITS OWN AT THE RIGHT.
+        #
+        # Qt lays all three out as one group, so "Cancel" sat shoulder to
+        # shoulder with the two actions and read like a third thing you might
+        # want to do (Basti, 2026-08-08). Separating it says what it is: the
+        # way out, not an option. A stretch inside the button box does it
+        # without disturbing the order the app's button-layout style
+        # produces.
+        try:
+            from PyQt6.QtWidgets import QDialogButtonBox
+            bb = box.findChild(QDialogButtonBox)
+            if bb is not None and bb.layout() is not None:
+                idx = bb.layout().indexOf(cancel)
+                if idx > 0:
+                    bb.layout().insertStretch(idx, 1)
+        except Exception:      # noqa: BLE001 — a layout tweak must never block the window
+            pass
+    return buttons.get(_exec_choice_box(box))
 
 
 def _next_run_id(project) -> str:

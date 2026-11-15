@@ -6357,6 +6357,9 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
             # working recipe un-randomised; the grid preserves the randomisation,
             # and Shuffle re-randomises on demand.
             self._engine_recipe.randomize = False
+            # R7: and nothing re-ordered either, for the same reason: the
+            # grid IS the printed sheet.
+            self._engine_recipe.avoid_dark_light_neighbours = False
             self._engine_panel.set_recipe(self._engine_recipe)
         self._refresh_engine_panel_visible()
         self._set_chart(spec, program, note, is_saved=True)
@@ -6388,6 +6391,9 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
             from workflow.layout_engine.presets import default_recipe
             try:
                 rec = default_recipe("i1", spec.paper_flag)
+                # R7: the editor's grid is the order the person sees: nothing
+                # is re-ordered behind it unless they tick the option.
+                rec.avoid_dark_light_neighbours = False
                 rec.randomize = False
                 self._engine_panel.set_recipe(rec)
             except Exception as exc:  # noqa: BLE001
@@ -6433,6 +6439,9 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
             inst = "i1" if spec.instrument_flag in ("i1", "3p") else spec.instrument_flag
             try:
                 rec = default_recipe(inst, spec.paper_flag)
+                # R7: the editor's grid is the order the person sees: nothing
+                # is re-ordered behind it unless they tick the option.
+                rec.avoid_dark_light_neighbours = False
                 rec.randomize = False   # editor charts start un-randomised; Shuffle randomises
                 # Carry the layout mode chosen in the New chart window's Chart
                 # section into the recipe so the editor opens with it (#93).
@@ -6833,6 +6842,9 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
                 from workflow.layout_engine.presets import default_recipe
                 try:
                     rec = default_recipe("i1", spec.paper_flag)
+                    # R7: the editor's grid is the order the person sees: nothing
+                    # is re-ordered behind it unless they tick the option.
+                    rec.avoid_dark_light_neighbours = False
                     rec.randomize = False
                     self._engine_panel.set_recipe(rec)
                 except Exception as exc:  # noqa: BLE001
@@ -6935,8 +6947,15 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
             bbox.setContentsMargins(cm.left(), cm.top() + 28, cm.right(),
                                     cm.bottom())
         box.setDefaultButton(unique_btn)
-        from ui.widgets import keep_message_box_inside_the_work_area
+        from ui.widgets import (arrange_message_box_buttons,
+                                keep_message_box_inside_the_work_area)
         keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        # five long buttons: side by side when they fit, else in rows, never
+        # overlapping (the 4.3.39 sweep: over a 1280 laptop's width in 13 of
+        # 14 languages)
+        arrange_message_box_buttons(
+            box, [unique_btn, onlynew_btn, newfill_btn, anyway_btn,
+                  cancel_btn], unique_btn)
         box.exec()
         clicked = box.clickedButton()
         if clicked is unique_btn:
@@ -8058,8 +8077,12 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
                                              kw["dpi"], recipe.strip_pattern,
                                              recipe.patch_pattern)
                 self._engine_patch_rects = {(d["page"], d["slot"]): d for d in pr}
-                self._engine_slots = permutation.location_permutation(
-                    result.layout.total_patches, result.seed, recipe.randomize)
+                # the chart's own order when it has one (R7, an i1iO's)
+                self._engine_slots = (
+                    list(getattr(result, "slots", None) or [])
+                    or permutation.location_permutation(
+                        result.layout.total_patches, result.seed,
+                        recipe.randomize))
                 self._status.setText(tr("Engine preview · {n} patches · seed {s}")
                                      .format(n=result.layout.total_patches,
                                              s=result.seed))

@@ -169,7 +169,16 @@ def test_the_notes_band_names_the_i1iSis_and_its_own_page(monkeypatch):
         patch_geom = None
 
     C.draw_furniture(Render(), sheet, 50, name="two", band={"ctx": {}})
-    assert [c["page"] for c in seen] == [f"{i + 1}/{g.P}"
+    assert [c["page"] for c in seen] == [f"page {i + 1}/{g.P}"
                                          for i in range(g.P)]
     assert {c["instrument"] for c in seen} == {"i1iSis"}
-    assert {c["strips"] for c in seen} == {str(g.R)}
+    # the strips as the Create Chart panel and the strip letters count them:
+    # the COLUMNS on that page, each of R patches (the owner, 2026-11-15:
+    # the band said "strips on page: 32", the rows, beside the panel's 28)
+    left = g.N
+    for c in seen:
+        on_page = min(left, g.C * g.R)
+        left -= on_page
+        assert c["strips"] == str(-(-on_page // g.R)), c
+        assert c["per_strip"] == str(g.R), c
+        assert c["count"] == str(g.N), c

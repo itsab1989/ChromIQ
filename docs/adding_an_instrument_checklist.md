@@ -156,6 +156,13 @@ Lists:
       behind the switch the
       `ui/dialogs/layout_options_panel.py::LayoutOptionsPanel.instruments`
       classmethod.
+- [ ] **2.3a** How it finds its patches:
+      `workflow/layout_engine/instruments.py::FINDS_PATCHES_BY_EDGES` (True
+      only for an instrument swept along a strip that finds each patch where
+      the colour changes). It decides the no-spacer note, "Keep very dark
+      patches away from very light ones" and the short-patch note;
+      `tests/test_4339_which_instruments_find_patches_by_edges.py` fails until
+      the new instrument is classified.
 - [ ] **2.4** Preset groups and built-ins, if any:
       `ui/tabs/tab_chart.py::INSTRUMENT_GROUP_LABELS`,
       `ui/tabs/tab_chart.py::BUILTIN_PRESET_GROUPS`, `docs/dev_builtin_presets.md`.
@@ -504,6 +511,11 @@ and the full session runs against the simulator.
       patch set beside every chart (`workflow/chart_exports.py::write_sidecars`),
       whose `.pxf` names the device i1Profiler itself writes for the
       instrument (`workflow/chart_exports.py::i1profiler_device_for`).
+      A measurement brought back from another program that the ordinary
+      import cannot pair needs its own gated route in
+      `workflow/measurement_import.py` (the i1iO's i1Profiler Measure Chart
+      file, `assess(..., source=)`), which reads nothing while the switch is
+      off.
 - [ ] **9.7** The `HOOKED_FILES` pin lists every shared file that now names
       the instrument.
 

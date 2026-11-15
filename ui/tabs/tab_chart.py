@@ -6442,6 +6442,19 @@ class _InfoRowScroll(FadeScrollArea):
         return hint
 
 
+def _chart_note_key(ti2) -> str:
+    """What "this chart" means for a note said once per chart in the Create
+    Chart log: the chart file AND its last write. Generating again into the
+    same run rewrites the same path, and a key of the path alone kept the
+    no-spacer note out of the new chart's log (combined review of 4.3.39,
+    MINOR-2); the short-patch note shares the rule."""
+    try:
+        st = Path(ti2).stat()
+        return f"{ti2}|{st.st_mtime_ns}|{st.st_size}"
+    except OSError:
+        return str(ti2)
+
+
 class TabChart(QWidget):
     """Step 1: create targen/printtarg test chart."""
     #: The hue of this tab's step header, its accent: file-drop frames
@@ -19986,6 +19999,16 @@ class TabChart(QWidget):
                 "both ends of every strip, three numbered aiming marks."
             ).format(paper=paper, dpi=dpi, w=_F.PATCH_ALONG_MM.value,
                      h=_F.PATCH_ACROSS_MM.value, run=_F.RUN_MM.value)
+        # THE i1iSis BY ITS NAME, NEVER ITS CODE (the owner, 2026-11-15, on
+        # 4.3.38: "ChromIQ layout engine · XRISIS · A4"). The other Beta
+        # instruments name themselves here too (FD-9, i1iO table); the long-
+        # standing ones keep the line they have always had.
+        from workflow.isis.support import (device_name as _isis_name,
+                                           is_isis_code as _is_isis)
+        if _is_isis(instr):
+            box = getattr(self, "_isis_model_combo", None)
+            instr = _isis_name(box.currentData() if box is not None
+                               else "standard")
         bits = [tr("ChromIQ layout engine"), instr, paper, f"{dpi} dpi",
                 tr("margin {mm:g} mm").format(mm=margin)]
         if abs(pscale - 1.0) > 0.01:
@@ -20221,6 +20244,11 @@ class TabChart(QWidget):
                 # and is left exactly as it was.
                 total, shown_pages = per_sheet * pages, pages
             self._predicted_patch_count = total   # for the Suggest-name button (#62)
+            # what Generate needs to tell a bound set that takes other pages
+            # than the Pages box from one that fits it
+            # (`_guided_bound_set_pages_answer`)
+            self._bound_set_pages = shown_pages if fixed else None
+            self._guided_capacity = per_sheet * pages
             self._patch_count_lbl.setText(self._count_with_accent(str(total)))
             # "1 PAGES" sat on the first screen of the app, in the largest
             # type on the panel, with "Number of pages: 1" two inches above it.
@@ -20864,6 +20892,74 @@ class TabChart(QWidget):
         except Exception:  # noqa: BLE001 — refresh must never block the rename
             log.warning("post-rename path refresh failed", exc_info=True)
 
+    def _guided_bound_set_pages_answer(self) -> str:
+        """"keep", "new" or "cancel": whether Generate in Guided lays out the
+        run's own patch set again, makes a new one for the pages asked, or
+        does nothing at all.
+
+        Only Guided, and only when the bound set laid out with the settings
+        on screen takes another number of pages than "Number of pages" says:
+        then the person is asked (M-GUIDED-SET-PAGES). "Do not generate" is
+        the default and Escape, and changes nothing (combined review of
+        4.3.39, MAJOR-1): laying the set out again is NOT the same sheet, as
+        a randomised chart gets a new patch order and so new chart files and
+        images, so a printed chart is only safe if nothing is generated.
+        Anything else is "keep", which is exactly what Generate did before.
+        A measured run has already been asked about by the usual window
+        (§4) before this question; nothing is moved until a chart is
+        actually generated."""
+        if self._current_mode() != "guided":
+            return "keep"
+        try:
+            self._update_patch_count()
+        except Exception:      # noqa: BLE001 - a count may never block a build
+            return "keep"
+        set_pages = getattr(self, "_bound_set_pages", None)
+        asked = self._pages_spin.value()
+        n = self._pending_patch_set_total()
+        cap = getattr(self, "_guided_capacity", None)
+        if not set_pages or not n or not cap or set_pages == asked:
+            return "keep"
+        from workflow import measurement_messages as M
+        title, body = M.M_GUIDED_SET_PAGES.render(
+            n=n, cap=cap,
+            set_pages=count_phrase(set_pages, tr("1 page"), tr("{n} pages")),
+            asked=count_phrase(asked, tr("1 page"), tr("{n} pages")))
+        box = QMessageBox(self)
+        set_question_icon(box)
+        box.setWindowTitle(title)
+        box.setText(f"<b>{title}</b>")
+        box.setInformativeText(body)
+        new_btn = box.addButton(
+            count_phrase(asked, tr("Make a new patch set for 1 page"),
+                         tr("Make a new patch set for {n} pages")),
+            QMessageBox.ButtonRole.AcceptRole)
+        keep_btn = box.addButton(tr("Keep my patches and lay them out again"),
+                                 QMessageBox.ButtonRole.ActionRole)
+        stop_btn = box.addButton(tr("Do not generate"),
+                                 QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(stop_btn)
+        box.setEscapeButton(stop_btn)
+        from ui.widgets import (arrange_message_box_buttons,
+                                keep_message_box_inside_the_work_area)
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        # side by side when they fit, else as few even rows as fit, never
+        # overlapping (round-2 review of 4.3.39: es, pt, nl overlapped at
+        # full width, 11 of 14 languages on a 1280 laptop); read in the
+        # order the text explains them, the way out last
+        arrange_message_box_buttons(box, [new_btn, keep_btn, stop_btn],
+                                    stop_btn)
+        box.exec()
+        clicked = box.clickedButton()
+        ans = ("new" if clicked is new_btn
+               else "keep" if clicked is keep_btn else "cancel")
+        log.info("Create Chart: the run's own patch set (%d patches) takes "
+                 "%d page(s) here, %d asked in Guided: %s", n, set_pages,
+                 asked, {"new": "a new patch set is made",
+                         "keep": "the same patches are laid out again",
+                         "cancel": "nothing is generated"}[ans])
+        return ans
+
     def _patchset_missing_message(self, path) -> None:
         """M-PATCHSET-MISSING — the loaded patch set is no longer on disk.
 
@@ -21164,10 +21260,31 @@ class TabChart(QWidget):
                 targen_changed = (opted_in
                                   and self._preset_ti1_targen_sig is not None
                                   and self._targen_signature() != self._preset_ti1_targen_sig)
-                if not targen_changed:
-                    if self._preset_ti1_path.is_file():
+                _new_set = False
+                if not targen_changed and self._preset_ti1_path.is_file():
+                    # GUIDED KEEPS ITS PAGES, OR SAYS WHY NOT (the owner,
+                    # 2026-11-15: "clicking generate in guided should give new
+                    # patches anyway so the user gets the layout and number of
+                    # pages he selected"). A bound set is the person's own, so
+                    # it is never replaced without asking (#147).
+                    _ans = self._guided_bound_set_pages_answer()
+                    if _ans == "cancel":
+                        return
+                    if _ans != "new":
                         self._generate_from_ti1(self._preset_ti1_path, ask=False)
                         return
+                    _new_set = True
+                if _new_set:
+                    log.info("Create Chart: the run's own patch set (%s) is "
+                             "not laid out: the person asked for a new patch "
+                             "set for the pages chosen in Guided",
+                             self._preset_ti1_path.name)
+                    self._preset_ti1_path = None
+                    self._preset_ti1_targen_sig = None
+                    self._update_preset_locks()
+                    # and the big number says what is now being made
+                    self._update_patch_count()
+                elif not targen_changed:
                     # SAY SO. This wrote one line to the log and then built a
                     # completely different chart (§M M-PATCHSET-MISSING).
                     log.warning("attached preset .ti1 vanished: %s", self._preset_ti1_path)
@@ -26757,6 +26874,7 @@ class TabChart(QWidget):
         """Record the chart now in the preview and refresh the margin inspector."""
         self._margin_tiffs = list(tiffs or [])
         self._margin_ti2 = ti2 if (ti2 and Path(ti2).is_file()) else None
+        self._refresh_isis_row_numbers_note()
         self._update_margin_inspector()
         self._update_layout_info()
         # …AND THE ESTIMATE COLUMN, WHICH READS THIS VERY CHART.
@@ -26765,6 +26883,28 @@ class TabChart(QWidget):
         # leaving it alone here made every Generate publish a panel whose two
         # columns describe two different charts, one build apart.
         self._refresh_layout_estimate()
+
+    def _refresh_isis_row_numbers_note(self) -> None:
+        """The i1iSis group's note (M-ISIS-ROW-NUMBERS-NO-ROOM) for the chart
+        now in the preview: shown when its side file says "Show row
+        indicators" was on and the numbers had no room, hidden otherwise.
+        Only while the i1iSis Beta is on (the panel's own guard)."""
+        lp = getattr(self, "_manual_layout_panel", None)
+        if lp is None or not getattr(lp, "_isis_support", False):
+            return
+        text = None
+        ti2 = getattr(self, "_margin_ti2", None)
+        if ti2:
+            try:
+                from workflow.isis.support import read_side_file
+                if (read_side_file(ti2) or {}).get("row_numbers") \
+                        == "left_off":
+                    from workflow.measurement_messages import \
+                        isis_row_numbers_no_room_text
+                    text = isis_row_numbers_no_room_text()
+            except Exception:  # noqa: BLE001 - a note never blocks a chart
+                log.debug("i1iSis row-number note not made", exc_info=True)
+        lp.isis_row_numbers_note(text)
 
     def _estimate_patch_total(self) -> "int | None":
         """The patch count the estimate should lay out: what pressing Generate
@@ -27452,6 +27592,23 @@ class TabChart(QWidget):
                 "⚠ Strip length {len:.0f} mm exceeds the {ruler:.0f} mm "
                 "instrument ruler — the strip may not fit your jig").format(
                     len=report.strip_length_mm or 0.0, ruler=self._ruler_over_mm)]
+        # R6 (4.3.39): patches shorter along the strip than ArgyllCMS's
+        # minimum for the instrument. A note under the measurements, never a
+        # refusal; nothing is greyed.
+        _short = self._short_patch_note()
+        if _short:
+            warns = list(warns) + [_short]
+            # ...and one line on the frame's own surface (review of 4.3.39),
+            # where the overlap notices are read without a hover
+            _line = getattr(self, "_short_patch_panel_line", None)
+            if _line:
+                overlaps = list(overlaps or []) + [_line]
+        # Owner's question (2026-11-15): no spacers, and neighbours nothing
+        # tells apart. A note, never a refusal; nothing moves.
+        _alike = self._alike_neighbours_note()
+        if _alike:
+            warns = list(warns) + [_alike[0]]
+            overlaps = list(overlaps or []) + [_alike[1]]
         panel.update_report(
             report, violations,
             thresholds_defined=bool(thresholds),
@@ -27463,6 +27620,89 @@ class TabChart(QWidget):
         )
         self._refresh_margin_guides(report, thresholds, violations)
         self._refresh_measured_guides(report)
+
+    def _alike_neighbours_note(self) -> "tuple[str, str] | None":
+        """M-CHART-ALIKE-NO-SPACER (full, for the frame's info and the log)
+        and its panel line, for a chart of a hand-held strip instrument laid
+        out WITHOUT spacers whose neighbouring patches along a strip include
+        identical or nearly identical pairs (`neighbour_order.
+        alike_pairs_in_ti2`); None otherwise. The Create Chart log says it
+        once per chart."""
+        ti2 = getattr(self, "_margin_ti2", None)
+        if not ti2:
+            return None
+        try:
+            import json as _json
+            stem = Path(ti2).with_suffix("")
+            side = stem.parent / (stem.name + ".channels.json")
+            rec = (_json.loads(side.read_text(encoding="utf-8"))
+                   .get("layout", {}).get("recipe") or {})
+            from workflow.layout_engine.instruments import \
+                finds_patches_by_edges
+            if not finds_patches_by_edges(rec.get("instrument")):
+                return None
+            spaced = (bool(rec.get("spacer_on", True))
+                      and str(rec.get("spacer_mode") or "colored") != "none")
+            if spaced:
+                return None
+            from workflow.layout_engine.neighbour_order import \
+                alike_pairs_in_ti2
+            n = alike_pairs_in_ti2(ti2)
+            if not n:
+                return None
+            from workflow import measurement_messages as M
+            title, body = M.M_CHART_ALIKE_NO_SPACER.render(n=n)
+            _t2, line = M.M_CHART_ALIKE_NO_SPACER_PANEL.render(n=n)
+            key = _chart_note_key(ti2)
+            if getattr(self, "_alike_logged", None) != key:
+                self._alike_logged = key
+                log_w = getattr(self, "_log", None)
+                if log_w is not None and hasattr(log_w, "appendPlainText"):
+                    log_w.appendPlainText(f"[{title}]\n{body}")
+            return f"⚠ {title}. {body}", f"⚠ {line}"
+        except Exception:      # noqa: BLE001 — a note never blocks a chart
+            log.debug("alike-neighbours note not made", exc_info=True)
+            return None
+
+    def _short_patch_note(self) -> "str | None":
+        """R6: M-CHART-PATCHES-SHORT for the chart in the preview, from its
+        ``.channels.json`` (the layout engine's own record of the instrument
+        and the patch rectangles), or None. The Create Chart log says it
+        once per chart."""
+        self._short_patch_panel_line = None
+        ti2 = getattr(self, "_margin_ti2", None)
+        if not ti2:
+            return None
+        try:
+            from workflow import patch_size_check as P
+            stem = Path(ti2).with_suffix("")
+            finding = P.from_channels(stem.parent / (stem.name
+                                                     + ".channels.json"))
+            if finding is None:
+                return None
+            title, body = P.note_text(finding)
+            said = getattr(self, "_short_patch_logged", None)
+            key = _chart_note_key(ti2)
+            log_w = getattr(self, "_log", None)
+            can_log = log_w is not None and hasattr(log_w, "appendPlainText")
+            if finding.calm:
+                # ChromIQ's own automatic size, a little short (combined
+                # review of 4.3.39, MAJOR-2): one calm [INFO] line in the
+                # log, nothing red on the panel and no warning counted
+                if said != key:
+                    self._short_patch_logged = key
+                    if can_log:
+                        log_w.appendPlainText("[INFO] " + body)
+                return None
+            self._short_patch_panel_line = "⚠ " + P.panel_line(finding)
+            if said != key:
+                self._short_patch_logged = key
+                if can_log:
+                    log_w.appendPlainText(f"[{title}]\n{body}")
+            return f"⚠ {title}. {body}"
+        except Exception:      # noqa: BLE001 — a note never blocks a chart
+            log.debug("short-patch note not made", exc_info=True)
+            return None
 
     @staticmethod
     def _notes_are_about_another_page(shown, judged) -> bool:
@@ -31470,6 +31710,24 @@ class TabChart(QWidget):
                      _recipe_mode_word(rec), grid,
                      rec.get("margin_top"), rec.get("margin_right"),
                      rec.get("margin_bottom"), rec.get("margin_left"))
+            from workflow.isis.support import is_isis_code as _is_isis
+            if _is_isis(rec.get("instrument")):
+                # THE i1iSis's OWN LABEL OPTIONS (the owner, 2026-11-15: a
+                # report of "no strip letters" could not be read from the
+                # log, which did not say whether they were switched on)
+                log.info("chart build (%s) in %s: i1iSis options: model %s, "
+                         "strip letters %s (place %s), row numbers %s, "
+                         "corner labels %s, arrows %s, outline %s, "
+                         "notes band %s (place %s)",
+                         trigger, mode, rec.get("isis_model") or "standard",
+                         "on" if rec.get("show_strip_indicators") else "off",
+                         rec.get("isis_strip_letters") or "top",
+                         "on" if rec.get("show_row_indicators") else "off",
+                         "on" if rec.get("isis_corner_labels", True) else "off",
+                         "on" if rec.get("isis_arrows", True) else "off",
+                         "on" if rec.get("isis_outline", True) else "off",
+                         "on" if rec.get("isis_notes_band") else "off",
+                         rec.get("isis_notes_place") or "header")
             if mode == "guided":
                 # The raw numbers the engine is handed, as before.
                 log.info("chart build (%s) in %s: engine kwargs %s",

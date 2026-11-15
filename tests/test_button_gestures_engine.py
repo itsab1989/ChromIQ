@@ -111,7 +111,11 @@ def _normalised(s, base: Path) -> "tuple[list, str]":
     for e in s.events:
         if e.get("event") == "scan_ready":       # a timer thread's; order varies
             continue
+        if e.get("event") == "filter":            # 4.3.39 (R4): new event
+            continue
         e = dict(e)
+        if e.get("event") == "session_start":
+            e.pop("turn", None)                  # 4.3.39 (R2): new field
         e.pop("chart", None)                     # the temp path
         e.pop("path", None)                      # ...and the file's
         evs.append(e)

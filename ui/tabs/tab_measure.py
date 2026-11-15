@@ -1904,6 +1904,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # judged as B's (Knut, #182 6102031563).
         if hasattr(self._manager, "strip_filed_as"):
             self._manager.strip_filed_as.connect(self._on_strip_filed_as)
+        if hasattr(self._manager, "strip_turned"):
+            self._manager.strip_turned.connect(self._on_strip_turned)
         # ...and when the strip it came off was to get its earlier reading
         # back and did not, that strip is cleared after all (Basti 2026-10-21).
         if hasattr(self._manager, "earlier_reading_lost"):
@@ -6920,9 +6922,36 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         `_chart_is_calibration` decides it) M-I1IO-NOT-YET-BY-HAND: the
         i1Profiler way ends in building a profile, which those are not for."""
         from workflow import measurement_messages as M
+        # THE MEASURE CHART WAY (2026-11-15): for a chart of ONE page,
+        # i1Profiler's Measure Chart reads ChromIQ's own sheet and the
+        # Measure tab's import brings it back, so the steps come first, with
+        # the chart's own numbers; the crosses part replaces the aiming
+        # paragraph (it would say to aim at the crosses).
+        # NOT FOR A CALIBRATION CHART (review 2026-11-15, M3): a calibration
+        # run cannot import (`_import_available`, §I.9), so the steps would
+        # end in a button that is not there; it keeps the window by hand.
+        ti1 = getattr(self, "_ti1_path", None)
+        calibration = bool(ti1) and Path(ti1).parent.name == "cal"
+        nums = None if calibration else self._i1io_measure_chart_numbers()
+        by_hand = self._i1io_not_yet_message(M) is M.M_I1IO_NOT_YET_BY_HAND
+        if nums is not None and int(nums.get("pages") or 1) == 1:
+            self._i1io_window(*M.i1io_measure_chart_window(nums, by_hand))
+            return
         title, body = self._i1io_not_yet_message(M).render()
+        if nums is not None:
+            body += "\n\n" + M.i1io_pages_note(int(nums.get("pages") or 1))
         self._i1io_window(title, body + "\n\n"
                           + M.i1io_aim_text(self._i1io_aim_details()))
+
+    def _i1io_measure_chart_numbers(self) -> "dict | None":
+        """The numbers of the Measure Chart steps for the loaded i1iO chart
+        (`workflow.i1io.measure_chart.instruction_numbers`), or None."""
+        try:
+            from workflow.i1io.measure_chart import instruction_numbers
+            return instruction_numbers(self._chart_file_for(self._ti1_path))
+        except Exception:      # noqa: BLE001 - a notice, never a blocker
+            log.debug("i1iO Measure Chart numbers not read", exc_info=True)
+            return None
 
     def _i1io_aim_details(self) -> dict:
         """What the loaded i1iO chart records about aiming
@@ -8200,6 +8229,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             now = condition_for_filter(code)
             if now == before:
                 return False
+            # R4 (4.3.39): without -F the instrument measures in its normal
+            # mode, and since 4.3.39 a measurement records that as M0 where
+            # it is known. Continuing one without -F is what it was before.
+            from workflow.measurement_condition import \
+                condition_fits_normal_mode
+            if code is None and condition_fits_normal_mode(ti3):
+                return False
         except Exception:      # noqa: BLE001 — never block a read on this check
             log.debug("could not compare the measurement condition",
                       exc_info=True)
@@ -8211,7 +8247,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                              if m == before), None)
         box_cb = (self._resume_cb if self._current_mode() == "guided"
                   else self._m_resume_cb)
-        title, body = M.M_RESUME_CONDITION.render(
+        from workflow.measurement_condition import (
+            CONDITION_SOURCE_KEYWORD, SOURCE_INSTRUMENT_DEFAULT,
+            read_header_keyword)
+        _src = (read_header_keyword(ti3, CONDITION_SOURCE_KEYWORD) or "").upper()
+        _msg = (M.M_RESUME_CONDITION_DEFAULT
+                if _src == SOURCE_INSTRUMENT_DEFAULT else M.M_RESUME_CONDITION)
+        title, body = _msg.render(
             before=condition_name(before),
             now=M.resume_condition_now(
                 self._filter_label(code) if code else None, now),
@@ -8663,6 +8705,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # because its first part may have been measured under any; the log
         # says why. (One that records a DIFFERENT condition was refused
         # above, `_blocked_by_a_differing_condition`.)
+        # R4 (4.3.39): the instrument's normal mode is recorded too (M0 where
+        # it is known), except on a resume onto a measurement that records
+        # nothing, whose first part may have been measured under any.
+        self._session_records_default = not (
+            getattr(params, "resume", False)
+            and self._resumes_unrecorded_condition(_ti3_pre))
         if self._session_filter and getattr(params, "resume", False) \
                 and self._resumes_unrecorded_condition(_ti3_pre):
             from workflow.measurement_messages import \
@@ -8809,6 +8857,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._session_live = True
         self._gesture_paused = None      # button shortcuts' pause
         self._slip_kept_strips = set()
+        #: R3 (4.3.39): how often each strip was refused with "Reading is
+        #: inconsistent" in this measurement.
+        self._inconsistent_refusals = {}
+        self._say_short_patches()
         self._end_page_pause()
         self._sync_calibrate_btn_visible()
         QApplication.instance().installEventFilter(self)
@@ -9431,6 +9483,30 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             except Exception:  # noqa: BLE001 — never break a measurement
                 log.debug("could not redraw strip %s", ev.get("filed_from"),
                           exc_info=True)
+
+    def _on_strip_turned(self, ev: dict) -> None:
+        """R2 (4.3.39): "Turn this strip round", carried out by the engine.
+        *ev* has the shape of a strip_read of that strip with its readings in
+        the reverse order; it is counted and judged again exactly as a
+        reading of the strip (the patch error limit, the strip test, the
+        neighbour check, the outlines and the cards), as a moved reading is.
+        The Measure log says what was done."""
+        strip = str(ev.get("strip", "") or "?")
+        try:
+            from workflow import measurement_messages as M
+            _t, body = M.M_STRIP_TURNED.render(strip=strip)
+            self._log.appendPlainText(body)
+            self._log.ensureCursorVisible()
+        except Exception:      # noqa: BLE001 — a log line never blocks a read
+            log.debug("could not log the turned strip", exc_info=True)
+        if not getattr(self, "_session_live", False):
+            return
+        try:
+            self._count_strip_progress(ev)
+            self._on_strip_measured(ev)
+        except Exception:      # noqa: BLE001 — never break a measurement
+            log.warning("could not judge strip %s's turned reading", strip,
+                        exc_info=True)
 
     def _earlier_coming_back_locs(self) -> set:
         """The patches of strips whose earlier reading the engine is giving
@@ -10055,8 +10131,19 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         f = dict(finding or {})
         strip = str(f.get("strip") or "?")
         late = int(f.get("offset") or 0) > 0
+        # R2 (4.3.39): a strip filed back to front IN STEP can be turned
+        # round by the engine, on the person's click only.
+        turnable = False
         if f.get("reversed"):
             message = M.M_STRIP_REVERSED
+            try:
+                in_step = not int(f.get("offset") or 0)
+            except (TypeError, ValueError):
+                in_step = False
+            can = getattr(self._manager, "can_turn_strips", None)
+            turnable = bool(in_step and callable(can) and can())
+            if turnable:
+                message = M.M_STRIP_REVERSED_TURN
         elif f.get("whole") and int(f.get("shift") or 1) >= 2:
             # The engine's net also finds a strip two patches out (4.3.11)
             message = (M.M_STRIP_WHOLE_SLIPPED_TWO_LATE if late
@@ -10098,14 +10185,23 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             shift_line=M.slip_shift_line(f.get("offset")),
             middle_line=M.slip_middle_line(f.get("offset")),
             remeasure=tr("Re-measure this strip"), keep=tr("Keep it"),
+            turn=tr("Turn this strip round"),
             stop=tr("Stop"))), dlg)
-        choice = self._misaligned_strip_buttons(dlg, layout, msg)
+        choice = self._misaligned_strip_buttons(dlg, layout, msg,
+                                                turn=turnable)
         self._exec_measurement_window(dlg)
+        # R5: which question, and the answer, for the diagnostics file
+        note = getattr(self._manager, "note_question_answer", None)
+        if callable(note):
+            note(strip, "back_to_front" if f.get("reversed") else "slip",
+                 choice[0])
         self._after_misaligned_strip_choice(choice[0], strip)
 
-    def _misaligned_strip_buttons(self, dlg, layout, msg) -> list:
+    def _misaligned_strip_buttons(self, dlg, layout, msg,
+                                  turn: bool = False) -> list:
         """The message and buttons shared by both misaligned-strip questions.
-        Returns the one-item list the pressed button's answer lands in."""
+        Returns the one-item list the pressed button's answer lands in.
+        *turn* adds "Turn this strip round" (R2, M-STRIP-REVERSED-TURN)."""
         from PyQt6.QtWidgets import QHBoxLayout, QPushButton
         msg.setWordWrap(True)
         layout.addWidget(msg)
@@ -10124,10 +10220,18 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         remeasure_btn.clicked.connect(lambda: _pick("remeasure"))
         keep_btn.clicked.connect(lambda: _pick("keep"))
         stop_btn.clicked.connect(lambda: _pick("stop"))
+        turn_btn = None
+        if turn:
+            turn_btn = QPushButton(tr("Turn this strip round"), dlg)
+            turn_btn.setObjectName("turn_strip_round")
+            turn_btn.setFixedHeight(32)
+            turn_btn.clicked.connect(lambda: _pick("turn"))
 
         row = QHBoxLayout()
         row.setSpacing(8)
         row.addWidget(remeasure_btn)
+        if turn_btn is not None:
+            row.addWidget(turn_btn)
         row.addWidget(keep_btn)
         row.addStretch()
         row.addWidget(stop_btn)
@@ -10140,6 +10244,15 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         """Re-measure jumps back to *strip*, Stop stops, Keep it keeps."""
         if choice == "remeasure":
             self._manager.goto_strip(strip)     # re-read this strip next
+        elif choice == "turn":
+            # R2: only this click turns the readings; the engine answers
+            # strip_turned (_on_strip_turned), which logs it and judges again.
+            turn = getattr(self._manager, "turn_strip", None)
+            if not (callable(turn) and turn(strip)):
+                log.warning("strip %s could not be turned round; it is kept "
+                            "as it was filed", strip)
+                kept = vars(self).setdefault("_slip_kept_strips", set())
+                kept.add(str(strip))
         elif choice == "stop":
             self._on_stop()
         else:
@@ -11734,6 +11847,58 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         ButtonFontFilter.fit_window(dlg)
         self._exec_measurement_window(dlg)
 
+    def _say_short_patches(self) -> None:
+        """R6 (4.3.39): once per measurement, a line in the Measure log when
+        the chart's patches are shorter along the strip than ArgyllCMS's
+        minimum for the instrument it was laid out for (M-MEASURE-PATCHES-
+        SHORT). Only a note; nothing is refused."""
+        ti1 = getattr(self, "_ti1_path", None)
+        if not ti1:
+            return
+        try:
+            from workflow import patch_size_check as P
+            stem = Path(ti1).with_suffix("")
+            finding = P.from_channels(stem.parent / (stem.name
+                                                     + ".channels.json"))
+            if finding is not None:
+                self._log.appendPlainText(P.log_line(finding))
+                self._log.ensureCursorVisible()
+        except Exception:      # noqa: BLE001 — a note never blocks a read
+            log.debug("short-patch line not written", exc_info=True)
+
+    #: R3: from which refusal of the same strip the explanation is added.
+    INCONSISTENT_AGAIN_FROM = 2
+
+    def _inconsistent_again_html(self, reason: str) -> str:
+        """R3 (4.3.39; jctay, forum 150236): from the SECOND time the same
+        strip is refused with the driver's "Reading is inconsistent" in one
+        measurement, M-STRIP-FAILED-INCONSISTENT-AGAIN under the usual advice:
+        what it usually means and what helps. Counted per strip; "" before
+        that, for any other reason, and without a strip name. The Measure log
+        says it once per strip."""
+        from core.measure_pace import misread_kind
+        if misread_kind(reason) != "inconsistent":
+            return ""
+        strip = str(getattr(self, "_current_strip_letter", "") or "").strip()
+        if not strip:
+            return ""
+        counts = vars(self).setdefault("_inconsistent_refusals", {})
+        counts[strip] = counts.get(strip, 0) + 1
+        n = counts[strip]
+        if n < self.INCONSISTENT_AGAIN_FROM:
+            return ""
+        from workflow import measurement_messages as M
+        title, body = M.M_STRIP_FAILED_INCONSISTENT_AGAIN.render(
+            strip=strip, skip=tr("Skip Strip"),
+            save_partial=_save_partial_name().replace("&amp;", "&"))
+        if n == self.INCONSISTENT_AGAIN_FROM:
+            try:
+                self._log.appendPlainText(title + "\n" + body)
+                self._log.ensureCursorVisible()
+            except Exception:  # noqa: BLE001 — a log line never blocks a read
+                pass
+        return _catalogue_html(title, body)
+
     def _is_last_unread_strip(self) -> bool:
         """True when the strip that just failed is the only one still unread.
 
@@ -11840,6 +12005,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             # from the §M catalogue (M-STRIP-FAILED-*), instead of one text
             # for all that told "Too many patches" to scan more slowly.
             advice = _strip_failed_advice_html(reason)
+            advice += self._inconsistent_again_html(reason)
             if button:
                 advice += _strip_failed_button_html()
 
@@ -15067,7 +15233,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         """No file is taken while ArgyllCMS runs (a measurement, say)."""
         return not self._runner.is_running
 
-    def _import_verdict(self, ti3: Path, ti2: Path):
+    def _import_verdict(self, ti3: Path, ti2: Path, source=None):
         """Judge this file against the verification chart, THROUGH THE ONE
         RULE both import doors use (`workflow.measurement_import.assess`).
 
@@ -15083,9 +15249,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         The one thing this door still decides for itself is what to do with a
         SHORT measurement: the profiling door files it (§I.10), and this one
         refuses it, which is §I as shipped.
+
+        *source*: the file the person picked, for the i1iO Beta's Measure
+        Chart route (`measurement_import.assess`); never read without it.
         """
         from workflow.measurement_import import assess
-        return assess(Path(ti3), Path(ti2))
+        return assess(Path(ti3), Path(ti2),
+                      source=Path(source) if source is not None else None)
 
     def _import_mismatch_reason(self, ti3: Path, ti2: Path) -> "str | None":
         """The plain-words reason this file must be refused, or None when it
@@ -15127,6 +15297,61 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             title, body = turned_grid_colours_filed(fields)
             self._log.appendPlainText("\n[OK] " + title + "\n" + body)
         return True
+
+    def _complete_i1io_import(self, converted: Path, chart: Path,
+                              verdict) -> "bool | None":
+        """File an i1Profiler Measure Chart measurement of this i1iO chart
+        (the i1iO Beta) on the converted copy, by each reading's own place
+        in i1Profiler's grid, and say so in the log. When the chart's colours
+        cannot tell, the person is asked first (M-IMPORT-I1IO-CANNOT-CHECK).
+        True: filed; False: refuse; None: cancelled (nothing changed)."""
+        from workflow import measurement_messages as M
+        from workflow.measurement_import import complete_from_i1io_grid
+        v = verdict.i1io_grid
+        if v.ask_why:
+            from workflow.i1io.measure_chart import instruction_numbers
+            nums = instruction_numbers(chart) or {}
+            if not self._ask_import_question(
+                    M.M_IMPORT_I1IO_CANNOT_CHECK, tr("Import"),
+                    **M.i1io_cannot_check_kw(v.ask_why, nums)):
+                self._log.appendPlainText("\n" + tr(
+                    "[INFO] The import was cancelled. Nothing has been "
+                    "changed."))
+                return None
+        n = complete_from_i1io_grid(converted, chart, verdict)
+        if not n:
+            return False
+        g = v.grid
+        self._log.appendPlainText("\n" + M.i1io_filed_line(
+            n, g.columns, g.rows, v.net.score if v.net else float("nan"),
+            bool(v.ask_why)))
+        # NOTHING PRESENTED AS CHECKED THAT WAS NOT (4.3.39): on a chart too
+        # small or too uniform for the checks to prove the aim, the log and
+        # the "done" window say so, and how to be sure
+        # (M-IMPORT-I1IO-AIM-UNCHECKED).
+        from workflow.i1io.measure_chart import aim_unchecked_why
+        why = aim_unchecked_why(v)
+        if why:
+            from workflow.i1io.measure_chart import instruction_numbers
+            title, body = M.i1io_aim_unchecked_text(
+                why, instruction_numbers(chart) or {})
+            self._log.appendPlainText("\n[WARNING] " + title + "\n" + body)
+            self._i1io_aim_note = (title, body)
+        return True
+
+    def _add_i1io_aim_note(self, dlg, lay) -> None:
+        """Below the approved text of a "done" window: the note of
+        `_complete_i1io_import` when this import's aim could not be checked
+        (M-IMPORT-I1IO-AIM-UNCHECKED). Said once, then forgotten."""
+        note = getattr(self, "_i1io_aim_note", None)
+        self._i1io_aim_note = None
+        if not note:
+            return
+        from PyQt6.QtWidgets import QLabel
+        label = QLabel("⚠ " + note[0] + "\n\n" + note[1], dlg)
+        label.setWordWrap(True)
+        label.setObjectName("i1io_aim_note")
+        lay.addWidget(label)
 
     def _show_import_refusal(self, message, **kw) -> None:
         """One of the IMPORT module's refusal/guard windows. The **text** comes
@@ -15174,7 +15399,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         box.exec()
         return box.clickedButton() is go
 
-    def _convert_import_file(self, run, path: Path) -> "Path | None":
+    def _convert_import_file(self, run, path: Path,
+                             chart: "Path | None" = None) -> "Path | None":
         """§I.4 for both doors: the chosen file as a `.ti3` in the run's cache.
 
         `.mxf`/`.cxf` are read directly, `.txt` goes through txt2ti3, and a
@@ -15207,10 +15433,19 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # WHICH READINGS OF AN i1Profiler CxF (4.3.23): asked before anything
         # is converted, when the file holds more than one measurement
         # condition (M-IMPORT-CXF-CONDITION). Cancel imports nothing.
+        # AN i1Profiler "MEASURE CHART" FILE OF AN i1iO SHEET (the i1iO Beta)
+        # is saved as .cmxf, which the converter does not take for a CxF:
+        # only for that chart, behind the Beta, it is read as one
+        # (`workflow.i1io.measure_chart.convert`). Every other file is
+        # converted exactly as before.
+        cmxf = False
+        if chart is not None and Path(path).suffix.lower() == ".cmxf":
+            from workflow.measurement_import import i1io_route_applies
+            cmxf = i1io_route_applies(chart)
         from ui.dialogs.cxf_condition_dialog import choose_cxf_condition
         condition = choose_cxf_condition(
             self, Path(path), log=self._log.appendPlainText,
-            accent=_TAB_COLOR)
+            accent=_TAB_COLOR, as_cxf=cmxf)
         if condition is None:
             return None
         try:
@@ -15218,9 +15453,15 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 ReferenceConvertError, convert_i1profiler_measurement)
             argyll = self._settings.get("argyll_bin_path",
                                         "/Applications/Argyll/bin")
-            converted = convert_i1profiler_measurement(
-                Path(path), argyll, run.ensure_cache_dir() / "import",
-                condition=condition or None)
+            if cmxf:
+                from workflow.i1io.measure_chart import convert as mc_convert
+                converted = mc_convert(Path(path),
+                                       run.ensure_cache_dir() / "import",
+                                       condition=condition or None)
+            else:
+                converted = convert_i1profiler_measurement(
+                    Path(path), argyll, run.ensure_cache_dir() / "import",
+                    condition=condition or None)
         except ReferenceConvertError as exc:
             self._say_on_screen(
                 tr("The file could not be converted"), str(exc))
@@ -15261,6 +15502,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         in WHERE the measurement belongs, and is split into the two methods
         below.
         """
+        # an earlier import's note never reaches this import's window
+        self._i1io_aim_note = None
         if self._runner.is_running:
             return
         ctl = getattr(self, "_target_ctl", None)
@@ -15309,20 +15552,38 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
 
         # 1) Convert — into the run's cache (always safe to delete); a .ti3
         #    passes through untouched.
-        converted = self._convert_import_file(run, path)
+        converted = self._convert_import_file(run, path,
+                                              chart=run.verify_chart_ti2)
         if converted is None:
             return
 
         # 2) Validate — before anything is filed.
-        verdict = self._import_verdict(converted, run.verify_chart_ti2)
+        verdict = self._import_verdict(converted, run.verify_chart_ti2,
+                                       source=path)
         reason = (verdict.reason if not verdict.ok else
                   tr("the verification chart has {chart} patches, but this "
                      "file holds only {got} measurements").format(
                          chart=verdict.n_chart, got=verdict.patches_read)
                   if verdict.partial else "")
         if reason:
-            self._show_import_refusal(M.M_IMPORT_MISMATCH, reason=reason)
+            self._show_import_refusal(
+                M.M_IMPORT_I1IO_REFUSED if getattr(verdict, "i1io_refusal",
+                                                   False)
+                else M.M_IMPORT_MISMATCH, reason=reason)
             return
+
+        # 2c) An i1Profiler Measure Chart measurement of this i1iO chart (the
+        #     i1iO Beta): each reading on the patch at its own place.
+        if getattr(verdict, "i1io_grid", None) is not None:
+            done = self._complete_i1io_import(converted,
+                                              run.verify_chart_ti2, verdict)
+            if done is None:
+                return
+            if not done:
+                self._show_import_refusal(
+                    M.M_IMPORT_MISMATCH,
+                    reason=M.i1io_import_reason("places"))
+                return
 
         # 2b) A measurement of the TURNED i1Profiler export (beta, §I.14) takes
         #     the chart's own patch ids and names, in the chart's order, on the
@@ -15478,7 +15739,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             return
 
         # 1) Convert (§I.4) — into the run's cache; the original is untouched.
-        converted = self._convert_import_file(run, path)
+        converted = self._convert_import_file(run, path,
+                                              chart=run.chart_ti2)
         if converted is None:
             return
 
@@ -15488,10 +15750,28 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         #    docstring records what a second copy of that rule cost twice in
         #    two days. The refusal window is the shared one, so the two doors
         #    cannot describe the same file differently (round 2, T1-G).
-        verdict = self._import_verdict(converted, run.chart_ti2)
+        verdict = self._import_verdict(converted, run.chart_ti2,
+                                       source=path)
         if not verdict.ok:
+            if getattr(verdict, "i1io_refusal", False):
+                from workflow import measurement_messages as M
+                self._show_import_refusal(M.M_IMPORT_I1IO_REFUSED,
+                                          reason=verdict.reason)
+                return
             refuse_it_does_not_belong(self, verdict.reason)
             return
+
+        # 2c) An i1Profiler Measure Chart measurement of this i1iO chart (the
+        #     i1iO Beta), as on the other door.
+        if getattr(verdict, "i1io_grid", None) is not None:
+            done = self._complete_i1io_import(converted, run.chart_ti2,
+                                              verdict)
+            if done is None:
+                return
+            if not done:
+                from workflow.measurement_messages import i1io_import_reason
+                refuse_it_does_not_belong(self, i1io_import_reason("places"))
+                return
 
         # 2b) The TURNED i1Profiler export (beta, §I.14), as on the other door.
         turned = bool(getattr(verdict, "turned_order", False))
@@ -15845,6 +16125,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         msg = QLabel(title + "\n\n" + body, dlg)
         msg.setWordWrap(True)
         lay.addWidget(msg)
+        self._add_i1io_aim_note(dlg, lay)
         row = QHBoxLayout()
         row.addStretch(1)
         close_btn = QPushButton(tr("Close"), dlg)
@@ -15890,6 +16171,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         msg = QLabel(title + "\n\n" + body, dlg)
         msg.setWordWrap(True)
         lay.addWidget(msg)
+        self._add_i1io_aim_note(dlg, lay)
         row = QHBoxLayout()
         row.addStretch(1)
         close_btn = QPushButton(tr("Close"), dlg)
@@ -20812,20 +21094,39 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         ``MEASUREMENT_CONDITION``, the keyword the i1Profiler import and the
         FD-9 writer use. The FWA gate and the pre-conditioning merge read it.
 
-        Without ``-F`` (the default) nothing is recorded: the instrument
-        measured in its normal mode, and the file is judged as before. Only
-        a file this session wrote is touched (newer than it was at Start; a
-        measurement the session guard put back keeps its own time), and only
-        its header: the readings are not rewritten."""
+        Without ``-F`` (the default) the instrument measured in its normal
+        mode. Since 4.3.39 (R4) that is recorded too where it is KNOWN
+        (:func:`workflow.measurement_condition.default_condition`: M0 for the
+        i1Pro 3 family, and for the i1Pro / i1Pro 2 when the engine's driver
+        says no UV-cut filter is fitted), and nothing where it is not, nor on
+        a resume onto a measurement that records none. Only a file this
+        session wrote is touched (newer than it was at Start; a measurement
+        the session guard put back keeps its own time), and only its header:
+        the readings are not rewritten."""
         code = getattr(self, "_session_filter", None)
         self._session_filter = None
+        records_default = bool(getattr(self, "_session_records_default", False))
+        self._session_records_default = False
         ti1 = getattr(self, "_ti1_path", None)
-        if not code or not ti1:
+        if not ti1:
             return
         try:
-            from workflow.measurement_condition import (condition_for_filter,
-                                                        record_condition)
-            cond = condition_for_filter(code)
+            from workflow.measurement_condition import (
+                SOURCE_INSTRUMENT_DEFAULT, condition_for_filter,
+                default_condition, record_condition)
+            source = None
+            if code:
+                cond = condition_for_filter(code)
+            elif records_default:
+                # The model the reader REPORTED this session (reset at
+                # Start), never the chart's instrument.
+                cond = default_condition(
+                    getattr(self, "_reported_instrument", "") or "",
+                    getattr(self._manager, "engine_filter", None))
+                code = "(none: the instrument's normal mode)"
+                source = SOURCE_INSTRUMENT_DEFAULT
+            else:
+                return
             ti3 = Path(ti1).with_suffix(".ti3")
             if cond is None or not ti3.is_file():
                 return
@@ -20834,7 +21135,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 return
             if _cgats_has_no_readings(ti3):
                 return
-            if record_condition(ti3, cond):
+            if record_condition(ti3, cond, source):
                 log.info("recorded measurement condition %s (-F %s) in %s",
                          cond, code, ti3.name)
         except Exception:      # noqa: BLE001 — never block a session's end
