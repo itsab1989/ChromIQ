@@ -9669,8 +9669,17 @@ def i1pro3_conditions_help() -> str:
            "it is today, in the condition chosen in the Measure tab. ChromIQ "
            "saves the other two beside it, in the run's “conditions” folder. "
            "In Build Profile, “Build from” lets you choose the condition the "
-           "profile is made from, and Check & Refine then checks the profile "
-           "against the readings it was built from."),
+           "profile is made from, and a profile made from M1 or M2 gets "
+           "“-M1” or “-M2” at the end of its description. Check & Refine "
+           "then checks the profile against the readings it was built "
+           "from. “Build from” can be saved in a preset and with Save as "
+           "Defaults."),
+        tr("**Verifications and averaging.** A verification keeps all three "
+           "as well, and is judged in the condition the profile was built "
+           "from, automatically; its report says which one. When reads are "
+           "averaged, the same reads are averaged in all three conditions; a "
+           "condition one of the reads does not have is not offered for the "
+           "average, and Build Profile says which read lacks it."),
         tr("**How this differs from brightener compensation (FWA).** The "
            "FWA option in Build Profile estimates M1 from M0 readings with a "
            "general model of how brighteners behave. The three conditions "
@@ -9678,9 +9687,9 @@ def i1pro3_conditions_help() -> str:
            "light in one pass, with its own calibration data. FWA is greyed "
            "out for M1 and M2, because they already contain what it would "
            "estimate."),
-        tr("**Not covered yet.** Verification and calibration measurements, "
-           "averaged measurements and refinement builds keep only the "
-           "condition chosen in the Measure tab. A measurement that was "
+        tr("**Not covered yet.** Calibration measurements and refinement "
+           "builds use only the condition chosen in the Measure tab. A "
+           "measurement that was "
            "started with this option off, and is continued with it on, also "
            "keeps only that condition. Other instruments, the i1Pro 2 "
            "included, cannot give all three from one pass."),
