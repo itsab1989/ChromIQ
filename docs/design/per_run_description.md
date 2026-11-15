@@ -298,6 +298,28 @@ the user would be building on sand.
 **T6.17 (U)** Every empty part drops out **with its separator**. Parametrised
 over all 8 combinations of the three parts being empty or not.
 
+#### ⏳ Awaiting confirmation: a profile built from M1 or M2 says so (M0/M1/M2 Beta, 2026-11-15)
+
+**Confirmed by:** *nobody yet.* The rule itself is Basti's (Basti, 2026-11-15, relayed by the coordinator); what awaits his confirmation is the behaviour as built and described here.
+
+Preferences ▸ Beta ▸ "X-Rite i1Pro 3: keep M0, M1 and M2 from every scan". Basti:
+a profile built from M1 / M2 says so in its description, "better for clarity".
+
+| # | Beta | Build from | Default `-D` |
+|---|---|---|---|
+| T6.23 | off | (any value stored, in a preset or a default) | exactly T6.11 to T6.17, nothing added |
+| T6.24 | on | M0 (the measurement's own condition or the M0 readings kept beside it) | T6.11 to T6.17, nothing added |
+| T6.25 | on | M1 or M2, usable | the T6.11 to T6.17 default, then `-M1` / `-M2` as its last part (`Paper-Glossy-M1`); with no project, the measurement's name then `-M1` |
+| T6.26 | on | M1 or M2 chosen but not usable (greyed, Build refused) | nothing added: no profile is built from it |
+
+* A change of "Build from" recomputes the default (a new trigger beside T6.1 to T6.9),
+  with the same ownership rule (T6.10): the suffix is part of ChromIQ's own default,
+  so a field still holding the last default follows the choice, and **the user's own
+  text is untouched** (T6.21). The condition is then still recorded in `meta.json`
+  `profile_build.measurement_condition`.
+* T8.10 still holds: the condition is in no file name; the profile stays `<stem>.icc`.
+* Tests: `tests/test_i1pro3_conditions_owner_rulings.py`.
+
 ---
 
 ## 7. `{rundescription}`
