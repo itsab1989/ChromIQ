@@ -145,18 +145,21 @@ def _run(dlg: CxfConditionDialog) -> bool:
 
 def choose_cxf_condition(parent: "QWidget | None", path: "str | Path",
                          *, log: "Callable[[str], None] | None" = None,
-                         accent: str = _DEFAULT_ACCENT) -> "str | None":
+                         accent: str = _DEFAULT_ACCENT,
+                         as_cxf: bool = False) -> "str | None":
     """The condition to import *path* under, asking when there is a choice.
 
     Returns the condition ("M0", "M1", "M2"); ``None`` when the person
     cancelled (nothing must be imported then); ``""`` when there is nothing
     to choose from: not a CxF file, a file that cannot be read, or one with
     no M0/M1/M2 readings, whose conversion then says what is wrong. *log*
-    receives the line every door writes (M-IMPORT-CXF-CONDITION-PARTS)."""
+    receives the line every door writes (M-IMPORT-CXF-CONDITION-PARTS).
+    *as_cxf*: the file is a CxF whatever its name says (the i1iO Beta's
+    ``.cmxf``, which `reference_convert.is_cxf` does not know)."""
     from workflow.reference_convert import (ReferenceConvertError,
                                             cxf_conditions, is_cxf)
     p = Path(path)
-    if not is_cxf(p):
+    if not as_cxf and not is_cxf(p):
         return ""
     try:
         conds = cxf_conditions(p)

@@ -6920,9 +6920,31 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         `_chart_is_calibration` decides it) M-I1IO-NOT-YET-BY-HAND: the
         i1Profiler way ends in building a profile, which those are not for."""
         from workflow import measurement_messages as M
+        # THE MEASURE CHART WAY (2026-11-15): for a chart of ONE page,
+        # i1Profiler's Measure Chart reads ChromIQ's own sheet and the
+        # Measure tab's import brings it back, so the steps come first, with
+        # the chart's own numbers; the crosses part replaces the aiming
+        # paragraph (it would say to aim at the crosses).
+        nums = self._i1io_measure_chart_numbers()
+        by_hand = self._i1io_not_yet_message(M) is M.M_I1IO_NOT_YET_BY_HAND
+        if nums is not None and int(nums.get("pages") or 1) == 1:
+            self._i1io_window(*M.i1io_measure_chart_window(nums, by_hand))
+            return
         title, body = self._i1io_not_yet_message(M).render()
+        if nums is not None:
+            body += "\n\n" + M.i1io_pages_note(int(nums.get("pages") or 1))
         self._i1io_window(title, body + "\n\n"
                           + M.i1io_aim_text(self._i1io_aim_details()))
+
+    def _i1io_measure_chart_numbers(self) -> "dict | None":
+        """The numbers of the Measure Chart steps for the loaded i1iO chart
+        (`workflow.i1io.measure_chart.instruction_numbers`), or None."""
+        try:
+            from workflow.i1io.measure_chart import instruction_numbers
+            return instruction_numbers(self._chart_file_for(self._ti1_path))
+        except Exception:      # noqa: BLE001 - a notice, never a blocker
+            log.debug("i1iO Measure Chart numbers not read", exc_info=True)
+            return None
 
     def _i1io_aim_details(self) -> dict:
         """What the loaded i1iO chart records about aiming
@@ -15067,7 +15089,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         """No file is taken while ArgyllCMS runs (a measurement, say)."""
         return not self._runner.is_running
 
-    def _import_verdict(self, ti3: Path, ti2: Path):
+    def _import_verdict(self, ti3: Path, ti2: Path, source=None):
         """Judge this file against the verification chart, THROUGH THE ONE
         RULE both import doors use (`workflow.measurement_import.assess`).
 
@@ -15083,9 +15105,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         The one thing this door still decides for itself is what to do with a
         SHORT measurement: the profiling door files it (§I.10), and this one
         refuses it, which is §I as shipped.
+
+        *source*: the file the person picked, for the i1iO Beta's Measure
+        Chart route (`measurement_import.assess`); never read without it.
         """
         from workflow.measurement_import import assess
-        return assess(Path(ti3), Path(ti2))
+        return assess(Path(ti3), Path(ti2),
+                      source=Path(source) if source is not None else None)
 
     def _import_mismatch_reason(self, ti3: Path, ti2: Path) -> "str | None":
         """The plain-words reason this file must be refused, or None when it
@@ -15126,6 +15152,35 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             from workflow.measurement_messages import turned_grid_colours_filed
             title, body = turned_grid_colours_filed(fields)
             self._log.appendPlainText("\n[OK] " + title + "\n" + body)
+        return True
+
+    def _complete_i1io_import(self, converted: Path, chart: Path,
+                              verdict) -> "bool | None":
+        """File an i1Profiler Measure Chart measurement of this i1iO chart
+        (the i1iO Beta) on the converted copy, by each reading's own place
+        in i1Profiler's grid, and say so in the log. When the chart's colours
+        cannot tell, the person is asked first (M-IMPORT-I1IO-CANNOT-CHECK).
+        True: filed; False: refuse; None: cancelled (nothing changed)."""
+        from workflow import measurement_messages as M
+        from workflow.measurement_import import complete_from_i1io_grid
+        v = verdict.i1io_grid
+        if v.ask_why:
+            from workflow.i1io.measure_chart import instruction_numbers
+            nums = instruction_numbers(chart) or {}
+            if not self._ask_import_question(
+                    M.M_IMPORT_I1IO_CANNOT_CHECK, tr("Import"),
+                    **M.i1io_cannot_check_kw(v.ask_why, nums)):
+                self._log.appendPlainText("\n" + tr(
+                    "[INFO] The import was cancelled. Nothing has been "
+                    "changed."))
+                return None
+        n = complete_from_i1io_grid(converted, chart, verdict)
+        if not n:
+            return False
+        g = v.grid
+        self._log.appendPlainText("\n" + M.i1io_filed_line(
+            n, g.columns, g.rows, v.net.score if v.net else float("nan"),
+            bool(v.ask_why)))
         return True
 
     def _show_import_refusal(self, message, **kw) -> None:
@@ -15174,7 +15229,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         box.exec()
         return box.clickedButton() is go
 
-    def _convert_import_file(self, run, path: Path) -> "Path | None":
+    def _convert_import_file(self, run, path: Path,
+                             chart: "Path | None" = None) -> "Path | None":
         """§I.4 for both doors: the chosen file as a `.ti3` in the run's cache.
 
         `.mxf`/`.cxf` are read directly, `.txt` goes through txt2ti3, and a
@@ -15207,10 +15263,19 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # WHICH READINGS OF AN i1Profiler CxF (4.3.23): asked before anything
         # is converted, when the file holds more than one measurement
         # condition (M-IMPORT-CXF-CONDITION). Cancel imports nothing.
+        # AN i1Profiler "MEASURE CHART" FILE OF AN i1iO SHEET (the i1iO Beta)
+        # is saved as .cmxf, which the converter does not take for a CxF:
+        # only for that chart, behind the Beta, it is read as one
+        # (`workflow.i1io.measure_chart.convert`). Every other file is
+        # converted exactly as before.
+        cmxf = False
+        if chart is not None and Path(path).suffix.lower() == ".cmxf":
+            from workflow.measurement_import import i1io_route_applies
+            cmxf = i1io_route_applies(chart)
         from ui.dialogs.cxf_condition_dialog import choose_cxf_condition
         condition = choose_cxf_condition(
             self, Path(path), log=self._log.appendPlainText,
-            accent=_TAB_COLOR)
+            accent=_TAB_COLOR, as_cxf=cmxf)
         if condition is None:
             return None
         try:
@@ -15218,9 +15283,15 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 ReferenceConvertError, convert_i1profiler_measurement)
             argyll = self._settings.get("argyll_bin_path",
                                         "/Applications/Argyll/bin")
-            converted = convert_i1profiler_measurement(
-                Path(path), argyll, run.ensure_cache_dir() / "import",
-                condition=condition or None)
+            if cmxf:
+                from workflow.i1io.measure_chart import convert as mc_convert
+                converted = mc_convert(Path(path),
+                                       run.ensure_cache_dir() / "import",
+                                       condition=condition or None)
+            else:
+                converted = convert_i1profiler_measurement(
+                    Path(path), argyll, run.ensure_cache_dir() / "import",
+                    condition=condition or None)
         except ReferenceConvertError as exc:
             self._say_on_screen(
                 tr("The file could not be converted"), str(exc))
@@ -15309,12 +15380,14 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
 
         # 1) Convert — into the run's cache (always safe to delete); a .ti3
         #    passes through untouched.
-        converted = self._convert_import_file(run, path)
+        converted = self._convert_import_file(run, path,
+                                              chart=run.verify_chart_ti2)
         if converted is None:
             return
 
         # 2) Validate — before anything is filed.
-        verdict = self._import_verdict(converted, run.verify_chart_ti2)
+        verdict = self._import_verdict(converted, run.verify_chart_ti2,
+                                       source=path)
         reason = (verdict.reason if not verdict.ok else
                   tr("the verification chart has {chart} patches, but this "
                      "file holds only {got} measurements").format(
@@ -15323,6 +15396,19 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if reason:
             self._show_import_refusal(M.M_IMPORT_MISMATCH, reason=reason)
             return
+
+        # 2c) An i1Profiler Measure Chart measurement of this i1iO chart (the
+        #     i1iO Beta): each reading on the patch at its own place.
+        if getattr(verdict, "i1io_grid", None) is not None:
+            done = self._complete_i1io_import(converted,
+                                              run.verify_chart_ti2, verdict)
+            if done is None:
+                return
+            if not done:
+                self._show_import_refusal(
+                    M.M_IMPORT_MISMATCH,
+                    reason=M.i1io_import_reason("places"))
+                return
 
         # 2b) A measurement of the TURNED i1Profiler export (beta, §I.14) takes
         #     the chart's own patch ids and names, in the chart's order, on the
@@ -15478,7 +15564,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             return
 
         # 1) Convert (§I.4) — into the run's cache; the original is untouched.
-        converted = self._convert_import_file(run, path)
+        converted = self._convert_import_file(run, path,
+                                              chart=run.chart_ti2)
         if converted is None:
             return
 
@@ -15488,10 +15575,23 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         #    docstring records what a second copy of that rule cost twice in
         #    two days. The refusal window is the shared one, so the two doors
         #    cannot describe the same file differently (round 2, T1-G).
-        verdict = self._import_verdict(converted, run.chart_ti2)
+        verdict = self._import_verdict(converted, run.chart_ti2,
+                                       source=path)
         if not verdict.ok:
             refuse_it_does_not_belong(self, verdict.reason)
             return
+
+        # 2c) An i1Profiler Measure Chart measurement of this i1iO chart (the
+        #     i1iO Beta), as on the other door.
+        if getattr(verdict, "i1io_grid", None) is not None:
+            done = self._complete_i1io_import(converted, run.chart_ti2,
+                                              verdict)
+            if done is None:
+                return
+            if not done:
+                from workflow.measurement_messages import i1io_import_reason
+                refuse_it_does_not_belong(self, i1io_import_reason("places"))
+                return
 
         # 2b) The TURNED i1Profiler export (beta, §I.14), as on the other door.
         turned = bool(getattr(verdict, "turned_order", False))

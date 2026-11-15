@@ -248,6 +248,9 @@ def test_manuals_instrument_list_is_4332s_while_off(qapp, tmp_path):
 #: hook: make it ask the switch, then add it, in the same commit.
 I1IO_OWN = ("workflow/i1io/",)
 HOOKED_FILES = {
+    # the i1iO Measure Chart import route and the i1iSis guards (2026-11-15):
+    # switch-gated, nothing opened while off
+    "workflow/measurement_import.py",
     "core/file_manager.py",          # .i1io.json companion (no switch: a name)
     "core/settings.py",              # the switch's default
     "data/patch_db.py",              # the label; filtered by the switch

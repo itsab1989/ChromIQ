@@ -634,6 +634,18 @@ AWAITING_APPROVAL: "set[str]" = {
                                  # 2026-11-13: the X-Rite i1iO table Beta
                                  # (charts only; measuring comes later).
                                  "M-I1IO-NOT-YET", "M-I1IO-SUPPORT-OFF",
+                                 # 2026-11-15: the i1iO Measure Chart import
+                                 # (Start's steps, the refusals, the
+                                 # question, the log line) and the i1iSis
+                                 # colour guard.
+                                 "M-I1IO-MEASURE-CHART",
+                                 "M-I1IO-MEASURE-CHART-PARTS",
+                                 "M-I1IO-MEASURE-CHART-OTHER-WAY",
+                                 "M-IMPORT-I1IO-REASONS",
+                                 "M-IMPORT-I1IO-CANNOT-CHECK",
+                                 "M-IMPORT-I1IO-CANNOT-CHECK-PARTS",
+                                 "M-IMPORT-I1IO-FILED",
+                                 "M-IMPORT-ISIS-COLOURS",
                                  # 2026-11-14: the X-Rite i1iSis chart Beta
                                  # (charts measured in i1Profiler): Start's
                                  # two windows and the layout refusal.

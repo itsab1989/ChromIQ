@@ -228,6 +228,9 @@ def test_no_export_and_the_pxf_unchanged_while_off(tmp_path, monkeypatch):
 #: new hook: make it ask the switch, then add it, in the same commit.
 ISIS_OWN = ("workflow/isis/", "ui/dialogs/isis_panel.py")
 HOOKED_FILES = {
+    # the i1iO Measure Chart import route and the i1iSis guards (2026-11-15):
+    # switch-gated, nothing opened while off
+    "workflow/measurement_import.py",
     "core/file_manager.py",          # .isis.json companion (a name only)
     "core/settings.py",              # the switch's default, threshold label
     "data/patch_db.py",              # the label; filtered by the switch

@@ -86,6 +86,13 @@ class ImportVerdict:
     #: :func:`complete_from_turned_order`; filed as it is, every reading would
     #: sit on the wrong patch.
     turned_order: bool = False
+    #: The i1iO Beta (one page): an i1Profiler "Measure Chart" measurement of
+    #: this i1iO chart's own sheet, judged by `workflow.i1io.measure_chart`;
+    #: its verdict (`McVerdict`) travels here. The caller files it through
+    #: :func:`complete_from_i1io_grid` (asking first when ``ask_why`` says the
+    #: chart's colours cannot tell); filed as it is, the placeholders in it
+    #: would be taken for device values.
+    i1io_grid: object = None
 
     @property
     def patches_read(self) -> int:
@@ -138,13 +145,19 @@ CHART_NOT_A_MEASUREMENT = (
     "your measuring software saved instead.")
 
 
-def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
+def assess(ti3: Path, chart_ti2: "Path | None",
+           source: "Path | None" = None) -> ImportVerdict:
     """Decide whether *ti3* is a measurement OF *chart_ti2*.
 
     Order matters: is it a measurement at all, then the patch count (the cheap,
     clear check, and the clearest sentence), then the identity comparison — the
     one the report itself uses — which is what catches a file of the right SIZE
     but the wrong chart.
+
+    *source* is the file the person PICKED (the Measure tab's import passes
+    it; other doors do not): the i1iO Beta reads an i1Profiler Measure Chart
+    measurement's places from it (`_i1io_route`). Without the Beta, or for a
+    chart that is not an i1iO chart, it is never looked at.
     """
     from workflow.ti3_analysis import Ti3ParseError, parse_ti3
 
@@ -165,6 +178,15 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
     # in one door, because both doors reach `assess` and neither could see it.
     if looks_like_a_chart(ti3):
         return ImportVerdict(False, tr(CHART_NOT_A_MEASUREMENT))
+
+    # AN i1Profiler "MEASURE CHART" MEASUREMENT OF AN i1iO SHEET (the i1iO
+    # Beta, one page). Asked first, because its device values are i1Profiler's
+    # placeholders: every check below would read them as device values.
+    # Nothing is read for it unless the Beta is on and the chart is an i1iO
+    # chart with its side file.
+    route = _i1io_route(ti3, chart_ti2, source)
+    if route is not None:
+        return route
 
     # A CMYK OR MULTI-INK MEASUREMENT HAS ITS OWN BRANCH (beta 7, Basti
     # 2026-10-03: "yes, allow importing cmyk into a cmyk run"). `parse_ti3`
@@ -354,10 +376,31 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
             # An .mxf records the grid and every patch's place on it; a file
             # that does not (a CGATS export) is judged as before.
             from workflow.i1profiler_turned import grid_mismatch
-            why = grid_mismatch(ti3, turned.order, chart_ti2)
+            isis = getattr(turned.order, "kind", "") == "isis"
+            grid = None
+            if isis and source is not None:
+                # G2 (the i1iSis Beta): a CxF whose NumberPatchPages is "0"
+                # carries no grid keyword in the converted copy, so the grid
+                # check was skipped; read from the picked file, "0" taken as
+                # one page. Only here: the converter is unchanged.
+                from workflow.i1profiler_turned import isis_grid_from_source
+                from workflow.reference_convert import i1p_grid_of
+                if i1p_grid_of(ti3) is None:
+                    grid = isis_grid_from_source(source)
+            why = grid_mismatch(ti3, turned.order, chart_ti2, grid=grid)
             if why:
                 return ImportVerdict(False, why, n_chart=n_chart or 0,
                                      n_measured=n_got)
+            if isis:
+                # G1 (the i1iSis Beta): the device values prove which test
+                # chart i1Profiler used, not how the sheet went in (§I.14
+                # point 1's own caveat), so the colours are asked too. A
+                # chart that can tell and does not say yes is refused; one
+                # that cannot tell is filed as before, said in the log.
+                why = _isis_colours_refuse(ti3, turned.order, chart_ti2)
+                if why:
+                    return ImportVerdict(False, why, n_chart=n_chart or 0,
+                                         n_measured=n_got)
             return ImportVerdict(True, "", partial=False,
                                  n_chart=n_chart or 0, n_measured=n_got,
                                  turned_order=True)
@@ -397,6 +440,161 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
                  "the import continues", identity.get("reason", ""))
     return ImportVerdict(True, "", partial=partial,
                          n_chart=n_chart or 0, n_measured=n_got, n_read=n_read)
+
+
+def i1io_route_applies(chart_ti2: "Path | None") -> bool:
+    """True when the i1iO Beta is on and *chart_ti2* is an i1iO chart with
+    its side file: the only charts the Measure Chart route is for. Reads the
+    switch first, so with the Beta off nothing is opened at all."""
+    if chart_ti2 is None:
+        return False
+    from workflow.i1io.support import i1io_enabled
+    if not i1io_enabled():
+        return False
+    from workflow.i1io.support import chart_names_i1io
+    if chart_names_i1io(chart_ti2) is not True:
+        return False
+    text = str(chart_ti2)
+    stem = text[:-4] if text.lower().endswith(".ti2") else text
+    return Path(stem + ".i1io.json").is_file()
+
+
+def _i1io_route(ti3: Path, chart_ti2: "Path | None",
+                source: "Path | None") -> "ImportVerdict | None":
+    """The i1iO Beta's import route, or None: the ordinary import judges.
+
+    * the picked file is a CxF and a Measure Chart measurement (placeholders
+      for device values, a place for every reading): judged and paired by
+      `workflow.i1io.measure_chart`, refused with its reason;
+    * the picked file is a text export without device values, or with one
+      value for every patch (challenge S3): refused, because only the .cmxf
+      says where each reading was taken; any other text export goes on as
+      before (i1Profiler's own iO chart with real device values);
+    * no picked file (another door) and one device value for every patch:
+      refused with a sentence that sends it to the Measure tab.
+    """
+    if not i1io_route_applies(chart_ti2):
+        return None
+    n_chart = _chart_patch_count(chart_ti2)
+    from workflow import measurement_messages as MM
+    if source is not None and Path(source).suffix.lower() in (
+            ".cmxf", ".cxf", ".mxf"):
+        from workflow.i1io import measure_chart as MC
+        v = MC.assess_file(source, ti3, chart_ti2)
+        if v is None:
+            return None
+        if not v.ok:
+            return ImportVerdict(False, v.reason, n_chart=n_chart or 0)
+        n = len(v.sample_of_row)
+        return ImportVerdict(True, "", n_chart=n_chart or 0, n_measured=n,
+                             i1io_grid=v)
+    one = _one_device_value_for_all(ti3, chart_ti2)
+    if source is not None:
+        if one is None or one:
+            # no device values (None) or the placeholders: a text export of
+            # a Measure Chart measurement
+            if one is None and not _has_readings(ti3):
+                return None
+            return ImportVerdict(False, MM.i1io_import_reason("text"),
+                                 n_chart=n_chart or 0)
+        return None
+    if one:
+        return ImportVerdict(False, MM.i1io_import_reason("other-door"),
+                             n_chart=n_chart or 0)
+    return None
+
+
+def _has_readings(ti3: Path) -> bool:
+    from workflow.ti3_analysis import Ti3ParseError, parse_ti3
+    try:
+        return bool(parse_ti3(Path(ti3)).n_patches)
+    except (Ti3ParseError, OSError):
+        return False
+
+
+def _one_device_value_for_all(ti3: Path, chart_ti2: Path) -> "bool | None":
+    """None when *ti3* carries no device values; True when every row has the
+    same one and the chart has more than that one (i1Profiler's
+    placeholders); False otherwise."""
+    from core.text_io import read_text
+    from workflow.measurement_pairing import _first_table
+    from workflow.ti3_analysis import _has_device_columns
+
+    def table(path):
+        try:
+            return _first_table(read_text(Path(path), lenient=True))
+        except OSError:
+            return None
+    t = table(ti3)
+    if t is None:
+        return None
+    fields, rows = t
+    if not _has_device_columns(fields):
+        return None
+    di = [i for i, f in enumerate(fields)
+          if f.startswith(("RGB_", "CMYK_"))]
+    if not di:
+        return False
+    vals = {tuple(ln.split()[i] for i in di if i < len(ln.split()))
+            for ln in rows}
+    if len(vals) != 1 or not rows:
+        return False
+    c = table(chart_ti2)
+    if c is None:
+        return True
+    cf, cr = c
+    ci = [i for i, f in enumerate(cf) if f.startswith(("RGB_", "CMYK_"))]
+    try:
+        chart_vals = {tuple(round(float(ln.split()[i]), 2) for i in ci)
+                      for ln in cr}
+        mine = tuple(round(float(v), 2) for v in next(iter(vals)))
+    except (ValueError, IndexError):
+        return True
+    return chart_vals != {mine}
+
+
+#: The colour judge's reasons that mean the CHART cannot tell (sorted, few or
+#: similar patches), as opposed to readings it cannot place (challenge M1/C2).
+_CHART_CANNOT_TELL = frozenset(("few-patches", "similar", "neighbours",
+                                "short-strips", "no-colours"))
+
+
+def _isis_colours_refuse(ti3: Path, order, chart_ti2) -> str:
+    """G1: the refusal when the colours of an i1iSis measurement do not fit
+    the chart in its order, or cannot say so although the chart could tell;
+    "" to file it."""
+    from workflow.turned_colour_check import (AGREE, judge_turned_measurement)
+    colour = judge_turned_measurement(ti3, order, chart_ti2)
+    if colour.verdict == AGREE:
+        log.info("import: the colours of the i1iSis measurement agree with "
+                 "the chart: %s", colour.log_text())
+        return ""
+    if colour.why in _CHART_CANNOT_TELL:
+        log.info("import: the colours of this i1iSis chart cannot show how "
+                 "the sheet went through the instrument (%s); the device "
+                 "values agree on every patch, so it is filed",
+                 colour.log_text())
+        return ""
+    log.info("import: the colours of the i1iSis measurement do not fit the "
+             "chart: %s", colour.log_text())
+    from workflow.measurement_messages import isis_colours_reason
+    return isis_colours_reason()
+
+
+def complete_from_i1io_grid(ti3: Path, chart_ti2: "Path | None",
+                            verdict: ImportVerdict) -> int:
+    """File a Measure Chart measurement on the COPY *ti3* by its own places
+    (`workflow.i1io.measure_chart.complete`). Returns the rows written; 0
+    means refuse."""
+    if chart_ti2 is None or verdict.i1io_grid is None:
+        return 0
+    from workflow.i1io import measure_chart as MC
+    n = MC.complete(ti3, chart_ti2, verdict.i1io_grid)
+    if n:
+        log.info("import: %d readings of an i1Profiler Measure Chart "
+                 "measurement paired with %s by their places in its grid",
+                 n, Path(chart_ti2).name)
+    return n
 
 
 #: The ``ORIGINATOR`` of a measurement made by ArgyllCMS chartread, the only

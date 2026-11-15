@@ -162,6 +162,15 @@ def _measure_refuses(w, ti2: Path, monkeypatch) -> str:
     assert tm._refused_as_an_i1io_chart() is True
     assert len(shown) == 1
     from workflow import measurement_messages as M
+    # A CHART OF ONE PAGE (2026-11-15): the Measure Chart steps come first,
+    # then the other way, which is the run type's: by hand for a
+    # verification or calibration chart, the patch sets for a profiling one.
+    if shown[0][0] == M.M_I1IO_MEASURE_CHART.render(
+            lay="", aim="", cols="", rows="")[0]:
+        if shown[0][1].endswith(M.tr(M._I1IO_OTHER_WAY_BY_HAND)):
+            return "M-I1IO-MEASURE-CHART, by hand"
+        assert shown[0][1].endswith(M.tr(M._I1IO_OTHER_WAY_PATCH_SETS))
+        return "M-I1IO-MEASURE-CHART, patch sets"
     for msg in (M.M_I1IO_NOT_YET, M.M_I1IO_NOT_YET_BY_HAND):
         # the notice, and as its last paragraph what to aim at
         # (`measurement_messages.i1io_aim_text`)
@@ -187,7 +196,8 @@ def test_a_verification_chart_is_made_for_the_i1io(win, qapp, qtbot,
     _assert_an_i1io_chart(vti2)
     # the run's profiling chart is still its own, and still an i1iO chart
     _assert_an_i1io_chart(run1.chart_ti2)
-    assert _measure_refuses(w, vti2, monkeypatch) == "M-I1IO-NOT-YET-BY-HAND"
+    assert _measure_refuses(w, vti2, monkeypatch) == \
+        "M-I1IO-MEASURE-CHART, by hand"
 
 
 @requires_argyll
@@ -207,7 +217,8 @@ def test_a_calibration_chart_is_made_for_the_i1io(win, qapp, qtbot,
     # each ink's ramp starts its own strip, as on every calibration chart
     ch = json.loads(cti2.with_suffix(".channels.json").read_text("utf-8"))
     assert ch["patch_set_given"] is False
-    assert _measure_refuses(w, cti2, monkeypatch) == "M-I1IO-NOT-YET-BY-HAND"
+    assert _measure_refuses(w, cti2, monkeypatch) == \
+        "M-I1IO-MEASURE-CHART, by hand"
 
 
 @requires_argyll
@@ -217,7 +228,8 @@ def test_a_profiling_chart_keeps_the_first_notice(win, qapp, qtbot,
     run1 = w._file_mgr.project().current_run()
     _pick(tc, qapp, "IO2")
     _generate(w, qapp, qtbot, _prof(w))
-    assert _measure_refuses(w, run1.chart_ti2, monkeypatch) == "M-I1IO-NOT-YET"
+    assert _measure_refuses(w, run1.chart_ti2, monkeypatch) == \
+        "M-I1IO-MEASURE-CHART, patch sets"
 
 
 @requires_argyll
