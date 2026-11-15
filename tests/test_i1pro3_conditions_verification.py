@@ -40,7 +40,13 @@ END_DATA
 """
 
 
-def _ti3(p: Path, w="85", head="") -> Path:
+#: A main file records the condition it was measured in (the Measure tab
+#: does so at the end of every session, R4); one that records none is the
+#: case of review F1 (tests/test_i1pro3_conditions_review_fixes.py).
+RECORDED_M0 = 'KEYWORD "MEASUREMENT_CONDITION"\nMEASUREMENT_CONDITION "M0"'
+
+
+def _ti3(p: Path, w="85", head=RECORDED_M0) -> Path:
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(TI3.format(w=w, head=head), encoding="latin-1")
     return p
@@ -184,14 +190,37 @@ def test_a_profile_in_the_measurements_own_condition_changes_nothing(
 
 
 def test_off_the_report_is_todays(tmp_path, monkeypatch):
+    """Beta off and a profile that records no condition (built with the Beta
+    off, or before it): exactly 4.3.40's report."""
     monkeypatch.setattr(C, "beta_on", lambda: False)
-    run = _run(tmp_path, "M1")
+    run = _run(tmp_path, "")
     ver = _verification(run, w="85")
     _pair(ver, "M1", "90")
     assert C.profile_readings(ver) is None
     rep = MR.build_report(ver)
     assert "measurement_condition" not in rep
     assert rep["paper_white"] == MR.measurement_facts(ver)["paper_white"]
+
+
+def test_off_afterwards_still_follows_the_profiles_recorded_condition(
+        tmp_path, monkeypatch):
+    """Review F2: a profile built from M1 stays an M1 profile when the Beta
+    is switched off afterwards. Its verification is still judged in M1 (a
+    read only), and without M1 readings the report says so instead of
+    comparing across two conditions."""
+    monkeypatch.setattr(C, "beta_on", lambda: False)
+    run = _run(tmp_path, "M1")
+    ver = _verification(run, w="85")
+    got = C.profile_readings(ver)
+    assert got is not None and got.condition == "M1" and got.path is None
+    rep = MR.build_report(ver)
+    assert rep["measurement_condition"]["from_profile"] is False
+    m1 = _pair(ver, "M1", "90")
+    got = C.profile_readings(ver)
+    assert got is not None and got.path == m1
+    rep = MR.build_report(ver)
+    assert rep["measurement_condition"]["condition"] == "M1"
+    assert rep["paper_white"] == MR.measurement_facts(m1)["paper_white"]
 
 
 def test_the_report_window_says_which_condition(tmp_path, beta_on, qapp):
@@ -235,7 +264,16 @@ def test_check_and_refine_checks_a_verification_in_the_profiles_condition(
     m1 = _pair(ver, "M1", "90")
     assert TabCheckRefine._readings_for_the_profile(fake) == m1
     assert TabCheckRefine._other_condition_warning(fake) == ""
+    # review F2: with the Beta switched off afterwards the check still
+    # follows the condition the profile's build recorded (a read only)
     fake._settings = _S({C.SETTING: False})
+    assert TabCheckRefine._readings_for_the_profile(fake) == m1
+    m1.unlink()
+    assert TabCheckRefine._readings_for_the_profile(fake) is None
+    assert "has only" in TabCheckRefine._other_condition_warning(fake)
+    # ... and a profile that records no condition: 4.3.40's check exactly
+    run.record_profile_build({"builder": "colprof"})
+    assert C.profile_condition(run) == ""
     assert TabCheckRefine._readings_for_the_profile(fake) is None
     assert TabCheckRefine._other_condition_warning(fake) == ""
 
@@ -268,14 +306,21 @@ def test_pairs_no_measurement_holds_are_pruned_and_nothing_else(tmp_path):
     stranger.write_text("Basti's", encoding="utf-8")
     ver = _verification(run)
     keep_ver = _pair(ver, "M1", "91")
-    v_orphan = run.verification_condition_dir / "99-0badf00d-M1.ti3"
-    v_orphan.write_text("x", encoding="utf-8")
+    gone_ver = _ti3(tmp_path / "elsewhere2" / "v.ti3", w="71")
+    v_orphan = _pair(gone_ver, "M1", "76")
+    v_orphan = v_orphan.replace(run.verification_condition_dir / v_orphan.name)
+    # named like ours, but its own header does not say ChromIQ wrote it so
+    lookalike = run.condition_dir / "99-0badf00d-M1.ti3"
+    lookalike.write_text("x", encoding="utf-8")
+    wrong_cond = run.condition_dir / orphan.name.replace("-M1.", "-M2.")
+    wrong_cond.write_bytes(orphan.read_bytes())    # header says M1, name M2
     for p in (keep_main, keep_old, keep_read, orphan, stranger, keep_ver,
-              v_orphan):
+              v_orphan, lookalike, wrong_cond):
         _age(p)
     gone = C.prune_run(run)
     assert sorted(gone) == sorted([orphan, v_orphan])
-    for p in (keep_main, keep_old, keep_read, fresh, stranger, keep_ver):
+    for p in (keep_main, keep_old, keep_read, fresh, stranger, keep_ver,
+              lookalike, wrong_cond):
         assert p.is_file(), p
 
 
@@ -283,9 +328,9 @@ def test_the_measure_tab_prunes_only_with_the_beta_on(tmp_path):
     from types import SimpleNamespace
     from ui.tabs.tab_measure import TabMeasure
     run = _run(tmp_path)
-    orphan = run.condition_dir / "12-0000abcd-M1.ti3"
-    orphan.parent.mkdir(parents=True)
-    orphan.write_text("x", encoding="utf-8")
+    orphan = _pair(_ti3(tmp_path / "elsewhere.ti3", w="70"), "M1", "75")
+    run.condition_dir.mkdir(parents=True)
+    orphan = orphan.replace(run.condition_dir / orphan.name)
     _age(orphan)
     fake = SimpleNamespace(_settings=_S({C.SETTING: False}),
                            _ti1_path=run.dir / "Paper.ti1")

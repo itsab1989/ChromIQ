@@ -468,6 +468,7 @@ static void save_ti3(
  * this file, so an interrupted session can always continue from the last
  * accepted strip. */
 static void cq_cond_write(const char *mainfile);	/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
+static void cq_cond_commit(void);	/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
 
 static void cq_write_ti3_atomic(void) {
 	char tmpname[MAXNAMEL+20], realname[MAXNAMEL+20];
@@ -531,9 +532,12 @@ static void cq_write_ti3_atomic(void) {
 			cq_emit_raw("{\"event\":\"error\",\"kind\":\"autosave_rename\","
 			            "\"detail\":\"%s\",\"temp\":\"%s\",\"code\":%lu}",
 			            esc, esc_tmp, oserr);
-			return;
+			return;		/* the old pair stays: it is the on-disk main's */
 		}
 	}
+	/* CHROMIQ_EXT: M0/M1/M2 (Beta): only now, with the new main in place,
+	 * is the pair this session wrote before removed. */
+	cq_cond_commit();
 
 	for (i = 0; i < cq_sctx.npat; i++)
 		if (cq_sctx.cols[i].rr)
@@ -1136,17 +1140,33 @@ static int cq_cond_complete(chcol *cols, int npat) {
 }
 
 static char cq_cond_last[64] = "";	/* the pair THIS session wrote last */
+static char cq_cond_pending[64] = "";	/* written, its main not yet in place */
 
 /* The two condition files for the main file *mainfile* (already on disk,
  * under its temporary or its real name). Called from the autosave before
  * the main file's rename, and after the final save. A failure removes its
  * own temporary files and ends the conditions for the session; the main
- * file is never affected. The pair this session wrote before is removed
- * (never the one that was there at Start: a Discard needs it). */
+ * file is never affected.
+ *
+ * THE ORDER (review F4, 2026-11-15), so that a crash at any point leaves
+ * no pair that is not its main's and loses as little as possible:
+ *   1. each new file is written under a temporary name (.cqtmp) and renamed
+ *      to its final name, which carries the NEW readings' hash, so it can
+ *      never be taken for the pair of the main still on disk;
+ *   2. the caller renames the main file into place;
+ *   3. cq_cond_commit() then removes the pair this session wrote before
+ *      (never the one that was there at Start: a Discard needs it).
+ * A crash before 2 leaves the old main with its old pair intact (the new
+ * files match no main and are pruned later); a crash between 2 and 3
+ * leaves the new main with its new pair and an extra old pair (pruned
+ * later). Renaming the pair AFTER the main instead would lose the new pair
+ * in that window, and removing the old pair BEFORE the main (the earlier
+ * order) lost the old main's pair. */
 static void cq_cond_write(const char *mainfile) {
 	char hash[64], path[MAXNAMEL + 200], tmp[MAXNAMEL + 220], *text;
 	long len;
 	int c;
+	cq_cond_pending[0] = '\0';
 	if (!cq_cond_active)
 		return;
 	if (!cq_cond_complete(cq_cx_base, cq_cx_npat)) {
@@ -1172,7 +1192,17 @@ static void cq_cond_write(const char *mainfile) {
 		}
 	}
 	free(text);
-	if (cq_cond_last[0] != '\0' && strcmp(cq_cond_last, hash) != 0) {
+	snprintf(cq_cond_pending, sizeof(cq_cond_pending), "%s", hash);
+}
+
+/* The main file written by the last cq_cond_write is now in place: the pair
+ * this session wrote before it goes, last of all. */
+static void cq_cond_commit(void) {
+	char path[MAXNAMEL + 200];
+	int c;
+	if (cq_cond_pending[0] == '\0')
+		return;
+	if (cq_cond_last[0] != '\0' && strcmp(cq_cond_last, cq_cond_pending) != 0) {
 		for (c = 0; c < 3; c++) {
 			if (c == cq_cond_main)
 				continue;
@@ -1180,7 +1210,8 @@ static void cq_cond_write(const char *mainfile) {
 			remove(path);
 		}
 	}
-	snprintf(cq_cond_last, sizeof(cq_cond_last), "%s", hash);
+	snprintf(cq_cond_last, sizeof(cq_cond_last), "%s", cq_cond_pending);
+	cq_cond_pending[0] = '\0';
 }
 
 /* A resumed session: the siblings come back from disk, by SAMPLE_LOC, but
@@ -5460,6 +5491,14 @@ a1log *log			/* verb, debug & error log */
 				}
 
 				scols[pix]->rr = 1;		/* Has been read */
+				/* CHROMIQ_EXT: M0/M1/M2 (Beta), review F5. A TYPED value
+				 * has no reading in the other conditions. Not reachable
+				 * today: this path needs xtern != 0, and cq_cond_for_session
+				 * is only called when xtern == 0, so the conditions are never
+				 * active here. Should that ever change, the pair is dropped
+				 * for the session rather than kept with the values the patch
+				 * had before it was typed over. */
+				cq_cond_lose("typed");
 				printf(" Got XYZ value %f %f %f\n",scols[pix]->XYZ[0], scols[pix]->XYZ[1], scols[pix]->XYZ[2]);
 				cq_emit_patch_read(scols[pix]);		/* CHROMIQ_EXT */
 				cq_write_ti3_atomic();			/* CHROMIQ_EXT: autosave per patch */
@@ -7005,6 +7044,7 @@ int main(int argc, char *argv[]) {
 		/* And save the result */
 		save_ti3(atype, displ, trans, ucalstd, fe, dolab, npat, nchan, cols, wpat, outname, ocg);
 		cq_cond_write(outname);	/* CHROMIQ_EXT: M0/M1/M2 (Beta), after the main file */
+		cq_cond_commit();		/* CHROMIQ_EXT: the main is in place */
 		cq_emit_simple("done");		/* CHROMIQ_EXT */
 	}
 

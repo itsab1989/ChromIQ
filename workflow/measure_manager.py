@@ -1175,6 +1175,12 @@ class MeasureManager(QObject):
                 from workflow.i1pro3_conditions import CAPABILITY
                 if CAPABILITY in helper_caps(params.engine_helper):
                     try:
+                        # review F7: a folder made here for an instrument
+                        # that turns out not to be an i1Pro 3 is taken away
+                        # again (`_on_conditions_event`)
+                        self._conditions_made_dir = (
+                            None if Path(params.engine_condition_dir).exists()
+                            else Path(params.engine_condition_dir))
                         Path(params.engine_condition_dir).mkdir(
                             parents=True, exist_ok=True)
                         eargs += ["--condition-dir",
@@ -3454,7 +3460,7 @@ class MeasureManager(QObject):
         """The helper says whether this session keeps the two other
         measurement conditions (only ever seen with --condition-dir)."""
         from workflow.measurement_condition import condition_name
-        log.info("engine: conditions %s", ev)
+        log.debug("engine: conditions %s", ev)
         if ev.get("active"):
             extra = [str(c) for c in (ev.get("extra") or [])][:2]
             if len(extra) == 2 and getattr(self, "_conditions_verify", False):
@@ -3480,9 +3486,19 @@ class MeasureManager(QObject):
                         second=condition_name(extra[1])))
             return
         why = str(ev.get("why") or "")
+        if why == "instrument":
+            # Review F7: another instrument than an i1Pro 3 (or none) is not
+            # a fault of the option, so the Measure log says nothing, and the
+            # folder made for this session goes again when it is empty.
+            made = getattr(self, "_conditions_made_dir", None)
+            self._conditions_made_dir = None
+            if made is not None:
+                try:
+                    made.rmdir()
+                except OSError:
+                    pass
+            return
         reasons = {
-            "instrument": tr(
-                "only an X-Rite i1Pro 3 gives all three from one scan"),
             "mode": tr(
                 "they are kept only when strips or single patches are "
                 "measured by hand"),

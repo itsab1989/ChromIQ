@@ -99,8 +99,6 @@ def test_which_measurements_get_it(qapp, tmp_path, where, extra, wanted):
 @pytest.mark.parametrize("ev,needle", [
     ({"event": "conditions", "active": True, "instrument": "i1pro3",
       "main": "M0", "extra": ["M1", "M2"]}, "also kept in M1"),
-    ({"event": "conditions", "active": False, "why": "instrument"},
-     "only an X-Rite i1Pro 3"),
     ({"event": "conditions", "active": False, "why": "resume"},
      "started without them"),
     ({"event": "conditions", "active": False, "why": "write"},

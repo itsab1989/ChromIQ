@@ -3157,15 +3157,21 @@ class TabProfile(QWidget):
             pick = 0
             for i, ch in enumerate(choices):
                 text = condition_name(ch.cond)
-                if ch.main:
+                if ch.main and not ch.cond:
+                    # review F1: the measurement's condition is not known
+                    text = tr("As measured (condition not recorded)")
+                elif ch.main:
                     text = tr("{condition}, as measured").format(condition=text)
                 combo.addItem(text, ch.cond)
                 item = combo.model().item(i)
                 if item is not None:
                     item.setEnabled(ch.usable)
-                    item.setToolTip(ch.reason or tr(
+                    item.setToolTip(ch.reason or (tr(
+                        "Build the profile from the readings of this "
+                        "measurement, as they were measured.") if not ch.cond
+                        else tr(
                         "Build the profile from the {condition} readings of "
-                        "this measurement.").format(condition=ch.cond))
+                        "this measurement.").format(condition=ch.cond)))
                 if self._build_from and ch.cond == self._build_from:
                     pick = i
             if choices:
@@ -3653,6 +3659,14 @@ class TabProfile(QWidget):
         if not name:
             return
         presets = self._m_load_presets()
+        # Review F6: a preset saved again under its own name with the M0/M1/
+        # M2 Beta off keeps the "Build from" it stored (off never writes it,
+        # so it must not silently drop it either).
+        from workflow.i1pro3_conditions import BUILD_FROM_KEY
+        _old = presets.get(name)
+        if (BUILD_FROM_KEY not in data and isinstance(_old, dict)
+                and BUILD_FROM_KEY in _old):
+            data[BUILD_FROM_KEY] = _old[BUILD_FROM_KEY]
         presets[name] = data
         self._m_save_presets(presets)
         self._m_populate_preset_combo(presets, select_name=name)

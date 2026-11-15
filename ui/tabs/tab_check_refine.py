@@ -2609,10 +2609,13 @@ class TabCheckRefine(QWidget):
         """The M0/M1/M2 Beta: a plain warning when the run's profile was
         built from another condition than this measurement's and these
         readings are not kept in it, so the check compares two conditions
-        (it is not stopped). "" otherwise, and always with the Beta off."""
+        (it is not stopped). "" otherwise, and always for a profile that
+        records no condition (then this is 4.3.40's check exactly)."""
         try:
             from workflow import i1pro3_conditions as _c
-            if self._ti3_path is None or not _c.stored_value(self._settings):
+            # the profile's RECORDED condition, also with the Beta off
+            # (review F2): a read only
+            if self._ti3_path is None:
                 return ""
             got = _c.profile_readings(Path(self._ti3_path),
                                       settings=self._settings)
@@ -2634,10 +2637,12 @@ class TabCheckRefine(QWidget):
         condition than the measurement's own, and that condition's file is
         in step, the file profcheck must read, so a profile is checked
         against the readings it was built from. None otherwise (and always
-        with the Beta off)."""
+        for a profile that records no condition)."""
         try:
             from workflow import i1pro3_conditions as _c
-            if not _c.stored_value(self._settings) or self._ti3_path is None:
+            # the profile's RECORDED condition, also with the Beta off
+            # (review F2): a read only
+            if self._ti3_path is None:
                 return None
             ti3, icc = Path(self._ti3_path), self._icc_path
             if icc is None:

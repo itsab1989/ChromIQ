@@ -81,10 +81,38 @@ def main_condition(filter_code: "str | None") -> "str | None":
 
 
 def file_condition(ti3: "str | Path") -> str:
-    """The condition a measurement file records (M0 when it says none)."""
+    """The condition a measurement file holds: the one it records; when it
+    records none, the one its pair of condition files leaves free (review
+    F1, 2026-11-15); M0 when it records none and has no pair (a measurement
+    made before, or with the Beta off: 4.3.40's reading). "" when it records
+    none and its condition files do not show it either (one of the two, or
+    all three): then nothing may be offered in its name."""
     from workflow.measurement_condition import read_condition
-    cond = (read_condition(ti3) or "M0").upper()
-    return cond if cond in CONDITIONS else "M0"
+    rec = read_condition(ti3)
+    if rec:
+        cond = rec.upper()
+        return cond if cond in CONDITIONS else "M0"
+    return _condition_from_pair(ti3)
+
+
+def _condition_from_pair(ti3: "str | Path") -> str:
+    """For a main file that records no condition. Python records the main
+    file's condition at the END of a session, while the engine writes the
+    pair during it, so a session measured in M1 or M2 that ended abnormally
+    (a crash, a kill) leaves an unrecorded main beside its two siblings. The
+    engine writes exactly the two conditions the main is NOT in, named
+    ``<hash>-Mx.ti3`` by the main's readings (:meth:`Run.condition_ti3`), so
+    when exactly two of the three names exist for these readings the main is
+    the third. No such file: M0, as always. One, or all three: ""."""
+    try:
+        have = [c for c in CONDITIONS
+                if (p := sibling_path(ti3, c)) is not None and p.is_file()]
+    except Exception:  # noqa: BLE001
+        return "M0"
+    if not have:
+        return "M0"
+    free = [c for c in CONDITIONS if c not in have]
+    return free[0] if len(free) == 1 else ""
 
 
 # ---------------------------------------------------------------------------
@@ -161,7 +189,10 @@ def condition_file(main_ti3: "str | Path | None", cond: "str | None"
     main = Path(main_ti3)
     if not main.is_file():
         return None
-    if cond.upper() == file_condition(main):
+    own = file_condition(main)
+    if not own:
+        return None        # its own condition is not known (review F1)
+    if cond.upper() == own:
         return main
     sib = sibling_path(main, cond.upper())
     return sib if sib is not None and sibling_in_step(main, sib) else None
@@ -197,6 +228,19 @@ def choices_for(main_ti3: "str | Path | None", *,
         return []
     main = Path(main_ti3)
     own = file_condition(main)
+    if not own:
+        # Review F1: the measurement records no condition and its condition
+        # files do not show which one it is, so it is offered only as it is,
+        # under no condition's name, and the others are not offered at all.
+        why = tr(
+            "This measurement does not record which condition it was "
+            "measured in, and the files kept beside it do not show it "
+            "either (this happens when a measurement ended unexpectedly). "
+            "So ChromIQ does not offer other conditions for it: their "
+            "readings could be mixed up with the measurement's own. Measure "
+            "the chart again to have all three.")
+        return [Choice("", main, main=True)] + [
+            Choice(c, None, why) for c in CONDITIONS]
     out = [Choice(own, main, main=True)]
     for cond in CONDITIONS:
         if cond == own:
@@ -210,8 +254,22 @@ def choices_for(main_ti3: "str | Path | None", *,
             continue
         path = condition_file(main, cond)
         out.append(Choice(cond, path, "" if path else (
-            average_missing_reason(main, cond) or no_file_reason(main))))
+            _unproven_file_reason(main, cond)
+            or average_missing_reason(main, cond) or no_file_reason(main))))
     return out
+
+
+def _unproven_file_reason(main: Path, cond: str) -> str:
+    """Why a file under the pair's name is not used: it does not say that
+    it holds these readings ("" when there is no such file)."""
+    from core.i18n import tr
+    sib = sibling_path(main, cond)
+    if sib is None or not sib.is_file():
+        return ""
+    return tr(
+        "There is a file for the {condition} readings of this measurement, "
+        "but it does not say that it holds these readings, so ChromIQ does "
+        "not use it.").format(condition=cond)
 
 
 def no_file_reason(main: Path) -> str:
@@ -284,13 +342,18 @@ def profile_readings(ti3: "str | Path", *, at: "str | Path | None" = None,
     """For a measurement of a run whose profile was built (with the Beta on)
     from ANOTHER condition than the measurement's own: that condition and
     the file holding these readings in it (None when there is none). None
-    when the conditions agree, the profile records none, the file belongs to
-    no run, or the Beta is off. *at* is where the measurement was measured
-    when *ti3* is an archived copy (`build_report`'s *at*)."""
+    when the conditions agree, the profile records none, or the file belongs
+    to no run. *at* is where the measurement was measured when *ti3* is an
+    archived copy (`build_report`'s *at*).
+
+    THE SWITCH IS NOT ASKED (review F2, 2026-11-15). A profile built from M1
+    stays an M1 profile when the Beta is switched off afterwards, so its
+    checks and verifications still follow the condition its build RECORDED
+    (this only reads files that are already there). A profile that records
+    no condition (built with the Beta off, or before it) gives None, which
+    is 4.3.40's behaviour exactly. *settings* is kept for the callers."""
+    del settings
     try:
-        on = stored_value(settings) if settings is not None else beta_on()
-        if not on:
-            return None
         from workflow.run_compliance import run_context_for
         ctx = run_context_for(at or ti3)
         if ctx is None:
@@ -435,9 +498,10 @@ def prune_pairs(cond_dir: "str | Path", owner: "str | Path") -> "list[Path]":
     file anywhere under *owner* holds any more (its ``.ti3``, ``reads/``,
     ``old/``, a dated verification and its archives; *cond_dir* itself left
     out), and return them. Only files named as the engine names them
-    (``<hash>-M0|M1|M2.ti3``) are ever looked at; anything else is left
-    alone, and so is anything changed in the last 10 minutes (a session that
-    is still writing). Never raises."""
+    (``<hash>-M0|M1|M2.ti3``) AND whose own header says ChromIQ wrote them so
+    (:func:`_written_by_us`) are ever deleted; anything else is left alone,
+    and so is anything changed in the last 10 minutes (a session that is
+    still writing). Never raises."""
     import time
     cond_dir, owner = Path(cond_dir), Path(owner)
     gone: "list[Path]" = []
@@ -467,6 +531,8 @@ def prune_pairs(cond_dir: "str | Path", owner: "str | Path") -> "list[Path]":
             m = _PAIR_NAME_RE.match(f.name)
             if m is None or m.group(1) in held:
                 continue
+            if not _written_by_us(f, m.group(1)):
+                continue        # the name alone proves nothing: left alone
             try:
                 if now - f.stat().st_mtime < 600:
                     continue
@@ -479,10 +545,36 @@ def prune_pairs(cond_dir: "str | Path", owner: "str | Path") -> "list[Path]":
     return gone
 
 
+def _written_by_us(path: Path, key: str) -> bool:
+    """True only when *path*'s own header says ChromIQ wrote it as the
+    condition file its name gives: a ``CHROMIQ_CONDITION_OF`` of *key* (the
+    hash in its name) and a ``MEASUREMENT_CONDITION`` equal to the name's
+    ``Mx``, both of which the engine's writer (``cq_cond_write_one``) and
+    :func:`average_conditions` put in, and no other tool does. A file named
+    like one of ours that does not say so is never deleted."""
+    from workflow.measurement_condition import read_header_keyword
+    try:
+        of = (read_header_keyword(path, CONDITION_OF_KEYWORD) or "").strip()
+        cond = (read_header_keyword(path, "MEASUREMENT_CONDITION")
+                or "").strip().upper()
+    except Exception:  # noqa: BLE001
+        return False
+    return (of.lower() == key and bool(cond)
+            and path.name.endswith(f"-{cond}.ti3"))
+
+
 def prune_run(run) -> "list[Path]":
     """:func:`prune_pairs` for a run's ``conditions/`` (held by any
     measurement file in the run) and its ``verifications/conditions/`` (held
     by any under ``verifications/``)."""
     gone = prune_pairs(run.condition_dir, run.dir)
     gone += prune_pairs(run.verification_condition_dir, run.verifications_dir)
+    # review F7: an EMPTY conditions/ folder (a session with another
+    # instrument, or one that ended before its first reading) is taken away;
+    # rmdir never removes a folder with anything in it
+    for d in (run.condition_dir, run.verification_condition_dir):
+        try:
+            Path(d).rmdir()
+        except OSError:
+            pass
     return gone

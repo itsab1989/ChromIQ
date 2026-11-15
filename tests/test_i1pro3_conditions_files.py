@@ -37,7 +37,12 @@ END_DATA
 """
 
 
-def _write(p: Path, y="1.0", head="", tail="", nl="\n") -> Path:
+#: A main file records its condition (the Measure tab does so at the end of
+#: every session, R4); one that records none is review F1's case.
+RECORDED_M0 = 'KEYWORD "MEASUREMENT_CONDITION"\nMEASUREMENT_CONDITION "M0"'
+
+
+def _write(p: Path, y="1.0", head=RECORDED_M0, tail="", nl="\n") -> Path:
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_bytes((TI3.format(y=y, head=head) + tail).replace("\n", nl)
                   .encode("latin-1"))
