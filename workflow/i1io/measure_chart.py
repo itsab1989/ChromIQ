@@ -766,9 +766,10 @@ def assess_file(source, converted_ti3, chart_ti2) -> "McVerdict | None":
              "%s (%s)", Path(str(source)).name, C, R, cond, net.code,
              net.detail)
     if net.action == "refuse":
-        letter = (grid.loc[net.strip][0] if net.strip is not None else "")
+        letter = (_strip_name(grid.loc[net.strip])
+                  if net.strip is not None else "")
         return McVerdict(False, MM.i1io_import_reason(
-            net.code, how=net.how, strip=_strip_name(letter),
+            net.code, how=net.how, strip=letter,
             number=(net.strip + 1) if net.strip is not None else "",
             p1=grid.aim[0], p2=grid.aim[1], p3=grid.aim[2],
             labelled=bool(side.get("labels_printed", True))), net.code,
@@ -780,10 +781,21 @@ def assess_file(source, converted_ti3, chart_ti2) -> "McVerdict | None":
                      side_name=side_name)
 
 
-def _strip_name(loc: "str | None") -> str:
-    """The strip letters of a printed patch name ("AB12" -> "AB")."""
-    m = re.match(r"^([^0-9]+)", str(loc or ""))
-    return m.group(1) if m else str(loc or "")
+def _strip_name(locs) -> str:
+    """The printed name of a strip from its patches' printed names: the part
+    they all share ("A" of A1..A24, "3" of 3A..3X on a chart with numbered
+    strips and lettered patches, review m1), never one patch's name."""
+    names = [str(x) for x in locs if x]
+    if not names:
+        return ""
+    if len(names) == 1:
+        m = re.match(r"^([^0-9]+)", names[0])
+        return m.group(1) if m else names[0]
+    prefix = names[0]
+    for n in names[1:]:
+        while not n.startswith(prefix):
+            prefix = prefix[:-1]
+    return prefix
 
 
 def complete(converted_ti3, chart_ti2, verdict: McVerdict) -> int:

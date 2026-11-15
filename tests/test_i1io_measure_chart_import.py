@@ -553,3 +553,31 @@ def test_the_fit_limit_does_not_shrink_with_the_gamut(charts):
     E, M = _readings(sh, F.mistakes(sh)["transposed"], "low-gamut")
     net = judge_readings(E, M, sh.rows, sh.cols)
     assert net.action == "refuse" and net.code == "other-chart", net.detail
+
+
+def test_a_numbered_strip_is_named_as_a_strip_not_as_a_patch(tmp_path):
+    """Review m1: numbered strips with lettered patches ("3A".."3X"): the
+    refusal names strip "10", never a patch such as "10A"."""
+    from workflow.i1io.measure_chart import _strip_name
+    assert _strip_name(["3A", "3B", "3X"]) == "3"
+    assert _strip_name(["10A", "10B"]) == "10"
+    assert _strip_name(["A1", "A2", "A24"]) == "A"
+    rng = np.random.default_rng(8)
+    rgbs = [tuple(rng.uniform(0, 100, 3)) for _ in range(300)]
+    ti2 = F.build_chart(tmp_path / "num", rgbs, seed=10,
+                        strip_pattern="0-9,@-9,@-9;1-999",
+                        patch_pattern="A-Z, A-Z")
+    sh = F.load_sheet(ti2)
+    R, C = sh.rows, sh.cols
+    read = F.reader(sh, np.random.default_rng(4))
+    rd = F.scan(read, sh.right_aims(), R, C)
+    k = 9
+    for i, (r, c, lab) in enumerate(rd):
+        if r == k:
+            rd[i] = (r, c, read(*sh.point(k, c + 1)) if c + 1 < C
+                     else F.PAPER)
+    cxf = F.write_cmxf(tmp_path / "slip.cmxf", rd, columns=C, rows=R)
+    v, _ = _assess(cxf, ti2, tmp_path)
+    strip = _strip_name(sh.loc_of[sh.grid[k][c][0]] for c in range(C))
+    assert not v.ok and v.reason.startswith(f"strip {strip} "), v.reason
+    assert strip.isdigit()

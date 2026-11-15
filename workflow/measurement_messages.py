@@ -1063,11 +1063,11 @@ def i1io_import_reason(code: str, **kw) -> str:
             return tr(_I1IO_IMPORT_UNSURE).format(aim=aim)
         return tr(_I1IO_IMPORT_AIMED).format(how=tr(how), aim=aim)
     if code == "strip":
-        if named:
+        if named and kw.get("strip"):
             return tr(_I1IO_IMPORT_STRIP).format(strip=kw.get("strip", ""))
         return tr(_I1IO_IMPORT_STRIP_UNNAMED).format(number=number)
     if code == "beside":
-        if named:
+        if named and kw.get("strip"):
             return tr(_I1IO_IMPORT_BESIDE).format(strip=kw.get("strip", ""),
                                                   aim=aim)
         return tr(_I1IO_IMPORT_BESIDE_UNNAMED).format(number=number, aim=aim)
