@@ -466,6 +466,23 @@ CONDITION_BEFORE_PRINTING = "before_printing"
 #: N-A, "needs a reference for the printing condition").
 CONDITION_NOT_VERIFICATION = "not_verification"
 
+#: the paper row and the solid rows alike, and the profile accuracy block
+#: (the M0/M1/M2 Beta, 2026-11-15): the run's profile was built from the
+#: readings in another measurement condition (M0, M1 or M2) than the ones
+#: this sheet has, so comparing them would report the difference between
+#: the two conditions as an error of the print (`other_condition`).
+CONDITION_OTHER_CONDITION = "other_condition"
+
+
+def other_condition(report: "dict | None") -> bool:
+    """True when *report*'s readings are in another measurement condition
+    than the one its run's profile was built from (Preferences > Beta, "X-Rite
+    i1Pro 3: keep M0, M1 and M2"; recorded by `build_report` only while the
+    Beta is on)."""
+    rec = (report or {}).get("measurement_condition")
+    return (isinstance(rec, dict) and bool(rec.get("profile"))
+            and rec.get("condition") != rec.get("profile"))
+
 #: The two rows (b2) judges against the profile's prediction where the solids
 #: were printed raw (a FROM PROFILE GAMUT chart always, else a raw print).
 #: §32.5 is reversed for these two and for nothing else: the cube-corner
@@ -579,6 +596,11 @@ def condition_reference_block(report: dict, *,
     if not (report or {}).get("is_verification"):
         return {"paper": {"from": CONDITION_NOT_VERIFICATION},
                 "solids": {"from": CONDITION_NOT_VERIFICATION}}
+    if other_condition(report):
+        # the M0/M1/M2 Beta: the profile describes the paper and the solids
+        # in another condition than these readings (`other_condition`)
+        return {"paper": {"from": CONDITION_OTHER_CONDITION},
+                "solids": {"from": CONDITION_OTHER_CONDITION}}
     out: dict = {}
     corners = {c.get("name"): c for c in (report.get("corners") or [])}
     colorimetric = report.get("reference_source") == "colorimetric"
@@ -1506,6 +1528,16 @@ def facts_disagree(rep: dict, ti3_path: "str | Path") -> bool:
     block off every dated verification once already (B8-206).
     """
     want_n = rep.get("patches")
+    rec = rep.get("measurement_condition")
+    if isinstance(rec, dict) and rec.get("from_profile"):
+        # the M0/M1/M2 Beta: the report read these readings in another
+        # condition (`build_report`), so it is the file in THAT condition it
+        # must agree with; none on disk any more = "I cannot tell"
+        from workflow.i1pro3_conditions import condition_file
+        other = condition_file(ti3_path, str(rec.get("condition") or ""))
+        if other is None:
+            return False
+        ti3_path = other
     try:
         facts = _facts_cached(Path(ti3_path))
     except Exception:  # noqa: BLE001 — unreadable is not evidence
@@ -1831,7 +1863,21 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
     it) is looked up at *at*, as it was when the sheet was measured there.
     """
     src = Path(ti3_path)
-    data = parse_ti3(src)
+    # "X-Rite i1Pro 3: keep M0, M1 and M2" (Preferences > Beta; Basti,
+    # 2026-11-15): a VERIFICATION of a run whose profile was built from
+    # another condition is judged in that condition, from the same readings
+    # kept in it, and says so (`report["measurement_condition"]`). None with
+    # the Beta off, and then this report is exactly today's.
+    from workflow.i1pro3_conditions import profile_readings
+    _pr = profile_readings(src, at=at)
+    _cond_rec: "dict | None" = None
+    _use = None
+    if _pr is not None:
+        _use = _pr.path if _pr.verification else None
+        _cond_rec = {"condition": _pr.condition if _use else _pr.own,
+                     "profile": _pr.condition, "own": _pr.own,
+                     "from_profile": _use is not None}
+    data = parse_ti3(_use if _cond_rec and _cond_rec["from_profile"] else src)
     ti3_path = Path(at) if at is not None else src
     lab = [xyz_to_lab((x / 100.0, y / 100.0, z / 100.0)) for x, y, z in data.xyz]
     # The readings as MEASURED, kept because `lab` may be re-read below in the
@@ -1870,6 +1916,8 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
     # record a saved report keeps OF WHICH MEASUREMENT IT IS ABOUT, and the
     # reader of that record must not compute them a second way.
     report.update(measurement_facts(ti3_path, data=data, lab=lab))
+    if _cond_rec is not None:
+        report["measurement_condition"] = _cond_rec
 
     # Device RGB, normalised to Argyll's 0..100 device scale. i1Profiler
     # measurement exports carry 0..255 code values; ChromIQ's own charts are
@@ -2199,9 +2247,12 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
                 except Exception as exc:      # noqa: BLE001 — degrade, never fail
                     log.debug("gamut split skipped: %s", exc)
             if ref_source == REFERENCE_SOURCE_PROFILE:
-                report["profile_accuracy"] = profile_accuracy_block(
-                    ti3_path, ref_ti2, data, report["source_reference"],
-                    corner_ids, argyll_bin)
+                report["profile_accuracy"] = (
+                    {"reason": REASON_PROFILE_OTHER_CONDITION}
+                    if other_condition(report) else
+                    profile_accuracy_block(
+                        ti3_path, ref_ti2, data, report["source_reference"],
+                        corner_ids, argyll_bin))
             worst = sorted(des, key=lambda t: -t[0])[:worst_n]
             report["worst_patches"] = [{
                 "loc": data.sample_locs[i] if data.sample_locs else data.sample_ids[i],
@@ -2310,7 +2361,9 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
     # absolute; a paper that changed between the two sheets is part of the
     # answer, not an error in it.
     report["repeat_across_sheets"] = repeat_across_sheets_block(
-        ti3_path, absolute_lab, data.sample_ids, rgb100)
+        ti3_path, absolute_lab, data.sample_ids, rgb100,
+        condition=(_cond_rec["condition"]
+                   if _cond_rec and _cond_rec["from_profile"] else ""))
 
     # EVENNESS ACROSS THE SHEET (Knut, 2026-09-22): every patch against its
     # own aim, the SAME aim as the ΔE00 rows above, averaged over the nine
@@ -5562,6 +5615,11 @@ REASON_NO_PROFILE_TO_COMPARE = "no_profile_to_compare"
 REASON_NO_PAPER_PATCH = "paper_not_measured"
 REASON_SOLIDS_THROUGH_PROFILE = "solids_through_profile"
 REASON_SOLIDS_PRINTING_UNRECORDED = "solids_printing_unrecorded"
+#: the M0/M1/M2 Beta (`CONDITION_OTHER_CONDITION`)
+REASON_PROFILE_OTHER_CONDITION = "profile_other_condition"
+#: ...and Row B: the earlier measurement has no readings in the condition
+#: this one is judged in
+REASON_EARLIER_OTHER_CONDITION = "earlier_other_condition"
 #: …and the three of them only a MEASURED sheet can give: the presets window
 #: asks before anything is printed, of a chart whose run has a profile, and
 #: models a verification printed through it (`preset_eligibility`), so it
@@ -6497,7 +6555,8 @@ def _earlier_measurements_of(ti3_path: Path) -> "list[Path]":
 
 
 def repeat_across_sheets_block(ti3_path: "str | Path", lab,
-                               sample_ids: "list[str]", rgb100) -> dict:
+                               sample_ids: "list[str]", rgb100, *,
+                               condition: str = "") -> dict:
     """Row B: this measurement against the one before it, patch for patch.
 
     Print-to-print and day-to-day, which is what a printer user means by "is
@@ -6528,11 +6587,22 @@ def repeat_across_sheets_block(ti3_path: "str | Path", lab,
     if not earlier:
         return block
     prev = earlier[0]
+    prev_name = prev.parent.name
+    if condition:
+        # the M0/M1/M2 Beta: this sheet is judged in *condition*, so the one
+        # before it must be read in it too, never in another one
+        from workflow.i1pro3_conditions import condition_file
+        prev_c = condition_file(prev, condition)
+        if prev_c is None:
+            block["reason"] = REASON_EARLIER_OTHER_CONDITION
+            block["compared_with"] = prev.parent.name
+            return block
+        prev = prev_c
     try:
         pdata = parse_ti3(prev)
     except (Ti3ParseError, OSError):
         return block
-    block["compared_with"] = prev.parent.name
+    block["compared_with"] = prev_name
     plab = {sid: xyz_to_lab((x / 100.0, y / 100.0, z / 100.0))
             for sid, (x, y, z) in zip(pdata.sample_ids, pdata.xyz)}
     prgb = (dict(zip(pdata.sample_ids,
@@ -7379,6 +7449,7 @@ def row_values(report: dict) -> "dict[str, dict]":
         else:
             put("substrate_de00_max", None, {
                 CONDITION_NO_PAPER_PATCH: REASON_NO_PAPER_PATCH,
+                CONDITION_OTHER_CONDITION: REASON_PROFILE_OTHER_CONDITION,
             }.get(paper.get("from"), REASON_NO_PROFILE_TO_COMPARE))
         solids = cond.get("solids") or {}
         if solids.get("from") == CONDITION_FROM_PROFILE:
@@ -7401,6 +7472,7 @@ def row_values(report: dict) -> "dict[str, dict]":
                     REASON_SOLIDS_PRINTING_UNRECORDED,
                 CONDITION_NO_CORNERS: REASON_NO_CORNERS,
                 CONDITION_BEFORE_PRINTING: REASON_NEEDS_REFERENCE_FILE,
+                CONDITION_OTHER_CONDITION: REASON_PROFILE_OTHER_CONDITION,
             }.get(solids.get("from"), REASON_NO_PROFILE_TO_COMPARE)
             for rid in ROWS_ON_RAW_SOLIDS:
                 put(rid, None, reason)

@@ -2333,10 +2333,41 @@ class Run:
         or None when the measurement has no readings to name it by. Whether
         it exists, and is in step, is for the caller to ask."""
         from workflow.i1pro3_conditions import data_block_hash
-        key = data_block_hash(measurement or self.measurement_ti3)
+        m = Path(measurement) if measurement else self.measurement_ti3
+        key = data_block_hash(m)
         if key is None:
             return None
-        return self.condition_dir / f"{key}-{str(cond).upper()}.ti3"
+        return (self.condition_dir_of(m)
+                / f"{key}-{str(cond).upper()}.ti3")
+
+    @property
+    def verification_condition_dir(self) -> Path:
+        """``verifications/conditions/``: ONE folder for the condition files
+        of every verification of this run (Basti, 2026-11-15: verifications
+        keep all three too). Named by the hash of the readings, so a dated
+        folder's move, Replace or restore needs no code of its own."""
+        from workflow.i1pro3_conditions import CONDITION_DIRNAME
+        return self.verifications_dir / CONDITION_DIRNAME
+
+    @staticmethod
+    def condition_dir_of(measurement: Path) -> Path:
+        """The ``conditions/`` folder a measurement file's pair lives in: the
+        run's own for the run's measurement and for a copy of it in
+        ``reads/`` or ``old/<when>/``; the run's ``verifications/conditions/``
+        for a verification wherever it sits under ``verifications/``; the
+        file's own folder's otherwise (a loose measurement)."""
+        from workflow.i1pro3_conditions import CONDITION_DIRNAME
+        d = Path(measurement).parent
+        for anc in (d, *list(d.parents)[:3]):
+            if anc.name == VERIFICATIONS_DIRNAME:
+                return anc / CONDITION_DIRNAME
+        if d.name == "reads":
+            return d.parent / CONDITION_DIRNAME
+        if d.parent.name == "old":
+            return d.parent.parent / CONDITION_DIRNAME
+        if d.name == "old":
+            return d.parent / CONDITION_DIRNAME
+        return d / CONDITION_DIRNAME
 
     # ---- the engine's partial-measurement backup
     @property

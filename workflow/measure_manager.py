@@ -1170,6 +1170,7 @@ class MeasureManager(QObject):
                     log.info("ruler check: this helper does not know --ruler; "
                              "not passed")
             if params.engine_condition_dir is not None:
+                self._conditions_verify = False
                 from workflow.chartread_engine import helper_caps
                 from workflow.i1pro3_conditions import CAPABILITY
                 if CAPABILITY in helper_caps(params.engine_helper):
@@ -1178,6 +1179,9 @@ class MeasureManager(QObject):
                             parents=True, exist_ok=True)
                         eargs += ["--condition-dir",
                                   str(params.engine_condition_dir)]
+                        self._conditions_verify = (
+                            Path(params.engine_condition_dir).parent.name
+                            == "verifications")
                     except OSError as exc:
                         log.warning("M0/M1/M2: no folder %s (%s); not passed",
                                     params.engine_condition_dir, exc)
@@ -3453,7 +3457,18 @@ class MeasureManager(QObject):
         log.info("engine: conditions %s", ev)
         if ev.get("active"):
             extra = [str(c) for c in (ev.get("extra") or [])][:2]
-            if len(extra) == 2:
+            if len(extra) == 2 and getattr(self, "_conditions_verify", False):
+                on_line(tr(
+                    "[Engine] M0, M1 and M2 from one scan (beta): this "
+                    "verification is saved in {main} as usual, and the same "
+                    "readings are also kept in {first} and {second}, so it "
+                    "can be judged in the condition the run's profile was "
+                    "built from. Nothing extra is sent to the "
+                    "instrument.").format(
+                        main=condition_name(str(ev.get("main") or "M0")),
+                        first=condition_name(extra[0]),
+                        second=condition_name(extra[1])))
+            elif len(extra) == 2:
                 on_line(tr(
                     "[Engine] M0, M1 and M2 from one scan (beta): this "
                     "measurement is saved in {main} as usual, and the same "

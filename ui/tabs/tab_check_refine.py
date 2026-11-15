@@ -1905,6 +1905,10 @@ class TabCheckRefine(QWidget):
                 "checked against those.").format(
                     condition=condition_name(file_condition(
                         params.readings_from))))
+        else:
+            _warn = self._other_condition_warning()
+            if _warn:
+                self._log.appendPlainText(_warn)
         self._last_result = None
         self._run_btn.setEnabled(False)
 
@@ -2601,6 +2605,30 @@ class TabCheckRefine(QWidget):
             refusal if refusal is not None and drop_fwa(params) else None)
         return params
 
+    def _other_condition_warning(self) -> str:
+        """The M0/M1/M2 Beta: a plain warning when the run's profile was
+        built from another condition than this measurement's and these
+        readings are not kept in it, so the check compares two conditions
+        (it is not stopped). "" otherwise, and always with the Beta off."""
+        try:
+            from workflow import i1pro3_conditions as _c
+            if self._ti3_path is None or not _c.stored_value(self._settings):
+                return ""
+            got = _c.profile_readings(Path(self._ti3_path),
+                                      settings=self._settings)
+            if got is None or got.path is not None:
+                return ""
+            from workflow.measurement_condition import condition_name
+            return tr(
+                "M0, M1 and M2 from one scan (beta): the profile was built "
+                "from the {profile} readings, and this measurement has only "
+                "{own} readings. So the check also shows the difference "
+                "between the two conditions, which is not an error of the "
+                "profile.").format(profile=condition_name(got.condition),
+                                   own=condition_name(got.own))
+        except Exception:      # noqa: BLE001 - never stop a check
+            return ""
+
     def _readings_for_the_profile(self) -> "Path | None":
         """The M0/M1/M2 Beta: when the run's profile was built from another
         condition than the measurement's own, and that condition's file is
@@ -2614,16 +2642,17 @@ class TabCheckRefine(QWidget):
             ti3, icc = Path(self._ti3_path), self._icc_path
             if icc is None:
                 return None
-            from core.file_manager import Run
-            run = Run.for_dir(ti3.parent)
-            if (ti3 != run.measurement_ti3 or not run.meta_path.is_file()
-                    or Path(icc).parent != run.dir):
+            # the run's measurement, or one of its verifications (Basti,
+            # 2026-11-15: a verification is checked in the condition the
+            # profile was built from), against the run's own profile
+            from workflow.run_compliance import run_context_for
+            ctx = run_context_for(ti3)
+            if ctx is None or Path(icc).parent != ctx.run.dir:
                 return None
-            built = getattr(run.load_meta(), "profile_build", None) or {}
-            cond = str(built.get(_c.BUILT_FROM_KEY) or "")
-            if not cond or cond == _c.file_condition(ti3):
+            if ctx.verification is None and ti3 != ctx.run.measurement_ti3:
                 return None
-            return _c.condition_file(ti3, cond)
+            got = _c.profile_readings(ti3, settings=self._settings)
+            return got.path if got is not None else None
         except Exception:      # noqa: BLE001 - never stop a check
             log.debug("no condition file for the check", exc_info=True)
             return None

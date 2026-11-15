@@ -127,7 +127,9 @@ def block_hash(data: bytes) -> str:
 def sibling_path(main_ti3: "str | Path", cond: str) -> "Path | None":
     """The *cond* file of the readings *main_ti3* holds now, by the run's own
     path rule (:meth:`core.file_manager.Run.condition_ti3`); None when the
-    file has no data block to name it by."""
+    file has no data block to name it by. A measurement kept in ``reads/``
+    or ``old/`` finds its pair in the run's folder, a verification's in the
+    run's ``verifications/conditions/`` (:meth:`Run.condition_dir_of`)."""
     from core.file_manager import Run
     return Run.for_dir(Path(main_ti3).parent).condition_ti3(
         cond, measurement=Path(main_ti3))
@@ -224,3 +226,75 @@ def no_file_reason(main: Path) -> str:
         "“X-Rite i1Pro 3: keep M0, M1 and M2 from every scan” "
         "switched on, and only until its readings are changed in another "
         "way (for example averaged, imported or replaced).")
+
+
+# ---------------------------------------------------------------------------
+# Verifications (Basti, 2026-11-15): a verification is judged in the
+# condition its run's profile was built from
+# ---------------------------------------------------------------------------
+
+def beta_on() -> bool:
+    """The switch as Preferences holds it, for code that has no settings
+    object of its own (the measurement report)."""
+    try:
+        from core.settings import AppSettings
+        return stored_value(AppSettings())
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def profile_condition(run) -> str:
+    """The condition *run*'s profile was built from, as its build record
+    says ("" when it records none: built with the Beta off, or before)."""
+    try:
+        built = getattr(run.load_meta(), "profile_build", None) or {}
+    except Exception:  # noqa: BLE001
+        return ""
+    cond = str(built.get(BUILT_FROM_KEY) or "").upper()
+    return cond if cond in CONDITIONS else ""
+
+
+class ProfileReadings:
+    """How a measurement meets the condition its run's profile was built
+    from: *condition* (the profile's), *own* (the measurement's), *path*
+    (the file holding the readings in the profile's condition, None when
+    there is none)."""
+
+    def __init__(self, condition: str, own: str, path: "Path | None",
+                 verification: bool = False) -> None:
+        self.condition, self.own, self.path = condition, own, path
+        self.verification = verification
+
+    @property
+    def other(self) -> bool:
+        return self.condition != self.own
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging only
+        return (f"ProfileReadings({self.condition!r}, own={self.own!r}, "
+                f"path={self.path!r})")
+
+
+def profile_readings(ti3: "str | Path", *, at: "str | Path | None" = None,
+                     settings: Any = None) -> "ProfileReadings | None":
+    """For a measurement of a run whose profile was built (with the Beta on)
+    from ANOTHER condition than the measurement's own: that condition and
+    the file holding these readings in it (None when there is none). None
+    when the conditions agree, the profile records none, the file belongs to
+    no run, or the Beta is off. *at* is where the measurement was measured
+    when *ti3* is an archived copy (`build_report`'s *at*)."""
+    try:
+        on = stored_value(settings) if settings is not None else beta_on()
+        if not on:
+            return None
+        from workflow.run_compliance import run_context_for
+        ctx = run_context_for(at or ti3)
+        if ctx is None:
+            return None
+        cond = profile_condition(ctx.run)
+        own = file_condition(ti3)
+        if not cond or cond == own:
+            return None
+        return ProfileReadings(cond, own, condition_file(ti3, cond),
+                               verification=ctx.verification is not None)
+    except Exception:  # noqa: BLE001 - a report is never stopped by this
+        return None

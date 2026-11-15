@@ -22539,10 +22539,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
 
     def _condition_dir_for(self, p: MeasureParams) -> "Path | None":
         """"X-Rite i1Pro 3: keep M0, M1 and M2 from every scan" (Beta): the
-        run's conditions/ folder for a PROFILING run measured with -F off,
-        M1 or M2; None otherwise (option off, a verification or a
-        calibration, the polariser), and then the helper's command line is
-        exactly 4.3.40's."""
+        folder the two other conditions are written to, for a profiling run
+        (the run's conditions/) or a verification (the run's
+        verifications/conditions/, one for all its dates; Basti,
+        2026-11-15), measured with -F off, M1 or M2; None otherwise (option
+        off, a calibration, the polariser), and then the helper's command
+        line is exactly 4.3.40's."""
         from workflow import i1pro3_conditions as _c
         if not _c.stored_value(self._settings):
             return None
@@ -22551,9 +22553,15 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             if _c.main_condition(filter_code_from_args(p.extra_args)) is None:
                 return None
             ti1 = Path(p.ti1_path)
-            if "verifications" in ti1.parts or ti1.parent.name == "cal":
+            if ti1.parent.name == "cal":
                 return None
-            from core.file_manager import Run
+            from core.file_manager import VERIFICATIONS_DIRNAME, Run
+            if ti1.parent.name == VERIFICATIONS_DIRNAME:
+                return Run.for_dir(ti1.parent.parent).verification_condition_dir
+            _ver = getattr(self, "_is_verification_run", None)
+            if _ver is not None and _ver():
+                # a verification measured on the run's own profiling chart
+                return Run.for_dir(ti1.parent).verification_condition_dir
             return Run.for_dir(ti1.parent).condition_dir
         except Exception:      # noqa: BLE001 - never stop a Start
             log.warning("M0/M1/M2: no condition folder", exc_info=True)

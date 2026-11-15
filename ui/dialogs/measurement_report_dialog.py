@@ -12305,6 +12305,12 @@ class MeasurementReportDialog(QDialog):
             "no_earlier_measurement": tr(
                 "this is the first measurement of the measured chart, so "
                 "there is nothing to compare it with"),
+            # the M0/M1/M2 Beta (2026-11-15)
+            "earlier_other_condition": tr(
+                "this measurement is judged in the condition its profile was "
+                "built from, and the measurement before it has no readings in "
+                "that condition"),
+            "profile_other_condition": self._other_condition_sentence(r),
             "too_few_shared_patches": _repeat_shared_sentence(r),
             # EVENNESS ACROSS THE SHEET (Knut, 2026-09-22). Written to his
             # rule of 2026-09-23: each says what the MEASURED CHART lacks,
@@ -17347,6 +17353,43 @@ class MeasurementReportDialog(QDialog):
                 "style='border-collapse:collapse;font-size:11px'>"
                 + "".join(trs) + "</table>")
 
+    @staticmethod
+    def _other_condition_sentence(r: dict) -> str:
+        """Why a row compared with the profile is not shown: the profile was
+        built from readings in another measurement condition (the M0/M1/M2
+        Beta)."""
+        from workflow.measurement_condition import condition_name
+        rec = (r or {}).get("measurement_condition") or {}
+        return tr(
+            "the profile was built from the {profile} readings, and this "
+            "measurement has only {own} readings, so comparing the two would "
+            "show the difference between the conditions as an error").format(
+                profile=condition_name(str(rec.get("profile") or "M0")),
+                own=condition_name(str(rec.get("condition") or "M0")))
+
+    def _measurement_condition_html(self, r: dict) -> str:
+        """One line saying which condition's readings this report is about,
+        when the M0/M1/M2 Beta recorded it (`build_report`); "" otherwise."""
+        rec = r.get("measurement_condition")
+        if not isinstance(rec, dict) or not rec.get("profile"):
+            return ""
+        from workflow.measurement_condition import condition_name
+        if rec.get("from_profile"):
+            text = tr(
+                "M0, M1 and M2 from one scan (beta): this verification is "
+                "judged in {condition}, the condition its profile was built "
+                "from, from the same readings kept in that condition (the "
+                "measurement itself is in {own}).").format(
+                    condition=condition_name(str(rec.get("condition"))),
+                    own=condition_name(str(rec.get("own") or "M0")))
+        else:
+            text = tr(
+                "M0, M1 and M2 from one scan (beta): {sentence}. The rows "
+                "that compare the measurement with the profile are not "
+                "shown.").format(sentence=self._other_condition_sentence(r))
+        return (f"<p style='color:{_C['faint']};font-size:10px'>"
+                + html.escape(text) + "</p>")
+
     def _profile_accuracy_html(self, r: dict) -> str:
         """PROFILE ACCURACY of a sheet printed through its profile (beta 12,
         Knut #182 6045500910): every patch against the run profile's own
@@ -17363,6 +17406,11 @@ class MeasurementReportDialog(QDialog):
                                                  profile_accuracy_verdict)
         head = _h3(tr(_MM._REPORT_PROFILE_ACCURACY_HEADING))
         de = pa.get("de00") or {}
+        if not de and pa.get("reason") == "profile_other_condition":
+            # the M0/M1/M2 Beta (`measurement_report.other_condition`)
+            return (head + f"<p style='color:{_C['faint']};font-size:11px'>"
+                    + html.escape(self._other_condition_sentence(r))
+                    + "</p>")
         if not de:
             return (head + f"<p style='color:{_C['faint']};font-size:11px'>"
                     + html.escape(tr(_MM._REPORT_PROFILE_ACCURACY_NONE))
@@ -17637,6 +17685,9 @@ class MeasurementReportDialog(QDialog):
             # Beta 12 (Knut 6045500910): a sheet printed through its profile
             # has its PROFILE'S ACCURACY judged too, every patch against the
             # profile's own prediction, with the same limits.
+            _cond_html = self._measurement_condition_html(r)
+            if _cond_html:
+                parts.append(_cond_html)
             _pa_html = self._profile_accuracy_html(r)
             if _pa_html:
                 parts.append(_pa_html)

@@ -67,7 +67,7 @@ def test_a_helper_that_does_not_know_it_is_not_given_it(
     ("runs/run1", "-F 5", True),
     ("runs/run1", "-F u", True),
     ("runs/run1", "-F p", False),          # the polariser
-    ("runs/run1/verifications", "", False),
+    ("runs/run1/verifications", "", True),   # Basti, 2026-11-15
     ("cal", "", False),
 ])
 def test_which_measurements_get_it(qapp, tmp_path, where, extra, wanted):
@@ -78,13 +78,18 @@ def test_which_measurements_get_it(qapp, tmp_path, where, extra, wanted):
         def get(self, k, d=None):
             return super().get(k, d)
 
-    fake = SimpleNamespace(_settings=_S(i1pro3_conditions_beta=True))
+    fake = SimpleNamespace(_settings=_S(i1pro3_conditions_beta=True),
+                           _is_verification_run=lambda: False)
     d = tmp_path / where
     d.mkdir(parents=True)
     p = SimpleNamespace(extra_args=extra, ti1_path=d / "chart.ti1")
     got = TabMeasure._condition_dir_for(fake, p)
     if wanted:
         assert got == d / "conditions"
+        if where.endswith("verifications"):
+            # one folder for every dated verification of the run
+            from core.file_manager import Run
+            assert got == Run.for_dir(d.parent).verification_condition_dir
     else:
         assert got is None
     fake._settings = _S(i1pro3_conditions_beta=False)
@@ -135,3 +140,23 @@ def test_the_preferences_row_its_help_and_its_confirmation(qapp, monkeypatch):
     finally:
         dlg.reject()
         dlg.deleteLater()
+
+
+def test_a_verification_on_the_runs_own_chart_writes_to_the_verifications_folder(
+        qapp, tmp_path):
+    from types import SimpleNamespace
+    from core.file_manager import Run
+    from ui.tabs.tab_measure import TabMeasure
+
+    class _S(dict):
+        def get(self, k, d=None):
+            return super().get(k, d)
+
+    d = tmp_path / "runs/run1"
+    d.mkdir(parents=True)
+    fake = SimpleNamespace(_settings=_S(i1pro3_conditions_beta=True),
+                           _is_verification_run=lambda: True)
+    p = SimpleNamespace(extra_args="", ti1_path=d / "chart.ti1")
+    assert (TabMeasure._condition_dir_for(fake, p)
+            == Run.for_dir(d).verification_condition_dir
+            == d / "verifications" / "conditions")
