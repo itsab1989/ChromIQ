@@ -27630,7 +27630,9 @@ class TabChart(QWidget):
             side = stem.parent / (stem.name + ".channels.json")
             rec = (_json.loads(side.read_text(encoding="utf-8"))
                    .get("layout", {}).get("recipe") or {})
-            if str(rec.get("instrument") or "") not in ("i1", "p3", "CM"):
+            from workflow.layout_engine.instruments import \
+                finds_patches_by_edges
+            if not finds_patches_by_edges(rec.get("instrument")):
                 return None
             spaced = (bool(rec.get("spacer_on", True))
                       and str(rec.get("spacer_mode") or "colored") != "none")

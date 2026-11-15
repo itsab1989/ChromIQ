@@ -57,7 +57,13 @@ CALM_ABOVE_MM = 8.0
 
 def min_patch_length_mm(instrument: "str | None") -> "float | None":
     """printtarg's minimum for the layout engine's instrument key, or None
-    for an instrument this check does not judge."""
+    for an instrument this check does not judge: one that does not find its
+    patches by colour edges along a strip (`instruments.
+    FINDS_PATCHES_BY_EDGES`: the CR30, the tables), or one without a
+    recorded minimum of its own (never another instrument's number)."""
+    from workflow.layout_engine.instruments import finds_patches_by_edges
+    if not finds_patches_by_edges(instrument):
+        return None
     return ARGYLL_MIN_PATCH_LENGTH_MM.get(str(instrument or ""))
 
 

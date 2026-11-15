@@ -112,6 +112,48 @@ TARGET_INSTRUMENT_NAME: dict[str, str] = {
     "XRISIS": "X-Rite i1iSis",
 }
 
+#: WHETHER AN INSTRUMENT FINDS ITS PATCHES BY COLOUR EDGES ALONG A STRIP, by
+#: the key every instrument is registered under (TARGET_INSTRUMENT_NAME above).
+#: ONE PLACE for the question three notes ask (the 4.3.39 integration, the
+#: owner: "the cr30 does not need spacers either"): the no-spacer note
+#: (identical neighbours cannot be told apart), "Keep very dark patches away
+#: from very light ones" (R7) and the short-patch note (R6) apply ONLY where
+#: this is True, because only there does the reading depend on the colour
+#: change between neighbouring patches. ADDING AN INSTRUMENT? Classify it here;
+#: tests/test_4339_which_instruments_find_patches_by_edges.py fails until you do.
+#:
+#: True: swept along a strip, each patch found where the colour changes.
+#: * "i1" i1Pro / i1Pro 2 / i1Pro 3 and "p3" i1Pro 3 Plus: hand-scanned
+#:   strips, ArgyllCMS's strip recognition finds the patches;
+#: * "CM" ColorMunki: the same, swept by hand without a ruler;
+#: * "41" DTP41 and "51" DTP51: motorised / pulled strip readers whose
+#:   patches printtarg separates with spacers for the same reason (not
+#:   offered in ChromIQ's instrument list; classified for completeness).
+#: False: read by position or patch by patch, never by finding an edge.
+#: * "SS" SpectroScan: the table moves the head to each patch from the
+#:   chart's reference points (READ_PATCH_BY_PATCH);
+#: * "CR30": set down on each patch by hand (READ_PATCH_BY_PATCH; its chart
+#:   rules in workflow/cr30 lay patches out for aiming, not for scanning);
+#: * "FD9" FD-9: reads the sheet by position from its own fixed layout
+#:   (workflow/fd9);
+#: * "IO2" i1iO: the table aims the i1Pro at grid positions from the three
+#:   corner patches (workflow/i1io);
+#: * "XRISIS" i1iSis family: reads by position from its bar and diamond
+#:   markers (workflow/isis).
+#: `READ_PATCH_BY_PATCH` / `reads_along_strips` below answer a different,
+#: older question for the renderer's contrast note and are left as they are.
+FINDS_PATCHES_BY_EDGES: dict[str, bool] = {
+    "i1": True, "p3": True, "CM": True, "41": True, "51": True,
+    "SS": False, "CR30": False, "FD9": False, "IO2": False, "XRISIS": False,
+}
+
+
+def finds_patches_by_edges(key: "str | None") -> bool:
+    """Whether instrument *key* finds its patches by colour edges along a
+    strip (FINDS_PATCHES_BY_EDGES); False for any key not classified."""
+    return bool(FINDS_PATCHES_BY_EDGES.get(str(key or ""), False))
+
+
 #: The schema of an i1iO chart's side file (`<stem>.i1io.json`), which the
 #: `.ti2` names in its `CHROMIQ_I1IO_LAYOUT` keyword so a chart that lost its
 #: side file is recognised as one.

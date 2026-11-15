@@ -6877,9 +6877,8 @@ class LayoutOptionsPanel(QWidget):
         if cb is not None:
             cb.setEnabled(not on and self._avoid_dark_light_applies())
 
-    #: R7: the instruments whose fixed-order charts the layout engine keeps
-    #: very dark patches away from very light ones on (`build_chart`).
-    AVOID_DARK_LIGHT_INSTRUMENTS = ("i1", "p3", "CM")
+    #: R7 applies to the instruments that find patches by colour edges along
+    #: a strip: one registry (`instruments.FINDS_PATCHES_BY_EDGES`).
 
     def _on_instr_dark_light(self, *_a) -> None:
         self._sync_seed_enabled()
@@ -6889,7 +6888,9 @@ class LayoutOptionsPanel(QWidget):
         if instr is None:
             return True            # an editor panel without a selector
         try:
-            return instr.currentData() in self.AVOID_DARK_LIGHT_INSTRUMENTS
+            from workflow.layout_engine.instruments import \
+                finds_patches_by_edges
+            return finds_patches_by_edges(instr.currentData())
         except Exception:      # noqa: BLE001
             return True
 

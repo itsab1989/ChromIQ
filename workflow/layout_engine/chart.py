@@ -905,12 +905,13 @@ def build_chart(
     # a chart in fixed order. Through the same one slot list as the i1iO's
     # order, so the .ti2, the pages, the side files and the .cht agree; None
     # when nothing has to move, and the chart is then written as before.
+    from .instruments import finds_patches_by_edges as _finds_patches_by_edges
     _nb_moves: "list[tuple[str, str]]" = []
     _nb_left = 0
     _nb_count = 0
     if (avoid_dark_light_neighbours and not randomize and _slots is None
             and not ramps_per_strip and not _i1io and not _isis
-            and instrument in ("i1", "p3", "CM")):
+            and _finds_patches_by_edges(instrument)):
         from . import neighbour_order as _nb
         _all = list(target.patches) + [media] * layout.padding
         _xyzs = [xyz for _dev, xyz in _all]
