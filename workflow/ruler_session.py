@@ -320,7 +320,12 @@ class RulerSession:
         if other_question and not names:
             names = {"unknown"}
         wait = set()
-        if ask_direction:
+        if ask_direction and colours is not None \
+                and colours.verdict == "other":
+            # second look, MINOR-B: the colours point to back to front
+            # (M-STRIP-RULER-DIRECTION-COLOURS): no answer votes
+            names = names | {"colours_say_back_to_front"}
+        elif ask_direction:
             wait.add("ruler_direction")
         if "read_twice" in names:
             wait.add("read_twice")
@@ -451,7 +456,8 @@ class RulerSession:
         return 0
 
     #: Questions that put a strip's ORDER in doubt: no vote from it.
-    ORDER_QUESTIONS = frozenset({"back_to_front", "unknown"})
+    ORDER_QUESTIONS = frozenset({"back_to_front", "unknown",
+                                 "colours_say_back_to_front"})
     #: Answers that keep the reading, and answers that discard it.
     KEEP_ANSWERS = frozenset({"continue", "keep", "closed"})
     DISCARD_ANSWERS = frozenset({"reread", "remeasure", "was_like", "turn",
@@ -464,7 +470,15 @@ class RulerSession:
             self._votes.pop(strip, None)
             return
         p = self._pending_votes.get(strip)
-        if p is None or answer not in self.KEEP_ANSWERS:
+        if p is None:
+            return
+        if question == "ruler_direction" and answer != "continue":
+            # second look, MINOR-B: Escape or the title-bar X on the
+            # direction window keeps the reading (as Continue Anyway, the
+            # exit spec) but the person has not said what happened: no vote
+            self._pending_votes.pop(strip, None)
+            return
+        if answer not in self.KEEP_ANSWERS:
             return
         vote, wait = p
         wait.discard(question)

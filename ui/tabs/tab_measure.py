@@ -18563,7 +18563,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                       + body.replace("\n", "<br>"), dlg)
         text.setWordWrap(True)
         layout.addWidget(text)
-        chosen = ["continue"]
+        # Escape / the title-bar X: kept as Continue Anyway (exit spec),
+        # recorded as "closed" so that it is not taken as an answer about
+        # how the sheet lies (4.3.40, second look MINOR-B)
+        chosen = ["closed"]
         row = QHBoxLayout()
         row.setSpacing(8)
         row.addStretch(1)

@@ -688,3 +688,97 @@ def test_after_a_resume_the_first_vouched_strips_follow_the_new_way_up(tmp_path)
         _read(rs, s, -1, False)
     summ = _read(rs, "AD", -1, True)
     assert not summ["ask_direction"] and _turned_note(summ)
+
+
+# ---------------------------------------------------------------- the windows
+class _Mgr:
+    engine_active = True
+
+    def __init__(self, rs):
+        self.rs, self.answers, self.gotos = rs, [], []
+
+    def ruler_answer(self, strip, answer):
+        self.answers.append(answer)
+        self.rs.note_answer(strip, answer)
+
+    def goto_strip(self, strip):
+        self.gotos.append(strip)
+
+
+def _window_leaving(qapp, rs, strip, ruler, how):
+    """TabMeasure._prompt_ruler_not_covered, the real function, on a stand-in
+    widget; the window is left by *how*: "reread", "continue" or "escape"."""
+    from PyQt6.QtCore import QTimer
+    from PyQt6.QtWidgets import QPlainTextEdit, QPushButton, QWidget
+    from ui.tabs.tab_measure import TabMeasure
+
+    class Stand(QWidget):
+        pass
+    st = Stand()
+    st._manager = _Mgr(rs)
+    st._log = QPlainTextEdit()
+    st._cue_window = lambda *_: None
+    st._pace_prompt_open = False
+    st._ruler_direction_texts = lambda s, v=None: \
+        TabMeasure._ruler_direction_texts(st, s, v)
+    seen = {}
+
+    def exec_(dlg):
+        seen["name"] = dlg.objectName()
+        seen["title"] = dlg.windowTitle()
+        if how == "escape":
+            QTimer.singleShot(0, dlg.reject)
+        else:
+            want = {"reread": "Re-read Strip", "continue": "Continue Anyway"}[how]
+            b = [x for x in dlg.findChildren(QPushButton) if x.text() == want][0]
+            QTimer.singleShot(0, b.click)
+        return dlg.exec()
+    st._exec_measurement_window = exec_
+    TabMeasure._prompt_ruler_not_covered(st, strip, ruler)
+    return st._manager, seen
+
+
+def _asked_strip(tmp_path, kind):
+    """A session of 6 strips, then strip G asked: "unsure" (a ramp read the
+    other way up), "other" (colours point to back to front), or "cover"."""
+    rs = _session3(tmp_path)
+    for s in _names(6):
+        _read(rs, s, -1, False)
+    if kind == "unsure":
+        summ = _read(rs, "G", -1, True, expected=_ramp(2))
+    elif kind == "other":
+        e = _row(99)
+        summ = _read(rs, "G", -1, True, expected=e,
+                     measured=[(L + 4, a * 0.8, b * 0.8) for L, a, b in reversed(e)])
+    else:
+        summ = {"ask": True, "ask_direction": False, "travel_steps": 100,
+                "coverage_steps": 90, "span_steps": 300, "mm_per_step": None}
+    return rs, summ
+
+
+@pytest.mark.parametrize("kind,how,answer,votes", [
+    ("unsure", "continue", "continue", [-1] * 6 + [+1]),
+    ("unsure", "escape", "closed", [-1] * 6),
+    ("unsure", "reread", "reread", [-1] * 6),
+    ("other", "continue", "continue", [-1] * 6),
+    ("other", "escape", "closed", [-1] * 6),
+    ("other", "reread", "reread", [-1] * 6),
+    ("cover", "continue", "continue", [-1] * 6),
+    ("cover", "escape", "closed", [-1] * 6),
+    ("cover", "reread", "reread", [-1] * 6),
+])
+def test_each_window_and_each_way_of_leaving_it(qapp, tmp_path, kind, how,
+                                                answer, votes):
+    """Second look, MINOR-B: only Continue Anyway on the "cannot tell"
+    window votes. Escape / the title-bar X keeps the reading as the exit spec
+    says (nothing sent, no re-read) but is recorded as "closed" and casts no
+    vote; on the window whose colours point to back to front no answer
+    votes; Re-read sends the reader back and casts none."""
+    rs, summ = _asked_strip(tmp_path, kind)
+    m, seen = _window_leaving(qapp, rs, "G", summ, how)
+    assert m.answers == [answer]
+    assert m.gotos == (["G"] if how == "reread" else [])
+    assert rs.direction_votes == votes
+    if kind != "cover":
+        assert seen["name"] == "ruler_direction_window"
+        assert ("back to front" in seen["title"]) == (kind == "other")
