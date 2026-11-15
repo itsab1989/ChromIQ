@@ -241,3 +241,13 @@ def test_the_texts_are_proposed():
         middle_line="", remeasure="R", turn="T", keep="K", stop="S")
     assert "\nT: keep these readings" in body and "\nK: keep this reading" in body
     assert "—" not in body
+
+
+def test_the_text_agrees_with_closing_the_window():
+    """Review of 4.3.39: Escape / the X keeps the reading (closing answers
+    nothing), so the text no longer says the strip "should not stay"."""
+    _t, body = M.M_STRIP_REVERSED_TURN.render(
+        strip="9", first="9A", last="9L", lead_line="", base="1", best="1",
+        middle_line="", remeasure="R", turn="T", keep="K", stop="S")
+    assert "should not stay as it is" not in body
+    assert "K: keep this reading as it is. Closing this window does the same." in body

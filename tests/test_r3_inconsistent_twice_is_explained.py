@@ -154,3 +154,11 @@ def test_patch_by_patch_resume_starts_at_the_missing_strip(tmp_path):
     finally:
         s2.proc.kill()
         s2.finish()
+
+
+def test_the_resume_sentence_says_what_the_engine_does():
+    """Review of 4.3.39: -p -r STARTS at the missing patches, then steps on
+    to patches already read; the text said ChromIQ asks only for them."""
+    body = M.M_STRIP_FAILED_INCONSISTENT_AGAIN.body
+    assert "asks only for" not in body
+    assert "starts at the patches that are still missing" in body

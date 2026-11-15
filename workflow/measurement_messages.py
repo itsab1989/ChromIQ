@@ -9505,8 +9505,9 @@ M_STRIP_FAILED_INCONSISTENT_AGAIN = _m(
     "way afterwards: choose {skip} (or {save_partial} when it is the last "
     "strip), finish the other strips, and then start measuring again with "
     "“Patch-by-patch mode” and “Refine / resume existing measurement (-r)” "
-    "ticked. ChromIQ then asks only for the patches that are still missing, "
-    "which are the patches of this strip.\n"
+    "ticked. ChromIQ then starts at the patches that are still missing, "
+    "which are the patches of this strip; once they are read, every patch of "
+    "the chart has a reading and you can finish.\n"
     "• For your next chart: a randomised patch order, which rarely puts a "
     "very dark patch straight after a very light one, or longer patches in "
     "the direction you move the instrument. Create Chart says when a chart's "
@@ -10187,9 +10188,9 @@ M_STRIP_REVERSED_TURN = _m(
     "without a warning. Whatever the cause, what ChromIQ found is the same: "
     "this strip matches the chart far better turned round.\n\n"
     "Readings filed under the wrong patch would make the profile, or a "
-    "verification report, wrong for those colours, so this strip should not "
-    "stay as it is. Nothing else is affected: your other strips and "
-    "everything read so far are saved.\n\n"
+    "verification report, wrong for those colours, so it is best not to "
+    "keep this strip as it is. Nothing else is affected: your other strips "
+    "and everything read so far are saved.\n\n"
     "{remeasure}: go back to strip {strip} and read it again (recommended). "
     "Put the instrument down on the white paper before the first patch, and "
     "if it gives a short beep when it is ready, wait for it. Then move in one "
@@ -10201,7 +10202,7 @@ M_STRIP_REVERSED_TURN = _m(
     "that way round. Choose this when the same question comes back after you "
     "have read the strip again, or when you are sure you read the whole strip "
     "in one smooth movement and only the order is wrong.\n"
-    "{keep}: keep this reading as it is.\n"
+    "{keep}: keep this reading as it is. Closing this window does the same.\n"
     "{stop}: stop measuring for now.",
     approved=False)
 
