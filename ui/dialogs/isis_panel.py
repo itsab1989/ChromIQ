@@ -248,6 +248,7 @@ class IsisPanelMixin:
     def _isis_option_changed_body(self, *_a) -> None:
         self.isis_band_place.setEnabled(self.isis_band.isChecked())
         self.isis_band_height.setEnabled(self.isis_band.isChecked())
+        IsisPanelMixin._isis_sync_letters_place(self)
         # the content group shows while the band is on
         self._update_clip_visibility()
         if not getattr(self, "_loading", False):
@@ -275,6 +276,30 @@ class IsisPanelMixin:
         # the box while _isis_saved is None, so they never count
         if self._isis_saved is not None:
             self._isis_own_letters = bool(on)
+        IsisPanelMixin._isis_sync_letters_place(self)
+
+    def _isis_sync_letters_place(self) -> None:
+        """"Strip letters place" only chooses WHERE the letters go; whether
+        they print is the engine's own "Show strip indicators". The owner,
+        2026-11-15, on 4.3.38: *"in manual i can select strip letters place
+        ... there are none shown at all"*: the place was live while the box
+        was off (the i1iSis default) and nothing said why. So it is greyed
+        while the box is off, as the notes band's place is while the band is
+        off, and its tooltip is its own help, which names the box."""
+        box = getattr(self, "isis_letters", None)
+        if box is None:
+            return
+        si = getattr(self, "show_indicators", None)
+        on = bool(si is None or si.isChecked())
+        box.setEnabled(on)
+        if on:
+            box.setToolTip("")
+        else:
+            import html
+            import re
+            text = html.escape(isis_option_help("letters"))
+            text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
+            box.setToolTip(f"<p>{text}</p>")
 
     def _isis_controls(self) -> tuple:
         return (self.isis_model, self.isis_header, self.isis_trailer,

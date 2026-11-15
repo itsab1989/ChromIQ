@@ -31480,6 +31480,24 @@ class TabChart(QWidget):
                      _recipe_mode_word(rec), grid,
                      rec.get("margin_top"), rec.get("margin_right"),
                      rec.get("margin_bottom"), rec.get("margin_left"))
+            from workflow.isis.support import is_isis_code as _is_isis
+            if _is_isis(rec.get("instrument")):
+                # THE i1iSis's OWN LABEL OPTIONS (the owner, 2026-11-15: a
+                # report of "no strip letters" could not be read from the
+                # log, which did not say whether they were switched on)
+                log.info("chart build (%s) in %s: i1iSis options: model %s, "
+                         "strip letters %s (place %s), row numbers %s, "
+                         "corner labels %s, arrows %s, outline %s, "
+                         "notes band %s (place %s)",
+                         trigger, mode, rec.get("isis_model") or "standard",
+                         "on" if rec.get("show_strip_indicators") else "off",
+                         rec.get("isis_strip_letters"),
+                         "on" if rec.get("show_row_indicators") else "off",
+                         "on" if rec.get("isis_corner_labels", True) else "off",
+                         "on" if rec.get("isis_arrows", True) else "off",
+                         "on" if rec.get("isis_outline", True) else "off",
+                         "on" if rec.get("isis_notes_band") else "off",
+                         rec.get("isis_notes_place"))
             if mode == "guided":
                 # The raw numbers the engine is handed, as before.
                 log.info("chart build (%s) in %s: engine kwargs %s",
