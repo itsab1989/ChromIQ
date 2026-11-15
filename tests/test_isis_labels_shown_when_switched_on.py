@@ -67,6 +67,12 @@ def test_what_is_switched_on_is_printed(sheet_name, letters, place, rows):
             assert len(got_rows) == g.R, (sheet_name, off)
             assert "row_numbers" not in off
             assert min(i.size for i in got_rows) >= C.LABEL_MIN_MM - 1e-9
+            # and clear of the dashed outline's line (on screen, 2026-11-15:
+            # "10" to "35" printed across the dashes)
+            from workflow.isis import chart_facts as F
+            inner = sheet.x0 + sheet.width - F.OUTLINE_LINE_MM.value
+            assert max(i.box[0] + i.box[2] for i in got_rows) \
+                <= inner + 1e-6, (sheet_name, inner)
         else:
             assert not got_rows
 
@@ -90,9 +96,11 @@ def test_row_numbers_left_off_are_said(tmp_path):
     assert any(C.keep_out_message("row_numbers") == w for w in res.warnings)
 
 
-def test_a_chart_whose_numbers_fitted_is_unchanged():
-    """Where the numbers fitted at full size (XL on A3), the outline is as
-    wide as before: the smaller sizes are tried only when they did not."""
+def test_where_there_is_room_the_numbers_keep_their_full_size():
+    """XL on A3 has the room: the numbers stay at their full 3 mm (the
+    smaller sizes are tried only when they do not fit), inside the outline's
+    line. On 4.3.38 they were 3 mm but their right edge touched the dashes:
+    the chart was widened for "99", and "39" is wider in Inter."""
     _o, g, sheet = C.layout_for(1617, 297.0, 420.0, {
         C.COUNT_KEY: 1617, C.MODEL_KEY: "xl", "row_indicators": True})
     items, _off = C.plan_page(sheet, 0, name="x", title="x")

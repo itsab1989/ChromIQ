@@ -717,7 +717,9 @@ def sheet_for(grid: Grid, paper_w: float, paper_h: float,
         # them): 3 mm of white after the right marker, then the widest
         # number, when the page has that paper inside its right margin
         size = opts.letter_size or min(3.0, max(1.2, opts.ph * 0.5))
-        txt = "9" * len(str(grid.R))
+        # the widest digit, not "9": in Inter a "4" is wider, so a chart
+        # widened for "99" set its "14" smaller than the room allowed
+        digits = len(str(grid.R))
         room = paper_w - opts.margins[1] - opts.margins[3] - opts.offset[0]
         # and never wider than the sheet the model takes, so a sheet cut
         # along the outline still feeds (review of a7ca1489e, m2); without
@@ -725,9 +727,10 @@ def sheet_for(grid: Grid, paper_w: float, paper_h: float,
         widest = F.PAPER_W_MM.value[opts.model][1]
 
         def _need(sz: float) -> float:
-            _x, _y, nw, _nh = _label_box(0, 0, sz, txt, opts.number_rotation,
-                                         opts.letter_font, opts.letter_bold,
-                                         opts.letter_italic)
+            nw = max(_label_box(0, 0, sz, ch * digits, opts.number_rotation,
+                                opts.letter_font, opts.letter_bold,
+                                opts.letter_italic)[2]
+                     for ch in "0123456789")
             return (nominal_w - opts.d1 + F.DIAMOND_CLEAR_MM.value
                     + max(0.0, opts.label_offset_x) + nw + 0.5)
         # SET SMALLER BEFORE LEFT OFF, as `_plan_numbers` sets them. The
@@ -1619,7 +1622,10 @@ def _plan_numbers(sheet: Sheet, patterns):
     o, g = sheet.opts, sheet.grid
     x0 = sheet.right_marker_edge + F.DIAMOND_CLEAR_MM.value \
         + max(0.0, o.label_offset_x)
-    limit = sheet.x0 + sheet.width
+    # INSIDE THE OUTLINE'S OWN LINE, which `sheet_for` leaves room for (the
+    # 0.5 in its "need"): measured on screen 2026-11-15, numbers set against
+    # the outline's outer edge printed "10" to "35" across the dashes
+    limit = sheet.x0 + sheet.width - F.OUTLINE_LINE_MM.value
     texts = [row_name(r, patterns) for r in range(g.R)]
     size = o.letter_size or min(3.0, max(1.2, o.ph * 0.5))
 
