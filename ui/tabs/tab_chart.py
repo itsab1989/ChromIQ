@@ -31491,13 +31491,13 @@ class TabChart(QWidget):
                          "notes band %s (place %s)",
                          trigger, mode, rec.get("isis_model") or "standard",
                          "on" if rec.get("show_strip_indicators") else "off",
-                         rec.get("isis_strip_letters"),
+                         rec.get("isis_strip_letters") or "top",
                          "on" if rec.get("show_row_indicators") else "off",
                          "on" if rec.get("isis_corner_labels", True) else "off",
                          "on" if rec.get("isis_arrows", True) else "off",
                          "on" if rec.get("isis_outline", True) else "off",
                          "on" if rec.get("isis_notes_band") else "off",
-                         rec.get("isis_notes_place"))
+                         rec.get("isis_notes_place") or "header")
             if mode == "guided":
                 # The raw numbers the engine is handed, as before.
                 log.info("chart build (%s) in %s: engine kwargs %s",
