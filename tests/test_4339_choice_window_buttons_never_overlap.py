@@ -85,15 +85,16 @@ def _measure(qapp, box):
 
 def _open(qapp, monkeypatch, screen, door_action=None):
     import ui.ti2_loader as L
+    import ui.widgets as Wd
     from core.i18n import tr
     if SCREENS[screen] is not None:
-        monkeypatch.setattr(L, "_choice_work_area",
+        monkeypatch.setattr(Wd, "long_buttons_work_area",
                             lambda box: SCREENS[screen])
     seen = {}
 
     def door(box):
         seen.update(_measure(qapp, box))
-        seen["work"] = L._choice_work_area(box)
+        seen["work"] = Wd.long_buttons_work_area(box)
         answer = door_action(box) if door_action else None
         box.hide()
         box.deleteLater()
@@ -167,24 +168,28 @@ def test_escape_still_cancels(qapp, language, monkeypatch, screen):
     assert key is None, screen
 
 
-def test_cancel_is_still_the_default_button(qapp, language, monkeypatch):
-    """The window's default button is Cancel, as before; wrapped, the Cancel
-    that is shown is the one Return presses."""
-    from core.i18n import tr
-    for screen in ("own", "1280x800"):
-        language("de")
-        seen = {}
+@pytest.mark.parametrize("screen", ["own", "1280x800"])
+def test_return_presses_cancel_while_shown(qapp, language, monkeypatch,
+                                           screen):
+    """Return presses Cancel, as before, in one row and wrapped (round-2
+    review: Qt clears a default flag set before the box is shown)."""
+    from PyQt6.QtTest import QTest
+    language("de")
+    seen = {}
 
-        def door_action(box):
-            seen["box_default"] = box.defaultButton().text()
-            seen["wrapped"] = [b.text() for b in _visible_buttons(box)
-                               if b.parentWidget() is not box.findChild(
-                                   type(box.defaultButton().parentWidget()))
-                               and b.isDefault()]
-            return None
-        _open(qapp, monkeypatch, screen, door_action)
-        assert seen["box_default"] == tr("Cancel"), (screen, seen)
-        assert seen["wrapped"] in ([], [tr("Cancel")]), (screen, seen)
+    def press(box):
+        seen["rows"] = len({r.y() for _t, r in _measure(qapp, box)["rects"]})
+        target = box.focusWidget() or box
+        QTest.keyClick(target, Qt.Key.Key_Return)
+        qapp.processEvents()
+        seen["open"] = box.isVisible()
+        seen["clicked"] = box.clickedButton()
+        return box.clickedButton()
+    key, _m = _open(qapp, monkeypatch, screen, press)
+    from core.i18n import tr
+    assert not seen["open"], (screen, "Return left the window open")
+    assert key is None and seen["clicked"] is not None, (screen, seen)
+    assert seen["clicked"].text() == tr("Cancel"), (screen, seen)
 
 
 def test_a_button_in_a_wrapped_row_answers_its_own_choice(qapp, language,
@@ -214,7 +219,7 @@ def test_on_a_very_short_screen_the_text_scrolls_and_the_buttons_stay(
         seen = {}
 
         def door_action(box):
-            seen["scroll"] = box.findChild(QScrollArea, "choice_text_scroll")
+            seen["scroll"] = box.findChild(QScrollArea, "long_buttons_text_scroll")
             return None
         _key, m = _open(qapp, monkeypatch, "short", door_action)
     finally:

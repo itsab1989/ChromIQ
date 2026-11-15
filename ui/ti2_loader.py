@@ -804,21 +804,15 @@ def _choice_box(parent, title, intro_html, choices,
     cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
     box.setDefaultButton(cancel)
 
-    from ui.widgets import fit_message_box_buttons
     from ui.widgets import keep_message_box_inside_the_work_area
     keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
     # ONE ROW WHEN IT FITS, ELSE ROWS, NEVER OVERLAPPING (the owner, 4.3.39:
     # in German "Lieber als neuen Lauf bauen" ran under "Nur das Chart
     # ersetzen"; four choices and Cancel need about 1090 px there, Qt holds
-    # a message box at 1000 at most, and the row was squeezed). Measured on
-    # screen, `ChromIQ-work/2026-11-15_release_4339/onscreen/choice_de_*`.
-    ordered = list(buttons) + [cancel]
-    if _choice_buttons_fit_one_row(box, ordered):
-        fit_message_box_buttons(box)
-        rows = 1
-    else:
-        rows = _flow_choice_buttons(box, ordered, cancel)
-    _space_above_the_buttons(box)
+    # a message box at 1000 at most, and the row was squeezed). The shared
+    # rule for message boxes with long buttons, `arrange_message_box_buttons`.
+    from ui.widgets import arrange_message_box_buttons
+    rows = arrange_message_box_buttons(box, list(buttons) + [cancel], cancel)
     if rows == 1:
         # THE CHOICES TOGETHER ON THE LEFT, CANCEL ON ITS OWN AT THE RIGHT.
         #
@@ -837,177 +831,7 @@ def _choice_box(parent, title, intro_html, choices,
                     bb.layout().insertStretch(idx, 1)
         except Exception:      # noqa: BLE001 — a layout tweak must never block the window
             pass
-    _scroll_the_text_when_too_tall(box)
     return buttons.get(_exec_choice_box(box))
-
-
-#: Space between the choice buttons, in both directions (the button box's
-#: own gap on macOS is about this).
-_CHOICE_GAP = 12
-
-
-def _choice_work_area(box):
-    """The work area a choice window must fit (a test or a driver may stand
-    in a smaller screen here)."""
-    from PyQt6.QtGui import QGuiApplication
-    screen = box.screen() or QGuiApplication.primaryScreen()
-    return screen.availableGeometry() if screen is not None else None
-
-
-def _choice_width_limit(box) -> int:
-    """The widest this choice window may be: Qt's own message-box limit
-    (`ui.widgets._message_box_width_limit`), and the same rule applied to
-    :func:`_choice_work_area`, whichever is smaller."""
-    from ui.widgets import _message_box_width_limit
-    limit = _message_box_width_limit(box)
-    work = _choice_work_area(box)
-    if work is not None:
-        w = work.width()
-        limit = min(limit, w if w <= 1024 else min(w - 480, 1000))
-    return limit
-
-
-def _choice_row_room(box) -> int:
-    """The width the buttons have: the window's limit less its margins."""
-    m = box.contentsMargins()
-    lay = box.layout()
-    lm = lay.contentsMargins() if lay is not None else m
-    return (_choice_width_limit(box) - m.left() - m.right()
-            - lm.left() - lm.right())
-
-
-def _button_width(btn) -> int:
-    return max(btn.sizeHint().width(), btn.minimumWidth())
-
-
-def _choice_buttons_fit_one_row(box, ordered) -> bool:
-    """Whether the buttons, in the app's button font, fit side by side in
-    the widest window a message box may be."""
-    from PyQt6.QtWidgets import QDialogButtonBox
-    from ui.widgets import ButtonFontFilter
-    for b in ordered:
-        ButtonFontFilter.fit(b)
-    # the gap the one row really gets: the button box's own spacing
-    bb = box.findChild(QDialogButtonBox)
-    bl = bb.layout() if bb is not None else None
-    gap = bl.spacing() if bl is not None and bl.spacing() >= 0 else 6
-    need = sum(_button_width(b) for b in ordered) + gap * (len(ordered) - 1)
-    return need <= _choice_row_room(box)
-
-
-def _flow_choice_buttons(box, ordered, cancel) -> int:
-    """Lay the buttons out in as few rows as fit, side by side in each row,
-    all of one width, left-aligned with the text, Cancel last; returns the
-    number of rows. The window keeps the widest width a message box may
-    have, so its text stays as short as it can.
-
-    The buttons Qt owns stay in the message box's own button box, hidden,
-    so the window still answers which one was pressed, and Escape still
-    presses Cancel; each button shown here presses its twin. The Cancel
-    shown here is the default button (Return), as Cancel was before."""
-    from PyQt6.QtWidgets import (QDialogButtonBox, QGridLayout, QPushButton,
-                                 QSizePolicy, QSpacerItem, QWidget)
-    from ui.widgets import ButtonFontFilter
-    lay = box.layout()
-    bb = box.findChild(QDialogButtonBox)
-    if lay is None or bb is None:
-        return 1
-    room = _choice_row_room(box)
-    shown = []
-    for real in ordered:
-        twin = QPushButton(real.text(), box)
-        ButtonFontFilter.fit(twin)
-        twin.clicked.connect(real.click)
-        shown.append(twin)
-    width = max(_button_width(b) for b in shown)
-    per_row = max(1, min(len(shown), (room + _CHOICE_GAP)
-                         // (width + _CHOICE_GAP)))
-    holder = QWidget(box)
-    holder.setObjectName("choice_buttons")
-    grid = QGridLayout(holder)
-    grid.setContentsMargins(0, 0, 0, 0)
-    grid.setHorizontalSpacing(_CHOICE_GAP)
-    grid.setVerticalSpacing(_CHOICE_GAP)
-    # ONE WIDTH FOR ALL: the columns carry it and the buttons fill their
-    # column (the app's button-font filter re-fits a button's own minimum
-    # width when it is polished, so a width set on the button would not hold)
-    for i, twin in enumerate(shown):
-        twin.setParent(holder)
-        twin.setSizePolicy(QSizePolicy.Policy.Expanding,
-                           QSizePolicy.Policy.Fixed)
-        grid.addWidget(twin, i // per_row, i % per_row)
-    for col in range(per_row):
-        grid.setColumnMinimumWidth(col, width)
-        grid.setColumnStretch(col, 0)
-    grid.setColumnStretch(per_row, 1)
-    # Cancel, as before (Return); the others never take the default by
-    # being focused
-    for twin in shown[:-1]:
-        twin.setAutoDefault(False)
-    shown[-1].setDefault(True)
-    bb.hide()
-    r, c, rs, cs = lay.getItemPosition(lay.indexOf(bb))
-    lay.addWidget(holder, r, c, rs, cs)
-    lay.addItem(QSpacerItem(room, 0, QSizePolicy.Policy.Minimum,
-                            QSizePolicy.Policy.Expanding),
-                lay.rowCount(), 0, 1, lay.columnCount())
-    lay.activate()
-    return -(-len(shown) // per_row)
-
-
-def _space_above_the_buttons(box) -> None:
-    """Clear space between the text and the buttons, one blank line of the
-    text (the gap between two of its paragraphs), in one row or several (the
-    owner, 4.3.39: the first button sat too close to the text)."""
-    from PyQt6.QtWidgets import QDialogButtonBox, QLabel, QWidget
-    try:
-        label = box.findChild(QLabel, "qt_msgbox_informativelabel")
-        gap = (label or box).fontMetrics().lineSpacing()
-        holder = box.findChild(QWidget, "choice_buttons")
-        target = holder if holder is not None else box.findChild(
-            QDialogButtonBox)
-        if target is not None:
-            m = target.contentsMargins()
-            target.setContentsMargins(m.left(), gap, m.right(), m.bottom())
-    except Exception:      # noqa: BLE001 — a layout tweak must never block the window
-        pass
-
-
-def _scroll_the_text_when_too_tall(box) -> None:
-    """Only when the window, buttons in rows, would still be taller than the
-    work area: its explanation goes into a scroll area just tall enough that
-    the whole window, and so every button, stays on screen."""
-    from PyQt6.QtWidgets import QFrame, QLabel, QScrollArea
-    try:
-        work = _choice_work_area(box)
-        lay = box.layout()
-        label = box.findChild(QLabel, "qt_msgbox_informativelabel")
-        if work is None or lay is None or label is None:
-            return
-        lay.activate()
-        width = max(box.sizeHint().width(), _choice_width_limit(box))
-        height = (lay.totalHeightForWidth(width)
-                  if lay.hasHeightForWidth() else box.sizeHint().height())
-        room = work.height() - 60          # the caption and a margin
-        over = height - room
-        if over <= 0:
-            return
-        text_w = max(100, _choice_row_room(box))
-        text_h = label.heightForWidth(text_w)
-        if text_h <= 0:
-            text_h = label.sizeHint().height()
-        r, c, rs, cs = lay.getItemPosition(lay.indexOf(label))
-        area = QScrollArea(box)
-        area.setFrameShape(QFrame.Shape.NoFrame)
-        area.setWidgetResizable(True)
-        area.setObjectName("choice_text_scroll")
-        lay.removeWidget(label)
-        area.setWidget(label)
-        area.setFixedHeight(max(120, text_h - over))
-        lay.addWidget(area, r, c, rs, cs)
-        lay.activate()
-    except Exception:      # noqa: BLE001 — a layout tweak must never block the window
-        pass
 
 
 def _next_run_id(project) -> str:

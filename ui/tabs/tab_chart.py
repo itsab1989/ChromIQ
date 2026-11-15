@@ -20940,8 +20940,15 @@ class TabChart(QWidget):
                                  QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(stop_btn)
         box.setEscapeButton(stop_btn)
-        from ui.widgets import keep_message_box_inside_the_work_area
+        from ui.widgets import (arrange_message_box_buttons,
+                                keep_message_box_inside_the_work_area)
         keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        # side by side when they fit, else as few even rows as fit, never
+        # overlapping (round-2 review of 4.3.39: es, pt, nl overlapped at
+        # full width, 11 of 14 languages on a 1280 laptop); read in the
+        # order the text explains them, the way out last
+        arrange_message_box_buttons(box, [new_btn, keep_btn, stop_btn],
+                                    stop_btn)
         box.exec()
         clicked = box.clickedButton()
         ans = ("new" if clicked is new_btn

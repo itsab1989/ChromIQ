@@ -6947,8 +6947,15 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
             bbox.setContentsMargins(cm.left(), cm.top() + 28, cm.right(),
                                     cm.bottom())
         box.setDefaultButton(unique_btn)
-        from ui.widgets import keep_message_box_inside_the_work_area
+        from ui.widgets import (arrange_message_box_buttons,
+                                keep_message_box_inside_the_work_area)
         keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        # five long buttons: side by side when they fit, else in rows, never
+        # overlapping (the 4.3.39 sweep: over a 1280 laptop's width in 13 of
+        # 14 languages)
+        arrange_message_box_buttons(
+            box, [unique_btn, onlynew_btn, newfill_btn, anyway_btn,
+                  cancel_btn], unique_btn)
         box.exec()
         clicked = box.clickedButton()
         if clicked is unique_btn:
