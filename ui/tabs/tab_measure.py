@@ -15325,7 +15325,33 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._log.appendPlainText("\n" + M.i1io_filed_line(
             n, g.columns, g.rows, v.net.score if v.net else float("nan"),
             bool(v.ask_why)))
+        # NOTHING PRESENTED AS CHECKED THAT WAS NOT (4.3.39): on a chart too
+        # small or too uniform for the checks to prove the aim, the log and
+        # the "done" window say so, and how to be sure
+        # (M-IMPORT-I1IO-AIM-UNCHECKED).
+        from workflow.i1io.measure_chart import aim_unchecked_why
+        why = aim_unchecked_why(v)
+        if why:
+            from workflow.i1io.measure_chart import instruction_numbers
+            title, body = M.i1io_aim_unchecked_text(
+                why, instruction_numbers(chart) or {})
+            self._log.appendPlainText("\n[WARNING] " + title + "\n" + body)
+            self._i1io_aim_note = (title, body)
         return True
+
+    def _add_i1io_aim_note(self, dlg, lay) -> None:
+        """Below the approved text of a "done" window: the note of
+        `_complete_i1io_import` when this import's aim could not be checked
+        (M-IMPORT-I1IO-AIM-UNCHECKED). Said once, then forgotten."""
+        note = getattr(self, "_i1io_aim_note", None)
+        self._i1io_aim_note = None
+        if not note:
+            return
+        from PyQt6.QtWidgets import QLabel
+        label = QLabel("⚠ " + note[0] + "\n\n" + note[1], dlg)
+        label.setWordWrap(True)
+        label.setObjectName("i1io_aim_note")
+        lay.addWidget(label)
 
     def _show_import_refusal(self, message, **kw) -> None:
         """One of the IMPORT module's refusal/guard windows. The **text** comes
@@ -15476,6 +15502,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         in WHERE the measurement belongs, and is split into the two methods
         below.
         """
+        # an earlier import's note never reaches this import's window
+        self._i1io_aim_note = None
         if self._runner.is_running:
             return
         ctl = getattr(self, "_target_ctl", None)
@@ -16097,6 +16125,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         msg = QLabel(title + "\n\n" + body, dlg)
         msg.setWordWrap(True)
         lay.addWidget(msg)
+        self._add_i1io_aim_note(dlg, lay)
         row = QHBoxLayout()
         row.addStretch(1)
         close_btn = QPushButton(tr("Close"), dlg)
@@ -16142,6 +16171,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         msg = QLabel(title + "\n\n" + body, dlg)
         msg.setWordWrap(True)
         lay.addWidget(msg)
+        self._add_i1io_aim_note(dlg, lay)
         row = QHBoxLayout()
         row.addStretch(1)
         close_btn = QPushButton(tr("Close"), dlg)

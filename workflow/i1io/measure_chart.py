@@ -623,6 +623,27 @@ class McVerdict:
     side_name: str = ""
 
 
+#: A chart with this many strips or fewer gives the neighbour-strip check too
+#: little to compare (§I.17 point 9: on the two-strip verification chart a
+#: corner aimed 3.5 mm across can be filed as agreeing).
+AIM_FEW_STRIPS = 2
+
+
+def aim_unchecked_why(verdict: "McVerdict") -> str:
+    """Why the aim of a FILED Measure Chart measurement was not proved by the
+    checks, or "" when it was: the chart could not tell (the person was
+    asked, `ask_why`), or it has at most AIM_FEW_STRIPS strips ("few-strips").
+    The import then says so after filing (M-IMPORT-I1IO-AIM-UNCHECKED)."""
+    if not verdict.ok:
+        return ""
+    if verdict.ask_why:
+        return verdict.ask_why
+    g = verdict.grid
+    if g is not None and 0 < int(g.rows) <= AIM_FEW_STRIPS:
+        return "few-strips"
+    return ""
+
+
 def _condition_of(ti3) -> str:
     try:
         with open(ti3, "r", encoding="utf-8", errors="replace") as fh:

@@ -1174,6 +1174,43 @@ def i1io_filed_line(count: int, cols: int, rows: int, score: float,
                                         score=decimal_text(score, 2))
 
 
+#: After filing, on a chart too small or too uniform for the checks to prove
+#: the aim (4.3.39 integration): the chart could not tell (the question was
+#: answered with Import), or it has so few strips that the neighbour check
+#: has little to compare (§I.17 point 9: the two-strip verification chart).
+#: Said in the log and in the "done" window, below its approved text, so
+#: nothing is presented as checked when it was not. {why}: one line of
+#: M-IMPORT-I1IO-CANNOT-CHECK-PARTS, or the few-strips line below; {aim}: an
+#: aim part of M-IMPORT-I1IO-REASONS.
+_I1IO_WHY_FEW_STRIPS = ("it has too few strips for ChromIQ to compare them "
+                        "with each other")
+M_IMPORT_I1IO_AIM_UNCHECKED = _m(
+    "M-IMPORT-I1IO-AIM-UNCHECKED",
+    "ChromIQ could not check the aim on this chart",
+    "The measurement was filed, but ChromIQ could not check that the three "
+    "corner patches were aimed at correctly, because {why}. Nothing in this "
+    "import proves the aim, so the measurement is right only if you aimed "
+    "at the corners as i1Profiler asked.\n\n"
+    "To be sure, you can:\n"
+    "•  measure the sheet again in i1Profiler and aim carefully at the "
+    "three corner patches: when i1Profiler asks for the corners, {aim}. "
+    "Then import that measurement instead;\n"
+    "•  compare a few patches by eye: look at some patches in the preview "
+    "and check that each shows the colour of the patch at the same place on "
+    "your printed sheet.",
+    approved=False)
+_I1IO_AIM_WHY_TEXT = dict(_I1IO_WHY_TEXT, **{"few-strips":
+                                             _I1IO_WHY_FEW_STRIPS})
+
+
+def i1io_aim_unchecked_text(why: str, nums: dict) -> "tuple[str, str]":
+    """(title, body) of M-IMPORT-I1IO-AIM-UNCHECKED for the reason *why*
+    (`workflow.i1io.measure_chart.aim_unchecked_why`)."""
+    kw = i1io_cannot_check_kw(why, nums)
+    kw["why"] = tr(_I1IO_AIM_WHY_TEXT.get(why, _I1IO_WHY_NO_COLOURS))
+    return M_IMPORT_I1IO_AIM_UNCHECKED.render(**kw)
+
+
 #: G1 of the design (the i1iSis Beta, one page): the device values agree with
 #: the chart's i1Profiler test chart on every patch, and the colours clearly
 #: show that the readings are not of their own patches ("cannot tell" files,
@@ -11289,6 +11326,7 @@ CATALOGUE = {m.id: m for m in (
     M_I1IO_MEASURE_CHART, M_I1IO_MEASURE_CHART_PARTS,
     M_I1IO_MEASURE_CHART_OTHER_WAY, M_IMPORT_I1IO_REASONS,
     M_IMPORT_I1IO_CANNOT_CHECK, M_IMPORT_I1IO_CANNOT_CHECK_PARTS,
+    M_IMPORT_I1IO_AIM_UNCHECKED,
     M_IMPORT_I1IO_FILED, M_IMPORT_ISIS_COLOURS, M_IMPORT_I1IO_REFUSED,
     M_ISIS_NOT_YET, M_ISIS_SUPPORT_OFF, M_ISIS_SHEET_CHECK, M_ISIS_NO_TXF,
     M_ISIS_ROW_NUMBERS_NO_ROOM,
