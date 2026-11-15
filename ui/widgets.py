@@ -1918,11 +1918,25 @@ def long_buttons_width_limit(box) -> int:
 
 
 def _long_buttons_room(box) -> int:
+    """The width the buttons have: the box's limit less its margins, and on
+    macOS less the icon's column, as Qt puts a message box's buttons under
+    its text only (measured on screen, the Guided question: the row starts
+    86 px in, after its question-mark icon; the same allowance as
+    `_stack_buttons_when_too_wide`)."""
+    import sys as _sys
     m = box.contentsMargins()
     lay = box.layout()
     lm = lay.contentsMargins() if lay is not None else m
-    return (long_buttons_width_limit(box) - m.left() - m.right()
+    room = (long_buttons_width_limit(box) - m.left() - m.right()
             - lm.left() - lm.right())
+    if _sys.platform == "darwin":
+        icon_w = 0
+        for lbl in box.findChildren(QLabel):
+            pm = lbl.pixmap()
+            if pm is not None and not pm.isNull():
+                icon_w = max(icon_w, lbl.sizeHint().width() + 14)
+        room -= icon_w
+    return room
 
 
 def _button_need(btn) -> int:
