@@ -1,5 +1,23 @@
 # Changelog
 
+## v4.3.41
+
+**For everyone updating from 4.3.40: a new beta option for the X-Rite i1Pro 3, which keeps the readings of all three standard measurement conditions (M0, M1 and M2) from one scan, so you can choose in Build Profile which one a profile is made from. With the option off, which is the default, ChromIQ measures, builds and checks exactly as before, and your charts, measurements and profiles do not change.**
+
+### New
+- **Beta: “X-Rite i1Pro 3: keep M0, M1 and M2 from every scan” (Preferences > Beta).** In one scan the i1Pro 3 lights the paper both with and without ultraviolet, and ArgyllCMS computes from that scan the readings under all three conditions, with the instrument's own calibration data: M0 (the instrument's own lamp, as most instruments have always measured), M1 (like daylight, with its ultraviolet, so optical brighteners glow) and M2 (ultraviolet cut out). Until now ChromIQ kept only the one chosen as “Spectral filter type” in the Measure tab. With this option on it keeps the other two as well, from the same scan, in the run's “conditions” folder. Your measurement itself stays exactly as before, and nothing extra is sent to the instrument.
+- **Build Profile: “Build from”** appears with the option on and lets you choose the condition the profile is made from. A condition that is not there for this measurement is greyed out, and pointing at it tells you why. A profile built from M1 or M2 gets “-M1” or “-M2” at the end of its default description; a description you typed yourself is left as it is. “Build from” can be saved in a preset and with Save as Defaults.
+- **Checks and verifications follow the profile.** Check & Refine checks a profile against the readings it was built from. A verification measurement keeps all three conditions too and is judged in the condition its run's profile was built from, and its report says which one. This also holds when the option is switched off later. When those readings are missing, the report and Check & Refine say so instead of quietly comparing two different conditions.
+- **Averaging:** when reads are averaged, the same reads are averaged in all three conditions. A condition one of the reads does not have is not offered for the average, and Build Profile says which read lacks it.
+
+### Changed
+- **The help of “FWA Compensation (-f)” now says plainly that it is an estimate.** The option takes ordinary M0 readings and estimates how the paper looks under another light: with D50 the estimate is like M1, with D50M2 it is like M2. Nothing is measured under that light, and your measurement stays an M0 measurement. The help in Build Profile and in Check & Refine now says so, and says when the option helps and when it does little.
+
+### Honest limits
+- **Only the X-Rite i1Pro 3 can do this.** The i1Pro 2 would need a different method, which is not built. With another instrument the option simply does nothing.
+- **The M1 and M2 values come from ArgyllCMS's computation and have not yet been compared with X-Rite i1Profiler's on a real instrument.** Please compare them with i1Profiler's before you rely on them, and if you can, send us both files: that would help a lot.
+- **Only strips or single patches read by hand keep all three conditions.** Calibration measurements, refinement builds (which merge an earlier measurement) and the polarising filter use only the condition chosen in the Measure tab, and so does a measurement that was started with the option off and continued with it on.
+
 ## v4.3.40
 
 **For everyone updating from 4.3.39: a fix for the ruler check (beta), which asked about strips that were read correctly when the sheet or the ruler had been turned round, and two small fixes for i1iSis charts and the Measure tab. Your charts, measurements and profiles do not change.**
@@ -18,7 +36,7 @@
 
 ### Honest limits
 - **On charts whose strips look alike in both directions (ramps, calibration charts), a turn is still asked about**, because the colours cannot confirm the order there. Answer “Continue Anyway” if you turned the sheet or the ruler.
-- **Right after a turn, one or two strips are not compared at all**, until enough of the strips read since then agree on the new way round. The Measure log says so in one line when that happens.
+- **Right after a turn, a few strips are not compared at all (one or two as a rule, up to four when the sheet is turned back again after only two strips)**, until enough of the strips read since then agree on the new way round. The Measure log says so in one line when that happens.
 - **If “Continue Anyway” is pressed on two such strips in a row while the sheet was not turned, the check pauses the direction question for a few strips** until enough strips agree again, and says so in the Measure log.
 - **The ruler check is still a beta and has seen few real sessions.** If you use it, the diagnostics file it writes helps us most.
 

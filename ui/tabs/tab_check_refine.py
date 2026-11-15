@@ -56,6 +56,7 @@ _TAB_COLOR = "#9f82ff"  # Check & Refine tab accent
 
 from ui.styles import SPEC_VIOLET, TAB_COLORS
 from workflow.scanin_target import has_scanner_geometry
+from workflow.fwa_gate import fwa_help_check
 from workflow.profcheck_runner import (
     REFINE_DE_THRESHOLD,
     ProfcheckParams,
@@ -957,13 +958,7 @@ class TabCheckRefine(QWidget):
         fwa_row.addStretch()
         fwa_row.addWidget(TooltipButton(
             tr("FWA Compensation (-f)"),
-            tr("Some papers contain optical brighteners (fluorescent whitening agents)\n"
-            "that make the paper look extra white under certain lighting. This option\n"
-            "compensates for that effect during the check.\n\n"
-            "Only works if your .ti3 file contains spectral measurement data\n"
-            "(not all instruments produce this). If you are unsure, leave it off.\n\n"
-            "Set the illuminant to match the light source you view your prints under\n"
-            "(D50 = standard daylight, D65 = cooler daylight)."),
+            fwa_help_check(),
             inner,
         ))
         adv_layout.addLayout(fwa_row)
@@ -1279,13 +1274,7 @@ class TabCheckRefine(QWidget):
         m_fwa_row.addStretch()
         m_fwa_row.addWidget(TooltipButton(
             tr("FWA Compensation (-f)"),
-            tr("Some papers contain optical brighteners (fluorescent whitening agents)\n"
-            "that make the paper look extra white under certain lighting. This option\n"
-            "compensates for that effect during the check.\n\n"
-            "Only works if your .ti3 file contains spectral measurement data\n"
-            "(not all instruments produce this). If you are unsure, leave it off.\n\n"
-            "Set the illuminant to match the light source you view your prints under\n"
-            "(D50 = standard daylight, D65 = cooler daylight)."),
+            fwa_help_check(),
             inner,
         ))
         madv.addLayout(m_fwa_row)
@@ -1896,6 +1885,19 @@ class TabCheckRefine(QWidget):
         self._log.clear()
         if self._fwa_dropped_by_collect is not None:
             self._log.appendPlainText(self._fwa_dropped_by_collect.log_line)
+        if params.readings_from is not None:
+            from workflow.i1pro3_conditions import file_condition
+            from workflow.measurement_condition import condition_name
+            self._log.appendPlainText(tr(
+                "M0, M1 and M2 from one scan (beta): this profile was built "
+                "from the {condition} readings of this measurement, so it is "
+                "checked against those.").format(
+                    condition=condition_name(file_condition(
+                        params.readings_from))))
+        else:
+            _warn = self._other_condition_warning()
+            if _warn:
+                self._log.appendPlainText(_warn)
         self._last_result = None
         self._run_btn.setEnabled(False)
 
@@ -2582,11 +2584,72 @@ class TabCheckRefine(QWidget):
                 opt.neutralise(params)
         # FWA where the gate is shut: profcheck refuses it. Dropped here; the
         # check says so in the log.
+        rf = self._readings_for_the_profile()
+        if rf is not None:
+            from dataclasses import replace as _replace
+            params = _replace(params, readings_from=rf)
         from workflow.fwa_gate import drop_fwa
         refusal = self._fwa_refused()
         self._fwa_dropped_by_collect = (
             refusal if refusal is not None and drop_fwa(params) else None)
         return params
+
+    def _other_condition_warning(self) -> str:
+        """The M0/M1/M2 Beta: a plain warning when the run's profile was
+        built from another condition than this measurement's and these
+        readings are not kept in it, so the check compares two conditions
+        (it is not stopped). "" otherwise, and always for a profile that
+        records no condition (then this is 4.3.40's check exactly)."""
+        try:
+            from workflow import i1pro3_conditions as _c
+            # the profile's RECORDED condition, also with the Beta off
+            # (review F2): a read only
+            if self._ti3_path is None:
+                return ""
+            got = _c.profile_readings(Path(self._ti3_path),
+                                      settings=self._settings)
+            if got is None or got.path is not None:
+                return ""
+            from workflow.measurement_condition import condition_name
+            return tr(
+                "M0, M1 and M2 from one scan (beta): the profile was built "
+                "from the {profile} readings, and this measurement has only "
+                "{own} readings. So the check also shows the difference "
+                "between the two conditions, which is not an error of the "
+                "profile.").format(profile=condition_name(got.condition),
+                                   own=condition_name(got.own))
+        except Exception:      # noqa: BLE001 - never stop a check
+            return ""
+
+    def _readings_for_the_profile(self) -> "Path | None":
+        """The M0/M1/M2 Beta: when the run's profile was built from another
+        condition than the measurement's own, and that condition's file is
+        in step, the file profcheck must read, so a profile is checked
+        against the readings it was built from. None otherwise (and always
+        for a profile that records no condition)."""
+        try:
+            from workflow import i1pro3_conditions as _c
+            # the profile's RECORDED condition, also with the Beta off
+            # (review F2): a read only
+            if self._ti3_path is None:
+                return None
+            ti3, icc = Path(self._ti3_path), self._icc_path
+            if icc is None:
+                return None
+            # the run's measurement, or one of its verifications (Basti,
+            # 2026-11-15: a verification is checked in the condition the
+            # profile was built from), against the run's own profile
+            from workflow.run_compliance import run_context_for
+            ctx = run_context_for(ti3)
+            if ctx is None or Path(icc).parent != ctx.run.dir:
+                return None
+            if ctx.verification is None and ti3 != ctx.run.measurement_ti3:
+                return None
+            got = _c.profile_readings(ti3, settings=self._settings)
+            return got.path if got is not None else None
+        except Exception:      # noqa: BLE001 - never stop a check
+            log.debug("no condition file for the check", exc_info=True)
+            return None
 
     def _collect_guided_check(self) -> ProfcheckParams:
         de_map = {"k": "-k", "c": "-c", "": ""}

@@ -2316,6 +2316,59 @@ class Run:
         log.info("Promoted measurement to %s", dst.name)
         return dst
 
+    # ---- the other measurement conditions (Preferences > Beta, 2026-11-15)
+    # "X-Rite i1Pro 3: keep M0, M1 and M2 from every scan": the chart-reading
+    # engine writes the two conditions -F did not choose into conditions/,
+    # NAMED BY the hash of the main measurement's readings, so they follow
+    # those readings wherever they go (workflow/i1pro3_conditions.py).
+    @property
+    def condition_dir(self) -> Path:
+        from workflow.i1pro3_conditions import CONDITION_DIRNAME
+        return self.dir / CONDITION_DIRNAME
+
+    def condition_ti3(self, cond: str, measurement: "Path | None" = None
+                      ) -> "Path | None":
+        """The file of *measurement*'s readings (default: this run's) under
+        condition *cond* ("M0"/"M1"/"M2"): ``conditions/<hash>-<cond>.ti3``,
+        or None when the measurement has no readings to name it by. Whether
+        it exists, and is in step, is for the caller to ask."""
+        from workflow.i1pro3_conditions import data_block_hash
+        m = Path(measurement) if measurement else self.measurement_ti3
+        key = data_block_hash(m)
+        if key is None:
+            return None
+        return (self.condition_dir_of(m)
+                / f"{key}-{str(cond).upper()}.ti3")
+
+    @property
+    def verification_condition_dir(self) -> Path:
+        """``verifications/conditions/``: ONE folder for the condition files
+        of every verification of this run (Basti, 2026-11-15: verifications
+        keep all three too). Named by the hash of the readings, so a dated
+        folder's move, Replace or restore needs no code of its own."""
+        from workflow.i1pro3_conditions import CONDITION_DIRNAME
+        return self.verifications_dir / CONDITION_DIRNAME
+
+    @staticmethod
+    def condition_dir_of(measurement: Path) -> Path:
+        """The ``conditions/`` folder a measurement file's pair lives in: the
+        run's own for the run's measurement and for a copy of it in
+        ``reads/`` or ``old/<when>/``; the run's ``verifications/conditions/``
+        for a verification wherever it sits under ``verifications/``; the
+        file's own folder's otherwise (a loose measurement)."""
+        from workflow.i1pro3_conditions import CONDITION_DIRNAME
+        d = Path(measurement).parent
+        for anc in (d, *list(d.parents)[:3]):
+            if anc.name == VERIFICATIONS_DIRNAME:
+                return anc / CONDITION_DIRNAME
+        if d.name == "reads":
+            return d.parent / CONDITION_DIRNAME
+        if d.parent.name == "old":
+            return d.parent.parent / CONDITION_DIRNAME
+        if d.name == "old":
+            return d.parent / CONDITION_DIRNAME
+        return d / CONDITION_DIRNAME
+
     # ---- the engine's partial-measurement backup
     @property
     def partial_ti3(self) -> Path:
@@ -4061,7 +4114,12 @@ class Project:
         # `.confirmed.json` is the measurement's yellow memory (#182 K4): which
         # patches a re-read confirmed. It is only believed while the .ti3 it
         # names by hash is unchanged, and the copy is byte for byte.
-        ("measurement", ("{stem}.ti3", "{stem}.confirmed.json", "reads/**/*")),
+        # conditions/ (the M0/M1/M2 Beta) holds the same readings under the
+        # other two measurement conditions, named by the hash of the readings
+        # they belong to, so a byte-for-byte copy stays paired. No folder, no
+        # copy: a run measured without the Beta duplicates as before.
+        ("measurement", ("{stem}.ti3", "{stem}.confirmed.json", "reads/**/*",
+                         "conditions/**/*")),
         ("profile", ("{stem}.icc", "{stem}.icm", "merged.ti3", "merged.icc",
                      "merged.icm", "calibrated.icc", "calibrated.icm",
                      COLPROF_COMPARISON_NAME,

@@ -10793,6 +10793,35 @@ ChromIQ took the M2 readings and he compared M1.
   `CHROMIQ_MEASURED` when the file has no `CREATED` (every i1Profiler
   import).
 
+### ⏳ Awaiting confirmation: the FWA option's help calls it an estimate (2026-11-15)
+
+**Confirmed by:** *nobody yet.* Stage 1 of the i1Pro 2 dual scan study
+(work folder `2026-11-15_dual_scan_study`): name the existing brightener
+compensation for what it is before anything else is built.
+
+* **What `-f` is.** ArgyllCMS's brightener model: from ordinary M0 readings
+  and the paper white it estimates how the print looks under the chosen
+  light (D50: the light of condition M1; D50M2: that of M2). Nothing is
+  measured under that light.
+* **The help says so, in both tabs** (Build Profile, both modes; Check &
+  Refine, both modes; `workflow.fwa_gate.fwa_help_build` /
+  `fwa_help_check`, the same paragraphs except the one that says what the
+  option does in that tab): "estimate", "not a measurement taken under that
+  light", the measurement "stays an M0 measurement" and is never recorded as
+  M1 or M2 because of the option, when it helps (papers with optical
+  brighteners) and when it does little or nothing (papers without them), and
+  when it is greyed. The old Build Profile help's claim that ColorMunki
+  measurements "fail with an error" is gone: the FWA gate greys the option
+  for them with its own reason.
+* **No accuracy figure in the help.** The study measured ArgyllCMS's D50
+  estimate against an instrument's own M1 at 0.17 dE00 mean, 0.76 max, on two
+  files of one i1Pro 3 on one brightened paper, against X-Rite's computed
+  M1; a tooltip would read that as a promise for every paper and instrument.
+* **`-f` never records a condition.** `colprof`, `profcheck` and the engine
+  get `-f`; no `-f` path writes `MEASUREMENT_CONDITION`
+  (`tests/test_fwa_help_says_estimate.py`). The checkbox keeps its name,
+  "FWA Compensation (-f)", ArgyllCMS's own.
+
 ### ⏳ Awaiting confirmation — §I.15 continued: i1Profiler's own choice of condition, and files that hold only some conditions (4.3.24)
 
 **Confirmed by:** *nobody yet.* Measured on jctay's files (printerknowledge,
@@ -10878,6 +10907,29 @@ with M0, M1 and M2 chosen, and five files holding only some conditions.
 * **Where it came from.** A condition recorded from the normal mode carries `MEASUREMENT_CONDITION_SOURCE "INSTRUMENT_DEFAULT"` beside it; an explicit choice takes that line out.
 * **Resume (S-A1).** A measurement whose M0 is the normal mode (the source line above) is continued with `-F` off as one that recorded nothing was before: the same setting. Continued with `-F 5` (M1) or `-F u` (M2) it is refused, as any recorded condition is (until 4.3.38 such a file recorded nothing and was allowed, the finished file then recording none). A measurement whose M0 came from an explicit `-F n` is judged exactly as before.
 * **Nothing else changes.** The FWA gate treats M0 as it treats none; merging and averaging treat none beside M0 as before. ArgyllCMS's colprof and average and ChromIQ's own readers read the file with the keyword as without it (`tests/test_r4_the_condition_used_is_always_recorded.py`). The ruler diagnostics file carries the condition and `measurement_condition_source` ("chosen", "instrument default", or null).
+
+### ⏳ Awaiting confirmation — M0, M1 and M2 from one scan: the condition files (Beta, 2026-11-15)
+
+**Confirmed by:** *nobody yet.*
+
+*Basti's idea (2026-11-14): one `.ti3` per measurement condition and a choice in Build Profile. Built 2026-11-15 as Preferences ▸ Beta ▸ "X-Rite i1Pro 3: keep M0, M1 and M2 from every scan", off by default; design and its challenge in the work folder `2026-11-15_i1pro3_conditions`.*
+
+* **Only an i1Pro 3, only a profiling run or a verification, only strips or patches read by hand.** With the option on, the Measure tab gives the chart-reading engine the run's `conditions/` folder (`Run.condition_dir`), or for a verification the run's `verifications/conditions/` (`Run.verification_condition_dir`, one folder for every dated verification of the run, see the next block); for a calibration, the polarising filter (M3), any other instrument (the i1Pro 2 included), or with the option off, it gives nothing and the session is today's.
+* **The measurement is unchanged.** `<stem>.ti3` is written exactly as without the option, in the condition chosen as "Spectral filter type (-F)" (normally M0), and stays THE measurement for everything that reads it: resume, Refine, the measurement report and its limit sets, the confirmed patches, averaging, merges, exports, the 4.3.39 rule that conditions are never mixed.
+* **The other two, from the same pass.** The i1Pro 3 driver works out all three from the one pass it reads; nothing new is sent to the instrument. The engine keeps the other two beside every patch, through every re-read, "Turn this strip round", "I read strip B" and resume, and writes them in the same save as the measurement, as `conditions/<hash>-M1.ti3` (and `-M0`, `-M2`), named by a hash of the measurement's readings. Whatever brings the measurement's readings back (a Discard, a read put back, a restore from `old/`, a duplicated run) brings their pair back; a measurement whose readings changed in another way (averaged, imported, edited) has none. Each file records its `MEASUREMENT_CONDITION`, so the FWA gate greys FWA for M1 and M2 with today's reason.
+* **When they cannot be kept in step**, the engine stops keeping them for that measurement and says so once in the Measure log (a measurement started without them and continued with them, a reading that came without them, a folder that cannot be written); the measurement itself is never affected.
+* **Build Profile.** "Build from" (beside the measurement, for Guided and Manual alike, shown only with the option on) lists the measurement's own condition ("as measured") and each condition whose file belongs to the measurement as it is now; the others are greyed with the reason, and for a build that merges pre-conditioning data only the measurement's own condition is offered. The profile is still the run's one `<stem>.icc`, made from the chosen readings; `meta.json` `profile_build` records `measurement_condition` and `measurement_file`. A choice that is no longer usable is never replaced silently: it stays chosen and greyed, and Build is refused until another one is chosen. The default profile description ends in `-M1` / `-M2` for a profile built from those readings (see the block below and `per_run_description.md`).
+* **Check & Refine** checks a profile against the readings it was built from (profcheck reads that condition's file; the measurement, reports and refine lists stay the run's own), and says so in its log.
+
+### ⏳ Awaiting confirmation — M0, M1 and M2 from one scan: verifications, averaging, description, presets (Basti's rulings, 2026-11-15)
+
+**Confirmed by:** *nobody yet.* The rule itself is Basti's (Basti, 2026-11-15, relayed by the coordinator); what awaits his confirmation is the behaviour as built and described here.
+
+* **Verifications keep all three too.** Their pair is written into ONE folder per run, `runs/runN/verifications/conditions/`, named by the hash of the readings like a profiling run's, so filing a read into its dated folder (whose marking edits the header only), a Replace, a restore from `old/` or a resume finds its pair with no code of its own (`Run.condition_dir_of`). The Measure log says the verification is kept in the other two "so it can be judged in the condition the run's profile was built from".
+* **A verification uses the condition the profile was built from, automatically.** When `meta.json` `profile_build.measurement_condition` names another condition than the verification's own and its readings in that condition are in step, the measurement report and Check & Refine read those (`measurement_report_limits.md` §62); when they are not kept, the rows that compare the sheet with the profile say why instead of showing the difference between two conditions as an error. Check & Refine then checks anyway, with a plain warning in its log.
+* **Averaging covers M1 and M2.** After the reads are averaged, the same reads, in the same order and by the same method, are averaged with ArgyllCMS's `average` in each of the other two conditions, and kept as the averaged measurement's pair (named by its readings). A condition one read has no readings in is not averaged and not offered for the averaged run; the Measure log names the read, and so does the greyed "Build from" item ("This measurement is the average of 2 reads, and read2.ti3 has no M2 readings ...").
+* **Kept copies keep theirs.** A read in `reads/`, an archive in `old/<when>/` and a verification's own `reads/` find their pair in the run's (or the run's verifications') `conditions/`.
+* Tests: `tests/test_i1pro3_conditions_verification.py`, `tests/test_i1pro3_conditions_averaging.py`.
 
 ### ⏳ Awaiting confirmation — §I.16, a chart whose device values lie outside 0..100 (4.3.26)
 

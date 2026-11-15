@@ -493,6 +493,12 @@ def remove_installed_twins(dest: Path) -> "list[Path]":
 @dataclass
 class ProfileParams:
     ti3_path: Path
+    #: "X-Rite i1Pro 3: keep M0, M1 and M2" (Preferences > Beta): the file
+    #: holding the SAME readings under another measurement condition, which
+    #: colprof / the engine read INSTEAD of ``ti3_path``. Everything else
+    #: (the profile's name and path, archiving, merges, signals) stays on
+    #: ``ti3_path``. None = today.
+    readings_from: "Path | None" = None
     description: str = ""
     algorithm: str = "l"
     quality: str = "m"
@@ -965,6 +971,14 @@ class ProfileBuilder:
             if limit is not None:
                 args.append(f"-l{int(limit)}")
         # Base name without extension
+        if p.readings_from is not None:
+            # The readings come from another file (the M0/M1/M2 Beta); the
+            # profile is still this run's own, beside its measurement.
+            import sys as _sys
+            ext = ".icm" if _sys.platform == "win32" else ".icc"
+            args += ["-O", str(p.ti3_path.with_suffix("")) + ext]
+            args.append(str(Path(p.readings_from).with_suffix("")))
+            return args
         args.append(str(p.ti3_path.with_suffix("")))
         return args
 

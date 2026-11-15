@@ -3686,6 +3686,25 @@ class SettingsDialog(QDialog):
         _beta.addLayout(_rulerrow)
         self._ruler_check_tip = ruler_tip
 
+        # M0, M1 AND M2 FROM ONE SCAN (2026-11-15, workflow.i1pro3_conditions).
+        # Read at every Start: the helper is given --condition-dir and keeps
+        # the two conditions -F did not choose from the same pass; Build
+        # Profile offers them. Nothing new is sent. Off = the base command line.
+        self._i1pro3_conditions_check = QCheckBox(
+            tr("X-Rite i1Pro 3: keep M0, M1 and M2 from every scan (beta)"),
+            self)
+        cond_tip = TooltipButton(
+            tr("M0, M1 and M2 from one scan (beta)"),
+            i1pro3_conditions_help(), self, min_width=680)
+        self._i1pro3_conditions_check.clicked.connect(
+            self._on_i1pro3_conditions_clicked)
+        _condrow = QHBoxLayout()
+        _condrow.addWidget(self._i1pro3_conditions_check)
+        _condrow.addStretch()
+        _condrow.addWidget(cond_tip)
+        _beta.addLayout(_condrow)
+        self._i1pro3_conditions_tip = cond_tip
+
         # Konica Minolta FD-9 support (PR #213, written and contributed by
         # lessbones). Restart-to-apply: `workflow.fd9.support` reads it once
         # per run, so the lists built at start-up and the Measure tab agree.
@@ -4670,6 +4689,44 @@ class SettingsDialog(QDialog):
         keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         if box.exec() != QMessageBox.StandardButton.Ok:
             self._i1pro2_lights_check.setChecked(False)
+
+    def _on_i1pro3_conditions_clicked(self, checked: bool) -> None:
+        """M0, M1 and M2 from one scan (beta): the own-risk confirmation, as
+        the ruler check's (Cancel is the default and leaves the box off)."""
+        if not checked:
+            return
+        from PyQt6.QtWidgets import QMessageBox, QSpacerItem, QSizePolicy
+        box = QMessageBox(self)
+        box.setObjectName("i1pro3_conditions_confirmation")
+        box.setWindowTitle(tr("M0, M1 and M2 from one scan (beta)"))
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setText(i1pro3_conditions_confirmation())
+        box.setStandardButtons(QMessageBox.StandardButton.Ok
+                               | QMessageBox.StandardButton.Cancel)
+        ok_btn = box.button(QMessageBox.StandardButton.Ok)
+        cancel_btn = box.button(QMessageBox.StandardButton.Cancel)
+        ok_btn.setText(tr("Turn it on"))
+        from ui.default_button import mark_destructive
+        mark_destructive(ok_btn)
+        cancel_btn.setText(tr("Keep it off"))
+        from PyQt6.QtGui import QFontMetrics
+        from PyQt6.QtWidgets import QDialogButtonBox
+        for b in (ok_btn, cancel_btn):
+            w = QFontMetrics(b.font()).horizontalAdvance(b.text()) + 44
+            b.setMinimumWidth(w)
+        bbox = box.findChild(QDialogButtonBox)
+        if bbox is not None:
+            bbox.setCenterButtons(True)
+        grid = box.layout()
+        if grid is not None:
+            spacer = QSpacerItem(620, 1, QSizePolicy.Policy.Minimum,
+                                 QSizePolicy.Policy.Minimum)
+            grid.addItem(spacer, grid.rowCount(), 0, 1, grid.columnCount())
+        box.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        if box.exec() != QMessageBox.StandardButton.Ok:
+            self._i1pro3_conditions_check.setChecked(False)
 
     def _on_ruler_check_clicked(self, checked: bool) -> None:
         """The ruler check (beta): the own-risk confirmation, as the lights'
@@ -6518,6 +6575,8 @@ class SettingsDialog(QDialog):
             bool(s.get("i1pro2_lights_beta", False)))
         self._ruler_check_check.setChecked(
             bool(s.get("ruler_check_beta", False)))
+        self._i1pro3_conditions_check.setChecked(
+            bool(s.get("i1pro3_conditions_beta", False)))
         self._lights_signals_combo.setCurrentIndex(
             1 if bool(s.get("i1pro2_lights_signals", True)) else 0)
         self._lights_reading_combo.setCurrentIndex(
@@ -8123,6 +8182,8 @@ class SettingsDialog(QDialog):
         s.set("scanner_hex_charts", self._scanner_hex_check.isChecked())
         s.set("i1pro2_lights_beta", self._i1pro2_lights_check.isChecked())
         s.set("ruler_check_beta", self._ruler_check_check.isChecked())
+        s.set("i1pro3_conditions_beta",
+              self._i1pro3_conditions_check.isChecked())
         s.set("i1pro2_lights_signals",
               bool(self._lights_signals_combo.currentData()))
         s.set("i1pro2_lights_during_reading",
@@ -9568,6 +9629,97 @@ def ruler_check_help() -> str:
         tr("With this off (the default), nothing changes: the instrument is "
            "driven exactly as before."),
         tr("**Default:** off")))
+
+
+def i1pro3_conditions_help() -> str:
+    """The ⓘ of Preferences ▸ Beta ▸ M0, M1 and M2 from one scan
+    (2026-11-15). Checked against native/instlib/i1pro3_imp.c
+    (i1pro3_comp_refl_value, i1pro3_cq_cond_*), the helper's --condition-dir
+    and workflow/i1pro3_conditions.py."""
+    return "\n\n".join((
+        tr("**Not yet compared with i1Profiler.** ArgyllCMS's M1 and M2 "
+           "values for the i1Pro 3 have not yet been checked against X-Rite "
+           "i1Profiler's on the same chart. If you have i1Profiler, "
+           "measuring one chart in both programs and sending the files to "
+           "the ChromIQ project would help a lot."),
+        tr("An X-Rite i1Pro 3 reads every strip in one pass with two kinds "
+           "of light: its normal lamp and its ultraviolet (UV) light. From "
+           "that one pass, ArgyllCMS works out the reading under all three "
+           "standard measurement conditions, using the calibration data "
+           "X-Rite stored in your instrument. Normally ChromIQ keeps only "
+           "one of them, the one chosen as “Spectral filter type” in the "
+           "Measure tab. With this option on, ChromIQ keeps all three."),
+        tr("**M0** is the light of the instrument's own lamp, the way most "
+           "instruments have always measured. How much ultraviolet it "
+           "contains is not defined, so papers with optical brighteners can "
+           "measure a little differently from one instrument to another."),
+        tr("**M1** is light like daylight (D50), including its ultraviolet "
+           "part. Optical brighteners in the paper glow under it, as they "
+           "do in daylight or in a D50 viewing booth that has UV."),
+        tr("**M2** is light without ultraviolet (“UV cut”). Optical "
+           "brighteners do not glow, so the paper is measured as it looks "
+           "under light that has no UV."),
+        tr("**What each one suits.** M1 describes prints seen in daylight or "
+           "in a D50 viewing booth with UV. M2 describes prints seen under "
+           "light with very little UV, for example behind UV-filtering "
+           "glass or under many LED lamps. M0 keeps your profiles comparable "
+           "with the profiles you made before. On a paper without "
+           "brighteners all three are nearly the same."),
+        tr("**What you see.** The measurement of your run stays exactly as "
+           "it is today, in the condition chosen in the Measure tab. ChromIQ "
+           "saves the other two beside it, in the run's “conditions” folder. "
+           "In Build Profile, “Build from” lets you choose the condition the "
+           "profile is made from, and a profile made from M1 or M2 gets "
+           "“-M1” or “-M2” at the end of its description. Check & Refine "
+           "then checks the profile against the readings it was built "
+           "from. “Build from” can be saved in a preset and with Save as "
+           "Defaults."),
+        tr("**Verifications and averaging.** A verification keeps all three "
+           "as well, and is judged in the condition the profile was built "
+           "from, automatically; its report says which one. When reads are "
+           "averaged, the same reads are averaged in all three conditions; a "
+           "condition one of the reads does not have is not offered for the "
+           "average, and Build Profile says which read lacks it."),
+        tr("**How this differs from brightener compensation (FWA).** The "
+           "FWA option in Build Profile takes M0 readings and estimates, with "
+           "a general model of how brighteners behave, how the paper looks "
+           "under another light: with D50 the estimate is like M1, with D50M2 "
+           "it is like M2. The three conditions here are computed by "
+           "ArgyllCMS from one scan in which the i1Pro 3 lights the paper "
+           "both with and without ultraviolet, with the instrument's own "
+           "calibration data. FWA is greyed out for M1 and M2, because the "
+           "model expects M0 readings: M1 already contains the glow of the "
+           "brighteners, and in M2 the ultraviolet that makes them glow is "
+           "already removed."),
+        tr("**Not covered yet.** Calibration measurements and refinement "
+           "builds use only the condition chosen in the Measure tab. A "
+           "measurement that was "
+           "started with this option off, and is continued with it on, also "
+           "keeps only that condition. Other instruments, the i1Pro 2 "
+           "included, cannot give all three from one pass."),
+        tr("Nothing extra is sent to the instrument: it measures exactly as "
+           "it does today. The option is read each time you start a "
+           "measurement."),
+        tr("**Default:** off."),
+    ))
+
+
+def i1pro3_conditions_confirmation() -> str:
+    """The window shown when M0, M1 and M2 from one scan is switched on."""
+    return tr(
+        "You are switching on “X-Rite i1Pro 3: keep M0, M1 and M2 from "
+        "every scan”. Here is what that means.\n\n"
+        "•  Every strip you measure with an i1Pro 3 in a profiling run is "
+        "saved in the condition chosen in the Measure tab, as today, and "
+        "also in the other two conditions, from the same pass.\n\n"
+        "•  In Build Profile you can then choose which condition the profile "
+        "is made from.\n\n"
+        "•  ArgyllCMS's M1 and M2 values for the i1Pro 3 have not yet been "
+        "compared with X-Rite i1Profiler's on a real chart. Nothing extra is "
+        "sent to the instrument.\n\n"
+        "•  You use it at your own risk, and you can switch it off again at "
+        "any time.\n\n"
+        "Would you like to turn it on?")
 
 
 def ruler_check_confirmation() -> str:

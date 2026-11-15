@@ -824,7 +824,9 @@ class EngineProfileBuilder:
         log.info("engine build: %s -> %s  [%s]", params.ti3_path, out,
                  build_settings_summary(settings))
         self._last_error = ""
-        self._thread = t = _EngineThread(params.ti3_path, out, settings)
+        # the M0/M1/M2 Beta: the readings may come from another file
+        self._thread = t = _EngineThread(
+            params.readings_from or params.ti3_path, out, settings)
         t.line.connect(on_line)
 
         def _finished(code: int, err: str) -> None:

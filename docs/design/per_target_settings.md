@@ -77,6 +77,40 @@ correction that it must be **all** of them, not a selection.
 | the instrument and paper **defaults** in Preferences | the seed for a new target, not the target's own value |
 
 
+#### ⏳ Awaiting confirmation: M0, M1 and M2 from one scan is global; "Build from" is the run's own (2026-11-15)
+
+**Confirmed by:** *nobody yet.*
+
+Preferences ▸ Beta ▸ "X-Rite i1Pro 3: keep M0, M1 and M2 from every scan"
+(`i1pro3_conditions_beta`, off by default) describes your equipment, like the
+ruler check, so it is global and read at every Start. Build Profile's "Build
+from" describes the measurement, so it is the run's own:
+`meta.profile_settings["build_from_condition"]` ("" = as measured), written
+only while the option is on and carried back unchanged while it is off, so no
+target's `meta.json` changes because the option exists.
+
+#### ⏳ Awaiting confirmation: "Build from" in presets and Save as Defaults (M0/M1/M2 Beta, 2026-11-15)
+
+**Confirmed by:** *nobody yet.* The rule itself is Basti's (Basti, 2026-11-15, relayed by the coordinator); what awaits his confirmation is the behaviour as built and described here.
+
+Basti: "Build from" is part of presets and Save as Defaults, and is ignored
+when the Beta is off.
+
+* **Beta on.** A Manual preset stores it (`build_from_condition`, "" = as
+  measured) and applying the preset sets it; a preset without the key leaves
+  the choice as it is. Save as Defaults, in Guided or Manual, stores it as
+  `colprof_build_from_condition`: one value, as the row is one row for both.
+  A target that has no stored value, and "none" in the preset list, take
+  that default.
+* **Beta off.** Never written into a preset or a default, never applied from
+  one; a value left from a day the Beta was on stays where it is, unread.
+  Off is exactly today's behaviour.
+* **A value with no readings for this run** (a default of M1 on a run measured
+  without the Beta, or with another instrument) is not replaced silently: it
+  is shown chosen and greyed with its reason, and Build is refused until
+  another condition is chosen.
+* Tests: `tests/test_i1pro3_conditions_owner_rulings.py`.
+
 #### ⏳ Awaiting confirmation: the ruler check is global (2026-11-14)
 
 **Confirmed by:** *nobody yet.*

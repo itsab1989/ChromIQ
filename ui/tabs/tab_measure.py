@@ -16439,6 +16439,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # beta.139). First, before any of the tidying below, so a window that
         # is still spinning its own event loop cannot answer into a process
         # that has already gone.
+        self._prune_condition_pairs()
         self._close_cr30_bridge()
         self._close_measurement_windows()
         self._end_page_pause()
@@ -17334,6 +17335,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             # the reads' common one; after "Average them" (the only way
             # here when it asked) the KNOWN one; else none (S-A2).
             settle_combined_condition(result, check, confirmed=True)
+            _avg_c = getattr(self, "_average_the_conditions", None)
+            if _avg_c is not None:       # the M0/M1/M2 Beta (Beta on only)
+                _avg_c(result, reads, method)
             # The averaged file is the run's measurement now: its yellow
             # memory is this session's, stamped for it (#182 K4). Patches are
             # keyed by location, which averaging (by SAMPLE_ID) never changes.
@@ -17346,6 +17350,45 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             on_line=self._on_log_line,
             on_finish=_on_avg_finish,
         )
+
+    def _average_the_conditions(self, result: Path, reads: "list[Path]",
+                                method: str) -> None:
+        """"X-Rite i1Pro 3: keep M0, M1 and M2" (Beta; Basti, 2026-11-15):
+        the same reads averaged in the two other conditions as well, kept in
+        step with the averaged measurement; a condition one of the reads has
+        no readings in is not averaged, and the log says which read. Nothing
+        with the option off."""
+        from workflow import i1pro3_conditions as _c
+        if not _c.stored_value(self._settings):
+            return
+        try:
+            done = _c.average_conditions(
+                result, reads, method,
+                bin_dir=str(self._settings.get("argyll_bin_path", "") or ""))
+        except Exception:      # noqa: BLE001 - never stop an ending
+            log.warning("M0/M1/M2: conditions not averaged", exc_info=True)
+            return
+        from workflow.measurement_condition import condition_name
+        for cond, why in sorted(done.items()):
+            if not why:
+                self._log.appendPlainText(tr(
+                    "[INFO] M0, M1 and M2 from one scan (beta): the {condition} "
+                    "readings of the same reads were averaged too, so Build "
+                    "Profile can make the profile from them.").format(
+                        condition=condition_name(cond)))
+            elif why == "average":
+                self._log.appendPlainText(tr(
+                    "[INFO] M0, M1 and M2 from one scan (beta): the {condition} "
+                    "readings could not be averaged, so Build Profile does not "
+                    "offer them for this measurement.").format(
+                        condition=condition_name(cond)))
+            else:
+                self._log.appendPlainText(tr(
+                    "[INFO] M0, M1 and M2 from one scan (beta): {read} has no "
+                    "{condition} readings, so the average has none either and "
+                    "Build Profile does not offer them for this "
+                    "measurement.").format(read=why,
+                                           condition=condition_name(cond)))
 
     def _ask_average_unrecorded(self, check, reads) -> bool:
         """M-AVERAGE-CONDITION-ASK for the reads of this run: True for
@@ -22529,12 +22572,66 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             self._settings.get("i1pro2_lights_during_reading", False))
         p.engine_ruler_check = bool(
             self._settings.get("ruler_check_beta", False))
+        p.engine_condition_dir = self._condition_dir_for(p)
         p.cal_auto_retries = int(self._settings.get("cal_auto_retries", 3))
         import os as _os
         replay = _os.environ.get("CHROMIQ_REPLAY")
         if replay:
             p.engine_replay = Path(replay)
         return p
+
+    def _prune_condition_pairs(self) -> None:
+        """The M0/M1/M2 Beta, at the end of every session: condition files
+        that no measurement file of this run holds the readings of any more
+        (a measurement replaced, a read discarded) are deleted, so the
+        folder does not grow (`i1pro3_conditions.prune_run`). Run while the
+        session's measurement and every copy of an earlier one (old/, reads/)
+        are still on disk, so nothing in use is taken. Nothing with the
+        option off."""
+        from workflow import i1pro3_conditions as _c
+        if not _c.stored_value(self._settings) or self._ti1_path is None:
+            return
+        try:
+            from core.file_manager import VERIFICATIONS_DIRNAME
+            d = Path(self._ti1_path).parent
+            if d.name == VERIFICATIONS_DIRNAME:
+                d = d.parent
+            gone = _c.prune_run(Run.for_dir(d))
+            if gone:
+                log.info("M0/M1/M2: %d condition file(s) no measurement "
+                         "holds any more were removed", len(gone))
+        except Exception:      # noqa: BLE001 - never stop an ending
+            log.debug("M0/M1/M2: no pruning", exc_info=True)
+
+    def _condition_dir_for(self, p: MeasureParams) -> "Path | None":
+        """"X-Rite i1Pro 3: keep M0, M1 and M2 from every scan" (Beta): the
+        folder the two other conditions are written to, for a profiling run
+        (the run's conditions/) or a verification (the run's
+        verifications/conditions/, one for all its dates; Basti,
+        2026-11-15), measured with -F off, M1 or M2; None otherwise (option
+        off, a calibration, the polariser), and then the helper's command
+        line is exactly 4.3.40's."""
+        from workflow import i1pro3_conditions as _c
+        if not _c.stored_value(self._settings):
+            return None
+        try:
+            from workflow.measurement_condition import filter_code_from_args
+            if _c.main_condition(filter_code_from_args(p.extra_args)) is None:
+                return None
+            ti1 = Path(p.ti1_path)
+            if ti1.parent.name == "cal":
+                return None
+            from core.file_manager import VERIFICATIONS_DIRNAME, Run
+            if ti1.parent.name == VERIFICATIONS_DIRNAME:
+                return Run.for_dir(ti1.parent.parent).verification_condition_dir
+            _ver = getattr(self, "_is_verification_run", None)
+            if _ver is not None and _ver():
+                # a verification measured on the run's own profiling chart
+                return Run.for_dir(ti1.parent).verification_condition_dir
+            return Run.for_dir(ti1.parent).condition_dir
+        except Exception:      # noqa: BLE001 - never stop a Start
+            log.warning("M0/M1/M2: no condition folder", exc_info=True)
+            return None
 
     # ------------------------------------------------------------------
     # Param collection

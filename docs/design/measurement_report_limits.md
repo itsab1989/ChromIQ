@@ -10319,3 +10319,44 @@ mutation. Proof: `~/Desktop/ChromIQ-work/2026-10-02_beta3/U_impl_qc5/`.
 * **61.3 Several dates.** The Overview is one table with a column per date. When every date has the same reference the row says it; when they differ the row reads "(against each date's own reference)", and each date's "Reference for the ΔE figures" line says which.
 * **61.4 Unchanged:** the numbers, the detailed per-date corner table and the "Cube corners" trend graph.
 * **61.5 Translations** in all 13 languages (agent 22). **Tests:** `tests/test_overview_corner_rows_say_what_they_compare.py`.
+
+## 62. M0, M1 and M2 from one scan (Beta): a verification is judged in its profile's condition (2026-11-15)
+
+### ⏳ Awaiting confirmation: the report follows the condition the profile was built from
+
+**Confirmed by:** *nobody yet.* The rule itself is Basti's (Basti, 2026-11-15, relayed by the coordinator); what awaits his confirmation is the behaviour as built and described here.
+
+Preferences ▸ Beta ▸ "X-Rite i1Pro 3: keep M0, M1 and M2 from every scan". With
+the option on, a run's profile may be built from the M1 or M2 readings of its
+measurement (`meta.json` `profile_build.measurement_condition`). Basti: a
+verification uses the condition the profile was built from, automatically, and
+says which in the report. With the option off none of this runs, and a report
+is exactly today's.
+
+* **62.1 A verification with readings in that condition** (its pair in
+  `verifications/conditions/`, in step) is reported FROM them: every row, the
+  paper white and darkest black included. The report records
+  `measurement_condition` = `{condition, profile, own, from_profile: true}`,
+  and the window says on one line, under the verdict, that the verification
+  is judged in that condition from the same readings kept in it, and in which
+  condition the measurement itself is. A saved report is still recognised as
+  its measurement's (`facts_disagree` compares it with the file in the
+  condition it read).
+* **62.2 A verification without them** keeps its own readings, and the rows
+  that compare the sheet with the profile (the paper and solid rows of K49
+  (b2), and §58's profile accuracy) read N-A, reason `profile_other_condition`:
+  "the profile was built from the M1 readings, and this measurement has only
+  M0 readings, so comparing the two would show the difference between the
+  conditions as an error". Every other row is judged as today.
+* **62.3 Row B (§15.3)** is never computed across two conditions: a
+  verification judged in M1 is compared with the one before it in M1, and when
+  that one has no M1 readings the row reads N-A, reason
+  `earlier_other_condition`.
+* **62.4 The profiling measurement's own report** stays in the measurement's
+  own condition (its rows are not compared with the profile built from it,
+  B8-1271); it records the profile's condition too.
+* **62.5 Not covered yet:** the strip corner aims of a FROM PROFILE GAMUT chart
+  (K37 (i)) are still asked of the profile whatever condition it was built
+  from; the trend graphs show each date in the condition its report was made
+  in.
+* Tests: `tests/test_i1pro3_conditions_verification.py`.

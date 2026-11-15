@@ -60,6 +60,7 @@ from workflow.ti3_merge import (Ti3MergeConditionUnrecorded, Ti3MergeError,
                                 merge_asks, merge_preconditioning,
                                 merge_refusal)
 from workflow.printcal_runner import PrintcalRunner, PrintcalParams, ChannelTarget
+from workflow.fwa_gate import fwa_help_build
 from workflow.applycal_runner import ApplycalRunner
 
 if TYPE_CHECKING:
@@ -182,6 +183,86 @@ def _hue_default_kept(settings) -> bool:
     except Exception:      # noqa: BLE001
         return False
     return str(raw or "").strip().lower() == "kept"
+
+
+def build_from_help() -> str:
+    """The (i) of Build Profile's "Build from" (Preferences > Beta, "X-Rite
+    i1Pro 3: keep M0, M1 and M2 from every scan"; Basti, 2026-11-15:
+    "friendly, extensive, easy to understand and correct"). Checked against
+    workflow/i1pro3_conditions.py (choices_for, no_file_reason,
+    average_missing_reason), workflow/fwa_gate.py (an M1/M2 file refuses
+    -f) and `_build_from_suffix`."""
+    return "\n\n".join((
+        tr("**What this choice does.** With the Beta option “X-Rite i1Pro 3: "
+           "keep M0, M1 and M2 from every scan” switched on, the i1Pro 3 "
+           "gives three sets of readings from the same scan, one for each "
+           "standard measurement condition. Here you choose which of them "
+           "the profile is built from. Your measurement itself is not "
+           "changed, and the other readings stay saved, so you can build "
+           "again from another condition at any time."),
+        tr("**M0** is the light of the instrument's own lamp. How much "
+           "ultraviolet (UV) light it contains is not defined, so papers with "
+           "optical brighteners can measure a little differently from one "
+           "instrument to another. It is how most instruments have always "
+           "measured."),
+        tr("**M1** is light like daylight (D50), including its ultraviolet "
+           "part. Optical brighteners in the paper glow under it, just as "
+           "they do in daylight or in a D50 viewing booth with UV."),
+        tr("**M2** is light with the ultraviolet cut out (“UV cut”). "
+           "Optical brighteners do not glow, so the paper is measured as it "
+           "looks under light without UV."),
+        tr("**Which one to choose.** Think of the light your prints will be "
+           "seen in. M1 suits prints looked at in daylight or in a D50 "
+           "viewing booth with UV. M2 suits light with very little UV, for "
+           "example behind UV-filtering glass or under many LED lamps. M0 "
+           "keeps the profile comparable with the profiles you made before. "
+           "On a paper without optical brighteners the three are nearly the "
+           "same, so the choice makes little difference there."),
+        tr("**How this differs from “FWA Compensation (-f)”.** In one scan "
+           "the i1Pro 3 lights the paper both with and without ultraviolet, "
+           "and ArgyllCMS computes M0, M1 and M2 from that scan with the "
+           "instrument's own calibration data. FWA Compensation instead "
+           "estimates the effect of the brighteners from M0 readings alone, "
+           "with a general model: with D50 the estimate is like M1, with "
+           "D50M2 it is like M2. The two must not be combined, because the "
+           "model expects M0 readings: M1 already contains the glow of the "
+           "brighteners under D50 light, and in M2 the ultraviolet that makes "
+           "them glow is already removed. So when you build from M1 or M2, "
+           "the FWA option is greyed out with the reason, and ChromIQ never "
+           "passes -f to ArgyllCMS for such a build, even if a preset or the "
+           "extra arguments ask for it. Building from M0, FWA can be used as "
+           "before."),
+        tr("**Why an entry can be greyed out.** An entry is offered only "
+           "when these exact readings exist in that condition. It is greyed "
+           "out when the measurement was made with the Beta option switched "
+           "off, with another instrument (only the i1Pro 3 gives all three), "
+           "when the readings were changed in another way since (for example "
+           "imported, or replaced), when an averaged measurement has a read "
+           "without that condition, or when the build merges earlier "
+           "measurements. Point at a greyed entry to see the reason for it."),
+        tr("**The profile's name.** A profile built from M1 or M2 gets “-M1” "
+           "or “-M2” at the end of its default description, so you can tell "
+           "it apart later. A description you typed yourself is left as it "
+           "is."),
+        tr("**Please note:** the M1 and M2 values ArgyllCMS computes for the "
+           "i1Pro 3 have not yet been compared with the values X-Rite "
+           "i1Profiler gives for the same chart, so please compare them "
+           "before you rely on them."),
+    ))
+
+
+#: Save as Defaults' "Build from" (the M0/M1/M2 Beta): one value for Guided
+#: and Manual, as the row is; written and read only while the Beta is on.
+BUILD_FROM_DEFAULT_KEY = "colprof_build_from_condition"
+
+
+def _build_from_default(settings) -> str:
+    """The saved default of "Build from" ("" = as measured)."""
+    try:
+        raw = str(settings.get(BUILD_FROM_DEFAULT_KEY, "") or "").upper()
+    except Exception:      # noqa: BLE001
+        return ""
+    return raw if raw in ("M0", "M1", "M2") else ""
 
 
 def _black_default(settings) -> str:
@@ -778,6 +859,23 @@ class TabProfile(QWidget):
         _paint_note(self._file_lbl)
         self._file_lbl.setWordWrap(True)
         fg.addWidget(self._file_lbl, stretch=1)
+        # "Build from" (Preferences > Beta, "X-Rite i1Pro 3: keep M0, M1 and
+        # M2 from every scan", 2026-11-15): shown only with the Beta on, for
+        # Guided and Manual alike (this box is above both).
+        self._build_from = ""
+        self._cond_lbl = QLabel(tr("Build from:"), file_grp)
+        self._cond_combo = NoScrollComboBox(file_grp)
+        self._cond_combo.setObjectName("build_from_condition")
+        self._cond_combo.setMinimumContentsLength(24)
+        self._cond_combo.activated.connect(self._on_build_from_chosen)
+        self._cond_tip = TooltipButton(tr("Build from"), build_from_help(),
+                                       file_grp, min_width=680)
+        self._cond_lbl.setVisible(False)
+        self._cond_combo.setVisible(False)
+        self._cond_tip.setVisible(False)
+        fg.addWidget(self._cond_lbl)
+        fg.addWidget(self._cond_combo)
+        fg.addWidget(self._cond_tip)
         cc.addWidget(file_grp)
         # A measurement dropped from the file manager on this box is loaded
         # as the header's load icon loads the file chosen with it (4.3.33).
@@ -2884,6 +2982,11 @@ class TabProfile(QWidget):
             # "savable as default and as part of a preset", like the hue).
             data["black_depth"] = black_depth_value(
                 self._m_black_combo.currentData())
+        # "Build from" (the M0/M1/M2 Beta) is part of a preset, but only while
+        # the Beta is on (Basti, 2026-11-15); "" = as measured.
+        _bf = getattr(self, "_build_from_for_store", None)
+        if _bf is not None:
+            _bf(data)
         return data
 
     # ------------------------------------------------------------------
@@ -3024,6 +3127,199 @@ class TabProfile(QWidget):
             except Exception:      # noqa: BLE001
                 log.debug("guided profile field %s not applied", key)
 
+    # ------------------------------------------------------------------
+    # "Build from" (Preferences > Beta, M0/M1/M2 from one scan, 2026-11-15)
+    # ------------------------------------------------------------------
+    def _conditions_on(self) -> bool:
+        from workflow.i1pro3_conditions import stored_value
+        return stored_value(self._settings)
+
+    def _build_from_choices(self):
+        from workflow.i1pro3_conditions import choices_for
+        merging = (bool(self._settings.get("chromiq_refinement", False))
+                   and self._preconditioning_source is not None
+                   and Path(self._preconditioning_source).exists())
+        return choices_for(self._ti3_path, merging=merging)
+
+    def _refresh_build_from(self) -> None:
+        """Fill "Build from" for the measurement shown, or hide it (Beta off,
+        no measurement). A stored choice that is not usable now stays chosen
+        and greyed, and Build is refused until another one is chosen: a
+        profile is never built from another condition than the one asked
+        for without the person seeing it."""
+        combo = getattr(self, "_cond_combo", None)
+        if combo is None:
+            return
+        on = self._conditions_on() and self._ti3_path is not None
+        choices = self._build_from_choices() if on else []
+        self._cond_lbl.setVisible(bool(choices))
+        combo.setVisible(bool(choices))
+        self._cond_tip.setVisible(bool(choices))
+        combo.blockSignals(True)
+        try:
+            combo.clear()
+            from workflow.measurement_condition import condition_name
+            pick = 0
+            for i, ch in enumerate(choices):
+                text = condition_name(ch.cond)
+                if ch.main and not ch.cond:
+                    # review F1: the measurement's condition is not known
+                    text = tr("As measured (condition not recorded)")
+                elif ch.main:
+                    text = tr("{condition}, as measured").format(condition=text)
+                combo.addItem(text, ch.cond)
+                item = combo.model().item(i)
+                if item is not None:
+                    item.setEnabled(ch.usable)
+                    item.setToolTip(ch.reason or (tr(
+                        "Build the profile from the readings of this "
+                        "measurement, as they were measured.") if not ch.cond
+                        else tr(
+                        "Build the profile from the {condition} readings of "
+                        "this measurement.").format(condition=ch.cond)))
+                if self._build_from and ch.cond == self._build_from:
+                    pick = i
+            if choices:
+                combo.setCurrentIndex(pick)
+        finally:
+            combo.blockSignals(False)
+        self._apply_build_from_state(choices)
+
+    def _apply_build_from_state(self, choices=None) -> None:
+        if choices is None:
+            choices = (self._build_from_choices()
+                       if self._conditions_on() and self._ti3_path else [])
+        chosen = self._chosen_build_from(choices)
+        combo = self._cond_combo
+        if chosen is not None and not chosen.usable:
+            combo.setToolTip(chosen.reason)
+            self._build_btn.setEnabled(False)
+            self._build_btn.setToolTip(tr(
+                "This measurement has no {condition} readings. {reason} "
+                "Choose another condition under \u201cBuild from\u201d to "
+                "build the profile.").format(condition=chosen.cond,
+                                              reason=chosen.reason))
+        else:
+            combo.setToolTip(tr(
+                "Which of the three measurement conditions the profile is "
+                "made from. The first one is the condition the measurement "
+                "was made in."))
+        # the FWA gate looks at the file the readings come from
+        target = (chosen.path if chosen is not None and chosen.usable
+                  else self._ti3_path)
+        if target is not None and target != self._ti3_path:
+            self._detect_instrument(target)
+
+    def _chosen_build_from(self, choices):
+        if not choices:
+            return None
+        want = self._build_from or choices[0].cond
+        for ch in choices:
+            if ch.cond == want:
+                return ch
+        return choices[0]
+
+    def _on_build_from_chosen(self, index: int) -> None:
+        cond = self._cond_combo.itemData(index)
+        choices = self._build_from_choices()
+        main = choices[0].cond if choices else ""
+        self._build_from = "" if cond == main else str(cond or "")
+        log.info("Build Profile: build from %s", cond)
+        if self._ti3_path is not None:
+            self.set_ti3_path(self._ti3_path, propagate=False)
+        try:
+            self.save_target_settings()
+        except Exception:      # noqa: BLE001
+            log.debug("build-from not stored", exc_info=True)
+
+    def _build_from_file(self) -> "Path | None":
+        """The file the readings come from when it is not the measurement
+        itself (Beta on, another condition chosen and usable), else None."""
+        if not self._conditions_on() or not self._build_from:
+            return None
+        ch = self._chosen_build_from(self._build_from_choices())
+        if ch is None or ch.main or not ch.usable:
+            return None
+        return ch.path
+
+    def _build_from_suffix(self) -> str:
+        """"M1" or "M2" when, with the Beta on, the profile is built from the
+        M1 or M2 readings (the measurement's own condition or another one),
+        for the end of the default Profile Description (Basti, 2026-11-15:
+        "better for clarity"); "" otherwise, and always with the Beta off."""
+        try:
+            if (getattr(self, "_cond_combo", None) is None
+                    or getattr(self, "_ti3_path", None) is None
+                    or not self._conditions_on()):
+                return ""
+            ch = self._chosen_build_from(self._build_from_choices())
+            if ch is None or not ch.usable or ch.cond not in ("M1", "M2"):
+                return ""
+            return ch.cond
+        except Exception:      # noqa: BLE001 - a default never breaks the tab
+            return ""
+
+    def _built_from_record(self) -> dict:
+        from workflow import i1pro3_conditions as _c
+        if not self._conditions_on() or self._ti3_path is None:
+            return {}
+        rf = self._build_from_file()
+        cond = (_c.file_condition(rf) if rf is not None
+                else _c.file_condition(self._ti3_path))
+        return {_c.BUILT_FROM_KEY: cond,
+                _c.BUILT_FILE_KEY: (f"{_c.CONDITION_DIRNAME}/{rf.name}"
+                                    if rf is not None
+                                    else Path(self._ti3_path).name)}
+
+    def _load_build_from(self, stored) -> None:
+        from workflow.i1pro3_conditions import BUILD_FROM_KEY
+        if stored is None or BUILD_FROM_KEY not in stored:
+            # nothing stored for this target: the saved default, with the
+            # Beta on only (Basti, 2026-11-15); "" = as measured
+            self._build_from = (_build_from_default(self._settings)
+                                if self._conditions_on() else "")
+        else:
+            self._build_from = str(stored.get(BUILD_FROM_KEY) or "")
+        self._refresh_build_from()
+        if self._build_from_suffix():
+            # the default description names the condition (Basti, 2026-11-15)
+            self._apply_profile_description_default(
+                fallback=Path(self._ti3_path).stem)
+
+    def _build_from_for_store(self, data: dict) -> None:
+        """Put "Build from" into a preset's *data*, with the Beta on only."""
+        from workflow.i1pro3_conditions import BUILD_FROM_KEY
+        if self._conditions_on():
+            data[BUILD_FROM_KEY] = getattr(self, "_build_from", "")
+
+    def _apply_build_from_value(self, data: dict) -> None:
+        """A preset's "Build from", with the Beta on only; a preset without
+        it (or saved with the Beta off) leaves the choice as it is."""
+        from workflow.i1pro3_conditions import BUILD_FROM_KEY
+        if self._conditions_on() and BUILD_FROM_KEY in (data or {}):
+            self._set_build_from(str(data.get(BUILD_FROM_KEY) or ""))
+
+    def _set_build_from(self, value: str) -> None:
+        value = str(value or "").upper()
+        self._build_from = value if value in ("M0", "M1", "M2") else ""
+        self._refresh_build_from()
+        if getattr(self, "_ti3_path", None) is not None:
+            self._apply_profile_description_default(
+                fallback=Path(self._ti3_path).stem)
+
+    def _carry_build_from(self, store, wanted: dict) -> None:
+        from workflow.i1pro3_conditions import BUILD_FROM_KEY
+        try:
+            old = (getattr(store.load_meta(), "profile_settings", None)
+                   or {}).get(BUILD_FROM_KEY)
+        except Exception:      # noqa: BLE001
+            old = None
+        if self._conditions_on():
+            if self._build_from or old is not None:
+                wanted[BUILD_FROM_KEY] = self._build_from
+        elif old is not None:
+            wanted[BUILD_FROM_KEY] = old
+
     def save_target_settings(self, store=None, key=None) -> bool:
         """Record this tab's settings against the selected target.
 
@@ -3070,6 +3366,12 @@ class TabProfile(QWidget):
             if black_combo is not None:
                 wanted["black_depth"] = black_depth_value(
                     black_combo.currentData())
+            # "Build from" (the M0/M1/M2 Beta): written only while the Beta is
+            # on, and carried back unchanged while it is off, so a target
+            # never changes because the option exists.
+            _carry = getattr(self, "_carry_build_from", None)
+            if _carry is not None:
+                _carry(store, wanted)
             fingerprint = str(getattr(store, "dir", store))
             if self._profile_written_cache().get(fingerprint) == wanted:
                 return False
@@ -3110,6 +3412,8 @@ class TabProfile(QWidget):
                 # leaves the PREVIOUS target's values on screen, which is how a
                 # setting leaks from one run to another.
                 self._restore_defaults()
+                if hasattr(self, "_load_build_from"):
+                    self._load_build_from(None)
                 return False
             self._m_apply_preset_data(stored)
             set_black = getattr(self, "_m_set_black", None)
@@ -3119,6 +3423,8 @@ class TabProfile(QWidget):
                 # (settings schema 33), until it is changed here.
                 set_black(_black_for_older_targets(self._settings))
             self._apply_guided_profile_fields(stored)
+            if hasattr(self, "_load_build_from"):
+                self._load_build_from(stored)
             return True
         except Exception:      # noqa: BLE001
             log.warning("Could not apply the target's Build Profile settings",
@@ -3260,6 +3566,11 @@ class TabProfile(QWidget):
         # before the option was a Build Profile row) loads Neutral; a target
         # stored before then is handled in `load_target_settings`.
         self._m_set_black(data.get("black_depth", "neutral"))
+        # "Build from": applied only while the Beta is on; with it off a
+        # preset's value is ignored (off = exactly today's behaviour).
+        _bf = getattr(self, "_apply_build_from_value", None)
+        if _bf is not None:
+            _bf(data)
 
     def _m_set_black(self, value) -> None:
         """Put a stored "Darkest black" value on the combo (unknown values
@@ -3329,6 +3640,8 @@ class TabProfile(QWidget):
                        "manual2_colprof_render", "argyll")
             self._m_hue_cb.setChecked(_hue_default_kept(s))
             self._m_set_black(_black_default(s))
+            if self._conditions_on():
+                self._set_build_from(_build_from_default(s))
         else:
             name = self._m_preset_combo.currentData()
             presets = self._m_load_presets()
@@ -3351,6 +3664,14 @@ class TabProfile(QWidget):
         if not name:
             return
         presets = self._m_load_presets()
+        # Review F6: a preset saved again under its own name with the M0/M1/
+        # M2 Beta off keeps the "Build from" it stored (off never writes it,
+        # so it must not silently drop it either).
+        from workflow.i1pro3_conditions import BUILD_FROM_KEY
+        _old = presets.get(name)
+        if (BUILD_FROM_KEY not in data and isinstance(_old, dict)
+                and BUILD_FROM_KEY in _old):
+            data[BUILD_FROM_KEY] = _old[BUILD_FROM_KEY]
         presets[name] = data
         self._m_save_presets(presets)
         self._m_populate_preset_combo(presets, select_name=name)
@@ -3685,13 +4006,7 @@ class TabProfile(QWidget):
         fwa_row.addWidget(self._m_fwa_illum_combo, stretch=1)
         fwa_row.addWidget(TooltipButton(
             tr("FWA Compensation (-f)"),
-            tr("Compensates for Fluorescent Whitening Agents (optical brighteners) in paper.\n"
-            "Requires spectral measurements — not supported by all instruments.\n\n"
-            "The illuminant sets the lighting condition used to compute the FWA effect.\n"
-            "Use for papers with optical brighteners (bright white coated stock).\n\n"
-            "**Important:** ColorMunki, i1Studio, and CC Studio filter out UV light and will\n"
-            "fail with an error if this option is enabled. UV-capable instruments such as\n"
-            "the X-Rite i1Pro 2/3 are required for FWA compensation."),
+            fwa_help_build(),
             grp,
             min_width=500,
         ))
@@ -4851,13 +5166,7 @@ class TabProfile(QWidget):
         fwa_row.addWidget(self._fwa_illum_combo, stretch=1)
         fwa_row.addWidget(TooltipButton(
             tr("FWA Compensation (-f)"),
-            tr("Compensates for Fluorescent Whitening Agents (optical brighteners) in paper.\n"
-            "Requires spectral measurements — not supported by all instruments.\n\n"
-            "The illuminant sets the lighting condition used to compute the FWA effect.\n"
-            "Use for papers with optical brighteners (bright white coated stock).\n\n"
-            "**Important:** ColorMunki, i1Studio, and CC Studio filter out UV light and will\n"
-            "fail with an error if this option is enabled. UV-capable instruments such as\n"
-            "the X-Rite i1Pro 2/3 are required for FWA compensation."),
+            fwa_help_build(),
             _adv,
             min_width=500,
         ))
@@ -5257,6 +5566,8 @@ class TabProfile(QWidget):
         # nothing to compose a description from yet.
         self._apply_profile_description_default(fallback=path.stem)
         self._detect_instrument(path)
+        if hasattr(self, "_refresh_build_from"):
+            self._refresh_build_from()
         if propagate:
             # Under the per-run layout the measurement is chart.ti3 sitting
             # next to chart.ti2 in the same run folder, so no suffix-stripping
@@ -6056,6 +6367,9 @@ class TabProfile(QWidget):
                     parts.append(
                         getattr(project.calibration.load_meta(), "description", "")
                         or "")
+            # The M0/M1/M2 Beta (Basti, 2026-11-15): a profile built from the
+            # M1 or M2 readings says so ("-M1", "-M2"). Nothing with it off.
+            parts.append(self._build_from_suffix())
             return [p.strip() for p in parts if p and p.strip()]
         except Exception:      # noqa: BLE001 — a default must never break the tab
             return []
@@ -6199,6 +6513,8 @@ class TabProfile(QWidget):
         the profile after the measurement file survives.
         """
         stored = self._stored_profile_description()
+        if fallback.strip() and self._build_from_suffix():
+            fallback = f"{fallback.strip()}-{self._build_from_suffix()}"
         wanted = stored or self._compose_profile_description() or fallback.strip()
         key = self._description_store_key()
         moved = key != getattr(self, "_desc_filled_for", None)
@@ -6983,6 +7299,11 @@ class TabProfile(QWidget):
             info = dict(info)
             info["at"] = datetime.now().isoformat(timespec="seconds")
             info["profile"] = Path(icc).name
+            # the M0/M1/M2 Beta: which readings the profile was built from
+            built = (self._built_from_record()
+                     if hasattr(self, "_built_from_record") else {})
+            if built:
+                info.update(built)
             run.record_profile_build(info)
         except Exception:      # noqa: BLE001 - a record never fails a build
             log.warning("could not record the profile build", exc_info=True)
@@ -7046,10 +7367,11 @@ class TabProfile(QWidget):
                 return False
             work = Path(tempfile.mkdtemp(prefix="chromiq-colprof-comparison-"))
             copy = work / params.ti3_path.name
-            shutil.copy2(params.ti3_path, copy)
+            # the readings the profile was built from (M0/M1/M2 Beta)
+            shutil.copy2(params.readings_from or params.ti3_path, copy)
             desc = params.description or params.ti3_path.stem
             cparams = dataclasses.replace(
-                params, ti3_path=copy,
+                params, ti3_path=copy, readings_from=None,
                 description=f"{desc} (colprof)",
                 model=params.model or desc,
                 spectral_physics=False, icc_version="2",
@@ -7286,8 +7608,12 @@ class TabProfile(QWidget):
             run = Run.for_dir(Path(icc).parent)
             if not run.meta_path.is_file():
                 return
-            if not reason and not getattr(run.load_meta(), "profile_build",
-                                          None):
+            # ...or when the M0/M1/M2 Beta is on: Check & Refine must know
+            # which condition's readings the profile was built from.
+            built = (self._built_from_record()
+                     if hasattr(self, "_built_from_record") else {})
+            if not reason and not built and not getattr(
+                    run.load_meta(), "profile_build", None):
                 return
         except Exception:      # noqa: BLE001
             return
@@ -7616,6 +7942,10 @@ class TabProfile(QWidget):
         # does too), so it never reaches a command line or the command box,
         # whether the box, a preset, a saved setting or the extra arguments
         # asked for it. `_on_build` says so in the log.
+        rf = (self._build_from_file() if hasattr(self, "_build_from_file")
+              else None)
+        if rf is not None:
+            params = replace(params, readings_from=rf)
         from workflow.fwa_gate import drop_fwa
         refusal = self._fwa_refused()
         self._fwa_dropped_by_collect = (
@@ -7821,6 +8151,10 @@ class TabProfile(QWidget):
                       "kept" if self._m_hue_cb.isChecked() else "argyll")
                 s.set("manual2_colprof_black_depth", black_depth_value(
                     self._m_black_combo.currentData()))
+        # "Build from" (the M0/M1/M2 Beta), one value for Guided and Manual:
+        # saved only while the Beta is on (Basti, 2026-11-15).
+        if self._conditions_on():
+            s.set(BUILD_FROM_DEFAULT_KEY, getattr(self, "_build_from", ""))
         self._log.appendPlainText("Profile settings saved as defaults.")
         self._log.ensureCursorVisible()
 

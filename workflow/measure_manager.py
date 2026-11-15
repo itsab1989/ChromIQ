@@ -309,6 +309,9 @@ class MeasureParams:
     #: pass --ruler, and only to a helper whose caps name "ruler_check". Off:
     #: the command line is exactly the one it was.
     engine_ruler_check: bool = False
+    #: "X-Rite i1Pro 3: keep M0, M1 and M2" (Beta): the run's conditions/
+    #: folder, or None (off, or not a profiling run): no --condition-dir.
+    engine_condition_dir: "Path | None" = None
     #: Preferences ▸ Measurement ▸ "Pause after each page so I can check it"
     #: (jctay, forum 149802; Basti 2026-10-23). Off by default. Engine strip
     #: reading only: the manager asks the engine to hold after a strip
@@ -1166,6 +1169,31 @@ class MeasureManager(QObject):
                 else:
                     log.info("ruler check: this helper does not know --ruler; "
                              "not passed")
+            if params.engine_condition_dir is not None:
+                self._conditions_verify = False
+                from workflow.chartread_engine import helper_caps
+                from workflow.i1pro3_conditions import CAPABILITY
+                if CAPABILITY in helper_caps(params.engine_helper):
+                    try:
+                        # review F7: a folder made here for an instrument
+                        # that turns out not to be an i1Pro 3 is taken away
+                        # again (`_on_conditions_event`)
+                        self._conditions_made_dir = (
+                            None if Path(params.engine_condition_dir).exists()
+                            else Path(params.engine_condition_dir))
+                        Path(params.engine_condition_dir).mkdir(
+                            parents=True, exist_ok=True)
+                        eargs += ["--condition-dir",
+                                  str(params.engine_condition_dir)]
+                        self._conditions_verify = (
+                            Path(params.engine_condition_dir).parent.name
+                            == "verifications")
+                    except OSError as exc:
+                        log.warning("M0/M1/M2: no folder %s (%s); not passed",
+                                    params.engine_condition_dir, exc)
+                else:
+                    log.info("M0/M1/M2: this helper does not know "
+                             "--condition-dir; not passed")
             if params.engine_replay is not None:
                 eargs += ["--replay", str(params.engine_replay)]
             eargs += list(params.gesture_args or [])
@@ -3427,6 +3455,72 @@ class MeasureManager(QObject):
     #: lights are in use (`ArgyllRunner.set_kill_courtesy`).
     LIGHTS_OFF_EXIT = '{"cmd":"lights_off_exit"}\n'
 
+    def _on_conditions_event(self, ev: dict,
+                             on_line: Callable[[str], None]) -> None:
+        """The helper says whether this session keeps the two other
+        measurement conditions (only ever seen with --condition-dir)."""
+        from workflow.measurement_condition import condition_name
+        log.debug("engine: conditions %s", ev)
+        if ev.get("active"):
+            extra = [str(c) for c in (ev.get("extra") or [])][:2]
+            if len(extra) == 2 and getattr(self, "_conditions_verify", False):
+                on_line(tr(
+                    "[Engine] M0, M1 and M2 from one scan (beta): this "
+                    "verification is saved in {main} as usual, and the same "
+                    "readings are also kept in {first} and {second}, so it "
+                    "can be judged in the condition the run's profile was "
+                    "built from. Nothing extra is sent to the "
+                    "instrument.").format(
+                        main=condition_name(str(ev.get("main") or "M0")),
+                        first=condition_name(extra[0]),
+                        second=condition_name(extra[1])))
+            elif len(extra) == 2:
+                on_line(tr(
+                    "[Engine] M0, M1 and M2 from one scan (beta): this "
+                    "measurement is saved in {main} as usual, and the same "
+                    "readings are also kept in {first} and {second}, so Build "
+                    "Profile can make the profile from either of them. "
+                    "Nothing extra is sent to the instrument.").format(
+                        main=condition_name(str(ev.get("main") or "M0")),
+                        first=condition_name(extra[0]),
+                        second=condition_name(extra[1])))
+            return
+        why = str(ev.get("why") or "")
+        if why == "instrument":
+            # Review F7: another instrument than an i1Pro 3 (or none) is not
+            # a fault of the option, so the Measure log says nothing, and the
+            # folder made for this session goes again when it is empty.
+            made = getattr(self, "_conditions_made_dir", None)
+            self._conditions_made_dir = None
+            if made is not None:
+                try:
+                    made.rmdir()
+                except OSError:
+                    pass
+            return
+        reasons = {
+            "mode": tr(
+                "they are kept only when strips or single patches are "
+                "measured by hand"),
+            "filter": tr(
+                "the polarising filter (M3) is measured on its own"),
+            "resume": tr(
+                "this measurement was started without them, or changed "
+                "since, so the readings already made have no M0, M1 and M2 "
+                "to continue"),
+            "record": tr(
+                "the instrument did not give all three for a reading"),
+            "write": tr("they could not be saved"),
+            "memory": tr("there was not enough memory"),
+            "files": tr("there is no folder to save them in"),
+        }
+        on_line(tr(
+            "[Engine] M0, M1 and M2 from one scan (beta): for this "
+            "measurement only the condition chosen in the Measure tab is "
+            "saved, because {reason}. Your measurement itself is not "
+            "affected.").format(reason=reasons.get(
+                why, tr("something unexpected happened"))))
+
     def _on_lights_event(self, ev: dict,
                          on_line: Callable[[str], None]) -> None:
         """The i1Pro 2 and i1Pro 3 lights (Preferences > Beta, 2026-11-13).
@@ -4026,6 +4120,12 @@ class MeasureManager(QObject):
 
         elif kind == "lights":
             self._on_lights_event(ev, on_line)
+
+        elif kind == "conditions":
+            # "X-Rite i1Pro 3: keep M0, M1 and M2" (Preferences > Beta,
+            # 2026-11-15): one line when the session keeps them, one when it
+            # stops; never a window, never a reading.
+            self._on_conditions_event(ev, on_line)
 
         elif kind in ("ruler", "ruler_strip"):
             # The ruler check (Preferences > Beta, 2026-11-14): lines for the

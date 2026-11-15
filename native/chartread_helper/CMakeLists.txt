@@ -356,7 +356,19 @@ chromiq_add_win_version(chromiq-chartread
   "ChromIQ chart-reading engine (ArgyllCMS chartread)"
   "Copyright (c) Graeme W. Gill (ArgyllCMS) and Sebastian Reiprich, AGPL-3.0")
 
-set(_cq_link_targets chromiq-chartread i1pro2_lights_test i1pro3_lights_test)
+# "X-Rite i1Pro 3: keep M0, M1 and M2" (Beta, 2026-11-15): the driver's
+# conversion asked for one condition and for three (tests/test_i1pro3_conditions_driver.py).
+add_executable(i1pro3_conditions_test EXCLUDE_FROM_ALL
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests/i1pro3_conditions_test.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_stubs.c
+  ${INSTLIB}/alphix.c
+)
+target_include_directories(i1pro3_conditions_test PRIVATE
+  ${INSTLIB} ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(i1pro3_conditions_test PRIVATE instlib)
+
+set(_cq_link_targets chromiq-chartread i1pro2_lights_test i1pro3_lights_test
+    i1pro3_conditions_test)
 list(APPEND _cq_link_targets i1pro2_lights_modes_test i1pro3_lights_modes_test)
 list(APPEND _cq_link_targets i1pro_ruler_scan_test i1pro3_ruler_test)
 list(APPEND _cq_link_targets i1pro2_lights_modes_test_watched
