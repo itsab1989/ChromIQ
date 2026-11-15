@@ -10156,6 +10156,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         choice = self._misaligned_strip_buttons(dlg, layout, msg,
                                                 turn=turnable)
         self._exec_measurement_window(dlg)
+        # R5: which question, and the answer, for the diagnostics file
+        note = getattr(self._manager, "note_question_answer", None)
+        if callable(note):
+            note(strip, "back_to_front" if f.get("reversed") else "slip",
+                 choice[0])
         self._after_misaligned_strip_choice(choice[0], strip)
 
     def _misaligned_strip_buttons(self, dlg, layout, msg,

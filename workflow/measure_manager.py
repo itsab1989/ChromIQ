@@ -2423,6 +2423,7 @@ class MeasureManager(QObject):
         # is asked when this window's release comes.
         pending = self._read_twice_pending.pop(0)
         strip, like = pending
+        self.note_question_answer(strip, "read_twice", choice or "closed")
         if choice in ("reread", "was_like"):
             # The reading filed under *strip* is not that strip's: until it
             # is read again the strip counts as unread, so the read map steers
@@ -3721,6 +3722,19 @@ class MeasureManager(QObject):
         if rs is not None:
             rs.note_answer(strip, answer)
 
+    def note_question_answer(self, strip: str, question: str,
+                             answer: str) -> None:
+        """R5 (4.3.39): the person's answer to one of ChromIQ's own questions
+        about *strip* (a slip or a strip filed back to front, "Was a strip
+        read twice?"), for the ruler diagnostics file when there is one."""
+        rs = getattr(self, "_ruler", None)
+        if rs is not None:
+            try:
+                rs.note_question_answer(str(strip).strip(), question,
+                                        answer or "closed")
+            except Exception:  # noqa: BLE001 - never stop a measurement
+                log.debug("ruler: answer not noted", exc_info=True)
+
     def ruler_diagnostics_path(self) -> "Path | None":
         rs = getattr(self, "_ruler", None)
         return rs.diagnostics_path() if rs is not None else None
@@ -4117,9 +4131,18 @@ class MeasureManager(QObject):
             _rs = getattr(self, "_ruler", None)
             if _rs is not None:
                 try:
+                    _others = []
+                    if ev.get("misaligned"):
+                        _others.append("engine_slip")
+                    if _part is not None:
+                        _others.append("back_to_front" if getattr(
+                            _part, "get", lambda *_: None)("reversed")
+                            else "slip")
+                    if _twice is not None:
+                        _others.append("read_twice")
                     _summ = _rs.on_strip_read(ev, other_question=bool(
                         ev.get("misaligned") or _part is not None
-                        or _twice is not None))
+                        or _twice is not None), other_questions=_others)
                 except Exception:      # noqa: BLE001 - never stop a read
                     log.warning("ruler: strip summary failed", exc_info=True)
                     _summ = None

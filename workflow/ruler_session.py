@@ -214,7 +214,9 @@ class RulerSession:
                          or result})
         return lines
 
-    def on_strip_read(self, ev: dict, *, other_question: bool) -> "dict | None":
+    def on_strip_read(self, ev: dict, *, other_question: bool,
+                      other_questions: "list[str] | None" = None
+                      ) -> "dict | None":
         """The accepted strip's ``strip_read``. Returns the summary the
         manager adds to the event as ``ev["ruler"]``, or None when this strip
         has no record. *other_question*: the engine's net, ChromIQ's slip
@@ -291,7 +293,17 @@ class RulerSession:
             "span_mm": span_mm,
             "other_question": other_question,
         }
+        # R5 (4.3.39): WHICH question this strip got, by name (the ruler's
+        # own, or ChromIQ's: the engine's net, a slip or a strip filed back
+        # to front, "Was a strip read twice?"); the answers are added as the
+        # person gives them (note_question_answer).
+        asked = list(other_questions or [])
+        if ask:
+            asked.append("ruler_not_covered")
+        if ask_direction:
+            asked.append("ruler_direction")
         extra = {"accepted": True, "reversed": bool(ev.get("reversed")),
+                 "questions_asked": asked,
                  "derived_mm_per_step": (pitch_mm / pitch_cut)
                  if pitch_cut and pitch_mm else None,
                  "pitch_steps": pitch_cut, "coverage_steps": coverage,
@@ -326,6 +338,13 @@ class RulerSession:
     def note_answer(self, strip: str, answer: str) -> None:
         if self.diag is not None:
             self.diag.note_answer(strip, answer)
+            self.diag.note_question_answer(strip, "ruler", answer)
+
+    def note_question_answer(self, strip: str, question: str,
+                             answer: str) -> None:
+        """R5: the person's *answer* to *question* about *strip*."""
+        if self.diag is not None:
+            self.diag.note_question_answer(strip, question, answer)
 
     def set_default_condition(self, condition: "str | None") -> None:
         """R4 (4.3.39): without -F, the condition the instrument's normal

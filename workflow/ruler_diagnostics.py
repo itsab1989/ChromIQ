@@ -168,6 +168,21 @@ class Diagnostics:
             log.warning("ruler diagnostics: could not note the condition",
                         exc_info=True)
 
+    def note_question_answer(self, strip: str, question: str,
+                             answer: str) -> None:
+        """R5 (4.3.39): one {"question", "answer"} more on the strip's last
+        entry, in the order they were given."""
+        try:
+            for e in reversed(self.doc["strips"]):
+                if e.get("strip") == strip:
+                    e.setdefault("answers", []).append(
+                        {"question": str(question), "answer": str(answer)})
+                    break
+            self.write()
+        except Exception:      # noqa: BLE001
+            log.warning("ruler diagnostics: could not note an answer",
+                        exc_info=True)
+
     def note_answer(self, strip: str, answer: str) -> None:
         """The person's answer to the question about *strip* (last entry)."""
         try:
