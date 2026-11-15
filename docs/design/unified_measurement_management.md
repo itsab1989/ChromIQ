@@ -10793,6 +10793,35 @@ ChromIQ took the M2 readings and he compared M1.
   `CHROMIQ_MEASURED` when the file has no `CREATED` (every i1Profiler
   import).
 
+### ⏳ Awaiting confirmation: the FWA option's help calls it an estimate (2026-11-15)
+
+**Confirmed by:** *nobody yet.* Stage 1 of the i1Pro 2 dual scan study
+(work folder `2026-11-15_dual_scan_study`): name the existing brightener
+compensation for what it is before anything else is built.
+
+* **What `-f` is.** ArgyllCMS's brightener model: from ordinary M0 readings
+  and the paper white it estimates how the print looks under the chosen
+  light (D50: the light of condition M1; D50M2: that of M2). Nothing is
+  measured under that light.
+* **The help says so, in both tabs** (Build Profile, both modes; Check &
+  Refine, both modes; `workflow.fwa_gate.fwa_help_build` /
+  `fwa_help_check`, the same paragraphs except the one that says what the
+  option does in that tab): "estimate", "not a measurement taken under that
+  light", the measurement "stays an M0 measurement" and is never recorded as
+  M1 or M2 because of the option, when it helps (papers with optical
+  brighteners) and when it does little or nothing (papers without them), and
+  when it is greyed. The old Build Profile help's claim that ColorMunki
+  measurements "fail with an error" is gone: the FWA gate greys the option
+  for them with its own reason.
+* **No accuracy figure in the help.** The study measured ArgyllCMS's D50
+  estimate against an instrument's own M1 at 0.17 dE00 mean, 0.76 max, on two
+  files of one i1Pro 3 on one brightened paper, against X-Rite's computed
+  M1; a tooltip would read that as a promise for every paper and instrument.
+* **`-f` never records a condition.** `colprof`, `profcheck` and the engine
+  get `-f`; no `-f` path writes `MEASUREMENT_CONDITION`
+  (`tests/test_fwa_help_says_estimate.py`). The checkbox keeps its name,
+  "FWA Compensation (-f)", ArgyllCMS's own.
+
 ### ⏳ Awaiting confirmation — §I.15 continued: i1Profiler's own choice of condition, and files that hold only some conditions (4.3.24)
 
 **Confirmed by:** *nobody yet.* Measured on jctay's files (printerknowledge,

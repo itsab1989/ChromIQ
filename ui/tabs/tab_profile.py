@@ -60,6 +60,7 @@ from workflow.ti3_merge import (Ti3MergeConditionUnrecorded, Ti3MergeError,
                                 merge_asks, merge_preconditioning,
                                 merge_refusal)
 from workflow.printcal_runner import PrintcalRunner, PrintcalParams, ChannelTarget
+from workflow.fwa_gate import fwa_help_build
 from workflow.applycal_runner import ApplycalRunner
 
 if TYPE_CHECKING:
@@ -3685,13 +3686,7 @@ class TabProfile(QWidget):
         fwa_row.addWidget(self._m_fwa_illum_combo, stretch=1)
         fwa_row.addWidget(TooltipButton(
             tr("FWA Compensation (-f)"),
-            tr("Compensates for Fluorescent Whitening Agents (optical brighteners) in paper.\n"
-            "Requires spectral measurements — not supported by all instruments.\n\n"
-            "The illuminant sets the lighting condition used to compute the FWA effect.\n"
-            "Use for papers with optical brighteners (bright white coated stock).\n\n"
-            "**Important:** ColorMunki, i1Studio, and CC Studio filter out UV light and will\n"
-            "fail with an error if this option is enabled. UV-capable instruments such as\n"
-            "the X-Rite i1Pro 2/3 are required for FWA compensation."),
+            fwa_help_build(),
             grp,
             min_width=500,
         ))
@@ -4851,13 +4846,7 @@ class TabProfile(QWidget):
         fwa_row.addWidget(self._fwa_illum_combo, stretch=1)
         fwa_row.addWidget(TooltipButton(
             tr("FWA Compensation (-f)"),
-            tr("Compensates for Fluorescent Whitening Agents (optical brighteners) in paper.\n"
-            "Requires spectral measurements — not supported by all instruments.\n\n"
-            "The illuminant sets the lighting condition used to compute the FWA effect.\n"
-            "Use for papers with optical brighteners (bright white coated stock).\n\n"
-            "**Important:** ColorMunki, i1Studio, and CC Studio filter out UV light and will\n"
-            "fail with an error if this option is enabled. UV-capable instruments such as\n"
-            "the X-Rite i1Pro 2/3 are required for FWA compensation."),
+            fwa_help_build(),
             _adv,
             min_width=500,
         ))

@@ -56,6 +56,7 @@ _TAB_COLOR = "#9f82ff"  # Check & Refine tab accent
 
 from ui.styles import SPEC_VIOLET, TAB_COLORS
 from workflow.scanin_target import has_scanner_geometry
+from workflow.fwa_gate import fwa_help_check
 from workflow.profcheck_runner import (
     REFINE_DE_THRESHOLD,
     ProfcheckParams,
@@ -957,13 +958,7 @@ class TabCheckRefine(QWidget):
         fwa_row.addStretch()
         fwa_row.addWidget(TooltipButton(
             tr("FWA Compensation (-f)"),
-            tr("Some papers contain optical brighteners (fluorescent whitening agents)\n"
-            "that make the paper look extra white under certain lighting. This option\n"
-            "compensates for that effect during the check.\n\n"
-            "Only works if your .ti3 file contains spectral measurement data\n"
-            "(not all instruments produce this). If you are unsure, leave it off.\n\n"
-            "Set the illuminant to match the light source you view your prints under\n"
-            "(D50 = standard daylight, D65 = cooler daylight)."),
+            fwa_help_check(),
             inner,
         ))
         adv_layout.addLayout(fwa_row)
@@ -1279,13 +1274,7 @@ class TabCheckRefine(QWidget):
         m_fwa_row.addStretch()
         m_fwa_row.addWidget(TooltipButton(
             tr("FWA Compensation (-f)"),
-            tr("Some papers contain optical brighteners (fluorescent whitening agents)\n"
-            "that make the paper look extra white under certain lighting. This option\n"
-            "compensates for that effect during the check.\n\n"
-            "Only works if your .ti3 file contains spectral measurement data\n"
-            "(not all instruments produce this). If you are unsure, leave it off.\n\n"
-            "Set the illuminant to match the light source you view your prints under\n"
-            "(D50 = standard daylight, D65 = cooler daylight)."),
+            fwa_help_check(),
             inner,
         ))
         madv.addLayout(m_fwa_row)
