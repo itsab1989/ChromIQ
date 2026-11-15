@@ -1904,6 +1904,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # judged as B's (Knut, #182 6102031563).
         if hasattr(self._manager, "strip_filed_as"):
             self._manager.strip_filed_as.connect(self._on_strip_filed_as)
+        if hasattr(self._manager, "strip_turned"):
+            self._manager.strip_turned.connect(self._on_strip_turned)
         # ...and when the strip it came off was to get its earlier reading
         # back and did not, that strip is cleared after all (Basti 2026-10-21).
         if hasattr(self._manager, "earlier_reading_lost"):
@@ -9432,6 +9434,30 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 log.debug("could not redraw strip %s", ev.get("filed_from"),
                           exc_info=True)
 
+    def _on_strip_turned(self, ev: dict) -> None:
+        """R2 (4.3.39): "Turn this strip round", carried out by the engine.
+        *ev* has the shape of a strip_read of that strip with its readings in
+        the reverse order; it is counted and judged again exactly as a
+        reading of the strip (the patch error limit, the strip test, the
+        neighbour check, the outlines and the cards), as a moved reading is.
+        The Measure log says what was done."""
+        strip = str(ev.get("strip", "") or "?")
+        try:
+            from workflow import measurement_messages as M
+            _t, body = M.M_STRIP_TURNED.render(strip=strip)
+            self._log.appendPlainText(body)
+            self._log.ensureCursorVisible()
+        except Exception:      # noqa: BLE001 — a log line never blocks a read
+            log.debug("could not log the turned strip", exc_info=True)
+        if not getattr(self, "_session_live", False):
+            return
+        try:
+            self._count_strip_progress(ev)
+            self._on_strip_measured(ev)
+        except Exception:      # noqa: BLE001 — never break a measurement
+            log.warning("could not judge strip %s's turned reading", strip,
+                        exc_info=True)
+
     def _earlier_coming_back_locs(self) -> set:
         """The patches of strips whose earlier reading the engine is giving
         back after "I read strip B" (Basti, 2026-10-21): set aside for a
@@ -10055,8 +10081,19 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         f = dict(finding or {})
         strip = str(f.get("strip") or "?")
         late = int(f.get("offset") or 0) > 0
+        # R2 (4.3.39): a strip filed back to front IN STEP can be turned
+        # round by the engine, on the person's click only.
+        turnable = False
         if f.get("reversed"):
             message = M.M_STRIP_REVERSED
+            try:
+                in_step = not int(f.get("offset") or 0)
+            except (TypeError, ValueError):
+                in_step = False
+            can = getattr(self._manager, "can_turn_strips", None)
+            turnable = bool(in_step and callable(can) and can())
+            if turnable:
+                message = M.M_STRIP_REVERSED_TURN
         elif f.get("whole") and int(f.get("shift") or 1) >= 2:
             # The engine's net also finds a strip two patches out (4.3.11)
             message = (M.M_STRIP_WHOLE_SLIPPED_TWO_LATE if late
@@ -10098,14 +10135,18 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             shift_line=M.slip_shift_line(f.get("offset")),
             middle_line=M.slip_middle_line(f.get("offset")),
             remeasure=tr("Re-measure this strip"), keep=tr("Keep it"),
+            turn=tr("Turn this strip round"),
             stop=tr("Stop"))), dlg)
-        choice = self._misaligned_strip_buttons(dlg, layout, msg)
+        choice = self._misaligned_strip_buttons(dlg, layout, msg,
+                                                turn=turnable)
         self._exec_measurement_window(dlg)
         self._after_misaligned_strip_choice(choice[0], strip)
 
-    def _misaligned_strip_buttons(self, dlg, layout, msg) -> list:
+    def _misaligned_strip_buttons(self, dlg, layout, msg,
+                                  turn: bool = False) -> list:
         """The message and buttons shared by both misaligned-strip questions.
-        Returns the one-item list the pressed button's answer lands in."""
+        Returns the one-item list the pressed button's answer lands in.
+        *turn* adds "Turn this strip round" (R2, M-STRIP-REVERSED-TURN)."""
         from PyQt6.QtWidgets import QHBoxLayout, QPushButton
         msg.setWordWrap(True)
         layout.addWidget(msg)
@@ -10124,10 +10165,18 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         remeasure_btn.clicked.connect(lambda: _pick("remeasure"))
         keep_btn.clicked.connect(lambda: _pick("keep"))
         stop_btn.clicked.connect(lambda: _pick("stop"))
+        turn_btn = None
+        if turn:
+            turn_btn = QPushButton(tr("Turn this strip round"), dlg)
+            turn_btn.setObjectName("turn_strip_round")
+            turn_btn.setFixedHeight(32)
+            turn_btn.clicked.connect(lambda: _pick("turn"))
 
         row = QHBoxLayout()
         row.setSpacing(8)
         row.addWidget(remeasure_btn)
+        if turn_btn is not None:
+            row.addWidget(turn_btn)
         row.addWidget(keep_btn)
         row.addStretch()
         row.addWidget(stop_btn)
@@ -10140,6 +10189,15 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         """Re-measure jumps back to *strip*, Stop stops, Keep it keeps."""
         if choice == "remeasure":
             self._manager.goto_strip(strip)     # re-read this strip next
+        elif choice == "turn":
+            # R2: only this click turns the readings; the engine answers
+            # strip_turned (_on_strip_turned), which logs it and judges again.
+            turn = getattr(self._manager, "turn_strip", None)
+            if not (callable(turn) and turn(strip)):
+                log.warning("strip %s could not be turned round; it is kept "
+                            "as it was filed", strip)
+                kept = vars(self).setdefault("_slip_kept_strips", set())
+                kept.add(str(strip))
         elif choice == "stop":
             self._on_stop()
         else:

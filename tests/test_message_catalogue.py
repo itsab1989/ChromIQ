@@ -120,6 +120,9 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 # M-PATCH-SIMILAR joined on 2026-10-15 (4.3.5 beta 8): Knut confirmed the
 # similar-patch rule for both tests (#182 6196599132); its card texts are ours.
 AWAITING_APPROVAL: "set[str]" = {
+    # 4.3.39 (R2, jctay 150222 / 150236): the back-to-front question with
+    # "Turn this strip round", and the log line once it is done.
+    "M-STRIP-REVERSED-TURN", "M-STRIP-TURNED",
     # 4.3.36, 2026-11-14: the technical line under a communication failure
     # (which USB step failed), for a report.
     "M-STRIP-FAILED-COMS-DETAIL",

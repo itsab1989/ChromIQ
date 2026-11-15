@@ -603,6 +603,11 @@ class MeasureManager(QObject):
     #: expected colours), so it is judged as a reading of B. See
     #: answer_read_twice.
     strip_filed_as             = pyqtSignal(dict)
+    #: R2 (4.3.39): "Turn this strip round", carried out by the engine
+    #: ({"cmd":"turn"}): the strip's readings in the reverse order, in the
+    #: shape of a strip_read of that strip (its locations, its expected
+    #: colours), judged again as such. See turn_strip.
+    strip_turned               = pyqtSignal(dict)
     #: Basti, 2026-10-21: "I read strip B" was meant to give the strip the
     #: reading came off its earlier reading back (earlier_reading_comes_back),
     #: and it did not (the engine refused the move, had no earlier reading,
@@ -691,6 +696,11 @@ class MeasureManager(QObject):
         #: file_as answers waiting for the engine's strip menu, as
         #: [(strip, as)] (see answer_read_twice).
         self._held_file_as: "list[tuple[str, str]]" = []
+        #: R2 (4.3.39): whether the engine understands {"cmd":"turn"} (its
+        #: session_start says "turn"), and the turns waiting for its strip
+        #: menu, oldest first.
+        self._engine_turns: bool = False
+        self._held_turns: "list[str]" = []
         #: Basti, 2026-10-21 (Knut's run 1 of 2026-10-20): did the strip have
         #: a VALID reading before its latest swipe? {strip: bool}, learnt at
         #: each strip_read before the read map changes. "I read strip B" then
@@ -928,6 +938,8 @@ class MeasureManager(QObject):
         # file_as never says so, and must not inherit the last one's word).
         self._engine_files_as = False
         self._held_file_as = []
+        self._engine_turns = False
+        self._held_turns = []
         self._had_valid_reading = {}
         self._engine_keeps_earlier = False
         self._earlier_back = set()
@@ -2486,6 +2498,54 @@ class MeasureManager(QObject):
                  "-> %s sent", strip, like)
         self.send_command(self._file_as_command(strip, like))
 
+    # ------------------------------------------------------------------
+    # "Turn this strip round" (R2, 4.3.39; jctay, forum 150222 / 150236)
+    # ------------------------------------------------------------------
+
+    def can_turn_strips(self) -> bool:
+        """Can the engine of this session turn a strip's readings round
+        ({"cmd":"turn"}, session_start "turn")? An older engine, stock
+        chartread and patch-by-patch reading cannot."""
+        return bool(self._engine_turns and self._engine_active
+                    and not self._spot_mode)
+
+    def turn_strip(self, strip: str) -> bool:
+        """The person's answer "Turn this strip round" to M-STRIP-REVERSED:
+        ask the engine to reverse the order of the readings it filed under
+        *strip* and save them so. Sent at once when the engine is at its strip
+        menu, else held for the next one (as "I read strip B" is). Only ever
+        called from that button; returns False when it cannot be done."""
+        strip = str(strip or "").strip()
+        if not strip or not self.can_turn_strips():
+            return False
+        if self._an_ending_is_under_way():
+            log.warning("turn: the measurement is ending; strip %s stays "
+                        "as it was filed", strip)
+            return False
+        log.info("turn: the person asked to turn strip %s's readings round",
+                 strip)
+        if self._file_as_must_wait():
+            self._held_turns.append(strip)
+            log.info("turn: held until the engine is at its strip menu")
+            return True
+        self.send_command({"cmd": "turn", "strip": strip})
+        return True
+
+    def _flush_held_turn(self) -> None:
+        """Send the oldest held turn now that the engine is at its strip
+        menu; one per menu, as the engine answers it with a strip_ready."""
+        if not self._held_turns or self._file_as_must_wait():
+            return
+        if self._an_ending_is_under_way():
+            for strip in self._held_turns:
+                log.warning("turn: the measurement is ending; strip %s was "
+                            "never turned round", strip)
+            self._held_turns = []
+            return
+        strip = self._held_turns.pop(0)
+        log.info("turn: the engine is at its strip menu; turn %s sent", strip)
+        self.send_command({"cmd": "turn", "strip": strip})
+
     def _file_as_command(self, strip: str, like: str) -> dict:
         """The engine's file_as for "I read strip *like*", asking it to give
         *strip* its earlier reading back when that one was valid (Basti,
@@ -3805,6 +3865,7 @@ class MeasureManager(QObject):
             # #182 6102031563); an engine without the command says nothing.
             self._engine_files_as = bool(ev.get("file_as"))
             self._engine_keeps_earlier = bool(ev.get("file_as_keeps_earlier"))
+            self._engine_turns = bool(ev.get("turn"))
             self._engine_holds = bool(ev.get("hold_after"))
             self._engine_holds_here = bool(ev.get("hold_here"))
             self._engine_holds_here_patch = bool(ev.get("hold_here_patch"))
@@ -3881,6 +3942,9 @@ class MeasureManager(QObject):
             # (the engine keeps one; the next strip_ready sends it).
             if self._commands_sent == _sent_before:
                 self._flush_held_file_as()
+            # "Turn this strip round" (R2) likewise.
+            if self._commands_sent == _sent_before:
+                self._flush_held_turn()
             # The pause between pages: ask the engine to hold after THIS
             # strip, unless something sent above is about to move it.
             if self._commands_sent == _sent_before:
@@ -4143,6 +4207,34 @@ class MeasureManager(QObject):
             self.strip_filed_as.emit(out)
             if _asked and _back is None:
                 self.earlier_reading_lost.emit(_fr)
+
+        elif kind == "strip_turned":
+            # R2: the engine turned the strip's readings round and saved
+            # them. Learnt as that strip's reading, then judged again.
+            _st = str(ev.get("strip", "")).strip()
+            _patches = ev.get("patches")
+            try:
+                from workflow.strip_read_twice import xyz_to_lab
+                vals = {}
+                for p in (_patches if isinstance(_patches, list) else []):
+                    loc, xyz = str(p.get("loc") or "").strip(), p.get("xyz")
+                    if loc and isinstance(xyz, (list, tuple)) and len(xyz) == 3:
+                        vals[loc] = xyz_to_lab(xyz)
+                labs = self._by_strip(vals).get(_st)
+                if labs:
+                    self._measured_strips[_st] = labs
+            except Exception:      # noqa: BLE001 — never block a measurement
+                log.warning("could not learn strip %s's turned reading", _st,
+                            exc_info=True)
+            log.info("strip %s's readings were turned round and saved so, "
+                     "as the person asked", _st)
+            self.strip_turned.emit({"event": "strip_read", "strip": _st,
+                                    "turned": True,
+                                    "patches": list(_patches or [])})
+
+        elif kind == "turn_refused":
+            log.warning("the engine could not turn strip %s round (nothing "
+                        "read there); it stays as it was", ev.get("strip"))
 
         elif kind == "file_as_refused":
             # The engine could not move the reading (an unknown strip, or

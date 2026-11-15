@@ -9995,6 +9995,62 @@ M_STRIP_REVERSED = _m(
     + _slip_tail(),
     approved=False)
 
+#: R2 (4.3.39; jctay, forum 150222 / 150236): the same question with a fourth
+#: answer, "Turn this strip round", shown instead of M-STRIP-REVERSED when the
+#: strip is filed back to front IN STEP (no slip: turning it round puts every
+#: reading on its own patch) and the engine can turn it ({"cmd":"turn"}). On
+#: the tester's chart re-measuring came back back to front seven times; the
+#: helper's own fix (R1) removes that loop on his chart, the button is for
+#: the cases left. The readings are turned only on the person's click.
+M_STRIP_REVERSED_TURN = _m(
+    "M-STRIP-REVERSED-TURN",
+    "Strip {strip} was probably filed back to front",
+    "The readings of strip {strip} fit its patches far better when they are "
+    "taken the other way round, from its last patch back to its first. "
+    "{lead_line}On average, patches {first} to {last} miss their own expected "
+    "colours by {base} ΔE00. Taken the other way round, so that the reading "
+    "of the strip's first patch is compared with the expected colour of its "
+    "last patch, the reading of its second patch with the patch before the "
+    "last, and so on, they miss by only {best} ΔE00. So the readings of this "
+    "strip were probably filed in the wrong order: patches {first} to {last} "
+    "hold the readings of other patches of the strip, not their own."
+    "{middle_line}\n\n"
+    "A strip can be read in either direction, and the reader decides from "
+    "its colours which way round to file it. That decision can go wrong, for "
+    "example when this strip, read the other way round, looks much like "
+    "another strip of the chart. And with “Bidirectional disabled (-B)” the "
+    "reader always files a strip as if it had been read from its first patch "
+    "to its last, so a strip read from the other end is filed back to front "
+    "without a warning. Whatever the cause, what ChromIQ found is the same: "
+    "this strip matches the chart far better turned round.\n\n"
+    "Readings filed under the wrong patch would make the profile, or a "
+    "verification report, wrong for those colours, so this strip should not "
+    "stay as it is. Nothing else is affected: your other strips and "
+    "everything read so far are saved.\n\n"
+    "{remeasure}: go back to strip {strip} and read it again (recommended). "
+    "Put the instrument down on the white paper before the first patch, and "
+    "if it gives a short beep when it is ready, wait for it. Then move in one "
+    "smooth movement at an even speed until it is on the white paper after "
+    "the last patch.\n"
+    "{turn}: keep these readings, but turn them round, so that the reading "
+    "taken last goes to the first patch, and save them in that order. Nothing "
+    "is read again, and ChromIQ then checks the strip as if it had been read "
+    "that way round. Choose this when the same question comes back after you "
+    "have read the strip again, or when you are sure you read the whole strip "
+    "in one smooth movement and only the order is wrong.\n"
+    "{keep}: keep this reading as it is.\n"
+    "{stop}: stop measuring for now.",
+    approved=False)
+
+#: R2: the Measure log's line once the engine has turned a strip round.
+M_STRIP_TURNED = _m(
+    "M-STRIP-TURNED",
+    "Strip {strip} turned round",
+    "Strip {strip}: as you asked, its readings were turned round and saved in "
+    "that order. The reading taken last now belongs to the strip's first "
+    "patch. Nothing was read again.",
+    approved=False)
+
 #: The same finding in the Measurement Report, beside its Worst patches table
 #: and under its Report Results, one paragraph per strip
 #: (`report["shifted_strips"]`). {first}/{last}, {base}/{best} and
@@ -10401,6 +10457,8 @@ M_STRIP_RULER_NOT_COVERED = _m(
 
 
 CATALOGUE = {m.id: m for m in (
+    M_STRIP_REVERSED_TURN,
+    M_STRIP_TURNED,
     M_STRIP_RULER_NOT_COVERED,
     M_I1PRO2_LIGHTS_LEFT_ON,
     M_STRIP_FAILED_COMS_DETAIL,

@@ -214,8 +214,9 @@ def test_eight_files_skip_wholesale_without_it():
     # 24 in part with Refine / resume at another spectral resolution (4.3.37):
     # the real helper stops when it writes a resumed file of another type.
     # 25 in part with R1 (4.3.39): a strip filed under its own row takes that
-    # row's direction, on the replay instrument.
-    assert len(whole) == 10 and len(partial) == 25, (
+    # row's direction, on the replay instrument. 26 with R2: the engine turns
+    # a strip round on {"cmd":"turn"}.
+    assert len(whole) == 10 and len(partial) == 26, (
         "the number of files gated on the chart-reading helper has changed "
         f"({len(whole)} wholesale, {len(partial)} in part) -> update the "
         f"header in tests/conftest.py. wholesale={whole} partial={partial}")
