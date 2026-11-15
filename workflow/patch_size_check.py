@@ -42,6 +42,18 @@ ARGYLL_MIN_PATCH_LENGTH_MM = {"i1": 10.0, "p3": 16.0, "CM": 14.0}
 
 _MM_PER_INCH = 25.4
 
+#: CALM ABOVE 8.0 mm WHEN CHROMIQ CHOSE THE SIZE (combined review of 4.3.39,
+#: MAJOR-2). ChromIQ's own automatic layouts of the i1Pro family come out at
+#: 8.1 to 9.5 mm (small papers at any count, A4 / Letter at about 420 patches
+#: or more; the default Guided A4 chart: 484 patches, 9.5 mm), and no misread
+#: has been reported on one. The real misreads we have are at 8.0 mm (jctay,
+#: "Reading is inconsistent" next to a near-black patch, forum 150236) and
+#: 7.1 mm ("Too many patches", 2026-10-21). So an automatic size longer than
+#: 8.0 mm gets a calm [INFO] line; 8.0 mm or less, and any size the person
+#: set (a patch size, an area-first minimum, a patch-first chart in Manual,
+#: the ColorMunki's Extra-high density), keep the warning.
+CALM_ABOVE_MM = 8.0
+
 
 def min_patch_length_mm(instrument: "str | None") -> "float | None":
     """printtarg's minimum for the layout engine's instrument key, or None
@@ -62,11 +74,14 @@ class ShortPatches:
     patch_mm: float          # the shortest patch length of the chart, mm
     #: ChromIQ's own ColorMunki "Extra-high density" (recipe density 3)
     extra_high: bool = False
+    #: the patch length is ChromIQ's own automatic choice and longer than
+    #: CALM_ABOVE_MM: said as a calm [INFO] line, nothing red
+    calm: bool = False
 
 
 def judge(instrument: "str | None", patch_lengths_mm,
-          dpi: float = 300.0, extra_high: bool = False
-          ) -> "ShortPatches | None":
+          dpi: float = 300.0, extra_high: bool = False,
+          auto_sized: bool = False) -> "ShortPatches | None":
     """A :class:`ShortPatches` when the shortest of *patch_lengths_mm* is
     below the minimum for *instrument* by more than one pixel at *dpi* (a
     patch is drawn on a pixel grid: at 300 dpi a 10 mm patch is 118 px,
@@ -78,8 +93,11 @@ def judge(instrument: "str | None", patch_lengths_mm,
     shortest = min(lengths)
     if shortest >= lo - _MM_PER_INCH / float(dpi or 300.0) - 1e-6:
         return None
-    return ShortPatches(str(instrument), lo, round(shortest, 1),
-                        bool(extra_high and instrument == "CM"))
+    extra = bool(extra_high and instrument == "CM")
+    patch = round(shortest, 1)
+    return ShortPatches(str(instrument), lo, patch, extra,
+                        calm=bool(auto_sized and not extra
+                                  and patch > CALM_ABOVE_MM + 1e-9))
 
 
 def from_channels(channels_json: "str | Path | None") -> "ShortPatches | None":
@@ -101,15 +119,32 @@ def from_channels(channels_json: "str | Path | None") -> "ShortPatches | None":
         px = _MM_PER_INCH / dpi
         lengths = [float(r["h"]) * px for r in layout.get("patches") or []
                    if r.get("h")]
+        auto = is_auto_sized(layout)
     except (OSError, ValueError, KeyError, TypeError):
         return None
-    return judge(instrument, lengths, dpi, extra_high=extra)
+    return judge(instrument, lengths, dpi, extra_high=extra,
+                 auto_sized=auto)
+
+
+def is_auto_sized(layout: dict) -> bool:
+    """Whether the chart's patch size is ChromIQ's own choice: a Guided
+    chart (its record says ``margins_chosen_by_user`` false: Guided has no
+    layout controls), or a Manual area-first chart with no patch size and no
+    minimum patch size set."""
+    if layout.get("margins_chosen_by_user") is False:
+        return True
+    recipe = layout.get("recipe") or {}
+    if str(recipe.get("layout_mode") or "") != "area_first":
+        return False
+    return not any(float(recipe.get(k) or 0.0) > 0.0 for k in
+                   ("area_min_patch_mm", "patch_w_mm", "patch_h_mm"))
 
 
 def note_text(finding: ShortPatches) -> "tuple[str, str]":
     """M-CHART-PATCHES-SHORT for *finding*: (title, body)."""
     from workflow import measurement_messages as M
-    msg = (M.M_CHART_PATCHES_SHORT_EXTRA if finding.extra_high
+    msg = (M.M_CHART_PATCHES_SHORT_AUTO if finding.calm
+           else M.M_CHART_PATCHES_SHORT_EXTRA if finding.extra_high
            else M.M_CHART_PATCHES_SHORT)
     return msg.render(
         patch=_mm(finding.patch_mm), min=_mm(finding.min_mm),
@@ -117,8 +152,11 @@ def note_text(finding: ShortPatches) -> "tuple[str, str]":
 
 
 def log_line(finding: ShortPatches) -> str:
-    """M-MEASURE-PATCHES-SHORT for *finding*: the Measure log's line."""
+    """M-MEASURE-PATCHES-SHORT for *finding*: the Measure log's line (the
+    calm [INFO] line of M-CHART-PATCHES-SHORT-AUTO for a calm finding)."""
     from workflow import measurement_messages as M
+    if finding.calm:
+        return "[INFO] " + note_text(finding)[1]
     msg = (M.M_MEASURE_PATCHES_SHORT_EXTRA if finding.extra_high
            else M.M_MEASURE_PATCHES_SHORT)
     _t, body = msg.render(

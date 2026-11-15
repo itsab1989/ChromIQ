@@ -27658,12 +27658,22 @@ class TabChart(QWidget):
             if finding is None:
                 return None
             title, body = P.note_text(finding)
-            self._short_patch_panel_line = "⚠ " + P.panel_line(finding)
             said = getattr(self, "_short_patch_logged", None)
+            log_w = getattr(self, "_log", None)
+            can_log = log_w is not None and hasattr(log_w, "appendPlainText")
+            if finding.calm:
+                # ChromIQ's own automatic size, a little short (combined
+                # review of 4.3.39, MAJOR-2): one calm [INFO] line in the
+                # log, nothing red on the panel and no warning counted
+                if said != str(ti2):
+                    self._short_patch_logged = str(ti2)
+                    if can_log:
+                        log_w.appendPlainText("[INFO] " + body)
+                return None
+            self._short_patch_panel_line = "⚠ " + P.panel_line(finding)
             if said != str(ti2):
                 self._short_patch_logged = str(ti2)
-                log_w = getattr(self, "_log", None)
-                if log_w is not None and hasattr(log_w, "appendPlainText"):
+                if can_log:
                     log_w.appendPlainText(f"[{title}]\n{body}")
             return f"⚠ {title}. {body}"
         except Exception:      # noqa: BLE001 — a note never blocks a chart

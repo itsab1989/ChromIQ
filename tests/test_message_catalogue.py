@@ -123,6 +123,8 @@ AWAITING_APPROVAL: "set[str]" = {
     # 4.3.39 integration: a Measure Chart import whose aim the checks could
     # not prove says so after filing; the i1iSis row numbers without room.
     "M-IMPORT-I1IO-AIM-UNCHECKED", "M-ISIS-ROW-NUMBERS-NO-ROOM",
+    # combined review of 4.3.39, MAJOR-2: the calm short-patch line.
+    "M-CHART-PATCHES-SHORT-AUTO",
     # 4.3.39 (R2, jctay 150222 / 150236): the back-to-front question with
     # "Turn this strip round", and the log line once it is done.
     "M-STRIP-REVERSED-TURN", "M-STRIP-TURNED",

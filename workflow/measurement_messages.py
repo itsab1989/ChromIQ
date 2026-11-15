@@ -10058,6 +10058,21 @@ M_CHART_PATCHES_SHORT = _m(
     "paper.",
     approved=False)
 
+#: The calm variant (combined review of 4.3.39, MAJOR-2): the patch length
+#: is ChromIQ's own automatic choice (a Guided chart, or Manual area-first
+#: with no patch size or minimum set) and longer than 8.0 mm, as on the
+#: default Guided i1Pro chart on A4 (484 patches, 9.5 mm). An [INFO] line in
+#: the Create Chart and Measure logs, nothing red on the panel
+#: (`patch_size_check.CALM_ABOVE_MM` says why 8.0). {patch} and {min} in mm.
+M_CHART_PATCHES_SHORT_AUTO = _m(
+    "M-CHART-PATCHES-SHORT-AUTO",
+    "Patches a little shorter than ArgyllCMS recommends",
+    "The patches on this chart are {patch} mm long along the strip, a little "
+    "below the {min} mm ArgyllCMS recommends for this instrument. Most strips "
+    "read fine. If strips are refused or read wrongly, choose fewer patches "
+    "per page.",
+    approved=False)
+
 #: The same for ChromIQ's own ColorMunki "Extra-high density" mode, which
 #: lays patches out shorter than ArgyllCMS's usual 14 mm on purpose (its help
 #: says to watch this warning): no blame, what the mode is for, what helps.
@@ -11178,6 +11193,7 @@ CATALOGUE = {m.id: m for m in (
     M_CHART_ALIKE_NO_SPACER_PANEL,
     M_CHART_PATCHES_SHORT_EXTRA,
     M_CHART_PATCHES_SHORT_PANEL,
+    M_CHART_PATCHES_SHORT_AUTO,
     M_MEASURE_PATCHES_SHORT_EXTRA,
     M_RESUME_CONDITION_DEFAULT,
     M_CHART_NEIGHBOURS_MOVED,
