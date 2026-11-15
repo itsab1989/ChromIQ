@@ -95,3 +95,15 @@ def test_the_cr30_gets_none_of_the_three(tmp_path, spacers):
     assert TabChart._alike_neighbours_note(fake) is None
     assert TabChart._short_patch_note(fake) is None
     assert lines == []
+
+
+def test_the_spectroscan_reads_by_position_and_gets_no_spacer():
+    """The owner: "spectroscan also needs no spacers i think". Confirmed: the
+    layout engine's SpectroScan geometry, read from printtarg.c, has no patch
+    spacer and no strip spacer (pspa = tspa = 0), because its XY table moves
+    the head to each patch from the chart's reference points; it is on the
+    "reads by position" side, so none of the three notes applies."""
+    g = I.build("SS")
+    assert g.pspa == 0.0 and g.tspa == 0.0
+    assert I.finds_patches_by_edges("SS") is False
+    assert "SS" in I.READ_PATCH_BY_PATCH
