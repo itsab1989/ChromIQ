@@ -136,3 +136,23 @@ def test_the_fwa_gate_asks_the_file_the_readings_come_from(tmp_path):
     _params, refusal = without_refused_fwa(p)
     # the sibling was asked (its condition is M1), not the main (M0)
     assert refusal is not None and refusal.condition == "M1"
+
+
+def test_a_duplicated_run_keeps_its_pair_paired(tmp_path):
+    from core.file_manager import Project
+    proj = Project.create(tmp_path / "Demo", "Demo")
+    run = proj.current_run()
+    main = _write(run.measurement_ti3)
+    m1 = _sibling(main, "M1")
+    new = proj.duplicate_run(run)
+    assert (new.condition_dir / m1.name).is_file()
+    assert C.condition_file(new.measurement_ti3, "M1") == new.condition_dir / m1.name
+
+
+def test_a_run_without_the_folder_duplicates_as_before(tmp_path):
+    from core.file_manager import Project
+    proj = Project.create(tmp_path / "Demo", "Demo")
+    run = proj.current_run()
+    _write(run.measurement_ti3)
+    new = proj.duplicate_run(run)
+    assert not new.condition_dir.exists()
