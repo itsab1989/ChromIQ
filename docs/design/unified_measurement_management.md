@@ -8598,7 +8598,7 @@ alone.
 >
 > This chart has no spacers between its patches, and some neighbouring patches along a strip have the same or almost the same colour (for example two whites or two blacks next to each other). Nothing marks the edge between such patches, so the instrument cannot tell where one ends and the next begins, and the strip may be refused (for example with “Not enough patches”) or its readings filed under the wrong patches. Neighbouring pairs that cannot be told apart: {n}.
 >
-> What helps: switch the spacers on again (a spacer between two patches always differs from both), or use a randomised patch order, which puts such patches next to each other far less often. You can still print and measure this chart as it is.
+> What helps: switch the spacers on again (ChromIQ chooses each spacer to stand out from both patches beside it), or use a randomised patch order, which puts such patches next to each other far less often. You can still print and measure this chart as it is.
 
 ### M-CHART-ALIKE-NO-SPACER-PANEL · PROPOSED · its line on the Measured from Preview surface
 
