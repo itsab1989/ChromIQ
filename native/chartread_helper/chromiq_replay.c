@@ -65,16 +65,23 @@ typedef struct {
 	char   label[8];
 	int    n;
 	double xyz[CQ_MAX_STEPS][3];
+	/* "X-Rite i1Pro 3: keep M0, M1 and M2" (Beta, 2026-11-15): the same
+	 * patches under the conditions a COND block gives (0 M0, 1 M1, 2 M2) */
+	int    cn[3];
+	double cxyz[3][CQ_MAX_STEPS][3];
 } cq_strip;
 
 static cq_strip cq_strips[CQ_MAX_STRIPS];
 static int      cq_nstrips = 0;
 static int      cq_stipa = 0;
 
+static int cq_replay_conds = 0;	/* the script carries COND blocks */
+
 int cq_replay_load(const char *path) {
 	FILE *fp;
 	char line[256];
 	cq_strip *cur = NULL;
+	int cond = -1;			/* inside a COND block of the current strip */
 
 	if ((fp = fopen(path, "r")) == NULL) {
 		a1logw(g_log, "chromiq replay: can't open '%s'\n", path);
@@ -95,6 +102,26 @@ int cq_replay_load(const char *path) {
 			cur = &cq_strips[cq_nstrips++];
 			memset(cur, 0, sizeof(*cur));
 			strncpy(cur->label, lab, sizeof(cur->label) - 1);
+			cond = -1;
+			continue;
+		}
+		{
+			char cn[8];
+			if (cur != NULL && sscanf(line, "COND %7s", cn) == 1) {
+				cond = strcmp(cn, "M0") == 0 ? 0 : strcmp(cn, "M1") == 0 ? 1
+				     : strcmp(cn, "M2") == 0 ? 2 : -1;
+				if (cond >= 0)
+					cq_replay_conds = 1;
+				continue;
+			}
+		}
+		if (cur != NULL && cond >= 0 && sscanf(line, "%lf %lf %lf", &x, &y, &z) == 3) {
+			if (cur->cn[cond] < CQ_MAX_STEPS) {
+				cur->cxyz[cond][cur->cn[cond]][0] = x;
+				cur->cxyz[cond][cur->cn[cond]][1] = y;
+				cur->cxyz[cond][cur->cn[cond]][2] = z;
+				cur->cn[cond]++;
+			}
 			continue;
 		}
 		if (cur != NULL && sscanf(line, "%lf %lf %lf", &x, &y, &z) == 3
@@ -622,6 +649,49 @@ static void cq_del(inst *p) {
 /* The heart: block until the ui-callback reports a key/trigger, or the
  * command thread posts a swipe; then either return the user event exactly
  * like a real driver, or fill vals[] from the replay script. */
+/* ---------------- the conditions record (Beta, 2026-11-15) ----------------
+ * As the i1Pro 3 driver's (i1pro3_cq_cond_take): for the swipe just made,
+ * the same patches under the other conditions, from the script's COND
+ * blocks, in the order the swipe gave them (a reversed swipe reverses them
+ * too). Cleared at every reading, so a misread can never hand on an earlier
+ * swipe's values. */
+static ipatch cq_rc_vals[3][CQ_MAX_STEPS];
+static int cq_rc_n = 0;
+static int cq_rc_have[3] = { 0, 0, 0 };
+
+int cq_replay_cond_ready(void) {
+	const char *ri = getenv("CHROMIQ_REPLAY_INSTRUMENT");
+	return cq_replay_conds && ri != NULL && strcmp(ri, "i1pro3") == 0;
+}
+
+static void cq_replay_cond_note(cq_strip *st, int npatch, int reversed) {
+	int c, i;
+	cq_rc_n = 0;
+	for (c = 0; c < 3; c++) {
+		cq_rc_have[c] = st != NULL && st->cn[c] >= npatch && npatch <= CQ_MAX_STEPS;
+		for (i = 0; cq_rc_have[c] && i < npatch; i++) {
+			int six = reversed ? npatch - 1 - i : i;
+			memset(&cq_rc_vals[c][i], 0, sizeof(ipatch));
+			cq_rc_vals[c][i].XYZ[0] = st->cxyz[c][six][0];
+			cq_rc_vals[c][i].XYZ[1] = st->cxyz[c][six][1];
+			cq_rc_vals[c][i].XYZ[2] = st->cxyz[c][six][2];
+			cq_rc_vals[c][i].XYZ_v = 1;
+			cq_rc_vals[c][i].mtype = inst_mrt_reflective;
+			cq_rc_vals[c][i].mcond = c == 1 ? inst_mrc_D50 : c == 2 ? inst_mrc_uvcut
+			                                                : inst_mrc_none;
+		}
+	}
+	cq_rc_n = npatch;
+}
+
+int cq_replay_cond_take(int cond, void *outp, int n) {
+	ipatch *out = (ipatch *)outp;
+	if (cond < 0 || cond > 2 || n != cq_rc_n || n <= 0 || !cq_rc_have[cond])
+		return 0;
+	memcpy(out, cq_rc_vals[cond], sizeof(ipatch) * (size_t)n);
+	return 1;
+}
+
 static inst_code cq_read_strip(inst *p, char *name, int npatch, char *pname,
 	int sguide, double pwid, double gwid, double twid, ipatch *vals) {
 	cq_inst *cq = (cq_inst *)p;
@@ -630,6 +700,7 @@ static inst_code cq_read_strip(inst *p, char *name, int npatch, char *pname,
 
 	(void)name; (void)sguide; (void)pwid; (void)gwid; (void)twid;
 
+	cq_rc_n = 0;				/* the conditions record: this reading's only */
 	cq_replay_waiting = 1;		/* B1: a press now is the trigger */
 	for (;;) {
 		/* Give the registered uicallback a chance — console keys and JSON
@@ -722,6 +793,7 @@ static inst_code cq_read_strip(inst *p, char *name, int npatch, char *pname,
 				vals[i].mtype = inst_mrt_reflective;
 				vals[i].sp.spec_n = 0;
 			}
+			cq_replay_cond_note(st, npatch, cq_swipe_reversed);
 			return inst_ok;
 		}
 
@@ -753,6 +825,7 @@ static inst_code cq_read_sample(inst *p, char *name, ipatch *val,
 	 * wait does (munki_imp.c:2101-2133). Modelled so a test can press the
 	 * button patch by patch ({"cmd":"switch"}) as a person would (agent 33,
 	 * 2026-10-23); before, a press here was only reported. */
+	cq_rc_n = 0;		/* no conditions record for a patch in a replay */
 	cq_replay_waiting = 1;
 	for (;;) {
 		int pressed = 0;

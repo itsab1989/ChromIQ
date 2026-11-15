@@ -2316,6 +2316,28 @@ class Run:
         log.info("Promoted measurement to %s", dst.name)
         return dst
 
+    # ---- the other measurement conditions (Preferences > Beta, 2026-11-15)
+    # "X-Rite i1Pro 3: keep M0, M1 and M2 from every scan": the chart-reading
+    # engine writes the two conditions -F did not choose into conditions/,
+    # NAMED BY the hash of the main measurement's readings, so they follow
+    # those readings wherever they go (workflow/i1pro3_conditions.py).
+    @property
+    def condition_dir(self) -> Path:
+        from workflow.i1pro3_conditions import CONDITION_DIRNAME
+        return self.dir / CONDITION_DIRNAME
+
+    def condition_ti3(self, cond: str, measurement: "Path | None" = None
+                      ) -> "Path | None":
+        """The file of *measurement*'s readings (default: this run's) under
+        condition *cond* ("M0"/"M1"/"M2"): ``conditions/<hash>-<cond>.ti3``,
+        or None when the measurement has no readings to name it by. Whether
+        it exists, and is in step, is for the caller to ask."""
+        from workflow.i1pro3_conditions import data_block_hash
+        key = data_block_hash(measurement or self.measurement_ti3)
+        if key is None:
+            return None
+        return self.condition_dir / f"{key}-{str(cond).upper()}.ti3"
+
     # ---- the engine's partial-measurement backup
     @property
     def partial_ti3(self) -> Path:

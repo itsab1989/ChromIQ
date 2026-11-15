@@ -467,6 +467,8 @@ static void save_ti3(
  * .ti3 extension). chartread's own -r resume machinery consumes exactly
  * this file, so an interrupted session can always continue from the last
  * accepted strip. */
+static void cq_cond_write(const char *mainfile);	/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
+
 static void cq_write_ti3_atomic(void) {
 	char tmpname[MAXNAMEL+20], realname[MAXNAMEL+20];
 	int i, nrpat = 0;
@@ -481,6 +483,10 @@ static void cq_write_ti3_atomic(void) {
 	save_ti3(*cq_sctx.atype, cq_sctx.displ, cq_sctx.trans, *cq_sctx.ucalstd,
 	         cq_sctx.fe, cq_sctx.dolab, cq_sctx.npat, cq_sctx.nchan,
 	         cq_sctx.cols, cq_sctx.wpat, tmpname, cq_sctx.ocg);
+	/* CHROMIQ_EXT: M0/M1/M2 (Beta): the two condition files, written from
+	 * the main file before it is renamed into place. Nothing at all
+	 * without --condition-dir. */
+	cq_cond_write(tmpname);
 
 	{
 		int rc = 0;
@@ -660,6 +666,686 @@ static int cq_strip_row(alphix *paix, int totpa, const char *label) {
 	return -1;
 }
 
+/* the i1Pro 3 driver's entries (native/instlib/i1pro3_imp.c) */
+int i1pro3_cq_cond_options(void *pp, int on);
+void i1pro3_cq_cond_arm(void *pp, int on);
+int i1pro3_cq_cond_take(void *pp, int cond, ipatch *out, int n);
+
+/* CHROMIQ_EXT: "X-Rite i1Pro 3: keep M0, M1 and M2 from every scan"
+ * (Preferences > Beta, 2026-11-15). Asked for with --condition-dir <dir>
+ * (Run.condition_dir), and then
+ * used only for a real i1Pro 3, as the driver itself identifies it, reading
+ * reflective strips or patches in JSON mode; in a replay only when
+ * CHROMIQ_REPLAY_INSTRUMENT is i1pro3 and the script carries COND blocks.
+ *
+ * The driver works out all three conditions from the ONE pass it reads
+ * (i1pro3_cq_cond_*, native/instlib/i1pro3_imp.c; nothing new is sent). The
+ * main file <stem>.ti3 is written exactly as without this. Beside every
+ * patch of the chart the other two results are kept HERE, in cq_cx, and they
+ * travel with the patch at every place a reading is filed, moved, turned,
+ * kept for "I read strip B" or put back (the same places that copy XYZ and
+ * sp). They are written in the same autosave as the main file, each to its
+ * own file NAMED BY the main file's data block hash (cq_cond_hash:
+ * <dir>/<hash>-M1.ti3), with MEASUREMENT_CONDITION and CHROMIQ_CONDITION_OF.
+ * So whatever brings the main file's bytes back (a Discard, a read put back,
+ * a restore from old/) brings its pair back, and a changed main file has
+ * none. Written before the main file is renamed into place.
+ *
+ * Anything that would put them out of step (a reading filed without its
+ * extra results, a resume onto siblings that are missing or belong to other
+ * readings, a write that fails) ends them for the session with ONE
+ * {"event":"conditions","active":false,"why":...}; from then on no sibling is
+ * written, and the ones on disk stop matching at the next main write. */
+#define CQ_CX_MAXB 128
+typedef struct {
+	char v;						/* holds a reading */
+	double XYZ[3];
+	int spec_n;
+	double wl_short, wl_long, norm;
+	double spec[CQ_CX_MAXB];
+} cq_cx_val;
+typedef cq_cx_val cq_cx3[3];	/* [M0, M1, M2]; the main file's slot unused */
+
+static const char *cq_cond_dir = NULL;	/* --condition-dir */
+static int cq_cond_req = 0;		/* --condition-dir given */
+static int cq_cond_active = 0;	/* in use for this session */
+static int cq_cond_main = -1;	/* the slot the main file holds */
+static int cq_cond_replay = 0;
+static inst *cq_cond_it = NULL;
+static chcol *cq_cx_base = NULL;
+static int cq_cx_npat = 0;
+static cq_cx3 *cq_cx = NULL;		/* [npat] */
+static cq_cx3 *cq_vx = NULL;		/* [cq_vx_cap] the reading just taken */
+static int cq_vx_cap = 0, cq_vx_n = 0, cq_vx_valid = 0;
+static cq_cx3 *cq_prev_cx = NULL;	/* beside cq_prev ("I read strip B") */
+static const char *cq_cond_name[3] = { "M0", "M1", "M2" };
+
+static cq_cx3 *cq_cx_of(chcol *c) {
+	long i;
+	if (!cq_cond_active || cq_cx == NULL || c == NULL)
+		return NULL;
+	i = (long)(c - cq_cx_base);
+	return (i >= 0 && i < cq_cx_npat) ? &cq_cx[i] : NULL;
+}
+
+static void cq_cond_lose(const char *why) {
+	if (!cq_cond_active)
+		return;
+	cq_cond_active = 0;
+	if (cq_cond_it != NULL && !cq_cond_replay && cq_cond_it->dtype == instI1Pro3)
+		i1pro3_cq_cond_arm(cq_cond_it, 0);
+	cq_emit_raw("{\"event\":\"conditions\",\"active\":false,\"why\":\"%s\"}", why);
+}
+
+/* Patch values: copy, clear, swap (beside the same operation on XYZ / sp). */
+static void cq_cx_copy(chcol *d, chcol *s) {
+	cq_cx3 *a = cq_cx_of(d), *b = cq_cx_of(s);
+	if (a != NULL && b != NULL)
+		memcpy(*a, *b, sizeof(cq_cx3));
+}
+static void cq_cx_clear(chcol *d) {
+	cq_cx3 *a = cq_cx_of(d);
+	if (a != NULL)
+		memset(*a, 0, sizeof(cq_cx3));
+}
+static void cq_cx_swap(chcol *x, chcol *y) {
+	cq_cx3 *a = cq_cx_of(x), *b = cq_cx_of(y), t;
+	if (a == NULL || b == NULL)
+		return;
+	memcpy(t, *a, sizeof(cq_cx3));
+	memcpy(*a, *b, sizeof(cq_cx3));
+	memcpy(*b, t, sizeof(cq_cx3));
+}
+static void cq_cx_save(cq_cx3 *dst, chcol *s) {
+	cq_cx3 *a = cq_cx_of(s);
+	if (dst != NULL && a != NULL)
+		memcpy(*dst, *a, sizeof(cq_cx3));
+}
+static void cq_cx_load(chcol *d, cq_cx3 *src) {
+	cq_cx3 *a = cq_cx_of(d);
+	if (src != NULL && a != NULL)
+		memcpy(*a, *src, sizeof(cq_cx3));
+}
+
+static int cq_cx_from_ipatch(cq_cx_val *d, ipatch *v) {
+	int j;
+	memset(d, 0, sizeof(*d));
+	if (v->XYZ_v == 0 || v->sp.spec_n > CQ_CX_MAXB)
+		return 0;
+	for (j = 0; j < 3; j++)
+		d->XYZ[j] = v->XYZ[j];
+	d->spec_n = v->sp.spec_n;
+	d->wl_short = v->sp.spec_wl_short;
+	d->wl_long = v->sp.spec_wl_long;
+	d->norm = v->sp.norm;
+	for (j = 0; j < v->sp.spec_n; j++)
+		d->spec[j] = v->sp.spec[j];
+	d->v = 1;
+	return 1;
+}
+
+/* The driver's record of the reading read_strip / read_sample just made
+ * (n values), or nothing when it did not end with a reading. */
+static void cq_cond_after_read(int rv, int n) {
+	ipatch *tmp;
+	int c, i, ok = 1;
+	if (!cq_cond_active)
+		return;
+	cq_vx_valid = 0;
+	cq_vx_n = 0;
+	if ((rv != inst_ok && (rv & inst_mask) != inst_user_trig) || n <= 0)
+		return;
+	if (n > cq_vx_cap) {
+		free(cq_vx);
+		if ((cq_vx = (cq_cx3 *)calloc((size_t)n, sizeof(cq_cx3))) == NULL) {
+			cq_vx_cap = 0;
+			cq_cond_lose("memory");
+			return;
+		}
+		cq_vx_cap = n;
+	}
+	if ((tmp = (ipatch *)calloc((size_t)n, sizeof(ipatch))) == NULL) {
+		cq_cond_lose("memory");
+		return;
+	}
+	memset(cq_vx, 0, sizeof(cq_cx3) * (size_t)n);
+	for (c = 0; c < 3 && ok; c++) {
+		if (c == cq_cond_main)
+			continue;
+		ok = cq_cond_replay ? cq_replay_cond_take(c, tmp, n)
+		                    : i1pro3_cq_cond_take(cq_cond_it, c, tmp, n);
+		for (i = 0; ok && i < n; i++)
+			ok = cq_cx_from_ipatch(&cq_vx[i][c], &tmp[i]);
+	}
+	free(tmp);
+	if (ok) {
+		cq_vx_n = n;
+		cq_vx_valid = 1;
+	}
+}
+
+/* A reading is filed: patch *d* gets reading *ix* of the last read. */
+static void cq_cond_file(chcol *d, int ix) {
+	cq_cx3 *a;
+	int c;
+	if (!cq_cond_active)
+		return;
+	if (!cq_vx_valid || ix < 0 || ix >= cq_vx_n || (a = cq_cx_of(d)) == NULL) {
+		cq_cond_lose("record");
+		return;
+	}
+	for (c = 0; c < 3; c++)
+		if (c != cq_cond_main)
+			(*a)[c] = cq_vx[ix][c];
+}
+
+/* Around one read_strip / read_sample. */
+static void cq_cond_arm(int on) {
+	if (!cq_cond_active || cq_cond_replay || cq_cond_it == NULL)
+		return;
+	i1pro3_cq_cond_arm(cq_cond_it, on);
+}
+
+/* CRC-32 (IEEE, as zlib) over the data block, '\r' left out: the same as
+ * workflow/i1pro3_conditions.py::data_block_hash. Returns 0 on success. */
+static unsigned long cq_crc_tab[256];
+static void cq_crc_init(void) {
+	unsigned long c;
+	int n, k;
+	if (cq_crc_tab[1] != 0)
+		return;
+	for (n = 0; n < 256; n++) {
+		c = (unsigned long)n;
+		for (k = 0; k < 8; k++)
+			c = (c & 1) ? 0xedb88320UL ^ (c >> 1) : c >> 1;
+		cq_crc_tab[n] = c;
+	}
+}
+
+static int cq_line_is(const char *b, long n, const char *word) {
+	/* the line b[0..n) is *word*, with blanks around it allowed */
+	long i = 0, j = n, w = (long)strlen(word);
+	while (i < j && (b[i] == ' ' || b[i] == '\t')) i++;
+	while (j > i && (b[j - 1] == ' ' || b[j - 1] == '\t' || b[j - 1] == '\r')) j--;
+	return (j - i) == w && strncmp(b + i, word, (size_t)w) == 0;
+}
+
+static char *cq_read_all(const char *path, long *len) {
+	FILE *fp;
+	char *buf;
+	long n;
+	if ((fp = fopen(path, "rb")) == NULL)
+		return NULL;
+	fseek(fp, 0, SEEK_END);
+	n = ftell(fp);
+	fseek(fp, 0, SEEK_SET);
+	if (n < 0 || (buf = (char *)malloc((size_t)n + 1)) == NULL) {
+		fclose(fp);
+		return NULL;
+	}
+	if (fread(buf, 1, (size_t)n, fp) != (size_t)n) {
+		fclose(fp);
+		free(buf);
+		return NULL;
+	}
+	fclose(fp);
+	buf[n] = '\0';
+	*len = n;
+	return buf;
+}
+
+static int cq_cond_hash(const char *path, char *out, size_t outlen) {
+	char *buf;
+	long len, p, ls, start = -1, end = -1, nbytes = 0;
+	unsigned long crc = 0xffffffffUL;
+	if ((buf = cq_read_all(path, &len)) == NULL)
+		return 1;
+	for (p = 0; p < len; ) {			/* find the lines */
+		ls = p;
+		while (p < len && buf[p] != '\n') p++;
+		if (start < 0 && cq_line_is(buf + ls, p - ls, "BEGIN_DATA"))
+			start = p + 1;
+		else if (start >= 0 && cq_line_is(buf + ls, p - ls, "END_DATA")) {
+			end = ls;
+			break;
+		}
+		p++;
+	}
+	if (start < 0 || end < start) {
+		free(buf);
+		return 1;
+	}
+	cq_crc_init();
+	for (p = start; p < end; p++) {
+		unsigned char ch = (unsigned char)buf[p];
+		if (ch == '\r')
+			continue;
+		crc = cq_crc_tab[(crc ^ ch) & 0xff] ^ (crc >> 8);
+		nbytes++;
+	}
+	free(buf);
+	snprintf(out, outlen, "%ld-%08lx", nbytes, (crc ^ 0xffffffffUL) & 0xffffffffUL);
+	return 0;
+}
+
+static int cq_rename_over(const char *tmp, const char *real) {
+#ifdef NT
+	int tries;
+	for (tries = 0; tries < 10; tries++) {
+		unsigned long e;
+		if (MoveFileExA(tmp, real, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+			return 0;
+		e = (unsigned long)GetLastError();
+		if (e != ERROR_SHARING_VIOLATION && e != ERROR_LOCK_VIOLATION
+		 && e != ERROR_ACCESS_DENIED)
+			break;
+		Sleep(100);
+	}
+	return 1;
+#else
+	return rename(tmp, real) != 0;
+#endif
+}
+
+/* The file of condition c for the main data block *hash* (Run.condition_ti3:
+ * <condition dir>/<hash>-<Mx>.ti3). */
+static void cq_cond_path(char *out, size_t n, const char *hash, int c) {
+	snprintf(out, n, "%s/%s-%s.ti3", cq_cond_dir, hash, cq_cond_name[c]);
+}
+
+/* Split one CGATS data line into tokens (a quoted token stays whole).
+ * Returns the count; tok[] point into buf, which is modified. */
+static int cq_tokens(char *buf, char **tok, int max) {
+	int n = 0;
+	char *p = buf;
+	while (*p != '\0' && n < max) {
+		while (*p == ' ' || *p == '\t') p++;
+		if (*p == '\0')
+			break;
+		tok[n++] = p;
+		if (*p == '"') {
+			p++;
+			while (*p != '\0' && *p != '"') p++;
+			if (*p == '"') p++;
+		} else
+			while (*p != '\0' && *p != ' ' && *p != '\t') p++;
+		if (*p != '\0')
+			*p++ = '\0';
+	}
+	return n;
+}
+
+#define CQ_MAXF 256
+/* Write condition c's file from the main file's text: the header copied with
+ * the condition declared (and an INSTRUMENT_FILTER the main carried taken
+ * off; an M2 file says UVCUT, as a -F u file does), every data row of the
+ * first table with its colour values replaced by the condition's, by
+ * SAMPLE_LOC, and anything after the first table copied as it is. Never
+ * calls error(); returns 0 on success. */
+static int cq_cond_write_one(const char *text, long len, int c, const char *hash,
+                             const char *path) {
+	FILE *fp;
+	long p = 0, ls, le;
+	int first = 1, state = 0;	/* 0 header, 1 format, 2 data, 3 rest */
+	int nf = 0, lix = -1, xix[3] = { -1, -1, -1 }, lab[3] = { -1, -1, -1 };
+	int spix[CQ_MAXF], nsp = 0, k, row = 0, ok = 1;
+	char *fields[CQ_MAXF], fbuf[8192], lbuf[16384];
+	int fblen = 0;
+	if ((fp = fopen(path, "wb")) == NULL)
+		return 1;
+	for (k = 0; k < CQ_MAXF; k++)
+		spix[k] = -1;
+	while (p < len && ok) {
+		long n;
+		ls = p;
+		while (p < len && text[p] != '\n') p++;
+		le = p;
+		if (le > ls && text[le - 1] == '\r') le--;
+		n = le - ls;
+		p++;
+		if (n >= (long)sizeof(lbuf)) { ok = 0; break; }
+		memcpy(lbuf, text + ls, (size_t)n);
+		lbuf[n] = '\0';
+		if (state == 0) {
+			if (strncmp(lbuf, "INSTRUMENT_FILTER", 17) == 0
+			 || strcmp(lbuf, "KEYWORD \"INSTRUMENT_FILTER\"") == 0
+			 || strncmp(lbuf, "KEYWORD \"MEASUREMENT_CONDITION", 30) == 0
+			 || strncmp(lbuf, "MEASUREMENT_CONDITION", 21) == 0
+			 || strncmp(lbuf, "KEYWORD \"CHROMIQ_CONDITION_OF\"", 30) == 0
+			 || strncmp(lbuf, "CHROMIQ_CONDITION_OF", 20) == 0)
+				continue;
+			fprintf(fp, "%s\n", lbuf);
+			if (first) {
+				first = 0;
+				fprintf(fp, "KEYWORD \"MEASUREMENT_CONDITION\"\nMEASUREMENT_CONDITION \"%s\"\n"
+				            "KEYWORD \"CHROMIQ_CONDITION_OF\"\nCHROMIQ_CONDITION_OF \"%s\"\n",
+				        cq_cond_name[c], hash);
+				if (c == 2)
+					fprintf(fp, "KEYWORD \"INSTRUMENT_FILTER\"\nINSTRUMENT_FILTER \"UVCUT\"\n");
+			}
+			if (cq_line_is(lbuf, n, "BEGIN_DATA_FORMAT"))
+				state = 1;
+			continue;
+		}
+		if (state == 1) {
+			fprintf(fp, "%s\n", lbuf);
+			if (cq_line_is(lbuf, n, "END_DATA_FORMAT")) {
+				for (k = 0; k < nf; k++) {
+					const char *f = fields[k];
+					if (strcmp(f, "SAMPLE_LOC") == 0) lix = k;
+					else if (strcmp(f, "XYZ_X") == 0) xix[0] = k;
+					else if (strcmp(f, "XYZ_Y") == 0) xix[1] = k;
+					else if (strcmp(f, "XYZ_Z") == 0) xix[2] = k;
+					else if (strcmp(f, "LAB_L") == 0) lab[0] = k;
+					else if (strcmp(f, "LAB_A") == 0) lab[1] = k;
+					else if (strcmp(f, "LAB_B") == 0) lab[2] = k;
+					else if (strncmp(f, "SPEC_", 5) == 0 && nsp < CQ_MAXF)
+						spix[k] = nsp++;
+				}
+				if (lix < 0)
+					ok = 0;
+				state = 2;
+				continue;
+			}
+			if (fblen + n + 1 < (long)sizeof(fbuf)) {
+				char *dst = fbuf + fblen;
+				memcpy(dst, lbuf, (size_t)n + 1);
+				fblen += (int)n + 1;
+				nf += cq_tokens(dst, fields + nf, CQ_MAXF - nf);
+			} else
+				ok = 0;
+			continue;
+		}
+		if (state == 2) {
+			char *tok[CQ_MAXF], loc[64];
+			int nt, i, pi = -1;
+			cq_cx_val *x;
+			if (cq_line_is(lbuf, n, "BEGIN_DATA")) {
+				fprintf(fp, "%s\n", lbuf);
+				continue;
+			}
+			if (cq_line_is(lbuf, n, "END_DATA")) {
+				fprintf(fp, "%s\n", lbuf);
+				state = 3;
+				continue;
+			}
+			if (n == 0 || strncmp(lbuf, "NUMBER_OF_SETS", 14) == 0) {
+				fprintf(fp, "%s\n", lbuf);
+				continue;
+			}
+			nt = cq_tokens(lbuf, tok, CQ_MAXF);
+			if (nt != nf) { ok = 0; break; }
+			snprintf(loc, sizeof(loc), "%s", tok[lix][0] == '"' ? tok[lix] + 1 : tok[lix]);
+			if (strlen(loc) > 0 && loc[strlen(loc) - 1] == '"')
+				loc[strlen(loc) - 1] = '\0';
+			/* save_ti3 writes the read patches in patch order: try that first */
+			for (i = row; i < cq_cx_npat; i++)
+				if (cq_cx_base[i].rr && strcmp(cq_cx_base[i].loc, loc) == 0) { pi = i; break; }
+			if (pi < 0)
+				for (i = 0; i < cq_cx_npat; i++)
+					if (strcmp(cq_cx_base[i].loc, loc) == 0) { pi = i; break; }
+			if (pi < 0 || !(x = &cq_cx[pi][c])->v) { ok = 0; break; }
+			row = pi + 1;
+			{
+				char nums[CQ_MAXF][32];
+				double labv[3], xyz1[3];
+				for (k = 0; k < 3; k++)
+					xyz1[k] = x->XYZ[k] / 100.0;
+				icmXYZ2Lab(&icmD50, labv, xyz1);
+				for (k = 0; k < nt; k++) {
+					int j;
+					nums[k][0] = '\0';
+					for (j = 0; j < 3; j++) {
+						if (k == xix[j]) snprintf(nums[k], 32, "%.6f", x->XYZ[j]);
+						if (k == lab[j]) snprintf(nums[k], 32, "%.6f", labv[j]);
+					}
+					if (spix[k] >= 0) {
+						if (spix[k] >= x->spec_n) { ok = 0; break; }
+						snprintf(nums[k], 32, "%.6f", x->spec[spix[k]]);
+					}
+				}
+				if (!ok)
+					break;
+				if (nsp > 0 && nsp != x->spec_n) { ok = 0; break; }
+				for (k = 0; k < nt; k++)
+					fprintf(fp, "%s%s", k ? " " : "", nums[k][0] ? nums[k] : tok[k]);
+				fprintf(fp, " \n");
+			}
+			continue;
+		}
+		fprintf(fp, "%s\n", lbuf);		/* the rest: another table */
+	}
+	if (fclose(fp) != 0)
+		ok = 0;
+	if (state < 3)
+		ok = 0;
+	return ok ? 0 : 1;
+}
+
+/* Every read patch has its extra results (else a file would be short). */
+static int cq_cond_complete(chcol *cols, int npat) {
+	int i, c;
+	for (i = 0; i < npat; i++) {
+		if (!cols[i].rr)
+			continue;
+		for (c = 0; c < 3; c++)
+			if (c != cq_cond_main && !cq_cx[i][c].v)
+				return 0;
+	}
+	return 1;
+}
+
+static char cq_cond_last[64] = "";	/* the pair THIS session wrote last */
+
+/* The two condition files for the main file *mainfile* (already on disk,
+ * under its temporary or its real name). Called from the autosave before
+ * the main file's rename, and after the final save. A failure removes its
+ * own temporary files and ends the conditions for the session; the main
+ * file is never affected. The pair this session wrote before is removed
+ * (never the one that was there at Start: a Discard needs it). */
+static void cq_cond_write(const char *mainfile) {
+	char hash[64], path[MAXNAMEL + 200], tmp[MAXNAMEL + 220], *text;
+	long len;
+	int c;
+	if (!cq_cond_active)
+		return;
+	if (!cq_cond_complete(cq_cx_base, cq_cx_npat)) {
+		cq_cond_lose("record");
+		return;
+	}
+	if (cq_cond_hash(mainfile, hash, sizeof(hash)) != 0
+	 || (text = cq_read_all(mainfile, &len)) == NULL) {
+		cq_cond_lose("write");
+		return;
+	}
+	for (c = 0; c < 3; c++) {
+		if (c == cq_cond_main)
+			continue;
+		cq_cond_path(path, sizeof(path), hash, c);
+		snprintf(tmp, sizeof(tmp), "%s.cqtmp", path);
+		if (cq_cond_write_one(text, len, c, hash, tmp) != 0
+		 || cq_rename_over(tmp, path) != 0) {
+			remove(tmp);
+			free(text);
+			cq_cond_lose("write");
+			return;
+		}
+	}
+	free(text);
+	if (cq_cond_last[0] != '\0' && strcmp(cq_cond_last, hash) != 0) {
+		for (c = 0; c < 3; c++) {
+			if (c == cq_cond_main)
+				continue;
+			cq_cond_path(path, sizeof(path), cq_cond_last, c);
+			remove(path);
+		}
+	}
+	snprintf(cq_cond_last, sizeof(cq_cond_last), "%s", hash);
+}
+
+/* A resumed session: the siblings come back from disk, by SAMPLE_LOC, but
+ * only those written with the readings the main file holds now (its hash).
+ * Returns 0 when every read patch has its extra results again. */
+static int cq_cond_load_one(const char *path, int c, const char *hash,
+                            chcol *cols, int npat) {
+	cgats *rcg;
+	int lix, ki, i, j, k, cieix[3], islab = 0, hasspec = 0, spn = 0;
+	int spi[CQ_CX_MAXB];
+	double wls = 0.0, wll = 0.0;
+	char buf[64];
+	const char *fname[2][3] = { { "XYZ_X", "XYZ_Y", "XYZ_Z" },
+	                            { "LAB_L", "LAB_A", "LAB_B" } };
+	rcg = new_cgats();
+	rcg->add_other(rcg, "CTI3");
+	if (rcg->read_name(rcg, path) || rcg->ntables < 1
+	 || (ki = rcg->find_kword(rcg, 0, "CHROMIQ_CONDITION_OF")) < 0
+	 || strcmp(rcg->t[0].kdata[ki], hash) != 0
+	 || (lix = rcg->find_field(rcg, 0, "SAMPLE_LOC")) < 0
+	 || rcg->t[0].ftype[lix] != cs_t) {
+		rcg->del(rcg);
+		return 1;
+	}
+	if (rcg->find_field(rcg, 0, "LAB_L") >= 0)
+		islab = 1;
+	for (j = 0; j < 3; j++)
+		if ((cieix[j] = rcg->find_field(rcg, 0, fname[islab][j])) < 0
+		 || rcg->t[0].ftype[cieix[j]] != r_t) {
+			rcg->del(rcg);
+			return 1;
+		}
+	if ((ki = rcg->find_kword(rcg, 0, "SPECTRAL_BANDS")) >= 0) {
+		int a, b;
+		spn = atoi(rcg->t[0].kdata[ki]);
+		a = rcg->find_kword(rcg, 0, "SPECTRAL_START_NM");
+		b = rcg->find_kword(rcg, 0, "SPECTRAL_END_NM");
+		if (spn <= 1 || spn > CQ_CX_MAXB || a < 0 || b < 0) {
+			rcg->del(rcg);
+			return 1;
+		}
+		wls = atof(rcg->t[0].kdata[a]);
+		wll = atof(rcg->t[0].kdata[b]);
+		for (j = 0; j < spn; j++) {
+			int nm = (int)(wls + ((double)j / (spn - 1.0)) * (wll - wls) + 0.5);
+			sprintf(buf, "SPEC_%03d", nm);
+			if ((spi[j] = rcg->find_field(rcg, 0, buf)) < 0
+			 || rcg->t[0].ftype[spi[j]] != r_t) {
+				rcg->del(rcg);
+				return 1;
+			}
+		}
+		hasspec = 1;
+	}
+	for (i = 0; i < npat; i++) {
+		cq_cx_val *x = &cq_cx[i][c];
+		if (!cols[i].rr)
+			continue;
+		for (k = 0; k < rcg->t[0].nsets; k++)
+			if (strcmp(cols[i].loc, (char *)rcg->t[0].fdata[k][lix]) == 0)
+				break;
+		if (k >= rcg->t[0].nsets)
+			continue;			/* left without: cq_cond_complete says so */
+		memset(x, 0, sizeof(*x));
+		for (j = 0; j < 3; j++)
+			x->XYZ[j] = *((double *)rcg->t[0].fdata[k][cieix[j]]);
+		if (islab) {
+			icmLab2XYZ(&icmD50, x->XYZ, x->XYZ);
+			for (j = 0; j < 3; j++)
+				x->XYZ[j] *= 100.0;
+		}
+		if (hasspec) {
+			x->spec_n = spn;
+			x->wl_short = wls;
+			x->wl_long = wll;
+			x->norm = 100.0;
+			for (j = 0; j < spn; j++)
+				x->spec[j] = *((double *)rcg->t[0].fdata[k][spi[j]]);
+		}
+		x->v = 1;
+	}
+	rcg->del(rcg);
+	return 0;
+}
+
+static int cq_cond_resume(const char *mainfile, chcol *cols, int npat) {
+	char hash[64];
+	int c, any = 0, i;
+	for (i = 0; i < npat; i++)
+		if (cols[i].rr)
+			any = 1;
+	if (!any)
+		return 0;				/* nothing read yet: a clean start */
+	if (cq_cond_hash(mainfile, hash, sizeof(hash)) != 0)
+		return 1;
+	for (c = 0; c < 3; c++) {
+		char path[MAXNAMEL + 200];
+		if (c == cq_cond_main)
+			continue;
+		cq_cond_path(path, sizeof(path), hash, c);
+		if (cq_cond_load_one(path, c, hash, cols, npat) != 0)
+			return 1;
+	}
+	return cq_cond_complete(cols, npat) ? 0 : 1;
+}
+
+/* Once per session, after the instrument is known. */
+static void cq_cond_for_session(inst *it, int rmode, int emis, int trans,
+                                int displ, inst_opt_filter fe) {
+	const char *why = NULL;
+	int c, n = 0;
+	if (!cq_cond_req || !cq_json)
+		return;
+	cq_cond_active = 0;
+	cq_cond_it = NULL;
+	cq_cond_replay = 0;
+	cq_cond_main = fe == inst_opt_filter_D50 ? 1
+	             : fe == inst_opt_filter_UVCut ? 2
+	             : (fe == inst_opt_filter_none || fe == inst_opt_filter_unknown) ? 0 : -1;
+	n = cq_cond_dir != NULL ? 2 : 0;
+	(void)c;
+	if (it == NULL)
+		why = "instrument";
+	else if (emis || trans || displ || (rmode != 0 && rmode != 1))
+		why = "mode";
+	else if (cq_cond_main < 0)
+		why = "filter";
+	else if (n != 2 || cq_sctx.cols == NULL || cq_sctx.npat <= 0)
+		why = "files";
+	else if (cq_replay_active()) {
+		if (!cq_replay_cond_ready())
+			why = "instrument";
+		else
+			cq_cond_replay = 1;
+	} else if (it->dtype != instI1Pro3 || !i1pro3_cq_cond_options(it, 1))
+		why = "instrument";
+	if (why == NULL) {
+		cq_cx_base = cq_sctx.cols;
+		cq_cx_npat = cq_sctx.npat;
+		if ((cq_cx = (cq_cx3 *)calloc((size_t)cq_cx_npat, sizeof(cq_cx3))) == NULL)
+			why = "memory";
+	}
+	if (why == NULL) {
+		cq_cond_it = it;
+		cq_cond_active = 1;
+		if (cq_cond_resume(cq_sctx.outname, cq_cx_base, cq_cx_npat) != 0) {
+			cq_cond_active = 0;
+			why = "resume";
+		}
+	}
+	if (why != NULL) {
+		if (it != NULL && !cq_replay_active() && it->dtype == instI1Pro3)
+			i1pro3_cq_cond_options(it, 0);
+		free(cq_cx);
+		cq_cx = NULL;
+		cq_emit_raw("{\"event\":\"conditions\",\"active\":false,\"why\":\"%s\"}", why);
+		return;
+	}
+	cq_emit_raw("{\"event\":\"conditions\",\"active\":true,\"instrument\":\"i1pro3\","
+	            "\"main\":\"%s\",\"extra\":[\"%s\",\"%s\"]}",
+	            cq_cond_name[cq_cond_main],
+	            cq_cond_name[cq_cond_main == 0 ? 1 : 0],
+	            cq_cond_name[cq_cond_main == 2 ? 1 : 2]);
+}
+
 /* Has any patch of row *r* a reading? */
 static int cq_row_read(chcol **scols, int stipa, int r) {
 	int i;
@@ -682,6 +1368,8 @@ static void cq_move_row(chcol **scols, int stipa, int fr, int to) {
 		d->mtype = s->mtype;
 		d->mcond = s->mcond;
 		d->rr = s->rr;
+		cq_cx_copy(d, s);		/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
+		cq_cx_clear(s);
 		for (j = 0; j < 3; j++)
 			s->XYZ[j] = 0.0;
 		s->sp.spec_n = 0;
@@ -717,6 +1405,8 @@ static void cq_remember_row(chcol **scols, int stipa, int npat, int r) {
 	if (cq_prev == NULL) {
 		cq_prev = (cq_saved_patch *)calloc((size_t)rows * stipa, sizeof(cq_saved_patch));
 		cq_prev_has = (char *)calloc((size_t)rows, 1);
+		if (cq_cond_active && cq_prev_cx == NULL)	/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
+			cq_prev_cx = (cq_cx3 *)calloc((size_t)rows * stipa, sizeof(cq_cx3));
 		if (cq_prev == NULL || cq_prev_has == NULL) {
 			free(cq_prev); free(cq_prev_has);
 			cq_prev = NULL; cq_prev_has = NULL;
@@ -732,6 +1422,8 @@ static void cq_remember_row(chcol **scols, int stipa, int npat, int r) {
 	for (i = 0; i < stipa && r * stipa + i < npat; i++) {
 		chcol *s = scols[r * stipa + i];
 		cq_saved_patch *d = &cq_prev[r * stipa + i];
+		if (cq_prev_cx != NULL)		/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
+			cq_cx_save(&cq_prev_cx[r * stipa + i], s);
 		for (j = 0; j < 3; j++)
 			d->XYZ[j] = s->XYZ[j];
 		d->sp = s->sp;
@@ -749,6 +1441,12 @@ static int cq_restore_row(chcol **scols, int stipa, int npat, int r) {
 	for (i = 0; i < stipa && r * stipa + i < npat; i++) {
 		chcol *d = scols[r * stipa + i];
 		cq_saved_patch *s = &cq_prev[r * stipa + i];
+		if (cq_cond_active) {		/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
+			if (cq_prev_cx != NULL)
+				cq_cx_load(d, &cq_prev_cx[r * stipa + i]);
+			else
+				cq_cond_lose("record");
+		}
 		for (j = 0; j < 3; j++)
 			d->XYZ[j] = s->XYZ[j];
 		d->sp = s->sp;
@@ -810,6 +1508,7 @@ static void cq_flip_row(chcol **scols, int stipa, int to) {
 		tm = a->mtype; a->mtype = b->mtype; b->mtype = tm;
 		tc = a->mcond; a->mcond = b->mcond; b->mcond = tc;
 		tr = a->rr; a->rr = b->rr; b->rr = tr;
+		cq_cx_swap(a, b);		/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
 	}
 }
 
@@ -2614,6 +3313,9 @@ a1log *log			/* verb, debug & error log */
 	/* CHROMIQ_EXT: the ruler check (Beta). Without --ruler nothing at all. */
 	if (xtern == 0)
 		cq_ruler_for_session(it, rmode, emis, trans, displ);
+	/* CHROMIQ_EXT: M0/M1/M2 (Beta). Without --condition-dir nothing at all. */
+	if (xtern == 0)
+		cq_cond_for_session(it, rmode, emis, trans, displ, fe);
 
 	/* -------------------------------------------------- */
 	if (rmode == 3) {		/* For chart mode, read all at once */
@@ -3242,9 +3944,12 @@ a1log *log			/* verb, debug & error log */
 				cq_press_listen(0);		/* CHROMIQ_EXT: a fresh group */
 				cq_lights_prompt();		/* CHROMIQ_EXT: lights (Beta) */
 				cq_ruler_arm(1);		/* CHROMIQ_EXT: ruler check (Beta) */
+				cq_cond_arm(1);			/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
 				cq_usbwatch_begin();	/* CHROMIQ_EXT 4.3.36: a reading begins */
 				rv = it->read_strip(it, "STRIP", stipa+nextrap, nn, guide, plen, glen, tlen, vals);
 				cq_ruler_after_strip(nn, rv);	/* CHROMIQ_EXT: ruler check (Beta) */
+				cq_cond_after_read(rv, stipa+nextrap);	/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
+				cq_cond_arm(0);
 				if (cq_json)
 					cq_cal_gate_set(0);
 				/* CHROMIQ_EXT: button gestures. How long the scan took from
@@ -3980,6 +4685,7 @@ a1log *log			/* verb, debug & error log */
 					scb[i]->sp = vals[ix].sp;
 				}
 				scb[i]->rr = 1;		/* Has been read */
+				cq_cond_file(scb[i], ix);	/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
 			}
 
 			/* CHROMIQ_EXT (#50): opt-in misalignment safety net. Warn the GUI
@@ -4373,8 +5079,11 @@ a1log *log			/* verb, debug & error log */
 					cq_cal_gate_set(1);
 				cq_press_listen(0);		/* CHROMIQ_EXT: a fresh group */
 				cq_lights_prompt();		/* CHROMIQ_EXT: lights (Beta) */
+				cq_cond_arm(1);			/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
 				cq_usbwatch_begin();	/* CHROMIQ_EXT 4.3.36: a reading begins */
 				rv = it->read_sample(it, "SPOT", &val, 1);
+				cq_cond_after_read(rv, 1);	/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
+				cq_cond_arm(0);
 				if (cq_json)
 					cq_cal_gate_set(0);
 
@@ -4773,6 +5482,7 @@ a1log *log			/* verb, debug & error log */
 					scols[pix]->sp = val.sp;
 				}
 				scols[pix]->rr = 1;		/* Has been read */
+				cq_cond_file(scols[pix], 0);	/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
 				printf(" Patch read OK\n");
 				cq_lights_say(1);	/* CHROMIQ_EXT: green twice (Beta) */
 				cq_emit_patch_read(scols[pix]);		/* CHROMIQ_EXT */
@@ -5255,6 +5965,12 @@ int main(int argc, char *argv[]) {
 				 * left on during a hand-held reading, as i1Profiler does. */
 				cq_lights_left_on = 1;
 				eat = 1;
+			} else if (strcmp(argv[ai], "--condition-dir") == 0 && ai + 1 < argc) {
+				/* CHROMIQ_EXT: Preferences > Beta, "X-Rite i1Pro 3: keep
+				 * M0, M1 and M2": the folder the condition files go to. */
+				cq_cond_dir = argv[ai + 1];
+				cq_cond_req = 1;
+				eat = 2;
 			} else if (strcmp(argv[ai], "--ruler") == 0) {
 				/* CHROMIQ_EXT: Preferences > Beta, the ruler check. */
 				cq_ruler = 1;
@@ -5264,7 +5980,7 @@ int main(int argc, char *argv[]) {
 				 * before it relies on it. One JSON line, then exit 0.
 				 * "legacy_labels": reads sheets ChromIQ's layout engine
 				 * printed with its pre-4.3.3-beta.7 labels as printed. */
-				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"turn\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\",\"lights_signals\",\"lights_during_reading\",\"ruler_check\"],\"build\":\"%s\"}\n",
+				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"turn\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\",\"lights_signals\",\"lights_during_reading\",\"ruler_check\",\"i1pro3_conditions\"],\"build\":\"%s\"}\n",
 				       cq_helper_build_string());
 				fflush(stdout);
 				return 0;
@@ -6288,6 +7004,7 @@ int main(int argc, char *argv[]) {
 
 		/* And save the result */
 		save_ti3(atype, displ, trans, ucalstd, fe, dolab, npat, nchan, cols, wpat, outname, ocg);
+		cq_cond_write(outname);	/* CHROMIQ_EXT: M0/M1/M2 (Beta), after the main file */
 		cq_emit_simple("done");		/* CHROMIQ_EXT */
 	}
 

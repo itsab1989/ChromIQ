@@ -102,6 +102,9 @@ int i1pro3_cq_ruler_take(void *pp, void *out);
  * record a {"cmd":"swipe","ruler":"<mode>"} asked for (1 = one). */
 int cq_replay_ruler_gen(void);
 int cq_replay_ruler_take(void *out);
+/* "X-Rite i1Pro 3: keep M0, M1 and M2" (Beta): the replay's conditions record */
+int cq_replay_cond_ready(void);
+int cq_replay_cond_take(int cond, void *out, int n);	/* ipatch *out */
 
 /* ---- JSON event emission (no-ops when cq_json == 0) ------------------- */
 void cq_emit_raw(const char *fmt, ...);   /* fmt is a complete JSON object */
@@ -135,7 +138,7 @@ void cq_json_escape(char *dst, size_t dstlen, const char *src);
  *
  * ⚠ BUMP THIS IN THE SAME COMMIT AS ANY CHANGE TO THE HELPER, and rebuild and
  * commit native/chromiq-chartread. The test tells you the expected value. */
-#define CQ_HELPER_BUILD "chromiq-chartread 2026-11-15c legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures+exit-guard+save-after-close+i1pro2-lights+i1pro3-lights+i1pro3-lights-choices+ruler-check+usb-step-detail+i1pro2-beta-paused+i1pro2-lights-quiet+resume-spectral-check+hold-interruptible+i1pro2-ruler-back+own-row-direction+turn-round+filter-event"
+#define CQ_HELPER_BUILD "chromiq-chartread 2026-11-15d legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures+exit-guard+save-after-close+i1pro2-lights+i1pro3-lights+i1pro3-lights-choices+ruler-check+usb-step-detail+i1pro2-beta-paused+i1pro2-lights-quiet+resume-spectral-check+hold-interruptible+i1pro2-ruler-back+own-row-direction+turn-round+filter-event+i1pro3-conditions"
 const char *cq_helper_build_string(void);
 
 
