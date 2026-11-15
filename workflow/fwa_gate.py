@@ -367,6 +367,83 @@ def without_refused_fwa(params, keywords_from=None):
 # The texts
 # ---------------------------------------------------------------------------
 
+# THE HELP OF THE FWA OPTION (2026-11-15, the dual scan study, stage 1: "name
+# the existing estimate for what it is"). ``-f`` is ArgyllCMS's brightener
+# MODEL (``xicc/xspect.c``, Gill CIC 2003): it takes ordinary M0 readings and
+# the paper white and ESTIMATES the look under another light. With D50 that is
+# the light of condition M1, with D50M2 that of M2, but nothing is measured
+# under either, so the help says "estimate" and never lets the option read as
+# an M1 measurement, and nothing writes ``MEASUREMENT_CONDITION`` because of
+# it (``tests/test_fwa_help_says_estimate.py``).
+#
+# No number in the help. The study measured ArgyllCMS's D50 estimate against
+# an instrument's own M1 at 0.17 dE00 mean, 0.76 max, but on two files of ONE
+# i1Pro 3 on ONE brightened paper, against X-Rite's computed M1, not a D50
+# lamp; the readers of this help mostly own an i1Pro 2. Printed in a tooltip
+# that figure reads as a promise for every paper and instrument, so the help
+# says what it depends on instead.
+#
+# Built from paragraphs so Build Profile and Check & Refine share every
+# sentence but the one that says what the option does in that tab.
+
+def _fwa_help_intro() -> str:
+    return tr(
+        "Many papers contain optical brighteners (fluorescent whitening "
+        "agents, FWA). They turn invisible ultraviolet light into visible "
+        "blue light, which makes the paper look whiter. The more ultraviolet "
+        "the light holds, the more they glow.")
+
+
+def _fwa_help_tail() -> list[str]:
+    return [
+        tr("With D50 that is daylight including its ultraviolet, the light "
+           "of measurement condition M1. With D50M2 it is daylight with the "
+           "ultraviolet filtered out, as in measurement condition M2."),
+        tr("This is an estimate worked out by a model of how brighteners "
+           "behave, not a measurement taken under that light. Your "
+           "measurement stays an M0 measurement: ChromIQ never records it as "
+           "M1 or M2 because of this option. How close the estimate comes "
+           "depends on the paper and the inks."),
+        tr("**When it helps:** papers with optical brighteners, which "
+           "includes most bright white papers. Choose the light your prints "
+           "will be seen in.\n"
+           "**When it does little or nothing:** papers without brighteners, "
+           "such as many cotton fine art papers, because there is no glow to "
+           "estimate."),
+        tr("The option is greyed, with the reason in its tooltip, when the "
+           "estimate cannot be made: for readings measured under M1 or M2, "
+           "for readings without spectra, and for instruments whose lamp "
+           "ArgyllCMS does not know (the i1Pro family is supported). If you "
+           "are not sure, leave it off."),
+    ]
+
+
+def fwa_help_build() -> str:
+    """The help of Build Profile's FWA option (both modes)."""
+    return "\n\n".join([
+        _fwa_help_intro(),
+        tr("Your instrument measures under its own lamp (measurement "
+           "condition M0). With this option on, ArgyllCMS uses those "
+           "readings and the paper white to estimate how your prints will "
+           "look under the light chosen here, and builds the profile for "
+           "that light."),
+        *_fwa_help_tail(),
+    ])
+
+
+def fwa_help_check() -> str:
+    """The help of Check & Refine's FWA option (both modes)."""
+    return "\n\n".join([
+        _fwa_help_intro(),
+        tr("Your instrument measures under its own lamp (measurement "
+           "condition M0). With this option on, the check uses those "
+           "readings and the paper white to estimate how the print looks "
+           "under the light chosen here, and compares the profile with that "
+           "estimate. Use the same setting as when the profile was built."),
+        *_fwa_help_tail(),
+    ])
+
+
 def _fd9_reason() -> str:
     return tr(
         "FWA compensation is not available for FD-9 measurements.\n\n"
