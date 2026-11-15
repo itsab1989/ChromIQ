@@ -18509,10 +18509,16 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._prompt_ruler_not_covered(str((ev or {}).get("strip", "")), ruler)
         return True
 
-    def _ruler_direction_texts(self, strip: str) -> "tuple[str, str]":
-        """M-STRIP-RULER-DIRECTION (4.3.37, §M-PROPOSED)."""
+    def _ruler_direction_texts(self, strip: str,
+                               verdict: "str | None" = None
+                               ) -> "tuple[str, str]":
+        """M-STRIP-RULER-DIRECTION (4.3.37, §M-PROPOSED), or, when the
+        strip's own colours point to back to front (*verdict* "other"),
+        M-STRIP-RULER-DIRECTION-COLOURS (4.3.40)."""
         from workflow import measurement_messages as M
-        return M.CATALOGUE["M-STRIP-RULER-DIRECTION"].render(strip=strip)
+        mid = ("M-STRIP-RULER-DIRECTION-COLOURS" if verdict == "other"
+               else "M-STRIP-RULER-DIRECTION")
+        return M.CATALOGUE[mid].render(strip=strip)
 
     def _prompt_ruler_not_covered(self, strip: str, ruler: dict) -> None:
         """M-STRIP-RULER-NOT-COVERED (§M-PROPOSED): an accepted strip the
@@ -18544,7 +18550,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             # 4.3.37: the same window and buttons for a strip the ruler says
             # was scanned the other way than it was saved
             dlg.setObjectName("ruler_direction_window")
-            title, body = self._ruler_direction_texts(strip)
+            title, body = self._ruler_direction_texts(
+                strip, ruler.get("direction_colours_verdict"))
         else:
             title, body = msg.render(strip=strip, moved=moved, need=need)
         dlg.setWindowTitle(title)

@@ -58,7 +58,6 @@ class RulerSession:
         self.pending: "tuple[str, dict, rc.StripFigures] | None" = None
         self.derived: "list[float]" = []         # mm per step, accepted strips
         self.pitch_steps: "list[float]" = []     # session pitch (no geometry)
-        self.forward_sign = 0
         #: 4.3.37 (the i1Pro 3): the way the ruler says the instrument moved
         #: on each accepted strip, turned round where the strip was FILED
         #: back to front ("reversed"), so that every strip read and filed
@@ -72,6 +71,9 @@ class RulerSession:
         #: the end), so a re-read never leaves a stale vote behind; and only
         #: from a reading nothing was asked about (F3).
         self._votes: "dict[str, int]" = {}
+        #: Votes waiting for an answer (review of 4.3.40, MINOR-1/3): strip
+        #: -> (vote, the questions whose "keep" answer still has to come).
+        self._pending_votes: "dict[str, tuple[int, set]]" = {}
         self.said: "set[str]" = set()
         self.argyll = ""
 
@@ -232,6 +234,7 @@ class RulerSession:
         # This reading replaces whatever the strip's earlier reading voted
         # (4.3.40, F3), with or without a ruler record of its own.
         self._votes.pop(strip, None)
+        self._pending_votes.pop(strip, None)
         if self.pending is None or self.pending[0] != strip:
             self.flush()
             return None
@@ -302,17 +305,31 @@ class RulerSession:
                 self.derived.append(pitch_mm / pitch_cut)
             if pitch_cut:
                 self.pitch_steps.append(pitch_cut)
-            if not self.forward_sign and not ev.get("reversed") and f.sign:
-                self.forward_sign = f.sign
-        # F3 (4.3.40): only a reading nothing was asked about votes, whatever
-        # the question was and whatever the answer: a strip ChromIQ had a
-        # doubt about never shapes the reference, and its re-read votes on
-        # its own (the earlier vote was dropped above).
+        # F3 (4.3.40, review MINOR-1/3): a strip votes unless the question
+        # it got puts its ORDER in doubt. The ruler's coverage question, a
+        # slip that is not back to front and the engine's net concern where
+        # the patches are, not which way round: they vote at once. "Was a
+        # strip read twice?" and this direction question vote once the
+        # person keeps the reading ("keep", "Continue Anyway": the person has
+        # said what happened, so after a turned sheet on a chart whose strips
+        # cannot vouch the reference still follows). A strip ChromIQ thinks
+        # was saved back to front never votes. A re-read replaces the strip's
+        # vote (dropped above); "Re-read" / "Re-measure" casts none.
         reference = majority or self._early_reference()
-        voted = bool(filed_sign and not (ask or ask_direction
-                                          or other_question))
+        names = set(other_questions or ())
+        if other_question and not names:
+            names = {"unknown"}
+        wait = set()
+        if ask_direction:
+            wait.add("ruler_direction")
+        if "read_twice" in names:
+            wait.add("read_twice")
+        blocked = bool(names & self.ORDER_QUESTIONS)
+        voted = bool(filed_sign and not blocked and not wait)
         if voted:
             self._votes[strip] = filed_sign
+        elif filed_sign and not blocked:
+            self._pending_votes[strip] = (filed_sign, wait)
         log_lines: "list[str]" = []
         if vouched:
             log_lines.append(self._turned_note(strip))
@@ -338,6 +355,9 @@ class RulerSession:
             # strip's verdict (the direction, or the turned-sheet note)
             "log_lines": log_lines,
             "direction_confirmed_by_colours": vouched,
+            # review MINOR-2: "other" = the colours point to back to front
+            # (the window then says so); "unsure" or None = cannot tell
+            "direction_colours_verdict": colours.verdict if colours else None,
         }
         # R5 (4.3.39): WHICH question this strip got, by name (the ruler's
         # own, or ChromIQ's: the engine's net, a slip or a strip filed back
@@ -367,7 +387,12 @@ class RulerSession:
                  "direction_votes_before": window,
                  "direction_colours": colours.as_dict() if colours else None,
                  "direction_confirmed_by_colours": vouched,
-                 "voted": voted}
+                 "voted": voted,
+                 # review of 4.3.40: the questions whose "keep" answer this
+                 # reading's vote still waits for (cast then, see "answers")
+                 "vote_waits_for": sorted(
+                     self._pending_votes[strip][1])
+                 if strip in self._pending_votes else []}
         self._write(rec, strip, f, "asked" if (ask or ask_direction)
                     else "accepted", extra)
         return summary
@@ -401,6 +426,7 @@ class RulerSession:
         strip B", a strip turned round): its vote no longer describes the
         reading in the file (F3)."""
         self._votes.pop(str(strip or "").strip(), None)
+        self._pending_votes.pop(str(strip or "").strip(), None)
 
     def _early_reference(self) -> int:
         """Before there is a majority (fewer than DIRECTION_MIN_VOTES), the
@@ -424,7 +450,32 @@ class RulerSession:
             return -1
         return 0
 
+    #: Questions that put a strip's ORDER in doubt: no vote from it.
+    ORDER_QUESTIONS = frozenset({"back_to_front", "unknown"})
+    #: Answers that keep the reading, and answers that discard it.
+    KEEP_ANSWERS = frozenset({"continue", "keep", "closed"})
+    DISCARD_ANSWERS = frozenset({"reread", "remeasure", "was_like", "turn",
+                                 "stop"})
+
+    def _answered(self, strip: str, question: str, answer: str) -> None:
+        strip = str(strip or "").strip()
+        if answer in self.DISCARD_ANSWERS:
+            self._pending_votes.pop(strip, None)
+            self._votes.pop(strip, None)
+            return
+        p = self._pending_votes.get(strip)
+        if p is None or answer not in self.KEEP_ANSWERS:
+            return
+        vote, wait = p
+        wait.discard(question)
+        if not wait:
+            del self._pending_votes[strip]
+            self._votes.pop(strip, None)
+            self._votes[strip] = vote
+
     def note_answer(self, strip: str, answer: str) -> None:
+        """The answer to the ruler's own window (coverage or direction)."""
+        self._answered(strip, "ruler_direction", answer)
         if self.diag is not None:
             self.diag.note_answer(strip, answer)
             self.diag.note_question_answer(strip, "ruler", answer)
@@ -432,6 +483,7 @@ class RulerSession:
     def note_question_answer(self, strip: str, question: str,
                              answer: str) -> None:
         """R5: the person's *answer* to *question* about *strip*."""
+        self._answered(strip, question, answer)
         if self.diag is not None:
             self.diag.note_question_answer(strip, question, answer)
 
@@ -484,9 +536,9 @@ class RulerSession:
         return tr("Ruler (beta), strip {strip}: the ruler saw this strip the "
                   "other way round compared with the strips before it. That "
                   "is what it looks like when the sheet or the ruler has been "
-                  "turned round. The colours of this strip clearly match the "
-                  "order in which it was saved, so the readings are fine and "
-                  "there is nothing you need to do.").format(strip=strip)
+                  "turned round. The colours of this strip clearly show that "
+                  "its readings were saved the right way round, so there is "
+                  "nothing you need to do.").format(strip=strip)
 
     def _motion_line(self, strip: str, rec: dict, f) -> str:
         mm = rc.mm_per_step(self.gen, self.derived_step())

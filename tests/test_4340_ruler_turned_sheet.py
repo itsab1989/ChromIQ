@@ -266,15 +266,123 @@ def test_a_re_read_after_a_wrong_vote_leaves_nothing_behind(tmp_path):
     assert rs.direction_votes == [-1] * 5
 
 
-def test_a_strip_asked_the_direction_question_never_votes(tmp_path):
+def _ramp(k=0):
+    half = [(30 + 5 * i, (k % 5) - 2.0, 0.0) for i in range(8)]
+    return half + list(reversed(half))
+
+
+def test_re_read_on_the_direction_question_casts_no_vote(tmp_path):
     rs = _session3(tmp_path)
     for s in _names(6):
         _read(rs, s, -1, False)
-    half = [(30 + 5 * i, 0.0, 0.0) for i in range(8)]
-    summ = _read(rs, "G", -1, True, expected=half + list(reversed(half)))
+    summ = _read(rs, "G", -1, True, expected=_ramp())
     assert summ["ask_direction"]
-    rs.note_answer("G", "continue")
+    rs.note_answer("G", "reread")
     assert rs.direction_votes == [-1] * 6
+
+
+def test_continue_anyway_on_the_direction_question_is_a_vote(tmp_path):
+    """Review MINOR-3: the person has said what happened."""
+    rs = _session3(tmp_path)
+    for s in _names(6):
+        _read(rs, s, -1, False)
+    assert _read(rs, "G", -1, True, expected=_ramp())["ask_direction"]
+    assert rs.direction_votes == [-1] * 6           # not before the answer
+    rs.note_answer("G", "continue")
+    assert rs.direction_votes == [-1] * 6 + [+1]
+
+
+def test_a_turned_ramp_chart_follows_after_continue_anyway(tmp_path):
+    """No strip of a ramp chart can vouch: 4.3.39 (and ed864ff0a) asked every
+    strip after a turn (10 of 10). With Continue Anyway as a vote: two."""
+    rs = _session3(tmp_path)
+    for k, s in enumerate(_names(6)):
+        _read(rs, s, -1, False, expected=_ramp(k))
+    asked = []
+    for k, s in enumerate(_names(10, 6)):
+        summ = _read(rs, s, -1, True, expected=_ramp(k))
+        if summ["ask_direction"]:
+            asked.append(s)
+            rs.note_answer(s, "continue")
+    assert asked == ["G", "H"]
+
+
+def test_a_wrong_continue_anyway_is_outvoted(tmp_path):
+    """Review MINOR-3, the wrong answer: Continue Anyway on a strip that
+    really was saved back to front. One such vote cannot move the reference
+    (4 of 5 still agree): the next back-to-front strip is asked again. Two in
+    a row leave no majority (3 of 5) for the next strips, which are then not
+    asked and get no direction line, until the window holds 4 of 5 again:
+    after four good strips the reference is back and asks again."""
+    rs = _session3(tmp_path)
+    for s in _names(8):
+        _read(rs, s, -1, False)
+    assert _read(rs, "I", -1, True, expected=_ramp(1))["ask_direction"]
+    rs.note_answer("I", "continue")                    # wrong
+    assert rs._majority_direction() == -1
+    assert _read(rs, "J", -1, True, expected=_ramp(2))["ask_direction"]
+    rs.note_answer("J", "continue")                    # wrong again
+    assert rs._majority_direction() == 0
+    blind = []
+    for s in _names(5, 10):
+        if not rs._majority_direction():
+            blind.append(s)
+        assert not _read(rs, s, -1, False)["ask_direction"]
+    assert blind == ["K", "L", "M", "N"]               # 4 strips, then back
+    assert rs._majority_direction() == -1
+    assert _read(rs, "P", -1, True, expected=_ramp(3))["ask_direction"]
+
+
+def test_reviewers_case_another_question_early_then_back_to_front(tmp_path):
+    """Review MINOR-1: no turn, strip 2 gets a slip question (not about its
+    order), strip 4 is really saved back to front with colours that cannot
+    tell. 4.3.39 asked strip 4; ed864ff0a did not (strip 2 did not vote, so
+    no majority yet)."""
+    rs = _session3(tmp_path)
+    _read(rs, "A", -1, False)
+    rs.on_strip(_rec("B", 300, gen="i1pro3", sign=-1))
+    rs.on_strip_read({"event": "strip_read", "strip": "B", "reversed": False,
+                      "patches": _patches("B", _row(66))},
+                     other_question=True, other_questions=["slip"])
+    _read(rs, "C", -1, False)
+    assert _read(rs, "D", -1, True, expected=_ramp(4))["ask_direction"]
+
+
+@pytest.mark.parametrize("question,votes", [
+    ("slip", True), ("engine_slip", True), ("back_to_front", False)])
+def test_which_other_questions_vote(tmp_path, question, votes):
+    rs = _session3(tmp_path)
+    rs.on_strip(_rec("A", 300, gen="i1pro3", sign=-1))
+    rs.on_strip_read({"event": "strip_read", "strip": "A", "reversed": False,
+                      "patches": _patches("A", _row(3))},
+                     other_question=True, other_questions=[question])
+    assert rs.direction_votes == ([-1] if votes else [])
+
+
+@pytest.mark.parametrize("answer,votes", [
+    ("keep", True), ("closed", True), ("reread", False), ("was_like", False)])
+def test_read_twice_votes_once_kept(tmp_path, answer, votes):
+    rs = _session3(tmp_path)
+    rs.on_strip(_rec("A", 300, gen="i1pro3", sign=-1))
+    rs.on_strip_read({"event": "strip_read", "strip": "A", "reversed": False,
+                      "patches": _patches("A", _row(3))},
+                     other_question=True, other_questions=["read_twice"])
+    assert rs.direction_votes == []
+    rs.note_question_answer("A", "read_twice", answer)
+    assert rs.direction_votes == ([-1] if votes else [])
+
+
+def test_re_read_on_the_ruler_window_takes_the_vote_back(tmp_path):
+    """Re-read on the ruler's window (coverage, which votes at once, as
+    MINOR-1 asks) discards that reading's vote."""
+    rs = _session3(tmp_path)
+    rs.on_strip(_rec("A", 300, gen="i1pro3", sign=-1))
+    rs.on_strip_read({"event": "strip_read", "strip": "A", "reversed": False,
+                      "patches": _patches("A", _row(3))},
+                     other_question=False)
+    assert rs.direction_votes == [-1]
+    rs.note_answer("A", "reread")
+    assert rs.direction_votes == []
 
 
 def test_forget_drops_a_vote(tmp_path):
@@ -470,3 +578,113 @@ def test_the_replay_matrix_question_counts(tmp_path, level):
                 rs.note_answer(L, "continue")
         got[name] = (_legacy_windows(filed), windows, notes)
     assert got == EXPECTED
+
+
+# ---------------------------------------------------------------- texts
+def test_the_colours_variant_does_not_call_it_harmless():
+    from workflow import measurement_messages as M
+    m = M.CATALOGUE["M-STRIP-RULER-DIRECTION-COLOURS"]
+    assert m.id in M.PROPOSED
+    title, body = m.render(strip="9")
+    assert "back to front" in title
+    assert "harmless" not in body and "likeliest" not in body
+    assert "Reading the strip again is the safe answer" in body
+    assert "—" not in title + body
+
+
+@pytest.mark.parametrize("verdict,mid", [
+    ("other", "M-STRIP-RULER-DIRECTION-COLOURS"),
+    ("unsure", "M-STRIP-RULER-DIRECTION"), (None, "M-STRIP-RULER-DIRECTION")])
+def test_the_window_picks_its_text_by_the_colours(verdict, mid):
+    from ui.tabs.tab_measure import TabMeasure
+    from workflow import measurement_messages as M
+    assert TabMeasure._ruler_direction_texts(None, "9", verdict) == \
+        M.CATALOGUE[mid].render(strip="9")
+
+
+def test_the_summary_carries_the_colours_verdict(tmp_path):
+    rs = _session3(tmp_path)
+    for s in _names(8):
+        _read(rs, s, -1, False)
+    e = _row(99)
+    meas = [(L + 4, a * 0.8, b * 0.8) for L, a, b in reversed(e)]
+    summ = _read(rs, "I", -1, True, expected=e, measured=meas)
+    assert summ["ask_direction"] and summ["direction_colours_verdict"] == "other"
+
+
+# ---------------------------------------------------------------- off
+def test_option_off_runs_none_of_this_at_the_measure_level(qapp, tmp_path,
+                                                           monkeypatch):
+    """With the ruler check off the manager has no RulerSession, none of the
+    new code runs, and a strip's log is the plain "Strip read OK" line."""
+    from tests.test_i1pro2_lights_beta_option import _Runner
+    from workflow import chartread_engine
+    from workflow import ruler_session as rsm
+    from workflow.measure_manager import MeasureManager, MeasureParams
+
+    def boom(*a, **k):
+        raise AssertionError("ruler code ran with the option off")
+    monkeypatch.setattr(ss, "own_row_direction", boom)
+    for name in ("on_strip_read", "forget", "note_answer",
+                 "note_question_answer", "on_strip"):
+        monkeypatch.setattr(rsm.RulerSession, name, boom)
+    monkeypatch.setattr(chartread_engine, "helper_caps",
+                        lambda helper=None: frozenset({"ruler_check"}))
+    monkeypatch.setattr(MeasureManager, "_refuse_system_port",
+                        lambda self, *a, **k: False)
+    runner = _Runner()
+    m = MeasureManager(runner)
+    m.start(MeasureParams(ti1_path=tmp_path / "chart.ti1",
+                          engine_helper=tmp_path / "chromiq-chartread",
+                          engine_ruler_check=False),
+            lambda _l: None, lambda _c: None)
+    assert getattr(m, "_ruler", None) is None
+    lines = []
+    ev = {"event": "strip_read", "strip": "A", "reversed": True,
+          "worst_de": 1.25, "patches": _patches("A", _row(1))}
+    m._handle_engine_line(json.dumps(ev), lines.append)
+    m._handle_engine_line(json.dumps({"event": "strip_turned", "strip": "A",
+                                      "patches": ev["patches"]}), lines.append)
+    m.note_question_answer("A", "read_twice", "keep")
+    assert not any("Ruler" in ln for ln in lines), lines
+    assert any(ln.strip() == "Strip read OK — A (worst patch ΔE 1.2)"
+               for ln in lines), lines
+
+
+# ---------------------------------------------------------------- resume
+def test_a_continued_measurement_starts_with_no_votes(tmp_path):
+    """Tester, 2026-11-15 (4.3.39, a continued measurement): nothing from an
+    earlier sitting seeds the reference. The manager builds a new
+    RulerSession at every start (measure_manager.py, `self._ruler =
+    RulerSession(...)`), which reads neither the .ti3 nor an earlier
+    diagnostics file, and a vote needs a ruler record from this sitting. So
+    the sheet the other way up than in the first sitting asks nothing on
+    the first strips, whatever their colours."""
+    rs = _session3(tmp_path)
+    assert rs.direction_votes == []
+    out = [_read(rs, s, -1, True, expected=_ramp(i))
+           for i, s in enumerate(["AE", "AF", "AG"])]
+    assert not any(x["ask_direction"] for x in out)
+
+
+def test_readings_of_one_strip_are_one_vote(tmp_path):
+    """4.3.39 counted every READING: one strip read three times (re-reads
+    without a question) made a majority, and the next strip, read the other
+    way up, was asked as the second strip of the sitting. Now one strip is
+    one vote."""
+    rs = _session3(tmp_path)
+    for k in range(3):
+        _read(rs, "AD", -1, False)
+    assert rs.direction_votes == [-1]
+    assert not _read(rs, "AE", -1, True, expected=_ramp(1))["ask_direction"]
+
+
+def test_after_a_resume_the_first_vouched_strips_follow_the_new_way_up(tmp_path):
+    """Resume with the sheet the other way up, after three strips of this
+    sitting were read the first way up: the strip whose colours vouch gets
+    a log line, not a window."""
+    rs = _session3(tmp_path)
+    for s in ("AA", "AB", "AC"):
+        _read(rs, s, -1, False)
+    summ = _read(rs, "AD", -1, True)
+    assert not summ["ask_direction"] and _turned_note(summ)

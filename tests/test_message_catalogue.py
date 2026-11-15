@@ -150,6 +150,7 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-RESUME-RESOLUTION-INSTRUMENT",
     # 4.3.37: the ruler and the filing disagree about a strip's direction.
     "M-STRIP-RULER-DIRECTION",
+    "M-STRIP-RULER-DIRECTION-COLOURS",
     # The ruler check (Preferences > Beta), 2026-11-14: an accepted strip
     # the instrument's ruler says was clearly not read all the way.
     "M-STRIP-RULER-NOT-COVERED",

@@ -10312,6 +10312,40 @@ M_STRIP_RULER_DIRECTION = _m(
     "us about it and send the diagnostics file this measurement writes.",
     approved=False)
 
+# --- PROPOSED: the same, when the colours point to back to front ----------
+#: 4.3.40 review (MINOR-2): the strip's own colours fit the chart clearly
+#: better turned round (`slipped_strip.own_row_direction` verdict "other"),
+#: though not by the back-to-front check's margin. Then a turned sheet is no
+#: longer the likeliest reason, and the text says so. Same window and buttons.
+M_STRIP_RULER_DIRECTION_COLOURS = _m(
+    "M-STRIP-RULER-DIRECTION-COLOURS",
+    "Strip {strip} may have been saved back to front",
+    "For every strip, ChromIQ puts two things side by side: which way the "
+    "instrument's ruler saw it move, and in which order the readings were "
+    "saved. Together, they show how the sheet lay under the instrument. For "
+    "strip {strip}, they show it lying the other way round from most of the "
+    "strips you read just before it.\n\n"
+    "On its own, that could mean that the sheet or the ruler was turned "
+    "round. But ChromIQ also compared the colours of this strip with the "
+    "colours the chart expects, and they suggest that the strip was saved "
+    "back to front: taken the other way round, they fit the chart clearly "
+    "better. In that case every patch of strip {strip} would carry the "
+    "colour of another patch. Reading the strip again is the safe "
+    "answer.\n\n"
+    "What each button does:\n\n"
+    "•  Re-read Strip: read strip {strip} again, from the white paper before "
+    "the first patch to the white paper after the last, in one steady "
+    "movement. The new reading replaces this one. This is the safe "
+    "choice.\n\n"
+    "•  Continue Anyway: keep what was just read and carry on with the next "
+    "strip. Choose this only if you are sure that the strip was saved the "
+    "right way round.\n\n"
+    "This question comes from the ruler check, a beta option in Preferences, "
+    "on the Beta tab. ChromIQ never changes a reading by itself. If you are "
+    "sure the strip was saved the right way round, please tell us about it "
+    "and send the diagnostics file this measurement writes.",
+    approved=False)
+
 # --- PROPOSED: a resume at another spectral resolution (4.3.37) -----------
 #: A tester's re-read strips were lost: the measurement was taken without -H,
 #: the resume with it, and the reader only noticed when it wrote the file.
@@ -11220,6 +11254,7 @@ CATALOGUE = {m.id: m for m in (
     M_RESUME_RESOLUTION,
     M_RESUME_RESOLUTION_INSTRUMENT,
     M_STRIP_RULER_DIRECTION,
+    M_STRIP_RULER_DIRECTION_COLOURS,
     M_READINGS_NOT_SAME_CHART, M_READINGS_UNUSABLE,
     M_IMPORT_TURNED_GRID_COLOURS,
     M_IMPORT_CXF_CONDITION, M_IMPORT_CXF_CONDITION_PARTS,
