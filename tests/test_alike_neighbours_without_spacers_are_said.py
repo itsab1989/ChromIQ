@@ -66,6 +66,26 @@ def test_said_without_spacers_and_once_in_the_log(tmp_path):
     assert len(lines) == 1                      # once per chart
 
 
+def test_said_again_on_every_generate_into_the_same_run(tmp_path):
+    """Combined review of 4.3.39, MINOR-2: generating again into the same
+    run rewrites the same chart path, and the note was keyed on the path, so
+    the new chart's log (cleared by Generate) never said it again while the
+    panel line still pointed to the log."""
+    import os
+    from ui.tabs.tab_chart import TabChart
+    ti2 = _chart(tmp_path, "none")
+    out, lines, fake = _note(ti2)
+    assert len(lines) == 1
+    TabChart._alike_neighbours_note(fake)
+    assert len(lines) == 1                      # the same chart: once
+    # Generate again into the same run: the same path, written again
+    st = ti2.stat()
+    ti2.write_bytes(ti2.read_bytes())
+    os.utime(ti2, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))
+    TabChart._alike_neighbours_note(fake)
+    assert len(lines) == 2                      # said for the new chart
+
+
 def test_silent_with_spacers(tmp_path):
     out, lines, _f = _note(_chart(tmp_path, "colored"))
     assert out is None and lines == []

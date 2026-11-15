@@ -6442,6 +6442,19 @@ class _InfoRowScroll(FadeScrollArea):
         return hint
 
 
+def _chart_note_key(ti2) -> str:
+    """What "this chart" means for a note said once per chart in the Create
+    Chart log: the chart file AND its last write. Generating again into the
+    same run rewrites the same path, and a key of the path alone kept the
+    no-spacer note out of the new chart's log (combined review of 4.3.39,
+    MINOR-2); the short-patch note shares the rule."""
+    try:
+        st = Path(ti2).stat()
+        return f"{ti2}|{st.st_mtime_ns}|{st.st_size}"
+    except OSError:
+        return str(ti2)
+
+
 class TabChart(QWidget):
     """Step 1: create targen/printtarg test chart."""
     #: The hue of this tab's step header, its accent: file-drop frames
@@ -27631,8 +27644,9 @@ class TabChart(QWidget):
             from workflow import measurement_messages as M
             title, body = M.M_CHART_ALIKE_NO_SPACER.render(n=n)
             _t2, line = M.M_CHART_ALIKE_NO_SPACER_PANEL.render(n=n)
-            if getattr(self, "_alike_logged", None) != str(ti2):
-                self._alike_logged = str(ti2)
+            key = _chart_note_key(ti2)
+            if getattr(self, "_alike_logged", None) != key:
+                self._alike_logged = key
                 log_w = getattr(self, "_log", None)
                 if log_w is not None and hasattr(log_w, "appendPlainText"):
                     log_w.appendPlainText(f"[{title}]\n{body}")
@@ -27659,20 +27673,21 @@ class TabChart(QWidget):
                 return None
             title, body = P.note_text(finding)
             said = getattr(self, "_short_patch_logged", None)
+            key = _chart_note_key(ti2)
             log_w = getattr(self, "_log", None)
             can_log = log_w is not None and hasattr(log_w, "appendPlainText")
             if finding.calm:
                 # ChromIQ's own automatic size, a little short (combined
                 # review of 4.3.39, MAJOR-2): one calm [INFO] line in the
                 # log, nothing red on the panel and no warning counted
-                if said != str(ti2):
-                    self._short_patch_logged = str(ti2)
+                if said != key:
+                    self._short_patch_logged = key
                     if can_log:
                         log_w.appendPlainText("[INFO] " + body)
                 return None
             self._short_patch_panel_line = "⚠ " + P.panel_line(finding)
-            if said != str(ti2):
-                self._short_patch_logged = str(ti2)
+            if said != key:
+                self._short_patch_logged = key
                 if can_log:
                     log_w.appendPlainText(f"[{title}]\n{body}")
             return f"⚠ {title}. {body}"
