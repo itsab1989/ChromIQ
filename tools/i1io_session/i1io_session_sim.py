@@ -76,6 +76,10 @@ def _rest_guard(p) -> bool:          # the simulator's own copy of where i1 may 
     return 1101 <= p[0] <= 1103 and -1 <= p[1] <= 80
 
 
+def _start_guard(p) -> bool:         # the simulator's own copy of the first homing's box (0.3.1)
+    return 1090 <= p[0] <= 1115 and -1 <= p[1] <= 250
+
+
 def _out_start(p) -> bool:           # where a move out from rest may start
     return 1101 <= p[0] <= 1103 and -1 <= p[1] <= 48
 
@@ -229,7 +233,7 @@ class SimTable:
             raise SimViolation(f"{line[1:3]} sent while the arm is still moving")
         here = (self.pos[0], self.pos[1])
         if line == I1:
-            ok = (_rest_guard(here) or (not self.free_arm and (_near(here, (1000, 1500))
+            ok = (_start_guard(here) or (not self.free_arm and (_near(here, (1000, 1500))
                                                               or _near(here, (1102, 1498)))))
             if not ok:
                 raise SimViolation(f"i1 from {here}: not a place this copy allows")
@@ -354,7 +358,7 @@ class SimTable:
         if line == I1:
             start = (self.pos[0], self.pos[1])
             target = (1102.0, float(self._rng.choice((0, 1, 2))))
-            if _rest_guard(start):
+            if _start_guard(start):
                 t = 0.048 if abs(start[1]) <= 3 else 0.17 + abs(start[1]) * 0.0038
             else:
                 t = 2.4

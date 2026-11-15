@@ -343,8 +343,8 @@ def test_the_homing_guard_inside(tmp_path, y, window):
     assert f"home/{window}" in log
 
 
-@pytest.mark.parametrize("x,y", [(1102, 81), (1102, 120), (1102, 121), (1102, -2), (1100, 20),
-                                 (1104, 20), (1058, 317), (1102, 250)])
+@pytest.mark.parametrize("x,y", [(1102, 251), (1102, 300), (1102, -2), (1089, 20), (1116, 20),
+                                 (1058, 317), (1090, 251), (1102, 1202)])
 def test_the_homing_guard_outside_stops_before_any_movement(tmp_path, x, y):
     sim = sim_mod.SimTable(pos=[float(x), float(y)], jitter=False)
     code, sim, log, con = _run(tmp_path, sim)
@@ -354,13 +354,18 @@ def test_the_homing_guard_outside_stops_before_any_movement(tmp_path, x, y):
 
 def test_the_guard_box_and_its_reasons_are_pinned():
     assert tbl.REST_GUARD == tbl.Box(1101, 1103, -1, 80)
+    assert tbl.START_GUARD == tbl.Box(1090, 1115, -1, 250)
+    assert not tbl.START_GUARD.contains((1058, 317))    # 32 units left of X 1090, 67 beyond Y 250
+    assert tbl.START_GUARD.contains((1104, 110)) and tbl.START_GUARD.contains((1101, 97))
+    assert tbl.HOME_FIRST[1] == ("p0", "START_GUARD", "right before the homing")
+    assert tbl.HOME_AND_CHECK[2][1] == "REST_GUARD"
     assert tbl.REST_RECORDED == tbl.Box(1101, 1103, -1, 48)
     assert tbl.OUT_START == tbl.Box(1101, 1103, -1, 48)
     xs = [x for x, _ in tbl.RECORDED_REST_STARTS]
     ys = [y for _, y in tbl.RECORDED_REST_STARTS]
     assert tbl.REST_RECORDED == tbl.Box(min(xs) - 1, max(xs) + 1, min(ys) - 1, max(ys) + 1)
     assert not tbl.REST_GUARD.contains((1058, 317))      # the one recorded drive-out case
-    assert tbl.TIME_WINDOW["home_rest"] == (0.0, 0.6) and tbl.TIME_WINDOW["home_wide"][1] == 1.1
+    assert tbl.TIME_WINDOW["home_rest"] == (0.0, 0.6) and tbl.TIME_WINDOW["home_wide"][1] == 2.0
 
 
 def test_a_move_out_needs_a_start_where_the_recorded_ones_started(tmp_path):
@@ -538,9 +543,10 @@ def test_plan_and_dry_run_show_every_line_and_open_nothing(capsys, monkeypatch, 
 
 def test_the_touch_wording_is_gentle_and_never_downwards():
     for q in (prog.ASK_TOUCH, prog.ASK_FREE_TOUCH):
-        for needed in ("very gently", "towards the front of the table", "do not press down",
-                       "force it"):
+        for needed in ("very gently", "from side to side", "Do not push it towards the front "
+                       "of the table", "do not press down", "force it"):
             assert needed in q, needed
+        assert "push it very gently towards" not in q
 
 
 def test_the_readme_says_what_matters():
@@ -741,8 +747,9 @@ def test_the_real_path_order_questions_touch_sentence_open(tmp_path, monkeypatch
             return super().ask(question, choices)
     log = tmp_path / "r.txt"
     assert prog.main(["--real", "--log", str(log)], console=C(dev.sim)) == 0
-    first_touch = events.index(prog.ASK_TOUCH)
-    assert first_touch < events.index("open")
+    # 0.3.1: no touch before the opening; the first touch comes after the session, at rest
+    assert prog.ASK_MOVED in events and events.index(prog.ASK_MOVED) < events.index("open")
+    assert prog.ASK_TOUCH in events and events.index(prog.ASK_TOUCH) > events.index("open")
     assert dev.sim.received == ALL
 
 
@@ -922,7 +929,7 @@ def _drive(sim, lines):
     return t
 
 
-@pytest.mark.parametrize("y", [81, 120, 121, 200, -2])
+@pytest.mark.parametrize("y", [251, 300, 317, -2])
 def test_the_simulator_refuses_a_homing_outside_its_own_guard(y):
     sim = sim_mod.SimTable(pos=[1102.0, float(y)], jitter=False)
     t = _drive(sim, OPEN + [";s022", ";p025"])
@@ -997,9 +1004,12 @@ def test_the_full_session_on_the_wire_is_byte_identical_to_the_reviewed_eb38ba20
     assert hashlib.sha256(" ".join(sim.received).encode()).hexdigest() == EB38_FULL_SESSION_SHA256
 
 
-def test_the_guard_boundary_y80_homes_and_y81_stops_before_any_movement(tmp_path):
-    for y, homes in ((80, True), (81, False)):
-        sim = sim_mod.SimTable(pos=[1102.0, float(y)], jitter=False)
+def test_the_guard_boundary_y250_homes_and_y251_stops_before_any_movement(tmp_path):
+    """0.3.1: the first homing's box START_GUARD X 1090..1115, Y -1..250."""
+    for (x, y), homes in (((1102, 250), True), ((1102, 251), False), ((1090, 250), True),
+                          ((1115, 0), True), ((1089, 30), False), ((1116, 30), False),
+                          ((1104, 110), True), ((1101, 97), True)):
+        sim = sim_mod.SimTable(pos=[float(x), float(y)], jitter=False)
         code, sim, log, con = _choose(tmp_path, {"home", "close"}, sim=sim)
         if homes:
             assert code == 0 and sim.motions == 1
@@ -1008,7 +1018,8 @@ def test_the_guard_boundary_y80_homes_and_y81_stops_before_any_movement(tmp_path
             assert code == 2 and sim.motions == 0
             assert sim.received == OPEN + [";s022", ";p025"]
             assert "Nothing was moved." in log
-    assert "Y 49..80" in prog.plan_text() and "Y -1 to 80" in prog.plan_text()
+    assert "2.0 s from Y 49..250" in prog.plan_text()
+    assert "X 1090 to 1115, Y -1 to 250" in prog.plan_text()
 
 
 class _CtrlCAtFreeTouch(Choose):
@@ -1103,7 +1114,8 @@ def test_the_step_texts_say_what_is_true():
     assert "two milliseconds after a button" in free and "status 3 means is not known" in free
     assert "still in the hand-alignment mode" in free
     assert "switches the hand-alignment mode off again" in by["free"].explain
-    assert "Y 48 to 80 (up to 8 mm out" in by["home"].beyond
+    assert "X 1090 to 1115 and Y up to 250 (up to 25 mm out" in by["home"].beyond
+    assert "longer than 2 s" in by["home"].beyond
 
 
 #: Sentences the safety review of eb38ba20b found untrue or asked to remove. None may come back
@@ -1127,3 +1139,85 @@ def test_no_untrue_sentence_from_the_review_comes_back_in_any_shipped_file():
             assert phrase not in text, (name, phrase)
     build = (ROOT / "scripts" / "build_i1io_session_zip.py").read_text(encoding="utf-8")
     assert all(f'"{n}"' in build for n in SHIPPED)
+
+
+# ---- 0.3.1: no touch before the first homing, none after a stop; the wider first-homing box --
+
+def test_no_touch_question_is_asked_before_the_opening(tmp_path):
+    src = _source("i1io_session.py")
+    body = src.split("def touch_before_opening", 1)[1].split("\ndef ", 1)[0]
+    assert "ASK_TOUCH" not in body and "ask(" in body
+    for name in SHIPPED:
+        text = " ".join(_source(name).split()).lower()
+        assert "push it very gently towards the front" not in text, name
+        assert "apart from the touch just now" not in text, name
+        assert "touch the arm gently once before it opens anything" not in text, name
+
+
+def test_the_real_run_asks_no_touch_before_the_first_homing(tmp_path, monkeypatch):
+    monkeypatch.setattr(tbl.time, "sleep", lambda s: None)
+    dev = FakeDev(cold=False)
+    events = []
+    monkeypatch.setattr(sys, "stdin", _TTY())
+    monkeypatch.setattr(tbl, "check_usb_available", lambda: "pyusb test; libusb test")
+    monkeypatch.setattr(prog, "i1profiler_running", lambda: False)
+    monkeypatch.setattr(prog, "xrite_helpers_running", lambda: [])
+    monkeypatch.setattr(tbl, "usb_holders", lambda: [])
+    monkeypatch.setattr(prog.Lock, "acquire", lambda self: True)
+    monkeypatch.setattr(prog.time, "sleep", lambda s: None)
+    monkeypatch.setattr(tbl, "open_table", lambda: _ftdi(dev)[1])
+
+    class C(Script):
+        def ask(self, question, choices=("yes", "no")):
+            events.append((question, list(self.sim.received)))
+            return super().ask(question, choices)
+    assert prog.main(["--real", "--log", str(tmp_path / "r.txt")], console=C(dev.sim)) == 0
+    touches = [rec for q, rec in events if q in (prog.ASK_TOUCH, prog.ASK_FREE_TOUCH)]
+    assert touches
+    first_home = ALL.index(";i12b")
+    assert all(len(rec) > first_home for rec in touches)
+
+
+@pytest.mark.parametrize("x,y", [(1102, 251), (1089, 30), (1058, 317)])
+def test_outside_even_the_wider_box_nothing_moves_no_touch_and_the_recovery_is_offered(
+        tmp_path, x, y):
+    sim = sim_mod.SimTable(pos=[float(x), float(y)], jitter=False)
+    code, sim, log, con = _run(tmp_path, sim)
+    flat = " ".join(log.split())
+    assert code == 2 and sim.motions == 0 and sim.received == OPEN + [";s022", ";p025"]
+    assert f"The arm stands at X {x}, Y {y}, outside the range" in flat
+    for needed in ("open i1Profiler once, let it start the table, quit i1Profiler",
+                   "run this program again without touching the arm"):
+        assert needed in flat, needed
+    assert prog.ASK_TOUCH not in [q for q, *_ in con.seen]
+
+
+@pytest.mark.parametrize("script", [{prog.ASK_DID: "no"}, {prog.ASK_DID: "stop"}])
+def test_no_touch_question_after_an_early_stop(tmp_path, script):
+    code, sim, log, con = _run(tmp_path, script=script)
+    assert code == 1
+    assert prog.ASK_TOUCH not in [q for q, *_ in con.seen]
+
+
+def test_no_touch_question_after_a_fault_nor_without_a_homing(tmp_path):
+    sim = sim_mod.SimTable()
+    sim.inject_at(len(OPEN) + 4, "garbled", 1.0)
+    code, sim, log, con = _run(tmp_path, sim)
+    assert code == 2 and prog.ASK_TOUCH not in [q for q, *_ in con.seen]
+    code, sim, log, con = _choose(tmp_path, set())           # nothing run: no homing
+    assert prog.ASK_TOUCH not in [q for q, *_ in con.seen]
+    code, sim, log, con = _choose(tmp_path, {"home"})       # a homing at rest: touches
+    assert [q for q, *_ in con.seen].count(prog.ASK_TOUCH) == 2
+
+
+def test_the_tester_s_two_stopping_points_now_home_inside_the_window(tmp_path):
+    for x, y in ((1104, 110), (1101, 97)):
+        sim = sim_mod.SimTable(pos=[float(x), float(y)], jitter=False)
+        code, sim, log, con = _choose(tmp_path, {"home", "close"}, sim=sim)
+        assert code == 0 and sim.received == OPEN + _lines("home") + _lines("close")
+        assert "home/home_wide" in log
+    # a homing from 25 mm out that takes longer than 2 s stops right after it
+    sim = sim_mod.SimTable(pos=[1102.0, 250.0], jitter=False)
+    sim.inject_at(len(OPEN) + 2, "slow_motion", 1.0)
+    code, sim, log, con = _choose(tmp_path, {"home", "close"}, sim=sim)
+    assert code == 2 and sim.received == OPEN + _lines("home")[:3]

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 the ChromIQ authors. Part of ChromIQ (https://github.com/itsab1989/ChromIQ).
-"""ChromIQ i1iO session test program 0.3.0: open an X-Rite i1iO 2 table that is already
+"""ChromIQ i1iO session test program 0.3.1: open an X-Rite i1iO 2 table that is already
 started, the way i1Profiler opens it, and then offer a few small steps, one at a time:
 the homing, three recorded drives out and back home, the hand-alignment mode, and the
 close. Each step is explained first, needs your yes, can be skipped, and is followed by a
@@ -53,32 +53,32 @@ I1PROFILER_RUNNING = (
     "X-Rite Device Services) can keep running; you do not need to stop them, and please do "
     "not try to stop them by hand.")
 STOPPED = "You stopped the program. Nothing more is sent to the table."
-ASK_TOUCH = ("Please put one finger on the instrument holder and push it very gently towards "
-             "the front of the table (the way the arm travels over the table), as if to move it "
-             "by about a millimetre, then let go at once. Push sideways only, level with the "
-             "table, and do not press down: the measuring opening rests on the white tile. Do "
-             "not force it. Does the arm hold its place, or does it move freely? \"holds\": it "
-             "resists your finger, or springs back when you let go. \"free\": it gives way with "
-             "almost no effort, as when the table is switched off.")
+#: 0.3.1: asked only after a homing has finished at the resting place, never after an early
+#: stop, and never as a push towards the front of the table (in 0.3.0 that push, asked before
+#: the opening, moved the free arm out of the homing guard twice).
+WIGGLE = ("Please put one finger on the instrument holder and wiggle it very gently from side "
+          "to side, by about a millimetre, then let go at once. Do not push it towards the "
+          "front of the table or back, do not press down (the measuring opening rests on the "
+          "white tile), and do not force it.")
+ASK_TOUCH = (WIGGLE + " Is the arm held, or is it free? \"holds\": it resists your finger, "
+             "or springs back when you let go. \"free\": it gives way with almost no effort, "
+             "as when the table is switched off.")
 TOUCH_CHOICES = ("holds", "free", "not sure", "skip")
 TOUCH_BEFORE_INTRO = (
-    "One check before the program opens anything (nothing has been sent to the table yet, and "
-    "i1Profiler is not running): is the arm held or free when i1Profiler has finished with "
-    "the table? If the arm moves a little, leave it where it is.")
+    "Three short questions before the program opens anything (nothing has been sent to the "
+    "table yet). Please do not touch the arm now: even a gentle push can move a free arm "
+    "out of the range where this program may send it home.")
 ASK_MINUTES = ("About how many minutes ago did you quit i1Profiler? (a rough number is fine; "
                "press Enter if you do not know)")
-ASK_MOVED = ("Since you quit i1Profiler, has anyone touched or moved the arm, apart from the "
-             "touch just now?")
+ASK_MOVED = "Since you quit i1Profiler, has anyone touched or moved the arm?"
 ASK_LIGHTS = ("Which lights are on right now, on the table and on the i1Pro 2? (a few words, "
               "for example 'table power light green, i1Pro 2 dark'; press Enter to skip)")
 ASK_COLD_START = ("If you have seen it: when i1Profiler starts the table after it was switched "
                   "on, what do the arm and the measuring opening do (does the arm travel, how "
                   "far, does the opening lift)? Press Enter to skip.")
 ASK_FREE_TOUCH = (
-    "The arm should now be free. Please put one finger on the instrument holder and push it "
-    "very gently towards the front of the table, about a millimetre, then let go. Push "
-    "sideways only, level with the table, and do not press down. Do not move it away from "
-    "the white tile, and do not force it. Then take your hand off the arm BEFORE you answer: "
+    "The arm should now be free. " + WIGGLE + " Do not move it away from the white tile. "
+    "Then take your hand off the arm BEFORE you answer: "
     "right after your answer, the program sends the arm home at once. Does it move freely "
     "now, or does it still hold?")
 FREE_CHOICES = ("free", "holds", "not sure", "skip")
@@ -130,6 +130,12 @@ UNFINISHED = (
     "The table never reported that its last movement had finished, so it may still be "
     "moving, or it may start that movement later. Please keep your hands away from the arm, "
     "switch the table off, wait ten seconds and switch it on again, then " + OPEN_I1PROFILER[7:])
+#: 0.3.1: the arm stood outside even START_GUARD before the first homing (nothing moved).
+OUTSIDE_START = (
+    "The arm stands at X {x}, Y {y}, outside the range from which this program may send it "
+    "home ({box}). That is a stop, not a fault of your table, and nothing moved. What is known "
+    "to bring the arm back: open i1Profiler once, let it start the table, quit i1Profiler, and "
+    "then run this program again without touching the arm in between.")
 UNFINISHED_FREE = ("The table was also left in the hand-alignment mode (the close, which "
                    "switches it off, was not sent).")
 
@@ -296,8 +302,9 @@ def plan_text(hex_bytes: bool = False) -> str:
             elif op[0] == "p0":
                 out.append(row("position") + f"   (must read {tbl.BOXES[op[1]].text()})")
             elif op[0] == "home_rest":
-                out.append(row("home") + "   (MOVES home; within 0.6 s, or 1.1 s from Y "
-                           f"{tbl.REST_RECORDED.ymax + 1}..{tbl.REST_GUARD.ymax})")
+                out.append(row("home") + "   (MOVES home; within 0.6 s, or "
+                           f"{tbl.TIME_WINDOW['home_wide'][1]:.1f} s from Y "
+                           f"{tbl.REST_RECORDED.ymax + 1}..{tbl.START_GUARD.ymax})")
             elif op[0] == "move":
                 lo, hi = tbl.TIME_WINDOW[op[2]]
                 out.append(row(op[1]) + f"   (MOVES; must finish within {lo:.2f}..{hi:.2f} s)")
@@ -422,7 +429,7 @@ class Session:
         if d.last_move == ("home", True):
             return "home"
         if (d.last_move == ("home", None) and d.before_move is not None
-                and tbl.REST_GUARD.contains(d.before_move)):
+                and tbl.START_GUARD.contains(d.before_move)):
             return "home, homing refused"      # answered with an error: it had not left rest
         return "maybe out"
 
@@ -438,6 +445,9 @@ class Session:
                 self.ui.say(OUT_STATE if free_mode else OUT_ON_TABLE)
             elif w == "not moved":
                 self.ui.say("Nothing was moved.")
+                if d.outside_at is not None:
+                    x, y = d.outside_at
+                    self.ui.say(OUTSIDE_START.format(x=x, y=y, box=tbl.START_GUARD.text()))
             elif w == "outside":
                 x, y = d.outside_at
                 self.ui.say(f"The arm last read X {x}, Y {y}, not where the step needed it. "
@@ -466,10 +476,12 @@ class Session:
         except BaseException:
             pass
 
-    def may_touch(self) -> bool:
-        return (self.d.lines_sent > 0 and not self.d.motion_unconfirmed
+    def may_touch(self, code: int = 0) -> bool:
+        """0.3.1: only after a session that ended as chosen (no early stop) with a homing
+        finished at the resting place as the last movement."""
+        return (code == 0 and self.d.lines_sent > 0 and not self.d.motion_unconfirmed
                 and not self.stopped_by_person
-                and self.where() in ("home", "not moved", "home, homing refused")
+                and self.where() == "home"
                 and self.seen_ok)
 
     def touch(self, when: str) -> bool:
@@ -485,11 +497,11 @@ class Session:
         self.note(f"arm held? ({when})", ans)
         return True
 
-    def after(self, transport, real: bool) -> None:
+    def after(self, transport, real: bool, code: int = 0) -> None:
         """After go(): touches (USB held, then released), questions, closing advice. Sends
         nothing (go() has closed the table for sending)."""
         log = self.ui.log
-        touch = self.may_touch()
+        touch = self.may_touch(code)
         if touch:
             self.ui.say("")
             self.ui.say("The program still holds the table's USB connection, and it sends "
@@ -659,13 +671,11 @@ def holder_names_for_screen(holders) -> str:
 
 
 def touch_before_opening(ui, notes) -> None:
-    """Before anything is opened or sent: one gentle touch, and how long ago i1Profiler was
-    quit (the observation that settles whether a free arm at rest is the table's normal state
-    after i1Profiler). Sends nothing; the table is not even opened yet."""
+    """Before anything is opened or sent: how long ago i1Profiler was quit, whether the arm was
+    moved, the lights. 0.3.1: NO touch here (in 0.3.0 the touch asked here pushed the free arm
+    out of the homing guard, twice). Sends nothing; the table is not even opened yet."""
     ui.say("")
     ui.say(TOUCH_BEFORE_INTRO)
-    notes.append(("arm held? (before the program opened anything)",
-                  ui.ask(ASK_TOUCH, TOUCH_CHOICES)))
     notes.append(("minutes since i1Profiler was quit", ui.text(ASK_MINUTES)))
     notes.append(("arm touched or moved since i1Profiler was quit",
                   ui.ask(ASK_MOVED, ("no", "yes", "not sure"))))
@@ -859,7 +869,7 @@ def main(argv=None, sim_table=None, console=None) -> int:
                         answers=pre_notes)
             code = r.go()
             r.ending(code)
-            r.after(transport, real=args.real)
+            r.after(transport, real=args.real, code=code)
             log("INFO", f"result {code}; table {table.state or 'not asked'}; steps done "
                         f"{table.done_steps or 'none'}; {table.lines_sent} lines sent, "
                         f"{table.motions_sent} movements; arm {r.where()}; move times "

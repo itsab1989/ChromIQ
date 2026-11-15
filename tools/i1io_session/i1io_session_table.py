@@ -35,7 +35,7 @@ import time
 from dataclasses import dataclass
 
 TOOL_NAME = "chromiq-i1io-session"
-TOOL_VERSION = "0.3.0"
+TOOL_VERSION = "0.3.1"
 
 VID, PID = 0x0971, 0x2004
 
@@ -294,6 +294,18 @@ REST_RECORDED = Box(1101, 1103, -1, 48)
 #: the line and 317 out. The same box is the check at rest before every homing from rest
 #: (every step's first homing, the second homing, the free-arm homing).
 REST_GUARD = Box(1101, 1103, -1, 80)
+#: 0.3.1: the guard for the FIRST homing of a step (HOME_FIRST), from wherever the arm stands
+#: after i1Profiler was quit. In 0.3.0 the tester's arm read (1104, 110) and (1101, 97) there,
+#: twice, after our own touch question had pushed the free arm outwards; nothing moved. This
+#: box is a step beyond the recordings, chosen from them: i1Profiler homed directly from rest
+#: at X 1102, Y 0..47, and drove the arm under motor along X 1102 from rest to Y 250 (the
+#: recorded m0 to (1102, 250)); it homed from held positions farther out ((1102, 1202),
+#: (1172, 1663)) and from a free arm ((1050, 1492)). Y stops at 250, the recorded target on that
+#: line, so the one place where i1Profiler drove out first, (1058, 317), stays outside: 67
+#: units (6.7 mm) beyond Y 250 and 32 units (3.2 mm) left of X 1090. X 1090..1115 is about
+#: 1.2 mm either side of 1102. The checks at rest after a homing (HOME_AND_CHECK, the free arm)
+#: keep REST_GUARD.
+START_GUARD = Box(1090, 1115, -1, 250)
 #: Where a recorded move out from rest started (Y 4..6 after a double homing, 29..41 at a
 #: session start), plus one unit: the moves out are sent only from here.
 OUT_START = Box(1101, 1103, -1, 48)
@@ -312,8 +324,9 @@ QUICK_TIMEOUT = 1.0
 #: Time windows (seconds from the line to its done-answer) for every movement, from the
 #: recorded times, widened; outside: nothing more is sent.
 #:   home_rest    i1 from REST_RECORDED: recorded 0.047-0.352 s; limit 0.6 (as 0.2.x)
-#:   home_wide    i1 from Y 49..80: predicted 0.36-0.48 s (0.17 + 0.0039 s per unit,
-#:                fitted to the recorded at-rest homings); limit 1.1
+#:   home_wide    i1 from START_GUARD outside REST_RECORDED (Y 49..250): predicted
+#:                0.36-1.15 s (0.17 + 0.0039 s per unit, fitted to the recorded at-rest
+#:                homings); limit 2.0 (1.7 times the longest prediction)
 #:   home_table   i1 from a held position out on the table: recorded 1.60-4.01 s
 #:   home_free    i1 from the free arm at rest (after f1): from rest never recorded; from
 #:                the free arm far out 4.01 s (R2 261.644); limit 1.1 as home_wide
@@ -323,7 +336,7 @@ QUICK_TIMEOUT = 1.0
 #:   to_2507      recorded 1.695 s
 #:   back_1498    to_1498 sent from (2507, 1498): the recorded to_2507 path backwards, same
 #:                distance: 1.695 s expected
-TIME_WINDOW = {"home_rest": (0.0, 0.6), "home_wide": (0.0, 1.1), "home_table": (1.0, 6.0),
+TIME_WINDOW = {"home_rest": (0.0, 0.6), "home_wide": (0.0, 2.0), "home_table": (1.0, 6.0),
                "home_free": (0.0, 1.1), "to_250": (0.55, 1.2), "to_1000": (1.35, 2.4),
                "to_1498": (1.40, 2.4), "to_2507": (1.40, 2.4), "back_1498": (1.40, 2.4)}
 MOVE_TIMEOUT = {"home_rest": 12.0, "home_wide": 12.0, "home_table": 15.0, "home_free": 12.0,
@@ -340,7 +353,7 @@ DRAIN_MAX_S = 60.0
 
 #: The homing every step starts with: i1Profiler's own "s0 p0 i1 s0" (after the opening:
 #: R2 35.003-35.385; after a previous homing: R2 265.659-268.909 "s0 s0 p0 i1 s0").
-HOME_FIRST = (("x", "status"), ("p0", "REST_GUARD", "right before the homing"),
+HOME_FIRST = (("x", "status"), ("p0", "START_GUARD", "right before the homing"),
               ("home_rest",), ("x", "status"))
 #: Back home from out on the table, then the recorded check at home and the second
 #: homing (R2 265.659-268.909 after a homing from the table).
@@ -364,12 +377,14 @@ class Step:
 STEPS = (
     Step("home", "Send the arm to its resting place once",
          ("warm", "homed"), "homed", HOME_FIRST, "low",
-         "The arm is sent to its resting place, where it already is: it moves at most about "
-         "a centimetre, for about a third of a second. This is exactly what i1Profiler does "
-         "right after it opens the table.",
-         "i1Profiler sent this homing only from Y 0 to 47; this program also sends it from "
-         "Y 48 to 80 (up to 8 mm out, on the same line). From there it takes up to about "
-         "half a second; it is stopped if it takes longer than 1.1 s."),
+         "The arm is sent to its resting place, where it already is or nearly is: usually it "
+         "moves a few millimetres, for about a third of a second, and at most 25 mm, for "
+         "about a second. This is what i1Profiler does right after it opens the table.",
+         "i1Profiler sent this homing only from X 1102, Y 0 to 47; this program also sends it "
+         "from X 1090 to 1115 and Y up to 250 (up to 25 mm out, about 1 mm to either side of "
+         "the home line), the stretch i1Profiler drove the arm along under motor in your "
+         "recordings. From 25 mm out it should take about 1.2 s; it is stopped if it takes "
+         "longer than 2 s. If the arm stands even farther out, nothing moves."),
     Step("near", "Drive out about 15 cm along i1Profiler's way to an alignment, and back home",
          ("warm", "homed"), "homed",
          HOME_FIRST + (("f4", "00"), ("f4", "00"), ("p0", "OUT_START", "before driving out"),
@@ -458,7 +473,7 @@ STEPS = (
          "Nothing: this is i1Profiler's close after a homing and a pause, as recorded."),
 )
 
-BOXES = {"REST_GUARD": REST_GUARD, "OUT_START": OUT_START, "AT_250": AT_250,
+BOXES = {"REST_GUARD": REST_GUARD, "START_GUARD": START_GUARD, "OUT_START": OUT_START, "AT_250": AT_250,
          "AT_1000": AT_1000, "AT_1498": AT_1498, "AT_2507": AT_2507}
 
 
@@ -794,7 +809,7 @@ class Table:
         pos = self.position()
         self.log("DATA", f"{what}: the arm reports {pos}")
         if not box.contains(pos):
-            if box_name in ("REST_GUARD", "OUT_START"):
+            if box_name in ("REST_GUARD", "START_GUARD", "OUT_START"):
                 self.outside_at = pos
             raise self._doubt(f"{what}: the arm reports {pos}, outside {box_name} {box}",
                               OFF_PLACE_TEXT.format(x=pos[0], y=pos[1], what=what,
@@ -804,7 +819,7 @@ class Table:
     def _home_from_rest(self) -> None:
         """i1 right after the p0 that read the resting place (checked just before)."""
         pos = self.position_now
-        if pos is None or not REST_GUARD.contains(pos):
+        if pos is None or not START_GUARD.contains(pos):
             raise self._doubt("a homing from rest without a fresh reading at rest (a bug)")
         window = "home_rest" if REST_RECORDED.contains(pos) else "home_wide"
         self._move("home", window)

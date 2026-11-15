@@ -1,4 +1,4 @@
-# ChromIQ i1iO session test program 0.3.0 (a few recorded steps, one at a time)
+# ChromIQ i1iO session test program 0.3.1 (a few recorded steps, one at a time)
 
 **This is an unofficial test program. It is not from X-Rite, and X-Rite has
 nothing to do with it.** Running it is entirely your choice, at every single
@@ -21,23 +21,49 @@ to finish. After each step it asks what you saw, heard and felt.
 the table's memory, and sends no line of its own for the measuring head.** It
 is not part of the ChromIQ app and does not need it.
 
+## What changed since 0.3.0
+
+* You ran 0.3.0 twice, and both times it stopped before the first homing,
+  with nothing moved: the arm read X 1104, Y 110 and X 1101, Y 97, outside the
+  range 0.3.0 allowed (X 1101 to 1103, Y up to 80). That was our fault, not
+  your table's. Our own question before the opening asked you to push the
+  free arm gently towards the front of the table, and that push moved it out
+  by several millimetres; the touches after each stop pushed it further. That
+  question is gone: 0.3.1 never asks you to touch the arm before the first
+  homing, and never after a stop.
+* The touch questions that remain come only after a homing has brought the
+  arm to its resting place, and they ask you to wiggle the holder gently from
+  side to side, never to push it towards the front.
+* The first homing of each step is now sent from a wider range: X 1090 to
+  1115, Y up to 250 (25 mm). This goes one step beyond your recordings:
+  i1Profiler sent this homing only from X 1102, Y 0 to 47, but it drove the
+  arm along this same line under motor out to Y 250, and it homed from places
+  much farther out. The one place where i1Profiler drove the arm out first
+  instead of homing (X 1058, Y 317) stays outside the range. From 25 mm out
+  the homing should take about 1.2 s; the program stops if it takes longer
+  than 2 s.
+* If the arm stands outside even this range, nothing moves, and the program
+  tells you what is known to bring it back: open i1Profiler once, let it
+  start the table, quit it, and run this program again without touching the
+  arm.
+
 ## What changed since 0.2.1
 
 * The range we used to check the arm's resting position was wrong twice. The
   arm's reading creeps slowly away from Y 0 the longer it stands, so we no
   longer guess a range from what we have seen. The homing is sent from the
   places i1Profiler sent it from (X 1102, Y 0 to 47), and, one small step
-  further, from up to Y 80 (8 mm) on the same line: that line is driven by
-  i1Profiler's own moves out from the resting place in your recordings.
+  further, from a wider range on the same line (see above): that line is
+  driven by i1Profiler's own moves out from the resting place in your
+  recordings.
 * New: three drives out over the empty table and back home, using only moves
   i1Profiler made on your table, with the same targets and the same speed.
 * New: the hand-alignment mode, in which the arm is free, at the resting place.
-  This step shows whether that mode lets the arm go; the touch before anything
-  is opened is what tells us how the arm is after i1Profiler. If you run this
+  This step shows whether that mode lets the arm go. If you run this
   step, please also run the close afterwards: it is what switches the
   hand-alignment mode off again.
-* The busy-table help, the touch before anything is opened, and the "the
-  table was not closed" note from the never-offered 0.2.2 are included.
+* The busy-table help and the "the table was not closed" note from the
+  never-offered 0.2.2 are included.
 
 ## The steps
 
@@ -47,9 +73,9 @@ and asks you to let i1Profiler start the table first.
 
 ### Step 1: Send the arm to its resting place once
 
-The arm is sent to its resting place, where it already is: it moves at most about a centimetre, for about a third of a second. This is exactly what i1Profiler does right after it opens the table.
+The arm is sent to its resting place, where it already is or nearly is: usually it moves a few millimetres, for about a third of a second, and at most 25 mm, for about a second. This is what i1Profiler does right after it opens the table.
 
-*Not exactly as recorded:* i1Profiler sent this homing only from Y 0 to 47; this program also sends it from Y 48 to 80 (up to 8 mm out, on the same line). From there it takes up to about half a second; it is stopped if it takes longer than 1.1 s.
+*Not exactly as recorded:* i1Profiler sent this homing only from X 1102, Y 0 to 47; this program also sends it from X 1090 to 1115 and Y up to 250 (up to 25 mm out, about 1 mm to either side of the home line), the stretch i1Profiler drove the arm along under motor in your recordings. From 25 mm out it should take about 1.2 s; it is stopped if it takes longer than 2 s. If the arm stands even farther out, nothing moves.
 
 4 lines, 1 movement. Our risk rating: **low**.
 
@@ -206,9 +232,10 @@ venv/bin/python3 -m pip install --no-cache-dir pyusb==1.2.1
 venv/bin/python3 i1io_session.py --real
 ```
 
-It explains the risks, asks five short questions, asks you to touch the arm
-gently once before it opens anything, and asks you to type `I understand that
-this moves my table`. Then it opens the table and offers the steps. Answer
+It explains the risks, asks five short questions and three more about the
+time since you quit i1Profiler and the lights (please do not touch the arm
+before the first homing), and asks you to type `I understand that this moves
+my table`. Then it opens the table and offers the steps. Answer
 each question by typing the whole word (`yes`, `skip`, `end`, `no`, `not sure`,
 `stop`, `holds`, `free`) and pressing Enter.
 
