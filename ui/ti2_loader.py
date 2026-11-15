@@ -750,6 +750,15 @@ def _choice_dialog(parent, title, intro_html, choices):
     same shape the measurement windows use, so the reader learns one layout
     instead of two.
     """
+    box, buttons = build_choice_box(parent, title, intro_html, choices)
+    box.exec()
+    return buttons.get(box.clickedButton())
+
+
+def build_choice_box(parent, title, intro_html, choices):
+    """The window of :func:`_choice_dialog`, built but not shown: ``(box,
+    {button: key})``. Split out so the button row can be measured in every
+    language (tests/test_4339_choice_window_buttons_never_overlap.py)."""
     from PyQt6.QtWidgets import QMessageBox
 
     box = QMessageBox(parent)
@@ -790,7 +799,13 @@ def _choice_dialog(parent, title, intro_html, choices):
     from ui.widgets import fit_message_box_buttons
     from ui.widgets import keep_message_box_inside_the_work_area
     keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
-    fit_message_box_buttons(box)
+    # STACKED WHEN SIDE BY SIDE THEY CANNOT FIT (the owner, 4.3.39: in German
+    # "Lieber als neuen Lauf bauen" ran under "Nur das Chart ersetzen"). Four
+    # choices and Cancel need about 1090 px in German, Qt holds a message box
+    # at 1000 at most, and the row was squeezed until two buttons overlapped.
+    # Measured on screen, `ChromIQ-work/2026-11-15_release_4339/onscreen/
+    # choice_de_before`.
+    fit_message_box_buttons(box, stack_when_too_wide=True)
 
     # THE CHOICES TOGETHER ON THE LEFT, CANCEL ON ITS OWN AT THE RIGHT.
     #
@@ -808,9 +823,7 @@ def _choice_dialog(parent, title, intro_html, choices):
                 bb.layout().insertStretch(idx, 1)
     except Exception:      # noqa: BLE001 — a layout tweak must never block the window
         pass
-
-    box.exec()
-    return buttons.get(box.clickedButton())
+    return box, buttons
 
 
 def _next_run_id(project) -> str:
