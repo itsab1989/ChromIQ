@@ -9537,6 +9537,30 @@ M_RESUME_CONDITION = _m(
     "run's old folder, not deleted.\n\n"
     "Nothing has been measured or changed.",
     approved=False)
+#: R4 review (4.3.39): the same refusal for a measurement whose condition
+#: ChromIQ recorded from the instrument's NORMAL mode (-F was off when it was
+#: started, MEASUREMENT_CONDITION_SOURCE "INSTRUMENT_DEFAULT"): the plain way
+#: to continue it is to switch -F off again, not to set it to M0.
+M_RESUME_CONDITION_DEFAULT = _m(
+    "M-RESUME-CONDITION-DEFAULT",
+    "This measurement cannot be continued with this setting",
+    "The measurement you are continuing was started with “Spectral filter "
+    "type (-F)” switched off, so the instrument measured in its normal mode, "
+    "{before}. The Measure tab is now set to another measurement condition.\n\n"
+    "The measurement so far: {before}\n"
+    "The Measure tab now: {now}\n\n"
+    "The measurement condition is the light the instrument shines on the "
+    "paper. Optical brighteners in the paper read differently under each "
+    "one, so new readings taken now would not belong with the ones already "
+    "there.\n\n"
+    "To continue this measurement, switch “Spectral filter type (-F)” off "
+    "again (the option is in Manual mode), as it was when the measurement "
+    "was started, then press Start again. Or untick “{box}” to measure the "
+    "whole chart again under the new setting: your current measurement is "
+    "then moved to the run's old folder, not deleted.\n\n"
+    "Nothing has been measured or changed.",
+    approved=False)
+
 #: {now} when the row is off, and when it names a filter that is no
 #: measurement condition (D65); and the log line when the measurement so
 #: far records nothing (S-A1: allowed, and nothing is recorded at the end).
@@ -9905,6 +9929,176 @@ M_STRIP_FAILED_INCONSISTENT = _m(
     "forgiving from the next measurement on. ChromIQ starts it at 0.7, which "
     "is a little stricter than the instrument's own 1.0.\n\n"
     "What the instrument reported: {reason}",
+    approved=False)
+
+# --- PROPOSED: the same strip refused a second time as inconsistent (R3) ----
+#: 4.3.39 (jctay, forum 150236): strip 12 of his fixed-order chart was refused
+#: 15 times out of 15 with "Reading is inconsistent". The text is the
+#: instrument driver's own, the same in the i1Pro, i1Pro 2, i1Pro 3 and
+#: ColorMunki drivers; its check compares the many readings the instrument
+#: takes inside each patch with each other. On his chart a near-black patch
+#: (7/7/8 %) came right after an almost white grey (94 %) on 8 mm patches:
+#: the first readings of the dark patch still caught light from the bright
+#: one, just past the limit. Added under M-STRIP-FAILED-INCONSISTENT from the
+#: second such refusal of the same strip in one measurement.
+M_STRIP_FAILED_INCONSISTENT_AGAIN = _m(
+    "M-STRIP-FAILED-INCONSISTENT-AGAIN",
+    "Strip {strip} was refused again for the same reason",
+    "When the same strip is refused again and again with “Reading is "
+    "inconsistent”, the way you read it is usually not the problem, and "
+    "reading it more slowly or more carefully rarely helps. Most often, a very "
+    "dark patch sits right next to a very light one on this strip. While the "
+    "instrument moves from the light patch onto the dark one, its first "
+    "readings of the dark patch still catch a little light from its bright "
+    "neighbour, and the readings of that patch then disagree with each other "
+    "by more than the instrument accepts. Patches that are shorter than the "
+    "instrument likes make this worse, because fewer of its readings lie well "
+    "inside each patch.\n\n"
+    "What helps:\n"
+    "• Read this strip patch by patch. A patch read on its own has no "
+    "neighbour to pick up light from. ChromIQ cannot switch to patch by patch "
+    "in the middle of a strip measurement, but it can finish this strip that "
+    "way afterwards: choose {skip} (or {save_partial} when it is the last "
+    "strip), finish the other strips, and then start measuring again with "
+    "“Patch-by-patch mode” and “Refine / resume existing measurement (-r)” "
+    "ticked. ChromIQ then starts at the patches that are still missing, "
+    "which are the patches of this strip; once they are read, every patch of "
+    "the chart has a reading and you can finish.\n"
+    "• For your next chart: a randomised patch order, which rarely puts a "
+    "very dark patch straight after a very light one, or longer patches in "
+    "the direction you move the instrument. Create Chart says when a chart's "
+    "patches are shorter than ArgyllCMS recommends for your instrument.",
+    approved=False)
+
+# --- PROPOSED: patches shorter than ArgyllCMS's minimum (R6, 4.3.39) ---------
+#: A chart whose patches are shorter along the strip than printtarg's minimum
+#: for the instrument (workflow/patch_size_check.py: i1Pro family 10 mm,
+#: i1Pro 3 Plus 20 mm, ColorMunki 14 mm). A note, never a refusal: shown under
+#: the Create Chart preview's measurements and, once per measurement, in the
+#: Measure log. {patch} and {min} in mm, {instrument} the shared name.
+M_CHART_PATCHES_SHORT = _m(
+    "M-CHART-PATCHES-SHORT",
+    "Patches shorter than ArgyllCMS recommends for this instrument",
+    "The patches of this chart are {patch} mm long in the direction you move "
+    "the instrument. ArgyllCMS makes them at least {min} mm long for the "
+    "{instrument}, because the instrument needs enough readings well inside "
+    "each patch. You can still print and measure this chart. With shorter "
+    "patches, strips are refused more often (for example with “Too many "
+    "patches” or “Reading is inconsistent”), especially where a very dark "
+    "patch follows a very light one, and now and then a reading can land on "
+    "the wrong patch. For dependable readings, make the patches at least "
+    "{min} mm long: fewer patches per strip, a larger patch size or a larger "
+    "paper.",
+    approved=False)
+
+#: The same for ChromIQ's own ColorMunki "Extra-high density" mode, which
+#: lays patches out shorter than ArgyllCMS's usual 14 mm on purpose (its help
+#: says to watch this warning): no blame, what the mode is for, what helps.
+M_CHART_PATCHES_SHORT_EXTRA = _m(
+    "M-CHART-PATCHES-SHORT-EXTRA",
+    "Extra-high density: patches shorter than ArgyllCMS's usual length",
+    "This chart uses the ColorMunki's “Extra-high density”, a ChromIQ "
+    "extension that fits more patches on a sheet. Its patches are {patch} mm "
+    "long in the direction you move the instrument, shorter than the {min} mm "
+    "ArgyllCMS uses for the {instrument}. Many sheets read well like this, "
+    "but strips may be refused more often (for example with “Too many "
+    "patches” or “Reading is inconsistent”), especially where a very dark "
+    "patch follows a very light one. If that happens, choose “High density "
+    "(rig)” or “Hand-held”, or a larger patch size, for your next chart.",
+    approved=False)
+
+#: The one line on the surface of the "Measured from Preview" frame (the full
+#: note is in the frame's ⓘ and in the Create Chart log).
+M_CHART_PATCHES_SHORT_PANEL = _m(
+    "M-CHART-PATCHES-SHORT-PANEL",
+    "Patches shorter than ArgyllCMS recommends",
+    "Patches {patch} mm long along the strip; ArgyllCMS uses at least {min} "
+    "mm for the {instrument}, so strips may be refused more often. More in "
+    "the Create Chart log.",
+    approved=False)
+
+M_MEASURE_PATCHES_SHORT_EXTRA = _m(
+    "M-MEASURE-PATCHES-SHORT-EXTRA",
+    "Extra-high density: patches shorter than ArgyllCMS's usual length",
+    "Note: this chart uses the ColorMunki's “Extra-high density”, with "
+    "patches {patch} mm long along the strip, shorter than the {min} mm "
+    "ArgyllCMS uses. Strips may be refused more often. If a strip keeps "
+    "being refused, reading it patch by patch helps, and “High density "
+    "(rig)” or “Hand-held” avoid it on your next chart.",
+    approved=False)
+
+# --- PROPOSED: no spacers, and neighbours nothing tells apart (2026-11-15) ---
+#: The owner saw a chart without spacers where whites stood next to whites
+#: and blacks next to blacks, and asked how that can be read. With spacers
+#: switched off (an open option) nothing marks the edge between two such
+#: patches. Said in the Create Chart log and on the Measured from Preview
+#: frame; nothing is refused, greyed or moved. {n}: how many pairs.
+M_CHART_ALIKE_NO_SPACER = _m(
+    "M-CHART-ALIKE-NO-SPACER",
+    "Neighbouring patches that cannot be told apart without spacers",
+    "This chart has no spacers between its patches, and some neighbouring "
+    "patches along a strip have the same or almost the same colour (for "
+    "example two whites or two blacks next to each other). Nothing marks the "
+    "edge between such patches, so the instrument cannot tell where one ends "
+    "and the next begins, and the strip may be refused (for example with "
+    "“Not enough patches”) or its readings filed under the wrong patches. "
+    "Neighbouring pairs that cannot be told apart: {n}.\n\n"
+    "What helps: switch the spacers on again (ChromIQ chooses each spacer to "
+    "stand out from both patches beside it), or use a randomised patch order, "
+    "which puts such patches next to each other far less often. You can still print and "
+    "measure this chart as it is.",
+    approved=False)
+
+M_CHART_ALIKE_NO_SPACER_PANEL = _m(
+    "M-CHART-ALIKE-NO-SPACER-PANEL",
+    "Neighbouring patches that cannot be told apart without spacers",
+    "No spacers, and neighbouring patches with the same colour along a "
+    "strip. Pairs the instrument cannot tell apart: {n}. Switch the spacers "
+    "on, or use a randomised order. More in the Create Chart log.",
+    approved=False)
+
+M_MEASURE_PATCHES_SHORT = _m(
+    "M-MEASURE-PATCHES-SHORT",
+    "Patches shorter than ArgyllCMS recommends",
+    "Note: the patches of this chart are {patch} mm long along the strip, "
+    "shorter than the {min} mm ArgyllCMS uses for the {instrument}. Strips "
+    "may be refused more often, especially where a very dark patch follows a "
+    "very light one. If a strip keeps being refused, reading it patch by "
+    "patch helps, and a chart with longer patches avoids it.",
+    approved=False)
+
+# --- PROPOSED: Create Chart moved patches apart (R7, 4.3.39) -----------------
+#: A chart in fixed order with a near-black patch straight next to a
+#: near-white one along a strip: the layout engine swapped the fewest patches
+#: needed (workflow/layout_engine/neighbour_order.py). The Create Chart log
+#: names each swap; {pairs} is "9I and 10I, 12I and 13I" (locations).
+M_CHART_NEIGHBOURS_MOVED = _m(
+    "M-CHART-NEIGHBOURS-MOVED",
+    "Very dark patches moved away from very light ones",
+    "To keep very dark patches away from very light ones along a strip, "
+    "these patches changed places: {pairs}. Patches moved: {n}. A very dark "
+    "patch read straight after a very light one can pick up light from it, "
+    "and the instrument then refuses the strip more often. Every other patch "
+    "is where the patch order puts it.\n\n"
+    "Where each patch sits is recorded in the chart file (.ti2) and in the "
+    "chart's other layout files, so ChromIQ measures and reports the printed "
+    "sheet correctly, just as for a randomised chart. The patch set itself "
+    "is unchanged, and so are its exports (the colour list and the "
+    "i1Profiler patch set): they list the colours, not their places on the "
+    "sheet. To measure this printed sheet in another program, give it the "
+    "chart file, not the patch set. You can switch this off with “Keep very "
+    "dark patches away from very light ones” under Randomisation.",
+    approved=False)
+
+M_CHART_NEIGHBOURS_LEFT = _m(
+    "M-CHART-NEIGHBOURS-LEFT",
+    "Some very dark patches still sit next to very light ones",
+    "In some places along a strip, a very dark patch still sits straight "
+    "next to a very light one, because no swap with another patch on the "
+    "same page could clear them without making another such pair. Such a "
+    "strip may be "
+    "refused now and then with “Reading is inconsistent”; reading it patch by "
+    "patch helps.",
     approved=False)
 
 M_STRIP_FAILED_EDGES = _m(
@@ -10451,6 +10645,62 @@ M_STRIP_REVERSED = _m(
     + _slip_tail(),
     approved=False)
 
+#: R2 (4.3.39; jctay, forum 150222 / 150236): the same question with a fourth
+#: answer, "Turn this strip round", shown instead of M-STRIP-REVERSED when the
+#: strip is filed back to front IN STEP (no slip: turning it round puts every
+#: reading on its own patch) and the engine can turn it ({"cmd":"turn"}). On
+#: the tester's chart re-measuring came back back to front seven times; the
+#: helper's own fix (R1) removes that loop on his chart, the button is for
+#: the cases left. The readings are turned only on the person's click.
+M_STRIP_REVERSED_TURN = _m(
+    "M-STRIP-REVERSED-TURN",
+    "Strip {strip} was probably filed back to front",
+    "The readings of strip {strip} fit its patches far better when they are "
+    "taken the other way round, from its last patch back to its first. "
+    "{lead_line}On average, patches {first} to {last} miss their own expected "
+    "colours by {base} ΔE00. Taken the other way round, so that the reading "
+    "of the strip's first patch is compared with the expected colour of its "
+    "last patch, the reading of its second patch with the patch before the "
+    "last, and so on, they miss by only {best} ΔE00. So the readings of this "
+    "strip were probably filed in the wrong order: patches {first} to {last} "
+    "hold the readings of other patches of the strip, not their own."
+    "{middle_line}\n\n"
+    "A strip can be read in either direction, and the reader decides from "
+    "its colours which way round to file it. That decision can go wrong, for "
+    "example when this strip, read the other way round, looks much like "
+    "another strip of the chart. And with “Bidirectional disabled (-B)” the "
+    "reader always files a strip as if it had been read from its first patch "
+    "to its last, so a strip read from the other end is filed back to front "
+    "without a warning. Whatever the cause, what ChromIQ found is the same: "
+    "this strip matches the chart far better turned round.\n\n"
+    "Readings filed under the wrong patch would make the profile, or a "
+    "verification report, wrong for those colours, so it is best not to "
+    "keep this strip as it is. Nothing else is affected: your other strips "
+    "and everything read so far are saved.\n\n"
+    "{remeasure}: go back to strip {strip} and read it again (recommended). "
+    "Put the instrument down on the white paper before the first patch, and "
+    "if it gives a short beep when it is ready, wait for it. Then move in one "
+    "smooth movement at an even speed until it is on the white paper after "
+    "the last patch.\n"
+    "{turn}: keep these readings, but turn them round, so that the reading "
+    "taken last goes to the first patch, and save them in that order. Nothing "
+    "is read again, and ChromIQ then checks the strip as if it had been read "
+    "that way round. Choose this when the same question comes back after you "
+    "have read the strip again, or when you are sure you read the whole strip "
+    "in one smooth movement and only the order is wrong.\n"
+    "{keep}: keep this reading as it is. Closing this window does the same.\n"
+    "{stop}: stop measuring for now.",
+    approved=False)
+
+#: R2: the Measure log's line once the engine has turned a strip round.
+M_STRIP_TURNED = _m(
+    "M-STRIP-TURNED",
+    "Strip {strip} turned round",
+    "Strip {strip}: as you asked, its readings were turned round and saved in "
+    "that order. The reading taken last now belongs to the strip's first "
+    "patch. Nothing was read again.",
+    approved=False)
+
 #: The same finding in the Measurement Report, beside its Worst patches table
 #: and under its Report Results, one paragraph per strip
 #: (`report["shifted_strips"]`). {first}/{last}, {base}/{best} and
@@ -10857,6 +11107,19 @@ M_STRIP_RULER_NOT_COVERED = _m(
 
 
 CATALOGUE = {m.id: m for m in (
+    M_CHART_ALIKE_NO_SPACER,
+    M_CHART_ALIKE_NO_SPACER_PANEL,
+    M_CHART_PATCHES_SHORT_EXTRA,
+    M_CHART_PATCHES_SHORT_PANEL,
+    M_MEASURE_PATCHES_SHORT_EXTRA,
+    M_RESUME_CONDITION_DEFAULT,
+    M_CHART_NEIGHBOURS_MOVED,
+    M_CHART_NEIGHBOURS_LEFT,
+    M_CHART_PATCHES_SHORT,
+    M_MEASURE_PATCHES_SHORT,
+    M_STRIP_FAILED_INCONSISTENT_AGAIN,
+    M_STRIP_REVERSED_TURN,
+    M_STRIP_TURNED,
     M_STRIP_RULER_NOT_COVERED,
     M_I1PRO2_LIGHTS_LEFT_ON,
     M_STRIP_FAILED_COMS_DETAIL,

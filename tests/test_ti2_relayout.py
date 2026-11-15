@@ -556,6 +556,9 @@ def test_engine_chart_reloads_in_sheet_order_renders_identically(tmp_path,
 
     # the editor renders the loaded grid un-randomised (the fix)
     rec2 = default_recipe("i1", "A4"); rec2.randomize = False
+    # ...and with nothing re-ordered (R7, 4.3.39): the dialog switches "Keep
+    # very dark patches away from very light ones" off for a loaded chart
+    rec2.avoid_dark_light_neighbours = False
     kw2 = rec2.build_kwargs(); kw2["dpi"] = 150
     kw2["project"] = "Profile"
     reloaded = le_chart.build_chart(str(grid_ti1), tmp_path / "reload", **kw2)

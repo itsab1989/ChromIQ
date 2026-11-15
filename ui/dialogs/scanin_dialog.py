@@ -394,9 +394,44 @@ def placement_score(read_by_id: dict[str, float],
     return res[min(len(res) - 1, int(len(res) * 0.95))]
 
 
+def regex_id_parts(i: str):
+    """The old rule: letters = column / strip, digits = row (an IT8 / a
+    ChromIQ chart in the default A1 scheme). ``(col, row, col_order,
+    row_order)`` or None."""
+    m = re.match(r"([A-Za-z]+)0*(\d+)$", i)
+    if not m:
+        return None
+    return (m.group(1), m.group(2), (len(m.group(1)), m.group(1)),
+            int(m.group(2)))
+
+
+def chart_id_parts(ti2: "Path | None"):
+    """R8 (4.3.39): the id splitter for a chart ChromIQ made, from the
+    chart's OWN label scheme (`workflow.layout_engine.labels`), so a chart
+    with number strips and letter patches ("12I") is grouped into its
+    strips and patches like any other; the old letters-then-digits rule
+    silently skipped the row / column check there. Falls back to the old
+    rule when the chart cannot be read."""
+    if ti2 is None:
+        return regex_id_parts
+    try:
+        from workflow.layout_engine.labels import labels_for_chart
+        cl = labels_for_chart(ti2)
+    except Exception:      # noqa: BLE001 - the old rule then
+        return regex_id_parts
+
+    def parts(i: str):
+        sp = cl.split(i)
+        if sp is None:
+            return regex_id_parts(i)
+        s, p = sp
+        return (cl.strip(s) or str(s), cl.patch(p) or str(p), s, p)
+    return parts
+
+
 def locally_misaligned_groups(read_by_id: dict[str, float],
                               expected_by_id: dict[str, float],
-                              z: float = 3.0) -> list[str]:
+                              z: float = 3.0, parts=None) -> list[str]:
     """Knut's row/column pattern idea (#108), in the form that survives
     randomised charts: rank both value sets over the whole page (removing
     scanner/printer response to first order), take each patch's rank
@@ -433,26 +468,35 @@ def locally_misaligned_groups(read_by_id: dict[str, float],
     disp = {i: abs(er[i] - rr[i]) for i in ids}
     mean = statistics.mean(disp.values())
     sd = statistics.pstdev(disp.values()) or 1.0
+    # *parts* (R8): id -> (column, row, column order, row order); the old
+    # letters-then-digits rule unless the caller has the chart's labels.
+    parts = parts or regex_id_parts
     rows: dict[str, list[str]] = {}
     cols: dict[str, list[str]] = {}
+    order: "dict[tuple[int, str], object]" = {}
+    split: "dict[str, tuple[str, str]]" = {}
     for i in ids:
-        m = re.match(r"([A-Za-z]+)0*(\d+)$", i)
-        if not m:
+        pr = parts(i)
+        if not pr:
             continue
-        cols.setdefault(m.group(1), []).append(i)
-        rows.setdefault(m.group(2), []).append(i)
+        c, r, co, ro = pr
+        split[i] = (c, r)
+        cols.setdefault(c, []).append(i)
+        rows.setdefault(r, []).append(i)
+        order[(1, c)] = co
+        order[(0, r)] = ro
+
     def _key_parts(i: str) -> tuple[str, str]:
-        m = re.match(r"([A-Za-z]+)0*(\d+)$", i)
-        return (m.group(1), m.group(2)) if m else ("", "")
+        return split.get(i, ("", ""))
 
     flagged: list[str] = []
     for axis, (label, groups) in enumerate(
             ((tr("row {n}"), rows), (tr("column {n}"), cols))):
         if len(groups) < 4:
             continue
-        # Neighbour order along this axis: rows by number, columns by letter.
-        keys = sorted(groups, key=(lambda k: int(k)) if axis == 0
-                      else (lambda k: (len(k), k)))
+        # Neighbour order along this axis: rows by number, columns by letter
+        # (by the chart's own order when its labels were given).
+        keys = sorted(groups, key=lambda k: order[(axis, k)])
         for pos, key in enumerate(keys):
             members = groups[key]
             if len(members) < 4:
@@ -6312,7 +6356,10 @@ class ScannerProfileDialog(_ToolDialogBase):
         whole-page checks pass can still have one grid edge a cell off —
         rank-displacement clustering names the affected row/column."""
         read, exp = self._read_expected_dicts(ti3, ti2, ids)
-        groups = locally_misaligned_groups(read, exp)
+        # printer mode keys by the chart's locations: group them by the
+        # chart's own labels (R8); scanner mode keeps the reference's ids
+        groups = locally_misaligned_groups(
+            read, exp, parts=chart_id_parts(ti2) if ti2 is not None else None)
         if not groups:
             return
         msg = tr(
@@ -6816,7 +6863,9 @@ class ScannerProfileDialog(_ToolDialogBase):
         # rank-displacement clustering fires on nothing but metamerism.
         out += self._read_verdicts(params, rho)
         ref_usable = rho is None or rho >= 0.8
-        groups = (locally_misaligned_groups(read, exp)
+        groups = (locally_misaligned_groups(
+            read, exp, parts=(chart_id_parts(artefact(params.pbase, ".ti2"))
+                              if printer else None))
                   if ref_usable else [])
         if groups:
             out.append(tr(

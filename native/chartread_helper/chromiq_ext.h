@@ -135,7 +135,7 @@ void cq_json_escape(char *dst, size_t dstlen, const char *src);
  *
  * ⚠ BUMP THIS IN THE SAME COMMIT AS ANY CHANGE TO THE HELPER, and rebuild and
  * commit native/chromiq-chartread. The test tells you the expected value. */
-#define CQ_HELPER_BUILD "chromiq-chartread 2026-11-14e legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures+exit-guard+save-after-close+i1pro2-lights+i1pro3-lights+i1pro3-lights-choices+ruler-check+usb-step-detail+i1pro2-beta-paused+i1pro2-lights-quiet+resume-spectral-check+hold-interruptible+i1pro2-ruler-back"
+#define CQ_HELPER_BUILD "chromiq-chartread 2026-11-15c legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures+exit-guard+save-after-close+i1pro2-lights+i1pro3-lights+i1pro3-lights-choices+ruler-check+usb-step-detail+i1pro2-beta-paused+i1pro2-lights-quiet+resume-spectral-check+hold-interruptible+i1pro2-ruler-back+own-row-direction+turn-round+filter-event"
 const char *cq_helper_build_string(void);
 
 
@@ -153,6 +153,14 @@ const char *cq_helper_build_string(void);
 #define CQ_KEY_FILE_AS 1001
 const char *cq_take_file_as(void); /* "as" label for CQ_KEY_FILE_AS; the
                                       "strip" label is cq_take_goto()'s */
+/* {"cmd":"turn","strip":"C"} (R2, 4.3.39): the person's answer "Turn this
+ * strip round" to M-STRIP-REVERSED. The strip loop reverses the order of the
+ * readings filed under strip C (spectra included, in the saved .ti3 too),
+ * answers strip_turned with C's patches, and stays where it was. Only where
+ * the strip loop registered 'u' as a command; anywhere else it is dropped.
+ * The strip label travels as cq_take_goto()'s. Nothing is sent to the
+ * instrument. */
+#define CQ_KEY_TURN 1010
 int cq_take_file_as_keep(void);    /* nz: "earlier":"keep" -- the strip the
                                       reading came off gets back the reading
                                       it had before that swipe (2026-10-21) */

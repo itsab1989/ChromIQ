@@ -385,6 +385,9 @@ static void cq_handle_line(const char *line) {
 	 && cq_json_get(line, "strip", gl, sizeof(gl))
 	 && cq_json_get(line, "as", ga, sizeof(ga)))
 		key = CQ_KEY_FILE_AS;
+	else if (strcmp(cmd, "turn") == 0
+	 && cq_json_get(line, "strip", gl, sizeof(gl)))
+		key = CQ_KEY_TURN;             /* R2: only the strip menu acts on it */
 	else if (strcmp(cmd, "goto") == 0
 	 && (cq_json_get(line, "strip", gl, sizeof(gl))
 	  || cq_json_get(line, "patch", gl, sizeof(gl))))
@@ -420,7 +423,7 @@ static void cq_handle_line(const char *line) {
 
 	cq_lock_take();
 	cq_pending_key = key;
-	if (key == CQ_KEY_GOTO || key == CQ_KEY_FILE_AS) {
+	if (key == CQ_KEY_GOTO || key == CQ_KEY_FILE_AS || key == CQ_KEY_TURN) {
 		strncpy(cq_goto_label, gl, sizeof(cq_goto_label) - 1);
 		cq_goto_label[sizeof(cq_goto_label) - 1] = '\0';
 	}
@@ -614,7 +617,7 @@ int cq_wait_char(void) {
 		/* A resume means something only in the hold (cq_hold_wait); at
 		 * any prompt it is dropped, never taken as "any other key". */
 		if (k != CQ_KEY_NONE && k != CQ_KEY_GOTO && k != CQ_KEY_FILE_AS
-		 && k != CQ_KEY_RESUME && k != CQ_KEY_HOLD)
+		 && k != CQ_KEY_RESUME && k != CQ_KEY_HOLD && k != CQ_KEY_TURN)
 			return k;
 		cq_press_group_poll("prompt");	/* inert unless gestures + gate */
 		if (cq_lights_poll != NULL)
@@ -741,7 +744,7 @@ int cq_cal_take_cancel(void) {
 int cq_poll_char(void) {
 	int k = cq_cmd_take_key();
 	return (k == CQ_KEY_GOTO || k == CQ_KEY_FILE_AS || k == CQ_KEY_RESUME
-	        || k == CQ_KEY_HOLD)
+	        || k == CQ_KEY_HOLD || k == CQ_KEY_TURN)
 	       ? CQ_KEY_NONE : k;
 }
 

@@ -40,6 +40,16 @@ class ChartResult:
     #: Why the layout may read less well (an i1iO chart, Job D: risky
     #: options are warned about, not refused), translated, for the log.
     warnings: tuple = ()
+    #: R7: the patches that changed places so that no near-black patch sits
+    #: next to a near-white one, as (location, location) pairs; and the
+    #: pairs left because no swap could clear them.
+    neighbour_moves: tuple = ()
+    neighbour_pairs_left: int = 0
+    #: how many patches sit somewhere else than the patch order puts them
+    neighbour_patches_moved: int = 0
+    #: The chart's own slot list when it has one (canonical patch -> sheet
+    #: slot: R7's, an i1iO's), else None (the seed's permutation).
+    slots: "list[int] | None" = None
 
 
 def build_ti2_from_ti1(
@@ -103,7 +113,10 @@ def build_ti2_from_ti1(
 #: engine know", not a coincidence that happens to work.
 _INSTR_FRIENDLY = {"i1": "i1Pro", "p3": "i1Pro3+", "CM": "ColorMunki",
                    "SS": "SpectroScan", "41": "DTP41", "51": "DTP51",
-                   "CR30": "CR30"}
+                   "CR30": "CR30",
+                   # R8 (4.3.39): the i1iO's clip-border notes printed the
+                   # internal code "IO2" for {instrument}
+                   "IO2": "i1iO"}
 
 
 def friendly_instrument(instrument: str) -> str:
@@ -321,6 +334,13 @@ def build_chart(
     #: `calibration_ramps`). Rewrites the .ti1 in place when it is targen's
     #: pure ramp set; any other .ti1 is laid out exactly as it is.
     ramps_per_strip: bool = False,
+    #: R7 (4.3.39): on a chart in FIXED order, move the fewest patches needed
+    #: so that no near-black patch sits directly next to a near-white one
+    #: along a strip (`neighbour_order`). Off here, so every direct caller
+    #: lays out as before; a recipe made from 4.3.39 on asks for it. Strip
+    #: instruments only; never a randomised chart, a calibration chart, an
+    #: i1iO, i1iSis or FD-9 chart.
+    avoid_dark_light_neighbours: bool = False,
     #: FD-9 only (4.3.25): the run, for the Notes box of the FD-9 clip
     #: border, and that border's On/Off (None:
     #: `workflow.fd9.furniture.FD9_CLIP_BORDER_DEFAULT`).
@@ -881,6 +901,47 @@ def build_chart(
         from dataclasses import replace as _replace
         _ti2_geom = _replace(geom, extra_keywords=tuple(geom.extra_keywords) + (
             (_isis_chart.MODEL_KEYWORD, _isis_sheet.opts.model),))
+    # R7 (4.3.39): no near-black patch straight next to a near-white one on
+    # a chart in fixed order. Through the same one slot list as the i1iO's
+    # order, so the .ti2, the pages, the side files and the .cht agree; None
+    # when nothing has to move, and the chart is then written as before.
+    _nb_moves: "list[tuple[str, str]]" = []
+    _nb_left = 0
+    _nb_count = 0
+    if (avoid_dark_light_neighbours and not randomize and _slots is None
+            and not ramps_per_strip and not _i1io and not _isis
+            and instrument in ("i1", "p3", "CM")):
+        from . import neighbour_order as _nb
+        _all = list(target.patches) + [media] * layout.padding
+        _xyzs = [xyz for _dev, xyz in _all]
+        # judged against the paper the patch set names, not its lightest
+        # patch (review of 4.3.39)
+        _wy = _nb.white_y_of_ti1(ti1_path)
+        # a spacer drawn between two patches separates them: nothing is a
+        # neighbour pair then, and nothing moves (review of 4.3.39)
+        _separated = bool(spacer_on and float(geom.pspa or 0) > 0
+                          and str(spacer_mode or "none") != "none")
+        if _separated:
+            _nb_slots, _mv = None, []
+            _nb_left = 0
+        else:
+            _nb_slots, _mv = _nb.arrange(_xyzs, layout.total_patches,
+                                         layout.steps_in_pass,
+                                         len(target.patches),
+                                         layout.patches_per_page, _wy)
+            _nb_left = _nb.remaining_pairs(_xyzs, _nb_slots,
+                                           layout.total_patches,
+                                           layout.steps_in_pass, _wy)
+        _nb_count = (sum(1 for i, sl in enumerate(_nb_slots) if i != sl)
+                     if _nb_slots is not None else 0)
+        if _nb_slots is not None:
+            _slots = _nb_slots
+
+            def _loc(slot: int) -> str:
+                return permutation.location_label(
+                    slot, layout.steps_in_pass, strip_pattern, patch_pattern,
+                    label_rule)
+            _nb_moves = [(_loc(m.slot_b), _loc(m.slot_a)) for m in _mv]
     ti2_writer.write_ti2(
         ti2_path, target.patches, target.device_fields, layout, _ti2_geom,
         color_rep=target.color_rep, seed=seed, randomize=randomize,
@@ -1136,6 +1197,9 @@ def build_chart(
         ramp_whites_added=ramps_arranged,
         warnings=(tuple(_i1io_warnings) if _i1io
                   else tuple(_isis_warnings) if _isis else ()),
+        neighbour_moves=tuple(_nb_moves), neighbour_pairs_left=_nb_left,
+        neighbour_patches_moved=_nb_count,
+        slots=(list(_slots) if _slots is not None else None),
     )
 
 

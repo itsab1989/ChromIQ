@@ -47,6 +47,8 @@ class RulerSession:
         #: read: "M0", "M1", "M2", "M3"), or None without -F (the
         #: instrument's normal mode), for the diagnostics file.
         self.condition = condition
+        #: R4: where the condition came from ("chosen", "instrument default")
+        self.condition_source = "chosen" if condition else None
         self.verification = verification
         self.active = False
         self.gen = ""
@@ -120,6 +122,7 @@ class RulerSession:
                     path, instrument=self.gen, firmware=self.firmware,
                     helper_build=self.helper_build, geometry=self.geometry,
                     condition=self.condition,
+                    condition_source=self.condition_source,
                     verification=self.verification, argyll=self.argyll)
                 self.diag.write()
             except Exception:      # noqa: BLE001 - never stop a measurement
@@ -211,7 +214,9 @@ class RulerSession:
                          or result})
         return lines
 
-    def on_strip_read(self, ev: dict, *, other_question: bool) -> "dict | None":
+    def on_strip_read(self, ev: dict, *, other_question: bool,
+                      other_questions: "list[str] | None" = None
+                      ) -> "dict | None":
         """The accepted strip's ``strip_read``. Returns the summary the
         manager adds to the event as ``ev["ruler"]``, or None when this strip
         has no record. *other_question*: the engine's net, ChromIQ's slip
@@ -288,7 +293,17 @@ class RulerSession:
             "span_mm": span_mm,
             "other_question": other_question,
         }
+        # R5 (4.3.39): WHICH question this strip got, by name (the ruler's
+        # own, or ChromIQ's: the engine's net, a slip or a strip filed back
+        # to front, "Was a strip read twice?"); the answers are added as the
+        # person gives them (note_question_answer).
+        asked = list(other_questions or [])
+        if ask:
+            asked.append("ruler_not_covered")
+        if ask_direction:
+            asked.append("ruler_direction")
         extra = {"accepted": True, "reversed": bool(ev.get("reversed")),
+                 "questions_asked": asked,
                  "derived_mm_per_step": (pitch_mm / pitch_cut)
                  if pitch_cut and pitch_mm else None,
                  "pitch_steps": pitch_cut, "coverage_steps": coverage,
@@ -323,6 +338,25 @@ class RulerSession:
     def note_answer(self, strip: str, answer: str) -> None:
         if self.diag is not None:
             self.diag.note_answer(strip, answer)
+            self.diag.note_question_answer(strip, "ruler", answer)
+
+    def note_question_answer(self, strip: str, question: str,
+                             answer: str) -> None:
+        """R5: the person's *answer* to *question* about *strip*."""
+        if self.diag is not None:
+            self.diag.note_question_answer(strip, question, answer)
+
+    def set_default_condition(self, condition: "str | None") -> None:
+        """R4 (4.3.39): without -F, the condition the instrument's normal
+        mode measures under, where it is known (M0), else None; the file
+        then says where its condition came from."""
+        if self.condition_source == "chosen":
+            return                    # the person's -F choice stands
+        self.condition = condition
+        self.condition_source = "instrument default" if condition else None
+        if self.diag is not None:
+            self.diag.set_condition(condition, "instrument default"
+                                    if condition else None)
 
     # ---- helpers -------------------------------------------------------
     def _write(self, rec, strip, f, verdict, extra=None) -> None:

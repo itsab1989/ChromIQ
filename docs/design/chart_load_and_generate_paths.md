@@ -215,6 +215,21 @@ and lay out exactly as saved: only which list shows them changed. Every other
 paper's list is unchanged. Driven on screen: in 4.3.10 the 10 × 15 cm list
 held nothing but "none".
 
+## A chart in fixed order keeps very dark patches away from very light ones (R7, 4.3.39)
+
+#### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+*jctay (forum 150236): a near-black patch straight after an almost white one on a fixed-order chart, refused 15 times of 15 with “Reading is inconsistent”. Basti, 2026-11-15: "can we avoid those things on non randomized charts?" Built for 4.3.39.*
+
+* **Create Chart → Randomisation → “Keep very dark patches away from very light ones”.** OFF by default everywhere, new recipes too (the independent review of 4.3.39: on only once it has proved itself); switchable and saved with the recipe, so presets and Save as Defaults keep it. A recipe without the key (everything saved before 4.3.39, a chart's own record) reads it as off and lays out exactly as it did, so Restore Used Chart and every re-layout from a chart's own record reproduce the printed sheet. Greyed only while “Randomise patch order” is on (it has no meaning there) and for a calibration chart (each ramp stays in order).
+* **What it does.** On a chart in fixed order for a hand-held strip instrument (i1Pro family, ColorMunki), without a spacer drawn between the patches (a drawn spacer separates them, so nothing moves), the layout engine swaps as few patches as it can so that no near-black patch (L* 20 or below) sits straight next to a near-white one (L* 80 or above) along a strip. Lightness is judged on the patch set's expected colours against the PAPER (the white point the patch set names, targen's APPROX_WHITE_POINT, else Y = 100), never against the lightest patch. For each pair the dark patch, then the light one, is tried at every other place on the same page, nearest first (its own strip before any other); a swap is taken only when it clears that pair and leaves fewer such pairs around both places. Never a padding patch, never to another page. Deterministic. The patch set is unchanged. Measured on targen sets of 100 to 900 patches for the i1Pro, i1Pro 3 Plus and ColorMunki: 3 to 7 swaps (6 to 14 patches), none left.
+* **Recorded like any layout.** Through the engine's one slot list, so the `.ti2`, the pages, the side files and the `.cht` agree; every reader of the chart (measuring, the reports, the i1Profiler export) follows the `.ti2`.
+* **Byte for byte as before** for a randomised chart, a chart without such neighbours, the option off, a calibration chart, and the i1iO, i1iSis and FD-9 charts (not built for them: they have slot rules of their own).
+* **Said.** The Create Chart log names every swap and how many patches moved (M-CHART-NEIGHBOURS-MOVED), and any pair left (M-CHART-NEIGHBOURS-LEFT, only when no swap on the page can clear it). The patch set's exports (the colour list, the i1Profiler patch set) list colours, not places, and are unchanged; another program that measures the printed sheet needs the chart file, as for a randomised chart.
+* **Worth knowing.** targen's own patch order begins with its white patches and then its black ones, so a fixed-order targen chart without spacers always has such a pair at the start of the first strip; it is cleared inside that strip. Whether the option really means fewer refused strips has not been measured on real prints; it is off by default until it has.
+
 ## Answered, and so not built
 
 Whether importing a chart file should also offer "replace only the chart",

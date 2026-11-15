@@ -1904,6 +1904,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # judged as B's (Knut, #182 6102031563).
         if hasattr(self._manager, "strip_filed_as"):
             self._manager.strip_filed_as.connect(self._on_strip_filed_as)
+        if hasattr(self._manager, "strip_turned"):
+            self._manager.strip_turned.connect(self._on_strip_turned)
         # ...and when the strip it came off was to get its earlier reading
         # back and did not, that strip is cleared after all (Basti 2026-10-21).
         if hasattr(self._manager, "earlier_reading_lost"):
@@ -8227,6 +8229,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             now = condition_for_filter(code)
             if now == before:
                 return False
+            # R4 (4.3.39): without -F the instrument measures in its normal
+            # mode, and since 4.3.39 a measurement records that as M0 where
+            # it is known. Continuing one without -F is what it was before.
+            from workflow.measurement_condition import \
+                condition_fits_normal_mode
+            if code is None and condition_fits_normal_mode(ti3):
+                return False
         except Exception:      # noqa: BLE001 — never block a read on this check
             log.debug("could not compare the measurement condition",
                       exc_info=True)
@@ -8238,7 +8247,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                              if m == before), None)
         box_cb = (self._resume_cb if self._current_mode() == "guided"
                   else self._m_resume_cb)
-        title, body = M.M_RESUME_CONDITION.render(
+        from workflow.measurement_condition import (
+            CONDITION_SOURCE_KEYWORD, SOURCE_INSTRUMENT_DEFAULT,
+            read_header_keyword)
+        _src = (read_header_keyword(ti3, CONDITION_SOURCE_KEYWORD) or "").upper()
+        _msg = (M.M_RESUME_CONDITION_DEFAULT
+                if _src == SOURCE_INSTRUMENT_DEFAULT else M.M_RESUME_CONDITION)
+        title, body = _msg.render(
             before=condition_name(before),
             now=M.resume_condition_now(
                 self._filter_label(code) if code else None, now),
@@ -8690,6 +8705,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # because its first part may have been measured under any; the log
         # says why. (One that records a DIFFERENT condition was refused
         # above, `_blocked_by_a_differing_condition`.)
+        # R4 (4.3.39): the instrument's normal mode is recorded too (M0 where
+        # it is known), except on a resume onto a measurement that records
+        # nothing, whose first part may have been measured under any.
+        self._session_records_default = not (
+            getattr(params, "resume", False)
+            and self._resumes_unrecorded_condition(_ti3_pre))
         if self._session_filter and getattr(params, "resume", False) \
                 and self._resumes_unrecorded_condition(_ti3_pre):
             from workflow.measurement_messages import \
@@ -8836,6 +8857,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._session_live = True
         self._gesture_paused = None      # button shortcuts' pause
         self._slip_kept_strips = set()
+        #: R3 (4.3.39): how often each strip was refused with "Reading is
+        #: inconsistent" in this measurement.
+        self._inconsistent_refusals = {}
+        self._say_short_patches()
         self._end_page_pause()
         self._sync_calibrate_btn_visible()
         QApplication.instance().installEventFilter(self)
@@ -9458,6 +9483,30 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             except Exception:  # noqa: BLE001 — never break a measurement
                 log.debug("could not redraw strip %s", ev.get("filed_from"),
                           exc_info=True)
+
+    def _on_strip_turned(self, ev: dict) -> None:
+        """R2 (4.3.39): "Turn this strip round", carried out by the engine.
+        *ev* has the shape of a strip_read of that strip with its readings in
+        the reverse order; it is counted and judged again exactly as a
+        reading of the strip (the patch error limit, the strip test, the
+        neighbour check, the outlines and the cards), as a moved reading is.
+        The Measure log says what was done."""
+        strip = str(ev.get("strip", "") or "?")
+        try:
+            from workflow import measurement_messages as M
+            _t, body = M.M_STRIP_TURNED.render(strip=strip)
+            self._log.appendPlainText(body)
+            self._log.ensureCursorVisible()
+        except Exception:      # noqa: BLE001 — a log line never blocks a read
+            log.debug("could not log the turned strip", exc_info=True)
+        if not getattr(self, "_session_live", False):
+            return
+        try:
+            self._count_strip_progress(ev)
+            self._on_strip_measured(ev)
+        except Exception:      # noqa: BLE001 — never break a measurement
+            log.warning("could not judge strip %s's turned reading", strip,
+                        exc_info=True)
 
     def _earlier_coming_back_locs(self) -> set:
         """The patches of strips whose earlier reading the engine is giving
@@ -10082,8 +10131,19 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         f = dict(finding or {})
         strip = str(f.get("strip") or "?")
         late = int(f.get("offset") or 0) > 0
+        # R2 (4.3.39): a strip filed back to front IN STEP can be turned
+        # round by the engine, on the person's click only.
+        turnable = False
         if f.get("reversed"):
             message = M.M_STRIP_REVERSED
+            try:
+                in_step = not int(f.get("offset") or 0)
+            except (TypeError, ValueError):
+                in_step = False
+            can = getattr(self._manager, "can_turn_strips", None)
+            turnable = bool(in_step and callable(can) and can())
+            if turnable:
+                message = M.M_STRIP_REVERSED_TURN
         elif f.get("whole") and int(f.get("shift") or 1) >= 2:
             # The engine's net also finds a strip two patches out (4.3.11)
             message = (M.M_STRIP_WHOLE_SLIPPED_TWO_LATE if late
@@ -10125,14 +10185,23 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             shift_line=M.slip_shift_line(f.get("offset")),
             middle_line=M.slip_middle_line(f.get("offset")),
             remeasure=tr("Re-measure this strip"), keep=tr("Keep it"),
+            turn=tr("Turn this strip round"),
             stop=tr("Stop"))), dlg)
-        choice = self._misaligned_strip_buttons(dlg, layout, msg)
+        choice = self._misaligned_strip_buttons(dlg, layout, msg,
+                                                turn=turnable)
         self._exec_measurement_window(dlg)
+        # R5: which question, and the answer, for the diagnostics file
+        note = getattr(self._manager, "note_question_answer", None)
+        if callable(note):
+            note(strip, "back_to_front" if f.get("reversed") else "slip",
+                 choice[0])
         self._after_misaligned_strip_choice(choice[0], strip)
 
-    def _misaligned_strip_buttons(self, dlg, layout, msg) -> list:
+    def _misaligned_strip_buttons(self, dlg, layout, msg,
+                                  turn: bool = False) -> list:
         """The message and buttons shared by both misaligned-strip questions.
-        Returns the one-item list the pressed button's answer lands in."""
+        Returns the one-item list the pressed button's answer lands in.
+        *turn* adds "Turn this strip round" (R2, M-STRIP-REVERSED-TURN)."""
         from PyQt6.QtWidgets import QHBoxLayout, QPushButton
         msg.setWordWrap(True)
         layout.addWidget(msg)
@@ -10151,10 +10220,18 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         remeasure_btn.clicked.connect(lambda: _pick("remeasure"))
         keep_btn.clicked.connect(lambda: _pick("keep"))
         stop_btn.clicked.connect(lambda: _pick("stop"))
+        turn_btn = None
+        if turn:
+            turn_btn = QPushButton(tr("Turn this strip round"), dlg)
+            turn_btn.setObjectName("turn_strip_round")
+            turn_btn.setFixedHeight(32)
+            turn_btn.clicked.connect(lambda: _pick("turn"))
 
         row = QHBoxLayout()
         row.setSpacing(8)
         row.addWidget(remeasure_btn)
+        if turn_btn is not None:
+            row.addWidget(turn_btn)
         row.addWidget(keep_btn)
         row.addStretch()
         row.addWidget(stop_btn)
@@ -10167,6 +10244,15 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         """Re-measure jumps back to *strip*, Stop stops, Keep it keeps."""
         if choice == "remeasure":
             self._manager.goto_strip(strip)     # re-read this strip next
+        elif choice == "turn":
+            # R2: only this click turns the readings; the engine answers
+            # strip_turned (_on_strip_turned), which logs it and judges again.
+            turn = getattr(self._manager, "turn_strip", None)
+            if not (callable(turn) and turn(strip)):
+                log.warning("strip %s could not be turned round; it is kept "
+                            "as it was filed", strip)
+                kept = vars(self).setdefault("_slip_kept_strips", set())
+                kept.add(str(strip))
         elif choice == "stop":
             self._on_stop()
         else:
@@ -11761,6 +11847,58 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         ButtonFontFilter.fit_window(dlg)
         self._exec_measurement_window(dlg)
 
+    def _say_short_patches(self) -> None:
+        """R6 (4.3.39): once per measurement, a line in the Measure log when
+        the chart's patches are shorter along the strip than ArgyllCMS's
+        minimum for the instrument it was laid out for (M-MEASURE-PATCHES-
+        SHORT). Only a note; nothing is refused."""
+        ti1 = getattr(self, "_ti1_path", None)
+        if not ti1:
+            return
+        try:
+            from workflow import patch_size_check as P
+            stem = Path(ti1).with_suffix("")
+            finding = P.from_channels(stem.parent / (stem.name
+                                                     + ".channels.json"))
+            if finding is not None:
+                self._log.appendPlainText(P.log_line(finding))
+                self._log.ensureCursorVisible()
+        except Exception:      # noqa: BLE001 — a note never blocks a read
+            log.debug("short-patch line not written", exc_info=True)
+
+    #: R3: from which refusal of the same strip the explanation is added.
+    INCONSISTENT_AGAIN_FROM = 2
+
+    def _inconsistent_again_html(self, reason: str) -> str:
+        """R3 (4.3.39; jctay, forum 150236): from the SECOND time the same
+        strip is refused with the driver's "Reading is inconsistent" in one
+        measurement, M-STRIP-FAILED-INCONSISTENT-AGAIN under the usual advice:
+        what it usually means and what helps. Counted per strip; "" before
+        that, for any other reason, and without a strip name. The Measure log
+        says it once per strip."""
+        from core.measure_pace import misread_kind
+        if misread_kind(reason) != "inconsistent":
+            return ""
+        strip = str(getattr(self, "_current_strip_letter", "") or "").strip()
+        if not strip:
+            return ""
+        counts = vars(self).setdefault("_inconsistent_refusals", {})
+        counts[strip] = counts.get(strip, 0) + 1
+        n = counts[strip]
+        if n < self.INCONSISTENT_AGAIN_FROM:
+            return ""
+        from workflow import measurement_messages as M
+        title, body = M.M_STRIP_FAILED_INCONSISTENT_AGAIN.render(
+            strip=strip, skip=tr("Skip Strip"),
+            save_partial=_save_partial_name().replace("&amp;", "&"))
+        if n == self.INCONSISTENT_AGAIN_FROM:
+            try:
+                self._log.appendPlainText(title + "\n" + body)
+                self._log.ensureCursorVisible()
+            except Exception:  # noqa: BLE001 — a log line never blocks a read
+                pass
+        return _catalogue_html(title, body)
+
     def _is_last_unread_strip(self) -> bool:
         """True when the strip that just failed is the only one still unread.
 
@@ -11867,6 +12005,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             # from the §M catalogue (M-STRIP-FAILED-*), instead of one text
             # for all that told "Too many patches" to scan more slowly.
             advice = _strip_failed_advice_html(reason)
+            advice += self._inconsistent_again_html(reason)
             if button:
                 advice += _strip_failed_button_html()
 
@@ -20925,20 +21064,39 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         ``MEASUREMENT_CONDITION``, the keyword the i1Profiler import and the
         FD-9 writer use. The FWA gate and the pre-conditioning merge read it.
 
-        Without ``-F`` (the default) nothing is recorded: the instrument
-        measured in its normal mode, and the file is judged as before. Only
-        a file this session wrote is touched (newer than it was at Start; a
-        measurement the session guard put back keeps its own time), and only
-        its header: the readings are not rewritten."""
+        Without ``-F`` (the default) the instrument measured in its normal
+        mode. Since 4.3.39 (R4) that is recorded too where it is KNOWN
+        (:func:`workflow.measurement_condition.default_condition`: M0 for the
+        i1Pro 3 family, and for the i1Pro / i1Pro 2 when the engine's driver
+        says no UV-cut filter is fitted), and nothing where it is not, nor on
+        a resume onto a measurement that records none. Only a file this
+        session wrote is touched (newer than it was at Start; a measurement
+        the session guard put back keeps its own time), and only its header:
+        the readings are not rewritten."""
         code = getattr(self, "_session_filter", None)
         self._session_filter = None
+        records_default = bool(getattr(self, "_session_records_default", False))
+        self._session_records_default = False
         ti1 = getattr(self, "_ti1_path", None)
-        if not code or not ti1:
+        if not ti1:
             return
         try:
-            from workflow.measurement_condition import (condition_for_filter,
-                                                        record_condition)
-            cond = condition_for_filter(code)
+            from workflow.measurement_condition import (
+                SOURCE_INSTRUMENT_DEFAULT, condition_for_filter,
+                default_condition, record_condition)
+            source = None
+            if code:
+                cond = condition_for_filter(code)
+            elif records_default:
+                # The model the reader REPORTED this session (reset at
+                # Start), never the chart's instrument.
+                cond = default_condition(
+                    getattr(self, "_reported_instrument", "") or "",
+                    getattr(self._manager, "engine_filter", None))
+                code = "(none: the instrument's normal mode)"
+                source = SOURCE_INSTRUMENT_DEFAULT
+            else:
+                return
             ti3 = Path(ti1).with_suffix(".ti3")
             if cond is None or not ti3.is_file():
                 return
@@ -20947,7 +21105,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 return
             if _cgats_has_no_readings(ti3):
                 return
-            if record_condition(ti3, cond):
+            if record_condition(ti3, cond, source):
                 log.info("recorded measurement condition %s (-F %s) in %s",
                          cond, code, ti3.name)
         except Exception:      # noqa: BLE001 — never block a session's end
