@@ -17334,6 +17334,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             # the reads' common one; after "Average them" (the only way
             # here when it asked) the KNOWN one; else none (S-A2).
             settle_combined_condition(result, check, confirmed=True)
+            self._average_the_conditions(result, reads, method)
             # The averaged file is the run's measurement now: its yellow
             # memory is this session's, stamped for it (#182 K4). Patches are
             # keyed by location, which averaging (by SAMPLE_ID) never changes.
@@ -17346,6 +17347,45 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             on_line=self._on_log_line,
             on_finish=_on_avg_finish,
         )
+
+    def _average_the_conditions(self, result: Path, reads: "list[Path]",
+                                method: str) -> None:
+        """"X-Rite i1Pro 3: keep M0, M1 and M2" (Beta; Basti, 2026-11-15):
+        the same reads averaged in the two other conditions as well, kept in
+        step with the averaged measurement; a condition one of the reads has
+        no readings in is not averaged, and the log says which read. Nothing
+        with the option off."""
+        from workflow import i1pro3_conditions as _c
+        if not _c.stored_value(self._settings):
+            return
+        try:
+            done = _c.average_conditions(
+                result, reads, method,
+                bin_dir=str(self._settings.get("argyll_bin_path", "") or ""))
+        except Exception:      # noqa: BLE001 - never stop an ending
+            log.warning("M0/M1/M2: conditions not averaged", exc_info=True)
+            return
+        from workflow.measurement_condition import condition_name
+        for cond, why in sorted(done.items()):
+            if not why:
+                self._log.appendPlainText(tr(
+                    "[INFO] M0, M1 and M2 from one scan (beta): the {condition} "
+                    "readings of the same reads were averaged too, so Build "
+                    "Profile can make the profile from them.").format(
+                        condition=condition_name(cond)))
+            elif why == "average":
+                self._log.appendPlainText(tr(
+                    "[INFO] M0, M1 and M2 from one scan (beta): the {condition} "
+                    "readings could not be averaged, so Build Profile does not "
+                    "offer them for this measurement.").format(
+                        condition=condition_name(cond)))
+            else:
+                self._log.appendPlainText(tr(
+                    "[INFO] M0, M1 and M2 from one scan (beta): {read} has no "
+                    "{condition} readings, so the average has none either and "
+                    "Build Profile does not offer them for this "
+                    "measurement.").format(read=why,
+                                           condition=condition_name(cond)))
 
     def _ask_average_unrecorded(self, check, reads) -> bool:
         """M-AVERAGE-CONDITION-ASK for the reads of this run: True for

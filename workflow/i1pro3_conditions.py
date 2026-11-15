@@ -205,7 +205,8 @@ def choices_for(main_ti3: "str | Path | None", *,
                 "chosen in the Measure tab.")))
             continue
         path = condition_file(main, cond)
-        out.append(Choice(cond, path, "" if path else no_file_reason(main)))
+        out.append(Choice(cond, path, "" if path else (
+            average_missing_reason(main, cond) or no_file_reason(main))))
     return out
 
 
@@ -298,3 +299,120 @@ def profile_readings(ti3: "str | Path", *, at: "str | Path | None" = None,
                                verification=ctx.verification is not None)
     except Exception:  # noqa: BLE001 - a report is never stopped by this
         return None
+
+
+# ---------------------------------------------------------------------------
+# Averaging (Basti, 2026-11-15: "needed for completeness")
+# ---------------------------------------------------------------------------
+
+def _set_condition_of(path: Path, key: str) -> bool:
+    """Put ``CHROMIQ_CONDITION_OF "<key>"`` into *path*'s header (replacing
+    one that is there); the data is not touched."""
+    import re as _re
+    try:
+        raw = path.read_bytes()
+    except OSError:
+        return False
+    head, sep, rest = raw.partition(b"BEGIN_DATA_FORMAT")
+    if not sep:
+        return False
+    kw = CONDITION_OF_KEYWORD.encode("ascii")
+    line = kw + b' "' + key.encode("ascii") + b'"'
+    m = _re.search(rb"^[ \t]*" + kw + rb"[ \t]+.*?$", head, _re.MULTILINE)
+    if m:
+        head = head[:m.start()] + line + head[m.end():]
+    else:
+        first, nl, after = head.partition(b"\n")
+        head = (first + b"\n" + b'KEYWORD "' + kw + b'"\n' + line + b"\n"
+                + after)
+    try:
+        path.write_bytes(head + sep + rest)
+    except OSError:
+        return False
+    return True
+
+
+def average_conditions(result: "str | Path", reads: "list[Path]",
+                       method: str = "mean", *,
+                       bin_dir: "str | Path | None" = None,
+                       timeout: float = 120.0) -> "dict[str, str]":
+    """After the reads were averaged into *result* (the run's measurement),
+    average the SAME reads, in the same order and by the same method, in
+    each of the two other conditions, and keep each average as the
+    condition file of *result*'s readings, so Build Profile can offer it.
+
+    A condition is averaged only when EVERY read has its file in step; when
+    one does not, there is none for the average, and the reason is the one
+    `no_file_reason` gives for it. Returns ``{condition: ""}`` for each one
+    made and ``{condition: <the read that lacks it>}`` for each one not.
+    Never raises; the measurement itself is never touched."""
+    import shutil
+    import subprocess
+    import tempfile
+    out: "dict[str, str]" = {}
+    result = Path(result)
+    key = data_block_hash(result)
+    if key is None or len(reads) < 2:
+        return out
+    own = file_condition(result)
+    from core.file_manager import Run
+    from workflow.ti3_merge import _resolve_average
+    exe = _resolve_average(bin_dir)
+    for cond in CONDITIONS:
+        if cond == own:
+            continue
+        files = [condition_file(r, cond) for r in reads]
+        missing = [Path(r).name for r, f in zip(reads, files) if f is None]
+        if missing:
+            out[cond] = missing[0]
+            continue
+        dst = Run.for_dir(result.parent).condition_ti3(cond, measurement=result)
+        if dst is None:
+            continue
+        work = Path(tempfile.mkdtemp(prefix="chromiq-cond-average-"))
+        try:
+            tmp = work / "average.ti3"
+            args = [exe, "-v"] + (["-e"] if method == "median" else [])
+            args += [str(f) for f in files] + [tmp.name]
+            proc = subprocess.run(args, cwd=str(work), capture_output=True,
+                                  text=True, timeout=timeout)
+            if proc.returncode != 0 or not tmp.is_file():
+                out[cond] = "average"
+                continue
+            if not _set_condition_of(tmp, key):
+                out[cond] = "average"
+                continue
+            from workflow.measurement_condition import record_condition
+            record_condition(tmp, cond)
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(tmp), str(dst))
+            out[cond] = ""
+        except (OSError, subprocess.SubprocessError):
+            out[cond] = "average"
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+    return out
+
+
+def average_missing_reason(main: Path, cond: str) -> str:
+    """Why an AVERAGED measurement has no *cond* readings: a read it was
+    averaged from has none ("" when that is not the reason)."""
+    from core.i18n import tr
+    try:
+        from core.file_manager import Run
+        run = Run.for_dir(Path(main).parent)
+        if Path(main) != run.measurement_ti3:
+            return ""
+        reads = run.reads()
+    except Exception:  # noqa: BLE001
+        return ""
+    if len(reads) < 2:
+        return ""
+    lacking = [r.name for r in reads if condition_file(r, cond) is None]
+    if not lacking or len(lacking) == len(reads):
+        return ""
+    return tr(
+        "This measurement is the average of {n} reads, and {read} has no "
+        "{condition} readings, so there are none for the average either. "
+        "Only a condition every read has is averaged.").format(
+            n=len(reads), read=lacking[0], condition=cond)
