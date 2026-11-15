@@ -335,7 +335,7 @@ def test_the_free_step_touch_comes_with_the_arm_free_at_home(tmp_path):
 # ---- the guards ------------------------------------------------------------------------------
 
 @pytest.mark.parametrize("y,window", [(0, "home_rest"), (48, "home_rest"), (49, "home_wide"),
-                                      (55, "home_wide"), (120, "home_wide")])
+                                      (55, "home_wide"), (80, "home_wide")])
 def test_the_homing_guard_inside(tmp_path, y, window):
     sim = sim_mod.SimTable(pos=[1102.0, float(y)], jitter=False)
     code, sim, log, con = _choose(tmp_path, {"home", "close"}, sim=sim)
@@ -343,8 +343,8 @@ def test_the_homing_guard_inside(tmp_path, y, window):
     assert f"home/{window}" in log
 
 
-@pytest.mark.parametrize("x,y", [(1102, 121), (1102, -2), (1100, 20), (1104, 20), (1058, 317),
-                                 (1102, 250)])
+@pytest.mark.parametrize("x,y", [(1102, 81), (1102, 120), (1102, 121), (1102, -2), (1100, 20),
+                                 (1104, 20), (1058, 317), (1102, 250)])
 def test_the_homing_guard_outside_stops_before_any_movement(tmp_path, x, y):
     sim = sim_mod.SimTable(pos=[float(x), float(y)], jitter=False)
     code, sim, log, con = _run(tmp_path, sim)
@@ -353,7 +353,7 @@ def test_the_homing_guard_outside_stops_before_any_movement(tmp_path, x, y):
 
 
 def test_the_guard_box_and_its_reasons_are_pinned():
-    assert tbl.REST_GUARD == tbl.Box(1101, 1103, -1, 120)
+    assert tbl.REST_GUARD == tbl.Box(1101, 1103, -1, 80)
     assert tbl.REST_RECORDED == tbl.Box(1101, 1103, -1, 48)
     assert tbl.OUT_START == tbl.Box(1101, 1103, -1, 48)
     xs = [x for x, _ in tbl.RECORDED_REST_STARTS]
@@ -408,7 +408,11 @@ def test_the_free_arm_homing_refused_with_status_3_stops(tmp_path):
     sim.inject_at(at, "status", 3.0)
     code, sim, log, con = _choose(tmp_path, con_keys, sim=sim)
     assert code == 2 and sim.received == OPEN + lines[:len(lines) - 5]
-    assert "may stay free" in log and "should still be there" in log
+    flat = " ".join(log.split())
+    assert "should still be there" in flat
+    assert prog.FREE_MAYBE in flat and " ".join(prog.FREE_MODE_LEFT.split()) in flat
+    assert " ".join(prog.NOT_CLOSED.split()) not in flat
+    assert "the hand-alignment mode was left on" in log
 
 
 def test_a_wrong_f4_in_the_free_step_stops(tmp_path):
@@ -817,7 +821,10 @@ def test_a_free_arm_pushed_off_its_place_stops_without_the_homing(tmp_path):
     sim.inject_at(at_p0, "drift", 150.0)
     code, sim, log, con = _choose(tmp_path, {"free"}, sim=sim)
     assert code == 2 and sim.received == OPEN + lines[:lines.index(";p025", lines.index(";f12e")) + 1]
-    assert "not where the step needed it" in log and "may stay free" in log
+    flat = " ".join(log.split())
+    assert "not where the step needed it" in flat
+    assert " ".join(prog.FREE_MODE_LEFT.split()) in flat and prog.FREE_MAYBE in flat
+    assert flat.count(" ".join(prog.RECOVERY.split())) == 1          # said once, not twice
     assert prog.ASK_TOUCH not in [q for q, *_ in con.seen]
 
 
@@ -915,7 +922,7 @@ def _drive(sim, lines):
     return t
 
 
-@pytest.mark.parametrize("y", [121, 200, -2])
+@pytest.mark.parametrize("y", [81, 120, 121, 200, -2])
 def test_the_simulator_refuses_a_homing_outside_its_own_guard(y):
     sim = sim_mod.SimTable(pos=[1102.0, float(y)], jitter=False)
     t = _drive(sim, OPEN + [";s022", ";p025"])
@@ -973,3 +980,150 @@ def test_a_session_ended_without_the_close_is_closed_for_sending_before_the_touc
     code, sim, log, con = _choose(tmp_path, {"home"})
     assert code == 0 and sim.received == OPEN + _lines("home")
     assert seen and seen[0] == "the session is over"
+
+
+# ---- the safety review of eb38ba20b: texts after step 5, true sentences, guard Y 80 ----------
+
+#: The whole warm session as eb38ba20b sent it (110 lines). The review's changes are texts and
+#: the narrower guard; what goes on the wire on this path must not change by a single byte.
+EB38_FULL_SESSION_SHA256 = "48b64f912e6d7ccff9d2d982d833657d7538b73026840be11769a39f2721a22f"
+
+
+def test_the_full_session_on_the_wire_is_byte_identical_to_the_reviewed_eb38ba20b(tmp_path):
+    import hashlib
+    code, sim, log, con = _run(tmp_path)
+    assert code == 0 and len(sim.received) == 110 and sim.motions == 19
+    assert hashlib.sha256(" ".join(ALL).encode()).hexdigest() == EB38_FULL_SESSION_SHA256
+    assert hashlib.sha256(" ".join(sim.received).encode()).hexdigest() == EB38_FULL_SESSION_SHA256
+
+
+def test_the_guard_boundary_y80_homes_and_y81_stops_before_any_movement(tmp_path):
+    for y, homes in ((80, True), (81, False)):
+        sim = sim_mod.SimTable(pos=[1102.0, float(y)], jitter=False)
+        code, sim, log, con = _choose(tmp_path, {"home", "close"}, sim=sim)
+        if homes:
+            assert code == 0 and sim.motions == 1
+            assert sim.received == OPEN + _lines("home") + _lines("close")
+        else:
+            assert code == 2 and sim.motions == 0
+            assert sim.received == OPEN + [";s022", ";p025"]
+            assert "Nothing was moved." in log
+    assert "Y 49..80" in prog.plan_text() and "Y -1 to 80" in prog.plan_text()
+
+
+class _CtrlCAtFreeTouch(Choose):
+    def ask(self, question, choices=("yes", "no")):
+        if question == prog.ASK_FREE_TOUCH:
+            raise KeyboardInterrupt
+        return super().ask(question, choices)
+
+
+def _free_mode_said(log):
+    flat = " ".join(log.split())
+    return (" ".join(prog.FREE_MODE_LEFT.split()) in flat
+            and " ".join(prog.NOT_CLOSED.split()) not in flat
+            and "the hand-alignment mode was left on" in log)
+
+
+def test_ctrl_c_at_the_free_touch_says_the_table_is_still_in_the_hand_alignment_mode(tmp_path):
+    sim = sim_mod.SimTable()
+    con = _CtrlCAtFreeTouch(sim, {"free", "close"})
+    log_path = tmp_path / "l.txt"
+    code = prog.main(["--auto", "--log", str(log_path)], sim_table=sim, console=con)
+    sim.finish()
+    log = log_path.read_text(encoding="utf-8")
+    lines = _lines("free")
+    assert code == 1 and sim.received == OPEN + lines[:lines.index(";f12e") + 3]
+    assert _free_mode_said(log) and prog.FREE_MAYBE in log
+    flat = " ".join(log.split())
+    for needed in ("still in the hand-alignment mode", "open i1Profiler once",
+                   "switch the table off at its power switch, wait ten seconds",
+                   "not a routine step"):
+        assert needed in flat, needed
+
+
+def test_ending_after_step_5_without_the_close_says_the_mode_is_still_on(tmp_path):
+    code, sim, log, con = _choose(tmp_path, {"free"})
+    assert code == 0 and sim.received == OPEN + _lines("free")
+    assert _free_mode_said(log)
+    assert prog.FREE_MAYBE not in log            # the arm was taken back: it is held again
+    assert "The arm is at its resting place." in log
+
+
+def test_a_free_arm_homing_that_never_finishes_says_power_cycle_and_the_mode(tmp_path):
+    lines = _lines("free")
+    at = len(OPEN) + len(lines) - 6                  # the i1 from the free arm
+    sim = sim_mod.SimTable()
+    sim.inject_at(at, "no_done", 0.0)
+    code, sim, log, con = _choose(tmp_path, {"free"}, sim=sim)
+    flat = " ".join(log.split())
+    assert code == 2 and sim.received == OPEN + lines[:len(lines) - 5]
+    assert " ".join(prog.UNFINISHED.split()) in flat and prog.UNFINISHED_FREE in flat
+    assert " ".join(prog.FREE_MODE_LEFT.split()) not in flat
+
+
+def test_the_close_after_step_5_says_it_switches_the_mode_off_and_is_recommended(tmp_path):
+    code, sim, log, con = _choose(tmp_path, {"free", "close"})
+    said = re.findall(r"^SAY    (.*)$", log, re.M)
+    close_title = f"Step 6: {tbl.STEPS[STEP_KEYS.index('close')].title}."
+    i = said.index(close_title)
+    assert prog.CLOSE_AFTER_FREE in said[i:i + 6]
+    assert "switches that mode off again" in prog.CLOSE_AFTER_FREE
+    assert "recommend" in prog.CLOSE_AFTER_FREE
+    assert "the table is closed" in log or "table closed" in log
+    assert prog.FREE_MODE_LEFT not in log
+    code, sim, log, con = _choose(tmp_path, {"home", "close"})
+    assert prog.CLOSE_AFTER_FREE not in log
+
+
+def test_the_free_touch_says_hands_off_before_answering():
+    q = " ".join(prog.ASK_FREE_TOUCH.split())
+    assert "take your hand off the arm BEFORE you answer" in q
+    assert "right after your answer, the program sends the arm home at once" in q
+    assert q.index("BEFORE you answer") < q.index("Does it move freely")
+
+
+def test_the_out_on_table_text_expects_rather_than_promises_and_names_the_recovery():
+    t = " ".join(prog.OUT_ON_TABLE.split())
+    assert "We expect i1Profiler to bring the arm home" in t and "from 3 cm out" in t
+    assert " ".join(prog.RECOVERY.split()) in t
+    assert "wait ten seconds" in prog.RECOVERY and "not a routine step" in prog.RECOVERY
+
+
+def test_the_step_texts_say_what_is_true():
+    by = {s.key: s for s in tbl.STEPS}
+    for key in ("near", "straight"):
+        assert "X 1102, Y 1202" in by[key].beyond and "X 1050, Y 1492" not in by[key].beyond
+        assert "holding the arm" in by[key].beyond
+    for key in ("straight", "across"):
+        assert "seven measuring sessions" in by[key].explain
+        assert "without a calibration" in by[key].explain
+    free = " ".join(by["free"].beyond.split())
+    assert "recorded three times" in free and "twice it worked" in free
+    assert "two milliseconds after a button" in free and "status 3 means is not known" in free
+    assert "still in the hand-alignment mode" in free
+    assert "switches the hand-alignment mode off again" in by["free"].explain
+    assert "Y 48 to 80 (up to 8 mm out" in by["home"].beyond
+
+
+#: Sentences the safety review of eb38ba20b found untrue or asked to remove. None may come back
+#: in any shipped file (the zip holds exactly these files).
+UNTRUE = ("same harmless state", "harmless state as after i1profiler",
+          "brings the arm to its resting place by itself", "brings the arm home by itself",
+          "drove it home by itself", "not now", "recorded twice",
+          "start of every measuring session", "answers directly the question of the loose arm",
+          "answers the loose-arm question", "loose-arm question directly",
+          "y 48 to 120", "up to 12 mm", "y 49..120", "y -1..120", "up to y 120",
+          "which is how you found it after i1profiler", "may stay free until")
+SHIPPED = ("README.md", "BYTES.md") + PROGRAM_FILES
+
+
+def test_no_untrue_sentence_from_the_review_comes_back_in_any_shipped_file():
+    for name in SHIPPED:
+        # Python strings split over lines ("... state "\n    "as after ...") are joined first
+        text = re.sub(r'"\s*\n\s*(?:\+\s*)?f?"', "", _source(name))
+        text = " ".join(text.split()).lower()
+        for phrase in UNTRUE:
+            assert phrase not in text, (name, phrase)
+    build = (ROOT / "scripts" / "build_i1io_session_zip.py").read_text(encoding="utf-8")
+    assert all(f'"{n}"' in build for n in SHIPPED)

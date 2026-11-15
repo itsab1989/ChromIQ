@@ -52,7 +52,7 @@ every step once: **110 lines, 19 movements**. A step struck by the reviewer is r
 by deleting its entry in `STEPS`; the caps follow from that list.
 
 Every step starts with i1Profiler's own homing `s0 p0 i1 s0` from the resting place (the p0
-must read X 1101..1103, Y -1..120). Between two moves that i1Profiler sent back to back, the program reads the position once (the recorded spot-pass pattern `m0 p0 m0`) and stops if the first move did not arrive. Every movement must finish inside its time window
+must read X 1101..1103, Y -1..80). Between two moves that i1Profiler sent back to back, the program reads the position once (the recorded spot-pass pattern `m0 p0 m0`) and stops if the first move did not arrive. Every movement must finish inside its time window
 (`TIME_WINDOW` in the program, from the recorded times, widened); every arrival is checked by
 a p0 against the target (plus or minus 5 units). The person is never asked anything while the
 arm is away from its resting place.

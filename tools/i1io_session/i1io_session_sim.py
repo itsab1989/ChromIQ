@@ -73,7 +73,7 @@ def _near(p, q, d=10) -> bool:
 
 
 def _rest_guard(p) -> bool:          # the simulator's own copy of where i1 may start at rest
-    return 1101 <= p[0] <= 1103 and -1 <= p[1] <= 120
+    return 1101 <= p[0] <= 1103 and -1 <= p[1] <= 80
 
 
 def _out_start(p) -> bool:           # where a move out from rest may start

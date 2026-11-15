@@ -27,12 +27,15 @@ is not part of the ChromIQ app and does not need it.
   arm's reading creeps slowly away from Y 0 the longer it stands, so we no
   longer guess a range from what we have seen. The homing is sent from the
   places i1Profiler sent it from (X 1102, Y 0 to 47), and, one small step
-  further, from up to Y 120 (12 mm) on the same line: that line is driven by
+  further, from up to Y 80 (8 mm) on the same line: that line is driven by
   i1Profiler's own moves out from the resting place in your recordings.
 * New: three drives out over the empty table and back home, using only moves
   i1Profiler made on your table, with the same targets and the same speed.
 * New: the hand-alignment mode, in which the arm is free, at the resting place.
-  This answers directly the question of the loose arm.
+  This step shows whether that mode lets the arm go; the touch before anything
+  is opened is what tells us how the arm is after i1Profiler. If you run this
+  step, please also run the close afterwards: it is what switches the
+  hand-alignment mode off again.
 * The busy-table help, the touch before anything is opened, and the "the
   table was not closed" note from the never-offered 0.2.2 are included.
 
@@ -46,7 +49,7 @@ and asks you to let i1Profiler start the table first.
 
 The arm is sent to its resting place, where it already is: it moves at most about a centimetre, for about a third of a second. This is exactly what i1Profiler does right after it opens the table.
 
-*Not exactly as recorded:* i1Profiler sent this homing only from Y 0 to 47; this program also sends it from Y 48 to 120 (up to 12 mm out, on the same line). From there it takes up to about 0.6 s; it is stopped if it takes longer than 1.1 s.
+*Not exactly as recorded:* i1Profiler sent this homing only from Y 0 to 47; this program also sends it from Y 48 to 80 (up to 8 mm out, on the same line). From there it takes up to about half a second; it is stopped if it takes longer than 1.1 s.
 
 4 lines, 1 movement. Our risk rating: **low**.
 
@@ -54,21 +57,21 @@ The arm is sent to its resting place, where it already is: it moves at most abou
 
 After a homing, the arm drives out from its resting place 25 mm straight ahead, then on to a point 10 mm to the side and 150 mm out (table position X 1000, Y 1500), in about 0.7 s and 1.6 s, exactly the two moves i1Profiler makes before it asks you to align a chart. The program checks that the arm arrived, then sends it home (about 2 to 4 seconds), checks that it is at rest and sends it home once more, as i1Profiler does.
 
-*Not exactly as recorded:* In the recordings these two moves always came 7.5 s after an i1Pro 2 calibration on the tile; here they come right after the homing, and the program asks where the arm is between them (i1Profiler sent them back to back) so that it stops if the first did not arrive. i1Profiler never sent the arm home from exactly this point; it did from eight other points on the table, farther out.
+*Not exactly as recorded:* In the recordings these two moves always came 7.5 s after an i1Pro 2 calibration on the tile; here they come right after the homing, and the program asks where the arm is between them (i1Profiler sent them back to back) so that it stops if the first did not arrive. i1Profiler never sent the arm home from exactly this point. With the motors holding the arm, the closest recorded homing nearer home started at X 1102, Y 1202 (about 3 cm from this point); the nearest one of all started at X 1172, Y 1663 (about 2.4 cm away, farther out). The other recorded homings with the arm held started farther out.
 
 21 lines, 5 movements. Our risk rating: **medium**.
 
 ### Step 3: Drive straight out about 15 cm and back home
 
-After a homing, the arm drives straight out from its resting place by 150 mm (table position X 1102, Y 1498) in about 1.7 s: the first move i1Profiler makes at the start of every measuring session in your recordings. The program checks that it arrived and sends it home (about 2 to 3 seconds), then checks it at rest and sends it home once more.
+After a homing, the arm drives straight out from its resting place by 150 mm (table position X 1102, Y 1498) in about 1.7 s: the first move i1Profiler made at the start of the seven measuring sessions in your recordings that began without a calibration (after a calibration it used the way out of step 2). The program checks that it arrived and sends it home (about 2 to 3 seconds), then checks it at rest and sends it home once more.
 
-*Not exactly as recorded:* i1Profiler followed this move with a second move, never with a homing; it sent the arm home from points close to this one (for example X 1050, Y 1492 and X 1172, Y 1663).
+*Not exactly as recorded:* i1Profiler followed this move with a second move, never with a homing. With the motors holding the arm, the closest recorded homing nearer home started at X 1102, Y 1202, on this same line about 3 cm nearer home; the nearest one of all started at X 1172, Y 1663 (about 1.8 cm away, farther out).
 
 19 lines, 4 movements. Our risk rating: **medium**.
 
 ### Step 4: Drive out 15 cm, across 14 cm to the far side, back, and home
 
-After a homing, the arm drives straight out by 150 mm (about 1.7 s), then sideways by 140 mm to table position X 2507, Y 1498 (about 1.7 s), exactly the two moves i1Profiler makes at the start of every measuring session. The program checks that it arrived, drives it back the same way to X 1102, Y 1498, checks again, and sends it home (about 2 to 3 seconds), then checks it at rest and homes once more.
+After a homing, the arm drives straight out by 150 mm (about 1.7 s), then sideways by 140 mm to table position X 2507, Y 1498 (about 1.7 s), exactly the two moves i1Profiler made at the start of the seven measuring sessions in your recordings that began without a calibration. The program checks that it arrived, drives it back the same way to X 1102, Y 1498, checks again, and sends it home (about 2 to 3 seconds), then checks it at rest and homes once more.
 
 *Not exactly as recorded:* The way back to X 1102, Y 1498 is the recorded sideways move driven backwards (its target is recorded, its start is not); i1Profiler went on from the far side to the alignment instead. The program also asks where the arm is between the first two moves (i1Profiler sent them back to back), so that it stops if the first did not arrive.
 
@@ -76,9 +79,9 @@ After a homing, the arm drives straight out by 150 mm (about 1.7 s), then sidewa
 
 ### Step 5: Let the arm go (the mode i1Profiler uses for aligning a chart) and take it back
 
-With the arm at its resting place, the program switches on the hand-alignment mode, exactly the lines i1Profiler sends before it asks you to push the arm over your chart (f3, then f1). The arm should then move freely. You touch it gently once, without moving it away from the tile. Then the program takes it back the way i1Profiler does when you cancel an alignment: it sends the arm home (the motors take it again) and homes once more. Afterwards only the closing lines may follow.
+With the arm at its resting place, the program switches on the hand-alignment mode, exactly the lines i1Profiler sends before it asks you to push the arm over your chart (f3, then f1). The arm should then move freely. You touch it gently once, without moving it away from the tile. Then the program takes it back the way i1Profiler does when you cancel an alignment: it sends the arm home (the motors take it again) and homes once more. Afterwards only the close may follow, and we recommend it: the close is what switches the hand-alignment mode off again.
 
-*Not exactly as recorded:* i1Profiler switched this mode on only out on the table, after a move to the alignment start; here it is switched on at the resting place. The homing from the free arm is recorded twice: once it worked (4 s, from far out), once the table answered 'not now' (status 3). If that happens, the program stops; the arm is then free at its resting place, which is how you found it after i1Profiler before.
+*Not exactly as recorded:* i1Profiler switched this mode on only out on the table, after a move to the alignment start; here it is switched on at the resting place. Taking the free arm back with a homing is recorded three times: twice it worked, from far out on the table (2.4 s and 4.0 s); once, when the homing was sent two milliseconds after a button on the instrument had been pressed, the table answered with status 3 instead. What status 3 means is not known. If the table answers that here, the program stops and sends nothing more; the table is then still in the hand-alignment mode, and the program tells you what to do.
 
 25 lines, 3 movements. Our risk rating: **medium**.
 
@@ -134,8 +137,11 @@ recordings, and any other speed.
 * **A move ends somewhere else, takes much longer or shorter than recorded, or
   an answer is late or strange:** the program sends nothing more at all. The
   arm stays where it is; please do not push it around. Then open i1Profiler
-  once: it brings the arm home by itself (it did so in one of your
-  recordings), and quit it.
+  once, let it start the table, and quit it. We expect i1Profiler to bring the
+  arm home: it did so once in your recordings, from 3 cm out. If it does not
+  bring the arm to its resting place, or shows a problem with the table,
+  switch the table off, wait ten seconds, switch it on again, and open
+  i1Profiler once more. That is a recovery for this case, not a routine step.
 * **Anything looks or sounds wrong while the arm moves:** switch the table off
   at its power switch or pull its power plug. That is always allowed and is
   the emergency stop. Pulling the USB cable does not stop a movement: the table
@@ -143,10 +149,19 @@ recordings, and any other speed.
 * **The table never reports that a movement finished:** keep your hands away,
   switch the table off, wait ten seconds, switch it on again, then open
   i1Profiler once and quit it.
-* **In the hand-alignment step the table refuses to take the arm back** (it
-  did that once in your recordings): the program stops. The arm is then free
-  at its resting place, which is how you found it after i1Profiler before.
-  Open i1Profiler once and quit it.
+* **You stop inside the hand-alignment step** (Ctrl-C at the touch question),
+  **the table does not take the arm back** (it answered status 3 once in your
+  recordings; what that means is not known), **or the session ends after that
+  step without the close:** the table is still in the hand-alignment mode,
+  because the line that switches it off is part of the close. The arm may
+  still be free: please do not push it away from its resting place. Nobody has recorded yet what
+  i1Profiler does when it opens a table in this mode. Please open i1Profiler
+  once, let it start the table, and quit it. If it does not bring the arm to
+  its resting place, or shows a problem with the table, switch the table off,
+  wait ten seconds, switch it on again, and open i1Profiler once more. That is
+  a recovery for this case, not a routine step.
+* **The touch in the hand-alignment step:** take your hand off the arm before
+  you answer. Right after your answer, the program sends the arm home at once.
 * **The head might lift or lower during a move.** We do not know whether the
   table does that by itself. Please watch the round measuring opening and tell
   us; that is one of the things we would like to learn.
@@ -218,7 +233,8 @@ about what you saw at each step. If anything worries you, simply stop; one
 step is already a help.
 
 If the session ends without the close, open i1Profiler once afterwards and quit
-it.
+it. After the hand-alignment step, please run the close; if you could not, see
+"What could go wrong" above.
 
 ## Licence
 

@@ -78,7 +78,9 @@ ASK_FREE_TOUCH = (
     "The arm should now be free. Please put one finger on the instrument holder and push it "
     "very gently towards the front of the table, about a millimetre, then let go. Push "
     "sideways only, level with the table, and do not press down. Do not move it away from "
-    "the white tile, and do not force it. Does it move freely now, or does it still hold?")
+    "the white tile, and do not force it. Then take your hand off the arm BEFORE you answer: "
+    "right after your answer, the program sends the arm home at once. Does it move freely "
+    "now, or does it still hold?")
 FREE_CHOICES = ("free", "holds", "not sure", "skip")
 ASK_DID = "Did the arm do what was described?"
 DID_CHOICES = ("yes", "no", "not sure", "stop")
@@ -100,16 +102,36 @@ NOT_CLOSED = (
     "table ended this way: two of version 0.1.0, one of 0.2.0 and one of 0.2.1. After each "
     "of the first three, the next opening worked normally; how the next opening after the "
     "0.2.1 run went, we do not know yet.")
-OPEN_I1PROFILER = ("Please open i1Profiler once, let it start the table as usual (it brings "
-                   "the arm to its resting place by itself), and quit it.")
-OUT_ON_TABLE = (
-    "The arm may have stopped out on the table. The program does not move it again. Please "
-    "do not push it around. " + OPEN_I1PROFILER + " (i1Profiler found the arm away from its "
-    "resting place once in your recordings and drove it home by itself.)")
+OPEN_I1PROFILER = "Please open i1Profiler once, let it start the table as usual, and quit it."
+#: What to do if i1Profiler does not put things right (a recovery, not a routine step).
+RECOVERY = (
+    "If i1Profiler does not bring the arm to its resting place, or shows a problem with the "
+    "table, switch the table off at its power switch, wait ten seconds, switch it on again, "
+    "and open i1Profiler once more. That is a recovery for this case, not a routine step.")
+EXPECT_HOME = (
+    "We expect i1Profiler to bring the arm home: it did so once in your recordings, from "
+    "3 cm out.")
+OUT_STATE = ("The arm may have stopped out on the table. The program does not move it again. "
+             "Please do not push it around.")
+OUT_ON_TABLE = OUT_STATE + " " + OPEN_I1PROFILER + " " + EXPECT_HOME + " " + RECOVERY
+#: After f1 was answered and the close (whose f0 switches the mode off) was not sent: a stop
+#: inside step 5 (Ctrl-C at the touch question, status 3 when the arm is taken back, any
+#: other doubt) or a session that ended after step 5 without the close. f4 reads 01 then;
+#: i1Profiler opening a table in this mode has never been recorded (safety review M1).
+FREE_MODE_LEFT = (
+    "The table is still in the hand-alignment mode: the line that switches this mode off "
+    "again is part of the close, and the close was not sent. Nobody has recorded yet what "
+    "i1Profiler does when it opens a table in this mode. " + OPEN_I1PROFILER + " " + RECOVERY)
+FREE_MAYBE = "The arm may still be free: please do not push it away from its resting place."
+CLOSE_AFTER_FREE = (
+    "After the hand-alignment step, this close is what switches that mode off again. We "
+    "recommend running it now.")
 UNFINISHED = (
     "The table never reported that its last movement had finished, so it may still be "
     "moving, or it may start that movement later. Please keep your hands away from the arm, "
     "switch the table off, wait ten seconds and switch it on again, then " + OPEN_I1PROFILER[7:])
+UNFINISHED_FREE = ("The table was also left in the hand-alignment mode (the close, which "
+                   "switches it off, was not sent).")
 
 RISKS = (
     "Please read this before you go on.\n"
@@ -274,7 +296,8 @@ def plan_text(hex_bytes: bool = False) -> str:
             elif op[0] == "p0":
                 out.append(row("position") + f"   (must read {tbl.BOXES[op[1]].text()})")
             elif op[0] == "home_rest":
-                out.append(row("home") + "   (MOVES home; within 0.6 s, or 1.1 s from Y 49..120)")
+                out.append(row("home") + "   (MOVES home; within 0.6 s, or 1.1 s from Y "
+                           f"{tbl.REST_RECORDED.ymax + 1}..{tbl.REST_GUARD.ymax})")
             elif op[0] == "move":
                 lo, hi = tbl.TIME_WINDOW[op[2]]
                 out.append(row(op[1]) + f"   (MOVES; must finish within {lo:.2f}..{hi:.2f} s)")
@@ -309,6 +332,8 @@ class Session:
         self.ui.say(f"Step {n}: {step.title}.")
         self.ui.say(step.explain)
         self.ui.say("What is not exactly as recorded: " + step.beyond)
+        if step.leaves == "closed" and self.d.freed:
+            self.ui.say(CLOSE_AFTER_FREE)
         m = tbl.STEP_MAX_MOTIONS[step.key]
         self.ui.say(RISK_WORDS[step.risk] + f" It sends {tbl.STEP_MAX_LINES[step.key]} lines; "
                     + ("none of them moves the arm." if m == 0 else
@@ -404,18 +429,22 @@ class Session:
     def ending(self, code: int) -> None:
         try:
             d, w = self.d, self.where()
+            #: f1 was answered and the close never followed: the hand-alignment mode is on
+            free_mode = d.freed and d.state != "closed"
             self.ui.say("")
             if w == "unfinished":
                 self.ui.say(UNFINISHED)
             elif w == "maybe out":
-                self.ui.say(OUT_ON_TABLE)
+                self.ui.say(OUT_STATE if free_mode else OUT_ON_TABLE)
             elif w == "not moved":
                 self.ui.say("Nothing was moved.")
             elif w == "outside":
                 x, y = d.outside_at
                 self.ui.say(f"The arm last read X {x}, Y {y}, not where the step needed it. "
                             "The program does not move it again; please do not push it "
-                            "around. " + OPEN_I1PROFILER)
+                            "around." + ("" if free_mode else
+                                         " " + OPEN_I1PROFILER + " " + EXPECT_HOME + " "
+                                         + RECOVERY))
             elif w == "home, homing refused":
                 self.ui.say("The table refused the last homing, which started at the resting "
                             "place, so the arm should still be there.")
@@ -423,12 +452,17 @@ class Session:
                 self.ui.say("The arm is at its resting place.")
             if d.state == "closed":
                 self.ui.say("The table was closed the way i1Profiler closes it.")
+            elif free_mode:
+                self.ui.log("INFO", "the hand-alignment mode was left on: f1 answered 01, the "
+                                    "close (s0 f0 f3) was not sent; f4 reads 01")
+                if w == "unfinished":
+                    self.ui.say(UNFINISHED_FREE)
+                else:
+                    if d.state != "free_homed":
+                        self.ui.say(FREE_MAYBE)
+                    self.ui.say(FREE_MODE_LEFT)
             elif d.state in ("warm", "homed", "free_homed"):
                 self.ui.say(NOT_CLOSED)
-            if d.freed and d.state != "closed":
-                self.ui.say("After the hand-alignment step the arm may stay free until "
-                            "i1Profiler next opens the table; that is the same harmless state "
-                            "as after i1Profiler. " + OPEN_I1PROFILER)
         except BaseException:
             pass
 

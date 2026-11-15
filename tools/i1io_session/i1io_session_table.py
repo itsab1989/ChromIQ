@@ -284,13 +284,16 @@ RECORDED_REST_STARTS = ((1102, 14), (1102, 22), (1102, 24), (1102, 24), (1102, 3
 #: The recorded starts plus one unit: a homing from here is as recorded.
 REST_RECORDED = Box(1101, 1103, -1, 48)
 #: The session's homing guard (the owner's ruling of 15 Nov 2026 allows a start close to
-#: a recorded one): up to Y 120 (12 mm), on the home line X 1101..1103. Why 120: the line
+#: a recorded one): up to Y 80 (8 mm), on the home line X 1101..1103. It was Y 120 in the
+#: reviewed eb38ba20b; the independent safety review (S1) asked for 80, because the largest
+#: reading of an arm at rest ever seen is Y 55 (0.2.1). Why a step beyond 47 at all: the line
 #: X 1102, Y 0..250 is driven by the recorded move to (1102, 250) and Y 0..1498 by the
 #: recorded move to (1102, 1498), so the arm travels it under motor in the recordings; i1 is
 #: recorded from Y 47 (at rest) and from Y 1202 on X 1102 (R1 85.848, after a move); the
 #: only near-home start i1Profiler did NOT home from directly was (1058, 317), 44 units off
-#: the line and 317 out. 120 stays below half of 250 and far below 317, on the line.
-REST_GUARD = Box(1101, 1103, -1, 120)
+#: the line and 317 out. The same box is the check at rest before every homing from rest
+#: (every step's first homing, the second homing, the free-arm homing).
+REST_GUARD = Box(1101, 1103, -1, 80)
 #: Where a recorded move out from rest started (Y 4..6 after a double homing, 29..41 at a
 #: session start), plus one unit: the moves out are sent only from here.
 OUT_START = Box(1101, 1103, -1, 48)
@@ -309,7 +312,7 @@ QUICK_TIMEOUT = 1.0
 #: Time windows (seconds from the line to its done-answer) for every movement, from the
 #: recorded times, widened; outside: nothing more is sent.
 #:   home_rest    i1 from REST_RECORDED: recorded 0.047-0.352 s; limit 0.6 (as 0.2.x)
-#:   home_wide    i1 from Y 49..120: predicted 0.36-0.64 s (0.17 + 0.0039 s per unit,
+#:   home_wide    i1 from Y 49..80: predicted 0.36-0.48 s (0.17 + 0.0039 s per unit,
 #:                fitted to the recorded at-rest homings); limit 1.1
 #:   home_table   i1 from a held position out on the table: recorded 1.60-4.01 s
 #:   home_free    i1 from the free arm at rest (after f1): from rest never recorded; from
@@ -365,8 +368,8 @@ STEPS = (
          "a centimetre, for about a third of a second. This is exactly what i1Profiler does "
          "right after it opens the table.",
          "i1Profiler sent this homing only from Y 0 to 47; this program also sends it from "
-         "Y 48 to 120 (up to 12 mm out, on the same line). From there it takes up to about "
-         "0.6 s; it is stopped if it takes longer than 1.1 s."),
+         "Y 48 to 80 (up to 8 mm out, on the same line). From there it takes up to about "
+         "half a second; it is stopped if it takes longer than 1.1 s."),
     Step("near", "Drive out about 15 cm along i1Profiler's way to an alignment, and back home",
          ("warm", "homed"), "homed",
          HOME_FIRST + (("f4", "00"), ("f4", "00"), ("p0", "OUT_START", "before driving out"),
@@ -384,8 +387,11 @@ STEPS = (
          "In the recordings these two moves always came 7.5 s after an i1Pro 2 calibration on "
          "the tile; here they come right after the homing, and the program asks where the "
          "arm is between them (i1Profiler sent them back to back) so that it stops if the "
-         "first did not arrive. i1Profiler never sent the arm home from exactly this point; "
-         "it did from eight other points on the table, farther out."),
+         "first did not arrive. i1Profiler never sent the arm home from exactly this point. "
+         "With the motors holding the arm, the closest recorded homing nearer home started at "
+         "X 1102, Y 1202 (about 3 cm from this point); the nearest one of all started at "
+         "X 1172, Y 1663 (about 2.4 cm away, farther out). The other recorded homings with the "
+         "arm held started farther out."),
     Step("straight", "Drive straight out about 15 cm and back home",
          ("warm", "homed"), "homed",
          HOME_FIRST + (("f4", "00"), ("f4", "00"), ("p0", "OUT_START", "before driving out"),
@@ -393,13 +399,15 @@ STEPS = (
          + (("p0", "AT_1498", "after driving out"), ("move", "home", "home_table"))
          + HOME_AND_CHECK, "medium",
          "After a homing, the arm drives straight out from its resting place by 150 mm "
-         "(table position X 1102, Y 1498) in about 1.7 s: the first move i1Profiler makes at "
-         "the start of every measuring session in your recordings. The program checks that "
-         "it arrived and sends it home (about 2 to 3 seconds), then checks it at rest and "
+         "(table position X 1102, Y 1498) in about 1.7 s: the first move i1Profiler made at "
+         "the start of the seven measuring sessions in your recordings that began without a "
+         "calibration (after a calibration it used the way out of step 2). The program checks "
+         "that it arrived and sends it home (about 2 to 3 seconds), then checks it at rest and "
          "sends it home once more.",
-         "i1Profiler followed this move with a second move, never with a homing; it sent the "
-         "arm home from points close to this one (for example X 1050, Y 1492 and X 1172, "
-         "Y 1663)."),
+         "i1Profiler followed this move with a second move, never with a homing. With the "
+         "motors holding the arm, the closest recorded homing nearer home started at X 1102, "
+         "Y 1202, on this same line about 3 cm nearer home; the nearest one of all started at "
+         "X 1172, Y 1663 (about 1.8 cm away, farther out)."),
     Step("across", "Drive out 15 cm, across 14 cm to the far side, back, and home",
          ("warm", "homed"), "homed",
          HOME_FIRST + (("f4", "00"), ("f4", "00"), ("p0", "OUT_START", "before driving out"),
@@ -411,7 +419,8 @@ STEPS = (
                      ("move", "home", "home_table")) + HOME_AND_CHECK, "medium",
          "After a homing, the arm drives straight out by 150 mm (about 1.7 s), then sideways "
          "by 140 mm to table position X 2507, Y 1498 (about 1.7 s), exactly the two moves "
-         "i1Profiler makes at the start of every measuring session. The program checks that "
+         "i1Profiler made at the start of the seven measuring sessions in your recordings that "
+         "began without a calibration. The program checks that "
          "it arrived, drives it back the same way to X 1102, Y 1498, checks again, and sends "
          "it home (about 2 to 3 seconds), then checks it at rest and homes once more.",
          "The way back to X 1102, Y 1498 is the recorded sideways move driven backwards (its "
@@ -433,12 +442,16 @@ STEPS = (
          "chart (f3, then f1). The arm should then move freely. You touch it gently once, "
          "without moving it away from the tile. Then the program takes it back the way "
          "i1Profiler does when you cancel an alignment: it sends the arm home (the motors "
-         "take it again) and homes once more. Afterwards only the closing lines may follow.",
+         "take it again) and homes once more. Afterwards only the close may follow, and we "
+         "recommend it: the close is what switches the hand-alignment mode off again.",
          "i1Profiler switched this mode on only out on the table, after a move to the "
-         "alignment start; here it is switched on at the resting place. The homing from the "
-         "free arm is recorded twice: once it worked (4 s, from far out), once the table "
-         "answered 'not now' (status 3). If that happens, the program stops; the arm is then "
-         "free at its resting place, which is how you found it after i1Profiler before."),
+         "alignment start; here it is switched on at the resting place. Taking the free arm "
+         "back with a homing is recorded three times: twice it worked, from far out on the "
+         "table (2.4 s and 4.0 s); once, when the homing was sent two milliseconds after a "
+         "button on the instrument had been pressed, the table answered with status 3 "
+         "instead. What status 3 means is not known. If the table answers that here, the "
+         "program stops and sends nothing more; the table is then still in the "
+         "hand-alignment mode, and the program tells you what to do."),
     Step("close", "Close the table the way i1Profiler does",
          ("homed", "free_homed"), "closed", (("x", "status"), ("x", "f0"), ("x", "f3")), "low",
          "The two lines with which i1Profiler closes the table. Nothing moves.",
