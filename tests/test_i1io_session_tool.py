@@ -1221,3 +1221,27 @@ def test_the_tester_s_two_stopping_points_now_home_inside_the_window(tmp_path):
     sim.inject_at(len(OPEN) + 2, "slow_motion", 1.0)
     code, sim, log, con = _choose(tmp_path, {"home", "close"}, sim=sim)
     assert code == 2 and sim.received == OPEN + _lines("home")[:3]
+
+
+@pytest.mark.parametrize("y,ok", [(80, True), (81, False), (120, False)])
+def test_the_simulator_allows_f1_only_inside_its_own_rest_box(y, ok):
+    """The simulator's own REST_GUARD copy (Y -1..80) is what it allows f1 from (planted
+    faults widening it survived the first 0.3.1 pass)."""
+    sim = sim_mod.SimTable(pos=[1102.0, float(y)], jitter=False)
+    if ok:
+        sim._physics(";f12e")
+    else:
+        with pytest.raises(sim_mod.SimViolation, match="away from the resting place"):
+            sim._physics(";f12e")
+    for x in (1100, 1104):
+        with pytest.raises(sim_mod.SimViolation, match="away from the resting place"):
+            sim_mod.SimTable(pos=[float(x), 20.0], jitter=False)._physics(";f12e")
+
+
+def test_bytes_md_and_the_readme_name_the_guards_as_the_program_has_them():
+    g, r = tbl.START_GUARD, tbl.REST_GUARD
+    b = " ".join(_source("BYTES.md").split())
+    assert f"X {g.xmin}..{g.xmax}, Y {g.ymin}..{g.ymax}, `START_GUARD`" in b
+    assert f"X {r.xmin}..{r.xmax}, Y {r.ymin}..{r.ymax}, `REST_GUARD`" in b
+    readme = " ".join(_source("README.md").split())
+    assert f"X {g.xmin} to {g.xmax}, Y up to {g.ymax}" in readme
