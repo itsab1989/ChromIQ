@@ -824,18 +824,21 @@ M_I1IO_MEASURE_CHART = _m(
     "so a later version may ask you to print the chart again.\n\n"
     "1. {lay}\n"
     "2. In i1Profiler, start the chart measurement for the i1iO that asks "
-    "only for the number of columns and rows (X-Rite calls it Measure "
-    "Chart), and choose single scan.\n"
+    "only for the number of columns and rows (X-Rite calls it “Measure "
+    "Chart”), and choose “Single scan”.\n"
     "3. When i1Profiler asks for the size of the chart, set it to {cols} "
     "columns and {rows} rows. Columns are the patches along one strip, rows "
     "are the strips.\n"
-    "4. {aim} Then check the corners i1Profiler shows and click OK.\n"
+    "4. {aim} Then check the corners i1Profiler shows and confirm them.\n"
     "5. When the scan has finished, save the measurement as a .cmxf file "
-    "(Measurement only). A text export is not enough, because only the "
+    "(“Measurement only”). A text export is not enough, because only the "
     ".cmxf file says where on the sheet each reading was taken.\n"
     "6. Back in ChromIQ, press the green folder button under Import "
     "Measurement on this tab, choose that file and press Import "
-    "Measurement.",
+    "Measurement.\n\n"
+    "The words in quotation marks are i1Profiler's own, as the English "
+    "i1Profiler shows them. If your i1Profiler runs in another language, it "
+    "shows them in that language, in the same places.",
     approved=False)
 
 #: The other way, after the steps above (profiling charts): M-I1IO-NOT-YET's
@@ -916,7 +919,7 @@ _I1IO_IMPORT_PLACES = (
     "the places i1Profiler wrote into this file for its readings do not "
     "agree with its own list of patches, so ChromIQ cannot tell where on the "
     "sheet each reading was taken. Save the measurement again in i1Profiler "
-    "as a .cmxf file (Measurement only) and import that file, or measure the "
+    "as a .cmxf file (“Measurement only”) and import that file, or measure the "
     "sheet again")
 _I1IO_IMPORT_PAGES = (
     "this chart has {pages} pages, and ChromIQ can bring back an i1Profiler "
@@ -987,14 +990,14 @@ _I1IO_IMPORT_BESIDE_UNNAMED = (
 #: value for every patch (Measure Chart's placeholders).
 _I1IO_IMPORT_TEXT = (
     "this is a text export without this chart's colours, and for an i1iO "
-    "chart measured with i1Profiler's Measure Chart ChromIQ needs the "
+    "chart measured with i1Profiler's “Measure Chart” ChromIQ needs the "
     ".cmxf file, because only that file says where on the sheet each "
     "reading was taken. In i1Profiler, save the measurement again as a "
-    ".cmxf file (Measurement only) and import that file")
+    ".cmxf file (“Measurement only”) and import that file")
 #: The other import doors (Build Profile tab): one sentence that sends a
 #: Measure Chart measurement to the Measure tab.
 _I1IO_IMPORT_OTHER_DOOR = (
-    "this looks like an i1Profiler Measure Chart measurement of this i1iO "
+    "this looks like an i1Profiler “Measure Chart” measurement of this i1iO "
     "chart, which carries no colours of its own for the patches. Bring it "
     "in with Import Measurement on the Measure tab: only there ChromIQ reads "
     "where on the sheet each reading was taken")
@@ -1009,7 +1012,7 @@ _I1IO_HOW_TWO = "shifted by two readings"
 _I1IO_HOW_TURNED = "turned half round"
 M_IMPORT_I1IO_REASONS = _m(
     "M-IMPORT-I1IO-REASONS",
-    "An i1Profiler Measure Chart measurement of an i1iO chart: the reasons",
+    "An i1Profiler “Measure Chart” measurement of an i1iO chart: the reasons",
     "\n".join((_I1IO_IMPORT_GRID, _I1IO_IMPORT_COUNT, _I1IO_IMPORT_PLACES,
                _I1IO_IMPORT_PAGES, _I1IO_IMPORT_SIDE, _I1IO_IMPORT_TURNED,
                _I1IO_IMPORT_AIMED, _I1IO_IMPORT_UNSURE, _I1IO_IMPORT_STRIP,
@@ -1107,7 +1110,7 @@ _I1IO_WHY_NO_COLOURS = ("ChromIQ cannot work out which colours this chart "
 M_IMPORT_I1IO_CANNOT_CHECK = _m(
     "M-IMPORT-I1IO-CANNOT-CHECK",
     "ChromIQ cannot check this sheet from its colours",
-    "This is an i1Profiler Measure Chart measurement of this chart's sheet. "
+    "This is an i1Profiler “Measure Chart” measurement of this chart's sheet. "
     "ChromIQ puts every reading on the patch at its place in i1Profiler's "
     "grid, and before it does, it normally checks from the colours that the "
     "sheet lay the right way and that the three corner patches were aimed "
@@ -1146,18 +1149,18 @@ def i1io_cannot_check_kw(why: str, nums: dict) -> dict:
 #: The log line of a filed Measure Chart measurement. The "[OK]" prefix stays
 #: English as in every log line.
 _I1IO_FILED_AGREE = (
-    "[OK] This is an i1Profiler Measure Chart measurement of this chart's "
+    "[OK] This is an i1Profiler “Measure Chart” measurement of this chart's "
     "sheet, so ChromIQ put each of its {count} readings on the patch at its "
     "place in the grid ({cols} columns, {rows} rows). The colours agree with "
     "the chart (agreement {score} on a scale where 1 is a perfect match).")
 _I1IO_FILED_ASKED = (
-    "[OK] This is an i1Profiler Measure Chart measurement of this chart's "
+    "[OK] This is an i1Profiler “Measure Chart” measurement of this chart's "
     "sheet, so ChromIQ put each of its {count} readings on the patch at its "
     "place in the grid ({cols} columns, {rows} rows). You confirmed that the "
     "sheet lay the right way; the colours of this chart could not show it.")
 M_IMPORT_I1IO_FILED = _m(
     "M-IMPORT-I1IO-FILED",
-    "An i1Profiler Measure Chart measurement was filed: the log line",
+    "An i1Profiler “Measure Chart” measurement was filed: the log line",
     "\n".join((_I1IO_FILED_AGREE, _I1IO_FILED_ASKED)),
     approved=False)
 
