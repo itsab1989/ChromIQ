@@ -955,3 +955,21 @@ def test_i1profiler_is_checked_again_right_before_the_first_touch(tmp_path, monk
     assert prog.main(["--real", "--log", str(log)], console=C(dev.sim)) == 2
     assert prog.ASK_TOUCH not in events and "open" not in events
     assert "refused before the first touch" in log.read_text(encoding="utf-8")
+
+
+def test_a_session_ended_without_the_close_is_closed_for_sending_before_the_touch(
+        tmp_path, monkeypatch):
+    seen = []
+    real_touch = prog.Session.touch
+
+    def touch(self, when):
+        seen.append(self.d.closed_reason)
+        n = len(self.d.t.writes)
+        with pytest.raises(tbl.Doubt):
+            self.d.exchange("status")
+        assert len(self.d.t.writes) == n
+        return real_touch(self, when)
+    monkeypatch.setattr(prog.Session, "touch", touch)
+    code, sim, log, con = _choose(tmp_path, {"home"})
+    assert code == 0 and sim.received == OPEN + _lines("home")
+    assert seen and seen[0] == "the session is over"
