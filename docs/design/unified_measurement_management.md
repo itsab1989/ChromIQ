@@ -10786,6 +10786,13 @@ cannot show at all is filed: the known cases are point 9.**
    is refused in most cases but filed in about one in six on low-gamut,
    cream and dark papers (two strips give the neighbour check little to
    compare).
+   * **OPEN (review m7): all three corners aimed about 4 mm ALONG the
+     strips.** In the review's model, which reads a fixed spot per cell, it is
+     filed as agreeing on low-gamut printers with many readings 10 to 31 % on
+     a spacer or the next patch. In scan mode i1Profiler may place each
+     reading by finding the patches along the row, and then this mistake does
+     not exist. Needs a real recording (a probe recording of a Measure Chart
+     scan) before anything is built for it.
 
 ## S. Sequences — what happens, in what order, for every entry condition
 
