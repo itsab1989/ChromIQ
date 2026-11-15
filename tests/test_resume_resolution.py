@@ -326,24 +326,3 @@ def test_that_window_offers_cancel_only_and_starts_nothing(tab, monkeypatch,
     assert tab._session_highres is None
     assert M.M_RESUME_RESOLUTION_INSTRUMENT.id in M.PROPOSED
 
-
-@pytest.mark.parametrize("name", ["", "?", None])
-def test_that_window_never_says_the_instrument_in_use_is_unknown(tab,
-                                                                 monkeypatch,
-                                                                 name):
-    """4.3.38 (ruler review, minor 2): without a name, the sentence without
-    it, never "The instrument in use, ?"."""
-    from PyQt6.QtWidgets import QMessageBox
-    tab._detected_instrument = name
-    seen = {}
-
-    def run(box):
-        seen["text"] = box.informativeText()
-        seen["buttons"] = [b.text() for b in box.buttons()]
-        return 0
-    monkeypatch.setattr(QMessageBox, "exec", run)
-    tab._resume_resolution_cannot_window()
-    assert "The instrument in use has no high-resolution mode" in seen["text"]
-    assert "?" not in seen["text"].split("\n\n")[0]
-    assert seen["buttons"] == ["Cancel"]
-    assert M.M_RESUME_RESOLUTION_INSTRUMENT_UNNAMED.id in M.PROPOSED

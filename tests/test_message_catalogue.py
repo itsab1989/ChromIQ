@@ -127,8 +127,6 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-RESUME-RESOLUTION",
     # 4.3.37 review (M4): the same, with an instrument without high resolution.
     "M-RESUME-RESOLUTION-INSTRUMENT",
-    # 4.3.38 (ruler review, minor 2): the same, without an unknown name.
-    "M-RESUME-RESOLUTION-INSTRUMENT-UNNAMED",
     # 4.3.37: the ruler and the filing disagree about a strip's direction.
     "M-STRIP-RULER-DIRECTION",
     # The ruler check (Preferences > Beta), 2026-11-14: an accepted strip

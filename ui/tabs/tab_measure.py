@@ -8285,16 +8285,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                                 keep_message_box_inside_the_work_area)
         box_cb = (self._resume_cb if self._current_mode() == "guided"
                   else self._m_resume_cb)
-        name = str(getattr(self, "_detected_instrument", "") or "").strip()
-        box_text = box_cb.text() if box_cb is not None else ""
-        # 4.3.38: never "The instrument in use, ?": without a name, the
-        # sentence without it.
-        if name and name != "?":
-            title, body = M.M_RESUME_RESOLUTION_INSTRUMENT.render(
-                instrument=name, box=box_text)
-        else:
-            title, body = M.M_RESUME_RESOLUTION_INSTRUMENT_UNNAMED.render(
-                box=box_text)
+        title, body = M.M_RESUME_RESOLUTION_INSTRUMENT.render(
+            instrument=str(getattr(self, "_detected_instrument", "") or "?"),
+            box=box_cb.text() if box_cb is not None else "")
         self._log.appendPlainText(f"[{title}]\n{body}")
         self._log.ensureCursorVisible()
         box = QMessageBox(self)

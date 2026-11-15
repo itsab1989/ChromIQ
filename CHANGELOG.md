@@ -19,7 +19,6 @@
 
 ### Changed
 - **The lights help says what a tester confirmed** (beta): on 14 November 2026 a tester confirmed with a real i1Pro 2 on Windows that the lights behave as described. Whether the “lost communication” window is gone for good has not been confirmed yet.
-- **“This measurement cannot be continued with this instrument”** now names “the instrument in use”, not “the instrument this chart is made for”, because the name shown is the one the instrument reported. When no name is known, it says so without a name.
 - **French:** the strings changed in 4.3.36 and 4.3.37 now say “calibration”, like the rest of the French translation, instead of “étalonnage”.
 
 ### Fixed
