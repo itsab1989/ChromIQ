@@ -184,6 +184,68 @@ def _hue_default_kept(settings) -> bool:
     return str(raw or "").strip().lower() == "kept"
 
 
+def build_from_help() -> str:
+    """The (i) of Build Profile's "Build from" (Preferences > Beta, "X-Rite
+    i1Pro 3: keep M0, M1 and M2 from every scan"; Basti, 2026-11-15:
+    "friendly, extensive, easy to understand and correct"). Checked against
+    workflow/i1pro3_conditions.py (choices_for, no_file_reason,
+    average_missing_reason), workflow/fwa_gate.py (an M1/M2 file refuses
+    -f) and `_build_from_suffix`."""
+    return "\n\n".join((
+        tr("**What this choice does.** With the Beta option “X-Rite i1Pro 3: "
+           "keep M0, M1 and M2 from every scan” switched on, the i1Pro 3 "
+           "gives three sets of readings from the same scan, one for each "
+           "standard measurement condition. Here you choose which of them "
+           "the profile is built from. Your measurement itself is not "
+           "changed, and the other readings stay saved, so you can build "
+           "again from another condition at any time."),
+        tr("**M0** is the light of the instrument's own lamp. How much "
+           "ultraviolet (UV) light it contains is not defined, so papers with "
+           "optical brighteners can measure a little differently from one "
+           "instrument to another. It is how most instruments have always "
+           "measured."),
+        tr("**M1** is light like daylight (D50), including its ultraviolet "
+           "part. Optical brighteners in the paper glow under it, just as "
+           "they do in daylight or in a D50 viewing booth with UV."),
+        tr("**M2** is light with the ultraviolet cut out (“UV cut”). "
+           "Optical brighteners do not glow, so the paper is measured as it "
+           "looks under light without UV."),
+        tr("**Which one to choose.** Think of the light your prints will be "
+           "seen in. M1 suits prints looked at in daylight or in a D50 "
+           "viewing booth with UV. M2 suits light with very little UV, for "
+           "example behind UV-filtering glass or under many LED lamps. M0 "
+           "keeps the profile comparable with the profiles you made before. "
+           "On a paper without optical brighteners the three are nearly the "
+           "same, so the choice makes little difference there."),
+        tr("**How this differs from “FWA Compensation (-f)”.** M1 and M2 "
+           "here were really measured by the i1Pro 3, in the same scan as "
+           "M0. FWA Compensation instead estimates the effect of the "
+           "brighteners from M0 readings alone, with a general model. The "
+           "two must not be combined, because M1 and M2 already contain what "
+           "FWA would estimate: when you build from M1 or M2, the FWA option "
+           "is greyed out with the reason, and ChromIQ never passes -f to "
+           "ArgyllCMS for such a build, even if a preset or the extra "
+           "arguments ask for it. Building from M0, FWA can be used as "
+           "before."),
+        tr("**Why an entry can be greyed out.** An entry is offered only "
+           "when these exact readings exist in that condition. It is greyed "
+           "out when the measurement was made with the Beta option switched "
+           "off, with another instrument (only the i1Pro 3 gives all three), "
+           "when the readings were changed in another way since (for example "
+           "imported, or replaced), when an averaged measurement has a read "
+           "without that condition, or when the build merges earlier "
+           "measurements. Point at a greyed entry to see the reason for it."),
+        tr("**The profile's name.** A profile built from M1 or M2 gets “-M1” "
+           "or “-M2” at the end of its default description, so you can tell "
+           "it apart later. A description you typed yourself is left as it "
+           "is."),
+        tr("**Please note:** ArgyllCMS works out M1 and M2 for the i1Pro 3 "
+           "from the instrument's own calibration data, and these values have "
+           "not yet been compared with the values X-Rite i1Profiler gives for "
+           "the same chart."),
+    ))
+
+
 #: Save as Defaults' "Build from" (the M0/M1/M2 Beta): one value for Guided
 #: and Manual, as the row is; written and read only while the Beta is on.
 BUILD_FROM_DEFAULT_KEY = "colprof_build_from_condition"
@@ -801,10 +863,15 @@ class TabProfile(QWidget):
         self._cond_combo.setObjectName("build_from_condition")
         self._cond_combo.setMinimumContentsLength(24)
         self._cond_combo.activated.connect(self._on_build_from_chosen)
+        self._cond_tip = TooltipButton(tr("Build from"), build_from_help(),
+                                       file_grp, min_width=680)
+        self._cond_tip.setObjectName("build_from_condition_help")
         self._cond_lbl.setVisible(False)
         self._cond_combo.setVisible(False)
+        self._cond_tip.setVisible(False)
         fg.addWidget(self._cond_lbl)
         fg.addWidget(self._cond_combo)
+        fg.addWidget(self._cond_tip)
         cc.addWidget(file_grp)
         # A measurement dropped from the file manager on this box is loaded
         # as the header's load icon loads the file chosen with it (4.3.33).
@@ -3083,6 +3150,7 @@ class TabProfile(QWidget):
         choices = self._build_from_choices() if on else []
         self._cond_lbl.setVisible(bool(choices))
         combo.setVisible(bool(choices))
+        self._cond_tip.setVisible(bool(choices))
         combo.blockSignals(True)
         try:
             combo.clear()

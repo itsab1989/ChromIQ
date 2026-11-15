@@ -198,3 +198,35 @@ def test_a_default_with_no_file_for_this_run_refuses_the_build_and_says_why(
     assert "M1" in tab._build_btn.toolTip()
     assert tab._build_from_file() is None
     assert tab._desc_edit.text() == "chart"     # not built from M1: not said
+
+
+# ---------------------------------------------------------------------------
+# the (i) of "Build from" (Basti, 2026-11-15: "friendly extensive easy to
+# understand and correct")
+# ---------------------------------------------------------------------------
+
+def test_build_from_has_its_info_button_in_both_modes(tmp_path, qtbot):
+    from ui.tabs.tab_profile import build_from_help
+    from ui.tooltip_button import TooltipButton
+    tab = _tab(tmp_path, **{C.SETTING: True})
+    qtbot.addWidget(tab)
+    tab.show()
+    main = _loose(tmp_path, "M1", "M2")
+    tab.set_ti3_path(main, propagate=False)
+    assert isinstance(tab._cond_tip, TooltipButton)
+    for mode in ("guided", "manual"):
+        tab._switch_mode(mode)
+        assert tab._cond_combo.isVisible() and tab._cond_tip.isVisible(), mode
+    text = build_from_help()
+    for word in ("**M0**", "**M1**", "**M2**", "FWA", "-M1",
+                 "not yet been compared with", "greyed"):
+        assert word in text, word
+    assert "—" not in text
+
+
+def test_off_the_info_button_is_hidden_with_the_row(tmp_path, qtbot):
+    tab = _tab(tmp_path)
+    qtbot.addWidget(tab)
+    tab.show()
+    tab.set_ti3_path(_loose(tmp_path, "M1"), propagate=False)
+    assert not tab._cond_tip.isVisible() and not tab._cond_combo.isVisible()
