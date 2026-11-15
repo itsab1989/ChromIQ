@@ -74,6 +74,13 @@ FIT_RATIO = 0.6
 #: this (median dE76 over the moved entries) cannot be told from the recorded
 #: order and is not compared.
 SELF_MAP_DE = 3.0
+#: M2a: a recorded order that one affine map cannot bring within this many
+#: dE76 (median) of the chart's colours is not explained by the chart at all
+#: (another sheet, or the corners aimed in an order no whole-chart
+#: arrangement describes: aimed top left, top right, bottom right). The
+#: build's sweep: right readings at most 10.4 at noise 5 on every chart
+#: kind; the transposed aim on a sorted chart at least 34.7.
+FIT_ABSURD = 20.0
 #: M2a: the lightness slope rule needs expected L* to spread this much.
 SLOPE_MIN_L_SPREAD = 3.0
 #: M2b: readings within this dE76 of the brightest reading look like it (the
@@ -517,16 +524,20 @@ def judge_readings(E, M, rows: int, cols: int) -> NetResult:
         return _refuse_named(ranked[0][1], detail=(
             f"{detail}; by fit {ranked[0][1]} {ranked[0][0]:.1f} vs recorded "
             f"{rec:.1f}"))
-    if slope <= 0 and float(E[:, 0].std()) >= SLOPE_MIN_L_SPREAD:
-        name = ranked[0][1] if ranked else "half-turn"
-        return _refuse_named(name, detail=(
-            f"{detail}; recorded order runs against the lightness "
-            f"(slope {slope:.2f})"))
     m_paper, e_paper = paper_excess(E, M)
     if m_paper > e_paper + PAPER_SLACK:
         return NetResult("refuse", "paper", detail=(
             f"{detail}; {m_paper} paper readings, {e_paper} near-white "
             f"patches"), **kw)
+    if rec > FIT_ABSURD:
+        return NetResult("refuse", "other-chart", detail=(
+            f"{detail}; recorded fit {rec:.1f} dE, not explained by the "
+            f"chart"), **kw)
+    if slope <= 0 and float(E[:, 0].std()) >= SLOPE_MIN_L_SPREAD:
+        name = ranked[0][1] if ranked else "half-turn"
+        return _refuse_named(name, detail=(
+            f"{detail}; recorded order runs against the lightness "
+            f"(slope {slope:.2f})"))
     w, at = blend_share(E, M, rows, cols)
     if w > BLEND_LIMIT:
         return NetResult("refuse", "beside", strip=at, detail=(

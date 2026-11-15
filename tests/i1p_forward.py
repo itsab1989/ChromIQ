@@ -253,7 +253,9 @@ def write_cmxf(path: Path, readings, *, columns: int, rows: int,
                target_cells=None) -> Path:
     """Write the CxF a Measure Chart scan saves. *readings*: [(row, col,
     lab)] in file order. *target_cells*: the Targets' (row, col) when they
-    should differ from the readings' (a broken file)."""
+    should differ from the readings' (a broken file). *device*: the one
+    device value of every Target (the placeholders), or a list of one per
+    Target (real device values)."""
     objs = []
     for cond in conditions:
         for k, (r, c, lab) in enumerate(readings):
@@ -275,13 +277,14 @@ def write_cmxf(path: Path, readings, *, columns: int, rows: int,
                 f'</cc:ColorValues>{tags}\n</cc:Object>')
     cells = target_cells or [(r, c) for r, c, _ in readings]
     for k, (r, c) in enumerate(cells):
+        dv = device[k] if isinstance(device, list) else device
         objs.append(
             f'<cc:Object ObjectType="Target" Name="Target{k + 1}" '
             f'Id="t{k + 1}">\n    <cc:CreationDate>2026-11-15T10:00:00+01:00'
             '</cc:CreationDate>\n    <cc:DeviceColorValues>'
             '<cc:ColorRGB ColorSpecification="Unknown">'
-            f'<cc:R>{device[0]}</cc:R><cc:G>{device[1]}</cc:G>'
-            f'<cc:B>{device[2]}</cc:B></cc:ColorRGB></cc:DeviceColorValues>\n'
+            f'<cc:R>{dv[0]}</cc:R><cc:G>{dv[1]}</cc:G>'
+            f'<cc:B>{dv[2]}</cc:B></cc:ColorRGB></cc:DeviceColorValues>\n'
             '    <cc:TagCollection Name="Location">'
             f'<cc:Tag Name="Column" Value="{c}"/>'
             '<cc:Tag Name="Page" Value="1"/>'
