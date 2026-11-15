@@ -86,6 +86,10 @@ REFINE_DE_THRESHOLD          = 2.0   # flag a strip if any single patch exceeds 
 class ProfcheckParams:
     ti3_path: Path
     icc_path: Path
+    #: The M0/M1/M2 Beta: the SAME readings under the condition the profile
+    #: was built from, which profcheck reads instead of ``ti3_path``; reports
+    #: and names stay on ``ti3_path``. None = today.
+    readings_from: "Path | None" = None
     de_formula: str = ""          # "" = CIE76,  "-c" = CIE94,  "-k" = CIEDE2000
     intent: str = "a"              # "a" = absolute (default),  "r" = relative
     sort: bool = True
@@ -140,7 +144,7 @@ class _NChannelWorker(QThread):
         p = self._params
         try:
             lines = run_check(
-                p.ti3_path, p.icc_path, bin_dir=self._bin_dir,
+                p.readings_from or p.ti3_path, p.icc_path, bin_dir=self._bin_dir,
                 de_formula=p.de_formula, intent=p.intent, sort=p.sort,
                 verbosity=p.verbosity, illum=p.illum, observer=p.observer,
                 fwa=p.fwa_enabled, fwa_illum=p.fwa_illum)
@@ -288,7 +292,7 @@ class ProfcheckRunner:
             args += ["-P", f"{p.prune_value:.2f}"]
         if p.x3dom:
             args.append("-w")
-        args.append(str(p.ti3_path))
+        args.append(str(p.readings_from or p.ti3_path))
         args.append(str(p.icc_path))
         return args
 

@@ -1896,6 +1896,15 @@ class TabCheckRefine(QWidget):
         self._log.clear()
         if self._fwa_dropped_by_collect is not None:
             self._log.appendPlainText(self._fwa_dropped_by_collect.log_line)
+        if params.readings_from is not None:
+            from workflow.i1pro3_conditions import file_condition
+            from workflow.measurement_condition import condition_name
+            self._log.appendPlainText(tr(
+                "M0, M1 and M2 from one scan (beta): this profile was built "
+                "from the {condition} readings of this measurement, so it is "
+                "checked against those.").format(
+                    condition=condition_name(file_condition(
+                        params.readings_from))))
         self._last_result = None
         self._run_btn.setEnabled(False)
 
@@ -2582,11 +2591,42 @@ class TabCheckRefine(QWidget):
                 opt.neutralise(params)
         # FWA where the gate is shut: profcheck refuses it. Dropped here; the
         # check says so in the log.
+        rf = self._readings_for_the_profile()
+        if rf is not None:
+            from dataclasses import replace as _replace
+            params = _replace(params, readings_from=rf)
         from workflow.fwa_gate import drop_fwa
         refusal = self._fwa_refused()
         self._fwa_dropped_by_collect = (
             refusal if refusal is not None and drop_fwa(params) else None)
         return params
+
+    def _readings_for_the_profile(self) -> "Path | None":
+        """The M0/M1/M2 Beta: when the run's profile was built from another
+        condition than the measurement's own, and that condition's file is
+        in step, the file profcheck must read, so a profile is checked
+        against the readings it was built from. None otherwise (and always
+        with the Beta off)."""
+        try:
+            from workflow import i1pro3_conditions as _c
+            if not _c.stored_value(self._settings) or self._ti3_path is None:
+                return None
+            ti3, icc = Path(self._ti3_path), self._icc_path
+            if icc is None:
+                return None
+            from core.file_manager import Run
+            run = Run.for_dir(ti3.parent)
+            if (ti3 != run.measurement_ti3 or not run.meta_path.is_file()
+                    or Path(icc).parent != run.dir):
+                return None
+            built = getattr(run.load_meta(), "profile_build", None) or {}
+            cond = str(built.get(_c.BUILT_FROM_KEY) or "")
+            if not cond or cond == _c.file_condition(ti3):
+                return None
+            return _c.condition_file(ti3, cond)
+        except Exception:      # noqa: BLE001 - never stop a check
+            log.debug("no condition file for the check", exc_info=True)
+            return None
 
     def _collect_guided_check(self) -> ProfcheckParams:
         de_map = {"k": "-k", "c": "-c", "": ""}
