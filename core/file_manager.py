@@ -4083,7 +4083,12 @@ class Project:
         # `.confirmed.json` is the measurement's yellow memory (#182 K4): which
         # patches a re-read confirmed. It is only believed while the .ti3 it
         # names by hash is unchanged, and the copy is byte for byte.
-        ("measurement", ("{stem}.ti3", "{stem}.confirmed.json", "reads/**/*")),
+        # conditions/ (the M0/M1/M2 Beta) holds the same readings under the
+        # other two measurement conditions, named by the hash of the readings
+        # they belong to, so a byte-for-byte copy stays paired. No folder, no
+        # copy: a run measured without the Beta duplicates as before.
+        ("measurement", ("{stem}.ti3", "{stem}.confirmed.json", "reads/**/*",
+                         "conditions/**/*")),
         ("profile", ("{stem}.icc", "{stem}.icm", "merged.ti3", "merged.icc",
                      "merged.icm", "calibrated.icc", "calibrated.icm",
                      COLPROF_COMPARISON_NAME,
