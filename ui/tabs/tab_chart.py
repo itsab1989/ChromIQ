@@ -19986,6 +19986,16 @@ class TabChart(QWidget):
                 "both ends of every strip, three numbered aiming marks."
             ).format(paper=paper, dpi=dpi, w=_F.PATCH_ALONG_MM.value,
                      h=_F.PATCH_ACROSS_MM.value, run=_F.RUN_MM.value)
+        # THE i1iSis BY ITS NAME, NEVER ITS CODE (the owner, 2026-11-15, on
+        # 4.3.38: "ChromIQ layout engine · XRISIS · A4"). The other Beta
+        # instruments name themselves here too (FD-9, i1iO table); the long-
+        # standing ones keep the line they have always had.
+        from workflow.isis.support import (device_name as _isis_name,
+                                           is_isis_code as _is_isis)
+        if _is_isis(instr):
+            box = getattr(self, "_isis_model_combo", None)
+            instr = _isis_name(box.currentData() if box is not None
+                               else "standard")
         bits = [tr("ChromIQ layout engine"), instr, paper, f"{dpi} dpi",
                 tr("margin {mm:g} mm").format(mm=margin)]
         if abs(pscale - 1.0) > 0.01:
@@ -20221,6 +20231,11 @@ class TabChart(QWidget):
                 # and is left exactly as it was.
                 total, shown_pages = per_sheet * pages, pages
             self._predicted_patch_count = total   # for the Suggest-name button (#62)
+            # what Generate needs to tell a bound set that takes other pages
+            # than the Pages box from one that fits it
+            # (`_guided_bound_set_pages_answer`)
+            self._bound_set_pages = shown_pages if fixed else None
+            self._guided_capacity = per_sheet * pages
             self._patch_count_lbl.setText(self._count_with_accent(str(total)))
             # "1 PAGES" sat on the first screen of the app, in the largest
             # type on the panel, with "Number of pages: 1" two inches above it.
@@ -20864,6 +20879,58 @@ class TabChart(QWidget):
         except Exception:  # noqa: BLE001 — refresh must never block the rename
             log.warning("post-rename path refresh failed", exc_info=True)
 
+    def _guided_bound_set_pages_answer(self) -> str:
+        """"keep", "new" or "cancel": whether Generate in Guided lays out the
+        run's own patch set, or makes a new one for the pages asked.
+
+        Only Guided, and only when the bound set laid out with the settings
+        on screen takes another number of pages than "Number of pages" says:
+        then the person is asked (M-GUIDED-SET-PAGES), "Keep" being the safe
+        default, because a bound set is always a person's own (made in the
+        patch set tool, loaded, or an older chart's) and may be printed or
+        measured (#147). Anything else is "keep", which is exactly what
+        Generate did before. A measured run is asked about again by the
+        usual window (§4) on the way to the new chart."""
+        if self._current_mode() != "guided":
+            return "keep"
+        try:
+            self._update_patch_count()
+        except Exception:      # noqa: BLE001 - a count may never block a build
+            return "keep"
+        set_pages = getattr(self, "_bound_set_pages", None)
+        asked = self._pages_spin.value()
+        n = self._pending_patch_set_total()
+        cap = getattr(self, "_guided_capacity", None)
+        if not set_pages or not n or not cap or set_pages == asked:
+            return "keep"
+        from workflow import measurement_messages as M
+        title, body = M.M_GUIDED_SET_PAGES.render(
+            n=n, cap=cap,
+            set_pages=count_phrase(set_pages, tr("1 page"), tr("{n} pages")),
+            asked=count_phrase(asked, tr("1 page"), tr("{n} pages")))
+        box = QMessageBox(self)
+        set_question_icon(box)
+        box.setWindowTitle(title)
+        box.setText(f"<b>{title}</b>")
+        box.setInformativeText(body)
+        new_btn = box.addButton(
+            count_phrase(asked, tr("Make a new patch set for 1 page"),
+                         tr("Make a new patch set for {n} pages")),
+            QMessageBox.ButtonRole.AcceptRole)
+        keep_btn = box.addButton(tr("Keep my patch set"),
+                                 QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(keep_btn)
+        box.setEscapeButton(keep_btn)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        box.exec()
+        ans = "new" if box.clickedButton() is new_btn else "keep"
+        log.info("Create Chart: the run's own patch set (%d patches) takes "
+                 "%d page(s) here, %d asked in Guided: %s", n, set_pages,
+                 asked, "a new patch set is made" if ans == "new"
+                 else "kept as it is")
+        return ans
+
     def _patchset_missing_message(self, path) -> None:
         """M-PATCHSET-MISSING — the loaded patch set is no longer on disk.
 
@@ -21164,10 +21231,31 @@ class TabChart(QWidget):
                 targen_changed = (opted_in
                                   and self._preset_ti1_targen_sig is not None
                                   and self._targen_signature() != self._preset_ti1_targen_sig)
-                if not targen_changed:
-                    if self._preset_ti1_path.is_file():
+                _new_set = False
+                if not targen_changed and self._preset_ti1_path.is_file():
+                    # GUIDED KEEPS ITS PAGES, OR SAYS WHY NOT (the owner,
+                    # 2026-11-15: "clicking generate in guided should give new
+                    # patches anyway so the user gets the layout and number of
+                    # pages he selected"). A bound set is the person's own, so
+                    # it is never replaced without asking (#147).
+                    _ans = self._guided_bound_set_pages_answer()
+                    if _ans == "cancel":
+                        return
+                    if _ans != "new":
                         self._generate_from_ti1(self._preset_ti1_path, ask=False)
                         return
+                    _new_set = True
+                if _new_set:
+                    log.info("Create Chart: the run's own patch set (%s) is "
+                             "not laid out: the person asked for a new patch "
+                             "set for the pages chosen in Guided",
+                             self._preset_ti1_path.name)
+                    self._preset_ti1_path = None
+                    self._preset_ti1_targen_sig = None
+                    self._update_preset_locks()
+                    # and the big number says what is now being made
+                    self._update_patch_count()
+                elif not targen_changed:
                     # SAY SO. This wrote one line to the log and then built a
                     # completely different chart (§M M-PATCHSET-MISSING).
                     log.warning("attached preset .ti1 vanished: %s", self._preset_ti1_path)
@@ -31470,6 +31558,24 @@ class TabChart(QWidget):
                      _recipe_mode_word(rec), grid,
                      rec.get("margin_top"), rec.get("margin_right"),
                      rec.get("margin_bottom"), rec.get("margin_left"))
+            from workflow.isis.support import is_isis_code as _is_isis
+            if _is_isis(rec.get("instrument")):
+                # THE i1iSis's OWN LABEL OPTIONS (the owner, 2026-11-15: a
+                # report of "no strip letters" could not be read from the
+                # log, which did not say whether they were switched on)
+                log.info("chart build (%s) in %s: i1iSis options: model %s, "
+                         "strip letters %s (place %s), row numbers %s, "
+                         "corner labels %s, arrows %s, outline %s, "
+                         "notes band %s (place %s)",
+                         trigger, mode, rec.get("isis_model") or "standard",
+                         "on" if rec.get("show_strip_indicators") else "off",
+                         rec.get("isis_strip_letters") or "top",
+                         "on" if rec.get("show_row_indicators") else "off",
+                         "on" if rec.get("isis_corner_labels", True) else "off",
+                         "on" if rec.get("isis_arrows", True) else "off",
+                         "on" if rec.get("isis_outline", True) else "off",
+                         "on" if rec.get("isis_notes_band") else "off",
+                         rec.get("isis_notes_place") or "header")
             if mode == "guided":
                 # The raw numbers the engine is handed, as before.
                 log.info("chart build (%s) in %s: engine kwargs %s",

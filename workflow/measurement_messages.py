@@ -810,6 +810,25 @@ M_ISIS_NO_TXF = _m(
     "itself.",
     approved=False)
 
+#: Generate in Guided, with the run's own patch set bound, when that set
+#: laid out with the settings on screen takes another number of pages than
+#: "Number of pages" asks for (the owner, 2026-11-15). {set_pages} and
+#: {asked} are "1 page" / "{n} pages" phrases; {n} and {cap} patch counts.
+M_GUIDED_SET_PAGES = _m(
+    "M-GUIDED-SET-PAGES",
+    "Your own patch set does not fit the pages you chose",
+    "This run uses its own patch set of {n} patches, one you made, edited "
+    "or loaded. With the settings on screen it takes {set_pages}, but "
+    "“Number of pages” asks for {asked}.\n\n"
+    "Make a new patch set: ChromIQ makes a new set of {cap} patches that "
+    "fills {asked}, as Guided does for a new chart. Your own patch set is "
+    "then replaced in this run. If the run already has a measurement, "
+    "ChromIQ asks about it before anything is replaced, as always.\n\n"
+    "Keep my patch set: the chart is laid out from your own patches again, "
+    "on {set_pages}. Choose this if the chart is already printed and you "
+    "want the same sheets.",
+    approved=False)
+
 #: The Create Chart log line for an i1iSis chart that is not RGB.
 _ISIS_NO_TXF_LOG = ("[WARNING] No i1Profiler test chart (.txf) was written "
                    "for this i1iSis chart: in this version it is written for "
@@ -10543,6 +10562,7 @@ CATALOGUE = {m.id: m for m in (
     M_INSTRUMENT_BUSY,
     M_I1IO_NOT_YET, M_I1IO_NOT_YET_BY_HAND, M_I1IO_SUPPORT_OFF,
     M_ISIS_NOT_YET, M_ISIS_SUPPORT_OFF, M_ISIS_SHEET_CHECK, M_ISIS_NO_TXF,
+    M_GUIDED_SET_PAGES,
     M_I1IO_AIM_CROSSES, M_I1IO_AIM_CORNERS, M_I1IO_AIM_CORNERS_UNLABELLED,
     M_I1IO_AIM_UNKNOWN, M_I1IO_AIM_PAGE_PARTS,
     M_I1IO_EDGE_MARKS_NOT_PRINTED, M_I1IO_EDGE_TEXT_NOT_PRINTED,

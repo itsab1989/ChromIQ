@@ -2329,6 +2329,24 @@
    "aspect": "present",
    "expected": true,
    "reason": "Choosing the i1iSis gives its own default, patch-first (i1Profiler's 6 x 6 mm), so the patch-size, alignment and offset rows show and the area-first rows hide, whatever mode the instrument before had; area-first stays open for the i1iSis."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "XRISIS",
+   "item": "panel.isis_letters",
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "'Strip letters place' is greyed while 'Show strip indicators' is off (the i1iSis default): it only chooses where the letters go (the owner, 2026-11-15)."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "XRISIS",
+   "item": "panel.isis_letters",
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "'Strip letters place' is greyed while 'Show strip indicators' is off (the i1iSis default): it only chooses where the letters go (the owner, 2026-11-15)."
   }
  ],
  "known_to_review": [

@@ -717,17 +717,35 @@ def sheet_for(grid: Grid, paper_w: float, paper_h: float,
         # them): 3 mm of white after the right marker, then the widest
         # number, when the page has that paper inside its right margin
         size = opts.letter_size or min(3.0, max(1.2, opts.ph * 0.5))
-        txt = "9" * len(str(grid.R))
-        _x, _y, nw, _nh = _label_box(0, 0, size, txt, opts.number_rotation,
-                                     opts.letter_font, opts.letter_bold,
-                                     opts.letter_italic)
-        need = (nominal_w - opts.d1 + F.DIAMOND_CLEAR_MM.value
-                + max(0.0, opts.label_offset_x) + nw + 0.5)
+        # the widest digit, not "9": in Inter a "4" is wider, so a chart
+        # widened for "99" set its "14" smaller than the room allowed
+        digits = len(str(grid.R))
         room = paper_w - opts.margins[1] - opts.margins[3] - opts.offset[0]
         # and never wider than the sheet the model takes, so a sheet cut
         # along the outline still feeds (review of a7ca1489e, m2); without
         # the room the row numbers are left off and said
         widest = F.PAPER_W_MM.value[opts.model][1]
+
+        def _need(sz: float) -> float:
+            nw = max(_label_box(0, 0, sz, ch * digits, opts.number_rotation,
+                                opts.letter_font, opts.letter_bold,
+                                opts.letter_italic)[2]
+                     for ch in "0123456789")
+            return (nominal_w - opts.d1 + F.DIAMOND_CLEAR_MM.value
+                    + max(0.0, opts.label_offset_x) + nw + 0.5)
+        # SET SMALLER BEFORE LEFT OFF, as `_plan_numbers` sets them. The
+        # owner, 2026-11-15, on 4.3.38: "Show row indicators" ticked had no
+        # effect. On every default A4 chart (28 columns of 6 mm) the numbers
+        # at their full 3 mm needed 200.4 mm of the 200 inside the margins,
+        # so the width never grew, and `_plan_numbers` then had 2 mm left
+        # for them and dropped them, however small it set them. The width
+        # now grows for the largest size down to LABEL_MIN_MM that fits; a
+        # chart whose numbers fitted at full size is unchanged.
+        need = _need(size)
+        while (need > min(room, widest) + 1e-6
+               and size - 0.1 >= LABEL_MIN_MM - 1e-9):
+            size -= 0.1
+            need = _need(size)
         if need <= room + 1e-6 and need <= widest + 1e-6:
             width = max(width, need)
     natural_h = opts.grid_top + grid.R * opts.ph + opts.trailer_mm
@@ -1174,10 +1192,15 @@ def text_width_mm(text: str, size: float, bold: bool = False,
 
 def plan_page(sheet: Sheet, page: int, *, name: str = "",
               sheet_text: str = "", patterns: "tuple | None" = None,
-              title: str = "", stamp_text: str = ""
+              title: str = "", stamp_text: str = "",
+              band_shows: "frozenset | set" = frozenset()
               ) -> "tuple[list[Item], list[str]]":
     """Everything drawn on *page* (0-based) besides the patches, and the
-    reasons a label was left off (M-ISIS-KEEP-OUT). Pure: no pixels."""
+    reasons a label was left off (M-ISIS-KEEP-OUT). Pure: no pixels.
+
+    *band_shows* names what the notes band on this page already prints
+    legibly ("wordmark", "name", "page", `band_shows`): the name line leaves
+    those out rather than print them twice."""
     o, g = sheet.opts, sheet.grid
     items: "list[Item]" = []
     left_off: "list[str]" = []
@@ -1207,7 +1230,8 @@ def plan_page(sheet: Sheet, page: int, *, name: str = "",
     # never touching the corner labels (`_plan_name_line`)
     letters_top = o.strip_letters == "top"
     cl_size = 2.2
-    items_n, off = _plan_name_line(sheet, page, name, sheet_text, patterns)
+    items_n, off = _plan_name_line(sheet, page, name, sheet_text, patterns,
+                                   band_shows)
     items += items_n
     left_off += off
     # corner labels: the first and last column and row of THIS page, the
@@ -1317,7 +1341,8 @@ def _right_corner_drawn(sheet: "Sheet", page: int, patterns) -> bool:
 
 
 def _plan_name_line(sheet: "Sheet", page: int, name: str, sheet_text: str,
-                    patterns) -> "tuple[list[Item], list[str]]":
+                    patterns, band_shows=frozenset()
+                    ) -> "tuple[list[Item], list[str]]":
     """The chart's name, the page and the ChromIQ wordmark in the text band.
 
     One line between the top corner labels, at the full size; when it does
@@ -1328,10 +1353,21 @@ def _plan_name_line(sheet: "Sheet", page: int, name: str, sheet_text: str,
     the name and page under them, between the feed arrows. Last, the least
     needed element is left off and said: the wordmark, then on a one-page
     chart the page, then the name; never the page of a multi-page chart,
-    never the corner labels."""
+    never the corner labels.
+
+    NOTHING TWICE (the owner, 2026-11-15: *"when the clipborder is turned
+    on the information included in it don't need to double on the
+    chart"*): what the notes band on this page prints legibly
+    (*band_shows*) is left out here; with nothing left (no sheet text
+    either) the line is not drawn at all. Nothing else moves: the line
+    only ever sat in the text band's free paper."""
     o, g = sheet.opts, sheet.grid
     items: "list[Item]" = []
     left_off: "list[str]" = []
+    want_wm = "wordmark" not in band_shows
+    if (not want_wm and "name" in band_shows and "page" in band_shows
+            and not (sheet_text and sheet_text.strip())):
+        return items, left_off
     letters_top = o.strip_letters == "top"
     cl_size = 2.2
     if letters_top:
@@ -1353,11 +1389,14 @@ def _plan_name_line(sheet: "Sheet", page: int, name: str, sheet_text: str,
     # centred on the chart, so the room is twice the nearer side
     room1 = max(0.0, 2.0 * min(cx - lo, hi - cx))
     room2 = max(0.0, 2.0 * min(cx - lo2, hi2 - cx))
-    page_txt = f"page {page + 1}/{g.P}"
-    full = str(name or "").strip()
+    page_txt = "" if "page" in band_shows else f"page {page + 1}/{g.P}"
+    full = "" if "name" in band_shows else str(name or "").strip()
 
     def band_for(sz: float) -> float:
-        return round(sz * WORDMARK_BAND_PER_CAP, 2)
+        return round(sz * WORDMARK_BAND_PER_CAP, 2) if want_wm else 0.0
+
+    def wm_width(b: float) -> float:
+        return wordmark_metrics(b)["width"] if b else 0.0
 
     def tw(t: str, sz: float) -> float:
         # the advance or the ink, whichever reaches further
@@ -1404,14 +1443,14 @@ def _plan_name_line(sheet: "Sheet", page: int, name: str, sheet_text: str,
     # 1. one line: the sheet text too, at the full size only
     if sheet_text and sheet_text.strip():
         b = band_for(line_h)
-        if fit_name(line_h, room1, True, wordmark_metrics(b)["width"],
+        if fit_name(line_h, room1, True, wm_width(b),
                     sheet_text.strip()) is not None:
             plan = ("one", line_h, line(full, True, sheet_text.strip()), b)
     # 2. one line: the name shortened, then smaller
     if plan is None:
         for sz in sizes:
             b = band_for(sz)
-            nm = fit_name(sz, room1, True, wordmark_metrics(b)["width"])
+            nm = fit_name(sz, room1, True, wm_width(b))
             if nm is not None:
                 plan = ("one", sz, line(nm, True), b)
                 break
@@ -1420,14 +1459,14 @@ def _plan_name_line(sheet: "Sheet", page: int, name: str, sheet_text: str,
     if plan is None and not letters_top:
         b1 = None
         for sz in sizes:
-            if wordmark_metrics(band_for(sz))["width"] <= room1:
+            if want_wm and wm_width(band_for(sz)) <= room1:
                 b1 = band_for(sz)
                 break
         for sz in [x for x in sizes if x <= NAME_LINE2_MAX_MM + 1e-9]:
             nm = fit_name(sz, room2, True, 0.0)
             if nm is not None:
                 plan = ("two", sz, line(nm, True), b1 or 0.0)
-                if b1 is None:
+                if b1 is None and want_wm:
                     left_off.append("name_wordmark")
                 break
     # 4. the least needed left off: the wordmark, then on a one-page chart
@@ -1436,7 +1475,8 @@ def _plan_name_line(sheet: "Sheet", page: int, name: str, sheet_text: str,
     #    chart has almost no room between its corner labels)
     if plan is None:
         sz = NAME_MIN_MM
-        left_off.append("name_wordmark")
+        if want_wm:
+            left_off.append("name_wordmark")
         places = [("one", room1)] + ([("two", room2)] if not letters_top
                                      else [])
         tries = [((lambda r: fit_name(sz, r, True, 0.0)), True, [])]
@@ -1456,8 +1496,8 @@ def _plan_name_line(sheet: "Sheet", page: int, name: str, sheet_text: str,
             if full:
                 left_off.append("name_text")
             mode_, room = places[-1]
-            t = page_txt if tw(page_txt, sz) <= room else \
-                f"{page + 1}/{g.P}"
+            t = page_txt if (not page_txt or tw(page_txt, sz) <= room) \
+                else f"{page + 1}/{g.P}"
             # the page alone, set smaller still until it fits (never off
             # a multi-page chart)
             while sz > 1.0 + 1e-9 and tw(t, sz) > room:
@@ -1487,17 +1527,19 @@ def _plan_name_line(sheet: "Sheet", page: int, name: str, sheet_text: str,
                 break
             band = round(band - 0.25, 3)
             wm = wordmark_metrics(band)
-        il, iu, idn = ink(text, size)
+        il, iu, idn = ink(text, size) if text else (0.0, size, 0.0)
         baseline = max(line_top + size, ink_top + iu,
                        ink_top + (wm["up"] if wm else 0.0))
         w_text = tw(text, size)
-        w_all = w_text + ((WORDMARK_GAP_MM + wm["width"]) if wm else 0.0)
+        gap_wm = WORDMARK_GAP_MM if (wm and text) else 0.0
+        w_all = w_text + ((gap_wm + wm["width"]) if wm else 0.0)
         gx = cx - w_all / 2.0
-        items.append(Item("text", (gx, baseline - iu, w_text, iu + idn),
-                          text=text, size=size, anchor="left",
-                          role="name_line", pen=(gx - il, baseline)))
+        if text:
+            items.append(Item("text", (gx, baseline - iu, w_text, iu + idn),
+                              text=text, size=size, anchor="left",
+                              role="name_line", pen=(gx - il, baseline)))
         if wm is not None:
-            place_wordmark(band, gx + w_text + WORDMARK_GAP_MM, baseline)
+            place_wordmark(band, gx + w_text + gap_wm, baseline)
     else:
         # line 1: the wordmark alone, its ink inside the corner labels' rows
         top2 = sheet.y0 + NAME_LINE2_TOP_MM
@@ -1513,6 +1555,8 @@ def _plan_name_line(sheet: "Sheet", page: int, name: str, sheet_text: str,
             wm_bottom = ink_top + wm["up"] + wm["down"]
         # line 2: the name and the page, under the corner labels and the
         # wordmark (its accents and tall glyphs too), between the arrows
+        if not text:
+            return items, left_off
         il, iu, idn = ink(text, size)
         baseline = max(top2 + size, wm_bottom + 0.5 + iu)
         w_text = tw(text, size)
@@ -1604,7 +1648,10 @@ def _plan_numbers(sheet: Sheet, patterns):
     o, g = sheet.opts, sheet.grid
     x0 = sheet.right_marker_edge + F.DIAMOND_CLEAR_MM.value \
         + max(0.0, o.label_offset_x)
-    limit = sheet.x0 + sheet.width
+    # INSIDE THE OUTLINE'S OWN LINE, which `sheet_for` leaves room for (the
+    # 0.5 in its "need"): measured on screen 2026-11-15, numbers set against
+    # the outline's outer edge printed "10" to "35" across the dashes
+    limit = sheet.x0 + sheet.width - F.OUTLINE_LINE_MM.value
     texts = [row_name(r, patterns) for r in range(g.R)]
     size = o.letter_size or min(3.0, max(1.2, o.ph * 0.5))
 
@@ -1898,40 +1945,128 @@ def band_image(box, dpi: int, *, mode: str, text: str = "",
     return img.convert("RGB").resize((w_px, h_px))
 
 
+def band_numbers(sheet: Sheet, index: int, layout=None) -> dict:
+    """The numbers the notes band prints on page *index*, from the FINAL
+    layout, in the Create Chart panel's own terms.
+
+    Up to 4.3.38 the band was given no patch count, so it printed the notes
+    design's SAMPLE ("560 patches"), and it printed the ROWS (32 on A4
+    portrait) as "strips on page", where the panel, the .ti2 and the strip
+    letters on the sheet count the COLUMNS (28) as strips of 32 patches. The
+    panel reads the .ti2 the engine writes from *layout* (NUMBER_OF_SETS,
+    STEPS_IN_PASS, the passes on each page), so these are taken from it too.
+    Without a layout the sheet's own grid gives the same values."""
+    if layout is not None:
+        total = int(layout.total_patches)
+        steps = max(1, int(layout.steps_in_pass))
+        per_page = max(1, int(layout.patches_per_page))
+    else:
+        total = int(sheet.grid.N)
+        steps = max(1, int(sheet.grid.R))
+        per_page = max(1, int(sheet.grid.C * sheet.grid.R))
+    first = index * per_page
+    on_page = max(0, min(total, first + per_page) - first)
+    return {"count": str(total),
+            "page": f"page {index + 1}/{sheet.grid.P}",
+            "strips": str(-(-on_page // steps)),
+            "per_strip": str(steps)}
+
+
+#: The smallest cap height (mm) at which the notes band's own name and page
+#: count as printed, so the name line may leave them out (LABEL_MIN_MM, the
+#: chart's legibility floor). The default 24 mm band sets 1.69 mm; a band of
+#: 16 mm or less sets 1.2 mm or smaller, and the name line keeps them.
+BAND_TEXT_MIN_MM = 1.5
+
+
+def band_shows(band: "dict | None", ctx: dict, box, dpi: int,
+               name: str) -> frozenset:
+    """What the notes band in *box* prints that the name line also would
+    ("wordmark", "name", "page"), from its content:
+
+    * the notes design: its wordmark always (it is the band's largest
+      element); the chart's name and "page x/y" only when its text is set
+      at BAND_TEXT_MIN_MM or more and its name is the name line's;
+    * "branding": the wordmark, when it fills the band as it does by default
+      (not shrunk, not moved);
+    * plain text or an image: nothing (what they say is the person's own).
+    """
+    if not band:
+        return frozenset()
+    mode = str(band.get("mode") or "notes")
+    if mode in ("", "off"):
+        mode = "notes"
+    if mode == "branding":
+        scaled = float(band.get("image_scale") or 100.0) >= 100.0 - 1e-9
+        moved = (abs(float(band.get("image_offset_x_mm") or 0.0)) > 1e-9
+                 or abs(float(band.get("image_offset_y_mm") or 0.0)) > 1e-9)
+        return frozenset({"wordmark"}) if scaled and not moved \
+            else frozenset()
+    if mode != "notes":
+        return frozenset()
+    out = {"wordmark"}
+    from workflow.layout_engine import raster
+    # MEASURED AT 300 dpi WHATEVER THE BUILD'S, so the same chart drops
+    # the same things in a preview and in its print file (the design's
+    # 8 px floor would make a low-dpi band's text look larger than it is)
+    ref = 300
+    s = ref / 25.4
+    w_px = max(1, int(round(box[2] * s)))
+    h_px = max(1, int(round(box[3] * s)))
+    try:
+        cap = raster.notes_text_cap_mm(h_px, w_px, ref, ctx,
+                                       band.get("font_family") or "Inter")
+    except Exception:  # noqa: BLE001 - not measured: keep the name line
+        cap = 0.0
+    if cap >= BAND_TEXT_MIN_MM - 1e-9:
+        out.add("page")
+        if str(ctx.get("project") or "").strip() == str(name or "").strip():
+            out.add("name")
+    return frozenset(out)
+
+
 def draw_furniture(render, sheet: Sheet, dpi: int, *, name: str,
                    sheet_text: str = "", patterns: "tuple | None" = None,
                    title: str = "", stamp_text: str = "",
-                   band: "dict | None" = None) -> "list[str]":
+                   band: "dict | None" = None,
+                   layout=None) -> "list[str]":
     """Draw the chart's furniture onto every page of *render* (in place) and
-    return what was left off (`keep_out` reasons, for M-ISIS-KEEP-OUT)."""
+    return what was left off (`keep_out` reasons, for M-ISIS-KEEP-OUT).
+
+    *layout* is the engine's final layout (the one its .ti2 and the Create
+    Chart panel read); the notes band takes its numbers from it."""
     left_off: "list[str]" = []
     band_cache: dict = {}
     for index, img in enumerate(render.images):
+        # THE BAND FIRST, so the name line knows what it already prints
+        shows: frozenset = frozenset()
+        images = {}
+        for box in (sheet.header_band(), sheet.trailer_band()):
+            if box is None:
+                continue
+            # one per page: it carries the page number
+            key = (box, index)
+            if key not in band_cache:
+                ctx = dict((band or {}).get("ctx") or {})
+                ctx.update(band_numbers(sheet, index, layout))
+                ctx["instrument"] = device_name(sheet.opts.model)
+                try:
+                    img_b = band_image(
+                        box, dpi, **{k: v for k, v in (band or {}).items()
+                                     if k != "ctx"}, ctx=ctx)
+                except Exception:  # noqa: BLE001 - a blank band
+                    img_b = None
+                band_cache[key] = (img_b, band_shows(
+                    band, ctx, box, dpi, name) if img_b is not None
+                    else frozenset())
+            images[box], s_ = band_cache[key]
+            shows = shows | s_
         items, off = plan_page(sheet, index, name=name, sheet_text=sheet_text,
                                patterns=patterns, title=title,
-                               stamp_text=stamp_text)
+                               stamp_text=stamp_text, band_shows=shows)
         for why in off:
             if why not in left_off:
                 left_off.append(why)
-        images = {}
-        for it in items:
-            if it.kind == "band":
-                # one per page: it carries the page number
-                key = (it.box, index)
-                if key not in band_cache:
-                    ctx = dict((band or {}).get("ctx") or {})
-                    ctx["page"] = f"{index + 1}/{sheet.grid.P}"
-                    # the i1iSis reads the chart row by row: its "strips"
-                    # are the rows, each with its pair of diamonds
-                    ctx["strips"] = str(sheet.grid.R)
-                    ctx["instrument"] = device_name(sheet.opts.model)
-                    try:
-                        band_cache[key] = band_image(
-                            it.box, dpi, **{k: v for k, v in (band or {}).items()
-                                            if k != "ctx"}, ctx=ctx)
-                    except Exception:  # noqa: BLE001 - a blank band
-                        band_cache[key] = None
-                images[it.box] = band_cache[key]
         geom_list = (render.patch_geom[index]
                      if getattr(render, "patch_geom", None) is not None
                      else None)

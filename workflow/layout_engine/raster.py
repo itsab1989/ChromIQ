@@ -2904,47 +2904,54 @@ def _notes_row(draw: "ImageDraw.ImageDraw", font, y_center: float, x0: float,
         x += gap
 
 
-def _render_notes_strip(width_px: int, height_px: int, dpi: int,
-                        ctx: dict | None, font_family: str) -> Image.Image:
-    """The ChromIQ clip-border notes design (#93): a spectrum accent bar, the
-    wordmark, and three info rows — auto-filled values plus handwrite rules.
-
-    Drawn on a horizontal length×thickness canvas (so it scales by *content*, not
-    by stretching) and rotated 90° to read up the strip. Font size follows the
-    clip-border thickness; the handwrite rules absorb the extra length."""
+def notes_context(ctx: dict | None) -> dict:
+    """The values the notes design prints: *ctx* over the placeholders, so
+    a key nobody supplied prints its SAMPLE value (`_notes_sample_ctx`)."""
     c = dict(_notes_sample_ctx())
     if ctx:
         c.update({k: str(v) for k, v in ctx.items() if v not in (None, "")})
-    mm2px = dpi / 25.4
-    L, T = max(1, height_px), max(1, width_px)         # length × thickness (px)
-    canvas = Image.new("RGB", (L, T), (255, 255, 255))
-    d = ImageDraw.Draw(canvas)
-    pad = max(2, round(2.0 * mm2px))
+    return c
 
-    # Full-length spectrum accent bar along the top edge.
-    bar_h = max(2, round(0.06 * T))
-    seg = L / len(ACCENT_RGB)
-    for i, col in enumerate(ACCENT_RGB):
-        d.rectangle([round(i * seg), 0, round((i + 1) * seg) - 1, bar_h - 1], fill=col)
 
-    top = bar_h + pad
-    avail = max(1.0, T - top - pad)
-    row_h = avail / 3.0
+def notes_rows(c: dict) -> tuple:
+    """The notes design's three rows for the values *c* (`notes_context`):
+    ``(left1, right1, row2, row3)``, row 2 and 3 as ``("text"|"rule", s)``
+    segments. One place, so a test can read what the band prints.
 
-    logo_w = _draw_wordmark_h(canvas, d, pad, top, avail, max_w=L * 0.20)
-    x0 = pad + logo_w + max(round(6 * mm2px), pad * 2)
-    x_end = L - pad
-    avail_w = max(1.0, x_end - x0)
-    yc = [top + row_h * (i + 0.5) for i in range(3)]
-
-    # Row content. Rules ("rule") absorb spare length; texts are fixed-width.
+    ``per_strip`` is printed only when supplied (the i1iSis band, whose
+    Create Chart panel names "Patches per strip" beside "Strips"); the
+    clip border's notes are unchanged without it."""
     left1 = (f"{c['count']} patches  ·  {c['instrument']}  ·  {c['paper']}  ·  "
              f"colour management: OFF")
     right1 = f"{c['page']}  ·  strips on page: {c['strips']}"
+    if c.get("per_strip"):
+        right1 += f"  ·  patches per strip: {c['per_strip']}"
     row2 = [("text", f"date: {c['date']}"), ("rule", "printer:"),
             ("rule", "ink set:"), ("rule", "paper brand / type:")]
     row3 = [("rule", "media / resolution setting:"),
             ("text", f"profile name: {c['project']}")]
+    return left1, right1, row2, row3
+
+
+def _notes_metrics(d, L: int, T: int, mm2px: float, c: dict,
+                   font_family: str) -> dict:
+    """Where the notes design puts its rows and the size it sets them at,
+    for a length x thickness canvas of *L* x *T* px (`_render_notes_strip`
+    draws with exactly these). One place, so the i1iSis name line can ask
+    how large the band's text really is (`notes_text_cap_mm`)."""
+    pad = max(2, round(2.0 * mm2px))
+    bar_h = max(2, round(0.06 * T))
+    top = bar_h + pad
+    avail = max(1.0, T - top - pad)
+    row_h = avail / 3.0
+    _f, iq_tile, _b, iq_left, chrom_w, kern = _wordmark_h_fit(
+        d, avail, L * 0.20)
+    logo_w = chrom_w + kern + (iq_tile.width - iq_left)
+    x0 = pad + logo_w + max(round(6 * mm2px), pad * 2)
+    x_end = L - pad
+    avail_w = max(1.0, x_end - x0)
+    # Row content. Rules ("rule") absorb spare length; texts are fixed-width.
+    left1, right1, row2, row3 = notes_rows(c)
 
     # Font: sized from the clip thickness for legibility, then shrunk so the
     # busiest row still fits the length (keeping a minimum write-line per rule),
@@ -2965,6 +2972,56 @@ def _render_notes_strip(width_px: int, height_px: int, dpi: int,
     if need > avail_w:
         size = max(8, int(size * avail_w / need))
         font = _font(size, font_family)
+    return {"top": top, "avail": avail, "row_h": row_h, "x0": x0,
+            "x_end": x_end, "rows": (left1, right1, row2, row3),
+            "font": font, "size": size}
+
+
+def notes_text_cap_mm(width_px: int, height_px: int, dpi: int,
+                      ctx: dict | None, font_family: str) -> float:
+    """The cap height (mm) the notes design sets its text at in a strip of
+    *width_px* x *height_px* (as `render_clip_strip` is given it)."""
+    c = notes_context(ctx)
+    mm2px = dpi / 25.4
+    L, T = max(1, height_px), max(1, width_px)
+    d = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    font = _notes_metrics(d, L, T, mm2px, c, font_family)["font"]
+    try:
+        _l, t, _r, b = font.getbbox("H", anchor="ls")
+        cap = -t
+    except Exception:  # pragma: no cover - default font without anchors
+        cap = font.size * 0.7
+    return cap / mm2px
+
+
+def _render_notes_strip(width_px: int, height_px: int, dpi: int,
+                        ctx: dict | None, font_family: str) -> Image.Image:
+    """The ChromIQ clip-border notes design (#93): a spectrum accent bar, the
+    wordmark, and three info rows — auto-filled values plus handwrite rules.
+
+    Drawn on a horizontal length×thickness canvas (so it scales by *content*, not
+    by stretching) and rotated 90° to read up the strip. Font size follows the
+    clip-border thickness; the handwrite rules absorb the extra length."""
+    c = notes_context(ctx)
+    mm2px = dpi / 25.4
+    L, T = max(1, height_px), max(1, width_px)         # length × thickness (px)
+    canvas = Image.new("RGB", (L, T), (255, 255, 255))
+    d = ImageDraw.Draw(canvas)
+    pad = max(2, round(2.0 * mm2px))
+
+    # Full-length spectrum accent bar along the top edge.
+    bar_h = max(2, round(0.06 * T))
+    seg = L / len(ACCENT_RGB)
+    for i, col in enumerate(ACCENT_RGB):
+        d.rectangle([round(i * seg), 0, round((i + 1) * seg) - 1, bar_h - 1], fill=col)
+
+    m = _notes_metrics(d, L, T, mm2px, c, font_family)
+    top, avail, row_h = m["top"], m["avail"], m["row_h"]
+    logo_w = _draw_wordmark_h(canvas, d, pad, top, avail, max_w=L * 0.20)
+    x0, x_end = m["x0"], m["x_end"]
+    yc = [top + row_h * (i + 0.5) for i in range(3)]
+    left1, right1, row2, row3 = m["rows"]
+    font = m["font"]
     asc, desc = font.getmetrics()
 
     b1 = yc[0] + (asc - desc) / 2
