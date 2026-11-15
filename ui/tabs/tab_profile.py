@@ -184,6 +184,20 @@ def _hue_default_kept(settings) -> bool:
     return str(raw or "").strip().lower() == "kept"
 
 
+#: Save as Defaults' "Build from" (the M0/M1/M2 Beta): one value for Guided
+#: and Manual, as the row is; written and read only while the Beta is on.
+BUILD_FROM_DEFAULT_KEY = "colprof_build_from_condition"
+
+
+def _build_from_default(settings) -> str:
+    """The saved default of "Build from" ("" = as measured)."""
+    try:
+        raw = str(settings.get(BUILD_FROM_DEFAULT_KEY, "") or "").upper()
+    except Exception:      # noqa: BLE001
+        return ""
+    return raw if raw in ("M0", "M1", "M2") else ""
+
+
 def _black_default(settings) -> str:
     """The saved default of "Darkest black" (``manual2_colprof_black_depth``,
     "neutral", the factory setting, or "deepest")."""
@@ -2897,6 +2911,11 @@ class TabProfile(QWidget):
             # "savable as default and as part of a preset", like the hue).
             data["black_depth"] = black_depth_value(
                 self._m_black_combo.currentData())
+        # "Build from" (the M0/M1/M2 Beta) is part of a preset, but only while
+        # the Beta is on (Basti, 2026-11-15); "" = as measured.
+        _bf = getattr(self, "_build_from_for_store", None)
+        if _bf is not None:
+            _bf(data)
         return data
 
     # ------------------------------------------------------------------
@@ -3145,6 +3164,23 @@ class TabProfile(QWidget):
             return None
         return ch.path
 
+    def _build_from_suffix(self) -> str:
+        """"M1" or "M2" when, with the Beta on, the profile is built from the
+        M1 or M2 readings (the measurement's own condition or another one),
+        for the end of the default Profile Description (Basti, 2026-11-15:
+        "better for clarity"); "" otherwise, and always with the Beta off."""
+        try:
+            if (getattr(self, "_cond_combo", None) is None
+                    or getattr(self, "_ti3_path", None) is None
+                    or not self._conditions_on()):
+                return ""
+            ch = self._chosen_build_from(self._build_from_choices())
+            if ch is None or not ch.usable or ch.cond not in ("M1", "M2"):
+                return ""
+            return ch.cond
+        except Exception:      # noqa: BLE001 - a default never breaks the tab
+            return ""
+
     def _built_from_record(self) -> dict:
         from workflow import i1pro3_conditions as _c
         if not self._conditions_on() or self._ti3_path is None:
@@ -3159,8 +3195,39 @@ class TabProfile(QWidget):
 
     def _load_build_from(self, stored) -> None:
         from workflow.i1pro3_conditions import BUILD_FROM_KEY
-        self._build_from = str((stored or {}).get(BUILD_FROM_KEY) or "")
+        if stored is None or BUILD_FROM_KEY not in stored:
+            # nothing stored for this target: the saved default, with the
+            # Beta on only (Basti, 2026-11-15); "" = as measured
+            self._build_from = (_build_from_default(self._settings)
+                                if self._conditions_on() else "")
+        else:
+            self._build_from = str(stored.get(BUILD_FROM_KEY) or "")
         self._refresh_build_from()
+        if self._build_from_suffix():
+            # the default description names the condition (Basti, 2026-11-15)
+            self._apply_profile_description_default(
+                fallback=Path(self._ti3_path).stem)
+
+    def _build_from_for_store(self, data: dict) -> None:
+        """Put "Build from" into a preset's *data*, with the Beta on only."""
+        from workflow.i1pro3_conditions import BUILD_FROM_KEY
+        if self._conditions_on():
+            data[BUILD_FROM_KEY] = getattr(self, "_build_from", "")
+
+    def _apply_build_from_value(self, data: dict) -> None:
+        """A preset's "Build from", with the Beta on only; a preset without
+        it (or saved with the Beta off) leaves the choice as it is."""
+        from workflow.i1pro3_conditions import BUILD_FROM_KEY
+        if self._conditions_on() and BUILD_FROM_KEY in (data or {}):
+            self._set_build_from(str(data.get(BUILD_FROM_KEY) or ""))
+
+    def _set_build_from(self, value: str) -> None:
+        value = str(value or "").upper()
+        self._build_from = value if value in ("M0", "M1", "M2") else ""
+        self._refresh_build_from()
+        if getattr(self, "_ti3_path", None) is not None:
+            self._apply_profile_description_default(
+                fallback=Path(self._ti3_path).stem)
 
     def _carry_build_from(self, store, wanted: dict) -> None:
         from workflow.i1pro3_conditions import BUILD_FROM_KEY
@@ -3421,6 +3488,11 @@ class TabProfile(QWidget):
         # before the option was a Build Profile row) loads Neutral; a target
         # stored before then is handled in `load_target_settings`.
         self._m_set_black(data.get("black_depth", "neutral"))
+        # "Build from": applied only while the Beta is on; with it off a
+        # preset's value is ignored (off = exactly today's behaviour).
+        _bf = getattr(self, "_apply_build_from_value", None)
+        if _bf is not None:
+            _bf(data)
 
     def _m_set_black(self, value) -> None:
         """Put a stored "Darkest black" value on the combo (unknown values
@@ -3490,6 +3562,8 @@ class TabProfile(QWidget):
                        "manual2_colprof_render", "argyll")
             self._m_hue_cb.setChecked(_hue_default_kept(s))
             self._m_set_black(_black_default(s))
+            if self._conditions_on():
+                self._set_build_from(_build_from_default(s))
         else:
             name = self._m_preset_combo.currentData()
             presets = self._m_load_presets()
@@ -6219,6 +6293,9 @@ class TabProfile(QWidget):
                     parts.append(
                         getattr(project.calibration.load_meta(), "description", "")
                         or "")
+            # The M0/M1/M2 Beta (Basti, 2026-11-15): a profile built from the
+            # M1 or M2 readings says so ("-M1", "-M2"). Nothing with it off.
+            parts.append(self._build_from_suffix())
             return [p.strip() for p in parts if p and p.strip()]
         except Exception:      # noqa: BLE001 — a default must never break the tab
             return []
@@ -6362,6 +6439,8 @@ class TabProfile(QWidget):
         the profile after the measurement file survives.
         """
         stored = self._stored_profile_description()
+        if fallback.strip() and self._build_from_suffix():
+            fallback = f"{fallback.strip()}-{self._build_from_suffix()}"
         wanted = stored or self._compose_profile_description() or fallback.strip()
         key = self._description_store_key()
         moved = key != getattr(self, "_desc_filled_for", None)
@@ -7998,6 +8077,10 @@ class TabProfile(QWidget):
                       "kept" if self._m_hue_cb.isChecked() else "argyll")
                 s.set("manual2_colprof_black_depth", black_depth_value(
                     self._m_black_combo.currentData()))
+        # "Build from" (the M0/M1/M2 Beta), one value for Guided and Manual:
+        # saved only while the Beta is on (Basti, 2026-11-15).
+        if self._conditions_on():
+            s.set(BUILD_FROM_DEFAULT_KEY, getattr(self, "_build_from", ""))
         self._log.appendPlainText("Profile settings saved as defaults.")
         self._log.ensureCursorVisible()
 
