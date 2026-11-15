@@ -125,6 +125,8 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-STRIP-REVERSED-TURN", "M-STRIP-TURNED",
     # 4.3.39 (R3, jctay 150236): the same strip refused again as inconsistent.
     "M-STRIP-FAILED-INCONSISTENT-AGAIN",
+    # 4.3.39 (R6): patches shorter than ArgyllCMS's minimum, a note only.
+    "M-CHART-PATCHES-SHORT", "M-MEASURE-PATCHES-SHORT",
     # 4.3.36, 2026-11-14: the technical line under a communication failure
     # (which USB step failed), for a report.
     "M-STRIP-FAILED-COMS-DETAIL",

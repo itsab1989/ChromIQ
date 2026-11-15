@@ -27452,6 +27452,12 @@ class TabChart(QWidget):
                 "⚠ Strip length {len:.0f} mm exceeds the {ruler:.0f} mm "
                 "instrument ruler — the strip may not fit your jig").format(
                     len=report.strip_length_mm or 0.0, ruler=self._ruler_over_mm)]
+        # R6 (4.3.39): patches shorter along the strip than ArgyllCMS's
+        # minimum for the instrument. A note under the measurements, never a
+        # refusal; nothing is greyed.
+        _short = self._short_patch_note()
+        if _short:
+            warns = list(warns) + [_short]
         panel.update_report(
             report, violations,
             thresholds_defined=bool(thresholds),
@@ -27463,6 +27469,33 @@ class TabChart(QWidget):
         )
         self._refresh_margin_guides(report, thresholds, violations)
         self._refresh_measured_guides(report)
+
+    def _short_patch_note(self) -> "str | None":
+        """R6: M-CHART-PATCHES-SHORT for the chart in the preview, from its
+        ``.channels.json`` (the layout engine's own record of the instrument
+        and the patch rectangles), or None. The Create Chart log says it
+        once per chart."""
+        ti2 = getattr(self, "_margin_ti2", None)
+        if not ti2:
+            return None
+        try:
+            from workflow import patch_size_check as P
+            stem = Path(ti2).with_suffix("")
+            finding = P.from_channels(stem.parent / (stem.name
+                                                     + ".channels.json"))
+            if finding is None:
+                return None
+            title, body = P.note_text(finding)
+            said = getattr(self, "_short_patch_logged", None)
+            if said != str(ti2):
+                self._short_patch_logged = str(ti2)
+                log_w = getattr(self, "_log", None)
+                if log_w is not None and hasattr(log_w, "appendPlainText"):
+                    log_w.appendPlainText(f"[{title}]\n{body}")
+            return f"⚠ {title}. {body}"
+        except Exception:      # noqa: BLE001 — a note never blocks a chart
+            log.debug("short-patch note not made", exc_info=True)
+            return None
 
     @staticmethod
     def _notes_are_about_another_page(shown, judged) -> bool:

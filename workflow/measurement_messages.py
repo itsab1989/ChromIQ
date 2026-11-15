@@ -9489,6 +9489,37 @@ M_STRIP_FAILED_INCONSISTENT_AGAIN = _m(
     "patches are shorter than ArgyllCMS recommends for your instrument.",
     approved=False)
 
+# --- PROPOSED: patches shorter than ArgyllCMS's minimum (R6, 4.3.39) ---------
+#: A chart whose patches are shorter along the strip than printtarg's minimum
+#: for the instrument (workflow/patch_size_check.py: i1Pro family 10 mm,
+#: i1Pro 3 Plus 20 mm, ColorMunki 14 mm). A note, never a refusal: shown under
+#: the Create Chart preview's measurements and, once per measurement, in the
+#: Measure log. {patch} and {min} in mm, {instrument} the shared name.
+M_CHART_PATCHES_SHORT = _m(
+    "M-CHART-PATCHES-SHORT",
+    "Patches shorter than ArgyllCMS recommends for this instrument",
+    "The patches of this chart are {patch} mm long in the direction you move "
+    "the instrument. ArgyllCMS makes them at least {min} mm long for the "
+    "{instrument}, because the instrument needs enough readings well inside "
+    "each patch. You can still print and measure this chart. With shorter "
+    "patches, strips are refused more often (for example with “Too many "
+    "patches” or “Reading is inconsistent”), especially where a very dark "
+    "patch follows a very light one, and now and then a reading can land on "
+    "the wrong patch. For dependable readings, make the patches at least "
+    "{min} mm long: fewer patches per strip, a larger patch size or a larger "
+    "paper.",
+    approved=False)
+
+M_MEASURE_PATCHES_SHORT = _m(
+    "M-MEASURE-PATCHES-SHORT",
+    "Patches shorter than ArgyllCMS recommends",
+    "Note: the patches of this chart are {patch} mm long along the strip, "
+    "shorter than the {min} mm ArgyllCMS uses for the {instrument}. Strips "
+    "may be refused more often, especially where a very dark patch follows a "
+    "very light one. If a strip keeps being refused, reading it patch by "
+    "patch helps, and a chart with longer patches avoids it.",
+    approved=False)
+
 M_STRIP_FAILED_EDGES = _m(
     "M-STRIP-FAILED-EDGES",
     "The movement did not start and end on the white paper",
@@ -10495,6 +10526,8 @@ M_STRIP_RULER_NOT_COVERED = _m(
 
 
 CATALOGUE = {m.id: m for m in (
+    M_CHART_PATCHES_SHORT,
+    M_MEASURE_PATCHES_SHORT,
     M_STRIP_FAILED_INCONSISTENT_AGAIN,
     M_STRIP_REVERSED_TURN,
     M_STRIP_TURNED,

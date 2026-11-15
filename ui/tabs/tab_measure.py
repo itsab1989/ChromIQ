@@ -8827,6 +8827,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         #: R3 (4.3.39): how often each strip was refused with "Reading is
         #: inconsistent" in this measurement.
         self._inconsistent_refusals = {}
+        self._say_short_patches()
         self._end_page_pause()
         self._sync_calibrate_btn_visible()
         QApplication.instance().installEventFilter(self)
@@ -11812,6 +11813,25 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         from ui.widgets import ButtonFontFilter
         ButtonFontFilter.fit_window(dlg)
         self._exec_measurement_window(dlg)
+
+    def _say_short_patches(self) -> None:
+        """R6 (4.3.39): once per measurement, a line in the Measure log when
+        the chart's patches are shorter along the strip than ArgyllCMS's
+        minimum for the instrument it was laid out for (M-MEASURE-PATCHES-
+        SHORT). Only a note; nothing is refused."""
+        ti1 = getattr(self, "_ti1_path", None)
+        if not ti1:
+            return
+        try:
+            from workflow import patch_size_check as P
+            stem = Path(ti1).with_suffix("")
+            finding = P.from_channels(stem.parent / (stem.name
+                                                     + ".channels.json"))
+            if finding is not None:
+                self._log.appendPlainText(P.log_line(finding))
+                self._log.ensureCursorVisible()
+        except Exception:      # noqa: BLE001 — a note never blocks a read
+            log.debug("short-patch line not written", exc_info=True)
 
     #: R3: from which refusal of the same strip the explanation is added.
     INCONSISTENT_AGAIN_FROM = 2
