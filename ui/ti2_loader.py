@@ -750,15 +750,23 @@ def _choice_dialog(parent, title, intro_html, choices):
     same shape the measurement windows use, so the reader learns one layout
     instead of two.
     """
-    box, buttons = build_choice_box(parent, title, intro_html, choices)
+    return _choice_box(parent, title, intro_html, choices)
+
+
+def _exec_choice_box(box):
+    """The one door a choice window is shown through: run it, return the
+    button pressed. A test hands :func:`_choice_box` its own door to measure
+    the shown window in every language (tests/test_4339_choice_window_
+    buttons_never_overlap.py); the work-area rule lists it among its show
+    wrappers (tests/test_every_message_box_is_kept_inside_the_work_area.py)."""
     box.exec()
-    return buttons.get(box.clickedButton())
+    return box.clickedButton()
 
 
-def build_choice_box(parent, title, intro_html, choices):
-    """The window of :func:`_choice_dialog`, built but not shown: ``(box,
-    {button: key})``. Split out so the button row can be measured in every
-    language (tests/test_4339_choice_window_buttons_never_overlap.py)."""
+def _choice_box(parent, title, intro_html, choices,
+                _exec_choice_box=_exec_choice_box):
+    """:func:`_choice_dialog`, with the door it is shown through as a
+    parameter."""
     from PyQt6.QtWidgets import QMessageBox
 
     box = QMessageBox(parent)
@@ -823,7 +831,32 @@ def build_choice_box(parent, title, intro_html, choices):
                 bb.layout().insertStretch(idx, 1)
     except Exception:      # noqa: BLE001 — a layout tweak must never block the window
         pass
-    return box, buttons
+
+    # STACKED, THE WINDOW KEEPS ITS FULL WIDTH. Qt sizes a message box from
+    # its widest row, so with the buttons one above the other it shrank to
+    # the widest button (618 px in German, measured on screen) and the text
+    # wrapped to twice its height; held at the widest a message box may be,
+    # the text stays as short as side by side and only the buttons add
+    # height. The work-area helper above then clamps the frame on screen.
+    try:
+        from PyQt6.QtWidgets import (QDialogButtonBox, QSizePolicy,
+                                     QSpacerItem)
+        from ui.widgets import _message_box_width_limit
+        bb = box.findChild(QDialogButtonBox)
+        lay = box.layout()
+        if (bb is not None and lay is not None
+                and bb.orientation() == Qt.Orientation.Vertical):
+            m = box.contentsMargins()
+            lm = lay.contentsMargins()
+            lay.addItem(QSpacerItem(
+                _message_box_width_limit(box) - m.left() - m.right()
+                - lm.left() - lm.right(), 0,
+                QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding),
+                lay.rowCount(), 0, 1, lay.columnCount())
+            lay.activate()
+    except Exception:      # noqa: BLE001 — a layout tweak must never block the window
+        pass
+    return buttons.get(_exec_choice_box(box))
 
 
 def _next_run_id(project) -> str:

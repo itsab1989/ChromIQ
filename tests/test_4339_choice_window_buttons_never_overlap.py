@@ -47,30 +47,60 @@ def _four_choices():
             (tr("Start a new project"), desc, "new")]
 
 
+def _shown(qapp, box):
+    """Show *box* as the app would and measure it: (box size, button rects,
+    labels wider than their buttons)."""
+    box.show()
+    for _ in range(5):
+        qapp.processEvents()
+    rects = [(b.text(), QRect(b.mapTo(box, b.rect().topLeft()), b.size()))
+             for b in box.buttons()]
+    cut = [(b.text(), b.fontMetrics().horizontalAdvance(b.text()), b.width())
+           for b in box.buttons()
+           if b.width() < b.fontMetrics().horizontalAdvance(b.text())
+           or b.mapTo(box, b.rect().topRight()).x() > box.width()]
+    return (box.width(), box.height()), rects, cut
+
+
 @pytest.mark.parametrize("code", LANGS)
 def test_no_two_buttons_overlap_and_none_is_cut(qapp, language, code):
     language(code)
     from core.i18n import tr
-    from ui.ti2_loader import build_choice_box
-    box, buttons = build_choice_box(
-        None, tr("Where should this patch set's chart go?"), "",
-        _four_choices())
-    try:
-        box.show()
-        for _ in range(5):
-            qapp.processEvents()
-        rects = [(b.text(), QRect(b.mapTo(box, b.rect().topLeft()), b.size()))
-                 for b in box.buttons()]
-        assert len(rects) == 5
-        for i, (ta, ra) in enumerate(rects):
-            for tb, rb in rects[i + 1:]:
-                assert not ra.intersects(rb), (code, ta, ra, tb, rb)
-        for b in box.buttons():
-            need = b.fontMetrics().horizontalAdvance(b.text())
-            assert b.width() >= need, (code, b.text(), need, b.width())
-            assert b.x() >= 0 and b.mapTo(box, b.rect().topRight()).x() \
-                <= box.width(), (code, b.text())
-    finally:
+    from ui.ti2_loader import _choice_box
+    seen = {}
+
+    def door(box):
+        seen["m"] = _shown(qapp, box)
         box.hide()
         box.deleteLater()
-        qapp.processEvents()
+        return None
+    assert _choice_box(None, tr("Where should this patch set's chart go?"),
+                       "", _four_choices(), _exec_choice_box=door) is None
+    _size, rects, cut = seen["m"]
+    qapp.processEvents()
+    assert len(rects) == 5
+    for i, (ta, ra) in enumerate(rects):
+        for tb, rb in rects[i + 1:]:
+            assert not ra.intersects(rb), (code, ta, ra, tb, rb)
+    assert not cut, (code, cut)
+
+
+def test_stacked_the_window_keeps_its_width(qapp, language):
+    """Stacked, the window stays as wide as a message box may be, so its
+    text is not wrapped to twice its height (German: 618 px wide before)."""
+    language("de")
+    from core.i18n import tr
+    from ui.ti2_loader import _choice_box
+    from ui.widgets import _message_box_width_limit
+    seen = {}
+
+    def door(box):
+        seen["m"] = _shown(qapp, box)
+        seen["limit"] = _message_box_width_limit(box)
+        box.hide()
+        box.deleteLater()
+    _choice_box(None, tr("Where should this patch set's chart go?"), "",
+                _four_choices(), _exec_choice_box=door)
+    (w, _h), rects, _cut = seen["m"]
+    assert len({r.x() for _t, r in rects}) == 1          # one above the other
+    assert w >= seen["limit"] - 40, (w, seen["limit"])

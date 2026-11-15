@@ -39,9 +39,11 @@ ALLOWED = {
 #: Calls that show a box: its own methods, and the app's one-door wrappers
 #: (`_ask` of the spot-read window, `_exec` of the earlier-profile offer,
 #: `_exec_box` of the built-in presets window, the Measure tab's
-#: `_exec_measurement_window`).
+#: `_exec_measurement_window`, `_exec_choice_box` of the loader's choice
+#: windows).
 SHOW_METHODS = {"exec", "open", "show"}
-SHOW_WRAPPERS = {"_ask", "_exec", "_exec_box", "_exec_measurement_window"}
+SHOW_WRAPPERS = {"_ask", "_exec", "_exec_box", "_exec_measurement_window",
+                 "_exec_choice_box"}
 
 
 #: The names a QMessageBox goes by in the app (`_QMB` is an alias).
