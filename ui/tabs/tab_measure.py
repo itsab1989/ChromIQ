@@ -8202,6 +8202,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             now = condition_for_filter(code)
             if now == before:
                 return False
+            # R4 (4.3.39): without -F the instrument measures in its normal
+            # mode, and since 4.3.39 a measurement records that as M0 where
+            # it is known. Continuing one without -F is what it was before.
+            from workflow.measurement_condition import \
+                condition_fits_normal_mode
+            if code is None and condition_fits_normal_mode(ti3):
+                return False
         except Exception:      # noqa: BLE001 — never block a read on this check
             log.debug("could not compare the measurement condition",
                       exc_info=True)
@@ -8665,6 +8672,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # because its first part may have been measured under any; the log
         # says why. (One that records a DIFFERENT condition was refused
         # above, `_blocked_by_a_differing_condition`.)
+        # R4 (4.3.39): the instrument's normal mode is recorded too (M0 where
+        # it is known), except on a resume onto a measurement that records
+        # nothing, whose first part may have been measured under any.
+        self._session_records_default = not (
+            getattr(params, "resume", False)
+            and self._resumes_unrecorded_condition(_ti3_pre))
         if self._session_filter and getattr(params, "resume", False) \
                 and self._resumes_unrecorded_condition(_ti3_pre):
             from workflow.measurement_messages import \
@@ -20907,20 +20920,39 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         ``MEASUREMENT_CONDITION``, the keyword the i1Profiler import and the
         FD-9 writer use. The FWA gate and the pre-conditioning merge read it.
 
-        Without ``-F`` (the default) nothing is recorded: the instrument
-        measured in its normal mode, and the file is judged as before. Only
-        a file this session wrote is touched (newer than it was at Start; a
-        measurement the session guard put back keeps its own time), and only
-        its header: the readings are not rewritten."""
+        Without ``-F`` (the default) the instrument measured in its normal
+        mode. Since 4.3.39 (R4) that is recorded too where it is KNOWN
+        (:func:`workflow.measurement_condition.default_condition`: M0 for the
+        i1Pro 3 family, and for the i1Pro / i1Pro 2 when the engine's driver
+        says no UV-cut filter is fitted), and nothing where it is not, nor on
+        a resume onto a measurement that records none. Only a file this
+        session wrote is touched (newer than it was at Start; a measurement
+        the session guard put back keeps its own time), and only its header:
+        the readings are not rewritten."""
         code = getattr(self, "_session_filter", None)
         self._session_filter = None
+        records_default = bool(getattr(self, "_session_records_default", False))
+        self._session_records_default = False
         ti1 = getattr(self, "_ti1_path", None)
-        if not code or not ti1:
+        if not ti1:
             return
         try:
-            from workflow.measurement_condition import (condition_for_filter,
-                                                        record_condition)
-            cond = condition_for_filter(code)
+            from workflow.measurement_condition import (
+                SOURCE_INSTRUMENT_DEFAULT, condition_for_filter,
+                default_condition, record_condition)
+            source = None
+            if code:
+                cond = condition_for_filter(code)
+            elif records_default:
+                # The model the reader REPORTED this session (reset at
+                # Start), never the chart's instrument.
+                cond = default_condition(
+                    getattr(self, "_reported_instrument", "") or "",
+                    getattr(self._manager, "engine_filter", None))
+                code = "(none: the instrument's normal mode)"
+                source = SOURCE_INSTRUMENT_DEFAULT
+            else:
+                return
             ti3 = Path(ti1).with_suffix(".ti3")
             if cond is None or not ti3.is_file():
                 return
@@ -20929,7 +20961,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 return
             if _cgats_has_no_readings(ti3):
                 return
-            if record_condition(ti3, cond):
+            if record_condition(ti3, cond, source):
                 log.info("recorded measurement condition %s (-F %s) in %s",
                          cond, code, ti3.name)
         except Exception:      # noqa: BLE001 — never block a session's end

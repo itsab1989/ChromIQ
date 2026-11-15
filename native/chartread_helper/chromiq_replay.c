@@ -31,6 +31,7 @@
 #include "aconfig.h"
 #endif
 #include <stdio.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 #include "numsup.h"
@@ -290,7 +291,23 @@ static char *cq_get_serial_no(inst *p) {
 }
 
 static inst_code cq_get_set_opt(inst *p, inst_opt_type m, ...) {
-	(void)p; (void)m;
+	(void)p;
+	/* R4 (4.3.39): the filter the driver reads through, for the helper's
+	 * "filter" event. CHROMIQ_REPLAY_FILTER=uvcut is an i1Pro with a
+	 * physical UV-cut filter; =unset answers nothing; anything else none. */
+	if (m == inst_stat_get_filter) {
+		const char *f = getenv("CHROMIQ_REPLAY_FILTER");
+		inst_opt_filter *filt;
+		va_list args;
+		va_start(args, m);
+		filt = va_arg(args, inst_opt_filter *);
+		va_end(args);
+		if (f != NULL && strcmp(f, "unset") == 0)
+			return inst_unsupported;
+		*filt = (f != NULL && strcmp(f, "uvcut") == 0)
+		        ? inst_opt_filter_UVCut : inst_opt_filter_none;
+		return inst_ok;
+	}
 	return inst_ok;
 }
 

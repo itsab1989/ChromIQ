@@ -701,6 +701,10 @@ class MeasureManager(QObject):
         #: menu, oldest first.
         self._engine_turns: bool = False
         self._held_turns: "list[str]" = []
+        #: R4 (4.3.39): the filter the engine's driver reads through (its
+        #: "filter" event), and the model its "instrument" event named.
+        self.engine_filter: "str | None" = None
+        self._engine_model: str = ""
         #: Basti, 2026-10-21 (Knut's run 1 of 2026-10-20): did the strip have
         #: a VALID reading before its latest swipe? {strip: bool}, learnt at
         #: each strip_read before the read map changes. "I read strip B" then
@@ -940,6 +944,8 @@ class MeasureManager(QObject):
         self._held_file_as = []
         self._engine_turns = False
         self._held_turns = []
+        self.engine_filter = None
+        self._engine_model = ""
         self._had_valid_reading = {}
         self._engine_keeps_earlier = False
         self._earlier_back = set()
@@ -4334,7 +4340,18 @@ class MeasureManager(QObject):
 
         elif kind == "instrument":
             # The engine opened the device and reports what it actually is.
+            self._engine_model = str(ev.get("model") or "")
             self.instrument_detected.emit(str(ev.get("model") or ""))
+
+        elif kind == "filter":
+            # R4 (4.3.39): the filter the i1Pro family's driver reads through
+            # (a physical UV-cut filter, or its mode's), for the measurement
+            # condition this session records when no -F was chosen.
+            self.engine_filter = str(ev.get("filter") or "") or None
+            if self._ruler is not None:
+                from workflow.measurement_condition import default_condition
+                self._ruler.set_default_condition(default_condition(
+                    self._engine_model, self.engine_filter))
 
         elif kind == "patch_read":
             self._engine_progress = True

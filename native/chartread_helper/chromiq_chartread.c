@@ -2296,6 +2296,28 @@ a1log *log			/* verb, debug & error log */
 				}
 			}
 
+			/* CHROMIQ_EXT (R4, 4.3.39): which filter the i1Pro family's
+			 * driver says it reads through, so ChromIQ can record the
+			 * measurement condition actually used. The i1Pro / i1Pro 2
+			 * answer from the calibration data read at open (a physical
+			 * UV-cut filter, i1pro.c inst_stat_get_filter), the i1Pro 3
+			 * from its selected mode (i1pro3.c): no request goes to the
+			 * instrument. Reflective readings only. */
+			if (cq_json && !trans && !emis && !displ
+			 && (it->dtype == instI1Pro || it->dtype == instI1Pro2
+			  || it->dtype == instI1Pro3)) {
+				inst_opt_filter pf = inst_opt_filter_unknown;
+				const char *pn = "unknown";
+				if (it->get_set_opt(it, inst_stat_get_filter, &pf) == inst_ok) {
+					if (pf == inst_opt_filter_none) pn = "none";
+					else if (pf == inst_opt_filter_UVCut) pn = "uvcut";
+					else if (pf == inst_opt_filter_D50) pn = "d50";
+					else if (pf == inst_opt_filter_D65) pn = "d65";
+					else if (pf == inst_opt_filter_pol) pn = "polarised";
+				}
+				cq_emit_raw("{\"event\":\"filter\",\"filter\":\"%s\"}", pn);
+			}
+
 			/* If it battery powered, show the status of the battery */
 			if ((cap2 & inst2_has_battery)) {
 				double batstat = 0.0;

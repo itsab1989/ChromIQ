@@ -47,6 +47,8 @@ class RulerSession:
         #: read: "M0", "M1", "M2", "M3"), or None without -F (the
         #: instrument's normal mode), for the diagnostics file.
         self.condition = condition
+        #: R4: where the condition came from ("chosen", "instrument default")
+        self.condition_source = "chosen" if condition else None
         self.verification = verification
         self.active = False
         self.gen = ""
@@ -120,6 +122,7 @@ class RulerSession:
                     path, instrument=self.gen, firmware=self.firmware,
                     helper_build=self.helper_build, geometry=self.geometry,
                     condition=self.condition,
+                    condition_source=self.condition_source,
                     verification=self.verification, argyll=self.argyll)
                 self.diag.write()
             except Exception:      # noqa: BLE001 - never stop a measurement
@@ -323,6 +326,18 @@ class RulerSession:
     def note_answer(self, strip: str, answer: str) -> None:
         if self.diag is not None:
             self.diag.note_answer(strip, answer)
+
+    def set_default_condition(self, condition: "str | None") -> None:
+        """R4 (4.3.39): without -F, the condition the instrument's normal
+        mode measures under, where it is known (M0), else None; the file
+        then says where its condition came from."""
+        if self.condition_source == "chosen":
+            return                    # the person's -F choice stands
+        self.condition = condition
+        self.condition_source = "instrument default" if condition else None
+        if self.diag is not None:
+            self.diag.set_condition(condition, "instrument default"
+                                    if condition else None)
 
     # ---- helpers -------------------------------------------------------
     def _write(self, rec, strip, f, verdict, extra=None) -> None:

@@ -117,12 +117,85 @@ def condition_for_filter(code: "str | None") -> "str | None":
     return FILTER_CONDITIONS.get(str(code).strip().lower())
 
 
-def record_condition(ti3_path: "str | Path", condition: str) -> bool:
+#: R4 (4.3.39): the instruments whose normal mode (no ``-F``) is a KNOWN
+#: ISO 13655 condition, by ``core.measure_pace.model_key``. Every one of them
+#: reads under its own tungsten lamp, M0, unless the driver says a physical
+#: UV-cut filter is fitted (the original i1Pro and the i1Pro 2 came with one
+#: as an option; their driver reads it from the instrument's calibration
+#: data at open, i1pro.c inst_stat_get_filter, and the helper reports it as
+#: its "filter" event). The i1Pro 3 has no such variant: its driver's own
+#: mode filter is "none" unless -F asks for another (i1pro3.c).
+_NORMAL_MODE_M0 = {"i1pro3": "any", "i1pro3plus": "any",
+                   "i1pro2": "filter", "i1pro": "filter"}
+
+
+def default_condition(model: "str | None",
+                      driver_filter: "str | None") -> "str | None":
+    """The condition an instrument measures under in its normal mode (no
+    ``-F``), where that IS known, else None (R4, 4.3.39).
+
+    *model* is the instrument's name as ArgyllCMS reports it; *driver_filter*
+    the helper's ``filter`` event ("none", "uvcut", "unknown"...), or None
+    when no helper said (stock chartread). M0 for the i1Pro 3 family (no
+    filter, or the driver's own "none"); M0 for the i1Pro / i1Pro 2 only when
+    the driver says no filter is fitted. Nothing for an i1Pro with a physical
+    UV-cut filter, for a driver that did not say, and for every other
+    instrument: ChromIQ writes no condition it cannot know, and a file that
+    names none is judged exactly as before (the FWA gate treats M0 like none,
+    so recording M0 changes no decision)."""
+    from core.measure_pace import model_key
+    rule = _NORMAL_MODE_M0.get(model_key(model) or "")
+    f = (str(driver_filter).strip().lower() or None) if driver_filter else None
+    if rule == "any" and f in (None, "none"):
+        return "M0"
+    if rule == "filter" and f == "none":
+        return "M0"
+    return None
+
+
+#: R4: beside a condition ChromIQ recorded from the instrument's normal mode
+#: (no -F), so that continuing that measurement with -F still off is "the
+#: same setting" (S-A1), while one recorded from an explicit -F keeps the
+#: S-A1 rule unchanged.
+CONDITION_SOURCE_KEYWORD = "MEASUREMENT_CONDITION_SOURCE"
+SOURCE_INSTRUMENT_DEFAULT = "INSTRUMENT_DEFAULT"
+
+
+def condition_fits_normal_mode(ti3_path: "str | Path | None") -> bool:
+    """Whether the measurement at *ti3_path* may be continued with ``-F``
+    off (R4): it records M0 AND says ChromIQ recorded that from the
+    instrument's normal mode, i.e. it was itself measured with ``-F`` off.
+    A measurement whose M0 came from an explicit ``-F n`` is judged by S-A1
+    exactly as before."""
+    return (read_condition(ti3_path) == "M0"
+            and (read_header_keyword(ti3_path, CONDITION_SOURCE_KEYWORD)
+                 or "").upper() == SOURCE_INSTRUMENT_DEFAULT)
+
+
+def record_condition(ti3_path: "str | Path", condition: str,
+                     source: "str | None" = None) -> bool:
     """Write ``MEASUREMENT_CONDITION`` into the header of the measurement at
     *ti3_path*, as the i1Profiler import does. Only the
     header changes: the two lines go in after the file's first line (or the
     value of one already there is replaced), and every other byte, the data
-    included, stays as it was. True when the file was changed."""
+    included, stays as it was. True when the file was changed.
+
+    *source* (R4): :data:`SOURCE_INSTRUMENT_DEFAULT` when the condition is
+    the instrument's normal mode (no -F), written as
+    ``MEASUREMENT_CONDITION_SOURCE``; without it any such line is taken out,
+    because the condition is then a choice."""
+    changed = _set_keyword(ti3_path, CONDITION_KEYWORD, condition)
+    if source:
+        changed = _set_keyword(ti3_path, CONDITION_SOURCE_KEYWORD,
+                               source) or changed
+    elif read_header_keyword(ti3_path, CONDITION_SOURCE_KEYWORD) is not None:
+        changed = clear_header_keyword(ti3_path,
+                                       CONDITION_SOURCE_KEYWORD) or changed
+    return changed
+
+
+def _set_keyword(ti3_path: "str | Path", keyword: str, condition: str) -> bool:
+    """One header keyword, as :func:`record_condition` writes it."""
     p = Path(ti3_path)
     try:
         raw = p.read_bytes()
@@ -135,7 +208,7 @@ def record_condition(ti3_path: "str | Path", condition: str) -> bool:
     head, sep, rest = raw.partition(b"BEGIN_DATA_FORMAT")
     if not sep:
         return False
-    key = CONDITION_KEYWORD.encode("ascii")
+    key = keyword.encode("ascii")
     value_re = re.compile(rb'^([ \t]*' + key + rb'[ \t]+).*$', re.MULTILINE)
     m = value_re.search(head)
     if m:
@@ -162,7 +235,9 @@ def clear_condition(ti3_path: "str | Path") -> bool:
     """Take ``MEASUREMENT_CONDITION`` (and its ``KEYWORD`` line) out of the
     header of the measurement at *ti3_path*; every other byte stays. True
     when the file was changed."""
-    return clear_header_keyword(ti3_path, CONDITION_KEYWORD)
+    a = clear_header_keyword(ti3_path, CONDITION_KEYWORD)
+    b = clear_header_keyword(ti3_path, CONDITION_SOURCE_KEYWORD)
+    return a or b
 
 
 def read_header_keyword(ti3_path: "str | Path | None", key: str

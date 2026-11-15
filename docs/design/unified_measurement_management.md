@@ -10578,6 +10578,17 @@ with M0, M1 and M2 chosen, and five files holding only some conditions.
   "+1" name nothing. A file with one condition whose saved choice names
   another one says so in the log line.
 
+### ⏳ Awaiting confirmation — the condition of the instrument's normal mode is recorded too (R4, 4.3.39)
+
+**Confirmed by:** *nobody yet.*
+
+*jctay (forum 150236): his i1Pro 3 measurement named no condition, and only a comparison with his i1Profiler references showed it was M0. Built 2026-11-15 for 4.3.39; the S-A1 rule above it touches is itself awaiting confirmation.*
+
+* **Always the condition actually used.** At the end of a session that wrote the chart's `.ti3`, ChromIQ writes `MEASUREMENT_CONDITION` (as before for an explicit `-F`, which wins) and, with `-F` off, the instrument's normal mode where it is KNOWN (`measurement_condition.default_condition`): **M0** for the i1Pro 3 and i1Pro 3 Plus (their driver's own mode filter is "none"; there is no hardware variant with a filter), and M0 for the original i1Pro and the i1Pro 2 only when ChromIQ's engine says the driver reads through no filter (the helper's `filter` event, from `inst_stat_get_filter`, which the i1Pro driver answers from the calibration data read at open: no request goes to the instrument). Nothing is written for an i1Pro with a physical UV-cut filter, for stock chartread on an i1Pro / i1Pro 2 (nobody says which filter is fitted), for every other instrument, and on a resume onto a measurement that records none (its first part may have been measured under any).
+* **Where it came from.** A condition recorded from the normal mode carries `MEASUREMENT_CONDITION_SOURCE "INSTRUMENT_DEFAULT"` beside it; an explicit choice takes that line out.
+* **Resume (S-A1).** A measurement whose M0 is the normal mode (the source line above) is continued with `-F` off as one that recorded nothing was before: the same setting. Continued with `-F 5` (M1) or `-F u` (M2) it is refused, as any recorded condition is (until 4.3.38 such a file recorded nothing and was allowed, the finished file then recording none). A measurement whose M0 came from an explicit `-F n` is judged exactly as before.
+* **Nothing else changes.** The FWA gate treats M0 as it treats none; merging and averaging treat none beside M0 as before. ArgyllCMS's colprof and average and ChromIQ's own readers read the file with the keyword as without it (`tests/test_r4_the_condition_used_is_always_recorded.py`). The ruler diagnostics file carries the condition and `measurement_condition_source` ("chosen", "instrument default", or null).
+
 ### ⏳ Awaiting confirmation — §I.16, a chart whose device values lie outside 0..100 (4.3.26)
 
 **Confirmed by:** *nobody yet.* Basti delegated the decision (2026-11-07);
