@@ -4368,7 +4368,7 @@ jobs, which is allowed and should be.*
 
 ### M-I1IO-MEASURE-CHART · PROPOSED · an i1iO chart of one page is started while i1iO support is on: measure it with i1Profiler's Measure Chart and bring it back, Measure
 
-*New 2026-11-15 (the i1iO Measure Chart import; design and challenge of 2026-11-14/15). A tester's i1Profiler "Measure Chart" scan of ChromIQ's own A4 i1iO sheet proved that i1Profiler reads the sheet and records where every reading was taken (Row = strip, Column = patch). For an i1iO chart of ONE page, Start shows this window instead of M-I1IO-NOT-YET / -BY-HAND, with the chart's own numbers from its side file (`workflow.i1io.measure_chart.instruction_numbers`). `{lay}` and `{aim}` are parts of M-I1IO-MEASURE-CHART-PARTS: the patches by their printed names, or by position on a chart that prints no names. Then, on a chart WITH crosses, the crosses part (it REPLACES the aiming paragraph M-I1IO-AIM-*, which would tell the person to aim at the crosses, challenge M3); then the other way of M-I1IO-MEASURE-CHART-OTHER-WAY (the i1Profiler patch sets for a profiling chart, the i1Pro 2 by hand for a verification or calibration chart). **Step 2 names no menu path**: no screenshot proves where Measure Chart sits in i1Profiler; "X-Rite calls it Measure Chart" is the tester's own word. To be confirmed. Nothing is started, archived or written.*
+*New 2026-11-15 (the i1iO Measure Chart import; design and challenge of 2026-11-14/15). Not for a CALIBRATION chart (review 2026-11-15, M3): a calibration run cannot import, so it keeps M-I1IO-NOT-YET-BY-HAND. A tester's i1Profiler "Measure Chart" scan of ChromIQ's own A4 i1iO sheet proved that i1Profiler reads the sheet and records where every reading was taken (Row = strip, Column = patch). For an i1iO chart of ONE page, Start shows this window instead of M-I1IO-NOT-YET / -BY-HAND, with the chart's own numbers from its side file (`workflow.i1io.measure_chart.instruction_numbers`). `{lay}` and `{aim}` are parts of M-I1IO-MEASURE-CHART-PARTS: the patches by their printed names, or by position on a chart that prints no names. Then, on a chart WITH crosses, the crosses part (it REPLACES the aiming paragraph M-I1IO-AIM-*, which would tell the person to aim at the crosses, challenge M3); then the other way of M-I1IO-MEASURE-CHART-OTHER-WAY (the i1Profiler patch sets for a profiling chart, the i1Pro 2 by hand for a verification or calibration chart). **Step 2 names no menu path**: no screenshot proves where Measure Chart sits in i1Profiler; "X-Rite calls it Measure Chart" is the tester's own word. To be confirmed. Nothing is started, archived or written.*
 
 > **Measure this i1iO chart with i1Profiler**
 >
@@ -10705,8 +10705,10 @@ and filed only when nothing speaks against it; every mistake is refused,
 nothing is ever corrected.**
 
 1. **Where it applies.** Only while Preferences ▸ Beta ▸ "X-Rite i1iO support"
-   is on, only on the Measure tab's Import Measurement (both doors: profiling,
-   verification and calibration runs), only for a run whose chart is an i1iO
+   is on, only on the Measure tab's Import Measurement (both doors: profiling
+   and verification runs; a calibration run cannot import, §I.9, so an i1iO
+   calibration chart keeps M-I1IO-NOT-YET-BY-HAND at Start, without the
+   Measure Chart steps), only for a run whose chart is an i1iO
    chart with its side file `<stem>.i1io.json`, and only for a picked CxF
    (`.cmxf`, `.cxf`, `.mxf`) whose Targets all carry one device value
    (i1Profiler's placeholders, RGB 150/150/150) where the chart has more than

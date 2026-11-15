@@ -217,8 +217,9 @@ def test_a_calibration_chart_is_made_for_the_i1io(win, qapp, qtbot,
     # each ink's ramp starts its own strip, as on every calibration chart
     ch = json.loads(cti2.with_suffix(".channels.json").read_text("utf-8"))
     assert ch["patch_set_given"] is False
-    assert _measure_refuses(w, cti2, monkeypatch) == \
-        "M-I1IO-MEASURE-CHART, by hand"
+    # review M3: a calibration run cannot import, so its chart keeps the
+    # window by hand (no Measure Chart steps ending in Import Measurement)
+    assert _measure_refuses(w, cti2, monkeypatch) == "M-I1IO-NOT-YET-BY-HAND"
 
 
 @requires_argyll

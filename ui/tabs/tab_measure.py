@@ -6925,7 +6925,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # Measure tab's import brings it back, so the steps come first, with
         # the chart's own numbers; the crosses part replaces the aiming
         # paragraph (it would say to aim at the crosses).
-        nums = self._i1io_measure_chart_numbers()
+        # NOT FOR A CALIBRATION CHART (review 2026-11-15, M3): a calibration
+        # run cannot import (`_import_available`, §I.9), so the steps would
+        # end in a button that is not there; it keeps the window by hand.
+        ti1 = getattr(self, "_ti1_path", None)
+        calibration = bool(ti1) and Path(ti1).parent.name == "cal"
+        nums = None if calibration else self._i1io_measure_chart_numbers()
         by_hand = self._i1io_not_yet_message(M) is M.M_I1IO_NOT_YET_BY_HAND
         if nums is not None and int(nums.get("pages") or 1) == 1:
             self._i1io_window(*M.i1io_measure_chart_window(nums, by_hand))
