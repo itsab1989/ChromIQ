@@ -2904,6 +2904,35 @@ def _notes_row(draw: "ImageDraw.ImageDraw", font, y_center: float, x0: float,
         x += gap
 
 
+def notes_context(ctx: dict | None) -> dict:
+    """The values the notes design prints: *ctx* over the placeholders, so
+    a key nobody supplied prints its SAMPLE value (`_notes_sample_ctx`)."""
+    c = dict(_notes_sample_ctx())
+    if ctx:
+        c.update({k: str(v) for k, v in ctx.items() if v not in (None, "")})
+    return c
+
+
+def notes_rows(c: dict) -> tuple:
+    """The notes design's three rows for the values *c* (`notes_context`):
+    ``(left1, right1, row2, row3)``, row 2 and 3 as ``("text"|"rule", s)``
+    segments. One place, so a test can read what the band prints.
+
+    ``per_strip`` is printed only when supplied (the i1iSis band, whose
+    Create Chart panel names "Patches per strip" beside "Strips"); the
+    clip border's notes are unchanged without it."""
+    left1 = (f"{c['count']} patches  ·  {c['instrument']}  ·  {c['paper']}  ·  "
+             f"colour management: OFF")
+    right1 = f"{c['page']}  ·  strips on page: {c['strips']}"
+    if c.get("per_strip"):
+        right1 += f"  ·  patches per strip: {c['per_strip']}"
+    row2 = [("text", f"date: {c['date']}"), ("rule", "printer:"),
+            ("rule", "ink set:"), ("rule", "paper brand / type:")]
+    row3 = [("rule", "media / resolution setting:"),
+            ("text", f"profile name: {c['project']}")]
+    return left1, right1, row2, row3
+
+
 def _render_notes_strip(width_px: int, height_px: int, dpi: int,
                         ctx: dict | None, font_family: str) -> Image.Image:
     """The ChromIQ clip-border notes design (#93): a spectrum accent bar, the
@@ -2912,9 +2941,7 @@ def _render_notes_strip(width_px: int, height_px: int, dpi: int,
     Drawn on a horizontal length×thickness canvas (so it scales by *content*, not
     by stretching) and rotated 90° to read up the strip. Font size follows the
     clip-border thickness; the handwrite rules absorb the extra length."""
-    c = dict(_notes_sample_ctx())
-    if ctx:
-        c.update({k: str(v) for k, v in ctx.items() if v not in (None, "")})
+    c = notes_context(ctx)
     mm2px = dpi / 25.4
     L, T = max(1, height_px), max(1, width_px)         # length × thickness (px)
     canvas = Image.new("RGB", (L, T), (255, 255, 255))
@@ -2938,13 +2965,7 @@ def _render_notes_strip(width_px: int, height_px: int, dpi: int,
     yc = [top + row_h * (i + 0.5) for i in range(3)]
 
     # Row content. Rules ("rule") absorb spare length; texts are fixed-width.
-    left1 = (f"{c['count']} patches  ·  {c['instrument']}  ·  {c['paper']}  ·  "
-             f"colour management: OFF")
-    right1 = f"{c['page']}  ·  strips on page: {c['strips']}"
-    row2 = [("text", f"date: {c['date']}"), ("rule", "printer:"),
-            ("rule", "ink set:"), ("rule", "paper brand / type:")]
-    row3 = [("rule", "media / resolution setting:"),
-            ("text", f"profile name: {c['project']}")]
+    left1, right1, row2, row3 = notes_rows(c)
 
     # Font: sized from the clip thickness for legibility, then shrunk so the
     # busiest row still fits the length (keeping a minimum write-line per rule),

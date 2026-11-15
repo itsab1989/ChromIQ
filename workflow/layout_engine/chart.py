@@ -1001,7 +1001,8 @@ def build_chart(
                       image_scale=clip_image_scale,
                       image_offset_x_mm=clip_image_offset_x,
                       image_offset_y_mm=clip_image_offset_y,
-                      flip=clip_flip_180))
+                      flip=clip_flip_180),
+            layout=layout)
         _isis_warnings = [_isis_chart.keep_out_message(w)
                           for w in _isis_left_off]
         # more pages than the paper needs (3000 patches / 660 mm): said

@@ -1898,12 +1898,43 @@ def band_image(box, dpi: int, *, mode: str, text: str = "",
     return img.convert("RGB").resize((w_px, h_px))
 
 
+def band_numbers(sheet: Sheet, index: int, layout=None) -> dict:
+    """The numbers the notes band prints on page *index*, from the FINAL
+    layout, in the Create Chart panel's own terms.
+
+    Up to 4.3.38 the band was given no patch count, so it printed the notes
+    design's SAMPLE ("560 patches"), and it printed the ROWS (32 on A4
+    portrait) as "strips on page", where the panel, the .ti2 and the strip
+    letters on the sheet count the COLUMNS (28) as strips of 32 patches. The
+    panel reads the .ti2 the engine writes from *layout* (NUMBER_OF_SETS,
+    STEPS_IN_PASS, the passes on each page), so these are taken from it too.
+    Without a layout the sheet's own grid gives the same values."""
+    if layout is not None:
+        total = int(layout.total_patches)
+        steps = max(1, int(layout.steps_in_pass))
+        per_page = max(1, int(layout.patches_per_page))
+    else:
+        total = int(sheet.grid.N)
+        steps = max(1, int(sheet.grid.R))
+        per_page = max(1, int(sheet.grid.C * sheet.grid.R))
+    first = index * per_page
+    on_page = max(0, min(total, first + per_page) - first)
+    return {"count": str(total),
+            "page": f"page {index + 1}/{sheet.grid.P}",
+            "strips": str(-(-on_page // steps)),
+            "per_strip": str(steps)}
+
+
 def draw_furniture(render, sheet: Sheet, dpi: int, *, name: str,
                    sheet_text: str = "", patterns: "tuple | None" = None,
                    title: str = "", stamp_text: str = "",
-                   band: "dict | None" = None) -> "list[str]":
+                   band: "dict | None" = None,
+                   layout=None) -> "list[str]":
     """Draw the chart's furniture onto every page of *render* (in place) and
-    return what was left off (`keep_out` reasons, for M-ISIS-KEEP-OUT)."""
+    return what was left off (`keep_out` reasons, for M-ISIS-KEEP-OUT).
+
+    *layout* is the engine's final layout (the one its .ti2 and the Create
+    Chart panel read); the notes band takes its numbers from it."""
     left_off: "list[str]" = []
     band_cache: dict = {}
     for index, img in enumerate(render.images):
@@ -1920,10 +1951,7 @@ def draw_furniture(render, sheet: Sheet, dpi: int, *, name: str,
                 key = (it.box, index)
                 if key not in band_cache:
                     ctx = dict((band or {}).get("ctx") or {})
-                    ctx["page"] = f"{index + 1}/{sheet.grid.P}"
-                    # the i1iSis reads the chart row by row: its "strips"
-                    # are the rows, each with its pair of diamonds
-                    ctx["strips"] = str(sheet.grid.R)
+                    ctx.update(band_numbers(sheet, index, layout))
                     ctx["instrument"] = device_name(sheet.opts.model)
                     try:
                         band_cache[key] = band_image(
