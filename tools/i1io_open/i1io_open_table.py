@@ -15,8 +15,13 @@ numbers: the eleven lines are fixed at import and :func:`check_outgoing`
 refuses every other byte string.
 
 ONE line makes the arm move: ``;i12b`` (i1, run to the resting place), sent
-ONCE, only while the arm is already there, right after a ``p0`` that read the
-resting place, as i1Profiler sends it. Version 0.2.1 (after the tester's real
+ONCE, right after a ``p0`` that read a place i1Profiler itself sent i1 from at
+rest (:data:`HOME_CLUSTER`: X 1102, Y 0..47 in the recordings, one reading step
+around it). Version 0.2.2 (after the tester's 0.2.1 runs of 15 Nov 2026, where
+the arm read Y 55 and the run stopped) no longer derives that box from the
+positions seen at rest, which drift the longer the arm stands: it uses only the
+recorded starting points of i1Profiler's own homings. From anywhere else it
+sends no homing at all. Version 0.2.1 (after the tester's real
 run of 0.2.0 and the safety review that followed it, M3) ends exactly as
 i1Profiler ended two recorded sessions: ``s0 p0 i1 s0``, a pause, ``s0 f0 f3``
 (S1 4.766-22.951, R2 268.621-361.611). No position is read after the homing,
@@ -50,7 +55,7 @@ import time
 from dataclasses import dataclass
 
 TOOL_NAME = "chromiq-i1io-open"
-TOOL_VERSION = "0.2.1"
+TOOL_VERSION = "0.2.2"
 
 VID, PID = 0x0971, 0x2004
 
@@ -80,6 +85,16 @@ class TransportError(Exception):
 
 class NotAvailable(Exception):
     """The real table cannot be opened on this computer (with the reason)."""
+
+
+class TableBusy(TransportError):
+    """macOS did not let the program open the table: another program holds it (libusb
+    ACCESS or BUSY while opening or claiming it; seen twice on the tester's Mac, 15 Nov
+    2026). Nothing was sent. *step* is the call that failed, *code* libusb's number."""
+
+    def __init__(self, message: str, step: str, code):
+        super().__init__(message)
+        self.step, self.code = step, code
 
 
 # ---- checksum and framing ------------------------------------------------------
@@ -171,11 +186,12 @@ DATA_LEN = {"identity": 10, "k2": 14, "memory_a": 512, "memory_b": 208, "a0": 6,
 #: The recorded constant answers (identical at every recorded open and close).
 EXACT_DATA = {"identity": "005D010702", "k2": "0B600000000013", "f0": "00", "f3": "00",
               "arm_mode": "00"}
-#: f4's answer wherever this program reads it (we believe: the motors hold the arm; 01 was
-#: only ever read after f1, which frees the arm for aligning by hand and is never sent here).
-#: f4 is LIKELY a mode flag rather than a reading of the motors: R1's opening read 00 with
-#: the arm found 3 cm away from its resting place after a close and a USB replug.
-ARM_HELD = "00"
+#: f4's recorded answer wherever this program reads it (98 of 98 reads outside an alignment;
+#: 01 was only ever read after f1, the hand-alignment mode, which is never sent here).
+#: f4 is a mode flag, NOT a reading of the motors: R1's opening read 00 with the arm found
+#: 3 cm from its resting place, and on 15 Nov 2026 the tester's table read 00 four times
+#: while he found the arm free at rest (0.2.1, run 5).
+F4_RECORDED = "00"
 #: The first 8 bytes of the memory block, the same at every recorded open:
 #: the block length 360 and the text "V1.1" (no serial number in them).
 MEMORY_A_START = "6801000056312E31"
@@ -281,17 +297,23 @@ class Box:
         return self.xmin <= p[0] <= self.xmax and self.ymin <= p[1] <= self.ymax
 
 
-#: Where the arm rests. Every position read at rest, in every recording and in both of the
-#: tester's real runs, is X 1101 or 1102 and Y 0 to 47 (25 reads: before a homing Y 14..47,
-#: 0.016-0.032 s after one Y 0..2, 0.08 s after Y 5 (0.1.0), 0.16 s after Y 19 (0.2.0, the
-#: tester's table, 14 Nov 2026), 3-163 s after one Y 4..37; the reading creeps while the arm
-#: stands). 5 units of margin on each side. The one i1 is sent only from here, checked on the
-#: p0 right before it.
-#: 0.2.0 also demanded X 1099..1105, Y -3..8 right after the homing (from three reads at
-#: 0.016-0.032 s and one at 0.08 s); the tester's table read Y 19 at 0.16 s and the run
-#: stopped without its close. That narrower box is withdrawn: no position is read after the
-#: homing any more (see the module text).
-HOME_CLUSTER = Box(1097, 1107, -5, 50)
+#: Where i1Profiler itself sent i1 from, at rest, in the recordings: X 1102 and
+#: Y 14, 22, 24, 24, 32, 36, 47 (first homings: S1 4.796, R2 417.181, 268.653, 378.632, R1
+#: 190.093, R2 134.274, 35.033) and Y 0, 2, 2 (second homings of a double homing: R2 134.610,
+#: R1 190.412, R2 417.453). (seconds, position read right before)
+RECORDED_DIRECT_STARTS = ((1102, 14), (1102, 22), (1102, 24), (1102, 24), (1102, 32),
+                          (1102, 36), (1102, 47), (1102, 0), (1102, 2), (1102, 2))
+#: The ONE homing is sent only from here, checked on the p0 right before it: the recorded
+#: starting points above, with one unit (0.1 mm, the table's reading step) around them.
+#: Not a range of "positions seen at rest": those drift the longer the arm stands (Y 0..5
+#: right after a homing, 22..37 within minutes, 41, 46, 47 and, on the tester's table on
+#: 15 Nov 2026, 55 after a long idle), so any limit drawn from them fails on some later day
+#: (0.2.0's Y -3..8 failed at Y 19, 0.2.1's Y -5..50 at Y 55). Between Y 47 and the far
+#: positions i1 is recorded from (Y 1492 and more) i1Profiler was recorded once making the
+#: other choice: from (1058, 317) it drove out with two m0 before it homed (R1 83.6). Where its
+#: rule changes is not known, so this program does not guess: from outside this box it sends
+#: no homing (a planned stop; nothing moves).
+HOME_CLUSTER = Box(1101, 1103, -1, 48)
 
 #: How long the program waits for an answer before it counts as missing.
 #: Recorded: quick lines 0.005-0.022 s, u8 0.051-0.106 s,
@@ -370,6 +392,16 @@ def release_stop_signals(held) -> None:
         pass
 
 
+OUTSIDE_TEXT = (
+    "{what} the arm reports table position X {x}, Y {y} (in tenths of a millimetre). "
+    "i1Profiler has been recorded sending its homing from the resting place only when the arm "
+    "read X 1102 and Y 0 to 47, and this program sends it only from there (X 1101 to 1103, "
+    "Y -1 to 48). From further out, nobody knows whether i1Profiler would send the same line: "
+    "once, when the arm was further away, it drove the arm out first. So the program does not "
+    "send the homing, and nothing more is sent. This is one of the planned "
+    "endings, not a fault of your table: the arm creeps slowly away from Y 0 the longer it "
+    "stands.")
+
 REFUSED_TEXT = ("The table answered, but refused the line {line} (code {code}). The recordings "
                 "never showed this. Nothing more is sent to the table.")
 
@@ -402,6 +434,8 @@ class Table:
         self.homing_times: "list[float]" = []
         self.homings_done = 0
         self.closed_table = False            # f0, f3 answered
+        #: the position read right before the homing, when it was outside HOME_CLUSTER
+        self.outside_at: "tuple[int, int] | None" = None
 
     # ---- logging and stopping ------------------------------------------------------
     def log(self, kind: str, text: str) -> None:
@@ -602,8 +636,8 @@ class Table:
 
     def _arm(self) -> str:
         got = self.exchange("arm_mode").data
-        if got != ARM_HELD:
-            raise self._doubt(f"f4 answered {got} where the recordings show {ARM_HELD}")
+        if got != F4_RECORDED:
+            raise self._doubt(f"f4 answered {got} where the recordings show {F4_RECORDED}")
         return got
 
     def follow_up(self) -> None:
@@ -625,11 +659,11 @@ class Table:
         pos = self.position()
         self.log("DATA", f"{what} the arm reports {pos}")
         if not HOME_CLUSTER.contains(pos):
+            self.outside_at = pos
             raise self._doubt(
-                f"{what} the arm reports {pos}, not its resting place",
-                f"{what[0].upper()}{what[1:]} the arm reports table position X {pos[0]}, "
-                f"Y {pos[1]}, which is not its resting place (X 1097 to 1107, Y -5 to 50). "
-                "This program only goes on from there, so nothing more is sent.")
+                f"{what} the arm reports {pos}, outside the places i1Profiler sent the "
+                "homing from",
+                OUTSIDE_TEXT.format(what=f"{what[0].upper()}{what[1:]}", x=pos[0], y=pos[1]))
         return pos
 
     def _homing(self) -> None:
@@ -738,22 +772,20 @@ class FtdiUsb(Transport):
 
     def setup(self) -> None:
         USBError = self._core.USBError
+        step = "get_active_configuration"
         try:
             try:
                 self.dev.get_active_configuration()
             except USBError as exc:
                 if "Configuration not set" not in str(exc):
                     raise
+                step = "set_configuration"
                 self.dev.set_configuration()
+            step = "claim_interface"
             self._util.claim_interface(self.dev, 0)
             self._claimed = True
         except USBError as exc:
-            raise TransportError(
-                "The table could not be opened. Another program may be using it: "
-                "i1Profiler, another copy of this program, or one of X-Rite's background "
-                "services (for example X-Rite Device Services). Please quit i1Profiler and "
-                "try again; if it still fails, send the log. Nothing was sent to the table. "
-                f"({getattr(exc, 'strerror', None) or type(exc).__name__})") from None
+            raise open_error(exc, step) from None
         try:
             for n, (req, val, idx) in enumerate(self.SETUP):
                 if n:
@@ -794,6 +826,122 @@ class FtdiUsb(Transport):
                 step()
             except Exception:      # closing never raises
                 pass
+
+
+#: libusb's error numbers that matter while opening (libusb.h).
+LIBUSB_ERRORS = {-1: "IO", -3: "ACCESS", -4: "NO_DEVICE", -5: "NOT_FOUND", -6: "BUSY",
+                 -7: "TIMEOUT", -12: "NOT_SUPPORTED", -99: "OTHER"}
+#: The same as POSIX errno, which pyusb also carries (EACCES, EBUSY, ENODEV).
+_ERRNO_KIND = {13: "ACCESS", 16: "BUSY", 19: "NO_DEVICE"}
+
+BUSY_TEXT = (
+    "Your Mac did not let this program open the table, because another program is using it "
+    "right now. Nothing was sent to the table.")
+BUSY_STEPS = (
+    "What usually helps, one step at a time: (1) If i1Profiler is open, quit it (i1Profiler "
+    "menu, Quit i1Profiler). (2) Wait a minute and start this program again. (3) If the table "
+    "is still in use: open i1Profiler, wait until it shows the table, quit it, and start this "
+    "program again straight away. (4) If it is still in use after that, restarting the Mac "
+    "frees it. Please do not try to stop X-Rite's background helpers by hand; this program "
+    "never touches them either.")
+GONE_TEXT = ("The table disappeared while the program was opening it (its USB cable or its "
+             "power). Nothing was sent to the table. Please check both and try again.")
+
+
+def error_kind(exc) -> "tuple[str, object]":
+    """('ACCESS' / 'BUSY' / 'NO_DEVICE' / other name, the number) from a pyusb USBError."""
+    code = getattr(exc, "backend_error_code", None)
+    if isinstance(code, int) and code in LIBUSB_ERRORS:
+        return LIBUSB_ERRORS[code], code
+    errno = getattr(exc, "errno", None)
+    if isinstance(errno, int) and errno in _ERRNO_KIND:
+        return _ERRNO_KIND[errno], errno
+    return "OTHER", code if code is not None else errno
+
+
+def open_error(exc, step: str) -> TransportError:
+    """The exception for a failure while opening the table (nothing was sent yet)."""
+    kind, code = error_kind(exc)
+    detail = (f"{step} failed: libusb {kind} ({code}); "
+              f"{getattr(exc, 'strerror', None) or type(exc).__name__}")
+    if kind in ("ACCESS", "BUSY"):
+        return TableBusy(f"{BUSY_TEXT} ({detail})", step, code)
+    if kind == "NO_DEVICE":
+        return TransportError(f"{GONE_TEXT} ({detail})")
+    return TransportError(
+        "The table could not be opened. Please quit i1Profiler if it is open and try again; "
+        f"if it still fails, send the log. Nothing was sent to the table. ({detail})")
+
+
+# ---- who holds the table: macOS's own record, read only ------------------------------
+
+#: The two IORegistry fields that name a process ("pid 123, name"). Nothing else from the
+#: registry is ever kept: the table's entry also holds its serial number.
+HOLDER_KEYS = ("UsbExclusiveOwner", "IOUserClientCreator")
+_HOLDER_RE = re.compile(r"pid (\d{1,7}), ([A-Za-z0-9 ._+-]{1,40})")
+
+
+def holders_from_plist(data: bytes, own_pid: "int | None" = None) -> "list[str]":
+    """Read ioreg's plist output (bytes) and return, for the table's entry (0971:2004) and
+    everything below it, the processes macOS names in :data:`HOLDER_KEYS`, as
+    "exclusive owner: name (pid N)" or "connected: name (pid N)". Only text matching
+    "pid N, name" is ever returned; every other field is dropped unread."""
+    import plistlib
+    if not data.strip():
+        return []
+    try:
+        roots = plistlib.loads(data)
+    except Exception:
+        return ["(macOS's list could not be read)"]
+    if isinstance(roots, dict):
+        roots = [roots]
+    found: "list[str]" = []
+
+    def collect(node) -> None:
+        for key in HOLDER_KEYS:
+            value = node.get(key)
+            if isinstance(value, str):
+                m = _HOLDER_RE.fullmatch(value.strip())
+                if m:
+                    pid, name = int(m.group(1)), m.group(2).strip()
+                    label = "exclusive owner" if key == "UsbExclusiveOwner" else "connected"
+                    who = "this program" if own_pid is not None and pid == own_pid else name
+                    entry = f"{label}: {who} (pid {pid})"
+                else:
+                    entry = f"{key}: (not in the expected form)"
+                if entry not in found:
+                    found.append(entry)
+        for child in node.get("IORegistryEntryChildren", []) or []:
+            if isinstance(child, dict):
+                collect(child)
+
+    def walk(node) -> None:
+        if not isinstance(node, dict):
+            return
+        if node.get("idVendor") == VID and node.get("idProduct") == PID:
+            collect(node)
+            return
+        for child in node.get("IORegistryEntryChildren", []) or []:
+            walk(child)
+
+    for root in roots:
+        walk(root)
+    return found[:12]
+
+
+def usb_holders() -> "list[str]":
+    """Ask macOS which processes hold the table (``ioreg``, read only: it opens no device,
+    sends nothing, and touches no process). [] when nothing is found or ioreg fails."""
+    import os
+    import subprocess
+    if sys.platform != "darwin":
+        return []
+    try:
+        out = subprocess.run(["/usr/sbin/ioreg", "-a", "-r", "-c", "IOUSBHostDevice", "-l"],
+                             capture_output=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return ["(macOS's list could not be read)"]
+    return holders_from_plist(out.stdout, own_pid=os.getpid())
 
 
 def check_descriptors(dev) -> None:
@@ -859,9 +1007,10 @@ def libusb_version(backend) -> str:
 
 NOT_A_MAC = ("This test program opens the real table only on a Mac (it was never tried "
              "anywhere else). On Windows, X-Rite's own driver owns the i1iO.")
-NO_PYUSB = ("The real table needs the Python package pyusb and the libusb library: see "
-            "'What to install' in the README, and start the program with venv/bin/python3 "
-            "as shown there.")
+NO_PYUSB = ("The real table needs the Python package pyusb and the libusb library. If you "
+            "have set them up as in 'What to install' in the README, start the program like "
+            "this, from its folder: venv/bin/python3 i1io_open.py --real (plain 'python3' "
+            "does not see the venv folder).")
 NO_LIBUSB = ("pyusb is installed but finds no libusb library. On a Mac: "
              "'HOMEBREW_NO_AUTO_UPDATE=1 brew install libusb'.")
 
@@ -903,7 +1052,7 @@ def open_table() -> FtdiUsb:
     if not found:
         raise NotAvailable("No i1iO table (USB 0971:2004) was found. Please check that its "
                            "power supply is switched on and that its USB cable goes straight "
-                           "into the computer.")
+                           "into the computer. Nothing was sent.")
     if len(found) > 1:
         raise NotAvailable(f"{len(found)} devices with the i1iO's USB id are connected. "
                            "Please connect only one table. Nothing was sent.")

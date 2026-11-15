@@ -1,4 +1,4 @@
-# ChromIQ i1iO test program 0.2.1 (open and close a started table like i1Profiler)
+# ChromIQ i1iO test program 0.2.2 (open and close a started table like i1Profiler)
 
 **This is an unofficial test program. It is not from X-Rite, and X-Rite has
 nothing to do with it.** Running it is entirely your choice, without any
@@ -15,19 +15,66 @@ it connects to a table that is already started, and when you quit it:
   exactly as i1Profiler did right before it closed the table in your
   recordings (the arm should barely move);
 * it **closes** the table with i1Profiler's own two closing lines;
-* it asks you to **feel gently whether the arm is held**, once before and once
-  after it lets go of the table's USB connection.
+* it asks you to **feel gently whether the arm is held** three times: once
+  before it opens anything, and once before and once after it lets go of the
+  table's USB connection.
 
-**What changed since 0.2.0.** On your table, version 0.2.0 opened the table and
-sent the arm home, then read the arm's position (X 1102, Y 19, which is its
-resting place) and stopped, because it expected a value between Y -3 and Y 8.
-That expectation came from too few readings and was wrong; your table did
-nothing wrong. This version checks the position before its one homing against
-everything any recording has ever read at the resting place (X 1097 to 1107,
-Y -5 to 50), and it reads no position after the homing, because i1Profiler
-never asks for the position right before it closes the table. Afterwards you found the arm **loose**, as when the table is switched
-off. We do not know yet why; the two touch questions at the end are there to
-find out when it happens.
+## What changed since 0.2.1
+
+Thank you for running 0.2.1 so carefully. Here is what we learned from your
+logs and what this version does differently.
+
+* **We got the range wrong a second time, and this time we changed how it is
+  made.** Version 0.2.1 opened your table fine and then stopped before the
+  homing, because the arm read X 1101, Y 55 (in tenths of a millimetre, so 5.5
+  mm from zero), and 0.2.1 only went on up to Y 50. Your table did nothing
+  wrong. The arm's reading at rest is not a fixed spot: it is about 0 right
+  after a homing and creeps away slowly the longer the arm stands (22 to 37
+  within minutes in the recordings, 41 to 55 after long waits). Both earlier
+  limits were taken from the largest reading we had seen so far, and both were
+  beaten later. **This version no longer guesses.** It sends the homing only
+  from the places i1Profiler itself was recorded sending it from (X 1102, Y 0
+  to 47), with one tenth of a millimetre around them: X 1101 to 1103, Y -1 to
+  48. That is stricter than before. If your arm reads anything else, the
+  program stops right there and moves nothing. That is a planned ending, not a
+  fault, and the program tells you so. The reason we do not simply allow more:
+  in one recording, with the arm further away, i1Profiler did not send this
+  homing at all but drove the arm out first, and nobody knows where its own
+  limit lies.
+* **Best chance of a complete run:** open i1Profiler, let it start the table,
+  quit it, and start this program straight away. In the recordings, in the
+  first three minutes after i1Profiler's own homing the arm read Y 22 to 37.
+  We cannot promise it, because nobody has measured how fast it creeps once
+  i1Profiler has quit.
+* **One extra touch, before anything is opened.** With 0.2.1 you found the arm
+  free at rest, both while the program still held the USB connection and
+  afterwards. At the same moment the table had answered the question we used to
+  read as "the motors hold the arm" with 00. So that answer does not mean what
+  we thought, and the program no longer says so. The new first touch, made
+  before the program opens anything (best right after you quit i1Profiler),
+  tells us whether a free arm is simply how i1Profiler leaves the table. The
+  program also asks roughly how many minutes ago you quit i1Profiler. No new
+  line is sent for any of this.
+* **A table that is in use by another program.** Twice the Mac did not let
+  0.2.1 open the table ("Access denied"). Nothing was sent then, and your table
+  was fine. That message comes from the Mac, not from the table: another
+  program was holding the table's USB connection. It was not i1Profiler as far
+  as 0.2.1 could see, and X-Rite Device Services was running also when it
+  worked, so we do not know which program it was. This version asks macOS which
+  program holds the table (it only reads macOS's list; it opens nothing and
+  touches no program), names it, and explains step by step what usually helps.
+* **After a stop, the table is not closed, and the program now says so.**
+  i1Profiler has only been recorded sending its two closing lines right after
+  its homing, so after any stop this program sends nothing at all. Ending
+  without them is the same as when i1Profiler is force-quit or its USB cable is
+  pulled. Three earlier runs on your table ended this way, and each time the
+  next opening worked normally.
+* **Smaller things:** a Ctrl-C or a closed Terminal window during the first
+  questions is now written into the log (your first run's log simply ended);
+  and if the program is started without pyusb, it shows the exact command to
+  use.
+
+The lines it sends and their order are the same as in 0.2.1.
 
 If the table **has just been switched on**, it needs a start-up first, which
 this version does **not** send: the program then stops after the opening's
@@ -146,10 +193,12 @@ through libusb, as the first test program did on your Mac.
 
 ## 3. Preparing the table
 
-1. **If the table has been switched on since you last used i1Profiler: open
-   i1Profiler once, wait until it shows the table, and quit it.** That starts
-   the table. (If you skip this, the program simply stops after reading and
-   tells you so; nothing moves.)
+1. **Open i1Profiler once, wait until it shows the table, and quit it.** That
+   starts the table if it was switched on, and it sends the arm to its resting
+   place. Then start this program within a minute or two (see "What changed
+   since 0.2.1" for why). (If the table was just switched on and you skip
+   this, the program simply stops after reading and tells you so; nothing
+   moves.)
 2. **Quit i1Profiler.** The program refuses to start while it runs. X-Rite's
    background helpers (i1ProfilerTray, X-Rite Device Services) can keep
    running; please do not try to stop them by hand.
@@ -172,17 +221,22 @@ venv/bin/python3 i1io_open.py --real
 It checks that pyusb and libusb are there, explains the risks, and asks five
 short questions (power within reach, instrument seated, table empty, arm at
 its resting place, i1Profiler connected and quit since the table was switched
-on). Then it asks you to type this sentence:
+on). Then, **before it opens anything**, it asks you for the first gentle touch
+(the same touch as described below) and roughly how many minutes ago you quit
+i1Profiler. Then it asks you to type this sentence:
 
 ```
 I understand that this moves my table
 ```
 
 Then it opens the table (nothing moves). Before the homing it stops, tells
-you exactly what will move, and asks `Send it now?`. Afterwards it asks you to
-look at the arm. If the arm is at its resting place, it closes the table.
+you exactly what will move, and asks `Send it now?`. Right after your yes it
+reads where the arm is: if that is not where i1Profiler itself sent the homing
+from (X 1101 to 1103, Y -1 to 48), it stops there and moves nothing (see above).
+Otherwise it sends the homing, and afterwards asks you to look at the arm. If
+the arm is at its resting place, it closes the table.
 
-Then it sends nothing more, and asks you twice to put one finger on the
+Then it sends nothing more, and asks you twice more to put one finger on the
 instrument holder and push it very gently towards the front of the table (the
 way the arm travels over the table), as if to move it by about a millimetre,
 then let go at once. Do not force it. Then you say whether the arm **holds**
@@ -201,6 +255,21 @@ place. Then open i1Profiler once, let it start the table as usual, and quit it.
 If you have a moment, touch the holder gently once more about ten minutes after
 the run and add a line to the log about what you felt.
 
+### If the table is in use by another program
+
+If the Mac does not let the program open the table, nothing is sent, and the
+program shows which program macOS says is holding it (if macOS says). What
+usually helps, one step at a time:
+
+1. If i1Profiler is open, quit it (i1Profiler menu, Quit i1Profiler).
+2. Wait a minute and start the program again.
+3. If the table is still in use: open i1Profiler, wait until it shows the
+   table, quit it, and start the program again straight away.
+4. If it is still in use after that, restarting the Mac frees it.
+
+Please do not try to stop X-Rite's background helpers by hand; the program
+never touches them either.
+
 ### How to stop
 
 * Keep your hands and everything else away from the arm while it moves.
@@ -212,6 +281,10 @@ the run and add a line to the log about what you felt.
   moment. Pulling the USB cable is not a way to stop a movement: the table has
   its own power supply. (What the table does when it is switched off in the
   middle of a movement, no recording shows.)
+
+If the program stops, it does not send i1Profiler's closing lines (they are
+recorded only right after the homing). That is the same as when i1Profiler is
+force-quit, and so far your table has always opened normally the next time.
 
 If the program stops and the arm is not at its resting place, it stays where
 it is. To bring it home, open i1Profiler once, let it connect to the table,
@@ -237,8 +310,8 @@ few words:
 * had the table been switched off and on before, and had i1Profiler been
   opened since;
 * what the arm did during the homing;
-* when you found the arm held or loose (the program asks twice; anything you
-  felt later is welcome too, with the time);
+* when you found the arm held or loose (the program asks three times;
+  anything you felt later is welcome too, with the time);
 * any sounds, and when;
 * anything unexpected at all.
 

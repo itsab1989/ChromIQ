@@ -69,7 +69,9 @@ def _memory_b() -> str:
 
 
 def _at_home(p) -> bool:
-    return abs(p[0] - 1102) <= 5 and -5 <= p[1] <= 50
+    """The simulator's own copy (not imported) of where i1Profiler sent i1 from at rest in the
+    recordings: X 1102, Y 0..47, plus one unit."""
+    return 1101 <= p[0] <= 1103 and -1 <= p[1] <= 48
 
 
 @dataclass
@@ -296,6 +298,14 @@ def tonights_table(**kw) -> SimTable:
     kept for the replay of 0.2.0)."""
     return SimTable(cold=False, pos=[1101.0, 46.0], home_y=19.0, home_s=0.352, jitter=False,
                     **kw)
+
+
+def todays_table(**kw) -> SimTable:
+    """The tester's real table as it answered version 0.2.1 on 15 Nov 2026 (run 5; his log, no
+    serial in it): started (a0 130000), every f4 answer 00, the arm at (1101, 55) right before
+    the homing. 0.2.1 stopped there (its box ended at Y 50); 0.2.2 stops there too, as planned
+    (i1Profiler sent the homing only from Y 0..47)."""
+    return SimTable(cold=False, pos=[1101.0, 55.0], jitter=False, **kw)
 
 
 class SimTransport:

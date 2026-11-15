@@ -1,4 +1,4 @@
-"""THE i1iO TESTER PROGRAM 0.2.1 SENDS ONLY THE ELEVEN RECORDED LINES OF BYTES.md,
+"""THE i1iO TESTER PROGRAM 0.2.2 SENDS ONLY THE ELEVEN RECORDED LINES OF BYTES.md,
 EVERY STRETCH OF UP TO TEN NEIGHBOURING LINES ONE i1Profiler ALSO SENT, MOVES ONLY BY
 ONE HOMING AT THE RESTING PLACE OF A STARTED TABLE, AND STOPS ON ANY DOUBT.
 
@@ -11,6 +11,10 @@ been switched on (a0 = 111800) it sends the six reading lines of the opening and
 nothing else. 0.2.1 follows the
 tester's real run of 0.2.0 (14 Nov 2026): the position check after the homing
 uses the whole recorded resting range, and no position is read before the close.
+0.2.2 follows the tester's 0.2.1 runs (15 Nov 2026): the homing is sent only from the
+places i1Profiler itself sent it from (X 1102, Y 0..47, one unit around them), a busy
+table is named and explained, the arm is touched once before anything is opened, and
+an early stop says that the table was not closed (the close is not recorded there).
 These tests hold its claims:
 
 * BYTES.md and the program's own list agree byte for byte; every write on every
@@ -198,7 +202,8 @@ def test_the_program_writes_only_in_one_place_and_through_the_gate():
 def test_standard_library_only_and_nothing_from_chromiq():
     allowed = {"__future__", "argparse", "datetime", "platform", "signal", "subprocess", "sys",
                "tempfile", "textwrap", "pathlib", "re", "time", "dataclasses", "math", "random",
-               "os", "ctypes", "termios", "fcntl", "usb", "i1io_open_table", "i1io_open_sim"}
+               "os", "ctypes", "termios", "fcntl", "usb", "i1io_open_table", "i1io_open_sim",
+               "plistlib"}
     for name in PROGRAM_FILES:
         tree = ast.parse(_source(name))
         for node in ast.walk(tree):
@@ -228,10 +233,30 @@ def test_the_timeouts_and_slow_limits_are_pinned():
     assert prog.RELEASE_WAIT_S == 10.0
 
 
-def test_the_resting_place_box_holds_every_recorded_rest_read_and_nothing_narrower():
-    assert tbl.HOME_CLUSTER == tbl.Box(1097, 1107, -5, 50)
-    assert all(tbl.HOME_CLUSTER.contains(p) for p in REST_READS)
+#: Where i1Profiler itself sent i1 from at rest (work folder homings.txt): first homings
+#: and the second homings of the double homings, all X 1102.
+DIRECT_STARTS = [(1102, 14), (1102, 22), (1102, 24), (1102, 24), (1102, 32), (1102, 36),
+                 (1102, 47), (1102, 0), (1102, 2), (1102, 2)]
+
+
+def test_the_homing_box_is_the_recorded_starts_of_i1profilers_homings_plus_one_unit():
+    """0.2.2: not a range of rest reads (they drift: 0.2.0's Y -3..8 failed at 19, 0.2.1's
+    Y -5..50 at 55) but the places i1Profiler sent i1 from at rest, one unit around them."""
+    assert tbl.HOME_CLUSTER == tbl.Box(1101, 1103, -1, 48)
+    assert sorted(tbl.RECORDED_DIRECT_STARTS) == sorted(DIRECT_STARTS)
+    xs = [x for x, _ in DIRECT_STARTS]
+    ys = [y for _, y in DIRECT_STARTS]
+    assert tbl.HOME_CLUSTER == tbl.Box(min(xs) - 1, max(xs) + 1, min(ys) - 1, max(ys) + 1)
     assert not hasattr(tbl, "HOMED")          # 0.2.0's Y -3..8 after the homing is withdrawn
+    # our own homings on his table started inside; the read that stopped 0.2.1 is outside
+    assert tbl.HOME_CLUSTER.contains((1102, 25)) and tbl.HOME_CLUSTER.contains((1101, 46))
+    assert not tbl.HOME_CLUSTER.contains((1101, 55))
+    # 0.2.1's wider margins are gone
+    for p in ((1097, 19), (1107, 19), (1102, 50), (1102, -5)):
+        assert not tbl.HOME_CLUSTER.contains(p), p
+    # the text shown before the go-ahead names the same box
+    assert "X 1101 to 1103, Y -1 to 48" in prog.HOMING_PLACES
+    assert "X 1101 to 1103, Y -1 to 48" in tbl.OUTSIDE_TEXT
 
 
 def test_every_window_of_up_to_ten_lines_of_the_run_was_sent_by_i1profiler(tmp_path):
@@ -358,12 +383,13 @@ def test_the_arm_moved_away_while_the_person_read_stops_before_i1(tmp_path):
 
 
 @pytest.mark.parametrize("x,y,ok", [
-    (1101, 46, True), (1102, 19, True), (1102, 50, True), (1102, -5, True), (1097, 19, True),
-    (1107, 19, True), (1097, -5, True), (1102, 51, False), (1102, -6, False), (1096, 19, False),
-    (1108, 19, False), (1096, 30, False), (1102, 300, False)])
+    (1101, 46, True), (1102, 19, True), (1102, 48, True), (1102, -1, True), (1101, 47, True),
+    (1103, 0, True), (1101, -1, True), (1103, 48, True), (1102, 49, False), (1102, -2, False),
+    (1100, 19, False), (1104, 19, False), (1101, 55, False), (1102, 50, False),
+    (1097, 19, False), (1102, 300, False)])
 def test_the_check_before_the_homing_at_its_edges(tmp_path, x, y, ok):
-    """The box on the p0 right before the one homing: every recorded rest read passes; one
-    unit outside, or an arm 3 cm out, stops with no homing sent."""
+    """The box on the p0 right before the one homing: every recorded i1Profiler start passes;
+    one unit beyond the box, his (1101, 55), or an arm 3 cm out, stops with no homing sent."""
     sim = sim_mod.SimTable(pos=[float(x), float(y)], jitter=False)
     code, sim, log = _run(tmp_path, sim)
     if ok:
@@ -1203,3 +1229,321 @@ def test_the_readme_names_every_line_and_says_what_matters():
         assert needed in " ".join(readme.split()), needed
     assert "—" not in readme
     assert not re.search(r"macOS 2\d|Python 3\.1\d", readme)
+
+
+# ---- 0.2.2: after the tester's 0.2.1 runs of 15 Nov 2026 -------------------------------------
+
+def test_todays_real_replies_stop_before_the_homing_as_planned(tmp_path):
+    """His table on 15 Nov 2026 (run 5): a0 130000, f4 00 x4, the arm at (1101, 55). 0.2.2
+    stops there as 0.2.1 did (13 lines, nothing moved, no close), but now says why it is a
+    planned ending, how to try again, that the table was not closed and why, and still asks
+    the two touch questions (nothing moved)."""
+    con = _Asked(sim_mod.todays_table())
+    code, sim, log = _run(tmp_path, con.sim, console=con)
+    assert code == 2 and sim.received == OPEN + FOLLOW + [";s022", ";p025"] and sim.motions == 0
+    flat = " ".join(log.split())
+    assert "right before the homing the arm reports (1101, 55)" in log
+    assert "X 1101, Y 55" in flat and "planned endings" in flat
+    for text in (prog.AGAIN_TEXT, prog.NOT_CLOSED):
+        assert " ".join(text.split()) in flat
+    assert "result 2; table warm; 13 lines sent, 0 movements; closed no" in log
+    assert len(_touches(con)) == 2
+
+
+@pytest.mark.parametrize("how", ["outside", "slow homing", "look no", "go-ahead no"])
+def test_a_warm_stop_says_the_table_was_not_closed_and_sends_no_close(tmp_path, how):
+    sim = sim_mod.SimTable()
+    script = {}
+    if how == "outside":
+        sim = sim_mod.SimTable(pos=[1102.0, 49.0], jitter=False)
+    elif how == "slow homing":
+        sim.inject_at(HOME_AT, "late", 1.0)
+    elif how == "look no":
+        script = {"Is the arm at": "no"}
+    else:
+        script = {"Send it now": "no"}
+    code, sim, log = _run(tmp_path, sim, console=prog.AutoConsole(lambda k, t: None,
+                                                                  script=script))
+    assert code in (1, 2) and ";f02f" not in sim.received and ";f32c" not in sim.received
+    assert " ".join(prog.NOT_CLOSED.split()) in " ".join(log.split()), how
+    assert (" ".join(prog.AGAIN_TEXT.split()) in " ".join(log.split())) == (how == "outside")
+
+
+def test_no_not_closed_text_after_a_complete_run_or_on_a_cold_table(tmp_path):
+    for sim in (sim_mod.SimTable(), sim_mod.SimTable(cold=True)):
+        code, sim, log = _run(tmp_path, sim)
+        assert " ".join(prog.NOT_CLOSED.split()) not in " ".join(log.split())
+
+
+def test_the_go_ahead_says_the_position_check_may_stop_the_run(tmp_path):
+    code, sim, log = _run(tmp_path, sim_mod.SimTable())
+    flat = " ".join(log.split())
+    go = flat.index("Send it now?")
+    assert flat.index(prog.HOMING_PLACES) < go
+    assert flat.index("may well stop the run") < go
+
+
+def test_f4_is_no_longer_called_a_motor_reading():
+    for name in PROGRAM_FILES + ("README.md", "BYTES.md"):
+        text = " ".join(_source(name).split())
+        assert "its motors hold the arm (f4 = 00)" not in text, name
+        assert "do the motors hold the arm? (must be 00)" not in text, name
+    assert not hasattr(tbl, "ARM_HELD") and tbl.F4_RECORDED == "00"
+    assert "does not tell whether the motors hold the arm" in prog.MEANING["arm_mode"]
+
+
+# -- the touch before anything is opened, and the real path with a fake table --------------
+
+class _TTY:
+    def isatty(self):
+        return True
+
+    def fileno(self):
+        raise OSError
+
+
+def _real(tmp_path, monkeypatch, open_table, con=None, events=None):
+    """main(--real) with every outside thing replaced: no USB, no pgrep, no ioreg, no sleep."""
+    events = [] if events is None else events
+    monkeypatch.setattr(sys, "stdin", _TTY())
+    monkeypatch.setattr(tbl, "check_usb_available", lambda: "pyusb test; libusb test")
+    monkeypatch.setattr(prog, "i1profiler_running", lambda: False)
+    monkeypatch.setattr(prog, "xrite_helpers_running", lambda: ["xrdd"])
+    monkeypatch.setattr(tbl, "usb_holders", lambda: events.append("ioreg") or
+                        ["connected: xrdd (pid 321)", "exclusive owner: SomeApp (pid 654)"])
+    monkeypatch.setattr(tbl, "open_table", lambda: events.append("open") or open_table())
+    monkeypatch.setattr(prog.time, "sleep", lambda s: None)
+    monkeypatch.setattr(prog.Lock, "acquire", lambda self: True)
+
+    class C(prog.AutoConsole):
+        def ask(self, question, choices=("yes", "no")):
+            events.append(("ask", question))
+            return super().ask(question, choices)
+
+        def text(self, question):
+            events.append(("text", question))
+            return super().text(question)
+    con = con or C(lambda k, t: None)
+    log = tmp_path / "real.txt"
+    code = prog.main(["--real", "--log", str(log)], console=con)
+    return code, log.read_text(encoding="utf-8"), events
+
+
+def _fake_ftdi(monkeypatch, cold=False, pos=None):
+    monkeypatch.setattr(tbl.time, "sleep", lambda s: None)
+    dev = FakeDev(cold=cold)
+    if pos is not None:
+        dev.sim.pos = list(pos)
+        dev.sim.jitter = False
+    holder = {}
+
+    def opener():
+        util, t = _ftdi(dev)
+        holder["util"] = util
+        return t
+    return dev, opener, holder
+
+
+def test_the_first_touch_comes_before_anything_is_opened(tmp_path, monkeypatch):
+    dev, opener, holder = _fake_ftdi(monkeypatch)
+    code, log, events = _real(tmp_path, monkeypatch, opener)
+    assert code == 0 and dev.sim.received == WARM
+    touches = [i for i, e in enumerate(events) if e == ("ask", prog.ASK_TOUCH)]
+    assert len(touches) == 3
+    opened = events.index("open")
+    assert touches[0] < opened < touches[1] < touches[2]
+    assert events[touches[0] + 1] == ("text", prog.ASK_MINUTES)
+    # nothing at all reached the table before the open: the fake device saw nothing earlier
+    assert "('arm held? (before the program opened anything)', 'holds')" in log
+    assert "('minutes since i1Profiler was quit', '')" in log
+    assert "macOS lists for the table before opening" in log
+    assert ("release", 0) in holder["util"].calls
+
+
+def test_a_stop_at_the_first_touch_opens_nothing(tmp_path, monkeypatch):
+    dev, opener, _ = _fake_ftdi(monkeypatch)
+    con = prog.AutoConsole(lambda k, t: None, interrupt_at=6)    # 5 questions, then the touch
+    code, log, events = _real(tmp_path, monkeypatch, opener, con=con)
+    assert code == 1 and "open" not in events and dev.sim.received == []
+    assert "stopped with Ctrl-C (or the Terminal window was closed) before the table was " \
+           "opened; nothing was sent" in log
+
+
+def test_ctrl_c_at_a_start_question_is_written_to_the_log(tmp_path, monkeypatch):
+    """The tester's first run of 0.2.1 ended at a start question with nothing in its log."""
+    dev, opener, _ = _fake_ftdi(monkeypatch)
+    for at in (1, 5):
+        con = prog.AutoConsole(lambda k, t: None, interrupt_at=at)
+        code, log, events = _real(tmp_path, monkeypatch, opener, con=con)
+        assert code == 1 and "open" not in events
+        assert "stopped with Ctrl-C" in log and "nothing was sent" in log
+
+
+def test_a_closed_window_before_the_table_is_opened_is_logged(tmp_path, monkeypatch):
+    dev, opener, _ = _fake_ftdi(monkeypatch)
+
+    class Hup(prog.AutoConsole):
+        def ask(self, question, choices=("yes", "no")):
+            if "power switch" in question:
+                signal.raise_signal(signal.SIGHUP)
+            return super().ask(question, choices)
+    before = signal.getsignal(signal.SIGHUP)
+    code, log, events = _real(tmp_path, monkeypatch, opener, con=Hup(lambda k, t: None))
+    assert code == 1 and "open" not in events and "stopped with Ctrl-C" in log
+    assert signal.getsignal(signal.SIGHUP) == before
+
+
+def test_todays_table_on_the_real_path_with_all_three_touches(tmp_path, monkeypatch):
+    dev, opener, holder = _fake_ftdi(monkeypatch, pos=(1101.0, 55.0))
+    code, log, events = _real(tmp_path, monkeypatch, opener)
+    assert code == 2 and dev.sim.received == OPEN + FOLLOW + [";s022", ";p025"]
+    assert len([e for e in events if e == ("ask", prog.ASK_TOUCH)]) == 3
+    assert "13 lines sent, 0 movements; closed no" in log
+    assert ("release", 0) in holder["util"].calls
+
+
+# -- a busy or missing table ----------------------------------------------------------------
+
+class BusyUtil(FakeUtil):
+    def __init__(self, code=-3, errno=13):
+        super().__init__()
+        self.code, self.errno = code, errno
+
+    def claim_interface(self, dev, n):
+        exc = USBError("Access denied (insufficient permissions)", self.errno)
+        exc.backend_error_code = self.code
+        raise exc
+
+
+@pytest.mark.parametrize("code,errno,kind", [(-3, 13, "busy"), (-6, 16, "busy"),
+                                             (None, 13, "busy"), (-4, 19, "gone"),
+                                             (-1, 5, "other"), (None, None, "other")])
+def test_an_open_that_macos_refuses_is_classified(monkeypatch, code, errno, kind):
+    dev = FakeDev()
+    t = tbl.FtdiUsb(dev, FakeCore, BusyUtil(code, errno))
+    with pytest.raises(tbl.TransportError) as info:
+        t.setup()
+    exc = info.value
+    assert isinstance(exc, tbl.TableBusy) == (kind == "busy")
+    assert "claim_interface failed" in str(exc)
+    if kind == "busy":
+        assert exc.step == "claim_interface" and str(exc).startswith(tbl.BUSY_TEXT)
+    elif kind == "gone":
+        assert str(exc).startswith(tbl.GONE_TEXT)
+    assert "Nothing was sent" in str(exc)
+    assert dev.ctrl == [] and dev.sim.received == []      # not even the FTDI set-up
+
+
+def test_a_busy_table_is_named_and_explained_without_touching_any_process(tmp_path, monkeypatch):
+    def opener():
+        t = tbl.FtdiUsb(FakeDev(), FakeCore, BusyUtil())
+        t.setup()
+    code, log, events = _real(tmp_path, monkeypatch, opener)
+    assert code == 2
+    assert events.count("ioreg") == 2          # before opening, and after the refusal
+    flat = " ".join(log.split())
+    assert tbl.BUSY_TEXT in flat and " ".join(tbl.BUSY_STEPS.split()) in flat
+    assert "macOS names: exclusive owner: SomeApp (pid 654)." in flat
+    assert "opening refused by macOS at claim_interface (libusb -3)" in log
+    assert "lines sent" not in log.split("INFO   opening refused")[1]
+    for text in (tbl.BUSY_TEXT, tbl.BUSY_STEPS, prog.I1PROFILER_RUNNING):
+        for bad in ("kill", "pkill", "killall", "launchctl", "Activity Monitor", "Force Quit",
+                    "sudo"):
+            assert bad.lower() not in text.lower(), bad
+    assert "never touches them" in tbl.BUSY_STEPS
+
+
+def test_the_program_runs_no_other_command_than_pgrep_and_ioreg():
+    """The only outside programs: pgrep (looking for i1Profiler by name) and ioreg (macOS's
+    list of who holds the table), both read only. Nothing that signals or ends a process."""
+    for name in PROGRAM_FILES:
+        src = _source(name)
+        for bad in ("os.kill", "signal.pthread_kill", "killpg", "pkill", "killall",
+                    "launchctl", "os.system", "Popen("):
+            assert bad not in src, (name, bad)
+    runs = re.findall(r"subprocess\.run\(\s*(\[[^\]]*\])", _source("i1io_open.py")
+                      + _source("i1io_open_table.py"))
+    assert runs == ['["pgrep", *args]',
+                    '["/usr/sbin/ioreg", "-a", "-r", "-c", "IOUSBHostDevice", "-l"]']
+
+
+def test_usb_holders_runs_ioreg_read_only_with_a_time_limit(monkeypatch):
+    seen = {}
+
+    class R:
+        stdout = b""
+
+    def fake_run(args, **kw):
+        seen["args"], seen["kw"] = args, kw
+        return R()
+    monkeypatch.setattr(tbl.sys, "platform", "darwin")
+    import subprocess as sp
+    monkeypatch.setattr(sp, "run", fake_run)
+    assert tbl.usb_holders() == []
+    assert seen["args"] == ["/usr/sbin/ioreg", "-a", "-r", "-c", "IOUSBHostDevice", "-l"]
+    assert seen["kw"]["timeout"] == 5
+
+    def boom(args, **kw):
+        raise sp.TimeoutExpired(args, 5)
+    monkeypatch.setattr(sp, "run", boom)
+    assert tbl.usb_holders() == ["(macOS's list could not be read)"]
+
+
+def _plist(table_extra=None):
+    import plistlib
+    uc_ours = {"IOObjectClass": "IOUSBHostDeviceUserClient", "IOUserClientCreator": "pid 77, Python"}
+    uc_xrdd = {"IOObjectClass": "IOUSBHostInterfaceUserClient",
+               "IOUserClientCreator": "pid 321, xrdd"}
+    intf = {"IOObjectClass": "IOUSBHostInterface", "UsbExclusiveOwner": "pid 654, SomeApp",
+            "IORegistryEntryChildren": [uc_xrdd]}
+    table = {"IOObjectClass": "IOUSBHostDevice", "idVendor": 0x0971, "idProduct": 0x2004,
+             "USB Serial Number": sim_mod.FAKE_SERIAL, "kUSBSerialNumberString":
+             sim_mod.FAKE_SERIAL, "IORegistryEntryChildren": [intf, uc_ours]}
+    table.update(table_extra or {})
+    i1pro = {"IOObjectClass": "IOUSBHostDevice", "idVendor": 0x0971, "idProduct": 0x2000,
+             "USB Serial Number": "OTHERSERIAL", "UsbExclusiveOwner": "pid 999, NotTheTable"}
+    hub = {"IOObjectClass": "IOUSBHostDevice", "idVendor": 0x0451, "idProduct": 0x2046,
+           "UsbExclusiveOwner": "pid 998, HubThing", "IORegistryEntryChildren": [table, i1pro]}
+    other = {"IOObjectClass": "IOUSBHostDevice", "idVendor": 0x05AC, "idProduct": 0x1234,
+             "IOUserClientCreator": "pid 1, launchd"}
+    return plistlib.dumps([hub, other])
+
+
+def test_holders_are_read_from_the_tables_own_entry_only_and_never_its_serial():
+    got = tbl.holders_from_plist(_plist(), own_pid=77)
+    assert got == ["exclusive owner: SomeApp (pid 654)", "connected: xrdd (pid 321)",
+                   "connected: this program (pid 77)"]
+    text = " ".join(got)
+    for secret in (sim_mod.FAKE_SERIAL, "OTHERSERIAL", "NotTheTable", "HubThing", "launchd"):
+        assert secret not in text
+    # a value not of the form "pid N, name" is never copied
+    odd = tbl.holders_from_plist(_plist({"UsbExclusiveOwner": "serial " + sim_mod.FAKE_SERIAL}))
+    assert sim_mod.FAKE_SERIAL not in " ".join(odd)
+    assert "UsbExclusiveOwner: (not in the expected form)" in odd
+    assert tbl.holders_from_plist(b"") == []
+    assert tbl.holders_from_plist(b"not a plist") == ["(macOS's list could not be read)"]
+
+
+def test_the_holders_reach_the_log_without_the_serial(tmp_path, monkeypatch):
+    monkeypatch.setattr(tbl, "usb_holders", lambda: tbl.holders_from_plist(_plist()))
+
+    def opener():
+        t = tbl.FtdiUsb(FakeDev(), FakeCore, BusyUtil())
+        t.setup()
+    events = []
+    monkeypatch.setattr(sys, "stdin", _TTY())
+    monkeypatch.setattr(tbl, "check_usb_available", lambda: "pyusb test; libusb test")
+    monkeypatch.setattr(prog, "i1profiler_running", lambda: False)
+    monkeypatch.setattr(prog, "xrite_helpers_running", lambda: ["xrdd"])
+    monkeypatch.setattr(tbl, "open_table", opener)
+    monkeypatch.setattr(prog.Lock, "acquire", lambda self: True)
+    log = tmp_path / "busy.txt"
+    assert prog.main(["--real", "--log", str(log)],
+                     console=prog.AutoConsole(lambda k, t: None)) == 2
+    text = log.read_text(encoding="utf-8")
+    assert "exclusive owner: SomeApp (pid 654)" in text
+    assert sim_mod.FAKE_SERIAL not in text and "OTHERSERIAL" not in text
+
+
+def test_missing_pyusb_names_the_exact_command():
+    assert "venv/bin/python3 i1io_open.py --real" in tbl.NO_PYUSB
