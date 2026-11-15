@@ -325,3 +325,4 @@ def test_that_window_offers_cancel_only_and_starts_nothing(tab, monkeypatch,
     assert "X-Rite DTP20" in seen["text"]
     assert tab._session_highres is None
     assert M.M_RESUME_RESOLUTION_INSTRUMENT.id in M.PROPOSED
+

@@ -355,7 +355,8 @@ def test_a_refused_strip_keeps_why_it_was_refused(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# 4.3.37: the ruler and the filing disagree about the direction (i1Pro 3)
+# 4.3.37: the ruler and the filing disagree about the direction
+# (the i1Pro 3; since 4.3.38 the i1Pro 2 as well)
 # ---------------------------------------------------------------------------
 def _strip(rs, name, sign, reversed_=False, gen="i1pro3"):
     rs.on_strip(_rec(name, 300, gen=gen, sign=sign))
@@ -406,11 +407,22 @@ def test_no_majority_no_question(tmp_path):
     assert not _strip(rs, "E", -1, reversed_=True)["ask_direction"]
 
 
-def test_the_i1pro2_is_never_asked_about_the_direction(tmp_path):
+def test_the_i1pro2_is_asked_about_the_direction_too(tmp_path):
+    """4.3.38: the question uses only the sign of the net count and the
+    session's majority, never a step size, so it holds for the i1Pro 2 as it
+    does for the i1Pro 3 (4.3.37 asked the i1Pro 3 only)."""
     rs, _ = _session(tmp_path, gen="i1pro2")
     for s in "ABCD":
+        assert not _strip(rs, s, -1, gen="i1pro2")["ask_direction"]
+    summ = _strip(rs, "E", -1, reversed_=True, gen="i1pro2")
+    assert summ["ask_direction"] and not summ["ask"]
+
+
+def test_an_i1pro2_strip_scanned_the_other_way_and_filed_so_is_not_asked(tmp_path):
+    rs, _ = _session(tmp_path, gen="i1pro2")
+    for s in "ABC":
         _strip(rs, s, -1, gen="i1pro2")
-    assert not _strip(rs, "E", -1, reversed_=True, gen="i1pro2")["ask_direction"]
+    assert not _strip(rs, "D", +1, reversed_=True, gen="i1pro2")["ask_direction"]
 
 
 def test_the_direction_message_is_proposed():
@@ -418,6 +430,9 @@ def test_the_direction_message_is_proposed():
     m = M.CATALOGUE["M-STRIP-RULER-DIRECTION"]
     assert m.id in M.PROPOSED
     title, body = m.render(strip="9")
-    assert "saved back to front" in title and "Re-read Strip" in body
+    # 4.3.38 review (minor 1): neutral, true whichever of the two is wrong
+    assert "the ruler and the saved readings disagree" in title
+    assert "One of the two is wrong, and ChromIQ cannot tell which." in body
+    assert "saved back to front" in body and "Re-read Strip" in body
     assert "ChromIQ never changes a reading by itself" in body
     assert "—" not in title + body
