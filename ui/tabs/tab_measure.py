@@ -8220,7 +8220,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                              if m == before), None)
         box_cb = (self._resume_cb if self._current_mode() == "guided"
                   else self._m_resume_cb)
-        title, body = M.M_RESUME_CONDITION.render(
+        from workflow.measurement_condition import (
+            CONDITION_SOURCE_KEYWORD, SOURCE_INSTRUMENT_DEFAULT,
+            read_header_keyword)
+        _src = (read_header_keyword(ti3, CONDITION_SOURCE_KEYWORD) or "").upper()
+        _msg = (M.M_RESUME_CONDITION_DEFAULT
+                if _src == SOURCE_INSTRUMENT_DEFAULT else M.M_RESUME_CONDITION)
+        title, body = _msg.render(
             before=condition_name(before),
             now=M.resume_condition_now(
                 self._filter_label(code) if code else None, now),

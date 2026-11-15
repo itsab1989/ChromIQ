@@ -9081,6 +9081,30 @@ M_RESUME_CONDITION = _m(
     "run's old folder, not deleted.\n\n"
     "Nothing has been measured or changed.",
     approved=False)
+#: R4 review (4.3.39): the same refusal for a measurement whose condition
+#: ChromIQ recorded from the instrument's NORMAL mode (-F was off when it was
+#: started, MEASUREMENT_CONDITION_SOURCE "INSTRUMENT_DEFAULT"): the plain way
+#: to continue it is to switch -F off again, not to set it to M0.
+M_RESUME_CONDITION_DEFAULT = _m(
+    "M-RESUME-CONDITION-DEFAULT",
+    "This measurement cannot be continued with this setting",
+    "The measurement you are continuing was started with “Spectral filter "
+    "type (-F)” switched off, so the instrument measured in its normal mode, "
+    "{before}. The Measure tab is now set to another measurement condition.\n\n"
+    "The measurement so far: {before}\n"
+    "The Measure tab now: {now}\n\n"
+    "The measurement condition is the light the instrument shines on the "
+    "paper. Optical brighteners in the paper read differently under each "
+    "one, so new readings taken now would not belong with the ones already "
+    "there.\n\n"
+    "To continue this measurement, switch “Spectral filter type (-F)” off "
+    "again (the option is in Manual mode), as it was when the measurement "
+    "was started, then press Start again. Or untick “{box}” to measure the "
+    "whole chart again under the new setting: your current measurement is "
+    "then moved to the run's old folder, not deleted.\n\n"
+    "Nothing has been measured or changed.",
+    approved=False)
+
 #: {now} when the row is off, and when it names a filter that is no
 #: measurement condition (D65); and the log line when the measurement so
 #: far records nothing (S-A1: allowed, and nothing is recorded at the end).
@@ -10560,6 +10584,7 @@ M_STRIP_RULER_NOT_COVERED = _m(
 
 
 CATALOGUE = {m.id: m for m in (
+    M_RESUME_CONDITION_DEFAULT,
     M_CHART_NEIGHBOURS_MOVED,
     M_CHART_NEIGHBOURS_LEFT,
     M_CHART_PATCHES_SHORT,

@@ -249,3 +249,26 @@ def test_a_filter_event_before_any_session_breaks_nothing(qapp):
         del m._ruler
     _feed(m, {"event": "filter", "filter": "none"})
     assert m.engine_filter == "none"
+
+
+def test_the_refusal_for_a_normal_mode_file_says_switch_minus_f_off(tmp_path):
+    """Review of 4.3.39: M-RESUME-CONDITION told the person to switch -F ON
+    and choose M0; for a file started with -F off the plain answer is to
+    switch it off again (M-RESUME-CONDITION-DEFAULT)."""
+    from test_4323_review_r2a import _resume_tab
+    from ui.tabs.tab_measure import TabMeasure
+    from workflow.measurement_condition import SOURCE_INSTRUMENT_DEFAULT
+    ti3 = _ti3(tmp_path / "chart.ti3")
+    record_condition(ti3, "M0", SOURCE_INSTRUMENT_DEFAULT)
+    t = _resume_tab(ti3, "5")
+    assert TabMeasure._blocked_by_a_differing_condition(t) is True
+    (title, body), = t.shown
+    assert "switched off" in body and "off again" in body
+    assert "switch “Spectral filter type (-F)” on" not in body
+    # an explicit -F n file keeps the old advice
+    e = _ti3(tmp_path / "e.ti3")
+    record_condition(e, "M0")
+    t2 = _resume_tab(e, "5")
+    assert TabMeasure._blocked_by_a_differing_condition(t2) is True
+    (_t2, body2), = t2.shown
+    assert "switch “Spectral filter type (-F)” on" in body2
