@@ -9534,6 +9534,42 @@ M_CHART_PATCHES_SHORT = _m(
     "paper.",
     approved=False)
 
+#: The same for ChromIQ's own ColorMunki "Extra-high density" mode, which
+#: lays patches out shorter than ArgyllCMS's usual 14 mm on purpose (its help
+#: says to watch this warning): no blame, what the mode is for, what helps.
+M_CHART_PATCHES_SHORT_EXTRA = _m(
+    "M-CHART-PATCHES-SHORT-EXTRA",
+    "Extra-high density: patches shorter than ArgyllCMS's usual length",
+    "This chart uses the ColorMunki's “Extra-high density”, a ChromIQ "
+    "extension that fits more patches on a sheet. Its patches are {patch} mm "
+    "long in the direction you move the instrument, shorter than the {min} mm "
+    "ArgyllCMS uses for the {instrument}. Many sheets read well like this, "
+    "but strips may be refused more often (for example with “Too many "
+    "patches” or “Reading is inconsistent”), especially where a very dark "
+    "patch follows a very light one. If that happens, choose “High density "
+    "(rig)” or “Hand-held”, or a larger patch size, for your next chart.",
+    approved=False)
+
+#: The one line on the surface of the "Measured from Preview" frame (the full
+#: note is in the frame's ⓘ and in the Create Chart log).
+M_CHART_PATCHES_SHORT_PANEL = _m(
+    "M-CHART-PATCHES-SHORT-PANEL",
+    "Patches shorter than ArgyllCMS recommends",
+    "Patches {patch} mm long along the strip; ArgyllCMS uses at least {min} "
+    "mm for the {instrument}, so strips may be refused more often. More in "
+    "the Create Chart log.",
+    approved=False)
+
+M_MEASURE_PATCHES_SHORT_EXTRA = _m(
+    "M-MEASURE-PATCHES-SHORT-EXTRA",
+    "Extra-high density: patches shorter than ArgyllCMS's usual length",
+    "Note: this chart uses the ColorMunki's “Extra-high density”, with "
+    "patches {patch} mm long along the strip, shorter than the {min} mm "
+    "ArgyllCMS uses. Strips may be refused more often. If a strip keeps "
+    "being refused, reading it patch by patch helps, and “High density "
+    "(rig)” or “Hand-held” avoid it on your next chart.",
+    approved=False)
+
 M_MEASURE_PATCHES_SHORT = _m(
     "M-MEASURE-PATCHES-SHORT",
     "Patches shorter than ArgyllCMS recommends",
@@ -10584,6 +10620,9 @@ M_STRIP_RULER_NOT_COVERED = _m(
 
 
 CATALOGUE = {m.id: m for m in (
+    M_CHART_PATCHES_SHORT_EXTRA,
+    M_CHART_PATCHES_SHORT_PANEL,
+    M_MEASURE_PATCHES_SHORT_EXTRA,
     M_RESUME_CONDITION_DEFAULT,
     M_CHART_NEIGHBOURS_MOVED,
     M_CHART_NEIGHBOURS_LEFT,

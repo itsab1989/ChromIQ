@@ -131,6 +131,9 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-CHART-NEIGHBOURS-MOVED", "M-CHART-NEIGHBOURS-LEFT",
     # 4.3.39 review (R4): resuming a normal-mode M0 file with -F set.
     "M-RESUME-CONDITION-DEFAULT",
+    # 4.3.39 review (R6): the Extra-high density words and the panel line.
+    "M-CHART-PATCHES-SHORT-EXTRA", "M-CHART-PATCHES-SHORT-PANEL",
+    "M-MEASURE-PATCHES-SHORT-EXTRA",
     # 4.3.36, 2026-11-14: the technical line under a communication failure
     # (which USB step failed), for a report.
     "M-STRIP-FAILED-COMS-DETAIL",

@@ -26,10 +26,13 @@ ARGYLL_SRC = Path("/Users/Basti/Downloads/Argyll_V3.5.0_orig/target/printtarg.c"
 def test_the_minimums_are_the_layout_engines_own_starting_lengths():
     from workflow.layout_engine import instruments
     for key, want in P.ARGYLL_MIN_PATCH_LENGTH_MM.items():
-        g = instruments.build(key) if hasattr(instruments, "build") else None
-        if g is None:
-            pytest.skip("instruments.build not available")
-        assert g.plen == pytest.approx(want), key
+        g = instruments.build(key)
+        if key == "p3":
+            # printtarg lays the i1Pro 3 Plus out at 20 mm; 16 mm is its
+            # absolute limit with the zebra ruler, the minimum judged here
+            assert g.plen == pytest.approx(20.0) and want == 16.0
+        else:
+            assert g.plen == pytest.approx(want), key
 
 
 @pytest.mark.skipif(not ARGYLL_SRC.exists(), reason="ArgyllCMS source not here")
@@ -45,7 +48,8 @@ def test_the_minimums_are_printtargs():
     ("i1", [9.99], False),               # one pixel of rounding at 300 dpi
     ("i1", [10.0, 12.0], False),
     ("i1", [9.85], True),
-    ("p3", [16.0], True),
+    ("p3", [15.0], True),
+    ("p3", [16.0], False),
     ("p3", [20.0], False),
     ("CM", [13.0], True),
     ("CM", [14.0], False),
@@ -110,3 +114,25 @@ def test_the_measure_log_says_it_once(qapp, tmp_path, monkeypatch):
     tab._say_short_patches()
     assert tab._log.toPlainText().count("Note: the patches of this chart") == 1
     tab.deleteLater()
+
+
+def test_extra_high_density_gets_its_own_words(tmp_path):
+    p = tmp_path / "x.channels.json"
+    p.write_text(json.dumps({"layout": {
+        "engine": "chromiq", "dpi": 300,
+        "recipe": {"instrument": "CM", "cm_density": 3},
+        "patches": [{"loc": "A1", "h": 153}]}}), encoding="utf-8")   # 12.95 mm
+    f = P.from_channels(p)
+    assert f is not None and f.extra_high
+    title, body = P.note_text(f)
+    assert "Extra-high density" in body and "High density (rig)" in body
+    assert "You can still" not in body                 # no blame
+    assert "Extra-high density" in P.log_line(f)
+
+
+def test_the_note_has_a_line_on_the_panels_surface(tmp_path):
+    f = P.from_channels(_channels(tmp_path, "i1", 94))
+    line = P.panel_line(f)
+    assert line.startswith("Patches 8 mm long along the strip") and "10 mm" in line
+    chart = (REPO / "ui/tabs/tab_chart.py").read_text(encoding="utf-8")
+    assert "overlaps = list(overlaps or []) + [_line]" in chart

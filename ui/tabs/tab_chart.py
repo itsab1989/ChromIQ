@@ -27458,6 +27458,11 @@ class TabChart(QWidget):
         _short = self._short_patch_note()
         if _short:
             warns = list(warns) + [_short]
+            # ...and one line on the frame's own surface (review of 4.3.39),
+            # where the overlap notices are read without a hover
+            _line = getattr(self, "_short_patch_panel_line", None)
+            if _line:
+                overlaps = list(overlaps or []) + [_line]
         panel.update_report(
             report, violations,
             thresholds_defined=bool(thresholds),
@@ -27475,6 +27480,7 @@ class TabChart(QWidget):
         ``.channels.json`` (the layout engine's own record of the instrument
         and the patch rectangles), or None. The Create Chart log says it
         once per chart."""
+        self._short_patch_panel_line = None
         ti2 = getattr(self, "_margin_ti2", None)
         if not ti2:
             return None
@@ -27486,6 +27492,7 @@ class TabChart(QWidget):
             if finding is None:
                 return None
             title, body = P.note_text(finding)
+            self._short_patch_panel_line = "⚠ " + P.panel_line(finding)
             said = getattr(self, "_short_patch_logged", None)
             if said != str(ti2):
                 self._short_patch_logged = str(ti2)
