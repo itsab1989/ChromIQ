@@ -8552,5 +8552,11 @@
  "there was not enough memory": "nicht genug Arbeitsspeicher da war",
  "they are kept only when strips or single patches are measured by hand": "sie nur behalten werden, wenn Streifen oder einzelne Felder von Hand gemessen werden",
  "they could not be saved": "sie nicht gespeichert werden konnten",
- "this measurement was started without them, or changed since, so the readings already made have no M0, M1 and M2 to continue": "diese Messung ohne sie begonnen oder seitdem geändert wurde, sodass die schon gemachten Messwerte kein M0, M1 und M2 haben, an das angeknüpft werden kann"
+ "this measurement was started without them, or changed since, so the readings already made have no M0, M1 and M2 to continue": "diese Messung ohne sie begonnen oder seitdem geändert wurde, sodass die schon gemachten Messwerte kein M0, M1 und M2 haben, an das angeknüpft werden kann",
+ "Build the profile from the {condition} readings of this measurement.": "Das Profil aus den {condition}-Messwerten dieser Messung erstellen.",
+ "M0, M1 and M2 from one scan (beta): this profile was built from the {condition} readings of this measurement, so it is checked against those.": "M0, M1 und M2 aus einem Scan (Beta): Dieses Profil wurde aus den Messwerten dieser Messung in {condition} erstellt, deshalb wird es gegen diese geprüft.",
+ "This measurement has no {condition} readings. {reason} Choose another condition under “Build from” to build the profile.": "Diese Messung hat keine {condition}-Messwerte. {reason} Wähle unter „Erstellen aus“ eine andere Messbedingung, um das Profil zu erstellen.",
+ "Which of the three measurement conditions the profile is made from. The first one is the condition the measurement was made in.": "Aus welcher der drei Messbedingungen das Profil erstellt wird. Die erste ist die Messbedingung, in der die Messung gemacht wurde.",
+ "{condition}, as measured": "{condition}, wie gemessen",
+ "Build from:": "Erstellen aus:"
 }
