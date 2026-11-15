@@ -77,6 +77,19 @@ correction that it must be **all** of them, not a selection.
 | the instrument and paper **defaults** in Preferences | the seed for a new target, not the target's own value |
 
 
+#### ⏳ Awaiting confirmation: M0, M1 and M2 from one scan is global; "Build from" is the run's own (2026-11-15)
+
+**Confirmed by:** *nobody yet.*
+
+Preferences ▸ Beta ▸ "X-Rite i1Pro 3: keep M0, M1 and M2 from every scan"
+(`i1pro3_conditions_beta`, off by default) describes your equipment, like the
+ruler check, so it is global and read at every Start. Build Profile's "Build
+from" describes the measurement, so it is the run's own:
+`meta.profile_settings["build_from_condition"]` ("" = as measured), written
+only while the option is on and carried back unchanged while it is off, so no
+target's `meta.json` changes because the option exists. It is not part of a
+preset and not of Save as Defaults (open question to Basti).
+
 #### ⏳ Awaiting confirmation: the ruler check is global (2026-11-14)
 
 **Confirmed by:** *nobody yet.*
