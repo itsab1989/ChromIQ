@@ -82,6 +82,20 @@ RECORDED_STRETCHES = {
         (268.621, ";s022"), (268.637, ";p025"), (268.653, ";i12b"), (268.909, ";s022"),
         (361.579, ";s022"), (361.594, ";f02f"), (361.611, ";f32c")],
 }
+#: 0.2.3's second reading: the same R2 stretch on past the close into i1Profiler's
+#: re-opening (FTDI set-up at 378.128), up to its position read; the i1 at 378.632 that
+#: followed there is not sent.
+REREAD = [";a133", ";a133", ";k228", ";u8000060000100d1", ";u8000061000068c3", ";a034",
+          ";s022", ";f42b", ";f42b", ";f42b", ";f42b", ";s022", ";p025"]
+REREAD_STRETCH = {
+    "R2 268.621-378.617 (homing, pause, close, re-opening up to p0)": [
+        (268.621, ";s022"), (268.637, ";p025"), (268.653, ";i12b"), (268.909, ";s022"),
+        (361.579, ";s022"), (361.594, ";f02f"), (361.611, ";f32c"),
+        (378.147, ";a133"), (378.314, ";a133"), (378.331, ";k228"),
+        (378.347, ";u8000060000100d1"), (378.453, ";u8000061000068c3"), (378.505, ";a034"),
+        (378.530, ";s022"), (378.539, ";f42b"), (378.553, ";f42b"), (378.574, ";f42b"),
+        (378.585, ";f42b"), (378.602, ";s022"), (378.617, ";p025")],
+}
 
 
 def _recorded_window(window):
@@ -358,6 +372,12 @@ def test_a_cold_table_gets_the_six_reading_lines_and_nothing_else(tmp_path):
     assert "open i1Profiler" in log and "Nothing was moved" in log
 
 
+def _drain_sim(t):
+    """Read until the simulated table has said everything and the arm is still."""
+    while t.table.next_time() is not None or t.table.moving:
+        t.read(1.0)
+
+
 @pytest.mark.parametrize("pos", [(1101.0, 55.0), (1102.0, 49.0), (1100.0, 20.0),
                                  (1104.0, 20.0), (1102.0, -2.0)])
 def test_the_simulator_refuses_a_homing_from_outside_the_recorded_starts(pos):
@@ -367,7 +387,7 @@ def test_the_simulator_refuses_a_homing_from_outside_the_recorded_starts(pos):
     t = sim_mod.SimTransport(sim)
     for line in OPEN + FOLLOW + [";s022", ";p025"]:
         t.write((line + "\r").encode())
-        t.read(1.0)
+        _drain_sim(t)
     with pytest.raises(sim_mod.SimViolation, match="only from the resting place"):
         t.write(b";i12b\r")
 
@@ -1627,3 +1647,240 @@ def test_i1profiler_is_checked_again_right_before_the_first_touch(tmp_path, monk
     assert prog.ASK_TOUCH not in events and "open" not in events
     assert len(calls) == 2 and calls[1] == len(prog.PRE_QUESTIONS)
     assert "refused before the first touch" in log.read_text(encoding="utf-8")
+
+
+
+# ---- 0.2.3: more answers from one run, nothing more risky ------------------------------------
+
+YES_LATER = {"Would you like to do this?": "yes"}
+
+
+def _later_run(tmp_path, sim=None, script=None, **kw):
+    sim = sim or sim_mod.SimTable()
+    con = _Asked(sim, script={**YES_LATER, **(script or {})}, **kw)
+    code, sim, log = _run(tmp_path, sim, console=con)
+    return code, sim, log, con
+
+
+def test_the_second_reading_is_the_recorded_reopening_and_nothing_more(tmp_path):
+    code, sim, log, con = _later_run(tmp_path)
+    assert code == 0 and sim.received == WARM + REREAD and len(sim.received) == 31
+    assert sim.motions == 1
+    assert sim.received[18:].count(";i12b") == 0
+    assert ";f02f" not in sim.received[18:] and ";f32c" not in sim.received[18:]
+    assert "second reading: 13 lines" in log and "in all 31 lines, 1 movements" in log
+    assert "second reading: the arm reports" in log
+    assert " ".join(prog.REREAD_NOT_CLOSED.split()) in " ".join(log.split())
+    assert len(_touches(con)) == 3                 # after close, after release, ten minutes later
+    assert "about ten minutes after the run, after the second reading" in log
+    assert len([ln for ln in log.splitlines()
+                if ln.startswith("INFO   the program has let go of the table's USB")]) == 2
+
+
+def test_every_window_of_up_to_eight_lines_of_the_longest_run_was_sent_by_i1profiler(tmp_path):
+    """The whole 31-line run: every window of 2..8 neighbouring lines occurs in the recorded
+    stretches. Windows of 9 or 10 lines that reach from the f4 block over the homing and the
+    close into the re-opening are not recorded (in R2 the homing before the close followed an
+    s0, not the f4 block), the work folder's ngram_audit_023.txt lists them."""
+    code, sim, _, _ = _later_run(tmp_path)
+    run = sim.received
+    stretches = {**RECORDED_STRETCHES, **REREAD_STRETCH}
+
+    def found(w):
+        for st in stretches.values():
+            ls = [x for _, x in st]
+            if any(ls[j:j + len(w)] == w for j in range(len(ls) - len(w) + 1)):
+                return True
+        return False
+    for n in range(2, 9):
+        for i in range(len(run) - n + 1):
+            assert found(run[i:i + n]), (n, i, run[i:i + n])
+    # the second part alone, with the close before it, is recorded as one piece
+    assert found(run[15:31])
+
+
+def test_the_second_reading_is_not_offered_without_a_complete_run(tmp_path):
+    for sim, script in ((sim_mod.todays_table(), {}), (sim_mod.SimTable(cold=True), {}),
+                        (sim_mod.SimTable(), {"Send it now": "no"}),
+                        (sim_mod.SimTable(), {"Is the arm at": "no"})):
+        code, sim, log, con = _later_run(tmp_path, sim, script={**script,
+                                                                 prog.ASK_TOUCH: "free"})
+        assert sim.received in (WARM[:13], OPEN, OPEN + FOLLOW, WARM[:15])
+        assert not any("Would you like to do this?" in q for q, _ in con.seen)
+        assert "second reading" not in log
+
+
+def test_after_an_incomplete_run_only_a_held_arm_gets_the_ten_minute_touch(tmp_path):
+    code, sim, log, con = _later_run(tmp_path, sim_mod.todays_table(),
+                                     script={prog.ASK_TOUCH: "holds"})
+    assert sim.received == WARM[:13] and len(_touches(con)) == 3
+    assert " ".join(prog.LATER_TOUCH.split()) in " ".join(log.split())
+    assert "second reading" not in log
+
+
+def test_the_offer_is_declined_unless_the_person_says_yes(tmp_path):
+    code, sim, log = _run(tmp_path, sim_mod.SimTable())
+    assert code == 0 and sim.received == WARM
+    assert "('ten more minutes', 'no')" in log
+    assert prog.LATER_WAIT_S == 600.0
+
+
+def test_a_read_only_table_refuses_every_moving_or_closing_line_before_the_wire():
+    for key in ("home", "f0", "f3"):
+        sim = sim_mod.SimTable()
+        t = sim_mod.SimTransport(sim)
+        d = tbl.Table(t, read_only=True)
+        with pytest.raises(tbl.Doubt):
+            d.exchange(key)
+        assert t.writes == [] and d.closed_reason
+    assert tbl.READ_ONLY_LINES == tbl.ALLOWED_LINES - {tbl.WIRE["home"], tbl.WIRE["f0"],
+                                                       tbl.WIRE["f3"]}
+
+
+def test_the_caps_hold_over_both_connections():
+    assert tbl.REREAD_MAX_LINES == len(REREAD) == 13
+    assert tbl.MAX_LINES_PROCESS == 31 and tbl.MAX_MOTIONS_PROCESS == 1
+    # a 14th line on the read-only table is refused
+    sim = sim_mod.SimTable()
+    d = tbl.Table(sim_mod.SimTransport(sim), read_only=True)
+    d.lines_sent = 13
+    with pytest.raises(tbl.Doubt):
+        d.exchange("status")
+    # the whole run: nothing beyond 31 lines, and no second movement on any connection
+    b = tbl.Budget(lines=31, motions=0)
+    d = tbl.Table(sim_mod.SimTransport(sim_mod.SimTable()), budget=b)
+    with pytest.raises(tbl.Doubt):
+        d.exchange("identity")
+    b = tbl.Budget(lines=10, motions=1)
+    d = tbl.Table(sim_mod.SimTransport(sim_mod.SimTable()), budget=b)
+    n = len(d.t.writes)
+    with pytest.raises(tbl.Doubt):
+        d.exchange("home")
+    assert len(d.t.writes) == n
+
+
+def test_reread_is_only_for_a_read_only_table():
+    d = tbl.Table(sim_mod.SimTransport(sim_mod.SimTable()))
+    with pytest.raises(tbl.Doubt):
+        d.reread()
+    assert d.t.writes == []
+
+
+def test_the_simulator_refuses_a_homing_or_close_in_the_second_reading():
+    for extra in (";i12b", ";f02f"):
+        sim = sim_mod.SimTable()
+        t = sim_mod.SimTransport(sim)
+        for line in WARM + REREAD:
+            t.write((line + "\r").encode())
+            _drain_sim(t)
+        with pytest.raises(sim_mod.SimViolation):
+            t.write((extra + "\r").encode())
+
+
+def test_ctrl_c_during_the_second_reading_sends_nothing_more(tmp_path):
+    for at in range(19, 31):
+        sim = sim_mod.SimTable()
+
+        def hook(i, at=at):
+            if i == at:
+                signal.raise_signal(signal.SIGINT)
+        sim.on_command = hook
+        code, sim, log, con = _later_run(tmp_path, sim)
+        assert sim.received == (WARM + REREAD)[:at + 1], at
+        assert "stopped by you: no more questions" in log
+        assert len(_touches(con)) == 2                   # no touch after the stop
+
+
+def test_a_fault_in_the_second_reading_stops_it_with_nothing_more_sent(tmp_path):
+    for at, kind in ((19, "garbled"), (23, "a0_other"), (26, "free"), (30, "no_answer")):
+        sim = sim_mod.SimTable()
+        sim.inject_at(at, kind, 1.0)
+        code, sim, log, con = _later_run(tmp_path, sim)
+        assert sim.received == (WARM + REREAD)[:at + 1], (at, kind)
+        assert "in all " + str(at + 1) + " lines, 1 movements" in log
+
+
+def _real_later(tmp_path, monkeypatch, opener_second=None, running_at_second=False,
+                sleep=None):
+    dev, opener, holder = _fake_ftdi(monkeypatch)
+    calls = {"open": 0}
+    slept = []
+
+    def open_any():
+        calls["open"] += 1
+        if calls["open"] == 1:
+            return opener()
+        if opener_second is not None:
+            return opener_second()
+        util, t = _ftdi(dev)                      # the same simulated table, a new connection
+        return t
+    checks = []
+
+    def running():
+        checks.append(1)
+        return running_at_second and any(s >= 60 for s in slept)
+    monkeypatch.setattr(sys, "stdin", _TTY())
+    monkeypatch.setattr(tbl, "check_usb_available", lambda: "pyusb test; libusb test")
+    monkeypatch.setattr(prog, "i1profiler_running", running)
+    monkeypatch.setattr(prog, "xrite_helpers_running", lambda: ["xrdd"])
+    monkeypatch.setattr(tbl, "usb_holders", lambda: [])
+    monkeypatch.setattr(tbl, "open_table", open_any)
+    monkeypatch.setattr(prog.Lock, "acquire", lambda self: True)
+    monkeypatch.setattr(prog.time, "sleep", sleep or (lambda s: slept.append(s)))
+    log = tmp_path / "real-later.txt"
+    con = prog.AutoConsole(lambda k, t: None, script=dict(YES_LATER))
+    code = prog.main(["--real", "--log", str(log)], console=con)
+    return code, log.read_text(encoding="utf-8"), dev, slept, calls
+
+
+def test_the_real_path_waits_ten_minutes_and_reads_once_more(tmp_path, monkeypatch):
+    code, log, dev, slept, calls = _real_later(tmp_path, monkeypatch)
+    assert code == 0 and dev.sim.received == WARM + REREAD and calls["open"] == 2
+    assert sum(s for s in slept if s >= 60) == 600 and 10.0 in slept
+    assert "second opening: USB" in log and "in all 31 lines, 1 movements" in log
+
+
+def test_no_second_reading_while_i1profiler_runs_or_the_table_is_busy(tmp_path, monkeypatch):
+    code, log, dev, slept, calls = _real_later(tmp_path, monkeypatch, running_at_second=True)
+    assert dev.sim.received == WARM and calls["open"] == 1
+    assert "second reading is not made" in log
+
+    def busy():
+        t = tbl.FtdiUsb(FakeDev(), FakeCore, BusyUtil())
+        t.setup()
+    code, log, dev, slept, calls = _real_later(tmp_path, monkeypatch, opener_second=busy)
+    assert dev.sim.received == WARM and "could not be opened for the second reading" in log
+
+
+def test_ctrl_c_during_the_ten_minute_wait_sends_nothing_more(tmp_path, monkeypatch):
+    def sleep(s):
+        if s >= 60:
+            raise KeyboardInterrupt
+    code, log, dev, slept, calls = _real_later(tmp_path, monkeypatch, sleep=sleep)
+    assert dev.sim.received == WARM and calls["open"] == 1
+    assert "stopped with Ctrl-C during the wait" in log
+    assert "Did you hear anything unusual" not in log
+
+
+def test_the_new_questions_send_nothing_and_are_asked_where_they_belong(tmp_path, monkeypatch):
+    dev, opener, _ = _fake_ftdi(monkeypatch)
+    code, log, events = _real(tmp_path, monkeypatch, opener)
+    asked = [e[1] for e in events if isinstance(e, tuple)]
+    opened = events.index("open")
+    before = [e[1] for e in events[:opened] if isinstance(e, tuple)]
+    for q in (prog.ASK_TOUCH, prog.ASK_MINUTES, prog.ASK_MOVED, prog.ASK_LIGHTS):
+        assert q in before, q
+    assert prog.ASK_HEAD in asked and prog.ASK_COLD_START in asked
+    assert "('measuring opening during the homing', 'lifted')" in log
+    flat = " ".join(log.split())
+    assert flat.index(prog.WATCH_HEAD) < flat.index("Send it now?")
+    # every answer carries its time
+    for line in log.splitlines():
+        if line.startswith(("ASK ", "ANSWER")):
+            assert "[program time " in line and "s after the start]" in line, line
+
+
+def test_no_head_question_when_nothing_moved(tmp_path):
+    con = _Asked(sim_mod.todays_table())
+    code, sim, log = _run(tmp_path, con.sim, console=con)
+    assert sim.motions == 0 and prog.ASK_HEAD not in [q for q, _ in con.seen]

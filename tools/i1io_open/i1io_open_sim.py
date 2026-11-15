@@ -45,6 +45,9 @@ REC_FOLLOW = [";s022", ";f42b", ";f42b", ";f42b", ";f42b",
 #: A table just switched on gets the opening's six reading lines and nothing more.
 REC_COLD = list(REC_OPEN)
 REC_WARM = REC_OPEN + REC_FOLLOW
+#: Optionally, after the close: i1Profiler's re-opening up to its position read (R2 378.147-
+#: 378.617, after its close at 361.611), and nothing more (the i1 that followed is not sent).
+REC_REREAD = REC_OPEN + [";s022", ";f42b", ";f42b", ";f42b", ";f42b", ";s022", ";p025"]
 
 IDENTITY = "005D010702"
 K2 = "0B600000000013"
@@ -113,7 +116,7 @@ class SimTable:
         self.on_command = None
         self.received: "list[str]" = []
         self.motions = 0
-        self._expect = list(REC_COLD if self.cold else REC_WARM)
+        self._expect = list(REC_COLD if self.cold else REC_WARM + REC_REREAD)
 
     def inject(self, kind: str, cid: "str | None" = None, value: float = 0.0) -> None:
         if kind not in FAULT_KINDS:

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 the ChromIQ authors. Part of ChromIQ (https://github.com/itsab1989/ChromIQ).
-"""ChromIQ i1iO test program 0.2.2: open an X-Rite i1iO 2 table that is already
+"""ChromIQ i1iO test program 0.2.3: open an X-Rite i1iO 2 table that is already
 started, the way i1Profiler opens it, send the arm to its resting place where it
 already is (only from a place i1Profiler itself sent that line from), and close
 the table again. It never measures. It asks you to feel gently whether the arm is
@@ -75,6 +75,19 @@ TOUCH_BEFORE_INTRO = (
     "i1Profiler is not running). It answers the question we most want to know: is the arm "
     "held or free when i1Profiler has finished with the table? Touch it the same way as the "
     "program will ask you to at the end. If the arm moves a little, leave it where it is.")
+WATCH_HEAD = ("If you can, watch the round measuring opening on the white tile while the arm "
+              "moves: does it lift off the tile and come down again? You will be asked "
+              "afterwards.")
+ASK_HEAD = ("During the homing, did the measuring opening lift off the white tile and come down "
+            "again?")
+HEAD_CHOICES = ("lifted", "did not lift", "did not see")
+ASK_LIGHTS = ("Which lights are on right now, on the table and on the i1Pro 2? (a few words, "
+              "for example 'table power light green, i1Pro 2 dark'; press Enter to skip)")
+ASK_MOVED = ("Since you quit i1Profiler, has anyone touched or moved the arm, apart from the "
+             "touch just now?")
+ASK_COLD_START = ("If you have seen it: when i1Profiler starts the table after it was switched "
+                  "on, what do the arm and the measuring opening do (does the arm travel, how "
+                  "far, does the opening lift)? Press Enter to skip.")
 ASK_MINUTES = ("About how many minutes ago did you quit i1Profiler? (a rough number is fine; "
                "press Enter if you do not know)")
 #: Where the one homing may start (shown before the go-ahead; the numbers are the box in
@@ -87,6 +100,25 @@ AGAIN_TEXT = (
     "minutes after i1Profiler's own homing the arm read Y 22 to 37, inside that range. We "
     "cannot promise it, because how fast the arm creeps once i1Profiler has quit has never "
     "been measured.")
+#: The optional wait before the second reading or the last touch.
+LATER_WAIT_S = 600.0
+LATER_REREAD = (
+    "One more step, optional, if you have ten minutes: the program waits ten minutes with "
+    "nothing connected to the table, then opens it once more with i1Profiler's own opening "
+    "lines and asks where the arm is: 13 lines, every one of them only reading, nothing moves "
+    "(i1Profiler re-opened your table exactly this way after closing it, in one of your "
+    "recordings). That shows how far the arm's reading creeps in ten minutes after a homing, "
+    "which is what stopped versions 0.2.0 and 0.2.1. After that reading the program sends "
+    "nothing more, so the table is left without the closing lines, as after any stop. Then it "
+    "asks you to touch the holder once more.")
+LATER_TOUCH = (
+    "One more step, optional, if you have ten minutes: you felt the arm held. The program waits "
+    "ten minutes (nothing is sent, nothing is connected), then asks you to touch the holder "
+    "once more. That shows whether the table lets the arm go after a while by itself.")
+REREAD_NOT_CLOSED = (
+    "After the second reading the table was left without i1Profiler's closing lines (they are "
+    "recorded only right after a homing). That is the same as after any stop of this program: "
+    "the next time, i1Profiler opens the table as usual.")
 NOT_CLOSED = (
     "The table was not closed with i1Profiler's two closing lines: i1Profiler has only ever "
     "been recorded sending them right after its homing, so after a stop this program sends "
@@ -320,8 +352,12 @@ def plan_text(hex_bytes: bool = False) -> str:
 
 class Run:
     def __init__(self, table: tbl.Table, ui: Console, simulated: bool,
-                 other_program=None, answers=None):
+                 other_program=None, answers=None, reopen=None):
         self.d, self.ui, self.simulated = table, ui, simulated
+        #: opens a new connection for the optional second reading (None: not offered)
+        self.reopen = reopen
+        #: the read-only table of the second reading, once made
+        self.second: "tbl.Table | None" = None
         self.other_program = other_program or (lambda: False)
         self.answers: "list[tuple[str, str]]" = list(answers or [])
         #: False when the person said the arm is not at its resting place
@@ -391,7 +427,7 @@ class Run:
                 f"the arm is where i1Profiler itself sent it from: {HOMING_PLACES}. Otherwise "
                 "it stops there and moves nothing. On your table the arm has read Y 46 once and "
                 "Y 55 once, so this check may well stop the run; that is one of the planned "
-                "endings.")
+                "endings. " + WATCH_HEAD)
             self.d.home()
             self.ui.say(f"The table reports that the homing has finished (after "
                         f"{self.d.homing_times[-1]:.2f} s).")
@@ -526,13 +562,115 @@ class Run:
                               "USB connection)", "stopped with Ctrl-C during the wait")
                     touch = False
             if touch:
-                self.touch("about ten seconds after the program let go of the USB connection")
+                touch = self.touch("about ten seconds after the program let go of the USB "
+                                   "connection")
+        if touch and not self.stopped_by_person:
+            self.later(real)
         if self.stopped_by_person:
             log("INFO", "stopped by you: no more questions")
         else:
             self.questions()
         if self.touch_asked:
             self.advice()
+
+    def complete(self) -> bool:
+        """The run went all the way: one homing, the person saw the arm at rest, closed."""
+        return (self.d.closed_table and self.d.motions_sent == 1 and self.seen_at_rest is True
+                and not self.d.motion_unconfirmed)
+
+    def later(self, real: bool) -> None:
+        """Optional, ten minutes later (0.2.3). After a complete run: the second reading
+        (i1Profiler's re-opening after its close up to its position read, 13 reading lines,
+        nothing moves) and one more touch. After an incomplete run, only if the last touch
+        said "holds": one more touch (nothing is sent). Nothing at all without the person's
+        yes; a Ctrl-C during the wait ends it with nothing sent."""
+        last = self.answers[-1][1] if self.answers else ""
+        reread = self.complete() and self.reopen is not None
+        if not reread and last != "holds":
+            return
+        self.ui.say("")
+        self.ui.say(LATER_REREAD if reread else LATER_TOUCH)
+        try:
+            ans = self.ui.ask("Would you like to do this?", ("no", "yes"))
+        except KeyboardInterrupt:
+            self.stopped_by_person = True
+            self.note("ten more minutes", "stopped with Ctrl-C")
+            return
+        self.note("ten more minutes", ans)
+        if ans != "yes":
+            return
+        self.ui.say(f"Waiting {LATER_WAIT_S // 60:.0f} minutes. Nothing is connected to the "
+                    "table meanwhile. Ctrl-C ends the wait; then nothing more is sent.")
+        started = time.monotonic()
+        if real:
+            try:
+                left = LATER_WAIT_S
+                while left > 0:
+                    step = min(60.0, left)
+                    time.sleep(step)
+                    left -= step
+                    if left > 0:
+                        print(f"  {left / 60:.0f} minutes to go", flush=True)
+            except KeyboardInterrupt:
+                self.stopped_by_person = True
+                self.note("ten more minutes", "stopped with Ctrl-C during the wait")
+                return
+        self.ui.log("INFO", f"waited {time.monotonic() - started:.0f} s"
+                            + ("" if real else " (practice run: no real wait)"))
+        if reread:
+            self.second_reading()
+        if not self.stopped_by_person:
+            self.touch("about ten minutes after the run" + (", after the second reading"
+                                                             if reread else ""))
+
+    def second_reading(self) -> None:
+        """Re-open the table and read, as i1Profiler re-opened it after its own close (R2
+        378.128-378.617). A read-only table: it cannot send i1, f0 or f3, nor more than 13
+        lines, and the shared budget keeps the whole run within its caps."""
+        log = self.ui.log
+        if self.other_program():
+            self.ui.say("i1Profiler is running now, so the second reading is not made. "
+                        "Nothing was sent.")
+            return
+        try:
+            t2 = self.reopen()
+        except (tbl.NotAvailable, tbl.TransportError) as exc:
+            self.ui.say(f"The table could not be opened for the second reading, so it is not "
+                        f"made. Nothing was sent. ({exc})")
+            return
+        table2 = tbl.Table(t2, log=log, budget=self.d.budget, read_only=True)
+        previous = install_signals(table2)
+        self.second = table2
+        try:
+            self.ui.say("Second reading: opening the table and asking where the arm is. "
+                        "Nothing moves.")
+            pos = table2.reread()
+            self.ui.say(f"The arm reports X {pos[0]}, Y {pos[1]}. Thank you. Nothing more is "
+                        "sent to the table.")
+            if table2.stop_requested:            # Ctrl-C during the last line: honoured too
+                self.stopped_by_person = True
+        except (Doubt, Stopped) as exc:
+            self.ui.say(getattr(exc, "plain", None) or f"The second reading stopped: {exc}. "
+                        "Nothing more is sent to the table.")
+            if isinstance(exc, Stopped):
+                self.stopped_by_person = True
+        except KeyboardInterrupt:
+            self.stopped_by_person = True
+            table2.close_for_sending("stopped with Ctrl-C")
+            self.ui.say(STOPPED)
+        except Exception as exc:
+            table2.close_for_sending(f"an unexpected error ({type(exc).__name__})")
+            self.ui.say(f"The second reading stopped because of an unexpected error "
+                        f"({type(exc).__name__}). Nothing more is sent to the table.")
+        finally:
+            table2.close_for_sending("the second reading is over")
+            for sig, h in previous.items():
+                signal.signal(sig, h)
+            t2.close()
+            log("INFO", "the program has let go of the table's USB connection again "
+                        "(nothing is sent when it does)")
+        if table2.lines_sent:
+            self.ui.say(REREAD_NOT_CLOSED)
 
     def advice(self) -> None:
         try:
@@ -549,10 +687,14 @@ class Run:
         try:
             self.ui.say("")
             self.ui.say("A few questions for the report (just press Enter to skip one).")
+            if self.d.motions_sent:
+                self.note("measuring opening during the homing",
+                          self.ui.ask(ASK_HEAD, HEAD_CHOICES))
             for q in ("Did you hear anything unusual (grinding, knocking, clicking, a long "
                       "buzz)? If yes, when?",
                       "Had the table been switched off and on before this run? If yes, how "
                       "long before?",
+                      ASK_LIGHTS.replace("right now", "now"), ASK_COLD_START,
                       "Did anything else surprise you, or is there anything you want to add?"):
                 self.note(q, self.ui.text(q))
         except BaseException:
@@ -693,6 +835,9 @@ def touch_before_opening(ui, notes) -> None:
     notes.append(("arm held? (before the program opened anything)",
                   ui.ask(ASK_TOUCH, TOUCH_CHOICES)))
     notes.append(("minutes since i1Profiler was quit", ui.text(ASK_MINUTES)))
+    notes.append(("arm touched or moved since i1Profiler was quit",
+                  ui.ask(ASK_MOVED, ("no", "yes", "not sure"))))
+    notes.append(("lights before opening", ui.text(ASK_LIGHTS)))
 
 
 PRE_QUESTIONS = (
@@ -756,7 +901,12 @@ def main(argv=None, sim_table=None, console=None) -> int:
               "Please start the program from a folder you can write to. Nothing was sent.")
         return 2
 
+    started = time.monotonic()
+
     def log(kind, text):
+        if kind in ("ASK", "ANSWER", "ENTER"):          # when the person answered (0.2.3)
+            text = f"{text}   [program time {time.monotonic():.1f} s, " \
+                   f"{time.monotonic() - started:.0f} s after the start]"
         try:
             fh.write(f"{kind:6} {text}\n")
             fh.flush()
@@ -871,15 +1021,31 @@ def main(argv=None, sim_table=None, console=None) -> int:
         table = tbl.Table(transport, log=log)
         previous = install_signals(table)
         try:
+            if args.real:
+                def reopen():
+                    log("INFO", "macOS lists for the table before the second opening: "
+                                + ("; ".join(tbl.usb_holders()) or "nobody"))
+                    t = tbl.open_table()
+                    log("INFO", "second opening: " + tbl.usb_summary(t))
+                    return t
+            else:
+                def reopen():
+                    return SimTransport(sim)
             r = Run(table, ui, simulated=not args.real,
                     other_program=i1profiler_running if args.real else None,
-                    answers=pre_notes)
+                    answers=pre_notes, reopen=reopen)
             code = r.go()
             r.ending(code)
             r.after_the_run(transport, real=args.real)
+            second = ""
+            if r.second is not None:
+                second = (f"; second reading: {r.second.lines_sent} lines, arm "
+                          f"{r.second.position_now}, table left without the closing lines")
             log("INFO", f"result {code}; table {table.state or 'not asked'}; "
                         f"{table.lines_sent} lines sent, {table.motions_sent} movements; "
-                        f"closed {'yes' if table.closed_table else 'no'}; answers {r.answers}")
+                        f"closed {'yes' if table.closed_table else 'no'}{second}; "
+                        f"in all {table.budget.lines} lines, {table.budget.motions} movements; "
+                        f"answers {r.answers}")
         finally:
             for sig, h in previous.items():
                 signal.signal(sig, h)

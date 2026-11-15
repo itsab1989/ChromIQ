@@ -55,7 +55,7 @@ import time
 from dataclasses import dataclass
 
 TOOL_NAME = "chromiq-i1io-open"
-TOOL_VERSION = "0.2.2"
+TOOL_VERSION = "0.2.3"
 
 VID, PID = 0x0971, 0x2004
 
@@ -352,6 +352,26 @@ DRAIN_MAX_S = 60.0
 #: the six reading lines of the opening only.
 MAX_LINES = 18
 MAX_MOTIONS = 1
+#: 0.2.3: the optional SECOND READING after a complete run (the person agrees, ten minutes
+#: later): i1Profiler's re-opening after its own close, line for line R2 361.611 (close) ->
+#: 378.128 (FTDI set-up) -> 378.147-378.617: a1 a1 k2 u8 u8 a0 s0 f4 f4 f4 f4 s0 p0, and
+#: then nothing (the i1 that followed there is NOT sent). Only reading lines; a read-only
+#: table refuses i1, f0 and f3 before the transport.
+REREAD_MAX_LINES = 13
+READ_ONLY_KEYS = frozenset({"identity", "k2", "memory_a", "memory_b", "a0", "status",
+                            "arm_mode", "position"})
+READ_ONLY_LINES = frozenset(WIRE[k] for k in READ_ONLY_KEYS)
+#: Hard caps for the WHOLE program run (both connections together): 18 + 13 lines, and still
+#: exactly one movement.
+MAX_LINES_PROCESS = MAX_LINES + REREAD_MAX_LINES
+MAX_MOTIONS_PROCESS = 1
+
+
+@dataclass
+class Budget:
+    """Lines and movements sent in this program run, over every connection to the table."""
+    lines: int = 0
+    motions: int = 0
 
 
 # ---- the session ------------------------------------------------------------------------
@@ -414,8 +434,13 @@ class Table:
     further write is refused before it reaches the transport: the program
     never sends anything to "tidy up" (no homing, no stop, no closing)."""
 
-    def __init__(self, transport, log=None):
+    def __init__(self, transport, log=None, budget: "Budget | None" = None,
+                 read_only: bool = False):
         self.t = transport
+        #: shared by every connection of one program run (the process-wide caps)
+        self.budget = budget if budget is not None else Budget()
+        #: True for the second reading: only READ_ONLY_LINES, at most REREAD_MAX_LINES
+        self.read_only = read_only
         self._log = log or (lambda kind, text: None)
         self._buf = b""
         self.closed_reason: "str | None" = None
@@ -470,10 +495,15 @@ class Table:
         if self.closed_reason is not None:
             raise Doubt(f"not sending: {self.closed_reason}")
         cid = check_outgoing(line)
-        if self.lines_sent >= MAX_LINES:
+        if self.read_only and bytes(line) not in READ_ONLY_LINES:
+            raise self._doubt(f"the second reading may only read; {cid} refused (a bug)")
+        if self.lines_sent >= (REREAD_MAX_LINES if self.read_only else MAX_LINES):
             raise self._doubt("the program reached its limit of lines for one run")
+        if self.budget.lines >= MAX_LINES_PROCESS:
+            raise self._doubt("the program reached its limit of lines for the whole run")
         is_motion = line in MOTION_LINES
-        if is_motion and self.motions_sent >= MAX_MOTIONS:
+        if is_motion and (self.motions_sent >= MAX_MOTIONS
+                          or self.budget.motions >= MAX_MOTIONS_PROCESS):
             raise self._doubt("the program reached its limit of movements for one run")
         held = hold_stop_signals()
         try:
@@ -481,8 +511,10 @@ class Table:
             if self.closed_reason is not None:
                 raise Doubt(f"not sending: {self.closed_reason}")
             self.lines_sent += 1
+            self.budget.lines += 1
             if is_motion:
                 self.motions_sent += 1
+                self.budget.motions += 1
                 self.motion_unconfirmed = True
             self.log("SEND", line.decode("ascii").rstrip("\r"))
             self.t.write(bytes(line))
@@ -693,6 +725,28 @@ class Table:
             self.busy -= 1
         self.log("DATA", f"the homing took {self.homing_times[-1]:.3f} s")
         self._stop_if_requested()
+
+    def reread(self) -> "tuple[int, int]":
+        """The second reading (read-only table only): i1Profiler's re-opening after its own
+        close up to its position read (R2 378.128-378.617), then nothing more. Returns the
+        position. A table that answers a0 = 111800 (switched off and on meanwhile) gets the
+        six reading lines only."""
+        if not self.read_only:
+            raise self._doubt("the second reading asked for on a table that may move (a bug)")
+        self.busy += 1
+        try:
+            if self.opening() != "warm":
+                raise self._doubt("the table answered as just switched on at the second reading",
+                                  "At the second reading the table answered as if it had just "
+                                  "been switched on, so nothing more was sent.")
+            self.follow_up()
+            self.exchange("status")
+            pos = self.position()
+        finally:
+            self.busy -= 1
+            self.close_for_sending("the second reading is over")
+        self.log("DATA", f"second reading: the arm reports {pos}")
+        return pos
 
     def closing(self) -> None:
         """s0, f0, f3: i1Profiler's closing, recorded with the arm at rest right after
