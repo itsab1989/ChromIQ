@@ -67,8 +67,10 @@ logs and what this version does differently.
   i1Profiler has only been recorded sending its two closing lines right after
   its homing, so after any stop this program sends nothing at all. Ending
   without them is the same as when i1Profiler is force-quit or its USB cable is
-  pulled. Three earlier runs on your table ended this way, and each time the
-  next opening worked normally.
+  pulled. Four earlier runs on your table ended this way: two of version
+  0.1.0, one of 0.2.0 and one of 0.2.1. After each of the first three, the
+  next opening worked normally; how the next opening after the 0.2.1 run went,
+  we do not know yet.
 * **Smaller things:** a Ctrl-C or a closed Terminal window during the first
   questions is now written into the log (your first run's log simply ended);
   and if the program is started without pyusb, it shows the exact command to
@@ -109,7 +111,7 @@ it with every byte.
 | `;u8000061000068c3` | asks for part 2 of the memory block | no |
 | `;a034` | we believe it tells whether the table has just been switched on (111800) or is started (130000) | no |
 | `;s022` | asks for the status | no |
-| `;f42b` | we believe it asks whether the motors hold the arm (four times) | no |
+| `;f42b` | asks a mode flag, four times; it answers 00 whenever i1Profiler opens the table; it does not tell whether the motors hold the arm | no |
 | `;p025` | asks where the arm is (before the homing) | no |
 | `;i12b` | **go to the resting place** (the arm is already there), once | **barely, about a third of a second** |
 | `;f02f` | first closing line | no |
@@ -239,7 +241,9 @@ the arm is at its resting place, it closes the table.
 Then it sends nothing more, and asks you twice more to put one finger on the
 instrument holder and push it very gently towards the front of the table (the
 way the arm travels over the table), as if to move it by about a millimetre,
-then let go at once. Do not force it. Then you say whether the arm **holds**
+then let go at once. Push sideways only, level with the table, and do not press
+down: the measuring opening rests on the white tile. Do not force it. Then you
+say whether the arm **holds**
 its place (it resists your finger, or springs back when you let go) or moves
 **free**ly (it gives way with almost no effort, as when the table is switched
 off): once while the program still holds the table's USB connection, and once
@@ -284,7 +288,7 @@ never touches them either.
 
 If the program stops, it does not send i1Profiler's closing lines (they are
 recorded only right after the homing). That is the same as when i1Profiler is
-force-quit, and so far your table has always opened normally the next time.
+force-quit; after each such ending we know about, your table opened normally the next time.
 
 If the program stops and the arm is not at its resting place, it stays where
 it is. To bring it home, open i1Profiler once, let it connect to the table,

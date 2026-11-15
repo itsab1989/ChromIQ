@@ -695,8 +695,8 @@ class Table:
         self._stop_if_requested()
 
     def closing(self) -> None:
-        """s0, f0, f3: i1Profiler's closing, recorded with the arm at rest and
-        the motors holding it (S1 22.919-22.951, R2 361.579-361.611)."""
+        """s0, f0, f3: i1Profiler's closing, recorded with the arm at rest right after
+        its homing and a pause (S1 22.919-22.951, R2 361.579-361.611)."""
         if not self.homed:
             raise self._doubt("the closing asked for before the homing (a bug)")
         self.busy += 1

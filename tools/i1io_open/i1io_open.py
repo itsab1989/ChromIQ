@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import platform
+import re
 import signal
 import subprocess
 import sys
@@ -62,7 +63,9 @@ I1PROFILER_RUNNING = (
 STOPPED = "You stopped the program. Nothing more is sent to the table."
 ASK_TOUCH = ("Please put one finger on the instrument holder and push it very gently towards "
              "the front of the table (the way the arm travels over the table), as if to move it "
-             "by about a millimetre, then let go at once. Do not force it. Does the arm hold its "
+             "by about a millimetre, then let go at once. Push sideways only, level with the "
+             "table, and do not press down: the measuring opening rests on the white tile. Do "
+             "not force it. Does the arm hold its "
              "place, or does it move freely? \"holds\": it resists your finger, or springs back "
              "when you let go. \"free\": it gives way with almost no effort, as when the table "
              "is switched off.")
@@ -88,8 +91,9 @@ NOT_CLOSED = (
     "The table was not closed with i1Profiler's two closing lines: i1Profiler has only ever "
     "been recorded sending them right after its homing, so after a stop this program sends "
     "nothing at all. Ending without them is what also happens when i1Profiler is force-quit or "
-    "its USB cable is pulled. Three earlier runs on your table ended this way, and each time "
-    "the next opening worked normally.")
+    "its USB cable is pulled. Four earlier runs on your table ended this way: two of version "
+    "0.1.0, one of 0.2.0 and one of 0.2.1. After each of the first three, the next opening "
+    "worked normally; how the next opening after the 0.2.1 run went, we do not know yet.")
 #: How long the program waits after letting go of the USB connection before the second touch.
 RELEASE_WAIT_S = 10.0
 NO_LIGHT = ("The instrument's own light will not come on, because this program never talks "
@@ -664,6 +668,22 @@ def environment(real: bool) -> str:
             f"Python {platform.python_version()}; pyusb {pyusb}")
 
 
+def holder_names_for_screen(holders) -> str:
+    """The holders as the person sees them: program names only. The process numbers stay in
+    the log (safety review of 0.2.2, N1: a number on screen invites ending the process)."""
+    def name(entry):
+        return re.sub(r" \(pid \d+\)$", "", entry.split(": ", 1)[-1])
+    owners = [name(h) for h in holders if h.startswith("exclusive owner: ")]
+    others = [name(h) for h in holders if h.startswith("connected: ")
+              and name(h) != "this program"]
+    if owners:
+        return "macOS names the program holding it: " + ", ".join(owners) + "."
+    if others:
+        return ("macOS did not name a single holder; these programs are connected to it: "
+                + ", ".join(others) + ".")
+    return "macOS did not say which program it is."
+
+
 def touch_before_opening(ui, notes) -> None:
     """Before anything is opened or sent: one gentle touch, and how long ago i1Profiler was
     quit (the observation that settles whether a free arm at rest is the table's normal state
@@ -800,6 +820,11 @@ def main(argv=None, sim_table=None, console=None) -> int:
                            "please let i1Profiler bring it home first (open i1Profiler, wait "
                            "until it shows the table, quit it). Nothing was sent.")
                     return 1
+            if i1profiler_running():           # the touch text says it is not running
+                log("INFO", "i1Profiler is running: refused before the first touch; found "
+                    + "; ".join(i1profiler_matches()))
+                ui.say(I1PROFILER_RUNNING + " (Found: " + "; ".join(i1profiler_matches()) + ".)")
+                return 2
             touch_before_opening(ui, pre_notes)
             if not ui.sentence("To go on with the REAL table, type this sentence and press "
                                "Enter:\n    I understand that this moves my table",
@@ -820,10 +845,7 @@ def main(argv=None, sim_table=None, console=None) -> int:
                 holders = tbl.usb_holders()
                 log("INFO", f"opening refused by macOS at {exc.step} (libusb {exc.code}); "
                             "macOS lists for the table: " + ("; ".join(holders) or "nobody"))
-                named = [h for h in holders if h.startswith("exclusive owner")] or holders
-                ui.say(tbl.BUSY_TEXT + (" macOS names: " + "; ".join(named) + "."
-                                        if named else
-                                        " macOS did not say which program it is."))
+                ui.say(tbl.BUSY_TEXT + " " + holder_names_for_screen(holders))
                 ui.say(tbl.BUSY_STEPS)
                 return 2
             except (tbl.NotAvailable, tbl.TransportError) as exc:

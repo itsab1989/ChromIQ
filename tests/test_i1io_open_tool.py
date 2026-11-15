@@ -942,7 +942,13 @@ def test_the_touch_question_is_gentle_and_names_the_direction_and_the_feel():
                        "let go at once", "Do not force it.", "resists your finger",
                        "springs back when you let go", "almost no effort"):
             assert needed in text, needed
-    assert "sideways" not in q and "sideways" not in readme
+        # safety review of 0.2.2, S2: horizontal only, never pressing down on the tile
+        for needed in ("Push sideways only, level with the table, and do not press down",
+                       "the measuring opening rests on the white tile"):
+            assert needed in text, needed
+    # 0.2.1's review S3 replaced a bare "sideways" as the DIRECTION; the direction stays
+    # "towards the front", and "sideways" now appears only in "sideways only, level with"
+    assert q.count("sideways") == 1 and "sideways only, level with the table" in q
     assert prog.TOUCH_CHOICES == ("holds", "free", "not sure", "skip")
     assert '"holds"' in q and '"free"' in q
 
@@ -1297,11 +1303,23 @@ def test_the_go_ahead_says_the_position_check_may_stop_the_run(tmp_path):
     assert flat.index("may well stop the run") < go
 
 
+SHIPPED_TEXT_FILES = PROGRAM_FILES + ("README.md", "BYTES.md")
+
+
 def test_f4_is_no_longer_called_a_motor_reading():
-    for name in PROGRAM_FILES + ("README.md", "BYTES.md"):
-        text = " ".join(_source(name).split())
-        assert "its motors hold the arm (f4 = 00)" not in text, name
-        assert "do the motors hold the arm? (must be 00)" not in text, name
+    """Safety review of 0.2.2, M1: the README's line table still said it. Every shipped file is
+    checked for every way of saying that f4 tells whether the motors hold the arm."""
+    shipped = {p.name for p in PKG.iterdir() if p.is_file() and p.suffix in (".py", ".md")}
+    assert shipped == set(SHIPPED_TEXT_FILES)
+    for name in SHIPPED_TEXT_FILES:
+        text = " ".join(_source(name).split()).lower()
+        for claim in ("its motors hold the arm (f4 = 00)", "do the motors hold the arm? (must be 00)",
+                      "asks whether the motors hold", "we believe it asks whether",
+                      "we believe: the motors hold", "motors hold the arm (f4",
+                      "f4 = 00 means", "f4 00 means"):
+            assert claim not in text, (name, claim)
+    row = next(line for line in _source("README.md").splitlines() if line.startswith("| `;f42b`"))
+    assert "does not tell whether the motors hold the arm" in row and "mode flag" in row
     assert not hasattr(tbl, "ARM_HELD") and tbl.F4_RECORDED == "00"
     assert "does not tell whether the motors hold the arm" in prog.MEANING["arm_mode"]
 
@@ -1465,7 +1483,10 @@ def test_a_busy_table_is_named_and_explained_without_touching_any_process(tmp_pa
     assert events.count("ioreg") == 2          # before opening, and after the refusal
     flat = " ".join(log.split())
     assert tbl.BUSY_TEXT in flat and " ".join(tbl.BUSY_STEPS.split()) in flat
-    assert "macOS names: exclusive owner: SomeApp (pid 654)." in flat
+    said = " ".join(line[7:] for line in log.splitlines() if line.startswith("SAY"))
+    assert "macOS names the program holding it: SomeApp." in said
+    assert "pid" not in said and "654" not in said              # the number stays in the log
+    assert "exclusive owner: SomeApp (pid 654)" in log
     assert "opening refused by macOS at claim_interface (libusb -3)" in log
     assert "lines sent" not in log.split("INFO   opening refused")[1]
     for text in (tbl.BUSY_TEXT, tbl.BUSY_STEPS, prog.I1PROFILER_RUNNING):
@@ -1569,3 +1590,40 @@ def test_the_holders_reach_the_log_without_the_serial(tmp_path, monkeypatch):
 
 def test_missing_pyusb_names_the_exact_command():
     assert "venv/bin/python3 i1io_open.py --real" in tbl.NO_PYUSB
+
+
+def test_holder_names_on_screen_carry_no_process_number():
+    f = prog.holder_names_for_screen
+    assert f(["connected: xrdd (pid 321)", "exclusive owner: Some App (pid 654)"]) == \
+        "macOS names the program holding it: Some App."
+    assert f(["connected: xrdd (pid 321)", "connected: this program (pid 7)"]) == \
+        "macOS did not name a single holder; these programs are connected to it: xrdd."
+    assert f([]) == "macOS did not say which program it is."
+    assert f(["(macOS's list could not be read)"]) == "macOS did not say which program it is."
+
+
+def test_i1profiler_is_checked_again_right_before_the_first_touch(tmp_path, monkeypatch):
+    """Safety review of 0.2.2, S1: the touch text says i1Profiler is not running."""
+    dev, opener, _ = _fake_ftdi(monkeypatch)
+    calls = []
+
+    def running():
+        calls.append(len(events))
+        return len(calls) == 2              # started during the five questions
+    events = []
+    monkeypatch.setattr(prog, "i1profiler_running", running)
+    monkeypatch.setattr(prog, "i1profiler_matches", lambda: ["a process named i1Profiler"])
+    monkeypatch.setattr(sys, "stdin", _TTY())
+    monkeypatch.setattr(tbl, "check_usb_available", lambda: "pyusb test; libusb test")
+    monkeypatch.setattr(prog.Lock, "acquire", lambda self: True)
+    monkeypatch.setattr(tbl, "open_table", lambda: events.append("open") or opener())
+
+    class C(prog.AutoConsole):
+        def ask(self, question, choices=("yes", "no")):
+            events.append(question)
+            return super().ask(question, choices)
+    log = tmp_path / "l.txt"
+    assert prog.main(["--real", "--log", str(log)], console=C(lambda k, t: None)) == 2
+    assert prog.ASK_TOUCH not in events and "open" not in events
+    assert len(calls) == 2 and calls[1] == len(prog.PRE_QUESTIONS)
+    assert "refused before the first touch" in log.read_text(encoding="utf-8")
