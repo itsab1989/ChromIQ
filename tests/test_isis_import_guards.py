@@ -119,19 +119,41 @@ def test_g1_a_sheet_fed_the_wrong_way_round_is_refused(isis, tmp_path):
     assert not v.ok and v.reason == MM.isis_colours_reason()
 
 
-def test_g1_cannot_tell_on_a_chart_that_could_is_refused(isis, tmp_path,
-                                                         monkeypatch):
-    """C2: "between" (the readings, not the chart, leave it open) refuses."""
-    from workflow import measurement_messages as MM
+@pytest.mark.parametrize("why", ["between", "strip-unclear",
+                                 "other-arrangement"])
+def test_g1_cannot_tell_is_filed_as_before(isis, tmp_path, monkeypatch, why):
+    """Review m5: a guard, not a new gate. "Cannot tell" (right readings of
+    a small chart on a very glossy paper can give it) is filed on the device
+    values, as the released import did; only a clear disagreement refuses."""
     from workflow.measurement_import import assess
     import workflow.turned_colour_check as TC
     rgbs = _random()
     ti2, order = isis(rgbs)
     monkeypatch.setattr(TC, "judge_turned_measurement",
                         lambda *a, **k: TC.ColourJudgement(
-                            TC.UNSURE, "between", 0.6, 60))
+                            TC.UNSURE, why, 0.72, 60))
     v = assess(_measurement(tmp_path, rgbs, order, lambda j: j), ti2)
-    assert not v.ok and v.reason == MM.isis_colours_reason()
+    assert v.ok and v.turned_order, v.reason
+
+
+def test_g1_the_reviews_case_is_reproduced_and_filed():
+    """The case itself: right readings of 24-patch charts on the extreme
+    glossy printer, judged unsure by the 4.3.32 judge in some seeds."""
+    from workflow.turned_colour_check import (DISAGREE, UNSURE, judge,
+                                              expected_lab_rgb, measured_lab)
+    unsure = 0
+    for seed in range(30):
+        rng = np.random.default_rng(seed)
+        rgbs = [tuple(rng.uniform(0, 100, 3)) for _ in range(24)]
+        pr = F.InkPrinter(**F.PRINTERS["glossy-extreme"])
+        sp = np.array([pr.spectrum(c) * (1 + rng.normal(0, 0.015, 36))
+                       for c in rgbs])
+        M = measured_lab(np.array([F._lab_to_xyz_d50(l)
+                                   for l in F._spectra_lab(sp)]))
+        j = judge(expected_lab_rgb(rgbs), M, 4, 6)
+        assert j.verdict != DISAGREE, (seed, j.log_text())
+        unsure += j.verdict == UNSURE
+    assert unsure >= 1          # the case exists, and the guard files it
 
 
 def test_g1_a_chart_that_cannot_tell_is_filed_as_before(isis, tmp_path):

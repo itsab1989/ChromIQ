@@ -1158,9 +1158,9 @@ def i1io_filed_line(count: int, cols: int, rows: int, score: float,
 
 
 #: G1 of the design (the i1iSis Beta, one page): the device values agree with
-#: the chart's i1Profiler test chart on every patch, and the colours show that
-#: the readings are not of their own patches, or cannot say so although the
-#: chart could tell.
+#: the chart's i1Profiler test chart on every patch, and the colours clearly
+#: show that the readings are not of their own patches ("cannot tell" files,
+#: review m5).
 _ISIS_IMPORT_COLOURS = (
     "the device values in this file agree with this chart's i1Profiler test "
     "chart, but the measured colours do not fit the chart's patches in that "

@@ -4471,7 +4471,7 @@ jobs, which is allowed and should be.*
 
 ### M-IMPORT-ISIS-COLOURS · PROPOSED · an i1iSis measurement whose device values agree but whose colours do not fit the chart, Measure tab import
 
-*New 2026-11-15 (the i1iSis chart Beta, guard G1 of the import design). The `{reason}` of the import's refusal window. The device values of an i1iSis measurement prove which test chart i1Profiler used, not how the sheet went in (§I.14 point 1's own caveat), so its colours are judged too (`turned_colour_check`): a clear disagreement, or a "cannot tell" on a chart whose colours could tell, is refused; a chart whose colours cannot tell is filed as before, with one line in the log.*
+*New 2026-11-15 (the i1iSis chart Beta, guard G1 of the import design). The `{reason}` of the import's refusal window. The device values of an i1iSis measurement prove which test chart i1Profiler used, not how the sheet went in (§I.14 point 1's own caveat), so its colours are judged too (`turned_colour_check`): only a clear disagreement is refused; every "cannot tell" is filed as before, with one line in the log (review 2026-11-15, m5: a guard, not a new gate; right readings of a small chart on a very glossy paper can leave the judge unsure).*
 
 > **An i1iSis measurement whose colours do not fit the chart**
 >
@@ -10774,9 +10774,10 @@ cannot show at all is filed: the known cases are point 9.**
    a file with one device value for every patch of an i1iO chart with one
    sentence that sends it to the Measure tab.
 8. **The i1iSis Beta (one page), two guards.** The colours of an i1iSis
-   measurement are judged after its device values agree (a chart that can tell
-   and does not agree is refused with M-IMPORT-ISIS-COLOURS; one that cannot
-   tell is filed as before, said in the log); and a CxF whose
+   measurement are judged after its device values agree (only a clear
+   disagreement is refused, with M-IMPORT-ISIS-COLOURS; every "cannot tell"
+   is filed as before, said in the log: a guard, not a new gate, review
+   m5); and a CxF whose
    NumberPatchPages is "0" has its grid read from the picked file with "0"
    taken as one page, so the grid check is no longer skipped. A chart of
    several pages is still refused ("needs a later version").

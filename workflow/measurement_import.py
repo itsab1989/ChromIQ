@@ -394,9 +394,9 @@ def assess(ti3: Path, chart_ti2: "Path | None",
             if isis:
                 # G1 (the i1iSis Beta): the device values prove which test
                 # chart i1Profiler used, not how the sheet went in (§I.14
-                # point 1's own caveat), so the colours are asked too. A
-                # chart that can tell and does not say yes is refused; one
-                # that cannot tell is filed as before, said in the log.
+                # point 1's own caveat), so the colours are asked too. Only
+                # a clear disagreement refuses; "cannot tell" is filed as
+                # before, said in the log (review m5).
                 why = _isis_colours_refuse(ti3, turned.order, chart_ti2)
                 if why:
                     return ImportVerdict(False, why, n_chart=n_chart or 0,
@@ -553,27 +553,23 @@ def _one_device_value_for_all(ti3: Path, chart_ti2: Path) -> "bool | None":
     return chart_vals != {mine}
 
 
-#: The colour judge's reasons that mean the CHART cannot tell (sorted, few or
-#: similar patches), as opposed to readings it cannot place (challenge M1/C2).
-_CHART_CANNOT_TELL = frozenset(("few-patches", "similar", "neighbours",
-                                "short-strips", "no-colours"))
-
-
 def _isis_colours_refuse(ti3: Path, order, chart_ti2) -> str:
-    """G1: the refusal when the colours of an i1iSis measurement do not fit
-    the chart in its order, or cannot say so although the chart could tell;
-    "" to file it."""
-    from workflow.turned_colour_check import (AGREE, judge_turned_measurement)
+    """G1: the refusal when the colours of an i1iSis measurement CLEARLY do
+    not fit the chart in its order; "" to file it.
+
+    A guard, not a new gate (review 2026-11-15, m5): before it such a file
+    was filed on its device values alone, and right readings of a small
+    chart on a very glossy paper can leave the judge unsure ("between",
+    "strip-unclear"; reproduced: 4 of 90 small charts). So only a clear
+    disagreement refuses; every "cannot tell" is filed as before, said in
+    the log."""
+    from workflow.turned_colour_check import (DISAGREE,
+                                              judge_turned_measurement)
     colour = judge_turned_measurement(ti3, order, chart_ti2)
-    if colour.verdict == AGREE:
-        log.info("import: the colours of the i1iSis measurement agree with "
-                 "the chart: %s", colour.log_text())
-        return ""
-    if colour.why in _CHART_CANNOT_TELL:
-        log.info("import: the colours of this i1iSis chart cannot show how "
-                 "the sheet went through the instrument (%s); the device "
-                 "values agree on every patch, so it is filed",
-                 colour.log_text())
+    if colour.verdict != DISAGREE:
+        log.info("import: the colours of the i1iSis measurement were "
+                 "compared with the chart (%s); the device values agree on "
+                 "every patch, so it is filed", colour.log_text())
         return ""
     log.info("import: the colours of the i1iSis measurement do not fit the "
              "chart: %s", colour.log_text())
