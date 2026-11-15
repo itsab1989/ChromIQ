@@ -1717,6 +1717,17 @@ def _is_i1io_chart_instrument(name) -> bool:
     return i1io_enabled() and is_i1io_instrument_name(name)
 
 
+def _is_i1profiler_chart_instrument(name) -> bool:
+    """True for a chart ChromIQ never reads itself: it is measured in
+    i1Profiler and the measurement imported. That is an i1iO table chart or
+    an i1iSis chart, each only while its Beta is on; off, False without
+    looking at the name, so the tab reads exactly as 4.3.39's."""
+    if _is_i1io_chart_instrument(name):
+        return True
+    from workflow.isis.support import is_isis_instrument_name, isis_enabled
+    return isis_enabled() and is_isis_instrument_name(name)
+
+
 class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
     """Step 3: interactive chart measurement with chartread."""
     #: The hue of this tab's step header, its accent: file-drop frames
@@ -2436,7 +2447,20 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         label = getattr(self, "_calm_subtext", None)
         if label is None:
             return
+        # NO STRIP TO SCAN ON A CHART MEASURED IN i1PROFILER (4.3.40, F2):
+        # an i1iSis or i1iO chart is read by i1Profiler and imported here,
+        # so advice on how to move an instrument is not true for it. The
+        # line is hidden, nothing else changes; Start says what to do
+        # (M-ISIS-NOT-YET, M-I1IO-NOT-YET).
         try:
+            from ui.ti2_loader import read_target_instrument
+            chart = self._chart_file_for(getattr(self, "_ti1_path", None))
+            elsewhere = bool(chart) and chart.exists() and \
+                _is_i1profiler_chart_instrument(read_target_instrument(chart))
+        except Exception:      # noqa: BLE001 - advice, never block on it
+            elsewhere = False
+        try:
+            label.setVisible(not elsewhere)
             label.setText(
                 tr("Rest the instrument on the highlighted patch and press "
                    "its button.")
@@ -5499,13 +5523,14 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             if instr:
                 label = instrument_label(instr)
                 if (is_spectroscan(instr) or _fd9_ask(self, "_is_fd9_target")
-                        or _is_i1io_chart_instrument(instr)):
+                        or _is_i1profiler_chart_instrument(instr)):
                     # XY table — reads patches individually, so the
                     # bidirectional "reading direction" note does not apply.
-                    # Nor to an i1iO table chart (a Beta): it cannot be
-                    # measured yet, and Start says so (M-I1IO-NOT-YET); a
-                    # line about strip recognition would promise a reading
-                    # that does not happen.
+                    # Nor to an i1iO table chart or an i1iSis chart (Betas,
+                    # 4.3.40 F2 for the i1iSis): ChromIQ never reads them,
+                    # i1Profiler does, and Start says so (M-I1IO-NOT-YET,
+                    # M-ISIS-NOT-YET); a line about strip recognition would
+                    # promise a reading that does not happen.
                     msg = tr("Chart instrument: {label}.").format(label=label)
                 else:
                     value = self._detected_bidir_value()
@@ -5543,6 +5568,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
 
         self._apply_bidir_auto_state("guided")
         self._apply_bidir_auto_state("manual")
+        # the advice line follows the chart too, also when it is cleared
+        self._refresh_calm_subtext()
 
     def _clear_previous_instrument_log(self) -> None:
         """Remove the last logged "Chart instrument:" line, if still present.
