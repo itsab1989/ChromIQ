@@ -732,7 +732,8 @@ def sheet_for(grid: Grid, paper_w: float, paper_h: float,
                                 opts.letter_italic)[2]
                      for ch in "0123456789")
             return (nominal_w - opts.d1 + F.DIAMOND_CLEAR_MM.value
-                    + max(0.0, opts.label_offset_x) + nw + 0.5)
+                    + max(0.0, opts.label_offset_x) + nw
+                    + F.OUTLINE_LINE_MM.value + ROW_NUMBER_GAP_MM)
         # SET SMALLER BEFORE LEFT OFF, as `_plan_numbers` sets them. The
         # owner, 2026-11-15, on 4.3.38: "Show row indicators" ticked had no
         # effect. On every default A4 chart (28 columns of 6 mm) the numbers
@@ -1570,6 +1571,13 @@ def _plan_name_line(sheet: "Sheet", page: int, name: str, sheet_text: str,
 #: The smallest label ChromIQ prints on an i1iSis chart (cap height, mm):
 #: below it a label is left off and the log says so (M-ISIS-KEEP-OUT).
 LABEL_MIN_MM = 1.5
+#: The clear paper between a row number's box and the dashed outline's
+#: inner edge (mm), so a number never reads as touching the dashes: as wide
+#: as the outline's own line. Not 1 mm: measured 2026-11-15, 1 mm leaves the
+#: numbers off every default A4 and Letter chart, which is the 4.3.38 fault
+#: ("Show row indicators" had no effect) again; 0.5 keeps them on every
+#: Guided paper that printed them before.
+ROW_NUMBER_GAP_MM = 0.5
 #: Where the top strip letters may go inside the text band (Z1), from the
 #: chart's leading edge: below the name line, above the band's end.
 LETTER_ZONE_TOP_MM = (6.75, 11.75)
@@ -1650,8 +1658,13 @@ def _plan_numbers(sheet: Sheet, patterns):
         + max(0.0, o.label_offset_x)
     # INSIDE THE OUTLINE'S OWN LINE, which `sheet_for` leaves room for (the
     # 0.5 in its "need"): measured on screen 2026-11-15, numbers set against
-    # the outline's outer edge printed "10" to "35" across the dashes
-    limit = sheet.x0 + sheet.width - F.OUTLINE_LINE_MM.value
+    # the outline's outer edge printed "10" to "35" across the dashes. AND A
+    # VISIBLE GAP BEFORE IT (4.3.40, F1): set against the line's inner edge
+    # with only the box's 0.1 mm spare, "10" to "39" of an XL A3 chart
+    # (8 mm patches, 20 mm side margins) printed 0.17 mm from the dashes and
+    # read as touching them; ROW_NUMBER_GAP_MM of paper is kept now
+    limit = (sheet.x0 + sheet.width - F.OUTLINE_LINE_MM.value
+             - ROW_NUMBER_GAP_MM)
     texts = [row_name(r, patterns) for r in range(g.R)]
     size = o.letter_size or min(3.0, max(1.2, o.ph * 0.5))
 

@@ -80,7 +80,11 @@ read; a target made with the Beta on keeps its stored values untouched.
   is left off and said (the M-ISIS-KEEP-OUT log line): the wordmark, then on a one-page
   chart the page, then the name. Never the page of a multi-page chart, never
   the corner labels. Strip letters and row numbers are measured in their
-  own face and set smaller until neighbours cannot touch.
+  own face and set smaller until neighbours cannot touch. *(4.3.40,
+  awaiting confirmation)* The row numbers end at least 0.5 mm (the
+  outline's own line width) before the dashed outline's line
+  (`ROW_NUMBER_GAP_MM`); set against the line itself they read as touching
+  it.
 * The grid is i1Profiler's rule (T = ceil(N / Cmax), P = ceil(T / Rmax),
   R = ceil(T / P), C = ceil(N / (R x P)); column-major; unused cells at the
   end white), reproducing all 38 layouts measured in i1Profiler.
