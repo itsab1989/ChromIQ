@@ -102,3 +102,56 @@ def test_with_the_betas_off_the_tab_reads_as_4339s(betas, measure_tab,
         f"Chart instrument: {name} → using Argyll's default strip "
         "recognition.")
     assert _advice_shown(measure_tab)
+
+
+# ---- every instrument: the strip-recognition clause only where it applies --
+#
+# 4.3.40 review: a CR30 chart's log said "→ using Argyll's default strip
+# recognition" although the CR30 is set down on each patch by hand. The
+# clause is now logged only for an instrument the registry
+# (`instruments.FINDS_PATCHES_BY_EDGES`) says finds its patches by colour
+# edges along a strip. The Beta instruments follow their own switch: off,
+# their line is 4.3.39's.
+
+@pytest.fixture
+def every_beta(request):
+    from workflow.fd9 import support as fd9
+    from workflow.i1io import support as io
+    from workflow.isis import support as isis
+    mods = (fd9, io, isis)
+    before = [m._latched for m in mods]
+    on = getattr(request, "param", True)
+    for m in mods:
+        m.set_enabled_for_this_process(on)
+    try:
+        yield on
+    finally:
+        for m, b in zip(mods, before):
+            m._latched = b
+
+
+def _all_keys():
+    from workflow.layout_engine.instruments import TARGET_INSTRUMENT_NAME
+    return sorted(TARGET_INSTRUMENT_NAME)
+
+
+@pytest.mark.parametrize("every_beta", [True, False], indirect=True)
+@pytest.mark.parametrize("key", _all_keys())
+def test_every_instrument_gets_the_strip_clause_only_where_it_applies(
+        every_beta, measure_tab, tmp_path, key):
+    from workflow.layout_engine.instruments import (
+        FINDS_PATCHES_BY_EDGES, TARGET_INSTRUMENT_NAME, finds_patches_by_edges)
+    assert key in FINDS_PATCHES_BY_EDGES, f"{key} is not classified"
+    name = TARGET_INSTRUMENT_NAME[key]
+    measure_tab.set_ti1_path(_chart(tmp_path, name))
+    line = _instrument_line(measure_tab)
+    beta_key = key in ("FD9", "IO2", "XRISIS")
+    if beta_key and not every_beta:
+        # the Beta off: exactly 4.3.39's line
+        assert "→ using Argyll's default strip recognition." in line, line
+        return
+    clause = "→" in line
+    assert clause == finds_patches_by_edges(key), (key, line)
+    if not clause:
+        assert line.startswith("Chart instrument: ") and line.endswith(".")
+        assert "strip recognition" not in line

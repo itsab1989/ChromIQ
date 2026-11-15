@@ -1728,6 +1728,29 @@ def _is_i1profiler_chart_instrument(name) -> bool:
     return isis_enabled() and is_isis_instrument_name(name)
 
 
+#: Instruments behind a Beta switch: their chart lines follow their own
+#: switch (`_fd9_ask`, `_is_i1profiler_chart_instrument`), so that with the
+#: switch off the tab reads exactly as before the Beta.
+_BETA_INSTRUMENT_KEYS = frozenset({"FD9", "IO2", "XRISIS"})
+
+
+def _chart_reads_by_position(name) -> bool:
+    """True when the chart's TARGET_INSTRUMENT names an instrument that
+    never finds patches by colour edges along a strip, by the one registry
+    that answers it (`instruments.FINDS_PATCHES_BY_EDGES`): ArgyllCMS's strip
+    recognition does not apply to it, so the log must not say it is used
+    (4.3.40, the CR30). The Beta instruments are left to their own switch."""
+    text = str(name or "").strip().strip('"').strip().casefold()
+    if not text:
+        return False
+    from workflow.layout_engine.instruments import (
+        FINDS_PATCHES_BY_EDGES, TARGET_INSTRUMENT_NAME)
+    keys = {k for k, v in TARGET_INSTRUMENT_NAME.items()
+            if v.casefold() == text and k not in _BETA_INSTRUMENT_KEYS}
+    return bool(keys) and not any(FINDS_PATCHES_BY_EDGES.get(k, True)
+                                  for k in keys)
+
+
 class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
     """Step 3: interactive chart measurement with chartread."""
     #: The hue of this tab's step header, its accent: file-drop frames
@@ -5523,14 +5546,17 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             if instr:
                 label = instrument_label(instr)
                 if (is_spectroscan(instr) or _fd9_ask(self, "_is_fd9_target")
-                        or _is_i1profiler_chart_instrument(instr)):
+                        or _is_i1profiler_chart_instrument(instr)
+                        or _chart_reads_by_position(instr)):
                     # XY table — reads patches individually, so the
                     # bidirectional "reading direction" note does not apply.
                     # Nor to an i1iO table chart or an i1iSis chart (Betas,
                     # 4.3.40 F2 for the i1iSis): ChromIQ never reads them,
                     # i1Profiler does, and Start says so (M-I1IO-NOT-YET,
                     # M-ISIS-NOT-YET); a line about strip recognition would
-                    # promise a reading that does not happen.
+                    # promise a reading that does not happen. Nor to any
+                    # other instrument the registry says reads by position
+                    # (the CR30, set down on each patch by hand; 4.3.40).
                     msg = tr("Chart instrument: {label}.").format(label=label)
                 else:
                     value = self._detected_bidir_value()

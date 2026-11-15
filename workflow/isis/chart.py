@@ -726,14 +726,17 @@ def sheet_for(grid: Grid, paper_w: float, paper_h: float,
         # the room the row numbers are left off and said
         widest = F.PAPER_W_MM.value[opts.model][1]
 
-        def _need(sz: float) -> float:
-            nw = max(_label_box(0, 0, sz, ch * digits, opts.number_rotation,
+        def _need_for(sz: float, texts) -> float:
+            nw = max(_label_box(0, 0, sz, t, opts.number_rotation,
                                 opts.letter_font, opts.letter_bold,
                                 opts.letter_italic)[2]
-                     for ch in "0123456789")
+                     for t in texts)
             return (nominal_w - opts.d1 + F.DIAMOND_CLEAR_MM.value
                     + max(0.0, opts.label_offset_x) + nw
                     + F.OUTLINE_LINE_MM.value + ROW_NUMBER_GAP_MM)
+
+        def _need(sz: float) -> float:
+            return _need_for(sz, [ch * digits for ch in "0123456789"])
         # SET SMALLER BEFORE LEFT OFF, as `_plan_numbers` sets them. The
         # owner, 2026-11-15, on 4.3.38: "Show row indicators" ticked had no
         # effect. On every default A4 chart (28 columns of 6 mm) the numbers
@@ -749,12 +752,37 @@ def sheet_for(grid: Grid, paper_w: float, paper_h: float,
             need = _need(size)
         if need <= room + 1e-6 and need <= widest + 1e-6:
             width = max(width, need)
+        else:
+            # THE REAL NUMBERS, WHEN THE ESTIMATE MISSES (4.3.40, review of
+            # c24976bf6, MINOR-1). The estimate is the widest digit repeated
+            # ("44"), wider than most charts' real numbers; when it missed
+            # the room by a hair the width did not grow at all and
+            # `_plan_numbers` dropped numbers that would have fitted (A5,
+            # 6.25 mm patches, 5 mm margins: 138.12 mm needed of 138). Now
+            # the chart's own row names are measured, down to LABEL_MIN_MM,
+            # and the width grows just enough for them, gap included; only
+            # when even they do not fit are the numbers left off and said.
+            # Custom row labels are measured again by `_plan_numbers`.
+            real = [row_name(r) for r in range(grid.R)]
+            sz = size
+            need = _need_for(sz, real)
+            while (need > min(room, widest) + 1e-6
+                   and sz - 0.1 >= LABEL_MIN_MM - 1e-9):
+                sz -= 0.1
+                need = _need_for(sz, real)
+            if need <= room + 1e-6 and need <= widest + 1e-6:
+                width = max(width, need)
     natural_h = opts.grid_top + grid.R * opts.ph + opts.trailer_mm
     height = max(natural_h, F.CHART_MIN_LENGTH_MM.value)
     trailer = height - opts.grid_top - grid.R * opts.ph
     mt, mr, mb, ml = opts.margins
     ox, oy = opts.offset
     fv, fh = _align_fractions(opts.align)
+    # The width above grows only for the row numbers, and only while they
+    # are on; with a centre or right alignment the chart then sits half or
+    # all of that growth further left, its marks moving with it (intended:
+    # the outline holds the numbers inside the margins, 4.3.40 review
+    # MINOR-2). With the row numbers off nothing here moves.
     slack_x = max(0.0, paper_w - mr - ml - ox - width)
     slack_y = max(0.0, paper_h - mb - mt - oy - height)
     x0 = ml + ox + fh * slack_x
@@ -1657,7 +1685,7 @@ def _plan_numbers(sheet: Sheet, patterns):
     x0 = sheet.right_marker_edge + F.DIAMOND_CLEAR_MM.value \
         + max(0.0, o.label_offset_x)
     # INSIDE THE OUTLINE'S OWN LINE, which `sheet_for` leaves room for (the
-    # 0.5 in its "need"): measured on screen 2026-11-15, numbers set against
+    # line and ROW_NUMBER_GAP_MM in its "need"): measured on screen 2026-11-15, numbers set against
     # the outline's outer edge printed "10" to "35" across the dashes. AND A
     # VISIBLE GAP BEFORE IT (4.3.40, F1): set against the line's inner edge
     # with only the box's 0.1 mm spare, "10" to "39" of an XL A3 chart

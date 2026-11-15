@@ -138,3 +138,10 @@ grid to check, the cut instruction, and for several pages that bringing them
 back needs a later version. Import Measurement pairs a one-page measurement
 through the order file (by position, checked by the device values); a
 measurement of several pages is refused with a sentence saying so.
+
+*(4.3.40)* ChromIQ never reads an i1iSis chart, so the Measure tab says
+nothing about reading strips for it: its log names the chart's instrument
+only ("Chart instrument: X-Rite i1iSis.", no strip-recognition clause) and
+Guided's "Scan each strip with a slow, steady motion." under "Keep calm!" is
+hidden. The i1iO table chart (also measured in i1Profiler) is treated the
+same way; with each Beta off the tab reads as before.

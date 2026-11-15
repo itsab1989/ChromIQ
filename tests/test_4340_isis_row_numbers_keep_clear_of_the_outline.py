@@ -31,7 +31,7 @@ S = DPI / 25.4
 PX = 1.0 / S
 
 PAPERS = list(C.GUIDED_PAPERS_XL) + ["60x200", "100x660"]
-PATCHES = (6.0, 8.0, 12.0, 20.0)
+PATCHES = (6.0, 6.25, 8.0, 12.0, 20.0)
 SIDES = ((5.0, 5.0), (20.0, 20.0), (0.0, 0.0), (10.0, 30.0))
 
 
@@ -44,8 +44,11 @@ def _cases():
                     out.append((paper, model, patch, (5.0, right, 5.0, left),
                                 {}))
     # tight margins, the barcode, the notes band, a pushed-out number
-    for paper in ("A4", "A3", "Letter"):
-        out += [(paper, "xl", 6.0, (5.0, 5.0, 5.0, 5.0),
+    for paper in ("A4", "A3", "Letter", "148x210", "279x432"):
+        out += [(paper, "xl", 6.25, (5.0, 5.0, 5.0, 5.0), {}),
+                (paper, "standard", 6.25, (5.0, 5.0, 5.0, 5.0),
+                 {C.ALIGN_KEY: "center"}),
+                (paper, "xl", 6.0, (5.0, 5.0, 5.0, 5.0),
                  {C.TIGHT_KEY: True}),
                 (paper, "standard", 8.0, (5.0, 5.0, 5.0, 5.0),
                  {C.BARCODE_KEY: True, "isis_notes_band": True}),
@@ -74,13 +77,16 @@ def _intersects(a, b) -> bool:
 
 @pytest.mark.parametrize("paper,model,patch,margins,extra", _cases())
 @pytest.mark.parametrize("count", ("few", "full"))
+@pytest.mark.parametrize("face", ("Inter", "JetBrains Mono"))
 def test_row_numbers_lie_inside_the_outline_with_a_gap(paper, model, patch,
                                                        margins, extra,
-                                                       count):
+                                                       count, face):
+    # JetBrains Mono is what Manual's label face starts at; Inter is the
+    # module's own default and has digits of different widths
     w, h = papers.dimensions_mm(paper)
     kw = {C.MODEL_KEY: model, "paper": paper, "patch_w": patch,
           "patch_h": patch, "margins": margins, "row_indicators": True,
-          **extra}
+          "indicator_font": face, **extra}
     try:
         n = 40 if count == "few" else C.capacity(kw)
         kw[C.COUNT_KEY] = n
@@ -91,7 +97,22 @@ def test_row_numbers_lie_inside_the_outline_with_a_gap(paper, model, patch,
     numbers = [i for i in items if i.role == "row_number"]
     side = C.side_doc(sheet, paper=paper, name="rows", title="rows")
     if not numbers:
-        # no room: left off, and said
+        # no room: left off, and said, and only when they truly do not fit:
+        # the widest chart the margins and the model allow, the real row
+        # names at the smallest size, the gap kept (review MINOR-1)
+        o = sheet.opts
+        room = min(w - o.margins[1] - o.margins[3] - o.offset[0],
+                   F.PAPER_W_MM.value[o.model][1])
+        start = sheet.right_marker_edge - sheet.x0 \
+            + F.DIAMOND_CLEAR_MM.value + max(0.0, o.label_offset_x)
+        avail = room - F.OUTLINE_LINE_MM.value - C.ROW_NUMBER_GAP_MM - start
+        boxes = [C._label_box(0, 0, C.LABEL_MIN_MM, C.row_name(r),
+                              o.number_rotation, o.letter_font, o.letter_bold,
+                              o.letter_italic) for r in range(g.R)]
+        assert (max(b[2] for b in boxes) > avail + 1e-6
+                or max(b[3] for b in boxes) > o.ph + 1e-6), \
+            (paper, model, patch, margins, extra, "left off but would fit",
+             avail, max(b[2] for b in boxes))
         assert "row_numbers" in off
         assert side["row_numbers"] == "left_off"
         assert C.keep_out_message("row_numbers")
@@ -178,3 +199,27 @@ def test_the_default_a4_and_letter_charts_still_print_their_numbers(paper):
         items, off = C.plan_page(sheet, 0, name="x")
         assert any(i.role == "row_number" for i in items), (paper, model)
         assert "row_numbers" not in off
+
+
+@pytest.mark.parametrize("align", ["top-left", "top-center", "top-right",
+                                   "center", "bottom-center", "bottom-right"])
+@pytest.mark.parametrize("paper,model,patch", [("A4", "standard", 6.0),
+                                               ("A3", "xl", 8.0),
+                                               ("148x210", "standard", 6.25),
+                                               ("279x432", "xl", 8.0)])
+def test_with_the_row_numbers_off_nothing_moves_in_any_alignment(
+        align, paper, model, patch):
+    """Review MINOR-2: only the row numbers widen the chart, so only with
+    them on does a centre or right alignment move it. Off, the outline is
+    the chart's own width, placed by the alignment alone, as in 4.3.39."""
+    w, h = papers.dimensions_mm(paper)
+    kw = {C.MODEL_KEY: model, "paper": paper, "patch_w": patch,
+          "patch_h": patch, "margins": (5.0, 5.0, 5.0, 5.0),
+          C.ALIGN_KEY: align, C.COUNT_KEY: 400}
+    _o, g, sheet = C.layout_for(400, w, h, kw)
+    nominal = 2.0 * sheet.opts.side + g.C * sheet.opts.pw
+    assert sheet.width == pytest.approx(
+        max(nominal, F.CHART_MIN_WIDTH_MM.value), abs=1e-9)
+    fv, fh = C._align_fractions(align)
+    slack = max(0.0, w - 5.0 - 5.0 - sheet.width)
+    assert sheet.x0 == pytest.approx(5.0 + fh * slack, abs=1e-9)
