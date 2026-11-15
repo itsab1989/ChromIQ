@@ -313,6 +313,13 @@ DEFAULTS: dict[str, Any] = {
     #: nothing new. Values and patch assignment never change. Off = the helper
     #: is started without --ruler: exactly the base branch. Read at every Start.
     "ruler_check_beta":          False,
+    #: Beta (Settings -> Beta, 2026-11-15): "X-Rite i1Pro 3: keep M0, M1 and
+    #: M2 from every scan" (`workflow.i1pro3_conditions`). The chart-reading
+    #: engine keeps the two conditions -F did not choose from the same pass
+    #: in the run's conditions/ folder, and Build Profile offers them. Nothing
+    #: new is sent to the instrument. Off = the helper is started without
+    #: --condition-dir. Read at every Start.
+    "i1pro3_conditions_beta":    False,
     #: Beta (Settings -> Beta): also write the "turned" i1Profiler chart files
     #: (`workflow.i1profiler_turned`) into a chart's exports/ folder, so the
     #: printed ChromIQ sheet can be read in i1Profiler too after a quarter

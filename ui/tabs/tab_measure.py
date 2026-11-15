@@ -22529,12 +22529,35 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             self._settings.get("i1pro2_lights_during_reading", False))
         p.engine_ruler_check = bool(
             self._settings.get("ruler_check_beta", False))
+        p.engine_condition_dir = self._condition_dir_for(p)
         p.cal_auto_retries = int(self._settings.get("cal_auto_retries", 3))
         import os as _os
         replay = _os.environ.get("CHROMIQ_REPLAY")
         if replay:
             p.engine_replay = Path(replay)
         return p
+
+    def _condition_dir_for(self, p: MeasureParams) -> "Path | None":
+        """"X-Rite i1Pro 3: keep M0, M1 and M2 from every scan" (Beta): the
+        run's conditions/ folder for a PROFILING run measured with -F off,
+        M1 or M2; None otherwise (option off, a verification or a
+        calibration, the polariser), and then the helper's command line is
+        exactly 4.3.40's."""
+        from workflow import i1pro3_conditions as _c
+        if not _c.stored_value(self._settings):
+            return None
+        try:
+            from workflow.measurement_condition import filter_code_from_args
+            if _c.main_condition(filter_code_from_args(p.extra_args)) is None:
+                return None
+            ti1 = Path(p.ti1_path)
+            if "verifications" in ti1.parts or ti1.parent.name == "cal":
+                return None
+            from core.file_manager import Run
+            return Run.for_dir(ti1.parent).condition_dir
+        except Exception:      # noqa: BLE001 - never stop a Start
+            log.warning("M0/M1/M2: no condition folder", exc_info=True)
+            return None
 
     # ------------------------------------------------------------------
     # Param collection
