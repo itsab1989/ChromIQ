@@ -17,7 +17,7 @@ fewer readings well inside each patch: a tester's 7.1 mm patches gave "Too
 many patches" (2026-10-21) and 8 mm ones "Reading is inconsistent" next to a
 near-black patch (jctay, forum 150236). ChromIQ WARNS, it never refuses or
 greys anything: the person may have reasons (Basti: defaults safe, options
-open). Table and spot instruments (SpectroScan, i1iO, i1iSis, FD-9, CR30) have
+open). Table and spot instruments (the SpectroScan, the i1iO and i1iSis tables, the CR30) have
 rules of their own and are not judged here.
 """
 from __future__ import annotations

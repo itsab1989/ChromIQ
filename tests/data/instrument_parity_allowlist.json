@@ -967,6 +967,7 @@
     "IO2"
    ],
    "item": [
+    "panel.avoid_dark_light_cb",
     "panel.bit_depth",
     "panel.cal_mode",
     "panel.cal_path_edit",
@@ -1900,6 +1901,7 @@
    "mode": "manual_engine_off",
    "instrument": "XRISIS",
    "item": [
+    "panel.avoid_dark_light_cb",
     "panel.bit_depth",
     "panel.cal_mode",
     "panel.cal_path_edit",
@@ -2340,6 +2342,7 @@
    "aspect": "back and forth",
    "expected": [
     "area_method",
+    "avoid_dark_light_neighbours",
     "chart_text",
     "chart_text_bold",
     "clip_content_mode",
@@ -2387,6 +2390,7 @@
    "aspect": "back and forth",
    "expected": [
     "area_method",
+    "avoid_dark_light_neighbours",
     "chart_text",
     "chart_text_bold",
     "clip_content_mode",
@@ -2434,6 +2438,7 @@
    "aspect": "back and forth",
    "expected": [
     "area_method",
+    "avoid_dark_light_neighbours",
     "chart_text_bold",
     "edge_spacers",
     "helper_marker_edge_mm",
@@ -2462,6 +2467,7 @@
    "aspect": "back and forth",
    "expected": [
     "area_method",
+    "avoid_dark_light_neighbours",
     "chart_text",
     "chart_text_bold",
     "clip_content_mode",
@@ -2509,6 +2515,7 @@
    "aspect": "back and forth",
    "expected": [
     "area_method",
+    "avoid_dark_light_neighbours",
     "chart_text",
     "chart_text_bold",
     "clip_content_mode",
@@ -2556,6 +2563,7 @@
    "aspect": "there and back",
    "expected": [
     "area_method",
+    "avoid_dark_light_neighbours",
     "chart_text",
     "chart_text_bold",
     "clip_content_mode",
@@ -2603,6 +2611,7 @@
    "aspect": "there and back",
    "expected": [
     "area_method",
+    "avoid_dark_light_neighbours",
     "chart_text",
     "chart_text_bold",
     "clip_content_mode",
@@ -2648,6 +2657,7 @@
    "aspect": "there and back",
    "expected": [
     "area_method",
+    "avoid_dark_light_neighbours",
     "chart_text_bold",
     "edge_spacers",
     "helper_marker_edge_mm",
@@ -2676,6 +2686,7 @@
    "aspect": "there and back",
    "expected": [
     "area_method",
+    "avoid_dark_light_neighbours",
     "chart_text",
     "patch_pattern",
     "show_row_indicators",
@@ -2692,6 +2703,7 @@
    "item": "i1 -> SS",
    "aspect": "there and back",
    "expected": [
+    "avoid_dark_light_neighbours",
     "chart_text",
     "chart_text_bold",
     "clip_content_mode",
@@ -2738,6 +2750,7 @@
    "aspect": "there and back",
    "expected": [
     "area_method",
+    "avoid_dark_light_neighbours",
     "chart_text",
     "chart_text_bold",
     "clip_content_mode",
@@ -2795,6 +2808,7 @@
     "area_min_patch_mm",
     "area_ratio",
     "area_rows",
+    "avoid_dark_light_neighbours",
     "bit16",
     "chart_text_bold",
     "chart_text_font",
@@ -3086,6 +3100,7 @@
     "area_min_patch_mm",
     "area_ratio",
     "area_rows",
+    "avoid_dark_light_neighbours",
     "bit16",
     "chart_text",
     "chart_text_bold",
@@ -3174,6 +3189,7 @@
    "aspect": "back and forth",
    "expected": [
     "area_method",
+    "avoid_dark_light_neighbours",
     "chart_text",
     "chart_text_bold",
     "clip_content_mode",
@@ -3212,6 +3228,7 @@
    "aspect": "there and back",
    "expected": [
     "area_method",
+    "avoid_dark_light_neighbours",
     "chart_text",
     "chart_text_bold",
     "clip_content_mode",

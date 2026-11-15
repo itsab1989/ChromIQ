@@ -1093,6 +1093,9 @@ class LayoutOptionsPanel(QWidget):
                     QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
                 _c.setMinimumContentsLength(10)
             self.instr.currentIndexChanged.connect(self._on_instr_changed)
+            # R7: the dark/light option means something for some instruments
+            # (a bound method, never a self-capturing lambda: CLAUDE.md)
+            self.instr.currentIndexChanged.connect(self._on_instr_dark_light)
             self._panel_inst = self.instr.currentData()
             self.paper.currentIndexChanged.connect(self._on_paper_changed)
             self.mode.currentIndexChanged.connect(self._apply_mode_defaults)
@@ -1975,6 +1978,28 @@ class LayoutOptionsPanel(QWidget):
         rgg.addWidget(self.fixed_seed_cb, 1, 1)
         rgg.addWidget(QLabel(tr("Seed:"), self), 2, 0, _Qt.AlignmentFlag.AlignRight)
         rgg.addWidget(cell_fill(self.seed_spin, self.new_seed_btn), 2, 1)
+        # R7 (4.3.39): a chart in fixed order keeps very dark patches away
+        # from very light ones along a strip (`neighbour_order`). Only
+        # meaningful while "Randomise patch order" is off, so greyed while it
+        # is on (`_sync_seed_enabled`); on for a recipe made from 4.3.39 on.
+        self.avoid_dark_light_cb = WrappingCheckBox(
+            tr("Keep very dark patches away from very light ones"), self)
+        self.avoid_dark_light_cb.setChecked(True)
+        self.avoid_dark_light_cb.toggled.connect(self._emit)
+        rgg.addWidget(self.avoid_dark_light_cb, 3, 1)
+        rgg.addWidget(TooltipButton(
+            tr("Keep very dark patches away from very light ones"),
+            tr("Only for a chart in fixed order (with “Randomise patch order” "
+               "off). A very dark patch read straight after a very light one "
+               "can pick up a little light from it, and the instrument then "
+               "refuses that strip more often, often with “Reading is "
+               "inconsistent”. With this on, ChromIQ swaps the fewest patches "
+               "needed so that no such pair sits side by side along a strip, "
+               "and the Create Chart log names every patch that moved. The "
+               "patches themselves stay the same, and the chart file records "
+               "where each one is, so measuring and every report follow it. "
+               "Switch it off when you need the patches exactly in the order "
+               "of your patch set."), self), 3, 2)
         rgg.addWidget(TooltipButton(
             tr("Randomisation"),
             tr("Patches are shuffled across the sheet so a streak of similar "
@@ -6827,11 +6852,36 @@ class LayoutOptionsPanel(QWidget):
         if getattr(self, "_order_locked", False):
             for w in (self.fixed_seed_cb, self.new_seed_btn, self.seed_spin):
                 w.setEnabled(False)
+            # a calibration chart keeps each ramp in order: nothing to do
+            cb = getattr(self, "avoid_dark_light_cb", None)
+            if cb is not None:
+                cb.setEnabled(False)
             return
         on = self.randomize_cb.isChecked()
         self.fixed_seed_cb.setEnabled(on)
         self.new_seed_btn.setEnabled(on)
         self.seed_spin.setEnabled(on and self.fixed_seed_cb.isChecked())
+        # R7: only a chart in fixed order, for a hand-held strip instrument,
+        # is rearranged; everywhere else the box has no meaning
+        cb = getattr(self, "avoid_dark_light_cb", None)
+        if cb is not None:
+            cb.setEnabled(not on and self._avoid_dark_light_applies())
+
+    #: R7: the instruments whose fixed-order charts the layout engine keeps
+    #: very dark patches away from very light ones on (`build_chart`).
+    AVOID_DARK_LIGHT_INSTRUMENTS = ("i1", "p3", "CM")
+
+    def _on_instr_dark_light(self, *_a) -> None:
+        self._sync_seed_enabled()
+
+    def _avoid_dark_light_applies(self) -> bool:
+        instr = getattr(self, "instr", None)
+        if instr is None:
+            return True            # an editor panel without a selector
+        try:
+            return instr.currentData() in self.AVOID_DARK_LIGHT_INSTRUMENTS
+        except Exception:      # noqa: BLE001
+            return True
 
     def _on_randomize_toggled(self, *_a) -> None:
         self._sync_seed_enabled()
@@ -8079,6 +8129,8 @@ class LayoutOptionsPanel(QWidget):
         self._sync_clip_content_enabled()
         self._sync_clip_enable_display()
         self.randomize_cb.setChecked(r.randomize)
+        self.avoid_dark_light_cb.setChecked(
+            bool(getattr(r, "avoid_dark_light_neighbours", False)))
         # THE TICK COMES FROM THE RECORDED TICK, AND THE NUMBER FROM THE NUMBER.
         #
         # Knut, 2026-09-10, on loading a chart as it was made: the stored seed
@@ -8322,6 +8374,7 @@ class LayoutOptionsPanel(QWidget):
         r.clip_image_offset_x_mm = self.clip_image_offx.value()
         r.clip_image_offset_y_mm = self.clip_image_offy.value()
         r.randomize = self.randomize_cb.isChecked()
+        r.avoid_dark_light_neighbours = self.avoid_dark_light_cb.isChecked()
         r.seed = (int(self.seed_spin.value())
                   if r.randomize and self.fixed_seed_cb.isChecked() else None)
         # The tick itself, recorded whatever the seed came out as (Knut,

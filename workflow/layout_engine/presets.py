@@ -470,6 +470,14 @@ class LayoutRecipe:
     # chart settings and a chart's sidecar lay out exactly as they did. A
     # recipe made from 4.3.14 on gets True; a loaded recipe keeps what it has.
     clip_border_free_space: bool = True
+    # R7 (4.3.39): on a chart in fixed order, keep very dark patches away
+    # from very light ones along a strip (`neighbour_order`). True for a
+    # recipe made from 4.3.39 on; a recipe SAVED BEFORE it (a preset, Save as
+    # Defaults, a project's stored settings, a chart's sidecar) reads a
+    # missing key as False and lays out exactly as it did (the
+    # clip_border_free_space precedent, Basti 2026-10-25). Only meaningful
+    # without "Randomise patch order".
+    avoid_dark_light_neighbours: bool = True
     nolimit: bool = False
     strip_pattern: str = permutation.DEFAULT_STRIP_PATTERN
     patch_pattern: str = permutation.DEFAULT_PATCH_PATTERN
@@ -533,6 +541,9 @@ class LayoutRecipe:
         # map it back so e.g. clip_border isn't silently lost (#93).
         if isinstance(d, dict) and ("nolpcbord" in d or "draw_indicators" in d):
             r = cls.from_build_kwargs(d)
+            # stored build kwargs are from before 4.3.39 unless they say so
+            r.avoid_dark_light_neighbours = bool(
+                d.get("avoid_dark_light_neighbours", False))
             # stored build kwargs are from before 4.3.14 unless they say so
             r.clip_border_free_space = bool(d.get("clip_border_free_space",
                                                   False))
@@ -544,6 +555,9 @@ class LayoutRecipe:
         # SAVED BEFORE 4.3.14: the old clip-border rule (see the field).
         kw["clip_border_free_space"] = bool(d.get("clip_border_free_space",
                                                   False))
+        # SAVED BEFORE 4.3.39: no dark/light reordering (see the field).
+        kw["avoid_dark_light_neighbours"] = bool(
+            d.get("avoid_dark_light_neighbours", False))
         return cls(**kw)
 
     @classmethod
@@ -678,6 +692,9 @@ class LayoutRecipe:
             # `from_dict` reads stored kwargs the other way.
             clip_border_free_space=(d.get("clip_border_free_space", True)
                                     is not False),
+            # build kwargs carry it only when it is on (`build_kwargs`)
+            avoid_dark_light_neighbours=bool(
+                d.get("avoid_dark_light_neighbours", False)),
         )
         return r
 
@@ -918,6 +935,10 @@ class LayoutRecipe:
         # chart's kwargs stay as they were (`instruments.old_clip_border_rule`).
         if not self.clip_border_free_space:
             kw["clip_border_free_space"] = False
+        # R7: only where it can do something, so every other chart's kwargs
+        # stay as they were.
+        if self.avoid_dark_light_neighbours and not self.randomize:
+            kw["avoid_dark_light_neighbours"] = True
         return kw
 
 

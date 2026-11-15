@@ -127,6 +127,8 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-STRIP-FAILED-INCONSISTENT-AGAIN",
     # 4.3.39 (R6): patches shorter than ArgyllCMS's minimum, a note only.
     "M-CHART-PATCHES-SHORT", "M-MEASURE-PATCHES-SHORT",
+    # 4.3.39 (R7): Create Chart kept very dark patches from very light ones.
+    "M-CHART-NEIGHBOURS-MOVED", "M-CHART-NEIGHBOURS-LEFT",
     # 4.3.36, 2026-11-14: the technical line under a communication failure
     # (which USB step failed), for a report.
     "M-STRIP-FAILED-COMS-DETAIL",

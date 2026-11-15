@@ -9520,6 +9520,34 @@ M_MEASURE_PATCHES_SHORT = _m(
     "patch helps, and a chart with longer patches avoids it.",
     approved=False)
 
+# --- PROPOSED: Create Chart moved patches apart (R7, 4.3.39) -----------------
+#: A chart in fixed order with a near-black patch straight next to a
+#: near-white one along a strip: the layout engine swapped the fewest patches
+#: needed (workflow/layout_engine/neighbour_order.py). The Create Chart log
+#: names each swap; {pairs} is "9I and 10I, 12I and 13I" (locations).
+M_CHART_NEIGHBOURS_MOVED = _m(
+    "M-CHART-NEIGHBOURS-MOVED",
+    "Very dark patches moved away from very light ones",
+    "To keep very dark patches away from very light ones along a strip, "
+    "these patches changed places: {pairs}. A very dark patch read straight "
+    "after a very light one can pick up light from it, and the instrument "
+    "then refuses the strip more often. Every other patch is where the patch "
+    "order puts it, and the chart file records the new places, so measuring, "
+    "the reports and an i1Profiler export all use them. You can switch this "
+    "off with “Keep very dark patches away from very light ones” under "
+    "Randomisation.",
+    approved=False)
+
+M_CHART_NEIGHBOURS_LEFT = _m(
+    "M-CHART-NEIGHBOURS-LEFT",
+    "Some very dark patches still sit next to very light ones",
+    "In some places along a strip, a very dark patch still sits straight "
+    "next to a very light one, because no small change of places could "
+    "clear them without making another such pair. Such a strip may be "
+    "refused now and then with “Reading is inconsistent”; reading it patch by "
+    "patch helps.",
+    approved=False)
+
 M_STRIP_FAILED_EDGES = _m(
     "M-STRIP-FAILED-EDGES",
     "The movement did not start and end on the white paper",
@@ -10526,6 +10554,8 @@ M_STRIP_RULER_NOT_COVERED = _m(
 
 
 CATALOGUE = {m.id: m for m in (
+    M_CHART_NEIGHBOURS_MOVED,
+    M_CHART_NEIGHBOURS_LEFT,
     M_CHART_PATCHES_SHORT,
     M_MEASURE_PATCHES_SHORT,
     M_STRIP_FAILED_INCONSISTENT_AGAIN,

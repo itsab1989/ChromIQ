@@ -198,6 +198,21 @@ and lay out exactly as saved: only which list shows them changed. Every other
 paper's list is unchanged. Driven on screen: in 4.3.10 the 10 × 15 cm list
 held nothing but "none".
 
+## A chart in fixed order keeps very dark patches away from very light ones (R7, 4.3.39)
+
+#### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+*jctay (forum 150236): a near-black patch straight after an almost white one on a fixed-order chart, refused 15 times of 15 with “Reading is inconsistent”. Basti, 2026-11-15: "can we avoid those things on non randomized charts?" Built for 4.3.39.*
+
+* **Create Chart → Randomisation → “Keep very dark patches away from very light ones”.** On for a recipe made from 4.3.39 on; a recipe saved before (a preset, Save as Defaults, a project's stored settings, a chart's own record) reads it as off and lays out exactly as it did, so Restore Used Chart and every re-layout from a chart's own record reproduce the printed sheet. Greyed only while “Randomise patch order” is on (it has no meaning there) and for a calibration chart (each ramp stays in order).
+* **What it does.** On a chart in fixed order for a hand-held strip instrument (i1Pro family, ColorMunki), the layout engine swaps the fewest patches needed so that no near-black patch (L* 20 or below, from the chart's own expected colours against its lightest patch) sits straight next to a near-white one (L* 80 or above) along a strip: first with the patch on the dark patch's other side, then two places along, then with the same place in the next or the previous strip; never a padding patch, never to another page. Deterministic. The patch set is unchanged.
+* **Recorded like any layout.** Through the engine's one slot list, so the `.ti2`, the pages, the side files and the `.cht` agree; every reader of the chart (measuring, the reports, the i1Profiler export) follows the `.ti2`.
+* **Byte for byte as before** for a randomised chart, a chart without such neighbours, the option off, a calibration chart, and the i1iO, i1iSis and FD-9 charts (not built for them: they have slot rules of their own).
+* **Said.** The Create Chart log names every swap (M-CHART-NEIGHBOURS-MOVED) and any pair left (M-CHART-NEIGHBOURS-LEFT).
+* **Worth knowing.** targen's own patch order begins with its white patches and then its black ones, so a new fixed-order chart made from a targen patch set nearly always has one such pair at the start of the first strip, and this moves one black patch.
+
 ## Answered, and so not built
 
 Whether importing a chart file should also offer "replace only the chart",

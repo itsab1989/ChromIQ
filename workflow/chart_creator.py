@@ -294,6 +294,26 @@ def _engine_summary_log_line(total: int, steps: int, passes: int,
                   pages=page_text, seed_label=tr("Seed:"), seed=seed)
 
 
+def _neighbour_log_lines(moves, left: int, randomized: bool) -> "list[str]":
+    """R7: M-CHART-NEIGHBOURS-MOVED for the swaps the layout engine made on
+    a chart in fixed order, and M-CHART-NEIGHBOURS-LEFT when pairs are left
+    that no swap could clear; nothing for a randomised chart."""
+    if randomized:
+        return []
+    from core.i18n import tr
+    from workflow import measurement_messages as M
+    out = []
+    if moves:
+        pairs = ", ".join(tr("{a} and {b}").format(a=a, b=b)
+                          for a, b in moves)
+        title, body = M.M_CHART_NEIGHBOURS_MOVED.render(pairs=pairs)
+        out.append(f"[{title}] {body}")
+    if left:
+        title, body = M.M_CHART_NEIGHBOURS_LEFT.render()
+        out.append(f"[{title}] {body}")
+    return out
+
+
 def _ramp_whites_log_line(added: int,
                           tool: str = "[ChromIQ layout engine]") -> str:
     """The log line for a calibration chart whose ramps were put on strips of
@@ -2069,6 +2089,12 @@ class ChartCreator:
             int(getattr(result, "ramp_whites_added", 0) or 0))
         if _ramp_line:
             on_line(_ramp_line)
+        # R7 (4.3.39): which patches changed places, and what was left.
+        for _nb_line in _neighbour_log_lines(
+                list(getattr(result, "neighbour_moves", None) or []),
+                int(getattr(result, "neighbour_pairs_left", 0) or 0),
+                bool(getattr(result, "randomize", True))):
+            on_line(_nb_line)
         pad_line = _engine_padding_log_line(result.layout.total_patches,
                                             getattr(result.layout, "padding", 0))
         if pad_line:

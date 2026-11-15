@@ -166,6 +166,8 @@ NOT_AN_I1IO_OPTION = {
     "clip_image_offset_x_mm": "image content only; walked by the clip tests",
     "clip_image_offset_y_mm": "image content only; walked by the clip tests",
     "clip_border_free_space": "derived from the content mode",
+    "avoid_dark_light_neighbours": "R7 rearranges hand-held strip charts "
+                                   "only; greyed for the i1iO",
 }
 
 
