@@ -718,16 +718,31 @@ def sheet_for(grid: Grid, paper_w: float, paper_h: float,
         # number, when the page has that paper inside its right margin
         size = opts.letter_size or min(3.0, max(1.2, opts.ph * 0.5))
         txt = "9" * len(str(grid.R))
-        _x, _y, nw, _nh = _label_box(0, 0, size, txt, opts.number_rotation,
-                                     opts.letter_font, opts.letter_bold,
-                                     opts.letter_italic)
-        need = (nominal_w - opts.d1 + F.DIAMOND_CLEAR_MM.value
-                + max(0.0, opts.label_offset_x) + nw + 0.5)
         room = paper_w - opts.margins[1] - opts.margins[3] - opts.offset[0]
         # and never wider than the sheet the model takes, so a sheet cut
         # along the outline still feeds (review of a7ca1489e, m2); without
         # the room the row numbers are left off and said
         widest = F.PAPER_W_MM.value[opts.model][1]
+
+        def _need(sz: float) -> float:
+            _x, _y, nw, _nh = _label_box(0, 0, sz, txt, opts.number_rotation,
+                                         opts.letter_font, opts.letter_bold,
+                                         opts.letter_italic)
+            return (nominal_w - opts.d1 + F.DIAMOND_CLEAR_MM.value
+                    + max(0.0, opts.label_offset_x) + nw + 0.5)
+        # SET SMALLER BEFORE LEFT OFF, as `_plan_numbers` sets them. The
+        # owner, 2026-11-15, on 4.3.38: "Show row indicators" ticked had no
+        # effect. On every default A4 chart (28 columns of 6 mm) the numbers
+        # at their full 3 mm needed 200.4 mm of the 200 inside the margins,
+        # so the width never grew, and `_plan_numbers` then had 2 mm left
+        # for them and dropped them, however small it set them. The width
+        # now grows for the largest size down to LABEL_MIN_MM that fits; a
+        # chart whose numbers fitted at full size is unchanged.
+        need = _need(size)
+        while (need > min(room, widest) + 1e-6
+               and size - 0.1 >= LABEL_MIN_MM - 1e-9):
+            size -= 0.1
+            need = _need(size)
         if need <= room + 1e-6 and need <= widest + 1e-6:
             width = max(width, need)
     natural_h = opts.grid_top + grid.R * opts.ph + opts.trailer_mm
