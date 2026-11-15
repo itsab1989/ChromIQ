@@ -4263,15 +4263,19 @@ jobs, which is allowed and should be.*
 
 ### M-GUIDED-SET-PAGES · PROPOSED · Generate in Guided, the run's own patch set takes other pages than asked — Create Chart
 
-*New 2026-11-15 (the owner, after an i1iSis chart came out on two pages with "Number of pages: 1": "clicking generate in guided should give new patches anyway so the user gets the layout and number of pages he selected"). A run's own patch set (made in the patch set tool, edited, loaded, or an older chart's that targen does not make) is bound when the run is opened (#147) and Generate lays it out in Guided too, whatever "Number of pages" says. When it then takes another number of pages than asked, Generate asks first: "Make a new patch set for {n} pages" (targen fills the pages asked, as for a new chart) or "Keep my patch set" (the default, and Escape: laid out as before). Only Guided; a set that fits the pages, Manual and calibration are unchanged. On a measured run the §4 window still follows on the way to the new chart. `{set_pages}` and `{asked}` are "1 page" / "{n} pages"; `{n}` and `{cap}` are patch counts. The wording is ours.*
+*New 2026-11-15 (the owner, after an i1iSis chart came out on two pages with "Number of pages: 1": "clicking generate in guided should give new patches anyway so the user gets the layout and number of pages he selected"). A run's own patch set (made in the patch set tool, edited, loaded, or an older chart's that targen does not make) is bound when the run is opened (#147) and Generate lays it out in Guided too, whatever "Number of pages" says. When it then takes another number of pages than asked, Generate asks first, with three answers: "Do not generate" (the default, and Escape: nothing is built, moved or written, byte for byte), "Keep my patches and lay them out again" (laid out as before; on a randomised chart, the Guided default, the patch order is shuffled again, so the chart file and images are new, exactly as 4.3.38 did) and "Make a new patch set for {n} pages" (targen fills the pages asked, as for a new chart). Revised 2026-11-15 after the combined review of 4.3.39 (MAJOR-1): the first version offered only Make and Keep, with Keep as the default and Escape, and said Keep gave "the same sheets", which it does not on a randomised chart. Only Guided; a set that fits the pages, Manual and calibration are unchanged. On a measured run the §4 window comes BEFORE this question; nothing is moved until a chart is actually generated, so "Do not generate" after answering §4 still leaves the measurement in place. `{set_pages}` and `{asked}` are "1 page" / "{n} pages"; `{n}` and `{cap}` are patch counts. The wording is ours.*
 
 > **Your own patch set does not fit the pages you chose**
 >
 > This run uses its own patch set of {n} patches, one you made, edited or loaded. With the settings on screen it takes {set_pages}, but “Number of pages” asks for {asked}.
 >
-> Make a new patch set: ChromIQ makes a new set of {cap} patches that fills {asked}, as Guided does for a new chart. Your own patch set is then replaced in this run. If the run already has a measurement, ChromIQ asks about it before anything is replaced, as always.
+> Do not generate: nothing is changed. Choose this if the chart is already printed and you want to measure the sheets you have.
 >
-> Keep my patch set: the chart is laid out from your own patches again, on {set_pages}. Choose this if the chart is already printed and you want the same sheets.
+> Keep my patches and lay them out again: the same patches are laid out again on {set_pages}. On a randomised chart, as Guided makes them, their order is shuffled again, so the chart you get is a new one to print.
+>
+> Make a new patch set: ChromIQ makes a new set of {cap} patches that fills {asked}, as Guided does for a new chart. Your own patch set is then replaced in this run.
+>
+> If the run already has a measurement, ChromIQ has asked you about it just before this question, as always. It is only moved aside if you generate a chart.
 
 ### M-ISIS-ROW-NUMBERS-NO-ROOM · PROPOSED · "Show row indicators" is on but the sheet has no room for the row numbers, Create Chart log and the "i1iSis chart (Beta)" group
 

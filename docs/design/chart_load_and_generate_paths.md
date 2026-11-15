@@ -101,10 +101,16 @@ edited, loaded, or an older chart's that targen does not make) is still bound
 when the run is opened (#147) and still laid out by Generate in Guided as
 well as in Manual. Only when, in Guided, that set laid out with the settings
 on screen takes another number of pages than "Number of pages" asks for,
-Generate first asks (M-GUIDED-SET-PAGES): make a new patch set for the pages
-asked (targen, as for a new chart), or keep the set (the default). A set that
-fits the pages, Manual and calibration charts are unchanged. On a measured run
-the §4 window still follows on the way to the new chart.
+Generate first asks (M-GUIDED-SET-PAGES), with three answers: do not
+generate (the default, and Escape: nothing is built, moved or written),
+keep the patches and lay them out again (as before; a randomised chart, the
+Guided default, gets a new patch order, so new chart files and images), or
+make a new patch set for the pages asked (targen, as for a new chart). The
+combined review of 4.3.39 (MAJOR-1) found that the first version's default,
+Keep, was described as giving "the same sheets", which it does not. A set
+that fits the pages, Manual and calibration charts are unchanged. On a
+measured run the §4 window comes before this question, and nothing is moved
+until a chart is actually generated.
 
 ## Two ways of laying a chart out again, and they give different sheets
 

@@ -1319,13 +1319,18 @@ M_GUIDED_SET_PAGES = _m(
     "This run uses its own patch set of {n} patches, one you made, edited "
     "or loaded. With the settings on screen it takes {set_pages}, but "
     "“Number of pages” asks for {asked}.\n\n"
+    "Do not generate: nothing is changed. Choose this if the chart is "
+    "already printed and you want to measure the sheets you have.\n\n"
+    "Keep my patches and lay them out again: the same patches are laid out "
+    "again on {set_pages}. On a randomised chart, as Guided makes them, "
+    "their order is shuffled again, so the chart you get is a new one to "
+    "print.\n\n"
     "Make a new patch set: ChromIQ makes a new set of {cap} patches that "
     "fills {asked}, as Guided does for a new chart. Your own patch set is "
-    "then replaced in this run. If the run already has a measurement, "
-    "ChromIQ asks about it before anything is replaced, as always.\n\n"
-    "Keep my patch set: the chart is laid out from your own patches again, "
-    "on {set_pages}. Choose this if the chart is already printed and you "
-    "want the same sheets.",
+    "then replaced in this run.\n\n"
+    "If the run already has a measurement, ChromIQ has asked you about it "
+    "just before this question, as always. It is only moved aside if you "
+    "generate a chart.",
     approved=False)
 
 #: The Create Chart log line for an i1iSis chart that is not RGB.

@@ -9,9 +9,11 @@ Guided: 1008 patches on 2 pages, with "Number of pages: 1" on screen and no
 word about it. The same happens with every instrument (the binding is #147,
 shared), e.g. a ColorMunki set of 480 with 6 pages asked.
 
-* the set takes other pages than asked: Generate asks; "Keep my patch set"
-  (the default, and Escape) lays it out as before; "Make a new patch set"
-  runs targen for the pages asked and drops the binding;
+* the set takes other pages than asked: Generate asks; "Do not generate"
+  (the default, and Escape) changes nothing at all; "Keep my patches and lay
+  them out again" lays it out as before (a randomised chart gets a new
+  order, so it is a new chart: combined review of 4.3.39, MAJOR-1); "Make a
+  new patch set" runs targen for the pages asked and drops the binding;
 * the set takes exactly the pages asked: no question, laid out as before;
 * Manual: no question, laid out as before.
 """
@@ -111,15 +113,79 @@ def test_his_sequence_is_asked_and_a_new_set_fills_one_page(
     assert len(asked) == 1
 
 
-@pytest.mark.parametrize("which", ["Keep", None])
-def test_keep_and_escape_keep_the_set(qapp, tmp_path, monkeypatch, which):
+@pytest.mark.parametrize("which,ans", [("Keep", "keep"), ("Do not", "cancel"),
+                                       (None, "cancel")])
+def test_the_three_answers(qapp, tmp_path, monkeypatch, which, ans):
     ti1 = tmp_path / "mine.ti1"
     shutil.copy(FIXTURE, ti1)
     tab = _tab(tmp_path, "CM", "A4", 6, ti1)
     assert tab._bound_set_pages not in (None, 6)
     asked = _answer(monkeypatch, which)
-    assert tab._guided_bound_set_pages_answer() == "keep"
+    assert tab._guided_bound_set_pages_answer() == ans
     assert len(asked) == 1
+
+
+def test_do_not_generate_is_the_default_and_escape(qapp, tmp_path,
+                                                   monkeypatch):
+    ti1 = tmp_path / "mine.ti1"
+    shutil.copy(FIXTURE, ti1)
+    tab = _tab(tmp_path, "CM", "A4", 6, ti1)
+    seen = {}
+
+    def fake_exec(box):
+        seen["buttons"] = [b.text() for b in box.buttons()]
+        seen["default"] = box.defaultButton().text()
+        seen["escape"] = box.escapeButton().text()
+        seen["body"] = box.informativeText()
+        box.escapeButton().click()
+        return 0
+    monkeypatch.setattr(QMessageBox, "exec", fake_exec)
+    assert tab._guided_bound_set_pages_answer() == "cancel"
+    assert seen["default"] == seen["escape"] == "Do not generate"
+    assert "Keep my patches and lay them out again" in seen["buttons"]
+    assert any(b.startswith("Make a new patch set") for b in seen["buttons"])
+    # the text no longer promises the same sheets
+    assert "same sheets" not in seen["body"]
+    assert "shuffled again" in seen["body"]
+
+
+def _snapshot(root: Path) -> dict:
+    import hashlib
+    return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes())
+            .hexdigest() for p in root.rglob("*") if p.is_file()}
+
+
+def test_escape_leaves_every_file_untouched(qapp, tmp_path, monkeypatch):
+    """Through `_on_generate`, on a run that already holds a chart and a
+    measurement (the §4 window answered "Generate the new chart"): Escape
+    on this question builds nothing and moves nothing, byte for byte."""
+    ti1 = tmp_path / "mine.ti1"
+    shutil.copy(FIXTURE, ti1)
+    tab = _tab(tmp_path, "CM", "A4", 6, ti1)
+    tab._target_name_edit.setText("pages-test")
+    tab._file_mgr.set_target_name("pages-test")
+    run = tab._file_mgr.project().current_run()
+    run.dir.mkdir(parents=True, exist_ok=True)
+    for suffix, text in ((".ti2", "CTI2 chart"), (".ti3", "CTI3 reading"),
+                         ("_01.tif", "image")):
+        (run.dir / (run.dir.parent.parent.name + suffix)).write_text(
+            text, encoding="utf-8")
+    out = tmp_path / "out"
+    before = _snapshot(out)
+    assert any(k.endswith(".ti3") for k in before)
+    asked = _answer(monkeypatch, None)
+    built = []
+    monkeypatch.setattr(tab, "_generate_from_ti1",
+                        lambda p, ask=False: built.append(p))
+    monkeypatch.setattr(tab._creator, "generate",
+                        lambda *a, **k: built.append(k))
+    monkeypatch.setattr(tab, "_confirm_displacing_results", lambda *a: True,
+                        raising=False)
+    tab._on_generate()
+    assert len(asked) == 1, "the question was not reached"
+    assert built == []
+    assert _snapshot(out) == before
+    assert tab._preset_ti1_path == ti1
 
 
 def test_a_set_that_fits_the_pages_asks_nothing(qapp, tmp_path,

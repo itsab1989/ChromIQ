@@ -20881,16 +20881,20 @@ class TabChart(QWidget):
 
     def _guided_bound_set_pages_answer(self) -> str:
         """"keep", "new" or "cancel": whether Generate in Guided lays out the
-        run's own patch set, or makes a new one for the pages asked.
+        run's own patch set again, makes a new one for the pages asked, or
+        does nothing at all.
 
         Only Guided, and only when the bound set laid out with the settings
         on screen takes another number of pages than "Number of pages" says:
-        then the person is asked (M-GUIDED-SET-PAGES), "Keep" being the safe
-        default, because a bound set is always a person's own (made in the
-        patch set tool, loaded, or an older chart's) and may be printed or
-        measured (#147). Anything else is "keep", which is exactly what
-        Generate did before. A measured run is asked about again by the
-        usual window (§4) on the way to the new chart."""
+        then the person is asked (M-GUIDED-SET-PAGES). "Do not generate" is
+        the default and Escape, and changes nothing (combined review of
+        4.3.39, MAJOR-1): laying the set out again is NOT the same sheet, as
+        a randomised chart gets a new patch order and so new chart files and
+        images, so a printed chart is only safe if nothing is generated.
+        Anything else is "keep", which is exactly what Generate did before.
+        A measured run has already been asked about by the usual window
+        (§4) before this question; nothing is moved until a chart is
+        actually generated."""
         if self._current_mode() != "guided":
             return "keep"
         try:
@@ -20917,18 +20921,23 @@ class TabChart(QWidget):
             count_phrase(asked, tr("Make a new patch set for 1 page"),
                          tr("Make a new patch set for {n} pages")),
             QMessageBox.ButtonRole.AcceptRole)
-        keep_btn = box.addButton(tr("Keep my patch set"),
+        keep_btn = box.addButton(tr("Keep my patches and lay them out again"),
+                                 QMessageBox.ButtonRole.ActionRole)
+        stop_btn = box.addButton(tr("Do not generate"),
                                  QMessageBox.ButtonRole.RejectRole)
-        box.setDefaultButton(keep_btn)
-        box.setEscapeButton(keep_btn)
+        box.setDefaultButton(stop_btn)
+        box.setEscapeButton(stop_btn)
         from ui.widgets import keep_message_box_inside_the_work_area
         keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         box.exec()
-        ans = "new" if box.clickedButton() is new_btn else "keep"
+        clicked = box.clickedButton()
+        ans = ("new" if clicked is new_btn
+               else "keep" if clicked is keep_btn else "cancel")
         log.info("Create Chart: the run's own patch set (%d patches) takes "
                  "%d page(s) here, %d asked in Guided: %s", n, set_pages,
-                 asked, "a new patch set is made" if ans == "new"
-                 else "kept as it is")
+                 asked, {"new": "a new patch set is made",
+                         "keep": "the same patches are laid out again",
+                         "cancel": "nothing is generated"}[ans])
         return ans
 
     def _patchset_missing_message(self, path) -> None:
