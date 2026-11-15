@@ -859,13 +859,12 @@ class TabProfile(QWidget):
         # Guided and Manual alike (this box is above both).
         self._build_from = ""
         self._cond_lbl = QLabel(tr("Build from:"), file_grp)
-        self._cond_combo = QComboBox(file_grp)
+        self._cond_combo = NoScrollComboBox(file_grp)
         self._cond_combo.setObjectName("build_from_condition")
         self._cond_combo.setMinimumContentsLength(24)
         self._cond_combo.activated.connect(self._on_build_from_chosen)
         self._cond_tip = TooltipButton(tr("Build from"), build_from_help(),
                                        file_grp, min_width=680)
-        self._cond_tip.setObjectName("build_from_condition_help")
         self._cond_lbl.setVisible(False)
         self._cond_combo.setVisible(False)
         self._cond_tip.setVisible(False)

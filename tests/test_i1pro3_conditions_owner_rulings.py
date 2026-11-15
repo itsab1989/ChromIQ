@@ -230,3 +230,42 @@ def test_off_the_info_button_is_hidden_with_the_row(tmp_path, qtbot):
     tab.show()
     tab.set_ti3_path(_loose(tmp_path, "M1"), propagate=False)
     assert not tab._cond_tip.isVisible() and not tab._cond_combo.isVisible()
+
+
+def test_the_info_button_is_made_like_its_neighbours(tmp_path, qtbot):
+    """The same class, made the same way, as the other (i) of the tab, with
+    the object name the style sheet's flat, borderless rule is keyed on
+    (``QToolButton#tooltip_btn``). An own object name once dropped that rule
+    and drew the button in a box (Basti, 2026-11-15)."""
+    from ui.tooltip_button import TooltipButton
+    tab = _tab(tmp_path, **{C.SETTING: True})
+    qtbot.addWidget(tab)
+    tab.show()
+    tab.set_ti3_path(_loose(tmp_path, "M1"), propagate=False)
+    me = tab._cond_tip
+    others = [w for w in tab.findChildren(TooltipButton)
+              if w is not me and w.isVisible()]
+    assert len(others) >= 2
+    ref = others[0]
+    assert type(me) is type(ref) is TooltipButton
+    assert me.objectName() == ref.objectName() == "tooltip_btn"
+    assert me.size() == ref.size()
+    assert me.focusPolicy() == ref.focusPolicy()
+    assert me.styleSheet() == ref.styleSheet() == ""
+    assert getattr(me, "_color_override", None) is None   # the tab's accent
+    from ui.widgets import NoScrollComboBox
+    assert isinstance(tab._cond_combo, NoScrollComboBox)
+
+
+def test_the_preferences_row_info_button_is_made_like_its_neighbours(qapp):
+    from tests.test_the_new_profile_engine_is_one_switch import _Fake
+    from core.settings import DEFAULTS
+    from ui.dialogs.settings_dialog import SettingsDialog
+    dlg = SettingsDialog(_Fake(DEFAULTS))
+    try:
+        me = dlg._i1pro3_conditions_tip
+        from ui.tooltip_button import TooltipButton
+        assert type(me) is TooltipButton
+        assert me.objectName() == "tooltip_btn"
+    finally:
+        dlg.deleteLater()
