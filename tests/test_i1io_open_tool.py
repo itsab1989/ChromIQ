@@ -358,6 +358,20 @@ def test_a_cold_table_gets_the_six_reading_lines_and_nothing_else(tmp_path):
     assert "open i1Profiler" in log and "Nothing was moved" in log
 
 
+@pytest.mark.parametrize("pos", [(1101.0, 55.0), (1102.0, 49.0), (1100.0, 20.0),
+                                 (1104.0, 20.0), (1102.0, -2.0)])
+def test_the_simulator_refuses_a_homing_from_outside_the_recorded_starts(pos):
+    """The simulator's own copy of the box (a second, independent line): an i1 from a place
+    i1Profiler never sent it from raises at once, whatever the program believes."""
+    sim = sim_mod.SimTable(pos=list(pos), jitter=False)
+    t = sim_mod.SimTransport(sim)
+    for line in OPEN + FOLLOW + [";s022", ";p025"]:
+        t.write((line + "\r").encode())
+        t.read(1.0)
+    with pytest.raises(sim_mod.SimViolation, match="only from the resting place"):
+        t.write(b";i12b\r")
+
+
 def test_the_simulator_refuses_i0_outright():
     sim = sim_mod.SimTable(cold=True)
     t = sim_mod.SimTransport(sim)
@@ -1387,10 +1401,18 @@ def test_a_closed_window_before_the_table_is_opened_is_logged(tmp_path, monkeypa
             if "power switch" in question:
                 signal.raise_signal(signal.SIGHUP)
             return super().ask(question, choices)
-    before = signal.getsignal(signal.SIGHUP)
-    code, log, events = _real(tmp_path, monkeypatch, opener, con=Hup(lambda k, t: None))
+    unhandled = []
+
+    def guard(signum, frame):              # only reached if the program installed nothing
+        unhandled.append(signum)
+    before = signal.signal(signal.SIGHUP, guard)
+    try:
+        code, log, events = _real(tmp_path, monkeypatch, opener, con=Hup(lambda k, t: None))
+        assert signal.getsignal(signal.SIGHUP) is guard       # put back as it was found
+    finally:
+        signal.signal(signal.SIGHUP, before)
+    assert not unhandled, "the program did not handle the closed window itself"
     assert code == 1 and "open" not in events and "stopped with Ctrl-C" in log
-    assert signal.getsignal(signal.SIGHUP) == before
 
 
 def test_todays_table_on_the_real_path_with_all_three_touches(tmp_path, monkeypatch):
