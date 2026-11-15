@@ -504,6 +504,11 @@ and the full session runs against the simulator.
       patch set beside every chart (`workflow/chart_exports.py::write_sidecars`),
       whose `.pxf` names the device i1Profiler itself writes for the
       instrument (`workflow/chart_exports.py::i1profiler_device_for`).
+      A measurement brought back from another program that the ordinary
+      import cannot pair needs its own gated route in
+      `workflow/measurement_import.py` (the i1iO's i1Profiler Measure Chart
+      file, `assess(..., source=)`), which reads nothing while the switch is
+      off.
 - [ ] **9.7** The `HOOKED_FILES` pin lists every shared file that now names
       the instrument.
 

@@ -111,8 +111,8 @@ class Sheet:
 
 
 def load_sheet(ti2: Path) -> Sheet:
-    side = json.loads(Path(str(ti2)[:-4] + ".i1io.json").read_text())
-    lines = ti2.read_text().splitlines()
+    side = json.loads(Path(str(ti2)[:-4] + ".i1io.json").read_text(encoding="utf-8"))
+    lines = ti2.read_text(encoding="utf-8").splitlines()
     i = lines.index("BEGIN_DATA") + 1
     rgb_of, loc_of = {}, {}
     while lines[i].strip() != "END_DATA":

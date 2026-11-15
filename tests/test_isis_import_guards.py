@@ -48,7 +48,7 @@ def _chart(tmp: Path, rgbs) -> Path:
         'SAMPLE_ID SAMPLE_LOC RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z\n'
         'END_DATA_FORMAT\n\n'
         f'NUMBER_OF_SETS {len(rows)}\nBEGIN_DATA\n' + "\n".join(rows)
-        + "\nEND_DATA\n")
+        + "\nEND_DATA\n", encoding="utf-8")
     return ti2
 
 
@@ -69,7 +69,7 @@ def _measurement(tmp: Path, rgbs, order: Order, read_of) -> Path:
         '\n\nNUMBER_OF_FIELDS 8\nBEGIN_DATA_FORMAT\nSAMPLE_ID SAMPLE_LOC '
         'RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z\nEND_DATA_FORMAT\n\n'
         f'NUMBER_OF_SETS {len(rows)}\nBEGIN_DATA\n' + "\n".join(rows)
-        + "\nEND_DATA\n")
+        + "\nEND_DATA\n", encoding="utf-8")
     return ti3
 
 

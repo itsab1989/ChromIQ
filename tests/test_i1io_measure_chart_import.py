@@ -104,7 +104,7 @@ def test_row_is_the_strip_and_column_the_patch(charts):
     chart's own corner patches (top left, bottom left, bottom right)."""
     from workflow.i1io.measure_chart import measure_chart_grid
     side = json.loads(Path(str(charts["no-crosses"])[:-4] + ".i1io.json")
-                      .read_text())
+                      .read_text(encoding="utf-8"))
     g = measure_chart_grid(side, 1)
     assert (g.rows, g.columns) == (22, 24)
     assert g.loc[0][0] == "A1" and g.loc[0][23] == "A24"
@@ -122,7 +122,7 @@ def test_row_is_the_strip_and_column_the_patch(charts):
 def test_the_grid_follows_the_coordinates_not_the_list_order(charts):
     from workflow.i1io.measure_chart import measure_chart_grid
     side = json.loads(Path(str(charts["random"])[:-4] + ".i1io.json")
-                      .read_text())
+                      .read_text(encoding="utf-8"))
     g = measure_chart_grid(side, 1)
     st = side["pages"][0]["strips"]
     st.reverse()
@@ -151,11 +151,11 @@ def test_a_right_measurement_is_filed_reading_by_reading(charts, tmp_path):
             for i in range(len(before.xyz))}
     assert complete_from_i1io_grid(conv, ti2, v) == 528
     filed = parse_ti3(conv)
-    text = conv.read_text()
+    text = conv.read_text(encoding="utf-8")
     assert 'CHROMIQ_PAIRED_BY_I1IO_GRID "c.i1io.json page 1, 24 x 22"' in text
     assert 'CHROMIQ_I1IO_GRID_COLOURS "score=0.9' in text
     chart = {int(r.split()[0]): r.split() for r in
-             ti2.read_text().split("BEGIN_DATA\n", 1)[1].split("END_DATA")[0]
+             ti2.read_text(encoding="utf-8").split("BEGIN_DATA\n", 1)[1].split("END_DATA")[0]
              .strip().splitlines()}
     for sid, xyz, rgb in zip(filed.sample_ids, filed.xyz, filed.rgb):
         sid = int(str(sid).strip('"'))
@@ -366,9 +366,9 @@ def test_a_side_file_of_another_build_is_refused(charts, tmp_path):
 def test_a_chart_of_several_pages_is_refused_with_words(charts, tmp_path):
     ti2 = _copy_chart(charts["random"], tmp_path / "chart")
     side = Path(str(ti2)[:-4] + ".i1io.json")
-    doc = json.loads(side.read_text())
+    doc = json.loads(side.read_text(encoding="utf-8"))
     doc["page_count"] = 2
-    side.write_text(json.dumps(doc))
+    side.write_text(json.dumps(doc), encoding="utf-8")
     cxf = F.measure(F.load_sheet(charts["random"]), tmp_path / "r.cmxf")
     v, _ = _assess(cxf, ti2, tmp_path)
     assert not v.ok and _refused_with(v, ti2) == "pages"
@@ -391,7 +391,7 @@ def test_a_text_export_is_refused_and_a_real_one_is_not_taken(charts,
         'COLOR_REP "iRGB_XYZ"\n\nNUMBER_OF_FIELDS 8\nBEGIN_DATA_FORMAT\n'
         'SAMPLE_ID SAMPLE_LOC RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z\n'
         'END_DATA_FORMAT\n\nNUMBER_OF_SETS 528\nBEGIN_DATA\n'
-        + "\n".join(rows) + "\nEND_DATA\n")
+        + "\n".join(rows) + "\nEND_DATA\n", encoding="utf-8")
     v = assess(txt, ti2, source=tmp_path / "m.txt")
     assert not v.ok and _refused_with(v, ti2) == "text"
     # the other doors (no picked file): one sentence to the Measure tab
@@ -425,7 +425,7 @@ def test_a_dual_scan_file_takes_the_chosen_condition(charts, tmp_path):
     from workflow.i1io.measure_chart import convert
     from workflow.measurement_import import assess
     conv = convert(cxf, tmp_path / "c", condition="M2")
-    assert 'MEASUREMENT_CONDITION "M2"' in conv.read_text()
+    assert 'MEASUREMENT_CONDITION "M2"' in conv.read_text(encoding="utf-8")
     v = assess(conv, charts["random"], source=cxf)
     assert v.ok and v.i1io_grid.code == "agree", v.reason
 

@@ -57,7 +57,7 @@ def files(tmp_path_factory):
     engine.build_chart(ti1, root / "plain" / "p", instrument="i1",
                        paper="A4", dpi=72, seed=4)
     plain = root / "plain" / "p.ti2"
-    lines = plain.read_text().split("BEGIN_DATA\n", 1)[1].split(
+    lines = plain.read_text(encoding="utf-8").split("BEGIN_DATA\n", 1)[1].split(
         "END_DATA")[0].strip().splitlines()
     head = ('CTI3\n\nDESCRIPTOR "x"\nORIGINATOR "Argyll chartread"\n'
             'COLOR_REP "RGB_XYZ"\n\n')
@@ -74,13 +74,13 @@ def files(tmp_path_factory):
                    "SAMPLE_LOC RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z\n"
                    "END_DATA_FORMAT\n\n"
                    f"NUMBER_OF_SETS {len(rows_dev)}\nBEGIN_DATA\n"
-                   + "\n".join(rows_dev) + "\nEND_DATA\n")
+                   + "\n".join(rows_dev) + "\nEND_DATA\n", encoding="utf-8")
     bare = root / "bare.ti3"
     bare.write_text(head.replace("RGB_XYZ", "XYZ") + "NUMBER_OF_FIELDS 5\n"
                     "BEGIN_DATA_FORMAT\nSAMPLE_ID SAMPLE_LOC XYZ_X XYZ_Y "
                     "XYZ_Z\nEND_DATA_FORMAT\n\n"
                     f"NUMBER_OF_SETS {len(rows_bare)}\nBEGIN_DATA\n"
-                    + "\n".join(rows_bare) + "\nEND_DATA\n")
+                    + "\n".join(rows_bare) + "\nEND_DATA\n", encoding="utf-8")
     return dict(root=root, io=io, mc=mc, mc_mxf=mc_mxf,
                 mc_conv=F.convert(mc, root / "c1"),
                 mxf_conv=F.convert(mc_mxf, root / "c2"),
@@ -215,4 +215,4 @@ def test_with_the_beta_on_the_cmxf_is_read_as_a_cxf(files, beta, monkeypatch,
     fake = types.SimpleNamespace(_log=Log(), _settings=Settings())
     out = TabMeasure._convert_import_file(fake, Run(), files["mc"],
                                           chart=files["io"])
-    assert out.suffix == ".ti3" and "MEASUREMENT_CONDITION" in out.read_text()
+    assert out.suffix == ".ti3" and "MEASUREMENT_CONDITION" in out.read_text(encoding="utf-8")
