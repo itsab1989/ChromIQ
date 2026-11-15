@@ -81,6 +81,16 @@ SELF_MAP_DE = 3.0
 #: build's sweep: right readings at most 10.4 at noise 5 on every chart
 #: kind; the transposed aim on a sorted chart at least 34.7.
 FIT_ABSURD = 20.0
+#: M2a, made RELATIVE (review 2026-11-15, M5): on a chart that cannot tell,
+#: the recorded order's fit residual divided by the spread of the readings
+#: (their median distance from their mean). An absolute ceiling shrinks with
+#: the printer's gamut (a transposed aim on a sorted chart: 19 dE on a
+#: low-gamut printer, under FIT_ABSURD). The build's round-2 sweep (10 paper
+#: kinds, reproducing the review): right readings at most 0.32 on sorted,
+#: 0.10 near-identical, 0.17 grey charts, 0.39 ramps (0.58 only on the
+#: extreme glossy printer); the review's mistakes on sorted, near-identical
+#: and grey charts 0.66 or more. FIT_ABSURD stays as an outer bound.
+FIT_REL = 0.5
 #: M2a: the lightness slope rule needs expected L* to spread this much.
 SLOPE_MIN_L_SPREAD = 3.0
 #: M2b: readings within this dE76 of the brightest reading look like it (the
@@ -99,8 +109,10 @@ PAPER_SLACK = 2
 #: strips at least 0.20, on white, cream, grey, dark, matte, low-gamut and
 #: glossy papers.
 BLEND_LIMIT = 0.12
-#: M4: from this many patches the map is quadratic, below it affine.
-BLEND_QUADRATIC_FROM = 100
+#: M4: from this many patches the map is quadratic, below it affine (a
+#: 96-patch ramp chart needs the quadratic map: right readings 0.83 with the
+#: affine one; the 48-patch verification chart needs the affine one).
+BLEND_QUADRATIC_FROM = 64
 #: M4: strips whose fitted colours differ from the neighbour's by less than
 #: this (median dE76) cannot show a blend and are not asked. 12, not 8 (round
 #: 2): on a chart of near-identical light colours with heavy noise the share
@@ -566,6 +578,11 @@ def judge_readings(E, M, rows: int, cols: int) -> NetResult:
         return NetResult("refuse", "paper", detail=(
             f"{detail}; {m_paper} paper readings, {e_paper} near-white "
             f"patches"), **kw)
+    spread = float(np.median(np.linalg.norm(M - M.mean(axis=0), axis=1)))
+    if spread > 0 and rec / spread > FIT_REL:
+        return NetResult("refuse", "other-chart", detail=(
+            f"{detail}; recorded fit {rec:.1f} dE is {rec / spread:.2f} of "
+            f"the readings' spread, not explained by the chart"), **kw)
     if rec > FIT_ABSURD:
         return NetResult("refuse", "other-chart", detail=(
             f"{detail}; recorded fit {rec:.1f} dE, not explained by the "

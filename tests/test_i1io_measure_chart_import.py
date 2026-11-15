@@ -197,14 +197,18 @@ def test_the_false_alarm_sweep(charts):
     from workflow.i1io.measure_chart import judge_readings
     from workflow.turned_colour_check import expected_lab_rgb, measured_lab
     refused = []
-    for name in ("random", "small", "sorted", "ramps", "near"):
+    for name in ("random", "small", "sorted", "ramps", "near", "greys"):
         sh = F.load_sheet(charts[name])
         R, C = sh.rows, sh.cols
         E = expected_lab_rgb([sh.rgb_of[sh.grid[j % R][j // R][0]]
                               for j in range(R * C)])
         for seed in range(8):
             rng = np.random.default_rng(300 + seed)
-            for noise in (0.8, 2.5, 5.0):
+            # A chart of near-identical colours is judged by its fit
+            # relative to the readings' spread (review M5); a scatter of
+            # 2.5 dE per reading is half that spread and is refused there
+            # (the safe side). Real readings scatter well under 1.5 dE.
+            for noise in ((0.8, 1.5) if name == "near" else (0.8, 2.5, 5.0)):
                 rd = F.scan(F.reader(sh, rng, noise), sh.right_aims(), R, C)
                 M = measured_lab(np.array([F._lab_to_xyz_d50(l)
                                            for _, _, l in rd]))
@@ -242,8 +246,9 @@ EXPECT = {
              "one-strip-down": "aimed", "corner1-3.5mm-across": "beside"},
 }
 #: Asked, never filed silently: the chart's colours cannot tell these.
-ASKED = {("ramps", "corner1-3.5mm-across"), ("near", "transposed"),
-         ("near", "aimed-crosses"),
+ASKED = {("ramps", "corner1-3.5mm-across"),
+         # (the near chart's transposed aim and crosses were asked before
+         # review M5; refused now by the relative fit)
          # round 2: on near-identical colours (neighbouring strips under
          # 12 dE apart) the blend is not judged; asked, never filed
          ("near", "corner1-3.5mm-across")}
@@ -514,3 +519,37 @@ def test_a_corner_aimed_3_5_mm_across_is_refused_on_every_paper(
     E, M = _readings(sh, F.mistakes(sh)[corner], paper)
     net = judge_readings(E, M, sh.rows, sh.cols)
     assert net.action == "refuse", (net.code, net.detail)
+
+
+# ---------------------------------------------------------------------------
+# Review 2026-11-15, M5: the fit relative to the readings' spread
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("name", ["sorted", "near", "greys"])
+@pytest.mark.parametrize("paper", ["white", "low-gamut", "glossy"])
+def test_charts_that_cannot_tell_refuse_the_reviews_mistakes(charts, name,
+                                                             paper):
+    """Asked before (the person cannot know), refused now: the recorded
+    order's fit residual is more than half the readings' spread. A right
+    sheet is still asked, never refused."""
+    from workflow.i1io.measure_chart import judge_readings
+    sh = F.load_sheet(charts[name])
+    E, M = _readings(sh, sh.right_aims(), paper)
+    net = judge_readings(E, M, sh.rows, sh.cols)
+    assert net.action == "ask", (net.code, net.detail)
+    ms = F.mistakes(sh)
+    for mk in ("transposed", "aim3-one-short", "aim1-one-patch-along",
+               "aimed-crosses"):
+        E, M = _readings(sh, ms[mk], paper)
+        net = judge_readings(E, M, sh.rows, sh.cols)
+        assert net.action == "refuse", (mk, net.code, net.detail)
+
+
+def test_the_fit_limit_does_not_shrink_with_the_gamut(charts):
+    """A transposed aim on a sorted chart, low-gamut printer: under 20 dE,
+    which the absolute ceiling let through; refused by the relative one."""
+    from workflow.i1io.measure_chart import fit_ranking, judge_readings
+    sh = F.load_sheet(charts["sorted"])
+    E, M = _readings(sh, F.mistakes(sh)["transposed"], "low-gamut")
+    net = judge_readings(E, M, sh.rows, sh.cols)
+    assert net.action == "refuse" and net.code == "other-chart", net.detail
