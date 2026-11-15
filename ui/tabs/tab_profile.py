@@ -218,15 +218,19 @@ def build_from_help() -> str:
            "keeps the profile comparable with the profiles you made before. "
            "On a paper without optical brighteners the three are nearly the "
            "same, so the choice makes little difference there."),
-        tr("**How this differs from “FWA Compensation (-f)”.** M1 and M2 "
-           "here were really measured by the i1Pro 3, in the same scan as "
-           "M0. FWA Compensation instead estimates the effect of the "
-           "brighteners from M0 readings alone, with a general model. The "
-           "two must not be combined, because M1 and M2 already contain what "
-           "FWA would estimate: when you build from M1 or M2, the FWA option "
-           "is greyed out with the reason, and ChromIQ never passes -f to "
-           "ArgyllCMS for such a build, even if a preset or the extra "
-           "arguments ask for it. Building from M0, FWA can be used as "
+        tr("**How this differs from “FWA Compensation (-f)”.** In one scan "
+           "the i1Pro 3 lights the paper both with and without ultraviolet, "
+           "and ArgyllCMS computes M0, M1 and M2 from that scan with the "
+           "instrument's own calibration data. FWA Compensation instead "
+           "estimates the effect of the brighteners from M0 readings alone, "
+           "with a general model: with D50 the estimate is like M1, with "
+           "D50M2 it is like M2. The two must not be combined, because the "
+           "model expects M0 readings: M1 already contains the glow of the "
+           "brighteners under D50 light, and in M2 the ultraviolet that makes "
+           "them glow is already removed. So when you build from M1 or M2, "
+           "the FWA option is greyed out with the reason, and ChromIQ never "
+           "passes -f to ArgyllCMS for such a build, even if a preset or the "
+           "extra arguments ask for it. Building from M0, FWA can be used as "
            "before."),
         tr("**Why an entry can be greyed out.** An entry is offered only "
            "when these exact readings exist in that condition. It is greyed "
@@ -240,10 +244,10 @@ def build_from_help() -> str:
            "or “-M2” at the end of its default description, so you can tell "
            "it apart later. A description you typed yourself is left as it "
            "is."),
-        tr("**Please note:** ArgyllCMS works out M1 and M2 for the i1Pro 3 "
-           "from the instrument's own calibration data, and these values have "
-           "not yet been compared with the values X-Rite i1Profiler gives for "
-           "the same chart."),
+        tr("**Please note:** the M1 and M2 values ArgyllCMS computes for the "
+           "i1Pro 3 have not yet been compared with the values X-Rite "
+           "i1Profiler gives for the same chart, so please compare them "
+           "before you rely on them."),
     ))
 
 

@@ -9681,12 +9681,16 @@ def i1pro3_conditions_help() -> str:
            "condition one of the reads does not have is not offered for the "
            "average, and Build Profile says which read lacks it."),
         tr("**How this differs from brightener compensation (FWA).** The "
-           "FWA option in Build Profile estimates M1 from M0 readings with a "
-           "general model of how brighteners behave. The three conditions "
-           "here are worked out from the instrument's own two kinds of "
-           "light in one pass, with its own calibration data. FWA is greyed "
-           "out for M1 and M2, because they already contain what it would "
-           "estimate."),
+           "FWA option in Build Profile takes M0 readings and estimates, with "
+           "a general model of how brighteners behave, how the paper looks "
+           "under another light: with D50 the estimate is like M1, with D50M2 "
+           "it is like M2. The three conditions here are computed by "
+           "ArgyllCMS from one scan in which the i1Pro 3 lights the paper "
+           "both with and without ultraviolet, with the instrument's own "
+           "calibration data. FWA is greyed out for M1 and M2, because the "
+           "model expects M0 readings: M1 already contains the glow of the "
+           "brighteners, and in M2 the ultraviolet that makes them glow is "
+           "already removed."),
         tr("**Not covered yet.** Calibration measurements and refinement "
            "builds use only the condition chosen in the Measure tab. A "
            "measurement that was "
