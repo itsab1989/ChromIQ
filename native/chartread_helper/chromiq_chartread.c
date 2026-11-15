@@ -566,6 +566,11 @@ static double cq_row_dist(chcol **scols, int stipa, int r, int s, int rev) {
  * way — a reading is never rejected automatically. */
 #define CQ_ELIG_TH 8.0
 
+/* R1 (4.3.39): how much better a row's own fit must be one way round than
+ * the other before a reading filed under that row takes the row's own
+ * direction instead of the best row's (see the row loop in read_strips). */
+#define CQ_OWN_DIR_RATIO 0.5
+
 static void cq_compute_row_eligibility(chcol **scols, int stipa, int totpa) {
 	int r, s;
 
@@ -3619,6 +3624,7 @@ a1log *log			/* verb, debug & error log */
 					int xboff;				/* Expected pass best offset */
 					int xbdir;				/* Expected pass overall pass direction */
 					double xwerror = 0.0;	/* Expected pass worst patcch error */
+					double xdcorr[2] = { 1e9, 1e9 };	/* CHROMIQ_EXT (R1): expected row's best fit per direction */
 
 					if (((rand && disbidi == 0) || disbidi == 2
 					     /* CHROMIQ_EXT (F7-R): also for fixed-order charts
@@ -3698,6 +3704,8 @@ a1log *log			/* verb, debug & error log */
 #endif
 								/* If this is the expected strip, */
 								/* note correlation and best fit to off by 1 and direction */
+								if (choroi == oroi && corr < xdcorr[dir])
+									xdcorr[dir] = corr;	/* CHROMIQ_EXT (R1) */
 								if (choroi == oroi && corr < xbcorr) { 
 									xbcorr = corr;		/* Expected strip correlation */
 									xboff = toff;
@@ -3766,6 +3774,35 @@ a1log *log			/* verb, debug & error log */
 						printf("\n");
 
 						/* Switch to state for expected strip */
+						bcorr = xbcorr;
+						boff = xboff;
+						bdir = xbdir;
+						werror = xwerror;
+					}
+					/* CHROMIQ_EXT (R1, 4.3.39, jctay 150222/150236): on a
+					 * FIXED-ORDER chart a reading is always filed under the
+					 * expected row oroi. When no wrong-strip prompt switched
+					 * to that row's own fit above (-S, or a row too like
+					 * another to be checked), upstream still filed it with
+					 * the direction / DTP51 offset of the best row OVERALL:
+					 * a strip that fits another row turned round slightly
+					 * better than its own row forward (strip 9 vs row 13
+					 * reversed, 40.0 vs 42.6) went in back to front on every
+					 * pass. File it with oroi's own best fit, exactly as the
+					 * "use it anyway" answer does. When boroi == oroi the
+					 * values are equal already, so nothing else changes.
+					 * Only when both directions were tried and the row's own
+					 * fit says which way round CLEARLY: turned the other way it
+					 * must fit at least twice as badly (CQ_OWN_DIR_RATIO, the
+					 * same 0.5 as the Measure tab's back-to-front check,
+					 * slipped_strip.REV_RATIO; strip 9: 42.6 vs 110.1). On a
+					 * print so far off its design that the row cannot tell its
+					 * own direction, upstream's choice stands: measured on 35%
+					 * per-channel noise, the guard is what keeps a reading
+					 * that is filed the right way today from being turned.
+					 * Randomised charts keep upstream's behaviour. */
+					if (cq_json && !rand && boroi != oroi && dirrg == 2
+					 && xdcorr[xbdir] <= CQ_OWN_DIR_RATIO * xdcorr[1 - xbdir]) {
 						bcorr = xbcorr;
 						boff = xboff;
 						bdir = xbdir;
