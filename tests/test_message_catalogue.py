@@ -134,6 +134,8 @@ AWAITING_APPROVAL: "set[str]" = {
     # 4.3.39 review (R6): the Extra-high density words and the panel line.
     "M-CHART-PATCHES-SHORT-EXTRA", "M-CHART-PATCHES-SHORT-PANEL",
     "M-MEASURE-PATCHES-SHORT-EXTRA",
+    # Owner's question 2026-11-15: no spacers, neighbours nothing tells apart.
+    "M-CHART-ALIKE-NO-SPACER", "M-CHART-ALIKE-NO-SPACER-PANEL",
     # 4.3.36, 2026-11-14: the technical line under a communication failure
     # (which USB step failed), for a report.
     "M-STRIP-FAILED-COMS-DETAIL",

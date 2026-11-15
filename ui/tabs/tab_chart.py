@@ -27463,6 +27463,12 @@ class TabChart(QWidget):
             _line = getattr(self, "_short_patch_panel_line", None)
             if _line:
                 overlaps = list(overlaps or []) + [_line]
+        # Owner's question (2026-11-15): no spacers, and neighbours nothing
+        # tells apart. A note, never a refusal; nothing moves.
+        _alike = self._alike_neighbours_note()
+        if _alike:
+            warns = list(warns) + [_alike[0]]
+            overlaps = list(overlaps or []) + [_alike[1]]
         panel.update_report(
             report, violations,
             thresholds_defined=bool(thresholds),
@@ -27474,6 +27480,46 @@ class TabChart(QWidget):
         )
         self._refresh_margin_guides(report, thresholds, violations)
         self._refresh_measured_guides(report)
+
+    def _alike_neighbours_note(self) -> "tuple[str, str] | None":
+        """M-CHART-ALIKE-NO-SPACER (full, for the frame's info and the log)
+        and its panel line, for a chart of a hand-held strip instrument laid
+        out WITHOUT spacers whose neighbouring patches along a strip include
+        identical or nearly identical pairs (`neighbour_order.
+        alike_pairs_in_ti2`); None otherwise. The Create Chart log says it
+        once per chart."""
+        ti2 = getattr(self, "_margin_ti2", None)
+        if not ti2:
+            return None
+        try:
+            import json as _json
+            stem = Path(ti2).with_suffix("")
+            side = stem.parent / (stem.name + ".channels.json")
+            rec = (_json.loads(side.read_text(encoding="utf-8"))
+                   .get("layout", {}).get("recipe") or {})
+            if str(rec.get("instrument") or "") not in ("i1", "p3", "CM"):
+                return None
+            spaced = (bool(rec.get("spacer_on", True))
+                      and str(rec.get("spacer_mode") or "colored") != "none")
+            if spaced:
+                return None
+            from workflow.layout_engine.neighbour_order import \
+                alike_pairs_in_ti2
+            n = alike_pairs_in_ti2(ti2)
+            if not n:
+                return None
+            from workflow import measurement_messages as M
+            title, body = M.M_CHART_ALIKE_NO_SPACER.render(n=n)
+            _t2, line = M.M_CHART_ALIKE_NO_SPACER_PANEL.render(n=n)
+            if getattr(self, "_alike_logged", None) != str(ti2):
+                self._alike_logged = str(ti2)
+                log_w = getattr(self, "_log", None)
+                if log_w is not None and hasattr(log_w, "appendPlainText"):
+                    log_w.appendPlainText(f"[{title}]\n{body}")
+            return f"⚠ {title}. {body}", f"⚠ {line}"
+        except Exception:      # noqa: BLE001 — a note never blocks a chart
+            log.debug("alike-neighbours note not made", exc_info=True)
+            return None
 
     def _short_patch_note(self) -> "str | None":
         """R6: M-CHART-PATCHES-SHORT for the chart in the preview, from its

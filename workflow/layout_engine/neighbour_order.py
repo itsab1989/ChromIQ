@@ -181,3 +181,67 @@ def remaining_pairs(xyzs, slots, total: int, steps_in_pass: int,
     kinds = [_kind(lightness(xyzs[at[s]], white_y)) for s in range(n)]
     return sum(1 for s in range(n - 1)
                if s // steps == (s + 1) // steps and kinds[s] * kinds[s + 1] == -1)
+
+
+#: Two neighbouring patches closer than this (CIE76, on the chart's expected
+#: colours) give a strip reader almost no colour change to find the edge
+#: between them. ChromIQ's own choice, not an ArgyllCMS number: identical
+#: patches (targen's whites, its blacks, the paper-white fill-up) are 0.
+ALIKE_DE = 3.0
+
+
+def _lab(xyz, white_y: float = 100.0):
+    wx, wy, wz = 96.42 * white_y / 100.0, white_y, 82.49 * white_y / 100.0
+
+    def f(t):
+        return t ** (1 / 3) if t > 216 / 24389 else (24389 / 27 * t + 16) / 116
+    fx, fy, fz = f(xyz[0] / wx), f(xyz[1] / wy), f(xyz[2] / wz)
+    return 116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)
+
+
+def alike_pairs_in_ti2(ti2) -> "int | None":
+    """How many pairs of neighbouring patches along a strip of the chart
+    *ti2* are identical or nearly so (closer than ALIKE_DE), in the order the
+    chart file records (randomised or not). Owner's question, 2026-11-15: on
+    a chart WITHOUT spacers nothing separates such a pair, so the instrument
+    cannot tell where one ends and the other begins. Said, never moved (R7
+    moves only dark / light pairs). None when the file cannot be read."""
+    try:
+        from pathlib import Path
+        from workflow.layout_engine.labels import labels_for_chart
+        cl = labels_for_chart(ti2)
+        text = Path(ti2).read_text(encoding="latin-1", errors="replace")
+        fields, rows, on, fmt = [], {}, False, False
+        for ln in text.splitlines():
+            t = ln.strip()
+            if t == "BEGIN_DATA_FORMAT":
+                fmt = True
+                continue
+            if t == "END_DATA_FORMAT":
+                fmt = False
+                continue
+            if fmt:
+                fields += t.split()
+                continue
+            if t == "BEGIN_DATA":
+                on = True
+                continue
+            if t == "END_DATA":
+                break
+            if on and t:
+                rec = dict(zip(fields, t.split()))
+                sp = cl.split(rec["SAMPLE_LOC"].strip('"'))
+                if sp is not None:
+                    rows[sp] = (float(rec["XYZ_X"]), float(rec["XYZ_Y"]),
+                                float(rec["XYZ_Z"]))
+    except (OSError, KeyError, ValueError):
+        return None
+    n = 0
+    for (s_, p_), xyz in rows.items():
+        nxt = rows.get((s_, p_ + 1))
+        if nxt is None:
+            continue
+        a, b = _lab(xyz), _lab(nxt)
+        if sum((u - v) ** 2 for u, v in zip(a, b)) ** 0.5 < ALIKE_DE:
+            n += 1
+    return n

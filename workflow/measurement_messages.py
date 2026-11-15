@@ -9571,6 +9571,36 @@ M_MEASURE_PATCHES_SHORT_EXTRA = _m(
     "(rig)” or “Hand-held” avoid it on your next chart.",
     approved=False)
 
+# --- PROPOSED: no spacers, and neighbours nothing tells apart (2026-11-15) ---
+#: The owner saw a chart without spacers where whites stood next to whites
+#: and blacks next to blacks, and asked how that can be read. With spacers
+#: switched off (an open option) nothing marks the edge between two such
+#: patches. Said in the Create Chart log and on the Measured from Preview
+#: frame; nothing is refused, greyed or moved. {n}: how many pairs.
+M_CHART_ALIKE_NO_SPACER = _m(
+    "M-CHART-ALIKE-NO-SPACER",
+    "Neighbouring patches that cannot be told apart without spacers",
+    "This chart has no spacers between its patches, and some neighbouring "
+    "patches along a strip have the same or almost the same colour (for "
+    "example two whites or two blacks next to each other). Nothing marks the "
+    "edge between such patches, so the instrument cannot tell where one ends "
+    "and the next begins, and the strip may be refused (for example with "
+    "“Not enough patches”) or its readings filed under the wrong patches. "
+    "Neighbouring pairs that cannot be told apart: {n}.\n\n"
+    "What helps: switch the spacers on again (a spacer between two patches "
+    "always differs from both), or use a randomised patch order, which puts "
+    "such patches next to each other far less often. You can still print and "
+    "measure this chart as it is.",
+    approved=False)
+
+M_CHART_ALIKE_NO_SPACER_PANEL = _m(
+    "M-CHART-ALIKE-NO-SPACER-PANEL",
+    "Neighbouring patches that cannot be told apart without spacers",
+    "No spacers, and neighbouring patches with the same colour along a "
+    "strip. Pairs the instrument cannot tell apart: {n}. Switch the spacers "
+    "on, or use a randomised order. More in the Create Chart log.",
+    approved=False)
+
 M_MEASURE_PATCHES_SHORT = _m(
     "M-MEASURE-PATCHES-SHORT",
     "Patches shorter than ArgyllCMS recommends",
@@ -10621,6 +10651,8 @@ M_STRIP_RULER_NOT_COVERED = _m(
 
 
 CATALOGUE = {m.id: m for m in (
+    M_CHART_ALIKE_NO_SPACER,
+    M_CHART_ALIKE_NO_SPACER_PANEL,
     M_CHART_PATCHES_SHORT_EXTRA,
     M_CHART_PATCHES_SHORT_PANEL,
     M_MEASURE_PATCHES_SHORT_EXTRA,
