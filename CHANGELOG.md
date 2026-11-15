@@ -18,6 +18,7 @@
 
 ### Honest limits
 - **On charts whose strips look alike in both directions (ramps, calibration charts), a turn is still asked about**, because the colours cannot confirm the order there. Answer “Continue Anyway” if you turned the sheet or the ruler.
+- **Right after a turn, one or two strips are not compared at all**, until enough of the strips read since then agree on the new way round. The Measure log says so in one line when that happens.
 - **If “Continue Anyway” is pressed on two such strips in a row while the sheet was not turned, the check pauses the direction question for a few strips** until enough strips agree again, and says so in the Measure log.
 - **The ruler check is still a beta and has seen few real sessions.** If you use it, the diagnostics file it writes helps us most.
 
