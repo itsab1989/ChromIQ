@@ -70,7 +70,7 @@ def test_a_measure_chart_file_is_filed_into_a_dated_verification(
     text = dst.read_text(encoding="utf-8")
     assert "CHROMIQ_PAIRED_BY_I1IO_GRID" in text
     assert "CHROMIQ_VERIFICATION" in text
-    assert "i1Profiler Measure Chart measurement" in log
+    assert "i1Profiler \"Measure Chart\" measurement" in log
     # every row on its own patch: the chart's own device values by id
     filed = parse_ti3(dst)
     assert len(filed.sample_ids) == sh.rows * sh.cols
