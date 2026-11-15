@@ -12,6 +12,7 @@
 - **i1iSis charts (beta): “Strip letters place” is greyed while “Show strip indicators” is off**, because it only chooses where the letters go. Its help says which box switches them on.
 - **i1iSis charts (beta): the Guided summary says “i1iSis”**, not the internal code XRISIS.
 - **i1iO charts (beta): the chart notes name the instrument “i1iO”**, not the internal code IO2.
+- **Windows that ask where a chart or patch set should go no longer let their buttons overlap.** In German, “Lieber als neuen Lauf bauen” ran under “Nur das Chart ersetzen”; when the buttons do not fit side by side, they are now shown one above the other.
 - **The row and column check of the chart scan window now works on charts with numbered strips and lettered patches** (such as “12I”). It was skipped on them without a word.
 
 ### New
