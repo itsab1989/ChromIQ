@@ -7455,8 +7455,12 @@ class TabProfile(QWidget):
             run = Run.for_dir(Path(icc).parent)
             if not run.meta_path.is_file():
                 return
-            if not reason and not getattr(run.load_meta(), "profile_build",
-                                          None):
+            # ...or when the M0/M1/M2 Beta is on: Check & Refine must know
+            # which condition's readings the profile was built from.
+            built = (self._built_from_record()
+                     if hasattr(self, "_built_from_record") else {})
+            if not reason and not built and not getattr(
+                    run.load_meta(), "profile_build", None):
                 return
         except Exception:      # noqa: BLE001
             return
