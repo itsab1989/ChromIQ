@@ -365,7 +365,8 @@ def test_the_guard_box_and_its_reasons_are_pinned():
     ys = [y for _, y in tbl.RECORDED_REST_STARTS]
     assert tbl.REST_RECORDED == tbl.Box(min(xs) - 1, max(xs) + 1, min(ys) - 1, max(ys) + 1)
     assert not tbl.REST_GUARD.contains((1058, 317))      # the one recorded drive-out case
-    assert tbl.TIME_WINDOW["home_rest"] == (0.0, 0.6) and tbl.TIME_WINDOW["home_wide"][1] == 2.0
+    assert tbl.TIME_WINDOW["home_rest"] == (0.0, 0.6) and tbl.TIME_WINDOW["home_wide"][1] == 1.1
+    assert tbl.TIME_WINDOW["home_far"] == (0.0, 2.0) and tbl.TIME_WINDOW["home_free"] == (0.0, 2.0)
 
 
 def test_a_move_out_needs_a_start_where_the_recorded_ones_started(tmp_path):
@@ -1018,7 +1019,7 @@ def test_the_guard_boundary_y250_homes_and_y251_stops_before_any_movement(tmp_pa
             assert code == 2 and sim.motions == 0
             assert sim.received == OPEN + [";s022", ";p025"]
             assert "Nothing was moved." in log
-    assert "2.0 s from Y 49..250" in prog.plan_text()
+    assert "1.1 s from Y 49..80, or 2.0 s from farther out, up to Y 250" in prog.plan_text()
     assert "X 1090 to 1115, Y -1 to 250" in prog.plan_text()
 
 
@@ -1215,7 +1216,7 @@ def test_the_tester_s_two_stopping_points_now_home_inside_the_window(tmp_path):
         sim = sim_mod.SimTable(pos=[float(x), float(y)], jitter=False)
         code, sim, log, con = _choose(tmp_path, {"home", "close"}, sim=sim)
         assert code == 0 and sim.received == OPEN + _lines("home") + _lines("close")
-        assert "home/home_wide" in log
+        assert "home/home_far" in log
     # a homing from 25 mm out that takes longer than 2 s stops right after it
     sim = sim_mod.SimTable(pos=[1102.0, 250.0], jitter=False)
     sim.inject_at(len(OPEN) + 2, "slow_motion", 1.0)
@@ -1245,3 +1246,50 @@ def test_bytes_md_and_the_readme_name_the_guards_as_the_program_has_them():
     assert f"X {r.xmin}..{r.xmax}, Y {r.ymin}..{r.ymax}, `REST_GUARD`" in b
     readme = " ".join(_source("README.md").split())
     assert f"X {g.xmin} to {g.xmax}, Y up to {g.ymax}" in readme
+
+
+
+# ---- re-check of 2635bdca1: C1 the free-arm check uses the wider box; S2 1.1 s stays at Y 49..80 --
+
+def _free_with_offset(tmp_path, dx, dy, keys=("free", "close")):
+    """The free arm moved by (dx, dy) during the touch (the sideways wiggle)."""
+    lines = _lines("free")
+    at_p0 = len(OPEN) + lines.index(";p025", lines.index(";f12e"))
+    sim = sim_mod.SimTable(pos=[1102.0, 0.0], jitter=False)
+    real = sim._execute
+
+    def execute(line, cid, a, fault, n=[0]):
+        if line == ";p025" and len(sim.received) == at_p0 + 1:
+            sim.pos = [1102.0 + dx, sim.pos[1] + dy]
+        return real(line, cid, a, fault)
+    sim._execute = execute
+    return _choose(tmp_path, set(keys), sim=sim), lines
+
+
+@pytest.mark.parametrize("dx,dy", [(2, 0), (-2, 0), (12, 5), (-12, 0), (13, 250)])
+def test_a_wiggled_free_arm_inside_the_wider_box_is_homed_and_the_step_finishes(tmp_path, dx, dy):
+    (code, sim, log, con), lines = _free_with_offset(tmp_path, dx, dy)
+    assert code == 0 and sim.received == OPEN + lines + _lines("close")
+    assert "free/home_free" in log or "home/home_free" in log
+    assert prog.FREE_MODE_LEFT not in log
+
+
+@pytest.mark.parametrize("dx,dy", [(14, 0), (-13, 0), (0, 251)])
+def test_a_wiggled_free_arm_outside_the_wider_box_stops_with_the_recovery(tmp_path, dx, dy):
+    (code, sim, log, con), lines = _free_with_offset(tmp_path, dx, dy)
+    stop = lines.index(";p025", lines.index(";f12e")) + 1
+    assert code == 2 and sim.received == OPEN + lines[:stop] and sim.motions == 1
+    flat = " ".join(log.split())
+    assert " ".join(prog.FREE_MODE_LEFT.split()) in flat
+
+
+def test_the_check_homing_at_rest_from_y49_to_80_keeps_1_1_s(tmp_path):
+    d = tbl.Table(sim_mod.SimTransport(sim_mod.SimTable()))
+    seen = []
+    d._move = lambda key, window: seen.append(window)
+    for y, want in ((48, "home_rest"), (49, "home_wide"), (80, "home_wide"), (81, "home_far"),
+                    (250, "home_far")):
+        d.position_now = (1102, y)
+        d._home_from_rest()
+        assert seen[-1] == want, y
+    assert tbl.TIME_WINDOW["home_wide"] == (0.0, 1.1)

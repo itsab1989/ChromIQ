@@ -324,22 +324,24 @@ QUICK_TIMEOUT = 1.0
 #: Time windows (seconds from the line to its done-answer) for every movement, from the
 #: recorded times, widened; outside: nothing more is sent.
 #:   home_rest    i1 from REST_RECORDED: recorded 0.047-0.352 s; limit 0.6 (as 0.2.x)
-#:   home_wide    i1 from START_GUARD outside REST_RECORDED (Y 49..250): predicted
-#:                0.36-1.15 s (0.17 + 0.0039 s per unit, fitted to the recorded at-rest
-#:                homings); limit 2.0 (1.7 times the longest prediction)
+#:   home_wide    i1 from REST_GUARD outside REST_RECORDED (Y 49..80): predicted 0.36-0.48 s
+#:                (0.17 + 0.0039 s per unit, fitted to the recorded at-rest homings); limit 1.1
+#:   home_far     0.3.1: i1 from START_GUARD outside REST_GUARD (up to Y 250): predicted up
+#:                to 1.15 s; limit 2.0 (1.7 times the longest prediction)
 #:   home_table   i1 from a held position out on the table: recorded 1.60-4.01 s
 #:   home_free    i1 from the free arm at rest (after f1): from rest never recorded; from
-#:                the free arm far out 4.01 s (R2 261.644); limit 1.1 as home_wide
+#:                the free arm far out 2.36 and 4.01 s; 0.3.1 (re-check C1): the check before it
+#:                uses START_GUARD (a sideways wiggle may move the free arm a little), limit 2.0
 #:   to_250       recorded 0.719-0.720 s
 #:   to_1000      recorded 1.599 s
 #:   to_1498      recorded 1.727-1.728 s from Y 29..37 (here from Y -1..48)
 #:   to_2507      recorded 1.695 s
 #:   back_1498    to_1498 sent from (2507, 1498): the recorded to_2507 path backwards, same
 #:                distance: 1.695 s expected
-TIME_WINDOW = {"home_rest": (0.0, 0.6), "home_wide": (0.0, 2.0), "home_table": (1.0, 6.0),
-               "home_free": (0.0, 1.1), "to_250": (0.55, 1.2), "to_1000": (1.35, 2.4),
+TIME_WINDOW = {"home_rest": (0.0, 0.6), "home_wide": (0.0, 1.1), "home_far": (0.0, 2.0), "home_table": (1.0, 6.0),
+               "home_free": (0.0, 2.0), "to_250": (0.55, 1.2), "to_1000": (1.35, 2.4),
                "to_1498": (1.40, 2.4), "to_2507": (1.40, 2.4), "back_1498": (1.40, 2.4)}
-MOVE_TIMEOUT = {"home_rest": 12.0, "home_wide": 12.0, "home_table": 15.0, "home_free": 12.0,
+MOVE_TIMEOUT = {"home_rest": 12.0, "home_wide": 12.0, "home_far": 12.0, "home_table": 15.0, "home_free": 12.0,
                 "to_250": 4.0, "to_1000": 6.0, "to_1498": 6.0, "to_2507": 6.0,
                 "back_1498": 6.0}
 MIN_READ_S = 0.05
@@ -449,7 +451,7 @@ STEPS = (
                        ("x", "free"), ("f4", "01"), ("f4", "01"), ("touch",),
                        ("x", "status"), ("f4", "01"), ("f4", "01"), ("f4", "01"),
                        ("f4", "01"), ("x", "status"),
-                       ("p0", "REST_GUARD", "the free arm before the homing"),
+                       ("p0", "START_GUARD", "the free arm before the homing"),
                        ("move", "home", "home_free"))
          + HOME_AND_CHECK, "medium",
          "With the arm at its resting place, the program switches on the hand-alignment mode, "
@@ -821,7 +823,8 @@ class Table:
         pos = self.position_now
         if pos is None or not START_GUARD.contains(pos):
             raise self._doubt("a homing from rest without a fresh reading at rest (a bug)")
-        window = "home_rest" if REST_RECORDED.contains(pos) else "home_wide"
+        window = ("home_rest" if REST_RECORDED.contains(pos) else
+                  "home_wide" if REST_GUARD.contains(pos) else "home_far")
         self._move("home", window)
 
     def _move(self, key: str, window: str) -> None:
@@ -858,7 +861,7 @@ class Table:
                     self._home_from_rest()
                 elif kind == "move":
                     if op[1] == "home" and op[2] == "home_free" and \
-                            not REST_GUARD.contains(self.position_now or (0, 9999)):
+                            not START_GUARD.contains(self.position_now or (0, 9999)):
                         raise self._doubt("the free-arm homing without a reading at rest")
                     self._move(op[1], op[2])
                 elif kind == "touch":

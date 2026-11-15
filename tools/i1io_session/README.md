@@ -28,7 +28,8 @@ is not part of the ChromIQ app and does not need it.
   range 0.3.0 allowed (X 1101 to 1103, Y up to 80). That was our fault, not
   your table's. Our own question before the opening asked you to push the
   free arm gently towards the front of the table, and that push moved it out
-  by several millimetres; the touches after each stop pushed it further. That
+  by several millimetres; the touches after each stop
+  probably pushed it further (we did not measure that). That
   question is gone: 0.3.1 never asks you to touch the arm before the first
   homing, and never after a stop.
 * The touch questions that remain come only after a homing has brought the

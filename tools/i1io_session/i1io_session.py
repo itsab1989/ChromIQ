@@ -302,9 +302,11 @@ def plan_text(hex_bytes: bool = False) -> str:
             elif op[0] == "p0":
                 out.append(row("position") + f"   (must read {tbl.BOXES[op[1]].text()})")
             elif op[0] == "home_rest":
-                out.append(row("home") + "   (MOVES home; within 0.6 s, or "
+                out.append(row("home") + "   (MOVES home; within 0.6 s, "
                            f"{tbl.TIME_WINDOW['home_wide'][1]:.1f} s from Y "
-                           f"{tbl.REST_RECORDED.ymax + 1}..{tbl.START_GUARD.ymax})")
+                           f"{tbl.REST_RECORDED.ymax + 1}..{tbl.REST_GUARD.ymax}, or "
+                           f"{tbl.TIME_WINDOW['home_far'][1]:.1f} s from farther out, up to Y "
+                           f"{tbl.START_GUARD.ymax})")
             elif op[0] == "move":
                 lo, hi = tbl.TIME_WINDOW[op[2]]
                 out.append(row(op[1]) + f"   (MOVES; must finish within {lo:.2f}..{hi:.2f} s)")
