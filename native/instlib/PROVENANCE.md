@@ -117,6 +117,16 @@ stops if one no longer applies.
   coarse trace, into ChromIQ's own `cq_ruler.h` record (not an Argyll file;
   this script never writes it). Values and patch assignment never change.
   Not tested on a real instrument by the project.
+- **`i1pro3_imp.c`, `i1pro3_imp.h`: M0, M1 and M2 from one scan**
+  (Preferences > Beta, 2026-11-15). Inert until ChromIQ's helper switches
+  it on (`--condition-dir`) and arms one reading. The i1Pro 3 reads a
+  strip or patch in one pass; `i1pro3_comp_refl_value` already works out
+  M2 and, from it, M1 and M0, and `-F` only chooses which one is
+  returned. Armed, the same call also fills the two others, which go
+  through the same `i1pro3_conv2XYZ` into ChromIQ's own record
+  (`i1pro3_cq_cond_*`). The chosen result is computed exactly as before.
+  Nothing new is sent to or read from the instrument.
+  Not tested on a real instrument by the project.
 - **`usbio.c`, the transfer counter `in_usb_rw`** (2026-11-14): made
   atomic (C11 `_Atomic`, kept plain where a compiler has no atomics).
   Every USB back end (macOS, Linux, Windows) counts transfers in it and
@@ -133,8 +143,8 @@ stops if one no longer applies.
 | `i1pro_imp.h` | `c37813e4b43a9bff…` | `1bf92ae434393c0d…` |
 | `i1pro_imp.c` | `8b8516cdd89e21de…` | `0eab5b51a8a430f5…` |
 | `i1pro3.c` | `9c4b1ac9f8af507a…` | `347235c6d10f9677…` |
-| `i1pro3_imp.h` | `190cceb46fe8bc33…` | `e6d2c5f364eaca29…` |
-| `i1pro3_imp.c` | `42c684afa3bbb15d…` | `1d4fb6f133715469…` |
+| `i1pro3_imp.h` | `190cceb46fe8bc33…` | `ef7245eb1a92eb5e…` |
+| `i1pro3_imp.c` | `42c684afa3bbb15d…` | `d78f1a6596886bf6…` |
 | `usbio.c` | `fd86ede3492ae1a0…` | `f68f42c726d77dd8…` |
 
 ## Files

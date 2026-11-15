@@ -539,6 +539,15 @@ struct _i1pro3imp {
 	int cq_lights_force_off;	/* a pattern went out as the button was pressed */
 	int cq_lights_maybe_dark;	/* "left on": a reading ran without our off */
 
+	/* CHROMIQ PATCH: keep M0, M1 and M2 from every scan (Beta, 2026-11-15).
+	 * All 0 / NULL = not in use. See i1pro3_cq_cond_* in i1pro3_imp.c. */
+	int cq_cond_on;				/* the helper asked for it this session */
+	int cq_cond_armed;			/* for the reading in progress */
+	int cq_cond_n;				/* values in the record (0 = none) */
+	ipatch *cq_cond_vals[3];	/* [M0, M1, M2] results of the last reading */
+	double **cq_cond_spec[3];	/* while converting: the two -F did not choose */
+	int cq_cond_specn, cq_cond_specw;
+
 }; typedef struct _i1pro3imp i1pro3imp;
 
 /* Add an implementation structure */
@@ -1569,6 +1578,16 @@ struct _i1data3 {
 
 /* Constructor. Construct from the EEprom calibration contents */
 extern i1data3 *new_i1data3(i1pro3 *p, unsigned char *buf, int len);
+
+/* CHROMIQ PATCH: keep M0, M1 and M2 from every scan (Beta), see i1pro3_imp.c.
+ * Nothing new is sent. */
+int i1pro3_cq_cond_options(void *pp, int on);
+void i1pro3_cq_cond_arm(void *pp, int on);
+int i1pro3_cq_cond_begin(i1pro3 *p, int nvals, int hr);
+void i1pro3_cq_cond_ptrs(i1pro3 *p, int i, double **m0, double **m1, double **m2);
+void i1pro3_cq_cond_finish(i1pro3 *p, ipatch *vals, int nvals, int hr, instClamping clamp);
+int i1pro3_cq_cond_take(void *pp, int cond, ipatch *out, int n);
+void i1pro3_cq_cond_close(void *pp);
 
 /* CHROMIQ PATCH: the ruler check (Beta), see i1pro3_imp.c. Nothing new is sent. */
 int i1pro3_cq_ruler_options(void *pp, int on);

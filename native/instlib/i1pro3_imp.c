@@ -451,6 +451,7 @@ void del_i1pro3imp(i1pro3 *p) {
 
 		/* Terminate event monitor thread */
 		i1pro3_cq_ruler_close(p);	/* CHROMIQ PATCH: ruler check (Beta), frees its record */
+		i1pro3_cq_cond_close(p);	/* CHROMIQ PATCH: M0/M1/M2 (Beta), frees its record */
 		if (m->th != NULL) {
 			m->th_term = 1;			/* Tell thread to exit on error */
 			i1pro3_terminate_event(p);
@@ -1796,6 +1797,8 @@ i1pro3_code i1pro3_imp_measure(
 	if (s->reflective)
 		hr = 0;					/* hi-res doesn't work well for reflective... */
 
+	i1pro3_cq_cond_begin(p, nvals, hr);	/* CHROMIQ PATCH: M0/M1/M2 (Beta), no-op unless armed */
+
 	a1logd(p->log,2,"i1pro3_imp_measure: Taking %d measurments in %s%s%s%s%s mode called\n", nvals,
 		        s->emiss ? "Emission" : s->trans ? "Trans" : "Refl", 
 		        s->emiss && s->ambient ? " Ambient" : "",
@@ -2021,6 +2024,7 @@ i1pro3_code i1pro3_imp_measure(
 		return ev;
 	}
 	free_dmatrix(specrd, 0, nvals-1, 0, m->nwav[hr]-1);
+	i1pro3_cq_cond_finish(p, vals, nvals, hr, clamp);	/* CHROMIQ PATCH: M0/M1/M2 (Beta) */
 	
 	if (nvals > 0)
 		vals[0].duration = duration;	/* Possible flash duration */
@@ -6749,6 +6753,179 @@ void i1pro3_cq_ruler_close(void *pp) {
 }
 
 /* ============================================================ */
+/* CHROMIQ PATCH: "X-Rite i1Pro 3: keep M0, M1 and M2 from every scan"
+ * (Preferences > Beta, 2026-11-15).
+ *
+ * The i1Pro 3 reads every strip and every patch in ONE pass, alternating its
+ * lamp LEDs and its UV LEDs, and i1pro3_comp_refl_value() turns the two
+ * halves into M2 (UV excluded) and, on top of it, M1 (D50) and M0 (the lamp),
+ * with the instrument's factory tables. ArgyllCMS hands back the ONE that -F
+ * chose (m->filt picks which pointer is non-NULL). With this Beta the helper
+ * asks for the other two of the SAME call as well: the chosen result is
+ * computed exactly as before (its pointer is still specrd[i]; the M1 and M0
+ * blocks use their own locals and read only m2 and cv_D), and the extra two
+ * go through the same i1pro3_conv2XYZ (XRGA, custom filter, clamp). Nothing
+ * here sends or reads anything over USB.
+ *
+ * Off (cq_cond_on 0, the calloc default) every function returns at once.
+ * Not for the polariser (M3 is a separate measurement path). */
+
+static void cq3_cond_free_spec(i1pro3imp *m) {
+	int c;
+	for (c = 0; c < 3; c++) {
+		if (m->cq_cond_spec[c] != NULL)
+			free_dmatrix(m->cq_cond_spec[c], 0, m->cq_cond_specn - 1,
+			             0, m->cq_cond_specw - 1);
+		m->cq_cond_spec[c] = NULL;
+	}
+	m->cq_cond_specn = m->cq_cond_specw = 0;
+}
+
+static void cq3_cond_free_vals(i1pro3imp *m) {
+	int c;
+	for (c = 0; c < 3; c++) {
+		free(m->cq_cond_vals[c]);
+		m->cq_cond_vals[c] = NULL;
+	}
+	m->cq_cond_n = 0;
+}
+
+/* Which slot (0 M0, 1 M1, 2 M2) -F chose, or -1 (the polariser, D65 ...). */
+static int cq3_cond_main(i1pro3imp *m) {
+	if (m->filt == inst_opt_filter_none)  return 0;
+	if (m->filt == inst_opt_filter_D50)   return 1;
+	if (m->filt == inst_opt_filter_UVCut) return 2;
+	return -1;
+}
+
+/* The helper asks for it for this session (1) or not (0). Returns 1 when the
+ * instrument can give it (every i1Pro 3 measures with its UV LEDs). */
+int i1pro3_cq_cond_options(void *pp, int on) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m;
+	if (p == NULL || (m = (i1pro3imp *)p->m) == NULL)
+		return 0;
+	m->cq_cond_on = on ? 1 : 0;
+	if (!on) {
+		m->cq_cond_armed = 0;
+		cq3_cond_free_spec(m);
+		cq3_cond_free_vals(m);
+	}
+	return p->dtype == instI1Pro3;
+}
+
+/* Around one read_strip / read_sample. */
+void i1pro3_cq_cond_arm(void *pp, int on) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m;
+	if (p == NULL || (m = (i1pro3imp *)p->m) == NULL)
+		return;
+	m->cq_cond_armed = (on && m->cq_cond_on) ? 1 : 0;
+}
+
+/* At the start of every measurement: the last reading's record goes (so an
+ * aborted or failed reading can never hand over an earlier one), and when
+ * armed, reflective and -F is M0/M1/M2, room for the two other conditions.
+ * Returns 1 when this measurement will fill a record. */
+int i1pro3_cq_cond_begin(i1pro3 *p, int nvals, int hr) {
+	i1pro3imp *m = (i1pro3imp *)p->m;
+	i1pro3_state *s;
+	int c, mc;
+	if (m == NULL)
+		return 0;
+	cq3_cond_free_spec(m);
+	cq3_cond_free_vals(m);
+	if (!m->cq_cond_on || !m->cq_cond_armed || nvals <= 0)
+		return 0;
+	s = &m->ms[m->mmode];
+	if (!s->reflective || s->emiss || s->trans || (mc = cq3_cond_main(m)) < 0)
+		return 0;
+	m->cq_cond_specn = nvals;
+	m->cq_cond_specw = m->nwav[hr];
+	for (c = 0; c < 3; c++) {
+		if (c == mc)
+			continue;
+		m->cq_cond_spec[c] = dmatrixz(0, nvals - 1, 0, m->nwav[hr] - 1);
+	}
+	return 1;
+}
+
+/* Where the driver picks the pointer -F chose for patch i: the other two
+ * point into the record. Leaves everything as it was when not armed. */
+void i1pro3_cq_cond_ptrs(i1pro3 *p, int i, double **m0, double **m1, double **m2) {
+	i1pro3imp *m = (i1pro3imp *)p->m;
+	if (m == NULL || m->cq_cond_specn <= 0 || i < 0 || i >= m->cq_cond_specn)
+		return;
+	if (m->cq_cond_spec[0] != NULL) *m0 = m->cq_cond_spec[0][i];
+	if (m->cq_cond_spec[1] != NULL) *m1 = m->cq_cond_spec[1][i];
+	if (m->cq_cond_spec[2] != NULL) *m2 = m->cq_cond_spec[2][i];
+}
+
+/* After the main result went through i1pro3_conv2XYZ: the same for the two
+ * others, and the record is complete. A failure leaves no record. */
+void i1pro3_cq_cond_finish(i1pro3 *p, ipatch *vals, int nvals, int hr,
+                           instClamping clamp) {
+	i1pro3imp *m = (i1pro3imp *)p->m;
+	int c, i, mc;
+	static const inst_meas_cond mcond[3] = { inst_mrc_none, inst_mrc_D50,
+	                                         inst_mrc_uvcut };
+	if (m == NULL || m->cq_cond_specn <= 0)
+		return;
+	if (nvals != m->cq_cond_specn || (mc = cq3_cond_main(m)) < 0) {
+		cq3_cond_free_spec(m);
+		return;
+	}
+	for (c = 0; c < 3; c++) {
+		if ((m->cq_cond_vals[c] = (ipatch *)calloc(nvals, sizeof(ipatch))) == NULL) {
+			cq3_cond_free_spec(m);
+			cq3_cond_free_vals(m);
+			return;
+		}
+		if (c == mc) {
+			memcpy(m->cq_cond_vals[c], vals, sizeof(ipatch) * nvals);
+			continue;
+		}
+		if (i1pro3_conv2XYZ(p, m->cq_cond_vals[c], nvals, m->cq_cond_spec[c],
+		                    hr, clamp) != I1PRO3_OK) {
+			cq3_cond_free_spec(m);
+			cq3_cond_free_vals(m);
+			return;
+		}
+		for (i = 0; i < nvals; i++) {
+			m->cq_cond_vals[c][i].mcond = mcond[c];
+			strncpy(m->cq_cond_vals[c][i].loc, vals[i].loc, ICOM_MAX_LOC_LEN - 1);
+		}
+	}
+	cq3_cond_free_spec(m);
+	m->cq_cond_n = nvals;
+}
+
+/* The last reading's result under condition *cond* (0 M0, 1 M1, 2 M2), when
+ * the reading had n values. Returns 1 and fills out[0..n-1], else 0. */
+int i1pro3_cq_cond_take(void *pp, int cond, ipatch *out, int n) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m;
+	if (p == NULL || (m = (i1pro3imp *)p->m) == NULL)
+		return 0;
+	if (cond < 0 || cond > 2 || n <= 0 || m->cq_cond_n != n
+	 || m->cq_cond_vals[cond] == NULL || out == NULL)
+		return 0;
+	memcpy(out, m->cq_cond_vals[cond], sizeof(ipatch) * n);
+	return 1;
+}
+
+/* At the close: everything freed. */
+void i1pro3_cq_cond_close(void *pp) {
+	i1pro3 *p = (i1pro3 *)pp;
+	i1pro3imp *m;
+	if (p == NULL || (m = (i1pro3imp *)p->m) == NULL)
+		return;
+	cq3_cond_free_spec(m);
+	cq3_cond_free_vals(m);
+	m->cq_cond_on = m->cq_cond_armed = 0;
+}
+
+/* ============================================================ */
 /* Parse the EEProm contents */
 
 /* Initialise the calibration from the EEProm contents. */
@@ -8863,6 +9040,7 @@ i1pro3_code i1pro3_spot_refl_meas(
 		free_dmatrix(oproc_sample, 0, onummeas, -9, m->nwav[hr]-1);
 		return ev;
 	}
+	i1pro3_cq_cond_ptrs(p, 0, &m0, &m1, &m2);	/* CHROMIQ PATCH: M0/M1/M2 (Beta), no-op unless armed */
 	
 	/* Convert raw samples to patch reflective spectral values.*/
 	if ((ev = i1pro3_comp_refl_value(
@@ -9201,6 +9379,7 @@ i1pro3_code i1pro3_strip_refl_meas(
 			free_dmatrix(wav_sample, 0, nummeasW-1, -9, m->nwav[hr]-1);
 			return ev;
 		}
+		i1pro3_cq_cond_ptrs(p, i, &m0, &m1, &m2);	/* CHROMIQ PATCH: M0/M1/M2 (Beta), no-op unless armed */
 	
 		if ((ev = i1pro3_comp_refl_value(
 			p,
