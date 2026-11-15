@@ -87,7 +87,7 @@ NOT_WALKED = {
 #: missing here fails ``test_every_recipe_field_has_a_candidate``.
 CANDIDATES: dict[str, Any] = {
     "paper": "Letter", "dpi": 400, "randomize": False, "spacer_mode": "bw",
-    "avoid_dark_light_neighbours": False,
+    "avoid_dark_light_neighbours": True,
     "edge_spacers": True, "margin_top": 14.0, "margin_right": 17.0,
     "margin_bottom": 30.0, "margin_left": 40.0, "patch_w_mm": 11.0,
     "patch_h_mm": 9.0, "spacer_width_mm": 1.5, "inter_patch_mm": 0.5,

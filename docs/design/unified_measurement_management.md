@@ -8572,7 +8572,7 @@ alone.
 
 ### M-CHART-NEIGHBOURS-MOVED · PROPOSED · the patches the layout engine swapped on a chart in fixed order — Create Chart log
 
-*New 2026-11-15 (ChromIQ 4.3.39, R7; jctay, forum 150236). Written into the Create Chart log when “Keep very dark patches away from very light ones” (on for a recipe made from 4.3.39 on, only with “Randomise patch order” off) swapped patches so that no near-black patch (L* 20 or below) sits straight next to a near-white one (L* 80 or above) along a strip (`workflow/layout_engine/neighbour_order.py`). {pairs}: “9I and 10I, 12I and 13I”, the locations that changed places. Shown from the beta that proposes it, translated.*
+*New 2026-11-15 (ChromIQ 4.3.39, R7; jctay, forum 150236). Written into the Create Chart log when “Keep very dark patches away from very light ones” (off by default, only with “Randomise patch order” off) swapped patches so that no near-black patch (L* 20 or below) sits straight next to a near-white one (L* 80 or above) along a strip (`workflow/layout_engine/neighbour_order.py`). {pairs}: “9I and 10I, 12I and 13I”, the locations that changed places. Shown from the beta that proposes it, translated.*
 
 > **Very dark patches moved away from very light ones**
 >

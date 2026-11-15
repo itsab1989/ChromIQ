@@ -173,14 +173,17 @@ def test_calibration_and_tables_are_never_rearranged(tmp_path):
 
 # ---- the recipe and the panel ----------------------------------------------------
 
-def test_new_recipes_have_it_and_old_ones_do_not():
+def test_it_is_off_by_default_everywhere_and_saved_when_on():
     from workflow.layout_engine.presets import LayoutRecipe, default_recipe
-    assert LayoutRecipe().avoid_dark_light_neighbours is True
-    assert default_recipe("i1", "A4").avoid_dark_light_neighbours is True
+    assert LayoutRecipe().avoid_dark_light_neighbours is False
+    assert default_recipe("i1", "A4").avoid_dark_light_neighbours is False
+    for inst in ("i1", "p3", "CM"):
+        assert "avoid_dark_light_neighbours" not in default_recipe(
+            inst, "A4").build_kwargs()
     old = LayoutRecipe().to_dict()
     old.pop("avoid_dark_light_neighbours")
     assert LayoutRecipe.from_dict(old).avoid_dark_light_neighbours is False
-    r = LayoutRecipe(randomize=False)
+    r = LayoutRecipe(randomize=False, avoid_dark_light_neighbours=True)
     assert r.build_kwargs()["avoid_dark_light_neighbours"] is True
     assert "avoid_dark_light_neighbours" not in LayoutRecipe(
         randomize=True).build_kwargs()
@@ -190,12 +193,13 @@ def test_new_recipes_have_it_and_old_ones_do_not():
 def test_the_option_is_greyed_only_while_randomising(qapp):
     from ui.dialogs.layout_options_panel import LayoutOptionsPanel
     p = LayoutOptionsPanel()
+    assert p.avoid_dark_light_cb.isChecked() is False     # off by default
     p.randomize_cb.setChecked(True)
     assert not p.avoid_dark_light_cb.isEnabled()
     p.randomize_cb.setChecked(False)
     assert p.avoid_dark_light_cb.isEnabled()
-    p.avoid_dark_light_cb.setChecked(False)
-    assert p.get_recipe().avoid_dark_light_neighbours is False
+    p.avoid_dark_light_cb.setChecked(True)
+    assert p.get_recipe().avoid_dark_light_neighbours is True
     p.deleteLater()
 
 
@@ -218,10 +222,9 @@ def test_the_editor_reorders_nothing_behind_its_grid():
 
 def test_the_option_is_greyed_where_it_has_no_meaning(qapp):
     from ui.dialogs.layout_options_panel import LayoutOptionsPanel
-    p = LayoutOptionsPanel()
+    p = LayoutOptionsPanel(with_selectors=True)
     p.randomize_cb.setChecked(False)
-    if p.instr is None:
-        pytest.skip("this panel has no instrument selector")
+    assert p.instr is not None
     for i in range(p.instr.count()):
         p.instr.setCurrentIndex(i)
         want = p.instr.itemData(i) in ("i1", "p3", "CM")

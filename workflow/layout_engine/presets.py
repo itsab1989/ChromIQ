@@ -471,13 +471,12 @@ class LayoutRecipe:
     # recipe made from 4.3.14 on gets True; a loaded recipe keeps what it has.
     clip_border_free_space: bool = True
     # R7 (4.3.39): on a chart in fixed order, keep very dark patches away
-    # from very light ones along a strip (`neighbour_order`). True for a
-    # recipe made from 4.3.39 on; a recipe SAVED BEFORE it (a preset, Save as
-    # Defaults, a project's stored settings, a chart's sidecar) reads a
-    # missing key as False and lays out exactly as it did (the
-    # clip_border_free_space precedent, Basti 2026-10-25). Only meaningful
+    # from very light ones along a strip (`neighbour_order`). OFF by default
+    # everywhere, new recipes too (the independent review of 4.3.39: it must
+    # prove itself on real prints first); switchable and saved with the
+    # recipe. A recipe without the key reads it as off. Only meaningful
     # without "Randomise patch order".
-    avoid_dark_light_neighbours: bool = True
+    avoid_dark_light_neighbours: bool = False
     nolimit: bool = False
     strip_pattern: str = permutation.DEFAULT_STRIP_PATTERN
     patch_pattern: str = permutation.DEFAULT_PATCH_PATTERN

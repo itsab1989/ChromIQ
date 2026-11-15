@@ -1981,10 +1981,10 @@ class LayoutOptionsPanel(QWidget):
         # R7 (4.3.39): a chart in fixed order keeps very dark patches away
         # from very light ones along a strip (`neighbour_order`). Only
         # meaningful while "Randomise patch order" is off, so greyed while it
-        # is on (`_sync_seed_enabled`); on for a recipe made from 4.3.39 on.
+        # is on (`_sync_seed_enabled`); off by default (review of 4.3.39).
         self.avoid_dark_light_cb = WrappingCheckBox(
             tr("Keep very dark patches away from very light ones"), self)
-        self.avoid_dark_light_cb.setChecked(True)
+        self.avoid_dark_light_cb.setChecked(False)
         self.avoid_dark_light_cb.toggled.connect(self._emit)
         rgg.addWidget(self.avoid_dark_light_cb, 3, 1)
         rgg.addWidget(TooltipButton(
