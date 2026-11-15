@@ -263,13 +263,13 @@ def test_pairs_no_measurement_holds_are_pruned_and_nothing_else(tmp_path):
     orphan = _pair(gone_main, "M1", "75")          # loose: elsewhere/conditions
     orphan = orphan.replace(run.condition_dir / orphan.name)
     fresh = run.condition_dir / "12-0000abcd-M2.ti3"
-    fresh.write_text("x")                          # a session still writing
+    fresh.write_text("x", encoding="utf-8")                          # a session still writing
     stranger = run.condition_dir / "notes.txt"
-    stranger.write_text("Basti's")
+    stranger.write_text("Basti's", encoding="utf-8")
     ver = _verification(run)
     keep_ver = _pair(ver, "M1", "91")
     v_orphan = run.verification_condition_dir / "99-0badf00d-M1.ti3"
-    v_orphan.write_text("x")
+    v_orphan.write_text("x", encoding="utf-8")
     for p in (keep_main, keep_old, keep_read, orphan, stranger, keep_ver,
               v_orphan):
         _age(p)
@@ -285,7 +285,7 @@ def test_the_measure_tab_prunes_only_with_the_beta_on(tmp_path):
     run = _run(tmp_path)
     orphan = run.condition_dir / "12-0000abcd-M1.ti3"
     orphan.parent.mkdir(parents=True)
-    orphan.write_text("x")
+    orphan.write_text("x", encoding="utf-8")
     _age(orphan)
     fake = SimpleNamespace(_settings=_S({C.SETTING: False}),
                            _ti1_path=run.dir / "Paper.ti1")

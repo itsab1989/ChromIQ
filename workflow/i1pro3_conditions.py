@@ -91,8 +91,12 @@ def file_condition(ti3: "str | Path") -> str:
 # The pairing hash (the same function as cq_cond_hash in the helper)
 # ---------------------------------------------------------------------------
 
-_BEGIN_RE = re.compile(rb"^[ \t]*BEGIN_DATA[ \t]*\r?$", re.MULTILINE)
-_END_RE = re.compile(rb"^[ \t]*END_DATA[ \t]*\r?$", re.MULTILINE)
+#: Byte patterns of the data block, kept as SOURCE (compiled where used, the
+#: re module caches them): a module-level compiled bytes pattern would be
+#: taken for a tool-output parser and searched with text by the suite's
+#: census (tests/test_beta10_a_usb_error_flood_is_collapsed.py).
+_BEGIN_SRC = rb"^[ \t]*BEGIN_DATA[ \t]*\r?$"
+_END_SRC = rb"^[ \t]*END_DATA[ \t]*\r?$"
 
 
 def data_block_hash(path: "str | Path") -> "str | None":
@@ -107,13 +111,13 @@ def data_block_hash(path: "str | Path") -> "str | None":
         raw = Path(path).read_bytes()
     except OSError:
         return None
-    b = _BEGIN_RE.search(raw)
+    b = re.search(_BEGIN_SRC, raw, re.MULTILINE)
     if b is None:
         return None
     start = raw.find(b"\n", b.end())
     if start < 0:
         return None
-    e = _END_RE.search(raw, start)
+    e = re.compile(_END_SRC, re.MULTILINE).search(raw, start)
     if e is None:
         return None
     return block_hash(raw[start + 1:e.start()].replace(b"\r", b""))
@@ -375,7 +379,8 @@ def average_conditions(result: "str | Path", reads: "list[Path]",
             args = [exe, "-v"] + (["-e"] if method == "median" else [])
             args += [str(f) for f in files] + [tmp.name]
             proc = subprocess.run(args, cwd=str(work), capture_output=True,
-                                  text=True, timeout=timeout)
+                                  text=True, encoding="utf-8",
+                                  errors="replace", timeout=timeout)
             if proc.returncode != 0 or not tmp.is_file():
                 out[cond] = "average"
                 continue

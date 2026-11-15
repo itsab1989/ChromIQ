@@ -218,7 +218,9 @@ def test_eight_files_skip_wholesale_without_it():
     # a strip round on {"cmd":"turn"}. 27 with R3: patch-by-patch resume
     # starts at the strip a strip measurement left unread. 28 with R4: the
     # helper's filter event, and a real engine .ti3 read with the keyword.
-    assert len(whole) == 10 and len(partial) == 28, (
+    # 29 with the M0/M1/M2 Beta (2026-11-15): the replay instrument as an
+    # i1Pro 3 writing the measurement's M1/M2 pair.
+    assert len(whole) == 10 and len(partial) == 29, (
         "the number of files gated on the chart-reading helper has changed "
         f"({len(whole)} wholesale, {len(partial)} in part) -> update the "
         f"header in tests/conftest.py. wholesale={whole} partial={partial}")

@@ -5630,7 +5630,9 @@ REASON_EARLIER_OTHER_CONDITION = "earlier_other_condition"
 REASON_NO_PATCH_IN_GAMUT = "no_patch_in_gamut"
 AFTER_PRINTING_REASONS: "tuple[str, ...]" = (
     REASON_NO_PROFILE_TO_COMPARE, REASON_SOLIDS_THROUGH_PROFILE,
-    REASON_SOLIDS_PRINTING_UNRECORDED, REASON_NO_PATCH_IN_GAMUT)
+    REASON_SOLIDS_PRINTING_UNRECORDED, REASON_NO_PATCH_IN_GAMUT,
+    # the M0/M1/M2 Beta: only a measured sheet has a condition to compare
+    REASON_PROFILE_OTHER_CONDITION)
 REASON_NO_RAMP = "no_ramp"
 #: K31 rule A: a ramp with enough steps spanning enough of the band, whose
 #: steps are bunched (`RAMP_SPACING_TOL`). Its own code, because "no tone ramp
@@ -5698,6 +5700,7 @@ REASON_TOO_FEW_SHARED_PATCHES = "too_few_shared_patches"
 REPEATABILITY_REASONS: "tuple[str, ...]" = (
     REASON_NO_REPEAT_PATCHES, REASON_TOO_FEW_REPEAT_GROUPS,
     REASON_NO_EARLIER_MEASUREMENT, REASON_TOO_FEW_SHARED_PATCHES,
+    REASON_EARLIER_OTHER_CONDITION,          # the M0/M1/M2 Beta, Row B
 )
 #: …and the two evenness rows, one code per thing the MEASURED CHART lacks
 #: (Knut, 2026-09-23: a note says what is missing in the measured chart, never

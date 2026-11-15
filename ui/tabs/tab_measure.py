@@ -17335,7 +17335,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             # the reads' common one; after "Average them" (the only way
             # here when it asked) the KNOWN one; else none (S-A2).
             settle_combined_condition(result, check, confirmed=True)
-            self._average_the_conditions(result, reads, method)
+            _avg_c = getattr(self, "_average_the_conditions", None)
+            if _avg_c is not None:       # the M0/M1/M2 Beta (Beta on only)
+                _avg_c(result, reads, method)
             # The averaged file is the run's measurement now: its yellow
             # memory is this session's, stamped for it (#182 K4). Patches are
             # keyed by location, which averaging (by SAMPLE_ID) never changes.

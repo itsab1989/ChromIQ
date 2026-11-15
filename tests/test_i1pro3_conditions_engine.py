@@ -137,7 +137,7 @@ def test_only_the_newest_pair_of_the_session_stays(tmp_path, monkeypatch):
     cdir = tmp_path / "conditions"
     cdir.mkdir()
     keep = cdir / "0-00000000-M1.ti3"     # a pair that was there at Start
-    keep.write_text("an earlier session's file\n")
+    keep.write_text("an earlier session's file\n", encoding="utf-8")
     with ReplaySession(base, rp, extra_args=["--condition-dir", str(cdir)]) as s:
         for _ in range(3):
             _swipe(s)

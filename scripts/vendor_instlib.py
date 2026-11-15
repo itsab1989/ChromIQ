@@ -625,7 +625,8 @@ I1PRO_C_LIGHTS = [
 # 2026-11-14: the two choices (result signals, left on during a reading) for
 # the i1Pro 3 too; tests/test_i1pro3_lights_modes.py.
 I1PRO3_IMP_H_LIGHTS = [
-    ("\tint ee_unk34;\n\n}; typedef struct _i1pro3imp i1pro3imp;\n",
+    # anchored on the last field alone (see the ruler's close below)
+    ("\tint ee_unk34;\n",
      "\tint ee_unk34;\n"
      "\n"
      "\t/* CHROMIQ PATCH: i1Pro 3 indicator lights (Beta). 0 = not in use, the\n"
@@ -640,9 +641,7 @@ I1PRO3_IMP_H_LIGHTS = [
      "\tint cq_lights_owed;\t\t\t/* a result is owed for the last reading */\n"
      "\tunsigned int cq_lights_owed_ms;\n"
      "\tint cq_lights_force_off;\t/* a pattern went out as the button was pressed */\n"
-     "\tint cq_lights_maybe_dark;\t/* \"left on\": a reading ran without our off */\n"
-     "\n"
-     "}; typedef struct _i1pro3imp i1pro3imp;\n"),
+     "\tint cq_lights_maybe_dark;\t/* \"left on\": a reading ran without our off */\n"),
     ("#ifdef __cplusplus\n\t}\n#endif\n\n#define I1PRO3_IMP\n",
      "/* CHROMIQ PATCH: i1Pro 3 indicator lights (Beta), see i1pro3_imp.c. Every\n"
      " * entry returns at once unless ChromIQ's helper called ..._begin(). */\n"
@@ -1724,13 +1723,17 @@ I1PRO3_IMP_C_RULER = [
     ("\t\tpat[k].ss += trim;\n\t\tpat[k].no = nnn;\n\t}\n",
      "\t\tpat[k].ss += trim;\n\t\tpat[k].no = nnn;\n\t}\n"
      "\ti1pro3_cq_ruler_cut(p, pat, npat, p2m != NULL);\t/* CHROMIQ PATCH: ruler check, a copy */\n"),
-    ("\t\t/* Terminate event monitor thread */\n\t\tif (m->th != NULL) {\n\t\t\tm->th_term = 1;",
+    # anchored on the comment line alone, so a later patch may add a line
+    # after this one and every recorded patch is still in the tree as written
+    ("\t\t/* Terminate event monitor thread */\n",
      "\t\t/* Terminate event monitor thread */\n"
-     "\t\ti1pro3_cq_ruler_close(p);\t/* CHROMIQ PATCH: ruler check (Beta), frees its record */\n"
-     "\t\tif (m->th != NULL) {\n\t\t\tm->th_term = 1;"),
-    ("\n/* ============================================================ */\n/* Parse the EEProm contents */",
-     I1PRO3_IMP_C_RULER_BLOCK
-     + "\n/* ============================================================ */\n/* Parse the EEProm contents */"),
+     "\t\ti1pro3_cq_ruler_close(p);\t/* CHROMIQ PATCH: ruler check (Beta), frees its record */\n"),
+    # right after the lights block (anchored on its last lines), so the M0/M1/
+    # M2 block that follows can go after it with every recorded patch still
+    # in the tree as written
+    ("\tm->cq_lights = CQ3_LIGHTS_DONE;\n\tm->cq_lights_owed = 0;\n\treturn off;\n}\n",
+     "\tm->cq_lights = CQ3_LIGHTS_DONE;\n\tm->cq_lights_owed = 0;\n\treturn off;\n}\n"
+     + I1PRO3_IMP_C_RULER_BLOCK),
 ]
 # ---- END RULER CHECK ----
 # ChromIQ (2026-11-14, the ruler check's review, item 4): ArgyllCMS counts

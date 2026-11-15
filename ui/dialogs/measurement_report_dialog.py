@@ -3009,6 +3009,21 @@ def _reflow_row(layout, sizes, parent, **kw):
     return row
 
 
+
+def _other_condition_sentence(r: "dict | None") -> str:
+    """Why a row compared with the profile is not shown: the profile was
+    built from readings in another measurement condition than this
+    measurement has (Preferences > Beta, "X-Rite i1Pro 3: keep M0, M1 and
+    M2"; `measurement_report.other_condition`)."""
+    from workflow.measurement_condition import condition_name
+    rec = (r or {}).get("measurement_condition") or {}
+    return tr(
+        "the profile was built from the {profile} readings, and this "
+        "measurement has only {own} readings, so comparing the two would "
+        "show the difference between the conditions as an error").format(
+            profile=condition_name(str(rec.get("profile") or "M0")),
+            own=condition_name(str(rec.get("condition") or "M0")))
+
 class MeasurementReportDialog(QDialog):
     def __init__(self, settings, parent=None, initial_ti3=None) -> None:
         super().__init__(parent)
@@ -12310,7 +12325,7 @@ class MeasurementReportDialog(QDialog):
                 "this measurement is judged in the condition its profile was "
                 "built from, and the measurement before it has no readings in "
                 "that condition"),
-            "profile_other_condition": self._other_condition_sentence(r),
+            "profile_other_condition": _other_condition_sentence(r),
             "too_few_shared_patches": _repeat_shared_sentence(r),
             # EVENNESS ACROSS THE SHEET (Knut, 2026-09-22). Written to his
             # rule of 2026-09-23: each says what the MEASURED CHART lacks,
@@ -17355,17 +17370,9 @@ class MeasurementReportDialog(QDialog):
 
     @staticmethod
     def _other_condition_sentence(r: dict) -> str:
-        """Why a row compared with the profile is not shown: the profile was
-        built from readings in another measurement condition (the M0/M1/M2
-        Beta)."""
-        from workflow.measurement_condition import condition_name
-        rec = (r or {}).get("measurement_condition") or {}
-        return tr(
-            "the profile was built from the {profile} readings, and this "
-            "measurement has only {own} readings, so comparing the two would "
-            "show the difference between the conditions as an error").format(
-                profile=condition_name(str(rec.get("profile") or "M0")),
-                own=condition_name(str(rec.get("condition") or "M0")))
+        """Why a row compared with the profile is not shown (the M0/M1/M2
+        Beta): see the module function of the same name."""
+        return _other_condition_sentence(r)
 
     def _measurement_condition_html(self, r: dict) -> str:
         """One line saying which condition's readings this report is about,

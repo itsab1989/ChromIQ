@@ -90,15 +90,17 @@ def test_build_from_offers_what_is_in_step(tmp_path):
 def test_a_file_whose_inside_disagrees_is_not_used(tmp_path):
     main = _write(tmp_path / "run" / "P.ti3")
     m1 = _sibling(main, "M1")
-    m1.write_text(m1.read_text().replace("CHROMIQ_CONDITION_OF \"",
-                                         "CHROMIQ_CONDITION_OF \"x"))
+    m1.write_text(m1.read_text(encoding="latin-1").replace("CHROMIQ_CONDITION_OF \"",
+                                         "CHROMIQ_CONDITION_OF \"x"),
+                  encoding="latin-1")
     assert C.condition_file(main, "M1") is None
 
 
 def test_another_instrument_is_named(tmp_path):
     main = _write(tmp_path / "run" / "P.ti3")
-    main.write_text(main.read_text().replace("X-Rite i1 Pro 3",
-                                             "X-Rite i1 Pro 2"))
+    main.write_text(main.read_text(encoding="latin-1").replace("X-Rite i1 Pro 3",
+                                             "X-Rite i1 Pro 2"),
+                    encoding="latin-1")
     assert "i1 Pro 2" in C.choices_for(main)[1].reason
 
 
