@@ -19986,6 +19986,16 @@ class TabChart(QWidget):
                 "both ends of every strip, three numbered aiming marks."
             ).format(paper=paper, dpi=dpi, w=_F.PATCH_ALONG_MM.value,
                      h=_F.PATCH_ACROSS_MM.value, run=_F.RUN_MM.value)
+        # THE i1iSis BY ITS NAME, NEVER ITS CODE (the owner, 2026-11-15, on
+        # 4.3.38: "ChromIQ layout engine · XRISIS · A4"). The other Beta
+        # instruments name themselves here too (FD-9, i1iO table); the long-
+        # standing ones keep the line they have always had.
+        from workflow.isis.support import (device_name as _isis_name,
+                                           is_isis_code as _is_isis)
+        if _is_isis(instr):
+            box = getattr(self, "_isis_model_combo", None)
+            instr = _isis_name(box.currentData() if box is not None
+                               else "standard")
         bits = [tr("ChromIQ layout engine"), instr, paper, f"{dpi} dpi",
                 tr("margin {mm:g} mm").format(mm=margin)]
         if abs(pscale - 1.0) > 0.01:
