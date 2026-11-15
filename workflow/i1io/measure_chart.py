@@ -24,7 +24,9 @@ grid must be the ``.ti2``'s ``STEPS_IN_PASS`` x ``PASSES_IN_STRIPS2``.
 THE SAFETY NET. The colours only decide whether the file is filed, never where
 a reading goes. Nothing is ever corrected: a sheet that looks turned,
 mirrored, shifted or aimed off is REFUSED with the reason and the way to
-measure again (about two minutes on the table). The alternatives are ranked
+measure again (about two minutes on the table), where the colours can show
+it; on a chart whose colours cannot tell, what the checks cannot show is
+ASKED, never filed in silence (§I.17). The alternatives are ranked
 only to word that reason. In order (the design of 2026-11-14 with its
 challenge, M1 to M4 and S1 to S7):
 

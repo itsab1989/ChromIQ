@@ -4405,7 +4405,7 @@ jobs, which is allowed and should be.*
 
 ### M-IMPORT-I1IO-REASONS · PROPOSED · an i1Profiler Measure Chart measurement of an i1iO chart is refused: the reasons, Measure tab import
 
-*New 2026-11-15 (the i1iO Measure Chart import, §I.17). The `{reason}` of the import's refusal window (M-IMPORT-MISMATCH on the verification door, the shared "does not belong" window on the profiling door), in this order: i1Profiler's grid is not the chart's; readings missing or twice; the Target and reading places disagree; a chart of several pages; the side file does not belong to the chart; the sheet looks turned half round; the readings fit another order better (`{how}`: one of the last eight lines); the colours fit only partly (a chart that can tell and does not say yes, challenge M1); one strip does not fit (named, or numbered on a chart without names); the colours do not look like this chart; too many readings look like blank paper (aimed at the crosses); one strip carries part of its neighbour's colour (a corner aimed beside its centre, challenge M4; named or numbered); a text export without the chart's colours (challenge S3); and, on the Build Profile tab's import, the sentence that sends a Measure Chart file to the Measure tab. `{aim}`: the two aim parts (by name, by position). Nothing is ever corrected: every one is refused with the way to measure again.*
+*New 2026-11-15 (the i1iO Measure Chart import, §I.17). The `{reason}` of the import's refusal window (M-IMPORT-MISMATCH on the verification door, the shared "does not belong" window on the profiling door), in this order: i1Profiler's grid is not the chart's; readings missing or twice; the Target and reading places disagree; a chart of several pages; the side file does not belong to the chart; the sheet looks turned half round; the readings fit another order better (`{how}`: one of the last eight lines); the colours fit only partly (a chart that can tell and does not say yes, challenge M1); one strip does not fit (named, or numbered on a chart without names); the colours do not look like this chart; too many readings look like blank paper (aimed at the crosses); one strip carries part of its neighbour's colour (a corner aimed beside its centre, challenge M4; named or numbered); a text export without the chart's colours (challenge S3); and, on the Build Profile tab's import, the sentence that sends a Measure Chart file to the Measure tab. `{aim}`: the two aim parts (by name, by position). Nothing is ever corrected: what the colours can show is refused with the way to measure again; on a chart whose colours cannot tell, what the checks cannot show is asked (M-IMPORT-I1IO-CANNOT-CHECK), not refused (§I.17 points 4, 5 and 9).*
 
 > **An i1Profiler Measure Chart measurement of an i1iO chart: the reasons**
 >
@@ -10701,8 +10701,12 @@ lay turned?" is no: refuse. The design called this section §I.15; §I.15 and
 
 **I.17 · A Measure Chart measurement of an i1iO chart of one page is paired by
 each reading's own place in i1Profiler's grid, through the chart's side file,
-and filed only when nothing speaks against it; every mistake is refused,
-nothing is ever corrected.**
+and filed only when nothing speaks against it. Nothing is ever corrected. A
+mistake the colours can show is refused; on a chart whose colours cannot
+tell (sorted, ramps, few or very similar patches) the checks of point 4
+refuse what they can show, and what is left is ASKED (point 5), so a mistake
+there can still reach the person as a question. And a mistake the colours
+cannot show at all is filed: the known cases are point 9.**
 
 1. **Where it applies.** Only while Preferences ▸ Beta ▸ "X-Rite i1iO support"
    is on, only on the Measure tab's Import Measurement (both doors: profiling
@@ -10748,7 +10752,12 @@ nothing is ever corrected.**
    like blank paper than the chart has patches like it, or the neighbour-strip
    blend. The best fitting arrangement only words the reason.
 5. **Asked** (Import / Cancel, Cancel the default) only on a chart whose
-   colours cannot tell, after every check of point 4 found nothing.
+   colours cannot tell, after every check of point 4 found nothing. Which
+   mistakes still arrive as this question (the build's sweep of 2026-11-15,
+   10 paper kinds): on a ramp chart a corner aimed one patch along, one patch
+   short or 3.5 mm across, and one patch along everywhere (a ramp reads like
+   itself shifted); on near-identical colours a corner aimed 3.5 mm across or
+   one strip up. On the charts that can tell, nothing is asked.
 6. **Filed** on the converted copy in `cache/import` (the person's file is
    untouched): every row takes the chart's SAMPLE_LOC of its own cell, the
    placeholders are dropped and the chart's device values written in the
@@ -10771,6 +10780,12 @@ nothing is ever corrected.**
    NumberPatchPages is "0" has its grid read from the picked file with "0"
    taken as one page, so the grid check is no longer skipped. A chart of
    several pages is still refused ("needs a later version").
+9. **Filed although wrong: the known cases** (the forward models of the build
+   and of the review, 2026-11-15; no real file shows them yet). On the small
+   verification chart of two strips a corner aimed 3.5 mm across the strips
+   is refused in most cases but filed in about one in six on low-gamut,
+   cream and dark papers (two strips give the neighbour check little to
+   compare).
 
 ## S. Sequences — what happens, in what order, for every entry condition
 
