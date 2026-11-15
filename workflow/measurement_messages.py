@@ -1247,6 +1247,31 @@ M_ISIS_NO_TXF = _m(
     "itself.",
     approved=False)
 
+#: "Show row indicators" is on for an i1iSis chart, but the row numbers could
+#: not be drawn: they go right of the right diamonds, inside the outline, and
+#: the chart already fills the width it may take on this paper, even with the
+#: numbers at their smallest size (4.3.39 integration). The Create Chart log
+#: line, and a note on the panel's "i1iSis chart (Beta)" group. What makes
+#: room was measured on the layout (A4 / Letter with tight margins: off,
+#: wider side margins or A3 each leave room).
+M_ISIS_ROW_NUMBERS_NO_ROOM = _m(
+    "M-ISIS-ROW-NUMBERS-NO-ROOM",
+    "No room for the row numbers on this sheet",
+    "“Show row indicators” is on, but the row numbers were left off this "
+    "sheet: they print to the right of the chart, inside its dashed outline, "
+    "and on this paper the chart already takes all the width it may, even "
+    "with the numbers set at their smallest size. To make room, switch off "
+    "“Tight margins” if it is on, set wider left and right page margins (the "
+    "chart then gets fewer columns and the numbers fit beside it), or use "
+    "wider paper. The chart can be printed and measured as it is.",
+    approved=False)
+
+
+def isis_row_numbers_no_room_text() -> str:
+    """The body of M-ISIS-ROW-NUMBERS-NO-ROOM (the log line, the panel
+    note)."""
+    return M_ISIS_ROW_NUMBERS_NO_ROOM.render()[1]
+
 #: Generate in Guided, with the run's own patch set bound, when that set
 #: laid out with the settings on screen takes another number of pages than
 #: "Number of pages" asks for (the owner, 2026-11-15). {set_pages} and
@@ -11266,6 +11291,7 @@ CATALOGUE = {m.id: m for m in (
     M_IMPORT_I1IO_CANNOT_CHECK, M_IMPORT_I1IO_CANNOT_CHECK_PARTS,
     M_IMPORT_I1IO_FILED, M_IMPORT_ISIS_COLOURS, M_IMPORT_I1IO_REFUSED,
     M_ISIS_NOT_YET, M_ISIS_SUPPORT_OFF, M_ISIS_SHEET_CHECK, M_ISIS_NO_TXF,
+    M_ISIS_ROW_NUMBERS_NO_ROOM,
     M_GUIDED_SET_PAGES,
     M_I1IO_AIM_CROSSES, M_I1IO_AIM_CORNERS, M_I1IO_AIM_CORNERS_UNLABELLED,
     M_I1IO_AIM_UNKNOWN, M_I1IO_AIM_PAGE_PARTS,

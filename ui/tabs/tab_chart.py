@@ -26845,6 +26845,7 @@ class TabChart(QWidget):
         """Record the chart now in the preview and refresh the margin inspector."""
         self._margin_tiffs = list(tiffs or [])
         self._margin_ti2 = ti2 if (ti2 and Path(ti2).is_file()) else None
+        self._refresh_isis_row_numbers_note()
         self._update_margin_inspector()
         self._update_layout_info()
         # …AND THE ESTIMATE COLUMN, WHICH READS THIS VERY CHART.
@@ -26853,6 +26854,28 @@ class TabChart(QWidget):
         # leaving it alone here made every Generate publish a panel whose two
         # columns describe two different charts, one build apart.
         self._refresh_layout_estimate()
+
+    def _refresh_isis_row_numbers_note(self) -> None:
+        """The i1iSis group's note (M-ISIS-ROW-NUMBERS-NO-ROOM) for the chart
+        now in the preview: shown when its side file says "Show row
+        indicators" was on and the numbers had no room, hidden otherwise.
+        Only while the i1iSis Beta is on (the panel's own guard)."""
+        lp = getattr(self, "_manual_layout_panel", None)
+        if lp is None or not getattr(lp, "_isis_support", False):
+            return
+        text = None
+        ti2 = getattr(self, "_margin_ti2", None)
+        if ti2:
+            try:
+                from workflow.isis.support import read_side_file
+                if (read_side_file(ti2) or {}).get("row_numbers") \
+                        == "left_off":
+                    from workflow.measurement_messages import \
+                        isis_row_numbers_no_room_text
+                    text = isis_row_numbers_no_room_text()
+            except Exception:  # noqa: BLE001 - a note never blocks a chart
+                log.debug("i1iSis row-number note not made", exc_info=True)
+        lp.isis_row_numbers_note(text)
 
     def _estimate_patch_total(self) -> "int | None":
         """The patch count the estimate should lay out: what pressing Generate

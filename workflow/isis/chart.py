@@ -2139,6 +2139,10 @@ def side_doc(sheet: Sheet, *, paper: str, name: str, title: str,
                                                    or ())]}
                        if o.notes_band else None),
         "pages_detail": pages,
+        # whether "Show row indicators" could be honoured (the panel's note,
+        # M-ISIS-ROW-NUMBERS-NO-ROOM); absent while it is off
+        **({"row_numbers": ("printed" if not _plan_numbers(sheet, patterns)[1]
+                            else "left_off")} if o.row_numbers else {}),
     }
 
 
@@ -2192,6 +2196,13 @@ def keep_out_message(what: str) -> str:
                   "text set small, so {what} was left off the top of the "
                   "sheet. The chart's files keep its full name.").format(
                       what=parts[what])
+    if what == "row_numbers":
+        # left off for lack of room beside the chart, not for a marker
+        # zone: what makes room is said (M-ISIS-ROW-NUMBERS-NO-ROOM, also
+        # the note on the panel)
+        from workflow.measurement_messages import \
+            isis_row_numbers_no_room_text
+        return isis_row_numbers_no_room_text()
     names = {"row_numbers": tr("The row numbers"),
              "strip_letters": tr("The strip letters")}
     return tr("{what} would print where the i1iSis looks for its markers, so "

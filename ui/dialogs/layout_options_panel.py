@@ -729,6 +729,11 @@ class LayoutOptionsPanel(QWidget):
     def _isis_build_group(self, parent_layout) -> None:
         self._isis_call("_isis_build_group", parent_layout)
 
+    def isis_row_numbers_note(self, text) -> None:
+        """The i1iSis group's note that the row numbers had no room
+        (M-ISIS-ROW-NUMBERS-NO-ROOM); None hides it."""
+        self._isis_call("_isis_row_numbers_note", text)
+
     def _sync_isis_widgets(self, on: bool) -> None:
         self._isis_call("_sync_isis_widgets", on)
 
