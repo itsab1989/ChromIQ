@@ -8811,6 +8811,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._session_live = True
         self._gesture_paused = None      # button shortcuts' pause
         self._slip_kept_strips = set()
+        #: R3 (4.3.39): how often each strip was refused with "Reading is
+        #: inconsistent" in this measurement.
+        self._inconsistent_refusals = {}
         self._end_page_pause()
         self._sync_calibrate_btn_visible()
         QApplication.instance().installEventFilter(self)
@@ -11792,6 +11795,39 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         ButtonFontFilter.fit_window(dlg)
         self._exec_measurement_window(dlg)
 
+    #: R3: from which refusal of the same strip the explanation is added.
+    INCONSISTENT_AGAIN_FROM = 2
+
+    def _inconsistent_again_html(self, reason: str) -> str:
+        """R3 (4.3.39; jctay, forum 150236): from the SECOND time the same
+        strip is refused with the driver's "Reading is inconsistent" in one
+        measurement, M-STRIP-FAILED-INCONSISTENT-AGAIN under the usual advice:
+        what it usually means and what helps. Counted per strip; "" before
+        that, for any other reason, and without a strip name. The Measure log
+        says it once per strip."""
+        from core.measure_pace import misread_kind
+        if misread_kind(reason) != "inconsistent":
+            return ""
+        strip = str(getattr(self, "_current_strip_letter", "") or "").strip()
+        if not strip:
+            return ""
+        counts = vars(self).setdefault("_inconsistent_refusals", {})
+        counts[strip] = counts.get(strip, 0) + 1
+        n = counts[strip]
+        if n < self.INCONSISTENT_AGAIN_FROM:
+            return ""
+        from workflow import measurement_messages as M
+        title, body = M.M_STRIP_FAILED_INCONSISTENT_AGAIN.render(
+            strip=strip, skip=tr("Skip Strip"),
+            save_partial=_save_partial_name().replace("&amp;", "&"))
+        if n == self.INCONSISTENT_AGAIN_FROM:
+            try:
+                self._log.appendPlainText(title + "\n" + body)
+                self._log.ensureCursorVisible()
+            except Exception:  # noqa: BLE001 — a log line never blocks a read
+                pass
+        return _catalogue_html(title, body)
+
     def _is_last_unread_strip(self) -> bool:
         """True when the strip that just failed is the only one still unread.
 
@@ -11898,6 +11934,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             # from the §M catalogue (M-STRIP-FAILED-*), instead of one text
             # for all that told "Too many patches" to scan more slowly.
             advice = _strip_failed_advice_html(reason)
+            advice += self._inconsistent_again_html(reason)
             if button:
                 advice += _strip_failed_button_html()
 

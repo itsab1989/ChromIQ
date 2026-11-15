@@ -123,6 +123,8 @@ AWAITING_APPROVAL: "set[str]" = {
     # 4.3.39 (R2, jctay 150222 / 150236): the back-to-front question with
     # "Turn this strip round", and the log line once it is done.
     "M-STRIP-REVERSED-TURN", "M-STRIP-TURNED",
+    # 4.3.39 (R3, jctay 150236): the same strip refused again as inconsistent.
+    "M-STRIP-FAILED-INCONSISTENT-AGAIN",
     # 4.3.36, 2026-11-14: the technical line under a communication failure
     # (which USB step failed), for a report.
     "M-STRIP-FAILED-COMS-DETAIL",

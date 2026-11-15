@@ -9451,6 +9451,44 @@ M_STRIP_FAILED_INCONSISTENT = _m(
     "What the instrument reported: {reason}",
     approved=False)
 
+# --- PROPOSED: the same strip refused a second time as inconsistent (R3) ----
+#: 4.3.39 (jctay, forum 150236): strip 12 of his fixed-order chart was refused
+#: 15 times out of 15 with "Reading is inconsistent". The text is the
+#: instrument driver's own, the same in the i1Pro, i1Pro 2, i1Pro 3 and
+#: ColorMunki drivers; its check compares the many readings the instrument
+#: takes inside each patch with each other. On his chart a near-black patch
+#: (7/7/8 %) came right after an almost white grey (94 %) on 8 mm patches:
+#: the first readings of the dark patch still caught light from the bright
+#: one, just past the limit. Added under M-STRIP-FAILED-INCONSISTENT from the
+#: second such refusal of the same strip in one measurement.
+M_STRIP_FAILED_INCONSISTENT_AGAIN = _m(
+    "M-STRIP-FAILED-INCONSISTENT-AGAIN",
+    "Strip {strip} was refused again for the same reason",
+    "When the same strip is refused again and again with “Reading is "
+    "inconsistent”, the way you read it is usually not the problem, and "
+    "reading it more slowly or more carefully rarely helps. Most often, a very "
+    "dark patch sits right next to a very light one on this strip. While the "
+    "instrument moves from the light patch onto the dark one, its first "
+    "readings of the dark patch still catch a little light from its bright "
+    "neighbour, and the readings of that patch then disagree with each other "
+    "by more than the instrument accepts. Patches that are shorter than the "
+    "instrument likes make this worse, because fewer of its readings lie well "
+    "inside each patch.\n\n"
+    "What helps:\n"
+    "• Read this strip patch by patch. A patch read on its own has no "
+    "neighbour to pick up light from. ChromIQ cannot switch to patch by patch "
+    "in the middle of a strip measurement, but it can finish this strip that "
+    "way afterwards: choose {skip} (or {save_partial} when it is the last "
+    "strip), finish the other strips, and then start measuring again with "
+    "“Patch-by-patch mode” and “Refine / resume existing measurement (-r)” "
+    "ticked. ChromIQ then asks only for the patches that are still missing, "
+    "which are the patches of this strip.\n"
+    "• For your next chart: a randomised patch order, which rarely puts a "
+    "very dark patch straight after a very light one, or longer patches in "
+    "the direction you move the instrument. Create Chart says when a chart's "
+    "patches are shorter than ArgyllCMS recommends for your instrument.",
+    approved=False)
+
 M_STRIP_FAILED_EDGES = _m(
     "M-STRIP-FAILED-EDGES",
     "The movement did not start and end on the white paper",
@@ -10457,6 +10495,7 @@ M_STRIP_RULER_NOT_COVERED = _m(
 
 
 CATALOGUE = {m.id: m for m in (
+    M_STRIP_FAILED_INCONSISTENT_AGAIN,
     M_STRIP_REVERSED_TURN,
     M_STRIP_TURNED,
     M_STRIP_RULER_NOT_COVERED,
