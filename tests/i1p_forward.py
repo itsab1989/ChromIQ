@@ -72,7 +72,9 @@ def chart_sets(rng: "np.random.Generator"):
                           "K": (v, v, v)}[ch])
     near = [tuple(rng.uniform(70, 85, 3)) for _ in range(528)]
     few = [tuple(rng.uniform(0, 100, 3)) for _ in range(40)]
+    grey = [(v, v, v) for v in rng.uniform(0, 100, 200)]
     return {
+        "greys": (grey, dict(seed=4)),
         "random": (rand, dict(seed=11)),
         "sorted": (srt, dict(randomize=False)),
         "ramps": (ramps, dict(randomize=False)),
@@ -150,15 +152,85 @@ def printer_lab(rgb100, rng, noise: float) -> np.ndarray:
     return out + (rng.normal(0, noise, 3) if noise else 0.0)
 
 
-def reader(sheet: Sheet, rng, noise: float = 0.8):
-    """What the aperture sees at table point (x, y)."""
+def _g(c, w):
+    return np.exp(-0.5 * ((_WL - c) / w) ** 2)
+
+
+class InkPrinter:
+    """A subtractive CMY printer on a paper (after the review of 2026-11-15:
+    reflectance = paper x 10^-(sum of ink densities), with dot gain), for the
+    paper kinds the thresholds must hold on. Readings average REFLECTANCE."""
+
+    PAPERS = {"white": lambda: 0.88 + 0.06 * _g(440, 25),
+              "cream": lambda: 0.85 - 0.25 * np.clip((480 - _WL) / 100, 0, 1),
+              "grey": lambda: np.full_like(_WL, 0.45),
+              "dark": lambda: 0.25 + 0.05 * _g(600, 60),
+              "matte": lambda: np.full_like(_WL, 0.84)}
+
+    def __init__(self, paper="white", dmax=1.0, gain=0.8, cross=0.08):
+        self.paper = self.PAPERS[paper]()
+        self.D = np.stack([dmax * (1.5 * _g(630, 45) + cross),
+                           dmax * (1.4 * _g(540, 40) + cross),
+                           dmax * (1.2 * _g(440, 35) + cross)])
+        self.gain = gain
+
+    def spectrum(self, rgb100) -> np.ndarray:
+        cmy = np.clip(1.0 - np.asarray(rgb100, float) / 100.0, 0, 1) \
+            ** self.gain
+        return self.paper * 10.0 ** (-(cmy @ self.D))
+
+
+#: The paper kinds of the review's sweep (its `PRINTERS`, glossy as in its
+#: thresholds run).
+PRINTERS = {
+    "white": dict(paper="white"),
+    "cream": dict(paper="cream"),
+    "grey-paper": dict(paper="grey"),
+    "dark-paper": dict(paper="dark"),
+    "low-gamut": dict(paper="matte", dmax=0.45, gain=0.9),
+    "matte": dict(paper="matte", dmax=0.75),
+    "glossy": dict(paper="white", dmax=1.2, gain=0.75),
+    "glossy-extreme": dict(paper="white", dmax=1.5, gain=0.7),
+    "cream-lowgamut": dict(paper="cream", dmax=0.5, gain=0.9),
+    "dark-lowgamut": dict(paper="dark", dmax=0.5),
+}
+
+
+def _spectra_lab(sp) -> np.ndarray:
+    from workflow.argyll_colorimetry import spectra_to_xyz_like_argyll
+    xyz = spectra_to_xyz_like_argyll(np.atleast_2d(sp), _WL)
+    w = np.array([96.422, 100.0, 82.521])
+    t = xyz / w
+    f = np.where(t > 216 / 24389, np.cbrt(t), (24389 / 27 * t + 16) / 116)
+    return np.stack([116 * f[:, 1] - 16, 500 * (f[:, 0] - f[:, 1]),
+                     200 * (f[:, 1] - f[:, 2])], -1)
+
+
+def reader(sheet: Sheet, rng, noise: float = 0.8, printer=None):
+    """What the aperture sees at table point (x, y). With *printer* (an
+    `InkPrinter`), the reflectance is averaged and *noise* is relative
+    reflectance noise (0.004 = 0.4 %); otherwise L*a*b* is averaged and
+    *noise* is in dE."""
     pw, pl = sheet.patch
     cells = [(x, y, sheet.rgb_of[sid]) for row in sheet.grid
              for (sid, x, y) in row]
     XY = np.array([(x, y) for x, y, _ in cells])
-    labs = np.array([printer_lab(rgb, rng, 0.0) for _, _, rgb in cells])
     offs = [(dx, dy) for dx in np.linspace(-2, 2, 5)
             for dy in np.linspace(-2, 2, 5) if dx * dx + dy * dy <= 4.1]
+    if printer is not None:
+        sps = np.array([printer.spectrum(rgb) for _, _, rgb in cells])
+
+        def read_sp(x, y):
+            acc = []
+            for dx, dy in offs:
+                d = np.abs(XY - (x + dx, y + dy))
+                hit = np.where((d[:, 0] <= pl / 2) & (d[:, 1] <= pw / 2))[0]
+                acc.append(sps[hit[0]] if len(hit) else printer.paper)
+            sp = np.mean(acc, axis=0)
+            sp = sp * (1.0 + rng.normal(0, noise, sp.shape))
+            return _spectra_lab(sp)[0]
+        return read_sp
+    labs = np.array([printer_lab(rgb, rng, 0.0) for _, _, rgb in cells])
 
     def read(x, y):
         acc = []
@@ -202,6 +274,12 @@ def mistakes(sheet: Sheet) -> dict:
         "one-patch-along": (sh(TL, dx, 0), sh(BL, dx, 0), sh(BR, dx, 0)),
         "one-strip-down": (sh(TL, 0, dy), sh(BL, 0, dy), sh(BR, 0, dy)),
         "corner1-3.5mm-across": (sh(TL, 0, 3.5), BL, BR),
+        "corner3-3.5mm-across": (TL, BL, sh(BR, 0, 3.5)),
+        "all-3.5mm-across": (sh(TL, 0, 3.5), sh(BL, 0, 3.5),
+                             sh(BR, 0, 3.5)),
+        "aim3-one-short": (TL, BL, sh(BR, -dx, 0)),
+        "aim2-one-strip-up": (TL, sh(BL, 0, -dy), BR),
+        "aim1-one-patch-along": (sh(TL, dx, 0), BL, BR),
     }
     if sheet.marks:
         out["aimed-crosses"] = tuple(sheet.marks)

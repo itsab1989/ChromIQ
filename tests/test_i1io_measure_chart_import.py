@@ -243,7 +243,15 @@ EXPECT = {
 }
 #: Asked, never filed silently: the chart's colours cannot tell these.
 ASKED = {("ramps", "corner1-3.5mm-across"), ("near", "transposed"),
-         ("near", "aimed-crosses")}
+         ("near", "aimed-crosses"),
+         # round 2: on near-identical colours (neighbouring strips under
+         # 12 dE apart) the blend is not judged; asked, never filed
+         ("near", "corner1-3.5mm-across")}
+#: The mistakes of the challenge's list (the review's further aims are
+#: tested below, on the charts that cannot tell).
+ORIGINAL = ("half-turn", "mirror-along", "mirror-strips", "transposed",
+            "one-patch-along", "one-strip-down", "corner1-3.5mm-across",
+            "aimed-crosses")
 
 
 @pytest.mark.parametrize("name", sorted(EXPECT))
@@ -251,7 +259,7 @@ def test_every_mistake_is_refused(charts, tmp_path, name):
     sh = F.load_sheet(charts[name])
     got = {}
     for mk, aims in F.mistakes(sh).items():
-        if mk == "right":
+        if mk == "right" or mk not in ORIGINAL:
             continue
         cxf = F.measure(sh, tmp_path / f"{mk}.cmxf", aims,
                         rng=np.random.default_rng(3))
@@ -463,3 +471,46 @@ def test_the_false_sentence_is_gone():
     from workflow import measurement_messages as MM
     for m in MM.CATALOGUE.values():
         assert "cannot read ChromIQ's own i1iO sheet" not in m.body, m.id
+
+
+# ---------------------------------------------------------------------------
+# Review 2026-11-15, M1/M2: the neighbour-strip check on other papers
+# ---------------------------------------------------------------------------
+
+def _readings(sh, aims, paper, seed=0, noise=0.004):
+    from workflow.turned_colour_check import expected_lab_rgb, measured_lab
+    R, C = sh.rows, sh.cols
+    rg = np.random.default_rng(seed)
+    read = F.reader(sh, rg, noise, printer=F.InkPrinter(**F.PRINTERS[paper]))
+    rd = F.scan(read, aims, R, C)
+    E = expected_lab_rgb([sh.rgb_of[sh.grid[j % R][j // R][0]]
+                          for j in range(R * C)])
+    M = measured_lab(np.array([F._lab_to_xyz_d50(l) for _, _, l in rd]))
+    return E, M
+
+
+@pytest.mark.parametrize("paper", ["glossy", "glossy-extreme", "white"])
+def test_a_good_sorted_chart_on_glossy_paper_is_not_refused(charts, paper):
+    """M2: the printer's tone curve is not a neighbouring strip."""
+    from workflow.i1io.measure_chart import judge_readings
+    sh = F.load_sheet(charts["sorted"])
+    for seed in (0, 1):
+        E, M = _readings(sh, sh.right_aims(), paper, seed)
+        net = judge_readings(E, M, sh.rows, sh.cols)
+        assert net.action == "ask" and net.code == "cannot-tell", net.detail
+
+
+@pytest.mark.parametrize("paper", ["matte", "low-gamut", "dark-paper",
+                                   "cream-lowgamut", "white"])
+@pytest.mark.parametrize("corner", ["corner1-3.5mm-across",
+                                    "corner3-3.5mm-across",
+                                    "all-3.5mm-across"])
+def test_a_corner_aimed_3_5_mm_across_is_refused_on_every_paper(
+        charts, paper, corner):
+    """M1: one corner off blends the next strip in growing along the strip;
+    filed silently before on matte, low-gamut and dark papers."""
+    from workflow.i1io.measure_chart import judge_readings
+    sh = F.load_sheet(charts["random"])
+    E, M = _readings(sh, F.mistakes(sh)[corner], paper)
+    net = judge_readings(E, M, sh.rows, sh.cols)
+    assert net.action == "refuse", (net.code, net.detail)

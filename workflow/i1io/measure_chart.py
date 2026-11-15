@@ -92,15 +92,21 @@ PAPER_DE = 6.0
 PAPER_EXPECTED_DE = 10.0
 PAPER_SLACK = 2
 #: M4: the share of the neighbouring strip's colour in a strip's readings, at
-#: its lower bound (`blend_share`). The false-alarm sweep of the build
-#: (2026-11-15, 25 seeds x random / small / sorted / ramps / near-identical
-#: charts x noise 0.8 / 2.5 / 5): right readings at most 0.031; a corner
-#: aimed 3.5 mm across the strips 0.11 to 0.29 on every randomised or sorted
-#: chart at noise up to 2.5 (the challenge's start value was 0.15).
-BLEND_LIMIT = 0.10
+#: its lower bound (`blend_share`, quadratic map, share linear along the
+#: strip; review 2026-11-15 M1/M2). The build's sweep of round 2
+#: (`ChromIQ-work/2026-11-15_import_build/round2/`), reproducing the
+#: reviewer's: right readings at most 0.05, a corner aimed 3.5 mm across the
+#: strips at least 0.20, on white, cream, grey, dark, matte, low-gamut and
+#: glossy papers.
+BLEND_LIMIT = 0.12
+#: M4: from this many patches the map is quadratic, below it affine.
+BLEND_QUADRATIC_FROM = 100
 #: M4: strips whose fitted colours differ from the neighbour's by less than
-#: this (median dE76) cannot show a blend and are not asked.
-BLEND_MIN_DIFF = 8.0
+#: this (median dE76) cannot show a blend and are not asked. 12, not 8 (round
+#: 2): on a chart of near-identical light colours with heavy noise the share
+#: of strips 8 to 12 dE apart is noise (right readings up to 0.13); random,
+#: sorted and near-identical charts detect a 3.5 mm miss exactly as well.
+BLEND_MIN_DIFF = 12.0
 #: M4: the share is taken this many standard errors below its estimate.
 BLEND_SIGMAS = 3.0
 #: S1: an arrangement scoring at least this names the mistake.
@@ -413,24 +419,48 @@ def paper_excess(E, M) -> "tuple[int, int]":
     return m, e
 
 
-def blend_share(E, M, rows: int, cols: int) -> "tuple[float, int | None]":
-    """M4. The largest share of a neighbouring strip's fitted colour in a
-    strip's readings (least squares, one affine map expected -> measured over
-    the whole chart), and that strip (0-based).
+def _quad(E: np.ndarray) -> np.ndarray:
+    """Features of a QUADRATIC map expected -> measured: L*, a*, b*, 1, their
+    squares and products and L*^3 (scaled), so that a printer's tone curve is
+    absorbed by the map and is not taken for a neighbouring strip (review
+    2026-11-15, M2: a sorted chart on glossy paper)."""
+    L, a, b = E[:, 0:1] / 100, E[:, 1:2] / 100, E[:, 2:3] / 100
+    return np.hstack([E, np.ones((len(E), 1)), 100 * L * L, 100 * a * a,
+                      100 * b * b, 100 * L * a, 100 * L * b, 100 * a * b,
+                      100 * L ** 3])
 
-    Taken at its LOWER bound, the share minus BLEND_SIGMAS standard errors,
-    the noise read from the fit's own residuals: on a chart whose
-    neighbouring strips differ little the share is mostly noise (the
-    false-alarm sweep: a near-identical chart at noise 5 measured 0.33 with
-    every reading right), while a real blend across strips that differ is
-    many standard errors clear."""
+
+def blend_share(E, M, rows: int, cols: int) -> "tuple[float, int | None]":
+    """M4 of the challenge, as the review of 2026-11-15 corrected it (M1,
+    M2). The largest share of a neighbouring strip's fitted colour in a
+    strip's readings, and that strip (0-based).
+
+    * the map expected -> measured is QUADRATIC (`_quad`), fitted over the
+      whole chart, so a printer's tone curve does not look like a blend;
+    * the share may grow ALONG the strip, ``w0 + w1 * t`` (t 0..1 from the
+      strip's first patch to its last): one corner aimed beside its centre
+      tilts i1Profiler's grid, so the blend runs from nothing at one end to
+      its full size at the other, and one share per strip averaged it down
+      to half;
+    * it is taken at its LOWER bound at both ends of the strip, the share
+      minus BLEND_SIGMAS standard errors, the noise read from the fit's own
+      residuals: where neighbouring strips differ little the share is mostly
+      noise."""
     E = np.asarray(E, float)
     M = np.asarray(M, float)
-    res, B = _fit(E, M)
+    # A SMALL CHART TAKES THE AFFINE MAP: thirteen quadratic terms fitted on
+    # a verification chart of two strips absorb the blend itself (the
+    # build's sweep of round 2: a corner aimed 3.5 mm off on a 48-patch
+    # chart 0.13 with the quadratic map, 0.16 with the affine one).
+    feats = _quad if len(E) >= BLEND_QUADRATIC_FROM else (
+        lambda e: np.hstack([e, np.ones((len(e), 1))]))
+    X = feats(E)
+    B, *_ = np.linalg.lstsq(X, M, rcond=None)
+    res = np.linalg.norm(M - X @ B, axis=1)
     sigma = float(np.median(res)) / math.sqrt(3.0)
 
     def f(e):
-        return np.hstack([e, np.ones((len(e), 1))]) @ B
+        return feats(e) @ B
     worst, at = 0.0, None
     for r in range(rows):
         js = [c * rows + r for c in range(cols) if c * rows + r < len(E)]
@@ -439,18 +469,25 @@ def blend_share(E, M, rows: int, cols: int) -> "tuple[float, int | None]":
             if not 0 <= nb < rows:
                 continue
             ks = [c * rows + nb for c in range(cols) if c * rows + nb < len(E)]
-            if len(ks) != len(js):
+            if len(ks) != len(js) or len(js) < 2:
                 continue
             d = f(E[ks]) - own
             if float(np.median(np.linalg.norm(d, axis=1))) < BLEND_MIN_DIFF:
                 continue
-            den = float((d * d).sum())
-            if den <= 0:
+            t = np.linspace(0.0, 1.0, len(js))[:, None]
+            A = np.stack([d.ravel(), (d * t).ravel()], 1)
+            y = (M[js] - own).ravel()
+            AtA = A.T @ A
+            if abs(float(np.linalg.det(AtA))) < 1e-9:
                 continue
-            w = float(((M[js] - own) * d).sum() / den)
-            w -= BLEND_SIGMAS * sigma / math.sqrt(den)
-            if w > worst:
-                worst, at = w, r
+            w, *_ = np.linalg.lstsq(A, y, rcond=None)
+            cov = np.linalg.inv(AtA) * sigma ** 2
+            for tt in (0.0, 1.0):
+                v = np.array([1.0, tt])
+                low = float(v @ w) - BLEND_SIGMAS * math.sqrt(
+                    max(float(v @ cov @ v), 0.0))
+                if low > worst:
+                    worst, at = low, r
     return worst, at
 
 
