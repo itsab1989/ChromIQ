@@ -21251,6 +21251,8 @@ class TabChart(QWidget):
                     self._preset_ti1_path = None
                     self._preset_ti1_targen_sig = None
                     self._update_preset_locks()
+                    # and the big number says what is now being made
+                    self._update_patch_count()
                 elif not targen_changed:
                     # SAY SO. This wrote one line to the log and then built a
                     # completely different chart (§M M-PATCHSET-MISSING).
