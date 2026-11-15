@@ -408,6 +408,11 @@ def plan_for(ti2: "str | Path", turn: "str | None" = None) -> TurnedPlan:
         # twice a ChromIQ strip on A4 or A3 [measured on A2, test P].
         from workflow.layout_engine.chart import friendly_instrument
         name = "i1Pro 3 Plus" if inst == "p3" else friendly_instrument(inst)
+        from workflow.isis.support import device_name, is_isis_code
+        if is_isis_code(inst):
+            # by its name, not its code "XRISIS" (combined review of
+            # 4.3.39, NIT): "i1iSis" or "i1iSis XL", as i1Profiler names it
+            name = device_name(recipe.get("isis_model"))
         plan.reasons.append(tr(
             "the chart is laid out for the {instrument}, not for the i1Pro 2 "
             "or i1Pro 3").format(instrument=name))
