@@ -1015,7 +1015,9 @@ class Table:
             raise self._doubt("a movement outside a step (a bug)")
         held = hold_stop_signals()
         try:
-            if not self.defer_stop:
+            # part C: on the scan path a stop is deferred until the scan move has ended, but the
+            # scan move itself is never written after a stop was asked for
+            if not self.defer_stop or label == "scan move":
                 self._stop_if_requested()
             if self.closed_reason is not None:
                 raise Doubt(f"not sending: {self.closed_reason}")

@@ -150,7 +150,8 @@ class _Proc:
     def __init__(self, argv, log, cwd):
         self.log = log
         self.argv = list(argv)
-        self.log("INST", "start: " + " ".join(Path(a).name if i == 0 else a
+        # names only: a full path would put the person's user name into the log
+        self.log("INST", "start: " + " ".join(Path(a).name if (i == 0 or os.sep in a) else a
                                               for i, a in enumerate(argv)))
         self.p = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                   stderr=subprocess.DEVNULL, text=True, bufsize=1,

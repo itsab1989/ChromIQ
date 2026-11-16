@@ -286,6 +286,7 @@ def run_row(table: tbl.Table, inst, plan: RowPlan, log, outdir: str,
     # ======== FROM HERE: ONE PATH TO THE FIRE ==========================================
     refused = False
     never_written = False
+    before_m2 = None                # why the scan move was never written (a stop, a check)
     table.defer_stop = True
     table.busy += 1                 # Ctrl-C now only asks for a stop after the move has ended
     try:
@@ -294,12 +295,15 @@ def run_row(table: tbl.Table, inst, plan: RowPlan, log, outdir: str,
             sent_before = table.lines_sent
             try:
                 table.c_send(plan.m2)
-            except tbl.Doubt:
-                if table.lines_sent == sent_before:      # refused before the wire: nothing
-                    never_written = True                 # is waiting for a lamp
-                    raise
+            except BaseException as exc:
+                if table.lines_sent == sent_before:      # refused or stopped before the wire:
+                    never_written = True                 # nothing is waiting for a lamp
+                    before_m2 = exc
                 raise
-            ack = table.c_read(res.t_m2 + ACK_TIMEOUT_S, tbl.ACK_MAX)
+            try:
+                ack = table.c_read(res.t_m2 + ACK_TIMEOUT_S, tbl.ACK_MAX)
+            except Exception as exc:              # noqa: BLE001 - a3, c3 and the fire follow
+                ack = f"unreadable: {exc}"
             if ack is not None and ack.startswith(":#"):
                 refused = True
                 res.notes.append(f"scan move refused: {ack}")
@@ -335,6 +339,8 @@ def run_row(table: tbl.Table, inst, plan: RowPlan, log, outdir: str,
         # ==============================================================================
 
         if never_written:
+            if isinstance(before_m2, tbl.Stopped):
+                raise before_m2
             res.kind = "failed_clean" if table.closed_reason is None else "after_doubt"
             res.why = "the scan move was refused by the program's own checks before it was sent"
             return res
@@ -376,6 +382,12 @@ def run_row(table: tbl.Table, inst, plan: RowPlan, log, outdir: str,
         res.t_done = table.t.now()
         table.timings.append(("m2/scan", res.t_done - res.t_m2))
         doubts = []
+        # a3, c3 or the acceptance not answered as recorded: logged during the path (the fire
+        # had to follow), and now, with the move over, a doubt: nothing more is sent
+        odd = [n for n in res.notes if n.startswith(("a3 answered", "c3 answered", "a3/c3:",
+                                                     "scan move: no or unexpected",
+                                                     "while the scan move ran"))]
+        doubts += odd
         if done[4:5] != "0" or not tbl.checksum_ok(done):
             doubts.append(f"its done answer was {done!r}")
         if res.fired and isinstance(res.fired.get("ms_lit_trig"), (int, float)) \

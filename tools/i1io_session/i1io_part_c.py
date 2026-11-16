@@ -135,7 +135,7 @@ STAGES = (
     Stage("d1", "Your ChromIQ i1iO sheet: aim the sight at its three marks", "about 5 min",
           (), "rest_or_free", "medium", True, 5, 8, 0,
           "You lay your printed ChromIQ i1iO sheet on the table as ChromIQ printed it for the "
-          "table (its top edge to the right, towards the resting place). The arm takes part B's "
+          "table (its top edge to the right). The arm takes part B's "
           "recorded way to the alignment start and is let go. You push it so that the cross hairs "
           "of the sight sit on mark 1, then 2, then 3, typing aimed at each; the program asks the "
           "table where the sight is (p1, the line i1Profiler sends at each aim). Then it checks "
@@ -415,6 +415,10 @@ class PartC:
                 self.d.log("INFO", f"the combined results could not be written ({exc!r})")
 
     def available(self) -> "list[Stage]":
+        if self.only_home:
+            # after "the arm did something wrong": nothing more moves, except the homing
+            f = STAGE_BY_KEY["f"]
+            return [f] if self.ready(f) is None else []
         return [STAGE_BY_KEY[k] for k in ORDER if self.ready(STAGE_BY_KEY[k]) is None]
 
     # ---- the menu ---------------------------------------------------------------------
@@ -440,6 +444,12 @@ class PartC:
                 ui.say(f"  {s.key.upper():3} {s.title} ({s.minutes}){done}")
             ui.say("  END stop here" + ("" if not (self.out_known() or self.d.arm_free) else
                                         " (F is recommended first: the arm is out on the table)"))
+            not_now = [(k, self.ready(STAGE_BY_KEY[k])) for k in ORDER
+                       if STAGE_BY_KEY[k] not in avail]
+            if not_now:
+                ui.say("Not offered now: " + "; ".join(
+                    f"{k.upper()} ({why or 'only the homing is offered after what you saw'})"
+                    for k, why in not_now) + ".")
             if len(choices) == 1 or (self.s.auto_end_when_done and not fresh):
                 return 0
             ans = ui.ask("Which stage now? (the first one listed is our suggestion)", choices)
@@ -566,10 +576,17 @@ class PartC:
             self.d.close_for_sending("stopped by you")
             raise Stopped("You stopped the program. Nothing more is sent to the table.")
         if did != "yes":
-            self.ui.say("Thank you, that is exactly what we need to know. Nothing more moves in "
-                        "this sitting except, if you want it, the recorded homing.")
             self.worked.discard(s.key)
-            self.only_home = True
+            arm = self.ui.ask(ASK_ARM_WRONG, ("yes", "no", "not sure"))
+            self.s.note(f"part C {s.key}: the arm or table wrong?", arm)
+            self.block["answers"].append(("arm or table wrong", arm))
+            if arm != "no":
+                self.ui.say("Thank you, that is exactly what we need to know. Nothing more moves "
+                            "in this sitting except, if you want it, the recorded homing.")
+                self.only_home = True
+            else:
+                self.ui.say("Thank you, that is noted. The table behaved as described, so the "
+                            "sitting can go on.")
 
     only_home = False
 
@@ -625,6 +642,9 @@ class PartC:
                 self.ui.say(f"The reader asks for a calibration of a kind this program does not "
                             f"know ({cond}). The calibration is not done.")
                 return False
+            if self.unread_rest() and self.d.position_now is None:
+                # just opened: read where the arm is before anyone handles the instrument
+                self.check_rest("before the calibration")
             if not self.at_rest():
                 self.ui.say("The reader asks for a calibration, but the arm is out on the table. "
                             "A calibration needs the instrument on a white tile, so this stage "
@@ -989,9 +1009,12 @@ class PartC:
         d.exchange("status")
         for _ in range(4):
             d._f4("01")
-        al = geo.fit_alignment([tuple(sc.sheet_table_mm(sheet, a["page_mm"])) for a in aims],
-                               readings)
         self.block["data"]["aims"] = readings
+        try:
+            al = geo.fit_alignment([tuple(sc.sheet_table_mm(sheet, a["page_mm"])) for a in aims],
+                                   readings)
+        except geo.AlignmentRefused as exc:
+            raise StageFailed(f"{exc}. Nothing has moved since your aims. " + REAIM) from None
         self.block["data"]["checks"] = al.checks
         with open(folder / "alignment.json", "w", encoding="utf-8") as fh:
             json.dump({"aims_mm": al.aims_mm, "readings": al.readings, "M": al.M,
@@ -1002,6 +1025,10 @@ class PartC:
                     f"{L[0][0] / 10:.1f}), marks 2 to 3 {L[1][1] / 10:.1f} mm (sheet "
                     f"{L[1][0] / 10:.1f}), corner {al.checks['angle_deg']:.1f} degrees, turned "
                     f"{al.checks['rotation_deg']:.1f} degrees.")
+        fit = page_fit(sheet, self.page, al)
+        self.block["data"]["fit"] = fit
+        for line in fit["say"]:
+            self.ui.say(line)
 
     def stage_d2(self, s: Stage, folder: Path) -> None:
         d = self.d
@@ -1175,6 +1202,77 @@ def demo_aims(sheet: "dict | None" = None, origin=DEMO_ORIGIN, page: int = 0):
     return out
 
 
+REAIM = ("You can lay the sheet again (first push the free arm gently aside, off the sheet) and "
+         "run D1 again.")
+
+
+def _shift_words(over: dict) -> str:
+    """Which way the sheet would have to lie, in plain words (X falls to the right, Y grows
+    towards the front, as the person sees the table)."""
+    parts = []
+    if over["left"] > 0 and over["right"] <= 0:
+        parts.append(f"about {over['left'] / 10 + 1:.0f} mm further to the right")
+    if over["right"] > 0 and over["left"] <= 0:
+        parts.append(f"about {over['right'] / 10 + 1:.0f} mm further to the left")
+    if over["back"] > 0 and over["front"] <= 0:
+        parts.append(f"about {over['back'] / 10 + 1:.0f} mm further towards the front")
+    if over["front"] > 0 and over["back"] <= 0:
+        parts.append(f"about {over['front'] / 10 + 1:.0f} mm further towards the back")
+    if (over["left"] > 0 and over["right"] > 0) or (over["back"] > 0 and over["front"] > 0):
+        return "it is longer than the measuring area this program uses, wherever it lies"
+    return " and ".join(parts)
+
+
+def page_fit(sheet: dict, page: int, al: "geo.Alignment") -> dict:
+    """After D1 (nothing moves): which spot targets and which strip rows of the page lie inside
+    the measuring area this program uses, and which way the sheet would have to lie for the
+    rest. Plain words in 'say'."""
+    area = geo.MEASURING_AREA
+    strips = sheet["pages"][page]["strips"]
+    spot_pts, run_pts = [], []
+    spot_out = rows_out = 0
+    for st in strips:
+        for q in st["patches"]:
+            u = sc.sheet_table_mm(sheet, q["centre_mm"])
+            p = al.to_table(u)
+            spot_pts.append(p)
+            if not (area.contains(p) and al.on_sheet(u, 0.5)):
+                spot_out += 1
+        ends = []
+        for r in st["run_mm"]:
+            u = sc.sheet_table_mm(sheet, (st["x_mm"], r))
+            p = al.to_table(u)
+            ends.append(p)
+            run_pts.append(p)
+        if not all(area.contains(p) for p in ends):
+            rows_out += 1
+
+    def over(pts):
+        return {"left": max(p[0] for p in pts) - area.xmax,
+                "right": area.xmin - min(p[0] for p in pts),
+                "back": area.ymin - min(p[1] for p in pts),
+                "front": max(p[1] for p in pts) - area.ymax}
+    say = []
+    n_spot, n_rows = len(spot_pts), len(strips)
+    if spot_out == 0:
+        say.append(f"All {n_spot} patches of this page lie inside the measuring area this program "
+                   "uses: the spot stages (D3, D4) can reach every one.")
+    else:
+        say.append(f"{spot_out} of the {n_spot} patches of this page lie outside the measuring area "
+                   f"this program uses, so D3 or D4 stop cleanly before the first of them. For "
+                   f"all of them the sheet would have to lie {_shift_words(over(spot_pts))}.")
+    if rows_out == 0:
+        say.append(f"All {n_rows} rows of this page, with their run-in and run-out, lie inside it "
+                   "too: the strip stages (E2, E3) can read every row.")
+    else:
+        say.append(f"{rows_out} of the {n_rows} rows, with their run-in and run-out, reach outside "
+                   f"it, so E2 or E3 stop cleanly before such a row. For all rows the sheet would "
+                   f"have to lie {_shift_words(over(run_pts))}. " + REAIM)
+    return {"spot_outside": spot_out, "spot_total": n_spot, "rows_outside": rows_out,
+            "rows_total": n_rows, "over_spot": over(spot_pts), "over_rows": over(run_pts),
+            "say": say}
+
+
 def load_sheet(path: Path) -> dict:
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     if "pages" not in data or "paper_mm" not in data:
@@ -1211,4 +1309,8 @@ SHEET_LAY = (
     "Please lay your printed ChromIQ i1iO sheet on the table now, while the arm is at rest, the "
     "way ChromIQ printed it for the table ({orient}). All three marks must lie where the arm can "
     "reach them; ChromIQ's layout keeps the sheet inside the measuring area of 320 x 230 mm.")
+ASK_ARM_WRONG = (
+    "Did anything about the TABLE or the ARM look, sound or feel wrong (a move that was not "
+    "described, a noise, a bump, the arm in an unexpected place)? Answer no if only the "
+    "instrument or its readings were not as described.")
 ASK_SHEET_LAID = "Is your sheet lying on the table as described, and nothing else on it?"

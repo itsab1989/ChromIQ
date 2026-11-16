@@ -82,8 +82,13 @@ class CSimTable(SimTable):
         here = (self.pos[0], self.pos[1])
         if line == C_P1 and not self.free_arm:
             raise SimViolation("p1 with the arm held (recorded only with the arm free)")
-        if cid in ("a3", "c3") and (self.m2_pending is None or self.m2_pending.get("lamp")):
-            raise SimViolation(f"{cid} outside a scan move")
+        before = self.received[-2][1:3] if len(self.received) >= 2 else ""
+        if cid == "a3" and before != "m2":
+            raise SimViolation("a3 not right after a scan move")
+        if cid == "c3" and before != "a3":
+            raise SimViolation("c3 not right after a3")
+        if cid in ("a3", "c3") and self.m2_pending is not None and self.m2_pending.get("lamp"):
+            raise SimViolation(f"{cid} after the scan move had started")
         if cid in ("m0", "m2") and line not in SPOT_XY and line not in (M1498, M2507):
             x, y, v = _s16(args[0:4]), _s16(args[4:8]), int(args[8:12], 16)
             if cid == "m0" and v != 300:
@@ -121,6 +126,22 @@ class CSimTable(SimTable):
                 raise SimViolation(f"{line} from {here}")
 
     def _command(self, line: str) -> None:
+        """Every violation is also KEPT (the program turns a raised one into a stop, and a test
+        must still see it)."""
+        try:
+            self._command_c(line)
+        except SimViolation as exc:
+            self.violations.append(str(exc))
+            raise
+
+    def hand_to(self, x: float, y: float) -> None:
+        try:
+            super().hand_to(x, y)
+        except SimViolation as exc:
+            self.violations.append(str(exc))
+            raise
+
+    def _command_c(self, line: str) -> None:
         if not self.part_c:
             return super()._command(line)
         self.received.append(line)
@@ -130,6 +151,8 @@ class CSimTable(SimTable):
         cid, args = line[1:3], line[3:-2]
         self._check_sequence(line)
         self._c_physics(line, cid, args)
+        if getattr(self, "silent", False):
+            return
         index = len(self.received) - 1
         if self.on_command is not None:
             self.on_command(index)
@@ -157,7 +180,10 @@ class CSimTable(SimTable):
             self.motions += 1
             return
         if kind == "no_done":
-            self._busy_until = math.inf
+            if cid in ("m0", "m1", "i1"):
+                self._busy_until = math.inf     # a movement that never reports its end
+            else:
+                self.silent = True              # the table answers nothing more
             return
         if kind == "status":
             status, data, duration = int(fault.value or 3), "", 0.02
@@ -188,6 +214,8 @@ class CSimTable(SimTable):
             return 0, f"{int(self.c_faults.get('c4_byte', 0xBA)):02X}", 0.20
         if cid == "d1":
             return 0, self.c_faults.get("d1_echo", "016D"), 0.016
+        if cid in ("a3", "c3") and self.m2_pending is None:
+            return 3, "", 0.016             # INVENTED: no scan move waiting (it was lost)
         if cid == "a3":
             p = self.m2_pending
             return 0, f"{p['A']:08X}{p['T'] + int(self.c_faults.get('a3_off', 0)):08X}" \
