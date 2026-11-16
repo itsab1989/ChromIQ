@@ -255,16 +255,20 @@ def turned_upright(panel: Any) -> None:
 #: AppSettings key of the choice (``core.settings.DEFAULTS``: "mm").
 UNITS_SETTING = "page_output_units"
 
-#: The labels that name millimetres today, and what they say in inches.
-_LENGTH_LABELS = (
-    ("Margins (mm):", "Margins (in):"),
-    ("Patch size (mm):", "Patch size (in):"),
-    ("Chart offset (mm):", "Chart offset (in):"),
-    ("Minimum patch width (mm):", "Minimum patch width (in):"),
-    ("Distance from page edge (mm):", "Distance from page edge (in):"),
-    ("Marker length (mm):", "Marker length (in):"),
-    ("Text distance from edge (mm):", "Text distance from edge (in):"),
-)
+def _length_labels() -> "list[tuple[str, str]]":
+    """The labels that name millimetres today, and what they say in inches
+    (both as shown, in the UI language)."""
+    return [
+        (tr("Margins (mm):"), tr("Margins (in):")),
+        (tr("Patch size (mm):"), tr("Patch size (in):")),
+        (tr("Chart offset (mm):"), tr("Chart offset (in):")),
+        (tr("Minimum patch width (mm):"), tr("Minimum patch width (in):")),
+        (tr("Distance from page edge (mm):"),
+         tr("Distance from page edge (in):")),
+        (tr("Marker length (mm):"), tr("Marker length (in):")),
+        (tr("Text distance from edge (mm):"),
+         tr("Text distance from edge (in):")),
+    ]
 
 
 def _stored_units() -> str:
@@ -325,7 +329,7 @@ def finish_units(panel: Any) -> None:
     and their (i), and show the unit the person chose last time."""
     from PyQt6.QtWidgets import QLabel
     from ui.dialogs.length_units import LengthSpinBox
-    wanted = {tr(a): (a, b) for a, b in _LENGTH_LABELS}
+    wanted = {a: (a, b) for a, b in _length_labels()}
     panel._unit_labels = [(lbl,) + wanted[lbl.text()]
                           for lbl in panel.findChildren(QLabel)
                           if lbl.text() in wanted]
@@ -414,9 +418,9 @@ def _apply_length_unit(panel: Any, unit: str) -> None:
                 refresh_inch()
         except RuntimeError:
             pass
-    for lbl, mm_key, in_key in getattr(panel, "_unit_labels", ()):
+    for lbl, mm_text, in_text in getattr(panel, "_unit_labels", ()):
         try:
-            lbl.setText(tr(in_key if length == LEN_IN else mm_key))
+            lbl.setText(in_text if length == LEN_IN else mm_text)
         except RuntimeError:
             pass
     note = _length_in_note()
@@ -616,12 +620,18 @@ def _heal_truth(panel: Any) -> None:
     ppi = getattr(panel, "_page_last_ppi", None) or _ppi(panel)
     for axis, box in (("w", panel.custom_w), ("h", panel.custom_h)):
         v, unit = truth[axis]
-        shown = round(po.to_mm(v, unit, ppi), box.decimals())
+        # UNROUNDED, against half a step and a hair: Qt rounds a half up
+        # (27.125 shows as 27.13) where Python's round() goes to even
+        # (27.12), and comparing the two rounded values took a side typed as
+        # 2170 pixels at 2032 ppi for an overwrite and turned it into
+        # 27.13 mm, so a later resolution no longer kept its pixels (found
+        # building the Units choice, 2026-11-17; 4.3.43 had it too)
+        shown = po.to_mm(v, unit, ppi)
         if unit == po.UNIT_PX:
             # the mm field may be clamped to its range; the pixels are the
             # truth for as long as the field shows what they make
             shown = min(max(shown, box.minimum()), box.maximum())
-        if abs(shown - box.value()) > 0.5 * 10 ** -box.decimals():
+        if abs(shown - box.value()) > 0.5 * 10 ** -box.decimals() + 1e-9:
             truth[axis] = (float(box.value()), po.UNIT_MM)
 
 

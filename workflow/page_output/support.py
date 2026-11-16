@@ -11,9 +11,12 @@ resolution stops at 1200, and the file carries pixels per centimetre.
 With this switch ON, and only then, Create Chart > Manual offers:
 
 * the custom page size in millimetres (with fractions), in inches, or as an
-  exact pixel count, in three rows of two-way fields; every side from
-  :data:`CUSTOM_MM_MIN_ON` to :data:`CUSTOM_MM_MAX` millimetres, whatever
-  unit it is typed in;
+  exact pixel count; every side from :data:`CUSTOM_MM_MIN_ON` to
+  :data:`CUSTOM_MM_MAX` millimetres, whatever unit it is typed in. Since
+  2026-11-17 one "Units" choice under Paper picks the unit (one pair of
+  fields; inches also for every other length of the panel, as a display
+  only: `ui/dialogs/length_units.py`); the patch set editor's hidden copy
+  keeps 4.3.43's three rows (`ui/dialogs/page_output_panel.py`);
 * a resolution up to :data:`DPI_MAX_ON`, guarded by a memory budget
   (:func:`budget_problem`) instead of a ppi cap. The budget is asked ONLY of
   a chart that uses something only this Beta allows (:func:`needs_budget`):

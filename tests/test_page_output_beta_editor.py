@@ -203,3 +203,41 @@ def test_d_the_status_line_names_the_true_page(editor):
     text = editor._info.text()
     assert "4096 x 2730 pixels at 2731 pixels per inch" in text, text
     assert "38.1x25.4" not in text
+
+
+def test_e_a_page_that_cannot_be_made_is_not_drawn_hidden(editor,
+                                                          monkeypatch):
+    """Leftover b of 4.3.43: a side typed in pixels that makes more than
+    2000 mm at the chart's resolution is refused by Generate and the build;
+    the hidden 150 dpi render used to lay it out anyway (metres of page,
+    drawn and thrown away). It is not drawn, and the status line says why."""
+    from dataclasses import replace
+    from workflow.layout_engine import chart as le_chart
+    calls = []
+    monkeypatch.setattr(le_chart, "build_chart",
+                        lambda *a, **k: calls.append(k))
+    panel = editor._engine_panel
+    big = {"w": [18001, "px"], "h": [15001, "px"], "ppi": 72}
+    w, h = po.page_mm(big, 72)
+    r = replace(panel.get_recipe(), dpi=72, page_size=big,
+                paper=po.paper_code(w, h))
+    panel.set_recipe(r)
+    assert po.size_problem(panel.get_recipe().page_size, 72)
+    editor._do_engine_preview()
+    assert calls == []
+    assert "between 229 and 6000" in editor._status.text()
+    # a page that fits is drawn as before
+    panel.set_recipe(replace(r, dpi=2032,
+                             paper=po.paper_code(*po.page_mm(big, 2032))))
+    editor._do_engine_preview()
+    assert len(calls) == 1
+
+
+def test_f_the_editor_has_no_units_choice(editor):
+    """The Units choice is Create Chart's own: the editor's hidden copy of
+    the panel keeps 4.3.43's three rows and plain boxes."""
+    from ui.dialogs.length_units import LengthSpinBox
+    panel = editor._engine_panel
+    assert not hasattr(panel, "units") and panel._units_choice is False
+    assert not panel.findChildren(LengthSpinBox)
+    assert set(panel._page_in) == {"w", "h"}
