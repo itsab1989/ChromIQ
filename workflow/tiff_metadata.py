@@ -121,6 +121,8 @@ def stamp_chart_metadata(
     text_edge_top_mm: float = -1.0,
     text_edge_bottom_mm: float = -1.0,
     patch_gap_mm: float = 0.0,
+    patch_spans_mm: "dict | None" = None,
+    patch_right_mm: "dict | None" = None,
 ) -> None:
     """Stamp `lines` joined into a single rotated text line on each TIFF's right margin.
 
@@ -167,16 +169,38 @@ def stamp_chart_metadata(
     below :func:`text_edge_fit.note_min_strip_px`, because a gap bought with an
     illegible line is not a trade anybody asked for. On the reported chart that
     hands back exactly the 7.20 pt it had and 0.59 mm of new white.
+
+    *patch_spans_mm* maps a TIFF's path (as a string) to ``(top, bottom)``,
+    the millimetres from the top of that page where its patch area begins and
+    ends. The line is then centred on the patch area instead of on the paper
+    between the two end reserves, and stays inside those reserves (4.3.42,
+    a tester's sheet, 2026-11-16: with 28 mm above the patches and 12 below,
+    the line sat 8 mm off the middle of the patches). A page it does not name
+    is stamped exactly as before.
+
+    *patch_right_mm* maps a TIFF's path to the millimetres from the page's
+    LEFT edge where its patch block really ends (the engine's own patch and
+    strip rectangles). The note's band never starts left of it. Without it
+    the band is found from the raster alone, and a last strip of pure-white
+    fill-up patches reads as paper there: on a Red River A4 sheet the line
+    was printed over 17 measured patches with "Margins: OK" on screen
+    (review 2, 2026-11-16; in 4.3.41 too). Where the true edge leaves too
+    little paper, the note takes the overlap path of Knut's ruling of
+    2026-09-10 like any other note that does not fit. A page it does not
+    name is stamped exactly as before.
     """
     pieces = [s.strip() for s in lines if s and s.strip()]
     if not pieces:
         return
     text = _JOIN.join(pieces)
+    spans = dict(patch_spans_mm or {})
+    rights = dict(patch_right_mm or {})
     for path in tiff_paths:
         try:
             _stamp_one(Path(path), text, text_edge_mm, clip_band_mm,
                        font_family, size_pt, clip_reach_mm, gap_mm,
-                       text_edge_top_mm, text_edge_bottom_mm, patch_gap_mm)
+                       text_edge_top_mm, text_edge_bottom_mm, patch_gap_mm,
+                       spans.get(str(path)), rights.get(str(path)))
         except Exception as exc:
             log.warning("Right-edge stamp failed for %s: %s", path, exc)
 
@@ -351,7 +375,9 @@ def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
                size_pt: float = 0.0, clip_reach_mm: float = -1.0,
                gap_mm: float = 0.0, text_edge_top_mm: float = -1.0,
                text_edge_bottom_mm: float = -1.0,
-               patch_gap_mm: float = 0.0) -> None:
+               patch_gap_mm: float = 0.0,
+               patch_span_mm: "tuple[float, float] | None" = None,
+               patch_right_mm: "float | None" = None) -> None:
     with tifffile.TiffFile(str(path)) as tf:
         page = tf.pages[0]
         # Device-native (separated) CMYK / CMYK+N charts: skip the post-render
@@ -411,6 +437,33 @@ def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
         band_left = band_right = W
     else:
         band_left, band_right = band
+    # THE BAND NEVER STARTS INSIDE THE PATCH BLOCK (review 2, 2026-11-16).
+    # The raster cannot tell a pure-white measured patch from paper: a page
+    # whose last strip is white fill-up reads as a margin that begins one
+    # strip early, and the note, anchored to the band's patch side, was
+    # printed down that strip. The engine's map knows where the block ends;
+    # the band starts no further left than that plus the same white the
+    # raster search keeps. Where that leaves too little paper the note goes
+    # down the overlap path below, exactly as a note that does not fit
+    # always has. On every page whose raster edge is already right of the
+    # true edge (every page without a white last strip, and the clip-border
+    # presets the 2026-09-10 ruling is about) nothing changes.
+    if patch_right_mm is not None and band is not None:
+        try:
+            # where the raster search would put it beside a block whose last
+            # column it could see: that column, then its guard, twice
+            # (the epsilon keeps a millimetre round trip of a whole pixel
+            # from rounding up into the next one)
+            _true_px = int(np.ceil(float(patch_right_mm) * _dpi / 25.4
+                                   - 1e-6)) - 1 + 2 * _safety_pad_px(_dpi)
+        except (TypeError, ValueError):
+            _true_px = None
+        if _true_px is not None and band_left < _true_px:
+            log.info("Right-edge stamp on %s: the patch block ends at %.2f mm "
+                     "(its last strip reads as paper on the raster), so the "
+                     "note starts there and not at %.2f mm.", path,
+                     float(patch_right_mm), band_left * 25.4 / _dpi)
+            band_left = min(_true_px, band_right)
     # THE USER'S OWN "TEXT DISTANCE FROM EDGE" DECIDES EVERY SIDE THE NOTE
     # TOUCHES, and it decided only two of them. It was turned into `_pad` and
     # applied to the TOP and the BOTTOM; horizontally nothing applied it, so the
@@ -627,10 +680,26 @@ def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
     if patch_gap_mm and patch_gap_mm > 0 and not _overlaps:
         _extra_gap = max(0, min(int(round(float(patch_gap_mm) * _dpi / 25.4)),
                                 strip_w - _floor_px))
+    # CENTRED ON THE PATCH AREA, NOT ON THE PAPER (4.3.42). The line was
+    # centred between the two end reserves, so on a sheet with more paper
+    # above the patches than below (the strip labels and the reader's lead-in)
+    # it sat visibly off the middle of the patches: 8.0 mm on a tester's
+    # 10 x 15 cm i1Pro 3 sheet. The centre is the patch area's, in this
+    # strip's own rows; `_render_rotated_line` keeps the line inside the strip,
+    # so the end reserves (the "T" / "B" boxes and the ruler markers) still
+    # hold and a line too long to be centred there slides back inside them.
+    _centre = None
+    if patch_span_mm is not None:
+        try:
+            _c_mm = (float(patch_span_mm[0]) + float(patch_span_mm[1])) / 2.0
+            _centre = _c_mm * _dpi / 25.4 - _pad_t
+        except (TypeError, ValueError, IndexError):
+            _centre = None
     strip = _render_fitted_rotated_line(text, strip_h, strip_w, dtype, C,
                                         anchor_px=_NOTE_PATCH_GAP_PX + _extra_gap,
                                         font_family=font_family,
-                                        size_pt=size_pt, dpi=_dpi)
+                                        size_pt=size_pt, dpi=_dpi,
+                                        centre_px=_centre)
     # The strip itself stays anchored to the patch-side (left) edge of the
     # band. The band is the widest white column run right of the patches; when
     # the chart doesn't fill the sheet that run is a large empty area, so
@@ -1079,8 +1148,13 @@ def _render_rotated_line(
     dtype,
     channels: int,
     anchor_px: int | None = None,
+    centre_px: float | None = None,
 ) -> np.ndarray:
     """Return a (strip_h, strip_w, channels) numpy array containing `text` rotated 90° CCW.
+
+    Along the strip the line is centred on the strip, or, given *centre_px*,
+    on that row of the strip (counted from its top), as far as the strip
+    allows: the ink never leaves it.
 
     Across the strip the line is centred, which is right for the left-clip
     sub-columns: each one is cut to its own text. Pass *anchor_px* to butt the
@@ -1099,6 +1173,12 @@ def _render_rotated_line(
     text_w = bbox[2] - bbox[0]
     text_h = bbox[3] - bbox[1]
     x = max(0, (strip_h - text_w) // 2 - bbox[0])
+    if centre_px is not None:
+        # The 90 degree CCW turn sends canvas x to strip row strip_h - 1 - x,
+        # so the ink's centre row is strip_h - 1 - (ink start + text_w / 2).
+        start = int(round(strip_h - 1 - float(centre_px) - text_w / 2.0))
+        start = max(0, min(start, strip_h - text_w))
+        x = start - bbox[0]
     if anchor_px is None:
         y = (strip_w - text_h) // 2 - bbox[1]
     else:
@@ -1128,6 +1208,7 @@ def _render_fitted_rotated_line(
     font_family: str = "",
     size_pt: float = 0.0,
     dpi: float = 200.0,
+    centre_px: float | None = None,
 ) -> np.ndarray:
     """Render `text` into a (strip_h, strip_w) sub-band, shrinking font until it fits.
 
@@ -1167,7 +1248,8 @@ def _render_fitted_rotated_line(
                                    font_family=font_family, size_pt=size_pt,
                                    dpi=dpi)
     return _render_rotated_line(shown, strip_h, strip_w, font, dtype,
-                                channels, anchor_px=anchor_px)
+                                channels, anchor_px=anchor_px,
+                                centre_px=centre_px)
 
 
 def _one_step_smaller_pt(size_pt: float, floor_pt: float) -> float:

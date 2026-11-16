@@ -69,7 +69,6 @@ def _resume_tab(ti3, code):
     t._measurement_to_continue = lambda: ti3
     t._measure_filter_code = lambda: code
     t._filter_label = lambda c: TabMeasure._filter_label(t, c)
-    t._FILTER_LABELS = TabMeasure._FILTER_LABELS
     t._current_mode = lambda: "manual"
     t._m_resume_cb = _Box("Refine / resume existing measurement (-r)")
     t._resume_cb = t._m_resume_cb
@@ -98,8 +97,9 @@ def test_s_a1_a_resume_under_another_condition_is_refused(tmp_path, recorded,
     from workflow.measurement_condition import (FILTER_CONDITIONS,
                                                 condition_name)
     assert condition_name(recorded) in body
-    setting = {"M0": "None (M0)", "M1": "D50 (M1)", "M2": "UV Cut (M2)",
-               "M3": "Polarizing (M3)"}[recorded]
+    setting = {"M0": "M0: no filter (lamp as it is)",
+               "M1": "M1: D50 daylight (with UV)", "M2": "M2: UV cut (no UV)",
+               "M3": "M3: polarising filter"}[recorded]
     assert f"“{setting}”" in body
     if code is None:
         assert "switched off" in body
@@ -624,7 +624,7 @@ def test_m_a2_a_chartread_m1_is_told_to_set_minus_f_to_none(tmp_path):
         p = _cond(_ti3(tmp_path / f"{cond}.ti3"), cond)
         reason = fwa_refusal_for_file(p).reason
         assert "“Spectral filter type (-F)”" in reason
-        assert "“None (M0)”" in reason and "switched off" in reason
+        assert "“M0: no filter (lamp as it is)”" in reason and "switched off" in reason
         assert ".mxf" not in reason and EM_DASH not in reason
 
 

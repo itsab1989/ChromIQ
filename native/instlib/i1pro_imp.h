@@ -337,6 +337,17 @@ struct _i1proimp {
 	int trig_se;			/* Delayed trigger icoms error */
 	i1pro_code trig_rv;		/* Delayed trigger result */
 
+	/* CHROMIQ PATCH: the margin tolerance (Beta, 2026-11-16). All 0 = not in use. */
+	int cq_tol_on;			/* the helper's option, this session (needs the ruler) */
+	int cq_tol_nseg;		/* segments the recogniser cut in the last armed scan */
+	int cq_tol_ss[128];		/* their first reading and count (untrimmed) */
+	int cq_tol_no[128];
+	int cq_tol_flags[128];	/* CQ_RULER_CAND_* */
+	int cq_tol_why;			/* the recogniser's refusal (I1PRO_RD_*) */
+	double **cq_tol_spec;	/* [cq_tol_nseg][nwav] their calibrated spectra */
+	int cq_tol_nwav;
+	int cq_lights_wait_ms;	/* the last trigger's wait in the lights code (2026-11-16) */
+
 	/* CHROMIQ PATCH: the ruler check (Beta, 2026-11-14). All 0 = not in use. */
 	int cq_ruler_on;			/* the helper's option, this session */
 	int cq_ruler_armed;		/* armed for one read_strip */
@@ -1478,6 +1489,14 @@ struct _i1data {
 	int (*checksum)(struct _i1data *d, i1key keyoffset); 
 
 }; typedef struct _i1data i1data;
+
+/* CHROMIQ PATCH: the margin tolerance (Beta, 2026-11-16), see i1pro_imp.c. */
+int i1pro2_cq_tol_options(void *pp, int on);	/* 1 = in use (needs the ruler) */
+void i1pro2_cq_tol_segments(void *pp, const void *pat, int npat);
+void i1pro2_cq_tol_candidates(void *pp, int ev, double **multimeas, int nummeas,
+                              double satthresh, double inttime);
+void i1pro2_cq_tol_values(void *pp, int ev, int clamp);
+int i1pro2_cq_trigger_wait_ms(void *pp);	/* the lights' wait of the last trigger */
 
 /* CHROMIQ PATCH: the ruler check (Beta), see i1pro_imp.c. */
 int i1pro2_cq_ruler_options(void *pp, int on);	/* 1 = usable */

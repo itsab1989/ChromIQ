@@ -219,7 +219,7 @@ def test_build_from_has_its_info_button_in_both_modes(tmp_path, qtbot):
         assert tab._cond_combo.isVisible() and tab._cond_tip.isVisible(), mode
     text = build_from_help()
     for word in ("**M0**", "**M1**", "**M2**", "FWA", "-M1",
-                 "not yet been compared with", "greyed"):
+                 "one paper only", "greyed"):
         assert word in text, word
     assert "—" not in text
 

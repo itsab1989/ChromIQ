@@ -76,6 +76,9 @@ static int      cq_nstrips = 0;
 static int      cq_stipa = 0;
 
 static int cq_replay_conds = 0;	/* the script carries COND blocks */
+/* The margin tolerance (Beta): the paper white of the fake sheet, for the
+ * segments a refused swipe hands over ("PAPER X Y Z" in the script). */
+static double cq_paper[3] = { 93.3, 96.6, 79.9 };
 
 int cq_replay_load(const char *path) {
 	FILE *fp;
@@ -94,6 +97,10 @@ int cq_replay_load(const char *path) {
 			continue;
 		if (sscanf(line, "PATCHES %d", &cq_stipa) == 1)
 			continue;
+		if (sscanf(line, "PAPER %lf %lf %lf", &x, &y, &z) == 3) {
+			cq_paper[0] = x; cq_paper[1] = y; cq_paper[2] = z;
+			continue;
+		}
 		if (sscanf(line, "STRIP %7s", lab) == 1) {
 			if (cq_nstrips >= CQ_MAX_STRIPS) {
 				fclose(fp);
@@ -153,6 +160,59 @@ static char cq_rr_mode[16] = "";
 static int cq_rr_pending = 0;
 static int cq_rr_npatch = 0;
 static int cq_rr_given_up = 0;		/* as the i1Pro 2 driver: for the session */
+/* The margin tolerance (Beta, 2026-11-16): the segments the fake recogniser
+ * cut for a refused swipe, in swipe order, and why it refused. */
+#define CQ_RM_MAX (CQ_MAX_STEPS + 8)
+static int cq_rm_n = 0, cq_rm_why = 0, cq_rm_noleader = 0;
+static int cq_rm_nudge = 0;	/* "nudge": the first segment moves BACKWARDS */
+static double cq_rm_xyz[CQ_RM_MAX][3];
+
+int cq_replay_margin_ok(void) {
+	return cq_replay_ruler_gen() == 2;
+}
+
+static void cq_rm_add(const double *xyz) {
+	if (cq_rm_n < CQ_RM_MAX) {
+		cq_rm_xyz[cq_rm_n][0] = xyz[0];
+		cq_rm_xyz[cq_rm_n][1] = xyz[1];
+		cq_rm_xyz[cq_rm_n][2] = xyz[2];
+		cq_rm_n++;
+	}
+}
+
+/* mode: "start" (the margin before the first patch counted), "end" (after
+ * the last), "both", "noleader" (the recording began on the first patch),
+ * "shifted" (began one patch in, the margin counted: a WRONG reading the
+ * rules must refuse), "nudge" (set down on patch 2, pulled back over it to
+ * the edge of patch 1, then swiped: patch 2 twice, the first time with the
+ * ruler going backwards; review 2026-11-16, BLOCKER-1, a WRONG reading the
+ * rules must refuse). xyz: the strip's patches in swipe order. */
+static void cq_replay_margin_note(const char *mode, const char *reason,
+                                  double (*xyz)[3], int n) {
+	int i, st = 0;
+	cq_rm_n = 0;
+	cq_rm_nudge = strcmp(mode, "nudge") == 0;
+	cq_rm_noleader = strcmp(mode, "noleader") == 0 || cq_rm_nudge;
+	cq_rm_why = strcmp(reason, "Too many patches") == 0 ? 0x3C
+	          : strcmp(reason, "Swipe didn't start and end on the media") == 0 ? 0x42
+	          : 0x3B;
+	if (!cq_rm_noleader)
+		cq_rm_add(cq_paper);					/* the leader */
+	if (strcmp(mode, "start") == 0 || strcmp(mode, "both") == 0
+	 || strcmp(mode, "shifted") == 0)
+		cq_rm_add(cq_paper);					/* the margin, as a patch */
+	if (strcmp(mode, "shifted") == 0)
+		st = 1;
+	if (cq_rm_nudge && n > 1) {
+		cq_rm_add(xyz[1]);						/* patch 2, backwards */
+		st = 1;
+	}
+	for (i = st; i < n; i++)
+		cq_rm_add(xyz[i]);
+	if (strcmp(mode, "end") == 0 || strcmp(mode, "both") == 0)
+		cq_rm_add(cq_paper);
+	cq_rm_add(cq_paper);						/* the trailer */
+}
 
 int cq_replay_ruler_gen(void) {
 	const char *ri = getenv("CHROMIQ_REPLAY_INSTRUMENT");
@@ -183,6 +243,7 @@ int cq_replay_ruler_take(void *vout) {
 		return 0;
 	cq_rr_pending = 0;
 	clocks = gen == 2 ? 136 : 172;
+	(void)k;
 	readings = strcmp(cq_rr_mode, "fast") == 0 ? 220 : 600;
 	total = (long)readings * clocks - (gen == 2 ? 5 : 0);
 	if (gen == 3)
@@ -217,10 +278,17 @@ int cq_replay_ruler_take(void *vout) {
 	if ((zeb = (unsigned char *)malloc(total)) == NULL)
 		return 1;
 	/* the instrument rests on the lead-in for 10 %, then moves evenly */
-	a = total / 10;
+	a = cq_rm_n > 0 && cq_rm_noleader ? 0 : total / 10;
 	b = total - total / 10;
 	for (i = 0; i < total; i++) {
 		long step = i < a ? 0 : i >= b ? travel : (i - a) * travel / (b - a);
+		if (cq_rm_n > 1 && cq_rm_nudge) {
+			/* back over the first segment, then forwards to the end */
+			long t1 = (long)(0.85 * readings / (cq_rm_n - 1)) * clocks;
+			long back = travel / (cq_rm_n - 1);
+			step = i < t1 ? -(i * back / t1)
+			     : i >= b ? travel : -back + (i - t1) * (travel + back) / (b - t1);
+		}
 		zeb[i] = strcmp(cq_rr_mode, "none") == 0 ? 3 : cyc[(4 - (step & 3)) & 3];
 		if (strcmp(cq_rr_mode, "garbled") == 0 && i == total / 2)
 			zeb[i] = cyc[(4 - (step & 3) + 2) & 3];
@@ -236,6 +304,42 @@ int cq_replay_ruler_take(void *vout) {
 		int len = s1 - s0, no = len * 2 / 3;
 		cq_ruler_rec_cut(r, k, s0 + (len - no) / 2, no, 0);
 	}
+	/* a refused swipe: no cut, but the segments, evenly from the first
+	 * reading (or 15 % in) to 85 %, the trailer to the end */
+	if (cq_rm_n > 0 && gen == 2) {
+		ipatch *v = (ipatch *)calloc(cq_rm_n, sizeof(ipatch));
+		int inner = cq_rm_n - 1 - (cq_rm_noleader ? 0 : 1), j0 = cq_rm_noleader ? 0 : 1;
+		r->ncut = 0;
+		if (v != NULL && inner > 0) {
+			double lo = cq_rm_noleader ? 0.0 : 0.15 * readings, hi = 0.85 * readings;
+			for (k = 0; k < cq_rm_n; k++) {
+				int s0, s1;
+				if (k < j0) {
+					s0 = 0; s1 = (int)lo;
+				} else if (k == cq_rm_n - 1) {
+					s0 = (int)hi; s1 = readings;
+				} else {
+					s0 = (int)(lo + (hi - lo) * (k - j0) / inner);
+					s1 = (int)(lo + (hi - lo) * (k - j0 + 1) / inner);
+				}
+				r->cand_ss[k] = s0 + 1;
+				r->cand_no[k] = s1 - s0 - 2;
+				r->cand_flags[k] = 0;
+				v[k].XYZ[0] = cq_rm_xyz[k][0];
+				v[k].XYZ[1] = cq_rm_xyz[k][1];
+				v[k].XYZ[2] = cq_rm_xyz[k][2];
+				v[k].XYZ_v = 1;
+				v[k].mtype = inst_mrt_reflective;
+				v[k].sp.spec_n = 0;
+			}
+			r->cand_vals = v;
+			r->ncand = cq_rm_n;
+			r->cand_why = cq_rm_why;
+		} else
+			free(v);
+	}
+	cq_rm_n = 0;
+	cq_rm_nudge = 0;
 	return 1;
 }
 
@@ -764,10 +868,26 @@ static inst_code cq_read_strip(inst *p, char *name, int npatch, char *pname,
 			strncpy(fault, cq_swipe_fault, sizeof(fault) - 1);
 			fault[sizeof(fault) - 1] = '\0';
 			cq_last_reason[0] = '\0';
+			cq_rm_n = 0;		/* the margin tolerance: this swipe's segments only */
+			cq_rm_nudge = 0;
 
 			if (fault[0] != '\0') {
 				strncpy(cq_last_reason, cq_swipe_reason, sizeof(cq_last_reason) - 1);
 				cq_last_reason[sizeof(cq_last_reason) - 1] = '\0';
+				if (cq_swipe_margin[0] != '\0' && strcmp(fault, "misread") == 0) {
+					/* the margin tolerance (Beta): what the recogniser cut */
+					cq_strip *ms = cq_find(cq_swipe_as[0] != '\0' ? cq_swipe_as : pname);
+					if (ms != NULL && ms->n >= npatch) {
+						double sw[CQ_MAX_STEPS][3];
+						for (i = 0; i < npatch; i++) {
+							int six = cq_swipe_reversed ? npatch - 1 - i : i;
+							sw[i][0] = ms->xyz[six][0];
+							sw[i][1] = ms->xyz[six][1];
+							sw[i][2] = ms->xyz[six][2];
+						}
+						cq_replay_margin_note(cq_swipe_margin, cq_swipe_reason, sw, npatch);
+					}
+				}
 				if (strcmp(fault, "misread") == 0)
 					return inst_misread;
 				if (strcmp(fault, "coms") == 0)

@@ -123,7 +123,7 @@ def test_the_preferences_row_its_help_and_its_confirmation(qapp, monkeypatch):
         assert not box.isChecked()
         assert "(beta)" in box.text() and "i1Pro 3" in box.text()
         text = sd.i1pro3_conditions_help()
-        for must in ("**M0**", "**M1**", "**M2**", "Not yet compared",
+        for must in ("**M0**", "**M1**", "**M2**", "one instrument and one paper",
                      "FWA", "Nothing extra is sent", "**Default:** off"):
             assert must in text, must
         assert "—" not in text + sd.i1pro3_conditions_confirmation()

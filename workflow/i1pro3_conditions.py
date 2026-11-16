@@ -491,6 +491,10 @@ def average_missing_reason(main: Path, cond: str) -> str:
 # ---------------------------------------------------------------------------
 
 _PAIR_NAME_RE = re.compile(r"^(\d+-[0-9a-f]{8})-M[012]\.ti3$")
+#: The engine's temporary name for a condition file while it writes it
+#: (``cq_cond_write``: ``<hash>-Mx.ti3.cqtmp``, renamed into place at once).
+#: One is left only when the engine stopped in between (a crash).
+_PAIR_TMP_RE = re.compile(r"^(\d+-[0-9a-f]{8})-M[012]\.ti3\.cqtmp$")
 
 
 def prune_pairs(cond_dir: "str | Path", owner: "str | Path") -> "list[Path]":
@@ -501,13 +505,29 @@ def prune_pairs(cond_dir: "str | Path", owner: "str | Path") -> "list[Path]":
     (``<hash>-M0|M1|M2.ti3``) AND whose own header says ChromIQ wrote them so
     (:func:`_written_by_us`) are ever deleted; anything else is left alone,
     and so is anything changed in the last 10 minutes (a session that is
-    still writing). Never raises."""
+    still writing). 4.3.42: also the engine's temporary files of such a pair
+    (``<hash>-Mx.ti3.cqtmp``) that a crash left behind in *cond_dir*: only
+    that name, only in that folder, only when older than 10 minutes (a
+    temporary file is never anyone's readings; the engine renames it into
+    place right after writing it). Never raises."""
     import time
     cond_dir, owner = Path(cond_dir), Path(owner)
     gone: "list[Path]" = []
     try:
         if not cond_dir.is_dir():
             return gone
+        now = time.time()
+        for t in list(cond_dir.iterdir()):
+            if not _PAIR_TMP_RE.match(t.name):
+                continue
+            try:
+                if not t.is_file() or t.is_symlink() \
+                        or now - t.stat().st_mtime < 600:
+                    continue
+                t.unlink()
+                gone.append(t)
+            except OSError:
+                continue
         files = [p for p in cond_dir.iterdir()
                  if p.is_file() and _PAIR_NAME_RE.match(p.name)]
         if not files:
@@ -526,7 +546,6 @@ def prune_pairs(cond_dir: "str | Path", owner: "str | Path") -> "list[Path]":
             key = data_block_hash(p)
             if key:
                 held.add(key)
-        now = time.time()
         for f in files:
             m = _PAIR_NAME_RE.match(f.name)
             if m is None or m.group(1) in held:

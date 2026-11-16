@@ -24413,6 +24413,13 @@ class TabChart(QWidget):
                 items.append(tr(M.M_CHART_ITEM_MEASUREMENT_UNCOUNTABLE))
             if cost.has_profile:
                 items.append(tr(M.M_CHART_ITEM_PROFILE))
+            if cost.imported_pages:
+                # the sheets of an i1iO chart of several pages imported so
+                # far (the i1iO Beta), archived with this chart
+                items.append(tr(
+                    M._I1IO_CHART_ITEM_PAGES_ONE if cost.imported_pages == 1
+                    else M._I1IO_CHART_ITEM_PAGES).format(
+                        n=cost.imported_pages, pages=cost.chart_pages))
             title, body = M.M_CHART_PROFILING.render(
                 items="\n".join(items), folder=str(run.old_dir))
         return title, body + self._corrupt_measurement_note(cost) \
@@ -28059,7 +28066,8 @@ class TabChart(QWidget):
             dpi=int(getattr(r, "dpi", 300) or 300),
             patches=patches,
             pages=pages,
-            seed=self._seed_for_prediction(r))
+            seed=self._seed_for_prediction(r),
+            randomize=bool(getattr(r, "randomize", True)))
         ctx["page"] = f"page 1/{pages}"
         return ctx
 
@@ -28100,7 +28108,8 @@ class TabChart(QWidget):
                     str(getattr(r, "paper", "") or ""),
                     int(getattr(r, "dpi", 300) or 300),
                     int(self._estimate_patch_total() or 0),
-                    self._seed_for_prediction(r)))
+                    self._seed_for_prediction(r),
+                    randomize=bool(getattr(r, "randomize", True))))
             except Exception:      # noqa: BLE001 — a prediction is never fatal
                 pass
         return lines

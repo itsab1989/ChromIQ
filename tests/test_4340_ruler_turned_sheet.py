@@ -151,11 +151,14 @@ def test_the_first_three_strips_turned(tmp_path):
 
 
 def test_one_strip_turned(tmp_path):
+    """4.3.42: F (vouched) restarts the reference, so G, back the old way
+    round, is the other way round compared with F: one more calm note, still
+    no window, and the reference is G's at once (H is compared with it)."""
     rs = _session3(tmp_path)
     out = [_read(rs, s, -1, s == "F") for s in _names(10)]
     assert not any(x["ask_direction"] for x in out)
-    assert [x["strip"] for x in out if _turned_note(x)] == ["F"]
-    assert not out[6]["log_lines"] or not _turned_note(out[6])
+    assert [x["strip"] for x in out if _turned_note(x)] == ["F", "G"]
+    assert not _turned_note(out[7])
 
 
 def test_alternating_swipes_are_no_turn(tmp_path):
@@ -222,7 +225,7 @@ def test_the_file_records_the_note(tmp_path):
     _read(rs, "G", -1, True)
     rs.flush()
     doc = json.loads(rs.diagnostics_path().read_text(encoding="utf-8"))
-    assert doc["revision"] == 2 and doc["version"] == 1
+    assert doc["revision"] == 3 and doc["version"] == 1
     e = doc["strips"][-1]
     assert e["verdict"] == "accepted" and e["direction_question"] is False
     assert e["direction_confirmed_by_colours"] is True
@@ -518,9 +521,11 @@ def _plans(order):
 EXPECTED = {
     "all_down": (0, 0, 0), "all_up": (0, 0, 0), "alternating": (0, 0, 0),
     "random_dirs": (0, 0, 0), "AE_read_up": (0, 0, 0),
-    "whole_sheet_turned": (0, 0, 0), "AE_sheet_turned": (1, 0, 1),
+    # 4.3.42: a single strip turned gets a second note, on the strip after
+    # it (back the old way round, compared with the restarted reference)
+    "whole_sheet_turned": (0, 0, 0), "AE_sheet_turned": (1, 0, 2),
     "page3_sheet_turned": (13, 0, 2), "page3_turned_alternating": (13, 0, 2),
-    "AE_instrument_rotated": (1, 0, 1), "first3_turned_then_normal": (36, 0, 2),
+    "AE_instrument_rotated": (1, 0, 2), "first3_turned_then_normal": (36, 0, 2),
     "pages1_2_turned_page3_normal": (13, 0, 2),
 }
 

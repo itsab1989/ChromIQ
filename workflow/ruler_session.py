@@ -40,7 +40,8 @@ def _num(x: float, digits: int = 0) -> str:
 
 class RulerSession:
     def __init__(self, *, ti1_path: "Path | None", helper_build: str = "",
-                 verification: bool = False, condition: "str | None" = None):
+                 verification: bool = False, condition: "str | None" = None,
+                 lights: "bool | None" = None):
         self.ti1_path = Path(ti1_path) if ti1_path else None
         self.helper_build = helper_build
         #: 4.3.37: the measurement condition the person chose (the -F of this
@@ -50,6 +51,9 @@ class RulerSession:
         #: R4: where the condition came from ("chosen", "instrument default")
         self.condition_source = "chosen" if condition else None
         self.verification = verification
+        #: 2026-11-16: whether the i1Pro 2 / i1Pro 3 lights Beta was on, for
+        #: the diagnostics file (its quiet time may hold a trigger back)
+        self.lights = lights
         self.active = False
         self.gen = ""
         self.firmware: "int | None" = None
@@ -74,6 +78,16 @@ class RulerSession:
         #: Votes waiting for an answer (review of 4.3.40, MINOR-1/3): strip
         #: -> (vote, the questions whose "keep" answer still has to come).
         self._pending_votes: "dict[str, tuple[int, set]]" = {}
+        #: 4.3.42: a CONFIRMED TURN restarts the reference. When a strip's
+        #: ruler disagrees with the reference and its own colours vouch for
+        #: the order it was saved in, the sheet (or the ruler) was turned:
+        #: the reference then starts again from that strip's way round
+        #: (``_turn_sign``), and only the votes cast since (``_since_turn``)
+        #: count, so the next strips are compared at once instead of waiting
+        #: for the old votes to be outvoted (pharmacist, 2026-11-15: four
+        #: strips with no reference after a quick turn back).
+        self._turn_sign = 0
+        self._since_turn: "dict[str, int]" = {}
         #: Second look, MINOR-A: there was a majority, and whether the loss
         #: of it has been said in the log (once per loss).
         self._had_majority = False
@@ -137,6 +151,10 @@ class RulerSession:
                     condition=self.condition,
                     condition_source=self.condition_source,
                     verification=self.verification, argyll=self.argyll)
+                # revision 3 (2026-11-16), additive
+                self.diag.doc["i1pro2_lights_beta"] = self.lights
+                self.diag.doc["margin_tolerance"] = str(
+                    ev.get("margin_tolerance") or "not asked")
                 self.diag.write()
             except Exception:      # noqa: BLE001 - never stop a measurement
                 log.warning("ruler: no diagnostics file", exc_info=True)
@@ -152,6 +170,21 @@ class RulerSession:
             lines.append(tr("Ruler (beta): the diagnostics for this measurement "
                             "are saved in this file: {path}").format(
                                 path=str(self.diag.path)))
+        mt = str(ev.get("margin_tolerance") or "")
+        if mt == "on":
+            lines.append(tr(
+                "Margin tolerance (beta): on for this i1Pro 2. When ArgyllCMS "
+                "refuses a strip only because the white paper margin at one "
+                "end was counted as a patch, or because the reading began "
+                "without white paper before the first patch, ChromIQ checks "
+                "the strip's colours and the ruler, and keeps the reading "
+                "when they clearly show the whole strip. This log says so "
+                "for every strip it keeps."))
+        elif mt == "not_i1pro2":
+            lines.append(tr(
+                "Margin tolerance (beta): this option works with the X-Rite "
+                "i1Pro 2 only, so it is not used for this instrument. "
+                "Strips are read exactly as without it."))
         return lines
 
     def on_end(self) -> "list[str]":
@@ -216,6 +249,12 @@ class RulerSession:
             if self._unit_line:
                 lines.append(self._unit_line)
             lines.append(line)
+        margin = rec.get("margin")
+        if isinstance(margin, dict) and margin.get("accepted"):
+            lines.insert(0, self._margin_line(strip, margin))
+        elif isinstance(margin, dict):
+            log.info("margin tolerance: strip %s stays refused (%s)", strip,
+                     margin.get("why"))
         if result == "read":
             self.pending = (strip, rec, f)
         else:
@@ -237,8 +276,7 @@ class RulerSession:
         strip = str(ev.get("strip") or "").strip()
         # This reading replaces whatever the strip's earlier reading voted
         # (4.3.40, F3), with or without a ruler record of its own.
-        self._votes.pop(strip, None)
-        self._pending_votes.pop(strip, None)
+        self._drop_vote(strip)
         if self.pending is None or self.pending[0] != strip:
             self.flush()
             return None
@@ -292,9 +330,14 @@ class RulerSession:
         elif self._had_majority and not self._loss_said:
             self._loss_said = True
             lost_line = self._lost_line()
+        # 4.3.42: right after a confirmed turn, the strip is held against
+        # the old reference as well, for as long as it still stands, so that
+        # restarting never lets through what the old one would have asked
+        old = self._old_majority()
+        refs = [x for x in (majority, old) if x]
         disagrees = bool(
             self.gen in NAMES and not ask and not other_question
-            and filed_sign and majority and filed_sign != majority
+            and filed_sign and refs and any(filed_sign != x for x in refs)
             and patches >= rc.MIN_PATCHES_FOR_QUESTION)
         # 4.3.40 (pharmacist, 2026-11-15): a disagreement is what a TURNED
         # SHEET (or ruler) looks like as much as a strip saved back to front.
@@ -341,15 +384,20 @@ class RulerSession:
             wait.add("read_twice")
         blocked = bool(names & self.ORDER_QUESTIONS)
         voted = bool(filed_sign and not blocked and not wait)
+        restarted = bool(vouched and voted)
+        if restarted:
+            # 4.3.42: a confirmed turn; the reference starts again here
+            self._turn_sign = filed_sign
+            self._since_turn = {}
         if voted:
-            self._votes[strip] = filed_sign
+            self._cast_vote(strip, filed_sign)
         elif filed_sign and not blocked:
             self._pending_votes[strip] = (filed_sign, wait)
         log_lines: "list[str]" = [lost_line] if lost_line else []
         if vouched:
             log_lines.append(self._turned_note(strip))
         elif filed_sign and reference and filed_sign == reference \
-                and not ask_direction:
+                and not ask_direction and old in (0, filed_sign):
             # F4 (4.3.40): which way the instrument moved over the patches,
             # said only when the ruler and the saving agree against the same
             # reference the question uses; decided here, where the saving is
@@ -402,6 +450,8 @@ class RulerSession:
                  "direction_votes_before": window,
                  "direction_colours": colours.as_dict() if colours else None,
                  "direction_confirmed_by_colours": vouched,
+                 # 4.3.42, additive: this strip restarted the reference
+                 "direction_restarted": restarted,
                  "voted": voted,
                  # review of 4.3.40: the questions whose "keep" answer this
                  # reading's vote still waits for (cast then, see "answers")
@@ -434,14 +484,27 @@ class RulerSession:
         return list(self._votes.values())
 
     def _recent(self) -> "list[int]":
-        return list(self._votes.values())[-self.DIRECTION_RECENT:]
+        votes = self._since_turn if self._turn_sign else self._votes
+        return list(votes.values())[-self.DIRECTION_RECENT:]
+
+    def _cast_vote(self, strip: str, sign: int) -> None:
+        """One vote, at the end (a strip's earlier vote is replaced)."""
+        self._votes.pop(strip, None)
+        self._votes[strip] = sign
+        if self._turn_sign:
+            self._since_turn.pop(strip, None)
+            self._since_turn[strip] = sign
+
+    def _drop_vote(self, strip: str) -> None:
+        self._votes.pop(strip, None)
+        self._pending_votes.pop(strip, None)
+        self._since_turn.pop(strip, None)
 
     def forget(self, strip: str) -> None:
         """A strip's reading was replaced outside a ``strip_read`` ("I read
         strip B", a strip turned round): its vote no longer describes the
         reading in the file (F3)."""
-        self._votes.pop(str(strip or "").strip(), None)
-        self._pending_votes.pop(str(strip or "").strip(), None)
+        self._drop_vote(str(strip or "").strip())
 
     def _early_reference(self) -> int:
         """Before there is a majority (fewer than DIRECTION_MIN_VOTES), the
@@ -452,10 +515,39 @@ class RulerSession:
             return v[0]
         return 0
 
+    def _old_majority(self) -> int:
+        """4.3.42: while a restarted reference is young, the majority the
+        session would have without the restart (over every vote); else 0.
+
+        Young means: the votes since the confirmed turn do not yet hold a
+        majority of their own. Counting votes alone is not enough (review
+        B1): after a one-strip turn and the turn back, three votes since the
+        turn read +, -, - and hold no majority, while the session's last
+        five do, and a ramp strip saved back to front then had no reference
+        at all where 4.3.41 asked about it."""
+        if not self._turn_sign:
+            return 0
+        since = list(self._since_turn.values())
+        if len(since) >= self.DIRECTION_MIN_VOTES and self._majority_of(
+                since[-self.DIRECTION_RECENT:]):
+            return 0
+        return self._majority_of(
+            list(self._votes.values())[-self.DIRECTION_RECENT:])
+
     def _majority_direction(self) -> int:
         """+1 / -1: the direction most of the recent accepted strips agree
         on, or 0 when there are too few or no clear majority."""
         v = self._recent()
+        if len(v) < self.DIRECTION_MIN_VOTES and self._turn_sign:
+            # 4.3.42: right after a confirmed turn, the strip that showed it
+            # is the reference until enough votes are cast since, for as
+            # long as every one of them agrees with it
+            if v and all(x == self._turn_sign for x in v):
+                return self._turn_sign
+            return 0
+        return self._majority_of(v)
+
+    def _majority_of(self, v: "list[int]") -> int:
         if len(v) < self.DIRECTION_MIN_VOTES:
             return 0
         plus = sum(1 for x in v if x > 0)
@@ -476,8 +568,7 @@ class RulerSession:
     def _answered(self, strip: str, question: str, answer: str) -> None:
         strip = str(strip or "").strip()
         if answer in self.DISCARD_ANSWERS:
-            self._pending_votes.pop(strip, None)
-            self._votes.pop(strip, None)
+            self._drop_vote(strip)
             return
         p = self._pending_votes.get(strip)
         if p is None:
@@ -494,8 +585,7 @@ class RulerSession:
         wait.discard(question)
         if not wait:
             del self._pending_votes[strip]
-            self._votes.pop(strip, None)
-            self._votes[strip] = vote
+            self._cast_vote(strip, vote)
 
     def note_answer(self, strip: str, answer: str) -> None:
         """The answer to the ruler's own window (coverage or direction)."""
@@ -538,6 +628,45 @@ class RulerSession:
         e.update(extra or {})
         self.diag.add_strip(rec, strip=strip, figures=figs, verdict=verdict,
                             extra=e)
+
+    @staticmethod
+    def _margin_line(strip: str, m: dict) -> str:
+        """The one calm line for a strip the margin tolerance kept: what was
+        left out, at which end, and why that was safe."""
+        start = int(m.get("left_start") or 0)
+        end = int(m.get("left_end") or 0)
+        if m.get("rule") == "L":
+            what = tr("The reading began right on the first patch, without "
+                      "white paper before it. ChromIQ kept that first patch "
+                      "as part of the strip.")
+        elif start and end:
+            what = tr("The white paper margin at both ends of the swipe had "
+                      "been counted as a patch. ChromIQ left both out.")
+        elif start:
+            what = tr("The white paper margin at the start of the swipe had "
+                      "been counted as a patch. ChromIQ left it out.")
+        elif end:
+            what = tr("The white paper margin at the end of the swipe had "
+                      "been counted as a patch. ChromIQ left it out.")
+        else:
+            what = tr("ArgyllCMS's patch finder could not settle on the "
+                      "patches, although the ruler shows each of them in "
+                      "turn.")
+        # "as a whole": the rule compares the mean over the row (and over
+        # each half), not every single patch (review 2026-11-16, MAJOR-1)
+        return tr(
+            "Strip {strip}, margin tolerance (beta): ArgyllCMS refused this "
+            "reading (“{reason}”). {what} The reading was kept because the "
+            "strip as a whole matches the colours expected for strip {strip} "
+            "clearly better than those of any other strip, of any shifted "
+            "position or of the reverse direction, and it was then checked "
+            "like every other strip.").format(strip=strip,
+                             # ArgyllCMS's own words, as this language
+                             # shows them everywhere else (the (i) help, the
+                             # misread window); an unknown one stays as sent
+                             # (re-check NIT-R2)
+                             reason=tr(str(m.get("refused_because") or "")),
+                             what=what)
 
     def _direction_line(self, strip: str, reversed_: bool) -> str:
         # A DIRECTION, NOT A VERDICT (review of 4.3.35): "it went from the

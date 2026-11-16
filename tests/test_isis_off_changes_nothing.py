@@ -240,6 +240,7 @@ HOOKED_FILES = {
     "ui/tabs/tab_chart.py",          # Guided entry and choices, papers, guard
     "ui/tabs/tab_measure.py",        # the two Start windows
     "ui/tabs/tab_print.py",          # the feed note; switch-gated
+    "ui/dialogs/ti2_relayout_dialog.py",  # the editor's readout names it; switch-gated
     "workflow/chart_creator.py",     # engine-only; no stamp; its words
     "workflow/chart_exports.py",     # the .txf and the .pxf's device name
     "workflow/chart_import.py",      # .isis.json companion

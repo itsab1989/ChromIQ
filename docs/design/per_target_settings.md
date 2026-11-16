@@ -121,6 +121,15 @@ ruler (beta)" (`ruler_check_beta`, off by default) describes your equipment
 global by this section and read at every Start. No target's `meta.json`
 changes with it.
 
+#### ⏳ Awaiting confirmation: the margin tolerance is global (2026-11-16)
+
+**Confirmed by:** *nobody yet.*
+
+Preferences ▸ Beta ▸ "X-Rite i1Pro 2: keep a strip refused only because of
+the paper margin (beta)" (`margin_tolerance_beta`, off by default) works with
+the ruler check and describes the same equipment, so it is global by this
+section and read at every Start. No target's `meta.json` changes with it.
+
 ### 1.2 Becomes per target
 
 | Group | Where it lives today |

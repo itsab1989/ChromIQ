@@ -3,32 +3,32 @@
 # built with CQ_BASE against that commit's i1pro.c / i1pro_imp.c /
 # i1pro_imp.h. Made by scripts/make_ruler_base_fixtures.py; do not edit.
 off_i1pro2 STEP strip-full
-off_i1pro2 CTL d4 00000088000000290000000a0101 tout=2.00
-off_i1pro2 RD 82 1072000 -> 152760 tout=21.78
+off_i1pro2 CTL d4 0000008800000066000000140101 tout=2.00
+off_i1pro2 RD 82 1072000 -> 152760 tout=22.08
 off_i1pro2 RESULT ev=0x0 readings=570
 off_i1pro2 STEP strip-short
-off_i1pro2 CTL d4 00000088000000290000000a0101 tout=2.00
-off_i1pro2 RD 82 1072000 -> 37520 tout=21.78
+off_i1pro2 CTL d4 0000008800000066000000140101 tout=2.00
+off_i1pro2 RD 82 1072000 -> 37520 tout=22.08
 off_i1pro2 RESULT ev=0x0 readings=140
 off_i1pro2 STEP strip-slow
-off_i1pro2 CTL d4 00000088000000290000000a0101 tout=2.00
-off_i1pro2 RD 82 1072000 -> 367160 tout=21.78
+off_i1pro2 CTL d4 0000008800000066000000140101 tout=2.00
+off_i1pro2 RD 82 1072000 -> 367160 tout=22.08
 off_i1pro2 RESULT ev=0x0 readings=1370
 off_i1pro2 END
 off_i1pro STEP strip-full
-off_i1pro CTL c1 00480017000a0500 tout=2.00
+off_i1pro CTL c1 0048003900140500 tout=2.00
 off_i1pro CTL c0  tout=2.00
-off_i1pro RD 82 1072000 -> 152760 tout=21.79
+off_i1pro RD 82 1072000 -> 152760 tout=22.09
 off_i1pro RESULT ev=0x0 readings=570
 off_i1pro STEP strip-short
-off_i1pro CTL c1 00480017000a0500 tout=2.00
+off_i1pro CTL c1 0048003900140500 tout=2.00
 off_i1pro CTL c0  tout=2.00
-off_i1pro RD 82 1072000 -> 37520 tout=21.79
+off_i1pro RD 82 1072000 -> 37520 tout=22.09
 off_i1pro RESULT ev=0x0 readings=140
 off_i1pro STEP strip-slow
-off_i1pro CTL c1 00480017000a0500 tout=2.00
+off_i1pro CTL c1 0048003900140500 tout=2.00
 off_i1pro CTL c0  tout=2.00
-off_i1pro RD 82 1072000 -> 367160 tout=21.79
+off_i1pro RD 82 1072000 -> 367160 tout=22.09
 off_i1pro RESULT ev=0x0 readings=1370
 off_i1pro END
 ALL DONE

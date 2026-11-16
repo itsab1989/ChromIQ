@@ -2397,6 +2397,9 @@ static void cq_lights_for_session(inst *it, int rmode, int emis, int trans,
 static inst *cq_ruler_it = NULL;
 static int cq_ruler_gen = 0;		/* 2 = i1Pro 2, 3 = i1Pro 3 */
 static int cq_ruler_replay = 0;
+/* The margin tolerance (Beta, 2026-11-16, --margin-tolerance): in use only
+ * with the ruler check on a real i1Pro 2 (or its replay). */
+static int cq_margin_active = 0;
 
 static void cq_ruler_for_session(inst *it, int rmode, int emis, int trans,
                                  int displ) {
@@ -2407,6 +2410,7 @@ static void cq_ruler_for_session(inst *it, int rmode, int emis, int trans,
 	cq_ruler_it = NULL;
 	cq_ruler_gen = 0;
 	cq_ruler_replay = 0;
+	cq_margin_active = 0;
 	if (it == NULL)
 		why = "instrument";
 	else if (emis || trans || displ || rmode != 1)
@@ -2437,16 +2441,32 @@ static void cq_ruler_for_session(inst *it, int rmode, int emis, int trans,
 		why = "instrument";
 	if (why == NULL)
 		cq_ruler_it = it;
-	if (why == NULL)
-		cq_emit_raw("{\"event\":\"ruler\",\"active\":true,\"instrument\":\"%s\","
-		            "\"firmware\":%d,\"sensor\":%s,\"argyll\":\"%s\"}",
-		            cq_ruler_gen == 3 ? "i1pro3" : "i1pro2", fw,
-		            sensor ? "true" : "false", ARGYLL_VERSION_STR);
-	else
-		cq_emit_raw("{\"event\":\"ruler\",\"active\":false,\"why\":\"%s\"%s%s%s}",
-		            why, cq_ruler_gen ? ",\"instrument\":\"" : "",
-		            cq_ruler_gen == 3 ? "i1pro3" : cq_ruler_gen == 2 ? "i1pro2" : "",
-		            cq_ruler_gen ? "\"" : "");
+	/* the margin tolerance: an additive field, only when it was asked for */
+	{
+		const char *mt = "";
+		if (cq_margin) {
+			if (why != NULL)
+				mt = ",\"margin_tolerance\":\"no_ruler\"";
+			else if (cq_ruler_gen != 2)
+				mt = ",\"margin_tolerance\":\"not_i1pro2\"";
+			else if (cq_ruler_replay ? cq_replay_margin_ok()
+			                         : i1pro2_cq_tol_options(it, 1)) {
+				cq_margin_active = 1;
+				mt = ",\"margin_tolerance\":\"on\"";
+			} else
+				mt = ",\"margin_tolerance\":\"off\"";
+		}
+		if (why == NULL)
+			cq_emit_raw("{\"event\":\"ruler\",\"active\":true,\"instrument\":\"%s\","
+			            "\"firmware\":%d,\"sensor\":%s,\"argyll\":\"%s\"%s}",
+			            cq_ruler_gen == 3 ? "i1pro3" : "i1pro2", fw,
+			            sensor ? "true" : "false", ARGYLL_VERSION_STR, mt);
+		else
+			cq_emit_raw("{\"event\":\"ruler\",\"active\":false,\"why\":\"%s\"%s%s%s%s}",
+			            why, cq_ruler_gen ? ",\"instrument\":\"" : "",
+			            cq_ruler_gen == 3 ? "i1pro3" : cq_ruler_gen == 2 ? "i1pro2" : "",
+			            cq_ruler_gen ? "\"" : "", mt);
+	}
 }
 
 /* Around one read_strip (both no-ops when the ruler is not in use). */
@@ -2481,12 +2501,201 @@ static const char *cq_ruler_giveup_name(int g) {
 	return g >= 0 && g <= 7 ? n[g] : "other";
 }
 
+/* The margin tolerance (Preferences > Beta, 2026-11-16). What read_strips
+ * hands over for the strip just read (set right before cq_ruler_after_strip). */
+#include "chromiq_margin.h"
+static struct {
+	ipatch *vals;		/* the read_strip result buffer */
+	int nvals;			/* patches asked of read_strip */
+	chcol **scols;		/* the chart, row by row */
+	int stipa, totpa, npat, oroi;
+	int padded;			/* skipp / nextrap: a DTP41-style strip */
+} cq_mctx;
+
+static void cq_margin_set(ipatch *vals, int nvals, chcol **scols, int stipa,
+                          int totpa, int npat, int oroi, int padded) {
+	cq_mctx.vals = vals;
+	cq_mctx.nvals = nvals;
+	cq_mctx.scols = scols;
+	cq_mctx.stipa = stipa;
+	cq_mctx.totpa = totpa;
+	cq_mctx.npat = npat;
+	cq_mctx.oroi = oroi;
+	cq_mctx.padded = padded;
+}
+
+/* The ruler position (signed steps) at each candidate's first and last
+ * reading: reading index = sample index / clocks, as the ruler file does. */
+static double cq_margin_pos_at(const cq_ruler_rec *r, double rd) {
+	static const int order[4] = { 0, 1, 3, 2 };	/* code -> quadrature step */
+	long at = 0;
+	int i, prev = r->first & 3, cum = 0;
+	double clocks = r->clocks > 0 ? (double)r->clocks : 136.0;
+	for (i = 0; i < r->nch; i++) {
+		int c = r->ch_code[i] & 3, d;
+		at += r->ch_gap[i];
+		if ((double)at / clocks > rd)
+			break;
+		d = (order[c] - order[prev] + 4) % 4;
+		cum += d == 1 ? 1 : d == 3 ? -1 : 0;
+		prev = c;
+	}
+	return (double)cum;
+}
+
+/* The whole recording's net travel (last ruler position minus first) and the
+ * most the position fell back against that direction, over every ruler step
+ * (the margin tolerance's rule 0a: a reading that moved backwards is never
+ * rescued). Same step counting as cq_margin_pos_at. */
+static void cq_margin_motion(const cq_ruler_rec *r, double *net, double *back,
+                             int *skipped) {
+	static const int order[4] = { 0, 1, 3, 2 };
+	int i, prev = r->first & 3, cum = 0, hi = 0, lo = 0;
+	int bpos = 0, bneg = 0;		/* fall-back while moving up / down */
+	*skipped = 0;
+	for (i = 0; i < r->nch; i++) {
+		int c = r->ch_code[i] & 3, d = (order[c] - order[prev] + 4) % 4;
+		cum += d == 1 ? 1 : d == 3 ? -1 : 0;
+		if (d == 2)
+			(*skipped)++;	/* two positions at once: direction unknown */
+		prev = c;
+		if (cum > hi)
+			hi = cum;
+		if (cum < lo)
+			lo = cum;
+		if (hi - cum > bpos)
+			bpos = hi - cum;
+		if (cum - lo > bneg)
+			bneg = cum - lo;
+	}
+	*net = (double)cum;
+	*back = (double)(cum >= 0 ? bpos : bneg);
+}
+
+/* ArgyllCMS refused this reading: try rules M and L. On a rescue the
+ * candidates' values (computed by the driver exactly as patches) replace the
+ * result, the record's cut says where they are, and *rv becomes inst_ok, so
+ * every check after this sees an ordinary reading. js gets the additive
+ * "margin" field of the ruler_strip event. */
+static void cq_margin_try(cq_ruler_rec *r, inst_code *rv, const char *reason,
+                          char *js, size_t jsz) {
+	static cqm_cands c;
+	cqm_result res;
+	cqm_chart ch;
+	double *lab = NULL;
+	const ipatch *cv = (const ipatch *)r->cand_vals;
+	int i, j, why, rows, N = cq_mctx.stipa;
+	char esc[160], rsn[160];
+	js[0] = '\0';
+	cq_json_escape(rsn, sizeof(rsn), reason != NULL ? reason : "");
+	why = r->cand_why == 0x3B ? CQM_WHY_NOTENOUGH	/* I1PRO_RD_NOTENOUGHPATCHES */
+	    : r->cand_why == 0x3C ? CQM_WHY_TOOMANY		/* I1PRO_RD_TOOMANYPATCHES */
+	    : r->cand_why == 0x42 ? CQM_WHY_LEADTRAIL	/* I1PRO_RD_LEADTRAILINCONS */
+	    : 0;
+	memset(&res, 0, sizeof(res));
+	if (why == 0 || cv == NULL || r->ncand < 3)
+		snprintf(res.why, sizeof(res.why), "no candidates");
+	else if (cq_mctx.vals == NULL || cq_mctx.scols == NULL || cq_mctx.padded
+	      || cq_mctx.nvals != N || N < 4 || cq_mctx.oroi < 0)
+		snprintf(res.why, sizeof(res.why), "this strip layout is not covered");
+	else if (r->ch_gap == NULL || r->nch < 10 || r->ended != CQ_RULER_END_SHORT
+	      || r->stream_did_not_end || r->ch_dropped != 0)
+		snprintf(res.why, sizeof(res.why), "no complete ruler record");
+	else {
+		rows = cq_mctx.npat / N;
+		if (rows > cq_mctx.totpa)
+			rows = cq_mctx.totpa;
+		if (cq_mctx.oroi >= rows
+		 || (lab = (double *)malloc(sizeof(double) * 3 * rows * N)) == NULL)
+			snprintf(res.why, sizeof(res.why), "this strip layout is not covered");
+		else {
+			for (i = 0; i < rows * N; i++)
+				cqm_xyz2lab(cq_mctx.scols[i]->eXYZ, lab + 3 * i);
+			c.n = r->ncand < CQM_MAXC ? r->ncand : CQM_MAXC;
+			cq_margin_motion(r, &c.net, &c.back, &c.skipped);
+			for (i = 0; i < c.n; i++) {
+				double a, b, e = (double)(r->cand_ss[i] + r->cand_no[i] - 1);
+				c.ss[i] = r->cand_ss[i];
+				c.no[i] = r->cand_no[i];
+				c.flags[i] = r->cand_flags[i];
+				if (!cv[i].XYZ_v)
+					c.flags[i] |= CQM_F_SPARSE;
+				cqm_xyz2lab(cv[i].XYZ, c.lab[i]);
+				if (r->readings > 0 && e > r->readings - 1)
+					e = r->readings - 1;
+				a = cq_margin_pos_at(r, (double)r->cand_ss[i]);
+				b = cq_margin_pos_at(r, e);
+				c.p0[i] = a;
+				c.steps[i] = b - a;	/* SIGNED: a pass backwards is not a patch
+									 * (review 2026-11-16, BLOCKER-1) */
+			}
+			ch.rows = rows;
+			ch.npatch = N;
+			ch.lab = lab;
+			ch.exp = cq_mctx.oroi;
+			cqm_decide(&c, &ch, why, &res);
+		}
+	}
+	if (res.accept) {
+		/* 2026-11-16d, additive: the numbers the rule used, for the ruler
+		 * diagnostics file (each kept patch's ruler travel and readings, the
+		 * accounting of rule 0b, the ratios of rules 6 and 7) */
+		char kst[1200], kno[600];
+		size_t ko = 0, kn = 0;
+		kst[0] = kno[0] = '\0';
+		for (i = 0; i < N; i++) {
+			int k = res.sel[i];
+			if (ko < sizeof(kst))
+				ko += snprintf(kst + ko, sizeof(kst) - ko, "%s%.0f", i ? "," : "",
+				               (c.net >= 0.0 ? 1.0 : -1.0) * c.steps[k]);
+			if (kn < sizeof(kno))
+				kn += snprintf(kno + kn, sizeof(kno) - kn, "%s%d", i ? "," : "", c.no[k]);
+		}
+		if (ko >= sizeof(kst) || kn >= sizeof(kno))
+			kst[0] = kno[0] = '\0';	/* never a cut-off list */
+		for (i = 0; i < N; i++) {
+			int k = res.sel[i], nnn = (c.no[k] * 2) / 3;
+			cq_mctx.vals[i] = cv[k];
+			cq_ruler_rec_cut(r, i, c.ss[k] + (c.no[k] - nnn + 1) / 2, nnn, 0);
+		}
+		r->ncut = N;
+		*rv = inst_ok;
+		snprintf(js, jsz, ",\"margin\":{\"tried\":true,\"accepted\":true,"
+		         "\"rule\":\"%c\",\"left_start\":%d,\"left_end\":%d,"
+		         "\"standing\":%d,\"leader\":%s,\"fit\":%.2f,\"rival\":%.2f,"
+		         "\"segments\":%d,\"back\":%.0f,\"refused_because\":\"%s\","
+		         "\"rules\":\"%s\","
+		         "\"travel\":{\"net\":%.0f,\"back\":%.0f,\"back_limit\":%.0f,"
+		         "\"median_segment\":%.1f,\"pitch\":%.2f,\"span\":%.1f,"
+		         "\"largest_step\":%.3f,\"largest_step_limit\":%.2f,"
+		         "\"kept_steps\":[%s],\"kept_readings\":[%s]},"
+		         "\"ratios\":{\"fit_to_rival\":%.3f,\"halves_worst\":%.3f,"
+		         "\"limit\":%.2f,\"fit_limit\":%.0f}}",
+		         res.rule, res.left_start, res.left_end, res.standing,
+		         res.leader ? "true" : "false", res.fit, res.rival, r->ncand,
+		         c.back, rsn, cqm_version(),
+		         c.net, c.back, CQM_BACK_TOL, res.med, res.pitch, res.span,
+		         res.big_step, CQM_ACCOUNT, kst, kno,
+		         res.rival > 0.0 ? res.fit / res.rival : -1.0, res.half_worst,
+		         CQM_RATIO, CQM_GOOD);
+	} else {
+		cq_json_escape(esc, sizeof(esc), res.why);
+		snprintf(js, jsz, ",\"margin\":{\"tried\":true,\"accepted\":false,"
+		         "\"why\":\"%s\",\"segments\":%d,\"back\":%.0f,\"rules\":\"%s\"}",
+		         esc, r->ncand, c.back, cqm_version());
+	}
+	free(lab);
+	(void)j;
+}
+
 /* After read_strip, whatever it returned: the record, if the driver made one
- * for this strip. One line, written whole (cq_out_lock); numbers only. */
-static void cq_ruler_after_strip(const char *label, int rv) {
+ * for this strip. One line, written whole (cq_out_lock); numbers only. With
+ * the margin tolerance in use, a reading ArgyllCMS refused may be rescued
+ * here (*rv becomes inst_ok); without it *rv is never touched. */
+static void cq_ruler_after_strip(const char *label, inst_code *prv) {
 	cq_ruler_rec r;
-	char esc[64], reason[256];
-	int i, got, state;
+	char esc[64], reason[256], mjs[4096];
+	int i, got, state, rv = (int)*prv;
 	if (cq_ruler_it == NULL)
 		return;
 	if (cq_ruler_replay)
@@ -2501,6 +2710,10 @@ static void cq_ruler_after_strip(const char *label, int rv) {
 	state = cq_ruler_replay ? r.giveup
 	      : cq_ruler_gen == 3 ? i1pro3_cq_ruler_state(cq_ruler_it)
 	                          : i1pro2_cq_ruler_state(cq_ruler_it);
+	if (!cq_ruler_replay && cq_ruler_gen == 2) {
+		int tw = i1pro2_cq_trigger_wait_ms(cq_ruler_it);	/* 2026-11-16, additive */
+		r.trigger_wait_ms = tw > 0 ? tw : 0;
+	}
 	cq_json_escape(esc, sizeof(esc), label != NULL ? label : "");
 	/* 4.3.37: why a strip that was not read was refused (the driver's own
 	 * words, e.g. "Not enough patches"), for the diagnostics file: the most
@@ -2509,6 +2722,16 @@ static void cq_ruler_after_strip(const char *label, int rv) {
 	if (rv != inst_ok && cq_ruler_it->interp_error != NULL)
 		cq_json_escape(reason, sizeof(reason),
 		               cq_ruler_it->interp_error(cq_ruler_it, (inst_code)rv));
+	mjs[0] = '\0';
+	if (cq_margin_active && (rv & inst_mask) == inst_misread && r.ncand > 0) {
+		cq_margin_try(&r, prv, cq_ruler_it->interp_error != NULL
+		              ? cq_ruler_it->interp_error(cq_ruler_it, (inst_code)rv) : "",
+		              mjs, sizeof(mjs));
+		if (*prv == inst_ok) {
+			rv = inst_ok;
+			reason[0] = '\0';	/* the strip was read; why it was refused is in "margin" */
+		}
+	}
 	cq_out_lock();
 	fprintf(stdout, "\n{\"event\":\"ruler_strip\",\"strip\":\"%s\","
 	        "\"reason\":\"%s\","
@@ -2517,7 +2740,7 @@ static void cq_ruler_after_strip(const char *label, int rv) {
 	        "\"clocks\":%d,\"clock_s\":%.9g,\"inttime\":%.9g,\"first\":%d,"
 	        "\"changes_dropped\":%ld,\"argyll_used\":%s,\"npos\":%d,"
 	        "\"giveup\":\"%s\",\"given_up\":%s,\"stream_did_not_end\":%s,"
-	        "\"rate_ms\":%d,\"changes\":[",
+	        "\"rate_ms\":%d,\"trigger_wait_ms\":%d%s,\"changes\":[",
 	        esc, reason, cq_ruler_gen == 3 ? "i1pro3" : "i1pro2",
 	        rv == inst_ok ? "read" : (rv & inst_mask) == inst_misread
 	            ? "misread" : "other",
@@ -2525,7 +2748,8 @@ static void cq_ruler_after_strip(const char *label, int rv) {
 	        r.readings, r.clocks, r.clock_s, r.inttime, r.first,
 	        r.ch_dropped, r.argyll_used ? "true" : "false", r.npos,
 	        cq_ruler_giveup_name(r.giveup), state > 0 ? "true" : "false",
-	        r.stream_did_not_end ? "true" : "false", r.rate_ms);
+	        r.stream_did_not_end ? "true" : "false", r.rate_ms,
+	        r.trigger_wait_ms, mjs);
 	for (i = 0; i < r.nch && r.ch_gap != NULL; i++)
 		fprintf(stdout, "%s%d,%d", i ? "," : "", r.ch_gap[i], r.ch_code[i]);
 	fprintf(stdout, "],\"cut_domain\":%d,\"cut\":[", r.cut_domain);
@@ -3978,7 +4202,9 @@ a1log *log			/* verb, debug & error log */
 				cq_cond_arm(1);			/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
 				cq_usbwatch_begin();	/* CHROMIQ_EXT 4.3.36: a reading begins */
 				rv = it->read_strip(it, "STRIP", stipa+nextrap, nn, guide, plen, glen, tlen, vals);
-				cq_ruler_after_strip(nn, rv);	/* CHROMIQ_EXT: ruler check (Beta) */
+				cq_margin_set(vals, stipa+nextrap, scols, stipa, totpa, npat, oroi,
+				              skipp != 0 || nextrap != 0);	/* CHROMIQ_EXT: margin tolerance (Beta) */
+				cq_ruler_after_strip(nn, &rv);	/* CHROMIQ_EXT: ruler check (Beta); may rescue (margin tolerance) */
 				cq_cond_after_read(rv, stipa+nextrap);	/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
 				cq_cond_arm(0);
 				if (cq_json)
@@ -6014,12 +6240,17 @@ int main(int argc, char *argv[]) {
 				/* CHROMIQ_EXT: Preferences > Beta, the ruler check. */
 				cq_ruler = 1;
 				eat = 1;
+			} else if (strcmp(argv[ai], "--margin-tolerance") == 0) {
+				/* CHROMIQ_EXT: Preferences > Beta, the margin tolerance
+				 * (2026-11-16): only with --ruler, only an i1Pro 2. */
+				cq_margin = 1;
+				eat = 1;
 			} else if (strcmp(argv[ai], "--caps") == 0) {
 				/* CHROMIQ_EXT: what this build can do, so the GUI can ask
 				 * before it relies on it. One JSON line, then exit 0.
 				 * "legacy_labels": reads sheets ChromIQ's layout engine
 				 * printed with its pre-4.3.3-beta.7 labels as printed. */
-				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"turn\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\",\"lights_signals\",\"lights_during_reading\",\"ruler_check\",\"i1pro3_conditions\"],\"build\":\"%s\"}\n",
+				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"turn\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\",\"lights_signals\",\"lights_during_reading\",\"ruler_check\",\"i1pro3_conditions\",\"margin_tolerance\"],\"build\":\"%s\"}\n",
 				       cq_helper_build_string());
 				fflush(stdout);
 				return 0;

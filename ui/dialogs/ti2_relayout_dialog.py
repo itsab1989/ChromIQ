@@ -246,7 +246,10 @@ _GEN_SETS_HELP = (
     "\u2022 Ensure unique colours: when this is ticked and your sets happen to "
     "share a colour (for example a 3D cube and a grey ramp both include "
     "black and white), ChromIQ keeps one and nudges the duplicates apart "
-    "by a tiny amount, so no colour is printed and measured twice. When "
+    "by a tiny amount, so no colour is printed and measured twice. The "
+    "copies of pure white and black that 'Pure white & black' adds are the "
+    "one exception: they stay identical on purpose, so their readings can "
+    "be averaged. When "
     "you are adding to a chart that already has patches, it keeps the new "
     "ones clear of those as well. The patch total stays the same. Leave "
     "it on unless you have a reason not to.\n\n"
@@ -2954,9 +2957,15 @@ class _NewChartDialog(QDialog):
         # Cross-set de-duplication — keep combined patches unique (#37 follow-up).
         self._gen_unique = QCheckBox(tr("Ensure unique colours"), self._gen_panel)
         self._gen_unique.setChecked(True)
+        # 4.3.42 (i1iSis showcase, N2): true together with 'Pure white &
+        # black', whose copies are exempt (each: 2 prints white and black
+        # twice on purpose)
         self._gen_unique.setToolTip(tr("When sets are combined, nudge any "
                                     "repeated colours apart by a small offset "
-                                    "so no patch is printed twice. When you are "
+                                    "so no colour is printed twice, except the "
+                                    "copies of pure white and black that 'Pure "
+                                    "white & black' adds on purpose, so their "
+                                    "readings can be averaged. When you are "
                                     "adding to a chart that already has patches, "
                                     "the new colours are kept clear of those "
                                     "as well."))
@@ -5359,7 +5368,6 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
         # size. The full readout stays available as a tooltip (see _refresh_info).
         self._info.setSizePolicy(QSizePolicy.Policy.Ignored,
                                  QSizePolicy.Policy.Preferred)
-        src.addWidget(self._info)
         src.addWidget(_magenta_tip(
             tr("Chart patch set editor"),
             tr("Welcome! This is where you build the PATCH SET for your chart — the "
@@ -5391,6 +5399,14 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
             "force-randomised-tag option in the controls for more."),
             self, min_width=560))
         outer.addLayout(src)
+        # 4.3.42 (i1iSis showcase, F1): the readout has its own row. Squeezed
+        # into the source row with an Ignored width policy it was clipped to
+        # nothing at the window's normal size (1280 x 820), and was seen only
+        # as hover text.
+        info_row = QHBoxLayout()
+        info_row.setContentsMargins(16, 0, 16, 0)
+        info_row.addWidget(self._info, 1)
+        outer.addLayout(info_row)
 
         # Full-width spectrum stripe — a visual separator between the source /
         # undo-redo controls and the editing area, mirroring the masthead.
@@ -6362,6 +6378,7 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
             self._engine_recipe.avoid_dark_light_neighbours = False
             self._engine_panel.set_recipe(self._engine_recipe)
         self._refresh_engine_panel_visible()
+        self._pending_readout_instrument = self._instrument_of_chart(path, spec)
         self._set_chart(spec, program, note, is_saved=True)
         return True
 
@@ -6462,8 +6479,45 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
             note += " — " + moved
         self._set_chart(spec, dlg.result_program or [], note)
 
+    @staticmethod
+    def _instrument_of_chart(path: Path, spec) -> str:
+        """The instrument a chart FILE was laid out for, by name: the i1iSis
+        for ChromIQ's i1iSis charts (their printtarg flag is the i1Pro's),
+        else Create Chart's label for the file's instrument; "" when not
+        known."""
+        try:
+            from workflow.isis.support import chart_names_isis, isis_enabled
+            # with the i1iSis Beta off, the file's own name for it (below)
+            if isis_enabled() and chart_names_isis(path) is True:
+                return "i1iSis"
+        except Exception:  # noqa: BLE001 - a readout never fails a load
+            pass
+        try:
+            import re as _re
+            from data.patch_db import INSTRUMENT_LABELS
+            flag = {"3p": "p3"}.get(spec.instrument_flag, spec.instrument_flag)
+            if flag != "i1":
+                return INSTRUMENT_LABELS.get(flag, "")
+            # "i1" is also the reader's default for an instrument it does not
+            # know: then the file's own TARGET_INSTRUMENT, as written
+            head = Path(path).read_bytes()[:65536].decode("latin-1", "replace")
+            m = _re.search(r'^\s*TARGET_INSTRUMENT\s+"?([^"\n]*)"?\s*$', head,
+                           _re.MULTILINE)
+            name = m.group(1).strip() if m else ""
+            if not name or "i1 pro" in name.lower() or "i1pro" in name.lower():
+                return INSTRUMENT_LABELS["i1"] if name else ""
+            return name
+        except Exception:  # noqa: BLE001
+            return ""
+
     def _set_chart(self, spec: R.ChartSpec, program: list[tuple], note: str,
                    *, is_saved: bool = False) -> None:
+        # The readout names the instrument only for a chart file loaded from
+        # disk, where it is a fact of that file (`_instrument_of_chart`); a
+        # patch set made here is laid out by Create Chart.
+        self._readout_instrument = getattr(
+            self, "_pending_readout_instrument", "")
+        self._pending_readout_instrument = ""
         # Loading/creating a chart replaces the document: suppress capture while
         # we repopulate, then start a fresh history with this chart as baseline.
         self._suppress_undo = True
@@ -6738,10 +6792,20 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
         if self._spec is None:
             return
         note = getattr(self, "_chart_note", "")
-        text = tr("{note} — {n} patches, -i{instr} -p{paper}").format(
-            note=note, n=self._grid.count(),
-            instr=self._spec.instrument_flag,
-            paper=self._spec.paper_flag)
+        n = self._grid.count()
+        instrument = getattr(self, "_readout_instrument", "")
+        # 4.3.42 (F1): the instrument by its name, not printtarg's flag (an
+        # i1iSis chart read "-ii1", the i1Pro's)
+        if instrument:
+            text = (tr("{note}: 1 patch, laid out for the {instrument} on "
+                       "{paper}") if n == 1 else
+                    tr("{note}: {n} patches, laid out for the {instrument} on "
+                       "{paper}")).format(note=note, n=n,
+                                          instrument=instrument,
+                                          paper=self._spec.paper_flag)
+        else:
+            text = (tr("{note}: 1 patch") if n == 1 else
+                    tr("{note}: {n} patches")).format(note=note, n=n)
         self._info.setText(text)
         # The label may be clipped (Ignored width policy keeps long names from
         # pushing the source-row buttons off-screen), so keep the full readout

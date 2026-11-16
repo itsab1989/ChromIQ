@@ -3294,6 +3294,7 @@ i1pro_code i1pro_imp_measure(
 		}
 
 		if (ev != I1PRO_OK) {
+			i1pro2_cq_tol_values(p, ev, (int)clamp);	/* CHROMIQ PATCH: margin tolerance (Beta), no-op unless armed */
 			free_dmatrix(specrd, 0, nvals-1, 0, m->nwav[m->highres]-1);
 			free(mbuf);
 			a1logd(p->log,2,"i1pro_imp_measure failed at i1pro_read_patches_2\n");
@@ -5642,6 +5643,8 @@ i1pro_code i1pro_read_patches_2(
 			g_log->logd_cc = NULL;
 #endif
 			if (ev != I1PRO_OK) {
+				/* CHROMIQ PATCH: margin tolerance (Beta), no-op unless armed */
+				i1pro2_cq_tol_candidates(p, ev, multimes, nmeasuered, satthresh, inttime);
 				free_dmatrix(multimes, 0, nmeasuered-1, -1, m->nraw-1);
 				free_dmatrix(absraw, 0, numpatches-1, -1, m->nraw-1);
 				a1logd(p->log,2,"i1pro_read_patches_2 spot read failed at i1pro_extract_patches_multimeas\n");
@@ -6025,6 +6028,7 @@ i1pro_trigger_one_measure(
 	double dlampclocks;
 	int lampclocks;		/* Number of lamp turn on sub-clocks */
 	int measmodeflags;	/* Measurement mode command flags */
+	unsigned int cq_t0 = msec_time();	/* CHROMIQ PATCH 2026-11-16: the lights' wait, timed only */
 	int measmodeflags2;	/* Rev E Measurement mode command flags */
 
 	/* CHROMIQ PATCH: the indicator lights before a trigger (Beta, a no-op */
@@ -6036,6 +6040,7 @@ i1pro_trigger_one_measure(
 	/* from Rev A-D to Rev E mode. */
 	if (*inttime < m->min_int_time)
 		*inttime = m->min_int_time; 
+	m->cq_lights_wait_ms = (int)(msec_time() - cq_t0);	/* CHROMIQ PATCH 2026-11-16: for the ruler file */
 
 	/* The Rev E measure mode has it's own settings */
 	if (p->dtype == instI1Pro2) {
@@ -6993,6 +6998,7 @@ i1pro_code i1pro_extract_patches_multimeas(
 		npat++;
 	}
 	a1logd(p->log,6,"Number of patches = %d\n",npat);
+	i1pro2_cq_tol_segments(p, pat, npat);	/* CHROMIQ PATCH: margin tolerance (Beta), a copy */
 
 	/* We don't count the first and last patches, as we assume they are white leader */
 	if (npat < (tnpatch + 2)) {
@@ -13219,6 +13225,193 @@ void i1pro2_cq_ruler_close(void *pp) {
 		m->cq_ruler_rec = NULL;
 	}
 	m->cq_ruler_on = m->cq_ruler_armed = m->cq_ruler_inscan = 0;
+}
+
+/* ------------------------------------------------------------ */
+/* CHROMIQ PATCH: the margin tolerance (Preferences > Beta, 2026-11-16).
+ *
+ * Inert unless ChromIQ's helper switched it on (i1pro2_cq_tol_options) for a
+ * session whose ruler check is in use, and then only for a strip whose ruler
+ * record is open (the armed lit scan, cq_ruler_recording) AND whose reading
+ * ArgyllCMS's recogniser REFUSED with "Not enough patches", "Too many
+ * patches" or "Swipe didn't start and end on the media". For that reading
+ * only, every segment the recogniser cut is turned into a value exactly as
+ * ArgyllCMS turns a patch into one: the same 2/3 trim, the same average, the
+ * same consistency and saturation tests (as flags), i1pro_absraw_to_abswav,
+ * i1pro_scale_specrd and i1pro_conv2XYZ with the reading's own clamp. The
+ * values go into the ruler record for the helper, which decides with the
+ * chart's expected colours whether the reading can be kept
+ * (native/chartread_helper/chromiq_margin.c). Nothing here touches USB,
+ * changes the refusal ArgyllCMS returns, or alters any value of an accepted
+ * reading: the recogniser hook only COPIES segment positions.
+ */
+static void cq_tol_clear(i1proimp *m) {
+	if (m->cq_tol_spec != NULL)
+		free_dmatrix(m->cq_tol_spec, 0, m->cq_tol_nseg - 1, 0, m->cq_tol_nwav - 1);
+	m->cq_tol_spec = NULL;
+	m->cq_tol_nseg = 0;
+	m->cq_tol_nwav = 0;
+	m->cq_tol_why = 0;
+}
+
+static int cq_tol_refusal(int ev) {
+	return ev == I1PRO_RD_NOTENOUGHPATCHES || ev == I1PRO_RD_TOOMANYPATCHES
+	    || ev == I1PRO_RD_LEADTRAILINCONS;
+}
+
+/* The helper: on (1) for this session. Needs the ruler (i1pro2_cq_ruler_options
+ * first). Returns 1 when in use. */
+int i1pro2_cq_tol_options(void *pp, int on) {
+	i1pro *p = (i1pro *)pp;
+	i1proimp *m;
+	if (p == NULL || (m = (i1proimp *)p->m) == NULL)
+		return 0;
+	cq_tol_clear(m);
+	m->cq_tol_on = on && m->cq_ruler_on && p->dtype == instI1Pro2;
+	return m->cq_tol_on;
+}
+
+/* i1pro_extract_patches_multimeas, right after the threshold: a copy. */
+void i1pro2_cq_tol_segments(void *pp, const void *vpat, int npat) {
+	i1pro *p = (i1pro *)pp;
+	i1proimp *m = (i1proimp *)p->m;
+	const i1pro_patch *pat = (const i1pro_patch *)vpat;
+	int i;
+	if (!m->cq_tol_on || !m->cq_ruler_recording || cq_ruler_r(m) == NULL)
+		return;
+	cq_tol_clear(m);
+	if (npat > CQ_RULER_MAXCAND)
+		return;			/* far too many to be a margin: nothing kept */
+	for (i = 0; i < npat; i++) {
+		m->cq_tol_ss[i] = pat[i].ss;
+		m->cq_tol_no[i] = pat[i].no;
+		m->cq_tol_flags[i] = 0;
+	}
+	m->cq_tol_nseg = npat;
+}
+
+/* i1pro_read_patches_2, when the recogniser refused: each segment as a patch. */
+void i1pro2_cq_tol_candidates(void *pp, int ev, double **multimeas, int nummeas,
+                              double satthresh, double inttime) {
+	i1pro *p = (i1pro *)pp;
+	i1proimp *m = (i1proimp *)p->m;
+	i1pro_state *s = &m->ms[m->mmode];
+	int n = m->cq_tol_nseg, i, j, k, nwav;
+	double *maxval, **absraw, white_avg = 0.0;
+	double patch_cons_thr = PATCH_CONS_THR * m->scan_toll_ratio;
+	if (!m->cq_tol_on || !m->cq_ruler_recording || n <= 0)
+		return;
+	if (m->cq_tol_spec != NULL) {	/* a stale stash: never reused */
+		cq_tol_clear(m);
+		return;
+	}
+	if (!cq_tol_refusal(ev) || multimeas == NULL || nummeas <= 0) {
+		cq_tol_clear(m);
+		return;
+	}
+	if (inttime < 0.012308)		/* as the recogniser loosens it */
+		patch_cons_thr *= sqrt(0.012308/inttime);
+	maxval = dvectorz(-1, m->nraw-1);
+	for (j = 0; j < m->nraw; j++) {
+		for (i = 0; i < nummeas; i++)
+			if (multimeas[i][j] > maxval[j])
+				maxval[j] = multimeas[i][j];
+		if (maxval[j] < 1.0)
+			maxval[j] = 1.0;
+	}
+	for (j = 1; j < (m->nraw-1); j++)
+		white_avg += maxval[j];
+	white_avg /= (m->nraw - 2.0);
+	absraw = dmatrixz(0, n-1, -1, m->nraw-1);
+	for (k = 0; k < n; k++) {
+		int ss = m->cq_tol_ss[k], no = m->cq_tol_no[k], nnn, trim;
+		double maxavg = -1e38, minavg = 1e38, avgoverth = 0.0;
+		if (no < MIN_SAMPLES)
+			m->cq_tol_flags[k] |= CQ_RULER_CAND_SPARSE;
+		nnn = (no * 2 + 0)/3;		/* the recogniser's trim */
+		trim = (no - nnn + 1)/2;
+		ss += trim;
+		no = nnn;
+		if (no <= MIN_SAMPLES)
+			m->cq_tol_flags[k] |= CQ_RULER_CAND_SPARSE;
+		if (no <= 0 || ss < 0 || ss + no > nummeas) {
+			m->cq_tol_flags[k] |= CQ_RULER_CAND_SPARSE;
+			continue;
+		}
+		for (i = ss; i < (ss + no); i++) {
+			double measavg = 0.0;
+			for (j = 1; j < m->nraw-1; j++) {
+				double val = multimeas[i][j];
+				if (val > satthresh)
+					avgoverth++;
+				measavg += val;
+				absraw[k][j] += val;
+			}
+			measavg /= (m->nraw-2.0);
+			if (measavg < minavg)
+				minavg = measavg;
+			if (measavg > maxavg)
+				maxavg = measavg;
+			absraw[k][0]   += multimeas[i][0];
+			absraw[k][127] += multimeas[i][127];
+		}
+		for (j = 0; j < m->nraw; j++)
+			absraw[k][j] /= (double)no;
+		avgoverth /= (double)no;
+		if (satthresh > 0.0 && avgoverth >= 10.0)
+			m->cq_tol_flags[k] |= CQ_RULER_CAND_SAT;
+		if ((maxavg - minavg)/white_avg > patch_cons_thr)
+			m->cq_tol_flags[k] |= CQ_RULER_CAND_INCONS;
+	}
+	nwav = m->nwav[m->highres];
+	m->cq_tol_spec = dmatrixz(0, n-1, 0, nwav-1);
+	m->cq_tol_nwav = nwav;
+	i1pro_absraw_to_abswav(p, m->highres, s->reflective, n, m->cq_tol_spec, absraw);
+	i1pro_scale_specrd(p, m->cq_tol_spec, n, m->cq_tol_spec);
+	m->cq_tol_why = ev;
+	free_dmatrix(absraw, 0, n-1, -1, m->nraw-1);
+	free_dvector(maxval, -1, m->nraw-1);
+}
+
+/* i1pro_imp_measure, when the reading failed: the candidates' XYZ through the
+ * reading's own conversion, into the ruler record. */
+void i1pro2_cq_tol_values(void *pp, int ev, int clamp) {
+	i1pro *p = (i1pro *)pp;
+	i1proimp *m = (i1proimp *)p->m;
+	cq_ruler_rec *r = cq_ruler_r(m);
+	int n = m->cq_tol_nseg, i;
+	ipatch *vals;
+	if (!m->cq_tol_on || m->cq_tol_spec == NULL || r == NULL || n <= 0)
+		return;
+	if (ev != m->cq_tol_why || (vals = (ipatch *)calloc(n, sizeof(ipatch))) == NULL) {
+		cq_tol_clear(m);
+		return;
+	}
+	if (i1pro_conv2XYZ(p, vals, n, m->cq_tol_spec, (instClamping)clamp) != I1PRO_OK) {
+		free(vals);
+		cq_tol_clear(m);
+		return;
+	}
+	free(r->cand_vals);
+	r->cand_vals = vals;
+	r->ncand = n;
+	r->cand_why = ev;
+	for (i = 0; i < n; i++) {
+		r->cand_ss[i] = m->cq_tol_ss[i];
+		r->cand_no[i] = m->cq_tol_no[i];
+		r->cand_flags[i] = m->cq_tol_flags[i];
+	}
+	cq_tol_clear(m);
+}
+
+/* The helper, after read_strip: how long the lights' code (the i1Pro 2
+ * lights Beta) held the last trigger back, ms; 0 without the lights. The last
+ * trigger of a read_strip is its lit scan's. Timed around the unchanged call. */
+int i1pro2_cq_trigger_wait_ms(void *pp) {
+	i1pro *p = (i1pro *)pp;
+	if (p == NULL || p->m == NULL)
+		return -1;
+	return ((i1proimp *)p->m)->cq_lights_wait_ms;
 }
 
 #ifdef NEVER

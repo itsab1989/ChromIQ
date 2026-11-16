@@ -1101,27 +1101,32 @@ _BUDGET = {
     # +1 on 2026-10-23 (4.3.10, jctay 149803) for every language that writes
     # centimetres with Latin letters: the new paper "10 × 15 cm (100 × 150 mm)"
     # is a size, the same in each of them (ru and uk write "см").
-    "de": 10,
-    "es": 10,
+    # +1 on 2026-11-16 (4.3.42 review 2) for every language whose catalogue
+    # writes the layout engine summary line with Latin punctuation: the line
+    # of a chart in fixed order, "[ChromIQ layout engine] {patches}
+    # ({steps}×{passes}), {pages}", is only filled-in parts and reads the same
+    # (ja and zh_CN take their own brackets and commas). BOTH ledgers.
+    "de": 11,
+    "es": 11,
     # +1 for French on 2026-10-26 (4.3.16): the patch set editor's image
     # filter, "Images (*.png *.jpg *.jpeg *.tif *.tiff *.bmp *.webp)", now
     # goes through tr(), and "Images" is the French word too.
-    "fr": 11,
-    "it": 10,
+    "fr": 12,
+    "it": 11,
     "ja": 7,
-    "nl": 11,
-    "no": 10,
-    "pl": 10,
-    "pt": 10,
-    "ru": 8,
-    "sv": 10,
+    "nl": 12,
+    "no": 11,
+    "pl": 11,
+    "pt": 11,
+    "ru": 9,
+    "sv": 11,
     "zh_CN": 8,
     # +2 on 2026-10-02 (b740e16e): "reports/Quality_Check_N_{name}.txt,
     # reports/Refine_Strips_N_{name}.txt" and "reports/Verify_Reference_N_
     # {name}.txt" are file paths, wrongly translated as "звіти/" (a folder that
     # does not exist), and now equal their key as in every other language. The
     # same two that test_i18n's _IDENTICAL_TO_KEY["uk"] already counts.
-    "uk": 7,
+    "uk": 8,
 }
 
 

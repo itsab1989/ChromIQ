@@ -275,7 +275,7 @@ def _engine_padding_log_line(total: int, padding: int) -> str:
 
 
 def _engine_summary_log_line(total: int, steps: int, passes: int,
-                             pages: int, seed) -> str:
+                             pages: int, seed, randomized: bool = True) -> str:
     """The engine's "what was built" line: patches, grid, pages and seed.
 
     4.3.19: it was an English f-string ("441 patches (21×21), 1 page, random
@@ -284,10 +284,18 @@ def _engine_summary_log_line(total: int, steps: int, passes: int,
     Randomisation group's own `tr("Seed:")` label, so the log and the control
     read the same in every language. Both counts go through `count_phrase`,
     so Russian, Ukrainian and Polish get the form each number needs.
+
+    4.3.42 (review 2): a chart in FIXED order names no seed, as its sheet
+    no longer does: the number decides nothing there, and "Seed: N" beside
+    a fixed-order chart read as if it did.
     """
     from core.i18n import count_phrase, tr
     patches = count_phrase(int(total), tr("1 patch"), tr("{n} patches"))
     page_text = count_phrase(int(pages), tr("1 page"), tr("{n} pages"))
+    if not randomized:
+        return tr("[ChromIQ layout engine] {patches} ({steps}×{passes}), "
+                  "{pages}").format(patches=patches, steps=steps,
+                                    passes=passes, pages=page_text)
     return tr("[ChromIQ layout engine] {patches} ({steps}×{passes}), "
               "{pages}, {seed_label} {seed}").format(
                   patches=patches, steps=steps, passes=passes,
@@ -2061,7 +2069,8 @@ class ChartCreator:
 
         on_line(_engine_summary_log_line(
             result.layout.total_patches, result.layout.steps_in_pass,
-            result.layout.passes, result.layout.pages, result.seed))
+            result.layout.passes, result.layout.pages, result.seed,
+            bool(getattr(result, "randomize", True))))
         # An i1iO chart built with a risky option (Job D: allowed, and
         # said, as other instruments' charts are)
         from workflow.isis.support import is_isis_code as _is_isis
@@ -2363,6 +2372,94 @@ class ChartCreator:
             lines.append(f"ChromIQ {APP_VERSION}")
         return lines
 
+    def _engine_page_patch_boxes_mm(self, tiffs: "list[Path]",
+                                    params: "ChartParams") -> "dict | None":
+        """``{str(tiff): (top_mm, bottom_mm, right_mm)}``: where each page's
+        patch area begins and ends, and where its patch block ENDS on the
+        right, from the engine's strip map beside the pages (its patch
+        rectangles, else its strip rectangles). None when there is no map to
+        read.
+
+        THE MAP IS IN ``channels.json`` BY THE TIME THE STAMP RUNS.
+        `_embed_layout_geometry` folds ``<stem>.strips.json`` into the
+        sidecar's "layout" and deletes it, before `_stamp_tiff_metadata` is
+        called; a ``.strips.json`` is read only where it still exists (a
+        build that stamps without embedding). Found on screen: reading only
+        the ``.strips.json`` centred nothing in the real app.
+
+        A PAGE IS ITS PLACE IN THE LIST, NOT ITS FILE NAME (review 2,
+        2026-11-16). The engine writes page *i* of the map to
+        ``result.tiff_paths[i]`` and the caller hands them over in that
+        order; reading a ``_N`` at the end of the stem took a one-page chart
+        of a project named "Baryta_2" for page 2, found no rectangles and
+        quietly fell back. A list shorter than the map's pages is not
+        trusted at all.
+
+        THE RIGHT EDGE IS THE MAP'S, NEVER THE RASTER'S (review 2, 4.3.41
+        and older): a page whose last strip ends in pure-white fill-up
+        patches looks like paper to `_detect_writable_band`, and the line
+        was stamped over 17 measured patches of a Red River A4 sheet."""
+        import json
+        if not tiffs:
+            return None
+        try:
+            stem = self._file_mgr.chart_stem(
+                cal_target=bool(getattr(params, "cal_target", False)))
+            folder = Path(tiffs[0]).parent
+            doc = None
+            for name, key in ((f"{stem}.channels.json", "layout"),
+                              (f"{stem}.strips.json", None)):
+                path = folder / name
+                if not path.exists():
+                    cands = sorted(folder.glob("*" + name[len(stem):]))
+                    if len(cands) != 1:
+                        continue
+                    path = cands[0]
+                got = json.loads(read_text(path))
+                got = got.get(key) if key else got
+                if isinstance(got, dict) and (got.get("patches")
+                                              or got.get("strips")):
+                    doc = got
+                    break
+            if doc is None:
+                return None
+            dpi = float(doc.get("dpi") or 0)
+            if dpi <= 0:
+                return None
+            patches = list(doc.get("patches") or [])
+            rects = patches + list(doc.get("strips") or [])
+            if not rects:
+                return None
+            n_map = max(int(r.get("page", 0)) for r in rects) + 1
+            if len(tiffs) < n_map:
+                return None
+            boxes: dict = {}
+            for page, t in enumerate(tiffs):
+                mine = [r for r in (patches or rects)
+                        if int(r.get("page", 0)) == page]
+                if not mine:
+                    continue
+                top = min(float(r["y"]) for r in mine)
+                bottom = max(float(r["y"]) + float(r["h"]) for r in mine)
+                right = max(float(r["x"]) + float(r["w"]) for r in mine)
+                # written as before (``v * 25.4 / dpi``, not ``v * k``): the
+                # line is centred on these to the pixel, and the other order
+                # of the same arithmetic moved it by one on 20 sheets
+                boxes[str(t)] = (top * 25.4 / dpi, bottom * 25.4 / dpi,
+                                 right * 25.4 / dpi)
+            return boxes or None
+        except Exception as exc:  # noqa: BLE001 — never block the stamp
+            log.debug("patch area for the note unavailable: %s", exc)
+            return None
+
+    def _engine_patch_spans_mm(self, tiffs: "list[Path]",
+                               params: "ChartParams") -> "dict | None":
+        """``{str(tiff): (top_mm, bottom_mm)}`` of each page's patch area
+        (see `_engine_page_patch_boxes_mm`), or None."""
+        boxes = self._engine_page_patch_boxes_mm(tiffs, params)
+        return ({t: (b[0], b[1]) for t, b in boxes.items()}
+                if boxes else None)
+
     def _stamp_tiff_metadata(self, tiffs: list[Path], params: "ChartParams") -> None:
         """Stamp the actual targen/printtarg commands (and optional notes) into each TIFF."""
         try:
@@ -2614,9 +2711,25 @@ class ChartCreator:
                             "side_stamp_freed_mm", 0.0) or 0.0)
                     except Exception as exc:  # noqa: BLE001 — never block it
                         log.debug("side-stamp gap unavailable: %s", exc)
+                # 4.3.42: the line is centred on each page's PATCH AREA
+                # (a tester's sheet: 8 mm off it on a 10 x 15 cm i1Pro 3
+                # chart), read from the engine's own strip map, never guessed
+                # from the raster. A printtarg chart has no map and keeps its
+                # place.
+                # …AND IT NEVER STARTS LEFT OF THE PATCH BLOCK'S TRUE RIGHT
+                # EDGE, read from the same map (review 2): white fill-up
+                # patches are measured patches, not paper.
+                _boxes = (self._engine_page_patch_boxes_mm(tiffs, params)
+                          if engine_chart else None)
+                _kw = {}
+                if _boxes:
+                    _kw["patch_spans_mm"] = {t: (b[0], b[1])
+                                             for t, b in _boxes.items()}
+                    _kw["patch_right_mm"] = {t: b[2]
+                                             for t, b in _boxes.items()}
                 stamp_chart_metadata(tiffs, cmd_lines, _edge, _band,
                                      _font_family, _size_pt, _reach, _gap,
-                                     _edge_t, _edge_b, _patch_gap)
+                                     _edge_t, _edge_b, _patch_gap, **_kw)
         else:
             # ChromIQ-style: shift the patch block right by ~28 mm so the left
             # side becomes a fresh white strip ready for the left-clip stamp.

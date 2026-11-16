@@ -140,7 +140,7 @@ def test_f4_the_old_pair_goes_only_after_the_main_is_in_place():
 def test_f4_the_helper_build_string_is_the_new_one():
     h = (ROOT / "native" / "chartread_helper" / "chromiq_ext.h").read_text(
         encoding="utf-8")
-    assert "chromiq-chartread 2026-11-15e " in h
+    assert "chromiq-chartread 2026-11-16d " in h   # 2026-11-15e, the margin tolerance, one-way, accounted, its numbers in the file
     assert "+conditions-commit-last" in h
 
 
@@ -254,3 +254,54 @@ def test_pruning_never_deletes_a_file_only_named_like_ours(tmp_path):
         os.utime(p, (t, t))
     assert C.prune_run(run) == [ours]
     assert stranger.is_file() and other_key.is_file()
+
+
+def test_a_temporary_file_a_crash_left_is_pruned_only_when_it_is_ours(tmp_path):
+    """4.3.42: the engine writes each condition file as <hash>-Mx.ti3.cqtmp
+    and renames it into place; a crash in between left the temporary file
+    for ever. Pruning removes it: only that name, only in conditions/, only
+    when older than 10 minutes. Anything else stays."""
+    import os
+    import time
+    run = Run.for_dir(tmp_path / "P" / "runs" / "run1")
+    run.condition_dir.mkdir(parents=True)
+    old = time.time() - 3600
+
+    def made(path, age=old):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("CTI3\n", encoding="latin-1")
+        os.utime(path, (age, age))
+        return path
+    stray = made(run.condition_dir / "12-0123abcd-M2.ti3.cqtmp")
+    fresh = made(run.condition_dir / "12-0123abcd-M1.ti3.cqtmp", time.time())
+    other_name = made(run.condition_dir / "notes.ti3.cqtmp")
+    main_tmp = made(run.dir / "P.ti3.cqtmp")          # M3: the kept save
+    elsewhere = made(tmp_path / "P" / "12-0123abcd-M2.ti3.cqtmp")
+    gone = C.prune_run(run)
+    assert gone == [stray] and not stray.exists()
+    for p in (fresh, other_name, main_tmp, elsewhere):
+        assert p.is_file(), p
+
+
+def test_the_help_names_the_condition_not_recorded_case_and_the_comparison():
+    """4.3.42: "Why an entry can be greyed out" names the measurement that
+    records no condition (review F1's case), and the honest limit says what
+    was compared: M0, M1 and M2 with i1Profiler on one i1Pro 3 and one
+    paper, 0.15 to 0.19 dE00 apart on average (the owner's figures,
+    2026-11-16), and that it was one instrument and one paper. The earlier
+    M1-only figures (0.2 to 0.3) and "M0 and M2 not yet" are gone."""
+    from ui.dialogs.settings_dialog import (i1pro3_conditions_confirmation,
+                                            i1pro3_conditions_help)
+    from ui.tabs.tab_profile import build_from_help
+    b = " ".join(build_from_help().split())
+    assert "As measured (condition not recorded)" in b
+    c = " ".join(i1pro3_conditions_confirmation().split())
+    for text in (b, " ".join(i1pro3_conditions_help().split()), c):
+        assert "M0, M1 and M2 values" in text
+        assert "0.15 to 0.19 ΔE00 on average" in text
+        # review 2: bracketed, so "one paper" is asserted for every text
+        assert "one paper" in text and (
+            "not yet" in text or "have not been compared yet" in text)
+        for gone in ("0.2 to 0.3", "0.12", "M0 and M2 values have not",
+                     "M0 and M2 values not yet"):
+            assert gone not in text, gone

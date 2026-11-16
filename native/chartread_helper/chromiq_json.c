@@ -24,6 +24,7 @@ int cq_autosave = 0;
 int cq_safenet = 0;
 int cq_xychart = 0;
 int cq_ruler = 0;
+int cq_margin = 0;
 int cq_i1pro2_lights = 0;
 int cq_lights_signals = 0;
 int cq_lights_left_on = 0;
@@ -257,6 +258,10 @@ static void cq_handle_line(const char *line) {
 		/* The ruler check (Beta): what the fake ruler shows for this swipe. */
 		if (!cq_json_get(line, "ruler", cq_swipe_ruler, sizeof(cq_swipe_ruler)))
 			cq_swipe_ruler[0] = '\0';
+		/* The margin tolerance (Beta): with a misread, the segments the fake
+		 * recogniser cut ("start", "end", "both", "noleader", "shifted"). */
+		if (!cq_json_get(line, "margin", cq_swipe_margin, sizeof(cq_swipe_margin)))
+			cq_swipe_margin[0] = '\0';
 		cq_swipe_reversed = 0;
 		/* "reversed":true is a bare token — cq_json_get only reads strings,
 		 * so probe for the raw text. */
@@ -595,6 +600,7 @@ int  cq_swipe_reversed   = 0;
 char cq_swipe_fault[16]  = "";
 char cq_swipe_reason[96] = "";
 char cq_swipe_ruler[16]  = "";
+char cq_swipe_margin[16] = "";
 
 static void cq_sleep_ms(int ms) {
 #ifdef NT

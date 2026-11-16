@@ -3686,6 +3686,26 @@ class SettingsDialog(QDialog):
         _beta.addLayout(_rulerrow)
         self._ruler_check_tip = ruler_tip
 
+        # THE MARGIN TOLERANCE (2026-11-16; native/chartread_helper/
+        # chromiq_margin.c). Read at every Start: the helper is given
+        # --margin-tolerance together with --ruler (it needs the ruler's
+        # record), and keeps a strip ArgyllCMS refused only because of the
+        # paper margin. Off = the base command line.
+        self._margin_tolerance_check = QCheckBox(
+            tr("X-Rite i1Pro 2: keep a strip refused only because of the "
+               "paper margin (beta)"), self)
+        margin_tip = TooltipButton(
+            tr("Margin Tolerance (beta)"), margin_tolerance_help(), self,
+            min_width=680)
+        self._margin_tolerance_check.clicked.connect(
+            self._on_margin_tolerance_clicked)
+        _marginrow = QHBoxLayout()
+        _marginrow.addWidget(self._margin_tolerance_check)
+        _marginrow.addStretch()
+        _marginrow.addWidget(margin_tip)
+        _beta.addLayout(_marginrow)
+        self._margin_tolerance_tip = margin_tip
+
         # M0, M1 AND M2 FROM ONE SCAN (2026-11-15, workflow.i1pro3_conditions).
         # Read at every Start: the helper is given --condition-dir and keeps
         # the two conditions -F did not choose from the same pass; Build
@@ -4765,6 +4785,44 @@ class SettingsDialog(QDialog):
         keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         if box.exec() != QMessageBox.StandardButton.Ok:
             self._ruler_check_check.setChecked(False)
+
+    def _on_margin_tolerance_clicked(self, checked: bool) -> None:
+        """The margin tolerance (beta): the own-risk confirmation, as the
+        ruler check's (Cancel is the default and leaves the box off)."""
+        if not checked:
+            return
+        from PyQt6.QtWidgets import QMessageBox, QSpacerItem, QSizePolicy
+        box = QMessageBox(self)
+        box.setObjectName("margin_tolerance_confirmation")
+        box.setWindowTitle(tr("Margin Tolerance (beta)"))
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setText(margin_tolerance_confirmation())
+        box.setStandardButtons(QMessageBox.StandardButton.Ok
+                               | QMessageBox.StandardButton.Cancel)
+        ok_btn = box.button(QMessageBox.StandardButton.Ok)
+        cancel_btn = box.button(QMessageBox.StandardButton.Cancel)
+        ok_btn.setText(tr("Use the margin tolerance"))
+        from ui.default_button import mark_destructive
+        mark_destructive(ok_btn)
+        cancel_btn.setText(tr("Leave it off"))
+        from PyQt6.QtGui import QFontMetrics
+        from PyQt6.QtWidgets import QDialogButtonBox
+        for b in (ok_btn, cancel_btn):
+            w = QFontMetrics(b.font()).horizontalAdvance(b.text()) + 44
+            b.setMinimumWidth(w)
+        bbox = box.findChild(QDialogButtonBox)
+        if bbox is not None:
+            bbox.setCenterButtons(True)
+        grid = box.layout()
+        if grid is not None:
+            spacer = QSpacerItem(620, 1, QSizePolicy.Policy.Minimum,
+                                 QSizePolicy.Policy.Minimum)
+            grid.addItem(spacer, grid.rowCount(), 0, 1, grid.columnCount())
+        box.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        if box.exec() != QMessageBox.StandardButton.Ok:
+            self._margin_tolerance_check.setChecked(False)
 
     def _on_profile_engine_clicked(self, checked: bool) -> None:
         """Friendly beta consent dialog when the engine is switched on."""
@@ -6575,6 +6633,8 @@ class SettingsDialog(QDialog):
             bool(s.get("i1pro2_lights_beta", False)))
         self._ruler_check_check.setChecked(
             bool(s.get("ruler_check_beta", False)))
+        self._margin_tolerance_check.setChecked(
+            bool(s.get("margin_tolerance_beta", False)))
         self._i1pro3_conditions_check.setChecked(
             bool(s.get("i1pro3_conditions_beta", False)))
         self._lights_signals_combo.setCurrentIndex(
@@ -8182,6 +8242,8 @@ class SettingsDialog(QDialog):
         s.set("scanner_hex_charts", self._scanner_hex_check.isChecked())
         s.set("i1pro2_lights_beta", self._i1pro2_lights_check.isChecked())
         s.set("ruler_check_beta", self._ruler_check_check.isChecked())
+        s.set("margin_tolerance_beta",
+              self._margin_tolerance_check.isChecked())
         s.set("i1pro3_conditions_beta",
               self._i1pro3_conditions_check.isChecked())
         s.set("i1pro2_lights_signals",
@@ -9576,6 +9638,19 @@ def ruler_check_help() -> str:
            "had been read the other way round: then it may have been saved "
            "back to front. A strip the reader could not read is noted in "
            "the diagnostics file with the reader's reason."),
+        # 4.3.40 / 4.3.42: a turned sheet, and how long the direction is not
+        # compared afterwards (workflow/ruler_session.py, the restart)
+        tr("**Turning the sheet or the ruler round is fine.** The ruler then "
+           "sees the next strip the other way round compared with the strips "
+           "before it. When that strip's own colours clearly show that it "
+           "was saved the right way round, ChromIQ only says so in the "
+           "Measure log and compares the strips after it with the new way "
+           "round straight away. On a chart whose strips look alike in both "
+           "directions (ramps, calibration charts) the colours cannot tell, "
+           "so ChromIQ asks: answer “Continue Anyway” if you turned the "
+           "sheet or the ruler. Then, for a few strips, ChromIQ may not "
+           "compare the direction at all until the strips read since agree "
+           "on the new way round, and the Measure log says so."),
         tr("Your readings are never changed by this. The colour values and "
            "which reading belongs to which patch are worked out exactly as "
            "without the option. When the ruler data is missing or "
@@ -9631,15 +9706,145 @@ def ruler_check_help() -> str:
         tr("**Default:** off")))
 
 
+def margin_tolerance_help() -> str:
+    """The ⓘ of Preferences ▸ Beta ▸ the margin tolerance (2026-11-16).
+    Every sentence is checked against the code: the rule
+    (native/chartread_helper/chromiq_margin.c), the helper's
+    --margin-tolerance and its gates (cq_ruler_for_session, cq_margin_try),
+    the driver patch (native/instlib/PROVENANCE.md) and
+    workflow/ruler_session.py."""
+    return "\n\n".join((
+        tr("When you read a strip by hand, ArgyllCMS's patch finder looks "
+           "for the patches between two stretches of white paper: the paper "
+           "before the first patch and the paper after the last one. "
+           "Sometimes it refuses a strip that was read perfectly well, for "
+           "one of two reasons: the white paper margin at one end of the "
+           "row was long enough to be counted as a patch of its own (you "
+           "then see “Too many patches”), or the recording only began once "
+           "the instrument was already on the first patch, so there was no "
+           "white paper before it (often “Not enough patches”)."),
+        tr("With this option on, ChromIQ takes a second look at exactly "
+           "those refused strips, and only at them. It uses three things "
+           "ChromIQ knows: the colours the strip is expected to have, how "
+           "far the instrument moved along its ruler over each piece of the "
+           "recording, and the pieces the patch finder found. The strip is "
+           "kept only when all of this agrees:\n"
+           "  •  what is left out at the ends is the white of the paper;\n"
+           "  •  neither the first nor the last patch of the strip is itself "
+           "close to paper white;\n"
+           "  •  the kept patches, taken together as a whole strip, match "
+           "the expected strip closely, and clearly better (at least twice "
+           "as well) than any other strip of the chart, than the same strip "
+           "shifted by one or two patches, and than the other direction;\n"
+           "  •  each half of the strip on its own is clearly in place;\n"
+           "  •  the ruler shows that the instrument moved about one patch "
+           "length over each kept patch, with no stop inside the strip;\n"
+           "  •  the ruler shows that the instrument moved forwards only: a "
+           "recording in which it went back over part of the strip is never "
+           "kept;\n"
+           "  •  ArgyllCMS's own tests (even readings, no saturation, enough "
+           "readings per patch) pass for every kept patch."),
+        tr("A kept strip then goes through every check an ordinary strip "
+           "goes through: which strip it is, whether it was read back to "
+           "front or slipped, the ruler check and the warnings. Its values "
+           "are worked out exactly as ArgyllCMS works out any patch. The "
+           "Measure log says in one line, for each strip kept this way, "
+           "what was left out at which end and why that was safe, and the "
+           "ruler diagnostics file notes it."),
+        tr("**A strip that is accepted today never changes.** The option "
+           "only looks at strips ArgyllCMS refuses with “Not enough "
+           "patches”, “Too many patches” or “Swipe didn't start and end on "
+           "the media”. Every other strip is read exactly as without it."),
+        tr("**It needs the ruler check.** It works only with an X-Rite "
+           "i1Pro 2 that reports its ruler, with the beta option “X-Rite "
+           "i1Pro 2 and i1Pro 3: check each strip with the ruler” switched "
+           "on as well. With the ruler check off, this option does nothing "
+           "at all. The original i1Pro, the ColorMunki and the i1Pro 3 are "
+           "not affected."),
+        tr("**The honest limit:** this has not yet been used with a real "
+           "instrument. It was tested only on the computer, in two ways. "
+           "First, wrong readings were built on purpose from the expected "
+           "colours of 28 real charts: another strip, the same strip "
+           "shifted by one or two patches, a swipe that began late or "
+           "stopped early, an instrument pulled back or wiggled over a "
+           "patch, and a board instead of paper after the strip. None of "
+           "them was kept. Second, the recorded i1Pro 2 sessions of one "
+           "tester (three sessions, about 150 strips) were replayed: of the "
+           "31 strips ArgyllCMS refused there, it kept 10, each of them "
+           "correctly. Those recordings hold only a coarse brightness trace, "
+           "not the full colours, so for that count the accepted readings "
+           "of the same strips stood in for the expected colours. If a kept "
+           "strip ever looks wrong to you, please switch this off and tell "
+           "us, with the ruler diagnostics file."),
+        # THE ONE WRONG KEEP LEFT (review of 2026-11-16, THIRD LOOK, T1): an
+        # instrument lifted off the ruler and set down further along leaves
+        # no ruler travel for the stretch it was carried over, so rule 0b
+        # cannot see a missing patch there. Shipped as a Beta with this said.
+        tr("**Please do not lift the instrument during a swipe.** If it is "
+           "lifted off the ruler in the middle of a swipe and set down again "
+           "further along, the ruler cannot see the stretch it was carried "
+           "over, and in rare cases a strip kept by this option can then be "
+           "wrong. So keep the instrument on the ruler from the white paper "
+           "before the first patch to the white paper after the last one, "
+           "and if a swipe goes wrong, simply read the strip again. Every "
+           "decision this option makes, kept or refused, is recorded in the "
+           "ruler diagnostics file, and we would very much like to have that "
+           "file."),
+        tr("What helps most, with or without this option: rest the "
+           "instrument on the white paper before the first patch, press the "
+           "button, wait for the signal, and only then move."),
+        tr("With this off (the default), every strip is read and accepted "
+           "exactly as before. Only one thing is different, and only while "
+           "the ruler check is on: the ruler diagnostics file notes a few "
+           "more details (its newer revision number, whether the "
+           "instrument lights option was on, how long the lights' quiet "
+           "time held each button press back, and that the margin "
+           "tolerance was not asked for). Nothing else changes."),
+        tr("**Default:** off")))
+
+
+def margin_tolerance_confirmation() -> str:
+    """The window shown when the margin tolerance is switched on."""
+    return tr(
+        "You are switching on the margin tolerance for the i1Pro 2. Here is "
+        "what that means.\n\n"
+        "•  When ArgyllCMS refuses a strip only because the white paper "
+        "margin at one end was counted as a patch, or because the reading "
+        "began without white paper before the first patch, ChromIQ checks "
+        "the strip's expected colours and the ruler, and keeps the reading "
+        "when they clearly show the whole strip in place. A strip that is "
+        "accepted today never changes.\n\n"
+        "•  It needs the ruler check: with the ruler check off, this option "
+        "does nothing.\n\n"
+        "•  It was tested on the recordings of one tester's i1Pro 2, not "
+        "yet with a real instrument. Please look at each strip the Measure "
+        "log says was kept this way.\n\n"
+        "•  Please do not lift the instrument off the ruler during a swipe. "
+        "If it is lifted and set down further along, a strip kept this way "
+        "can be wrong, because the ruler cannot see the part it was carried "
+        "over. Every decision is recorded in the ruler diagnostics file, and "
+        "we would like to have that file.\n\n"
+        "•  You use it at your own risk. If a kept strip looks wrong, switch "
+        "this off and tell us with “Report a Bug…”, with the ruler "
+        "diagnostics file.\n\n"
+        "•  You can switch it off again at any time.\n\n"
+        "Would you like to use the margin tolerance?")
+
+
 def i1pro3_conditions_help() -> str:
     """The ⓘ of Preferences ▸ Beta ▸ M0, M1 and M2 from one scan
     (2026-11-15). Checked against native/instlib/i1pro3_imp.c
     (i1pro3_comp_refl_value, i1pro3_cq_cond_*), the helper's --condition-dir
     and workflow/i1pro3_conditions.py."""
     return "\n\n".join((
-        tr("**Not yet compared with i1Profiler.** ArgyllCMS's M1 and M2 "
-           "values for the i1Pro 3 have not yet been checked against X-Rite "
-           "i1Profiler's on the same chart. If you have i1Profiler, "
+        # 2026-11-16: one tester's chart measured in both programs, all
+        # three conditions (the owner's figures of 2026-11-16)
+        tr("**Compared with i1Profiler: one instrument, one paper.** "
+           "ArgyllCMS's M0, M1 and M2 values for the i1Pro 3 have been "
+           "compared with X-Rite i1Profiler's on one i1Pro 3 and one paper, "
+           "and they agreed within 0.15 to 0.19 ΔE00 on average. That is one "
+           "instrument and one paper only: other instruments and other "
+           "papers have not been compared yet. If you have i1Profiler, "
            "measuring one chart in both programs and sending the files to "
            "the ChromIQ project would help a lot."),
         tr("An X-Rite i1Pro 3 reads every strip in one pass with two kinds "
@@ -9714,9 +9919,11 @@ def i1pro3_conditions_confirmation() -> str:
         "also in the other two conditions, from the same pass.\n\n"
         "•  In Build Profile you can then choose which condition the profile "
         "is made from.\n\n"
-        "•  ArgyllCMS's M1 and M2 values for the i1Pro 3 have not yet been "
-        "compared with X-Rite i1Profiler's on a real chart. Nothing extra is "
-        "sent to the instrument.\n\n"
+        "•  ArgyllCMS's M0, M1 and M2 values for the i1Pro 3 have been "
+        "compared with X-Rite i1Profiler's on one instrument and one paper "
+        "only (they agreed within 0.15 to 0.19 ΔE00 on average); other "
+        "instruments and papers not yet. Nothing extra is sent to the "
+        "instrument.\n\n"
         "•  You use it at your own risk, and you can switch it off again at "
         "any time.\n\n"
         "Would you like to turn it on?")

@@ -348,7 +348,13 @@ static i1pro *make(devType dtype, int caps2) {
 	m->mmode = 0;
 	m->ms[0].reflective = 1;
 	m->ms[0].scan = 1;
-	m->ms[0].lamptime = 0.2;
+	/* ArgyllCMS's own reflective scan settings (i1pro_imp.c, i1p_refl_scan:
+	 * lamptime 0.5, wreadtime 0.10), so the 0xD4 carries what a real strip
+	 * read sends: {136, 102, 20}. Until 2026-11-16 this said 0.2 and the
+	 * scan passed 10 readings, {136, 41, 10}, which no real read sends (the
+	 * dual scan design's challenge, B1). */
+	m->ms[0].lamptime = 0.5;
+	m->ms[0].wreadtime = 0.10;
 	m->intclkp2 = 36e-6;
 	m->subclkdiv2 = 136;
 	m->min_int_time = 136 * 36e-6;
@@ -382,7 +388,9 @@ static void scan(i1pro *p, const char *what, int nread) {
 		i1pro2_cq_ruler_arm(p, 1);
 #endif
 	in_lit_scan = 1;
-	ev = i1pro_read_patches_1(p, 10, maxn, &inttime, 0, &nmeas, buf, bsize);
+	/* the minimum count as i1pro_imp_measure works it out for a scan */
+	ev = i1pro_read_patches_1(p, i1pro_comp_nummeas(p, m->ms[0].wreadtime, inttime),
+	                          maxn, &inttime, 0, &nmeas, buf, bsize);
 	in_lit_scan = 0;
 	if (m->trig_thread != NULL) {
 		m->trig_thread->del(m->trig_thread);

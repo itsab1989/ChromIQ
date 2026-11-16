@@ -31,11 +31,42 @@ needs and nothing personal:
   ``mirror_de``, ``better_share`` and the ``verdict`` "saved", "other" or
   "unsure"), ``direction_confirmed_by_colours`` (the colours vouched for
   the saved order, so no window was shown and the log says so) and
-  ``voted`` (this reading counted towards the reference at once) and
+  ``voted`` (this reading counted towards the reference at once),
+  ``direction_restarted`` (4.3.42: this strip confirmed a turn, its ruler
+  disagreeing with the reference while its colours vouched, and the
+  reference started again from it) and
   ``vote_waits_for`` (the questions whose answer this reading's vote waits
   for: "read_twice" is cast on Keep, "ruler_direction" on Continue Anyway
   only; empty when it voted at once or casts no vote, for example after a
   question about its order).
+* THE MARGIN TOLERANCE (revision 3, Beta, 2026-11-16): per strip the
+  engine's ``record.margin``, only for a strip ArgyllCMS refused while the
+  tolerance was on. Refused: ``tried``, ``accepted`` false, ``why`` (the
+  rules' own words, "M: ...; L: ..."), ``segments``, ``back``, ``rules``
+  (the rule set's version). Kept: ``rule`` ("M" margin at an end, "L" no
+  white leader), ``left_start`` / ``left_end`` (white pieces left out at each
+  end), ``standing`` (pieces the ruler left out), ``leader``, ``fit`` (mean
+  dE76 of the kept patches to the expected strip), ``rival`` (the best
+  alternative: another strip, a shifted position or the other direction),
+  ``refused_because`` (ArgyllCMS's reason), ``rules``, and (engine
+  2026-11-16d) ``travel``: ``net`` and ``back`` (ruler steps; ``back_limit``
+  the most it may fall back), ``median_segment`` (steps), ``pitch`` (rule
+  0b's patch pitch, steps), ``span`` (first kept patch centre to the last,
+  steps), ``largest_step`` (the largest centre-to-centre step, in pitches;
+  ``largest_step_limit`` the most allowed), ``kept_steps`` and
+  ``kept_readings`` (each kept patch's ruler travel in the strip's direction
+  and its readings, in swipe order); and ``ratios``: ``fit_to_rival`` and
+  ``halves_worst`` (the worst share of either half against its
+  alternatives), each kept only at ``limit`` or below, and ``fit_limit``.
+  ``margin_summary``, at the top of the file (written whenever the
+  tolerance was asked for or any strip carries a ``margin``), gathers them so
+  a kept or a refused strip is found at once: ``tried``, ``kept``,
+  ``refused``, ``refused_by_reason`` (the ``why`` with every number written
+  as "#", and how often), ``kept_strips`` (per kept strip its ``strip``, its
+  ``entry`` in ``strips``, the entry's ``verdict``, the rule, what was left
+  out, the reason ArgyllCMS gave, ``fit``, ``rival``, ``fit_to_rival``,
+  ``halves_worst``, ``largest_step`` and ``back``) and ``refused_strips``
+  (``strip``, ``entry``, ``why``).
 * NOT IN: a serial number (this code never reads one), calibration data,
   file paths, project, chart or user names.
 """
@@ -45,6 +76,7 @@ import json
 import logging
 import os
 import platform
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -53,15 +85,22 @@ log = logging.getLogger(__name__)
 FORMAT = "chromiq-ruler-diagnostics"
 VERSION = 1
 #: Additive revisions of version 1 (a reader of an older revision only meets
-#: keys it does not know): 2 = ChromIQ 4.3.40, the direction fields below.
-REVISION = 2
+#: keys it does not know): 2 = ChromIQ 4.3.40, the direction fields below;
+#: 3 = the margin tolerance (Beta, 2026-11-16): the record's "margin" (what
+#: the tolerance decided for a strip ArgyllCMS refused) and
+#: "trigger_wait_ms" (how long the i1Pro 2 lights' quiet time held the
+#: trigger back), and the file's "i1pro2_lights_beta", "margin_tolerance" and
+#: "margin_summary" (at the top; see the module text).
+REVISION = 3
 
 #: Keys of the engine's ruler record copied into the file. Anything else the
 #: engine might add is left out until it is reviewed for privacy.
 RECORD_KEYS = ("instrument", "ended", "icom_err", "samples", "bytes",
                "readings", "clocks", "clock_s", "inttime", "first", "changes",
                "changes_dropped", "argyll_used", "cut_domain", "cut",
-               "trace", "trace_domain", "result")
+               "trace", "trace_domain", "result",
+               # revision 3: numbers and fixed words only (no names, no paths)
+               "trigger_wait_ms", "margin")
 
 _MM_PER_INCH = 25.4
 
@@ -121,6 +160,48 @@ def strip_geometry(channels_json: "Path | str | None",
                     "pitch_mm": round(pitch, 3) if pitch else None,
                     "span_mm": round(span, 3)}
     return out
+
+
+def margin_summary(doc: dict) -> "dict | None":
+    """The margin tolerance's decisions in *doc*, for the top of the file;
+    None when the tolerance was not asked for and no strip carries a
+    ``margin`` (the file then stays as it was)."""
+    kept: "list[dict]" = []
+    refused: "list[dict]" = []
+    by_reason: "dict[str, int]" = {}
+    for i, e in enumerate(doc.get("strips") or []):
+        m = (e.get("record") or {}).get("margin")
+        if not isinstance(m, dict):
+            continue
+        if m.get("accepted"):
+            t = m.get("travel") if isinstance(m.get("travel"), dict) else {}
+            r = m.get("ratios") if isinstance(m.get("ratios"), dict) else {}
+            kept.append({
+                "strip": e.get("strip"), "entry": i,
+                "verdict": e.get("verdict"), "rule": m.get("rule"),
+                "left_start": m.get("left_start"),
+                "left_end": m.get("left_end"),
+                "refused_because": m.get("refused_because"),
+                "fit": m.get("fit"), "rival": m.get("rival"),
+                "fit_to_rival": r.get("fit_to_rival"),
+                "halves_worst": r.get("halves_worst"),
+                "largest_step": t.get("largest_step"),
+                "back": m.get("back")})
+        else:
+            why = str(m.get("why") or "")
+            refused.append({"strip": e.get("strip"), "entry": i, "why": why})
+            # (a pattern string, not a module-level compiled one: those are
+            # checked against the tool output parsers' lines)
+            key = re.sub(r"-?\d+(?:\.\d+)?", "#", why) or "?"
+            by_reason[key] = by_reason.get(key, 0) + 1
+    if not kept and not refused and doc.get("margin_tolerance") in (
+            None, "not asked"):
+        return None
+    return {"tried": len(kept) + len(refused), "kept": len(kept),
+            "refused": len(refused),
+            "refused_by_reason": dict(sorted(by_reason.items(),
+                                             key=lambda kv: -kv[1])),
+            "kept_strips": kept, "refused_strips": refused}
 
 
 def _os_text() -> str:
@@ -216,11 +297,25 @@ class Diagnostics:
             log.warning("ruler diagnostics: could not note an answer",
                         exc_info=True)
 
+    def _ordered(self) -> dict:
+        """The doc as written: the margin tolerance's summary, when there is
+        one, right after format, version and revision (revision 3)."""
+        summary = margin_summary(self.doc)
+        if summary is None:
+            return self.doc
+        out = {k: self.doc[k] for k in ("format", "version", "revision")
+               if k in self.doc}
+        out["margin_summary"] = summary
+        for k, v in self.doc.items():
+            if k not in out and k != "margin_summary":
+                out[k] = v
+        return out
+
     def write(self) -> Optional[Path]:
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             tmp = self.path.with_name(self.path.name + ".part")
-            tmp.write_text(json.dumps(self.doc, ensure_ascii=True,
+            tmp.write_text(json.dumps(self._ordered(), ensure_ascii=True,
                                       separators=(",", ":")), "utf-8")
             os.replace(tmp, self.path)
             return self.path

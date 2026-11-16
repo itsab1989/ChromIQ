@@ -68,10 +68,28 @@ def test_on_only_the_two_bits_are_new_and_the_reads_are_4096(trace):
     # nothing else differs from an unarmed scan of the same strip
     on = [ln.split(" ", 1)[1] for ln in _scn(trace, "on_clean")
           if " RD 82 " in ln]
-    assert on == ["RD 82 1072000 -> 32160 tout=21.78"] * 3
+    # (the read timeout holds the lamp time: 0.5 s since 2026-11-16)
+    assert on == ["RD 82 1072000 -> 32160 tout=22.08"] * 3
     r = _ruler(trace, "on_clean")
     assert all(x["ended"] == 1 and x["bytes"] == 120 * 136 - 5 and x["nch"] == 300
                and x["giveup"] == 0 for x in r)
+
+
+def test_the_lit_scan_sends_what_a_real_strip_read_sends(trace):
+    """The harness uses ArgyllCMS's own reflective scan settings
+    (i1pro_imp.c, i1p_refl_scan: lamptime 0.5, wreadtime 0.10, at the
+    minimum integration time of 136 clocks), so its 0xD4 carries what a real
+    strip read sends: 136 integration clocks, 102 lamp clocks, at least 20
+    readings. Until 2026-11-16 it said {136, 41, 10} (a lamp time of 0.2 and
+    10 readings), which no real read sends (dual scan design challenge,
+    B1); the base fixture was made again with the same settings."""
+    for scn in ("on_clean", "on_nosensor"):
+        pkts = [ln.split()[3] for ln in _scn(trace, scn) if " CTL d4 " in ln]
+        assert pkts and all(p[:24] == "00000088" "00000066" "00000014"
+                            for p in pkts), pkts
+    base = FIX.read_text(encoding="utf-8")
+    assert "CTL d4 0000008800000066000000140101" in base
+    assert "00000029" not in base
 
 
 def test_no_sensor_or_an_original_i1pro_never_get_the_ruler(trace):

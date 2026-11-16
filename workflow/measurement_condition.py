@@ -90,6 +90,27 @@ def condition_name(condition: str) -> str:
 FILTER_CONDITIONS = {"n": "M0", "5": "M1", "u": "M2", "p": "M3"}
 
 
+def filter_choices() -> "list[tuple[str, str]]":
+    """The Measure tab's "Spectral filter type (-F)" entries, in list order:
+    (the value chartread is given, the entry as the list shows it). 4.3.42:
+    the M number first, then what the light is (the owner's ruling,
+    2026-11-16); the values are those of chartread's -F and never change,
+    and saved settings and presets store the value, not the text. ``6`` is
+    a D65 filter fitted to the instrument (Spectrolino), no ISO 13655
+    condition, so it carries no M number."""
+    return [("n", tr("M0: no filter (lamp as it is)")),
+            ("5", tr("M1: D50 daylight (with UV)")),
+            ("6", tr("D65 daylight filter")),
+            ("u", tr("M2: UV cut (no UV)")),
+            ("p", tr("M3: polarising filter"))]
+
+
+def filter_choice_label(code: "str | None") -> str:
+    """The entry the list shows for the -F value *code*, or *code* itself
+    when it is none of them."""
+    return dict(filter_choices()).get(str(code or "").lower(), str(code or ""))
+
+
 def filter_code_from_args(extra_args: "str | None") -> "str | None":
     """The value of ``-F`` in chartread's extra arguments (``"-F 5"``,
     ``"-F5"``), or None when there is no ``-F``."""

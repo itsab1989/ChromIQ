@@ -41,6 +41,8 @@ NOT_A_SETTING = {
                                      "2026-11-13)"),
     "engine_ruler_check": ("a Preferences (Beta) value, global by §1.1 "
                            "(the ruler check, 2026-11-14)"),
+    "engine_margin_tolerance": ("a Preferences (Beta) value, global by §1.1 "
+                                "(the margin tolerance, 2026-11-16)"),
     "engine_condition_dir": ("worked out at every Start from a Preferences "
                              "(Beta) value, global by §1.1, and the run's "
                              "folder (M0, M1 and M2 from one scan, "

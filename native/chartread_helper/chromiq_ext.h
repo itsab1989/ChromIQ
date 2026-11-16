@@ -22,6 +22,8 @@ extern int cq_safenet;   /* 1 = misalignment safety net (opt-in, #50)      */
 extern int cq_xychart;   /* 1 = engine handles XY/chart modes (else fall back) */
 extern int cq_ruler;      /* --ruler: Preferences > Beta, the ruler check
                               (2026-11-14); see chromiq_chartread.c */
+extern int cq_margin;     /* --margin-tolerance: Preferences > Beta, the
+                              margin tolerance (2026-11-16, needs --ruler) */
 extern int cq_i1pro2_lights; /* --i1pro2-lights: Preferences > Beta, the
                               i1Pro 2 indicator lights (2026-11-13) */
 
@@ -92,6 +94,8 @@ void i1pro2_cq_ruler_arm(void *pp, int on);
 int i1pro2_cq_ruler_state(void *pp);
 int i1pro2_cq_ruler_firmware(void *pp);
 int i1pro2_cq_ruler_take(void *pp, void *out);
+int i1pro2_cq_tol_options(void *pp, int on);	/* the margin tolerance (Beta) */
+int i1pro2_cq_trigger_wait_ms(void *pp);	/* 2026-11-16, for the ruler file */
 int i1pro3_cq_ruler_options(void *pp, int on);
 void i1pro3_cq_ruler_arm(void *pp, int on);
 int i1pro3_cq_ruler_state(void *pp);
@@ -102,6 +106,7 @@ int i1pro3_cq_ruler_take(void *pp, void *out);
  * record a {"cmd":"swipe","ruler":"<mode>"} asked for (1 = one). */
 int cq_replay_ruler_gen(void);
 int cq_replay_ruler_take(void *out);
+int cq_replay_margin_ok(void);	/* the replay can hand over candidates */
 /* "X-Rite i1Pro 3: keep M0, M1 and M2" (Beta): the replay's conditions record */
 int cq_replay_cond_ready(void);
 int cq_replay_cond_take(int cond, void *out, int n);	/* ipatch *out */
@@ -138,7 +143,7 @@ void cq_json_escape(char *dst, size_t dstlen, const char *src);
  *
  * ⚠ BUMP THIS IN THE SAME COMMIT AS ANY CHANGE TO THE HELPER, and rebuild and
  * commit native/chromiq-chartread. The test tells you the expected value. */
-#define CQ_HELPER_BUILD "chromiq-chartread 2026-11-15e legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures+exit-guard+save-after-close+i1pro2-lights+i1pro3-lights+i1pro3-lights-choices+ruler-check+usb-step-detail+i1pro2-beta-paused+i1pro2-lights-quiet+resume-spectral-check+hold-interruptible+i1pro2-ruler-back+own-row-direction+turn-round+filter-event+i1pro3-conditions+conditions-commit-last"
+#define CQ_HELPER_BUILD "chromiq-chartread 2026-11-16d legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures+exit-guard+save-after-close+i1pro2-lights+i1pro3-lights+i1pro3-lights-choices+ruler-check+usb-step-detail+i1pro2-beta-paused+i1pro2-lights-quiet+resume-spectral-check+hold-interruptible+i1pro2-ruler-back+own-row-direction+turn-round+filter-event+i1pro3-conditions+conditions-commit-last+margin-tolerance+ruler-trigger-wait+margin-one-way+margin-accounted"
 const char *cq_helper_build_string(void);
 
 
@@ -334,6 +339,7 @@ extern int  cq_swipe_reversed;
 extern char cq_swipe_fault[16];
 extern char cq_swipe_reason[96];   /* B1: a misread's driver sentence */
 extern char cq_swipe_ruler[16];    /* the ruler check: the fake ruler's mode */
+extern char cq_swipe_margin[16];   /* the margin tolerance: the fake segments */
 
 /* #202: a pending instrument trigger injected by {"cmd":"trigger"} (replay
  * only). The replay instrument then does what the i1Pro driver does when its
