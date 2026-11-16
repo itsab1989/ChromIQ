@@ -4559,12 +4559,18 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             ),
         ))
 
+        from workflow.measurement_condition import filter_choices
         filter_combo = NoScrollComboBox(parent)
-        filter_combo.setFixedWidth(130)
         filter_combo.setObjectName("compact_input")
-        for code, lbl in [("n", "None (M0)"), ("5", "D50 (M1)"), ("6", "D65"), ("u", "UV Cut (M2)"), ("p", "Polarizing (M3)")]:
+        for code, lbl in filter_choices():
             filter_combo.addItem(lbl, code)
         filter_combo.setCurrentIndex(1)
+        # 4.3.42: the entries say what each is ("M1: D50 daylight (with
+        # UV)"), so the box is as wide as its longest entry in the language
+        # shown (it was a fixed 130 px for "Polarizing (M3)"), never narrower
+        filter_combo.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToContents)
+        filter_combo.setMinimumWidth(130)
         opts.append(_ChartreadOption(
             key="filter", flag="-F",
             label=tr("Spectral filter type (-F)"),
@@ -8201,12 +8207,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._say_on_screen(title, body)
         return True
 
-    #: The "Spectral filter type (-F)" choices, as the row lists them.
-    _FILTER_LABELS = {"n": "None (M0)", "5": "D50 (M1)", "6": "D65",
-                      "u": "UV Cut (M2)", "p": "Polarizing (M3)"}
-
     def _filter_label(self, code: "str | None") -> str:
-        return self._FILTER_LABELS.get(str(code or "").lower(), str(code or ""))
+        """The "Spectral filter type (-F)" entry for *code*, as the row
+        lists it (in the language shown)."""
+        from workflow.measurement_condition import filter_choice_label
+        return filter_choice_label(code)
 
     def _measure_filter_code(self) -> "str | None":
         """The -F this read would pass, from the module's option rows (asked

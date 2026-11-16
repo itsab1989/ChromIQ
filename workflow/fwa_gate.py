@@ -499,10 +499,12 @@ def _condition_reason(condition: str, i1p_import: bool = False) -> str:
             "measurement (i1Profiler saves all of its conditions in one "
             ".mxf file), or measure the chart in M0."))
     else:
+        from workflow.measurement_condition import filter_choice_label
         parts.append(tr(
             "To use FWA compensation, measure the chart again with the "
             "Measure tab's \u201cSpectral filter type (-F)\u201d set to "
-            "\u201cNone (M0)\u201d, or switched off."))
+            "\u201c{choice}\u201d, or switched off.").format(
+                choice=filter_choice_label("n")))
     return "\n\n".join(parts)
 
 
