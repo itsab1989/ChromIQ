@@ -532,7 +532,8 @@ def test_the_whole_page_in_spot_and_strip_readings(tmp_path):
     _wl, a = read_ti3_spectra(res / "sheet_spot_readings.ti3")
     _wl, b = read_ti3_spectra(res / "sheet_strip_readings.ti3")
     assert set(a) == set(b)
-    assert max(max(x) for _s, _x, x in a.values()) > 5        # percent, not 0..1
+    for data in (a, b):                                      # percent, not 0..1 or 0..10000
+        assert 5 < max(max(x) for _s, _x, x in data.values()) <= 110
 
 
 def test_e3_asks_after_each_row_and_a_stop_is_clean(tmp_path):
@@ -1134,3 +1135,15 @@ def test_the_fake_spot_reader_refuses_to_read_while_the_arm_moves(tmp_path):
     with pytest.raises(sim_mod.SimViolation):
         r.read("A1")
     assert sim.violations
+
+
+def test_a_confirmed_region_is_asked_about_once(tmp_path):
+    code, sim, log, con, res = run_c(tmp_path, ["c2", "d1", "d2", "d3", "f"])
+    asked = [q for q, *_ in con.seen if q.endswith("Make this move now?")]
+    assert 1 <= len(asked) <= 2, len(asked)          # D2's move, D3's row: never per patch
+
+
+def test_geometry_first_visit_matches_the_driven_boxes():
+    assert not geo.first_visit((-1000, 1600), (1000, 2500))       # inside the chart box
+    assert geo.first_visit((-1000, 1200), (1000, 1200))           # behind every recorded chart
+    assert geo.first_visit((1500, 2000), (1600, 2000))            # the left 45 mm
