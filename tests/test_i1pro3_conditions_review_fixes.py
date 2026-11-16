@@ -299,8 +299,9 @@ def test_the_help_names_the_condition_not_recorded_case_and_the_comparison():
     for text in (b, " ".join(i1pro3_conditions_help().split()), c):
         assert "M0, M1 and M2 values" in text
         assert "0.15 to 0.19 ΔE00 on average" in text
-        assert "one paper" in text and "not yet" in text or \
-            "have not been compared yet" in text
+        # review 2: bracketed, so "one paper" is asserted for every text
+        assert "one paper" in text and (
+            "not yet" in text or "have not been compared yet" in text)
         for gone in ("0.2 to 0.3", "0.12", "M0 and M2 values have not",
                      "M0 and M2 values not yet"):
             assert gone not in text, gone
