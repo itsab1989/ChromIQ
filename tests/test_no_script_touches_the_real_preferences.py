@@ -1,5 +1,12 @@
 """No script or test may open or write the user's REAL ChromIQ preferences.
 
+This is a HEURISTIC scan of the source (review 2, 2026-11-16), not a proof: it
+catches the shapes below, including a `defaults` command given as a list and a
+plist name assembled from split literals, but not, for example, a QSettings()
+opened after setOrganizationName("ChromIQ"), or an `AppSettings()` written
+without CHROMIQ_SETTINGS_FILE. Those are guarded at run time (drivers sandbox
+the store through `capture_screens.build_app`).
+
 ~/Library/Preferences/com.chromiq.ChromIQ.plist (Qt domain
 QSettings("ChromIQ", "ChromIQ")) is the preferences store the owner works with
 every day. QSettings on that path can write back on sync/destruction, and a
@@ -34,7 +41,21 @@ def _strs(node):
 
 
 def _has_marker(node) -> bool:
-    return any(m in s for s in _strs(node) for m in MARKERS)
+    parts = list(_strs(node))
+    # also the literals joined, so a name split across "+" or "/" is found
+    joined = ("".join(parts), "/".join(parts))
+    return any(m in s for s in (*parts, *joined) for m in MARKERS)
+
+
+def _joined_lists(tree):
+    """(line, text) of every list/tuple of string literals, joined with
+    spaces: `["defaults", "write", "com.chromiq.ChromIQ", ...]`."""
+    for n in ast.walk(tree):
+        if isinstance(n, (ast.List, ast.Tuple)):
+            lits = [e.value for e in n.elts
+                    if isinstance(e, ast.Constant) and isinstance(e.value, str)]
+            if len(lits) >= 2:
+                yield n.lineno, " ".join(lits)
 
 
 def _name_of(n):
@@ -66,6 +87,9 @@ def scan_source(src: str) -> list[tuple[int, str]]:
         return _has_marker(node) or _mentions(node, names)
 
     out: list[tuple[int, str]] = []
+    for line, text in _joined_lists(tree):
+        if any(c in text for c in CMD_MARKERS):
+            out.append((line, "defaults command on the real domain"))
     for n in ast.walk(tree):
         if isinstance(n, ast.Constant) and isinstance(n.value, str):
             if any(c in n.value for c in CMD_MARKERS):
@@ -123,6 +147,13 @@ def test_the_scanner_flags_a_restore_and_a_defaults_write():
            'REAL_PLIST.write_bytes(b"")\n'
            'os.system("defaults write com.chromiq.ChromIQ x 1")\n')
     assert [l for l, _ in scan_source(src)] == [2, 3, 4]
+
+
+def test_the_scanner_flags_a_list_command_and_a_split_name():
+    src = ('subprocess.run(["defaults", "write", "com.chromiq.ChromIQ", "k", "1"])\n'
+           'P = Path.home() / "Library" / "Prefer" "ences" / ("com.chromiq." + "ChromIQ.plist")\n'
+           'P.write_bytes(b"")\n')
+    assert [l for l, _ in scan_source(src)] == [1, 3]
 
 
 def test_the_scanner_allows_a_read_only_hash():
