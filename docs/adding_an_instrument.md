@@ -1251,6 +1251,50 @@ nobody's fault: most are invisible until somebody knows to look.
 | Raw errors and English-only log lines | Friendly windows from the catalogue, `tr()` everywhere. |
 | Tests that need the author's device or recordings | Invented data only; every test runs anywhere. |
 | An unrelated change riding along | One topic per pull request. |
+| A new limit (memory, size) that applied to every chart while the option was on | Ask "does this chart use what only the option allows?" first ([section 9](#9-behind-a-beta-switch-and-off-changes-nothing)). |
+| A value the person typed, cut down by another setting without a word | Keep it as typed, say what does not fit, refuse Generate with the reason ([section 13](#13-files-text-and-specifications)). |
+| A thousands comma in a German sentence ("4,096 pixels") | Numbers in sentences follow the UI language; files never do. |
+| A boundary taken from the alignment sight's readings instead of the measuring opening's | Name the frame of every number; test your fit against the maker's own recorded moves ([section 12a](#12a-devices-that-move)). |
+| A whole recording session that kept nothing, after the instrument's driver was changed on Windows | Re-plug (or restart Windows) after every driver change; check "USB recorder attached: yes" before the first step ([section 2](#2-you-own-an-instrument-chromiq-does-not-support-yet-this-is-how-you-can-help)). |
+| A registry test silenced instead of answered | Classify the new field in every registry, with its reason (below). |
+| A documented number nobody could reach by hand | Reproduce it by hand in the app (below). |
+| A gate result read through a pipe or in the wrong shell | Redirect to a file and read pytest's own exit code (below). |
+| A review that only read the code | Measure every finding (below). |
+
+### Four of them, told in a little more detail
+
+**A registry test fires when you add a recipe field. That is its job.**
+Adding two fields to the chart recipe turned seven tests red at once: the
+recipe round trip, the parity check's list of candidates, the i1iO's
+classification of every field, the list of files that name the i1iO, and
+more. Each is a ledger that makes sure a new field is saved, compared and
+thought about everywhere. Answer each one: classify the field with a true
+reason, add it to the round-trip sample, name the test that covers it.
+Never make one pass by loosening it, and run the everyday tier before you
+hand the work to a reviewer, so the reviewer does not find it red.
+
+**A builder's script set a value the app does not show.** The release notes
+of 4.3.43 promised 756 patches on a 35 mm frame. The builder had measured
+that with a script that also set the layout's base margin, a value with no
+control of its own in the panel. Done by hand in the released app, with
+every setting the notes listed, the same frame holds 576. Whenever a number
+is meant for people to reproduce, reproduce it by hand in the app, or with
+a driver that only presses what a person can press.
+
+**A gate read through a pipe or in the wrong shell.** `pytest` piped into
+`tail` and followed by `echo $?` prints the exit code of `tail`, so a red
+run can look green. The same command copied between bash and zsh can also
+change meaning (`PIPESTATUS` against `pipestatus`, or a `:r` after a
+variable, which zsh reads as "drop the file extension"). Redirect the output
+to a file, read `$?` right after pytest, and check the count line for
+`failed` as well.
+
+**A review done by reading only.** Reading the code finds leads, not facts.
+In one review round, a finding made by reading was confirmed once it was
+tried, another was refuted, and the most serious fault of the round was
+found only by typing into the real resolution box, which no reading had
+suggested. A review that measures says which of its findings it measured;
+one that cannot measure something says so.
 
 The checklist's last stage lists every mistake with the test or check that
 catches it.
