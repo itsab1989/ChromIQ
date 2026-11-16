@@ -202,3 +202,11 @@ def test_without_a_turn_nothing_restarts():
     for i, s in enumerate("ABCDEFGHIJKL"):
         _read(rs, s, -1 if i % 2 else 1, bool(i % 2))
     assert rs._turn_sign == 0 and rs._old_majority() == 0
+
+
+def test_the_ruler_help_says_what_happens_after_a_turn():
+    from ui.dialogs.settings_dialog import ruler_check_help
+    h = " ".join(ruler_check_help().split())
+    assert "Turning the sheet or the ruler round is fine" in h
+    assert "compares the strips after it with the new way round straight away" in h
+    assert "Continue Anyway" in h and "for a few strips" in h

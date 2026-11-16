@@ -9638,6 +9638,19 @@ def ruler_check_help() -> str:
            "had been read the other way round: then it may have been saved "
            "back to front. A strip the reader could not read is noted in "
            "the diagnostics file with the reader's reason."),
+        # 4.3.40 / 4.3.42: a turned sheet, and how long the direction is not
+        # compared afterwards (workflow/ruler_session.py, the restart)
+        tr("**Turning the sheet or the ruler round is fine.** The ruler then "
+           "sees the next strip the other way round compared with the strips "
+           "before it. When that strip's own colours clearly show that it "
+           "was saved the right way round, ChromIQ only says so in the "
+           "Measure log and compares the strips after it with the new way "
+           "round straight away. On a chart whose strips look alike in both "
+           "directions (ramps, calibration charts) the colours cannot tell, "
+           "so ChromIQ asks: answer “Continue Anyway” if you turned the "
+           "sheet or the ruler. Then, for a few strips, ChromIQ may not "
+           "compare the direction at all until the strips read since agree "
+           "on the new way round, and the Measure log says so."),
         tr("Your readings are never changed by this. The colour values and "
            "which reading belongs to which patch are worked out exactly as "
            "without the option. When the ruler data is missing or "
