@@ -4,21 +4,26 @@
 
 Standard library only. pyusb is imported only when the REAL table is opened.
 
-THE ONE RULE OF THIS FILE: the program can put exactly SIXTEEN different lines on
+THE ONE RULE OF THIS FILE: the program can put exactly FORTY-FIVE different lines on
 the wire, listed in :data:`WIRE` (with where each was recorded in :data:`RECORDED_AT`
 and in BYTES.md beside this file). Every one is a line X-Rite's i1Profiler sent to the
-tester's own i1iO 2, byte for byte: eleven from opening, homing and closing the table,
-four moves (m0) whose targets and speed are recorded, and f1 (the hand-alignment mode
-that lets the arm go). There is no function that builds a command from numbers: the
-lines are fixed at import and :func:`check_outgoing` refuses every other byte string.
+tester's own i1iO 2, byte for byte. Part A (0.3.1's steps, unchanged on the wire) uses
+sixteen: eleven from opening, homing and closing the table, four moves (m0) whose
+targets and speed are recorded, and f1 (the hand-alignment mode that lets the arm go).
+Part B (new in 0.4.0) adds twenty-nine: m1 (i1Profiler's move to the alignment start,
+the same bytes in every recorded session) and the 28 m0 lines of the recorded spot row
+of S2 session 3, each with its recorded target and speed. There is no function that
+builds a command from numbers: the lines are fixed at import and :func:`check_outgoing`
+refuses every other byte string.
 
-The lines are sent only inside STEPS (:data:`STEPS`): fixed sequences, each a list of
+The lines are sent only inside STEPS (:data:`STEPS` for part A, :data:`B_STEPS` and the
+optional :data:`OPTIONAL_NEAR_STEPS` for part B): fixed sequences, each a list of
 operations, chosen and confirmed one by one by the person beside the table. A step is
-removed by deleting its entry; the caps follow from the list. Never in this package:
-memory or configuration writes, any line never seen in a recording (i0, m1, m2, p1,
-c3, c4, d1, a3, every u8 other than the two reads), any target the arm was not driven
-to in a recording, any speed not recorded, and every line that occurs only between
-"arm at a patch" and "reading" in the recordings.
+removed by deleting its entry; the caps follow from the lists. Never in this package:
+memory or configuration writes, any line never seen in a recording (i0, m2, p1, c3,
+c4, d1, a3, every u8 other than the two reads), any target the arm was not driven to in
+a recording, any speed not recorded, and every line that occurs only between "arm at
+a patch" and "reading" in a scan.
 
 Line format (held on every recorded line): host to table ``;`` + command id + arguments
 (lower-case hex) + checksum + CR; the table answers ``:!`` id checksum (accepted) at
@@ -35,13 +40,13 @@ import time
 from dataclasses import dataclass
 
 TOOL_NAME = "chromiq-i1io-session"
-TOOL_VERSION = "0.3.1"
+TOOL_VERSION = "0.4.0"
 
 VID, PID = 0x0971, 0x2004
 
 
 class ForbiddenLine(Exception):
-    """A line that is not one of the sixteen (a bug; it is never written)."""
+    """A line that is not one of the allowed lines (a bug; it is never written)."""
 
 
 class ProtocolError(Exception):
@@ -125,6 +130,36 @@ WIRE = {
     "to_1498":   _frame("m0", "044e05da012c"),     # ;m0044e05da012c0b  to (1102, 1498) at 300
     "to_2507":   _frame("m0", "09cb05da012c"),     # ;m009cb05da012cda  to (2507, 1498) at 300
     "free":      _frame("f1"),                     # ;f12e  hand-alignment mode (arm free)
+    # ---- 0.4.0, part B: the recorded spot row of S2 session 3 (empty table) ----
+    "m1":        _frame("m1", "0b10055b012c"),     # ;m10b10055b012c42  to the alignment start
+    "spot01": _frame("m0", "fb63067a012c"),  # ;m0fb63067a012c03  to (-1181, 1658)
+    "spot02": _frame("m0", "fbba067b012c"),  # ;m0fbba067b012ca8  to (-1094, 1659)
+    "spot03": _frame("m0", "fc11067b012c"),  # ;m0fc11067b012c08  to (-1007, 1659)
+    "spot04": _frame("m0", "fc68067b012c"),  # ;m0fc68067b012cfc  to (-920, 1659)
+    "spot05": _frame("m0", "fcbf067b012c"),  # ;m0fcbf067b012ca2  to (-833, 1659)
+    "spot06": _frame("m0", "fd17067b012c"),  # ;m0fd17067b012c01  to (-745, 1659)
+    "spot07": _frame("m0", "fd6e067c012c"),  # ;m0fd6e067c012ccd  to (-658, 1660)
+    "spot08": _frame("m0", "fdc5067c012c"),  # ;m0fdc5067c012cd0  to (-571, 1660)
+    "spot09": _frame("m0", "fe1c067c012c"),  # ;m0fe1c067c012cd3  to (-484, 1660)
+    "spot10": _frame("m0", "fe74067c012c"),  # ;m0fe74067c012cfc  to (-396, 1660)
+    "spot11": _frame("m0", "fecb067c012c"),  # ;m0fecb067c012ca2  to (-309, 1660)
+    "spot12": _frame("m0", "ff22067d012c"),  # ;m0ff22067d012c01  to (-222, 1661)
+    "spot13": _frame("m0", "ff79067d012c"),  # ;m0ff79067d012cf5  to (-135, 1661)
+    "spot14": _frame("m0", "ffd0067d012c"),  # ;m0ffd0067d012cd1  to (-48, 1661)
+    "spot15": _frame("m0", "0027067d012c"),  # ;m00027067d012c68  to (39, 1661)
+    "spot16": _frame("m0", "007e067d012c"),  # ;m0007e067d012c35  to (126, 1661)
+    "spot17": _frame("m0", "00d5067d012c"),  # ;m000d5067d012c38  to (213, 1661)
+    "spot18": _frame("m0", "012c067e012c"),  # ;m0012c067e012c3a  to (300, 1662)
+    "spot19": _frame("m0", "0184067e012c"),  # ;m00184067e012c63  to (388, 1662)
+    "spot20": _frame("m0", "01db067e012c"),  # ;m001db067e012c09  to (475, 1662)
+    "spot21": _frame("m0", "0232067e012c"),  # ;m00232067e012c69  to (562, 1662)
+    "spot22": _frame("m0", "0289067e012c"),  # ;m00289067e012c5d  to (649, 1662)
+    "spot23": _frame("m0", "02e0067f012c"),  # ;m002e0067f012c38  to (736, 1663)
+    "spot24": _frame("m0", "0338067f012c"),  # ;m00338067f012c61  to (824, 1663)
+    "spot25": _frame("m0", "038f067f012c"),  # ;m0038f067f012c2e  to (911, 1663)
+    "spot26": _frame("m0", "03e6067f012c"),  # ;m003e6067f012c31  to (998, 1663)
+    "spot27": _frame("m0", "043d067f012c"),  # ;m0043d067f012c34  to (1085, 1663)
+    "spot28": _frame("m0", "0495067f012c"),  # ;m00495067f012c5d  to (1173, 1663)
 }
 
 RECORDED_AT = {
@@ -158,16 +193,65 @@ RECORDED_AT = {
                 "525.146, 682.262; 1.695 s",
     "free":     "at every alignment, after s0 f4 f4 f3 f4 f4: S2 4.018 (answer 01; f4 then "
                 "reads 01), R1 202.217, 402.173, 717.356, R2 146.366, 429.355; 10 in all",
+    "m1":       "after m0 (2507, 1498) in every measuring session that began without a calibration: S2 3.488, 270.753, 383.348, 526.841, 683.957 (0.399-0.400 s), then s0 f4 f4 f3 f4 f4 f1; R1, R2 after (1000, 1500): 1.759 s",
+    "spot01":   "S2 session 3, S2 454.218, from (-1297, 2681), 1.456 s to (-1181, 1658) at 300; context p0 p0 m0 p0 (the first spot move, from the free arm after s0 f4 f4 f4 f4)",
+    "spot02":   "S2 session 3, S2 456.128, from (-1180, 1658), 0.431 s to (-1094, 1659) at 300; context p0 m0 p0 (spot pass, one patch on)",
+    "spot03":   "S2 session 3, S2 457.625, from (-1093, 1660), 0.432 s to (-1007, 1659) at 300; context p0 m0 p0 (spot pass, one patch on)",
+    "spot04":   "S2 session 3, S2 459.137, from (-1006, 1659), 0.432 s to (-920, 1659) at 300; context p0 m0 p0 (spot pass, one patch on)",
+    "spot05":   "S2 session 3, S2 460.644, from (-920, 1659), 0.431 s to (-833, 1659) at 300; context p0 m0 p0 (spot pass, one patch on)",
+    "spot06":   "S2 session 3, S2 462.327, from (-833, 1659), 0.431 s to (-745, 1659) at 300; context p0 m0 p0 (spot pass, one patch on)",
+    "spot07":   "S2 session 3, S2 463.598, from (-744, 1659), 0.432 s to (-658, 1660) at 300; context p0 m0 p0 (spot pass, one patch on)",
+    "spot08":   "S2 session 3, S2 465.087, from (-657, 1660), 0.431 s to (-571, 1660) at 300; context p0 m0 p0 (spot pass, one patch on)",
+    "spot09":   "S2 session 3, S2 466.554, from (-570, 1660), 0.432 s to (-484, 1660) at 300; context p0 m0 p0 (spot pass, one patch on)",
+    "spot10":   "S2 session 3, S2 468.030, from (-484, 1660), 0.432 s to (-396, 1660) at 300; context p0 m0 p0 (spot pass, one patch on)",
+    "spot11":   "S2 session 3, S2 469.539, from (-395, 1661), 0.431 s to (-309, 1660) at 300; context p0 m0 p0 (spot pass, one patch on)",
+    "spot12":   "S2 session 3, S2 471.049, from (-309, 1661), 0.431 s to (-222, 1661) at 300; context p0 m0 p0 (spot pass, one patch on)",
+    "spot13":   "S2 session 3, S2 472.697, from (-222, 1661), 0.432 s to (-135, 1661) at 300; context p0 m0 p0 (spot pass, one patch on)",
+    "spot14":   "S2 session 3, S2 474.037, from (-134, 1661), 0.431 s to (-48, 1661) at 300; context p0 m0 p0 (spot pass, one patch on)",
+    "spot15":   "S2 session 3, S2 475.517, from (-47, 1662), 0.431 s to (39, 1661) at 300; context p0 m0 p0 (spot pass, one patch on)",
+    "spot16":   "S2 session 3, S2 477.011, from (39, 1662), 0.432 s to (126, 1661) at 300; context p0 m0 p0 (spot pass, one patch on)",
+    "spot17":   "S2 session 3, S2 478.511, from (126, 1661), 0.431 s to (213, 1661) at 300; context p0 m0 p0 (spot pass, one patch on)",
+    "spot18":   "S2 session 3, S2 480.010, from (213, 1661), 0.432 s to (300, 1662) at 300; context p0 m0 p0 (spot pass, one patch on)",
+    "spot19":   "S2 session 3, S2 481.519, from (300, 1663), 0.432 s to (388, 1662) at 300; context p0 m0 p0 (spot pass, one patch on)",
+    "spot20":   "S2 session 3, S2 483.231, from (388, 1662), 0.431 s to (475, 1662) at 300; context p0 m0 p0 (spot pass, one patch on)",
+    "spot21":   "S2 session 3, S2 484.529, from (475, 1662), 0.432 s to (562, 1662) at 300; context p0 m0 p0 (spot pass, one patch on)",
+    "spot22":   "S2 session 3, S2 486.041, from (562, 1662), 0.432 s to (649, 1662) at 300; context p0 m0 p0 (spot pass, one patch on)",
+    "spot23":   "S2 session 3, S2 487.541, from (649, 1662), 0.431 s to (736, 1663) at 300; context p0 m0 p0 (spot pass, one patch on)",
+    "spot24":   "S2 session 3, S2 489.019, from (736, 1663), 0.431 s to (824, 1663) at 300; context p0 m0 p0 (spot pass, one patch on)",
+    "spot25":   "S2 session 3, S2 490.514, from (823, 1663), 0.432 s to (911, 1663) at 300; context p0 m0 p0 (spot pass, one patch on)",
+    "spot26":   "S2 session 3, S2 492.024, from (911, 1663), 0.431 s to (998, 1663) at 300; context p0 m0 p0 (spot pass, one patch on)",
+    "spot27":   "S2 session 3, S2 493.757, from (997, 1663), 0.432 s to (1085, 1663) at 300; context p0 m0 p0 (spot pass, one patch on)",
+    "spot28":   "S2 session 3, S2 495.037, from (1085, 1663), 0.432 s to (1173, 1663) at 300; context p0 m0 p0 (spot pass, one patch on)",
 }
 
 ALLOWED_LINES = frozenset(WIRE.values())
-MOTION_KEYS = frozenset({"home", "to_250", "to_1000", "to_1498", "to_2507"})
+#: The 28 spot lines in the recorded order (patch 1 at the chart's right, patch 28 at its
+#: left, as the person sees it).
+SPOT_KEYS = tuple(f"spot{k:02d}" for k in range(1, 29))
+#: Their recorded targets, read from the lines themselves (never typed twice).
+
+
+def _target(key: str) -> "tuple[int, int]":
+    b = WIRE[key].decode("ascii")
+    x, y = int(b[3:7], 16), int(b[7:11], 16)
+    return (x - 0x10000 if x & 0x8000 else x, y - 0x10000 if y & 0x8000 else y)
+
+
+SPOT_TARGETS = tuple(_target(k) for k in SPOT_KEYS)
+#: Part A's lines (0.3.1): part A may send nothing else, part B adds m1 and the spots.
+PART_A_KEYS = ("identity", "k2", "memory_a", "memory_b", "a0", "status", "arm_mode",
+               "position", "home", "f0", "f3", "to_250", "to_1000", "to_1498", "to_2507",
+               "free")
+PART_A_LINES = frozenset(WIRE[k] for k in PART_A_KEYS)
+MOTION_KEYS = frozenset({"home", "to_250", "to_1000", "to_1498", "to_2507", "m1"}
+                        | set(SPOT_KEYS))
 MOTION_LINES = frozenset(WIRE[k] for k in MOTION_KEYS)
 SECRET_KEYS = frozenset({"memory_a", "memory_b"})
 
 DATA_LEN = {"identity": 10, "k2": 14, "memory_a": 512, "memory_b": 208, "a0": 6,
             "status": 0, "arm_mode": 2, "position": 8, "home": 0, "f0": 2, "f3": 2,
-            "to_250": 0, "to_1000": 0, "to_1498": 0, "to_2507": 0, "free": 2}
+            "to_250": 0, "to_1000": 0, "to_1498": 0, "to_2507": 0, "free": 2, "m1": 0,
+            **{k: 0 for k in SPOT_KEYS}}
 EXACT_DATA = {"identity": "005D010702", "k2": "0B600000000013", "f0": "00", "f3": "00",
               "free": "01"}
 #: f4's recorded answers: 00, and 01 only after f1 (each step says which it expects).
@@ -182,10 +266,10 @@ def _key_of(line: bytes) -> str:
 
 
 def check_outgoing(line: bytes) -> str:
-    """THE GATE. The command id if *line* is exactly one of the sixteen lines;
+    """THE GATE. The command id if *line* is exactly one of the allowed lines;
     ForbiddenLine otherwise."""
     if not isinstance(line, (bytes, bytearray)) or bytes(line) not in ALLOWED_LINES:
-        raise ForbiddenLine(f"not one of the sixteen allowed lines: {line!r}")
+        raise ForbiddenLine(f"not one of the allowed lines: {line!r}")
     return bytes(line)[1:3].decode("ascii")
 
 
@@ -320,6 +404,38 @@ AT_1000 = near(1000, 1500)
 AT_1498 = near(1102, 1498)
 AT_2507 = near(2507, 1498)
 
+# ---- part B places (0.4.0) ------------------------------------------------------------
+#: Where the sensor reads after m1. Never read back in a recording (i1Profiler sends f3, f1
+#: right after m1). Two readings are accepted, nothing else:
+#:   AT_M1_SENSOR  m1 moved the sensor itself to (2832, 1371), like an m0 would;
+#:   AT_M1_SIGHT   m1 placed the alignment SIGHT there (the belief, PROTOCOL_v2 5 and
+#:                 SEQUENCE 4.1): the sensor then reads the sight position plus the recorded
+#:                 sight-to-sensor offset, (-105..-120, -306..-323) (S2 454.186 against the
+#:                 third p1 at 418.999: (-106, -323); S2 726.363 against 710.005: (-105, -312);
+#:                 R1: -110..-120, -306..-318), i.e. X 2712..2727, Y 1048..1065; widened by
+#:                 about 1.5 mm each way.
+AT_M1_SENSOR = near(2832, 1371)
+AT_M1_SIGHT = Box(2697, 2742, 1033, 1080)
+#: Where the free arm may stand before the first patch move (sensor reading): the box of the
+#: recorded starts of i1Profiler's first move from the free arm after an alignment:
+#: (-1297, 2681) S2 454.186 (this very line), (-1303, 2689) S2 726.363, (-1283, 2677) S2
+#: 114.662, (-1210, 2668) and (-1349, 2616) (the other sessions, NEXT_PROGRAMS 0.4 step 4).
+START_BOX = Box(-1360, -1200, 2600, 2700)
+RECORDED_FIRST_STARTS = ((-1297, 2681), (-1303, 2689), (-1283, 2677), (-1210, 2668),
+                         (-1349, 2616))
+#: The two readings right before the first patch move must agree this closely (the arm is
+#: free: a hand still on it would show as a difference).
+STILL_UNITS = 2
+#: How many times the person may place the free arm by hand in step B3 (each try: he
+#: pushes, presses Enter, one position read). Reads only; nothing moves under motor.
+PLACE_TRIES = 6
+#: Arrival boxes at the 28 patches (plus or minus 5 units, as every arrival in 0.3.1).
+AT_SPOT = tuple(near(x, y) for x, y in SPOT_TARGETS)
+#: The pause after each patch move before the next position read (i1Profiler's p0 followed
+#: each done answer by 0.44 s at the first patch and 1.02-1.07 s at the others, the time of
+#: its two instrument readings; S2 456.112-495.037). No line is sent during it.
+PATCH_PAUSE_S = 1.0
+
 QUICK_TIMEOUT = 1.0
 #: Time windows (seconds from the line to its done-answer) for every movement, from the
 #: recorded times, widened; outside: nothing more is sent.
@@ -344,6 +460,20 @@ TIME_WINDOW = {"home_rest": (0.0, 0.6), "home_wide": (0.0, 1.1), "home_far": (0.
 MOVE_TIMEOUT = {"home_rest": 12.0, "home_wide": 12.0, "home_far": 12.0, "home_table": 15.0, "home_free": 12.0,
                 "to_250": 4.0, "to_1000": 6.0, "to_1498": 6.0, "to_2507": 6.0,
                 "back_1498": 6.0}
+#: Part B (0.4.0):
+#:   m1           recorded 0.399-0.400 s from (2507, 1498) (S2, five sessions)
+#:   first_patch  spot01 from the free arm in START_BOX: recorded 1.456 s from (-1297, 2681)
+#:                (S2 454.218; session 5's own first line 1.455 s); predicted 1.37-1.46 s
+#:                over the box (about 2000 units/s^2)
+#:   patch        spot02..spot28 from the previous patch: recorded 0.431-0.432 s (27 of 27)
+#:   end_home     i1 from (1173, 1663) at the row end: recorded 2.559 s (S2 497.615)
+#:   home_patch   i1 from another patch of row 1 (the optional homing after a stop by the
+#:                person): recorded on this row 2.559 s from (1172, 1663) and 3.711 s from
+#:                (-1088, 1636) (S2 371.169); as home_table
+TIME_WINDOW.update({"m1": (0.25, 0.80), "first_patch": (1.0, 2.4), "patch": (0.35, 0.70),
+                    "end_home": (1.6, 4.5), "home_patch": (1.0, 6.0)})
+MOVE_TIMEOUT.update({"m1": 4.0, "first_patch": 6.0, "patch": 3.0, "end_home": 12.0,
+                     "home_patch": 15.0})
 MIN_READ_S = 0.05
 QUIET_CHECK_S = 0.05
 DRAIN_QUIET_S = 1.0
@@ -476,35 +606,198 @@ STEPS = (
 )
 
 BOXES = {"REST_GUARD": REST_GUARD, "START_GUARD": START_GUARD, "OUT_START": OUT_START, "AT_250": AT_250,
-         "AT_1000": AT_1000, "AT_1498": AT_1498, "AT_2507": AT_2507}
+         "AT_1000": AT_1000, "AT_1498": AT_1498, "AT_2507": AT_2507, "START_BOX": START_BOX}
+
+# ---- PART B (0.4.0): the recorded spot row over the empty table -----------------------------
+#
+# S2 session 3 (S2 379.860-500.238) without the chart and without the instrument: the way to
+# the alignment start, the hand-alignment mode, the arm placed by hand where the recorded first
+# patch move started, the 28 recorded patch moves, the homing from the row end and
+# i1Profiler's end-of-job lines. Each step needs the one before it (the "needs" state); no
+# step can be skipped and a later one run.
+
+B_STEPS = (
+    Step("b_home", "Send the arm to its resting place once",
+         ("warm",), "homed", HOME_FIRST, "low",
+         "The same homing as step 1 of part A: the arm is sent to its resting place, where it "
+         "already is or nearly is (usually a few millimetres, about a third of a second).",
+         "As in part A: i1Profiler sent this homing only from X 1102, Y 0 to 47; this "
+         "program also sends it from X 1090 to 1115 and Y up to 250, and stops if it takes "
+         "longer than 2 s. If the arm stands farther out, nothing moves."),
+    Step("b_align", "Drive to the place where i1Profiler starts every alignment, and let the arm go there",
+         ("homed",), "free_out",
+         (("f4", "00"), ("f4", "00"), ("p0", "OUT_START", "before driving out"),
+          ("move", "to_1498", "to_1498"), ("p0", "AT_1498", "after the first move"),
+          ("move", "to_2507", "to_2507"), ("p0", "AT_2507", "at the far side"),
+          ("move", "m1", "m1"), ("p0m1",),
+          ("x", "status"), ("f4", "00"), ("f4", "00"), ("x", "f3"), ("f4", "00"),
+          ("f4", "00"), ("x", "free"), ("f4", "01"), ("f4", "01"),
+          ("p0still", 5, "the free arm at the alignment start"), ("touch_out",)),
+         "medium",
+         "The arm drives straight out from its resting place by 150 mm (about 1.7 s), then "
+         "140 mm sideways to the far side, towards the left as you see the table when you lay "
+         "a chart on it (about 1.7 s), then makes one short move of a few centimetres (about "
+         "0.4 s) to the place where i1Profiler starts every chart alignment. These are exactly "
+         "i1Profiler's three moves at the start of the five measuring sessions of 14 November. "
+         "Then the program sends i1Profiler's lines that switch on the hand-alignment mode "
+         "(f3, then f1): the motors should let the arm go. The program reads where the arm is "
+         "and asks you to touch it gently once.",
+         "The short move (m1) is sent exactly as i1Profiler sent it, from the same place, but "
+         "what it does is not fully understood: its time does not fit a normal move, and we "
+         "believe it puts the alignment sight (the cross hairs), not the measuring opening, on "
+         "the alignment start. i1Profiler never read the position right after it; this program "
+         "does, between the moves and after m1, and stops if the arm is not where one of the "
+         "two explanations puts it. In the recordings these moves followed i1Profiler's end of "
+         "the previous job; here they follow this program's homing."),
+    Step("b_place", "You push the free arm by hand to the front right of the table",
+         ("free_out",), "free_placed", (("place",),), "low",
+         "Nothing moves under motor in this step. You push the free arm gently by the "
+         "instrument holder, as you do in i1Profiler's alignment, to the place where the first "
+         "patch move of your recorded spot measurement started: in the front right part of "
+         "the table, about 24 cm to the right of the resting place and about 27 cm towards "
+         "the front (where the alignment sight was over the bottom-right corner patch of your "
+         "chart on 14 November). Then you take your hands off and type placed, and the "
+         "program reads where the arm is. The place is a small box, 16 mm wide and 10 mm "
+         "deep, so the program tells you how far to push it if it is not there yet; you have "
+         f"{PLACE_TRIES} tries.",
+         "i1Profiler sent these lines (s0, f4 four times) after you had aimed at the third "
+         "corner patch with the instrument's button and the position under the sight had been "
+         "read (p1); here nothing is aimed, there is no p1, and typing placed takes the place of "
+         "the button. The position reads between your tries are not in the recordings (reads "
+         "only; i1Profiler read the free arm twice right before its first patch move)."),
+    Step("b_first", "The motors take the arm and drive it to the first patch",
+         ("free_placed",), "row",
+         (("p0", "START_BOX", "the free arm before the first patch move"),
+          ("p0still", STILL_UNITS, "the free arm, read a second time"),
+          ("move", "spot01", "first_patch"), ("pause", False), ("p0spot", 0)),
+         "medium",
+         "With your hands off the arm, the program reads its position twice, exactly as "
+         "i1Profiler does, and only if it is inside the box and has not moved, sends "
+         "i1Profiler's first patch move: the motors take the free arm and drive it about "
+         "10 cm towards the back of the table (about 1.5 s) to the first patch of row 1 "
+         "(table position X -1181, Y 1658). The program then checks that it arrived.",
+         "The line, its target and speed are exactly as recorded, and i1Profiler sent a first "
+         "patch move like it from a free arm in every recorded alignment (12 times). The start "
+         "is where your hand left the arm, inside the box of the recorded starts but not "
+         "exactly the recorded start (X -1297, Y 2681). After it, the arm is held by the "
+         "motors again, but the table stays in the hand-alignment mode until step 6."),
+    Step("b_row", "Row 1, patch by patch, as i1Profiler measured it (without measuring)",
+         ("row",), "row_end",
+         tuple(op for k in range(1, 28)
+               for op in (("pause", True), ("p0spot", k - 1), ("move", SPOT_KEYS[k], "patch")))
+         + (("pause", False),),
+         "low-medium",
+         "The arm steps along row 1 to the left, 27 steps of about 8.7 mm, one step about "
+         "every 1.4 seconds (each move takes about 0.43 s, then the program waits 1 s), about "
+         "40 seconds in all, 23.5 cm altogether, exactly the 27 moves of your recorded spot "
+         "measurement. Before each step it reads where the arm is and stops if it is not "
+         "within half a millimetre of the patch it was sent to. While it runs you can press "
+         "Enter to stop at the next patch, or Ctrl-C (then it sends nothing more at all). Please watch the round measuring opening "
+         "and the glider ring under it.",
+         "The moves are exactly as recorded. In the recording the instrument took two readings "
+         "in each 1 s pause; here the instrument is not used, and the program only waits."),
+    Step("b_end", "Home from the row end and end the job the way i1Profiler does",
+         ("row_end",), "b_done",
+         (("x", "status"), ("p0spot", 27), ("move", "home", "end_home"), ("x", "status"),
+          ("x", "f0"), ("f4", "00"), ("f4", "00"),
+          ("p0", "REST_GUARD", "back home after the row")),
+         "low",
+         "The arm is sent home from the end of row 1 (about 2.6 s), then the program sends "
+         "i1Profiler's end-of-job lines: f0 switches the hand-alignment mode off, f4 should "
+         "then answer 00. Last, it reads that the arm is at its resting place.",
+         "Nothing in the lines or their order: this is i1Profiler's end of your recorded spot "
+         "measurement, from the same place. The last position read is added (i1Profiler read "
+         "it at the start of the next job)."),
+)
+
+#: The two [near] steps of part B, defined here; only those named in OPTIONAL_NEAR_STEPS are
+#: ever offered. A reviewer strikes one by deleting its name from that list.
+NEAR_STEP_DEFS = {
+    "home_from_patch": Step(
+        "home_from_patch", "Send the arm home from the patch where you stopped, and end the job",
+        ("row", "row_stopped"), "b_done",
+        (("x", "status"), ("p0last",), ("move", "home", "home_patch"), ("x", "status"),
+         ("x", "f0"), ("f4", "00"), ("f4", "00"), ("p0", "REST_GUARD", "back home")),
+        "medium",
+        "You stopped on row 1. The arm is held by the motors at the patch it reached last. "
+        "This step sends it home from there (2.5 to 4 s) and then sends i1Profiler's "
+        "end-of-job lines, which switch the hand-alignment mode off, exactly as at the end of "
+        "the row. If you say no, nothing more is sent and the arm stays where it is.",
+        "i1Profiler sent this homing from two places on this same row with the arm held "
+        "(X 1172, Y 1663 at the row end, 2.6 s; X -1088, Y 1636 near the row's other end, "
+        "3.7 s, after the previous job); every patch of row 1 lies on the line between them. "
+        "From this very patch it was never sent."),
+    "close_after_end": Step(
+        "close_after_end", "Close the table the way i1Profiler closes it when you quit",
+        ("b_done",), "closed", (("x", "status"), ("x", "f0"), ("x", "f3")), "low",
+        "The two lines with which i1Profiler closes the table when you quit it. Nothing moves.",
+        "i1Profiler sent this close only after a homing (i1, s0); here it would follow the "
+        "end-of-job lines, which already contain f0, so f0 would come twice. That is not "
+        "recorded."),
+}
+#: Both are offered (the owner's ruling of 16 Nov 2026: the bar is physical harm or a memory
+#: write, and neither can do either; SAFETY_BRIEF.md, "The two optional steps"). The homing
+#: from a patch is offered only after a stop by the person on row 1: it replaces an arm left
+#: held out on the table in the hand-alignment mode by the recorded end of job, sent from a
+#: point on the same recorded homing line. The close after the end of job is offered after
+#: step 6 (or after the homing from a patch); it is not recommended, because the end of job
+#: already leaves the table as i1Profiler leaves it between jobs, and f0 twice is not
+#: recorded. A reviewer strikes either by deleting its name here.
+OPTIONAL_NEAR_STEPS = ("home_from_patch", "close_after_end")
+
+
+def near_steps() -> "tuple[Step, ...]":
+    return tuple(NEAR_STEP_DEFS[k] for k in OPTIONAL_NEAR_STEPS)
 
 
 def step_lines(step: Step) -> "list[str]":
-    """The host lines of a step, in order (for the plan, the caps and the tests)."""
+    """The host lines of a step, in order, at their most (for the plan, the caps and the
+    tests). The placement in step b_place counts all its tries."""
     out = []
     for op in step.ops:
         if op[0] == "x":
             out.append(op[1])
         elif op[0] == "f4":
             out.append("arm_mode")
-        elif op[0] == "p0":
+        elif op[0] in ("p0", "p0m1", "p0still", "p0spot", "p0last"):
             out.append("position")
         elif op[0] == "home_rest":
             out.append("home")
         elif op[0] == "move":
             out.append(op[1])
+        elif op[0] == "place":
+            out += ["status"] + ["arm_mode"] * 4 + ["position"] * PLACE_TRIES
     return out
 
 
 OPEN_KEYS = ("identity", "identity", "k2", "memory_a", "memory_b", "a0",
              "status", "arm_mode", "arm_mode", "arm_mode", "arm_mode")
 
+ALL_STEP_DEFS = STEPS + B_STEPS + tuple(NEAR_STEP_DEFS.values())
 #: Hard caps. Per step: exactly its own lines and movements. Per session: the opening plus
-#: every step once (each step can be run at most once).
-STEP_MAX_LINES = {s.key: len(step_lines(s)) for s in STEPS}
-STEP_MAX_MOTIONS = {s.key: sum(1 for k in step_lines(s) if k in MOTION_KEYS) for s in STEPS}
-MAX_LINES = len(OPEN_KEYS) + sum(STEP_MAX_LINES.values())
-MAX_MOTIONS = sum(STEP_MAX_MOTIONS.values())
+#: every step of the chosen part once (each step can be run at most once).
+STEP_MAX_LINES = {s.key: len(step_lines(s)) for s in ALL_STEP_DEFS}
+STEP_MAX_MOTIONS = {s.key: sum(1 for k in step_lines(s) if k in MOTION_KEYS)
+                    for s in ALL_STEP_DEFS}
+#: Part A (0.3.1, unchanged): 110 lines, 19 movements.
+MAX_LINES = len(OPEN_KEYS) + sum(STEP_MAX_LINES[s.key] for s in STEPS)
+MAX_MOTIONS = sum(STEP_MAX_MOTIONS[s.key] for s in STEPS)
+
+
+def _b_session_steps() -> "tuple[Step, ...]":
+    """The longest part B session: every B step, then the optional steps that may follow the
+    end of job (the homing from a patch replaces the rest of the row and the end of job, so
+    it never adds to the longest session)."""
+    return B_STEPS + tuple(s for s in near_steps() if "b_done" in s.needs)
+
+
+B_MAX_LINES = len(OPEN_KEYS) + sum(STEP_MAX_LINES[s.key] for s in _b_session_steps())
+B_MAX_MOTIONS = sum(STEP_MAX_MOTIONS[s.key] for s in _b_session_steps())
+#: The lines each part may send at all.
+PART_B_KEYS = ("identity", "k2", "memory_a", "memory_b", "a0", "status", "arm_mode",
+               "position", "home", "f0", "f3", "to_1498", "to_2507", "free", "m1") + SPOT_KEYS
+PART_LINES = {"A": PART_A_LINES, "B": frozenset(WIRE[k] for k in PART_B_KEYS)}
+PART_CAPS = {"A": (MAX_LINES, MAX_MOTIONS), "B": (B_MAX_LINES, B_MAX_MOTIONS)}
 
 
 # ---- the session ------------------------------------------------------------------------
@@ -519,6 +812,12 @@ class Doubt(Exception):
 
 class Stopped(Exception):
     """The person stopped. From now on NOTHING more is sent."""
+
+
+class PersonStop(Exception):
+    """Part B, step b_row: the person pressed Enter during a pause between two patches. The
+    session is NOT closed by this: the arm is held at the patch it reached, and the session
+    may offer the optional homing from there (OPTIONAL_NEAR_STEPS) or end."""
 
 
 _STOP_SIGNALS = tuple(getattr(signal, n) for n in ("SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT")
@@ -573,6 +872,7 @@ class Table:
         self.busy = 0
         self.stop_requested = False
         self.position_now: "tuple[int, int] | None" = None
+        self.last_read: "tuple[int, int] | None" = None
         self.motion_unconfirmed = False
         self.arrival_unknown = False
         self.state: "str | None" = None      # cold, warm, homed, free_homed, closed
@@ -586,6 +886,30 @@ class Table:
         self.before_move: "tuple[int, int] | None" = None
         #: f1 answered: the hand-alignment mode was switched on (the arm may be free)
         self.freed = False
+        # ---- 0.4.0 ----
+        #: "A" (0.3.1's steps, the default) or "B" (the recorded spot row)
+        self.part = "A"
+        #: the hand-alignment mode as the table should have it: on after f1 answered 01, off
+        #: after f0 answered 00 (part B; part A keeps 0.3.1's own logic with `freed`)
+        self.mode_on = False
+        #: True after f1 was answered (the motors let go), False after a movement from the
+        #: free arm finished with status 0 (the motors hold it again), None when unknown
+        self.arm_free: "bool | None" = False
+        #: which of the two explanations of m1 the reading after it fitted
+        self.m1_frame: "str | None" = None
+        #: the answer to the touch at the alignment start (b_align)
+        self.out_touch: "str | None" = None
+        #: the patch (0..27) whose arrival was last read, and the last patch sent to
+        self.last_spot_read: "int | None" = None
+        self.last_spot_sent: "int | None" = None
+        #: the person's placement tries in b_place and what each read
+        self.place_reads: "list[tuple[int, int]]" = []
+        #: asked between patches whether the person pressed Enter (part B, b_row)
+        self._poll_stop = lambda: False
+        #: asked in b_place: the person pushes the free arm; returns "placed" or "stop"
+        self._hand = lambda n, last: "placed"
+        #: asked at the end of b_align with the arm free at the alignment start
+        self._touch_out = lambda: "skip"
 
     # ---- logging and stopping ------------------------------------------------------
     def log(self, kind: str, text: str) -> None:
@@ -620,10 +944,13 @@ class Table:
         if self.closed_reason is not None:
             raise Doubt(f"not sending: {self.closed_reason}")
         cid = check_outgoing(line)
-        if self.lines_sent >= MAX_LINES:
+        if bytes(line) not in PART_LINES[self.part]:
+            raise self._doubt(f"a line that part {self.part} never sends (a bug)")
+        max_lines, max_motions = PART_CAPS[self.part]
+        if self.lines_sent >= max_lines:
             raise self._doubt("the program reached its limit of lines for one session")
         is_motion = line in MOTION_LINES
-        if is_motion and self.motions_sent >= MAX_MOTIONS:
+        if is_motion and self.motions_sent >= max_motions:
             raise self._doubt("the program reached its limit of movements for one session")
         if self.current_step is not None:
             key = self.current_step.key
@@ -726,6 +1053,8 @@ class Table:
         except ProtocolError as exc:
             if is_motion:            # a done-answer came (with a wrong form): it ended
                 self.motion_unconfirmed = False
+                if self.arm_free:
+                    self.arm_free = None    # held again or not: not known
             raise self._doubt(str(exc)) from None
         except TransportError as exc:
             raise self._doubt(f"the USB link failed: {exc}") from None
@@ -741,6 +1070,9 @@ class Table:
             self.busy -= 1
         if is_motion:
             self.motion_unconfirmed = False
+            self.arm_free = False           # a finished movement: the motors hold the arm
+            if key in SPOT_KEYS:
+                self.last_spot_sent = SPOT_KEYS.index(key)
             self.timings.append((f"{key}/{window}", took))
             self.log("DATA", f"{cid} ({key}) took {took:.3f} s")
             lo, hi = TIME_WINDOW[window]
@@ -772,6 +1104,7 @@ class Table:
     def position(self) -> "tuple[int, int]":
         p = self.exchange("position").xy()
         self.position_now = p
+        self.last_read = p
         self.arrival_unknown = False
         return p
 
@@ -834,8 +1167,111 @@ class Table:
         self.exchange(key, window)
 
     def can_run(self, step: Step) -> bool:
+        if step.key == "b_place" and self.out_touch != "free":
+            return False            # never ask anyone to push an arm that may be held
         return (self.closed_reason is None and self.state in step.needs
                 and step.key not in self.done_steps)
+
+    # ---- part B operations (0.4.0) ------------------------------------------------------
+    def _check_box(self, box: Box, what: str) -> "tuple[int, int]":
+        pos = self.position()
+        self.log("DATA", f"{what}: the arm reports {pos}")
+        if not box.contains(pos):
+            self.outside_at = pos
+            raise self._doubt(f"{what}: the arm reports {pos}, outside {box}",
+                              OFF_PLACE_TEXT.format(x=pos[0], y=pos[1], what=what,
+                                                    box=box.text()))
+        return pos
+
+    def _p0_after_m1(self) -> None:
+        pos = self.position()
+        frame = ("sensor" if AT_M1_SENSOR.contains(pos) else
+                 "sight" if AT_M1_SIGHT.contains(pos) else None)
+        self.log("DATA", f"after m1: the arm reports {pos} ({frame or 'neither explanation'})")
+        if frame is None:
+            self.outside_at = pos
+            raise self._doubt(
+                f"after m1: the arm reports {pos}, neither at {AT_M1_SENSOR} nor at "
+                f"{AT_M1_SIGHT}",
+                OFF_PLACE_TEXT.format(x=pos[0], y=pos[1], what="after the short move m1",
+                                      box=f"{AT_M1_SENSOR.text()} or {AT_M1_SIGHT.text()}"))
+        self.m1_frame = frame
+
+    def _p0_still(self, units: int, what: str) -> None:
+        before = self.position_now
+        if before is None:
+            raise self._doubt(f"{what}: no reading to compare with (a bug)")
+        pos = self.position()
+        self.log("DATA", f"{what}: the arm reports {pos} (before: {before})")
+        if abs(pos[0] - before[0]) > units or abs(pos[1] - before[1]) > units:
+            self.outside_at = pos
+            raise self._doubt(
+                f"{what}: the arm moved from {before} to {pos} (more than {units} units)",
+                f"The arm reports table position X {pos[0]}, Y {pos[1]}, but a moment ago it "
+                f"reported X {before[0]}, Y {before[1]}: it moved while nothing was sent "
+                "({what}). So nothing more is sent.".replace("{what}", what))
+
+    def _place(self) -> None:
+        """b_place: the person pushes the free arm; after each try one position read. The
+        lines s0 f4 f4 f4 f4 (01) come once, after the first try, as i1Profiler sent them
+        after the third corner aim (S2 419.021-419.094)."""
+        for n in range(1, PLACE_TRIES + 1):
+            last = self.place_reads[-1] if self.place_reads else None
+            self.busy -= 1              # Ctrl-C at the question stops at once
+            try:
+                ans = self._hand(n, last)
+            finally:
+                self.busy += 1
+            self._stop_if_requested()
+            if ans != "placed":
+                self.close_for_sending("you ended the placement")
+                raise Stopped("You ended the placement. Nothing more is sent to the table.")
+            if n == 1:
+                self.exchange("status")
+                for _ in range(4):
+                    self._f4("01")
+            pos = self.position()
+            self.place_reads.append(pos)
+            self.log("DATA", f"placement try {n}: the free arm reports {pos}")
+            if START_BOX.contains(pos):
+                return
+        self.outside_at = self.place_reads[-1]
+        raise self._doubt(f"the free arm was not inside {START_BOX} after {PLACE_TRIES} tries",
+                          f"After {PLACE_TRIES} tries the arm is still not inside the box "
+                          "the first patch move may start from. Nothing more is sent, and "
+                          "nothing moved under motor.")
+
+    def _pause(self, poll: bool) -> None:
+        """Wait PATCH_PAUSE_S between two patches, sending nothing, listening for anything
+        the table sends unasked (a stop), and (poll) for the person's Enter."""
+        end = self.t.now() + PATCH_PAUSE_S
+        while True:
+            self._stop_if_requested()
+            left = end - self.t.now()
+            if left <= 0:
+                break
+            try:
+                chunk = self.t.read(max(MIN_READ_S, min(left, 0.25)))
+            except TransportError as exc:
+                raise self._doubt(f"the USB link failed: {exc}") from None
+            if chunk:
+                self._buf += chunk
+                raise self._doubt(f"the table sent something nobody asked for "
+                                  f"({_short(self._buf)})")
+            if poll and self._poll_stop():
+                self.log("STEP", "you pressed Enter: stop at this patch")
+                raise PersonStop()
+        self._stop_if_requested()
+
+    def _p0_spot(self, i: int) -> None:
+        self._check_box(AT_SPOT[i], f"at patch {i + 1} of row 1")
+        self.last_spot_read = i
+
+    def _p0_last(self) -> None:
+        i = self.last_spot_sent
+        if i is None:
+            raise self._doubt("the homing from a patch without a patch reached (a bug)")
+        self._p0_spot(i)
 
     def run_step(self, step: Step) -> None:
         """Run one step's fixed operations. Any doubt or stop ends everything; nothing is
@@ -853,6 +1289,10 @@ class Table:
                     self.exchange(op[1])
                     if op[1] == "free":
                         self.freed = True
+                        self.mode_on = True
+                        self.arm_free = True
+                    elif op[1] == "f0":
+                        self.mode_on = False
                 elif kind == "f4":
                     self._f4(op[1])
                 elif kind == "p0":
@@ -871,9 +1311,33 @@ class Table:
                     finally:
                         self.busy += 1
                     self._stop_if_requested()
+                elif kind == "p0m1":
+                    self._p0_after_m1()
+                elif kind == "p0still":
+                    self._p0_still(op[1], op[2])
+                elif kind == "touch_out":
+                    self.busy -= 1
+                    try:
+                        self.out_touch = self._touch_out()
+                    finally:
+                        self.busy += 1
+                    self._stop_if_requested()
+                elif kind == "place":
+                    self._place()
+                elif kind == "pause":
+                    self._pause(op[1])
+                elif kind == "p0spot":
+                    self._p0_spot(op[1])
+                elif kind == "p0last":
+                    self._p0_last()
                 else:
                     raise self._doubt(f"unknown operation {kind} (a bug)")
             self._quiet_check()             # listens once more; sends nothing
+        except PersonStop:
+            self.state = "row_stopped"
+            self.log("STEP", f"stopped by you in {step.key} at patch "
+                             f"{(self.last_spot_sent or 0) + 1}")
+            raise
         finally:
             self.busy -= 1
             self.current_step = None

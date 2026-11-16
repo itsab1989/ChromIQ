@@ -31,10 +31,23 @@ import i1io_session_table as tbl  # noqa: E402
 import i1io_session_sim as sim_mod  # noqa: E402
 import i1io_session as prog  # noqa: E402
 
-RECORDED = {";a133", ";k228", ";u8000060000100d1", ";u8000061000068c3", ";a034", ";s022",
-            ";f42b", ";p025", ";i12b", ";f02f", ";f32c", ";m0044e00fa012c0e",
-            ";m003e805dc012c06", ";m0044e05da012c0b", ";m009cb05da012cda", ";f12e"}
-FORBIDDEN_IDS = ("i0", "m1", "m2", "c3", "c4", "d1", "a3", "p1")
+#: Part A: 0.3.1's sixteen lines.
+RECORDED_A = {";a133", ";k228", ";u8000060000100d1", ";u8000061000068c3", ";a034", ";s022",
+              ";f42b", ";p025", ";i12b", ";f02f", ";f32c", ";m0044e00fa012c0e",
+              ";m003e805dc012c06", ";m0044e05da012c0b", ";m009cb05da012cda", ";f12e"}
+#: Part B (0.4.0): m1 and the 28 spot lines of S2 session 3 (S2 454.218-495.037), copied
+#: here from the recording check (verify_new_lines.txt in the work folder), not from the
+#: program.
+SPOT_LINES = (";m0fb63067a012c03 ;m0fbba067b012ca8 ;m0fc11067b012c08 ;m0fc68067b012cfc "
+              ";m0fcbf067b012ca2 ;m0fd17067b012c01 ;m0fd6e067c012ccd ;m0fdc5067c012cd0 "
+              ";m0fe1c067c012cd3 ;m0fe74067c012cfc ;m0fecb067c012ca2 ;m0ff22067d012c01 "
+              ";m0ff79067d012cf5 ;m0ffd0067d012cd1 ;m00027067d012c68 ;m0007e067d012c35 "
+              ";m000d5067d012c38 ;m0012c067e012c3a ;m00184067e012c63 ;m001db067e012c09 "
+              ";m00232067e012c69 ;m00289067e012c5d ;m002e0067f012c38 ;m00338067f012c61 "
+              ";m0038f067f012c2e ;m003e6067f012c31 ;m0043d067f012c34 ;m00495067f012c5d").split()
+RECORDED_B_NEW = {";m10b10055b012c42", *SPOT_LINES}
+RECORDED = RECORDED_A | RECORDED_B_NEW
+FORBIDDEN_IDS = ("i0", "m2", "c3", "c4", "d1", "a3", "p1")
 OPEN = sim_mod.REC_OPEN
 STEP_KEYS = ("home", "near", "straight", "across", "free", "close")
 PROGRAM_FILES = ("i1io_session_table.py", "i1io_session.py", "i1io_session_sim.py")
@@ -130,7 +143,7 @@ ALL = OPEN + [x for k in STEP_KEYS for x in _lines(k)]
 
 # ---- the allow-list -------------------------------------------------------------------
 
-def test_bytes_md_lists_exactly_the_programs_sixteen_lines():
+def test_bytes_md_lists_exactly_the_programs_lines():
     listed = _bytes_md_lines()
     assert set(listed) == RECORDED
     assert {v.decode("ascii").rstrip("\r") for v in tbl.WIRE.values()} == RECORDED
@@ -156,7 +169,7 @@ def test_the_four_moves_have_their_recorded_targets_and_speed():
 
 
 def test_the_gate_refuses_every_other_line():
-    for bad in (b";i02c\r", b";m10b10055b012c42\r", b";c32f\r", b";c42e\r", b";d1016d35\r",
+    for bad in (b";i02c\r", b";m10b10055b012c43\r", b";c32f\r", b";c42e\r", b";d1016d35\r",
                 b";p124\r", b";m0044e00fa00c839\r", b";m0044e00fb012c0d\r", b";a133",
                 b";a133\r\r", b";A133\r", b";u8000060000200d0\r", b"", b";f12e\n"):
         with pytest.raises(tbl.ForbiddenLine):
@@ -171,13 +184,13 @@ def test_no_unrecorded_or_high_risk_command_exists_in_the_package():
             assert f'_frame("{cid}"' not in src, (name, cid)
     frames = re.findall(r'_frame\("([a-z][0-9])"(?:, "([0-9a-f]*)")?\)', _source("i1io_session_table.py"))
     assert sorted(set(f for f, _ in frames)) == sorted({"a1", "k2", "u8", "a0", "s0", "f4", "p0",
-                                                        "i1", "f0", "f3", "m0", "f1"})
+                                                        "i1", "f0", "f3", "m0", "f1", "m1"})
     assert sorted(a for f, a in frames if f == "u8") == ["000060000100", "000061000068"]
     tree = ast.parse(_source("i1io_session_table.py"))
     calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call)
              and getattr(n.func, "id", None) == "_frame"]
     assert all(all(isinstance(a, ast.Constant) for a in c.args) for c in calls)
-    assert len(calls) == 16
+    assert len(calls) == 45
 
 
 def test_the_program_writes_only_in_one_place_and_through_the_gate():
@@ -191,7 +204,7 @@ def test_the_program_writes_only_in_one_place_and_through_the_gate():
 def test_standard_library_only():
     allowed = {"__future__", "argparse", "datetime", "platform", "signal", "subprocess", "sys",
                "tempfile", "textwrap", "pathlib", "re", "time", "dataclasses", "math", "random",
-               "os", "ctypes", "termios", "fcntl", "usb", "plistlib", "i1io_session_table",
+               "os", "ctypes", "termios", "fcntl", "usb", "plistlib", "select", "i1io_session_table",
                "i1io_session_sim"}
     for name in PROGRAM_FILES:
         for node in ast.walk(ast.parse(_source(name))):
@@ -217,12 +230,20 @@ def test_the_simulator_carries_its_own_copy_of_every_step():
 # ---- caps ----------------------------------------------------------------------------------
 
 def test_the_caps_per_step_and_per_session_are_pinned():
-    assert tbl.STEP_MAX_LINES == {"home": 4, "near": 21, "straight": 19, "across": 27,
-                                  "free": 25, "close": 3}
-    assert tbl.STEP_MAX_MOTIONS == {"home": 1, "near": 5, "straight": 4, "across": 6,
-                                    "free": 3, "close": 0}
+    a = {s.key for s in tbl.STEPS}
+    assert {k: v for k, v in tbl.STEP_MAX_LINES.items() if k in a} == {
+        "home": 4, "near": 21, "straight": 19, "across": 27, "free": 25, "close": 3}
+    assert {k: v for k, v in tbl.STEP_MAX_MOTIONS.items() if k in a} == {
+        "home": 1, "near": 5, "straight": 4, "across": 6, "free": 3, "close": 0}
     assert tbl.MAX_LINES == 110 and tbl.MAX_MOTIONS == 19
-    assert tbl.MAX_LINES == len(tbl.OPEN_KEYS) + sum(tbl.STEP_MAX_LINES.values())
+    assert tbl.MAX_LINES == len(tbl.OPEN_KEYS) + sum(tbl.STEP_MAX_LINES[s.key] for s in tbl.STEPS)
+    # part B (0.4.0)
+    assert {s.key: (tbl.STEP_MAX_LINES[s.key], tbl.STEP_MAX_MOTIONS[s.key])
+            for s in tbl.B_STEPS + tbl.near_steps()} == {
+        "b_home": (4, 1), "b_align": (19, 3), "b_place": (11, 0), "b_first": (4, 1),
+        "b_row": (54, 27), "b_end": (8, 1), "home_from_patch": (8, 1), "close_after_end": (3, 0)}
+    assert (tbl.B_MAX_LINES, tbl.B_MAX_MOTIONS) == (114, 33)
+    assert tbl.PART_CAPS == {"A": (110, 19), "B": (114, 33)}
 
 
 def test_a_step_cannot_exceed_its_own_caps_nor_the_session_its_caps():
@@ -709,7 +730,7 @@ def test_the_ftdi_transport_refuses_any_other_line_itself(monkeypatch):
     dev = FakeDev()
     util, t = _ftdi(dev)
     with pytest.raises(tbl.ForbiddenLine):
-        t.write(b";m10b10055b012c42\r")
+        t.write(b";c32f\r")
     assert dev.sim.received == []
 
 

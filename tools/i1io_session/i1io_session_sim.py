@@ -13,6 +13,13 @@ of the opening and of every step's line sequence, and of where each movement may
 raises :class:`SimViolation` the moment the program sends a line that is not the next line
 of the opening or of a step not yet run, a movement from a place this copy does not allow,
 any line while the arm moves, or anything after the close.
+
+0.4.0 adds part B (the recorded spot row): its own copy of the 29 new lines, a prefix
+automaton of the whole part B session (:data:`B_GRAMMAR`), m1 as a 0.40 s move that ends
+where the BELIEF puts the sensor (the sight on (2832, 1371); a labelled belief, never read in
+a recording), f1 at the alignment start, a scripted HAND (:meth:`SimTable.hand_to`) that may
+only move a free arm, the first patch move re-engaging the motors (f4 keeps 01 until f0),
+and the 28 recorded targets with their recorded times.
 """
 from __future__ import annotations
 
@@ -32,6 +39,15 @@ A1, K2L, UA, UB, A0 = ";a133", ";k228", ";u8000060000100d1", ";u8000061000068c3"
 S0, F4, P0, I1, F0, F3, F1 = ";s022", ";f42b", ";p025", ";i12b", ";f02f", ";f32c", ";f12e"
 M250, M1000 = ";m0044e00fa012c0e", ";m003e805dc012c06"
 M1498, M2507 = ";m0044e05da012c0b", ";m009cb05da012cda"
+M1L = ";m10b10055b012c42"
+#: the simulator's own copy of the 28 spot lines of S2 session 3 (S2 454.218-495.037)
+SPOTS = (";m0fb63067a012c03 ;m0fbba067b012ca8 ;m0fc11067b012c08 ;m0fc68067b012cfc "
+         ";m0fcbf067b012ca2 ;m0fd17067b012c01 ;m0fd6e067c012ccd ;m0fdc5067c012cd0 "
+         ";m0fe1c067c012cd3 ;m0fe74067c012cfc ;m0fecb067c012ca2 ;m0ff22067d012c01 "
+         ";m0ff79067d012cf5 ;m0ffd0067d012cd1 ;m00027067d012c68 ;m0007e067d012c35 "
+         ";m000d5067d012c38 ;m0012c067e012c3a ;m00184067e012c63 ;m001db067e012c09 "
+         ";m00232067e012c69 ;m00289067e012c5d ;m002e0067f012c38 ;m00338067f012c61 "
+         ";m0038f067f012c2e ;m003e6067f012c31 ;m0043d067f012c34 ;m00495067f012c5d").split()
 
 REC_OPEN6 = [A1, A1, K2L, UA, UB, A0]
 REC_OPEN = REC_OPEN6 + [S0, F4, F4, F4, F4]
@@ -48,14 +64,74 @@ REC_STEPS = {
     "close": [S0, F0, F3],
 }
 
+#: Part B, as a sequence of (lines-of-one-repetition, min, max) items; every prefix of a
+#: sentence of this grammar may be sent, nothing else.
+_B_END = [S0, P0, I1, S0, F0, F4, F4, P0]
+B_GRAMMAR = (
+    (lambda r: REC_OPEN, 1, 1),
+    (lambda r: _HF, 1, 1),
+    (lambda r: [F4, F4, P0, M1498, P0, M2507, P0, M1L, P0, S0, F4, F4, F3, F4, F4, F1, F4,
+                F4, P0], 1, 1),
+    (lambda r: [S0, F4, F4, F4, F4, P0], 1, 1),
+    (lambda r: [P0], 0, 5),
+    (lambda r: [P0, P0, SPOTS[0], P0], 1, 1),
+    (lambda r: [P0, SPOTS[r + 1]], 0, 27),
+    (lambda r: _B_END, 1, 1),
+    (lambda r: [S0, F0, F3], 0, 1),
+)
+
+
+def _b_closure(states):
+    out, todo = set(), list(states)
+    while todo:
+        st = todo.pop()
+        if st in out:
+            continue
+        out.add(st)
+        i, r, o = st
+        if i < len(B_GRAMMAR) and o == 0 and r >= B_GRAMMAR[i][1]:
+            todo.append((i + 1, 0, 0))
+    return out
+
+
+def _b_step(states, line):
+    nxt = set()
+    for i, r, o in states:
+        if i >= len(B_GRAMMAR):
+            continue
+        fn, lo, hi = B_GRAMMAR[i]
+        if o == 0 and r >= hi:
+            continue
+        seq = fn(r)
+        if seq[o] == line:
+            nxt.add((i, r + 1, 0) if o + 1 == len(seq) else (i, r, o + 1))
+    return _b_closure(nxt)
+
+
 IDENTITY = "005D010702"
 K2 = "0B600000000013"
 HOME = (1102, 0)
 _HOST_RE = re.compile(r";([a-z][0-9])([0-9a-f]*)([0-9a-f]{2})")
 FAKE_SERIAL = "SIM0000TEST"
 #: recorded durations of the moves (seconds from the line to the done-answer)
-DURATION = {M250: 0.719, M1000: 1.599, M1498: 1.727, M2507: 1.695}
+DURATION = {M250: 0.719, M1000: 1.599, M1498: 1.727, M2507: 1.695, M1L: 0.400}
 TARGET = {M250: (1102, 250), M1000: (1000, 1500), M1498: (1102, 1498), M2507: (2507, 1498)}
+#: the simulator's own reading of the spot targets (from its own copy of the lines)
+
+
+def _xy_of(line):
+    x, y = int(line[3:7], 16), int(line[7:11], 16)
+    return (x - 0x10000 if x & 0x8000 else x, y - 0x10000 if y & 0x8000 else y)
+
+
+SPOT_XY = {ln: _xy_of(ln) for ln in SPOTS}
+#: BELIEF (labelled): m1 places the alignment sight on (2832, 1371); the sensor then reads
+#: about (2716, 1057). Tests set `m1_lands_at` to try the other explanation and wrong places.
+M1_BELIEF = (2716.0, 1057.0)
+
+
+def _first_start(p) -> bool:         # the simulator's own copy of where spot 1 may start
+    return -1360 <= p[0] <= -1200 and 2600 <= p[1] <= 2700
 
 
 def _memory_a() -> str:
@@ -110,6 +186,8 @@ class SimTable:
     mode: str = "00"
     #: True while the hand-alignment mode lets the arm go
     free_arm: bool = False
+    #: where the sensor reads after m1 (default: the labelled belief)
+    m1_lands_at: "tuple[float, float]" = M1_BELIEF
 
     def __post_init__(self):
         self._rng = random.Random(self.seed)
@@ -124,6 +202,10 @@ class SimTable:
         self._cur: "str | None" = "open"
         self._cur_i = 0
         self._closed = False
+        # part B: the prefix automaton runs beside part A's own sequence check
+        self._a_alive = True
+        self._b_states = _b_closure({(0, 0, 0)}) if not self.cold else set()
+        self.hand_moves: "list[tuple[float, float]]" = []
 
     def inject(self, kind: str, cid: "str | None" = None, value: float = 0.0) -> None:
         if kind not in FAULT_KINDS:
@@ -227,16 +309,63 @@ class SimTable:
                 self.steps_run.append(done[0])
                 self._cur = None
 
+    def _check_sequence(self, line: str) -> None:
+        """Part A's own step check and part B's automaton side by side: a line is allowed if
+        it continues either of them (they share the opening and the first homing)."""
+        a_err = None
+        if self._a_alive:
+            try:
+                if not self._sequence_choose(line):
+                    self._sequence(line)
+            except SimViolation as exc:
+                self._a_alive, a_err = False, exc
+        self._b_states = _b_step(self._b_states, line) if self._b_states else set()
+        if not self._a_alive and not self._b_states:
+            raise a_err or SimViolation(f"{line!r} continues neither part A nor part B")
+
+    @property
+    def part_b_line_count(self) -> int:
+        return len(self.received) if self._b_states else 0
+
+    #: where the scripted hand puts the free arm at each placement try (the last one repeats)
+    hand_script = ((-1290.0, 2660.0),)
+
+    def hand(self, n: int) -> None:
+        """The scripted hand of a simulated run: placement try *n* (1 = the first)."""
+        x, y = self.hand_script[min(n, len(self.hand_script)) - 1]
+        self.hand_to(x, y)
+
+    def hand_to(self, x: float, y: float) -> None:
+        """The person's hand moves the arm. Only a FREE arm, and never while it moves."""
+        if self.moving:
+            raise SimViolation("the hand moved the arm while it was moving")
+        if not self.free_arm:
+            raise SimViolation("the hand pushed an arm that the motors hold")
+        self.pos = [float(x), float(y)]
+        self.hand_moves.append((float(x), float(y)))
+
     # ---- physics (own beliefs) --------------------------------------------------------
     def _physics(self, line: str) -> None:
         if self.moving:
             raise SimViolation(f"{line[1:3]} sent while the arm is still moving")
         here = (self.pos[0], self.pos[1])
         if line == I1:
-            ok = (_start_guard(here) or (not self.free_arm and (_near(here, (1000, 1500))
-                                                              or _near(here, (1102, 1498)))))
+            ok = (_start_guard(here) or (not self.free_arm and (
+                _near(here, (1000, 1500)) or _near(here, (1102, 1498))
+                or any(_near(here, t) for t in SPOT_XY.values()))))
             if not ok:
                 raise SimViolation(f"i1 from {here}: not a place this copy allows")
+        if line == M1L:
+            if self.free_arm or not _near(here, (2507, 1498)):
+                raise SimViolation(f"m1 from {here}: not the recorded start")
+        if line in SPOT_XY:
+            k = SPOTS.index(line)
+            if k == 0:
+                if not self.free_arm or not _first_start(here):
+                    raise SimViolation(f"the first patch move from {here} (free "
+                                       f"{self.free_arm}): not a recorded start")
+            elif self.free_arm or not _near(here, SPOT_XY[SPOTS[k - 1]]):
+                raise SimViolation(f"patch move {k + 1} from {here}: not the previous patch")
         if line in TARGET:
             if self.free_arm:
                 raise SimViolation("a move while the arm is free")
@@ -245,8 +374,8 @@ class SimTable:
                         M2507: _near(here, (1102, 1498))}[line]
             if not start_ok:
                 raise SimViolation(f"{line} from {here}: not a recorded start")
-        if line == F1 and not _rest_guard(here):
-            raise SimViolation("f1 away from the resting place")
+        if line == F1 and not (_rest_guard(here) or _near(here, self.m1_lands_at)):
+            raise SimViolation("f1 away from the resting place and the alignment start")
 
     def _fault_for(self, cid: str) -> "Fault | None":
         for f in self._faults:
@@ -264,8 +393,7 @@ class SimTable:
         if not m or not checksum_ok(line):
             raise SimViolation(f"malformed line or bad checksum: {line!r}")
         cid, args = m.group(1), m.group(2)
-        if not self._sequence_choose(line):
-            self._sequence(line)
+        self._check_sequence(line)
         self._physics(line)
         t0 = max(self.clock, self._busy_until)
         index = len(self.received) - 1
@@ -311,7 +439,7 @@ class SimTable:
             self._reply(t_done, done)
         if kind == "extra_line":
             self._reply(t_done, ":$p00")
-        if line == I1 or line in TARGET:
+        if line == I1 or line in TARGET or line == M1L or line in SPOT_XY:
             self._busy_until = t_done
 
     def _xy(self, x: float, y: float) -> str:
@@ -360,9 +488,21 @@ class SimTable:
             target = (1102.0, float(self._rng.choice((0, 1, 2))))
             if _start_guard(start):
                 t = 0.048 if abs(start[1]) <= 3 else 0.17 + abs(start[1]) * 0.0038
+            elif any(_near(start, p) for p in SPOT_XY.values()):
+                t = 2.5 + abs(start[0] - 1102) * 0.0005     # 2.54 s from (1173, 1663)
             else:
                 t = 2.4
             self.free_arm = False          # the homing takes the arm again
+        elif line == M1L:
+            target, t = self.m1_lands_at, DURATION[M1L]
+        elif line in SPOT_XY:
+            target = SPOT_XY[line]
+            if SPOTS.index(line) == 0:
+                d = max(abs(target[0] - self.pos[0]), abs(target[1] - self.pos[1]))
+                t = 2 * math.sqrt(d / 2000.0) + 0.02         # 1.45 s from (-1297, 2681)
+            else:
+                t = 0.431
+            self.free_arm = False          # the motors take the arm again; f4 stays 01
         else:
             target = (float(TARGET[line][0]), float(TARGET[line][1]))
             t = DURATION[line]

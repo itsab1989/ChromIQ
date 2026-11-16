@@ -1,16 +1,18 @@
-# BYTES.md: everything chromiq-i1io-session 0.3.1 can send to the table
+# BYTES.md: everything chromiq-i1io-session 0.4.0 can send to the table
 
 This file is the allow-list. `tests/test_i1io_session_tool.py` reads the table below and fails
 if the program's own list (`i1io_session_table.WIRE`) differs from it by a single byte, or if any
 simulated session, on any path, with any fault, any stop or Ctrl-C at any point, writes a byte
 string that is not in it. Nothing outside this file is ever written to the table's bulk OUT
-endpoint 0x02.
+endpoint 0x02. Part A may send only lines 1 to 16 (0.3.1's lines); part B may send lines 1 to
+11, 14 to 16 and 17 to 45 (not the two moves of part A's step 2).
 
 Sources (seconds from the start of each recording): **R1**, **R2** the tester's recordings of
 12/13 Nov 2026; **S1** the cold-start recording and **S2** the measuring recording of 14 Nov
 2026 (i1Profiler 3.8.6 on the tester's own i1iO 2). Every line below is byte-identical to a
-line i1Profiler sent. There is no line built from numbers: the targets and the speed of the
-four moves are the recorded ones, fixed in the line.
+line i1Profiler sent; lines 17 to 45 were checked in the raw S2 capture file itself, not only in
+its decoded timeline. There is no line built from numbers: the targets and the speed of every
+move are the recorded ones, fixed in the line.
 
 ## Lines to the table (bulk OUT 0x02, one line per USB write)
 
@@ -32,8 +34,37 @@ four moves are the recorded ones, fixed in the line.
 | 14 | `;m0044e05da012c0b` | `3b 6d 30 30 34 34 65 30 35 64 61 30 31 32 63 30 62 0d` | to_1498 | from rest right after p0: R1 398.217, 713.401; S2 267.330, 379.924, 523.418, 680.534 (from Y 29..37), 1.727-1.728 s |
 | 15 | `;m009cb05da012cda` | `3b 6d 30 30 39 63 62 30 35 64 61 30 31 32 63 64 61 0d` | to_2507 | right after to_1498: R1 399.945, 715.129; S2 1.792, 269.057, 381.652, 525.146, 682.262; 1.695 s |
 | 16 | `;f12e` | `3b 66 31 32 65 0d` | free | at every alignment, after s0 f4 f4 f3 f4 f4: S2 4.018 (answer 01; f4 then reads 01), R1 202.217, 402.173, 717.356, R2 146.366, 429.355; 10 in all |
+| 17 | `;m10b10055b012c42` | `3b 6d 31 30 62 31 30 30 35 35 62 30 31 32 63 34 32 0d` | m1 | after m0 (2507, 1498) in every measuring session that began without a calibration: S2 3.488, 270.753, 383.348, 526.841, 683.957 (0.399-0.400 s), then s0 f4 f4 f3 f4 f4 f1; R1, R2 after (1000, 1500): 1.759 s |
+| 18 | `;m0fb63067a012c03` | `3b 6d 30 66 62 36 33 30 36 37 61 30 31 32 63 30 33 0d` | spot01 | S2 session 3, S2 454.218, from (-1297, 2681), 1.456 s to (-1181, 1658) at 300; context p0 p0 m0 p0 (the first spot move, from the free arm after s0 f4 f4 f4 f4) |
+| 19 | `;m0fbba067b012ca8` | `3b 6d 30 66 62 62 61 30 36 37 62 30 31 32 63 61 38 0d` | spot02 | S2 session 3, S2 456.128, from (-1180, 1658), 0.431 s to (-1094, 1659) at 300; context p0 m0 p0 (spot pass, one patch on) |
+| 20 | `;m0fc11067b012c08` | `3b 6d 30 66 63 31 31 30 36 37 62 30 31 32 63 30 38 0d` | spot03 | S2 session 3, S2 457.625, from (-1093, 1660), 0.432 s to (-1007, 1659) at 300; context p0 m0 p0 (spot pass, one patch on) |
+| 21 | `;m0fc68067b012cfc` | `3b 6d 30 66 63 36 38 30 36 37 62 30 31 32 63 66 63 0d` | spot04 | S2 session 3, S2 459.137, from (-1006, 1659), 0.432 s to (-920, 1659) at 300; context p0 m0 p0 (spot pass, one patch on) |
+| 22 | `;m0fcbf067b012ca2` | `3b 6d 30 66 63 62 66 30 36 37 62 30 31 32 63 61 32 0d` | spot05 | S2 session 3, S2 460.644, from (-920, 1659), 0.431 s to (-833, 1659) at 300; context p0 m0 p0 (spot pass, one patch on) |
+| 23 | `;m0fd17067b012c01` | `3b 6d 30 66 64 31 37 30 36 37 62 30 31 32 63 30 31 0d` | spot06 | S2 session 3, S2 462.327, from (-833, 1659), 0.431 s to (-745, 1659) at 300; context p0 m0 p0 (spot pass, one patch on) |
+| 24 | `;m0fd6e067c012ccd` | `3b 6d 30 66 64 36 65 30 36 37 63 30 31 32 63 63 64 0d` | spot07 | S2 session 3, S2 463.598, from (-744, 1659), 0.432 s to (-658, 1660) at 300; context p0 m0 p0 (spot pass, one patch on) |
+| 25 | `;m0fdc5067c012cd0` | `3b 6d 30 66 64 63 35 30 36 37 63 30 31 32 63 64 30 0d` | spot08 | S2 session 3, S2 465.087, from (-657, 1660), 0.431 s to (-571, 1660) at 300; context p0 m0 p0 (spot pass, one patch on) |
+| 26 | `;m0fe1c067c012cd3` | `3b 6d 30 66 65 31 63 30 36 37 63 30 31 32 63 64 33 0d` | spot09 | S2 session 3, S2 466.554, from (-570, 1660), 0.432 s to (-484, 1660) at 300; context p0 m0 p0 (spot pass, one patch on) |
+| 27 | `;m0fe74067c012cfc` | `3b 6d 30 66 65 37 34 30 36 37 63 30 31 32 63 66 63 0d` | spot10 | S2 session 3, S2 468.030, from (-484, 1660), 0.432 s to (-396, 1660) at 300; context p0 m0 p0 (spot pass, one patch on) |
+| 28 | `;m0fecb067c012ca2` | `3b 6d 30 66 65 63 62 30 36 37 63 30 31 32 63 61 32 0d` | spot11 | S2 session 3, S2 469.539, from (-395, 1661), 0.431 s to (-309, 1660) at 300; context p0 m0 p0 (spot pass, one patch on) |
+| 29 | `;m0ff22067d012c01` | `3b 6d 30 66 66 32 32 30 36 37 64 30 31 32 63 30 31 0d` | spot12 | S2 session 3, S2 471.049, from (-309, 1661), 0.431 s to (-222, 1661) at 300; context p0 m0 p0 (spot pass, one patch on) |
+| 30 | `;m0ff79067d012cf5` | `3b 6d 30 66 66 37 39 30 36 37 64 30 31 32 63 66 35 0d` | spot13 | S2 session 3, S2 472.697, from (-222, 1661), 0.432 s to (-135, 1661) at 300; context p0 m0 p0 (spot pass, one patch on) |
+| 31 | `;m0ffd0067d012cd1` | `3b 6d 30 66 66 64 30 30 36 37 64 30 31 32 63 64 31 0d` | spot14 | S2 session 3, S2 474.037, from (-134, 1661), 0.431 s to (-48, 1661) at 300; context p0 m0 p0 (spot pass, one patch on) |
+| 32 | `;m00027067d012c68` | `3b 6d 30 30 30 32 37 30 36 37 64 30 31 32 63 36 38 0d` | spot15 | S2 session 3, S2 475.517, from (-47, 1662), 0.431 s to (39, 1661) at 300; context p0 m0 p0 (spot pass, one patch on) |
+| 33 | `;m0007e067d012c35` | `3b 6d 30 30 30 37 65 30 36 37 64 30 31 32 63 33 35 0d` | spot16 | S2 session 3, S2 477.011, from (39, 1662), 0.432 s to (126, 1661) at 300; context p0 m0 p0 (spot pass, one patch on) |
+| 34 | `;m000d5067d012c38` | `3b 6d 30 30 30 64 35 30 36 37 64 30 31 32 63 33 38 0d` | spot17 | S2 session 3, S2 478.511, from (126, 1661), 0.431 s to (213, 1661) at 300; context p0 m0 p0 (spot pass, one patch on) |
+| 35 | `;m0012c067e012c3a` | `3b 6d 30 30 31 32 63 30 36 37 65 30 31 32 63 33 61 0d` | spot18 | S2 session 3, S2 480.010, from (213, 1661), 0.432 s to (300, 1662) at 300; context p0 m0 p0 (spot pass, one patch on) |
+| 36 | `;m00184067e012c63` | `3b 6d 30 30 31 38 34 30 36 37 65 30 31 32 63 36 33 0d` | spot19 | S2 session 3, S2 481.519, from (300, 1663), 0.432 s to (388, 1662) at 300; context p0 m0 p0 (spot pass, one patch on) |
+| 37 | `;m001db067e012c09` | `3b 6d 30 30 31 64 62 30 36 37 65 30 31 32 63 30 39 0d` | spot20 | S2 session 3, S2 483.231, from (388, 1662), 0.431 s to (475, 1662) at 300; context p0 m0 p0 (spot pass, one patch on) |
+| 38 | `;m00232067e012c69` | `3b 6d 30 30 32 33 32 30 36 37 65 30 31 32 63 36 39 0d` | spot21 | S2 session 3, S2 484.529, from (475, 1662), 0.432 s to (562, 1662) at 300; context p0 m0 p0 (spot pass, one patch on) |
+| 39 | `;m00289067e012c5d` | `3b 6d 30 30 32 38 39 30 36 37 65 30 31 32 63 35 64 0d` | spot22 | S2 session 3, S2 486.041, from (562, 1662), 0.432 s to (649, 1662) at 300; context p0 m0 p0 (spot pass, one patch on) |
+| 40 | `;m002e0067f012c38` | `3b 6d 30 30 32 65 30 30 36 37 66 30 31 32 63 33 38 0d` | spot23 | S2 session 3, S2 487.541, from (649, 1662), 0.431 s to (736, 1663) at 300; context p0 m0 p0 (spot pass, one patch on) |
+| 41 | `;m00338067f012c61` | `3b 6d 30 30 33 33 38 30 36 37 66 30 31 32 63 36 31 0d` | spot24 | S2 session 3, S2 489.019, from (736, 1663), 0.431 s to (824, 1663) at 300; context p0 m0 p0 (spot pass, one patch on) |
+| 42 | `;m0038f067f012c2e` | `3b 6d 30 30 33 38 66 30 36 37 66 30 31 32 63 32 65 0d` | spot25 | S2 session 3, S2 490.514, from (823, 1663), 0.432 s to (911, 1663) at 300; context p0 m0 p0 (spot pass, one patch on) |
+| 43 | `;m003e6067f012c31` | `3b 6d 30 30 33 65 36 30 36 37 66 30 31 32 63 33 31 0d` | spot26 | S2 session 3, S2 492.024, from (911, 1663), 0.431 s to (998, 1663) at 300; context p0 m0 p0 (spot pass, one patch on) |
+| 44 | `;m0043d067f012c34` | `3b 6d 30 30 34 33 64 30 36 37 66 30 31 32 63 33 34 0d` | spot27 | S2 session 3, S2 493.757, from (997, 1663), 0.432 s to (1085, 1663) at 300; context p0 m0 p0 (spot pass, one patch on) |
+| 45 | `;m00495067f012c5d` | `3b 6d 30 30 34 39 35 30 36 37 66 30 31 32 63 35 64 0d` | spot28 | S2 session 3, S2 495.037, from (1085, 1663), 0.432 s to (1173, 1663) at 300; context p0 m0 p0 (spot pass, one patch on) |
 
-## The steps (each at most once per session, each only after the person's yes)
+## Part A: the steps of 0.3.1 (each at most once per session, each only after the person's yes)
 
 The opening (always first, only reads): `a1 a1 k2 u8 u8 a0 s0 f4 f4 f4 f4` (11 lines; a
 table that answers a0 = 111800 gets the first six and nothing more).
@@ -58,6 +89,26 @@ from the table and before the free-arm homing read X 1101..1103, Y -1..80, `REST
 a p0 against the target (plus or minus 5 units). The person is never asked anything while the
 arm is away from its resting place.
 
+## Part B: the recorded spot row over the empty table (new in 0.4.0)
+
+The opening as in part A, then these steps, in this order, each only after the person's yes;
+each needs the one before it. The optional steps are offered only where named.
+
+| id | step | lines (at most) | movements | risk | lines in order |
+|---|---|---|---|---|---|
+| B1 | b_home | 4 | 1 | low | `s0 p0 i1 s0` |
+| B2 | b_align | 19 | 3 | medium | `f4 f4 p0 m0 p0 m0 p0 m1 p0 s0 f4 f4 f3 f4 f4 f1 f4 f4 p0` |
+| B3 | b_place | 11 | 0 | low | `s0 f4 f4 f4 f4 p0 p0 p0 p0 p0 p0` |
+| B4 | b_first | 4 | 1 | medium | `p0 p0 m0 p0` |
+| B5 | b_row | 54 | 27 | low-medium | `p0 m0` x 27 |
+| B6 | b_end | 8 | 1 | low | `s0 p0 i1 s0 f0 f4 f4 p0` |
+| opt | home_from_patch | 8 | 1 | medium | `s0 p0 i1 s0 f0 f4 f4 p0` |
+| opt | close_after_end | 3 | 0 | low | `s0 f0 f3` |
+
+Hard caps for part B: per step its own lines and movements (above); per session **114 lines, 33 movements** (the opening, every B step once, and the close after the end of job; the homing from a patch replaces the rest of the row and the end of job and never adds to it). Part A keeps **110 lines, 19 movements**.
+
+Details: in B2 the arm is read after each of the three moves; after m1 it must read either `AT_M1_SENSOR` (X 2827 to 2837, Y 1366 to 1376: m1 moved the sensor like an m0) or `AT_M1_SIGHT` (X 2697 to 2742, Y 1033 to 1080: m1 placed the sight there, the belief); after f1 the free arm must read within 5 units of that. B3: after the person's first "placed", `s0 f4 f4 f4 f4` (each 01), then one `p0` per try, at most 6 tries, until the arm reads inside `START_BOX` (X -1360 to -1200, Y 2600 to 2700). B4: `p0` inside `START_BOX`, a second `p0` within 2 units of the first, then the first patch move, then a 1 s pause and `p0` at patch 1 plus or minus 5. B5: 27 times [1 s pause, `p0` at the patch reached plus or minus 5, the next patch move]; then 1 s. B6: `s0`, `p0` at patch 28, `i1`, `s0 f0 f4 f4` (00 00), `p0` at rest (REST_GUARD). Time windows: m1 0.25-0.80 s (recorded 0.399-0.400), first patch 1.0-2.4 s (1.456), patch 0.35-0.70 s (0.431-0.432), homing from the row end 1.6-4.5 s (2.559), homing from another patch 1.0-6.0 s (2.559, 3.711).
+
 ## USB control requests (endpoint 0, before the first line)
 
 As recorded at every open: bmRequestType 0x40, wIndex 0, about 4 ms apart: reset (0x00,
@@ -76,14 +127,14 @@ As recorded at every open: bmRequestType 0x40, wIndex 0, about 4 ms apart: reset
 | s0 | `:$s00CF` |
 | f4 | `:$f400078` (00) or `:$f400177` (01), each only where the step expects it (01 only after f1) |
 | p0 | status 0, 8 hex characters, then the place check of that point |
-| i1, m0 | status 0, no data, inside the time window of that movement |
+| i1, m0, m1 | status 0, no data, inside the time window of that movement |
 | f0, f3 | `:$f00007C`, `:$f300079` (00) |
 | f1 | `:$f10017A` (01) |
 
 ## Never sent (not in this program, and the tests check that no such line exists in it)
 
-i0 (start-up of a cold table), m1 (move to the alignment start; its timing does not fit a
-plain move, meaning not established), m2, c3, c4, d1, a3 (the scanning lines, which occur only
-between "arm at a patch" and "reading"), p1, any u8 other than the two reads, any write to the
-table's or the instrument's memory, any m0 other than the four fixed lines, any other speed,
-and any command id or argument not in the table above.
+i0 (start-up of a cold table), m2, c3, c4, d1, a3 (the scanning lines, which occur only
+between "arm at a patch" and "reading" in a scan), p1, any u8 other than the two reads, any
+write to the table's or the instrument's memory, any m0 other than the 32 fixed lines, any m1
+other than the one recorded line, any other speed, any traffic to the i1Pro 2, and any command
+id or argument not in the table above.

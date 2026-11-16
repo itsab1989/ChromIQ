@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 the ChromIQ authors. Part of ChromIQ (https://github.com/itsab1989/ChromIQ).
-"""ChromIQ i1iO session test program 0.3.1: open an X-Rite i1iO 2 table that is already
-started, the way i1Profiler opens it, and then offer a few small steps, one at a time:
-the homing, three recorded drives out and back home, the hand-alignment mode, and the
-close. Each step is explained first, needs your yes, can be skipped, and is followed by a
-question about what you saw, heard and felt. It never measures.
+"""ChromIQ i1iO session test program 0.4.0: open an X-Rite i1iO 2 table that is already
+started, the way i1Profiler opens it, and then offer one of two parts, one step at a time.
+Part A is version 0.3.1's steps, unchanged: the homing, three recorded drives out and back
+home, the hand-alignment mode at rest, and the close. Part B (new) drives i1Profiler's
+recorded spot measurement of row 1 over the EMPTY table, without measuring: the way to the
+alignment start, the arm let go and placed by hand, the 28 recorded patch moves, and
+i1Profiler's end of the job. Each step is explained first, needs your yes, and is followed
+by questions about what you saw, heard and felt. It never measures.
 
     python3 i1io_session.py              practice run on a SIMULATED table (nothing is opened)
     python3 i1io_session.py --sim cold   the same, for a table that has just been switched on
@@ -35,7 +38,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import i1io_session_table as tbl  # noqa: E402
 from i1io_session_table import Doubt, Stopped  # noqa: E402
 
-TITLE = (f"ChromIQ i1iO session test program {tbl.TOOL_VERSION} (a few recorded steps, one at "
+TITLE = (f"ChromIQ i1iO session test program {tbl.TOOL_VERSION} (recorded steps, one at "
          "a time, each with your yes; never measures)")
 CONFIRM_SENTENCE = "i understand that this moves my table"
 HANDS = "Keep your hands and everything else away from the arm while it moves."
@@ -171,6 +174,159 @@ RISK_WORDS = {
     "medium": ("Risk, as we judge it: medium (recorded lines, but at least one of them in a "
                "place or order the recordings do not show exactly)."),
 }
+#: Part B's ratings say what they rest on (a part B step is never rated by part A's words).
+B_RISK_WORDS = {
+    "low": ("Risk, as we judge it: low (nothing moves under motor, exactly the recorded "
+            "lines from the recorded place, or part A's homing at the resting place)."),
+    "low-medium": ("Risk, as we judge it: low to medium (exactly the recorded moves in the "
+                   "recorded order; the pauses between them are a little different, and the "
+                   "instrument is not used)."),
+    "medium": ("Risk, as we judge it: medium (recorded lines, but at least one of them from a "
+               "place or in an order the recordings do not show exactly)."),
+}
+
+# ---- 0.4.0: choosing a part, and part B's texts ---------------------------------------------
+PART_INTRO = (
+    "This program has two parts. You choose one for this run; to run the other one, start "
+    "the program again.\n"
+    "Part A: the steps of version 0.3.1, exactly as they were (the homing, three drives out "
+    "over the empty table and back, the hand-alignment mode at the resting place, the close). "
+    "If you have not run 0.3.1 yet, please run part A first.\n"
+    "Part B (new): i1Profiler's recorded spot measurement of row 1 from 14 November, over the "
+    "EMPTY table and without measuring: the drive to the place where i1Profiler starts an "
+    "alignment, the arm let go there, you push it by hand to the front right, then the motors "
+    "take it and step it along row 1 (28 recorded moves), and it is sent home. Six steps, "
+    "about five minutes. Part B is offered only after part A (or 0.3.1) went well.")
+ASK_PART = "Which part do you want to run now? (a, b, or end to stop here)"
+PART_CHOICES = ("a", "b", "end")
+GATE_QUESTIONS = (
+    ("Have you already run part A of this program, or version 0.3.1, on this table, and did "
+     "its step 4 (out 15 cm, across to the far side, back, and home) run to its end and do "
+     "what was described?", ("yes", "no", "not sure"), "yes"),
+    ("In that run, did its step 5 (the hand-alignment mode at the resting place) end with the "
+     "arm taken back home by the program, without a stop?", ("yes", "no", "not sure"), "yes"),
+    ("In that step 5, when the arm was let go, did anything move or make a sound?",
+     ("no", "yes", "not sure"), "no"),
+)
+GATE_REFUSED = (
+    "Then part B is not offered yet: it builds on exactly those steps (the drive across to the "
+    "far side, and the hand-alignment mode). Please run part A first and send us the log. "
+    "Nothing was sent to the table.")
+B_DEPENDS = (
+    "Each step of part B needs the one before it, so there is no skipping inside part B: "
+    "\"end\" ends part B here, and nothing more is sent.")
+ASK_OUT_TOUCH = (
+    "The arm should now be free, out at the alignment start. Please put one finger on the "
+    "instrument holder and nudge it very gently sideways, by about a millimetre, then let go "
+    "at once. Do not press down, do not lift it, and do not force it. Does it give way?")
+OUT_TOUCH_CHOICES = ("free", "holds", "not sure", "skip")
+OUT_NOT_FREE = (
+    "Thank you. Then the next step (pushing the arm by hand) is not offered: nobody should "
+    "push an arm that may be held. Nothing more is sent.")
+B_BOX_CENTRE = (-1280, 2650)
+ASK_PLACE_FIRST = (
+    "Now please push the arm gently by the instrument holder, sideways only, nothing pressed "
+    "down, to the front right part of the table: about 24 cm to the right of the resting "
+    "place and about 27 cm towards the front (right and front as you see the table when you "
+    "lay a chart on it). If it resists anywhere, stop pushing. When it is there, take both "
+    "hands off the arm and type placed. Type stop to end here instead.")
+PLACE_CHOICES = ("placed", "stop")
+ASK_HAND_FEEL = ("How did the arm move under your hand: easily and evenly, or did it catch "
+                 "or resist anywhere? (a few words; press Enter to skip)")
+ASK_FIRST_FEEL = ("How did it feel and sound when the motors took the arm? (a few words; "
+                  "press Enter to skip)")
+ASK_RING = ("Did the instrument's glider ring (the ring around the round measuring opening) "
+            "stay on the mat all the time while the arm stepped along the row?")
+RING_CHOICES = ("yes", "no", "not sure", "did not see")
+ASK_LIFT = ("Did anything lift or lower at any point during the row: the instrument, its "
+            "holder, or the measuring opening?")
+LIFT_CHOICES = ("no", "yes", "not sure", "did not see")
+ASK_ROW_SEEN = ("What else did you see, hear or feel during the row: an even stepping, any "
+                "noise, anything that changed along the way? (a few words; press Enter to skip)")
+ROW_RUNNING = ("The arm is stepping along row 1 now (about 40 seconds). Press Enter to stop "
+               "at the next patch, or Ctrl-C to send nothing more at all.")
+PERSON_STOP_TEXT = ("You stopped on row 1. The arm is held by the motors at patch {n}, and the "
+                    "table is still in the hand-alignment mode.")
+
+
+B_DONE_TEXT = ("The arm is at its resting place, and the hand-alignment mode is off (f4 answered "
+               "00): the table is in the state i1Profiler leaves it in after a measurement.")
+B_MODE_LEFT = (
+    "The table is still in the hand-alignment mode: the line that switches it off (f0) is "
+    "part of the end of the job, which was not sent. Nobody has recorded yet what i1Profiler "
+    "does when it opens a table in this mode. Please do not push the arm around; it can stay "
+    "where it is. " + OPEN_I1PROFILER + " " + RECOVERY)
+B_HOME_MODE_LEFT = (
+    "The arm is at its resting place, but the table is still in the hand-alignment mode (the "
+    "end-of-job line f0 did not answer as recorded, or was not sent). " + OPEN_I1PROFILER + " "
+    + RECOVERY)
+
+
+def b_state_texts(d: tbl.Table) -> "list[str]":
+    """Part B: a TRUE statement of the table's state after the session (held or free, in the
+    hand-alignment mode or not, out on the table or at rest) and the recovery known to be
+    safe for that state. Built only from what the table answered."""
+    out = []
+    if d.motion_unconfirmed:
+        out.append(UNFINISHED)
+        if d.mode_on:
+            out.append(UNFINISHED_FREE)
+        return out
+    if d.motions_sent == 0:
+        out.append("Nothing was moved.")
+        if d.outside_at is not None:
+            x, y = d.outside_at
+            out.append(OUTSIDE_START.format(x=x, y=y, box=tbl.START_GUARD.text()))
+        elif d.state in ("warm", "homed"):
+            out.append(NOT_CLOSED)
+        return out
+    if d.last_move == ("home", True):
+        if d.mode_on:
+            out.append(B_HOME_MODE_LEFT)
+        elif d.state == "closed":
+            out.append("The arm is at its resting place, and the table was closed the way "
+                       "i1Profiler closes it.")
+        elif d.state == "b_done":
+            out.append(B_DONE_TEXT)
+        else:
+            out.append("The arm is at its resting place.")
+            out.append(NOT_CLOSED)
+        return out
+    if (d.last_move == ("home", None) and d.before_move is not None
+            and tbl.START_GUARD.contains(d.before_move) and not d.mode_on):
+        out.append("The table refused the last homing, which started at the resting place, "
+                   "so the arm should still be there.")
+        return out
+    where = d.outside_at or d.last_read
+    at = (f" (it last reported table position X {where[0]}, Y {where[1]})"
+          if where is not None else "")
+    if not d.mode_on:
+        out.append("The arm is out on the table, held by the motors" + at + ".")
+        out.append(OUT_ON_TABLE)
+        return out
+    hold = {True: "The arm is free (the motors do not hold it)",
+            False: "The arm is held by the motors",
+            None: "Whether the motors hold the arm is not known"}[d.arm_free]
+    out.append(hold + ", out on the table" + at + ".")
+    out.append(B_MODE_LEFT)
+    return out
+
+
+def place_hint(p) -> str:
+    """Which way the free arm still has to go, in plain words (right and front as the person
+    sees the table when laying a chart: X falls to the right, Y grows towards the front)."""
+    b, (cx, cy) = tbl.START_BOX, B_BOX_CENTRE
+    parts = []
+    if p[0] > b.xmax:
+        parts.append(f"about {(p[0] - cx) / 100:.1f} cm further to the right")
+    elif p[0] < b.xmin:
+        parts.append(f"about {(cx - p[0]) / 100:.1f} cm further to the left")
+    if p[1] < b.ymin:
+        parts.append(f"about {(cy - p[1]) / 100:.1f} cm further towards the front")
+    elif p[1] > b.ymax:
+        parts.append(f"about {(p[1] - cy) / 100:.1f} cm further towards the back")
+    return ("It needs to go " + " and ".join(parts) + ".") if parts else ""
+
 
 # ---- talking to the tester -------------------------------------------------------------
 
@@ -219,6 +375,20 @@ class Console:
         self.log("ANSWER", f"{question} -> {ans!r}")
         return ans
 
+    def poll_enter(self) -> bool:
+        """Part B, between two patches: has the person pressed Enter? Never waits."""
+        try:
+            import select
+            if not sys.stdin.isatty():
+                return False
+            ready, _, _ = select.select([sys.stdin], [], [], 0)
+            if ready:
+                sys.stdin.readline()
+                return True
+        except (ImportError, OSError, ValueError):
+            pass
+        return False
+
     def sentence(self, prompt: str, wanted: str) -> bool:
         _flush_typed_ahead()
         try:
@@ -235,11 +405,18 @@ class AutoConsole(Console):
     choice to every question, nothing as free text. *script* may override
     answers by a word in the question."""
 
-    def __init__(self, log, script=None, interrupt_at=None):
+    def __init__(self, log, script=None, interrupt_at=None, stop_at_poll=None):
         super().__init__(log)
         self.script = dict(script or {})
         self.asked = 0
         self.interrupt_at = interrupt_at
+        #: part B: "press Enter" at this pause between patches (1 = the first)
+        self.stop_at_poll = stop_at_poll
+        self.polls = 0
+
+    def poll_enter(self) -> bool:
+        self.polls += 1
+        return self.stop_at_poll is not None and self.polls == self.stop_at_poll
 
     def _maybe_interrupt(self):
         self.asked += 1
@@ -319,14 +496,20 @@ def plan_text(hex_bytes: bool = False) -> str:
 
 class Session:
     def __init__(self, table: tbl.Table, ui, simulated: bool, other_program=None,
-                 answers=None):
+                 answers=None, sim_hand=None):
         self.d, self.ui, self.simulated = table, ui, simulated
         self.other_program = other_program or (lambda: False)
         self.answers: "list[tuple[str, str]]" = list(answers or [])
         self.stopped_by_person = False
         self.touch_asked = False
         self.seen_ok = True
+        #: simulated runs only: the simulator's scripted hand (moves the simulated free arm)
+        self.sim_hand = sim_hand
+        self.part = None
         table._touch = self._free_touch
+        table._touch_out = self._out_touch
+        table._hand = self._hand
+        table._poll_stop = lambda: bool(getattr(self.ui, "poll_enter", lambda: False)())
 
     def note(self, question: str, answer: str) -> None:
         self.answers.append((question, answer))
@@ -335,6 +518,164 @@ class Session:
         ans = self.ui.ask(ASK_FREE_TOUCH, FREE_CHOICES)
         self.note("free arm at home (step 'free')", ans)
         return ans
+
+    # ---- part B (0.4.0) ---------------------------------------------------------------------
+    def _out_touch(self) -> str:
+        ans = self.ui.ask(ASK_OUT_TOUCH, OUT_TOUCH_CHOICES)
+        self.note("free arm at the alignment start (part B step 2)", ans)
+        return ans
+
+    def _hand(self, n: int, last) -> str:
+        if n == 1:
+            q = ASK_PLACE_FIRST
+        else:
+            q = (f"The arm reports table position X {last[0]}, Y {last[1]}; the box it must be "
+                 f"in is {tbl.START_BOX.text()}. " + place_hint(last) + " Please push it "
+                 "there gently, take both hands off the arm, and type placed (try "
+                 f"{n} of {tbl.PLACE_TRIES}). Type stop to end here instead.")
+        ans = self.ui.ask(q, PLACE_CHOICES)
+        self.note(f"placement try {n}", ans)
+        if ans == "placed" and self.sim_hand is not None:
+            self.sim_hand(n)
+        return ans
+
+    def choose_part(self) -> str:
+        self.ui.say("")
+        self.ui.say(PART_INTRO)
+        part = self.ui.ask(ASK_PART, PART_CHOICES)
+        self.note("part", part)
+        if part != "b":
+            return part
+        for q, choices, good in GATE_QUESTIONS:
+            ans = self.ui.ask(q, choices)
+            self.note(q, ans)
+            if ans != good:
+                self.ui.say(GATE_REFUSED)
+                return "refused"
+        return "b"
+
+    def offer_b(self, n: int, step: tbl.Step) -> str:
+        self.ui.say("")
+        self.ui.say(f"Part B, step {n}: {step.title}.")
+        self.ui.say(step.explain)
+        if step.key == "b_row" and "home_from_patch" in tbl.OPTIONAL_NEAR_STEPS:
+            self.ui.say("If you press Enter during the row, the program stops at the next "
+                        "patch and then offers to send the arm home from there.")
+        self.ui.say("What is not exactly as recorded: " + step.beyond)
+        m = tbl.STEP_MAX_MOTIONS[step.key]
+        lines = tbl.STEP_MAX_LINES[step.key]
+        self.ui.say(B_RISK_WORDS[step.risk] + f" It sends at most {lines} lines; "
+                    + ("none of them moves the arm." if m == 0 else
+                       "1 of them moves the arm." if m == 1 else f"{m} of them move the arm."))
+        if step.key in ("b_align", "b_place", "b_first", "b_row"):
+            self.ui.say(B_DEPENDS)
+        if m:
+            self.ui.say(PLUG)
+            self.ui.say(STOP_PROMISE)
+            question = f"{HANDS} Run this step now?"
+        else:
+            question = "Run this step now?"
+        ans = self.ui.ask(question, ("yes", "end"))
+        self.note(f"step {step.key}", ans)
+        return ans
+
+    def offer_near(self, step: tbl.Step, why: str) -> str:
+        self.ui.say("")
+        self.ui.say(f"Offered: {step.title}.")
+        self.ui.say(why)
+        self.ui.say(step.explain)
+        self.ui.say("What is not exactly as recorded: " + step.beyond)
+        m = tbl.STEP_MAX_MOTIONS[step.key]
+        self.ui.say(B_RISK_WORDS[step.risk] + f" It sends {tbl.STEP_MAX_LINES[step.key]} "
+                    "lines; " + ("none of them moves the arm." if m == 0 else
+                                 "1 of them moves the arm."))
+        if m:
+            self.ui.say(PLUG)
+            q = f"{HANDS} Run it now?"
+        else:
+            q = "Run it now?"
+        ans = self.ui.ask(q, ("yes", "no"))
+        self.note(f"optional {step.key}", ans)
+        return ans
+
+    def _after_b_step(self, step: tbl.Step) -> None:
+        """The questions after a part B step (nothing moves while they are asked)."""
+        if step.key == "b_place":
+            self.note("b_place: how the arm moved under the hand", self.ui.text(ASK_HAND_FEEL))
+            return
+        did = self.ui.ask(ASK_DID, DID_CHOICES)
+        self.note(f"step {step.key}: as described?", did)
+        if step.key == "b_first":
+            self.note("b_first: the motors taking the arm", self.ui.text(ASK_FIRST_FEEL))
+        if step.key == "b_row":
+            self.note("b_row: glider ring on the mat all the time?",
+                      self.ui.ask(ASK_RING, RING_CHOICES))
+            self.note("b_row: anything lifted or lowered?", self.ui.ask(ASK_LIFT, LIFT_CHOICES))
+            self.note("b_row: seen, heard, felt", self.ui.text(ASK_ROW_SEEN))
+        else:
+            self.note(f"step {step.key}: seen, heard, felt", self.ui.text(ASK_SEEN))
+        if did == "stop":
+            self.stopped_by_person = True
+            raise Stopped(STOPPED)
+        if did != "yes":
+            self.seen_ok = False
+            raise Stopped("Thank you, that is exactly what we need to know. The program stops "
+                          "here; nothing more is sent.")
+
+    def _run_near(self, key: str, why: str) -> bool:
+        if key not in tbl.OPTIONAL_NEAR_STEPS:
+            return False
+        step = tbl.NEAR_STEP_DEFS[key]
+        if not self.d.can_run(step):
+            return False
+        if self.offer_near(step, why) != "yes":
+            return False
+        if self.other_program():
+            self.d.close_for_sending("i1Profiler was started during the session")
+            raise Stopped("i1Profiler has started, so the program stops here. Nothing more "
+                          "is sent to the table.")
+        self.d.run_step(step)
+        if tbl.STEP_MAX_MOTIONS[step.key]:
+            self._after_b_step(step)
+        return True
+
+    def go_b(self) -> int:
+        d = self.d
+        for n, step in enumerate(tbl.B_STEPS, 1):
+            if not d.can_run(step):
+                if step.key == "b_place" and d.out_touch != "free":
+                    self.ui.say(OUT_NOT_FREE)
+                    d.close_for_sending("the arm did not give way at the alignment start")
+                    return 1
+                break
+            ans = self.offer_b(n, step)
+            if ans != "yes":
+                if d.state == "row":
+                    self._run_near("home_from_patch", "You ended part B with the arm on row 1.")
+                return 0
+            if self.other_program():
+                d.close_for_sending("i1Profiler was started during the session")
+                raise Stopped("i1Profiler has started, so the program stops here: two "
+                              "programs must never talk to the table at the same time. "
+                              "Nothing more is sent to the table.")
+            if step.key == "b_row":
+                self.ui.say(ROW_RUNNING)
+            try:
+                d.run_step(step)
+            except tbl.PersonStop:
+                self.ui.say(PERSON_STOP_TEXT.format(n=(d.last_spot_sent or 0) + 1))
+                if not self._run_near("home_from_patch", "You stopped on row 1."):
+                    self.stopped_by_person = True
+                    d.close_for_sending("stopped by you on row 1")
+                    return 1
+                break
+            self.ui.say(f"Part B, step {n} is done.")
+            self._after_b_step(step)
+        if d.state == "b_done":
+            self._run_near("close_after_end", "Part B is done. We do not recommend this close: "
+                           "the end of job has already left the table as i1Profiler leaves "
+                           "it between jobs. It is offered so you can try it if you like.")
+        return 0
 
     def offer(self, n: int, step: tbl.Step) -> str:
         self.ui.say("")
@@ -360,6 +701,13 @@ class Session:
     def go(self) -> int:
         """The whole session. 0: ended as chosen; 1: stopped by you or cold table; 2: a doubt."""
         try:
+            part = self.choose_part()
+            if part not in ("a", "b"):
+                self.d.close_for_sending("no part was chosen")
+                return 0 if part == "end" else 1
+            self.part = part.upper()
+            self.d.part = self.part
+            self.ui.log("INFO", f"part {self.part} chosen")
             self.ui.say("Talking to the table. Nothing moves yet.")
             if self.d.opening() == "cold":
                 self.ui.say("The table answered as expected, and we believe it says it has just "
@@ -368,6 +716,8 @@ class Session:
             self.ui.say("The table answered as expected: it is started (a0 = 130000), and f4 "
                         "answered 00 as at every recorded opening (f4 is a mode flag; it does "
                         "not tell whether the motors hold the arm).")
+            if self.part == "B":
+                return self.go_b()
             for n, step in enumerate(tbl.STEPS, 1):
                 if not self.d.can_run(step):
                     continue
@@ -436,6 +786,14 @@ class Session:
         return "maybe out"
 
     def ending(self, code: int) -> None:
+        if self.part == "B":
+            try:
+                self.ui.say("")
+                for text in b_state_texts(self.d):
+                    self.ui.say(text)
+            except BaseException:
+                pass
+            return
         try:
             d, w = self.d, self.where()
             #: f1 was answered and the close never followed: the hand-alignment mode is on
@@ -868,10 +1226,19 @@ def main(argv=None, sim_table=None, console=None) -> int:
         try:
             r = Session(table, ui, simulated=not args.real,
                         other_program=i1profiler_running if args.real else None,
-                        answers=pre_notes)
+                        answers=pre_notes,
+                        sim_hand=None if args.real else getattr(transport.table, "hand", None))
             code = r.go()
             r.ending(code)
             r.after(transport, real=args.real, code=code)
+            if r.part == "B":
+                log("INFO", f"part B: after m1 the reading fitted the {table.m1_frame or '-'} "
+                            f"explanation; touch at the alignment start "
+                            f"{table.out_touch or '-'}; placement reads {table.place_reads}; "
+                            f"last patch sent {(table.last_spot_sent or -1) + 1}, last read "
+                            f"{(table.last_spot_read if table.last_spot_read is not None else -1) + 1}; "
+                            f"hand-alignment mode {'on' if table.mode_on else 'off'}; arm "
+                            f"{ {True: 'free', False: 'held', None: 'unknown'}[table.arm_free] }")
             log("INFO", f"result {code}; table {table.state or 'not asked'}; steps done "
                         f"{table.done_steps or 'none'}; {table.lines_sent} lines sent, "
                         f"{table.motions_sent} movements; arm {r.where()}; move times "
