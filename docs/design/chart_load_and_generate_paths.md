@@ -430,7 +430,14 @@ while the option is on and hands it back to Create Chart; off, it opens as in
 * **Building.** A side given in pixels has exactly that many pixels on every
   page; a side in mm or inches has `round(mm x ppi / 25.4)` pixels (the
   renderer's own rule, shown in the panel before generating). Each side is
-  1 mm to 2000 mm, whatever unit it is typed in. A chart that uses what only
+  1 mm to 2000 mm, whatever unit it is typed in. A side typed in pixels is
+  never changed by the resolution: one that makes less than 1 mm or more
+  than 2000 mm at the resolution set is kept as typed, the line under the
+  fields says so in red with the resolutions that fit, and Generate and the
+  build refuse it with the same words (re-review R3-a, 2026-11-16; it used to
+  be cut to the field's top, silently and for good). The resolution box takes
+  its value on Return or when it is left while the Beta is on; with it off it
+  follows every key as in 4.3.42. A chart that uses what only
   the Beta allows (a side in inches or pixels, fractions of a millimetre,
   more than 1200 dpi) and whose drawing would need more than 8 GiB of
   memory (measured per pixel, for its inks) is refused: in Manual before the
