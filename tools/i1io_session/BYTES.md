@@ -1,4 +1,10 @@
-# BYTES.md: everything chromiq-i1io-session 0.5.0 can send to the table
+# BYTES.md: everything chromiq-i1io-session 0.5.1 can send to the table
+
+0.5.1 sends exactly what 0.5.0 sends: no line, gate, cap or limit below changed. Its
+changes are on the instrument side (the check before the reader counts each USB device
+once), in texts and questions, and in how strip readings are cut into patches after the
+move (the motion start 0.372 s after the lamp trigger instead of 0.43 s); none of them
+reaches the table.
 
 This file is the allow-list. `tests/test_i1io_session_tool.py` reads the table below and fails
 if the program's own list (`i1io_session_table.WIRE`) differs from it by a single byte, or if any

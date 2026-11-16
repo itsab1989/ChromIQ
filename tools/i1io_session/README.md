@@ -1,4 +1,4 @@
-# ChromIQ i1iO session test program 0.5.0 (one step at a time; part C reads)
+# ChromIQ i1iO session test program 0.5.1 (one step at a time; part C reads)
 
 **This is an unofficial test program. It is not from X-Rite, and X-Rite has
 nothing to do with it.** Running it is entirely your choice, at every single
@@ -40,6 +40,42 @@ what you saw, heard and felt.
 anything into the table's memory or the instrument's memory, and no part sends
 a line of its own for the measuring head.** The program is not part of the
 ChromIQ app and does not need it.
+
+## What is new in 0.5.1
+
+0.5.1 fixes what went wrong in the first real run of part C with 0.5.0. It was
+our fault, not your table's, your i1Pro 2's or your Mac's.
+
+* **The instrument check counted your one i1Pro 2 twice.** macOS lists every
+  USB device together with an entry for its connection inside the device (its
+  "interface"), and gives that entry the device's own USB numbers. 0.5.0
+  counted that entry as a second i1Pro 2, said "macOS lists more than one
+  i1Pro" and did not start the reader. 0.5.1 counts each device once, writes
+  into the log exactly what it counted (USB numbers and USB places only, never
+  a name or a serial number), and, if it still refuses, says what it saw. The
+  advice in 0.5.0 to connect only one instrument was wrong and is gone: please
+  never unplug anything while the program runs.
+* **If the table's USB connection is lost** (a cable unplugged, the table
+  switched off, or the connection dropping by itself), part C now says so
+  plainly, sends nothing more, offers no more stages, and gives the safe way
+  back: let the program end; switch the table off and on (or unplug its USB
+  cable from the Mac and plug it in again); open i1Profiler and let it find the
+  table; if it does not, restart the Mac. It also asks you whether you unplugged
+  or switched off something, or whether it happened by itself.
+* **Before the reader starts for the first time in a sitting**, the program
+  tells you what it does to X-Rite's background service for the i1Pro (see
+  "What the instrument part does on a Mac") and asks for your yes.
+* After a stage that failed, the program reminds you that it keeps the table's
+  USB connection while it runs, so i1Profiler cannot find the table until the
+  program has ended.
+* **Strip readings are cut at the right place.** Measured on the i1Profiler
+  recordings, the table starts a strip move 0.372 s after the instrument's lamp trigger,
+  with the first reading, not 0.43 s as 0.5.0 assumed (that was 12 readings
+  late). The cut no longer "refines" itself (it was measured to make things
+  worse), and it now reports how even each patch's readings are.
+* Parts A and B are unchanged on the wire (compared byte for byte with 0.5.0),
+  and so is every line part C can send. The reader in `bin` is the same file as
+  in 0.5.0.
 
 ## What is new in 0.5.0
 
