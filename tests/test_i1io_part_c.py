@@ -772,3 +772,97 @@ def test_ctrl_c_at_every_question_of_the_sheet_stages_sends_nothing_more(tmp_pat
         assert sim.received == lines[:len(sim.received)], n
         assert not sim.moving and sim.m2_pending is None
         check_truthful(sim, con, log)
+
+
+# ---- caps, the "no" answers, calibration out on the table, the instrument check -------------
+
+def test_part_c_caps_are_pinned_and_each_step_keeps_its_own(tmp_path):
+    assert (pc.C_MAX_LINES, pc.C_MAX_MOVES) == pc.session_caps()
+    assert pc.C_MAX_LINES < 20000 and pc.C_MAX_MOVES < 8000
+    code, sim, log, con, res = run_c(tmp_path, ALL_STAGES)
+    tab_lines = len(sim.received)
+    assert tab_lines <= pc.C_MAX_LINES
+    # a stage step that tries one line more than its cap is stopped by Table._write
+    d = tbl.Table(sim_mod.SimTransport(csim.CSimTable()), log=lambda k, t: None)
+    d.part = "C"
+    d.c_gate = cl.make_gate(d)
+    d.c_caps = (pc.C_MAX_LINES, pc.C_MAX_MOVES)
+    d.opening()
+    d.current_step = pc.CStep("x", 2, 0)
+    d.step_lines = 0
+    d.position()
+    d.position()
+    with pytest.raises(tbl.Doubt):
+        d.position()
+    d2 = tbl.Table(sim_mod.SimTransport(csim.CSimTable()), log=lambda k, t: None)
+    d2.part = "C"
+    d2.c_gate = cl.make_gate(d2)
+    d2.c_caps = (len(tbl.OPEN_KEYS) + 1, 0)
+    d2.opening()
+    d2.position()
+    with pytest.raises(tbl.Doubt):
+        d2.position()
+
+
+@pytest.mark.parametrize("arm,goes_on", [("no", True), ("yes", False), ("not sure", False)])
+def test_after_a_no_only_a_wrong_table_restricts_the_sitting_to_the_homing(tmp_path, arm,
+                                                                           goes_on):
+    code, sim, log, con, res = run_c(
+        tmp_path, ["c3", "c4", "f"],
+        script={"Did the table and the instrument do what was described?": "no",
+                "Did anything about the TABLE or the ARM": arm})
+    keys = [k for k, _ in verdicts(log)]
+    assert keys == (["c3", "c4"] if goes_on else ["c3", "f"]), keys
+
+
+def test_a_calibration_asked_for_out_on_the_table_is_refused(tmp_path):
+    rd_ = readers(spot={"needs_cal": True})
+    code, sim, log, con, res = run_c(tmp_path, ["c1", "d1", "d3", "f"], readers=rd_)
+    v = verdicts(log)
+    assert ("d3", "failed cleanly (instrument)") in v, v
+    assert "A calibration needs the instrument on a white tile" in screen(con)
+    qs = [q for q, *_ in con.seen]
+    d1 = next(i for i, q in enumerate(qs) if q.startswith("Mark 1:"))
+    assert not any(q in (pc.CAL_WHERE, pc.CAL_OWN) for q in qs[d1:])
+
+
+def test_after_the_homing_the_sheet_must_be_aimed_again(tmp_path):
+    code, sim, log, con, res = run_c(tmp_path, ["d1", "f", "d2", "f"])
+    assert verdicts(log) == [("d1", "worked"), ("f", "worked")]
+    assert "D2 (it needs D1 first)" in screen(con)
+
+
+def test_the_instrument_check_wants_exactly_one_i1pro_and_nothing_else():
+    from i1io_reader import instrument_check
+    table, pro = (0x0971, 0x2004), (0x0971, 0x2000)
+    assert instrument_check([table, pro, (0x05AC, 0x1234)]) is None
+    assert "no i1Pro 2" in instrument_check([table])
+    assert "more than one" in instrument_check([table, pro, pro])
+    for other in ((0x0765, 0x5020), (0x085C, 0x0500), (0x0971, 0x2007)):
+        assert "Another measuring instrument" in instrument_check([table, pro, other])
+
+
+def test_the_reader_s_problems_are_named(tmp_path, monkeypatch):
+    import i1io_reader as rd
+    monkeypatch.setattr(rd.sys, "platform", "darwin")
+    assert "missing" in " ".join(rd.helper_problems(tmp_path / "nope"))
+    f = tmp_path / "chromiq-chartread"
+    f.write_bytes(b"")
+    f.chmod(0o644)
+    assert "chmod +x" in " ".join(rd.helper_problems(f))
+    monkeypatch.setattr(rd.sys, "platform", "linux")
+    assert "only on a Mac" in " ".join(rd.helper_problems(f))
+
+
+def test_the_bundled_reader_is_the_built_one():
+    import hashlib
+    h = hashlib.sha256((PKG / "bin" / "chromiq-chartread").read_bytes()).hexdigest()
+    assert h == "5975f18d2d3ae4b47fc5b37da08937a19a1b0573fc78b2e5636bf57aaecd083c"
+
+
+def test_the_reader_is_never_asked_for_a_beta_flag_or_a_memory_write():
+    src = (PKG / "i1io_reader.py").read_text()
+    for flag in ("--i1pro2-lights", "--ruler", "--condition-dir", "--lights-", "eeprom",
+                 "write_eeprom"):
+        assert f'"{flag}' not in src
+    assert src.count("subprocess.Popen(") == 1
