@@ -15327,8 +15327,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             from ui.widgets import open_files_dialog
             paths = open_files_dialog(
                 self, tr("Choose the measurements to import"),
-                tr("Measurement files (*.cmxf *.mxf *.cxf *.txt *.ti3);;"
-                   "All files (*)"),
+                tr("Measurement files (*.cmxf *.mxf *.cxf *.txt *.ti3);;All files (*)"),  # noqa: E501
                 start_dir=start_dir,
                 extra_path=self._settings.get("custom_output_path", ""),
                 declutter_settings=self._settings)

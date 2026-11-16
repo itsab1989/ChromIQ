@@ -220,6 +220,13 @@ Layout:
       example `workflow/i1io/support.py::display_rotation_for`); files never
       turned; no rule for any other chart.
 - [ ] **2.17** Capacity from geometry; Guided's count equals what is printed.
+- [ ] **2.18** A measurement brought back in parts (example: the i1iO's
+      chart of several pages, one file per sheet, `workflow/i1io/pages.py`):
+      the parts wait in the run folder through `Run`, the run's measurement is
+      written only once every part is in; a new chart says it archives them
+      (`workflow/chart_integrity.py::assess_profiling_chart`); Build Profile
+      says which parts are missing (`ui/tabs/tab_profile.py`), each behind the
+      switch.
 
 **Done means:** a fresh window with the switch on offers the instrument in
 Guided, Manual and Preferences > Chart Layout, Generate makes a chart that

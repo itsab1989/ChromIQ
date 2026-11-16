@@ -479,7 +479,10 @@ def test_every_write_in_the_filing_path_is_guarded():
             ("proj.duplicate_run(", "ask_to_make_a_new_run(",
              "shutil.copy2(")),
         "TabMeasure._import_into_profiling_run": (
-            inspect.getsource(TabMeasure._import_into_profiling_run),
+            # the door and its filing steps (`_file_into_profiling_run`,
+            # moved out unchanged 2026-11-16 for the i1iO pages import)
+            inspect.getsource(TabMeasure._import_into_profiling_run)
+            + inspect.getsource(TabMeasure._file_into_profiling_run),
             ("proj.duplicate_run(", "ask_to_make_a_new_run(",
              "shutil.copy2(")),
     }

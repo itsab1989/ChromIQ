@@ -373,6 +373,9 @@ def test_the_device_values_are_attached_before_the_copy_is_filed():
             (TabMeasure._import_into_verification, "verify_chart_ti2"),
             (TabMeasure._import_into_profiling_run, "chart_ti2")):
         src = inspect.getsource(door)
+        if door is TabMeasure._import_into_profiling_run:
+            # its filing steps live in `_file_into_profiling_run` (2026-11-16)
+            src += inspect.getsource(TabMeasure._file_into_profiling_run)
         assert "complete_from_chart" in src, (
             f"{door.__name__} never asks the chart for the device values")
         assert src.index("complete_from_chart") < src.index("shutil.copy2"), (
