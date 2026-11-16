@@ -643,3 +643,16 @@ def test_generate_refuses_an_over_budget_page_before_anything_runs(qapp,
     lines.clear()
     assert TabChart._refuse_page_over_budget(fake) is False and not lines
     panel.deleteLater()
+
+
+def test_off_generate_is_refused_only_for_what_needs_the_beta(panel_off):
+    from ui.dialogs import page_output_panel as pop
+    from workflow.layout_engine.presets import default_recipe
+    p = panel_off
+    p.set_recipe(replace(default_recipe("SS", "38.0953x25.3907"), dpi=2731,
+                         page_size=FRAME_4K))
+    assert pop.hold_refusal(p)
+    p.set_recipe(default_recipe("SS", "234.95x196.85"))
+    assert pop.hold_refusal(p) is None          # made at its own size
+    p.set_recipe(default_recipe("SS", "A4"))
+    assert pop.hold_refusal(p) is None          # nothing held at all
