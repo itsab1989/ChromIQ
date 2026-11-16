@@ -516,12 +516,20 @@ class RulerSession:
         return 0
 
     def _old_majority(self) -> int:
-        """4.3.42: while a restarted reference is young (fewer than
-        DIRECTION_MIN_VOTES votes since the confirmed turn), the majority
-        the session would have without the restart (over every vote); else
-        0."""
-        if not self._turn_sign or len(self._since_turn) \
-                >= self.DIRECTION_MIN_VOTES:
+        """4.3.42: while a restarted reference is young, the majority the
+        session would have without the restart (over every vote); else 0.
+
+        Young means: the votes since the confirmed turn do not yet hold a
+        majority of their own. Counting votes alone is not enough (review
+        B1): after a one-strip turn and the turn back, three votes since the
+        turn read +, -, - and hold no majority, while the session's last
+        five do, and a ramp strip saved back to front then had no reference
+        at all where 4.3.41 asked about it."""
+        if not self._turn_sign:
+            return 0
+        since = list(self._since_turn.values())
+        if len(since) >= self.DIRECTION_MIN_VOTES and self._majority_of(
+                since[-self.DIRECTION_RECENT:]):
             return 0
         return self._majority_of(
             list(self._votes.values())[-self.DIRECTION_RECENT:])

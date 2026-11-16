@@ -6,7 +6,7 @@ quick turn back FOUR strips had no direction reference at all (the recent
 five votes split 3:2 / 2:3), so nothing was compared. Since 4.3.42 a strip
 whose ruler disagrees with the reference while its own colours vouch for the
 order it was saved in (a confirmed turn) restarts the reference from that
-strip's way round; while the restarted reference is young it is held
+strip's way round; while the restarted reference is young (its own votes hold no majority yet) it is held
 together with the old one, so a strip either of them would ask about is
 still asked about.
 
@@ -210,3 +210,57 @@ def test_the_ruler_help_says_what_happens_after_a_turn():
     assert "Turning the sheet or the ruler round is fine" in h
     assert "compares the strips after it with the new way round straight away" in h
     assert "Continue Anyway" in h and "for a few strips" in h
+
+
+# ------------------------------------------- review finding B1 (fix A)
+def _ramp_read(rs, strip, k, reversed_):
+    r = _ramp16(k)
+    return _read(rs, strip, -1, reversed_, measured=r,
+                 expected=list(reversed(r)))
+
+
+def test_a_ramp_strip_back_to_front_after_a_one_strip_turn_and_back_is_asked():
+    """Review B1, shape H1: one strip turned (vouched: restart), the turn
+    back on a ramp strip (asked, Continue: it votes), one more ramp strip,
+    then a ramp strip saved back to front. The three votes since the turn
+    (+, -, -) hold no majority of their own, while the session's last five
+    do; 4.3.41 asked about W, and so must 4.3.42."""
+    rs = _session()
+    for s in "ABCDEF":
+        _read(rs, s, -1, False)
+    assert _read(rs, "T", -1, True)["direction_confirmed_by_colours"]
+    u = _ramp_read(rs, "U", 1, False)
+    assert u["ask_direction"]
+    rs.note_answer("U", "continue")
+    assert not _ramp_read(rs, "V", 2, False)["ask_direction"]
+    w = _ramp_read(rs, "W", 3, True)
+    assert w["ask_direction"]
+
+
+def test_a_chance_vouched_misfile_does_not_hide_a_later_one():
+    """Review B1, shape H2: a misfiled strip whose colours vouch by chance
+    restarts the reference the wrong way; the next ramp misfile is still
+    asked about, as in 4.3.41."""
+    rs = _session()
+    for s in "ABCDEFGH":
+        _read(rs, s, -1, False)
+    assert _read(rs, "M", -1, True)["direction_confirmed_by_colours"]
+    n = _ramp_read(rs, "N", 1, False)
+    if n["ask_direction"]:
+        rs.note_answer("N", "continue")
+    assert not _ramp_read(rs, "O", 2, False)["ask_direction"]
+    assert _ramp_read(rs, "P", 3, True)["ask_direction"]
+
+
+def test_the_old_reference_steps_aside_once_the_new_one_has_a_majority():
+    """The other side of fix A: once the votes since the turn hold a
+    majority of their own, the old reference is no longer consulted, so a
+    real turn is followed as before."""
+    rs = _session()
+    for s in "ABCDEFGH":
+        _read(rs, s, -1, False)
+    _read(rs, "I", -1, True)            # turned, vouched
+    for s in "JKL":
+        _read(rs, s, -1, True)          # still turned: votes agree
+    assert rs._majority_direction() == 1
+    assert rs._old_majority() == 0
