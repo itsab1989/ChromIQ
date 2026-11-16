@@ -495,6 +495,7 @@ def test_rows_beyond_the_area_are_named_in_d1_and_refused_before_any_line(tmp_pa
                  ("d3", "failed cleanly"), ("f", "failed cleanly")], v
     text = screen(con)
     assert "22 of the 22 rows" in text and "further to the left" in text
+    assert pc.AREA_WHERE in _flat(text) and pc.WHY_BACK in _flat(text)
     assert "Please push the free arm gently" in text
     assert computed(sim) == []
     assert not any(x.startswith(";m2") for x in sim.received)
@@ -1408,3 +1409,23 @@ def test_the_real_reader_reports_a_fire_it_could_not_send():
     assert r.fire(10, 1, "x") is False
     r.alive = lambda: False
     assert r.fire(10, 1, "x") is False
+
+
+def test_every_area_text_says_where_it_lies_is_our_estimate(tmp_path):
+    """Review (3) correction 2: wherever a text speaks of the area to the person, it says that
+    WHERE it lies on his table is our estimate, from where the opening has been."""
+    assert "our estimate" in pc.AREA_WHERE and "measuring opening" in pc.AREA_WHERE
+    assert pc.AREA_WHERE in _flat(pc.SHEET_LAY)
+    assert "our estimate" in _flat(pc.STAGE_BY_KEY["d1"].explain)
+    assert "further back" in _flat(pc.STAGE_BY_KEY["d1"].explain)
+    assert "our estimate" in prog.plan_part_c()[-len(pc.STAGES) - 2] or \
+        any("our estimate" in ln for ln in prog.plan_part_c())
+    code, sim, log, con, res = run_c(tmp_path, ["d1", "d2", "f"])
+    text = _flat(screen(con))
+    first = [ln for ln in con.said if "no recording drove it to" in ln]
+    assert first and all(pc.AREA_WHERE in _flat(ln) for ln in first), first
+    assert ("d2", "worked") in verdicts(log)
+    with pytest.raises(geo.AlignmentRefused, match="our estimate"):
+        geo.fit_alignment(_aims_mm(geo.RECORDED_ALIGNMENTS["S2 383.3"]),
+                          geo.RECORDED_ALIGNMENTS["S2 383.3"])
+    del text
