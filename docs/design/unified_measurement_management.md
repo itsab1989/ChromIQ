@@ -12808,3 +12808,14 @@ written here.
   brightness traces, with the accepted readings of the same strips standing
   in for the expected colours (the tester's `.ti2` was not available), not
   with the predicted colours the helper uses.
+  (3) The one wrong keep still known (review of 2026-11-16, THIRD LOOK, T1):
+  an instrument lifted off the ruler during a swipe and set down further
+  along, within 3 readings, leaves no ruler travel for the stretch it was
+  carried over, so rule 0b cannot see the patch that went missing there;
+  with a board after the strip or one coloured piece after the last patch
+  the review kept 1,514 and 2,795 of 58,672 such hand-built readings wrongly
+  (0 while the trailer is paper). Shipped as a Beta on the owner's decision
+  (2026-11-16), with this said: the (i) help and the confirmation ask not to
+  lift the instrument during a swipe, say that a kept strip can then be
+  wrong, and ask for the ruler diagnostics file, where every decision is
+  recorded.

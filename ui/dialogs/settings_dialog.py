@@ -9763,6 +9763,20 @@ def margin_tolerance_help() -> str:
            "of the same strips stood in for the expected colours. If a kept "
            "strip ever looks wrong to you, please switch this off and tell "
            "us, with the ruler diagnostics file."),
+        # THE ONE WRONG KEEP LEFT (review of 2026-11-16, THIRD LOOK, T1): an
+        # instrument lifted off the ruler and set down further along leaves
+        # no ruler travel for the stretch it was carried over, so rule 0b
+        # cannot see a missing patch there. Shipped as a Beta with this said.
+        tr("**Please do not lift the instrument during a swipe.** If it is "
+           "lifted off the ruler in the middle of a swipe and set down again "
+           "further along, the ruler cannot see the stretch it was carried "
+           "over, and in rare cases a strip kept by this option can then be "
+           "wrong. So keep the instrument on the ruler from the white paper "
+           "before the first patch to the white paper after the last one, "
+           "and if a swipe goes wrong, simply read the strip again. Every "
+           "decision this option makes, kept or refused, is recorded in the "
+           "ruler diagnostics file, and we would very much like to have that "
+           "file."),
         tr("What helps most, with or without this option: rest the "
            "instrument on the white paper before the first patch, press the "
            "button, wait for the signal, and only then move."),
@@ -9792,6 +9806,11 @@ def margin_tolerance_confirmation() -> str:
         "•  It was tested on the recordings of one tester's i1Pro 2, not "
         "yet with a real instrument. Please look at each strip the Measure "
         "log says was kept this way.\n\n"
+        "•  Please do not lift the instrument off the ruler during a swipe. "
+        "If it is lifted and set down further along, a strip kept this way "
+        "can be wrong, because the ruler cannot see the part it was carried "
+        "over. Every decision is recorded in the ruler diagnostics file, and "
+        "we would like to have that file.\n\n"
         "•  You use it at your own risk. If a kept strip looks wrong, switch "
         "this off and tell us with “Report a Bug…”, with the ruler "
         "diagnostics file.\n\n"
