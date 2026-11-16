@@ -1507,12 +1507,9 @@ def resolve_placeholders(t: str, ctx: dict) -> str:
     dict; this fills the text.
     """
     if t and "{seed}" in t and ctx.get("seed", None) == "":
-        # 4.3.42: a chart in fixed order prints no seed; the separator that
-        # stood before the token (or after it, at the start of a line) goes
-        # with it, so "a - {seed} - b" reads "a - b", not "a -  - b"; and a
-        # bracket that held only the seed goes whole, so "a (seed {seed})"
-        # reads "a", not "a (seed )"
-        t = _SEED_WITH_SEPARATOR.sub("", t)
+        # 4.3.42: a chart in fixed order prints no seed, and nothing of the
+        # phrase that named it is left behind (`drop_the_seed`).
+        t = drop_the_seed(t)
     try:
         return t.format(**ctx) if t else ""
     except (KeyError, IndexError, ValueError):
@@ -1520,22 +1517,68 @@ def resolve_placeholders(t: str, ctx: dict) -> str:
 
 
 #: A bracket that holds nothing but `{seed}` and a few words naming it, such as
-#: "(seed {seed})", "({seed})" or "[Seed: {seed}]" (review 2): with the seed
-#: gone it would print "(seed )", so the whole bracket goes. A bracket with
-#: anything else in it (another placeholder, a digit) is left alone.
+#: "(seed {seed})", "({seed})" or "[Seed: {seed}]" (review 2): the whole
+#: bracket is the phrase. A bracket with anything else in it (another
+#: placeholder, a digit, a comma) is not; its seed phrase goes on its own.
 _SEED_BRACKET = (r"(?:\([ \t]*(?:[^\W\d_]+[ \t]*[:#=]?[ \t]*){0,4}\{seed\}[ \t]*\)"
                  r"|\[[ \t]*(?:[^\W\d_]+[ \t]*[:#=]?[ \t]*){0,4}\{seed\}[ \t]*\])")
-_SEED_TOKEN = r"(?:\{seed\}|" + _SEED_BRACKET + r")"
-_SEED_SEP = r"[-\u2013\u2014\u00b7|,/:;_]"
+#: `{seed}` with the ONE word right before it when that word labels it: the
+#: word "seed" itself (any case, a whole word), or any word written with ":",
+#: "#" or "=" against the token ("Seed: {seed}", "Zufallsstartwert: {seed}",
+#: "Seed #{seed}"). Any other word before it stays.
+_SEED_PHRASE = (r"(?:(?<![\w])(?:[Ss][Ee][Ee][Dd][ \t]*[:#=]?|[^\W\d_]+[ \t]*[:#=])"
+                r"[ \t]*)?\{seed\}")
+_SEED_SEP = r"[-–—·|,/:;_]"
+_GONE = "\0"
+_SEED_GONE = re.compile(_SEED_BRACKET + "|" + _SEED_PHRASE)
+#: The tidying, applied only where the phrase was (marked `_GONE`), in this
+#: order, so nothing the user wrote elsewhere is touched.
+_SEED_TIDY = [
+    # a bracket left empty goes, however deeply nested: "((seed {seed}))"
+    (re.compile(r"\([ \t]*\0[ \t]*\)|\[[ \t]*\0[ \t]*\]"), _GONE),
+    # first in a bracketed list: "(seed {seed}, {page})" -> "({page})"
+    (re.compile(r"([(\[])[ \t]*\0[ \t]*" + _SEED_SEP + r"[ \t]*"), r"\1" + _GONE),
+    # last in a bracketed list: "({page}, seed {seed})" -> "({page})"
+    (re.compile(r"[ \t]*" + _SEED_SEP + r"[ \t]*\0[ \t]*([)\]])"), _GONE + r"\1"),
+    # a bracket opened for it and never closed: "a (seed {seed}" -> "a"
+    (re.compile(r"[ \t]*[(\[][ \t]*\0[ \t]*(?=\n|$)"), _GONE),
+    # the separator before it: "a - {seed} - b" -> "a - b"
+    (re.compile(r"[ \t]*" + _SEED_SEP + r"[ \t]*\0"), _GONE),
+    # first on its line: "{seed} - b" -> "b"
+    (re.compile(r"(^|\n)[ \t]*\0[ \t]*(?:" + _SEED_SEP + r"[ \t]*)?"), r"\1"),
+    # anywhere else, the space before it: "{project} {seed}" -> "{project}"
+    (re.compile(r"[ \t]*\0"), ""),
+]
 
-#: `{seed}` (or a bracket of it, above) with the separator before it, or
-#: after it where nothing stands before it on its line, or a bracket of it
-#: with the space before it (see `resolve_placeholders`).
-_SEED_WITH_SEPARATOR = re.compile(
-    r"[ \t]*" + _SEED_SEP + r"[ \t]*" + _SEED_TOKEN
-    + r"|(?:(?<=\n)|^)[ \t]*" + _SEED_TOKEN + r"[ \t]*(?:" + _SEED_SEP
-    + r"[ \t]*)?"
-    + r"|[ \t]*" + _SEED_BRACKET)
+
+def drop_the_seed(t: str) -> str:
+    """*t* with every `{seed}` taken out, for a chart in fixed order.
+
+    THE RULE, SO A USER CAN PREDICT IT (review 2, integration of 4.3.42):
+
+    1. The phrase that only names the seed goes: a bracket holding nothing but
+       a few words and `{seed}` ("(seed {seed})", "[Seed: {seed}]"), else
+       `{seed}` with the one word right before it when that word labels it
+       ("seed", or a word written with ":", "#" or "=" against the token).
+    2. Where it stood, a bracket left empty (or opened for it and never
+       closed on its line) goes, then the one separator
+       ("-", "–", "·", "|", ",", "/", ":", ";", "_") that tied it to its
+       neighbour, and the spaces that would stand doubled or at a line's end.
+    3. Nothing else changes: text that merely contains the word "seed" is
+       left exactly as written, and so is every other bracket.
+    """
+    if "{seed}" not in t:
+        return t
+    t = _SEED_GONE.sub(_GONE, t)
+    for _ in range(8):                 # nested empty brackets, one per turn
+        before = t
+        for rx, rep in _SEED_TIDY[:1]:
+            t = rx.sub(rep, t)
+        if t == before:
+            break
+    for rx, rep in _SEED_TIDY[1:]:
+        t = rx.sub(rep, t)
+    return t.replace(_GONE, "")
 
 
 def sheet_text_reserve_mm(dpi: float = 300.0) -> float:
