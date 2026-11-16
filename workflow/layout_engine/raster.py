@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import functools
 import math
+import re
 
 from functools import lru_cache
 
@@ -1505,10 +1506,22 @@ def resolve_placeholders(t: str, ctx: dict) -> str:
     up to 23 mm on a single token. `chart.text_placeholder_context` builds the
     dict; this fills the text.
     """
+    if t and "{seed}" in t and ctx.get("seed", None) == "":
+        # 4.3.42: a chart in fixed order prints no seed; the separator that
+        # stood before the token (or after it, at the start of a line) goes
+        # with it, so "a - {seed} - b" reads "a - b", not "a -  - b"
+        t = _SEED_WITH_SEPARATOR.sub("", t)
     try:
         return t.format(**ctx) if t else ""
     except (KeyError, IndexError, ValueError):
         return t                           # leave unknown placeholders literal
+
+
+#: `{seed}` with the separator before it, or after it where nothing stands
+#: before it on its line (see `resolve_placeholders`).
+_SEED_WITH_SEPARATOR = re.compile(
+    r"[ \t]*[-\u2013\u2014\u00b7|,/:;_][ \t]*\{seed\}"
+    r"|(?:(?<=\n)|^)[ \t]*\{seed\}[ \t]*(?:[-\u2013\u2014\u00b7|,/:;_][ \t]*)?")
 
 
 def sheet_text_reserve_mm(dpi: float = 300.0) -> float:

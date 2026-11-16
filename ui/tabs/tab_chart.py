@@ -28059,7 +28059,8 @@ class TabChart(QWidget):
             dpi=int(getattr(r, "dpi", 300) or 300),
             patches=patches,
             pages=pages,
-            seed=self._seed_for_prediction(r))
+            seed=self._seed_for_prediction(r),
+            randomize=bool(getattr(r, "randomize", True)))
         ctx["page"] = f"page 1/{pages}"
         return ctx
 
@@ -28100,7 +28101,8 @@ class TabChart(QWidget):
                     str(getattr(r, "paper", "") or ""),
                     int(getattr(r, "dpi", 300) or 300),
                     int(self._estimate_patch_total() or 0),
-                    self._seed_for_prediction(r)))
+                    self._seed_for_prediction(r),
+                    randomize=bool(getattr(r, "randomize", True))))
             except Exception:      # noqa: BLE001 — a prediction is never fatal
                 pass
         return lines

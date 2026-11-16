@@ -2363,6 +2363,55 @@ class ChartCreator:
             lines.append(f"ChromIQ {APP_VERSION}")
         return lines
 
+    @staticmethod
+    def _page_index_of(tiff: Path, n_pages: int) -> "int | None":
+        """0-based page of an engine page file (``<stem>_NN.tif``, or the
+        one ``<stem>.tif`` of a single-page chart)."""
+        import re as _re
+        m = _re.search(r"_(\d+)$", Path(tiff).stem)
+        if m:
+            return int(m.group(1)) - 1
+        return 0 if n_pages == 1 else None
+
+    def _engine_patch_spans_mm(self, tiffs: "list[Path]",
+                               params: "ChartParams") -> "dict | None":
+        """``{str(tiff): (top_mm, bottom_mm)}``: where each page's patch area
+        begins and ends, from the engine's ``<stem>.strips.json`` beside the
+        pages (its patch rectangles, else its strip rectangles). None when
+        there is no map to read."""
+        import json
+        if not tiffs:
+            return None
+        try:
+            stem = self._file_mgr.chart_stem(
+                cal_target=bool(getattr(params, "cal_target", False)))
+            path = Path(tiffs[0]).parent / f"{stem}.strips.json"
+            if not path.exists():
+                cands = sorted(Path(tiffs[0]).parent.glob("*.strips.json"))
+                if len(cands) != 1:
+                    return None
+                path = cands[0]
+            doc = json.loads(read_text(path))
+            dpi = float(doc.get("dpi") or 0)
+            if dpi <= 0:
+                return None
+            rects = doc.get("patches") or doc.get("strips") or []
+            spans: dict = {}
+            for t in tiffs:
+                page = self._page_index_of(Path(t), len(tiffs))
+                if page is None:
+                    continue
+                mine = [r for r in rects if int(r.get("page", 0)) == page]
+                if not mine:
+                    continue
+                top = min(float(r["y"]) for r in mine)
+                bottom = max(float(r["y"]) + float(r["h"]) for r in mine)
+                spans[str(t)] = (top * 25.4 / dpi, bottom * 25.4 / dpi)
+            return spans or None
+        except Exception as exc:  # noqa: BLE001 — never block the stamp
+            log.debug("patch area for the note unavailable: %s", exc)
+            return None
+
     def _stamp_tiff_metadata(self, tiffs: list[Path], params: "ChartParams") -> None:
         """Stamp the actual targen/printtarg commands (and optional notes) into each TIFF."""
         try:
@@ -2614,9 +2663,18 @@ class ChartCreator:
                             "side_stamp_freed_mm", 0.0) or 0.0)
                     except Exception as exc:  # noqa: BLE001 — never block it
                         log.debug("side-stamp gap unavailable: %s", exc)
+                # 4.3.42: the line is centred on each page's PATCH AREA
+                # (a tester's sheet: 8 mm off it on a 10 x 15 cm i1Pro 3
+                # chart), read from the engine's own strip map, never guessed
+                # from the raster. A printtarg chart has no map and keeps its
+                # place.
+                _spans = (self._engine_patch_spans_mm(tiffs, params)
+                          if engine_chart else None)
                 stamp_chart_metadata(tiffs, cmd_lines, _edge, _band,
                                      _font_family, _size_pt, _reach, _gap,
-                                     _edge_t, _edge_b, _patch_gap)
+                                     _edge_t, _edge_b, _patch_gap,
+                                     **({"patch_spans_mm": _spans}
+                                        if _spans else {}))
         else:
             # ChromIQ-style: shift the patch block right by ~28 mm so the left
             # side becomes a fresh white strip ready for the left-clip stamp.

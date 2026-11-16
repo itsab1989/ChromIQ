@@ -127,7 +127,8 @@ def friendly_instrument(instrument: str) -> str:
 def text_placeholder_context(*, project: str = "", rundescription: str = "",
                              instrument: str = "", paper: str = "",
                              dpi: int = 300, patches: int = 0, pages: int = 1,
-                             seed: int = 0, chart_date: str = "") -> dict:
+                             seed: int = 0, chart_date: str = "",
+                             randomize: bool = True) -> dict:
     """The values `{project}`, `{paper}`, `{seed}` and the rest resolve to.
 
     LIFTED OUT OF `build_chart` FOR THE SAME REASON `stamp_summary_line` WAS.
@@ -145,6 +146,13 @@ def text_placeholder_context(*, project: str = "", rundescription: str = "",
     `{page}` is NOT here. It needs the page index and `render_pages` adds it
     per page, which is the one placeholder a prediction cannot know; the panel
     supplies its own first-page stand-in.
+
+    4.3.42 (a tester's sheet, 2026-11-16): `{seed}` is empty on a chart whose
+    patch order is NOT randomised. The seed then decides nothing on the sheet
+    (`permutation.location_permutation` keeps every patch in its place, and
+    no spacer, label or mark is drawn from it), so a number there only
+    suggested an order that was never shuffled. `raster.resolve_placeholders`
+    takes the separator in front of it away with it.
     """
     import time as _time
     return {
@@ -157,7 +165,7 @@ def text_placeholder_context(*, project: str = "", rundescription: str = "",
         "patchcount": f"{patches} patches",
         "pages": str(pages),
         "date": chart_date or _time.strftime("%Y-%m-%d"),
-        "seed": f"seed {seed}",
+        "seed": f"seed {seed}" if randomize else "",
     }
 
 
@@ -179,7 +187,7 @@ def _i1io_paper_name(paper: str) -> str:
 
 
 def stamp_summary_line(instrument: str, paper: str, dpi: int, patches: int,
-                       seed: int) -> str:
+                       seed: int, randomize: bool = True) -> str:
     """The one line "Stamp layout summary along the bottom" prints.
 
     LIFTED OUT OF `build_chart` SO THE PANEL CAN ASK FOR IT. Knut, 2026-09-13,
@@ -196,9 +204,10 @@ def stamp_summary_line(instrument: str, paper: str, dpi: int, patches: int,
     f-string: a re-implementation that drifts from the shipped one is how a
     prediction comes to warn about a sheet nobody prints.
     """
+    # 4.3.42: no seed on a chart in fixed order (see text_placeholder_context)
     return (f"ChromIQ engine · {friendly_instrument(instrument)} · "
             f"{papers.friendly_label(paper)} · {dpi} dpi · "
-            f"{patches} patches · seed {seed}")
+            f"{patches} patches" + (f" · seed {seed}" if randomize else ""))
 
 
 def build_chart(
@@ -963,9 +972,10 @@ def build_chart(
         project=project or Path(out_base).name,
         rundescription=rundescription, instrument=instrument, paper=paper,
         dpi=dpi, patches=layout.total_patches, pages=layout.pages, seed=seed,
-        chart_date=chart_date)
+        chart_date=chart_date, randomize=randomize)
     stamp_text = (stamp_summary_line(instrument, paper, dpi,
-                                     layout.total_patches, seed)
+                                     layout.total_patches, seed,
+                                     randomize=randomize)
                   if (stamp_command or (_isis and _isis_stamp)) else "")
     # an i1iSis chart draws the summary in its own trailer (draw_furniture)
     _isis_stamp_text = stamp_text if _isis else ""

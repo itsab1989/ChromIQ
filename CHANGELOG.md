@@ -16,7 +16,12 @@
 - **Patch set editor: the line that says which chart is loaded is readable again.** At the window's normal size it was cut to nothing, and it named an i1iSis chart “-ii1”, the i1Pro's code. It now has a line of its own and names the instrument a loaded chart was laid out for (for example the i1iSis).
 - **Patch set editor: “Ensure unique colours” and “Pure white & black” no longer contradict each other.** The help and the tooltip now say that the copies of pure white and black are the one exception: they stay identical on purpose, so their readings can be averaged.
 
+- **Measure tab, “Spectral filter type (-F)”: each entry says what it is**, with the measurement condition first: “M0: no filter (lamp as it is)”, “M1: D50 daylight (with UV)”, “D65 daylight filter”, “M2: UV cut (no UV)”, “M3: polarising filter”, in your language. What ChromIQ sends to ArgyllCMS, the entry chosen when you switch the row on (M1) and your saved settings and presets are unchanged.
+
 ### Fixed
+- **A chart whose patch order is not randomised no longer prints a seed.** The seed only decides the order when randomising is on; on a chart in fixed order it decided nothing, so “seed …” is now left out of the sheet's text and of the layout stamp there (with the separator in front of it). Thanks to jctay for the report and the picture.
+- **The line down the edge of a ChromIQ layout engine chart (“Chart layout … | ChromIQ layout engine | ChromIQ …”) is centred on the patches**, not on the paper. On a sheet with more paper above the patches than below it sat visibly off their middle. The patches themselves do not move.
+- **Ruler check (beta): a strip saved back to front right after a one-strip turn is asked about again**, as in 4.3.41. After a turn the earlier way round is now kept as a second reference until the strips since the turn agree among themselves, not merely until three of them have been read.
 - **Beta “M0, M1 and M2”: a temporary file left by a crash is cleared away.** If ChromIQ's chart-reading engine stopped while writing a condition file, its temporary copy stayed in the run's “conditions” folder. It is now removed with the other files nothing needs any more (only that kind of file, only in that folder, and only when it is older than 10 minutes).
 
 ### Honest limits
