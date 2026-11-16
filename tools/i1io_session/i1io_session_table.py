@@ -40,7 +40,7 @@ import time
 from dataclasses import dataclass
 
 TOOL_NAME = "chromiq-i1io-session"
-TOOL_VERSION = "0.4.0"
+TOOL_VERSION = "0.5.0"
 
 VID, PID = 0x0971, 0x2004
 
@@ -340,6 +340,34 @@ def parse_done(line: str, key: str) -> Reply:
     if key in SECRET_KEYS:
         data = ""
     return Reply(cid, status, data)
+
+
+def parse_done_c(line: str, cid: str, data_len: int) -> Reply:
+    """Part C (0.5.0): the done answer of any line its gate allows: status 0 and exactly the
+    recorded number of data characters for that line."""
+    _check_refused(line, cid)
+    if not line.startswith(":$") or not checksum_ok(line):
+        raise ProtocolError(f"expected the table's answer to {cid}, got {show(line)}")
+    m = _DONE_RE.fullmatch(line)
+    if not m or m.group(1) != cid:
+        raise ProtocolError(f"malformed answer to {cid}: {show(line)}")
+    status, data = int(m.group(2), 16), m.group(3)
+    if status != 0:
+        raise ProtocolError(f"the table answered {cid} with status {status}, which it did not "
+                            "do in the recordings for this line")
+    if len(data) != data_len:
+        raise ProtocolError(f"answer to {cid} has {len(data)} data characters, expected "
+                            f"{data_len}")
+    return Reply(cid, status, data)
+
+
+class MoveOutside(Exception):
+    """Part C: a movement finished (status 0) outside its time window. The session is NOT
+    closed by this: the stage reads where the arm is before it decides."""
+
+    def __init__(self, took: float, lo: float, hi: float):
+        super().__init__(f"the movement took {took:.3f} s, outside {lo:.2f}-{hi:.2f} s")
+        self.took, self.lo, self.hi = took, lo, hi
 
 
 def done_max_len(key: str) -> int:
@@ -910,6 +938,15 @@ class Table:
         self._hand = lambda n, last: "placed"
         #: asked at the end of b_align with the arm free at the alignment start
         self._touch_out = lambda: "skip"
+        # ---- 0.5.0, part C ----
+        #: part C's gate: line -> (command id, is it a movement, label); set by i1io_part_c
+        self.c_gate = None
+        #: part C's caps per session (lines, movements)
+        self.c_caps = (0, 0)
+        #: True only on the one path from a scan move to the instrument's fire (i1io_scan):
+        #: a stop asked for there is honoured after the scan move has ended, never between the
+        #: scan move and the two lines (a3, c3) that belong to it
+        self.defer_stop = False
 
     # ---- logging and stopping ------------------------------------------------------
     def log(self, kind: str, text: str) -> None:
@@ -943,26 +980,41 @@ class Table:
         on its way."""
         if self.closed_reason is not None:
             raise Doubt(f"not sending: {self.closed_reason}")
-        cid = check_outgoing(line)
-        if bytes(line) not in PART_LINES[self.part]:
-            raise self._doubt(f"a line that part {self.part} never sends (a bug)")
-        max_lines, max_motions = PART_CAPS[self.part]
+        if self.part == "C":
+            # 0.5.0, part C: its own gate (i1io_part_c.c_gate: the fixed lines it may send, and
+            # computed m0/m2 lines checked against the measuring area and the recorded speeds)
+            # and its own caps; parts A and B keep exactly the checks below.
+            if self.c_gate is None:
+                raise self._doubt("part C without its gate (a bug)")
+            cid, is_motion, label = self.c_gate(bytes(line))
+            max_lines, max_motions = self.c_caps
+        else:
+            cid = check_outgoing(line)
+            if bytes(line) not in PART_LINES[self.part]:
+                raise self._doubt(f"a line that part {self.part} never sends (a bug)")
+            max_lines, max_motions = PART_CAPS[self.part]
+            is_motion = line in MOTION_LINES
+            label = None
         if self.lines_sent >= max_lines:
             raise self._doubt("the program reached its limit of lines for one session")
-        is_motion = line in MOTION_LINES
         if is_motion and self.motions_sent >= max_motions:
             raise self._doubt("the program reached its limit of movements for one session")
         if self.current_step is not None:
             key = self.current_step.key
-            if self.step_lines >= STEP_MAX_LINES[key]:
+            own = getattr(self.current_step, "max_lines", None)
+            lim_l = own if own is not None else STEP_MAX_LINES[key]
+            lim_m = (self.current_step.max_moves if own is not None
+                     else STEP_MAX_MOTIONS[key])
+            if self.step_lines >= lim_l:
                 raise self._doubt(f"the step '{key}' reached its limit of lines")
-            if is_motion and self.step_motions >= STEP_MAX_MOTIONS[key]:
+            if is_motion and self.step_motions >= lim_m:
                 raise self._doubt(f"the step '{key}' reached its limit of movements")
         elif is_motion:
             raise self._doubt("a movement outside a step (a bug)")
         held = hold_stop_signals()
         try:
-            self._stop_if_requested()
+            if not self.defer_stop:
+                self._stop_if_requested()
             if self.closed_reason is not None:
                 raise Doubt(f"not sending: {self.closed_reason}")
             self.lines_sent += 1
@@ -971,7 +1023,7 @@ class Table:
                 self.motions_sent += 1
                 self.step_motions += 1
                 self.motion_unconfirmed = True
-                self.last_move = (_key_of(line), None)
+                self.last_move = (label or _key_of(line), None)
             self.log("SEND", line.decode("ascii").rstrip("\r"))
             self.t.write(bytes(line))
         finally:
@@ -1100,6 +1152,118 @@ class Table:
             if now - start > DRAIN_MAX_S:
                 raise self._doubt("the table keeps sending without being asked")
 
+    # ---- 0.5.0, part C primitives (every line still goes through _write) ---------------
+    def c_exchange(self, line: bytes, data_len: int, window=None, timeout: float = QUICK_TIMEOUT,
+                   late_is_doubt: bool = True) -> Reply:
+        """Part C: send *line* (any line its gate allows), read the acceptance and the done
+        answer, check their form (status 0, *data_len* data characters). A movement must finish
+        inside *window* (lo, hi); outside it, with late_is_doubt False, :class:`MoveOutside` is
+        raised WITHOUT closing the session (the stage then reads the position: if the arm is
+        where it was sent and held, the stage has failed cleanly)."""
+        if self.closed_reason is not None:
+            raise Doubt(f"not sending: {self.closed_reason}")
+        cid = bytes(line)[1:3].decode("ascii")
+        self.busy += 1
+        is_motion = False
+        try:
+            self._quiet_check()
+            if not self.defer_stop:
+                self._stop_if_requested()
+            before = self.motions_sent
+            self._write(line)
+            is_motion = self.motions_sent > before
+            if is_motion:
+                self.before_move = self.position_now
+                self.position_now = None        # the next computed move needs a new reading
+                self.arrival_unknown = True
+            start = self.t.now()
+            parse_ack(self._read_line(start + QUICK_TIMEOUT, ACK_MAX), cid)
+            reply = parse_done_c(self._read_line(start + timeout, 2 + 2 + 1 + data_len + 2),
+                                 cid, data_len)
+            took = self.t.now() - start
+        except TimeoutError:
+            raise self._doubt(f"no answer to {cid} within the expected time") from None
+        except TableRefused as exc:
+            if is_motion:
+                self.motion_unconfirmed = False
+                self.arrival_unknown = False
+            raise self._doubt(str(exc), REFUSED_TEXT.format(
+                line=bytes(line).decode("ascii").rstrip("\r"), code=exc.code)) from None
+        except ProtocolError as exc:
+            if is_motion:
+                self.motion_unconfirmed = False
+                if self.arm_free:
+                    self.arm_free = None
+            raise self._doubt(str(exc)) from None
+        except TransportError as exc:
+            raise self._doubt(f"the USB link failed: {exc}") from None
+        except Stopped:
+            raise
+        except (Doubt, ForbiddenLine):
+            self.close_for_sending("an internal check refused a line")
+            raise
+        except BaseException as exc:
+            self.close_for_sending(f"an unexpected error ({type(exc).__name__})")
+            raise
+        finally:
+            self.busy -= 1
+        if is_motion:
+            self.motion_unconfirmed = False
+            self.arm_free = False
+            self.timings.append((f"{cid}/computed", took))
+            self.log("DATA", f"{cid} took {took:.3f} s")
+            if window is not None:
+                lo, hi = window
+                self.last_move = (self.last_move[0] if self.last_move else cid, lo <= took <= hi)
+                if not lo <= took <= hi:
+                    if late_is_doubt:
+                        raise self._doubt(f"{cid} took {took:.3f} s, outside {lo:.2f}-{hi:.2f} s",
+                                          SLOW_TEXT.format(took=took, lo=lo, hi=hi))
+                    raise MoveOutside(took, lo, hi)
+            else:
+                self.last_move = (self.last_move[0] if self.last_move else cid, True)
+        return reply
+
+    def c_wait(self, seconds: float) -> None:
+        """Part C: wait, sending nothing, listening for anything the table sends unasked (a
+        stop). The pacing between spot moves (at least 1.0 s, as recorded) uses it."""
+        end = self.t.now() + seconds
+        while True:
+            self._stop_if_requested()
+            left = end - self.t.now()
+            if left <= 0:
+                return
+            try:
+                chunk = self.t.read(max(MIN_READ_S, min(left, 0.25)))
+            except TransportError as exc:
+                raise self._doubt(f"the USB link failed: {exc}") from None
+            if chunk:
+                self._buf += chunk
+                raise self._doubt(f"the table sent something nobody asked for "
+                                  f"({_short(self._buf)})")
+
+    def c_send(self, line: bytes) -> None:
+        """Part C, the scan path only: write one line (through _write) and return at once."""
+        self.busy += 1
+        try:
+            before = self.motions_sent
+            self._write(line)
+            if self.motions_sent > before:
+                self.before_move = self.position_now
+                self.position_now = None
+                self.arrival_unknown = True
+        except (TransportError, OSError) as exc:
+            raise self._doubt(f"the USB link failed: {exc}") from None
+        finally:
+            self.busy -= 1
+
+    def c_read(self, deadline: float, max_len: int = 48) -> "str | None":
+        """Part C, the scan path only: one reply line, or None at the deadline."""
+        try:
+            return self._read_line(deadline, max_len)
+        except TimeoutError:
+            return None
+
     # ---- the opening and the steps --------------------------------------------------
     def position(self) -> "tuple[int, int]":
         p = self.exchange("position").xy()
@@ -1170,7 +1334,7 @@ class Table:
         if step.key == "b_place" and self.out_touch != "free":
             return False            # never ask anyone to push an arm that may be held
         return (self.closed_reason is None and self.state in step.needs
-                and step.key not in self.done_steps)
+                and (self.part == "C" or step.key not in self.done_steps))
 
     # ---- part B operations (0.4.0) ------------------------------------------------------
     def _check_box(self, box: Box, what: str) -> "tuple[int, int]":
@@ -1435,8 +1599,14 @@ class FtdiUsb(Transport):
             raise TransportError(f"could not set up the table's USB link "
                                  f"({getattr(exc, 'strerror', None) or type(exc).__name__})") from None
 
+    #: the gate at the wire: check_outgoing, or part C's own gate (0.5.0) once part C is chosen
+    gate = None
+
     def write(self, data: bytes) -> None:
-        check_outgoing(data)                       # the gate, once more, at the wire
+        if self.gate is not None:
+            self.gate(data)                        # part C's gate, once more, at the wire
+        else:
+            check_outgoing(data)                   # the gate, once more, at the wire
         try:
             n = self.dev.write(self.EP_OUT, data, 1000)
         except self._core.USBError as exc:
