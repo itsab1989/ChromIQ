@@ -73,9 +73,28 @@ template for the whole instrument.
       design in the issue first).
 - [ ] **0.5** The plan covers every stage below, row by row, and has been
       challenged by someone who did not write it; the findings are folded in.
+- [ ] **0.6** Both routes of the guide's section 4a are considered, side by
+      side, and neither waits for the other: (a) chart out, measured in the
+      instrument's own program, measurement brought back; (b) ChromIQ drives
+      the instrument. The issue says what each route needs next.
+- [ ] **0.7** Every request to an owner is planned to answer as much as
+      possible for both routes in one round (the guide's list in section
+      4a): the form the program wants the chart in, one file it wrote,
+      unchanged, the reading order, the physical limits, and, where a
+      recording is possible, the recording of the very measurement whose file
+      is sent.
+- [ ] **0.8** Calibration data the instrument stores was looked at before
+      any behaviour of the maker's program is fitted as unknown numbers
+      (guide, section 5; for the i1Pro family the key tables in
+      `native/instlib/i1pro_imp.h`), and compared between units before it is
+      called a model constant. None of it enters the repository (R8).
+- [ ] **0.9** Every fact comes from documentation, use of the maker's
+      program, the files it writes or recordings of its traffic; nothing
+      from disassembling, decompiling or reading the maker's program or
+      firmware. The provenance note says so.
 
-**Done means:** an issue with the facts (sources, confidence), the route and a
-challenged plan.
+**Done means:** an issue with the facts (sources, confidence), the route or
+routes and a challenged plan.
 
 ## Stage 1. The Beta switch
 
@@ -368,9 +387,38 @@ comparison output in the pull request.
       TIFF stamped like other charts
       (`workflow/chart_creator.py::_stamp_tiff_metadata`).
 
+For route (a) of the guide's section 4a (measured in another program, brought
+back):
+
+- [ ] **6.5** The chart is given to the other program in exactly the form
+      it takes: a chart-definition file that makes the program expect
+      ChromIQ's sheet, with a test that the program's grid is ChromIQ's
+      (example `workflow/isis/export.py`,
+      `tests/test_isis_txf_forces_the_grid.py`), or the grid numbers it asks
+      for, shown in its units and order, with a mark to line up on.
+- [ ] **6.6** Every reading finds its patch by its own place: a tag in the
+      file, an order file tied to that exact chart by a checksum, or a
+      reading order confirmed on a real file. Never by colour, never by
+      "closest match"; the colours only decide whether a file is filed
+      (example `workflow/i1io/measure_chart.py`).
+- [ ] **6.7** A file whose grid, count, order or colours do not fit is
+      refused with the reason and the way to measure again, before anything
+      is written; nothing is "corrected"; where the colours cannot tell, the
+      person is asked. A test per refusal (examples
+      `tests/test_i1io_measure_chart_import.py`,
+      `tests/test_isis_import_guards.py`).
+- [ ] **6.8** Several pages: the page is worked out (candidates by grid, one
+      clear match, otherwise asked), each page waits as its own file through
+      `Run` (example `core/file_manager.py::Run.i1io_page_ti3`), the pages
+      must agree on condition and instrument, and the run's measurement is
+      written only once every page is in (`workflow/i1io/pages.py`,
+      `tests/test_i1io_measure_chart_pages.py`). Where several pages cannot
+      be brought back yet, the app says so and keeps the file.
+
 **Done means:** a chart for the instrument is recognised, copied, imported
 and restored with all its files, and a `.ti3` of your own is accepted by
-`colprof` in a test.
+`colprof` in a test. For route (a): a real file from the other program is
+filed on the right patches, and every refusal of 6.7 has a test.
 
 ## Stage 7. Measure tab
 
@@ -490,9 +538,51 @@ with the simulator or the real device reaches the end window on screen.
 - [ ] **8.10** Testers: the consent window, the ⓘ's list of checks, small
       steps each ending with a report.
 
+For a device that moves (guide, section 12a):
+
+- [ ] **8.11** Only lines seen in recordings of the maker's own program, in
+      their recorded form; computed moves only in the recorded line form and
+      at recorded speeds. A line whose purpose is unknown is sent only
+      exactly as recorded, in its recorded place, and the command list says
+      so; whether it may ship in the app is decided in the instrument's
+      specification first (R4).
+- [ ] **8.12** One writer and one gate: every line is checked against the
+      allow-list right before it is written, computed moves come from a few
+      builders only, each move starts from a position read since the last
+      movement, and its whole swept rectangle lies inside the guarded area.
+- [ ] **8.13** The guarded area has an evidence table: every edge, the
+      reading or published size it rests on, and **the coordinate frame of
+      that reading** (for example the alignment sight or the measuring
+      opening). A test reproduces the maker's own recorded moves from your
+      fit of its recorded alignments.
+- [ ] **8.14** A part of the device no recording reached is announced and
+      needs its own "yes"; new ground is entered in small steps, each
+      checked for arrival and timing, stopping at the first that is not
+      clean; the safer choice is offered first.
+- [ ] **8.15** Tester stages: each explained (what moves, how far, how long,
+      as recorded or beyond, risk), confirmed by a typed "yes", skippable,
+      and followed by questions; a stage that fails cleanly leads on to the
+      next one that does not depend on it; anything unclear ends the sitting
+      and nothing more is sent.
+- [ ] **8.16** Texts say only what the last position reading shows; a state
+      nothing sent can end says "switch it off" first, leaves a marker file
+      that the next start reads, and never suggests anything that could set
+      the move off; the power switch is named as the emergency stop before
+      anything moves.
+- [ ] **8.17** The simulator keeps its own copy of the limits and timings
+      (not imported from the code under test) and raises on what the device
+      would not accept; the guard is fuzzed (zero lines through where they
+      should not be) and planted faults are each caught by a test.
+- [ ] **8.18** An independent safety review before every offer to an owner,
+      scoped to physical harm, memory writes, the allow-list, truthful texts
+      and privacy; its required changes made and reviewed again. A tester's
+      results file holds no serial number and nothing from the device's
+      memory.
+
 **Done means:** the command list is in the pull request with a source and
 level for every command, the byte and "nothing else is sent" tests are green,
-and the full session runs against the simulator.
+and the full session runs against the simulator. For a device that moves:
+8.11 to 8.18 with their evidence, and the safety review's verdict.
 
 ## Stage 9. Text, messages, specifications, docs
 
@@ -528,6 +618,21 @@ and the full session runs against the simulator.
       off.
 - [ ] **9.7** The `HOOKED_FILES` pin lists every shared file that now names
       the instrument.
+- [ ] **9.8** A value the person typed is never changed silently: what does
+      not fit is said in plain words and Generate refuses with the reason
+      (model `tests/test_page_output_beta.py`).
+- [ ] **9.9** Numbers in sentences follow the UI language
+      (`core/i18n.py::decimal_text`, or a numeric format field in
+      `tr(...).format()`); files, ArgyllCMS arguments and anything parsed
+      back keep the point; no thousands comma in a sentence.
+- [ ] **9.10** Every control, tab and option is named exactly as the running
+      app labels it, checked on screen; the instrument has its own Beta and
+      its own list entry and loosens no other instrument's rules.
+- [ ] **9.11** Pictures for documentation, the pull request or a reply come
+      from the fully styled real window
+      (`scripts/capture_screens.py::build_app`, then
+      `scripts/capture_screens.py::set_theme`), show the right version and
+      no leftover from an earlier step.
 
 **Done means:** the language, em dash, message catalogue, specification and
 guide tests of 10.7 pass, and the translation review is named in the pull
@@ -570,7 +675,8 @@ request.
       screenshots of the real window.
 - [ ] **10.6** Independent review by someone who did not build it, given the
       diff and not the conclusions; repeated until it finds nothing that
-      matters.
+      matters. The review measures (on screen or in a test) what it suspects
+      from reading, and says which findings were measured.
 - [ ] **10.7** The gate, inside the project's `.venv`:
 
   ```bash
@@ -583,13 +689,34 @@ request.
   Windows PowerShell:
   `$env:QT_QPA_PLATFORM='offscreen'; pytest --runslow -n auto -q > $env:TEMP\chromiq-gate.txt 2>&1; echo "exit=$LASTEXITCODE"`.
   *Done:* `N passed` with no `failed`, `exit=0` read from pytest itself, not
-  through a pipe, and no file edited while it ran. A failure you did not
+  through a pipe, and no file edited while it ran. Use the lines exactly as
+  shown, which mean the same in bash and zsh; a variant that reads a pipe's
+  exit code or uses shell-specific modifiers does not. A failure you did not
   cause is run on unchanged `master` too, and both results are reported.
 - [ ] **10.8** The parity test is part of the gate (10.7) and green there;
       run it alone first, it takes about a minute and prints any new
       difference ready to paste.
+- [ ] **10.9** **The byte-identity loop** (guide, section 9b), for a change
+      to shared paths: every built-in preset loaded and generated in the real
+      app, previous release against the branch with the option off, then
+      the branch off against on with nothing new used; seed, chart date and
+      version pinned; only clock stamps masked; no other difference. The pull
+      request says which of these the loop also covered and which it did
+      not: Guided, old projects, CMYK and other ink sets, other instruments'
+      layouts, the patch set editor, stamped builds.
+- [ ] **10.10** Every new limit or refusal that comes with the option
+      applies only to charts that use what only the option allows (model
+      `workflow/page_output/support.py::needs_budget`), with a test that a
+      chart the previous release built is not refused with the option on.
+- [ ] **10.11** Every registry or ledger test that fired for a new field or
+      file is answered (the field classified with a true reason, the file
+      listed), never loosened (R10), and the everyday tier is green before
+      the work goes to review.
+- [ ] **10.12** Every number written for people to reproduce (a patch count,
+      a size) was reproduced by hand in the app, or by a driver that presses
+      only what a person can press.
 
-**Done means:** 10.1 to 10.8 all done, with their evidence in the pull
+**Done means:** 10.1 to 10.12 all done, with their evidence in the pull
 request.
 
 ## Stage 11. The pull request
@@ -628,6 +755,27 @@ request.
 | A test rewritten to pass | R10 |
 | Stacked specification blocks | 9.3 |
 | Unrelated change inside | 11.1 |
+| One route waiting for the other | 0.6 |
+| An owner asked for one thing per round | 0.7 |
+| Readings paired by colour or by list position | 6.6 |
+| A non-matching file filed or "corrected" | 6.7 |
+| A part of a measurement taken for the whole | 6.8 |
+| A boundary taken from the wrong coordinate frame | 8.13 |
+| A guarded area or limit nobody can trace to a reading | 8.13 |
+| New ground entered in one big move | 8.14 |
+| "Open the maker's program" while a move may be waiting | 8.16 |
+| A simulator that imports the constants it should check | 8.17 |
+| A tester program offered without a safety review | 8.18 |
+| A typed value changed silently | 9.8 |
+| A thousands comma or decimal point in the wrong language | 9.9 |
+| A control named as another tool calls it | 9.10 |
+| A picture from an unstyled or stale window | 9.11 |
+| A review by reading only | 10.6 |
+| A new limit that applies to everyone with the option on | 10.10 |
+| A registry test silenced | 10.11, R10 |
+| A documented number nobody can reach by hand | 10.12 |
+| A gate read through a pipe or in the wrong shell | 10.7 |
+| A recording session that kept nothing after a driver change | guide, section 2 |
 
 ## Maintenance of these documents
 

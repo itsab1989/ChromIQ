@@ -479,6 +479,8 @@ as possible, for both routes at once. A good request asks for:
 
 Ask each question in plain words, one topic at a time, and say why you ask.
 
+*In [the checklist](adding_an_instrument_checklist.md): items 0.6, 0.7 and 6.5 to 6.8.*
+
 ## 5. Finding the facts
 
 Everything you build rests on facts about the instrument: its aperture, its
@@ -893,6 +895,8 @@ stamp on. Say in the pull request which of these the loop covered.
 
 Keep the raw files of at least a few presets on both sides, so that a
 reviewer can rerun or diff them after the fact.
+
+*In [the checklist](adding_an_instrument_checklist.md): items 10.9 and 10.10.*
 
 ## 10. What was saved builds as it was built
 
