@@ -621,3 +621,25 @@ def test_a_frame_at_6000_ppi_is_drawn(tmp_path, beta_on):
     t = _tags(res.tiff_paths[0])
     assert (t["w"], t["h"]) == (po.pixels_of(30.0, 6000), po.pixels_of(24.0, 6000))
     assert t["xres"] == (6000, 1) and t["unit"] == 2
+
+
+def test_generate_refuses_an_over_budget_page_before_anything_runs(qapp,
+                                                                     beta_on):
+    """Before targen: driven on screen, A2 at 6000 ppi first asked targen for
+    tens of thousands of patches and only refused minutes later."""
+    from types import SimpleNamespace
+    from ui.dialogs.layout_options_panel import LayoutOptionsPanel
+    from ui.tabs.tab_chart import TabChart
+    panel = LayoutOptionsPanel(None, with_selectors=True, with_calibration=True)
+    panel.paper.setCurrentIndex(panel.paper.findData("A2"))
+    panel.dpi.setValue(6000)
+    lines = []
+    fake = SimpleNamespace(_manual_layout_panel=panel,
+                           _mode_name=lambda: "manual",
+                           _log=SimpleNamespace(appendPlainText=lines.append))
+    assert TabChart._refuse_page_over_budget(fake) is True
+    assert lines and lines[0].startswith("[ERROR] ") and "99,213" in lines[0]
+    panel.dpi.setValue(1200)
+    lines.clear()
+    assert TabChart._refuse_page_over_budget(fake) is False and not lines
+    panel.deleteLater()

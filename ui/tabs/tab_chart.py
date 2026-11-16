@@ -21079,6 +21079,8 @@ class TabChart(QWidget):
                 return
             if self._refuse_for_unreadable_patterns():
                 return
+            if self._refuse_page_over_budget():             # #215 (Beta)
+                return
             self._log_chart_build("Generate Chart", "targen")
             self._cancel_pending_auto_preview()
             # The boxes show the size this build uses (4.3.34 review r2, c).
@@ -31821,6 +31823,39 @@ class TabChart(QWidget):
         btn = getattr(self, "_generate_btn", None)
         if btn is not None and hasattr(btn, "set_gate"):
             btn.set_gate(problem.reason if problem is not None else None)
+
+    def _refuse_page_over_budget(self) -> bool:
+        """True, with the refusal in the log, when the page-output Beta's
+        memory budget refuses the page on screen BEFORE anything runs (#215).
+
+        The build checks it too (`chart.build_chart`, with the true page count
+        and colorants), but only after the patch set was made: a page of
+        thousands of megapixels first asked targen for tens of thousands of
+        patches, which took minutes, and only then said no (driven on screen,
+        A2 at 6000 ppi). One page of RGB is the smallest a chart can cost, so
+        a page over the budget for that is over it for every chart. Only with
+        the Beta on and only in Manual; off, nothing here runs."""
+        panel = getattr(self, "_manual_layout_panel", None)
+        if panel is None or not getattr(panel, "_page_beta", False) \
+                or self._mode_name() != "manual":
+            return False
+        try:
+            from ui.dialogs import page_output_panel as _pop
+            from workflow.page_output.support import budget_problem
+            px = _pop.page_pixels(panel)
+            if px is None:
+                return False
+            bit16 = getattr(panel, "bit_depth", None) is not None and \
+                panel.bit_depth.currentData() == 16
+            why = budget_problem(px[0], px[1], 1, bit16=bit16)
+        except Exception:      # noqa: BLE001 - the build checks it again
+            log.debug("page budget pre-check failed", exc_info=True)
+            return False
+        if not why:
+            return False
+        # the log tag stays English in every language, as all of them do
+        self._log.appendPlainText("[ERROR] " + why)
+        return True
 
     def _refuse_for_unreadable_patterns(self, *, quiet: bool = False) -> bool:
         """True, with one line in the log, when a NEW layout must not start
