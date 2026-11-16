@@ -39,6 +39,7 @@ straight to [section 2](#2-you-own-an-instrument-chromiq-does-not-support-yet-th
 8. [Every run type](#8-every-run-type)
 9. [Behind a Beta switch, and off changes nothing](#9-behind-a-beta-switch-and-off-changes-nothing)
    - 9a. [Checking your instrument against the others](#9a-checking-your-instrument-against-the-others)
+   - 9b. [Proving it for every preset: the byte-identity loop](#9b-proving-it-for-every-preset-the-byte-identity-loop)
 10. [What was saved builds as it was built](#10-what-was-saved-builds-as-it-was-built)
 11. [Measuring](#11-measuring)
 12. [Talking to the hardware](#12-talking-to-the-hardware)
@@ -709,7 +710,21 @@ the `.ti2`'s `CREATED` line, the clock time, is taken out). Run it with the
 switch off, then with `--betas on`, and put both tables in your pull request;
 see [section 9a](#9a-checking-your-instrument-against-the-others) below. If your change
 touches recipes, presets or saved projects, also build a few of those saved
-by the previous release in both trees, as section 10 describes.
+by the previous release in both trees, as section 10 describes, and run the
+loop over every built-in preset of
+[section 9b](#9b-proving-it-for-every-preset-the-byte-identity-loop).
+
+**A new limit applies only to what the new option allows.** A memory guard,
+a size limit or any other new refusal that comes with your option must ask
+"does this chart use something only the option allows?" before it applies.
+Otherwise switching the option on takes away charts that worked before, and
+the option becomes a regression for everyone who tries it. This happened: a
+memory guard for very large pages first applied to every chart while the
+option was on, and would have refused ordinary charts the previous release
+built. The fix was one question asked in all three places the guard runs
+(`workflow/page_output/support.py::needs_budget`), and tests that such
+charts, ones the guard would have refused, are let through with the option
+on.
 
 *In [the checklist](adding_an_instrument_checklist.md): stages 1 and 10.*
 
@@ -844,6 +859,40 @@ JSON side file, which keys) changed, so you can explain it. Put both tables
 in the pull request.
 
 *In [the checklist](adding_an_instrument_checklist.md): items 3.11, 3.12, 4.5, 10.4, 10.5 and 10.8.*
+
+## 9b. Proving it for every preset: the byte-identity loop
+
+`scripts/compare_with_release.py` builds charts from the layout engine's
+defaults. A change that touches shared paths (recipes, the panel, the files a
+chart is written to) needs the same proof through the real app, for every
+built-in preset. This is how it was done for the page-output Beta of 4.3.43:
+
+1. **Two trees**: the previous release in its own worktree, and your branch.
+2. **One driver for both**: it starts the real app in each tree with
+   sandboxed settings (as in [section 14](#14-how-we-work-challenge-build-review-prove)),
+   loads **every** built-in preset in turn, presses Generate, and keeps every
+   file written. Pin what can be pinned: the shuffle seed, the chart date and
+   the version number the files carry. A layout that draws its own random
+   seed (a contributor's layout may) needs that pinned too, or it differs
+   from run to run whatever you changed.
+3. **Compare byte for byte.** The only lines allowed to differ are clock
+   stamps: the `CREATED` line of a `.ti2` or `.ti3`, a creation date inside a
+   side file, the time in an archive folder's name. Mask only those, look at
+   every masked line once, and expect the rest to be identical: TIFFs, `.ti1`,
+   `.ti2`, `.txt` and the project files.
+4. **Run it twice**: the previous release against your branch with the option
+   off, and your branch with the option off against the option on but
+   nothing new used. Both must show no difference.
+
+**What such a loop does not cover unless you add it.** Built-in presets are
+mostly RGB charts made in Manual, so add scenarios of your own for: Guided
+mode; old projects opened and generated again; CMYK and other ink sets; the
+charts of the other instrument layouts (for example the i1iO, the i1iSis
+and the FD-9); the patch set editor's output; and builds with the settings
+stamp on. Say in the pull request which of these the loop covered.
+
+Keep the raw files of at least a few presets on both sides, so that a
+reviewer can rerun or diff them after the fact.
 
 ## 10. What was saved builds as it was built
 
@@ -1069,9 +1118,45 @@ tests.
   vendor in the files. Where one entry stands for a family, the files carry
   the family name and record the generation separately, so a later generation
   never renames a file already written.
+- **One Beta per instrument family, with its own entry.** A new instrument
+  or family gets its own Beta switch and its own entry in the instrument
+  list, with rules of its own. It never loosens another instrument's rules
+  to fit: a chart for a coordinate-reading table, for example, is planned
+  as its own entry rather than as a change to the SpectroScan layout
+  ([issue #215](https://github.com/itsab1989/ChromIQ/issues/215)).
 - **Text**: friendly, complete, easy to understand and correct; every string
   in `tr()`; all 13 languages, with a second, independent translation pass;
   no em dash in new English text.
+- **Names as the app shows them.** Name every control, tab and option
+  exactly as the running app labels it, in the language you write in, and
+  check it on screen rather than from memory or from another tool's
+  documentation. For example, in the ChromIQ layout engine's panel the
+  resolution box is "Resolution:" under "Page geometry", not printtarg's
+  "TIFF Output DPI", and an early reply to a user named the wrong one.
+- **A value the person typed is never changed silently.** If it cannot be
+  used with another setting, keep it as typed, say in plain words what does
+  not fit and what would, and let Generate refuse with that reason. Never
+  shorten, round or "fit" it on the person's behalf. In 4.3.43 a page typed
+  in pixels was first cut down when the resolution was lowered, and stayed
+  cut when it was raised again; typing "2032" into the resolution box even
+  passed through 203 on the way. Now, with that option on, the box takes its
+  value on Return, and the typed page is kept and explained.
+- **Numbers in sentences follow the UI language; numbers in files never
+  do.** In German, French and the other languages with a decimal comma, a
+  sentence writes "11,2"; a file, a command line for ArgyllCMS, or anything
+  read back always writes "11.2" (`core/i18n.py::decimal_text`, and
+  `tr(...).format()` does it for a field with a numeric format). Do not
+  group thousands with a comma in a sentence: in those languages "4,096"
+  reads as four.
+- **Pictures for people come from the fully styled app.** A screenshot for
+  the documentation, a pull request or a reply is taken of the real window,
+  built as the app builds itself: `scripts/capture_screens.py::build_app`
+  for the application, then the main window, then
+  `scripts/capture_screens.py::set_theme` for the theme and stylesheet
+  (`ui/theme.py::apply_appearance`). A bare `QApplication` draws other
+  fonts, colours and buttons than the app people use. Before you use a
+  picture, check that it shows the version you mean and no leftover from
+  an earlier step (an old chart in the preview, an error line in the log).
 - **Messages**: every new window gets an ID in §M-PROPOSED of
   `docs/design/unified_measurement_management.md` first, word for word the
   same as in the code. Proposed texts are shown in the app; the maintainers
@@ -1093,7 +1178,14 @@ tests.
 3. **Independent review after building**, by someone who did not build it
    and is given the diff rather than your conclusions, with the switch on and
    off. Fix what they find, and review again until nothing that matters is
-   left.
+   left. **A review measures; it does not only read.** What reading the code
+   suggests is a lead, to be confirmed or refuted on screen or in a test,
+   and the review says which findings were measured. The worst fault of the
+   4.3.43 Beta (a typed page cut down by the resolution box) was found only
+   by typing into the real box; two other findings made by reading turned
+   out one true and one false once they were tried. For a device that
+   moves, the review is the safety review of
+   [section 12a](#12a-devices-that-move).
 4. **Prove it in the real app, in a real window**, with sandboxed settings and
    a scratch output folder, the switch on and off. Never print to a real
    printer from a script, and never take the keyboard from a person who is
@@ -1108,7 +1200,11 @@ tests.
 
    It is green when the count line says `N passed` with no `failed` and the
    exit code, read from pytest itself and not through a pipe, is 0. Do not
-   edit files while it runs. The checklist's stage 10 has the quicker checks
+   edit files while it runs. Run it in the shell it was written for: the
+   lines above work the same in bash and zsh, but a variant that reads the
+   exit code of a pipe (bash's `PIPESTATUS`, zsh's `pipestatus`) or uses
+   `$NAME:r` (a zsh modifier, plain text in bash) means something else in the
+   other shell. When in doubt, use the redirect above and nothing cleverer. The checklist's stage 10 has the quicker checks
    to run first, and the Windows command.
 
 *In [the checklist](adding_an_instrument_checklist.md): stage 10.*
@@ -1116,14 +1212,18 @@ tests.
 ## 15. Opening the pull request
 
 One topic per pull request, based on the current `master`. The description
-says what the instrument is and which route it uses; the facts the chart was
+says what the instrument is and which route it uses (section 4, and for
+route (a) of section 4a: which file the other program reads and writes, how a
+reading finds its patch, and what is refused); the facts the chart was
 designed from, with their sources and confidence; the options table; which run
 types work and what the app says about the rest; the tests and the file
-comparison that prove "off changes nothing"; **what was tried on the device and
-what was not**; the commands the driver sends and its licence and provenance;
+comparisons that prove "off changes nothing" (section 9, and the loop of
+section 9b with what it covered and what it did not); **what was tried on the
+device and what was not**; the commands the driver sends and its licence and provenance;
 the new message IDs and specification blocks; the translations you are unsure
-of; who challenged and who reviewed, and what they found; the gate's count
-line and exit code; and screenshots from the real app, switch on and off.
+of; who challenged and who reviewed, what they found, and which findings
+were measured rather than read; the gate's count line and exit code; and
+screenshots from the fully styled real app (section 13), switch on and off.
 Attach the checklist with every item marked done, not applicable (why) or
 open.
 
