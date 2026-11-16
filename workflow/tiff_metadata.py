@@ -452,8 +452,10 @@ def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
         try:
             # where the raster search would put it beside a block whose last
             # column it could see: that column, then its guard, twice
-            _true_px = int(np.ceil(float(patch_right_mm) * _dpi / 25.4)) - 1 \
-                + 2 * _safety_pad_px(_dpi)
+            # (the epsilon keeps a millimetre round trip of a whole pixel
+            # from rounding up into the next one)
+            _true_px = int(np.ceil(float(patch_right_mm) * _dpi / 25.4
+                                   - 1e-6)) - 1 + 2 * _safety_pad_px(_dpi)
         except (TypeError, ValueError):
             _true_px = None
         if _true_px is not None and band_left < _true_px:

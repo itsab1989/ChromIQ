@@ -275,7 +275,7 @@ def _engine_padding_log_line(total: int, padding: int) -> str:
 
 
 def _engine_summary_log_line(total: int, steps: int, passes: int,
-                             pages: int, seed) -> str:
+                             pages: int, seed, randomized: bool = True) -> str:
     """The engine's "what was built" line: patches, grid, pages and seed.
 
     4.3.19: it was an English f-string ("441 patches (21×21), 1 page, random
@@ -284,10 +284,18 @@ def _engine_summary_log_line(total: int, steps: int, passes: int,
     Randomisation group's own `tr("Seed:")` label, so the log and the control
     read the same in every language. Both counts go through `count_phrase`,
     so Russian, Ukrainian and Polish get the form each number needs.
+
+    4.3.42 (review 2): a chart in FIXED order names no seed, as its sheet
+    no longer does: the number decides nothing there, and "Seed: N" beside
+    a fixed-order chart read as if it did.
     """
     from core.i18n import count_phrase, tr
     patches = count_phrase(int(total), tr("1 patch"), tr("{n} patches"))
     page_text = count_phrase(int(pages), tr("1 page"), tr("{n} pages"))
+    if not randomized:
+        return tr("[ChromIQ layout engine] {patches} ({steps}×{passes}), "
+                  "{pages}").format(patches=patches, steps=steps,
+                                    passes=passes, pages=page_text)
     return tr("[ChromIQ layout engine] {patches} ({steps}×{passes}), "
               "{pages}, {seed_label} {seed}").format(
                   patches=patches, steps=steps, passes=passes,
@@ -2061,7 +2069,8 @@ class ChartCreator:
 
         on_line(_engine_summary_log_line(
             result.layout.total_patches, result.layout.steps_in_pass,
-            result.layout.passes, result.layout.pages, result.seed))
+            result.layout.passes, result.layout.pages, result.seed,
+            bool(getattr(result, "randomize", True))))
         # An i1iO chart built with a risky option (Job D: allowed, and
         # said, as other instruments' charts are)
         from workflow.isis.support import is_isis_code as _is_isis
@@ -2368,7 +2377,7 @@ class ChartCreator:
         """``{str(tiff): (top_mm, bottom_mm, right_mm)}``: where each page's
         patch area begins and ends, and where its patch block ENDS on the
         right, from the engine's strip map beside the pages (its patch
-        rectangles and its strip rectangles). None when there is no map to
+        rectangles, else its strip rectangles). None when there is no map to
         read.
 
         THE MAP IS IN ``channels.json`` BY THE TIME THE STAMP RUNS.
@@ -2424,18 +2433,20 @@ class ChartCreator:
             n_map = max(int(r.get("page", 0)) for r in rects) + 1
             if len(tiffs) < n_map:
                 return None
-            k = 25.4 / dpi
             boxes: dict = {}
             for page, t in enumerate(tiffs):
                 mine = [r for r in (patches or rects)
                         if int(r.get("page", 0)) == page]
-                every = [r for r in rects if int(r.get("page", 0)) == page]
                 if not mine:
                     continue
                 top = min(float(r["y"]) for r in mine)
                 bottom = max(float(r["y"]) + float(r["h"]) for r in mine)
-                right = max(float(r["x"]) + float(r["w"]) for r in every)
-                boxes[str(t)] = (top * k, bottom * k, right * k)
+                right = max(float(r["x"]) + float(r["w"]) for r in mine)
+                # written as before (``v * 25.4 / dpi``, not ``v * k``): the
+                # line is centred on these to the pixel, and the other order
+                # of the same arithmetic moved it by one on 20 sheets
+                boxes[str(t)] = (top * 25.4 / dpi, bottom * 25.4 / dpi,
+                                 right * 25.4 / dpi)
             return boxes or None
         except Exception as exc:  # noqa: BLE001 — never block the stamp
             log.debug("patch area for the note unavailable: %s", exc)
