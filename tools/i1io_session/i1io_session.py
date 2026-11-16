@@ -304,9 +304,12 @@ def b_state_texts(d: tbl.Table) -> "list[str]":
         out.append("The arm is out on the table, held by the motors" + at + ".")
         out.append(OUT_ON_TABLE)
         return out
+    free = d.arm_free
+    if free is True and d.out_touch in ("holds", "not sure"):
+        free = None             # f1 answered 01, but the person felt it hold: not known
     hold = {True: "The arm is free (the motors do not hold it)",
             False: "The arm is held by the motors",
-            None: "Whether the motors hold the arm is not known"}[d.arm_free]
+            None: "Whether the motors hold the arm is not known"}[free]
     out.append(hold + ", out on the table" + at + ".")
     out.append(B_MODE_LEFT)
     return out
@@ -455,10 +458,13 @@ def plan_text(hex_bytes: bool = False) -> str:
         extra = f"   bytes {b.hex(' ')}" if hex_bytes else ""
         return f"      {_bare(key):20}{extra}"
     out = [f"Every line this program can send. Nothing else can be sent: {len(tbl.WIRE)} "
-           f"different lines; at most {tbl.MAX_LINES} lines and {tbl.MAX_MOTIONS} movements in "
-           "one session, and each step at most its own lines and movements (below). After any "
+           f"different lines; in part A at most {tbl.MAX_LINES} lines and {tbl.MAX_MOTIONS} "
+           "movements in one session, and each step at most its own lines and movements "
+           "(below). After any "
            "stop or any doubt, nothing more is sent at all.", "",
-           "The sixteen lines and where i1Profiler sent them in your recordings:"]
+           "PART A (choose a at the start) uses lines 1 to 16; part B uses the others "
+           "and the reading, homing and mode lines.", "",
+           f"The {len(tbl.WIRE)} lines and where i1Profiler sent them in your recordings:"]
     for key in tbl.WIRE:
         out.append(row(key))
         out.append(f"         recorded: {tbl.RECORDED_AT[key]}")
@@ -489,7 +495,59 @@ def plan_text(hex_bytes: bool = False) -> str:
                 out.append(row(op[1]) + f"   (MOVES; must finish within {lo:.2f}..{hi:.2f} s)")
             elif op[0] == "touch":
                 out.append("      ... you touch the free arm gently (nothing is sent) ...")
+    out += ["", f"PART B (choose b at the start): at most {tbl.B_MAX_LINES} lines and "
+                f"{tbl.B_MAX_MOTIONS} movements in one session; each step needs the one "
+                "before it. The opening as above, then:"]
+    for n, step in enumerate(tbl.B_STEPS, 1):
+        out += ["", f"B{n}: {step.title} ({tbl.STEP_MAX_LINES[step.key]} lines at most, "
+                    f"{tbl.STEP_MAX_MOTIONS[step.key]} movements; risk {step.risk}):"]
+        out += _plan_ops(step, row)
+    for step in tbl.near_steps():
+        out += ["", f"Optional: {step.title} ({tbl.STEP_MAX_LINES[step.key]} lines, "
+                    f"{tbl.STEP_MAX_MOTIONS[step.key]} movements; risk {step.risk}):"]
+        out += _plan_ops(step, row)
     return "\n".join(out)
+
+
+def _plan_ops(step: tbl.Step, row) -> "list[str]":
+    out = []
+    for op in step.ops:
+        k = op[0]
+        if k == "x":
+            out.append(row(op[1]))
+        elif k == "f4":
+            out.append(row("arm_mode") + f"   (must answer {op[1]})")
+        elif k == "p0":
+            out.append(row("position") + f"   (must read {tbl.BOXES[op[1]].text()})")
+        elif k == "home_rest":
+            out.append(row("home") + "   (MOVES home, from rest, as part A)")
+        elif k == "move":
+            lo, hi = tbl.TIME_WINDOW[op[2]]
+            out.append(row(op[1]) + f"   (MOVES; must finish within {lo:.2f}..{hi:.2f} s)")
+        elif k == "p0m1":
+            out.append(row("position") + f"   (must read {tbl.AT_M1_SENSOR.text()} or "
+                       f"{tbl.AT_M1_SIGHT.text()})")
+        elif k == "p0still":
+            out.append(row("position") + f"   (must read within {op[1]} units of the reading "
+                       "before)")
+        elif k == "touch_out":
+            out.append("      ... you touch the free arm gently (nothing is sent) ...")
+        elif k == "place":
+            out.append("      ... you push the free arm by hand and type placed ...")
+            out.append(row("status"))
+            out += [row("arm_mode") + "   (must answer 01)"] * 4
+            out.append(row("position") + f"   (once per try, at most {tbl.PLACE_TRIES} "
+                       f"tries, until it reads {tbl.START_BOX.text()})")
+        elif k == "pause":
+            pass
+        elif k == "p0spot":
+            out.append(row("position") + f"   (must read {tbl.AT_SPOT[op[1]].text()})")
+        elif k == "p0last":
+            out.append(row("position") + "   (must read the patch reached, plus or minus 5)")
+    if step.key == "b_row":
+        out.insert(0, "      27 times: 1 s pause (Enter stops here), then position and the "
+                      "next patch move:")
+    return out
 
 
 # ---- the session ------------------------------------------------------------------------
@@ -652,7 +710,7 @@ class Session:
             if ans != "yes":
                 if d.state == "row":
                     self._run_near("home_from_patch", "You ended part B with the arm on row 1.")
-                return 0
+                break
             if self.other_program():
                 d.close_for_sending("i1Profiler was started during the session")
                 raise Stopped("i1Profiler has started, so the program stops here: two "

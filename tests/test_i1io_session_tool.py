@@ -1,15 +1,14 @@
-"""THE i1iO SESSION TEST PROGRAM 0.3.0 SENDS ONLY THE SIXTEEN RECORDED LINES OF BYTES.md,
-ONLY INSIDE ITS FIXED STEPS, EACH AFTER THE PERSON'S YES, WITHIN HARD CAPS, AND STOPS ON ANY
-DOUBT.
+"""THE i1iO SESSION TEST PROGRAM 0.4.0 SENDS ONLY THE 45 RECORDED LINES OF BYTES.md, ONLY INSIDE
+ITS FIXED STEPS, EACH AFTER THE PERSON'S YES, WITHIN HARD CAPS, AND STOPS ON ANY DOUBT.
 
 `tools/i1io_session/` is a standalone program for the one tester who owns an i1iO 2 (issue
-#129), built after the owner's ruling of 15 Nov 2026 (recorded commands with recorded
-parameters, also from a start close to a recorded one; nothing of very high risk). These tests
-hold its claims: the allow-list and BYTES.md agree byte for byte; every write on every path,
-with every injected fault, stop or Ctrl-C, is in that list and in the simulator's own copy of
-the steps; the caps hold per step and per session; any fault ends everything; the person is
-never asked anything while the arm is out; the serial never reaches the log. No real USB is
-used anywhere: the simulator and a fake pyusb device.
+#129). Part A is 0.3.1, unchanged on the wire (its sixteen lines; the full session pinned by
+hash). Part B (0.4.0) adds m1 and the 28 recorded spot moves of S2 session 3. These tests hold
+its claims: the allow-list and BYTES.md agree byte for byte; every write on every path, with
+every injected fault, stop or Ctrl-C, is in that list and in the simulator's own copy of the
+steps; the caps hold per step and per session; any fault ends everything; questions come only
+while nothing moves; after any stop the end text names the table's true state; the serial never
+reaches the log. No real USB is used anywhere: the simulator and a fake pyusb device.
 """
 from __future__ import annotations
 
@@ -1320,3 +1319,408 @@ def test_the_readme_does_not_claim_the_later_touches_pushed_the_arm_out():
     readme = " ".join(_source("README.md").split())
     assert "the touches after each stop probably pushed it further (we did not measure that)" in readme
     assert "the touches after each stop pushed it further" not in readme
+
+
+# ==== 0.4.0, part B: the recorded spot row over the empty table ==============================
+#
+# The expected wire of a whole part B session, written out here from the recording (the
+# test's own copy: S2 379.860-500.238 with the reads of this program added), not from the
+# program's step list.
+
+S0, F4, P0, I1, F0, F3, F1 = ";s022", ";f42b", ";p025", ";i12b", ";f02f", ";f32c", ";f12e"
+M1498, M2507, M1 = ";m0044e05da012c0b", ";m009cb05da012cda", ";m10b10055b012c42"
+B_HF = [S0, P0, I1, S0]
+B_ALIGN = [F4, F4, P0, M1498, P0, M2507, P0, M1, P0, S0, F4, F4, F3, F4, F4, F1, F4, F4, P0]
+B_PLACE1 = [S0, F4, F4, F4, F4, P0]
+B_FIRST = [P0, P0, SPOT_LINES[0], P0]
+B_ROW = [x for k in range(1, 28) for x in (P0, SPOT_LINES[k])]
+B_END = [S0, P0, I1, S0, F0, F4, F4, P0]
+B_CLOSE = [S0, F0, F3]
+B_PRE_ROW = OPEN + B_HF + B_ALIGN + B_PLACE1 + B_FIRST
+B_ALL = B_PRE_ROW + B_ROW + B_END + B_CLOSE
+B = {prog.ASK_PART: "b"}
+
+
+def _run_b(tmp_path, sim=None, script=None, **kw):
+    return _run(tmp_path, sim=sim or sim_mod.SimTable(), script={**B, **(script or {})}, **kw)
+
+
+def _flat(log):
+    return " ".join(log.split())
+
+
+def test_part_b_whole_session_is_exactly_the_recorded_row_and_the_reads(tmp_path):
+    code, sim, log, con = _run_b(tmp_path)
+    assert code == 0 and sim.received == B_ALL and len(B_ALL) == 109
+    assert sim.motions == 33 and "part B chosen" in log
+    assert "after m1 the reading fitted the sight explanation" in log
+    assert _flat(prog.B_DONE_TEXT) not in _flat(log)      # closed afterwards
+    assert "table was closed the way i1Profiler closes it" in _flat(log)
+
+
+def test_part_b_lines_in_the_program_are_the_recorded_ones():
+    assert [tbl.WIRE[k].decode().rstrip("\r") for k in tbl.SPOT_KEYS] == SPOT_LINES
+    assert tbl.WIRE["m1"] == (M1 + "\r").encode()
+    assert sim_mod.SPOTS == SPOT_LINES and sim_mod.M1L == M1
+    for line in SPOT_LINES + [M1]:
+        assert line[11:15] == "012c"                      # speed 300, as recorded
+        assert tbl.checksum_ok(line)
+    assert tbl.SPOT_TARGETS[0] == (-1181, 1658) and tbl.SPOT_TARGETS[-1] == (1173, 1663)
+    # every target lies inside the area the arm visited in the recordings (m0 envelope
+    # X -1320..2507, Y 250..2543; PROTOCOL_v2 5)
+    for x, y in tbl.SPOT_TARGETS:
+        assert -1320 <= x <= 2507 and 250 <= y <= 2543
+    steps = [(b[0] - a[0], b[1] - a[1]) for a, b in zip(tbl.SPOT_TARGETS, tbl.SPOT_TARGETS[1:])]
+    assert all(86 <= dx <= 89 and 0 <= dy <= 1 for dx, dy in steps)
+
+
+def test_the_part_gate_refuses_a_line_of_the_other_part_without_writing():
+    d = tbl.Table(sim_mod.SimTransport(sim_mod.SimTable()))
+    d.current_step = tbl.B_STEPS[1]
+    with pytest.raises(tbl.Doubt):
+        d.exchange("m1", "m1")
+    assert d.t.writes == []
+    d = tbl.Table(sim_mod.SimTransport(sim_mod.SimTable()))
+    d.part, d.current_step = "B", tbl.STEPS[1]
+    with pytest.raises(tbl.Doubt):
+        d.exchange("to_250", "to_250")
+    assert d.t.writes == []
+    assert all(tbl.WIRE[k] not in tbl.PART_LINES["A"] for k in ("m1",) + tbl.SPOT_KEYS)
+
+
+def test_part_b_is_offered_only_after_the_three_gate_answers(tmp_path):
+    for i, (q, choices, good) in enumerate(prog.GATE_QUESTIONS):
+        bad = next(c for c in choices if c != good)
+        code, sim, log, con = _run_b(tmp_path, script={q: bad})
+        assert code == 1 and sim.received == [], q
+        assert _flat(prog.GATE_REFUSED) in _flat(log)
+    code, sim, log, con = _run(tmp_path, script={prog.ASK_PART: "end"})
+    assert code == 0 and sim.received == []
+
+
+@pytest.mark.parametrize("kind", [k for k in sim_mod.FAULT_KINDS
+                                  if k not in ("slow_motion", "fast_motion", "blocked", "drift")])
+def test_part_b_any_fault_at_any_line_stops_with_nothing_more_sent(tmp_path, kind):
+    for i, line in enumerate(B_ALL):
+        if kind == "identity" and line != ";a133" or kind == "k2_other" and line != ";k228" \
+                or kind == "a0_other" and line != ";a034" \
+                or kind == "memory_short" and not line.startswith(";u8") \
+                or kind == "memory_bad_start" and line != ";u8000060000100d1" \
+                or kind == "free" and line != F4:
+            continue
+        sim = sim_mod.SimTable()
+        sim.inject_at(i, kind, 1.0 if kind != "late" else 30.0)
+        code, sim, log, con = _run_b(tmp_path, sim)
+        assert code == 2, (kind, i, line)
+        assert sim.received == B_ALL[:i + 1], (kind, i, line)
+        assert sim_mod.FAKE_SERIAL not in log
+        assert prog.ASK_TOUCH not in [q for q, *_ in con.seen]
+
+
+@pytest.mark.parametrize("kind", ["slow_motion", "fast_motion", "late"])
+def test_part_b_every_movement_outside_its_time_window_stops_right_after_it(tmp_path, kind):
+    moves = [i for i, ln in enumerate(B_ALL) if ln == I1 or ln.startswith(";m")]
+    assert len(moves) == 33
+    for i in moves:
+        sim = sim_mod.SimTable()
+        sim.inject_at(i, kind, 30.0 if kind == "late" else 1.0)
+        code, sim, log, con = _run_b(tmp_path, sim)
+        if kind == "fast_motion" and i == len(OPEN) + 2:
+            assert code == 0                # the first homing from rest: no lower bound
+            continue
+        assert code == 2 and sim.received == B_ALL[:i + 1], (kind, i, B_ALL[i])
+
+
+def test_part_b_time_windows_are_pinned_from_the_recorded_times():
+    w = tbl.TIME_WINDOW
+    assert w["m1"] == (0.25, 0.80) and w["first_patch"] == (1.0, 2.4)
+    assert w["patch"] == (0.35, 0.70) and w["end_home"] == (1.6, 4.5)
+    assert w["home_patch"] == (1.0, 6.0)
+    for rec, key in ((0.400, "m1"), (1.456, "first_patch"), (0.431, "patch"), (0.432, "patch"),
+                     (2.559, "end_home"), (2.559, "home_patch"), (3.711, "home_patch")):
+        lo, hi = w[key]
+        assert lo < rec < hi and hi <= 2.0 * rec + 1.5
+
+
+class _Timed(sim_mod.SimTable):
+    """A simulated table whose movement times are set by the test, per line."""
+
+    def __init__(self, times, **kw):
+        super().__init__(jitter=False, **kw)
+        self.times = times
+
+    def _execute(self, line, cid, a, fault):
+        status, data, t = super()._execute(line, cid, a, fault)
+        return status, data, self.times.get((line, len(self.received) - 1), t)
+
+
+@pytest.mark.parametrize("line,window", [(M1, "m1"), (SPOT_LINES[0], "first_patch"),
+                                         (SPOT_LINES[5], "patch")])
+def test_part_b_time_window_boundaries(tmp_path, line, window):
+    lo, hi = tbl.TIME_WINDOW[window]
+    at = B_ALL.index(line)
+    for took, ok in ((lo + 0.005, True), (hi - 0.005, True), (lo - 0.02, False),
+                     (hi + 0.02, False)):
+        sim = _Timed({(line, at): took})
+        code, sim, log, con = _run_b(tmp_path, sim)
+        if ok:
+            assert code == 0 and sim.received == B_ALL, (window, took)
+        else:
+            assert code == 2 and sim.received == B_ALL[:at + 1], (window, took)
+
+
+@pytest.mark.parametrize("land,frame", [((2832, 1371), "sensor"), ((2716, 1057), "sight"),
+                                        ((2697, 1033), "sight"), ((2742, 1080), "sight"),
+                                        ((2827, 1366), "sensor"), ((2837, 1376), "sensor")])
+def test_part_b_after_m1_either_explanation_is_accepted(tmp_path, land, frame):
+    sim = sim_mod.SimTable(jitter=False, m1_lands_at=(float(land[0]), float(land[1])))
+    code, sim, log, con = _run_b(tmp_path, sim)
+    assert code == 0 and sim.received == B_ALL
+    assert f"fitted the {frame} explanation" in log
+
+
+@pytest.mark.parametrize("land", [(2696, 1050), (2743, 1050), (2716, 1032), (2716, 1081),
+                                  (2826, 1371), (2832, 1377), (2507, 1498), (2780, 1200)])
+def test_part_b_after_m1_anything_else_stops_with_the_arm_held_out(tmp_path, land):
+    sim = sim_mod.SimTable(jitter=False, m1_lands_at=(float(land[0]), float(land[1])))
+    code, sim, log, con = _run_b(tmp_path, sim)
+    at = len(OPEN + B_HF) + B_ALIGN.index(M1) + 1
+    assert code == 2 and sim.received == B_ALL[:at + 1] and F1 not in sim.received
+    flat = _flat(log)
+    assert "held by the motors" in flat and _flat(prog.OUT_ON_TABLE) in flat
+    assert _flat(prog.B_MODE_LEFT) not in flat
+
+
+@pytest.mark.parametrize("answer", ["holds", "not sure", "skip"])
+def test_part_b_no_push_is_asked_unless_the_arm_gave_way(tmp_path, answer):
+    code, sim, log, con = _run_b(tmp_path, script={prog.ASK_OUT_TOUCH: answer})
+    assert code == 1 and sim.received == OPEN + B_HF + B_ALIGN
+    flat = _flat(log)
+    assert _flat(prog.OUT_NOT_FREE) in flat and _flat(prog.B_MODE_LEFT) in flat
+    assert not any(q.startswith("Now please push the arm") for q, *_ in con.seen)
+    if answer != "skip":
+        assert "Whether the motors hold the arm is not known" in flat
+        assert "The arm is free" not in flat
+
+
+def test_part_b_the_scripted_hand_is_guided_into_the_box(tmp_path):
+    sim = sim_mod.SimTable(jitter=False)
+    sim.hand_script = ((-1100.0, 2560.0), (-1290.0, 2660.0))
+    code, sim, log, con = _run_b(tmp_path, sim)
+    assert code == 0
+    assert sim.received == B_PRE_ROW[:-len(B_FIRST)] + [P0] + B_FIRST + B_ROW + B_END + B_CLOSE
+    flat = _flat(log)
+    assert "about 1.8 cm further to the right and about 0.9 cm further towards the front" in flat
+    assert sim.hand_moves == [(-1100.0, 2560.0), (-1290.0, 2660.0)]
+
+
+@pytest.mark.parametrize("x,y,inside", [(-1360, 2600, True), (-1200, 2700, True),
+                                        (-1361, 2650, False), (-1199, 2650, False),
+                                        (-1280, 2599, False), (-1280, 2701, False)])
+def test_part_b_the_start_box_boundaries(tmp_path, x, y, inside):
+    sim = sim_mod.SimTable(jitter=False)
+    sim.hand_script = ((float(x), float(y)), (-1290.0, 2660.0))
+    code, sim, log, con = _run_b(tmp_path, sim)
+    assert code == 0
+    tries = [P0] * (0 if inside else 1)
+    assert sim.received == B_PRE_ROW[:-len(B_FIRST)] + tries + B_FIRST + B_ROW + B_END + B_CLOSE
+
+
+def test_part_b_a_hand_placed_arm_outside_the_box_never_gets_the_first_patch_move(tmp_path):
+    sim = sim_mod.SimTable(jitter=False)
+    sim.hand_script = ((-1500.0, 2650.0),)
+    code, sim, log, con = _run_b(tmp_path, sim)
+    assert code == 2
+    assert sim.received == OPEN + B_HF + B_ALIGN + B_PLACE1 + [P0] * (tbl.PLACE_TRIES - 1)
+    assert not any(ln in SPOT_LINES for ln in sim.received) and sim.motions == 4
+    flat = _flat(log)
+    assert "The arm is free (the motors do not hold it), out on the table" in flat
+    assert _flat(prog.B_MODE_LEFT) in flat and "nothing moved under motor" in flat
+
+
+def test_part_b_typing_stop_at_a_placement_sends_nothing_more(tmp_path):
+    code, sim, log, con = _run_b(tmp_path, script={"Now please push the arm": "stop"})
+    assert code == 1 and sim.received == OPEN + B_HF + B_ALIGN
+    assert _flat(prog.B_MODE_LEFT) in _flat(log)
+
+
+@pytest.mark.parametrize("drift,ok", [(2.0, True), (3.0, False)])
+def test_part_b_an_arm_that_moved_between_the_two_reads_is_not_taken(tmp_path, drift, ok):
+    sim = sim_mod.SimTable(jitter=False)
+    at = len(B_PRE_ROW) - 3                     # the second p0 of B4
+    assert B_ALL[at] == P0 and B_ALL[at + 1] == SPOT_LINES[0]
+    sim.inject_at(at, "drift", drift)
+    code, sim, log, con = _run_b(tmp_path, sim)
+    if ok:
+        assert code == 0 and sim.received == B_ALL
+    else:
+        assert code == 2 and sim.received == B_ALL[:at + 1] and sim.motions == 4
+
+
+def test_the_simulator_s_hand_never_pushes_a_held_arm():
+    sim = sim_mod.SimTable()
+    with pytest.raises(sim_mod.SimViolation, match="the motors hold"):
+        sim.hand_to(-1290, 2660)
+
+
+@pytest.mark.parametrize("k", [1, 2, 14, 27])
+def test_part_b_enter_on_the_row_offers_the_homing_from_that_patch(tmp_path, k):
+    code, sim, log, con = _run_b(tmp_path, stop_at_poll=k)
+    sent_row = B_ROW[:2 * (k - 1)]
+    assert code == 0
+    assert sim.received == B_PRE_ROW + sent_row + B_END + B_CLOSE
+    flat = _flat(log)
+    assert prog.PERSON_STOP_TEXT.format(n=k) in flat
+    assert "Offered: Send the arm home from the patch where you stopped" in flat
+    assert "home/home_patch" in log and "end_home" not in log
+
+
+@pytest.mark.parametrize("k", [1, 9, 27])
+def test_part_b_enter_on_the_row_and_no_to_the_homing_leaves_a_true_state(tmp_path, k):
+    code, sim, log, con = _run_b(tmp_path, stop_at_poll=k, script={"Run it now?": "no"})
+    assert code == 1 and sim.received == B_PRE_ROW + B_ROW[:2 * (k - 1)]
+    flat = _flat(log)
+    assert "The arm is held by the motors, out on the table" in flat
+    assert _flat(prog.B_MODE_LEFT) in flat
+
+
+def test_part_b_ctrl_c_on_the_row_never_offers_the_homing(tmp_path):
+    at = len(B_PRE_ROW) + 2 * 5                     # a patch move in the row
+    sim = sim_mod.SimTable()
+
+    def hook(n):
+        if n == at:
+            signal.raise_signal(signal.SIGINT)
+    sim.on_command = hook
+    code, sim, log, con = _run_b(tmp_path, sim)
+    assert code == 1 and sim.received == B_ALL[:at + 1]
+    assert "Offered:" not in log and "stopped by you" in log
+
+
+def test_part_b_end_before_the_row_offers_the_homing_from_patch_1(tmp_path):
+    class EndAtRow(Script):
+        def ask(self, question, choices=("yes", "no")):
+            if question.endswith("Run this step now?") and self.last == "b_row":
+                return "end"
+            return super().ask(question, choices)
+
+        def say(self, text=""):
+            m = re.match(r"Part B, step (\d): ", text)
+            if m:
+                self.last = tbl.B_STEPS[int(m.group(1)) - 1].key
+            super().say(text)
+    sim = sim_mod.SimTable()
+    con = EndAtRow(sim, script=B)
+    con.last = None
+    log = tmp_path / "l.txt"
+    assert prog.main(["--auto", "--log", str(log)], sim_table=sim, console=con) == 0
+    assert sim.received == B_PRE_ROW + B_END + B_CLOSE
+
+
+def test_part_b_struck_optional_steps_are_never_offered_or_sent(tmp_path, monkeypatch):
+    monkeypatch.setattr(tbl, "OPTIONAL_NEAR_STEPS", ())
+    code, sim, log, con = _run_b(tmp_path)
+    assert code == 0 and sim.received == B_ALL[:-len(B_CLOSE)] and "Offered:" not in log
+    assert _flat(prog.B_DONE_TEXT) in _flat(log)
+    code, sim, log, con = _run_b(tmp_path, stop_at_poll=3)
+    assert code == 1 and sim.received == B_PRE_ROW + B_ROW[:4] and "Offered:" not in log
+    monkeypatch.setattr(tbl, "OPTIONAL_NEAR_STEPS", ("home_from_patch",))
+    code, sim, log, con = _run_b(tmp_path)
+    assert sim.received == B_ALL[:-len(B_CLOSE)]
+
+
+def test_part_b_ctrl_c_during_any_write_sends_nothing_more(tmp_path):
+    for i in range(len(B_ALL)):
+        sim = sim_mod.SimTable()
+
+        def hook(n, i=i):
+            if n == i:
+                signal.raise_signal(signal.SIGINT)
+        sim.on_command = hook
+        code, sim, log, con = _run_b(tmp_path, sim)
+        assert code in (0, 1), i
+        assert sim.received == B_ALL[:len(sim.received)], i
+        assert len(sim.received) <= i + 1 or sim.received == B_ALL, i
+        if len(sim.received) < len(B_ALL):
+            after = log.split("\nSTOP ", 1)[-1]
+            assert "Offered:" not in after, i
+
+
+def test_part_b_ctrl_c_or_end_of_input_at_every_question_sends_nothing_more(tmp_path):
+    n_questions = len(_run_b(tmp_path)[3].seen)
+    assert n_questions > 25
+    for n in range(1, n_questions + 1):
+        code, sim, log, con = _run_b(tmp_path, interrupt_at=n)
+        assert sim.received == B_ALL[:len(sim.received)], n
+        assert not sim.moving, n
+        if len(sim.received) < len(B_ALL):
+            assert "Offered:" not in log.split("\nSTOP ", 1)[-1], n
+
+
+def test_part_b_nothing_is_asked_while_the_arm_moves(tmp_path):
+    for kw in ({}, {"stop_at_poll": 5}):
+        code, sim, log, con = _run_b(tmp_path, **kw)
+        assert con.seen and all(not moving for q, n, pos, moving, free in con.seen)
+
+
+@pytest.mark.parametrize("where,kind,texts", [
+    (B_ALIGN.index(M2507), "blocked", ["held by the motors", "OUT_ON_TABLE"]),
+    (len(B_ALIGN) - 1, "drift", ["The arm is free (the motors do not hold it)", "B_MODE_LEFT"]),
+    (len(B_ALIGN) + len(B_PLACE1) + len(B_FIRST) + 2 * 6 + 1, "blocked",
+     ["The arm is held by the motors, out on the table", "B_MODE_LEFT"]),
+    (len(B_ALIGN) + len(B_PLACE1) + len(B_FIRST) + 2 * 6 + 1, "no_done",
+     ["UNFINISHED", "UNFINISHED_FREE"]),
+])
+def test_part_b_after_a_stop_the_end_text_says_the_true_state(tmp_path, where, kind, texts):
+    at = len(OPEN + B_HF) + where
+    sim = sim_mod.SimTable(jitter=False)
+    sim.inject_at(at, kind, 0.5 if kind == "blocked" else 40.0)
+    code, sim, log, con = _run_b(tmp_path, sim)
+    assert code == 2
+    flat = _flat(log)
+    for t in texts:
+        assert _flat(getattr(prog, t, t)) in flat, t
+    assert prog.ASK_TOUCH not in [q for q, *_ in con.seen]
+
+
+def test_part_b_explains_every_step_and_its_dependence_before_the_yes(tmp_path):
+    code, sim, log, con = _run_b(tmp_path)
+    flat = _flat(log)
+    for n, s in enumerate(tbl.B_STEPS, 1):
+        i = flat.index(f"Part B, step {n}: {s.title}.")
+        assert flat.index(_flat(s.explain), i) > i
+        assert flat.index("What is not exactly as recorded: " + _flat(s.beyond), i) > i
+    assert flat.count(_flat(prog.B_DEPENDS)) == 4
+    for q in (prog.ASK_RING, prog.ASK_LIFT):
+        assert q in [x for x, *_ in con.seen]
+    readme = _flat(_source("README.md"))
+    for s in tbl.B_STEPS + tbl.near_steps():
+        assert _flat(s.explain) in readme and _flat(s.beyond) in readme and s.title in readme
+    assert f"at most **{tbl.B_MAX_LINES} lines and {tbl.B_MAX_MOTIONS} movements**" in readme
+    assert "What is new in 0.4.0" in readme
+
+
+def test_part_b_risks_are_rated_and_the_recovery_is_the_one_from_the_reviews():
+    assert [s.risk for s in tbl.B_STEPS] == ["low", "medium", "low", "medium", "low-medium",
+                                             "low"]
+    assert all(s.risk in prog.B_RISK_WORDS for s in tbl.B_STEPS + tbl.near_steps())
+    t = _flat(prog.B_MODE_LEFT)
+    assert "still in the hand-alignment mode" in t and "open i1Profiler once" in t
+    assert "switch the table off at its power switch, wait ten seconds" in t
+
+
+def test_part_b_ftdi_path_whole_session(monkeypatch):
+    monkeypatch.setattr(tbl.time, "sleep", lambda s: None)
+    dev = FakeDev(cold=False)
+    util, t = _ftdi(dev)
+    con = Script(dev.sim, script=B)
+    s = prog.Session(tbl.Table(t), con, simulated=True, sim_hand=dev.sim.hand)
+    assert s.go() == 0 and dev.sim.received == B_ALL
+
+
+def test_part_b_reads_the_free_arm_only_twice_before_moving_it_and_never_writes_memory(tmp_path):
+    code, sim, log, con = _run_b(tmp_path)
+    assert not any(ln.startswith(";u8") and ln not in (";u8000060000100d1", ";u8000061000068c3")
+                   for ln in sim.received)
+    i = sim.received.index(SPOT_LINES[0])
+    assert sim.received[i - 2:i] == [P0, P0]

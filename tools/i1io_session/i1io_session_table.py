@@ -1258,10 +1258,11 @@ class Table:
                 self._buf += chunk
                 raise self._doubt(f"the table sent something nobody asked for "
                                   f"({_short(self._buf)})")
-            if poll and self._poll_stop():
-                self.log("STEP", "you pressed Enter: stop at this patch")
-                raise PersonStop()
         self._stop_if_requested()
+        # once per pause: an Enter typed at any time during the row waits in the input
+        if poll and self._poll_stop():
+            self.log("STEP", "you pressed Enter: stop at this patch")
+            raise PersonStop()
 
     def _p0_spot(self, i: int) -> None:
         self._check_box(AT_SPOT[i], f"at patch {i + 1} of row 1")
