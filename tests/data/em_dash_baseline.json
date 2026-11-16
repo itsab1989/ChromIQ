@@ -912,7 +912,6 @@
   "{name} is a CGATS text export — ChromIQ converts it with ArgyllCMS's txt2ti3 for you.",
   "{name} is already in Argyll's measurement format — it will be used as it is.",
   "{name} is an i1Profiler measurement (CxF3) — ChromIQ reads it directly, no export step needed.",
-  "{note} — {n} patches, -i{instr} -p{paper}",
   "{n} reversals — possible misread",
   "{n} s — still working",
   "{path}  —  no readings yet",
