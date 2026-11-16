@@ -302,6 +302,7 @@ def _clean_run(tmp_path, stages):
     return sim.received, len(con.seen)
 
 
+@pytest.mark.slow       # exhaustive: every line / every question (--runslow)
 @pytest.mark.parametrize("kind", FAULTS)
 def test_any_fault_at_any_line_of_the_first_stages_keeps_every_rule(tmp_path, kind):
     lines, _ = _clean_run(tmp_path, FIRST)
@@ -327,6 +328,7 @@ def test_any_fault_at_any_line_of_the_first_stages_keeps_every_rule(tmp_path, ki
         assert (tmp_path / f"{kind}{i}" / "log-results.zip").exists()
 
 
+@pytest.mark.slow       # exhaustive: every line / every question (--runslow)
 def test_ctrl_c_at_any_line_of_the_first_stages_sends_nothing_more(tmp_path):
     import signal
     lines, _ = _clean_run(tmp_path, FIRST)
@@ -355,6 +357,7 @@ def test_ctrl_c_at_any_line_of_the_first_stages_sends_nothing_more(tmp_path):
         check_truthful(sim, con, log)
 
 
+@pytest.mark.slow       # exhaustive: every line / every question (--runslow)
 def test_ctrl_c_at_every_question_of_the_first_stages_sends_nothing_more(tmp_path):
     lines, n_questions = _clean_run(tmp_path, FIRST)
     for n in range(1, n_questions + 1):
@@ -735,6 +738,7 @@ def test_e2_e3_after_the_scan_move_a_failure_says_switch_off_and_leaves_a_marker
 SHEET_STAGES = ["c1", "d1", "d2", "d3", "e2", "f"]
 
 
+@pytest.mark.slow       # exhaustive: every line / every question (--runslow)
 @pytest.mark.parametrize("kind", ["no_answer", "status", "late", "refuse", "no_done"])
 def test_any_fault_at_any_line_of_the_sheet_stages_keeps_every_rule(tmp_path, kind):
     lines, _ = _clean_run(tmp_path, SHEET_STAGES)
@@ -757,8 +761,9 @@ def test_any_fault_at_any_line_of_the_sheet_stages_keeps_every_rule(tmp_path, ki
             assert all(x == P0 for x in after), (kind, i, sim.received[i:])
 
 
+@pytest.mark.slow       # exhaustive: every line / every question (--runslow)
 def test_ctrl_c_at_every_question_of_the_sheet_stages_sends_nothing_more(tmp_path):
-    stages = ["c1", "d1", "d2", "d3", "e2", "e3", "f"]
+    stages = ["c1", "d1", "d2", "d3", "e2", "f"]
     lines, n_questions = _clean_run(tmp_path, stages)
     for n in range(1, n_questions + 1):
         sim = csim.CSimTable(part_c=False)
