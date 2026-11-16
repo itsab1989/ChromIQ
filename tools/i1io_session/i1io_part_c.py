@@ -682,19 +682,62 @@ class PartC:
                               f"place ({tbl.REST_GUARD.text()})")
         del st
 
-    def confirm_new_part(self, a, b) -> bool:
-        """The first-visit rule: a move whose swept rectangle leaves every place the arm was
-        driven to (recordings, and this sitting so far) is announced and confirmed first."""
-        if not geo.first_visit(a, b) or any(_inside_rect(r, a, b) for r in self.driven):
+    def _visited(self, p) -> bool:
+        return (any(box.contains(p) for box in geo.DRIVEN)
+                or any(_rect_contains(r, p) for r in self.driven))
+
+    def confirm_new_part(self, a, b, *more, what: str = "The next move") -> bool:
+        """The first-visit rule: a move (or a row or a page: *more* continues the path a, b,
+        ...) whose swept rectangles leave every place the arm was driven to (recordings, and this
+        sitting so far) is announced and confirmed first, ONCE; its rectangles (widened by 1 mm,
+        the arrival tolerance) then count as driven."""
+        pts = [tuple(a), tuple(b)] + [tuple(p) for p in more]
+        segs = [(pts[k], pts[k + 1]) for k in range(len(pts) - 1)]
+        new = [sg for sg in segs if not self._seg_visited(*sg)]
+        if not new:
             return True
-        far = _beyond_mm(a, b)
-        self.ui.say(f"The next move (from X {a[0]}, Y {a[1]} to X {b[0]}, Y {b[1]}) takes the arm "
-                    f"up to about {far:.0f} mm beyond any place a recording drove it to, inside the "
-                    "measuring area. It is a first visit there under motor: please watch it.")
+        far = max(_beyond_mm(*sg) for sg in new)
+        x0 = min(min(p[0], q[0]) for p, q in new)
+        x1 = max(max(p[0], q[0]) for p, q in new)
+        y0 = min(min(p[1], q[1]) for p, q in new)
+        y1 = max(max(p[1], q[1]) for p, q in new)
+        self.ui.say(f"{what} takes the arm into a part of the table no recording drove it to "
+                    f"(between X {x0} and {x1}, Y {y0} and {y1}; up to about {far:.0f} mm "
+                    "beyond), inside the measuring area. It is a first visit there under motor: "
+                    "please watch it.")
         ans = self.ui.ask(f"{HANDS} Make this move now?", ("yes", "no"))
         self.s.note("first visit move", ans)
         self.block["answers"].append(("first visit", ans))
+        if ans == "yes":
+            for p, q in segs:
+                self.driven.append(((min(p[0], q[0]) - 10, min(p[1], q[1]) - 10),
+                                    (max(p[0], q[0]) + 10, max(p[1], q[1]) + 10)))
         return ans == "yes"
+
+    def _seg_visited(self, a, b) -> bool:
+        x0, x1 = sorted((int(a[0]), int(b[0])))
+        y0, y1 = sorted((int(a[1]), int(b[1])))
+        xs = sorted(set(list(range(x0, x1 + 1, 10)) + [x1]))
+        ys = sorted(set(list(range(y0, y1 + 1, 10)) + [y1]))
+        return all(self._visited((x, y)) for x in xs for y in ys)
+
+    def confirm_page(self, pts) -> None:
+        """E3, D4: the first-visit question once for the whole page (nothing is sent)."""
+        here = self.d.position_now or self.d.last_read
+        if here is None:
+            raise StageFailed("no position reading to start from (a bug)")
+        if not self.confirm_new_part(here, *pts, what="Your page"):
+            raise StageFailed("you did not confirm the first move into a new part of the table")
+
+    def free_arm_inside(self, a) -> None:
+        """No move starts from a free arm that stands outside the measuring area (a clean
+        failure: the person can push it back over the sheet)."""
+        if self.d.arm_free and not geo.AREA_RAW.contains(a):
+            raise StageFailed(
+                f"the free arm stands at X {a[0]}, Y {a[1]}, outside the measuring area "
+                f"({geo.AREA_RAW.text()}), and this program starts no move from there. Nothing "
+                "moved. Please push the free arm gently a few centimetres towards the middle "
+                "of your sheet, take your hands off, and run the stage again.")
 
     def move_to(self, target, what: str, first_from_free: bool = False) -> "tuple[int, int]":
         """One computed m0 from the position just read, checked, timed and arrival-checked.
@@ -703,12 +746,7 @@ class PartC:
         a = d.position_now
         if a is None:
             raise StageFailed(f"{what}: no fresh position reading (a bug)")
-        if d.arm_free and not geo.AREA_RAW.contains(a):
-            raise StageFailed(
-                f"the free arm stands at X {a[0]}, Y {a[1]}, outside the measuring area "
-                f"({geo.AREA_RAW.text()}), and this program starts no move from there. Nothing "
-                "moved. Please push the free arm gently a few centimetres towards the middle "
-                "of your sheet, take your hands off, and run the stage again.")
+        self.free_arm_inside(a)
         geo.check_path(a, target, what)
         if not self.confirm_new_part(a, target):
             raise StageFailed("you did not confirm the first move into a new part of the table")
@@ -902,7 +940,9 @@ class PartC:
         for k, plan in enumerate(plans):
             self.step(f"{self.block['stage']}_row{k + 1}", 12, 2)
             res = sc.run_row(d, scan, plan, d.log, str(folder),
-                             confirm_move=self.confirm_new_part)
+                             confirm_move=lambda a, b, p=plan: self.confirm_new_part(
+                                 a, b, p.end, what="The next row (the way to its start and the "
+                                 "strip move)"))
             files = sc.save_row(str(folder), res)
             self.block["data"].setdefault("rows", []).append(
                 {"row": plan.name, "kind": res.kind, "why": res.why, "notes": res.notes,
@@ -1076,18 +1116,26 @@ class PartC:
 
     def spot_row(self, folder: Path, name: str, pts, first: bool) -> None:
         d = self.d
+        here = d.position()
+        self.free_arm_inside(here)
+        geo.check_path(here, pts[0][2], f"the way to patch {pts[0][1]}")
+        if not self.confirm_new_part(here, *[t for _s, _l, t in pts],
+                                     what=f"This row ({name})"):
+            raise StageFailed("you did not confirm the first move into a new part of the table")
         r = self.spot_reader(folder, name, [(sid, loc) for sid, loc, _t in pts], calibrate=False)
         r.open(self.place_for_calibration("spot"))
         rows = []
         try:
             for i, (sid, loc, target) in enumerate(pts):
                 if i:
+                    # held by the motors at the patch just read: its arrival reading is the
+                    # fresh reading the next move starts from
                     self.poll_person()
                     d.c_wait(max(0.0, 1.0 - rows[-1]["t"]))
-                a = d.position()
-                if d.arm_free:
+                elif d.arm_free:
                     b = d.position()
-                    if abs(a[0] - b[0]) > tbl.STILL_UNITS or abs(a[1] - b[1]) > tbl.STILL_UNITS:
+                    if abs(here[0] - b[0]) > tbl.STILL_UNITS or \
+                            abs(here[1] - b[1]) > tbl.STILL_UNITS:
                         raise StageFailed("the free arm moved between two readings: please take "
                                           "your hands off it")
                 self.move_to(target, f"the move to patch {loc}")
@@ -1106,6 +1154,7 @@ class PartC:
         rows = self.sheet_spot_rows()
         if sum(len(r) for r in rows) > PAGE_PATCHES_MAX or len(rows) > PAGE_ROWS_MAX:
             raise StageFailed("the page has more patches than this stage reads")
+        self.confirm_page([t for r in rows for _s, _l, t in r])
         self.step("d4", s.max_lines, s.max_moves)
         for k, pts in enumerate(rows):
             self.spot_row(folder, f"d4_row{k + 1}", pts, k == 0)
@@ -1145,6 +1194,7 @@ class PartC:
             raise StageFailed("the page has more rows than this stage reads")
         with open(folder / "plans.json", "w", encoding="utf-8") as fh:
             json.dump([p.as_dict() for p in plans], fh, indent=1)
+        self.confirm_page([q for p in plans for q in (p.start, p.end)])
         scan = self._scan_reader_ready(folder)
         self.scan_rows(scan, plans, folder, ask_between=True)
 
@@ -1154,6 +1204,12 @@ SPEED_CHOICES = (54, 118, 88, 61, 40, 53, 87, 110, 137, 138)
 
 def _near(p, q, d=5) -> bool:
     return p is not None and abs(p[0] - q[0]) <= d and abs(p[1] - q[1]) <= d
+
+
+def _rect_contains(r, p) -> bool:
+    (a, b) = r
+    return (min(a[0], b[0]) <= p[0] <= max(a[0], b[0])
+            and min(a[1], b[1]) <= p[1] <= max(a[1], b[1]))
 
 
 def _inside_rect(r, a, b) -> bool:
