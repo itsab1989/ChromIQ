@@ -2376,22 +2376,40 @@ class ChartCreator:
     def _engine_patch_spans_mm(self, tiffs: "list[Path]",
                                params: "ChartParams") -> "dict | None":
         """``{str(tiff): (top_mm, bottom_mm)}``: where each page's patch area
-        begins and ends, from the engine's ``<stem>.strips.json`` beside the
-        pages (its patch rectangles, else its strip rectangles). None when
-        there is no map to read."""
+        begins and ends, from the engine's strip map beside the pages (its
+        patch rectangles, else its strip rectangles). None when there is no
+        map to read.
+
+        THE MAP IS IN ``channels.json`` BY THE TIME THE STAMP RUNS.
+        `_embed_layout_geometry` folds ``<stem>.strips.json`` into the
+        sidecar's "layout" and deletes it, before `_stamp_tiff_metadata` is
+        called; a ``.strips.json`` is read only where it still exists (a
+        build that stamps without embedding). Found on screen: reading only
+        the ``.strips.json`` centred nothing in the real app."""
         import json
         if not tiffs:
             return None
         try:
             stem = self._file_mgr.chart_stem(
                 cal_target=bool(getattr(params, "cal_target", False)))
-            path = Path(tiffs[0]).parent / f"{stem}.strips.json"
-            if not path.exists():
-                cands = sorted(Path(tiffs[0]).parent.glob("*.strips.json"))
-                if len(cands) != 1:
-                    return None
-                path = cands[0]
-            doc = json.loads(read_text(path))
+            folder = Path(tiffs[0]).parent
+            doc = None
+            for name, key in ((f"{stem}.channels.json", "layout"),
+                              (f"{stem}.strips.json", None)):
+                path = folder / name
+                if not path.exists():
+                    cands = sorted(folder.glob("*" + name[len(stem):]))
+                    if len(cands) != 1:
+                        continue
+                    path = cands[0]
+                got = json.loads(read_text(path))
+                got = got.get(key) if key else got
+                if isinstance(got, dict) and (got.get("patches")
+                                              or got.get("strips")):
+                    doc = got
+                    break
+            if doc is None:
+                return None
             dpi = float(doc.get("dpi") or 0)
             if dpi <= 0:
                 return None

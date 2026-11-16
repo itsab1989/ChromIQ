@@ -238,3 +238,25 @@ def test_an_engine_chart_hands_its_patch_areas_to_the_stamper(
     k = 25.4 / 200
     assert seen["patch_spans_mm"][str(tif)] == pytest.approx((100 * k,
                                                               400 * k))
+
+
+def test_the_map_is_read_from_channels_json_after_it_was_folded_in(tmp_path):
+    """In the app `_embed_layout_geometry` moves the strip map into
+    channels.json and deletes .strips.json before the stamp runs (found on
+    screen); the spans come from there."""
+    from workflow.chart_creator import ChartCreator
+    (tmp_path / "stem.channels.json").write_text(json.dumps({
+        "ink_channels": ["r", "g", "b"], "layout": {"dpi": 200, "patches": [
+            {"page": 0, "x": 0, "y": 226, "w": 59, "h": 52},
+            {"page": 0, "x": 0, "y": 900, "w": 59, "h": 52}]}}))
+    c = ChartCreator.__new__(ChartCreator)
+    c._file_mgr = type("FM", (), {
+        "chart_stem": staticmethod(lambda cal_target=False: "stem")})()
+
+    class _P:
+        cal_target = False
+
+    tif = tmp_path / "stem.tif"
+    k = 25.4 / 200
+    assert c._engine_patch_spans_mm([tif], _P())[str(tif)] == \
+        pytest.approx((226 * k, 952 * k))
