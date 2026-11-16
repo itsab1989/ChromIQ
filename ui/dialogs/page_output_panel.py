@@ -330,6 +330,11 @@ def finish_units(panel: Any) -> None:
                           for lbl in panel.findChildren(QLabel)
                           if lbl.text() in wanted]
     panel._length_boxes = list(panel.findChildren(LengthSpinBox))
+    for lbl, _a, _b in panel._unit_labels:
+        for w in _row_widgets(panel, lbl):
+            for box in [w] + list(w.findChildren(LengthSpinBox)):
+                if isinstance(box, LengthSpinBox):
+                    box._unit_in_label = True
     tips = []
     for box in panel._length_boxes:
         tip = _row_tip(panel, box)
@@ -347,6 +352,25 @@ def finish_units(panel: Any) -> None:
     _apply_length_unit(panel, unit)
     panel.units.currentIndexChanged.connect(_UnitsChosen(panel))
     _show_truth(panel)
+
+
+def _row_widgets(panel: Any, widget: Any) -> list:
+    """The widgets on the grid row of *widget* (a row label)."""
+    from PyQt6.QtWidgets import QGridLayout
+    for grid in panel.findChildren(QGridLayout):
+        i = grid.indexOf(widget)
+        if i < 0:
+            continue
+        row = grid.getItemPosition(i)[0]
+        out = []
+        for j in range(grid.count()):
+            item = grid.itemAt(j)
+            w = item.widget() if item is not None else None
+            if w is not None and w is not widget and \
+                    grid.getItemPosition(j)[0] == row:
+                out.append(w)
+        return out
+    return []
 
 
 def _row_tip(panel: Any, widget: Any) -> Any:

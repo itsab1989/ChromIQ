@@ -101,7 +101,11 @@ class LengthSpinBox(NoScrollDoubleSpinBox):
             super().setDecimals(self._in_decimals() + 1)
             super().setSingleStep(IN_STEP * MM_PER_INCH)
             from core.i18n import tr
-            self.setSuffix(" " + tr("in"))
+            # a box whose row label names the unit ("Margins (in):") shows
+            # a bare number, as it did in millimetres; any other says "in"
+            bare = getattr(self, "_unit_in_label", False) and \
+                not self._mm_suffix
+            self.setSuffix("" if bare else " " + tr("in"))
         else:
             self._len_unit = LEN_MM
             mm_dec = int(self._mm_decimals)

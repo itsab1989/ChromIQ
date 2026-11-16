@@ -28445,7 +28445,19 @@ class TabChart(QWidget):
             log.debug("printer edge note: %s, edges %s (%s), paper %s, %s",
                       printer, edges.as_dict(), edges.source, paper, loss)
             return _mm.edge_note(printer, edges, loss)
-        except Exception:      # noqa: BLE001 - a note, never a blocker
+        except Exception as exc:      # noqa: BLE001 - a note, never a blocker
+            from PIL import Image as _Image
+            if isinstance(exc, _Image.DecompressionBombError):
+                # A PAGE TOO LARGE FOR THE NOTE'S PICTURE READER (leftover c
+                # of 4.3.43): a 296-megapixel film frame is beyond what Pillow
+                # opens without its "decompression bomb" guard, and reading
+                # it whole for a note would take gigabytes. The note is
+                # skipped, and the log says so in words (it used to be a
+                # debug-level traceback saying only "not worked out").
+                log.info("printer edge note skipped: the chart's page is too "
+                         "large to be read for the note (%s); the chart "
+                         "itself is not affected", exc)
+                return None
             log.debug("printer edge note not worked out", exc_info=True)
             return None
 

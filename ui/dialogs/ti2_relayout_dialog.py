@@ -8116,6 +8116,20 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
         try:
             from workflow.layout_engine import chart as le_chart
             recipe = self._engine_panel.get_recipe()
+            # A PAGE THAT CANNOT BE MADE IS NOT DRAWN EITHER (leftover b of
+            # 4.3.43): a side typed in pixels that makes less than 1 mm or
+            # more than 2000 mm at the chart's resolution is refused by
+            # Generate and the build, and its paper code is that size, so a
+            # hidden 150 dpi picture of it (up to metres of page) would be
+            # drawn and thrown away. Said in the status line instead.
+            from workflow.page_output import support as _po
+            _ps = _po.clean_page_size(getattr(recipe, "page_size", None))
+            _why = (_po.size_problem(_ps, int(recipe.dpi or 0) or _ps["ppi"])
+                    if _ps is not None else None)
+            if _why:
+                log.info("engine preview not drawn: %s", _why)
+                self._status.setText(_why)
+                return
             kw = recipe.build_kwargs()
             # A PAGE TYPED IN PIXELS (the page-output Beta, #215) IS ITS
             # MILLIMETRES HERE. Its pixel count belongs to the chart's own
