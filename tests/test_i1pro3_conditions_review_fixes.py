@@ -254,3 +254,30 @@ def test_pruning_never_deletes_a_file_only_named_like_ours(tmp_path):
         os.utime(p, (t, t))
     assert C.prune_run(run) == [ours]
     assert stranger.is_file() and other_key.is_file()
+
+
+def test_a_temporary_file_a_crash_left_is_pruned_only_when_it_is_ours(tmp_path):
+    """4.3.42: the engine writes each condition file as <hash>-Mx.ti3.cqtmp
+    and renames it into place; a crash in between left the temporary file
+    for ever. Pruning removes it: only that name, only in conditions/, only
+    when older than 10 minutes. Anything else stays."""
+    import os
+    import time
+    run = Run.for_dir(tmp_path / "P" / "runs" / "run1")
+    run.condition_dir.mkdir(parents=True)
+    old = time.time() - 3600
+
+    def made(path, age=old):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("CTI3\n", encoding="latin-1")
+        os.utime(path, (age, age))
+        return path
+    stray = made(run.condition_dir / "12-0123abcd-M2.ti3.cqtmp")
+    fresh = made(run.condition_dir / "12-0123abcd-M1.ti3.cqtmp", time.time())
+    other_name = made(run.condition_dir / "notes.ti3.cqtmp")
+    main_tmp = made(run.dir / "P.ti3.cqtmp")          # M3: the kept save
+    elsewhere = made(tmp_path / "P" / "12-0123abcd-M2.ti3.cqtmp")
+    gone = C.prune_run(run)
+    assert gone == [stray] and not stray.exists()
+    for p in (fresh, other_name, main_tmp, elsewhere):
+        assert p.is_file(), p
