@@ -30,7 +30,8 @@ class Cands(ctypes.Structure):
                 ("flags", ctypes.c_int * MAXC),
                 ("p0", ctypes.c_double * MAXC),
                 ("net", ctypes.c_double),
-                ("back", ctypes.c_double)]
+                ("back", ctypes.c_double),
+                ("skipped", ctypes.c_int)]
 
 
 class Chart(ctypes.Structure):
@@ -103,7 +104,7 @@ def ruler_of(steps, p0=None):
 
 
 def decide(lab, steps, no, chart_lab, exp, why, flags=None, ss=None,
-           p0=None, net=None, back=None) -> dict:
+           p0=None, net=None, back=None, skipped=0) -> dict:
     """lab: (n,3) candidates in swipe order; chart_lab: (rows,N,3); steps:
     each segment's SIGNED ruler travel (positive = the strip's direction
     unless net says otherwise). p0 / net / back default to ruler_of(steps)."""
@@ -114,6 +115,7 @@ def decide(lab, steps, no, chart_lab, exp, why, flags=None, ss=None,
     p0d, netd, backd = ruler_of(steps, p0)
     c.net = netd if net is None else float(net)
     c.back = backd if back is None else float(back)
+    c.skipped = int(skipped)
     for i in range(n):
         c.ss[i] = int(ss[i]) if ss is not None else i * 10
         c.no[i] = int(no[i])

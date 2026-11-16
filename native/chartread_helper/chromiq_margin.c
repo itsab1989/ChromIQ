@@ -9,6 +9,13 @@
  *      out may lie between two kept patches except a sliver of at most 3
  *      readings (the edge between two patches). Rows of fewer than 8 patches
  *      are not looked at (see cqm_decide);
+ *  0b. the accounting: between the first and the last kept patch, the
+ *      ruler distance from one kept patch's centre to the next is never more
+ *      than 1.5 patch pitches (the pitch: the mean of those distances
+ *      without the largest), so the kept patches explain the whole stretch
+ *      travelled and none can be missing; a piece the ruler left out between
+ *      two kept patches must have 3 readings or fewer and have travelled at
+ *      most 0.3 of a patch;
  *  0a. the direction: the recording's ruler position may never fall back
  *      more than 3 steps against the strip's direction (its net travel), no
  *      segment, kept or forgiven, may move against it by more, and no segment
@@ -49,7 +56,7 @@
 #include "chromiq_margin.h"
 
 const char *cqm_version(void) {
-	return "M+L 3 (2026-11-16)";
+	return "M+L 4 (2026-11-16)";
 }
 
 void cqm_xyz2lab(const double xyz[3], double lab[3]) {
@@ -126,6 +133,33 @@ static int decide(const cqm_cands *c, const int *idx, int n, const double *paper
 	if (bo < 0) {
 		snprintf(why, wsz, "what would be left out is not paper white");
 		return 0;
+	}
+	/* 0b: the kept patches account for the whole distance travelled from
+	 * the first to the last. Centre to centre, a correct strip of the
+	 * tester's (123 strips, 2026-11-15) never went beyond 1.143 pitches; a
+	 * patch with no segment of its own makes one step about 2 pitches.
+	 * Equivalently: the travel from the first kept centre to the last
+	 * exceeds (patches - 1) pitches by less than half a pitch. */
+	{
+		int d = c->net >= 0.0 ? 1 : -1, j, big = 0;
+		double cen[CQM_MAXC], dif, sum = 0.0, pitch;
+		for (i = 0; i < N; i++) {
+			j = idx[bo + i];
+			cen[i] = d * (c->p0[j] + c->steps[j] / 2.0);
+		}
+		for (i = 1; i < N; i++) {
+			dif = cen[i] - cen[i - 1];
+			sum += dif;
+			if (dif > cen[big + 1] - cen[big])
+				big = i - 1;
+		}
+		pitch = (sum - (cen[big + 1] - cen[big])) / (N - 2);
+		if (!(pitch > 0.0)
+		 || cen[big + 1] - cen[big] > CQM_ACCOUNT * pitch) {
+			snprintf(why, wsz, "the ruler travel between patches %d and %d is not "
+			         "explained by the kept patches", big + 1, big + 2);
+			return 0;
+		}
 	}
 	/* 3 */
 	if (de(ref(ch, ch->exp, 0, 0), paper) < CQM_T_END
@@ -237,19 +271,25 @@ static int cmp_d(const void *a, const void *b) {
  * travel in the strip's direction. Returns the count, or -1 when a left-out
  * candidate lies between two kept ones.
  *
- * WHY THE TRAVEL WINDOW (CQM_TRAV_LO..CQM_TRAV_HI) AND THE SLIVER RULE MUST
- * NOT BE LOOSENED. The colour rules (4 to 7) compare means over the row, so
- * on their own they accept, at 0.01 to 3 %, two kinds of wrong reading the
- * review built by hand (adv.py "lift" and "backforth"): a patch with no
- * segment at all (an instrument lifted over it, the neighbours making up the
- * count) and a patch counted twice with a full patch's travel each time.
- * Neither can happen here only because of the ruler: a patch the instrument
- * crossed has a segment that travelled about one patch (so no patch goes
- * missing while the count still fits, and nothing longer than 1.5 patches is
- * one patch), and a segment of more than 3 readings between two kept patches
- * refuses the reading (so a second pass cannot hide as a sliver). Rule 0a
- * makes the second pass impossible in the other direction. Widen any of
- * these and those readings come back. */
+ * WHY THE TRAVEL WINDOW (CQM_TRAV_LO..CQM_TRAV_HI), THE SLIVER RULE AND THE
+ * ACCOUNTING (rule 0b) MUST NOT BE LOOSENED. The colour rules (4 to 7)
+ * compare means over the row, so on their own they accept, at 0.01 to 3 %,
+ * two kinds of wrong reading the review built by hand (adv.py "lift" and
+ * "backforth"): a patch with no segment at all (an instrument lifted over it,
+ * or jerked across it, the neighbours or a margin making up the count) and a
+ * patch counted twice with a full patch's travel each time. Neither can
+ * happen here only because of the ruler. A crossed patch does NOT always get
+ * a segment of its own: a jerk or a quick touch over it can leave 3 readings
+ * or fewer (re-check of 2026-11-16, MAJOR-R1, jerk.py: 1,514 of 58,672 kept
+ * wrongly). So a piece is forgiven as the edge between two patches only when
+ * it has 3 readings or fewer AND travelled at most 0.3 of a patch, and rule
+ * 0b requires the kept patches to account for the whole distance travelled
+ * from the first kept patch to the last: no patch-sized stretch of ruler
+ * may go unexplained. Nothing longer than 1.5 patches is one patch, and a
+ * segment of more than 3 readings between two kept patches refuses the
+ * reading (so a second pass cannot hide as a sliver). Rule 0a makes the
+ * second pass impossible in the other direction. Widen any of these and
+ * those readings come back. */
 static int ruler_keep(const cqm_cands *c, const double *ds, int first, int last,
                       double med, int *idx, int *standing) {
 	int i, n = 0, gap = 0;
@@ -269,7 +309,7 @@ static int ruler_keep(const cqm_cands *c, const double *ds, int first, int last,
 			 * forgiven only because rule 0a has already proved that it did
 			 * not move back: the ruler is what makes a repeated patch
 			 * impossible, never the colour (see above). */
-			if (n > 0 && c->no[i] > CQM_MIN_NO)
+			if (n > 0 && (c->no[i] > CQM_MIN_NO || ds[i] > CQM_SLIVER_TRAV * med))
 				gap = 1;
 		}
 	}
@@ -290,6 +330,11 @@ static int ruler_one_way(const cqm_cands *c, const double *ds, int d,
                          char *why, size_t wsz) {
 	int i;
 	double hi = -1e30;
+	if (c->skipped != 0) {
+		snprintf(why, wsz, "the ruler skipped %d steps (direction unknown)",
+		         c->skipped);
+		return 0;
+	}
 	if (!(c->back >= 0.0)) {
 		snprintf(why, wsz, "the ruler's movement is not known");
 		return 0;

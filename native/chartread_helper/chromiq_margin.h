@@ -33,6 +33,8 @@ extern "C" {
 #define CQM_TRAV_LO   0.6	/* a candidate's ruler travel, as a share of the median */
 #define CQM_TRAV_HI   1.5	/* (do not loosen: see chromiq_margin.c, rule 0) */
 #define CQM_BACK_TOL  3.0	/* ruler steps the position may fall back (rule 0a) */
+#define CQM_SLIVER_TRAV 0.3	/* a forgiven sliver travelled at most this share of a patch */
+#define CQM_ACCOUNT   1.5	/* rule 0b: centre-to-centre step, in patch pitches, at most */
 #define CQM_MIN_PATCH 8		/* the shortest row the rules look at (rule 0) */
 #define CQM_MIN_NO    3		/* a candidate has MORE readings than this */
 #define CQM_L_FULL    0.85	/* rule L: the first segment covers a whole patch */
@@ -62,6 +64,9 @@ typedef struct {
 	double back;			/* the most the position fell back, at any point of
 							 * the whole recording, against that direction
 							 * (steps, >= 0; < 0 = not known: refused) */
+	int skipped;			/* ruler changes that jumped two positions (the
+							 * direction unknown, counted as no movement):
+							 * any at all refuses (re-check NIT-R3) */
 } cqm_cands;
 
 typedef struct {

@@ -192,3 +192,21 @@ def test_the_preferences_row_its_help_and_its_confirmation(qapp, monkeypatch):
     finally:
         dlg.reject()
         dlg.deleteLater()
+
+
+def test_the_refusal_is_quoted_in_the_language_of_the_app(tmp_path, monkeypatch):
+    """Re-check NIT-R2: the German line says „Zu viele Messfelder“, as the
+    German (i) help and the misread window do."""
+    from pathlib import Path
+    rs, _ = _session(tmp_path)
+    i18n_dir = Path(__file__).parents[1] / "data" / "i18n"
+    de = json.loads((i18n_dir / "de.json").read_text(encoding="utf-8"))
+    monkeypatch.setattr("workflow.ruler_session.tr", lambda t: de.get(t, t))
+    line = rs._margin_line("A", KEPT)
+    assert "„Zu viele Messfelder“" in line, line
+    for lang in ("de", "es", "fr", "it", "ja", "nl", "no", "pl", "pt", "ru",
+                 "sv", "uk", "zh_CN"):
+        cat = json.loads((i18n_dir / f"{lang}.json").read_text(encoding="utf-8"))
+        for reason in ("Too many patches", "Not enough patches",
+                       "Swipe didn't start and end on the media"):
+            assert cat.get(reason), (lang, reason)

@@ -351,3 +351,152 @@ def test_a_late_start_before_a_board_and_a_jump_into_the_neighbour_row_are_never
                             wrong += 1
     assert tries > 5000
     assert wrong == 0
+
+
+# --- re-check of 5e290544a (2026-11-16), MAJOR-R1: a patch crossed in 3
+# readings or fewer (a jerk, a quick lift) was forgiven as an edge sliver
+# although the ruler showed a whole patch of travel; the margin then made the
+# count, and a patch went missing (review/jerk.py, jerk_drift.py,
+# jerk_paper.py). Now a forgiven piece travels at most 0.3 of a patch, and
+# rule 0b requires the kept patches to account for the whole distance.
+
+def _jerk_cases(prn, lab, exp, m, rng, trailer):
+    """The review's jerk: patches 1..m-1, patch m crossed in 1 to 3 readings
+    with its full travel, the rest, then the trailer form. Both rules."""
+    R, N = lab.shape[:2]
+    paper = np.array([95.0, 0.5, -3.0])
+    out = []
+    for rule in ("L", "M"):
+        segs = [] if rule == "L" else [(paper, 20, 20)]
+        segs += [(prn[exp, i], 14, 13) for i in range(m)]
+        segs += [(prn[exp, m], 14, int(rng.integers(1, 4)))]
+        segs += [(prn[exp, i], 14, 13) for i in range(m + 1, N)]
+        if trailer == "board":
+            off = rng.normal(0, 1, 3)
+            segs += [(paper, 14, 13), (paper + off / np.linalg.norm(off) * rng.uniform(4, 10), 20, 20)]
+        elif trailer == "drift":
+            other = prn[exp + 1, N - 1] if exp + 1 < R else prn[exp - 1, N - 1]
+            segs += [(other, 14, 13), (paper, 20, 20)]
+        else:
+            off = rng.normal(0, 1, 3)
+            segs += [(paper, 14, 13), (paper + off / np.linalg.norm(off) * rng.uniform(0, 3), 20, 20)]
+        labs = np.array([s[0] for s in segs]) + rng.normal(0, 0.3 / np.sqrt(3), (len(segs), 3))
+        out.append((labs, [s[1] * rng.uniform(0.9, 1.1) for s in segs], [s[2] for s in segs]))
+    return out
+
+
+@pytest.mark.parametrize("trailer", ["board", "drift", "paper"])
+def test_a_patch_jerked_across_is_never_lost(trailer):
+    """review/jerk.py (board 4 to 10 dE off paper), jerk_drift.py (one
+    coloured piece after the last patch), jerk_paper.py, ported; plus the
+    jerk at the FIRST and at the LAST patch."""
+    rng = np.random.default_rng({"board": 11, "drift": 12, "paper": 13}[trailer])
+    tries = kept = 0
+    for name, rows in CHARTS.items():
+        lab = np.array(rows, float)
+        R, N = lab.shape[:2]
+        for pred in (0, 6):
+            prn = lab + rng.normal(0, pred / np.sqrt(3), lab.shape)
+            for exp in range(R):
+                for m in sorted({0, N - 1, *range(1, N - 1, 4)}):
+                    for labs, steps, no in _jerk_cases(prn, lab, exp, m, rng, trailer):
+                        tries += 1
+                        if ml.decide(labs, steps, no, lab, exp, 1)["accept"]:
+                            kept += 1
+    assert tries > 5000
+    assert kept == 0
+
+
+def test_a_lift_with_ruler_travel_but_few_or_no_readings_is_refused():
+    """The instrument lifted over patch m: the ruler still travelled (a
+    stripe followed by hand), but there are 0 to 3 readings there."""
+    lab = np.array(next(iter(CHARTS.values())), float)
+    PAPER = _paper(lab)
+    N = lab.shape[1]
+    U = lab[E]
+    for m in (0, 3, N // 2, N - 1):
+        rest = [i for i in range(N) if i != m]
+        # a margin at the start makes the count right again
+        for few in (0, 1, 2, 3):
+            segs, steps, no, p0 = [PAPER, PAPER], [40.0, 40.0], [30, 20], [0.0, 40.0]
+            pos = 80.0
+            for i in range(N):
+                if i == m:
+                    if few:
+                        segs.append(U[i]); steps.append(40.0); no.append(few); p0.append(pos)
+                    pos += 40.0
+                    continue
+                segs.append(U[i]); steps.append(40.0); no.append(14); p0.append(pos)
+                pos += 40.0
+            segs.append(PAPER); steps.append(40.0); no.append(30); p0.append(pos)
+            r = ml.decide(np.array(segs), steps, no, lab, E, 1, p0=p0)
+            assert not r["accept"], (m, few, r["why"])
+        # and with no piece at all, only the accounting can see it
+        segs = [PAPER, PAPER, *U[rest], PAPER]
+        p0 = [0.0, 40.0] + [80.0 + 40.0 * i for i in rest] + [80.0 + 40.0 * N]
+        r = ml.decide(np.array(segs), [40.0] * len(segs), [30, 20, *([14] * (N - 1)), 30],
+                      lab, E, 1, p0=p0)
+        assert not r["accept"], (m, r["why"])
+        if 0 < m < N - 1:      # inside the row only the accounting sees it
+            assert "not explained" in r["why_m"], (m, r["why"])
+
+
+def test_double_speed_over_two_patches_keeps_nothing_wrong():
+    """Two patches crossed at double speed (half the readings, whole travel
+    each): an ordinary reading, kept or refused, never wrong."""
+    rng = np.random.default_rng(29)
+    tries = wrong = kept = 0
+    for name, rows in CHARTS.items():
+        lab = np.array(rows, float)
+        R, N = lab.shape[:2]
+        PAPER = _paper(lab)
+        for exp in range(R):
+            m = int(rng.integers(0, N - 1))
+            U = lab[exp] + rng.normal(0, 1.0, (N, 3))
+            no = [14] * N
+            no[m] = no[m + 1] = int(rng.integers(5, 8))
+            segs = np.array([PAPER, PAPER, *U, PAPER])
+            r = ml.decide(segs, [40.0] * (N + 3), [30, 30, *no, 30], lab, exp, 2)
+            tries += 1
+            if r["accept"]:
+                kept += 1
+                wrong += r["sel"] != list(range(2, N + 2))
+    assert wrong == 0
+    assert kept > tries // 2
+
+
+def test_the_accounting_lets_every_correct_recording_of_the_tester_through():
+    """The number of rule 0b, measured: in the tester's correct strips the
+    largest centre-to-centre step is 1.143 pitches (limit 1.5)."""
+    fix = json.loads((DATA / "margin_fixtures.json").read_text(encoding="utf-8"))
+    worst = 0.0
+    for ss in fix["sessions"]:
+        for s in ss["strips"]:
+            if s["verdict"] not in ("accepted", "asked") or s["ruler_back"] > 3:
+                continue
+            c = s["candidates"]
+            sg = s["ruler_sign"] or 1
+            ds = np.array([sg * x[2] for x in c])
+            p0 = np.array([sg * x[6] for x in c])
+            med = np.median(ds[1:-1])
+            keep = [i for i in range(1, len(c) - 1)
+                    if 0.6 * med <= ds[i] <= 1.5 * med and c[i][1] > 3]
+            if len(keep) != s["patches"]:
+                continue
+            dif = np.diff(p0[keep] + ds[keep] / 2)
+            big = dif.max()
+            worst = max(worst, big / ((dif.sum() - big) / (len(dif) - 1)))
+    assert 1.0 < worst < 1.2
+
+
+def test_a_ruler_that_skipped_a_step_is_never_rescued():
+    """Re-check NIT-R3: a change that jumps two positions has no known
+    direction; a recording with any is left refused."""
+    lab = np.array(next(iter(CHARTS.values())), float)
+    PAPER = _paper(lab)
+    N = lab.shape[1]
+    segs = np.array([PAPER, PAPER, *lab[E], PAPER])
+    no = [30, 30, *([14] * N), 30]
+    assert ml.decide(segs, [40.0] * (N + 3), no, lab, E, 2)["accept"]
+    r = ml.decide(segs, [40.0] * (N + 3), no, lab, E, 2, skipped=1)
+    assert not r["accept"] and "skipped" in r["why"]

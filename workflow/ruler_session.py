@@ -600,7 +600,11 @@ class RulerSession:
             "clearly better than those of any other strip, of any shifted "
             "position or of the reverse direction, and it was then checked "
             "like every other strip.").format(strip=strip,
-                             reason=str(m.get("refused_because") or ""),
+                             # ArgyllCMS's own words, as this language
+                             # shows them everywhere else (the (i) help, the
+                             # misread window); an unknown one stays as sent
+                             # (re-check NIT-R2)
+                             reason=tr(str(m.get("refused_because") or "")),
                              what=what)
 
     def _direction_line(self, strip: str, reversed_: bool) -> str:
