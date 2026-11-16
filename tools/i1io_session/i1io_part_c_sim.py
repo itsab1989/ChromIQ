@@ -28,8 +28,9 @@ from i1io_session_table import checksum, checksum_ok
 # ---- the simulator's own copy of part C's rules ---------------------------------------------
 C_P1, C_C4, C_D1, C_A3, C_C3 = ";p124", ";c42e", ";d1016d35", ";a331", ";c32f"
 C_SPEEDS_M2 = (40, 53, 54, 61, 87, 88, 110, 118, 137, 138)
-C_TARGET_BOX = (-1384, 1716, 523, 3159)        # targets: never beyond the front zone's cap
-C_SWEEP_BOX = (-1434, 1766, 473, 3159)         # the swept rectangle from where the arm is
+C_TARGET_BOX = (-1384, 1716, 523, 3109)        # targets: never beyond the front zone's cap
+C_SWEEP_BOX = (-1434, 1766, 473, 3114)         # the swept rectangle from where the arm is
+#                                                (the cap plus the 5-unit arrival tolerance)
 #: fix 2, the simulator's own copy of the front-zone rule: in front of the proven zone (targets
 #: Y 2723, sweep 2773) a computed move may reach at most 50 units (5 mm) beyond the frontmost Y
 #: the motors have already brought the arm to, an m0 there moves at most 50 units per axis, and a

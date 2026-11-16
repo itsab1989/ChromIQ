@@ -76,14 +76,14 @@ class Stage:
 
 
 #: The area's wording, used wherever a text speaks of it (safety review of 7382e56f2).
-AREA_PARTS = ("a proven part of 320 x 230 mm, and in front of it a front part reaching at most 5 "
-              "mm beyond the frontmost mark of your recorded i1Profiler alignments")
+AREA_PARTS = ("a proven part of 320 x 230 mm, and in front of it a front part reaching at most "
+              "up to the frontmost mark of your recorded i1Profiler alignments")
 AREA_WHERE = ("where it lies on your table is our estimate: its proven part from where the "
               "measuring opening has actually been in your recordings, its front part from where "
               "your recorded i1Profiler alignments put their marks")
-WHY_BACK = ("This program never sends the arm further forward than 5 mm beyond the frontmost "
-            "mark of your recorded i1Profiler alignments, nor further to a side than the area's "
-            "320 mm allow.")
+WHY_BACK = ("This program never sends the arm further forward than the frontmost mark of your "
+            "recorded i1Profiler alignments, nor further to a side than the area's 320 mm "
+            "allow.")
 SHEET_BACK = ("If part of the sheet lies further forward than the measuring opening has been in "
               "your recordings, D1 tells you before anything moves and lets you choose: lay it a "
               "little further back, or let the program feel its way forward first (stage DZ).")
@@ -101,7 +101,7 @@ FRONT_YES = ("To go on, type yes. Then run stage DZ next (it is offered in the m
 
 SPOT_ROW_PATCHES_MAX = 40
 #: fix 2: the creep (stage DZ): at most this many 5 mm steps in one run (the front zone is
-#: 43.6 mm deep: 9 steps), and the stage's own caps below (lines, movements, runs)
+#: 38.6 mm deep: 8 steps), and the stage's own caps below (lines, movements, runs)
 CREEP_STEPS_MAX = 10
 CREEP_PAUSE_S = 0.5
 PAGE_PATCHES_MAX = 1100
@@ -188,8 +188,8 @@ STAGES = (
           "the homing (F). The furthest point reached cleanly is the front limit for the rest of "
           "this sitting.",
           "A FIRST TRY: the table has never been driven there under motor in a recording. The "
-          "steps never go beyond 5 mm in front of the frontmost mark of any recorded i1Profiler "
-          "alignment, and never further than your sheet needs."),
+          "steps go at most up to the frontmost mark of your recorded i1Profiler alignments, and "
+          "never further than your sheet needs."),
     Stage("d2", "The first computed move: a short one to mark 3", "about 1 min",
           ("d1",), "sheet", "medium", True, 3, 4, 1,
           "With your hands off, the program reads where the free arm is (twice) and drives it the "
@@ -1164,7 +1164,8 @@ class PartC:
             al = geo.fit_alignment([tuple(sc.sheet_table_mm(sheet, a["page_mm"])) for a in aims],
                                    readings)
         except geo.AlignmentRefused as exc:
-            raise StageFailed(f"{exc}. Nothing has moved since your aims. " + REAIM) from None
+            raise StageFailed(f"{exc}.{_rows_beyond(sheet, self.page, aims, readings)} Nothing "
+                              "has moved since your aims. " + REAIM) from None
         self.block["data"]["checks"] = al.checks
         with open(folder / "alignment.json", "w", encoding="utf-8") as fh:
             json.dump({"aims_mm": al.aims_mm, "readings": al.readings, "M": al.M,
@@ -1487,6 +1488,38 @@ def _shift_words(over: dict) -> str:
     return " and ".join(parts)
 
 
+def _rows_words(nums) -> str:
+    """'row 18', 'rows 17 and 18', 'rows 1, 2 and 3' (and so many more after ten)."""
+    nums = list(nums)
+    shown = [str(n) for n in nums[:10]]
+    more = len(nums) - len(shown)
+    if more:
+        return "rows " + ", ".join(shown) + f" and {more} more"
+    if len(shown) == 1:
+        return "row " + shown[0]
+    return "rows " + ", ".join(shown[:-1]) + " and " + shown[-1]
+
+
+def _rows_beyond(sheet: dict, page: int, aims, readings) -> str:
+    """For aims D1 refused (nothing moves): which rows of the page could not be reached as the
+    sheet lies, from the same fit without its area check; empty when the fit itself fails."""
+    try:
+        al = geo.fit_model([tuple(sc.sheet_table_mm(sheet, a["page_mm"])) for a in aims],
+                           readings)
+        fit = page_fit(sheet, page, al)
+    except (geo.AlignmentRefused, geo.AreaRefused, ValueError, KeyError, IndexError,
+            ZeroDivisionError):
+        return ""
+    parts = []
+    if fit["spot_outside_rows"]:
+        parts.append(f"patches in {_rows_words(fit['spot_outside_rows'])}")
+    if fit["rows_outside_list"]:
+        parts.append(f"as strips, {_rows_words(fit['rows_outside_list'])}")
+    if not parts:
+        return ""
+    return (" As the sheet lies now, these could not be reached: " + "; ".join(parts) + ".")
+
+
 def page_fit(sheet: dict, page: int, al: "geo.Alignment") -> dict:
     """After D1 (nothing moves): which spot targets and which strip rows of the page lie inside
     the measuring area this program uses, and which way the sheet would have to lie for the
@@ -1495,13 +1528,16 @@ def page_fit(sheet: dict, page: int, al: "geo.Alignment") -> dict:
     strips = sheet["pages"][page]["strips"]
     spot_pts, run_pts = [], []
     spot_out = rows_out = 0
-    for st in strips:
+    spot_out_rows, rows_out_list = [], []       # row numbers (1-based, as E2/E3/D4 name them)
+    for k, st in enumerate(strips, 1):
         for q in st["patches"]:
             u = sc.sheet_table_mm(sheet, q["centre_mm"])
             p = al.to_table(u)
             spot_pts.append(p)
             if not (area.contains(p) and al.on_sheet(u, 0.5)):
                 spot_out += 1
+                if k not in spot_out_rows:
+                    spot_out_rows.append(k)
         ends = []
         for r in st["run_mm"]:
             u = sc.sheet_table_mm(sheet, (st["x_mm"], r))
@@ -1510,6 +1546,7 @@ def page_fit(sheet: dict, page: int, al: "geo.Alignment") -> dict:
             run_pts.append(p)
         if not all(area.contains(p) for p in ends):
             rows_out += 1
+            rows_out_list.append(k)
 
     def over(pts):
         return {"left": max(p[0] for p in pts) - area.xmax,
@@ -1528,16 +1565,23 @@ def page_fit(sheet: dict, page: int, al: "geo.Alignment") -> dict:
         say.append(f"All {n_spot} patches of this page lie inside the measuring area this program "
                    "uses: the spot stages (D3, D4) can reach every one.")
     else:
-        say.append(f"{spot_out} of the {n_spot} patches of this page lie outside the measuring area "
-                   f"this program uses, so D3 or D4 stop cleanly before the first of them. For "
-                   f"all of them the sheet would have to lie {_shift_words(over(spot_pts))}.")
+        say.append(f"{spot_out} of the {n_spot} patches of this page ({_rows_words(spot_out_rows)}) "
+                   f"lie outside the measuring area this program uses. D3 and D4 work out every "
+                   f"patch of the page before anything moves, so they stop cleanly before their "
+                   f"first move, with nothing sent. For all of them the sheet would have to lie "
+                   f"{_shift_words(over(spot_pts))}.")
     if rows_out == 0:
         say.append(f"All {n_rows} rows of this page, with their run-in and run-out, lie inside it "
                    "too: the strip stages (E2, E3) can read every row.")
     else:
-        say.append(f"{rows_out} of the {n_rows} rows, with their run-in and run-out, reach outside "
-                   f"it, so E2 or E3 stop cleanly before such a row. For all rows the sheet would "
-                   f"have to lie {_shift_words(over(run_pts))}. " + REAIM)
+        one = rows_out == 1
+        say.append(f"{rows_out} of the {n_rows} rows ({_rows_words(rows_out_list)}), with "
+                   f"{'its' if one else 'their'} run-in and run-out, "
+                   f"{'reaches' if one else 'reach'} outside it, so {'it' if one else 'they'} "
+                   f"cannot be read as {'a strip' if one else 'strips'}. E2 and E3 work out every row of the page before "
+                   f"anything moves, so they stop cleanly before their first move, with nothing "
+                   f"sent. For all rows the sheet would have to lie "
+                   f"{_shift_words(over(run_pts))}. " + REAIM)
     front_spot = sum(1 for p in spot_pts if area.contains(p) and geo.in_front_zone(p))
     front_rows = sum(1 for st in strips
                      if any(geo.in_front_zone(al.to_table(sc.sheet_table_mm(sheet, (st["x_mm"], r))))
@@ -1545,7 +1589,7 @@ def page_fit(sheet: dict, page: int, al: "geo.Alignment") -> dict:
     return {"spot_outside": spot_out, "spot_total": n_spot, "rows_outside": rows_out,
             "rows_total": n_rows, "over_spot": over(spot_pts), "over_rows": over(run_pts),
             "front_need": front_need, "front_spot": front_spot, "front_rows": front_rows,
-            "say": say}
+            "spot_outside_rows": spot_out_rows, "rows_outside_list": rows_out_list, "say": say}
 
 
 def demo_aims_point(sheet: dict, page_mm, origin=DEMO_ORIGIN) -> "tuple[int, int]":

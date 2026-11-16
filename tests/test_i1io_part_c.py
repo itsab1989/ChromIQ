@@ -8,6 +8,7 @@ SimViolation the moment one is broken) with FAKE spot and strip readers. No hard
 from __future__ import annotations
 
 import json
+import re
 import sys
 import zipfile
 from pathlib import Path
@@ -606,8 +607,9 @@ P1_FRONTMOST = (1268, 3109)                                      # R1 412.443, m
 
 def test_the_front_edge_is_the_frontmost_sensor_reading_not_a_sight_reading():
     """Safety review of 7382e56f2, required change: both edges of the PROVEN zone rest on p0
-    (sensor) readings; fix 2: the front zone beyond it is capped at the frontmost recorded aim
-    plus 5 mm."""
+    (sensor) readings; fix 2/3: the front zone beyond it is capped for targets at the frontmost
+    recorded aim (no margin added), for swept rectangles at that plus the 5-unit arrival
+    tolerance."""
     assert geo.FRONTMOST_Y_REACHED == max(p[1] for p in P0_FRONTMOST) == R.ymax
     assert geo.SMALLEST_X_REACHED == P0_RIGHTMOST[0] == R.xmin
     assert R.ymax < P1_FRONTMOST[1] - 300           # the sight reading is ~31 mm further front
@@ -621,10 +623,12 @@ def test_the_front_edge_is_the_frontmost_sensor_reading_not_a_sight_reading():
         if name in ("R1 716.8", "R2 144.5"):
             continue
         assert pts[1][1] > A.ymax and pts[2][1] > A.ymax, name
-    # the cap: the frontmost recorded aim (p1, R1 412.443) plus the 5 mm margin
+    # the cap: the frontmost recorded aim (p1, R1 412.443), nothing added (fix 3)
     assert geo.FRONTMOST_AIM_Y == P1_FRONTMOST[1] == max(
         p[1] for pts in geo.RECORDED_ALIGNMENTS.values() for p in pts)
-    assert geo.FRONT_CAP_Y == 3159 == geo.CAP_AREA.ymax == geo.CAP_RAW.ymax
+    assert geo.FRONT_CAP_Y == 3109 == geo.CAP_AREA.ymax
+    assert geo.ARRIVAL_SLACK == 5
+    assert geo.FRONT_SWEEP_CAP_Y == 3114 == geo.CAP_RAW.ymax
 
 
 CAP = geo.CAP_AREA
@@ -739,11 +743,11 @@ def test_the_recorded_alignments_pass_the_checks_and_reach_into_the_front_zone()
         al = geo.fit_alignment(aims, pts)
         assert abs(al.checks["rotation_deg"]) < 1.0
         assert max(p[1] for p in al.readings) > A.ymax
-    # 5 mm beyond the frontmost recorded mark: still inside; one unit more: refused
+    # on the frontmost recorded mark: still inside; one unit more: refused (fix 3)
     pts = geo.RECORDED_ALIGNMENTS["R1 401.6"]
-    geo.fit_alignment(_aims_mm(pts), [(x, y + 50) for x, y in pts])
+    geo.fit_alignment(_aims_mm(pts), pts)
     with pytest.raises(geo.AlignmentRefused, match="further to the front than any mark"):
-        geo.fit_alignment(_aims_mm(pts), [(x, y + 51) for x, y in pts])
+        geo.fit_alignment(_aims_mm(pts), [(x, y + 1) for x, y in pts])
 
 
 #: i1Profiler's own moves after each recorded alignment (decoded R1, R2, S2 captures; the m0
@@ -1792,13 +1796,21 @@ def test_strip_rows_in_the_front_zone_first_reach_both_ends_by_spot_moves(tmp_pa
 
 def test_a_free_arm_in_the_front_zone_is_not_homed_and_not_moved(tmp_path):
     """The homing from the front zone is sent only for a HELD arm (after a creep step); a free
-    arm standing in front of the proven part (aims at the cap) is neither homed nor moved."""
-    pts = [(x, y + 50) for x, y in geo.RECORDED_ALIGNMENTS["R1 401.6"]]
+    arm standing in front of the proven part is neither homed nor moved. Fix 3: with the cap on
+    the frontmost recorded mark, a free arm can stand in front of the proven part only after
+    aims beyond the cap (here 4 mm, the arm then about 2 mm in front of the proven part): D1
+    refuses them, and F does not home it."""
+    pts = [(x, y + 40) for x, y in geo.RECORDED_ALIGNMENTS["R1 401.6"]]
     f, _p = _recorded_sheet(tmp_path, "R1 401.6", 17)
     sim = csim.CSimTable(part_c=False, aims=pts, jitter=False)
     code, sim, log, con, res = run_c(tmp_path / "run", ["d1", "f"], sim=sim, sheet=f)
     v = verdicts(log)
-    assert v[-1] == ("f", "failed cleanly"), v
+    assert v == [("d1", "failed cleanly"), ("f", "failed cleanly")], v
+    d1 = [b for b in blocks(log) if b["stage"] == "d1"][0]
+    assert "further to the front than any mark" in d1["why"]
+    fb = [b for b in blocks(log) if b["stage"] == "f"][0]
+    m = re.search(r"the arm reads X -?\d+, Y (\d+), outside", fb["why"])
+    assert m and int(m.group(1)) > R.ymax, fb["why"]
     assert tbl.WIRE["home"].decode().rstrip("\r") not in sim.received[-6:]
     assert computed(sim) == [] and sim.violations == []
 
@@ -1833,7 +1845,7 @@ def test_the_front_limits_at_their_edges():
     step beyond the confirmed Y and no more, from a reading inside the slack."""
     for fy in (geo.FRONT_CAP_Y, geo.FRONT_CAP_Y + 1, 5000, 1e9):
         t_, s_ = geo.areas(fy)
-        assert t_.ymax == geo.FRONT_CAP_Y and s_.ymax == geo.FRONT_CAP_Y
+        assert t_.ymax == geo.FRONT_CAP_Y == 3109 and s_.ymax == geo.FRONT_SWEEP_CAP_Y == 3114
     with pytest.raises(geo.AreaRefused):
         geo.check_target((0, geo.FRONT_CAP_Y + 1), "x", front_y=5000)
     t_, s_ = geo.areas(2900)
@@ -1868,3 +1880,122 @@ def test_the_spot_rows_are_planned_against_the_sitting_s_front(tmp_path):
     assert max(t[1] for r in rows for _s, _l, t in r) <= 3009
     with pytest.raises(geo.AreaRefused, match="DZ"):
         sc.sheet_rows(sheet, 0, al, 54)
+
+
+# ---- fix 3: the cap for targets on the frontmost recorded mark (Y 3109) ----------------------
+
+def test_a_target_on_the_cap_is_allowed_once_the_creep_confirmed_it():
+    """Y 3109: refused while nothing (or less) is confirmed; the creep step that reaches it is
+    allowed; once confirmed, an m0 and a scan move to it pass the gate."""
+    assert geo.FRONT_CAP_Y == 3109
+    with pytest.raises(geo.AreaRefused, match="DZ"):
+        geo.check_target((0, 3109), "x")
+    with pytest.raises(geo.AreaRefused, match="DZ"):
+        geo.check_target((0, 3109), "x", front_y=3108)
+    geo.check_target((0, 3109), "x", front_y=3109)
+    t = _T()
+    gate = cl.make_gate(t)
+    t.front_y, t.creep, t.position_now = 3060, True, (0, 3060)
+    assert gate(geo.m0_line(0, 3109))[2] == "computed m0"          # the creep's last step
+    t.front_y, t.creep, t.position_now = 3109, False, (0, 2000)
+    assert gate(geo.m0_line(0, 3109))[2] == "computed m0"
+    assert gate(geo.m2_line(0, 3109, 54))[2] == "scan move"
+    t.position_now = (0, 3114)                                     # read within the slack
+    assert gate(geo.m0_line(0, 2000))[2] == "computed m0"
+    t.position_now = (0, 3115)
+    with pytest.raises(tbl.ForbiddenLine):
+        gate(geo.m0_line(0, 2000))
+    assert csim._inside(csim.C_TARGET_BOX, (0, 3109))
+    assert csim._inside(csim.C_SWEEP_BOX, (0, 3114))
+    assert not csim._inside(csim.C_SWEEP_BOX, (0, 3115))
+
+
+@pytest.mark.parametrize("front_y", [None, 2723, 3060, 3109, 3110, 3159, 5000, float("inf"),
+                                     float("nan"), 1e9])
+@pytest.mark.parametrize("creep", [False, True])
+def test_y_3110_is_refused_always(front_y, creep):
+    """One unit beyond the cap: refused by both builders, by classify, by the gate with every
+    confirmed Y and with the creep on or off, by check_target, and by the simulator's box."""
+    for build in (lambda: geo.m0_line(0, 3110), lambda: geo.m2_line(0, 3110, 54)):
+        with pytest.raises(geo.AreaRefused):
+            build()
+    raw_m0, raw_m2 = geo._line("m0", 0, 3110, 300), geo._line("m2", 0, 3110, 54)
+    for raw in (raw_m0, raw_m2):
+        with pytest.raises(tbl.ForbiddenLine):
+            cl.classify(raw)
+        with pytest.raises(tbl.ForbiddenLine):
+            cl.wire_gate(raw)
+    with pytest.raises(geo.AreaRefused):
+        geo.check_target((0, 3110), "x", front_y=front_y)
+    t = _T()
+    t.front_y, t.creep, t.position_now = front_y, creep, (0, 3080)
+    gate = cl.make_gate(t)
+    for raw in (raw_m0, raw_m2):
+        with pytest.raises(tbl.ForbiddenLine):
+            gate(raw)
+    assert geo.areas(front_y)[0].ymax <= 3109 and geo.areas(front_y)[1].ymax <= 3114
+    assert not csim._inside(csim.C_TARGET_BOX, (0, 3110))
+
+
+def test_a_recorded_alignment_on_the_cap_names_the_row_it_cannot_reach_and_offers_back(tmp_path):
+    """R1 401.6 exactly as recorded: its mark 2 lies ON the cap (3109), and the run-out of its
+    frontmost row 0.5 mm beyond the end patch lies at Y 3110 (the row is turned 0.7 degrees).
+    D1 accepts the aims, names row 18 as the row that cannot be read as a strip, says what E2
+    and E3 then do, and offers back (the default) or go on. With go on: DZ reaches 3109 and no
+    further, E2 and E3 stop cleanly with nothing sent, the spot stage reads row 1, and no line
+    ever goes beyond Y 3109."""
+    f, pts = _recorded_sheet(tmp_path, "R1 401.6", 17)
+    assert max(p[1] for p in pts) == geo.FRONT_CAP_Y
+    sim = csim.CSimTable(part_c=False, aims=pts, jitter=False)
+    code, sim, log, con, res = run_c(tmp_path / "back", ["d1", "f"], sim=sim, sheet=f)
+    assert verdicts(log)[0] == ("d1", "stopped by you (clean)")
+    text = _flat(screen(con))
+    assert "1 of the 18 rows (row 18), with its run-in and run-out, reaches outside it" in text
+    assert ("E2 and E3 work out every row of the page before anything moves, so they stop "
+            "cleanly before their first move, with nothing sent") in text
+    d1 = [b for b in blocks(log) if b["stage"] == "d1"][0]
+    assert ["front part", "back"] in [list(x) for x in d1["answers"]], d1["answers"]
+    assert "you chose to lay the sheet about 39 mm further back and aim again" in text
+    assert "All 504 patches of this page lie inside" in text
+    assert computed(sim) == [] and sim.violations == []
+    sim = csim.CSimTable(part_c=False, aims=pts, jitter=False)
+    code, sim, log, con, res = run_c(tmp_path / "go", ["c1", "d1", "dz", "e2", "e3", "d3", "f"],
+                                     sim=sim, sheet=f, script=GO_ON)
+    v = verdicts(log)
+    assert v == [("c1", "worked"), ("d1", "worked"), ("dz", "worked"), ("e2", "failed cleanly"),
+                 ("e3", "failed cleanly"), ("d3", "worked"), ("f", "worked")], v
+    by = {b["stage"]: b for b in blocks(log)}
+    assert by["dz"]["front_zone_reached_y"] == 3109
+    for k in ("e2", "e3"):
+        assert "row 18's run end" in by[k]["why"] and "Y 3110" in by[k]["why"]
+        assert by[k]["lines_after"] == by[k]["lines_before"], k          # nothing sent
+    ys = [geo.decode_xyv(x.encode() + b"\r")[2] for x in computed(sim)]
+    assert max(ys) == 3109
+    assert sim.violations == []
+    check_truthful(sim, con, log)
+
+
+def test_a_recorded_alignment_one_unit_beyond_the_cap_is_refused_and_names_the_rows(tmp_path):
+    """R1 401.6 laid 0.1 mm further forward: its mark 2 (a corner patch, so the centre of row
+    18's first patch) at Y 3110. D1 refuses the aims before anything moves, says how far back
+    the sheet must lie and which rows could not be reached, and offers to lay it again."""
+    f, rec = _recorded_sheet(tmp_path, "R1 401.6", 17)
+    pts = [(x, y + 1) for x, y in rec]
+    sim = csim.CSimTable(part_c=False, aims=pts, jitter=False)
+    code, sim, log, con, res = run_c(tmp_path / "run", ["d1", "dz", "f"], sim=sim, sheet=f)
+    v = verdicts(log)
+    assert v == [("d1", "failed cleanly"), ("f", "worked")], v
+    why = [b for b in blocks(log) if b["stage"] == "d1"][0]["why"]
+    assert "mark 2 was aimed at X 1268, Y 3110" in why
+    assert "further to the front than any mark of your recorded i1Profiler alignments" in why
+    assert "about 1 mm further towards the back" in why
+    assert "these could not be reached: patches in row 18; as strips, row 18." in why
+    assert "Nothing has moved since your aims." in why and pc.REAIM in why
+    assert computed(sim) == [] and sim.violations == []
+
+
+def test_the_rows_words():
+    assert pc._rows_words([18]) == "row 18"
+    assert pc._rows_words([17, 18]) == "rows 17 and 18"
+    assert pc._rows_words([1, 2, 3]) == "rows 1, 2 and 3"
+    assert pc._rows_words(range(1, 13)) == "rows 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 and 2 more"

@@ -57,14 +57,15 @@ bottom marks were aimed at sight Y 2934 to 3109); D1 says by how much before any
 
 THE FRONT ZONE (fix 2, the owner's ruling after fix 1 had refused all ten recorded sheet
 positions). In front of that PROVEN area lies a FRONT ZONE up to an absolute cap, FRONT_CAP_Y =
-3159: the frontmost mark any recorded alignment put (p1 Y 3109, R1 412.443, mark 2 of R1 401.6)
-plus 5 mm. A mark is a corner patch of a chart that i1Profiler then measures, so in normal use
+3109: the frontmost mark any recorded alignment put (p1 Y 3109, R1 412.443, mark 2 of R1 401.6),
+with nothing added (fix 3, the safety review of fix 2). A mark is a corner patch of a chart that i1Profiler then measures, so in normal use
 i1Profiler sends the measuring opening to the marks' positions; that this table reaches them is
 very likely (the tester has measured full charts laid like this in i1Profiler), but no reading in
 our recordings shows the opening there. So:
 
-* nothing is ever a target, and no swept rectangle ever reaches, beyond FRONT_CAP_Y (CAP_AREA,
-  CAP_RAW; classify and the builders check it on every computed line);
+* nothing is ever a target beyond FRONT_CAP_Y (CAP_AREA; classify and the builders check it on
+  every computed line), and no swept rectangle reaches beyond FRONT_SWEEP_CAP_Y = 3114 (CAP_RAW:
+  a move may start where the arm reads after a clean arrival at the cap, within 5 units);
 * inside the front zone, a target is allowed only up to the Y that this sitting has CONFIRMED
   (`Table.front_y`): the furthest Y a creep step reached with a clean arrival (:func:`areas`);
 * the creep itself (stage DZ) drives forward in m0 steps of at most CREEP_STEP (5 mm) along Y,
@@ -133,28 +134,34 @@ MEASURING_AREA = Area(AREA_RAW.xmin + MARGIN, AREA_RAW.xmax - MARGIN,
 #: The PROVEN zone is AREA_RAW / MEASURING_AREA above (the names kept).
 PROVEN_RAW, PROVEN = AREA_RAW, MEASURING_AREA
 
-#: fix 2: the FRONT ZONE's absolute cap: the frontmost aimed mark of any recorded alignment
-#: (p1, R1 412.443) plus 5 mm. Never a target beyond it, never a swept rectangle beyond it.
-FRONTMOST_AIM_Y = 3109
-FRONT_CAP_Y = FRONTMOST_AIM_Y + MARGIN
-CAP_AREA = Area(MEASURING_AREA.xmin, MEASURING_AREA.xmax, MEASURING_AREA.ymin, FRONT_CAP_Y)
-CAP_RAW = Area(AREA_RAW.xmin, AREA_RAW.xmax, AREA_RAW.ymin, FRONT_CAP_Y)
-#: One creep step: at most 5 mm, and at most 5 mm beyond what the sitting has confirmed.
-CREEP_STEP = 50
 #: the arrival tolerance (units) every move is checked with
 ARRIVAL_SLACK = 5
+#: fix 2/3: the FRONT ZONE's absolute cap for TARGETS: the frontmost aimed mark of any recorded
+#: alignment (p1, R1 412.443), with no margin added (the safety review of fix 2: i1Profiler
+#: sends the opening to an aim with no offset, and no recorded alignment or i1Profiler target
+#: goes beyond it). Never a target beyond it.
+FRONTMOST_AIM_Y = 3109
+FRONT_CAP_Y = FRONTMOST_AIM_Y
+#: A swept rectangle may START where the arm reads after a clean arrival at the cap, within the
+#: arrival tolerance; never beyond this.
+FRONT_SWEEP_CAP_Y = FRONT_CAP_Y + ARRIVAL_SLACK
+CAP_AREA = Area(MEASURING_AREA.xmin, MEASURING_AREA.xmax, MEASURING_AREA.ymin, FRONT_CAP_Y)
+CAP_RAW = Area(AREA_RAW.xmin, AREA_RAW.xmax, AREA_RAW.ymin, FRONT_SWEEP_CAP_Y)
+#: One creep step: at most 5 mm, and at most 5 mm beyond what the sitting has confirmed.
+CREEP_STEP = 50
 
 
 def areas(front_y=None) -> "tuple[Area, Area]":
     """(targets, swept rectangles) for a sitting that has confirmed the front zone up to
-    *front_y* (None: nothing confirmed, the proven zone only). Never beyond FRONT_CAP_Y."""
+    *front_y* (None: nothing confirmed, the proven zone only). Targets never beyond FRONT_CAP_Y,
+    swept rectangles never beyond FRONT_SWEEP_CAP_Y."""
     if front_y is None or not isinstance(front_y, (int, float)) or front_y != front_y \
             or front_y <= MEASURING_AREA.ymax:
         return MEASURING_AREA, AREA_RAW
     fy = int(min(front_y, FRONT_CAP_Y))
     # a swept rectangle may start where the arm READS after a clean arrival at fy (within the
-    # 5-unit arrival tolerance), never beyond the cap
-    sy = min(fy + ARRIVAL_SLACK, FRONT_CAP_Y)
+    # 5-unit arrival tolerance), never beyond the cap plus that tolerance
+    sy = min(fy + ARRIVAL_SLACK, FRONT_SWEEP_CAP_Y)
     return (Area(MEASURING_AREA.xmin, MEASURING_AREA.xmax, MEASURING_AREA.ymin, fy),
             Area(AREA_RAW.xmin, AREA_RAW.xmax, AREA_RAW.ymin, max(AREA_RAW.ymax, sy)))
 

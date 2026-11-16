@@ -419,12 +419,12 @@ measuring opening has actually been in your recordings: its right edge on the
 furthest point to the right the opening was ever read at, its front edge on
 the furthest point to the front the opening was ever read at, with 5 mm kept
 free on every side: table positions X -1384 to 1716 and Y 523 to 2723 (0.1 mm
-units). In front of it lies the **front part**, up to table Y 3159 at the
-most: 5 mm beyond the frontmost mark any of your recorded i1Profiler alignments
-put (Y 3109). Nothing is ever sent beyond it. Its place is our estimate too: a
+units). In front of it lies the **front part**, up to table Y 3109 at the
+most: up to the frontmost mark of your recorded i1Profiler alignments, and no
+further. Nothing is ever sent beyond it. Its place is our estimate too: a
 mark is a corner patch of a chart that i1Profiler then measures, so i1Profiler
 sends the measuring opening there in normal use, and your table very likely
-reaches it (you have measured charts laid like this), but no reading in your
+reaches it (i1Profiler measures charts laid like this), but no reading in your
 recordings shows the opening there. So the program goes there only after stage
 DZ has felt its way forward in this sitting (see below). The whole rectangle the arm could
 sweep on its way must lie inside it too, and every move is computed from a

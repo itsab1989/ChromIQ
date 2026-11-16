@@ -171,10 +171,11 @@ it refuses every other form):
      where it lies on the table is our estimate);
    * only right after a position reading, and the whole rectangle swept from that reading to
      the target inside X -1434..1766, Y 473..2773;
-   * fix 2, the FRONT ZONE: in front of that, up to Y 3159 at the most (the frontmost recorded
-     aim, p1 Y 3109, plus 5 mm; `classify` refuses anything beyond it on every computed line),
-     a target only up to the Y this sitting has confirmed (`Table.front_y`, swept rectangles up
-     to 5 units beyond it); confirming it is stage DZ: m0 at 300 of at most 50 units per axis
+   * fix 2, the FRONT ZONE: in front of that, targets up to Y 3109 at the most (up to the
+     frontmost mark of the recorded alignments, p1 Y 3109, and no further; `classify` refuses
+     anything beyond it on every computed line), a target only up to the Y this sitting has
+     confirmed (`Table.front_y`; swept rectangles up to 5 units beyond it, never beyond Y 3114,
+     because a move may start where the arm reads after a clean arrival); confirming it is stage DZ: m0 at 300 of at most 50 units per axis
      from a fresh reading and at most 50 units beyond the confirmed Y (the gate checks it on
      the bytes), at most 11 movements per run, 3 runs per sitting.
 
