@@ -563,3 +563,61 @@ def test_preferences_offers_it_off_and_writes_nothing_unless_changed(qapp):
     text = page_output_help()
     assert "2731" in text and "6000" in text and "**Default:** off" in text
     assert "\u2014" not in text
+
+
+# ---- text, labels, marks and lines stay right in millimetres -----------------
+
+def _ink_report(path, dpi, strips):
+    import numpy as np
+    from PIL import Image
+    Image.MAX_IMAGE_PIXELS = None
+    ink = np.asarray(Image.open(path).convert("L")) < 128
+    ys, xs = np.nonzero(ink)
+    mm = 25.4 / dpi
+    p0 = strips["patches"][0]
+    by, bx = np.nonzero(ink[: p0["y"], :])
+    return {"bbox": (xs.min() * mm, ys.min() * mm, xs.max() * mm, ys.max() * mm),
+            "patch": tuple(p0[k] * mm for k in ("x", "y", "w", "h")),
+            "band": (bx.min() * mm, by.min() * mm, bx.max() * mm, by.max() * mm),
+            "area": float(ink.sum()) * mm * mm}
+
+
+@pytest.mark.parametrize("markers", [False, True])
+def test_the_same_chart_at_600_and_3000_ppi_is_the_same_in_millimetres(
+        tmp_path, beta_on, markers):
+    """The renderer's constants were tuned up to 1200 dpi. Drawn at 600 and
+    at 3000 ppi, the ink (patches, strip letters, row numbers, the sheet text,
+    the ruler markers) must sit in the same millimetres, to within two pixels
+    of the coarser sheet, and cover the same area to within 1 %. Measured to
+    4800 ppi as well while building the Beta (issue-215 folder,
+    `mm_consistency.py`): within 0.07 mm and 0.3 %."""
+    from workflow.layout_engine.chart import build_from_recipe
+    from workflow.layout_engine.presets import default_recipe
+    base = replace(default_recipe("SS", "70x50"), seed=3, compression="none",
+                   helper_markers=markers, chart_text="Film {dpi}",
+                   show_row_indicators=True, margin_top=12, margin_left=12,
+                   margin_bottom=10, margin_right=6)
+    got = {}
+    for dpi in (600, 3000):
+        res, _ = build_from_recipe(TI1, tmp_path / f"c{dpi}",
+                                   replace(base, dpi=dpi))
+        strips = json.loads((tmp_path / f"c{dpi}.strips.json").read_text())
+        got[dpi] = _ink_report(res.tiff_paths[0], dpi, strips)
+    # two pixels of the coarser sheet: a text size is a whole number of
+    # pixels, so a glyph at 600 can be half a pixel taller or shorter
+    tol = 25.4 / 600 * 2
+    for key in ("bbox", "patch", "band"):
+        for a, b in zip(got[600][key], got[3000][key]):
+            assert abs(a - b) <= tol, (key, got[600][key], got[3000][key])
+    assert got[3000]["area"] == pytest.approx(got[600]["area"], rel=0.01)
+
+
+def test_a_frame_at_6000_ppi_is_drawn(tmp_path, beta_on):
+    """The top of the box: a 30 x 24 mm frame at 6000 ppi, with its labels."""
+    from workflow.layout_engine.chart import build_from_recipe
+    ps = {"w": [30.0, "mm"], "h": [24.0, "mm"], "ppi": 6000}
+    r = replace(_film_recipe(ps, 6000, patch=3.0), show_strip_indicators=True)
+    res, _ = build_from_recipe(TI1, tmp_path / "f6000", r)
+    t = _tags(res.tiff_paths[0])
+    assert (t["w"], t["h"]) == (po.pixels_of(30.0, 6000), po.pixels_of(24.0, 6000))
+    assert t["xres"] == (6000, 1) and t["unit"] == 2
