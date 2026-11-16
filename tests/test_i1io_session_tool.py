@@ -208,7 +208,7 @@ def test_standard_library_only():
                "os", "ctypes", "termios", "fcntl", "usb", "plistlib", "select", "i1io_session_table",
                "i1io_session_sim",
                # 0.5.0: the results zip and part C's own modules (their imports: test_i1io_part_c)
-               "zipfile", "i1io_part_c", "i1io_part_c_sim"}
+               "zipfile", "i1io_part_c", "i1io_part_c_sim", "i1io_c_lines", "i1io_geometry"}
     for name in PROGRAM_FILES:
         for node in ast.walk(ast.parse(_source(name))):
             if isinstance(node, ast.Import):
@@ -562,7 +562,9 @@ def test_plan_and_dry_run_show_every_line_and_open_nothing(capsys, monkeypatch, 
     for line in RECORDED:
         assert line in plan and line in dry
         assert (line + "\r").encode().hex(" ") in dry
-    assert set(re.findall(r";[a-z][0-9][0-9a-f]*", plan + dry)) == RECORDED
+    # 0.5.0: and part C's five further recorded lines (test_i1io_part_c checks them)
+    part_c = {";p124", ";c42e", ";d1016d35", ";a331", ";c32f"}
+    assert set(re.findall(r";[a-z][0-9][0-9a-f]*", plan + dry)) == RECORDED | part_c
     assert list(tmp_path.iterdir()) == []
 
 
