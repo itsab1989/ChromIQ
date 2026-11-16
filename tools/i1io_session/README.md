@@ -213,7 +213,7 @@ At most 8 lines, 1 movement. Our risk rating: **low**.
 
 ### Optional steps of part B
 
-**Send the arm home from the patch where you stopped, and end the job.** You stopped on row 1. The arm is held by the motors at the patch it reached last. This step sends it home from there (2.5 to 4 s) and then sends i1Profiler's end-of-job lines, which switch the hand-alignment mode off, exactly as at the end of the row. If you say no, nothing more is sent and the arm stays where it is.
+**Send the arm home from the patch where you stopped, and end the job.** The arm is held by the motors at the patch of row 1 it reached last. This step sends it home from there (2.5 to 4 s) and then sends i1Profiler's end-of-job lines, which switch the hand-alignment mode off, exactly as at the end of the row. If you say no, nothing more is sent and the arm stays where it is.
 
 *Not exactly as recorded:* i1Profiler sent this homing from two places on this same row with the arm held (X 1172, Y 1663 at the row end, 2.6 s; X -1088, Y 1636 near the row's other end, 3.7 s, after the previous job); every patch of row 1 lies on the line between them. From this very patch it was never sent.
 

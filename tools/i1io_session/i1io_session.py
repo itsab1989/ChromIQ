@@ -722,7 +722,8 @@ class Session:
                 d.run_step(step)
             except tbl.PersonStop:
                 self.ui.say(PERSON_STOP_TEXT.format(n=(d.last_spot_sent or 0) + 1))
-                if not self._run_near("home_from_patch", "You stopped on row 1."):
+                if not self._run_near("home_from_patch", "Because you stopped there, this is "
+                                      "offered now:"):
                     self.stopped_by_person = True
                     d.close_for_sending("stopped by you on row 1")
                     return 1

@@ -23,7 +23,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PKG = ROOT / "tools" / "i1io_session"
 FILES = ("README.md", "BYTES.md", "i1io_session.py", "i1io_session_table.py", "i1io_session_sim.py")
-DATE = (2026, 11, 15, 0, 0, 0)
+DATE = (2026, 11, 16, 0, 0, 0)
 
 
 def version() -> str:

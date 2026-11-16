@@ -1736,3 +1736,84 @@ def test_part_b_waits_one_second_after_every_patch_move_before_the_next_read(tmp
             assert nxt - done >= tbl.PATCH_PAUSE_S - 0.02, (i, nxt - done)
             assert nxt - done <= tbl.PATCH_PAUSE_S + 0.3, (i, nxt - done)
     assert tbl.PATCH_PAUSE_S == 1.0
+
+
+# ---- planted faults that survived the first 0.4.0 pass --------------------------------------
+
+@pytest.mark.parametrize("answer", ["no", "not sure", "stop"])
+def test_part_b_anything_but_yes_after_a_step_ends_the_session(tmp_path, answer):
+    code, sim, log, con = _run_b(tmp_path, script={prog.ASK_DID: answer})
+    assert code == 1 and sim.received == OPEN + B_HF
+    assert "Offered:" not in log
+
+
+def test_part_b_no_to_the_homing_closes_the_session_for_sending_at_once(tmp_path):
+    code, sim, log, con = _run_b(tmp_path, stop_at_poll=4, script={"Run it now?": "no"})
+    assert "nothing more is sent: stopped by you on row 1" in log
+
+
+def test_part_b_i1profiler_started_during_the_session_stops_before_the_next_step(tmp_path):
+    calls = []
+
+    def running():
+        calls.append(1)
+        return len(calls) >= 3
+    sim = sim_mod.SimTable()
+    s = prog.Session(tbl.Table(sim_mod.SimTransport(sim)), Script(sim, script=B),
+                     simulated=True, other_program=running, sim_hand=sim.hand)
+    assert s.go() == 1 and sim.received == OPEN + B_HF + B_ALIGN
+
+
+def _b_sim_at_row(k):
+    """A simulator driven by hand (own copy of the lines) to patch k of row 1."""
+    sim = sim_mod.SimTable(jitter=False)
+    lines = B_PRE_ROW + B_ROW[:2 * (k - 1)]
+    t = sim_mod.SimTransport(sim)
+    for i, line in enumerate(lines):
+        if line == SPOT_LINES[0]:
+            pass
+        t.write((line + "\r").encode())
+        while sim.next_time() is not None or sim.moving:
+            t.read(1.0)
+        if i == len(OPEN + B_HF + B_ALIGN) - 1:
+            sim.hand_to(-1290, 2660)
+    return sim, t
+
+
+def test_the_simulator_refuses_a_patch_move_from_anywhere_but_the_previous_patch():
+    sim, t = _b_sim_at_row(3)
+    sim.pos = [float(tbl.SPOT_TARGETS[2][0]) + 30, float(tbl.SPOT_TARGETS[2][1])]
+    t.write(b";p025\r")
+    t.read(1.0)
+    with pytest.raises(sim_mod.SimViolation, match="not the previous patch"):
+        t.write((SPOT_LINES[3] + "\r").encode())
+
+
+@pytest.mark.parametrize("x,y", [(-1361, 2650), (-1199, 2650), (-1280, 2599), (-1280, 2701)])
+def test_the_simulator_refuses_the_first_patch_move_from_outside_its_own_box(x, y):
+    sim = sim_mod.SimTable(jitter=False, pos=[float(x), float(y)])
+    sim.free_arm = True
+    with pytest.raises(sim_mod.SimViolation, match="not a recorded start"):
+        sim._physics(SPOT_LINES[0])
+    sim = sim_mod.SimTable(jitter=False, pos=[-1290.0, 2660.0])
+    sim.free_arm = True
+    sim._physics(SPOT_LINES[0])
+
+
+@pytest.mark.parametrize("x,y", [(2496, 1498), (2507, 1510), (1102, 1498)])
+def test_the_simulator_refuses_m1_from_anywhere_but_the_far_side(x, y):
+    sim = sim_mod.SimTable(jitter=False, pos=[float(x), float(y)])
+    with pytest.raises(sim_mod.SimViolation, match="not the recorded start"):
+        sim._physics(M1)
+    sim_mod.SimTable(jitter=False, pos=[2507.0, 1498.0])._physics(M1)
+
+
+def test_the_simulator_s_part_b_grammar_ends_the_row_at_patch_28():
+    states = sim_mod._b_closure({(0, 0, 0)})
+    for line in B_PRE_ROW + B_ROW:
+        states = sim_mod._b_step(states, line)
+        assert states, line
+    assert not sim_mod._b_step(states, P0) or not sim_mod._b_step(sim_mod._b_step(states, P0),
+                                                                   SPOT_LINES[27])
+    for bad in (SPOT_LINES[5], M1, ";m0044e00fa012c0e"):
+        assert not sim_mod._b_step(states, bad), bad

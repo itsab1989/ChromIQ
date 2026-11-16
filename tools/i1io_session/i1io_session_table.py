@@ -719,7 +719,7 @@ NEAR_STEP_DEFS = {
         (("x", "status"), ("p0last",), ("move", "home", "home_patch"), ("x", "status"),
          ("x", "f0"), ("f4", "00"), ("f4", "00"), ("p0", "REST_GUARD", "back home")),
         "medium",
-        "You stopped on row 1. The arm is held by the motors at the patch it reached last. "
+        "The arm is held by the motors at the patch of row 1 it reached last. "
         "This step sends it home from there (2.5 to 4 s) and then sends i1Profiler's "
         "end-of-job lines, which switch the hand-alignment mode off, exactly as at the end of "
         "the row. If you say no, nothing more is sent and the arm stays where it is.",
