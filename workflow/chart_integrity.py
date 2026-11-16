@@ -65,6 +65,12 @@ class ChartCost:
     #: the message must not recommend Duplicate (M-DUPLICATE-BLOCKED).
     duplicate_blocked_by: "list[str]" = field(default_factory=list)
     reason: str = ""
+    #: Pages of an i1iO chart of several pages imported so far, while the
+    #: run has no measurement yet (the i1iO Beta, `Run.i1io_pages_dir`), and
+    #: the chart's page count. Readings of real sheets, archived with the
+    #: chart they belong to, so a new chart must say so.
+    imported_pages: int = 0
+    chart_pages: int = 0
 
     @property
     def warn(self) -> bool:
@@ -144,6 +150,23 @@ def _dated_verifications(run) -> int:
         return 0
 
 
+def _imported_pages(run) -> "tuple[int, int]":
+    """(pages of an i1iO chart of several pages imported so far, the chart's
+    pages): only while the run holds no measurement, and only where the
+    folder exists, which only the i1iO Beta's import makes."""
+    try:
+        d = run.i1io_pages_dir
+        if not d.is_dir() or run.measurement_ti3.exists():
+            return 0, 0
+        n = sum(1 for _ in d.glob("page*.ti3"))
+        if not n:
+            return 0, 0
+        from workflow.i1io.pages import page_count
+        return n, page_count(run.chart_ti2)
+    except Exception:      # noqa: BLE001 - a warning, never a crash
+        return 0, 0
+
+
 def assess_profiling_chart(run) -> ChartCost:
     """§4's table for replacing the **profiling** chart of *run*.
 
@@ -182,7 +205,9 @@ def assess_profiling_chart(run) -> ChartCost:
         complete = facts.state is Ti3State.COMPLETE
 
     verifications = _dated_verifications(run)
-    if not has_measurement and not has_profile and verifications == 0:
+    imported, chart_pages = _imported_pages(run)
+    if not has_measurement and not has_profile and verifications == 0 \
+            and not imported:
         # §4 rows 1 and 2, and §4a rows 1, 2, 7 and 8: a chart with nothing
         # under it, a patch list, a stray image, nothing at all. Regenerating
         # costs a reprint, and the user is the one who asked for a new chart.
@@ -209,6 +234,7 @@ def assess_profiling_chart(run) -> ChartCost:
         verifications=verifications,
         pages=_pages(files), can_redraw_pages=has_layout_recipe(files),
         duplicate_blocked_by=_missing_for_duplicate(run),
+        imported_pages=imported, chart_pages=chart_pages,
         reason="work in this run was made with the chart being replaced")
 
 

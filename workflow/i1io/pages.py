@@ -42,12 +42,15 @@ CHART_SHA_KEYWORD = "CHROMIQ_I1IO_CHART_SHA256"
 SOURCE_KEYWORD = "CHROMIQ_I1IO_SOURCE"
 DEVICE_KEYWORD = "CHROMIQ_I1IO_DEVICE"
 PAGES_KEYWORD = "CHROMIQ_I1IO_PAGES"
+SIDE_SHA_KEYWORD = "CHROMIQ_I1IO_SIDE_SHA256"
 
 #: Refusal codes that NAME a mistake on the page they were judged against
 #: (a sheet turned, aimed off, one strip out of place, read off the
 #: patches): when exactly one candidate page says one of these and the others
 #: only say "these are not my colours", that page's reason is the one to give.
-NAMED_CODES = frozenset(("turned", "strip", "beside", "paper"))
+#: Not "paper": a sheet judged against ANOTHER page very often looks like
+#: blank paper there (the challenge of 2026-11-16, m4).
+NAMED_CODES = frozenset(("turned", "strip", "beside"))
 
 
 # ---------------------------------------------------------------------------
@@ -154,14 +157,23 @@ def match_file(source, converted_ti3, chart_ti2) -> "Match | None":
             return None
         verdicts[p] = v
     passing = [p for p in cands if verdicts[p].ok]
+    agree = [p for p in passing if verdicts[p].code == "agree"]
     log.info("i1iO Measure Chart, several pages: %s has the grid of page(s) "
              "%s; passes on %s (%s)", Path(str(source)).name, cands, passing,
              ", ".join(f"page {p}: {verdicts[p].code}" for p in cands))
-    if len(passing) == 1:
-        p = passing[0]
+    # THE PAGE IS CHOSEN BY THE COLOURS ONLY WHEN THEY AGREE (the challenge
+    # of 2026-11-16, B1): a sheet of page 1 laid turned is refused on page 1
+    # and, on a chart whose colours cannot tell (sorted greys), only "asked"
+    # on page 2. So "one page passes" is not enough: one page must AGREE and
+    # every other page with that grid must refuse. Anything else that passes
+    # is asked: the person picks the page from ALL pages of the chart, and
+    # that page's own check then decides.
+    if len(agree) == 1 and len(passing) == 1:
+        p = agree[0]
         return Match("one", page=p, verdict=verdicts[p], verdicts=verdicts)
-    if len(passing) > 1:
-        return Match("choose", choices=tuple(passing), verdicts=verdicts)
+    if passing:
+        return Match("choose", choices=tuple(sorted(grids)),
+                     verdicts=verdicts)
     # nothing passed
     codes = {verdicts[p].code for p in cands}
     if len(cands) == 1 or len(codes) == 1:
@@ -259,24 +271,32 @@ def pages_state(run, chart_ti2) -> PagesState:
     filled, stale = {}, []
     if not d.is_dir():
         return PagesState(total, filled, ())
+    from .measure_chart import side_file_for
     sha = chart_sha256(chart_ti2)
+    side_sha = file_sha256(side_file_for(chart_ti2))
     for f in sorted(d.glob("page*.ti3")):
         m = _PAGE_RE.match(f.stem)
         if not m:
             continue
         k = int(m.group(1))
         kw = _keywords(f)
-        cur = bool(sha) and kw.get(CHART_SHA_KEYWORD) == sha and 1 <= k <= total
-        src = kw.get(SOURCE_KEYWORD, "")
-        name, _, ssha = src.rpartition(" sha256=")
-        sp = StoredPage(k, f, kw.get("MEASUREMENT_CONDITION", "").upper(),
-                        kw.get("CHROMIQ_I1P_INSTRUMENT", ""),
-                        kw.get(DEVICE_KEYWORD, ""), name or src, ssha, cur)
+        cur = (bool(sha) and kw.get(CHART_SHA_KEYWORD) == sha
+               and kw.get(SIDE_SHA_KEYWORD) == side_sha and 1 <= k <= total)
+        sp = _stored_page(k, f, cur)
         if cur:
             filled[k] = sp
         else:
             stale.append(f)
     return PagesState(total, filled, tuple(stale))
+
+
+def _stored_page(k: int, f: Path, cur: bool = True) -> StoredPage:
+    kw = _keywords(f)
+    src = kw.get(SOURCE_KEYWORD, "")
+    name, _, ssha = src.rpartition(" sha256=")
+    return StoredPage(k, f, kw.get("MEASUREMENT_CONDITION", "").upper(),
+                      kw.get("CHROMIQ_I1P_INSTRUMENT", ""),
+                      kw.get(DEVICE_KEYWORD, ""), name or src, ssha, cur)
 
 
 def device_of(source) -> str:
@@ -343,29 +363,80 @@ def _atomic_write(path: Path, text: str) -> None:
     os.replace(tmp, path)
 
 
-def store_page(run, chart_ti2, page: int, filed_ti3, source,
-               total: int) -> Path:
-    """Store the filed copy *filed_ti3* of one page as the run's page *page*
-    (`Run.i1io_page_ti3`), in one step. A page file already there, and any
-    page made from an earlier chart, is moved to the run's ``old/`` first
-    (`Run.archive_to_old`). Returns the stored path."""
-    dst = run.i1io_page_ti3(page)
-    st = pages_state(run, chart_ti2)
-    old = [p for p in (dst,) if p.exists()] + list(st.stale)
-    if old:
-        run.archive_to_old(old)
+def stage_page(chart_ti2, page: int, filed_ti3, source, total: int,
+               staged) -> Path:
+    """Write the page file of page *page* (the filed copy *filed_ti3* with
+    the page's keywords) to *staged*, outside the run: it becomes the run's
+    page only through `store_staged`. Returns *staged*."""
+    from .measure_chart import side_file_for
     text = Path(str(filed_ti3)).read_text(encoding="utf-8")
     text = _insert_keywords(text, [
         (PAGE_KEYWORD, f"{page} of {total}"),
         (CHART_SHA_KEYWORD, chart_sha256(chart_ti2)),
+        (SIDE_SHA_KEYWORD, file_sha256(side_file_for(chart_ti2))),
         (SOURCE_KEYWORD, f"{Path(str(source)).name} sha256="
                          f"{file_sha256(source)}"),
         (DEVICE_KEYWORD, device_of(source)),
     ])
-    _atomic_write(dst, text)
-    log.info("i1iO Measure Chart: page %d of %d stored as %s", page, total,
-             dst)
+    staged = Path(str(staged))
+    _atomic_write(staged, text)
+    return staged
+
+
+def archive_pages(run, paths) -> "Path | None":
+    """Move page files to ``old/<date>/pages/`` (never a loose ``.ti3`` in
+    ``old/<date>/``, which would read as a run's measurement there: the
+    challenge of 2026-11-16, m1). Returns the folder, or None."""
+    from datetime import datetime
+    paths = [Path(str(x)) for x in paths if Path(str(x)).exists()]
+    if not paths:
+        return None
+    dest = run.old_dir / datetime.now().strftime("%Y-%m-%d_%H%M%S") / "pages"
+    dest.mkdir(parents=True, exist_ok=True)
+    import shutil
+    for f in paths:
+        target = dest / f.name
+        n = 1
+        while target.exists():
+            target = dest / f"{f.stem}_{n}{f.suffix}"
+            n += 1
+        shutil.move(str(f), str(target))
+        log.info("i1iO Measure Chart: %s archived to %s", f.name, dest)
+    return dest
+
+
+def store_staged(run, chart_ti2, page: int, staged) -> Path:
+    """Make the staged page file the run's page *page*
+    (`Run.i1io_page_ti3`), in one step (``os.replace``). A page file already
+    there, and every page made from an earlier chart, is moved to
+    ``old/<date>/pages/`` first. Returns the stored path."""
+    import shutil
+    dst = run.i1io_page_ti3(page)
+    st = pages_state(run, chart_ti2)
+    archive_pages(run, [x for x in (dst,) if x.exists()] + list(st.stale))
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dst.with_name(dst.name + ".part")
+    shutil.copyfile(str(staged), str(tmp))
+    os.replace(tmp, dst)
+    log.info("i1iO Measure Chart: page %d stored as %s", page, dst)
     return dst
+
+
+def carry_pages(src_run, dst_run, chart_ti2, skip=()) -> "list[int]":
+    """Copy the current pages of *src_run* into *dst_run* (a new run made
+    with a byte-for-byte copy of the same chart), but not those in *skip*
+    (the pages about to come in). Returns the pages carried."""
+    import shutil
+    st = pages_state(src_run, chart_ti2)
+    out = []
+    for k, sp in sorted(st.filled.items()):
+        if k in skip:
+            continue
+        dst = dst_run.i1io_page_ti3(k)
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(str(sp.path), str(dst))
+        out.append(k)
+    return out
 
 
 def _chart_order(chart_ti2) -> "list[str]":
@@ -378,13 +449,17 @@ def _chart_order(chart_ti2) -> "list[str]":
     return [ln.split()[i].strip('"') for ln in t[1]]
 
 
-_DROP_KEYS = (PAGE_KEYWORD, SOURCE_KEYWORD, "CHROMIQ_PAIRED_BY_I1IO_GRID",
-              "CHROMIQ_I1IO_GRID_COLOURS")
+_DROP_KEYS = (PAGE_KEYWORD, SOURCE_KEYWORD, DEVICE_KEYWORD,
+              "CHROMIQ_PAIRED_BY_I1IO_GRID", "CHROMIQ_I1IO_GRID_COLOURS")
 
 
-def merge_pages(run, chart_ti2, out_ti3) -> int:
-    """Merge every stored page of the run into ONE measurement at *out_ti3*
-    (the converted copy the import then files), in the chart's order.
+def merge_pages(run, chart_ti2, out_ti3, staged=None) -> int:
+    """Merge the run's stored pages, with the *staged* ones ({page: staged
+    file}, `stage_page`) in place of any stored page of that number, into
+    ONE measurement at *out_ti3* (the converted copy the import then files),
+    in the chart's order. The staged pages are not stored here: the import
+    stores them only once the joined measurement is filed (the challenge of
+    2026-11-16, M2), so a filing that is cancelled leaves the run as it was.
     Returns the rows written; 0 when the pages do not make one whole
     measurement of this chart (a page missing or made from another chart,
     their fields, condition or instrument differ, a patch missing or twice):
@@ -393,12 +468,15 @@ def merge_pages(run, chart_ti2, out_ti3) -> int:
     from workflow.measurement_pairing import _first_table
     from .measure_chart import side_file_for
     st = pages_state(run, chart_ti2)
-    if not st.complete:
+    have = dict(st.filled)
+    for k, f in (staged or {}).items():
+        have[int(k)] = _stored_page(int(k), Path(str(f)))
+    if st.total < 2 or any(p not in have for p in range(1, st.total + 1)):
         return 0
     order = _chart_order(chart_ti2)
     if not order:
         return 0
-    pages = [st.filled[p] for p in range(1, st.total + 1)]
+    pages = [have[p] for p in range(1, st.total + 1)]
     f0 = stored_facts(pages[0])
     if any(mismatch(f0, stored_facts(sp)) for sp in pages[1:]):
         return 0

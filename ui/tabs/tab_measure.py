@@ -15115,6 +15115,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             self._import_file_lbl.setText(
                 str(path) + (the_colour_scale_tag() if _scale else ""))
             many = getattr(self, "_import_paths", None)
+            if many and not self._import_takes_pages(self._guard_run()):
+                # the bar moved to a run that takes one file: the first stays
+                self._import_paths = many = None
+                self._import_file_lbl.setText(str(path))
             if many:
                 self._import_file_lbl.setText(tr(
                     "{count} files: {names}").format(
@@ -15534,7 +15538,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         return box.clickedButton() is go
 
     def _convert_import_file(self, run, path: Path,
-                             chart: "Path | None" = None) -> "Path | None":
+                             chart: "Path | None" = None,
+                             prefer_condition: str = "") -> "Path | None":
         """§I.4 for both doors: the chosen file as a `.ti3` in the run's cache.
 
         `.mxf`/`.cxf` are read directly, `.txt` goes through txt2ti3, and a
@@ -15579,7 +15584,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         from ui.dialogs.cxf_condition_dialog import choose_cxf_condition
         condition = choose_cxf_condition(
             self, Path(path), log=self._log.appendPlainText,
-            accent=_TAB_COLOR, as_cxf=cmxf)
+            accent=_TAB_COLOR, as_cxf=cmxf, prefer=prefer_condition)
         if condition is None:
             return None
         try:
@@ -16213,6 +16218,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             self._log.appendPlainText("\n" + tr(
                 "[INFO] The import was cancelled. Nothing has been changed."))
 
+        # the condition and instrument the run's pages already have: a file
+        # that holds that condition is converted in it without asking again
+        held = P.pages_state(run, chart)
+        ref = (P.stored_facts(held.filled[min(held.filled)])
+               if held.filled else None)
+
         # 1) every file, nothing stored
         picked = []          # (page, path, filed copy, McVerdict, facts)
         notes = []
@@ -16224,7 +16235,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                     return
                 refuse(M.i1io_pages_reason("not-mc", name=Path(path).name))
                 return
-            converted = self._convert_import_file(run, Path(path), chart=chart)
+            want = ref.condition if ref is not None else (
+                picked[0][4].condition if picked else "")
+            converted = self._convert_import_file(run, Path(path), chart=chart,
+                                                  prefer_condition=want)
             if converted is None:
                 return
             # a file of its own in the cache, so two picked files with one
@@ -16248,7 +16262,16 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 if page is None:
                     cancelled()
                     return
-                v = m.verdicts[page]
+                # the chosen page's own check decides (challenge B1)
+                v = m.verdicts.get(page) or MC.assess_file(
+                    path, converted, chart, page=page)
+                if v is None or not v.ok:
+                    refuse(M.i1io_pages_reason(
+                        "on-page", page=page,
+                        reason=v.reason if v is not None
+                        else M.i1io_import_reason("places")),
+                        Path(path).name)
+                    return
             names = P.page_names(chart, page)
             if v.ask_why:
                 if not self._ask_import_question(
@@ -16297,10 +16320,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 refuse(reason, path.name)
                 return
 
-        # 3) a run that holds a measurement is not displaced (§I.9)
+        # 3) a run that holds a measurement is not displaced (§I.9): a new
+        #    run with a copy of the chart, CARRYING the run's other pages
+        #    (the chart is copied byte for byte, so they still belong to it)
         made_here, made_from = None, None
         if run.measurement_ti3.is_file():
-            from ui.measurement_filing import ask_to_make_a_new_run
+            from ui.measurement_filing import (ask_to_make_a_new_run,
+                                               run_the_project_is_on)
             proj = ctl.project_or_none()
             if proj is None:
                 self._say_on_screen(
@@ -16310,8 +16336,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                        "new run beside it. Nothing has been imported and "
                        "nothing has been changed."))
                 return
-            from ui.measurement_filing import run_the_project_is_on
             was_in_manifest = run_the_project_is_on(proj.root) or ""
+            old_run = run
             try:
                 if not ask_to_make_a_new_run(self, proj, run):
                     return
@@ -16328,14 +16354,21 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 log.warning("import: could not point the bar at %s", run.id,
                             exc_info=True)
             chart = run.chart_ti2
+            try:
+                P.carry_pages(old_run, run, chart,
+                              skip={item[0] for item in picked})
+            except OSError:
+                log.warning("import: could not carry the pages of %s",
+                            old_run.id, exc_info=True)
 
-        # 4) against the pages the run already holds
+        # 4) against the pages the run holds
         st = P.pages_state(run, chart)
         if st.filled:
-            ref = P.stored_facts(st.filled[min(st.filled)])
+            first = P.stored_facts(st.filled[min(st.filled)])
             for page, path, _c, _v, facts in picked:
-                reason = differs(ref, facts)
+                reason = differs(first, facts)
                 if reason:
+                    self._undo_page_run(ctl, made_here, made_from)
                     refuse(reason, path.name)
                     return
         keep = []
@@ -16359,56 +16392,98 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if not keep:
             return
 
-        # 5) store, each page in one step
+        # 5) staged outside the run: nothing of the run changes yet
+        staged = {}
         try:
             for page, path, converted, _v, _f in keep:
-                dst = P.store_page(run, chart, page, converted, path, total)
-                self._log.appendPlainText("\n" + tr(M._I1IO_LOG_STORED).format(
-                    page=page, pages=total, path=dst))
+                staged[page] = P.stage_page(
+                    chart, page, converted, path, total,
+                    converted.with_name(f"staged-page{page}.ti3"))
         except OSError as exc:
-            log.warning("import: could not store a page", exc_info=True)
-            if made_here is not None and not any(
-                    made_here.i1io_pages_dir.glob("page*.ti3")):
-                # the run made for these pages holds none: put it back
-                from ui.measurement_filing import _undo_the_run
-                _undo_the_run(ctl.project_or_none(), made_here, made_from)
-                try:
-                    ctl.set_profile_run(made_from or "")
-                except Exception:  # noqa: BLE001 - the run is gone either way
-                    log.warning("import: could not put the bar back",
-                                exc_info=True)
-            self._say_on_screen(
-                tr("ChromIQ could not write into that run"),
-                tr("The measurement has not been filed, and nothing has been "
-                   "changed. Your own file is untouched where it is. The "
-                   "reason: {reason}.").format(
-                       reason=getattr(exc, "strerror", None) or exc))
+            self._undo_page_run(ctl, made_here, made_from)
+            self._say_page_not_stored(exc)
+            return
+        filled_after = set(st.filled) | set(staged)
+        missing = [k for k in range(1, total + 1) if k not in filled_after]
+
+        # 6a) not complete yet: the staged pages are stored, and said
+        if missing:
+            try:
+                for page, f in sorted(staged.items()):
+                    dst = P.store_staged(run, chart, page, f)
+                    self._log.appendPlainText("\n" + tr(
+                        M._I1IO_LOG_STORED).format(page=page, pages=total,
+                                                   path=dst))
+            except OSError as exc:
+                self._say_page_not_stored(exc)
+                return
+            self._update_import_panel()
+            title, body = M.i1io_page_filed_window(sorted(staged), total,
+                                                   missing)
+            self._log.appendPlainText("\n[OK] " + title + "\n" + body)
+            for t, b in notes:
+                body += "\n\n⚠ " + t + "\n\n" + b
+            self._say_page_filed(title, body)
             return
 
-        # 6) complete: one measurement, filed the ordinary way; else say so
-        st = P.pages_state(run, chart)
-        self._update_import_panel()
-        if st.complete:
-            merged = run.ensure_cache_dir() / "import" / (
-                f"{run.stem}-pages.ti3")
-            n = P.merge_pages(run, chart, merged)
-            if not n:
-                refuse(M.i1io_import_reason("places"))
-                return
-            self._log.appendPlainText("\n" + tr(M._I1IO_LOG_MERGED).format(
-                pages=st.total, count=n))
-            if notes:
-                self._i1io_aim_note = notes[-1]
-            self._file_into_profiling_run(ctl, run, merged, False,
-                                          made_here=made_here,
-                                          made_from=made_from)
+        # 6b) complete: joined and filed the ordinary way FIRST; the staged
+        #     pages are stored only once the measurement is in the run, so a
+        #     filing that is cancelled or fails leaves the run as it was
+        #     (challenge M2)
+        merged = converted.with_name(f"{run.stem}-pages.ti3")
+        n = P.merge_pages(run, chart, merged, staged=staged)
+        if not n:
+            self._undo_page_run(ctl, made_here, made_from)
+            refuse(M.i1io_import_reason("places"))
             return
-        title, body = M.i1io_page_filed_window(
-            [item[0] for item in keep], st.total, st.missing)
-        self._log.appendPlainText("\n[OK] " + title + "\n" + body)
-        for t, b in notes:
-            body += "\n\n⚠ " + t + "\n\n" + b
-        self._say_page_filed(title, body)
+        self._log.appendPlainText("\n" + tr(M._I1IO_LOG_MERGED).format(
+            pages=total, count=n))
+        if notes:
+            self._i1io_aim_note = notes[-1]
+        joined = merged.read_bytes()
+        self._file_into_profiling_run(ctl, run, merged, False,
+                                      made_here=made_here,
+                                      made_from=made_from)
+        try:
+            filed = (run.measurement_ti3.is_file()
+                     and run.measurement_ti3.read_bytes() == joined)
+        except OSError:
+            filed = False
+        if not filed:
+            log.info("i1iO pages: the joined measurement was not filed; no "
+                     "page stored")
+            return
+        try:
+            for page, f in sorted(staged.items()):
+                dst = P.store_staged(run, chart, page, f)
+                self._log.appendPlainText("\n" + tr(M._I1IO_LOG_STORED).format(
+                    page=page, pages=total, path=dst))
+        except OSError:
+            # the measurement is filed and complete; only the record of the
+            # page is missing, which nothing needs to build or report
+            log.warning("i1iO pages: a page record was not stored",
+                        exc_info=True)
+        self._update_import_panel()
+
+    def _undo_page_run(self, ctl, made_here, made_from) -> None:
+        """Put back a run the pages import made, when it refuses after."""
+        if made_here is None:
+            return
+        from ui.measurement_filing import _undo_the_run
+        try:
+            _undo_the_run(ctl.project_or_none(), made_here, made_from)
+            ctl.set_profile_run(made_from or "")
+        except Exception:      # noqa: BLE001 - the refusal is said either way
+            log.warning("import: could not put the run back", exc_info=True)
+
+    def _say_page_not_stored(self, exc) -> None:
+        log.warning("import: could not store a page", exc_info=True)
+        self._say_on_screen(
+            tr("ChromIQ could not write into that run"),
+            tr("The measurement has not been filed, and nothing has been "
+               "changed. Your own file is untouched where it is. The "
+               "reason: {reason}.").format(
+                   reason=getattr(exc, "strerror", None) or exc))
 
     def _say_page_filed(self, title: str, body: str) -> None:
         """M-IMPORT-I1IO-PAGE-FILED on screen; the text is the catalogue's."""

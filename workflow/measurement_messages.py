@@ -1531,12 +1531,21 @@ _I1IO_LOG_STORED = (
 _I1IO_LOG_MERGED = (
     "[OK] Every page is in: ChromIQ joined the {pages} pages into one "
     "measurement of {count} readings.")
+#: Create Chart over a run holding some pages and no measurement yet
+#: (M-CHART-PROFILING's {items}; the challenge of 2026-11-16, M1).
+_I1IO_CHART_ITEM_PAGES_ONE = (
+    "•  the measurement of one sheet imported so far (one of this chart's "
+    "{pages} pages)")
+_I1IO_CHART_ITEM_PAGES = (
+    "•  the measurements of {n} sheets imported so far (of this chart's "
+    "{pages} pages)")
 M_I1IO_PAGES_PANEL = _m(
     "M-I1IO-PAGES-PANEL",
     "An i1iO chart of several pages: the import panel and the log",
     "\n".join((_I1IO_PANEL_PAGES, _I1IO_PANEL_NONE_YET, _I1IO_PANEL_HAVE_ONE,
                _I1IO_PANEL_HAVE_MANY,
-               _I1IO_PANEL_COMPLETE, _I1IO_LOG_STORED, _I1IO_LOG_MERGED)),
+               _I1IO_PANEL_COMPLETE, _I1IO_LOG_STORED, _I1IO_LOG_MERGED,
+               _I1IO_CHART_ITEM_PAGES_ONE, _I1IO_CHART_ITEM_PAGES)),
     approved=False)
 
 

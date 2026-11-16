@@ -146,7 +146,8 @@ def _run(dlg: CxfConditionDialog) -> bool:
 def choose_cxf_condition(parent: "QWidget | None", path: "str | Path",
                          *, log: "Callable[[str], None] | None" = None,
                          accent: str = _DEFAULT_ACCENT,
-                         as_cxf: bool = False) -> "str | None":
+                         as_cxf: bool = False,
+                         prefer: str = "") -> "str | None":
     """The condition to import *path* under, asking when there is a choice.
 
     Returns the condition ("M0", "M1", "M2"); ``None`` when the person
@@ -155,7 +156,10 @@ def choose_cxf_condition(parent: "QWidget | None", path: "str | Path",
     no M0/M1/M2 readings, whose conversion then says what is wrong. *log*
     receives the line every door writes (M-IMPORT-CXF-CONDITION-PARTS).
     *as_cxf*: the file is a CxF whatever its name says (the i1iO Beta's
-    ``.cmxf``, which `reference_convert.is_cxf` does not know)."""
+    ``.cmxf``, which `reference_convert.is_cxf` does not know).
+    *prefer*: a condition already settled for this measurement (the other
+    sheets of an i1iO chart of several pages, the i1iO Beta): taken without
+    asking when the file holds it. Empty (every other caller): as before."""
     from workflow.reference_convert import (ReferenceConvertError,
                                             cxf_conditions, is_cxf)
     p = Path(path)
@@ -169,6 +173,8 @@ def choose_cxf_condition(parent: "QWidget | None", path: "str | Path",
         return ""
     if not conds.needs_choice:
         chosen = conds.available[0]
+    elif prefer and prefer in conds.available:
+        chosen = prefer
     else:
         dlg = CxfConditionDialog(parent, p.name, conds, accent)
         try:

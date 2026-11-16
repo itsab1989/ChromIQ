@@ -4133,8 +4133,11 @@ class Project:
         # other two measurement conditions, named by the hash of the readings
         # they belong to, so a byte-for-byte copy stays paired. No folder, no
         # copy: a run measured without the Beta duplicates as before.
+        # pages/ (the i1iO Beta): the sheets of an i1iO chart of several pages
+        # imported so far; tied to the chart by its checksum, so a copy beside
+        # a copy of the chart stays theirs. No folder, no copy.
         ("measurement", ("{stem}.ti3", "{stem}.confirmed.json", "reads/**/*",
-                         "conditions/**/*")),
+                         "conditions/**/*", "pages/**/*")),
         ("profile", ("{stem}.icc", "{stem}.icm", "merged.ti3", "merged.icc",
                      "merged.icm", "calibrated.icc", "calibrated.icm",
                      COLPROF_COMPARISON_NAME,
