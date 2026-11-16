@@ -971,3 +971,13 @@ def test_the_real_reader_wrapper_logs_no_user_path(tmp_path):
     assert ev and ev["event"] == "saved"
     text = "\n".join(logged)
     assert str(Path.home()) not in text and str(tmp_path) not in text, text
+
+
+def test_plan_and_dry_run_show_part_c(capsys):
+    assert prog.main(["--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "PART C (choose c at the start)" in out
+    for k, v in cl.C_FIXED.items():
+        assert v.hex(" ") in out, k
+    for st in pc.STAGES:
+        assert f"{st.key.upper():3} {st.title}" in out

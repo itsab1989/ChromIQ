@@ -570,7 +570,34 @@ def plan_text(hex_bytes: bool = False) -> str:
         out += ["", f"Optional: {step.title} ({tbl.STEP_MAX_LINES[step.key]} lines, "
                     f"{tbl.STEP_MAX_MOTIONS[step.key]} movements; risk {step.risk}):"]
         out += _plan_ops(step, row)
+    out += plan_part_c(hex_bytes)
     return "\n".join(out)
+
+
+def plan_part_c(hex_bytes: bool = False) -> "list[str]":
+    """0.5.0: what part C can send (its allow-list, its rules, its stages and caps)."""
+    import i1io_c_lines as cl
+    import i1io_geometry as geo
+    import i1io_part_c as pc
+    a, r = geo.MEASURING_AREA, geo.AREA_RAW
+    out = ["", f"PART C (choose c at the start): at most {pc.C_MAX_LINES} lines and "
+               f"{pc.C_MAX_MOVES} movements in one sitting. It may send the lines above except "
+               "part A's two moves to Y 250 and Y 1000, and these five recorded lines:"]
+    for k, v in cl.C_FIXED.items():
+        extra = f"   bytes {v.hex(' ')}" if hex_bytes else ""
+        out.append(f"      {v.decode('ascii').rstrip(chr(13)):20}{extra}")
+        out.append(f"         recorded: {cl.C_RECORDED_AT[k]}")
+    out += ["", "and COMPUTED moves of the recorded form: m0 at speed "
+            f"{', '.join(str(v) for v in geo.RECORDED_M0_SPEEDS)} only, m2 (the strip move) at "
+            f"{', '.join(str(v) for v in geo.RECORDED_M2_SPEEDS)} only; the target inside "
+            f"{a.text()}; only right after a position reading, and the whole rectangle swept "
+            f"from it inside {r.text()}.", "", "Its stages (lines and movements per run, runs per "
+            "sitting; each also may use part B's recorded way out and a homing):"]
+    for st in pc.STAGES:
+        out.append(f"      {st.key.upper():3} {st.title} ({st.max_lines} lines, {st.max_moves} "
+                   f"movement{'' if st.max_moves == 1 else 's'}, {st.max_runs} runs; risk {st.risk}"
+                   f"{'; a first try' if st.first_try else ''})")
+    return out
 
 
 def _plan_ops(step: tbl.Step, row) -> "list[str]":
