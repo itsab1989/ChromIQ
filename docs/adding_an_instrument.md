@@ -386,7 +386,7 @@ An instrument becomes useful in ChromIQ in one of two ways:
 - **(b) ChromIQ drives the instrument itself.**
 
 Bringing measurements back is good to support: it is far better than
-nothing, and it works long before (b) does. But driving the instrument
+nothing, and it can work long before (b) does. But driving the instrument
 ourselves stays the goal. **Neither route waits for the other, and neither
 is put first.** Both are tried at the same time, and every round with an
 owner is planned to answer as much as possible for both (what to ask for is
@@ -832,8 +832,8 @@ Put the contact sheets for the steps your work touches in the pull request.
 ### 3. "Switched off changes nothing", in one command
 
 ```bash
-python scripts/compare_with_release.py v4.3.33 --out ~/Desktop/compare
-python scripts/compare_with_release.py v4.3.33 --out ~/Desktop/compare-on --betas on
+python scripts/compare_with_release.py v4.3.43 --out ~/Desktop/compare
+python scripts/compare_with_release.py v4.3.43 --out ~/Desktop/compare-on --betas on
 ```
 
 Use the latest release tag (`git tag --sort=-v:refname`). The script checks
