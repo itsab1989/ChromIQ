@@ -932,3 +932,46 @@ def test_a_fractional_custom_code_is_the_same_paper_as_its_whole_mm_p():
     assert not _recipe_is_for({"instrument": "SS", "paper": "234x196"},
                               "SS", "235x196")
     assert _recipe_is_for({"instrument": "SS", "paper": "A4"}, "SS", "A4")
+
+
+@pytest.mark.parametrize("on", [False, True])
+def test_f9_the_estimate_column_uses_the_charts_own_page(qapp, tmp_path, on):
+    """Review F9: with the Beta off, a held Beta chart's "Chart layout
+    information" estimate is laid out on the chart's own, unrounded page and
+    resolution (the hold), exactly as with the Beta on, never on the rounded
+    38 x 25 mm the 4.3.42 fields show."""
+    from PyQt6.QtCore import QSettings
+    from PyQt6.QtWidgets import QApplication
+    from core.argyll_runner import ArgyllRunner
+    from core.file_manager import FileManager
+    from core.settings import AppSettings
+    from ui.tabs.tab_chart import TabChart
+    before = po._latched
+    po.set_enabled_for_this_process(on)
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "app.ini"), QSettings.Format.IniFormat)
+    s.set("use_chromiq_layout_engine", True)
+    s.set("custom_output_path", str(tmp_path / "out"))
+    tab = TabChart(ArgyllRunner(s), FileManager(s), s)
+    try:
+        tab._switch_mode("manual")
+        tab._init_manual_layout_panel()
+        p = tab._manual_layout_panel
+        p.instr.setCurrentIndex(p.instr.findData("SS"))
+        r = replace(_film_recipe(FRAME_4K, 2731, patch=2.0),
+                    margins_explicit=True, layout_mode="patch_first")
+        tab._set_manual_value("printtarg", "-p", r.paper)
+        p.set_recipe(r)
+        QApplication.processEvents()
+        tab._refresh_layout_estimate(use_engine=True)
+        got = tab._layout_info_panel.predicted()
+        assert tab._current_layout_recipe().paper == r.paper
+        from workflow.layout_engine import geometry, instruments, papers
+        geom = instruments.geom_from_build_kwargs(
+            tab._current_layout_recipe().build_kwargs())
+        w, h = papers.dimensions_mm(r.paper)
+        assert got["page_patches"] == min(
+            got["total"], geometry.patches_per_sheet(geom, w, h))
+    finally:
+        tab.deleteLater()
+        po._latched = before
