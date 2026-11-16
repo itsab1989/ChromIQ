@@ -1471,3 +1471,44 @@ def test_every_area_text_says_where_it_lies_is_our_estimate(tmp_path):
         geo.fit_alignment(_aims_mm(geo.RECORDED_ALIGNMENTS["S2 383.3"]),
                           geo.RECORDED_ALIGNMENTS["S2 383.3"])
     del text
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), -float("inf")])
+def test_an_aim_that_is_not_a_number_is_refused_as_an_alignment(bad):
+    """Planted-fault pass of fix 1: a non-finite aim or sheet mark ends as AlignmentRefused
+    (a clean D1 failure), never as an OverflowError or ValueError."""
+    sheet = _sheet()
+    aims_mm = [tuple(sc.sheet_table_mm(sheet, a["page_mm"])) for a in sc.aims_of(sheet, 0)]
+    good = pc.demo_aims()
+    for k in range(3):
+        for axis in range(2):
+            pts = [list(p) for p in good]
+            pts[k][axis] = bad
+            with pytest.raises(geo.AlignmentRefused, match="not a finite number"):
+                geo.fit_model(aims_mm, pts)
+            mm = [list(p) for p in aims_mm]
+            mm[k][axis] = bad
+            with pytest.raises(geo.AlignmentRefused, match="not a finite number"):
+                geo.fit_alignment(mm, good)
+
+
+def test_d1_s_page_check_itself_says_the_area_is_our_estimate_and_why_back():
+    sheet = _sheet()
+    aims_mm = [tuple(sc.sheet_table_mm(sheet, a["page_mm"])) for a in sc.aims_of(sheet, 0)]
+    good = pc.demo_aims()
+    assert not any(pc.AREA_WHERE in ln for ln in
+                   pc.page_fit(sheet, 0, geo.fit_alignment(aims_mm, good))["say"])
+    far = geo.fit_model(aims_mm, [(x, y + 200) for x, y in good])
+    say = pc.page_fit(sheet, 0, far)["say"]
+    assert pc.AREA_WHERE in say[0] and pc.WHY_BACK in say[0]
+    assert any("further towards the back" in ln for ln in say)
+
+
+def test_the_readme_has_no_old_area_numbers_and_the_table_rule_of_part_c():
+    readme = _flat((PKG / "README.md").read_text(encoding="utf-8"))
+    for old in ("859", "3059", "3109", "809", "X-Rite's specified measuring area"):
+        assert old not in readme, old
+    assert ("keep the table empty except for the chart or sheet a stage asks for" in readme)
+    assert "keep the table empty," not in readme
+    assert "Where that area lies on your table is our estimate" in readme
+    assert "a few centimetres further back than in your i1Profiler sessions" in readme
