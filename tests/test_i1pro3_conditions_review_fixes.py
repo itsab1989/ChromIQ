@@ -283,20 +283,24 @@ def test_a_temporary_file_a_crash_left_is_pruned_only_when_it_is_ours(tmp_path):
         assert p.is_file(), p
 
 
-def test_the_help_names_the_condition_not_recorded_case_and_the_m1_comparison():
+def test_the_help_names_the_condition_not_recorded_case_and_the_comparison():
     """4.3.42: "Why an entry can be greyed out" names the measurement that
     records no condition (review F1's case), and the honest limit says what
-    was compared: M1 on one i1Pro 3 and one paper (192 patches, 0.2 to 0.3
-    dE00 on average, i1Profiler's own two readings 0.12 apart), M0 and M2
-    not yet (the work notes' compare/cmp_by_rgb.py, re-run 2026-11-16)."""
+    was compared: M0, M1 and M2 with i1Profiler on one i1Pro 3 and one
+    paper, 0.15 to 0.19 dE00 apart on average (the owner's figures,
+    2026-11-16), and that it was one instrument and one paper. The earlier
+    M1-only figures (0.2 to 0.3) and "M0 and M2 not yet" are gone."""
     from ui.dialogs.settings_dialog import (i1pro3_conditions_confirmation,
                                             i1pro3_conditions_help)
     from ui.tabs.tab_profile import build_from_help
     b = " ".join(build_from_help().split())
     assert "As measured (condition not recorded)" in b
-    for text in (b, " ".join(i1pro3_conditions_help().split())):
-        assert "192 patches" in text and "0.2 to 0.3 ΔE00" in text
-        assert "0.12" in text and "M0 and M2 values have not been compared" in text
-        assert "have not yet been" not in text
     c = " ".join(i1pro3_conditions_confirmation().split())
-    assert "M0 and M2 values not yet" in c and "not yet been compared" not in c
+    for text in (b, " ".join(i1pro3_conditions_help().split()), c):
+        assert "M0, M1 and M2 values" in text
+        assert "0.15 to 0.19 ΔE00 on average" in text
+        assert "one paper" in text and "not yet" in text or \
+            "have not been compared yet" in text
+        for gone in ("0.2 to 0.3", "0.12", "M0 and M2 values have not",
+                     "M0 and M2 values not yet"):
+            assert gone not in text, gone
