@@ -851,7 +851,8 @@ def test_a_free_arm_pushed_off_its_place_stops_without_the_homing(tmp_path):
     assert code == 2 and sim.received == OPEN + lines[:lines.index(";p025", lines.index(";f12e")) + 1]
     flat = " ".join(log.split())
     assert "not where the step needed it" in flat
-    assert " ".join(prog.FREE_MODE_LEFT.split()) in flat and prog.FREE_MAYBE in flat
+    assert " ".join(prog.FREE_MODE_LEFT.split()) in flat and prog.FREE_MAYBE_OUT in flat
+    assert prog.FREE_MAYBE not in flat         # it was read off its place (safety review T1)
     assert flat.count(" ".join(prog.RECOVERY.split())) == 1          # said once, not twice
     assert prog.ASK_TOUCH not in [q for q, *_ in con.seen]
 
@@ -1079,7 +1080,9 @@ def test_ending_after_step_5_without_the_close_says_the_mode_is_still_on(tmp_pat
     assert code == 0 and sim.received == OPEN + _lines("free")
     assert _free_mode_said(log)
     assert prog.FREE_MAYBE not in log            # the arm was taken back: it is held again
-    assert "The arm is at its resting place." in log
+    # nothing is read after the last short homing: the sentence names the reading it rests on
+    assert "The arm last read at its resting place (table position X 110" in " ".join(log.split())
+    assert "The arm is at its resting place." not in log
 
 
 def test_a_free_arm_homing_that_never_finishes_says_power_cycle_and_the_mode(tmp_path):
@@ -1487,7 +1490,7 @@ def test_part_b_after_m1_anything_else_stops_with_the_arm_held_out(tmp_path, lan
     at = len(OPEN + B_HF) + B_ALIGN.index(M1) + 1
     assert code == 2 and sim.received == B_ALL[:at + 1] and F1 not in sim.received
     flat = _flat(log)
-    assert "held by the motors" in flat and _flat(prog.OUT_ON_TABLE) in flat
+    assert "held when last checked" in flat and _flat(prog.OUT_ON_TABLE) in flat
     assert _flat(prog.B_MODE_LEFT) not in flat
 
 
@@ -1580,7 +1583,7 @@ def test_part_b_enter_on_the_row_and_no_to_the_homing_leaves_a_true_state(tmp_pa
     code, sim, log, con = _run_b(tmp_path, stop_at_poll=k, script={"Run it now?": "no"})
     assert code == 1 and sim.received == B_PRE_ROW + B_ROW[:2 * (k - 1)]
     flat = _flat(log)
-    assert "The arm is held by the motors, out on the table" in flat
+    assert "The arm was held when last checked, out on the table" in flat
     assert _flat(prog.B_MODE_LEFT) in flat
 
 
@@ -1664,10 +1667,10 @@ def test_part_b_nothing_is_asked_while_the_arm_moves(tmp_path):
 
 
 @pytest.mark.parametrize("where,kind,texts", [
-    (B_ALIGN.index(M2507), "blocked", ["held by the motors", "OUT_ON_TABLE"]),
+    (B_ALIGN.index(M2507), "blocked", ["held when last checked", "OUT_ON_TABLE"]),
     (len(B_ALIGN) - 1, "drift", ["The arm is free (the motors do not hold it)", "B_MODE_LEFT"]),
     (len(B_ALIGN) + len(B_PLACE1) + len(B_FIRST) + 2 * 6 + 1, "blocked",
-     ["The arm is held by the motors, out on the table", "B_MODE_LEFT"]),
+     ["The arm was held when last checked, out on the table", "B_MODE_LEFT"]),
     (len(B_ALIGN) + len(B_PLACE1) + len(B_FIRST) + 2 * 6 + 1, "no_done",
      ["UNFINISHED", "UNFINISHED_FREE"]),
 ])
@@ -1817,3 +1820,157 @@ def test_the_simulator_s_part_b_grammar_ends_the_row_at_patch_28():
                                                                    SPOT_LINES[27])
     for bad in (SPOT_LINES[5], M1, ";m0044e00fa012c0e"):
         assert not sim_mod._b_step(states, bad), bad
+
+
+# ==== safety review T1: "at its resting place" only from what the arm READ ===================
+#
+# A homing that reports done in time but leaves the arm elsewhere ("blocked": 30 mm off, at
+# about X 1402, Y 300). Every homing of part A and part B. Where a reading follows the homing,
+# the end text must say where the arm last read and give the out-on-the-table advice; no
+# sentence may say the arm is at its resting place after that homing.
+
+def _tail_after_nth_homing(log, nth):
+    """The log (flattened) from the nth homing line sent on (1-based)."""
+    sends = [m.start() for m in re.finditer(r"^SEND +[0-9.]+ +;i12b$", log, re.M)]
+    assert len(sends) >= nth, sends
+    return " ".join(log[sends[nth - 1]:].split())
+
+
+_REST_CLAIMS = ("The arm is at its resting place", "The arm last read at its resting place",
+                "The table refused the last homing, which started at the resting place")
+A_HOMINGS = [i for i, line in enumerate(ALL) if line == I1]
+
+
+def _says_no_rest_after(tail):
+    for claim in _REST_CLAIMS:
+        assert claim not in tail, claim
+    assert prog.FREE_MAYBE not in tail
+
+
+@pytest.mark.parametrize("at", A_HOMINGS)
+def test_t1_part_a_every_homing_read_elsewhere_never_says_resting_place(tmp_path, at):
+    sim = sim_mod.SimTable(jitter=False)
+    sim.inject_at(at, "blocked", 40.0)
+    code, sim, log, con = _choose(tmp_path, set(STEP_KEYS), sim=sim)
+    tail = _tail_after_nth_homing(log, A_HOMINGS.index(at) + 1)
+    # before any reading after the homing, a resting-place sentence may only name the reading
+    # BEFORE it ("last read at its resting place (table position X 110..."), never "is at"
+    assert "The arm is at its resting place" not in tail
+    for m in re.finditer(r"The arm last read at its resting place \(table position X (\d+)", tail):
+        assert 1101 <= int(m.group(1)) <= 1103
+    nxt = ALL.index(P0, at + 1) if P0 in ALL[at + 1:] else None
+    if nxt is not None and F1 not in ALL[at + 1:nxt]:
+        assert code == 2 and sim.received == ALL[:ALL.index(P0, at + 1) + 1], \
+            (sim.received[-4:], ALL[ALL.index(P0, at + 1) - 3:ALL.index(P0, at + 1) + 1])
+        tail = " ".join(log.split("\nSTOP ", 1)[1].split())      # after that reading
+        _says_no_rest_after(tail)
+        assert re.search(r"X 14\d\d, Y 3\d\d", tail), tail[-600:]
+        assert "please do not push it around" in tail.lower()
+        assert _flat(prog.OPEN_I1PROFILER) in tail and _flat(prog.RECOVERY) in tail
+    else:
+        # no reading follows: the last homing of step 5 (then the close), or step 5's first
+        # homing (the simulator refuses its f1 away from rest before the next reading). The
+        # sentence names the reading it rests on, never "is at its resting place"
+        assert (code, sim.received == ALL) == ((0, True) if nxt is None else (2, False))
+        assert "The arm last read at its resting place (table position X 110" in tail
+
+
+B_FROM_PATCH = 5
+B_HOMINGS = {
+    "b_home": (len(OPEN) + B_HF.index(I1), {}, B_PRE_ROW[:len(OPEN) + len(B_HF) + 3]),
+    "b_end": (len(B_PRE_ROW + B_ROW) + B_END.index(I1), {}, B_PRE_ROW + B_ROW + B_END),
+    "home_from_patch": (len(B_PRE_ROW) + 2 * (B_FROM_PATCH - 1) + B_END.index(I1),
+                        {"stop_at_poll": B_FROM_PATCH},
+                        B_PRE_ROW + B_ROW[:2 * (B_FROM_PATCH - 1)] + B_END),
+}
+
+
+@pytest.mark.parametrize("name", sorted(B_HOMINGS))
+def test_t1_part_b_every_homing_read_elsewhere_says_where_and_the_out_advice(tmp_path, name):
+    at, kw, sent = B_HOMINGS[name]
+    sim = sim_mod.SimTable(jitter=False)
+    sim.inject_at(at, "blocked", 40.0)
+    code, sim, log, con = _run_b(tmp_path, sim, **kw)
+    assert code == 2 and sim.received == sent, (sim.received[len(sent) - 3:], sent[-3:])
+    tail = _tail_after_nth_homing(log, 2 if name != "b_home" else 1)
+    _says_no_rest_after(tail)
+    for t in (prog.B_DONE_TEXT, prog.B_HOME_MODE_LEFT):
+        assert _flat(t) not in tail
+    assert re.search(r"The arm is out on the table, held when last checked \(it last reported "
+                     r"table position X 14\d\d, Y 3\d\d\)\.", tail), tail[-600:]
+    assert _flat(prog.OUT_ON_TABLE) in tail
+
+
+def test_t1_the_reviewers_case_at_the_first_homing_and_at_the_row_end(tmp_path):
+    """tools/blocked_end_text.py of the safety review: line 14 and line 101 of part B."""
+    for k, where in ((13, "before driving out"), (100, "back home after the row")):
+        sim = sim_mod.SimTable()
+        sim.inject_at(k, "blocked", 40.0)
+        code, sim, log, con = _run_b(tmp_path, sim)
+        flat = _flat(log)
+        assert code == 2 and f"({where}); this step needs it" in flat
+        end = flat.split(f"({where}); this step needs it", 1)[1]
+        assert "resting place." not in end.split("A few questions", 1)[0]
+        assert "The arm is out on the table, held when last checked (it last reported table " \
+               "position X 1402, Y 30" in end
+        assert _flat(prog.OUT_ON_TABLE) in end
+
+
+@pytest.mark.parametrize("name", ["b_end", "home_from_patch"])
+def test_t1_part_b_a_homing_not_read_after_never_says_resting_place(tmp_path, name):
+    """A fault between the homing and the read after it (f0 gets no answer): where the arm is
+    is not known, so the text says so and gives the advice."""
+    at, kw, sent = B_HOMINGS[name]
+    sim = sim_mod.SimTable(jitter=False)
+    sim.inject_at(at + 2, "no_answer", 0.0)          # the f0 right after the homing's s0
+    code, sim, log, con = _run_b(tmp_path, sim, **kw)
+    assert code == 2 and sim.received[-1] == F0
+    tail = _tail_after_nth_homing(log, 2 if name != "b_home" else 1)
+    _says_no_rest_after(tail)
+    assert "the arm's position was not read after it. Before the homing it reported table " \
+           "position X" in tail
+    assert _flat(prog.B_MODE_LEFT) in tail
+
+
+def test_t1_part_a_a_homing_from_the_table_not_read_after_never_says_resting_place(tmp_path):
+    lines = _lines("near")
+    i_far = [i for i, l in enumerate(lines) if l == I1][1]   # the homing from out on the table
+    sim = sim_mod.SimTable(jitter=False)
+    sim.inject_at(len(OPEN) + i_far + 1, "no_answer", 0.0)   # the s0 right after it
+    code, sim, log, con = _choose(tmp_path, {"near"}, sim=sim)
+    assert code == 2 and sim.received == OPEN + lines[:i_far + 2]
+    tail = _tail_after_nth_homing(log, 2)
+    _says_no_rest_after(tail)
+    assert "the arm's position was not read after it. Before the homing it reported table " \
+           "position X 1000, Y 1500." in tail
+    assert _flat(prog.OUT_ON_TABLE) in tail
+
+
+def test_t2_b4_counts_the_recorded_alignments_truly():
+    """Safety review T2: 10 recorded alignments (R1 3, R2 2, S2 5). The first movement after
+    the free arm: a first patch move twice (S2 454.218, 726.395), c4 then a move five times
+    (R1 431.430, R2 475.168, S2 114.683, 311.327, 551.491), a homing three times (R1 272.124,
+    740.993, R2 261.644)."""
+    beyond = _flat(tbl.B_STEPS[3].beyond)
+    assert tbl.B_STEPS[3].key == "b_first"
+    assert ("Your recordings hold 10 chart alignments: in 2 of them, i1Profiler's next movement "
+            "was a first patch move like this one, straight from the free arm; in 5, it first "
+            "sent the line c4 and then a move (the scan measurements); in 3, it sent a "
+            "homing.") in beyond
+    for name in PROGRAM_FILES + ("README.md",):
+        assert "12 times" not in _source(name), name
+
+
+def test_t1_a_homing_from_25_mm_out_with_no_reading_after_claims_no_resting_place(tmp_path):
+    """Step 1 alone from Y 150 (inside START_GUARD, outside REST_GUARD): nothing is read after
+    its homing, and the reading before it was not at rest, so no sentence may say the arm is
+    there; the text says it was not read after the homing and where it read before."""
+    sim = sim_mod.SimTable(pos=[1102.0, 150.0], jitter=False)
+    code, sim, log, con = _choose(tmp_path, {"home"}, sim=sim)
+    assert sim.received == OPEN + _lines("home")
+    flat = _flat(log)
+    _says_no_rest_after(_tail_after_nth_homing(log, 1))
+    assert "Step 1 is done. ASK" in flat or "Step 1 is done. SAY" in flat
+    assert "the arm's position was not read after it. Before the homing it reported table " \
+           "position X 1102, Y 150." in flat
+    assert _flat(prog.OUT_ON_TABLE) in flat

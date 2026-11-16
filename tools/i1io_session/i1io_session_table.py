@@ -676,9 +676,11 @@ B_STEPS = (
          "i1Profiler's first patch move: the motors take the free arm and drive it about "
          "10 cm towards the back of the table (about 1.5 s) to the first patch of row 1 "
          "(table position X -1181, Y 1658). The program then checks that it arrived.",
-         "The line, its target and speed are exactly as recorded, and i1Profiler sent a first "
-         "patch move like it from a free arm in every recorded alignment (12 times). The start "
-         "is where your hand left the arm, inside the box of the recorded starts but not "
+         "The line, its target and speed are exactly as recorded. Your recordings hold 10 "
+         "chart alignments: in 2 of them, i1Profiler's next movement was a first patch move "
+         "like this one, straight from the free arm; in 5, it first sent the line c4 and then "
+         "a move (the scan measurements); in 3, it sent a homing. The start is where your hand "
+         "left the arm, inside the box of the recorded starts but not "
          "exactly the recorded start (X -1297, Y 2681). After it, the arm is held by the "
          "motors again, but the table stays in the hand-alignment mode until step 6."),
     Step("b_row", "Row 1, patch by patch, as i1Profiler measured it (without measuring)",

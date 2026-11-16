@@ -126,6 +126,8 @@ FREE_MODE_LEFT = (
     "again is part of the close, and the close was not sent. Nobody has recorded yet what "
     "i1Profiler does when it opens a table in this mode. " + OPEN_I1PROFILER + " " + RECOVERY)
 FREE_MAYBE = "The arm may still be free: please do not push it away from its resting place."
+#: FREE_MAYBE when no reading puts the arm at its resting place (safety review T1)
+FREE_MAYBE_OUT = "The arm may still be free: please do not push it around."
 CLOSE_AFTER_FREE = (
     "After the hand-alignment step, this close is what switches that mode off again. We "
     "recommend running it now.")
@@ -262,6 +264,44 @@ B_HOME_MODE_LEFT = (
     + RECOVERY)
 
 
+def at_rest_by_reading(d: tbl.Table) -> bool:
+    """Safety review T1: "at its resting place" may be said only from what the arm READ,
+    never from a homing having been sent or having reported done. True only when the last
+    movement was a homing that finished in time and the last position read lies in
+    REST_GUARD: the read after that homing, or, when nothing was read after it (the short
+    homing that ends every step), the read right before it."""
+    if d.last_move != ("home", True):
+        return False
+    p = d.position_now if d.position_now is not None else d.before_move
+    return p is not None and tbl.REST_GUARD.contains(p)
+
+
+def rest_text(d: tbl.Table) -> str:
+    """The resting-place sentence, worded after the reading it rests on (only when
+    at_rest_by_reading(d))."""
+    if d.position_now is not None:          # read at rest after the homing
+        return "The arm is at its resting place."
+    x, y = d.before_move
+    return (f"The arm last read at its resting place (table position X {x}, Y {y}), and the "
+            "homing sent from there reported that it had finished.")
+
+
+def home_unconfirmed_text(d: tbl.Table) -> str:
+    """After a homing that reported done while no reading puts the arm at rest: where the
+    arm last read, in plain words (safety review T1)."""
+    if d.position_now is not None:
+        x, y = d.position_now
+        return (f"The table reported that the homing had finished, but the arm then reported "
+                f"table position X {x}, Y {y}, which is not its resting place.")
+    if d.last_read is not None:
+        x, y = d.last_read
+        return ("The table reported that the homing had finished, but the arm's position was "
+                f"not read after it. Before the homing it reported table position X {x}, "
+                f"Y {y}.")
+    return ("The table reported that the homing had finished, but the arm's position was not "
+            "read after it.")
+
+
 def b_state_texts(d: tbl.Table) -> "list[str]":
     """Part B: a TRUE statement of the table's state after the session (held or free, in the
     hand-alignment mode or not, out on the table or at rest) and the recovery known to be
@@ -280,7 +320,13 @@ def b_state_texts(d: tbl.Table) -> "list[str]":
         elif d.state in ("warm", "homed"):
             out.append(NOT_CLOSED)
         return out
-    if d.last_move == ("home", True):
+    if d.last_move == ("home", True) and not at_rest_by_reading(d):
+        if d.position_now is None:          # not read after the homing: where it is is open
+            out.append(home_unconfirmed_text(d))
+            out.append(B_MODE_LEFT if d.mode_on else OUT_ON_TABLE)
+            return out
+        # read elsewhere after the homing: an arm out on the table (the texts below)
+    elif d.last_move == ("home", True):
         if d.mode_on:
             out.append(B_HOME_MODE_LEFT)
         elif d.state == "closed":
@@ -289,7 +335,7 @@ def b_state_texts(d: tbl.Table) -> "list[str]":
         elif d.state == "b_done":
             out.append(B_DONE_TEXT)
         else:
-            out.append("The arm is at its resting place.")
+            out.append(rest_text(d))
             out.append(NOT_CLOSED)
         return out
     if (d.last_move == ("home", None) and d.before_move is not None
@@ -301,14 +347,14 @@ def b_state_texts(d: tbl.Table) -> "list[str]":
     at = (f" (it last reported table position X {where[0]}, Y {where[1]})"
           if where is not None else "")
     if not d.mode_on:
-        out.append("The arm is out on the table, held by the motors" + at + ".")
+        out.append("The arm is out on the table, held when last checked" + at + ".")
         out.append(OUT_ON_TABLE)
         return out
     free = d.arm_free
     if free is True and d.out_touch in ("holds", "not sure"):
         free = None             # f1 answered 01, but the person felt it hold: not known
     hold = {True: "The arm is free (the motors do not hold it)",
-            False: "The arm is held by the motors",
+            False: "The arm was held when last checked",
             None: "Whether the motors hold the arm is not known"}[free]
     out.append(hold + ", out on the table" + at + ".")
     out.append(B_MODE_LEFT)
@@ -792,8 +838,9 @@ class Session:
                                   "Nothing more is sent to the table.")
                 self.d.run_step(step)
                 self.ui.say(f"Step {n} is done. "
-                            + ("" if not tbl.STEP_MAX_MOTIONS[step.key] else
-                               "The table reports the arm back at its resting place."))
+                            + ("" if not (tbl.STEP_MAX_MOTIONS[step.key]
+                                          and at_rest_by_reading(self.d)) else
+                               rest_text(self.d)))
                 if tbl.STEP_MAX_MOTIONS[step.key]:
                     did = self.ui.ask(ASK_DID, DID_CHOICES)
                     self.note(f"step {step.key}: as described?", did)
@@ -838,7 +885,7 @@ class Session:
         if d.outside_at is not None:
             return "outside"
         if d.last_move == ("home", True):
-            return "home"
+            return "home" if at_rest_by_reading(d) else "home unconfirmed"
         if (d.last_move == ("home", None) and d.before_move is not None
                 and tbl.START_GUARD.contains(d.before_move)):
             return "home, homing refused"      # answered with an error: it had not left rest
@@ -862,6 +909,9 @@ class Session:
                 self.ui.say(UNFINISHED)
             elif w == "maybe out":
                 self.ui.say(OUT_STATE if free_mode else OUT_ON_TABLE)
+            elif w == "home unconfirmed":
+                self.ui.say(home_unconfirmed_text(d))
+                self.ui.say(OUT_STATE if free_mode else OUT_ON_TABLE)
             elif w == "not moved":
                 self.ui.say("Nothing was moved.")
                 if d.outside_at is not None:
@@ -878,7 +928,7 @@ class Session:
                 self.ui.say("The table refused the last homing, which started at the resting "
                             "place, so the arm should still be there.")
             else:
-                self.ui.say("The arm is at its resting place.")
+                self.ui.say(rest_text(d))
             if d.state == "closed":
                 self.ui.say("The table was closed the way i1Profiler closes it.")
             elif free_mode:
@@ -888,7 +938,8 @@ class Session:
                     self.ui.say(UNFINISHED_FREE)
                 else:
                     if d.state != "free_homed":
-                        self.ui.say(FREE_MAYBE)
+                        self.ui.say(FREE_MAYBE if w in ("home", "home, homing refused")
+                                    else FREE_MAYBE_OUT)
                     self.ui.say(FREE_MODE_LEFT)
             elif d.state in ("warm", "homed", "free_homed"):
                 self.ui.say(NOT_CLOSED)

@@ -191,7 +191,7 @@ At most 11 lines, 0 movements. Our risk rating: **low**.
 
 With your hands off the arm, the program reads its position twice, exactly as i1Profiler does, and only if it is inside the box and has not moved, sends i1Profiler's first patch move: the motors take the free arm and drive it about 10 cm towards the back of the table (about 1.5 s) to the first patch of row 1 (table position X -1181, Y 1658). The program then checks that it arrived.
 
-*Not exactly as recorded:* The line, its target and speed are exactly as recorded, and i1Profiler sent a first patch move like it from a free arm in every recorded alignment (12 times). The start is where your hand left the arm, inside the box of the recorded starts but not exactly the recorded start (X -1297, Y 2681). After it, the arm is held by the motors again, but the table stays in the hand-alignment mode until step 6.
+*Not exactly as recorded:* The line, its target and speed are exactly as recorded. Your recordings hold 10 chart alignments: in 2 of them, i1Profiler's next movement was a first patch move like this one, straight from the free arm; in 5, it first sent the line c4 and then a move (the scan measurements); in 3, it sent a homing. The start is where your hand left the arm, inside the box of the recorded starts but not exactly the recorded start (X -1297, Y 2681). After it, the arm is held by the motors again, but the table stays in the hand-alignment mode until step 6.
 
 At most 4 lines, 1 movement. Our risk rating: **medium**.
 
@@ -304,9 +304,9 @@ i1Pro 2.
 ## What could go wrong in part B, and what to do
 
 At the end, after any stop, the program tells you the table's state as it
-knows it from the table's answers: whether the arm is at its resting place or
-out on the table, whether the motors hold it or it is free, and whether the
-table is still in the hand-alignment mode. Then it names the recovery for that
+knows it from the table's answers: where the arm last read (at its resting
+place or out on the table), whether the motors held it or it was free when last
+checked, and whether the table is still in the hand-alignment mode. Then it names the recovery for that
 state. In short:
 
 * **B1 (the homing):** as step 1 of part A.
