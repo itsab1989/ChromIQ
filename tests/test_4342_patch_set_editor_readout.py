@@ -48,12 +48,16 @@ def _dialog(tmp_path):
     return Ti2RelayoutDialog(ArgyllRunner(s), s, None)
 
 
-def test_the_instrument_of_an_isis_chart_is_the_isis(tmp_path):
+def test_the_instrument_of_an_isis_chart_is_the_isis(tmp_path, monkeypatch):
     from ui.dialogs.ti2_relayout_dialog import Ti2RelayoutDialog
+    from workflow.isis import support
     from workflow.ti2_relayout import ChartSpec
     isis = _ti2(tmp_path / "isis.ti2", "X-Rite i1iSis")
     spec = ChartSpec.from_ti2(isis)
     assert spec.instrument_flag == "i1"            # why it read "-ii1"
+    # Beta off: the file's own name; on: the i1iSis
+    assert Ti2RelayoutDialog._instrument_of_chart(isis, spec) == "X-Rite i1iSis"
+    monkeypatch.setattr(support, "isis_enabled", lambda *a, **k: True)
     assert Ti2RelayoutDialog._instrument_of_chart(isis, spec) == "i1iSis"
     i1 = _ti2(tmp_path / "i1.ti2", "X-Rite i1Pro")
     assert Ti2RelayoutDialog._instrument_of_chart(
@@ -74,7 +78,7 @@ def test_the_readout_names_the_instrument_and_has_room(qapp, tmp_path):
         dlg._refresh_info()
         text = dlg._info.text()
         assert text.startswith("Loaded isis.ti2: ")
-        assert "laid out for the i1iSis on A4" in text
+        assert "laid out for the" in text and "i1iSis on A4" in text
         assert "-i" not in text and "—" not in text
         dlg._readout_instrument = ""                 # a patch set made here
         dlg._refresh_info()

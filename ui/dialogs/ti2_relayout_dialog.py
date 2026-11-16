@@ -6486,8 +6486,9 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
         else Create Chart's label for the file's instrument; "" when not
         known."""
         try:
-            from workflow.isis.support import chart_names_isis
-            if chart_names_isis(path) is True:
+            from workflow.isis.support import chart_names_isis, isis_enabled
+            # with the i1iSis Beta off, the file's own name for it (below)
+            if isis_enabled() and chart_names_isis(path) is True:
                 return "i1iSis"
         except Exception:  # noqa: BLE001 - a readout never fails a load
             pass

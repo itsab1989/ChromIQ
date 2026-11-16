@@ -162,9 +162,6 @@ def strip_geometry(channels_json: "Path | str | None",
     return out
 
 
-_NUMBER = re.compile(r"-?\d+(?:\.\d+)?")
-
-
 def margin_summary(doc: dict) -> "dict | None":
     """The margin tolerance's decisions in *doc*, for the top of the file;
     None when the tolerance was not asked for and no strip carries a
@@ -193,7 +190,9 @@ def margin_summary(doc: dict) -> "dict | None":
         else:
             why = str(m.get("why") or "")
             refused.append({"strip": e.get("strip"), "entry": i, "why": why})
-            key = _NUMBER.sub("#", why) or "?"
+            # (a pattern string, not a module-level compiled one: those are
+            # checked against the tool output parsers' lines)
+            key = re.sub(r"-?\d+(?:\.\d+)?", "#", why) or "?"
             by_reason[key] = by_reason.get(key, 0) + 1
     if not kept and not refused and doc.get("margin_tolerance") in (
             None, "not asked"):
