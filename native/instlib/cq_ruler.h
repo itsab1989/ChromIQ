@@ -43,6 +43,13 @@
 #define CQ_RULER_GIVEUP_TIMEOUT  7	/* no data within the read's timeout */
 
 #define CQ_RULER_MAXTRACE_OUT 1000	/* trace points kept (decimated) */
+#define CQ_RULER_MAXCAND 128	/* margin tolerance: candidate segments kept */
+
+/* The margin tolerance (Preferences > Beta, 2026-11-16): candidate flags, as
+ * ArgyllCMS would judge each segment were it a patch (chromiq_margin.h). */
+#define CQ_RULER_CAND_INCONS 1	/* the readings inside it disagree */
+#define CQ_RULER_CAND_SAT    2	/* the sensor saturated */
+#define CQ_RULER_CAND_SPARSE 4	/* too few readings */
 
 #if defined(__GNUC__) || defined(__clang__)
 # define CQ_RULER_UNUSED __attribute__((unused))
@@ -79,6 +86,22 @@ typedef struct {
 	int stream_did_not_end;	/* the stream was still running after the scan */
 	int rate_ms;		/* trigger to end of the measurement read, ms */
 	int npos;			/* i1Pro 3: ArgyllCMS's position slots */
+	/* 2026-11-16 (additive): how long the lights' quiet time (the i1Pro 2
+	 * lights Beta) held this strip's trigger back, ms; 0 without the lights. */
+	int trigger_wait_ms;
+	/* The margin tolerance (Beta, 2026-11-16), only while the helper armed
+	 * it and only for a reading ArgyllCMS's recogniser refused with "Not
+	 * enough patches", "Too many patches" or "Swipe didn't start and end on
+	 * the media": EVERY segment the recogniser cut, in swipe order, its
+	 * readings (untrimmed), its flags and its value computed exactly as
+	 * ArgyllCMS computes a patch (2/3 trim, average, wavelengths, scale,
+	 * XYZ). Nothing here is ever fed back into the driver. */
+	int ncand;
+	int cand_why;		/* the recogniser's code (I1PRO_RD_*) */
+	int cand_ss[CQ_RULER_MAXCAND];
+	int cand_no[CQ_RULER_MAXCAND];
+	int cand_flags[CQ_RULER_MAXCAND];
+	void *cand_vals;	/* ipatch[ncand] (inst.h), malloc'd by the driver */
 } cq_ruler_rec;
 
 /* Free what a record owns and clear it. */
@@ -88,6 +111,7 @@ CQ_RULER_UNUSED static void cq_ruler_rec_clear(cq_ruler_rec *r) {
 	free(r->ch_gap);
 	free(r->ch_code);
 	free(r->trace);
+	free(r->cand_vals);
 	memset(r, 0, sizeof(*r));
 }
 

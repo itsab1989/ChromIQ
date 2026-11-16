@@ -127,6 +127,21 @@ stops if one no longer applies.
   (`i1pro3_cq_cond_*`). The chosen result is computed exactly as before.
   Nothing new is sent to or read from the instrument.
   Not tested on a real instrument by the project.
+- **`i1pro_imp.c`, `i1pro_imp.h`: the margin tolerance** (Preferences >
+  Beta, 2026-11-16; i1Pro 2 only, needs the ruler check). Inert until
+  ChromIQ's helper switches it on (`--margin-tolerance`, with `--ruler`).
+  Then, only for an armed strip the recogniser REFUSED ("Not enough
+  patches", "Too many patches", "Swipe didn't start and end on the
+  media"), every segment it cut is turned into a value exactly as a
+  patch is (the same trim, average, consistency and saturation tests as
+  flags, `i1pro_absraw_to_abswav`, `i1pro_scale_specrd`,
+  `i1pro_conv2XYZ`) and copied into ChromIQ's `cq_ruler.h` record; the
+  helper decides. The recogniser hook only copies segment positions; the
+  refusal the driver returns and every accepted value are unchanged, and
+  nothing is sent to or read from the instrument. Also additive: how long
+  the lights' code held each trigger back, timed around the unchanged
+  call (the lights' timing is not changed).
+  Not tested on a real instrument by the project.
 - **`usbio.c`, the transfer counter `in_usb_rw`** (2026-11-14): made
   atomic (C11 `_Atomic`, kept plain where a compiler has no atomics).
   Every USB back end (macOS, Linux, Windows) counts transfers in it and
@@ -140,8 +155,8 @@ stops if one no longer applies.
 | `rspl1.c` | `5c7b0509abf97f44…` | `d53a8d37b30b6e14…` |
 | `conv.c` | `c6b04014888cb6f4…` | `1b88327ee6e6d9df…` |
 | `i1pro.c` | `ac75b6e3f47537b8…` | `833d46b27134f93e…` |
-| `i1pro_imp.h` | `c37813e4b43a9bff…` | `1bf92ae434393c0d…` |
-| `i1pro_imp.c` | `8b8516cdd89e21de…` | `0eab5b51a8a430f5…` |
+| `i1pro_imp.h` | `c37813e4b43a9bff…` | `4275117f97e8f666…` |
+| `i1pro_imp.c` | `8b8516cdd89e21de…` | `d1b863bbf8376cd0…` |
 | `i1pro3.c` | `9c4b1ac9f8af507a…` | `347235c6d10f9677…` |
 | `i1pro3_imp.h` | `190cceb46fe8bc33…` | `ef7245eb1a92eb5e…` |
 | `i1pro3_imp.c` | `42c684afa3bbb15d…` | `d78f1a6596886bf6…` |

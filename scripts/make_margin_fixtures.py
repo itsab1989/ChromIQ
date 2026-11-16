@@ -16,6 +16,11 @@ Nothing personal goes into the fixture: no serial number (the files hold
 none), no path, no name; the session is named by the file's time stamp.
 
     python3 scripts/make_margin_fixtures.py FILE.json [FILE.json ...]
+    python3 scripts/make_margin_fixtures.py --charts DIR
+
+The second form writes tests/data/margin_charts.json: the expected CIE Lab
+(D50) of every full row of every .ti2 under DIR (the reader review's 28
+charts), grouped by the letters of SAMPLE_LOC, for the constructed cases.
 """
 from __future__ import annotations
 
@@ -27,6 +32,68 @@ from pathlib import Path
 import numpy as np
 
 OUT = Path(__file__).resolve().parents[1] / "tests" / "data" / "margin_fixtures.json"
+CHARTS = OUT.with_name("margin_charts.json")
+WP = np.array([96.42, 100.0, 82.49])
+
+
+def xyz2lab(X):
+    v = np.asarray(X, float) / WP
+    f = np.where(v > 0.008856, np.cbrt(v), 7.787 * v + 16 / 116)
+    return np.stack([116 * f[..., 1] - 16, 500 * (f[..., 0] - f[..., 1]),
+                     200 * (f[..., 1] - f[..., 2])], -1)
+
+
+def read_ti2_rows(p: Path):
+    data, on, fmt = [], False, None
+    for line in p.read_text(errors="replace").splitlines():
+        if line.startswith("BEGIN_DATA_FORMAT"):
+            on = "f"
+            continue
+        if on == "f":
+            fmt = line.split()
+            on = False
+            continue
+        if line.startswith("BEGIN_DATA"):
+            on = True
+            continue
+        if line.startswith("END_DATA"):
+            on = False
+            continue
+        if on:
+            data.append(line.split())
+    if not fmt or "XYZ_X" not in fmt or "SAMPLE_LOC" not in fmt:
+        return None
+    ix = [fmt.index(k) for k in ("XYZ_X", "XYZ_Y", "XYZ_Z")]
+    il = fmt.index("SAMPLE_LOC")
+    rows = {}
+    for r in data:
+        m = re.match(r"([A-Za-z]+)(\d+)", r[il].strip('"'))
+        if m:
+            rows.setdefault(m.group(1), []).append(
+                (int(m.group(2)), [float(r[i]) for i in ix]))
+    L = [np.array([x for _, x in sorted(v)]) for v in rows.values()]
+    if not L:
+        return None
+    n = max(len(x) for x in L)
+    L = [x for x in L if len(x) == n]      # full rows only
+    if len(L) < 3 or n < 6:
+        return None
+    return np.round(np.array([xyz2lab(x) for x in L]), 2).tolist()
+
+
+def charts(d: Path) -> int:
+    out = {}
+    for p in sorted(d.rglob("*.ti2")):
+        rows = read_ti2_rows(p)
+        if rows is not None:
+            out[str(p.relative_to(d))] = rows
+    CHARTS.write_text(json.dumps({"about": "Expected CIE Lab (D50) per full row of "
+                                  "the reader review's .ti2 charts "
+                                  "(scripts/make_margin_fixtures.py --charts).",
+                                  "charts": out}, separators=(",", ":")) + "\n",
+                      encoding="utf-8")
+    print(CHARTS, len(out), "charts", CHARTS.stat().st_size, "bytes")
+    return 0
 
 
 def trace(rec) -> np.ndarray:
@@ -162,6 +229,8 @@ def session(path: Path) -> dict:
 
 
 def main(argv):
+    if len(argv) == 3 and argv[1] == "--charts":
+        return charts(Path(argv[2]).expanduser())
     files = [Path(a).expanduser() for a in argv[1:]]
     if not files:
         print(__doc__)

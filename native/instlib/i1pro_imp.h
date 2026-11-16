@@ -348,6 +348,17 @@ struct _i1proimp {
 	unsigned int cq_ruler_t0;	/* msec_time() when the reader started */
 	void *cq_ruler_rec;		/* cq_ruler_rec (cq_ruler.h) */
 
+	/* CHROMIQ PATCH: the margin tolerance (Beta, 2026-11-16). All 0 = not in use. */
+	int cq_tol_on;			/* the helper's option, this session (needs the ruler) */
+	int cq_tol_nseg;		/* segments the recogniser cut in the last armed scan */
+	int cq_tol_ss[128];		/* their first reading and count (untrimmed) */
+	int cq_tol_no[128];
+	int cq_tol_flags[128];	/* CQ_RULER_CAND_* */
+	int cq_tol_why;			/* the recogniser's refusal (I1PRO_RD_*) */
+	double **cq_tol_spec;	/* [cq_tol_nseg][nwav] their calibrated spectra */
+	int cq_tol_nwav;
+	int cq_lights_wait_ms;	/* the last trigger's wait in the lights code (2026-11-16) */
+
 	volatile double whitestamp;	/* meas_delay() white timestamp */
 	volatile double trigstamp;	/* meas_delay() trigger timestamp */
 
@@ -1492,6 +1503,12 @@ void i1pro2_cq_ruler_trace(void *pp, double **multimeas, int nummeas, double *ma
 void i1pro2_cq_ruler_cut(void *pp, int pix, int ss, int no);
 void i1pro2_cq_ruler_close(void *pp);
 extern int i1pro2_cq_ruler_fail_start_for_test;	/* the fake-USB harness only */
+/* CHROMIQ PATCH: the margin tolerance (Beta, 2026-11-16), see i1pro_imp.c. */
+int i1pro2_cq_tol_options(void *pp, int on);	/* 1 = in use (needs the ruler) */
+void i1pro2_cq_tol_segments(void *pp, const void *pat, int npat);
+void i1pro2_cq_tol_candidates(void *pp, int ev, double **multimeas, int nummeas,
+                              double satthresh, double inttime);
+void i1pro2_cq_tol_values(void *pp, int ev, int clamp);
 
 /* CHROMIQ PATCH: i1Pro 2 indicator lights (Beta), see i1pro_imp.c. Every
  * entry returns at once unless ChromIQ's helper called ..._begin(). */

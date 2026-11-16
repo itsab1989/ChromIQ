@@ -88,6 +88,7 @@ endif()
 add_executable(chromiq-chartread
   ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_chartread.c
   ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_json.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_margin.c
   ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_replay.c
   ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_cal.c
   ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_stubs.c

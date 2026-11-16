@@ -1794,12 +1794,52 @@ I1PRO3_IMP_C_COND = [
      '\t\t\ta1logd(p->log,1," wrong filter 0x%x\\n",m->filt);\n\t\t\tif (p2m != NULL) del_zebix_list(p2m, npos);\n\t\t\tfree(ewav_sample);\n\t\t\tfree(owav_sample);\n\t\t\tfree(patch);\n\t\t\tfree_dmatrix(wav_sample, 0, nummeasW-1, -9, m->nwav[hr]-1);\n\t\t\treturn ev;\n\t\t}\n\t\ti1pro3_cq_cond_ptrs(p, i, &m0, &m1, &m2);\t/* CHROMIQ PATCH: M0/M1/M2 (Beta), no-op unless armed */\n'),
 ]
 # ---- END M0/M1/M2 ----
+# ---- MARGIN TOLERANCE (generated section) ----
+# The margin tolerance (Preferences > Beta, 2026-11-16). i1Pro 2 only, only
+# with the ruler check: for a strip the recogniser REFUSED ("Not enough
+# patches", "Too many patches", "Swipe didn't start and end on the media"),
+# every segment it cut is turned into a value exactly as a patch is (trim,
+# average, consistency and saturation flags, wavelengths, scale, XYZ) and
+# handed to the helper in the ruler record (cq_ruler.h); the helper decides
+# (native/chartread_helper/chromiq_margin.c). The recogniser hook only
+# copies segment positions; nothing touches USB or changes a refusal or an
+# accepted value. Also additive: how long the lights' code held each
+# trigger back (timed around the unchanged call). Every hook returns at once
+# until the helper calls i1pro2_cq_tol_options(on). Generated from the
+# edited tree against 4.3.41's vendored copy; tests/test_margin_tolerance_driver.py.
+I1PRO_IMP_H_TOL = [
+    ('\tvoid *cq_ruler_rec;\t\t/* cq_ruler_rec (cq_ruler.h) */\n',
+     "\tvoid *cq_ruler_rec;\t\t/* cq_ruler_rec (cq_ruler.h) */\n\n\t/* CHROMIQ PATCH: the margin tolerance (Beta, 2026-11-16). All 0 = not in use. */\n\tint cq_tol_on;\t\t\t/* the helper's option, this session (needs the ruler) */\n\tint cq_tol_nseg;\t\t/* segments the recogniser cut in the last armed scan */\n\tint cq_tol_ss[128];\t\t/* their first reading and count (untrimmed) */\n\tint cq_tol_no[128];\n\tint cq_tol_flags[128];\t/* CQ_RULER_CAND_* */\n\tint cq_tol_why;\t\t\t/* the recogniser's refusal (I1PRO_RD_*) */\n\tdouble **cq_tol_spec;\t/* [cq_tol_nseg][nwav] their calibrated spectra */\n\tint cq_tol_nwav;\n\tint cq_lights_wait_ms;\t/* the last trigger's wait in the lights code (2026-11-16) */\n"),
+    ('extern int i1pro2_cq_ruler_fail_start_for_test;\t/* the fake-USB harness only */\n',
+     'extern int i1pro2_cq_ruler_fail_start_for_test;\t/* the fake-USB harness only */\n/* CHROMIQ PATCH: the margin tolerance (Beta, 2026-11-16), see i1pro_imp.c. */\nint i1pro2_cq_tol_options(void *pp, int on);\t/* 1 = in use (needs the ruler) */\nvoid i1pro2_cq_tol_segments(void *pp, const void *pat, int npat);\nvoid i1pro2_cq_tol_candidates(void *pp, int ev, double **multimeas, int nummeas,\n                              double satthresh, double inttime);\nvoid i1pro2_cq_tol_values(void *pp, int ev, int clamp);\n'),
+]
+I1PRO_IMP_C_TOL = [
+    ('\t\tif (ev != I1PRO_OK) {\n\t\t\tfree_dmatrix(specrd, 0, nvals-1, 0, m->nwav[m->highres]-1);\n',
+     '\t\tif (ev != I1PRO_OK) {\n\t\t\ti1pro2_cq_tol_values(p, ev, (int)clamp);\t/* CHROMIQ PATCH: margin tolerance (Beta), no-op unless armed */\n\t\t\tfree_dmatrix(specrd, 0, nvals-1, 0, m->nwav[m->highres]-1);\n'),
+    ('\t\t\tif (ev != I1PRO_OK) {\n\t\t\t\tfree_dmatrix(multimes, 0, nmeasuered-1, -1, m->nraw-1);\n',
+     '\t\t\tif (ev != I1PRO_OK) {\n\t\t\t\t/* CHROMIQ PATCH: margin tolerance (Beta), no-op unless armed */\n\t\t\t\ti1pro2_cq_tol_candidates(p, ev, multimes, nmeasuered, satthresh, inttime);\n\t\t\t\tfree_dmatrix(multimes, 0, nmeasuered-1, -1, m->nraw-1);\n'),
+    ('\ti1pro2_cq_lights_trigger(p);\n',
+     '\t{\t/* CHROMIQ PATCH 2026-11-16: how long that took, for the ruler file */\n\t\tunsigned int cq_t0 = msec_time();\n\t\ti1pro2_cq_lights_trigger(p);\n\t\tm->cq_lights_wait_ms = (int)(msec_time() - cq_t0);\n\t}\n'),
+    ('\ta1logd(p->log,6,"Number of patches = %d\\n",npat);\n',
+     '\ta1logd(p->log,6,"Number of patches = %d\\n",npat);\n\ti1pro2_cq_tol_segments(p, pat, npat);\t/* CHROMIQ PATCH: margin tolerance (Beta), a copy */\n'),
+    ('\n/* The helper: on (1) for this session, if this is an i1Pro 2 whose EEPROM\n',
+     '\n/* ------------------------------------------------------------ */\n/* CHROMIQ PATCH: the margin tolerance (Preferences > Beta, 2026-11-16).\n *\n * Inert unless ChromIQ\'s helper switched it on (i1pro2_cq_tol_options) for a\n * session whose ruler check is in use, and then only for a strip whose ruler\n * record is open (the armed lit scan, cq_ruler_recording) AND whose reading\n * ArgyllCMS\'s recogniser REFUSED with "Not enough patches", "Too many\n * patches" or "Swipe didn\'t start and end on the media". For that reading\n * only, every segment the recogniser cut is turned into a value exactly as\n * ArgyllCMS turns a patch into one: the same 2/3 trim, the same average, the\n * same consistency and saturation tests (as flags), i1pro_absraw_to_abswav,\n * i1pro_scale_specrd and i1pro_conv2XYZ with the reading\'s own clamp. The\n * values go into the ruler record for the helper, which decides with the\n * chart\'s expected colours whether the reading can be kept\n * (native/chartread_helper/chromiq_margin.c). Nothing here touches USB,\n * changes the refusal ArgyllCMS returns, or alters any value of an accepted\n * reading: the recogniser hook only COPIES segment positions.\n */\nstatic void cq_tol_clear(i1proimp *m) {\n\tif (m->cq_tol_spec != NULL)\n\t\tfree_dmatrix(m->cq_tol_spec, 0, m->cq_tol_nseg - 1, 0, m->cq_tol_nwav - 1);\n\tm->cq_tol_spec = NULL;\n\tm->cq_tol_nseg = 0;\n\tm->cq_tol_nwav = 0;\n\tm->cq_tol_why = 0;\n}\n\nstatic int cq_tol_refusal(int ev) {\n\treturn ev == I1PRO_RD_NOTENOUGHPATCHES || ev == I1PRO_RD_TOOMANYPATCHES\n\t    || ev == I1PRO_RD_LEADTRAILINCONS;\n}\n\n/* The helper: on (1) for this session. Needs the ruler (i1pro2_cq_ruler_options\n * first). Returns 1 when in use. */\nint i1pro2_cq_tol_options(void *pp, int on) {\n\ti1pro *p = (i1pro *)pp;\n\ti1proimp *m;\n\tif (p == NULL || (m = (i1proimp *)p->m) == NULL)\n\t\treturn 0;\n\tcq_tol_clear(m);\n\tm->cq_tol_on = on && m->cq_ruler_on && p->dtype == instI1Pro2;\n\treturn m->cq_tol_on;\n}\n\n/* i1pro_extract_patches_multimeas, right after the threshold: a copy. */\nvoid i1pro2_cq_tol_segments(void *pp, const void *vpat, int npat) {\n\ti1pro *p = (i1pro *)pp;\n\ti1proimp *m = (i1proimp *)p->m;\n\tconst i1pro_patch *pat = (const i1pro_patch *)vpat;\n\tint i;\n\tif (!m->cq_tol_on || !m->cq_ruler_recording || cq_ruler_r(m) == NULL)\n\t\treturn;\n\tcq_tol_clear(m);\n\tif (npat > CQ_RULER_MAXCAND)\n\t\treturn;\t\t\t/* far too many to be a margin: nothing kept */\n\tfor (i = 0; i < npat; i++) {\n\t\tm->cq_tol_ss[i] = pat[i].ss;\n\t\tm->cq_tol_no[i] = pat[i].no;\n\t\tm->cq_tol_flags[i] = 0;\n\t}\n\tm->cq_tol_nseg = npat;\n}\n\n/* i1pro_read_patches_2, when the recogniser refused: each segment as a patch. */\nvoid i1pro2_cq_tol_candidates(void *pp, int ev, double **multimeas, int nummeas,\n                              double satthresh, double inttime) {\n\ti1pro *p = (i1pro *)pp;\n\ti1proimp *m = (i1proimp *)p->m;\n\ti1pro_state *s = &m->ms[m->mmode];\n\tint n = m->cq_tol_nseg, i, j, k, nwav;\n\tdouble *maxval, **absraw, white_avg = 0.0;\n\tdouble patch_cons_thr = PATCH_CONS_THR * m->scan_toll_ratio;\n\tif (!m->cq_tol_on || !m->cq_ruler_recording || n <= 0 || m->cq_tol_spec != NULL)\n\t\treturn;\n\tif (!cq_tol_refusal(ev) || multimeas == NULL || nummeas <= 0) {\n\t\tcq_tol_clear(m);\n\t\treturn;\n\t}\n\tif (inttime < 0.012308)\t\t/* as the recogniser loosens it */\n\t\tpatch_cons_thr *= sqrt(0.012308/inttime);\n\tmaxval = dvectorz(-1, m->nraw-1);\n\tfor (j = 0; j < m->nraw; j++) {\n\t\tfor (i = 0; i < nummeas; i++)\n\t\t\tif (multimeas[i][j] > maxval[j])\n\t\t\t\tmaxval[j] = multimeas[i][j];\n\t\tif (maxval[j] < 1.0)\n\t\t\tmaxval[j] = 1.0;\n\t}\n\tfor (j = 1; j < (m->nraw-1); j++)\n\t\twhite_avg += maxval[j];\n\twhite_avg /= (m->nraw - 2.0);\n\tabsraw = dmatrixz(0, n-1, -1, m->nraw-1);\n\tfor (k = 0; k < n; k++) {\n\t\tint ss = m->cq_tol_ss[k], no = m->cq_tol_no[k], nnn, trim;\n\t\tdouble maxavg = -1e38, minavg = 1e38, avgoverth = 0.0;\n\t\tif (no < MIN_SAMPLES)\n\t\t\tm->cq_tol_flags[k] |= CQ_RULER_CAND_SPARSE;\n\t\tnnn = (no * 2 + 0)/3;\t\t/* the recogniser\'s trim */\n\t\ttrim = (no - nnn + 1)/2;\n\t\tss += trim;\n\t\tno = nnn;\n\t\tif (no <= MIN_SAMPLES)\n\t\t\tm->cq_tol_flags[k] |= CQ_RULER_CAND_SPARSE;\n\t\tif (no <= 0 || ss < 0 || ss + no > nummeas) {\n\t\t\tm->cq_tol_flags[k] |= CQ_RULER_CAND_SPARSE;\n\t\t\tcontinue;\n\t\t}\n\t\tfor (i = ss; i < (ss + no); i++) {\n\t\t\tdouble measavg = 0.0;\n\t\t\tfor (j = 1; j < m->nraw-1; j++) {\n\t\t\t\tdouble val = multimeas[i][j];\n\t\t\t\tif (val > satthresh)\n\t\t\t\t\tavgoverth++;\n\t\t\t\tmeasavg += val;\n\t\t\t\tabsraw[k][j] += val;\n\t\t\t}\n\t\t\tmeasavg /= (m->nraw-2.0);\n\t\t\tif (measavg < minavg)\n\t\t\t\tminavg = measavg;\n\t\t\tif (measavg > maxavg)\n\t\t\t\tmaxavg = measavg;\n\t\t\tabsraw[k][0]   += multimeas[i][0];\n\t\t\tabsraw[k][127] += multimeas[i][127];\n\t\t}\n\t\tfor (j = 0; j < m->nraw; j++)\n\t\t\tabsraw[k][j] /= (double)no;\n\t\tavgoverth /= (double)no;\n\t\tif (satthresh > 0.0 && avgoverth >= 10.0)\n\t\t\tm->cq_tol_flags[k] |= CQ_RULER_CAND_SAT;\n\t\tif ((maxavg - minavg)/white_avg > patch_cons_thr)\n\t\t\tm->cq_tol_flags[k] |= CQ_RULER_CAND_INCONS;\n\t}\n\tnwav = m->nwav[m->highres];\n\tm->cq_tol_spec = dmatrixz(0, n-1, 0, nwav-1);\n\tm->cq_tol_nwav = nwav;\n\ti1pro_absraw_to_abswav(p, m->highres, s->reflective, n, m->cq_tol_spec, absraw);\n\ti1pro_scale_specrd(p, m->cq_tol_spec, n, m->cq_tol_spec);\n\tm->cq_tol_why = ev;\n\tfree_dmatrix(absraw, 0, n-1, -1, m->nraw-1);\n\tfree_dvector(maxval, -1, m->nraw-1);\n}\n\n/* i1pro_imp_measure, when the reading failed: the candidates\' XYZ through the\n * reading\'s own conversion, into the ruler record. */\nvoid i1pro2_cq_tol_values(void *pp, int ev, int clamp) {\n\ti1pro *p = (i1pro *)pp;\n\ti1proimp *m = (i1proimp *)p->m;\n\tcq_ruler_rec *r = cq_ruler_r(m);\n\tint n = m->cq_tol_nseg, i;\n\tipatch *vals;\n\tif (!m->cq_tol_on || m->cq_tol_spec == NULL || r == NULL || n <= 0)\n\t\treturn;\n\tif (ev != m->cq_tol_why || (vals = (ipatch *)calloc(n, sizeof(ipatch))) == NULL) {\n\t\tcq_tol_clear(m);\n\t\treturn;\n\t}\n\tif (i1pro_conv2XYZ(p, vals, n, m->cq_tol_spec, (instClamping)clamp) != I1PRO_OK) {\n\t\tfree(vals);\n\t\tcq_tol_clear(m);\n\t\treturn;\n\t}\n\tfree(r->cand_vals);\n\tr->cand_vals = vals;\n\tr->ncand = n;\n\tr->cand_why = ev;\n\tfor (i = 0; i < n; i++) {\n\t\tr->cand_ss[i] = m->cq_tol_ss[i];\n\t\tr->cand_no[i] = m->cq_tol_no[i];\n\t\tr->cand_flags[i] = m->cq_tol_flags[i];\n\t}\n\tcq_tol_clear(m);\n}\n\n/* The helper: on (1) for this session, if this is an i1Pro 2 whose EEPROM\n'),
+    ('\t\tcq_ruler_rec_clear(cq_ruler_r(m));\n\tm->cq_ruler_armed = on && !m->cq_ruler_given_up;\n',
+     "\t\tcq_ruler_rec_clear(cq_ruler_r(m));\n\tcq_tol_clear(m);\t\t\t/* the margin tolerance's stash (Beta) */\n\tm->cq_ruler_armed = on && !m->cq_ruler_given_up;\n"),
+    ('\tcq_ruler_rec_clear(r);\n',
+     '\tcq_ruler_rec_clear(r);\n\tr->trigger_wait_ms = m->cq_lights_wait_ms;\t/* 2026-11-16, additive */\n'),
+    ('\t}\n\tm->cq_ruler_on = m->cq_ruler_armed = m->cq_ruler_inscan = 0;\n',
+     '\t}\n\tcq_tol_clear(m);\n\tm->cq_ruler_on = m->cq_ruler_armed = m->cq_ruler_inscan = 0;\n'),
+    ('\tm->cq_ruler_on = m->cq_ruler_armed = m->cq_ruler_inscan = 0;\n',
+     '\tm->cq_ruler_on = m->cq_ruler_armed = m->cq_ruler_inscan = 0;\n\tm->cq_tol_on = 0;\n'),
+]
+# ---- END MARGIN TOLERANCE ----
 PATCHES = {
     "rspl1.c": [(RSPL1_UPSTREAM, RSPL1_PATCHED)],
     "conv.c": CONV_PATCHES,
     "usbio.c": USBIO_PATCHES,
-    "i1pro_imp.h": I1PRO_IMP_H_LIGHTS + I1PRO_IMP_H_RULER,
-    "i1pro_imp.c": I1PRO_IMP_C_LIGHTS + I1PRO_IMP_C_RULER,
+    "i1pro_imp.h": I1PRO_IMP_H_LIGHTS + I1PRO_IMP_H_RULER + I1PRO_IMP_H_TOL,
+    "i1pro_imp.c": I1PRO_IMP_C_LIGHTS + I1PRO_IMP_C_RULER + I1PRO_IMP_C_TOL,
     "i1pro.c": I1PRO_C_LIGHTS,
     "i1pro3_imp.h": I1PRO3_IMP_H_LIGHTS + I1PRO3_IMP_H_RULER + I1PRO3_IMP_H_COND,
     "i1pro3_imp.c": I1PRO3_IMP_C_LIGHTS + I1PRO3_IMP_C_RULER + I1PRO3_IMP_C_COND,
@@ -2000,6 +2040,21 @@ prov.write_text(
     "  through the same `i1pro3_conv2XYZ` into ChromIQ's own record\n"
     "  (`i1pro3_cq_cond_*`). The chosen result is computed exactly as before.\n"
     "  Nothing new is sent to or read from the instrument.\n"
+    "  Not tested on a real instrument by the project.\n"
+    "- **`i1pro_imp.c`, `i1pro_imp.h`: the margin tolerance** (Preferences >\n"
+    "  Beta, 2026-11-16; i1Pro 2 only, needs the ruler check). Inert until\n"
+    "  ChromIQ's helper switches it on (`--margin-tolerance`, with `--ruler`).\n"
+    "  Then, only for an armed strip the recogniser REFUSED (\"Not enough\n"
+    "  patches\", \"Too many patches\", \"Swipe didn't start and end on the\n"
+    "  media\"), every segment it cut is turned into a value exactly as a\n"
+    "  patch is (the same trim, average, consistency and saturation tests as\n"
+    "  flags, `i1pro_absraw_to_abswav`, `i1pro_scale_specrd`,\n"
+    "  `i1pro_conv2XYZ`) and copied into ChromIQ's `cq_ruler.h` record; the\n"
+    "  helper decides. The recogniser hook only copies segment positions; the\n"
+    "  refusal the driver returns and every accepted value are unchanged, and\n"
+    "  nothing is sent to or read from the instrument. Also additive: how long\n"
+    "  the lights' code held each trigger back, timed around the unchanged\n"
+    "  call (the lights' timing is not changed).\n"
     "  Not tested on a real instrument by the project.\n"
     "- **`usbio.c`, the transfer counter `in_usb_rw`** (2026-11-14): made\n"
     "  atomic (C11 `_Atomic`, kept plain where a compiler has no atomics).\n"
