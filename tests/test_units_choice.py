@@ -201,10 +201,14 @@ def test_one_pair_of_fields_in_the_unit_chosen(panel):
             assert all(w.isHidden() != (u == unit) for w in widgets), (unit, u)
 
 
-def test_mm_in_mm_and_in_mm_in_never_change_the_page(panel):
+@pytest.mark.parametrize("n", [
+    100, pytest.param(1000, marks=pytest.mark.slow)])
+def test_mm_in_mm_and_in_mm_in_never_change_the_page(panel, n):
+    """1000 random sizes in the slow tier (about six minutes on one worker:
+    every switch redraws the whole panel), 100 in the everyday tier."""
     p = panel
     rnd = random.Random(215)
-    for _ in range(1000):
+    for _ in range(n):
         dpi = rnd.choice((72, 300, 1200, 2032, 2731, 5461, 6000))
         p.dpi.setValue(dpi)
         start = rnd.choice(("mm", "in"))
@@ -365,11 +369,14 @@ def test_his_three_frames_in_every_order(qapp, beta_on, units_store, frame,
         p.deleteLater()
 
 
-def test_400_random_pixel_pages(panel):
+@pytest.mark.parametrize("n", [
+    60, pytest.param(400, marks=pytest.mark.slow)])
+def test_400_random_pixel_pages(panel, n):
+    """400 in the slow tier (about four and a half minutes), 60 everyday."""
     p = panel
     _choose(p, "px")
     rnd = random.Random(400)
-    for _ in range(400):
+    for _ in range(n):
         ppi = rnd.randint(72, 6000)
         w = rnd.randint(max(1, int(ppi / 25.4) + 1), int(2000 * ppi / 25.4))
         h = rnd.randint(max(1, int(ppi / 25.4) + 1), int(2000 * ppi / 25.4))
@@ -473,7 +480,7 @@ def test_typing_inches_stores_exact_millimetres_1000_values(panel):
         x = round(rnd.uniform(lo, hi - 0.001), 3)
         if x * 25.4 <= box.minimum() and box.specialValueText():
             continue
-        _type(box, f"{x:.3f}".replace(".", rnd.choice((".", ","))) + " in")
+        _type(box, f"{x:.3f}".replace(".", rnd.choice((".", ","))) + box.suffix())
         assert box.value() == pytest.approx(round(x * 25.4, 4), abs=1e-9)
         assert box.value() == float(f"{x * 25.4:.4f}")
         assert box.textFromValue(box.value()) .replace(",", ".") == f"{x:.3f}"
@@ -547,7 +554,7 @@ def test_a_recipe_read_in_inches_is_the_recipe_read_in_mm(qapp, beta_on,
                 odd = replace(r, margin_top=round(rnd.uniform(0, 40), 3),
                               margin_left=round(rnd.uniform(0, 40), 3),
                               strip_gap_mm=round(rnd.uniform(0, 5), 3),
-                              offset_x=round(rnd.uniform(0, 20), 3))
+                              offset_x_mm=round(rnd.uniform(0, 20), 3))
                 for rec in (r, odd):
                     mm_p.set_recipe(rec)
                     in_p.set_recipe(rec)
@@ -596,13 +603,21 @@ def test_a_4_3_43_chart_opens_and_comes_back_unchanged(qapp, beta_on,
                 tiff_res_unit="in" if ps else "cm")
     p = _panel(unit=unit)
     try:
+        # what the plain panel (no Units choice, 4.3.43's) gives back
+        plain = _panel(units_choice=False)
+        plain.set_recipe(r)
+        want = plain.get_recipe().to_dict()
+        plain.deleteLater()
+        page = lambda d: (d["paper"], d["dpi"], d.get("page_size"),  # noqa
+                          d.get("tiff_res_unit", "cm"))
+        assert page(want) == page(r.to_dict())
         p.set_recipe(r)
-        assert p.get_recipe().to_dict() == r.to_dict()
+        assert p.get_recipe().to_dict() == want
         # looking at it in every unit and back changes nothing
         start = p.units.currentData()
         for u in ("mm", "in", "px", start):
             _choose(p, u)
-        assert p.get_recipe().to_dict() == r.to_dict()
+        assert p.get_recipe().to_dict() == want
     finally:
         p.deleteLater()
 

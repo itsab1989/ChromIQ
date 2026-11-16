@@ -93,9 +93,13 @@ class LengthSpinBox(NoScrollDoubleSpinBox):
             return
         before = self.value()
         if unit == LEN_IN:
-            self._mm_decimals = super().decimals()
-            self._mm_step = super().singleStep()
-            self._mm_suffix = self.suffix()
+            if self._mm_decimals is None:
+                # the box's own millimetre settings, taken once: later the
+                # decimals may be raised for a value typed in inches, and
+                # `setDecimals` / `setSingleStep` keep these up to date
+                self._mm_decimals = super().decimals()
+                self._mm_step = super().singleStep()
+                self._mm_suffix = self.suffix()
             self._len_unit = LEN_IN
             # more decimals hold every value the box held, unchanged
             super().setDecimals(self._in_decimals() + 1)
