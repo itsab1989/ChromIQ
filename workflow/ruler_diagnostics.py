@@ -53,15 +53,21 @@ log = logging.getLogger(__name__)
 FORMAT = "chromiq-ruler-diagnostics"
 VERSION = 1
 #: Additive revisions of version 1 (a reader of an older revision only meets
-#: keys it does not know): 2 = ChromIQ 4.3.40, the direction fields below.
-REVISION = 2
+#: keys it does not know): 2 = ChromIQ 4.3.40, the direction fields below;
+#: 3 = the margin tolerance (Beta, 2026-11-16): the record's "margin" (what
+#: the tolerance decided for a strip ArgyllCMS refused) and
+#: "trigger_wait_ms" (how long the i1Pro 2 lights' quiet time held the
+#: trigger back), and the file's "i1pro2_lights_beta" and "margin_tolerance".
+REVISION = 3
 
 #: Keys of the engine's ruler record copied into the file. Anything else the
 #: engine might add is left out until it is reviewed for privacy.
 RECORD_KEYS = ("instrument", "ended", "icom_err", "samples", "bytes",
                "readings", "clocks", "clock_s", "inttime", "first", "changes",
                "changes_dropped", "argyll_used", "cut_domain", "cut",
-               "trace", "trace_domain", "result")
+               "trace", "trace_domain", "result",
+               # revision 3: numbers and fixed words only (no names, no paths)
+               "trigger_wait_ms", "margin")
 
 _MM_PER_INCH = 25.4
 

@@ -313,6 +313,15 @@ DEFAULTS: dict[str, Any] = {
     #: nothing new. Values and patch assignment never change. Off = the helper
     #: is started without --ruler: exactly the base branch. Read at every Start.
     "ruler_check_beta":          False,
+    #: Beta (Settings -> Beta, 2026-11-16): the margin tolerance (i1Pro 2,
+    #: needs the ruler check; native/chartread_helper/chromiq_margin.c). A
+    #: strip ArgyllCMS's patch finder refuses ONLY because the white paper
+    #: margin at a row end was counted as a patch, or because the recording
+    #: began without white paper before the row, is kept when its colours and
+    #: the ruler clearly show it is the expected strip; it then goes through
+    #: every ordinary check. A reading accepted today never changes. Off = the
+    #: helper is started without --margin-tolerance. Read at every Start.
+    "margin_tolerance_beta":     False,
     #: Beta (Settings -> Beta, 2026-11-15): "X-Rite i1Pro 3: keep M0, M1 and
     #: M2 from every scan" (`workflow.i1pro3_conditions`). The chart-reading
     #: engine keeps the two conditions -F did not choose from the same pass

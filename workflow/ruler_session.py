@@ -40,7 +40,8 @@ def _num(x: float, digits: int = 0) -> str:
 
 class RulerSession:
     def __init__(self, *, ti1_path: "Path | None", helper_build: str = "",
-                 verification: bool = False, condition: "str | None" = None):
+                 verification: bool = False, condition: "str | None" = None,
+                 lights: "bool | None" = None):
         self.ti1_path = Path(ti1_path) if ti1_path else None
         self.helper_build = helper_build
         #: 4.3.37: the measurement condition the person chose (the -F of this
@@ -50,6 +51,9 @@ class RulerSession:
         #: R4: where the condition came from ("chosen", "instrument default")
         self.condition_source = "chosen" if condition else None
         self.verification = verification
+        #: 2026-11-16: whether the i1Pro 2 / i1Pro 3 lights Beta was on, for
+        #: the diagnostics file (its quiet time may hold a trigger back)
+        self.lights = lights
         self.active = False
         self.gen = ""
         self.firmware: "int | None" = None
@@ -137,6 +141,10 @@ class RulerSession:
                     condition=self.condition,
                     condition_source=self.condition_source,
                     verification=self.verification, argyll=self.argyll)
+                # revision 3 (2026-11-16), additive
+                self.diag.doc["i1pro2_lights_beta"] = self.lights
+                self.diag.doc["margin_tolerance"] = str(
+                    ev.get("margin_tolerance") or "not asked")
                 self.diag.write()
             except Exception:      # noqa: BLE001 - never stop a measurement
                 log.warning("ruler: no diagnostics file", exc_info=True)
@@ -152,6 +160,21 @@ class RulerSession:
             lines.append(tr("Ruler (beta): the diagnostics for this measurement "
                             "are saved in this file: {path}").format(
                                 path=str(self.diag.path)))
+        mt = str(ev.get("margin_tolerance") or "")
+        if mt == "on":
+            lines.append(tr(
+                "Margin tolerance (beta): on for this i1Pro 2. When ArgyllCMS "
+                "refuses a strip only because the white paper margin at one "
+                "end was counted as a patch, or because the reading began "
+                "without white paper before the first patch, ChromIQ checks "
+                "the strip's colours and the ruler, and keeps the reading "
+                "when they clearly show the whole strip. This log says so "
+                "for every strip it keeps."))
+        elif mt == "not_i1pro2":
+            lines.append(tr(
+                "Margin tolerance (beta): this option works with the X-Rite "
+                "i1Pro 2 only, so it is not used for this instrument. "
+                "Strips are read exactly as without it."))
         return lines
 
     def on_end(self) -> "list[str]":
@@ -216,6 +239,12 @@ class RulerSession:
             if self._unit_line:
                 lines.append(self._unit_line)
             lines.append(line)
+        margin = rec.get("margin")
+        if isinstance(margin, dict) and margin.get("accepted"):
+            lines.insert(0, self._margin_line(strip, margin))
+        elif isinstance(margin, dict):
+            log.info("margin tolerance: strip %s stays refused (%s)", strip,
+                     margin.get("why"))
         if result == "read":
             self.pending = (strip, rec, f)
         else:
@@ -538,6 +567,38 @@ class RulerSession:
         e.update(extra or {})
         self.diag.add_strip(rec, strip=strip, figures=figs, verdict=verdict,
                             extra=e)
+
+    @staticmethod
+    def _margin_line(strip: str, m: dict) -> str:
+        """The one calm line for a strip the margin tolerance kept: what was
+        left out, at which end, and why that was safe."""
+        start = int(m.get("left_start") or 0)
+        end = int(m.get("left_end") or 0)
+        if m.get("rule") == "L":
+            what = tr("the reading began on the first patch, with no white "
+                      "paper before it, so ChromIQ kept the first patch as a "
+                      "patch")
+        elif start and end:
+            what = tr("the white paper margin at both ends of the swipe was "
+                      "counted as a patch, so ChromIQ left both out")
+        elif start:
+            what = tr("the white paper margin at the start of the swipe was "
+                      "counted as a patch, so ChromIQ left it out")
+        elif end:
+            what = tr("the white paper margin at the end of the swipe was "
+                      "counted as a patch, so ChromIQ left it out")
+        else:
+            what = tr("its patch finder could not settle on the patches, "
+                      "although the ruler shows each of them in turn")
+        return tr(
+            "Strip {strip}, margin tolerance (beta): ArgyllCMS refused this "
+            "reading (“{reason}”) because {what}. The reading was kept "
+            "because every patch of it matches strip {strip} clearly better "
+            "than any other strip, any shifted reading or the other "
+            "direction, and it was then checked like every other "
+            "strip.").format(strip=strip,
+                             reason=str(m.get("refused_because") or ""),
+                             what=what)
 
     def _direction_line(self, strip: str, reversed_: bool) -> str:
         # A DIRECTION, NOT A VERDICT (review of 4.3.35): "it went from the

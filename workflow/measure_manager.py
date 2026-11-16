@@ -309,6 +309,9 @@ class MeasureParams:
     #: pass --ruler, and only to a helper whose caps name "ruler_check". Off:
     #: the command line is exactly the one it was.
     engine_ruler_check: bool = False
+    #: Preferences > Beta, the margin tolerance (2026-11-16): passed only
+    #: together with --ruler (it needs the ruler's record).
+    engine_margin_tolerance: bool = False
     #: "X-Rite i1Pro 3: keep M0, M1 and M2" (Beta): the run's conditions/
     #: folder, or None (off, or not a profiling run): no --condition-dir.
     engine_condition_dir: "Path | None" = None
@@ -1157,6 +1160,14 @@ class MeasureManager(QObject):
                         condition_for_filter, filter_code_from_args)
                     from workflow.ruler_session import RulerSession
                     eargs += ["--ruler"]
+                    if params.engine_margin_tolerance:
+                        if "margin_tolerance" in helper_caps(
+                                params.engine_helper):
+                            eargs += ["--margin-tolerance"]
+                        else:
+                            log.info("margin tolerance: this helper does "
+                                     "not know --margin-tolerance; not "
+                                     "passed")
                     self._ruler = RulerSession(
                         ti1_path=Path(params.ti1_path),
                         verification="verifications" in Path(
@@ -1165,10 +1176,14 @@ class MeasureManager(QObject):
                         # go into the diagnostics file
                         helper_build=helper_build(params.engine_helper),
                         condition=condition_for_filter(filter_code_from_args(
-                            params.extra_args)))
+                            params.extra_args)),
+                        lights=bool(params.engine_i1pro2_lights))
                 else:
                     log.info("ruler check: this helper does not know --ruler; "
                              "not passed")
+            elif params.engine_margin_tolerance:
+                log.info("margin tolerance: needs the ruler check, which is "
+                         "off; not passed")
             if params.engine_condition_dir is not None:
                 self._conditions_verify = False
                 from workflow.chartread_engine import helper_caps

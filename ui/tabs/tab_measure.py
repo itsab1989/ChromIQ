@@ -22572,6 +22572,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             self._settings.get("i1pro2_lights_during_reading", False))
         p.engine_ruler_check = bool(
             self._settings.get("ruler_check_beta", False))
+        p.engine_margin_tolerance = bool(
+            self._settings.get("margin_tolerance_beta", False))
         p.engine_condition_dir = self._condition_dir_for(p)
         p.cal_auto_retries = int(self._settings.get("cal_auto_retries", 3))
         import os as _os

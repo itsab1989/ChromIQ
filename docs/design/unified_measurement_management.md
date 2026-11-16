@@ -12723,3 +12723,56 @@ confirmed that it is what it should do.*
   fed tail first, or another chart with the same grid, is measured as if it
   were the right one. M-FD9-INSERT-SHEET and the Beta's (i) say so; the
   measured-against-expected view is the check.
+
+### ⏳ Awaiting confirmation: the margin tolerance (Beta, 2026-11-16)
+
+**Confirmed by:** *nobody yet.*
+
+Preferences ▸ Beta ▸ "X-Rite i1Pro 2: keep a strip refused only because of
+the paper margin (beta)" (`margin_tolerance_beta`, off by default; global, see
+`per_target_settings.md`). It changes how a strip READING ends, so it is
+written here.
+
+* **When it acts.** Only with the ruler check on, a real i1Pro 2 that reports
+  its ruler, ChromIQ's chart-reading engine and a strip read by hand; and only
+  for a reading ArgyllCMS's patch finder REFUSED with "Not enough patches",
+  "Too many patches" or "Swipe didn't start and end on the media". A reading
+  ArgyllCMS accepts is never looked at, so every reading accepted today ends
+  exactly as before. With the ruler check off the option does nothing; with
+  an i1Pro 3, an original i1Pro or a ColorMunki it does nothing (the Measure
+  log says so once for an i1Pro 3, the only other instrument with a ruler).
+* **What it decides.** The driver hands over every segment the patch finder
+  cut, each worked out exactly as ArgyllCMS works out a patch, and the
+  helper keeps the reading only when rules M ("margin at an end") or L ("no
+  white leader") accept it (`native/chartread_helper/chromiq_margin.c`): what
+  is left out at the ends is within 3 ΔE76 of the strip's paper white; neither
+  end patch of the expected row is within 10 ΔE76 of paper white; the kept
+  patches match the expected row with a mean of at most 35 ΔE76 and at most
+  half of every alternative (every other row in both directions, this row
+  shifted by one or two patches either way); each half of the row is at most
+  half of itself shifted by one; no kept patch is paper white where the row
+  expects a colour; the ruler shows 0.6 to 1.5 times the median patch length
+  over each kept patch and more than 3 readings, with nothing longer than a
+  3-reading sliver left out inside the row; no kept patch fails ArgyllCMS's
+  own consistency, saturation or sample-count test. When rules M and L would
+  keep different patches the reading stays refused.
+* **What follows.** A kept reading is handed on as `inst_ok` with the kept
+  patches' values, and goes through every check an accepted reading goes
+  through (which strip, back to front, slipped strip, the ruler check, the
+  warnings). A reading the rules do not keep ends exactly as today, in the
+  misread window with ArgyllCMS's reason.
+* **What is said.** The Measure log gets one line per kept strip ("Strip
+  {strip}, margin tolerance (beta): ArgyllCMS refused this reading
+  ("{reason}") because {what}. The reading was kept because every patch of it
+  matches strip {strip} clearly better than any other strip, any shifted
+  reading or the other direction, and it was then checked like every other
+  strip."), and one line at Start while it is on. The ruler diagnostics file
+  (revision 3) records, per strip, the record's `margin` (kept or not, which
+  rule, what was left out at which end, the fit and the best alternative, or
+  why it was not kept) and `trigger_wait_ms`, and for the file
+  `margin_tolerance` and `i1pro2_lights_beta`.
+* **The honest limit.** Worked out and tested on one tester's three i1Pro 2
+  sessions (reconstructed from their ruler diagnostics files) and the
+  expected colours of 28 real charts: 10 of 31 refusals kept, all correctly;
+  no wrong, shifted or wrong-row reading kept. Not yet used with a real
+  instrument.
