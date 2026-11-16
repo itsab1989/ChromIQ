@@ -327,6 +327,19 @@ class LayoutRecipe:
     offset_y_mm: float = 0.0
     bit16: bool = False            # 16-bit TIFF output
     compression: str = "lzw"       # "lzw" | "zlib" | "none"
+    # ---- the Beta "Custom page size in inches or pixels, and high
+    # resolution" (#215, `workflow.page_output.support`) ------------------
+    # What the person TYPED for a custom page side given in inches or
+    # pixels, with its unit and the resolution it was meant for:
+    # {"w": [4096, "px"], "h": [2730, "px"], "ppi": 2731}. None (the default,
+    # and every recipe written before the Beta) means the paper code says it
+    # all. Left out of `to_dict` and `build_kwargs` while None, so a recipe
+    # that does not use it serialises and builds byte for byte as before.
+    page_size: "dict | None" = None
+    # The unit of the resolution written into the chart's TIFF: "cm" (pixels
+    # per centimetre, as printtarg writes; the default) or "in" (pixels per
+    # inch). Left out of `to_dict` and `build_kwargs` at "cm", likewise.
+    tiff_res_unit: str = "cm"
     export_pdf: bool = False        # also write a vector PDF next to the TIFF
     show_strip_indicators: bool = True   # draw the per-strip letter labels
     # Row NUMBERS down the left of the patch block (the "1" in A1), in a
@@ -531,6 +544,11 @@ class LayoutRecipe:
             d.pop("strip_label_offset_x_mm", None)
         if not int(d.get("row_indicator_rotation") or 0) % 360:
             d.pop("row_indicator_rotation", None)
+        # The page-output Beta's two fields, only when used (see the fields).
+        if d.get("page_size") is None:
+            d.pop("page_size", None)
+        if (d.get("tiff_res_unit") or "cm") == "cm":
+            d.pop("tiff_res_unit", None)
         return d
 
     @classmethod
@@ -557,6 +575,12 @@ class LayoutRecipe:
         # SAVED BEFORE 4.3.39: no dark/light reordering (see the field).
         kw["avoid_dark_light_neighbours"] = bool(
             d.get("avoid_dark_light_neighbours", False))
+        # The page-output Beta's fields, read safely (absent = not used).
+        if "page_size" in kw or "tiff_res_unit" in kw:
+            from workflow.page_output.support import clean_page_size, RES_UNITS
+            kw["page_size"] = clean_page_size(kw.get("page_size"))
+            unit = str(kw.get("tiff_res_unit") or "cm")
+            kw["tiff_res_unit"] = unit if unit in RES_UNITS else "cm"
         return cls(**kw)
 
     @classmethod
@@ -695,6 +719,12 @@ class LayoutRecipe:
             avoid_dark_light_neighbours=bool(
                 d.get("avoid_dark_light_neighbours", False)),
         )
+        # The page-output Beta's fields: in build kwargs only when used.
+        if "page_size" in d or "tiff_res_unit" in d:
+            from workflow.page_output.support import clean_page_size, RES_UNITS
+            r.page_size = clean_page_size(d.get("page_size"))
+            unit = str(d.get("tiff_res_unit") or "cm")
+            r.tiff_res_unit = unit if unit in RES_UNITS else "cm"
         return r
 
     @classmethod
@@ -938,6 +968,13 @@ class LayoutRecipe:
         # stay as they were.
         if self.avoid_dark_light_neighbours and not self.randomize:
             kw["avoid_dark_light_neighbours"] = True
+        # The page-output Beta (#215): only when used, so every other chart's
+        # kwargs stay as they were.
+        if self.page_size is not None:
+            kw["page_size"] = {k: (list(v) if isinstance(v, (list, tuple))
+                                   else v) for k, v in self.page_size.items()}
+        if (self.tiff_res_unit or "cm") != "cm":
+            kw["tiff_res_unit"] = self.tiff_res_unit
         return kw
 
 

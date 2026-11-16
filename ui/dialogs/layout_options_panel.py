@@ -1000,6 +1000,11 @@ class LayoutOptionsPanel(QWidget):
         self._i1io_support = bool(i1io_enabled())
         from workflow.isis.support import isis_enabled
         self._isis_support = bool(isis_enabled())
+        # The page-output Beta (#215): built only while it is on, and only
+        # where the page is chosen (the panels with selectors), so with it
+        # off this panel is 4.3.42's widget for widget.
+        from workflow.page_output.support import page_output_enabled
+        self._page_beta = bool(with_selectors) and page_output_enabled()
         if with_selectors:
             sel = QGridLayout()
             # Instrument and Mode each get a full-width row.
@@ -1051,14 +1056,26 @@ class LayoutOptionsPanel(QWidget):
                    "(and more ink and paper)."), self), 1, 4)
             # Custom paper W×H (shown only when Paper = "Custom…").
             self._custom_paper_w = QWidget(self)
-            _cpl = QHBoxLayout(self._custom_paper_w)
+            if self._page_beta:
+                # three rows (mm, in, px) of two-way fields: the Beta's own
+                # layout of the same widget (`page_output_panel`)
+                _cpl = QGridLayout(self._custom_paper_w)
+            else:
+                _cpl = QHBoxLayout(self._custom_paper_w)
             _cpl.setContentsMargins(0, 0, 0, 0); _cpl.setSpacing(6)
             self._custom_size_lbl = QLabel(tr("Custom size (mm):"), self)
-            _cpl.addWidget(self._custom_size_lbl)
+            if not self._page_beta:
+                _cpl.addWidget(self._custom_size_lbl)
             self.custom_w = NoScrollDoubleSpinBox(self)
             self.custom_h = NoScrollDoubleSpinBox(self)
             for _cs in (self.custom_w, self.custom_h):
                 _cs.setRange(20, 2000); _cs.setDecimals(0); _cs.setMaximumWidth(80)
+                if self._page_beta:
+                    # fractions of a millimetre (the Beta)
+                    # and down to 1 mm: a film frame is small, and a page
+                    # too small for one patch is refused by the layout itself
+                    _cs.setDecimals(2); _cs.setMaximumWidth(96)
+                    _cs.setMinimum(1)
                 _cs.valueChanged.connect(self._emit)
                 _cs.valueChanged.connect(self._custom_size_edited)
                 # Not at once: Tab from width to height also finishes the
@@ -1073,8 +1090,13 @@ class LayoutOptionsPanel(QWidget):
             self._custom_turn_timer.timeout.connect(
                 self._turn_custom_upright_when_left)
             self.custom_w.setValue(210); self.custom_h.setValue(297)
-            _cpl.addWidget(self.custom_w); _cpl.addWidget(QLabel("×", self))
-            _cpl.addWidget(self.custom_h); _cpl.addStretch()
+            if self._page_beta:
+                from ui.dialogs import page_output_panel as _pop
+                _pop.build_custom_rows(self, _cpl)
+            else:
+                _cpl.addWidget(self.custom_w); _cpl.addWidget(QLabel("×", self))
+                _cpl.addWidget(self.custom_h); _cpl.addStretch()
+            self._sel_grid = sel    # the page-output Beta's notes go here too
             sel.addWidget(self._custom_paper_w, 2, 0, 1, 4)   # directly below Paper
             self._custom_paper_w.setVisible(False)
             # the i1iO's custom size turned upright, said (review 6, item 2)
@@ -1082,6 +1104,9 @@ class LayoutOptionsPanel(QWidget):
             self._custom_turned_lbl.setWordWrap(True)
             self._custom_turned_lbl.setVisible(False)
             sel.addWidget(self._custom_turned_lbl, 3, 0, 1, 4)
+            if self._page_beta:
+                # the page's pixel count, for every paper (the Beta)
+                _pop.build_pixel_readout(self, sel, 4)
             sel.setColumnStretch(1, 1)        # paper / instrument / mode expand
             v.addLayout(sel)
 
@@ -2411,6 +2436,10 @@ class LayoutOptionsPanel(QWidget):
         _margins_w = QWidget(self); _margins_w.setLayout(_mgrid)
         self.dpi = NoScrollSpinBox(self); self.dpi.setRange(72, 1200)
         self.dpi.setSuffix(" dpi"); self.dpi.valueChanged.connect(self._emit)
+        if getattr(self, "_page_beta", False):
+            # above 1200, guarded by the memory budget instead (the Beta)
+            from workflow.page_output.support import DPI_MAX_ON
+            self.dpi.setMaximum(DPI_MAX_ON)
         self.nolimit = WrappingCheckBox(tr("Don't cap strip length"), self)
         self.nolimit.toggled.connect(self._emit)
         self.max_strip = mm(special_auto=True, top=2000.0)  # large paper / roll media
@@ -2724,6 +2753,10 @@ class LayoutOptionsPanel(QWidget):
                        "Leave it off if you only print through ChromIQ or just need "
                        "the TIFF.\n\n"
                        "**Default:** off."), self))
+        if getattr(self, "_page_beta", False):
+            # the file's resolution unit (the Beta)
+            from ui.dialogs import page_output_panel as _pop
+            _pop.build_res_unit_row(self, ogg, 3, add_row)
         _expert_v.addWidget(og)
 
         # ---- Ruler helper markers (#152, moved here by #158) ----
@@ -7575,6 +7608,13 @@ class LayoutOptionsPanel(QWidget):
             return "i1", "A4", "default"
         paper = self.paper.currentData() or "A4"
         if paper == "__custom__":
+            if getattr(self, "_page_beta", False):
+                # fractions of a millimetre survive (the page-output Beta):
+                # the exact page the typed sides make, spelt as the code
+                from ui.dialogs import page_output_panel as _pop
+                return (self.instr.currentData() or "i1",
+                        _pop.custom_paper_code(self),
+                        self.mode.currentData() or "default")
             w, h = int(self.custom_w.value()), int(self.custom_h.value())
             if self._i1io_chosen() and w > h:
                 # the printed sheet, upright (`_turn_custom_upright`)
@@ -8201,6 +8241,10 @@ class LayoutOptionsPanel(QWidget):
         if getattr(self, "_isis_support", False):
             # the i1iSis chart's own options (a Beta)
             self._isis_set_from_recipe(r)
+        if self.instr is not None:
+            # the page-output Beta's page (#215; held while it is off)
+            from ui.dialogs import page_output_panel as _pop
+            _pop.load_recipe(self, r)
         self._loading = False
         # Final pass with loading off: computes the real conflict state for
         # the values just loaded (during loading only the clean-up runs).
@@ -8405,6 +8449,12 @@ class LayoutOptionsPanel(QWidget):
         if getattr(self, "_isis_support", False):
             # the i1iSis chart's own options (a Beta), for its recipe only
             self._isis_apply_to_recipe(r)
+        if self.instr is not None:
+            # the page-output Beta's page (#215): its typed sides and the
+            # file's resolution unit while it is on; while it is off, a
+            # loaded chart's own page values, until the person changes them
+            from ui.dialogs import page_output_panel as _pop
+            _pop.apply_to_recipe(self, r)
         return r
 
 

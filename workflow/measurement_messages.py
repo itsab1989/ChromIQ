@@ -8764,6 +8764,69 @@ _I1IO_TOP_MARKERS = ("The ruler helper markers along the top and bottom edges "
                      "print where the arm starts and stops every strip. The table "
                      "may take them for a patch; switch off “Top/bottom "
                      "(horizontal)” for the markers if a strip is read wrongly.")
+#: The Beta "Custom page size in inches or pixels, and high resolution"
+#: (#215, `workflow.page_output.support`): its notes in Create Chart's
+#: layout panel, its refusal before a page too large to draw is drawn (one
+#: page or several), and the words for a chart made with it and opened, or
+#: drawn again, while it is off. {w} {h} pixels, {mpx} and {limit}
+#: megapixels, {gb} gigabytes, {pages} the page count, {ppi} the resolution,
+#: {size} the page as it was typed.
+_PAGE_OVER_BUDGET_ONE = (
+    "This page would be {w} x {h} pixels ({mpx} megapixels). Drawing it "
+    "would need about {gb} GB of memory, and so that ChromIQ never runs out "
+    "of memory while it draws a chart, a chart like this one can have pages "
+    "of up to about {limit} megapixels. To make it fit, lower the resolution "
+    "or make the page smaller, and generate the chart again. Nothing was "
+    "written.")
+_PAGE_OVER_BUDGET_MANY = (
+    "Each of the {pages} pages of this chart would be {w} x {h} pixels "
+    "({mpx} megapixels). Drawing them would need about {gb} GB of memory, and "
+    "so that ChromIQ never runs out of memory while it draws a chart, a chart "
+    "of {pages} pages like this one can have pages of up to about {limit} "
+    "megapixels. To make it fit, lower the resolution, make the page smaller, "
+    "or use fewer patches so that the chart takes fewer pages, and generate "
+    "the chart again. Nothing was written.")
+_PAGE_PIXELS = ("The page will be {w} x {h} pixels ({mpx} megapixels) at "
+                "{ppi} pixels per inch.")
+_PAGE_PIXELS_OVER = (
+    "That is more than ChromIQ can draw for one chart: an RGB chart with "
+    "this many pages can have pages of up to about {limit} megapixels, so "
+    "that drawing it never runs out of memory. Generate will be refused "
+    "until the resolution is lower or the page is smaller.")
+_PAGE_BETA_OFF_NOTE_KEPT = (
+    "This chart was made with the beta option \u201cCustom page size in "
+    "inches or pixels, and high resolution\u201d, which is switched off now. "
+    "Its page is {size}, and the size fields cannot show fractions of a "
+    "millimetre while the option is off, so they show the nearest whole "
+    "millimetres. Nothing has been changed: the chart's files stay exactly as "
+    "they are, and Generate still makes the chart at {size}, not at the "
+    "rounded size shown. If you choose another paper size here, Generate "
+    "uses what you chose.")
+_PAGE_BETA_OFF_NOTE_REFUSED = (
+    "This chart was made with the beta option \u201cCustom page size in "
+    "inches or pixels, and high resolution\u201d, which is switched off now. "
+    "Its page is {size} at {ppi} pixels per inch, and these fields cannot "
+    "show that while the option is off, so they show the nearest values they "
+    "can. Nothing has been changed: the chart's files stay exactly as they "
+    "are. Generate is refused while the option is off, so that no chart is "
+    "made at another size or resolution by mistake. To make this chart again, "
+    "switch the option on in Preferences, on the Beta tab, and restart "
+    "ChromIQ. If you choose another paper size or resolution here instead, "
+    "Generate uses what you chose.")
+_PAGE_BETA_OFF_REDRAW = (
+    "This chart was made with the beta option \u201cCustom page size in "
+    "inches or pixels, and high resolution\u201d, which is switched off now. "
+    "Its page size or resolution needs that option, so nothing was drawn: "
+    "without it, the chart would come out different. Switch the option on in "
+    "Preferences, on the Beta tab, and restart ChromIQ; or choose another "
+    "paper size or resolution in Create Chart and generate again.")
+M_PAGE_OUTPUT_PARTS = _m(
+    "M-PAGE-OUTPUT-PARTS",
+    "Custom page size and high resolution (beta): the parts of the notes",
+    "\n".join((_PAGE_OVER_BUDGET_ONE, _PAGE_OVER_BUDGET_MANY, _PAGE_PIXELS,
+               _PAGE_PIXELS_OVER, _PAGE_BETA_OFF_NOTE_KEPT,
+               _PAGE_BETA_OFF_NOTE_REFUSED, _PAGE_BETA_OFF_REDRAW)),
+    approved=False)
 M_I1IO_SHEET_CHECK_PARTS = _m(
     "M-I1IO-SHEET-CHECK-PARTS",
     "The i1iO sheet's own check: the parts of the note",
@@ -11768,6 +11831,7 @@ CATALOGUE = {m.id: m for m in (
     M_I1IO_EDGE_MARKS_NOT_PRINTED, M_I1IO_EDGE_TEXT_NOT_PRINTED,
     M_I1IO_EDGE_TEXT_PARTS, M_I1IO_FURNITURE_PARTS,
     M_I1IO_SHEET_CHECK_PARTS,
+    M_PAGE_OUTPUT_PARTS,
     M_FD9_SUPPORT_OFF, M_FD9_NO_ADDRESS, M_FD9_INSERT_SHEET, M_FD9_NEXT_PAGE,
     M_FD9_NO_CONNECTION, M_FD9_WRONG_FIRMWARE, M_FD9_MARKS_NOT_FOUND,
     M_FD9_SHEET_STILL_INSIDE, M_FD9_RESUME_REFUSED, M_FD9_FAILED,

@@ -400,6 +400,12 @@ def build_chart(
     #: printed in the trailer when no notes band holds them. No other
     #: instrument reads it.
     isis_trailer_lines: "tuple | list | None" = None,
+    #: The Beta "Custom page size in inches or pixels, and high resolution"
+    #: (#215, `workflow.page_output.support`): the sides as typed, and the
+    #: unit of the resolution written into the TIFF. Both absent from every
+    #: chart that does not use the Beta (`LayoutRecipe.build_kwargs`).
+    page_size: "dict | None" = None,
+    tiff_res_unit: str = "cm",
 ) -> ChartResult:
     """Full chart build: write ``out_base.ti2`` + page TIFF(s) + strip geometry.
 
@@ -428,6 +434,20 @@ def build_chart(
     printer, and ``applycal`` then calibrated it a second time.
     """
     from workflow.fd9.support import fd9_enabled
+    # THE PAGE-OUTPUT BETA (#215). Its two values reach this function only
+    # from a recipe the Beta wrote; with the Beta off they are refused with
+    # words that name it, never drawn silently (the i1iO's rule).
+    _page_px = None
+    if page_size is not None or (tiff_res_unit or "cm") != "cm":
+        from workflow.page_output import support as _po
+        if not _po.page_output_enabled():
+            from core.i18n import tr as _tr
+            from workflow import measurement_messages as _mm
+            raise _po.PageBetaOff(_tr(_mm._PAGE_BETA_OFF_REDRAW))
+        page_size = _po.clean_page_size(page_size)
+        if page_size is not None:
+            _page_px = _po.page_pixels(page_size, dpi)
+        tiff_res_unit = ("in" if tiff_res_unit == _po.RES_UNIT_IN else "cm")
     # An X-Rite i1iO chart (a Beta): the engine's own grid with the settings
     # an i1iO chart fixes (`workflow.i1io.chart.fixed_build_kwargs`), and its
     # marks and side file added below. Off, the engine refuses "IO2" as an
@@ -754,6 +774,12 @@ def build_chart(
         # (patch size, layout mode, labels), so the margins hold its grid
         **({**_isis_kw, "area_target_count": npat} if _isis else {})})
     w_mm, h_mm = papers.dimensions_mm(paper)
+    if _page_px is not None:
+        # A side typed in pixels IS its pixel count: the page in millimetres
+        # is that count at this resolution, unrounded, so every position on
+        # it is measured from the same page the pixels make
+        # (`page_output.support`, THE PIXEL RULE).
+        w_mm, h_mm = _po.page_mm(page_size, dpi)
     geom = _geom_for(len(target.patches))
     try:
         layout = geometry.compute(geom, w_mm, h_mm, len(target.patches))
@@ -864,6 +890,22 @@ def build_chart(
     # (".ps", ".pdf", ".cht", ".json" are all legal names — `_WORKFILE_EXTS` in
     # core/file_manager.py does not block them). Everything below concatenates.
     stem = without_ext(out_base, ".ti1")
+
+    # THE MEMORY BUDGET (the page-output Beta, #215): a page too large to
+    # draw is refused HERE, before any file is written, with its pixel count
+    # and what to reduce (`page_output.support.budget_problem`, with the
+    # measurements it rests on). Only with the Beta on: off, 4.3.42.
+    from workflow.page_output.support import page_output_enabled
+    if page_output_enabled():
+        from workflow.page_output import support as _po
+        _bw, _bh = (_page_px if _page_px is not None else
+                    (_po.pixels_of(w_mm, dpi), _po.pixels_of(h_mm, dpi)))
+        _device = target.n_channels >= 4 or raster.is_cmy_target(target)
+        _why = _po.budget_problem(_bw, _bh, layout.pages,
+                                  inks=target.n_channels, device=_device,
+                                  bit16=bool(bit16))
+        if _why:
+            raise _po.PageBudgetError(_why)
 
     media = target.media_patch()
     white_point = media[1] if any(media[1]) else ti2_writer.DEFAULT_WHITE_POINT
@@ -991,6 +1033,7 @@ def build_chart(
                   if spacer_overrides else None)
     render = raster.render_pages(
         printed, layout, geom, seed=seed, randomize=randomize,
+        **({"page_px": _page_px} if _page_px is not None else {}),
         paper_w_mm=w_mm, paper_h_mm=h_mm, dpi=dpi, strip_pattern=strip_pattern,
         patch_pattern=patch_pattern, label_rule=label_rule,
         spacer_mode=spacer_mode, spacer_palette=_palette,
@@ -1084,22 +1127,26 @@ def build_chart(
             _isis_sheet.grid.P)
         if _isis_more:
             _isis_warnings.append(_isis_more)
+    # The file's resolution in pixels per inch, only when asked for (the
+    # page-output Beta): every other chart is written exactly as before.
+    _res_kw = ({"res_unit": "in"} if (tiff_res_unit or "cm") == "in" else {})
     if target.n_channels >= 4:
         device_pages = raster.build_device_pages(render, printed, bit16=bit16)
         tiff_paths = raster.save_separated_tiffs(
             device_pages, artefact(stem, ".tif"), dpi=dpi,
             ink_names=raster.ink_names_from_fields(target.device_fields),
-            compression=compression)
+            compression=compression, **_res_kw)
     elif raster.is_cmy_target(target):
         device_pages = [raster.cmy_with_empty_k(a) for a in
                         raster.build_device_pages(render, printed, bit16=bit16)]
         tiff_paths = raster.save_separated_tiffs(
             device_pages, artefact(stem, ".tif"), dpi=dpi,
             ink_names=raster.ink_names_from_fields(target.device_fields),
-            compression=compression)
+            compression=compression, **_res_kw)
     else:
         tiff_paths = raster.save_tiffs(render.images, artefact(stem, ".tif"),
-                                       dpi=dpi, bit16=bit16, compression=compression)
+                                       dpi=dpi, bit16=bit16, compression=compression,
+                                       **_res_kw)
     pdf_path: Path | None = None
     if export_pdf:
         from . import vector_pdf

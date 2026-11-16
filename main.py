@@ -303,6 +303,9 @@ def main() -> int:
     # …and i1iSis charts (Preferences > Beta), the same way.
     from workflow.isis.support import latch_from as _latch_isis
     _latch_isis(settings)
+    # …and custom page sizes in inches or pixels (Preferences > Beta).
+    from workflow.page_output.support import latch_from as _latch_page
+    _latch_page(settings)
 
     # Heavy UI import + construction, now visibly covered by the splash.
     from ui.main_window import MainWindow
