@@ -5,7 +5,9 @@
 Standard library only. The table belongs to this program (its own USB connection to 0971:2004);
 the i1Pro 2 (0971:2000) is opened ONLY by the reader, ChromIQ's helper `chromiq-chartread`, which
 this package carries in `bin/` (helper build 2026-11-16t, a universal macOS program: Apple silicon
-and Intel, macOS 13 or newer, system frameworks only). Two ways of reading, both the helper's:
+and Intel, macOS 13 or newer, system frameworks only; the builder's local source path, which one
+ArgyllCMS assertion message carried, replaced by a neutral one of the same length and the program
+signed again ad hoc: its machine code is unchanged). Two ways of reading, both the helper's:
 
 * SPOT readings: the helper's normal patch-by-patch reading (`--json -v -c 1 -p <chart>`), the same
   code and the same requests to the i1Pro 2 as released ChromIQ 4.3.41's Measure tab reading

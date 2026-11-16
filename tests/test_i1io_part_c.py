@@ -865,7 +865,11 @@ def test_the_reader_s_problems_are_named(tmp_path, monkeypatch):
 def test_the_bundled_reader_is_the_built_one():
     import hashlib
     h = hashlib.sha256((PKG / "bin" / "chromiq-chartread").read_bytes()).hexdigest()
-    assert h == "5975f18d2d3ae4b47fc5b37da08937a19a1b0573fc78b2e5636bf57aaecd083c"
+    # ca99966f3's build 5975f18d...ecd083c with the builder's local source path (two copies of
+    # one __FILE__ string) replaced in place by a neutral one of the same length, re-signed
+    # ad hoc; machine code identical (work folder reader_privacy/PROOF.txt)
+    assert h == "1caf32fc300bbb4488d5360d09f88d3bf4833df13428cf34b341ca31ea4e27ac"
+    assert b"/Users/" not in (PKG / "bin" / "chromiq-chartread").read_bytes()
 
 
 def test_the_reader_is_never_asked_for_a_beta_flag_or_a_memory_write():
@@ -981,3 +985,152 @@ def test_plan_and_dry_run_show_part_c(capsys):
         assert v.hex(" ") in out, k
     for st in pc.STAGES:
         assert f"{st.key.upper():3} {st.title}" in out
+
+
+# ---- what the planted faults of the first pass showed was untested --------------------------
+
+def _first_index(lines, pred, after=0):
+    return next(i for i, x in enumerate(lines) if i >= after and pred(x))
+
+
+def test_m0_at_any_other_speed_is_refused_by_the_builder_and_the_gate():
+    for v in (150, 299, 301, 600, 3000):
+        with pytest.raises(geo.AreaRefused):
+            geo.m0_line(0, 2000, v)
+        with pytest.raises(tbl.ForbiddenLine):
+            cl.classify(geo._line("m0", 0, 2000, v))
+
+
+def test_each_alignment_refusal_names_its_own_reason():
+    sheet = _sheet()
+    aims_mm = [tuple(sc.sheet_table_mm(sheet, a["page_mm"])) for a in sc.aims_of(sheet, 0)]
+    good = pc.demo_aims()
+    geo.fit_alignment(aims_mm, good)
+    # mirrored top to bottom: only the order/mirror check sees it first
+    cy = sum(p[1] for p in good) / 3
+    with pytest.raises(geo.AlignmentRefused, match="mirrored"):
+        geo.fit_alignment(aims_mm, [(x, round(2 * cy - y)) for x, y in good])
+    # mark 3 turned 2 degrees about mark 2: lengths and rotation pass, the corner does not
+    import math
+    (x2, y2), (x3, y3) = good[1], good[2]
+    c, s = math.cos(math.radians(2)), math.sin(math.radians(2))
+    p3 = (round(x2 + c * (x3 - x2) - s * (y3 - y2)), round(y2 + s * (x3 - x2) + c * (y3 - y2)))
+    with pytest.raises(geo.AlignmentRefused, match="corner at mark 2"):
+        geo.fit_alignment(aims_mm, [good[0], good[1], p3])
+    with pytest.raises(geo.AlignmentRefused, match="turned"):
+        geo.fit_alignment(aims_mm, _rot(good, 5))
+    with pytest.raises(geo.AlignmentRefused, match="apart on the table"):
+        geo.fit_alignment(aims_mm, [good[0], good[1], (good[2][0] + 100, good[2][1])])
+
+
+def test_a_computed_move_outside_its_time_window_but_arrived_is_a_clean_failure(tmp_path):
+    lines, _ = _clean_run(tmp_path, ["d1", "d2", "f"])
+    first = _first_index(lines, lambda x: x.startswith(";m0") and x not in WIRE_LINES)
+    sim = csim.CSimTable(part_c=False)
+    sim.inject_at(first, "late", 2.5)              # done 2.5 s late, inside the timeout
+    code, sim, log, con, res = run_c(tmp_path / "f", ["d1", "d2", "f"], sim=sim)
+    v = verdicts(log)
+    assert v[1][0] == "d2" and v[1][1] == "failed cleanly", v
+    assert "outside" in blocks(log)[1]["why"] and v[-1] == ("f", "worked")
+
+
+@pytest.mark.parametrize("kind", ["status", "refuse"])
+def test_a_computed_move_answered_with_a_status_ends_the_sitting(tmp_path, kind):
+    lines, _ = _clean_run(tmp_path, ["d1", "d2", "f"])
+    first = _first_index(lines, lambda x: x.startswith(";m0") and x not in WIRE_LINES)
+    sim = csim.CSimTable(part_c=False)
+    sim.inject_at(first, kind, 3.0)
+    code, sim, log, con, res = run_c(tmp_path / "f", ["d1", "d2", "f"], sim=sim)
+    assert code == 2 and verdicts(log)[-1] == ("d2", "stopped")
+    assert sim.received[first + 1:] == []
+
+
+@pytest.mark.parametrize("stages", [["e1"], ["d1", "d2"]])
+def test_a_computed_move_that_arrives_elsewhere_ends_the_sitting_before_anything_else(
+        tmp_path, stages):
+    sim = csim.CSimTable(part_c=False)
+    sim.c_faults["arrival_off"] = 20
+    code, sim, log, con, res = run_c(tmp_path, stages + ["f"], sim=sim)
+    assert code == 2
+    assert verdicts(log)[-1][1] == "stopped"
+    assert not any(x.startswith(";m2") for x in sim.received)
+    last_m0 = max(i for i, x in enumerate(sim.received)
+                  if x.startswith(";m0") and x not in WIRE_LINES)
+    assert all(x in (P0, cl.C_FIXED["scan_d1"].decode().rstrip("\r"))
+               for x in sim.received[last_m0 + 1:]), sim.received[last_m0:]
+
+
+def test_c4_answered_outside_its_recorded_range_stops_before_the_row_start(tmp_path):
+    sim = csim.CSimTable(part_c=False)
+    sim.c_faults["c4_byte"] = 0xC0
+    code, sim, log, con, res = run_c(tmp_path, ["e1", "c2"], sim=sim)
+    v = verdicts(log)
+    assert v[0] == ("e1", "failed cleanly") and "c4 answered C0" in blocks(log)[0]["why"]
+    assert not any(x.startswith(";m2") for x in sim.received)
+    assert not any(x == sc.RECORDED_ROW["m0_line"].decode().rstrip("\r") for x in sim.received)
+
+
+def test_the_plan_check_refuses_an_unrecorded_speed_and_a_way_from_outside():
+    plan = sc.plan_row("x", (-1000, 2000), (1000, 2000), 54)
+    sc.check_plan(plan, at=(0, 2000))
+    with pytest.raises(sc.PlanRefused):
+        sc.check_plan(plan, at=(-1500, 2000))           # the way from outside the area
+    with pytest.raises(sc.PlanRefused):
+        sc.check_plan(sc.plan_row("x", (-1000, 2000), (1000, 2000), 200))
+
+
+def test_the_pending_scan_move_closes_the_session_at_once(tmp_path):
+    code, sim, log, con, res = run_c(tmp_path, ["e1"], readers=readers(scan={"no_lamp": True}))
+    assert "nothing more is sent: a scan move may be pending" in log
+
+
+def test_e2_e3_are_not_offered_without_a_strip_calibration(tmp_path):
+    code, sim, log, con, res = run_c(tmp_path, ["c2", "d1", "e2", "f"])
+    assert [k for k, _ in verdicts(log)] == ["c2", "d1", "f"]
+    assert "E2 (it needs a strip calibration in this sitting (C1 or E1))" in screen(con)
+
+
+def test_a_recorded_patch_move_that_arrives_elsewhere_stops_the_row(tmp_path):
+    lines, _ = _clean_run(tmp_path, ["c3", "c4"])
+    spot5 = sim_mod.SPOTS[4]
+    i = lines.index(spot5)
+    sim = csim.CSimTable(part_c=False)
+    sim.inject_at(i, "blocked", 1.0)
+    code, sim, log, con, res = run_c(tmp_path / "b", ["c3", "c4"], sim=sim)
+    assert code == 2 and verdicts(log)[-1] == ("c4", "stopped")
+    assert sim.received[i + 1:] == [P0]
+    assert "at patch 5" in blocks(log)[-1]["why"]
+
+
+def test_part_c_s_session_caps_are_applied(tmp_path, monkeypatch):
+    monkeypatch.setattr(pc, "C_MAX_LINES", 40)
+    code, sim, log, con, res = run_c(tmp_path, ["c1", "c2", "e1"])
+    assert code == 2 and "limit of lines for one session" in log
+    assert len(sim.received) == 40
+
+
+def test_the_simulator_refuses_a_scan_move_without_a_ready_instrument_and_without_c3(tmp_path):
+    sim = csim.CSimTable(part_c=True, pos=[0.0, 2000.0], jitter=False)
+    sim.instrument = None
+    with pytest.raises(sim_mod.SimViolation):
+        sim.receive(geo.m2_line(1000, 2000, 54))
+    assert sim.violations
+    sim2 = csim.CSimTable(part_c=True, pos=[0.0, 2000.0], jitter=False)
+    inst = csim.FakeScanReader(sim2, str(tmp_path), lambda k, t: None,
+                               faults={"restored": True})
+    inst.lights_off()
+    sim2.clock += 2.0
+    assert inst.arm(100)["ready"] is True
+    sim2.receive(geo.m2_line(1000, 2000, 54))
+    sim2.receive(cl.C_FIXED["scan_a3"])
+    sim2.lamp(sim2.clock)                    # no c3 yet: the move must not start
+    assert not sim2.m2_pending["lamp"] and not sim2.scan_moves
+
+
+def test_the_fake_spot_reader_refuses_to_read_while_the_arm_moves(tmp_path):
+    sim = csim.CSimTable(part_c=True, pos=[0.0, 2000.0], jitter=False)
+    sim._busy_until = sim.clock + 5.0
+    r = csim.FakeSpotReader(sim, str(tmp_path), "x", [("1", "A1")], lambda k, t: None, False)
+    with pytest.raises(sim_mod.SimViolation):
+        r.read("A1")
+    assert sim.violations
