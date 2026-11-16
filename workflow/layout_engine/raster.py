@@ -1509,7 +1509,9 @@ def resolve_placeholders(t: str, ctx: dict) -> str:
     if t and "{seed}" in t and ctx.get("seed", None) == "":
         # 4.3.42: a chart in fixed order prints no seed; the separator that
         # stood before the token (or after it, at the start of a line) goes
-        # with it, so "a - {seed} - b" reads "a - b", not "a -  - b"
+        # with it, so "a - {seed} - b" reads "a - b", not "a -  - b"; and a
+        # bracket that held only the seed goes whole, so "a (seed {seed})"
+        # reads "a", not "a (seed )"
         t = _SEED_WITH_SEPARATOR.sub("", t)
     try:
         return t.format(**ctx) if t else ""
@@ -1517,11 +1519,23 @@ def resolve_placeholders(t: str, ctx: dict) -> str:
         return t                           # leave unknown placeholders literal
 
 
-#: `{seed}` with the separator before it, or after it where nothing stands
-#: before it on its line (see `resolve_placeholders`).
+#: A bracket that holds nothing but `{seed}` and a few words naming it, such as
+#: "(seed {seed})", "({seed})" or "[Seed: {seed}]" (review 2): with the seed
+#: gone it would print "(seed )", so the whole bracket goes. A bracket with
+#: anything else in it (another placeholder, a digit) is left alone.
+_SEED_BRACKET = (r"(?:\([ \t]*(?:[^\W\d_]+[ \t]*[:#=]?[ \t]*){0,4}\{seed\}[ \t]*\)"
+                 r"|\[[ \t]*(?:[^\W\d_]+[ \t]*[:#=]?[ \t]*){0,4}\{seed\}[ \t]*\])")
+_SEED_TOKEN = r"(?:\{seed\}|" + _SEED_BRACKET + r")"
+_SEED_SEP = r"[-\u2013\u2014\u00b7|,/:;_]"
+
+#: `{seed}` (or a bracket of it, above) with the separator before it, or
+#: after it where nothing stands before it on its line, or a bracket of it
+#: with the space before it (see `resolve_placeholders`).
 _SEED_WITH_SEPARATOR = re.compile(
-    r"[ \t]*[-\u2013\u2014\u00b7|,/:;_][ \t]*\{seed\}"
-    r"|(?:(?<=\n)|^)[ \t]*\{seed\}[ \t]*(?:[-\u2013\u2014\u00b7|,/:;_][ \t]*)?")
+    r"[ \t]*" + _SEED_SEP + r"[ \t]*" + _SEED_TOKEN
+    + r"|(?:(?<=\n)|^)[ \t]*" + _SEED_TOKEN + r"[ \t]*(?:" + _SEED_SEP
+    + r"[ \t]*)?"
+    + r"|[ \t]*" + _SEED_BRACKET)
 
 
 def sheet_text_reserve_mm(dpi: float = 300.0) -> float:
