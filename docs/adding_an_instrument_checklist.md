@@ -254,6 +254,9 @@ passes the sheet check, and the four nets of Stage 1 are still green.
       control shows the value the instrument uses; every control gets its
       value back when the user leaves the instrument
       (example `ui/dialogs/layout_options_panel.py::LayoutOptionsPanel._i1io_show_what_applies`).
+      A Beta's own rows are walked too: an instrument whose layout ignores
+      the page-output Beta's Resolution unit greys it there
+      (`ui/dialogs/page_output_panel.py::sync_instrument`).
       Every input type is covered; the test finds inputs independently.
       Model test:
       `tests/test_i1io_layout_options.py::test_the_unfreed_controls_are_live_and_the_rest_say_why`.

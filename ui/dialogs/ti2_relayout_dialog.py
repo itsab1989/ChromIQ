@@ -6797,12 +6797,19 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
         # 4.3.42 (F1): the instrument by its name, not printtarg's flag (an
         # i1iSis chart read "-ii1", the i1Pro's)
         if instrument:
+            # A page from the page-output Beta (#215) as it really is: a page
+            # typed in pixels by its pixels and resolution, a fraction of a
+            # millimetre in the UI language's numbers; any other page is the
+            # paper code exactly as before (`describe_paper_for_readout`).
+            from ui.dialogs.page_output_panel import describe_paper_for_readout
+            paper = describe_paper_for_readout(
+                self._spec.paper_flag, getattr(self, "_engine_recipe", None))
             text = (tr("{note}: 1 patch, laid out for the {instrument} on "
                        "{paper}") if n == 1 else
                     tr("{note}: {n} patches, laid out for the {instrument} on "
                        "{paper}")).format(note=note, n=n,
                                           instrument=instrument,
-                                          paper=self._spec.paper_flag)
+                                          paper=paper)
         else:
             text = (tr("{note}: 1 patch") if n == 1 else
                     tr("{note}: {n} patches")).format(note=note, n=n)
@@ -8110,6 +8117,17 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
             from workflow.layout_engine import chart as le_chart
             recipe = self._engine_panel.get_recipe()
             kw = recipe.build_kwargs()
+            # A PAGE TYPED IN PIXELS (the page-output Beta, #215) IS ITS
+            # MILLIMETRES HERE. Its pixel count belongs to the chart's own
+            # resolution: kept beside 150 dpi it laid out a page of N px at
+            # 150 dpi (4096 x 2730 became 693.6 x 462.3 mm with 6144 patch
+            # slots, and fed the Pages fill and the counts). The paper code is
+            # the true page in millimetres, so the hidden render is a small
+            # 150 dpi picture of the chart's real page. The file's resolution
+            # unit means nothing to a render nobody saves. The recipe itself,
+            # and what Save hands back, keep both unchanged.
+            kw.pop("page_size", None)
+            kw.pop("tiff_res_unit", None)
             kw["dpi"] = min(int(kw.get("dpi") or 150), 150)   # fast preview
             stem = Path(self._preview_tmp.name) / "_engine_preview"
             # Render from a .ti1 derived from the CURRENT grid, so reordering /

@@ -120,6 +120,9 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 # M-PATCH-SIMILAR joined on 2026-10-15 (4.3.5 beta 8): Knut confirmed the
 # similar-patch rule for both tests (#182 6196599132); its card texts are ours.
 AWAITING_APPROVAL: "set[str]" = {
+    # 2026-11-16: the Beta "Custom page size in inches or pixels, and high
+    # resolution" (#215).
+    "M-PAGE-OUTPUT-PARTS",
     # 2026-11-16: an i1iO chart of several pages, one Measure Chart file per
     # sheet (the i1iO Beta).
     "M-I1IO-MEASURE-CHART-PAGES", "M-I1IO-MEASURE-CHART-PAGES-PARTS",

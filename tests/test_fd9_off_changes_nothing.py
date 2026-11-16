@@ -251,6 +251,9 @@ HOOKED_FILES = {
     "data/patch_db.py",              # the label; filtered by the switch
     "main.py",                       # latches the switch
     "ui/dialogs/layout_options_panel.py",
+    # the page-output Beta greys its Resolution unit row while the FD-9 is
+    # chosen (#215, review F3); the FD-9 is chosen only with its Beta on
+    "ui/dialogs/page_output_panel.py",
     "ui/dialogs/settings_dialog.py",  # the Beta row
     "ui/tabs/tab_chart.py",
     "ui/tabs/tab_measure.py",

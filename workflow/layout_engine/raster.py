@@ -3249,6 +3249,7 @@ def render_pages(
     helper_markers_sides: bool = True,
     collect_device_geom: bool = False,
     slots: "list[int] | None" = None,
+    page_px: "tuple[int, int] | None" = None,
 ) -> RenderResult:
     """Render one :class:`PIL.Image` per page for *target*.
 
@@ -3259,6 +3260,12 @@ def render_pages(
     mm2px = dpi / 25.4
     W = max(1, round(paper_w_mm * mm2px))
     H = max(1, round(paper_h_mm * mm2px))
+    if page_px is not None:
+        # A page given in PIXELS (the page-output Beta, #215) has exactly
+        # that many, on every page. The millimetres it was laid out in are
+        # that count at this resolution, so this changes W and H by nothing
+        # but floating-point dust; it makes the count a fact, not a result.
+        W, H = max(1, int(page_px[0])), max(1, int(page_px[1]))
 
     # Patch list incl. padding, then slot assignment (identical to ti2_writer).
     media = target.media_patch()
@@ -4598,7 +4605,8 @@ def cmy_with_empty_k(arr: np.ndarray) -> np.ndarray:
 @writes_chart_pages
 def save_separated_tiffs(arrays: list[np.ndarray], base_path: str | Path,
                          dpi: int = 300, *, ink_names: list[str],
-                         compression: str = "lzw") -> list[Path]:
+                         compression: str = "lzw",
+                         res_unit: str = "cm") -> list[Path]:
     """Write device-native ``(H, W, n)`` arrays as ``photometric='separated'``
     TIFF(s) with an ``InkNames`` tag, so a RIP knows exactly which ink each
     channel drives. CMYK writes ``InkSet=1``; extra-ink sets write ``InkSet=2``
@@ -4607,7 +4615,9 @@ def save_separated_tiffs(arrays: list[np.ndarray], base_path: str | Path,
     """
     base = Path(base_path)
     stem = base.with_suffix("")
-    res = dpi / 2.54
+    # px/cm as printtarg writes, unless the page-output Beta asked for px/in
+    from workflow.page_output.support import resolution_tags
+    (res, _), res_code = resolution_tags(dpi, res_unit)
     comp = None if compression in ("none", "", None) else compression
     out: list[Path] = []
     for i, arr in enumerate(arrays):
@@ -4632,7 +4642,7 @@ def save_separated_tiffs(arrays: list[np.ndarray], base_path: str | Path,
                 ["cyan", "magenta", "yellow", "black"], ["cyan", "magenta", "yellow"]):
             extratags.append((332, "H", 1, 1, True))      # InkSet = CMYK
         kwargs = dict(photometric="separated", resolution=(res, res),
-                      resolutionunit=3, compression=comp, extratags=extratags,
+                      resolutionunit=res_code, compression=comp, extratags=extratags,
                       rowsperstrip=arr.shape[0])           # single strip, like printtarg
         if n > 4:
             # The inks past CMYK are declared "unspecified" — i.e. extra *ink*
@@ -4649,7 +4659,8 @@ def save_separated_tiffs(arrays: list[np.ndarray], base_path: str | Path,
 
 @writes_chart_pages
 def save_tiffs(images: list[Image.Image], base_path: str | Path, dpi: int = 300,
-               *, bit16: bool = False, compression: str = "lzw") -> list[Path]:
+               *, bit16: bool = False, compression: str = "lzw",
+               res_unit: str = "cm") -> list[Path]:
     """Write *images* as TIFF(s) in px/cm (ResolutionUnit=3); return paths.
 
     Single page → ``base.tif``; multiple → ``base_01.tif`` ….  *bit16* writes
@@ -4658,7 +4669,10 @@ def save_tiffs(images: list[Image.Image], base_path: str | Path, dpi: int = 300,
     """
     base = Path(base_path)
     stem = base.with_suffix("")
-    res = dpi / 2.54  # pixels per centimetre, matching printtarg
+    # pixels per centimetre, matching printtarg; pixels per inch only when
+    # the page-output Beta asked for it (#215)
+    from workflow.page_output.support import resolution_tags
+    (res, _), res_code = resolution_tags(dpi, res_unit)
     comp = None if compression in ("none", "", None) else compression
     out: list[Path] = []
     for i, img in enumerate(images):
@@ -4668,7 +4682,7 @@ def save_tiffs(images: list[Image.Image], base_path: str | Path, dpi: int = 300,
         path = base if len(images) == 1 else stem.parent / f"{stem.name}_{i + 1:02d}.tif"
         tifffile.imwrite(
             str(path), arr, photometric="rgb",
-            resolution=(res, res), resolutionunit=3, compression=comp,
+            resolution=(res, res), resolutionunit=res_code, compression=comp,
         )
         out.append(path)
     return out

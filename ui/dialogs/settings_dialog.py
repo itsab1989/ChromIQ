@@ -3882,6 +3882,27 @@ class SettingsDialog(QDialog):
         _beta.addLayout(_isisrow)
         _beta.addWidget(self._isis_charts_restart_hint)
 
+        # Custom page size in inches or pixels, and high resolution (#215).
+        # Restart to apply, like the instrument Betas (`workflow.page_output.
+        # support`): the panel's fields and ranges are built once.
+        self._page_output_check = QCheckBox(
+            tr("Custom page size in inches or pixels, and high resolution "
+               "(beta)"), self)
+        page_output_tip = TooltipButton(
+            tr("Custom page size in inches or pixels, and high resolution "
+               "(beta)"), page_output_help(), self, min_width=680)
+        self._page_output_restart_hint = QLabel(
+            tr("Takes effect after you restart ChromIQ."), self)
+        _ink(self._page_output_restart_hint, "#e6a23c", " font-size: 11px;")
+        self._page_output_restart_hint.setVisible(False)
+        self._page_output_check.toggled.connect(self._page_output_toggled)
+        _porow = QHBoxLayout()
+        _porow.addWidget(self._page_output_check)
+        _porow.addStretch()
+        _porow.addWidget(page_output_tip)
+        _beta.addLayout(_porow)
+        _beta.addWidget(self._page_output_restart_hint)
+
         # THE SPLASH ESCAPE HATCH, WITH A ROW OF ITS OWN.
         #
         # The setting existed and the changelog told users to reach for it, but
@@ -6653,6 +6674,9 @@ class SettingsDialog(QDialog):
         self._isis_charts_check.setChecked(
             bool(s.get("isis_charts_beta", False)))
         self._isis_charts_toggled()
+        self._page_output_check.setChecked(
+            bool(s.get("page_output_beta", False)))
+        self._page_output_toggled()
         from workflow.fd9.support import stored_rotation as _fd9_rot
         _i = self._fd9_rotation_combo.findData(_fd9_rot(s))
         self._fd9_rotation_combo.setCurrentIndex(max(0, _i))
@@ -6958,6 +6982,13 @@ class SettingsDialog(QDialog):
         from workflow.isis.support import isis_enabled
         self._isis_charts_restart_hint.setVisible(
             self._isis_charts_check.isChecked() != isis_enabled())
+
+    def _page_output_toggled(self, *_a) -> None:
+        """Restart to apply (`workflow.page_output.support`): say so while
+        the box differs from what THIS run of ChromIQ is using."""
+        from workflow.page_output.support import page_output_enabled
+        self._page_output_restart_hint.setVisible(
+            self._page_output_check.isChecked() != page_output_enabled())
 
     def _on_isis_charts_clicked(self, checked: bool) -> None:
         """i1iSis charts are switched on at the user's own risk, and the
@@ -8254,6 +8285,11 @@ class SettingsDialog(QDialog):
         s.set("fd9_support_beta", self._fd9_support_check.isChecked())
         s.set("i1io_support_beta", self._i1io_support_check.isChecked())
         s.set("isis_charts_beta", self._isis_charts_check.isChecked())
+        # Written only when it differs from the store, so Preferences closed
+        # with OK leaves no new key behind for anyone who never ticks it.
+        if self._page_output_check.isChecked() != bool(
+                s.get("page_output_beta", False)):
+            s.set("page_output_beta", self._page_output_check.isChecked())
         s.set("fd9_display_rotation",
               int(self._fd9_rotation_combo.currentData() or 0))
         s.set("splash_classic", self._splash_classic_check.isChecked())
@@ -10183,6 +10219,69 @@ def isis_charts_help() -> str:
            "option."),
         tr("With this off (the default), nothing else changes: the i1iSis is "
            "not offered anywhere and ChromIQ works as before."),
+        tr("The change takes effect the next time you start ChromIQ."),
+        tr("**Default:** off")))
+
+
+# ---- Custom page size in inches or pixels, and high resolution (Beta) --------
+#
+# Asked for in issue #215 for film recorders, which take a frame of an exact
+# pixel count at an exact resolution and read the resolution from the file.
+
+def page_output_help() -> str:
+    """The (i) of Preferences > Beta > "Custom page size in inches or pixels,
+    and high resolution (beta)"."""
+    return "\n\n".join((
+        tr("This option is for charts that are not printed on an ordinary "
+           "sheet of paper, or that need an exact size: for example a chart "
+           "that is imaged on film by a film recorder. A film recorder takes "
+           "a picture of an exact number of pixels at an exact resolution, "
+           "such as 4096 x 2730 pixels at 2731 pixels per inch, reads the "
+           "resolution from the file, and scales the picture when it is "
+           "different."),
+        tr("What turning this on adds, after a restart of ChromIQ, in Create "
+           "Chart, Manual:\n"
+           "  •  Custom page size: the width and height can be typed in "
+           "millimetres (now with fractions, such as 234.95), in inches, or "
+           "as an exact number of pixels. "
+           "The fields you type in are the ones that count; the other units "
+           "are shown beside them, converted. A page typed in pixels comes "
+           "out with exactly that many pixels, on every page of the chart. "
+           "Each side can be from 1 mm to 2000 mm.\n"
+           "  •  A line under the paper size that says how many pixels the "
+           "page will have, for every paper size.\n"
+           "  •  Resolution: up to 6000 instead of 1200. A very large page at "
+           "a high resolution needs a lot of memory to draw, so ChromIQ "
+           "checks before it draws anything, and if the chart would need "
+           "more than about 8 GB, it says how many pixels the page has and "
+           "what to reduce, instead of drawing it. This check is made only "
+           "for a chart that uses what only this option allows (a size in "
+           "inches or pixels, fractions of a millimetre, or more than 1200 "
+           "dpi): a chart ChromIQ could already make without this option is "
+           "made exactly as before. The limit is the same whatever memory "
+           "the computer has.\n"
+           "  •  Output, Resolution unit: the resolution can be written into "
+           "the chart image in pixels per inch, as a whole number (2731 "
+           "pixels per inch reads back as exactly 2731), instead of pixels "
+           "per centimetre. Not for the FD-9, whose charts are always "
+           "written in pixels per centimetre."),
+        tr("Text, labels and lines on the chart keep their size in "
+           "millimetres at every resolution. An 8 bit RGB chart without "
+           "compression, as most film recorders take it, is made with Bit "
+           "depth 8-bit and Compression None under Output."),
+        tr("ChromIQ measures charts through ArgyllCMS, so a chart made for "
+           "an instrument that ArgyllCMS cannot drive has to be measured in "
+           "that instrument's own software."),
+        tr("If you turn this off again, charts made with it stay exactly as "
+           "they are and still open, and Create Chart says what their page "
+           "and resolution are. A chart with a size typed in inches or "
+           "pixels, a resolution above 1200 or the resolution in pixels per "
+           "inch is not generated again until you turn the option back on, "
+           "so that no chart is made at another size by mistake. A size with "
+           "fractions of a millimetre is still generated at its own size."),
+        tr("With this off (the default), nothing changes: the custom size is "
+           "whole millimetres, the resolution stops at 1200, and charts are "
+           "written as before."),
         tr("The change takes effect the next time you start ChromIQ."),
         tr("**Default:** off")))
 

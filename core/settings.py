@@ -360,6 +360,11 @@ DEFAULTS: dict[str, Any] = {
     #: for everybody (`data.patch_db.REMOVED_INSTRUMENT_CODES`). Restart to
     #: apply (`workflow.isis.support`).
     "isis_charts_beta":          False,
+    #: Beta (Settings -> Beta, #215): custom page size in mm with fractions,
+    #: in inches or as an exact pixel count, a resolution above 1200 guarded
+    #: by a memory budget, and the TIFF's resolution in pixels per inch. Off =
+    #: exactly 4.3.42. Restart to apply (`workflow.page_output.support`).
+    "page_output_beta":          False,
     # Qt's QSplashScreen burns ~1 s inside its own show() waiting on a
     # condition that never becomes true; the plain window paints the same
     # pixmap in 9-66 ms. This restores the old one if it ever matters.

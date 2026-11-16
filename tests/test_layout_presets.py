@@ -94,7 +94,11 @@ def test_all_fields_persist_through_named_dict(instrument):
         hex_flat_top=True,
         hflag=True, use_instrument_margins=False, layout_mode="patch_first",
         area_method="by_grid", area_cols=12, area_rows=18, area_ratio=1.25,
-        area_min_patch_mm=6.0, strip_gap_mm=2.5)
+        area_min_patch_mm=6.0, strip_gap_mm=2.5,
+        # the page-output Beta's two fields (#215): a store keeps them as
+        # they are, whatever the Beta's state
+        page_size={"w": [4096, "px"], "h": [2730, "px"], "ppi": 2731},
+        tiff_res_unit="in")
     store = PresetStore()
     store.set(full)
     reloaded = PresetStore.from_named_dict(store.as_named_dict())

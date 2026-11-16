@@ -237,6 +237,22 @@ the user makes is kept, and a chart generated into it leaves no i1iSis trace
 printtarg entry) reads as no instrument (i1Pro, A4) and is written back only
 when the person saves (`tests/test_a_removed_instrument_reads_as_none.py`).
 
+### 1.7 ⏳ Awaiting confirmation: the page-output Beta (2026-11-16, #215)
+
+**Confirmed by:** *nobody yet.*
+
+Preferences ▸ Beta ▸ "Custom page size in inches or pixels, and high
+resolution" (`page_output_beta`, off by default, restart to apply) is global:
+it says what the panel offers. What a chart is made with is the target's own,
+inside the layout recipe it already stores: the paper code (fractions kept),
+`page_size` and `tiff_res_unit`, each written only when used. Preferences
+writes the switch's key only when it differs from the store, so closing
+Preferences with OK leaves no new key for anyone who never ticks it. A target
+made with the Beta and opened without it keeps its stored values: the panel
+holds them (`ui/dialogs/page_output_panel.py`) until the person changes the
+paper, the size or the resolution, so `meta.json` stays byte-identical
+through the open (driven on screen).
+
 ## 2. When settings are loaded
 
 Knut asked for this to be pinned down and checked:

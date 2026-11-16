@@ -5242,7 +5242,24 @@ def _recipe_is_for(recipe, instr, paper) -> bool:
             _engine_instrument(recipe.get("instrument"))
             != _engine_instrument(instr)):
         return False
-    return not recipe.get("paper") or str(recipe.get("paper")) == str(paper)
+    return not recipe.get("paper") or str(recipe.get("paper")) == str(paper) \
+        or _fraction_of_the_same_custom_paper(recipe.get("paper"), paper)
+
+
+def _fraction_of_the_same_custom_paper(code, paper) -> bool:
+    """A custom size with fractions of a millimetre (only the page-output
+    Beta writes one, #215) is the same paper as Manual's printtarg -p, which
+    holds whole millimetres only and shows it cut to them ("234.95x196.85"
+    as "234x196"; `ParameterWidget.set_value`, the only place a fractional
+    code reaches -p). Only that CUT form matches (re-review R1-a): a target
+    whose own paper is 235 x 197 mm is another paper and keeps it, never
+    taking 234.95 x 196.85 defaults. Every code 4.3.42 writes is whole and
+    never matches here, so nothing changes for it."""
+    from workflow.layout_engine.papers import parse_custom
+    a, b = parse_custom(str(code or "")), parse_custom(str(paper or ""))
+    if a is None or b is None or all(float(v) == int(v) for v in a):
+        return False
+    return all(float(int(x)) == float(y) for x, y in zip(a, b))
 
 
 def _extra_args_have_patch_source(extra: str) -> bool:
@@ -8920,6 +8937,15 @@ class TabChart(QWidget):
         # instrument), so the i1iO's margin minimums are the build's (F2)
         self._manual_layout_panel.i1io_effective_recipe = \
             self._current_layout_recipe
+        if getattr(self._manual_layout_panel, "_page_beta", False):
+            # The page-output Beta's pixel line and memory check use the
+            # chart's own inks (Device Type and its added inks; review F4),
+            # read through a bound method, and follow a change of them.
+            self._manual_layout_panel.page_ink_codes = self._page_ink_codes
+            for _pw in ([getattr(self, "_manual_devtype_pw", None)]
+                        + list(getattr(self, "_d_cascade_widgets", []))):
+                if _pw is not None:
+                    _pw.value_changed.connect(self._refresh_page_readout)
         # Preferences → Chart Layout is the SEED for a chart with no label style
         # of its own; the panel shows those values so the controls never lie.
         # `getattr` because a test double may be a settings stand-in without it;
@@ -21079,6 +21105,8 @@ class TabChart(QWidget):
                 return
             if self._refuse_for_unreadable_patterns():
                 return
+            if self._refuse_page_over_budget():             # #215 (Beta)
+                return
             self._log_chart_build("Generate Chart", "targen")
             self._cancel_pending_auto_preview()
             # The boxes show the size this build uses (4.3.34 review r2, c).
@@ -31821,6 +31849,92 @@ class TabChart(QWidget):
         btn = getattr(self, "_generate_btn", None)
         if btn is not None and hasattr(btn, "set_gate"):
             btn.set_gate(problem.reason if problem is not None else None)
+
+    def _page_ink_codes(self) -> list:
+        """The ink codes the Manual chart will have (targen -d and its added
+        inks), for the page-output Beta's memory estimate (#215, F4)."""
+        import shlex
+        from ui.tiff_preview import resolve_ink_channels
+        d, extra = "2", []
+        for pw in self._manual_widgets.get("targen", []):
+            if pw.flag == "-d":
+                v = pw.get_raw_value()
+                d = str(v if v is not None else "2")
+            elif pw.flag == "-D":
+                extra.extend(pw.build_args())
+        return resolve_ink_channels(d, shlex.join(extra))
+
+    def _refresh_page_readout(self, *_a) -> None:
+        """Device Type changed: the page-output Beta's pixel line follows."""
+        panel = getattr(self, "_manual_layout_panel", None)
+        if panel is not None and getattr(panel, "_page_beta", False):
+            from ui.dialogs import page_output_panel as _pop
+            _pop.refresh_readout(panel)
+
+    def _refuse_page_over_budget(self) -> bool:
+        """True, with the refusal in the log, when the page-output Beta's
+        memory budget refuses the page on screen BEFORE anything runs (#215).
+
+        The build checks it too (`chart.build_chart`, with the true page count
+        and colorants), but only after the patch set was made: a page of
+        thousands of megapixels first asked targen for tens of thousands of
+        patches, which took minutes, and only then said no (driven on screen,
+        A2 at 6000 ppi). One page with the chart's own inks (the panel's
+        `ink_kind`, from Device Type) is the least the chart can cost, so a
+        page over the budget for that is over it whatever the page count.
+        Only with the Beta on, only in Manual, and only for a chart that uses
+        what only the Beta allows; off, nothing here runs."""
+        panel = getattr(self, "_manual_layout_panel", None)
+        if panel is None or self._mode_name() != "manual":
+            return False
+        if not getattr(panel, "_page_beta", False):
+            # THE BETA OFF, A CHART MADE WITH IT HELD ON SCREEN: refused here,
+            # before the patch set, its exports or meta.json are touched (the
+            # build refuses too, but only after those were written; driven on
+            # screen). Nothing runs for any chart that does not need the Beta.
+            try:
+                from ui.dialogs import page_output_panel as _pop
+                why = _pop.hold_refusal(panel)
+            except Exception:      # noqa: BLE001 - the build checks it again
+                log.debug("page hold check failed", exc_info=True)
+                return False
+            if not why:
+                return False
+            self._log.appendPlainText("[ERROR] " + why)
+            return True
+        try:
+            from ui.dialogs import page_output_panel as _pop
+            from workflow.page_output.support import budget_problem
+            # A size typed in pixels that this resolution cannot make (a side
+            # beyond 1 to 2000 mm, re-review R3-a): said, and nothing runs.
+            # The typed pixels stay as they are.
+            _size_why = _pop.size_problem(panel)
+            if _size_why:
+                from workflow import measurement_messages as _mm
+                self._log.appendPlainText(
+                    "[ERROR] " + _size_why + " " + tr(_mm._PAGE_NOTHING_WRITTEN))
+                return True
+            # Only a chart that uses what only the Beta allows (review F7):
+            # every chart 4.3.42 makes is made with the Beta on as it was.
+            if not _pop.needs_budget(panel):
+                return False
+            px = _pop.page_pixels(panel)
+            if px is None:
+                return False
+            bit16 = getattr(panel, "bit_depth", None) is not None and \
+                panel.bit_depth.currentData() == 16
+            # With the chart's own inks (review F4): a CMYK or more-ink page
+            # costs several times an RGB one, and is refused here too.
+            why = budget_problem(px[0], px[1], 1, early=True, bit16=bit16,
+                                 **_pop.ink_kind(panel))
+        except Exception:      # noqa: BLE001 - the build checks it again
+            log.debug("page budget pre-check failed", exc_info=True)
+            return False
+        if not why:
+            return False
+        # the log tag stays English in every language, as all of them do
+        self._log.appendPlainText("[ERROR] " + why)
+        return True
 
     def _refuse_for_unreadable_patterns(self, *, quiet: bool = False) -> bool:
         """True, with one line in the log, when a NEW layout must not start

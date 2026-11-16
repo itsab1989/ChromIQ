@@ -177,7 +177,16 @@ class ParameterWidget(QWidget):
                     parts = str(v).split("x", 1)
                     if len(parts) == 2:
                         try:
-                            w, h = int(parts[0]), int(parts[1])
+                            # whole millimetres; a custom size with
+                            # fractions (only the page-output Beta writes
+                            # one, #215) is cut to them, where it used to be
+                            # refused and -p kept the paper before (A4
+                            # beside a 211.67 x 296.33 mm page, which Save as
+                            # Defaults then stored); `tab_chart.
+                            # _recipe_is_for` reads the cut code as the same
+                            # paper. A whole code is read exactly as before.
+                            w = int(float(parts[0]))
+                            h = int(float(parts[1]))
                             ci = self._custom_combo.findData("custom")
                             if ci >= 0:
                                 self._custom_combo.setCurrentIndex(ci)

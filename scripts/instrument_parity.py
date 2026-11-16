@@ -130,6 +130,12 @@ CANDIDATES: dict[str, Any] = {
     "text_edge_clip_mm": 5.0, "stamp_command": True, "clip_side": "right",
     "layout_mode": "patch_first", "area_method": "by_grid", "area_cols": 9,
     "area_rows": 7, "area_ratio": 1.3, "area_min_patch_mm": 7.0,
+    # the page-output Beta (#215): a typed page needs Paper = Custom, so with
+    # the candidate paper above no panel gives a page_size back (walked for
+    # every instrument by tests/test_page_output_beta.py); the file's
+    # resolution unit is an Output option wherever the row is offered
+    "page_size": {"w": [4096, "px"], "h": [2730, "px"], "ppi": 2731},
+    "tiff_res_unit": "in",
 }
 
 #: A second value for a field whose CANDIDATES value is already some
