@@ -186,7 +186,7 @@ def test_the_creator_reads_each_pages_patch_area_from_the_strip_map(tmp_path):
         {"page": 0, "x": 10, "y": 200, "w": 50, "h": 50},
         {"page": 0, "x": 10, "y": 400, "w": 50, "h": 100},
         {"page": 1, "x": 10, "y": 300, "w": 50, "h": 50}]}
-    (tmp_path / "stem.strips.json").write_text(json.dumps(doc))
+    (tmp_path / "stem.strips.json").write_text(json.dumps(doc), encoding="utf-8")
     tiffs = [tmp_path / "stem_01.tif", tmp_path / "stem_02.tif"]
     c = ChartCreator.__new__(ChartCreator)
     c._file_mgr = type("FM", (), {
@@ -212,7 +212,7 @@ def test_an_engine_chart_hands_its_patch_areas_to_the_stamper(
                         lambda tiffs, lines, *a, **kw: seen.update(kw))
     (tmp_path / "stem.strips.json").write_text(json.dumps({
         "dpi": 200, "patches": [{"page": 0, "x": 0, "y": 100, "w": 9,
-                                 "h": 300}]}))
+                                 "h": 300}]}), encoding="utf-8")
     tif = tmp_path / "stem.tif"
 
     class _Params:
@@ -248,7 +248,8 @@ def test_the_map_is_read_from_channels_json_after_it_was_folded_in(tmp_path):
     (tmp_path / "stem.channels.json").write_text(json.dumps({
         "ink_channels": ["r", "g", "b"], "layout": {"dpi": 200, "patches": [
             {"page": 0, "x": 0, "y": 226, "w": 59, "h": 52},
-            {"page": 0, "x": 0, "y": 900, "w": 59, "h": 52}]}}))
+            {"page": 0, "x": 0, "y": 900, "w": 59, "h": 52}]}}),
+        encoding="utf-8")
     c = ChartCreator.__new__(ChartCreator)
     c._file_mgr = type("FM", (), {
         "chart_stem": staticmethod(lambda cal_target=False: "stem")})()
