@@ -29,7 +29,13 @@ DATA = Path(__file__).parent / "data"
 pytestmark = pytest.mark.skipif(ml.lib() is None, reason="no C compiler here")
 
 #: The refusals the rule rescues at noise 0, all correct (session, strip).
-RESCUED = {("20261115-121759", "S"), ("20261115-121759", "Z"),
+#: 9 of 31 since 2026-11-16b (10 before): strip S of the first session is now
+#: refused because rule L's trailer must be within 3 dE of the lightest
+#: segment, and in the 3-band trace (each band relative to its own maximum) a
+#: light yellow patch there is "lighter" than the trailer. The two readings
+#: of strip AL in the third session, real pulls back of 40 and 46 ruler steps,
+#: were refused before and stay refused, now by the direction rule.
+RESCUED = {("20261115-121759", "Z"),
            ("20261115-121759", "AG"), ("20261115-145807", "C"),
            ("20261115-145807", "V"), ("20261115-173446", "V"),
            ("20261115-173446", "Y"), ("20261115-173446", "AA"),
@@ -67,6 +73,14 @@ def _correct(V, ref, s, acc):
     return False
 
 
+def _ruler(s):
+    """The recording's ruler as the helper hands it over: each candidate's
+    position at its first reading, the net direction, the largest fall-back."""
+    return {"p0": [c[6] for c in s["candidates"]],
+            "net": float(s["ruler_sign"] or sum(c[2] for c in s["candidates"])),
+            "back": s["ruler_back"]}
+
+
 def _sessions(sigma, seed):
     """(outcomes of the real refusals, wrong accepts, constructed counts)."""
     rng = np.random.default_rng(seed)
@@ -83,18 +97,19 @@ def _sessions(sigma, seed):
             lab = ml.band_lab(V)
             st = [c[2] for c in cands]
             no = [c[1] for c in cands]
+            rul = _ruler(s)
             e = names.index(s["strip"])
             ref0, acc = refs[s["strip"]]
             why = ml.WHY.get(s["refused_because"], 1)
             if s["verdict"] == "refused":
-                r = ml.decide(lab, st, no, REF, e, why)
+                r = ml.decide(lab, st, no, REF, e, why, **rul)
                 if r["accept"]:
                     ok = _correct(V[r["sel"]], ref0, s, acc)
                     rescued[(sess["session"], s["strip"])] = ok
                     if not ok:
                         wrong.append(("real", sess["session"], s["strip"]))
             for j in range(len(names)):
-                if j != e and ml.decide(lab, st, no, REF, j, why)["accept"]:
+                if j != e and ml.decide(lab, st, no, REF, j, why, **rul)["accept"]:
                     wrong.append(("wrong row", sess["session"], s["strip"], names[j]))
             if s["verdict"] in ("accepted", "asked") and len(s["cut_values"]) == s["patches"]:
                 U = ml.band_lab(np.array(s["cut_values"]))

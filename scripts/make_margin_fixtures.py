@@ -121,6 +121,21 @@ def positions(rec, n_readings):
     return pos.astype(float), (cum[-1] if len(cum) else 0)
 
 
+def fall_back(rec) -> float:
+    """The most the ruler position fell back against the recording's net
+    direction, over every step of it (as the helper's cq_margin_back)."""
+    ch = rec.get("changes") or []
+    order = {0: 0, 1: 1, 3: 2, 2: 3}
+    prev = rec.get("first", 0)
+    cum = [0]
+    for c in ch[1::2]:
+        dlt = (order[c] - order[prev]) % 4
+        cum.append(cum[-1] + (1 if dlt == 1 else (-1 if dlt == 3 else 0)))
+        prev = c
+    x = np.array(cum, float) * (1 if cum[-1] >= 0 else -1)
+    return float((np.maximum.accumulate(x) - x).max())
+
+
 def segment(fraw, thresh=0.4):
     """ArgyllCMS's slope filter, normalisation and threshold (i1pro_imp.c)."""
     n, nfb = fraw.shape
@@ -193,8 +208,9 @@ def candidates(rec):
         trim = (no - nnn + 1) // 2
         a, b = ss + trim, ss + trim + max(nnn, 1)
         v = t[a:b].mean(0)
-        steps = abs(p[min(ss + no - 1, n - 1)] - p[ss])
-        out.append([int(ss), int(no), float(steps)] + [round(float(x), 5) for x in v])
+        steps = p[min(ss + no - 1, n - 1)] - p[ss]      # SIGNED (2026-11-16b)
+        out.append([int(ss), int(no), float(steps)] + [round(float(x), 5) for x in v]
+                   + [float(p[ss])])
     return out, int(np.sign(net))
 
 
@@ -220,6 +236,7 @@ def session(path: Path) -> dict:
             "reversed": bool(s.get("reversed")),
             "patches": (s.get("geometry") or {}).get("patches"),
             "ruler_sign": sign,
+            "ruler_back": fall_back(rec),
             "cut": rec.get("cut") or [],
             "cut_values": cut_values(rec),
             "candidates": cands,
@@ -240,8 +257,10 @@ def main(argv):
                  "diagnostics files of one tester (public forum attachments, "
                  "2026-11-15) by scripts/make_margin_fixtures.py. Colours are "
                  "the 3-band trace used as XYZ (relative to D50 white), not CIE "
-                 "colours. Candidate: [first reading, readings, ruler steps, "
-                 "band0, band1, band2].",
+                 "colours. Candidate: [first reading, readings, signed ruler steps, "
+                 "band0, band1, band2, ruler position at the first reading]. "
+                 "ruler_sign: the sign of the recording's net travel; "
+                 "ruler_back: the most its position fell back against it.",
         "sessions": [session(f) for f in files],
     }
     OUT.write_text(json.dumps(doc, separators=(",", ":")) + "\n", encoding="utf-8")

@@ -3,10 +3,20 @@
  *
  * Every check refuses; only a reading that passes all of them is rescued:
  *   0. the ruler: a candidate counts only when the instrument travelled
- *      0.6 to 1.5 times the median patch length over it and it holds more
- *      than 3 readings (a stand-still, a lift or a sliver is left out), and
- *      nothing the ruler left out may lie between two kept patches except a
- *      sliver of at most 3 readings (the edge between two patches);
+ *      0.6 to 1.5 times the median patch length over it, IN THE STRIP'S
+ *      DIRECTION, and it holds more than 3 readings (a stand-still, a lift, a
+ *      sliver or a pass backwards is left out), and nothing the ruler left
+ *      out may lie between two kept patches except a sliver of at most 3
+ *      readings (the edge between two patches). Rows of fewer than 8 patches
+ *      are not looked at (see cqm_decide);
+ *  0a. the direction: the recording's ruler position may never fall back
+ *      more than 3 steps against the strip's direction (its net travel), no
+ *      segment, kept or forgiven, may move against it by more, and no segment
+ *      may start or end on ground an earlier segment already covered. So the
+ *      kept patches tile the travelled path in order, each once. A recording
+ *      with any larger reversal stays refused, as ArgyllCMS decided
+ *      (review 2026-11-16, BLOCKER-1: set down on patch 2, pulled back to the
+ *      edge of patch 1, then swiped, counted patch 2 twice as a "patch 1");
  *   1. count: the kept candidates are the row's patch count, or one or two
  *      more;
  *   2. what is left out at either end is within 3 dE of the strip's paper
@@ -24,7 +34,9 @@
  *      too few readings), as ArgyllCMS would refuse such a patch too.
  * Rule M uses the segments between the leader and the trailer; rule L (the
  * recording began on the first patch) also the first segment, only when the
- * ruler says it covered a whole patch, and takes the trailer as paper white.
+ * ruler says it covered a whole patch, and takes the trailer as paper white,
+ * only when it is within 3 dE (the margin's own limit) of the lightest
+ * segment of the recording: a jig or a board 4 to 6 dE away is not paper.
  * When both rules accept different patches, the reading is refused.
  *
  * AGPL-3.0 like the rest of ChromIQ's helper code (see License.txt). */
@@ -35,7 +47,7 @@
 #include "chromiq_margin.h"
 
 const char *cqm_version(void) {
-	return "M+L 1 (2026-11-16)";
+	return "M+L 2 (2026-11-16)";
 }
 
 void cqm_xyz2lab(const double xyz[3], double lab[3]) {
@@ -198,14 +210,29 @@ static int cmp_d(const void *a, const void *b) {
 	return x < y ? -1 : x > y;
 }
 
-/* 0: the candidates the ruler keeps, from first..last. Returns the count, or
- * -1 when a left-out candidate lies between two kept ones. */
-static int ruler_keep(const cqm_cands *c, int first, int last, double med,
-                      int *idx, int *standing) {
+/* 0: the candidates the ruler keeps, from first..last. ds = each segment's
+ * travel in the strip's direction. Returns the count, or -1 when a left-out
+ * candidate lies between two kept ones.
+ *
+ * WHY THE TRAVEL WINDOW (CQM_TRAV_LO..CQM_TRAV_HI) AND THE SLIVER RULE MUST
+ * NOT BE LOOSENED. The colour rules (4 to 7) compare means over the row, so
+ * on their own they accept, at 0.01 to 3 %, two kinds of wrong reading the
+ * review built by hand (adv.py "lift" and "backforth"): a patch with no
+ * segment at all (an instrument lifted over it, the neighbours making up the
+ * count) and a patch counted twice with a full patch's travel each time.
+ * Neither can happen here only because of the ruler: a patch the instrument
+ * crossed has a segment that travelled about one patch (so no patch goes
+ * missing while the count still fits, and nothing longer than 1.5 patches is
+ * one patch), and a segment of more than 3 readings between two kept patches
+ * refuses the reading (so a second pass cannot hide as a sliver). Rule 0a
+ * makes the second pass impossible in the other direction. Widen any of
+ * these and those readings come back. */
+static int ruler_keep(const cqm_cands *c, const double *ds, int first, int last,
+                      double med, int *idx, int *standing) {
 	int i, n = 0, gap = 0;
 	*standing = 0;
 	for (i = first; i <= last; i++) {
-		int ok = c->steps[i] >= CQM_TRAV_LO * med && c->steps[i] <= CQM_TRAV_HI * med
+		int ok = ds[i] >= CQM_TRAV_LO * med && ds[i] <= CQM_TRAV_HI * med
 		      && c->no[i] > CQM_MIN_NO;
 		if (ok) {
 			if (gap && n > 0)
@@ -215,7 +242,10 @@ static int ruler_keep(const cqm_cands *c, int first, int last, double med,
 			(*standing)++;
 			/* a sliver of 3 readings or fewer between two patches is the
 			 * edge between them (ArgyllCMS's own grouping steps over it);
-			 * anything longer inside the row refuses */
+			 * anything longer inside the row refuses. A sliver is
+			 * forgiven only because rule 0a has already proved that it did
+			 * not move back: the ruler is what makes a repeated patch
+			 * impossible, never the colour (see above). */
 			if (n > 0 && c->no[i] > CQM_MIN_NO)
 				gap = 1;
 		}
@@ -223,17 +253,64 @@ static int ruler_keep(const cqm_cands *c, int first, int last, double med,
 	return n;
 }
 
+/* 0a: the whole recording moves one way. d = the strip's direction (+1/-1).
+ *
+ * CQM_BACK_TOL, 3 steps: one step is the finest the ruler resolves (at most
+ * about 1.1 mm on the i1Pro 2, workflow/ruler_check.py MM_PER_STEP_UPPER),
+ * and a reader resting on a stripe edge can flicker by one. In the tester's
+ * recordings of 2026-11-15, 157 of 159 strips fell back at most 2 steps
+ * (154 not at all); the other two were real pulls back of 40 and 46 steps.
+ * 3 is the smallest whole number above what correct movement showed, and a
+ * quarter of a patch there (about 11 to 14 steps), so a fall-back within it
+ * cannot carry the aperture back across a patch. */
+static int ruler_one_way(const cqm_cands *c, const double *ds, int d,
+                         char *why, size_t wsz) {
+	int i;
+	double hi = -1e30;
+	if (!(c->back >= 0.0)) {
+		snprintf(why, wsz, "the ruler's movement is not known");
+		return 0;
+	}
+	if (c->back > CQM_BACK_TOL) {
+		snprintf(why, wsz, "the ruler shows the instrument moved back %.0f steps",
+		         c->back);
+		return 0;
+	}
+	for (i = 0; i < c->n; i++) {
+		double a = d * c->p0[i], b = a + ds[i];
+		if (ds[i] < -CQM_BACK_TOL) {
+			snprintf(why, wsz, "segment %d moved against the strip", i + 1);
+			return 0;
+		}
+		if (a < hi - CQM_BACK_TOL || b < hi - CQM_BACK_TOL) {
+			snprintf(why, wsz, "segment %d covers ground already read", i + 1);
+			return 0;
+		}
+		if (a > hi)
+			hi = a;
+		if (b > hi)
+			hi = b;
+	}
+	return 1;
+}
+
 int cqm_decide(const cqm_cands *c, const cqm_chart *ch, int why, cqm_result *out) {
-	double med, inner[CQM_MAXC], maxL = -1e9;
-	int n, i, idx[CQM_MAXC], m_ok = 0, l_ok = 0, nk, st;
+	double med, inner[CQM_MAXC], ds[CQM_MAXC], maxL = -1e9;
+	int n, i, idx[CQM_MAXC], m_ok = 0, l_ok = 0, nk, st, d, li = 0;
 	cqm_result rm, rl;
 
 	memset(out, 0, sizeof(*out));
 	memset(&rm, 0, sizeof(rm));
 	memset(&rl, 0, sizeof(rl));
-	if (c == NULL || ch == NULL || ch->lab == NULL || ch->npatch < 4
+	/* rows of 8 patches or more only: the ruler check's own minimum for a
+	 * question (MIN_PATCHES_FOR_QUESTION), and the shortest row a real chart
+	 * of the reader review had was 9. On rows of 5 the review found 4 of 2,152
+	 * "jumped" swipes (2 patches from the neighbour row) accepted: in a short
+	 * row two wrong patches move the mean too little. */
+	if (c == NULL || ch == NULL || ch->lab == NULL || ch->npatch < CQM_MIN_PATCH
 	 || ch->rows < 1 || ch->exp < 0 || ch->exp >= ch->rows) {
-		snprintf(out->why, sizeof(out->why), "no chart");
+		snprintf(out->why, sizeof(out->why), "no chart, or a row of fewer than %d patches",
+		         CQM_MIN_PATCH);
 		return 0;
 	}
 	if (why != CQM_WHY_NOTENOUGH && why != CQM_WHY_TOOMANY && why != CQM_WHY_LEADTRAIL) {
@@ -245,11 +322,22 @@ int cqm_decide(const cqm_cands *c, const cqm_chart *ch, int why, cqm_result *out
 		snprintf(out->why, sizeof(out->why), "%d segments", n);
 		return 0;
 	}
+	d = c->net > 0.0 ? 1 : c->net < 0.0 ? -1 : 0;
+	if (d == 0) {
+		snprintf(out->why, sizeof(out->why), "no ruler travel");
+		return 0;
+	}
 	for (i = 0; i < n; i++)
-		if (c->lab[i][0] > maxL)
+		ds[i] = d * c->steps[i];
+	if (!ruler_one_way(c, ds, d, out->why, sizeof(out->why)))
+		return 0;
+	for (i = 0; i < n; i++)
+		if (c->lab[i][0] > maxL) {
 			maxL = c->lab[i][0];
+			li = i;
+		}
 	for (i = 1; i < n - 1; i++)
-		inner[i - 1] = c->steps[i];
+		inner[i - 1] = ds[i];
 	qsort(inner, n - 2, sizeof(double), cmp_d);
 	med = inner[(n - 2) / 2];
 	if (!(med > 0.0)) {
@@ -262,19 +350,22 @@ int cqm_decide(const cqm_cands *c, const cqm_chart *ch, int why, cqm_result *out
 		const double *paper = c->lab[0][0] >= c->lab[n - 1][0] ? c->lab[0] : c->lab[n - 1];
 		if (paper[0] < maxL - CQM_PAPER_L)
 			snprintf(rm.why, sizeof(rm.why), "neither end is paper white");
-		else if ((nk = ruler_keep(c, 1, n - 2, med, idx, &st)) < 0)
+		else if ((nk = ruler_keep(c, ds, 1, n - 2, med, idx, &st)) < 0)
 			snprintf(rm.why, sizeof(rm.why), "the ruler left out a segment inside the row");
 		else if ((m_ok = decide(c, idx, nk, paper, ch, &rm, rm.why, sizeof(rm.why))))
 			rm.standing = st;
 	}
-	/* rule L: the recording began on the first patch; paper = the trailer */
+	/* rule L: the recording began on the first patch; paper = the trailer,
+	 * which must be paper white within the 3 dE a margin is held to (of the
+	 * lightest segment): a jig or a board 4 to 6 dE away is not paper, and
+	 * rule 5 would then fail to see a margin counted as a patch */
 	{
 		const double *paper = c->lab[n - 1];
-		if (c->steps[0] < CQM_L_FULL * med)
+		if (ds[0] < CQM_L_FULL * med)
 			snprintf(rl.why, sizeof(rl.why), "the first segment is not a whole patch");
-		else if (paper[0] < maxL - CQM_PAPER_L)
+		else if (de(paper, c->lab[li]) > CQM_T_PAPER)
 			snprintf(rl.why, sizeof(rl.why), "the trailer is not paper white");
-		else if ((nk = ruler_keep(c, 0, n - 2, med, idx, &st)) < 0)
+		else if ((nk = ruler_keep(c, ds, 0, n - 2, med, idx, &st)) < 0)
 			snprintf(rl.why, sizeof(rl.why), "the ruler left out a segment inside the row");
 		else if ((l_ok = decide(c, idx, nk, paper, ch, &rl, rl.why, sizeof(rl.why))))
 			rl.standing = st;

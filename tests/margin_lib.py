@@ -27,7 +27,10 @@ class Cands(ctypes.Structure):
                 ("no", ctypes.c_int * MAXC),
                 ("lab", (ctypes.c_double * 3) * MAXC),
                 ("steps", ctypes.c_double * MAXC),
-                ("flags", ctypes.c_int * MAXC)]
+                ("flags", ctypes.c_int * MAXC),
+                ("p0", ctypes.c_double * MAXC),
+                ("net", ctypes.c_double),
+                ("back", ctypes.c_double)]
 
 
 class Chart(ctypes.Structure):
@@ -83,16 +86,39 @@ def band_lab(v):
     return xyz2lab(np.asarray(v, float) * WP)
 
 
-def decide(lab, steps, no, chart_lab, exp, why, flags=None, ss=None) -> dict:
-    """lab: (n,3) candidates in swipe order; chart_lab: (rows,N,3)."""
+def ruler_of(steps, p0=None):
+    """(p0, net, back) for SIGNED segment travels, as the helper computes them
+    from the ruler: without p0 the segments follow on one from another; back =
+    the most the position falls back against the net direction, over the
+    segments' ends (the helper measures it over every ruler step)."""
+    st = np.asarray(steps, float)
+    if p0 is None:
+        p0 = np.r_[0.0, np.cumsum(st)[:-1]]
+    p0 = np.asarray(p0, float)
+    path = np.ravel(np.c_[p0, p0 + st])
+    net = path[-1] - path[0]
+    x = path * (1 if net >= 0 else -1)
+    back = float((np.maximum.accumulate(x) - x).max())
+    return p0, float(net), back
+
+
+def decide(lab, steps, no, chart_lab, exp, why, flags=None, ss=None,
+           p0=None, net=None, back=None) -> dict:
+    """lab: (n,3) candidates in swipe order; chart_lab: (rows,N,3); steps:
+    each segment's SIGNED ruler travel (positive = the strip's direction
+    unless net says otherwise). p0 / net / back default to ruler_of(steps)."""
     L = lib()
     c = Cands()
     n = len(lab)
     c.n = n
+    p0d, netd, backd = ruler_of(steps, p0)
+    c.net = netd if net is None else float(net)
+    c.back = backd if back is None else float(back)
     for i in range(n):
         c.ss[i] = int(ss[i]) if ss is not None else i * 10
         c.no[i] = int(no[i])
         c.steps[i] = float(steps[i])
+        c.p0[i] = float(p0d[i])
         c.flags[i] = int(flags[i]) if flags is not None else 0
         for k in range(3):
             c.lab[i][k] = float(lab[i][k])

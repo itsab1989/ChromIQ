@@ -30,7 +30,9 @@ extern "C" {
 #define CQM_GOOD     35.0	/* the winning fit, mean dE per patch, at most */
 #define CQM_RATIO     0.5	/* ... and at most this share of every alternative */
 #define CQM_TRAV_LO   0.6	/* a candidate's ruler travel, as a share of the median */
-#define CQM_TRAV_HI   1.5
+#define CQM_TRAV_HI   1.5	/* (do not loosen: see chromiq_margin.c, rule 0) */
+#define CQM_BACK_TOL  3.0	/* ruler steps the position may fall back (rule 0a) */
+#define CQM_MIN_PATCH 8		/* the shortest row the rules look at (rule 0) */
 #define CQM_MIN_NO    3		/* a candidate has MORE readings than this */
 #define CQM_L_FULL    0.85	/* rule L: the first segment covers a whole patch */
 #define CQM_PAPER_L   2.0	/* paper white is within this L* of the lightest segment */
@@ -50,8 +52,15 @@ typedef struct {
 	int ss[CQM_MAXC];		/* first reading (untrimmed) */
 	int no[CQM_MAXC];		/* readings (untrimmed) */
 	double lab[CQM_MAXC][3];	/* CIE Lab D50 of the trimmed average */
-	double steps[CQM_MAXC];	/* ruler travel over the segment, steps */
+	double steps[CQM_MAXC];	/* SIGNED ruler travel over the segment, steps
+							 * (position at its last reading minus at its first) */
 	int flags[CQM_MAXC];	/* CQM_F_* */
+	double p0[CQM_MAXC];	/* ruler position at its first reading, steps */
+	double net;				/* the whole recording's travel, last position minus
+							 * first (its sign is the strip's direction) */
+	double back;			/* the most the position fell back, at any point of
+							 * the whole recording, against that direction
+							 * (steps, >= 0; < 0 = not known: refused) */
 } cqm_cands;
 
 typedef struct {
