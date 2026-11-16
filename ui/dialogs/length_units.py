@@ -4,7 +4,7 @@ THE VALUE IS ALWAYS MILLIMETRES. A :class:`LengthSpinBox` is a
 ``NoScrollDoubleSpinBox`` whose ``value()``, ``setValue()``, ``setRange()``,
 ``minimum()``, ``maximum()`` and ``valueChanged`` speak millimetres whatever
 the person sees, so every line of the layout panel that reads or writes a
-length (the recipe, the presets, the instrument defaults, the FD-9's ranges)
+length (the recipe, the presets, the instrument defaults, an instrument's own ranges)
 is untouched by the choice. Inches are a DISPLAY: the text in the box, what
 is typed into it, and the arrow steps.
 
