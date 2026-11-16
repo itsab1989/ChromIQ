@@ -19,8 +19,9 @@ With this switch ON, and only then, Create Chart > Manual offers:
   a chart that uses something only this Beta allows (:func:`needs_budget`):
   every chart 4.3.42 can make is made with the Beta on exactly as with it
   off, however large;
-* the file's resolution written in pixels per inch, as an option (not for the
-  FD-9, whose contributed layout always writes pixels per centimetre).
+* the file's resolution written in pixels per inch, as an option (greyed for
+  an instrument whose contributed layout always writes pixels per
+  centimetre: `ui.dialogs.page_output_panel.sync_instrument`).
 
 The patch set editor builds the same panel, hidden; it lays its hidden
 render out on the TRUE millimetre page at 150 dpi (never the typed pixel
