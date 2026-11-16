@@ -199,7 +199,6 @@ def test_the_creator_reads_each_pages_patch_area_from_the_strip_map(tmp_path):
     k = 25.4 / 200
     assert spans[str(tiffs[0])] == pytest.approx((200 * k, 500 * k))
     assert spans[str(tiffs[1])] == pytest.approx((300 * k, 350 * k))
-    assert ChartCreator._page_index_of(tmp_path / "stem.tif", 1) == 0
     assert c._engine_patch_spans_mm([tmp_path / "x" / "a_01.tif"], _P()) is None
 
 

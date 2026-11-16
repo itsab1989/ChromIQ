@@ -2363,29 +2363,33 @@ class ChartCreator:
             lines.append(f"ChromIQ {APP_VERSION}")
         return lines
 
-    @staticmethod
-    def _page_index_of(tiff: Path, n_pages: int) -> "int | None":
-        """0-based page of an engine page file (``<stem>_NN.tif``, or the
-        one ``<stem>.tif`` of a single-page chart)."""
-        import re as _re
-        m = _re.search(r"_(\d+)$", Path(tiff).stem)
-        if m:
-            return int(m.group(1)) - 1
-        return 0 if n_pages == 1 else None
-
-    def _engine_patch_spans_mm(self, tiffs: "list[Path]",
-                               params: "ChartParams") -> "dict | None":
-        """``{str(tiff): (top_mm, bottom_mm)}``: where each page's patch area
-        begins and ends, from the engine's strip map beside the pages (its
-        patch rectangles, else its strip rectangles). None when there is no
-        map to read.
+    def _engine_page_patch_boxes_mm(self, tiffs: "list[Path]",
+                                    params: "ChartParams") -> "dict | None":
+        """``{str(tiff): (top_mm, bottom_mm, right_mm)}``: where each page's
+        patch area begins and ends, and where its patch block ENDS on the
+        right, from the engine's strip map beside the pages (its patch
+        rectangles and its strip rectangles). None when there is no map to
+        read.
 
         THE MAP IS IN ``channels.json`` BY THE TIME THE STAMP RUNS.
         `_embed_layout_geometry` folds ``<stem>.strips.json`` into the
         sidecar's "layout" and deletes it, before `_stamp_tiff_metadata` is
         called; a ``.strips.json`` is read only where it still exists (a
         build that stamps without embedding). Found on screen: reading only
-        the ``.strips.json`` centred nothing in the real app."""
+        the ``.strips.json`` centred nothing in the real app.
+
+        A PAGE IS ITS PLACE IN THE LIST, NOT ITS FILE NAME (review 2,
+        2026-11-16). The engine writes page *i* of the map to
+        ``result.tiff_paths[i]`` and the caller hands them over in that
+        order; reading a ``_N`` at the end of the stem took a one-page chart
+        of a project named "Baryta_2" for page 2, found no rectangles and
+        quietly fell back. A list shorter than the map's pages is not
+        trusted at all.
+
+        THE RIGHT EDGE IS THE MAP'S, NEVER THE RASTER'S (review 2, 4.3.41
+        and older): a page whose last strip ends in pure-white fill-up
+        patches looks like paper to `_detect_writable_band`, and the line
+        was stamped over 17 measured patches of a Red River A4 sheet."""
         import json
         if not tiffs:
             return None
@@ -2413,22 +2417,37 @@ class ChartCreator:
             dpi = float(doc.get("dpi") or 0)
             if dpi <= 0:
                 return None
-            rects = doc.get("patches") or doc.get("strips") or []
-            spans: dict = {}
-            for t in tiffs:
-                page = self._page_index_of(Path(t), len(tiffs))
-                if page is None:
-                    continue
-                mine = [r for r in rects if int(r.get("page", 0)) == page]
+            patches = list(doc.get("patches") or [])
+            rects = patches + list(doc.get("strips") or [])
+            if not rects:
+                return None
+            n_map = max(int(r.get("page", 0)) for r in rects) + 1
+            if len(tiffs) < n_map:
+                return None
+            k = 25.4 / dpi
+            boxes: dict = {}
+            for page, t in enumerate(tiffs):
+                mine = [r for r in (patches or rects)
+                        if int(r.get("page", 0)) == page]
+                every = [r for r in rects if int(r.get("page", 0)) == page]
                 if not mine:
                     continue
                 top = min(float(r["y"]) for r in mine)
                 bottom = max(float(r["y"]) + float(r["h"]) for r in mine)
-                spans[str(t)] = (top * 25.4 / dpi, bottom * 25.4 / dpi)
-            return spans or None
+                right = max(float(r["x"]) + float(r["w"]) for r in every)
+                boxes[str(t)] = (top * k, bottom * k, right * k)
+            return boxes or None
         except Exception as exc:  # noqa: BLE001 — never block the stamp
             log.debug("patch area for the note unavailable: %s", exc)
             return None
+
+    def _engine_patch_spans_mm(self, tiffs: "list[Path]",
+                               params: "ChartParams") -> "dict | None":
+        """``{str(tiff): (top_mm, bottom_mm)}`` of each page's patch area
+        (see `_engine_page_patch_boxes_mm`), or None."""
+        boxes = self._engine_page_patch_boxes_mm(tiffs, params)
+        return ({t: (b[0], b[1]) for t, b in boxes.items()}
+                if boxes else None)
 
     def _stamp_tiff_metadata(self, tiffs: list[Path], params: "ChartParams") -> None:
         """Stamp the actual targen/printtarg commands (and optional notes) into each TIFF."""
@@ -2686,13 +2705,20 @@ class ChartCreator:
                 # chart), read from the engine's own strip map, never guessed
                 # from the raster. A printtarg chart has no map and keeps its
                 # place.
-                _spans = (self._engine_patch_spans_mm(tiffs, params)
+                # …AND IT NEVER STARTS LEFT OF THE PATCH BLOCK'S TRUE RIGHT
+                # EDGE, read from the same map (review 2): white fill-up
+                # patches are measured patches, not paper.
+                _boxes = (self._engine_page_patch_boxes_mm(tiffs, params)
                           if engine_chart else None)
+                _kw = {}
+                if _boxes:
+                    _kw["patch_spans_mm"] = {t: (b[0], b[1])
+                                             for t, b in _boxes.items()}
+                    _kw["patch_right_mm"] = {t: b[2]
+                                             for t, b in _boxes.items()}
                 stamp_chart_metadata(tiffs, cmd_lines, _edge, _band,
                                      _font_family, _size_pt, _reach, _gap,
-                                     _edge_t, _edge_b, _patch_gap,
-                                     **({"patch_spans_mm": _spans}
-                                        if _spans else {}))
+                                     _edge_t, _edge_b, _patch_gap, **_kw)
         else:
             # ChromIQ-style: shift the patch block right by ~28 mm so the left
             # side becomes a fresh white strip ready for the left-clip stamp.

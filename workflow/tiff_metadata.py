@@ -122,6 +122,7 @@ def stamp_chart_metadata(
     text_edge_bottom_mm: float = -1.0,
     patch_gap_mm: float = 0.0,
     patch_spans_mm: "dict | None" = None,
+    patch_right_mm: "dict | None" = None,
 ) -> None:
     """Stamp `lines` joined into a single rotated text line on each TIFF's right margin.
 
@@ -176,18 +177,30 @@ def stamp_chart_metadata(
     a tester's sheet, 2026-11-16: with 28 mm above the patches and 12 below,
     the line sat 8 mm off the middle of the patches). A page it does not name
     is stamped exactly as before.
+
+    *patch_right_mm* maps a TIFF's path to the millimetres from the page's
+    LEFT edge where its patch block really ends (the engine's own patch and
+    strip rectangles). The note's band never starts left of it. Without it
+    the band is found from the raster alone, and a last strip of pure-white
+    fill-up patches reads as paper there: on a Red River A4 sheet the line
+    was printed over 17 measured patches with "Margins: OK" on screen
+    (review 2, 2026-11-16; in 4.3.41 too). Where the true edge leaves too
+    little paper, the note takes the overlap path of Knut's ruling of
+    2026-09-10 like any other note that does not fit. A page it does not
+    name is stamped exactly as before.
     """
     pieces = [s.strip() for s in lines if s and s.strip()]
     if not pieces:
         return
     text = _JOIN.join(pieces)
     spans = dict(patch_spans_mm or {})
+    rights = dict(patch_right_mm or {})
     for path in tiff_paths:
         try:
             _stamp_one(Path(path), text, text_edge_mm, clip_band_mm,
                        font_family, size_pt, clip_reach_mm, gap_mm,
                        text_edge_top_mm, text_edge_bottom_mm, patch_gap_mm,
-                       spans.get(str(path)))
+                       spans.get(str(path)), rights.get(str(path)))
         except Exception as exc:
             log.warning("Right-edge stamp failed for %s: %s", path, exc)
 
@@ -363,7 +376,8 @@ def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
                gap_mm: float = 0.0, text_edge_top_mm: float = -1.0,
                text_edge_bottom_mm: float = -1.0,
                patch_gap_mm: float = 0.0,
-               patch_span_mm: "tuple[float, float] | None" = None) -> None:
+               patch_span_mm: "tuple[float, float] | None" = None,
+               patch_right_mm: "float | None" = None) -> None:
     with tifffile.TiffFile(str(path)) as tf:
         page = tf.pages[0]
         # Device-native (separated) CMYK / CMYK+N charts: skip the post-render
@@ -423,6 +437,31 @@ def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
         band_left = band_right = W
     else:
         band_left, band_right = band
+    # THE BAND NEVER STARTS INSIDE THE PATCH BLOCK (review 2, 2026-11-16).
+    # The raster cannot tell a pure-white measured patch from paper: a page
+    # whose last strip is white fill-up reads as a margin that begins one
+    # strip early, and the note, anchored to the band's patch side, was
+    # printed down that strip. The engine's map knows where the block ends;
+    # the band starts no further left than that plus the same white the
+    # raster search keeps. Where that leaves too little paper the note goes
+    # down the overlap path below, exactly as a note that does not fit
+    # always has. On every page whose raster edge is already right of the
+    # true edge (every page without a white last strip, and the clip-border
+    # presets the 2026-09-10 ruling is about) nothing changes.
+    if patch_right_mm is not None and band is not None:
+        try:
+            # where the raster search would put it beside a block whose last
+            # column it could see: that column, then its guard, twice
+            _true_px = int(np.ceil(float(patch_right_mm) * _dpi / 25.4)) - 1 \
+                + 2 * _safety_pad_px(_dpi)
+        except (TypeError, ValueError):
+            _true_px = None
+        if _true_px is not None and band_left < _true_px:
+            log.info("Right-edge stamp on %s: the patch block ends at %.2f mm "
+                     "(its last strip reads as paper on the raster), so the "
+                     "note starts there and not at %.2f mm.", path,
+                     float(patch_right_mm), band_left * 25.4 / _dpi)
+            band_left = min(_true_px, band_right)
     # THE USER'S OWN "TEXT DISTANCE FROM EDGE" DECIDES EVERY SIDE THE NOTE
     # TOUCHES, and it decided only two of them. It was turned into `_pad` and
     # applied to the TOP and the BOTTOM; horizontally nothing applied it, so the
