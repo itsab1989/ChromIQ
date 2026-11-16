@@ -12754,7 +12754,12 @@ written here.
   other row in both directions; no kept patch is within 6 ΔE76 of paper
   white where the row expects a colour; the ruler shows 0.6 to 1.5 times the median patch length
   over each kept patch, in the strip's direction, and more than 3 readings,
-  with nothing longer than a 3-reading sliver left out inside the row; the
+  with nothing left out inside the row but a sliver of 3 readings or fewer
+  that travelled at most 0.3 of a patch; centre to centre, no step between
+  kept patches exceeds 1.5 patch pitches, so the kept patches account for
+  the whole distance travelled (re-check of 2026-11-16, MAJOR-R1: a patch
+  jerked across in 3 readings went missing); a ruler that jumped two
+  positions at once (direction unknown) refuses; the
   ruler position never falls back more than 3 steps over the whole
   recording, no segment (kept or forgiven) moves against the strip and none
   starts or ends on ground an earlier one covered, so a recording with any
