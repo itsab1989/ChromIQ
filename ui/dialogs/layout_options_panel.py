@@ -869,7 +869,8 @@ class LayoutOptionsPanel(QWidget):
                  with_calibration: bool = False, with_selectors: bool = False,
                  defer_clip_preview: bool = False,
                  clip_content_always_shown: bool = False,
-                 browse_icon: str = "folder") -> None:
+                 browse_icon: str = "folder",
+                 units_choice: bool = False) -> None:
         super().__init__(parent)
         #: The folder glyph of this panel's browse buttons (the clip-border
         #: image, the .cal file). Basti, 2026-09-26: magenta ("folder_create",
@@ -1005,6 +1006,17 @@ class LayoutOptionsPanel(QWidget):
         # off this panel is 4.3.42's widget for widget.
         from workflow.page_output.support import page_output_enabled
         self._page_beta = bool(with_selectors) and page_output_enabled()
+        # ITS "UNITS" CHOICE (millimetres, inches, pixels for the page): only
+        # in the panel the person works in (Create Chart > Manual asks for
+        # it), never in the patch set editor's hidden copy, which keeps
+        # 4.3.43's fields. Every length box is then a `LengthSpinBox`, whose
+        # value is millimetres whatever it shows; without the choice every
+        # one is the plain box it always was.
+        self._units_choice = self._page_beta and bool(units_choice)
+        if self._units_choice:
+            from ui.dialogs.length_units import LengthSpinBox as _LenBox
+        else:
+            _LenBox = NoScrollDoubleSpinBox
         if with_selectors:
             sel = QGridLayout()
             # Instrument and Mode each get a full-width row.
@@ -1048,6 +1060,12 @@ class LayoutOptionsPanel(QWidget):
             self.pages.setMaximumWidth(70)
             self.pages.valueChanged.connect(self._emit)
             sel.addWidget(self.pages, 1, 3)
+            # with the Units row (the Beta's choice) everything below Paper
+            # moves down one row
+            _ur = 1 if self._units_choice else 0
+            if self._units_choice:
+                from ui.dialogs import page_output_panel as _pop
+                _pop.build_units_row(self, sel, 2)
             sel.addWidget(TooltipButton(
                 tr("Paper and pages"),
                 tr("Paper is the sheet size you'll print on — the profile is only "
@@ -1097,16 +1115,16 @@ class LayoutOptionsPanel(QWidget):
                 _cpl.addWidget(self.custom_w); _cpl.addWidget(QLabel("×", self))
                 _cpl.addWidget(self.custom_h); _cpl.addStretch()
             self._sel_grid = sel    # the page-output Beta's notes go here too
-            sel.addWidget(self._custom_paper_w, 2, 0, 1, 4)   # directly below Paper
+            sel.addWidget(self._custom_paper_w, 2 + _ur, 0, 1, 4)   # directly below Paper
             self._custom_paper_w.setVisible(False)
             # the i1iO's custom size turned upright, said (review 6, item 2)
             self._custom_turned_lbl = QLabel("", self)
             self._custom_turned_lbl.setWordWrap(True)
             self._custom_turned_lbl.setVisible(False)
-            sel.addWidget(self._custom_turned_lbl, 3, 0, 1, 4)
+            sel.addWidget(self._custom_turned_lbl, 3 + _ur, 0, 1, 4)
             if self._page_beta:
                 # the page's pixel count, for every paper (the Beta)
-                _pop.build_pixel_readout(self, sel, 4)
+                _pop.build_pixel_readout(self, sel, 4 + _ur)
             sel.setColumnStretch(1, 1)        # paper / instrument / mode expand
             v.addLayout(sel)
 
@@ -1147,7 +1165,7 @@ class LayoutOptionsPanel(QWidget):
             self._on_instr_changed()
 
         def mm(special_auto: bool = False, top: float = 300.0) -> NoScrollDoubleSpinBox:
-            sb = NoScrollDoubleSpinBox(self)
+            sb = _LenBox(self)
             sb.setRange(0, top)
             sb.setDecimals(1)
             sb.setSingleStep(0.5)
@@ -1245,6 +1263,11 @@ class LayoutOptionsPanel(QWidget):
                 v = spin.value()
                 if spin.specialValueText() and v <= spin.minimum() + 1e-9:
                     inch.setText("")
+                elif getattr(spin, "_len_unit", "mm") == "in":
+                    # the box shows inches (the Beta's Units): the
+                    # readout shows the millimetres it holds
+                    from workflow.page_output.support import side_text
+                    inch.setText(side_text(v) + " " + tr("mm"))
                 else:
                     # 3 decimals so a 0.1 mm change is visible in the inch readout
                     # (Knut beta.38).
@@ -1399,7 +1422,7 @@ class LayoutOptionsPanel(QWidget):
 
         def small_mm(top: float = 60.0, *,
                      special_auto: bool = False) -> NoScrollDoubleSpinBox:
-            sb = NoScrollDoubleSpinBox(self)
+            sb = _LenBox(self)
             sb.setRange(0, top); sb.setDecimals(1); sb.setSingleStep(0.5)
             # WIDE ENOUGH FOR THE WORD THIS BOX ACTUALLY SHOWS — AND NO WIDER.
             #
@@ -1617,7 +1640,7 @@ class LayoutOptionsPanel(QWidget):
         self.area_ratio.setSuffix(" %")
         self.area_ratio.setValue(100.0)
         self.area_ratio.valueChanged.connect(self._emit)
-        self.area_min_patch = NoScrollDoubleSpinBox(self)
+        self.area_min_patch = _LenBox(self)
         self.area_min_patch.setRange(0.0, 100.0); self.area_min_patch.setDecimals(1)
         self.area_min_patch.setSingleStep(0.5); self.area_min_patch.setMaximumWidth(96)
         self.area_min_patch.setSpecialValueText(tr("auto"))
@@ -2299,8 +2322,8 @@ class LayoutOptionsPanel(QWidget):
         # vertical nudge. Labelled "X" / "Y" with an arrow, as the clip image's
         # own move boxes are ("Content fit"), so the two read alike and the
         # row fits the panel in every language; the ⓘ says which way is which.
-        self.strip_label_offset_x = NoScrollDoubleSpinBox(self)
-        self.strip_label_offset = NoScrollDoubleSpinBox(self)
+        self.strip_label_offset_x = _LenBox(self)
+        self.strip_label_offset = _LenBox(self)
         for _sb in (self.strip_label_offset_x, self.strip_label_offset):
             _sb.setRange(-50.0, 50.0)
             _sb.setDecimals(1)
@@ -3410,8 +3433,8 @@ class LayoutOptionsPanel(QWidget):
         self.clip_image_scale.setRange(1.0, 50000.0); self.clip_image_scale.setDecimals(0)
         self.clip_image_scale.setSingleStep(10.0)
         self.clip_image_scale.setSuffix(" %"); self.clip_image_scale.setValue(100.0)
-        self.clip_image_offx = NoScrollDoubleSpinBox(self)
-        self.clip_image_offy = NoScrollDoubleSpinBox(self)
+        self.clip_image_offx = _LenBox(self)
+        self.clip_image_offy = _LenBox(self)
         for _o in (self.clip_image_offx, self.clip_image_offy):
             _o.setRange(-300.0, 300.0); _o.setDecimals(1); _o.setSingleStep(0.5)
             # The unit lives on the field, so the row label can stay short: this
@@ -3551,6 +3574,10 @@ class LayoutOptionsPanel(QWidget):
         # The secondary notes take the appearance's own ink. Last, because
         # every one of them has to exist first.
         self._paint_notes()
+        if self._units_choice:
+            # the Units choice reaches every length box, label and (i)
+            from ui.dialogs import page_output_panel as _pop
+            _pop.finish_units(self)
 
     def _browse_cal(self) -> None:
         from pathlib import Path
@@ -3802,6 +3829,11 @@ class LayoutOptionsPanel(QWidget):
                 control.setToolTip(why)
             saved["dpi"] = self.dpi.maximum()
             self.dpi.setMaximum(self._FD9_MAX_DPI)
+            if getattr(self, "_page_beta", False):
+                # the page-output Beta's typed sides, before the FD-9's
+                # ranges clamp the millimetre boxes (leftover a of 4.3.43)
+                from ui.dialogs import page_output_panel as _pop
+                saved["page"] = _pop.fd9_entering(self)
             if hasattr(self, "custom_w"):
                 saved["custom"] = (self.custom_w.minimum(), self.custom_w.maximum(),
                                    self.custom_w.value(), self.custom_h.minimum(),
@@ -3864,6 +3896,11 @@ class LayoutOptionsPanel(QWidget):
             self.custom_h.setRange(hmin, hmax)
             self.custom_w.setValue(wval)
             self.custom_h.setValue(hval)
+        if was.get("page") is not None:
+            # a page typed in pixels (or inches) comes back as typed, not as
+            # the two-decimal millimetres the boxes were given back
+            from ui.dialogs import page_output_panel as _pop
+            _pop.fd9_left(self, was["page"])
 
     # ---- the X-Rite i1iO table (Beta): its own fixed layout ----------------
 
@@ -7529,11 +7566,17 @@ class LayoutOptionsPanel(QWidget):
         if not hasattr(self, "_custom_size_lbl"):
             return
         i1io = self._i1io_chosen()
-        self._custom_size_lbl.setText(
-            tr("Printed sheet, upright (mm), width × height:") if i1io
-            # three rows, each with its own unit (the page-output Beta)
-            else tr("Custom size:") if getattr(self, "_page_beta", False)
-            else tr("Custom size (mm):"))
+        if getattr(self, "_units_choice", False):
+            # one pair of fields in the unit chosen, named after them
+            self._custom_size_lbl.setText(
+                tr("Printed sheet, upright, width × height:") if i1io
+                else tr("Custom size:"))
+        else:
+            self._custom_size_lbl.setText(
+                tr("Printed sheet, upright (mm), width × height:") if i1io
+                # three rows, each with its own unit (the page-output Beta)
+                else tr("Custom size:") if getattr(self, "_page_beta", False)
+                else tr("Custom size (mm):"))
         shown = (i1io and self.paper is not None
                  and self.paper.currentData() == "__custom__")
         # THE NOTE BELONGS TO THE TURNED SIZE (4.3.34 review r2, b): the
@@ -7565,7 +7608,11 @@ class LayoutOptionsPanel(QWidget):
         fw = self.window().focusWidget() or QApplication.focusWidget()
         if fw is None:
             return False
-        for box in (self.custom_w, self.custom_h):
+        boxes = [self.custom_w, self.custom_h]
+        # the page-output Beta's inch and pixel boxes are the size too
+        for extra in ("_page_in", "_page_px"):
+            boxes += list(getattr(self, extra, {}).values())
+        for box in boxes:
             if fw is box or fw is box.lineEdit():
                 return True
         return False

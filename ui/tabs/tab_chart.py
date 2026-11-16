@@ -8922,7 +8922,7 @@ class TabChart(QWidget):
         _llg.setContentsMargins(8, 8, 8, 8)
         self._manual_layout_panel = LayoutOptionsPanel(
             self._manual_layout_grp, with_selectors=True, with_calibration=True,
-            browse_icon="folder_create")
+            browse_icon="folder_create", units_choice=True)
         # Let the panel's "Use instrument margins" checkbox read the user's
         # Instrument-Margins thresholds for the current combo (#93, Knut).
         self._manual_layout_panel.set_threshold_lookup(self._combo_thresholds)
