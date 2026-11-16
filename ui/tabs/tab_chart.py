@@ -31836,9 +31836,23 @@ class TabChart(QWidget):
         a page over the budget for that is over it for every chart. Only with
         the Beta on and only in Manual; off, nothing here runs."""
         panel = getattr(self, "_manual_layout_panel", None)
-        if panel is None or not getattr(panel, "_page_beta", False) \
-                or self._mode_name() != "manual":
+        if panel is None or self._mode_name() != "manual":
             return False
+        if not getattr(panel, "_page_beta", False):
+            # THE BETA OFF, A CHART MADE WITH IT HELD ON SCREEN: refused here,
+            # before the patch set, its exports or meta.json are touched (the
+            # build refuses too, but only after those were written; driven on
+            # screen). Nothing runs for any chart that does not need the Beta.
+            try:
+                from ui.dialogs import page_output_panel as _pop
+                why = _pop.hold_refusal(panel)
+            except Exception:      # noqa: BLE001 - the build checks it again
+                log.debug("page hold check failed", exc_info=True)
+                return False
+            if not why:
+                return False
+            self._log.appendPlainText("[ERROR] " + why)
+            return True
         try:
             from ui.dialogs import page_output_panel as _pop
             from workflow.page_output.support import budget_problem

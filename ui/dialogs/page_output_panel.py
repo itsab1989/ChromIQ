@@ -392,6 +392,21 @@ def hold_active(panel: Any) -> bool:
     return bool(hold) and _shown_state(panel) == hold["shown"]
 
 
+def hold_refusal(panel: Any) -> "str | None":
+    """The words that refuse Generate while a held chart needs the Beta
+    (a size in inches or pixels, above 1200, or pixels per inch), else None.
+    A chart held only for its fractions of a millimetre is not refused: the
+    engine makes it at its own size, as it always could."""
+    if not hold_active(panel):
+        return None
+    hold = panel.__dict__["_page_hold"]
+    if hold["page_size"] is None and int(hold["dpi"]) <= po.DPI_MAX_OFF \
+            and (hold["tiff_res_unit"] or po.RES_UNIT_CM) == po.RES_UNIT_CM:
+        return None
+    from workflow import measurement_messages as mm
+    return tr(mm._PAGE_BETA_OFF_REDRAW)
+
+
 def _release(panel: Any) -> None:
     panel.__dict__.pop("_page_hold", None)
     lbl = panel.__dict__.get("_page_hold_lbl")
