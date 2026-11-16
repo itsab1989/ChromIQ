@@ -2547,13 +2547,17 @@ static double cq_margin_pos_at(const cq_ruler_rec *r, double rd) {
  * most the position fell back against that direction, over every ruler step
  * (the margin tolerance's rule 0a: a reading that moved backwards is never
  * rescued). Same step counting as cq_margin_pos_at. */
-static void cq_margin_motion(const cq_ruler_rec *r, double *net, double *back) {
+static void cq_margin_motion(const cq_ruler_rec *r, double *net, double *back,
+                             int *skipped) {
 	static const int order[4] = { 0, 1, 3, 2 };
 	int i, prev = r->first & 3, cum = 0, hi = 0, lo = 0;
 	int bpos = 0, bneg = 0;		/* fall-back while moving up / down */
+	*skipped = 0;
 	for (i = 0; i < r->nch; i++) {
 		int c = r->ch_code[i] & 3, d = (order[c] - order[prev] + 4) % 4;
 		cum += d == 1 ? 1 : d == 3 ? -1 : 0;
+		if (d == 2)
+			(*skipped)++;	/* two positions at once: direction unknown */
 		prev = c;
 		if (cum > hi)
 			hi = cum;
@@ -2608,7 +2612,7 @@ static void cq_margin_try(cq_ruler_rec *r, inst_code *rv, const char *reason,
 			for (i = 0; i < rows * N; i++)
 				cqm_xyz2lab(cq_mctx.scols[i]->eXYZ, lab + 3 * i);
 			c.n = r->ncand < CQM_MAXC ? r->ncand : CQM_MAXC;
-			cq_margin_motion(r, &c.net, &c.back);
+			cq_margin_motion(r, &c.net, &c.back, &c.skipped);
 			for (i = 0; i < c.n; i++) {
 				double a, b, e = (double)(r->cand_ss[i] + r->cand_no[i] - 1);
 				c.ss[i] = r->cand_ss[i];

@@ -152,6 +152,34 @@ def test_a_swipe_that_moved_backwards_is_refused(tmp_path, monkeypatch):
 
 
 @needs_helper
+def test_a_ruler_that_skipped_a_step_is_never_rescued(tmp_path, monkeypatch):
+    """Re-check NIT-R3, through the real helper: the replayed ruler jumps
+    two positions once (direction unknown). The same margin swipe that is
+    rescued with a clean ruler stays refused."""
+    monkeypatch.setenv("CHROMIQ_REPLAY_INSTRUMENT", "i1pro2")
+    base, replay = _chart(tmp_path)
+    with ReplaySession(base, replay,
+                       extra_args=["--ruler", "--margin-tolerance"]) as s:
+        s.wait_event("strip_ready")
+        i = s.event_index()
+        s.send(cmd="swipe", ruler="garbled", fault="misread",
+               reason="Too many patches", margin="start")
+        rec = s.wait_event("ruler_strip", after=i)
+        s.wait_event("error", after=i)
+        s.send(cmd="quit")
+        try:
+            s.wait_event("strip_interrupted", timeout=3)
+            s.send(cmd="quit")
+        except TimeoutError:
+            pass
+        s.finish()
+    assert rec["result"] == "misread"
+    assert rec["margin"]["accepted"] is False
+    assert "skipped" in rec["margin"]["why"]
+    assert not any(e.get("event") == "strip_read" for e in s.events)
+
+
+@needs_helper
 def test_off_the_refusal_stays_and_no_field_is_added(tmp_path, monkeypatch):
     monkeypatch.setenv("CHROMIQ_REPLAY_INSTRUMENT", "i1pro2")
     base, replay = _chart(tmp_path)
