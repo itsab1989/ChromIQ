@@ -585,6 +585,14 @@ inspector**. The chart tools themselves are fully supported; note that
 *building a profile* from charts with more than four inks requires the
 [experimental profile engine](#experimental-the-chromiq-profile-engine-beta).
 
+### Charts for a film recorder (beta)
+With **Preferences → Beta → Custom page size in inches or pixels, and high
+resolution (beta)** switched on, Create Chart (Manual) takes a custom page in
+millimetres, inches or exact pixels, a resolution up to 6000, and can write the
+resolution into the chart image in pixels per inch. Step-by-step instructions
+with pictures, for 35 mm and 9.25 x 7.75 inch film recorder frames:
+[Charts for a film recorder](docs/film_recorder_pages.md).
+
 ### Tools menu — standalone utilities
 The masthead **Tools** button opens a menu of conversions and checks you can run
 on their own, outside the five-step flow:
