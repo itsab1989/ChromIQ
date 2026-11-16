@@ -2651,6 +2651,10 @@ static void cq_ruler_after_strip(const char *label, inst_code *prv) {
 	state = cq_ruler_replay ? r.giveup
 	      : cq_ruler_gen == 3 ? i1pro3_cq_ruler_state(cq_ruler_it)
 	                          : i1pro2_cq_ruler_state(cq_ruler_it);
+	if (!cq_ruler_replay && cq_ruler_gen == 2) {
+		int tw = i1pro2_cq_trigger_wait_ms(cq_ruler_it);	/* 2026-11-16, additive */
+		r.trigger_wait_ms = tw > 0 ? tw : 0;
+	}
 	cq_json_escape(esc, sizeof(esc), label != NULL ? label : "");
 	/* 4.3.37: why a strip that was not read was refused (the driver's own
 	 * words, e.g. "Not enough patches"), for the diagnostics file: the most

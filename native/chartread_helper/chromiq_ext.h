@@ -95,6 +95,7 @@ int i1pro2_cq_ruler_state(void *pp);
 int i1pro2_cq_ruler_firmware(void *pp);
 int i1pro2_cq_ruler_take(void *pp, void *out);
 int i1pro2_cq_tol_options(void *pp, int on);	/* the margin tolerance (Beta) */
+int i1pro2_cq_trigger_wait_ms(void *pp);	/* 2026-11-16, for the ruler file */
 int i1pro3_cq_ruler_options(void *pp, int on);
 void i1pro3_cq_ruler_arm(void *pp, int on);
 int i1pro3_cq_ruler_state(void *pp);

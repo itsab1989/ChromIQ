@@ -8604,8 +8604,8 @@
  "Margin tolerance (beta): this option works with the X-Rite i1Pro 2 only, so it is not used for this instrument. Strips are read exactly as without it.": "边距容差（测试版）：此选项只适用于 X-Rite i1Pro 2，因此不会用于这台仪器。色条的读取方式与没有此选项时完全相同。",
  "Strip {strip}, margin tolerance (beta): ArgyllCMS refused this reading (“{reason}”) because {what}. The reading was kept because every patch of it matches strip {strip} clearly better than any other strip, any shifted reading or the other direction, and it was then checked like every other strip.": "色条 {strip}，边距容差（测试版）：ArgyllCMS 拒绝了这次读取（“{reason}”），因为{what}。这次读取被保留，是因为它的每个色块与色条 {strip} 的吻合程度都明显好于任何其他色条、任何错位的读取或相反方向，之后它也像其他色条一样经过了检查。",
  "the reading began on the first patch, with no white paper before it, so ChromIQ kept the first patch as a patch": "读取在第一个色块上开始，前面没有白纸，所以 ChromIQ 把第一个色块作为色块保留",
- "the white paper margin at both ends of the swipe was counted as a patch, so ChromIQ left both out": "这次划动两端的白色纸边都被算成了色块，所以 ChromIQ 去掉了两者",
- "the white paper margin at the start of the swipe was counted as a patch, so ChromIQ left it out": "这次划动开头的白色纸边被算成了色块，所以 ChromIQ 去掉了它",
- "the white paper margin at the end of the swipe was counted as a patch, so ChromIQ left it out": "这次划动末尾的白色纸边被算成了色块，所以 ChromIQ 去掉了它",
+ "the white paper margin at both ends of the swipe was counted as a patch, so ChromIQ left both out": "这次扫过两端的白色纸边都被算成了色块，所以 ChromIQ 去掉了两者",
+ "the white paper margin at the start of the swipe was counted as a patch, so ChromIQ left it out": "这次扫过开头的白色纸边被算成了色块，所以 ChromIQ 去掉了它",
+ "the white paper margin at the end of the swipe was counted as a patch, so ChromIQ left it out": "这次扫过末尾的白色纸边被算成了色块，所以 ChromIQ 去掉了它",
  "its patch finder could not settle on the patches, although the ruler shows each of them in turn": "它的色块查找器无法确定色块，尽管标尺依次显示了每一个色块"
 }

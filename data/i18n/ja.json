@@ -8604,8 +8604,8 @@
  "Margin tolerance (beta): this option works with the X-Rite i1Pro 2 only, so it is not used for this instrument. Strips are read exactly as without it.": "余白の許容 (ベータ): このオプションは X-Rite i1Pro 2 でのみ動作するため、この測定器では使われません。ストリップはオプションがないときとまったく同じように読み取られます。",
  "Strip {strip}, margin tolerance (beta): ArgyllCMS refused this reading (“{reason}”) because {what}. The reading was kept because every patch of it matches strip {strip} clearly better than any other strip, any shifted reading or the other direction, and it was then checked like every other strip.": "ストリップ {strip}、余白の許容 (ベータ): ArgyllCMS はこの読み取りを拒否しました (「{reason}」)。理由: {what}。この読み取りを残したのは、そのすべてのパッチが、ほかのどのストリップよりも、ずれたどの読み取りよりも、逆方向よりも、はっきりとストリップ {strip} に一致したためで、その後、ほかのストリップと同じようにチェックされました。",
  "the reading began on the first patch, with no white paper before it, so ChromIQ kept the first patch as a patch": "読み取りが最初のパッチの上で始まり、その前に白い用紙がなかったため、ChromIQ は最初のパッチをパッチとして残しました",
- "the white paper margin at both ends of the swipe was counted as a patch, so ChromIQ left both out": "スワイプの両端の白い余白がパッチとして数えられたため、ChromIQ は両方を外しました",
- "the white paper margin at the start of the swipe was counted as a patch, so ChromIQ left it out": "スワイプの始めの白い余白がパッチとして数えられたため、ChromIQ はそれを外しました",
- "the white paper margin at the end of the swipe was counted as a patch, so ChromIQ left it out": "スワイプの終わりの白い余白がパッチとして数えられたため、ChromIQ はそれを外しました",
+ "the white paper margin at both ends of the swipe was counted as a patch, so ChromIQ left both out": "スイープの両端の白い余白がパッチとして数えられたため、ChromIQ は両方を外しました",
+ "the white paper margin at the start of the swipe was counted as a patch, so ChromIQ left it out": "スイープの始めの白い余白がパッチとして数えられたため、ChromIQ はそれを外しました",
+ "the white paper margin at the end of the swipe was counted as a patch, so ChromIQ left it out": "スイープの終わりの白い余白がパッチとして数えられたため、ChromIQ はそれを外しました",
  "its patch finder could not settle on the patches, although the ruler shows each of them in turn": "定規はパッチを一つずつ順に示しているのに、パッチ検出がパッチを確定できませんでした"
 }

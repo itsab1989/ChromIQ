@@ -28,7 +28,8 @@ SRC = (ROOT / "native" / "instlib" / "i1pro_imp.c").read_text(encoding="utf-8")
 
 def _block() -> str:
     a = SRC.index("/* CHROMIQ PATCH: the margin tolerance (Preferences > Beta, 2026-11-16).")
-    b = SRC.index("/* The helper: on (1) for this session, if this is an i1Pro 2 whose EEPROM")
+    b = SRC.index("int i1pro2_cq_trigger_wait_ms(void *pp) {", a)
+    b = SRC.index("\n}\n", b) + 3
     return SRC[a:b]
 
 
@@ -85,10 +86,13 @@ def test_the_hooks_sit_only_on_the_refusal_paths():
 
 
 def test_the_lights_trigger_is_only_timed():
-    a = SRC.index("CHROMIQ PATCH 2026-11-16: how long that took")
-    seg = SRC[a - 400:a + 300]
-    assert "i1pro2_cq_lights_trigger(p);" in seg
-    assert "m->cq_lights_wait_ms = (int)(msec_time() - cq_t0);" in seg
+    a = SRC.index("unsigned int cq_t0 = msec_time();\t/* CHROMIQ PATCH 2026-11-16")
+    b = SRC.index("m->cq_lights_wait_ms = (int)(msec_time() - cq_t0);")
+    seg = SRC[a:b]
+    # between the two time stamps only the unchanged lights call and the
+    # unchanged sanity check
+    assert seg.count("i1pro2_cq_lights_trigger(p);") == 1
+    assert "msec_sleep" not in seg and "usb" not in seg
     # the quiet time itself is the one 4.3.37 set
     assert "#define CQ_LIGHTS_QUIET_MS   2100" in SRC
 
