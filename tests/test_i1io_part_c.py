@@ -1808,8 +1808,8 @@ def test_the_simulator_s_own_front_rule_catches_a_10_mm_step(tmp_path, monkeypat
     that let it) is caught by the simulator."""
     monkeypatch.setattr(geo, "CREEP_STEP", 100)
     code, sim, log, con, res, pts = _dz_run(tmp_path / "x")
-    assert any("more than 5 mm beyond the confirmed front" in x or "longer than 5 mm" in x
-               for x in sim.violations), sim.violations
+    assert any("more than 5 mm beyond the confirmed front" in x for x in sim.violations), \
+        sim.violations
 
 
 def test_d1_s_front_choice_defaults_to_back_and_go_on_needs_its_own_yes(tmp_path):
@@ -1826,3 +1826,45 @@ def test_d1_s_front_choice_defaults_to_back_and_go_on_needs_its_own_yes(tmp_path
         if want != "worked":
             assert [k for k, _ in v] == ["d1", "f"], v       # no DZ offered after back
         assert sim.violations == []
+
+
+def test_the_front_limits_at_their_edges():
+    """Planted-fault pass of fix 2: the cap inside areas(), the 5-unit sweep slack, one creep
+    step beyond the confirmed Y and no more, from a reading inside the slack."""
+    for fy in (geo.FRONT_CAP_Y, geo.FRONT_CAP_Y + 1, 5000, 1e9):
+        t_, s_ = geo.areas(fy)
+        assert t_.ymax == geo.FRONT_CAP_Y and s_.ymax == geo.FRONT_CAP_Y
+    with pytest.raises(geo.AreaRefused):
+        geo.check_target((0, geo.FRONT_CAP_Y + 1), "x", front_y=5000)
+    t_, s_ = geo.areas(2900)
+    assert (t_.ymax, s_.ymax) == (2900, 2905)
+    t = _T()
+    t.front_y, t.creep = 2900, False
+    gate = cl.make_gate(t)
+    t.position_now = (0, 2905)
+    assert gate(geo.m0_line(0, 2000))[2] == "computed m0"         # a reading within the slack
+    t.position_now = (0, 2906)
+    with pytest.raises(tbl.ForbiddenLine):
+        gate(geo.m0_line(0, 2000))                                 # one unit beyond it
+    t.creep = True
+    t.position_now = (0, 2905)
+    assert gate(geo.m0_line(0, 2950))[2] == "computed m0"         # one step beyond 2900
+    with pytest.raises(tbl.ForbiddenLine):
+        gate(geo.m0_line(0, 2951))                                 # 46 units, but beyond 2950
+
+
+def test_the_spot_rows_are_planned_against_the_sitting_s_front(tmp_path):
+    import types
+    f, pts = _recorded_sheet(tmp_path, "S2 684.0", 18)
+    sheet = pc.load_sheet(f)
+    aims_mm = [tuple(sc.sheet_table_mm(sheet, a["page_mm"])) for a in sc.aims_of(sheet, 0)]
+    al = geo.fit_alignment(aims_mm, pts)
+    me = types.SimpleNamespace(sheet=sheet, alignment=al, page=0,
+                               d=types.SimpleNamespace(front_y=None))
+    with pytest.raises(geo.AreaRefused, match="DZ"):
+        pc.PartC.sheet_spot_rows(me)
+    me.d.front_y = 3009
+    rows = pc.PartC.sheet_spot_rows(me)
+    assert max(t[1] for r in rows for _s, _l, t in r) <= 3009
+    with pytest.raises(geo.AreaRefused, match="DZ"):
+        sc.sheet_rows(sheet, 0, al, 54)
