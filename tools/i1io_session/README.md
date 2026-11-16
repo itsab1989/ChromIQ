@@ -1,4 +1,4 @@
-# ChromIQ i1iO session test program 0.4.0 (recorded steps, one at a time)
+# ChromIQ i1iO session test program 0.5.0 (one step at a time; part C reads)
 
 **This is an unofficial test program. It is not from X-Rite, and X-Rite has
 nothing to do with it.** Running it is entirely your choice, at every single
@@ -8,8 +8,8 @@ reach.
 
 This is the next test program for the **X-Rite i1iO 2** scanning table with an
 **i1Pro 2**, written for ChromIQ issue #129 from the USB recordings you made
-with i1Profiler. After opening the table it asks you to choose **one of two
-parts** for this run:
+with i1Profiler. After opening the table it asks you to choose **one of three
+parts** for this run (to run another part, start the program again):
 
 * **Part A** is version 0.3.1, exactly as it was: the homing, three drives out
   over the empty table and back, the hand-alignment mode at the resting place,
@@ -20,15 +20,51 @@ parts** for this run:
   November (your session 3), over the **empty** table and **without
   measuring**. It is offered only after you confirm that part A (or 0.3.1) went
   well.
+* **Part C** is new in 0.5.0: ChromIQ **reads** with the i1Pro 2 on the table,
+  through its own reader (in the `bin` folder of this package): spot readings,
+  a strip reading as i1Profiler does it, and your own printed ChromIQ i1iO
+  sheet. You choose its stages one at a time. It is offered only after you
+  confirm that parts A and B went well (in this version, or in 0.3.1 and
+  0.4.0). See "Part C" below.
+
+**0.5.0 contains everything 0.4.0 has**: parts A and B are unchanged on the
+wire (we compared every simulated session of both versions byte for byte). So
+you need only this download, whether or not you ran 0.4.0.
 
 Before each step it tells you what will move, how far, how long it took when
 i1Profiler did it, what is exactly as recorded and what goes one step beyond a
 recording. You type `yes` to run it, or `skip`/`end`. After each step it asks
 what you saw, heard and felt.
 
-**It never measures, never talks to the i1Pro 2, never writes anything into
-the table's memory, and sends no line of its own for the measuring head.** It
-is not part of the ChromIQ app and does not need it.
+**Parts A and B never measure and never talk to the i1Pro 2. No part writes
+anything into the table's memory or the instrument's memory, and no part sends
+a line of its own for the measuring head.** The program is not part of the
+ChromIQ app and does not need it.
+
+## What is new in 0.5.0
+
+* Part C, twelve stages that you choose one at a time from a menu: open and
+  calibrate the instrument, spot readings at the resting place and on the
+  recorded row, the recorded strip reading of 14 November replayed, your own
+  ChromIQ sheet aimed at its three marks, a first computed move, a row and a
+  whole page in spot readings, a row and a whole page as strip readings, and
+  the homing. Each is explained first and needs your `yes`.
+* **A stage that fails cleanly does not end the sitting.** "Cleanly" means:
+  nothing is left waiting, and the arm read where it stands (or never moved).
+  The program says what failed, keeps everything about it, and offers the next
+  stage that does not depend on it. You can repeat a stage (each has its own
+  limit). Anything not clean (a movement whose end is not known, a strip move
+  that may still be waiting, a reading in the wrong place, Ctrl-C) ends the
+  sitting for good, as in parts A and B.
+* ChromIQ's own reader, `bin/chromiq-chartread`, comes with this package. It
+  is the same reader ChromIQ uses when you measure by hand (ArgyllCMS 3.5.0
+  inside), with the strip-reading mode for the table added. It never writes
+  into the instrument's memory.
+* Everything comes back in **one results zip** beside the log.
+* The end texts in all parts now say only what the last position reading
+  shows ("held when last checked", "at its resting place" only when the arm
+  read there).
+
 
 ## What is new in 0.4.0
 
@@ -234,8 +270,9 @@ Part B sends at most **114 lines and 33 movements** in one session.
 
 ## Every line it can send
 
-It can send only **45 different lines**. Each one is a line i1Profiler
-itself sent to your table in your recordings, byte for byte. `BYTES.md` lists
+In parts A and B it can send only **45 different lines**. Each one is a line i1Profiler
+itself sent to your table in your recordings, byte for byte. Part C adds five
+more recorded lines and the computed moves; see "Part C" below. `BYTES.md` lists
 each with the exact places in your recordings and its bytes. `python3
 i1io_session.py --plan` prints every step and line; `--dry-run` adds every byte.
 
@@ -347,6 +384,143 @@ state. In short:
   at its power switch or pull its power plug. That is always allowed and is the
   emergency stop.
 
+## Part C: reading with the instrument (new in 0.5.0)
+
+Part C is where ChromIQ reads for the first time with the i1Pro 2 seated in
+the arm. **Several stages are first tries: they may simply fail.** That is
+useful too: the program keeps everything about a failure for us, and we
+improve the stage from your results.
+
+### How part C works
+
+After the opening (as in parts A and B), part C shows a menu of the stages
+that can run now, with about how long each takes, and lists the others with
+the reason they cannot run yet. The first stage in the list is our
+suggestion. For each stage you choose, it explains what moves, how far and how
+long, what is exactly as recorded and what is not, our risk rating, and what
+the stage depends on; then you type `yes` (or `back` for the menu). After
+each stage it asks whether the table and the instrument did what was described
+and what you saw. If you answer `no`, it asks whether anything about the
+**table or the arm** was wrong: if yes (or not sure), nothing more moves in
+this sitting except, if you want it, the homing (F). If only the instrument or
+its readings were not as described, the sitting goes on.
+
+`END` in the menu stops part C. If the arm is out on the table, F is
+recommended first.
+
+### Where the arm may go
+
+Every target the program computes lies inside **X-Rite's specified measuring
+area of the i1iO, 320 x 230 mm**, placed on your table from where your arm has
+been in your recordings (its right edge on the furthest point to the right the
+arm ever reached, its front edge on the furthest point to the front), with 5
+mm kept free on every side: table positions X -1384 to
+1716 and Y 859 to
+3059 (0.1 mm units). The whole rectangle the arm could
+sweep on its way must lie inside it too, and every move is computed from a
+position read right before it. On your sheet, targets must also lie inside
+the three marks you aimed at. The program checks all of this before it sends
+a move, and the table line is checked once more right before it goes out. A
+move into a part of the table no recording drove the arm to (the front of an
+A4 sheet, for example) is announced first and needs its own `yes`.
+
+Strip readings use only the ten speeds i1Profiler used on your table (40 to
+138 mm/s; 54 is our suggestion), and spot moves only i1Profiler's chart speed.
+
+### The stages
+
+**C1: Open the instrument with ChromIQ's reader and calibrate it** (about 3 min; depends on: nothing; our risk rating: low). Nothing moves. Choose where to calibrate: `arm` (it stays seated, its opening on the table's white tile) or `own` (you lift it onto its own white calibration tile, then seat it back). The calibration is kept for this sitting.
+
+*What can go wrong and what to do:* The reader cannot start (the program says why: the reader not marked as runnable, macOS's quarantine, no i1Pro 2 or another instrument connected; see "Before the first run"), or the calibration fails. Clean: nothing moved; fix what it names and run C1 again.
+
+**C2: One spot reading of the table's white tile, at the resting place** (about 1 min; depends on: a spot calibration in this sitting (C1, or it calibrates itself); our risk rating: low). Nothing moves. One spot reading of the white tile under the resting arm; the program shows the values.
+
+*What can go wrong and what to do:* The reading fails or looks implausible (for example all zero). Clean: the sitting goes on.
+
+**E1: The recorded row scan of 14 November, replayed exactly (a strip reading)** (about 4 min; depends on: nothing (it calibrates for strip readings itself if C1 did not); our risk rating: medium; a first try). Part B's way out, the arm let go, you push it to the front right (as in part B), then exactly i1Profiler's strip reading of row 1 of your 14 November session, and the recorded end of the job brings the arm home.
+
+*What can go wrong and what to do:* The reader is not ready to start the strip at once: then the strip move is **never sent**, the arm stays held at the row start, and the stage fails cleanly (run F to home it). If the strip move was sent and the instrument's lamp did not start it, the program tells you to **SWITCH THE TABLE OFF** (see below).
+
+**C3: One spot reading at the first patch of the recorded spot row** (about 3 min; depends on: nothing (calibrates itself if needed); our risk rating: medium). Part B's recorded way to the first patch of row 1, then one spot reading there. The arm stays there for C4.
+
+*What can go wrong and what to do:* As part B's steps B1 to B4; a failed reading is clean.
+
+**C4: The recorded spot row, a reading at every patch** (about 2 min (5 from rest); depends on: nothing (C3's way there if needed); our risk rating: low-medium). The 27 recorded moves of row 1 with a spot reading at every patch, then the recorded end of the job. Press Enter between two patches to stop at the next one (clean).
+
+*What can go wrong and what to do:* A move that ends elsewhere or much slower or faster than recorded ends the sitting, as in part B.
+
+**D1: Your ChromIQ i1iO sheet: aim the sight at its three marks** (about 5 min; depends on: nothing (the instrument is not used); our risk rating: medium; a first try). Lay your printed ChromIQ i1iO sheet as ChromIQ printed it for the table while the arm is at rest. The arm goes to the alignment start and is let go; you aim the sight's cross hairs at mark 1, 2 and 3 and type `aimed` at each. Then the program checks the three positions against the sheet and tells you whether every patch and every row of the page lies inside the measuring area, and which way to shift the sheet if not. Nothing moves under motor after the arm is let go.
+
+*What can go wrong and what to do:* The check refuses your aims (marks swapped, a mirrored or turned sheet, a mark missed by more than 2 mm, a mark outside the area): clean, nothing moved. Push the free arm gently aside, lay the sheet again if needed, and run D1 again.
+
+**D2: The first computed move: a short one to mark 3** (about 1 min; depends on: D1 accepted in this sitting, the arm not homed since; our risk rating: medium; a first try). The first move to a computed target: from the free arm to the position the table reported for mark 3, a few centimetres. You tell us whether the round opening sits on mark 3.
+
+*What can go wrong and what to do:* Your hands still on the arm (it moved between two readings) or the free arm outside the area: clean, nothing moved. A move that ends elsewhere ends the sitting.
+
+**D3: One row of your sheet, a spot reading at every patch** (about 2 min; depends on: D1, and a spot calibration in this sitting (C1, C2, C3 or C4); our risk rating: medium; a first try). Row 1 of your sheet, patch by patch, a spot reading at each. Needs a spot calibration from C1 or C2 to C4 in this sitting.
+
+*What can go wrong and what to do:* As D2. Enter between two patches stops cleanly.
+
+**E2: One row of your sheet as a strip reading** (about 1 min; depends on: D1, and a strip calibration in this sitting (C1 or E1); our risk rating: medium; a first try). Row 1 of your sheet as a strip reading at a recorded speed you choose. Needs a strip calibration (C1 or E1).
+
+*What can go wrong and what to do:* As E1: not ready means no strip move; a strip move that may still wait means SWITCH THE TABLE OFF.
+
+**E3: Your whole page as strip readings, row by row** (about 1 min per 5 rows; depends on: D1, and a strip calibration in this sitting (C1 or E1); our risk rating: medium; a first try). Every row of your page as strip readings, one after the other, with a question after each row whether to go on.
+
+*What can go wrong and what to do:* As E2.
+
+**D4: Your whole page in spot readings, row by row** (about 1 min per row; depends on: D1, and a spot calibration in this sitting; our risk rating: medium; a first try). Every row of your page in spot readings, with a question after each row whether to go on. The longest stage.
+
+*What can go wrong and what to do:* As D3.
+
+**F: Home and end the job** (under 1 min; depends on: the arm out on the table, last read where it stands; our risk rating: low). From wherever the arm stands (held or free, inside the measuring area), i1Profiler's end of a job: the homing, then the lines that switch the hand-alignment mode off, and a last position reading at the resting place.
+
+*What can go wrong and what to do:* The arm outside the measuring area: the homing is not sent (a free arm can be pushed gently back over the middle and F run again). The table refusing the homing ends the sitting; then open i1Profiler once.
+
+The stages build on each other only where they must: D2 to E3 need D1 in the
+same sitting (a homing in between means aiming again), D3 and D4 a spot
+calibration, E2 and E3 a strip calibration. Everything else can run in any
+order. Part C sends at most **8122 lines and 2841 movements** in one
+sitting, and each stage at most its own number.
+
+### The lines part C adds
+
+Five lines that i1Profiler sent to your table, byte for byte: `p1` (the
+position under the alignment sight, sent after each aim), and the four lines
+around every one of i1Profiler's 44 recorded strip readings, `c4`, `d1`
+(always with the value 365), `a3` and `c3`. And the **computed moves**: the
+same form as i1Profiler's recorded moves, only with other target numbers,
+inside the measuring area: `m0` at i1Profiler's chart speed, and the strip
+move `m2` at one of the ten recorded speeds. `BYTES.md` lists them with their
+recorded places. Nothing else: no memory or configuration writes, no line
+never seen in a recording.
+
+### The strip move and the table switch
+
+A strip reading works like this, exactly in i1Profiler's order: the arm
+drives to the row start, the reader prepares the instrument, and only when the
+reader answers that it can start **at once** is the strip move sent. The table
+then **waits** for the instrument's lamp, which the reader switches on right
+after; the lamp starts the move. If the lamp did not start it, the table could
+be left waiting with no line known to cancel it. Then the program says:
+
+**SWITCH THE TABLE OFF NOW with its power switch.** Do not open i1Profiler
+while the table is on (its lamp could start that move). After switching off,
+wait ten seconds, switch on, then open i1Profiler once to bring the arm home.
+
+It also leaves a file `SCAN_MOVE_MAY_BE_PENDING.txt` in the results. We do not expect
+this, but it is the one state nothing sent can end, so you should know it.
+
+### What the instrument part does on a Mac
+
+ChromIQ's reader opens the i1Pro 2 with the ArgyllCMS instrument library, as
+ChromIQ does when you measure by hand. On a Mac that library **closes X-Rite's
+background service i1ProDeviceService** when it opens the instrument (that is
+how ArgyllCMS always opens an i1Pro; its own note says the service starts
+again by itself). The program tells you before the first reading. The
+calibration is ArgyllCMS's own, kept in ArgyllCMS's usual file on your Mac,
+not in the instrument.
+
 ## Before you start
 
 You need a Mac, the i1iO 2 with its i1Pro 2, and Python 3.8 or newer. The
@@ -360,7 +534,32 @@ python3 i1io_session.py
 python3 i1io_session.py --sim cold
 ```
 
-These run on a **simulated table**; nothing is sent to any device.
+These run on a **simulated table**; nothing is sent to any device. Choose
+`c` to practise part C: it uses a simulated instrument and a demo sheet that
+comes with this package (`demo/demo-sheet.i1io.json`), and writes a results
+zip like the real run.
+
+### Before the first run of part C: the reader
+
+Part C starts ChromIQ's reader `bin/chromiq-chartread` from this package. macOS
+marks everything downloaded from the internet, and then refuses to start such
+a program from the Terminal. In the Terminal, in this folder, once:
+
+```
+xattr -d com.apple.quarantine bin/chromiq-chartread
+chmod +x bin/chromiq-chartread
+```
+
+The first line removes that mark (if it says "No such xattr", the mark was not
+there, which is fine); the second marks the reader as runnable. If either is
+needed and missing, part C says so before it starts the reader, and nothing is
+sent. The reader runs on Apple silicon and Intel Macs with macOS 13 or newer.
+
+For D1 to E3 you need your printed **ChromIQ i1iO sheet** and its file
+(ending `.i1io.json`, beside the `.ti2` in the run folder of your ChromIQ
+project). Start the program with `--sheet` and that file, or drag the file
+into the Terminal window when D1 asks for it. If your sheet has more than one
+page, add `--page 2` and so on.
 
 ### What to install for the real table
 
@@ -390,9 +589,15 @@ venv/bin/python3 i1io_session.py --real
 It explains the risks, asks five short questions and three more about the
 time since you quit i1Profiler and the lights (please do not touch the arm
 before the first homing), and asks you to type `I understand that this moves
-my table`. Then it asks which part you want (`a`, `b` or `end`; for `b`, three
-questions about your part A or 0.3.1 run), opens the table and offers the
-steps. Answer
+my table`. Then it asks which part you want (`a`, `b`, `c` or `end`; for `b`,
+three questions about your part A or 0.3.1 run; for `c`, the same three and one
+about part B), opens the table and offers the steps or, in part C, the menu of
+stages. For part C with your sheet:
+
+```
+venv/bin/python3 i1io_session.py --real --sheet /path/to/your-chart.i1io.json
+```
+ Answer
 each question by typing the whole word (`yes`, `skip`, `end`, `no`, `not sure`,
 `stop`, `holds`, `free`, `placed`) and pressing Enter.
 
@@ -409,7 +614,18 @@ program if macOS names it, and lists what usually helps; nothing is sent.
 
 ## What to send back
 
-The log file in the folder you started it from (`i1io-session-<date>-<time>.txt`):
+**Part C: the ONE results zip** in the folder you started it from
+(`i1io-session-<date>-<time>-results.zip`). It holds the log and the results
+folder: every stage's result, the readings (spot readings and strip readings,
+as `.ti3` files ChromIQ can read), the plans and positions of every row, and
+the raw reading streams. It holds no serial number and nothing from the
+memory of the table or the instrument. If you have **an i1Profiler measurement
+of the same sheet or chart** (for E1, C3 and C4 your iO chart of 14 November;
+for D and E stages your ChromIQ sheet measured in i1Profiler's own mode), please
+send it too: comparing the two is how we learn whether ChromIQ's readings on
+the table are right.
+
+For parts A and B, the log file in the folder you started it from (`i1io-session-<date>-<time>.txt`):
 every line sent and received with times, how long each movement took, every
 position the arm reported, and your answers. It holds **no serial number**.
 Please read it first, then send it the private way you agreed with Basti, or

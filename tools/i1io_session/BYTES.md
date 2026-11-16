@@ -1,11 +1,13 @@
-# BYTES.md: everything chromiq-i1io-session 0.4.0 can send to the table
+# BYTES.md: everything chromiq-i1io-session 0.5.0 can send to the table
 
 This file is the allow-list. `tests/test_i1io_session_tool.py` reads the table below and fails
 if the program's own list (`i1io_session_table.WIRE`) differs from it by a single byte, or if any
 simulated session, on any path, with any fault, any stop or Ctrl-C at any point, writes a byte
 string that is not in it. Nothing outside this file is ever written to the table's bulk OUT
 endpoint 0x02. Part A may send only lines 1 to 16 (0.3.1's lines); part B may send lines 1 to
-11, 14 to 16 and 17 to 45 (not the two moves of part A's step 2).
+11, 14 to 16 and 17 to 45 (not the two moves of part A's step 2). Part C (0.5.0) has its own
+section at the end of this file: lines 1 to 11, 14 to 45, five further recorded lines, and
+computed moves of a recorded form.
 
 Sources (seconds from the start of each recording): **R1**, **R2** the tester's recordings of
 12/13 Nov 2026; **S1** the cold-start recording and **S2** the measuring recording of 14 Nov
@@ -131,10 +133,60 @@ As recorded at every open: bmRequestType 0x40, wIndex 0, about 4 ms apart: reset
 | f0, f3 | `:$f00007C`, `:$f300079` (00) |
 | f1 | `:$f10017A` (01) |
 
-## Never sent (not in this program, and the tests check that no such line exists in it)
+## Never sent in parts A and B (the tests check that no such line exists in their code)
 
 i0 (start-up of a cold table), m2, c3, c4, d1, a3 (the scanning lines, which occur only
 between "arm at a patch" and "reading" in a scan), p1, any u8 other than the two reads, any
 write to the table's or the instrument's memory, any m0 other than the 32 fixed lines, any m1
 other than the one recorded line, any other speed, any traffic to the i1Pro 2, and any command
 id or argument not in the table above.
+
+## Part C (0.5.0): what it adds
+
+Part C's gate is `i1io_c_lines.classify` (called by `Table._write` for every line, and once
+more by the USB writer itself). It passes exactly three kinds of line and nothing else
+(`tests/test_i1io_part_c.py` checks every line of every simulated sitting against it, and that
+it refuses every other form):
+
+1. Lines 1 to 11 and 14 to 45 above, byte for byte (not part A's two moves to Y 250 and Y 1000).
+2. Five further lines, each byte for byte as i1Profiler sent it to the tester's table:
+
+| # | line (ASCII, then CR) | hex | name in the program | recorded at |
+|---|---|---|---|---|
+| C1 | `;p124` | `3b 70 31 32 34 0d` | aim | after each of the 30 button presses of the ten recorded alignments, 3-5 ms after the press, arm free (R1 263.517 ... S2 710.005); answer 8 data characters |
+| C2 | `;c42e` | `3b 63 34 32 65 0d` | scan_c4 | at the start of all 44 recorded row scans, 1 ms after the i1Pro 2's lights-off (R1 9, R2 12, S2 23); answer one byte B7..BB, 0.171-0.218 s |
+| C3 | `;d1016d35` | `3b 64 31 30 31 36 64 33 35 0d` | scan_d1 | before all 44 recorded row scans, always 016d (365); answer the echo 016D |
+| C4 | `;a331` | `3b 61 33 33 31 0d` | scan_a3 | 0.016 s after all 44 recorded m2 lines, while the scan move waits; answer A, T, V |
+| C5 | `;c32f` | `3b 63 33 32 66 0d` | scan_c3 | right after a3 in all 44 recorded row scans; answer no data |
+
+3. COMPUTED moves, built only by `i1io_geometry.m0_line` / `m2_line`, in exactly the recorded
+   form apart from the numbers (`;m0` or `;m2`, X, Y as 16-bit two's complement in lower-case
+   hex, the speed, the recorded checksum rule, CR):
+   * `m0` only at the recorded chart speed **300**;
+   * `m2` (the strip move) only at a recorded scan speed: 40, 53, 54, 61, 87, 88, 110, 118, 137, 138 (mm/s);
+   * the target inside the measuring area X -1384..1716,
+     Y 859..3059 (X-Rite's 320 x 230 mm placed as
+     derived in `i1io_geometry.py`, minus 5 mm on every side);
+   * only right after a position reading, and the whole rectangle swept from that reading to
+     the target inside X -1434..1766, Y 809..3109.
+
+Answers part C expects to its own lines (anything else is a doubt):
+
+| line | answer |
+|---|---|
+| p1 | status 0, 8 hex characters (a position) |
+| c4 | status 0, one byte; only B7..BB (recorded) lets the strip go on |
+| d1 | status 0, the echo `016D` |
+| m0 (computed) | status 0, no data, inside the time window predicted from the recorded moves |
+| m2 | accepted at once; its done answer only after the instrument's lamp, within the recorded 0.42-0.50 s after lamp + T + A (accepted 0.25-1.20) |
+| a3 | status 0, 20 hex characters (A, T, V; compared with the plan, logged) |
+| c3 | status 0, no data |
+
+Part C sends at most **8122 lines and 2841 movements** in one sitting.
+
+Never sent in part C either: i0, any u8 other than the two reads, any write to the memory of
+the table or the instrument, any other speed, any target outside the area, any line form not
+seen in a recording. The instrument (0971:2000) is opened only by ChromIQ's reader in `bin/`;
+what the reader sends to it is the reader's own (ArgyllCMS 3.5.0's i1Pro driver, the same
+requests as ChromIQ 4.3.41 when you measure by hand; for strip readings, i1Profiler's requests
+byte for byte); its memory write is compiled out.

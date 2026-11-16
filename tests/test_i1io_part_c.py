@@ -866,3 +866,82 @@ def test_the_reader_is_never_asked_for_a_beta_flag_or_a_memory_write():
                  "write_eeprom"):
         assert f'"{flag}' not in src
     assert src.count("subprocess.Popen(") == 1
+
+
+# ---- what the package says ------------------------------------------------------------------
+
+def _flat(text):
+    return " ".join(text.split())
+
+
+def test_the_readme_describes_part_c_truly():
+    readme = _flat((PKG / "README.md").read_text(encoding="utf-8"))
+    assert "—" not in readme
+    for st in pc.STAGES:
+        assert f"{st.key.upper()}: {st.title}" in readme, st.key
+        assert pc.NEEDS_TEXT[st.key] in readme, st.key
+    a = geo.MEASURING_AREA
+    assert f"X {a.xmin} to {a.xmax} and Y {a.ymin} to {a.ymax}" in readme
+    assert f"at most **{pc.C_MAX_LINES} lines and {pc.C_MAX_MOVES} movements**" in readme
+    for needed in ("What is new in 0.5.0", "0.5.0 contains everything 0.4.0 has",
+                   "xattr -d com.apple.quarantine bin/chromiq-chartread",
+                   "chmod +x bin/chromiq-chartread", "i1ProDeviceService",
+                   "SWITCH THE TABLE OFF NOW", sc.PENDING_MARKER, "ONE results zip",
+                   "i1Profiler measurement of the same sheet", "--sheet",
+                   "A stage that fails cleanly does not end the sitting",
+                   "320 x 230 mm"):
+        assert needed in readme, needed
+    for k, v in cl.C_FIXED.items():
+        assert f"`{v.decode()[1:3]}`" in readme, k
+
+
+def test_bytes_md_lists_part_c_s_lines_and_rules():
+    b = (PKG / "BYTES.md").read_text(encoding="utf-8")
+    for k, v in cl.C_FIXED.items():
+        assert f"| `{v.decode().rstrip(chr(13))}` | `{v.hex(' ')}` | {k} |" in b, k
+    assert ", ".join(str(v) for v in geo.RECORDED_M2_SPEEDS) in b
+    assert f"at most **{pc.C_MAX_LINES} lines and {pc.C_MAX_MOVES} movements**" in b
+    assert "0.5.0" in b.splitlines()[0]
+
+
+def test_the_stage_texts_say_no_untrue_thing():
+    text = _flat(" ".join(st.explain + " " + st.beyond for st in pc.STAGES))
+    for wrong in ("towards the resting place", "never fails", "cannot fail", "guaranteed",
+                  "safe in every case", "—"):
+        assert wrong not in text, wrong
+    # the stages that are first tries say so
+    for st in pc.STAGES:
+        if st.key in ("e1", "d1", "d2", "d3", "e2", "e3", "d4"):
+            assert st.first_try, st.key
+
+
+NEW_FILES = ("i1io_part_c.py", "i1io_part_c_sim.py", "i1io_c_lines.py", "i1io_geometry.py",
+             "i1io_reader.py", "i1io_scan.py")
+
+
+def test_no_em_dash_and_standard_library_only_in_part_c():
+    import ast
+    allowed = {"__future__", "csv", "json", "os", "time", "dataclasses", "pathlib", "math",
+               "random", "re", "queue", "subprocess", "sys", "threading", "plistlib",
+               "i1io_c_lines", "i1io_geometry", "i1io_reader", "i1io_scan",
+               "i1io_session_table", "i1io_session_sim", "i1io_part_c"}
+    for name in NEW_FILES:
+        src = (PKG / name).read_text(encoding="utf-8")
+        assert "—" not in src, name
+        for node in ast.walk(ast.parse(src)):
+            if isinstance(node, ast.Import):
+                mods = [a.name.split(".")[0] for a in node.names]
+            elif isinstance(node, ast.ImportFrom):
+                mods = [(node.module or "").split(".")[0]]
+            else:
+                continue
+            for m in mods:
+                assert m in allowed, (name, m)
+
+
+def test_part_c_writes_to_the_table_only_through_table_write():
+    for name in NEW_FILES:
+        src = (PKG / name).read_text(encoding="utf-8")
+        if name == "i1io_part_c_sim.py":
+            continue
+        assert ".t.write(" not in src and "dev.write(" not in src, name
