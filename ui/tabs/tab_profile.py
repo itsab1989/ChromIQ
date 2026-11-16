@@ -239,15 +239,22 @@ def build_from_help() -> str:
            "when the readings were changed in another way since (for example "
            "imported, or replaced), when an averaged measurement has a read "
            "without that condition, or when the build merges earlier "
-           "measurements. Point at a greyed entry to see the reason for it."),
+           "measurements. A measurement that does not record which condition "
+           "it was measured in (this can happen when a measurement ended "
+           "unexpectedly) is offered only “As measured (condition not "
+           "recorded)”, and the other conditions are greyed out for it. "
+           "Point at a greyed entry to see the reason for it."),
         tr("**The profile's name.** A profile built from M1 or M2 gets “-M1” "
            "or “-M2” at the end of its default description, so you can tell "
            "it apart later. A description you typed yourself is left as it "
            "is."),
-        tr("**Please note:** the M1 and M2 values ArgyllCMS computes for the "
-           "i1Pro 3 have not yet been compared with the values X-Rite "
-           "i1Profiler gives for the same chart, so please compare them "
-           "before you rely on them."),
+        tr("**Please note:** ArgyllCMS's M1 values for the i1Pro 3 have been "
+           "compared with X-Rite i1Profiler's on one i1Pro 3 and one paper so "
+           "far: over 192 patches they differed by 0.2 to 0.3 ΔE00 on "
+           "average, while i1Profiler's own two readings of the same chart "
+           "differed from each other by 0.12. Its M0 and M2 values have not "
+           "been compared yet, so please compare those before you rely on "
+           "them."),
     ))
 
 

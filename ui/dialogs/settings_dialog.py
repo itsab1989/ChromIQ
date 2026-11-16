@@ -9837,11 +9837,17 @@ def i1pro3_conditions_help() -> str:
     (i1pro3_comp_refl_value, i1pro3_cq_cond_*), the helper's --condition-dir
     and workflow/i1pro3_conditions.py."""
     return "\n\n".join((
-        tr("**Not yet compared with i1Profiler.** ArgyllCMS's M1 and M2 "
-           "values for the i1Pro 3 have not yet been checked against X-Rite "
-           "i1Profiler's on the same chart. If you have i1Profiler, "
-           "measuring one chart in both programs and sending the files to "
-           "the ChromIQ project would help a lot."),
+        # 2026-11-16: one tester's chart measured in both programs (the
+        # work notes' compare/cmp_by_rgb.py: 192 patches paired by RGB)
+        tr("**Compared with i1Profiler for M1, on one instrument so far.** "
+           "ArgyllCMS's M1 values for the i1Pro 3 have been compared with "
+           "X-Rite i1Profiler's on one i1Pro 3 and one paper: over 192 "
+           "patches they differed by 0.2 to 0.3 ΔE00 on average, while "
+           "i1Profiler's own two readings of the same chart differed from "
+           "each other by 0.12. Its M0 and M2 values have not been compared "
+           "yet. If you have i1Profiler, measuring one chart in both "
+           "programs and sending the files to the ChromIQ project would help "
+           "a lot."),
         tr("An X-Rite i1Pro 3 reads every strip in one pass with two kinds "
            "of light: its normal lamp and its ultraviolet (UV) light. From "
            "that one pass, ArgyllCMS works out the reading under all three "
@@ -9914,9 +9920,10 @@ def i1pro3_conditions_confirmation() -> str:
         "also in the other two conditions, from the same pass.\n\n"
         "•  In Build Profile you can then choose which condition the profile "
         "is made from.\n\n"
-        "•  ArgyllCMS's M1 and M2 values for the i1Pro 3 have not yet been "
-        "compared with X-Rite i1Profiler's on a real chart. Nothing extra is "
-        "sent to the instrument.\n\n"
+        "•  ArgyllCMS's M1 values for the i1Pro 3 have been compared with "
+        "X-Rite i1Profiler's on one instrument and one paper so far (0.2 to "
+        "0.3 ΔE00 apart on average); its M0 and M2 values not yet. Nothing "
+        "extra is sent to the instrument.\n\n"
         "•  You use it at your own risk, and you can switch it off again at "
         "any time.\n\n"
         "Would you like to turn it on?")

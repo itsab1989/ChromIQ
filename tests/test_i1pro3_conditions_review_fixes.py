@@ -281,3 +281,22 @@ def test_a_temporary_file_a_crash_left_is_pruned_only_when_it_is_ours(tmp_path):
     assert gone == [stray] and not stray.exists()
     for p in (fresh, other_name, main_tmp, elsewhere):
         assert p.is_file(), p
+
+
+def test_the_help_names_the_condition_not_recorded_case_and_the_m1_comparison():
+    """4.3.42: "Why an entry can be greyed out" names the measurement that
+    records no condition (review F1's case), and the honest limit says what
+    was compared: M1 on one i1Pro 3 and one paper (192 patches, 0.2 to 0.3
+    dE00 on average, i1Profiler's own two readings 0.12 apart), M0 and M2
+    not yet (the work notes' compare/cmp_by_rgb.py, re-run 2026-11-16)."""
+    from ui.dialogs.settings_dialog import (i1pro3_conditions_confirmation,
+                                            i1pro3_conditions_help)
+    from ui.tabs.tab_profile import build_from_help
+    b = " ".join(build_from_help().split())
+    assert "As measured (condition not recorded)" in b
+    for text in (b, " ".join(i1pro3_conditions_help().split())):
+        assert "192 patches" in text and "0.2 to 0.3 ΔE00" in text
+        assert "0.12" in text and "M0 and M2 values have not been compared" in text
+        assert "have not yet been" not in text
+    c = " ".join(i1pro3_conditions_confirmation().split())
+    assert "M0 and M2 values not yet" in c and "not yet been compared" not in c
