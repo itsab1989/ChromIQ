@@ -197,14 +197,18 @@ def test_the_program_writes_only_in_one_place_and_through_the_gate():
     assert src.count("self.t.write(") == 1
     assert src.count("self.dev.write(") == 1
     assert len(re.findall(r"ctrl_transfer\(", src)) == 1
-    assert ".write(" not in _source("i1io_session.py").replace("fh.write(", "")
+    # 0.5.0: z.write is the results zip (files only, never the table)
+    assert ".write(" not in _source("i1io_session.py").replace("fh.write(", "").replace(
+        "z.write(", "")
 
 
 def test_standard_library_only():
     allowed = {"__future__", "argparse", "datetime", "platform", "signal", "subprocess", "sys",
                "tempfile", "textwrap", "pathlib", "re", "time", "dataclasses", "math", "random",
                "os", "ctypes", "termios", "fcntl", "usb", "plistlib", "select", "i1io_session_table",
-               "i1io_session_sim"}
+               "i1io_session_sim",
+               # 0.5.0: the results zip and part C's own modules (their imports: test_i1io_part_c)
+               "zipfile", "i1io_part_c", "i1io_part_c_sim"}
     for name in PROGRAM_FILES:
         for node in ast.walk(ast.parse(_source(name))):
             if isinstance(node, ast.Import):
@@ -814,7 +818,10 @@ def test_the_zip_is_reproducible_and_runs_from_a_clean_folder(tmp_path):
     with zipfile.ZipFile(za) as z:
         names = sorted(n.split("/", 1)[1] for n in z.namelist())
         assert names == sorted(["README.md", "BYTES.md", "i1io_session.py",
-                                "i1io_session_table.py", "i1io_session_sim.py", "LICENSE"])
+                                "i1io_session_table.py", "i1io_session_sim.py", "LICENSE",
+                                "i1io_part_c.py", "i1io_part_c_sim.py", "i1io_c_lines.py",
+                                "i1io_geometry.py", "i1io_reader.py", "i1io_scan.py",
+                                "demo/demo-sheet.i1io.json", "bin/chromiq-chartread"])
         z.extractall(tmp_path / "x")
     folder = next((tmp_path / "x").iterdir())
     for sim in ("cold", "warm"):

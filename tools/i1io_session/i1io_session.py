@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 the ChromIQ authors. Part of ChromIQ (https://github.com/itsab1989/ChromIQ).
-"""ChromIQ i1iO session test program 0.4.0: open an X-Rite i1iO 2 table that is already
-started, the way i1Profiler opens it, and then offer one of two parts, one step at a time.
+"""ChromIQ i1iO session test program 0.5.0: open an X-Rite i1iO 2 table that is already
+started, the way i1Profiler opens it, and then offer one of three parts, one step at a time.
 Part A is version 0.3.1's steps, unchanged: the homing, three recorded drives out and back
 home, the hand-alignment mode at rest, and the close. Part B (new) drives i1Profiler's
 recorded spot measurement of row 1 over the EMPTY table, without measuring: the way to the
 alignment start, the arm let go and placed by hand, the 28 recorded patch moves, and
 i1Profiler's end of the job. Each step is explained first, needs your yes, and is followed
-by questions about what you saw, heard and felt. It never measures.
+by questions about what you saw, heard and felt. Parts A and B never measure. Part C (new in
+0.5.0, i1io_part_c.py) READS with the i1Pro 2 through ChromIQ's own reader in bin/: spot
+readings, a strip reading, your own ChromIQ i1iO sheet; stages you choose one at a time.
 
     python3 i1io_session.py              practice run on a SIMULATED table (nothing is opened)
     python3 i1io_session.py --sim cold   the same, for a table that has just been switched on
@@ -38,8 +40,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import i1io_session_table as tbl  # noqa: E402
 from i1io_session_table import Doubt, Stopped  # noqa: E402
 
-TITLE = (f"ChromIQ i1iO session test program {tbl.TOOL_VERSION} (recorded steps, one at "
-         "a time, each with your yes; never measures)")
+TITLE = (f"ChromIQ i1iO session test program {tbl.TOOL_VERSION} (one step at a time, each "
+         "with your yes; parts A and B never measure, part C reads with the i1Pro 2)")
 CONFIRM_SENTENCE = "i understand that this moves my table"
 HANDS = "Keep your hands and everything else away from the arm while it moves."
 PLUG = ("If anything looks or sounds wrong while the arm moves, switch the table off at its "
@@ -189,7 +191,7 @@ B_RISK_WORDS = {
 
 # ---- 0.4.0: choosing a part, and part B's texts ---------------------------------------------
 PART_INTRO = (
-    "This program has two parts. You choose one for this run; to run the other one, start "
+    "This program has three parts. You choose one for this run; to run another one, start "
     "the program again.\n"
     "Part A: the steps of version 0.3.1, exactly as they were (the homing, three drives out "
     "over the empty table and back, the hand-alignment mode at the resting place, the close). "
@@ -198,9 +200,15 @@ PART_INTRO = (
     "EMPTY table and without measuring: the drive to the place where i1Profiler starts an "
     "alignment, the arm let go there, you push it by hand to the front right, then the motors "
     "take it and step it along row 1 (28 recorded moves), and it is sent home. Six steps, "
-    "about five minutes. Part B is offered only after part A (or 0.3.1) went well.")
-ASK_PART = "Which part do you want to run now? (a, b, or end to stop here)"
-PART_CHOICES = ("a", "b", "end")
+    "about five minutes. Part B is offered only after part A (or 0.3.1) went well.\n"
+    "Part C (new in 0.5.0): READING with the i1Pro 2 on the table, through ChromIQ's own "
+    "reader (in the bin folder of this package): spot readings, a strip reading as i1Profiler "
+    "does it, and your own printed ChromIQ i1iO sheet. You choose its stages one at a time; "
+    "each is explained first, and a stage that fails cleanly does not end the sitting. "
+    "Everything goes into one results zip to send back. Part C is offered only after parts A "
+    "and B went well (in this version or in 0.3.1 and 0.4.0).")
+ASK_PART = "Which part do you want to run now? (a, b, c, or end to stop here)"
+PART_CHOICES = ("a", "b", "c", "end")
 GATE_QUESTIONS = (
     ("Have you already run part A of this program, or version 0.3.1, on this table, and did "
      "its step 4 (out 15 cm, across to the far side, back, and home) run to its end and do "
@@ -210,6 +218,16 @@ GATE_QUESTIONS = (
     ("In that step 5, when the arm was let go, did anything move or make a sound?",
      ("no", "yes", "not sure"), "no"),
 )
+#: 0.5.0: part C builds on part B's way out and its free arm, so it asks about part B as well.
+C_GATE_QUESTIONS = GATE_QUESTIONS + (
+    ("Have you already run part B (in this version or in 0.4.0) on this table, and did it run "
+     "to its end (row 1 and the arm sent home) and do what was described?",
+     ("yes", "no", "not sure"), "yes"),
+)
+C_GATE_REFUSED = (
+    "Then part C is not offered yet: its stages use part B's way out and part B's free arm. "
+    "Please run part A and then part B first (start the program again for each) and send us "
+    "their logs. Nothing was sent to the table.")
 GATE_REFUSED = (
     "Then part B is not offered yet: it builds on exactly those steps (the drive across to the "
     "far side, and the hand-alignment mode). Please run part A first and send us the log. "
@@ -600,8 +618,17 @@ def _plan_ops(step: tbl.Step, row) -> "list[str]":
 
 class Session:
     def __init__(self, table: tbl.Table, ui, simulated: bool, other_program=None,
-                 answers=None, sim_hand=None):
+                 answers=None, sim_hand=None, part_c=None, sim_aim=None, on_part=None):
         self.d, self.ui, self.simulated = table, ui, simulated
+        #: 0.5.0: builds part C's runner (i1io_part_c.PartC) when part C is chosen
+        self.part_c_factory = part_c
+        self.part_c = None
+        #: simulated runs only: puts the simulated sight on aim n (part C, D1)
+        self.sim_aim = sim_aim
+        #: called with the chosen part before anything is sent (the simulator's part C rules)
+        self.on_part = on_part
+        #: the tests: end part C when every stage has been offered once
+        self.auto_end_when_done = False
         self.other_program = other_program or (lambda: False)
         self.answers: "list[tuple[str, str]]" = list(answers or [])
         self.stopped_by_person = False
@@ -617,6 +644,10 @@ class Session:
 
     def note(self, question: str, answer: str) -> None:
         self.answers.append((question, answer))
+
+    def poll_enter(self) -> bool:
+        """Part C, between two patches or rows: has the person pressed Enter? Never waits."""
+        return bool(getattr(self.ui, "poll_enter", lambda: False)())
 
     def _free_touch(self) -> str:
         ans = self.ui.ask(ASK_FREE_TOUCH, FREE_CHOICES)
@@ -648,15 +679,15 @@ class Session:
         self.ui.say(PART_INTRO)
         part = self.ui.ask(ASK_PART, PART_CHOICES)
         self.note("part", part)
-        if part != "b":
+        if part not in ("b", "c"):
             return part
-        for q, choices, good in GATE_QUESTIONS:
+        for q, choices, good in (GATE_QUESTIONS if part == "b" else C_GATE_QUESTIONS):
             ans = self.ui.ask(q, choices)
             self.note(q, ans)
             if ans != good:
-                self.ui.say(GATE_REFUSED)
+                self.ui.say(GATE_REFUSED if part == "b" else C_GATE_REFUSED)
                 return "refused"
-        return "b"
+        return part
 
     def offer_b(self, n: int, step: tbl.Step) -> str:
         self.ui.say("")
@@ -807,11 +838,16 @@ class Session:
         """The whole session. 0: ended as chosen; 1: stopped by you or cold table; 2: a doubt."""
         try:
             part = self.choose_part()
-            if part not in ("a", "b"):
+            if part not in ("a", "b", "c") or (part == "c" and self.part_c_factory is None):
                 self.d.close_for_sending("no part was chosen")
                 return 0 if part == "end" else 1
             self.part = part.upper()
             self.d.part = self.part
+            if self.on_part is not None:
+                self.on_part(self.part)
+            if self.part == "C":
+                # part C's gate and caps are in place before the first line of the opening
+                self.part_c = self.part_c_factory(self)
             self.ui.log("INFO", f"part {self.part} chosen")
             self.ui.say("Talking to the table. Nothing moves yet.")
             if self.d.opening() == "cold":
@@ -823,6 +859,8 @@ class Session:
                         "not tell whether the motors hold the arm).")
             if self.part == "B":
                 return self.go_b()
+            if self.part == "C":
+                return self.part_c.run()
             for n, step in enumerate(tbl.STEPS, 1):
                 if not self.d.can_run(step):
                     continue
@@ -892,6 +930,17 @@ class Session:
         return "maybe out"
 
     def ending(self, code: int) -> None:
+        if self.part == "C":
+            try:
+                import i1io_part_c
+                self.ui.say("")
+                for text in i1io_part_c.where_text(self.d):
+                    self.ui.say(text)
+                if self.part_c is not None:
+                    self.part_c.finish()
+            except BaseException:
+                pass
+            return
         if self.part == "B":
             try:
                 self.ui.say("")
@@ -950,7 +999,7 @@ class Session:
         """0.3.1: only after a session that ended as chosen (no early stop) with a homing
         finished at the resting place as the last movement."""
         return (code == 0 and self.d.lines_sent > 0 and not self.d.motion_unconfirmed
-                and not self.stopped_by_person
+                and not self.stopped_by_person and self.part != "C"
                 and self.where() == "home"
                 and self.seen_ok)
 
@@ -1165,6 +1214,27 @@ PRE_QUESTIONS = (
 )
 
 
+# ---- the results zip (0.5.0) ----------------------------------------------------------
+
+def make_results_zip(log_path: Path, results_dir: Path, zip_path: Path) -> str:
+    """ONE zip to send back: the log and the results folder. Holds no serial number (the log
+    never writes the table's memory down; the reader reports none) and no device memory."""
+    import zipfile
+    try:
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+            if log_path.exists():
+                z.write(log_path, log_path.name)
+            if results_dir.is_dir():
+                for f in sorted(results_dir.rglob("*")):
+                    if f.is_file():
+                        z.write(f, str(Path(results_dir.name) / f.relative_to(results_dir)))
+    except OSError as exc:
+        return (f"The results zip could not be written ({type(exc).__name__}). Please send the "
+                f"log {log_path.name} and the folder {results_dir.name} instead.")
+    return (f"Everything to send back is in ONE file: {zip_path.name} (the log and the results "
+            "of part C). Please read the log before you send it anywhere.")
+
+
 # ---- main ------------------------------------------------------------------------------
 
 def main(argv=None, sim_table=None, console=None) -> int:
@@ -1180,6 +1250,9 @@ def main(argv=None, sim_table=None, console=None) -> int:
     ap.add_argument("--auto", action="store_true",
                     help="simulated run only: answer every question automatically")
     ap.add_argument("--log", help="where to write the log file (default: this folder)")
+    ap.add_argument("--sheet", help="part C: your ChromIQ i1iO sheet's file (ending .i1io.json, "
+                                    "beside the .ti2 in the run folder); asked for if needed")
+    ap.add_argument("--page", type=int, default=1, help="part C: which page of the sheet (1)")
     ap.add_argument("--version", action="version", version=TITLE)
     args = ap.parse_args(argv)
 
@@ -1188,6 +1261,8 @@ def main(argv=None, sim_table=None, console=None) -> int:
         return 0
     if args.real and args.auto:
         ap.error("--auto is only for the simulated table")
+    if args.page < 1:
+        ap.error("--page starts at 1")
     if sys.version_info < (3, 8):
         print("This program needs Python 3.8 or newer.")
         return 2
@@ -1240,6 +1315,11 @@ def main(argv=None, sim_table=None, console=None) -> int:
                                   f"{tbl.STEP_MAX_MOTIONS[s.key]}" for s in tbl.STEPS))
     log("INFO", "the table's memory answers (they hold its serial number) are checked for "
                 "length and their first 8 bytes and never written down")
+    #: 0.5.0: part C's results go into this folder, and at the very end the log and it into
+    #: ONE zip beside the log (the file to send back)
+    results_dir = log_path.with_name(log_path.stem + "-results")
+    zip_path = log_path.with_name(log_path.stem + "-results.zip")
+    part_c_used = []
     ui = console or Console(log)
     if console is not None:
         console.log = log
@@ -1315,8 +1395,9 @@ def main(argv=None, sim_table=None, console=None) -> int:
                 ui.say(str(exc))
                 return 2
         else:
-            from i1io_session_sim import SimTable, SimTransport
-            sim = sim_table or SimTable(cold=(args.sim == "cold"))
+            from i1io_session_sim import SimTransport
+            from i1io_part_c_sim import CSimTable
+            sim = sim_table or CSimTable(cold=(args.sim == "cold"), part_c=False)
             transport = SimTransport(sim)
             if console is None and (args.auto or not sys.stdin.isatty()):
                 ui = AutoConsole(log)
@@ -1333,11 +1414,43 @@ def main(argv=None, sim_table=None, console=None) -> int:
         log("INFO", tbl.usb_summary(transport))
         table = tbl.Table(transport, log=log)
         previous = install_signals(table)
+
+        def make_part_c(session):
+            import i1io_part_c as pc
+            part_c_used.append(True)
+            if args.real:
+                readers = pc.Readers(table.log)
+            else:
+                from i1io_part_c_sim import FakeReaders
+                readers = FakeReaders(transport.table, table.log)
+            sheet = None
+            if args.sheet:
+                try:
+                    sheet = pc.load_sheet(Path(args.sheet).expanduser())
+                except Exception as exc:          # noqa: BLE001 - asked for again in D1
+                    ui.say(f"The sheet's file could not be read ({type(exc).__name__}); D1 "
+                           "asks for it again.")
+            elif not args.real:
+                sheet = pc.load_sheet(Path(__file__).resolve().parent / "demo"
+                                      / pc.DEMO_SHEET)
+            return pc.PartC(session, readers, sheet=sheet, page=args.page - 1,
+                            results=pc.Results(results_dir))
+
+        def on_part(part):
+            sim_t = getattr(transport, "table", None)
+            if part == "C" and sim_t is not None and hasattr(sim_t, "part_c"):
+                import i1io_part_c as pc
+                sim_t.part_c = True
+                if not sim_t.aims:
+                    sim_t.aims = pc.demo_aims()
         try:
             r = Session(table, ui, simulated=not args.real,
                         other_program=i1profiler_running if args.real else None,
                         answers=pre_notes,
-                        sim_hand=None if args.real else getattr(transport.table, "hand", None))
+                        sim_hand=None if args.real else getattr(transport.table, "hand", None),
+                        part_c=make_part_c,
+                        sim_aim=None if args.real else getattr(transport.table, "aim", None),
+                        on_part=on_part)
             code = r.go()
             r.ending(code)
             r.after(transport, real=args.real, code=code)
@@ -1400,6 +1513,12 @@ def main(argv=None, sim_table=None, console=None) -> int:
         except OSError:
             pass
         fh.close()
+        if part_c_used or results_dir.exists():
+            made = make_results_zip(log_path, results_dir, zip_path)
+            try:
+                print(made)
+            except OSError:
+                pass
         if previous_int is not None:
             try:
                 signal.signal(signal.SIGINT, previous_int)

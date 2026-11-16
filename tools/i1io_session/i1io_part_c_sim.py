@@ -470,3 +470,53 @@ class FakeScanReader:
 
     def close(self):
         pass
+
+
+class FakeReaders:
+    """The instrument side of a simulated sitting: fake spot and strip readers on the
+    simulator's clock. Like ArgyllCMS (ENABLE_NONVCAL: the calibration is kept in a file on the
+    Mac between two runs of the reader), a calibration done by one reader is found by the next.
+    *problem*: what the check before a reader reports (instrument not found and the like)."""
+
+    def __init__(self, sim: CSimTable, log, spot_faults=None, scan_faults=None, problem=None):
+        self.sim, self.log = sim, log
+        self.spot_faults = dict(spot_faults or {})
+        self.scan_faults = dict(scan_faults or {})
+        self.problem = problem
+        self.spot_calibrated = False
+        self.strip_calibrated = False
+        self.started: "list[tuple[str, str]]" = []
+
+    def check(self):
+        return self.problem
+
+    def spot(self, folder, name, patches, calibrate):
+        self.started.append(("spot", name))
+        faults = dict(self.spot_faults)
+        if not calibrate and not self.spot_calibrated:
+            faults["needs_cal"] = True
+        r = FakeSpotReader(self.sim, str(folder), name, patches, self.log, calibrate, faults)
+        owner = self
+        real_open = r.open
+
+        def open_(place, timeout=45.0):
+            real_open(place, timeout)
+            if r.calibrated:
+                owner.spot_calibrated = True
+        r.open = open_
+        return r
+
+    def scan(self, folder):
+        self.started.append(("scan", str(folder)))
+        faults = dict(self.scan_faults)
+        if self.strip_calibrated:
+            faults["restored"] = True
+        r = FakeScanReader(self.sim, str(folder), self.log, faults)
+        owner = self
+        real_cal = r.calibrate
+
+        def calibrate(place, timeout=120.0):
+            real_cal(place, timeout)
+            owner.strip_calibrated = True
+        r.calibrate = calibrate
+        return r

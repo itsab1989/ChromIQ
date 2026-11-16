@@ -405,6 +405,15 @@ class PartC:
             return "the arm is not out on the table"
         return None
 
+    def finish(self) -> None:
+        """At the end of the sitting (nothing is sent): the combined readings and summary."""
+        self._close_readers()
+        if self.results is not None:
+            try:
+                self.results.write_combined()
+            except Exception as exc:          # noqa: BLE001 - the zip still carries the rest
+                self.d.log("INFO", f"the combined results could not be written ({exc!r})")
+
     def available(self) -> "list[Stage]":
         return [STAGE_BY_KEY[k] for k in ORDER if self.ready(STAGE_BY_KEY[k]) is None]
 
@@ -702,9 +711,26 @@ class PartC:
         if self.s.poll_enter():
             raise PersonStopped("you pressed Enter")
 
+    def instrument_ready(self) -> None:
+        """Before a reader is started: the bundled reader can run, and exactly one i1Pro 2 and
+        no other instrument is connected (reads only; a problem is a clean failure)."""
+        why = self.readers.check()
+        if why:
+            raise rd.ReaderFailed(why)
+        if not self.notice_said:
+            self.ui.say(C1_SAY)
+            self.notice_said = True
+
+    notice_said = False
+
     def spot_reader(self, folder: Path, name: str, patches, calibrate: bool):
+        self.instrument_ready()
         r = self.readers.spot(folder, name, patches, calibrate)
         return self._keep(r)
+
+    def scan_reader(self, folder: Path):
+        self.instrument_ready()
+        return self._keep(self.readers.scan(folder))
 
     def spot_read(self, reader, loc: str, sid: str, target, rows: list) -> None:
         r = reader.read(loc)
@@ -745,8 +771,7 @@ class PartC:
     # ---- the stages ---------------------------------------------------------------------
     def stage_c1(self, s: Stage, folder: Path) -> None:
         self.check_rest("before opening the instrument")
-        self.ui.say(C1_SAY)
-        scan = self._keep(self.readers.scan(folder / "strip"))
+        scan = self.scan_reader(folder / "strip")
         ev = scan.opened()
         self.block["data"]["instrument"] = ev.get("model")
         scan.calibrate(self.place_for_calibration("strip"))
@@ -812,8 +837,7 @@ class PartC:
             for k in range(1, 28):
                 self.poll_person()
                 d.c_wait(max(0.0, 1.0 - rows[-1]["t"]))
-                d.position()
-                d.exchange(tbl.SPOT_KEYS[k], "patch")
+                d._move(tbl.SPOT_KEYS[k], "patch")
                 self.spot_index = k
                 got = d.position()
                 if not tbl.AT_SPOT[k].contains(got):
@@ -835,7 +859,7 @@ class PartC:
             raise PersonStopped("you chose to stop before the arm moved")
 
     def stage_e1(self, s: Stage, folder: Path) -> None:
-        scan = self._keep(self.readers.scan(folder))
+        scan = self.scan_reader(folder)
         scan.opened()
         if not self.strip_cal:
             scan.calibrate(self.place_for_calibration("strip"))
@@ -1061,7 +1085,7 @@ class PartC:
         return sc.sheet_rows(self.sheet, self.page, self.alignment, speed)
 
     def _scan_reader_ready(self, folder: Path):
-        scan = self._keep(self.readers.scan(folder))
+        scan = self.scan_reader(folder)
         scan.opened()
         return scan
 
@@ -1110,6 +1134,45 @@ def _beyond_mm(a, b) -> float:
                    for box in geo.DRIVEN)
         worst = max(worst, dmin / 10.0)
     return worst
+
+
+class Readers:
+    """The real instrument side: ChromIQ's reader in this package's bin folder."""
+
+    def __init__(self, log, helper: "Path | None" = None):
+        self.log = log
+        self.helper = helper or rd.helper_path()
+
+    def check(self) -> "str | None":
+        problems = rd.helper_problems(self.helper)
+        if problems:
+            return " ".join(problems)
+        return rd.instrument_check()
+
+    def spot(self, folder, name, patches, calibrate):
+        return rd.SpotReader(self.helper, folder, name, patches, self.log, calibrate)
+
+    def scan(self, folder):
+        return rd.ScanReader(self.helper, folder, self.log)
+
+
+#: the practice run's sheet (a ChromIQ 4.3.33 A4 i1iO chart's side file, ours)
+DEMO_SHEET = "demo-sheet.i1io.json"
+#: where the practice run lays it (table units of its mark 1 corner, sheet mm (0, 0)): chosen so
+#: that every row of the demo sheet lies inside the measuring area this program uses
+DEMO_ORIGIN = (1650, 950)
+
+
+def demo_aims(sheet: "dict | None" = None, origin=DEMO_ORIGIN, page: int = 0):
+    """The three marks of the demo sheet in table units, as the practice run lays it (the
+    simulated sight is put on these)."""
+    if sheet is None:
+        sheet = load_sheet(Path(__file__).resolve().parent / "demo" / DEMO_SHEET)
+    out = []
+    for a in sc.aims_of(sheet, page):
+        u = sc.sheet_table_mm(sheet, a["page_mm"])
+        out.append((int(round(origin[0] - 10 * u[0])), int(round(origin[1] + 10 * u[1]))))
+    return out
 
 
 def load_sheet(path: Path) -> dict:
