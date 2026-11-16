@@ -1,5 +1,29 @@
 # Changelog
 
+## v4.3.42
+
+**For everyone updating from 4.3.41: a new beta option for the X-Rite i1Pro 2, which keeps a strip that ArgyllCMS refused only because of the white paper margin, and small fixes to the ruler check, the M0, M1 and M2 option and the patch set editor. With the beta options off, which is the default, ChromIQ measures, builds and checks exactly as before, and your charts, measurements and profiles do not change.**
+
+### New
+- **Beta: “X-Rite i1Pro 2: keep a strip refused only because of the paper margin” (Preferences > Beta).** When you read a strip by hand, ArgyllCMS sometimes refuses one that was read perfectly well: the white paper margin at one end was long enough to count as a patch of its own (“Too many patches”), or the reading began on the first patch with no white paper before it (often “Not enough patches”). With this option on, ChromIQ takes a second look at exactly those strips. It keeps one only when the colours of the whole strip clearly match the strip it should be (at least twice as well as any other strip, a shifted position or the other direction), each half on its own is in place, what is left out at the ends is the paper, and the ruler shows that the instrument moved forwards over each kept patch about one patch length. A kept strip then goes through every check an ordinary strip goes through, its values are worked out exactly as ArgyllCMS works out any patch, and the Measure log says so in one line. A strip ArgyllCMS accepts today never changes. It needs the ruler check (beta) and works only with an i1Pro 2 that reports its ruler.
+- **The ruler diagnostics file opens with a summary of the margin tolerance's decisions**: how many strips it kept and refused, the refusals grouped by reason, and for every kept strip the numbers the rule used (how the ruler travel was accounted for, how much better the strip fitted than the best alternative). The file stays compatible.
+
+### Changed
+- **Ruler check (beta): after a turn, the next strips are compared at once.** When the ruler sees a strip the other way round and the strip's own colours confirm the order it was saved in, the check now starts again from that strip's way round. In 4.3.40 and 4.3.41 it waited until enough strips agreed: on a tester's session, four strips in a row after each quick turn back were not compared at all. Replayed on that session's ruler records, with colours that confirm the order as his did where they were looked at, none is left out now. Right after such a turn a strip is also still held against the old way round, so a strip the check would have asked about before is still asked about. One strip turned on its own now gets a second calm note in the Measure log, on the strip after it. On charts whose strips look alike in both directions nothing changes.
+- **Ruler check (beta): its help says that turning the sheet or the ruler round is fine**, and what the check does after a turn.
+- **Beta “M0, M1 and M2”: the help says what has been compared.** ArgyllCMS's M1 values for the i1Pro 3 have now been compared with X-Rite i1Profiler's on one i1Pro 3 and one paper: over 192 patches they differed by 0.2 to 0.3 ΔE00 on average, while i1Profiler's own two readings of the same chart differed from each other by 0.12. M0 and M2 have not been compared yet.
+- **Build Profile, “Build from”: the help names the measurement that does not record its condition**, which is offered only “As measured (condition not recorded)”.
+- **Patch set editor: the line that says which chart is loaded is readable again.** At the window's normal size it was cut to nothing, and it named an i1iSis chart “-ii1”, the i1Pro's code. It now has a line of its own and names the instrument a loaded chart was laid out for (for example the i1iSis).
+- **Patch set editor: “Ensure unique colours” and “Pure white & black” no longer contradict each other.** The help and the tooltip now say that the copies of pure white and black are the one exception: they stay identical on purpose, so their readings can be averaged.
+
+### Fixed
+- **Beta “M0, M1 and M2”: a temporary file left by a crash is cleared away.** If ChromIQ's chart-reading engine stopped while writing a condition file, its temporary copy stayed in the run's “conditions” folder. It is now removed with the other files nothing needs any more (only that kind of file, only in that folder, and only when it is older than 10 minutes).
+
+### Honest limits
+- **Margin tolerance: please do not lift the instrument off the ruler during a swipe.** If it is lifted and set down again further along, the ruler cannot see the stretch it was carried over, and in rare cases a strip kept by this option can then be wrong. Every decision the option makes is recorded in the ruler diagnostics file, and we would very much like to have that file.
+- **The margin tolerance has not yet been used with a real instrument.** It was tested on the computer only: on wrong readings built on purpose from the expected colours of 28 real charts (none of them was kept, except the lifted instrument above), and on the recorded i1Pro 2 sessions of one tester, where it kept 10 of the 31 strips ArgyllCMS refused, each correctly.
+- **The ruler check is still a beta and has seen few real sessions.** If you use it, the diagnostics file it writes helps us most.
+
 ## v4.3.41
 
 **For everyone updating from 4.3.40: a new beta option for the X-Rite i1Pro 3, which keeps the readings of all three standard measurement conditions (M0, M1 and M2) from one scan, so you can choose in Build Profile which one a profile is made from. With the option off, which is the default, ChromIQ measures, builds and checks exactly as before, and your charts, measurements and profiles do not change.**
@@ -15,7 +39,7 @@
 
 ### Honest limits
 - **Only the X-Rite i1Pro 3 can do this.** The i1Pro 2 would need a different method, which is not built. With another instrument the option simply does nothing.
-- **The M1 and M2 values come from ArgyllCMS's computation and have not yet been compared with X-Rite i1Profiler's on a real instrument.** Please compare them with i1Profiler's before you rely on them, and if you can, send us both files: that would help a lot.
+- **The M1 and M2 values come from ArgyllCMS's computation and have not yet been compared with X-Rite i1Profiler's on a real instrument.** Please compare them with i1Profiler's before you rely on them, and if you can, send us both files: that would help a lot. (Since then M1 has been compared on one i1Pro 3 and one paper: see 4.3.42.)
 - **Only strips or single patches read by hand keep all three conditions.** Calibration measurements, refinement builds (which merge an earlier measurement) and the polarising filter use only the condition chosen in the Measure tab, and so does a measurement that was started with the option off and continued with it on.
 
 ## v4.3.40
@@ -36,7 +60,7 @@
 
 ### Honest limits
 - **On charts whose strips look alike in both directions (ramps, calibration charts), a turn is still asked about**, because the colours cannot confirm the order there. Answer “Continue Anyway” if you turned the sheet or the ruler.
-- **Right after a turn, a few strips are not compared at all (one or two as a rule, up to four when the sheet is turned back again after only two strips)**, until enough of the strips read since then agree on the new way round. The Measure log says so in one line when that happens.
+- **Right after a turn, a few strips are not compared at all (one or two as a rule, up to four when the sheet is turned back again after only two strips)**, until enough of the strips read since then agree on the new way round. The Measure log says so in one line when that happens. (Since 4.3.42, when the strip's colours confirm the turn, the next strips are compared at once.)
 - **If “Continue Anyway” is pressed on two such strips in a row while the sheet was not turned, the check pauses the direction question for a few strips** until enough strips agree again, and says so in the Measure log.
 - **The ruler check is still a beta and has seen few real sessions.** If you use it, the diagnostics file it writes helps us most.
 
