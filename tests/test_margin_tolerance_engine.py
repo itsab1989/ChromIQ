@@ -119,6 +119,39 @@ def test_a_swipe_begun_one_patch_in_is_refused(tmp_path, monkeypatch):
 
 
 @needs_helper
+def test_a_swipe_that_moved_backwards_is_refused(tmp_path, monkeypatch):
+    """Review 2026-11-16, BLOCKER-1, through the real helper: set down on
+    patch 2, pulled back over it to the edge of patch 1, then swiped. The
+    segments are patch 2 (backwards), patch 2, patches 3 to N and the white
+    trailer; 41ba18fc7 measured the travel by size alone and kept it with
+    patch 1 := patch 2. The ruler fell back a whole patch: refused."""
+    monkeypatch.setenv("CHROMIQ_REPLAY_INSTRUMENT", "i1pro2")
+    base, replay = _chart(tmp_path)
+    with ReplaySession(base, replay,
+                       extra_args=["--ruler", "--margin-tolerance"]) as s:
+        s.wait_event("strip_ready")
+        i = s.event_index()
+        s.send(cmd="swipe", ruler="clean", fault="misread",
+               reason="Not enough patches", margin="nudge")
+        rec = s.wait_event("ruler_strip", after=i)
+        err = s.wait_event("error", after=i)
+        s.send(cmd="quit")
+        try:
+            s.wait_event("strip_interrupted", timeout=3)
+            s.send(cmd="quit")
+        except TimeoutError:
+            pass
+        s.finish()
+    assert rec["result"] == "misread" and rec["reason"] == "Not enough patches"
+    m = rec["margin"]
+    assert m["accepted"] is False
+    assert "moved back" in m["why"]
+    assert m["back"] >= 10                  # about one patch of 340 / 22 steps
+    assert err["kind"] == "misread"
+    assert not any(e.get("event") == "strip_read" for e in s.events)
+
+
+@needs_helper
 def test_off_the_refusal_stays_and_no_field_is_added(tmp_path, monkeypatch):
     monkeypatch.setenv("CHROMIQ_REPLAY_INSTRUMENT", "i1pro2")
     base, replay = _chart(tmp_path)

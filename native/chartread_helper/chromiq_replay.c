@@ -164,6 +164,7 @@ static int cq_rr_given_up = 0;		/* as the i1Pro 2 driver: for the session */
  * cut for a refused swipe, in swipe order, and why it refused. */
 #define CQ_RM_MAX (CQ_MAX_STEPS + 8)
 static int cq_rm_n = 0, cq_rm_why = 0, cq_rm_noleader = 0;
+static int cq_rm_nudge = 0;	/* "nudge": the first segment moves BACKWARDS */
 static double cq_rm_xyz[CQ_RM_MAX][3];
 
 int cq_replay_margin_ok(void) {
@@ -182,12 +183,16 @@ static void cq_rm_add(const double *xyz) {
 /* mode: "start" (the margin before the first patch counted), "end" (after
  * the last), "both", "noleader" (the recording began on the first patch),
  * "shifted" (began one patch in, the margin counted: a WRONG reading the
+ * rules must refuse), "nudge" (set down on patch 2, pulled back over it to
+ * the edge of patch 1, then swiped: patch 2 twice, the first time with the
+ * ruler going backwards; review 2026-11-16, BLOCKER-1, a WRONG reading the
  * rules must refuse). xyz: the strip's patches in swipe order. */
 static void cq_replay_margin_note(const char *mode, const char *reason,
                                   double (*xyz)[3], int n) {
 	int i, st = 0;
 	cq_rm_n = 0;
-	cq_rm_noleader = strcmp(mode, "noleader") == 0;
+	cq_rm_nudge = strcmp(mode, "nudge") == 0;
+	cq_rm_noleader = strcmp(mode, "noleader") == 0 || cq_rm_nudge;
 	cq_rm_why = strcmp(reason, "Too many patches") == 0 ? 0x3C
 	          : strcmp(reason, "Swipe didn't start and end on the media") == 0 ? 0x42
 	          : 0x3B;
@@ -198,6 +203,10 @@ static void cq_replay_margin_note(const char *mode, const char *reason,
 		cq_rm_add(cq_paper);					/* the margin, as a patch */
 	if (strcmp(mode, "shifted") == 0)
 		st = 1;
+	if (cq_rm_nudge && n > 1) {
+		cq_rm_add(xyz[1]);						/* patch 2, backwards */
+		st = 1;
+	}
 	for (i = st; i < n; i++)
 		cq_rm_add(xyz[i]);
 	if (strcmp(mode, "end") == 0 || strcmp(mode, "both") == 0)
@@ -273,6 +282,13 @@ int cq_replay_ruler_take(void *vout) {
 	b = total - total / 10;
 	for (i = 0; i < total; i++) {
 		long step = i < a ? 0 : i >= b ? travel : (i - a) * travel / (b - a);
+		if (cq_rm_n > 1 && cq_rm_nudge) {
+			/* back over the first segment, then forwards to the end */
+			long t1 = (long)(0.85 * readings / (cq_rm_n - 1)) * clocks;
+			long back = travel / (cq_rm_n - 1);
+			step = i < t1 ? -(i * back / t1)
+			     : i >= b ? travel : -back + (i - t1) * (travel + back) / (b - t1);
+		}
 		zeb[i] = strcmp(cq_rr_mode, "none") == 0 ? 3 : cyc[(4 - (step & 3)) & 3];
 		if (strcmp(cq_rr_mode, "garbled") == 0 && i == total / 2)
 			zeb[i] = cyc[(4 - (step & 3) + 2) & 3];
@@ -323,6 +339,7 @@ int cq_replay_ruler_take(void *vout) {
 			free(v);
 	}
 	cq_rm_n = 0;
+	cq_rm_nudge = 0;
 	return 1;
 }
 
@@ -852,6 +869,7 @@ static inst_code cq_read_strip(inst *p, char *name, int npatch, char *pname,
 			fault[sizeof(fault) - 1] = '\0';
 			cq_last_reason[0] = '\0';
 			cq_rm_n = 0;		/* the margin tolerance: this swipe's segments only */
+			cq_rm_nudge = 0;
 
 			if (fault[0] != '\0') {
 				strncpy(cq_last_reason, cq_swipe_reason, sizeof(cq_last_reason) - 1);

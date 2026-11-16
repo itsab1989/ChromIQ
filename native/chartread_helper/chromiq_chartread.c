@@ -2543,6 +2543,31 @@ static double cq_margin_pos_at(const cq_ruler_rec *r, double rd) {
 	return (double)cum;
 }
 
+/* The whole recording's net travel (last ruler position minus first) and the
+ * most the position fell back against that direction, over every ruler step
+ * (the margin tolerance's rule 0a: a reading that moved backwards is never
+ * rescued). Same step counting as cq_margin_pos_at. */
+static void cq_margin_motion(const cq_ruler_rec *r, double *net, double *back) {
+	static const int order[4] = { 0, 1, 3, 2 };
+	int i, prev = r->first & 3, cum = 0, hi = 0, lo = 0;
+	int bpos = 0, bneg = 0;		/* fall-back while moving up / down */
+	for (i = 0; i < r->nch; i++) {
+		int c = r->ch_code[i] & 3, d = (order[c] - order[prev] + 4) % 4;
+		cum += d == 1 ? 1 : d == 3 ? -1 : 0;
+		prev = c;
+		if (cum > hi)
+			hi = cum;
+		if (cum < lo)
+			lo = cum;
+		if (hi - cum > bpos)
+			bpos = hi - cum;
+		if (cum - lo > bneg)
+			bneg = cum - lo;
+	}
+	*net = (double)cum;
+	*back = (double)(cum >= 0 ? bpos : bneg);
+}
+
 /* ArgyllCMS refused this reading: try rules M and L. On a rescue the
  * candidates' values (computed by the driver exactly as patches) replace the
  * result, the record's cut says where they are, and *rv becomes inst_ok, so
@@ -2583,6 +2608,7 @@ static void cq_margin_try(cq_ruler_rec *r, inst_code *rv, const char *reason,
 			for (i = 0; i < rows * N; i++)
 				cqm_xyz2lab(cq_mctx.scols[i]->eXYZ, lab + 3 * i);
 			c.n = r->ncand < CQM_MAXC ? r->ncand : CQM_MAXC;
+			cq_margin_motion(r, &c.net, &c.back);
 			for (i = 0; i < c.n; i++) {
 				double a, b, e = (double)(r->cand_ss[i] + r->cand_no[i] - 1);
 				c.ss[i] = r->cand_ss[i];
@@ -2595,7 +2621,9 @@ static void cq_margin_try(cq_ruler_rec *r, inst_code *rv, const char *reason,
 					e = r->readings - 1;
 				a = cq_margin_pos_at(r, (double)r->cand_ss[i]);
 				b = cq_margin_pos_at(r, e);
-				c.steps[i] = fabs(b - a);
+				c.p0[i] = a;
+				c.steps[i] = b - a;	/* SIGNED: a pass backwards is not a patch
+									 * (review 2026-11-16, BLOCKER-1) */
 			}
 			ch.rows = rows;
 			ch.npatch = N;
@@ -2615,15 +2643,16 @@ static void cq_margin_try(cq_ruler_rec *r, inst_code *rv, const char *reason,
 		snprintf(js, jsz, ",\"margin\":{\"tried\":true,\"accepted\":true,"
 		         "\"rule\":\"%c\",\"left_start\":%d,\"left_end\":%d,"
 		         "\"standing\":%d,\"leader\":%s,\"fit\":%.2f,\"rival\":%.2f,"
-		         "\"segments\":%d,\"refused_because\":\"%s\",\"rules\":\"%s\"}",
+		         "\"segments\":%d,\"back\":%.0f,\"refused_because\":\"%s\","
+		         "\"rules\":\"%s\"}",
 		         res.rule, res.left_start, res.left_end, res.standing,
 		         res.leader ? "true" : "false", res.fit, res.rival, r->ncand,
-		         rsn, cqm_version());
+		         c.back, rsn, cqm_version());
 	} else {
 		cq_json_escape(esc, sizeof(esc), res.why);
 		snprintf(js, jsz, ",\"margin\":{\"tried\":true,\"accepted\":false,"
-		         "\"why\":\"%s\",\"segments\":%d,\"rules\":\"%s\"}",
-		         esc, r->ncand, cqm_version());
+		         "\"why\":\"%s\",\"segments\":%d,\"back\":%.0f,\"rules\":\"%s\"}",
+		         esc, r->ncand, c.back, cqm_version());
 	}
 	free(lab);
 	(void)j;

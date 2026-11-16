@@ -36,7 +36,7 @@
  * recording began on the first patch) also the first segment, only when the
  * ruler says it covered a whole patch, and takes the trailer as paper white,
  * only when it is within 3 dE (the margin's own limit) of the lightest
- * segment of the recording: a jig or a board 4 to 6 dE away is not paper.
+ * segment the ruler left out: a jig or a board 4 to 6 dE away is not paper.
  * When both rules accept different patches, the reading is refused.
  *
  * AGPL-3.0 like the rest of ChromIQ's helper code (see License.txt). */
@@ -296,7 +296,7 @@ static int ruler_one_way(const cqm_cands *c, const double *ds, int d,
 
 int cqm_decide(const cqm_cands *c, const cqm_chart *ch, int why, cqm_result *out) {
 	double med, inner[CQM_MAXC], ds[CQM_MAXC], maxL = -1e9;
-	int n, i, idx[CQM_MAXC], m_ok = 0, l_ok = 0, nk, st, d, li = 0;
+	int n, i, idx[CQM_MAXC], m_ok = 0, l_ok = 0, nk, st, d;
 	cqm_result rm, rl;
 
 	memset(out, 0, sizeof(*out));
@@ -332,10 +332,8 @@ int cqm_decide(const cqm_cands *c, const cqm_chart *ch, int why, cqm_result *out
 	if (!ruler_one_way(c, ds, d, out->why, sizeof(out->why)))
 		return 0;
 	for (i = 0; i < n; i++)
-		if (c->lab[i][0] > maxL) {
+		if (c->lab[i][0] > maxL)
 			maxL = c->lab[i][0];
-			li = i;
-		}
 	for (i = 1; i < n - 1; i++)
 		inner[i - 1] = ds[i];
 	qsort(inner, n - 2, sizeof(double), cmp_d);
@@ -356,19 +354,32 @@ int cqm_decide(const cqm_cands *c, const cqm_chart *ch, int why, cqm_result *out
 			rm.standing = st;
 	}
 	/* rule L: the recording began on the first patch; paper = the trailer,
-	 * which must be paper white within the 3 dE a margin is held to (of the
-	 * lightest segment): a jig or a board 4 to 6 dE away is not paper, and
-	 * rule 5 would then fail to see a margin counted as a patch */
+	 * which must be paper white within the 3 dE a margin is held to: of the
+	 * lightest segment the ruler left out (a narrow paper margin before a
+	 * jig or a board 4 to 6 dE away shows there, and then rule 5 would fail
+	 * to see a margin counted as a patch), and, as for rule M, within 2 L*
+	 * of the lightest segment of all (no patch is lighter than its paper) */
 	{
 		const double *paper = c->lab[n - 1];
 		if (ds[0] < CQM_L_FULL * med)
 			snprintf(rl.why, sizeof(rl.why), "the first segment is not a whole patch");
-		else if (de(paper, c->lab[li]) > CQM_T_PAPER)
+		else if (paper[0] < maxL - CQM_PAPER_L)
 			snprintf(rl.why, sizeof(rl.why), "the trailer is not paper white");
 		else if ((nk = ruler_keep(c, ds, 0, n - 2, med, idx, &st)) < 0)
 			snprintf(rl.why, sizeof(rl.why), "the ruler left out a segment inside the row");
-		else if ((l_ok = decide(c, idx, nk, paper, ch, &rl, rl.why, sizeof(rl.why))))
-			rl.standing = st;
+		else {
+			int j, k, lo = n - 1;
+			for (j = 0; j < n; j++) {
+				for (k = 0; k < nk && idx[k] != j; k++)
+					;
+				if (k == nk && c->lab[j][0] > c->lab[lo][0])
+					lo = j;
+			}
+			if (de(paper, c->lab[lo]) > CQM_T_PAPER)
+				snprintf(rl.why, sizeof(rl.why), "the trailer is not paper white");
+			else if ((l_ok = decide(c, idx, nk, paper, ch, &rl, rl.why, sizeof(rl.why))))
+				rl.standing = st;
+		}
 	}
 
 	if (m_ok && l_ok && memcmp(rm.sel, rl.sel, sizeof(int) * ch->npatch) != 0) {
