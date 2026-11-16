@@ -385,7 +385,12 @@ def test_a_chart_of_several_pages_is_refused_with_words(charts, tmp_path):
     side.write_text(json.dumps(doc), encoding="utf-8")
     cxf = F.measure(F.load_sheet(charts["random"]), tmp_path / "r.cmxf")
     v, _ = _assess(cxf, ti2, tmp_path)
-    assert not v.ok and _refused_with(v, ti2) == "pages"
+    # 2026-11-16: several sheets come back through the profiling door of
+    # the Measure tab (`workflow.i1io.pages`); `assess` itself, which the
+    # verification door uses, still refuses a chart of several pages
+    from workflow import measurement_messages as MM
+    assert not v.ok and v.reason.startswith(
+        MM._I1IO_PAGES_VERIFY.split("{", 1)[0])
     assert "2 pages" in v.reason
 
 

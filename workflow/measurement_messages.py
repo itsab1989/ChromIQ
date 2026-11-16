@@ -798,12 +798,14 @@ _I1IO_MC_CROSSES = (
     "version. Do not aim at them for i1Profiler: they sit 10 to 15 mm "
     "outside the patches, and i1Profiler needs the centres of the three "
     "corner patches of step 4.")
-#: A chart of several pages: the Measure Chart way is not offered; this note
-#: is added to M-I1IO-NOT-YET / -BY-HAND instead.
+#: A VERIFICATION chart of several pages (2026-11-16: a profiling chart of
+#: several pages gets M-I1IO-MEASURE-CHART-PAGES): the Measure Chart way is
+#: not offered; this note is added to M-I1IO-NOT-YET-BY-HAND instead.
 _I1IO_MC_PAGES = (
-    "This chart has {pages} pages. ChromIQ can bring back an i1Profiler "
-    "measurement of an i1iO chart of one page only, so far; bringing back a "
-    "chart of several pages needs a later version.")
+    "This verification chart has {pages} pages. ChromIQ brings back "
+    "i1Profiler measurements of several sheets only for a profiling run, so "
+    "far; for a verification chart of several pages that needs a later "
+    "version.")
 M_I1IO_MEASURE_CHART_PARTS = _m(
     "M-I1IO-MEASURE-CHART-PARTS",
     "Measure this i1iO chart with i1Profiler: the parts",
@@ -922,10 +924,10 @@ _I1IO_IMPORT_PLACES = (
     "as a .cmxf file (\"Measurement only\") and import that file, or measure the "
     "sheet again")
 _I1IO_IMPORT_PAGES = (
-    "this chart has {pages} pages, and ChromIQ can bring back an i1Profiler "
-    "measurement of an i1iO chart of one page only, so far. Bringing back a "
-    "chart of several pages needs a later version; the measurement itself "
-    "may well be fine, so keep the file")
+    "this file says it holds {pages} pages in one, and ChromIQ brings back "
+    "an i1Profiler \"Measure Chart\" measurement one sheet per file. Measure "
+    "each sheet on its own and save each one as its own .cmxf file; the "
+    "measurement itself may well be fine, so keep the file")
 _I1IO_IMPORT_SIDE = (
     "the table layout file saved with this chart ({side}) does not belong to "
     "this chart any more, so ChromIQ does not know where each patch sat on "
@@ -1425,12 +1427,12 @@ M_IMPORT_I1IO_WHICH_PAGE = _m(
     "M-IMPORT-I1IO-WHICH-PAGE",
     "Which page of the chart is this?",
     "{name} is an i1Profiler \"Measure Chart\" measurement of a sheet of "
-    "this chart, and it fits more than one of its pages: they have the same "
-    "grid, and the colours of this chart cannot tell them apart. ChromIQ "
-    "puts every reading on the patch at its place on the page you choose, "
-    "so choose the page of the sheet you measured. Each sheet shows its page "
-    "number beside the chart's name, and the corner patches are listed "
-    "here:\n\n{pages}\n\n"
+    "this chart, and its colours cannot show for certain which of the "
+    "chart's pages it is. ChromIQ puts every reading on the patch at its "
+    "place on the page you choose and then checks the file against that "
+    "page, so choose the page of the sheet you measured. Each sheet shows "
+    "its page number beside the chart's name, and its corner patches are "
+    "listed here:\n\n{pages}\n\n"
     "If you are not sure, press Cancel: nothing is imported, and you can "
     "look at the sheet first.",
     approved=False)
@@ -11748,6 +11750,11 @@ CATALOGUE = {m.id: m for m in (
     M_IMPORT_I1IO_CANNOT_CHECK, M_IMPORT_I1IO_CANNOT_CHECK_PARTS,
     M_IMPORT_I1IO_AIM_UNCHECKED,
     M_IMPORT_I1IO_FILED, M_IMPORT_ISIS_COLOURS, M_IMPORT_I1IO_REFUSED,
+    M_I1IO_MEASURE_CHART_PAGES, M_I1IO_MEASURE_CHART_PAGES_PARTS,
+    M_IMPORT_I1IO_PAGES_REASONS, M_IMPORT_I1IO_WHICH_PAGE,
+    M_IMPORT_I1IO_PAGE_REPLACE, M_IMPORT_I1IO_PAGE_SAME,
+    M_IMPORT_I1IO_PAGE_FILED, M_IMPORT_I1IO_PAGE_FILED_PARTS,
+    M_PROFILE_I1IO_PAGES_MISSING, M_I1IO_PAGES_PANEL,
     M_ISIS_NOT_YET, M_ISIS_SUPPORT_OFF, M_ISIS_SHEET_CHECK, M_ISIS_NO_TXF,
     M_ISIS_ROW_NUMBERS_NO_ROOM,
     M_GUIDED_SET_PAGES,

@@ -53,6 +53,9 @@ path construction are owned by `core/file_manager.py` via three classes:
       calibrated.icc                 # role-named; applycal output
       reads/                         # present only when averaging is used
         read1.ti3 / read2.ti3 / …
+      pages/                         # i1iO Beta only: an i1iO chart of several
+        page1.ti3 / page2.ti3 / …    #   pages, one Measure Chart file per sheet;
+                                     #   <stem>.ti3 is written once all are in
       reports/                       # #127: things ChromIQ tells the user
         Quality_Check_N_<name>.txt / Refine_Strips_<name>.txt / report_*.json
       exports/                       # #127: hand-off files for other programs
