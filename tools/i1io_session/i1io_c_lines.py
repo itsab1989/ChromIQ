@@ -11,9 +11,12 @@ Three kinds, nothing else:
    (C_FIXED, with where in C_RECORDED_AT): the position under the sight at an aim (p1), and the
    four lines around every recorded row scan (c4, d1 with its only recorded value 365, a3, c3).
 3. COMPUTED moves, in exactly the recorded form apart from the numbers: m0 at the recorded chart
-   speed 300 and m2 at one of the ten recorded scan speeds, to a target inside the measuring area
-   (i1io_geometry), and only right after a position was read (the gate checks the whole swept
-   rectangle from that reading). They are built by i1io_geometry.m0_line / m2_line only.
+   speed 300 and m2 at one of the ten recorded scan speeds, never beyond the front zone's cap
+   (classify), and only right after a position was read. The gate checks the target and the
+   whole swept rectangle from that reading against what THIS SITTING allows: the proven zone,
+   plus the front zone up to the Y a creep step has confirmed (`Table.front_y`); during the creep
+   (`Table.creep`) one m0 of at most 5 mm per axis, at most 5 mm beyond that Y (fix 2). They are
+   built by i1io_geometry.m0_line / m2_line only.
 
 Never: any memory or configuration write, i0, any other u8 than the two reads, any line form not
 seen in a recording, any other speed, any target outside the area.
@@ -76,8 +79,9 @@ def classify(line: bytes) -> "tuple[str, bool, str]":
         raise tbl.ForbiddenLine(f"m0 at speed {v}: not recorded on a chart")
     if cid == "m2" and v not in geo.RECORDED_M2_SPEEDS:
         raise tbl.ForbiddenLine(f"m2 at speed {v}: not a recorded scan speed")
-    if not geo.MEASURING_AREA.contains((x, y)):
-        raise tbl.ForbiddenLine(f"{cid} to ({x}, {y}): outside the measuring area")
+    if not geo.CAP_AREA.contains((x, y)):
+        raise tbl.ForbiddenLine(f"{cid} to ({x}, {y}): outside the measuring area (beyond the "
+                                "front zone's cap or the sides)")
     return cid, True, ("computed m0" if cid == "m0" else "scan move")
 
 
@@ -91,7 +95,20 @@ def make_gate(table):
             if start is None:
                 raise tbl.ForbiddenLine(f"a computed {cid} without a fresh position reading")
             _c, x, y, _v = geo.decode_xyv(line)
-            if not geo.AREA_RAW.contains_path(start, (x, y)):
+            tgt, sweep = geo.areas(getattr(table, "front_y", None))
+            if getattr(table, "creep", False) and cid == "m0":
+                # one creep step: at most CREEP_STEP per axis from the fresh reading, at most
+                # CREEP_STEP beyond what this sitting has confirmed, never beyond the cap
+                lim = min(tgt.ymax + geo.CREEP_STEP, geo.FRONT_CAP_Y)
+                tgt = geo.Area(tgt.xmin, tgt.xmax, tgt.ymin, lim)
+                sweep = geo.Area(sweep.xmin, sweep.xmax, sweep.ymin, max(sweep.ymax, lim))
+                if abs(x - start[0]) > geo.CREEP_STEP or abs(y - start[1]) > geo.CREEP_STEP:
+                    raise tbl.ForbiddenLine(f"a creep step from {start} to ({x}, {y}): more than "
+                                            f"{geo.CREEP_STEP} units")
+            if not tgt.contains((x, y)):
+                raise tbl.ForbiddenLine(f"{cid} to ({x}, {y}): beyond what this sitting allows "
+                                        f"({tgt.text()})")
+            if not sweep.contains_path(start, (x, y)):
                 raise tbl.ForbiddenLine(f"{cid} from {start} to ({x}, {y}): the swept rectangle "
                                         "leaves the measuring area")
         return cid, motion, label

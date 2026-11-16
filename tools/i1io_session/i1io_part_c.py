@@ -76,16 +76,34 @@ class Stage:
 
 
 #: The area's wording, used wherever a text speaks of it (safety review of 7382e56f2).
-AREA_WHERE = ("where it lies on your table is our estimate, taken from where the measuring "
-              "opening has actually been in your recordings")
-WHY_BACK = ("i1Profiler places a sheet by the alignment sight, which sits about 3 cm in front of "
-            "the measuring opening; this program keeps the opening where it has been read, so a "
-            "sheet may have to lie a few centimetres further back than in your i1Profiler "
-            "sessions.")
-SHEET_BACK = ("The sheet may have to lie a few centimetres further back than in your i1Profiler "
-              "sessions; D1 tells you before anything moves.")
+AREA_PARTS = ("a proven part of 320 x 230 mm, and in front of it a front part reaching at most 5 "
+              "mm beyond the frontmost mark of your recorded i1Profiler alignments")
+AREA_WHERE = ("where it lies on your table is our estimate: its proven part from where the "
+              "measuring opening has actually been in your recordings, its front part from where "
+              "your recorded i1Profiler alignments put their marks")
+WHY_BACK = ("This program never sends the arm further forward than 5 mm beyond the frontmost "
+            "mark of your recorded i1Profiler alignments, nor further to a side than the area's "
+            "320 mm allow.")
+SHEET_BACK = ("If part of the sheet lies further forward than the measuring opening has been in "
+              "your recordings, D1 tells you before anything moves and lets you choose: lay it a "
+              "little further back, or let the program feel its way forward first (stage DZ).")
+FRONT_SAY = (
+    "Part of this sheet lies further forward than the instrument's measuring opening has been in "
+    "our recordings of your table: up to about {mm} mm in front of it. i1Profiler measures sheets "
+    "laid like this (it sends the opening to the marks you aim at), so your table very likely "
+    "reaches there, but we have no reading that shows it. You can choose: back: lay the sheet "
+    "about {back} mm further back and aim again (nothing new is tried); or go on: before any "
+    "patch there is measured, the program first feels its way forward (stage DZ): the arm moves "
+    "forward in small steps of at most 5 mm, with a short pause after each, and stops at the "
+    "first step that does not arrive exactly or in time.")
+FRONT_YES = ("To go on, type yes. Then run stage DZ next (it is offered in the menu); until it has "
+             "worked, no target in the front part is driven to.")
 
 SPOT_ROW_PATCHES_MAX = 40
+#: fix 2: the creep (stage DZ): at most this many 5 mm steps in one run (the front zone is
+#: 43.6 mm deep: 9 steps), and the stage's own caps below (lines, movements, runs)
+CREEP_STEPS_MAX = 10
+CREEP_PAUSE_S = 0.5
 PAGE_PATCHES_MAX = 1100
 PAGE_ROWS_MAX = 40
 
@@ -152,11 +170,26 @@ STAGES = (
           "the three positions against the sheet before anything moves: the order, a mirrored or "
           "turned sheet, both distances within 2 mm of the sheet's, the corner within 1 degree of "
           "a right angle, and that all three lie inside the measuring area this program uses "
-          "(320 x 230 mm; " + "where it lies on your table is our estimate, taken from where the "
-          "measuring opening has actually been in your recordings). " + SHEET_BACK,
+          "(" + AREA_PARTS + "; " + AREA_WHERE + "). " + SHEET_BACK,
           "p1 is i1Profiler's own line; here it follows your typed word instead of the "
           "instrument's button. If the check refuses your aims, nothing has moved and you can aim "
           "again."),
+    Stage("dz", "Feel the way into the front part of the table, in 5 mm steps",
+          "about 1 min", ("d1",), "sheet", "medium", True, 3, 2 * CREEP_STEPS_MAX + 8,
+          CREEP_STEPS_MAX + 1,
+          "Only when D1 found part of your sheet further forward than the measuring opening has "
+          "been in your recordings, and you chose to go on. With your hands off, the program reads "
+          "where the arm is (twice if it is free), drives it to the front edge of the part of the "
+          "table it has been read in, right behind your frontmost mark, and then forward towards "
+          "that mark in steps of at most 5 mm (the chart speed 300), reading the position after "
+          "each step and pausing about half a second. Press Enter at any pause to stop. It stops by "
+          "itself at the first step that does not arrive within half a millimetre or takes longer "
+          "or shorter than such a move should; then nothing more moves except, if you want it, "
+          "the homing (F). The furthest point reached cleanly is the front limit for the rest of "
+          "this sitting.",
+          "A FIRST TRY: the table has never been driven there under motor in a recording. The "
+          "steps never go beyond 5 mm in front of the frontmost mark of any recorded i1Profiler "
+          "alignment, and never further than your sheet needs."),
     Stage("d2", "The first computed move: a short one to mark 3", "about 1 min",
           ("d1",), "sheet", "medium", True, 3, 4, 1,
           "With your hands off, the program reads where the free arm is (twice) and drives it the "
@@ -172,7 +205,7 @@ STAGES = (
           "patch, at least 1 s between moves. Enter between two patches stops at the next patch.",
           "A FIRST TRY: every target is computed from your three aims (i1Profiler's own model)."),
     Stage("e2", "One row of your sheet as a strip reading", "about 1 min",
-          ("d1",), "sheet", "medium", True, 4, 12, 2,
+          ("d1",), "sheet", "medium", True, 4, 16, 4,
           "Row 1 of your sheet read as a strip: the arm drives to the row's start just beyond its "
           "right end, the reader is armed, and the scan move runs the whole row at a recorded "
           "speed (54 mm/s unless you choose another recorded one), started by the instrument's "
@@ -181,7 +214,7 @@ STAGES = (
           "move but inside the measuring area this program uses, at a recorded speed. If a scan move might still be "
           "waiting afterwards, the program tells you to switch the table off."),
     Stage("e3", "Your whole page as strip readings, row by row", "about 1 min per 5 rows",
-          ("d1",), "sheet", "medium", True, 2, 12 * PAGE_ROWS_MAX, 2 * PAGE_ROWS_MAX,
+          ("d1",), "sheet", "medium", True, 2, 16 * PAGE_ROWS_MAX, 4 * PAGE_ROWS_MAX,
           "Every row of the page as in E2, serpentine as i1Profiler drives rows, with a question "
           "after each row whether to go on.",
           "A FIRST TRY, as E2. The front rows of an A4 sheet lie where no recording drove the "
@@ -203,13 +236,15 @@ STAGES = (
 )
 STAGE_BY_KEY = {s.key: s for s in STAGES}
 #: Offered in this order: the most informative and quickest first.
-ORDER = ("c1", "c2", "e1", "c3", "c4", "d1", "d2", "d3", "e2", "e3", "d4", "f")
+ORDER = ("c1", "c2", "e1", "c3", "c4", "d1", "dz", "d2", "d3", "e2", "e3", "d4", "f")
 NEEDS_TEXT = {
     "c1": "nothing", "c2": "a spot calibration in this sitting (C1, or it calibrates itself)",
     "e1": "nothing (it calibrates for strip readings itself if C1 did not)",
     "c3": "nothing (calibrates itself if needed)", "c4": "nothing (C3's way there if needed)",
     "d1": "nothing (the instrument is not used)",
-    "d2": "D1 accepted in this sitting, the arm not homed since",
+    "dz": "D1 accepted in this sitting with a sheet reaching into the front part, and your yes",
+    "d2": "D1 accepted in this sitting, the arm not homed since (DZ first if mark 3 lies in the "
+          "front part)",
     "d3": "D1, and a spot calibration in this sitting (C1, C2, C3 or C4)",
     "e2": "D1, and a strip calibration in this sitting (C1 or E1)",
     "e3": "D1, and a strip calibration in this sitting (C1 or E1)",
@@ -372,6 +407,9 @@ class PartC:
         self.stage_notes: "list[tuple[str, str]]" = []
         d = self.d
         d.part = "C"
+        d.front_y = None            # fix 2: the front zone confirmed in this sitting (a Y)
+        d.creep = False             # True only while one creep step is written
+        self.front_need: "int | None" = None
         d.c_gate = cl.make_gate(d)
         d.c_caps = (C_MAX_LINES, C_MAX_MOVES)
         if hasattr(d.t, "gate"):
@@ -415,6 +453,14 @@ class PartC:
                 return "it needs your three aims (D1) in this sitting"
             if not self.out_known() and self.d.arm_free is not True:
                 return "it needs the arm out on your sheet"
+        if s.key == "dz":
+            if self.front_need is None:
+                return "your sheet does not reach into the front part (or you chose back in D1)"
+            if self.front_reached() >= self.front_need:
+                return "the front part your sheet needs is confirmed already"
+        if s.key in ("d2", "e3", "d4") and self.front_need is not None and \
+                self.front_reached() < self.stage_front_need(s.key):
+            return "it needs DZ first (the front part of the table)"
         if s.key in ("d3", "d4") and not self.spot_cal:
             return "it needs a spot calibration in this sitting (C1)"
         if s.key in ("e2", "e3") and not self.strip_cal:
@@ -427,6 +473,17 @@ class PartC:
         if s.where == "out" and not (self.out_known() or self.d.arm_free is True):
             return "the arm is not out on the table"
         return None
+
+    def front_reached(self) -> int:
+        """The front limit for targets in this sitting (the proven edge until DZ confirms more)."""
+        return geo.areas(self.d.front_y)[0].ymax
+
+    def stage_front_need(self, key: str) -> int:
+        if self.alignment is None or self.front_need is None:
+            return geo.MEASURING_AREA.ymax
+        if key == "d2":
+            return self.alignment.readings[2][1]
+        return self.front_need
 
     def finish(self) -> None:
         """At the end of the sitting (nothing is sent): the combined readings and summary."""
@@ -570,6 +627,7 @@ class PartC:
                 "moves_after": d.motions_sent, "position_after": d.position_now,
                 "last_read": d.last_read, "arm_free": d.arm_free, "mode_on": d.mode_on,
                 "movement_unconfirmed": d.motion_unconfirmed, "t_end": round(d.t.now(), 3),
+                "front_zone_reached_y": d.front_y,
                 "state_text": where_text(d)}
 
     def _write_block(self, block) -> None:
@@ -770,7 +828,7 @@ class PartC:
         if a is None:
             raise StageFailed(f"{what}: no fresh position reading (a bug)")
         self.free_arm_inside(a)
-        geo.check_path(a, target, what)
+        geo.check_path(a, target, what, d.front_y)
         if not self.confirm_new_part(a, target):
             raise StageFailed("you did not confirm the first move into a new part of the table")
         win = geo.move_window(a, target)
@@ -961,6 +1019,19 @@ class PartC:
     def scan_rows(self, scan, plans, folder: Path, ask_between: bool) -> None:
         d = self.d
         for k, plan in enumerate(plans):
+            if geo.in_front_zone(plan.start) or geo.in_front_zone(plan.end):
+                # fix 2: the creep confirmed this Y at one X only; the strip runs along X, so
+                # both ends of the row are first reached by a spot move each (arrival checked)
+                self.step(f"{self.block['stage']}_row{k + 1}_ends", 7, 2)
+                a = self.d.position()
+                if self.d.arm_free:
+                    b = self.d.position()
+                    if abs(a[0] - b[0]) > tbl.STILL_UNITS or abs(a[1] - b[1]) > tbl.STILL_UNITS:
+                        raise StageFailed(f"the free arm moved between two readings ({a} then "
+                                          f"{b}): please take your hands off it")
+                self.move_to(plan.start, f"row {k + 1}'s start (a spot move first: front part)")
+                self.move_to(plan.end, f"row {k + 1}'s end (a spot move first: front part)")
+                self.block["data"].setdefault("front_row_ends_confirmed", []).append(plan.name)
             self.step(f"{self.block['stage']}_row{k + 1}", 12, 2)
             res = sc.run_row(d, scan, plan, d.log, str(folder),
                              confirm_move=lambda a, b, p=plan: self.confirm_new_part(
@@ -1004,7 +1075,8 @@ class PartC:
         got = d.position()
         if last is not None and not _near(got, last) and d.arm_free is False:
             raise d._doubt(f"before the homing the arm reads {got}, not {last}")
-        if not (geo.AREA_RAW.contains(got) or tbl.START_GUARD.contains(got)):
+        held_front = d.arm_free is False and geo.CAP_RAW.contains(got)
+        if not (geo.AREA_RAW.contains(got) or tbl.START_GUARD.contains(got) or held_front):
             # i1Profiler sent its homing from its charts and from the alignment; never from
             # outside the measuring area: this program does not either
             free = (" The arm is free: you can push it gently back over the middle of the table "
@@ -1039,6 +1111,7 @@ class PartC:
             self.ui.say("The arm has left your sheet: for D2 to E3 the three marks are aimed "
                         "again (D1).")
         self.alignment = None
+        self.front_need = None
         self.worked.discard("d1")
         self.worked.discard("d2")
 
@@ -1106,6 +1179,99 @@ class PartC:
         self.block["data"]["fit"] = fit
         for line in fit["say"]:
             self.ui.say(line)
+        self.front_need = None
+        need = fit["front_need"]
+        if need is not None and need > self.front_reached():
+            mm = (need - geo.AREA_RAW.ymax) / 10.0
+            back = int((need - geo.MEASURING_AREA.ymax) / 10.0) + 1
+            self.ui.say(FRONT_SAY.format(mm=max(1, round(mm)), back=back))
+            self.ui.say(f"In the front part: {fit['front_spot']} of the {fit['spot_total']} patches"
+                        f" and {fit['front_rows']} of the {fit['rows_total']} rows (up to table "
+                        f"Y {need}; the program never goes beyond Y {geo.FRONT_CAP_Y}).")
+            ans = self.ui.ask("back (lay the sheet further back and aim again) or go on?",
+                              ("back", "go on"))
+            self.s.note("d1: front part", ans)
+            self.block["answers"].append(("front part", ans))
+            if ans == "go on":
+                yes = self.ui.ask(FRONT_YES, ("yes", "no"))
+                self.s.note("d1: front part, yes", yes)
+                self.block["answers"].append(("front part, yes", yes))
+                if yes == "yes":
+                    self.front_need = int(need)
+                    self.block["data"]["front_need_y"] = self.front_need
+                    return
+            self.alignment = None
+            raise PersonStopped(f"you chose to lay the sheet about {back} mm further back and "
+                                "aim again: nothing new was tried. " + REAIM)
+
+    def stage_dz(self, s: Stage, folder: Path) -> None:
+        """Feel the way into the front zone (fix 2): straight forward along Y, behind the
+        frontmost aimed mark, in m0 steps of at most CREEP_STEP, each from a fresh reading and
+        checked on arrival and in time. The furthest clean arrival is the sitting's front_y."""
+        d, al = self.d, self.alignment
+        need = min(int(self.front_need), geo.FRONT_CAP_Y)
+        mark = max(al.readings, key=lambda p: p[1])
+        x = min(max(int(mark[0]), geo.MEASURING_AREA.xmin), geo.MEASURING_AREA.xmax)
+        self.step("dz", s.max_lines, s.max_moves)
+        a = d.position()
+        if d.arm_free:
+            b = d.position()
+            if abs(a[0] - b[0]) > tbl.STILL_UNITS or abs(a[1] - b[1]) > tbl.STILL_UNITS:
+                raise StageFailed(f"the free arm moved between two readings ({a} then {b}): "
+                                  "please take your hands off it")
+            a = b
+        y0 = self.front_reached()
+        start = (x, min(y0, need))
+        if not self.confirm_new_part(a, start, (x, need), what="Feeling the way forward"):
+            raise StageFailed("you did not confirm the first move into a new part of the table")
+        self.move_to(start, "the move to the front edge of the confirmed part")
+        self.ui.say(f"The arm now goes forward from Y {start[1]} to Y {need} in steps of at most "
+                    f"{geo.CREEP_STEP / 10:.0f} mm, a short pause after each. Please watch it. "
+                    "Press Enter at any pause to stop there.")
+        n = 0
+        while self.front_reached() < need:
+            n += 1
+            if n > CREEP_STEPS_MAX:
+                raise StageFailed("more creep steps than this stage allows")
+            here = d.position_now
+            # at most CREEP_STEP from where the arm READS and from what is confirmed
+            target = (x, min(here[1] + geo.CREEP_STEP, self.front_reached() + geo.CREEP_STEP,
+                             need))
+            win = geo.move_window(here, target)
+            d.creep = True
+            try:
+                d.c_exchange(geo.m0_line(*target), 0, window=win, timeout=win[1] + 4.0,
+                             late_is_doubt=False)
+            except tbl.MoveOutside as exc:
+                d.creep = False
+                got = d.position()
+                self._creep_failed(target, got, f"the step took {exc.took:.2f} s, outside "
+                                   f"{exc.lo:.2f}-{exc.hi:.2f} s")
+            finally:
+                d.creep = False
+            got = d.position()
+            if not _near(got, target):
+                self._creep_failed(target, got, "it did not arrive within half a millimetre")
+            # a clean arrival (within 5 units, in time) confirms the step's target Y
+            d.front_y = max(d.front_y or 0, target[1])
+            self.driven.append((here, target))
+            d.log("DATA", f"front zone reached: Y {d.front_y}")
+            self.block["data"]["front_zone_reached_y"] = d.front_y
+            d.c_wait(CREEP_PAUSE_S)
+            self.poll_person()
+        self.ui.say(f"Front zone reached: Y {d.front_y}. Targets up to there may be driven to in "
+                    "this sitting, and none beyond.")
+
+    def _creep_failed(self, target, got, why: str) -> None:
+        """A creep step that did not end cleanly: the stage stops, the confirmed limit stays where
+        it was, and nothing more moves in this sitting except the recorded homing (F)."""
+        self.d.outside_at = got
+        self.only_home = True
+        self.block["data"]["creep_stopped_at"] = {"target": target, "read": got, "why": why}
+        raise StageFailed(f"a creep step towards X {target[0]}, Y {target[1]}: {why}. The arm reads "
+                          f"X {got[0]}, Y {got[1]}, held. The front limit stays at Y "
+                          f"{self.front_reached()}. Nothing more moves in this sitting except, "
+                          "if you want it, the homing (F)")
 
     def stage_d2(self, s: Stage, folder: Path) -> None:
         d = self.d
@@ -1132,7 +1298,8 @@ class PartC:
             for q in st["patches"]:
                 u = sc.sheet_table_mm(sheet, q["centre_mm"])
                 pts.append((str(q["sample_id"]), q["loc"], al.target(u, f"patch {q['loc']}",
-                                                                     run_out_mm=0.5)))
+                                                                     run_out_mm=0.5,
+                                                                     front_y=self.d.front_y)))
             pts.sort(key=lambda t: t[2][0], reverse=(k % 2 == 1))
             rows.append(pts)
         return rows
@@ -1141,7 +1308,7 @@ class PartC:
         d = self.d
         here = d.position()
         self.free_arm_inside(here)
-        geo.check_path(here, pts[0][2], f"the way to patch {pts[0][1]}")
+        geo.check_path(here, pts[0][2], f"the way to patch {pts[0][1]}", self.d.front_y)
         if not self.confirm_new_part(here, *[t for _s, _l, t in pts],
                                      what=f"This row ({name})"):
             raise StageFailed("you did not confirm the first move into a new part of the table")
@@ -1195,7 +1362,8 @@ class PartC:
         return int(ans)
 
     def sheet_plans(self, speed: int):
-        return sc.sheet_rows(self.sheet, self.page, self.alignment, speed)
+        return sc.sheet_rows(self.sheet, self.page, self.alignment, speed,
+                             front_y=self.d.front_y)
 
     def _scan_reader_ready(self, folder: Path):
         scan = self.scan_reader(folder)
@@ -1322,7 +1490,7 @@ def page_fit(sheet: dict, page: int, al: "geo.Alignment") -> dict:
     """After D1 (nothing moves): which spot targets and which strip rows of the page lie inside
     the measuring area this program uses, and which way the sheet would have to lie for the
     rest. Plain words in 'say'."""
-    area = geo.MEASURING_AREA
+    area = geo.CAP_AREA         # fix 2: the proven part and the front part up to its cap
     strips = sheet["pages"][page]["strips"]
     spot_pts, run_pts = [], []
     spot_out = rows_out = 0
@@ -1349,9 +1517,12 @@ def page_fit(sheet: dict, page: int, al: "geo.Alignment") -> dict:
                 "front": max(p[1] for p in pts) - area.ymax}
     say = []
     n_spot, n_rows = len(spot_pts), len(strips)
+    inside = [p for p in spot_pts + run_pts + [tuple(r) for r in al.readings] if area.contains(p)]
+    front_need = max((p[1] for p in inside), default=geo.MEASURING_AREA.ymax)
+    front_need = front_need if front_need > geo.MEASURING_AREA.ymax else None
     if spot_out or rows_out:
-        say.append("The measuring area this program uses is 320 x 230 mm; " + AREA_WHERE + ". "
-                   + WHY_BACK)
+        say.append("The measuring area this program uses is " + AREA_PARTS + "; " + AREA_WHERE
+                   + ". " + WHY_BACK)
     if spot_out == 0:
         say.append(f"All {n_spot} patches of this page lie inside the measuring area this program "
                    "uses: the spot stages (D3, D4) can reach every one.")
@@ -1366,8 +1537,13 @@ def page_fit(sheet: dict, page: int, al: "geo.Alignment") -> dict:
         say.append(f"{rows_out} of the {n_rows} rows, with their run-in and run-out, reach outside "
                    f"it, so E2 or E3 stop cleanly before such a row. For all rows the sheet would "
                    f"have to lie {_shift_words(over(run_pts))}. " + REAIM)
+    front_spot = sum(1 for p in spot_pts if area.contains(p) and geo.in_front_zone(p))
+    front_rows = sum(1 for st in strips
+                     if any(geo.in_front_zone(al.to_table(sc.sheet_table_mm(sheet, (st["x_mm"], r))))
+                            for r in st["run_mm"]))
     return {"spot_outside": spot_out, "spot_total": n_spot, "rows_outside": rows_out,
             "rows_total": n_rows, "over_spot": over(spot_pts), "over_rows": over(run_pts),
+            "front_need": front_need, "front_spot": front_spot, "front_rows": front_rows,
             "say": say}
 
 
@@ -1412,9 +1588,7 @@ ASK_REC_CHART = (
 SHEET_LAY = (
     "Please lay your printed ChromIQ i1iO sheet on the table now, while the arm is at rest, the "
     "way ChromIQ printed it for the table ({orient}). All three marks must lie inside the "
-    "measuring area this program uses: 320 x 230 mm (ChromIQ's layout keeps the sheet within "
-    "that size), and " + AREA_WHERE + ". Lay it a few centimetres further towards the back than "
-    "in your i1Profiler sessions: " + WHY_BACK)
+    "measuring area this program uses: " + AREA_PARTS + "; " + AREA_WHERE + ". " + SHEET_BACK)
 ASK_ARM_WRONG = (
     "Did anything about the TABLE or the ARM look, sound or feel wrong (a move that was not "
     "described, a noise, a bump, the arm in an unexpected place)? Answer no if only the "

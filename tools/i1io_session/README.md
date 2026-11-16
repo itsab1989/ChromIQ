@@ -410,15 +410,23 @@ recommended first.
 
 ### Where the arm may go
 
-Every target the program computes lies inside **an area of 320 x 230 mm**:
-the size X-Rite gives for the first i1iO and the i1iO 3. For the i1iO 2 X-Rite
+Every target the program computes lies inside an area in **two parts**. The
+**proven part** is **an area of 320 x 230 mm**: the size X-Rite gives for the
+first i1iO and the i1iO 3. For the i1iO 2 X-Rite
 publishes no size, so for your table the size is our assumption. **Where that
 area lies on your table is our estimate**, taken from where the instrument's
 measuring opening has actually been in your recordings: its right edge on the
 furthest point to the right the opening was ever read at, its front edge on
 the furthest point to the front the opening was ever read at, with 5 mm kept
 free on every side: table positions X -1384 to 1716 and Y 523 to 2723 (0.1 mm
-units). The whole rectangle the arm could
+units). In front of it lies the **front part**, up to table Y 3159 at the
+most: 5 mm beyond the frontmost mark any of your recorded i1Profiler alignments
+put (Y 3109). Nothing is ever sent beyond it. Its place is our estimate too: a
+mark is a corner patch of a chart that i1Profiler then measures, so i1Profiler
+sends the measuring opening there in normal use, and your table very likely
+reaches it (you have measured charts laid like this), but no reading in your
+recordings shows the opening there. So the program goes there only after stage
+DZ has felt its way forward in this sitting (see below). The whole rectangle the arm could
 sweep on its way must lie inside it too, and every move is computed from a
 position read right before it. On your sheet, targets must also lie inside
 the three marks you aimed at. The program checks all of this before it sends
@@ -426,12 +434,15 @@ a move, and the table line is checked once more right before it goes out. A
 move into a part of the table no recording drove the arm to (the front of an
 A4 sheet, for example) is announced first and needs its own `yes`.
 
-**Your sheet may have to lie a few centimetres further back than in your
-i1Profiler sessions.** i1Profiler places a sheet by the alignment sight, which
-sits about 3 cm in front of the measuring opening, so in your sessions the
-bottom marks lay up to about 3 cm in front of anywhere the opening itself was
-ever read. D1 checks this before anything moves and tells you which way and
-how far to shift the sheet.
+**If your sheet reaches into the front part, D1 lets you choose.** A sheet laid
+as in your i1Profiler sessions does: i1Profiler places a sheet by the alignment
+sight, which sits about 3 cm in front of the measuring opening, so your bottom
+marks lay up to about 3 cm in front of anywhere the opening itself was ever
+read. D1 says so before anything moves and offers two ways: `back` (lay the
+sheet that much further back and aim again; nothing new is tried) or `go on`
+(with a typed `yes`): then stage DZ first drives the arm forward in steps of
+at most 5 mm, checking each one, and only the front limit it reached cleanly
+is used for the rest of the sitting.
 
 Strip readings use only the ten speeds i1Profiler used on your table (40 to
 138 mm/s; 54 is our suggestion), and spot moves only i1Profiler's chart speed.
@@ -464,7 +475,11 @@ sheet if not (often a few centimetres towards the back). Nothing moves under mot
 
 *What can go wrong and what to do:* The check refuses your aims (marks swapped, a mirrored or turned sheet, a mark missed by more than 2 mm, a mark outside the area): clean, nothing moved. Push the free arm gently aside, lay the sheet again if needed, and run D1 again.
 
-**D2: The first computed move: a short one to mark 3** (about 1 min; depends on: D1 accepted in this sitting, the arm not homed since; our risk rating: medium; a first try). The first move to a computed target: from the free arm to the position the table reported for mark 3, a few centimetres. You tell us whether the round opening sits on mark 3.
+**DZ: Feel the way into the front part of the table, in 5 mm steps** (about 1 min; depends on: D1 accepted in this sitting with a sheet reaching into the front part, and your yes; our risk rating: medium; a first try). Only when D1 found part of your sheet in the front part and you chose `go on`. With your hands off, the arm goes to the front edge of the proven part, right behind your frontmost mark, then forward towards that mark in steps of at most 5 mm (chart speed), the position read after each and a pause of about half a second. Press Enter at any pause to stop. The furthest point reached cleanly is the front limit for the rest of the sitting ("front zone reached: Y ..." in the log and the results). At most 10 steps per run, 3 runs per sitting.
+
+*What can go wrong and what to do:* A step that does not arrive within half a millimetre, or takes longer or shorter than such a move should (for example because the arm met the end of its travel: you may hear the motors buzz or click for a moment): the program stops at once, says where the arm reads, keeps the front limit at the last clean step, and moves nothing more except, if you want it, the homing (F). Please tell us what you heard. If the table never reports a step as finished, switch it off as described below.
+
+**D2: The first computed move: a short one to mark 3** (about 1 min; depends on: D1 accepted in this sitting, the arm not homed since (DZ first if mark 3 lies in the front part); our risk rating: medium; a first try). The first move to a computed target: from the free arm to the position the table reported for mark 3, a few centimetres. You tell us whether the round opening sits on mark 3.
 
 *What can go wrong and what to do:* Your hands still on the arm (it moved between two readings) or the free arm outside the area: clean, nothing moved. A move that ends elsewhere ends the sitting.
 
@@ -491,7 +506,9 @@ sheet if not (often a few centimetres towards the back). Nothing moves under mot
 The stages build on each other only where they must: D2 to E3 need D1 in the
 same sitting (a homing in between means aiming again), D3 and D4 a spot
 calibration, E2 and E3 a strip calibration. Everything else can run in any
-order. Part C sends at most **8122 lines and 2841 movements** in one
+order. D2, E3 and D4 need DZ first when your sheet reaches into the front part,
+and a strip row there first visits its two ends with a spot move each. Part C
+sends at most **8680 lines and 3060 movements** in one
 sitting, and each stage at most its own number.
 
 ### The lines part C adds

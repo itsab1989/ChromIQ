@@ -28,8 +28,14 @@ from i1io_session_table import checksum, checksum_ok
 # ---- the simulator's own copy of part C's rules ---------------------------------------------
 C_P1, C_C4, C_D1, C_A3, C_C3 = ";p124", ";c42e", ";d1016d35", ";a331", ";c32f"
 C_SPEEDS_M2 = (40, 53, 54, 61, 87, 88, 110, 118, 137, 138)
-C_TARGET_BOX = (-1384, 1716, 523, 2723)        # targets (with the 5 mm margin)
-C_SWEEP_BOX = (-1434, 1766, 473, 2773)         # the swept rectangle from where the arm is
+C_TARGET_BOX = (-1384, 1716, 523, 3159)        # targets: never beyond the front zone's cap
+C_SWEEP_BOX = (-1434, 1766, 473, 3159)         # the swept rectangle from where the arm is
+#: fix 2, the simulator's own copy of the front-zone rule: in front of the proven zone (targets
+#: Y 2723, sweep 2773) a computed move may reach at most 50 units (5 mm) beyond the frontmost Y
+#: the motors have already brought the arm to, an m0 there moves at most 50 units per axis, and a
+#: scan move never goes beyond where the arm has been under motor.
+C_PROVEN_Y = (2723, 2773)
+C_CREEP = 50
 #: BELIEF (LIKELY in the recordings): p1 reads the place the SENSOR must go to stand over what
 #: the sight shows; the arm itself then stands this far from it (S2 383.3: (-106, -323)).
 SIGHT_OFFSET = (-106, -323)
@@ -61,6 +67,8 @@ class CSimTable(SimTable):
         self.p1_count = 0
         self.lamp_rng = random.Random(5)
         self.scan_moves = []
+        #: the frontmost Y the motors have brought the arm to in this simulated sitting
+        self.front_seen = float(C_PROVEN_Y[0])
 
     # -- the person's hand at an aim
     def aim(self, n: int) -> None:
@@ -101,6 +109,17 @@ class CSimTable(SimTable):
             hi = (max(here[0], x), max(here[1], y))
             if not (_inside(C_SWEEP_BOX, lo) and _inside(C_SWEEP_BOX, hi)):
                 raise SimViolation(f"{cid} from {here} to ({x}, {y}) sweeps outside the area")
+            known = max(C_PROVEN_Y[0], self.front_seen)
+            if y > known or hi[1] > max(C_PROVEN_Y[1], self.front_seen):
+                if cid == "m2":
+                    raise SimViolation(f"a scan move to Y {y} beyond where the motors have been "
+                                       f"(Y {known:.0f})")
+                if y > known + C_CREEP or hi[1] > known + C_CREEP:
+                    raise SimViolation(f"m0 to Y {y} more than 5 mm beyond the confirmed front "
+                                       f"(Y {known:.0f})")
+                if abs(x - here[0]) > C_CREEP or abs(y - here[1]) > C_CREEP:
+                    raise SimViolation(f"a step into the front zone longer than 5 mm: {here} to "
+                                       f"({x}, {y})")
             if cid == "m2":
                 if self.free_arm:
                     raise SimViolation("a scan move with the arm free")
@@ -231,8 +250,11 @@ class CSimTable(SimTable):
             off = self.c_faults.get("arrival_off", 0)
             if kind == "blocked":
                 x, y = x + 300, y
+            if "front_wall" in self.c_faults:      # a mechanical front end: the arm stalls there
+                y = min(y, int(self.c_faults["front_wall"]))
             self.pos = [float(x + off), float(y)]
             self.free_arm = False
+            self.front_seen = max(self.front_seen, float(y))
             return 0, "", t
         if cid == "i1":
             self.motions += 1

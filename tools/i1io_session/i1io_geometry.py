@@ -55,6 +55,22 @@ recordings fixes its back and left edges (the guard then relies on the travel th
 A sheet must therefore lie a few centimetres further back than in his i1Profiler sessions (their
 bottom marks were aimed at sight Y 2934 to 3109); D1 says by how much before anything moves.
 
+THE FRONT ZONE (fix 2, the owner's ruling after fix 1 had refused all ten recorded sheet
+positions). In front of that PROVEN area lies a FRONT ZONE up to an absolute cap, FRONT_CAP_Y =
+3159: the frontmost mark any recorded alignment put (p1 Y 3109, R1 412.443, mark 2 of R1 401.6)
+plus 5 mm. A mark is a corner patch of a chart that i1Profiler then measures, so in normal use
+i1Profiler sends the measuring opening to the marks' positions; that this table reaches them is
+very likely (the tester has measured full charts laid like this in i1Profiler), but no reading in
+our recordings shows the opening there. So:
+
+* nothing is ever a target, and no swept rectangle ever reaches, beyond FRONT_CAP_Y (CAP_AREA,
+  CAP_RAW; classify and the builders check it on every computed line);
+* inside the front zone, a target is allowed only up to the Y that this sitting has CONFIRMED
+  (`Table.front_y`): the furthest Y a creep step reached with a clean arrival (:func:`areas`);
+* the creep itself (stage DZ) drives forward in m0 steps of at most CREEP_STEP (5 mm) along Y,
+  each one at most CREEP_STEP beyond what is confirmed, from a fresh reading (the gate checks
+  this whole rule on the bytes it is given).
+
 THE SHEET. Inside that, every computed target must also lie inside the sheet as the person aimed
 at it: the parallelogram of his three aimed marks (top-left, bottom-left, bottom-right and the
 fourth corner TL + BR - BL), widened by RUN_OUT_MM along the rows (the run-in and run-out of a
@@ -114,6 +130,37 @@ AREA_RAW = Area(SMALLEST_X_REACHED, SMALLEST_X_REACHED + int(AREA_MM[0] * 10),
 MARGIN = 50
 MEASURING_AREA = Area(AREA_RAW.xmin + MARGIN, AREA_RAW.xmax - MARGIN,
                       AREA_RAW.ymin + MARGIN, AREA_RAW.ymax - MARGIN)
+#: The PROVEN zone is AREA_RAW / MEASURING_AREA above (the names kept).
+PROVEN_RAW, PROVEN = AREA_RAW, MEASURING_AREA
+
+#: fix 2: the FRONT ZONE's absolute cap: the frontmost aimed mark of any recorded alignment
+#: (p1, R1 412.443) plus 5 mm. Never a target beyond it, never a swept rectangle beyond it.
+FRONTMOST_AIM_Y = 3109
+FRONT_CAP_Y = FRONTMOST_AIM_Y + MARGIN
+CAP_AREA = Area(MEASURING_AREA.xmin, MEASURING_AREA.xmax, MEASURING_AREA.ymin, FRONT_CAP_Y)
+CAP_RAW = Area(AREA_RAW.xmin, AREA_RAW.xmax, AREA_RAW.ymin, FRONT_CAP_Y)
+#: One creep step: at most 5 mm, and at most 5 mm beyond what the sitting has confirmed.
+CREEP_STEP = 50
+#: the arrival tolerance (units) every move is checked with
+ARRIVAL_SLACK = 5
+
+
+def areas(front_y=None) -> "tuple[Area, Area]":
+    """(targets, swept rectangles) for a sitting that has confirmed the front zone up to
+    *front_y* (None: nothing confirmed, the proven zone only). Never beyond FRONT_CAP_Y."""
+    if front_y is None or not isinstance(front_y, (int, float)) or front_y != front_y \
+            or front_y <= MEASURING_AREA.ymax:
+        return MEASURING_AREA, AREA_RAW
+    fy = int(min(front_y, FRONT_CAP_Y))
+    # a swept rectangle may start where the arm READS after a clean arrival at fy (within the
+    # 5-unit arrival tolerance), never beyond the cap
+    sy = min(fy + ARRIVAL_SLACK, FRONT_CAP_Y)
+    return (Area(MEASURING_AREA.xmin, MEASURING_AREA.xmax, MEASURING_AREA.ymin, fy),
+            Area(AREA_RAW.xmin, AREA_RAW.xmax, AREA_RAW.ymin, max(AREA_RAW.ymax, sy)))
+
+
+def in_front_zone(p) -> bool:
+    return p[1] > MEASURING_AREA.ymax
 
 #: Where motors drove the arm in the recordings (R1, R2, S2), as boxes; a path is "visited" when
 #: every point of its swept rectangle lies in one of them.
@@ -133,20 +180,26 @@ RUN_OUT_MM = 10.0
 ACROSS_MM = 2.0
 
 
-def check_target(p, what: str) -> None:
-    if not MEASURING_AREA.contains(p):
+def check_target(p, what: str, front_y=None) -> None:
+    tgt, _sweep = areas(front_y)
+    if not tgt.contains(p):
+        if CAP_AREA.contains(p) and in_front_zone(p):
+            raise AreaRefused(f"{what}: table position X {p[0]}, Y {p[1]} lies in the front part "
+                              f"of the table further than this sitting has confirmed (Y "
+                              f"{tgt.ymax}); stage DZ feels its way there first")
         raise AreaRefused(f"{what}: table position X {p[0]}, Y {p[1]} lies outside the measuring "
-                          f"area this program uses ({MEASURING_AREA.text()})")
+                          f"area this program uses ({tgt.text()})")
 
 
-def check_path(a, b, what: str) -> None:
+def check_path(a, b, what: str, front_y=None) -> None:
     """A move from the READ position *a* to the target *b*: the target inside MEASURING_AREA
     (with its margin), the whole swept rectangle inside AREA_RAW (the start is where the arm
     physically is, so it may lie in the margin, e.g. a free arm left beside a corner)."""
-    check_target(b, what + " (its end)")
-    if not AREA_RAW.contains_path(a, b):
+    check_target(b, what + " (its end)", front_y)
+    sweep = areas(front_y)[1]
+    if not sweep.contains_path(a, b):
         raise AreaRefused(f"{what}: the rectangle the arm may sweep from {tuple(a)} to {tuple(b)} "
-                          f"leaves the measuring area ({AREA_RAW.text()})")
+                          f"leaves the measuring area ({sweep.text()})")
 
 
 def _visited(p) -> bool:
@@ -208,7 +261,8 @@ def m0_line(x: int, y: int, speed: int = 300) -> bytes:
     """The ONLY builder of a computed m0: the recorded form apart from X and Y."""
     if speed not in RECORDED_M0_SPEEDS:
         raise AreaRefused(f"m0 at speed {speed}: only {RECORDED_M0_SPEEDS} is recorded on a chart")
-    check_target((x, y), "a computed move")
+    if not CAP_AREA.contains((x, y)):
+        raise AreaRefused(f"a computed move to X {x}, Y {y}: outside {CAP_AREA.text()}")
     return _line("m0", x, y, speed)
 
 
@@ -217,7 +271,8 @@ def m2_line(x: int, y: int, speed: int) -> bytes:
     recorded speed."""
     if speed not in RECORDED_M2_SPEEDS:
         raise AreaRefused(f"a scan move at speed {speed}: not a recorded speed")
-    check_target((x, y), "a scan move's end")
+    if not CAP_AREA.contains((x, y)):
+        raise AreaRefused(f"a scan move's end X {x}, Y {y}: outside {CAP_AREA.text()}")
     return _line("m2", x, y, speed)
 
 
@@ -269,11 +324,12 @@ class Alignment:
         return (min(xs) - run_out_mm <= u[0] <= max(xs) + run_out_mm
                 and min(ys) - across_mm <= u[1] <= max(ys) + across_mm)
 
-    def target(self, u, what: str, run_out_mm: float = RUN_OUT_MM) -> "tuple[int, int]":
+    def target(self, u, what: str, run_out_mm: float = RUN_OUT_MM,
+               front_y=None) -> "tuple[int, int]":
         if not self.on_sheet(u, run_out_mm):
             raise AreaRefused(f"{what}: sheet position {u} lies outside the aimed marks")
         p = self.to_table(u)
-        check_target(p, what)
+        check_target(p, what, front_y)
         return p
 
 
@@ -348,17 +404,21 @@ def fit_model(aims_mm, readings) -> Alignment:
 
 
 def fit_alignment(aims_mm, readings) -> Alignment:
-    """:func:`fit_model`, then all three marks inside MEASURING_AREA. The marks are compared as
-    TARGETS (the opening is put on a mark by moving to its p1 value), the same frame as every
-    patch target and :func:`check_target`."""
+    """:func:`fit_model`, then all three marks inside CAP_AREA (the proven zone and the front
+    zone up to its cap; whether the front zone is used is D1's question to the person). The
+    marks are compared as TARGETS (the opening is put on a mark by moving to its p1 value), the
+    same frame as every patch target and :func:`check_target`."""
     al = fit_model(aims_mm, readings)
     pts = [tuple(map(float, p)) for p in readings]
-    outside = [(n, p) for n, p in enumerate(pts, 1) if not MEASURING_AREA.contains(p)]
+    outside = [(n, p) for n, p in enumerate(pts, 1) if not CAP_AREA.contains(p)]
     if outside:
         n, p = outside[0]
+        front = (" (further to the front than any mark of your recorded i1Profiler alignments)"
+                 if p[1] > CAP_AREA.ymax else "")
         raise AlignmentRefused(
             f"mark {n} was aimed at X {p[0]:.0f}, Y {p[1]:.0f}, outside the measuring area this "
-            f"program uses ({MEASURING_AREA.text()}; where it lies on your table is our estimate, "
-            "from where the measuring opening has been in your recordings). For all three marks "
-            f"the sheet would have to lie {_shift_back(pts, MEASURING_AREA)}")
+            f"program uses ({CAP_AREA.text()}{front}; where it lies on your table is our "
+            "estimate, from where the measuring opening has been in your recordings and where "
+            "your recorded alignments put their marks). For all three marks the sheet would have "
+            f"to lie {_shift_back(pts, CAP_AREA)}")
     return al

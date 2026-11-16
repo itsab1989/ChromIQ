@@ -590,9 +590,13 @@ def plan_part_c(hex_bytes: bool = False) -> "list[str]":
     out += ["", "and COMPUTED moves of the recorded form: m0 at speed "
             f"{', '.join(str(v) for v in geo.RECORDED_M0_SPEEDS)} only, m2 (the strip move) at "
             f"{', '.join(str(v) for v in geo.RECORDED_M2_SPEEDS)} only; the target inside "
-            f"{a.text()} (a 320 x 230 mm area with a 5 mm margin; {pc.AREA_WHERE}); only "
-            "right after a position reading, and the whole rectangle swept "
-            f"from it inside {r.text()}.", "", "Its stages (lines and movements per run, runs per "
+            f"{a.text()} (the PROVEN part: a 320 x 230 mm area with a 5 mm margin; "
+            f"{pc.AREA_WHERE}); only right after a position reading, and the whole rectangle "
+            f"swept from it inside {r.text()}. In FRONT of it, up to Y {geo.FRONT_CAP_Y} at the "
+            "most (the frontmost mark of a recorded alignment plus 5 mm) and never beyond: only "
+            "after stage DZ has confirmed that Y in this sitting, step by step (m0 of at most "
+            f"{geo.CREEP_STEP // 10} mm, at most {pc.STAGE_BY_KEY['dz'].max_runs * pc.STAGE_BY_KEY['dz'].max_moves} "
+            "creep movements per sitting).", "", "Its stages (lines and movements per run, runs per "
             "sitting; each also may use part B's recorded way out and a homing):"]
     for st in pc.STAGES:
         out.append(f"      {st.key.upper():3} {st.title} ({st.max_lines} lines, {st.max_moves} "

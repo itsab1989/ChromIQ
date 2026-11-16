@@ -170,7 +170,13 @@ it refuses every other form):
      where the measuring opening was READ (p0) in the recordings, minus 5 mm on every side;
      where it lies on the table is our estimate);
    * only right after a position reading, and the whole rectangle swept from that reading to
-     the target inside X -1434..1766, Y 473..2773.
+     the target inside X -1434..1766, Y 473..2773;
+   * fix 2, the FRONT ZONE: in front of that, up to Y 3159 at the most (the frontmost recorded
+     aim, p1 Y 3109, plus 5 mm; `classify` refuses anything beyond it on every computed line),
+     a target only up to the Y this sitting has confirmed (`Table.front_y`, swept rectangles up
+     to 5 units beyond it); confirming it is stage DZ: m0 at 300 of at most 50 units per axis
+     from a fresh reading and at most 50 units beyond the confirmed Y (the gate checks it on
+     the bytes), at most 11 movements per run, 3 runs per sitting.
 
 Answers part C expects to its own lines (anything else is a doubt):
 
@@ -184,7 +190,7 @@ Answers part C expects to its own lines (anything else is a doubt):
 | a3 | status 0, 20 hex characters (A, T, V; compared with the plan, logged) |
 | c3 | status 0, no data |
 
-Part C sends at most **8122 lines and 2841 movements** in one sitting.
+Part C sends at most **8680 lines and 3060 movements** in one sitting.
 
 Never sent in part C either: i0, any u8 other than the two reads, any write to the memory of
 the table or the instrument, any other speed, any target outside the area, any line form not

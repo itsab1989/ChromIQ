@@ -118,15 +118,15 @@ class PlanRefused(Exception):
     pass
 
 
-def check_plan(p: RowPlan, at=None) -> None:
+def check_plan(p: RowPlan, at=None, front_y=None) -> None:
     if p.speed not in geo.RECORDED_M2_SPEEDS:
         raise PlanRefused(f"speed {p.speed} is not a recorded scan speed")
     try:
-        geo.check_target(p.start, "the row start")
-        geo.check_target(p.end, "the row end")
-        geo.check_path(p.start, p.end, "the row")
+        geo.check_target(p.start, "the row start", front_y)
+        geo.check_target(p.end, "the row end", front_y)
+        geo.check_path(p.start, p.end, "the row", front_y)
         if at is not None:
-            geo.check_path(at, p.start, "the way to the row start")
+            geo.check_path(at, p.start, "the way to the row start", front_y)
     except geo.AreaRefused as exc:
         raise PlanRefused(str(exc)) from None
     if p.dist < 100:
@@ -173,7 +173,8 @@ def aims_of(i1io: dict, page: int):
     return pts
 
 
-def sheet_rows(i1io: dict, page: int, al: geo.Alignment, speed: int = DEFAULT_SPEED):
+def sheet_rows(i1io: dict, page: int, al: geo.Alignment, speed: int = DEFAULT_SPEED,
+               front_y=None):
     """Every strip of one page as a RowPlan, serpentine, the first from the right end (as
     recorded: the arm comes from the third mark, bottom right)."""
     along = float(i1io["patch_mm"][1])
@@ -182,15 +183,16 @@ def sheet_rows(i1io: dict, page: int, al: geo.Alignment, speed: int = DEFAULT_SP
         r0, r1 = st["run_mm"]
         ua = sheet_table_mm(i1io, (st["x_mm"], r0))
         ub = sheet_table_mm(i1io, (st["x_mm"], r1))
-        a = al.target(ua, f"row {k + 1}'s run end")
-        b = al.target(ub, f"row {k + 1}'s run end")
+        a = al.target(ua, f"row {k + 1}'s run end", front_y=front_y)
+        b = al.target(ub, f"row {k + 1}'s run end", front_y=front_y)
         if (a[0] > b[0]) != (k % 2 == 1):
             a, b = b, a
         patches = []
         for q in st["patches"]:
             u = sheet_table_mm(i1io, q["centre_mm"])
             patches.append(Patch(str(q["sample_id"]), q["loc"],
-                                 al.target(u, f"patch {q['loc']}", run_out_mm=0.5),
+                                 al.target(u, f"patch {q['loc']}", run_out_mm=0.5,
+                                           front_y=front_y),
                                  half_mm=along / 2))
         plans.append(plan_row(f"p{page + 1}_row{k + 1}", a, b, speed, patches))
     return plans
@@ -249,7 +251,7 @@ def run_row(table: tbl.Table, inst, plan: RowPlan, log, outdir: str,
             at = again
         res.start_read = at
         try:
-            check_plan(plan, at)
+            check_plan(plan, at, getattr(table, "front_y", None))
         except PlanRefused as exc:
             raise CleanFail(f"the plan was refused: {exc}") from None
         if confirm_move is not None and not confirm_move(at, plan.start):
