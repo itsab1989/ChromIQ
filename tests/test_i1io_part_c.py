@@ -953,3 +953,21 @@ def test_part_c_writes_to_the_table_only_through_table_write():
         if name == "i1io_part_c_sim.py":
             continue
         assert ".t.write(" not in src and "dev.write(" not in src, name
+
+
+def test_the_real_reader_wrapper_logs_no_user_path(tmp_path):
+    """A stand-in helper (a tiny Python script) that echoes a path: the log keeps names only."""
+    import i1io_reader as rd
+    helper = tmp_path / "fake-helper"
+    helper.write_text("#!/usr/bin/env python3\nimport json, sys, os\n"
+                      "print(json.dumps({'event': 'saved', 'path': os.path.expanduser('~/x.ti3')}))\n"
+                      "sys.stdout.flush()\nsys.stdin.readline()\n")
+    helper.chmod(0o755)
+    logged = []
+    p = rd._Proc([str(helper), "--json", "--i1io-table-scan", str(tmp_path / "out")],
+                 lambda k, t: logged.append(t), tmp_path)
+    ev = p.wait(("saved",), 10)
+    p.stop({"cmd": "quit"})
+    assert ev and ev["event"] == "saved"
+    text = "\n".join(logged)
+    assert str(Path.home()) not in text and str(tmp_path) not in text, text

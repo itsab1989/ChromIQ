@@ -170,7 +170,8 @@ class _Proc:
                     ev = json.loads(line)
                 except ValueError:
                     continue
-                self.log("INST", line if len(line) < 600 else line[:600] + "...")
+                shown = line.replace(str(Path.home()), "~")      # never the user's name
+                self.log("INST", shown if len(shown) < 600 else shown[:600] + "...")
                 self.events.append(ev)
                 self.q.put(ev)
         except Exception:
