@@ -623,9 +623,10 @@ def custom_size_help() -> str:
            "information. You can mix units: a width in pixels and a height in "
            "inches is fine."),
         tr("Each side can be from 1 mm to 2000 mm, whichever unit you type "
-           "it in. The millimetre and inch fields stop there. The pixel "
-           "fields take any count, in any order with the resolution, and "
-           "keep it exactly as you typed it: if it would make a side longer "
+           "it in, and the millimetre and inch fields go no further. The "
+           "pixel fields take any count, whether you type it before or after "
+           "the resolution, and keep it exactly as you typed it: if it would "
+           "make a side longer "
            "than 2000 mm (or shorter than 1 mm) at the resolution you have "
            "set, the line under the paper size says so in red and names the "
            "resolutions that fit, and Generate makes no chart until the "
