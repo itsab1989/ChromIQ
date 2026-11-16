@@ -31,7 +31,10 @@ needs and nothing personal:
   ``mirror_de``, ``better_share`` and the ``verdict`` "saved", "other" or
   "unsure"), ``direction_confirmed_by_colours`` (the colours vouched for
   the saved order, so no window was shown and the log says so) and
-  ``voted`` (this reading counted towards the reference at once) and
+  ``voted`` (this reading counted towards the reference at once),
+  ``direction_restarted`` (4.3.42: this strip confirmed a turn, its ruler
+  disagreeing with the reference while its colours vouched, and the
+  reference started again from it) and
   ``vote_waits_for`` (the questions whose answer this reading's vote waits
   for: "read_twice" is cast on Keep, "ruler_direction" on Continue Anyway
   only; empty when it voted at once or casts no vote, for example after a

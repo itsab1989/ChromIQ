@@ -78,6 +78,16 @@ class RulerSession:
         #: Votes waiting for an answer (review of 4.3.40, MINOR-1/3): strip
         #: -> (vote, the questions whose "keep" answer still has to come).
         self._pending_votes: "dict[str, tuple[int, set]]" = {}
+        #: 4.3.42: a CONFIRMED TURN restarts the reference. When a strip's
+        #: ruler disagrees with the reference and its own colours vouch for
+        #: the order it was saved in, the sheet (or the ruler) was turned:
+        #: the reference then starts again from that strip's way round
+        #: (``_turn_sign``), and only the votes cast since (``_since_turn``)
+        #: count, so the next strips are compared at once instead of waiting
+        #: for the old votes to be outvoted (pharmacist, 2026-11-15: four
+        #: strips with no reference after a quick turn back).
+        self._turn_sign = 0
+        self._since_turn: "dict[str, int]" = {}
         #: Second look, MINOR-A: there was a majority, and whether the loss
         #: of it has been said in the log (once per loss).
         self._had_majority = False
@@ -266,8 +276,7 @@ class RulerSession:
         strip = str(ev.get("strip") or "").strip()
         # This reading replaces whatever the strip's earlier reading voted
         # (4.3.40, F3), with or without a ruler record of its own.
-        self._votes.pop(strip, None)
-        self._pending_votes.pop(strip, None)
+        self._drop_vote(strip)
         if self.pending is None or self.pending[0] != strip:
             self.flush()
             return None
@@ -321,9 +330,14 @@ class RulerSession:
         elif self._had_majority and not self._loss_said:
             self._loss_said = True
             lost_line = self._lost_line()
+        # 4.3.42: right after a confirmed turn, the strip is held against
+        # the old reference as well, for as long as it still stands, so that
+        # restarting never lets through what the old one would have asked
+        old = self._old_majority()
+        refs = [x for x in (majority, old) if x]
         disagrees = bool(
             self.gen in NAMES and not ask and not other_question
-            and filed_sign and majority and filed_sign != majority
+            and filed_sign and refs and any(filed_sign != x for x in refs)
             and patches >= rc.MIN_PATCHES_FOR_QUESTION)
         # 4.3.40 (pharmacist, 2026-11-15): a disagreement is what a TURNED
         # SHEET (or ruler) looks like as much as a strip saved back to front.
@@ -370,15 +384,20 @@ class RulerSession:
             wait.add("read_twice")
         blocked = bool(names & self.ORDER_QUESTIONS)
         voted = bool(filed_sign and not blocked and not wait)
+        restarted = bool(vouched and voted)
+        if restarted:
+            # 4.3.42: a confirmed turn; the reference starts again here
+            self._turn_sign = filed_sign
+            self._since_turn = {}
         if voted:
-            self._votes[strip] = filed_sign
+            self._cast_vote(strip, filed_sign)
         elif filed_sign and not blocked:
             self._pending_votes[strip] = (filed_sign, wait)
         log_lines: "list[str]" = [lost_line] if lost_line else []
         if vouched:
             log_lines.append(self._turned_note(strip))
         elif filed_sign and reference and filed_sign == reference \
-                and not ask_direction:
+                and not ask_direction and old in (0, filed_sign):
             # F4 (4.3.40): which way the instrument moved over the patches,
             # said only when the ruler and the saving agree against the same
             # reference the question uses; decided here, where the saving is
@@ -431,6 +450,8 @@ class RulerSession:
                  "direction_votes_before": window,
                  "direction_colours": colours.as_dict() if colours else None,
                  "direction_confirmed_by_colours": vouched,
+                 # 4.3.42, additive: this strip restarted the reference
+                 "direction_restarted": restarted,
                  "voted": voted,
                  # review of 4.3.40: the questions whose "keep" answer this
                  # reading's vote still waits for (cast then, see "answers")
@@ -463,14 +484,27 @@ class RulerSession:
         return list(self._votes.values())
 
     def _recent(self) -> "list[int]":
-        return list(self._votes.values())[-self.DIRECTION_RECENT:]
+        votes = self._since_turn if self._turn_sign else self._votes
+        return list(votes.values())[-self.DIRECTION_RECENT:]
+
+    def _cast_vote(self, strip: str, sign: int) -> None:
+        """One vote, at the end (a strip's earlier vote is replaced)."""
+        self._votes.pop(strip, None)
+        self._votes[strip] = sign
+        if self._turn_sign:
+            self._since_turn.pop(strip, None)
+            self._since_turn[strip] = sign
+
+    def _drop_vote(self, strip: str) -> None:
+        self._votes.pop(strip, None)
+        self._pending_votes.pop(strip, None)
+        self._since_turn.pop(strip, None)
 
     def forget(self, strip: str) -> None:
         """A strip's reading was replaced outside a ``strip_read`` ("I read
         strip B", a strip turned round): its vote no longer describes the
         reading in the file (F3)."""
-        self._votes.pop(str(strip or "").strip(), None)
-        self._pending_votes.pop(str(strip or "").strip(), None)
+        self._drop_vote(str(strip or "").strip())
 
     def _early_reference(self) -> int:
         """Before there is a majority (fewer than DIRECTION_MIN_VOTES), the
@@ -481,10 +515,31 @@ class RulerSession:
             return v[0]
         return 0
 
+    def _old_majority(self) -> int:
+        """4.3.42: while a restarted reference is young (fewer than
+        DIRECTION_MIN_VOTES votes since the confirmed turn), the majority
+        the session would have without the restart (over every vote); else
+        0."""
+        if not self._turn_sign or len(self._since_turn) \
+                >= self.DIRECTION_MIN_VOTES:
+            return 0
+        return self._majority_of(
+            list(self._votes.values())[-self.DIRECTION_RECENT:])
+
     def _majority_direction(self) -> int:
         """+1 / -1: the direction most of the recent accepted strips agree
         on, or 0 when there are too few or no clear majority."""
         v = self._recent()
+        if len(v) < self.DIRECTION_MIN_VOTES and self._turn_sign:
+            # 4.3.42: right after a confirmed turn, the strip that showed it
+            # is the reference until enough votes are cast since, for as
+            # long as every one of them agrees with it
+            if v and all(x == self._turn_sign for x in v):
+                return self._turn_sign
+            return 0
+        return self._majority_of(v)
+
+    def _majority_of(self, v: "list[int]") -> int:
         if len(v) < self.DIRECTION_MIN_VOTES:
             return 0
         plus = sum(1 for x in v if x > 0)
@@ -505,8 +560,7 @@ class RulerSession:
     def _answered(self, strip: str, question: str, answer: str) -> None:
         strip = str(strip or "").strip()
         if answer in self.DISCARD_ANSWERS:
-            self._pending_votes.pop(strip, None)
-            self._votes.pop(strip, None)
+            self._drop_vote(strip)
             return
         p = self._pending_votes.get(strip)
         if p is None:
@@ -523,8 +577,7 @@ class RulerSession:
         wait.discard(question)
         if not wait:
             del self._pending_votes[strip]
-            self._votes.pop(strip, None)
-            self._votes[strip] = vote
+            self._cast_vote(strip, vote)
 
     def note_answer(self, strip: str, answer: str) -> None:
         """The answer to the ruler's own window (coverage or direction)."""
