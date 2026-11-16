@@ -112,7 +112,10 @@ class Sheet:
                 self.point(R - 1, C - 1))
 
 
-def load_sheet(ti2: Path) -> Sheet:
+def load_sheet(ti2: Path, page: int = 1) -> Sheet:
+    """The sheet of page *page* (1-based) of the chart *ti2*: a chart of
+    several pages is measured one sheet at a time, and every sheet is a
+    Measure Chart scan of its own (the import of 2026-11-16)."""
     side = json.loads(Path(str(ti2)[:-4] + ".i1io.json").read_text(encoding="utf-8"))
     lines = ti2.read_text(encoding="utf-8").splitlines()
     i = lines.index("BEGIN_DATA") + 1
@@ -123,7 +126,8 @@ def load_sheet(ti2: Path) -> Sheet:
         loc_of[int(f[0])] = f[1].strip('"')
         i += 1
     h = side["paper_mm"][1]
-    strips = sorted(side["pages"][0]["strips"], key=lambda s: s["x_mm"])
+    strips = sorted(side["pages"][page - 1]["strips"],
+                    key=lambda s: s["x_mm"])
     grid = []
     for s in strips:
         cells = sorted(s["patches"], key=lambda q: -q["centre_mm"][1])

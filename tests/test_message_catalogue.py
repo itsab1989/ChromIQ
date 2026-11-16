@@ -120,6 +120,13 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 # M-PATCH-SIMILAR joined on 2026-10-15 (4.3.5 beta 8): Knut confirmed the
 # similar-patch rule for both tests (#182 6196599132); its card texts are ours.
 AWAITING_APPROVAL: "set[str]" = {
+    # 2026-11-16: an i1iO chart of several pages, one Measure Chart file per
+    # sheet (the i1iO Beta).
+    "M-I1IO-MEASURE-CHART-PAGES", "M-I1IO-MEASURE-CHART-PAGES-PARTS",
+    "M-IMPORT-I1IO-PAGES-REASONS", "M-IMPORT-I1IO-WHICH-PAGE",
+    "M-IMPORT-I1IO-PAGE-REPLACE", "M-IMPORT-I1IO-PAGE-SAME",
+    "M-IMPORT-I1IO-PAGE-FILED", "M-IMPORT-I1IO-PAGE-FILED-PARTS",
+    "M-PROFILE-I1IO-PAGES-MISSING", "M-I1IO-PAGES-PANEL",
     # 4.3.39 integration: a Measure Chart import whose aim the checks could
     # not prove says so after filing; the i1iSis row numbers without room.
     "M-IMPORT-I1IO-AIM-UNCHECKED", "M-ISIS-ROW-NUMBERS-NO-ROOM",

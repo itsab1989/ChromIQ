@@ -158,7 +158,9 @@ def test_both_of_the_measure_tabs_refusals_call_it():
     manifest, and which the shared `_undo_the_run` could never reach."""
     import inspect
     from ui.tabs.tab_measure import TabMeasure
-    src = inspect.getsource(TabMeasure._import_into_profiling_run)
+    # the door and its filing steps (moved out unchanged, 2026-11-16)
+    src = (inspect.getsource(TabMeasure._import_into_profiling_run)
+           + inspect.getsource(TabMeasure._file_into_profiling_run))
     assert src.count("_put_the_project_back") == 2, (
         "both refusals around `ask_to_make_a_new_run` / `duplicate_run` must "
         "put the project back before they say nothing has been changed")

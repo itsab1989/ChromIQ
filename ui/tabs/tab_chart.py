@@ -24413,6 +24413,13 @@ class TabChart(QWidget):
                 items.append(tr(M.M_CHART_ITEM_MEASUREMENT_UNCOUNTABLE))
             if cost.has_profile:
                 items.append(tr(M.M_CHART_ITEM_PROFILE))
+            if cost.imported_pages:
+                # the sheets of an i1iO chart of several pages imported so
+                # far (the i1iO Beta), archived with this chart
+                items.append(tr(
+                    M._I1IO_CHART_ITEM_PAGES_ONE if cost.imported_pages == 1
+                    else M._I1IO_CHART_ITEM_PAGES).format(
+                        n=cost.imported_pages, pages=cost.chart_pages))
             title, body = M.M_CHART_PROFILING.render(
                 items="\n".join(items), folder=str(run.old_dir))
         return title, body + self._corrupt_measurement_note(cost) \

@@ -285,6 +285,12 @@ HOOKED_FILES = {
     # the i1iO's "what to aim at" paragraph (M-I1IO-AIM-*), rendered from
     # the chart's record; reached only from the i1iO's own Start notices
     "workflow/measurement_messages.py",
+    # an i1iO chart of several pages (2026-11-16): Build Profile's refusal
+    # while pages are missing reads the switch first; Create Chart's warning
+    # counts the run's pages/ folder, which only that import makes (a stat
+    # of a folder that does not exist for any other run)
+    "ui/tabs/tab_profile.py",
+    "workflow/chart_integrity.py",
 }
 
 

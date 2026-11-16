@@ -7013,6 +7013,23 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if nums is not None and int(nums.get("pages") or 1) == 1:
             self._i1io_window(*M.i1io_measure_chart_window(nums, by_hand))
             return
+        # A PROFILING CHART OF SEVERAL PAGES (2026-11-16): one Measure Chart
+        # file per sheet, each page's own grid and corner patches, imported
+        # one at a time or together (`workflow.i1io.pages`). A verification
+        # chart of several pages keeps the note below.
+        if nums is not None and not by_hand:
+            try:
+                from workflow.i1io.pages import page_names
+                chart = self._chart_file_for(self._ti1_path)
+                sheets = [page_names(chart, k) for k in
+                          range(1, int(nums.get("pages") or 1) + 1)]
+            except Exception:      # noqa: BLE001 - a notice, never a blocker
+                log.debug("i1iO pages not read", exc_info=True)
+                sheets = []
+            if sheets and all("cols" in s for s in sheets):
+                self._i1io_window(*M.i1io_measure_chart_pages_window(
+                    sheets, bool(nums.get("crosses")), by_hand))
+                return
         title, body = self._i1io_not_yet_message(M).render()
         if nums is not None:
             body += "\n\n" + M.i1io_pages_note(int(nums.get("pages") or 1))
@@ -14840,6 +14857,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         ll.setSpacing(10)
 
         self._import_path: "Path | None" = None
+        # several files at once: the sheets of an i1iO chart of several pages
+        self._import_paths: "list[Path] | None" = None
 
         grp = QGroupBox(tr("Measurement File (from i1Profiler)"), left)
         grp.setFlat(True)
@@ -15117,6 +15136,16 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             _scale = the_colour_scale_note(path)
             self._import_file_lbl.setText(
                 str(path) + (the_colour_scale_tag() if _scale else ""))
+            many = getattr(self, "_import_paths", None)
+            if many and not self._import_takes_pages(self._guard_run()):
+                # the bar moved to a run that takes one file: the first stays
+                self._import_paths = many = None
+                self._import_file_lbl.setText(str(path))
+            if many:
+                self._import_file_lbl.setText(tr(
+                    "{count} files: {names}").format(
+                        count=len(many),
+                        names=", ".join(Path(p).name for p in many)))
             # THE SENTENCE GOES IN THE INFO BOX, NOT IN THIS LABEL'S TOOLTIP.
             # `ElidingLabel` owns its own tooltip (it puts the full text there
             # when the name is too long to fit), so setting one here showed the
@@ -15126,6 +15155,20 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             if _scale:
                 parts.append(_scale)
             ext = Path(path).suffix.lower()
+            if ext == ".cmxf":
+                # i1Profiler's Measure Chart file IS a CxF, and the i1iO
+                # Beta reads it as one for an i1iO chart (`measure_chart.
+                # convert`); the switch is read first, so with the Beta off
+                # this says what it said before
+                try:
+                    from workflow.measurement_import import \
+                        i1io_route_applies
+                    _r = self._guard_run()
+                    if _r is not None and i1io_route_applies(
+                            self._import_chart_for(_r)):
+                        ext = ".cxf"
+                except Exception:      # noqa: BLE001 - a notice only
+                    pass
             if ext in (".mxf", ".cxf"):
                 parts.append(tr(
                     "{name} is an i1Profiler measurement (CxF3) — ChromIQ "
@@ -15275,6 +15318,17 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         text = tr(
             "It will be filed as this run's measurement, in:\n{folder}"
         ).format(folder=str(run.dir))
+        # AN i1iO CHART OF SEVERAL PAGES (the i1iO Beta): which pages are in.
+        if self._import_takes_pages(run):
+            try:
+                from workflow import measurement_messages as M
+                from workflow.i1io.pages import pages_state
+                st = pages_state(run, run.chart_ti2)
+                text += "\n\n" + M.i1io_pages_panel_text(
+                    st.total, sorted(st.filled), st.missing,
+                    run.measurement_ti3.exists())
+            except Exception:      # noqa: BLE001 - a notice, never a blocker
+                log.debug("i1iO pages state not read", exc_info=True)
         if run.measurement_ti3.exists():
             text += "\n\n" + tr(
                 "⚠ This run already holds a measurement, and an import "
@@ -15288,6 +15342,20 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # — not the bare native one (Sebastian, 2026-08-10).
         start_dir = str(self._settings.get("import_measurement_dir", "") or
                         str(Path.home()))
+        # AN i1iO CHART OF SEVERAL PAGES (the i1iO Beta): one file per sheet,
+        # so several may be chosen at once. Every other case: one file, as
+        # before.
+        if self._import_takes_pages(self._guard_run()):
+            from ui.widgets import open_files_dialog
+            paths = open_files_dialog(
+                self, tr("Choose the measurements to import"),
+                tr("Measurement files (*.cmxf *.mxf *.cxf *.txt *.ti3);;All files (*)"),  # noqa: E501
+                start_dir=start_dir,
+                extra_path=self._settings.get("custom_output_path", ""),
+                declutter_settings=self._settings)
+            if paths:
+                self._use_import_files(paths)
+            return
         path = open_file_dialog(
             self, tr("Choose the measurement to import"),
             tr("Measurement files (*.mxf *.cxf *.txt *.ti3);;All files (*)"),
@@ -15301,8 +15369,38 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
     def _use_import_file(self, path) -> None:
         """The file chosen with the folder button, or dropped on its box."""
         self._import_path = Path(path)
+        self._import_paths = None
         self._settings.set("import_measurement_dir", str(Path(path).parent))
         self._update_import_panel()
+
+    def _use_import_files(self, paths) -> None:
+        """Several files chosen at once: the sheets of an i1iO chart of
+        several pages (the i1iO Beta). The first is `_import_path`, so every
+        guard that asks "is there a file" sees one."""
+        paths = [Path(p) for p in paths]
+        if len(paths) == 1:
+            self._use_import_file(paths[0])
+            return
+        self._import_path = paths[0]
+        self._import_paths = paths
+        self._settings.set("import_measurement_dir", str(paths[0].parent))
+        self._update_import_panel()
+
+    def _import_takes_pages(self, run) -> bool:
+        """True for the i1iO Beta's chart of several pages in a PROFILING
+        run (`workflow.i1io.pages.applies`). The switch is read first, so
+        with the Beta off nothing more is looked at."""
+        if run is None:
+            return False
+        from workflow.i1io.support import i1io_enabled
+        if not i1io_enabled() or self._is_verification_run():
+            return False
+        try:
+            from workflow.i1io.pages import applies
+            return applies(run.chart_ti2)
+        except Exception:      # noqa: BLE001 - the one-file import goes on
+            log.debug("i1iO pages: could not tell", exc_info=True)
+            return False
 
     def _drops_open(self) -> bool:
         """No file is taken while ArgyllCMS runs (a measurement, say)."""
@@ -15475,7 +15573,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         return box.clickedButton() is go
 
     def _convert_import_file(self, run, path: Path,
-                             chart: "Path | None" = None) -> "Path | None":
+                             chart: "Path | None" = None,
+                             prefer_condition: str = "") -> "Path | None":
         """§I.4 for both doors: the chosen file as a `.ti3` in the run's cache.
 
         `.mxf`/`.cxf` are read directly, `.txt` goes through txt2ti3, and a
@@ -15520,7 +15619,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         from ui.dialogs.cxf_condition_dialog import choose_cxf_condition
         condition = choose_cxf_condition(
             self, Path(path), log=self._log.appendPlainText,
-            accent=_TAB_COLOR, as_cxf=cmxf)
+            accent=_TAB_COLOR, as_cxf=cmxf, prefer=prefer_condition)
         if condition is None:
             return None
         try:
@@ -15602,6 +15701,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                    "again."))
             return
         if not self._is_verification_run():
+            # AN i1iO CHART OF SEVERAL PAGES (the i1iO Beta): one file per
+            # sheet, the page of each worked out (`_import_i1io_pages`).
+            if self._import_takes_pages(run):
+                self._import_i1io_pages(
+                    ctl, run, list(getattr(self, "_import_paths", None)
+                                   or [Path(path)]))
+                return
             self._import_into_profiling_run(ctl, run, Path(path))
             return
         self._import_into_verification(ctl, run, Path(path))
@@ -15795,9 +15901,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         imported file has no position in a sequence of reads taken here, so it
         lands where a standalone read lands.
         """
-        from ui.measurement_filing import (ask_to_make_a_new_run,
-                                           finish_the_import,
-                                           refuse_it_does_not_belong)
+        from ui.measurement_filing import refuse_it_does_not_belong
 
         # A CHART TO JUDGE IT AGAINST, FIRST. Without one `assess` has nothing
         # to compare and accepts anything at all — the exact fault the other
@@ -15905,11 +16009,23 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 "values of all {count} patches from the chart.")).format(
                     chart=run.chart_ti2.name, count=n))
 
+        self._file_into_profiling_run(ctl, run, converted, turned)
+
+    def _file_into_profiling_run(self, ctl, run, converted: Path,
+                                 turned: bool = False, *, made_here=None,
+                                 made_from: "str | None" = None) -> None:
+        """Steps 3 to 6 of `_import_into_profiling_run` (§I.9), moved here
+        UNCHANGED so that the i1iO Beta's import of a chart of several pages
+        (`_import_i1io_pages`) files its joined measurement through the very
+        same steps. *made_here*: a run that import already made for it, put
+        back like one made here (to *made_from*, the run it was made from)
+        when a later step refuses."""
+        from ui.measurement_filing import (ask_to_make_a_new_run,
+                                           finish_the_import)
         # 3) Make room (§I.9) — never an overwrite.
         proj = ctl.project_or_none()
         # What to put back if a later step refuses: the run this import made
         # (None while it has made none) and the run the person was standing on.
-        made_here = None
         was_on = ""
         try:
             was_on = str(ctl.target.profile_run or "")
@@ -15926,6 +16042,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if proj is not None:
             from ui.measurement_filing import run_the_project_is_on
             was_in_manifest = run_the_project_is_on(proj.root) or ""
+        if made_from is not None:
+            # a run the i1iO pages import made for this measurement
+            was_current = made_from
         if run.measurement_ti3.is_file():
             if proj is None:
                 # NOT IN SILENCE. Without a project there is nowhere to put a
@@ -16091,6 +16210,368 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # CHROMIQ_MEASURED), so it trends beside the others correctly.
         self.measure_finished.emit(dst)
         self._show_import_done_profiling(run, dst)
+
+    # ------------------------------------------------------------------
+    # An i1iO chart of SEVERAL pages (the i1iO Beta, 2026-11-16)
+    # ------------------------------------------------------------------
+
+    def _import_i1io_pages(self, ctl, run, paths: "list[Path]") -> None:
+        """One Measure Chart file per sheet (`workflow.i1io.pages`).
+
+        In this order, and NOTHING IS STORED until every step for every
+        chosen file has passed:
+
+        1. each file is converted and matched to its page by its grid and its
+           colours, never by a typed number; asked when two pages fit; its
+           own "cannot tell" question asked as on one page; filed on its
+           converted copy (`measure_chart.complete`);
+        2. one file per page, one condition and one instrument in the batch;
+        3. a run that already holds a measurement is not displaced (§I.9):
+           a new run with a copy of the chart, asked as on every import;
+        4. against the pages the run already holds: the same condition and
+           instrument; the very same file again is said and skipped; another
+           file for a filled page is asked about (the old one to ``old/``);
+        5. the pages are stored (`pages.store_page`), each in one step;
+        6. when every page is in, they are joined into one measurement and
+           filed through the ordinary steps (`_file_into_profiling_run`);
+           otherwise the window says which pages are still to come.
+        """
+        import shutil
+        from workflow import measurement_messages as M
+        from workflow.i1io import measure_chart as MC
+        from workflow.i1io import pages as P
+        chart = run.chart_ti2
+        total = P.page_count(chart)
+        batch = len(paths) > 1
+
+        def refuse(reason: str, name: str = "") -> None:
+            self._show_import_refusal(
+                M.M_IMPORT_I1IO_REFUSED,
+                reason=(f"{name}: {reason}" if batch and name else reason))
+
+        def cancelled() -> None:
+            self._log.appendPlainText("\n" + tr(
+                "[INFO] The import was cancelled. Nothing has been changed."))
+
+        # the condition and instrument the run's pages already have: a file
+        # that holds that condition is converted in it without asking again
+        held = P.pages_state(run, chart)
+        ref = (P.stored_facts(held.filled[min(held.filled)])
+               if held.filled else None)
+
+        # 1) every file, nothing stored
+        picked = []          # (page, path, filed copy, McVerdict, facts)
+        notes = []
+        for k, path in enumerate(paths):
+            if not MC.is_cxf_name(path):
+                if not batch:
+                    # not a Measure Chart file: the ordinary import judges it
+                    self._import_into_profiling_run(ctl, run, Path(path))
+                    return
+                refuse(M.i1io_pages_reason("not-mc", name=Path(path).name))
+                return
+            want = ref.condition if ref is not None else (
+                picked[0][4].condition if picked else "")
+            converted = self._convert_import_file(run, Path(path), chart=chart,
+                                                  prefer_condition=want)
+            if converted is None:
+                return
+            # a file of its own in the cache, so two picked files with one
+            # name cannot write over each other's copy
+            own = converted.with_name(f"page-import-{k + 1}-{converted.name}")
+            shutil.move(str(converted), str(own))
+            converted = own
+            m = P.match_file(path, converted, chart)
+            if m is None:
+                if not batch:
+                    self._import_into_profiling_run(ctl, run, Path(path))
+                    return
+                refuse(M.i1io_pages_reason("not-mc", name=Path(path).name))
+                return
+            if m.kind == "refuse":
+                refuse(m.reason, Path(path).name)
+                return
+            page, v = m.page, m.verdict
+            if m.kind == "choose":
+                page = self._ask_which_page(Path(path).name, m.choices, chart)
+                if page is None:
+                    cancelled()
+                    return
+                # the chosen page's own check decides (challenge B1)
+                v = m.verdicts.get(page) or MC.assess_file(
+                    path, converted, chart, page=page)
+                if v is None or not v.ok:
+                    refuse(M.i1io_pages_reason(
+                        "on-page", page=page,
+                        reason=v.reason if v is not None
+                        else M.i1io_import_reason("places")),
+                        Path(path).name)
+                    return
+            names = P.page_names(chart, page)
+            if v.ask_why:
+                if not self._ask_import_question(
+                        M.M_IMPORT_I1IO_CANNOT_CHECK, tr("Import"),
+                        **M.i1io_cannot_check_kw(v.ask_why, names)):
+                    cancelled()
+                    return
+            if not MC.complete(converted, chart, v):
+                refuse(M.i1io_import_reason("places"), Path(path).name)
+                return
+            g = v.grid
+            self._log.appendPlainText("\n" + M.i1io_filed_line(
+                len(v.sample_of_row), g.columns, g.rows,
+                v.net.score if v.net else float("nan"), bool(v.ask_why)))
+            why = MC.aim_unchecked_why(v)
+            if why:
+                title, body = M.i1io_aim_unchecked_text(why, names)
+                self._log.appendPlainText("\n[WARNING] " + title + "\n" + body)
+                notes.append((title, body))
+            picked.append((page, Path(path), converted, v,
+                           P.facts_of(converted, path)))
+
+        # 2) one file per page, one condition and instrument in the batch
+        seen = {}
+        for page, path, *_ in picked:
+            if page in seen:
+                refuse(M.i1io_pages_reason("twice", first=seen[page].name,
+                                           second=path.name, page=page))
+                return
+            seen[page] = path
+
+        def differs(a, b) -> str:
+            how = P.mismatch(a, b)
+            if how == "condition":
+                return M.i1io_pages_reason("condition", got=b.condition,
+                                           want=a.condition)
+            if how == "instrument":
+                if a.instrument == b.instrument:
+                    return M.i1io_pages_reason("unit", got=b.instrument)
+                return M.i1io_pages_reason("instrument", got=b.instrument,
+                                           want=a.instrument)
+            return ""
+        for page, path, _c, _v, facts in picked[1:]:
+            reason = differs(picked[0][4], facts)
+            if reason:
+                refuse(reason, path.name)
+                return
+
+        # 3) a run that holds a measurement is not displaced (§I.9): a new
+        #    run with a copy of the chart, CARRYING the run's other pages
+        #    (the chart is copied byte for byte, so they still belong to it)
+        made_here, made_from = None, None
+        if run.measurement_ti3.is_file():
+            from ui.measurement_filing import (ask_to_make_a_new_run,
+                                               run_the_project_is_on)
+            proj = ctl.project_or_none()
+            if proj is None:
+                self._say_on_screen(
+                    tr("ChromIQ could not make a new run"),
+                    tr("This run already holds a measurement, and ChromIQ "
+                       "could not open the project it would need to make a "
+                       "new run beside it. Nothing has been imported and "
+                       "nothing has been changed."))
+                return
+            was_in_manifest = run_the_project_is_on(proj.root) or ""
+            old_run = run
+            try:
+                if not ask_to_make_a_new_run(self, proj, run):
+                    return
+                made_from = str(ctl.target.profile_run or "")
+                run = proj.duplicate_run(run, ("chart",))
+            except (OSError, ValueError) as exc:
+                self._put_the_project_back(proj, was_in_manifest)
+                self._say_import_failed(exc)
+                return
+            made_here = run
+            try:
+                ctl.set_profile_run(run.id)
+            except Exception:      # noqa: BLE001 - the pages still get filed
+                log.warning("import: could not point the bar at %s", run.id,
+                            exc_info=True)
+            chart = run.chart_ti2
+            try:
+                P.carry_pages(old_run, run, chart,
+                              skip={item[0] for item in picked})
+            except OSError:
+                log.warning("import: could not carry the pages of %s",
+                            old_run.id, exc_info=True)
+
+        # 4) against the pages the run holds
+        st = P.pages_state(run, chart)
+        if st.filled:
+            first = P.stored_facts(st.filled[min(st.filled)])
+            for page, path, _c, _v, facts in picked:
+                reason = differs(first, facts)
+                if reason:
+                    self._undo_page_run(ctl, made_here, made_from)
+                    refuse(reason, path.name)
+                    return
+        keep = []
+        for item in picked:
+            page, path = item[0], item[1]
+            old = st.filled.get(page)
+            if old is None:
+                keep.append(item)
+                continue
+            if old.source_sha and old.source_sha == P.file_sha256(path):
+                self._show_import_refusal(M.M_IMPORT_I1IO_PAGE_SAME,
+                                          name=path.name, page=page)
+                continue
+            if not self._ask_import_question(
+                    M.M_IMPORT_I1IO_PAGE_REPLACE,
+                    tr(M._I1IO_REPLACE_BUTTON), page=page,
+                    old=old.source_name or old.path.name, name=path.name):
+                cancelled()
+                return
+            keep.append(item)
+        if not keep:
+            return
+
+        # 5) staged outside the run: nothing of the run changes yet
+        staged = {}
+        try:
+            for page, path, converted, _v, _f in keep:
+                staged[page] = P.stage_page(
+                    chart, page, converted, path, total,
+                    converted.with_name(f"staged-page{page}.ti3"))
+        except OSError as exc:
+            self._undo_page_run(ctl, made_here, made_from)
+            self._say_page_not_stored(exc)
+            return
+        filled_after = set(st.filled) | set(staged)
+        missing = [k for k in range(1, total + 1) if k not in filled_after]
+
+        # 6a) not complete yet: the staged pages are stored, and said
+        if missing:
+            try:
+                for page, f in sorted(staged.items()):
+                    dst = P.store_staged(run, chart, page, f)
+                    self._log.appendPlainText("\n" + tr(
+                        M._I1IO_LOG_STORED).format(page=page, pages=total,
+                                                   path=dst))
+            except OSError as exc:
+                self._say_page_not_stored(exc)
+                return
+            self._update_import_panel()
+            title, body = M.i1io_page_filed_window(sorted(staged), total,
+                                                   missing)
+            self._log.appendPlainText("\n[OK] " + title + "\n" + body)
+            for t, b in notes:
+                body += "\n\n⚠ " + t + "\n\n" + b
+            self._say_page_filed(title, body)
+            return
+
+        # 6b) complete: joined and filed the ordinary way FIRST; the staged
+        #     pages are stored only once the measurement is in the run, so a
+        #     filing that is cancelled or fails leaves the run as it was
+        #     (challenge M2)
+        merged = converted.with_name(f"{run.stem}-pages.ti3")
+        n = P.merge_pages(run, chart, merged, staged=staged)
+        if not n:
+            self._undo_page_run(ctl, made_here, made_from)
+            refuse(M.i1io_import_reason("places"))
+            return
+        self._log.appendPlainText("\n" + tr(M._I1IO_LOG_MERGED).format(
+            pages=total, count=n))
+        if notes:
+            self._i1io_aim_note = notes[-1]
+        joined = merged.read_bytes()
+        self._file_into_profiling_run(ctl, run, merged, False,
+                                      made_here=made_here,
+                                      made_from=made_from)
+        try:
+            filed = (run.measurement_ti3.is_file()
+                     and run.measurement_ti3.read_bytes() == joined)
+        except OSError:
+            filed = False
+        if not filed:
+            log.info("i1iO pages: the joined measurement was not filed; no "
+                     "page stored")
+            return
+        try:
+            for page, f in sorted(staged.items()):
+                dst = P.store_staged(run, chart, page, f)
+                self._log.appendPlainText("\n" + tr(M._I1IO_LOG_STORED).format(
+                    page=page, pages=total, path=dst))
+        except OSError:
+            # the measurement is filed and complete; only the record of the
+            # page is missing, which nothing needs to build or report
+            log.warning("i1iO pages: a page record was not stored",
+                        exc_info=True)
+        self._update_import_panel()
+
+    def _undo_page_run(self, ctl, made_here, made_from) -> None:
+        """Put back a run the pages import made, when it refuses after."""
+        if made_here is None:
+            return
+        from ui.measurement_filing import _undo_the_run
+        try:
+            _undo_the_run(ctl.project_or_none(), made_here, made_from)
+            ctl.set_profile_run(made_from or "")
+        except Exception:      # noqa: BLE001 - the refusal is said either way
+            log.warning("import: could not put the run back", exc_info=True)
+
+    def _say_page_not_stored(self, exc) -> None:
+        log.warning("import: could not store a page", exc_info=True)
+        self._say_on_screen(
+            tr("ChromIQ could not write into that run"),
+            tr("The measurement has not been filed, and nothing has been "
+               "changed. Your own file is untouched where it is. The "
+               "reason: {reason}.").format(
+                   reason=getattr(exc, "strerror", None) or exc))
+
+    def _say_page_filed(self, title: str, body: str) -> None:
+        """M-IMPORT-I1IO-PAGE-FILED on screen; the text is the catalogue's."""
+        from PyQt6.QtWidgets import QMessageBox
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        box.setObjectName("i1io_page_filed")
+        from ui.widgets import (fit_message_box_buttons,
+                                keep_message_box_inside_the_work_area)
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        fit_message_box_buttons(box)
+        box.exec()
+
+    def _ask_which_page(self, name: str, choices, chart) -> "int | None":
+        """M-IMPORT-I1IO-WHICH-PAGE: one button per page that fits, Cancel
+        the default. The page chosen, or None."""
+        from PyQt6.QtWidgets import QMessageBox
+        from workflow import measurement_messages as M
+        from workflow.i1io.pages import page_names
+        lines = []
+        for p in choices:
+            s = page_names(chart, p)
+            part = M._I1IO_SHEET_NAMED if s.get("labelled", True) \
+                else M._I1IO_SHEET_UNNAMED
+            lines.append(tr(part).format(
+                page=p, pages=s.get("pages", ""), cols=s.get("cols", "?"),
+                rows=s.get("rows", "?"), p1=s.get("p1", ""),
+                p2=s.get("p2", ""), p3=s.get("p3", "")))
+        title, body = M.M_IMPORT_I1IO_WHICH_PAGE.render(
+            name=name, pages="\n".join(lines))
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        box.setObjectName("i1io_which_page")
+        buttons = {}
+        for p in choices:
+            b = box.addButton(tr(M._I1IO_PAGE_BUTTON).format(page=p),
+                              QMessageBox.ButtonRole.AcceptRole)
+            buttons[b] = p
+        cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(cancel)
+        from ui.widgets import (fit_message_box_buttons,
+                                keep_message_box_inside_the_work_area)
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        fit_message_box_buttons(box)
+        box.exec()
+        return buttons.get(box.clickedButton())
 
     @staticmethod
     def _put_the_project_back(proj, was_on: str) -> None:
