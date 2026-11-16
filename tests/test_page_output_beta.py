@@ -917,3 +917,18 @@ def test_i1io_a_page_typed_in_pixels_stays_pixel_exact_when_turned(
     finally:
         panel.deleteLater()
         io._latched = before
+
+
+def test_a_fractional_custom_code_is_the_same_paper_as_its_whole_mm_p():
+    """printtarg -p holds whole millimetres: a Beta page's code cut to them
+    is read as the same paper (Save as Defaults kept A4 otherwise), and no
+    4.3.42 code changes its meaning."""
+    from ui.tabs.tab_chart import _recipe_is_for
+    rec = {"instrument": "SS", "paper": "234.95x196.85"}
+    assert _recipe_is_for(rec, "SS", "234x196")
+    assert _recipe_is_for(rec, "SS", "235x197")
+    assert not _recipe_is_for(rec, "SS", "A4")
+    assert not _recipe_is_for(rec, "SS", "230x196")
+    assert not _recipe_is_for({"instrument": "SS", "paper": "234x196"},
+                              "SS", "235x196")
+    assert _recipe_is_for({"instrument": "SS", "paper": "A4"}, "SS", "A4")

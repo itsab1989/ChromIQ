@@ -5242,7 +5242,22 @@ def _recipe_is_for(recipe, instr, paper) -> bool:
             _engine_instrument(recipe.get("instrument"))
             != _engine_instrument(instr)):
         return False
-    return not recipe.get("paper") or str(recipe.get("paper")) == str(paper)
+    return not recipe.get("paper") or str(recipe.get("paper")) == str(paper) \
+        or _fraction_of_the_same_custom_paper(recipe.get("paper"), paper)
+
+
+def _fraction_of_the_same_custom_paper(code, paper) -> bool:
+    """A custom size with fractions of a millimetre (only the page-output
+    Beta writes one, #215) is the same paper as Manual's printtarg -p, which
+    holds whole millimetres only and shows it cut to them ("234.95x196.85"
+    as "234x196"). Every code 4.3.42 writes is whole and never matches
+    here, so nothing changes for it."""
+    from workflow.layout_engine.papers import parse_custom
+    a, b = parse_custom(str(code or "")), parse_custom(str(paper or ""))
+    if a is None or b is None or all(float(v) == int(v) for v in a):
+        return False
+    return any(all(f(x) == float(y) for x, y in zip(a, b))
+               for f in (lambda v: float(int(v)), lambda v: float(round(v))))
 
 
 def _extra_args_have_patch_source(extra: str) -> bool:
