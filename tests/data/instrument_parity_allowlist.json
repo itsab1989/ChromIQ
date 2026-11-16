@@ -35,11 +35,12 @@
    "strip_label_offset_mm",
    "strip_label_offset_x_mm",
    "text_edge_top_mm",
+   "tiff_res_unit",
    "underline_gap_mm",
    "underline_mode",
    "underline_thickness_mm"
   ],
-  "reason": "These follow a person from one instrument to the next because they describe the person's print, not the instrument (resolution, bit depth, compression, PDF, the label and sheet-text style, the clip text), or because the new instrument does not use them and keeps them unchanged (area sizing, scales, stagger, hexagon orientation, rotations, the summary stamp)."
+  "reason": "These follow a person from one instrument to the next because they describe the person's print, not the instrument (resolution, its unit in the file, bit depth, compression, PDF, the label and sheet-text style, the clip text), or because the new instrument does not use them and keeps them unchanged (area sizing, scales, stagger, hexagon orientation, rotations, the summary stamp)."
  },
  "intended": [
   {
@@ -2349,6 +2350,47 @@
    "aspect": "enabled",
    "expected": false,
    "reason": "'Strip letters place' is greyed while 'Show strip indicators' is off (the i1iSis default): it only chooses where the letters go (the owner, 2026-11-15)."
+  },
+  {
+   "check": "control",
+   "mode": "manual",
+   "instrument": "FD9",
+   "item": "panel.tiff_res_unit",
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "The FD-9's contributed layout always writes the chart's resolution in pixels per centimetre, and the page-output Beta (#215) does not change FD-9 code, so for the FD-9 the Beta's Resolution unit row is greyed on Pixels per centimetre, with a tooltip that says so, and its recipe always says \"cm\"."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": "FD9",
+   "item": "panel.tiff_res_unit",
+   "aspect": "enabled",
+   "expected": false,
+   "reason": "The FD-9's contributed layout always writes the chart's resolution in pixels per centimetre, and the page-output Beta (#215) does not change FD-9 code, so for the FD-9 the Beta's Resolution unit row is greyed on Pixels per centimetre, with a tooltip that says so, and its recipe always says \"cm\"."
+  },
+  {
+   "check": "lacks_option",
+   "mode": "manual",
+   "instrument": "FD9",
+   "item": "tiff_res_unit",
+   "aspect": "panel keeps it",
+   "expected": false,
+   "reason": "The FD-9's contributed layout always writes the chart's resolution in pixels per centimetre, and the page-output Beta (#215) does not change FD-9 code, so for the FD-9 the Beta's Resolution unit row is greyed on Pixels per centimetre, with a tooltip that says so, and its recipe always says \"cm\"."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": [
+    "CR30",
+    "FD9",
+    "IO2",
+    "XRISIS"
+   ],
+   "item": "panel.tiff_res_unit",
+   "aspect": "present",
+   "expected": true,
+   "reason": "These instruments are laid out by the ChromIQ layout engine even with its box unticked (printtarg cannot lay them out), so their Output options stay on screen, the page-output Beta's Resolution unit (#215) among them; for the i1Pro with the engine off printtarg writes the chart and the panel is hidden."
   }
  ],
  "known_to_review": [
@@ -3287,6 +3329,23 @@
    "aspect": "new_target_after_defaults",
    "expected": "lost",
    "reason": "A new target (New run, project open) after Save as Defaults does not take the saved layout recipe, as for every instrument (the same known_to_review rows of the others); seen 2026-11-14, not judged yet."
+  },
+  {
+   "check": "kept",
+   "mode": "manual",
+   "instrument": [
+    "CM",
+    "CR30",
+    "IO2",
+    "SS",
+    "XRISIS",
+    "i1",
+    "p3"
+   ],
+   "item": "tiff_res_unit",
+   "aspect": "new_target_after_defaults",
+   "expected": "lost",
+   "reason": "A new target (New run, project open) after Save as Defaults shows the factory value, as for every other layout option of every instrument (the known_to_review rows above, per_target_settings.md section 4); the page-output Beta's Resolution unit (#215) only joins them, 2026-11-16."
   }
  ]
 }

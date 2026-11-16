@@ -2,7 +2,8 @@
 
 Only built while Preferences > Beta > "Custom page size in inches or pixels,
 and high resolution" is on (`workflow.page_output.support`), and only in the
-panels that choose a page (Create Chart > Manual, the re-layout window). With
+panels that choose a page (Create Chart > Manual; the patch set editor builds
+the same panel hidden, and hands the chart's page back through it). With
 the Beta off nothing here builds a widget; the one thing that still runs is
 :func:`load_recipe`'s HOLD, for a chart made with the Beta and opened without
 it (see below).
@@ -59,7 +60,10 @@ def build_custom_rows(panel: Any, grid: Any) -> None:
     for axis in _AXES:
         box = NoScrollDoubleSpinBox(panel)
         box.setDecimals(4)
-        box.setRange(0.01, 99999.0)
+        # the millimetre range in inches (review F5); the pixel range follows
+        # the resolution (`_fit_ranges`)
+        box.setRange(round(po.CUSTOM_MM_MIN_ON / po.MM_PER_INCH, 4),
+                     round(po.CUSTOM_MM_MAX / po.MM_PER_INCH, 4))
         box.setMaximumWidth(96)
         panel._page_in[axis] = box
         pbox = NoScrollSpinBox(panel)
@@ -163,6 +167,47 @@ def build_res_unit_row(panel: Any, grid: Any, row: int, add_row: Any) -> None:
                               min_width=620))
 
 
+def sync_instrument(panel: Any, inst: str) -> None:
+    """The Resolution unit row for the instrument chosen (review F3). The
+    FD-9's contributed layout writes pixels per centimetre whatever the
+    recipe asks, and its code is not changed by this Beta; so for the FD-9
+    the row is greyed, shows what is written, and says why."""
+    combo = getattr(panel, "tiff_res_unit", None)
+    if combo is None:
+        return
+    fd9 = inst == "FD9"
+    if fd9:
+        if combo.isEnabled():
+            panel._page_res_unit_kept = combo.currentData()
+        b = combo.blockSignals(True)
+        combo.setCurrentIndex(max(0, combo.findData(po.RES_UNIT_CM)))
+        combo.blockSignals(b)
+        combo.setEnabled(False)
+        combo.setToolTip(tr(
+            "Not available for the FD-9. An FD-9 chart is always written with "
+            "its resolution in pixels per centimetre. The size of the page and "
+            "its pixel count are as you set them."))
+    elif not combo.isEnabled():
+        combo.setEnabled(True)
+        combo.setToolTip("")
+        kept = panel.__dict__.pop("_page_res_unit_kept", None)
+        if kept:
+            b = combo.blockSignals(True)
+            combo.setCurrentIndex(max(0, combo.findData(kept)))
+            combo.blockSignals(b)
+
+
+def turned_upright(panel: Any) -> None:
+    """The i1iO turned the custom size upright in the millimetre fields (with
+    their signals blocked): the typed sides turn with it, each in its own
+    unit, so a page typed in pixels stays pixel-exact on the i1iO."""
+    truth = getattr(panel, "_page_truth", None)
+    if truth is None:
+        return
+    truth["w"], truth["h"] = truth["h"], truth["w"]
+    _show_truth(panel)
+
+
 # ---- the truth and its displays ----------------------------------------------
 
 def _ppi(panel: Any) -> int:
@@ -170,6 +215,22 @@ def _ppi(panel: Any) -> int:
         return int(panel.dpi.value())
     except (AttributeError, RuntimeError):
         return 300
+
+
+def _fit_ranges(panel: Any, ppi: int) -> None:
+    """The pixel fields stop where 1 mm and 2000 mm are at *ppi* (review F5:
+    one range, whatever the unit). A side typed in pixels beyond the new top
+    after the resolution was lowered keeps its unit and becomes the top."""
+    lo = max(1, po.pixels_of(po.CUSTOM_MM_MIN_ON, ppi))
+    hi = int(po.CUSTOM_MM_MAX * float(ppi) / po.MM_PER_INCH)
+    for axis in _AXES:
+        box = panel._page_px[axis]
+        b = box.blockSignals(True)
+        box.setRange(lo, hi)
+        box.blockSignals(b)
+        v, unit = panel._page_truth[axis]
+        if unit == po.UNIT_PX and not lo <= v <= hi:
+            panel._page_truth[axis] = (float(min(max(v, lo), hi)), po.UNIT_PX)
 
 
 def _heal_truth(panel: Any) -> None:
@@ -196,11 +257,13 @@ def _show_truth(panel: Any, only: "str | None" = None,
     """Show each side's truth in the two other units (never writes back)."""
     ppi = _ppi(panel)
     if only is None:
+        _fit_ranges(panel, ppi)
         panel._page_last_ppi = ppi
     elif getattr(panel, "_page_last_ppi", None) not in (None, ppi):
         # one side typed while the other still shows an older resolution:
         # bring both up to date, the side typed is already the truth
         only = None
+        _fit_ranges(panel, ppi)
         panel._page_last_ppi = ppi
     panel._page_syncing = True
     try:
@@ -290,9 +353,34 @@ def page_pixels(panel: Any) -> "tuple[int, int] | None":
     return po.pixels_of(w, ppi), po.pixels_of(h, ppi)
 
 
+def needs_budget(panel: Any) -> bool:
+    """True when the page on screen uses what only the Beta allows (a side
+    typed in inches or pixels, a fraction of a millimetre, above 1200 dpi),
+    so the memory budget applies (review F7, `po.needs_budget`)."""
+    if panel.paper is None:
+        return False
+    code = panel.paper.currentData() or "A4"
+    if code == "__custom__":
+        return po.needs_budget(page_size=page_size(panel), dpi=_ppi(panel),
+                               paper=custom_paper_code(panel))
+    return po.needs_budget(dpi=_ppi(panel), paper=code)
+
+
+def ink_kind(panel: Any) -> dict:
+    """The chart's inks for the memory estimate (review F4): from the tab's
+    Device Type when the panel has a source for it, else RGB."""
+    source = getattr(panel, "page_ink_codes", None)
+    try:
+        codes = source() if callable(source) else None
+    except Exception:      # noqa: BLE001 - an estimate never blocks
+        codes = None
+    return po.ink_kind(codes or ("r", "g", "b"))
+
+
 def refresh_readout(panel: Any) -> None:
-    """The pixel line: the count, and when it is over the budget, why
-    Generate will refuse it."""
+    """The pixel line: the count, and when it is over the budget (for a page
+    only the Beta allows, with the chart's inks), why Generate will refuse
+    it."""
     lbl = getattr(panel, "_page_px_lbl", None)
     if lbl is None:
         return
@@ -305,13 +393,16 @@ def refresh_readout(panel: Any) -> None:
     pages = int(panel.pages.value()) if panel.pages is not None else 1
     bit16 = (panel.bit_depth.currentData() == 16
              if hasattr(panel, "bit_depth") else False)
+    # no thousands separator in any language (review F8)
     text = tr(mm._PAGE_PIXELS).format(
-        w=f"{w:,}", h=f"{h:,}", mpx=f"{w * h / 1e6:,.1f}", ppi=_ppi(panel))
-    over = po.estimated_bytes(w, h, pages, bit16=bit16) > \
-        po.MEMORY_BUDGET_BYTES
+        w=po.number(w), h=po.number(h), mpx=po.decimal(w * h / 1e6),
+        ppi=_ppi(panel))
+    kind = dict(ink_kind(panel), bit16=bit16)
+    over = needs_budget(panel) and \
+        po.estimated_bytes(w, h, pages, **kind) > po.MEMORY_BUDGET_BYTES
     if over:
         text += " " + tr(mm._PAGE_PIXELS_OVER).format(
-            limit=f"{po.max_megapixels(pages, bit16=bit16):,.0f}")
+            limit=po.number(po.max_megapixels(pages, **kind)))
     from ui.widgets import set_ink
     set_ink(lbl, "#e05050" if over else "#909090", " font-size: 11px;",
             level="main" if over else "faint")
@@ -370,6 +461,10 @@ def apply_to_recipe(panel: Any, r: Any) -> None:
         r.tiff_res_unit = (panel.tiff_res_unit.currentData()
                            if hasattr(panel, "tiff_res_unit")
                            else po.RES_UNIT_CM) or po.RES_UNIT_CM
+        if r.instrument == "FD9":
+            # the FD-9's contributed layout writes pixels per centimetre
+            # whatever is asked (review F3), so its recipe says so too
+            r.tiff_res_unit = po.RES_UNIT_CM
         return
     hold = panel.__dict__.get("_page_hold")
     if not hold:
@@ -418,13 +513,14 @@ def _release(panel: Any) -> None:
 
 
 def describe_page(r: Any) -> str:
-    """The page as it was typed, for the notes: "4,096 x 2,730 pixels",
+    """The page as it was typed, for the notes: "4096 x 2730 pixels",
     "9.25 x 7.75 inches", "234.95 x 196.85 mm"."""
     from workflow.layout_engine import papers
     ps = po.clean_page_size(getattr(r, "page_size", None))
 
     def num(v: float) -> str:
-        return f"{v:,.4f}".rstrip("0").rstrip(".")
+        # no thousands separator in any language (review F8)
+        return f"{v:.4f}".rstrip("0").rstrip(".")
     if ps is not None and ps["w"][1] == ps["h"][1]:
         unit = ps["w"][1]
         word = {po.UNIT_PX: tr("pixels"), po.UNIT_IN: tr("inches"),
@@ -481,6 +577,11 @@ def custom_size_help() -> str:
            "the millimetres and inches beside it are only shown for "
            "information. You can mix units: a width in pixels and a height in "
            "inches is fine."),
+        tr("Each side can be from 1 mm to 2000 mm, whichever unit you type "
+           "it in, so the inch and pixel fields stop where 2000 mm is at the "
+           "resolution you have set. A side typed in pixels that would be "
+           "longer than that after you lower the resolution becomes the "
+           "longest the field allows."),
         tr("Pixels and resolution belong together. A size typed in pixels "
            "keeps its pixels when you change the resolution, so the page "
            "becomes larger or smaller on paper. A size typed in millimetres "

@@ -8110,6 +8110,17 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
             from workflow.layout_engine import chart as le_chart
             recipe = self._engine_panel.get_recipe()
             kw = recipe.build_kwargs()
+            # A PAGE TYPED IN PIXELS (the page-output Beta, #215) IS ITS
+            # MILLIMETRES HERE. Its pixel count belongs to the chart's own
+            # resolution: kept beside 150 dpi it laid out a page of N px at
+            # 150 dpi (4096 x 2730 became 693.6 x 462.3 mm with 6144 patch
+            # slots, and fed the Pages fill and the counts). The paper code is
+            # the true page in millimetres, so the hidden render is a small
+            # 150 dpi picture of the chart's real page. The file's resolution
+            # unit means nothing to a render nobody saves. The recipe itself,
+            # and what Save hands back, keep both unchanged.
+            kw.pop("page_size", None)
+            kw.pop("tiff_res_unit", None)
             kw["dpi"] = min(int(kw.get("dpi") or 150), 150)   # fast preview
             stem = Path(self._preview_tmp.name) / "_engine_preview"
             # Render from a .ti1 derived from the CURRENT grid, so reordering /

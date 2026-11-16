@@ -8920,6 +8920,15 @@ class TabChart(QWidget):
         # instrument), so the i1iO's margin minimums are the build's (F2)
         self._manual_layout_panel.i1io_effective_recipe = \
             self._current_layout_recipe
+        if getattr(self._manual_layout_panel, "_page_beta", False):
+            # The page-output Beta's pixel line and memory check use the
+            # chart's own inks (Device Type and its added inks; review F4),
+            # read through a bound method, and follow a change of them.
+            self._manual_layout_panel.page_ink_codes = self._page_ink_codes
+            for _pw in ([getattr(self, "_manual_devtype_pw", None)]
+                        + list(getattr(self, "_d_cascade_widgets", []))):
+                if _pw is not None:
+                    _pw.value_changed.connect(self._refresh_page_readout)
         # Preferences → Chart Layout is the SEED for a chart with no label style
         # of its own; the panel shows those values so the controls never lie.
         # `getattr` because a test double may be a settings stand-in without it;
@@ -31824,6 +31833,27 @@ class TabChart(QWidget):
         if btn is not None and hasattr(btn, "set_gate"):
             btn.set_gate(problem.reason if problem is not None else None)
 
+    def _page_ink_codes(self) -> list:
+        """The ink codes the Manual chart will have (targen -d and its added
+        inks), for the page-output Beta's memory estimate (#215, F4)."""
+        import shlex
+        from ui.tiff_preview import resolve_ink_channels
+        d, extra = "2", []
+        for pw in self._manual_widgets.get("targen", []):
+            if pw.flag == "-d":
+                v = pw.get_raw_value()
+                d = str(v if v is not None else "2")
+            elif pw.flag == "-D":
+                extra.extend(pw.build_args())
+        return resolve_ink_channels(d, shlex.join(extra))
+
+    def _refresh_page_readout(self, *_a) -> None:
+        """Device Type changed: the page-output Beta's pixel line follows."""
+        panel = getattr(self, "_manual_layout_panel", None)
+        if panel is not None and getattr(panel, "_page_beta", False):
+            from ui.dialogs import page_output_panel as _pop
+            _pop.refresh_readout(panel)
+
     def _refuse_page_over_budget(self) -> bool:
         """True, with the refusal in the log, when the page-output Beta's
         memory budget refuses the page on screen BEFORE anything runs (#215).
@@ -31832,9 +31862,11 @@ class TabChart(QWidget):
         and colorants), but only after the patch set was made: a page of
         thousands of megapixels first asked targen for tens of thousands of
         patches, which took minutes, and only then said no (driven on screen,
-        A2 at 6000 ppi). One page of RGB is the smallest a chart can cost, so
-        a page over the budget for that is over it for every chart. Only with
-        the Beta on and only in Manual; off, nothing here runs."""
+        A2 at 6000 ppi). One page with the chart's own inks (the panel's
+        `ink_kind`, from Device Type) is the least the chart can cost, so a
+        page over the budget for that is over it whatever the page count.
+        Only with the Beta on, only in Manual, and only for a chart that uses
+        what only the Beta allows; off, nothing here runs."""
         panel = getattr(self, "_manual_layout_panel", None)
         if panel is None or self._mode_name() != "manual":
             return False
@@ -31856,12 +31888,19 @@ class TabChart(QWidget):
         try:
             from ui.dialogs import page_output_panel as _pop
             from workflow.page_output.support import budget_problem
+            # Only a chart that uses what only the Beta allows (review F7):
+            # every chart 4.3.42 makes is made with the Beta on as it was.
+            if not _pop.needs_budget(panel):
+                return False
             px = _pop.page_pixels(panel)
             if px is None:
                 return False
             bit16 = getattr(panel, "bit_depth", None) is not None and \
                 panel.bit_depth.currentData() == 16
-            why = budget_problem(px[0], px[1], 1, bit16=bit16)
+            # With the chart's own inks (review F4): a CMYK or more-ink page
+            # costs several times an RGB one, and is refused here too.
+            why = budget_problem(px[0], px[1], 1, early=True, bit16=bit16,
+                                 **_pop.ink_kind(panel))
         except Exception:      # noqa: BLE001 - the build checks it again
             log.debug("page budget pre-check failed", exc_info=True)
             return False

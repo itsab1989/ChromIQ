@@ -258,6 +258,10 @@ HOOKED_FILES = {
     "ui/tiff_preview.py",            # shown as on the table; 0 while off
     "ui/dialogs/ti2_relayout_dialog.py",  # the editor's page view: the
                                      # same turn; 0 while off
+    "ui/dialogs/page_output_panel.py",  # the page-output Beta asks the
+                                     # panel's `_i1io_chosen()` to turn an
+                                     # i1iO custom page upright as the panel
+                                     # does; False while i1iO support is off
     "workflow/measurement_report.py",  # names the i1iO; switch-gated
     "workflow/printer_edges.py",     # the crosses' boxes from .i1io.json
                                      # (review r3 m3); nothing read while off

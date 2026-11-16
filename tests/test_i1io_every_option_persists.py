@@ -168,6 +168,15 @@ NOT_AN_I1IO_OPTION = {
     "clip_border_free_space": "derived from the content mode",
     "avoid_dark_light_neighbours": "R7 rearranges hand-held strip charts "
                                    "only; greyed for the i1iO",
+    # the page-output Beta (#215), which this module leaves off: a page
+    # typed in pixels or inches needs Paper = Custom (KEPT's paper is
+    # Letter), and the Resolution unit row is built only with the Beta on.
+    # Both are walked for the i1iO through every path of this module, with
+    # the Beta on, in tests/test_page_output_beta_i1io.py
+    "page_size": "the page-output Beta's typed page (Paper = Custom); "
+                 "tests/test_page_output_beta_i1io.py",
+    "tiff_res_unit": "the page-output Beta's Resolution unit; "
+                     "tests/test_page_output_beta_i1io.py",
 }
 
 

@@ -892,12 +892,16 @@ def build_chart(
     stem = without_ext(out_base, ".ti1")
 
     # THE MEMORY BUDGET (the page-output Beta, #215): a page too large to
-    # draw is refused HERE, before any file is written, with its pixel count
-    # and what to reduce (`page_output.support.budget_problem`, with the
-    # measurements it rests on). Only with the Beta on: off, 4.3.42.
+    # draw is refused HERE, before any page is drawn or file of this build
+    # written, with its pixel count and what to reduce
+    # (`page_output.support.budget_problem`, with the measurements it rests
+    # on). Only with the Beta on, and only for a chart that uses something
+    # only the Beta allows (review F7): every chart 4.3.42 can make is drawn
+    # with the Beta on exactly as with it off.
     from workflow.page_output.support import page_output_enabled
-    if page_output_enabled():
-        from workflow.page_output import support as _po
+    from workflow.page_output import support as _po
+    if page_output_enabled() and _po.needs_budget(
+            page_size=page_size, dpi=dpi, paper=paper):
         _bw, _bh = (_page_px if _page_px is not None else
                     (_po.pixels_of(w_mm, dpi), _po.pixels_of(h_mm, dpi)))
         _device = target.n_channels >= 4 or raster.is_cmy_target(target)

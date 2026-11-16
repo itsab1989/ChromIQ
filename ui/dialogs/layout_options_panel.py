@@ -3736,6 +3736,10 @@ class LayoutOptionsPanel(QWidget):
             if on:
                 sync(True)
         self._sync_custom_size_words()
+        if getattr(self, "_page_beta", False):
+            # the page-output Beta's Resolution unit row (greyed for the FD-9)
+            from ui.dialogs import page_output_panel as _pop
+            _pop.sync_instrument(self, inst)
         # not while the person is still typing in a box (4.3.34 review r2, b)
         self._turn_custom_upright_when_left()
         # The extra clip-border On/Off selector — and its tooltip — are for CM/SS
@@ -7600,6 +7604,11 @@ class LayoutOptionsPanel(QWidget):
             box.blockSignals(True)
             box.setValue(value)
             box.blockSignals(False)
+        if getattr(self, "_page_beta", False):
+            # the typed sides turn too, each in its own unit (the
+            # page-output Beta): a page typed in pixels stays pixel-exact
+            from ui.dialogs import page_output_panel as _pop
+            _pop.turned_upright(self)
         from workflow import measurement_messages as _mm
         text = tr(_mm._I1IO_CUSTOM_TURNED).format(w=f"{h:g}", h=f"{w:g}")
         self._custom_turned_note = text

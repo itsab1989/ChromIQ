@@ -8,14 +8,24 @@ resolution written in the file, and interpolates when it differs. ChromIQ
 4.3.42 could not make such a file: the custom size is whole millimetres, the
 resolution stops at 1200, and the file carries pixels per centimetre.
 
-With this switch ON, and only then, Create Chart > Manual (and the re-layout
-window, which uses the same panel) offers:
+With this switch ON, and only then, Create Chart > Manual offers:
 
 * the custom page size in millimetres (with fractions), in inches, or as an
-  exact pixel count, in three rows of two-way fields;
+  exact pixel count, in three rows of two-way fields; every side from
+  :data:`CUSTOM_MM_MIN_ON` to :data:`CUSTOM_MM_MAX` millimetres, whatever
+  unit it is typed in;
 * a resolution up to :data:`DPI_MAX_ON`, guarded by a memory budget
-  (:func:`budget_problem`) instead of a ppi cap;
-* the file's resolution written in pixels per inch, as an option.
+  (:func:`budget_problem`) instead of a ppi cap. The budget is asked ONLY of
+  a chart that uses something only this Beta allows (:func:`needs_budget`):
+  every chart 4.3.42 can make is made with the Beta on exactly as with it
+  off, however large;
+* the file's resolution written in pixels per inch, as an option (not for the
+  FD-9, whose contributed layout always writes pixels per centimetre).
+
+The patch set editor builds the same panel, hidden; it lays its hidden
+render out on the TRUE millimetre page at 150 dpi (never the typed pixel
+count at 150 dpi) and hands the chart's own ``page_size`` and
+``tiff_res_unit`` back unchanged.
 
 **OFF is 4.3.42**, widget for widget and byte for byte
 (``tests/test_page_output_off_changes_nothing.py``). Every hook in shared code
@@ -78,8 +88,13 @@ DPI_MIN = 72
 DPI_MAX_OFF = 1200
 DPI_MAX_ON = 6000
 
-#: The custom size range in millimetres (4.3.42's, unchanged by the Beta).
+#: The custom size range in millimetres. 20 to 2000 is 4.3.42's, and stays
+#: so with the Beta off. With it on a side may be as small as 1 mm (a film
+#: frame is small; a page too small for one patch is refused by the layout
+#: itself), and the 2000 mm top holds for a side typed in inches or pixels
+#: too: the inch and pixel fields stop where 2000 mm is at the resolution.
 CUSTOM_MM_MIN = 20.0
+CUSTOM_MM_MIN_ON = 1.0
 CUSTOM_MM_MAX = 2000.0
 
 #: How many decimals the paper code keeps for a fractional millimetre size.
@@ -256,6 +271,14 @@ def uses_beta_values(recipe: Any) -> bool:
 
 # ---- the memory budget -------------------------------------------------------
 #
+# ASKED ONLY OF WHAT THE BETA OPENS (review F7). 4.3.42 draws every chart it
+# can make, however much memory that takes (A4 at 1200 dpi in CMYK is about
+# 12 GB measured), and switching the Beta on must not take any of them away.
+# So the budget is asked only of a chart with a side typed in inches or
+# pixels, a fraction of a millimetre, or a resolution above 1200
+# (:func:`needs_budget`), at all three places: the build, Generate's early
+# refusal and the panel's red line.
+#
 # MEASURED, NOT GUESSED (2026-11-16, `build_chart` in a fresh process each,
 # peak RSS from `ru_maxrss` less the process before the build; the runs are in
 # the issue-215 work folder, `budget/run1.jsonl`):
@@ -313,9 +336,51 @@ def max_megapixels(pages: int = 1, **kind) -> float:
     return MEMORY_BUDGET_BYTES / (first + more * max(0, int(pages) - 1)) / 1e6
 
 
-def budget_problem(w_px: int, h_px: int, pages: int = 1, **kind
-                   ) -> "str | None":
-    """The friendly refusal when the page is over the budget, else None."""
+def needs_budget(*, page_size: Any = None, dpi: Any = 300,
+                 paper: Any = "") -> bool:
+    """True when a chart uses something only this Beta allows, so the memory
+    budget applies to it: a side typed in inches or pixels (*page_size*), a
+    resolution above 1200, or a custom size with a fraction of a millimetre.
+    Every chart 4.3.42 can make answers False (review F7)."""
+    try:
+        if clean_page_size(page_size) is not None:
+            return True
+        if int(dpi or 300) > DPI_MAX_OFF:
+            return True
+        return not is_whole_mm_code(str(paper or ""))
+    except (TypeError, ValueError):
+        return False
+
+
+def ink_kind(channels: Any) -> dict:
+    """The budget's ``inks`` / ``device`` for a chart's ink codes (as
+    ``ui.tiff_preview.resolve_ink_channels`` gives them): RGB and grey are
+    drawn as RGB, CMY and every set of four or more inks as device inks
+    (``chart.build_chart``'s own rule)."""
+    codes = [str(c).lower() for c in (channels or ())]
+    device = len(codes) >= 4 or codes == ["c", "m", "y"]
+    return {"inks": max(3, len(codes)), "device": device}
+
+
+def number(n: Any) -> str:
+    """A whole number for the notes, with NO thousands separator: a comma is
+    always a decimal point in ChromIQ (Basti, 2026-08-28; `ui/widgets.py`),
+    and a point is one too in most languages, so 4096 is written 4096."""
+    return str(int(round(float(n))))
+
+
+def decimal(v: Any, places: int = 1) -> str:
+    """A number with a decimal point, as every other number in the notes."""
+    return f"{float(v):.{int(places)}f}"
+
+
+def budget_problem(w_px: int, h_px: int, pages: int = 1, *,
+                   early: bool = False, **kind) -> "str | None":
+    """The friendly refusal when the page is over the budget, else None.
+
+    *early*: asked before anything ran (Generate's own check), so the words
+    can say nothing was written; the build's check runs after the patch set
+    was made, and says what is true there: no page was drawn."""
     if estimated_bytes(w_px, h_px, pages, **kind) <= MEMORY_BUDGET_BYTES:
         return None
     from core.i18n import tr
@@ -325,9 +390,11 @@ def budget_problem(w_px: int, h_px: int, pages: int = 1, **kind
     gb = estimated_bytes(w_px, h_px, pages, **kind) / 1e9
     text = _mm._PAGE_OVER_BUDGET_ONE if int(pages) <= 1 \
         else _mm._PAGE_OVER_BUDGET_MANY
-    return tr(text).format(w=f"{int(w_px):,}", h=f"{int(h_px):,}",
-                           mpx=f"{mpx:,.0f}", gb=f"{gb:,.1f}",
-                           limit=f"{limit:,.0f}", pages=int(pages))
+    body = tr(text).format(w=number(w_px), h=number(h_px),
+                           mpx=number(mpx), gb=decimal(gb),
+                           limit=number(limit), pages=int(pages))
+    tail = tr(_mm._PAGE_NOTHING_WRITTEN if early else _mm._PAGE_NOT_DRAWN)
+    return body + " " + tail
 
 
 class PageBudgetError(ValueError):
