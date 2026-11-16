@@ -3,8 +3,8 @@
 **This is an unofficial test program. It is not from X-Rite, and X-Rite has
 nothing to do with it.** Running it is entirely your choice, at every single
 step, without any warranty. Keep your hands and everything else away from the
-arm while it moves, keep the table empty, and keep its power switch within
-reach.
+arm while it moves, keep the table empty except for the chart or sheet a stage
+asks for, and keep its power switch within reach.
 
 This is the next test program for the **X-Rite i1iO 2** scanning table with an
 **i1Pro 2**, written for ChromIQ issue #129 from the USB recordings you made
@@ -410,19 +410,28 @@ recommended first.
 
 ### Where the arm may go
 
-Every target the program computes lies inside **X-Rite's specified measuring
-area of the i1iO, 320 x 230 mm**, placed on your table from where your arm has
-been in your recordings (its right edge on the furthest point to the right the
-arm ever reached, its front edge on the furthest point to the front), with 5
-mm kept free on every side: table positions X -1384 to
-1716 and Y 859 to
-3059 (0.1 mm units). The whole rectangle the arm could
+Every target the program computes lies inside **an area of 320 x 230 mm**:
+the size X-Rite gives for the first i1iO and the i1iO 3. For the i1iO 2 X-Rite
+publishes no size, so for your table the size is our assumption. **Where that
+area lies on your table is our estimate**, taken from where the instrument's
+measuring opening has actually been in your recordings: its right edge on the
+furthest point to the right the opening was ever read at, its front edge on
+the furthest point to the front the opening was ever read at, with 5 mm kept
+free on every side: table positions X -1384 to 1716 and Y 523 to 2723 (0.1 mm
+units). The whole rectangle the arm could
 sweep on its way must lie inside it too, and every move is computed from a
 position read right before it. On your sheet, targets must also lie inside
 the three marks you aimed at. The program checks all of this before it sends
 a move, and the table line is checked once more right before it goes out. A
 move into a part of the table no recording drove the arm to (the front of an
 A4 sheet, for example) is announced first and needs its own `yes`.
+
+**Your sheet may have to lie a few centimetres further back than in your
+i1Profiler sessions.** i1Profiler places a sheet by the alignment sight, which
+sits about 3 cm in front of the measuring opening, so in your sessions the
+bottom marks lay up to about 3 cm in front of anywhere the opening itself was
+ever read. D1 checks this before anything moves and tells you which way and
+how far to shift the sheet.
 
 Strip readings use only the ten speeds i1Profiler used on your table (40 to
 138 mm/s; 54 is our suggestion), and spot moves only i1Profiler's chart speed.
@@ -449,7 +458,9 @@ Strip readings use only the ten speeds i1Profiler used on your table (40 to
 
 *What can go wrong and what to do:* A move that ends elsewhere or much slower or faster than recorded ends the sitting, as in part B.
 
-**D1: Your ChromIQ i1iO sheet: aim the sight at its three marks** (about 5 min; depends on: nothing (the instrument is not used); our risk rating: medium; a first try). Lay your printed ChromIQ i1iO sheet as ChromIQ printed it for the table while the arm is at rest. The arm goes to the alignment start and is let go; you aim the sight's cross hairs at mark 1, 2 and 3 and type `aimed` at each. Then the program checks the three positions against the sheet and tells you whether every patch and every row of the page lies inside the measuring area, and which way to shift the sheet if not. Nothing moves under motor after the arm is let go.
+**D1: Your ChromIQ i1iO sheet: aim the sight at its three marks** (about 5 min; depends on: nothing (the instrument is not used); our risk rating: medium; a first try). Lay your printed ChromIQ i1iO sheet as ChromIQ printed it for the table while the arm is at rest. The arm goes to the alignment start and is let go; you aim the sight's cross hairs at mark 1, 2 and 3 and type `aimed` at each. Then the program checks the three positions against the sheet and tells you whether every patch and every row of the page lies inside the measuring area this program uses (where it lies on your
+table is our estimate, see "Where the arm may go"), and which way to shift the
+sheet if not (often a few centimetres towards the back). Nothing moves under motor after the arm is let go.
 
 *What can go wrong and what to do:* The check refuses your aims (marks swapped, a mirrored or turned sheet, a mark missed by more than 2 mm, a mark outside the area): clean, nothing moved. Push the free arm gently aside, lay the sheet again if needed, and run D1 again.
 
@@ -490,7 +501,7 @@ position under the alignment sight, sent after each aim), and the four lines
 around every one of i1Profiler's 44 recorded strip readings, `c4`, `d1`
 (always with the value 365), `a3` and `c3`. And the **computed moves**: the
 same form as i1Profiler's recorded moves, only with other target numbers,
-inside the measuring area: `m0` at i1Profiler's chart speed, and the strip
+inside the measuring area this program uses: `m0` at i1Profiler's chart speed, and the strip
 move `m2` at one of the ten recorded speeds. `BYTES.md` lists them with their
 recorded places. Nothing else: no memory or configuration writes, no line
 never seen in a recording.

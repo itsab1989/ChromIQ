@@ -28,8 +28,8 @@ from i1io_session_table import checksum, checksum_ok
 # ---- the simulator's own copy of part C's rules ---------------------------------------------
 C_P1, C_C4, C_D1, C_A3, C_C3 = ";p124", ";c42e", ";d1016d35", ";a331", ";c32f"
 C_SPEEDS_M2 = (40, 53, 54, 61, 87, 88, 110, 118, 137, 138)
-C_TARGET_BOX = (-1384, 1716, 859, 3059)        # targets (with the 5 mm margin)
-C_SWEEP_BOX = (-1434, 1766, 809, 3109)         # the swept rectangle from where the arm is
+C_TARGET_BOX = (-1384, 1716, 523, 2723)        # targets (with the 5 mm margin)
+C_SWEEP_BOX = (-1434, 1766, 473, 2773)         # the swept rectangle from where the arm is
 #: BELIEF (LIKELY in the recordings): p1 reads the place the SENSOR must go to stand over what
 #: the sight shows; the arm itself then stands this far from it (S2 383.3: (-106, -323)).
 SIGHT_OFFSET = (-106, -323)
@@ -424,13 +424,18 @@ class FakeScanReader:
         return {"event": "tscan_armed", "ready": True, "waited_ms": int(max(0, need - t) * 1000)}
 
     def fire(self, n, patches, name):
+        """True when the trigger reached the reader (the real ScanReader's contract)."""
         self.fires += 1
         self.armed_n = None
         self.lights_at = None
         t = self.sim.clock
+        if self.faults.get("fire_unsent"):
+            # the reader had stopped before the trigger could be handed to it
+            self.faults["dead"] = True
+            return False
         if self.faults.get("dies_at_fire"):
             self.faults["dead"] = True
-            return
+            return True
         t_lamp = t + 0.047
         lit = not self.faults.get("no_lamp")
         p = self.sim.m2_pending
@@ -446,6 +451,7 @@ class FakeScanReader:
                             "got": n if lit else 0, "lit_sent": 1 if lit else 0, "dark_sent": 1,
                             "ms_dark_trig": 1, "ms_lit_trig": 47, "files": files}
         self.fired_due = t_end + 0.006
+        return True
 
     def _stream(self, name, n, p):
         """The reading stream of the simulated sheet along the move (aperture 4.5 mm)."""

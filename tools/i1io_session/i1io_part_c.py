@@ -75,6 +75,16 @@ class Stage:
     beyond: str
 
 
+#: The area's wording, used wherever a text speaks of it (safety review of 7382e56f2).
+AREA_WHERE = ("where it lies on your table is our estimate, taken from where the measuring "
+              "opening has actually been in your recordings")
+WHY_BACK = ("i1Profiler places a sheet by the alignment sight, which sits about 3 cm in front of "
+            "the measuring opening; this program keeps the opening where it has been read, so a "
+            "sheet may have to lie a few centimetres further back than in your i1Profiler "
+            "sessions.")
+SHEET_BACK = ("The sheet may have to lie a few centimetres further back than in your i1Profiler "
+              "sessions; D1 tells you before anything moves.")
+
 SPOT_ROW_PATCHES_MAX = 40
 PAGE_PATCHES_MAX = 1100
 PAGE_ROWS_MAX = 40
@@ -141,7 +151,9 @@ STAGES = (
           "table where the sight is (p1, the line i1Profiler sends at each aim). Then it checks "
           "the three positions against the sheet before anything moves: the order, a mirrored or "
           "turned sheet, both distances within 2 mm of the sheet's, the corner within 1 degree of "
-          "a right angle, and that all three lie inside the measuring area.",
+          "a right angle, and that all three lie inside the measuring area this program uses "
+          "(320 x 230 mm; " + "where it lies on your table is our estimate, taken from where the "
+          "measuring opening has actually been in your recordings). " + SHEET_BACK,
           "p1 is i1Profiler's own line; here it follows your typed word instead of the "
           "instrument's button. If the check refuses your aims, nothing has moved and you can aim "
           "again."),
@@ -150,8 +162,8 @@ STAGES = (
           "With your hands off, the program reads where the free arm is (twice) and drives it the "
           "few centimetres to the position the table reported for mark 3, so the measuring opening "
           "should then sit on mark 3. You tell us whether it does.",
-          "A FIRST TRY: the first move to a computed target (inside the measuring area, at the "
-          "recorded speed 300). Near the front of the table it may also be the first motor move "
+          "A FIRST TRY: the first move to a computed target (inside the measuring area this "
+          "program uses, at the recorded speed 300). Near the front of the table it may also be the first motor move "
           "into a part no recording drove the arm to: then the program says so first."),
     Stage("d3", "One row of your sheet, a spot reading at every patch", "about 2 min",
           ("d1",), "sheet", "medium", True, 3, 2 * SPOT_ROW_PATCHES_MAX + 4, SPOT_ROW_PATCHES_MAX,
@@ -166,7 +178,7 @@ STAGES = (
           "speed (54 mm/s unless you choose another recorded one), started by the instrument's "
           "lamp. The readings are cut into patches by position afterwards.",
           "A FIRST TRY: the start and end are computed; the row is longer than any recorded scan "
-          "move but inside the measuring area, at a recorded speed. If a scan move might still be "
+          "move but inside the measuring area this program uses, at a recorded speed. If a scan move might still be "
           "waiting afterwards, the program tells you to switch the table off."),
     Stage("e3", "Your whole page as strip readings, row by row", "about 1 min per 5 rows",
           ("d1",), "sheet", "medium", True, 2, 12 * PAGE_ROWS_MAX, 2 * PAGE_ROWS_MAX,
@@ -235,7 +247,8 @@ RISK_WORDS = {
     "low": "Risk, as we judge it: low (nothing new for the table, or nothing moves).",
     "low-medium": "Risk, as we judge it: low to medium (recorded moves in the recorded order).",
     "medium": ("Risk, as we judge it: medium (a first try or a computed target inside the "
-               "measuring area; the worst we expect is a reading that does not work)."),
+               "measuring area this program uses; the worst we expect is a reading that does not "
+               "work)."),
 }
 FIRST_TRY = ("This is a first try: it may simply fail. If it does, the program says what failed, "
              "keeps everything about it for us, and offers the next stage.")
@@ -713,8 +726,8 @@ class PartC:
         y1 = max(max(p[1], q[1]) for p, q in new)
         self.ui.say(f"{what} takes the arm into a part of the table no recording drove it to "
                     f"(between X {x0} and {x1}, Y {y0} and {y1}; up to about {far:.0f} mm "
-                    "beyond), inside the measuring area. It is a first visit there under motor: "
-                    "please watch it.")
+                    "beyond), inside the measuring area this program uses (" + AREA_WHERE + "). "
+                    "It is a first visit there under motor: please watch it.")
         ans = self.ui.ask(f"{HANDS} Make this move now?", ("yes", "no"))
         self.s.note("first visit move", ans)
         self.block["answers"].append(("first visit", ans))
@@ -744,8 +757,8 @@ class PartC:
         failure: the person can push it back over the sheet)."""
         if self.d.arm_free and not geo.AREA_RAW.contains(a):
             raise StageFailed(
-                f"the free arm stands at X {a[0]}, Y {a[1]}, outside the measuring area "
-                f"({geo.AREA_RAW.text()}), and this program starts no move from there. Nothing "
+                f"the free arm stands at X {a[0]}, Y {a[1]}, outside the measuring area this "
+                f"program uses ({geo.AREA_RAW.text()}), and this program starts no move from there. Nothing "
                 "moved. Please push the free arm gently a few centimetres towards the middle "
                 "of your sheet, take your hands off, and run the stage again.")
 
@@ -997,7 +1010,7 @@ class PartC:
             free = (" The arm is free: you can push it gently back over the middle of the table "
                     "and run F again, or end here.") if d.arm_free else ""
             raise StageFailed(f"the arm reads X {got[0]}, Y {got[1]}, outside the measuring area "
-                              f"({geo.AREA_RAW.text()}), and this program sends its homing only "
+                              f"this program uses ({geo.AREA_RAW.text()}), and this program sends its homing only "
                               "from inside it. Nothing moved." + free)
         try:
             d.c_exchange(tbl.WIRE["home"], 0, window=(0.8, 8.0), timeout=15.0,
@@ -1266,8 +1279,10 @@ class Readers:
 #: the practice run's sheet (a ChromIQ 4.3.33 A4 i1iO chart's side file, ours)
 DEMO_SHEET = "demo-sheet.i1io.json"
 #: where the practice run lays it (table units of its mark 1 corner, sheet mm (0, 0)): chosen so
-#: that every row of the demo sheet lies inside the measuring area this program uses
-DEMO_ORIGIN = (1650, 950)
+#: that every row of the demo sheet lies inside the measuring area this program uses (rows and
+#: marks X -1295..1540, Y 810..2690 against X -1384..1716, Y 523..2723), and the simulated free arm
+#: after the third aim (mark 3 + the sight offset) inside it too
+DEMO_ORIGIN = (1650, 700)
 
 
 def demo_aims(sheet: "dict | None" = None, origin=DEMO_ORIGIN, page: int = 0):
@@ -1334,6 +1349,9 @@ def page_fit(sheet: dict, page: int, al: "geo.Alignment") -> dict:
                 "front": max(p[1] for p in pts) - area.ymax}
     say = []
     n_spot, n_rows = len(spot_pts), len(strips)
+    if spot_out or rows_out:
+        say.append("The measuring area this program uses is 320 x 230 mm; " + AREA_WHERE + ". "
+                   + WHY_BACK)
     if spot_out == 0:
         say.append(f"All {n_spot} patches of this page lie inside the measuring area this program "
                    "uses: the spot stages (D3, D4) can reach every one.")
@@ -1393,8 +1411,10 @@ ASK_REC_CHART = (
     "mean something). Nothing else may lie on the table.")
 SHEET_LAY = (
     "Please lay your printed ChromIQ i1iO sheet on the table now, while the arm is at rest, the "
-    "way ChromIQ printed it for the table ({orient}). All three marks must lie where the arm can "
-    "reach them; ChromIQ's layout keeps the sheet inside the measuring area of 320 x 230 mm.")
+    "way ChromIQ printed it for the table ({orient}). All three marks must lie inside the "
+    "measuring area this program uses: 320 x 230 mm (ChromIQ's layout keeps the sheet within "
+    "that size), and " + AREA_WHERE + ". Lay it a few centimetres further towards the back than "
+    "in your i1Profiler sessions: " + WHY_BACK)
 ASK_ARM_WRONG = (
     "Did anything about the TABLE or the ARM look, sound or feel wrong (a move that was not "
     "described, a noise, a bump, the arm in an unexpected place)? Answer no if only the "

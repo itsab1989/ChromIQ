@@ -432,12 +432,19 @@ class ScanReader:
             return {"event": "failed", "why": str(exc)}
         return self.proc.wait(("tscan_armed",), wait_ms / 1000.0 + 2.0) or {"event": "timeout"}
 
-    def fire(self, n: int, patches: int, name: str) -> None:
-        """Never raises: called on the one path after the scan move."""
+    def fire(self, n: int, patches: int, name: str) -> bool:
+        """Never raises: called on the one path after the scan move. False when the trigger
+        could not even be handed to the reader (it had stopped): then nothing can start the
+        waiting move, and the caller says SWITCH THE TABLE OFF at once."""
         try:
+            if not self.alive():
+                self.log("INST", "could not send the fire: the reader has stopped")
+                return False
             self.proc.send({"cmd": "tscan_fire", "n": n, "patches": patches, "name": name})
+            return True
         except Exception as exc:          # noqa: BLE001 - the path must not break
             self.log("INST", f"could not send the fire: {exc!r}")
+            return False
 
     def poll(self, name) -> "dict | None":
         return self.proc.poll(name)

@@ -590,7 +590,8 @@ def plan_part_c(hex_bytes: bool = False) -> "list[str]":
     out += ["", "and COMPUTED moves of the recorded form: m0 at speed "
             f"{', '.join(str(v) for v in geo.RECORDED_M0_SPEEDS)} only, m2 (the strip move) at "
             f"{', '.join(str(v) for v in geo.RECORDED_M2_SPEEDS)} only; the target inside "
-            f"{a.text()}; only right after a position reading, and the whole rectangle swept "
+            f"{a.text()} (a 320 x 230 mm area with a 5 mm margin; {pc.AREA_WHERE}); only "
+            "right after a position reading, and the whole rectangle swept "
             f"from it inside {r.text()}.", "", "Its stages (lines and movements per run, runs per "
             "sitting; each also may use part B's recorded way out and a homing):"]
     for st in pc.STAGES:

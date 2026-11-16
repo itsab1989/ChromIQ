@@ -7,35 +7,60 @@ a chart as the person sees it from the front of the table; Y grows towards the f
 X 1102, Y 0.
 
 THE MEASURING AREA. X-Rite gives the measuring area of the i1iO as 320 x 230 mm (ChromIQ's
-`workflow/i1io/table_facts.py` REACH_MM; the figure ChromIQ's i1iO layout is built on: a sheet laid
-across the table, at most 320 mm along X and 230 mm along Y). Where that rectangle lies in the
-table's own units is not published. The derivation (SAFETY_BRIEF_0.5.md, section 3, with every
-number's source):
+`workflow/i1io/table_facts.py` REACH_MM: the i1iO 3 product page and a review of the first i1iO;
+NOT published for the i1iO 2, so for this table the size is our assumption). Where that rectangle
+lies in the table's own units is not published either: WHERE IT LIES ON HIS TABLE IS OUR ESTIMATE,
+taken from where the measuring opening has actually been in his recordings.
 
-* X: the arm was at X -1434 (the smallest X ever read, the free arm beside a bottom-right corner,
-  R1) and at X 2832 (the alignment start, every session); the aimed corners of ten alignments span
-  X -1315 to 1321. The 320 mm rectangle is put with its right edge (smallest X) ON the smallest X
-  ever reached, -1434, so it never reaches further right than the arm has been: X -1434 to 1766.
-  Every X in it lies between two positions the arm has physically been at.
-* Y: the arm was read at Y 3109 (by hand, a bottom-left corner, R1) and at Y 0 (home); the aimed
-  corners span Y 1543 to 3109. The 230 mm rectangle is put with its front edge ON the frontmost
-  position ever reached, 3109: Y 809 to 3109.
+TWO FRAMES, ONE OF THEM FOR PLACES. The table answers two position questions:
+
+* p0 reads where the MEASURING OPENING (the sensor) is. Every m0/m2 target is a sensor position
+  too: after a move, p0 reads the target (every arrival in every recording, within 5 units).
+* p1 (sent at each aim) reads the point under the alignment SIGHT, in the same units as a move
+  target: i1Profiler drives its spot targets to the affine map of its three p1 readings within
+  1 unit (S2 383.3 and 684.0, 56 targets), so a p1 value IS the target that puts the opening on
+  the aimed mark. The arm itself (the opening) stands elsewhere at that moment: p0 read right after
+  the third aim is (-83..-119, -306..-323) from it (eight sessions; the person may also have moved
+  the arm a little after the press). The sight sits about 31 mm in front of the opening.
+
+So a p1 reading says where a mark lies; it is NOT a place the opening has been. Turning aims into
+targets needs no conversion (i1Profiler's own model, checked against its recorded moves:
+:func:`fit_alignment`); deciding where the opening may go uses p0 readings and motor targets only.
+
+The derivation (SAFETY_BRIEF_0.5.md, section 4, with every number's source):
+
+* X: the opening was read at X -1434 (p0, the free arm beside a bottom-right corner, R1 272.108,
+  the smallest X ever read) and was driven to X 2507 (m0, done, every approach of R1, R2, S2) and
+  2832 (m1); p0 read X up to 1318 (R2). The 320 mm rectangle is put with its right edge (smallest X)
+  ON the smallest X ever read, -1434, so it never reaches further right than the opening has been:
+  X -1434 to 1766. Every X in it lies between two places the opening has been.
+* Y: the opening was read at Y 2773 (p0 twice, R1 431.410 and 431.635: the free arm after the
+  R1 401.6 aims, from where the motors then took it to the chart), the frontmost p0 in every
+  recording and log; and at Y 0 (home). Under motor it went to Y 2559 at most (m2, S2; read 2560
+  after it). The 230 mm rectangle is put with its front edge ON the frontmost position the opening
+  was ever READ at, 2773: Y 473 to 2773. (Until the safety review of 7382e56f2 the front edge was
+  the p1 reading 3109, a SIGHT position: the opening was then about 31 mm further back, so that
+  area let computed moves go about 3 cm further to the front than the opening had ever been.)
 * The table moves its two axes independently (an X carriage on an arm that travels along Y), so a
-  point whose X and Y were each reached lies in the travel of the mechanism. This is a belief
-  supported by the hand alignments (the four corners of X -1315..1321 by Y 1543..3109 were each
-  reached within 4 mm); it is not proved for the strip X -1434..-1315 behind Y 1543, where no
-  sheet of a recording lay.
-* MARGIN: 5 mm kept inside on every side, so the guard is X -1384 to 1716, Y 859 to 3059.
+  point whose X and Y were each reached lies in the travel of the mechanism. This is a belief: the
+  opening was READ at the front right (-1434, 2755) and (-1413, 2773), at the back left only on
+  the chart rows and the approach (X up to 1318 at Y 1543..1790; X 2507 at Y 1498), and never at
+  the front left (the sight was there, at the bottom-left aims, with the opening about 31 mm
+  behind it, which is LIKELY but not read).
+* MARGIN: 5 mm kept inside on every side, so the guard is X -1384 to 1716, Y 523 to 2723.
 
 What this leaves uncertain is stated in the brief: the true area may extend further to the right or
 the front than these figures (then the guard is merely conservative), and nothing in the
 recordings fixes its back and left edges (the guard then relies on the travel the recordings show).
+A sheet must therefore lie a few centimetres further back than in his i1Profiler sessions (their
+bottom marks were aimed at sight Y 2934 to 3109); D1 says by how much before anything moves.
 
 THE SHEET. Inside that, every computed target must also lie inside the sheet as the person aimed
 at it: the parallelogram of his three aimed marks (top-left, bottom-left, bottom-right and the
 fourth corner TL + BR - BL), widened by RUN_OUT_MM along the rows (the run-in and run-out of a
-strip read) and ACROSS_MM across them. The aims were reached by hand, the sight on each mark, so
-the mechanism has been there in this very sitting.
+strip read) and ACROSS_MM across them. The aims were reached by hand with the SIGHT on each mark;
+the opening was then about 31 mm behind it, so an aim says where the sheet lies, not that the
+opening has been there (the area above decides that).
 
 WHERE THE ARM WAS DRIVEN. :data:`DRIVEN` is where motors moved it in a recording. A computed move
 whose swept rectangle leaves it is a FIRST VISIT: the stage runner makes it a step of its own,
@@ -74,10 +99,16 @@ class Area:
         return f"X {self.xmin} to {self.xmax}, Y {self.ymin} to {self.ymax}"
 
 
-#: The manufacturer's 320 x 230 mm, placed as derived above (before the margin).
+#: The manufacturer's 320 x 230 mm (published for the i1iO and i1iO 3; our assumption for the
+#: i1iO 2), placed as derived above (before the margin). Both edges are SENSOR positions (p0).
 AREA_MM = (320.0, 230.0)
-SMALLEST_X_REACHED = -1434          # R1, the free arm beside a bottom-right corner (p0)
-FRONTMOST_Y_REACHED = 3109          # R1 401.6, the bottom-left aim (p1)
+SMALLEST_X_REACHED = -1434          # p0, R1 272.108: the free arm beside a bottom-right corner
+FRONTMOST_Y_REACHED = 2773          # p0, R1 431.410 / 431.635: the free arm after the R1 401.6 aims
+#: Where the opening stood, relative to the p1 reading of the third aim, when p0 was read next
+#: (R1 200.3, 401.6; R2 427.5; S2 3.5, 270.8, 383.3, 526.8, 684.0). Documentation and the
+#: simulator only: no target is ever computed with it (a p1 value is already the target).
+SIGHT_TO_SENSOR_SEEN = ((-119, -318), (-109, -306), (-83, -318), (-84, -316), (-100, -316),
+                        (-106, -323), (-98, -316), (-105, -312))
 AREA_RAW = Area(SMALLEST_X_REACHED, SMALLEST_X_REACHED + int(AREA_MM[0] * 10),
                 FRONTMOST_Y_REACHED - int(AREA_MM[1] * 10), FRONTMOST_Y_REACHED)
 MARGIN = 50
@@ -246,11 +277,30 @@ class Alignment:
         return p
 
 
-def fit_alignment(aims_mm, readings) -> Alignment:
-    """i1Profiler's own model: the affine map through the three aims (its recorded spot targets
-    fit it within 1 unit). Every check from the challenge, before anything moves."""
+def _shift_back(points, area: Area) -> str:
+    """Which way the sheet would have to lie for *points* to come inside *area* (plain words; X
+    falls to the right, Y grows towards the front, as the person sees the table)."""
+    over = {"left": max(p[0] for p in points) - area.xmax,
+            "right": area.xmin - min(p[0] for p in points),
+            "back": area.ymin - min(p[1] for p in points),
+            "front": max(p[1] for p in points) - area.ymax}
+    parts = []
+    for side, way in (("left", "to the right"), ("right", "to the left"),
+                      ("back", "towards the front"), ("front", "towards the back")):
+        if over[side] > 0:
+            parts.append(f"about {over[side] / 10 + 1:.0f} mm further {way}")
+    return " and ".join(parts)
+
+
+def fit_model(aims_mm, readings) -> Alignment:
+    """i1Profiler's own model: the affine map through the three aims, p1 readings used AS
+    TARGETS with no sight-to-opening conversion (its recorded spot targets fit it within 1 unit;
+    tests/test_i1io_part_c.py checks it against every recorded alignment). The shape checks, but
+    NOT the area: :func:`fit_alignment` is what the stages use."""
     (a1, a2, a3), (P1, P2, P3) = [tuple(map(float, a)) for a in aims_mm], \
         [tuple(map(float, p)) for p in readings]
+    if not all(math.isfinite(v) for p in (a1, a2, a3, P1, P2, P3) for v in p):
+        raise AlignmentRefused("a mark or a position reading is not a finite number")
     ux, uy = a2[0] - a1[0], a2[1] - a1[1]
     vx, vy = a3[0] - a2[0], a3[1] - a2[1]
     det = ux * vy - uy * vx
@@ -293,9 +343,22 @@ def fit_alignment(aims_mm, readings) -> Alignment:
                                "probably off")
     if not (P1[0] >= max(P2[0], P3[0]) - 30 and P1[1] <= min(P2[1], P3[1])):
         raise AlignmentRefused("mark 1 must be the one furthest to the left and furthest back")
-    for n, p in enumerate((P1, P2, P3), 1):
-        if not MEASURING_AREA.contains(p):
-            raise AlignmentRefused(f"mark {n} was aimed at X {p[0]:.0f}, Y {p[1]:.0f}, outside the "
-                                   f"measuring area this program uses ({MEASURING_AREA.text()})")
     return Alignment(tuple(tuple(a) for a in aims_mm),
                      tuple(tuple(int(v) for v in p) for p in readings), M, checks)
+
+
+def fit_alignment(aims_mm, readings) -> Alignment:
+    """:func:`fit_model`, then all three marks inside MEASURING_AREA. The marks are compared as
+    TARGETS (the opening is put on a mark by moving to its p1 value), the same frame as every
+    patch target and :func:`check_target`."""
+    al = fit_model(aims_mm, readings)
+    pts = [tuple(map(float, p)) for p in readings]
+    outside = [(n, p) for n, p in enumerate(pts, 1) if not MEASURING_AREA.contains(p)]
+    if outside:
+        n, p = outside[0]
+        raise AlignmentRefused(
+            f"mark {n} was aimed at X {p[0]:.0f}, Y {p[1]:.0f}, outside the measuring area this "
+            f"program uses ({MEASURING_AREA.text()}; where it lies on your table is our estimate, "
+            "from where the measuring opening has been in your recordings). For all three marks "
+            f"the sheet would have to lie {_shift_back(pts, MEASURING_AREA)}")
+    return al

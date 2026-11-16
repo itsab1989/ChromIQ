@@ -165,10 +165,12 @@ it refuses every other form):
    * `m0` only at the recorded chart speed **300**;
    * `m2` (the strip move) only at a recorded scan speed: 40, 53, 54, 61, 87, 88, 110, 118, 137, 138 (mm/s);
    * the target inside the measuring area X -1384..1716,
-     Y 859..3059 (X-Rite's 320 x 230 mm placed as
-     derived in `i1io_geometry.py`, minus 5 mm on every side);
+     Y 523..2723 (a 320 x 230 mm area, the size X-Rite gives for the i1iO and the i1iO 3 and
+     our assumption for the i1iO 2, placed on the table as derived in `i1io_geometry.py` from
+     where the measuring opening was READ (p0) in the recordings, minus 5 mm on every side;
+     where it lies on the table is our estimate);
    * only right after a position reading, and the whole rectangle swept from that reading to
-     the target inside X -1434..1766, Y 809..3109.
+     the target inside X -1434..1766, Y 473..2773.
 
 Answers part C expects to its own lines (anything else is a doubt):
 

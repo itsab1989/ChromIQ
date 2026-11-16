@@ -239,6 +239,14 @@ def run_row(table: tbl.Table, inst, plan: RowPlan, log, outdir: str,
     res = RowResult("failed_clean", "", plan)
     try:
         at = table.position()
+        if table.arm_free:
+            # the same two-reading stillness check as D2/D3 and part B's step B4: a hand still
+            # on the free arm shows as a difference, and then no motor takes it
+            again = table.position()
+            if abs(at[0] - again[0]) > tbl.STILL_UNITS or abs(at[1] - again[1]) > tbl.STILL_UNITS:
+                raise CleanFail(f"the free arm moved between two readings ({at} then {again}): "
+                                "please take your hands off it")
+            at = again
         res.start_read = at
         try:
             check_plan(plan, at)
@@ -286,10 +294,11 @@ def run_row(table: tbl.Table, inst, plan: RowPlan, log, outdir: str,
     # ======== FROM HERE: ONE PATH TO THE FIRE ==========================================
     refused = False
     never_written = False
+    fire_sent = None                # False: the trigger could not even be handed to the reader
     before_m2 = None                # why the scan move was never written (a stop, a check)
-    table.defer_stop = True
     table.busy += 1                 # Ctrl-C now only asks for a stop after the move has ended
     try:
+        table.defer_stop = True
         try:
             res.t_m2 = table.t.now()
             sent_before = table.lines_sent
@@ -335,9 +344,18 @@ def run_row(table: tbl.Table, inst, plan: RowPlan, log, outdir: str,
         finally:
             if not refused and not never_written:
                 res.t_fire_sent = table.t.now()
-                inst.fire(plan.N, len(plan.patches), plan.name)
+                fire_sent = inst.fire(plan.N, len(plan.patches), plan.name)
         # ==============================================================================
 
+        if fire_sent is False:
+            # the lamp trigger never reached the reader: nothing can start the waiting move,
+            # so the person is told to switch the table off NOW, not after the wait
+            res.kind = "pending"
+            res.why = ("no done answer can come: the lamp trigger could not be sent to the "
+                       "instrument (its reader had stopped)")
+            _mark_pending(outdir)
+            table.close_for_sending("a scan move may be pending")
+            return res
         if never_written:
             if isinstance(before_m2, tbl.Stopped):
                 raise before_m2
@@ -371,11 +389,7 @@ def run_row(table: tbl.Table, inst, plan: RowPlan, log, outdir: str,
             res.why = "no done answer to the scan move"
             if res.fired is None or res.fired.get("lit_sent") != 1:
                 res.why += "; the instrument did not report its lamp trigger"
-            try:
-                with open(os.path.join(outdir, PENDING_MARKER), "w", encoding="utf-8") as fh:
-                    fh.write(PENDING_TEXT + "\n")
-            except OSError:
-                pass
+            _mark_pending(outdir)
             table.close_for_sending("a scan move may be pending")
             return res
         table.motion_unconfirmed = False
@@ -419,6 +433,14 @@ def run_row(table: tbl.Table, inst, plan: RowPlan, log, outdir: str,
                                                  "end, but the instrument did not deliver its "
                                                  "readings (see its .json)")
     return res
+
+
+def _mark_pending(outdir: str) -> None:
+    try:
+        with open(os.path.join(outdir, PENDING_MARKER), "w", encoding="utf-8") as fh:
+            fh.write(PENDING_TEXT + "\n")
+    except OSError:
+        pass
 
 
 PENDING_TEXT = (

@@ -69,11 +69,12 @@ class CScript(prog.AutoConsole):
         return super().text(question)
 
 
-def run_c(tmp_path, stages, sim=None, script=None, readers=None, sheet=None, **kw):
+def run_c(tmp_path, stages, sim=None, script=None, readers=None, sheet=None, console_cls=None,
+          **kw):
     """One simulated part C sitting. Returns (code, sim, log text, console, results folder)."""
     tmp_path.mkdir(parents=True, exist_ok=True)
     sim = sim or csim.CSimTable(part_c=False)
-    con = CScript(sim, stages, script=script, **kw)
+    con = (console_cls or CScript)(sim, stages, script=script, **kw)
     log = tmp_path / "log.txt"
     argv = ["--auto", "--log", str(log)]
     if sheet:
@@ -485,7 +486,7 @@ def test_declining_a_first_visit_move_moves_nothing(tmp_path):
 
 def test_rows_beyond_the_area_are_named_in_d1_and_refused_before_any_line(tmp_path):
     """The sheet 15 mm too far to the right: its marks still inside, its rows not."""
-    sim = csim.CSimTable(part_c=False, aims=_aims_at((1500, 950)))
+    sim = csim.CSimTable(part_c=False, aims=_aims_at((1500, 700)))
     code, sim, log, con, res = run_c(tmp_path, ["c1", "d1", "e2", "d3", "f"], sim=sim)
     v = verdicts(log)
     # E2 refused by its plan; the free arm (the sight offset beside mark 3) stands outside
@@ -503,10 +504,26 @@ def test_rows_beyond_the_area_are_named_in_d1_and_refused_before_any_line(tmp_pa
 
 
 def test_a_mark_outside_the_area_is_refused_with_the_way_to_shift(tmp_path):
-    sim = csim.CSimTable(part_c=False, aims=_aims_at((1900, 950)))
+    sim = csim.CSimTable(part_c=False, aims=_aims_at((1900, 700)))
     code, sim, log, con, res = run_c(tmp_path, ["d1", "f"], sim=sim)
     assert verdicts(log) == [("d1", "failed cleanly"), ("f", "worked")]
     assert "outside the measuring area" in screen(con)
+    assert "further to the right" in screen(con)
+
+
+def test_a_sheet_laid_where_i1profiler_had_it_is_sent_back_a_few_centimetres(tmp_path):
+    """Safety review of 7382e56f2: the demo sheet laid as far to the front as the 14 November
+    sheets (bottom marks at sight Y about 3010) is refused before anything moves, and the person
+    is told to lay it about 3 cm further back, and why."""
+    sim = csim.CSimTable(part_c=False, aims=_aims_at((1650, 1020)))
+    code, sim, log, con, res = run_c(tmp_path, ["d1", "d2", "f"], sim=sim)
+    v = verdicts(log)
+    assert v[0] == ("d1", "failed cleanly") and [k for k, _ in v] == ["d1", "f"], v
+    text = _flat(screen(con))
+    assert "further towards the back" in text
+    assert "our estimate" in text
+    assert "a few centimetres further back than in your i1Profiler sessions" in text
+    assert computed(sim) == []
 
 
 def test_the_whole_page_in_spot_and_strip_readings(tmp_path):
@@ -561,16 +578,48 @@ R = geo.AREA_RAW
 
 
 def test_the_area_figures_are_pinned():
-    assert (R.xmin, R.xmax, R.ymin, R.ymax) == (-1434, 1766, 809, 3109)
-    assert (A.xmin, A.xmax, A.ymin, A.ymax) == (-1384, 1716, 859, 3059)
+    assert (R.xmin, R.xmax, R.ymin, R.ymax) == (-1434, 1766, 473, 2773)
+    assert (A.xmin, A.xmax, A.ymin, A.ymax) == (-1384, 1716, 523, 2723)
     assert R.xmax - R.xmin == 3200 and R.ymax - R.ymin == 2300      # 320 x 230 mm
-    # every recorded aimed corner and every recorded chart move lies inside the raw area
-    for name, pts in geo.RECORDED_ALIGNMENTS.items():
-        for p in pts:
-            assert R.contains(p), (name, p)
-    assert R.contains(sc.RECORDED_ROW["start"]) and R.contains(sc.RECORDED_ROW["end"])
+    # every recorded chart move lies inside the target area
+    assert A.contains(sc.RECORDED_ROW["start"]) and A.contains(sc.RECORDED_ROW["end"])
     for t in tbl.SPOT_TARGETS:
         assert A.contains(t)
+    for t in RECORDED_TARGETS_ALL:
+        assert A.contains(t), t
+
+
+#: Every position the table READ (p0: the measuring opening) at the edges of the area, in every
+#: recording and every log of the tester (fix1/tools/edges.py over the decoded R1, R2, S1, S2
+#: captures and the program logs; numbers only): the frontmost, the furthest right, and the
+#: furthest to the front under motor.
+P0_FRONTMOST = ((-1413, 2773), (-1324, 2758), (-1434, 2755))     # R1 431.410, 279.888, 272.108
+P0_RIGHTMOST = (-1434, 2755)                                     # R1 272.108
+P0_FRONT_AFTER_MOTOR = (1169, 2560)                              # S2, after m2 to (1171, 2559)
+#: The p1 (SIGHT) readings the old front edge 3109 was taken from, and the p0 read next.
+P1_FRONTMOST = (1268, 3109)                                      # R1 412.443, mark 2
+
+
+def test_the_front_edge_is_the_frontmost_sensor_reading_not_a_sight_reading():
+    """Safety review of 7382e56f2, required change: both edges rest on p0 (sensor) readings."""
+    assert geo.FRONTMOST_Y_REACHED == max(p[1] for p in P0_FRONTMOST) == R.ymax
+    assert geo.SMALLEST_X_REACHED == P0_RIGHTMOST[0] == R.xmin
+    assert R.ymax < P1_FRONTMOST[1] - 300           # the sight reading is ~31 mm further front
+    # no target and no swept rectangle reaches in front of where the opening was read
+    assert A.ymax == R.ymax - 50 and A.ymax < max(p[1] for p in P0_FRONTMOST)
+    with pytest.raises(geo.AreaRefused):
+        geo.m0_line(0, R.ymax - 49)
+    assert A.contains(P0_FRONT_AFTER_MOTOR)
+    # the recorded sight-to-opening offsets: always 30.6 to 32.3 mm towards the back
+    for dx, dy in geo.SIGHT_TO_SENSOR_SEEN:
+        assert -323 <= dy <= -306 and -120 <= dx <= -83
+    # every recorded aim's opening (p1 + the offset seen in its session) lies in front of or on
+    # the area's front edge only where it was READ there: the bottom marks' sight positions
+    # themselves are all outside the target area
+    for name, pts in geo.RECORDED_ALIGNMENTS.items():
+        if name in ("R1 716.8", "R2 144.5"):
+            continue
+        assert pts[1][1] > A.ymax and pts[2][1] > A.ymax, name
 
 
 @pytest.mark.parametrize("x,y,ok", [(A.xmin, A.ymin, True), (A.xmax, A.ymax, True),
@@ -658,26 +707,144 @@ def test_the_simulator_keeps_its_own_copy_of_the_area_and_speeds():
     assert "i1io_geometry" not in src and "i1io_c_lines" not in src
 
 
-def test_the_recorded_alignments_pass_the_checks_or_are_the_known_degenerate_ones():
-    sheet_mm = None
+def _aims_mm(pts):
+    (p1, p2, p3) = pts
+    l12 = ((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2) ** 0.5 / 10
+    l23 = ((p2[0] - p3[0]) ** 2 + (p2[1] - p3[1]) ** 2) ** 0.5 / 10
+    return ((0.0, 0.0), (0.0, l12), (l23, l12))
+
+
+def test_the_recorded_alignments_pass_the_shape_checks_and_lie_too_far_front():
+    """Every non-degenerate recorded alignment passes the shape checks (fit_model); fit_alignment
+    refuses all of them, because their bottom marks lie in front of where the opening was ever
+    read, and says to lay the sheet further back (23 to 40 mm)."""
     for name, pts in geo.RECORDED_ALIGNMENTS.items():
-        (p1, p2, p3) = pts
-        l12 = ((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2) ** 0.5 / 10
-        l23 = ((p2[0] - p3[0]) ** 2 + (p2[1] - p3[1]) ** 2) ** 0.5 / 10
-        aims = ((0.0, 0.0), (0.0, l12), (l23, l12))
+        aims = _aims_mm(pts)
         if name in ("R1 716.8", "R2 144.5"):
             with pytest.raises(geo.AlignmentRefused):
-                geo.fit_alignment(aims, pts)
+                geo.fit_model(aims, pts)
             continue
-        try:
-            al = geo.fit_alignment(aims, pts)
-        except geo.AlignmentRefused as exc:
-            # the front-most recorded aims lie in the 5 mm margin: refused as outside the area
-            assert "outside the measuring area" in str(exc), (name, exc)
-            assert max(p[1] for p in pts) > A.ymax
-            continue
+        al = geo.fit_model(aims, pts)
         assert abs(al.checks["rotation_deg"]) < 1.0
-    del sheet_mm
+        with pytest.raises(geo.AlignmentRefused, match="further towards the back") as exc:
+            geo.fit_alignment(aims, pts)
+        assert "our estimate" in str(exc.value)
+        # shifted back by what the message says, the same aims are accepted
+        mm = int(str(exc.value).rsplit("about ", 1)[1].split(" mm")[0])
+        geo.fit_alignment(aims, [(x, y - 10 * mm) for x, y in pts])
+
+
+#: i1Profiler's own moves after each recorded alignment (decoded R1, R2, S2 captures; the m0
+#: and m2 targets between the third aim and the next homing; numbers only). Spot sessions: the
+#: 28 patch centres of row 1, from right to left.
+RECORDED_SPOT_TARGETS = {
+    "S2 383.3": [(-1181, 1658), (-1094, 1659), (-1007, 1659), (-920, 1659), (-833, 1659),
+                 (-745, 1659), (-658, 1660), (-571, 1660), (-484, 1660), (-396, 1660),
+                 (-309, 1660), (-222, 1661), (-135, 1661), (-48, 1661), (39, 1661), (126, 1661),
+                 (213, 1661), (300, 1662), (388, 1662), (475, 1662), (562, 1662), (649, 1662),
+                 (736, 1663), (824, 1663), (911, 1663), (998, 1663), (1085, 1663), (1173, 1663)],
+    "S2 684.0": [(-1182, 1657), (-1094, 1657), (-1007, 1657), (-919, 1657), (-832, 1658),
+                 (-744, 1658), (-657, 1658), (-569, 1659), (-482, 1659), (-394, 1659),
+                 (-307, 1659), (-219, 1660), (-132, 1660), (-44, 1660), (42, 1661), (130, 1661),
+                 (217, 1661), (305, 1662), (392, 1662), (480, 1662), (567, 1662), (655, 1663),
+                 (742, 1663), (830, 1663), (917, 1664), (1005, 1664), (1092, 1664), (1180, 1665)],
+}
+#: Strip sessions: every m0 (row start) and m2 (row end) target, and the rows' spacing in
+#: v (1/18 for the 19-row charts of S2, 1/17 for the 18-row charts of R1, R2).
+RECORDED_SCAN_TARGETS = {
+    "S2 3.5": (18, [(-1196, 1645), (1175, 1735), (-1197, 1795), (1174, 1885), (-1198, 1945),
+                    (1174, 2035), (-1199, 2094), (1173, 2184), (-1200, 2244), (1172, 2334),
+                    (-1200, 2394), (1171, 2484), (-1201, 2543), (1175, 1661), (-1197, 1720),
+                    (1175, 1810), (-1198, 1870), (1174, 1960), (-1198, 2020), (1173, 2110),
+                    (-1199, 2169), (1172, 2259), (-1200, 2319), (1172, 2409), (-1201, 2469),
+                    (1171, 2559)]),
+    "S2 526.8": (18, [(-1191, 1653), (1180, 1748), (-1193, 1802), (1178, 1897), (-1194, 1951),
+                      (1177, 2045), (-1195, 2100), (1180, 1674), (-1192, 1728), (1179, 1822),
+                      (-1193, 1877), (1178, 1971), (-1195, 2025), (1176, 2120)]),
+    "S2 270.8": (18, [(-1095, 1636), (1192, 1658)]),
+    "R1 401.6": (17, [(-1290, 1674), (1290, 1705), (-1292, 1757), (1289, 1787)]),
+    "R2 427.5": (17, [(-1270, 1537), (1316, 1543), (-1270, 1620), (1316, 1625), (-1270, 1702),
+                      (1316, 1707), (-1270, 1784), (1316, 1789)]),
+}
+RECORDED_TARGETS_ALL = [t for v in RECORDED_SPOT_TARGETS.values() for t in v] + \
+    [t for _r, v in RECORDED_SCAN_TARGETS.values() for t in v]
+
+
+def _model_grid(al, rows, cols=28):
+    """Every patch centre (and the 0.5 mm run-in/run-out points i1Profiler's strips use) of a
+    chart of *cols* columns and rows spaced 1/rows in v, through OUR Alignment.to_table."""
+    (x0, y0), (_x1, y1), (x2, _y2) = al.aims_mm
+    out = []
+    for r in range(rows + 1):
+        for u in [c / (cols - 1) for c in range(cols)] + [-0.002, 1.002]:
+            out.append(al.to_table((x0 + u * (x2 - x0), y0 + r / rows * (y1 - y0))))
+    return out
+
+
+def test_aims_become_targets_exactly_as_i1profiler_moved_after_its_recorded_alignments():
+    """The SIGHT-to-SENSOR question, checked against the recordings: OUR fit of each recorded
+    alignment (its three p1 readings used as targets with no conversion) puts every patch of
+    row 1 within 1 unit (0.1 mm, integer rounding) of where i1Profiler actually moved in that
+    session (ALIGNMENT.md section 4: spot targets exactly the model), and every strip row start
+    and end within 5 units (its run-in, 0.5 mm beyond the end patches). Adding the recorded
+    sight-to-opening offset to the aims would miss every one by about 31 mm."""
+    worst_spot = 0
+    for name, recorded in RECORDED_SPOT_TARGETS.items():
+        pts = geo.RECORDED_ALIGNMENTS[name]
+        al = geo.fit_model(_aims_mm(pts), pts)
+        (x0, y0), _bl, (x2, _y2) = al.aims_mm
+        ours = [al.to_table((x0 + (x2 - x0) * (27 - k) / 27, y0)) for k in range(28)]
+        for o, r in zip(ours, recorded):
+            worst_spot = max(worst_spot, abs(o[0] - r[0]), abs(o[1] - r[1]))
+            assert abs(o[0] - r[0]) <= 1 and abs(o[1] - r[1]) <= 1, (name, o, r)
+        # the alternative frame: aims taken as where the opening stood (p1 + offset)
+        off = geo.SIGHT_TO_SENSOR_SEEN[5]
+        shifted = [(x + off[0], y + off[1]) for x, y in pts]
+        alt = geo.fit_model(_aims_mm(shifted), shifted)
+        o = alt.to_table((x2, y0))
+        assert abs(o[1] - recorded[0][1]) > 300, name
+    assert worst_spot <= 1
+    for name, (rows, recorded) in RECORDED_SCAN_TARGETS.items():
+        pts = geo.RECORDED_ALIGNMENTS[name]
+        al = geo.fit_model(_aims_mm(pts), pts)
+        grid = _model_grid(al, rows)
+        for r in recorded:
+            d = min(max(abs(g[0] - r[0]), abs(g[1] - r[1])) for g in grid)
+            assert d <= 5, (name, r, d)
+
+
+def test_the_page_fit_and_the_targets_use_the_same_frame_as_the_aims(tmp_path):
+    """D1's mark check, its page check and the stages' targets all compare TARGETS (p1 values
+    and what the alignment maps from them) with MEASURING_AREA, with no sight offset anywhere:
+    a mark exactly on the front edge is accepted and one unit further is refused; a patch
+    exactly on the edge is inside for the page check and for its target, one unit further is
+    outside for both."""
+    sheet = _sheet()
+    aims_mm = [tuple(sc.sheet_table_mm(sheet, a["page_mm"])) for a in sc.aims_of(sheet, 0)]
+    good = pc.demo_aims()
+    fit = pc.page_fit(sheet, 0, geo.fit_alignment(aims_mm, good))
+    assert fit["spot_outside"] == 0 and fit["rows_outside"] == 0
+    front = max(p[1] for p in good)
+    geo.fit_alignment(aims_mm, [(x, y + A.ymax - front) for x, y in good])
+    with pytest.raises(geo.AlignmentRefused, match="towards the back"):
+        geo.fit_alignment(aims_mm, [(x, y + A.ymax - front + 1) for x, y in good])
+    # the frontmost patch centre, moved onto the edge and one unit beyond (fit_model: the
+    # marks themselves are then outside, which D1 refuses first; here only the frame is checked)
+    pts = [(q, sc.sheet_table_mm(sheet, q["centre_mm"]))
+           for st in sheet["pages"][0]["strips"] for q in st["patches"]]
+    al0 = geo.fit_model(aims_mm, good)
+    q, u = max(pts, key=lambda t: al0.to_table(t[1])[1])
+    pfront = al0.to_table(u)[1]
+    for extra, inside in ((0, True), (1, False)):
+        moved = [(x, y + A.ymax - pfront + extra) for x, y in good]
+        al = geo.fit_model(aims_mm, moved)
+        f = pc.page_fit(sheet, 0, al)
+        assert (f["over_spot"]["front"] <= 0) == inside, (extra, f["over_spot"])
+        if inside:
+            assert al.target(u, "the frontmost patch", run_out_mm=0.5)[1] == A.ymax
+        else:
+            with pytest.raises(geo.AreaRefused):
+                al.target(u, "the frontmost patch", run_out_mm=0.5)
 
 
 # ---- E2, E3: the strip reading of your sheet ----------------------------------------------
@@ -1147,3 +1314,97 @@ def test_geometry_first_visit_matches_the_driven_boxes():
     assert not geo.first_visit((-1000, 1600), (1000, 2500))       # inside the chart box
     assert geo.first_visit((-1000, 1200), (1000, 1200))           # behind every recorded chart
     assert geo.first_visit((1500, 2000), (1600, 2000))            # the left 45 mm
+
+
+# ---- safety review of 7382e56f2: the recommended changes ------------------------------------
+
+@pytest.mark.parametrize("stages", [["e1"], ["c1", "d1", "e2"], ["c1", "d1", "e3"]])
+def test_a_strip_row_from_a_free_arm_reads_it_twice_and_a_hand_on_it_stops_cleanly(tmp_path,
+                                                                                  stages):
+    """E1, E2 and E3 start the motors from a free arm only after two readings that agree within
+    STILL_UNITS, as D2, D3 and part B's step B4 do."""
+    lines, _ = _clean_run(tmp_path, stages + ["f"])
+    c4 = cl.C_FIXED["scan_c4"].decode().rstrip("\r")
+    first_c4 = _first_index(lines, lambda x: x == c4)
+    # the clean run: p0, p0 (the stillness check), c4
+    assert lines[first_c4 - 2:first_c4] == [P0, P0]
+    sim = csim.CSimTable(part_c=False)
+    sim.inject_at(first_c4 - 1, "drift", tbl.STILL_UNITS + 3)
+    code, sim, log, con, res = run_c(tmp_path / "hand", stages + ["f"], sim=sim)
+    v = verdicts(log)
+    assert (stages[-1], "failed cleanly") in v, v
+    assert "the free arm moved between two readings" in screen(con)
+    assert c4 not in sim.received                 # nothing after the second reading
+    assert not any(x.startswith(";m2") for x in sim.received)
+    assert sim.violations == []
+
+
+@pytest.mark.parametrize("stages", [["e1"], ["c1", "d1", "e2"]])
+def test_a_lamp_trigger_that_could_not_be_sent_says_switch_off_at_once(tmp_path, stages):
+    """The reader had stopped before the trigger could be handed to it: SWITCH THE TABLE OFF is
+    shown at once, not after waiting move + 10.5 s for a done answer that cannot come."""
+    calls = []
+
+    def factory(s, lg):
+        r = REAL_FAKE_READERS(s, lg)
+        real_scan = r.scan
+
+        def scan(folder):
+            calls.append(folder)
+            x = real_scan(folder)
+            if len(calls) == len([k for k in stages if k in ("c1", "e1", "e2")]):
+                x.faults["fire_unsent"] = True
+            return x
+        r.scan = scan
+        return r
+    sim = csim.CSimTable(part_c=False)
+    said_at = []
+
+    class Timed(CScript):
+        def say(self, text=""):
+            if "SWITCH THE TABLE OFF" in text:
+                said_at.append(self.sim.clock)
+            super().say(text)
+    con_cls = Timed
+    code, sim, log, con, res = run_c(tmp_path, stages, sim=sim, readers=factory,
+                                     console_cls=con_cls)
+    assert code == 2 and said_at
+    t_m2 = sim.received_at[max(i for i, x in enumerate(sim.received) if x.startswith(";m2"))]
+    assert said_at[0] - t_m2 < 1.5, (said_at[0], t_m2)          # not after move + 10.5 s
+    assert list(res.rglob(sc.PENDING_MARKER))
+    last_m2 = max(i for i, line in enumerate(sim.received) if line.startswith(";m2"))
+    assert sim.received[last_m2 + 1:] == [cl.C_FIXED["scan_a3"].decode().rstrip("\r"),
+                                          cl.C_FIXED["scan_c3"].decode().rstrip("\r")]
+    assert "the lamp trigger could not be sent" in log
+
+
+def test_the_scan_path_sets_defer_stop_only_inside_its_try_after_busy():
+    """Review (2)(b): a Ctrl-C between the two lines can no longer leave defer_stop set."""
+    import inspect
+    src = inspect.getsource(sc.run_row)
+    i_busy = src.index("table.busy += 1")
+    i_try = src.index("try:", i_busy)
+    i_defer = src.index("table.defer_stop = True")
+    assert i_busy < i_try < i_defer
+    assert src.count("table.defer_stop = True") == 1
+
+
+def test_the_real_reader_reports_a_fire_it_could_not_send():
+    import i1io_reader as rd
+
+    class Dead:
+        def poll(self):
+            return 1
+
+    class P:
+        p = Dead()
+
+        def send(self, obj):
+            raise rd.ReaderFailed("gone")
+    r = rd.ScanReader.__new__(rd.ScanReader)
+    r.proc = P()
+    r.log = lambda *a: None
+    r.alive = lambda: True
+    assert r.fire(10, 1, "x") is False
+    r.alive = lambda: False
+    assert r.fire(10, 1, "x") is False
