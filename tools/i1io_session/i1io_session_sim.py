@@ -197,6 +197,7 @@ class SimTable:
         self._faults_at: "dict[int, Fault]" = {}
         self.on_command = None
         self.received: "list[str]" = []
+        self.received_at: "list[float]" = []
         self.motions = 0
         self.steps_run: "list[str]" = []
         self._cur: "str | None" = "open"
@@ -389,6 +390,7 @@ class SimTable:
 
     def _command(self, line: str) -> None:
         self.received.append(line)
+        self.received_at.append(self.clock)
         m = _HOST_RE.fullmatch(line)
         if not m or not checksum_ok(line):
             raise SimViolation(f"malformed line or bad checksum: {line!r}")

@@ -1724,3 +1724,15 @@ def test_part_b_reads_the_free_arm_only_twice_before_moving_it_and_never_writes_
                    for ln in sim.received)
     i = sim.received.index(SPOT_LINES[0])
     assert sim.received[i - 2:i] == [P0, P0]
+
+
+def test_part_b_waits_one_second_after_every_patch_move_before_the_next_read(tmp_path):
+    code, sim, log, con = _run_b(tmp_path, sim=sim_mod.SimTable(jitter=False))
+    assert code == 0
+    for i, line in enumerate(sim.received):
+        if line in SPOT_LINES:
+            done = sim.received_at[i] + (1.45 if line == SPOT_LINES[0] else 0.431)
+            nxt = sim.received_at[i + 1]
+            assert nxt - done >= tbl.PATCH_PAUSE_S - 0.02, (i, nxt - done)
+            assert nxt - done <= tbl.PATCH_PAUSE_S + 0.3, (i, nxt - done)
+    assert tbl.PATCH_PAUSE_S == 1.0
