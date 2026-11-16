@@ -238,7 +238,7 @@ chart; keep them, ChromIQ needs the `.ti2` to read the measurement back.
 So the file says exactly "4096 x 2730 pixels at 2731 pixels per inch", 8 bit
 RGB, uncompressed.
 
-**Two small rough edges we know of.** If you also have the FD-9 beta switched
+**A small rough edge we know of.** If you also have the FD-9 beta switched
 on, choosing the FD-9 as instrument and then going back can turn a size typed
 in pixels into millimetres. And whenever you have changed instrument or paper,
 please look at the pixel line once more before you click GENERATE CHART: it is
