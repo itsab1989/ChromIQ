@@ -185,12 +185,25 @@ says what to prepare (a printed i1iSis chart page and a plain sheet).
    The i1Pro and the i1Pro 2 look the same to the computer: if you are not
    sure which one you have, choose 1, and the recording tells them apart. If
    you have both, plug in only the one you record with.
-5. **Work through the steps** in your instrument's own program, for example
+5. **On Windows, look at one line before the first step.** The tool checks
+   your PC and says "USB recorder attached to your instrument: yes", "no" or
+   "could not tell". Only "yes" means the recording can see your instrument.
+   If it says "no", the tool explains why and lists what to do: close the
+   tool, unplug the instrument, restart Windows with "Restart" (not "Shut
+   down"), plug the instrument in afterwards, and start the tool again.
+   Pressing Enter stops there; typing "go on" records anyway, which is
+   rarely worth it. "Could not tell" never stops anything.
+6. **Work through the steps** in your instrument's own program, for example
    X-Rite's i1Profiler. Each step is a short numbered list, one action per
    line. You can skip or repeat any step, and stop at any time; the steps you
    finished are kept. After each step you type a line or two about what you
-   did and what you saw.
-6. **At the end** the tool saves a plain-text report and, for a handheld
+   did and what you saw. After the first step the tool also checks that the
+   recording holds more than the instrument's USB description. If that is
+   all it holds, it says so at once, instead of after the last step: either
+   the measuring program did not talk to the instrument, or the recorder did
+   not see it. It tells you what to check, and you can stop, record the step
+   again, or go on.
+7. **At the end** the tool saves a plain-text report and, for a handheld
    instrument or an i1iSis, one `SEND-THIS-<date>.zip` with everything to
    send. Have a look at them before you send anything.
 
@@ -206,7 +219,24 @@ your instrument. When a step kept nothing, it says what the recording did
 hold (as counts and kinds of device, never contents) and what you can try,
 one action per line. If no step kept anything, it still writes one small
 `SEND-THIS-<date>-report-only.zip` with the report and no recording, which
-helps us find out why.
+helps us find out why. The report says what the recorder check found and,
+if it happened, that the first step held only the USB description.
+
+**Switching drivers on Windows, and why a session can keep nothing.** On
+Windows the recorder (USBPcap) joins a USB device only when Windows sets the
+device up: when it is plugged in, or when Windows starts. Changing the
+instrument's driver (for example from the driver ArgyllCMS and ChromIQ use
+to the maker's own driver, so that the maker's program can see it) makes
+Windows set the instrument up again without the recorder. One tester lost
+four whole sessions to exactly this: every step was recorded, and none held
+anything of the instrument. So, after every driver change, unplug the
+instrument and plug it in again before you record, restart Windows if the
+check still says "no", and do not change the driver between sessions.
+
+**Please use the latest version.** Each release fixes something a real
+session ran into, and the report records which version made it. The failure
+above was caught before the first step by the version released for it, but
+the tester was still running an older one.
 
 **What the report hides**
 
@@ -284,7 +314,16 @@ still work with which instrument; please check it before you start.
 [new issue](https://github.com/itsab1989/ChromIQ/issues/new) in the ChromIQ
 repository and attach the files there; for the i1iO table, attach them to
 [issue #129](https://github.com/itsab1989/ChromIQ/issues/129). An issue is
-public, so attach only what you are happy to share.
+public, so attach only what you are happy to share. If you would rather not
+post your instrument's serial number in public, the README says how to send
+the zip privately instead.
+
+**What is worth sending besides the recording.** If you measured something
+in your instrument's own program during the session, please send the
+measurement file it saved too, unchanged, and say which step it belongs to.
+A recording paired with the program's own result of that very measurement
+answers far more than either alone, and a measurement saved in another
+session cannot be paired afterwards.
 
 ### What helps even without a recording
 
