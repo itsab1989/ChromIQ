@@ -1210,6 +1210,7 @@ class PartC:
         checked on arrival and in time. The furthest clean arrival is the sitting's front_y."""
         d, al = self.d, self.alignment
         need = min(int(self.front_need), geo.FRONT_CAP_Y)
+        self.block["data"]["front_need_y"] = need
         mark = max(al.readings, key=lambda p: p[1])
         x = min(max(int(mark[0]), geo.MEASURING_AREA.xmin), geo.MEASURING_AREA.xmax)
         self.step("dz", s.max_lines, s.max_moves)

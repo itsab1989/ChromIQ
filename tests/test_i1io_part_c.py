@@ -1788,3 +1788,41 @@ def test_strip_rows_in_the_front_zone_first_reach_both_ends_by_spot_moves(tmp_pa
                           if y.startswith(";m0") and y not in WIRE_LINES][-3:]
                 assert (mx, my) in before, (x, before)
     assert sim.violations == []
+
+
+def test_a_free_arm_in_the_front_zone_is_not_homed_and_not_moved(tmp_path):
+    """The homing from the front zone is sent only for a HELD arm (after a creep step); a free
+    arm standing in front of the proven part (aims at the cap) is neither homed nor moved."""
+    pts = [(x, y + 50) for x, y in geo.RECORDED_ALIGNMENTS["R1 401.6"]]
+    f, _p = _recorded_sheet(tmp_path, "R1 401.6", 17)
+    sim = csim.CSimTable(part_c=False, aims=pts, jitter=False)
+    code, sim, log, con, res = run_c(tmp_path / "run", ["d1", "f"], sim=sim, sheet=f)
+    v = verdicts(log)
+    assert v[-1] == ("f", "failed cleanly"), v
+    assert tbl.WIRE["home"].decode().rstrip("\r") not in sim.received[-6:]
+    assert computed(sim) == [] and sim.violations == []
+
+
+def test_the_simulator_s_own_front_rule_catches_a_10_mm_step(tmp_path, monkeypatch):
+    """The simulator's copy of the rule is independent: a program that stepped 10 mm (and a gate
+    that let it) is caught by the simulator."""
+    monkeypatch.setattr(geo, "CREEP_STEP", 100)
+    code, sim, log, con, res, pts = _dz_run(tmp_path / "x")
+    assert any("more than 5 mm beyond the confirmed front" in x or "longer than 5 mm" in x
+               for x in sim.violations), sim.violations
+
+
+def test_d1_s_front_choice_defaults_to_back_and_go_on_needs_its_own_yes(tmp_path):
+    f, pts = _recorded_sheet(tmp_path, "S2 684.0", 18)
+    for script, want in (({}, "stopped by you (clean)"),
+                         ({"back (lay the sheet further back": "go on",
+                           "To go on, type yes": "no"}, "stopped by you (clean)"),
+                         (GO_ON, "worked")):
+        sim = csim.CSimTable(part_c=False, aims=pts, jitter=False)
+        code, sim, log, con, res = run_c(tmp_path / f"r{len(script)}{want[0]}", ["d1", "dz", "f"],
+                                         sim=sim, sheet=f, script=script)
+        v = verdicts(log)
+        assert v[0] == ("d1", want), (script, v)
+        if want != "worked":
+            assert [k for k, _ in v] == ["d1", "f"], v       # no DZ offered after back
+        assert sim.violations == []
