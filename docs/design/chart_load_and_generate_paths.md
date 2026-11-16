@@ -414,9 +414,12 @@ while the option is on and hands it back to Create Chart; off, it opens as in
 
 * **Only with the Beta on** (Preferences > Beta, off by default, restart to
   apply, `workflow/page_output/support.py`). With it off, Create Chart, the
-  re-layout window and every chart file are as in 4.3.42: measured by
-  generating every built-in preset in both versions and comparing every file
-  byte for byte.
+  patch set editor and every chart file are as in 4.3.42: measured by
+  generating charts in both versions (every built-in preset; the settings
+  stamp on; Guided; the patch set editor's saved chart; old projects loaded
+  and generated again; CMYK and a six-ink set; the i1iO, i1iSis and FD-9
+  layouts) and comparing every file byte for byte. With it on, every chart
+  4.3.42 can make is made byte for byte as with it off.
 * **Stored form.** The paper code stays `"<W>x<H>"` in millimetres: whole
   millimetres are spelt as before, a fraction with at most four decimals. A
   side typed in inches or pixels is kept as typed in the recipe's
@@ -426,10 +429,26 @@ while the option is on and hands it back to Create Chart; off, it opens as in
   `.channels.json` and stamp is unchanged.
 * **Building.** A side given in pixels has exactly that many pixels on every
   page; a side in mm or inches has `round(mm x ppi / 25.4)` pixels (the
-  renderer's own rule, shown in the panel before generating). A page whose
-  drawing would need more than 8 GiB of memory (measured per pixel) is
-  refused before anything is written: in Manual before the patch set is
-  made, and again in the build with the true page count and inks.
+  renderer's own rule, shown in the panel before generating). Each side is
+  1 mm to 2000 mm, whatever unit it is typed in. A chart that uses what only
+  the Beta allows (a side in inches or pixels, fractions of a millimetre,
+  more than 1200 dpi) and whose drawing would need more than 8 GiB of
+  memory (measured per pixel, for its inks) is refused: in Manual before the
+  patch set is made, with the chart's inks and one page ("Nothing was
+  written."), and again in the build with the true page count, before any
+  page is drawn ("No page of the chart was drawn."). A chart 4.3.42 can make
+  is never refused for memory, Beta on or off.
+* **Resolution unit.** Pixels per centimetre (the default, as printtarg) or
+  pixels per inch. Not offered for the FD-9: its contributed layout always
+  writes pixels per centimetre, so the row is greyed with a note and the
+  FD-9's recipe says "cm".
+* **The patch set editor** builds the same panel, hidden. Its hidden 150 dpi
+  render (which feeds the Pages box, its top-up and the patch counts) lays
+  out the true page in millimetres, never the typed pixel count at 150 dpi;
+  what the editor saves for Create Chart keeps `page_size` and
+  `tiff_res_unit` as they were.
+* **i1iO.** A custom page typed in pixels and turned upright for the table
+  stays pixel-exact: the typed sides turn with the millimetre fields.
 * **Loading a chart made with the Beta, with the Beta on**: the fields show
   the sides as typed; a rebuild from the chart's own recipe is byte-identical.
 * **Loading it with the Beta off**: the chart and its files are shown and not
