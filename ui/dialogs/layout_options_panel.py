@@ -7522,6 +7522,8 @@ class LayoutOptionsPanel(QWidget):
         i1io = self._i1io_chosen()
         self._custom_size_lbl.setText(
             tr("Printed sheet, upright (mm), width × height:") if i1io
+            # three rows, each with its own unit (the page-output Beta)
+            else tr("Custom size:") if getattr(self, "_page_beta", False)
             else tr("Custom size (mm):"))
         shown = (i1io and self.paper is not None
                  and self.paper.currentData() == "__custom__")
