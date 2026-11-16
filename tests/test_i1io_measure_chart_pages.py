@@ -275,6 +275,11 @@ def test_page_two_first_then_page_one(charts, tmp_path, qapp, beta_on,
         from ui.tabs.tab_profile import TabProfile
         prof = TabProfile(ArgyllRunner(s), s)
         prof.set_target_controller(ctl)
+        prof._say_i1io_pages_missing()
+        # on the tab itself: the Build button is greyed without a
+        # measurement, so the file line and its tooltip say it
+        assert "Still to import: page 1." in prof._file_lbl.text()
+        assert "not every page is imported yet" in prof._build_btn.toolTip()
         said = []
         monkeypatch.setattr(prof, "_show_tool_failure_dialog",
                             lambda t, b: said.append((t, b)))

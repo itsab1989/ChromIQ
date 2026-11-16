@@ -15133,6 +15133,20 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             if _scale:
                 parts.append(_scale)
             ext = Path(path).suffix.lower()
+            if ext == ".cmxf":
+                # i1Profiler's Measure Chart file IS a CxF, and the i1iO
+                # Beta reads it as one for an i1iO chart (`measure_chart.
+                # convert`); the switch is read first, so with the Beta off
+                # this says what it said before
+                try:
+                    from workflow.measurement_import import \
+                        i1io_route_applies
+                    _r = self._guard_run()
+                    if _r is not None and i1io_route_applies(
+                            self._import_chart_for(_r)):
+                        ext = ".cxf"
+                except Exception:      # noqa: BLE001 - a notice only
+                    pass
             if ext in (".mxf", ".cxf"):
                 parts.append(tr(
                     "{name} is an i1Profiler measurement (CxF3) — ChromIQ "
