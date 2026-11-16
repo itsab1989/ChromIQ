@@ -7665,26 +7665,61 @@ class TabProfile(QWidget):
             log.debug("i1iO pages state not read", exc_info=True)
             return None
 
+    def _holds_a_measurement_of_the_bar_project(self) -> bool:
+        """True when the tab holds a measurement that exists and lies inside
+        the bar's project folder. A measurement of ANOTHER project is still
+        loaded after a project switch when the new run has none of its own
+        (`_on_target_changed` only ever offers what is on disk, M-BUILD-
+        ELSEWHERE), and it must not make the pages notice and refusal stand
+        aside: the reviewer drove project A, then project B with pages 1 and
+        3 of 3 imported, and the tab said "Ready to build" on A's file."""
+        if not self._ti3_path or not Path(self._ti3_path).exists():
+            return False
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return True            # no bar: nothing to compare with, as before
+        try:
+            proj = ctl.project_or_none()
+            if proj is None:
+                return True
+            return Path(self._ti3_path).resolve().is_relative_to(
+                Path(proj.root).resolve())
+        except Exception:      # noqa: BLE001 - a notice, never a blocker
+            return True
+
     def _say_i1io_pages_missing(self) -> None:
         """ON THE TAB, not only when Build is pressed: with no measurement
         the Build button is greyed, so the file line says which pages are
         still to come and the button's tooltip says the whole of
         M-PROFILE-I1IO-PAGES-MISSING. Only while the tab holds no measurement
-        of its own."""
+        of the bar's own project: a measurement left over from another
+        project is covered by the note too, and the file line and tooltip it
+        had come back when the notice goes."""
         state = self._i1io_pages_missing()
         shown = getattr(self, "_i1io_pages_note", "")
-        if state is None or (self._ti3_path
-                             and Path(self._ti3_path).exists()):
+        if state is None or self._holds_a_measurement_of_the_bar_project():
             if shown and self._file_lbl.text() == shown:
-                self._file_lbl.setText(tr("No file selected"))
-                self._build_btn.setToolTip("")
+                label, tip = getattr(self, "_i1io_pages_covered",
+                                     ("", ""))
+                if label and self._ti3_path \
+                        and Path(self._ti3_path).exists():
+                    self._file_lbl.setText(label)
+                    self._build_btn.setToolTip(tip)
+                else:
+                    self._file_lbl.setText(tr("No file selected"))
+                    self._build_btn.setToolTip("")
             self._i1io_pages_note = ""
+            self._i1io_pages_covered = ("", "")
             return
         from workflow import measurement_messages as M
         total, missing = state
         title, body = M.M_PROFILE_I1IO_PAGES_MISSING.render(
             pages=total, missing=M.i1io_missing_text(missing))
         note = title + ". " + M.i1io_missing_text(missing)
+        if not (shown and self._file_lbl.text() == shown):
+            # what the line said before the notice covered it
+            self._i1io_pages_covered = (self._file_lbl.text(),
+                                        self._build_btn.toolTip())
         self._file_lbl.setText(note)
         self._build_btn.setToolTip(body)
         self._i1io_pages_note = note
@@ -7692,13 +7727,15 @@ class TabProfile(QWidget):
     def _refused_while_i1io_pages_missing(self) -> bool:
         """True (and M-PROFILE-I1IO-PAGES-MISSING shown) when Build is
         pressed while the bar's run holds some pages of an i1iO chart of
-        several pages and no measurement, and the build would be of that run
-        (a measurement loaded from elsewhere is not blocked)."""
+        several pages and no measurement. Steps aside only for a measurement
+        that lies inside the bar's project (one of another run there is asked
+        about by M-BUILD-ELSEWHERE); one left over from another project would
+        build B's profile from A's readings."""
         state = self._i1io_pages_missing()
         if state is None:
             return False
-        if self._ti3_path and Path(self._ti3_path).exists():
-            return False           # a measurement of its own: as before
+        if self._holds_a_measurement_of_the_bar_project():
+            return False           # a measurement of this project: as before
         from workflow import measurement_messages as M
         total, missing = state
         title, body = M.M_PROFILE_I1IO_PAGES_MISSING.render(
