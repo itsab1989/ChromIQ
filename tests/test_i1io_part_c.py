@@ -185,8 +185,8 @@ def test_a_whole_sitting_runs_every_stage_and_keeps_every_rule(tmp_path):
         assert "log.txt" in names
         assert "log-results/summary.json" in names
         assert any(n.endswith("p1_row1.cut.ti3") for n in names)
-        assert "log-results/spot_readings.ti3" in names
-        assert "log-results/strip_readings.ti3" in names
+        for name, *_ in pc.Results.COMBINED:
+            assert f"log-results/{name}" in names, name
         blob = b"".join(zf.read(n) for n in names)
     assert sim_mod.FAKE_SERIAL.encode() not in blob
     assert str(Path.home()).encode() not in blob
@@ -523,8 +523,16 @@ def test_the_whole_page_in_spot_and_strip_readings(tmp_path):
     assert len(sim.read_spots) == 528
     cut = sorted((res / "e3-1").glob("*.cut.ti3"))
     assert len(cut) == 22
-    strip = (res / "strip_readings.ti3").read_text()
+    strip = (res / "sheet_strip_readings.ti3").read_text()
     assert "NUMBER_OF_SETS 528" in strip
+    spot = (res / "sheet_spot_readings.ti3").read_text()
+    assert "NUMBER_OF_SETS 528" in spot
+    # the same patches read both ways agree on the simulated sheet (spectra in percent)
+    from i1io_reader import read_ti3_spectra
+    _wl, a = read_ti3_spectra(res / "sheet_spot_readings.ti3")
+    _wl, b = read_ti3_spectra(res / "sheet_strip_readings.ti3")
+    assert set(a) == set(b)
+    assert max(max(x) for _s, _x, x in a.values()) > 5        # percent, not 0..1
 
 
 def test_e3_asks_after_each_row_and_a_stop_is_clean(tmp_path):

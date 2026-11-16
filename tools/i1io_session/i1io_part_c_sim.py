@@ -340,7 +340,8 @@ class FakeSpotReader:
         if self.faults.get("empty"):
             spec = [0.0] * 36
         Y = 100 * sum(spec) / len(spec)
-        r = Reading(loc, (Y * 0.96, Y, Y * 0.82), spectrum=spec, t=0.9,
+        # percent, as in ArgyllCMS's .ti3 (the real reader's spectra come from there)
+        r = Reading(loc, (Y * 0.96, Y, Y * 0.82), spectrum=[100 * v for v in spec], t=0.9,
                     event={"event": "patch_read", "loc": loc, "sim": True})
         self.readings[loc] = r
         return r

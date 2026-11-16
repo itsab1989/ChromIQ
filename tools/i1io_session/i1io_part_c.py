@@ -305,16 +305,26 @@ class Results:
         p.mkdir(parents=True, exist_ok=True)
         return p
 
+    #: the combined files: which stages feed each (the last reading of a patch wins)
+    COMBINED = (("sheet_spot_readings.ti3", "spot", ("d3", "d4"), "your sheet, spot readings"),
+                ("sheet_strip_readings.ti3", "strip", ("e2", "e3"), "your sheet, strip readings"),
+                ("recorded_row_spot_readings.ti3", "spot", ("c3", "c4"),
+                 "the recorded row, spot readings"),
+                ("recorded_row_strip_readings.ti3", "strip", ("e1",),
+                 "the recorded row, strip reading"))
+
     def write_combined(self) -> None:
-        if self.spot_rows:
-            sc.write_ti3(str(self.folder / "spot_readings.ti3"),
-                         [(a, b, [v / 100.0 if max(c) > 1.5 else v for v in c])
-                          for a, b, c, _s in self.spot_rows], self.wl,
-                         "i1iO spot readings (all stages)", "spot readings (first try)")
-        if self.strip_rows:
-            sc.write_ti3(str(self.folder / "strip_readings.ti3"),
-                         [(a, b, c) for a, b, c, _s in self.strip_rows], self.wl,
-                         "i1iO strip readings (all stages)", "position (first try)")
+        for name, kind, stages, title in self.COMBINED:
+            src = self.spot_rows if kind == "spot" else self.strip_rows
+            last = {}
+            for sid, loc, spec, stage in src:
+                if stage in stages:
+                    # both readers give percent (ArgyllCMS's .ti3, the cut .ti3)
+                    last[loc] = (sid, loc, [x / 100.0 for x in spec])
+            if last:
+                sc.write_ti3(str(self.folder / name), list(last.values()), self.wl,
+                             f"i1iO {title} (first try)", "position (first try)"
+                             if kind == "strip" else "spot reading")
         with open(self.folder / "summary.json", "w", encoding="utf-8") as fh:
             json.dump(self.blocks, fh, indent=1, default=str)
 
@@ -957,8 +967,8 @@ class PartC:
                 try:
                     wl, data = rd.read_ti3_spectra(Path(cut))
                     for loc, (sid, _x, spec) in data.items():
-                        self.results.strip_rows.append((sid, loc, [v / 100 for v in spec],
-                                                        self.block["stage"]))
+                        self.results.strip_rows.append((sid, loc, list(spec),
+                                                        self.block["stage"]))   # percent
                 except Exception:
                     pass
             if res.kind != "done":
