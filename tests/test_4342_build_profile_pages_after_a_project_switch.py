@@ -150,3 +150,26 @@ def test_beta_off_changes_nothing(a_then_b, monkeypatch):
     assert "Still to import" not in prof._file_lbl.text()
     assert not prof._refused_while_i1io_pages_missing()
     assert prof._ti3_path == run_a.measurement_ti3
+
+
+def test_the_start_window_says_what_to_do_about_a_fixed_order_last_sheet():
+    """Review 2, job 2 (4c): on a chart in fixed order the last sheet can end
+    in patches that look alike, and a correctly measured sheet is then
+    refused (reproduced with the real `pages.match_file`: 1300 patches in
+    fixed order, page 3 refused; randomised, accepted). The Start window
+    says so, where the person can still act on it."""
+    from workflow import measurement_messages as M
+    body = M.M_I1IO_MEASURE_CHART_PAGES.body
+    assert "patch order is not randomised" in body
+    assert "“Randomise patch order” ticked" in body
+    from core import i18n
+    import json
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    for code in ("de", "es", "fr", "it", "ja", "nl", "no", "pl", "pt", "ru",
+                 "sv", "uk", "zh_CN"):
+        cat = json.loads((root / "data" / "i18n" / f"{code}.json")
+                         .read_text(encoding="utf-8"))
+        assert cat[body].count("\n\n") == body.count("\n\n"), code
+        assert cat["Randomise patch order"] in cat[body], code
+    assert i18n is not None

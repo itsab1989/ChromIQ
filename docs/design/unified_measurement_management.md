@@ -4539,6 +4539,8 @@ jobs, which is allowed and should be.*
 >
 > Back in ChromIQ, press the green folder button under Import Measurement on this tab, choose the files and press Import Measurement. You can import them one at a time, in any order, or choose several at once. ChromIQ works out from the grid and the colours which page each file is, and asks you when it cannot tell. Once every page is in, the measurement is complete and you can build the profile. Measure all sheets with the same instrument and the same setting.
 >
+> Good to know: on a chart whose patch order is not randomised, the last sheet can end in patches that look alike, so ChromIQ may refuse it even when it was measured correctly; if that happens, make the chart again in Create Chart with “Randomise patch order” ticked.
+>
 > Bringing back several sheets is new: so far it has been tried with one real measurement of a single sheet and with measurement files that ChromIQ's own tests make up, not yet with a real measurement of several sheets.
 >
 > The words in quotation marks are i1Profiler's own, as the English i1Profiler shows them. If your i1Profiler runs in another language, it shows them in that language, in the same places.
