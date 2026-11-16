@@ -575,28 +575,31 @@ class RulerSession:
         start = int(m.get("left_start") or 0)
         end = int(m.get("left_end") or 0)
         if m.get("rule") == "L":
-            what = tr("the reading began on the first patch, with no white "
-                      "paper before it, so ChromIQ kept the first patch as a "
-                      "patch")
+            what = tr("The reading began right on the first patch, without "
+                      "white paper before it. ChromIQ kept that first patch "
+                      "as part of the strip.")
         elif start and end:
-            what = tr("the white paper margin at both ends of the swipe was "
-                      "counted as a patch, so ChromIQ left both out")
+            what = tr("The white paper margin at both ends of the swipe had "
+                      "been counted as a patch. ChromIQ left both out.")
         elif start:
-            what = tr("the white paper margin at the start of the swipe was "
-                      "counted as a patch, so ChromIQ left it out")
+            what = tr("The white paper margin at the start of the swipe had "
+                      "been counted as a patch. ChromIQ left it out.")
         elif end:
-            what = tr("the white paper margin at the end of the swipe was "
-                      "counted as a patch, so ChromIQ left it out")
+            what = tr("The white paper margin at the end of the swipe had "
+                      "been counted as a patch. ChromIQ left it out.")
         else:
-            what = tr("its patch finder could not settle on the patches, "
-                      "although the ruler shows each of them in turn")
+            what = tr("ArgyllCMS's patch finder could not settle on the "
+                      "patches, although the ruler shows each of them in "
+                      "turn.")
+        # "as a whole": the rule compares the mean over the row (and over
+        # each half), not every single patch (review 2026-11-16, MAJOR-1)
         return tr(
             "Strip {strip}, margin tolerance (beta): ArgyllCMS refused this "
-            "reading (“{reason}”) because {what}. The reading was kept "
-            "because every patch of it matches strip {strip} clearly better "
-            "than any other strip, any shifted reading or the other "
-            "direction, and it was then checked like every other "
-            "strip.").format(strip=strip,
+            "reading (“{reason}”). {what} The reading was kept because the "
+            "strip as a whole matches the colours expected for strip {strip} "
+            "clearly better than those of any other strip, of any shifted "
+            "position or of the reverse direction, and it was then checked "
+            "like every other strip.").format(strip=strip,
                              reason=str(m.get("refused_because") or ""),
                              what=what)
 

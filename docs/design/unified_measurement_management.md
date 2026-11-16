@@ -12752,10 +12752,18 @@ written here.
   shifted by one or two patches either way); each half of the row is at most
   half of itself shifted by one; no kept patch is paper white where the row
   expects a colour; the ruler shows 0.6 to 1.5 times the median patch length
-  over each kept patch and more than 3 readings, with nothing longer than a
-  3-reading sliver left out inside the row; no kept patch fails ArgyllCMS's
-  own consistency, saturation or sample-count test. When rules M and L would
-  keep different patches the reading stays refused.
+  over each kept patch, in the strip's direction, and more than 3 readings,
+  with nothing longer than a 3-reading sliver left out inside the row; the
+  ruler position never falls back more than 3 steps over the whole
+  recording, no segment (kept or forgiven) moves against the strip and none
+  starts or ends on ground an earlier one covered, so a recording with any
+  larger reversal stays refused (review of 2026-11-16, BLOCKER-1); the row
+  has at least 8 patches; for rule L the trailer is within 3 ΔE76 of the
+  lightest segment the ruler left out and within 2 L* of the lightest of all;
+  no kept patch fails ArgyllCMS's own consistency, saturation or
+  sample-count test. The colour tests compare means over the row (and over
+  each half), not every single patch. When rules M and L would keep
+  different patches the reading stays refused.
 * **What follows.** A kept reading is handed on as `inst_ok` with the kept
   patches' values, and goes through every check an accepted reading goes
   through (which strip, back to front, slipped strip, the ruler check, the
@@ -12763,16 +12771,34 @@ written here.
   misread window with ArgyllCMS's reason.
 * **What is said.** The Measure log gets one line per kept strip ("Strip
   {strip}, margin tolerance (beta): ArgyllCMS refused this reading
-  ("{reason}") because {what}. The reading was kept because every patch of it
-  matches strip {strip} clearly better than any other strip, any shifted
-  reading or the other direction, and it was then checked like every other
-  strip."), and one line at Start while it is on. The ruler diagnostics file
+  ("{reason}"). {what} The reading was kept because the strip as a whole
+  matches the colours expected for strip {strip} clearly better than those
+  of any other strip, of any shifted position or of the reverse direction,
+  and it was then checked like every other strip."; {what} is one of five sentences, for rule L "The
+  reading began right on the first patch, without white paper before it.
+  ChromIQ kept that first patch as part of the strip."), and one line at
+  Start while it is on. The ruler diagnostics file
   (revision 3) records, per strip, the record's `margin` (kept or not, which
   rule, what was left out at which end, the fit and the best alternative, or
-  why it was not kept) and `trigger_wait_ms`, and for the file
+  why it was not kept, and `back`, the ruler's largest fall-back in steps) and `trigger_wait_ms`, and for the file
   `margin_tolerance` and `i1pro2_lights_beta`.
-* **The honest limit.** Worked out and tested on one tester's three i1Pro 2
-  sessions (reconstructed from their ruler diagnostics files) and the
-  expected colours of 28 real charts: 10 of 31 refusals kept, all correctly;
-  no wrong, shifted or wrong-row reading kept. Not yet used with a real
-  instrument.
+* **With the option off.** Every reading ends exactly as in 4.3.41. With the
+  ruler check on, the ruler diagnostics file still gains the additive fields
+  of revision 3 (`revision` 3, `i1pro2_lights_beta`, `trigger_wait_ms` on
+  every strip, `"margin_tolerance": "not asked"`); nothing else changes.
+  With the ruler check off nothing at all changes.
+* **The honest limit.** Not yet used with a real instrument; tested only on
+  the computer. (1) Wrong readings constructed on the expected colours of 28
+  real charts (another row, a shift of one or two patches, a late start or an
+  early stop, a pull back, a nudge or a wiggle over a patch, a pause that
+  drifts back, a reversal at the end, a board after the strip): none kept
+  (`tests/test_margin_tolerance_direction.py`, `..._rule.py`). Two kinds of
+  constructed reading that the ruler makes impossible (a patch with no
+  segment, a patch counted twice with a whole patch of travel each) are kept
+  at 0.01 to 3 % by the colour tests alone; the comments in
+  `chromiq_margin.c` say why the ruler limits must not be loosened. (2) One
+  tester's three recorded i1Pro 2 sessions, replayed: 10 of 31 refusals kept,
+  all correctly. That count was measured on the recordings' 3-band
+  brightness traces, with the accepted readings of the same strips standing
+  in for the expected colours (the tester's `.ti2` was not available), not
+  with the predicted colours the helper uses.

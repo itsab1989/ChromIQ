@@ -98,7 +98,7 @@ def test_start_lines(tmp_path):
 KEPT = {"tried": True, "accepted": True, "rule": "M", "left_start": 1,
         "left_end": 0, "standing": 0, "leader": True, "fit": 3.2,
         "rival": 41.0, "segments": 21, "refused_because": "Too many patches",
-        "rules": "M+L 1 (2026-11-16)"}
+        "rules": "M+L 2 (2026-11-16)"}
 
 
 @pytest.mark.parametrize("m,words", [
@@ -106,7 +106,7 @@ KEPT = {"tried": True, "accepted": True, "rule": "M", "left_start": 1,
     (dict(KEPT, left_start=0, left_end=1), "at the end of the swipe"),
     (dict(KEPT, left_end=1), "at both ends of the swipe"),
     (dict(KEPT, rule="L", left_start=0, leader=False,
-          refused_because="Not enough patches"), "began on the first patch"),
+          refused_because="Not enough patches"), "began right on the first patch"),
 ])
 def test_one_calm_line_for_a_kept_strip(tmp_path, m, words):
     rs, _ = _session(tmp_path)
@@ -117,13 +117,19 @@ def test_one_calm_line_for_a_kept_strip(tmp_path, m, words):
     assert kept[0].startswith("Strip C, margin tolerance (beta): ArgyllCMS "
                               "refused this reading (“" + m["refused_because"])
     assert words in kept[0] and "—" not in kept[0]
+    # review 2026-11-16, MAJOR-1: the rule compares the row as a whole (a
+    # mean), so the line may not claim that every patch matches
+    assert "the strip as a whole matches" in kept[0]
+    assert "every patch" not in kept[0]
+    # and ArgyllCMS's reason is a sentence of its own, not ChromIQ's "because"
+    assert "”). The " in kept[0]
 
 
 def test_a_strip_not_kept_gets_no_line_and_is_filed_as_refused(tmp_path):
     rs, _ = _session(tmp_path)
     rec = _rec("C", 300, result="misread", reason="Too many patches",
                margin={"tried": True, "accepted": False, "why": "count 17",
-                       "segments": 19, "rules": "M+L 1 (2026-11-16)"},
+                       "segments": 19, "rules": "M+L 2 (2026-11-16)"},
                trigger_wait_ms=0)
     lines = rs.on_strip(rec)
     assert not any("margin tolerance" in ln for ln in lines)
@@ -163,10 +169,17 @@ def test_the_preferences_row_its_help_and_its_confirmation(qapp, monkeypatch):
             dlg._ruler_check_tip.objectName()
         help_text = sd.margin_tolerance_help()
         for must in ("never changes", "It needs the ruler check", "does nothing",
-                     "one tester's i1Pro 2", "10 of the 31", "**Default:** off",
+                     "not yet been used with a real instrument",
+                     "tested only on the computer", "sessions of one tester",
+                     "it kept 10", "stood in for the expected colours",
+                     "moved forwards only", "taken together as a whole strip",
+                     "the ruler diagnostics file notes a few more details",
+                     "**Default:** off",
                      "Not enough patches", "Too many patches",
                      "Swipe didn't start and end on the media"):
             assert must in help_text, must
+        # review 2026-11-16, MAJOR-2: no claim the tests cannot carry
+        assert "100,000" not in help_text and "never kept a wrong" not in help_text
         assert "—" not in help_text + sd.margin_tolerance_confirmation()
         monkeypatch.setattr(QMessageBox, "exec",
                             lambda self: QMessageBox.StandardButton.Cancel)

@@ -9719,13 +9719,16 @@ def margin_tolerance_help() -> str:
            "  •  what is left out at the ends is the white of the paper;\n"
            "  •  neither the first nor the last patch of the strip is itself "
            "close to paper white;\n"
-           "  •  the kept patches match the expected strip closely, and "
-           "clearly better (at least twice as well) than any other strip of "
-           "the chart, than the same strip shifted by one or two patches, "
-           "and than the other direction;\n"
+           "  •  the kept patches, taken together as a whole strip, match "
+           "the expected strip closely, and clearly better (at least twice "
+           "as well) than any other strip of the chart, than the same strip "
+           "shifted by one or two patches, and than the other direction;\n"
            "  •  each half of the strip on its own is clearly in place;\n"
            "  •  the ruler shows that the instrument moved about one patch "
            "length over each kept patch, with no stop inside the strip;\n"
+           "  •  the ruler shows that the instrument moved forwards only: a "
+           "recording in which it went back over part of the strip is never "
+           "kept;\n"
            "  •  ArgyllCMS's own tests (even readings, no saturation, enough "
            "readings per patch) pass for every kept patch."),
         tr("A kept strip then goes through every check an ordinary strip "
@@ -9745,19 +9748,31 @@ def margin_tolerance_help() -> str:
            "on as well. With the ruler check off, this option does nothing "
            "at all. The original i1Pro, the ColorMunki and the i1Pro 3 are "
            "not affected."),
-        tr("**The honest limit:** the rules were worked out and tested on "
-           "the recordings of one tester's i1Pro 2 (three sessions, about "
-           "150 strips) and on the expected colours of 28 real charts. In "
-           "those tests it kept 10 of the 31 refused strips, each of them "
-           "correctly, and it never kept a wrong strip, a shifted strip or "
-           "a strip read from the wrong place, in more than 100,000 "
-           "attempts. It has not yet been used with a real instrument. If a "
-           "kept strip ever looks wrong to you, please switch this off and "
-           "tell us, with the ruler diagnostics file."),
+        tr("**The honest limit:** this has not yet been used with a real "
+           "instrument. It was tested only on the computer, in two ways. "
+           "First, wrong readings were built on purpose from the expected "
+           "colours of 28 real charts: another strip, the same strip "
+           "shifted by one or two patches, a swipe that began late or "
+           "stopped early, an instrument pulled back or wiggled over a "
+           "patch, and a board instead of paper after the strip. None of "
+           "them was kept. Second, the recorded i1Pro 2 sessions of one "
+           "tester (three sessions, about 150 strips) were replayed: of the "
+           "31 strips ArgyllCMS refused there, it kept 10, each of them "
+           "correctly. Those recordings hold only a coarse brightness trace, "
+           "not the full colours, so for that count the accepted readings "
+           "of the same strips stood in for the expected colours. If a kept "
+           "strip ever looks wrong to you, please switch this off and tell "
+           "us, with the ruler diagnostics file."),
         tr("What helps most, with or without this option: rest the "
            "instrument on the white paper before the first patch, press the "
            "button, wait for the signal, and only then move."),
-        tr("With this off (the default), nothing changes."),
+        tr("With this off (the default), every strip is read and accepted "
+           "exactly as before. Only one thing is different, and only while "
+           "the ruler check is on: the ruler diagnostics file notes a few "
+           "more details (its newer revision number, whether the "
+           "instrument lights option was on, how long the lights' quiet "
+           "time held each button press back, and that the margin "
+           "tolerance was not asked for). Nothing else changes."),
         tr("**Default:** off")))
 
 
