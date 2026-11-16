@@ -90,6 +90,15 @@ typedef struct {
 	char why[128];			/* a refusal's reason (plain words, English, for files) */
 	char why_m[128];		/* rule M's own outcome */
 	char why_l[128];		/* rule L's own outcome */
+	/* For the ruler diagnostics file only (2026-11-16d): the numbers the
+	 * accepting rule used. Written, never read by the rule. */
+	double med;				/* the median segment travel, steps (rule 0) */
+	double pitch;			/* rule 0b's patch pitch, steps */
+	double big_step;		/* rule 0b's largest centre-to-centre step, in pitches
+							 * (refused above CQM_ACCOUNT) */
+	double span;			/* first kept centre to last kept centre, steps */
+	double half_worst;		/* rules 7 / 7b: the largest own / alternative ratio
+							 * of either half (refused above CQM_RATIO) */
 } cqm_result;
 
 /* CIE XYZ (0..100, D50) to CIE Lab. */

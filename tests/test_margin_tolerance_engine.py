@@ -84,6 +84,18 @@ def test_a_refused_margin_reading_is_rescued_with_the_ordinary_values(
     assert m["left_start"] == (1 if margin in ("start", "both") else 0)
     assert m["left_end"] == (1 if margin in ("end", "both") else 0)
     assert len(rec["cut"]) == 2 * 21            # the kept patches' cut
+    # 2026-11-16d: the numbers the rule used, for the diagnostics file
+    t, r = m["travel"], m["ratios"]
+    assert len(t["kept_steps"]) == len(t["kept_readings"]) == 21
+    assert all(x > 0 for x in t["kept_steps"])
+    assert all(x > 3 for x in t["kept_readings"])
+    assert t["back"] <= t["back_limit"] == 3
+    assert t["net"] > 0 and t["median_segment"] > 0 and t["pitch"] > 0
+    assert 0 < t["largest_step"] <= t["largest_step_limit"] == 1.5
+    assert t["span"] == pytest.approx(20 * t["pitch"], rel=0.5)
+    assert 0 < r["fit_to_rival"] <= r["limit"] == 0.5
+    assert r["fit_to_rival"] == pytest.approx(m["fit"] / m["rival"], abs=0.01)
+    assert 0 < r["halves_worst"] <= 0.5 and r["fit_limit"] == 35
     reads = [e for e in on.events if e.get("event") == "strip_read"]
     assert len(reads) == 2
     # the same chart read the ordinary way, with nothing refused

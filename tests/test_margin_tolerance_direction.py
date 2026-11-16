@@ -360,16 +360,17 @@ def test_a_late_start_before_a_board_and_a_jump_into_the_neighbour_row_are_never
 # jerk_paper.py). Now a forgiven piece travels at most 0.3 of a patch, and
 # rule 0b requires the kept patches to account for the whole distance.
 
-def _jerk_cases(prn, lab, exp, m, rng, trailer):
+def _jerk_cases(prn, lab, exp, m, rng, trailer, lift0=False):
     """The review's jerk: patches 1..m-1, patch m crossed in 1 to 3 readings
-    with its full travel, the rest, then the trailer form. Both rules."""
+    with its full travel (lift0: with NO ruler travel, the THIRD LOOK's
+    lift), the rest, then the trailer form. Both rules."""
     R, N = lab.shape[:2]
     paper = np.array([95.0, 0.5, -3.0])
     out = []
     for rule in ("L", "M"):
         segs = [] if rule == "L" else [(paper, 20, 20)]
         segs += [(prn[exp, i], 14, 13) for i in range(m)]
-        segs += [(prn[exp, m], 14, int(rng.integers(1, 4)))]
+        segs += [(prn[exp, m], 0 if lift0 else 14, int(rng.integers(1, 4)))]
         segs += [(prn[exp, i], 14, 13) for i in range(m + 1, N)]
         if trailer == "board":
             off = rng.normal(0, 1, 3)
@@ -405,6 +406,47 @@ def test_a_patch_jerked_across_is_never_lost(trailer):
                             kept += 1
     assert tries > 5000
     assert kept == 0
+
+
+@pytest.mark.parametrize("trailer", ["board", "drift", "paper"])
+def test_the_known_limit_a_lift_the_ruler_did_not_see(trailer):
+    """THIRD LOOK at 193fbf176, T1 (review/lift0_jerk*.py, ported): the
+    instrument lifted off the ruler, carried over patch m and set down within
+    3 readings leaves NO ruler travel there, so rule 0b cannot see the
+    missing patch. With paper after the strip rule 5 still sees the margin
+    kept as a patch: never kept. With a board or one coloured piece after
+    the row it CAN be kept wrongly. The Beta ships with that said (the (i)
+    help and the confirmation ask not to lift the instrument). If this test
+    ever finds 0 for "board" or "drift", the limit is gone: take the note
+    out of the help, the confirmation and the CHANGELOG with it."""
+    rng = np.random.default_rng({"board": 21, "drift": 22, "paper": 23}[trailer])
+    tries = kept = 0
+    for name, rows in CHARTS.items():
+        lab = np.array(rows, float)
+        R, N = lab.shape[:2]
+        for pred in (0, 6):
+            prn = lab + rng.normal(0, pred / np.sqrt(3), lab.shape)
+            for exp in range(R):
+                for m in range(1, N - 1, 4):
+                    for labs, steps, no in _jerk_cases(prn, lab, exp, m, rng,
+                                                       trailer, lift0=True):
+                        tries += 1
+                        if ml.decide(labs, steps, no, lab, exp, 1)["accept"]:
+                            kept += 1
+    assert tries > 5000
+    if trailer == "paper":
+        assert kept == 0
+    else:
+        assert 0 < kept < tries * 0.1, (kept, tries)
+
+
+def test_the_help_and_the_confirmation_say_not_to_lift_the_instrument():
+    from ui.dialogs.settings_dialog import (margin_tolerance_confirmation,
+                                            margin_tolerance_help)
+    for text in (margin_tolerance_help(), margin_tolerance_confirmation()):
+        assert "lift" in text and "further along" in text
+        assert "can be wrong" in text or "can then be wrong" in text
+        assert "ruler diagnostics file" in text
 
 
 def test_a_lift_with_ruler_travel_but_few_or_no_readings_is_refused():

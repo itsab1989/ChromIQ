@@ -2637,6 +2637,22 @@ static void cq_margin_try(cq_ruler_rec *r, inst_code *rv, const char *reason,
 		}
 	}
 	if (res.accept) {
+		/* 2026-11-16d, additive: the numbers the rule used, for the ruler
+		 * diagnostics file (each kept patch's ruler travel and readings, the
+		 * accounting of rule 0b, the ratios of rules 6 and 7) */
+		char kst[1200], kno[600];
+		size_t ko = 0, kn = 0;
+		kst[0] = kno[0] = '\0';
+		for (i = 0; i < N; i++) {
+			int k = res.sel[i];
+			if (ko < sizeof(kst))
+				ko += snprintf(kst + ko, sizeof(kst) - ko, "%s%.0f", i ? "," : "",
+				               (c.net >= 0.0 ? 1.0 : -1.0) * c.steps[k]);
+			if (kn < sizeof(kno))
+				kn += snprintf(kno + kn, sizeof(kno) - kn, "%s%d", i ? "," : "", c.no[k]);
+		}
+		if (ko >= sizeof(kst) || kn >= sizeof(kno))
+			kst[0] = kno[0] = '\0';	/* never a cut-off list */
 		for (i = 0; i < N; i++) {
 			int k = res.sel[i], nnn = (c.no[k] * 2) / 3;
 			cq_mctx.vals[i] = cv[k];
@@ -2648,10 +2664,20 @@ static void cq_margin_try(cq_ruler_rec *r, inst_code *rv, const char *reason,
 		         "\"rule\":\"%c\",\"left_start\":%d,\"left_end\":%d,"
 		         "\"standing\":%d,\"leader\":%s,\"fit\":%.2f,\"rival\":%.2f,"
 		         "\"segments\":%d,\"back\":%.0f,\"refused_because\":\"%s\","
-		         "\"rules\":\"%s\"}",
+		         "\"rules\":\"%s\","
+		         "\"travel\":{\"net\":%.0f,\"back\":%.0f,\"back_limit\":%.0f,"
+		         "\"median_segment\":%.1f,\"pitch\":%.2f,\"span\":%.1f,"
+		         "\"largest_step\":%.3f,\"largest_step_limit\":%.2f,"
+		         "\"kept_steps\":[%s],\"kept_readings\":[%s]},"
+		         "\"ratios\":{\"fit_to_rival\":%.3f,\"halves_worst\":%.3f,"
+		         "\"limit\":%.2f,\"fit_limit\":%.0f}}",
 		         res.rule, res.left_start, res.left_end, res.standing,
 		         res.leader ? "true" : "false", res.fit, res.rival, r->ncand,
-		         c.back, rsn, cqm_version());
+		         c.back, rsn, cqm_version(),
+		         c.net, c.back, CQM_BACK_TOL, res.med, res.pitch, res.span,
+		         res.big_step, CQM_ACCOUNT, kst, kno,
+		         res.rival > 0.0 ? res.fit / res.rival : -1.0, res.half_worst,
+		         CQM_RATIO, CQM_GOOD);
 	} else {
 		cq_json_escape(esc, sizeof(esc), res.why);
 		snprintf(js, jsz, ",\"margin\":{\"tried\":true,\"accepted\":false,"
@@ -2668,7 +2694,7 @@ static void cq_margin_try(cq_ruler_rec *r, inst_code *rv, const char *reason,
  * here (*rv becomes inst_ok); without it *rv is never touched. */
 static void cq_ruler_after_strip(const char *label, inst_code *prv) {
 	cq_ruler_rec r;
-	char esc[64], reason[256], mjs[640];
+	char esc[64], reason[256], mjs[4096];
 	int i, got, state, rv = (int)*prv;
 	if (cq_ruler_it == NULL)
 		return;

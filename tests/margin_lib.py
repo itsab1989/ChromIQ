@@ -46,7 +46,11 @@ class Result(ctypes.Structure):
                 ("standing", ctypes.c_int), ("leader", ctypes.c_int),
                 ("dir", ctypes.c_int), ("fit", ctypes.c_double),
                 ("rival", ctypes.c_double), ("why", ctypes.c_char * 128),
-                ("why_m", ctypes.c_char * 128), ("why_l", ctypes.c_char * 128)]
+                ("why_m", ctypes.c_char * 128), ("why_l", ctypes.c_char * 128),
+                # 2026-11-16d, for the diagnostics file only
+                ("med", ctypes.c_double), ("pitch", ctypes.c_double),
+                ("big_step", ctypes.c_double), ("span", ctypes.c_double),
+                ("half_worst", ctypes.c_double)]
 
 
 _LIB = None
@@ -135,7 +139,9 @@ def decide(lab, steps, no, chart_lab, exp, why, flags=None, ss=None,
             "left_start": r.left_start, "left_end": r.left_end,
             "standing": r.standing, "fit": r.fit, "rival": r.rival,
             "why": r.why.decode(), "why_m": r.why_m.decode(),
-            "why_l": r.why_l.decode()}
+            "why_l": r.why_l.decode(), "med": r.med, "pitch": r.pitch,
+            "big_step": r.big_step, "span": r.span,
+            "half_worst": r.half_worst}
 
 
 if os.environ.get("CQM_SELFTEST"):

@@ -105,7 +105,7 @@ static double fit(const double (*C)[3], int n, const cqm_chart *ch, int r,
 static int decide(const cqm_cands *c, const int *idx, int n, const double *paper,
                   const cqm_chart *ch, cqm_result *out, char *why, size_t wsz) {
 	int N = ch->npatch, k = n - N, o, dr, r, i, bo = -1, bdr = 0, half;
-	double C[CQM_MAXC][3], bf = 1e30, rival = 1e30;
+	double C[CQM_MAXC][3], bf = 1e30, rival = 1e30, hw = 0.0;
 
 	if (k < 0 || k > 2) {
 		snprintf(why, wsz, "count %d for %d patches", n, N);
@@ -160,6 +160,10 @@ static int decide(const cqm_cands *c, const int *idx, int n, const double *paper
 			         "explained by the kept patches", big + 1, big + 2);
 			return 0;
 		}
+		/* for the diagnostics file only */
+		out->pitch = pitch;
+		out->big_step = (cen[big + 1] - cen[big]) / pitch;
+		out->span = cen[N - 1] - cen[0];
 	}
 	/* 3 */
 	if (de(ref(ch, ch->exp, 0, 0), paper) < CQM_T_END
@@ -219,6 +223,8 @@ static int decide(const cqm_cands *c, const int *idx, int n, const double *paper
 			if (cnt < hi - lo - 1 || cnt <= 0)
 				continue;
 			alt /= cnt;
+			if (alt > 0.0 && own / alt > hw)
+				hw = own / alt;		/* for the diagnostics file only */
 			if (own > CQM_RATIO * alt) {
 				snprintf(why, wsz, "patches %d to %d are not clearly in place",
 				         lo + 1, hi);
@@ -237,6 +243,8 @@ static int decide(const cqm_cands *c, const int *idx, int n, const double *paper
 				for (i = lo; i < hi; i++)
 					alt += de(ref(ch, r, dr, i), C[bo + i]);
 				alt /= (hi - lo);
+				if (alt > 0.0 && own / alt > hw)
+					hw = own / alt;		/* for the diagnostics file only */
 				if (own > CQM_RATIO * alt) {
 					snprintf(why, wsz, "patches %d to %d match another strip too",
 					         lo + 1, hi);
@@ -258,6 +266,7 @@ static int decide(const cqm_cands *c, const int *idx, int n, const double *paper
 	out->dir = bdr;
 	out->fit = bf;
 	out->rival = rival < 1e29 ? rival : -1.0;
+	out->half_worst = hw;
 	snprintf(why, wsz, "ok");
 	return 1;
 }
@@ -455,12 +464,14 @@ int cqm_decide(const cqm_cands *c, const cqm_chart *ch, int why, cqm_result *out
 		m_ok = l_ok = 0;
 	} else if (m_ok) {
 		*out = rm;
+		out->med = med;
 		out->rule = 'M';
 		out->leader = 1;
 		out->accept = 1;
 		snprintf(out->why, sizeof(out->why), "ok");
 	} else if (l_ok) {
 		*out = rl;
+		out->med = med;
 		out->rule = 'L';
 		out->leader = 0;
 		out->accept = 1;

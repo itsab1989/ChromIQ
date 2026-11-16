@@ -140,7 +140,7 @@ def test_f4_the_old_pair_goes_only_after_the_main_is_in_place():
 def test_f4_the_helper_build_string_is_the_new_one():
     h = (ROOT / "native" / "chartread_helper" / "chromiq_ext.h").read_text(
         encoding="utf-8")
-    assert "chromiq-chartread 2026-11-16c " in h   # 2026-11-15e, the margin tolerance, one-way, accounted
+    assert "chromiq-chartread 2026-11-16d " in h   # 2026-11-15e, the margin tolerance, one-way, accounted, its numbers in the file
     assert "+conditions-commit-last" in h
 
 

@@ -12787,7 +12787,16 @@ written here.
   (revision 3) records, per strip, the record's `margin` (kept or not, which
   rule, what was left out at which end, the fit and the best alternative, or
   why it was not kept, and `back`, the ruler's largest fall-back in steps) and `trigger_wait_ms`, and for the file
-  `margin_tolerance` and `i1pro2_lights_beta`.
+  `margin_tolerance` and `i1pro2_lights_beta`. Engine 2026-11-16d adds, per
+  kept strip, the numbers the rule used: `travel` (net travel, fall-back and
+  its limit, the median segment, rule 0b's pitch, span and largest
+  centre-to-centre step with its limit, each kept patch's travel and
+  readings) and `ratios` (fit to rival, the worst half, the limits). A
+  `margin_summary` at the top of the file (only when the tolerance was asked
+  for or a strip carries a `margin`) counts the strips kept and refused,
+  groups the refusals by reason and lists every kept strip with those
+  numbers (`workflow/ruler_diagnostics.py`). The Measure log keeps its one
+  line per kept strip.
 * **With the option off.** Every reading ends exactly as in 4.3.41. With the
   ruler check on, the ruler diagnostics file still gains the additive fields
   of revision 3 (`revision` 3, `i1pro2_lights_beta`, `trigger_wait_ms` on
