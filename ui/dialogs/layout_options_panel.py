@@ -4957,6 +4957,10 @@ class LayoutOptionsPanel(QWidget):
         note = getattr(self, "_custom_turned_note", "")
         if not note:
             return None
+        if getattr(self, "_page_beta", False):
+            # fractions kept, spelt as `selection` spells them (the Beta)
+            from ui.dialogs import page_output_panel as _pop
+            return (_pop.custom_paper_code(self), note)
         cw, ch = int(self.custom_w.value()), int(self.custom_h.value())
         return (f"{cw}x{ch}", note)
 
