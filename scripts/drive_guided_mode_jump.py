@@ -51,7 +51,8 @@ def pump(app, ms: int) -> None:
 def run_case(app, case: str, sandbox: Path) -> tuple[str, list[str]]:
     from core.settings import AppSettings
     ini = sandbox / f"{case}.ini"
-    src = QSettings(str(REAL_PLIST), QSettings.Format.NativeFormat)
+    from real_settings_copy import copy_of_real_preferences  # noqa: E402
+    src = QSettings(str(copy_of_real_preferences()), QSettings.Format.NativeFormat)
     dst = QSettings(str(ini), QSettings.Format.IniFormat)
     for k in src.allKeys():
         dst.setValue(k, src.value(k))

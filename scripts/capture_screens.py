@@ -1148,7 +1148,11 @@ def _sandbox_the_settings_store() -> None:
 
     import core.settings as _cs
 
-    real = QSettings("ChromIQ", "ChromIQ")
+    try:
+        from real_settings_copy import copy_of_real_preferences
+    except ImportError:            # imported as scripts.capture_screens
+        from scripts.real_settings_copy import copy_of_real_preferences
+    real = QSettings(str(copy_of_real_preferences()), QSettings.Format.NativeFormat)
     ini = pathlib.Path(tempfile.mkdtemp(prefix="chromiq-shots-")) / "ChromIQ.ini"
     copy = QSettings(str(ini), QSettings.Format.IniFormat)
     for key in real.allKeys():

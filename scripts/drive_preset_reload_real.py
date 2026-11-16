@@ -72,7 +72,8 @@ def main() -> int:
     # 1. His real preferences, copied. Reading the plist through QSettings and
     #    writing an .ini copy keeps every key, including the per-target blobs.
     from core.settings import AppSettings
-    src = QSettings(str(REAL_PLIST), QSettings.Format.NativeFormat)
+    from real_settings_copy import copy_of_real_preferences  # noqa: E402
+    src = QSettings(str(copy_of_real_preferences()), QSettings.Format.NativeFormat)
     dst_path = sandbox / "settings.ini"
     dst = QSettings(str(dst_path), QSettings.Format.IniFormat)
     for k in src.allKeys():

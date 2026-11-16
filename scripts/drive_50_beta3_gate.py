@@ -58,10 +58,11 @@ def shot(w, name, note=""):
 
 
 def guard_in():
+    if not os.environ.get("CHROMIQ_SETTINGS_FILE"):
+        sys.exit("Refusing to run: set CHROMIQ_SETTINGS_FILE (e.g. /tmp/chromiq-driver.ini) so the real preferences cannot be reached.")
     if REAL_PLIST.exists():
-        shutil.copy2(REAL_PLIST, PLIST_BACKUP)
         h = hashlib.sha256(REAL_PLIST.read_bytes()).hexdigest()[:16]
-        say(f"    plist backed up (sha {h})"); return h
+        say(f"    real plist fingerprint (read only) sha {h}"); return h
     return None
 
 
@@ -69,11 +70,10 @@ def guard_out(before):
     if before is None:
         return
     if not REAL_PLIST.exists():
-        shutil.copy2(PLIST_BACKUP, REAL_PLIST); say("    plist restored"); return
+        say("    !! WARNING: the real plist was REMOVED during the run (not restored)"); return
     now = hashlib.sha256(REAL_PLIST.read_bytes()).hexdigest()[:16]
     if now != before:
-        shutil.copy2(PLIST_BACKUP, REAL_PLIST)
-        say(f"    !! plist CHANGED ({before} -> {now}) -- restored")
+        say(f"    !! WARNING: the real plist CHANGED ({before} -> {now}); NOT restored, this script never writes it")
     else:
         say(f"    plist untouched (sha {now})")
 
@@ -81,7 +81,8 @@ def guard_out(before):
 def make_settings():
     import core.settings as CS
     if not INI.exists() and REAL_PLIST.exists():
-        src = QSettings(str(REAL_PLIST), QSettings.Format.NativeFormat)
+        from real_settings_copy import copy_of_real_preferences  # noqa: E402
+        src = QSettings(str(copy_of_real_preferences()), QSettings.Format.NativeFormat)
         dst = QSettings(str(INI), QSettings.Format.IniFormat)
         for k in src.allKeys():
             dst.setValue(k, src.value(k))

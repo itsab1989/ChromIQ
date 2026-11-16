@@ -77,7 +77,8 @@ def main() -> int:
 
     sandbox = Path(tempfile.mkdtemp(prefix="chromiq_matrix_"))
     from core.settings import AppSettings
-    src = QSettings(str(REAL_PLIST), QSettings.Format.NativeFormat)
+    from real_settings_copy import copy_of_real_preferences  # noqa: E402
+    src = QSettings(str(copy_of_real_preferences()), QSettings.Format.NativeFormat)
     dst = QSettings(str(sandbox / "settings.ini"), QSettings.Format.IniFormat)
     for k in src.allKeys():
         dst.setValue(k, src.value(k))
