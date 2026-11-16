@@ -2249,6 +2249,16 @@ class Run:
     @property
     def reads_dir(self) -> Path:              return self.dir / "reads"
 
+    # ---- an i1iO chart of several pages, imported one sheet at a time (the
+    # i1iO Beta, `workflow.i1io.pages`): each page's filed readings wait
+    # here until every page is in; only then is `measurement_ti3` written.
+    @property
+    def i1io_pages_dir(self) -> Path:         return self.dir / "pages"
+
+    def i1io_page_ti3(self, page: int) -> Path:
+        """``pages/pageK.ti3``: the filed readings of page *page* (1-based)."""
+        return self.i1io_pages_dir / f"page{int(page)}.ti3"
+
     def reads(self) -> list[Path]:
         """Sorted list of reads/readN.ti3 files."""
         if not self.reads_dir.exists():
@@ -2880,6 +2890,11 @@ class Run:
         archive = [p for p in results if p.exists()]
         if not keep_results and any(self.reads_dir.glob("*")):
             archive.append(self.reads_dir)
+        # …AND SO ARE THE PAGES OF AN i1iO CHART OF SEVERAL PAGES imported so
+        # far (the i1iO Beta): readings of real sheets, which belong to the
+        # chart being replaced. The folder exists only for such a chart.
+        if not keep_results and any(self.i1io_pages_dir.glob("*")):
+            archive.append(self.i1io_pages_dir)
         if archive:
             self.archive_to_old(archive)
         # exports/ AND cache/ ARE DERIVED, and go with the chart they describe.

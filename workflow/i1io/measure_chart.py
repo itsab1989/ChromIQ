@@ -364,6 +364,51 @@ def tie_ok(grid: Grid, chart_ti2) -> bool:
     return True
 
 
+def _passes_per_page(chart_ti2) -> "list[int]":
+    """The ``.ti2``'s ``PASSES_IN_STRIPS2``, one number per page ("22,8")."""
+    from core.text_io import read_text
+    try:
+        text = read_text(Path(str(chart_ti2)), lenient=True)
+    except OSError:
+        return []
+    m = re.search(r'^\s*PASSES_IN_STRIPS2\s+"?([\d,\s]+)"?', text, re.M)
+    if not m:
+        return []
+    try:
+        return [int(x) for x in m.group(1).replace(" ", "").split(",") if x]
+    except ValueError:
+        return []
+
+
+def tie_ok_pages(side_doc: dict, chart_ti2) -> bool:
+    """`tie_ok` for a chart of SEVERAL pages (2026-11-16): every cell of
+    every page names a ``.ti2`` patch with the same id and name, every patch
+    is a cell of exactly one page, every page is full, and page k's grid is
+    the ``.ti2``'s strips x its k-th ``PASSES_IN_STRIPS2``."""
+    try:
+        locs, _dev, steps, _p = _ti2_facts(chart_ti2)
+    except OSError:
+        return False
+    passes = _passes_per_page(chart_ti2)
+    n = len(side_doc.get("pages") or [])
+    if not locs or n < 1 or (passes and len(passes) != n):
+        return False
+    cells = []
+    for k in range(1, n + 1):
+        g = measure_chart_grid(side_doc, k)
+        if g is None or not g.full:
+            return False
+        if steps and g.columns != steps:
+            return False
+        if passes and g.rows != passes[k - 1]:
+            return False
+        cells += [(s, l) for rs, rl in zip(g.sample_id, g.loc)
+                  for s, l in zip(rs, rl)]
+    if len(cells) != len(locs) or len({s for s, _ in cells}) != len(cells):
+        return False
+    return all(locs.get(s) == l for s, l in cells)
+
+
 # ---------------------------------------------------------------------------
 # The safety net (pure: expected and measured L*a*b* in judge order)
 # ---------------------------------------------------------------------------
@@ -693,12 +738,19 @@ def _expected(grid: Grid, chart_ti2, sids: list) -> "np.ndarray | None":
     return _lab(xyz[rows], xyz[int(np.argmax(xyz[:, 1]))])
 
 
-def assess_file(source, converted_ti3, chart_ti2) -> "McVerdict | None":
+def assess_file(source, converted_ti3, chart_ti2,
+                page: "int | None" = None) -> "McVerdict | None":
     """Judge the picked CxF *source* (its converted copy *converted_ti3*)
     against the i1iO chart *chart_ti2*. None when the file is not a Measure
     Chart measurement (it carries real device values): the ordinary import
     then judges it, unchanged. Call only when the Beta is on and the chart is
-    an i1iO chart with its side file (`measurement_import.assess`)."""
+    an i1iO chart with its side file (`measurement_import.assess`).
+
+    *page* (a chart of several pages, `workflow.i1io.pages.match_file`):
+    judge the file as a measurement of that page, against that page's grid
+    and patches only. Without it a chart of several pages is refused (the
+    Measure tab's verification door: several sheets are brought back for a
+    profiling run only)."""
     from workflow import measurement_messages as MM
     from workflow.ti3_analysis import Ti3ParseError, parse_ti3
     f = read_file(source)
@@ -723,11 +775,15 @@ def assess_file(source, converted_ti3, chart_ti2) -> "McVerdict | None":
         return None
     side_name = side_file_for(chart_ti2).name
     pages = int(side.get("page_count") or len(side.get("pages") or []) or 1)
-    if pages > 1:
-        return McVerdict(False, MM.i1io_import_reason("pages", pages=pages),
+    if pages > 1 and page is None:
+        return McVerdict(False, MM.i1io_pages_reason("verify", pages=pages),
                          "pages", side_name=side_name)
-    grid = measure_chart_grid(side, 1)
-    if grid is None or not tie_ok(grid, chart_ti2):
+    if page is not None and not 1 <= int(page) <= pages:
+        return None
+    grid = measure_chart_grid(side, int(page or 1))
+    tied = (tie_ok_pages(side, chart_ti2) if pages > 1
+            else grid is not None and tie_ok(grid, chart_ti2))
+    if grid is None or not tied:
         return McVerdict(False, MM.i1io_import_reason("side", side=side_name),
                          "side", side_name=side_name)
     if not grid.full:

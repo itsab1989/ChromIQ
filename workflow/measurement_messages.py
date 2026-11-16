@@ -1211,6 +1211,350 @@ def i1io_aim_unchecked_text(why: str, nums: dict) -> "tuple[str, str]":
     return M_IMPORT_I1IO_AIM_UNCHECKED.render(**kw)
 
 
+# --- PROPOSED: an i1iO chart of SEVERAL pages, measured with i1Profiler's
+#: "Measure Chart" one sheet at a time (the i1iO Beta, 2026-11-16, design
+#: `ChromIQ-work/2026-11-16_i1io_multipage_import/`). One file per sheet; the
+#: page of each file is worked out from its grid and its colours
+#: (`workflow.i1io.pages`), never typed.
+#:
+#: The Start window of a profiling chart of several pages. {sheets}: one line
+#: per page (M-I1IO-MEASURE-CHART-PAGES-PARTS); {lay}: the lay part of
+#: M-I1IO-MEASURE-CHART-PARTS without names.
+M_I1IO_MEASURE_CHART_PAGES = _m(
+    "M-I1IO-MEASURE-CHART-PAGES",
+    "Measure this i1iO chart with i1Profiler, one sheet at a time",
+    "This chart was made for the X-Rite i1iO scanning table, and it has "
+    "{pages} pages. ChromIQ cannot drive the table itself yet; that is being "
+    "prepared for a later version. Until then you can measure the sheets on "
+    "the table with X-Rite's i1Profiler, one sheet at a time, and bring the "
+    "measurements back here. ChromIQ then works out which page each file "
+    "belongs to, puts every reading on its own patch and checks from the "
+    "colours that the sheet lay the right way. Nothing is wrong with the "
+    "chart. Please keep in mind that the layout may still change once more "
+    "i1iO owners have tested it, so a later version may ask you to print "
+    "the chart again.\n\n"
+    "For every sheet:\n"
+    "1. {lay}\n"
+    "2. In i1Profiler, start the chart measurement for the i1iO that asks "
+    "only for the number of columns and rows (X-Rite calls it \"Measure "
+    "Chart\"), and choose \"Single scan\".\n"
+    "3. When i1Profiler asks for the size of the chart, set it to the "
+    "columns and rows of this sheet in the list below. Columns are the "
+    "patches along one strip, rows are the strips. The last sheet often has "
+    "fewer rows than the others.\n"
+    "4. When i1Profiler asks for the corners, push the arm until the cross "
+    "hair of its sight sits on the centre of this sheet's top-left corner "
+    "patch, then of its bottom-left one, then of its bottom-right one, in "
+    "that order, and press the button on the i1Pro each time. The list below "
+    "names these patches where the chart prints names. Then check the "
+    "corners i1Profiler shows and confirm them.\n"
+    "5. When the scan has finished, save the measurement as a .cmxf file "
+    "(\"Measurement only\"), one file for each sheet. A text export is not "
+    "enough, because only the .cmxf file says where on the sheet each "
+    "reading was taken.\n\n"
+    "The sheets:\n{sheets}\n\n"
+    "Back in ChromIQ, press the green folder button under Import "
+    "Measurement on this tab, choose the files and press Import "
+    "Measurement. You can import them one at a time, in any order, or "
+    "choose several at once. ChromIQ works out from the grid and the colours "
+    "which page each file is, and asks you when it cannot tell. Once every "
+    "page is in, the measurement is complete and you can build the profile. "
+    "Measure all sheets with the same instrument and the same setting.\n\n"
+    "Bringing back several sheets is new: so far it has been tried with one "
+    "real measurement of a single sheet and with measurement files that "
+    "ChromIQ's own tests make up, not yet with a real measurement of several "
+    "sheets.\n\n"
+    "The words in quotation marks are i1Profiler's own, as the English "
+    "i1Profiler shows them. If your i1Profiler runs in another language, it "
+    "shows them in that language, in the same places.",
+    approved=False)
+_I1IO_SHEET_NAMED = (
+    "•  page {page} (marked {page}/{pages} on the sheet): {cols} columns and "
+    "{rows} rows; corner patches {p1}, {p2} and {p3}")
+_I1IO_SHEET_UNNAMED = (
+    "•  page {page} (marked {page}/{pages} on the sheet): {cols} columns and "
+    "{rows} rows")
+M_I1IO_MEASURE_CHART_PAGES_PARTS = _m(
+    "M-I1IO-MEASURE-CHART-PAGES-PARTS",
+    "Measure this i1iO chart with i1Profiler, one sheet at a time: the parts",
+    "\n".join((_I1IO_SHEET_NAMED, _I1IO_SHEET_UNNAMED)),
+    approved=False)
+
+
+def i1io_measure_chart_pages_window(sheets: "list[dict]", crosses: bool,
+                                    by_hand: bool) -> "tuple[str, str]":
+    """(title, body) of the Start window of a profiling i1iO chart of
+    several pages; *sheets*: `workflow.i1io.pages.page_names` per page."""
+    lines = []
+    for s in sheets:
+        part = _I1IO_SHEET_NAMED if s.get("labelled", True) \
+            else _I1IO_SHEET_UNNAMED
+        lines.append(tr(part).format(
+            page=s.get("page", ""), pages=s.get("pages", ""),
+            cols=s.get("cols", "?"), rows=s.get("rows", "?"),
+            p1=s.get("p1", ""), p2=s.get("p2", ""), p3=s.get("p3", "")))
+    title, body = M_I1IO_MEASURE_CHART_PAGES.render(
+        pages=len(sheets), lay=tr(_I1IO_MC_LAY_UNNAMED),
+        sheets="\n".join(lines))
+    if crosses:
+        body += "\n\n" + tr(_I1IO_MC_CROSSES_PAGES)
+    body += "\n\n" + tr(_I1IO_OTHER_WAY_BY_HAND if by_hand
+                        else _I1IO_OTHER_WAY_PATCH_SETS)
+    return title, body
+
+
+#: On a chart with crosses: the crosses paragraph of the one-page window,
+#: without its "of step 4" (the steps differ here).
+_I1IO_MC_CROSSES_PAGES = (
+    "About the three small numbered crosses on these sheets: they are for "
+    "measuring with the table in ChromIQ itself, which comes in a later "
+    "version. Do not aim at them for i1Profiler: they sit 10 to 15 mm "
+    "outside the patches, and i1Profiler needs the centres of the three "
+    "corner patches.")
+
+#: Why a file of a chart of several pages is refused (`pages.match_file`),
+#: the {reason} of M-IMPORT-I1IO-REFUSED. {grids}: page grids joined by
+#: "; " (the grid part); {pages}: page numbers joined by ", ".
+_I1IO_PAGES_NO_GRID = (
+    "i1Profiler measured this sheet as a grid of {got_cols} columns and "
+    "{got_rows} rows, and no page of this chart has that grid ({grids}). "
+    "With other numbers i1Profiler spreads its grid over other places on the "
+    "sheet, so the readings are not readings of this chart's patches. "
+    "Measure the sheet again and set the size of the chart to the columns "
+    "and rows of its page, as the Start window of this chart lists them")
+_I1IO_PAGES_GRID_PART = "page {page}: {cols} columns and {rows} rows"
+_I1IO_PAGES_ON_PAGE = (
+    "this file has the grid of page {page} of this chart, and checked "
+    "against that page: {reason}")
+_I1IO_PAGES_NONE = (
+    "this file has the grid of more than one page of this chart (pages "
+    "{pages}), and its colours fit none of them. Either it is a measurement "
+    "of another sheet, or the sheet lay turned or its three corner patches "
+    "were aimed at in another order. Check that you measured a sheet of this "
+    "run's chart, lay it on the table as the preview shows it, aim at its "
+    "three corner patches as the Start window of this chart lists them, and "
+    "measure again")
+_I1IO_PAGES_CONDITION = (
+    "this file holds readings in the measurement condition {got}, and the "
+    "pages already imported into this run were measured in {want}. One "
+    "measurement must not mix conditions, so ChromIQ does not file it. "
+    "Import this sheet in {want}: if the file holds both, choose {want} when "
+    "ChromIQ asks; otherwise measure the sheet again in i1Profiler with the "
+    "same setting as the other sheets")
+_I1IO_PAGES_INSTRUMENT = (
+    "this file was measured with another instrument ({got}) than the pages "
+    "already imported into this run ({want}). One measurement must not mix "
+    "instruments, because no two instruments read quite alike, so ChromIQ "
+    "does not file it. Measure this sheet with the same instrument as the "
+    "other sheets")
+_I1IO_PAGES_UNIT = (
+    "this file was measured with another instrument of the same kind "
+    "({got}) than the pages already imported into this run: its serial "
+    "number is not theirs. One measurement must not mix instruments, because "
+    "no two instruments read quite alike, so ChromIQ does not file it. "
+    "Measure this sheet with the same instrument as the other sheets")
+_I1IO_PAGES_TWICE = (
+    "you chose {first} and {second} together, and both are measurements of "
+    "page {page}. ChromIQ files one measurement for each page, so it has "
+    "filed neither of them, nor any other file you chose with them. Choose "
+    "one file for each page and import again")
+#: Several files chosen at once, and one of them is not a Measure Chart
+#: measurement (a .ti3, a text export, a measurement with its own device
+#: values): it is judged on its own, by the ordinary import.
+_I1IO_PAGES_NOT_MC = (
+    "{name} is not an i1Profiler \"Measure Chart\" measurement of one sheet "
+    "of this chart, so ChromIQ cannot import it together with the sheets. "
+    "Nothing has been filed from any of the files you chose. Choose that file "
+    "on its own to import it, and the sheets' .cmxf files together")
+#: A verification chart of several pages (the Measure tab's verification
+#: door), replacing M-IMPORT-I1IO-REASONS' "pages" line there.
+_I1IO_PAGES_VERIFY = (
+    "this verification chart has {pages} pages, and ChromIQ brings back "
+    "i1Profiler measurements of several sheets only for a profiling run, so "
+    "far. For a verification chart that needs a later version; the "
+    "measurement itself may well be fine, so keep the file")
+M_IMPORT_I1IO_PAGES_REASONS = _m(
+    "M-IMPORT-I1IO-PAGES-REASONS",
+    "An i1Profiler \"Measure Chart\" measurement of one sheet of an i1iO "
+    "chart of several pages: the reasons",
+    "\n".join((_I1IO_PAGES_NO_GRID, _I1IO_PAGES_GRID_PART,
+               _I1IO_PAGES_ON_PAGE, _I1IO_PAGES_NONE, _I1IO_PAGES_CONDITION,
+               _I1IO_PAGES_INSTRUMENT, _I1IO_PAGES_UNIT, _I1IO_PAGES_TWICE,
+               _I1IO_PAGES_NOT_MC, _I1IO_PAGES_VERIFY)),
+    approved=False)
+
+
+def i1io_pages_reason(code: str, **kw) -> str:
+    """The {reason} of a refused file of a chart of several pages."""
+    if code == "no-grid":
+        grids = "; ".join(tr(_I1IO_PAGES_GRID_PART).format(
+            page=p, cols=c, rows=r) for p, c, r in kw.get("grids", ()))
+        return tr(_I1IO_PAGES_NO_GRID).format(
+            got_cols=kw.get("got_cols", 0), got_rows=kw.get("got_rows", 0),
+            grids=grids)
+    if code == "on-page":
+        return tr(_I1IO_PAGES_ON_PAGE).format(page=kw.get("page", ""),
+                                              reason=kw.get("reason", ""))
+    if code == "none":
+        return tr(_I1IO_PAGES_NONE).format(
+            pages=", ".join(str(p) for p in kw.get("pages", ())))
+    if code == "condition":
+        return tr(_I1IO_PAGES_CONDITION).format(got=kw.get("got", ""),
+                                                want=kw.get("want", ""))
+    if code == "instrument":
+        return tr(_I1IO_PAGES_INSTRUMENT).format(got=kw.get("got", ""),
+                                                 want=kw.get("want", ""))
+    if code == "unit":
+        return tr(_I1IO_PAGES_UNIT).format(got=kw.get("got", ""))
+    if code == "twice":
+        return tr(_I1IO_PAGES_TWICE).format(
+            first=kw.get("first", ""), second=kw.get("second", ""),
+            page=kw.get("page", ""))
+    if code == "not-mc":
+        return tr(_I1IO_PAGES_NOT_MC).format(name=kw.get("name", ""))
+    if code == "verify":
+        return tr(_I1IO_PAGES_VERIFY).format(pages=kw.get("pages", ""))
+    return tr(_I1IO_PAGES_NONE).format(pages="")
+
+
+#: Several pages pass the checks for one file (identical grids, colours that
+#: cannot tell them apart): the person picks the page. Buttons: one "Page
+#: {page}" per page that passed, and Cancel (the default, nothing changes).
+#: {pages}: one line per page (the sheet parts above); {name}: the file.
+M_IMPORT_I1IO_WHICH_PAGE = _m(
+    "M-IMPORT-I1IO-WHICH-PAGE",
+    "Which page of the chart is this?",
+    "{name} is an i1Profiler \"Measure Chart\" measurement of a sheet of "
+    "this chart, and it fits more than one of its pages: they have the same "
+    "grid, and the colours of this chart cannot tell them apart. ChromIQ "
+    "puts every reading on the patch at its place on the page you choose, "
+    "so choose the page of the sheet you measured. Each sheet shows its page "
+    "number beside the chart's name, and the corner patches are listed "
+    "here:\n\n{pages}\n\n"
+    "If you are not sure, press Cancel: nothing is imported, and you can "
+    "look at the sheet first.",
+    approved=False)
+_I1IO_PAGE_BUTTON = "Page {page}"
+
+#: A file for a page the run already holds. Buttons "Replace page" and
+#: Cancel (the default).
+M_IMPORT_I1IO_PAGE_REPLACE = _m(
+    "M-IMPORT-I1IO-PAGE-REPLACE",
+    "Page {page} is already imported",
+    "This run already holds a measurement of page {page} of the chart, "
+    "imported from {old}. {name} is a measurement of the same page.\n\n"
+    "Replace the page with the new file? The measurement of the page "
+    "imported before is moved to the run's \"old\" folder, not deleted. "
+    "Nothing else changes.",
+    approved=False)
+_I1IO_REPLACE_BUTTON = "Replace page"
+
+#: The very same file (same checksum) for a page the run already holds.
+M_IMPORT_I1IO_PAGE_SAME = _m(
+    "M-IMPORT-I1IO-PAGE-SAME",
+    "This page is already imported",
+    "{name} is the very file that was imported for page {page} before, so "
+    "there is nothing new in it. Nothing has been changed.",
+    approved=False)
+
+#: After an import that left pages missing. {done}: the first part,
+#: {missing}: the second (one page or several).
+_I1IO_DONE_ONE = ("Page {page} of {pages} is now stored in this run: ChromIQ "
+                  "put each of its readings on its own patch.")
+_I1IO_DONE_MANY = ("Pages {list} of {pages} are now stored in this run: "
+                   "ChromIQ put each of their readings on its own patch.")
+_I1IO_MISSING_ONE = "Still to import: page {list}."
+_I1IO_MISSING_MANY = "Still to import: pages {list}."
+M_IMPORT_I1IO_PAGE_FILED = _m(
+    "M-IMPORT-I1IO-PAGE-FILED",
+    "Part of the measurement is imported",
+    "{done}\n\n"
+    "{missing}\n\n"
+    "Measure the sheets still missing the same way, with the same "
+    "instrument and the same setting, and import their files here. You can close ChromIQ in "
+    "between: the pages already imported stay in the run. Until every page "
+    "is in, the run has no measurement yet, so a profile cannot be built "
+    "from it.",
+    approved=False)
+M_IMPORT_I1IO_PAGE_FILED_PARTS = _m(
+    "M-IMPORT-I1IO-PAGE-FILED-PARTS",
+    "Part of the measurement is imported: the parts",
+    "\n".join((_I1IO_DONE_ONE, _I1IO_DONE_MANY, _I1IO_MISSING_ONE,
+               _I1IO_MISSING_MANY)),
+    approved=False)
+
+
+def _page_list(pages) -> str:
+    return ", ".join(str(p) for p in pages)
+
+
+def i1io_missing_text(missing) -> str:
+    missing = list(missing)
+    return tr(_I1IO_MISSING_ONE if len(missing) == 1 else _I1IO_MISSING_MANY
+              ).format(list=_page_list(missing))
+
+
+def i1io_page_filed_window(filed, total: int, missing
+                           ) -> "tuple[str, str]":
+    filed = list(filed)
+    done = (tr(_I1IO_DONE_ONE).format(page=filed[0], pages=total)
+            if len(filed) == 1 else
+            tr(_I1IO_DONE_MANY).format(list=_page_list(filed), pages=total))
+    return M_IMPORT_I1IO_PAGE_FILED.render(done=done,
+                                           missing=i1io_missing_text(missing))
+
+
+#: Build Profile while the bar's run holds some pages and no measurement.
+M_PROFILE_I1IO_PAGES_MISSING = _m(
+    "M-PROFILE-I1IO-PAGES-MISSING",
+    "The measurement of this run is not complete yet",
+    "This run's chart has {pages} pages, measured one sheet at a time, and "
+    "not every page is imported yet. {missing}\n\n"
+    "A profile built from some of the pages would describe only part of the "
+    "chart, so ChromIQ does not build one yet. Import the missing pages on "
+    "the Measure tab with Import Measurement. Once every page is in, the "
+    "measurement is complete and you can build the profile here.",
+    approved=False)
+
+#: The import panel (Measure tab) and the log lines of a chart of several
+#: pages. The "[OK]" prefix stays English as in every log line.
+_I1IO_PANEL_PAGES = (
+    "This chart has {pages} pages, measured one sheet at a time, one file "
+    "for each sheet. ChromIQ works out which page each file is.")
+_I1IO_PANEL_NONE_YET = "No page is imported yet."
+_I1IO_PANEL_HAVE_ONE = "Imported so far: page {list}."
+_I1IO_PANEL_HAVE_MANY = "Imported so far: pages {list}."
+_I1IO_PANEL_COMPLETE = (
+    "Every page is imported, and the run holds the whole measurement.")
+_I1IO_LOG_STORED = (
+    "[OK] Stored as page {page} of {pages} of this run: {path}")
+_I1IO_LOG_MERGED = (
+    "[OK] Every page is in: ChromIQ joined the {pages} pages into one "
+    "measurement of {count} readings.")
+M_I1IO_PAGES_PANEL = _m(
+    "M-I1IO-PAGES-PANEL",
+    "An i1iO chart of several pages: the import panel and the log",
+    "\n".join((_I1IO_PANEL_PAGES, _I1IO_PANEL_NONE_YET, _I1IO_PANEL_HAVE_ONE,
+               _I1IO_PANEL_HAVE_MANY,
+               _I1IO_PANEL_COMPLETE, _I1IO_LOG_STORED, _I1IO_LOG_MERGED)),
+    approved=False)
+
+
+def i1io_pages_panel_text(total: int, filled, missing,
+                          complete: bool) -> str:
+    """The import panel's lines for a chart of several pages."""
+    parts = [tr(_I1IO_PANEL_PAGES).format(pages=total)]
+    if complete:
+        parts.append(tr(_I1IO_PANEL_COMPLETE))
+        return " ".join(parts)
+    filled = list(filled)
+    parts.append(tr(_I1IO_PANEL_HAVE_ONE if len(filled) == 1
+                    else _I1IO_PANEL_HAVE_MANY).format(list=_page_list(filled))
+                 if filled else tr(_I1IO_PANEL_NONE_YET))
+    parts.append(i1io_missing_text(missing))
+    return " ".join(parts)
+
+
 #: G1 of the design (the i1iSis Beta, one page): the device values agree with
 #: the chart's i1Profiler test chart on every patch, and the colours clearly
 #: show that the readings are not of their own patches ("cannot tell" files,

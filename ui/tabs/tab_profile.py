@@ -6966,6 +6966,10 @@ class TabProfile(QWidget):
                 "The previous profile was moved to: {folder}").format(folder=dest))
 
     def _on_build(self) -> None:
+        # AN i1iO CHART OF SEVERAL PAGES, NOT EVERY PAGE IMPORTED YET (the
+        # i1iO Beta): said in words, with the pages still to come.
+        if self._refused_while_i1io_pages_missing():
+            return
         if not self._ti3_path or not self._ti3_path.exists():
             self._log.appendPlainText("[ERROR] No valid .ti3 file selected.")
             self._log.ensureCursorVisible()
@@ -7621,6 +7625,45 @@ class TabProfile(QWidget):
         if reason:
             info["instead_of_the_engine_because"] = reason
         self._record_profile_build(icc, info)
+
+    def _refused_while_i1io_pages_missing(self) -> bool:
+        """True (and M-PROFILE-I1IO-PAGES-MISSING shown) when the bar's run
+        holds some pages of an i1iO chart of several pages and no measurement
+        yet, and the build would be of that run (`workflow.i1io.pages`). The
+        switch is read first: with the i1iO Beta off nothing is looked at."""
+        from workflow.i1io.support import i1io_enabled
+        if not i1io_enabled():
+            return False
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return False
+        try:
+            from core.measurement_target import resolve_run
+            proj = ctl.project_or_none()
+            if proj is None or ctl.target.is_verification():
+                return False
+            run = resolve_run(proj, ctl.target)
+            if run.measurement_ti3.is_file() \
+                    or not run.i1io_pages_dir.is_dir():
+                return False
+            if self._ti3_path and Path(self._ti3_path).exists() \
+                    and Path(self._ti3_path).parent != run.dir:
+                return False       # a measurement from elsewhere: as before
+            from workflow.i1io import pages as P
+            if not P.applies(run.chart_ti2):
+                return False
+            st = P.pages_state(run, run.chart_ti2)
+            if not st.any or st.complete:
+                return False
+        except Exception:      # noqa: BLE001 - never block a build by error
+            log.debug("i1iO pages state not read", exc_info=True)
+            return False
+        from workflow import measurement_messages as M
+        title, body = M.M_PROFILE_I1IO_PAGES_MISSING.render(
+            pages=st.total, missing=M.i1io_missing_text(st.missing))
+        self._log.appendPlainText("[INFO] " + title + "\n" + body)
+        self._show_tool_failure_dialog(title, body)
+        return True
 
     def _show_tool_failure_dialog(self, title: str, body: str) -> None:
         """Show a friendly failure dialog with the structured reason from the
