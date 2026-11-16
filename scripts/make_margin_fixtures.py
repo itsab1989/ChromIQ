@@ -45,7 +45,7 @@ def xyz2lab(X):
 
 def read_ti2_rows(p: Path):
     data, on, fmt = [], False, None
-    for line in p.read_text(errors="replace").splitlines():
+    for line in p.read_text(encoding="utf-8", errors="replace").splitlines():
         if line.startswith("BEGIN_DATA_FORMAT"):
             on = "f"
             continue
