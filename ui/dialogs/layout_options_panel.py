@@ -2440,6 +2440,11 @@ class LayoutOptionsPanel(QWidget):
             # above 1200, guarded by the memory budget instead (the Beta)
             from workflow.page_output.support import DPI_MAX_ON
             self.dpi.setMaximum(DPI_MAX_ON)
+            # Taken when Return is pressed or the box is left, not at every
+            # key (re-review R3-a): typing "2032" over 300 used to set 203
+            # first, and a page typed in pixels was measured against it.
+            # With the Beta off the box reacts to each key as in 4.3.42.
+            self.dpi.setKeyboardTracking(False)
         self.nolimit = WrappingCheckBox(tr("Don't cap strip length"), self)
         self.nolimit.toggled.connect(self._emit)
         self.max_strip = mm(special_auto=True, top=2000.0)  # large paper / roll media

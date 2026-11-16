@@ -5250,14 +5250,16 @@ def _fraction_of_the_same_custom_paper(code, paper) -> bool:
     """A custom size with fractions of a millimetre (only the page-output
     Beta writes one, #215) is the same paper as Manual's printtarg -p, which
     holds whole millimetres only and shows it cut to them ("234.95x196.85"
-    as "234x196"). Every code 4.3.42 writes is whole and never matches
-    here, so nothing changes for it."""
+    as "234x196"; `ParameterWidget.set_value`, the only place a fractional
+    code reaches -p). Only that CUT form matches (re-review R1-a): a target
+    whose own paper is 235 x 197 mm is another paper and keeps it, never
+    taking 234.95 x 196.85 defaults. Every code 4.3.42 writes is whole and
+    never matches here, so nothing changes for it."""
     from workflow.layout_engine.papers import parse_custom
     a, b = parse_custom(str(code or "")), parse_custom(str(paper or ""))
     if a is None or b is None or all(float(v) == int(v) for v in a):
         return False
-    return any(all(f(x) == float(y) for x, y in zip(a, b))
-               for f in (lambda v: float(int(v)), lambda v: float(round(v))))
+    return all(float(int(x)) == float(y) for x, y in zip(a, b))
 
 
 def _extra_args_have_patch_source(extra: str) -> bool:
@@ -31903,6 +31905,15 @@ class TabChart(QWidget):
         try:
             from ui.dialogs import page_output_panel as _pop
             from workflow.page_output.support import budget_problem
+            # A size typed in pixels that this resolution cannot make (a side
+            # beyond 1 to 2000 mm, re-review R3-a): said, and nothing runs.
+            # The typed pixels stay as they are.
+            _size_why = _pop.size_problem(panel)
+            if _size_why:
+                from workflow import measurement_messages as _mm
+                self._log.appendPlainText(
+                    "[ERROR] " + _size_why + " " + tr(_mm._PAGE_NOTHING_WRITTEN))
+                return True
             # Only a chart that uses what only the Beta allows (review F7):
             # every chart 4.3.42 makes is made with the Beta on as it was.
             if not _pop.needs_budget(panel):

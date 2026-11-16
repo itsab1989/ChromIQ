@@ -6797,12 +6797,19 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
         # 4.3.42 (F1): the instrument by its name, not printtarg's flag (an
         # i1iSis chart read "-ii1", the i1Pro's)
         if instrument:
+            # A page from the page-output Beta (#215) as it really is: a page
+            # typed in pixels by its pixels and resolution, a fraction of a
+            # millimetre in the UI language's numbers; any other page is the
+            # paper code exactly as before (`describe_paper_for_readout`).
+            from ui.dialogs.page_output_panel import describe_paper_for_readout
+            paper = describe_paper_for_readout(
+                self._spec.paper_flag, getattr(self, "_engine_recipe", None))
             text = (tr("{note}: 1 patch, laid out for the {instrument} on "
                        "{paper}") if n == 1 else
                     tr("{note}: {n} patches, laid out for the {instrument} on "
                        "{paper}")).format(note=note, n=n,
                                           instrument=instrument,
-                                          paper=self._spec.paper_flag)
+                                          paper=paper)
         else:
             text = (tr("{note}: 1 patch") if n == 1 else
                     tr("{note}: {n} patches")).format(note=note, n=n)

@@ -193,3 +193,13 @@ def test_c_the_saved_chart_keeps_its_page_and_is_pixel_exact(editor,
             assert (pg.imagewidth, pg.imagelength) == (4096, 2730)
             assert tuple(pg.tags["XResolution"].value) == (2731, 1)
             assert int(pg.tags["ResolutionUnit"].value) == 2
+
+
+def test_d_the_status_line_names_the_true_page(editor):
+    """Re-review: the status line said "on 38.1x25.4" for a page typed as
+    4096 x 2730 pixels at 2731; it says the pixels and the resolution."""
+    editor._readout_instrument = "SpectroScan"
+    editor._refresh_info()
+    text = editor._info.text()
+    assert "4096 x 2730 pixels at 2731 pixels per inch" in text, text
+    assert "38.1x25.4" not in text

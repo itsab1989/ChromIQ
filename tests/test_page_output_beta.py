@@ -845,8 +845,9 @@ def test_f8_no_number_carries_a_thousands_comma(panel_on):
 
 def test_f5_every_unit_has_the_same_range(panel_on):
     """Review F5: 1 to 2000 mm whatever the unit; the pixel field's top
-    follows the resolution, and a pixel side above it after the resolution
-    was lowered keeps its unit and becomes the top."""
+    follows the resolution. A pixel side beyond it after the resolution was
+    lowered keeps its pixels (re-review R3-a: it used to become the top, for
+    good) and the line under the fields says so."""
     p = panel_on
     assert p.custom_w.minimum() == po.CUSTOM_MM_MIN_ON
     assert p.custom_w.maximum() == po.CUSTOM_MM_MAX
@@ -854,16 +855,194 @@ def test_f5_every_unit_has_the_same_range(panel_on):
     assert p._page_in["w"].minimum() == pytest.approx(1 / 25.4, abs=1e-4)
     p.dpi.setValue(2032)
     p._emit()
-    assert p._page_px["w"].maximum() == int(2000 * 2032 / 25.4)
+    # any pixel count, whatever the resolution (R3-a); whether it fits is said
+    top = int(2000 * po.DPI_MAX_ON / 25.4)
+    assert (p._page_px["w"].minimum(), p._page_px["w"].maximum()) == (1, top)
+    p.dpi.setValue(72)
+    p._emit()
+    assert p._page_px["w"].maximum() == top
+    p.dpi.setValue(2032)
     p._page_px["w"].setValue(18796)
     p._page_px["h"].setValue(15748)
     p.dpi.setValue(72)
     p._emit()
-    top = int(2000 * 72 / 25.4)
-    assert p._page_px["w"].maximum() == top
-    assert p._page_truth["w"] == (float(top), "px")
-    assert p.get_recipe().page_size["w"] == [top, "px"]
-    assert po.page_mm(p.get_recipe().page_size, 72)[0] <= 2000.0
+    assert p._page_truth["w"] == (18796.0, "px")
+    assert p._page_px["w"].value() == 18796
+    assert p.get_recipe().page_size["w"] == [18796, "px"]
+    assert "Generate makes no chart" in p._page_px_lbl.text()
+
+
+# ---- re-review R3-a: a typed pixel size is never changed by the resolution ---
+
+def _px_page(p, w, h):
+    # set twice so the value differs from what the box showed: typed
+    p._page_px["w"].setValue(w + 1)
+    p._page_px["w"].setValue(w)
+    p._page_px["h"].setValue(h + 1)
+    p._page_px["h"].setValue(h)
+
+
+def _type_dpi(p, qapp, text):
+    """Type *text* into the resolution box key by key, then Return (keys
+    sent to the widget, no focus taken)."""
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtTest import QTest
+    seen = []
+    p.dpi.valueChanged.connect(seen.append)
+    p.dpi.lineEdit().selectAll()
+    for ch in text:
+        QTest.keyClick(p.dpi, ch)
+        qapp.processEvents()
+    QTest.keyClick(p.dpi, Qt.Key.Key_Return)
+    qapp.processEvents()
+    p.dpi.valueChanged.disconnect(seen.append)
+    return seen
+
+
+def test_r3a_typing_2032_never_passes_through_203(panel_on, qapp):
+    p = panel_on
+    p.dpi.setValue(300)
+    _px_page(p, 18796, 15748)
+    seen = _type_dpi(p, qapp, "2032")
+    assert seen == [2032]
+    assert p.dpi.value() == 2032
+    r = p.get_recipe()
+    assert r.page_size == {"w": [18796, "px"], "h": [15748, "px"],
+                           "ppi": 2032}
+    assert r.paper == "234.95x196.85"
+    # and back down to 1200 the same way: no 120 on the way
+    assert _type_dpi(p, qapp, "1200") == [1200]
+    assert p.get_recipe().page_size["w"] == [18796, "px"]
+
+
+def test_r3a_lowering_to_72_and_back_keeps_the_pixels(panel_on, qapp):
+    p = panel_on
+    p.dpi.setValue(2032)
+    _px_page(p, 18001, 15001)
+    for dpi in (600, 300, 72, 300, 2032):
+        p.dpi.setValue(dpi)
+        p._emit()
+        assert (p._page_px["w"].value(), p._page_px["h"].value()) == (
+            18001, 15001), dpi
+        assert p._page_truth == {"w": (18001.0, "px"), "h": (15001.0, "px")}
+    r = p.get_recipe()
+    assert r.page_size == {"w": [18001, "px"], "h": [15001, "px"],
+                           "ppi": 2032}
+    assert "Generate makes no chart" not in p._page_px_lbl.text()
+
+
+def test_r3a_at_72_the_line_says_why_and_which_resolutions_fit(panel_on):
+    p = panel_on
+    p.dpi.setValue(2032)
+    _px_page(p, 18001, 15001)
+    p.dpi.setValue(72)
+    p._emit()
+    text = p._page_px_lbl.text()
+    assert "18001 x 15001 pixels" in text
+    assert "6350.4 x 5292 mm" in text
+    assert "between 229 and 6000 pixels per inch" in text
+    assert "kept exactly as you typed it" in text
+    from ui.dialogs import page_output_panel as pop
+    assert pop.size_problem(p) and "229" in pop.size_problem(p)
+    p.dpi.setValue(229)
+    p._emit()
+    assert pop.size_problem(p) is None
+    p.dpi.setValue(228)
+    p._emit()
+    assert pop.size_problem(p) is not None
+
+
+def test_r3a_a_size_no_resolution_fits_says_so(panel_on):
+    from ui.dialogs import page_output_panel as pop
+    p = panel_on
+    p.dpi.setValue(6000)
+    # 1 px wide and 160000 px high: no resolution makes both 1..2000 mm
+    p._page_truth = {"w": (1.0, "px"), "h": (160000.0, "px")}
+    pop._show_truth(p)
+    why = pop.size_problem(p)
+    assert why and "No resolution ChromIQ offers" in why
+    assert p._page_truth == {"w": (1.0, "px"), "h": (160000.0, "px")}
+
+
+@pytest.mark.parametrize("order", ["size_first", "res_first", "res_typed",
+                                   "res_down_up", "mixed_units"])
+@pytest.mark.parametrize("frame", [((4096, 2730), 2731),
+                                   ((8192, 5461), 5461),
+                                   ((18796, 15748), 2032)])
+def test_r3a_his_three_frames_survive_every_order(qapp, beta_on, frame,
+                                                   order):
+    """The requester's three frames, whatever order size and resolution are
+    entered in: the recipe holds exactly his pixels at his resolution."""
+    from ui.dialogs.layout_options_panel import LayoutOptionsPanel
+    (w, h), ppi = frame
+    p = LayoutOptionsPanel(None, with_selectors=True, with_calibration=True)
+    try:
+        p.paper.setCurrentIndex(p.paper.findData("__custom__"))
+        if order == "size_first":
+            p.dpi.setValue(300)
+            _px_page(p, w, h)
+            p.dpi.setValue(ppi)
+        elif order == "res_first":
+            p.dpi.setValue(ppi)
+            _px_page(p, w, h)
+        elif order == "res_typed":
+            p.dpi.setValue(300)
+            _px_page(p, w, h)
+            assert _type_dpi(p, qapp, str(ppi)) == [ppi]
+        elif order == "res_down_up":
+            p.dpi.setValue(ppi)
+            _px_page(p, w, h)
+            for d in (72, 150, 6000, 72):
+                p.dpi.setValue(d)
+                p._emit()
+            assert _type_dpi(p, qapp, str(ppi)) == [ppi]
+        else:   # mixed: the width in inches first, then both in pixels
+            p.dpi.setValue(ppi)
+            p._page_in["w"].setValue(1.0)
+            p.dpi.setValue(72)
+            _px_page(p, w, h)
+            p.dpi.setValue(ppi)
+        p._emit()
+        r = p.get_recipe()
+        assert r.dpi == ppi
+        assert r.page_size == {"w": [w, "px"], "h": [h, "px"], "ppi": ppi}
+        assert po.page_pixels(r.page_size, r.dpi) == (w, h)
+        assert (p._page_px["w"].value(), p._page_px["h"].value()) == (w, h)
+    finally:
+        p.deleteLater()
+
+
+def test_r3a_generate_and_the_build_refuse_what_the_line_refuses(
+        tmp_path, beta_on):
+    from workflow.layout_engine.presets import default_recipe
+    ps = {"w": [18001, "px"], "h": [15001, "px"], "ppi": 2032}
+    assert po.size_problem(ps, 2032) is None
+    why = po.size_problem(ps, 72)
+    assert why and "between 229 and 6000" in why
+    r = replace(default_recipe("SS", "6350.4x5291.7"), dpi=72, page_size=ps)
+    from workflow.layout_engine.chart import build_from_recipe
+    with pytest.raises(po.PageBudgetError) as e:
+        build_from_recipe(TI1, tmp_path / "c", r)
+    assert "between 229 and 6000" in str(e.value)
+    assert not list(tmp_path.iterdir())
+
+
+def test_r3a_the_resolution_box_tracks_keys_with_the_beta_off(panel_off,
+                                                             panel_on):
+    """Off: the box reacts to every key exactly as in 4.3.42 (Qt's default).
+    On: only when Return is pressed or the box is left."""
+    assert panel_off.dpi.keyboardTracking() is True
+    assert panel_on.dpi.keyboardTracking() is False
+
+
+def test_r3a_with_the_beta_off_typing_a_resolution_is_4_3_42s(panel_off,
+                                                              qapp):
+    p = panel_off
+    p.dpi.setValue(300)
+    seen = _type_dpi(p, qapp, "600")
+    # 4.3.42: every prefix the box accepts is emitted as it is typed
+    assert seen[-1] == 600 and len(seen) >= 2
+    assert p.dpi.value() == 600
 
 
 def test_f3_the_fd9_is_not_offered_pixels_per_inch(qapp, beta_on):
@@ -926,7 +1105,14 @@ def test_a_fractional_custom_code_is_the_same_paper_as_its_whole_mm_p():
     from ui.tabs.tab_chart import _recipe_is_for
     rec = {"instrument": "SS", "paper": "234.95x196.85"}
     assert _recipe_is_for(rec, "SS", "234x196")
-    assert _recipe_is_for(rec, "SS", "235x197")
+    # re-review R1-a: only the CUT code is the same paper; a target whose
+    # own paper is 235 x 197 mm keeps it
+    assert not _recipe_is_for(rec, "SS", "235x197")
+    assert not _recipe_is_for(rec, "SS", "235x196")
+    assert not _recipe_is_for({"instrument": "SS", "paper": "210.6x297.4"},
+                              "SS", "211x297")
+    assert _recipe_is_for({"instrument": "SS", "paper": "210.6x297.4"},
+                          "SS", "210x297")
     assert not _recipe_is_for(rec, "SS", "A4")
     assert not _recipe_is_for(rec, "SS", "230x196")
     assert not _recipe_is_for({"instrument": "SS", "paper": "234x196"},
@@ -975,3 +1161,65 @@ def test_f9_the_estimate_column_uses_the_charts_own_page(qapp, tmp_path, on):
     finally:
         tab.deleteLater()
         po._latched = before
+
+
+# ---- re-review R7 / F8: numbers in sentences follow the UI language -----------
+
+_ALL_LANGS = ["de", "en", "es", "fr", "it", "ja", "nl", "no", "pl", "pt",
+              "ru", "sv", "uk", "zh_CN"]
+
+
+@pytest.fixture
+def ui_lang():
+    from core import i18n
+    previous = i18n.current_language()
+    yield i18n.set_language
+    i18n.set_language(previous)
+
+
+@pytest.mark.parametrize("code", _ALL_LANGS)
+def test_r7_every_number_shown_follows_the_language(code, ui_lang, panel_on):
+    """The pixel line, the memory refusal, the size refusal, the hold note's
+    page, the editor's status line: a fraction is written with the UI
+    language's decimal sign (as `core.i18n.decimal_text` writes every other
+    number in a sentence), and no whole number carries a thousands
+    separator in any language."""
+    import re
+    from core import i18n
+    from ui.dialogs import page_output_panel as pop
+    from workflow.layout_engine.presets import default_recipe
+    ui_lang(code)
+    comma = i18n.uses_decimal_comma()
+    d = "," if comma else "."
+    p = panel_on
+    p.dpi.setValue(2731)
+    _px_page(p, 4096, 2730)
+    p._emit()
+    line = p._page_px_lbl.text()
+    assert "4096" in line and "2730" in line and f"11{d}2" in line, line
+    big = po.budget_problem(99213, 140315, 3)
+    assert "99213" in big and "140315" in big
+    gb = po.estimated_bytes(99213, 140315, 3) / 1e9
+    assert f"{gb:.1f}".replace(".", d) in big
+    assert not re.search(r"\d[\u202f ,]\d{3}\b", big)
+    r = replace(default_recipe("SS", "234.95x196.85"), dpi=2032)
+    assert pop.describe_page(r).startswith(f"234{d}95 x 196{d}85")
+    r_in = replace(r, page_size={"w": [9.25, "in"], "h": [7.75, "in"],
+                                 "ppi": 2032})
+    assert pop.describe_page(r_in).startswith(f"9{d}25 x 7{d}75")
+    why = po.size_problem({"w": [18001, "px"], "h": [15001, "px"],
+                           "ppi": 72}, 72)
+    assert f"6350{d}4" in why and "18001" in why and "229" in why
+    # the editor's status line
+    r4k = replace(default_recipe("SS", "38.0953x25.3907"), dpi=2731,
+                  page_size=FRAME_4K)
+    s = pop.describe_paper_for_readout("38.1x25.4", r4k)
+    assert "4096" in s and "2730" in s and "2731" in s and "38.1x25.4" not in s
+    assert pop.describe_paper_for_readout("234.95x196.85", r).startswith(
+        f"234{d}95 x 196{d}85")
+    # every chart 4.3.42 makes: the paper code exactly as before
+    assert pop.describe_paper_for_readout(
+        "A4", default_recipe("SS", "A4")) == "A4"
+    assert pop.describe_paper_for_readout(
+        "210x297", default_recipe("SS", "210x297")) == "210x297"
+    assert pop.describe_paper_for_readout("150x200", None) == "150x200"

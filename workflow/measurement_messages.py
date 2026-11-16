@@ -8797,6 +8797,23 @@ _PAGE_PIXELS_OVER = (
     "inks and this many pages can have pages of up to about {limit} "
     "megapixels, so that drawing it never runs out of memory. Generate will be refused "
     "until the resolution is lower or the page is smaller.")
+#: A side typed in pixels that makes less than 1 mm or more than 2000 mm at
+#: the resolution on screen (re-review R3-a): said under the fields and at
+#: Generate; the typed pixels are kept. {size} the size as typed, {ppi} the
+#: resolution, {on_paper} what that makes in millimetres, {lo} {hi} the
+#: resolutions that fit.
+_PAGE_SIZE_OUT_OF_RANGE = (
+    "At {ppi} pixels per inch, the size you typed, {size}, would be "
+    "{on_paper} on paper, and each side can be from 1 to 2000 mm. Your size "
+    "is kept exactly as you typed it. To make this chart, set the resolution "
+    "to between {lo} and {hi} pixels per inch, or change the size. Until "
+    "then, Generate makes no chart.")
+_PAGE_SIZE_NEVER_FITS = (
+    "At {ppi} pixels per inch, the size you typed, {size}, would be "
+    "{on_paper} on paper, and each side can be from 1 to 2000 mm. No "
+    "resolution ChromIQ offers makes both sides fit, so please change the "
+    "size. Your size is kept exactly as you typed it, and until it fits, "
+    "Generate makes no chart.")
 _PAGE_BETA_OFF_NOTE_KEPT = (
     "This chart was made with the beta option \u201cCustom page size in "
     "inches or pixels, and high resolution\u201d, which is switched off now. "
@@ -8829,7 +8846,8 @@ M_PAGE_OUTPUT_PARTS = _m(
     "Custom page size and high resolution (beta): the parts of the notes",
     "\n".join((_PAGE_OVER_BUDGET_ONE, _PAGE_OVER_BUDGET_MANY,
                _PAGE_NOTHING_WRITTEN, _PAGE_NOT_DRAWN, _PAGE_PIXELS,
-               _PAGE_PIXELS_OVER, _PAGE_BETA_OFF_NOTE_KEPT,
+               _PAGE_PIXELS_OVER, _PAGE_SIZE_OUT_OF_RANGE,
+               _PAGE_SIZE_NEVER_FITS, _PAGE_BETA_OFF_NOTE_KEPT,
                _PAGE_BETA_OFF_NOTE_REFUSED, _PAGE_BETA_OFF_REDRAW)),
     approved=False)
 M_I1IO_SHEET_CHECK_PARTS = _m(

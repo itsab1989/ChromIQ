@@ -60,8 +60,8 @@ def build_custom_rows(panel: Any, grid: Any) -> None:
     for axis in _AXES:
         box = NoScrollDoubleSpinBox(panel)
         box.setDecimals(4)
-        # the millimetre range in inches (review F5); the pixel range follows
-        # the resolution (`_fit_ranges`)
+        # the millimetre range in inches (review F5); the pixel range is
+        # set by `_fit_ranges` (any count; whether it fits is said, R3-a)
         box.setRange(round(po.CUSTOM_MM_MIN_ON / po.MM_PER_INCH, 4),
                      round(po.CUSTOM_MM_MAX / po.MM_PER_INCH, 4))
         box.setMaximumWidth(96)
@@ -218,19 +218,39 @@ def _ppi(panel: Any) -> int:
 
 
 def _fit_ranges(panel: Any, ppi: int) -> None:
-    """The pixel fields stop where 1 mm and 2000 mm are at *ppi* (review F5:
-    one range, whatever the unit). A side typed in pixels beyond the new top
-    after the resolution was lowered keeps its unit and becomes the top."""
-    lo = max(1, po.pixels_of(po.CUSTOM_MM_MIN_ON, ppi))
-    hi = int(po.CUSTOM_MM_MAX * float(ppi) / po.MM_PER_INCH)
+    """The pixel fields' range: from 1 pixel to the most a 2000 mm side can
+    have at the highest resolution offered, WHATEVER the resolution on screen.
+
+    NEVER WRITES THE TRUTH (re-review R3-a). The pixel fields used to stop
+    where 2000 mm is at the resolution on screen, and a side typed in pixels
+    beyond that after the resolution was lowered (or while a resolution was
+    still being typed) became the top, for good: 18001 x 15001 pixels at
+    72 ppi turned into 5669 x 5669 and stayed so when the resolution went
+    back up; and at a low resolution a frame's pixels could not be typed at
+    all, so the order of typing decided the result. Now any pixel count can
+    be typed in any order and is kept exactly; whether it fits 1 to 2000 mm
+    at the resolution set is said by the line under the fields and by
+    Generate (:func:`size_problem`). The millimetre and inch fields still
+    stop at 1 and 2000 mm (review F5)."""
+    hi = int(po.CUSTOM_MM_MAX * float(po.DPI_MAX_ON) / po.MM_PER_INCH)
     for axis in _AXES:
         box = panel._page_px[axis]
-        b = box.blockSignals(True)
-        box.setRange(lo, hi)
-        box.blockSignals(b)
-        v, unit = panel._page_truth[axis]
-        if unit == po.UNIT_PX and not lo <= v <= hi:
-            panel._page_truth[axis] = (float(min(max(v, lo), hi)), po.UNIT_PX)
+        if (box.minimum(), box.maximum()) != (1, hi):
+            blocked = box.blockSignals(True)
+            box.setRange(1, hi)
+            box.blockSignals(blocked)
+
+
+def size_problem(panel: Any) -> "str | None":
+    """The friendly words when the custom page, as typed, cannot be made at
+    the resolution on screen (a side typed in pixels beyond 1 to 2000 mm),
+    else None. The typed values are kept; this only says so (R3-a)."""
+    if getattr(panel, "_page_truth", None) is None or panel.paper is None \
+            or panel.paper.currentData() != "__custom__":
+        return None
+    t = panel._page_truth
+    ps = po.make_page_size(t["w"], t["h"], _ppi(panel))
+    return None if ps is None else po.size_problem(ps, _ppi(panel))
 
 
 def _heal_truth(panel: Any) -> None:
@@ -400,7 +420,14 @@ def refresh_readout(panel: Any) -> None:
     kind = dict(ink_kind(panel), bit16=bit16)
     over = needs_budget(panel) and \
         po.estimated_bytes(w, h, pages, **kind) > po.MEMORY_BUDGET_BYTES
-    if over:
+    problem = size_problem(panel)
+    if problem:
+        # the typed size cannot be made at this resolution (R3-a): said,
+        # never changed; the memory estimate of a page that will not be made
+        # would only confuse
+        text += " " + problem
+        over = True
+    elif over:
         text += " " + tr(mm._PAGE_PIXELS_OVER).format(
             limit=po.number(po.max_megapixels(pages, **kind)))
     from ui.widgets import set_ink
@@ -514,27 +541,45 @@ def _release(panel: Any) -> None:
 
 def describe_page(r: Any) -> str:
     """The page as it was typed, for the notes: "4096 x 2730 pixels",
-    "9.25 x 7.75 inches", "234.95 x 196.85 mm"."""
+    "9.25 x 7.75 inches", "234.95 x 196.85 mm" (with the decimal sign of the
+    UI language)."""
     from workflow.layout_engine import papers
     ps = po.clean_page_size(getattr(r, "page_size", None))
-
-    def num(v: float) -> str:
-        # no thousands separator in any language (review F8)
-        return f"{v:.4f}".rstrip("0").rstrip(".")
-    if ps is not None and ps["w"][1] == ps["h"][1]:
-        unit = ps["w"][1]
-        word = {po.UNIT_PX: tr("pixels"), po.UNIT_IN: tr("inches"),
-                po.UNIT_MM: tr("mm")}[unit]
-        return f"{num(ps['w'][0])} x {num(ps['h'][0])} {word}"
     if ps is not None:
-        words = {po.UNIT_PX: tr("px"), po.UNIT_IN: tr("in"), po.UNIT_MM: tr("mm")}
-        return (f"{num(ps['w'][0])} {words[ps['w'][1]]} x "
-                f"{num(ps['h'][0])} {words[ps['h'][1]]}")
+        return po.typed_text(ps)
     try:
         w, h = papers.dimensions_mm(str(r.paper))
-        return f"{num(w)} x {num(h)} {tr('mm')}"
+        return f"{po.side_text(w)} x {po.side_text(h)} {tr('mm')}"
     except ValueError:
         return str(r.paper)
+
+
+def describe_paper_for_readout(paper_flag: str, recipe: Any = None) -> str:
+    """The page for the patch set editor's status line ("... laid out for
+    the X on {paper}"): a page typed in inches or pixels as it was typed,
+    with its resolution ("4096 x 2730 pixels at 2731 pixels per inch"); a
+    custom size with fractions of a millimetre in millimetres with the UI
+    language's decimal sign. Anything else (every chart 4.3.42 makes) is
+    *paper_flag* exactly as before, and so is a recipe that is no longer
+    the page the editor shows (its paper changed there since)."""
+    try:
+        from workflow.layout_engine import papers
+        shown = papers.parse_custom(str(paper_flag or ""))
+        mine = papers.parse_custom(str(getattr(recipe, "paper", "") or ""))
+        if shown is None or mine is None or any(
+                abs(float(a) - float(b)) > 0.051 for a, b in zip(shown, mine)):
+            return paper_flag
+        ps = po.clean_page_size(getattr(recipe, "page_size", None))
+        if ps is not None:
+            return tr("{size} at {ppi} pixels per inch").format(
+                size=describe_page(recipe), ppi=int(getattr(recipe, "dpi", 0)
+                                                    or ps["ppi"]))
+        code = str(getattr(recipe, "paper", "") or "")
+        if not po.is_whole_mm_code(code):
+            return f"{po.side_text(mine[0])} x {po.side_text(mine[1])} {tr('mm')}"
+    except Exception:  # noqa: BLE001 - a status line never breaks the editor
+        pass
+    return paper_flag
 
 
 def _show_hold_note(panel: Any, r: Any) -> None:
@@ -578,10 +623,16 @@ def custom_size_help() -> str:
            "information. You can mix units: a width in pixels and a height in "
            "inches is fine."),
         tr("Each side can be from 1 mm to 2000 mm, whichever unit you type "
-           "it in, so the inch and pixel fields stop where 2000 mm is at the "
-           "resolution you have set. A side typed in pixels that would be "
-           "longer than that after you lower the resolution becomes the "
-           "longest the field allows."),
+           "it in. The millimetre and inch fields stop there. The pixel "
+           "fields take any count, in any order with the resolution, and "
+           "keep it exactly as you typed it: if it would make a side longer "
+           "than 2000 mm (or shorter than 1 mm) at the resolution you have "
+           "set, the line under the paper size says so in red and names the "
+           "resolutions that fit, and Generate makes no chart until the "
+           "resolution or the size fits."),
+        tr("The resolution is taken when you press Return or leave its box, "
+           "not while you are still typing, so typing 2032 never passes "
+           "through 203 on the way."),
         tr("Pixels and resolution belong together. A size typed in pixels "
            "keeps its pixels when you change the resolution, so the page "
            "becomes larger or smaller on paper. A size typed in millimetres "

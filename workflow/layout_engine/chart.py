@@ -447,6 +447,12 @@ def build_chart(
         page_size = _po.clean_page_size(page_size)
         if page_size is not None:
             _page_px = _po.page_pixels(page_size, dpi)
+            # a side typed in pixels that this resolution makes shorter than
+            # 1 mm or longer than 2000 mm is refused before anything is drawn
+            # (re-review R3-a; the panel and Generate say it first)
+            _why = _po.size_problem(page_size, dpi)
+            if _why:
+                raise _po.PageBudgetError(_why)
         tiff_res_unit = ("in" if tiff_res_unit == _po.RES_UNIT_IN else "cm")
     # An X-Rite i1iO chart (a Beta): the engine's own grid with the settings
     # an i1iO chart fixes (`workflow.i1io.chart.fixed_build_kwargs`), and its

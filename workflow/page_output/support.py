@@ -93,7 +93,9 @@ DPI_MAX_ON = 6000
 #: so with the Beta off. With it on a side may be as small as 1 mm (a film
 #: frame is small; a page too small for one patch is refused by the layout
 #: itself), and the 2000 mm top holds for a side typed in inches or pixels
-#: too: the inch and pixel fields stop where 2000 mm is at the resolution.
+#: too: the inch fields stop there, and a side typed in pixels that makes
+#: more (or less) at the resolution set is kept as typed and refused with
+#: words until it fits (:func:`size_problem`, re-review R3-a).
 CUSTOM_MM_MIN = 20.0
 CUSTOM_MM_MIN_ON = 1.0
 CUSTOM_MM_MAX = 2000.0
@@ -371,8 +373,85 @@ def number(n: Any) -> str:
 
 
 def decimal(v: Any, places: int = 1) -> str:
-    """A number with a decimal point, as every other number in the notes."""
-    return f"{float(v):.{int(places)}f}"
+    """A number with a fraction, FOR RUNNING TEXT ONLY: the decimal sign of
+    the UI language, as every other number the app writes in a sentence
+    ("11.2" in English, "11,2" in German; `core.i18n.decimal_text`, review
+    R7). Never for a file, a flag or anything parsed back."""
+    from core.i18n import decimal_text
+    return decimal_text(float(v), int(places))
+
+
+def side_text(v: Any) -> str:
+    """A side for running text: at most four decimals, no trailing zeros, no
+    thousands separator, and the decimal sign of the UI language like every
+    other number the app writes in a sentence (`core.i18n.decimal_text`;
+    review F8, R7): "234.95" in English, "234,95" in German."""
+    from core.i18n import decimal_text
+    return decimal_text(f"{float(v):.4f}".rstrip("0").rstrip("."))
+
+
+def typed_text(page_size: dict) -> str:
+    """The sides of a stored page as they were typed, as words: "4096 x 2730
+    pixels", "9.25 x 7.75 inches", "1.5 in x 2730 px"."""
+    from core.i18n import tr
+    (wv, wu), (hv, hu) = page_size["w"], page_size["h"]
+    if wu == hu:
+        word = {UNIT_PX: tr("pixels"), UNIT_IN: tr("inches"),
+                UNIT_MM: tr("mm")}[wu]
+        return f"{side_text(wv)} x {side_text(hv)} {word}"
+    words = {UNIT_PX: tr("px"), UNIT_IN: tr("in"), UNIT_MM: tr("mm")}
+    return f"{side_text(wv)} {words[wu]} x {side_text(hv)} {words[hu]}"
+
+
+def sides_out_of_range(page_size: dict, ppi: float) -> "list[str]":
+    """The sides typed in pixels that make less than :data:`CUSTOM_MM_MIN_ON`
+    or more than :data:`CUSTOM_MM_MAX` millimetres at *ppi*. Only a side in
+    pixels can: the millimetre and inch fields stop there."""
+    out = []
+    for side in ("w", "h"):
+        v, unit = page_size[side]
+        if unit != UNIT_PX:
+            continue
+        mm = to_mm(v, unit, ppi)
+        if mm > CUSTOM_MM_MAX + 1e-9 or mm < CUSTOM_MM_MIN_ON - 1e-9:
+            out.append(side)
+    return out
+
+
+def fitting_ppi(page_size: dict) -> "tuple[int, int] | None":
+    """The resolutions (within what the resolution box offers with the Beta
+    on) at which every side typed in pixels makes 1 to 2000 mm, or None."""
+    lo, hi = DPI_MIN, DPI_MAX_ON
+    for side in ("w", "h"):
+        v, unit = page_size[side]
+        if unit == UNIT_PX:
+            lo = max(lo, math.ceil(float(v) * MM_PER_INCH / CUSTOM_MM_MAX
+                                   - 1e-9))
+            hi = min(hi, math.floor(float(v) * MM_PER_INCH / CUSTOM_MM_MIN_ON
+                                    + 1e-9))
+    return (lo, hi) if lo <= hi else None
+
+
+def size_problem(page_size: Any, ppi: float) -> "str | None":
+    """The friendly words when a page typed in pixels cannot be made at *ppi*
+    (a side beyond 1 to 2000 mm), else None (re-review R3-a). The typed size
+    is never changed for it; the panel, Generate and the build say this
+    instead."""
+    ps = clean_page_size(page_size)
+    if ps is None or not sides_out_of_range(ps, ppi):
+        return None
+    from core.i18n import tr
+    from workflow import measurement_messages as _mm
+    w_mm, h_mm = page_mm(ps, ppi)
+    on_paper = (f"{side_text(round(w_mm, 1))} x {side_text(round(h_mm, 1))} "
+                f"{tr('mm')}")
+    fit = fitting_ppi(ps)
+    if fit is None:
+        return tr(_mm._PAGE_SIZE_NEVER_FITS).format(
+            size=typed_text(ps), ppi=int(ppi), on_paper=on_paper)
+    return tr(_mm._PAGE_SIZE_OUT_OF_RANGE).format(
+        size=typed_text(ps), ppi=int(ppi), on_paper=on_paper,
+        lo=fit[0], hi=fit[1])
 
 
 def budget_problem(w_px: int, h_px: int, pages: int = 1, *,
