@@ -366,3 +366,404 @@ def test_ctrl_c_at_every_question_of_the_first_stages_sends_nothing_more(tmp_pat
         if len(sim.received) < len(lines):
             assert code == 1, n
         check_truthful(sim, con, log)
+
+
+# ---- D: your sheet ------------------------------------------------------------------------
+
+MOTION = ("m0", "m1", "m2", "i1")
+WIRE_LINES = {v.decode().rstrip("\r") for v in tbl.WIRE.values()}
+
+
+def computed(sim):
+    return [x for x in sim.received if x[1:3] in ("m0", "m2") and x not in WIRE_LINES]
+P1 = cl.C_FIXED["aim"].decode().rstrip("\r")
+SPOT_CAL = ["c2"]            # a spot calibration (and a strip one through FakeReaders? no: C1)
+
+
+def _sheet():
+    return pc.load_sheet(PKG / "demo" / pc.DEMO_SHEET)
+
+
+def _aims_at(origin):
+    return pc.demo_aims(_sheet(), origin)
+
+
+def _rot(points, deg):
+    import math
+    cx = sum(p[0] for p in points) / 3
+    cy = sum(p[1] for p in points) / 3
+    c, s = math.cos(math.radians(deg)), math.sin(math.radians(deg))
+    return [(round(cx + c * (x - cx) - s * (y - cy)), round(cy + s * (x - cx) + c * (y - cy)))
+            for x, y in points]
+
+
+GOOD = pc.demo_aims()
+WRONG = {
+    "swapped corners": [GOOD[1], GOOD[0], GOOD[2]],
+    "swapped 2 and 3": [GOOD[0], GOOD[2], GOOD[1]],
+    "mirrored": [(2 * 150 - x, y) for x, y in GOOD],
+    "a corner one patch off": [GOOD[0], GOOD[1], (GOOD[2][0] + 100, GOOD[2][1])],
+    "mark 2 one patch off": [GOOD[0], (GOOD[1][0], GOOD[1][1] - 90), GOOD[2]],
+    "turned 180": _rot(GOOD, 180),
+    "turned 90": _rot(GOOD, 90),
+    "turned 5 degrees": _rot(GOOD, 5),
+    "all on one spot": [GOOD[0], GOOD[0], GOOD[0]],
+}
+
+
+@pytest.mark.parametrize("name", list(WRONG))
+def test_a_wrong_alignment_is_refused_before_any_move_and_the_sitting_goes_on(tmp_path, name):
+    sim = csim.CSimTable(part_c=False, aims=WRONG[name])
+    code, sim, log, con, res = run_c(tmp_path, ["d1", "d2", "d3", "e2", "f"], sim=sim)
+    v = verdicts(log)
+    assert v[0] == ("d1", "failed cleanly"), (name, v)
+    # D2..E2 are not offered without D1; F homes, or refuses (nothing moved) when the hand
+    # left the free arm outside the measuring area
+    assert [k for k, _ in v] == ["d1", "f"]
+    assert v[-1][1] in ("worked", "failed cleanly"), (name, v)
+    assert sim.violations == []
+    last_p1 = max(i for i, x in enumerate(sim.received) if x == P1)
+    nxt = [x for x in sim.received[last_p1 + 1:] if x[1:3] in MOTION]
+    home = tbl.WIRE["home"].decode().rstrip("\r")
+    assert nxt == ([home] if v[-1][1] == "worked" else []), (name, nxt)
+    assert "Nothing has moved since your aims" in screen(con)
+    assert not (res / "d1-1" / "alignment.json").exists()
+
+
+def test_a_good_alignment_moves_the_opening_onto_mark_3(tmp_path):
+    code, sim, log, con, res = run_c(tmp_path, ["d1", "d2", "f"])
+    assert verdicts(log) == [("d1", "worked"), ("d2", "worked"), ("f", "worked")]
+    # D2's one computed move put the (simulated) measuring opening on mark 3
+    assert len(computed(sim)) == 1
+    d2 = [b for b in blocks(log) if b["stage"] == "d2"][0]
+    assert abs(d2["position_after"][0] - GOOD[2][0]) <= 2
+    assert abs(d2["position_after"][1] - GOOD[2][1]) <= 2
+    assert sim.violations == []
+    al = json.loads((res / "d1-1" / "alignment.json").read_text())
+    assert al["checks"]["angle_deg"] == pytest.approx(90, abs=0.2)
+
+
+def test_the_spot_row_reads_every_patch_at_its_computed_place(tmp_path):
+    code, sim, log, con, res = run_c(tmp_path, ["c2", "d1", "d3", "f"])
+    assert verdicts(log) == [("c2", "worked"), ("d1", "worked"), ("d3", "worked"),
+                             ("f", "worked")]
+    sheet = _sheet()
+    st = sheet["pages"][0]["strips"][0]
+    want = sorted(pc.demo_aims_point(sheet, q["centre_mm"]) for q in st["patches"])
+    got = sorted((round(x), round(y)) for x, y in sim.read_spots[1:])
+    assert len(got) == len(want) == 24
+    for g, w in zip(got, want):
+        assert abs(g[0] - w[0]) <= 1 and abs(g[1] - w[1]) <= 1, (g, w)
+    rows = (res / "d3-1" / "d3_row1.readings.csv").read_text().splitlines()
+    assert len(rows) == 25
+
+
+def test_d3_and_d4_need_a_spot_calibration_and_say_so(tmp_path):
+    code, sim, log, con, res = run_c(tmp_path, ["d1", "d3", "f"])
+    assert verdicts(log) == [("d1", "worked"), ("f", "worked")]
+    assert "D3 (it needs a spot calibration in this sitting (C1))" in screen(con)
+
+
+def test_enter_between_two_patches_stops_cleanly_and_the_sitting_goes_on(tmp_path):
+    code, sim, log, con, res = run_c(tmp_path, ["c2", "d1", "d3", "f"], stop_at_poll=5)
+    v = verdicts(log)
+    assert v == [("c2", "worked"), ("d1", "worked"), ("d3", "stopped by you (clean)"),
+                 ("f", "worked")], v
+    assert len(sim.read_spots) == 1 + 5
+
+
+def test_declining_a_first_visit_move_moves_nothing(tmp_path):
+    code, sim, log, con, res = run_c(tmp_path, ["d1", "d2", "f"],
+                                     script={"Make this move now?": "no"})
+    v = verdicts(log)
+    assert v == [("d1", "worked"), ("d2", "failed cleanly"), ("f", "worked")], v
+    assert computed(sim) == []
+
+
+def test_rows_beyond_the_area_are_named_in_d1_and_refused_before_any_line(tmp_path):
+    """The sheet 15 mm too far to the right: its marks still inside, its rows not."""
+    sim = csim.CSimTable(part_c=False, aims=_aims_at((1500, 950)))
+    code, sim, log, con, res = run_c(tmp_path, ["c1", "d1", "e2", "d3", "f"], sim=sim)
+    v = verdicts(log)
+    # E2 refused by its plan; the free arm (the sight offset beside mark 3) stands outside
+    # the area, so D3 and F refuse to start a move from there and say what to do
+    assert v == [("c1", "worked"), ("d1", "worked"), ("e2", "failed cleanly"),
+                 ("d3", "failed cleanly"), ("f", "failed cleanly")], v
+    text = screen(con)
+    assert "22 of the 22 rows" in text and "further to the left" in text
+    assert "Please push the free arm gently" in text
+    assert computed(sim) == []
+    assert not any(x.startswith(";m2") for x in sim.received)
+    e2 = [b for b in blocks(log) if b["stage"] == "e2"][0]
+    assert e2["lines_after"] == e2["lines_before"]          # not one line sent in E2
+    assert sim.violations == []
+
+
+def test_a_mark_outside_the_area_is_refused_with_the_way_to_shift(tmp_path):
+    sim = csim.CSimTable(part_c=False, aims=_aims_at((1900, 950)))
+    code, sim, log, con, res = run_c(tmp_path, ["d1", "f"], sim=sim)
+    assert verdicts(log) == [("d1", "failed cleanly"), ("f", "worked")]
+    assert "outside the measuring area" in screen(con)
+
+
+def test_the_whole_page_in_spot_and_strip_readings(tmp_path):
+    code, sim, log, con, res = run_c(tmp_path, ["c1", "d1", "e3", "d4", "f"])
+    assert verdicts(log) == [("c1", "worked"), ("d1", "worked"), ("e3", "worked"),
+                             ("d4", "worked"), ("f", "worked")]
+    assert sim.violations == []
+    # serpentine: the scan moves alternate direction, each a whole row at the chosen speed
+    moves = sim.scan_moves
+    assert len(moves) == 22
+    for k, (a, b, v) in enumerate(moves):
+        assert v == 54
+        assert (b[0] > a[0]) == (k % 2 == 0), k
+    assert len(sim.read_spots) == 528
+    cut = sorted((res / "e3-1").glob("*.cut.ti3"))
+    assert len(cut) == 22
+    strip = (res / "strip_readings.ti3").read_text()
+    assert "NUMBER_OF_SETS 528" in strip
+
+
+def test_e3_asks_after_each_row_and_a_stop_is_clean(tmp_path):
+    code, sim, log, con, res = run_c(tmp_path, ["c1", "d1", "e3", "f"],
+                                     script={"Go on with row 3?": "stop"})
+    v = verdicts(log)
+    assert v == [("c1", "worked"), ("d1", "worked"), ("e3", "stopped by you (clean)"),
+                 ("f", "worked")], v
+    assert len(sim.scan_moves) == 2
+
+
+@pytest.mark.parametrize("speed", [str(v) for v in pc.SPEED_CHOICES])
+def test_e2_runs_at_every_recorded_speed_and_no_other(tmp_path, speed):
+    code, sim, log, con, res = run_c(tmp_path, ["c1", "d1", "e2", "f"],
+                                     script={"At which recorded speed": speed})
+    assert ("e2", "worked") in verdicts(log)
+    assert sim.scan_moves[-1][2] == int(speed)
+    assert set(pc.SPEED_CHOICES) == set(geo.RECORDED_M2_SPEEDS)
+
+
+# ---- the guard at its boundaries ------------------------------------------------------------
+
+A = geo.MEASURING_AREA
+R = geo.AREA_RAW
+
+
+def test_the_area_figures_are_pinned():
+    assert (R.xmin, R.xmax, R.ymin, R.ymax) == (-1434, 1766, 809, 3109)
+    assert (A.xmin, A.xmax, A.ymin, A.ymax) == (-1384, 1716, 859, 3059)
+    assert R.xmax - R.xmin == 3200 and R.ymax - R.ymin == 2300      # 320 x 230 mm
+    # every recorded aimed corner and every recorded chart move lies inside the raw area
+    for name, pts in geo.RECORDED_ALIGNMENTS.items():
+        for p in pts:
+            assert R.contains(p), (name, p)
+    assert R.contains(sc.RECORDED_ROW["start"]) and R.contains(sc.RECORDED_ROW["end"])
+    for t in tbl.SPOT_TARGETS:
+        assert A.contains(t)
+
+
+@pytest.mark.parametrize("x,y,ok", [(A.xmin, A.ymin, True), (A.xmax, A.ymax, True),
+                                    (A.xmin - 1, 2000, False), (A.xmax + 1, 2000, False),
+                                    (0, A.ymin - 1, False), (0, A.ymax + 1, False),
+                                    (0, 2000, True)])
+def test_a_computed_line_is_built_and_passed_only_inside_the_area(x, y, ok):
+    if ok:
+        for line in (geo.m0_line(x, y), geo.m2_line(x, y, 54)):
+            assert cl.classify(line)[1] is True
+    else:
+        with pytest.raises(geo.AreaRefused):
+            geo.m0_line(x, y)
+        with pytest.raises(geo.AreaRefused):
+            geo.m2_line(x, y, 54)
+        forged = geo._line("m0", x, y, 300)
+        with pytest.raises(tbl.ForbiddenLine):
+            cl.classify(forged)
+
+
+@pytest.mark.parametrize("speed", [1, 39, 55, 100, 120, 139, 300, 1000])
+def test_a_scan_move_at_an_unrecorded_speed_is_refused(speed):
+    with pytest.raises(geo.AreaRefused):
+        geo.m2_line(0, 2000, speed)
+    with pytest.raises(tbl.ForbiddenLine):
+        cl.classify(geo._line("m2", 0, 2000, speed))
+
+
+@pytest.mark.parametrize("speed", [100, 150, 299, 301, 500])
+def test_a_computed_move_at_an_unrecorded_speed_is_refused(speed):
+    with pytest.raises(tbl.ForbiddenLine):
+        cl.classify(geo._line("m0", 0, 2000, speed))
+
+
+class _T:
+    position_now = None
+
+
+@pytest.mark.parametrize("start,ok", [((0, 2000), True), ((R.xmin, R.ymin), True),
+                                      ((R.xmin - 1, 2000), False), ((0, R.ymax + 1), False),
+                                      ((1102, 0), False), (None, False)])
+def test_the_gate_checks_the_whole_swept_rectangle_from_a_fresh_reading(start, ok):
+    t = _T()
+    t.position_now = start
+    gate = cl.make_gate(t)
+    line = geo.m0_line(0, 2000)
+    if ok:
+        assert gate(line) == ("m0", True, "computed m0")
+    else:
+        with pytest.raises(tbl.ForbiddenLine):
+            gate(line)
+
+
+def test_the_gate_lets_nothing_else_through():
+    allowed = {tbl.WIRE[k] for k in cl.PART_C_WIRE_KEYS} | set(cl.C_FIXED.values())
+    for line in allowed:
+        cl.classify(line)
+    # part A's move to Y 250 is not part C's (outside the area); its move to (1102, 1000)
+    # lies inside the area, so part C would pass it only as a computed move (fresh reading,
+    # swept rectangle), never as a fixed line
+    with pytest.raises(tbl.ForbiddenLine):
+        cl.classify(tbl.WIRE["to_250"])
+    assert cl.classify(tbl.WIRE["to_1000"])[2] == "computed m0"
+    for bad in (b";i02e\r", b";u8000060000100d1x\r", b";d1016e34\r", b";m0\r",
+                b";m00000000012c00\r", b";w8000000\r", b";m2000007d0003600\r"):
+        with pytest.raises(tbl.ForbiddenLine):
+            cl.classify(bad)
+
+
+def test_every_fixed_part_c_line_is_byte_for_byte_its_recorded_form():
+    assert {k: v.decode().rstrip("\r") for k, v in cl.C_FIXED.items()} == {
+        "aim": ";p124", "scan_c4": ";c42e", "scan_d1": ";d1016d35", "scan_a3": ";a331",
+        "scan_c3": ";c32f"}
+    assert {csim.C_P1, csim.C_C4, csim.C_D1, csim.C_A3, csim.C_C3} == {
+        v.decode().rstrip("\r") for v in cl.C_FIXED.values()}
+    assert sc.recorded_row_plan().m0 == sc.RECORDED_ROW["m0_line"]
+    assert sc.recorded_row_plan().m2 == sc.RECORDED_ROW["m2_line"]
+
+
+def test_the_simulator_keeps_its_own_copy_of_the_area_and_speeds():
+    assert csim.C_TARGET_BOX == (A.xmin, A.xmax, A.ymin, A.ymax)
+    assert csim.C_SWEEP_BOX == (R.xmin, R.xmax, R.ymin, R.ymax)
+    assert csim.C_SPEEDS_M2 == geo.RECORDED_M2_SPEEDS
+    src = (PKG / "i1io_part_c_sim.py").read_text()
+    assert "i1io_geometry" not in src and "i1io_c_lines" not in src
+
+
+def test_the_recorded_alignments_pass_the_checks_or_are_the_known_degenerate_ones():
+    sheet_mm = None
+    for name, pts in geo.RECORDED_ALIGNMENTS.items():
+        (p1, p2, p3) = pts
+        l12 = ((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2) ** 0.5 / 10
+        l23 = ((p2[0] - p3[0]) ** 2 + (p2[1] - p3[1]) ** 2) ** 0.5 / 10
+        aims = ((0.0, 0.0), (0.0, l12), (l23, l12))
+        if name in ("R1 716.8", "R2 144.5"):
+            with pytest.raises(geo.AlignmentRefused):
+                geo.fit_alignment(aims, pts)
+            continue
+        try:
+            al = geo.fit_alignment(aims, pts)
+        except geo.AlignmentRefused as exc:
+            # the front-most recorded aims lie in the 5 mm margin: refused as outside the area
+            assert "outside the measuring area" in str(exc), (name, exc)
+            assert max(p[1] for p in pts) > A.ymax
+            continue
+        assert abs(al.checks["rotation_deg"]) < 1.0
+    del sheet_mm
+
+
+# ---- E2, E3: the strip reading of your sheet ----------------------------------------------
+
+@pytest.mark.parametrize("stage", ["e2", "e3"])
+@pytest.mark.parametrize("fault", [{"not_ready": True}, {"dead": True}, {"lights_err": True}])
+def test_e2_e3_never_send_the_scan_move_to_an_instrument_that_is_not_ready(tmp_path, stage,
+                                                                           fault):
+    rd_ = readers(scan=fault)
+    # C1 calibrates with a healthy reader; the fault starts with the sheet's strip reader
+    calls = []
+
+    def factory(s, lg):
+        r = REAL_FAKE_READERS(s, lg)
+        real_scan = r.scan
+
+        def scan(folder):
+            calls.append(folder)
+            x = real_scan(folder)
+            if len(calls) > 1:
+                x.faults.update(fault)
+            return x
+        r.scan = scan
+        return r
+    del rd_
+    code, sim, log, con, res = run_c(tmp_path, ["c1", "d1", stage, "d2", "f"], readers=factory)
+    v = verdicts(log)
+    assert (stage, "failed cleanly") in v, v
+    assert ("d2", "worked") in v and v[-1] == ("f", "worked"), v
+    assert not any(x.startswith(";m2") for x in sim.received)
+    assert sim.violations == []
+
+
+@pytest.mark.parametrize("stage", ["e2", "e3"])
+@pytest.mark.parametrize("fault", [{"no_lamp": True}, {"dies_at_fire": True}])
+def test_e2_e3_after_the_scan_move_a_failure_says_switch_off_and_leaves_a_marker(tmp_path, stage,
+                                                                                 fault):
+    calls = []
+
+    def factory(s, lg):
+        r = REAL_FAKE_READERS(s, lg)
+        real_scan = r.scan
+
+        def scan(folder):
+            calls.append(folder)
+            x = real_scan(folder)
+            if len(calls) > 1:
+                x.faults.update(fault)
+            return x
+        r.scan = scan
+        return r
+    code, sim, log, con, res = run_c(tmp_path, ["c1", "d1", stage, "f"], readers=factory)
+    assert code == 2
+    text = screen(con)
+    assert "SWITCH THE TABLE OFF" in text
+    assert text.rstrip().count("SWITCH THE TABLE OFF") >= 2     # at once, and in the end text
+    markers = list((res / f"{stage}-1").rglob(sc.PENDING_MARKER))
+    assert len(markers) == 1
+    m2 = [i for i, x in enumerate(sim.received) if x.startswith(";m2")]
+    assert len(m2) == 1 and sim.received[m2[0] + 1:] == [
+        cl.C_FIXED["scan_a3"].decode().rstrip("\r"), cl.C_FIXED["scan_c3"].decode().rstrip("\r")]
+    assert verdicts(log)[-1] == (stage, "stopped")
+    with zipfile.ZipFile(tmp_path / "log-results.zip") as z:
+        assert any(n.endswith(sc.PENDING_MARKER) for n in z.namelist())
+
+
+SHEET_STAGES = ["c1", "d1", "d2", "d3", "e2", "f"]
+
+
+@pytest.mark.parametrize("kind", ["no_answer", "status", "late", "refuse", "no_done"])
+def test_any_fault_at_any_line_of_the_sheet_stages_keeps_every_rule(tmp_path, kind):
+    lines, _ = _clean_run(tmp_path, SHEET_STAGES)
+    start = lines.index(P1) - 25          # from the way out of D1 on
+    for i in range(start, len(lines)):
+        sim = csim.CSimTable(part_c=False)
+        sim.inject_at(i, kind, 30.0 if kind == "late" else 1.0)
+        code, sim, log, con, res = run_c(tmp_path / f"{kind}{i}", SHEET_STAGES, sim=sim)
+        assert sim.violations == [], (kind, i, lines[i], sim.violations)
+        check_no_question_while_moving(con)
+        check_truthful(sim, con, log)
+        assert sim.received[:i + 1] == lines[:i + 1]
+        if code == 2:
+            after = sim.received[i + 1:]
+            path = [cl.C_FIXED[k].decode().rstrip("\r") for k in ("scan_a3", "scan_c3")]
+            if lines[i].startswith(";m2") or lines[i] == path[0]:
+                rest = path if lines[i].startswith(";m2") else path[1:]
+                while after and rest and after[0] == rest[0]:
+                    after, rest = after[1:], rest[1:]
+            assert all(x == P0 for x in after), (kind, i, sim.received[i:])
+
+
+def test_ctrl_c_at_every_question_of_the_sheet_stages_sends_nothing_more(tmp_path):
+    stages = ["c1", "d1", "d2", "d3", "e2", "e3", "f"]
+    lines, n_questions = _clean_run(tmp_path, stages)
+    for n in range(1, n_questions + 1):
+        sim = csim.CSimTable(part_c=False)
+        code, sim, log, con, res = run_c(tmp_path / f"q{n}", stages, sim=sim, interrupt_at=n)
+        assert sim.violations == [], n
+        assert sim.received == lines[:len(sim.received)], n
+        assert not sim.moving and sim.m2_pending is None
+        check_truthful(sim, con, log)

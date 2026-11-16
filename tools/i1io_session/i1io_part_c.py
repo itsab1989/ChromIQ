@@ -703,6 +703,12 @@ class PartC:
         a = d.position_now
         if a is None:
             raise StageFailed(f"{what}: no fresh position reading (a bug)")
+        if d.arm_free and not geo.AREA_RAW.contains(a):
+            raise StageFailed(
+                f"the free arm stands at X {a[0]}, Y {a[1]}, outside the measuring area "
+                f"({geo.AREA_RAW.text()}), and this program starts no move from there. Nothing "
+                "moved. Please push the free arm gently a few centimetres towards the middle "
+                "of your sheet, take your hands off, and run the stage again.")
         geo.check_path(a, target, what)
         if not self.confirm_new_part(a, target):
             raise StageFailed("you did not confirm the first move into a new part of the table")
@@ -935,6 +941,14 @@ class PartC:
         got = d.position()
         if last is not None and not _near(got, last) and d.arm_free is False:
             raise d._doubt(f"before the homing the arm reads {got}, not {last}")
+        if not (geo.AREA_RAW.contains(got) or tbl.START_GUARD.contains(got)):
+            # i1Profiler sent its homing from its charts and from the alignment; never from
+            # outside the measuring area: this program does not either
+            free = (" The arm is free: you can push it gently back over the middle of the table "
+                    "and run F again, or end here.") if d.arm_free else ""
+            raise StageFailed(f"the arm reads X {got[0]}, Y {got[1]}, outside the measuring area "
+                              f"({geo.AREA_RAW.text()}), and this program sends its homing only "
+                              "from inside it. Nothing moved." + free)
         try:
             d.c_exchange(tbl.WIRE["home"], 0, window=(0.8, 8.0), timeout=15.0,
                          late_is_doubt=False)
@@ -1271,6 +1285,12 @@ def page_fit(sheet: dict, page: int, al: "geo.Alignment") -> dict:
     return {"spot_outside": spot_out, "spot_total": n_spot, "rows_outside": rows_out,
             "rows_total": n_rows, "over_spot": over(spot_pts), "over_rows": over(run_pts),
             "say": say}
+
+
+def demo_aims_point(sheet: dict, page_mm, origin=DEMO_ORIGIN) -> "tuple[int, int]":
+    """Where a page point of the demo sheet lies in table units, as the practice run lays it."""
+    u = sc.sheet_table_mm(sheet, page_mm)
+    return (int(round(origin[0] - 10 * u[0])), int(round(origin[1] + 10 * u[1])))
 
 
 def load_sheet(path: Path) -> dict:
