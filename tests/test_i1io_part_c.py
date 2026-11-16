@@ -2027,3 +2027,16 @@ def test_no_text_puts_the_front_limit_beyond_the_frontmost_mark():
     plan = _flat("\n".join(prog.plan_part_c()))
     assert f"up to Y {geo.FRONT_CAP_Y} at the most (up to the frontmost mark of your recorded " \
         "alignments) and never beyond" in plan
+
+
+def test_the_gate_s_own_creep_limit_stops_at_the_cap_without_classify(monkeypatch):
+    """Planted-fault pass of fix 3: the gate's creep limit is a second line behind classify's cap;
+    with classify made permissive, the gate alone still refuses a creep step to Y 3110."""
+    t = _T()
+    t.front_y, t.creep, t.position_now = 3100, True, (0, 3100)
+    monkeypatch.setattr(cl, "classify", lambda line: (line[1:3].decode(), True, "computed m0"))
+    gate = cl.make_gate(t)
+    assert gate(geo._line("m0", 0, 3109, 300))[2] == "computed m0"
+    for y in (3110, 3114):
+        with pytest.raises(tbl.ForbiddenLine):
+            gate(geo._line("m0", 0, y, 300))
