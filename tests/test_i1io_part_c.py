@@ -1999,3 +1999,31 @@ def test_the_rows_words():
     assert pc._rows_words([17, 18]) == "rows 17 and 18"
     assert pc._rows_words([1, 2, 3]) == "rows 1, 2 and 3"
     assert pc._rows_words(range(1, 13)) == "rows 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 and 2 more"
+
+
+def test_no_text_puts_the_front_limit_beyond_the_frontmost_mark():
+    """Fix 3: every text that names the front limit says it lies UP TO the frontmost mark of
+    the recorded alignments, none says 5 mm beyond it, and the README does not put words in the
+    tester's mouth."""
+    old = ("5 mm beyond the frontmost", "5 mm in front of the frontmost", "plus 5 mm",
+           "mark plus 5", "3159", "you have measured charts")
+    for f in sorted(PKG.rglob("*")):
+        if f.suffix not in (".py", ".md") or "__pycache__" in f.parts:
+            continue
+        text = _flat(f.read_text(encoding="utf-8"))
+        for o in old:
+            assert o not in text, (f.name, o)
+    assert "front part reaching at most up to the frontmost mark" in pc.AREA_PARTS
+    assert pc.WHY_BACK.startswith("This program never sends the arm further forward than the "
+                                  "frontmost mark of your recorded i1Profiler alignments")
+    assert "steps go at most up to the frontmost mark" in _flat(pc.STAGE_BY_KEY["dz"].beyond)
+    readme = _flat((PKG / "README.md").read_text(encoding="utf-8"))
+    assert "up to the frontmost mark of your recorded i1Profiler alignments, and no further" \
+        in readme
+    assert "(i1Profiler measures charts laid like this)" in readme
+    bytes_md = _flat((PKG / "BYTES.md").read_text(encoding="utf-8"))
+    assert "targets up to Y 3109 at the most (up to the frontmost mark" in bytes_md
+    assert "never beyond Y 3114" in bytes_md
+    plan = _flat("\n".join(prog.plan_part_c()))
+    assert f"up to Y {geo.FRONT_CAP_Y} at the most (up to the frontmost mark of your recorded " \
+        "alignments) and never beyond" in plan
