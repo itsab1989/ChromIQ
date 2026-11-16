@@ -10824,6 +10824,39 @@ compensation for what it is before anything else is built.
   (`tests/test_fwa_help_says_estimate.py`). The checkbox keeps its name,
   "FWA Compensation (-f)", ArgyllCMS's own.
 
+### ⏳ Awaiting confirmation: the "Spectral filter type (-F)" entries by their new names (4.3.42)
+
+**Confirmed by:** *nobody yet.* The Measure tab's -F list names each entry by
+its M number first and then what the light is (Basti's ruling, 2026-11-16;
+`workflow.measurement_condition.filter_choices`). The values chartread is
+given, their order, the default and the stored `filter_value` are unchanged.
+Two places above still quote the old entries, and are read with the new names
+until this is confirmed; their own text is left as it was:
+
+* **M-RESUME-CONDITION**, `{setting}`: the example "D50 (M1)" is now
+  "M1: D50 daylight (with UV)", the row's own label.
+* **§I.15**, the tooltip for a chartread M1/M2/M3 file: "set to "None (M0)""
+  is now "set to "M0: no filter (lamp as it is)"".
+
+| -F | entry |
+|---|---|
+| `n` | M0: no filter (lamp as it is) |
+| `5` | M1: D50 daylight (with UV) |
+| `6` | D65 daylight filter |
+| `u` | M2: UV cut (no UV) |
+| `p` | M3: polarising filter |
+
+* **Which instruments accept which entry, said in the row's tooltip.** Read in
+  the vendored ArgyllCMS 3.5.0 (`native/instlib`): `chartread.c` sends any -F
+  as `inst_opt_set_filter` and stops with "Setting requested filter not
+  supported by instrument" on anything but `inst_ok`. Only `i1pro3.c` (n, 5,
+  u, and p only with `I1PRO3_CAP_POL`) and `ss.c`, the Spectrolino (n, 6, u,
+  p), handle it; `i1pro.c` (i1Pro 2) and `munki.c` (ColorMunki) fall to
+  `inst_get_set_opt_def`, which returns `inst_unsupported`, so the
+  measurement does not start. The CR30 is never given -F
+  (`CR30_DEAD_OPTIONS`).
+* `docs/manual.html` names the same entries.
+
 ### ⏳ Awaiting confirmation — §I.15 continued: i1Profiler's own choice of condition, and files that hold only some conditions (4.3.24)
 
 **Confirmed by:** *nobody yet.* Measured on jctay's files (printerknowledge,

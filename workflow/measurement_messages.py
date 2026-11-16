@@ -9584,7 +9584,8 @@ def condition_not_asked_line(name: str, condition: str) -> str:
 #: 2026-11-03). {before} is the condition the measurement records, {now}
 #: what the Measure tab is set to (a condition's name, or one of the two
 #: phrases below), {setting} the "Spectral filter type (-F)" choice that
-#: gives {before} ("D50 (M1)"), {box} the resume or refine box's own text.
+#: gives {before} ("M1: D50 daylight (with UV)"), {box} the resume or
+#: refine box's own text.
 M_RESUME_CONDITION = _m(
     "M-RESUME-CONDITION",
     "This measurement cannot be continued with this setting",

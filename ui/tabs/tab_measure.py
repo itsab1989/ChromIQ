@@ -4583,26 +4583,43 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 # configuring the instrument to have a particular filter
                 # fitted", or an emulation mode on the i1Pro 3). The default
                 # itself is Basti's call and is unchanged.
+                # 4.3.42 (review 2): the entries by the names the list shows,
+                # and which instruments accept which, read in the vendored
+                # ArgyllCMS 3.5.0: chartread.c sends any -F as
+                # inst_opt_set_filter and exits on anything but inst_ok;
+                # only i1pro3.c (n, 5, u; p with I1PRO3_CAP_POL) and ss.c
+                # (n, 6, u, p) handle it, i1pro.c and munki.c fall to
+                # inst_get_set_opt_def = inst_unsupported.
                 tr("Sets the filter or measurement mode chartread measures "
                    "with.\n\n"
                    "Some instruments take a physical filter that you fit "
                    "yourself (for example the Spectrolino); others, such as "
                    "the i1Pro 3, have measurement modes that imitate a filter. "
                    "Choose what applies to your instrument:\n\n"
-                   "  n = None  (M0: no filter, the instrument's own lamp)\n"
-                   "  5 = D50   (M1: controlled UV, the ISO 13655 standard)\n"
-                   "  6 = D65   illuminant\n"
-                   "  u = UV Cut (M2: UV excluded)\n"
-                   "  p = Polarizing filter (M3)\n\n"
+                   "  • “M0: no filter (lamp as it is)” (-F n): the "
+                   "instrument's own lamp, unfiltered\n"
+                   "  • “M1: D50 daylight (with UV)” (-F 5): the ISO 13655 "
+                   "M1 condition\n"
+                   "  • “D65 daylight filter” (-F 6): a D65 filter fitted to "
+                   "the instrument\n"
+                   "  • “M2: UV cut (no UV)” (-F u): ultraviolet excluded\n"
+                   "  • “M3: polarising filter” (-F p)\n\n"
+                   "In ArgyllCMS 3.5.0 the i1Pro 3 accepts M0, M1 and M2 (M3 "
+                   "only if it has a polariser), the Spectrolino accepts M0, "
+                   "the D65 daylight filter, M2 and M3, and instruments "
+                   "without such modes or filters, such as the i1Pro 2 and "
+                   "the ColorMunki, accept none of them: the measurement then "
+                   "does not start, and chartread says “Setting requested "
+                   "filter not supported by instrument”.\n\n"
                    "While this row is switched off, which it is unless you "
                    "switch it on, ChromIQ does not pass -F at all, and "
                    "chartread measures in the instrument's normal mode: on the "
                    "i1Pro family that is M0, the instrument's own lamp without "
-                   "a filter. When you switch the row on, D50 (M1) is selected "
-                   "to start with.\n\n"
+                   "a filter. When you switch the row on, “M1: D50 daylight "
+                   "(with UV)” is selected to start with.\n\n"
                    "Change this only if you know which filter or mode your "
-                   "instrument uses. A wrong choice silently skews the "
-                   "measured values.")
+                   "instrument uses. On an instrument that accepts it, a wrong "
+                   "choice silently skews the measured values.")
             ),
             widget=filter_combo,
         ))

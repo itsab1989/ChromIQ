@@ -133,3 +133,49 @@ def test_the_entries_and_the_fwa_line_have_every_language():
         for _, lbl in filter_choices():
             assert cat.get(lbl), (f.name, lbl)
         assert "{choice}" in cat[fwa] and "None (M0)" not in cat[fwa], f.name
+
+
+# ── review 2 (2026-11-16): the row's own help names the entries the list shows,
+# and says which instruments accept which, as the vendored ArgyllCMS does ──
+
+def test_the_rows_help_names_the_entries_and_not_the_old_labels(tab):
+    o = _filter(tab._m_chartread_opts)
+    body = o.tooltip_body
+    for _, lbl in filter_choices():
+        assert f"“{lbl}”" in body, lbl
+    for old in ("None  (M0", "D50 (M1) is selected", "Polarizing filter (M3)"):
+        assert old not in body, old
+    # which instruments accept which, and what happens on one that does not
+    assert "the i1Pro 3 accepts M0, M1 and M2 (M3 only if it has a polariser)" in body
+    assert "the Spectrolino accepts M0, the D65 daylight filter, M2 and M3" in body
+    assert "i1Pro 2 and the ColorMunki, accept none of them" in body
+    assert "Setting requested filter not supported by instrument" in body
+
+
+def test_the_accepted_entries_are_what_the_vendored_argyll_does():
+    """The help's claims, held against the source they were read from."""
+    from pathlib import Path
+    il = Path(__file__).resolve().parents[1] / "native" / "instlib"
+    if not il.is_dir():
+        pytest.skip("vendored ArgyllCMS sources not present")
+    cr = (il / "chartread.c.orig").read_text(encoding="latin-1")
+    assert "inst_opt_set_filter, fe)) != inst_ok" in cr
+    assert "Setting requested filter not supported by instrument" in cr
+    handlers = sorted(p.name for p in il.glob("*.c")
+                      if "inst_opt_set_filter" in p.read_text(encoding="latin-1"))
+    assert handlers == ["i1pro3.c", "ss.c"]
+    p3 = (il / "i1pro3.c").read_text(encoding="latin-1")
+    sw = p3[p3.index("if (ot == inst_opt_set_filter)"):]
+    sw = sw[:sw.index("inst_stat_get_filter")]
+    for case in ("filter_none", "filter_D50", "filter_UVCut"):
+        assert f"case inst_opt_{case}:" in sw
+    assert "inst_opt_filter_D65" not in sw
+    pol = sw[sw.index("case inst_opt_filter_pol:"):]
+    assert pol[len("case inst_opt_filter_pol:"):].lstrip().startswith(
+        "/* M3 */\n\t\t\t\tif (m->capabilities & I1PRO3_CAP_POL)")
+    ss = (il / "ss.c").read_text(encoding="latin-1")
+    sw = ss[ss.index("m == inst_opt_set_filter"):]
+    sw = sw[:sw.index("inst_opt_set_custom_filter")]
+    for case in ("filter_none", "filter_pol", "filter_D65", "filter_UVCut"):
+        assert f"case inst_opt_{case}:" in sw
+    assert "inst_opt_filter_D50" not in sw
