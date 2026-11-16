@@ -304,3 +304,50 @@ def test_rule_l_refuses_a_trailer_that_is_a_board_not_paper(off):
     # the same strip ending on paper is kept
     segs = np.array([*lab[E], PAPER])
     assert ml.decide(segs, [40.0] * (N + 1), [*([14] * N), 30], lab, E, 1)["accept"]
+
+
+def _printed(lab, rng, pred):
+    """A 'printed' chart, as the review's adv.py: the expected colours with a
+    systematic and a per-patch error."""
+    P = lab.copy()
+    P[..., 0] = 50 + (P[..., 0] - 50) * rng.uniform(0.85, 1.05) + rng.uniform(-3, 3)
+    P[..., 1:] *= rng.uniform(0.75, 1.05)
+    return P + rng.normal(0, pred / np.sqrt(3), P.shape)
+
+
+@pytest.mark.parametrize("seed", [1, 2, 3])
+def test_a_late_start_before_a_board_and_a_jump_into_the_neighbour_row_are_never_kept(seed):
+    """Found by re-running the review's adv.py hunt in fix round 1 (seed 1,
+    3 trials): 5 of 4,404 "board_lateM1" (white leader, started one patch in,
+    paper, paper, then a board 4 to 6 dE off: the leader kept as patch 1) and
+    2 of 8,312 "jumped2" (the first half from the neighbour row) were kept.
+    Rule 5 now calls a kept patch within 6 dE of paper paper, and rule 7b
+    holds each half against the same half of every other row."""
+    rng = np.random.default_rng(100 + seed)
+    tries = wrong = 0
+    for name, rows in CHARTS.items():
+        lab = np.array(rows, float)
+        R, N = lab.shape[:2]
+        h = N // 2
+        for _ in range(2):
+            prn = _printed(lab, rng, rng.choice([0, 3, 6, 10]))
+            paper = np.array([rng.uniform(92, 97), rng.uniform(-1, 3), rng.uniform(-8, 6)])
+            noise = rng.choice([0.3, 1.0, 2.5])
+            off = rng.normal(0, 1, 3)
+            board = paper + off / np.linalg.norm(off) * rng.uniform(4, 6)
+            for exp in range(R):
+                cases = [[paper, *prn[exp, 1:], paper, paper, board]]
+                for r in (exp - 1, exp + 1):
+                    if 0 <= r < R:
+                        cases.append([paper, *prn[r, :h], *prn[exp, h:], paper, paper])
+                for segs in cases:
+                    segs = np.array(segs) + rng.normal(0, noise / np.sqrt(3), (len(segs), 3))
+                    n = len(segs)
+                    steps = list(rng.normal(40, 4, n))
+                    no = [max(4, int(x)) for x in rng.normal(14, 2, n)]
+                    for why in (1, 2, 3):
+                        tries += 1
+                        if ml.decide(segs, steps, no, lab, exp, why)["accept"]:
+                            wrong += 1
+    assert tries > 5000
+    assert wrong == 0

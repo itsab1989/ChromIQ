@@ -24,12 +24,14 @@
  *   3. neither the row's first nor its last expected patch is within 10 dE of
  *      paper white (a white end patch could be the margin itself);
  *   4. the kept patches match the expected row with a mean of at most 35 dE;
- *   5. no kept patch is paper white where the row expects a colour;
+ *   5. no kept patch is within 6 dE of paper white where the row expects a
+ *      colour;
  *   6. that match is at most half the best alternative: every other row in
  *      both directions, and this row shifted by one or two patches either
  *      way, in both directions;
  *   7. each half of the row on its own is at most half of itself shifted by
- *      one patch (a split or a merge in the middle shifts one half only);
+ *      one patch (a split or a merge in the middle shifts one half only),
+ *      and at most half of the same half of every other row (7b);
  *   8. no kept candidate is flagged by the driver (inconsistent, saturated,
  *      too few readings), as ArgyllCMS would refuse such a patch too.
  * Rule M uses the segments between the leader and the trailer; rule L (the
@@ -47,7 +49,7 @@
 #include "chromiq_margin.h"
 
 const char *cqm_version(void) {
-	return "M+L 2 (2026-11-16)";
+	return "M+L 3 (2026-11-16)";
 }
 
 void cqm_xyz2lab(const double xyz[3], double lab[3]) {
@@ -136,9 +138,12 @@ static int decide(const cqm_cands *c, const int *idx, int n, const double *paper
 		snprintf(why, wsz, "fit %.1f dE is above %.0f", bf, CQM_GOOD);
 		return 0;
 	}
-	/* 5 */
+	/* 5: within twice the margin's 3 dE, not 3 dE: the paper the rules go
+	 * by can itself be 3 to 6 dE off the real paper (rule L's trailer on a
+	 * jig or a board), and then a margin kept as a patch must still show
+	 * (review hunt of fix round 1, "board_lateM1": 5 wrong keeps in 4,404) */
 	for (i = 0; i < N; i++)
-		if (de(C[bo + i], paper) <= CQM_T_PAPER
+		if (de(C[bo + i], paper) <= CQM_PAPER_KEPT
 		 && de(ref(ch, ch->exp, bdr, i), paper) >= CQM_T_END) {
 			snprintf(why, wsz, "paper white where patch %d should be", i + 1);
 			return 0;
@@ -186,6 +191,24 @@ static int decide(const cqm_cands *c, const int *idx, int n, const double *paper
 				return 0;
 			}
 		}
+		/* 7b: and at most half of the same half of every other row, in
+		 * both directions: a swipe that ran into the neighbour row for one
+		 * half moves the whole row's mean too little (review hunt of fix
+		 * round 1, "jumped2": 2 wrong keeps in 8,312) */
+		for (r = 0; r < ch->rows; r++)
+			for (dr = 0; dr < 2; dr++) {
+				double alt = 0.0;
+				if (r == ch->exp && dr == bdr)
+					continue;
+				for (i = lo; i < hi; i++)
+					alt += de(ref(ch, r, dr, i), C[bo + i]);
+				alt /= (hi - lo);
+				if (own > CQM_RATIO * alt) {
+					snprintf(why, wsz, "patches %d to %d match another strip too",
+					         lo + 1, hi);
+					return 0;
+				}
+			}
 	}
 	/* 8 */
 	for (i = 0; i < N; i++)

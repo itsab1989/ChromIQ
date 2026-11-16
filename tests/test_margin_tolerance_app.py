@@ -98,7 +98,7 @@ def test_start_lines(tmp_path):
 KEPT = {"tried": True, "accepted": True, "rule": "M", "left_start": 1,
         "left_end": 0, "standing": 0, "leader": True, "fit": 3.2,
         "rival": 41.0, "segments": 21, "refused_because": "Too many patches",
-        "rules": "M+L 2 (2026-11-16)"}
+        "rules": "M+L 3 (2026-11-16)"}
 
 
 @pytest.mark.parametrize("m,words", [
@@ -129,7 +129,7 @@ def test_a_strip_not_kept_gets_no_line_and_is_filed_as_refused(tmp_path):
     rs, _ = _session(tmp_path)
     rec = _rec("C", 300, result="misread", reason="Too many patches",
                margin={"tried": True, "accepted": False, "why": "count 17",
-                       "segments": 19, "rules": "M+L 2 (2026-11-16)"},
+                       "segments": 19, "rules": "M+L 3 (2026-11-16)"},
                trigger_wait_ms=0)
     lines = rs.on_strip(rec)
     assert not any("margin tolerance" in ln for ln in lines)

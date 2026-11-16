@@ -26,6 +26,7 @@ extern "C" {
 
 /* The thresholds (CIE76 dE in CIE Lab D50, ruler steps, readings). */
 #define CQM_T_PAPER   3.0	/* a left-out candidate is this close to paper white */
+#define CQM_PAPER_KEPT 6.0	/* rule 5: a kept patch this close to paper is paper */
 #define CQM_T_END    10.0	/* the row's first / last expected patch is at least this far from paper */
 #define CQM_GOOD     35.0	/* the winning fit, mean dE per patch, at most */
 #define CQM_RATIO     0.5	/* ... and at most this share of every alternative */

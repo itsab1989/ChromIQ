@@ -12750,8 +12750,9 @@ written here.
   patches match the expected row with a mean of at most 35 ΔE76 and at most
   half of every alternative (every other row in both directions, this row
   shifted by one or two patches either way); each half of the row is at most
-  half of itself shifted by one; no kept patch is paper white where the row
-  expects a colour; the ruler shows 0.6 to 1.5 times the median patch length
+  half of itself shifted by one and at most half of the same half of every
+  other row in both directions; no kept patch is within 6 ΔE76 of paper
+  white where the row expects a colour; the ruler shows 0.6 to 1.5 times the median patch length
   over each kept patch, in the strip's direction, and more than 3 readings,
   with nothing longer than a 3-reading sliver left out inside the row; the
   ruler position never falls back more than 3 steps over the whole
