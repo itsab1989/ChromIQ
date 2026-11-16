@@ -44,7 +44,19 @@ READING_S = 0.005004
 FIRST_READING_AFTER_LAMP_S = 0.370
 DONE_EXTRA_S = (0.42, 0.50)
 DONE_EXTRA_ACCEPT_S = (0.25, 1.20)
-MOTION_START_AFTER_LAMP_S = 0.43
+#: motion start after the lamp trigger, for cutting by position. MEASURED (value replay of
+#: 2026-11-16, ChromIQ-work 2026-11-16_i1io_app_prep/values; study/i1io-scan 9f01e8acd): every
+#: patch of 20 recorded passes located in the reading stream by its own spot or i1Profiler
+#: value, R1 R2 S2 at 40-138 mm/s: lamp + 0.3718 s, sd 0.0027 s (half a reading), min 0.363,
+#: max 0.376. The move starts with the FIRST READING (0.370), not d1's 365 ms after it. The
+#: 0.43 used before (0.5.0) was 12 readings late; the uniformity refinement did not rescue it
+#: on the R1/R2 rows (dE00 mean 21 against the spots; 2.1 with 0.372 and no refinement, 0.2-0.3
+#: on the patches that are uniform in the stream).
+MOTION_START_AFTER_LAMP_S = 0.372
+#: readings the cut may move the motion start by, by default: none. A refinement that picks
+#: the most uniform windows was MEASURED to wander on real rows (R1 R2: lamp + 0.305..0.500
+#: for +-25 readings, 0.352..0.392 for +-4) and to make the values worse.
+CUT_REFINE_READINGS = 0
 ARRIVAL_UNITS = 5
 ACK_TIMEOUT_S = 0.5
 PENDING_EXTRA_S = 10.0
@@ -500,9 +512,14 @@ def _mean(rows):
     return [sum(r[j] for r in rows) / n for j in range(len(rows[0]))]
 
 
-def cut_by_position(plan: RowPlan, spec_rows, refine_readings: int = 25):
-    """Patches from the reading stream by POSITION (the move's own profile, the recorded first-
-    reading delay, a motion start near 0.43 s after the lamp refined by the readings)."""
+def cut_by_position(plan: RowPlan, spec_rows, refine_readings: int = CUT_REFINE_READINGS):
+    """Patches from the reading stream by POSITION: the move's own profile (V, A), the
+    recorded first-reading delay and the measured motion start MOTION_START_AFTER_LAMP_S.
+    refine_readings > 0 also tries shifts of up to that many readings and keeps the one
+    that makes every patch window most uniform (off by default: measured to mislead).
+    Returns (patch spectra, info); info["uniformity"] is, per patch, the largest
+    difference of one reading in its window from the window's mean (any band), so a
+    window that is not on one colour can be seen."""
     n = len(spec_rows)
     best = None
     for k in range(-refine_readings, refine_readings + 1):
@@ -523,8 +540,11 @@ def cut_by_position(plan: RowPlan, spec_rows, refine_readings: int = 25):
         raise ValueError("no motion start puts every patch inside the reading stream")
     cost, ms, w = best
     vals = [_mean(spec_rows[i0:i1]) for i0, i1 in w]
+    uni = [max((abs(a - b) for r in spec_rows[i0:i1] for a, b in zip(r, v)), default=0.0)
+           for (i0, i1), v in zip(w, vals)]
     info = {"motion_start_after_lamp_s": round(ms, 4), "windows": w,
-            "readings_per_patch": [i1 - i0 for i0, i1 in w], "residual": cost}
+            "readings_per_patch": [i1 - i0 for i0, i1 in w], "residual": cost,
+            "uniformity": [round(u, 5) for u in uni]}
     return vals, info
 
 

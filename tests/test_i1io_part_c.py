@@ -151,7 +151,8 @@ def check_truthful(sim, con, log):
 
 
 END_QUESTIONS = ("Did you hear anything unusual", "Had the table been switched off",
-                 "Which lights are on", "If you have seen it", "Did anything else surprise")
+                 "Which lights are on", "If you have seen it", "Did anything else surprise",
+                 "The table's USB connection was lost during this run")      # 0.5.1
 
 
 def check_no_question_while_moving(con):
@@ -1068,9 +1069,9 @@ def test_the_instrument_check_wants_exactly_one_i1pro_and_nothing_else():
     table, pro = (0x0971, 0x2004), (0x0971, 0x2000)
     assert instrument_check([table, pro, (0x05AC, 0x1234)]) is None
     assert "no i1Pro 2" in instrument_check([table])
-    assert "more than one" in instrument_check([table, pro, pro])
+    assert "2 separate i1Pro devices" in instrument_check([table, pro, pro])
     for other in ((0x0765, 0x5020), (0x085C, 0x0500), (0x0971, 0x2007)):
-        assert "Another measuring instrument" in instrument_check([table, pro, other])
+        assert "another measuring instrument" in instrument_check([table, pro, other])
 
 
 def test_the_reader_s_problems_are_named(tmp_path, monkeypatch):

@@ -25,6 +25,12 @@ from i1io_session_sim import (F1, I1, SPOT_XY, SPOTS, M1L, M1498, M2507, SimTabl
                               _near, _first_start, _out_start)
 from i1io_session_table import checksum, checksum_ok
 
+#: When the simulated table starts a scan move, after the lamp trigger. The simulator's OWN
+#: number, deliberately not the stage's: until 0.5.1 the simulator used the same 0.43 as the
+#: stage, so a wrong constant could never show in a test. Measured on the recordings (value
+#: replay, 20 passes; study/i1io-scan 9f01e8acd): lamp + 0.3718 s, sd 0.0027 s.
+TABLE_MOTION_START_AFTER_LAMP_S = 0.372
+
 # ---- the simulator's own copy of part C's rules ---------------------------------------------
 C_P1, C_C4, C_D1, C_A3, C_C3 = ";p124", ";c42e", ";d1016d35", ";a331", ";c32f"
 C_SPEEDS_M2 = (40, 53, 54, 61, 87, 88, 110, 118, 137, 138)
@@ -277,7 +283,7 @@ class CSimTable(SimTable):
             return
         p["lamp"] = True
         extra = 0.42 + 0.08 * self.lamp_rng.random()
-        p["motion_start"] = t_lamp + 0.43
+        p["motion_start"] = t_lamp + TABLE_MOTION_START_AFTER_LAMP_S
         done_at = t_lamp + (p["T"] + p["A"]) / 1000.0 + extra
         self._busy_until = done_at
         self.scan_moves.append((tuple(self.pos), p["to"], p["v"]))
@@ -498,7 +504,7 @@ class FakeScanReader:
             return L - 0.5 * acc * max(0.0, tt - t) ** 2
         rows = []
         for i in range(n):
-            t = 0.370 + (i + 0.5) * READING_S - 0.43
+            t = 0.370 + (i + 0.5) * READING_S - TABLE_MOTION_START_AFTER_LAMP_S
             s = s_at(t)
             f = s / L if L else 0
             x, y = a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1])

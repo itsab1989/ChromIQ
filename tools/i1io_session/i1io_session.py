@@ -934,6 +934,9 @@ class Session:
             self.ui.say(STOPPED)
             return 1
         except Doubt as exc:
+            lost = getattr(self.d, "link_lost_text", None)     # 0.5.1, part C only
+            if lost and lost not in (exc.plain or ""):
+                self.ui.say(lost)
             self.ui.say(exc.plain or f"The program stopped because {exc}. Nothing more is "
                         "sent to the table.")
             return 2
@@ -1061,6 +1064,11 @@ class Session:
         transport.close()
         log("INFO", "the program has let go of the table's USB connection (nothing is sent "
                     "when it does)")
+        if self.part == "C":
+            self.ui.say("")
+            self.ui.say("This program has let go of the table's USB connection (nothing is sent "
+                        "when it does). i1Profiler can use the table again once this program "
+                        "has ended.")
         if touch:
             self.ui.say("The program has now let go of the table's USB connection. It waits "
                         "ten seconds; then please touch the holder gently once more, the same "
@@ -1086,6 +1094,8 @@ class Session:
         try:
             self.ui.say("")
             self.ui.say("A few questions for the report (just press Enter to skip one).")
+            if self.part == "C" and getattr(self.d, "link_lost_at", None) is not None:
+                self.note(ASK_LINK_LOST, self.ui.text(ASK_LINK_LOST))
             for q in ("Did you hear anything unusual (grinding, knocking, clicking, a long "
                       "buzz)? If yes, during which step?",
                       "Had the table been switched off and on before this run? If yes, how "
@@ -1098,6 +1108,11 @@ class Session:
                 self.ui.say("Questions skipped.")
             except BaseException:
                 pass
+
+#: 0.5.1, part C: asked first after a lost USB link
+ASK_LINK_LOST = ("The table's USB connection was lost during this run. Did you unplug a cable or "
+                 "switch the table off, or did it happen by itself? (a few words; press Enter to "
+                 "skip)")
 
 # ---- the environment -------------------------------------------------------------------
 

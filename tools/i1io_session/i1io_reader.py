@@ -91,48 +91,152 @@ def helper_problems(path: Path) -> "list[str]":
     return out
 
 
-def usb_ids() -> "list[tuple[int, int]]":
-    """(vendor, product) of every USB device, from macOS's own list (ioreg, read only; no device
-    is opened and nothing but these two numbers is kept)."""
+def _usb_tree() -> "list | None":
+    """macOS's own list of USB devices (``ioreg``, read only: no device is opened). None when
+    it cannot be read."""
     import plistlib
     try:
         out = subprocess.run(["/usr/sbin/ioreg", "-a", "-r", "-c", "IOUSBHostDevice", "-l"],
                              capture_output=True, timeout=5).stdout
         roots = plistlib.loads(out) if out.strip() else []
     except Exception:
-        return []
+        return None
     if isinstance(roots, dict):
         roots = [roots]
-    found = []
+    return roots if isinstance(roots, list) else None
 
-    def walk(n):
+
+def _is_interface(node: dict) -> bool:
+    """An interface entry of a device (IOUSBHostInterface): macOS gives it the device's own
+    idVendor and idProduct (drivers match on them), so it must never be counted as a device.
+    0.5.0 counted it, and saw two i1Pros where one i1Pro 2 was connected."""
+    return "bInterfaceNumber" in node or "Interface" in str(node.get("IOObjectClass", ""))
+
+
+def usb_devices(roots=None) -> "list[dict] | None":
+    """Every USB DEVICE once, from macOS's list: {"vid", "pid", "place" (macOS's locationID,
+    the port path; not a serial number), "hub" (a hub's device class), "interfaces" (how many
+    interface entries of that device were seen and NOT counted)}. Only these numbers are kept;
+    names and serial numbers are never read. A device that macOS lists twice (same place) is
+    counted once. None when macOS's list cannot be read."""
+    roots = _usb_tree() if roots is None else roots
+    if roots is None:
+        return None
+    devices: "dict[object, dict]" = {}
+    interfaces: "dict[object, int]" = {}
+    order = []
+
+    def key_of(n, fallback):
+        loc = n.get("locationID")
+        if isinstance(loc, int):
+            return ("place", loc)
+        rid = n.get("IORegistryEntryID")
+        return ("id", rid) if isinstance(rid, int) else ("node", fallback)
+
+    def walk(n, parent_key):
         if not isinstance(n, dict):
             return
         v, p = n.get("idVendor"), n.get("idProduct")
+        here = parent_key
         if isinstance(v, int) and isinstance(p, int):
-            found.append((v, p))
+            if _is_interface(n):
+                k = key_of(n, parent_key) if isinstance(n.get("locationID"), int) else parent_key
+                interfaces[k] = interfaces.get(k, 0) + 1
+            else:
+                here = key_of(n, len(order))
+                if here not in devices:
+                    loc = n.get("locationID")
+                    devices[here] = {"vid": v, "pid": p,
+                                     "place": loc if isinstance(loc, int) else None,
+                                     "hub": n.get("bDeviceClass") == 9}
+                    order.append(here)
         for c in n.get("IORegistryEntryChildren", []) or []:
-            walk(c)
+            walk(c, here)
     for r in roots:
-        walk(r)
-    return found
+        walk(r, None)
+    out = []
+    for k in order:
+        d = dict(devices[k])
+        d["interfaces"] = interfaces.get(k, 0)
+        out.append(d)
+    return out
 
 
-def instrument_check(ids=None) -> "str | None":
-    """None when exactly one i1Pro 2 (or i1Pro) and no other measuring instrument is connected,
-    so that the reader's port 1 is that i1Pro; otherwise the plain reason."""
-    ids = usb_ids() if ids is None else ids
-    pros = [i for i in ids if i == I1PRO_IDS]
-    others = [i for i in ids if i[0] in OTHER_INSTRUMENT_VENDORS
-              or (i[0] == 0x0971 and i not in (I1PRO_IDS, TABLE_IDS))]
+def usb_ids() -> "list[tuple[int, int]]":
+    """(vendor, product) of every USB device, each device once (interface entries are not
+    devices). [] when macOS's list cannot be read."""
+    return [(d["vid"], d["pid"]) for d in (usb_devices() or [])]
+
+
+def _place(d) -> str:
+    return f"{d['place']:08x}" if isinstance(d.get("place"), int) else "unknown"
+
+
+def _is_other_instrument(d) -> bool:
+    if d.get("hub"):
+        return False
+    ids = (d["vid"], d["pid"])
+    return d["vid"] in OTHER_INSTRUMENT_VENDORS or (d["vid"] == 0x0971
+                                                    and ids not in (I1PRO_IDS, TABLE_IDS))
+
+
+def seen_text(devices) -> str:
+    """What the check saw, for the log (numbers only: USB ids and macOS's USB place; never a
+    name or a serial number)."""
+    if devices is None:
+        return "macOS's list of USB devices could not be read"
+    parts = []
+    for d in devices:
+        ids = (d["vid"], d["pid"])
+        if ids == TABLE_IDS:
+            what = "the table"
+        elif ids == I1PRO_IDS:
+            what = "an i1Pro (counted)"
+        elif _is_other_instrument(d):
+            what = "a measuring instrument (counted)"
+        else:
+            continue
+        extra = f", {d['interfaces']} interface entr{'y' if d['interfaces'] == 1 else 'ies'} " \
+                "of it not counted" if d["interfaces"] else ""
+        parts.append(f"{d['vid']:04x}:{d['pid']:04x} {what} at USB place {_place(d)}{extra}")
+    rest = len(devices) - len(parts)
+    parts.append(f"{rest} other USB device{'' if rest == 1 else 's'} (hubs, keyboards and the "
+                 "like; not counted)")
+    return "; ".join(parts)
+
+
+AFTER_END = ("Please do this only after this program has ended (type end at the next question): "
+             "never unplug anything while it runs, and never the table or the i1Pro 2 in its arm.")
+
+
+def instrument_check(ids=None, devices=None, log=None) -> "str | None":
+    """None when exactly one i1Pro 2 (or i1Pro) DEVICE and no other measuring instrument is
+    connected, so that the reader's port 1 is that i1Pro; otherwise the plain reason, which says
+    what macOS listed. *ids* (a list of (vendor, product), one per device) is for tests; *log*
+    gets exactly what was counted."""
+    if devices is None:
+        devices = ([{"vid": v, "pid": p, "place": None, "hub": False, "interfaces": 0}
+                    for v, p in ids] if ids is not None else usb_devices())
+    if log is not None:
+        log("INST", "instrument check: macOS lists " + seen_text(devices))
+    if devices is None:
+        return ("The program could not read macOS's list of USB devices, so it did not start "
+                "the reader. Nothing was sent to the instrument.")
+    pros = [d for d in devices if (d["vid"], d["pid"]) == I1PRO_IDS]
+    others = [d for d in devices if _is_other_instrument(d)]
     if not pros:
         return ("macOS lists no i1Pro 2 (USB 0971:2000). Is it seated in the arm and its cable "
-                "plugged in, as when you use it with i1Profiler?")
+                "plugged in, as when you use it with i1Profiler? The reader was not started.")
     if len(pros) > 1:
-        return "macOS lists more than one i1Pro. Please connect only the one in the table."
+        return (f"macOS lists {len(pros)} separate i1Pro devices (USB 0971:2000, at USB places "
+                + ", ".join(_place(d) for d in pros) + "). The reader needs exactly one, the "
+                "i1Pro 2 in the table's arm, so it was not started. If another i1Pro is plugged "
+                "into this Mac, please unplug that other one. " + AFTER_END)
     if others:
-        return ("Another measuring instrument is connected besides the i1Pro 2. Please unplug "
-                "it for this run, so the reader cannot open the wrong one.")
+        return ("Besides the i1Pro 2, macOS lists another measuring instrument (USB "
+                + ", ".join(f"{d['vid']:04x}:{d['pid']:04x}" for d in others) + "), so the "
+                "reader was not started: it could open the wrong one. Please unplug that other "
+                "instrument for this run. " + AFTER_END)
     return None
 
 

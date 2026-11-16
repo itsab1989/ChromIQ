@@ -543,9 +543,19 @@ this, but it is the one state nothing sent can end, so you should know it.
 
 ChromIQ's reader opens the i1Pro 2 with the ArgyllCMS instrument library, as
 ChromIQ does when you measure by hand. On a Mac that library **closes X-Rite's
-background service i1ProDeviceService** when it opens the instrument (that is
-how ArgyllCMS always opens an i1Pro; its own note says the service starts
-again by itself). The program tells you before the first reading. The
+background service i1ProDeviceService** if it finds the instrument in use
+when it opens it, again and again for up to about two seconds, until it has
+the instrument (that is how ArgyllCMS always opens an i1Pro; its own note
+says the service starts again by itself). X-Rite's other background program,
+xrdd, is not touched. Before the first reader of a sitting starts, the
+program tells you this and asks for your yes. What we do not know is whether
+i1Profiler finds the i1Pro 2 straight away afterwards on your Mac: if it does
+not, unplug the USB cable of the table and the i1Pro 2 from the Mac and plug
+it in again (after this program has ended); if it still does not, restart
+the Mac.
+
+While this program runs, it keeps the table's USB connection, so i1Profiler
+cannot find the table until the program has ended. The
 calibration is ArgyllCMS's own, kept in ArgyllCMS's usual file on your Mac,
 not in the instrument.
 

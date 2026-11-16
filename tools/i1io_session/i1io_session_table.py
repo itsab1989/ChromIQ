@@ -40,7 +40,7 @@ import time
 from dataclasses import dataclass
 
 TOOL_NAME = "chromiq-i1io-session"
-TOOL_VERSION = "0.5.0"
+TOOL_VERSION = "0.5.1"
 
 VID, PID = 0x0971, 0x2004
 
@@ -832,6 +832,15 @@ PART_CAPS = {"A": (MAX_LINES, MAX_MOTIONS), "B": (B_MAX_LINES, B_MAX_MOTIONS)}
 
 # ---- the session ------------------------------------------------------------------------
 
+#: how every lost USB link is reported (the reason of the Doubt starts with it)
+LINK_FAILED = "the USB link failed"
+#: 0.5.1, part C: what a lost USB link means, on screen
+LINK_LOST = (
+    "The table's USB connection was lost ({detail}). That happens when a USB cable is unplugged, when the table is switched off, or when the USB "
+    "connection drops by itself. This program cannot reach the table any more and sends nothing "
+    "more to it, and it offers no more stages.")
+
+
 class Doubt(Exception):
     """Something was not as expected. From now on NOTHING more is sent."""
 
@@ -949,6 +958,13 @@ class Table:
         #: a stop asked for there is honoured after the scan move has ended, never between the
         #: scan move and the two lines (a3, c3) that belong to it
         self.defer_stop = False
+        # ---- 0.5.1 ----
+        #: the table's clock time when its USB link was lost (part C), None while it works
+        self.link_lost_at: "float | None" = None
+        #: what the person is told about it (said once, whichever way the stage ends)
+        self.link_lost_text: "str | None" = None
+        #: the table's clock time of the last position reading (last_read)
+        self.last_read_t: "float | None" = None
 
     # ---- logging and stopping ------------------------------------------------------
     def log(self, kind: str, text: str) -> None:
@@ -962,7 +978,23 @@ class Table:
             self.closed_reason = reason
             self.log("STOP", f"nothing more is sent: {reason}")
 
+    def _note_link_lost(self, detail: str) -> "str | None":
+        """0.5.1, part C only: remember that the USB link was lost, and what to tell the
+        person (once). Sends nothing and closes nothing by itself."""
+        if self.part != "C":
+            return None
+        if self.link_lost_at is None:
+            self.link_lost_at = self.t.now()
+            self.link_lost_text = LINK_LOST.format(detail=detail)
+            self.log("DATA", f"the USB link was lost: {detail}")
+        return self.link_lost_text
+
     def _doubt(self, reason: str, plain: "str | None" = None) -> Doubt:
+        if reason.startswith(LINK_FAILED):
+            # 0.5.1: part C says plainly what a lost link means (parts A and B unchanged)
+            lost = self._note_link_lost(reason[len(LINK_FAILED):].lstrip(": "))
+            if lost:
+                plain = lost if not plain else lost + " " + plain
         self.close_for_sending(reason)
         return Doubt(reason, plain)
 
@@ -1267,12 +1299,18 @@ class Table:
             return self._read_line(deadline, max_len)
         except TimeoutError:
             return None
+        except TransportError as exc:
+            # 0.5.1: the scan path decides what follows (as in 0.5.0); the loss is remembered
+            # so that the person is told about it
+            self._note_link_lost(str(exc))
+            raise
 
     # ---- the opening and the steps --------------------------------------------------
     def position(self) -> "tuple[int, int]":
         p = self.exchange("position").xy()
         self.position_now = p
         self.last_read = p
+        self.last_read_t = self.t.now()
         self.arrival_unknown = False
         return p
 

@@ -113,9 +113,10 @@ STAGES = (
           "Nothing moves. The program checks that the arm is at its resting place, then starts "
           "ChromIQ's own reader (in the bin folder of this package). The reader opens the i1Pro 2 "
           "while this program keeps the table. On a Mac, the ArgyllCMS instrument library inside "
-          "the reader closes X-Rite's background service i1ProDeviceService when it opens the "
-          "instrument (that is how ArgyllCMS always opens an i1Pro; its own note says the service "
-          "starts again by itself). Then the instrument is calibrated twice, once for spot "
+          "the reader closes X-Rite's background service i1ProDeviceService if it finds the "
+          "instrument in use when it opens it (that is how ArgyllCMS always opens an i1Pro; its "
+          "own note says the service starts again by itself; you are asked before the reader "
+          "starts). Then the instrument is calibrated twice, once for spot "
           "readings and once for strip readings, on a white tile you choose: the i1Pro 2's own "
           "calibration tile, or the table's tile under the arm at its resting place.",
           "The table hears nothing new: one position reading. The calibration is ArgyllCMS's own "
@@ -305,13 +306,51 @@ MODE_ON = ("The table is still in the hand-alignment mode (f0, which switches it
            "mode.")
 
 
+#: 0.5.1: the way back after a lost USB link (part C)
+LINK_WAY_BACK = (
+    "The safe way back, in this order: (1) let this program end: answer the few questions that "
+    "follow, or press Enter at each; (2) switch the table off with its power switch, wait ten "
+    "seconds and switch it on again, or unplug the table's USB cable from the Mac and plug it in "
+    "again; (3) open i1Profiler and let it find the table (it brings the arm home as usual); "
+    "(4) if i1Profiler does not find the table, restart the Mac. Please do not start this "
+    "program again before i1Profiler has found the table.")
+#: 0.5.1: said after every stage that failed or was stopped while the sitting goes on
+HOLDS_TABLE = ("While this program runs, it keeps the table's USB connection, so i1Profiler "
+               "cannot find the table until this program has ended (type end at the next "
+               "question). Please do not unplug or switch off anything while it runs.")
+
+
+def link_lost_where(d: tbl.Table) -> "list[str]":
+    """0.5.1: the state after a lost USB link, from what the table last answered."""
+    p, t = d.last_read, d.last_read_t
+    if p is None:
+        first = ("The arm's position was not read in this sitting before the connection was "
+                 "lost" + ("" if d.motions_sent == 0 else ", after its last movement") + ".")
+    else:
+        where = (": at its resting place" if tbl.REST_GUARD.contains(p)
+                 else ", out on the table")
+        age = (f", {max(0.0, d.link_lost_at - t):.0f} s before the connection was lost"
+               if t is not None else "")
+        first = f"The arm last read X {p[0]}, Y {p[1]}{where}{age}."
+    out = [first + " What the table did after that, this program cannot know." + (
+        " Nothing was moved in this sitting." if d.motions_sent == 0 else
+        " Please do not push the arm around.")]
+    if d.mode_on:
+        out.append(MODE_ON)
+    out.append(LINK_WAY_BACK)
+    return out
+
+
 def where_text(d: tbl.Table) -> "list[str]":
     """The TRUE state from what the table last answered: the last READ position decides."""
     if d.closed_reason == "a scan move may be pending" or (
             d.motion_unconfirmed and d.last_move and d.last_move[0] == "scan move"):
-        return [PENDING]
+        return [PENDING] + ([LINK_WAY_BACK] if d.link_lost_at is not None else [])
     if d.motion_unconfirmed:
-        return [UNFINISHED] + ([MODE_ON] if d.mode_on else [])
+        return [UNFINISHED] + ([MODE_ON] if d.mode_on else []) + (
+            [LINK_WAY_BACK] if d.link_lost_at is not None else [])
+    if d.link_lost_at is not None:
+        return link_lost_where(d)
     p = d.position_now
     if d.motions_sent == 0 and p is None:
         return ["Nothing was moved."]
@@ -616,6 +655,8 @@ class PartC:
             if verdict.startswith("failed") or verdict.startswith("stopped by you"):
                 self.ui.say("Everything about it is kept in the results. " + " ".join(
                     where_text(d)[:1]))
+                if self.ok_to_go_on():
+                    self.ui.say(HOLDS_TABLE)
         if verdict != "worked" or s.key in ("f",):
             pass
         if s.key != "f" and self.ok_to_go_on():
@@ -863,7 +904,15 @@ class PartC:
         if why:
             raise rd.ReaderFailed(why)
         if not self.notice_said:
-            self.ui.say(C1_SAY)
+            # 0.5.1: the person agrees to what the reader does to X-Rite's service BEFORE the
+            # first reader of the sitting starts (once; a no ends the stage cleanly, nothing
+            # has been started and nothing is sent)
+            self.ui.say("")
+            self.ui.say(READER_CONSENT)
+            ans = self.ui.ask(ASK_READER_CONSENT, ("yes", "no"))
+            self.s.note("part C: start the reader (X-Rite's service)", ans)
+            if ans != "yes":
+                raise PersonStopped("you chose not to start the reader; it was not started")
             self.notice_said = True
 
     notice_said = False
@@ -1437,7 +1486,7 @@ class Readers:
         problems = rd.helper_problems(self.helper)
         if problems:
             return " ".join(problems)
-        return rd.instrument_check()
+        return rd.instrument_check(log=self.log)
 
     def spot(self, folder, name, patches, calibrate):
         return rd.SpotReader(self.helper, folder, name, patches, self.log, calibrate)
@@ -1613,7 +1662,22 @@ C_INTRO = (
     "file to send back. Some stages are first tries: they may simply fail, and that is useful "
     "too.")
 C1_SAY = ("Opening the instrument with ChromIQ's reader now (on a Mac this closes X-Rite's "
-          "i1ProDeviceService, as ArgyllCMS always does when it opens an i1Pro).")
+          "i1ProDeviceService if the instrument is in use, as ArgyllCMS always does when it "
+          "opens an i1Pro).")
+#: 0.5.1: said and agreed to before the first reader of a sitting starts
+READER_CONSENT = (
+    "Before the reader starts, please know what it does on a Mac. ChromIQ's reader opens the "
+    "i1Pro 2 with the ArgyllCMS instrument library, as ChromIQ does when you measure by hand. "
+    "When that library opens an i1Pro on a Mac and finds it in use, it closes X-Rite's "
+    "background service for the i1Pro (i1ProDeviceService), again and again for up to about two "
+    "seconds, until it has the instrument (if the instrument is free, it closes nothing). "
+    "macOS normally starts that service again by itself afterwards. X-Rite's other background "
+    "program, xrdd, is not touched. What we do not know: whether i1Profiler finds the i1Pro 2 straight away after "
+    "this on your Mac. If it does not, unplugging the USB cable of the table and the i1Pro 2 "
+    "from the Mac and plugging it in again may help (only after this program has ended); if "
+    "it still does not, restarting the Mac will. " + C1_SAY.split(" (")[0].replace(
+        " now", "") + " happens only after your yes.")
+ASK_READER_CONSENT = "Start ChromIQ's reader now, knowing this?"
 CAL_WHERE = (
     "Where should the instrument be calibrated? arm: it stays seated in the arm at the resting "
     "place, its opening on the table's white tile (nothing to handle; ArgyllCMS then compares the "
