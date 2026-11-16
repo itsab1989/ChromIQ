@@ -587,8 +587,10 @@ venv/bin/python3 -m pip install --no-cache-dir pyusb==1.2.1
 2. i1Profiler must not be running. X-Rite's background helpers can keep
    running; please do not try to stop them by hand.
 3. The arm at its resting place, the i1Pro 2 seated in its holder.
-4. **The table empty**: no paper, no chart, nothing in the way of the arm over
-   the whole table.
+4. **The table empty** except for the chart or sheet a stage asks for: for
+   parts A and B no paper, no chart, nothing in the way of the arm over the
+   whole table; in part C only the chart or sheet the stage asks for, laid
+   where it says.
 5. The power switch or plug within reach.
 
 ### The real run
