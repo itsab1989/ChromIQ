@@ -18,6 +18,7 @@ itself.
 from __future__ import annotations
 
 import itertools
+import re
 import shutil
 from pathlib import Path
 
@@ -77,12 +78,23 @@ def charts(tmp_path_factory):
     return out
 
 
+#: The file's CreationDate is the clock's second: under a loaded run the
+#: reference and the sidecar can be written either side of a second (the
+#: everyday tier of 4.3.42 met it once: "At index 248 diff: b'9' != b'8'").
+#: Compared without it; everything else must still be byte-identical.
+_CREATED = re.compile(rb"<cc:CreationDate>[^<]*</cc:CreationDate>")
+
+
+def _undated(b: bytes) -> bytes:
+    return _CREATED.sub(b"<cc:CreationDate/>", b)
+
+
 def _reference(ti1: Path, out: Path) -> bytes:
     """The .pxf written without a device asked for: 4.3.37's file."""
     from workflow.i1profiler_export import export_from_ti1
     _txt, pxf = export_from_ti1(ti1, out, base_name="ref-i1profiler",
                                 descriptor="chart")
-    return Path(pxf).read_bytes()
+    return _undated(Path(pxf).read_bytes())
 
 
 @pytest.mark.parametrize("combo", list(itertools.product((False, True),
@@ -96,7 +108,7 @@ def test_the_pxf_in_every_switch_combination(charts, tmp_path, combo):
             out = tmp_path / code
             ref = _reference(ti1, out)
             write_sidecars(ti1, out, "chart")
-            got = (out / "chart-i1profiler.pxf").read_bytes()
+            got = _undated((out / "chart-i1profiler.pxf").read_bytes())
             if code == "IO2" and on["i1io"]:
                 assert got != ref
                 assert got.replace(b'MeasurementDevice="i1iO 2"',
