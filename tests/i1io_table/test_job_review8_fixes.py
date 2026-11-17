@@ -6,6 +6,21 @@ matter. Simulators only: no table, no USB, no window.
 |---------|------------------------------------------------------------------------------|
 | B-1     | after an ending every step but the homing is refused ``session_ended``; GO   |
 |         | is cleared by save() and discard(), so the homing asks it                    |
+| B-2     | a folder with an unacknowledged pending marker is never set aside            |
+| M-1     | a problem report (between steps, or a report other than "as described")     |
+|         | clears GO: the homing asks it                                                |
+| M-2     | an own-tile white clears GO (hands on the arm)                               |
+| M-3     | resume / refinement reaches every page with something missing; a complete    |
+|         | page is passed over and never moves                                          |
+| M-4     | an adopted session that was saved is saved at the next START                 |
+| S-1     | a Stop pressed between steps or at a question ends the next move before it  |
+| S-2     | Discard after adopting discards the adopted session too, folders kept        |
+| S-3     | adopting and options only before open(); options never undo an adoption      |
+| S-4     | a crash between the run's .ti3 and session_result.json reads as saved        |
+| S-5     | a disk error on Save is a refusal; the homing and the readings stay          |
+| S-6     | the two planted faults that survived review 8                                |
+| NOTE    | ``next`` only names a homing that can run; end() without a run; the current  |
+|         | page on Keep measuring; ``filed`` false after a §3b restore                  |
 """
 from __future__ import annotations
 
@@ -766,3 +781,32 @@ def test_s6_adopting_over_a_measurement_that_is_not_partial_is_refused(tmp_path,
     r = job.adopt_earlier(RS.STAMP)
     assert (r.kind, r.reason) == (J.Kind.REFUSED, "run_has_a_measurement_already"), r.reason
     assert job._earlier_dirs == [] and job.only_locs is None
+
+
+# ---- the NOTE items -------------------------------------------------------------------------
+
+def test_note_next_never_names_a_homing_that_would_be_refused(tmp_path):
+    """The reviewer's P7 made strict: the instrument out of the arm (an own-tile calibration
+    that failed after "ready"): no homing offered; offered, it can run."""
+    run, job, sim, p = _one_row(tmp_path, False)
+    r, _st = _end(job, p, "save")
+    assert r.detail["next"] == ["home"] and job._ready("home") is None
+    run2, job2, sim2, p2 = _one_row(tmp_path / "b", False)
+    job2.instrument_out = True
+    r2, _st = _end(job2, p2, "save")
+    assert r2.detail["next"] == [] and job2._ready("home") == "instrument_not_in_the_arm"
+
+
+def test_note_end_without_a_run_is_refused_not_nothing_read(tmp_path):
+    job, sim, helper, run, p = _job_for(tmp_path, False, run=False)
+    ready_to_read(job, p)
+    assert p.drive(job.read_row()).ok
+    r = job.end()
+    assert (r.kind, r.reason) == (J.Kind.REFUSED, "no_run") and job.ended is None
+
+
+def test_note_keep_measuring_names_the_current_page(tmp_path):
+    run, job, sim, p = _one_row(tmp_path, False)
+    r, _st = _end(job, p, "keep measuring")
+    assert r.detail["current_page"] == 1
+    assert {x["page"] for x in r.detail["missing_rows"]} == {1}

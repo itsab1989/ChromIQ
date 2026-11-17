@@ -2154,6 +2154,10 @@ class TableJob:
             return self._result("end", Kind.REFUSED, "another_step_waits_for_a_confirmation")
         if self.ended is not None:
             return self._result("end", Kind.REFUSED, f"ended_already_{self.ended}")
+        if self.run is None or self.stamp is None:
+            # review 8, NOTE: without a run nothing could be counted or saved; "nothing read"
+            # would not be true over real readings
+            return self._result("end", Kind.REFUSED, "no_run")
         self._go_page = None
         st = self.end_state()
         self.diag.log("INFO", "end of the session asked: " + json.dumps(
@@ -2168,20 +2172,21 @@ class TableJob:
         return self._begin("end", self._end(st))
 
     def _after_end(self) -> dict:
-        """What may follow an ending: the homing when the arm is out (its own GO)."""
-        d = self._table
-        out = {"next": []}
-        if d is not None and d.closed_reason is None and (self.out_known()
-                                                          or d.arm_free is True):
-            out["next"] = ["home"]
-        return out
+        """What may follow an ending: the homing when it can run (its own GO). Review 8, NOTE:
+        the same test the way back uses for HOME_OFFERED (``_ready("home")``), so ``next``
+        never names a homing that would be refused (the instrument out of the arm, say)."""
+        ok = self._table is not None and self._ready("home") is None
+        return {"next": ["home"] if ok else []}
 
     def _end(self, st):
         ans = yield Ask(Confirm.END, {"end_state": st})
         if ans == "keep measuring":
             rows = [{"page": pg["page"], "row": r["row"], "patches": r["patches"]}
                     for pg in st.get("missing", []) for r in pg["rows"]]
+            # review 8, NOTE: the missing rows of EVERY page are listed; read_row() reaches
+            # only the current page's (``current_page``), the others need next_page()
             return {"ending": "keep_measuring", "missing_rows": rows,
+                    "current_page": self.page + 1,
                     "rows_read_again": self.rows_again.get(self.page, 0)}
         if ans == "discard":
             res = self.discard()
