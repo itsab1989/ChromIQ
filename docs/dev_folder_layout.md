@@ -68,6 +68,14 @@ path construction are owned by `core/file_manager.py` via three classes:
         <session id>/                #   scan.pgm, wire/, progress.json, the
                                      #   staged measurement, metadata; filed.json
                                      #   once its measurement was saved
+      <target-name>.i1io.json        # i1iO (Beta): marks, strips, patches in mm (Run.i1io_side_file)
+      i1io-table/                    # i1iO table drive (Beta, NOT WIRED IN YET): Run.i1io_table_dir
+        <YYYYMMDD-HHMMSS>[_N]/       #   one folder per START (Run.i1io_table_session_dir):
+          session.log                #   the session log (Run.i1io_table_log)
+          <row>.plan_and_result.json #   per row, named by workflow/i1io/table/scan.py:
+          <row>.spec.csv / .cut.ti3 / .cut.json   # raw stream, cut, cut record
+          SCAN_MOVE_MAY_BE_PENDING.txt   # only after a strip move that may still wait
+                                     #   for the lamp (Run.i1io_table_pending_marker)
       meta.json
     run2/ …
 ```
@@ -87,6 +95,18 @@ one**, which stays for diagnosis. The layout preview goes to the run's
 `cache/`, also for a verification chart. None of this is under the system temp
 folder, so `scripts/session_cleanup.py` and the suite's temp sweep never touch
 it (and must not: it is the user's project).
+
+**i1iO table sessions** (the i1iO Beta's table drive; the paths exist since
+2026-11-17, nothing writes them yet). The measurement itself is the run's own
+`<target-name>.ti3`, as for every instrument. What the table and the i1Pro 2
+sent during one START (row plans, raw reading streams, the cut of each row,
+the session log, and the marker a strip move that may still be waiting for the
+lamp leaves) goes into `i1io-table/<stamp>/` at the run root. Not into
+`cache/`: those are readings and a safety marker, which no tool can recreate,
+and `cache/` is the folder whose deletion never loses data. Inside a session
+folder the table modules (moved unchanged from the tester program) name their
+own files; every folder and the log come from `Run`. How long sessions are kept
+and whether a replaced chart archives them is decided with the filing step.
 
 **The v2 rule (#127):** everything a user prints, installs or measures stays
 at the run root (the Argyll tools are stem+cwd coupled there — chartread runs

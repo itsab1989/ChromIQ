@@ -121,6 +121,16 @@ CACHE_DIRNAME   = "cache"
 VERIFICATIONS_DIRNAME = "verifications"
 #: The FD-9 Beta's per-Start session evidence (`Run.fd9_sessions_dir`).
 FD9_SESSIONS_DIRNAME = "fd9-sessions"
+#: The i1iO table drive (part of the i1iO Beta; nothing writes it yet): one
+#: folder per START under it (`Run.i1io_table_session_dir`). At the run root,
+#: not in cache/: raw readings and the pending marker are not recreatable.
+I1IO_TABLE_DIRNAME = "i1io-table"
+#: The marker the table's scan module leaves when a strip move may still be
+#: waiting for the instrument's lamp (`workflow.i1io.table.scan.PENDING_MARKER`;
+#: a test pins that the two are the same; not imported, so that nothing here
+#: loads the table package).
+I1IO_TABLE_PENDING_MARKER = "SCAN_MOVE_MAY_BE_PENDING.txt"
+_I1IO_TABLE_STAMP = re.compile(r"\d{8}-\d{6}(?:_[1-9]\d*)?")
 #: #130 — the copy of the chart a run (or a dated verification) was measured
 #: with. Same name at both levels, so one word means one thing.
 CHART_SNAPSHOT_DIRNAME = "chart"
@@ -2258,6 +2268,48 @@ class Run:
     def i1io_page_ti3(self, page: int) -> Path:
         """``pages/pageK.ti3``: the filed readings of page *page* (1-based)."""
         return self.i1io_pages_dir / f"page{int(page)}.ti3"
+
+    # ---- the i1iO table drive (part of the i1iO Beta, build step 3 of
+    # 2026-11-17; NOTHING WRITES THESE YET). The measurement itself is
+    # `measurement_ti3`, as for every instrument. What one START of the table
+    # sends and receives (row plans, raw reading streams, cuts, the session
+    # log, the pending marker) goes into its own session folder at the run
+    # root (docs/dev_folder_layout.md); inside it the table modules
+    # (`workflow/i1io/table/`, moved unchanged) name their own row files.
+    @property
+    def i1io_side_file(self) -> Path:         return self.artefact(".i1io.json")
+    @property
+    def i1io_table_dir(self) -> Path:         return self.dir / I1IO_TABLE_DIRNAME
+
+    def i1io_table_session_dir(self, stamp: str) -> Path:
+        """``i1io-table/<stamp>/``: one START of the table. *stamp* is
+        ``YYYYMMDD-HHMMSS``, with ``_N`` when two starts share a second;
+        anything else (a path, an empty name) is refused."""
+        if not isinstance(stamp, str) or not _I1IO_TABLE_STAMP.fullmatch(stamp):
+            raise ValueError(f"not a table session stamp: {stamp!r}")
+        return self.i1io_table_dir / stamp
+
+    def i1io_table_sessions(self) -> "list[Path]":
+        """This run's table session folders, oldest first (none: [])."""
+        try:
+            return sorted(p for p in self.i1io_table_dir.iterdir()
+                          if p.is_dir() and _I1IO_TABLE_STAMP.fullmatch(p.name))
+        except OSError:
+            return []
+
+    def i1io_table_log(self, stamp: str) -> Path:
+        """``i1io-table/<stamp>/session.log``: that START's session log."""
+        return self.i1io_table_session_dir(stamp) / "session.log"
+
+    def i1io_table_pending_marker(self, stamp: str) -> Path:
+        """The marker a strip move that may still be waiting for the lamp
+        leaves in its session folder (`I1IO_TABLE_PENDING_MARKER`)."""
+        return self.i1io_table_session_dir(stamp) / I1IO_TABLE_PENDING_MARKER
+
+    def i1io_table_pending_markers(self) -> "list[Path]":
+        """Every pending marker this run's table sessions hold, oldest first."""
+        return [m for m in (s / I1IO_TABLE_PENDING_MARKER
+                            for s in self.i1io_table_sessions()) if m.is_file()]
 
     def reads(self) -> list[Path]:
         """Sorted list of reads/readN.ti3 files."""
