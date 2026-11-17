@@ -7274,6 +7274,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # a replace is archived only when the table's Save writes (review 10,
         # S-2); one left from an earlier hand session is not ours to restore
         self._displaced_measurement = None
+        if run.run_type == "verification" \
+                and getattr(self, "_staged_verification_ti3", None) is None:
+            # review 12, M-1: a verification left beside the chart and never
+            # filed (a kill between the table's Save and its filing) is moved
+            # to old/ first, exactly as the hand path's START does, so the new
+            # reading's Save is never refused over it
+            self._archive_measurement_before_replacing()
         self._table_saved = False
         self._table_complete_ti3 = None
         self._table_refining = bool(only_locs)
@@ -7284,13 +7291,6 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                                  mode=self._current_mode(), replace_agreed=at_risk,
                                  archive=self._archive_measurement_before_replacing)
         win.saved.connect(self._on_table_measurement_saved)
-        if run.run_type == "verification" \
-                and getattr(self, "_staged_verification_ti3", None) is None:
-            # review 12, M-1: a verification left beside the chart and never
-            # filed (a kill between the table's Save and its filing) is moved
-            # to old/ first, exactly as the hand path's START does, so the new
-            # reading's Save is never refused over it
-            self._archive_measurement_before_replacing()
         win.finished_with.connect(self._on_table_window_finished)
         win.progress.connect(self._on_table_progress)
         self._table_window = win
