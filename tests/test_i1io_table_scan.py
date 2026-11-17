@@ -238,10 +238,11 @@ def _run_target(src: Path, build: Path, target: str) -> str:
                    check=True, capture_output=True, timeout=600)
     r = subprocess.run([cmake, "--build", str(build), "--target", target, "-j",
                         str(max(2, (os.cpu_count() or 4) // 2))],
-                       capture_output=True, text=True, timeout=900)
+                       capture_output=True, text=True, encoding="utf-8", timeout=900)
     assert r.returncode == 0, r.stdout[-2000:] + r.stderr[-2000:]
     exe = build / target
-    r = subprocess.run([str(exe)], capture_output=True, text=True, timeout=300)
+    r = subprocess.run([str(exe)], capture_output=True, text=True, encoding="utf-8",
+                       timeout=300)
     assert r.returncode == 0 and r.stdout.rstrip().endswith("ALL DONE")
     return r.stdout
 

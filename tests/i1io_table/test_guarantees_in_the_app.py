@@ -161,9 +161,10 @@ def test_the_reader_is_chromiqs_own_helper_with_the_table_scan_mode():
     h = (ROOT / "native" / "chartread_helper" / "chromiq_ext.h").read_text(encoding="utf-8")
     assert f'"chromiq-chartread {rd.HELPER_BUILD} ' in h
     archs = subprocess.run(["lipo", "-archs", str(path)], capture_output=True, text=True,
-                           timeout=30).stdout.split()
+                           encoding="utf-8", timeout=30).stdout.split()
     assert sorted(archs) == ["arm64", "x86_64"]
 
 
 def test_a_tester_package_folder_still_names_its_own_bin(tmp_path):
-    assert rd.helper_path(tmp_path) == tmp_path / "bin" / "chromiq-chartread"
+    from core.resource_path import argyll_binary
+    assert rd.helper_path(tmp_path) == tmp_path / "bin" / argyll_binary("chromiq-chartread")

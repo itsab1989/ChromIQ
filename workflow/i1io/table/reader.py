@@ -62,9 +62,9 @@ class Reading:
 def helper_path(pkg: "Path | None" = None) -> Path:
     """ChromIQ's own helper, ``native/chromiq-chartread`` (core.resource_path: the source tree,
     or the app bundle). *pkg* names a tester-style folder holding ``bin/`` instead (tests)."""
+    from core.resource_path import argyll_binary, argyll_tool_path, resource_path
     if pkg is not None:
-        return pkg / "bin" / HELPER_NAME
-    from core.resource_path import argyll_binary, resource_path
+        return argyll_tool_path(pkg / "bin", HELPER_NAME)
     return resource_path("native/" + argyll_binary(HELPER_NAME))
 
 
@@ -83,7 +83,7 @@ def helper_problems(path: Path) -> "list[str]":
                    f"chmod +x bin/{HELPER_NAME}")
     try:
         r = subprocess.run(["/usr/bin/xattr", "-p", "com.apple.quarantine", str(path)],
-                           capture_output=True, text=True, timeout=5)
+                           capture_output=True, text=True, encoding="utf-8", timeout=5)
         if r.returncode == 0:
             out.append("macOS still marks the reader as downloaded from the internet, and then "
                        "refuses to start it. In Terminal, in this folder: xattr -d "
@@ -276,7 +276,7 @@ class _Proc:
         self.log("INST", "start: " + " ".join(Path(a).name if (i == 0 or os.sep in a) else a
                                               for i, a in enumerate(argv)))
         self.p = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                  stderr=subprocess.DEVNULL, text=True, bufsize=1,
+                                  stderr=subprocess.DEVNULL, text=True, encoding="utf-8", bufsize=1,
                                   cwd=str(cwd), env=helper_env())
         self.q: "queue.Queue[dict]" = queue.Queue()
         self.events: "list[dict]" = []

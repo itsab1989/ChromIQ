@@ -73,10 +73,10 @@ def test_sessions_and_markers_are_listed_oldest_first(tmp_path):
     for stamp in ("20261117-120000", "20261117-090000", "20261117-090000_2"):
         run.i1io_table_session_dir(stamp).mkdir(parents=True)
     (run.i1io_table_dir / "not-a-session").mkdir()
-    (run.i1io_table_dir / "20261117-130000").write_text("a file, not a folder")
+    (run.i1io_table_dir / "20261117-130000").write_text("a file, not a folder", encoding="utf-8")
     assert [p.name for p in run.i1io_table_sessions()] == [
         "20261117-090000", "20261117-090000_2", "20261117-120000"]
-    run.i1io_table_pending_marker("20261117-120000").write_text("SWITCH THE TABLE OFF")
+    run.i1io_table_pending_marker("20261117-120000").write_text("SWITCH THE TABLE OFF", encoding="utf-8")
     assert run.i1io_table_pending_markers() == [run.i1io_table_pending_marker("20261117-120000")]
 
 
@@ -101,8 +101,8 @@ def test_loading_a_project_is_unchanged(tmp_path):
     golden fixture) migrates without any i1io-table folder appearing."""
     proj = Project.create(tmp_path / "v2" / "My-Target", "My-Target")
     run = proj.current_run()
-    (run.dir / "My-Target.ti2").write_text("CTI2\n")
-    (run.dir / "My-Target.ti3").write_text("CTI3\n")
+    (run.dir / "My-Target.ti2").write_text("CTI2\n", encoding="utf-8")
+    (run.dir / "My-Target.ti3").write_text("CTI3\n", encoding="utf-8")
     Project.load(proj.root)
     first = _tree(tmp_path / "v2")
     again = Project.load(proj.root)

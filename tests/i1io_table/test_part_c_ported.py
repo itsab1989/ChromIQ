@@ -175,7 +175,7 @@ def test_the_simulator_keeps_its_own_copy_of_the_area_and_speeds():
     assert csim.C_SWEEP_BOX == (R.xmin, R.xmax, R.ymin, geo.CAP_RAW.ymax)
     assert csim.C_PROVEN_Y == (A.ymax, R.ymax) and csim.C_CREEP == geo.CREEP_STEP
     assert csim.C_SPEEDS_M2 == geo.RECORDED_M2_SPEEDS
-    src = (PKG / "i1io_part_c_sim.py").read_text()
+    src = (PKG / "i1io_part_c_sim.py").read_text(encoding="utf-8")
     assert "i1io_geometry" not in src and "i1io_c_lines" not in src
 
 
@@ -348,7 +348,7 @@ def test_the_reader_s_problems_are_named(tmp_path, monkeypatch):
 
 
 def test_the_reader_is_never_asked_for_a_beta_flag_or_a_memory_write():
-    src = (PKG / "i1io_reader.py").read_text()
+    src = (PKG / "i1io_reader.py").read_text(encoding="utf-8")
     for flag in ("--i1pro2-lights", "--ruler", "--condition-dir", "--lights-", "eeprom",
                  "write_eeprom"):
         assert f'"{flag}' not in src
@@ -361,7 +361,7 @@ def test_the_real_reader_wrapper_logs_no_user_path(tmp_path):
     helper = tmp_path / "fake-helper"
     helper.write_text("#!/usr/bin/env python3\nimport json, sys, os\n"
                       "print(json.dumps({'event': 'saved', 'path': os.path.expanduser('~/x.ti3')}))\n"
-                      "sys.stdout.flush()\nsys.stdin.readline()\n")
+                      "sys.stdout.flush()\nsys.stdin.readline()\n", encoding="utf-8")
     helper.chmod(0o755)
     logged = []
     p = rd._Proc([str(helper), "--json", "--i1io-table-scan", str(tmp_path / "out")],
