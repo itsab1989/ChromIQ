@@ -36,7 +36,7 @@ import time
 from pathlib import Path
 
 from PyQt6.QtCore import QObject, QRunnable, Qt, QThreadPool, pyqtSignal, pyqtSlot
-from PyQt6.QtWidgets import (QCheckBox, QDialog, QFrame, QHBoxLayout, QLabel, QPlainTextEdit,
+from PyQt6.QtWidgets import (QCheckBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QPlainTextEdit,
                              QPushButton, QScrollArea, QSizePolicy, QVBoxLayout, QWidget)
 
 from core.i18n import tr
@@ -370,6 +370,8 @@ class _Signals(QObject):
     """Lives in the GUI thread; a job call's result reaches the window through it (queued)."""
 
     done = pyqtSignal(int, object)
+    #: the job's display-only progress, emitted from the job's thread
+    progress = pyqtSignal(dict)
 
 
 class _JobCall(QRunnable):
@@ -407,9 +409,16 @@ def _pool() -> QThreadPool:
 
 # ---- the window -------------------------------------------------------------------------------
 
-class TableMeasureWindow(QDialog):
-    """One START on the i1iO table. Built by the Measure tab, shown with ``show()`` (window
-    modal, never ``exec()``): the GUI thread keeps running."""
+class TableMeasureWindow(QFrame):
+    """One START on the i1iO table: a PANEL in the Measure tab's own measurement area (Basti,
+    2026-11-17, after watching the first version: no window over the chart preview). The
+    tab puts it where its options stand while a hand measurement runs, locks the rest of the
+    app as a hand measurement does, and lets the preview follow the job (:attr:`progress`).
+    Nothing of it is modal and nothing covers the preview; the GUI thread keeps running."""
+
+    #: display only, for the tab's preview: the job's row / patch progress, and where the arm
+    #: should point while the person aims (a dict, see TableJob.on_progress and _aim_event)
+    progress = pyqtSignal(dict)
 
     #: the run's measurement file was written: (path, the job's Save detail)
     saved = pyqtSignal(object, dict)
@@ -444,33 +453,23 @@ class TableMeasureWindow(QDialog):
         self._pending_save_retry = False
         self._log_name = ""
         self.pages_shown: "list[str]" = []      # what the window showed, in order (tests)
-        self.setWindowTitle(tr("Measure with the i1iO table (beta)"))
-        self.setWindowModality(Qt.WindowModality.WindowModal)
-        self.resize(780, 840)
         #: a Stop, a failed row or a problem in this window: the "don't ask again" offer is
         #: not made (NEXT_STEPS 4d), whatever the job's close() says
         self._troubled = False
         self._build()
         self._signals = _Signals(self)
         self._signals.done.connect(self._on_done, Qt.ConnectionType.QueuedConnection)
+        self._signals.progress.connect(self._relay_progress, Qt.ConnectionType.QueuedConnection)
 
     # ---- layout --------------------------------------------------------------------------
     def _build(self) -> None:
-        from ui.dialogs.tools_dialogs import _indicator_color, neutral_controls_qss
-        from ui.styles import SPEC_GREEN
-        from ui.tab_header import dialog_masthead
-        root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(0)
-        head, self._header, stripe = dialog_masthead(
-            self, tr("MEASURE · X-RITE i1iO TABLE (BETA)"),
-            tr("Measure with the i1iO table"), accent=SPEC_GREEN)
-        root.addLayout(head)
-        root.addWidget(stripe)
-        body = QVBoxLayout()
-        body.setContentsMargins(22, 14, 22, 16)
-        body.setSpacing(10)
-        root.addLayout(body, 1)
+        body = QVBoxLayout(self)
+        body.setContentsMargins(16, 8, 16, 8)
+        body.setSpacing(8)
+        self._header = QLabel(tr("MEASURE · X-RITE i1iO TABLE (BETA)"), self)
+        self._header.setObjectName("i1io_table_header")
+        self._header.setStyleSheet("letter-spacing: 1px; font-size: 11px;")
+        body.addWidget(self._header)
 
         self._status = QLabel("", self)
         self._status.setObjectName("i1io_table_status")
@@ -505,8 +504,10 @@ class TableMeasureWindow(QDialog):
         self._ticks = QVBoxLayout()
         body.addLayout(self._ticks)
 
-        self._choices = QHBoxLayout()
-        self._choices.setSpacing(8)
+        # the answers: two to a row, so long labels fit the tab's narrow column
+        self._choices = QGridLayout()
+        self._choices.setHorizontalSpacing(8)
+        self._choices.setVerticalSpacing(6)
         body.addLayout(self._choices)
 
         # the true state, after every step
@@ -572,8 +573,6 @@ class TableMeasureWindow(QDialog):
         foot.addWidget(self._end_btn)
         foot.addWidget(self._close_btn)
         body.addLayout(foot)
-        self.setStyleSheet(neutral_controls_qss(_indicator_color(self._settings),
-                                                popup=SPEC_GREEN))
         self._moving_controls(False)
         self._end_btn.setVisible(False)
 
@@ -620,7 +619,6 @@ class TableMeasureWindow(QDialog):
             cb.setObjectName(f"i1io_tick_{len(made_ticks)}")
             self._ticks.addWidget(cb)
             made_ticks.append(cb)
-        self._choices.addStretch(1)
         made = []
         # the answer helpers live as long as their page (a connection to a bound method of a
         # plain object does not keep that object alive)
@@ -630,7 +628,8 @@ class TableMeasureWindow(QDialog):
             b.setAutoDefault(False)
             b.setDefault(False)
             b.clicked.connect(slot)
-            self._choices.addWidget(b)
+            n = len(made)
+            self._choices.addWidget(b, n // 2, n % 2)
             made.append(b)
         from ui.dialogs.no_default_button import no_default_button
         no_default_button(self)
@@ -803,6 +802,8 @@ class TableMeasureWindow(QDialog):
         page = 0
         self.job = JOB_FACTORY(self._sheet, page, self._run, self._stamp,
                                ask_after_each_step(self._settings))
+        # the preview follows the job (display only; emitted from the job's thread)
+        self.job.on_progress = self._signals.progress.emit
         try:
             self._log_name = tr("{path}, in this run's folder").format(
                 path="i1io-table/{}/session.log".format(self._stamp))
@@ -1060,6 +1061,8 @@ class TableMeasureWindow(QDialog):
         elif kind == "aimed":
             title, body = M.M_I1IO_DRIVE_AIM.render(mark=d.get("mark", "?"),
                                                     corner=corner_text(d.get("corner", "")))
+            self._aim_event(d.get("mark"), d.get("patch") if d.get("target") == "patch"
+                            else None)
         elif kind == "front_choice":
             title, body = M.M_I1IO_DRIVE_FRONT.render(back_mm=d.get("back_mm", "?"))
         elif kind == "reader_consent":
@@ -1140,11 +1143,21 @@ class TableMeasureWindow(QDialog):
         self._dispatch(self._report_res)
 
     def _ask_check_mark(self) -> None:
+        self._aim_event(3, self._aim_patch(3))
         from workflow import measurement_messages as M
         title, body = M.M_I1IO_DRIVE_CHECK_MARK.render()
         self._show("check_mark", title, body,
                    [(tr("Yes, it is centred"), self._on_mark_ok),
                     (tr("No"), self._on_mark_wrong)])
+
+    def _aim_patch(self, mark) -> "str | None":
+        try:
+            for a in self._sheet["pages"][self.job.page]["aim_points"]:
+                if a.get("number") == mark and a.get("target") == "patch":
+                    return a.get("patch")
+        except (KeyError, IndexError, TypeError):
+            pass
+        return None
 
     def _on_mark_ok(self) -> None:
         self.job.note("check_mark", "centred")
@@ -1555,8 +1568,18 @@ class TableMeasureWindow(QDialog):
         if self._finished:
             return
         self._finished = True
+        self.progress.emit({"event": "end"})
+        self.setVisible(False)
         self.finished_with.emit(why)
-        self.accept()
+
+    def _relay_progress(self, ev: dict) -> None:
+        self.progress.emit(dict(ev))
+
+    def _aim_event(self, mark, patch=None) -> None:
+        """Where the arm should point now (display only): mark *mark* of the job's page, or
+        the corner patch the chart names for it."""
+        page = (self.job.page + 1) if self.job is not None else 1
+        self.progress.emit({"event": "aim", "mark": mark, "patch": patch, "page": page})
 
     def reject(self) -> None:          # Esc
         self._on_close_pressed()

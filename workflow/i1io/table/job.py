@@ -436,6 +436,12 @@ class TableJob:
         #: review 9, NOTE: where the app-level pending marker lives ((folder, name prefix), see
         #: session_end.app_marker_dir_and_prefix); the window passes it, None = none (tests)
         self.app_marker_place = app_marker_place
+        #: step 9 (display only): called with a small dict when a row starts, before the arm
+        #: moves to a patch, after a patch is read and when a row ends, so the Measure tab's
+        #: preview can follow the job (the current row / patch, what was read). It runs in the
+        #: job's thread; it is never asked anything and its errors are swallowed: it can
+        #: neither send a line nor stop the job.
+        self.on_progress = None
         self.run, self.stamp = run, stamp
         if run is not None and stamp is not None:
             folder = run.i1io_table_session_dir(stamp)
@@ -603,6 +609,15 @@ class TableJob:
         if d.closed_reason is None and self.phase == "open" and self._ready("home") is None:
             return WayBack.HOME_OFFERED
         return WayBack.OPEN_I1PROFILER_ONCE
+
+    def _progress(self, **event) -> None:
+        cb = self.on_progress
+        if cb is None:
+            return
+        try:
+            cb(dict(event, page=self.page + 1))
+        except Exception:      # noqa: BLE001 - display only, never the job's concern
+            pass
 
     # ---- results ---------------------------------------------------------------------------
     def _result(self, step: str, kind: str, reason: str = "", **detail) -> StepResult:
@@ -1998,6 +2013,8 @@ class TableJob:
         readings: "list[dict]" = []
         reader = None
         opened = False
+        self._progress(event="row_start", row=plan.index + 1,
+                       locs=[p.loc for p in plan.patches])
         try:
             here = d.position()
             self._free_arm_inside(here)
@@ -2014,6 +2031,7 @@ class TableJob:
             opened = True
             last_t = 0.0
             for i, p in enumerate(plan.patches):
+                self._progress(event="patch_next", row=plan.index + 1, loc=p.loc, index=i)
                 if i:
                     # held by the motors at the patch just read; a problem or a stop asked for
                     # during that patch is honoured here, before the next move
@@ -2024,9 +2042,14 @@ class TableJob:
                 yield from self._move_to(p.target, f"the move to patch {p.loc}")
                 self._arrival = (d.lines_sent, d.position_now)
                 got = self._patch(reader, p, rec, readings)
+                if got.get("plausible"):
+                    self._progress(event="patch_read", row=plan.index + 1, loc=p.loc,
+                                   xyz=list(got.get("xyz") or []))
                 last_t = got["t"]
             rec["status"] = "read"
+            self._progress(event="row_end", row=plan.index + 1, status="read")
         except _RowFailed as f:
+            self._progress(event="row_end", row=plan.index + 1, status="failed", loc=f.loc)
             rec.update(status="failed", why=f.reason, failed_loc=f.loc)
         except PersonStopped as exc:
             rec.update(status="stopped", why=exc.reason)

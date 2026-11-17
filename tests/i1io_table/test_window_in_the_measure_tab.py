@@ -12,6 +12,7 @@ import json
 import sys
 
 import pytest
+from PyQt6.QtCore import Qt
 
 from core.file_manager import Project
 from tests.i1io_table import reader_sim as RS
@@ -48,8 +49,14 @@ def beta(monkeypatch):
 
 
 def table_run(tmp_path, sheet=None, *, side=True, head="i1Pro 2"):
-    sheet = dict(sheet or small_sheet())
+    import copy
+    sheet = copy.deepcopy(sheet or small_sheet())
     sheet["head_model"] = head
+    # locations as charts name them: the strip's letter and the patch's number
+    for pg in sheet["pages"]:
+        for r, st in enumerate(pg["strips"]):
+            for c, q in enumerate(st["patches"]):
+                q["loc"] = f"{chr(65 + r)}{c + 1}"
     proj = Project.create(tmp_path / "Table-Target", "Table-Target")
     run = proj.current_run()
     run.ensure_dir()
@@ -83,7 +90,9 @@ def test_start_opens_the_table_window_in_both_modes(tab, beta, tmp_path, monkeyp
     run, sheet = table_run(tmp_path)
     sim = start(tab, run, monkeypatch)
     win = tab._table_window
-    assert win is not None and win.isVisible() and win._mode == mode
+    # the panel stands in the tab's own measurement area: no window of its own
+    assert win is not None and win._mode == mode and not win.isWindow()
+    assert tab._stack.currentWidget() is win and win.isVisibleTo(tab)
     assert win._chart_args[:3] == ["-v", "-c", "1"]                # the mode's own args
     assert win._chart_args[-1].endswith("Table-Target")
     finished = []
@@ -159,3 +168,68 @@ def test_the_preferences_box_is_there_only_with_the_beta_on(qapp, tmp_path, monk
             dlg.deleteLater()
         finally:
             sup.set_enabled_for_this_process(None)
+
+
+
+@pytest.mark.parametrize("pbp", [False, True], ids=["rows", "patch-by-patch"])
+def test_the_preview_follows_the_job(tab, beta, tmp_path, monkeypatch, qtbot, pbp):
+    """Rows mode: the strip of the row being read is highlighted (the hand path's
+    _on_stripe_changed); patch by patch (-p): each patch before the arm moves to it
+    (highlight_patch); every reading reaches the hand path's live overlay
+    (_on_patch_measured)."""
+    run, sheet = table_run(tmp_path)
+    strips, patches, measured = [], [], []
+    monkeypatch.setattr(tab, "_on_stripe_changed", strips.append)
+    monkeypatch.setattr(tab, "_locate_patch", lambda loc: (0, loc))
+    monkeypatch.setattr(tab._preview, "highlight_patch",
+                        lambda page, box: patches.append(box))
+    monkeypatch.setattr(tab, "_on_patch_measured", lambda ev: measured.append(ev["loc"]))
+    import workflow.measure_manager as mm
+    real = mm.MeasureManager._build_args
+
+    def args(self, p):
+        a = real(self, p)
+        return (["-p"] + a) if pbp and "-p" not in a else [x for x in a if x != "-p" or pbp]
+    monkeypatch.setattr(mm.MeasureManager, "_build_args", args)
+    sim = start(tab, run, monkeypatch)
+    win = tab._table_window
+    p = WindowPerson(win, sim, lambda c: qtbot.waitUntil(c, timeout=15000))
+    p.drive_until("end_of_session")
+    qtbot.wait(50)
+    rows = [st["patches"] for st in sheet["pages"][0]["strips"]]
+    locs = [q["loc"] for r in rows for q in r]
+    assert sorted(measured) == sorted(locs) and len(measured) == len(locs)  # every reading
+    if pbp:
+        # the patch ringed before each move is the one read next, in the job's own order
+        assert [b for b in patches if isinstance(b, str)] == measured and strips == []
+    else:
+        assert strips == [tab._strip_of(r[0]["loc"]) for r in rows]
+        assert not [b for b in patches if isinstance(b, str)]
+
+
+def test_no_state_of_the_table_shows_a_modal_window(tab, beta, tmp_path, monkeypatch, qtbot):
+    from PyQt6.QtWidgets import QApplication
+    run, sheet = table_run(tmp_path)
+    tab._settings.set("i1io_table_consent_given", 0)
+    import ui.i1io_table_window as W
+    sim = WindowSim()
+    monkeypatch.setattr(W, "JOB_FACTORY", sim.factory)
+    monkeypatch.setattr(W, "USB_STATUS", lambda: (True, ""))
+    tab.set_ti1_path(run.artefact(".ti1"))
+    monkeypatch.setattr(tab, "_blocked_by_new_run", lambda: False)
+    tab._on_start()
+    win = tab._table_window
+    p = WindowPerson(win, sim, lambda c: qtbot.waitUntil(c, timeout=15000),
+                     {"end_of_session": "Save and stop"})
+    seen = []
+    for _ in range(200):
+        page = p.page()
+        assert QApplication.activeModalWidget() is None, page
+        assert not win.isWindow() and win.windowModality() == Qt.WindowModality.NonModal
+        seen.append(page)
+        if page == "done":
+            break
+        p.answer_page(page)
+    assert {"consent", "go", "end_of_session", "done"} <= set(seen)
+    p.press("Close")
+    assert tab._table_window is None and tab._stack.currentWidget() is not win

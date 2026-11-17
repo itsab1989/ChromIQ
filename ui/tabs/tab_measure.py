@@ -6949,17 +6949,111 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         from core.file_manager import Run
         from ui.i1io_table_window import TableMeasureWindow
         run = Run.for_dir(Path(chart).parent)
-        win = TableMeasureWindow(self, self._settings, sheet, run, args,
+        # THE TAB IS THE PLACE (Basti, 2026-11-17): the table's panel stands
+        # where the options stand while a hand measurement runs; the preview
+        # beside it stays visible and follows the job; the rest of the app is
+        # locked as for a hand measurement. Nothing modal, nothing over the
+        # preview.
+        win = TableMeasureWindow(self._stack, self._settings, sheet, run, args,
                                  mode=self._current_mode(), replace_agreed=at_risk,
                                  archive=self._archive_measurement_before_replacing)
         win.saved.connect(self._on_table_measurement_saved)
         win.finished_with.connect(self._on_table_window_finished)
+        win.progress.connect(self._on_table_progress)
         self._table_window = win
+        self._table_sheet = sheet
+        self._table_patch_by_patch = "-p" in args
+        self._table_stack_before = self._stack.currentIndex()
+        self._stack.addWidget(win)
+        self._stack.setCurrentWidget(win)
+        self._set_settings_enabled(False)
+        self._start_btn.setEnabled(False)
+        for b in (getattr(self, "_guided_btn", None), getattr(self, "_manual_btn", None),
+                  getattr(self, "_import_btn", None)):
+            if b is not None:
+                b.setEnabled(False)
+        self.measurement_active.emit(True)
         self._log.appendPlainText(tr(
-            "Measuring with the i1iO table (beta): the table window is open."))
-        win.show()
+            "Measuring with the i1iO table (beta): the table's questions and "
+            "buttons are on the left, the chart on the right shows what it reads."))
         win.start()
         return True
+
+    def _on_table_progress(self, ev: dict) -> None:
+        """The table job's progress on the chart preview, with the hand
+        measurement's own highlights: the row being read (strip mode) or the
+        patch (patch by patch, -p), each reading as it arrives, and while the
+        person aims, the mark the arm should point at (display only)."""
+        kind = ev.get("event")
+        try:
+            if kind == "aim":
+                self._table_aim_on_preview(ev)
+            elif kind == "row_start":
+                self._preview.highlight_patch(-1, None)
+                locs = ev.get("locs") or []
+                if locs and not getattr(self, "_table_patch_by_patch", False):
+                    letter = self._strip_of(str(locs[0]))
+                    if letter:
+                        self._on_stripe_changed(letter)
+            elif kind == "patch_next":
+                if getattr(self, "_table_patch_by_patch", False):
+                    page, box = self._locate_patch(str(ev.get("loc", "")))
+                    if page >= 0:
+                        if page != self._preview.current_page():
+                            self._preview.show_page(page)
+                        self._preview.highlight_patch(page, box)
+            elif kind == "patch_read":
+                xyz = ev.get("xyz") or []
+                if len(xyz) >= 3:
+                    self._on_patch_measured({"loc": str(ev.get("loc", "")),
+                                             "xyz": list(xyz[:3])})
+            elif kind == "end":
+                self._preview.highlight_patch(-1, None)
+                self._preview.highlight_stripe(-1)
+        except Exception:      # noqa: BLE001 - the preview never stops the table
+            log.debug("table progress not shown on the preview", exc_info=True)
+
+    def _table_aim_on_preview(self, ev: dict) -> None:
+        """Where the arm should point: the corner patch the chart names, or the
+        printed mark, ringed as the patch to read next is ringed. A mark is
+        placed through the chart's own geometry: the side file's patch centres
+        (mm) against the preview's patch boxes (pixels) of the same page."""
+        page = int(ev.get("page") or 1) - 1
+        patch = ev.get("patch")
+        box = None
+        if patch:
+            pg, box = self._locate_patch(str(patch))
+            if pg >= 0:
+                page = pg
+        if box is None:
+            box = self._table_mark_box(page, ev.get("mark"))
+        if box is None:
+            self._preview.highlight_patch(-1, None)
+            return
+        if page != self._preview.current_page():
+            self._preview.show_page(page)
+        self._preview.highlight_stripe(-1)
+        self._preview.highlight_patch(page, box)
+
+    def _table_mark_box(self, page: int, mark) -> "QRect | None":
+        sheet = getattr(self, "_table_sheet", None) or {}
+        try:
+            pg = sheet["pages"][page]
+            aim = next(a for a in pg["aim_points"] if a.get("number") == mark)
+            boxes = self._patch_boxes[page] if page < len(self._patch_boxes) else {}
+            pairs = [(q["centre_mm"], boxes[q["loc"]]) for st in pg["strips"]
+                     for q in st["patches"] if q.get("loc") in boxes]
+        except (KeyError, IndexError, TypeError, StopIteration):
+            return None
+        if len(pairs) < 3:
+            return None
+        import numpy as np
+        mm = np.array([[float(a), float(b), 1.0] for (a, b), _r in pairs])
+        px = np.array([[r.center().x(), r.center().y()] for _m, r in pairs], dtype=float)
+        coef, *_ = np.linalg.lstsq(mm, px, rcond=None)
+        x, y = np.array([float(aim["page_mm"][0]), float(aim["page_mm"][1]), 1.0]) @ coef
+        side = max(8, int(min(r.width() for _m, r in pairs) * 0.6))
+        return QRect(int(x - side / 2), int(y - side / 2), side, side)
 
     def _on_table_measurement_saved(self, path, detail: dict) -> None:
         """The table window saved into the run: announced as after a hand
@@ -6985,7 +7079,19 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self.measure_finished.emit(ti3)
 
     def _on_table_window_finished(self, why: str) -> None:
-        self._table_window = None
+        win, self._table_window = self._table_window, None
+        if win is not None:
+            self._stack.removeWidget(win)
+            win.deleteLater()
+        self._stack.setCurrentIndex(getattr(self, "_table_stack_before", 0))
+        self._set_settings_enabled(True)
+        self._start_btn.setEnabled(True)
+        for b in (getattr(self, "_guided_btn", None), getattr(self, "_manual_btn", None),
+                  getattr(self, "_import_btn", None)):
+            if b is not None:
+                b.setEnabled(True)
+        self._preview.highlight_patch(-1, None)
+        self.measurement_active.emit(False)
         if why == "consent_declined":
             self._log.appendPlainText(tr(
                 "Measurement not started: you chose Not now in the table window."))
