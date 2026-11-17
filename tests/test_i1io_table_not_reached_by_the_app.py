@@ -69,7 +69,9 @@ def _targets(path: Path, tree) -> "list[str]":
 
 def test_the_package_exists_and_is_complete():
     assert {p.name for p in TABLE_DIR.glob("*.py")} == {
-        "__init__.py", "session_table.py", "geometry.py", "lines.py", "scan.py", "reader.py"}
+        "__init__.py", "session_table.py", "geometry.py", "lines.py", "scan.py", "reader.py",
+        # build step 6: the job and its helpers (still reached by nothing in the app)
+        "job.py", "caps.py", "usb_system.py", "diagnostics.py"}
 
 
 def test_no_file_of_the_app_imports_the_table_package():

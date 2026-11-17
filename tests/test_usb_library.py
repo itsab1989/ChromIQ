@@ -203,7 +203,10 @@ def test_only_the_selftest_uses_it_yet():
                 if any(m == "core.usb_library" or m == "usb" or m.startswith("usb.")
                        for m in mods):
                     users.append(f.relative_to(ROOT).as_posix())
-    assert sorted(set(users)) == ["core/selftest.py", "workflow/i1io/table/session_table.py"]
+    # build step 6: the table package opens the table and lists devices through it (still
+    # reached by nothing in the app: tests/test_i1io_table_not_reached_by_the_app.py)
+    assert sorted(set(users)) == ["core/selftest.py", "workflow/i1io/table/session_table.py",
+                                  "workflow/i1io/table/usb_system.py"]
 
 
 def test_the_windows_driver_installer_never_targets_the_table():

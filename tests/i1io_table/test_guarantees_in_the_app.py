@@ -42,14 +42,20 @@ def _src(path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def test_the_package_holds_exactly_the_five_moved_modules():
+#: build step 6 adds the job (job.py), its derived caps (caps.py), the per-system USB checks
+#: (usb_system.py) and the session log (diagnostics.py); the five moved modules stay
+STEP6_MODULES = {"job.py", "caps.py", "usb_system.py", "diagnostics.py"}
+
+
+def test_the_package_holds_the_five_moved_modules_and_the_job():
     assert NAMES == {"__init__.py", "session_table.py", "geometry.py", "lines.py", "scan.py",
-                     "reader.py"}
+                     "reader.py"} | STEP6_MODULES
 
 
 STDLIB = {"__future__", "csv", "json", "os", "time", "dataclasses", "pathlib", "math", "random",
           "re", "queue", "subprocess", "sys", "threading", "plistlib", "signal", "ctypes",
-          "usb"}          # pyusb: imported only inside open_table, when a real table is opened
+          "usb",          # pyusb: imported only inside open_table, when a real table is opened
+          "getpass"}      # diagnostics.py: the user's name, only to keep it OUT of the log
 
 
 @pytest.mark.parametrize("path", APP_MODULES + [MOVED["i1io_session_sim.py"],
@@ -63,8 +69,9 @@ def test_standard_library_only_and_no_em_dash(path):
             mods = [a.name for a in node.names]
         elif isinstance(node, ast.ImportFrom):
             if node.level:                       # the package's own siblings
-                assert node.module is None and all(
-                    a.name + ".py" in NAMES for a in node.names), (path.name, ast.dump(node))
+                assert (node.module is None and all(a.name + ".py" in NAMES
+                                                    for a in node.names)) or \
+                    (node.module or "") + ".py" in NAMES, (path.name, ast.dump(node))
                 continue
             mods = [node.module or ""]
         else:
@@ -73,7 +80,10 @@ def test_standard_library_only_and_no_em_dash(path):
             top = m.split(".")[0]
             ok = (top in STDLIB or m.startswith("workflow.i1io.table")
                   or m.startswith("tests.i1io_table")
-                  or (path.name == "reader.py" and m == "core.resource_path"))
+                  or (path.name == "reader.py" and m == "core.resource_path")
+                  # step 6: the table is opened only through ChromIQ's own USB library
+                  or (path.name in ("session_table.py", "usb_system.py")
+                      and m == "core.usb_library"))
             assert ok, (path.name, m)
 
 
@@ -91,7 +101,7 @@ def test_the_table_is_written_in_one_place_only():
     assert src.count("self.t.write(") == 1
     assert src.count("self.dev.write(") == 1
     assert len(re.findall(r"ctrl_transfer\(", src)) == 1
-    for name in ("geometry.py", "lines.py", "scan.py", "reader.py"):
+    for name in ("geometry.py", "lines.py", "scan.py", "reader.py") + tuple(sorted(STEP6_MODULES)):
         s = _src(TABLE / name)
         assert ".t.write(" not in s and "dev.write(" not in s and "ctrl_transfer" not in s, name
 
@@ -122,6 +132,11 @@ def test_no_process_is_ended_and_only_the_read_only_checks_are_run():
         for bad in ("os.kill", "killpg", "pkill", "killall", "launchctl", "os.system"):
             assert bad not in src, (path.name, bad)
     runs = re.findall(r"subprocess\.run\(\s*(\[[^\]]*\])", "".join(_src(p) for p in APP_MODULES))
+    # step 6: usb_system.py looks for i1Profiler through run=_run (pgrep / tasklist), read only
+    us = _src(TABLE / "usb_system.py")
+    assert re.findall(r'run\((\["(?:pgrep|tasklist)"[^\]]*\])\)', us) == [
+        '["pgrep", "-x", "-i", "i1Profiler"]', '["pgrep", "-f", "i1Profiler.app/Contents/MacOS"]',
+        '["tasklist", "/FI", "IMAGENAME eq i1Profiler.exe", "/FO", "CSV", "/NH"]']
     assert sorted(runs) == sorted([
         '["/usr/sbin/ioreg", "-a", "-r", "-c", "IOUSBHostDevice", "-l"]',
         '["/usr/bin/xattr", "-p", "com.apple.quarantine", str(path)]',

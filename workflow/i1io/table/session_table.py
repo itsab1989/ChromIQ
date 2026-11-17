@@ -71,7 +71,14 @@ class TransportError(Exception):
 
 
 class NotAvailable(Exception):
-    """The real table cannot be opened on this computer (with the reason)."""
+    """The real table cannot be opened on this computer. In the app the message is a proposed
+    message id (``M-I1IO-DRIVE-...``), also in :attr:`problem`'s company: *problem* names the
+    case for the diagnostics (build step 6)."""
+
+    def __init__(self, message: str = "", problem: str = ""):
+        super().__init__(message)
+        self.message_id = message
+        self.problem = problem
 
 
 class TableBusy(TransportError):
@@ -1769,8 +1776,10 @@ class FtdiUsb(Transport):
                     time.sleep(SETUP_GAP_S)
                 self.dev.ctrl_transfer(0x40, req, val, idx, None, 1000)
         except USBError as exc:
-            raise TransportError(f"could not set up the table's USB link "
-                                 f"({getattr(exc, 'strerror', None) or type(exc).__name__})") from None
+            err = TransportError(f"could not set up the table's USB link "
+                                 f"({getattr(exc, 'strerror', None) or type(exc).__name__})")
+            err.usb_error = exc
+            raise err from None
 
     #: the gate at the wire: check_outgoing, or part C's own gate (0.5.0) once part C is chosen
     gate = None
@@ -1856,12 +1865,15 @@ def open_error(exc, step: str) -> TransportError:
     detail = (f"{step} failed: libusb {kind} ({code}); "
               f"{getattr(exc, 'strerror', None) or type(exc).__name__}")
     if kind in ("ACCESS", "BUSY"):
-        return TableBusy(f"{BUSY_TEXT} ({detail})", step, code)
-    if kind == "NO_DEVICE":
-        return TransportError(f"{GONE_TEXT} ({detail})")
-    return TransportError(
-        "The table could not be opened. Please quit i1Profiler if it is open and try again; "
-        f"if it still fails, send the log. Nothing was sent to the table. ({detail})")
+        err = TableBusy(f"{BUSY_TEXT} ({detail})", step, code)
+    elif kind == "NO_DEVICE":
+        err = TransportError(f"{GONE_TEXT} ({detail})")
+    else:
+        err = TransportError(
+            "The table could not be opened. Please quit i1Profiler if it is open and try again; "
+            f"if it still fails, send the log. Nothing was sent to the table. ({detail})")
+    err.usb_error = exc          # build step 6: open_table names it by core.usb_library's id
+    return err
 
 
 # ---- who holds the table: macOS's own record, read only ------------------------------
@@ -1958,100 +1970,65 @@ def check_descriptors(dev) -> None:
     except Exception as exc:
         problems.append(f"could not read its descriptors ({type(exc).__name__})")
     if problems:
-        raise NotAvailable("The device with the i1iO's USB id does not look like the i1iO 2 "
-                           "this program was made from (" + "; ".join(problems) + "). "
-                           "Nothing was sent to it.")
+        raise NotAvailable("M-I1IO-DRIVE-NOT-I1IO2", problem="; ".join(problems))
 
 
-#: Where Homebrew puts libusb (Apple silicon, then Intel).
-LIBUSB_PATHS = ("/opt/homebrew/lib/libusb-1.0.dylib", "/usr/local/lib/libusb-1.0.dylib")
+# ---- opening the real table: ChromIQ's own USB library, on every system (build step 6) -----
+#
+# The tester (0.6.0) asked pyusb's DEFAULT search and then Homebrew's paths for libusb, and refused
+# every system but a Mac. In the app the table is opened ONLY through core.usb_library.backend():
+# the libusb ChromIQ bundles, found by path, never the system's (pyusb keeps the FIRST library it
+# loads for the whole process, so no other search may ever run first). No text for a person is
+# made here: every refusal carries the proposed message id (core.usb_library.MESSAGE_FOR_PROBLEM,
+# open_failure) in NotAvailable.problem.
 
-
-def libusb_backend(libusb1):
-    import os
-    backend = libusb1.get_backend()
-    if backend is not None:
-        return backend
-    for path in LIBUSB_PATHS:
-        if os.path.exists(path):
-            backend = libusb1.get_backend(find_library=lambda name, path=path: path)
-            if backend is not None:
-                return backend
-    return None
-
-
-def libusb_version(backend) -> str:
-    try:
-        import ctypes
-
-        class _V(ctypes.Structure):
-            _fields_ = [("major", ctypes.c_uint16), ("minor", ctypes.c_uint16),
-                        ("micro", ctypes.c_uint16), ("nano", ctypes.c_uint16),
-                        ("rc", ctypes.c_char_p), ("describe", ctypes.c_char_p)]
-        fn = backend.lib.libusb_get_version
-        fn.restype = ctypes.POINTER(_V)
-        v = fn().contents
-        return f"{v.major}.{v.minor}.{v.micro}"
-    except Exception:
-        return "version unknown"
-
-
-NOT_A_MAC = ("This test program opens the real table only on a Mac (it was never tried "
-             "anywhere else). On Windows, X-Rite's own driver owns the i1iO.")
-NO_PYUSB = ("The real table needs the Python package pyusb and the libusb library. If you "
-            "have set them up as in 'What to install' in the README, start the program like "
-            "this, from its folder: venv/bin/python3 i1io_session.py --real (plain 'python3' "
-            "does not see the venv folder).")
-NO_LIBUSB = ("pyusb is installed but finds no libusb library. On a Mac: "
-             "'HOMEBREW_NO_AUTO_UPDATE=1 brew install libusb'.")
+#: refusals of the opening that core.usb_library does not name (proposed ids, STEP4_PROPOSAL)
+NO_TABLE = "M-I1IO-DRIVE-TABLE-NOT-FOUND"
+SEVERAL_TABLES = "M-I1IO-DRIVE-SEVERAL-TABLES"
+NOT_I1IO2 = "M-I1IO-DRIVE-NOT-I1IO2"
 
 
 def check_usb_available() -> str:
-    """Before any question of the real run: a Mac, pyusb and libusb. Opens no device."""
-    if sys.platform != "darwin":
-        raise NotAvailable(NOT_A_MAC)
-    try:
-        import usb
-        import usb.backend.libusb1
-    except ImportError:
-        raise NotAvailable(NO_PYUSB) from None
-    backend = libusb_backend(usb.backend.libusb1)
-    if backend is None:
-        raise NotAvailable(NO_LIBUSB)
-    return (f"pyusb {getattr(usb, '__version__', 'version unknown')}; "
-            f"libusb {libusb_version(backend)}")
+    """The bundled USB library loads (core.usb_library.status). Opens no device, lists none."""
+    import core.usb_library as usb_library
+    st = usb_library.status()
+    if not st.ok:
+        raise NotAvailable(usb_library.MESSAGE_FOR_PROBLEM.get(st.problem,
+                                                               "M-I1IO-DRIVE-USB-MISSING"),
+                           problem=st.problem)
+    return f"pyusb {st.pyusb}; libusb {st.libusb}"
 
 
-def open_table() -> FtdiUsb:
-    """Find and open the table, or raise NotAvailable. Sends no table command;
-    only the FTDI set-up after the descriptor check."""
-    if sys.platform != "darwin":
-        raise NotAvailable(NOT_A_MAC)
-    try:
-        import usb.backend.libusb1
-        import usb.core
-        import usb.util
-    except ImportError:
-        raise NotAvailable(NO_PYUSB) from None
-    backend = libusb_backend(usb.backend.libusb1)
+def open_table(system: "str | None" = None) -> FtdiUsb:
+    """Find and open the table through ChromIQ's own USB library, or raise NotAvailable (with
+    the message id in .problem). Sends no table command; only the FTDI set-up after the
+    descriptor check. *system* is sys.platform (tests)."""
+    import core.usb_library as usb_library
+    system = system or sys.platform
+    check_usb_available()
+    backend = usb_library.backend()
     if backend is None:
-        raise NotAvailable(NO_LIBUSB)
+        raise NotAvailable("M-I1IO-DRIVE-USB-MISSING", problem="no-backend")
+    import usb.core
+    import usb.util
     try:
         found = list(usb.core.find(find_all=True, idVendor=VID, idProduct=PID, backend=backend))
-    except usb.core.NoBackendError:
-        raise NotAvailable(NO_LIBUSB) from None
+    except Exception as exc:          # NoBackendError, USBError, OSError: said by its id
+        raise NotAvailable(usb_library.open_failure(exc, system), problem="find") from None
     if not found:
-        raise NotAvailable("No i1iO table (USB 0971:2004) was found. Please check that its "
-                           "power supply is switched on and that its USB cable goes straight "
-                           "into the computer. Nothing was sent.")
+        raise NotAvailable(NO_TABLE, problem="none")
     if len(found) > 1:
-        raise NotAvailable(f"{len(found)} devices with the i1iO's USB id are connected. "
-                           "Please connect only one table. Nothing was sent.")
+        raise NotAvailable(SEVERAL_TABLES, problem=f"{len(found)} tables")
     dev = found[0]
     check_descriptors(dev)
     t = FtdiUsb(dev, usb.core, usb.util)
     try:
         t.setup()
+    except TransportError as exc:
+        t.close()
+        cause = getattr(exc, "usb_error", None)
+        raise NotAvailable(usb_library.open_failure(cause, system) if cause is not None
+                           else "M-I1IO-DRIVE-USB-UNEXPECTED", problem="claim") from None
     except BaseException:
         t.close()
         raise
