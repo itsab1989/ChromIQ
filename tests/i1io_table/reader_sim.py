@@ -384,7 +384,15 @@ def make_reading_job(tmp_path, sheet=None, aims=None, faults=None, run=True, sta
     if sim is None:
         sim = csim.CSimTable(part_c=True, aims=list(aims or H.demo_aims(sheet)), **simkw)
     helper = HelperSim(sim, faults)
-    r = make_run(tmp_path, sheet) if run else None
+    if run is True:
+        r = make_run(tmp_path, sheet)
+    elif run:
+        r = run                              # a real project's Run (step 8 tests)
+        if not r.chart_ti2.exists():
+            r.dir.mkdir(parents=True, exist_ok=True)
+            r.chart_ti2.write_text(chart_ti2_text(sheet), encoding="ascii")
+    else:
+        r = None
     transport = ss.SimTransport(sim)
     job = J.TableJob(sheet, run=r, stamp=stamp if r is not None else None,
                      folder=None if r is not None else Path(tmp_path) / "session",
