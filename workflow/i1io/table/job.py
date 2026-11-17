@@ -1037,6 +1037,9 @@ class TableJob:
         self.notes.append((f"{step}: report", value))
         self.diag.log("ANSWER", f"{step}: report_after_step -> {value}")
         if value != "as described":
+            # review 8, M-1: the person who saw something wrong is the one most likely to reach
+            # onto the bed: the homing that is left asks the hands-off GO again
+            self._go_page = None
             if step == "start_up":
                 self.report_start_up_wrong()
             else:
@@ -1104,8 +1107,10 @@ class TableJob:
 
     def restrict_to_homing(self, why: str) -> None:
         """The person reported that the table or the arm did something wrong (part C's
-        ASK_ARM_WRONG): nothing more moves in this sitting except the homing."""
+        ASK_ARM_WRONG): nothing more moves in this sitting except the homing, and that homing
+        asks the hands-off GO again (review 8, M-1: also when no step was waiting)."""
         self.only_home = True
+        self._go_page = None
         if self._table is not None:
             self._table.log("DATA", f"only the homing from now on: {why}")
 
@@ -1655,6 +1660,9 @@ class TableJob:
             # read) until a calibration ends with the person's "seated", and nothing moves
             self.calibration = None
             self.instrument_out = True
+            # review 8, M-2: the person's hands lift the i1Pro 2 out and seat it back on the
+            # arm, as for the aims: the next movement waits for a hands-off GO again
+            self._go_page = None
         self._cal_refused = None
         self._open_reader(reader, self._cal_place_ok)
         cal_ok = bool(getattr(reader, "calibrated", False))

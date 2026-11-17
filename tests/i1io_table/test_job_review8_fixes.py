@@ -26,6 +26,11 @@ def _report(job):
         assert job.answer(J.Confirm.REPORT_AFTER_STEP, "as described").ok
 
 
+def _job_for(tmp_path, asking, script=None, rows=(4, 4, 4)):
+    from tests.i1io_table.test_job_reading import job_for
+    return job_for(tmp_path, script, sheet=small_sheet(list(rows)), asking=asking)
+
+
 def _one_row(tmp_path, asking, rows=(4, 4, 4)):
     proj, run = project(tmp_path)
     job, sim, helper, p = job_on(run, tmp_path, sheet=small_sheet(list(rows)), asking=asking)
@@ -153,3 +158,80 @@ def test_b2_once_the_marker_is_acknowledged_the_folder_may_be_set_aside(tmp_path
     assert run.i1io_table_pending_marker(RS.STAMP).with_suffix(".acknowledged.json").is_file()
     moved = se.set_aside(run, RS.STAMP)
     assert moved == run.i1io_table_session_archive_dir(RS.STAMP) and moved.is_dir()
+
+
+# ---- M-1 ------------------------------------------------------------------------------------
+
+@ASKING
+def test_m1_something_wrong_between_steps_then_the_homing_asks_go(tmp_path, asking):
+    """The reviewer's P13: report_problem("something looked or sounded wrong") with no step
+    waiting; the homing that is left asks GO before it moves."""
+    job, sim, helper, run, p = _job_for(tmp_path, asking)
+    ready_to_read(job, p)
+    assert p.drive(job.read_row()).ok
+    _report(job)
+    r = job.report_problem(J.PROBLEM_SOMETHING_WRONG)
+    assert r.ok and r.reason == "only_the_homing_now"
+    n = len(sim.received)
+    h = job.home()
+    assert (h.kind, h.confirm) == (J.Kind.NEEDS, J.Confirm.GO) and len(sim.received) == n
+    assert job.answer(J.Confirm.GO, "yes").ok and job.at_rest()
+
+
+@pytest.mark.parametrize("answer", ["something wrong", "not sure"])
+def test_m1_a_report_other_than_as_described_then_the_homing_asks_go(tmp_path, answer):
+    """The reviewer's P14 (asking mode): the report after a row says something was wrong."""
+    job, sim, helper, run, p = _job_for(tmp_path, True)
+    ready_to_read(job, p)
+    p.script["report"] = None
+    p.drive(job.read_row())
+    assert job.report_due == "read_row"
+    assert job.answer(J.Confirm.REPORT_AFTER_STEP, answer).ok
+    n = len(sim.received)
+    h = job.home()
+    assert (h.kind, h.confirm) == (J.Kind.NEEDS, J.Confirm.GO) and len(sim.received) == n
+
+
+def test_m1_restrict_to_homing_clears_go_itself():
+    job = J.TableJob(small_sheet())
+    job._go_page = 0
+    job.restrict_to_homing("a test")
+    assert job.only_home and job._go_page is None
+
+
+# ---- M-2 ------------------------------------------------------------------------------------
+
+@ASKING
+def test_m2_an_own_tile_white_mid_page_then_the_next_movement_asks_go(tmp_path, asking):
+    """The reviewer's P5: row 1, a white due, the homing, the own tile (hands on the arm to lift
+    the i1Pro 2 out and seat it back), then align(): GO is asked before anything moves."""
+    job, sim, helper, run, p = _job_for(tmp_path, asking, {J.Confirm.CAL_PLACE: "own tile"})
+    ready_to_read(job, p)
+    assert p.drive(job.read_row()).ok
+    _report(job)
+    job.calibration_due = True
+    assert job.read_row().reason == "calibration_due"
+    assert p.drive(job.home()).ok
+    _report(job)
+    assert p.drive(job.calibrate()).ok
+    _report(job)
+    assert job._go_page is None
+    seen = []
+    p.on_ask = lambda person, res: seen.append((res.confirm, len(moves(sim.received)))) or None
+    n = len(moves(sim.received))
+    assert p.drive(job.align()).ok
+    before = [c for c, m in seen if m == n]
+    assert before[0] == J.Confirm.GO, seen
+
+
+def test_m2_a_table_tile_white_keeps_the_pages_go(tmp_path):
+    """Nobody's hands are on the arm for the table's own tile: GO stays as it was."""
+    job, sim, helper, run, p = _job_for(tmp_path, False)
+    ready_to_read(job, p)
+    assert p.drive(job.read_row()).ok
+    job.calibration_due = True
+    assert job.read_row().reason == "calibration_due"     # a refusal: GO cleared (step 7)
+    assert p.drive(job.home()).ok
+    assert job._go_page == job.page
+    assert p.drive(job.calibrate()).ok
+    assert job._go_page == job.page
