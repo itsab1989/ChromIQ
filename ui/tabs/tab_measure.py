@@ -7409,24 +7409,33 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._preview.highlight_patch(page, box)
 
     def _table_mark_box(self, page: int, mark) -> "QRect | None":
+        """The box the ring is drawn on for mark *mark* (the owner, on screen:
+        "the overlay for the crosshairs is not perfectly centered on them. one
+        side shines through a bit more"). It was placed by a fit from the
+        patches' millimetres to their pixel boxes and cut to whole pixels,
+        which put it up to a pixel off the cross. Now it is the mark's own
+        frame in the page image, worked out exactly as the chart's raster
+        draws it (``workflow.i1io.chart.draw_furniture``: the centre in mm
+        from the side file, whole pixels by the same rounding, the 5 mm
+        frame), so the ring sits on what is printed."""
         sheet = getattr(self, "_table_sheet", None) or {}
         try:
             pg = sheet["pages"][page]
             aim = next(a for a in pg["aim_points"] if a.get("number") == mark)
-            boxes = self._patch_boxes[page] if page < len(self._patch_boxes) else {}
-            pairs = [(q["centre_mm"], boxes[q["loc"]]) for st in pg["strips"]
-                     for q in st["patches"] if q.get("loc") in boxes]
-        except (KeyError, IndexError, TypeError, StopIteration):
+            dpi = float((sheet.get("generation") or {}).get("dpi") or 0)
+            cx, cy = (float(v) for v in aim["page_mm"])
+        except (KeyError, IndexError, TypeError, StopIteration, ValueError):
             return None
-        if len(pairs) < 3:
+        if dpi <= 0:
             return None
-        import numpy as np
-        mm = np.array([[float(a), float(b), 1.0] for (a, b), _r in pairs])
-        px = np.array([[r.center().x(), r.center().y()] for _m, r in pairs], dtype=float)
-        coef, *_ = np.linalg.lstsq(mm, px, rcond=None)
-        x, y = np.array([float(aim["page_mm"][0]), float(aim["page_mm"][1]), 1.0]) @ coef
-        side = max(8, int(min(r.width() for _m, r in pairs)))
-        return QRect(int(x - side / 2), int(y - side / 2), side, side)
+        from workflow.i1io import table_facts as F
+        k = dpi / 25.4
+        fhalf = F.MARK_FRAME_MM.value / 2.0
+
+        def px(mm: float) -> int:
+            return int(round(mm * k))
+        x0, y0, x1, y1 = px(cx - fhalf), px(cy - fhalf), px(cx + fhalf), px(cy + fhalf)
+        return QRect(x0, y0, x1 - x0, y1 - y0)
 
     def _on_table_measurement_saved(self, path, detail: dict) -> None:
         """The table window saved into the run: announced as after a hand

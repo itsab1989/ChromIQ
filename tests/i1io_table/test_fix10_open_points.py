@@ -363,3 +363,70 @@ def test_a_partial_save_keeps_the_hand_paths_partial_ending_no_window(tab, beta,
     p.press("Close")
     qtbot.wait(100)
     assert shown == [] and "partial readings saved" in tab._log.toPlainText()
+
+
+# ---- the ring on the aiming marks sits on the printed frame (owner, on screen) --------------------
+
+def test_the_mark_ring_is_the_printed_frame_and_centred_at_every_zoom(tab, i1io_chart):
+    import json
+    from PIL import Image
+    side = json.loads(i1io_chart.with_name("c.i1io.json").read_text(encoding="utf-8"))
+    tab._table_sheet = side
+    img = Image.open(i1io_chart.with_suffix(".tif")).convert("L")
+    marks = [a["number"] for a in side["pages"][0]["aim_points"] if a.get("target") == "cross"]
+    assert marks, "the chart has no crosses"
+    for mark in marks:
+        box = tab._table_mark_box(0, mark)
+        x0, y0 = box.x(), box.y()
+        x1, y1 = x0 + box.width(), y0 + box.height()
+        # a quarter in from the corner: on the frame's sides, clear of the cross's arms
+        cy, cx = y0 + (y1 - y0) // 4, x0 + (x1 - x0) // 4
+        # the frame's ink starts exactly at the box and paper lies just outside it
+        assert img.getpixel((x0, cy)) < 100 and img.getpixel((x0 - 1, cy)) > 200, mark
+        assert img.getpixel((x1 - 1, cy)) < 100 and img.getpixel((x1, cy)) > 200, mark
+        assert img.getpixel((cx, y0)) < 100 and img.getpixel((cx, y0 - 1)) > 200, mark
+        assert img.getpixel((cx, y1 - 1)) < 100 and img.getpixel((cx, y1)) > 200, mark
+        # drawn as the preview draws a ring (each edge to whole screen pixels), at three zooms
+        for s, ox, oy in ((0.31, 12.4, 7.7), (1.0, 0.0, 0.0), (2.37, -101.3, 55.5)):
+            ring_cx = (round(x0 * s + ox) + round(x1 * s + ox)) / 2.0
+            ring_cy = (round(y0 * s + oy) + round(y1 * s + oy)) / 2.0
+            assert abs(ring_cx - ((x0 + x1) / 2.0 * s + ox)) <= 0.5
+            assert abs(ring_cy - ((y0 + y1) / 2.0 * s + oy)) <= 0.5
+
+
+# ---- every table reading reaches the live overlay, on its own patch (owner, on screen) ------------
+
+def test_every_reading_of_a_page_is_on_the_overlay_on_its_own_patch(tab, beta, i1io_chart,
+                                                                    monkeypatch, qtbot):
+    """'some but very few patches show the expected vs measure overlay': on a real Create
+    Chart layout read whole by the simulated table, the overlay holds one entry per patch read,
+    each on that patch's own box, for rows read left to right and right to left alike."""
+    import json
+    import shutil
+    from core.file_manager import Project
+    proj = Project.create(i1io_chart.parent / "Ov", "Ov")
+    run = proj.current_run()
+    run.ensure_dir()
+    for f in i1io_chart.parent.iterdir():
+        if f.is_file() and f.name.startswith("c."):
+            shutil.copy2(f, run.dir / (run.stem + f.name[1:]))
+    read = []
+    sim = start(tab, run, monkeypatch)
+    win = tab._table_window
+    win.progress.connect(lambda ev: read.append(ev["loc"])
+                         if ev.get("event") == "patch_read" else None)
+    p = _person(win, sim, qtbot)
+    p.drive_until("end_of_session")
+    qtbot.wait(100)
+    side = json.loads(run.i1io_side_file.read_text(encoding="utf-8"))
+    rows = [[q["loc"] for q in st["patches"]] for st in side["pages"][0]["strips"]]
+    boxes = tab._patch_boxes[0]
+    overlay = tab._preview._patch_overlay.get(0, [])
+    on = {(r.x(), r.y(), r.width(), r.height()) for r, *_rest in overlay}
+    want = {(boxes[l].x(), boxes[l].y(), boxes[l].width(), boxes[l].height()) for l in read}
+    assert len(set(read)) == sum(len(r) for r in rows)              # the whole page was read
+    assert on == want                                                # each on its own box
+    # the reading order: at least one row each way, every patch of each row once
+    orders = [[l for l in read if l in row] for row in rows]
+    assert any(o == r for o, r in zip(orders, rows))
+    assert any(o == r[::-1] for o, r in zip(orders, rows))
