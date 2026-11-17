@@ -128,6 +128,23 @@ def marker_unacknowledged(run, stamp: str) -> bool:
     return marker.is_file() and not marker.with_suffix(".acknowledged.json").is_file()
 
 
+def write_json_now(path: Path, data) -> None:
+    """A small JSON record written whole or not at all (a ``.part`` file, then one replace).
+    Raises OSError: the caller says what was not recorded."""
+    import os
+    path = Path(path)
+    tmp = path.with_name(path.name + ".part")
+    tmp.write_text(json.dumps(data), encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def mark_saved_by(sdir: Path, stamp: str, result: dict) -> None:
+    """Review 8, M-4: an ADOPTED earlier session whose readings went into the measurement that
+    the session *stamp* saved: it ended there (``saved``), and is never offered as interrupted
+    again. Raises OSError."""
+    write_json_now(Path(sdir) / ms.SESSION_RESULT, {"saved_by": stamp, **result})
+
+
 def mark_discarded(sdir: Path, why: str) -> None:
     Path(sdir).mkdir(parents=True, exist_ok=True)
     (Path(sdir) / ms.DISCARDED).write_text(json.dumps({"discarded_by_person": True,

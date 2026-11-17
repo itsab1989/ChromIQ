@@ -320,3 +320,55 @@ def test_m3_page_numbers_stay_the_charts_when_the_whole_chart_is_read(tmp_path):
     job2, sim2, *_ = RS.make_reading_job(tmp_path / "b", sheet=sheet, aims=H.demo_aims(sheet))
     job2.page = 3
     assert H.Person(job2, sim2).drive(job2.open()).reason == "page_not_in_chart"
+
+
+# ---- M-4 ------------------------------------------------------------------------------------
+
+def _adopting(tmp_path, asking=False):
+    proj, run = project(tmp_path)
+    j1, s1, *_r = job_on(run, tmp_path / "first")
+    p1 = H.Person(j1, s1)
+    ready_to_read(j1, p1)
+    assert p1.drive(j1.read_row()).ok          # row 1 of 2, then the process is gone
+    job, sim, helper, p = job_on(run, tmp_path / "second", stamp=SECOND, asking=asking)
+    assert job.adopt_earlier(RS.STAMP).ok
+    return run, job, sim, helper, p
+
+
+def _states_at_the_next_start(run, tmp_path):
+    job3, *_ = job_on(run, tmp_path / "third", stamp="20261117-170000")
+    return {e["stamp"]: e["state"] for e in job3.earlier_sessions()}
+
+
+@ASKING
+def test_m4_an_adopted_session_that_was_saved_is_saved_at_the_next_start(tmp_path, asking):
+    """The reviewer's P3: adopt, complete, Save; the next START lists the adopted session as
+    saved (by the session that saved it), never as interrupted."""
+    import json
+    from workflow.i1io.table import measurement as ms
+    from workflow.i1io.table import session_end as se
+    run, job, sim, helper, p = _adopting(tmp_path, asking)
+    ready_to_read(job, p)
+    read_page(job, p)
+    r, st = _end(job, p, "save")
+    assert r.ok and r.detail["adopted_marked_saved"] == [RS.STAMP]
+    job.close()
+    assert _states_at_the_next_start(run, tmp_path) == {RS.STAMP: se.SAVED, SECOND: se.SAVED}
+    rec = json.loads((run.i1io_table_session_dir(RS.STAMP) / ms.SESSION_RESULT)
+                     .read_text(encoding="utf-8"))
+    assert rec["saved_by"] == SECOND and rec["state"] == "complete"
+    assert set(rec) <= {"saved_by", "filed", "state", "verdict", "added", "restored"}
+
+
+def test_m4_an_adopted_session_that_cannot_be_marked_is_named(tmp_path, monkeypatch):
+    from workflow.i1io.table import session_end as se
+    run, job, sim, helper, p = _adopting(tmp_path)
+    ready_to_read(job, p)
+    read_page(job, p)
+
+    def disk_full(sdir, stamp, result):
+        raise OSError(28, "No space left on device")
+    monkeypatch.setattr(se, "mark_saved_by", disk_full)
+    r, _st = _end(job, p, "save")
+    assert r.ok and r.detail["adopted_marked_saved"] == []
+    assert r.detail["adopted_not_marked"] == [RS.STAMP]

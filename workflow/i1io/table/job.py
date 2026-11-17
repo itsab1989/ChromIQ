@@ -2181,9 +2181,24 @@ class TableJob:
                   "archive": outcome.archive.parent.name if outcome.archive else None,
                   "resume_next": (self._assembly.state == "partial"
                                   and can_resume(dest, self._chart_ti2))}
-        self.diag.write_json(ms.SESSION_RESULT, {"filed": True, "state": self._assembly.state,
-                                                  "verdict": outcome.verdict.value,
-                                                  "added": outcome.added})
+        result = {"filed": True, "state": self._assembly.state,
+                  "verdict": outcome.verdict.value, "added": outcome.added}
+        self.diag.write_json(ms.SESSION_RESULT, result)
+        # review 8, M-4: the adopted earlier sessions ended in this measurement too; recorded
+        # in their own folders, so the next START does not offer them as interrupted
+        marked, not_marked = [], []
+        for sdir in self._earlier_dirs:
+            try:
+                se.mark_saved_by(sdir, self.stamp, result)
+                marked.append(sdir.name)
+            except OSError as exc:
+                not_marked.append(sdir.name)
+                self.diag.log("INFO", f"an adopted session ({sdir.name}) could not be marked "
+                                      f"saved ({type(exc).__name__})")
+        if self._earlier_dirs:
+            detail["adopted_marked_saved"] = marked
+        if not_marked:
+            detail["adopted_not_marked"] = not_marked
         self.diag.log("INFO", f"the measurement was saved into the run "
                               f"({self._assembly.state}, {self._assembly.read} readings, "
                               f"verdict {outcome.verdict.value})")
