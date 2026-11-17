@@ -495,3 +495,17 @@ def test_the_version_is_0_6_0():
     for needed in ("What is new in 0.6.0", "Do **not** open i1Profiler", "--sim cold",
                    "recorded **once**"):
         assert needed in readme, needed
+
+
+@pytest.mark.parametrize("fault", [("late", 30.0), ("unplug", 0.0), ("refuse", 1.0),
+                                   ("no_done", 0.0)])
+def test_a_failed_start_up_when_part_c_was_chosen(tmp_path, fault):
+    sim = csim.CSimTable(cold=True, part_c=False, jitter=False)
+    sim.inject_at(6, *fault)
+    code, sim, log, con, res = TC.run_c(tmp_path, ["c1", "f"], sim=sim)
+    assert code == 2
+    assert sim.received == S1_OPEN6 + [I0]
+    assert not sim.violations
+    t = _flat(log)
+    assert "switch the table off at its power switch" in t
+    assert "What can run now" not in t          # part C's menu never came
