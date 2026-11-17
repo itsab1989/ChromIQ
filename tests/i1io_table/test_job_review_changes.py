@@ -416,3 +416,17 @@ def test_the_table_object_is_private_and_nothing_outside_the_package_writes_to_i
         calls = {n.func.attr for n in ast.walk(tree) if isinstance(n, ast.Call)
                  and isinstance(n.func, ast.Attribute)} & (WRITERS - {"position"})
         assert not calls, (f.name, calls)
+
+
+@pytest.mark.parametrize("asking", [True, False])
+def test_stop_now_between_steps_closes_the_sending_at_once(asking):
+    job, sim, _t = H.make_job(ask_after_each_step=asking)
+    p = H.Person(job, sim)
+    assert p.drive(job.open()).ok and p.drive(job.align()).ok
+    r = job.report_problem(J.PROBLEM_STOP_NOW)
+    assert r.kind == J.Kind.STOPPED and r.state.sending_closed and r.state.stopped_by_person
+    assert r.way_back == J.WayBack.OPEN_I1PROFILER_ONCE      # out on the table, free
+    n = len(sim.received)
+    for s in ("park", "align", "check_move", "home", "next_page"):
+        assert getattr(job, s)().kind == J.Kind.REFUSED
+    assert len(sim.received) == n
