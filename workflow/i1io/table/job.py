@@ -492,6 +492,10 @@ class TableJob:
         #: resume / refinement: only these patches are read (None: every patch)
         self.only_locs: "set[str] | None" = None
         self._resume_base: "Path | None" = None
+        #: review 8, S-3: what set_options asked for, and what the adoptions still lack (each
+        #: (locations or None, base)); only_locs and the base are made from both
+        self._requested: "tuple[set[str] | None, Path | None]" = (None, None)
+        self._adopted: "tuple[set[str], Path | None]" = (set(), None)
         #: rows per page: {page: {row index: status}} (read, failed, skipped, stopped, ...)
         self.row_status: "dict[int, dict[int, str]]" = {}
         #: per page, how many rows were read again (NEXT_STEPS 4d)
@@ -1516,17 +1520,25 @@ class TableJob:
             return self._result("options", Kind.REFUSED, SESSION_ENDED)
         if any(self.row_status.values()):
             return self._result("options", Kind.REFUSED, "rows_read_already")
+        if self.phase != "new":
+            # review 8, S-3: the caps are derived at open() from what is to be read; what is to
+            # be read cannot change after it
+            return self._result("options", Kind.REFUSED, "already_opened")
         if chartread_args is not None:
             rep = sp.options_from_chartread_args(chartread_args)
         else:
             rep = sp.OptionsReport(options or sp.ReadOptions())
         self.options_report = rep
-        self.only_locs = set(only_locs) if only_locs is not None else None
-        self._resume_base = None
+        self._requested = (set(only_locs) if only_locs is not None else None, None)
+        self._apply_locs()
         detail = {"used": list(rep.used), "no_meaning": dict(rep.no_meaning),
                   "refused": dict(rep.refused)}
         self.diag.log("INFO", "reading options: " + json.dumps(detail))
-        if rep.options.resume:
+        if rep.options.resume and self._earlier_dirs:
+            # review 8, S-3: an adoption already reads only what the run's partial measurement
+            # and the adopted readings lack (and keeps the partial as its base)
+            detail["resume_by_adoption"] = True
+        elif rep.options.resume:
             from workflow.measurement_state import Ti3State, classify, unread_locations
             base = Path(self.run.measurement_ti3) if self.run is not None else None
             if base is None or self._chart_ti2 is None or not base.is_file():
@@ -1536,15 +1548,29 @@ class TableJob:
             if facts.state is not Ti3State.PARTIAL or not unread:
                 return self._result("options", Kind.REFUSED, "nothing_to_resume",
                                     state=facts.state.value, **detail)
-            self.only_locs = set(unread) if self.only_locs is None else \
-                self.only_locs & set(unread)
-            self._resume_base = base
+            asked = self._requested[0]
+            self._requested = (set(unread) if asked is None else asked & set(unread), base)
+            self._apply_locs()
             detail["resume_unread"] = len(self.only_locs)
+        if self._earlier_dirs:
+            # review 8, S-3: options set after an adoption keep it (never silently undone)
+            detail["adopted_still_missing"] = len(self.only_locs or ())
         if not rep.ok:
             return self._result("options", Kind.REFUSED, "option_refused", **detail)
         return self._result("options", Kind.OK, "", **detail)
 
     # ---- readiness -----------------------------------------------------------------------------
+    def _apply_locs(self) -> None:
+        """What this session reads: the patches the options asked for (a refinement's, or a
+        resume's), cut to what an adoption still lacks; the base is the run's partial
+        measurement either way (review 8, S-3: neither undoes the other)."""
+        locs, base = self._requested
+        if self._earlier_dirs:
+            alocs, abase = self._adopted
+            locs = set(alocs) if locs is None else locs & set(alocs)
+            base = abase
+        self.only_locs, self._resume_base = locs, base
+
     def _reading_ready(self, step: str) -> "str | None":
         d = self._table
         key = STAGE_KEY[step]
@@ -2293,11 +2319,28 @@ class TableJob:
         if self.ended == "saved":
             return self._result("discard", Kind.REFUSED, "saved_already")
         self.ended = "discarded"
-        if self.diag.folder is not None:
-            se.mark_discarded(self.diag.folder, "the person discarded the session")
+        # review 8, S-2 (the coordinator's decision): the person dropped the measurement M-END
+        # showed, which held the ADOPTED sessions' readings too: those are discarded with it
+        # (folders kept, nothing deleted), and the result names every session set to discarded
+        marked, not_marked = [], []
+        folders = ([(self.diag.folder, "the person discarded the session", None)]
+                   if self.diag.folder is not None else [])
+        folders += [(sdir, "discarded with the session that had adopted it", self.stamp)
+                    for sdir in self._earlier_dirs]
+        for sdir, why, by in folders:
+            try:
+                se.mark_discarded(sdir, why, by=by)
+                marked.append(Path(sdir).name)
+            except OSError as exc:
+                not_marked.append(Path(sdir).name)
+                self.diag.log("INFO", f"a session ({Path(sdir).name}) could not be marked "
+                                      f"discarded ({type(exc).__name__})")
         self.diag.log("INFO", "the readings were discarded: nothing was written into the "
                               "run's measurement")
-        return self._result("discard", Kind.OK, "", session_folder_kept=True)
+        detail = {"session_folder_kept": True, "discarded_sessions": marked}
+        if not_marked:
+            detail["not_marked"] = not_marked
+        return self._result("discard", Kind.OK, "", **detail)
 
     # ---- what the next START finds (step 8) -------------------------------------------------
     def earlier_sessions(self) -> "list[dict]":
@@ -2319,6 +2362,9 @@ class TableJob:
             return self._result("adopt", Kind.REFUSED, SESSION_ENDED)
         if any(self.row_status.values()):
             return self._result("adopt", Kind.REFUSED, "rows_read_already")
+        if self.phase != "new":
+            # review 8, S-3: the caps are derived at open() from what is to be read
+            return self._result("adopt", Kind.REFUSED, "already_opened")
         try:
             sdir = self.run.i1io_table_session_dir(stamp)
         except ValueError:
@@ -2341,12 +2387,12 @@ class TableJob:
         if a.state not in ("complete", "partial"):
             return self._result("adopt", Kind.REFUSED, a.reason or "nothing_to_adopt")
         self._earlier_dirs.append(sdir)
-        self._resume_base = base
-        self.only_locs = set(a.unread)
+        self._adopted = (set(a.unread), base)
+        self._apply_locs()
         self.diag.log("INFO", f"an interrupted session ({stamp}) adopted: {a.read} readings, "
                               f"{len(a.unread)} patches still to read")
-        return self._result("adopt", Kind.OK, "", read=a.read, still_missing=len(a.unread),
-                            state=a.state)
+        return self._result("adopt", Kind.OK, "", read=a.read,
+                            still_missing=len(self.only_locs or ()), state=a.state)
 
     def discard_earlier(self, stamp: str) -> StepResult:
         """An interrupted earlier session the person does not want: marked discarded (its

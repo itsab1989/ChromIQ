@@ -623,3 +623,146 @@ def test_s1_a_step_that_moves_nothing_leaves_the_stop_for_the_next_move(tmp_path
     job.stop_at_next_pause()
     assert p.drive(job.calibrate()).ok and job._pause_stop
     assert job.align().reason == STOPPED_BEFORE
+
+
+# ---- S-2 ------------------------------------------------------------------------------------
+
+@ASKING
+def test_s2_discard_after_adopting_discards_the_adopted_session_too(tmp_path, asking):
+    """The reviewer's P9 (the coordinator's decision): M-END counted the adopted readings, the
+    person discards; both sessions are set to discarded, both folders stay, nothing is filed,
+    and the result says which sessions were set to discarded."""
+    import json
+    from workflow.i1io.table import measurement as ms
+    from workflow.i1io.table import session_end as se
+    run, job, sim, helper, p = _adopting(tmp_path, asking)
+    ready_to_read(job, p)
+    read_page(job, p)
+    r, st = _end(job, p, "discard")
+    assert st["read"] == 8 and st["read_in_this_session"] == 4    # M-END showed both
+    assert r.ok and r.detail["discarded_sessions"] == [SECOND, RS.STAMP]
+    assert r.detail["session_folder_kept"] and "not_marked" not in r.detail
+    assert not run.measurement_ti3.exists()
+    job.close()
+    assert _states_at_the_next_start(run, tmp_path) == {RS.STAMP: se.DISCARDED,
+                                                        SECOND: se.DISCARDED}
+    for stamp in (RS.STAMP, SECOND):
+        sdir = run.i1io_table_session_dir(stamp)
+        assert any(sdir.glob("row-*/*.row.json"))                 # nothing deleted
+    rec = json.loads((run.i1io_table_session_dir(RS.STAMP) / ms.DISCARDED)
+                     .read_text(encoding="utf-8"))
+    assert rec["discarded_with"] == SECOND
+
+
+def test_s2_a_folder_that_cannot_be_marked_is_named(tmp_path, monkeypatch):
+    from workflow.i1io.table import session_end as se
+    run, job, sim, helper, p = _adopting(tmp_path)
+    ready_to_read(job, p)
+    read_page(job, p)
+    real = se.mark_discarded
+
+    def full(sdir, why, by=None):
+        if by is not None:
+            raise OSError(28, "No space left on device")
+        return real(sdir, why, by=by)
+    monkeypatch.setattr(se, "mark_discarded", full)
+    r, _st = _end(job, p, "discard")
+    assert r.ok and r.detail["discarded_sessions"] == [SECOND]
+    assert r.detail["not_marked"] == [RS.STAMP]
+
+
+# ---- S-3 ------------------------------------------------------------------------------------
+
+def test_s3_adopting_after_open_is_refused(tmp_path):
+    """The reviewer's P10: the caps are derived at open(), so adopting comes before it."""
+    proj, run = project(tmp_path)
+    j1, s1, *_r = job_on(run, tmp_path / "first", sheet=small_sheet([4, 4, 4]))
+    p1 = H.Person(j1, s1)
+    ready_to_read(j1, p1)
+    assert p1.drive(j1.read_row()).ok
+    job, sim, helper, p = job_on(run, tmp_path / "second", stamp=SECOND,
+                                 sheet=small_sheet([4, 4, 4]))
+    assert p.drive(job.open()).ok
+    r = job.adopt_earlier(RS.STAMP)
+    assert (r.kind, r.reason) == (J.Kind.REFUSED, "already_opened")
+    assert job._earlier_dirs == [] and job.only_locs is None
+
+
+def test_s3_options_after_open_are_refused(tmp_path):
+    job, sim, helper, run, p = _job_for(tmp_path, False)
+    assert p.drive(job.open()).ok
+    r = job.set_options(["-p"], only_locs={"0-0"})
+    assert (r.kind, r.reason) == (J.Kind.REFUSED, "already_opened") and job.only_locs is None
+
+
+@pytest.mark.parametrize("args", [["-p"], ["-p", "-r"], ["-p", "-N"]])
+def test_s3_options_after_adopting_keep_the_adoption(tmp_path, args):
+    """The reviewer's P11: the options set after an adoption never undo it (only what is still
+    missing is read, the run's partial stays the base)."""
+    run, job, sim, helper, p = _adopting(tmp_path)
+    missing = set(job.only_locs)
+    r = job.set_options(args)
+    assert r.ok, r.reason
+    assert job.only_locs == missing and r.detail["adopted_still_missing"] == len(missing)
+    ready_to_read(job, p)
+    res = read_page(job, p)
+    assert [x.detail["status"] for x in res] == ["nothing_to_read", "read"]
+    assert helper.reads == 4
+
+
+def test_s3_a_refinement_after_adopting_reads_what_both_ask_for(tmp_path):
+    run, job, sim, helper, p = _adopting(tmp_path)              # row 2 ("1-*") still missing
+    assert job.set_options(["-p"], only_locs={"0-0", "1-1", "1-2"}).ok
+    assert job.only_locs == {"1-1", "1-2"}
+
+
+def test_s3_adopting_after_options_keeps_the_options(tmp_path):
+    proj, run = project(tmp_path)
+    j1, s1, *_r = job_on(run, tmp_path / "first")
+    p1 = H.Person(j1, s1)
+    ready_to_read(j1, p1)
+    assert p1.drive(j1.read_row()).ok
+    job, sim, helper, p = job_on(run, tmp_path / "second", stamp=SECOND)
+    assert job.set_options(["-p"], only_locs={"0-0", "1-1"}).ok
+    r = job.adopt_earlier(RS.STAMP)
+    assert r.ok and job.only_locs == {"1-1"} and r.detail["still_missing"] == 1
+
+
+# ---- S-6: the two planted faults that survived review 8 ------------------------------------
+
+def test_s6_an_adopted_session_cannot_be_discarded_at_the_same_start(tmp_path):
+    """Planted fault M1: discard_earlier of an ADOPTED session would drop its readings from the
+    assembly while only_locs never reads them again (a silent partial)."""
+    run, job, sim, helper, p = _adopting(tmp_path)
+    r = job.discard_earlier(RS.STAMP)
+    assert (r.kind, r.reason) == (J.Kind.REFUSED, "adopted_already")
+    assert not (run.i1io_table_session_dir(RS.STAMP) / "discarded.json").exists()
+    ready_to_read(job, p)
+    read_page(job, p)
+    e, st = _end(job, p, "save")
+    assert st["state"] == "complete" and e.ok
+
+
+@pytest.mark.parametrize("existing", ["no_data_block", "empty_data", "zero_bytes"])
+def test_s6_adopting_over_a_measurement_that_is_not_partial_is_refused(tmp_path, existing):
+    """Planted fault M6: the run holds a measurement that is neither partial nor complete; the
+    adoption itself is refused (not only the later Save)."""
+    proj, run = project(tmp_path)
+    j1, s1, *_r = job_on(run, tmp_path / "first")
+    p1 = H.Person(j1, s1)
+    ready_to_read(j1, p1)
+    assert p1.drive(j1.read_row()).ok
+    head = 'CTI3\n\nDESCRIPTOR "Argyll Calibration Target chart information 3"\n'
+    text = {"no_data_block": head,
+            "empty_data": head + ("NUMBER_OF_FIELDS 2\nBEGIN_DATA_FORMAT\nSAMPLE_ID SAMPLE_LOC\n"
+                                  "END_DATA_FORMAT\nNUMBER_OF_SETS 0\nBEGIN_DATA\nEND_DATA\n"),
+            "zero_bytes": ""}[existing]
+    run.measurement_ti3.write_text(text, encoding="utf-8")
+    from workflow.measurement_state import Ti3State, classify
+    assert classify(run.measurement_ti3, run.chart_ti2).state not in (Ti3State.PARTIAL,
+                                                                      Ti3State.COMPLETE,
+                                                                      Ti3State.ABSENT)
+    job, sim, helper, p = job_on(run, tmp_path / "second", stamp=SECOND)
+    r = job.adopt_earlier(RS.STAMP)
+    assert (r.kind, r.reason) == (J.Kind.REFUSED, "run_has_a_measurement_already"), r.reason
+    assert job._earlier_dirs == [] and job.only_locs is None

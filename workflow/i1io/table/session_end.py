@@ -200,7 +200,10 @@ def mark_saved_by(sdir: Path, stamp: str, result: dict) -> None:
     write_json_now(Path(sdir) / ms.SESSION_RESULT, {"saved_by": stamp, **result})
 
 
-def mark_discarded(sdir: Path, why: str) -> None:
+def mark_discarded(sdir: Path, why: str, by: "str | None" = None) -> None:
+    """*by*: the stamp of the session whose Discard took this (adopted) one with it."""
     Path(sdir).mkdir(parents=True, exist_ok=True)
-    (Path(sdir) / ms.DISCARDED).write_text(json.dumps({"discarded_by_person": True,
-                                                       "why": why}), encoding="utf-8")
+    rec = {"discarded_by_person": True, "why": why}
+    if by is not None:
+        rec["discarded_with"] = by
+    (Path(sdir) / ms.DISCARDED).write_text(json.dumps(rec), encoding="utf-8")

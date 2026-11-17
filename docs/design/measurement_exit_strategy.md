@@ -740,7 +740,7 @@ measuring instrument that moves.
 | it read something | **M-END**: Save and stop / Keep measuring / Discard and stop, no button pre-selected | as below |
 | Save and stop, every patch of every page read | the measurement is COMPLETE (§3a, by location) | written as the run's `.ti3`, guarded as every measurement (`MeasurementSession`: the earlier file copied to `old/`, C₀ → C judged, §2a, §3b) |
 | Save and stop, patches missing | PARTIAL (`0 < C < A`): the unread patches are absent | written; Refine / resume completes it later, reading only the missing patches |
-| Discard and stop | nothing from the session | nothing written; the table's own session folder (its log and raw readings) stays in the run, marked as discarded, never used again |
+| Discard and stop | nothing from the session | nothing written; the table's own session folder (its log and raw readings) stays in the run, marked as discarded, never used again; an earlier interrupted session this one completed is discarded with it (rule 6) |
 | Keep measuring | the session continues | nothing written |
 | the window's Esc or X on the ending | a withdrawal (note 8b): the option that changes nothing | nothing written, nothing discarded, **nothing moves**; the ending can be asked again |
 
@@ -763,4 +763,12 @@ Proposed rules new to this document:
    marker if one was left; the person may complete it (its readings count, only
    the rest is read) or discard it (its folder stays, marked).
 5. A discarded session folder may later be moved to `old/i1io-table/<stamp>/`;
-   ChromIQ never deletes it.
+   ChromIQ never deletes it. A folder that still holds an unacknowledged
+   pending strip-move marker is not moved, so the next Start still asks for the
+   table to be switched off and on first.
+6. **Discard after completing an interrupted session.** The ending counts the
+   readings of an interrupted session this one completed together with its own
+   (one measurement). Discard and stop drops that whole measurement: both
+   sessions are marked discarded, both folders stay, nothing is deleted, and the
+   result names every session that was set to discarded. Save and stop marks
+   both as saved, so neither is offered as interrupted again.
