@@ -8440,7 +8440,9 @@ alone.
 >
 > While you are there, choose the paper type and the print quality you will use with the profile, and use the same settings every time you print with it.
 >
-> Press “Open the print dialog” to go on, or “Cancel” to print nothing. If your printer understands PostScript, ChromIQ can also send the chart to it directly, so that no driver setting can change it: untick “Use default Windows printer dialog” in Preferences.
+> Press “Open the print dialog” to go on, or “Cancel” to print nothing.
+>
+> *Only while “Use default Windows printer dialog” is ticked (review of 4.3.45, S1; on ChromIQ's own route, a printer that is not PostScript or a “dialog” answer, the box is already unticked), one more paragraph:* If your printer understands PostScript, ChromIQ can also send the chart to it directly, so that no driver setting can change it: untick “Use default Windows printer dialog” in Preferences.
 
 ### Help texts of the Windows print route · PROPOSED · Preferences and the Print Chart tab, Windows, 4.3.8
 

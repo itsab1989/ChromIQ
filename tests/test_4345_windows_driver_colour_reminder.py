@@ -11,7 +11,9 @@ Chart tab had been passed over. Pinned here, with the print dialog patched
 2. "Don't show this again" is stored and then nothing is asked;
 3. macOS and Linux never ask (the same route, `is_windows()` false);
 4. the window's text is the catalogue's, names Canon, Epson and HP by the
-   makers' own menu words, and has no em dash.
+   makers' own menu words, offers the PostScript route only while "Use
+   default Windows printer dialog" is ticked (review S1), and has no em
+   dash.
 """
 from __future__ import annotations
 
@@ -121,22 +123,44 @@ def test_a_chart_refused_before_the_dialog_is_not_asked_about(
     assert answers["shown"] == [] and opened == []
 
 
-def test_the_text_says_where_the_switch_is(route, tmp_path, monkeypatch):
+def _shown(route, tmp_path, monkeypatch, *, dialog_box: bool):
     tab, events, opened, answers = route
     _windows(monkeypatch, True)
+    tab._settings.set("use_native_print_dialog", dialog_box)
     answers["button"] = "cancel"
     tab._print_native_qt([(_rgb_tiff(tmp_path / "c.tif"), 0)])
     (head, body), = answers["shown"]
+    return head, body
+
+
+
+def test_the_text_says_where_the_switch_is(route, tmp_path, monkeypatch):
+    head, body = _shown(route, tmp_path, monkeypatch, dialog_box=True)
     from workflow import measurement_messages as MM
-    assert (head, body) == MM.M_PRINT_WIN_DRIVER_CM.render()
+    from ui.tabs import tab_print as tp
+    h, b = MM.M_PRINT_WIN_DRIVER_CM.render()
+    assert (head, body) == (h, b + "\n\n" + tp.tr(MM._PRINT_DRIVER_CM_DIRECT))
     # the driver's own words in straight quotes (they are not ChromIQ's
     # controls: tests/test_a_quoted_control_names_the_control_the_reader_has)
     for words in ('"Color/Intensity"', '"Matching"', '"Color Correction"',
-                  '"None"', '"Off (No Color Adjustment)"',
-                  '"Application Managed Colors"',
+                  '"None"', '"Application Managed Colors"',
                   "“Use default Windows printer dialog”"):
         assert words in body, words
     assert "—" not in head + body
+
+
+
+def test_the_postscript_route_is_offered_only_with_the_dialog_box_ticked(
+        route, tmp_path, monkeypatch):
+    """Review of 4.3.45, S1: ChromIQ's own route (a printer that is not
+    PostScript, #205, or a "dialog" answer) reaches the same window with
+    "Use default Windows printer dialog" UNticked; telling the person to
+    untick it there was wrong."""
+    _h, body = _shown(route, tmp_path, monkeypatch, dialog_box=False)
+    assert "Use default Windows printer dialog" not in body
+    assert "PostScript" not in body
+    assert body.rstrip().endswith("to print nothing.")
+
 
 
 def test_the_default_is_to_ask():

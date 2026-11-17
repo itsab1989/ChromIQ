@@ -8995,10 +8995,16 @@ M_PRINT_WIN_DRIVER_CM = _m(
     "you print with it.\n"
     "\n"
     "Press “Open the print dialog” to go on, or “Cancel” to print "
-    "nothing. If your printer understands PostScript, ChromIQ can also "
-    "send the chart to it directly, so that no driver setting can change "
-    "it: untick “Use default Windows printer dialog” in Preferences.",
+    "nothing.",
     approved=False)
+#: Added below M-PRINT-WIN-DRIVER-CM only while “Use default Windows printer
+#: dialog” is ticked (review of 4.3.45, S1): on ChromIQ's own route (a
+#: printer that is not PostScript, #205, or the “dialog” answer to one of
+#: its questions) that box is already unticked, and the advice was wrong.
+_PRINT_DRIVER_CM_DIRECT = (
+    "If your printer understands PostScript, ChromIQ can also send the "
+    "chart to it directly, so that no driver setting can change it: untick "
+    "“Use default Windows printer dialog” in Preferences.")
 _PRINT_DRIVER_CM_BTN = "Open the print dialog"
 
 # --- APPROVED: the P18 window's own wording, 4.3.8 (Basti, 2026-10-20) -----

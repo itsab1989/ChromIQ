@@ -3581,6 +3581,12 @@ class TabPrint(QWidget):
         from PyQt6.QtWidgets import QCheckBox
         from workflow import measurement_messages as MM
         title, body = MM.M_PRINT_WIN_DRIVER_CM.render()
+        # the PostScript route is offered only where it is not already the
+        # route: with "Use default Windows printer dialog" ticked (review of
+        # 4.3.45, S1); ChromIQ's own route reaches here for a printer that
+        # is not PostScript (#205) or a "dialog" answer, box unticked
+        if bool(self._settings.get("use_native_print_dialog", False)):
+            body = body + "\n\n" + tr(MM._PRINT_DRIVER_CM_DIRECT)
         box = QMessageBox(self)
         box.setObjectName("print_win_driver_cm")
         box.setWindowTitle(title)
