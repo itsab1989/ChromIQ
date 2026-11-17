@@ -613,6 +613,17 @@ def _detect_stripe_rects(tiff_path: Path) -> list[QRect]:
         else:
             centers = raw_centers
         n_strips = len(centers)
+        if n_strips < 2:
+            # ONE LABEL CLUSTER IS NOT A STRIP PITCH (fix round 10, open point
+            # c). Step 4 measures each strip's width from its neighbours, so a
+            # single cluster had none and raised IndexError, logged as "Strip
+            # detection failed: list index out of range" for every i1iO chart:
+            # its labels run down the side of the sheet, not across its top.
+            # Nothing is guessed: the chart's own strip geometry is the source
+            # for such a sheet (`strip_rects_from_strips_json`).
+            log.debug("Strip detection: %d label cluster(s), no strip pitch",
+                      n_strips)
+            return []
 
         # ── 3. Vertical extent ───────────────────────────────────────────────
         y_top_a    = next((y for y in range(ah)
@@ -642,6 +653,32 @@ def _detect_stripe_rects(tiff_path: Path) -> list[QRect]:
     except Exception as exc:
         log.warning("Strip detection failed: %s", exc)
         return []
+
+
+def strip_rects_from_strips_json(ti2_path: "Path | None", n_pages: int
+                                 ) -> "list[list[QRect]] | None":
+    """Each page's strip rects (TIFF pixels, in strip order) from the layout
+    engine's ``<stem>.strips.json``, or None when the chart has none for every
+    page (fix round 10, open point c: the i1iO chart's strips are recorded
+    there exactly, and its TIFF has no row of labels to count)."""
+    import json
+    if ti2_path is None or n_pages < 1:
+        return None
+    f = Path(ti2_path).with_suffix(".strips.json")
+    if not f.is_file():
+        return None
+    try:
+        data = json.loads(read_text(f))
+        per = [[] for _ in range(n_pages)]
+        for st in sorted(data.get("strips") or [],
+                         key=lambda d: (int(d["page"]), int(d["pass"]))):
+            pg = int(st["page"])
+            if 0 <= pg < n_pages:
+                per[pg].append(QRect(int(st["x"]), int(st["y"]),
+                                     int(st["w"]), int(st["h"])))
+    except Exception:      # noqa: BLE001 - no geometry, no rects
+        return None
+    return per if all(per) else None
 
 
 def patch_boxes_from_sidecar(ti2_path: Path, n_pages: int
@@ -2568,6 +2605,105 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                         w.setEnabled(not is_cr30)
                 if opt.checkbox is not None:
                     opt.checkbox.setToolTip(why if is_cr30 else "")
+        self._apply_i1io_table_options(is_cr30)
+
+    # ---- the i1iO table (Beta): the options with no meaning, greyed --------
+    def _table_chart_loaded(self) -> bool:
+        """The loaded chart is one START drives the i1iO table for (the Beta
+        on, a profile run's chart for an i1iO 2 with an i1Pro 2). Nothing is
+        read while the Beta is off."""
+        from workflow.i1io.support import i1io_enabled
+        ti1 = getattr(self, "_ti1_path", None)
+        if not i1io_enabled() or ti1 is None:
+            return False
+        try:
+            from workflow.i1io.support import chart_names_i1io
+            chart = self._chart_file_for(ti1)
+            if chart_names_i1io(chart) is not True:
+                return False
+            from ui.i1io_table_window import drivable_sheet
+            return drivable_sheet(chart) is not None
+        except Exception:      # noqa: BLE001 - never block the tab on this
+            return False
+
+    def _table_dead_widgets(self) -> "list[tuple[QWidget, str, object]]":
+        """(widget, why, option or None) for every Measure option that has no
+        meaning when the i1iO table reads (open point d; the owner's rule:
+        grey only what has no meaning, never as a precaution). Every other
+        option works and reaches the job as the tab's own arguments."""
+        port = tr(
+            "The i1iO table reads with the i1Pro 2 in its arm, and ChromIQ "
+            "finds that instrument by itself before the table moves, so there "
+            "is no port to choose for this chart. Your choice is remembered "
+            "for other charts.")
+        recog = tr(
+            "The i1iO table knows where every patch is and moves the "
+            "instrument to it, so for this chart no strip has to be recognised "
+            "and no reading direction worked out. Your choice is remembered "
+            "for other charts.")
+        tol = tr(
+            "This tolerance tells ArgyllCMS how different the readings along "
+            "a strip may be before it refuses the strip. The i1iO table reads "
+            "one patch at a time at the place it knows, so there is no strip "
+            "to check on this chart. Your setting is remembered for other "
+            "charts.")
+        filt = tr(
+            "The i1Pro 2 in the table's arm cannot measure with a filter "
+            "(ArgyllCMS refuses every filter for it), so this setting is not "
+            "used for this chart. Your setting is remembered for other "
+            "charts.")
+        out = []
+        for name in ("_instr_spin", "_m_instr_spin"):
+            w = getattr(self, name, None)
+            if w is not None:
+                out.append((w, port, None))
+        for name in ("_bidir_combo", "_bidir_auto_cb", "_m_bidir_combo",
+                     "_m_bidir_auto_cb"):
+            w = getattr(self, name, None)
+            if w is not None:
+                out.append((w, recog, None))
+        for opts in (getattr(self, "_chartread_opts", None) or [],
+                     getattr(self, "_m_chartread_opts", None) or []):
+            for opt in opts:
+                why = {"tolerance": tol, "filter": filt}.get(opt.key)
+                if why is None:
+                    continue
+                for w in (opt.checkbox, opt.widget):
+                    if w is not None:
+                        out.append((w, why, opt))
+        return out
+
+    def _apply_i1io_table_options(self, is_cr30: bool = False) -> None:
+        """Grey, with the reason in each tooltip, the options that have no
+        meaning for a chart the i1iO table reads, and put each back exactly as
+        it was for any other chart. DISABLE ONLY, NEVER UNTICK: the value is
+        the person's and comes back with the next chart; the greyed rows are
+        also not sent (the job would drop them, the filter it would refuse)."""
+        on = not is_cr30 and self._table_chart_loaded()
+        snap = getattr(self, "_table_options_snapshot", None)
+        if on:
+            if snap is None:
+                snap = self._table_options_snapshot = {}
+            for w, why, opt in self._table_dead_widgets():
+                if id(w) not in snap:
+                    snap[id(w)] = (w, w.isEnabled(), w.toolTip())
+                w.setEnabled(False)
+                w.setToolTip(why)
+                if opt is not None:
+                    opt.suppressed = True
+            return
+        if snap is None:
+            return
+        self._table_options_snapshot = None
+        for w, enabled, tip in snap.values():
+            try:
+                w.setEnabled(enabled)
+                w.setToolTip(tip)
+            except RuntimeError:      # a widget gone with its panel
+                pass
+        for _w, _why, opt in self._table_dead_widgets():
+            if opt is not None and not is_cr30:
+                opt.suppressed = False
 
     def _apply_cr30_pbp_lock(self) -> None:
         """Show, in both modules, that a CR30 chart reads patch by patch.
@@ -2593,7 +2729,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if any(cb is None for _m, cb in pairs):
             return                       # called before the UI is built
         snap = self._pbp_lock_snapshot
-        if self._chart_is_cr30():
+        cr30 = bool(self._chart_is_cr30())
+        # The i1iO table (Beta) reads one patch at a time too (open point d)
+        table = not cr30 and self._table_chart_loaded()
+        if cr30 or table:
             if snap is None:
                 self._pbp_lock_snapshot = {m: (cb.isChecked(), cb.toolTip())
                                            for m, cb in pairs}
@@ -2633,6 +2772,14 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                         "you and cannot be turned off here; the box is ticked "
                         "so you can see the mode the measurement is really "
                         "in.\n\n"
+                        "Load a chart made for a different instrument and this "
+                        "option comes back exactly as you had it.") if cr30 else tr(
+                        "The i1iO table reads this chart one patch at a time: "
+                        "the arm moves to each patch, and the instrument reads "
+                        "it there. Reading whole strips with the table is not "
+                        "built yet. So patch-by-patch is switched on for you "
+                        "and cannot be turned off here; the box is ticked so "
+                        "you can see the mode the measurement is really in.\n\n"
                         "Load a chart made for a different instrument and this "
                         "option comes back exactly as you had it."))
                 finally:
@@ -6409,12 +6556,35 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 self._preview.set_stripe_rects(per_page[0])
                 return
 
+        # An i1iO chart (Beta) records its strips exactly in the layout
+        # engine's strips.json, and its TIFF has no row of strip labels for
+        # the fallback below to count (open point c). Every other chart, and
+        # an i1iO chart with the Beta off, goes on as before.
+        if self._chart_is_an_i1io_chart():
+            per_page = strip_rects_from_strips_json(ti2_for_counts,
+                                                    len(self._tiff_pages))
+            if per_page:
+                self._page_stripe_rects = per_page
+                self._strips_per_page = [len(r) for r in per_page]
+                self._preview.set_stripe_rects(per_page[0])
+                return
+
         # Fallback: legacy label-based detection on page 1 only. Page mapping
         # in _on_stripe_changed then assumes uniform pages (len(rects)/page).
         rects = _detect_stripe_rects(self._tiff_pages[0])
         if rects:
             self._page_stripe_rects = [rects]
             self._preview.set_stripe_rects(rects)
+
+    def _chart_is_an_i1io_chart(self) -> bool:
+        """An i1iO chart with i1iO support on (its side file beside it).
+        Nothing is read while the Beta is off."""
+        from workflow.i1io.support import i1io_enabled
+        if not i1io_enabled() or self._ti1_path is None:
+            return False
+        ti1 = Path(self._ti1_path)
+        stem = ti1.name[:-4] if ti1.suffix.lower() in (".ti1", ".ti2") else ti1.stem
+        return ti1.with_name(stem + ".i1io.json").is_file()
 
     def _engine_stripe_rects(self):
         """Exact per-page strip rects from a ChromIQ-engine chart's channels.json,
@@ -6978,6 +7148,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # S-2); one left from an earlier hand session is not ours to restore
         self._displaced_measurement = None
         self._table_saved = False
+        self._table_refining = bool(only_locs)
         win = TableMeasureWindow(self._stack, self._settings, sheet, run, args,
                                  only_locs=only_locs,
                                  mode=self._current_mode(), replace_agreed=at_risk,
@@ -7211,6 +7382,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             self._log.appendPlainText(
                 "\n" + tr("[OK] Measurement complete.") + f"\nSaved: {ti3}\n\n"
                 + tr("→ Next step: go to the '4. Build Profile' tab to create your ICC profile."))
+        if getattr(self, "_table_refining", False):
+            # open point a: a refinement's ending says the profile does not
+            # update by itself, as the hand path's (M-REFINE-REBUILD)
+            title, body = self._refine_rebuild_texts()
+            self._log.appendPlainText(f"\n[{title}]\n{body}")
         self._log.ensureCursorVisible()
         self.measure_finished.emit(ti3)
 

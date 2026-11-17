@@ -129,6 +129,20 @@ def new_stamp() -> str:
     return time.strftime("%Y%m%d-%H%M%S")
 
 
+def unique_stamp(run, now: "str | None" = None) -> str:
+    """A session stamp no session of *run* has yet: two STARTs in the same second get
+    ``_2``, ``_3`` (the form ``Run.i1io_table_session_dir`` accepts), never one folder."""
+    base = now or new_stamp()
+    stamp, n = base, 1
+    try:
+        while run is not None and run.i1io_table_session_dir(stamp).exists():
+            n += 1
+            stamp = f"{base}_{n}"
+    except (ValueError, OSError, AttributeError):
+        return base
+    return stamp
+
+
 def stamp_text(stamp: str) -> str:
     """"2026-11-17 14:00" from a session stamp (numbers only: the same in every language)."""
     try:
@@ -440,7 +454,7 @@ class TableMeasureWindow(QFrame):
         self._mode = mode
         self._replace_agreed = bool(replace_agreed)
         self._archive = archive
-        self._stamp = stamp or new_stamp()
+        self._stamp = stamp or unique_stamp(run)
         self.job = None
         self._token = 0
         self._busy = False
@@ -994,9 +1008,21 @@ class TableMeasureWindow(QFrame):
         self.job.discard_earlier(e["stamp"])
         self._next_earlier()
 
+    def _reads_note_from(self, res) -> None:
+        """Open point a: what this session reads, said on the first page (a refinement's
+        patches, or the patches a resume completes)."""
+        from workflow import measurement_messages as M
+        self._reads_note = ""
+        d = res.detail or {}
+        if d.get("refine"):
+            self._reads_note = M.M_I1IO_DRIVE_REFINE.render(n=int(d["refine"]))[1]
+        elif d.get("resume_unread"):
+            self._reads_note = M.M_I1IO_DRIVE_RESUME.render(n=int(d["resume_unread"]))[1]
+
     def _set_options(self) -> None:
         res = self.job.set_options(self._chart_args, only_locs=self._only_locs)
         self._options_note = ""
+        self._reads_note_from(res)
         if res.reason == "option_refused":
             from workflow import measurement_messages as M
             lines = "\n".join(option_text(k, v) for k, v in res.detail.get("refused", {}).items())
@@ -1034,6 +1060,7 @@ class TableMeasureWindow(QFrame):
         if not res.ok:
             self._show_refusal(res, after=self._finish_not_started)
             return
+        self._reads_note_from(res)
         self._show_prepare()
 
     def _first_page(self) -> int:
@@ -1048,6 +1075,8 @@ class TableMeasureWindow(QFrame):
         from workflow import measurement_messages as M
         pages = self.job.pages_in_chart()
         title, body = M.M_I1IO_DRIVE_PREPARE.render(page=self.job.page + 1, pages=pages)
+        if getattr(self, "_reads_note", ""):
+            body = self._reads_note + "\n\n" + body
         if self._options_note:
             body += "\n\n" + self._options_note
         self._show("prepare", title, body,

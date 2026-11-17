@@ -12326,6 +12326,20 @@ M_I1IO_DRIVE_MARKER_APP_ENDED = _m(
     "Last time, ChromIQ ended while it was still driving the table, for example because the computer was switched off or ChromIQ was closed by force. The table may still be in the middle of a step, and ChromIQ does not know where the arm is now.\n\nIf you have not switched the table off since then, please do it now, before anything else: switch it off at its power switch, leave it off for ten seconds and switch it on again. Unplugging its USB cable is not enough, because that does not switch the table off.\n\nPress “I switched it off and on” only when you have done that. ChromIQ has not sent anything to the table yet.",
     approved=False)
 
+M_I1IO_DRIVE_REFINE = _m(
+    "M-I1IO-DRIVE-REFINE",
+    "Only the patches to refine are read",
+    "This measurement reads again only the {n} patches that your list of strips to refine names (the list the quality check on the Check & Refine tab made). The table goes to each of them, patch by patch, and skips every other patch.\n\nWhen you press Save and stop, their new readings replace the earlier ones in this run's measurement, and every other reading stays exactly as it is. Your profile does not change by itself: build it again on the Build Profile tab afterwards.",
+    body_one="This measurement reads again only the one patch that your list of strips to refine names (the list the quality check on the Check & Refine tab made). The table goes to it and skips every other patch.\n\nWhen you press Save and stop, its new reading replaces the earlier one in this run's measurement, and every other reading stays exactly as it is. Your profile does not change by itself: build it again on the Build Profile tab afterwards.", count_key="n",
+    approved=False)
+
+M_I1IO_DRIVE_RESUME = _m(
+    "M-I1IO-DRIVE-RESUME",
+    "Only the missing patches are read",
+    "This run's measurement is still missing {n} patches. This measurement reads only those, and when you press Save and stop they are added to the readings the run already has.",
+    body_one="This run's measurement is still missing one patch. This measurement reads only that one, and when you press Save and stop it is added to the readings the run already has.", count_key="n",
+    approved=False)
+
 I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_CONSENT, M_I1IO_DRIVE_PREPARE, M_I1IO_DRIVE_READY,
     M_I1IO_DRIVE_EARLIER, M_I1IO_DRIVE_OPTIONS, M_I1IO_DRIVE_OPTION_REFUSED,
@@ -12350,6 +12364,8 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_USB_GONE, M_I1IO_DRIVE_USB_UNEXPECTED,
     M_I1IO_DRIVE_TABLE_NOT_FOUND, M_I1IO_DRIVE_SEVERAL_TABLES,
     M_I1IO_DRIVE_AFTER_PROBLEM, M_I1IO_DRIVE_ENDING_CLOSED,
+    M_I1IO_DRIVE_RESUME,
+    M_I1IO_DRIVE_REFINE,
     M_I1IO_DRIVE_MARKER_APP_ENDED,
     M_I1IO_DRIVE_END_CHOICES,
 )

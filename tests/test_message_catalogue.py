@@ -179,6 +179,8 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-I1IO-DRIVE-SEVERAL-TABLES",
     "M-I1IO-DRIVE-AFTER-PROBLEM",
     "M-I1IO-DRIVE-ENDING-CLOSED",
+    "M-I1IO-DRIVE-RESUME",
+    "M-I1IO-DRIVE-REFINE",
     "M-I1IO-DRIVE-MARKER-APP-ENDED",
     "M-I1IO-DRIVE-END-CHOICES",
     # 2026-11-16: the Beta "Custom page size in inches or pixels, and high
