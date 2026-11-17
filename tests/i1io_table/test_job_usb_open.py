@@ -247,6 +247,7 @@ def test_windows_opens_only_with_libusb_win32_bound(monkeypatch, bundled):
         with pytest.raises(tbl.NotAvailable) as e:
             tbl.open_table("win32")
         assert e.value.message_id == "M-I1IO-DRIVE-TABLE-DRIVER-NOT-INSTALLED"
+        assert e.value.problem == f"table driver {state}"     # decided by the driver state
         assert dev.calls == [] and bundled == []
 
 

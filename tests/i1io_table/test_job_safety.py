@@ -617,6 +617,7 @@ def test_cancel_at_every_confirmation_sends_nothing_more():
                                           on_ask=on_ask, sheet=sheet, aims=pts)
         stopped = [r for r in out if r.kind == J.Kind.STOPPED]
         assert stopped and stopped[0].reason == "cancelled_by_person", k
+        assert stopped[0].state.sending_closed, k          # at once, not only at the close
         n = len(sim2.received)
         assert job2.home().kind == J.Kind.REFUSED and len(sim2.received) == n
 
@@ -699,3 +700,38 @@ def test_the_job_is_reached_by_nothing_in_the_app():
                          timeout=120, cwd=str(H.HERE.parents[1]),
                          env={**__import__("os").environ, "QT_QPA_PLATFORM": "offscreen"})
     assert out.stdout.strip().endswith("False"), out.stderr[-2000:]
+
+
+def test_the_creep_never_takes_more_steps_than_allowed(monkeypatch):
+    monkeypatch.setattr(cp, "CREEP_STEPS_MAX", 2)
+    sheet, pts = H.recorded_sheet("S2 684.0", 18)
+    job, sim, _t = H.make_job(sheet=sheet, aims=pts)
+    p = H.Person(job, sim, {J.Confirm.FRONT_CHOICE: "go on"})
+    assert p.drive(job.open()).ok and p.drive(job.align()).ok
+    r = p.drive(job.creep())
+    assert (r.kind, r.reason) == (J.Kind.REFUSED, "more_creep_steps_than_allowed")
+    front = [x for x in computed(sim.received)
+             if geo.decode_xyv(x.encode() + b"\r")[2] > A.ymax]
+    assert len(front) == 2
+
+
+def test_a_free_arm_pushed_outside_the_area_is_not_moved():
+    job, sim, _t = H.make_job()
+    p = H.Person(job, sim)
+    assert p.drive(job.open()).ok and p.drive(job.align()).ok
+    sim.hand_to(geo.AREA_RAW.xmax + 100, 1500)
+    n = len(sim.received)
+    r = p.drive(job.check_move())
+    assert (r.kind, r.reason) == (J.Kind.REFUSED, "free_arm_outside_area")
+    assert moves(sim.received[n:]) == []
+
+
+def test_a_move_that_arrives_elsewhere_stops_everything():
+    job, sim, _t = H.make_job()
+    p = H.Person(job, sim)
+    assert p.drive(job.open()).ok and p.drive(job.align()).ok
+    sim.c_faults["arrival_off"] = 30          # the computed move lands 3 mm off
+    r = p.drive(job.check_move())
+    assert (r.kind, r.reason) == (J.Kind.STOPPED, "arm_not_where_expected")
+    n = len(sim.received)
+    assert job.home().kind == J.Kind.REFUSED and len(sim.received) == n

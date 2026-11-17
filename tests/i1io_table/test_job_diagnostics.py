@@ -80,7 +80,9 @@ def test_nothing_private_is_written(tmp_path, monkeypatch):
 def test_the_scrub_replaces_what_slips_in():
     home = os.path.expanduser("~")
     out = dg.scrub(f"a path {home}/x and {'AB' * 20}")
-    assert home not in out and "AB" * 12 not in out and "<private>" in out
+    assert home not in out and "AB" * 12 not in out
+    assert out.startswith("a path <private>/x and"), out      # the whole home folder, at once
+    assert dg.scrub("in /tmp/abc", extra=("/tmp/abc",)) == "in <private>"
 
 
 def test_a_stopped_sitting_still_writes_its_block_and_summary(tmp_path):

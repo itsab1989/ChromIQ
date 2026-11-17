@@ -87,6 +87,11 @@ CHOICES = {
 }
 
 
+#: the tester's names for the answers in a result block (the analysis script reads them)
+BLOCK_LABEL = {Confirm.FRONT_CHOICE: "front part", Confirm.FRONT_YES: "front part, yes",
+               Confirm.FIRST_VISIT: "first visit", Confirm.SHEET_LAID: "on the table"}
+
+
 class WayBack:
     """Which way back applies (the later window words each; part C's where_text order)."""
     NONE = "none"                                   # nothing was moved, or at rest and held
@@ -458,7 +463,7 @@ class TableJob:
         self.notes.append((f"{step}: {kind}", value))
         self.diag.log("ANSWER", f"{step}: {kind} -> {value}")
         if self._block is not None:
-            self._block["answers"].append((kind, value))
+            self._block["answers"].append((BLOCK_LABEL.get(kind, kind), value))
         self._pending = None
         return self._drive(value)
 
