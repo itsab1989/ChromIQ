@@ -2136,6 +2136,13 @@ class TableMeasureWindow(QFrame):
         if self._finished:
             event.accept()
             return
+        if self._closed_job:
+            # review 12, M-1: the job has let go after its ending (the last page, which has
+            # no Close of its own in the footer): Esc or the window's close ends the panel as
+            # its Close does, so what was saved is filed (a verification on its date) and the
+            # usual windows follow
+            self._finish("ended")
+            return
         event.ignore()
         self._on_close_pressed()
 

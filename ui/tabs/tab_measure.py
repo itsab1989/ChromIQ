@@ -7274,6 +7274,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                                  mode=self._current_mode(), replace_agreed=at_risk,
                                  archive=self._archive_measurement_before_replacing)
         win.saved.connect(self._on_table_measurement_saved)
+        if run.run_type == "verification" \
+                and getattr(self, "_staged_verification_ti3", None) is None:
+            # review 12, M-1: a verification left beside the chart and never
+            # filed (a kill between the table's Save and its filing) is moved
+            # to old/ first, exactly as the hand path's START does, so the new
+            # reading's Save is never refused over it
+            self._archive_measurement_before_replacing()
         win.finished_with.connect(self._on_table_window_finished)
         win.progress.connect(self._on_table_progress)
         self._table_window = win
@@ -7692,9 +7699,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # table START with its guards and its GO.
         verify_ti3 = getattr(self, "_table_verify_ti3", None)
         self._table_verify_ti3 = None
-        if verify_ti3 is not None and why in ("ended", "quit"):
-            # filed on its date now, whatever else happens: on a quit without
-            # its windows (nothing may wait for an answer while ChromIQ closes)
+        if verify_ti3 is not None:
+            # filed on its date now, whatever else happens, whatever closed the
+            # panel (review 12, M-1): on a quit without its windows (nothing
+            # may wait for an answer while ChromIQ closes)
             self._verify_run = False
             if why == "quit":
                 self._finalize_verification(Path(verify_ti3), quiet=True)
