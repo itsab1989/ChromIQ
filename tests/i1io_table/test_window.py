@@ -305,7 +305,7 @@ def test_esc_on_the_ending_withdraws_it_and_nothing_moves(qtbot, monkeypatch, tm
     n = moves(sim)
     win.reject()                                          # Esc
     p.idle()
-    assert p.page() == "stopped_by_you" and moves(sim) == n
+    assert p.page() == "ending_closed" and moves(sim) == n
     assert not run.measurement_ti3.exists()
 
 
@@ -405,3 +405,41 @@ def test_no_slot_is_a_lambda_on_a_childs_signal():
     import re
     src = inspect.getsource(W)
     assert not re.search(r"\.connect\(\s*lambda", src)
+
+
+def test_stop_on_the_report_question_keeps_the_question_and_then_asks_go(
+        qtbot, monkeypatch, tmp_path, settings):
+    """Found on screen (run 3): Stop pressed while the asking mode's report question was shown
+    must not hide the question; it is answered, then the stop acts before the next move."""
+    win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
+                                                    asking=True)
+    p.drive_until("check_mark")
+    p.press("Yes, it is centred")
+    assert p.drive_until("report_after_step") == "report_after_step"
+    n = moves(sim)
+    win._stop_btn.click()
+    assert p.page() == "report_after_step"
+    p.press("As described")
+    assert p.page() == "stopped_by_you" and moves(sim) == n
+    p.press("Carry on")
+    assert p.page() == "go" and moves(sim) == n
+
+
+def test_a_result_arriving_while_the_problem_page_is_open_waits_behind_it(
+        qtbot, monkeypatch, tmp_path, settings):
+    """Found on screen (run 9): a step's result must not replace the problem page."""
+    sim = WindowSim()
+    win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
+                                                    asking=False, sim=sim)
+    p.drive_until("check_mark")
+    sim.transport.delay_s = 0.01
+    [b for b in win._buttons if b.text() == "Yes, it is centred"][0].click()
+    qtbot.waitUntil(lambda: win._busy, timeout=5000)
+    win._problem_btn.click()
+    assert win.pages_shown[-1] == "problem"
+    qtbot.waitUntil(lambda: not win._busy, timeout=30000)
+    sim.transport.delay_s = 0.0
+    assert win.pages_shown[-1] == "problem"               # still there
+    [b for b in win._buttons if b.text() == "Something looks or sounds wrong"][0].click()
+    p.idle()
+    assert sim.jobs[0].only_home and win.pages_shown[-1] in ("after_problem", "refused")

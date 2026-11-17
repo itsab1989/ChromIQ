@@ -11990,23 +11990,15 @@ M_I1IO_DRIVE_CHECK_MARK = _m(
 M_I1IO_DRIVE_ROW_FAILED = _m(
     "M-I1IO-DRIVE-ROW-FAILED",
     "Row {row} could not be read",
-    "Row {row} of page {page} could not be read: {why}. The {read} patches "
-    "read in it so far are kept.\n\n"
-    "•  Read it again: ChromIQ first asks you to take your hands away, "
+    "Row {row} of page {page} could not be read: {why}. The row counts as "
+    "missing until it has been read completely; the rows read before it are "
+    "kept.\n\n"
+    "\u2022  Read it again: ChromIQ first asks you to take your hands away, "
     "then reads the row again. At most two rows of a page are read again.\n"
-    "•  Skip it: the row stays missing; a later measurement with "
-    "“Refine / resume existing measurement (-r)” reads it.\n"
-    "•  Stop: nothing more is read now.",
-    body_one=(
-        "Row {row} of page {page} could not be read: {why}. The one patch "
-        "read in it so far is kept.\n\n"
-        "•  Read it again: ChromIQ first asks you to take your hands "
-        "away, then reads the row again. At most two rows of a page are read "
-        "again.\n"
-        "•  Skip it: the row stays missing; a later measurement with "
-        "“Refine / resume existing measurement (-r)” reads it.\n"
-        "•  Stop: nothing more is read now."),
-    count_key="read", approved=False)
+    "\u2022  Skip it: the row stays missing; a later measurement with "
+    "\u201cRefine / resume existing measurement (-r)\u201d reads it.\n"
+    "\u2022  Stop: nothing more is read now.",
+    approved=False)
 
 M_I1IO_DRIVE_ROW_NOT_AGAIN = _m(
     "M-I1IO-DRIVE-ROW-NOT-AGAIN",
@@ -12064,7 +12056,7 @@ M_I1IO_DRIVE_STOPPED_BY_YOU = _m(
 M_I1IO_DRIVE_REFUSED = _m(
     "M-I1IO-DRIVE-REFUSED",
     "ChromIQ did not do this step",
-    "{why}\n\n{state}",
+    "{why}\n\nThe true state of the table and the arm is shown under this text.",
     approved=False)
 
 M_I1IO_DRIVE_HOME_OFFERED = _m(
@@ -12305,6 +12297,23 @@ M_I1IO_DRIVE_SEVERAL_TABLES = _m(
     "use, then press START MEASUREMENT again. Nothing was sent.",
     approved=False)
 
+M_I1IO_DRIVE_AFTER_PROBLEM = _m(
+    "M-I1IO-DRIVE-AFTER-PROBLEM",
+    "Nothing more moves in this measurement",
+    "After the problem you reported, nothing more moves in this measurement, "
+    "and the arm is at its resting place. Please press End measurement: you "
+    "can keep what was read (Save and stop) or discard it. Afterwards you can "
+    "start again with START MEASUREMENT.",
+    approved=False)
+
+M_I1IO_DRIVE_ENDING_CLOSED = _m(
+    "M-I1IO-DRIVE-ENDING-CLOSED",
+    "Nothing was saved or discarded",
+    "You closed the question about keeping your readings, so nothing was "
+    "saved, nothing was discarded and nothing moved. You can carry on, bring "
+    "the arm home, or press End measurement to be asked again.",
+    approved=False)
+
 I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_CONSENT, M_I1IO_DRIVE_PREPARE, M_I1IO_DRIVE_READY,
     M_I1IO_DRIVE_EARLIER, M_I1IO_DRIVE_OPTIONS, M_I1IO_DRIVE_OPTION_REFUSED,
@@ -12328,6 +12337,7 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_USB_LINUX_PERMISSION, M_I1IO_DRIVE_USB_LINUX_KERNEL_DRIVER,
     M_I1IO_DRIVE_USB_GONE, M_I1IO_DRIVE_USB_UNEXPECTED,
     M_I1IO_DRIVE_TABLE_NOT_FOUND, M_I1IO_DRIVE_SEVERAL_TABLES,
+    M_I1IO_DRIVE_AFTER_PROBLEM, M_I1IO_DRIVE_ENDING_CLOSED,
 )
 
 #: the message for each USB / opening problem id the table code names

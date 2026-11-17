@@ -177,6 +177,8 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-I1IO-DRIVE-USB-UNEXPECTED",
     "M-I1IO-DRIVE-TABLE-NOT-FOUND",
     "M-I1IO-DRIVE-SEVERAL-TABLES",
+    "M-I1IO-DRIVE-AFTER-PROBLEM",
+    "M-I1IO-DRIVE-ENDING-CLOSED",
     # 2026-11-16: the Beta "Custom page size in inches or pixels, and high
     # resolution" (#215).
     "M-PAGE-OUTPUT-PARTS",

@@ -193,6 +193,10 @@ WITHDRAW = {"go": "back", "sheet_laid": "stop", "aimed": "stop", "front_choice":
             "calibration_own_tile": "stop", "calibration_reseated": "stop",
             "row_failed": "stop", "start_up": "i1profiler", "arm_felt": "not sure"}
 
+#: the job's refusals that are the person's own Stop taking effect
+STOP_REASONS = ("stopped_before_the_next_move", "stopped_between_patches",
+                "stopped_at_a_creep_pause")
+
 #: the choices the window offers (the job's ``CHOICES``, in the order shown; "skip" at the free
 #: arm is not offered: every answer but "free" ends the alignment the same way)
 SHOWN_CHOICES = {"arm_felt": ("free", "holds", "not sure")}
@@ -308,6 +312,11 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
             "The measurement could not be written into the run (the disk did not take it). "
             "Nothing reached the run; your readings stay in this measurement's folder."),
         "run_has_a_measurement_already": tr("This run holds another measurement already."),
+        "run_has_a_complete_measurement": tr(
+            "This run holds a complete measurement, so the interrupted readings cannot be "
+            "completed into it."),
+        "not_an_interrupted_session": tr("That earlier session is not an interrupted one."),
+        "adopted_already": tr("That earlier session is being completed already."),
         "readings_with_different_fields": tr(
             "The readings were measured with different settings and cannot go into one file."),
         "nothing_to_resume": tr("There is nothing to resume: the run has no partial "
@@ -437,7 +446,10 @@ class TableMeasureWindow(QDialog):
         self.pages_shown: "list[str]" = []      # what the window showed, in order (tests)
         self.setWindowTitle(tr("Measure with the i1iO table (beta)"))
         self.setWindowModality(Qt.WindowModality.WindowModal)
-        self.resize(760, 640)
+        self.resize(780, 840)
+        #: a Stop, a failed row or a problem in this window: the "don't ask again" offer is
+        #: not made (NEXT_STEPS 4d), whatever the job's close() says
+        self._troubled = False
         self._build()
         self._signals = _Signals(self)
         self._signals.done.connect(self._on_done, Qt.ConnectionType.QueuedConnection)
@@ -486,11 +498,12 @@ class TableMeasureWindow(QDialog):
         self._text.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         self._page.addWidget(self._title)
         self._page.addWidget(self._text)
-        self._ticks = QVBoxLayout()
-        self._page.addLayout(self._ticks)
         self._page.addStretch(1)
         self._scroll.setWidget(page)
         body.addWidget(self._scroll, 1)
+        # the ticks under the text, never scrolled out of sight
+        self._ticks = QVBoxLayout()
+        body.addLayout(self._ticks)
 
         self._choices = QHBoxLayout()
         self._choices.setSpacing(8)
@@ -549,9 +562,13 @@ class TableMeasureWindow(QDialog):
         self._close_btn.clicked.connect(self._on_close_pressed)
         self._switch_off = QLabel(tr("To stop the arm at once, switch the table off."), self)
         self._switch_off.setWordWrap(True)
+        f2 = self._switch_off.font()
+        f2.setBold(True)
+        self._switch_off.setFont(f2)
+        body.addWidget(self._switch_off)
         foot.addWidget(self._stop_btn)
         foot.addWidget(self._problem_btn)
-        foot.addWidget(self._switch_off, 1)
+        foot.addStretch(1)
         foot.addWidget(self._end_btn)
         foot.addWidget(self._close_btn)
         body.addLayout(foot)
@@ -559,6 +576,16 @@ class TableMeasureWindow(QDialog):
                                                 popup=SPEC_GREEN))
         self._moving_controls(False)
         self._end_btn.setVisible(False)
+
+    def _sync_footer(self) -> None:
+        """End measurement while the table is open and the session not over; Close only when
+        the window may close (nothing opened, or the job has let go of the table)."""
+        j = self.job
+        open_ = j is not None and j.phase == "open" and not self._closed_job
+        self._end_btn.setVisible(open_)
+        own = {tr("Close"), tr("Cancel"), tr("Not now")}
+        page_close = any(b.text() in own for b in getattr(self, "_buttons", []))
+        self._close_btn.setVisible(not open_ and not page_close)
 
     def _moving_controls(self, on: bool) -> None:
         """Stop and Report a problem, and the switch-off line: visible while anything can move."""
@@ -580,6 +607,10 @@ class TableMeasureWindow(QDialog):
         self._clear_page()
         self.pages_shown.append(page_id)
         self._page_id = page_id
+        self._status.setText("")
+        # the note field stays while what it is about is on screen (a problem, a stop, a
+        # failure); the next job call clears that
+        self._note_box.setVisible(bool(getattr(self, "_note_sticky", False)))
         self._title.setText(title)
         self._text.setText(text)
         self._scroll.verticalScrollBar().setValue(0)
@@ -605,6 +636,7 @@ class TableMeasureWindow(QDialog):
         no_default_button(self)
         self._tick_widgets = made_ticks
         self._buttons = made
+        self._sync_footer()
         return made
 
     # ---- the true state --------------------------------------------------------------------
@@ -632,8 +664,8 @@ class TableMeasureWindow(QDialog):
         elif st.arm_free:
             lines.append(tr("Arm: free (the table has let go of it)."))
         elif p is not None:
-            lines.append(tr("Arm: out over the table, at {x} mm across and {y} mm along the "
-                            "table.").format(x=self._mm(p[0]), y=self._mm(p[1])))
+            lines.append(tr("Arm: out over the table; the table reports X {x}, Y {y} (in "
+                            "tenths of a millimetre).").format(x=int(p[0]), y=int(p[1])))
         else:
             lines.append(tr("Arm: where it is is not known."))
         pages = j.pages_in_chart()
@@ -643,12 +675,15 @@ class TableMeasureWindow(QDialog):
         lines.append(tr("Page {page} of {pages}: {read} of {rows} rows read.").format(
             page=j.page + 1, pages=pages, read=read, rows=rows))
         missing = sorted(k + 1 for k, v in status.items() if v in ("failed", "skipped"))
-        if missing:
+        if len(missing) == 1:
+            lines.append(tr("Missing on this page: row {row}.").format(row=missing[0]))
+        elif missing:
             lines.append(tr("Missing on this page: rows {rows}.").format(
                 rows=", ".join(str(m) for m in missing)))
         n = j.accepted_in_this_session()
-        lines.append(tr("Patches read in this measurement: 1.") if n == 1 else
-                     tr("Patches read in this measurement: {n}.").format(n=n))
+        lines.append(tr("Readings taken in this measurement: 1.") if n == 1 else
+                     tr("Readings taken in this measurement: {n} (a patch read again counts "
+                        "again).").format(n=n))
         return "\n".join(lines)
 
     @staticmethod
@@ -666,7 +701,7 @@ class TableMeasureWindow(QDialog):
             return 0
 
     def _refresh_state(self) -> None:
-        if self.job is not None and self.job.phase != "new":
+        if self.job is not None and self.job.phase not in ("new", "closed"):
             self._state.setText(self.state_text())
             self._state.setVisible(True)
 
@@ -675,14 +710,26 @@ class TableMeasureWindow(QDialog):
         """Run one job call in the worker; *then* (a bound method) gets its result."""
         self._token += 1
         self._busy = True
+        self._note_sticky = False
         self._then = then or self._on_result
-        for b in getattr(self, "_buttons", []):
-            b.setEnabled(False)
         self._end_btn.setEnabled(False)
         self._close_btn.setEnabled(False)
-        if status:
-            self._status.setText(status)
+        self._show_working(status)
         _pool().start(_JobCall(self._token, fn, self._signals))
+
+    def _show_working(self, status: str = "") -> None:
+        """While a job call runs: no answer buttons (an answer given is not shown as open),
+        what is happening, and the hands-off reminder; Stop and Report a problem stay."""
+        if getattr(self, "_page_id", "") == "problem":
+            return
+        self._clear_page()
+        self._buttons = []
+        self._tick_widgets = []
+        self._page_id = "working"
+        self._title.setText(status or tr("The table is working"))
+        self._text.setText(tr("Please keep your hands away from the table and the arm while it "
+                              "works. Stop and Report a problem stay available below."))
+        self._status.setText("")
 
     @pyqtSlot(int, object)
     def _on_done(self, token: int, res) -> None:
@@ -691,7 +738,14 @@ class TableMeasureWindow(QDialog):
         self._busy = False
         self._end_btn.setEnabled(True)
         self._close_btn.setEnabled(True)
+        self._status.setText("")
         then, self._then = self._then, None
+        if getattr(self, "_page_id", "") == "problem" and not isinstance(res, BaseException):
+            # the person is choosing what to report: the step's result waits behind it
+            self._last = res
+            self._deferred = (then, res)
+            self._refresh_state()
+            return
         if isinstance(res, BaseException):
             self._show_error(res)
             return
@@ -701,8 +755,7 @@ class TableMeasureWindow(QDialog):
 
     def _show_error(self, exc: BaseException) -> None:
         from workflow import measurement_messages as M
-        title, body = M.M_I1IO_DRIVE_REFUSED.render(
-            why=reason_text("unexpected_error"), state=self.state_text())
+        title, body = _refused(M, reason_text("unexpected_error"))
         self._show("error", title, body, [(tr("End measurement"), self._on_end_pressed)])
         self._after_stop_controls()
 
@@ -751,7 +804,8 @@ class TableMeasureWindow(QDialog):
         self.job = JOB_FACTORY(self._sheet, page, self._run, self._stamp,
                                ask_after_each_step(self._settings))
         try:
-            self._log_name = "i1io-table/{}/session.log".format(self._stamp)
+            self._log_name = tr("{path}, in this run's folder").format(
+                path="i1io-table/{}/session.log".format(self._stamp))
         except Exception:      # noqa: BLE001
             self._log_name = ""
         self._earlier = [e for e in self.job.earlier_sessions() if e.get("state") ==
@@ -773,7 +827,16 @@ class TableMeasureWindow(QDialog):
 
     def _on_adopt(self) -> None:
         e = self._earlier.pop(0)
+        if self._replace_agreed and self._archive is not None and self._run is not None \
+                and Path(self._run.measurement_ti3).exists():
+            # the person agreed at START to replace the run's measurement (M-REPLACE-*): it
+            # goes to old/ now, through the tab's own archive, so that the interrupted readings
+            # can be completed in its place (nothing is deleted)
+            self._archive()
+            self._replace_agreed = False
         res = self.job.adopt_earlier(e["stamp"])
+        self._adopted_any = self._adopted_any or res.ok if hasattr(self, "_adopted_any") \
+            else res.ok
         if not res.ok:
             self._show_refusal(res, after=self._next_earlier)
             return
@@ -881,6 +944,8 @@ class TableMeasureWindow(QDialog):
         if step == "open" and res.detail.get("table") == "cold":
             self._call(self.job.start_up)
             return
+        if step == "align":
+            self._checked_page = None        # a new alignment is checked at mark 3 again
         if step == "check_move":
             self._ask_check_mark()
             return
@@ -924,19 +989,21 @@ class TableMeasureWindow(QDialog):
             else:
                 self._call(j.calibrate, status=tr("Calibrating the instrument..."))
             return
+        # a page with nothing missing (a resume, an adopted session) is never aligned or read
+        left = j.rows_left() if j.page_has_something_to_read() else []
+        want = bool(left or self._again_rows)
+        if want and j.alignment is None:
+            self._call(j.align, status=tr("Aiming at the sheet..."))
+            return
+        if want and j.front_need is not None and j.front_reached() < j.front_need:
+            self._call(j.creep, status=tr("Feeling the way forward..."))
+            return
+        if want and self._checked_page != j.page:
+            self._call(j.check_move, status=tr("Moving the arm to mark 3..."))
+            return
         if self._again_rows:
             row = self._again_rows.pop(0)
             self._call(lambda: j.read_row(row), status=self._row_status(row))
-            return
-        left = j.rows_left()
-        if left and j.alignment is None:
-            self._call(j.align, status=tr("Aiming at the sheet..."))
-            return
-        if left and j.front_need is not None and j.front_reached() < j.front_need:
-            self._call(j.creep, status=tr("Feeling the way forward..."))
-            return
-        if left and self._checked_page != j.page:
-            self._call(j.check_move, status=tr("Moving the arm to mark 3..."))
             return
         if left:
             self._call(j.read_row, status=self._row_status(left[0]))
@@ -1003,7 +1070,7 @@ class TableMeasureWindow(QDialog):
         elif kind == "row_failed":
             title, body = M.M_I1IO_DRIVE_ROW_FAILED.render(
                 row=d.get("row", "?"), page=d.get("page", page),
-                why=reason_text(d.get("why", "")).rstrip("."), read=int(d.get("read") or 0))
+                why=reason_text(d.get("why", "")).rstrip("."))
             if not d.get("again_allowed", True):
                 why = (reason_text("calibration_due") if d.get("calibration_due")
                        else reason_text("rows_read_again_limit"))
@@ -1024,6 +1091,7 @@ class TableMeasureWindow(QDialog):
         self._status.setText(tr("ChromIQ waits for your answer. Nothing moves until you "
                                 "answer."))
         if kind == "row_failed":
+            self._troubled = True
             self._show_note()
 
     def _answer_slot(self, value: str):
@@ -1065,6 +1133,7 @@ class TableMeasureWindow(QDialog):
             self._show_refusal(res)
             return
         if value != "as described":
+            self._troubled = True
             self._show_note()
             self._show_after_problem()
             return
@@ -1101,11 +1170,18 @@ class TableMeasureWindow(QDialog):
     # ---- refusals, stops, problems ------------------------------------------------------
     def _on_refused(self, res) -> None:
         reason = res.reason
-        if reason == "stopped_before_the_next_move":
+        if reason in STOP_REASONS:
             self._show_stopped_by_you(res)
+            return
+        if reason in ("problem_reported", "only_the_homing_now") and res.kind == REFUSED:
+            self._show_after_problem()
+            self._show_note()
             return
         if reason == "calibration_due":
             self._next()
+            return
+        if reason == "report_due" and self.job.report_due is not None:
+            self._ask_report(getattr(self, "_report_res", res))
             return
         if reason == "run_has_a_measurement_already" and res.step in ("save", "end") \
                 and self._replace_agreed and self._archive is not None:
@@ -1153,13 +1229,13 @@ class TableMeasureWindow(QDialog):
 
     def _show_refusal(self, res, after=None) -> None:
         from workflow import measurement_messages as M
-        title, body = M.M_I1IO_DRIVE_REFUSED.render(why=reason_text(res.reason, res.detail),
-                                                    state=self.state_text())
+        title, body = _refused(M, reason_text(res.reason, res.detail))
         if after is not None:
             self._show("refused", title, body, [(tr("Close"), after)])
             return
         self._show("refused", title, body, self._way_on_buttons())
-        if res.detail.get("by_person") or res.kind == STOPPED:
+        if (res.detail.get("by_person") and res.reason != "person_chose_back") \
+                or res.kind == STOPPED:
             self._show_note()
 
     def _way_on_buttons(self) -> list:
@@ -1172,10 +1248,9 @@ class TableMeasureWindow(QDialog):
             out.append((tr("Carry on"), self._next))
         if j is not None and j.way_back() == "home_offered":
             out.append((tr("Bring the arm home"), self._on_home))
-        if j is not None and j.ended is None:
-            out.append((tr("End measurement"), self._on_end_pressed))
-        else:
+        if j is None or j.ended is not None or j.phase != "open":
             out.append((tr("Close"), self._close_job))
+        # End measurement is the footer's button (always there while the table is open)
         return out
 
     def _show_stopped_by_you(self, res) -> None:
@@ -1199,8 +1274,7 @@ class TableMeasureWindow(QDialog):
         msg = msgs.get(wb)
         if msg is None and wb == "none" and res.reason in ("stopped_by_person",
                                                            "cancelled_by_person"):
-            title, body = M.M_I1IO_DRIVE_REFUSED.render(why=reason_text(res.reason),
-                                                        state=self.state_text())
+            title, body = _refused(M, reason_text(res.reason))
         else:
             msg = msg or M.M_I1IO_DRIVE_STOPPED
             title, body = msg.render(**_fill(msg, where=where, log=self._log_name))
@@ -1221,23 +1295,24 @@ class TableMeasureWindow(QDialog):
         p = (st.position_now or st.last_read) if st is not None else None
         if p is None:
             return tr("no position")
-        return tr("{x} mm across and {y} mm along the table").format(x=self._mm(p[0]),
-                                                                      y=self._mm(p[1]))
+        return tr("X {x}, Y {y} (in tenths of a millimetre)").format(x=int(p[0]), y=int(p[1]))
 
     def _on_stop(self) -> None:
         if self.job is None:
             return
         self.job.stop_at_next_pause()
+        self._troubled = True
         self._status.setText(tr("Stop pressed: ChromIQ stops before the next move. A move that "
                                 "has started finishes first."))
-        if not self._busy and getattr(self, "_page_id", "") in ("report_after_step",
-                                                                 "check_mark", "next_page"):
+        # the report question (asking mode) stays: the stop acts at the next move, after it
+        if not self._busy and getattr(self, "_page_id", "") in ("check_mark", "next_page"):
             self._show_stopped_by_you(None)
 
     def _on_problem(self) -> None:
         from workflow import measurement_messages as M
         title, body = M.M_I1IO_DRIVE_PROBLEM.render()
         self._problem_back = getattr(self, "_page_id", "")
+        self._troubled = True
         self._show("problem", title, body,
                    [(tr("Cancel"), self._problem_cancel),
                     (tr("Stop now"), self._problem_stop_now),
@@ -1245,26 +1320,44 @@ class TableMeasureWindow(QDialog):
 
     def _problem_cancel(self) -> None:
         # nothing reported: the page that was shown comes back with the job's last result
+        deferred, self._deferred = getattr(self, "_deferred", None), None
+        if deferred is not None:
+            then, res = deferred
+            then(res)
+            return
         if self._busy:
-            self._status.setText(tr("The step goes on."))
-            self._clear_page()
+            self._page_id = "working"
+            self._show_working(tr("The step goes on"))
             return
         if self._last is not None:
             self._on_result(self._last)
 
     def _problem_stop_now(self) -> None:
+        self._deferred = None                 # a question it held is closed by the report
         res = self.job.report_problem("stop now")
         self._refresh_state()
+        self._reported_while_busy()
         self._show_note()
         if not self._busy:
             self._on_stopped(res)
 
     def _problem_wrong(self) -> None:
+        self._deferred = None                 # a question it held is closed by the report
         self.job.report_problem("something looked or sounded wrong")
         self._refresh_state()
+        self._reported_while_busy()
         self._show_note()
         if not self._busy:
             self._show_after_problem()
+
+    def _reported_while_busy(self) -> None:
+        """The report is in while a step runs: the problem page gives way, and the step's
+        result is shown when it comes (the step finishes its move first)."""
+        if self._busy:
+            self._page_id = "problem_reported"
+            self._show_working(tr("Your report is in. The move that has started finishes "
+                                  "first; then nothing more moves except bringing the arm "
+                                  "home."))
 
     def _show_after_problem(self) -> None:
         from workflow import measurement_messages as M
@@ -1272,11 +1365,13 @@ class TableMeasureWindow(QDialog):
         if j.way_back() == "home_offered" and j.ended is None:
             title, body = M.M_I1IO_DRIVE_HOME_OFFERED.render(where=self._where())
         else:
-            title, body = M.M_I1IO_DRIVE_REFUSED.render(why=reason_text("only_the_homing_now"),
-                                                        state=self.state_text())
+            title, body = M.M_I1IO_DRIVE_AFTER_PROBLEM.render()
         self._show("after_problem", title, body, self._way_on_buttons())
+        if j.way_back() != "home_offered":
+            self._moving_controls(False)       # nothing can move any more
 
     def _show_note(self) -> None:
+        self._note_sticky = True
         self._note_box.setVisible(True)
 
     def _on_save_note(self) -> None:
@@ -1311,8 +1406,18 @@ class TableMeasureWindow(QDialog):
         from workflow import measurement_messages as M
         st = res.detail.get("end_state", {})
         n = int(st.get("read_in_this_session") or 0)
-        read_line = (tr("You have read 1 patch in this session.") if n == 1
-                     else tr("You have read {n} patches in this session.").format(n=n))
+        if getattr(self, "_adopted_any", False) and "read" in st:
+            total = int(st["read"])
+            read_line = (tr("This measurement holds 1 patch, together with the readings of "
+                            "the earlier session you chose to complete.") if total == 1 else
+                         tr("This measurement holds {n} patches, together with the readings "
+                            "of the earlier session you chose to complete.").format(n=total))
+        else:
+            if "read" in st:
+                # distinct patches (a row read again is counted once), as the file will hold
+                n = min(n, int(st["read"])) if n else int(st["read"])
+            read_line = (tr("You have read 1 patch in this session.") if n == 1
+                         else tr("You have read {n} patches in this session.").format(n=n))
         body = read_line + " " + tr(
             "They are not in your "
             "measurement file yet — ChromIQ can write them now, or end the "
@@ -1345,7 +1450,9 @@ class TableMeasureWindow(QDialog):
             self._next()
             return
         if ending == "dismissed":
-            self._show_stopped_by_you(None)
+            from workflow import measurement_messages as M
+            title, body = M.M_I1IO_DRIVE_ENDING_CLOSED.render()
+            self._show("ending_closed", title, body, self._way_on_buttons())
             return
         if ending == "saved":
             self._after_saved(res)
@@ -1403,12 +1510,14 @@ class TableMeasureWindow(QDialog):
             body = msg.render(**_fill(msg, where=self._where(), log=self._log_name))[1] + \
                 "\n\n" + body
         ticks = []
-        self._offer_dont_ask = res.detail.get("offer") == "may_offer_do_not_ask_again"
+        self._offer_dont_ask = (res.detail.get("offer") == "may_offer_do_not_ask_again"
+                                and not self._troubled)
         if self._offer_dont_ask:
             ticks = [tr("Don't ask after each step from now on. (You can switch the question "
                         "back on in Preferences.)")]
         self._show("done", title, body, [(tr("Close"), self._on_done_close)], ticks=ticks)
         self._close_btn.setVisible(False)
+        self._state.setVisible(False)          # the session is over; the text says how
 
     def _on_done_close(self) -> None:
         if getattr(self, "_offer_dont_ask", False) and self._tick_widgets \
@@ -1476,6 +1585,11 @@ class _Report:
 
     def fire(self) -> None:
         self.win.report(self.value)
+
+
+def _refused(M, why: str) -> "tuple[str, str]":
+    """M-I1IO-DRIVE-REFUSED with the reason; the true state is the panel under it."""
+    return M.M_I1IO_DRIVE_REFUSED.render(why=why)
 
 
 def _fill(msg, **kw) -> dict:
