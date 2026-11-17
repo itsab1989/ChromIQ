@@ -115,3 +115,41 @@ def test_b1_keep_measuring_is_not_an_ending(tmp_path):
     assert job.answer(J.Confirm.END, "keep measuring").ok
     assert job.ended is None
     assert p.drive(job.read_row()).ok
+
+
+# ---- B-2 ------------------------------------------------------------------------------------
+
+def _interrupted_with_marker(tmp_path):
+    from workflow.i1io.table import session_end as se
+    proj, run = project(tmp_path)
+    j1, s1, *_r = job_on(run, tmp_path / "first")
+    p1 = H.Person(j1, s1)
+    ready_to_read(j1, p1)
+    assert p1.drive(j1.read_row()).ok
+    run.i1io_table_pending_marker(RS.STAMP).write_text("pending\n", encoding="utf-8")
+    job, sim, helper, p = job_on(run, tmp_path / "second", stamp=SECOND)
+    assert job.discard_earlier(RS.STAMP).ok
+    assert se.session_state(run.i1io_table_session_dir(RS.STAMP)) == se.DISCARDED
+    return run, job, sim, p
+
+
+def test_b2_a_discarded_session_with_an_unacknowledged_marker_is_never_set_aside(tmp_path):
+    """The reviewer's P12: the folder stays where open() finds its marker; the next START still
+    asks "switched off and on" before anything is opened or sent."""
+    from workflow.i1io.table import session_end as se
+    run, job, sim, p = _interrupted_with_marker(tmp_path)
+    sdir = run.i1io_table_session_dir(RS.STAMP)
+    assert se.set_aside(run, RS.STAMP) is None
+    assert sdir.is_dir() and run.i1io_table_pending_marker(RS.STAMP).is_file()
+    assert not run.i1io_table_session_archive_dir(RS.STAMP).exists()
+    r = job.open()
+    assert r.confirm == J.Confirm.MARKER and sim.received == []
+
+
+def test_b2_once_the_marker_is_acknowledged_the_folder_may_be_set_aside(tmp_path):
+    from workflow.i1io.table import session_end as se
+    run, job, sim, p = _interrupted_with_marker(tmp_path)
+    assert p.drive(job.open()).ok                     # "switched off and on": acknowledged
+    assert run.i1io_table_pending_marker(RS.STAMP).with_suffix(".acknowledged.json").is_file()
+    moved = se.set_aside(run, RS.STAMP)
+    assert moved == run.i1io_table_session_archive_dir(RS.STAMP) and moved.is_dir()

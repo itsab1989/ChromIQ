@@ -104,9 +104,14 @@ def earlier_sessions(run, exclude: "str | None" = None, chart_ti2=None) -> "list
 def set_aside(run, stamp: str) -> "Path | None":
     """Move a DISCARDED session's folder to ``Run.i1io_table_session_archive_dir`` (never
     deleted; the owner may decide later what to do with old/). Returns the new place, or None
-    when the folder is not a discarded session (an interrupted or saved one is never moved)."""
+    when the folder is not a discarded session (an interrupted or saved one is never moved), or
+    when it still holds a pending-strip-move marker the person has not acknowledged (review 8,
+    B-2): ``Run.i1io_table_pending_markers`` looks only under ``i1io-table/``, so a marker moved
+    into ``old/`` would no longer make the next START ask "switched off and on"."""
     src = run.i1io_table_session_dir(stamp)
     if not src.is_dir() or session_state(src) != DISCARDED:
+        return None
+    if marker_unacknowledged(run, stamp):
         return None
     dst = run.i1io_table_session_archive_dir(stamp)
     if dst.exists():
@@ -114,6 +119,13 @@ def set_aside(run, stamp: str) -> "Path | None":
     dst.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(src), str(dst))
     return dst
+
+
+def marker_unacknowledged(run, stamp: str) -> bool:
+    """The session's pending-strip-move marker is there and nobody said "switched off and on"
+    since (the ``.acknowledged.json`` beside it, written by the job's open())."""
+    marker = run.i1io_table_pending_marker(stamp)
+    return marker.is_file() and not marker.with_suffix(".acknowledged.json").is_file()
 
 
 def mark_discarded(sdir: Path, why: str) -> None:
