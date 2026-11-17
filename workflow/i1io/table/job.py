@@ -133,6 +133,10 @@ READER_CONSENT_FACTS_MAC = ("on_a_mac_it_closes_xrites_i1prodeviceservice_if_the
 CAL_PLACE_RECOMMENDED = "own tile"
 #: NEXT_STEPS 4d: at most this many rows of a page are read again, whatever the session total
 ROWS_READ_AGAIN_PER_PAGE = 2
+#: review 8, S-1: the steps that move the arm (the homing is the way back and never refused
+#: for a stop); a stop pressed between steps or at a question ends them before their next move
+MOVING_STEPS = ("park", "align", "creep", "check_move", "read_row", "start_up")
+STOPPED_BEFORE_THE_NEXT_MOVE = "stopped_before_the_next_move"
 #: review 8, B-1: the refusal of every step but the homing once the session has ended (saved,
 #: discarded, or "nothing read"); the detail names how it ended
 SESSION_ENDED = "session_ended"
@@ -627,7 +631,11 @@ class TableJob:
         if self._block is not None:
             self._block["answers"].append((BLOCK_LABEL.get(kind, kind), value))
         self._pending = None
-        return self._drive(value)
+        # review 8, S-1: Stop was pressed while this question was shown: the step ends here,
+        # before the move the answer would allow (the reader, if open, is finished by the
+        # step's own way out)
+        stop = PersonStopped(STOPPED_BEFORE_THE_NEXT_MOVE) if self._stale_stop(step) else None
+        return self._drive(value, throw=stop)
 
     def cancel(self) -> StepResult:
         """The Ctrl-C equivalent: nothing more is ever sent. While a line is on its way, it is
@@ -654,13 +662,28 @@ class TableJob:
         return self._result(step, Kind.STOPPED, "cancelled_by_person")
 
     def stop_at_next_pause(self) -> None:
-        """Part C's Enter between two creep steps: a clean stop at the next pause."""
+        """Part C's Enter between two creep steps: a clean stop at the next pause. Pressed while
+        no line is on its way (between steps, or while a question is shown), it takes effect
+        BEFORE the next move (review 8, S-1): the next moving step, or the answer that would
+        let a waiting step move on, ends there (``stopped_before_the_next_move``), and the
+        hands-off GO is asked again; the homing is never refused for it."""
         self._pause_stop = True
+        if self._gen is None or self._pending is not None:
+            self._go_page = None
 
-    def _drive(self, value) -> StepResult:
+    def _stale_stop(self, step: "str | None") -> bool:
+        """A stop pressed between steps or at a question, still waiting (consumed here)."""
+        if self._pause_stop and step in MOVING_STEPS and not self.only_home:
+            self._pause_stop = False
+            self.diag.log("ANSWER", f"{step}: the stop pressed before it is honoured before "
+                                    f"the next move")
+            return True
+        return False
+
+    def _drive(self, value, throw: "BaseException | None" = None) -> StepResult:
         step = self._gen_step
         moves_before = getattr(self, "_moves_at_begin", 0)
-        res = self._drive_inner(value, step)
+        res = self._drive_inner(value, step, throw)
         t = self._table
         if (self.ask_after_each_step and self._gen is None and t is not None
                 and t.closed_reason is None and step not in ("home", None) and (
@@ -671,9 +694,9 @@ class TableJob:
                           choices=CHOICES[Confirm.REPORT_AFTER_STEP])
         return res
 
-    def _drive_inner(self, value, step) -> StepResult:
+    def _drive_inner(self, value, step, throw=None) -> StepResult:
         try:
-            ask = self._gen.send(value)
+            ask = self._gen.throw(throw) if throw is not None else self._gen.send(value)
         except StopIteration as done:
             self._gen = self._gen_step = None
             res = self._result(step, Kind.OK, "", **(done.value or {}))
@@ -869,6 +892,9 @@ class TableJob:
             return self._result("start_up", Kind.REFUSED, "instrument_not_in_the_arm")
         if self.stopped_by_person:
             return self._result("start_up", Kind.REFUSED, "stopped_by_person")
+        if self._gen is None and self._stale_stop("start_up"):
+            return self._result("start_up", Kind.REFUSED, STOPPED_BEFORE_THE_NEXT_MOVE,
+                                by_person=True)
         return self._begin("start_up", self._start_up())
 
     def _start_up(self):
@@ -961,6 +987,8 @@ class TableJob:
         why = self._ready(step)
         if why:
             return self._result(step, Kind.REFUSED, why)
+        if self._stale_stop(step):
+            return self._result(step, Kind.REFUSED, STOPPED_BEFORE_THE_NEXT_MOVE, by_person=True)
 
         def gen():
             if go and self._go_page != self.page:
@@ -970,6 +998,10 @@ class TableJob:
                 if ans != "yes":
                     raise PersonStopped("person_chose_back")
                 self._go_page = self.page
+                if step == "home":
+                    # review 8, S-1: the homing is the way back a stop leads to; its fresh GO
+                    # is the stop's effect, so a stop pressed before it is used up here
+                    self._pause_stop = False
             self._check_other_program()
             key = STAGE_KEY[step]
             self.runs[(self.page, key)] = self.runs.get((self.page, key), 0) + 1

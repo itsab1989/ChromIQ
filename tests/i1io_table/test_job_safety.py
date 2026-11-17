@@ -284,7 +284,15 @@ def test_the_creep_stops_cleanly_at_a_pause_when_asked():
     job, sim, _t = H.make_job(sheet=sheet, aims=pts)
     p = H.Person(job, sim, {J.Confirm.FRONT_CHOICE: "go on"})
     assert p.drive(job.open()).ok and p.drive(job.align()).ok
-    job.stop_at_next_pause()
+    # the person presses Stop while the creep runs (during its first pause); a stop pressed
+    # BEFORE the creep ends it before its first move instead (review 8, S-1:
+    # test_job_review8_fixes.py)
+    real = job._table.c_wait
+
+    def c_wait(seconds):
+        job.stop_at_next_pause()
+        return real(seconds)
+    job._table.c_wait = c_wait
     r = p.drive(job.creep())
     assert (r.kind, r.reason) == (J.Kind.REFUSED, "stopped_at_a_creep_pause")
     assert r.detail["by_person"] and r.state.front_y is not None

@@ -26,9 +26,9 @@ def _report(job):
         assert job.answer(J.Confirm.REPORT_AFTER_STEP, "as described").ok
 
 
-def _job_for(tmp_path, asking, script=None, rows=(4, 4, 4)):
+def _job_for(tmp_path, asking, script=None, rows=(4, 4, 4), **kw):
     from tests.i1io_table.test_job_reading import job_for
-    return job_for(tmp_path, script, sheet=small_sheet(list(rows)), asking=asking)
+    return job_for(tmp_path, script, sheet=small_sheet(list(rows)), asking=asking, **kw)
 
 
 def _one_row(tmp_path, asking, rows=(4, 4, 4)):
@@ -537,3 +537,89 @@ def test_note_a_restored_earlier_file_is_not_filed(tmp_path, monkeypatch):
     rec = json.loads((run.i1io_table_session_dir(RS.STAMP) / ms.SESSION_RESULT)
                      .read_text(encoding="utf-8"))
     assert rec["filed"] is False and rec["restored"] is True
+
+
+# ---- S-1 ------------------------------------------------------------------------------------
+
+STOPPED_BEFORE = "stopped_before_the_next_move"      # J.STOPPED_BEFORE_THE_NEXT_MOVE
+
+
+@ASKING
+def test_s1_a_stop_pressed_at_the_ending_takes_effect_before_the_next_move(tmp_path, asking):
+    """The reviewer's P6: Stop pressed while M-END is shown, then Keep measuring and the next
+    row: nothing moves; the row after that asks GO and reads."""
+    run, job, sim, p = _one_row(tmp_path, asking)
+    assert job.end().confirm == J.Confirm.END
+    job.stop_at_next_pause()
+    assert job.answer(J.Confirm.END, "keep measuring").ok
+    n = len(moves(sim.received))
+    r = p.drive(job.read_row())
+    assert (r.kind, r.reason) == (J.Kind.REFUSED, STOPPED_BEFORE) and r.detail["by_person"]
+    assert len(moves(sim.received)) == n
+    g = job.read_row()
+    assert g.confirm == J.Confirm.GO and len(moves(sim.received)) == n
+    assert p.drive(job.answer(J.Confirm.GO, "yes")).ok
+
+
+@ASKING
+def test_s1_a_stop_between_steps_refuses_the_next_moving_step(tmp_path, asking):
+    run, job, sim, p = _one_row(tmp_path, asking)
+    job.stop_at_next_pause()
+    assert job._go_page is None
+    n = len(sim.received)
+    r = job.read_row()
+    assert (r.kind, r.reason) == (J.Kind.REFUSED, STOPPED_BEFORE) and len(sim.received) == n
+
+
+@pytest.mark.parametrize("question", [J.Confirm.GO, J.Confirm.SHEET_LAID, J.Confirm.ARM_FELT,
+                                      J.Confirm.AIMED])
+def test_s1_a_stop_while_a_question_is_shown_ends_the_step_before_it_moves(tmp_path, question):
+    """Stop pressed while the alignment waits for an answer; the answer that would let it move
+    ends it instead."""
+    job, sim, helper, run, p = _job_for(tmp_path, False)
+    ready_to_read(job, p, steps=("open", "calibrate"))
+    seen = []
+
+    def on_ask(person, res):
+        if res.confirm == question and not seen:
+            seen.append(len(moves(sim.received)))
+            job.stop_at_next_pause()
+        return None
+    p.on_ask = on_ask
+    r = p.drive(job.align())
+    assert (r.kind, r.reason) == (J.Kind.REFUSED, STOPPED_BEFORE), r.reason
+    assert len(moves(sim.received)) == seen[0]
+    assert job._go_page is None and not job._pause_stop
+
+
+def test_s1_a_stop_while_a_failed_row_asks_again_skip_stop_moves_nothing(tmp_path):
+    job, sim, helper, run, p = _job_for(tmp_path, False, rows=(4, 4),
+                                        faults={"read_loc": {"0-2": "dies"}})
+    ready_to_read(job, p)
+
+    def on_ask(person, res):
+        if res.confirm == J.Confirm.ROW_FAILED:
+            person.n = len(moves(sim.received))
+            job.stop_at_next_pause()
+        return None
+    p.on_ask = on_ask
+    r = p.drive(job.read_row())
+    assert (r.kind, r.reason) == (J.Kind.REFUSED, STOPPED_BEFORE)
+    assert len(moves(sim.received)) == p.n and job.rows_again.get(0, 0) == 0
+
+
+def test_s1_the_homing_is_never_refused_for_a_stop_and_uses_it_up(tmp_path):
+    run, job, sim, p = _one_row(tmp_path, False)
+    job.stop_at_next_pause()
+    h = job.home()
+    assert h.confirm == J.Confirm.GO                       # the stop's effect: a fresh GO
+    assert p.drive(job.answer(J.Confirm.GO, "yes")).ok and not job._pause_stop
+    assert p.drive(job.align()).ok                         # nothing stale left behind
+
+
+def test_s1_a_step_that_moves_nothing_leaves_the_stop_for_the_next_move(tmp_path):
+    job, sim, helper, run, p = _job_for(tmp_path, False)
+    ready_to_read(job, p, steps=("open",))
+    job.stop_at_next_pause()
+    assert p.drive(job.calibrate()).ok and job._pause_stop
+    assert job.align().reason == STOPPED_BEFORE
