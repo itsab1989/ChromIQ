@@ -366,3 +366,42 @@ def test_s4_f9_a_resumed_table_verification_that_read_nothing_leaves_no_copy_bes
     assert a.measurement_ti3.read_bytes() == before
 
 
+# ---- S-4 (F7): the legend chip's keep-out in the paint itself ---------------------------------
+
+def test_s4_f7_the_legend_is_painted_outside_the_keep_out(qtbot, tmp_path):
+    """The real paint (not only `_legend_clear_place`): with a keep-out over the place the chip
+    takes on its own, the painted chip moves off it or is not drawn."""
+    from PIL import Image
+    from PyQt6.QtCore import QRect, QRectF
+    from PyQt6.QtGui import QColor
+    from PyQt6.QtWidgets import QApplication
+    from ui.tiff_preview import TiffPreview
+    pv = TiffPreview()
+    qtbot.addWidget(pv)
+    pv.resize(700, 700)
+    tif = tmp_path / "sheet.tif"
+    Image.new("RGB", (600, 600), (245, 245, 245)).save(tif)
+    pv.load_tiff([tif])
+    items = [(QRect(60 + 90 * c, 60 + 70 * r, 80, 60), QColor("#3050ff"), QColor("#20c060"),
+              False) for r in range(6) for c in range(6)]
+    pv.set_patch_overlay(0, items, replace_page=True)
+    pv.show()
+    qtbot.waitExposed(pv)
+    QApplication.processEvents()
+    qtbot.waitUntil(lambda: pv._legend_rect is not None, timeout=3000)
+    free = QRect(pv._legend_rect)
+    s, ox, oy = pv._paint_geom
+    sy = pv._paint_scale_y or s
+    ko = QRectF((free.x() - ox) / s, (free.y() - oy) / sy, free.width() / s,
+                free.height() / sy)
+    pv._legend_keepout = {pv._current: [ko]}
+    pv.update()
+    qtbot.wait(100)
+    QApplication.processEvents()
+    s, ox, oy = pv._paint_geom
+    sy = pv._paint_scale_y or s
+    kc = QRectF(ox + ko.x() * s, oy + ko.y() * sy, ko.width() * s, ko.height() * sy)
+    got = pv._legend_rect
+    assert got is None or not QRectF(got).intersects(kc), (got, kc)
+
+
