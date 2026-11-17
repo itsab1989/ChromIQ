@@ -405,3 +405,41 @@ def test_s4_f7_the_legend_is_painted_outside_the_keep_out(qtbot, tmp_path):
     assert got is None or not QRectF(got).intersects(kc), (got, kc)
 
 
+# ---- S-2: no id on screen ------------------------------------------------------------------------
+
+_ID = re.compile(r"\b[a-z0-9]+_[a-z0-9_]+\b")
+
+
+def test_s2_every_option_reason_of_the_table_job_has_a_sentence():
+    from workflow.i1io.table import spot as sp
+    whys = set(sp.NO_MEANING.values()) | set(sp.REFUSED.values()) \
+        | {w for _k, w in sp.SETTINGS.values()} \
+        | {"xrga_value_unknown", "option_unknown_to_the_table_job",
+           "strip_rows_not_built_spot_is_used"}
+    for why in sorted(whys):
+        line = W.option_text("-Q", why)
+        assert not _ID.search(line), line
+        assert line != W.option_text("-Q", "an_id_nobody_knows"), why
+    rep = sp.options_from_chartread_args(["-Q", "-A", "Z", "-p", "chart"])
+    for flag, why in rep.refused.items():
+        assert not _ID.search(W.option_text(flag, why)), (flag, why)
+
+
+@pytest.mark.parametrize("rid", ["an_id_nobody_knows", "x_y", "option_unknown_to_the_table_job",
+                                 se.ANOTHER_CHART, se.ANOTHER_VERIFICATION,
+                                 se.CHART_NOT_RECORDED])
+def test_s2_no_id_looking_fallback_reaches_the_screen(rid):
+    assert not _ID.search(W.reason_text(rid)), W.reason_text(rid)
+    assert not _ID.search(W.option_text("-Z", rid)), W.option_text("-Z", rid)
+    assert not _ID.search(W.option_text(rid, rid)), W.option_text(rid, rid)
+
+
+def test_s2_the_refused_option_page_shows_sentences_only(qtbot, monkeypatch, tmp_path, settings):
+    win, sim, run, p, saved, finished = open_window(
+        qtbot, monkeypatch, tmp_path, settings,
+        args=["-Q", "-A", "Z", "-p", "chart"])
+    p.drive_until("option_refused")
+    text = win._text.text()
+    assert "-Q" in text and not _ID.search(text), text
+
+

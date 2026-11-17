@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from pathlib import Path
 
@@ -326,9 +327,42 @@ def option_text(flag: str, why: str) -> str:
         "external_values_not_with_the_table": tr(
             "values from another program cannot be combined with the table"),
         "fields": tr("the earlier readings were measured with another setting"),
+        # review 12, S-2: every reason the table job can give has a sentence
+        "xrga_value_unknown": tr(
+            "the calibration standard (-A) has a value ChromIQ does not know, so it is not "
+            "passed on"),
+        "option_unknown_to_the_table_job": tr(
+            "the table measurement does not know this option, so it does not measure with it"),
+        "the_table_check_picks_its_own_i1pro2": tr(
+            "ChromIQ checks for itself which i1Pro 2 sits in the table's arm"),
+        "the_reader_always_reports_the_instrument": tr(
+            "ChromIQ always records which instrument it reads with"),
+        "spot_is_the_table_s_only_reading_for_now": tr("the table reads one patch at a time"),
+        "the_table_moves_the_instrument": tr("the table moves the instrument"),
+        "no_recogniser_the_table_reads_by_position": tr(
+            "the table knows where each patch is, so no strip is recognised"),
+        "no_ruler_is_read_in_the_arm": tr("no ruler is read while the instrument sits in the "
+                                          "table's arm"),
+        "the_spot_reader_does_not_use_the_lights": tr(
+            "the instrument's lights are not used for readings on the table"),
+        "the_button_is_not_used_on_the_table": tr(
+            "the instrument's button is not used on the table"),
+        "only_an_i1pro2_is_driven": tr("the table measures with an i1Pro 2 only"),
+        "a_second_pass_is_filed_by_step_8": tr(
+            "a second pass is not read by the table yet"),
+        "strip_rows_not_built": tr("reading whole strips with the table is not built yet"),
     }
-    name = names.get(flag, flag)
-    return f"•  {name}: {whys.get(why, why)}"
+    name = names.get(flag)
+    if name is None:
+        # an option as the person typed it (-Q); never anything else on screen
+        name = (tr("Option {option}").format(option=flag)
+                if re.fullmatch(r"-[A-Za-z0-9]{1,3}", str(flag)) else tr("An option"))
+    why_text = whys.get(why)
+    if why_text is None:
+        # never the id itself on screen (review 12, S-2); it is in the log
+        log.info("i1iO table: option %r refused with %r (no sentence of its own)", flag, why)
+        why_text = tr("the table measurement cannot use it")
+    return f"•  {name}: {why_text}"
 
 
 def seen_text(d: dict) -> str:
