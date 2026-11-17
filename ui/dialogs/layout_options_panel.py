@@ -190,15 +190,20 @@ def patchsize_help() -> str:
     return tr(
         "{patchsize} is the size of the chart's patches in millimetres, with "
         "one decimal each and no spaces: first the width across the strip, "
-        "then the length along the strip, for example “7.0x7.4”. These are "
-        "the two numbers of “Patch size (mm)” and of the “Patch size” row "
-        "under “Chart layout information”, in the same order. It is always "
-        "the size the chart was really laid out with, also when ChromIQ "
-        "worked the size out for you. A hexagonal patch is measured from tip "
-        "to tip, as in the chart layout information. Where ChromIQ cannot know "
-        "the size, {patchsize} prints nothing: on an FD-9 chart, and on a "
-        "chart laid out by ArgyllCMS printtarg that is not RGB, has "
-        "hexagonal patches or has only one strip on each of its pages.")
+        "then the length along the strip, for example “7.0x7.4”. It is the "
+        "size the chart was laid out with: the two numbers you typed in "
+        "“Patch size (mm)”, in the same order, or the size ChromIQ worked "
+        "out for you when they are on “auto”. On paper every patch is made "
+        "of whole pixels, so a single patch can be a fraction of a pixel "
+        "wider or narrower than this size, and the “Patch size” row under "
+        "“Chart layout information”, which measures the first patch as "
+        "drawn, can show a slightly different number. A hexagonal patch is "
+        "measured from tip to tip, as in the chart layout information. On a "
+        "chart laid out by ArgyllCMS printtarg it is the patch size "
+        "printtarg used. Where ChromIQ cannot know the size, {patchsize} "
+        "prints nothing: on an FD-9 chart, and on a chart laid out by "
+        "ArgyllCMS printtarg that is not RGB, has hexagonal patches or has "
+        "only one strip on each of its pages.")
 
 
 # Font sizes are shown to the user in points (Word/PowerPoint/PDF units) but

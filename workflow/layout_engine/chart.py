@@ -209,31 +209,31 @@ def patch_size_text(size_mm: "tuple[float, float] | None") -> str:
     return f"{a}x{b}" if a and b else ""
 
 
-def laid_out_patch_size_mm(geom, paper_w_mm: float, paper_h_mm: float,
-                           layout, dpi: int) -> "tuple[float, float] | None":
+def laid_out_patch_size_mm(geom, paper_w_mm: float = 0.0,
+                           paper_h_mm: float = 0.0, layout=None,
+                           dpi: int = 0) -> "tuple[float, float] | None":
     """The patch as the chart was laid out: ``(across the strip, along it)``
-    in mm, the two numbers Create Chart's "Patch size (mm)" boxes and the
-    Chart layout information's "Patch size" row show, in that order.
+    in mm, what `{patchsize}` prints (4.3.45).
 
-    THE PANEL'S OWN RULE, SO `{patchsize}` AND "on screen" AGREE: the first
-    patch's box as the raster paints it (`geometry.patch_rects_px`, pixel-
-    snapped at *dpi*), a honeycomb's hexagon tip to tip and not its slot
-    (`hex_support`), and an i1iSis chart's NOMINAL patch, the one its .txf
-    names (`TabChart._predict_layout_info` / `_chart_patch_size_mm`).
+    THE LAID-OUT SIZE, NOT THE PIXELS (review of 4.3.45, M1, decided by the
+    coordinator): the size the layout was built on, ``geom.pwid`` x
+    ``geom.plen``, which is what the person typed in "Patch size (mm)" or
+    what automatic fitting made of it. 7.0 x 7.4 typed at 150 dpi prints
+    "7.0x7.4", although the raster draws those patches 41 or 42 pixels wide
+    (6.9 or 7.1 mm): the patch pitch averages to the laid-out size exactly,
+    while the first patch's pixel box depends on where it sits on the pixel
+    grid. A printtarg chart prints its .cht's box, which is nominal too, so
+    the two engines follow one rule. A honeycomb's hexagon is measured tip to
+    tip from its slot (`hex_support.shown_patch_size_mm`); an i1iSis chart's
+    patch is its nominal one anyway. The paper, layout and dpi are not
+    needed any more and are accepted so older callers keep working.
     None when it cannot be worked out."""
     from workflow.hex_support import shown_patch_size_mm
     from .instruments import is_hexagonal
     try:
-        if getattr(geom, "key", "") == "XRISIS":
-            w, h = float(geom.pwid), float(geom.plen)
-        else:
-            r0 = geometry.patch_rects_px(geom, paper_w_mm, paper_h_mm,
-                                         layout, int(dpi))[0]
-            w = r0["w"] * 25.4 / float(dpi)
-            h = r0["h"] * 25.4 / float(dpi)
         pw, ph, _pitch = shown_patch_size_mm(
-            w, h, is_hexagonal(geom), bool(getattr(geom, "hex_flat_top",
-                                                   False)))
+            float(geom.pwid), float(geom.plen), is_hexagonal(geom),
+            bool(getattr(geom, "hex_flat_top", False)))
     except Exception:          # noqa: BLE001 - unknown, never a failure
         import logging
         logging.getLogger(__name__).debug(

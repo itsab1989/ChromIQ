@@ -27217,6 +27217,9 @@ class TabChart(QWidget):
         panel = getattr(self, "_layout_info_panel", None)
         if panel is None:
             return None
+        # `{patchsize}`'s own number for the width prediction (4.3.45): the
+        # laid-out size, set below with the estimate, never a stale one
+        self._laid_out_patch_estimate = None
         try:
             from workflow.layout_engine import geometry, instruments, papers
             w_mm, h_mm = papers.dimensions_mm(paper)
@@ -27237,6 +27240,10 @@ class TabChart(QWidget):
             # so both are shown, and the pitch is named as the pitch.
             _flat = bool(getattr(geom, "hex_flat_top", False))
             _slot_w, _slot_h = geom.pwid, geom.plen
+            # what `{patchsize}` will print (4.3.45): the laid-out size, not
+            # the pixels below (`chart.laid_out_patch_size_mm`)
+            from workflow.layout_engine.chart import laid_out_patch_size_mm
+            self._laid_out_patch_estimate = laid_out_patch_size_mm(geom)
             # THE PATCH THE RENDERER WILL DRAW, WHEN WE KNOW ITS RESOLUTION
             # (B8-1571). The "on screen" column reads the first patch the
             # engine recorded, and `geometry.patch_rects_px` rounds each edge
@@ -28116,11 +28123,18 @@ class TabChart(QWidget):
         return ctx
 
     def _predicted_patch_size(self) -> "tuple[float, float] | None":
-        """`{patchsize}` for the panel's predictions (4.3.45): the patch the
-        Chart layout information's estimate shows, the same `laid_out_patch_
-        size_mm` rule the build prints, else a stand-in as wide as a large
+        """`{patchsize}` for the panel's predictions (4.3.45): the laid-out
+        size the Chart layout information's estimate was worked out from
+        (`chart.laid_out_patch_size_mm`, the number the build prints), else
+        the patch that estimate shows, else a stand-in as wide as a large
         one ("88.8x88.8"), so a line is not measured shorter than it
         prints. Never raises (see `_text_placeholder_context`)."""
+        try:
+            laid = getattr(self, "_laid_out_patch_estimate", None)
+            if laid and float(laid[0]) > 0 and float(laid[1]) > 0:
+                return (float(laid[0]), float(laid[1]))
+        except Exception:      # noqa: BLE001 - a prediction is never fatal
+            pass
         try:
             panel = getattr(self, "_layout_info_panel", None)
             got = panel.predicted() if panel is not None else None

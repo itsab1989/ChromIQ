@@ -8,9 +8,11 @@ size (mm)" boxes take and the Chart layout information's "Patch size" row
 shows. Pinned here:
 
 1. the text (one decimal each, a half up, "x", no spaces; empty = unknown);
-2. the engine's number IS the panel's ("on screen", `_chart_patch_size_mm`),
-   for square patches, hexagons, a ColorMunki, a CR30 and a size that is not
-   a whole number of pixels; and it is printed in the Sheet text and the clip
+2. the engine's number is the LAID-OUT size (what was typed, or what fitting
+   made of it), not the first patch's pixel box: the review's M1, decided.
+   It stays within a pixel of the panel's "on screen" row, for square
+   patches, hexagons, a ColorMunki, a CR30 and a size that is not a whole
+   number of pixels; and it is printed in the Sheet text and the clip
    border's text exactly as the same characters typed by hand;
 3. the run's Chart Notes get it, from the engine's build and from a printtarg
    chart's own .cht, and print nothing where the size cannot be known;
@@ -90,7 +92,7 @@ def _build(tmp: Path, name: str, rec):
     return res, used, d
 
 
-@pytest.mark.parametrize("kw", [
+_SIZES = [
     dict(),
     dict(patch_w_mm=7.0, patch_h_mm=7.4),
     dict(instrument="p3", dpi=200, patch_w_mm=7.59, patch_h_mm=7.59),
@@ -98,12 +100,18 @@ def _build(tmp: Path, name: str, rec):
     dict(instrument="CM"),
     dict(instrument="CR30"),
     dict(instrument="CR30", hflag=True, hex_flat_top=True),
-], ids=["i1", "7.0x7.4", "p3_not_whole_pixels", "ss_hex", "cm", "cr30",
-        "cr30_turned_hex"])
-def test_the_number_is_the_chart_layout_informations(tmp_path, kw):
-    """The "on screen" column reads the chart's recorded patch box; the
-    placeholder is worked out before the pages are drawn. Both, to the
-    decimal shown."""
+]
+_SIZE_IDS = ["i1", "7.0x7.4", "p3_not_whole_pixels", "ss_hex", "cm", "cr30",
+             "cr30_turned_hex"]
+
+
+@pytest.mark.parametrize("kw", _SIZES, ids=_SIZE_IDS)
+def test_the_number_is_the_laid_out_size_not_the_pixels(tmp_path, kw):
+    """M1 of the 4.3.45 review, decided: `{patchsize}` is the size the layout
+    was built on (typed, or what fitting made of it), a hexagon tip to tip.
+    The Chart layout information's "on screen" row reads the first patch as
+    drawn in whole pixels, so it may differ, by less than a pixel (a
+    hexagon's tip-to-tip by 4/3 of one)."""
     from ui.tabs.tab_chart import TabChart
     res, used, d = _build(tmp_path, "c", _recipe(**kw))
     st = json.loads((d / "c.strips.json").read_text(encoding="utf-8"))
@@ -111,32 +119,82 @@ def test_the_number_is_the_chart_layout_informations(tmp_path, kw):
         "patches": st["patches"], "dpi": st["dpi"],
         "recipe": used.to_dict()}}), encoding="utf-8")
     pw, ph, _pitch = TabChart._chart_patch_size_mm(res.ti2_path)
-    assert pw > 0 and ph > 0
-    assert patch_size_text(res.patch_size_mm) == patch_size_text((pw, ph))
+    px = 25.4 / st["dpi"] * 4 / 3 + 1e-9
+    assert abs(res.patch_size_mm[0] - pw) <= px
+    assert abs(res.patch_size_mm[1] - ph) <= px
+
+
+@pytest.mark.parametrize("kw,expected", [
+    (dict(patch_w_mm=7.0, patch_h_mm=7.4), "7.0x7.4"),        # 41/42 px
+    (dict(patch_w_mm=7.0, patch_h_mm=7.4, dpi=300), "7.0x7.4"),
+    (dict(instrument="p3", dpi=200, patch_w_mm=7.59, patch_h_mm=7.59),
+     "7.6x7.6"),
+    (dict(instrument="SS"), "7.0x7.0"),
+    (dict(instrument="CM"), "28.0x14.0"),
+    (dict(), "8.0x10.0"),
+    (dict(instrument="CR30"), "12.0x12.0"),
+], ids=["150dpi", "300dpi", "p3_200dpi", "ss", "cm", "i1", "cr30"])
+def test_what_was_typed_or_the_default_is_printed(tmp_path, kw, expected):
+    """The review's table (M1): at 150 dpi 7.0 x 7.4 used to print "6.9x7.5",
+    the SpectroScan "7.1x6.9", the ColorMunki "27.9x14.1", the i1Pro 3's
+    7.59 mm "7.5x7.6"; the Create Chart Preview line said "7.0x7.4"."""
+    res, _u, _d = _build(tmp_path, "c", _recipe(**kw))
+    assert patch_size_text(res.patch_size_mm) == expected
 
 
 def test_the_sizes_typed_come_back_in_the_same_order(tmp_path):
     res, _u, _d = _build(tmp_path, "c", _recipe(patch_w_mm=7.0,
                                                  patch_h_mm=7.4, dpi=300))
     assert patch_size_text(res.patch_size_mm) == "7.0x7.4"
-    # at 150 dpi 7.0 x 7.4 mm cannot be drawn: the pixels decide
-    res, _u, _d = _build(tmp_path, "e", _recipe(patch_w_mm=7.0,
-                                                 patch_h_mm=7.4))
-    assert patch_size_text(res.patch_size_mm) == "6.9x7.5"
     res, _u, _d = _build(tmp_path, "d", _recipe(patch_w_mm=9.0,
                                                  patch_h_mm=6.0, dpi=300))
-    w, h = res.patch_size_mm
-    assert abs(w - 9.0) < 0.1 and abs(h - 6.0) < 0.1
+    assert patch_size_text(res.patch_size_mm) == "9.0x6.0"
+    res, _u, _d = _build(tmp_path, "e", _recipe(patch_w_mm=9.0,
+                                                 patch_h_mm=6.0, dpi=150))
+    assert patch_size_text(res.patch_size_mm) == "9.0x6.0"
 
 
-def test_an_area_fitted_patch_is_the_one_drawn(tmp_path):
+def test_the_preview_line_and_the_sheet_agree(tmp_path, qapp):
+    """What the Preview line of Create Chart shows for typed boxes is what
+    the sheet prints, also where the pixels cannot draw it exactly."""
+    from ui.dialogs.layout_options_panel import LayoutOptionsPanel
+    panel = LayoutOptionsPanel()
+    panel.patch_x.setValue(7.0)
+    panel.patch_y.setValue(7.4)
+    res, _u, _d = _build(tmp_path, "c", _recipe(patch_w_mm=7.0,
+                                                 patch_h_mm=7.4, dpi=150))
+    assert panel._resolve_sample("{patchsize}") == \
+        patch_size_text(res.patch_size_mm) == "7.0x7.4"
+
+
+def test_an_area_fitted_patch_is_the_one_laid_out(tmp_path):
     """"Prioritise chart area" works the size out: the placeholder is that
-    size, not the boxes' "auto"."""
+    size, not the boxes' "auto", and the pitch the strips record averages
+    to it."""
     res, _u, d = _build(tmp_path, "c", _recipe(layout_mode="area_first"))
     st = json.loads((d / "c.strips.json").read_text(encoding="utf-8"))
-    r0 = st["patches"][0]
-    assert patch_size_text(res.patch_size_mm) == patch_size_text(
-        (r0["w"] * 25.4 / st["dpi"], r0["h"] * 25.4 / st["dpi"]))
+    pats = st["patches"]
+    mean_h = sum(r["h"] for r in pats) / len(pats) * 25.4 / st["dpi"]
+    w0 = pats[0]["w"] * 25.4 / st["dpi"]
+    one = 25.4 / st["dpi"] + 1e-9
+    assert res.patch_size_mm is not None
+    assert abs(res.patch_size_mm[0] - w0) <= one
+    assert abs(res.patch_size_mm[1] - mean_h) <= one
+
+
+def test_a_hexagon_is_measured_tip_to_tip_from_its_laid_out_slot():
+    from workflow.hex_support import shown_patch_size_mm
+    from workflow.layout_engine import instruments
+    from workflow.layout_engine.chart import laid_out_patch_size_mm
+    for inst, kw in (("CR30", dict(hflag=True)),
+                     ("CR30", dict(hflag=True, hex_flat_top=True)),
+                     ("SS", dict(hflag=True)), ("i1", {}), ("CM", {})):
+        g = instruments.build(inst, **kw)
+        assert laid_out_patch_size_mm(g) == shown_patch_size_mm(
+            g.pwid, g.plen, instruments.is_hexagonal(g),
+            bool(getattr(g, "hex_flat_top", False)))[:2]
+        if not instruments.is_hexagonal(g):
+            assert laid_out_patch_size_mm(g) == (g.pwid, g.plen)
 
 
 @pytest.mark.parametrize("instr", ["i1", "CR30"])
@@ -438,3 +496,9 @@ def test_the_width_prediction_uses_the_estimate():
     assert patch_size_text(TabChart._predicted_patch_size(tab)) == "88.8x88.8"
     tab = SimpleNamespace()
     assert TabChart._predicted_patch_size(tab) == (88.8, 88.8)
+    # the laid-out size the estimate was worked out from wins over the
+    # pixels it shows: that is what the sheet prints (M1)
+    tab = SimpleNamespace(_laid_out_patch_estimate=(7.0, 7.4),
+                          _layout_info_panel=SimpleNamespace(
+                              predicted=lambda: {"patch": (6.94, 7.45)}))
+    assert TabChart._predicted_patch_size(tab) == (7.0, 7.4)
