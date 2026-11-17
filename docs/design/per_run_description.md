@@ -368,7 +368,7 @@ This section does not touch T2, T3, T4 or T8: the notes field, `meta.json`, the 
 | T7.16 | a chart that does not use it | byte-identical to 4.3.44 |
 
 * Offered in the Sheet text's and the clip border's Insert ▾ menu; the Preview line shows the two Patch size boxes, or "7.0x7.4" as a sample while they are on "auto".
-* Known limit, not new: the clip border's measured reach is taken from its text with the braces still in (for every placeholder), so `{patchsize}` there may sit a little differently across the band than the same characters typed by hand.
+* The clip border's measured reach is taken from its text with the braces still in for every other placeholder (a 4.3.44 limit, kept so no existing chart moves); `{patchsize}` is measured with the text it prints (review of 4.3.45, N2), so it sits across the band exactly as the same characters typed by hand. A text without it is measured as before.
 * Tests: `tests/test_4345_patchsize_placeholder.py`.
 
 ---

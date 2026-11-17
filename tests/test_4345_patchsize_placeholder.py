@@ -212,11 +212,8 @@ def test_the_sheet_text_prints_it_as_if_typed(tmp_path, instr):
 
 
 def test_the_clip_borders_text_is_drawn_with_it(tmp_path, monkeypatch):
-    """The clip border's text is drawn with `{patchsize}` filled in. (Not
-    compared with the same text typed by hand: the clip content's reach is
-    measured from the text with its braces still in, for every placeholder,
-    `{patchcount}` too, so the two may sit a little apart across the band;
-    a 4.3.44 limit, left as it is so no existing chart changes.)"""
+    """The clip border's text is drawn with `{patchsize}` filled in (and,
+    since the review's N2, measured with it: the next test)."""
     drawn = []
     real = raster.render_clip_strip
 
@@ -231,6 +228,26 @@ def test_the_clip_borders_text_is_drawn_with_it(tmp_path, monkeypatch):
     raster._clip_reach_cached.cache_clear()
     assert patch_size_text(a.patch_size_mm) == "8.0x9.5"
     assert "8.0x9.5 mm" in drawn
+
+
+@pytest.mark.parametrize("size_mm", [0.0, 3.0])
+def test_the_clip_borders_reach_is_measured_with_the_real_text(tmp_path,
+                                                                size_mm):
+    """Review of 4.3.45, N2: the clip content's reach was measured with
+    `{patchsize}` empty, seven characters shorter than it prints. Now the
+    same text typed by hand and the placeholder lay out the same chart."""
+    kw = dict(patch_w_mm=8.0, patch_h_mm=9.5, clip_border=True, show_row_indicators=True,
+              clip_content_mode="text", clip_text_size_mm=size_mm)
+    raster._clip_reach_cached.cache_clear()
+    a, _u, _d = _build(tmp_path, "a", _recipe(
+        clip_text="size {patchsize} mm", **kw))
+    raster._clip_reach_cached.cache_clear()
+    b, _u, _d = _build(tmp_path, "b", _recipe(clip_text="size 8.0x9.5 mm",
+                                              **kw))
+    raster._clip_reach_cached.cache_clear()
+    for pa, pb in zip(a.tiff_paths, b.tiff_paths):
+        assert np.array_equal(tifffile.imread(str(pa)),
+                              tifffile.imread(str(pb)))
 
 
 def test_the_rule_is_the_panels_rule():
