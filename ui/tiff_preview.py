@@ -2446,6 +2446,13 @@ class TiffPreview(QWidget):
             cx = fx + dx * (half + 3.0 + m / 2.0)
             cy = fy + dy * (half + 3.0 + m / 2.0)
             colour = QColor("#2fa36b") if i in done else QColor("#e08a00")
+            # UPRIGHT ON SCREEN (the owner, watching the first try: "checkmark ... is rotated
+            # wrong"): the page may be painted turned, so the mark's centre is taken to the
+            # screen and the mark is drawn there with no turn at all
+            centre = painter.transform().map(QPointF(cx, cy))
+            painter.save()
+            painter.resetTransform()
+            cx, cy = centre.x(), centre.y()
             for c, w in ((QColor(255, 255, 255, 230), max(3.0, m * 0.34)),
                          (colour, max(1.8, m * 0.2))):
                 pen = QPen(c)
@@ -2463,6 +2470,7 @@ class TiffPreview(QWidget):
                                      QPointF(cx + h * 0.7, cy + h * 0.7))
                     painter.drawLine(QPointF(cx - h * 0.7, cy + h * 0.7),
                                      QPointF(cx + h * 0.7, cy - h * 0.7))
+            painter.restore()
         painter.restore()
 
     def _draw_scan_grid(self, painter, sx, sy, ox, oy):

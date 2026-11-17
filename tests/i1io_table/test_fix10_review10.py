@@ -813,3 +813,67 @@ def test_end_after_a_first_row_that_failed_can_end(qtbot, monkeypatch, tmp_path,
     assert p.page() in ("home_offered", "done"), (p.page(), win._text.text()[:120])
     assert "cannot be kept" in win._text.text() and moves(sim) == n
     assert not run.measurement_ti3.exists()
+
+
+@pytest.mark.parametrize("turn", [0, 90, 180, 270])
+def test_m3_the_check_mark_stands_upright_however_the_page_is_turned(qapp, turn):
+    """The owner (on screen): the check mark was drawn turned with the page. Painted with the
+    page turned by *turn*: the mark's pixels are the same as on an unturned page."""
+    from PyQt6.QtCore import QPointF, QRect
+    from PyQt6.QtGui import QColor, QImage, QPainter, QTransform
+    from ui.tiff_preview import TiffPreview
+
+    def paint(deg):
+        pv = TiffPreview()
+        pv._current = 0
+        # one row of five patches; rotate the PAGE about the image centre (100, 100)
+        rows = [[QRect(60 + 20 * c, 90, 18, 18) for c in range(5)]]
+        pv.set_table_rows(0, rows, done={0}, active=None)
+        img = QImage(200, 200, QImage.Format.Format_RGB32)
+        img.fill(QColor("white"))
+        p = QPainter(img)
+        t = QTransform().translate(100, 100).rotate(deg).translate(-100, -100)
+        p.setTransform(t)
+        pv._draw_table_rows(p, 1.0, 1.0, 0.0, 0.0)
+        p.end()
+        centre = t.map(QPointF(53.76, 99.0))            # where the mark's centre lands
+        return img, centre
+
+    def mask(img, c):
+        return {(dx, dy) for dx in range(-5, 6) for dy in range(-5, 6)
+                if img.pixelColor(round(c.x()) + dx, round(c.y()) + dy).red() < 150}
+
+    base, c0 = paint(0)
+    img, c = paint(turn)
+    a, b = mask(base, c0), mask(img, c)
+    # the same shape, allowing a pixel of rounding at its edges; a turned mark differs by far
+    near = {(x + i, y + j) for x, y in a for i in (-1, 0, 1) for j in (-1, 0, 1)}
+    assert a and len(b - near) <= 2, (turn, len(a), len(b - near))
+
+
+def test_m3_the_ring_visits_every_patch_of_a_row_in_order(tab, beta, tmp_path, monkeypatch,
+                                                          qtbot):
+    """The owner (on screen): 'it sometimes looks like the patch highlighter skips a few
+    patches'. Through the real path (the job in its worker thread, the queued signal, the
+    tab): the ring is set on every patch the job announces, in the job's order, none skipped
+    and none out of order. (What the owner saw was the simulator's clock: the job's 1.0 s pace
+    between patches passes at once on it, so a burst of patches came faster than the
+    preview's 80 ms repaint; the driver now reads at the recorded pace.)"""
+    run, sheet = table_run(tmp_path)
+    ringed, announced = [], []
+    monkeypatch.setattr(tab, "_locate_patch", lambda loc: (0, loc))
+    monkeypatch.setattr(tab._preview, "highlight_patch",
+                        lambda page, box: ringed.append(box) if box is not None else None)
+    sim = start(tab, run, monkeypatch)
+    win = tab._table_window
+    win.progress.connect(lambda ev: announced.append(ev["loc"])
+                         if ev.get("event") == "patch_next" else None)
+    p = _person(win, sim, qtbot)
+    p.drive_until("end_of_session")
+    qtbot.wait(50)
+    rows = [[q["loc"] for q in st["patches"]] for st in sheet["pages"][0]["strips"]]
+    patch_rings = [b for b in ringed if isinstance(b, str)]
+    assert patch_rings == announced
+    for row in rows:                                     # each row's patches, in its order
+        got = [loc for loc in patch_rings if loc in row]
+        assert got in (row, row[::-1]), (row, got)
