@@ -2030,8 +2030,14 @@ class TableJob:
             return self._result("measurement", Kind.REFUSED, "no_run")
         if self.ended == "discarded":
             return self._result("measurement", Kind.REFUSED, "discarded")
-        a = ms.assemble(self._session_dirs(), self._chart_ti2,
-                        self.run.i1io_table_measurement(self.stamp), base_ti3=self._base())
+        try:
+            a = ms.assemble(self._session_dirs(), self._chart_ti2,
+                            self.run.i1io_table_measurement(self.stamp), base_ti3=self._base())
+        except OSError as exc:
+            # review 8, S-5: a disk error is a named refusal, never an exception that closes
+            # the table for sending
+            return self._result("measurement", Kind.REFUSED, "measurement_not_written",
+                                error=type(exc).__name__)
         self._assembly = a
         self.diag.write_json("measurement.json", a.as_dict())
         kind = Kind.OK if a.state in ("complete", "partial") else Kind.REFUSED
@@ -2124,7 +2130,8 @@ class TableJob:
             return {"ending": "discarded", **self._after_end(), **res.detail}
         res = self.save()
         if not res.ok:
-            raise StageFailed(res.reason, **res.detail)
+            # review 8, S-5: the refusal names what was not done and what may follow (the homing)
+            raise StageFailed(res.reason, **{**res.detail, **self._after_end()})
         return {"ending": "saved", **self._after_end(), **res.detail}
 
     def dismiss_end(self) -> StepResult:
@@ -2167,22 +2174,58 @@ class TableJob:
         if dest.exists() and (self._base() is None
                               or Path(self._base()).resolve() != dest.resolve()):
             return self._result("save", Kind.REFUSED, "run_has_a_measurement_already")
+        # review 8, S-4: earlier sessions whose filing was cut off before their result was
+        # recorded are settled first (their filing note against the run's file AS IT IS NOW,
+        # before this Save changes it)
+        se.settle_filed_sessions(self.run, exclude=self.stamp)
         guard = MeasurementSession(dest, self._chart_ti2, self.run.old_dir)
-        guard.begin()
-        why = ms.file_into_run(self._assembly, self.run, may_replace=self._base())
+        try:
+            # review 8, S-4: a filing note (the measurement's checksum) in every session folder
+            # that goes into this file BEFORE the run's file changes: a crash between the run's
+            # .ti3 and session_result.json is then recognised at the next START as saved
+            note = se.filing_note(self._assembly.path, self.stamp)
+            for sdir in self._session_dirs():
+                se.write_json_now(Path(sdir) / ms.FILING, note)
+            guard.begin()
+            why = ms.file_into_run(self._assembly, self.run, may_replace=self._base())
+        except OSError as exc:
+            # review 8, S-5: a disk error never closes the table for sending: nothing reached
+            # the run (one atomic replace), the readings stay in the session folder, the
+            # homing stays offered (its own GO), Save may be asked again
+            self.diag.log("INFO", f"the measurement could not be written into the run "
+                                  f"({type(exc).__name__}); the readings stay in the session")
+            return self._result("save", Kind.REFUSED, "measurement_not_written",
+                                error=type(exc).__name__, readings_kept=True,
+                                **self._after_end())
         if why:
             return self._result("save", Kind.REFUSED, why)
-        outcome = guard.finish(resumed=self._base() is not None)
+        try:
+            outcome = guard.finish(resumed=self._base() is not None)
+        except OSError as exc:
+            # filed already (the run holds it); only the verdict could not be judged
+            outcome = None
+            self.diag.log("INFO", f"the saved measurement could not be judged "
+                                  f"({type(exc).__name__})")
         self.ended = "saved"
-        detail = {"measurement": self._assembly.as_dict(),
-                  "announce": dest.name, "verdict": outcome.verdict.value,
-                  "before": outcome.before, "after": outcome.after, "added": outcome.added,
-                  "restored": outcome.restored, "message_id": outcome.message_id,
-                  "archive": outcome.archive.parent.name if outcome.archive else None,
+        restored = bool(outcome is not None and outcome.restored)
+        detail = {"measurement": self._assembly.as_dict(), "announce": dest.name,
+                  "verdict": outcome.verdict.value if outcome else None,
+                  "before": outcome.before if outcome else None,
+                  "after": outcome.after if outcome else None,
+                  "added": outcome.added if outcome else None,
+                  "restored": restored,
+                  "message_id": outcome.message_id if outcome else None,
+                  "archive": outcome.archive.parent.name if outcome and outcome.archive
+                  else None,
                   "resume_next": (self._assembly.state == "partial"
                                   and can_resume(dest, self._chart_ti2))}
-        result = {"filed": True, "state": self._assembly.state,
-                  "verdict": outcome.verdict.value, "added": outcome.added}
+        if outcome is None:
+            detail["verdict_not_judged"] = True
+        # review 8, NOTE: "filed" is true only when the run keeps this measurement (a §3b
+        # restore, M-TI3-SHRANK / M-TI3-EMPTY, put the earlier file back)
+        result = {"filed": not restored, "state": self._assembly.state,
+                  "verdict": detail["verdict"], "added": detail["added"],
+                  "restored": restored}
         self.diag.write_json(ms.SESSION_RESULT, result)
         # review 8, M-4: the adopted earlier sessions ended in this measurement too; recorded
         # in their own folders, so the next START does not offer them as interrupted
@@ -2201,7 +2244,7 @@ class TableJob:
             detail["adopted_not_marked"] = not_marked
         self.diag.log("INFO", f"the measurement was saved into the run "
                               f"({self._assembly.state}, {self._assembly.read} readings, "
-                              f"verdict {outcome.verdict.value})")
+                              f"verdict {detail['verdict']})")
         return self._result("save", Kind.OK, "", **detail)
 
     def discard(self) -> StepResult:
@@ -2248,9 +2291,10 @@ class TableJob:
             sdir = self.run.i1io_table_session_dir(stamp)
         except ValueError:
             return self._result("adopt", Kind.REFUSED, "not_a_session")
-        if stamp == self.stamp or se.session_state(sdir) != se.INTERRUPTED:
+        state = se.session_state(sdir, self.run.measurement_ti3) if sdir.is_dir() else None
+        if stamp == self.stamp or state != se.INTERRUPTED:
             return self._result("adopt", Kind.REFUSED, "not_an_interrupted_session",
-                                state=se.session_state(sdir) if sdir.is_dir() else None)
+                                state=state)
         live = Path(self.run.measurement_ti3)
         facts = classify(live, self._chart_ti2)
         if facts.state is Ti3State.COMPLETE:
@@ -2283,8 +2327,8 @@ class TableJob:
             sdir = self.run.i1io_table_session_dir(stamp)
         except ValueError:
             return self._result("discard_earlier", Kind.REFUSED, "not_a_session")
-        if stamp == self.stamp or not sdir.is_dir() or se.session_state(sdir) in (se.SAVED,
-                                                                                  se.DISCARDED):
+        if stamp == self.stamp or not sdir.is_dir() or se.session_state(
+                sdir, self.run.measurement_ti3) in (se.SAVED, se.DISCARDED):
             return self._result("discard_earlier", Kind.REFUSED, "not_an_interrupted_session")
         if sdir in self._earlier_dirs:
             return self._result("discard_earlier", Kind.REFUSED, "adopted_already")

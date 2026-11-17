@@ -372,3 +372,168 @@ def test_m4_an_adopted_session_that_cannot_be_marked_is_named(tmp_path, monkeypa
     r, _st = _end(job, p, "save")
     assert r.ok and r.detail["adopted_marked_saved"] == []
     assert r.detail["adopted_not_marked"] == [RS.STAMP]
+
+
+# ---- S-4 ------------------------------------------------------------------------------------
+
+def _a_complete_page(tmp_path, sheet=None):
+    proj, run = project(tmp_path)
+    job, sim, helper, p = job_on(run, tmp_path, sheet=sheet)
+    ready_to_read(job, p)
+    read_page(job, p)
+    return run, job, sim, p
+
+
+def _power_cut_at(monkeypatch, job, where):
+    """KeyboardInterrupt (the process gone) at *where* of Save: "result" = the write of
+    session_result.json, "filing" = the run's file itself."""
+    from workflow.i1io.table import measurement as ms
+    if where == "result":
+        real = job.diag.write_json
+
+        def lost(rel, data):
+            if rel == ms.SESSION_RESULT:
+                raise KeyboardInterrupt("power cut")
+            return real(rel, data)
+        monkeypatch.setattr(job.diag, "write_json", lost)
+    else:
+        def lost(*a, **k):
+            raise KeyboardInterrupt("power cut")
+        monkeypatch.setattr(ms, "file_into_run", lost)
+
+
+def _save_with_a_power_cut(job):
+    with pytest.raises(KeyboardInterrupt):
+        job.save()
+
+
+def test_s4_a_crash_after_the_runs_file_is_saved_at_the_next_start(tmp_path, monkeypatch):
+    """The reviewer's P8: the run holds the measurement; the next START does not offer the
+    session as interrupted, it records the result that was lost, and the session stays saved
+    after the run's file changes again."""
+    import json
+    from workflow.i1io.table import measurement as ms
+    from workflow.i1io.table import session_end as se
+    run, job, sim, p = _a_complete_page(tmp_path)
+    _power_cut_at(monkeypatch, job, "result")
+    _save_with_a_power_cut(job)
+    sdir = run.i1io_table_session_dir(RS.STAMP)
+    assert run.measurement_ti3.is_file() and not (sdir / ms.SESSION_RESULT).exists()
+    job2, *_ = job_on(run, tmp_path / "b", stamp=SECOND)
+    found = {e["stamp"]: e for e in job2.earlier_sessions()}
+    assert found[RS.STAMP]["state"] == se.SAVED
+    assert json.loads((sdir / ms.SESSION_RESULT).read_text(encoding="utf-8")) == \
+        {"filed": True, "result_recorded_later": True}
+    assert job2.adopt_earlier(RS.STAMP).reason == "not_an_interrupted_session"
+    with open(run.measurement_ti3, "a", encoding="utf-8") as fh:       # a later Save, say
+        fh.write("\n")
+    assert se.session_state(sdir, run.measurement_ti3) == se.SAVED
+
+
+def test_s4_a_crash_before_the_runs_file_changes_is_interrupted(tmp_path, monkeypatch):
+    """The other side: the filing note is there, the run's file is not: the readings were never
+    saved, and the next START offers them (truthfully) as interrupted."""
+    from workflow.i1io.table import measurement as ms
+    from workflow.i1io.table import session_end as se
+    run, job, sim, p = _a_complete_page(tmp_path)
+    _power_cut_at(monkeypatch, job, "filing")
+    _save_with_a_power_cut(job)
+    sdir = run.i1io_table_session_dir(RS.STAMP)
+    assert (sdir / ms.FILING).is_file() and not run.measurement_ti3.exists()
+    job2, *_ = job_on(run, tmp_path / "b", stamp=SECOND)
+    found = {e["stamp"]: e for e in job2.earlier_sessions()}
+    assert found[RS.STAMP]["state"] == se.INTERRUPTED and found[RS.STAMP]["would_make"] == \
+        "complete"
+
+
+def test_s4_an_adopted_session_cut_off_after_filing_is_saved_too(tmp_path, monkeypatch):
+    from workflow.i1io.table import session_end as se
+    run, job, sim, helper, p = _adopting(tmp_path)
+    ready_to_read(job, p)
+    read_page(job, p)
+    _power_cut_at(monkeypatch, job, "result")
+    _save_with_a_power_cut(job)
+    assert _states_at_the_next_start(run, tmp_path) == {RS.STAMP: se.SAVED, SECOND: se.SAVED}
+
+
+def test_s4_the_filing_note_holds_a_checksum_and_a_stamp_only(tmp_path):
+    import json
+    from workflow.i1io.table import measurement as ms
+    run, job, sim, p = _a_complete_page(tmp_path)
+    assert job.save().ok
+    note = json.loads((run.i1io_table_session_dir(RS.STAMP) / ms.FILING)
+                      .read_text(encoding="utf-8"))
+    assert set(note) == {"filing_by", "sha256"} and note["filing_by"] == RS.STAMP
+    assert len(note["sha256"]) == 64
+
+
+# ---- S-5 ------------------------------------------------------------------------------------
+
+@ASKING
+@pytest.mark.parametrize("where", ["filing_note", "begin", "file_into_run"])
+def test_s5_a_disk_error_on_save_keeps_the_homing_and_the_readings(tmp_path, monkeypatch,
+                                                                   asking, where):
+    """An OSError while Save writes: a named refusal, the table still open for sending, the
+    homing offered (its own GO), nothing in the run, the readings in the session folder, and
+    Save may be asked again."""
+    from workflow import measurement_session as msn
+    from workflow.i1io.table import measurement as ms
+    from workflow.i1io.table import session_end as se
+    proj, run = project(tmp_path)
+    job, sim, helper, p = job_on(run, tmp_path, asking=asking)
+    ready_to_read(job, p)
+    read_page(job, p)
+
+    def disk_full(*a, **k):
+        raise OSError(28, "No space left on device")
+    target = {"filing_note": (se, "write_json_now"), "begin": (msn.MeasurementSession, "begin"),
+              "file_into_run": (ms, "file_into_run")}[where]
+    with monkeypatch.context() as mp:
+        mp.setattr(*target, disk_full)
+        n = len(sim.received)
+        r, st = _end(job, p, "save")
+    assert (r.kind, r.reason) == (J.Kind.REFUSED, "measurement_not_written")
+    assert r.detail["error"] == "OSError" and r.detail["readings_kept"] is True
+    assert r.detail["next"] == ["home"] and not r.state.sending_closed
+    assert job.ended is None and not run.measurement_ti3.exists()
+    assert any(run.i1io_table_session_dir(RS.STAMP).glob("row-*/*.row.json"))
+    assert len(sim.received) == n
+    h = job.home()
+    assert (h.kind, h.confirm) == (J.Kind.NEEDS, J.Confirm.GO) and len(sim.received) == n
+    assert p.drive(job.answer(J.Confirm.GO, "yes")).ok and job.at_rest()
+    r2, _st = _end(job, p, "save")                          # the disk has room again
+    assert r2.ok and run.measurement_ti3.is_file()
+
+
+def test_s5_a_disk_error_while_assembling_is_a_refusal_not_an_exception(tmp_path, monkeypatch):
+    from workflow.i1io.table import measurement as ms
+    run, job, sim, p = _a_complete_page(tmp_path)
+
+    def disk_full(*a, **k):
+        raise OSError(28, "No space left on device")
+    monkeypatch.setattr(ms, "assemble", disk_full)
+    r = job.end()
+    assert (r.kind, r.reason) == (J.Kind.REFUSED, "measurement_not_written")
+    assert not r.state.sending_closed
+    s = job.save()
+    assert (s.kind, s.reason) == (J.Kind.REFUSED, "measurement_not_written")
+
+
+# ---- NOTE: "filed" says whether the run kept the measurement --------------------------------
+
+def test_note_a_restored_earlier_file_is_not_filed(tmp_path, monkeypatch):
+    import json
+    from workflow import measurement_session as msn
+    from workflow.measurement_state import SessionVerdict
+    from workflow.i1io.table import measurement as ms
+    run, job, sim, p = _a_complete_page(tmp_path)
+
+    def shrank(self, *, resumed, discarded=False):
+        return msn.SessionOutcome(verdict=SessionVerdict.RESTORE_AND_KEEP_BOTH, before=9,
+                                  after=8, restored=True)
+    monkeypatch.setattr(msn.MeasurementSession, "finish", shrank)
+    r = job.save()
+    assert r.ok and r.detail["restored"] is True and r.detail["message_id"] == "M-TI3-SHRANK"
+    rec = json.loads((run.i1io_table_session_dir(RS.STAMP) / ms.SESSION_RESULT)
+                     .read_text(encoding="utf-8"))
+    assert rec["filed"] is False and rec["restored"] is True

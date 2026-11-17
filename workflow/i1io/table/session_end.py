@@ -57,13 +57,66 @@ def _accepted(sdir: Path) -> int:
     return n
 
 
-def session_state(sdir: Path) -> str:
+def sha256_of(path: Path) -> str:
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for block in iter(lambda: fh.read(1 << 16), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
+def filing_note(measurement: Path, stamp: str) -> dict:
+    """Review 8, S-4: written into every session folder that goes into a Save, BEFORE the run's
+    file changes: the checksum of the measurement about to become the run's ``.ti3``."""
+    return {"filing_by": stamp, "sha256": sha256_of(measurement)}
+
+
+def filed_into(sdir: Path, run_ti3: "Path | None") -> bool:
+    """The session's filing note names exactly the bytes the run's ``.ti3`` holds now: the Save
+    reached the run, whatever happened after it (a crash before session_result.json)."""
+    note = Path(sdir) / ms.FILING
+    if run_ti3 is None or not note.is_file() or not Path(run_ti3).is_file():
+        return False
+    try:
+        want = json.loads(note.read_text(encoding="utf-8")).get("sha256")
+        return bool(want) and sha256_of(Path(run_ti3)) == want
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
+def session_state(sdir: Path, run_ti3: "Path | None" = None) -> str:
+    """saved / discarded / interrupted / nothing_read. With *run_ti3* (the run's measurement),
+    a session whose filing note matches it counts as saved (S-4: the crash came after the
+    run's file was written and before the result was recorded)."""
     sdir = Path(sdir)
     if (sdir / ms.DISCARDED).is_file():
         return DISCARDED
     if (sdir / ms.SESSION_RESULT).is_file():
         return SAVED
+    if filed_into(sdir, run_ti3):
+        return SAVED
     return INTERRUPTED if _accepted(sdir) else EMPTY
+
+
+def settle_filed_sessions(run, exclude: "str | None" = None) -> "list[str]":
+    """Review 8, S-4: every session whose Save reached the run but whose result was never
+    recorded (its filing note matches the run's ``.ti3`` now) gets that result written, so it
+    stays saved after the run's file changes again. Returns the stamps settled; a folder that
+    cannot be written stays as it is (it is still recognised while the file is unchanged)."""
+    done = []
+    run_ti3 = Path(run.measurement_ti3)
+    for sdir in run.i1io_table_sessions():
+        if sdir.name == exclude or (sdir / ms.SESSION_RESULT).is_file() \
+                or (sdir / ms.DISCARDED).is_file() or not filed_into(sdir, run_ti3):
+            continue
+        try:
+            write_json_now(sdir / ms.SESSION_RESULT, {"filed": True, "result_recorded_later":
+                                                      True})
+            done.append(sdir.name)
+        except OSError:
+            pass
+    return done
 
 
 @dataclass(frozen=True)
@@ -87,10 +140,12 @@ def earlier_sessions(run, exclude: "str | None" = None, chart_ti2=None) -> "list
     assembled into a throw-away file in its own folder: ``measurement.ti3``, nothing in the
     run)."""
     out = []
+    settle_filed_sessions(run, exclude=exclude)
+    run_ti3 = Path(run.measurement_ti3)
     for sdir in run.i1io_table_sessions():
         if sdir.name == exclude:
             continue
-        state = session_state(sdir)
+        state = session_state(sdir, run_ti3)
         marker = run.i1io_table_pending_marker(sdir.name)
         detail = {}
         if state == INTERRUPTED and chart_ti2 is not None:
@@ -109,7 +164,7 @@ def set_aside(run, stamp: str) -> "Path | None":
     B-2): ``Run.i1io_table_pending_markers`` looks only under ``i1io-table/``, so a marker moved
     into ``old/`` would no longer make the next START ask "switched off and on"."""
     src = run.i1io_table_session_dir(stamp)
-    if not src.is_dir() or session_state(src) != DISCARDED:
+    if not src.is_dir() or session_state(src, run.measurement_ti3) != DISCARDED:
         return None
     if marker_unacknowledged(run, stamp):
         return None

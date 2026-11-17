@@ -61,7 +61,8 @@ STDLIB = {"__future__", "csv", "json", "os", "time", "dataclasses", "pathlib", "
           "usb",          # pyusb: imported only inside open_table, when a real table is opened
           "copy",         # job.py: its own copy of the chart (review of step 6)
           "getpass",      # diagnostics.py: the user's name, only to keep it OUT of the log
-          "io", "shutil"}  # step 7: the readings' CSV; one copy of the measurement on Save
+          "io", "shutil",  # step 7: the readings' CSV; one copy of the measurement on Save
+          "hashlib"}       # review 8, S-4: the filing note's checksum of the measurement
 #: step 7: the measurement is made with the APP's own functions for a measurement (the
 #: i1Profiler import's pairing, the measurement states, the atomic replace), never a second
 #: writer of its own; nothing else of the app is imported

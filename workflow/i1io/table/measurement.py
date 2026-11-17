@@ -51,6 +51,9 @@ ROW_RECORD_SUFFIX = ".row.json"
 DISCARDED = "discarded.json"
 #: written into a session folder when its measurement was saved (I1IO_TABLE_SESSION_RESULT)
 SESSION_RESULT = "session_result.json"
+#: review 8, S-4: written into every session folder that goes into a Save BEFORE the run's file
+#: changes (the checksum of the measurement being filed); see session_end.filed_into
+FILING = "filing.json"
 
 
 class Refused(Exception):
