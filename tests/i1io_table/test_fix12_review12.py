@@ -289,3 +289,80 @@ def test_m3_a_table_start_on_a_verification_records_its_date(
     assert se.read_identity(sdir)["belongs_to"] == "verification:new"
 
 
+# ---- S-1 and S-4 (F9): a resumed table verification --------------------------------------------
+
+def _resume_date(tab, run, vid, monkeypatch):
+    dated = run.verification(vid).measurement_ti3
+    _target(tab, run, vid)
+    monkeypatch.setattr(tab, "_verification_to_stage", lambda: dated)
+    monkeypatch.setattr(tab, "_read_builds_on_existing", lambda: True)
+    return dated
+
+
+def _partial_date(tab, beta_, tmp_path, monkeypatch, qtbot):
+    """A verification of date A that holds the first row only (a partial measurement)."""
+    _answer_windows(monkeypatch)
+    proj, run, vc, sheet = verify_chart(tmp_path)
+    sim = _start_on(tab, run.verify_chart_ti1, monkeypatch,
+                    sim=WindowSim(faults={"read_loc": {"B2": "dies"}}))
+    win = tab._table_window
+    p = _person(win, sim, qtbot)
+    p.script["row_failed"] = "Skip it"
+    p.drive_until("end_of_session")
+    p.press("Save and stop")
+    p.drive_until(("home_offered", "done"))
+    if p.page() == "home_offered":
+        p.press("Leave it there")
+    p.press("Close")
+    qtbot.waitUntil(lambda: bool(run.verifications()), timeout=5000)
+    qtbot.wait(100)
+    [a] = run.verifications()
+    assert classify(a.measurement_ti3, vc.chart_ti2).state is Ti3State.PARTIAL
+    return proj, run, vc, sheet
+
+
+def test_s1_a_resumed_table_verification_keeps_the_dates_file_in_the_dates_old(
+        tab, beta, tmp_path, monkeypatch, qtbot):
+    proj, run, vc, sheet = _partial_date(tab, beta, tmp_path, monkeypatch, qtbot)
+    [a] = run.verifications()
+    before = a.measurement_ti3.read_bytes()
+    dated = _resume_date(tab, run, a.id, monkeypatch)
+    sim = _start_on(tab, run.verify_chart_ti1, monkeypatch)
+    win = tab._table_window
+    assert win._run.measurement_old_dir == a.dir / "old"
+    assert win._run.i1io_table_session_key == f"verification:{a.id}"
+    # the job saves the staged copy over itself (a re-read of the whole sheet)
+    p = _person(win, sim, qtbot)
+    p.drive_until("end_of_session")
+    p.press("Save and stop")
+    p.drive_until(("home_offered", "done", "refused", "error"))
+    assert p.page() in ("home_offered", "done"), (p.page(), win._text.text()[:300])
+    if p.page() == "home_offered":
+        p.press("Leave it there")
+    p.press("Close")
+    qtbot.waitUntil(lambda: tab._table_window is None, timeout=5000)
+    qtbot.wait(200)
+    in_date = sorted((a.dir / "old").glob("*/*.ti3"))
+    assert [f.read_bytes() for f in in_date] == [before], in_date
+    assert not list((run.verifications_dir / "old").glob("*/*.ti3"))
+
+
+def test_s4_f9_a_resumed_table_verification_that_read_nothing_leaves_no_copy_beside_the_chart(
+        tab, beta, tmp_path, monkeypatch, qtbot):
+    proj, run, vc, sheet = _partial_date(tab, beta, tmp_path, monkeypatch, qtbot)
+    [a] = run.verifications()
+    before = a.measurement_ti3.read_bytes()
+    _resume_date(tab, run, a.id, monkeypatch)
+    sim = _start_on(tab, run.verify_chart_ti1, monkeypatch)
+    assert vc.measurement_ti3.is_file()                  # staged beside the chart
+    win = tab._table_window
+    win._on_close_pressed() if win._page_id != "consent" else None
+    qtbot.waitUntil(lambda: tab._table_window is None or win.job is not None, timeout=5000)
+    if tab._table_window is not None:
+        win._finish_not_started()
+    qtbot.waitUntil(lambda: tab._table_window is None, timeout=5000)
+    qtbot.wait(100)
+    assert not vc.measurement_ti3.exists(), "the unused staged copy stays beside the chart"
+    assert a.measurement_ti3.read_bytes() == before
+
+
