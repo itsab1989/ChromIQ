@@ -1,5 +1,36 @@
 # Changelog
 
+## v4.3.44
+
+**For everyone updating from 4.3.43: the beta option “Custom page size in inches or pixels, and high resolution” gets one Units choice instead of three rows of size fields, and the run's Chart Notes can now use the same placeholders as the Sheet text, plus a new {logo}. With the beta option off, which is the default, charts are made exactly as before; the only change you can see without it is that placeholders in your Chart Notes are filled in on the printed chart.**
+
+### New
+- **Placeholders in “Run N Chart Notes”.** {page}, {date}, {seed}, {project} and the other placeholders of the Sheet text now work in the run's Chart Notes too. They are filled in only where the notes are printed down the edge of the chart, each page with its own page number; the notes are kept exactly as you typed them everywhere else (in the project, in the chart's files and in the reports). On a chart in fixed order {seed} is left out, as in the Sheet text. Notes without a placeholder are printed exactly as before. Thanks to jctay on the printerknowledge forum for asking for this.
+- **{logo}: the ChromIQ logo in a line of text.** Type {logo} in the Sheet text (it is also in the Insert ▾ menu) or in the Chart Notes, and the chart shows the ChromIQ logo right there, as tall as the text and in its own colours, with “Chrom” in black and “IQ” in pink. It is drawn from the same artwork as the logo ChromIQ puts in the clip border, so it takes no room from the patches and needs no clip border, which makes it useful on a dense chart with no room for one. If the text is printed too small for the logo to be recognised, it is left out. Nothing changes on a chart that does not use it. Thanks to jctay on the printerknowledge forum for the idea.
+
+### Changed (only with the beta option “Custom page size in inches or pixels, and high resolution” on)
+- **One “Units” choice under Paper: Millimetres, Inches or Pixels (page size only).** The custom page size is now one pair of fields in the unit you choose, and the line under it says the page in the other units and in pixels. Inches also apply to every other length in the panel (margins, patch size, gaps and the rest) as a display: ChromIQ still keeps every length in millimetres, so typing 0.25 inches stores 6.35 mm and shows 0.25 again, also after reopening the project or loading a preset. The unit you see is the one a new resolution keeps: with pixels chosen the pixel count stays, with millimetres or inches the size on paper stays. Switching units only to look never changes your page. ChromIQ remembers your choice; it is your own preference and is not saved with a chart or a preset.
+- **A chart whose page was typed in pixels opens with Pixels shown, and one typed in inches with Inches**, for that chart only, so a film recorder chart keeps its exact pixel count if you change the resolution afterwards. Your own choice is not changed by this.
+- **Charts made with 4.3.43 open and generate exactly as before**, whatever unit you choose.
+
+### Fixed (in the beta option)
+- **A page typed in pixels that does not fit 1 to 2000 mm at the resolution set kept its pixels only while Pixels were shown.** Looking at it in millimetres or inches turned it into 2000 x 2000 mm for good. Now it stays exactly as typed in every unit, and the red line goes on saying why Generate waits.
+- **A length typed in inches was rounded on the next load** (0.25 inch, 6.35 mm, came back as 6.3 mm after reopening the project or loading a preset), so the chart could change. It is now kept exactly.
+- **Values ending in 25 loaded 0.1 mm differently with inches shown than with millimetres shown.** Both now round the same way.
+- **Switching back to millimetres after typing one side in pixels gave the other side back with a pixel's rounding.** Each side you did not type comes back exactly.
+- **The arrows in an inch field went up and down to a slightly different value, and the largest value shown could not be typed back.** Both now come back exactly.
+- **The FD-9 there and back** takes the page and the resolution it was made for before anything is changed, so a page typed in pixels comes back as typed.
+
+### Documentation
+- **The guide for adding an instrument** (docs/adding_an_instrument.md, its checklist and its agent prompt) is updated: the two routes worked in parallel, devices that move, measurements brought back from another program, and the proofs we ask for.
+- **The film recorder page** (docs/film_recorder_pages.md) now shows the Units choice.
+
+### Honest limits
+- **Still not tried with a real film recorder.** The pixel counts and the resolution written in the files have been checked on the computer, as for 4.3.43.
+- **{logo} is drawn in the Sheet text and in the Chart Notes only.** In the clip border's own text, on an i1iSis chart's trailer, and on FD-9 and i1iO table charts it is not drawn, and the notes on an i1iSis chart are printed as typed, as before. The logo is a picture, so in the optional PDF it is an image, not text.
+- **A length typed in inches with the beta option on, opened while the option is off,** is shown and used in tenths of a millimetre again (6.35 mm becomes 6.3 mm), because the fields without the option have one decimal.
+- **With the option off, nothing changes, and this was checked again.** Every built-in preset was loaded and generated in the real app with 4.3.43 and with this version, the option off, and every file written was compared byte for byte (dates and the version number pinned), and the same with the option on and millimetres chosen.
+
 ## v4.3.43
 
 **For everyone updating from 4.3.42: a new beta option, “Custom page size in inches or pixels, and high resolution”, for charts that need an exact size, such as a chart imaged on film by a film recorder. With the beta option off, which is the default, ChromIQ makes, measures and builds exactly as before, and your charts, measurements and profiles do not change.**
