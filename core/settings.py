@@ -365,6 +365,11 @@ DEFAULTS: dict[str, Any] = {
     #: by a memory budget, and the TIFF's resolution in pixels per inch. Off =
     #: exactly 4.3.42. Restart to apply (`workflow.page_output.support`).
     "page_output_beta":          False,
+    #: The page-output Beta's "Units" in Create Chart > Manual: "mm", "in" or
+    #: "px" (pixels: the custom page size only). A personal preference, not
+    #: part of a target, a preset or a chart; lengths are stored in mm
+    #: whatever it says (`ui/dialogs/length_units.py`).
+    "page_output_units":         "mm",
     # Qt's QSplashScreen burns ~1 s inside its own show() waiting on a
     # condition that never becomes true; the plain window paints the same
     # pixmap in 9-66 ms. This restores the old one if it ever matters.

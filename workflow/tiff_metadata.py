@@ -1167,9 +1167,13 @@ def _render_rotated_line(
     small y. Verified rather than assumed: ink drawn in canvas rows 0..5 comes
     out in destination columns 0..5.
     """
-    canvas = Image.new("L", (strip_h, strip_w), 255)
+    from workflow.layout_engine import raster as _raster
+    logo = _raster.LOGO_TOKEN in text
+    # a line with `{logo}` is drawn in colour: the wordmark's "IQ" is pink
+    canvas = Image.new("RGB" if logo else "L", (strip_h, strip_w),
+                       (255, 255, 255) if logo else 255)
     draw = ImageDraw.Draw(canvas)
-    bbox = _text_bbox(draw, text, font)
+    bbox = _line_bbox(draw, text, font)
     text_w = bbox[2] - bbox[0]
     text_h = bbox[3] - bbox[1]
     x = max(0, (strip_h - text_w) // 2 - bbox[0])
@@ -1183,6 +1187,21 @@ def _render_rotated_line(
         y = (strip_w - text_h) // 2 - bbox[1]
     else:
         y = anchor_px - bbox[1]
+    if logo:
+        _raster.draw_line_with_logo(canvas, (x, y), text, font, (0, 0, 0))
+        rotated = canvas.rotate(90, expand=True,
+                                resample=Image.Resampling.NEAREST)
+        if channels == 1:
+            rotated = rotated.convert("L")
+        band = np.asarray(rotated, dtype=np.uint8)
+        if channels == 1:
+            band = band[..., None]
+        elif channels == 4:
+            band = np.concatenate(
+                [band, np.full(band.shape[:2] + (1,), 255, np.uint8)], axis=2)
+        if dtype == np.uint16:
+            band = (band.astype(np.uint32) * 65535 // 255).astype(np.uint16)
+        return band
     draw.text((x, y), text, fill=0, font=font)
 
     rotated = canvas.rotate(90, expand=True, resample=Image.Resampling.NEAREST)
@@ -1333,7 +1352,7 @@ def fit_rotated_line(
     while True:
         font_px = max(1, text_edge_fit.pt_to_px(size_now_pt, dpi))
         font = _pick_font(font_px, font_family)
-        bbox = _text_bbox(draw, shown, font)
+        bbox = _line_bbox(draw, shown, font)
         text_w = bbox[2] - bbox[0]
         text_h = bbox[3] - bbox[1]
         # THICKNESS FIRST, AND CUTTING THE TEXT NEVER FIXES IT. A shorter line
@@ -1364,6 +1383,13 @@ def fit_rotated_line(
         if len(shown) <= 8:
             return shown, font
         cut = max(8, int(len(shown) * available_text_w / max(1, text_w)) - 1)
+        # never through the middle of a `{logo}`: the cut goes before it
+        _tok, _i = "{logo}", shown.find("{logo}")
+        while 0 <= _i < cut:
+            if _i + len(_tok) > cut:
+                cut = _i
+                break
+            _i = shown.find(_tok, _i + 1)
         shown = shown[:cut].rstrip() + "…"
         log.info("Chart note shortened to fit the margin: %d of %d characters",
                  len(shown) - 1, len(text))
@@ -1473,6 +1499,25 @@ def _pick_font(size_px: int, family: str = "") -> ImageFont.ImageFont:
         except OSError:
             continue
     return ImageFont.load_default()
+
+
+def _line_bbox(draw: "ImageDraw.ImageDraw", text: str,
+               font) -> tuple[int, int, int, int]:
+    """:func:`_text_bbox`, with each `{logo}` measured as the wordmark it is
+    drawn as (4.3.44). A line without it is :func:`_text_bbox` exactly."""
+    from workflow.layout_engine import raster as _raster
+    if _raster.LOGO_TOKEN not in text:
+        return _text_bbox(draw, text, font)
+    plain = text.replace(_raster.LOGO_TOKEN, "")
+    top, bottom = (_text_bbox(draw, plain, font)[1::2] if plain.strip()
+                   else (0, 0))
+    tile = _raster.logo_tile(_raster._cap_px(font))
+    if tile is not None:
+        asc = font.getmetrics()[0]
+        im, base = tile
+        top = min(top, asc - base)
+        bottom = max(bottom, asc - base + im.height)
+    return (0, top, int(round(_raster.line_length_px(text, font))), bottom)
 
 
 def _text_bbox(draw: "ImageDraw.ImageDraw", text: str, font) -> tuple[int, int, int, int]:

@@ -1510,10 +1510,252 @@ def resolve_placeholders(t: str, ctx: dict) -> str:
         # 4.3.42: a chart in fixed order prints no seed, and nothing of the
         # phrase that named it is left behind (`drop_the_seed`).
         t = drop_the_seed(t)
+    if t and LOGO_TOKEN in t:
+        # `{logo}` is drawn only where `resolve_keeping_logo` keeps it for
+        # the drawing; everywhere else it is left out cleanly, never printed
+        # as a word (4.3.44 re-review)
+        t = drop_the_logo(t)
+    if not t:
+        return ""
+    # ONLY A PLAIN KNOWN NAME IS FILLED IN, AND NOTHING TYPED CAN RAISE
+    # (4.3.44 re-review). This was `t.format(**ctx)`, which gave Python's own
+    # meaning to everything in braces: Chart Notes "made {date.year}" raised
+    # an AttributeError that stopped Generate, "{project.upper}" printed a
+    # method's address, and one unknown name left every placeholder of the
+    # line unfilled. Now a brace group is filled only when it is exactly
+    # `{name}` with a name the chart knows; anything else ("{date.year}",
+    # "{0}", "{page!r}", "{page:>10}", "{}", "{abc}", "{{page}}") is printed
+    # as typed, and the known names in the same line are still filled in.
+    return _PLACEHOLDER.sub(
+        lambda m: str(ctx[m.group(1)]) if m.group(1) in ctx else m.group(0),
+        t)
+
+
+#: A placeholder as the chart fills it: one plain name in single braces.
+_PLACEHOLDER = re.compile(r"(?<!\{)\{([A-Za-z_][A-Za-z0-9_]*)\}(?!\})")
+
+
+def drop_the_logo(t: str) -> str:
+    """*t* with every `{logo}` left out, for a place that cannot draw it
+    (the clip border's own text, an i1iO table chart, an i1iSis chart's
+    notes): the separator or bracket that tied it to its neighbour goes
+    with it, by the tidy-up rules of :func:`drop_the_seed`, so the line
+    reads as if it had never been typed."""
+    if LOGO_TOKEN not in t:
+        return t
+    t = t.replace(LOGO_TOKEN, _GONE)
+    for _ in range(8):
+        before = t
+        for rx, rep in _SEED_TIDY[:1]:
+            t = rx.sub(rep, t)
+        if t == before:
+            break
+    for rx, rep in _SEED_TIDY[1:]:
+        t = rx.sub(rep, t)
+    return t.replace(_GONE, "")
+
+
+# ---- {logo}: the ChromIQ wordmark inside a line of text (4.3.44) ------------
+#
+# A forum tester asked for the logo on a high-density chart that has no clip
+# band for it, and the owner agreed on one condition: it must cost no patch
+# space, and the "IQ", the fonts and the colour must be right (2026-11-17).
+# So `{logo}` is a placeholder, typed where the person wants it, in the Sheet
+# text or the run's chart notes, and it draws THE SAME WORDMARK the clip
+# band's branding draws (`_wordmark_parts` / `_paint_wordmark`), sized to the
+# line it sits in and turned with it. It is drawn only where it is typed: no
+# switch, no default text uses it, and a line without it is drawn exactly as
+# before.
+
+#: The placeholder.
+LOGO_TOKEN = "{logo}"
+#: The smallest wordmark drawn inline, as the height in pixels of its capital
+#: "C". Decided from renders of a line at every cap height from 3 to 18 px
+#: (fix round of 2026-11-17, `fix1/logo_renders/sizes_3x.png`, the same glyph
+#: renders the wordmark uses now; only the "IQ"'s place changed since): from
+#: 8 px the "IQ" reads as two letters and the "Q" keeps its tail; at 7 px and
+#: below the "IQ" is a pink smudge. 8 px is 0.68 mm at 300 dpi, well under
+#: the 7 pt the Sheet text's "auto" stops at, so it bites only on a
+#: low-resolution sheet. A line set smaller leaves the logo out, and the log
+#: says so.
+LOGO_MIN_CAP_PX = 8
+
+
+def _cap_px(font) -> float:
+    """The height of a capital in *font*, in pixels (its "H" above the
+    baseline)."""
     try:
-        return t.format(**ctx) if t else ""
-    except (KeyError, IndexError, ValueError):
-        return t                           # leave unknown placeholders literal
+        return float(-font.getbbox("H", anchor="ls")[1])
+    except Exception:  # noqa: BLE001 - a bitmap fallback font
+        return float(getattr(font, "size", 10) or 10) * 0.7
+
+
+_LOGO_TILES: dict = {}
+
+
+#: The masthead's own kern between "Chrom" and "IQ": -1 px at its 62 px
+#: size (`ui/masthead_header.py::MastheadHeader.paintEvent`), as a share of
+#: the font size.
+MASTHEAD_IQ_KERN = -1.0 / 62.0
+#: Where :func:`_italic_tile` puts the pen in its tile (its pad, no stroke).
+_ITALIC_TILE_PEN = 3
+
+
+def paint_masthead_wordmark(canvas: Image.Image, x: float, baseline: float,
+                            size: int, parts: "dict | None" = None) -> None:
+    """Draw the ChromIQ wordmark as the app's masthead draws it, "Chrom"'s
+    pen at *x* and both halves on *baseline*, at font size *size* px.
+
+    THE ONE DRAWING OF THE WORDMARK ON A CHART (the owner, 2026-11-17: "make
+    it correct everywhere"): the clip band's branding (`_paint_wordmark`),
+    the Notes design (`_draw_wordmark_h`, which the i1iSis chart and every
+    other caller of `render_clip_strip` also go through) and the inline ``{logo}``
+    (:func:`logo_tile`). The masthead (`ui/masthead_header.py`) sets "Chrom"
+    in Instrument Serif and "IQ" in the same family's italic at the same
+    pixel size on one baseline, the "IQ" at "Chrom"'s advance less 1 px in
+    62 (:data:`MASTHEAD_IQ_KERN`), in #1c1b18 and #ff4573. It asks Qt for a
+    bold italic, but only the Regular and Italic files ship, and Qt draws
+    the Italic file as it is: measured at 400 px, Qt's "IQ" and the Italic
+    file drawn plainly differ by 0.03 px on average (ink 30281 against
+    30291 pixels), on macOS and offscreen alike, and any added stroke only
+    moves them apart (`fix1/logofix/fit_iq400.txt`). So no thickening.
+
+    Up to 4.3.43 the "IQ" was butted up by its first ink at a kern of +2 %
+    of the size; it is now set by its pen at the masthead's kern: that is
+    the one change. The glyphs are the same renders as before (Chrom drawn on
+    the canvas, "IQ" from :func:`_italic_tile`, set on the baseline the same
+    way), so the wordmark's extent ACROSS a band, which the layout measures
+    (the clip content's reach), is unchanged, and the layout's own measure
+    of its length (`_wordmark_parts`, `_wordmark_h_fit`) still uses the old
+    kern: nothing beside the wordmark moves, and the "IQ" now ends 0.036 of
+    the size earlier, inside the space measured for it.
+
+    *parts* is :func:`_wordmark_parts` for *size*, when the caller has it."""
+    g = parts if parts is not None else _wordmark_parts(int(size))
+    rgba = canvas.mode == "RGBA"
+    ImageDraw.Draw(canvas).text(
+        (x, baseline), "Chrom", font=g["font"],
+        fill=WORDMARK_RGB + ((255,) if rgba else ()), anchor="ls")
+    # the "IQ"'s PEN, as the masthead sets it, not its first ink: the tile
+    # holds the pen :data:`_ITALIC_TILE_PEN` px in from its left edge (4.3.43
+    # butted the ink up instead, which added the italic's side bearing)
+    canvas.paste(g["iq_tile"],
+                 (int(round(x + g["chrom_w"] + MASTHEAD_IQ_KERN * g["size"]))
+                  - _ITALIC_TILE_PEN,
+                  int(baseline - g["iq_base"])), g["iq_tile"])
+
+
+def logo_tile(cap_px: float) -> "tuple[Image.Image, int] | None":
+    """The wordmark whose capital "C" is *cap_px* pixels tall, as
+    ``(RGBA tile cut to its ink, the baseline's row in it)``,
+    or None when that is below :data:`LOGO_MIN_CAP_PX`. Drawn from the
+    app's masthead (:func:`paint_masthead_wordmark`)."""
+    if not cap_px or float(cap_px) < LOGO_MIN_CAP_PX:
+        return None
+    ref = 200
+    ratio = (-_font(ref, WORDMARK_FONT).getbbox("C", anchor="ls")[1]) / ref
+    size = max(6, int(round(float(cap_px) / max(ratio, 1e-6))))
+    hit = _LOGO_TILES.get(size)
+    if hit is not None:
+        return hit
+    g = _wordmark_parts(size)
+    w = int(g["chrom_w"] - g["iq_left"] + g["iq_tile"].width) + 8
+    baseline = int(max(g["asc"], g["iq_base"])) + 4
+    h = baseline + int(max(g["desc"], g["iq_tile"].height - g["iq_base"])) + 4
+    layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    paint_masthead_wordmark(layer, 4, baseline, size, g)
+    # CUT TO ITS INK ON EVERY SIDE: a line's height is measured from what
+    # it draws, and the font's empty line box above the wordmark made a
+    # right-edge note with `{logo}` shrink to the floor and slide off its
+    # strip (seen on screen in the fix round, `fix1/notecut/synthetic.png`)
+    bb = layer.getbbox()
+    if bb:
+        layer = layer.crop(bb)
+        baseline -= bb[1]
+    _LOGO_TILES[size] = (layer, baseline)
+    return _LOGO_TILES[size]
+
+
+def split_logo(text: str) -> list:
+    """*text* in pieces: strings, and None where `{logo}` stands."""
+    out: list = []
+    parts = str(text).split(LOGO_TOKEN)
+    for i, part in enumerate(parts):
+        if i:
+            out.append(None)
+        if part:
+            out.append(part)
+    return out
+
+
+def logo_dropped(text: str, font) -> bool:
+    """True when *text* holds `{logo}` and *font* is too small to draw it."""
+    return LOGO_TOKEN in str(text) and logo_tile(_cap_px(font)) is None
+
+
+def line_length_px(text: str, font) -> float:
+    """How long *text* is drawn in *font*: the font's own length, with each
+    `{logo}` measured as the wordmark it is drawn as (nothing when the line
+    is too small for it). A line without the token is the font's length."""
+    if LOGO_TOKEN not in str(text):
+        return float(font.getlength(text))
+    tile = logo_tile(_cap_px(font))
+    total = 0.0
+    for piece in split_logo(text):
+        if piece is None:
+            total += tile[0].width if tile is not None else 0
+        else:
+            total += float(font.getlength(piece))
+    return total
+
+
+def draw_line_with_logo(img: Image.Image, xy, text: str, font,
+                        fill=(0, 0, 0)) -> list:
+    """Draw *text* on *img* at *xy* (the pen's top left, as ``draw.text``
+    takes it) with every `{logo}` drawn as the wordmark on the text's
+    baseline. Returns what was drawn, in order: ``("text", x, piece)`` and
+    ``("logo", (x, y, w, h))``, for a caller that records the elements. A
+    line too small for the wordmark leaves it out and says so in the log."""
+    x, y = float(xy[0]), float(xy[1])
+    draw = ImageDraw.Draw(img)
+    try:
+        asc = font.getmetrics()[0]
+    except Exception:  # noqa: BLE001
+        asc = int(_cap_px(font) / 0.7)
+    tile = logo_tile(_cap_px(font))
+    if tile is None:
+        log.info("{logo} left out of the line %r: the text is %.1f px tall "
+                 "there, and the logo needs at least %d px to stay "
+                 "recognisable", text, _cap_px(font), LOGO_MIN_CAP_PX)
+    drawn: list = []
+    for piece in split_logo(text):
+        if piece is None:
+            if tile is None:
+                continue
+            im, base = tile
+            at = (int(round(x)), int(round(y + asc - base)))
+            if img.mode == "RGBA":
+                img.alpha_composite(im, at)
+            else:
+                img.paste(im.convert(img.mode) if img.mode not in ("RGB", "L")
+                          else im, at, im)
+            drawn.append(("logo", (at[0], at[1], im.width, im.height)))
+            x += im.width
+            continue
+        draw.text((x, y), piece, font=font, fill=fill)
+        drawn.append(("text", x, piece))
+        x += float(font.getlength(piece))
+    return drawn
+
+
+def resolve_keeping_logo(t: str, ctx: dict) -> str:
+    """:func:`resolve_placeholders`, with `{logo}` left in place for the
+    drawing to turn into the wordmark. A text without it is exactly
+    :func:`resolve_placeholders`'s answer."""
+    if not t or LOGO_TOKEN not in t:
+        return resolve_placeholders(t, ctx)
+    return LOGO_TOKEN.join(resolve_placeholders(p, ctx) if p else p
+                           for p in t.split(LOGO_TOKEN))
 
 
 #: A bracket that holds nothing but `{seed}` and a few words naming it, such as
@@ -1820,7 +2062,8 @@ def sheet_text_width_mm(lines, size_mm: float, font_family: str = "",
         d = 300.0
     px = max(1, int(round(float(size_mm or 0.0) * d / 25.4)))
     f = _font(px, font_family, bold, italic)
-    return max(float(f.getlength(t)) for t in texts) * 25.4 / d
+    # a `{logo}` is as wide as the wordmark it is drawn as
+    return max(line_length_px(t, f) for t in texts) * 25.4 / d
 
 
 def effective_row_label_size_mm(geom, dpi: int, font: str,
@@ -2394,7 +2637,9 @@ def clip_text_lines(text: "str | None") -> list[str]:
     away. `split("\n")` keeps what was typed, and the whitespace-only guard
     below still turns a band of nothing into nothing.
     """
-    lines = (text or "").split("\n")
+    # `{logo}` is not drawn in the clip border's text: left out cleanly
+    # (4.3.44 re-review; a text that never names it is untouched)
+    lines = drop_the_logo(text or "").split("\n")
     return lines if any(ln.strip() for ln in lines) else []
 
 
@@ -2594,6 +2839,17 @@ def _wordmark_geometry(width_px: int, height_px: int, dpi: float,
                           _MAX_BRANDING_SIZE_PX))
         size = min(ceiling, size * sc)
     size = max(_BRANDING_MIN_PX, int(size))
+    return dict(_wordmark_parts(size), pad=pad)
+
+
+def _wordmark_parts(size: int) -> dict:
+    """The wordmark at font size *size* px, in its parts: "Chrom" in
+    Instrument Serif and the near-black of the masthead, "IQ" in the face's
+    own italic and the magenta accent, MEASURED as every chart up to 4.3.43
+    laid it out (an "IQ" tile after a +2 % kern), so the clip band's layout
+    is unchanged; it is DRAWN as the app's masthead draws it
+    (:func:`_paint_wordmark`, :func:`paint_masthead_wordmark`)."""
+    d = ImageDraw.Draw(Image.new("RGBA", (4, 4)))
     f = _font(size, WORDMARK_FONT)
     asc, desc = f.getmetrics()
     f_iq = _font(size, WORDMARK_FONT, italic=True)
@@ -2604,9 +2860,18 @@ def _wordmark_geometry(width_px: int, height_px: int, dpi: float,
     # to the wordmark's last INK, not the italic tile's padded edge
     _bb = iq_tile.getbbox()
     ink_w = chrom_w + kern + ((_bb[2] if _bb else iq_tile.width) - iq_left)
-    return {"pad": pad, "size": size, "font": f, "asc": asc, "desc": desc,
+    return {"size": size, "font": f, "asc": asc, "desc": desc,
             "iq_tile": iq_tile, "iq_base": iq_base, "iq_left": iq_left,
             "chrom_w": chrom_w, "kern": kern, "ink_w": ink_w}
+
+
+def _paint_wordmark(layer: Image.Image, x: float, baseline: float,
+                    g: dict) -> None:
+    """Draw the wordmark of *g* (:func:`_wordmark_parts`) on *layer* with
+    its baseline at *baseline* and "Chrom" starting at *x*: the masthead's
+    drawing (:func:`paint_masthead_wordmark`) at *g*'s size, inside the
+    space *g* measures for it."""
+    paint_masthead_wordmark(layer, x, baseline, g["size"], g)
 
 
 def branding_text_box_px(width_px: int, height_px: int, dpi: float,
@@ -2677,10 +2942,7 @@ def _vwordmark(extra_lines: list[str], width_px: int, height_px: int,
     x = pad
     baseline = T / 2 + (asc - desc) / 2
     try:
-        md.text((x, baseline), "Chrom", font=f, fill=WORDMARK_RGB + (255,),
-                anchor="ls")
-        mark.paste(iq_tile, (int(x + chrom_w + kern - iq_left),
-                             int(baseline - iq_base)), iq_tile)
+        _paint_wordmark(mark, x, baseline, g)
     except Exception:  # pragma: no cover - default font without anchor
         md.text((x, 0), "ChromIQ", font=f, fill=WORDMARK_RGB + (255,))
     if centre_across:
@@ -2933,10 +3195,11 @@ def _draw_wordmark_h(canvas: Image.Image, draw: "ImageDraw.ImageDraw",
     asc, desc = f.getmetrics()
     baseline = top + height * 0.5 + (asc - desc) / 2
     try:
-        draw.text((x, baseline), "Chrom", font=f, fill=WORDMARK_RGB, anchor="ls")
-        canvas.paste(iq_tile,
-                     (int(x + chrom_w + kern - iq_left), int(baseline - iq_base)),
-                     iq_tile)
+        # DRAWN as the app's masthead draws it; the width returned below is
+        # the one the layout always measured, so nothing beside it moves
+        paint_masthead_wordmark(canvas, x, baseline, f.size, {
+            "size": f.size, "font": f, "iq_tile": iq_tile,
+            "iq_base": iq_base, "iq_left": iq_left, "chrom_w": chrom_w})
     except Exception:  # pragma: no cover - default font without anchor
         draw.text((x, top), "ChromIQ", font=f, fill=WORDMARK_RGB)
     return chrom_w + kern + (iq_tile.width - iq_left)
@@ -3528,7 +3791,8 @@ def render_pages(
         # {project}/{paper}/… from text_ctx. Used for chart text + clip text.
         _pctx = dict(text_ctx or {})
         _pctx["page"] = f"page {page + 1}/{layout.pages}"
-        _chart_text = _resolve_with(chart_text, _pctx)
+        # `{logo}` stays in the Sheet text for the drawing below (4.3.44)
+        _chart_text = resolve_keeping_logo(chart_text, _pctx)
         _clip_text = _resolve_with(clip_text, _pctx)
         first = page * pppage
         last = min(total, first + pppage)
@@ -4334,6 +4598,30 @@ def render_pages(
             # the custom text and the layout summary are different lengths and
             # centring the pair would leave the shorter one off centre.
             for ln in _btxt:
+                if LOGO_TOKEN in ln:
+                    # `{logo}` (4.3.44): the wordmark drawn in the line, on
+                    # its baseline, as wide as it is drawn
+                    _lw_mm = line_length_px(ln, sfont) * 25.4 / dpi
+                    _x0 = max(0, px(_tef.bottom_text_start_mm(
+                        _lw_mm, _l_mm, _r_mm, align=_align,
+                        anchor_mm=_anchor_mm, centre_mm=_centre_mm)))
+                    for _el in draw_line_with_logo(img, (_x0, yy), ln, sfont,
+                                                   (0, 0, 0)):
+                        if not collect_device_geom:
+                            continue
+                        if _el[0] == "text" and _sfile:
+                            _geom_rows.append((
+                                "text", _el[1], yy + _sasc, _el[2], _sfile,
+                                _sfont_px, 0, 0, (0, 0, 0), _svar))
+                        elif _el[0] == "logo":
+                            # the wordmark has no vector form: the PDF takes
+                            # the pixels painted, as it does the clip band's
+                            _lx, _ly, _lw, _lh = _el[1]
+                            _geom_rows.append(("clip", (_lx, _ly), np.asarray(
+                                img.crop((_lx, _ly, _lx + _lw, _ly + _lh)
+                                         ).convert("RGB"))))
+                    yy += line_h
+                    continue
                 try:
                     _bb = draw.textbbox((0, 0), ln, font=sfont)
                     _lw_mm = (_bb[2] - _bb[0]) * 25.4 / dpi

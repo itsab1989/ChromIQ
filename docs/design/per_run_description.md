@@ -337,6 +337,25 @@ unaffected.
 in the sheet text has the description **printed on the page** — read off the
 rendered TIFF, not from the recipe.
 
+### ⏳ Awaiting confirmation: placeholders in the Chart Notes, and `{logo}` (4.3.44)
+
+**Confirmed by:** *nobody yet.* Asked for by a forum tester (2026-11-17); the owner agreed to the logo on the condition that it costs no patch space and that the "IQ", the fonts and the colour are right. What awaits confirmation is the behaviour as built and described here.
+
+This section does not touch T2, T3, T4 or T8: the notes field, `meta.json`, the chart's sidecar, Restore Used Chart and the reports keep the text **exactly as typed**. Only the line printed on the sheet changes.
+
+| # | Chart Notes hold | Printed down the sheet's edge |
+|---|---|---|
+| T7.7 | no `{` at all | exactly as before (the same call, byte for byte) |
+| T7.8 | `{page}`, `{date}`, `{seed}`, `{project}` and the other Sheet text placeholders | filled in by the Sheet text's own rule, **per page** (`{page}` is that sheet's "page N/M") |
+| T7.9 | `{seed}` on a chart in fixed order | left out with its separator, as T7.4 and the Sheet text do |
+| T7.10 | `{logo}` (also in the Sheet text) | the ChromIQ wordmark as the app's own masthead draws it (Instrument Serif "Chrom", its italic "IQ" at the same size, set at "Chrom"'s advance less 1/62 of the size, #1c1b18 and #ff4573), the same drawing as every other wordmark on a chart since 4.3.44 (`raster.paint_masthead_wordmark`), drawn in the line at the text's capital height; left out, with a log line, when the line is too small for it to be recognised |
+| T7.11 | a brace group that is not exactly a known name (`{date.year}`, `{abc}`, `{0}`, `{page!r}`) | printed as typed, in the notes and in the Sheet text alike; the known names in the same line are still filled in; nothing typed can stop Generate |
+| T7.12 | `{logo}` where ChromIQ does not draw it (the clip border's own text, an i1iO table chart's Sheet text, an i1iSis chart's notes) | left out with the separator that tied it to its neighbour, never printed as the word |
+
+* Where the notes are printed: down the right edge (and in the ChromIQ-style left clip column of a printtarg chart). An i1iSis chart prints them in its trailer as typed, as before; an FD-9 or i1iO table chart has no right-edge stamp, as before.
+* `{logo}` is offered in the Sheet text's Insert ▾ menu only; the clip band's text does not draw it.
+* Tests: `tests/test_4344_placeholders_in_chart_notes_and_logo.py`.
+
 ---
 
 ## 8. Everything that must NOT change

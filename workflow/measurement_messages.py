@@ -8792,6 +8792,12 @@ _PAGE_NOTHING_WRITTEN = "Nothing was written."
 _PAGE_NOT_DRAWN = "No page of the chart was drawn."
 _PAGE_PIXELS = ("The page will be {w} x {h} pixels ({mpx} megapixels) at "
                 "{ppi} pixels per inch.")
+#: The same line with the Units choice: the page also in the units its
+#: fields do not show ({other_units}: "1,4998 x 0,9996 in", "38,1 x 25,39
+#: mm", or "38,1 x 25,39 mm (1,4998 x 0,9996 in)" with pixels chosen). Not
+#: `{size}`: in the lines below that is the page as it was typed.
+_PAGE_PIXELS_SIZE = ("The page will be {w} x {h} pixels ({mpx} megapixels) "
+                     "at {ppi} pixels per inch, which is {other_units}.")
 _PAGE_PIXELS_OVER = (
     "That is more than ChromIQ can draw for one chart: a chart with these "
     "inks and this many pages can have pages of up to about {limit} "
@@ -8846,7 +8852,7 @@ M_PAGE_OUTPUT_PARTS = _m(
     "Custom page size and high resolution (beta): the parts of the notes",
     "\n".join((_PAGE_OVER_BUDGET_ONE, _PAGE_OVER_BUDGET_MANY,
                _PAGE_NOTHING_WRITTEN, _PAGE_NOT_DRAWN, _PAGE_PIXELS,
-               _PAGE_PIXELS_OVER, _PAGE_SIZE_OUT_OF_RANGE,
+               _PAGE_PIXELS_SIZE, _PAGE_PIXELS_OVER, _PAGE_SIZE_OUT_OF_RANGE,
                _PAGE_SIZE_NEVER_FITS, _PAGE_BETA_OFF_NOTE_KEPT,
                _PAGE_BETA_OFF_NOTE_REFUSED, _PAGE_BETA_OFF_REDRAW)),
     approved=False)

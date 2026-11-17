@@ -10239,16 +10239,22 @@ def page_output_help() -> str:
            "such as 4096 x 2730 pixels at 2731 pixels per inch, reads the "
            "resolution from the file, and scales the picture when it is "
            "different."),
+        # the first two bullets name the Units choice (after 4.3.43); the
+        # others are as they were, in a key of their own
         tr("What turning this on adds, after a restart of ChromIQ, in Create "
            "Chart, Manual:\n"
+           "  •  Units, just under the paper size: millimetres, inches, or "
+           "pixels for the page size. Millimetres and inches are used for "
+           "every length in the panel (margins, patch size, gaps and the "
+           "others), and only change what you see: ChromIQ keeps every "
+           "length in millimetres, as before.\n"
            "  •  Custom page size: the width and height can be typed in "
            "millimetres (now with fractions, such as 234.95), in inches, or "
-           "as an exact number of pixels. "
-           "The fields you type in are the ones that count; the other units "
-           "are shown beside them, converted. A page typed in pixels comes "
-           "out with exactly that many pixels, on every page of the chart. "
-           "Each side can be from 1 mm to 2000 mm.\n"
-           "  •  A line under the paper size that says how many pixels the "
+           "as an exact number of pixels, in the unit chosen. A page typed "
+           "in pixels comes out with exactly that many pixels, on every page "
+           "of the chart. Each side can be from 1 mm to 2000 mm.")
+        + "\n" +
+        tr("  •  A line under the paper size that says how many pixels the "
            "page will have, for every paper size.\n"
            "  •  Resolution: up to 6000 instead of 1200. A very large page at "
            "a high resolution needs a lot of memory to draw, so ChromIQ "

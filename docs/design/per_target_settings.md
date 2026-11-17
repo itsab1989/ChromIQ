@@ -253,6 +253,25 @@ holds them (`ui/dialogs/page_output_panel.py`) until the person changes the
 paper, the size or the resolution, so `meta.json` stays byte-identical
 through the open (driven on screen).
 
+### 1.8 ⏳ Awaiting confirmation: the page-output Beta's "Units" choice (2026-11-17)
+
+**Confirmed by:** *nobody yet.*
+
+With the Beta on, Create Chart > Manual has one "Units" combobox under Paper
+(millimetres, inches, pixels for the page size only). It is a PERSONAL
+preference, global like the switch itself: AppSettings `page_output_units`
+("mm" by default), written when the person changes the combobox and read
+when the panel is built. It is not part of a target, a preset, a chart or
+`meta.json`: every length is stored in millimetres whatever unit is shown,
+and the page size keeps the stored form of 4.3.43 (paper code, `page_size`,
+`tiff_res_unit`). A preset saved with inches chosen is the preset saved with
+millimetres chosen, byte for byte, and a length typed in inches (0.25 in,
+6.35 mm) is kept exactly by the preset, the target and Save as Defaults
+whichever unit is shown when it is loaded again (`tests/test_units_choice.py`).
+Opening a chart whose page is stored in pixels (or inches) SHOWS that unit
+for that chart without writing `page_output_units`. The patch set editor's
+hidden copy of the panel has no Units choice.
+
 ## 2. When settings are loaded
 
 Knut asked for this to be pinned down and checked:

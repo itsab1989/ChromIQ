@@ -8093,7 +8093,15 @@ class TabChart(QWidget):
             "set it is printed at exactly that size and never shrinks. Either "
             "way, if the margin is too narrow for it the note is still printed, "
             "over the patches if it must be, and the message under the measured "
-            "margins says by how much to widen the right margin."),
+            "margins says by how much to widen the right margin.")
+            + "\n\n" + tr(
+            "You can use the Sheet text's placeholders here too, for example "
+            "{page}, {date}, {seed} or {project}, and {logo} for the ChromIQ "
+            "logo. They are filled in only where the notes are printed on the "
+            "chart, each page with its own page number. What you typed is kept "
+            "exactly as it is everywhere else: in the project, in the chart's "
+            "files and in the reports. On a chart in fixed order {seed} is "
+            "left out, as in the Sheet text."),
             self._manual_chart_notes_row,
             min_width=540,
         ))
@@ -8922,7 +8930,7 @@ class TabChart(QWidget):
         _llg.setContentsMargins(8, 8, 8, 8)
         self._manual_layout_panel = LayoutOptionsPanel(
             self._manual_layout_grp, with_selectors=True, with_calibration=True,
-            browse_icon="folder_create")
+            browse_icon="folder_create", units_choice=True)
         # Let the panel's "Use instrument margins" checkbox read the user's
         # Instrument-Margins thresholds for the current combo (#93, Knut).
         self._manual_layout_panel.set_threshold_lookup(self._combo_thresholds)
@@ -28124,9 +28132,10 @@ class TabChart(QWidget):
         question Generate asks, and the seed, which is drawn at build time and
         is stood in for by the widest one it can be.
         """
-        from workflow.layout_engine.raster import resolve_placeholders
+        from workflow.layout_engine.raster import resolve_keeping_logo
         _ctx = self._text_placeholder_context(r)
-        lines = [resolve_placeholders(t, _ctx)
+        # `{logo}` stays, and is measured as the wordmark (4.3.44)
+        lines = [resolve_keeping_logo(t, _ctx)
                  for t in (r.chart_text or "",) if t]
         if getattr(r, "stamp_command", False):
             try:
@@ -28445,7 +28454,19 @@ class TabChart(QWidget):
             log.debug("printer edge note: %s, edges %s (%s), paper %s, %s",
                       printer, edges.as_dict(), edges.source, paper, loss)
             return _mm.edge_note(printer, edges, loss)
-        except Exception:      # noqa: BLE001 - a note, never a blocker
+        except Exception as exc:      # noqa: BLE001 - a note, never a blocker
+            from PIL import Image as _Image
+            if isinstance(exc, _Image.DecompressionBombError):
+                # A PAGE TOO LARGE FOR THE NOTE'S PICTURE READER (leftover c
+                # of 4.3.43): a 296-megapixel film frame is beyond what Pillow
+                # opens without its "decompression bomb" guard, and reading
+                # it whole for a note would take gigabytes. The note is
+                # skipped, and the log says so in words (it used to be a
+                # debug-level traceback saying only "not worked out").
+                log.info("printer edge note skipped: the chart's page is too "
+                         "large to be read for the note (%s); the chart "
+                         "itself is not affected", exc)
+                return None
             log.debug("printer edge note not worked out", exc_info=True)
             return None
 
@@ -29389,8 +29410,19 @@ class TabChart(QWidget):
                             # question Generate asks.
                             _np = self._estimate_patch_total() or int(
                                 getattr(_pm, "patches", 0) or 0)
+                            # the notes as the first page will print them,
+                            # placeholders filled in (4.3.44)
+                            _nctx = None
+                            if "{" in str(getattr(_pm, "chart_notes", "")
+                                          or ""):
+                                try:
+                                    _nctx = self._text_placeholder_context(r)
+                                except Exception:  # noqa: BLE001
+                                    _nctx = None
                             _stamped_line = _tmeta._JOIN.join(
-                                _cre.stamp_lines(_pm, int(_np)))
+                                _cre.stamp_lines(_pm, int(_np), ctx=_nctx)
+                                if _nctx is not None
+                                else _cre.stamp_lines(_pm, int(_np)))
                             # HOW CLOSE THIS IS, MEASURED RATHER THAN CLAIMED.
                             # On a chart built straight from targen the panel's
                             # params ARE the build's, so the line is the same

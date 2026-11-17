@@ -3,7 +3,9 @@
 The X-Rite i1iO table is a Beta in Preferences > Beta, off by default. Off,
 there may be no i1iO in any list, no i1iO chart code loaded, no chart file read
 to find out whether it is an i1iO chart, and no new key in any target's
-meta.json. The nets of `docs/adding_an_instrument.md` §4, for the i1iO (the
+meta.json. The nets of `docs/adding_an_instrument.md` section 9 ("Behind a
+Beta switch, and off changes nothing") and checklist item 1.9 of
+`docs/adding_an_instrument_checklist.md`, for the i1iO (the
 fourth, a real project made on and opened off, is
 `tests/test_i1io_off_stale_project.py`):
 

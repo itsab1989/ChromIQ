@@ -23,6 +23,37 @@ blocked). A truth whose millimetres no longer match what those fields show was
 overwritten behind this module's back, and the fields win
 (:func:`_heal_truth`).
 
+THE UNITS CHOICE (a panel built with ``units_choice=True``: Create Chart >
+Manual). One "Units" combobox under Paper says what every length in the
+panel is shown in: millimetres, inches, or (for the page size only) pixels.
+The page size is then ONE pair of fields, the chosen unit's row; the other
+two rows still exist, hidden, so everything above holds unchanged. The rules
+of the choice (:func:`_page_switch`):
+
+* the unit shown is the thing that is kept: with pixels shown a changed
+  resolution keeps the pixel count, with mm or inches shown it keeps the size
+  on paper (:func:`_keep_shown_unit` turns a side the other way round, at the
+  resolution it was made for, before a new resolution is applied);
+* switching between mm and inches never changes the page (the typed side is
+  kept as typed, only shown converted); switching to pixels makes the page
+  whole pixels, and switching back restores exactly what was there before
+  for each side not typed since (at the same resolution): merely looking
+  never changes a page. A side in pixels that is no size the mm and inch
+  fields can hold (beyond 1 to 2000 mm at the resolution set) stays pixels
+  whatever is shown (:func:`_side_in`);
+* a chart whose page is stored in pixels opens with Pixels shown, one in
+  inches with Inches shown, for that chart only (:func:`load_recipe`): the
+  remembered choice is not rewritten, and the next chart follows it again;
+* the stored form is 4.3.43's: the paper code, ``page_size`` with each side
+  as it was typed, ``tiff_res_unit``.
+
+Every other length box of the panel is a
+:class:`ui.dialogs.length_units.LengthSpinBox`: its value is millimetres,
+inches are a display only (pixels show millimetres there). The choice itself
+is a personal preference (``page_output_units`` in AppSettings), never part of
+a chart, a preset or a target. The patch set editor's hidden copy of the
+panel has no choice and keeps the three rows.
+
 THE HOLD (Beta off). A chart's recipe holding a value only the Beta writes
 (:func:`workflow.page_output.support.uses_beta_values`) cannot be shown by the
 4.3.42 fields: they are whole millimetres and stop at 1200 dpi. The panel then
@@ -76,13 +107,25 @@ def build_custom_rows(panel: Any, grid: Any) -> None:
         (po.UNIT_IN, panel._page_in["w"], panel._page_in["h"], tr("in")),
         (po.UNIT_PX, panel._page_px["w"], panel._page_px["h"], tr("px")),
     )
+    units = getattr(panel, "_units_choice", False)
+    panel._page_rows = {}
     for row, (unit, wbox, hbox, word) in enumerate(rows):
-        grid.addWidget(wbox, row, 1)
-        grid.addWidget(QLabel("×", panel), row, 2)
-        grid.addWidget(hbox, row, 3)
-        grid.addWidget(QLabel(word, panel), row, 4)
+        # with the Units choice the three rows share ONE grid row and only
+        # the chosen unit's is shown (`_show_page_unit_rows`)
+        at = 0 if units else row
+        times, unit_lbl = QLabel("×", panel), QLabel(word, panel)
+        grid.addWidget(wbox, at, 1)
+        grid.addWidget(times, at, 2)
+        grid.addWidget(hbox, at, 3)
+        grid.addWidget(unit_lbl, at, 4)
+        panel._page_rows[unit] = (wbox, times, hbox, unit_lbl)
+    if units:
+        panel._page_unit = po.UNIT_MM
+        panel._page_look = None
     panel._page_size_tip = TooltipButton(
-        tr("Custom size"), custom_size_help(), panel, min_width=620)
+        tr("Custom size"),
+        custom_size_help_units() if units else custom_size_help(), panel,
+        min_width=620)
     grid.addWidget(panel._page_size_tip, 0, 5)
     grid.setColumnStretch(6, 1)
     # Bound methods on the panel's own class are not available for a module
@@ -114,6 +157,10 @@ class _Edited:
         if panel is None or getattr(panel, "_page_syncing", False):
             return
         try:
+            last = getattr(panel, "_page_last_ppi", None)
+            if last not in (None, _ppi(panel)):
+                # the other side was made for the resolution shown before
+                _keep_shown_unit(panel, last, skip=self.axis)
             panel._page_truth[self.axis] = (float(value), self.unit)
             _show_truth(panel, only=self.axis, skip_unit=self.unit)
         except RuntimeError:          # a widget deleted with the panel
@@ -208,6 +255,371 @@ def turned_upright(panel: Any) -> None:
     _show_truth(panel)
 
 
+# ---- the Units choice (a panel built with units_choice=True) -------------------
+
+#: AppSettings key of the choice (``core.settings.DEFAULTS``: "mm").
+UNITS_SETTING = "page_output_units"
+
+def _length_labels() -> "list[tuple[str, str]]":
+    """The labels that name millimetres today, and what they say in inches
+    (both as shown, in the UI language)."""
+    return [
+        (tr("Margins (mm):"), tr("Margins (in):")),
+        (tr("Patch size (mm):"), tr("Patch size (in):")),
+        (tr("Chart offset (mm):"), tr("Chart offset (in):")),
+        (tr("Minimum patch width (mm):"), tr("Minimum patch width (in):")),
+        (tr("Distance from page edge (mm):"),
+         tr("Distance from page edge (in):")),
+        (tr("Marker length (mm):"), tr("Marker length (in):")),
+        (tr("Text distance from edge (mm):"),
+         tr("Text distance from edge (in):")),
+    ]
+
+
+def _stored_units() -> str:
+    try:
+        from core.settings import AppSettings
+        unit = str(AppSettings().get(UNITS_SETTING, po.UNIT_MM) or po.UNIT_MM)
+    except Exception:  # noqa: BLE001 - a broken store means millimetres
+        unit = po.UNIT_MM
+    return unit if unit in po.UNITS else po.UNIT_MM
+
+
+def build_units_row(panel: Any, grid: Any, row: int) -> None:
+    """"Units:" under Paper, in the Paper column, with its (i): the unit of
+    every length in the panel (pixels: the page size only)."""
+    from PyQt6.QtWidgets import QLabel
+    from ui.tooltip_button import TooltipButton
+    from ui.widgets import ElidingComboBox
+    combo = ElidingComboBox(panel)
+    combo.addItem(tr("Millimetres"), po.UNIT_MM)
+    combo.addItem(tr("Inches"), po.UNIT_IN)
+    combo.addItem(tr("Pixels (page size only)"), po.UNIT_PX)
+    panel.units = combo
+    panel._units_lbl = QLabel(tr("Units:"), panel)
+    grid.addWidget(panel._units_lbl, row, 0)
+    grid.addWidget(combo, row, 1)
+    panel._units_tip = TooltipButton(tr("Units"), units_help(), panel,
+                                     min_width=620)
+    grid.addWidget(panel._units_tip, row, 4)
+
+
+class _UnitsChosen:
+    """The slot of the Units combobox (panel held weakly)."""
+
+    def __init__(self, panel: Any) -> None:
+        import weakref
+        self._panel = weakref.ref(panel)
+        panel.__dict__.setdefault("_page_slots", []).append(self)
+
+    def __call__(self, *_a) -> None:
+        panel = self._panel()
+        if panel is None:
+            return
+        try:
+            unit = panel.units.currentData() or po.UNIT_MM
+            try:
+                from core.settings import AppSettings
+                AppSettings().set(UNITS_SETTING, unit)
+            except Exception:  # noqa: BLE001 - shown even if not remembered
+                pass
+            apply_units(panel, unit)
+            panel._emit()
+        except RuntimeError:
+            pass
+
+
+def _units_for_chart(panel: Any, ps: "dict | None") -> None:
+    """The Units shown for a chart just loaded (coordinator's ruling,
+    2026-11-17, after review P1-7): a page STORED in pixels opens with
+    Pixels shown, one stored in inches with Inches (a side in pixels wins:
+    a film frame's pixel count is what must not move), so a resolution
+    changed later keeps what the chart was made of. Any other chart shows
+    the remembered choice. The remembered choice itself is not rewritten:
+    this only shows, and the next chart follows the preference again."""
+    kinds = {ps[a][1] for a in _AXES} if ps else set()
+    unit = (po.UNIT_PX if po.UNIT_PX in kinds
+            else po.UNIT_IN if po.UNIT_IN in kinds else _stored_units())
+    combo = getattr(panel, "units", None)
+    if combo is not None and combo.currentData() != unit:
+        b = combo.blockSignals(True)     # shown only: nothing remembered
+        combo.setCurrentIndex(max(0, combo.findData(unit)))
+        combo.blockSignals(b)
+    if getattr(panel, "_page_unit", None) != unit:
+        panel._page_unit = unit
+        _show_page_unit_rows(panel)
+        _apply_length_unit(panel, unit)
+
+
+def finish_units(panel: Any) -> None:
+    """The end of the panel's construction: find the length labels, boxes
+    and their (i), and show the unit the person chose last time."""
+    from PyQt6.QtWidgets import QLabel
+    from ui.dialogs.length_units import LengthSpinBox
+    wanted = {a: (a, b) for a, b in _length_labels()}
+    panel._unit_labels = [(lbl,) + wanted[lbl.text()]
+                          for lbl in panel.findChildren(QLabel)
+                          if lbl.text() in wanted]
+    panel._length_boxes = list(panel.findChildren(LengthSpinBox))
+    for lbl, _a, _b in panel._unit_labels:
+        for w in _row_widgets(panel, lbl):
+            for box in [w] + list(w.findChildren(LengthSpinBox)):
+                if isinstance(box, LengthSpinBox):
+                    box._unit_in_label = True
+    tips = []
+    for box in panel._length_boxes:
+        tip = _row_tip(panel, box)
+        if tip is not None and all(tip is not t for t in tips):
+            tips.append(tip)
+    panel._length_tips = tips
+    unit = _stored_units()
+    b = panel.units.blockSignals(True)
+    panel.units.setCurrentIndex(max(0, panel.units.findData(unit)))
+    panel.units.blockSignals(b)
+    # the page is not converted at start: a recipe brings its own page, and
+    # a page nobody typed is shown in the unit chosen
+    panel._page_unit = unit
+    _show_page_unit_rows(panel)
+    _apply_length_unit(panel, unit)
+    panel.units.currentIndexChanged.connect(_UnitsChosen(panel))
+    _show_truth(panel)
+
+
+def _row_widgets(panel: Any, widget: Any) -> list:
+    """The widgets on the grid row of *widget* (a row label)."""
+    from PyQt6.QtWidgets import QGridLayout
+    for grid in panel.findChildren(QGridLayout):
+        i = grid.indexOf(widget)
+        if i < 0:
+            continue
+        row = grid.getItemPosition(i)[0]
+        out = []
+        for j in range(grid.count()):
+            item = grid.itemAt(j)
+            w = item.widget() if item is not None else None
+            if w is not None and w is not widget and \
+                    grid.getItemPosition(j)[0] == row:
+                out.append(w)
+        return out
+    return []
+
+
+def _row_tip(panel: Any, widget: Any) -> Any:
+    """The (i) on the grid row that holds *widget* (or a box around it)."""
+    from PyQt6.QtWidgets import QGridLayout
+    from ui.tooltip_button import TooltipButton
+    grids = panel.findChildren(QGridLayout)
+    w = widget
+    while w is not None and w is not panel:
+        for grid in grids:
+            i = grid.indexOf(w)
+            if i < 0:
+                continue
+            row = grid.getItemPosition(i)[0]
+            for j in range(grid.count()):
+                item = grid.itemAt(j)
+                tip = item.widget() if item is not None else None
+                if isinstance(tip, TooltipButton) and \
+                        grid.getItemPosition(j)[0] == row:
+                    return tip
+        w = w.parentWidget()
+    return None
+
+
+def apply_units(panel: Any, unit: str) -> None:
+    """Show the panel in *unit*: the page size by the switch rule, every
+    other length in mm or inches (pixels: millimetres)."""
+    unit = unit if unit in po.UNITS else po.UNIT_MM
+    _page_switch(panel, unit)
+    _apply_length_unit(panel, unit)
+
+
+def _apply_length_unit(panel: Any, unit: str) -> None:
+    from ui.dialogs.length_units import LEN_IN, LEN_MM
+    length = LEN_IN if unit == po.UNIT_IN else LEN_MM
+    for box in getattr(panel, "_length_boxes", ()):
+        try:
+            box.set_length_unit(length)
+            refresh_inch = getattr(box, "_refresh_inch", None)
+            if callable(refresh_inch):
+                refresh_inch()
+        except RuntimeError:
+            pass
+    for lbl, mm_text, in_text in getattr(panel, "_unit_labels", ()):
+        try:
+            lbl.setText(in_text if length == LEN_IN else mm_text)
+        except RuntimeError:
+            pass
+    note = _length_in_note()
+    for tip in getattr(panel, "_length_tips", ()):
+        try:
+            base = tip.__dict__.setdefault("_units_base_body", tip._body)
+            tip.set_content(tip._title, base + "\n\n" + note
+                            if length == LEN_IN else base)
+        except RuntimeError:
+            pass
+    if getattr(panel, "_spin_widths_fitted", False):
+        try:
+            panel._fit_spin_widths()
+        except RuntimeError:
+            pass
+
+
+def _show_page_unit_rows(panel: Any) -> None:
+    """Only the chosen unit's pair of page fields is shown."""
+    rows = getattr(panel, "_page_rows", None)
+    if not rows:
+        return
+    chosen = getattr(panel, "_page_unit", po.UNIT_MM)
+    for unit, widgets in rows.items():
+        for w in widgets:
+            w.setVisible(unit == chosen)
+
+
+def _side_in(side: "tuple[float, str]", unit: str,
+             ppi: float) -> "tuple[float, str]":
+    """One typed side as it is kept with *unit* shown: whole pixels for
+    pixels; a side in pixels as its exact size for mm or inches; a side
+    already in mm or inches as it was typed (the size on paper is kept).
+
+    A SIDE IN PIXELS THAT IS NO SIZE THE MILLIMETRE AND INCH FIELDS CAN HOLD
+    STAYS PIXELS (review P1-5, the R3-a guarantee). 18796 pixels at 72 ppi
+    is 6631 mm; the fields stop at 2000 mm, and converting it made the
+    clamped 2000 mm the page, so the pixels typed were lost for good when
+    the Units went to mm or inches and back, or the resolution was changed
+    while mm was shown. Kept as pixels, the fields show their limit, the red
+    line goes on saying why Generate refuses it, and the pixels come back
+    exactly; a resolution at which it fits makes it a real size again."""
+    v, u = side
+    if unit == po.UNIT_PX:
+        if u == po.UNIT_PX:
+            return (float(v), po.UNIT_PX)
+        return (float(po.pixels_of(po.to_mm(v, u, ppi), ppi)), po.UNIT_PX)
+    if u == po.UNIT_PX:
+        mm = po.to_mm(v, u, ppi)
+        if not po.CUSTOM_MM_MIN_ON <= mm <= po.CUSTOM_MM_MAX:
+            return (float(v), po.UNIT_PX)
+        return (po.from_mm(mm, unit, ppi), unit)
+    return (float(v), u)
+
+
+def _page_switch(panel: Any, new: str) -> None:
+    """The page size's fields change to *new* (the rule in the module
+    docstring). While the person is only LOOKING (nothing typed and the
+    resolution unchanged since the last switch), every view is worked out
+    from the page as it was before the first switch, and coming back to
+    that unit gives it back exactly."""
+    truth = getattr(panel, "_page_truth", None)
+    old = getattr(panel, "_page_unit", po.UNIT_MM)
+    if truth is None or new == old:
+        panel._page_unit = new
+        _show_page_unit_rows(panel)
+        return
+    _heal_truth(panel)
+    ppi = _ppi(panel)
+    now = {a: tuple(truth[a]) for a in _AXES}
+    memo = getattr(panel, "_page_look", None)
+    if memo is None or memo.get("ppi") != ppi:
+        memo = {"ppi": ppi, "sides": {}}
+    shown = {}
+    for a in _AXES:
+        # EACH SIDE ON ITS OWN (review P1-6): a side the person has not
+        # typed since the last switch is still being looked at, and comes
+        # back exactly when its own unit does, even if the other side was
+        # typed meanwhile (100 x 50 mm, pixels, width typed, mm: 50 mm)
+        side = memo["sides"].get(a)
+        if side is None or now[a] != side["after"]:
+            side = {"origin": now[a], "unit": old}
+        shown[a] = (tuple(side["origin"]) if new == side["unit"]
+                    else _side_in(side["origin"], new, ppi))
+        side["after"] = tuple(shown[a])
+        memo["sides"][a] = side
+    panel._page_truth = shown
+    panel._page_look = memo
+    panel._page_unit = new
+    panel._page_last_ppi = ppi
+    _show_page_unit_rows(panel)
+    _show_truth(panel)
+
+
+def _keep_shown_unit(panel: Any, old_ppi: Any, skip: "str | None" = None
+                     ) -> None:
+    """The resolution moved from *old_ppi*: a side kept in the other kind
+    of unit than the one shown (pixels against mm or inches) is first made
+    the shown kind, at the resolution it was made for. So the unit on
+    screen is what a new resolution keeps."""
+    if not getattr(panel, "_units_choice", False) or not old_ppi:
+        return
+    truth = getattr(panel, "_page_truth", None)
+    shown = getattr(panel, "_page_unit", po.UNIT_MM)
+    if truth is None:
+        return
+    for a in _AXES:
+        if a == skip:
+            continue
+        v, u = truth[a]
+        if (u == po.UNIT_PX) != (shown == po.UNIT_PX):
+            truth[a] = _side_in((v, u), shown, float(old_ppi))
+
+
+def _other_units_text(panel: Any) -> str:
+    """The page in the units its fields do not show, for the line under
+    them: "1,4998 x 0,9996 in", "38,1 x 25,39 mm", or both for pixels
+    (decimals in the UI language's own sign)."""
+    if panel.paper is None:
+        return ""
+    code = panel.paper.currentData() or "A4"
+    if code == "__custom__":
+        w, h = custom_mm(panel)
+    else:
+        from workflow.layout_engine import papers
+        try:
+            w, h = papers.dimensions_mm(code)
+        except ValueError:
+            return ""
+    mm_text = (f"{po.side_text(round(w, 2))} x {po.side_text(round(h, 2))} "
+               f"{tr('mm')}")
+    in_text = (f"{po.side_text(round(w / po.MM_PER_INCH, 4))} x "
+               f"{po.side_text(round(h / po.MM_PER_INCH, 4))} {tr('in')}")
+    unit = getattr(panel, "_page_unit", po.UNIT_MM)
+    if unit == po.UNIT_MM:
+        return in_text
+    if unit == po.UNIT_IN:
+        return mm_text
+    return f"{mm_text} ({in_text})"
+
+
+def fd9_entering(panel: Any) -> "dict | None":
+    """The FD-9 is about to clamp the millimetre boxes to its own ranges:
+    the typed sides, to give back when it is left (leftover a of 4.3.43)."""
+    truth = getattr(panel, "_page_truth", None)
+    if truth is None:
+        return None
+    _heal_truth(panel)
+    return {"truth": {a: tuple(truth[a]) for a in _AXES},
+            "unit": getattr(panel, "_page_unit", None),
+            # the resolution the sides were made for: taken BEFORE the FD-9
+            # clamps the resolution (review P1-8)
+            "ppi": getattr(panel, "_page_last_ppi", None) or _ppi(panel)}
+
+
+def fd9_left(panel: Any, saved: "dict | None") -> None:
+    """The FD-9 was left and its ranges and boxes given back: the typed
+    sides come back exactly as they were, for the resolution they were made
+    for. If the resolution on screen is another one now (the FD-9 stops at
+    600), the unit shown decides what it keeps, as for any resolution
+    change (:func:`_keep_shown_unit`)."""
+    if not saved or getattr(panel, "_page_truth", None) is None:
+        return
+    panel._page_truth = dict(saved["truth"])
+    panel._page_look = None
+    made_for = saved.get("ppi")
+    if made_for and made_for != _ppi(panel):
+        _keep_shown_unit(panel, made_for)
+    panel._page_last_ppi = _ppi(panel)
+    _show_truth(panel)
+
+
 # ---- the truth and its displays ----------------------------------------------
 
 def _ppi(panel: Any) -> int:
@@ -263,12 +675,18 @@ def _heal_truth(panel: Any) -> None:
     ppi = getattr(panel, "_page_last_ppi", None) or _ppi(panel)
     for axis, box in (("w", panel.custom_w), ("h", panel.custom_h)):
         v, unit = truth[axis]
-        shown = round(po.to_mm(v, unit, ppi), box.decimals())
+        # UNROUNDED, against half a step and a hair: Qt rounds a half up
+        # (27.125 shows as 27.13) where Python's round() goes to even
+        # (27.12), and comparing the two rounded values took a side typed as
+        # 2170 pixels at 2032 ppi for an overwrite and turned it into
+        # 27.13 mm, so a later resolution no longer kept its pixels (found
+        # building the Units choice, 2026-11-17; 4.3.43 had it too)
+        shown = po.to_mm(v, unit, ppi)
         if unit == po.UNIT_PX:
             # the mm field may be clamped to its range; the pixels are the
             # truth for as long as the field shows what they make
             shown = min(max(shown, box.minimum()), box.maximum())
-        if abs(shown - box.value()) > 0.5 * 10 ** -box.decimals():
+        if abs(shown - box.value()) > 0.5 * 10 ** -box.decimals() + 1e-9:
             truth[axis] = (float(box.value()), po.UNIT_MM)
 
 
@@ -319,7 +737,10 @@ def refresh(panel: Any) -> None:
             getattr(panel, "_page_syncing", False):
         return
     _heal_truth(panel)
-    if getattr(panel, "_page_last_ppi", None) != _ppi(panel):
+    last = getattr(panel, "_page_last_ppi", None)
+    if last != _ppi(panel):
+        if last is not None:
+            _keep_shown_unit(panel, last)
         _show_truth(panel)
         return
     refresh_readout(panel)
@@ -414,9 +835,15 @@ def refresh_readout(panel: Any) -> None:
     bit16 = (panel.bit_depth.currentData() == 16
              if hasattr(panel, "bit_depth") else False)
     # no thousands separator in any language (review F8)
-    text = tr(mm._PAGE_PIXELS).format(
-        w=po.number(w), h=po.number(h), mpx=po.decimal(w * h / 1e6),
-        ppi=_ppi(panel))
+    if getattr(panel, "_units_choice", False):
+        # the page in the units the fields do not show (the Units choice)
+        text = tr(mm._PAGE_PIXELS_SIZE).format(
+            w=po.number(w), h=po.number(h), mpx=po.decimal(w * h / 1e6),
+            ppi=_ppi(panel), other_units=_other_units_text(panel))
+    else:
+        text = tr(mm._PAGE_PIXELS).format(
+            w=po.number(w), h=po.number(h), mpx=po.decimal(w * h / 1e6),
+            ppi=_ppi(panel))
     kind = dict(ink_kind(panel), bit16=bit16)
     over = needs_budget(panel) and \
         po.estimated_bytes(w, h, pages, **kind) > po.MEMORY_BUDGET_BYTES
@@ -464,7 +891,15 @@ def load_recipe(panel: Any, r: Any) -> None:
                 if dims:
                     panel._page_truth = {"w": (float(dims[0]), po.UNIT_MM),
                                          "h": (float(dims[1]), po.UNIT_MM)}
+            # the chart's own page, as stored, for the resolution it carries:
+            # nothing typed yet, nothing to restore
+            panel._page_last_ppi = _ppi(panel)
+            panel._page_look = None
+            if getattr(panel, "_units_choice", False):
+                _units_for_chart(panel, ps)
             _show_truth(panel)
+        elif getattr(panel, "_units_choice", False):
+            _units_for_chart(panel, None)
         refresh_readout(panel)
         return
     # ---- Beta off: hold a chart's own page values ----------------------------
@@ -640,6 +1075,81 @@ def custom_size_help() -> str:
            "or inches keeps its size on paper, and its pixel count follows "
            "the resolution. The line under the paper size always shows how "
            "many pixels the page will have."),
+        tr("This is a beta option (Preferences, Beta tab).")))
+
+
+def _length_in_note() -> str:
+    """The note an (i) of a length field carries while inches are shown."""
+    return tr("You have chosen inches under Units, at the top of this panel, "
+              "so this field shows inches. ChromIQ still keeps the value in "
+              "millimetres, exactly as before, so the millimetre figures in "
+              "this help still apply (25.4 mm make one inch), and the grey "
+              "figure beside the field, where there is one, shows the "
+              "millimetres.")
+
+
+def units_help() -> str:
+    """The (i) of "Units:" (Beta on)."""
+    return "\n\n".join((
+        tr("Choose the unit you want to work in. It applies to every length "
+           "in this panel: the custom page size, the margins, the patch size, "
+           "the gaps and every other size below. ChromIQ remembers your "
+           "choice for next time. It is your own preference: it is not saved "
+           "with a chart, a preset or a profile project, so a chart is the "
+           "same whichever unit you look at it in."),
+        tr("Millimetres and inches only change what you see. ChromIQ keeps "
+           "every length in millimetres, as it always has: if you type 0.25 "
+           "inches it stores 6.35 mm and shows 0.25 again, and switching "
+           "between the two never changes a value you have not typed."),
+        tr("Pixels is for the custom page size only, for example the exact "
+           "frame a film recorder takes. With pixels chosen, the page is the "
+           "number of pixels you type, and all the other fields show "
+           "millimetres."),
+        tr("The unit you see is the one that is kept when you change the "
+           "resolution. With pixels chosen, the pixel count stays and the "
+           "page becomes larger or smaller on paper. With millimetres or "
+           "inches chosen, the size on paper stays and the pixel count "
+           "follows the resolution. Switching to pixels rounds the page to "
+           "whole pixels. If you switch back without typing anything, you "
+           "get exactly the size you had before, so just looking never "
+           "changes your page."),
+        tr("When you open a chart whose page size was typed in pixels, the "
+           "Units show Pixels for that chart, and for a page typed in inches "
+           "they show Inches. So if you change the resolution afterwards, the "
+           "page keeps exactly what it was made of. Your own choice is not "
+           "changed by this: the next chart without such a page is shown in "
+           "the unit you chose."),
+        tr("This is a beta option (Preferences, Beta tab).")))
+
+
+def custom_size_help_units() -> str:
+    """The (i) beside the custom size with the Units choice (Beta on)."""
+    return "\n\n".join((
+        tr("Type the width and height of your page in the unit chosen under "
+           "Units, just above: millimetres, inches, or an exact number of "
+           "pixels. The line under the fields shows the same page in the "
+           "other units and how many pixels it will have, so you can check "
+           "it."),
+        tr("Each side can be from 1 mm to 2000 mm, whichever unit you type "
+           "it in, and the millimetre and inch fields go no further. The "
+           "pixel fields take any count, whether you type it before or after "
+           "the resolution, and keep it exactly as you typed it: if it would "
+           "make a side longer "
+           "than 2000 mm (or shorter than 1 mm) at the resolution you have "
+           "set, the line under the paper size says so in red and names the "
+           "resolutions that fit, and Generate makes no chart until the "
+           "resolution or the size fits."),
+        tr("The resolution is taken when you press Return or leave its box, "
+           "not while you are still typing, so typing 2032 never passes "
+           "through 203 on the way."),
+        tr("The unit you see is the one that is kept when you change the "
+           "resolution. With pixels chosen, the pixel count stays and the "
+           "page becomes larger or smaller on paper. With millimetres or "
+           "inches chosen, the size on paper stays and the pixel count "
+           "follows the resolution. Switching to pixels rounds the page to "
+           "whole pixels. If you switch back without typing anything, you "
+           "get exactly the size you had before, so just looking never "
+           "changes your page."),
         tr("This is a beta option (Preferences, Beta tab).")))
 
 
