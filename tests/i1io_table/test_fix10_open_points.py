@@ -99,7 +99,7 @@ def test_a_a_refinement_reads_only_the_listed_patches_and_replaces_only_them(
     # the same value again, so the file's numbers need not change)
     import json as _json
     sdir = run.i1io_table_session_dir(job.stamp)
-    recs = [_json.loads(f.read_text()) for f in sdir.glob("*/*.row.json")]
+    recs = [_json.loads(f.read_text(encoding="utf-8")) for f in sdir.glob("*/*.row.json")]
     assert {a["loc"] for r in recs for a in r.get("accepted", [])} == want
     assert classify(run.measurement_ti3, run.chart_ti2).state is Ti3State.COMPLETE
     assert "Your profile has not changed yet" in tab._log.toPlainText()

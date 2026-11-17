@@ -213,10 +213,10 @@ def test_p7_cmd_n_never_leaves_the_measure_tab_while_the_table_works(qapp):
     t.setCurrentIndex(1)
     t.setTabEnabled(0, False)
     t.setTabEnabled(2, False)
-    fake = SimpleNamespace(_tabs=t, _table_session_open=lambda: True)
+    fake = SimpleNamespace(_tabs=t, _tab_measure=SimpleNamespace(table_session_open=lambda: True))
     MainWindow._go_to_tab(fake, 2)
     assert t.currentIndex() == 1
-    fake = SimpleNamespace(_tabs=t, _table_session_open=lambda: False)
+    fake = SimpleNamespace(_tabs=t, _tab_measure=SimpleNamespace(table_session_open=lambda: False))
     MainWindow._go_to_tab(fake, 2)                        # unchanged without a table session
     assert t.currentIndex() == 2
 
@@ -225,7 +225,7 @@ def test_m1_preferences_shortcut_opens_nothing_while_the_table_works(qapp, monke
     from types import SimpleNamespace
     from ui.main_window import MainWindow
     touched = []
-    fake = SimpleNamespace(_table_session_open=lambda: True,
+    fake = SimpleNamespace(_tab_measure=SimpleNamespace(table_session_open=lambda: True),
                            _tab_chart=SimpleNamespace(
                                current_margin_combo=lambda: touched.append(1)))
     MainWindow._open_settings(fake)                      # returns before anything is built

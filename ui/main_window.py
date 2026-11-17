@@ -624,7 +624,8 @@ class MainWindow(QMainWindow):
         """A session of the i1iO table (Beta) is open in the Measure tab."""
         ask = getattr(getattr(self, "_tab_measure", None), "table_session_open", None)
         try:
-            return bool(ask()) if callable(ask) else False
+            # exactly True: a stand-in window of the tests answers anything else
+            return callable(ask) and ask() is True
         except Exception:      # noqa: BLE001 - a shortcut guard never breaks a key
             return False
 
@@ -636,7 +637,7 @@ class MainWindow(QMainWindow):
         While the i1iO table (Beta) works, the Measure tab holds its only Stop:
         ⌘1…⌘5 must not take it off the screen (review 10, M-1; QTabWidget
         makes even a DISABLED tab current when asked)."""
-        if self._table_session_open() and not self._tabs.isTabEnabled(i):
+        if MainWindow._table_session_open(self) and not self._tabs.isTabEnabled(i):
             log.info("tab shortcut ignored: the i1iO table is measuring")
             return
         self._tabs.setCurrentIndex(i)
@@ -2663,7 +2664,7 @@ class MainWindow(QMainWindow):
         # a modal window, and behind it the panel's Stop and Report a problem
         # could not be pressed while the arm moves. The masthead's button is
         # greyed then; ⌘, obeys it, as ⌘T and ⌘O obey theirs.
-        if self._table_session_open():
+        if MainWindow._table_session_open(self):
             log.info("Preferences shortcut ignored: the i1iO table is measuring")
             return
         # SettingsDialog tints its own tooltip ⓘ icons to the dialog's neutral

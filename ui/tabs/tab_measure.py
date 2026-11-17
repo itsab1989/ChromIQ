@@ -2605,7 +2605,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                         w.setEnabled(not is_cr30)
                 if opt.checkbox is not None:
                     opt.checkbox.setToolTip(why if is_cr30 else "")
-        self._apply_i1io_table_options(is_cr30)
+        # (getattr: the stand-in tabs of older tests borrow this method)
+        table_options = getattr(self, "_apply_i1io_table_options", None)
+        if callable(table_options):
+            table_options(is_cr30)
 
     # ---- the i1iO table (Beta): the options with no meaning, greyed --------
     def _table_chart_loaded(self) -> bool:
