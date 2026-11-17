@@ -886,6 +886,13 @@ Line numbers are from **ArgyllCMS 3.5.0** source (`spectro/`) and from ChromIQ's
 | Generic instrument error | `Got\s+'([^']+)'\s*\(([^)]+)\)\s+error\.` | 391, 396, 1710 | 796, 808, 2251 | 391, 396 | ✅ |
 | XY: place sheet | `Please place sheet\s+(\d+)\s+of\s+(\d+)\s+on table` | 1123 | 1576 | — | ✅ |
 | XY: sheet read OK | `Sheet\s+(\d+)\s+of\s+(\d+)\s+read OK` | 1325 | 1782 | — | ✅ |
+| Filter choice refused | `Setting requested filter not supported by instrument` | 705 | 3236 | 1633 | ⏳ awaiting confirmation (4.3.45), see below |
+
+#### ⏳ Awaiting confirmation: the "Filter choice refused" row (4.3.45)
+
+**Confirmed by:** *nobody yet.*
+
+Added after the 4.3.45 review (N7). The pattern is the exact sentence the two chart readers print right before they exit, when the instrument refuses the "Spectral filter type (-F)" choice (stock `chartread.c:705`, ChromIQ `chromiq_chartread.c:3236`; `spotread.c:1633` prints the same sentence, but spot reads do not go through this detector). Detected by `_FILTER_REFUSED_RE` in `MeasureManager._check_startup_failures`, which both readers' parsers call; it opens M-FILTER-REFUSED (§M-PROPOSED) when the read ends, and it is never a reason to fall back to stock chartread, which refuses the same way. Line numbers checked against the ArgyllCMS 3.5.0 source and the helper's source on 2026-11-17.
 
 ### 7a. Events that do NOT come from these three programs
 
