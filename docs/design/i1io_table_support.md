@@ -414,3 +414,29 @@ strip-recognition detail other strip charts get, since no strip is read
 The `.ti3` names the head (its ArgyllCMS name, so FWA keeps working) and adds
 a declared `MEASUREMENT_TABLE` keyword for the table. Note
 `workflow/reference_convert.py` already maps "i1io" to the i1Pro family.
+
+### ⏳ Awaiting confirmation: START drives the table in the Measure tab (build step 9, 2026-11-17)
+
+**Confirmed by:** *nobody yet.*
+
+Built and proved on screen against the simulated table only (no real table yet). With "X-Rite
+i1iO support" on, START MEASUREMENT on a profile run's chart made for an i1iO 2 with an i1Pro 2
+(its side file says so) drives the table, in Manual and in Guided; calibration and verification
+charts, i1iO 3 and bare "i1iO" charts keep their Start windows; IMPORT is unchanged. Before
+anything is opened: the hand path's guards (a run that exists, the laid-out chart, the replace
+question M-REPLACE-*), the USB library's read-only check, the one-time explanation
+M-I1IO-DRIVE-CONSENT (kept with its text version, setting `i1io_table_consent_given`), an
+interrupted earlier session (complete or discard), and how the Measure tab's options apply
+(no meaning / refused / measured as the readings being completed). The table's questions,
+its status, Stop, Report a problem, End measurement and "To stop the arm at once, switch the
+table off" stand in the Measure tab's measurement area, where the options stand; nothing is
+modal and nothing covers the chart preview; the rest of the app is locked as during a hand
+measurement. The preview follows the job: the mark the arm should point at while aiming, the
+row being read (rows outlined, read rows green) or, with "Patch-by-patch mode (-p)", the patch
+the arm moves to next; every reading goes into the live overlay. The asking mode (setting
+`i1io_table_ask_after_each_step`, on for the first measurement, offered off after a clean one,
+and in Preferences > Beta under the i1iO option) asks after every step that moved; the quiet
+mode asks only the consent (once), the hands-off GO and the ending. Every text is in §M-PROPOSED
+(M-I1IO-DRIVE-*). The endings are M-END's three with the table paragraph M-I1IO-DRIVE-END, and
+M-END-EMPTY's line when nothing was read; the homing is offered after Save or Discard and asks
+its own GO.
