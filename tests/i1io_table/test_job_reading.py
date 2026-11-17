@@ -582,3 +582,98 @@ def test_strip_rows_are_not_built_and_reach_nothing(tmp_path):
     r = job.read_row(kind="strip")
     assert (r.kind, r.reason) == (J.Kind.REFUSED, "strip_rows_not_built")
     assert len(sim.received) == n and helper.started[-1][-1] == "c1_spot"
+
+
+# ---- more of the new code, each with its own test (planted faults of step 7) ----------------
+
+def test_every_patch_of_a_row_may_fail_once_and_the_row_still_fits_its_step(tmp_path):
+    """A row's own cap (3 n + 4 lines) holds one fresh position reading for EVERY patch."""
+    job, sim, helper, run, p = job_for(tmp_path, faults={"read_once": {
+        f"0-{i}": "error" for i in range(4)}})
+    ready_to_read(job, p)
+    n = len(sim.received)
+    r = p.drive(job.read_row())
+    assert r.ok and r.detail["status"] == "read", (r.reason, r.detail)
+    assert len(sim.received) - n == 2 + 2 * 4 + 4          # where, still, 4 x (m0 p0), 4 fresh p0
+
+
+def test_a_reading_not_taken_where_the_arm_was_read_is_a_clean_failure_read_again(tmp_path):
+    job, sim, helper, run, p = job_for(tmp_path)
+    ready_to_read(job, p)
+    real = job._patch
+    seen = []
+
+    def shifted(reader, pt, rec, readings):
+        if not seen:
+            seen.append(pt.loc)
+            lines, at = job._arrival
+            job._arrival = (lines, (at[0] + 50, at[1]))      # the arrival does not match
+        return real(reader, pt, rec, readings)
+    job._patch = shifted
+    n = len(sim.received)
+    r = p.drive(job.read_row())
+    assert r.ok and r.detail["status"] == "read"
+    rec = next(run.i1io_table_session_dir(RS.STAMP).glob("row-*/p1_row1.row.json"))
+    import json
+    data = json.loads(rec.read_text(encoding="utf-8"))
+    assert [f["why"] for f in data["failed"]] == ["reading_off_target"]
+    assert len(sim.received) - n == 2 + 2 * 4 + 1           # one fresh position reading
+
+
+def test_the_arm_is_never_driven_faster_than_recorded_between_patches(tmp_path, monkeypatch):
+    from workflow.i1io.table import reader as rd
+
+    class SimTime:
+        def monotonic(self):
+            return sim.clock
+
+        def sleep(self, s):
+            sim.clock += s
+    job, sim, helper, run, p = job_for(tmp_path, faults={"read_s": 0.1})
+    monkeypatch.setattr(rd, "time", SimTime())
+    ready_to_read(job, p)
+    times = []
+    sim.on_command = lambda k: times.append((k, sim.clock))
+    read_end = []
+    helper.on_read = lambda n: read_end.append(sim.clock)
+    n0 = len(sim.received)
+    assert p.drive(job.read_row()).ok
+    m0 = [t for k, t in times if sim.received[k].startswith(";m0")]
+    assert len(m0) == 4
+    # from the start of each reading (0.1 s long here) to the next move: at least the floor
+    for start, nxt in zip(read_end, m0[1:]):
+        assert nxt - start >= sp.PACE_FLOOR_S - 1e-6, (start, nxt)
+    assert n0 < len(sim.received)
+
+
+def test_a_row_into_a_part_no_recording_reached_asks_first_and_no_moves_nothing(tmp_path):
+    job, sim, helper, run, p = job_for(tmp_path, {J.Confirm.FIRST_VISIT: "no"})
+    ready_to_read(job, p)
+    n_moves = len(moves(sim.received))
+    r = p.drive(job.read_row())
+    asked = [d for _s, c, d, *_r in p.asked if c == J.Confirm.FIRST_VISIT]
+    assert asked and asked[-1]["what"] == "row 1"
+    assert (r.kind, r.reason) == (J.Kind.REFUSED, "first_visit_declined")
+    assert len(moves(sim.received)) == n_moves and helper.reads == 0
+
+
+def test_a_free_arm_left_outside_the_area_starts_no_row(tmp_path):
+    job, sim, helper, run, p = job_for(tmp_path)
+    ready_to_read(job, p)
+    sim.hand_to(-1480, 2340)                                # beside the area's corner
+    n_moves = len(moves(sim.received))
+    r = p.drive(job.read_row())
+    assert (r.kind, r.reason) == (J.Kind.REFUSED, "free_arm_outside_area")
+    assert len(moves(sim.received)) == n_moves and helper.reads == 0
+
+
+def test_a_failed_calibration_on_the_own_tile_leaves_no_white_until_seated_again(tmp_path):
+    job, sim, helper, run, p = job_for(tmp_path, {J.Confirm.CAL_PLACE: "own tile"},
+                                       faults={"open": "cal_fails", "open_at": 2})
+    p.drive(job.open())
+    assert p.drive(job.calibrate()).ok and job.calibration is not None
+    r = p.drive(job.calibrate())                            # the instrument out again; fails
+    assert (r.kind, r.reason) == (J.Kind.REFUSED, "calibration_failed")
+    assert job.calibration is None                          # it is not in the arm
+    assert p.drive(job.align()).ok
+    assert job.read_row().reason == "needs_calibration"

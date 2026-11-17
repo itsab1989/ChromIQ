@@ -15,6 +15,7 @@ Faults (``HelperSim(faults=...)``):
   read        {n: kind}: the n-th reading of the whole sitting (1-based); kinds: error, coms,
               implausible, no_values, other_loc, dies, slow, cal_required
   read_loc    {loc: kind}: every reading of that patch (a patch that always fails)
+  read_once   {loc: kind}: the first reading of that patch only
   read_s      seconds of the simulator's clock per reading (default 0.9)
 The tester's own simulator objects (part C 0.6.0's CSimTable) work here unchanged.
 """
@@ -79,6 +80,7 @@ class HelperSim:
         #: called with the sitting's reading count at every "read" (tests: a stop or a problem
         #: report while a reading is on its way)
         self.on_read = None
+        self.failed_once: "set[str]" = set()
 
     def proc_class(self):
         helper = self
@@ -182,6 +184,10 @@ class FakeHelperProc:
         by_loc = h.faults.get("read_loc", {})
         if loc in by_loc:
             return by_loc[loc]
+        once = h.faults.get("read_once", {})
+        if loc in once and loc not in h.failed_once:
+            h.failed_once.add(loc)
+            return once[loc]
         return h.faults.get("read", {}).get(h.reads)
 
     def _xyz_here(self):
