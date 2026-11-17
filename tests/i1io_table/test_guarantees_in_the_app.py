@@ -72,7 +72,9 @@ STEP7_APP_IMPORTS = {
     "measurement.py": {"workflow.measurement_pairing", "workflow.measurement_state",
                        "core.text_io", "core.file_manager"},
     # round B: a strip row's XYZ from its spectrum, by the app's own ArgyllCMS method
-    "strip.py": {"workflow.argyll_colorimetry"},
+    "strip.py": {"workflow.argyll_colorimetry", "core.cgats_date"},
+    # round B: the helper's build string through the app's own --caps question
+    "reader.py": {"workflow.chartread_engine"},
     "job.py": {"workflow.measurement_state",
                # step 8: Save is guarded as every measurement is (old/ copy, C0 -> C)
                "workflow.measurement_session"},
@@ -166,9 +168,7 @@ def test_no_process_is_ended_and_only_the_read_only_checks_are_run():
     assert sorted(runs) == sorted([
         '["/usr/sbin/ioreg", "-a", "-r", "-c", "IOUSBHostDevice", "-l"]',
         '["/usr/bin/xattr", "-p", "com.apple.quarantine", str(path)]',
-        '["/usr/sbin/ioreg", "-a", "-r", "-c", "IOUSBHostDevice", "-l"]',
-        # round B: the helper's build string (``--caps`` prints one line, opens nothing)
-        '[str(path or helper_path()), "--caps"]'])
+        '["/usr/sbin/ioreg", "-a", "-r", "-c", "IOUSBHostDevice", "-l"]'])
     # the helper itself is started by the reader's own process wrapper only
     assert "Popen(" not in "".join(_src(TABLE / n) for n in ("session_table.py", "geometry.py",
                                                              "lines.py", "scan.py"))

@@ -28,7 +28,7 @@ from __future__ import annotations
 import json
 import math
 import os
-import time
+from core.cgats_date import created_stamp
 from dataclasses import dataclass, field
 
 from . import scan as sc
@@ -128,7 +128,7 @@ def write_row_file(path: str, cut: Cut, options: "sp.ReadOptions") -> None:
         fields += [f"SPEC_{int(round(w))}" for w in cut.wavelengths]
     head = ["CTI3", "", 'DESCRIPTOR "Argyll Calibration Target chart information 3"',
             'ORIGINATOR "ChromIQ i1iO table, strip reading (first try)"',
-            f'CREATED "{time.strftime("%a %b %d %H:%M:%S %Y")}"',
+            f'CREATED "{created_stamp()}"',
             'KEYWORD "DEVICE_CLASS"', 'DEVICE_CLASS "OUTPUT"',
             'KEYWORD "TARGET_INSTRUMENT"', 'TARGET_INSTRUMENT "X-Rite i1 Pro 2"',
             'KEYWORD "INSTRUMENT_TYPE_REFLECTIVE"', 'INSTRUMENT_TYPE_REFLECTIVE "YES"',

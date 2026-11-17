@@ -509,9 +509,10 @@ def helper_build(path: "Path | None" = None, timeout: float = 5.0) -> str:
     """The helper's build string, from ``--caps`` (opens nothing: it prints one line and ends).
     Empty when it cannot be asked."""
     try:
-        r = subprocess.run([str(path or helper_path()), "--caps"], capture_output=True,
-                           text=True, encoding="utf-8", timeout=timeout, env=helper_env())
-        return str(json.loads(r.stdout.strip().splitlines()[0]).get("build", ""))
+        # the app's own question to its helper (workflow.chartread_engine: --caps, cached per
+        # binary, opens nothing)
+        from workflow.chartread_engine import helper_build as engine_build
+        return str(engine_build(Path(path) if path is not None else helper_path()) or "")
     except Exception:          # noqa: BLE001 - not offered, nothing breaks
         return ""
 
