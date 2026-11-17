@@ -9095,5 +9095,17 @@
  "one instrument of the i1Pro family": "un instrumento de la familia i1Pro",
  "{build}: takes you to the {tab} tab. Your measurement is saved already, with the new readings in it. The profile is not built yet: press “{build_profile}” there when your settings are how you want them, and your updated ICC profile is made from the new readings.\n{close}: keeps the measurement and stays on this tab. Go to the {tab} tab yourself whenever you are ready to build the profile.\nTo read more patches with the table, press START MEASUREMENT again: ChromIQ asks you to take your hands away from the table before the arm moves.": "{build}: te lleva a la pestaña {tab}. Tu medición ya está guardada, con las nuevas lecturas dentro. El perfil todavía no se crea: pulsa «{build_profile}» allí cuando los ajustes estén como quieres, y tu perfil ICC actualizado se creará con las nuevas lecturas.\n{close}: conserva la medición y se queda en esta pestaña. Ve tú a la pestaña {tab} cuando quieras crear el perfil.\nPara leer más parches con la mesa, vuelve a pulsar INICIAR MEDICIÓN: ChromIQ te pide que apartes las manos de la mesa antes de que se mueva el brazo.",
  "{n} instruments of the i1Pro family": "{n} instrumentos de la familia i1Pro",
- "{n} other measuring instruments (USB ids {ids})": "otros {n} instrumentos de medición (ID USB {ids})"
+ "{n} other measuring instruments (USB ids {ids})": "otros {n} instrumentos de medición (ID USB {ids})",
+ "A reading belonged to another patch than the one the arm stood on.": "Una lectura pertenecía a otro parche distinto del que tenía debajo el brazo.",
+ "A reading came back with values no printed patch can have, so ChromIQ did not keep it.": "Una lectura llegó con valores que ningún parche impreso puede tener, así que ChromIQ no la conservó.",
+ "A reading came back without any values.": "Una lectura llegó sin ningún valor.",
+ "A reading was not taken where the patch is.": "Una lectura no se tomó donde está el parche.",
+ "ChromIQ's reading program could not use this chart.": "El programa de lectura de ChromIQ no pudo usar esta carta.",
+ "ChromIQ's reading program did not get ready in time.": "El programa de lectura de ChromIQ no estuvo listo a tiempo.",
+ "ChromIQ's reading program did not go on to the patch the arm stood on.": "El programa de lectura de ChromIQ no pasó al parche sobre el que estaba el brazo.",
+ "ChromIQ's reading program reported a fault.": "El programa de lectura de ChromIQ informó de un fallo.",
+ "ChromIQ's reading program stopped unexpectedly.": "El programa de lectura de ChromIQ se detuvo de forma inesperada.",
+ "The calibration on the white tile did not succeed.": "La calibración en la placa blanca no tuvo éxito.",
+ "The instrument could not take a reading there.": "El instrumento no pudo tomar una lectura allí.",
+ "The instrument has not been calibrated yet.": "El instrumento aún no se ha calibrado."
 }

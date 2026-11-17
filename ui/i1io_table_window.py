@@ -470,6 +470,23 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
         "measurement_refused": tr("The readings could not be put together into a "
                                   "measurement file."),
         "instrument_not_seated_again": tr("The i1Pro 2 is not back in the arm yet."),
+        "reading_failed": tr("The instrument could not take a reading there."),
+        "reading_implausible": tr("A reading came back with values no printed patch can "
+                                  "have, so ChromIQ did not keep it."),
+        "reading_without_values": tr("A reading came back without any values."),
+        "reading_off_target": tr("A reading was not taken where the patch is."),
+        "reading_of_another_patch": tr("A reading belonged to another patch than the one the "
+                                       "arm stood on."),
+        "reader_did_not_go_to_patch": tr("ChromIQ's reading program did not go on to the "
+                                         "patch the arm stood on."),
+        "reader_chart_refused": tr("ChromIQ's reading program could not use this chart."),
+        "reader_did_not_get_ready": tr("ChromIQ's reading program did not get ready in "
+                                       "time."),
+        "reader_error": tr("ChromIQ's reading program reported a fault."),
+        "helper_error": tr("ChromIQ's reading program reported a fault."),
+        "helper_gone": tr("ChromIQ's reading program stopped unexpectedly."),
+        "calibration_failed": tr("The calibration on the white tile did not succeed."),
+        "calibration_not_done": tr("The instrument has not been calibrated yet."),
     }
     if rid.startswith("aims_") or rid in ("sheet_marks_on_one_line", "sheet_turned",
                                           "alignment_refused"):
@@ -792,10 +809,52 @@ class TableMeasureWindow(QFrame):
 
     def resizeEvent(self, event) -> None:      # noqa: N802
         super().resizeEvent(event)
-        self._scroll.setMinimumHeight(min(self._text_min_height(),
-                                          max(80, self.height() // 3)))
         self._flow_choices()
+        self._fit_room()
         self._fit_text()
+
+    def _fit_room(self) -> None:
+        """Review 11, NOTE (text cut at the scroll edge in the smallest window): the question's
+        area gets what the rest of the panel leaves, never less than three lines and never
+        squeezed under the answers (a minimum larger than the room made the answers stand
+        over the text). When the panel is so low that the text would get fewer than six
+        lines, the true-state box moves into the scrolling area, under the text (it is still
+        there, one scroll away), and comes back under the answers when there is room."""
+        ls = self._text.fontMetrics().lineSpacing()
+        lay = self.layout()
+        if lay is None or ls <= 0:
+            return
+        sp = lay.spacing()
+        m = lay.contentsMargins()
+        others = m.top() + m.bottom()
+        n = 0
+        for i in range(lay.count()):
+            it = lay.itemAt(i)
+            w = it.widget()
+            if w is self._scroll or (w is not None and w.isHidden()):
+                continue
+            if w is self._state:
+                continue
+            h = (w.sizeHint().height() if w is not None else
+                 it.sizeHint().height())
+            if h > 0:
+                others += h
+                n += 1
+        others += sp * max(0, n)
+        state_h = self._state.sizeHint().height() + sp if self._state.text() else 0
+        room = self.height() - others
+        short = room - state_h < ls * 6 + 12
+        in_body = lay.indexOf(self._state) >= 0
+        if short and in_body:
+            lay.removeWidget(self._state)
+            self._page.insertWidget(self._page.count() - 1, self._state)
+        elif not short and not in_body:
+            self._page.removeWidget(self._state)
+            lay.insertWidget(lay.indexOf(self._status) + 1, self._state)
+        if not short:
+            room -= state_h
+        self._scroll.setMinimumHeight(max(ls * 3 + 12,
+                                          min(self._text_min_height(), room)))
 
     def eventFilter(self, obj, event) -> bool:      # noqa: N802
         from PyQt6.QtCore import QEvent
@@ -820,6 +879,28 @@ class TableMeasureWindow(QFrame):
             lab.setMinimumHeight(max(0, need))
             if old != need:
                 lab.updateGeometry()
+        QTimer.singleShot(0, self._snap_to_whole_lines)
+
+    def _snap_to_whole_lines(self) -> None:
+        """Review 11, NOTE: a text longer than the room the panel has scrolls, and its last
+        visible line was cut in half by the scroll edge. The visible part now ends on a whole
+        line of the text: the few pixels left over are kept free under it (the viewport's
+        bottom margin), so what shows is always whole lines and the scroll bar says there is
+        more."""
+        try:
+            sc = self._scroll
+            full = sc.height() - 2 * sc.frameWidth()
+            inner = sc.widget()
+            want = 0
+            ls = self._text.fontMetrics().lineSpacing()
+            top = self._text.y() + self._text.contentsRect().y()
+            if inner is not None and inner.sizeHint().height() > full and ls > 0 \
+                    and full - top > ls:
+                want = int((full - top) % ls)
+            if sc.viewportMargins().bottom() != want:
+                sc.setViewportMargins(0, 0, 0, want)
+        except RuntimeError:          # the panel is gone
+            pass
 
     def _show(self, page_id: str, title: str, text: str, buttons=(), ticks=()) -> "list":
         """One page: a title, its text, optional ticks and the answer buttons (none default).
@@ -862,6 +943,7 @@ class TableMeasureWindow(QFrame):
         self._tick_widgets = made_ticks
         self._buttons = made
         self._flow_choices()
+        self._fit_room()
         self._fit_text()
         QTimer.singleShot(0, self._fit_text)
         self._sync_footer()

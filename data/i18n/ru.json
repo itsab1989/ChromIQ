@@ -10123,5 +10123,17 @@
  "one instrument of the i1Pro family": "один прибор семейства i1Pro",
  "{build}: takes you to the {tab} tab. Your measurement is saved already, with the new readings in it. The profile is not built yet: press “{build_profile}” there when your settings are how you want them, and your updated ICC profile is made from the new readings.\n{close}: keeps the measurement and stays on this tab. Go to the {tab} tab yourself whenever you are ready to build the profile.\nTo read more patches with the table, press START MEASUREMENT again: ChromIQ asks you to take your hands away from the table before the arm moves.": "{build}: открывает вкладку {tab}. Ваше измерение уже сохранено, вместе с новыми показаниями. Профиль при этом ещё не собран: нажмите там «{build_profile}», когда настройки будут такими, как нужно, и обновлённый ICC-профиль будет собран по новым показаниям.\n{close}: оставляет измерение и остаётся на этой вкладке. Перейдите на вкладку {tab} сами, когда будете готовы собрать профиль.\nЧтобы считать столом ещё патчи, снова нажмите «Начать измерение»: ChromIQ попросит вас убрать руки от стола, прежде чем рука начнёт двигаться.",
  "{n} instruments of the i1Pro family": "приборы семейства i1Pro (всего {n})",
- "{n} other measuring instruments (USB ids {ids})": "другие измерительные приборы (всего {n}, USB ID {ids})"
+ "{n} other measuring instruments (USB ids {ids})": "другие измерительные приборы (всего {n}, USB ID {ids})",
+ "A reading belonged to another patch than the one the arm stood on.": "Показание относилось к другому патчу, а не к тому, над которым стояла рука.",
+ "A reading came back with values no printed patch can have, so ChromIQ did not keep it.": "Показание пришло со значениями, которых не может быть у напечатанного патча, поэтому ChromIQ его не сохранил.",
+ "A reading came back without any values.": "Показание пришло без каких-либо значений.",
+ "A reading was not taken where the patch is.": "Показание было снято не там, где находится патч.",
+ "ChromIQ's reading program could not use this chart.": "Программа чтения ChromIQ не смогла использовать эту мишень.",
+ "ChromIQ's reading program did not get ready in time.": "Программа чтения ChromIQ не успела подготовиться вовремя.",
+ "ChromIQ's reading program did not go on to the patch the arm stood on.": "Программа чтения ChromIQ не перешла к патчу, над которым стояла рука.",
+ "ChromIQ's reading program reported a fault.": "Программа чтения ChromIQ сообщила об ошибке.",
+ "ChromIQ's reading program stopped unexpectedly.": "Программа чтения ChromIQ неожиданно остановилась.",
+ "The calibration on the white tile did not succeed.": "Калибровка на белой плитке не удалась.",
+ "The instrument could not take a reading there.": "Прибору не удалось снять показание в этом месте.",
+ "The instrument has not been calibrated yet.": "Прибор ещё не откалиброван."
 }

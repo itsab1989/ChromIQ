@@ -9095,5 +9095,17 @@
  "one instrument of the i1Pro family": "ett instrument i i1Pro-familjen",
  "{build}: takes you to the {tab} tab. Your measurement is saved already, with the new readings in it. The profile is not built yet: press “{build_profile}” there when your settings are how you want them, and your updated ICC profile is made from the new readings.\n{close}: keeps the measurement and stays on this tab. Go to the {tab} tab yourself whenever you are ready to build the profile.\nTo read more patches with the table, press START MEASUREMENT again: ChromIQ asks you to take your hands away from the table before the arm moves.": "{build}: tar dig till fliken {tab}. Din mätning är redan sparad, med de nya mätvärdena i den. Profilen är inte byggd än: tryck på ”{build_profile}” där när inställningarna är som du vill ha dem, så byggs din uppdaterade ICC-profil av de nya mätvärdena.\n{close}: behåller mätningen och stannar på den här fliken. Gå själv till fliken {tab} när du är redo att bygga profilen.\nFör att läsa fler fält med bordet trycker du på STARTA MÄTNING igen: ChromIQ ber dig ta bort händerna från bordet innan armen rör sig.",
  "{n} instruments of the i1Pro family": "{n} instrument i i1Pro-familjen",
- "{n} other measuring instruments (USB ids {ids})": "{n} andra mätinstrument (USB-id {ids})"
+ "{n} other measuring instruments (USB ids {ids})": "{n} andra mätinstrument (USB-id {ids})",
+ "A reading belonged to another patch than the one the arm stood on.": "En avläsning hörde till ett annat fält än det armen stod på.",
+ "A reading came back with values no printed patch can have, so ChromIQ did not keep it.": "En avläsning kom tillbaka med värden som inget utskrivet fält kan ha, så ChromIQ behöll den inte.",
+ "A reading came back without any values.": "En avläsning kom tillbaka utan några värden.",
+ "A reading was not taken where the patch is.": "En avläsning gjordes inte där fältet finns.",
+ "ChromIQ's reading program could not use this chart.": "ChromIQ:s läsprogram kunde inte använda detta diagram.",
+ "ChromIQ's reading program did not get ready in time.": "ChromIQ:s läsprogram blev inte klart i tid.",
+ "ChromIQ's reading program did not go on to the patch the arm stood on.": "ChromIQ:s läsprogram gick inte vidare till fältet armen stod på.",
+ "ChromIQ's reading program reported a fault.": "ChromIQ:s läsprogram rapporterade ett fel.",
+ "ChromIQ's reading program stopped unexpectedly.": "ChromIQ:s läsprogram stoppade oväntat.",
+ "The calibration on the white tile did not succeed.": "Kalibreringen på den vita plattan lyckades inte.",
+ "The instrument could not take a reading there.": "Instrumentet kunde inte göra någon avläsning där.",
+ "The instrument has not been calibrated yet.": "Instrumentet har inte kalibrerats ännu."
 }

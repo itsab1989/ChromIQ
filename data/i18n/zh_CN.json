@@ -9095,5 +9095,17 @@
  "one instrument of the i1Pro family": "一台 i1Pro 系列的仪器",
  "{build}: takes you to the {tab} tab. Your measurement is saved already, with the new readings in it. The profile is not built yet: press “{build_profile}” there when your settings are how you want them, and your updated ICC profile is made from the new readings.\n{close}: keeps the measurement and stays on this tab. Go to the {tab} tab yourself whenever you are ready to build the profile.\nTo read more patches with the table, press START MEASUREMENT again: ChromIQ asks you to take your hands away from the table before the arm moves.": "{build}：带你前往“{tab}”标签页。你的测量已经保存，新的读数也已包含在内。配置文件此时还没有生成：等设置调整好后，在那里点击“{build_profile}”，就会用新的读数生成更新后的 ICC 配置文件。\n{close}：保留测量并停留在此标签页。准备好生成配置文件时，再自行前往“{tab}”标签页。\n要用扫描台读取更多色块，请再按一次「开始测量」：在机械臂移动之前，ChromIQ 会请你把手从扫描台上移开。",
  "{n} instruments of the i1Pro family": "{n} 台 i1Pro 系列的仪器",
- "{n} other measuring instruments (USB ids {ids})": "{n} 台其他测量仪器（USB ID {ids}）"
+ "{n} other measuring instruments (USB ids {ids})": "{n} 台其他测量仪器（USB ID {ids}）",
+ "A reading belonged to another patch than the one the arm stood on.": "有一个读数属于另一个色块，而不是机械臂所在的那个色块。",
+ "A reading came back with values no printed patch can have, so ChromIQ did not keep it.": "有一个读数返回的值是任何印刷色块都不可能有的，所以 ChromIQ 没有保留它。",
+ "A reading came back without any values.": "有一个读数返回时没有任何值。",
+ "A reading was not taken where the patch is.": "有一个读数没有在色块所在的位置读取。",
+ "ChromIQ's reading program could not use this chart.": "ChromIQ 的读取程序无法使用这张色卡。",
+ "ChromIQ's reading program did not get ready in time.": "ChromIQ 的读取程序没有及时准备就绪。",
+ "ChromIQ's reading program did not go on to the patch the arm stood on.": "ChromIQ 的读取程序没有继续到机械臂所在的色块。",
+ "ChromIQ's reading program reported a fault.": "ChromIQ 的读取程序报告了一个故障。",
+ "ChromIQ's reading program stopped unexpectedly.": "ChromIQ 的读取程序意外停止了。",
+ "The calibration on the white tile did not succeed.": "在白板上的校准没有成功。",
+ "The instrument could not take a reading there.": "仪器无法在那里读取。",
+ "The instrument has not been calibrated yet.": "仪器尚未校准。"
 }

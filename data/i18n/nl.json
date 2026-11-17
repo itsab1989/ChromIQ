@@ -9095,5 +9095,17 @@
  "one instrument of the i1Pro family": "één instrument uit de i1Pro-familie",
  "{build}: takes you to the {tab} tab. Your measurement is saved already, with the new readings in it. The profile is not built yet: press “{build_profile}” there when your settings are how you want them, and your updated ICC profile is made from the new readings.\n{close}: keeps the measurement and stays on this tab. Go to the {tab} tab yourself whenever you are ready to build the profile.\nTo read more patches with the table, press START MEASUREMENT again: ChromIQ asks you to take your hands away from the table before the arm moves.": "{build}: brengt je naar het tabblad {tab}. Je meting is al opgeslagen, met de nieuwe aflezingen erin. Het profiel is nog niet gemaakt: druk daar op ‘{build_profile}’ zodra je instellingen zijn zoals je ze wilt, en je bijgewerkte ICC-profiel wordt gemaakt uit de nieuwe aflezingen.\n{close}: bewaart de meting en blijft op dit tabblad. Ga zelf naar het tabblad {tab} wanneer je klaar bent om het profiel te maken.\nOm met de tafel meer meetvelden te lezen, druk je opnieuw op METING STARTEN: ChromIQ vraagt je je handen van de tafel weg te halen voordat de arm beweegt.",
  "{n} instruments of the i1Pro family": "{n} instrumenten uit de i1Pro-familie",
- "{n} other measuring instruments (USB ids {ids})": "{n} andere meetinstrumenten (USB-id's {ids})"
+ "{n} other measuring instruments (USB ids {ids})": "{n} andere meetinstrumenten (USB-id's {ids})",
+ "A reading belonged to another patch than the one the arm stood on.": "Een meting hoorde bij een ander meetveld dan het veld waarop de arm stond.",
+ "A reading came back with values no printed patch can have, so ChromIQ did not keep it.": "Een meting kwam terug met waarden die geen enkel geprint meetveld kan hebben, dus ChromIQ heeft hem niet bewaard.",
+ "A reading came back without any values.": "Een meting kwam terug zonder waarden.",
+ "A reading was not taken where the patch is.": "Een meting is niet gedaan op de plek waar het meetveld ligt.",
+ "ChromIQ's reading program could not use this chart.": "Het leesprogramma van ChromIQ kon deze kaart niet gebruiken.",
+ "ChromIQ's reading program did not get ready in time.": "Het leesprogramma van ChromIQ was niet op tijd klaar.",
+ "ChromIQ's reading program did not go on to the patch the arm stood on.": "Het leesprogramma van ChromIQ is niet doorgegaan naar het meetveld waarop de arm stond.",
+ "ChromIQ's reading program reported a fault.": "Het leesprogramma van ChromIQ heeft een fout gemeld.",
+ "ChromIQ's reading program stopped unexpectedly.": "Het leesprogramma van ChromIQ is onverwacht gestopt.",
+ "The calibration on the white tile did not succeed.": "De kalibratie op de witte tegel is niet gelukt.",
+ "The instrument could not take a reading there.": "Het instrument kon daar geen meting doen.",
+ "The instrument has not been calibrated yet.": "Het instrument is nog niet gekalibreerd."
 }

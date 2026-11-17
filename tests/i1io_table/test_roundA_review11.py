@@ -91,6 +91,10 @@ def test_m1_no_reason_id_is_ever_shown_as_text():
     src = "\n".join(p.read_text(encoding="utf-8")
                     for p in (ROOT / "workflow/i1io/table").glob("*.py"))
     ids = set(re.findall(r'Kind\.(?:REFUSED|STOPPED),\s*"([a-z][a-z0-9_]+)"', src))
+    # the reader's and the spot rows' failure ids reach the panel as a row's "why"
+    for name in ("spot.py", "reader.py"):
+        ids |= set(re.findall(r'"((?:reading|reader|helper|calibration)_[a-z_]+)"',
+                              (ROOT / "workflow/i1io/table" / name).read_text(encoding="utf-8")))
     ids |= {"ended_already_saved", "ended_already_discarded", "ended_already_nothing_read",
             "saved", "discarded", "nothing_read", "stopped_after_a_failed_row",
             "a_brand_new_id_nobody_wrote_a_sentence_for"}
@@ -99,6 +103,11 @@ def test_m1_no_reason_id_is_ever_shown_as_text():
         text = W.reason_text(rid)
         assert rid not in text, (rid, text)
         assert "(" + rid not in text
+    # every id the job and its reader really return has its own sentence
+    fallback = W.reason_text("a_brand_new_id_nobody_wrote_a_sentence_for")
+    plain = [rid for rid in sorted(ids) if "_" in rid and W.reason_text(rid) == fallback
+             and rid != "a_brand_new_id_nobody_wrote_a_sentence_for"]
+    assert plain == [], plain
 
 
 def test_m1_the_instrument_check_is_said_in_words():
@@ -600,3 +609,35 @@ def test_a_marker_in_cal_is_asked_at_a_start_on_a_profile_run(tmp_path):
     s1.mkdir(parents=True)
     (s1 / se.IN_USE_MARKER).write_text("{}", encoding="utf-8")
     assert (s1 / se.IN_USE_MARKER) in se.project_markers(Run.for_dir(run.dir))
+
+
+def test_note_a_long_text_ends_on_a_whole_line_at_the_scroll_edge(
+        qtbot, monkeypatch, tmp_path, settings):
+    win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
+                                                    consent=False)
+    win.resize(420, 520)
+    qtbot.wait(100)
+    assert win.pages_shown[-1] == "consent"
+    sc = win._scroll
+    qtbot.waitUntil(lambda: sc.widget().sizeHint().height() > sc.height(), timeout=3000)
+    qtbot.wait(100)
+    ls = win._text.fontMetrics().lineSpacing()
+    top = win._text.y() + win._text.contentsRect().y()
+    visible = sc.viewport().height() - top
+    assert visible % ls == 0, (visible, ls, sc.viewportMargins().bottom())
+
+
+@pytest.mark.parametrize("height", [430, 560, 900])
+def test_note_the_answers_never_stand_over_the_text(qtbot, monkeypatch, tmp_path, settings,
+                                                    height):
+    """In the lowest panel the question's area is never squeezed under the answers (seen on
+    screen in the smallest main window: the ending's text ran on under its buttons)."""
+    win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
+                                                    asking=False)
+    p.drive_until("end_of_session")
+    win.resize(440, height)
+    qtbot.wait(150)
+    sc = win._scroll.geometry()
+    first = min(b.geometry().top() for b in win._buttons)
+    assert sc.bottom() < first, (height, sc, first)
+    assert win._scroll.viewport().height() >= win._text.fontMetrics().lineSpacing() * 3

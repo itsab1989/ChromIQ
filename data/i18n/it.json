@@ -9095,5 +9095,17 @@
  "one instrument of the i1Pro family": "uno strumento della famiglia i1Pro",
  "{build}: takes you to the {tab} tab. Your measurement is saved already, with the new readings in it. The profile is not built yet: press “{build_profile}” there when your settings are how you want them, and your updated ICC profile is made from the new readings.\n{close}: keeps the measurement and stays on this tab. Go to the {tab} tab yourself whenever you are ready to build the profile.\nTo read more patches with the table, press START MEASUREMENT again: ChromIQ asks you to take your hands away from the table before the arm moves.": "{build}: ti porta alla scheda {tab}. La tua misurazione è già salvata, con dentro le nuove letture. Il profilo non è ancora creato: premi lì «{build_profile}» quando le impostazioni sono come le vuoi, e il tuo profilo ICC aggiornato verrà creato dalle nuove letture.\n{close}: conserva la misurazione e resta su questa scheda. Vai tu alla scheda {tab} quando sei pronto a creare il profilo.\nPer leggere altri tasselli con il tavolo, premi di nuovo AVVIA MISURAZIONE: ChromIQ ti chiede di togliere le mani dal tavolo prima che il braccio si muova.",
  "{n} instruments of the i1Pro family": "{n} strumenti della famiglia i1Pro",
- "{n} other measuring instruments (USB ids {ids})": "altri {n} strumenti di misura (ID USB {ids})"
+ "{n} other measuring instruments (USB ids {ids})": "altri {n} strumenti di misura (ID USB {ids})",
+ "A reading belonged to another patch than the one the arm stood on.": "Una lettura apparteneva a un tassello diverso da quello su cui si trovava il braccio.",
+ "A reading came back with values no printed patch can have, so ChromIQ did not keep it.": "Una lettura è arrivata con valori che nessun tassello stampato può avere, quindi ChromIQ non l'ha tenuta.",
+ "A reading came back without any values.": "Una lettura è arrivata senza alcun valore.",
+ "A reading was not taken where the patch is.": "Una lettura non è stata acquisita dove si trova il tassello.",
+ "ChromIQ's reading program could not use this chart.": "Il programma di lettura di ChromIQ non ha potuto usare questo grafico.",
+ "ChromIQ's reading program did not get ready in time.": "Il programma di lettura di ChromIQ non è stato pronto in tempo.",
+ "ChromIQ's reading program did not go on to the patch the arm stood on.": "Il programma di lettura di ChromIQ non è passato al tassello su cui si trovava il braccio.",
+ "ChromIQ's reading program reported a fault.": "Il programma di lettura di ChromIQ ha segnalato un errore.",
+ "ChromIQ's reading program stopped unexpectedly.": "Il programma di lettura di ChromIQ si è fermato inaspettatamente.",
+ "The calibration on the white tile did not succeed.": "La calibrazione sulla piastrella bianca non è riuscita.",
+ "The instrument could not take a reading there.": "Lo strumento non è riuscito ad acquisire una lettura in quel punto.",
+ "The instrument has not been calibrated yet.": "Lo strumento non è ancora stato calibrato."
 }

@@ -9095,5 +9095,17 @@
  "one instrument of the i1Pro family": "un instrument de la famille i1Pro",
  "{build}: takes you to the {tab} tab. Your measurement is saved already, with the new readings in it. The profile is not built yet: press “{build_profile}” there when your settings are how you want them, and your updated ICC profile is made from the new readings.\n{close}: keeps the measurement and stays on this tab. Go to the {tab} tab yourself whenever you are ready to build the profile.\nTo read more patches with the table, press START MEASUREMENT again: ChromIQ asks you to take your hands away from the table before the arm moves.": "{build} : t'emmène à l'onglet {tab}. Ta mesure est déjà enregistrée, avec les nouvelles lectures. Le profil n'est pas encore créé : appuie là-bas sur « {build_profile} » quand tes réglages te conviennent, et ton profil ICC mis à jour sera créé à partir des nouvelles lectures.\n{close} : garde la mesure et reste sur cet onglet. Va toi-même à l'onglet {tab} quand tu es prêt à créer le profil.\nPour lire d'autres plages avec la table, appuie de nouveau sur DÉMARRER LA MESURE : ChromIQ te demande de retirer tes mains de la table avant que le bras ne bouge.",
  "{n} instruments of the i1Pro family": "{n} instruments de la famille i1Pro",
- "{n} other measuring instruments (USB ids {ids})": "{n} autres instruments de mesure (identifiants USB {ids})"
+ "{n} other measuring instruments (USB ids {ids})": "{n} autres instruments de mesure (identifiants USB {ids})",
+ "A reading belonged to another patch than the one the arm stood on.": "Une lecture appartenait à une autre plage que celle sur laquelle se trouvait le bras.",
+ "A reading came back with values no printed patch can have, so ChromIQ did not keep it.": "Une lecture est revenue avec des valeurs qu'aucune plage imprimée ne peut avoir, donc ChromIQ ne l'a pas gardée.",
+ "A reading came back without any values.": "Une lecture est revenue sans aucune valeur.",
+ "A reading was not taken where the patch is.": "Une lecture n'a pas été prise à l'endroit où se trouve la plage.",
+ "ChromIQ's reading program could not use this chart.": "Le programme de lecture de ChromIQ n'a pas pu utiliser cette mire.",
+ "ChromIQ's reading program did not get ready in time.": "Le programme de lecture de ChromIQ n'a pas été prêt à temps.",
+ "ChromIQ's reading program did not go on to the patch the arm stood on.": "Le programme de lecture de ChromIQ n'est pas passé à la plage sur laquelle se trouvait le bras.",
+ "ChromIQ's reading program reported a fault.": "Le programme de lecture de ChromIQ a signalé une erreur.",
+ "ChromIQ's reading program stopped unexpectedly.": "Le programme de lecture de ChromIQ s'est arrêté de façon inattendue.",
+ "The calibration on the white tile did not succeed.": "La calibration sur la pastille blanche n'a pas réussi.",
+ "The instrument could not take a reading there.": "L'instrument n'a pas pu prendre de lecture à cet endroit.",
+ "The instrument has not been calibrated yet.": "L'instrument n'a pas encore été calibré."
 }

@@ -9095,5 +9095,17 @@
  "one instrument of the i1Pro family": "i1Pro ファミリーの測定器 1 台",
  "{build}: takes you to the {tab} tab. Your measurement is saved already, with the new readings in it. The profile is not built yet: press “{build_profile}” there when your settings are how you want them, and your updated ICC profile is made from the new readings.\n{close}: keeps the measurement and stays on this tab. Go to the {tab} tab yourself whenever you are ready to build the profile.\nTo read more patches with the table, press START MEASUREMENT again: ChromIQ asks you to take your hands away from the table before the arm moves.": "{build}：{tab} タブへ移動します。測定はすでに保存されており、新しい読み取り値が入っています。プロファイルはまだ作成されていません。設定が整ったらそのタブで「{build_profile}」を押してください。新しい読み取り値から更新された ICC プロファイルが作成されます。\n{close}：測定を残したまま、このタブにとどまります。プロファイルを作成する準備ができたら、ご自身で {tab} タブへ移動してください。\nテーブルでさらにパッチを読み取るには、もう一度「測定を開始」を押してください。アームが動く前に、ChromIQ がテーブルから手を離すよう求めます。",
  "{n} instruments of the i1Pro family": "i1Pro ファミリーの測定器 {n} 台",
- "{n} other measuring instruments (USB ids {ids})": "ほかの測定器 {n} 台（USB ID {ids}）"
+ "{n} other measuring instruments (USB ids {ids})": "ほかの測定器 {n} 台（USB ID {ids}）",
+ "A reading belonged to another patch than the one the arm stood on.": "読み取りの 1 つが、アームの下にあったパッチとは別のパッチのものでした。",
+ "A reading came back with values no printed patch can have, so ChromIQ did not keep it.": "読み取りの 1 つに、印刷されたパッチではありえない値が返ってきたため、ChromIQ はそれを残しませんでした。",
+ "A reading came back without any values.": "読み取りの 1 つが、値をまったく含まずに返ってきました。",
+ "A reading was not taken where the patch is.": "読み取りの 1 つが、パッチのある位置で行われませんでした。",
+ "ChromIQ's reading program could not use this chart.": "ChromIQ の読み取りプログラムはこのチャートを使用できませんでした。",
+ "ChromIQ's reading program did not get ready in time.": "ChromIQ の読み取りプログラムが時間内に準備できませんでした。",
+ "ChromIQ's reading program did not go on to the patch the arm stood on.": "ChromIQ の読み取りプログラムが、アームの下にあったパッチへ進みませんでした。",
+ "ChromIQ's reading program reported a fault.": "ChromIQ の読み取りプログラムがエラーを報告しました。",
+ "ChromIQ's reading program stopped unexpectedly.": "ChromIQ の読み取りプログラムが予期せず停止しました。",
+ "The calibration on the white tile did not succeed.": "白色タイルでのキャリブレーションに成功しませんでした。",
+ "The instrument could not take a reading there.": "測定器はその位置で読み取りを行えませんでした。",
+ "The instrument has not been calibrated yet.": "測定器はまだキャリブレーションされていません。"
 }

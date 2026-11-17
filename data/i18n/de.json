@@ -9095,5 +9095,17 @@
  "one instrument of the i1Pro family": "ein Messgerät der i1Pro-Familie",
  "{build}: takes you to the {tab} tab. Your measurement is saved already, with the new readings in it. The profile is not built yet: press “{build_profile}” there when your settings are how you want them, and your updated ICC profile is made from the new readings.\n{close}: keeps the measurement and stays on this tab. Go to the {tab} tab yourself whenever you are ready to build the profile.\nTo read more patches with the table, press START MEASUREMENT again: ChromIQ asks you to take your hands away from the table before the arm moves.": "{build}: bringt dich zum Tab {tab}. Deine Messung ist bereits gespeichert, mit den neuen Messwerten darin. Das Profil ist noch nicht erstellt: Drücke dort „{build_profile}“, wenn deine Einstellungen so sind, wie du sie möchtest, und dein aktualisiertes ICC-Profil wird aus den neuen Messwerten erstellt.\n{close}: behält die Messung und bleibt auf diesem Tab. Geh selbst zum Tab {tab}, sobald du das Profil erstellen möchtest.\nUm mit dem Tisch weitere Felder zu messen, drücke erneut MESSUNG STARTEN: ChromIQ bittet dich, die Hände vom Tisch zu nehmen, bevor der Arm sich bewegt.",
  "{n} instruments of the i1Pro family": "{n} Messgeräte der i1Pro-Familie",
- "{n} other measuring instruments (USB ids {ids})": "{n} weitere Messgeräte (USB-Kennungen {ids})"
+ "{n} other measuring instruments (USB ids {ids})": "{n} weitere Messgeräte (USB-Kennungen {ids})",
+ "A reading belonged to another patch than the one the arm stood on.": "Ein Messwert gehörte zu einem anderen Feld als dem, über dem der Arm stand.",
+ "A reading came back with values no printed patch can have, so ChromIQ did not keep it.": "Ein Messwert kam mit Werten zurück, die kein gedrucktes Feld haben kann, daher hat ChromIQ ihn nicht behalten.",
+ "A reading came back without any values.": "Ein Messwert kam ganz ohne Werte zurück.",
+ "A reading was not taken where the patch is.": "Ein Messwert wurde nicht dort genommen, wo das Feld ist.",
+ "ChromIQ's reading program could not use this chart.": "Das Messprogramm von ChromIQ konnte dieses Chart nicht verwenden.",
+ "ChromIQ's reading program did not get ready in time.": "Das Messprogramm von ChromIQ wurde nicht rechtzeitig bereit.",
+ "ChromIQ's reading program did not go on to the patch the arm stood on.": "Das Messprogramm von ChromIQ ist nicht zu dem Feld weitergegangen, über dem der Arm stand.",
+ "ChromIQ's reading program reported a fault.": "Das Messprogramm von ChromIQ hat einen Fehler gemeldet.",
+ "ChromIQ's reading program stopped unexpectedly.": "Das Messprogramm von ChromIQ wurde unerwartet beendet.",
+ "The calibration on the white tile did not succeed.": "Die Kalibrierung auf der weißen Kachel ist nicht gelungen.",
+ "The instrument could not take a reading there.": "Das Messgerät konnte dort keinen Messwert nehmen.",
+ "The instrument has not been calibrated yet.": "Das Messgerät ist noch nicht kalibriert."
 }
