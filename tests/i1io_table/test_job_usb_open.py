@@ -383,7 +383,7 @@ def test_the_job_names_a_table_without_the_driver_on_windows(state):
     pf = us.Preflight("windows", {}, us.Check("ok"), us.Check("cannot_tell"), None,
                       us.Check(state))
     job, sim, _t = H.make_job(preflight=pf)
-    r = job.open()
+    r = H.Person(job, sim).drive(job.open())
     assert (r.kind, r.reason) == (J.Kind.REFUSED, "driver_not_installed_for_table")
     assert r.detail["driver_state"] == state and sim.received == []
 
@@ -392,7 +392,7 @@ def test_the_job_says_driver_installed_on_windows():
     pf = us.Preflight("windows", {}, us.Check("ok"), us.Check("cannot_tell"), None,
                       us.Check("libusb0"))
     job, sim, _t = H.make_job(preflight=pf)
-    r = job.open()
+    r = H.Person(job, sim).drive(job.open())
     assert r.ok and r.detail["table_driver"] == "driver_installed"
 
 
@@ -413,7 +413,7 @@ def test_anything_but_one_i1pro_and_a_free_table_is_refused_before_anything_is_s
     opened = []
     job, sim, t = H.make_job(preflight=pf)
     job._open_transport = lambda: opened.append(1)
-    r = job.open()
+    r = H.Person(job, sim).drive(job.open())
     assert (r.kind, r.reason) == (J.Kind.REFUSED, reason)
     assert opened == [] and sim.received == []
 
@@ -421,13 +421,13 @@ def test_anything_but_one_i1pro_and_a_free_table_is_refused_before_anything_is_s
 def test_a_holder_list_that_cannot_tell_does_not_refuse():
     pf = us.Preflight("linux", {}, us.Check("ok"), us.Check("cannot_tell"), None)
     job, sim, _t = H.make_job(preflight=pf)
-    assert job.open().ok
+    assert H.Person(job, sim).drive(job.open()).ok
 
 
 def test_i1profiler_running_is_refused_before_opening():
     pf = us.Preflight("macos", {}, us.Check("ok"), us.Check("nobody_listed"), True)
     job, sim, _t = H.make_job(preflight=pf)
-    r = job.open()
+    r = H.Person(job, sim).drive(job.open())
     assert r.reason == "i1profiler_running" and sim.received == []
 
 
@@ -439,7 +439,7 @@ def test_only_a_chart_for_an_i1io_2_with_an_i1pro_2_is_driven(model):
     opened = []
     job, sim, _t = H.make_job(sheet=sheet)
     job._preflight = lambda: opened.append("preflight")
-    r = job.open()
+    r = H.Person(job, sim).drive(job.open())
     assert r.reason == "chart_not_for_i1io2_with_i1pro2" and opened == [] and \
         sim.received == []
 
@@ -452,10 +452,10 @@ def test_a_refused_usb_opening_is_a_named_refusal(message_id):
     def refuse():
         raise tbl.NotAvailable(message_id, problem="x")
     job._open_transport = refuse
-    r = job.open()
+    r = H.Person(job, sim).drive(job.open())
     assert (r.kind, r.reason, r.detail["message_id"]) == (J.Kind.REFUSED, "usb_open_refused",
                                                           message_id)
-    assert job.d is None and sim.received == []
+    assert job._table is None and sim.received == []
 
 
 def test_the_descriptor_check_refuses_another_device_before_anything():

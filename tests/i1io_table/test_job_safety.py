@@ -147,23 +147,23 @@ def test_a_row_or_page_beyond_the_layouts_maxima_is_refused(shape, what):
 
 def test_a_row_beyond_the_layouts_longest_row_is_refused_by_the_job():
     job, sim, _t = H.make_job(sheet=shaped_sheet([34]))
-    r = job.open()
+    r = H.Person(job, sim).drive(job.open())
     assert (r.kind, r.reason) == (J.Kind.REFUSED, "chart_beyond_layout_maxima")
     assert r.detail["what"] == "per_row" and sim.received == []
 
 
 def test_a_page_beyond_the_layouts_densest_page_is_refused_by_the_job():
     job, sim, _t = H.make_job(sheet=shaped_sheet([30] * 31))
-    r = job.open()
+    r = H.Person(job, sim).drive(job.open())
     assert r.reason == "chart_beyond_layout_maxima" and sim.received == []
 
 
 def test_the_caps_are_on_the_table_before_the_first_line():
     job, sim, _t = H.make_job()
-    assert job.open().ok
+    assert H.Person(job, sim).drive(job.open()).ok
     c = cp.caps_for_sheet(H.demo_sheet())
-    assert job.d.c_caps == (c.lines, c.moves) and job.d.part == "C"
-    assert job.d.c_gate is not None
+    assert job._table.c_caps == (c.lines, c.moves) and job._table.part == "C"
+    assert job._table.c_gate is not None
 
 
 def test_a_session_that_exceeds_its_derived_cap_is_stopped(monkeypatch):
@@ -176,7 +176,7 @@ def test_a_session_that_exceeds_its_derived_cap_is_stopped(monkeypatch):
     p = H.Person(job, sim)
     sim.aims = H.demo_aims()           # the sheet's marks are not checked here: refused aims
     assert p.drive(job.open()).ok
-    cap = job.d.c_caps[0]
+    cap = job._table.c_caps[0]
     res = None
     for _ in range(200):
         res = p.drive(job.align())
@@ -205,7 +205,7 @@ def test_a_densest_page_aligns_within_its_caps_on_the_simulator():
     kinds = [(r.step, r.kind, r.reason) for r in res]
     assert all(k != J.Kind.STOPPED for _s, k, _r in kinds), kinds
     assert res[1].ok and sim.violations == []
-    assert len(sim.received) < job.d.c_caps[0]
+    assert len(sim.received) < job._table.c_caps[0]
 
 
 # ---- the creep ---------------------------------------------------------------------------
@@ -386,7 +386,7 @@ def test_a_lost_link_at_every_line_ends_truthfully(i):
     else:
         assert r.way_back == J.WayBack.LINK_LOST_REPLUG
     # the state is the last READ one
-    assert r.state.last_read == job.d.last_read
+    assert r.state.last_read == job._table.last_read
     assert res[-1].step == "close" and res[-1].way_back == r.way_back
 
 
@@ -396,7 +396,7 @@ def test_a_lost_link_during_the_start_up_says_switch_off_first():
     res, job, sim, _p = H.run_steps(["open", "start_up"], sim=sim)
     r = res[1]
     assert (r.kind, r.reason) == (J.Kind.STOPPED, "link_lost")
-    assert job.d.cold_failure == "link"
+    assert job._table.cold_failure == "link"
     assert r.way_back in (J.WayBack.LINK_LOST_SWITCH_OFF_FIRST, J.WayBack.COLD_WAY_OUT)
 
 
@@ -408,7 +408,7 @@ def test_the_pending_marker_is_written_and_read_at_the_next_start(tmp_path):
     p = H.Person(job, sim)
     assert p.drive(job.open()).ok
     # a strip move that may be pending (the scan path's own closing reason)
-    job.d.close_for_sending("a scan move may be pending")
+    job._table.close_for_sending("a scan move may be pending")
     c = job.close()
     assert c.state.strip_move_may_be_pending and c.way_back == J.WayBack.SWITCH_OFF_PENDING
     assert run.i1io_table_pending_markers() == [run.i1io_table_pending_marker("20261117-100000")]
@@ -417,7 +417,7 @@ def test_the_pending_marker_is_written_and_read_at_the_next_start(tmp_path):
     p2 = H.Person(job2, sim2, {J.Confirm.MARKER: "stop"})
     r = p2.drive(job2.open())
     assert (r.kind, r.reason) == (J.Kind.REFUSED, "pending_marker_not_cleared")
-    assert sim2.received == [] and job2.d is None
+    assert sim2.received == [] and job2._table is None
     # confirmed: acknowledged beside the marker (the marker is kept), then the opening
     job3, sim3, _t3 = H.make_job(run=run, stamp="20261117-101000")
     r = H.Person(job3, sim3).drive(job3.open())
@@ -426,7 +426,9 @@ def test_the_pending_marker_is_written_and_read_at_the_next_start(tmp_path):
     assert marker.is_file() and marker.with_suffix(".acknowledged.json").is_file()
     # a later start is not asked again
     job4, sim4, _t4 = H.make_job(run=run, stamp="20261117-101500")
-    assert job4.open().ok
+    p4 = H.Person(job4, sim4)
+    assert p4.drive(job4.open()).ok
+    assert not any(k == J.Confirm.MARKER for _s, k, *_ in p4.asked)
 
 
 def test_the_marker_name_is_the_scan_modules_and_the_runs():
@@ -571,7 +573,7 @@ def test_a_start_up_that_does_not_end_as_recorded_stops(kind):
     r = p.drive(job.start_up())
     assert r.kind == J.Kind.STOPPED
     assert r.way_back in (J.WayBack.COLD_WAY_OUT, J.WayBack.SWITCH_OFF_UNFINISHED)
-    assert job.d.cold_failure in ("outside", "no_answer", "bad_answer")
+    assert job._table.cold_failure in ("outside", "no_answer", "bad_answer")
     assert len(sim.received) == 7
 
 
@@ -617,7 +619,8 @@ def test_cancel_at_every_confirmation_sends_nothing_more():
                                           on_ask=on_ask, sheet=sheet, aims=pts)
         stopped = [r for r in out if r.kind == J.Kind.STOPPED]
         assert stopped and stopped[0].reason == "cancelled_by_person", k
-        assert stopped[0].state.sending_closed, k          # at once, not only at the close
+        # at once, not only at the close (before the opening there is nothing to close)
+        assert stopped[0].state.sending_closed or job2._table is None, k
         n = len(sim2.received)
         assert job2.home().kind == J.Kind.REFUSED and len(sim2.received) == n
 

@@ -277,6 +277,36 @@ and loads it at run time as a separate file, so it can be replaced by another bu
 libusb 1.0.30 as published by the libusb project (https://github.com/libusb/libusb/releases/tag/v1.0.30)
 and, as packaged, the `libusb-package` project's tag v1.0.30.1 (https://github.com/pyocd/libusb-package/tree/v1.0.30.1), which builds it from libusb's unmodified v1.0.30 source (included there as a submodule). Windows on ARM64 is built without it (no package exists for that system).
 
+## USB driver installer on Windows — `wdi-simple` (libwdi), libusb-win32, libusbK, Zadig
+
+The Windows build ships ChromIQ's USB driver installer, `wdi_simple.exe`, built from **libwdi**
+(commit 30df0c0e051b0132c4b9ebed8c054bc8eb3aaaec, https://github.com/pbatard/libwdi), and
+**Zadig 2.9** as its fallback. Their licence texts travel with the app under
+`licenses/usb-driver-installer/` (`vendor/usb-driver-installer/README.md` lists them).
+
+**wdi-simple and libwdi**, copyright © 2010-2023 Pete Batard and the contributors in libwdi's
+`AUTHORS`. **Terms: the GNU Lesser General Public License, version 3 or later**, from the headers
+of libwdi's own source files; its `COPYING-LGPL` and the GNU GPL v3 text it builds on travel with
+the app. ChromIQ builds it from libwdi's unmodified source.
+
+**Zadig 2.9**, copyright © 2010-2025 Pete Batard. **Terms: the GNU General Public License,
+version 3 or later**, from its own source; the text travels with the app. Its source is libwdi's
+release v1.5.1.
+
+**libusb-win32 1.4.0.0**, embedded in wdi-simple, the driver it installs (`libusb0.sys`) and its
+library (`libusb0.dll`); copyright © Stephan Meyer, Johannes Erdfelt, Thomas Sailer, Travis
+Robinson and its other authors. **Terms, from the package's own licence file: the driver under the
+GNU General Public License, the library, test files and installer under the GNU Lesser General
+Public License, both version 3.** Source: https://github.com/mcuee/libusb-win32/releases/tag/release_1.4.0.0.
+
+**libusbK 3.1.0.0**, embedded in wdi-simple; copyright © 2011-2012 Travis Lee Robinson. **Terms:
+the New BSD licence**, one option of its dual licence, whose text travels with the app. Source:
+https://github.com/mcuee/libusbk/releases/tag/V3.1.0.0.
+
+wdi-simple also carries Microsoft's WDF co-installer from the Windows Driver Kit 8.0
+redistributable package, which libwdi needs for WinUSB, under Microsoft's own terms for that
+package; those terms were not re-checked for this entry.
+
 ## Argyll-derived helpers — `native/`
 
 `native/argyll/LICENSE` (AGPLv3), `native/instlib/License.txt` (AGPLv3) and

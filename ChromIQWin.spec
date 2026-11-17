@@ -132,7 +132,18 @@ _usb_licences = [(os.path.join('vendor', 'usb', _n), 'licenses/usb')
                             'importlib_resources-LICENSE')]
 _USB_HIDDENIMPORTS = ['core.usb_library', 'usb', 'usb.core', 'usb.util',
                       'usb.backend', 'usb.backend.libusb1', 'libusb_package',
-                      'importlib_resources']
+                      'importlib_resources',
+                      # Windows reaches the table through libusb-win32 (owner's ruling,
+                      # build step 6): pyusb's libusb0 backend on the driver's own DLL
+                      'usb.backend.libusb0']
+# The driver installer's licences (wdi-simple / libwdi, libusb-win32, libusbK, Zadig):
+# vendor/usb-driver-installer/README.md, THIRD-PARTY-NOTICES.md.
+_driver_installer_licences = [
+    (os.path.join('vendor', 'usb-driver-installer', _n), 'licenses/usb-driver-installer')
+    for _n in ('README.md', 'libwdi-COPYING-LGPL', 'libwdi-COPYING', 'libwdi-AUTHORS',
+               'libusb-win32-installer_license.txt', 'libusb-win32-COPYING_GPL.txt',
+               'libusb-win32-COPYING_LGPL.txt', 'libusb-win32-AUTHORS.txt',
+               'libusbK-LICENSE-bsd.txt', 'libusbK-AUTHORS.txt')]
 
 a = Analysis(
     ['main.py'],
@@ -140,6 +151,7 @@ a = Analysis(
     binaries=[*_ic_binaries, *_winpty_binaries, *_we_binaries, *_usb_binaries],
     datas=[
         *_usb_licences,
+        *_driver_installer_licences,
         ('LICENSE',              '.'),
         ('THIRD-PARTY-NOTICES.md', '.'),
         *_native_licences,

@@ -76,7 +76,10 @@ OK_PREFLIGHT = us.Preflight("macos", {"platform": "darwin"}, us.Check("ok", {"i1
 DEFAULT = {J.Confirm.START_UP: "yes", J.Confirm.GO: "yes", J.Confirm.SHEET_LAID: "yes",
            J.Confirm.ARM_FELT: "free", J.Confirm.AIMED: "aimed", J.Confirm.FRONT_CHOICE: "back",
            J.Confirm.FRONT_YES: "yes", J.Confirm.FIRST_VISIT: "yes",
-           J.Confirm.MARKER: "switched off and on"}
+           J.Confirm.MARKER: "switched off and on", J.Confirm.READY_TO_OPEN: "yes",
+           #: the person's report after a step that moved (tester: "did it do what was
+           #: described?"; its AutoConsole answered "yes")
+           "report": "as described"}
 
 
 class Person:
@@ -85,6 +88,7 @@ class Person:
         self.script = dict(DEFAULT)
         self.script.update(script or {})
         self.asked: "list[tuple]" = []
+        self.reports: "list[tuple[str, str]]" = []
         self.on_ask = on_ask
 
     def drive(self, res):
@@ -101,11 +105,15 @@ class Person:
             if res.confirm == J.Confirm.AIMED and ans == "aimed":
                 self.sim.aim(res.detail["mark"])
             res = self.job.answer(res.confirm, ans)
+        if res.confirm == J.Confirm.REPORT_AFTER_STEP and self.script.get("report") is not None:
+            self.reports.append((self.job.report_due, self.script["report"]))
+            self.report_result = self.job.answer(J.Confirm.REPORT_AFTER_STEP,
+                                                 self.script["report"])
         return res
 
 
 def make_job(sim=None, sheet=None, aims=None, folder=None, preflight=None, run=None, stamp=None,
-             other_program=None, **simkw):
+             other_program=None, ask_after_each_step=True, **simkw):
     sheet = sheet or demo_sheet()
     if sim is None:
         sim = csim.CSimTable(part_c=True, aims=aims or demo_aims(sheet), **simkw)
@@ -117,7 +125,8 @@ def make_job(sim=None, sheet=None, aims=None, folder=None, preflight=None, run=N
     job = J.TableJob(sheet, folder=folder, run=run, stamp=stamp,
                      open_transport=lambda: transport,
                      preflight=lambda: preflight or OK_PREFLIGHT,
-                     other_program=other_program or (lambda: False))
+                     other_program=other_program or (lambda: False),
+                     ask_after_each_step=ask_after_each_step)
     return job, sim, transport
 
 

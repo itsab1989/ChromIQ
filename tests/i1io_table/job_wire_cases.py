@@ -49,7 +49,7 @@ def cases(base_len: int = 54):
     return out
 
 
-def job_lines(case: dict):
+def job_lines(case: dict, ask_after_each_step: bool = True):
     kw = {}
     sheet = aims = None
     if "recorded" in case:
@@ -65,7 +65,8 @@ def job_lines(case: dict):
     if "cancel_at" in case:
         sim.on_command = (lambda k, i=case["cancel_at"]: holder["job"].cancel()
                           if k == i else None)
-    job, sim, _t = H.make_job(sim=sim, sheet=sheet, aims=aims)
+    job, sim, _t = H.make_job(sim=sim, sheet=sheet, aims=aims,
+                              ask_after_each_step=ask_after_each_step)
     holder["job"] = job
     person = H.Person(job, sim, case.get("script"))
     results = []

@@ -235,6 +235,15 @@ def test_the_windows_driver_installer_never_targets_the_table_without_the_explic
     assert (dev.vid, dev.pid) == ("0971", "2004") and isinstance(dev, inst.TableUsbDevice)
     got = inst.install_winusb(dev)
     assert got is not inst.InstallAttempt.REFUSED      # NOT_WINDOWS here, the install on Windows
+    # review of step 6: the guard checks the person's CHOICE, not the type: a TableUsbDevice
+    # built directly in code, or one whose choice was changed afterwards, is refused
+    direct = inst.TableUsbDevice("0971", "2004", "X-Rite i1iO 2 table", False)
+    assert inst.install_winusb(direct) is inst.InstallAttempt.REFUSED
+    forged = inst.TableUsbDevice("0971", "2004", "X-Rite i1iO 2 table", False)
+    forged.choice = object()
+    assert inst.install_winusb(forged) is inst.InstallAttempt.REFUSED
+    dev.choice.words = "yes"
+    assert inst.install_winusb(dev) is inst.InstallAttempt.REFUSED
     # nothing else in ChromIQ builds the choice: only the module itself names it
     users = [f for base in ("core", "ui", "workflow", "scripts")
              for f in (ROOT / base).rglob("*.py")

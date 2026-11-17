@@ -55,6 +55,7 @@ def test_the_package_holds_the_five_moved_modules_and_the_job():
 STDLIB = {"__future__", "csv", "json", "os", "time", "dataclasses", "pathlib", "math", "random",
           "re", "queue", "subprocess", "sys", "threading", "plistlib", "signal", "ctypes",
           "usb",          # pyusb: imported only inside open_table, when a real table is opened
+          "copy",         # job.py: its own copy of the chart (review of step 6)
           "getpass"}      # diagnostics.py: the user's name, only to keep it OUT of the log
 
 

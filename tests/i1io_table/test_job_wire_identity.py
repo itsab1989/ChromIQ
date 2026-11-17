@@ -27,9 +27,12 @@ def test_every_captured_sitting_has_a_job_case():
     assert len(CASES) == 285
 
 
+@pytest.mark.parametrize("asking", [True, False], ids=["asking mode", "not asking"])
 @pytest.mark.parametrize("name", sorted(CASES))
-def test_the_job_sends_what_tester_060_sends(name):
-    got, results, sim = W.job_lines(CASES[name])
+def test_the_job_sends_what_tester_060_sends(name, asking):
+    """Both modes of the owner's ruling: asking after each step (the person answers "as
+    described" every time, as the tester's automatic person did) and not asking."""
+    got, results, sim = W.job_lines(CASES[name], ask_after_each_step=asking)
     want = TESTER["sittings"][name]
     if isinstance(want, list):
         assert got == want

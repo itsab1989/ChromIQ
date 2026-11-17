@@ -38,6 +38,7 @@ Nothing in the app imports this yet (tests/test_i1io_table_not_reached_by_the_ap
 """
 from __future__ import annotations
 
+import copy
 import json
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -72,6 +73,8 @@ class Confirm:
     FRONT_YES = "front_yes"          # FRONT_YES: go on needs its own yes
     FIRST_VISIT = "first_visit"      # a move into a part no recording drove the arm to
     MARKER = "pending_marker"        # a strip move may still wait: the table was switched off?
+    READY_TO_OPEN = "ready_to_open"  # tester PRE_QUESTIONS: the arm at rest, the bed clear
+    REPORT_AFTER_STEP = "report_after_step"   # asking mode: did it do what was described?
 
 
 CHOICES = {
@@ -84,7 +87,41 @@ CHOICES = {
     Confirm.FRONT_YES: ("yes", "no"),
     Confirm.FIRST_VISIT: ("yes", "no"),
     Confirm.MARKER: ("switched off and on", "stop"),
+    Confirm.READY_TO_OPEN: ("yes", "stop"),
+    Confirm.REPORT_AFTER_STEP: ("as described", "something wrong", "not sure"),
 }
+#: the facts READY_TO_OPEN stands for (the later window may ask them as separate ticks; the
+#: answer "yes" means every one of them is confirmed)
+READY_TO_OPEN_ITEMS = ("arm_at_its_resting_place", "nothing_on_the_bed_but_the_sheet")
+
+#: B' (the owner's ruling on the review of step 6): no question after every step; the person
+#: can report a problem AT ANY TIME instead (the window's always-visible Stop / "Something is
+#: wrong" control): report_problem(kind) with one of these
+PROBLEM_STOP_NOW = "stop now"
+PROBLEM_SOMETHING_WRONG = "something looked or sounded wrong"
+PROBLEM_KINDS = (PROBLEM_STOP_NOW, PROBLEM_SOMETHING_WRONG)
+#: the person's own words (the owner: "the window could offer to enter what went wrong"):
+#: at most this many characters; longer is cut with NOTE_CUT_MARK
+NOTE_MAX_CHARS = 2000
+NOTE_CUT_MARK = " [cut: the note was longer]"
+
+
+def clean_note(note) -> str:
+    """A person's free text, made safe for the log and the JSON: control characters (newlines,
+    tabs, escapes) become spaces, runs of spaces one, at most NOTE_MAX_CHARS kept. The scrub of
+    paths, names and hex runs follows in the diagnostics, as for every line."""
+    if note is None:
+        return ""
+    text = "".join(ch if ch.isprintable() else " " for ch in str(note))
+    text = " ".join(text.split())
+    if len(text) > NOTE_MAX_CHARS:
+        text = text[:NOTE_MAX_CHARS] + NOTE_CUT_MARK
+    return text
+
+
+#: the named state close() returns after a clean measurement in the asking mode: the window may
+#: offer "do not ask after each step from now on" (the job stores nothing about the mode)
+MAY_OFFER_DO_NOT_ASK_AGAIN = "may_offer_do_not_ask_again"
 
 
 #: the tester's names for the answers in a result block (the analysis script reads them)
@@ -124,6 +161,7 @@ class TableState:
     moves_sent: int
     front_y: "int | None"
     only_homing: bool
+    stopped_by_person: bool = False
 
 
 @dataclass(frozen=True)
@@ -324,8 +362,10 @@ class TableJob:
 
     def __init__(self, sheet: dict, page: int = 0, *, run=None, stamp: "str | None" = None,
                  folder: "Path | None" = None, open_transport=None, preflight=None,
-                 other_program=None):
-        self.sheet = sheet
+                 other_program=None, ask_after_each_step: bool = True):
+        # the job's OWN copy (review of step 6): the caps are derived from it, and a caller
+        # changing its chart afterwards changes nothing here
+        self.sheet = copy.deepcopy(sheet)
         self.page = int(page)
         self.run, self.stamp = run, stamp
         if run is not None and stamp is not None:
@@ -336,7 +376,9 @@ class TableJob:
         self._open_transport = open_transport or tbl.open_table
         self._preflight = preflight or us.preflight
         self._other_program = other_program
-        self.d: "tbl.Table | None" = None
+        #: the table: PRIVATE (review of step 6): a window drives the job's steps, never the
+        #: table itself, so GO, stillness, first visit and the arrival checks cannot be skipped
+        self._table: "tbl.Table | None" = None
         self.transport = None
         self.caps: "cp.Caps | None" = None
         self.phase = "new"            # new, open, closed
@@ -347,6 +389,25 @@ class TableJob:
         self.worked: "set[str]" = set()
         self.runs: "dict[tuple[int, str], int]" = {}
         self.only_home = False
+        #: B': every problem the person reported, never lost (kind, the step it came in, the
+        #: lines sent by then)
+        self.problems: "list[tuple[str, str | None, int]]" = []
+        #: the person's notes that belong to no step (before the first one)
+        self.session_notes: "list[dict]" = []
+        #: the owner's ruling: True = the "first measurement" mode (after every step that
+        #: moved, and after the start-up, REPORT_AFTER_STEP; the safety review's change B);
+        #: False = no question, report_problem() and the automatic checks (B'). The window
+        #: passes it; the job stores nothing about it.
+        self.ask_after_each_step = bool(ask_after_each_step)
+        #: asking mode: the step whose report is due (None: none due); every moving step but
+        #: the homing is refused until it is answered
+        self.report_due: "str | None" = None
+        #: asking mode: every report given (step, answer)
+        self.reports: "list[tuple[str, str]]" = []
+        #: "stop now" was reported: nothing more is ever sent, nothing more is opened
+        self.stopped_by_person = False
+        #: GO is asked once per page (the owner's ruling: no question after every step)
+        self._go_page: "int | None" = None
         self.notes: "list[tuple[str, str]]" = []
         self._gen = None
         self._gen_step: "str | None" = None
@@ -359,7 +420,7 @@ class TableJob:
 
     # ---- the state, from the table's answers only ------------------------------------------
     def at_rest(self) -> bool:
-        d = self.d
+        d = self._table
         if d is None:
             return False
         p = d.position_now
@@ -367,31 +428,31 @@ class TableJob:
                 and tbl.REST_GUARD.contains(p) and not d.mode_on)
 
     def unread_rest(self) -> bool:
-        d = self.d
+        d = self._table
         return d is not None and d.motions_sent == d.cold_motions and d.state == "warm"
 
     def parked(self) -> bool:
         """Right after the job's own park (the recorded s0 p0 i1 s0 from rest, finished in its
         window): at rest by the reading before the homing; the next step's own homing reads it
         again before anything moves (HOME_FIRST's p0 in START_GUARD)."""
-        d = self.d
+        d = self._table
         return (d is not None and d.state == "homed" and not d.motion_unconfirmed
                 and d.last_move == ("home", True) and d.position_now is None
                 and d.before_move is not None and tbl.START_GUARD.contains(d.before_move)
                 and d.arm_free is False and not d.mode_on)
 
     def out_known(self) -> bool:
-        d = self.d
+        d = self._table
         if d is None:
             return False
         p = d.position_now
         return p is not None and not d.motion_unconfirmed and not self.at_rest()
 
     def front_reached(self) -> int:
-        return geo.areas(self.d.front_y if self.d is not None else None)[0].ymax
+        return geo.areas(self._table.front_y if self._table is not None else None)[0].ymax
 
     def state(self) -> TableState:
-        d = self.d
+        d = self._table
         if d is None:
             return TableState(None, None, None, None, False, False, False, False, False, False,
                               self.phase == "closed", 0, 0, None, self.only_home)
@@ -401,11 +462,11 @@ class TableJob:
                           d.arm_free, d.mode_on, bool(d.motion_unconfirmed), pending,
                           d.link_lost_at is not None, d.closed_reason is not None,
                           d.lines_sent, d.motions_sent, getattr(d, "front_y", None),
-                          self.only_home)
+                          self.only_home, self.stopped_by_person)
 
     def way_back(self) -> str:
         """Part C's where_text, as ids, from the table's answers only."""
-        d = self.d
+        d = self._table
         if d is None:
             return WayBack.NONE
         st = self.state()
@@ -447,10 +508,13 @@ class TableJob:
                                 waiting_step=self._gen_step,
                                 waiting_for=self._pending.kind if self._pending else None)
         self._gen, self._gen_step, self._pending = gen, step, None
+        self._moves_at_begin = self._table.motions_sent if self._table is not None else 0
         return self._drive(None)
 
     def answer(self, kind: str, value: str) -> StepResult:
         """The person's answer to the confirmation the job is waiting for."""
+        if kind == Confirm.REPORT_AFTER_STEP and self.report_due is not None:
+            return self._report(value)
         step = self._gen_step or "none"
         if self._gen is None or self._pending is None:
             return self._result(step, Kind.REFUSED, "nothing_waits_for_a_confirmation")
@@ -472,22 +536,23 @@ class TableJob:
         written to the end and its answers read (the table module never cuts a line in half);
         at a confirmation, the job ends at once."""
         step = self._gen_step or "cancel"
-        if self.d is not None:
-            self.d.request_stop()
+        self.stopped_by_person = True
+        if self._table is not None:
+            self._table.request_stop()
         if self._gen is not None and self._pending is not None:
             gen, self._gen, self._pending = self._gen, None, None
             try:
                 gen.close()
             except BaseException:         # noqa: BLE001
                 pass
-            if self.d is not None:
-                self.d.close_for_sending("stopped by you")
+            if self._table is not None:
+                self._table.close_for_sending("stopped by you")
             res = self._result(step, Kind.STOPPED, "cancelled_by_person")
             self._end_block(res)
             self._gen_step = None
             return res
-        if self.d is not None and self._gen is None:
-            self.d.close_for_sending("stopped by you")
+        if self._table is not None and self._gen is None:
+            self._table.close_for_sending("stopped by you")
         return self._result(step, Kind.STOPPED, "cancelled_by_person")
 
     def stop_at_next_pause(self) -> None:
@@ -496,6 +561,19 @@ class TableJob:
 
     def _drive(self, value) -> StepResult:
         step = self._gen_step
+        moves_before = getattr(self, "_moves_at_begin", 0)
+        res = self._drive_inner(value, step)
+        t = self._table
+        if (self.ask_after_each_step and self._gen is None and t is not None
+                and t.closed_reason is None and step not in ("home", None) and (
+                    t.motions_sent > moves_before or (step == "start_up" and t.start_up_sent))):
+            # tester 0.6.0 asked after every stage that moved (and after the start-up)
+            self.report_due = step
+            res = replace(res, state=self.state(), confirm=Confirm.REPORT_AFTER_STEP,
+                          choices=CHOICES[Confirm.REPORT_AFTER_STEP])
+        return res
+
+    def _drive_inner(self, value, step) -> StepResult:
         try:
             ask = self._gen.send(value)
         except StopIteration as done:
@@ -514,7 +592,7 @@ class TableJob:
         return self._needs(step, ask)
 
     def _from_exception(self, step: str, exc: BaseException) -> StepResult:
-        d = self.d
+        d = self._table
         if isinstance(exc, StageFailed):
             res = self._result(step, Kind.REFUSED, exc.reason, **exc.detail)
         elif isinstance(exc, PersonStopped):
@@ -553,7 +631,7 @@ class TableJob:
             self._block = None
             return
         n = sum(v for (pg, k), v in self.runs.items() if k == key)   # this run counted already
-        d = self.d
+        d = self._table
         self._block = {"stage": key, "run": n, "page": self.page + 1, "verdict": "", "why": "",
                        "folder": f"{key}-{n}", "lines_before": d.lines_sent,
                        "moves_before": d.motions_sent, "position_before": d.position_now,
@@ -563,9 +641,9 @@ class TableJob:
 
     def _end_block(self, res: StepResult) -> None:
         b, self._block = self._block, None
-        if b is None or self.d is None:
+        if b is None or self._table is None:
             return
-        d = self.d
+        d = self._table
         verdict = {Kind.OK: "worked", Kind.STOPPED: "stopped"}.get(res.kind, "failed cleanly")
         if res.kind == Kind.REFUSED and res.detail.get("by_person"):
             verdict = "stopped by you (clean)"
@@ -577,10 +655,14 @@ class TableJob:
                   "state": {k: v for k, v in res.state.__dict__.items()}})
         if res.kind == Kind.OK and b["stage"] in ("d1", "dz", "d2", "f", "park"):
             self.worked.add(b["stage"])
+        b.setdefault("notes", [])
+        self._last_block = b
         self.diag.block(b)
 
     # ---- the opening -------------------------------------------------------------------------
     def open(self) -> StepResult:
+        if self.stopped_by_person:
+            return self._result("open", Kind.REFUSED, "stopped_by_person")
         if self.phase != "new":
             return self._result("open", Kind.REFUSED, "already_opened")
         return self._begin("open", self._open())
@@ -637,7 +719,12 @@ class TableJob:
             raise StageFailed("table_held_by_a_kernel_driver", **pf.holders.detail)
         if self._other_program is None:
             self._other_program = lambda system=pf.system: us.i1profiler_running(system)
-        # 4. the USB opening: ChromIQ's own library only; nothing sent before the descriptors
+        # 4. the tester's PRE_QUESTIONS (review of step 6, REQUIRED A): the person confirms the
+        #    arm at its resting place and nothing on the bed but the sheet; else nothing opens
+        ready = yield Ask(Confirm.READY_TO_OPEN, {"items": list(READY_TO_OPEN_ITEMS)})
+        if ready != "yes":
+            raise PersonStopped("not_ready_to_open")
+        # 5. the USB opening: ChromIQ's own library only; nothing sent before the descriptors
         try:
             self.transport = self._open_transport()
         except tbl.NotAvailable as exc:
@@ -647,7 +734,7 @@ class TableJob:
             raise StageFailed("usb_open_failed", error=type(exc).__name__) from None
         self.diag.log("INFO", tbl.usb_summary(self.transport))
         d = tbl.Table(self.transport, log=self.diag.log)
-        self.d = d
+        self._table = d
         self.phase = "open"
         # part C's gate and caps are in place before the first line of the opening
         d.part = "C"
@@ -669,12 +756,14 @@ class TableJob:
         why = self._sending_ready()
         if why:
             return self._result("start_up", Kind.REFUSED, why)
-        if self.d.state != "cold" or self.d.start_up_sent:
+        if self._table.state != "cold" or self._table.start_up_sent:
             return self._result("start_up", Kind.REFUSED, "table_not_just_switched_on")
+        if self.stopped_by_person:
+            return self._result("start_up", Kind.REFUSED, "stopped_by_person")
         return self._begin("start_up", self._start_up())
 
     def _start_up(self):
-        d = self.d
+        d = self._table
         ans = yield Ask(Confirm.START_UP)
         if ans != "yes":
             d.close_for_sending("the table has just been switched on; you chose i1Profiler for "
@@ -690,11 +779,13 @@ class TableJob:
 
     # ---- readiness (part C's ready(), as ids) ------------------------------------------------
     def _sending_ready(self) -> "str | None":
-        if self.phase != "open" or self.d is None:
+        if self.stopped_by_person:
+            return "stopped_by_person"
+        if self.phase != "open" or self._table is None:
             return "table_not_open"
-        if self.d.closed_reason is not None:
+        if self._table.closed_reason is not None:
             return "sending_closed"
-        if self.d.motion_unconfirmed:
+        if self._table.motion_unconfirmed:
             return "movement_may_be_unfinished"
         return None
 
@@ -702,10 +793,12 @@ class TableJob:
         why = self._sending_ready()
         if why:
             return why
-        d = self.d
+        d = self._table
         if d.state == "cold":
             return "table_not_started"
         key = STAGE_KEY[step]
+        if self.report_due is not None and step != "home":
+            return "report_due"
         if self.only_home and step != "home":
             return "only_the_homing_now"
         if self.runs.get((self.page, key), 0) >= MAX_RUNS[key]:
@@ -734,7 +827,7 @@ class TableJob:
 
     def _check_other_program(self) -> None:
         if self._other_program is not None and self._other_program() is True:
-            self.d.close_for_sending("i1Profiler was started during the session")
+            self._table.close_for_sending("i1Profiler was started during the session")
             raise Stopped("other_program_started")
 
     def _stage(self, step: str, body) -> StepResult:
@@ -745,9 +838,13 @@ class TableJob:
             return self._result(step, Kind.REFUSED, why)
 
         def gen():
-            ans = yield Ask(Confirm.GO, {"step": step})
-            if ans != "yes":
-                raise PersonStopped("person_chose_back")
+            if self._go_page != self.page:
+                # once per page (the owner's ruling: no question after every step); the first
+                # moving step of a page asks it, with the hands-off reminder the window shows
+                ans = yield Ask(Confirm.GO, {"step": step, "page": self.page + 1})
+                if ans != "yes":
+                    raise PersonStopped("person_chose_back")
+                self._go_page = self.page
             self._check_other_program()
             key = STAGE_KEY[step]
             self.runs[(self.page, key)] = self.runs.get((self.page, key), 0) + 1
@@ -755,7 +852,7 @@ class TableJob:
             try:
                 out = yield from body()
             finally:
-                self.d.current_step = None
+                self._table.current_step = None
             return out
         return self._begin(step, gen())
 
@@ -775,17 +872,129 @@ class TableJob:
     def home(self) -> StepResult:
         return self._stage("home", self._home)
 
+    def _note(self, note, step: "str | None", about: str) -> "dict | None":
+        """The person's own words, into the log (a NOTE line) and into the result block of the
+        step they belong to (rewritten), with the time and the step id. An empty note changes
+        nothing; a note is never required."""
+        text = clean_note(note)
+        if not text:
+            return None
+        d = self._table
+        entry = {"words": text, "by": "the person, in their own words", "about": about,
+                 "step": step, "t": round(d.t.now(), 3) if d is not None else None}
+        self.diag.log("NOTE", f"the person's own words ({about}, step {step or '-'}): {text}")
+        b = self._block if self._block is not None else getattr(self, "_last_block", None)
+        if b is not None:
+            b.setdefault("notes", []).append(entry)
+            if b is not self._block:
+                self.diag.write_json(f"{b['folder']}/result.json", b)
+        else:
+            self.session_notes.append(entry)
+        return entry
+
+    def add_note(self, note) -> StepResult:
+        """The person's words at the end of a session that stopped or failed (or any time)."""
+        entry = self._note(note, getattr(self, "_last_block", {}) and
+                           self._last_block.get("stage"), "added")
+        return self._result("note", Kind.OK, "" if entry else "empty_note")
+
+    def report_after_step(self, answer: str, note=None) -> StepResult:
+        """The asking mode's report (the same as answer(REPORT_AFTER_STEP, answer)), with an
+        optional note in the person's own words."""
+        if self.report_due is None:
+            return self._result("report", Kind.REFUSED, "no_report_due")
+        step = self.report_due
+        res = self._report(answer)
+        if res.ok:
+            self._note(note, step, f"report: {answer}")
+        return res
+
+    def _report(self, value: str) -> StepResult:
+        step = self.report_due
+        if value not in CHOICES[Confirm.REPORT_AFTER_STEP]:
+            return self._result("report", Kind.REFUSED, "not_one_of_the_choices",
+                                choices=list(CHOICES[Confirm.REPORT_AFTER_STEP]))
+        self.report_due = None
+        self.reports.append((step, value))
+        self.notes.append((f"{step}: report", value))
+        self.diag.log("ANSWER", f"{step}: report_after_step -> {value}")
+        if value != "as described":
+            if step == "start_up":
+                self.report_start_up_wrong()
+            else:
+                self.restrict_to_homing(f"the person's report after {step}: {value}")
+        return self._result("report", Kind.OK, "", after=step, answer=value)
+
+    def report_problem(self, kind: str, note=None) -> StepResult:
+        res = self._report_problem(kind)
+        if kind in PROBLEM_KINDS:
+            self._note(note, self.problems[-1][1] if self.problems else None,
+                       f"problem: {kind}")
+        return res
+
+    def _report_problem(self, kind: str) -> StepResult:
+        """B' (the owner's ruling): the person reports a problem, AT ANY TIME and in every state:
+        while a step waits for a confirmation, while a line is on its way (from another thread),
+        between steps, before the opening and after it. Never lost: it is kept in
+        :attr:`problems` and logged, and it acts at once.
+
+        * "stop now": nothing more is ever sent (the line on its way is finished, as the table
+          module never cuts one in half); the true state and the way back are returned
+          (switch off first when a movement may be waiting). Nothing more is opened either.
+        * "something looked or sounded wrong": nothing more moves except the homing (after the
+          start-up, with nothing moved since: nothing more is sent at all, as tester 0.6.0);
+          a step waiting for a confirmation ends there; a running creep stops at its next
+          pause."""
+        d = self._table
+        step = self._gen_step
+        if kind not in PROBLEM_KINDS:
+            return self._result("problem", Kind.REFUSED, "not_one_of_the_choices",
+                                choices=list(PROBLEM_KINDS))
+        self.problems.append((kind, step, d.lines_sent if d is not None else 0))
+        self.diag.log("ANSWER", f"problem reported{f' during {step}' if step else ''}: {kind}")
+        waiting = self._gen is not None and self._pending is not None
+        start_up_wrong = (d is not None and d.cold_done and d.motions_sent == d.cold_motions)
+        if kind == PROBLEM_STOP_NOW or d is None or start_up_wrong:
+            self.stopped_by_person = True
+            if kind != PROBLEM_STOP_NOW and start_up_wrong:
+                self.report_start_up_wrong()
+            if d is not None:
+                d.request_stop()
+            if waiting:
+                self._close_waiting(step)
+            if d is not None and (self._gen is None or waiting):
+                d.close_for_sending("stopped by you")
+            return self._result("problem", Kind.STOPPED, "stopped_by_person", problem=kind,
+                                during=step)
+        self.restrict_to_homing(f"the person reported: {kind}")
+        self._pause_stop = True
+        if waiting:
+            self._close_waiting(step, kind=Kind.REFUSED, reason="problem_reported")
+        return self._result("problem", Kind.OK, "only_the_homing_now", problem=kind,
+                            during=step)
+
+    def _close_waiting(self, step, kind=Kind.STOPPED, reason="cancelled_by_person") -> None:
+        gen, self._gen, self._pending = self._gen, None, None
+        try:
+            gen.close()
+        except BaseException:         # noqa: BLE001
+            pass
+        if kind == Kind.STOPPED and self._table is not None:
+            self._table.close_for_sending("stopped by you")
+        self._end_block(self._result(step, kind, reason))
+        self._gen_step = None
+
     def restrict_to_homing(self, why: str) -> None:
         """The person reported that the table or the arm did something wrong (part C's
         ASK_ARM_WRONG): nothing more moves in this sitting except the homing."""
         self.only_home = True
-        if self.d is not None:
-            self.d.log("DATA", f"only the homing from now on: {why}")
+        if self._table is not None:
+            self._table.log("DATA", f"only the homing from now on: {why}")
 
     def report_start_up_wrong(self) -> None:
         """The person saw or heard something wrong during the start-up: nothing more is sent."""
-        if self.d is not None:
-            self.d.close_for_sending("you saw or heard something wrong during the start-up")
+        if self._table is not None:
+            self._table.close_for_sending("you saw or heard something wrong during the start-up")
 
     def note(self, question_id: str, answer: str) -> None:
         """An answer kept for the diagnostics only (it gates nothing)."""
@@ -798,6 +1007,8 @@ class TableJob:
         why = self._sending_ready()
         if why:
             return self._result("next_page", Kind.REFUSED, why)
+        if self.report_due is not None:
+            return self._result("next_page", Kind.REFUSED, "report_due")
         if not (self.at_rest() or self.unread_rest() or self.parked()):
             return self._result("next_page", Kind.REFUSED, "arm_not_at_rest")
         if self.page + 1 >= len(self.caps.shape.pages):
@@ -810,21 +1021,30 @@ class TableJob:
     # ---- helpers (part C's, the questions turned into confirmations) --------------------------
     def _step(self, key: str, lines: int, moves: int) -> None:
         st = _CStep(key, lines, moves)
-        self.d.current_step = st
-        self.d.step_lines = self.d.step_motions = 0
+        self._table.current_step = st
+        self._table.step_lines = self._table.step_motions = 0
+
+    def _soft_stop(self) -> None:
+        """B': a problem reported while a step runs ends it at the next point the job controls
+        (between two recorded steps, before a computed move); the recorded step on its way is
+        never cut (the table module runs it whole), and the homing stays possible."""
+        if self._pause_stop and self.only_home and self._gen_step not in ("home", None):
+            self._pause_stop = False
+            raise PersonStopped("problem_reported")
 
     def _run_b(self, step) -> None:
-        d = self.d
+        self._soft_stop()
+        d = self._table
         if step.key == "b_home" and d.state not in C_HOME.needs:
             d.state = "homed"
         d.run_step(C_HOME if step.key == "b_home" else step)
 
     def _check_rest(self, what: str) -> None:
         self._step(f"{self._block['stage']}_rest", 1, 0)
-        p = self.d.position()
-        self.d.log("DATA", f"{what}: the arm reports {p}")
+        p = self._table.position()
+        self._table.log("DATA", f"{what}: the arm reports {p}")
         if not tbl.REST_GUARD.contains(p):
-            self.d.outside_at = p
+            self._table.outside_at = p
             raise StageFailed("arm_not_at_rest", read=p)
 
     def _visited(self, p) -> bool:
@@ -859,12 +1079,12 @@ class TableJob:
         return ans == "yes"
 
     def _free_arm_inside(self, a) -> None:
-        if self.d.arm_free and not geo.AREA_RAW.contains(a):
+        if self._table.arm_free and not geo.AREA_RAW.contains(a):
             raise StageFailed("free_arm_outside_area", read=a)
 
     def _still(self, a):
         """The stillness check before moving a free arm: two readings within STILL_UNITS."""
-        b = self.d.position()
+        b = self._table.position()
         if abs(a[0] - b[0]) > tbl.STILL_UNITS or abs(a[1] - b[1]) > tbl.STILL_UNITS:
             raise StageFailed("free_arm_moved_between_two_readings", first=a, second=b)
         return b
@@ -872,7 +1092,8 @@ class TableJob:
     def _move_to(self, target, what: str):
         """One computed m0 from the position just read, checked, timed and arrival-checked (a
         generator: the first-visit confirmation may be asked)."""
-        d = self.d
+        self._soft_stop()
+        d = self._table
         a = d.position_now
         if a is None:
             raise StageFailed("no_fresh_position_reading")
@@ -909,12 +1130,12 @@ class TableJob:
     # ---- park: the recorded homing at rest -----------------------------------------------------
     def _park(self):
         self._run_b(C_HOME)
-        return {"read": self.d.position_now}
+        return {"read": self._table.position_now}
         yield  # pragma: no cover  (a generator)
 
     # ---- align: part C's D1 --------------------------------------------------------------------
     def _align(self):
-        d = self.d
+        d = self._table
         sheet = self.sheet
         aims = sc.aims_of(sheet, self.page)
         if not (d.arm_free is True and d.mode_on):
@@ -930,6 +1151,7 @@ class TableJob:
                 raise StageFailed("arm_did_not_give_way_at_the_alignment_start", felt=felt)
         self._step("d1_aims", *D1_CAPS)
         readings = []
+        self._soft_stop()
         for a in aims:
             ans = yield Ask(Confirm.AIMED, {"mark": a["number"],
                                             "corner": a.get("corner_on_table", ""),
@@ -980,7 +1202,7 @@ class TableJob:
 
     # ---- creep: part C's DZ ---------------------------------------------------------------------
     def _creep(self):
-        d, al = self.d, self.alignment
+        d, al = self._table, self.alignment
         need = min(int(self.front_need), geo.FRONT_CAP_Y)
         self._block["data"]["front_need_y"] = need
         mark = max(al.readings, key=lambda p: p[1])
@@ -1029,7 +1251,7 @@ class TableJob:
         return {"front_y": d.front_y}
 
     def _creep_failed(self, target, got, why: str, **more) -> None:
-        self.d.outside_at = got
+        self._table.outside_at = got
         self.only_home = True
         self._block["data"]["creep_stopped_at"] = {"target": target, "read": got, "why": why}
         raise StageFailed(f"creep_{why}", target=target, read=got,
@@ -1037,7 +1259,7 @@ class TableJob:
 
     # ---- check_move: part C's D2 -----------------------------------------------------------------
     def _check_move(self):
-        d = self.d
+        d = self._table
         al = self.alignment
         self._step("d2", *D2_CAPS)
         target = al.readings[2]
@@ -1050,11 +1272,11 @@ class TableJob:
     # ---- home: part C's F ----------------------------------------------------------------------
     def _home(self):
         self._end_of_job()
-        return {"read": self.d.position_now}
+        return {"read": self._table.position_now}
         yield  # pragma: no cover
 
     def _end_of_job(self) -> None:
-        d = self.d
+        d = self._table
         self._step(f"{self._block['stage']}_end", *cp.HOME)
         d.exchange("status")
         last = d.position_now
@@ -1089,7 +1311,7 @@ class TableJob:
     def close(self) -> StepResult:
         if self._gen is not None:
             self.cancel()
-        d = self.d
+        d = self._table
         if d is not None:
             d.close_for_sending("the session is over")
         st = self.state()
@@ -1113,9 +1335,21 @@ class TableJob:
                                   f"way back {wb}")
             self.diag.log("INFO", "the job has let go of the table's USB connection (nothing is "
                                   "sent when it does)")
+        clean = (self.ask_after_each_step and d is not None and d.motions_sent > 0
+                 and not self.problems and not self.stopped_by_person and not self.only_home
+                 and self.report_due is None
+                 and all(a == "as described" for _s, a in self.reports)
+                 and d.closed_reason == "the session is over" and wb == WayBack.NONE
+                 and not st.movement_may_be_unfinished and not st.link_lost)
+        detail = {"offer": MAY_OFFER_DO_NOT_ASK_AGAIN} if clean else {}
+        if clean:
+            self.diag.log("INFO", "a clean measurement in the asking mode: the window may offer "
+                                  "not to ask after each step")
+        if self.session_notes:
+            self.diag.write_json("notes.json", self.session_notes)
         self.phase = "closed"
         self.diag.finish()
-        return StepResult("close", Kind.OK, "", st, wb)
+        return StepResult("close", Kind.OK, "", st, wb, detail=detail)
 
 
 @dataclass(frozen=True)

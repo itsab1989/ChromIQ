@@ -205,14 +205,26 @@ class ExplicitTableChoice:
 
 
 class TableUsbDevice(UsbDevice):
-    """The table as an install target: only from `table_device_for`."""
+    """The table as an install target: only from `table_device_for`, which attaches the
+    person's choice to it (`choice`). Built any other way it carries none, and `install_winusb`
+    refuses it (review of step 6: the guard checks the CHOICE, not just the type)."""
+
+
+def _choice_holds(device) -> bool:
+    choice = getattr(device, "choice", None)
+    return (isinstance(choice, ExplicitTableChoice) and choice.words == TABLE_CHOICE_WORDS
+            and getattr(choice, "for_device", None) == (device.vid, device.pid)
+            and (device.vid, device.pid) in TABLE_DEVICE)
 
 
 def table_device_for(choice: ExplicitTableChoice) -> "UsbDevice":
-    if not isinstance(choice, ExplicitTableChoice):
+    if not isinstance(choice, ExplicitTableChoice) or choice.words != TABLE_CHOICE_WORDS:
         raise ValueError("the table's driver needs the person's explicit choice")
     (vid, pid), name = next(iter(TABLE_DEVICE.items()))
-    return TableUsbDevice(vid=vid, pid=pid, name=name, has_winusb=False)
+    device = TableUsbDevice(vid=vid, pid=pid, name=name, has_winusb=False)
+    choice.for_device = (vid, pid)
+    device.choice = choice
+    return device
 
 
 def is_table(vid: str, pid: str) -> bool:
@@ -963,7 +975,7 @@ def install_winusb(device: UsbDevice, *,
     # THE i1iO TABLE ONLY ON THE PERSON'S EXPLICIT CHOICE (owner's ruling, 2026-11-17): never
     # automatically, never as part of an instrument's installation. A table device that did not
     # come from `table_device_for(ExplicitTableChoice(...))` is refused here.
-    if is_table(device.vid, device.pid) and not isinstance(device, TableUsbDevice):
+    if is_table(device.vid, device.pid) and not _choice_holds(device):
         log.error("refusing to install a driver on the i1iO table (%s:%s) without the "
                   "person's explicit choice", device.vid, device.pid)
         return InstallAttempt.REFUSED

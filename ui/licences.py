@@ -79,6 +79,7 @@ NOTICE_SECTIONS: "tuple[str, ...]" = (
     "Certificate bundle",
     "FreeType",
     "USB access for the i1iO table",
+    "USB driver installer on Windows",
     "Argyll-derived helpers",
     "CIE colorimetric tables",
     "ChromIQ's own",
