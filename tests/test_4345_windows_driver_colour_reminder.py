@@ -11,9 +11,9 @@ Chart tab had been passed over. Pinned here, with the print dialog patched
 2. "Don't show this again" is stored and then nothing is asked;
 3. macOS and Linux never ask (the same route, `is_windows()` false);
 4. the window's text is the catalogue's, names Canon, Epson and HP by the
-   makers' own menu words (Epson by model, review S2), offers the PostScript route only while "Use
-   default Windows printer dialog" is ticked (review S1), and has no em
-   dash.
+   makers' own menu words (Epson by model, review S2), fits a verification
+   chart too (S4), offers the PostScript route only while "Use default
+   Windows printer dialog" is ticked (S1), and has no em dash.
 """
 from __future__ import annotations
 
@@ -133,7 +133,6 @@ def _shown(route, tmp_path, monkeypatch, *, dialog_box: bool):
     return head, body
 
 
-
 def test_the_text_says_where_the_switch_is(route, tmp_path, monkeypatch):
     head, body = _shown(route, tmp_path, monkeypatch, dialog_box=True)
     from workflow import measurement_messages as MM
@@ -149,7 +148,6 @@ def test_the_text_says_where_the_switch_is(route, tmp_path, monkeypatch):
     assert "—" not in head + body
 
 
-
 def test_the_postscript_route_is_offered_only_with_the_dialog_box_ticked(
         route, tmp_path, monkeypatch):
     """Review of 4.3.45, S1: ChromIQ's own route (a printer that is not
@@ -160,7 +158,6 @@ def test_the_postscript_route_is_offered_only_with_the_dialog_box_ticked(
     assert "Use default Windows printer dialog" not in body
     assert "PostScript" not in body
     assert body.rstrip().endswith("to print nothing.")
-
 
 
 def test_epson_is_named_as_epsons_own_guides_name_it():
@@ -180,6 +177,14 @@ def test_epson_is_named_as_epsons_own_guides_name_it():
     assert "More Options" not in body
 
 
+def test_the_text_fits_a_verification_chart_too():
+    """Review of 4.3.45, S4: a verification chart printed through its
+    profile takes the same dialog; the text says what the driver does to
+    the chart's colours, and to a check, not only to a profile."""
+    from workflow import measurement_messages as MM
+    body = MM.M_PRINT_WIN_DRIVER_CM.body
+    assert "no longer has the colours ChromIQ sent" in body
+    assert "verification chart" in body
 
 
 def test_the_default_is_to_ask():

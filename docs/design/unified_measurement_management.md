@@ -8430,7 +8430,7 @@ alone.
 
 > **Please switch off the printer driver's colour management**
 >
-> The Windows print dialog opens next. Before you press Print in it, please switch off the colour management of the printer driver. ChromIQ cannot do this for you on this route, and most drivers have it switched on. If it stays on, the driver changes the colours of every patch on their way to the printer: the chart then shows the driver's corrections instead of what your printer really does, the printer seems to print a much smaller range of colours than it can, and a profile built from it is wrong.
+> The Windows print dialog opens next. Before you press Print in it, please switch off the colour management of the printer driver. ChromIQ cannot do this for you on this route, and most drivers have it switched on. If it stays on, the driver changes the colours of every patch on their way to the printer, so the chart on paper no longer has the colours ChromIQ sent. A chart for a profile then shows the driver's corrections instead of what your printer really does, the printer seems to print a much smaller range of colours than it can, and a profile built from it is wrong. A verification chart then checks the driver's corrections instead of your profile, so its result says little about the profile.
 >
 > Where the switch usually is: in the print dialog, press "Preferences" or "Properties" for the printer, then (the names differ a little from model to model):
 > •  Canon: on the "Main" tab set "Color/Intensity" to "Manual", press "Set...", and on the "Matching" tab set "Color Correction" to "None".

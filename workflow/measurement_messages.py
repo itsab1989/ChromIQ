@@ -8966,7 +8966,9 @@ _PRINT_OTHER_PRINTER_BTN = "Print on {printer}"
 #: guide: Main tab, Mode: Off (No Color Adjustment); Epson SureColor T
 #: series: Printer Settings > Advanced Settings > Color Mode: Off (No Color
 #: Management); HP: Color tab, Application-Managed Colors). Review of 4.3.45,
-#: S2: Epson's labels named by model, as Epson's own guides name them.
+#: S2: Epson's labels named by model, as Epson's own guides name them;
+#: S4: the text also fits a verification chart printed through its
+#: profile, which goes through the same dialog.
 M_PRINT_WIN_DRIVER_CM = _m(
     "M-PRINT-WIN-DRIVER-CM",
     "Please switch off the printer driver's colour management",
@@ -8974,10 +8976,13 @@ M_PRINT_WIN_DRIVER_CM = _m(
     "please switch off the colour management of the printer driver. "
     "ChromIQ cannot do this for you on this route, and most drivers have "
     "it switched on. If it stays on, the driver changes the colours of "
-    "every patch on their way to the printer: the chart then shows the "
-    "driver's corrections instead of what your printer really does, the "
-    "printer seems to print a much smaller range of colours than it can, "
-    "and a profile built from it is wrong.\n"
+    "every patch on their way to the printer, so the chart on paper no "
+    "longer has the colours ChromIQ sent. A chart for a profile then shows "
+    "the driver's corrections instead of what your printer really does, "
+    "the printer seems to print a much smaller range of colours than it "
+    "can, and a profile built from it is wrong. A verification chart then "
+    "checks the driver's corrections instead of your profile, so its "
+    "result says little about the profile.\n"
     "\n"
     "Where the switch usually is: in the print dialog, press "
     "\"Preferences\" or \"Properties\" for the printer, then (the names "
