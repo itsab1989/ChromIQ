@@ -129,9 +129,11 @@ def test_the_text_says_where_the_switch_is(route, tmp_path, monkeypatch):
     (head, body), = answers["shown"]
     from workflow import measurement_messages as MM
     assert (head, body) == MM.M_PRINT_WIN_DRIVER_CM.render()
-    for words in ("“Color/Intensity”", "“Matching”", "“Color Correction”",
-                  "“None”", "“Off (No Color Adjustment)”",
-                  "“Application Managed Colors”",
+    # the driver's own words in straight quotes (they are not ChromIQ's
+    # controls: tests/test_a_quoted_control_names_the_control_the_reader_has)
+    for words in ('"Color/Intensity"', '"Matching"', '"Color Correction"',
+                  '"None"', '"Off (No Color Adjustment)"',
+                  '"Application Managed Colors"',
                   "“Use default Windows printer dialog”"):
         assert words in body, words
     assert "—" not in head + body

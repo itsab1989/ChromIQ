@@ -27,11 +27,11 @@ LINE = "Setting requested filter not supported by instrument"
 
 def test_the_line_is_the_one_the_reader_prints():
     helper = (ROOT / "native" / "chartread_helper" /
-              "chromiq_chartread.c").read_text(errors="replace")
+              "chromiq_chartread.c").read_text(encoding="utf-8", errors="replace")
     assert f'printf("{LINE}\\n");' in helper
     orig = ROOT / "native" / "instlib" / "chartread.c.orig"
     if orig.is_file():
-        assert f'printf("{LINE}\\n");' in orig.read_text(errors="replace")
+        assert f'printf("{LINE}\\n");' in orig.read_text(encoding="utf-8", errors="replace")
 
 
 def test_either_parser_raises_it_and_nothing_else(qapp):

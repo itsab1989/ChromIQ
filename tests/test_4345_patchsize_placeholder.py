@@ -106,10 +106,10 @@ def test_the_number_is_the_chart_layout_informations(tmp_path, kw):
     decimal shown."""
     from ui.tabs.tab_chart import TabChart
     res, used, d = _build(tmp_path, "c", _recipe(**kw))
-    st = json.loads((d / "c.strips.json").read_text())
+    st = json.loads((d / "c.strips.json").read_text(encoding="utf-8"))
     (d / "c.channels.json").write_text(json.dumps({"layout": {
         "patches": st["patches"], "dpi": st["dpi"],
-        "recipe": used.to_dict()}}))
+        "recipe": used.to_dict()}}), encoding="utf-8")
     pw, ph, _pitch = TabChart._chart_patch_size_mm(res.ti2_path)
     assert pw > 0 and ph > 0
     assert patch_size_text(res.patch_size_mm) == patch_size_text((pw, ph))
@@ -133,7 +133,7 @@ def test_an_area_fitted_patch_is_the_one_drawn(tmp_path):
     """"Prioritise chart area" works the size out: the placeholder is that
     size, not the boxes' "auto"."""
     res, _u, d = _build(tmp_path, "c", _recipe(layout_mode="area_first"))
-    st = json.loads((d / "c.strips.json").read_text())
+    st = json.loads((d / "c.strips.json").read_text(encoding="utf-8"))
     r0 = st["patches"][0]
     assert patch_size_text(res.patch_size_mm) == patch_size_text(
         (r0["w"] * 25.4 / st["dpi"], r0["h"] * 25.4 / st["dpi"]))
@@ -229,7 +229,7 @@ def _cht(widths_by_strip, h=10.0, step=11.0, n=4):
 def _sidecar(tmp, pages, engine="printtarg"):
     tmp.mkdir(parents=True, exist_ok=True)
     (tmp / "c.channels.json").write_text(json.dumps({"layout": {
-        "engine": engine, "cht_pages": pages}}))
+        "engine": engine, "cht_pages": pages}}), encoding="utf-8")
     return tmp
 
 
@@ -285,7 +285,7 @@ def test_printtargs_own_cht_against_its_printed_page(tmp_path, args,
         shutil.copy(TI1, tmp_path / sub / "c.ti1")
         subprocess.run([str(pt), *extra, *args, "-pA4", "c"],
                        cwd=tmp_path / sub, capture_output=True, timeout=120)
-    pages = [c.read_text() for c in sorted((tmp_path / "s").glob("c*.cht"))]
+    pages = [c.read_text(encoding="utf-8") for c in sorted((tmp_path / "s").glob("c*.cht"))]
     _sidecar(tmp_path / "s", pages)
     cc, p = _creator_and_params("{patchsize}",
                                 instrument=args[0][2:],

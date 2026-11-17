@@ -11031,7 +11031,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._filter_refused = True
 
     def _filter_refused_window(self) -> None:
-        """M-FILTER-REFUSED (§M-PROPOSED): the read ended because the
+        """M-FILTER-REFUSED (§M-PROPOSED), titled
+        "The instrument does not accept this filter choice" (its row in the
+        window-sounds table, Instrument error, `core/measure_windows.py`):
+        the read ended because the
         instrument does not accept the -F choice; what that means and what
         to do (switch the row off and start again, the measurement is then
         in the instrument's normal mode, M0 on an i1Pro 2). The row is not

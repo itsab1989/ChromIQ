@@ -8432,11 +8432,11 @@ alone.
 >
 > The Windows print dialog opens next. Before you press Print in it, please switch off the colour management of the printer driver. ChromIQ cannot do this for you on this route, and most drivers have it switched on. If it stays on, the driver changes the colours of every patch on their way to the printer: the chart then shows the driver's corrections instead of what your printer really does, the printer seems to print a much smaller range of colours than it can, and a profile built from it is wrong.
 >
-> Where the switch usually is: in the print dialog, press “Preferences” or “Properties” for the printer, then (the names differ a little from model to model):
-> •  Canon: on the “Main” tab set “Color/Intensity” to “Manual”, press “Set...”, and on the “Matching” tab set “Color Correction” to “None”.
-> •  Epson: set “Color Management” (under “More Options” or “Advanced”, depending on the model) to “Off (No Color Adjustment)”.
-> •  HP: on the “Color” tab choose “Application Managed Colors”, where the driver offers it.
-> •  Other makes: look for “No Color Adjustment”, “None”, “Off” or “Application Managed”.
+> Where the switch usually is: in the print dialog, press "Preferences" or "Properties" for the printer, then (the names differ a little from model to model):
+> •  Canon: on the "Main" tab set "Color/Intensity" to "Manual", press "Set...", and on the "Matching" tab set "Color Correction" to "None".
+> •  Epson: set "Color Management" (under "More Options" or "Advanced", depending on the model) to "Off (No Color Adjustment)".
+> •  HP: on the "Color" tab choose "Application Managed Colors", where the driver offers it.
+> •  Other makes: look for "No Color Adjustment", "None", "Off" or "Application Managed".
 >
 > While you are there, choose the paper type and the print quality you will use with the profile, and use the same settings every time you print with it.
 >
