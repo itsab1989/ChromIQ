@@ -721,3 +721,46 @@ ruler's stream short, and the ruler sends no light write and no other write
 during a reading (rule A). Proved on the fake USB layer for the lights off
 and on with the ruler off and on (`tests/test_ruler_scan_trace.py`, the
 `combo_*` lives), not yet on a real i1Pro 2.
+
+## The X-Rite i1iO table (Beta, built job side only, 2026-11-17)
+
+### ⏳ Awaiting confirmation: how a table session ends
+
+**Confirmed by:** *nobody yet.*
+
+Built in `workflow/i1io/table/job.py` (no window yet: the window is the next
+build step) and proved on the simulators only, never on a table. Nothing in
+the app reaches it. The table session ends through the EXISTING single exit
+and the existing file states; what is new is only what follows from a
+measuring instrument that moves.
+
+| Situation | Ending (existing) | What happens to the `.ti3` |
+|---|---|---|
+| this session read nothing | M-END-EMPTY, no question | nothing written |
+| it read something | **M-END**: Save and stop / Keep measuring / Discard and stop, no button pre-selected | as below |
+| Save and stop, every patch of every page read | the measurement is COMPLETE (§3a, by location) | written as the run's `.ti3`, guarded as every measurement (`MeasurementSession`: the earlier file copied to `old/`, C₀ → C judged, §2a, §3b) |
+| Save and stop, patches missing | PARTIAL (`0 < C < A`): the unread patches are absent | written; Refine / resume completes it later, reading only the missing patches |
+| Discard and stop | nothing from the session | nothing written; the table's own session folder (its log and raw readings) stays in the run, marked as discarded, never used again |
+| Keep measuring | the session continues | nothing written |
+| the window's Esc or X on the ending | a withdrawal (note 8b): the option that changes nothing | nothing written, nothing discarded, **nothing moves**; the ending can be asked again |
+
+Proposed rules new to this document:
+
+1. **Nothing moves inside an ending.** The arm is held where it last read
+   (motors holding). After Save and stop or Discard and stop it goes home only
+   by its own step, which asks the hands-off confirmation first; Keep measuring
+   reads on only after that confirmation too. A dismissed ending never resumes
+   movement.
+2. **After any stop or failure inside a row** (Stop between patches, a failed
+   row, a declined move), the next movement asks the hands-off confirmation
+   again (the safety review of 2026-11-17).
+3. **Never over another measurement.** Save does not replace a measurement the
+   run already holds, except the partial measurement this session completes;
+   any other existing file must be dealt with by the Start rules of §5 of
+   `unified_measurement_management.md` before the table starts.
+4. **An interrupted session** (a crash, a logout, a power cut: readings on disk
+   and no ending) is reported at the next Start, with a pending strip-move
+   marker if one was left; the person may complete it (its readings count, only
+   the rest is read) or discard it (its folder stays, marked).
+5. A discarded session folder may later be moved to `old/i1io-table/<stamp>/`;
+   ChromIQ never deletes it.

@@ -66,6 +66,7 @@ def test_a_complete_page_ends_complete_and_save_files_it_into_the_run(tmp_path, 
     assert len(sim.received) == n                                   # nothing moved, nothing sent
     assert classify(run.measurement_ti3, run.chart_ti2).state is Ti3State.COMPLETE
     assert r.detail["announce"] == run.measurement_ti3.name and r.detail["verdict"] == "keep"
+    assert se.session_state(run.i1io_table_session_dir(RS.STAMP)) == se.SAVED
     assert r.detail["added"] == 8 and r.detail["resume_next"] is False
     # the homing after Save and stop needs its own hands-off GO
     h = job.home()
@@ -213,9 +214,11 @@ def test_after_a_lost_link_the_end_saves_and_offers_no_homing(tmp_path):
     job, sim, helper, p = job_on(run, tmp_path)
     ready_to_read(job, p)
     assert p.drive(job.read_row()).ok
-    sim.inject_at(len(sim.received) + 1, "unplug", 1.0)
+    sim.inject_at(len(sim.received), "unplug", 1.0)       # row 2's first reading of the arm
     r = p.drive(job.read_row())
     assert r.kind == J.Kind.STOPPED and r.reason == "link_lost"
+    assert job.out_known()                    # the arm is known, out on the sheet: no homing
+    assert job.home().kind == J.Kind.REFUSED  # can be sent after a lost link
     e, st = _end(job, p, "save")
     assert e.ok and e.detail["next"] == [] and st["way_back"].startswith("link_lost")
 
@@ -258,6 +261,7 @@ def test_save_never_replaces_a_measurement_the_run_has(tmp_path):
     r, _st = _end(job, p, "save")
     assert r.kind == J.Kind.REFUSED and r.reason == "run_has_a_measurement_already"
     assert run.measurement_ti3.read_bytes() == before and job.ended is None
+    assert not run.old_dir.exists()           # refused before anything was copied or moved
 
 
 # ---- resume: a later session completes a partial measurement ---------------------------------
