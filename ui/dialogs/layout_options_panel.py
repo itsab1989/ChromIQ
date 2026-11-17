@@ -3827,13 +3827,15 @@ class LayoutOptionsPanel(QWidget):
                 saved["controls"].append((control, control.isEnabled(), tip))
                 control.setEnabled(False)
                 control.setToolTip(why)
-            saved["dpi"] = self.dpi.maximum()
-            self.dpi.setMaximum(self._FD9_MAX_DPI)
             if getattr(self, "_page_beta", False):
-                # the page-output Beta's typed sides, before the FD-9's
-                # ranges clamp the millimetre boxes (leftover a of 4.3.43)
+                # the page-output Beta's typed sides and the resolution they
+                # were made for, before the FD-9's ranges clamp the
+                # resolution and the millimetre boxes (leftover a of 4.3.43,
+                # review P1-8)
                 from ui.dialogs import page_output_panel as _pop
                 saved["page"] = _pop.fd9_entering(self)
+            saved["dpi"] = self.dpi.maximum()
+            self.dpi.setMaximum(self._FD9_MAX_DPI)
             if hasattr(self, "custom_w"):
                 saved["custom"] = (self.custom_w.minimum(), self.custom_w.maximum(),
                                    self.custom_w.value(), self.custom_h.minimum(),

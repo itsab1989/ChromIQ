@@ -265,8 +265,12 @@ when the panel is built. It is not part of a target, a preset, a chart or
 `meta.json`: every length is stored in millimetres whatever unit is shown,
 and the page size keeps the stored form of 4.3.43 (paper code, `page_size`,
 `tiff_res_unit`). A preset saved with inches chosen is the preset saved with
-millimetres chosen, byte for byte (`tests/test_units_choice.py`). The patch
-set editor's hidden copy of the panel has no Units choice.
+millimetres chosen, byte for byte, and a length typed in inches (0.25 in,
+6.35 mm) is kept exactly by the preset, the target and Save as Defaults
+whichever unit is shown when it is loaded again (`tests/test_units_choice.py`).
+Opening a chart whose page is stored in pixels (or inches) SHOWS that unit
+for that chart without writing `page_output_units`. The patch set editor's
+hidden copy of the panel has no Units choice.
 
 ## 2. When settings are loaded
 

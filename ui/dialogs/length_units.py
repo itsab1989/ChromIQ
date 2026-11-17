@@ -26,7 +26,15 @@ With inches chosen:
 * a value set by the program (a recipe, a preset, an instrument's default) is
   rounded exactly as the millimetre box would have rounded it, so a preset
   saved with inches chosen is byte for byte the one saved with millimetres;
-* the arrows step :data:`IN_STEP` inches from the value shown.
+  EXCEPT a value that could only have been typed in inches (one on the inch
+  grid of this box, finer than its millimetres: 6.35 is 0.25 in), which is
+  kept exactly in either unit, so a length typed in inches survives a
+  project reopened, a preset loaded and Save as Defaults read back (review
+  P1-1). Every value a 4.3.43 recipe holds has the box's own decimals and
+  loads exactly as before;
+* the arrows step :data:`IN_STEP` inches from the value shown, and steps
+  that add up to nothing give the value back exactly (review P1-3); the
+  largest and smallest values shown can be typed back to the exact limit.
 
 Back to millimetres, a value typed in inches that the millimetre box cannot
 show at its own decimals (6.35 in a box of one decimal) is kept, and the box
@@ -52,9 +60,16 @@ _NUMBER = re.compile(r"^[+-]?\d*(?:[.,]\d*)?$")
 
 
 def _round_like_qt(value: float, decimals: int) -> float:
-    """What a QDoubleSpinBox of *decimals* holds for *value* (Qt rounds by
-    printing the number with that many decimals)."""
-    return float(f"{float(value):.{int(decimals)}f}")
+    """What a QDoubleSpinBox of *decimals* holds for *value*.
+
+    Qt rounds by printing the number with that many decimals in the C
+    locale, and its printing takes an exact half AWAY from zero (2.25 holds
+    as 2.3), where Python's own formatting takes it to the even neighbour
+    (2.2). So this prints the way Qt prints (review P1-2: 620 of 80,002
+    values differed, and a recipe value ending in 25 loaded 0.1 mm apart
+    with inches shown and with millimetres shown)."""
+    from PyQt6.QtCore import QLocale
+    return float(QLocale.c().toString(float(value), "f", int(decimals)))
 
 
 def _decimals_needed(value: float, most: int) -> int:
@@ -75,6 +90,8 @@ class LengthSpinBox(NoScrollDoubleSpinBox):
         self._mm_decimals = None
         self._mm_step = None
         self._mm_suffix = None
+        #: (value before the first arrow step, net steps, value after them)
+        self._step_memo = None
         self.editingFinished.connect(self._settle_mm_decimals)
 
     # ---- the unit ---------------------------------------------------------------
@@ -82,9 +99,27 @@ class LengthSpinBox(NoScrollDoubleSpinBox):
     def length_unit(self) -> str:
         return self._len_unit
 
-    def _in_decimals(self) -> int:
+    def _own_mm_decimals(self) -> int:
+        """The decimals the box has in millimetres (the panel's own)."""
         return int(self._mm_decimals if self._mm_decimals is not None
-                   else super().decimals()) + IN_EXTRA
+                   else super().decimals())
+
+    def _in_decimals(self) -> int:
+        return self._own_mm_decimals() + IN_EXTRA
+
+    def _inch_typed(self, value: float) -> "float | None":
+        """*value* as kept when it could only have been typed in inches (on
+        this box's inch grid and finer than its millimetres), else None."""
+        mm_dec = self._own_mm_decimals()
+        d_in = mm_dec + IN_EXTRA
+        v = float(value)
+        inches = v / MM_PER_INCH
+        if abs(_round_like_qt(inches, d_in) - inches) > 1e-9:
+            return None
+        kept = _round_like_qt(v, d_in + 1)
+        if _decimals_needed(kept, d_in + 1) <= mm_dec:
+            return None
+        return kept
 
     def set_length_unit(self, unit: str) -> None:
         """Show the length in *unit* ("mm" or "in"). Never changes the value."""
@@ -92,14 +127,16 @@ class LengthSpinBox(NoScrollDoubleSpinBox):
         if unit == self._len_unit:
             return
         before = self.value()
+        self._step_memo = None
         if unit == LEN_IN:
             if self._mm_decimals is None:
-                # the box's own millimetre settings, taken once: later the
-                # decimals may be raised for a value typed in inches, and
-                # `setDecimals` / `setSingleStep` keep these up to date
+                # the box's own millimetre decimals, taken once: later they
+                # may be raised for a value typed in inches, and
+                # `setDecimals` keeps this up to date
                 self._mm_decimals = super().decimals()
-                self._mm_step = super().singleStep()
-                self._mm_suffix = self.suffix()
+            # the step and the suffix shown in millimetres right now
+            self._mm_step = super().singleStep()
+            self._mm_suffix = self.suffix()
             self._len_unit = LEN_IN
             # more decimals hold every value the box held, unchanged
             super().setDecimals(self._in_decimals() + 1)
@@ -149,26 +186,34 @@ class LengthSpinBox(NoScrollDoubleSpinBox):
 
     def setValue(self, value):                # noqa: N802 - Qt's name
         """A value set by the program: held exactly as the millimetre box
-        holds it, whatever unit is shown."""
+        holds it, whatever unit is shown; a value typed in inches earlier
+        (6.35, 0.25 in) is held exactly too (:meth:`_inch_typed`)."""
+        mm_dec = self._own_mm_decimals()
+        kept = self._inch_typed(value)
         if self._len_unit == LEN_IN:
-            super().setValue(_round_like_qt(value, int(self._mm_decimals)))
+            super().setValue(kept if kept is not None
+                             else _round_like_qt(value, mm_dec))
             return
-        if self._mm_decimals is not None and \
-                super().decimals() > int(self._mm_decimals):
-            # extra decimals were for a value typed in inches; a value the
-            # program sets is the millimetre box's own
-            old = self.value()
+        want = mm_dec if kept is None else max(
+            mm_dec, _decimals_needed(kept, mm_dec + IN_EXTRA + 1))
+        if super().decimals() != want:
+            # millimetres shown with the decimals the value needs (raised
+            # for a value typed in inches, back to the box's own otherwise)
+            if self._mm_decimals is None:
+                self._mm_decimals = mm_dec
+            old, old_text = self.value(), self.text()
             blocked = self.blockSignals(True)
             try:
-                super().setDecimals(int(self._mm_decimals))
-                super().setValue(value)
+                super().setDecimals(want)
+                super().setValue(value if kept is None else kept)
             finally:
                 self.blockSignals(blocked)
             if self.value() != old:
                 self.valueChanged.emit(self.value())
+            if self.text() != old_text:
                 self.textChanged.emit(self.text())
             return
-        super().setValue(value)
+        super().setValue(value if kept is None else kept)
 
     # ---- the display ----------------------------------------------------------
 
@@ -201,7 +246,15 @@ class LengthSpinBox(NoScrollDoubleSpinBox):
 
     def valueFromText(self, text):            # noqa: N802 - Qt's name
         if self._len_unit != LEN_IN:
-            return super().valueFromText(text)
+            value = super().valueFromText(text)
+            mm_dec = self._own_mm_decimals()
+            if super().decimals() > mm_dec and value != self.value() and \
+                    self._inch_typed(value) is None:
+                # millimetres shown with extra decimals for a value typed in
+                # inches: a millimetre value typed there is the box's own
+                # kind, at its own decimals, as a program set would keep it
+                value = _round_like_qt(value, mm_dec)
+            return value
         # nothing typed: the stored value, untouched (no drift from looking)
         if self._core_text(text) == self._core_text(
                 self.textFromValue(self.value())):
@@ -209,7 +262,14 @@ class LengthSpinBox(NoScrollDoubleSpinBox):
         inches = self._inches_of(text)
         if inches is None:
             return self.value()
-        return _round_like_qt(inches * MM_PER_INCH, self._in_decimals() + 1)
+        d = self._in_decimals()
+        # the largest (smallest) value shown, typed back, is the limit itself
+        # (300 mm shows as 11.811 in, which is 299.9994 mm; review P1-4)
+        for limit in (self.maximum(), self.minimum()):
+            if _round_like_qt(inches, d) == _round_like_qt(
+                    limit / MM_PER_INCH, d):
+                return float(limit)
+        return _round_like_qt(inches * MM_PER_INCH, d + 1)
 
     def validate(self, text, pos):            # noqa: N802 - Qt's name
         if self._len_unit != LEN_IN:
@@ -250,9 +310,20 @@ class LengthSpinBox(NoScrollDoubleSpinBox):
         if self._len_unit != LEN_IN:
             return super().stepBy(steps)
         d = self._in_decimals()
-        shown = round(self.value() / MM_PER_INCH, d)
-        target = round(shown + int(steps) * IN_STEP, d)
-        mm = _round_like_qt(target * MM_PER_INCH, d + 1)
-        mm = min(max(mm, self.minimum()), self.maximum())
+        memo = self._step_memo
+        if memo is not None and self.value() == memo[2]:
+            # still stepping: from the value before the first step
+            origin, net = memo[0], memo[1] + int(steps)
+        else:
+            origin, net = self.value(), int(steps)
+        if net == 0:
+            # up and down again: the value is given back exactly (P1-3)
+            mm = origin
+        else:
+            shown = _round_like_qt(origin / MM_PER_INCH, d)
+            target = _round_like_qt(shown + net * IN_STEP, d)
+            mm = _round_like_qt(target * MM_PER_INCH, d + 1)
+            mm = min(max(mm, self.minimum()), self.maximum())
         super().setValue(mm)
+        self._step_memo = (origin, net, self.value())
         self.selectAll()

@@ -296,12 +296,16 @@ def test_the_unit_shown_is_what_a_new_resolution_keeps(panel, qapp):
 
 def test_a_loaded_pixel_page_shown_in_mm_keeps_the_size_on_a_new_resolution(
         panel):
+    """A pixel page the person chooses to look at in millimetres keeps its
+    size on paper on a new resolution (the unit shown is kept). The chart
+    opens showing pixels (review P1-7), so this takes the choice of mm."""
     from workflow.layout_engine.presets import default_recipe
     p = panel
     frame = {"w": [4096, "px"], "h": [2730, "px"], "ppi": 2731}
     p.set_recipe(replace(default_recipe("SS", "38.0953x25.3907"), dpi=2731,
                          page_size=frame))
     assert p.get_recipe().page_size == frame        # as stored, untouched
+    _choose(p, "mm")
     p.dpi.setValue(1200)
     p._emit()
     r = p.get_recipe()
@@ -711,3 +715,231 @@ def test_the_edge_note_skips_a_page_too_large_with_words(qapp, monkeypatch,
     lines = [r for r in caplog.records if "edge note skipped" in r.getMessage()]
     assert lines and lines[0].levelno == logging.INFO
     assert "296000000 pixels" in lines[0].getMessage()
+
+
+# ---- the fix round after the independent review (2026-11-17) ---------------------
+
+@pytest.mark.parametrize("frame", [(18796, 15748), (18001, 15001)])
+@pytest.mark.parametrize("route", [("mm", "px"), ("in", "px"),
+                                   ("mm", "in", "px"), ("in", "mm", "px")])
+def test_a_pixel_page_too_large_survives_every_unit(panel, frame, route):
+    """Review P1-5 (the R3-a guarantee): a pixel page that is no size the mm
+    and inch fields can hold at the resolution set stays its pixels when the
+    Units go to mm or inches and back; the red line says why all along."""
+    from ui.dialogs import page_output_panel as pop
+    p = panel
+    w, h = frame
+    p.dpi.setValue(72)
+    _choose(p, "px")
+    _set_px(p, w, h)
+    p._emit()
+    assert pop.size_problem(p)
+    for u in route:
+        _choose(p, u)
+        assert pop.size_problem(p), u           # the red line stays
+        assert p._page_truth == {"w": (float(w), "px"), "h": (float(h), "px")}
+    assert (p._page_px["w"].value(), p._page_px["h"].value()) == (w, h)
+    p.dpi.setValue(2032)
+    p._emit()
+    assert pop.size_problem(p) is None
+    assert p.get_recipe().page_size == {"w": [w, "px"], "h": [h, "px"],
+                                        "ppi": 2032}
+
+
+def test_a_pixel_page_too_large_looked_at_in_mm_keeps_its_pixels_on_a_new_resolution(
+        panel):
+    """...and a resolution changed while mm is shown keeps the pixels typed
+    until the page fits (review S8d: it used to become 2000 x 2000 mm)."""
+    p = panel
+    p.dpi.setValue(72)
+    _choose(p, "px")
+    _set_px(p, 18796, 15748)
+    _choose(p, "mm")
+    p.dpi.setValue(2032)
+    p._emit()
+    assert po.page_pixels(p.get_recipe().page_size, 2032) == (18796, 15748)
+
+
+def test_a_length_typed_in_inches_survives_reload_and_preset(qapp, beta_on,
+                                                            units_store):
+    """Review P1-1: typed 0.25 in (6.35 mm) for a margin, the strip gap and
+    a chart offset; the recipe read back into the panel (project reopened),
+    through a preset's JSON, and with either unit shown keeps 6.35."""
+    from workflow.layout_engine.presets import LayoutRecipe
+    p = _panel(unit="in")
+    try:
+        p.use_instr_margins.setChecked(False)
+        for box in (p.margins["t"], p.strip_gap, p.offx):
+            _type(box, "0.25")
+            assert box.value() == 6.35
+        r = p.get_recipe()
+        assert (r.margin_top, r.strip_gap_mm, r.offset_x_mm) == (6.35,) * 3
+        p.set_recipe(r)                                  # reopened
+        assert p.get_recipe().to_dict() == r.to_dict()
+        assert p.margins["t"].text().replace(",", ".") == "0.250"
+        stored = LayoutRecipe.from_dict(json.loads(json.dumps(r.to_dict())))
+        for unit in ("mm", "in"):
+            q = _panel(unit=unit)
+            try:
+                q.set_recipe(stored)                    # a preset loaded
+                got = q.get_recipe()
+                assert (got.margin_top, got.strip_gap_mm,
+                        got.offset_x_mm) == (6.35,) * 3, unit
+                assert got.to_dict() == r.to_dict(), unit
+                if unit == "mm":
+                    assert q.strip_gap.text().replace(",", ".") == "6.35 mm"
+            finally:
+                q.deleteLater()
+        _choose(p, "mm")
+        p.set_recipe(p.get_recipe())
+        assert p.get_recipe().strip_gap_mm == 6.35
+    finally:
+        p.deleteLater()
+
+
+def test_old_one_decimal_values_load_exactly_as_the_plain_box(qapp, beta_on,
+                                                             units_store):
+    """A 4.3.43 recipe holds one-decimal millimetres: they load exactly as
+    the plain box loads them, whatever unit is shown; and values finer than
+    the box that are no inch value (2.25, 12.25, -299.25: review P1-2) are
+    rounded as Qt rounds them (half away from zero) in both units."""
+    from ui.dialogs.length_units import LengthSpinBox
+    from ui.widgets import NoScrollDoubleSpinBox
+
+    def mk(cls):
+        b = cls()
+        b.setRange(-300, 300)
+        b.setDecimals(1)
+        b.setSingleStep(0.5)
+        b.setSuffix(" mm")
+        return b
+    inch, mm, plain = mk(LengthSpinBox), mk(LengthSpinBox), mk(NoScrollDoubleSpinBox)
+    inch.set_length_unit("in")
+    vals = [i / 100 for i in range(-30000, 30001)] + \
+        [i / 1000 for i in range(0, 20001)]
+    unit_diff, plain_diff = [], []
+    for v in vals:
+        inch.setValue(v)
+        mm.setValue(v)
+        plain.setValue(v)
+        if inch.value() != mm.value():
+            unit_diff.append(v)
+        if mm.value() != plain.value():
+            inches = v / 25.4
+            on_grid = abs(round(inches, 3) - inches) < 1e-9
+            if not on_grid or round(v, 1) == v:
+                plain_diff.append(v)
+    assert unit_diff == []          # 80,002 values, the reviewer's probe
+    assert plain_diff == []
+    for v, want in ((2.25, 2.3), (12.25, 12.3), (-299.25, -299.3), (6.3, 6.3)):
+        inch.setValue(v)
+        mm.setValue(v)
+        assert inch.value() == mm.value() == want
+
+
+def test_arrows_up_and_down_in_inches_come_back_exactly(panel):
+    """Review P1-3."""
+    p = panel
+    box = p.inter_patch
+    box.setValue(10.0)
+    _choose(p, "in")
+    box.stepBy(1)
+    box.stepBy(-1)
+    assert box.value() == 10.0
+    box.stepBy(1)
+    box.stepBy(1)
+    box.stepBy(-2)
+    assert box.value() == 10.0
+    box.stepBy(1)
+    assert box.value() == float(f"{0.404 * 25.4:.4f}")
+
+
+def test_the_largest_value_shown_in_inches_types_back_to_the_maximum(panel):
+    """Review P1-4: 300 mm shows as 11.811 in; typed back it is 300."""
+    p = panel
+    box = p.inter_patch
+    _choose(p, "in")
+    top = box.textFromValue(box.maximum())
+    _type(box, top)
+    assert box.value() == box.maximum()
+    _type(box, box.textFromValue(box.minimum()))
+    assert box.value() == box.minimum()
+
+
+def test_switching_back_restores_each_side_on_its_own(panel):
+    """Review P1-6: 100 x 50 mm, pixels, the width typed, back to mm: the
+    untouched height is exactly 50 mm again."""
+    p = panel
+    p.dpi.setValue(300)
+    _type(p.custom_w, "100")
+    _type(p.custom_h, "50")
+    _choose(p, "px")
+    _type(p._page_px["w"], "2000")
+    _choose(p, "mm")
+    assert p._page_truth["h"] == (50.0, "mm")
+    assert p.custom_h.value() == 50.0
+    assert p._page_truth["w"][1] == "mm"
+    assert po.pixels_of(p._page_truth["w"][0], 300) == 2000
+
+
+@pytest.mark.parametrize("pref", ["mm", "in", "px"])
+def test_a_chart_opens_showing_the_unit_its_page_is_stored_in(qapp, beta_on,
+                                                             units_store, pref):
+    """Coordinator's ruling after review P1-7: a page STORED in pixels opens
+    with Pixels shown (one in inches with Inches), for that chart only: the
+    remembered choice is not rewritten and the next chart follows it."""
+    from workflow.layout_engine.presets import default_recipe
+    p = _panel(unit=pref)
+    try:
+        px_frame = {"w": [4096, "px"], "h": [2730, "px"], "ppi": 2731}
+        p.set_recipe(replace(default_recipe("SS", "38.0953x25.3907"), dpi=2731,
+                             page_size=px_frame, tiff_res_unit="in"))
+        assert p.units.currentData() == "px" and p._page_unit == "px"
+        assert units_store.get("page_output_units") == pref
+        p.dpi.setValue(1200)                 # a film chart keeps its pixels
+        p._emit()
+        assert p.get_recipe().page_size == {"w": [4096, "px"],
+                                            "h": [2730, "px"], "ppi": 1200}
+        in_page = {"w": [9.25, "in"], "h": [7.75, "in"], "ppi": 2032}
+        p.set_recipe(replace(default_recipe("SS", "234.95x196.85"), dpi=2032,
+                             page_size=in_page, tiff_res_unit="in"))
+        assert p.units.currentData() == "in"
+        assert p.margins["t"].length_unit() == "in"
+        assert units_store.get("page_output_units") == pref
+        p.set_recipe(default_recipe("SS", "A4"))  # the next chart
+        assert p.units.currentData() == pref and p._page_unit == pref
+        p.set_recipe(default_recipe("SS", "150x200"))
+        assert p.units.currentData() == pref
+    finally:
+        p.deleteLater()
+
+
+def test_the_fd9_there_and_back_with_mm_shown_keeps_the_pixel_count(
+        qapp, beta_on, units_store):
+    """Review P1-8: the sides and the resolution they were made for are
+    taken before the FD-9 clamps anything."""
+    from workflow.fd9 import support as fd9
+    before = fd9._latched
+    fd9.set_enabled_for_this_process(True)
+    p = _panel(unit="px")
+    try:
+        p.instr.setCurrentIndex(p.instr.findData("SS"))
+        p.paper.setCurrentIndex(p.paper.findData("__custom__"))
+        p.dpi.setValue(2731)
+        _set_px(p, 4093, 2731)
+        _choose(p, "mm")
+        p.instr.setCurrentIndex(p.instr.findData("FD9"))
+        qapp.processEvents()
+        p.instr.setCurrentIndex(p.instr.findData("SS"))
+        qapp.processEvents()
+        if p.paper.currentData() != "__custom__":
+            p.paper.setCurrentIndex(p.paper.findData("__custom__"))
+        p.dpi.setValue(2731)
+        p._emit()
+        assert po.page_pixels(p.get_recipe().page_size
+                              or {"w": [p.custom_w.value(), "mm"],
+                                  "h": [p.custom_h.value(), "mm"], "ppi": 2731},
+                              2731) == (4093, 2731)
+    finally:
+        p.deleteLater()
+        fd9._latched = before

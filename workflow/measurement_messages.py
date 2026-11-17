@@ -8793,10 +8793,11 @@ _PAGE_NOT_DRAWN = "No page of the chart was drawn."
 _PAGE_PIXELS = ("The page will be {w} x {h} pixels ({mpx} megapixels) at "
                 "{ppi} pixels per inch.")
 #: The same line with the Units choice: the page also in the units its
-#: fields do not show ({size}: "1,4998 x 0,9996 in", "38,1 x 25,39 mm", or
-#: "38,1 x 25,39 mm (1,4998 x 0,9996 in)" with pixels chosen).
+#: fields do not show ({other_units}: "1,4998 x 0,9996 in", "38,1 x 25,39
+#: mm", or "38,1 x 25,39 mm (1,4998 x 0,9996 in)" with pixels chosen). Not
+#: `{size}`: in the lines below that is the page as it was typed.
 _PAGE_PIXELS_SIZE = ("The page will be {w} x {h} pixels ({mpx} megapixels) "
-                     "at {ppi} pixels per inch, which is {size}.")
+                     "at {ppi} pixels per inch, which is {other_units}.")
 _PAGE_PIXELS_OVER = (
     "That is more than ChromIQ can draw for one chart: a chart with these "
     "inks and this many pages can have pages of up to about {limit} "

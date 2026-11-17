@@ -36,9 +36,14 @@ of the choice (:func:`_page_switch`):
   resolution it was made for, before a new resolution is applied);
 * switching between mm and inches never changes the page (the typed side is
   kept as typed, only shown converted); switching to pixels makes the page
-  whole pixels, and switching back WITHOUT having typed anything (and at the
-  same resolution) restores exactly what was there before: merely looking
-  never changes a page;
+  whole pixels, and switching back restores exactly what was there before
+  for each side not typed since (at the same resolution): merely looking
+  never changes a page. A side in pixels that is no size the mm and inch
+  fields can hold (beyond 1 to 2000 mm at the resolution set) stays pixels
+  whatever is shown (:func:`_side_in`);
+* a chart whose page is stored in pixels opens with Pixels shown, one in
+  inches with Inches shown, for that chart only (:func:`load_recipe`): the
+  remembered choice is not rewritten, and the next chart follows it again;
 * the stored form is 4.3.43's: the paper code, ``page_size`` with each side
   as it was typed, ``tiff_res_unit``.
 
@@ -324,6 +329,28 @@ class _UnitsChosen:
             pass
 
 
+def _units_for_chart(panel: Any, ps: "dict | None") -> None:
+    """The Units shown for a chart just loaded (coordinator's ruling,
+    2026-11-17, after review P1-7): a page STORED in pixels opens with
+    Pixels shown, one stored in inches with Inches (a side in pixels wins:
+    a film frame's pixel count is what must not move), so a resolution
+    changed later keeps what the chart was made of. Any other chart shows
+    the remembered choice. The remembered choice itself is not rewritten:
+    this only shows, and the next chart follows the preference again."""
+    kinds = {ps[a][1] for a in _AXES} if ps else set()
+    unit = (po.UNIT_PX if po.UNIT_PX in kinds
+            else po.UNIT_IN if po.UNIT_IN in kinds else _stored_units())
+    combo = getattr(panel, "units", None)
+    if combo is not None and combo.currentData() != unit:
+        b = combo.blockSignals(True)     # shown only: nothing remembered
+        combo.setCurrentIndex(max(0, combo.findData(unit)))
+        combo.blockSignals(b)
+    if getattr(panel, "_page_unit", None) != unit:
+        panel._page_unit = unit
+        _show_page_unit_rows(panel)
+        _apply_length_unit(panel, unit)
+
+
 def finish_units(panel: Any) -> None:
     """The end of the panel's construction: find the length labels, boxes
     and their (i), and show the unit the person chose last time."""
@@ -453,14 +480,26 @@ def _side_in(side: "tuple[float, str]", unit: str,
              ppi: float) -> "tuple[float, str]":
     """One typed side as it is kept with *unit* shown: whole pixels for
     pixels; a side in pixels as its exact size for mm or inches; a side
-    already in mm or inches as it was typed (the size on paper is kept)."""
+    already in mm or inches as it was typed (the size on paper is kept).
+
+    A SIDE IN PIXELS THAT IS NO SIZE THE MILLIMETRE AND INCH FIELDS CAN HOLD
+    STAYS PIXELS (review P1-5, the R3-a guarantee). 18796 pixels at 72 ppi
+    is 6631 mm; the fields stop at 2000 mm, and converting it made the
+    clamped 2000 mm the page, so the pixels typed were lost for good when
+    the Units went to mm or inches and back, or the resolution was changed
+    while mm was shown. Kept as pixels, the fields show their limit, the red
+    line goes on saying why Generate refuses it, and the pixels come back
+    exactly; a resolution at which it fits makes it a real size again."""
     v, u = side
     if unit == po.UNIT_PX:
         if u == po.UNIT_PX:
             return (float(v), po.UNIT_PX)
         return (float(po.pixels_of(po.to_mm(v, u, ppi), ppi)), po.UNIT_PX)
     if u == po.UNIT_PX:
-        return (po.from_mm(po.to_mm(v, u, ppi), unit, ppi), unit)
+        mm = po.to_mm(v, u, ppi)
+        if not po.CUSTOM_MM_MIN_ON <= mm <= po.CUSTOM_MM_MAX:
+            return (float(v), po.UNIT_PX)
+        return (po.from_mm(mm, unit, ppi), unit)
     return (float(v), u)
 
 
@@ -480,16 +519,22 @@ def _page_switch(panel: Any, new: str) -> None:
     ppi = _ppi(panel)
     now = {a: tuple(truth[a]) for a in _AXES}
     memo = getattr(panel, "_page_look", None)
-    looking = (memo is not None and now == memo["after"]
-               and ppi == memo["ppi"])
-    if not looking:
-        memo = {"origin": now, "unit": old, "ppi": ppi}
-    if new == memo["unit"]:
-        shown = dict(memo["origin"])
-    else:
-        shown = {a: _side_in(memo["origin"][a], new, ppi) for a in _AXES}
+    if memo is None or memo.get("ppi") != ppi:
+        memo = {"ppi": ppi, "sides": {}}
+    shown = {}
+    for a in _AXES:
+        # EACH SIDE ON ITS OWN (review P1-6): a side the person has not
+        # typed since the last switch is still being looked at, and comes
+        # back exactly when its own unit does, even if the other side was
+        # typed meanwhile (100 x 50 mm, pixels, width typed, mm: 50 mm)
+        side = memo["sides"].get(a)
+        if side is None or now[a] != side["after"]:
+            side = {"origin": now[a], "unit": old}
+        shown[a] = (tuple(side["origin"]) if new == side["unit"]
+                    else _side_in(side["origin"], new, ppi))
+        side["after"] = tuple(shown[a])
+        memo["sides"][a] = side
     panel._page_truth = shown
-    memo["after"] = {a: tuple(shown[a]) for a in _AXES}
     panel._page_look = memo
     panel._page_unit = new
     panel._page_last_ppi = ppi
@@ -550,17 +595,27 @@ def fd9_entering(panel: Any) -> "dict | None":
     truth = getattr(panel, "_page_truth", None)
     if truth is None:
         return None
+    _heal_truth(panel)
     return {"truth": {a: tuple(truth[a]) for a in _AXES},
-            "unit": getattr(panel, "_page_unit", None)}
+            "unit": getattr(panel, "_page_unit", None),
+            # the resolution the sides were made for: taken BEFORE the FD-9
+            # clamps the resolution (review P1-8)
+            "ppi": getattr(panel, "_page_last_ppi", None) or _ppi(panel)}
 
 
 def fd9_left(panel: Any, saved: "dict | None") -> None:
     """The FD-9 was left and its ranges and boxes given back: the typed
-    sides come back exactly as they were."""
+    sides come back exactly as they were, for the resolution they were made
+    for. If the resolution on screen is another one now (the FD-9 stops at
+    600), the unit shown decides what it keeps, as for any resolution
+    change (:func:`_keep_shown_unit`)."""
     if not saved or getattr(panel, "_page_truth", None) is None:
         return
     panel._page_truth = dict(saved["truth"])
     panel._page_look = None
+    made_for = saved.get("ppi")
+    if made_for and made_for != _ppi(panel):
+        _keep_shown_unit(panel, made_for)
     panel._page_last_ppi = _ppi(panel)
     _show_truth(panel)
 
@@ -784,7 +839,7 @@ def refresh_readout(panel: Any) -> None:
         # the page in the units the fields do not show (the Units choice)
         text = tr(mm._PAGE_PIXELS_SIZE).format(
             w=po.number(w), h=po.number(h), mpx=po.decimal(w * h / 1e6),
-            ppi=_ppi(panel), size=_other_units_text(panel))
+            ppi=_ppi(panel), other_units=_other_units_text(panel))
     else:
         text = tr(mm._PAGE_PIXELS).format(
             w=po.number(w), h=po.number(h), mpx=po.decimal(w * h / 1e6),
@@ -840,7 +895,11 @@ def load_recipe(panel: Any, r: Any) -> None:
             # nothing typed yet, nothing to restore
             panel._page_last_ppi = _ppi(panel)
             panel._page_look = None
+            if getattr(panel, "_units_choice", False):
+                _units_for_chart(panel, ps)
             _show_truth(panel)
+        elif getattr(panel, "_units_choice", False):
+            _units_for_chart(panel, None)
         refresh_readout(panel)
         return
     # ---- Beta off: hold a chart's own page values ----------------------------
@@ -1054,6 +1113,12 @@ def units_help() -> str:
            "whole pixels. If you switch back without typing anything, you "
            "get exactly the size you had before, so just looking never "
            "changes your page."),
+        tr("When you open a chart whose page size was typed in pixels, the "
+           "Units show Pixels for that chart, and for a page typed in inches "
+           "they show Inches. So if you change the resolution afterwards, the "
+           "page keeps exactly what it was made of. Your own choice is not "
+           "changed by this: the next chart without such a page is shown in "
+           "the unit you chose."),
         tr("This is a beta option (Preferences, Beta tab).")))
 
 

@@ -466,15 +466,23 @@ while the option is on and hands it back to Create Chart; off, it opens as in
   size on paper (a side stored the other way, from a chart opened, is first
   made the shown kind at the resolution it was made for). Switching between
   millimetres and inches never changes the page; switching to pixels makes it
-  whole pixels; switching back without typing anything, at the same
-  resolution, restores exactly the page before. Every other length (margins,
-  patch size, gaps and the rest) is shown in millimetres or inches as a
-  display only: it is stored in millimetres as before, a value typed in
-  inches is stored exactly (0.25 in is 6.35 mm), a stored value is never
-  moved by looking at it in inches, and a value the program sets is rounded
-  as the millimetre box rounds it. With millimetres chosen every field is
-  4.3.43's. A chart made by 4.3.43 opens and generates byte for byte,
-  whatever unit is chosen.
+  whole pixels; switching back restores exactly the page before for each
+  side not typed since, at the same resolution. A side in pixels that is no
+  size the mm and inch fields can hold at the resolution set (beyond 1 to
+  2000 mm) stays pixels whatever is shown, with the red line saying why. A
+  chart whose page is stored in pixels opens with Pixels shown, one stored in
+  inches with Inches shown, for that chart only (the remembered choice is not
+  rewritten; the next chart follows it). Every other length (margins, patch
+  size, gaps and the rest) is shown in millimetres or inches as a display
+  only: it is stored in millimetres as before, a value typed in inches is
+  stored exactly (0.25 in is 6.35 mm) and is kept exactly when it is set
+  again by a project reopened, a preset loaded or the defaults read back, a
+  stored value is never moved by looking at it in inches, and any other value
+  the program sets is rounded as the millimetre box rounds it (Qt's rounding,
+  an exact half away from zero), the same in both units. With millimetres
+  chosen and nothing typed in inches every field is 4.3.43's. A chart made by
+  4.3.43 opens and generates byte for byte, whatever unit is chosen.
+  (Revised 2026-11-17 after the independent review, P1-1 to P1-7.)
 * **The FD-9 there and back** (with its Beta on) gives a page typed in
   pixels or inches back as typed (it used to come back as two-decimal
   millimetres). **The patch set editor** does not draw its hidden picture of
