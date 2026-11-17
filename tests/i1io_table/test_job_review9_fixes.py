@@ -643,8 +643,14 @@ def test_r9_fix_an_app_level_marker_is_asked_in_another_project(tmp_path):
     r = job2.open()
     assert r.confirm == J.Confirm.MARKER and sim2.received == []
     assert p2.drive(job2.answer(J.Confirm.MARKER, "switched off and on")).ok
+    # fix round 10 (B-1): job2's own write-ahead "in use" marker stands until its close()
+    assert [m.name for m in se.app_markers(*place)] == [
+        se.app_in_use_name(place[1], SECOND)]
+    job2.close()
     assert se.app_markers(*place) == []                 # acknowledged, kept
-    assert len(list((tmp_path / "settings").glob("*.json"))) == 2
+    strip = [f for f in (tmp_path / "settings").glob("*.json") if not se.is_in_use_marker(f)
+             and "-in-use." not in f.name]
+    assert len(strip) == 2                              # the strip marker and its acknowledgement
     job3, sim3, helper3, p3 = job_on(run2, tmp_path / "c", stamp="20261117-170000",
                                      app_marker_place=place)
     assert job3.open().confirm != J.Confirm.MARKER

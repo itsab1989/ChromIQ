@@ -180,7 +180,8 @@ def test_the_preview_follows_the_job(tab, beta, tmp_path, monkeypatch, qtbot, pb
     run, sheet = table_run(tmp_path)
     strips, patches, measured = [], [], []
     monkeypatch.setattr(tab, "_table_highlight_row",
-                        lambda page, row, locs: strips.append((page, row, locs[0])))
+                        lambda page, row, locs, status="": strips.append((page, row, locs[0]))
+                        if not status else None)
     monkeypatch.setattr(tab, "_locate_patch", lambda loc: (0, loc))
     monkeypatch.setattr(tab._preview, "highlight_patch",
                         lambda page, box: patches.append(box))
@@ -200,12 +201,13 @@ def test_the_preview_follows_the_job(tab, beta, tmp_path, monkeypatch, qtbot, pb
     rows = [st["patches"] for st in sheet["pages"][0]["strips"]]
     locs = [q["loc"] for r in rows for q in r]
     assert sorted(measured) == sorted(locs) and len(measured) == len(locs)  # every reading
+    # fix round 10 (review 10, M-3): the row the job starts is the row highlighted, in the
+    # job's order, in BOTH modes
+    assert [(pg, r) for pg, r, _l in strips] == [(0, k) for k in range(len(rows))]
     if pbp:
         # the patch ringed before each move is the one read next, in the job's own order
-        assert [b for b in patches if isinstance(b, str)] == measured and strips == []
+        assert [b for b in patches if isinstance(b, str)] == measured
     else:
-        # the row the job starts is the row highlighted, in the job's order
-        assert [(pg, r) for pg, r, _l in strips] == [(0, k) for k in range(len(rows))]
         assert not [b for b in patches if isinstance(b, str)]
 
 
@@ -247,11 +249,11 @@ def test_a_row_is_outlined_from_its_own_patch_boxes(tab, tmp_path):
     tab._patch_boxes = [{"A1": QRect(0, 0, 10, 10), "A2": QRect(10, 0, 10, 10),
                          "B1": QRect(0, 20, 10, 10), "B2": QRect(10, 20, 10, 10)}]
     got = []
-    tab._preview.set_scan_grid = lambda rows, completed=(), active=None: got.append(
-        (len(rows), set(completed), active, rows[active][0] if active is not None else None))
+    tab._preview.set_table_rows = lambda page, rows, done=(), active=None: got.append(
+        (page, len(rows), set(done), active, rows[active][0] if active is not None else None))
     tab._table_highlight_row(0, 0, ["A1", "A2"])
     tab._table_highlight_row(0, 0, [], status="read")
     tab._table_highlight_row(0, 1, ["B1", "B2"])
-    assert got[0] == (2, set(), 0, [(0, 0), (10, 0), (10, 10), (0, 10)])
-    assert got[1][1] == {0} and got[1][2] is None
-    assert got[2][1] == {0} and got[2][2] == 1
+    assert got[0] == (0, 2, set(), 0, QRect(0, 0, 10, 10))
+    assert got[1][2] == {0} and got[1][3] is None
+    assert got[2][2] == {0} and got[2][3] == 1

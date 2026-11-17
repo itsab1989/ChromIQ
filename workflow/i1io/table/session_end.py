@@ -177,10 +177,37 @@ def set_aside(run, stamp: str) -> "Path | None":
 
 
 def marker_unacknowledged(run, stamp: str) -> bool:
-    """The session's pending-strip-move marker is there and nobody said "switched off and on"
-    since (the ``.acknowledged.json`` beside it, written by the job's open())."""
-    marker = run.i1io_table_pending_marker(stamp)
-    return marker.is_file() and not marker.with_suffix(".acknowledged.json").is_file()
+    """The session's pending-strip-move marker (or, fix round 10, its "table in use" marker)
+    is there and nobody said "switched off and on" since (the ``.acknowledged.json`` beside
+    it, written by the job's open(), or for the in-use marker by the job's close())."""
+    for marker in (run.i1io_table_pending_marker(stamp), in_use_marker(run, stamp)):
+        if marker.is_file() and not marker.with_suffix(".acknowledged.json").is_file():
+            return True
+    return False
+
+
+# ---- fix round 10, B-1: "the table is in use" (write-ahead) ----------------------------------
+#: written into the session folder when the job opens the table's USB, BEFORE the first line;
+#: the job's close() acknowledges it. A session the app never closed (a kill, a crash, a power
+#: cut, a logout that did not wait) leaves it unacknowledged, and the next START asks
+#: "switched off and on" before anything is sent, exactly as for a strip move that may wait.
+IN_USE_MARKER = "TABLE_IN_USE.json"
+IN_USE_WHAT = "the table was in use; ChromIQ ended without closing it"
+_APP_IN_USE_SUFFIX = "-in-use.json"
+
+
+def in_use_marker(run, stamp: str) -> Path:
+    return run.i1io_table_session_dir(stamp) / IN_USE_MARKER
+
+
+def app_in_use_name(prefix: str, stamp: str) -> str:
+    """The app-level twin (beside the app-level strip markers, the stamp only)."""
+    return f"{prefix}{stamp}{_APP_IN_USE_SUFFIX}"
+
+
+def is_in_use_marker(path) -> bool:
+    name = Path(path).name
+    return name == IN_USE_MARKER or name.endswith(_APP_IN_USE_SUFFIX)
 
 
 def write_json_now(path: Path, data) -> None:
@@ -239,6 +266,8 @@ def project_markers(run) -> "list[Path]":
     table_dir = Path(run.i1io_table_dir).name
     try:
         found = sorted(runs_dir.glob(f"*/{table_dir}/*/{PENDING_MARKER}"))
+        # fix round 10, B-1: and every session the app never closed
+        found += sorted(runs_dir.glob(f"*/{table_dir}/*/{IN_USE_MARKER}"))
     except OSError:
         found = []
     own = [m for m in run.i1io_table_pending_markers() if m not in found]

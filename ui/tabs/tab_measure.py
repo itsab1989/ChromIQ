@@ -6709,7 +6709,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         fit_message_box_buttons(box)
         box.exec()
 
-    def _blocked_by_i1pro2_lights_left_on(self) -> bool:
+    def _blocked_by_i1pro2_lights_left_on(self, family: "str | None" = None) -> bool:
         """M-I1PRO2-LIGHTS-LEFT-ON (§M-PROPOSED): the i1Pro 2 lights
         (Preferences > Beta) were on when the last session's helper ended
         without switching them off, so they may still be on, and ArgyllCMS's
@@ -6724,7 +6724,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         option = marker.option_on(getattr(self, "_settings", None))
         if not option:
             return False
-        if not marker.left_on(option, self._chart_instrument_code()):
+        # *family*: the i1iO table (Beta) reads with the i1Pro 2 in its arm,
+        # whatever instrument its chart names (fix round 10, M-5)
+        if not marker.left_on(option, family or self._chart_instrument_code()):
             return False
         log.info("i1Pro 2 lights: the last session ended with the lights "
                  "possibly on; asking for a replug before connecting")
@@ -6940,8 +6942,26 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             return True
         if self._blocked_by_new_run() or self._blocked_by_missing_chart_file():
             return True
+        # THE HAND PATH'S GUARDS THAT MATTER FOR THE TABLE (review 10, M-5).
+        # #211: the job resumes and adopts by SAMPLE_LOC and attaches the
+        # chart's device values, so a partial measurement laid out for an
+        # earlier version of this chart would get new device values on old
+        # readings. The i1Pro 2 lights: the table reads with the same i1Pro 2
+        # through ChromIQ's helper, and the marker's rule is about the
+        # instrument. The other hand guards: a differing -F condition is the
+        # job's own -F refusal, a differing -H the job's field check (and
+        # "Measure the rest that way"), unreadable locations have no meaning
+        # (the job reads by the side file and files by name), the instrument
+        # in use is the app's measurement lock plus the job's own instrument
+        # check before anything is opened.
+        if self._blocked_by_a_misfitting_measurement():
+            return True
+        from core import i1pro2_lights_marker as _lights
+        if self._blocked_by_i1pro2_lights_left_on(family=_lights.CHART_FAMILY):
+            return True
         params = self._collect_params()
         args = self._manager._build_args(params)
+        only_locs = self._table_refinement_locs(params)
         at_risk = (self._measurement_at_risk() is not None
                    and not self._read_builds_on_existing())
         if not self._confirm_replacing_measurement():
@@ -6954,7 +6974,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # beside it stays visible and follows the job; the rest of the app is
         # locked as for a hand measurement. Nothing modal, nothing over the
         # preview.
+        # a replace is archived only when the table's Save writes (review 10,
+        # S-2); one left from an earlier hand session is not ours to restore
+        self._displaced_measurement = None
+        self._table_saved = False
         win = TableMeasureWindow(self._stack, self._settings, sheet, run, args,
+                                 only_locs=only_locs,
                                  mode=self._current_mode(), replace_agreed=at_risk,
                                  archive=self._archive_measurement_before_replacing)
         win.saved.connect(self._on_table_measurement_saved)
@@ -6966,6 +6991,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._table_stack_before = self._stack.currentIndex()
         self._stack.addWidget(win)
         self._stack.setCurrentWidget(win)
+        self._table_room(True)
         self._set_settings_enabled(False)
         self._start_btn.setEnabled(False)
         for b in (getattr(self, "_guided_btn", None), getattr(self, "_manual_btn", None),
@@ -6977,11 +7003,70 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # strip" arrow on the highlighted row (the CR30's own switch, #159)
         self._table_no_swipe_before = bool(getattr(self._preview, "_no_swipe", False))
         self._preview.set_no_swipe(True)
+        self._preview.set_table_ring(True)
+        # the preview's "Progress" counts the table's readings as a hand
+        # measurement's (a resume or refinement starts from the run's file)
+        self._reset_progress(from_files=bool(only_locs) or "-r" in args)
         self._log.appendPlainText(tr(
             "Measuring with the i1iO table (beta): the table's questions and "
             "buttons are on the left, the chart on the right shows what it reads."))
         win.start()
         return True
+
+    def _table_refinement_locs(self, params) -> "set[str] | None":
+        """The patches a refinement asks the table to read again (open point
+        a), or None: with Refine / resume and "Refinement strips file" ticked
+        and a list loaded, the quality check's own patches when the list
+        names patches, else every patch of its strips that this chart has.
+        The table reads patch by patch, so it reads exactly those; the hand
+        path's guided re-measurement does the same in patch-by-patch mode."""
+        mode = self._current_mode()
+        resume_cb = self._resume_cb if mode == "guided" else self._m_resume_cb
+        refine_cb = self._refine_cb if mode == "guided" else self._m_refine_cb
+        if not (resume_cb.isChecked() and refine_cb.isChecked()
+                and self._strip_list):
+            return None
+        if getattr(self, "_refine_patch_list", None):
+            locs = self._guided_patches()
+        else:
+            strips = {str(x).upper() for x in self._guided_strips_on_chart()}
+            try:
+                from workflow.measurement_pairing import chart_locations
+                all_locs = chart_locations(self._chart_file_for(self._ti1_path))
+            except Exception:      # noqa: BLE001 - no chart, no refinement
+                return None
+            locs = [l for l in all_locs if self._strip_of(l).upper() in strips]
+        return set(locs) or None
+
+    def _table_room(self, on: bool) -> None:
+        """While the table's panel is shown (review 10, M-2 / M-3), the tab's
+        own measurement controls that have no function then make room for
+        it: START / STOP / SAVE AS DEFAULTS, "Play sounds" (the table plays
+        none) and "Save measurement report" (its value, set before START, is
+        used when the table's Save writes, as after a hand measurement), and
+        Guided's "Keep calm!" banner; the log keeps three lines. Everything
+        comes back as it was when the panel goes."""
+        from ui.widgets import fit_log_height
+        if on:
+            self._table_room_before = {
+                "buttons": not self._left_buttons.isHidden(),
+                "calm": not self._calm_outer.isHidden(),
+            }
+            self._left_buttons.setVisible(False)
+            self._calm_outer.setVisible(False)
+            fit_log_height(self._log, 3)
+            return
+        before = getattr(self, "_table_room_before", None)
+        if before is None:
+            return
+        self._table_room_before = None
+        self._left_buttons.setVisible(before["buttons"])
+        self._calm_outer.setVisible(before["calm"])
+        fit_log_height(self._log)
+
+    def table_session_open(self) -> bool:
+        """A table session (the i1iO table, Beta) is open in this tab."""
+        return getattr(self, "_table_window", None) is not None
 
     def _on_table_progress(self, ev: dict) -> None:
         """The table job's progress on the chart preview, with the hand
@@ -6994,15 +7079,15 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 self._table_aim_on_preview(ev)
             elif kind == "row_start":
                 self._preview.highlight_patch(-1, None)
-                if not getattr(self, "_table_patch_by_patch", False):
-                    self._table_highlight_row(int(ev.get("page") or 1) - 1,
-                                              int(ev.get("row") or 0) - 1,
-                                              ev.get("locs") or [])
+                # the row being read, in both modes (patch by patch rings
+                # the patch too): a person beside the table sees it at once
+                self._table_highlight_row(int(ev.get("page") or 1) - 1,
+                                          int(ev.get("row") or 0) - 1,
+                                          ev.get("locs") or [])
             elif kind == "row_end":
-                if not getattr(self, "_table_patch_by_patch", False):
-                    self._table_highlight_row(int(ev.get("page") or 1) - 1,
-                                              int(ev.get("row") or 0) - 1, [],
-                                              status=str(ev.get("status") or "ended"))
+                self._table_highlight_row(int(ev.get("page") or 1) - 1,
+                                          int(ev.get("row") or 0) - 1, [],
+                                          status=str(ev.get("status") or "ended"))
             elif kind == "patch_next":
                 if getattr(self, "_table_patch_by_patch", False):
                     page, box = self._locate_patch(str(ev.get("loc", "")))
@@ -7015,23 +7100,22 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 if len(xyz) >= 3:
                     self._on_patch_measured({"loc": str(ev.get("loc", "")),
                                              "xyz": list(xyz[:3])})
+                self._count_patch_progress({"loc": str(ev.get("loc", ""))})
             elif kind == "end":
                 self._preview.highlight_patch(-1, None)
-                self._preview.set_scan_grid(None)
+                self._preview.set_table_rows(-1, None)
                 self._table_rows_done = None
         except Exception:      # noqa: BLE001 - the preview never stops the table
             log.debug("table progress not shown on the preview", exc_info=True)
 
     def _table_highlight_row(self, page: int, row: int, locs, status: str = "") -> None:
-        """The row being read (strip mode). An i1iO chart's strips run ACROSS
-        the sheet and are not found on its TIFF (the tab's strip detection
-        fails for it, a warning in the log since before the table drive), and
-        the hand path's strip highlight is the downward scan arrow of a
-        vertical strip. So the preview's own row overlay is used,
-        TiffPreview.set_scan_grid (the cells of each row in image pixels; the
-        active row outlined, read rows green), with each row's cells taken
-        from the chart's recorded patch boxes. *status* "read" marks the row
-        read; a failed row stays unmarked, as a failed strip stays unread."""
+        """The row being read (review 10, M-3): TiffPreview.set_table_rows,
+        a thick frame in the app's accent colour with a light fill around the
+        whole row, read rows in a thinner green frame, drawn over the hand
+        path's own measured / expected overlay (which stays as it is), with
+        each row's cells taken from the chart's recorded patch boxes. *status*
+        "read" marks the row read; a failed row stays unmarked, as a failed
+        strip stays unread."""
         done = getattr(self, "_table_rows_done", None)
         if done is None or getattr(self, "_table_rows_page", None) != page:
             done = self._table_rows_done = set()
@@ -7044,7 +7128,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if page != self._preview.current_page():
             self._preview.show_page(page)
         active = None if status else (row if 0 <= row < len(rows) else None)
-        self._preview.set_scan_grid(rows, done, active)
+        self._preview.set_table_rows(page, rows, done, active)
 
     def _table_row_cells(self, page: int) -> list:
         sheet = getattr(self, "_table_sheet", None) or {}
@@ -7059,8 +7143,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             for q in st.get("patches", []):
                 b = boxes.get(q.get("loc"))
                 if b is not None:
-                    x, y, w, h = b.x(), b.y(), b.width(), b.height()
-                    cells.append([(x, y), (x + w, y), (x + w, y + h), (x, y + h)])
+                    cells.append(QRect(b))
             out.append(cells)
         return out if any(out) else []
 
@@ -7110,6 +7193,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         """The table window saved into the run: announced as after a hand
         measurement (STEP8_NOTES §2)."""
         ti3 = Path(path)
+        self._table_saved = True
+        self._displaced_measurement = None
         if detail.get("resume_next"):
             self._update_resume_availability()
             cb = (self._resume_cb if self._current_mode() == "guided"
@@ -7142,13 +7227,33 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             if b is not None:
                 b.setEnabled(True)
         self._preview.highlight_patch(-1, None)
-        self._preview.set_scan_grid(None)
+        self._preview.set_table_rows(-1, None)
+        self._preview.set_table_ring(False)
         self._table_rows_done = None
         self._preview.set_no_swipe(getattr(self, "_table_no_swipe_before", False))
+        self._table_room(False)
+        # review 10, S-2: a replace is archived only when the table's Save
+        # writes; if that Save then failed (the disk did not take it), the
+        # previous measurement goes back where it was, as on the hand path
+        if not getattr(self, "_table_saved", False) \
+                and getattr(self, "_displaced_measurement", None) is not None \
+                and self._ti1_path is not None \
+                and not Path(self._ti1_path).with_suffix(".ti3").exists():
+            self._restore_displaced_measurement(
+                Path(self._ti1_path).with_suffix(".ti3"), quiet=True)
+        self._reset_progress(from_files=True)
         self.measurement_active.emit(False)
         if why == "consent_declined":
             self._log.appendPlainText(tr(
                 "Measurement not started: you chose Not now for the i1iO table."))
+        # review 10, B-1: the person quit ChromIQ during the session; the
+        # table's ending has run and the job has let go of the USB: the quit
+        # goes on now, through the window's own close (which asks nothing
+        # more: no measurement runs any longer)
+        if why == "quit":
+            top = self.window()
+            if top is not None and top is not self:
+                QTimer.singleShot(0, top.close)
 
     def _refused_as_an_i1io_chart(self) -> bool:
         """True, with M-I1IO-NOT-YET shown, when i1iO support is on and the
@@ -10324,9 +10429,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             return False
 
     def a_measurement_is_running(self) -> bool:
-        """True while a reader is live and waiting for this tab's keys."""
+        """True while a reader is live and waiting for this tab's keys, and
+        while a session of the i1iO table (Beta) is open (review 10, B-1)."""
         if (_fd9_ask(self, "_fd9_engaged")
                 or _fd9_ask(self, "_fd9_worker_running")):
+            return True
+        if getattr(self, "_table_window", None) is not None:
             return True
         return bool(getattr(self, "_session_live", False)) and \
             bool(self._runner.is_running)
@@ -10358,6 +10466,23 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         """
         if not self.a_measurement_is_running():
             return True
+        # THE i1iO TABLE (Beta; review 10, B-1): its own ending, in its own
+        # panel, with the same questions as its End measurement and nothing
+        # moving without the hands-off GO. The quit waits: the panel quits
+        # ChromIQ itself once the ending has run and the job has let go of
+        # the table (the USB released, the session's markers written), so a
+        # worker is never killed in the middle of a step.
+        win = getattr(self, "_table_window", None)
+        if win is not None:
+            if win.request_quit():
+                return True
+            self._log.appendPlainText(tr(
+                "ChromIQ closes after the i1iO table measurement has ended. "
+                "Please answer the questions on the left; nothing moves "
+                "without your Go."))
+            self._log.ensureCursorVisible()
+            log.info("quit held: the i1iO table session ends first")
+            return False
         self._key_watchdog.stop()
         if (_fd9_ask(self, "_fd9_worker_running")
                 and not _fd9_ask(self, "_fd9_engaged")):

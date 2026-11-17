@@ -220,6 +220,10 @@ class ReadOptions:
     #: -r: read only what the run's partial measurement lacks
     resume: bool = False
 
+    def reader_args_fields(self) -> "tuple[str, ...]":
+        """The field options among :meth:`reader_args` (-H -l -L -n), in that order."""
+        return tuple(a for a in self.reader_args() if a in ("-H", "-l", "-L", "-n"))
+
     def reader_args(self) -> "tuple[str, ...]":
         out = []
         if self.suppress_warnings:

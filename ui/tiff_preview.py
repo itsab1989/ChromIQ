@@ -2094,6 +2094,13 @@ class TiffPreview(QWidget):
         self._pan_dist: int = 0
         self._patch_overlay: dict[int, list] = {}
         self._scan_grid = None
+        #: the i1iO table (Beta, fix round 10): the rows of the page the table reads, drawn
+        #: OVER the normal measured / expected overlay (which stays the hand path's): the row
+        #: being read in a thick accent frame with a light fill, read rows in a thinner green
+        #: one. None = nothing (every other chart and the table off: unchanged).
+        self._table_rows = None
+        #: …and the ring on the patch the arm is on drawn twice as thick (table only)
+        self._table_ring = False
         #: CR30 aiming help: the instrument's body and aperture, drawn to scale
         #: on the patch being asked for. See `set_aim_overlay`.
         self._aim_overlay = False
@@ -2361,6 +2368,59 @@ class TiffPreview(QWidget):
         if self._scan_grid != state:
             self._scan_grid = state
             self._schedule_refresh()
+
+    def set_table_rows(self, page: int, rows, done=(), active=None) -> None:
+        """The i1iO table's rows on *page* (fix round 10, M-3): *rows* a list of rows, each a
+        list of patch rects in image pixels; *done* the indices read; *active* the one being
+        read (or None). ``rows=None`` clears it. Display only."""
+        state = None if rows is None else (int(page), [list(r) for r in rows],
+                                           frozenset(done), active)
+        if self._table_rows != state:
+            self._table_rows = state
+            self._schedule_refresh()
+
+    def set_table_ring(self, on: bool) -> None:
+        if self._table_ring != bool(on):
+            self._table_ring = bool(on)
+            self._schedule_refresh()
+
+    def _draw_table_rows(self, painter, s, sy, ox, oy) -> None:
+        from PyQt6.QtGui import QPen
+        page, rows, done, active = self._table_rows
+        if page != self._current:
+            return
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        accent = self._overlay_accent(self._OVERLAY_RING)
+        for i, cells in enumerate(rows):
+            if not cells or (i != active and i not in done):
+                continue
+            x0 = min(r.x() for r in cells)
+            y0 = min(r.y() for r in cells)
+            x1 = max(r.x() + r.width() for r in cells)
+            y1 = max(r.y() + r.height() for r in cells)
+            pad = 3.0
+            rect = QRectF(x0 * s + ox - pad, y0 * sy + oy - pad,
+                          (x1 - x0) * s + 2 * pad, (y1 - y0) * sy + 2 * pad)
+            if i == active:
+                fill = QColor(accent)
+                fill.setAlpha(45)
+                painter.fillRect(rect, fill)
+                halo = QPen(QColor(255, 255, 255, 235))
+                halo.setWidthF(7.0)
+                painter.setPen(halo)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawRect(rect)
+                pen = QPen(accent)
+                pen.setWidthF(4.0)
+            else:
+                pen = QPen(QColor("#2fa36b"))
+                pen.setWidthF(2.0)
+            pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
+            painter.setPen(pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRect(rect)
+        painter.restore()
 
     def _draw_scan_grid(self, painter, sx, sy, ox, oy):
         from PyQt6.QtGui import QPen, QPolygonF
@@ -6596,6 +6656,10 @@ class TiffPreview(QWidget):
             # that was the SAME COLOUR as the ring anyway. Deferred, and given
             # its own alarm colour, below.
 
+        # The i1iO table's rows (Beta; None for every other chart).
+        if self._table_rows is not None:
+            self._draw_table_rows(painter, s, sy, ox, oy)
+
         # #126 spot mode: highlight the patch to read next with a bright
         # haloed accent ring so the user knows where to place the instrument.
         if self._active_patch_box is not None and self._active_patch_page == self._current:
@@ -6633,7 +6697,8 @@ class TiffPreview(QWidget):
             # px of patch, thin both strokes rather than smother the colour.
             _small = min(r.width() * s, r.height() * sy) < RING_SMALL_PATCH_PX
             halo = QPen(QColor(255, 255, 255, 235))
-            halo.setWidthF(RING_HALO_W_SMALL if _small else RING_HALO_W)
+            halo.setWidthF((RING_HALO_W_SMALL if _small else RING_HALO_W)
+                           * (2.0 if self._table_ring else 1.0))
             halo.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
             painter.setPen(halo)
             if _hex is not None:
@@ -6641,7 +6706,8 @@ class TiffPreview(QWidget):
             else:
                 painter.drawRect(x0, y0, x1 - x0, y1 - y0)
             ring = QPen(self._overlay_accent(self._OVERLAY_RING))
-            ring.setWidthF(RING_ACCENT_W_SMALL if _small else RING_ACCENT_W)
+            ring.setWidthF((RING_ACCENT_W_SMALL if _small else RING_ACCENT_W)
+                           * (2.5 if self._table_ring else 1.0))
             ring.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
             painter.setPen(ring)
             if _hex is not None:

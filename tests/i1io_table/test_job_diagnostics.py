@@ -31,7 +31,8 @@ def test_the_session_is_written_through_the_runs_members(tmp_path):
     assert run.i1io_table_log(STAMP).is_file()
     assert run.i1io_table_sessions() == [folder]
     names = sorted(p.relative_to(folder).as_posix() for p in folder.rglob("*") if p.is_file())
-    assert names == ["d1-1/alignment.json", "d1-1/result.json", "d2-1/result.json",
+    assert names == ["TABLE_IN_USE.acknowledged.json", "TABLE_IN_USE.json",   # fix round 10
+                     "d1-1/alignment.json", "d1-1/result.json", "d2-1/result.json",
                      "dz-1/result.json", "f-1/result.json", "session.log",
                      "session_summary.json", "summary.json"]   # step 8: the ending summary
 

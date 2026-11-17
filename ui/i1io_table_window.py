@@ -35,7 +35,7 @@ import logging
 import time
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QRunnable, Qt, QThreadPool, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QObject, QRunnable, Qt, QThreadPool, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import (QCheckBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QPlainTextEdit,
                              QPushButton, QScrollArea, QSizePolicy, QVBoxLayout, QWidget)
 
@@ -147,12 +147,14 @@ def choice_label(kind: str, value: str) -> str:
         ("go", "yes"): tr("Go"),
         ("go", "back"): tr("Back"),
         ("sheet_laid", "yes"): tr("Yes, it is on the table"),
-        ("sheet_laid", "stop"): tr("Stop"),
+        # review 10, M-3: the panel has ONE Stop (the footer's); an answer that only ends
+        # the step on screen says so
+        ("sheet_laid", "stop"): tr("End this step"),
         ("arm_felt", "free"): tr("It moves freely"),
         ("arm_felt", "holds"): tr("It holds"),
         ("arm_felt", "not sure"): tr("Not sure"),
         ("aimed", "aimed"): tr("Aimed"),
-        ("aimed", "stop"): tr("Stop"),
+        ("aimed", "stop"): tr("End this step"),
         ("front_choice", "back"): tr("Lay it further back"),
         ("front_choice", "go on"): tr("Feel the way forward"),
         ("front_yes", "yes"): tr("Yes, feel forward"),
@@ -160,7 +162,7 @@ def choice_label(kind: str, value: str) -> str:
         ("first_visit", "yes"): tr("Make this move"),
         ("first_visit", "no"): tr("No"),
         ("pending_marker", "switched off and on"): tr("I switched it off and on"),
-        ("pending_marker", "stop"): tr("Stop"),
+        ("pending_marker", "stop"): tr("Not now"),
         ("ready_to_open", "yes"): tr("Start"),
         ("ready_to_open", "stop"): tr("Not now"),
         ("report_after_step", "as described"): tr("As described"),
@@ -170,14 +172,14 @@ def choice_label(kind: str, value: str) -> str:
         ("reader_consent", "no"): tr("No"),
         ("calibration_place", "own tile"): tr("Own tile (recommended)"),
         ("calibration_place", "table tile"): tr("Table's tile"),
-        ("calibration_place", "stop"): tr("Stop"),
+        ("calibration_place", "stop"): tr("End this step"),
         ("calibration_own_tile", "ready"): tr("Ready"),
-        ("calibration_own_tile", "stop"): tr("Stop"),
+        ("calibration_own_tile", "stop"): tr("End this step"),
         ("calibration_reseated", "seated"): tr("Seated"),
-        ("calibration_reseated", "stop"): tr("Stop"),
+        ("calibration_reseated", "stop"): tr("End this step"),
         ("row_failed", "again"): tr("Read it again"),
         ("row_failed", "skip"): tr("Skip it"),
-        ("row_failed", "stop"): tr("Stop"),
+        ("row_failed", "stop"): tr("End this step"),
         ("end_of_session", "save"): tr("Save and stop"),
         ("end_of_session", "discard"): tr("Discard and stop"),
         ("end_of_session", "keep measuring"): tr("Keep measuring"),
@@ -278,8 +280,8 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
         "first_visit_declined": tr("You chose not to make that move, so the arm did not move."),
         "stopped_before_the_next_move": tr("You pressed Stop, so ChromIQ stopped before the "
                                            "next move."),
-        "stopped_by_person": tr("You chose Stop now, so ChromIQ sends nothing more to the "
-                                "table in this measurement."),
+        "stopped_by_person": tr("You chose Send nothing more, so ChromIQ sends nothing more "
+                                "to the table in this measurement."),
         "only_the_homing_now": tr(
             "After a problem was reported, only bringing the arm home is possible."),
         "report_due": tr("Please first answer the question about the last step."),
@@ -456,13 +458,31 @@ class TableMeasureWindow(QFrame):
         #: a Stop, a failed row or a problem in this window: the "don't ask again" offer is
         #: not made (NEXT_STEPS 4d), whatever the job's close() says
         self._troubled = False
+        #: review 10, B-1: the person quit ChromIQ during this session
+        self._quit_wanted = False
+        self._archived = False
         self._build()
         self._signals = _Signals(self)
         self._signals.done.connect(self._on_done, Qt.ConnectionType.QueuedConnection)
         self._signals.progress.connect(self._relay_progress, Qt.ConnectionType.QueuedConnection)
 
     # ---- layout --------------------------------------------------------------------------
+    #: the Stop button's own look (review 10, M-3): the one Stop, the strongest control of the
+    #: panel while anything can move, in the same place on every page
+    STOP_QSS = ("QPushButton#i1io_table_stop { background: #c62828; color: #ffffff;"
+                " border: 1px solid #8e1b1b; border-radius: 6px; font-weight: 700;"
+                " font-size: 15px; letter-spacing: 1px; padding: 6px 18px; }"
+                "QPushButton#i1io_table_stop:hover { background: #b71c1c; }"
+                "QPushButton#i1io_table_stop:pressed { background: #8e1b1b; }")
+    #: an answer button is never squeezed below its own height (review 10, M-2)
+    ANSWER_MIN_H = 34
+
     def _build(self) -> None:
+        """Review 10, M-2: the question's text, its ticks and the note stand in ONE scroll
+        area that takes all the free height (it scrolls only when the page is longer than the
+        tab), the answers stand under it in rows that never overlap (two to a row only when
+        both labels fit), then the true state, and the footer is pinned at the bottom: the
+        switch-off line, Report a problem and End measurement, and the one Stop."""
         body = QVBoxLayout(self)
         body.setContentsMargins(16, 8, 16, 8)
         body.setSpacing(8)
@@ -471,14 +491,10 @@ class TableMeasureWindow(QFrame):
         self._header.setStyleSheet("letter-spacing: 1px; font-size: 11px;")
         body.addWidget(self._header)
 
-        self._status = QLabel("", self)
-        self._status.setObjectName("i1io_table_status")
-        self._status.setWordWrap(True)
-        body.addWidget(self._status)
-
         self._scroll = QScrollArea(self)
         self._scroll.setWidgetResizable(True)
         self._scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         page = QWidget(self._scroll)
         self._page = QVBoxLayout(page)
         self._page.setContentsMargins(0, 0, 6, 0)
@@ -497,62 +513,74 @@ class TableMeasureWindow(QFrame):
         self._text.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         self._page.addWidget(self._title)
         self._page.addWidget(self._text)
-        self._page.addStretch(1)
-        self._scroll.setWidget(page)
-        body.addWidget(self._scroll, 1)
-        # the ticks under the text, never scrolled out of sight
+        # the ticks right under the text they confirm
         self._ticks = QVBoxLayout()
-        body.addLayout(self._ticks)
+        self._ticks.setSpacing(4)
+        self._page.addLayout(self._ticks)
 
-        # the answers: two to a row, so long labels fit the tab's narrow column
-        self._choices = QGridLayout()
-        self._choices.setHorizontalSpacing(8)
-        self._choices.setVerticalSpacing(6)
-        body.addLayout(self._choices)
-
-        # the true state, after every step
-        self._state = QLabel("", self)
-        self._state.setObjectName("i1io_table_state")
-        self._state.setWordWrap(True)
-        self._state.setFrameShape(QFrame.Shape.StyledPanel)
-        self._state.setContentsMargins(8, 6, 8, 6)
-        self._state.setVisible(False)
-        body.addWidget(self._state)
-
-        # the person's own words (M-I1IO-DRIVE-NOTE)
-        self._note_box = QWidget(self)
+        # the person's own words (M-I1IO-DRIVE-NOTE), under the question it is about
+        self._note_box = QWidget(page)
         nb = QVBoxLayout(self._note_box)
-        nb.setContentsMargins(0, 0, 0, 0)
+        nb.setContentsMargins(0, 4, 0, 0)
         nb.setSpacing(4)
         from workflow import measurement_messages as M
         n_title, n_body = M.M_I1IO_DRIVE_NOTE.render()
         self._note_title = QLabel(n_title, self._note_box)
+        self._note_title.setWordWrap(True)
         self._note_edit = QPlainTextEdit(self._note_box)
         self._note_edit.setObjectName("i1io_table_note")
         self._note_edit.setFixedHeight(64)
         self._note_hint = QLabel(n_body, self._note_box)
         self._note_hint.setWordWrap(True)
-        row = QHBoxLayout()
-        row.addWidget(self._note_hint, 1)
         self._note_save = QPushButton(tr("Save note"), self._note_box)
+        self._note_save.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self._note_save.clicked.connect(self._on_save_note)
-        row.addWidget(self._note_save)
         nb.addWidget(self._note_title)
         nb.addWidget(self._note_edit)
-        nb.addLayout(row)
+        nb.addWidget(self._note_hint)
+        nb.addWidget(self._note_save, 0, Qt.AlignmentFlag.AlignRight)
         self._note_box.setVisible(False)
-        body.addWidget(self._note_box)
+        self._page.addWidget(self._note_box)
+        self._page.addStretch(1)
+        self._scroll.setWidget(page)
+        body.addWidget(self._scroll, 1)
 
-        # the always visible controls while the table can move
+        # the answers: two to a row when both labels fit the column, else one
+        self._choices = QGridLayout()
+        self._choices.setHorizontalSpacing(8)
+        self._choices.setVerticalSpacing(6)
+        body.addLayout(self._choices)
+
+        # one line for what the panel is waiting for or what was just done
+        self._status = QLabel("", self)
+        self._status.setObjectName("i1io_table_status")
+        self._status.setWordWrap(True)
+        body.addWidget(self._status)
+
+        # the true state, after every step, and live while a step runs
+        self._state = QLabel("", self)
+        self._state.setObjectName("i1io_table_state")
+        self._state.setWordWrap(True)
+        self._state.setFrameShape(QFrame.Shape.StyledPanel)
+        self._state.setContentsMargins(8, 6, 8, 6)
+        self._state.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
+        self._state.setVisible(False)
+        body.addWidget(self._state)
+
+        # the footer: pinned, the same place on every page
         line = QFrame(self)
         line.setFrameShape(QFrame.Shape.HLine)
         body.addWidget(line)
+        self._switch_off = QLabel(tr("To stop the arm at once, switch the table off at its "
+                                     "power switch. Stop below lets the move that has "
+                                     "started finish, then nothing more moves."), self)
+        self._switch_off.setWordWrap(True)
+        f2 = self._switch_off.font()
+        f2.setBold(True)
+        self._switch_off.setFont(f2)
+        body.addWidget(self._switch_off)
         foot = QHBoxLayout()
-        self._stop_btn = QPushButton(tr("Stop"), self)
-        self._stop_btn.setObjectName("i1io_table_stop")
-        self._stop_btn.setToolTip(tr("ChromIQ stops before the next move. A move that has "
-                                     "started finishes first."))
-        self._stop_btn.clicked.connect(self._on_stop)
+        foot.setSpacing(8)
         self._problem_btn = QPushButton(tr("Report a problem"), self)
         self._problem_btn.setObjectName("i1io_table_problem")
         self._problem_btn.clicked.connect(self._on_problem)
@@ -561,20 +589,36 @@ class TableMeasureWindow(QFrame):
         self._end_btn.clicked.connect(self._on_end_pressed)
         self._close_btn = QPushButton(tr("Close"), self)
         self._close_btn.clicked.connect(self._on_close_pressed)
-        self._switch_off = QLabel(tr("To stop the arm at once, switch the table off."), self)
-        self._switch_off.setWordWrap(True)
-        f2 = self._switch_off.font()
-        f2.setBold(True)
-        self._switch_off.setFont(f2)
-        body.addWidget(self._switch_off)
-        foot.addWidget(self._stop_btn)
+        for b in (self._problem_btn, self._end_btn, self._close_btn):
+            b.setMinimumHeight(self.ANSWER_MIN_H)
         foot.addWidget(self._problem_btn)
         foot.addStretch(1)
         foot.addWidget(self._end_btn)
         foot.addWidget(self._close_btn)
         body.addLayout(foot)
+        self._stop_btn = QPushButton(tr("Stop"), self)
+        self._stop_btn.setObjectName("i1io_table_stop")
+        self._stop_btn.setToolTip(tr("ChromIQ stops before the next move. A move that has "
+                                     "started finishes first."))
+        self._stop_btn.setStyleSheet(self.STOP_QSS)
+        self._stop_btn.setMinimumHeight(46)
+        self._stop_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._stop_btn.clicked.connect(self._on_stop)
+        body.addWidget(self._stop_btn)
         self._moving_controls(False)
         self._end_btn.setVisible(False)
+        # Esc as on the hand path's ending (review 10, S-1): the Close button's way out, never
+        # an answer that moves (a question open is withdrawn with its own "no")
+        from PyQt6.QtGui import QKeySequence, QShortcut
+        # (the whole main window, as the hand path's key filter takes Esc anywhere in it; a
+        # hidden panel's shortcut is never live)
+        self._esc = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
+        self._esc.setContext(Qt.ShortcutContext.WindowShortcut)
+        self._esc.activated.connect(self.reject)
+
+    def _text_min_height(self) -> int:
+        """The question's area never shrinks below about eight lines of its text."""
+        return self._text.fontMetrics().lineSpacing() * 8 + 12
 
     def _sync_footer(self) -> None:
         """End measurement while the table is open and the session not over; Close only when
@@ -600,13 +644,49 @@ class TableMeasureWindow(QFrame):
                     w.setParent(None)
                     w.deleteLater()
 
+    def _flow_choices(self) -> None:
+        """Lay the answer buttons out: two to a row when the two widest labels fit side by
+        side in the panel's width, else one to a row (review 10, M-2: never on top of each
+        other, at any width the main window allows and in every language)."""
+        made = list(getattr(self, "_buttons", []))
+        while self._choices.count():
+            self._choices.takeAt(0)
+        if not made:
+            return
+        room = max(0, self.width() - 32 - self._choices.horizontalSpacing())
+        widest = max(b.sizeHint().width() for b in made)
+        cols = 2 if widest * 2 <= room and len(made) > 1 else 1
+        for n, b in enumerate(made):
+            self._choices.addWidget(b, n // cols, n % cols)
+        self._choice_cols = cols
+
+    def resizeEvent(self, event) -> None:      # noqa: N802
+        super().resizeEvent(event)
+        self._scroll.setMinimumHeight(min(self._text_min_height(),
+                                          max(80, self.height() // 3)))
+        self._flow_choices()
+        self._fit_text()
+
+    def _fit_text(self) -> None:
+        """A word-wrapped label in a scroll area is laid out at its one-line minimum, so its
+        last lines were cut off (review 10, M-2): the title and the text get the height their
+        words need at the width they really have, and the scroll area scrolls the rest."""
+        vw = self._scroll.viewport().width() - 6
+        if vw <= 0:
+            return
+        for lab in (self._title, self._text):
+            need = lab.heightForWidth(vw) if lab.text() else 0
+            if lab.minimumHeight() != need:
+                lab.setMinimumHeight(need)
+
     def _show(self, page_id: str, title: str, text: str, buttons=(), ticks=()) -> "list":
         """One page: a title, its text, optional ticks and the answer buttons (none default).
         Returns the buttons in order."""
+        from ui.widgets import WrappingCheckBox
         self._clear_page()
         self.pages_shown.append(page_id)
         self._page_id = page_id
-        self._status.setText("")
+        self._status.setText(self._quit_hint())
         # the note field stays while what it is about is on screen (a problem, a stop, a
         # failure); the next job call clears that
         self._note_box.setVisible(bool(getattr(self, "_note_sticky", False)))
@@ -615,7 +695,7 @@ class TableMeasureWindow(QFrame):
         self._scroll.verticalScrollBar().setValue(0)
         made_ticks = []
         for label in ticks:
-            cb = QCheckBox(label, self)
+            cb = WrappingCheckBox(label, self)
             cb.setObjectName(f"i1io_tick_{len(made_ticks)}")
             self._ticks.addWidget(cb)
             made_ticks.append(cb)
@@ -627,14 +707,17 @@ class TableMeasureWindow(QFrame):
             b = QPushButton(label, self)
             b.setAutoDefault(False)
             b.setDefault(False)
+            b.setMinimumHeight(self.ANSWER_MIN_H)
+            b.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             b.clicked.connect(slot)
-            n = len(made)
-            self._choices.addWidget(b, n // 2, n % 2)
             made.append(b)
         from ui.dialogs.no_default_button import no_default_button
         no_default_button(self)
         self._tick_widgets = made_ticks
         self._buttons = made
+        self._flow_choices()
+        self._fit_text()
+        QTimer.singleShot(0, self._fit_text)
         self._sync_footer()
         return made
 
@@ -701,13 +784,74 @@ class TableMeasureWindow(QFrame):
 
     def _refresh_state(self) -> None:
         if self.job is not None and self.job.phase not in ("new", "closed"):
-            self._state.setText(self.state_text())
+            self._state.setText(self.live_state_text() if self._busy else self.state_text())
             self._state.setVisible(True)
+
+    # ---- the state while a step runs (review 10, M-3: counts as they are read) -----------
+    def _live_begin(self) -> None:
+        """Before a job call starts (GUI thread, the job idle): the counts the live state line
+        starts from."""
+        j = self.job
+        if j is None:
+            return
+        try:
+            status = j.row_status.get(j.page, {})
+            self._live = {"page": j.page + 1, "rows": self._rows_on_page(),
+                          "rows_read": {k + 1 for k, v in status.items() if v == "read"},
+                          "readings": j.accepted_in_this_session(), "now": "",
+                          "table": self.state_text().split("\n", 1)[0]}
+        except Exception:      # noqa: BLE001 - display only
+            self._live = {}
+
+    def _live_event(self, ev: dict) -> None:
+        live = getattr(self, "_live", None)
+        if not live:
+            return
+        kind = ev.get("event")
+        if kind == "row_start":
+            live["now"] = tr("Now: moving to row {row} of page {page}.").format(
+                row=ev.get("row", "?"), page=ev.get("page", "?"))
+        elif kind == "patch_next":
+            live["now"] = tr("Now: reading row {row} of page {page}, patch {loc}.").format(
+                row=ev.get("row", "?"), page=ev.get("page", "?"), loc=ev.get("loc", "?"))
+        elif kind == "patch_read":
+            live["readings"] = int(live.get("readings", 0)) + 1
+        elif kind == "row_end":
+            if ev.get("status") == "read":
+                live["rows_read"].add(int(ev.get("row") or 0))
+                live["now"] = tr("Now: row {row} is read.").format(row=ev.get("row", "?"))
+            else:
+                live["now"] = tr("Now: row {row} could not be read.").format(
+                    row=ev.get("row", "?"))
+        elif kind == "aim":
+            live["now"] = tr("Now: aiming at mark {mark}.").format(mark=ev.get("mark", "?"))
+        if self._busy and self._state.isVisible():
+            self._state.setText(self.live_state_text())
+
+    def live_state_text(self) -> str:
+        """While a step runs: what the job reported last, without asking the job (it works
+        in its own thread): the table, the arm moving, the rows and readings so far."""
+        live = getattr(self, "_live", None) or {}
+        if not live:
+            return self._state.text()
+        lines = [live.get("table") or tr("Table: connected."),
+                 tr("Arm: moved by the table now.")]
+        if live.get("now"):
+            lines.append(live["now"])
+        lines.append(tr("Page {page} of {pages}: {read} of {rows} rows read.").format(
+            page=live.get("page", 1), pages=self.job.pages_in_chart() if self.job else 1,
+            read=len(live.get("rows_read", ())), rows=live.get("rows", 0)))
+        n = int(live.get("readings", 0))
+        lines.append(tr("Readings taken in this measurement: 1.") if n == 1 else
+                     tr("Readings taken in this measurement: {n} (a patch read again counts "
+                        "again).").format(n=n))
+        return "\n".join(lines)
 
     # ---- calling the job -------------------------------------------------------------------
     def _call(self, fn, then=None, status: str = "") -> None:
         """Run one job call in the worker; *then* (a bound method) gets its result."""
         self._token += 1
+        self._live_begin()
         self._busy = True
         self._note_sticky = False
         self._then = then or self._on_result
@@ -726,9 +870,11 @@ class TableMeasureWindow(QFrame):
         self._tick_widgets = []
         self._page_id = "working"
         self._title.setText(status or tr("The table is working"))
+        QTimer.singleShot(0, self._fit_text)
         self._text.setText(tr("Please keep your hands away from the table and the arm while it "
                               "works. Stop and Report a problem stay available below."))
         self._status.setText("")
+        self._refresh_state()
 
     @pyqtSlot(int, object)
     def _on_done(self, token: int, res) -> None:
@@ -829,14 +975,13 @@ class TableMeasureWindow(QFrame):
 
     def _on_adopt(self) -> None:
         e = self._earlier.pop(0)
-        if self._replace_agreed and self._archive is not None and self._run is not None \
-                and Path(self._run.measurement_ti3).exists():
-            # the person agreed at START to replace the run's measurement (M-REPLACE-*): it
-            # goes to old/ now, through the tab's own archive, so that the interrupted readings
-            # can be completed in its place (nothing is deleted)
-            self._archive()
-            self._replace_agreed = False
-        res = self.job.adopt_earlier(e["stamp"])
+        # review 10, S-2: with the replace agreed at START (M-REPLACE-*) the run's measurement
+        # stays where it is until the Save writes the new one (the Save path archives it then,
+        # through the tab's own archive); a Discard, an ending before any reading, a crash or a
+        # quit leave the run exactly as it was
+        replacing = bool(self._replace_agreed and self._run is not None
+                         and Path(self._run.measurement_ti3).exists())
+        res = self.job.adopt_earlier(e["stamp"], replacing=replacing)
         self._adopted_any = self._adopted_any or res.ok if hasattr(self, "_adopted_any") \
             else res.ok
         if not res.ok:
@@ -865,7 +1010,7 @@ class TableMeasureWindow(QFrame):
             lines = "\n".join(option_text(t, "fields") for t in used) or "•  -"
             title, body = M.M_I1IO_DRIVE_OPTIONS_FIELDS.render(options=lines)
             self._show("options_fields", title, body,
-                       [(tr("Measure the rest that way"), self._show_prepare),
+                       [(tr("Measure the rest that way"), self._measure_the_rest_that_way),
                         (tr("Cancel"), self._finish_not_started)])
             return
         if not res.ok:
@@ -878,6 +1023,17 @@ class TableMeasureWindow(QFrame):
             _t, body = M.M_I1IO_DRIVE_OPTIONS.render(
                 options="\n".join(option_text(k, v) for k, v in shown.items()))
             self._options_note = body
+        self._show_prepare()
+
+    def _measure_the_rest_that_way(self) -> None:
+        """Review 10, M-4: the field options are taken from the readings being completed; the
+        resume, its base, the patches to read and every other option stay as asked, so only
+        the rest is measured, as M-I1IO-DRIVE-OPTIONS-FIELDS says."""
+        res = self.job.set_options(self._chart_args, only_locs=self._only_locs,
+                                   fields_as_built_on=True)
+        if not res.ok:
+            self._show_refusal(res, after=self._finish_not_started)
+            return
         self._show_prepare()
 
     def _first_page(self) -> int:
@@ -1045,7 +1201,9 @@ class TableMeasureWindow(QFrame):
             self._pending_kind = kind
             return
         texts = {
-            "pending_marker": M.M_I1IO_DRIVE_MARKER.render,
+            "pending_marker": (M.M_I1IO_DRIVE_MARKER_APP_ENDED.render
+                               if d.get("app_ended") and d.get("app_ended") == d.get("markers")
+                               else M.M_I1IO_DRIVE_MARKER.render),
             "start_up": M.M_I1IO_DRIVE_START_UP.render,
             "go": M.M_I1IO_DRIVE_GO.render,
             "arm_felt": M.M_I1IO_DRIVE_ARM_FELT.render,
@@ -1141,6 +1299,12 @@ class TableMeasureWindow(QFrame):
             self._show_note()
             self._show_after_problem()
             return
+        if getattr(self, "_end_after", False):
+            # End measurement (or a quit) was asked while the step ran: the ending now, after
+            # the report it was waiting for (fix round 10)
+            self._end_after = False
+            self._call(self.job.end)
+            return
         self._dispatch(self._report_res)
 
     def _ask_check_mark(self) -> None:
@@ -1200,8 +1364,10 @@ class TableMeasureWindow(QFrame):
         if reason == "run_has_a_measurement_already" and res.step in ("save", "end") \
                 and self._replace_agreed and self._archive is not None:
             # the person agreed at START to replace the run's measurement (the hand path's
-            # M-REPLACE window): it is moved to old/ now, through the tab's own archive
+            # M-REPLACE window): it is moved to old/ now, at the moment the new one is
+            # written, through the tab's own archive (review 10, S-2)
             self._archive()
+            self._archived = True
             self._call(self.job.save)
             return
         if res.step == "open" and reason in ("usb_open_refused", "driver_not_installed_for_table",
@@ -1243,7 +1409,12 @@ class TableMeasureWindow(QFrame):
 
     def _show_refusal(self, res, after=None) -> None:
         from workflow import measurement_messages as M
-        title, body = _refused(M, reason_text(res.reason, res.detail))
+        why = reason_text(res.reason, res.detail)
+        if res.reason == "measurement_not_written" and getattr(self, "_archived", False):
+            why += " " + tr("Your previous measurement was moved to the run's old folder for "
+                            "this Save. If this measurement ends without a Save, ChromIQ puts "
+                            "it back where it was.")
+        title, body = _refused(M, why)
         if after is not None:
             self._show("refused", title, body, [(tr("Close"), after)])
             return
@@ -1329,7 +1500,7 @@ class TableMeasureWindow(QFrame):
         self._troubled = True
         self._show("problem", title, body,
                    [(tr("Cancel"), self._problem_cancel),
-                    (tr("Stop now"), self._problem_stop_now),
+                    (tr("Send nothing more"), self._problem_stop_now),
                     (tr("Something looks or sounds wrong"), self._problem_wrong)])
 
     def _problem_cancel(self) -> None:
@@ -1432,19 +1603,9 @@ class TableMeasureWindow(QFrame):
                 n = min(n, int(st["read"])) if n else int(st["read"])
             read_line = (tr("You have read 1 patch in this session.") if n == 1
                          else tr("You have read {n} patches in this session.").format(n=n))
-        body = read_line + " " + tr(
-            "They are not in your "
-            "measurement file yet — ChromIQ can write them now, or end the "
-            "session without them.\n\n"
-            "What each button does:\n\n"
-            "•  Save and stop — writes what you have read so far to this run's "
-            "measurement file and ends the session. You can carry on later "
-            "with “Refine / resume existing measurement (-r)”, reading only the "
-            "strips or patches that are still missing.\n\n"
-            "•  Discard and stop — ends the session and keeps nothing from "
-            "it.{kept}\n\n"
-            "•  Keep measuring — closes this window and carries on where you "
-            "were.").format(kept="")
+        # review 10, S-6: the table's own variant of M-END's choices (§M-PROPOSED): no
+        # "window" to close, and no em dash
+        body = read_line + " " + M.M_I1IO_DRIVE_END_CHOICES.render()[1]
         body += "\n\n" + M.M_I1IO_DRIVE_END.render()[1]
         self._ending_open = True
         self._pending_kind = "end_of_session"
@@ -1457,6 +1618,9 @@ class TableMeasureWindow(QFrame):
     def _after_end(self, res) -> None:
         self._ending_open = False
         ending = res.detail.get("ending")
+        if ending in ("keep_measuring", "dismissed") and self._quit_wanted:
+            # the hand path's rule: Keep measuring cancels the quit
+            self._quit_wanted = False
         if ending == "keep_measuring":
             page = res.detail.get("current_page", self.job.page + 1)
             self._again_rows = [r["row"] for r in res.detail.get("missing_rows", [])
@@ -1467,6 +1631,7 @@ class TableMeasureWindow(QFrame):
             from workflow import measurement_messages as M
             title, body = M.M_I1IO_DRIVE_ENDING_CLOSED.render()
             self._show("ending_closed", title, body, self._way_on_buttons())
+            self._status.setText(tr("ChromIQ stays open."))
             return
         if ending == "saved":
             self._after_saved(res)
@@ -1523,13 +1688,20 @@ class TableMeasureWindow(QFrame):
             msg = msgs.get(wb, M.M_I1IO_DRIVE_STOPPED)
             body = msg.render(**_fill(msg, where=self._where(), log=self._log_name))[1] + \
                 "\n\n" + body
+        if self._quit_wanted and wb in ("none", "home_offered"):
+            # review 10, B-1: the person quit ChromIQ; the job has let go of the table and
+            # nothing waits to be said: ChromIQ closes now
+            self._finish("quit")
+            return
         ticks = []
         self._offer_dont_ask = (res.detail.get("offer") == "may_offer_do_not_ask_again"
-                                and not self._troubled)
+                                and not self._troubled and not self._quit_wanted)
         if self._offer_dont_ask:
             ticks = [tr("Don't ask after each step from now on. (You can switch the question "
                         "back on in Preferences.)")]
         self._show("done", title, body, [(tr("Close"), self._on_done_close)], ticks=ticks)
+        if self._quit_wanted:
+            self._status.setText(tr("ChromIQ closes when you press Close."))
         self._close_btn.setVisible(False)
         self._state.setVisible(False)          # the session is over; the text says how
 
@@ -1571,9 +1743,49 @@ class TableMeasureWindow(QFrame):
         self._finished = True
         self.progress.emit({"event": "end"})
         self.setVisible(False)
-        self.finished_with.emit(why)
+        self.finished_with.emit("quit" if self._quit_wanted else why)
+
+    # ---- quitting ChromIQ during a session (review 10, B-1) ---------------------------------
+    def _quit_hint(self) -> str:
+        if not getattr(self, "_quit_wanted", False):
+            return ""
+        return tr("You asked ChromIQ to quit. It closes once this table measurement has "
+                  "ended here.")
+
+    def request_quit(self) -> bool:
+        """The main window's close (Cmd-Q, the close box, a logout) during this session. True:
+        nothing is open, the panel has finished and ChromIQ may close now. False: the table's
+        own ending is asked here first (the same questions as End measurement; nothing moves
+        without the hands-off GO), and when it has run and the job has let go of the table
+        (``close()``: the USB released, the session's markers written), the panel finishes
+        with "quit" and the tab closes ChromIQ. A step that is running ends at its next pause
+        (Stop: the move that has started finishes) before the ending is asked."""
+        if self._finished:
+            return True
+        j = self.job
+        if j is None or j.phase == "new" or self._closed_job or j.phase == "closed":
+            self._finish(getattr(self, "_why_not", "not_started") if self._closed_job is False
+                         else "ended")
+            return True
+        self._quit_wanted = True
+        if self._busy:
+            j.stop_at_next_pause()
+            self._troubled = True
+            self._end_after = True
+            self._status.setText(tr("You asked ChromIQ to quit. The table stops before its next "
+                                    "move; then ChromIQ asks what to do with your readings, "
+                                    "and closes after that."))
+            return False
+        if self._ending_open or j.ended is not None:
+            # the ending is on screen, or saved / discarded already and the homing offer (or
+            # Close) on screen decides: the person's answer there ends it
+            self._status.setText(self._quit_hint())
+            return False
+        self._on_end_pressed()
+        return False
 
     def _relay_progress(self, ev: dict) -> None:
+        self._live_event(ev)
         self.progress.emit(dict(ev))
 
     def _aim_event(self, mark, patch=None) -> None:

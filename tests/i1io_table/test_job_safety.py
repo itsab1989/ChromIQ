@@ -436,6 +436,9 @@ def test_the_pending_marker_is_written_and_read_at_the_next_start(tmp_path):
     assert r.ok
     marker = run.i1io_table_pending_marker("20261117-100000")
     assert marker.is_file() and marker.with_suffix(".acknowledged.json").is_file()
+    # fix round 10 (B-1): a session is closed by the app before the next START (one never
+    # closed is a crash, and makes the next START ask too: tests/i1io_table/test_fix10_*.py)
+    job3.close()
     # a later start is not asked again
     job4, sim4, _t4 = H.make_job(run=run, stamp="20261117-101500")
     p4 = H.Person(job4, sim4)

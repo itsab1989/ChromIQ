@@ -12018,9 +12018,9 @@ M_I1IO_DRIVE_REPORT = _m(
 M_I1IO_DRIVE_PROBLEM = _m(
     "M-I1IO-DRIVE-PROBLEM",
     "Report a problem",
-    "•  Stop now: nothing more is sent to the table. A move that has "
-    "already started finishes first, because the table never stops half way "
-    "through a command.\n"
+    "•  Send nothing more: nothing more is sent to the table in this "
+    "measurement. A move that has already started finishes first, because the "
+    "table never stops half way through a command.\n"
     "•  Something looks or sounds wrong: nothing more moves except "
     "bringing the arm home, which ChromIQ offers and asks about before it "
     "moves.\n\n"
@@ -12314,6 +12314,18 @@ M_I1IO_DRIVE_ENDING_CLOSED = _m(
     "the arm home, or press End measurement to be asked again.",
     approved=False)
 
+M_I1IO_DRIVE_END_CHOICES = _m(
+    "M-I1IO-DRIVE-END-CHOICES",
+    "What each button does",
+    "They are not in your measurement file yet. ChromIQ can write them now, or end the measurement without them.\n\nWhat each button does:\n\n•  Save and stop: writes what you have read so far into this run's measurement file and ends the measurement. If patches are still missing, you can read them later: tick “Refine / resume existing measurement (-r)” and press START MEASUREMENT, and the table reads only the patches that are still missing.\n\n•  Discard and stop: ends the measurement and writes nothing of it into the run. Your readings stay in this measurement's own folder, for the diagnostics only.\n\n•  Keep measuring: the measurement goes on here, where it stopped. Before the arm moves again, ChromIQ asks you to take your hands away from the table.",
+    approved=False)
+
+M_I1IO_DRIVE_MARKER_APP_ENDED = _m(
+    "M-I1IO-DRIVE-MARKER-APP-ENDED",
+    "Please switch the table off first",
+    "Last time, ChromIQ ended while it was still driving the table, for example because the computer was switched off or ChromIQ was closed by force. The table may still be in the middle of a step, and ChromIQ does not know where the arm is now.\n\nIf you have not switched the table off since then, please do it now, before anything else: switch it off at its power switch, leave it off for ten seconds and switch it on again. Unplugging its USB cable is not enough, because that does not switch the table off.\n\nPress “I switched it off and on” only when you have done that. ChromIQ has not sent anything to the table yet.",
+    approved=False)
+
 I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_CONSENT, M_I1IO_DRIVE_PREPARE, M_I1IO_DRIVE_READY,
     M_I1IO_DRIVE_EARLIER, M_I1IO_DRIVE_OPTIONS, M_I1IO_DRIVE_OPTION_REFUSED,
@@ -12338,6 +12350,8 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_USB_GONE, M_I1IO_DRIVE_USB_UNEXPECTED,
     M_I1IO_DRIVE_TABLE_NOT_FOUND, M_I1IO_DRIVE_SEVERAL_TABLES,
     M_I1IO_DRIVE_AFTER_PROBLEM, M_I1IO_DRIVE_ENDING_CLOSED,
+    M_I1IO_DRIVE_MARKER_APP_ENDED,
+    M_I1IO_DRIVE_END_CHOICES,
 )
 
 #: the message for each USB / opening problem id the table code names

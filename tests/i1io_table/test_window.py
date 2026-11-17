@@ -219,7 +219,7 @@ def test_stop_now_ends_the_table_part_and_the_readings_can_still_be_saved(
     p.drive_until("end_of_session")
     p.press("Keep measuring")                             # nothing missing: ends again
     win._problem_btn.click()
-    p.press("Stop now")
+    p.press("Send nothing more")
     job = sim.jobs[0]
     assert job.stopped_by_person and job.state().sending_closed
     assert p.page() in ("stopped", "end_of_session", "refused")
@@ -232,7 +232,7 @@ def test_a_failed_row_is_offered_again_with_go_first(qtbot, monkeypatch, tmp_pat
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
                                                     asking=False, sim=sim)
     assert p.drive_until("row_failed") == "row_failed"
-    assert p.labels() == ["Read it again", "Skip it", "Stop"]
+    assert p.labels() == ["Read it again", "Skip it", "End this step"]
     assert win._note_box.isVisible()
     sim.helper.faults = {}
     n = moves(sim)

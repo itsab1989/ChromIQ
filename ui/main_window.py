@@ -620,10 +620,25 @@ class MainWindow(QMainWindow):
         attr = self._PRIMARY_ACTION_ATTR.get(type(tab).__name__)
         return getattr(tab, attr, None) if attr else None
 
+    def _table_session_open(self) -> bool:
+        """A session of the i1iO table (Beta) is open in the Measure tab."""
+        ask = getattr(getattr(self, "_tab_measure", None), "table_session_open", None)
+        try:
+            return bool(ask()) if callable(ask) else False
+        except Exception:      # noqa: BLE001 - a shortcut guard never breaks a key
+            return False
+
     def _go_to_tab(self, i: int) -> None:
         """Switch to tab *i* and put keyboard focus on the tab strip, so ← / →
         then move between tabs (Basti: after ⌘N the arrow keys had nothing to act
-        on). QTabBar navigates with the arrows natively once it has focus."""
+        on). QTabBar navigates with the arrows natively once it has focus.
+
+        While the i1iO table (Beta) works, the Measure tab holds its only Stop:
+        ⌘1…⌘5 must not take it off the screen (review 10, M-1; QTabWidget
+        makes even a DISABLED tab current when asked)."""
+        if self._table_session_open() and not self._tabs.isTabEnabled(i):
+            log.info("tab shortcut ignored: the i1iO table is measuring")
+            return
         self._tabs.setCurrentIndex(i)
         self._tabs.tabBar().setFocus(Qt.FocusReason.ShortcutFocusReason)
 
@@ -2644,6 +2659,13 @@ class MainWindow(QMainWindow):
             return False
 
     def _open_settings(self) -> None:
+        # Not while the i1iO table (Beta) works (review 10, M-1): Preferences is
+        # a modal window, and behind it the panel's Stop and Report a problem
+        # could not be pressed while the arm moves. The masthead's button is
+        # greyed then; ⌘, obeys it, as ⌘T and ⌘O obey theirs.
+        if self._table_session_open():
+            log.info("Preferences shortcut ignored: the i1iO table is measuring")
+            return
         # SettingsDialog tints its own tooltip ⓘ icons to the dialog's neutral
         # indicator colour (see SettingsDialog.__init__).
         # Preselect the Margin Thresholds combo to the current Create Chart

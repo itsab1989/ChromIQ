@@ -489,6 +489,14 @@ class TableJob:
         self._pending: "Ask | None" = None
         self._block: "dict | None" = None
         self._pause_stop = False
+        #: fix round 10 (NEXT_STEPS 4d, open point e): the person pressed Stop at least once in
+        #: this session; the "don't ask after each step" offer is then never made
+        self.stop_pressed = False
+        #: fix round 10 (B-1): the write-ahead "the table is in use" markers of this session
+        #: (the session folder's and the app-level one), written when the USB is opened and
+        #: acknowledged by close(); a session the app never closed leaves them, and the next
+        #: START asks "switched off and on" first
+        self._in_use_markers: "list[Path]" = []
         self.preflight_seen: "us.Preflight | None" = None
         # ---- step 7, reading -------------------------------------------------------------------
         #: starts ChromIQ's helper for spot readings (reader.SpotReader through the app's
@@ -532,6 +540,9 @@ class TableJob:
         self._inside_end = False
         #: review 9, S-2: what the adopted readings hold (XYZ, L*a*b*, spectral)
         self._adopted_shape: "dict | None" = None
+        #: fix round 10, S-2: an adoption made with the replace agreed (the run's measurement
+        #: is replaced at Save, by the window's archive, and never built on)
+        self._replacing = False
         self.diag.log("INFO", f"ChromIQ table job {JOB_VERSION} (table module "
                               f"{tbl.TOOL_NAME} {tbl.TOOL_VERSION}); page {self.page + 1}")
 
@@ -708,6 +719,7 @@ class TableJob:
         let a waiting step move on, ends there (``stopped_before_the_next_move``), and the
         hands-off GO is asked again; the homing is never refused for it."""
         self._pause_stop = True
+        self.stop_pressed = True
         # review 9, M-1: in EVERY case, also while a step runs (a check move has no pause of
         # its own): the next movement after a stop, the homing included, asks the hands-off
         # GO again. A running step has passed its GO already; the rows set or clear it
@@ -863,7 +875,11 @@ class TableJob:
         #    says the table was switched off and on since; the marker is kept, acknowledged
         markers = self._unacknowledged_markers()
         if markers:
-            ans = yield Ask(Confirm.MARKER, {"markers": len(markers)})
+            ans = yield Ask(Confirm.MARKER, {
+                "markers": len(markers),
+                # fix round 10 (B-1): markers left by a session the app never closed (a
+                # crash, a kill, a power cut) rather than by a strip move
+                "app_ended": sum(1 for m in markers if se.is_in_use_marker(m))})
             if ans != "switched off and on":
                 raise PersonStopped("pending_marker_not_cleared", markers=len(markers))
             for m in markers:
@@ -922,6 +938,7 @@ class TableJob:
         except tbl.TransportError as exc:
             raise StageFailed("usb_open_failed", error=type(exc).__name__) from None
         self.diag.log("INFO", tbl.usb_summary(self.transport))
+        self._write_in_use_markers()
         d = tbl.Table(self.transport, log=self.diag.log)
         self._table = d
         self.phase = "open"
@@ -1576,13 +1593,22 @@ class TableJob:
     # ==== step 7: READING ========================================================================
     # ---- options, resume ---------------------------------------------------------------------
     def set_options(self, chartread_args=None, options: "sp.ReadOptions | None" = None,
-                    only_locs=None) -> StepResult:
+                    only_locs=None, fields_as_built_on: bool = False) -> StepResult:
         """The Measure tab's options for this session (its chartread arguments, or a ReadOptions),
         and optionally the patches to read (a refinement strips file's patches). Sends nothing.
         An option the table cannot honour without changing what is measured is REFUSED (the
         reading steps refuse "option_refused" until it is taken out); one with no meaning on
         the table is dropped with its reason. Resume (-r) reads only what the run's partial
-        measurement lacks."""
+        measurement lacks.
+
+        Fix round 10 (review 10, M-4): *fields_as_built_on* is the person's "Measure the rest
+        that way" after ``options_change_the_fields``: the field options (-l -L -n -H) are
+        taken from the readings this session builds on instead of the tab's, and everything
+        else stays as asked (the resume, its base, the patches to read, -S, -N, -A ...).
+
+        Fix round 10 (open point a): with -r and *only_locs* on a COMPLETE run measurement this
+        is a REFINEMENT: only those patches are read again, and the Save replaces exactly their
+        readings in the run's measurement (the hand path's guided re-measurement)."""
         if self._gen is not None:
             return self._result("options", Kind.REFUSED, "another_step_waits_for_a_confirmation")
         if self.ended is not None:
@@ -1598,6 +1624,13 @@ class TableJob:
             rep = sp.options_from_chartread_args(chartread_args)
         else:
             rep = sp.OptionsReport(options or sp.ReadOptions())
+        if fields_as_built_on:
+            rep = self._report_with_fields_built_on(rep)
+            if rep is None:
+                self.options_report, self._requested = before
+                self._apply_locs()
+                return self._result("options", Kind.REFUSED, "options_change_the_fields",
+                                    field_options=list(FIELD_OPTIONS), as_built_on=False)
         self.options_report = rep
         self._requested = (set(only_locs) if only_locs is not None else None, None)
         self._apply_locs()
@@ -1615,13 +1648,21 @@ class TableJob:
                 return self._result("options", Kind.REFUSED, "nothing_to_resume", **detail)
             facts = classify(base, self._chart_ti2)
             unread = unread_locations(base, self._chart_ti2)
-            if facts.state is not Ti3State.PARTIAL or not unread:
+            asked = self._requested[0]
+            if facts.state is Ti3State.COMPLETE and asked:
+                # open point a: a refinement re-reads the patches asked for (the strips the
+                # quality check named) on the complete measurement, which stays the base
+                self._requested = (set(asked), base)
+                self._apply_locs()
+                detail["refine"] = len(self.only_locs)
+            elif facts.state is not Ti3State.PARTIAL or not unread:
                 return self._result("options", Kind.REFUSED, "nothing_to_resume",
                                     state=facts.state.value, **detail)
-            asked = self._requested[0]
-            self._requested = (set(unread) if asked is None else asked & set(unread), base)
-            self._apply_locs()
-            detail["resume_unread"] = len(self.only_locs)
+            else:
+                self._requested = (set(unread) if asked is None else asked & set(unread),
+                                   base)
+                self._apply_locs()
+                detail["resume_unread"] = len(self.only_locs)
         clash = self._fields_clash(rep.options)
         if clash is not None:
             # review 9, S-2: the readings this session builds on (adopted ones, or the run's
@@ -1639,6 +1680,26 @@ class TableJob:
         if not rep.ok:
             return self._result("options", Kind.REFUSED, "option_refused", **detail)
         return self._result("options", Kind.OK, "", **detail)
+
+    def _report_with_fields_built_on(self, rep: "sp.OptionsReport") -> "sp.OptionsReport | None":
+        """*rep* with its field options replaced by those that save what the readings this
+        session builds on hold (M-4). Needs the resume's base (or the adoption) to be known:
+        it is worked out from the run's measurement as set_options would. None when no
+        option set gives that shape."""
+        shape = self._adopted_shape if self._earlier_dirs else None
+        if shape is None and rep.options.resume and self.run is not None:
+            base = Path(self.run.measurement_ti3)
+            shape = ms.fields_shape(base) if base.is_file() else None
+        if shape is None:
+            return rep
+        o = replace(rep.options, save_lab=bool(shape.get("lab") and not shape.get("xyz")),
+                    save_lab_and_xyz=bool(shape.get("lab") and shape.get("xyz")),
+                    no_spectral=not shape.get("spectral"),
+                    high_res=bool(shape.get("high_res")))
+        if shape_of_options(o) != shape:
+            return None
+        used = tuple(u for u in rep.used if u not in FIELD_OPTIONS) + o.reader_args_fields()
+        return replace(rep, options=o, used=used)
 
     def _fields_clash(self, opts: "sp.ReadOptions") -> "dict | None":
         """The fields of the readings this session builds on (the adopted sessions' readings,
@@ -2031,7 +2092,6 @@ class TableJob:
             opened = True
             last_t = 0.0
             for i, p in enumerate(plan.patches):
-                self._progress(event="patch_next", row=plan.index + 1, loc=p.loc, index=i)
                 if i:
                     # held by the motors at the patch just read; a problem or a stop asked for
                     # during that patch is honoured here, before the next move
@@ -2039,6 +2099,9 @@ class TableJob:
                     d.c_wait(max(0.0, sp.PACE_FLOOR_S - last_t))
                 elif d.arm_free:
                     self._still(here)
+                # fix round 10 (review 10, S-4): announced when the arm really goes there,
+                # after the stop check and the pause, never while it still waits at the last one
+                self._progress(event="patch_next", row=plan.index + 1, loc=p.loc, index=i)
                 yield from self._move_to(p.target, f"the move to patch {p.loc}")
                 self._arrival = (d.lines_sent, d.position_now)
                 got = self._patch(reader, p, rec, readings)
@@ -2468,10 +2531,16 @@ class TableJob:
         return [e.as_dict() for e in se.earlier_sessions(self.run, exclude=self.stamp,
                                                          chart_ti2=self._chart_ti2)]
 
-    def adopt_earlier(self, stamp: str) -> StepResult:
+    def adopt_earlier(self, stamp: str, replacing: bool = False) -> StepResult:
         """Complete an INTERRUPTED earlier session: its accepted readings become part of this
         session's measurement, and only the patches still missing (with the run's own partial
-        measurement, if any) are read. Before any row is read; sends nothing."""
+        measurement, if any) are read. Before any row is read; sends nothing.
+
+        Fix round 10 (review 10, S-2): *replacing* = the person agreed at START to replace the
+        run's measurement (M-REPLACE-*). That measurement then stays where it is, untouched,
+        and is not built on; the Save refuses ``run_has_a_measurement_already`` and the window
+        archives it only then, at the moment the new one is written. A Discard, an ending
+        before anything is read, a crash or a quit leave the run as it was."""
         from workflow.measurement_state import Ti3State, classify
         if self.run is None or self._chart_ti2 is None:
             return self._result("adopt", Kind.REFUSED, "no_run")
@@ -2492,12 +2561,16 @@ class TableJob:
                                 state=state)
         live = Path(self.run.measurement_ti3)
         facts = classify(live, self._chart_ti2)
-        if facts.state is Ti3State.COMPLETE:
-            return self._result("adopt", Kind.REFUSED, "run_has_a_complete_measurement")
-        if live.exists() and facts.state is not Ti3State.PARTIAL:
-            return self._result("adopt", Kind.REFUSED, "run_has_a_measurement_already",
-                                state=facts.state.value)
-        base = live if facts.state is Ti3State.PARTIAL else None
+        if replacing and live.exists():
+            base = None                    # replaced at Save, never built on
+            self._replacing = True
+        else:
+            if facts.state is Ti3State.COMPLETE:
+                return self._result("adopt", Kind.REFUSED, "run_has_a_complete_measurement")
+            if live.exists() and facts.state is not Ti3State.PARTIAL:
+                return self._result("adopt", Kind.REFUSED, "run_has_a_measurement_already",
+                                    state=facts.state.value)
+            base = live if facts.state is Ti3State.PARTIAL else None
         probe = self.run.i1io_table_session_dir(self.stamp) / f"adopted-{stamp}.ti3"
         a = ms.assemble(list(self._earlier_dirs) + [sdir], self._chart_ti2, probe,
                         base_ti3=base)
@@ -2539,6 +2612,42 @@ class TableJob:
         se.mark_discarded(sdir, "discarded at a later START")
         return self._result("discard_earlier", Kind.OK, "")
 
+    # ---- the write-ahead "table in use" markers (fix round 10, B-1) -------------------------
+    def _write_in_use_markers(self) -> None:
+        """Written when the USB is opened, before the first line: if the app is killed, the
+        markers stay and the next START asks "switched off and on" before anything is sent.
+        A marker holds the stamp only. A marker that cannot be written is logged; nothing
+        else changes (close() of a running app acknowledges what it wrote)."""
+        places = []
+        if self.run is not None and self.stamp is not None:
+            places.append(se.in_use_marker(self.run, self.stamp))
+        if self.app_marker_place is not None and self.stamp is not None:
+            folder, prefix = self.app_marker_place
+            places.append(Path(folder) / se.app_in_use_name(prefix, self.stamp))
+        for m in places:
+            try:
+                m.parent.mkdir(parents=True, exist_ok=True)
+                m.write_text(json.dumps({"stamp": self.stamp, "what": se.IN_USE_WHAT}),
+                             encoding="utf-8")
+                self._in_use_markers.append(m)
+            except OSError as exc:
+                self.diag.log("INFO", f"the 'table in use' marker could not be written "
+                                      f"({type(exc).__name__})")
+
+    def _acknowledge_in_use_markers(self) -> None:
+        for m in self._in_use_markers:
+            try:
+                se.acknowledged_path(m).write_text(
+                    json.dumps({"acknowledged_by": "the job's close()"}), encoding="utf-8")
+            except OSError:
+                pass
+
+    def _a_row_failed(self) -> bool:
+        """A row failed, was skipped or was read again in this session."""
+        return (any(v in ("failed", "skipped") for rows in self.row_status.values()
+                    for v in rows.values())
+                or any(self.rows_again.values()))
+
     # ---- close: sends nothing ----------------------------------------------------------------
     def close(self) -> StepResult:
         if self._gen is not None:
@@ -2573,6 +2682,9 @@ class TableJob:
                 self.transport.close()
             except Exception:      # noqa: BLE001 - closing never raises
                 pass
+        # fix round 10 (B-1): the session ended through close(): its write-ahead markers are
+        # acknowledged (a strip move that may still wait has its own marker above)
+        self._acknowledge_in_use_markers()
         if d is not None:
             self.diag.log("INFO", f"result: table {d.state or 'not asked'}; "
                                   f"{d.lines_sent} lines sent, {d.motions_sent} movements; "
@@ -2582,6 +2694,8 @@ class TableJob:
                                   "sent when it does)")
         clean = (self.ask_after_each_step and d is not None and d.motions_sent > 0
                  and not self.problems and not self.stopped_by_person and not self.only_home
+                 # fix round 10 (open point e): never after a Stop or a failed / skipped row
+                 and not self.stop_pressed and not self._a_row_failed()
                  and self.report_due is None
                  and all(a == "as described" for _s, a in self.reports)
                  and d.closed_reason == "the session is over" and wb == WayBack.NONE

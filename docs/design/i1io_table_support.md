@@ -422,21 +422,52 @@ a declared `MEASUREMENT_TABLE` keyword for the table. Note
 Built and proved on screen against the simulated table only (no real table yet). With "X-Rite
 i1iO support" on, START MEASUREMENT on a profile run's chart made for an i1iO 2 with an i1Pro 2
 (its side file says so) drives the table, in Manual and in Guided; calibration and verification
-charts, i1iO 3 and bare "i1iO" charts keep their Start windows; IMPORT is unchanged. Before
-anything is opened: the hand path's guards (a run that exists, the laid-out chart, the replace
-question M-REPLACE-*), the USB library's read-only check, the one-time explanation
-M-I1IO-DRIVE-CONSENT (kept with its text version, setting `i1io_table_consent_given`), an
-interrupted earlier session (complete or discard), and how the Measure tab's options apply
-(no meaning / refused / measured as the readings being completed). The table's questions,
-its status, Stop, Report a problem, End measurement and "To stop the arm at once, switch the
-table off" stand in the Measure tab's measurement area, where the options stand; nothing is
-modal and nothing covers the chart preview; the rest of the app is locked as during a hand
-measurement. The preview follows the job: the mark the arm should point at while aiming, the
-row being read (rows outlined, read rows green) or, with "Patch-by-patch mode (-p)", the patch
-the arm moves to next; every reading goes into the live overlay. The asking mode (setting
-`i1io_table_ask_after_each_step`, on for the first measurement, offered off after a clean one,
-and in Preferences > Beta under the i1iO option) asks after every step that moved; the quiet
-mode asks only the consent (once), the hands-off GO and the ending. Every text is in §M-PROPOSED
-(M-I1IO-DRIVE-*). The endings are M-END's three with the table paragraph M-I1IO-DRIVE-END, and
-M-END-EMPTY's line when nothing was read; the homing is offered after Save or Discard and asks
-its own GO.
+charts, i1iO 3 and bare "i1iO" charts keep their Start windows; IMPORT is unchanged.
+
+Before anything is opened, these of the hand path's guards: a run that exists, the laid-out
+chart, a measurement laid out for an earlier version of the chart (#211,
+M-RESUME-LAYOUT-DIFFERS), the i1Pro 2 lights left on (Preferences > Beta, asked for the i1Pro 2
+in the table's arm), and the replace question M-REPLACE-*. The hand path's other guards are
+covered or have no meaning: a differing -F is the job's own refusal of -F; a differing -H, -l,
+-L or -n is the job's field check (the session then measures the rest the way the earlier
+readings were measured, keeping the resume, M-I1IO-DRIVE-OPTIONS-FIELDS); unreadable chart
+locations do not matter (the job reads by the side file and files by name); an instrument in
+use is the app's measurement lock and the job's own instrument check before the USB is opened.
+Then the USB library's read-only check, the one-time explanation M-I1IO-DRIVE-CONSENT (kept
+with its text version, setting `i1io_table_consent_given`), an interrupted earlier session
+(complete or discard), and how the Measure tab's options apply.
+
+The table's questions, its status, Report a problem, End measurement, "To stop the arm at
+once, switch the table off at its power switch" and ONE Stop (red, at the bottom of the panel,
+the same place on every page) stand in the Measure tab's measurement area, where the options
+stand. While the panel is shown, the tab's own START / STOP / SAVE AS DEFAULTS row, "Play
+sounds" and "Save measurement report" (its value set before START still applies) and Guided's
+"Keep calm!" banner make room, and the log keeps three lines. An answer that only ends the step
+on screen is "End this step", never a second Stop. Nothing is modal and nothing covers the
+chart preview. The rest of the app is locked as during a hand measurement (the other tabs, the
+masthead's buttons and the run bar); in addition, while the table works, Cmd-1 to Cmd-5 never
+switch to a locked tab and Cmd-, never opens Preferences (a hand measurement still lets both
+through: reported, not changed). Esc anywhere in the main window does what the panel's Close
+does: it withdraws an open question with its own answer that moves nothing and asks the
+ending, or withdraws the ending. Quitting ChromIQ (Cmd-Q, the close box, a logout) during a
+session asks the table's own ending in the panel (a step that runs stops at its next pause
+first); "Keep measuring" keeps ChromIQ open, any other ending closes it once the job has let go
+of the table. If ChromIQ ends without that (a crash, a forced quit, a power cut), a marker
+written when the table was opened makes the next START ask "switched off and on" before
+anything is sent (M-I1IO-DRIVE-MARKER-APP-ENDED).
+
+The preview follows the job: the mark the arm should point at while aiming; the row being
+read in a thick frame in the accent colour with a light fill, read rows in a green frame (in
+both modes); with "Patch-by-patch mode (-p)" also a ring, drawn twice as thick as the hand
+path's, on the patch the arm goes to (announced after the stop check, when the arm really
+moves). Every reading goes into the live overlay and the "Progress" figure. The panel's state
+box counts the rows and readings as they are read and says what the table does now. The asking
+mode (setting `i1io_table_ask_after_each_step`, on for the first measurement, offered off
+after a clean one, never after a Stop, a failed or skipped row or a problem, and in
+Preferences > Beta under the i1iO option) asks after every step that moved; the quiet mode asks
+only the consent (once), the hands-off GO and the ending. Every text is in §M-PROPOSED
+(M-I1IO-DRIVE-*). The endings are M-END's three, in the table's own words
+(M-I1IO-DRIVE-END-CHOICES) with the table paragraph M-I1IO-DRIVE-END, and M-END-EMPTY's line
+when nothing was read; the homing is offered after Save or Discard and asks its own GO. With
+the replace agreed at START, the run's measurement is moved to old/ only when the table's Save
+writes the new one; if that Save fails, it is put back when the session ends.
