@@ -155,10 +155,15 @@ def test_a_device_listed_twice_at_one_place_is_one_device():
     assert rd.instrument_check(devices=rd.usb_devices(roots)) is None
 
 
+@pytest.mark.parametrize("place", [True, False])
 @pytest.mark.parametrize("drop", ["class", "number"])
-def test_an_interface_is_known_by_its_class_or_by_its_number(drop):
+def test_an_interface_is_known_by_its_class_or_by_its_number(drop, place):
+    """Each guard on its own: without its USB place the interface cannot be merged into its
+    device by the place, so only the interface test keeps it from counting."""
     roots = his_mac()
     intf = roots[0]["IORegistryEntryChildren"][1]["IORegistryEntryChildren"][0]
+    if not place:
+        intf.pop("locationID")
     if drop == "class":
         intf.pop("IOObjectClass")
     else:
