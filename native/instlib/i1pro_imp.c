@@ -14571,3 +14571,9 @@ static i1data *new_i1data(i1proimp *m) {
 }
 
 /* ----------------------------------------------------------------- */
+
+/* CHROMIQ PATCH: the i1iO 2 table scan (2026-11-16). ChromIQ's own code in */
+/* cq_i1pro2_tscan.h, at the end of the file so that no other recorded patch */
+/* is touched; nothing calls it unless ChromIQ's helper is started with */
+/* --i1io-table-scan. */
+#include "cq_i1pro2_tscan.h"

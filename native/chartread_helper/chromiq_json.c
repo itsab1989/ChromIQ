@@ -34,6 +34,7 @@ void (*cq_lights_poll)(void) = NULL;
 volatile int cq_lights_off_pending = 0;
 void (*cq_lights_service)(void) = NULL;
 volatile int cq_exiting_on_signal = 0;
+void (*cq_tscan_line_hook)(const char *line) = NULL;
 
 /* ------------------------------------------------------------------ */
 /* Emission: every event is one complete JSON object on one line,      */
@@ -214,6 +215,12 @@ static void cq_handle_line(const char *line) {
 
 	if (!cq_json_get(line, "cmd", cmd, sizeof(cmd)))
 		return;
+
+	/* The i1iO 2 table scan (study): only while --i1io-table-scan runs. */
+	if (cq_tscan_line_hook != NULL && strncmp(cmd, "tscan_", 6) == 0) {
+		cq_tscan_line_hook(line);
+		return;
+	}
 
 	/* The i1Pro 2 lights (Beta): only noted here. The main thread switches
 	 * them off at its next poll (cq_cmd_take_key); this thread never touches

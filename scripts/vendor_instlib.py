@@ -1828,12 +1828,31 @@ I1PRO_IMP_C_TOL = [
      '}\n\n/* ------------------------------------------------------------ */\n/* CHROMIQ PATCH: the margin tolerance (Preferences > Beta, 2026-11-16).\n *\n * Inert unless ChromIQ\'s helper switched it on (i1pro2_cq_tol_options) for a\n * session whose ruler check is in use, and then only for a strip whose ruler\n * record is open (the armed lit scan, cq_ruler_recording) AND whose reading\n * ArgyllCMS\'s recogniser REFUSED with "Not enough patches", "Too many\n * patches" or "Swipe didn\'t start and end on the media". For that reading\n * only, every segment the recogniser cut is turned into a value exactly as\n * ArgyllCMS turns a patch into one: the same 2/3 trim, the same average, the\n * same consistency and saturation tests (as flags), i1pro_absraw_to_abswav,\n * i1pro_scale_specrd and i1pro_conv2XYZ with the reading\'s own clamp. The\n * values go into the ruler record for the helper, which decides with the\n * chart\'s expected colours whether the reading can be kept\n * (native/chartread_helper/chromiq_margin.c). Nothing here touches USB,\n * changes the refusal ArgyllCMS returns, or alters any value of an accepted\n * reading: the recogniser hook only COPIES segment positions.\n */\nstatic void cq_tol_clear(i1proimp *m) {\n\tif (m->cq_tol_spec != NULL)\n\t\tfree_dmatrix(m->cq_tol_spec, 0, m->cq_tol_nseg - 1, 0, m->cq_tol_nwav - 1);\n\tm->cq_tol_spec = NULL;\n\tm->cq_tol_nseg = 0;\n\tm->cq_tol_nwav = 0;\n\tm->cq_tol_why = 0;\n}\n\nstatic int cq_tol_refusal(int ev) {\n\treturn ev == I1PRO_RD_NOTENOUGHPATCHES || ev == I1PRO_RD_TOOMANYPATCHES\n\t    || ev == I1PRO_RD_LEADTRAILINCONS;\n}\n\n/* The helper: on (1) for this session. Needs the ruler (i1pro2_cq_ruler_options\n * first). Returns 1 when in use. */\nint i1pro2_cq_tol_options(void *pp, int on) {\n\ti1pro *p = (i1pro *)pp;\n\ti1proimp *m;\n\tif (p == NULL || (m = (i1proimp *)p->m) == NULL)\n\t\treturn 0;\n\tcq_tol_clear(m);\n\tm->cq_tol_on = on && m->cq_ruler_on && p->dtype == instI1Pro2;\n\treturn m->cq_tol_on;\n}\n\n/* i1pro_extract_patches_multimeas, right after the threshold: a copy. */\nvoid i1pro2_cq_tol_segments(void *pp, const void *vpat, int npat) {\n\ti1pro *p = (i1pro *)pp;\n\ti1proimp *m = (i1proimp *)p->m;\n\tconst i1pro_patch *pat = (const i1pro_patch *)vpat;\n\tint i;\n\tif (!m->cq_tol_on || !m->cq_ruler_recording || cq_ruler_r(m) == NULL)\n\t\treturn;\n\tcq_tol_clear(m);\n\tif (npat > CQ_RULER_MAXCAND)\n\t\treturn;\t\t\t/* far too many to be a margin: nothing kept */\n\tfor (i = 0; i < npat; i++) {\n\t\tm->cq_tol_ss[i] = pat[i].ss;\n\t\tm->cq_tol_no[i] = pat[i].no;\n\t\tm->cq_tol_flags[i] = 0;\n\t}\n\tm->cq_tol_nseg = npat;\n}\n\n/* i1pro_read_patches_2, when the recogniser refused: each segment as a patch. */\nvoid i1pro2_cq_tol_candidates(void *pp, int ev, double **multimeas, int nummeas,\n                              double satthresh, double inttime) {\n\ti1pro *p = (i1pro *)pp;\n\ti1proimp *m = (i1proimp *)p->m;\n\ti1pro_state *s = &m->ms[m->mmode];\n\tint n = m->cq_tol_nseg, i, j, k, nwav;\n\tdouble *maxval, **absraw, white_avg = 0.0;\n\tdouble patch_cons_thr = PATCH_CONS_THR * m->scan_toll_ratio;\n\tif (!m->cq_tol_on || !m->cq_ruler_recording || n <= 0)\n\t\treturn;\n\tif (m->cq_tol_spec != NULL) {\t/* a stale stash: never reused */\n\t\tcq_tol_clear(m);\n\t\treturn;\n\t}\n\tif (!cq_tol_refusal(ev) || multimeas == NULL || nummeas <= 0) {\n\t\tcq_tol_clear(m);\n\t\treturn;\n\t}\n\tif (inttime < 0.012308)\t\t/* as the recogniser loosens it */\n\t\tpatch_cons_thr *= sqrt(0.012308/inttime);\n\tmaxval = dvectorz(-1, m->nraw-1);\n\tfor (j = 0; j < m->nraw; j++) {\n\t\tfor (i = 0; i < nummeas; i++)\n\t\t\tif (multimeas[i][j] > maxval[j])\n\t\t\t\tmaxval[j] = multimeas[i][j];\n\t\tif (maxval[j] < 1.0)\n\t\t\tmaxval[j] = 1.0;\n\t}\n\tfor (j = 1; j < (m->nraw-1); j++)\n\t\twhite_avg += maxval[j];\n\twhite_avg /= (m->nraw - 2.0);\n\tabsraw = dmatrixz(0, n-1, -1, m->nraw-1);\n\tfor (k = 0; k < n; k++) {\n\t\tint ss = m->cq_tol_ss[k], no = m->cq_tol_no[k], nnn, trim;\n\t\tdouble maxavg = -1e38, minavg = 1e38, avgoverth = 0.0;\n\t\tif (no < MIN_SAMPLES)\n\t\t\tm->cq_tol_flags[k] |= CQ_RULER_CAND_SPARSE;\n\t\tnnn = (no * 2 + 0)/3;\t\t/* the recogniser\'s trim */\n\t\ttrim = (no - nnn + 1)/2;\n\t\tss += trim;\n\t\tno = nnn;\n\t\tif (no <= MIN_SAMPLES)\n\t\t\tm->cq_tol_flags[k] |= CQ_RULER_CAND_SPARSE;\n\t\tif (no <= 0 || ss < 0 || ss + no > nummeas) {\n\t\t\tm->cq_tol_flags[k] |= CQ_RULER_CAND_SPARSE;\n\t\t\tcontinue;\n\t\t}\n\t\tfor (i = ss; i < (ss + no); i++) {\n\t\t\tdouble measavg = 0.0;\n\t\t\tfor (j = 1; j < m->nraw-1; j++) {\n\t\t\t\tdouble val = multimeas[i][j];\n\t\t\t\tif (val > satthresh)\n\t\t\t\t\tavgoverth++;\n\t\t\t\tmeasavg += val;\n\t\t\t\tabsraw[k][j] += val;\n\t\t\t}\n\t\t\tmeasavg /= (m->nraw-2.0);\n\t\t\tif (measavg < minavg)\n\t\t\t\tminavg = measavg;\n\t\t\tif (measavg > maxavg)\n\t\t\t\tmaxavg = measavg;\n\t\t\tabsraw[k][0]   += multimeas[i][0];\n\t\t\tabsraw[k][127] += multimeas[i][127];\n\t\t}\n\t\tfor (j = 0; j < m->nraw; j++)\n\t\t\tabsraw[k][j] /= (double)no;\n\t\tavgoverth /= (double)no;\n\t\tif (satthresh > 0.0 && avgoverth >= 10.0)\n\t\t\tm->cq_tol_flags[k] |= CQ_RULER_CAND_SAT;\n\t\tif ((maxavg - minavg)/white_avg > patch_cons_thr)\n\t\t\tm->cq_tol_flags[k] |= CQ_RULER_CAND_INCONS;\n\t}\n\tnwav = m->nwav[m->highres];\n\tm->cq_tol_spec = dmatrixz(0, n-1, 0, nwav-1);\n\tm->cq_tol_nwav = nwav;\n\ti1pro_absraw_to_abswav(p, m->highres, s->reflective, n, m->cq_tol_spec, absraw);\n\ti1pro_scale_specrd(p, m->cq_tol_spec, n, m->cq_tol_spec);\n\tm->cq_tol_why = ev;\n\tfree_dmatrix(absraw, 0, n-1, -1, m->nraw-1);\n\tfree_dvector(maxval, -1, m->nraw-1);\n}\n\n/* i1pro_imp_measure, when the reading failed: the candidates\' XYZ through the\n * reading\'s own conversion, into the ruler record. */\nvoid i1pro2_cq_tol_values(void *pp, int ev, int clamp) {\n\ti1pro *p = (i1pro *)pp;\n\ti1proimp *m = (i1proimp *)p->m;\n\tcq_ruler_rec *r = cq_ruler_r(m);\n\tint n = m->cq_tol_nseg, i;\n\tipatch *vals;\n\tif (!m->cq_tol_on || m->cq_tol_spec == NULL || r == NULL || n <= 0)\n\t\treturn;\n\tif (ev != m->cq_tol_why || (vals = (ipatch *)calloc(n, sizeof(ipatch))) == NULL) {\n\t\tcq_tol_clear(m);\n\t\treturn;\n\t}\n\tif (i1pro_conv2XYZ(p, vals, n, m->cq_tol_spec, (instClamping)clamp) != I1PRO_OK) {\n\t\tfree(vals);\n\t\tcq_tol_clear(m);\n\t\treturn;\n\t}\n\tfree(r->cand_vals);\n\tr->cand_vals = vals;\n\tr->ncand = n;\n\tr->cand_why = ev;\n\tfor (i = 0; i < n; i++) {\n\t\tr->cand_ss[i] = m->cq_tol_ss[i];\n\t\tr->cand_no[i] = m->cq_tol_no[i];\n\t\tr->cand_flags[i] = m->cq_tol_flags[i];\n\t}\n\tcq_tol_clear(m);\n}\n\n/* The helper, after read_strip: how long the lights\' code (the i1Pro 2\n * lights Beta) held the last trigger back, ms; 0 without the lights. The last\n * trigger of a read_strip is its lit scan\'s. Timed around the unchanged call. */\nint i1pro2_cq_trigger_wait_ms(void *pp) {\n\ti1pro *p = (i1pro *)pp;\n\tif (p == NULL || p->m == NULL)\n\t\treturn -1;\n\treturn ((i1proimp *)p->m)->cq_lights_wait_ms;\n}\n\n#ifdef NEVER\n\n'),
 ]
 # ---- END MARGIN TOLERANCE ----
+# ---- I1IO TABLE SCAN (study, 2026-11-16) ----
+# The i1Pro 2's part of an X-Rite i1iO 2 row scan, as i1Profiler 3.8.6 sends
+# it in four USB recordings of a user's table: lights off, a dark 0xD4 of 5 x
+# 5.004 ms, a lit 0xD4 of N x 5.004 ms with the lamp flag and no scan bit, the
+# 0xC9 status. The code is ChromIQ's own cq_i1pro2_tscan.h (with cq_tscan.h;
+# this script never writes either), included once at the end of i1pro_imp.c
+# because it uses that file's static trigger and read functions (at the very
+# end, so that the text of every other recorded patch stays whole). Nothing calls
+# it unless the helper runs with --i1io-table-scan
+# (tests/test_i1io_table_scan.py pins the wire).
+I1PRO_IMP_C_TSCAN = [
+    ("\treturn d;\n}\n\n/* ----------------------------------------------------------------- */\n",
+     "\treturn d;\n}\n\n/* ----------------------------------------------------------------- */\n"
+     "\n/* CHROMIQ PATCH: the i1iO 2 table scan (2026-11-16). ChromIQ's own code in */\n"
+     "/* cq_i1pro2_tscan.h, at the end of the file so that no other recorded patch */\n"
+     "/* is touched; nothing calls it unless ChromIQ's helper is started with */\n"
+     "/* --i1io-table-scan. */\n#include \"cq_i1pro2_tscan.h\"\n"),
+]
+# ---- END I1IO TABLE SCAN ----
 PATCHES = {
     "rspl1.c": [(RSPL1_UPSTREAM, RSPL1_PATCHED)],
     "conv.c": CONV_PATCHES,
     "usbio.c": USBIO_PATCHES,
     "i1pro_imp.h": I1PRO_IMP_H_LIGHTS + I1PRO_IMP_H_RULER + I1PRO_IMP_H_TOL,
-    "i1pro_imp.c": I1PRO_IMP_C_LIGHTS + I1PRO_IMP_C_RULER + I1PRO_IMP_C_TOL,
+    "i1pro_imp.c": I1PRO_IMP_C_LIGHTS + I1PRO_IMP_C_RULER + I1PRO_IMP_C_TOL + I1PRO_IMP_C_TSCAN,
     "i1pro.c": I1PRO_C_LIGHTS,
     "i1pro3_imp.h": I1PRO3_IMP_H_LIGHTS + I1PRO3_IMP_H_RULER + I1PRO3_IMP_H_COND,
     "i1pro3_imp.c": I1PRO3_IMP_C_LIGHTS + I1PRO3_IMP_C_RULER + I1PRO3_IMP_C_COND,
@@ -2056,7 +2075,18 @@ prov.write_text(
     "  calls exit(0) when it goes below zero; two threads updating the plain\n"
     "  int at once could lose an update and end the helper silently. This is\n"
     "  shared USB code, so it concerns every USB instrument the ChromIQ helper\n"
-    "  drives. Nothing on the wire changes.\n\n"
+    "  drives. Nothing on the wire changes.\n"
+    "- **`i1pro_imp.c`: the i1iO 2 table scan** (study, 2026-11-16; not in\n"
+    "  ChromIQ's UI). One `#include \"cq_i1pro2_tscan.h\"` at the end of the\n"
+    "  file: ChromIQ's own code (with `cq_tscan.h`; this script never writes\n"
+    "  either) for the i1Pro 2's part of a row scan on an X-Rite i1iO 2 table,\n"
+    "  exactly the requests i1Profiler 3.8.6 sent in four USB recordings of a\n"
+    "  user's table (44 passes): the recorded OFF_SLOW lights-off, a dark 0xD4\n"
+    "  (139 clocks, 5 readings, no lamp), a lit 0xD4 (139 clocks, lamp 41, N\n"
+    "  readings fixed by the caller, lamp flag, no scan bit), the 0xC9 status.\n"
+    "  No EEPROM write (i1Profiler's usage log is not copied), no ruler bits,\n"
+    "  no 0xD7. Nothing calls it unless the helper runs with\n"
+    "  `--i1io-table-scan`. Not tested on a real instrument by the project.\n\n"
     "| patched file | upstream sha256 (first 16) | shipped sha256 (first 16) |\n"
     "|---|---|---|\n" + "\n".join(patched) + "\n\n"
     "## Files\n\n"

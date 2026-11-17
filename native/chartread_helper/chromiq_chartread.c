@@ -6055,6 +6055,9 @@ static int cq_locs_fit_legacy_grid(cgats *icg, int li, alphix *paix, alphix *sai
  * presses as {"event":"press_group","presses":n,"gaps_ms":[..]}, until
  * {"cmd":"quit"} or stdin closes. Then the instrument is closed (it->del)
  * and {"event":"button_test_end"} says so. Reads nothing, writes nothing. */
+/* CHROMIQ_EXT (study, 2026-11-16): --i1io-table-scan <dir>, NULL = not asked. */
+static const char *cq_tscan_dir = NULL;
+
 static int cq_run_button_test(int comport, flow_control fc) {
 	icompaths *icmps = NULL;
 	icompath *ipath = NULL;
@@ -6273,6 +6276,11 @@ int main(int argc, char *argv[]) {
 							cq_gesture_counts |= 1 << (*gc - '0');
 				}
 				eat = 2;
+			} else if (strcmp(argv[ai], "--i1io-table-scan") == 0 && ai + 1 < argc) {
+				/* CHROMIQ_EXT (study, 2026-11-16): the i1Pro 2's part of a row
+				 * scan on an i1iO 2 table (chromiq_tablescan.c). No chart. */
+				cq_tscan_dir = argv[ai + 1];
+				eat = 2;
 			} else if (strcmp(argv[ai], "--button-test") == 0) {
 				/* CHROMIQ_EXT: Preferences' "Try it": open the instrument,
 				 * report every group of presses, read nothing. */
@@ -6292,7 +6300,7 @@ int main(int argc, char *argv[]) {
 			error("Failed to load replay script '%s'", cq_replay_path);
 	}
 
-	if (argc <= 1 && !cq_button_test)	/* CHROMIQ_EXT: "Try it" needs no chart */
+	if (argc <= 1 && !cq_button_test && cq_tscan_dir == NULL)	/* CHROMIQ_EXT: "Try it" needs no chart */
 		usage();
 
 	/* Process the arguments */
@@ -6300,7 +6308,7 @@ int main(int argc, char *argv[]) {
 	/* CHROMIQ_EXT: "Try it" has no outfile, so a flag's separate value (the
 	 * "1" of "-c 1") is taken only if no final argument is reserved for it
 	 * (Basti's ColorMunki, 2026-10-25: usage instead of the instrument). */
-	if (cq_button_test)
+	if (cq_button_test || cq_tscan_dir != NULL)
 		mfa = 0;
 	for (fa = 1;fa < argc;fa++) {
 		nfa = fa;					/* skip to nfa if next argument is used */
@@ -6542,6 +6550,9 @@ int main(int argc, char *argv[]) {
 	/* CHROMIQ_EXT: Preferences' "Try it" needs no chart. */
 	if (cq_button_test)
 		return cq_run_button_test(comport, fc);
+	/* CHROMIQ_EXT (study, 2026-11-16): the i1iO 2 table scan needs no chart. */
+	if (cq_tscan_dir != NULL)
+		return cq_run_table_scan(comport, fc, cq_tscan_dir, cq_guard_inst);
 
 	/* Get the file name argument */
 	if (fa >= argc || argv[fa][0] == '-') usage();

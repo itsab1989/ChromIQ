@@ -93,6 +93,7 @@ add_executable(chromiq-chartread
   ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_cal.c
   ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_stubs.c
   ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_usbwatch.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_tablescan.c
   ${INSTLIB}/alphix.c
 )
 target_include_directories(chromiq-chartread PRIVATE
@@ -368,8 +369,19 @@ target_include_directories(i1pro3_conditions_test PRIVATE
   ${INSTLIB} ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(i1pro3_conditions_test PRIVATE instlib)
 
+# The i1iO 2 table scan (study, 2026-11-16): the i1Pro 2's part of a row scan
+# on the fake USB layer (tests/test_i1io_table_scan.py).
+add_executable(i1io_table_scan_test EXCLUDE_FROM_ALL
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests/i1io_table_scan_test.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_stubs.c
+  ${INSTLIB}/alphix.c
+)
+target_include_directories(i1io_table_scan_test PRIVATE
+  ${INSTLIB} ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(i1io_table_scan_test PRIVATE instlib)
+
 set(_cq_link_targets chromiq-chartread i1pro2_lights_test i1pro3_lights_test
-    i1pro3_conditions_test)
+    i1pro3_conditions_test i1io_table_scan_test)
 list(APPEND _cq_link_targets i1pro2_lights_modes_test i1pro3_lights_modes_test)
 list(APPEND _cq_link_targets i1pro_ruler_scan_test i1pro3_ruler_test)
 list(APPEND _cq_link_targets i1pro2_lights_modes_test_watched

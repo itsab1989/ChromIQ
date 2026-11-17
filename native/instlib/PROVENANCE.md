@@ -149,6 +149,17 @@ stops if one no longer applies.
   int at once could lose an update and end the helper silently. This is
   shared USB code, so it concerns every USB instrument the ChromIQ helper
   drives. Nothing on the wire changes.
+- **`i1pro_imp.c`: the i1iO 2 table scan** (study, 2026-11-16; not in
+  ChromIQ's UI). One `#include "cq_i1pro2_tscan.h"` at the end of the
+  file: ChromIQ's own code (with `cq_tscan.h`; this script never writes
+  either) for the i1Pro 2's part of a row scan on an X-Rite i1iO 2 table,
+  exactly the requests i1Profiler 3.8.6 sent in four USB recordings of a
+  user's table (44 passes): the recorded OFF_SLOW lights-off, a dark 0xD4
+  (139 clocks, 5 readings, no lamp), a lit 0xD4 (139 clocks, lamp 41, N
+  readings fixed by the caller, lamp flag, no scan bit), the 0xC9 status.
+  No EEPROM write (i1Profiler's usage log is not copied), no ruler bits,
+  no 0xD7. Nothing calls it unless the helper runs with
+  `--i1io-table-scan`. Not tested on a real instrument by the project.
 
 | patched file | upstream sha256 (first 16) | shipped sha256 (first 16) |
 |---|---|---|
@@ -156,7 +167,7 @@ stops if one no longer applies.
 | `conv.c` | `c6b04014888cb6f4…` | `1b88327ee6e6d9df…` |
 | `i1pro.c` | `ac75b6e3f47537b8…` | `833d46b27134f93e…` |
 | `i1pro_imp.h` | `c37813e4b43a9bff…` | `bdc1a52a95971677…` |
-| `i1pro_imp.c` | `8b8516cdd89e21de…` | `2d0895f957da7a14…` |
+| `i1pro_imp.c` | `8b8516cdd89e21de…` | `b17c008174557380…` |
 | `i1pro3.c` | `9c4b1ac9f8af507a…` | `347235c6d10f9677…` |
 | `i1pro3_imp.h` | `190cceb46fe8bc33…` | `ef7245eb1a92eb5e…` |
 | `i1pro3_imp.c` | `42c684afa3bbb15d…` | `d78f1a6596886bf6…` |
