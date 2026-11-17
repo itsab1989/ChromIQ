@@ -284,6 +284,7 @@ def test_a_refused_start_up(tmp_path):
     assert "RECV   " in log and ":#i01" in log           # the recorded form of a refusal
     t = _flat(log)
     assert "refused the start-up command (code 1)" in t and _ends_with_switch_off(log)
+    assert "refused the start-up command at once" in t      # the state, at the end
     assert "failure refused" in log
 
 
@@ -293,6 +294,7 @@ def test_a_start_up_answered_with_another_status(tmp_path):
     code, sim, log, con = run(tmp_path, sim)
     assert code == 2 and sim.received == S1_OPEN6 + [I0]
     assert "differently from the recording" in _flat(log) and _ends_with_switch_off(log)
+    assert "what it did is not known" in _flat(log)
 
 
 @pytest.mark.parametrize("after", [(1102, 420), (1300, 20), (1102, -40)])
