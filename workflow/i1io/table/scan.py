@@ -10,7 +10,7 @@ One row, in the order i1Profiler 3.8.6 did it on every one of the 44 recorded pa
 
     table  p0                         where the arm is
     instr  lights off                 (the recorded 18 bytes)
-    table  c4                         answer one byte, recorded B7..BB
+    table  c4                         answer one byte, recorded B7..BC
     table  p0
     table  m0 row start @300          travel
     table  d1 365                     echo 016D
@@ -39,7 +39,10 @@ from . import session_table as tbl
 
 TRAVEL_SPEED = 300
 DEFAULT_SPEED = 54                      # recorded (R1, R2); 15-16 readings per 10 mm patch
-C4_RANGE = (0xB7, 0xBB)
+#: c4's one-byte answer: B7..BB in the 44 passes of R1, R2 and S2; BC and BA in the volunteer's
+#: recording of 17 Nov 2026 (REC 231.431 `:$c40BC56`, the row then scanned normally; 236.2
+#: `:$c40BA58`). What the byte means is not known; anything outside stops the row cleanly.
+C4_RANGE = (0xB7, 0xBC)
 READING_S = 0.005004
 FIRST_READING_AFTER_LAMP_S = 0.370
 DONE_EXTRA_S = (0.42, 0.50)
@@ -276,7 +279,7 @@ def run_row(table: tbl.Table, inst, plan: RowPlan, log, outdir: str,
         d = table.c_exchange(cl.C_FIXED["scan_c4"], cl.C_DATA_LEN["scan_c4"], timeout=1.0)
         res.c4 = int(d.data, 16)
         if not C4_RANGE[0] <= res.c4 <= C4_RANGE[1]:
-            raise CleanFail(f"c4 answered {res.c4:02X}, never seen (recorded B7..BB)")
+            raise CleanFail(f"c4 answered {res.c4:02X}, never seen (recorded B7..BC)")
         at = table.position()
         try:
             table.c_exchange(plan.m0, 0, window=geo.move_window(at, plan.start),
