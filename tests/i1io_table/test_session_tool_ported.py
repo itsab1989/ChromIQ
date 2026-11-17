@@ -466,9 +466,11 @@ def test_the_simulator_refuses_the_first_patch_move_from_outside_its_own_box(x, 
 @pytest.mark.parametrize("x,y", [(2496, 1498), (2507, 1510), (1102, 1498)])
 def test_the_simulator_refuses_m1_from_anywhere_but_the_far_side(x, y):
     sim = sim_mod.SimTable(jitter=False, pos=[float(x), float(y)])
-    with pytest.raises(sim_mod.SimViolation, match="not the recorded start"):
+    with pytest.raises(sim_mod.SimViolation, match="not a recorded start"):
         sim._physics(M1)
     sim_mod.SimTable(jitter=False, pos=[2507.0, 1498.0])._physics(M1)
+    # i1Profiler's own recorded start (R1, R2 and the recording of 17 Nov 2026)
+    sim_mod.SimTable(jitter=False, pos=[999.0, 1503.0])._physics(M1)
 
 
 def test_the_simulator_s_part_b_grammar_ends_the_row_at_patch_28():

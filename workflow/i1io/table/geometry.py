@@ -22,6 +22,13 @@ TWO FRAMES, ONE OF THEM FOR PLACES. The table answers two position questions:
   the aimed mark. The arm itself (the opening) stands elsewhere at that moment: p0 read right after
   the third aim is (-83..-119, -306..-323) from it (eight sessions; the person may also have moved
   the arm a little after the press). The sight sits about 31 mm in front of the opening.
+  Confirmed again on 17 Nov 2026 for i1Profiler's strip path: in the volunteer's recording of two
+  rows scanned by i1Profiler, both scans run straight along the line through the p1 readings,
+  starting and ending 0.4 mm beyond the end patches' centres, and the patch values cut from those
+  readings at the p1 grid agree with i1Profiler's own file (0.2 dE00 on average). No offset
+  between a p1 reading and a target exists anywhere in this package. (A ChromIQ row read patch
+  by patch has not run on a real table yet; the check move's question at mark 3 is the live
+  safeguard for that path.)
 
 So a p1 reading says where a mark lies; it is NOT a place the opening has been. Turning aims into
 targets needs no conversion (i1Profiler's own model, checked against its recorded moves:
@@ -30,8 +37,9 @@ targets needs no conversion (i1Profiler's own model, checked against its recorde
 The derivation (SAFETY_BRIEF_0.5.md, section 4, with every number's source):
 
 * X: the opening was read at X -1434 (p0, the free arm beside a bottom-right corner, R1 272.108,
-  the smallest X ever read) and was driven to X 2507 (m0, done, every approach of R1, R2, S2) and
-  2832 (m1); p0 read X up to 1318 (R2). The 320 mm rectangle is put with its right edge (smallest X)
+  the smallest X ever read) and was driven to X 2507 (m0, done, every approach of R1, R2, S2; and
+  m1, which ends at (2507, 1429): read twice on the volunteer's table on 17 Nov 2026); p0 read X
+  up to 1318 (R2). The 320 mm rectangle is put with its right edge (smallest X)
   ON the smallest X ever read, -1434, so it never reaches further right than the opening has been:
   X -1434 to 1766. Every X in it lies between two places the opening has been.
 * Y: the opening was read at Y 2773 (p0 twice, R1 431.410 and 431.635: the free arm after the
@@ -174,9 +182,13 @@ def in_front_zone(p) -> bool:
 #:   chart   every m0 and m2 target after an alignment: X -1320..1316, Y 1537..2559
 #:   first   the recorded first moves from the free arm: from (-1297, 2681), (-1303, 2689),
 #:           (-1283, 2677), (-1210, 2668), (-1349, 2616) to the top-right of the chart
-#:   way     home line X 1102 Y 0..1498, and Y 1498 X 1000..2507 (the approach), m1's place
+#:   way     home line X 1102 Y 0..1498, and the approach: Y 1498 X 1000..2507, and m1, which
+#:           brings the opening to (2507, 1429) (MEASURED twice, 17 Nov 2026; from (999, 1503) in
+#:           the recording of that night). Until then this box reached Y 1371 and a further box
+#:           X 2507..2832 stood here, both from the target field of m1 (2832, 1371), where the arm
+#:           never was.
 DRIVEN = (Area(-1320, 1316, 1537, 2559), Area(-1349, -1181, 1645, 2689),
-          Area(1000, 1104, 0, 1500), Area(1000, 2507, 1371, 1500), Area(2507, 2832, 1371, 1498))
+          Area(1000, 1104, 0, 1500), Area(1000, 2507, 1429, 1500))
 
 #: The recorded speeds: m0 on a chart only at 300; m2 at these (mm/s).
 RECORDED_M0_SPEEDS = (300,)

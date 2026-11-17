@@ -16,8 +16,9 @@ any line while the arm moves, or anything after the close.
 
 0.4.0 adds part B (the recorded spot row): its own copy of the 29 new lines, a prefix
 automaton of the whole part B session (:data:`B_GRAMMAR`), m1 as a 0.40 s move that ends
-where the BELIEF puts the sensor (the sight on (2832, 1371); a labelled belief, never read in
-a recording), f1 at the alignment start, a scripted HAND (:meth:`SimTable.hand_to`) that may
+where the REAL table put the opening, (2507, 1429) (read twice on the volunteer's i1iO 2 on
+17 Nov 2026; tests set `m1_lands_at` to any other place to see the program stop), f1 at the
+alignment start, a scripted HAND (:meth:`SimTable.hand_to`) that may
 only move a free arm, the first patch move re-engaging the motors (f4 keeps 01 until f0),
 and the 28 recorded targets with their recorded times.
 """
@@ -132,9 +133,14 @@ def _xy_of(line):
 
 
 SPOT_XY = {ln: _xy_of(ln) for ln in SPOTS}
-#: BELIEF (labelled): m1 places the alignment sight on (2832, 1371); the sensor then reads
-#: about (2716, 1057). Tests set `m1_lands_at` to try the other explanation and wrong places.
-M1_BELIEF = (2716.0, 1057.0)
+#: MEASURED on the volunteer's i1iO 2 on 17 Nov 2026: m1 from (2507, 1498) and (2505, 1498) took
+#: 0.400 s and p0 then read (2507, 1429), twice, with and without a chart. (Until then this was a
+#: labelled belief, (2716, 1057), "the sight on (2832, 1371)": wrong, and because the simulator
+#: carried the program's own wrong belief no test could catch it.) Tests set `m1_lands_at` to any
+#: other place to see the program stop truthfully.
+M1_LANDS = (2507.0, 1429.0)
+#: i1Profiler's own m1 from (999, 1503), the recording of 17 Nov 2026 (and R1, R2): 1.759 s
+M1_FROM_1000_S = 1.759
 
 
 def _first_start(p) -> bool:         # the simulator's own copy of where spot 1 may start
@@ -193,8 +199,8 @@ class SimTable:
     mode: str = "00"
     #: True while the hand-alignment mode lets the arm go
     free_arm: bool = False
-    #: where the sensor reads after m1 (default: the labelled belief)
-    m1_lands_at: "tuple[float, float]" = M1_BELIEF
+    #: where the opening reads after m1 (default: where the real table put it)
+    m1_lands_at: "tuple[float, float]" = M1_LANDS
     #: 0.6.0, a cold table: how long its start-up takes, and where the arm stands after it
     #: (default: as recorded in S1; the tests set other values for the late and the away models)
     i0_s: float = I0_RECORDED_S
@@ -394,8 +400,8 @@ class SimTable:
             if not ok:
                 raise SimViolation(f"i1 from {here}: not a place this copy allows")
         if line == M1L:
-            if self.free_arm or not _near(here, (2507, 1498)):
-                raise SimViolation(f"m1 from {here}: not the recorded start")
+            if self.free_arm or not (_near(here, (2507, 1498)) or _near(here, (1000, 1500))):
+                raise SimViolation(f"m1 from {here}: not a recorded start")
         if line in SPOT_XY:
             k = SPOTS.index(line)
             if k == 0:
@@ -546,7 +552,9 @@ class SimTable:
                 t = 2.4
             self.free_arm = False          # the homing takes the arm again
         elif line == M1L:
-            target, t = self.m1_lands_at, DURATION[M1L]
+            # as the real table: 0.400 s from (2507, 1498), 1.759 s from i1Profiler's (999, 1503)
+            target = self.m1_lands_at
+            t = DURATION[M1L] if _near(self.pos, (2507, 1498)) else M1_FROM_1000_S
         elif line in SPOT_XY:
             target = SPOT_XY[line]
             if SPOTS.index(line) == 0:

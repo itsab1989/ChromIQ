@@ -1055,6 +1055,16 @@ found it at once: a table that says for every edge which frame its reading
 is in, and a test that your own fit of each recorded alignment reproduces
 the moves the maker's program then made.
 
+**A simulator must not carry your own belief.** Where no recording shows what
+a command does, a simulator that answers with what you believe it does
+cannot catch the belief being wrong. On the i1iO the short move m1 was
+believed to put the sight on its target field; the code and both simulators
+expected the opening near (2716, 1057), the first real session read
+(2507, 1429), and every alignment start stopped there. Mark such answers in
+the simulator as beliefs, keep a test that any other answer stops the
+session truthfully, and replace them with the measured value as soon as a
+real device has answered.
+
 **Unproven territory in small confirmed steps.** A move into a part of the
 device no recording reached is announced first and needs its own "yes".
 Where a sheet needs more room than the recordings prove, the program feels

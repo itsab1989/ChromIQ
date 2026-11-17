@@ -136,7 +136,8 @@ class CSimTable(SimTable):
         if line == I1 and not (_inside(C_SWEEP_BOX, here) or (1090 <= here[0] <= 1115
                                                               and -1 <= here[1] <= 250)):
             raise SimViolation(f"i1 from {here}")
-        if line == M1L and (self.free_arm or not _near(here, (2507, 1498))):
+        if line == M1L and (self.free_arm or not (_near(here, (2507, 1498))
+                                                  or _near(here, (1000, 1500)))):
             raise SimViolation(f"m1 from {here}")
         if line == F1 and not _near(here, self.m1_lands_at):
             raise SimViolation("f1 away from the alignment start")

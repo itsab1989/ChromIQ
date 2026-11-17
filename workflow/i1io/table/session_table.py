@@ -206,7 +206,7 @@ RECORDED_AT = {
                 "525.146, 682.262; 1.695 s",
     "free":     "at every alignment, after s0 f4 f4 f3 f4 f4: S2 4.018 (answer 01; f4 then "
                 "reads 01), R1 202.217, 402.173, 717.356, R2 146.366, 429.355; 10 in all",
-    "m1":       "after m0 (2507, 1498) in every measuring session that began without a calibration: S2 3.488, 270.753, 383.348, 526.841, 683.957 (0.399-0.400 s), then s0 f4 f4 f3 f4 f4 f1; R1, R2 after (1000, 1500): 1.759 s",
+    "m1":       "after m0 (2507, 1498) in every measuring session that began without a calibration: S2 3.488, 270.753, 383.348, 526.841, 683.957 (0.399-0.400 s), then s0 f4 f4 f3 f4 f4 f1; R1, R2 after (1000, 1500): 1.759 s; the volunteer's table, 17 Nov 2026: from (2507, 1498) and (2505, 1498) 0.400 s, then p0 read (2507, 1429), twice (`:!m107`, `:$m10D4`, `:$p0009CB059511`); i1Profiler's own from (999, 1503) 1.759 s (a plain move to (2507, 1429) of that length: 1.75 s predicted). m1 brings the measuring opening to X 2507, Y 1429",
     "spot01":   "S2 session 3, S2 454.218, from (-1297, 2681), 1.456 s to (-1181, 1658) at 300; context p0 p0 m0 p0 (the first spot move, from the free arm after s0 f4 f4 f4 f4)",
     "spot02":   "S2 session 3, S2 456.128, from (-1180, 1658), 0.431 s to (-1094, 1659) at 300; context p0 m0 p0 (spot pass, one patch on)",
     "spot03":   "S2 session 3, S2 457.625, from (-1093, 1660), 0.432 s to (-1007, 1659) at 300; context p0 m0 p0 (spot pass, one patch on)",
@@ -453,17 +453,16 @@ AT_1498 = near(1102, 1498)
 AT_2507 = near(2507, 1498)
 
 # ---- part B places (0.4.0) ------------------------------------------------------------
-#: Where the sensor reads after m1. Never read back in a recording (i1Profiler sends f3, f1
-#: right after m1). Two readings are accepted, nothing else:
-#:   AT_M1_SENSOR  m1 moved the sensor itself to (2832, 1371), like an m0 would;
-#:   AT_M1_SIGHT   m1 placed the alignment SIGHT there (the belief, PROTOCOL_v2 5 and
-#:                 SEQUENCE 4.1): the sensor then reads the sight position plus the recorded
-#:                 sight-to-sensor offset, (-105..-120, -306..-323) (S2 454.186 against the
-#:                 third p1 at 418.999: (-106, -323); S2 726.363 against 710.005: (-105, -312);
-#:                 R1: -110..-120, -306..-318), i.e. X 2712..2727, Y 1048..1065; widened by
-#:                 about 1.5 mm each way.
-AT_M1_SENSOR = near(2832, 1371)
-AT_M1_SIGHT = Box(2697, 2742, 1033, 1080)
+#: Where the measuring opening reads after m1: MEASURED on the volunteer's i1iO 2 on 17 Nov
+#: 2026, twice, with and without a chart: m1 from (2507, 1498) and (2505, 1498) took 0.400 s
+#: and p0 then read (2507, 1429) (`;p025` -> `:$p0009CB059511`). i1Profiler's own m1 from
+#: (999, 1503) took 1.759 s in the recording of that night, which is the time a plain move of
+#: that length to (2507, 1429) takes (the m0 time fit predicts 1.75 s). So m1 is a move of the
+#: opening to (2507, 1429); its target field (2832, 1371) is not where anything lands. The box
+#: is the arrival tolerance every recorded move uses (plus or minus 5 units). Until then two
+#: places were accepted here, (2832, 1371) and a "sight frame" box around (2716, 1057); both
+#: were wrong, and every alignment start stopped at this check on the real table.
+AT_M1 = near(2507, 1429)
 #: Where the free arm may stand before the first patch move (sensor reading): the box of the
 #: recorded starts of i1Profiler's first move from the free arm after an alignment:
 #: (-1297, 2681) S2 454.186 (this very line), (-1303, 2689) S2 726.363, (-1283, 2677) S2
@@ -698,19 +697,18 @@ B_STEPS = (
          "medium",
          "The arm drives straight out from its resting place by 150 mm (about 1.7 s), then "
          "140 mm sideways to the far side, towards the left as you see the table when you lay "
-         "a chart on it (about 1.7 s), then makes one short move of a few centimetres (about "
-         "0.4 s) to the place where i1Profiler starts every chart alignment. These are exactly "
+         "a chart on it (about 1.7 s), then makes one short move of 7 mm towards the back "
+         "(about 0.4 s) to the place where i1Profiler starts every chart alignment. These are exactly "
          "i1Profiler's three moves at the start of the five measuring sessions of 14 November. "
          "Then the program sends i1Profiler's lines that switch on the hand-alignment mode "
          "(f3, then f1): the motors should let the arm go. The program reads where the arm is "
          "and asks you to touch it gently once.",
-         "The short move (m1) is sent exactly as i1Profiler sent it, from the same place, but "
-         "what it does is not fully understood: its time does not fit a normal move, and we "
-         "believe it puts the alignment sight (the cross hairs), not the measuring opening, on "
-         "the alignment start. i1Profiler never read the position right after it; this program "
-         "does, between the moves and after m1, and stops if the arm is not where one of the "
-         "two explanations puts it. In the recordings these moves followed i1Profiler's end of "
-         "the previous job; here they follow this program's homing."),
+         "The short move (m1) is sent exactly as i1Profiler sent it, from the same place. "
+         "It brings the measuring opening to X 2507, Y 1429 (measured twice on a real i1iO 2 "
+         "on 17 November 2026, 0.4 s each time). i1Profiler never read the position right "
+         "after it; this program does, between the moves and after m1, and stops if the arm "
+         "is not there. In the recordings these moves followed i1Profiler's end of the "
+         "previous job; here they follow this program's homing."),
     Step("b_place", "You push the free arm by hand to the front right of the table",
          ("free_out",), "free_placed", (("place",),), "low",
          "Nothing moves under motor in this step. You push the free arm gently by the "
@@ -1001,8 +999,6 @@ class Table:
         #: True after f1 was answered (the motors let go), False after a movement from the
         #: free arm finished with status 0 (the motors hold it again), None when unknown
         self.arm_free: "bool | None" = False
-        #: which of the two explanations of m1 the reading after it fitted
-        self.m1_frame: "str | None" = None
         #: the answer to the touch at the alignment start (b_align)
         self.out_touch: "str | None" = None
         #: the patch (0..27) whose arrival was last read, and the last patch sent to
@@ -1526,18 +1522,16 @@ class Table:
         return pos
 
     def _p0_after_m1(self) -> None:
+        """The arm must read where m1 brought it on the real table, (2507, 1429) within the
+        usual arrival tolerance; anywhere else nothing more is sent."""
         pos = self.position()
-        frame = ("sensor" if AT_M1_SENSOR.contains(pos) else
-                 "sight" if AT_M1_SIGHT.contains(pos) else None)
-        self.log("DATA", f"after m1: the arm reports {pos} ({frame or 'neither explanation'})")
-        if frame is None:
+        self.log("DATA", f"after m1: the arm reports {pos}")
+        if not AT_M1.contains(pos):
             self.outside_at = pos
             raise self._doubt(
-                f"after m1: the arm reports {pos}, neither at {AT_M1_SENSOR} nor at "
-                f"{AT_M1_SIGHT}",
+                f"after m1: the arm reports {pos}, not at {AT_M1}",
                 OFF_PLACE_TEXT.format(x=pos[0], y=pos[1], what="after the short move m1",
-                                      box=f"{AT_M1_SENSOR.text()} or {AT_M1_SIGHT.text()}"))
-        self.m1_frame = frame
+                                      box=AT_M1.text()))
 
     def _p0_still(self, units: int, what: str) -> None:
         before = self.position_now
