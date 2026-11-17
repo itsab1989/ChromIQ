@@ -44,6 +44,7 @@ straight to [section 2](#2-you-own-an-instrument-chromiq-does-not-support-yet-th
 11. [Measuring](#11-measuring)
 12. [Talking to the hardware](#12-talking-to-the-hardware)
    - 12a. [Devices that move](#12a-devices-that-move)
+   - 12b. [Instruments ChromIQ drives itself: lessons and tools](#12b-instruments-chromiq-drives-itself-lessons-and-tools)
 13. [Files, text and specifications](#13-files-text-and-specifications)
 14. [How we work: challenge, build, review, prove](#14-how-we-work-challenge-build-review-prove)
 15. [Opening the pull request](#15-opening-the-pull-request)
@@ -115,9 +116,11 @@ review will look for, written down so you can do them first.
 Where this guide gives an example from the X-Rite i1iO table or the i1iSis
 chart readers, it comes from a Beta that makes charts for them and brings
 back the measurement their own program (i1Profiler) made of those charts.
-ChromIQ does not drive either of them yet; driving the i1iO table is being
-worked out with an owner, outside the app
-([section 12a](#12a-devices-that-move)).
+ChromIQ does not drive the i1iSis. It drives the i1iO 2 table with an i1Pro
+2 on it, inside the same i1iO Beta; how that was worked out with an owner is
+in [section 12a](#12a-devices-that-move), and how it was built into the app,
+with the tools that came with it, in
+[section 12b](#12b-instruments-chromiq-drives-itself-lessons-and-tools).
 
 ## 2. You own an instrument ChromIQ does not support yet? This is how you can help
 
@@ -369,7 +372,7 @@ and changing them is the maintainers' decision.
 | **A new feature for an instrument ChromIQ already measures with** | A change to the vendored ArgyllCMS instrument code in `native/instlib/`, recorded as a patch and in its provenance note, used only while the Beta switch is on. Every other instrument stays exactly as upstream. |
 | **An instrument with its own driver that returns one reading per patch** (a spot instrument, or a strip reader whose driver hands over each patch's reading on its own) | ChromIQ's own chartread runs the session with "external values" (`-xx`, `workflow/measure_manager.py::MeasureParams.external_values`): it opens no instrument and asks ChromIQ for each patch's reading, which a small bridge fetches from your driver. chartread keeps the session, the file and all the measurement logic, so resume, re-reading and the end windows come for free. |
 | **An instrument with its own driver that returns a whole strip at once** | Open an issue first: the external-values route asks for one patch at a time, so a driver that only delivers whole strips needs a design agreed with the maintainers. |
-| **A measuring table or an automatic chart reader** | Open an issue first and agree the design there. Making charts for it follows [section 6](#6-designing-the-chart-from-what-the-instrument-needs); bringing back the measurement its own program made follows [section 4a](#4a-two-routes-worked-in-parallel). There is no general route for driving these devices yet; a device that moves follows [section 12a](#12a-devices-that-move). |
+| **A measuring table or an automatic chart reader** | Open an issue first and agree the design there. Making charts for it follows [section 6](#6-designing-the-chart-from-what-the-instrument-needs); bringing back the measurement its own program made follows [section 4a](#4a-two-routes-worked-in-parallel). There is no general route for driving these devices yet; a device that moves follows [section 12a](#12a-devices-that-move), and [section 12b](#12b-instruments-chromiq-drives-itself-lessons-and-tools) describes the first one ChromIQ drives, the i1iO 2 table. |
 | **An instrument read through its own program only** (a coordinate-reading XY table, for example) | Route (a) of [section 4a](#4a-two-routes-worked-in-parallel): a chart the program can read, and an import that puts every reading on its patch. |
 | **A scanner or camera** | Not an instrument in this sense: ChromIQ reads a scanned chart with ArgyllCMS `scanin` (Tools > "Build profile with scanner or camera"). |
 
@@ -392,9 +395,10 @@ is put first.** Both are tried at the same time, and every round with an
 owner is planned to answer as much as possible for both (what to ask for is
 at the end of this section). Today ChromIQ uses route (a) for the i1iSis
 chart readers (their chart Beta, `workflow/isis/`) and the i1iO table
-(`workflow/i1io/measure_chart.py`, `workflow/i1io/pages.py`), while route (b)
-for the i1iO table is being worked out with an owner in a separate tester
-program ([section 12a](#12a-devices-that-move)).
+(`workflow/i1io/measure_chart.py`, `workflow/i1io/pages.py`), and route (b)
+for the i1iO 2 table with an i1Pro 2, first worked out with an owner in
+separate tester programs ([section 12a](#12a-devices-that-move)) and now in
+the app ([section 12b](#12b-instruments-chromiq-drives-itself-lessons-and-tools)).
 
 ### What route (a) needs
 
@@ -1003,8 +1007,9 @@ the table's owner through small tester programs outside the app; the latest
 is public, with its README and the list of every line it can send, on the
 branch
 [`tester/i1io-session-0.5.0`](https://github.com/itsab1989/ChromIQ/tree/tester/i1io-session-0.5.0/tools/i1io_session).
-None of it is in the app yet; how it would move into the app is designed,
-not built.
+The reviewed parts of those programs then moved into the app, inside the
+i1iO Beta; how that was done, and the tools for it, are in
+[section 12b](#12b-instruments-chromiq-drives-itself-lessons-and-tools).
 
 **Only what was seen.**
 
@@ -1108,6 +1113,299 @@ a reason to remove it; "a stage may hurt the device" is. Fix what the review
 requires, and review again.
 
 *In [the checklist](adding_an_instrument_checklist.md): items 8.11 to 8.18.*
+
+## 12b. Instruments ChromIQ drives itself: lessons and tools
+
+Sections 11, 12 and 12a say what must hold when ChromIQ talks to a device.
+This section is about the step after that: putting a driven measurement
+into the app, so that a person measures with it the way they measure by
+hand. It comes from the first one ChromIQ built, the drive of the X-Rite
+i1iO 2 table with an i1Pro 2 on it, inside the i1iO Beta. Almost every
+point below cost a build or a review round on the table because nobody had
+written it down yet. Read it before you start, and give it to your
+reviewer as a checklist.
+
+The binding specification of the table drive is
+`docs/design/i1io_table_support.md`; the endings it reuses are in
+`docs/design/measurement_exit_strategy.md`. Read them as worked examples,
+and write your own instrument's rules into a specification of its own
+([section 13](#13-files-text-and-specifications)).
+
+### Where a driven measurement lives
+
+- **In the Measure tab, under START MEASUREMENT**, exactly where a hand
+  measurement runs. The IMPORT module is for measurements made in the
+  maker's own program (route (a) of
+  [section 4a](#4a-two-routes-worked-in-parallel)); START is for
+  measurements ChromIQ makes itself, by hand or by driving the device. Keep
+  that split for every instrument.
+- **Never a modal window and never a sheet over the window.** The questions
+  are pages of a panel that stands where the tab's options stand while a
+  hand measurement runs. Nothing covers the chart preview, because the
+  person needs it to see where the device is. A separate window is fine only
+  if it is small and can be moved out of the way.
+- **Exactly one Stop**, red, always in the same place. While a session runs,
+  hide the tab's controls that have no function then, so there is never a
+  second button that looks as if it stops something.
+- **Inside the instrument's existing Beta switch.** Driving the device is
+  more of the same Beta, not a new switch, and with the Beta off the app is
+  unchanged ([section 9](#9-behind-a-beta-switch-and-off-changes-nothing)).
+
+On the table, START on a chart made for it reaches
+`ui/tabs/tab_measure.py::_started_the_table_drive`, which runs the hand
+path's guards first and then puts the panel (`ui/i1io_table_window.py`)
+into the tab's own measurement area, locks the tab's settings, START, the
+mode buttons and IMPORT, and lets the preview follow the session.
+
+### Split the job from the panel
+
+Put everything that talks to the device and every safety rule into one
+**job** that has no user interface at all, and keep the **panel** as thin
+as you can. On the table this is `workflow/i1io/table/job.py::TableJob`:
+
+- each step of the job (open, start up, align, calibrate, read a row, go
+  home, close, save) returns a result: done, a refusal with a named reason,
+  a stop with a named reason, or "needs a confirmation", with the true state
+  of the device as it last answered;
+- **the job returns ids, never sentences.** The panel turns every id into
+  friendly, translated text from the message catalogue
+  (`workflow/measurement_messages.py`). So the job can be tested headless,
+  and wording changes can never weaken a safety rule;
+- **the job never answers its own questions.** The panel passes the
+  person's answer back, and nothing has a default;
+- the panel runs the job's steps off the GUI thread, so Stop and "Report a
+  problem" stay pressable while a line is on its way, and it connects every
+  signal to a named method (the Qt rules of
+  [section 11](#11-measuring)).
+
+The panel builds its job through one replaceable factory,
+`ui/i1io_table_window.py::JOB_FACTORY`. That one seam is what lets the tests
+and the on-screen driver put a simulated device behind the real panel.
+
+### The same as the hand measurement, for everything
+
+For every point here, the answer should be "the same as the hand path, and
+it reuses the hand path's code". When you plan, write that sentence for each
+point and check it in review.
+
+- **Every run type from the start**: a profile, refinement strips, a
+  calibration and a verification. The measurement is saved under the name
+  and in the folder of its run type through `Run` and `Calibration`
+  (`core/file_manager.py`), and finished by the same code that finishes a
+  hand measurement. If a rule of a specification seems to stand in the way
+  of one run type, first try the obvious (pass the destination by run
+  type) before you park it; if it still does not fit, ask, as
+  [section 8](#8-every-run-type) says.
+- **The same START guards**, in the same order: a new run that has to be
+  made first, a missing chart, a measurement that does not fit the chart,
+  the instrument's lights left on, the question before a measurement is
+  replaced ([section 11](#11-measuring)).
+- **The same ending**: the usual completion window (go on to Build Profile,
+  "measure again" for averaging), auto-proceed, the same log lines, and a
+  partial result kept with Continue Measurement.
+- **The same lock.** A running drive counts as a running measurement
+  everywhere: quitting, the close box, logging out, keyboard shortcuts,
+  switching tabs and Preferences all behave as they do during a hand
+  measurement.
+- **Manual and Guided both work.** Grey out only what has no meaning while
+  the device drives, and give each greyed control its reason
+  ([section 7](#7-options-stay-open-and-everything-is-saved)).
+
+### The preview while the device works
+
+- **The current row or patch is marked strongly; rows already read are
+  marked calmly.** On the table a read row gets a small green dot in the gap
+  between its label and its first patch, not an outline per row; a failed
+  row gets a warning mark in the same place.
+- **Overlays are placed from the same geometry that draws the chart.** An
+  aiming ring computed from a second copy of the layout sat off-centre.
+  Take every position from the code that draws the chart file. If the page
+  is drawn unturned and shown turned, glyphs drawn on the page come out
+  rotated: use marks that look the same turned, or draw them in screen
+  space.
+- **Expected and measured, side by side.** Every patch read shows the
+  colour the chart expects beside the colour that was measured, so the
+  readings must carry the chart's expected colour with them.
+
+### Asking the person
+
+- **On a first measurement, ask after each step** how it went, then offer
+  to stop asking. After that, a "Report a problem" button with a note field
+  stays visible for the rest of the session.
+- **A choice that is not needed every time is asked once and remembered**,
+  and can be changed in Preferences. On the table, where the i1Pro 2 is
+  calibrated (its own tile or the table's tile) is such a choice.
+- **Look at the instrument's own button.** Where the maker's program lets
+  the person confirm with a button on the instrument, consider doing the
+  same.
+
+### The safety pattern that held up in review
+
+These come on top of the hardware rules of sections 12 and 12a.
+
+- **A fresh hands-off GO after anything unusual**: after every stop,
+  refusal, failure, problem report and ending, and whenever the person's
+  hands were at the device. After an ending, the only movement left is the
+  way home. No button is a default, and neither Enter nor Space ever
+  answers a question.
+- **An "in use" marker.** Write it when the device is opened and clear it on
+  a clean close. If the app was killed while driving, the next START finds
+  the marker and asks first (on the table: switch it off and on again).
+- **Only recorded commands at recorded speeds.** The list of allowed lines
+  and the caps on how many lines and moves a session may send are derived
+  from the recordings and from the chart, and work on the panel or the texts
+  never widens them. On the table they live in
+  `workflow/i1io/table/lines.py` and `workflow/i1io/table/caps.py`.
+
+### The tools, and how to use them
+
+Everything here ships in the repository, except where it says otherwise.
+Run the table's own tests with:
+
+```bash
+QT_QPA_PLATFORM=offscreen pytest tests/i1io_table -q
+```
+
+**The recording tool.** Everything starts with recordings of the maker's
+own program talking to the device, made by an owner with the recording tool
+of [section 2](#2-you-own-an-instrument-chromiq-does-not-support-yet-this-is-how-you-can-help).
+The tester programs that tried the table step by step with its owner,
+before any of it went into the app, are described in
+[section 12a](#12a-devices-that-move).
+
+**The simulated device.** In `tests/i1io_table/` (test support, never
+shipped):
+
+- `tests/i1io_table/session_sim.py`: a simulated i1iO 2 table that answers
+  as the owner's table did in the recordings, on a virtual clock. It keeps
+  its own copy of every recorded sequence (on purpose not imported from the
+  code it tests) and raises the moment the code sends a line it must never
+  send: a line out of order, a move from a place it does not allow, any line
+  while the arm moves, anything after the close.
+- `tests/i1io_table/part_c_sim.py`: the same table with computed moves,
+  the measuring area and the swept rectangle, plus fake spot and strip
+  readers on the simulator's clock, with faults on both sides.
+- `tests/i1io_table/reader_sim.py`: a simulated ChromIQ helper process
+  behind the app's own reader code, so readings go through the real reader;
+  it can fail at any reading in many ways (no instrument, a busy one, a
+  reading that dies, a calibration that is asked for again).
+- `tests/i1io_table/job_harness.py`: drives the job headless against the
+  simulator. The person is a script: every confirmation the job asks for
+  must have an answer in it, and a missing answer fails the test, because
+  the job never answers itself.
+
+**The simulated device behind the real panel.**
+`tests/i1io_table/window_sim.py::WindowSim` is a factory that builds the
+real job on the simulated table and the simulated helper; put it in place
+of `ui/i1io_table_window.py::JOB_FACTORY` and no USB device and no
+instrument is ever opened. Its `delay_s` pauses every line in real time, so
+a driver can photograph a row while it runs and press Stop in the middle of
+one. `tests/i1io_table/window_person.py::WindowPerson` is a simulated
+person in front of the panel: it presses the panel's own buttons by their
+labels and puts the simulated sight on a mark before pressing "Aimed".
+`tests/i1io_table/test_window_in_the_measure_tab.py` shows both in use,
+including a test that no state of the drive ever shows a modal window.
+
+**The wire-identity tests.** The table's tester program was reviewed and
+tried on a real table before the app's job was written. So the job is held
+to it: `tests/i1io_table/test_job_wire_identity.py` proves that for every
+stage the tester has, the job sends byte for byte what the tester sent in
+the same situation, and `tests/i1io_table/test_job_reading_wire.py` does the
+same for reading, including how the reader is started. The situations are
+listed in `tests/i1io_table/job_wire_cases.py` and
+`tests/i1io_table/job_reading_wire_cases.py`; the tester's side was captured
+once from the tester itself on its own simulator (in
+`tests/i1io_table/data/`), for hundreds of sittings, with a fault and a
+cancel at every line. The capture tool stayed outside the repository. If you
+move reviewed code from a tester program into the app, do the same: capture
+the reviewed program's lines once, and make the app's code match them.
+
+**The tests that pin the guarantees.**
+`tests/i1io_table/test_job_safety.py` gives every reviewed safety setting
+its own test (the caps derived from the chart, the 5 mm creep, the homing's
+conditions, a lost link at every line, the "in use" marker, every
+confirmation asked and none with a default, no question while the arm
+moves). `tests/i1io_table/test_guarantees_in_the_app.py` pins rules about
+the code itself: the table is written in exactly one place, no line outside
+the recorded ones exists, no process is started except read-only checks,
+and the simulators keep their own copies of the steps.
+
+**"Beta off changes nothing", for a drive.** Besides the nets of
+[section 9](#9-behind-a-beta-switch-and-off-changes-nothing)
+(`tests/test_i1io_off_changes_nothing.py` for the i1iO),
+`tests/test_i1io_table_not_reached_by_the_app.py` proves that the drive's
+code is reached only from START on a chart made for it: statically, by every
+spelling of an import, and at run time, by building the real main window in
+a child process with the Beta off and on and checking that the package was
+never loaded.
+
+**The on-screen driver.** Proof that the drive works is a driver that
+opens the real app in a real window. The table's own driver is not in the
+repository, but its pattern is simple, and the helpers it uses are:
+
+1. Sandbox the settings: set `CHROMIQ_SETTINGS_FILE` to a scratch file
+   before anything starts, and use a scratch output folder.
+2. Replace `ui/i1io_table_window.py::JOB_FACTORY` with the simulator's
+   factory (`WindowSim`), so no USB device is opened.
+3. Build the application and the fully styled main window as the app does,
+   with `scripts/capture_screens.py::build_app` and
+   `scripts/capture_screens.py::set_theme`
+   ([section 13](#13-files-text-and-specifications)). Keep a
+   `scripts/onscreen_capture.py::PopupWatchdog` running, so a question
+   nobody scripted never hangs the run.
+4. Load a **real chart**, made the way Create Chart makes it, not a
+   hand-written stand-in.
+5. Drive it with a `WindowPerson`-style simulated person, row by row and
+   patch by patch, through every run type.
+6. Photograph every page with `scripts/onscreen_capture.py::capture_window`,
+   which takes the window's own picture even behind other windows, never
+   with `widget.grab()`. Hold
+   `scripts/onscreen_capture.py::keep_display_awake` while it runs, and use
+   `scripts/onscreen_capture.py::FocusGiveBack` so the driver never raises
+   itself over, or takes the keyboard from, a person who is typing.
+7. Repeat it in a narrow window and in one other language, and never open
+   a print dialog.
+
+**Make the simulator behave like the real device.** Two things made the
+first proof pictures of the table look broken although the code was right:
+grey readings, and a pace far faster than the table's. The test simulators
+read an invented smooth spectrum per place, which is right for tests; for
+an on-screen proof, give each patch a reading near its expected colour with
+a small visible deviation, and run at the pace the recordings show. Then
+look at every picture yourself, and give your reviewer a list of what to
+check in them: nothing clipped or overlapping, one Stop, the mark on the
+right patch, rings centred.
+
+**Planted faults: testing the tests.** There is no script for this in the
+repository; it is a method. Copy the tree (a separate `git worktree` is
+easiest), plant **one** fault in each copy, run the tests that should
+catch it, and expect red. Faults worth planting are the ones a review would
+fear: a refinement Save that keeps the old readings, a quit that does not
+wait for the person's answer, a cap raised by one, a check removed from the
+gate. A fault no test catches gets a test. Section 12a's "Attack the guard"
+is the same idea for the lines a device is sent.
+
+**The parity check.** The parity tools of
+[section 9a](#9a-checking-your-instrument-against-the-others) compare the
+Create Chart tab, the saved settings and the charts of every run type with
+the reference instrument. Run them for a driven instrument too: its charts
+and options must be as open as any other. They do not drive a measurement,
+so they do not compare the Measure tab's START, endings or lock with the
+hand path yet. Until such a check exists, prove that part with tests of
+your own that put the drive and the hand path side by side, as
+`tests/i1io_table/test_window_in_the_measure_tab.py` does for the hand
+path's replace question.
+
+### Reviews, and one rule while tests run
+
+Every review round of the table drive found real faults, so plan for
+several: an independent review after each build round, and the safety
+review of [section 12a](#12a-devices-that-move) before anything reaches an
+owner. **Never edit source files while the test suite runs.** Many tests
+read source files from disk, so an edit in the middle of a run produces
+failures that look like real regressions and are not.
+
+*In [the checklist](adding_an_instrument_checklist.md): stages 7, 8 and 10.*
 
 ## 13. Files, text and specifications
 

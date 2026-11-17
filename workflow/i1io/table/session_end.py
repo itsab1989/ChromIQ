@@ -244,8 +244,41 @@ def mark_discarded(sdir: Path, why: str, by: "str | None" = None) -> None:
 APP_MARKER_ACK = ".acknowledged.json"
 
 
+#: an acknowledged app-level marker is removed with its acknowledgement after this many days
+#: (review 11, NOTE: two files per session, never removed, globbed at every START)
+APP_MARKER_KEEP_DAYS = 30
+
+
+def prune_acknowledged_app_markers(folder, prefix: str, now: "float | None" = None,
+                                   keep_days: float = APP_MARKER_KEEP_DAYS) -> "list[Path]":
+    """Remove app-level markers whose acknowledgement is older than *keep_days*, with the
+    acknowledgement (they hold the stamp only and are ChromIQ's own, in its settings folder;
+    an unacknowledged marker is never touched). Returns the markers removed; never raises."""
+    import time as _time
+    now = _time.time() if now is None else now
+    gone = []
+    try:
+        found = sorted(p for p in Path(folder).glob(prefix + "*.json")
+                       if not p.name.endswith(APP_MARKER_ACK))
+    except OSError:
+        return gone
+    for m in found:
+        ack = acknowledged_path(m)
+        try:
+            if not ack.is_file() or now - ack.stat().st_mtime < keep_days * 86400:
+                continue
+            m.unlink()
+            ack.unlink()
+            gone.append(m)
+        except OSError:
+            continue
+    return gone
+
+
 def app_markers(folder, prefix: str) -> "list[Path]":
-    """Every app-level marker in *folder* that is not acknowledged yet, oldest first."""
+    """Every app-level marker in *folder* that is not acknowledged yet, oldest first.
+    Acknowledged ones older than a month are pruned first."""
+    prune_acknowledged_app_markers(folder, prefix)
     try:
         found = sorted(p for p in Path(folder).glob(prefix + "*.json")
                        if not p.name.endswith(APP_MARKER_ACK))
@@ -262,13 +295,25 @@ def project_markers(run) -> "list[Path]":
     """Every pending marker of EVERY run of the run's project (a START on another run still
     asks "switched off and on"), not acknowledged yet."""
     from .scan import PENDING_MARKER          # == Run.I1IO_TABLE_PENDING_MARKER (pinned)
-    runs_dir = Path(run.dir).parent
-    table_dir = Path(run.i1io_table_dir).name
-    try:
-        found = sorted(runs_dir.glob(f"*/{table_dir}/*/{PENDING_MARKER}"))
-        # fix round 10, B-1: and every session the app never closed
-        found += sorted(runs_dir.glob(f"*/{table_dir}/*/{IN_USE_MARKER}"))
-    except OSError:
-        found = []
+    dirs = getattr(run, "i1io_table_project_dirs", None)
+    found = []
+    if callable(dirs):
+        # round A: every table folder of the project (each run, each run's
+        # verifications, cal/), as the table now drives every run type
+        for d in dirs():
+            try:
+                found += sorted(Path(d).glob(f"*/{PENDING_MARKER}"))
+                found += sorted(Path(d).glob(f"*/{IN_USE_MARKER}"))
+            except OSError:
+                continue
+    else:
+        runs_dir = Path(run.dir).parent
+        table_dir = Path(run.i1io_table_dir).name
+        try:
+            found = sorted(runs_dir.glob(f"*/{table_dir}/*/{PENDING_MARKER}"))
+            # fix round 10, B-1: and every session the app never closed
+            found += sorted(runs_dir.glob(f"*/{table_dir}/*/{IN_USE_MARKER}"))
+        except OSError:
+            found = []
     own = [m for m in run.i1io_table_pending_markers() if m not in found]
     return [m for m in found + own if not acknowledged_path(m).exists()]

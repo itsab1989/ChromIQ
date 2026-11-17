@@ -12347,6 +12347,18 @@ M_I1IO_DRIVE_RESUME = _m(
     body_one="This run's measurement is still missing one patch. This measurement reads only that one, and when you press Save and stop it is added to the readings the run already has.", count_key="n",
     approved=False)
 
+M_I1IO_DRIVE_REFINE_NOT_ON_CHART = _m(
+    "M-I1IO-DRIVE-REFINE-NOT-ON-CHART",
+    "Measurement not started: the list of strips to refine does not fit this chart",
+    "Your list of strips to refine names {strips}, and the chart {chart} has no strip of that name, so the table would have nothing to read again. The list was probably made for an earlier version of this chart.\n\nTo refine this chart, run the quality check on the Check & Refine tab again: it makes a new list for the chart you have now. To measure without a list, untick “Use refinement strips file for guided re-measurement” and press START MEASUREMENT again. Nothing was sent to the table, and your measurement is unchanged.",
+    approved=False)
+
+M_I1IO_DRIVE_REFINE_DONE_NEXT = _m(
+    "M-I1IO-DRIVE-REFINE-DONE-NEXT",
+    "What would you like to do next?",
+    "{build}: takes you to the {tab} tab. Your measurement is saved already, with the new readings in it. The profile is not built yet: press “{build_profile}” there when your settings are how you want them, and your updated ICC profile is made from the new readings.\n{close}: keeps the measurement and stays on this tab. Go to the {tab} tab yourself whenever you are ready to build the profile.\nTo read more patches with the table, press START MEASUREMENT again: ChromIQ asks you to take your hands away from the table before the arm moves.",
+    approved=False)
+
 I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_CONSENT, M_I1IO_DRIVE_PREPARE, M_I1IO_DRIVE_READY,
     M_I1IO_DRIVE_EARLIER, M_I1IO_DRIVE_OPTIONS, M_I1IO_DRIVE_OPTION_REFUSED,
@@ -12371,6 +12383,8 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_USB_GONE, M_I1IO_DRIVE_USB_UNEXPECTED,
     M_I1IO_DRIVE_TABLE_NOT_FOUND, M_I1IO_DRIVE_SEVERAL_TABLES,
     M_I1IO_DRIVE_AFTER_PROBLEM, M_I1IO_DRIVE_ENDING_CLOSED,
+    M_I1IO_DRIVE_REFINE_DONE_NEXT,
+    M_I1IO_DRIVE_REFINE_NOT_ON_CHART,
     M_I1IO_DRIVE_RESUME,
     M_I1IO_DRIVE_REFINE,
     M_I1IO_DRIVE_MARKER_APP_ENDED,

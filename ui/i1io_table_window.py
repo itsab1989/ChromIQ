@@ -62,15 +62,38 @@ REPORT = "report_after_step"
 
 # ---- which charts the window drives ----------------------------------------------------------
 
+def table_place(chart_ti2):
+    """Where a table measurement of *chart_ti2* is saved, by the chart's run type (round A,
+    the owner: "it just has to save the measurement in the correct folder for every runtype
+    with the correct name"): a profiling run's chart (``runs/<run>/``) its ``Run``; the
+    calibration chart (``<project>/cal/``) the project's ``Calibration``; a run's shared
+    verification chart (``runs/<run>/verifications/``) its ``VerificationChart``. Decided by
+    the chart's folder, as the hand path decides a calibration (``_chart_is_calibration``).
+    None for any other place. Path only; nothing is read or created."""
+    try:
+        from core.file_manager import Calibration, Run, VERIFICATIONS_DIRNAME
+        chart = Path(chart_ti2)
+        folder = chart.parent
+        if folder.name == "cal":
+            return Calibration(folder.parent)
+        if folder.name == VERIFICATIONS_DIRNAME and folder.parent.parent.name == "runs":
+            return Run.for_dir(folder.parent).verification_chart()
+        if folder.parent.name == "runs":
+            return Run.for_dir(folder)
+    except Exception:      # noqa: BLE001 - not a place the table measures into
+        return None
+    return None
+
+
 def drivable_sheet(chart_ti2) -> "dict | None":
     """The side file of a chart this window drives, or None (then START keeps today's window).
 
-    Only a PROFILING run's chart (``<project>/runs/<run>/``; calibration and verification charts
-    keep their windows until the job has a twin for them), and only when the chart's own side file
-    names an i1iO 2 with an i1Pro 2. Reads the side file only; never raises."""
+    A chart of every run type (round A): a profiling run's, the calibration chart, a run's
+    verification chart (``table_place``), and only when the chart's own side file names an
+    i1iO 2 with an i1Pro 2. Reads the side file only; never raises."""
     try:
         chart = Path(chart_ti2)
-        if chart.parent.parent.name != "runs":
+        if table_place(chart) is None:
             return None
         name = chart.name[:-4] if chart.name.lower().endswith(".ti2") else chart.stem
         side = chart.with_name(name + ".i1io.json")
@@ -232,14 +255,25 @@ STOP_REASONS = ("stopped_before_the_next_move", "stopped_between_patches",
 SHOWN_CHOICES = {"arm_felt": ("free", "holds", "not sure")}
 
 
-def step_done_text(step: str, detail: dict, page: "int | None" = None) -> str:
+def step_done_text(step: str, detail: dict, page: "int | None" = None,
+                   reason: str = "") -> str:
     """What the step that just ran did, for M-I1IO-DRIVE-REPORT's first paragraph. *page*
     (1-based) when the step's own result does not name it (a row that failed and was ended:
-    found on screen, the text said "page ?")."""
+    found on screen, the text said "page ?"). *reason*: the step's refusal, when it ended
+    without reading its row (review 11, S-4: a failed row was reported as read)."""
     if step == "read_row":
+        row = detail.get("row", "?")
+        pg = detail.get("page") or page or "?"
+        status = detail.get("status", "")
+        if reason in STOP_REASONS or reason == "stopped_by_person":
+            return tr("The arm moved along row {row} of page {page}, but the row was not "
+                      "read to its end, because you stopped it.").format(row=row, page=pg)
+        if status in ("failed", "skipped") or reason == "stopped_after_a_failed_row" \
+                or (reason and status != "read"):
+            return tr("The arm moved along row {row} of page {page}; the row could not be "
+                      "read.").format(row=row, page=pg)
         return tr("The arm moved along row {row} of page {page} and read its "
-                  "patches.").format(row=detail.get("row", "?"),
-                                     page=detail.get("page") or page or "?")
+                  "patches.").format(row=row, page=pg)
     return {
         "start_up": tr("The table started, the way i1Profiler starts a table that was just "
                        "switched on."),
@@ -249,6 +283,15 @@ def step_done_text(step: str, detail: dict, page: "int | None" = None) -> str:
         "creep": tr("The arm felt its way towards the front of the table in steps of 5 mm."),
         "check_move": tr("The arm moved by itself to mark 3."),
     }.get(step, tr("The table did the step that was described."))
+
+
+def rows_read_line(page, pages, read, rows) -> str:
+    """"Page 1 of 2: 3 of 22 rows read." with its singular (review 11, NOTE)."""
+    if rows == 1:
+        return tr("Page {page} of {pages}: {read} of 1 row read.").format(
+            page=page, pages=pages, read=read)
+    return tr("Page {page} of {pages}: {read} of {rows} rows read.").format(
+        page=page, pages=pages, read=read, rows=rows)
 
 
 def corner_text(corner: str) -> str:
@@ -286,6 +329,26 @@ def option_text(flag: str, why: str) -> str:
     }
     name = names.get(flag, flag)
     return f"•  {name}: {whys.get(why, why)}"
+
+
+def seen_text(d: dict) -> str:
+    """What the instrument check found, in words (review 11: never the check's own keys)."""
+    parts = []
+    n = d.get("i1pro_devices")
+    if isinstance(n, int):
+        parts.append(tr("no instrument of the i1Pro family") if n == 0 else
+                     tr("one instrument of the i1Pro family") if n == 1 else
+                     tr("{n} instruments of the i1Pro family").format(n=n))
+    others = [str(x) for x in (d.get("other_instruments") or [])]
+    if len(others) == 1:
+        parts.append(tr("another measuring instrument (USB id {ids})").format(ids=others[0]))
+    elif others:
+        parts.append(tr("{n} other measuring instruments (USB ids {ids})").format(
+            n=len(others), ids=", ".join(others)))
+    model = d.get("model")
+    if isinstance(model, str) and model:
+        parts.append(tr("an instrument that names itself {model}").format(model=model))
+    return ", ".join(parts) if parts else tr("nothing it could name")
 
 
 def reason_text(rid: str, detail: "dict | None" = None) -> str:
@@ -379,6 +442,34 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
         "no_run": tr("No profile run is selected."),
         "nothing_waits_for_a_confirmation": tr("No question is open."),
         "another_step_waits_for_a_confirmation": tr("Another question is still open."),
+        # review 11, M-1 and the sweep: every id the job can return has a sentence; an id
+        # without one gets the plain fallback below, never its own name on screen
+        "ended_already_saved": tr("This measurement has been saved and has ended already."),
+        "ended_already_discarded": tr("This measurement has been discarded and has ended "
+                                      "already."),
+        "ended_already_nothing_read": tr("This measurement has ended already; nothing was "
+                                         "read in it."),
+        "saved": tr("This measurement has been saved and has ended already."),
+        "discarded": tr("This measurement has been discarded and has ended already."),
+        "nothing_read": tr("This measurement has ended already; nothing was read in it."),
+        "saved_already": tr("This measurement has been saved already, so it cannot be "
+                            "discarded any more."),
+        "already_opened": tr("ChromIQ is connected to the table already."),
+        "rows_read_already": tr("Rows have been read in this measurement already, so this "
+                                "cannot be changed any more."),
+        "not_a_session": tr("That earlier measurement could not be found."),
+        "nothing_to_adopt": tr("That earlier measurement holds no readings ChromIQ can use."),
+        "no_ending_open": tr("No question about ending the measurement is open."),
+        "no_report_due": tr("No question about the last step is open."),
+        "not_one_of_the_choices": tr("That answer is not one of the answers offered."),
+        "not_the_confirmation_asked_for": tr("That answer belongs to another question."),
+        "table_not_just_switched_on": tr("The table was not just switched on, so it needs "
+                                         "no start-up."),
+        "stopped_after_a_failed_row": tr("You chose to end this step after the row could "
+                                         "not be read."),
+        "measurement_refused": tr("The readings could not be put together into a "
+                                  "measurement file."),
+        "instrument_not_seated_again": tr("The i1Pro 2 is not back in the arm yet."),
     }
     if rid.startswith("aims_") or rid in ("sheet_marks_on_one_line", "sheet_turned",
                                           "alignment_refused"):
@@ -393,8 +484,11 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
         return tr("The measurement reached the number of commands ChromIQ allows for it.")
     if rid in texts:
         return texts[rid]
-    return tr("ChromIQ could not do this step ({reason}). The diagnostics file of this "
-              "measurement has the details.").format(reason=rid)
+    # never the id itself on screen (review 11, M-1): it is in the log and in the
+    # measurement's diagnostics file
+    log.info("i1iO table: a step ended with %r (no sentence of its own)", rid)
+    return tr("ChromIQ could not do this step. The diagnostics file of this measurement "
+              "has the details.")
 
 
 # ---- the worker -------------------------------------------------------------------------------
@@ -747,6 +841,10 @@ class TableMeasureWindow(QFrame):
             cb.setObjectName(f"i1io_tick_{len(made_ticks)}")
             self._ticks.addWidget(cb)
             made_ticks.append(cb)
+        j = self.job
+        if j is None or j.phase != "open":
+            # nothing is open on the table: nothing to stop, nothing to report yet
+            self._moving_controls(False)
         made = []
         # the answer helpers live as long as their page (a connection to a bound method of a
         # plain object does not keep that object alive)
@@ -802,8 +900,7 @@ class TableMeasureWindow(QFrame):
         rows = self._rows_on_page()
         status = j.row_status.get(j.page, {})
         read = sum(1 for v in status.values() if v == "read")
-        lines.append(tr("Page {page} of {pages}: {read} of {rows} rows read.").format(
-            page=j.page + 1, pages=pages, read=read, rows=rows))
+        lines.append(rows_read_line(j.page + 1, pages, read, rows))
         missing = sorted(k + 1 for k, v in status.items() if v in ("failed", "skipped"))
         if len(missing) == 1:
             lines.append(tr("Missing on this page: row {row}.").format(row=missing[0]))
@@ -886,9 +983,9 @@ class TableMeasureWindow(QFrame):
                  tr("Arm: moved by the table now.")]
         if live.get("now"):
             lines.append(live["now"])
-        lines.append(tr("Page {page} of {pages}: {read} of {rows} rows read.").format(
-            page=live.get("page", 1), pages=self.job.pages_in_chart() if self.job else 1,
-            read=len(live.get("rows_read", ())), rows=live.get("rows", 0)))
+        lines.append(rows_read_line(live.get("page", 1),
+                                    self.job.pages_in_chart() if self.job else 1,
+                                    len(live.get("rows_read", ())), live.get("rows", 0)))
         n = int(live.get("readings", 0))
         lines.append(tr("Readings taken in this measurement: 1.") if n == 1 else
                      tr("Readings taken in this measurement: {n} (a patch read again counts "
@@ -942,6 +1039,11 @@ class TableMeasureWindow(QFrame):
         if isinstance(res, BaseException):
             self._show_error(res)
             return
+        if self.job is not None and self.job.phase == "open" and not self._closed_job \
+                and not getattr(self, "_moving_shown", False):
+            # the table is open (also when no ready-to-open question was asked)
+            self._moving_shown = True
+            self._moving_controls(True)
         self._last = res
         self._refresh_state()
         then(res)
@@ -1153,8 +1255,9 @@ class TableMeasureWindow(QFrame):
             self.job.ask_after_each_step = bool(on)
 
     def _on_start_pressed(self) -> None:
+        # review 11, opinion (iii): Stop and Report a problem appear when the USB is opened
+        # (the "Start" answer on the ready-to-open question), not before
         self._end_btn.setVisible(True)
-        self._moving_controls(True)
         self._call(self.job.open, status=tr("Connecting to the table..."))
 
     # ---- one result --------------------------------------------------------------------------
@@ -1173,6 +1276,15 @@ class TableMeasureWindow(QFrame):
             return
         if getattr(self, "_end_after", False):
             self._end_after = False
+            if self.job.ended is not None or self.job.phase != "open":
+                # review 11, M-1 / M-2: the ending has run already (a quit while the arm
+                # was brought home after Save), or the table was never opened: nothing
+                # is asked again; the table is let go of and a quit goes on
+                if self.job.phase == "open":
+                    self._close_job()
+                else:
+                    self._finish_not_started()
+                return
             self._call(self.job.end)
             return
         self._dispatch(res)
@@ -1358,6 +1470,8 @@ class TableMeasureWindow(QFrame):
     def answer(self, value: str) -> None:
         kind = self._pending_kind
         job = self.job
+        if kind == "ready_to_open" and value == "yes":
+            self._moving_controls(True)        # the USB is opened now
         self._call(lambda: job.answer(kind, value))
 
     def _answer_yes(self) -> None:
@@ -1376,7 +1490,8 @@ class TableMeasureWindow(QFrame):
         from workflow import measurement_messages as M
         step = self.job.report_due
         title, body = M.M_I1IO_DRIVE_REPORT.render(step=step_done_text(
-            step, res.detail, page=self.job.page + 1))
+            step, res.detail, page=self.job.page + 1,
+            reason=res.reason if res.kind != OK else ""))
         self._report_res = res
         buttons = [(choice_label(REPORT, v), _Report(self, v).fire)
                    for v in ("as described", "something wrong", "not sure")]
@@ -1497,8 +1612,7 @@ class TableMeasureWindow(QFrame):
         elif reason == "table_held_by_a_kernel_driver":
             title, body = M.M_I1IO_DRIVE_USB_LINUX_KERNEL_DRIVER.render(log=logname)
         else:
-            seen = ", ".join(f"{k} {v}" for k, v in d.items() if isinstance(v, (int, str)))
-            title, body = M.M_I1IO_DRIVE_NOT_I1PRO2.render(seen=seen or "?")
+            title, body = M.M_I1IO_DRIVE_NOT_I1PRO2.render(seen=seen_text(d))
         self._moving_controls(False)
         self._end_btn.setVisible(False)
         self._show("open_refused", title, body, [(tr("Close"), self._close_job_then_finish)])
@@ -1866,19 +1980,26 @@ class TableMeasureWindow(QFrame):
         if self._finished:
             return True
         j = self.job
+        if self._busy and j is not None:
+            # review 11, M-2: a step is running in the worker (also while the USB is being
+            # opened, before the job's phase says "open"): never finish under it. The step
+            # ends at its next pause; its result decides (the ending, or letting go).
+            self._quit_wanted = True
+            j.stop_at_next_pause()
+            self._troubled = True
+            # an ending only when none has run (M-1: a quit while the arm is brought home
+            # after Save needs no second ending)
+            self._end_after = j.ended is None
+            self._status.setText(tr("You asked ChromIQ to quit. The table stops before its next "
+                                    "move; then ChromIQ asks what to do with your readings, "
+                                    "and closes after that.") if j.ended is None else
+                                 self._quit_hint())
+            return False
         if j is None or j.phase == "new" or self._closed_job or j.phase == "closed":
             self._finish(getattr(self, "_why_not", "not_started") if self._closed_job is False
                          else "ended")
             return True
         self._quit_wanted = True
-        if self._busy:
-            j.stop_at_next_pause()
-            self._troubled = True
-            self._end_after = True
-            self._status.setText(tr("You asked ChromIQ to quit. The table stops before its next "
-                                    "move; then ChromIQ asks what to do with your readings, "
-                                    "and closes after that."))
-            return False
         if self._ending_open or j.ended is not None:
             # the ending is on screen, or saved / discarded already and the homing offer (or
             # Close) on screen decides: the person's answer there ends it
@@ -1898,6 +2019,12 @@ class TableMeasureWindow(QFrame):
         self.progress.emit({"event": "aim", "mark": mark, "patch": patch, "page": page})
 
     def reject(self) -> None:          # Esc
+        # review 11, NOTE: Esc in the note field (or any text field, the log) is the field's
+        # own key, as on the hand path where typing keys never reach the measurement
+        from PyQt6.QtWidgets import QApplication, QLineEdit, QPlainTextEdit, QTextEdit
+        fw = QApplication.focusWidget()
+        if isinstance(fw, (QPlainTextEdit, QTextEdit, QLineEdit)):
+            return
         self._on_close_pressed()
 
     def closeEvent(self, event) -> None:   # the window's X

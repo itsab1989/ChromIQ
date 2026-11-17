@@ -2380,6 +2380,71 @@ class TiffPreview(QWidget):
             self._table_rows = state
             self._schedule_refresh()
 
+    def set_legend_keepout(self, by_page: "dict | None") -> None:
+        """Places on the paper the legend chip must never cover, in image pixels,
+        ``{page index: [QRectF, ...]}`` (review 11, S-1: an i1iO chart prints its
+        row letters, its marks and its wordmark line in the band the chip used to
+        take). None or empty: the chip is placed as it always was."""
+        self._legend_keepout = dict(by_page or {})
+        self._schedule_refresh()
+
+    def _legend_keepout_now(self) -> list:
+        ko = getattr(self, "_legend_keepout", None) or {}
+        return list(ko.get(self._current, ()))
+
+    def _legend_clear_place(self, painter, txt: str, ko: list, items, s: float,
+                            sy: float, ox: float, oy: float, img_l: float,
+                            img_t: float, img_r: float, img_b: float,
+                            floor_room: float):
+        """Where the chip goes on a page with keep-out places (S-1): the free band
+        of the paper nearest below the patches, else any free band, at the normal
+        size or smaller; None when no band of the paper is free (the chip is then
+        not drawn: a chip over the chart's own print says nothing either)."""
+        from PyQt6.QtGui import QFont, QFontMetrics
+        bands = []
+        for r in ko:
+            bands.append((oy + r.y() * sy, oy + (r.y() + r.height()) * sy))
+        for r in list(self._stripe_rects) + [it[0] for it in (items or [])]:
+            bands.append((oy + r.y() * sy, oy + (r.y() + r.height()) * sy))
+        bands.sort()
+        top_limit, bottom_limit = img_t + 2, img_b - 2 - floor_room
+        gaps, y = [], top_limit
+        for a, b in bands:
+            if a > y:
+                gaps.append((y, min(a, bottom_limit)))
+            y = max(y, b)
+        if y < bottom_limit:
+            gaps.append((y, bottom_limit))
+        gaps = [(a, b) for a, b in gaps if b > a]
+        lowest = max((b for _a, b in bands), default=img_t)
+        base = QFont(painter.font())
+        for k in (1.0, 0.85, 0.72):
+            f = QFont(base)
+            if base.pointSizeF() > 0:
+                f.setPointSizeF(base.pointSizeF() * k)
+            else:
+                f.setPixelSize(max(6, int(base.pixelSize() * k)))
+            fm = QFontMetrics(f)
+            th = fm.height() + 8
+            avail = int(img_r - img_l)
+            t = txt
+            tw = fm.horizontalAdvance(t) + 16
+            if tw > avail > 0:
+                t = fm.elidedText(t, Qt.TextElideMode.ElideRight, avail - 16)
+                tw = fm.horizontalAdvance(t) + 16
+            fit = [(a, b) for a, b in gaps if b - a >= th + 4]
+            if not fit:
+                continue
+            # below the chart's print first (where the chip has always been), then
+            # any free band, the nearest to the patches first
+            below = [g for g in fit if g[0] >= lowest - 1]
+            pick = below[0] if below else min(fit, key=lambda g: abs(g[0] - lowest))
+            cy = int(pick[0] + (pick[1] - pick[0] - th) / 2)
+            cx = int((img_l + img_r) / 2 - tw / 2)
+            cx = max(int(img_l), min(cx, int(img_r - tw)))
+            return cx, cy, tw, th, t, (None if k == 1.0 else f)
+        return None
+
     def set_table_ring(self, on: bool) -> None:
         if self._table_ring != bool(on):
             self._table_ring = bool(on)
@@ -6944,6 +7009,30 @@ class TiffPreview(QWidget):
                 tw = fm.horizontalAdvance(txt) + 16
                 cx = max(int(img_l), min(cx, int(img_r - tw)))
 
+            # NEVER OVER THE CHART'S OWN PRINT (review 11, S-1): a page with
+            # keep-out places (an i1iO chart: its wordmark line, marks and row
+            # letters) gets the chip in a free band of the paper, smaller if it
+            # must be, or not at all. Every other chart is placed as before.
+            _font = None
+            _ko = self._legend_keepout_now() if _turned is None else []
+            if _ko:
+                _full = (tr("Showing expected colours (screen colours approximate)")
+                         if self._overlay_mode == "expected" else
+                         tr("Showing measured colours, unread patches show expected "
+                            "colours (screen colours approximate)")
+                         if self._overlay_mode == "measured" else
+                         tr("expected ◤ · measured ◢ (screen colours approximate)"))
+                placed = self._legend_clear_place(
+                    painter, _full, _ko, items, s, sy, ox, oy, img_l, img_t,
+                    img_r, img_b, 25 if self._bidirectional else 0)
+                if placed is None:
+                    self._legend_rect = None
+                    self._legend_geom = None
+                    self._legend_paint = None
+                    self._legend_label_off = None
+                    return
+                cx, cy, tw, th, txt, _font = placed
+
             # PLACED ALWAYS, DRAWN CONDITIONALLY. The rectangle is remembered
             # even on the paint where the chip is hidden: the pointer is then
             # over the PATCHES, not the chip, so a test against a rectangle
@@ -6957,7 +7046,8 @@ class TiffPreview(QWidget):
                                       else (_turned[3], _turned[4]))
             # Drawn at the CURRENT opacity, not switched. Both the panel and
             # its text fade together, so it dims away rather than blinking.
-            self._legend_paint = (cx, cy, tw, th, txt)
+            self._legend_paint = ((cx, cy, tw, th, txt) if _font is None
+                                  else (cx, cy, tw, th, txt, _font))
             if legend and _turned is None:
                 self._paint_legend_chip(painter)
 
@@ -6996,14 +7086,15 @@ class TiffPreview(QWidget):
         op = self._legend_opacity
         if geom is None or op <= 0.01 or not getattr(self, "_legend_enabled", True):
             return
-        cx, cy, tw, th, txt = geom
+        cx, cy, tw, th, txt = geom[:5]
+        font = geom[5] if len(geom) > 5 and geom[5] is not None else painter.font()
         # The look is `ui.see_through`'s, shared with the Measure tab's pause
         # note (Basti, 2026-10-23), so the two cannot drift apart.
         from ui import see_through
         painter.save()
         see_through.paint_panel(painter, QRect(cx, cy, tw, th), op)
         see_through.paint_halo_text_cached(painter, int(cx + 8), int(cy + th - 6),
-                                           painter.font(), txt, op)
+                                           font, txt, op)
         painter.restore()
 
     def _draw_margin_guides(

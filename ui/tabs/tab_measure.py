@@ -2594,6 +2594,15 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             "so ArgyllCMS never opens it and there is nothing here for this "
             "setting to change. Your choice is remembered for other "
             "instruments.")
+        # (getattr: the stand-in tabs of older tests borrow this method)
+        table_options = getattr(self, "_apply_i1io_table_options", None)
+        table_loaded = getattr(self, "_table_chart_loaded", None)
+        table_on = (callable(table_options) and callable(table_loaded)
+                    and not is_cr30 and bool(table_loaded()))
+        # review 11, S-3: a table chart's greyed options are put back BEFORE
+        # the CR30's are greyed (put back after, they undid the CR30's grey)
+        if callable(table_options) and not table_on:
+            table_options(is_cr30)
         for opts in (getattr(self, "_chartread_opts", None) or [],
                      getattr(self, "_m_chartread_opts", None) or []):
             for opt in opts:
@@ -2605,10 +2614,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                         w.setEnabled(not is_cr30)
                 if opt.checkbox is not None:
                     opt.checkbox.setToolTip(why if is_cr30 else "")
-        # (getattr: the stand-in tabs of older tests borrow this method)
-        table_options = getattr(self, "_apply_i1io_table_options", None)
-        if callable(table_options):
+        if table_on:
             table_options(is_cr30)
+        keepout = getattr(self, "_apply_i1io_legend_keepout", None)
+        if callable(keepout):
+            keepout()
 
     # ---- the i1iO table (Beta): the options with no meaning, greyed --------
     def _table_chart_loaded(self) -> bool:
@@ -2628,6 +2638,68 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             return drivable_sheet(chart) is not None
         except Exception:      # noqa: BLE001 - never block the tab on this
             return False
+
+    def _apply_i1io_legend_keepout(self) -> None:
+        """Review 11, S-1: the preview's legend chip never covers what an
+        i1iO chart prints around its patches (the row letters and column
+        numbers, the three marks, the wordmark and name line, the text
+        column), for the table and the hand path alike. From the chart's side
+        file, read only while the i1iO Beta is on; every other chart: none."""
+        pv = getattr(self, "_preview", None)
+        if pv is None or not hasattr(pv, "set_legend_keepout"):
+            return
+        pv.set_legend_keepout(self._i1io_legend_keepout_rects())
+
+    def _i1io_legend_keepout_rects(self) -> "dict":
+        try:
+            from workflow.i1io.support import i1io_enabled
+            ti1 = getattr(self, "_ti1_path", None)
+            if not i1io_enabled() or ti1 is None:
+                return {}
+            chart = Path(self._chart_file_for(ti1))
+            name = chart.name[:-4] if chart.name.lower().endswith(".ti2") else chart.stem
+            side = chart.with_name(name + ".i1io.json")
+            if not side.is_file():
+                return {}
+            import json as _json
+            sheet = _json.loads(side.read_text(encoding="utf-8"))
+            dpi = float((sheet.get("generation") or {}).get("dpi") or 0)
+            if dpi <= 0:
+                return {}
+            from PyQt6.QtCore import QRectF
+            k = dpi / 25.4
+
+            def box(x0, y0, x1, y1):
+                return QRectF(x0 * k, y0 * k, (x1 - x0) * k, (y1 - y0) * k)
+            out = {}
+            for n, pg in enumerate(sheet.get("pages") or []):
+                rects = []
+                xs, ys = [], []
+                for st in pg.get("strips") or []:
+                    for q in st.get("patches") or []:
+                        cx, cy = (float(v) for v in q["centre_mm"])
+                        xs.append(cx)
+                        ys.append(cy)
+                if xs:
+                    # the patches with their printed row letters and column
+                    # numbers and the spacers around them
+                    rects.append(box(min(xs) - 14, min(ys) - 10,
+                                     max(xs) + 14, max(ys) + 10))
+                wm = pg.get("wordmark_mm")
+                if wm and len(wm) >= 4:
+                    rects.append(box(*(float(v) for v in wm[:4])))
+                tc = pg.get("text_column_mm")
+                if tc and len(tc) >= 4:
+                    rects.append(box(*(float(v) for v in tc[:4])))
+                for a in pg.get("aim_points") or []:
+                    mx, my = (float(v) for v in a.get("page_mm") or (0, 0))
+                    rects.append(box(mx - 6, my - 6, mx + 6, my + 6))
+                if rects:
+                    out[n] = rects
+            return out
+        except Exception:      # noqa: BLE001 - a drawing aid, never a blocker
+            log.debug("i1iO legend keep-out not read", exc_info=True)
+            return {}
 
     def _table_dead_widgets(self) -> "list[tuple[QWidget, str, object]]":
         """(widget, why, option or None) for every Measure option that has no
@@ -7132,21 +7204,54 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         from core import i1pro2_lights_marker as _lights
         if self._blocked_by_i1pro2_lights_left_on(family=_lights.CHART_FAMILY):
             return True
+        # EVERY RUN TYPE (round A, the owner: "it just has to save the
+        # measurement in the correct folder for every runtype with the correct
+        # name"): the place the job saves into is the run type's own, through
+        # `Run` / `Calibration` / `VerificationChart` (`table_place`), and
+        # each run type then ends through the hand path's own finishing code.
+        from ui.i1io_table_window import TableMeasureWindow, table_place
+        run = table_place(Path(chart))
+        if run is None:
+            return False
+        # #130 Hole 1, as on the hand path: no verification of a run that has
+        # no profile
+        if run.run_type == "verification":
+            block = self._verification_guard()
+            if block:
+                self._show_verification_guard(block)
+                return True
         # the run keeps a copy of the chart it is measured with (#130, Knut
         # 2026-07-27: runs/runN/chart/, what Restore Used Chart puts back),
         # taken where the hand path takes it, before anything is written
         if not self._snapshot_verification_chart():
             return True
         params = self._collect_params()
-        args = self._manager._build_args(params)
         only_locs = self._table_refinement_locs(params)
+        # review 11, S-2: a list of strips to refine that names nothing of
+        # this chart is refused, with what is true, before anything is opened
+        if only_locs is None and self._table_refine_list_ticked():
+            self._say_refine_list_not_on_chart()
+            return True
         at_risk = (self._measurement_at_risk() is not None
                    and not self._read_builds_on_existing())
         if not self._confirm_replacing_measurement():
             return True
-        from core.file_manager import Run
-        from ui.i1io_table_window import TableMeasureWindow
-        run = Run.for_dir(Path(chart).parent)
+        # A VERIFICATION THAT RESUMES continues its dated readings, which the
+        # hand path stages beside the chart first (Knut, #182 5951427228);
+        # the table resumes from the same file. After every question that can
+        # still cancel the start, as there.
+        self._staged_verification_ti3 = None
+        if run.run_type == "verification" \
+                and self._stage_verification_for_resume() is not None:
+            params.resume = self._resume_has_anything_to_resume(True)
+        args = self._manager._build_args(params)
+        _beside = Path(run.measurement_ti3)
+        self._ti3_mtime_before = (_beside.stat().st_mtime if _beside.exists()
+                                  else None)
+        self._table_run_type = run.run_type
+        # the hand path decides these at START too (`_on_start`)
+        self._verify_run = run.run_type == "verification"
+        self._guided_refinement_active = False
         # THE TAB IS THE PLACE (Basti, 2026-11-17): the table's panel stands
         # where the options stand while a hand measurement runs; the preview
         # beside it stays visible and follows the job; the rest of the app is
@@ -7158,6 +7263,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._table_saved = False
         self._table_complete_ti3 = None
         self._table_refining = bool(only_locs)
+        self._table_refine_locs = sorted(only_locs or [])
+        self._table_verify_ti3 = None
         win = TableMeasureWindow(self._stack, self._settings, sheet, run, args,
                                  only_locs=only_locs,
                                  mode=self._current_mode(), replace_agreed=at_risk,
@@ -7220,6 +7327,24 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             locs = [l for l in all_locs if self._strip_of(l).upper() in strips]
         return set(locs) or None
 
+    def _table_refine_list_ticked(self) -> bool:
+        mode = self._current_mode()
+        resume_cb = self._resume_cb if mode == "guided" else self._m_resume_cb
+        refine_cb = self._refine_cb if mode == "guided" else self._m_refine_cb
+        return bool(resume_cb.isChecked() and refine_cb.isChecked()
+                    and self._strip_list)
+
+    def _say_refine_list_not_on_chart(self) -> None:
+        """M-I1IO-DRIVE-REFINE-NOT-ON-CHART in the log, START does nothing
+        (review 11, S-2: it was refused as "nothing to resume", untrue)."""
+        from workflow import measurement_messages as M
+        names = ", ".join(str(x) for x in (self._strip_list or []))
+        chart = self._chart_file_for(self._ti1_path)
+        title, body = M.M_I1IO_DRIVE_REFINE_NOT_ON_CHART.render(
+            strips=names, chart=Path(str(chart)).name)
+        self._log.appendPlainText(f"\n[{title}]\n{body}")
+        self._log.ensureCursorVisible()
+
     @staticmethod
     def _table_chart_expected(chart) -> "dict[str, list[float]]":
         """{location: the chart's expected XYZ} from the chart's own .ti2,
@@ -7239,6 +7364,17 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         except Exception:      # noqa: BLE001 - no expected colours, the split says so
             return {}
 
+    def _table_is_cal(self) -> bool:
+        """A calibration measurement as the hand path decides it (the chart in
+        cal/ AND Preferences' calibration options on, `_on_measure_done`)."""
+        return (getattr(self, "_table_run_type", "profile") == "calibration"
+                and bool(self._settings.get("calibration_mode", False)))
+
+    def _table_verification_now(self) -> None:
+        ti3, self._table_verify_due = getattr(self, "_table_verify_due", None), None
+        if ti3 is not None and Path(ti3).is_file():
+            self._finalize_verification(Path(ti3))
+
     def _table_completion_now(self) -> None:
         ti3, self._table_completion_due = getattr(self, "_table_completion_due", None), None
         if ti3 is not None:
@@ -7248,7 +7384,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         """The hand path's own completion for a complete table measurement."""
         if getattr(self, "_table_window", None) is not None or not Path(ti3).is_file():
             return
-        if self._settings.get("averaging_enabled", False):
+        # a calibration and a refinement never average, as on the hand path
+        # (`_on_measure_done`: their own flow comes first)
+        if self._settings.get("averaging_enabled", False) \
+                and not self._table_is_cal() \
+                and not getattr(self, "_table_refining", False):
             self._handle_measure_complete(Path(ti3))
         else:
             self._show_all_stripes_done(table=True)
@@ -7310,6 +7450,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                                           int(ev.get("row") or 0) - 1,
                                           ev.get("locs") or [])
             elif kind == "row_end":
+                # review 11, S-5: the row has ended; its dot (or cross) shows,
+                # and the next patch is ringed when the arm really goes there
+                self._preview.highlight_patch(-1, None)
                 self._table_highlight_row(int(ev.get("page") or 1) - 1,
                                           int(ev.get("row") or 0) - 1, [],
                                           status=str(ev.get("status") or "ended"))
@@ -7443,6 +7586,15 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         ti3 = Path(path)
         self._table_saved = True
         self._displaced_measurement = None
+        rtype = getattr(self, "_table_run_type", "profile")
+        if rtype == "verification":
+            # A VERIFICATION IS FILED ON ITS DATE BY THE HAND PATH'S OWN CODE
+            # (`_finalize_verification`: "-verify" name, tag, dated folder,
+            # the earlier measurement kept, the report, its own window), once
+            # the table has let go: never measure_finished, never Build Profile
+            self._table_verify_ti3 = ti3
+            return
+        is_cal = self._table_is_cal()
         if detail.get("resume_next"):
             self._update_resume_availability()
             cb = (self._resume_cb if self._current_mode() == "guided"
@@ -7456,7 +7608,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 + tr("→ Press Continue Measurement to resume where you left off, "
                      "or untick 'Refine / resume existing measurement (-r)' to start over."))
         elif self._settings.get("averaging_enabled", False) \
-                and not getattr(self, "_table_refining", False):
+                and not getattr(self, "_table_refining", False) and not is_cal:
             # averaging on (docs/dev_averaging.md): the hand path's completion
             # dialog decides, after the table's own ending, and announces the
             # measurement itself (_promote_completed_read,
@@ -7466,9 +7618,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         else:
             self._log.appendPlainText(
                 "\n" + tr("[OK] Measurement complete.") + f"\nSaved: {ti3}\n\n"
-                + tr("→ Next step: go to the '4. Build Profile' tab to create your ICC profile."))
-            if not getattr(self, "_table_refining", False):
-                self._table_complete_ti3 = ti3
+                + (tr("→ Next step: go to the '4. Calibration & Profiling' tab to create your calibration file.")
+                   if is_cal else
+                   tr("→ Next step: go to the '4. Build Profile' tab to create your ICC profile.")))
+            # THE USUAL WINDOW, a refinement's and a calibration's too (review
+            # 11, opinion ii; round A): after the table has let go
+            self._table_complete_ti3 = ti3
         if getattr(self, "_table_refining", False):
             # open point a: a refinement's ending says the profile does not
             # update by itself, as the hand path's (M-REFINE-REBUILD)
@@ -7511,6 +7666,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 and not Path(self._ti1_path).with_suffix(".ti3").exists():
             self._restore_a_read_when_the_set_lost_its_measurement(
                 Path(self._ti1_path).with_suffix(".ti3"))
+        # a resumed verification that wrote nothing: its dated measurement is
+        # untouched and the working copy beside the chart goes (hand path's
+        # `_drop_unused_verification_stage`)
+        if getattr(self, "_table_run_type", "profile") == "verification" \
+                and getattr(self, "_table_verify_ti3", None) is None:
+            self._drop_unused_verification_stage()
         self._reset_progress(from_files=True)
         self.measurement_active.emit(False)
         if why == "consent_declined":
@@ -7525,6 +7686,17 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # window (Go to the tab / Close, the same auto-proceed); averaging on,
         # the hand path's completion dialog, whose "Measure again" starts a new
         # table START with its guards and its GO.
+        verify_ti3 = getattr(self, "_table_verify_ti3", None)
+        self._table_verify_ti3 = None
+        if verify_ti3 is not None and why in ("ended", "quit"):
+            # filed on its date now, whatever else happens: on a quit without
+            # its windows (nothing may wait for an answer while ChromIQ closes)
+            self._verify_run = False
+            if why == "quit":
+                self._finalize_verification(Path(verify_ti3), quiet=True)
+            else:
+                self._table_verify_due = Path(verify_ti3)
+                QTimer.singleShot(0, self._table_verification_now)
         done_ti3 = getattr(self, "_table_complete_ti3", None)
         self._table_complete_ti3 = None
         if done_ti3 is not None and why == "ended":
@@ -9457,8 +9629,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             from workflow.i1io.table_settle import \
                 settle_table_sessions_before_a_hand_write
             from core.file_manager import Run as _Run
+            from ui.i1io_table_window import table_place as _place
             settle_table_sessions_before_a_hand_write(
-                _Run.for_dir(self._ti1_path.parent))
+                _place(self._chart_file_for(self._ti1_path))
+                or _Run.for_dir(self._ti1_path.parent))
         self._archive_measurement_before_replacing()
         # THE EXPECTED COLOURS OF THIS READ (#182, Knut 5964173774): on a
         # verification sheet ChromIQ printed, the run profile's prediction of
@@ -14748,6 +14922,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # to whatever you decide to do afterwards).
         self._play_measurement_finished_once()
 
+        # THE TABLE'S REFINEMENT ENDS IN THE SAME WINDOW as the guided
+        # re-measurement (review 11, opinion ii): "Re-measurement Complete"
+        # with M-REFINE-REBUILD, after the table has let go.
+        refining = bool(self._guided_refinement_active
+                        or (table and getattr(self, "_table_refining", False)))
+
         # Suspend the event filter while the dialog is open so that keyboard
         # interactions with the dialog (Enter, Space, Esc) are not forwarded
         # to chartread as spurious keystrokes.
@@ -14755,7 +14935,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
 
         # Verification read of a colour-managed print: a dedicated dialog that
         # never offers "Build Profile" and warns this file is verification-only.
-        if self._verify_run and not is_cal and not self._guided_refinement_active:
+        if self._verify_run and not is_cal and not self._guided_refinement_active \
+                and not table:
             from PyQt6.QtWidgets import QHBoxLayout, QPushButton
             dlg = QDialog(self)
             dlg.setMinimumWidth(560)
@@ -14833,7 +15014,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if (
             self._settings.get("averaging_enabled", False)
             and not is_cal
-            and not self._guided_refinement_active
+            and not refining
             and not table
         ):
             self._show_all_stripes_averaging_dialog()
@@ -14846,19 +15027,31 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         layout.setSpacing(16)
         layout.setContentsMargins(24, 20, 24, 20)
 
-        if table:
+        if table and not refining and not is_cal:
             dlg.setWindowTitle(tr("All Patches Read"))
             msg = QLabel(tr(
                 "<b>The table has read every patch of your chart, and the "
                 "measurement is saved.</b><br><br>"
                 "Click <b>Go to {tab} Tab</b> to go straight to that tab, the next "
                 "and final step.").format(tab=self._profile_tab_name()), dlg)
-        elif self._guided_refinement_active:
+        elif table and is_cal and not refining:
+            # round A: the table has read the calibration chart (no reader
+            # keys to explain, no Re-read: the table has let go)
+            dlg.setWindowTitle(tr("Calibration Measurement Complete"))
+            msg = QLabel(tr(
+                "<b>The table has read every patch of your calibration chart, "
+                "and the measurement is saved.</b><br><br>"
+                "The next step is to turn it into a <b>calibration file "
+                "(.cal)</b>: click <b>Create Calibration File</b> to go directly "
+                "to the <b>{tab}</b> tab, where the file path is already filled "
+                "in and ready to go.").format(tab=self._profile_tab_name()), dlg)
+        elif refining:
             dlg.setWindowTitle(tr("Re-measurement Complete"))
             # The rest of the window is identical either way; only the opening
             # sentence counts, so only that varies (real plural, never "(s)").
             # #211: patch by patch, it counts the patches the guide visited.
-            _pl = getattr(self, "_guided_patch_list", None) or []
+            _pl = (getattr(self, "_table_refine_locs", None) or [] if table
+                   else getattr(self, "_guided_patch_list", None) or [])
             _opening = remeasured_opening(len(self._strip_list), len(_pl))
             import html as _html
             _rt, _rb = self._refine_rebuild_texts()
@@ -14870,7 +15063,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             # never explained Close. Patch by patch it says patches (review
             # of 4.3.5 beta 8). M-REFINE-DONE-NEXT / -PATCHES.
             from workflow import measurement_messages as _MMn
-            _nt, _nb = (_MMn.M_REFINE_DONE_NEXT_PATCHES if _pl
+            # the table has let go: no "Continue Measuring Manually" (no reader
+            # is waiting for keys); its own proposed text (round A)
+            _nt, _nb = (_MMn.M_I1IO_DRIVE_REFINE_DONE_NEXT if table
+                        else _MMn.M_REFINE_DONE_NEXT_PATCHES if _pl
                         else _MMn.M_REFINE_DONE_NEXT).render(
                 build=tr("Go to {tab} Tab →").format(tab=self._profile_tab_name()),
                 close=tr("Close"), cont=tr("Continue Measuring Manually"),
@@ -14924,7 +15120,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 dlg,
             )
 
-        if not self._guided_refinement_active:
+        if not refining:
             # CLOSE IS EXPLAINED TOO (4.3.11): the window has three buttons
             # and its text named two. Before the grey line about the log.
             _close = (tr("<b>Close</b> saves the measurement and ends the "
@@ -14972,7 +15168,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # which doesn't match the averaging-on dialog's layout.
         from PyQt6.QtWidgets import QHBoxLayout, QPushButton
 
-        if is_cal and not self._guided_refinement_active:
+        if is_cal and not refining:
             accept_label = tr("Create Calibration File →")
         else:
             # Knut (#131): it only takes you to the tab — the profile is still
@@ -14992,7 +15188,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # it translated. Found by the Swedish translator, not by any test —
         # "Re-read Individual Strips" was already a catalogue key with a
         # translation waiting that the button never asked for.
-        if self._guided_refinement_active:
+        if refining:
             cont_label = tr("Continue Measuring Manually")
         elif self._spot_session:
             cont_label = tr("Re-read Patches")
@@ -15267,11 +15463,15 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         except Exception:      # noqa: BLE001 — never break a session's ending
             return False
 
-    def _finalize_verification(self, ti3: Path) -> None:
+    def _finalize_verification(self, ti3: Path, quiet: bool = False) -> None:
         """Tag a verification read as verify-only ('<name>-verify.ti3' + marker)
         and file it in a dated verification-run folder so a profile's monthly
         verifications accrue as history (#130), then offer to open it in the
-        measurement inspector — never build a profile."""
+        measurement inspector — never build a profile.
+
+        *quiet* (the i1iO table, round A: the person quit ChromIQ during a
+        table verification): filed, tagged and reported exactly the same, but
+        no window asks or shows anything while ChromIQ closes."""
         import shutil
 
         from core.file_manager import VERIFICATIONS_DIRNAME
@@ -15385,7 +15585,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             log.warning("could not refresh the options after filing the "
                         "verification", exc_info=True)
 
-        self._ask_how_printed(dst)
+        if not quiet:
+            self._ask_how_printed(dst)
         # **THE AUTOMATIC REPORT FOLLOWS A VERIFICATION TOO (#182 K13, §13.10,
         # confirmed by Knut 2026-09-23).** A verification never emits
         # `measure_finished` (that would advance to Build Profile), and that
@@ -15403,6 +15604,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                      "or untick 'Refine / resume existing measurement (-r)' to start over.")
             )
             self._log.ensureCursorVisible()
+            return
+        if quiet:
             return
         self._show_verification_saved(dst)
 

@@ -1507,6 +1507,136 @@ def settle_chart_stash(folder: Path, stash: "Path | None", *, built: bool,
 # Calibration — shared across all runs in a project
 # ---------------------------------------------------------------------------
 
+class I1ioTablePlace:
+    """Where one START of the i1iO table keeps its session folder, for every run
+    type (round A, 2026-11-17: the table drives profiling, calibration and
+    verification charts alike). A place has a ``dir`` (the folder that holds the
+    chart: a run's root, ``cal/``, or ``verifications/``), an ``old_dir``, the
+    chart (``chart_ti2``) and the file a reading of that chart is written to
+    (``measurement_ti3``, beside the chart, exactly where chartread writes it on
+    the hand path; a verification's is then filed on its date by the hand
+    path's own `_finalize_verification`). What one START sends and receives
+    goes into ``i1io-table/<stamp>/`` beside the chart, never in ``cache/``:
+    raw readings and the pending marker are not recreatable."""
+
+    #: the run type this place belongs to ("profile", "calibration", "verification")
+    run_type = "profile"
+
+    def _i1io_table_root(self) -> Path:
+        return Path(self.dir)
+
+    def _i1io_project_root(self) -> "Path | None":
+        """The project folder (for every table folder of the project)."""
+        return None
+
+    @property
+    def i1io_table_dir(self) -> Path:         return self._i1io_table_root() / I1IO_TABLE_DIRNAME
+
+    def i1io_table_session_dir(self, stamp: str) -> Path:
+        """``i1io-table/<stamp>/``: one START of the table. *stamp* is
+        ``YYYYMMDD-HHMMSS``, with ``_N`` when two starts share a second;
+        anything else (a path, an empty name) is refused."""
+        if not isinstance(stamp, str) or not _I1IO_TABLE_STAMP.fullmatch(stamp):
+            raise ValueError(f"not a table session stamp: {stamp!r}")
+        return self.i1io_table_dir / stamp
+
+    def i1io_table_sessions(self) -> "list[Path]":
+        """This run's table session folders, oldest first (none: [])."""
+        try:
+            return sorted(p for p in self.i1io_table_dir.iterdir()
+                          if p.is_dir() and _I1IO_TABLE_STAMP.fullmatch(p.name))
+        except OSError:
+            return []
+
+    def i1io_table_log(self, stamp: str) -> Path:
+        """``i1io-table/<stamp>/session.log``: that START's session log."""
+        return self.i1io_table_session_dir(stamp) / "session.log"
+
+    def i1io_table_pending_marker(self, stamp: str) -> Path:
+        """The marker a strip move that may still be waiting for the lamp
+        leaves in its session folder (`I1IO_TABLE_PENDING_MARKER`)."""
+        return self.i1io_table_session_dir(stamp) / I1IO_TABLE_PENDING_MARKER
+
+    def i1io_table_session_result(self, stamp: str) -> Path:
+        """``i1io-table/<stamp>/session_result.json``: written when that
+        START's measurement was saved into the run."""
+        return self.i1io_table_session_dir(stamp) / I1IO_TABLE_SESSION_RESULT
+
+    def i1io_table_discarded_sessions(self) -> "list[Path]":
+        """This run's table session folders the person discarded (they hold
+        `I1IO_TABLE_DISCARDED`), oldest first: kept as diagnostics, never used
+        for a measurement, and the ones a later clean-up may set aside."""
+        return [s for s in self.i1io_table_sessions()
+                if (s / I1IO_TABLE_DISCARDED).is_file()]
+
+    def i1io_table_session_archive_dir(self, stamp: str) -> Path:
+        """Where a table session folder is set aside (moved, never deleted):
+        ``old/i1io-table/<stamp>/``. Path only; nothing is created."""
+        self.i1io_table_session_dir(stamp)          # the stamp is checked
+        return self.old_dir / I1IO_TABLE_DIRNAME / stamp
+
+    def i1io_table_measurement(self, stamp: str) -> Path:
+        """``i1io-table/<stamp>/measurement.ti3``: the measurement that START's
+        readings make (assembled by the table job, partial or complete). It
+        becomes `measurement_ti3` only when the person saves it."""
+        return self.i1io_table_session_dir(stamp) / "measurement.ti3"
+
+    def i1io_table_pending_markers(self) -> "list[Path]":
+        """Every pending marker this run's table sessions hold, oldest first."""
+        return [m for m in (s / I1IO_TABLE_PENDING_MARKER
+                            for s in self.i1io_table_sessions()) if m.is_file()]
+
+    def i1io_table_project_dirs(self) -> "list[Path]":
+        """Every ``i1io-table/`` folder of this place's project: each run's, each
+        run's ``verifications/``, and ``cal/`` (a START anywhere in the project
+        asks about a marker left anywhere in it). Without a project folder, this
+        place's own."""
+        root = self._i1io_project_root()
+        if root is None:
+            return [self.i1io_table_dir]
+        out = []
+        try:
+            runs = sorted(p for p in (Path(root) / "runs").iterdir() if p.is_dir())
+        except OSError:
+            runs = []
+        for r in runs:
+            out.append(r / I1IO_TABLE_DIRNAME)
+            out.append(r / VERIFICATIONS_DIRNAME / I1IO_TABLE_DIRNAME)
+        out.append(Path(root) / "cal" / I1IO_TABLE_DIRNAME)
+        if self.i1io_table_dir not in out:
+            out.append(self.i1io_table_dir)
+        return out
+
+    def i1io_table_sessions_for_a_new_chart(self) -> "list[Path]":
+        """The session folders to set aside with a chart that is replaced: their
+        readings belong to the old layout, and left here the next START would
+        offer an interrupted session of it for completion (#211's harm). A
+        folder whose "switch the table off" or "in use" marker nobody has
+        answered stays, so the next START still asks, but it is marked
+        discarded, so it is never completed into the new chart."""
+        import json as _json
+        out = []
+        for sdir in self.i1io_table_sessions():
+            unanswered = False
+            for name in (I1IO_TABLE_PENDING_MARKER, "TABLE_IN_USE.json"):
+                m = sdir / name
+                if m.is_file() and not m.with_suffix(".acknowledged.json").is_file():
+                    unanswered = True
+            if not unanswered:
+                out.append(sdir)
+                continue
+            mark = sdir / I1IO_TABLE_DISCARDED
+            if not mark.is_file():
+                try:
+                    mark.write_text(_json.dumps({
+                        "discarded_by_person": False,
+                        "why": "the chart was replaced; its marker is kept"}),
+                        encoding="utf-8")
+                except OSError:
+                    log.warning("could not mark %s discarded", sdir)
+        return out
+
+
 class CalibrationReset(NamedTuple):
     """What :meth:`Calibration.reset` did with the calibration that was there.
 
@@ -1594,8 +1724,10 @@ class CalibrationMeta:
         return cls(**mine, unknown_fields=rest)
 
 
-class Calibration:
+class Calibration(I1ioTablePlace):
     """The ``cal/`` folder. One calibration set is shared by every run."""
+
+    run_type = "calibration"
 
     def __init__(self, project_root: Path) -> None:
         self._root = project_root
@@ -1638,6 +1770,18 @@ class Calibration:
 
     @property
     def icc(self) -> Path:                    return self.artefact(".icc")
+    # the i1iO table drive (round A): the chart and the measurement under the
+    # names the table job asks for, and the chart's side file
+    @property
+    def chart_ti2(self) -> Path:              return self.ti2
+    @property
+    def measurement_ti3(self) -> Path:        return self.ti3
+    @property
+    def i1io_side_file(self) -> Path:         return self.artefact(".i1io.json")
+
+    def _i1io_project_root(self) -> "Path | None":
+        return Path(self._root)
+
     @property
     def cht(self) -> Path:                    return self.artefact(".cht")
     @property
@@ -2003,6 +2147,45 @@ class Calibration:
                       "has been moved and cal/ is untouched", self.dir, exc)
             return None
 
+    def _set_aside_table_sessions(self, sessions: "list[Path]",
+                                  dest: "Path | None") -> None:
+        """Move the table's session folders into ``<archive>/i1io-table/``
+        (*dest*, the archive of a measured calibration), or into a dated
+        ``cal/old/<date>/i1io-table/`` of their own. Never deleted; a folder
+        that cannot move is left where it is, marked discarded, so it is never
+        completed into the new chart."""
+        import json as _json
+        sessions = [p for p in sessions if p.is_dir()]
+        if not sessions:
+            return
+        try:
+            if dest is None:
+                stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+                dest = self.old_dir / stamp
+                n = 2
+                while dest.exists():
+                    dest = self.old_dir / f"{stamp}_{n}"
+                    n += 1
+            box = Path(dest) / I1IO_TABLE_DIRNAME
+            box.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            log.warning("Could not make room for the table sessions: %s", exc)
+            box = None
+        for sdir in sessions:
+            try:
+                if box is None:
+                    raise OSError("no archive folder")
+                shutil.move(str(sdir), str(box / sdir.name))
+                log.info("set aside table session %s -> %s", sdir.name, box)
+            except OSError as exc:
+                log.warning("Could not set table session %s aside: %s", sdir, exc)
+                try:
+                    (sdir / I1IO_TABLE_DISCARDED).write_text(_json.dumps({
+                        "discarded_by_person": False,
+                        "why": "the chart was replaced"}), encoding="utf-8")
+                except OSError:
+                    pass
+
     def reset(self, *, stash: bool = False) -> "CalibrationReset":
         """Make room for a new calibration chart.
 
@@ -2101,9 +2284,15 @@ class Calibration:
         if self.exports_dir.is_dir():
             chart.append(self.exports_dir)
             everything_but_results.append(self.exports_dir)
+        # THE i1iO TABLE'S SESSION FOLDERS GO WITH THE CHART THEY READ (round A):
+        # left here, the next START would offer an interrupted session of the
+        # old chart for completion into the new one. Set aside, never dropped,
+        # on both branches: raw readings cannot be made again.
+        sessions = self.i1io_table_sessions_for_a_new_chart()
         if results:
             dest = self._archive_without_raising(results,
                                                  everything_but_results)
+            self._set_aside_table_sessions(sessions, dest)
             # Whatever the move could not take (a permission error, a file that
             # appeared in between) is left where it is rather than unlinked. An
             # unarchivable file is still the user's; the build that follows will
@@ -2112,6 +2301,7 @@ class Calibration:
                 log.warning("calibration file %s could not be archived and has "
                             "been left in cal/", p.name)
             return CalibrationReset(archive=dest, stash=None)
+        self._set_aside_table_sessions(sessions, None)
         stash_dir = make_chart_stash(self.dir) if stash else None
         for p in chart:
             if stash_dir is not None:
@@ -2135,7 +2325,7 @@ class Calibration:
 # Run — one profile build
 # ---------------------------------------------------------------------------
 
-class Run:
+class Run(I1ioTablePlace):
     """A single profile-build attempt under ``runs/<id>/``.
 
     Holds chart artefacts, measurement(s), optional pre-conditioning seed, and
@@ -2285,62 +2475,18 @@ class Run:
     # (`workflow/i1io/table/`, moved unchanged) name their own row files.
     @property
     def i1io_side_file(self) -> Path:         return self.artefact(".i1io.json")
-    @property
-    def i1io_table_dir(self) -> Path:         return self.dir / I1IO_TABLE_DIRNAME
 
-    def i1io_table_session_dir(self, stamp: str) -> Path:
-        """``i1io-table/<stamp>/``: one START of the table. *stamp* is
-        ``YYYYMMDD-HHMMSS``, with ``_N`` when two starts share a second;
-        anything else (a path, an empty name) is refused."""
-        if not isinstance(stamp, str) or not _I1IO_TABLE_STAMP.fullmatch(stamp):
-            raise ValueError(f"not a table session stamp: {stamp!r}")
-        return self.i1io_table_dir / stamp
+    def _i1io_project_root(self) -> "Path | None":
+        # runs/<id>/ under the project folder (a project-less Run too)
+        d = Path(self.dir)
+        return d.parent.parent if d.parent.name == "runs" else None
 
-    def i1io_table_sessions(self) -> "list[Path]":
-        """This run's table session folders, oldest first (none: [])."""
-        try:
-            return sorted(p for p in self.i1io_table_dir.iterdir()
-                          if p.is_dir() and _I1IO_TABLE_STAMP.fullmatch(p.name))
-        except OSError:
-            return []
-
-    def i1io_table_log(self, stamp: str) -> Path:
-        """``i1io-table/<stamp>/session.log``: that START's session log."""
-        return self.i1io_table_session_dir(stamp) / "session.log"
-
-    def i1io_table_pending_marker(self, stamp: str) -> Path:
-        """The marker a strip move that may still be waiting for the lamp
-        leaves in its session folder (`I1IO_TABLE_PENDING_MARKER`)."""
-        return self.i1io_table_session_dir(stamp) / I1IO_TABLE_PENDING_MARKER
-
-    def i1io_table_session_result(self, stamp: str) -> Path:
-        """``i1io-table/<stamp>/session_result.json``: written when that
-        START's measurement was saved into the run."""
-        return self.i1io_table_session_dir(stamp) / I1IO_TABLE_SESSION_RESULT
-
-    def i1io_table_discarded_sessions(self) -> "list[Path]":
-        """This run's table session folders the person discarded (they hold
-        `I1IO_TABLE_DISCARDED`), oldest first: kept as diagnostics, never used
-        for a measurement, and the ones a later clean-up may set aside."""
-        return [s for s in self.i1io_table_sessions()
-                if (s / I1IO_TABLE_DISCARDED).is_file()]
-
-    def i1io_table_session_archive_dir(self, stamp: str) -> Path:
-        """Where a table session folder is set aside (moved, never deleted):
-        ``old/i1io-table/<stamp>/``. Path only; nothing is created."""
-        self.i1io_table_session_dir(stamp)          # the stamp is checked
-        return self.old_dir / I1IO_TABLE_DIRNAME / stamp
-
-    def i1io_table_measurement(self, stamp: str) -> Path:
-        """``i1io-table/<stamp>/measurement.ti3``: the measurement that START's
-        readings make (assembled by the table job, partial or complete). It
-        becomes `measurement_ti3` only when the person saves it."""
-        return self.i1io_table_session_dir(stamp) / "measurement.ti3"
-
-    def i1io_table_pending_markers(self) -> "list[Path]":
-        """Every pending marker this run's table sessions hold, oldest first."""
-        return [m for m in (s / I1IO_TABLE_PENDING_MARKER
-                            for s in self.i1io_table_sessions()) if m.is_file()]
+    def verification_chart(self) -> "VerificationChart":
+        """This run's shared verification chart as a place the i1iO table
+        measures into (round A)."""
+        return VerificationChart(self)
+    # (the session members are `I1ioTablePlace`'s, shared with `Calibration`
+    # and `VerificationChart`: round A, every run type is driven)
 
     def reads(self) -> list[Path]:
         """Sorted list of reads/readN.ti3 files."""
@@ -2751,6 +2897,10 @@ class Run:
         if vexp.is_dir():
             targets += [f for f in stem_files(vexp, stem, "*")
                         if f.is_file()]
+        # …AND THE i1iO TABLE'S SESSION FOLDERS OF THAT CHART (round A): their
+        # readings belong to the chart being replaced, as for a run's chart
+        if targets:
+            targets += self.verification_chart().i1io_table_sessions_for_a_new_chart()
         try:
             self.archive_to_old(targets, into=self.verifications_old_dir)
         except OSError as exc:
@@ -2905,30 +3055,8 @@ class Run:
         settle_chart_stash(self.dir, stash, built=built, leftovers=_leftovers)
 
     def _table_sessions_for_a_new_chart(self) -> "list[Path]":
-        """The table session folders to archive with the replaced chart (see
-        ``reset_chart_artefacts``); those holding an unanswered marker are
-        kept and marked discarded instead."""
-        import json as _json
-        out = []
-        for sdir in self.i1io_table_sessions():
-            unanswered = False
-            for name in (I1IO_TABLE_PENDING_MARKER, "TABLE_IN_USE.json"):
-                m = sdir / name
-                if m.is_file() and not m.with_suffix(".acknowledged.json").is_file():
-                    unanswered = True
-            if not unanswered:
-                out.append(sdir)
-                continue
-            mark = sdir / I1IO_TABLE_DISCARDED
-            if not mark.is_file():
-                try:
-                    mark.write_text(_json.dumps({
-                        "discarded_by_person": False,
-                        "why": "the chart was replaced; its marker is kept"}),
-                        encoding="utf-8")
-                except OSError:
-                    log.warning("could not mark %s discarded", sdir)
-        return out
+        """See `I1ioTablePlace.i1io_table_sessions_for_a_new_chart`."""
+        return self.i1io_table_sessions_for_a_new_chart()
 
     def reset_chart_artefacts(self, *, keep_results: bool = False,
                               stash: bool = False) -> "Path | None":
@@ -3134,6 +3262,38 @@ class Run:
 # ---------------------------------------------------------------------------
 # Verification — one dated verification run under a Run (#130)
 # ---------------------------------------------------------------------------
+
+class VerificationChart(I1ioTablePlace):
+    """A run's shared verification chart (``verifications/<verify stem>.*``) as
+    the place a table measurement of it is written to (round A, the i1iO
+    table drive). ``measurement_ti3`` is the file beside the chart, where
+    chartread writes a hand reading of it; the hand path's
+    `_finalize_verification` then marks it ``-verify`` and files it in its
+    dated folder, for the table exactly as for a hand reading."""
+
+    run_type = "verification"
+
+    def __init__(self, run: "Run") -> None:
+        self._run = run
+
+    @property
+    def run(self) -> "Run":                   return self._run
+    @property
+    def dir(self) -> Path:                    return self._run.verifications_dir
+    @property
+    def stem(self) -> str:                    return self._run.verify_stem
+    @property
+    def chart_ti2(self) -> Path:              return self._run.verify_chart_ti2
+    @property
+    def measurement_ti3(self) -> Path:        return self._run._verify_artefact(".ti3")
+    @property
+    def i1io_side_file(self) -> Path:         return self._run._verify_artefact(".i1io.json")
+    @property
+    def old_dir(self) -> Path:                return self._run.verifications_old_dir
+
+    def _i1io_project_root(self) -> "Path | None":
+        return self._run._i1io_project_root()
+
 
 class Verification:
     """One dated verification measurement: ``runs/runN/verifications/<id>/``.

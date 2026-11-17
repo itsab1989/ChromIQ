@@ -393,7 +393,10 @@ like for other instruments."*
 * Start on a verification or calibration chart for the table shows
   M-I1IO-NOT-YET-BY-HAND: M-I1IO-NOT-YET's i1Profiler way ends in building a
   profile, which those charts are not for, so it names the table's own
-  i1Pro 2, measured by hand, instead.
+  i1Pro 2, measured by hand, instead. (Since round A of the table drive,
+  2026-11-17, only for a chart START does not drive: a chart for an i1iO 2
+  with an i1Pro 2 is driven by the table in every run type, see the section
+  "START drives the table" below.)
 * The Measurement Report's evenness check applies to an i1iO chart
   unchanged: its nine areas are whole strips and rows by the chart's own
   labels, each one physical ninth of the portrait page (patch 1 at the
@@ -447,8 +450,8 @@ on screen is "End this step", never a second Stop. Nothing is modal and nothing 
 chart preview. The rest of the app is locked as during a hand measurement (the other tabs, the
 masthead's buttons and the run bar); in addition, while the table works, Cmd-1 to Cmd-5 never
 switch to a locked tab and Cmd-, never opens Preferences (a hand measurement still lets both
-through: reported, not changed). Esc anywhere in the main window does what the panel's Close
-does: it withdraws an open question with its own answer that moves nothing and asks the
+through: reported, not changed). Esc anywhere in the main window, except in a text field (the
+note field, the log), where it is the field's own key, does what the panel's Close does: it withdraws an open question with its own answer that moves nothing and asks the
 ending, or withdraws the ending. Quitting ChromIQ (Cmd-Q, the close box, a logout) during a
 session asks the table's own ending in the panel (a step that runs stops at its next pause
 first); "Keep measuring" keeps ChromIQ open, any other ending closes it once the job has let go
@@ -457,7 +460,7 @@ written when the table was opened makes the next START ask "switched off and on"
 anything is sent (M-I1IO-DRIVE-MARKER-APP-ENDED).
 
 The preview follows the job: the mark the arm should point at while aiming; the row being
-read in a thick frame in the accent colour with a light fill, a read row only a green check mark in the white space between its label and its first patch, a row that could not be read a small cross in the warning colour there (in
+read in a thick frame in the accent colour with a light fill, a read row only a green dot in the white space between its label and its first patch, a row that could not be read a small cross in the warning colour there (in
 both modes); with "Patch-by-patch mode (-p)" also a ring, drawn twice as thick as the hand
 path's, on the patch the arm goes to (announced after the stop check, when the arm really
 moves). Every reading goes into the live overlay and the "Progress" figure. The panel's state
@@ -484,8 +487,8 @@ run moves the table's session folders of the old one to old/ (a folder whose "sw
 off" marker is unanswered stays, marked discarded, so the question is still asked and its
 readings are never completed into the new chart).
 
-Calibration and verification charts are NOT driven yet (fix round 10 stopped there and kept
-today's Start windows), because two rules cannot be met by the table yet:
+Fix round 10 stopped short of calibration and verification charts for the two reasons below.
+Round A (2026-11-17) answers both; see the next section. Kept for the record:
 * A verification is measured into its own dated folder (`verifications/<date>/`, created and
   given its chart snapshot at START) and finished by the verification chain (the dated
   measurement, its report against the profile's prediction, the dated folder's own replace
@@ -498,3 +501,65 @@ today's Start windows), because two rules cannot be met by the table yet:
   session folders under `cal/` would outlive a replaced calibration chart and could be offered
   for completion against the new one, and the job has no `Calibration` twin of the run's
   members.
+
+### ⏳ Awaiting confirmation: every run type, and the answers to review 11 (round A, 2026-11-17)
+
+**Confirmed by:** *nobody yet.*
+
+Built and proved on screen against the simulated table only. The owner's ruling: "it just has
+to save the measurement in the correct folder for every runtype with the correct name".
+
+**Where a table measurement is saved, by run type.** START decides the place from the chart's
+folder, as the hand path decides a calibration (`ui/i1io_table_window.py::table_place`), and
+gives it to the job in place of the run. Every place has the same members
+(`core/file_manager.py::I1ioTablePlace`): the chart, the file a reading of the chart is
+written to, the `old/` folder and the table's session folders beside the chart.
+
+| run type | chart | the job's Save writes | then | session folders |
+|---|---|---|---|---|
+| profile (and its refinement, resume) | `runs/runN/<stem>.ti2` | `runs/runN/<stem>.ti3` (`Run.measurement_ti3`) | as before: `measure_finished`, the usual completion window | `runs/runN/i1io-table/<stamp>/` |
+| calibration | `cal/<project>-cal.ti2` | `cal/<project>-cal.ti3` (`Calibration.measurement_ti3`, the hand path's own name) | the hand path's calibration ending: the log names the "4. Calibration & Profiling" tab, `measure_finished`, then "Calibration Measurement Complete" with Create Calibration File / Close (no Re-read and no reader keys: the table has let go); never averaged | `cal/i1io-table/<stamp>/` |
+| verification (one page and several) | `runs/runN/verifications/<stem>-verify.ti2` | `runs/runN/verifications/<stem>-verify.ti3`, beside the chart, where chartread writes a hand reading (`VerificationChart.measurement_ti3`) | once the table has let go, the hand path's `_finalize_verification`: renamed `-verify` and tagged, moved into the dated folder START made (`verifications/<date>/`, with its chart snapshot), an earlier measurement of that date kept in `<date>/old/`, the how-printed question, the automatic report, and the verification's own "saved" window; a partial one ticks Refine / resume and shows no window, as by hand. Never `measure_finished`, never Build Profile | `runs/runN/verifications/i1io-table/<stamp>/` |
+
+* The hand path's guards of each run type run before the panel: for a verification
+  `_verification_guard` (no verification of a run without a profile) and the dated folder's
+  chart snapshot at START; a resumed verification is staged beside the chart first and the
+  staged copy goes again when the session saved nothing (`_stage_verification_for_resume`,
+  `_drop_unused_verification_stage`).
+* A quit during a table verification files the readings the same way, without its windows
+  (nothing may wait for an answer while ChromIQ closes).
+* **A replaced chart takes its table sessions with it, in every run type**, so an interrupted
+  session of an old chart can never be completed against a new one: a run's chart as before;
+  `Calibration.reset()` moves `cal/i1io-table/<stamp>/` into the archive of a measured
+  calibration (`cal/old/<date>/i1io-table/`), and for an unmeasured one into a dated
+  `cal/old/<date>/i1io-table/` of its own; a replaced verification chart moves
+  `verifications/i1io-table/<stamp>/` into `verifications/old/<date>/`. A folder whose "switch
+  the table off" or "in use" marker is unanswered stays, marked discarded. **For the owner:**
+  the calibration amendment of 2026-09-02 says an unmeasured calibration chart leaves no
+  `cal/old/` folder. A table session's raw readings are kept all the same (set aside, never
+  deleted), so a calibration chart that was never saved but was read by the table does leave
+  `cal/old/<date>/i1io-table/`. The chart itself is dropped as ruled.
+* A START anywhere in the project asks about a marker left anywhere in it (each run, each
+  run's verifications, `cal/`).
+
+**After a refinement read by the table**, the usual "Re-measurement Complete" window, after the
+table has let go, through the hand path's code: the opening line counts the patches read again,
+M-REFINE-REBUILD, and the table's own next steps M-I1IO-DRIVE-REFINE-DONE-NEXT (proposed), with
+Go to the tab and Close; "Continue Measuring Manually" is left out (no reader waits for keys).
+A list of strips to refine that names no strip of the chart is refused at START with
+M-I1IO-DRIVE-REFINE-NOT-ON-CHART (proposed) in the log; nothing is opened.
+
+**Review 11's other answers:** a quit while a step runs (also while the USB is being opened)
+never closes the panel under its worker: the step ends at its next pause and its result
+decides; a quit while the arm is brought home after Save asks nothing more and closes once the
+job has let go. No page shows a step's reason id: every id the job can return has a sentence,
+and an unknown one gets "ChromIQ could not do this step. The diagnostics file of this
+measurement has the details." The report after a row that could not be read says so. Stop,
+Report a problem and the switch-off line appear when the USB is opened, not on the pages
+before. At a row's end the ring goes, so the row's dot shows; the next patch is ringed when the
+arm goes there. The legend chip of the preview never covers what an i1iO chart prints around
+its patches (row letters, column numbers, marks, the wordmark and name line, the text column):
+it takes a free band of the paper, smaller when it must, or is not drawn; every other chart's
+chip is placed as before. App-level in-use markers are removed one month after they were
+answered. A chart made for the CR30 loaded after a table chart keeps the CR30's greyed options.
+
