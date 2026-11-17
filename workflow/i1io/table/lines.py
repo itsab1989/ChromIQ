@@ -11,7 +11,7 @@ Three kinds, nothing else:
    (C_FIXED, with where in C_RECORDED_AT): the position under the sight at an aim (p1), and the
    four lines around every recorded row scan (c4, d1 with its only recorded value 365, a3, c3).
 3. COMPUTED moves, in exactly the recorded form apart from the numbers: m0 at the recorded chart
-   speed 300 and m2 at one of the ten recorded scan speeds, never beyond the front zone's cap
+   speed 300 and m2 at one of the eleven recorded scan speeds, never beyond the front zone's cap
    (classify), and only right after a position was read. The gate checks the target and the
    whole swept rectangle from that reading against what THIS SITTING allows: the proven zone,
    plus the front zone up to the Y a creep step has confirmed (`Table.front_y`); during the creep
@@ -47,7 +47,9 @@ C_FIXED = {
 }
 C_RECORDED_AT = {
     "aim":     "after each of the 30 button presses of the ten recorded alignments, 3-5 ms after "
-               "the press, arm free (R1 263.517 ... S2 710.005); answer 8 data characters",
+               "the press, arm free (R1 263.517 ... S2 710.005); and the three presses of the "
+               "volunteer's recording of 17 Nov 2026 (i1Pro 2 0x84, one byte 0x06, then `;p124` "
+               "after 5 / 3 / 4 ms); 33 in all; answer 8 data characters",
     "scan_c4": "at the start of all 44 recorded row scans, 1 ms after the i1Pro 2's lights-off "
                "(R1 9, R2 12, S2 23); answer one byte B7..BB, 0.171-0.218 s; and both passes of the "
                "volunteer's recording of 17 Nov 2026: BC (0.189 s, `:$c40BC56`) and BA (0.217 s, "

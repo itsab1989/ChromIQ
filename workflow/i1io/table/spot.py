@@ -49,8 +49,11 @@ ROW_KINDS = ("spot", "strip")
 #: the allow-list are unchanged.
 STRIP_N_MAX = 1190
 #: the scan speeds a strip row may use, slowest first (all recorded, scan.py's default 54 first:
-#: NEXT_STEPS 4b "the job picks the speed from the chart's patch length (default 54)")
-STRIP_SPEEDS = (54, 61, 87, 88, 110, 118, 137, 138)
+#: NEXT_STEPS 4b "the job picks the speed from the chart's patch length (default 54)"). 168 was
+#: recorded on the volunteer's table on 17 Nov 2026 (i1Profiler's two rows); it is used only
+#: when no slower speed keeps the row within STRIP_N_MAX, and only where every patch window
+#: still holds STRIP_MIN_READINGS readings (patches of about 9.7 mm and longer).
+STRIP_SPEEDS = (54, 61, 87, 88, 110, 118, 137, 138, 168)
 #: readings a patch's window must hold for the patch to be cut (a FIRST TRY value: an 8.9 mm
 #: patch at 54 mm/s gets about 12 in its clean middle; fewer means the move ran differently)
 STRIP_MIN_READINGS = 5

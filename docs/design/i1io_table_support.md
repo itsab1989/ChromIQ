@@ -625,7 +625,8 @@ i1Profiler's (D-8) all wait for the volunteer's results.
   to fire at once, the scan move is NEVER sent), the scan move at a recorded speed, a3, c3, the
   lamp trigger on the one path with no stop point, the move's done answer, the arm at the row's
   end. The hands-off GO is asked as for every row.
-* **The speed** is the slowest of 54, 61, 87, 88, 110, 118, 137, 138 mm/s (all recorded) that
+* **The speed** is the slowest of 54, 61, 87, 88, 110, 118, 137, 138, 168 mm/s (all recorded;
+  168 since i1Profiler's two rows on the volunteer's table, 17 Nov 2026) that
   keeps the row within 1,190 readings (the longest recorded pass, D-7) with at least five
   readings in every patch's clean middle. A row no recorded speed keeps inside, or whose run
   with its run-in and run-out leaves the measuring area, is read patch by patch by itself

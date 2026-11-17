@@ -192,7 +192,10 @@ DRIVEN = (Area(-1320, 1316, 1537, 2559), Area(-1349, -1181, 1645, 2689),
 
 #: The recorded speeds: m0 on a chart only at 300; m2 at these (mm/s).
 RECORDED_M0_SPEEDS = (300,)
-RECORDED_M2_SPEEDS = (40, 53, 54, 61, 87, 88, 110, 118, 137, 138)
+#: 168 since the owner-results round: i1Profiler scanned both rows of the volunteer's recording of
+#: 17 Nov 2026 at 168 (`;m2047a061c00a837`, `;m2fab7066f00a8cb`; a3 answered A 840, T 1474,
+#: V 168, N 470 readings by the app's own rule; each move done 0.456 / 0.448 s after lamp + T + A).
+RECORDED_M2_SPEEDS = (40, 53, 54, 61, 87, 88, 110, 118, 137, 138, 168)
 
 #: Run-in / run-out allowed beyond the aimed marks along a row, and across the rows.
 RUN_OUT_MM = 10.0

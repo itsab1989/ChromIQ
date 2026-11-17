@@ -33,7 +33,7 @@ TABLE_MOTION_START_AFTER_LAMP_S = 0.372
 
 # ---- the simulator's own copy of part C's rules ---------------------------------------------
 C_P1, C_C4, C_D1, C_A3, C_C3 = ";p124", ";c42e", ";d1016d35", ";a331", ";c32f"
-C_SPEEDS_M2 = (40, 53, 54, 61, 87, 88, 110, 118, 137, 138)
+C_SPEEDS_M2 = (40, 53, 54, 61, 87, 88, 110, 118, 137, 138, 168)
 C_TARGET_BOX = (-1384, 1716, 523, 3109)        # targets: never beyond the front zone's cap
 C_SWEEP_BOX = (-1434, 1766, 473, 3114)         # the swept rectangle from where the arm is
 #                                                (the cap plus the 5-unit arrival tolerance)

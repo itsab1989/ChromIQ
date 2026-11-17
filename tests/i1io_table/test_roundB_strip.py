@@ -357,7 +357,7 @@ def test_the_session_caps_hold_strip_rows_of_the_largest_chart():
 
 def test_the_strip_constants_are_pinned():
     assert sp.STRIP_N_MAX == 1190
-    assert sp.STRIP_SPEEDS == (54, 61, 87, 88, 110, 118, 137, 138)
+    assert sp.STRIP_SPEEDS == (54, 61, 87, 88, 110, 118, 137, 138, 168)
     from workflow.i1io.table import geometry as geo
     assert set(sp.STRIP_SPEEDS) <= set(geo.RECORDED_M2_SPEEDS)
     assert sp.STRIP_MIN_READINGS == 5 and sp.STRIP_UNIFORMITY_MAX == 0.10
