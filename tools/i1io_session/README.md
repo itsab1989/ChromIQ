@@ -588,12 +588,11 @@ program tells you this and asks for your yes. What we do not know is whether
 i1Profiler finds the i1Pro 2 straight away afterwards on your Mac: if it does
 not, unplug the USB cable of the table and the i1Pro 2 from the Mac and plug
 it in again (after this program has ended); if it still does not, restart
-the Mac.
+the Mac. The calibration is ArgyllCMS's own, kept in ArgyllCMS's usual file
+on your Mac, not in the instrument.
 
 While this program runs, it keeps the table's USB connection, so i1Profiler
-cannot find the table until the program has ended. The
-calibration is ArgyllCMS's own, kept in ArgyllCMS's usual file on your Mac,
-not in the instrument.
+cannot find the table until the program has ended.
 
 ## Before you start
 
