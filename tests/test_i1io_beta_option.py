@@ -132,7 +132,15 @@ def test_preferences_has_the_row_and_switching_on_asks_first(qapp, tmp_path,
 def test_the_help_and_the_consent_say_what_this_step_is():
     from ui.dialogs.settings_dialog import i1io_consent_text, i1io_support_help
     for text in (i1io_support_help(), i1io_consent_text()):
-        assert "sends nothing at all to a table" in text
+        # 4.3.45, the release that drives (STEP4_PROPOSAL section 4): the
+        # "sends nothing at all" sentence and "only commands whose meaning is
+        # known" are replaced by the one sentence on the drive, in both texts
+        assert ("With this beta, ChromIQ can also drive an i1iO 2 table with an "
+                "i1Pro 2 when you press START MEASUREMENT: it asks you once before "
+                "the first time, and explains what it does.") in text
+        assert "sends nothing at all" not in text
+        assert "whose meaning is known" not in text
+        assert "not available yet" not in text
         assert "i1iO 2 with an i1Pro 2" in text
         assert "—" not in text
     assert "3.8.7" in i1io_support_help()

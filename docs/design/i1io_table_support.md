@@ -24,11 +24,16 @@ now, verified by tests and on screen without a table.*
   icon, "Keep it off" is the default, "Turn it on" is marked as the risky
   choice). Cancel leaves it off. Unticking asks nothing; ticking again
   asks again.
-* The ⓘ and the consent window say: what the table is; that **this version
-  sends nothing at all to a table and only makes charts** (THE ONE SENTENCE TO
-  CHANGE WHEN MEASURING ARRIVES, in both texts); that the commands were worked
-  out from one owner's recordings, not from X-Rite's documentation; that only
-  known commands will ever be sent; that nobody on the team owns a table; that
+* The ⓘ and the consent window say: what the table is; **"With this beta,
+  ChromIQ can also drive an i1iO 2 table with an i1Pro 2 when you press START
+  MEASUREMENT: it asks you once before the first time, and explains what it
+  does."** (since 4.3.45, the release that drives, as the step-4 proposal
+  section 4 has it: this sentence replaced "this version sends nothing at all
+  to a table and only makes charts" and "only known commands will ever be
+  sent", in both texts; the ⓘ's Measure line now says that START MEASUREMENT
+  drives the table and IMPORT still brings back an i1Profiler measurement);
+  that the commands were worked out from one owner's recordings, not from
+  X-Rite's documentation; that nobody on the team owns a table; that
   X-Rite ended support (i1Profiler 3.8.7 removed the i1Pro 2 and the i1iO 2);
   that only the i1iO 2 with an i1Pro 2 is supported and other owners are
   welcome on GitHub; own risk. The confirm button reads "Turn it on", the

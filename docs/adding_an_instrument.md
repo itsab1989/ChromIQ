@@ -673,10 +673,12 @@ instrument, and its files land where those run types keep theirs
 Where something cannot work yet, the app says so visibly, in a friendly
 window that explains what is not available and what the person can do
 instead, never by leaving the instrument out of a list in silence. For
-example, the i1iO table's Beta makes Verification and Calibration charts for
-the table, and pressing Start on such a chart explains that measuring with
-the table is not available yet and offers the instrument by hand
-(`tests/test_i1io_run_types.py`). Read `docs/design/calibration_run_type.md`
+example, before 4.3.45 the i1iO table's Beta made Verification and
+Calibration charts for the table, and pressing Start on such a chart
+explained that measuring with the table was not available yet and offered
+the instrument by hand (`tests/test_i1io_run_types.py`); since 4.3.45 START
+drives an i1iO 2 with an i1Pro 2, and a chart for an i1iO table ChromIQ cannot
+drive keeps that window. Read `docs/design/calibration_run_type.md`
 and the Verification parts of `docs/design/per_target_settings.md` first.
 
 *In [the checklist](adding_an_instrument_checklist.md): stage 4.*

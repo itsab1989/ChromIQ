@@ -413,6 +413,7 @@ _ID = re.compile(r"\b[a-z0-9]+_[a-z0-9_]+\b")
 def test_s2_every_option_reason_of_the_table_job_has_a_sentence():
     from workflow.i1io.table import spot as sp
     whys = set(sp.NO_MEANING.values()) | set(sp.REFUSED.values()) \
+        | set(sp.NO_MEANING_STRIP.values()) | set(sp.REFUSED_STRIP.values()) \
         | {w for _k, w in sp.SETTINGS.values()} \
         | {"xrga_value_unknown", "option_unknown_to_the_table_job",
            "strip_rows_not_built_spot_is_used"}
@@ -423,6 +424,13 @@ def test_s2_every_option_reason_of_the_table_job_has_a_sentence():
     rep = sp.options_from_chartread_args(["-Q", "-A", "Z", "-p", "chart"])
     for flag, why in rep.refused.items():
         assert not _ID.search(W.option_text(flag, why)), (flag, why)
+    # round B, strip mode (no -p): -A refused and -H dropped, each with a sentence
+    strip = sp.options_from_chartread_args(["-A", "X", "-H", "chart"])
+    assert strip.refused == {"-A": "xrga_not_with_strip_rows"}, strip.refused
+    assert strip.no_meaning.get("-H") == "the_strip_reading_has_no_high_resolution"
+    for flag, why in {**strip.refused, **strip.no_meaning}.items():
+        line = W.option_text(flag, why)
+        assert not _ID.search(line) and line != W.option_text(flag, "an_id_nobody_knows"), line
 
 
 @pytest.mark.parametrize("rid", ["an_id_nobody_knows", "x_y", "option_unknown_to_the_table_job",

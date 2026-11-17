@@ -10130,9 +10130,11 @@ def page_pause_note_help() -> str:
 
 # ---- X-Rite i1iO support (Beta) --------------------------------------------
 #
-# THE ONE SENTENCE TO CHANGE WHEN MEASURING ARRIVES is the second paragraph of
-# both texts ("This version ... sends nothing at all to a table"); the spec
-# `docs/design/i1io_table_support.md` names it too. Everything else stays true.
+# 4.3.45, the release that drives the table (STEP4_PROPOSAL section 4): the
+# second paragraph of both texts was "This version ... sends nothing at all to
+# a table", and "only commands whose meaning is known" stood in the risks; both
+# are replaced by the one sentence on the drive. The spec
+# `docs/design/i1io_table_support.md` ("The option") says the same.
 
 def i1io_support_help() -> str:
     """The (i) of Preferences > Beta > "X-Rite i1iO support (beta)"."""
@@ -10141,10 +10143,9 @@ def i1io_support_help() -> str:
            "clicks into a holder on its arm, the printed chart lies on the "
            "table, and the arm moves the i1Pro along every strip of the chart "
            "by itself, so you do not swipe the strips by hand."),
-        tr("This version prepares for the table. It can make charts for it, "
-           "but it cannot measure with the table yet, and it sends nothing at "
-           "all to a table. Reading with the table, quickly and strip by strip, "
-           "is being prepared for a later version."),
+        tr("With this beta, ChromIQ can also drive an i1iO 2 table with an "
+           "i1Pro 2 when you press START MEASUREMENT: it asks you once before "
+           "the first time, and explains what it does."),
         tr("What turning this on adds, after a restart of ChromIQ:\n"
            "  •  Create Chart: “i1iO 2 + i1Pro 2” in the Instrument list of "
            "Guided and of Manual. The chart is laid out for reading strip by "
@@ -10163,9 +10164,9 @@ def i1io_support_help() -> str:
            "patches than one sheet holds, it is printed on several numbered "
            "sheets. The layout may still change once an i1iO owner has tested "
            "it.\n"
-           "  •  Measure: when you press Start with such a chart, ChromIQ "
-           "tells you that measuring with the table is not available yet, and "
-           "how you can measure that run today."),
+           "  •  Measure: when you press START MEASUREMENT with such a chart, "
+           "ChromIQ drives the table. With IMPORT you can still bring back a "
+           "measurement of the chart made in i1Profiler."),
         tr("Only the i1iO 2 with an i1Pro 2 is supported, because that is the "
            "only combination we have information about. Other i1iO tables "
            "(the first i1iO and the i1iO 3) and other instruments on the arm "
@@ -10175,9 +10176,8 @@ def i1io_support_help() -> str:
         tr("Please read this part carefully. X-Rite has not published how the "
            "table is controlled. What we know was worked out from recordings "
            "that one i1iO owner made of his own table while he used X-Rite's "
-           "software, not from X-Rite's documentation. Not every command is "
-           "understood yet, and ChromIQ will only ever send the commands "
-           "whose meaning is known. Nobody on the ChromIQ team owns a table, "
+           "software, not from X-Rite's documentation. Nobody on the ChromIQ "
+           "team owns a table, "
            "so everything that involves the table is tested by users who own "
            "one. Using this beta is at your own risk."),
         tr("Why it may still be worth it: X-Rite has ended support for these "
@@ -10198,17 +10198,13 @@ def i1io_consent_text() -> str:
     return "\n\n".join((
         tr("You are switching on support for the X-Rite i1iO scanning table. "
            "Here is what that means, in plain words."),
-        tr("This version prepares for the table. It can make charts for the "
-           "i1iO 2 with an i1Pro 2, but it cannot measure with the table yet, "
-           "and it sends nothing at all to a table. Reading with the table, "
-           "quickly and strip by strip, is being prepared for a later version."),
+        tr("With this beta, ChromIQ can also drive an i1iO 2 table with an "
+           "i1Pro 2 when you press START MEASUREMENT: it asks you once before "
+           "the first time, and explains what it does."),
         tr("•  X-Rite has not published how the table is controlled. What we "
            "know was worked out from recordings that one i1iO owner made of "
            "his own table while he used X-Rite's software, not from X-Rite's "
            "documentation.\n\n"
-           "•  Not every command is understood yet. ChromIQ will only ever "
-           "send the commands whose meaning is known, to keep the risk to "
-           "your table as small as we can.\n\n"
            "•  Nobody on the ChromIQ team owns a table, so everything that "
            "involves the table is tested by users who own one, not by us.\n\n"
            "•  Only the i1iO 2 with an i1Pro 2 is supported. Other i1iO tables "

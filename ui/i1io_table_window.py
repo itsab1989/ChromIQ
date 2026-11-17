@@ -361,6 +361,15 @@ def option_text(flag: str, why: str) -> str:
         "a_second_pass_is_filed_by_step_8": tr(
             "a second pass is not read by the table yet"),
         "strip_rows_not_built": tr("reading whole strips with the table is not built yet"),
+        # round B's strip reasons (integration for 4.3.45: each with a sentence, review 12 S-2)
+        "xrga_not_with_strip_rows": tr(
+            "when the table reads rows as strips, ChromIQ cannot convert the readings to "
+            "another calibration standard. To measure with it, tick “Patch-by-patch mode (-p)”"),
+        "the_strip_reading_has_no_high_resolution": tr(
+            "when the table reads rows as strips, the instrument reads in standard resolution, "
+            "so this measurement is made without high resolution"),
+        "strip_rows_a_first_try_not_confirmed_on_a_real_table": tr(
+            "reading rows as strips is a first try and has not been tried on a real table yet"),
     }
     name = names.get(flag)
     if name is None:
