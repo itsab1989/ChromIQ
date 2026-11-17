@@ -1273,6 +1273,11 @@ WORDMARK_FONT = "Instrument Serif"
 WORDMARK_RGB = (28, 27, 24)
 WORDMARK_IQ_RGB = (255, 69, 115)
 WORDMARK_KERN = 0.02
+#: Where the "IQ" is DRAWN (4.3.44, the owner: "make it correct everywhere"):
+#: the app's masthead kern, 1 px in 62 closer than "Chrom"'s advance
+#: (`raster.MASTHEAD_IQ_KERN`). The plan still MEASURES the wordmark with
+#: :data:`WORDMARK_KERN`, so the text after it does not move.
+WORDMARK_DRAW_KERN = -1.0 / 62.0
 #: The text line's size: 3 mm capitals.
 TEXT_CAP_MM = 3.0
 #: Paper between the wordmark and the text after it.
@@ -1399,7 +1404,7 @@ def text_line_plan(w: float, h: float, full: str, dpi: int,
         out["wordmark"] = {
             "size_mm": chosen["size_mm"], "size_px": chosen["size_px"],
             "baseline_x": line_x + cap / 2.0, "chrom_y": y,
-            "iq_y": y - chosen["chrom_len"] - chosen["kern"],
+            "iq_y": y - chosen["chrom_len"] - WORDMARK_DRAW_KERN * chosen["size_px"] / s,
             "box": (line_x - cap / 2.0, y - chosen["length"],
                     line_x + cap / 2.0, y)}
         y -= chosen["length"] + (WORDMARK_GAP_MM if label else 0.0)
@@ -1596,7 +1601,7 @@ def styled_line_plan(w: float, h: float, head: str, extra: str, dpi: int,
         out["wordmark"] = {
             "size_mm": chosen["size_mm"], "size_px": chosen["size_px"],
             "baseline_x": line_x + cap / 2.0, "chrom_y": y,
-            "iq_y": y - chosen["chrom_len"] - chosen["kern"],
+            "iq_y": y - chosen["chrom_len"] - WORDMARK_DRAW_KERN * chosen["size_px"] / s,
             "box": (line_x - cap / 2.0, y - chosen["length"],
                     line_x + cap / 2.0, y)}
         y -= chosen["length"] + (WORDMARK_GAP_MM if label else 0.0)
@@ -1925,7 +1930,7 @@ def free_text_plan(spot: dict, head: str, extra: str, dpi: int,
             out["wordmark"] = {
                 "size_mm": wm["size_mm"], "size_px": wm["size_px"],
                 "baseline_x": line_x + capw / 2.0, "chrom_y": y,
-                "iq_y": y - wm["chrom_len"] - wm["kern"],
+                "iq_y": y - wm["chrom_len"] - WORDMARK_DRAW_KERN * wm["size_px"] / s,
                 "box": (line_x - capw / 2.0, y - wm["length"],
                         line_x + capw / 2.0, y)}
             kept.append("logo")

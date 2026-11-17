@@ -1531,16 +1531,15 @@ def resolve_placeholders(t: str, ctx: dict) -> str:
 #: The placeholder.
 LOGO_TOKEN = "{logo}"
 #: The smallest wordmark drawn inline, as the height in pixels of its capital
-#: "C". Decided from renders of a line at every cap height from 4 to 15 px:
-#: first (fix round of 2026-11-17, `fix1/logo_renders/sizes_3x.png`) 8 px
-#: with the clip band's drawing; then again with the masthead's drawing,
-#: which is drawn at its true coverage and so a little softer at small
-#: sizes (`fix1/logofix/sizes_new_3x.png`): from 9 px the "IQ" reads as two
-#: letters and the "Q" keeps its tail, at 8 px it is a pink smudge. 9 px is
-#: 0.76 mm at 300 dpi, well under the 7 pt the Sheet text's "auto" stops at,
-#: so it bites only on a low-resolution sheet. A line set smaller leaves the
-#: logo out, and the log says so.
-LOGO_MIN_CAP_PX = 9
+#: "C". Decided from renders of a line at every cap height from 3 to 18 px
+#: (fix round of 2026-11-17, `fix1/logo_renders/sizes_3x.png`, the same glyph
+#: renders the wordmark uses now; only the "IQ"'s place changed since): from
+#: 8 px the "IQ" reads as two letters and the "Q" keeps its tail; at 7 px and
+#: below the "IQ" is a pink smudge. 8 px is 0.68 mm at 300 dpi, well under
+#: the 7 pt the Sheet text's "auto" stops at, so it bites only on a
+#: low-resolution sheet. A line set smaller leaves the logo out, and the log
+#: says so.
+LOGO_MIN_CAP_PX = 8
 
 
 def _cap_px(font) -> float:
@@ -1559,59 +1558,59 @@ _LOGO_TILES: dict = {}
 #: size (`ui/masthead_header.py::MastheadHeader.paintEvent`), as a share of
 #: the font size.
 MASTHEAD_IQ_KERN = -1.0 / 62.0
-#: Supersampling of the inline logo, so its antialiased edge is the glyph's
-#: true coverage at any size rather than a hinted small-size rendering.
-_LOGO_SUPERSAMPLE = 4
+#: Where :func:`_italic_tile` puts the pen in its tile (its pad, no stroke).
+_ITALIC_TILE_PEN = 3
 
 
-def _masthead_wordmark(size: int) -> "tuple[Image.Image, int]":
-    """The app's masthead wordmark at font size *size* px, drawn from the
-    masthead's OWN definition (`ui/masthead_header.py`): "Chrom" in
-    Instrument Serif Regular and "IQ" in Instrument Serif Italic, both at the
-    same size on one baseline, "IQ" starting at the advance of "Chrom" less
-    the masthead's 1 px in 62 (:data:`MASTHEAD_IQ_KERN`), in the light
-    masthead's colours (#1c1b18 and #ff4573, :data:`WORDMARK_RGB` and
-    :data:`WORDMARK_IQ_RGB`).
+def paint_masthead_wordmark(canvas: Image.Image, x: float, baseline: float,
+                            size: int, parts: "dict | None" = None) -> None:
+    """Draw the ChromIQ wordmark as the app's masthead draws it, "Chrom"'s
+    pen at *x* and both halves on *baseline*, at font size *size* px.
 
-    The masthead asks Qt for a BOLD italic "IQ", but the app ships only the
-    Regular and Italic files, and on macOS Qt draws the Italic file as it is:
-    a render of that definition with Qt on the real platform has the same
-    ink as the captured masthead (3005 against 3001 pixels at 124 px), and
-    so does this drawing (fix round of 2026-11-17, `fix1/logofix/`). So the
-    Italic file at its own weight IS the masthead's "IQ".
+    THE ONE DRAWING OF THE WORDMARK ON A CHART (the owner, 2026-11-17: "make
+    it correct everywhere"): the clip band's branding (`_paint_wordmark`),
+    the Notes design (`_draw_wordmark_h`, which the i1iSis chart and every
+    other caller of `render_clip_strip` also go through) and the inline ``{logo}``
+    (:func:`logo_tile`). The masthead (`ui/masthead_header.py`) sets "Chrom"
+    in Instrument Serif and "IQ" in the same family's italic at the same
+    pixel size on one baseline, the "IQ" at "Chrom"'s advance less 1 px in
+    62 (:data:`MASTHEAD_IQ_KERN`), in #1c1b18 and #ff4573. It asks Qt for a
+    bold italic, but only the Regular and Italic files ship, and Qt draws
+    the Italic file as it is: measured at 400 px, Qt's "IQ" and the Italic
+    file drawn plainly differ by 0.03 px on average (ink 30281 against
+    30291 pixels), on macOS and offscreen alike, and any added stroke only
+    moves them apart (`fix1/logofix/fit_iq400.txt`). So no thickening.
 
-    NOT the clip band's branding (`_wordmark_parts`), which places "IQ" with
-    a kern of +2 % and has looked so on every chart released; that one is
-    left exactly as it is. Returns ``(RGBA layer, baseline row)``."""
-    S = _LOGO_SUPERSAMPLE
-    fr = _font(size * S, WORDMARK_FONT)
-    fi = _font(size * S, WORDMARK_FONT, italic=True)
-    d0 = ImageDraw.Draw(Image.new("RGBA", (4, 4)))
-    chrom_w = d0.textlength("Chrom", font=fr)
-    iq_x = chrom_w + MASTHEAD_IQ_KERN * size * S
-    asc, desc = fr.getmetrics()
-    asc_i, desc_i = fi.getmetrics()
-    pad = 4 * S
-    width = int(iq_x + d0.textlength("IQ", font=fi) + 0.4 * size * S) + 2 * pad
-    base = max(asc, asc_i) + pad
-    height = base + max(desc, desc_i) + pad
-    width, height = -(-width // S) * S, -(-height // S) * S
-    base = (base // S) * S
-    big = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    d = ImageDraw.Draw(big)
-    d.text((pad, base), "Chrom", font=fr, fill=WORDMARK_RGB + (255,),
-           anchor="ls")
-    d.text((pad + iq_x, base), "IQ", font=fi, fill=WORDMARK_IQ_RGB + (255,),
-           anchor="ls")
-    small = big.resize((width // S, height // S), Image.Resampling.BOX)
-    return small, base // S
+    Up to 4.3.43 the "IQ" was butted up by its first ink at a kern of +2 %
+    of the size; it is now set by its pen at the masthead's kern: that is
+    the one change. The glyphs are the same renders as before (Chrom drawn on
+    the canvas, "IQ" from :func:`_italic_tile`, set on the baseline the same
+    way), so the wordmark's extent ACROSS a band, which the layout measures
+    (the clip content's reach), is unchanged, and the layout's own measure
+    of its length (`_wordmark_parts`, `_wordmark_h_fit`) still uses the old
+    kern: nothing beside the wordmark moves, and the "IQ" now ends 0.036 of
+    the size earlier, inside the space measured for it.
+
+    *parts* is :func:`_wordmark_parts` for *size*, when the caller has it."""
+    g = parts if parts is not None else _wordmark_parts(int(size))
+    rgba = canvas.mode == "RGBA"
+    ImageDraw.Draw(canvas).text(
+        (x, baseline), "Chrom", font=g["font"],
+        fill=WORDMARK_RGB + ((255,) if rgba else ()), anchor="ls")
+    # the "IQ"'s PEN, as the masthead sets it, not its first ink: the tile
+    # holds the pen :data:`_ITALIC_TILE_PEN` px in from its left edge (4.3.43
+    # butted the ink up instead, which added the italic's side bearing)
+    canvas.paste(g["iq_tile"],
+                 (int(round(x + g["chrom_w"] + MASTHEAD_IQ_KERN * g["size"]))
+                  - _ITALIC_TILE_PEN,
+                  int(baseline - g["iq_base"])), g["iq_tile"])
 
 
 def logo_tile(cap_px: float) -> "tuple[Image.Image, int] | None":
     """The wordmark whose capital "C" is *cap_px* pixels tall, as
     ``(RGBA tile cut to its ink, the baseline's row in it)``,
     or None when that is below :data:`LOGO_MIN_CAP_PX`. Drawn from the
-    app's masthead (:func:`_masthead_wordmark`)."""
+    app's masthead (:func:`paint_masthead_wordmark`)."""
     if not cap_px or float(cap_px) < LOGO_MIN_CAP_PX:
         return None
     ref = 200
@@ -1620,7 +1619,12 @@ def logo_tile(cap_px: float) -> "tuple[Image.Image, int] | None":
     hit = _LOGO_TILES.get(size)
     if hit is not None:
         return hit
-    layer, baseline = _masthead_wordmark(size)
+    g = _wordmark_parts(size)
+    w = int(g["chrom_w"] - g["iq_left"] + g["iq_tile"].width) + 8
+    baseline = int(max(g["asc"], g["iq_base"])) + 4
+    h = baseline + int(max(g["desc"], g["iq_tile"].height - g["iq_base"])) + 4
+    layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    paint_masthead_wordmark(layer, 4, baseline, size, g)
     # CUT TO ITS INK ON EVERY SIDE: a line's height is measured from what
     # it draws, and the font's empty line box above the wordmark made a
     # right-edge note with `{logo}` shrink to the floor and slide off its
@@ -2800,11 +2804,10 @@ def _wordmark_geometry(width_px: int, height_px: int, dpi: float,
 def _wordmark_parts(size: int) -> dict:
     """The wordmark at font size *size* px, in its parts: "Chrom" in
     Instrument Serif and the near-black of the masthead, "IQ" in the face's
-    own italic and the magenta accent, butted up with a +2 % kern. The clip
-    band's branding (`_vwordmark`), exactly as every released chart has it.
-    The inline ``{logo}`` follows the app's masthead instead
-    (:func:`_masthead_wordmark`): the two differ in the "IQ"'s place, and
-    whether the clip band should follow is the owner's decision."""
+    own italic and the magenta accent, MEASURED as every chart up to 4.3.43
+    laid it out (an "IQ" tile after a +2 % kern), so the clip band's layout
+    is unchanged; it is DRAWN as the app's masthead draws it
+    (:func:`_paint_wordmark`, :func:`paint_masthead_wordmark`)."""
     d = ImageDraw.Draw(Image.new("RGBA", (4, 4)))
     f = _font(size, WORDMARK_FONT)
     asc, desc = f.getmetrics()
@@ -2824,11 +2827,10 @@ def _wordmark_parts(size: int) -> dict:
 def _paint_wordmark(layer: Image.Image, x: float, baseline: float,
                     g: dict) -> None:
     """Draw the wordmark of *g* (:func:`_wordmark_parts`) on *layer* with
-    its baseline at *baseline* and "Chrom" starting at *x*."""
-    ImageDraw.Draw(layer).text((x, baseline), "Chrom", font=g["font"],
-                               fill=WORDMARK_RGB + (255,), anchor="ls")
-    layer.paste(g["iq_tile"], (int(x + g["chrom_w"] + g["kern"] - g["iq_left"]),
-                               int(baseline - g["iq_base"])), g["iq_tile"])
+    its baseline at *baseline* and "Chrom" starting at *x*: the masthead's
+    drawing (:func:`paint_masthead_wordmark`) at *g*'s size, inside the
+    space *g* measures for it."""
+    paint_masthead_wordmark(layer, x, baseline, g["size"], g)
 
 
 def branding_text_box_px(width_px: int, height_px: int, dpi: float,
@@ -3152,10 +3154,11 @@ def _draw_wordmark_h(canvas: Image.Image, draw: "ImageDraw.ImageDraw",
     asc, desc = f.getmetrics()
     baseline = top + height * 0.5 + (asc - desc) / 2
     try:
-        draw.text((x, baseline), "Chrom", font=f, fill=WORDMARK_RGB, anchor="ls")
-        canvas.paste(iq_tile,
-                     (int(x + chrom_w + kern - iq_left), int(baseline - iq_base)),
-                     iq_tile)
+        # DRAWN as the app's masthead draws it; the width returned below is
+        # the one the layout always measured, so nothing beside it moves
+        paint_masthead_wordmark(canvas, x, baseline, f.size, {
+            "size": f.size, "font": f, "iq_tile": iq_tile,
+            "iq_base": iq_base, "iq_left": iq_left, "chrom_w": chrom_w})
     except Exception:  # pragma: no cover - default font without anchor
         draw.text((x, top), "ChromIQ", font=f, fill=WORDMARK_RGB)
     return chrom_w + kern + (iq_tile.width - iq_left)

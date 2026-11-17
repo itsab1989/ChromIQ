@@ -253,29 +253,120 @@ def test_a_note_with_the_logo_keeps_its_size_and_place(tmp_path, right_mm):
 
 # ---- {logo} follows the app's masthead; the clip band's branding is unchanged ----
 
-#: SHA-256 of the clip band's branding (`raster._vwordmark`) over a fixed set of
-#: bands, measured on 4.3.43 (origin/master 69ad0e194) and on this tree with
-#: `fix1/scripts/wordmark_same.py`: that drawing must not change in 4.3.44.
-_BRANDING_SHA_4343 = "6c8436dd2f33f95d1e3605fe861de92ded6de1dacbe8f036c2fb9c57404c4cce"
+def _old_painters(R):
+    """The 4.3.43 wordmark painters (origin/master's raster.py), reinstated
+    for the comparison below."""
+    from PIL import ImageDraw
+
+    def old_paint(layer, x, baseline, g):
+        ImageDraw.Draw(layer).text((x, baseline), "Chrom", font=g["font"],
+                                   fill=R.WORDMARK_RGB + (255,), anchor="ls")
+        layer.paste(g["iq_tile"], (int(x + g["chrom_w"] + g["kern"] - g["iq_left"]),
+                                   int(baseline - g["iq_base"])), g["iq_tile"])
+
+    def old_h(canvas, draw, x, top, height, max_w):
+        f, iq_tile, iq_base, iq_left, chrom_w, kern = R._wordmark_h_fit(
+            draw, height, max_w)
+        asc, desc = f.getmetrics()
+        baseline = top + height * 0.5 + (asc - desc) / 2
+        draw.text((x, baseline), "Chrom", font=f, fill=R.WORDMARK_RGB, anchor="ls")
+        canvas.paste(iq_tile, (int(x + chrom_w + kern - iq_left),
+                               int(baseline - iq_base)), iq_tile)
+        return chrom_w + kern + (iq_tile.width - iq_left)
+    return old_paint, old_h
 
 
-def test_the_clip_band_branding_is_4_3_43s_byte_for_byte():
-    import hashlib
-    h = hashlib.sha256()
-    for args in [([], 200, 800, "Inter", 0, 100, 0, 0, 200),
-                 (["a line", "two"], 300, 1500, "Inter", 0, 150, 5, -7, 300),
-                 (["x"], 80, 600, "JetBrains Mono", 12, 60, 0, 0, 150)]:
-        lines, w, hh, fam, sz, sc, ox, oy, dpi = args
-        for kw in ({}, {"anchor_far": True, "centre_across": True}):
-            h.update(raster._vwordmark(lines, w, hh, fam, sz, sc, ox, oy, dpi,
-                                       **kw).tobytes())
-    assert h.hexdigest() == _BRANDING_SHA_4343
+#: Marker colours with the luminance of the wordmark's own (#1c1b18 and
+#: #ff4573), so the clip content's measured reach (luminance < 250) and with
+#: it the layout are exactly the new drawing's.
+_MARK_DARK, _MARK_IQ = (0, 0, 236), (0, 200, 111)
+
+
+def _marker_painter(R):
+    """The new wordmark AND the old "IQ" (at 4.3.43's +2 % kern) in marker
+    colours: the pixels a marked build changes against the real one are the
+    union of the old and the new wordmark, the box the change must keep to."""
+    from PIL import ImageDraw
+
+    def paint(canvas, x, baseline, size, parts=None):
+        g = parts if parts is not None else R._wordmark_parts(int(size))
+        rgba = canvas.mode == "RGBA"
+        ImageDraw.Draw(canvas).text((x, baseline), "Chrom", font=g["font"],
+                                    fill=_MARK_DARK + ((255,) if rgba else ()),
+                                    anchor="ls")
+        tile = g["iq_tile"].copy()
+        a = np.asarray(tile).copy()
+        a[..., :3] = _MARK_IQ
+        from PIL import Image
+        tile = Image.fromarray(a, "RGBA")
+        y = int(baseline - g["iq_base"])
+        canvas.paste(tile, (int(round(x + g["chrom_w"] + R.MASTHEAD_IQ_KERN
+                                      * g["size"])) - R._ITALIC_TILE_PEN, y),
+                     tile)                                    # the new "IQ"
+        canvas.paste(tile, (int(x + g["chrom_w"] + 0.02 * g["size"]
+                                - g["iq_left"]), y), tile)    # 4.3.43's
+    return paint
+
+
+def _box(a, b):
+    d = np.abs(a.astype(int) - b.astype(int)).max(axis=2)
+    ys, xs = np.nonzero(d)
+    return None if not len(ys) else (xs.min(), ys.min(), xs.max(), ys.max())
+
+
+@pytest.mark.parametrize("kw", [
+    dict(instrument="i1", paper="A4", dpi=150, clip_content_mode="branding",
+         clip_text="Line one\nLine two"),
+    dict(instrument="i1", paper="A4", dpi=150, clip_content_mode="notes"),
+    dict(instrument="CM", paper="Letter", dpi=150, clip_content_mode="notes",
+         clip_side="right", clip_flip_180=True),
+], ids=["branding", "notes", "notes_right_flipped"])
+def test_the_new_wordmark_changes_only_the_wordmarks_own_pixels(
+        tmp_path, monkeypatch, kw):
+    """The owner, 2026-11-17: the wordmark on every chart is drawn as the
+    app's masthead draws it. Against 4.3.43's drawing, the ONLY pixels that
+    differ lie inside the wordmark's own box (the union of the old and the
+    new wordmark's ink, found by building the chart with both in marker
+    colours of the same luminance); the .ti2,
+    every patch, strip, text and mark are identical."""
+    from workflow.layout_engine import chart
+    from workflow.layout_engine.presets import LayoutRecipe
+    built = {}
+    current = raster._paint_wordmark, raster._draw_wordmark_h
+    painter = raster.paint_masthead_wordmark
+    for which in ("old", "new", "marked"):
+        p1, p2 = _old_painters(raster) if which == "old" else current
+        monkeypatch.setattr(raster, "_paint_wordmark", p1)
+        monkeypatch.setattr(raster, "_draw_wordmark_h", p2)
+        monkeypatch.setattr(raster, "paint_masthead_wordmark",
+                            _marker_painter(raster) if which == "marked"
+                            else painter)
+        raster._clip_reach_cached.cache_clear()
+        (tmp_path / which).mkdir()
+        res, _r = chart.build_from_recipe(
+            TI1, tmp_path / which / "c", LayoutRecipe(seed=5, **kw))
+        built[which] = ([np.asarray(tifffile.imread(str(p)))
+                         for p in sorted(res.tiff_paths)],
+                        (tmp_path / which / "c.ti2").read_bytes())
+    raster._clip_reach_cached.cache_clear()
+    assert built["old"][1] == built["new"][1]
+    assert built["marked"][1] == built["new"][1]
+    for old, new, marked in zip(built["old"][0], built["new"][0],
+                                built["marked"][0]):
+        changed = _box(old, new)
+        assert changed is not None            # the drawing really changed
+        x0, y0, x1, y1 = _box(new, marked)    # old and new wordmark, together
+        assert x0 <= changed[0] and y0 <= changed[1] \
+            and changed[2] <= x1 and changed[3] <= y1, (changed, (x0, y0, x1, y1))
+        outside = np.abs(old.astype(int) - new.astype(int)).max(axis=2)
+        outside[y0:y1 + 1, x0:x1 + 1] = 0
+        assert not outside.any()
 
 
 def test_the_logo_is_drawn_from_the_mastheads_own_definition():
     """The masthead draws "Chrom" in Instrument Serif and "IQ" in its italic,
     both at 62 px, "IQ" at the advance of "Chrom" less 1 px. If that ever
-    changes, `raster._masthead_wordmark` has to follow it."""
+    changes, `raster.paint_masthead_wordmark` has to follow it."""
     import inspect
     from ui import masthead_header
     src = inspect.getsource(masthead_header.MastheadHeader.paintEvent)
@@ -285,16 +376,41 @@ def test_the_logo_is_drawn_from_the_mastheads_own_definition():
     assert raster.MASTHEAD_IQ_KERN == -1.0 / 62.0
     # "IQ" starts where the masthead puts it: Chrom's advance less size/62
     size = 124
-    layer, base = raster._masthead_wordmark(size)
+    from PIL import Image
+    layer = Image.new("RGBA", (int(size * 4.2), int(size * 1.8)), (0, 0, 0, 0))
+    raster.paint_masthead_wordmark(layer, 10, int(size * 1.3), size)
     a = np.asarray(layer)
     pink = (a[..., 3] > 128) & (a[..., 0] > 200) & (a[..., 1] < 140)
     dark = (a[..., 3] > 128) & (a[..., :3].max(axis=2) < 80)
     gap = np.argwhere(pink)[:, 1].min() - np.argwhere(dark)[:, 1].max()
     assert -2 <= gap <= 2          # the masthead capture: 0 px at 124 px
     # the render is stable: the same size twice gives the same pixels
-    assert raster._masthead_wordmark(size)[0].tobytes() == layer.tobytes()
+    again = Image.new("RGBA", layer.size, (0, 0, 0, 0))
+    raster.paint_masthead_wordmark(again, 10, int(size * 1.3), size)
+    assert again.tobytes() == layer.tobytes()
 
 
-def test_the_logo_minimum_is_nine_pixels():
-    assert raster.LOGO_MIN_CAP_PX == 9
-    assert raster.logo_tile(8.9) is None and raster.logo_tile(9) is not None
+def test_the_logo_minimum_is_eight_pixels():
+    assert raster.LOGO_MIN_CAP_PX == 8
+    assert raster.logo_tile(7.9) is None and raster.logo_tile(8) is not None
+
+
+@pytest.mark.parametrize("width", [12.5, 13.0, 20.0])
+@pytest.mark.parametrize("scale", [100.0, 150.0])
+def test_the_clip_content_reach_the_layout_measures_is_unchanged(
+        monkeypatch, width, scale):
+    """The layout places the row labels and the right-edge note against the
+    clip content's measured reach across the band, which the wordmark's ink
+    decides: the new drawing moves the "IQ" only ALONG the band, so the reach,
+    and with it every layout, is 4.3.43's to the pixel."""
+    from tests.test_clip_border_content_is_centred_across_the_band import (
+        T2, _setup)
+    raster._clip_reach_cached.cache_clear()
+    new = _setup(True, width, T2, scale)[0].clip_content_reach_mm
+    p1, p2 = _old_painters(raster)
+    monkeypatch.setattr(raster, "_paint_wordmark", p1)
+    monkeypatch.setattr(raster, "_draw_wordmark_h", p2)
+    raster._clip_reach_cached.cache_clear()
+    old = _setup(True, width, T2, scale)[0].clip_content_reach_mm
+    raster._clip_reach_cached.cache_clear()
+    assert new == old

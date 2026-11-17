@@ -2,11 +2,14 @@
 
 ## v4.3.44
 
-**For everyone updating from 4.3.43: the beta option “Custom page size in inches or pixels, and high resolution” gets one Units choice instead of three rows of size fields, and the run's Chart Notes can now use the same placeholders as the Sheet text, plus a new {logo}. With the beta option off, which is the default, charts are made exactly as before; the only change you can see without it is that placeholders in your Chart Notes are filled in on the printed chart.**
+**For everyone updating from 4.3.43: the beta option “Custom page size in inches or pixels, and high resolution” gets one Units choice instead of three rows of size fields, and the run's Chart Notes can now use the same placeholders as the Sheet text, plus a new {logo}. With the beta option off, which is the default, charts are made as before, with two small visible changes: placeholders in your Chart Notes are filled in on the printed chart, and the ChromIQ logo on a chart now matches the logo in the app window.**
 
 ### New
 - **Placeholders in “Run N Chart Notes”.** {page}, {date}, {seed}, {project} and the other placeholders of the Sheet text now work in the run's Chart Notes too. They are filled in only where the notes are printed down the edge of the chart, each page with its own page number; the notes are kept exactly as you typed them everywhere else (in the project, in the chart's files and in the reports). On a chart in fixed order {seed} is left out, as in the Sheet text. Notes without a placeholder are printed exactly as before. Thanks to jctay on the printerknowledge forum for asking for this.
 - **{logo}: the ChromIQ logo in a line of text.** Type {logo} in the Sheet text (it is also in the Insert ▾ menu) or in the Chart Notes, and the chart shows the ChromIQ logo right there, as tall as the text and in its own colours, with “Chrom” in black and “IQ” in pink. It is drawn exactly as the logo at the top of the ChromIQ window (the same fonts, the same place for the “IQ” and the same colours), it takes no room from the patches and it needs no clip border, which makes it useful on a dense chart with no room for one. If the text is printed too small for the logo to be recognised, it is left out. Nothing changes on a chart that does not use it. Thanks to jctay on the printerknowledge forum for the idea.
+
+### Changed
+- **The ChromIQ logo printed on charts now matches the logo at the top of the ChromIQ window.** The letters are the same as before; the pink “IQ” now sits where the window's logo puts it, a little closer to “Chrom”. A chart made again with this version therefore differs from the old file in those few pixels of the logo and nowhere else: nothing about the patches, their positions, the other text on the sheet or any measurement changes.
 
 ### Changed (only with the beta option “Custom page size in inches or pixels, and high resolution” on)
 - **One “Units” choice under Paper: Millimetres, Inches or Pixels (page size only).** The custom page size is now one pair of fields in the unit you choose, and the line under it says the page in the other units and in pixels. Inches also apply to every other length in the panel (margins, patch size, gaps and the rest) as a display: ChromIQ still keeps every length in millimetres, so typing 0.25 inches stores 6.35 mm and shows 0.25 again, also after reopening the project or loading a preset. The unit you see is the one a new resolution keeps: with pixels chosen the pixel count stays, with millimetres or inches the size on paper stays. Switching units only to look never changes your page. ChromIQ remembers your choice; it is your own preference and is not saved with a chart or a preset.
@@ -27,10 +30,9 @@
 
 ### Honest limits
 - **Still not tried with a real film recorder.** The pixel counts and the resolution written in the files have been checked on the computer, as for 4.3.43.
-- **The logo in the clip border is unchanged.** It has looked the same on every chart so far, and it places the “IQ” a little further from “Chrom” than the window's logo and {logo} do. Whether it should follow is a separate decision for a later version.
 - **{logo} is drawn in the Sheet text and in the Chart Notes only.** In the clip border's own text, on an i1iSis chart's trailer, and on FD-9 and i1iO table charts it is not drawn, and the notes on an i1iSis chart are printed as typed, as before. The logo is a picture, so in the optional PDF it is an image, not text.
 - **A length typed in inches with the beta option on, opened while the option is off,** is shown and used in tenths of a millimetre again (6.35 mm becomes 6.3 mm), because the fields without the option have one decimal.
-- **With the option off, nothing changes, and this was checked again.** Every built-in preset was loaded and generated in the real app with 4.3.43 and with this version, the option off, and every file written was compared byte for byte (dates and the version number pinned), and the same with the option on and millimetres chosen.
+- **With the option off, nothing changes, and this was checked again.** Every built-in preset was loaded and generated in the real app with 4.3.43 and with this version, the option off, and every file written was compared byte for byte (dates and the version number pinned), and the same with the option on and millimetres chosen: the only pixels that differ are those of the ChromIQ logo on the charts that carry it.
 
 ## v4.3.43
 
