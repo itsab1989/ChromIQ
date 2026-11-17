@@ -1137,7 +1137,7 @@ def test_bytes_md_lists_part_c_s_lines_and_rules():
         assert f"| `{v.decode().rstrip(chr(13))}` | `{v.hex(' ')}` | {k} |" in b, k
     assert ", ".join(str(v) for v in geo.RECORDED_M2_SPEEDS) in b
     assert f"at most **{pc.C_MAX_LINES} lines and {pc.C_MAX_MOVES} movements**" in b
-    assert "0.5.0" in b.splitlines()[0]
+    assert tbl.TOOL_VERSION in b.splitlines()[0]
 
 
 def test_the_stage_texts_say_no_untrue_thing():
