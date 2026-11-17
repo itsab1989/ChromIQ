@@ -221,3 +221,31 @@ def test_the_logo_in_the_sheet_text_is_drawn_below_the_patches(tmp_path):
     rows = np.where(diff.max(axis=1) > 0)[0]
     assert rows.size                               # the line differs...
     assert rows.min() > a.shape[0] * 0.85          # ...only in the bottom text
+
+
+@pytest.mark.parametrize("right_mm", [6.0, 9.0])
+def test_a_note_with_the_logo_keeps_its_size_and_place(tmp_path, right_mm):
+    """Found on screen in the fix round: with the font's empty line box
+    above the wordmark counted, a narrow right margin shrank the note to the
+    floor and pushed it off its strip. The note with `{logo}` takes the
+    same columns as the note without it."""
+    def sheet(name):
+        W, H = _mm(100.0), _mm(150.0)
+        a = np.full((H, W, 3), 255, np.uint8)
+        a[_mm(15.0):_mm(135.0), _mm(5.0):_mm(100.0 - right_mm)] = 128
+        p = tmp_path / name
+        tifffile.imwrite(str(p), a, resolution=(DPI, DPI), resolutionunit="INCH")
+        return p
+    cols = []
+    for name, text in (("a.tif", "page 1/1 2026-11-17 seed 4344"),
+                       ("b.tif", "page 1/1 2026-11-17 seed 4344 {logo}")):
+        p = sheet(name)
+        tiff_metadata.stamp_chart_metadata([p], [text], text_edge_mm=4.0)
+        a = tifffile.imread(str(p))
+        ink = a.min(axis=2) < 200
+        ink[:, :_mm(100.0 - right_mm)] = False
+        c = np.where(ink.any(axis=0))[0]
+        cols.append((int(c.min()), int(c.max())))
+    assert cols[1][0] == cols[0][0]               # the same patch-side edge
+    assert cols[1][1] <= a.shape[1] - _mm(4.0)    # inside the edge reserve
+    assert cols[1][1] - cols[0][1] <= 3           # the "Q" tail, at most

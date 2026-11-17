@@ -1554,7 +1554,7 @@ _LOGO_TILES: dict = {}
 
 def logo_tile(cap_px: float) -> "tuple[Image.Image, int] | None":
     """The wordmark whose capital "C" is *cap_px* pixels tall, as
-    ``(RGBA tile cut to its ink from left to right, the baseline's row)``,
+    ``(RGBA tile cut to its ink, the baseline's row in it)``,
     or None when that is below :data:`LOGO_MIN_CAP_PX`."""
     if not cap_px or float(cap_px) < LOGO_MIN_CAP_PX:
         return None
@@ -1571,9 +1571,14 @@ def logo_tile(cap_px: float) -> "tuple[Image.Image, int] | None":
     baseline = int(max(g["asc"], g["iq_base"])) + 2
     layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     _paint_wordmark(layer, 2, baseline, g)
+    # CUT TO ITS INK ON EVERY SIDE: a line's height is measured from what
+    # it draws, and the font's empty line box above the wordmark made a
+    # right-edge note with `{logo}` shrink to the floor and slide off its
+    # strip (seen on screen in the fix round, `fix1/notecut/synthetic.png`)
     bb = layer.getbbox()
     if bb:
-        layer = layer.crop((bb[0], 0, bb[2], h))
+        layer = layer.crop(bb)
+        baseline -= bb[1]
     _LOGO_TILES[size] = (layer, baseline)
     return _LOGO_TILES[size]
 
