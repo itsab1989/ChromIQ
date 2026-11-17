@@ -40,7 +40,8 @@ LAYOUT_MAXIMA = {"per_row": 33, "rows": 30, "per_page": 990, "pages": 667}
 #: (part C's stage DZ: 2 x CREEP_STEPS_MAX + 8 lines, CREEP_STEPS_MAX + 1 movements).
 CREEP_STEPS_MAX = 10
 CREEP_PAUSE_S = 0.5
-CREEP = (2 * CREEP_STEPS_MAX + 8, CREEP_STEPS_MAX + 1)
+#: S-7 (owner-results round): +1 line, the arrival of the move to the front edge read once more
+CREEP = (2 * CREEP_STEPS_MAX + 8 + 1, CREEP_STEPS_MAX + 1)
 
 #: Part C's own per-stage numbers (0.6.0), each pinned by a test.
 OPEN = (len(tbl.OPEN_KEYS), 0)                                           # 11 / 0
@@ -48,7 +49,7 @@ PARK = (tbl.STEP_MAX_LINES["b_home"], tbl.STEP_MAX_MOTIONS["b_home"])    # the h
 APPROACH = (sum(tbl.STEP_MAX_LINES[k] for k in ("b_home", "b_align")),
             sum(tbl.STEP_MAX_MOTIONS[k] for k in ("b_home", "b_align")))
 AIMS = (8, 0)              # three p1, s0, f4 x 4 (stage D1)
-CHECK_MOVE = (4, 1)        # stage D2: p0 (twice if free), m0, p0
+CHECK_MOVE = (5, 1)        # stage D2: p0 (twice if free), m0, p0 (+1: S-7, the arrival read again)
 HOME = (8, 1)              # stage F: s0 p0 i1 s0 f0 f4 f4 p0
 #: One alignment cycle: the way out, the aims, the creep, the check move and the homing.
 ALIGN_CYCLE = tuple(sum(v) for v in zip(APPROACH, AIMS, CREEP, CHECK_MOVE, HOME))
@@ -73,9 +74,11 @@ def spot_row(n: int) -> "tuple[int, int]":
 def spot_row_step(n: int) -> "tuple[int, int]":
     """Step 7: one attempt at a spot row of *n* patches, the job step's own cap: D3's 2 n + 4
     plus one fresh position reading per patch (a failed reading is read again once, from a
-    fresh reading of where the arm stands, the owner's rule). The session caps keep D3's
-    numbers; such re-reads come out of the page's allowance."""
-    return (3 * n + 4, n)
+    fresh reading of where the arm stands, the owner's rule), plus one more per patch since the
+    owner-results round (S-7: an arrival outside the tolerance is read once more before any
+    doubt). The session caps keep D3's numbers; such re-reads come out of the page's
+    allowance."""
+    return (4 * n + 4, n)
 
 
 def row_cost(n: int) -> "tuple[int, int]":

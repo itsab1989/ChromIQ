@@ -49,11 +49,13 @@ C_RECORDED_AT = {
     "aim":     "after each of the 30 button presses of the ten recorded alignments, 3-5 ms after "
                "the press, arm free (R1 263.517 ... S2 710.005); and the three presses of the "
                "volunteer's recording of 17 Nov 2026 (i1Pro 2 0x84, one byte 0x06, then `;p124` "
-               "after 5 / 3 / 4 ms); 33 in all; answer 8 data characters",
+               "after 5 / 3 / 4 ms), and the 12 of the two further recordings of that night (2-5 "
+               "ms); 45 in all; answer 8 data characters",
     "scan_c4": "at the start of all 44 recorded row scans, 1 ms after the i1Pro 2's lights-off "
                "(R1 9, R2 12, S2 23); answer one byte B7..BB, 0.171-0.218 s; and both passes of the "
                "volunteer's recording of 17 Nov 2026: BC (0.189 s, `:$c40BC56`) and BA (0.217 s, "
-               "`:$c40BA58`), so B7..BC",
+               "`:$c40BA58`), so B7..BC; the further recording of that night: BB (0.170 s) and B8 "
+               "(0.202 s), inside",
     "scan_d1": "before all 44 recorded row scans, always 016d (365); answer the echo 016D",
     "scan_a3": "0.016 s after all 44 recorded m2 lines, while the scan move waits; answer A, T, V",
     "scan_c3": "right after a3 in all 44 recorded row scans; answer no data",

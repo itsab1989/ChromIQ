@@ -147,10 +147,17 @@ def _first_start(p) -> bool:         # the simulator's own copy of where spot 1 
     return -1360 <= p[0] <= -1200 and 2600 <= p[1] <= 2700
 
 
-def _memory_a() -> str:
+def _memory_a(tile=None) -> str:
+    """The SYNTHETIC memory block: a made-up serial; at bytes 88-231 filler, or *tile*: 36
+    made-up white tile values (D-4b tests; never a real table's)."""
+    import struct
     head = "6801000056312E31"
     body = head + "0102030405060708090A0B0C" + FAKE_SERIAL.encode("ascii").hex().upper()
-    return body + "AB" * ((512 - len(body)) // 2)
+    out = body + "AB" * ((512 - len(body)) // 2)
+    if tile is not None:
+        vals = struct.pack("<36f", *tile).hex().upper()
+        out = out[:176] + vals + out[176 + len(vals):]
+    return out
 
 
 def _memory_b() -> str:
@@ -207,6 +214,9 @@ class SimTable:
     i0_after: "tuple[float, float]" = I0_RECORDED_AFTER
     #: True once the start-up has finished (a cold table then behaves like a started one)
     started: bool = False
+    #: D-4b tests: 36 MADE-UP white tile values at bytes 88-231 of the memory block (None:
+    #: filler there, which is no white tile)
+    stored_tile: "tuple | None" = None
 
     def __post_init__(self):
         self._rng = random.Random(self.seed)
@@ -500,7 +510,7 @@ class SimTable:
         if cid == "k2":
             return 0, ("0B600000000014" if kind == "k2_other" else K2), 0.0
         if cid == "u8":
-            data = _memory_a() if a == "000060000100" else _memory_b()
+            data = _memory_a(self.stored_tile) if a == "000060000100" else _memory_b()
             if kind == "memory_short":
                 data = data[:-2]
             if kind == "memory_bad_start":

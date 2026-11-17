@@ -187,7 +187,7 @@ def test_a_strip_row_may_be_read_at_168_when_no_slower_speed_fits(tmp_path, monk
 def test_the_recorded_p1_answers_after_the_button_decode(answer, xy):
     assert cl.C_FIXED["aim"] == b";p124\r"
     assert tbl.parse_done_c(answer, "p1", cl.C_DATA_LEN["aim"]).xy() == xy
-    assert "33 in all" in cl.C_RECORDED_AT["aim"]
+    assert "45 in all" in cl.C_RECORDED_AT["aim"]
 
 
 def test_i1profilers_scans_run_through_the_recorded_aims_with_no_offset():
@@ -236,3 +236,137 @@ def test_the_job_sends_the_start_up_exactly_as_it_ran_on_the_real_table():
     assert any("i0 took 3.088 s" in ln for ln in log), [ln for ln in log if "i0" in ln]
     assert any(":$p00044E001D20" in ln for ln in log)
     assert job._table.state != "cold"
+
+
+# ---- S-7: one arrival outside the tolerance is read once more (analysis 2, REC3) ----------------
+
+def _offset_arrivals(sim, offsets):
+    """After the first computed patch move, the next p0 answers are off by these dy values."""
+    orig = sim._c_execute
+    state = {"armed": False, "left": list(offsets)}
+
+    def ex(line, cid, a, fault):
+        st, data, t = orig(line, cid, a, fault)
+        if cid == "m0" and line.startswith(";m0") and line not in ss_lines():
+            state["armed"] = True
+        elif cid == "p0" and state["armed"] and state["left"]:
+            dy = state["left"].pop(0)
+            x, y = int(data[:4], 16), int(data[4:8], 16)
+            y = (y - 0x10000 if y & 0x8000 else y) + dy
+            data = f"{x:04X}{y & 0xFFFF:04X}"
+        return st, data, t
+    sim._c_execute = ex
+    return state
+
+
+def ss_lines():
+    return {v.decode().rstrip("\r") for v in tbl.WIRE.values()}
+
+
+@pytest.mark.parametrize("offsets,ok,reread", [([-5], True, False), ([-6, -4], True, True),
+                                               ([-6, -6], False, True)])
+def test_an_arrival_off_by_six_is_read_once_more_before_any_doubt(tmp_path, offsets, ok,
+                                                                  reread):
+    job, sim, helper, run, p = job_for(tmp_path)
+    sim.jitter = False
+    for s in ("open", "calibrate", "align"):
+        assert p.drive(getattr(job, s)()).ok
+    _offset_arrivals(sim, offsets)
+    n = len(sim.received)
+    r = p.drive(job.check_move())
+    assert r.ok is ok, (r.kind, r.reason)
+    log = "\n".join(job.diag.lines)
+    assert ("read again once" in log) is reread
+    after = sim.received[n:]
+    moves_after = [ln for ln in after if ln[1:3] in ("m0", "m1", "m2", "i1", "i0")]
+    assert len(moves_after) == 1                       # the check move only, nothing more
+    if not ok:
+        assert job._table.closed_reason is not None and "twice" in log
+
+
+# ---- analysis 2 (REC2 single scan, REC3 the first SPOT recording), test data A4 1-6 -------------
+
+def test_a2_1_a_spot_patch_as_i1profiler_moved_it():
+    rep = tbl.parse_done(":$p0003BE082C0B", "position")
+    assert rep.xy() == (958, 2092)
+    line = geo.m0_line(849, 2092)
+    assert line == b";m00351082c012c6c\r"
+    tbl.parse_ack(":!m008", "m0")
+    assert tbl.parse_done_c(":$m00D5", "m0", 0).data == ""
+    lo, hi = geo.move_window((958, 2092), (849, 2092))
+    assert lo <= 0.480 <= hi
+
+
+def test_a2_2_the_row_change_and_the_first_move_from_the_free_arm():
+    assert geo.m0_line(1170, 2176) == b";m004920880012c93\r"
+    lo, hi = geo.move_window((-1302, 2095), (1170, 2176))
+    assert lo <= 2.239 <= hi
+    assert geo.m0_line(1173, 2091) == b";m00495082b012c64\r"
+    lo, hi = geo.move_window((-1211, 1865), (1173, 2091))
+    assert lo <= 2.207 <= hi
+
+
+def test_a2_3_i1profilers_arrival_spread_fits_the_tolerance_or_is_read_again():
+    from workflow.i1io.table.job import _near
+    for dx in range(-2, 4):
+        for dy in range(-5, 2):
+            assert _near((dx, dy), (0, 0))
+    assert not _near((0, -6), (0, 0))       # read once more (S-7), the tolerance not widened
+
+
+@pytest.mark.parametrize("m0,m2,start,end", [
+    (";m0fae10835012c05", ";m20493083000a892", (-1311, 2101), (1171, 2096)),
+    (";m00493087f012c5d", ";m2fae1088400a8fc", (1171, 2175), (-1311, 2180))])
+def test_a2_4_rec2s_rows_are_rebuilt_byte_for_byte(m0, m2, start, end):
+    assert geo.m0_line(*start) == (m0 + "\r").encode()
+    assert geo.m2_line(end[0], end[1], 168) == (m2 + "\r").encode()
+    plan = sc.plan_row("rec2", start, end, 168)
+    a3 = tbl.parse_done_c(":$a3000000348000005C500A8D9", "a3", cl.C_DATA_LEN["scan_a3"])
+    A, T, V = int(a3.data[4:8], 16), int(a3.data[12:16], 16), int(a3.data[16:20], 16)
+    assert (A, V) == (plan.A, 168) and T == 1477
+    for line, byte in ((":$c40BB57", 0xBB), (":$c40B861", 0xB8)):
+        got = int(tbl.parse_done_c(line, "c4", 2).data, 16)
+        assert got == byte and sc.C4_RANGE[0] <= got <= sc.C4_RANGE[1]
+
+
+def test_a2_5_m1_from_far_away_is_a_plain_move_to_the_alignment_start():
+    assert tbl.WIRE["m1"] == b";m10b10055b012c42\r"
+    assert tbl.parse_done(":$m10D4", "m1").data == ""
+    # 3,717 units in 2.751 s: the m0 profile's prediction for a move to (2507, 1429)
+    assert geo.predicted_move_time((-1210, 1870), (2507, 1429)) == pytest.approx(2.751, abs=0.05)
+    # the app sends m1 only from the far side (2507, 1498), where 0.400 s is recorded twice
+    lo, hi = tbl.TIME_WINDOW["m1"]
+    assert lo <= 0.400 <= hi
+    assert geo.predicted_move_time((2507, 1498), (2507, 1429)) <= hi
+    b_align = next(s for s in tbl.B_STEPS if s.key == "b_align").ops
+    moves = [op for op in b_align if op[0] == "move"]
+    assert moves[-1] == ("move", "m1", "m1") and moves[-2] == ("move", "to_2507", "to_2507")
+    i = b_align.index(("move", "m1", "m1"))
+    assert b_align[i - 1] == ("p0", "AT_2507", "at the far side")
+
+
+def test_a2_6_f3_answers_01_with_the_arm_already_free_and_the_app_never_sends_it_then():
+    rep = tbl.parse_done_c(":$f300178", "f3", 2)
+    assert rep.data == "01"
+    with pytest.raises(tbl.ProtocolError):
+        tbl.parse_done(":$f300178", "f3")          # the app accepts only the recorded 00
+    # the alignment start is always reached through the homing first (C_HOME then C_ALIGN), so
+    # f3 is never sent with the arm free
+    import inspect
+    from workflow.i1io.table import job as Jm
+    src = inspect.getsource(Jm.TableJob._align)
+    assert src.index("self._run_b(C_HOME)") < src.index("self._run_b(C_ALIGN)")
+    assert "if not (d.arm_free is True and d.mode_on):" in src
+
+
+def test_spot_rows_start_at_column_0_on_every_row():
+    """S-8: as i1Profiler's spot rows (REC3: both rows column 0 -> 23, the move back 2.239 s)."""
+    from tests.i1io_table.job_harness import demo_sheet, demo_aims
+    from tests.i1io_table.part_c_sim import CSimTable  # noqa: F401
+    sheet = demo_sheet()
+    aims_mm = [tuple(sc.sheet_table_mm(sheet, a["page_mm"])) for a in sc.aims_of(sheet, 0)]
+    al = geo.fit_alignment(aims_mm, demo_aims(sheet))
+    for k in range(min(3, sp.rows_on_page(sheet, 0))):
+        plan = sp.plan_row(sheet, 0, k, al)
+        xs = [p.target[0] for p in plan.patches]
+        assert xs == sorted(xs, reverse=True), k          # from the marks' end (largest X)

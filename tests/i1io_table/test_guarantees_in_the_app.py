@@ -64,13 +64,16 @@ STDLIB = {"__future__", "csv", "json", "os", "time", "dataclasses", "pathlib", "
           "copy",         # job.py: its own copy of the chart (review of step 6)
           "getpass",      # diagnostics.py: the user's name, only to keep it OUT of the log
           "io", "shutil",  # step 7: the readings' CSV; one copy of the measurement on Save
-          "hashlib"}       # review 8, S-4: the filing note's checksum of the measurement
+          "hashlib",       # review 8, S-4: the filing note's checksum of the measurement
+          "struct"}        # D-4b: the table's 36 stored white tile values (bytes 88-231 only)
 #: step 7: the measurement is made with the APP's own functions for a measurement (the
 #: i1Profiler import's pairing, the measurement states, the atomic replace), never a second
 #: writer of its own; nothing else of the app is imported
 STEP7_APP_IMPORTS = {
     "measurement.py": {"workflow.measurement_pairing", "workflow.measurement_state",
-                       "core.text_io", "core.file_manager"},
+                       "core.text_io", "core.file_manager",
+                       # D-4b: a row's XYZ again from its scaled spectrum, as strip.py does
+                       "workflow.argyll_colorimetry"},
     # round B: a strip row's XYZ from its spectrum, by the app's own ArgyllCMS method
     "strip.py": {"workflow.argyll_colorimetry", "core.cgats_date"},
     # round B: the helper's build string through the app's own --caps question

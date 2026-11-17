@@ -54,7 +54,10 @@ DONE_EXTRA_ACCEPT_S = (0.25, 1.20)
 #: max 0.376. The move starts with the FIRST READING (0.370), not d1's 365 ms after it. The
 #: 0.43 used before (0.5.0) was 12 readings late; the uniformity refinement did not rescue it
 #: on the R1/R2 rows (dE00 mean 21 against the spots; 2.1 with 0.372 and no refinement, 0.2-0.3
-#: on the patches that are uniform in the stream).
+#: on the patches that are uniform in the stream). Confirmed again on the volunteer's table
+#: (17 Nov 2026, i1Profiler's two rows at 168 mm/s against its own saved file): the best motion
+#: start is lamp + 0.372 s on both rows (0.09 dE00 mean; 0.43 s gives 25-36). Note: i1Profiler's
+#: calibration on the table's tile makes no wavelength-LED reading (none in three recordings).
 MOTION_START_AFTER_LAMP_S = 0.372
 #: readings the cut may move the motion start by, by default: none. A refinement that picks
 #: the most uniform windows was MEASURED to wander on real rows (R1 R2: lamp + 0.305..0.500

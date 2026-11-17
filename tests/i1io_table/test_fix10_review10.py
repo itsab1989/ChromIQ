@@ -881,8 +881,11 @@ def test_m3_the_ring_visits_every_patch_of_a_row_in_order(tab, beta, tmp_path, m
 
 # ---- the calibration place: asked once, remembered (the owner) -----------------------------------
 
-def test_the_calibration_place_is_asked_once_and_reaches_the_job(qtbot, monkeypatch, tmp_path,
-                                                                 settings):
+def test_the_calibration_place_is_never_asked_and_the_table_tile_reaches_the_job(
+        qtbot, monkeypatch, tmp_path, settings):
+    """Owner-results round (item 4): the table's tile is the default and is not asked at the
+    first measurement any more (the once-only page is gone); it can still be changed from the
+    first page and in Preferences > Beta."""
     settings.set(W.CAL_KEY, "")
     settings.set(W.CONSENT_KEY, W.CONSENT_VERSION)
     sim = WindowSim()
@@ -894,14 +897,12 @@ def test_the_calibration_place_is_asked_once_and_reaches_the_job(qtbot, monkeypa
     win.show()
     win.start()
     p = _person(win, sim, qtbot)
-    assert p.page() == "cal_choice"
-    assert p.labels()[:2] == ["Table's tile", "Own tile (the cautious choice)"]
-    assert not any(b.isDefault() for b in win._buttons)
-    p.press("Table's tile")
-    assert W.calibration_place(settings) == "table tile" and p.page() == "prepare"
+    assert p.page() == "prepare"
+    assert W.calibration_place(settings) == "table tile"
     assert "table's white tile" in win._text.text()
     p.drive_until("end_of_session")
-    assert "calibration_place" not in win.pages_shown              # answered from the setting
+    assert "calibration_place" not in win.pages_shown              # answered from the default
+    assert "cal_choice" not in win.pages_shown
     assert sim.jobs[0].cal_place == "table tile"
     # a second measurement asks nothing about it
     win2, sim2, _r, p2, _s, _f = open_window(qtbot, monkeypatch, tmp_path / "b", settings,
@@ -909,6 +910,28 @@ def test_the_calibration_place_is_asked_once_and_reaches_the_job(qtbot, monkeypa
     assert p2.page() == "prepare"
     p2.drive_until("end_of_session")
     assert "cal_choice" not in win2.pages_shown and "calibration_place" not in win2.pages_shown
+
+
+def test_the_own_tile_can_still_be_chosen_from_the_first_page(qtbot, monkeypatch, tmp_path,
+                                                               settings):
+    settings.set(W.CAL_KEY, "")
+    settings.set(W.CONSENT_KEY, W.CONSENT_VERSION)
+    sim = WindowSim()
+    monkeypatch.setattr(W, "JOB_FACTORY", sim.factory)
+    monkeypatch.setattr(W, "USB_STATUS", lambda: (True, ""))
+    _proj, run = project(tmp_path, small_sheet())
+    win = W.TableMeasureWindow(None, settings, small_sheet(), run, ARGS)
+    qtbot.addWidget(win)
+    win.show()
+    win.start()
+    p = _person(win, sim, qtbot)
+    p.press("Change where it is calibrated")
+    assert p.page() == "cal_choice"
+    assert p.labels()[:2] == ["Table's tile", "Its own white tile"]
+    assert not any(b.isDefault() for b in win._buttons)
+    assert "0.13" in win._text.text() and "asks you this once" not in win._text.text()
+    p.press("Its own white tile")
+    assert W.calibration_place(settings) == "own tile" and p.page() == "prepare"
 
 
 def test_own_tile_stored_shows_only_the_two_hands_on_steps(qtbot, monkeypatch, tmp_path,
@@ -929,7 +952,7 @@ def test_the_change_line_on_the_first_page_and_preferences_are_honoured(qapp, qt
                                                     asking=False)
     p.press("Change where it is calibrated")
     assert p.page() == "cal_choice"
-    p.press("Own tile (the cautious choice)")
+    p.press("Its own white tile")
     assert W.calibration_place(settings) == "own tile" and p.page() == "prepare"
     # Preferences > Beta (the Beta on): the same setting
     import workflow.i1io.support as sup
@@ -939,7 +962,12 @@ def test_the_change_line_on_the_first_page_and_preferences_are_honoured(qapp, qt
         dlg = SettingsDialog(settings)
         combo = dlg._i1io_cal_combo
         assert combo.currentData() == "own tile"
+        # owner-results round: two places only, the table's tile first (no "ask" entry)
+        assert [combo.itemData(i) for i in range(combo.count())] == ["table tile", "own tile"]
         combo.setCurrentIndex(combo.findData("table tile"))
+        # D-4b beside it, off by default
+        assert dlg._i1io_stored_white_check is not None
+        assert not dlg._i1io_stored_white_check.isChecked()
         dlg._save_and_close()
         dlg.deleteLater()
     finally:
@@ -958,3 +986,23 @@ def test_the_failed_row_text_names_the_button_it_has():
     body = M.M_I1IO_DRIVE_ROW_FAILED.render(row=2, page=1, why="x")[1]
     labels = [W.choice_label("row_failed", v) for v in ("again", "skip", "stop")]
     assert all(f"•  {lab}:" in body for lab in labels), labels
+
+
+def test_preferences_writes_nothing_unasked_and_keeps_the_stored_white_choice(qapp, qtbot,
+                                                                              settings):
+    """Unset place = the table's tile: OK in Preferences leaves no new key behind; ticking the
+    stored-white option stores it, and the window hands it to the job."""
+    import workflow.i1io.support as sup
+    from ui.dialogs.settings_dialog import SettingsDialog
+    settings.set(W.CAL_KEY, "")
+    sup.set_enabled_for_this_process(True)
+    try:
+        dlg = SettingsDialog(settings)
+        assert dlg._i1io_cal_combo.currentData() == "table tile"
+        dlg._i1io_stored_white_check.setChecked(True)
+        dlg._save_and_close()
+        dlg.deleteLater()
+    finally:
+        sup.set_enabled_for_this_process(None)
+    assert settings.get(W.CAL_KEY, "") == ""
+    assert W.stored_tile_white(settings) is True

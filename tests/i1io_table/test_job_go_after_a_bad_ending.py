@@ -112,7 +112,9 @@ def test_again_on_a_failed_row_asks_go_before_the_arm_moves(tmp_path, asking):
     assert kinds[i + 1] == J.Confirm.GO and seen[i + 1][1] == seen[i][1]   # nothing moved between
 
 
-CLEAN = {'aimed': 3, 'arm_felt': 1, 'calibration_place': 1, 'first_visit': 3, 'go': 2,
+#: first_visit 3 -> 1 in the owner-results round (S-8): every spot row now starts at column 0,
+#: so the move to each row's start runs back over the chart's own rows, already driven
+CLEAN = {'aimed': 3, 'arm_felt': 1, 'calibration_place': 1, 'first_visit': 1, 'go': 2,
          'reader_consent': 1, 'ready_to_open': 1, 'sheet_laid': 1}
 
 

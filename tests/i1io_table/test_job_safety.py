@@ -81,7 +81,7 @@ def test_the_per_step_numbers_are_the_testers():
     assert cp.OPEN == (11, 0)
     assert cp.PARK == (tbl.STEP_MAX_LINES["b_home"], tbl.STEP_MAX_MOTIONS["b_home"]) == (4, 1)
     assert cp.APPROACH == (4 + tbl.STEP_MAX_LINES["b_align"], 1 + 3)
-    assert (cp.AIMS, cp.CREEP, cp.CHECK_MOVE, cp.HOME) == ((8, 0), (28, 11), (4, 1), (8, 1))
+    assert (cp.AIMS, cp.CREEP, cp.CHECK_MOVE, cp.HOME) == ((8, 0), (29, 11), (5, 1), (8, 1))
     assert cp.spot_row(33) == (70, 33) and cp.STRIP_ROW == (19, 4)
     assert J.D1_CAPS == cp.AIMS and J.DZ_CAPS == cp.CREEP and J.D2_CAPS == cp.CHECK_MOVE
     assert (cp.ALLOWANCE_FRACTION, cp.ALLOWANCE_ROWS, cp.ALLOWANCE_ALIGNMENTS) == (0.10, 2, 1)
@@ -96,7 +96,7 @@ def test_caps_formula_is_the_stated_one():
     # step 7: one calibration (2 lines) and one tile reading (3 lines) for the session
     assert (c.lines, c.moves) == (11 + 4 + 2 + 3 + need[0] + allow[0], 1 + need[1] + allow[1])
     assert (cp.CALIBRATION, cp.TILE_READING) == ((2, 0), (3, 0))
-    assert cp.spot_row_step(33) == (103, 33)
+    assert cp.spot_row_step(33) == (136, 33)
 
 
 EXTREMES = {
@@ -217,7 +217,7 @@ def test_the_creep_numbers_are_pinned():
     assert (cp.CREEP_STEPS_MAX, cp.CREEP_PAUSE_S, geo.CREEP_STEP) == (10, 0.5, 50)
     # enough for the whole front zone: it needs at most 8 steps
     assert (geo.FRONT_CAP_Y - A.ymax) / geo.CREEP_STEP < cp.CREEP_STEPS_MAX
-    assert cp.CREEP == (2 * 10 + 8, 10 + 1)
+    assert cp.CREEP == (2 * 10 + 8 + 1, 10 + 1)      # +1: S-7, the first arrival read again
 
 
 def _front_run(**kw):

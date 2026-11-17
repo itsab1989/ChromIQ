@@ -23,9 +23,19 @@ PLAUSIBLE_Y = (0.2, 130.0)
 #: part C (and APP_DESIGN 6.1): at least this long between the end of a reading and the next
 #: move of the arm, so the table is never driven faster than i1Profiler did (1.07 s recorded)
 PACE_FLOOR_S = 1.0
-#: what a spot patch takes at most, for the calibration check before a row (tester: "about
-#: 1.5 s per patch as i1Profiler did it")
-PATCH_S_ESTIMATE = 1.5
+#: what a spot patch takes at most, for the calibration check before a row. Was 1.5 s (the
+#: tester: "as i1Profiler did it", an M0-only row of S2). i1Profiler's DUAL spot row on the
+#: volunteer's table (17 Nov 2026) took 2.01 s a patch (1.94-2.04): I1PROFILER_DUAL_PATCH_S.
+#: ChromIQ reads ONE (M0) reading per patch but waits PACE_FLOOR_S after it: the 0.48 s move,
+#: the arrival reading, the reading itself (not yet recorded on a table; 0.9 s in the
+#: simulator) and the 1.0 s pace come to about 2.4 s, so its own estimate is 2.5 s.
+I1PROFILER_DUAL_PATCH_S = 2.0
+PATCH_S_ESTIMATE = 2.5
+#: S-8: spot rows run from column 0 (the end of marks 1 and 2) on EVERY row, as i1Profiler's spot
+#: rows do on the volunteer's table (17 Nov 2026: both rows column 0 -> 23, the move back to
+#: column 0 of the next row 2.239 s); only its scan rows are serpentine. True only for the
+#: wire-identity tests against tester 0.6.0, whose spot stages were serpentine.
+SPOT_ROWS_SERPENTINE = False
 #: ArgyllCMS's calibrations last one hour (APP_DESIGN 7); a row is started only with its own
 #: estimated time plus this margin left (the helper's rule for a strip row: 2 minutes)
 CAL_VALID_S = 3600.0
@@ -54,6 +64,52 @@ STRIP_N_MAX = 1190
 #: when no slower speed keeps the row within STRIP_N_MAX, and only where every patch window
 #: still holds STRIP_MIN_READINGS readings (patches of about 9.7 mm and longer).
 STRIP_SPEEDS = (54, 61, 87, 88, 110, 118, 137, 138, 168)
+# ---- D-4b: the table's stored white tile values (an option, off by default) ---------------
+#: a white tile's reflectance, as a fraction, must lie in this range in every band (the analysis
+#: of 17 Nov 2026 found the run of 36 values by this range); anything else is not used
+STORED_TILE_RANGE = (0.30, 1.20)
+#: the per-band factor (stored value / the table's tile as the instrument read it after its
+#: white) must lie in this range: on the real table they differed by 1.3 to 5.2 %; a factor
+#: beyond 15 % means the values or the reading are not what this option assumes
+STORED_FACTOR_RANGE = (0.85, 1.15)
+#: the wavelengths of the stored values (ArgyllCMS's 380-730 nm at 10 nm, the i1Pro 2's grid)
+STORED_TILE_WL = tuple(range(380, 731, 10))
+
+
+def stored_white_factors(stored, tile_percent) -> "tuple[tuple | None, str]":
+    """((factor per 10 nm band from 380 to 730 nm), "") or (None, the reason id). *stored*: the
+    table's 36 values (fractions); *tile_percent*: the table's tile read by the instrument right
+    after its white, 36 values in percent as a .ti3 holds them."""
+    import math
+    if stored is None or len(stored) != len(STORED_TILE_WL):
+        return None, "stored_white_not_readable"
+    lo, hi = STORED_TILE_RANGE
+    if not all(isinstance(v, (int, float)) and math.isfinite(v) and lo <= v <= hi
+               for v in stored):
+        return None, "stored_white_not_a_white_tile"
+    if tile_percent is None or len(tile_percent) != len(STORED_TILE_WL):
+        return None, "stored_white_no_tile_reading"
+    if not all(isinstance(v, (int, float)) and math.isfinite(v) and v > 1.0
+               for v in tile_percent):
+        return None, "stored_white_no_tile_reading"
+    f = tuple(s / (t / 100.0) for s, t in zip(stored, tile_percent))
+    if not all(STORED_FACTOR_RANGE[0] <= v <= STORED_FACTOR_RANGE[1] for v in f):
+        return None, "stored_white_too_far_from_the_reading"
+    return f, ""
+
+
+def factor_at(factors, wl: float) -> float:
+    """The factor at any wavelength (linear between the 10 nm bands, the end values beyond)."""
+    grid = STORED_TILE_WL
+    if wl <= grid[0]:
+        return factors[0]
+    if wl >= grid[-1]:
+        return factors[-1]
+    i = int((wl - grid[0]) // 10)
+    t = (wl - grid[i]) / 10.0
+    return factors[i] * (1 - t) + factors[i + 1] * t
+
+
 #: readings a patch's window must hold for the patch to be cut (a FIRST TRY value: an 8.9 mm
 #: patch at 54 mm/s gets about 12 in its clean middle; fewer means the move ran differently)
 STRIP_MIN_READINGS = 5
@@ -80,7 +136,8 @@ class PatchTarget:
 
 @dataclass(frozen=True)
 class RowPlan:
-    """One row of one page: its patches in the order the arm visits them (serpentine)."""
+    """One row of one page: its patches in the order the arm visits them (spot rows from column
+    0 on every row; strip rows serpentine)."""
     page: int                 # 0-based
     index: int                # 0-based row of the page (the side file's strip)
     kind: str                 # "spot" (step 7); "strip" (step 10, round B)
@@ -102,10 +159,11 @@ def plan_row(sheet: dict, page: int, index: int, alignment, front_y=None, kind: 
              only_locs=None) -> RowPlan:
     """The row's plan. Spot (step 7): part C's ``sheet_spot_rows`` for this row: every patch's
     centre through the alignment (``Alignment.target``: on the aimed sheet, inside the area,
-    not beyond the confirmed front), sorted along X, serpentine (every second row from the
-    other end, as i1Profiler drives rows). *only_locs* keeps only those patches (resume and
-    refinement: the order stays the serpentine one). A target outside raises geometry's
-    AreaRefused (the caller turns it into its id); nothing is sent either way.
+    not beyond the confirmed front), every row from column 0 (the end of marks 1 and 2, the
+    largest X) to its last column, as i1Profiler's spot rows run (S-8: not serpentine; only
+    scan rows are). *only_locs* keeps only those patches (resume and refinement: the order
+    stays the same). A target outside raises geometry's AreaRefused (the caller turns it into
+    its id); nothing is sent either way.
 
     Strip rows (round B): :func:`plan_strip_row`."""
     if kind not in ROW_KINDS:
@@ -122,7 +180,10 @@ def plan_row(sheet: dict, page: int, index: int, alignment, front_y=None, kind: 
         pts.append(PatchTarget(str(q["sample_id"]), q["loc"],
                                alignment.target(u, f"patch {q['loc']}", run_out_mm=0.5,
                                                 front_y=front_y)))
-    pts.sort(key=lambda t: t.target[0], reverse=(index % 2 == 1))
+    if SPOT_ROWS_SERPENTINE:            # tester 0.6.0's order (its wire-identity tests only)
+        pts.sort(key=lambda t: t.target[0], reverse=(index % 2 == 1))
+    else:
+        pts.sort(key=lambda t: t.target[0], reverse=True)
     if only_locs is not None:
         keep = set(only_locs)
         pts = [p for p in pts if p.loc in keep]

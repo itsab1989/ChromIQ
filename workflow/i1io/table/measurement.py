@@ -46,6 +46,9 @@ TABLE_VALUE = "i1iO 2"
 #: a reading's event XYZ (4 decimals) and the value the helper saved for it must agree
 XYZ_ABS_TOLERANCE = 0.0006
 ROW_RECORD_SUFFIX = ".row.json"
+#: D-4b: declared in a measurement whose white was scaled to the table's stored tile values
+WHITE_KEYWORD = "CHROMIQ_TABLE_WHITE"
+WHITE_STORED = "table's stored white tile values"
 #: written into a session folder by Discard: its readings are never used again (the same name
 #: as core.file_manager.I1IO_TABLE_DISCARDED; a test pins it)
 DISCARDED = "discarded.json"
@@ -173,9 +176,11 @@ def assemble(session_dirs, chart_ti2, out_ti3, base_ti3=None) -> Assembly:
     head = None
     rows: "dict[str, list[str]]" = {}
     rejected = []
+    white = None                     # "own" / "stored": every row of a measurement alike
     try:
         if base_ti3 is not None and Path(base_ti3).is_file():
             bf, brows, btext = _rows_by_loc(Path(base_ti3))
+            white = "stored" if re.search(r'^' + WHITE_KEYWORD + r'\s', btext, re.M) else "own"
             keep = _device_free(bf)
             fields = [bf[i] for i in keep]
             head = btext
@@ -200,6 +205,12 @@ def assemble(session_dirs, chart_ti2, out_ti3, base_ti3=None) -> Assembly:
                 fields, head = flds, rtext
             elif flds != fields:
                 raise Refused("readings_with_different_fields", file=name)
+            scale = rec.get("white_scale")
+            kind = "stored" if scale else "own"
+            if white is None:
+                white = kind
+            elif white != kind:
+                raise Refused("readings_with_different_white_references", file=name)
             for a in accepted:
                 loc = a.get("loc", "")
                 parts = rrows.get(loc)
@@ -209,12 +220,13 @@ def assemble(session_dirs, chart_ti2, out_ti3, base_ti3=None) -> Assembly:
                 if not _xyz_agrees(rf, parts, a.get("xyz")):
                     rejected.append((loc, "saved_value_differs_from_the_reading"))
                     continue
-                rows[loc] = [parts[i] for i in keep]
+                row = [parts[i] for i in keep]
+                rows[loc] = _scaled(fields, row, scale) if scale else row
     except Refused as exc:
         return Assembly("refused", exc.reason, detail=exc.detail)
     if not rows:
         return Assembly("empty", "nothing_read", rejected=tuple(rejected))
-    text = _write_device_free(head, fields, rows)
+    text = _write_device_free(head, fields, rows, white == "stored")
     out_ti3.parent.mkdir(parents=True, exist_ok=True)
     tmp = out_ti3.with_name(out_ti3.name + ".part")
     tmp.write_text(text, encoding="utf-8")
@@ -239,21 +251,54 @@ def assemble(session_dirs, chart_ti2, out_ti3, base_ti3=None) -> Assembly:
                     tuple(sorted(unread or ())), tuple(rejected))
 
 
-def _write_device_free(head_text: str, fields, rows) -> str:
+def _scaled(fields, row, scale) -> "list[str]":
+    """D-4b: one row with its spectrum scaled per band to the table's stored white (factors on
+    380-730 nm at 10 nm, interpolated for other bands) and its XYZ / L*a*b* computed again
+    from that spectrum the way ArgyllCMS's chartread does (D50, 2 degree observer)."""
+    from workflow.argyll_colorimetry import spectra_to_xyz_like_argyll
+    from . import spot as sp
+    from .strip import lab_d50
+    spec = [(i, float(f[5:])) for i, f in enumerate(fields) if f.startswith("SPEC_")]
+    if not spec:
+        raise Refused("stored_white_needs_spectral_values")
+    out = list(row)
+    vals = []
+    for i, wl in spec:
+        v = float(row[i]) * sp.factor_at(scale, wl)
+        out[i] = f"{v:.5f}"
+        vals.append(v)
+    xyz = [float(c) for c in spectra_to_xyz_like_argyll([vals], [wl for _i, wl in spec],
+                                                       illuminant="D50", observer="1931_2",
+                                                       percent=True)[0]]
+    for k, v in zip(("XYZ_X", "XYZ_Y", "XYZ_Z"), xyz):
+        if k in fields:
+            out[fields.index(k)] = f"{v:.6f}"
+    if "LAB_L" in fields:
+        for k, v in zip(("LAB_L", "LAB_A", "LAB_B"), lab_d50(xyz)):
+            if k in fields:
+                out[fields.index(k)] = f"{v:.6f}"
+    return out
+
+
+def _write_device_free(head_text: str, fields, rows, stored_white: bool = False) -> str:
     out = []
     for ln in head_text.splitlines():
         s = ln.strip()
         if s.startswith("NUMBER_OF_FIELDS"):
             break
-        if re.match(r'^KEYWORD\s+"(CHROMIQ_DEVICE_FROM_CHART|' + TABLE_KEYWORD + ')"', s):
+        if re.match(r'^KEYWORD\s+"(CHROMIQ_DEVICE_FROM_CHART|' + TABLE_KEYWORD + '|'
+                    + WHITE_KEYWORD + ')"', s):
             continue
-        if re.match(r'^(CHROMIQ_DEVICE_FROM_CHART|' + TABLE_KEYWORD + r'|COLOR_REP)\s', s):
+        if re.match(r'^(CHROMIQ_DEVICE_FROM_CHART|' + TABLE_KEYWORD + '|' + WHITE_KEYWORD
+                    + r'|COLOR_REP)\s', s):
             continue
         out.append(ln)
     while out and not out[-1].strip():
         out.pop()
     at = 1 if out and out[0].strip().startswith("CTI3") else 0
     out[at:at] = [f'KEYWORD "{TABLE_KEYWORD}"', f'{TABLE_KEYWORD} "{TABLE_VALUE}"']
+    if stored_white:
+        out[at + 2:at + 2] = [f'KEYWORD "{WHITE_KEYWORD}"', f'{WHITE_KEYWORD} "{WHITE_STORED}"']
     body = [" ".join(r) for r in rows.values()]
     return ("\n".join(out) + "\n\n" + f"NUMBER_OF_FIELDS {len(fields)}\nBEGIN_DATA_FORMAT\n"
             + " ".join(fields) + " \nEND_DATA_FORMAT\n\n"

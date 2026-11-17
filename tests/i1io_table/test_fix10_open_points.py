@@ -402,7 +402,7 @@ def test_every_reading_of_a_page_is_on_the_overlay_on_its_own_patch(tab, beta, i
                                                                     monkeypatch, qtbot):
     """'some but very few patches show the expected vs measure overlay': on a real Create
     Chart layout read whole by the simulated table, the overlay holds one entry per patch read,
-    each on that patch's own box, for rows read left to right and right to left alike."""
+    each on that patch's own box (every row read from column 0 since the owner-results round)."""
     import json
     import shutil
     from core.file_manager import Project
@@ -428,7 +428,7 @@ def test_every_reading_of_a_page_is_on_the_overlay_on_its_own_patch(tab, beta, i
     want = {(boxes[l].x(), boxes[l].y(), boxes[l].width(), boxes[l].height()) for l in read}
     assert len(set(read)) == sum(len(r) for r in rows)              # the whole page was read
     assert on == want                                                # each on its own box
-    # the reading order: at least one row each way, every patch of each row once
+    # the reading order (S-8): every row the same way, from column 0, every patch once
     orders = [[l for l in read if l in row] for row in rows]
-    assert any(o == r for o, r in zip(orders, rows))
-    assert any(o == r[::-1] for o, r in zip(orders, rows))
+    assert all(o == r for o, r in zip(orders, rows)) or \
+        all(o == r[::-1] for o, r in zip(orders, rows))

@@ -23,6 +23,16 @@ import pytest
 from tests.i1io_table import job_reading_wire_cases as W
 from tests.i1io_table.job_harness import HERE
 
+
+@pytest.fixture(autouse=True)
+def _the_testers_serpentine_spot_rows(monkeypatch):
+    """Tester 0.6.0's spot stages ran every second row from the other end; the app's spot rows
+    start at column 0 on every row since the owner-results round (S-8, as i1Profiler's spot rows
+    on the volunteer's table). The frozen sittings are compared in the tester's order; nothing
+    else of the job differs."""
+    from workflow.i1io.table import spot as sp
+    monkeypatch.setattr(sp, "SPOT_ROWS_SERPENTINE", True)
+
 TESTER = json.loads((HERE / "data" / "tester_060_reading_wire.json").read_text(encoding="utf-8"))
 CASES = W.cases()
 ROW_CHARTS = ("c1_spot", "c2_tile")

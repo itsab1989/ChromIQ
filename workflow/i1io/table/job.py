@@ -132,11 +132,18 @@ READER_CONSENT_FACTS_MAC = ("on_a_mac_it_closes_xrites_i1prodeviceservice_if_the
                             "in_use_for_up_to_two_seconds",
                             "macos_normally_starts_that_service_again_by_itself",
                             "xrites_xrdd_is_not_touched",
-                            "unknown_whether_i1profiler_finds_the_i1pro2_at_once_afterwards",
+                            "i1profiler_worked_normally_afterwards_on_one_mac",
                             "the_calibration_is_kept_where_a_later_hand_reading_finds_it")
-#: D-4 is open (which white agrees with i1Profiler): until it is settled the instrument's own
-#: tile is the recommended place (APP_DESIGN 12, the cautious outcome); the job never answers
-CAL_PLACE_RECOMMENDED = "own tile"
+#: D-4 (where to calibrate), answered by the volunteer's table on 17 Nov 2026: a white made on
+#: the table's tile with the instrument in the arm and one made on the instrument's own tile gave
+#: patch values 0.13 dE00 apart on average (at most 0.22) from the same raw readings, and
+#: i1Profiler itself calibrates on the table's tile. So the table's tile is the recommended (and
+#: the window's default) place; the own tile stays a choice. What is still open is D-4b: which
+#: white REFERENCE the table's tile is given (the instrument's own, as by hand, or the values
+#: stored in the table, as i1Profiler does). The job never answers the question itself.
+CAL_PLACE_RECOMMENDED = "table tile"
+#: what the calibration question's data says about it (the log and the analysis read it)
+CAL_PLACE_MEASURED = "own_tile_and_table_tile_0.13_dE00_apart_on_one_real_table_2026-11-17"
 #: NEXT_STEPS 4d: at most this many rows of a page are read again, whatever the session total
 ROWS_READ_AGAIN_PER_PAGE = 2
 #: round B (the owner, 2026-11-17: "can you confirm the device being on each crosshair point by
@@ -278,7 +285,7 @@ STAGE_KEY = {"park": "park", "align": "d1", "creep": "dz", "check_move": "d2", "
 #: the step caps the tester used for its own stages (lines, movements)
 DZ_CAPS = cp.CREEP
 D1_CAPS = (8, 0)
-D2_CAPS = (4, 1)
+D2_CAPS = (5, 1)
 
 # The recorded part B steps part C uses, each allowed from the states part C leaves (C_HOME:
 # the homing only from "warm", "homed", "b_done": the needs-conditions before homing).
@@ -351,6 +358,10 @@ def area_id(reason: str) -> str:
     if "outside the aimed marks" in reason:
         return "target_off_sheet"
     return "target_outside_area"
+
+
+#: S-7: the wait before an arrival that read outside the tolerance is read once more
+ARRIVAL_RECHECK_S = 0.3
 
 
 def _near(p, q, d=5) -> bool:
@@ -446,7 +457,14 @@ class TableJob:
                  other_program=None, ask_after_each_step: bool = True, reader_factory=None,
                  helper_check=None, instrument_check=None, chart_ti2=None,
                  app_marker_place: "tuple[Path, str] | None" = None, press_factory=None,
-                 scan_factory=None, latency_guard=None):
+                 scan_factory=None, latency_guard=None, stored_tile_white: bool = False):
+        #: D-4b (an option, off until the owner decides): the white of this measurement scaled
+        #: per band to the white tile values stored in the table's memory, as i1Profiler does.
+        #: Off: the i1Pro 2's own white reference, as in a measurement by hand.
+        self.stored_tile_white = bool(stored_tile_white)
+        #: the per-band factors in use (None: off, or refused), and why they were refused
+        self.white_scale: "tuple | None" = None
+        self.white_scale_refused: "str | None" = None
         # the job's OWN copy (review of step 6): the caps are derived from it, and a caller
         # changing its chart afterwards changes nothing here
         self.sheet = copy.deepcopy(sheet)
@@ -591,6 +609,7 @@ class TableJob:
         self.rows_again: "dict[int, int]" = {}
         self._row_seq = 0
         self.tile_readings: "list[dict]" = []
+        self._tile_spectrum: "list[float] | None" = None
         self.ended: "str | None" = None          # "saved" / "discarded" / "nothing_read"
         #: step 8: interrupted earlier sessions adopted by this one (their readings count)
         self._earlier_dirs: "list[Path]" = []
@@ -1452,8 +1471,18 @@ class TableJob:
             raise d._doubt(f"{what}: after a slow move the arm reads {got}, not {target}")
         got = d.position()
         if not _near(got, target):
-            d.outside_at = got
-            raise d._doubt(f"{what}: the arm reads {got}, not {target}")
+            # S-7 (the volunteer's table, 17 Nov 2026: i1Profiler's own arrivals on 48 patches
+            # were dx -2..+3, dy -5..+1, one at exactly 5): one reading outside the tolerance is
+            # read once more after a short wait, sending nothing in between; the tolerance itself
+            # is NOT widened. A second reading outside stops as before.
+            first = got
+            d.c_wait(ARRIVAL_RECHECK_S)
+            got = d.position()
+            d.log("DATA", f"{what}: the arm read {first}, {ARRIVAL_RECHECK_S:.1f} s later {got} "
+                          f"(target {target}); read again once")
+            if not _near(got, target):
+                d.outside_at = got
+                raise d._doubt(f"{what}: the arm reads {got}, not {target} (twice)")
         self.driven.append((a, target))
         return got
 
@@ -2135,7 +2164,8 @@ class TableJob:
             place = "own tile"
         elif self.cal_place is None:
             ans = yield Ask(Confirm.CAL_PLACE, {"recommended": CAL_PLACE_RECOMMENDED,
-                                                "decision_open": "D-4"})
+                                                "measured": CAL_PLACE_MEASURED,
+                                                "decision_open": "D-4b"})
             if ans == "stop":
                 self._close_reader(reader)
                 raise PersonStopped("calibration_not_started")
@@ -2182,7 +2212,48 @@ class TableJob:
         self.calibration_due = False
         self._check_rest("after the calibration")
         self._block["data"]["calibration"] = {"place": place}
-        return {"place": place, "valid_s": sp.CAL_VALID_S}
+        out = {"place": place, "valid_s": sp.CAL_VALID_S}
+        if self.stored_tile_white:
+            out["stored_white"] = yield from self._stored_white()
+        return out
+
+    def _stored_white(self):
+        """D-4b: read the table's tile once (at rest, nothing moves) and scale this session's
+        white per band to the tile values stored in the table. Any doubt: said, and the session
+        measures with the i1Pro 2's own reference (the option's off behaviour)."""
+        d = self._table
+        self.white_scale = None
+        why = ""
+        if self.options_report.options.no_spectral:
+            why = "stored_white_needs_spectral_values"
+        elif d.stored_tile is None:
+            why = "stored_white_not_readable"
+        else:
+            self._tile_spectrum = None
+            try:
+                yield from self._read_tile()
+            except StageFailed as exc:
+                self.diag.log("STEP", f"the tile reading for the stored white failed "
+                                      f"({exc.reason})")
+                why = "stored_white_no_tile_reading"
+            if not why:
+                factors, why = sp.stored_white_factors(d.stored_tile, self._tile_spectrum)
+                if factors is not None:
+                    self.white_scale = tuple(round(f, 6) for f in factors)
+        if self.white_scale is None:
+            self.white_scale_refused = why
+            self.diag.log("STEP", f"white reference: the i1Pro 2's own (the table's stored "
+                                  f"white tile values not used: {why})")
+            self.diag.write_json("white_scale.json", {"used": False, "why": why})
+            return {"used": False, "why": why}
+        self.white_scale_refused = None
+        lo, hi = min(self.white_scale), max(self.white_scale)
+        self.diag.log("STEP", f"white reference: the table's stored white tile values (as "
+                              f"i1Profiler does); per-band factors from {lo:.3f} to {hi:.3f}")
+        self.diag.write_json("white_scale.json", {"used": True, "wavelengths":
+                                                  list(sp.STORED_TILE_WL),
+                                                  "factors": list(self.white_scale)})
+        return {"used": True, "factor_range": [round(lo, 4), round(hi, 4)]}
 
     # ---- the table's white tile (part C's C2) -------------------------------------------------
     def read_tile(self) -> StepResult:
@@ -2208,6 +2279,11 @@ class TableJob:
         finally:
             self._finish_reader(reader)
             self._write_readings(folder, "c2_tile", rows)
+        try:
+            got = reader.readings.get("A1")
+            self._tile_spectrum = list(got.spectrum) if got and got.spectrum else None
+        except Exception:      # noqa: BLE001 - no spectrum: the stored white is refused
+            self._tile_spectrum = None
         self._check_rest("after the reading")
         self.tile_readings.append({"xyz": rows[0]["xyz"]})
         return {"xyz": rows[0]["xyz"]}
@@ -2370,7 +2446,8 @@ class TableJob:
         rec = {"seq": self._row_seq, "page": plan.page + 1, "row": plan.index + 1,
                "attempt": attempt, "kind": plan.kind, "name": name, "status": "started",
                "why": "", "reader_ti3": None, "accepted": [], "failed": [],
-               "patches": len(plan.patches)}
+               "patches": len(plan.patches),
+               "white_scale": list(self.white_scale) if self.white_scale else None}
         readings: "list[dict]" = []
         reader = None
         opened = False
@@ -2507,7 +2584,8 @@ class TableJob:
                "attempt": attempt, "kind": "strip", "name": name, "status": "started",
                "why": "", "reader_ti3": None, "accepted": [], "failed": [],
                "patches": len(plan.patches), "speed": scan_plan.speed,
-               "readings_planned": scan_plan.N, "first_try": True}
+               "readings_planned": scan_plan.N, "first_try": True,
+               "white_scale": list(self.white_scale) if self.white_scale else None}
         if attempt > 1:
             scan_plan = sc.plan_row(name, scan_plan.start, scan_plan.end, scan_plan.speed,
                                     [sc.Patch(q.sample_id, q.loc, q.xy, q.along_mm, q.half_mm)
@@ -2543,7 +2621,7 @@ class TableJob:
             if geo.in_front_zone(scan_plan.start) or geo.in_front_zone(scan_plan.end):
                 # tester fix 2: the creep confirmed the front Y at one X only; the strip runs
                 # along X, so both ends of the row are first reached by a spot move each
-                self._step("row_ends", 7, 2)
+                self._step("row_ends", 9, 2)     # +2: S-7, each arrival read again once
                 a = d.position()
                 if d.arm_free:
                     self._still(a)

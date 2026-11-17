@@ -170,7 +170,8 @@ def test_calibration_on_the_table_tile_moves_nothing_and_reads_the_arm_before_an
     assert moves(sim.received[n:]) == [] and helper.calibrations == 1
     assert job.calibration["place"] == "table tile"
     place = [d for _s, c, d, *_r in p.asked if c == J.Confirm.CAL_PLACE][0]
-    assert place == {"recommended": "own tile", "decision_open": "D-4"}
+    assert place == {"recommended": "table tile", "measured": J.CAL_PLACE_MEASURED,
+                     "decision_open": "D-4b"}
 
 
 def test_calibration_on_the_own_tile_asks_out_then_seated_and_the_white_counts_only_then(
@@ -314,8 +315,9 @@ def test_a_patch_that_fails_twice_fails_the_row_and_its_values_never_reach_the_f
     assert len(fail) == 1 and fail[0]["loc"] == "0-2" and fail[0]["why"] == "reading_implausible"
     m = job.measurement().detail["measurement"]
     assert m["state"] == "partial"
-    # the row's first two patches were read before the failure and are kept; 0-2 and 0-3 not
-    assert set(m["unread"]) == {"0-2", "0-3"}
+    # the row runs from column 0 (the end of marks 1 and 2, here 0-3: S-8); 0-3 was read
+    # before the failure and is kept; 0-2 and the rest of the row not
+    assert set(m["unread"]) == {"0-0", "0-1", "0-2"}
     text = run.i1io_table_measurement(RS.STAMP).read_text(encoding="utf-8")
     assert '"0-2"' not in text and " 0.010000 " not in text
 
@@ -713,10 +715,12 @@ def test_the_reading_constants_are_pinned():
     """Part C's plausibility and pace, ArgyllCMS's hour, the helper's 2-minute rule as the
     margin, the reader's own waits, the i1Pro 2's name as ArgyllCMS gives it."""
     assert sp.PLAUSIBLE_Y == (0.2, 130.0) and sp.PACE_FLOOR_S == 1.0
-    assert (sp.CAL_VALID_S, sp.CAL_MARGIN_S, sp.PATCH_S_ESTIMATE) == (3600.0, 120.0, 1.5)
+    # S-9: i1Profiler's dual patch 2.0 s; ChromIQ's own single reading with its pace 2.5 s
+    assert (sp.CAL_VALID_S, sp.CAL_MARGIN_S, sp.PATCH_S_ESTIMATE) == (3600.0, 120.0, 2.5)
+    assert sp.I1PROFILER_DUAL_PATCH_S == 2.0 and sp.SPOT_ROWS_SERPENTINE is False
     assert (sp.OPEN_TIMEOUT_S, sp.READ_TIMEOUT_S) == (45.0, 15.0)
     assert sp.I1PRO2_MODEL == "X-Rite i1 Pro 2" and J.ROWS_READ_AGAIN_PER_PAGE == 2
-    assert J.CAL_PLACE_RECOMMENDED == "own tile"
+    assert J.CAL_PLACE_RECOMMENDED == "table tile"
 
 
 def test_a_row_needs_its_time_and_the_margin_left_on_the_white(tmp_path):

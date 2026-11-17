@@ -22,13 +22,14 @@ TWO FRAMES, ONE OF THEM FOR PLACES. The table answers two position questions:
   the aimed mark. The arm itself (the opening) stands elsewhere at that moment: p0 read right after
   the third aim is (-83..-119, -306..-323) from it (eight sessions; the person may also have moved
   the arm a little after the press). The sight sits about 31 mm in front of the opening.
-  Confirmed again on 17 Nov 2026 for i1Profiler's strip path: in the volunteer's recording of two
-  rows scanned by i1Profiler, both scans run straight along the line through the p1 readings,
-  starting and ending 0.4 mm beyond the end patches' centres, and the patch values cut from those
-  readings at the p1 grid agree with i1Profiler's own file (0.2 dE00 on average). No offset
-  between a p1 reading and a target exists anywhere in this package. (A ChromIQ row read patch
-  by patch has not run on a real table yet; the check move's question at mark 3 is the live
-  safeguard for that path.)
+  Confirmed on 17 Nov 2026 on the volunteer's table for both of i1Profiler's paths (D-5,
+  settled for i1Profiler's own path): its scans run straight along the line through the p1
+  readings, starting and ending 0.4 mm beyond the end patches' centres, and its spot targets are
+  the grid through the three p1 readings within 1 unit; the values computed from its raw readings
+  at those places agree with its own saved files to 0.09 dE00 on average (scan) and 0.07 (spot)
+  with the table's stored tile values. No offset between a p1 reading and a target exists
+  anywhere in this package. (A row driven by ChromIQ has not run on a real table yet; the check
+  move's question at mark 3 is the live safeguard for that path.)
 
 So a p1 reading says where a mark lies; it is NOT a place the opening has been. Turning aims into
 targets needs no conversion (i1Profiler's own model, checked against its recorded moves:

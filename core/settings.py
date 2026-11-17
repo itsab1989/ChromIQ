@@ -366,10 +366,17 @@ DEFAULTS: dict[str, Any] = {
     #: Beta switches it back). Only read or written while the Beta is on.
     "i1io_table_consent_given":  0,
     "i1io_table_ask_after_each_step": True,
-    #: where the table's i1Pro 2 is calibrated (fix round 10, the owner): ""
-    #: until the first table measurement asks it once, then "table tile" or
-    #: "own tile"; changeable in Preferences > Beta (decision D-4 open).
+    #: where the table's i1Pro 2 is calibrated: "" or "table tile" = on the
+    #: table's tile (the default since the volunteer's table of 17 Nov 2026:
+    #: the two places 0.13 dE00 apart, and i1Profiler uses the table's tile;
+    #: never asked any more), "own tile" = on its own tile (Preferences > Beta
+    #: or the table window's first page).
     "i1io_table_calibration_place": "",
+    #: D-4b, an option until the owner decides (default off): the white of a
+    #: table measurement scaled per band to the tile values stored in the
+    #: table's memory, as i1Profiler does. Off = the i1Pro 2's own white
+    #: reference, as in a measurement by hand.
+    "i1io_table_stored_tile_white": False,
     #: Beta (Settings -> Beta): X-Rite i1iSis family charts, laid out by
     #: ChromIQ and measured in i1Profiler. Off = 4.3.37 except the one stated
     #: exception: the old printtarg entry "i1iSis (via i1Profiler)" is gone

@@ -238,7 +238,10 @@ RECORDED_AT = {
     "start_up": "once, on a table that answered a0 = 111800 (just switched on), right after that "
                 "answer: S1 1.517 (accepted 1.533, done 4.684, 3.167 s; what the arm did is not "
                 "recorded); then s0 f4 f4 f4 f4 (00) s0 p0 (1102, 14) i1 (0.224 s) s0, S1 "
-                "4.693-5.036",
+                "4.693-5.036; and once sent by ChromIQ's tester 0.6.0 on the volunteer's table "
+                "(17 Nov 2026, S1 l.58-92): `:!i00C`, `:$i00D9` after 3.088 s, the same nine "
+                "lines after it, p0 (1102, 29), i1 0.288 s; the arm travelled and came back, "
+                "nothing wrong reported",
 }
 
 #: Every line except the start-up (0.6.0): the start-up passes only through COLD_STEP
@@ -300,6 +303,9 @@ class Reply:
     cid: str
     status: int
     data: str
+    #: only for the memory block u8 0x6000: the 36 numbers at its bytes 88-231 (D-4b, the
+    #: table's stored white tile values), or None. Nothing else of the block is kept.
+    tile: "tuple | None" = None
 
     def xy(self) -> "tuple[int, int]":
         x, y = int(self.data[:4], 16), int(self.data[4:8], 16)
@@ -357,9 +363,34 @@ def parse_done(line: str, key: str) -> Reply:
     if key == "a0" and data not in (A0_COLD, A0_WARM):
         raise ProtocolError(f"the table answered a0 with {data}; the recordings only show "
                             f"{A0_COLD} (just switched on) and {A0_WARM} (started)")
+    tile = stored_tile_values(data) if key == "memory_a" else None
     if key in SECRET_KEYS:
         data = ""
-    return Reply(cid, status, data)
+    return Reply(cid, status, data, tile)
+
+
+#: D-4b: where the table's memory block u8 0x6000 keeps its white tile's values, as the analysis
+#: of the volunteer's recording of 17 Nov 2026 found them (i1Profiler's values are reproduced with
+#: them): 36 little-endian 32-bit floats at bytes 88-231 of the block's 256 bytes, after the
+#: serial field. ONLY these bytes are read; no earlier byte is read, logged or stored.
+STORED_TILE_FIRST_BYTE = 88
+STORED_TILE_BANDS = 36
+
+
+def stored_tile_values(data_hex: str) -> "tuple | None":
+    """The 36 numbers at bytes 88-231 of the memory block (as given in its answer, hex), or None
+    when the block is not that long or not hex. Not validated here (spot.stored_white_factors
+    does that); nothing is logged."""
+    import struct
+    a = 2 * STORED_TILE_FIRST_BYTE
+    b = a + 8 * STORED_TILE_BANDS
+    try:
+        raw = bytes.fromhex(str(data_hex)[a:b])
+    except ValueError:
+        return None
+    if len(raw) != 4 * STORED_TILE_BANDS:
+        return None
+    return struct.unpack(f"<{STORED_TILE_BANDS}f", raw)
 
 
 def parse_done_c(line: str, cid: str, data_len: int) -> Reply:
@@ -517,6 +548,11 @@ MOVE_TIMEOUT = {"home_rest": 12.0, "home_wide": 12.0, "home_far": 12.0, "home_ta
 #:   home_patch   i1 from another patch of row 1 (the optional homing after a stop by the
 #:                person): recorded on this row 2.559 s from (1172, 1663) and 3.711 s from
 #:                (-1088, 1636) (S2 371.169); as home_table
+#:   m1 is a plain move of the opening to (2507, 1429) from wherever the arm is (17 Nov 2026:
+#:                0.400 s from (2507, 1498), 1.759 s from (999, 1503), 2.751 s for 3,717 units
+#:                from (-1210, 1870), each the m0 profile's time). This program sends it ONLY
+#:                from the far side: b_align reads AT_2507 right before it, so the short
+#:                window below always applies; from anywhere else nothing is sent.
 TIME_WINDOW.update({"m1": (0.25, 0.80), "first_patch": (1.0, 2.4), "patch": (0.35, 0.70),
                     "end_home": (1.6, 4.5), "home_patch": (1.0, 6.0)})
 MOVE_TIMEOUT.update({"m1": 4.0, "first_patch": 6.0, "patch": 3.0, "end_home": 12.0,
@@ -826,9 +862,10 @@ COLD_STEP = Step(
     "recording, the table took about 3 seconds to report it finished. Then come the lines "
     "i1Profiler sent right after it: a status line, four reads of the mode flag, a status "
     "line, a position read (it must read the resting place) and the usual homing.",
-    "This start-up command was recorded ONCE, and what the arm does during it is not known: "
-    "it may travel to find its end positions and come back. In the recording it followed the "
-    "table's answer at once; here it follows your typed yes.")
+    "This start-up command was recorded ONCE from i1Profiler, and it has run ONCE from this "
+    "program on a real table (17 November 2026: 3.1 s, the arm travelled and came back to its "
+    "resting place, nothing wrong). In the recording it followed the table's answer at once; "
+    "here it follows your typed yes.")
 
 
 def near_steps() -> "tuple[Step, ...]":
@@ -967,6 +1004,8 @@ class Table:
         #: asked by the step "free" with the arm free at home; returns the answer
         self._touch = touch or (lambda: "skip")
         self._buf = b""
+        #: D-4b: the table's stored white tile values (Reply.tile of the memory block), or None
+        self.stored_tile: "tuple | None" = None
         self.closed_reason: "str | None" = None
         self.lines_sent = 0
         self.motions_sent = 0
@@ -1229,6 +1268,8 @@ class Table:
             reply = parse_done(self._read_line(start + timeout, done_max_len(key),
                                                secret=key in SECRET_KEYS), key)
             took = self.t.now() - start
+            if key == "memory_a":
+                self.stored_tile = reply.tile
         except TimeoutError:
             raise self._doubt(f"no answer to {cid} within the expected time") from None
         except TableRefused as exc:
