@@ -50,6 +50,10 @@ class ChartResult:
     #: The chart's own slot list when it has one (canonical patch -> sheet
     #: slot: R7's, an i1iO's), else None (the seed's permutation).
     slots: "list[int] | None" = None
+    #: The patch as laid out, ``(across the strip, along it)`` in mm
+    #: (`laid_out_patch_size_mm`), or None: what `{patchsize}` prints, for
+    #: the chart notes stamped after the build (4.3.45).
+    patch_size_mm: "tuple[float, float] | None" = None
 
 
 def build_ti2_from_ti1(
@@ -128,8 +132,17 @@ def text_placeholder_context(*, project: str = "", rundescription: str = "",
                              instrument: str = "", paper: str = "",
                              dpi: int = 300, patches: int = 0, pages: int = 1,
                              seed: int = 0, chart_date: str = "",
-                             randomize: bool = True) -> dict:
+                             randomize: bool = True,
+                             patch_size_mm: "tuple[float, float] | None" = None
+                             ) -> dict:
     """The values `{project}`, `{paper}`, `{seed}` and the rest resolve to.
+
+    `{patchsize}` (4.3.45, jctay, forum post 150317) is *patch_size_mm*, the
+    patch as the chart was really laid out (:func:`laid_out_patch_size_mm`),
+    across the strip x along it, in millimetres with one decimal each and no
+    spaces ("7.0x7.4", :func:`patch_size_text`). Not given, the size is not
+    known and `{patchsize}` prints nothing, the way `{rundescription}` does
+    with no description.
 
     LIFTED OUT OF `build_chart` FOR THE SAME REASON `stamp_summary_line` WAS.
     The Create Chart panel warns about a line that is too long, and it measured
@@ -166,7 +179,67 @@ def text_placeholder_context(*, project: str = "", rundescription: str = "",
         "pages": str(pages),
         "date": chart_date or _time.strftime("%Y-%m-%d"),
         "seed": f"seed {seed}" if randomize else "",
+        "patchsize": patch_size_text(patch_size_mm),
     }
+
+
+def patch_size_text(size_mm: "tuple[float, float] | None") -> str:
+    """`{patchsize}` for *size_mm* ``(across, along)``: one decimal each, a
+    point in every language (it goes on the chart, like "page 1/2"), an
+    "x" between and no spaces, "7.0x7.4". A half rounds up, as people
+    round. Empty when the size is not known or not a size."""
+    from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+    try:
+        w, h = (float(v) for v in size_mm)          # type: ignore[union-attr]
+    except (TypeError, ValueError):
+        return ""
+    if not (w > 0 and h > 0) or w != w or h != h or w == float("inf") \
+            or h == float("inf"):
+        return ""
+
+    def one(v: float) -> str:
+        # through the 2-decimal value the Chart layout information shows, so
+        # 7.349999 is 7.3 there and here, and 7.35 is 7.4 in both
+        try:
+            return str(Decimal(f"{v:.2f}").quantize(Decimal("0.1"),
+                                                    rounding=ROUND_HALF_UP))
+        except InvalidOperation:
+            return ""
+    a, b = one(w), one(h)
+    return f"{a}x{b}" if a and b else ""
+
+
+def laid_out_patch_size_mm(geom, paper_w_mm: float, paper_h_mm: float,
+                           layout, dpi: int) -> "tuple[float, float] | None":
+    """The patch as the chart was laid out: ``(across the strip, along it)``
+    in mm, the two numbers Create Chart's "Patch size (mm)" boxes and the
+    Chart layout information's "Patch size" row show, in that order.
+
+    THE PANEL'S OWN RULE, SO `{patchsize}` AND "on screen" AGREE: the first
+    patch's box as the raster paints it (`geometry.patch_rects_px`, pixel-
+    snapped at *dpi*), a honeycomb's hexagon tip to tip and not its slot
+    (`hex_support`), and an i1iSis chart's NOMINAL patch, the one its .txf
+    names (`TabChart._predict_layout_info` / `_chart_patch_size_mm`).
+    None when it cannot be worked out."""
+    from workflow.hex_support import shown_patch_size_mm
+    from .instruments import is_hexagonal
+    try:
+        if getattr(geom, "key", "") == "XRISIS":
+            w, h = float(geom.pwid), float(geom.plen)
+        else:
+            r0 = geometry.patch_rects_px(geom, paper_w_mm, paper_h_mm,
+                                         layout, int(dpi))[0]
+            w = r0["w"] * 25.4 / float(dpi)
+            h = r0["h"] * 25.4 / float(dpi)
+        pw, ph, _pitch = shown_patch_size_mm(
+            w, h, is_hexagonal(geom), bool(getattr(geom, "hex_flat_top",
+                                                   False)))
+    except Exception:          # noqa: BLE001 - unknown, never a failure
+        import logging
+        logging.getLogger(__name__).debug(
+            "patch size for {patchsize} unavailable", exc_info=True)
+        return None
+    return (pw, ph) if pw > 0 and ph > 0 else None
 
 
 def _i1io_paper_name(paper: str) -> str:
@@ -1020,11 +1093,14 @@ def build_chart(
     # Human-friendly placeholder values for {project}/{instrument}/{paper}/… in
     # chart text, clip text and the stamp. {page} is resolved per page inside
     # render_pages (it needs the page index), so it's not in this dict. (#93)
+    _patch_size = laid_out_patch_size_mm(geom, w_mm, h_mm, layout, dpi)
     _ctx = text_placeholder_context(
         project=project or Path(out_base).name,
         rundescription=rundescription, instrument=instrument, paper=paper,
         dpi=dpi, patches=layout.total_patches, pages=layout.pages, seed=seed,
-        chart_date=chart_date, randomize=randomize)
+        chart_date=chart_date, randomize=randomize,
+        # `{patchsize}` (4.3.45): the patch as laid out, after any fitting
+        patch_size_mm=_patch_size)
     stamp_text = (stamp_summary_line(instrument, paper, dpi,
                                      layout.total_patches, seed,
                                      randomize=randomize)
@@ -1268,6 +1344,7 @@ def build_chart(
         neighbour_moves=tuple(_nb_moves), neighbour_pairs_left=_nb_left,
         neighbour_patches_moved=_nb_count,
         slots=(list(_slots) if _slots is not None else None),
+        patch_size_mm=_patch_size,
     )
 
 

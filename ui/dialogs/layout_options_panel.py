@@ -173,12 +173,32 @@ SHEET_TOKENS = (
     ("pages", tr("Total number of pages")),
     ("seed", tr("Seed (with “seed”)")),
     ("dpi", tr("Resolution (with “dpi”)")),
+    # 4.3.45 (jctay, forum post 150317): the patch as laid out
+    ("patchsize", tr("Patch size in mm, e.g. “7.0x7.4”")),
 )
 #: `{logo}` (4.3.44), in the Sheet text's menu only: the clip band's text
 #: does not draw it.
 LOGO_TOKEN_ENTRY = (
     ("logo", tr("The ChromIQ logo, as tall as the text")),
 )
+
+
+def patchsize_help() -> str:
+    """The paragraph on `{patchsize}` (4.3.45) in the help of the Sheet text,
+    the clip border's text and the Chart Notes: one text, so the three say
+    the same."""
+    return tr(
+        "{patchsize} is the size of the chart's patches in millimetres, with "
+        "one decimal each and no spaces: first the width across the strip, "
+        "then the length along the strip, for example “7.0x7.4”. These are "
+        "the two numbers of “Patch size (mm)” and of the “Patch size” row "
+        "under “Chart layout information”, in the same order. It is always "
+        "the size the chart was really laid out with, also when ChromIQ "
+        "worked the size out for you. A hexagonal patch is measured from tip "
+        "to tip, as in the chart layout information. Where ChromIQ cannot know "
+        "the size, {patchsize} prints nothing: on an FD-9 chart, and on a "
+        "chart laid out by ArgyllCMS printtarg that is not RGB, has "
+        "hexagonal patches or has only one strip on each of its pages.")
 
 
 # Font sizes are shown to the user in points (Word/PowerPoint/PDF units) but
@@ -3094,7 +3114,8 @@ class LayoutOptionsPanel(QWidget):
                         "logo could not be recognised, the logo is left out. "
                         "It is also left out, never printed as the word, "
                         "where ChromIQ does not draw it: in the clip border's "
-                        "own text and on an i1iO table chart."),
+                        "own text and on an i1iO table chart.")
+                    + "\n\n" + patchsize_help(),
                     self))
         add_row(stg, 1, tr("Preview:"), self.text_preview)
         self._add_font_rows(stg, 2, tr("Font:"), self.chart_text_font,
@@ -3406,7 +3427,8 @@ class LayoutOptionsPanel(QWidget):
                        "put in a run of underscores (10 for long, 5 for short). "
                        "Put several in a row for a longer line; they join with no gap unless you type a space "
                        "between them. Handy for a hand-written date or paper name.\n\n"
-                       "The font and size below apply to this text."),
+                       "The font and size below apply to this text.")
+                    + "\n\n" + patchsize_help(),
                     self))
         _clip_font_w = QWidget(self)
         _cf = QHBoxLayout(_clip_font_w)
@@ -7316,11 +7338,26 @@ class LayoutOptionsPanel(QWidget):
             "patchcount": "600 patches",
             "pages": str(_pages), "seed": "seed 12345",
             "dpi": f"{int(self.dpi.value())} dpi",
+            # `{patchsize}` (4.3.45): the size typed, else a sample like the
+            # other values here; the chart prints the size it is laid out with
+            "patchsize": self._sample_patch_size(),
         }
         # the build's own rule (4.3.44): plain known names filled in, anything
         # else as typed, `{logo}` left out where it is not drawn
         from workflow.layout_engine.raster import resolve_placeholders
         return resolve_placeholders(text, ctx)
+
+    def _sample_patch_size(self) -> str:
+        """`{patchsize}` for the Preview line: the two Patch size boxes when
+        both are typed, else a sample (the chart prints the size it is laid
+        out with, which only Generate knows)."""
+        from workflow.layout_engine.chart import patch_size_text
+        try:
+            w = float(self.patch_x.value())
+            h = float(self.patch_y.value())
+        except Exception:      # noqa: BLE001 - a preview, never a failure
+            w = h = 0.0
+        return patch_size_text((w, h)) or "7.0x7.4"
 
     def _update_text_preview(self) -> None:
         if not hasattr(self, "text_preview"):

@@ -173,6 +173,12 @@ def _panel_patch_size_mm(slot_w_mm: float, slot_h_mm: float,
     return (w, ph, pitch)
 
 
+def _patchsize_help() -> str:
+    """The `{patchsize}` paragraph the Sheet text's help has (4.3.45)."""
+    from ui.dialogs.layout_options_panel import patchsize_help
+    return patchsize_help()
+
+
 def _number_of_sets(path) -> int | None:
     """``NUMBER_OF_SETS`` from a CGATS .ti1/.ti2, or None if unreadable."""
     try:
@@ -8101,7 +8107,8 @@ class TabChart(QWidget):
             "chart, each page with its own page number. What you typed is kept "
             "exactly as it is everywhere else: in the project, in the chart's "
             "files and in the reports. On a chart in fixed order {seed} is "
-            "left out, as in the Sheet text."),
+            "left out, as in the Sheet text.")
+            + "\n\n" + _patchsize_help(),
             self._manual_chart_notes_row,
             min_width=540,
         ))
@@ -28103,9 +28110,26 @@ class TabChart(QWidget):
             patches=patches,
             pages=pages,
             seed=self._seed_for_prediction(r),
-            randomize=bool(getattr(r, "randomize", True)))
+            randomize=bool(getattr(r, "randomize", True)),
+            patch_size_mm=self._predicted_patch_size())
         ctx["page"] = f"page 1/{pages}"
         return ctx
+
+    def _predicted_patch_size(self) -> "tuple[float, float] | None":
+        """`{patchsize}` for the panel's predictions (4.3.45): the patch the
+        Chart layout information's estimate shows, the same `laid_out_patch_
+        size_mm` rule the build prints, else a stand-in as wide as a large
+        one ("88.8x88.8"), so a line is not measured shorter than it
+        prints. Never raises (see `_text_placeholder_context`)."""
+        try:
+            panel = getattr(self, "_layout_info_panel", None)
+            got = panel.predicted() if panel is not None else None
+            patch = (got or {}).get("patch")
+            if patch and float(patch[0]) > 0 and float(patch[1]) > 0:
+                return (float(patch[0]), float(patch[1]))
+        except Exception:      # noqa: BLE001 — a prediction is never fatal
+            pass
+        return (88.8, 88.8)
 
     def _bottom_sheet_text_lines(self, r) -> "list[str]":
         """Every line the bottom of the sheet will carry, in drawing order.

@@ -356,6 +356,21 @@ This section does not touch T2, T3, T4 or T8: the notes field, `meta.json`, the 
 * `{logo}` is offered in the Sheet text's Insert ▾ menu only; the clip band's text does not draw it.
 * Tests: `tests/test_4344_placeholders_in_chart_notes_and_logo.py`.
 
+### ⏳ Awaiting confirmation: `{patchsize}` (4.3.45)
+
+**Confirmed by:** *nobody yet.* Asked for by a forum tester (jctay, printerknowledge forum post 150317). What awaits confirmation is the behaviour as built and described here.
+
+| # | Where | `{patchsize}` prints |
+|---|---|---|
+| T7.13 | Sheet text, clip border text, Chart Notes, an i1iO table chart's Sheet text, on a chart laid out by the ChromIQ layout engine | the patch as the chart was really laid out, after any fitting: across the strip, then along it, in millimetres with one decimal each and no spaces ("7.0x7.4"). The same two numbers, in the same order, as Create Chart's "Patch size (mm)" boxes and the "Patch size" row of Chart layout information ("on screen": the first patch as drawn, in whole pixels; a hexagon tip to tip; an i1iSis chart its nominal patch). A half rounds up, from the two decimals that row shows. |
+| T7.14 | Chart Notes on a chart laid out by ArgyllCMS printtarg | the patch read back from printtarg's own `.cht` (`ChartCreator._printtarg_patch_size_mm`; i1Pro, i1Pro 3, ColorMunki, SpectroScan with square patches, measured against the printed page) |
+| T7.15 | where the size is not known: an FD-9 chart (its code is not changed), a printtarg chart that is not RGB, has hexagons or only one strip on every page, or whose `.cht` could not be captured | nothing, as `{rundescription}` with no description (T7.4); the separator before it stays |
+| T7.16 | a chart that does not use it | byte-identical to 4.3.44 |
+
+* Offered in the Sheet text's and the clip border's Insert ▾ menu; the Preview line shows the two Patch size boxes, or "7.0x7.4" as a sample while they are on "auto".
+* Known limit, not new: the clip border's measured reach is taken from its text with the braces still in (for every placeholder), so `{patchsize}` there may sit a little differently across the band than the same characters typed by hand.
+* Tests: `tests/test_4345_patchsize_placeholder.py`.
+
 ---
 
 ## 8. Everything that must NOT change
