@@ -156,10 +156,11 @@ def test_the_completion_window_names_the_real_button():
 
 
 def test_both_completion_windows_were_corrected():
-    """Strips and patch-by-patch each have their own window."""
+    """Strips and patch-by-patch each have their own window, and (fix round 10 of the i1iO
+    table drive, Beta) the table's complete measurement its own first paragraph."""
     from ui.tabs.tab_measure import TabMeasure
     assert inspect.getsource(TabMeasure).count(
-        "Click <b>Go to {tab} Tab</b>") == 2
+        "Click <b>Go to {tab} Tab</b>") == 3
 
 
 def test_the_button_is_named_after_the_tab_that_exists(qapp, tmp_path):
