@@ -1,0 +1,169 @@
+"""The tester program's guarantees, kept for the files that moved into the app.
+
+chromiq-i1io-session 0.6.0 pinned some of its rules by reading its own source files, its README,
+its BYTES.md, its zip and its bundled reader. Those tests stayed with the tester (they name files
+that are not in the app); the tests in the ``*_ported.py`` files beside this one are the ones that
+needed only the moved modules, verbatim. Here the same rules, for the app's copies:
+
+* standard library only (plus the package's own modules; the reader asks ``core.resource_path``
+  for ChromIQ's helper, lazily), no em dash;
+* the table is written in exactly one place (``Table._write``, through the gate);
+* no line id outside the recorded ones exists as a frame, and the start-up ``i0`` only once,
+  in the table module;
+* no process is ended or started except the read-only ``ioreg`` / ``xattr`` checks;
+* the simulators keep their own copy of the steps and their own measured motion start;
+* the reader is ChromIQ's own helper, which carries the table-scan mode.
+
+Not carried over, with the reason: the README / BYTES.md / zip / ``bin/`` tests (tester
+documents and packaging), the console program's question order (``i1io_session.py``,
+``i1io_part_c.py`` did not move: the app's job is a rewrite, plan section 3).
+"""
+from __future__ import annotations
+
+import ast
+import re
+import subprocess
+import sys
+
+import pytest
+
+from tests.i1io_table import part_c_sim as csim
+from tests.i1io_table import session_sim as sim_mod
+from tests.i1io_table._moved import MOVED, ROOT, TABLE
+from workflow.i1io.table import reader as rd
+from workflow.i1io.table import scan as sc
+from workflow.i1io.table import session_table as tbl
+
+APP_MODULES = sorted(TABLE.glob("*.py"))
+NAMES = {p.name for p in APP_MODULES}
+
+
+def _src(path) -> str:
+    return path.read_text(encoding="utf-8")
+
+
+def test_the_package_holds_exactly_the_five_moved_modules():
+    assert NAMES == {"__init__.py", "session_table.py", "geometry.py", "lines.py", "scan.py",
+                     "reader.py"}
+
+
+STDLIB = {"__future__", "csv", "json", "os", "time", "dataclasses", "pathlib", "math", "random",
+          "re", "queue", "subprocess", "sys", "threading", "plistlib", "signal", "ctypes",
+          "usb"}          # pyusb: imported only inside open_table, when a real table is opened
+
+
+@pytest.mark.parametrize("path", APP_MODULES + [MOVED["i1io_session_sim.py"],
+                                               MOVED["i1io_part_c_sim.py"]],
+                         ids=lambda p: p.name)
+def test_standard_library_only_and_no_em_dash(path):
+    src = _src(path)
+    assert "—" not in src, path.name
+    for node in ast.walk(ast.parse(src)):
+        if isinstance(node, ast.Import):
+            mods = [a.name for a in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            if node.level:                       # the package's own siblings
+                assert node.module is None and all(
+                    a.name + ".py" in NAMES for a in node.names), (path.name, ast.dump(node))
+                continue
+            mods = [node.module or ""]
+        else:
+            continue
+        for m in mods:
+            top = m.split(".")[0]
+            ok = (top in STDLIB or m.startswith("workflow.i1io.table")
+                  or m.startswith("tests.i1io_table")
+                  or (path.name == "reader.py" and m == "core.resource_path"))
+            assert ok, (path.name, m)
+
+
+def test_the_reader_reaches_chromiq_only_for_the_helper_path():
+    tree = ast.parse(_src(TABLE / "reader.py"))
+    outside = [n for n in ast.walk(tree) if isinstance(n, ast.ImportFrom)
+               and (n.module or "").startswith("core")]
+    assert len(outside) == 1 and outside[0].module == "core.resource_path"
+    fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "helper_path")
+    assert outside[0] in list(ast.walk(fn))       # inside helper_path, nowhere else
+
+
+def test_the_table_is_written_in_one_place_only():
+    src = _src(TABLE / "session_table.py")
+    assert src.count("self.t.write(") == 1
+    assert src.count("self.dev.write(") == 1
+    assert len(re.findall(r"ctrl_transfer\(", src)) == 1
+    for name in ("geometry.py", "lines.py", "scan.py", "reader.py"):
+        s = _src(TABLE / name)
+        assert ".t.write(" not in s and "dev.write(" not in s and "ctrl_transfer" not in s, name
+
+
+FORBIDDEN_AS_FIXED_FRAMES = ("m2", "c3", "c4", "d1", "a3", "p1")
+
+
+def test_only_the_recorded_frames_exist_and_the_start_up_once():
+    src = _src(TABLE / "session_table.py")
+    for cid in FORBIDDEN_AS_FIXED_FRAMES:
+        assert f'_frame("{cid}"' not in src, cid
+    frames = re.findall(r'_frame\("([a-z][0-9])"(?:, "([0-9a-f]*)")?\)', src)
+    assert sorted({f for f, _ in frames}) == sorted({"a1", "k2", "u8", "a0", "s0", "f4", "p0",
+                                                     "i1", "f0", "f3", "m0", "f1", "m1", "i0"})
+    assert [a for f, a in frames if f == "i0"] == [""]
+    calls = [n for n in ast.walk(ast.parse(src)) if isinstance(n, ast.Call)
+             and getattr(n.func, "id", None) == "_frame"]
+    assert all(all(isinstance(a, ast.Constant) for a in c.args) for c in calls)
+    assert len(calls) == 46
+    assert src.count('_frame("i0")') == 1
+    for name in ("geometry.py", "lines.py", "scan.py", "reader.py"):
+        assert ";i02c" not in _src(TABLE / name), name
+
+
+def test_no_process_is_ended_and_only_the_read_only_checks_are_run():
+    for path in APP_MODULES:
+        src = _src(path)
+        for bad in ("os.kill", "killpg", "pkill", "killall", "launchctl", "os.system"):
+            assert bad not in src, (path.name, bad)
+    runs = re.findall(r"subprocess\.run\(\s*(\[[^\]]*\])", "".join(_src(p) for p in APP_MODULES))
+    assert sorted(runs) == sorted([
+        '["/usr/sbin/ioreg", "-a", "-r", "-c", "IOUSBHostDevice", "-l"]',
+        '["/usr/bin/xattr", "-p", "com.apple.quarantine", str(path)]',
+        '["/usr/sbin/ioreg", "-a", "-r", "-c", "IOUSBHostDevice", "-l"]'])
+    # the helper itself is started by the reader's own process wrapper only
+    assert "Popen(" not in "".join(_src(TABLE / n) for n in ("session_table.py", "geometry.py",
+                                                             "lines.py", "scan.py"))
+
+
+def test_the_simulator_carries_its_own_copy_of_every_step():
+    src = _src(MOVED["i1io_session_sim.py"])
+    assert "tbl." not in src and src.count("workflow.i1io.table.session_table") == 1
+    assert ("from workflow.i1io.table.session_table import TransportError, checksum, "
+            "checksum_ok") in src
+    assert sim_mod.REC_OPEN == [tbl.WIRE[k].decode().rstrip("\r") for k in tbl.OPEN_KEYS]
+    for s in tbl.STEPS:
+        assert sim_mod.REC_STEPS[s.key] == [tbl.WIRE[k].decode().rstrip("\r")
+                                            for k in tbl.step_lines(s)], s.key
+
+
+def test_the_part_c_simulator_keeps_its_own_motion_start():
+    assert csim.TABLE_MOTION_START_AFTER_LAMP_S == 0.372
+    assert sc.MOTION_START_AFTER_LAMP_S == 0.372 and sc.CUT_REFINE_READINGS == 0
+    assert "MOTION_START_AFTER_LAMP_S" not in _src(MOVED["i1io_part_c_sim.py"]).replace(
+        "TABLE_MOTION_START_AFTER_LAMP_S", "")
+
+
+def test_the_reader_is_chromiqs_own_helper_with_the_table_scan_mode():
+    path = rd.helper_path()
+    assert path == ROOT / "native" / ("chromiq-chartread.exe" if sys.platform == "win32"
+                                      else "chromiq-chartread")
+    if sys.platform != "darwin":
+        pytest.skip("the committed helper is the macOS build")
+    data = path.read_bytes()
+    assert f"chromiq-chartread {rd.HELPER_BUILD} ".encode() in data
+    assert b"--i1io-table-scan" in data and b"+i1io-table-scan" in data
+    h = (ROOT / "native" / "chartread_helper" / "chromiq_ext.h").read_text(encoding="utf-8")
+    assert f'"chromiq-chartread {rd.HELPER_BUILD} ' in h
+    archs = subprocess.run(["lipo", "-archs", str(path)], capture_output=True, text=True,
+                           timeout=30).stdout.split()
+    assert sorted(archs) == ["arm64", "x86_64"]
+
+
+def test_a_tester_package_folder_still_names_its_own_bin(tmp_path):
+    assert rd.helper_path(tmp_path) == tmp_path / "bin" / "chromiq-chartread"
