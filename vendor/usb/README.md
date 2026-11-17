@@ -15,10 +15,16 @@ copy into the app under `licenses/usb/` (`THIRD-PARTY-NOTICES.md`, "USB access f
 **LGPL 2.1 for libusb.** ChromIQ does not change libusb and links it only at run time (`ctypes`
 loads the separate library file), so the library can be replaced by another build of it. Its
 complete source is libusb 1.0.30 as published by the libusb project
-(https://github.com/libusb/libusb/releases/tag/v1.0.30) and, as packaged, the `libusb-package`
-1.0.30.1 source distribution on PyPI (https://pypi.org/project/libusb-package/1.0.30.1/#files).
+(https://github.com/libusb/libusb/releases/tag/v1.0.30)
+and, as packaged, the `libusb-package` project's tag v1.0.30.1 (https://github.com/pyocd/libusb-package/tree/v1.0.30.1), which builds it from libusb's unmodified v1.0.30 source (included there as a submodule).
 
 Not bundled: Windows on ARM64 (`libusb-package` publishes no wheel for it); that build has no table
 drive and says so.
 
 sha256 of the files here: see `tests/test_usb_library.py`, which pins them.
+
+The `libusb-package` 1.0.30.1 wheels on PyPI (uploaded 2026-11-09, no provenance attestation; the
+review of 2026-11-17 inspected them, did not rebuild them), first 16 hex digits of their sha256 as
+PyPI lists them: macOS x86_64 `7ee86d9e...`, macOS arm64 `46c7ca99...`, manylinux x86_64
+`7fed1daa...`, win_amd64 `57ed5757...`. A build that installs a different file is a change to be
+looked at, not taken silently.

@@ -54,13 +54,18 @@ def test_the_selftest_prints_one_line_and_exits_0(tmp_path):
     # None with Apple's Accelerate; never the pool size, which can hang a fork.
     # usb=: the i1iO table drive's USB library loads (core/usb_library.py);
     # its versions are pyusb's and the bundled libusb's own
-    from core.usb_library import status
+    # (Windows on ARM64 bundles none on purpose: usb=not-bundled, review A2-a)
+    from core.usb_library import bundled_on_this_platform, status
     usb = status()
-    assert usb.ok, usb
+    if bundled_on_this_platform():
+        assert usb.ok, usb
+        field = f"usb=pyusb-{usb.pyusb}/libusb-{usb.libusb}"
+    else:
+        assert usb.problem == "not-bundled", usb
+        field = "usb=not-bundled"
     assert r.stdout.strip() in (
         f"chromiq-selftest ok machine={platform.machine()} "
-        f"numpy={__import__('numpy').__version__} blas_threads={n} "
-        f"usb=pyusb-{usb.pyusb}/libusb-{usb.libusb}"
+        f"numpy={__import__('numpy').__version__} blas_threads={n} {field}"
         for n in ("1", "None"))
 
 

@@ -39,3 +39,6 @@ bleak>=0.21
 #                    table drive and says so (core/usb_library.py).
 pyusb==1.2.1
 libusb-package==1.0.30.1 ; sys_platform != "win32" or platform_machine != "ARM64"
+#   importlib_resources — Apache 2.0; libusb-package needs it; pinned to the
+#                    version THIRD-PARTY-NOTICES.md names.
+importlib_resources==7.1.0 ; sys_platform != "win32" or platform_machine != "ARM64"

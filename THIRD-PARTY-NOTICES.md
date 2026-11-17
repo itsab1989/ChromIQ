@@ -274,8 +274,8 @@ travels as well.
 **Terms: the GNU Lesser General Public License, version 2.1 or later**; its copyright holders are
 listed in libusb's own `AUTHORS`. Both files travel with the app. ChromIQ does not modify libusb
 and loads it at run time as a separate file, so it can be replaced by another build. Its source is
-libusb 1.0.30 as published by the libusb project and the `libusb-package` 1.0.30.1 source
-distribution on PyPI. Windows on ARM64 is built without it (no package exists for that system).
+libusb 1.0.30 as published by the libusb project (https://github.com/libusb/libusb/releases/tag/v1.0.30)
+and, as packaged, the `libusb-package` project's tag v1.0.30.1 (https://github.com/pyocd/libusb-package/tree/v1.0.30.1), which builds it from libusb's unmodified v1.0.30 source (included there as a submodule). Windows on ARM64 is built without it (no package exists for that system).
 
 ## Argyll-derived helpers — `native/`
 

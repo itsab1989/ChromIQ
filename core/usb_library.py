@@ -32,7 +32,14 @@ LIBRARY_NAME = {"darwin": "libusb-1.0.dylib", "win32": "libusb-1.0.dll"}.get(
 
 
 def bundled_on_this_platform() -> bool:
-    """False only where no libusb is bundled on purpose (Windows on ARM64: no wheel)."""
+    """False only where no libusb is bundled on purpose (Windows on ARM64: no wheel).
+
+    DOUBT, NOT MEASURED (review 2026-11-17, A2-c): on Windows ``platform.machine()`` may name the
+    HOST rather than this process, so an x64 ChromIQ running under emulation on an ARM64 PC could
+    be told "ARM64" here and refuse the x64 library it carries. One run settles it: on a Windows
+    ARM64 machine, start the x64 build with CHROMIQ_SELFTEST=1; ``usb=pyusb-.../libusb-...`` means
+    this is fine, ``usb=not-bundled`` means decide by the process instead
+    (``sysconfig.get_platform() == "win-arm64"``) or by whether the file is bundled."""
     return not (sys.platform == "win32"
                 and platform.machine().upper() in ("ARM64", "AARCH64"))
 

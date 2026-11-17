@@ -25,6 +25,8 @@ LICENCES = {
     "libusb-package-LICENSE": "a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9",
     "libusb-COPYING": "5df07007198989c622f5d41de8d703e7bef3d0e79d62e24332ee739a452af62a",
     "libusb-AUTHORS": "27fd82b016838197d5276ba98d2187ed5a1ad0e171767322f356f0a9f6395941",
+    "importlib_resources-LICENSE":
+        "e2f7bb0557e7a381499f15baa7c1d776d83d6616599179d71d3109b8e39f7b25",
 }
 
 
@@ -58,7 +60,8 @@ def test_the_status_touches_no_device(monkeypatch):
 
 
 def test_the_system_library_is_never_used(monkeypatch):
-    import libusb_package
+    # not installed where nothing is bundled (Windows on ARM64, review A2-a)
+    libusb_package = pytest.importorskip("libusb_package")
     monkeypatch.setattr(libusb_package, "get_library_path", lambda: None)
     monkeypatch.delattr(sys, "_MEIPASS", raising=False)
     assert U.library_path() is None
@@ -157,6 +160,11 @@ def test_the_licence_texts_are_the_packages_own():
         encoding="utf-8").lstrip().startswith("Apache License")
     notices = (ROOT / "THIRD-PARTY-NOTICES.md").read_text(encoding="utf-8")
     assert "## USB access for the i1iO table" in notices
+    # no source distribution exists on PyPI (review A1-a): the source is the GitHub tag
+    readme = (ROOT / "vendor/usb/README.md").read_text(encoding="utf-8")
+    for text in (" ".join(notices.split()), " ".join(readme.split())):
+        assert "source distribution" not in text
+        assert "https://github.com/pyocd/libusb-package/tree/v1.0.30.1" in text
     from ui.licences import NOTICE_SECTIONS
     assert "USB access for the i1iO table" in NOTICE_SECTIONS
 
@@ -164,6 +172,8 @@ def test_the_licence_texts_are_the_packages_own():
 def test_the_requirements_pin_it_and_leave_windows_arm64_out():
     req = (ROOT / "requirements.txt").read_text(encoding="utf-8")
     assert "\npyusb==1.2.1\n" in req
+    assert ('importlib_resources==7.1.0 ; sys_platform != "win32" or '
+            'platform_machine != "ARM64"') in req
     assert ('libusb-package==1.0.30.1 ; sys_platform != "win32" or '
             'platform_machine != "ARM64"') in req
 
@@ -175,6 +185,9 @@ def test_the_release_builds_make_it_universal_and_prove_it_loads():
     step = linux.index("Start the built app's self-test")
     assert step < linux.index("Package as tar.gz")
     assert "CHROMIQ_SELFTEST=1 QT_QPA_PLATFORM=offscreen timeout 300 ./dist/ChromIQ/ChromIQ" in linux
+    # Qt's widgets need libGL on the runner, as tests.yml installs it (review A2-b)
+    apt = linux[:linux.index("Install Python dependencies")]
+    assert "            libgl1 \\\n" in apt and "            libxkbcommon0 \\\n" in apt
 
 
 def test_only_the_selftest_uses_it_yet():
@@ -191,3 +204,12 @@ def test_only_the_selftest_uses_it_yet():
                        for m in mods):
                     users.append(f.relative_to(ROOT).as_posix())
     assert sorted(set(users)) == ["core/selftest.py", "workflow/i1io/table/session_table.py"]
+
+
+def test_the_windows_driver_installer_never_targets_the_table():
+    """ChromIQ's WinUSB installer works from an explicit list of instruments; the table
+    (0971:2004) is not on it and must never be: a driver installed for it would take it away
+    from i1Profiler (review B5 g; STEP4_PROPOSAL: nothing is done to the table's driver)."""
+    from core import usb_driver_installer as inst
+    for table in (inst.KNOWN_COLORIMETERS, inst.VENDOR_SERIAL_DEVICES):
+        assert ("0971", "2004") not in {(v.lower(), p.lower()) for v, p in table}

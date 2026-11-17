@@ -60,6 +60,8 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libcups2-dev \
             libegl1 \
+            libgl1 \
+            libxkbcommon0 \
             libxkbcommon-x11-0 \
             libxcb-cursor0 \
             libxcb-icccm4 \
