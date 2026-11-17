@@ -1261,8 +1261,8 @@ def cold_failure_kind(d: tbl.Table, exc: Doubt) -> str:
         return "link"
     if not d.start_up_sent:
         return "not_sent"
-    if d.last_move and d.last_move[0] == "start_up":
-        if d.start_up_took is not None and d.last_move[1] is False:
+    if d.lines_sent == d.start_up_line_no:          # the doubt came on the start-up line
+        if d.start_up_took is not None and d.last_move == ("start_up", False):
             return "outside"
         if reason.startswith("the table refused i0"):
             return "refused"

@@ -1039,6 +1039,9 @@ class Table:
         self.cold_read: "tuple[int, int] | None" = None
         #: movements of the start-up (part C counts "nothing moved yet" after them)
         self.cold_motions = 0
+        #: the number of the start-up line among the lines sent (to tell whether a later doubt
+        #: came on it or on a line after it)
+        self.start_up_line_no: "int | None" = None
         #: how the start-up failed (set by the session; None while nothing failed)
         self.cold_failure: "str | None" = None
 
@@ -1150,6 +1153,7 @@ class Table:
             self.log("SEND", line.decode("ascii").rstrip("\r"))
             if label == "start_up":
                 self.start_up_sent = True
+                self.start_up_line_no = self.lines_sent
                 self.t.start_up_armed = True     # the wire's own one-shot check (FtdiUsb)
             self.t.write(bytes(line))
         finally:
