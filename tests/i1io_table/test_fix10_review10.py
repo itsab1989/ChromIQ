@@ -769,3 +769,25 @@ def test_m2_a_short_page_after_a_long_one_does_not_keep_the_long_height(
     qtbot.wait(50)
     assert win._text.minimumHeight() < long_h / 3
     assert win._scroll.verticalScrollBar().maximum() == 0
+
+
+def test_m3_read_rows_get_a_margin_dot_not_an_outline(qapp, tmp_path):
+    """The owner (on-screen runs): outlines on every read row looked messy; only the row being
+    read is framed. Painted for real: the pixels over a read row's patches are untouched."""
+    from PyQt6.QtCore import QRect
+    from PyQt6.QtGui import QColor, QImage, QPainter
+    from ui.tiff_preview import TiffPreview
+    pv = TiffPreview()
+    pv._current = 0
+    rows = [[QRect(40 + 20 * c, 20 + 30 * r, 18, 18) for c in range(5)] for r in range(3)]
+    pv.set_table_rows(0, rows, done={0}, active=1)
+    img = QImage(200, 120, QImage.Format.Format_RGB32)
+    img.fill(QColor("white"))
+    p = QPainter(img)
+    pv._draw_table_rows(p, 1.0, 1.0, 0.0, 0.0)
+    p.end()
+    # the read row (0): nothing drawn over its patches, a dot left of it
+    assert all(img.pixelColor(x, 29) == QColor("white") for x in range(40, 138))
+    assert img.pixelColor(31, 29) != QColor("white")
+    # the row being read (1): framed
+    assert img.pixelColor(38, 59) != QColor("white")

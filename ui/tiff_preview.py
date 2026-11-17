@@ -2385,6 +2385,10 @@ class TiffPreview(QWidget):
             self._schedule_refresh()
 
     def _draw_table_rows(self, painter, s, sy, ox, oy) -> None:
+        """The row being read: a thick frame in the accent colour with a light fill. A row
+        already read: only a small filled dot in the margin beside it (the owner, after the
+        first on-screen runs: outlines on every read row looked messy and crowded), so the
+        chart still looks like a chart with half or all of it read."""
         from PyQt6.QtGui import QPen
         page, rows, done, active = self._table_rows
         if page != self._current:
@@ -2399,10 +2403,10 @@ class TiffPreview(QWidget):
             y0 = min(r.y() for r in cells)
             x1 = max(r.x() + r.width() for r in cells)
             y1 = max(r.y() + r.height() for r in cells)
-            pad = 3.0
-            rect = QRectF(x0 * s + ox - pad, y0 * sy + oy - pad,
-                          (x1 - x0) * s + 2 * pad, (y1 - y0) * sy + 2 * pad)
             if i == active:
+                pad = 3.0
+                rect = QRectF(x0 * s + ox - pad, y0 * sy + oy - pad,
+                              (x1 - x0) * s + 2 * pad, (y1 - y0) * sy + 2 * pad)
                 fill = QColor(accent)
                 fill.setAlpha(45)
                 painter.fillRect(rect, fill)
@@ -2413,13 +2417,18 @@ class TiffPreview(QWidget):
                 painter.drawRect(rect)
                 pen = QPen(accent)
                 pen.setWidthF(4.0)
-            else:
-                pen = QPen(QColor("#2fa36b"))
-                pen.setWidthF(2.0)
-            pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
-            painter.setPen(pen)
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawRect(rect)
+                pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
+                painter.setPen(pen)
+                painter.drawRect(rect)
+                continue
+            # read: a dot in the margin to the left of the row, never a line over the patches
+            h = (y1 - y0) * sy
+            r = max(3.0, min(7.0, h * 0.22))
+            cx = x0 * s + ox - r - 4.0
+            cy = (y0 + y1) / 2.0 * sy + oy
+            painter.setPen(QPen(QColor(255, 255, 255, 220), 1.5))
+            painter.setBrush(QColor("#2fa36b"))
+            painter.drawEllipse(QPointF(cx, cy), r, r)
         painter.restore()
 
     def _draw_scan_grid(self, painter, sx, sy, ox, oy):
