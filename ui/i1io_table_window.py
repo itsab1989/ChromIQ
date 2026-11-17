@@ -698,9 +698,15 @@ class TableMeasureWindow(QFrame):
         if vw <= 0:
             return
         for lab in (self._title, self._text):
+            # QLabel's heightForWidth never answers less than the label's own minimum, so
+            # the minimum is taken off first (measured on screen: a two-line text kept the
+            # 736 px of a long page before it, and the page scrolled over empty space)
+            old = lab.minimumHeight()
+            lab.setMinimumHeight(0)
             need = lab.heightForWidth(vw) if lab.text() else 0
-            if lab.minimumHeight() != need:
-                lab.setMinimumHeight(need)
+            lab.setMinimumHeight(max(0, need))
+            if old != need:
+                lab.updateGeometry()
 
     def _show(self, page_id: str, title: str, text: str, buttons=(), ticks=()) -> "list":
         """One page: a title, its text, optional ticks and the answer buttons (none default).

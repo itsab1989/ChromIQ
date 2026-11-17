@@ -754,3 +754,18 @@ def test_s7_the_expected_colours_are_read_from_the_chart(tmp_path):
         assert exp and all(len(v) == 3 for v in exp.values())
     else:
         assert exp == {}
+
+
+def test_m2_a_short_page_after_a_long_one_does_not_keep_the_long_height(
+        qtbot, monkeypatch, tmp_path, settings):
+    """Found on screen (fix round 10): QLabel's heightForWidth never answers less than the
+    label's minimum, so the height of the first (long) page stuck to every later one."""
+    win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
+                                                    asking=True)
+    win.resize(560, 700)
+    qtbot.wait(50)
+    long_h = win._text.minimumHeight()
+    win._show("x", "Short", "Two words.")
+    qtbot.wait(50)
+    assert win._text.minimumHeight() < long_h / 3
+    assert win._scroll.verticalScrollBar().maximum() == 0
