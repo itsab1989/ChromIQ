@@ -314,10 +314,24 @@ LINK_WAY_BACK = (
     "again; (3) open i1Profiler and let it find the table (it brings the arm home as usual); "
     "(4) if i1Profiler does not find the table, restart the Mac. Please do not start this "
     "program again before i1Profiler has found the table.")
+#: 0.5.1 (review): the way back after a lost USB link when a strip move may be pending or a
+#: movement was not confirmed. No USB re-plug: it does not power the table down, so a waiting
+#: move would still be waiting; i1Profiler only after the table has been off and on again.
+LINK_WAY_BACK_SWITCH_OFF = (
+    "First switch the table off with its power switch (see above), if you have not already, "
+    "and leave it off for ten seconds. Please do not unplug its USB cable instead: that does "
+    "not switch the table off, so a move that is waiting would still be waiting. Then, in this "
+    "order: (1) let this program end: answer the few questions that follow, or press Enter at "
+    "each; (2) switch the table on again; (3) only then open i1Profiler and let it find the "
+    "table (it brings the arm home as usual); (4) if i1Profiler does not find the table, "
+    "restart the Mac. Please do not start this program again before i1Profiler has found the "
+    "table.")
 #: 0.5.1: said after every stage that failed or was stopped while the sitting goes on
 HOLDS_TABLE = ("While this program runs, it keeps the table's USB connection, so i1Profiler "
                "cannot find the table until this program has ended (type end at the next "
-               "question). Please do not unplug or switch off anything while it runs.")
+               "question). Please do not unplug or switch off anything while it runs "
+               "(switching the table off at its power switch is still always allowed if "
+               "anything looks or sounds wrong).")
 
 
 def link_lost_where(d: tbl.Table) -> "list[str]":
@@ -345,10 +359,10 @@ def where_text(d: tbl.Table) -> "list[str]":
     """The TRUE state from what the table last answered: the last READ position decides."""
     if d.closed_reason == "a scan move may be pending" or (
             d.motion_unconfirmed and d.last_move and d.last_move[0] == "scan move"):
-        return [PENDING] + ([LINK_WAY_BACK] if d.link_lost_at is not None else [])
+        return [PENDING] + ([LINK_WAY_BACK_SWITCH_OFF] if d.link_lost_at is not None else [])
     if d.motion_unconfirmed:
         return [UNFINISHED] + ([MODE_ON] if d.mode_on else []) + (
-            [LINK_WAY_BACK] if d.link_lost_at is not None else [])
+            [LINK_WAY_BACK_SWITCH_OFF] if d.link_lost_at is not None else [])
     if d.link_lost_at is not None:
         return link_lost_where(d)
     p = d.position_now
@@ -1675,7 +1689,7 @@ READER_CONSENT = (
     "program, xrdd, is not touched. What we do not know: whether i1Profiler finds the i1Pro 2 straight away after "
     "this on your Mac. If it does not, unplugging the USB cable of the table and the i1Pro 2 "
     "from the Mac and plugging it in again may help (only after this program has ended); if "
-    "it still does not, restarting the Mac will. " + C1_SAY.split(" (")[0].replace(
+    "it still does not, restarting the Mac should. " + C1_SAY.split(" (")[0].replace(
         " now", "") + " happens only after your yes.")
 ASK_READER_CONSENT = "Start ChromIQ's reader now, knowing this?"
 CAL_WHERE = (

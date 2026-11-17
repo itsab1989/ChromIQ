@@ -60,7 +60,11 @@ our fault, not your table's, your i1Pro 2's or your Mac's.
   plainly, sends nothing more, offers no more stages, and gives the safe way
   back: let the program end; switch the table off and on (or unplug its USB
   cable from the Mac and plug it in again); open i1Profiler and let it find the
-  table; if it does not, restart the Mac. It also asks you whether you unplugged
+  table; if it does not, restart the Mac. If a strip move may be waiting or a
+  movement was not confirmed, the first step is always to switch the table off
+  with its power switch, never to unplug the cable instead (that does not switch
+  the table off), and i1Profiler comes only after the table has been switched
+  on again. It also asks you whether you unplugged
   or switched off something, or whether it happened by itself.
 * **Before the reader starts for the first time in a sitting**, the program
   tells you what it does to X-Rite's background service for the i1Pro (see

@@ -286,7 +286,12 @@ def check_lost_link(sim, con, log, writes_at_loss):
     text = screen(con)
     assert sim.violations == []
     assert "The table's USB connection was lost" in text, text[-2000:]
-    assert pc.LINK_WAY_BACK in text
+    if pc.PENDING in text or pc.UNFINISHED in text:
+        # a move may be waiting: switch off first, never a re-plug, i1Profiler only after
+        assert pc.LINK_WAY_BACK_SWITCH_OFF in text
+        assert pc.LINK_WAY_BACK not in text
+    else:
+        assert pc.LINK_WAY_BACK in text
     assert prog.ASK_LINK_LOST in [q for q, *_ in con.seen]
     # nothing more was even tried on the wire
     assert len(sim.received) == writes_at_loss
@@ -391,6 +396,69 @@ def test_a_lost_link_text_does_not_reach_parts_a_and_b():
     d2 = t2._doubt("the USB link failed: USB read failed (x)")
     assert d2.plain.startswith("The table's USB connection was lost (USB read failed (x))")
     assert t2.link_lost_at == 1.0
+
+
+# ---- 2b. the way back after a lost link (REVIEW 0.5.1) ------------------------------------
+
+def _lost(kind):
+    d = tbl.Table(None)
+    d.link_lost_at = 10.0
+    d.motions_sent = 3
+    d.last_read, d.last_read_t = (1102, 1498), 8.0
+    if kind == "pending move":
+        d.closed_reason = "a scan move may be pending"
+        d.motion_unconfirmed = True
+        d.last_move = ("scan move", None)
+    elif kind == "unconfirmed movement":
+        d.motion_unconfirmed = True
+        d.last_move = ("move", None)
+    return d
+
+
+def _no_open_while_on(text):
+    """No sentence may send him to i1Profiler before the table was off and on again."""
+    first_off = text.find("switch the table off")
+    first_off = min(i for i in (first_off, text.find("SWITCH THE TABLE OFF")) if i >= 0)
+    assert first_off < text.find("i1Profiler")
+
+
+@pytest.mark.parametrize("kind", ["pending move", "unconfirmed movement"])
+def test_a_waiting_move_gets_the_switch_off_way_back_and_no_replug(kind):
+    out = pc.where_text(_lost(kind))
+    assert out[0] == (pc.PENDING if kind == "pending move" else pc.UNFINISHED)
+    assert out[-1] == pc.LINK_WAY_BACK_SWITCH_OFF
+    assert pc.LINK_WAY_BACK not in out
+    way = pc.LINK_WAY_BACK_SWITCH_OFF
+    assert way.startswith("First switch the table off with its power switch")
+    assert "plug it in again" not in way and "or unplug" not in way
+    # off, then this program ends, then on, and only then i1Profiler
+    assert (way.index("switch the table off") < way.index("let this program end")
+            < way.index("switch the table on again") < way.index("open i1Profiler"))
+    for text in out:
+        _no_open_while_on(text)
+
+
+def test_nothing_pending_keeps_the_way_back_with_the_replug():
+    out = pc.where_text(_lost("nothing pending"))
+    assert out[-1] == pc.LINK_WAY_BACK
+    assert pc.LINK_WAY_BACK_SWITCH_OFF not in out
+    assert "or unplug the table's USB cable from the Mac and plug it in again" in pc.LINK_WAY_BACK
+    assert pc.PENDING not in out and pc.UNFINISHED not in out
+
+
+@pytest.mark.parametrize("kind", ["pending move", "unconfirmed movement", "nothing pending"])
+def test_holds_table_always_allows_the_power_switch(kind):
+    """HOLDS_TABLE is one text for every case: it must never forbid the power switch."""
+    assert ("switching the table off at its power switch is still always allowed"
+            in pc.HOLDS_TABLE)
+    assert pc.HOLDS_TABLE.index("do not unplug or switch off anything") < pc.HOLDS_TABLE.index(
+        "always allowed")
+    assert pc.where_text(_lost(kind))      # the state text is still produced
+
+
+def test_the_consent_says_a_restart_should_help_not_will():
+    assert "restarting the Mac should." in pc.READER_CONSENT
+    assert "restarting the Mac will" not in pc.READER_CONSENT
 
 
 # ---- 4. the strip cut ----------------------------------------------------------------------
