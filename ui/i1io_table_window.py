@@ -1683,6 +1683,7 @@ class TableMeasureWindow(QFrame):
             self._after_saved(res)
             return
         # discarded, or nothing read
+        self._unfiled = bool((res.detail.get("end_state") or {}).get("unfiled"))
         self._offer_home_or_close(res, nothing_read=(ending == "nothing_read"))
 
     def _after_saved(self, res) -> None:
@@ -1695,12 +1696,18 @@ class TableMeasureWindow(QFrame):
             from workflow import measurement_messages as M
             title, body = M.M_I1IO_DRIVE_HOME_OFFERED.render(where=self._where())
             if nothing_read:
-                body = tr("Nothing was measured, so nothing was saved.") + "\n\n" + body
+                body = self._nothing_read_text() + "\n\n" + body
             self._show("home_offered", title, body,
                        [(tr("Leave it there"), self._close_job),
                         (tr("Bring the arm home"), self._on_home)])
             return
         self._close_job()
+
+    def _nothing_read_text(self) -> str:
+        if getattr(self, "_unfiled", False):
+            return tr("The readings taken in this measurement cannot be kept: the row they "
+                      "belong to failed before they were saved. So nothing was saved.")
+        return tr("Nothing was measured, so nothing was saved.")
 
     def _close_job(self) -> None:
         if self.job is None or self._closed_job:
@@ -1720,7 +1727,7 @@ class TableMeasureWindow(QFrame):
         what = {"saved": tr("The measurement was saved into the run."),
                 "discarded": tr("The readings of this measurement were discarded; nothing was "
                                 "written into the run's measurement."),
-                "nothing_read": tr("Nothing was measured, so nothing was saved.")}.get(
+                "nothing_read": self._nothing_read_text()}.get(
             j.ended or "", tr("The measurement was not saved."))
         title, body = M.M_I1IO_DRIVE_DONE.render(what=what, log=self._log_name)
         wb = res.way_back

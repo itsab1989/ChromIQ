@@ -791,3 +791,20 @@ def test_m3_read_rows_get_a_margin_dot_not_an_outline(qapp, tmp_path):
     assert img.pixelColor(31, 29) != QColor("white")
     # the row being read (1): framed
     assert img.pixelColor(38, 59) != QColor("white")
+
+
+def test_end_after_a_first_row_that_failed_can_end(qtbot, monkeypatch, tmp_path, settings):
+    """Found on screen (fix round 10, German pass): the only row failed after one patch, the
+    person ended the step and pressed End measurement: the job refused 'nothing_read' and the
+    measurement could never end. It ends as one that kept nothing, and says why."""
+    sim = WindowSim(faults={"read_loc": {"0-1": "dies"}})
+    win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
+                                                    asking=False, sim=sim)
+    p.drive_until("row_failed")
+    p.press("End this step")
+    n = moves(sim)
+    win._end_btn.click()
+    p.idle()
+    assert p.page() in ("home_offered", "done"), (p.page(), win._text.text()[:120])
+    assert "cannot be kept" in win._text.text() and moves(sim) == n
+    assert not run.measurement_ti3.exists()

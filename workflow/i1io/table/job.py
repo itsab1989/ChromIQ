@@ -2287,6 +2287,12 @@ class TableJob:
             return out
         res = self.measurement()
         a = getattr(self, "_assembly", None)
+        if not res.ok and res.reason == "nothing_read":
+            # fix round 10 (found on screen): readings were taken, but none can be filed (the
+            # only row they belong to failed before its reader saved them): the session ends
+            # as one that read nothing, saying so, instead of an ending that can never end
+            out["unfiled"] = new
+            return out
         if not res.ok or a is None:
             out.update(state="refused", reason=res.reason)
             return out
