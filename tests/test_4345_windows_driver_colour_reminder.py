@@ -187,6 +187,42 @@ def test_the_text_fits_a_verification_chart_too():
     assert "verification chart" in body
 
 
+def _print_tab_windows_help() -> "list[str]":
+    """The three older Print Chart tab texts for Windows that name the
+    makers' menus: the ⓘ help, the box for a printer that is not
+    PostScript (#205) and the warning on the dialog route."""
+    import ast
+    import inspect
+    from ui.tabs import tab_print as tp
+    out = [tp._TT_BODY_PRINT_WINDOWS, tp._WIN_NOT_POSTSCRIPT_BODY]
+    for node in ast.walk(ast.parse(inspect.getsource(tp))):
+        if (isinstance(node, ast.Call) and getattr(node.func, "id", "") == "tr"
+                and node.args and isinstance(node.args[0], ast.Constant)
+                and str(node.args[0].value).startswith(
+                    "⚠  You are printing via the Windows printer dialog.")):
+            out.append(node.args[0].value)
+    assert len(out) == 3
+    return out
+
+
+def test_the_print_tabs_older_help_agrees_with_the_window():
+    """Review of 4.3.45, S3: the Print Chart tab's own Windows help said
+    Canon "Color Options" → Manual → None and Epson "Epson Color
+    Controls" → Off, beside a window giving the makers' real paths. Canon's
+    IJ manuals: Main tab, Color/Intensity Manual, Set..., Matching tab,
+    Color Correction None; Epson as in S2; HP the Color tab."""
+    for text in _print_tab_windows_help():
+        assert "Epson Color Controls" not in text
+        assert '"Color Options"' not in text
+        for words in ('"Main" tab', '"Color/Intensity"', '"Set..."',
+                      '"Matching" tab', '"Color Correction"',
+                      '"Off (No Color Adjustment)"',
+                      '"Off (No Color Management)"', '"Advanced Settings"',
+                      '"Color" tab', '"Application-Managed Colors"'):
+            assert words in text, words
+        assert "—" not in text
+
+
 def test_the_default_is_to_ask():
     from core.settings import DEFAULTS
     assert DEFAULTS["print_win_hide_driver_cm_confirm"] is False
