@@ -2391,6 +2391,20 @@
    "aspect": "present",
    "expected": true,
    "reason": "These instruments are laid out by the ChromIQ layout engine even with its box unticked (printtarg cannot lay them out), so their Output options stay on screen, the page-output Beta's Resolution unit (#215) among them; for the i1Pro with the engine off printtarg writes the chart and the panel is hidden."
+  },
+  {
+   "check": "control",
+   "mode": "manual_engine_off",
+   "instrument": [
+    "CR30",
+    "FD9",
+    "IO2",
+    "XRISIS"
+   ],
+   "item": "panel.units",
+   "aspect": "present",
+   "expected": true,
+   "reason": "These instruments are laid out by the ChromIQ layout engine even with its box unticked (printtarg cannot lay them out), so their layout panel stays on screen, the page-output Beta's Units choice (2026-11-17) among it; for the i1Pro with the engine off printtarg writes the chart and the panel is hidden."
   }
  ],
  "known_to_review": [
