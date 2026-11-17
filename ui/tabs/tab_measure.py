@@ -2648,9 +2648,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         pv = getattr(self, "_preview", None)
         if pv is None or not hasattr(pv, "set_legend_keepout"):
             return
-        pv.set_legend_keepout(self._i1io_legend_keepout_rects())
+        rects = self._i1io_legend_keepout_rects()
+        pv.set_legend_keepout(rects.get("keep", {}), rects.get("ink", {}))
 
     def _i1io_legend_keepout_rects(self) -> "dict":
+        """{"keep": {page: [QRectF]}, "ink": {page: [QRectF]}} in image pixels."""
         try:
             from workflow.i1io.support import i1io_enabled
             ti1 = getattr(self, "_ti1_path", None)
@@ -2671,7 +2673,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
 
             def box(x0, y0, x1, y1):
                 return QRectF(x0 * k, y0 * k, (x1 - x0) * k, (y1 - y0) * k)
-            out = {}
+            out, ink = {}, {}
             for n, pg in enumerate(sheet.get("pages") or []):
                 rects = []
                 xs, ys = [], []
@@ -2690,13 +2692,15 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                     rects.append(box(*(float(v) for v in wm[:4])))
                 tc = pg.get("text_column_mm")
                 if tc and len(tc) >= 4:
-                    rects.append(box(*(float(v) for v in tc[:4])))
+                    # the text column is mostly empty paper: only what is
+                    # printed in it is kept out (measured in the page image)
+                    ink.setdefault(n, []).append(box(*(float(v) for v in tc[:4])))
                 for a in pg.get("aim_points") or []:
                     mx, my = (float(v) for v in a.get("page_mm") or (0, 0))
                     rects.append(box(mx - 6, my - 6, mx + 6, my + 6))
                 if rects:
                     out[n] = rects
-            return out
+            return {"keep": out, "ink": ink}
         except Exception:      # noqa: BLE001 - a drawing aid, never a blocker
             log.debug("i1iO legend keep-out not read", exc_info=True)
             return {}

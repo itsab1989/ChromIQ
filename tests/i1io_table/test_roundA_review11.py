@@ -294,35 +294,33 @@ def test_s1_the_keepout_comes_from_the_side_file_and_only_for_an_i1io_chart(
     tab.set_ti1_path(run.artefact(".ti1"))
     ko = tab._preview._legend_keepout
     assert 0 in ko and len(ko[0]) >= 2
+    assert 0 not in tab._preview._legend_ink or tab._preview._legend_ink[0]
     wm = ko[0][1]
     assert abs(wm.y() - 280 * 100 / 25.4) < 1 and abs(wm.height() - 10 * 100 / 25.4) < 1
 
 
-def test_s1_the_chip_takes_a_free_band_or_is_not_drawn(qapp):
-    """The placement alone: a page whose patches end at 60 % and whose wordmark line sits under
-    them; the chip lands in the free band below the wordmark, and with no free band at all it
-    is not drawn (never over the print)."""
+def test_s1_the_chip_takes_a_free_place_or_is_not_drawn(qapp):
+    """The placement alone: patches ending at y 360, a wordmark line under them with free
+    paper on its left; the chip goes beside the wordmark, never on it, and with no free place
+    at all it is not drawn (never over the print)."""
     from PyQt6.QtCore import QRectF
     from PyQt6.QtGui import QFont, QImage, QPainter
     from ui.tiff_preview import TiffPreview
     pv = TiffPreview()
-    pv._stripe_rects = []
-    img = QImage(400, 600, QImage.Format.Format_RGB32)
+    img = QImage(800, 600, QImage.Format.Format_RGB32)
     painter = QPainter(img)
     painter.setFont(QFont("Helvetica", 11))
     try:
-        patches = [(QRectF(20, 20, 360, 340).toRect(), None, None, None)]
-        ko = [QRectF(20, 370, 360, 30)]           # the wordmark line under the patches
+        obstacles = [QRectF(20, 20, 760, 340),        # the patches
+                     QRectF(420, 370, 360, 30)]       # the wordmark and name line
         got = pv._legend_clear_place(painter, "expected ◤ · measured ◢ (screen colours "
-                                     "approximate)", ko, patches, 1.0, 1.0, 0, 0,
-                                     0, 0, 400, 600, 0)
+                                     "approximate)", obstacles, 0, 0, 800, 410, 0, 400)
         assert got is not None
         cx, cy, tw, th, _t, _f = got
         chip = QRectF(cx, cy, tw, th)
-        assert not chip.intersects(ko[0]) and cy > 400
-        full = [QRectF(0, 0, 400, 600)]
-        assert pv._legend_clear_place(painter, "x", full, patches, 1.0, 1.0, 0, 0,
-                                      0, 0, 400, 600, 0) is None
+        assert not any(chip.intersects(o) for o in obstacles), (chip, obstacles)
+        assert pv._legend_clear_place(painter, "x", [QRectF(0, 0, 800, 410)],
+                                      0, 0, 800, 410, 0, 400) is None
     finally:
         painter.end()
 

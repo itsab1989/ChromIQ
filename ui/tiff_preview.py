@@ -2380,44 +2380,79 @@ class TiffPreview(QWidget):
             self._table_rows = state
             self._schedule_refresh()
 
-    def set_legend_keepout(self, by_page: "dict | None") -> None:
+    def set_legend_keepout(self, by_page: "dict | None",
+                           ink: "dict | None" = None) -> None:
         """Places on the paper the legend chip must never cover, in image pixels,
         ``{page index: [QRectF, ...]}`` (review 11, S-1: an i1iO chart prints its
         row letters, its marks and its wordmark line in the band the chip used to
-        take). None or empty: the chip is placed as it always was."""
+        take). *ink*: ``{page index: [QRectF, ...]}`` regions where only what is
+        really printed is kept out (the bounding box of the ink found in the
+        page image, e.g. a text column that is mostly empty paper). None or
+        empty: the chip is placed as it always was."""
         self._legend_keepout = dict(by_page or {})
+        self._legend_ink = dict(ink or {})
+        self._legend_ink_cache = {}
         self._schedule_refresh()
 
     def _legend_keepout_now(self) -> list:
         ko = getattr(self, "_legend_keepout", None) or {}
-        return list(ko.get(self._current, ()))
+        out = list(ko.get(self._current, ()))
+        for r in (getattr(self, "_legend_ink", None) or {}).get(self._current, ()):
+            box = self._ink_box(r)
+            if box is not None:
+                out.append(box)
+        return out
 
-    def _legend_clear_place(self, painter, txt: str, ko: list, items, s: float,
-                            sy: float, ox: float, oy: float, img_l: float,
-                            img_t: float, img_r: float, img_b: float,
-                            floor_room: float):
-        """Where the chip goes on a page with keep-out places (S-1): the free band
-        of the paper nearest below the patches, else any free band, at the normal
-        size or smaller; None when no band of the paper is free (the chip is then
-        not drawn: a chip over the chart's own print says nothing either)."""
+    def _ink_box(self, r):
+        """The bounding box of the printed (non-white) pixels of the page image
+        inside *r*, or None when it holds none. Cached per page image."""
+        from PyQt6.QtCore import QRect, QRectF
+        pm = self._pixmap
+        if pm is None:
+            return None
+        key = (self._current, pm.cacheKey(), round(r.x()), round(r.y()),
+               round(r.width()), round(r.height()))
+        cache = getattr(self, "_legend_ink_cache", None)
+        if cache is None:
+            cache = self._legend_ink_cache = {}
+        if key in cache:
+            return cache[key]
+        box = None
+        try:
+            import numpy as np
+            from PyQt6.QtGui import QImage
+            rr = QRect(int(r.x()), int(r.y()), int(r.width()) + 1,
+                       int(r.height()) + 1).intersected(pm.rect())
+            if not rr.isEmpty():
+                img = pm.copy(rr).toImage().convertToFormat(
+                    QImage.Format.Format_Grayscale8)
+                w, h, bpl = img.width(), img.height(), img.bytesPerLine()
+                ptr = img.constBits()
+                ptr.setsize(bpl * h)
+                a = np.frombuffer(ptr, np.uint8).reshape(h, bpl)[:, :w]
+                ys, xs = np.nonzero(a < 200)
+                if len(xs):
+                    box = QRectF(rr.x() + xs.min() - 2, rr.y() + ys.min() - 2,
+                                 xs.max() - xs.min() + 5, ys.max() - ys.min() + 5)
+        except Exception:      # noqa: BLE001 - keep the whole region out then
+            box = QRectF(r)
+        cache[key] = box
+        return box
+
+    def _legend_clear_place(self, painter, txt: str, obstacles: list,
+                            img_l: float, img_t: float, img_r: float,
+                            img_b: float, floor_room: float, below_y: float):
+        """Where the chip goes on a page with keep-out places (S-1), in the
+        coordinates of *obstacles* (screen rectangles: the chart's print and its
+        patches). A free place of the paper, the nearest below *below_y* (the
+        print's lowest edge) first, then anywhere on the paper, at the normal
+        size or smaller; None when there is none (the chip is then not drawn: a
+        chip over the chart's own print says nothing either)."""
+        from PyQt6.QtCore import QRectF
         from PyQt6.QtGui import QFont, QFontMetrics
-        bands = []
-        for r in ko:
-            bands.append((oy + r.y() * sy, oy + (r.y() + r.height()) * sy))
-        for r in list(self._stripe_rects) + [it[0] for it in (items or [])]:
-            bands.append((oy + r.y() * sy, oy + (r.y() + r.height()) * sy))
-        bands.sort()
-        top_limit, bottom_limit = img_t + 2, img_b - 2 - floor_room
-        gaps, y = [], top_limit
-        for a, b in bands:
-            if a > y:
-                gaps.append((y, min(a, bottom_limit)))
-            y = max(y, b)
-        if y < bottom_limit:
-            gaps.append((y, bottom_limit))
-        gaps = [(a, b) for a, b in gaps if b > a]
-        lowest = max((b for _a, b in bands), default=img_t)
         base = QFont(painter.font())
+        left, right = img_l + 2, img_r - 2
+        top, bottom = img_t + 2, img_b - 2 - floor_room
         for k in (1.0, 0.85, 0.72):
             f = QFont(base)
             if base.pointSizeF() > 0:
@@ -2425,24 +2460,41 @@ class TiffPreview(QWidget):
             else:
                 f.setPixelSize(max(6, int(base.pixelSize() * k)))
             fm = QFontMetrics(f)
-            th = fm.height() + 8
-            avail = int(img_r - img_l)
+            th = fm.height() + (8 if k == 1.0 else 5)
+            tw = fm.horizontalAdvance(txt) + 16
             t = txt
-            tw = fm.horizontalAdvance(t) + 16
-            if tw > avail > 0:
-                t = fm.elidedText(t, Qt.TextElideMode.ElideRight, avail - 16)
+            if tw > right - left > 0:
+                t = fm.elidedText(t, Qt.TextElideMode.ElideRight, int(right - left) - 16)
                 tw = fm.horizontalAdvance(t) + 16
-            fit = [(a, b) for a, b in gaps if b - a >= th + 4]
-            if not fit:
-                continue
-            # below the chart's print first (where the chip has always been), then
-            # any free band, the nearest to the patches first
-            below = [g for g in fit if g[0] >= lowest - 1]
-            pick = below[0] if below else min(fit, key=lambda g: abs(g[0] - lowest))
-            cy = int(pick[0] + (pick[1] - pick[0] - th) / 2)
-            cx = int((img_l + img_r) / 2 - tw / 2)
-            cx = max(int(img_l), min(cx, int(img_r - tw)))
-            return cx, cy, tw, th, t, (None if k == 1.0 else f)
+            ys = {top, bottom - th}
+            for o in obstacles:
+                ys.add(o.bottom() + 2)
+                ys.add(o.top() - th - 2)
+            best = None
+            for y in sorted(ys):
+                if y < top or y + th > bottom:
+                    continue
+                blocked = sorted((o.left(), o.right()) for o in obstacles
+                                 if o.top() < y + th and o.bottom() > y)
+                x, free = left, []
+                for a, b in blocked:
+                    if a > x:
+                        free.append((x, min(a, right)))
+                    x = max(x, b)
+                if x < right:
+                    free.append((x, right))
+                for a, b in free:
+                    if b - a < tw + 4:
+                        continue
+                    centre = (img_l + img_r) / 2
+                    cx = min(max(centre - tw / 2, a + 2), b - 2 - tw)
+                    # below the print first, then the nearest to it; centred
+                    score = (0 if y >= below_y - 1 else 1, abs(y - below_y),
+                             abs(cx + tw / 2 - centre))
+                    if best is None or score < best[0]:
+                        best = (score, int(cx), int(y))
+            if best is not None:
+                return best[1], best[2], tw, th, t, (None if k == 1.0 else f)
         return None
 
     def set_table_ring(self, on: bool) -> None:
@@ -7014,7 +7066,7 @@ class TiffPreview(QWidget):
             # letters) gets the chip in a free band of the paper, smaller if it
             # must be, or not at all. Every other chart is placed as before.
             _font = None
-            _ko = self._legend_keepout_now() if _turned is None else []
+            _ko = self._legend_keepout_now()
             if _ko:
                 _full = (tr("Showing expected colours (screen colours approximate)")
                          if self._overlay_mode == "expected" else
@@ -7022,9 +7074,17 @@ class TiffPreview(QWidget):
                             "colours (screen colours approximate)")
                          if self._overlay_mode == "measured" else
                          tr("expected ◤ · measured ◢ (screen colours approximate)"))
+                _obs = []
+                for r in list(_ko) + list(self._stripe_rects) + [it[0] for it in items]:
+                    x0, y0 = ox + r.x() * s, oy + r.y() * sy
+                    x1, y1 = ox + (r.x() + r.width()) * s, oy + (r.y() + r.height()) * sy
+                    if _turned is not None:
+                        x0, y0, x1, y1 = _tbox(x0, y0, x1, y1)
+                    _obs.append(QRectF(x0, y0, x1 - x0, y1 - y0))
                 placed = self._legend_clear_place(
-                    painter, _full, _ko, items, s, sy, ox, oy, img_l, img_t,
-                    img_r, img_b, 25 if self._bidirectional else 0)
+                    painter, _full, _obs, img_l, img_t, img_r, img_b,
+                    25 if self._bidirectional else 0,
+                    max((o.bottom() for o in _obs), default=img_t))
                 if placed is None:
                     self._legend_rect = None
                     self._legend_geom = None
