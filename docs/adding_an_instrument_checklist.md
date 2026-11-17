@@ -422,6 +422,10 @@ filed on the right patches, and every refusal of 6.7 has a test.
 
 ## Stage 7. Measure tab
 
+- [ ] **7.0** An instrument ChromIQ moves itself (a table) can work IN the Measure tab
+      as a panel in the options' place, with the preview following it, as the i1iO
+      table does (Beta): `ui/i1io_table_window.py` and
+      `ui/tabs/tab_measure.py::_started_the_table_drive`.
 - [ ] **7.1** Routing at `ui/tabs/tab_measure.py::_on_start`: either the
       chartread route (for a driver that returns one reading per patch,
       chartread with external values, `-xx`,

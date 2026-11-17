@@ -805,8 +805,9 @@ class TableMeasureWindow(QFrame):
         # the preview follows the job (display only; emitted from the job's thread)
         self.job.on_progress = self._signals.progress.emit
         try:
+            log_path = self._run.i1io_table_log(self._stamp)
             self._log_name = tr("{path}, in this run's folder").format(
-                path="i1io-table/{}/session.log".format(self._stamp))
+                path=Path(log_path).relative_to(self._run.dir).as_posix())
         except Exception:      # noqa: BLE001
             self._log_name = ""
         self._earlier = [e for e in self.job.earlier_sessions() if e.get("state") ==
