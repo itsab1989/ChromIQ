@@ -8732,5 +8732,9 @@
  "Marker length (in):": "标记长度（英寸）:",
  "Text distance from edge (in):": "文字与边缘的距离（英寸）:",
  "Printed sheet, upright, width × height:": "打印纸张，竖向，宽 × 高：",
- "When you open a chart whose page size was typed in pixels, the Units show Pixels for that chart, and for a page typed in inches they show Inches. So if you change the resolution afterwards, the page keeps exactly what it was made of. Your own choice is not changed by this: the next chart without such a page is shown in the unit you chose.": "当你打开一个页面尺寸以像素输入的色卡时，该色卡的单位会显示为像素；页面以英寸输入时则显示为英寸。这样之后即使更改分辨率，页面也会完全保持它原本的构成。你自己的选择不会因此改变：下一个没有这种页面的色卡会以你选择的单位显示。"
+ "When you open a chart whose page size was typed in pixels, the Units show Pixels for that chart, and for a page typed in inches they show Inches. So if you change the resolution afterwards, the page keeps exactly what it was made of. Your own choice is not changed by this: the next chart without such a page is shown in the unit you chose.": "当你打开一个页面尺寸以像素输入的色卡时，该色卡的单位会显示为像素；页面以英寸输入时则显示为英寸。这样之后即使更改分辨率，页面也会完全保持它原本的构成。你自己的选择不会因此改变：下一个没有这种页面的色卡会以你选择的单位显示。",
+ "[ChromIQ logo]": "[ChromIQ 标志]",
+ "The ChromIQ logo, as tall as the text": "ChromIQ 标志，与文字等高",
+ "{logo} draws the ChromIQ logo right there in the line, as tall as the text, in its own colours: “Chrom” in black and “IQ” in pink. It takes no room from the patches. If the text is printed so small that the logo could not be recognised, the logo is left out.": "{logo} 会在这一行的该位置画出 ChromIQ 标志，高度与文字相同，并使用它自己的颜色：“Chrom”为黑色，“IQ”为粉色。它不占用任何色块的空间。如果文字印得太小，标志已无法辨认，就会省略标志。",
+ "You can use the Sheet text's placeholders here too, for example {page}, {date}, {seed} or {project}, and {logo} for the ChromIQ logo. They are filled in only where the notes are printed on the chart, each page with its own page number. What you typed is kept exactly as it is everywhere else: in the project, in the chart's files and in the reports. On a chart in fixed order {seed} is left out, as in the Sheet text.": "这里也可以使用页面文字的占位符，例如 {page}、{date}、{seed} 或 {project}，以及表示 ChromIQ 标志的 {logo}。它们只在备注印到色卡上的地方才被填入，每一页填入自己的页码。在其他所有地方，都完整保留你输入的内容：项目中、色卡文件中以及报告中。对于固定顺序的色卡，{seed} 会被省略，与页面文字相同。"
 }

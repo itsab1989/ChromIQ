@@ -2125,7 +2125,17 @@ class ChartCreator:
             # Not on an FD-9, i1iO or i1iSis sheet: their corners and edges
             # hold the marks the instrument or the person aims at.
             if params.instrument not in ("FD9", "IO2", "XRISIS"):
-                self._stamp_tiff_metadata(tiffs, self._pending_params)
+                # what the chart notes' placeholders are filled from (4.3.44)
+                self._notes_build = {
+                    "seed": result.seed,
+                    "randomize": bool(getattr(result, "randomize", True)),
+                    "date": str(getattr(result, "chart_date", "") or ""),
+                    "pages": int(result.layout.pages),
+                    "patches": int(result.layout.total_patches)}
+                try:
+                    self._stamp_tiff_metadata(tiffs, self._pending_params)
+                finally:
+                    self._notes_build = None
 
         self._finish(tiffs)
 
@@ -2299,9 +2309,49 @@ class ChartCreator:
         except OSError as exc:
             log.error("Could not patch ti2 %s: %s", ti2, exc)
 
+    @staticmethod
+    def notes_have_placeholders(params: "ChartParams") -> bool:
+        """True when the run's chart notes hold a `{...}` to fill in."""
+        return "{" in str(getattr(params, "chart_notes", "") or "")
+
+    def notes_context(self, params: "ChartParams", page: int, pages: int,
+                      patch_count: int = 0) -> dict:
+        """The placeholder values for page *page* (1-based) of *pages*: the
+        Sheet text's own (`chart.text_placeholder_context`), from the build
+        just made. An engine chart gives its seed, order, date and patch
+        count (:attr:`_notes_build`); a printtarg chart has no seed of ours,
+        so its `{seed}` is dropped as on a chart in fixed order."""
+        from workflow.layout_engine.chart import text_placeholder_context
+        built = dict(getattr(self, "_notes_build", None) or {})
+        rec = getattr(params, "layout_recipe", None)
+        dpi = int(built.get("dpi") or getattr(rec, "dpi", 0)
+                  or params.tiff_dpi or 300)
+        ctx = text_placeholder_context(
+            project=str(params.target_name or ""),
+            rundescription=str(getattr(params, "run_description", "") or ""),
+            instrument=str(params.instrument or ""),
+            paper=str(params.paper or ""), dpi=dpi,
+            patches=int(built.get("patches") or patch_count or 0),
+            pages=int(built.get("pages") or pages or 1),
+            seed=int(built.get("seed") or 0),
+            chart_date=str(built.get("date") or params.chart_date or ""),
+            randomize=bool(built.get("randomize", False)))
+        ctx["page"] = f"page {page}/{int(built.get('pages') or pages or 1)}"
+        return ctx
+
     def stamp_lines(self, params: "ChartParams",
-                    patch_count: int = 0) -> list[str]:
+                    patch_count: int = 0,
+                    ctx: "dict | None" = None) -> list[str]:
         """Every line that goes down the right edge of the sheet, in order.
+
+        *ctx* (4.3.44): the placeholder values of the page being stamped
+        (:meth:`notes_context`). Given, the run's chart notes are printed
+        with their placeholders filled in, by the Sheet text's own rule
+        (`raster.resolve_placeholders`, `{seed}` dropped on a chart in fixed
+        order) and `{logo}` left for the stamper to draw. Only the PRINTED
+        line changes: the notes are stored, recorded and reported exactly as
+        typed (`docs/design/per_run_description.md`, awaiting confirmation).
+        Without *ctx* the notes are the line as typed, as they always were.
 
         **PUBLIC BECAUSE THE PANEL HAS TO ASK THE SAME QUESTION.** Create
         Chart's "Measured from Preview" warns when the note is too long for the
@@ -2331,7 +2381,12 @@ class ChartCreator:
         # is not due to a missing parameter, or a setting that is empty."*
         # Nothing should hand the joiner a field with nothing in it.
         if (params.chart_notes or "").strip():
-            lines.append(params.chart_notes.strip())
+            note = params.chart_notes.strip()
+            if ctx is not None and "{" in note:
+                from workflow.layout_engine.raster import resolve_keeping_logo
+                note = resolve_keeping_logo(note, ctx).strip()
+            if note:
+                lines.append(note)
         if params.stamp_commands:
             # Display-only shortening of long target names / -c profile paths /
             # -K calibration paths. The argv actually handed to ArgyllRunner
@@ -2727,9 +2782,23 @@ class ChartCreator:
                                              for t, b in _boxes.items()}
                     _kw["patch_right_mm"] = {t: b[2]
                                              for t, b in _boxes.items()}
-                stamp_chart_metadata(tiffs, cmd_lines, _edge, _band,
-                                     _font_family, _size_pt, _reach, _gap,
-                                     _edge_t, _edge_b, _patch_gap, **_kw)
+                if self.notes_have_placeholders(params):
+                    # PLACEHOLDERS IN THE CHART NOTES (4.3.44): filled in per
+                    # page, so `{page}` is each sheet's own. Notes without
+                    # one take the call below, exactly as before.
+                    for _i, _t in enumerate(tiffs):
+                        _lines = self.stamp_lines(
+                            params, patch_count, ctx=self.notes_context(
+                                params, _i + 1, len(tiffs), patch_count))
+                        if _lines:
+                            stamp_chart_metadata(
+                                [_t], _lines, _edge, _band, _font_family,
+                                _size_pt, _reach, _gap, _edge_t, _edge_b,
+                                _patch_gap, **_kw)
+                else:
+                    stamp_chart_metadata(tiffs, cmd_lines, _edge, _band,
+                                         _font_family, _size_pt, _reach, _gap,
+                                         _edge_t, _edge_b, _patch_gap, **_kw)
         else:
             # ChromIQ-style: shift the patch block right by ~28 mm so the left
             # side becomes a fresh white strip ready for the left-clip stamp.
@@ -2770,10 +2839,20 @@ class ChartCreator:
             # Under ChromIQ-style the commands/notes become a clip-border
             # column instead of the (now off-page) right margin.
             command_lines = cmd_lines if chromiq_clip else None
-            stamp_left_clip_info(
-                tiffs, header_lines, form_fields, inner_lines=[],
-                command_lines=command_lines,
-            )
+            if command_lines and self.notes_have_placeholders(params):
+                # the chart notes' placeholders, per page (4.3.44)
+                for _i, _t in enumerate(tiffs):
+                    stamp_left_clip_info(
+                        [_t], header_lines, form_fields, inner_lines=[],
+                        command_lines=self.stamp_lines(
+                            params, patch_count, ctx=self.notes_context(
+                                params, _i + 1, len(tiffs), patch_count)),
+                    )
+            else:
+                stamp_left_clip_info(
+                    tiffs, header_lines, form_fields, inner_lines=[],
+                    command_lines=command_lines,
+                )
 
     @staticmethod
     def _count_patches_in_ti1(ti1_path: Path) -> int | None:

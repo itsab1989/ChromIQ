@@ -174,6 +174,11 @@ SHEET_TOKENS = (
     ("seed", tr("Seed (with “seed”)")),
     ("dpi", tr("Resolution (with “dpi”)")),
 )
+#: `{logo}` (4.3.44), in the Sheet text's menu only: the clip band's text
+#: does not draw it.
+LOGO_TOKEN_ENTRY = (
+    ("logo", tr("The ChromIQ logo, as tall as the text")),
+)
 
 
 # Font sizes are shown to the user in points (Word/PowerPoint/PDF units) but
@@ -3037,7 +3042,8 @@ class LayoutOptionsPanel(QWidget):
         self.chart_text = QLineEdit(self)
         self.chart_text.setPlaceholderText(tr("e.g. {project} — {date}"))
         self.chart_text.textChanged.connect(self._emit)
-        self.insert_token_btn = self._make_insert_button(self.chart_text)
+        self.insert_token_btn = self._make_insert_button(self.chart_text,
+                                                         logo=True)
         self.text_preview = QLabel(self)
         self.text_preview.setWordWrap(True)
         self.chart_text_font = ElidingComboBox(self)
@@ -3079,7 +3085,14 @@ class LayoutOptionsPanel(QWidget):
                        "(profile name), {page} (“page 1/3”), {date}, {paper} (e.g. "
                        "“A4 landscape”), {instrument} (e.g. “i1Pro3+”), "
                        "{patchcount}, {pages}, {seed}, {dpi}. The Preview line "
-                       "shows how it will read."), self))
+                       "shows how it will read.")
+                    + "\n\n" + tr(
+                        "{logo} draws the ChromIQ logo right there in the line, "
+                        "as tall as the text, in its own colours: “Chrom” in "
+                        "black and “IQ” in pink. It takes no room from the "
+                        "patches. If the text is printed so small that the "
+                        "logo could not be recognised, the logo is left out."),
+                    self))
         add_row(stg, 1, tr("Preview:"), self.text_preview)
         self._add_font_rows(stg, 2, tr("Font:"), self.chart_text_font,
                             self.chart_text_size, self.ct_bold, self.ct_italic,
@@ -7057,7 +7070,8 @@ class LayoutOptionsPanel(QWidget):
             self.fixed_seed_cb.blockSignals(was)
         self._sync_seed_enabled()
 
-    def _make_insert_button(self, target, *, multiline: bool = False):
+    def _make_insert_button(self, target, *, multiline: bool = False,
+                            logo: bool = False):
         """A compact "Insert ▾" token menu that inserts into *target* (a QLineEdit
         or, when *multiline*, a QPlainTextEdit).
 
@@ -7070,7 +7084,7 @@ class LayoutOptionsPanel(QWidget):
         btn.setStyleSheet("QToolButton::menu-indicator { image: none; width: 0; }")
         btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         menu = QMenu(btn)
-        for tok, desc in SHEET_TOKENS:
+        for tok, desc in SHEET_TOKENS + (LOGO_TOKEN_ENTRY if logo else ()):
             act = menu.addAction(f"{{{tok}}} — {desc}")
             act.triggered.connect(
                 lambda _c=False, t=tok, tgt=target: self._insert_token_into(tgt, t))
@@ -7309,8 +7323,14 @@ class LayoutOptionsPanel(QWidget):
         if not hasattr(self, "text_preview"):
             return
         text = self.chart_text.text()
-        self.text_preview.setText(self._resolve_sample(text) if text
-                                  else tr("(no sheet text)"))
+        if text and "{logo}" in text:
+            # `{logo}` (4.3.44): the sheet draws the ChromIQ logo there
+            shown = tr("[ChromIQ logo]").join(
+                self._resolve_sample(part) if part else part
+                for part in text.split("{logo}"))
+        else:
+            shown = self._resolve_sample(text) if text else ""
+        self.text_preview.setText(shown if text else tr("(no sheet text)"))
 
     def _add_font_rows(self, grid, r, label, combo, size, bold, italic,
                        tip=None) -> None:
