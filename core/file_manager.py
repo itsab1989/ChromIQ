@@ -2898,9 +2898,11 @@ class Run(I1ioTablePlace):
             targets += [f for f in stem_files(vexp, stem, "*")
                         if f.is_file()]
         # …AND THE i1iO TABLE'S SESSION FOLDERS OF THAT CHART (round A): their
-        # readings belong to the chart being replaced, as for a run's chart
-        if targets:
-            targets += self.verification_chart().i1io_table_sessions_for_a_new_chart()
+        # readings belong to the chart being replaced, as for a run's chart.
+        # Also when the chart's files were archived first (review 12, M-2: a
+        # Replace through the chart import or Create Chart moves them before
+        # this runs): sessions with no chart beside them belong to no chart.
+        targets += self.verification_chart().i1io_table_sessions_for_a_new_chart()
         try:
             self.archive_to_old(targets, into=self.verifications_old_dir)
         except OSError as exc:

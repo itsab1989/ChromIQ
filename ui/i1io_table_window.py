@@ -446,6 +446,17 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
         # without one gets the plain fallback below, never its own name on screen
         "ended_already_saved": tr("This measurement has been saved and has ended already."),
         "ended_already_discarded": tr("This measurement has been discarded and has ended "
+        # review 12, M-2 / M-3: a session is completed only into its own chart and date
+        "earlier_readings_of_another_chart": tr(
+            "Those earlier readings were taken from another chart: the chart has been "
+            "replaced, made again or restored since. They stay in their own folder and are "
+            "not used for this chart."),
+        "earlier_readings_of_another_verification": tr(
+            "Those earlier readings belong to another verification of this chart (another "
+            "printed sheet). They stay in their own folder and are not used for this one."),
+        "earlier_readings_chart_unknown": tr(
+            "ChromIQ cannot tell which chart those earlier readings were taken from, so it "
+            "does not use them. They stay in their own folder."),
                                       "already."),
         "ended_already_nothing_read": tr("This measurement has ended already; nothing was "
                                          "read in it."),
@@ -1211,8 +1222,15 @@ class TableMeasureWindow(QFrame):
                 path=Path(log_path).relative_to(self._run.dir).as_posix())
         except Exception:      # noqa: BLE001
             self._log_name = ""
-        self._earlier = [e for e in self.job.earlier_sessions() if e.get("state") ==
-                         "interrupted"]
+        from workflow.i1io.table import session_end as _se
+        found = [e for e in self.job.earlier_sessions() if e.get("state") == "interrupted"]
+        # review 12, M-2 / M-3: only a session read from this very chart, for this place (a
+        # verification's date), is offered for completion; any other is named, never offered
+        self._earlier = [e for e in found if _se.offered_for_completion(e)]
+        elsewhere = [e for e in found if not _se.offered_for_completion(e)]
+        if elsewhere:
+            self._show_earlier_elsewhere(elsewhere)
+            return
         self._next_earlier()
 
     def _next_earlier(self) -> None:
@@ -1277,6 +1295,21 @@ class TableMeasureWindow(QFrame):
             lines = "\n".join(option_text(t, "fields") for t in used) or "•  -"
             title, body = M.M_I1IO_DRIVE_OPTIONS_FIELDS.render(options=lines)
             self._show("options_fields", title, body,
+    def _show_earlier_elsewhere(self, sessions) -> None:
+        """M-I1IO-DRIVE-EARLIER-ELSEWHERE: interrupted readings that are kept but never
+        completed into this measurement (another chart, another dated verification, or a chart
+        ChromIQ cannot name), with why, before anything is opened."""
+        from workflow import measurement_messages as M
+        lines = "\n".join(
+            tr("•  Started on {when}: {why}").format(
+                when=stamp_text(e.get("stamp", "")),
+                why=reason_text(str(e.get("belongs_elsewhere") or "")))
+            for e in sessions)
+        title, body = M.M_I1IO_DRIVE_EARLIER_ELSEWHERE.render(sessions=lines)
+        self._show("earlier_elsewhere", title, body,
+                   [(tr("Continue"), self._next_earlier),
+                    (tr("Cancel"), self._finish_not_started)])
+
                        [(tr("Measure the rest that way"), self._measure_the_rest_that_way),
                         (tr("Cancel"), self._finish_not_started)])
             return

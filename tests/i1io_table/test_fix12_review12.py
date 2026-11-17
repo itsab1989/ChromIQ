@@ -132,3 +132,117 @@ def test_m1_a_stray_verification_beside_the_chart_is_archived_at_start_and_never
     assert p2.page() in ("home_offered", "done"), (p2.page(), win2._text.text()[:300])
 
 
+# ---- M-2: an old chart's sessions are never completed into a new chart ------------------------
+
+def _session(place, stamp="20261117-100000", identity=True, chart=None):
+    sdir = place.i1io_table_session_dir(stamp)
+    sdir.mkdir(parents=True)
+    (sdir / "session.log").write_text("x", encoding="utf-8")
+    if identity:
+        se.write_identity(sdir, chart if chart is not None else place.chart_ti2, place)
+    return sdir
+
+
+def test_m2_replace_of_a_verification_chart_sets_the_table_sessions_aside(tmp_path):
+    """Review 12's probe R12-2: the import / Create Chart Replace archives the chart first."""
+    from workflow.chart_import import archive_run_for_replace
+    proj, run, vc, sheet = verify_chart(tmp_path)
+    s1 = _session(vc)
+    archive_run_for_replace(run, verification=True)
+    run._clear_verify_chart_files()
+    assert vc.i1io_table_sessions() == [], "the old chart's sessions stay for the new chart"
+    moved = list((run.verifications_dir / "old").glob("*/" + s1.name))
+    assert len(moved) == 1 and (moved[0] / "session.log").is_file()
+
+
+def test_m2_clearing_a_verification_chart_with_no_chart_files_sets_the_sessions_aside(tmp_path):
+    proj, run, vc, sheet = verify_chart(tmp_path)
+    s1 = _session(vc)
+    for f in list(run.verifications_dir.glob("*")):
+        if f.is_file():
+            run.archive_to_old([f], into=run.verifications_old_dir)
+    run._clear_verify_chart_files()
+    assert vc.i1io_table_sessions() == []
+
+
+def _killed_copy(sdir: Path, stamp: str) -> Path:
+    dst = sdir.parent / stamp
+    shutil.copytree(sdir, dst, ignore=shutil.ignore_patterns(
+        "session_result.json", "filing*.json", "*.acknowledged.json", "discarded.json"))
+    return dst
+
+
+def _saved_session(tab, chart_ti1, place, monkeypatch, qtbot):
+    sim = _start_on(tab, chart_ti1, monkeypatch)
+    _finish(_person(tab._table_window, sim, qtbot))
+    qtbot.waitUntil(lambda: tab._table_window is None, timeout=5000)
+    qtbot.wait(100)
+    [s] = place.i1io_table_sessions()
+    return s
+
+
+def test_m2_a_session_records_the_chart_it_reads(tab, beta, tmp_path, monkeypatch, qtbot):
+    _answer_windows(monkeypatch)
+    run, sheet = table_run(tmp_path)
+    s = _saved_session(tab, run.artefact(".ti1"), run, monkeypatch, qtbot)
+    rec = json.loads((s / se.IDENTITY).read_text(encoding="utf-8"))
+    assert rec["chart_sha256"] == se.sha256_of(run.chart_ti2)
+    assert rec["belongs_to"] is None
+
+
+def test_m2_a_session_of_a_replaced_chart_is_never_offered_and_adoption_is_refused(
+        tab, beta, tmp_path, monkeypatch, qtbot):
+    """Any route that changes the chart's bytes (Restore Used Chart, a regenerate, an import,
+    a reset): the session's recorded checksum no longer matches, so it is named and never
+    completed into the new chart."""
+    _answer_windows(monkeypatch)
+    run, sheet = table_run(tmp_path)
+    ti1 = run.artefact(".ti1")
+    s = _saved_session(tab, ti1, run, monkeypatch, qtbot)
+    killed = _killed_copy(s, "20261117-235959")
+    run.measurement_ti3.unlink()                      # (a new chart has no measurement)
+    assert se.belongs_elsewhere(run, killed, run.chart_ti2) is None
+    assert any(se.offered_for_completion(e) for e in se.earlier_sessions(
+        run, chart_ti2=run.chart_ti2))
+    # the chart is replaced by one with the same locations (as Restore Used Chart would)
+    run.chart_ti2.write_text(run.chart_ti2.read_text(encoding="ascii")
+                             + "\nKEYWORD \"A_NEW_LAYOUT\"\n", encoding="ascii")
+    [e] = [e for e in se.earlier_sessions(run, chart_ti2=run.chart_ti2)
+           if e.stamp == killed.name]
+    assert e.state == se.INTERRUPTED and not se.offered_for_completion(e)
+    assert e.detail["belongs_elsewhere"] == se.ANOTHER_CHART
+    # the job refuses to complete it, whatever asks
+    sim = _start_on(tab, ti1, monkeypatch)
+    win = tab._table_window
+    qtbot.waitUntil(lambda: win._page_id in ("earlier_elsewhere", "earlier"), timeout=5000)
+    assert win._page_id == "earlier_elsewhere", win.pages_shown
+    assert "Complete it" not in [b.text() for b in win._buttons]
+    text = win._text.text()
+    assert "another chart" in text and "nothing is deleted" in text
+    res = sim.jobs[0].adopt_earlier(killed.name)
+    assert not res.ok and res.reason == se.ANOTHER_CHART
+    assert W.reason_text(res.reason) != W.reason_text("no_such_id_anywhere")
+    # Continue starts from the beginning
+    _person(win, sim, qtbot).press("Continue")
+    qtbot.waitUntil(lambda: win._page_id != "earlier_elsewhere", timeout=5000)
+    assert sim.jobs[0]._earlier_dirs == []
+
+
+def test_m2_a_session_with_no_record_of_its_chart_is_never_completed(tmp_path):
+    """Sessions written before this change (none exist outside the developers' machines: the
+    table drive is unreleased) cannot be proved to be of this chart: kept, never completed."""
+    from tests.i1io_table.test_window import project
+    from tests.i1io_table.test_job_reading import small_sheet
+    _proj, run = project(tmp_path, small_sheet())
+    sdir = _session(run, identity=False)
+    assert se.belongs_elsewhere(run, sdir, run.chart_ti2) == se.CHART_NOT_RECORDED
+
+
+def test_m2_calibration_reset_and_restore_routes_are_covered_by_the_checksum(tmp_path):
+    proj, cal, sheet = cal_chart(tmp_path)
+    sdir = _session(cal)
+    assert se.belongs_elsewhere(cal, sdir, cal.ti2) is None
+    cal.ti2.write_text(cal.ti2.read_text(encoding="ascii") + "\n", encoding="ascii")
+    assert se.belongs_elsewhere(cal, sdir, cal.ti2) == se.ANOTHER_CHART
+
+

@@ -506,6 +506,14 @@ class TableJob:
         self._instrument_check = instrument_check or us.instrument_now
         self._chart_ti2 = Path(chart_ti2) if chart_ti2 is not None else (
             Path(run.chart_ti2) if run is not None else None)
+        if run is not None and stamp is not None:
+            # review 12, M-2 / M-3: which chart (and which dated verification) this session
+            # reads, recorded before anything is read; never completed into another
+            try:
+                se.write_identity(run.i1io_table_session_dir(stamp), self._chart_ti2, run)
+            except OSError:
+                self.diag.log("INFO", "the chart's checksum could not be recorded; this "
+                                      "session can never be completed by a later one")
         #: the reader consent, given once in this session (never stored by the job)
         self.reader_consent = False
         self.readers_started = 0
@@ -2566,6 +2574,11 @@ class TableJob:
             return self._result("adopt", Kind.REFUSED, "not_an_interrupted_session",
                                 state=state)
         live = Path(self.run.measurement_ti3)
+        # review 12, M-2 / M-3: only a session read from this very chart, for this place (a
+        # verification's date), is ever completed into it
+        elsewhere = se.belongs_elsewhere(self.run, sdir, self._chart_ti2)
+        if elsewhere:
+            return self._result("adopt", Kind.REFUSED, elsewhere)
         facts = classify(live, self._chart_ti2)
         if replacing and live.exists():
             base = None                    # replaced at Save, never built on
