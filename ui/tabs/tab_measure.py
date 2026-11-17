@@ -7248,6 +7248,16 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if run.run_type == "verification" \
                 and self._stage_verification_for_resume() is not None:
             params.resume = self._resume_has_anything_to_resume(True)
+        if run.run_type == "verification":
+            # review 12, M-3 / S-1: the session belongs to the dated
+            # verification the bar selects ("New verification": none yet),
+            # and a resumed one keeps the date's earlier file in that date's
+            # old/ (§2a), as the hand path does
+            _ctl = getattr(self, "_target_ctl", None)
+            _vid = getattr(getattr(_ctl, "target", None), "verification_id", "") or None
+            _staged = getattr(self, "_staged_verification_ti3", None)
+            run = run.run.verification_chart(
+                _vid, getattr(self, "_staged_from", None) if _staged is not None else None)
         args = self._manager._build_args(params)
         _beside = Path(run.measurement_ti3)
         self._ti3_mtime_before = (_beside.stat().st_mtime if _beside.exists()

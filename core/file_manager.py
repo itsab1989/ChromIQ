@@ -1543,6 +1543,15 @@ class I1ioTablePlace:
     def i1io_table_sessions(self) -> "list[Path]":
         """This run's table session folders, oldest first (none: [])."""
         try:
+    #: review 12, M-3: what a table session of this place belongs to besides its chart (a
+    #: verification's date, `VerificationChart`); None: the place itself
+    i1io_table_session_key: "str | None" = None
+
+    @property
+    def measurement_old_dir(self) -> Path:
+        """Where the §2a guard of a table Save keeps the file it replaces (review 12, S-1):
+        this place's ``old_dir``; a resumed verification's is its date's (`VerificationChart`)."""
+        return self.old_dir
             return sorted(p for p in self.i1io_table_dir.iterdir()
                           if p.is_dir() and _I1IO_TABLE_STAMP.fullmatch(p.name))
         except OSError:
@@ -2481,10 +2490,12 @@ class Run(I1ioTablePlace):
         d = Path(self.dir)
         return d.parent.parent if d.parent.name == "runs" else None
 
-    def verification_chart(self) -> "VerificationChart":
+    def verification_chart(self, verification_id: "str | None" = None,
+                           staged_from: "Path | None" = None) -> "VerificationChart":
         """This run's shared verification chart as a place the i1iO table
-        measures into (round A)."""
-        return VerificationChart(self)
+        measures into (round A); for the dated verification *verification_id*
+        (None: "New verification"), resumed from *staged_from* (review 12)."""
+        return VerificationChart(self, verification_id, staged_from)
     # (the session members are `I1ioTablePlace`'s, shared with `Calibration`
     # and `VerificationChart`: round A, every run type is driven)
 
@@ -3275,7 +3286,8 @@ class VerificationChart(I1ioTablePlace):
 
     run_type = "verification"
 
-    def __init__(self, run: "Run") -> None:
+    def __init__(self, run: "Run", verification_id: "str | None" = None,
+                 staged_from: "Path | None" = None) -> None:
         self._run = run
 
     @property
@@ -3326,6 +3338,27 @@ class Verification:
     @property
     def stem(self) -> str:                    return self._run.verify_stem
     @property
+        #: review 12, M-3: the dated verification a START measures for (the target bar's
+        #: date; None: "New verification"). A table session belongs to it: an interrupted
+        #: session of one date is never completed into another date's measurement, as the
+        #: hand path keeps them apart (`_drop_unused_verification_stage`).
+        self.verification_id = verification_id or None
+        #: review 12, S-1: the dated file a resumed verification was staged from
+        self.staged_from = Path(staged_from) if staged_from is not None else None
+
+    @property
+    def i1io_table_session_key(self) -> str:
+        """``verification:<date>``, or ``verification:new`` for "New verification"."""
+        return f"verification:{self.verification_id or 'new'}"
+
+    @property
+    def measurement_old_dir(self) -> Path:
+        """§2a, as the hand path (`_begin_session_guard`): a resumed verification works on a
+        copy beside the shared chart, but the measurement it protects belongs to its date, so
+        the copy is kept in ``verifications/<date>/old/``, not in the chart's ``old/``."""
+        if self.staged_from is not None:
+            return self.staged_from.parent / "old"
+        return self.old_dir
     def measurement_ti3(self) -> Path:        return resolve_existing(self.dir / f"{self.stem}.ti3")
     @property
     def reads_dir(self) -> Path:              return self.dir / "reads"

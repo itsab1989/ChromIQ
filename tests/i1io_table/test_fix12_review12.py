@@ -246,3 +246,46 @@ def test_m2_calibration_reset_and_restore_routes_are_covered_by_the_checksum(tmp
     assert se.belongs_elsewhere(cal, sdir, cal.ti2) == se.ANOTHER_CHART
 
 
+# ---- M-3: a verification's session belongs to its date ---------------------------------------
+
+def test_m3_an_interrupted_verification_session_is_offered_only_to_its_own_date(
+        tab, beta, tmp_path, monkeypatch, qtbot):
+    """Review 12's probe R12-3, keyed: a session started on date A and cut off is offered only
+    when date A is measured again, never to "New verification" or to date B."""
+    _answer_windows(monkeypatch)
+    proj, run, vc, sheet = verify_chart(tmp_path)
+    sim = _start_on(tab, run.verify_chart_ti1, monkeypatch)
+    _finish(_person(tab._table_window, sim, qtbot))
+    qtbot.waitUntil(lambda: bool(run.verifications()), timeout=5000)
+    qtbot.wait(100)
+    date_a = run.verifications()[0].id
+    [s] = vc.i1io_table_sessions()
+    killed = _killed_copy(s, "20261117-235959")
+    # as if that START had been made on date A (a re-read of that printed sheet)
+    rec = se.read_identity(killed)
+    rec["belongs_to"] = run.verification_chart(date_a).i1io_table_session_key
+    (killed / se.IDENTITY).write_text(json.dumps(rec), encoding="utf-8")
+
+    def offered(place):
+        return [e.stamp for e in se.earlier_sessions(place, chart_ti2=vc.chart_ti2)
+                if se.offered_for_completion(e)]
+    assert offered(run.verification_chart(date_a)) == [killed.name]
+    assert offered(run.verification_chart(None)) == []           # New verification
+    assert offered(run.verification_chart("20261118-090000")) == []
+    [e] = [e for e in se.earlier_sessions(run.verification_chart(None), chart_ti2=vc.chart_ti2)
+           if e.stamp == killed.name]
+    assert e.detail["belongs_elsewhere"] == se.ANOTHER_VERIFICATION
+
+
+def test_m3_a_table_start_on_a_verification_records_its_date(
+        tab, beta, tmp_path, monkeypatch, qtbot):
+    _answer_windows(monkeypatch)
+    proj, run, vc, sheet = verify_chart(tmp_path)
+    _target(tab, run, "")
+    sim = _start_on(tab, run.verify_chart_ti1, monkeypatch)
+    assert tab._table_window._run.i1io_table_session_key == "verification:new"
+    qtbot.waitUntil(lambda: bool(sim.jobs), timeout=5000)
+    sdir = sim.jobs[0].run.i1io_table_session_dir(sim.jobs[0].stamp)
+    assert se.read_identity(sdir)["belongs_to"] == "verification:new"
+
+
