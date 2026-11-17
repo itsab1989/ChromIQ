@@ -11655,6 +11655,39 @@ M_I1PRO2_LIGHTS_LEFT_ON = _m(
     approved=False)
 
 
+# --- PROPOSED: the instrument refused the "Spectral filter type (-F)" choice --
+#: 4.3.45 (dpreview #349, an i1Pro 2 also sold as ES-2000): with the row on,
+#: chartread printed "Setting requested filter not supported by instrument"
+#: (ArgyllCMS 3.5.0 spectro/chartread.c:705; the helper prints the same) and
+#: exited, and the Measure tab went back to Start with nothing on screen.
+#: Shown by `TabMeasure._filter_refused_window` when the read ends that way
+#: (`MeasureManager.filter_refused`). {setting} is the row's entry as the list
+#: shows it, {start} the Start button's own text. Not greyed: the row means
+#: something on the instruments that accept it (the owner's rule).
+M_FILTER_REFUSED = _m(
+    "M-FILTER-REFUSED",
+    "The instrument does not accept this filter choice",
+    "The measurement did not start. On the Measure tab, “Spectral filter "
+    "type (-F)” is switched on and set to “{setting}”, and the instrument "
+    "you have connected does not accept that choice. ArgyllCMS, which "
+    "ChromIQ measures with, reported: “Setting requested filter not "
+    "supported by instrument”.\n\n"
+    "In ArgyllCMS 3.5.0, some instruments accept no filter choice at all, "
+    "not even “M0: no filter (lamp as it is)”. The i1Pro 2 (also sold as "
+    "ES-2000) and the ColorMunki are among them: they always measure in "
+    "their normal mode, which on the i1Pro 2 is M0, the instrument's own "
+    "lamp without a filter. Other instruments accept only some of the "
+    "choices: the i1Pro 3, for example, accepts “M3: polarising filter” "
+    "only when it has a polariser fitted.\n\n"
+    "What to do: switch “Spectral filter type (-F)” off (the option is in "
+    "Manual mode), then press “{start}” again. The instrument then measures "
+    "in its normal mode; on an i1Pro 2 the measurement is M0. If your "
+    "instrument accepts other choices, you can choose one of those "
+    "instead.\n\n"
+    "Nothing has been measured or changed.",
+    approved=False)
+
+
 #: The ruler check (Preferences > Beta, 2026-11-14; §M-PROPOSED): an
 #: accepted strip that the instrument's ruler says was clearly not read all
 #: the way. Re-read Strip (the default) / Continue Anyway, as "Strip Read
@@ -11702,6 +11735,7 @@ CATALOGUE = {m.id: m for m in (
     M_STRIP_TURNED,
     M_STRIP_RULER_NOT_COVERED,
     M_I1PRO2_LIGHTS_LEFT_ON,
+    M_FILTER_REFUSED,
     M_STRIP_FAILED_COMS_DETAIL,
     M_RESUME_RESOLUTION,
     M_RESUME_RESOLUTION_INSTRUMENT,

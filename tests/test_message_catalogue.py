@@ -120,6 +120,8 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 # M-PATCH-SIMILAR joined on 2026-10-15 (4.3.5 beta 8): Knut confirmed the
 # similar-patch rule for both tests (#182 6196599132); its card texts are ours.
 AWAITING_APPROVAL: "set[str]" = {
+    # 4.3.45 (dpreview #349): the instrument refused the -F choice.
+    "M-FILTER-REFUSED",
     # 2026-11-16: the Beta "Custom page size in inches or pixels, and high
     # resolution" (#215).
     "M-PAGE-OUTPUT-PARTS",
@@ -1185,6 +1187,8 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_measure", "TabMeasure", "_unread_choice_window"),
     # The i1Pro 2 lights (Beta), 2026-11-13: replug before connecting.
     ("ui.tabs.tab_measure", "TabMeasure", "_i1pro2_lights_left_on_window"),
+    # 4.3.45 (dpreview #349): the -F choice refused.
+    ("ui.tabs.tab_measure", "TabMeasure", "_filter_refused_window"),
     # #182 5963903650 Q5: "Was a strip read twice?"
     ("ui.tabs.tab_measure", "TabMeasure", "_strip_read_twice_window"),
     # The pause between pages (jctay 149802, Basti 2026-10-23).

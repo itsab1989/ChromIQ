@@ -48,6 +48,7 @@ identifiers.
 | Instrument Type Mismatch | Both | Instrument error |
 | Correction File Failed to Load | Both | Instrument error |
 | Instrument Mode Rejected | Both | Instrument error |
+| The instrument does not accept this filter choice | Both | Instrument error |
 | Instrument Error (anything else the instrument reports) | Both | Instrument error |
 | Pause after a page (Preferences option) | Strip reading | No sound |
 | All strips read / All patches read | Both | Measurement finished |
@@ -67,6 +68,14 @@ the window for such a calibration that did not succeed
 a calibration succeeds, so it is a failure the user has to act on. Knut's
 ruling covered the request, not its failure, so this value is ours until he
 names one.
+
+### 1b. The instrument refused the filter choice (4.3.45)
+
+⏳ **Awaiting confirmation.** **Confirmed by:** *nobody yet.* The window for a
+"Spectral filter type (-F)" choice the instrument does not accept
+(M-FILTER-REFUSED, unified measurement management §M-PROPOSED; dpreview #349)
+plays **Instrument error**, like its neighbour "Instrument Mode Rejected": the
+read ended at start-up and the user has to change a setting. The value is ours.
 
 ## 2. Sounds that mark an event rather than a window
 
