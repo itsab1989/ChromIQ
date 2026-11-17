@@ -7129,6 +7129,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         from core import i1pro2_lights_marker as _lights
         if self._blocked_by_i1pro2_lights_left_on(family=_lights.CHART_FAMILY):
             return True
+        # the run keeps a copy of the chart it is measured with (#130, Knut
+        # 2026-07-27: runs/runN/chart/, what Restore Used Chart puts back),
+        # taken where the hand path takes it, before anything is written
+        if not self._snapshot_verification_chart():
+            return True
         params = self._collect_params()
         args = self._manager._build_args(params)
         only_locs = self._table_refinement_locs(params)

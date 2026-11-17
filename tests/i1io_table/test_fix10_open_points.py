@@ -247,3 +247,34 @@ def test_d_with_the_beta_off_no_option_is_greyed(tab, tmp_path, monkeypatch):
         assert getattr(tab, "_table_options_snapshot", None) is None
     finally:
         sup.set_enabled_for_this_process(None)
+
+
+# ---- found on the way --------------------------------------------------------------------------
+
+def test_the_table_start_keeps_a_copy_of_the_chart_as_the_hand_path_does(
+        tab, beta, tmp_path, monkeypatch):
+    run, sheet = table_run(tmp_path)
+    called = []
+    monkeypatch.setattr(tab, "_snapshot_verification_chart",
+                        lambda: called.append(1) or True)
+    start(tab, run, monkeypatch)
+    assert called == [1] and tab._table_window is not None
+
+
+def test_a_new_chart_archives_the_table_sessions_of_the_old_one(tmp_path):
+    """Left in place, an interrupted session of the old layout would be offered for
+    completion and filed by location onto the new chart (#211's harm)."""
+    import json
+    from workflow.i1io.table import session_end as se
+    run, sheet = table_run(tmp_path)
+    plain = run.i1io_table_session_dir("20261117-100000")
+    plain.mkdir(parents=True)
+    (plain / "summary.json").write_text("{}", encoding="utf-8")
+    held = run.i1io_table_session_dir("20261117-110000")
+    held.mkdir(parents=True)
+    (held / "TABLE_IN_USE.json").write_text(json.dumps({"stamp": "x"}), encoding="utf-8")
+    run.reset_chart_artefacts()
+    assert not plain.exists()                                    # in old/, nothing deleted
+    assert list(run.old_dir.glob("*/20261117-100000/summary.json"))
+    assert held.is_dir() and se.session_state(held) == se.DISCARDED   # never completed
+    assert se.project_markers(run)                               # and still asked about

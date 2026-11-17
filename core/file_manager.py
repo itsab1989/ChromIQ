@@ -2904,6 +2904,32 @@ class Run:
                     + list(self.chart_tiffs()))
         settle_chart_stash(self.dir, stash, built=built, leftovers=_leftovers)
 
+    def _table_sessions_for_a_new_chart(self) -> "list[Path]":
+        """The table session folders to archive with the replaced chart (see
+        ``reset_chart_artefacts``); those holding an unanswered marker are
+        kept and marked discarded instead."""
+        import json as _json
+        out = []
+        for sdir in self.i1io_table_sessions():
+            unanswered = False
+            for name in (I1IO_TABLE_PENDING_MARKER, "TABLE_IN_USE.json"):
+                m = sdir / name
+                if m.is_file() and not m.with_suffix(".acknowledged.json").is_file():
+                    unanswered = True
+            if not unanswered:
+                out.append(sdir)
+                continue
+            mark = sdir / I1IO_TABLE_DISCARDED
+            if not mark.is_file():
+                try:
+                    mark.write_text(_json.dumps({
+                        "discarded_by_person": False,
+                        "why": "the chart was replaced; its marker is kept"}),
+                        encoding="utf-8")
+                except OSError:
+                    log.warning("could not mark %s discarded", sdir)
+        return out
+
     def reset_chart_artefacts(self, *, keep_results: bool = False,
                               stash: bool = False) -> "Path | None":
         """Wipe chart files + reads + measurement + merged + profile.
@@ -2978,6 +3004,16 @@ class Run:
         # chart being replaced. The folder exists only for such a chart.
         if not keep_results and any(self.i1io_pages_dir.glob("*")):
             archive.append(self.i1io_pages_dir)
+        # …AND THE i1iO TABLE'S SESSION FOLDERS (Beta; fix round 10). Their
+        # readings belong to the chart being replaced: left here, the next
+        # START would offer an interrupted session of the OLD layout for
+        # completion, and it would be filed by location onto the new one
+        # (#211's harm). A folder whose "switch the table off" marker nobody
+        # has answered yet stays, so the next START still asks, but it is
+        # marked discarded, so it is never completed into the new chart. The
+        # folder exists only while the Beta was on.
+        if not keep_results:
+            archive += self._table_sessions_for_a_new_chart()
         if archive:
             self.archive_to_old(archive)
         # exports/ AND cache/ ARE DERIVED, and go with the chart they describe.

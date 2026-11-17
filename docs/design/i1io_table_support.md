@@ -471,3 +471,30 @@ only the consent (once), the hands-off GO and the ending. Every text is in §M-P
 when nothing was read; the homing is offered after Save or Discard and asks its own GO. With
 the replace agreed at START, the run's measurement is moved to old/ only when the table's Save
 writes the new one; if that Save fails, it is put back when the session ends.
+
+The rows the table reads: with Refine / resume and "Refinement strips file" ticked and the
+quality check's list loaded, only the list's patches (or, for a list of strips only, every
+patch of those strips); the Save replaces exactly their readings and every other reading stays
+(M-I1IO-DRIVE-REFINE); a resume reads only the missing patches (M-I1IO-DRIVE-RESUME). For a
+chart the table reads, the Measure options with no meaning are greyed with their reason (the
+instrument port, strip recognition, the patch consistency tolerance, the spectral filter) and
+not sent; patch by patch is ticked and locked; every other option reaches the job. The run
+keeps a copy of the chart at START as on the hand path (runs/runN/chart/). A new chart for the
+run moves the table's session folders of the old one to old/ (a folder whose "switch the table
+off" marker is unanswered stays, marked discarded, so the question is still asked and its
+readings are never completed into the new chart).
+
+Calibration and verification charts are NOT driven yet (fix round 10 stopped there and kept
+today's Start windows), because two rules cannot be met by the table yet:
+* A verification is measured into its own dated folder (`verifications/<date>/`, created and
+  given its chart snapshot at START) and finished by the verification chain (the dated
+  measurement, its report against the profile's prediction, the dated folder's own replace
+  rules, `verification_printing_and_target.md` and §6 of the unified model). The table job
+  files only into `Run.measurement_ti3`, the profiling run's own measurement, and has no
+  `Verification` twin of its session folders; a table verification would write into the wrong
+  file.
+* A calibration chart lives in the project's one `cal/` folder, and `Calibration.reset()`
+  archives files only (`calibration_run_type.md`, amendment of 2026-09-23 and §4.4): table
+  session folders under `cal/` would outlive a replaced calibration chart and could be offered
+  for completion against the new one, and the job has no `Calibration` twin of the run's
+  members.
