@@ -696,3 +696,68 @@ Built and tested against the simulated table only; proved on screen with the sim
   unknown one reads "the table measurement cannot use it".
 * The ending's question ("Keep what you have measured so far?") keeps its three answers in
   view at every size the main window allows; in the lowest panel its text scrolls above them.
+
+### ⏳ Awaiting confirmation: what the real table showed on 17 Nov 2026, and what changed (owner-results round)
+
+**Confirmed by:** *nobody yet.*
+
+The volunteer (crismi2) ran ChromIQ's tester program 0.6.0 twice on his i1iO 2 with an i1Pro 2 on
+a Mac and recorded i1Profiler three times (two rows read as strips, the same chart read patch by
+patch, and a single scan with three alignments). Built and tested against the simulated table,
+which now behaves as the real one did; the in-app drive itself has still not run on a real table.
+
+* **Where the short move m1 ends.** m1 brings the measuring opening to X 2507, Y 1429 (read twice
+  after m1 from the far side, 0.400 s; i1Profiler's own m1 from elsewhere takes the time of a
+  plain move to that place: 1.759 s from (999, 1503), 2.751 s for 3,717 units). ChromIQ had
+  expected (2832, 1371) or a "sight frame" box near (2716, 1057), so every START would have
+  stopped at the alignment start. The check now accepts that one place within the usual 5 units
+  and stops the session on any other. The areas taken from m1's target field are gone from where
+  the motors are known to have driven the arm.
+* **The geometry model.** p0 reads where the measuring opening is. p1, read at each aim while the
+  sight's cross hairs sit on a mark, is the coordinate the opening must be sent to so that it sits
+  on that mark: a target, with no offset to add. Patch targets are the affine map of the sheet's
+  three marks onto the three p1 readings. i1Profiler's scans run straight along the line through
+  the p1 points (starting and ending 0.4 mm beyond the end patches' centres), and its spot targets
+  are that grid within 1 unit. While a mark is aimed, the opening itself stands about 31 mm behind
+  the sight (p0 minus p1 after the third aim); no target is ever computed from that difference.
+* **D-5 (the opening lands on the mark with p1 as target, no offset): settled for i1Profiler's own
+  path**, scans and spot rows: the values computed from its raw readings at those places agree
+  with its saved files to 0.087 dE00 on average (scan) and 0.068 (spot), with the table's stored
+  tile values. **Not yet for a row driven by ChromIQ**, which has not run on a real table. So the
+  check move to mark 3 and its question "Is the opening on mark 3?" stay as the live safeguard
+  before anything is read; the text now says why it is asked.
+* **D-4 (where to calibrate): answered.** A white made on the table's tile in the arm and one made
+  on the instrument's own tile gave patch values 0.13 dE00 apart on average (at most 0.22), and
+  i1Profiler calibrates on the table's tile. The table's tile is the default and is not asked any
+  more; the own tile stays a choice in Preferences > Beta and from the first page. A calibration
+  on the own tile that did not finish leaves the instrument out of the arm: the next calibration
+  is made on the own tile again (never "in the arm" while the instrument is outside it).
+* **D-4b (which white reference), an option until the owner decides, off by default:** "Use the
+  table's stored white tile values (as i1Profiler does)". Off: the i1Pro 2's own white reference,
+  as in a measurement by hand. On: after each calibration the table's tile is read once at rest,
+  and the measurement's spectra are scaled per band by the value stored in the table (bytes 88-231
+  of the memory block the app reads when it opens the table, 36 little-endian floats; no earlier
+  byte is read, logged or stored) divided by that reading; XYZ and L*a*b* are computed again from
+  the scaled spectrum, and the file declares `CHROMIQ_TABLE_WHITE`. Values that are not 36 finite
+  numbers between 0.30 and 1.20, factors beyond 0.85-1.15, no tile reading or no spectral values
+  (-n) are refused with M-I1IO-DRIVE-STORED-WHITE-REFUSED and the session measures as with the
+  option off. Readings with and without it never go into one file. The session log names which
+  white was used and the factors' range, never the values. Support from i1Profiler's own raw
+  readings on the real table: scan 0.087 / spot 0.068 dE00 with the stored values against
+  0.636 / 0.645 without (and 0.22 on a cross-paired comparison of the first analysis). Which is
+  closer to the true colour is not known.
+* **Recorded values added:** c4 may answer BC (B7..BC; BA, BB, B8 seen too); scan speed 168
+  (i1Profiler's; used only where no slower recorded speed keeps a row within the readings rule,
+  in practice never); 45 button presses in all, each answered by p1 2-5 ms later.
+* **A position reading a hair outside the tolerance** after a move is read once more after 0.3 s
+  before anything is doubted (i1Profiler's own arrivals: dx -2..+3, dy -5..+1 units); the
+  tolerance itself (5 units) is unchanged, and a second reading outside still stops the session.
+  The step caps allow that one extra reading per move.
+* **Spot rows start at column 0 on every row** (the end of marks 1 and 2), as i1Profiler's spot
+  rows do; only strip rows are serpentine. The time estimate per patch is 2.5 s (i1Profiler's
+  dual reading took 2.0 s a patch; ChromIQ's single reading with its 1.0 s pace about 2.4 s).
+* **The start-up of a just-switched-on table** is offered whenever the table says so, only after
+  the person's own yes; it has run once on a real table (3.088 s, the arm travelled and came back).
+* **Texts:** the consent (version 2), the start-up, the button, the reader consent on a Mac, the
+  calibration place, the check at mark 3, the Beta's (i) and the release notes say what is now
+  true.

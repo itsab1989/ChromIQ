@@ -44,13 +44,16 @@ from core.i18n import tr
 
 log = logging.getLogger(__name__)
 
-#: the version of M-I1IO-DRIVE-CONSENT's text; a changed text raises it and asks again
-CONSENT_VERSION = 1
+#: the version of M-I1IO-DRIVE-CONSENT's text; a changed text raises it and asks again (2: the
+#: volunteer's results of 17 Nov 2026 in "What has been tried")
+CONSENT_VERSION = 2
 CONSENT_KEY = "i1io_table_consent_given"
 ASK_KEY = "i1io_table_ask_after_each_step"
-#: where the i1Pro 2 is calibrated (fix round 10, the owner): asked once, then remembered;
-#: changeable in Preferences > Beta and from the panel's first page. The job still asks its
-#: question every time (it never answers it itself); the panel answers it from this.
+#: where the i1Pro 2 is calibrated: the table's tile unless the person chose the own tile in
+#: Preferences > Beta or from the panel's first page (never asked: the volunteer's table of
+#: 17 Nov 2026 gave whites 0.13 dE00 apart, and i1Profiler calibrates on the table's tile). The
+#: job still asks its question every time (it never answers it itself); the panel answers it
+#: from this.
 CAL_KEY = "i1io_table_calibration_place"
 CAL_PLACES = ("table tile", "own tile")
 #: the only chart the window drives (STEP4_PROPOSAL section 2): an i1iO 2 with an i1Pro 2
@@ -126,13 +129,45 @@ def ask_after_each_step(settings) -> bool:
         return True
 
 
+#: the place used while the person has not chosen one
+CAL_PLACE_DEFAULT = "table tile"
+#: D-4b: the table's stored white tile values (an option, off until the owner decides)
+STORED_WHITE_KEY = "i1io_table_stored_tile_white"
+
+
 def calibration_place(settings) -> str:
-    """The stored place ("table tile" / "own tile"), or "" while it was never chosen."""
+    """The place the table's i1Pro 2 is calibrated: the stored choice, else the table's
+    tile."""
     try:
         v = str(settings.get(CAL_KEY, "") or "")
-    except Exception:      # noqa: BLE001 - not chosen: asked
-        return ""
-    return v if v in CAL_PLACES else ""
+    except Exception:      # noqa: BLE001 - not readable: the default
+        return CAL_PLACE_DEFAULT
+    return v if v in CAL_PLACES else CAL_PLACE_DEFAULT
+
+
+def stored_tile_white(settings) -> bool:
+    try:
+        return bool(settings.get(STORED_WHITE_KEY, False))
+    except Exception:      # noqa: BLE001 - the default: off
+        return False
+
+
+def stored_white_reason(why: str) -> str:
+    """The words for why the table's stored white tile values were not used (D-4b)."""
+    words = {
+        "stored_white_not_readable": tr(
+            "the table did not give ChromIQ those values when it was opened"),
+        "stored_white_not_a_white_tile": tr(
+            "the values the table holds there do not look like those of a white tile"),
+        "stored_white_no_tile_reading": tr(
+            "the reading of the table's white tile that ChromIQ needs for them did not work"),
+        "stored_white_too_far_from_the_reading": tr(
+            "they differ too much from what the i1Pro 2 read on the table's white tile"),
+        "stored_white_needs_spectral_values": tr(
+            "this measurement keeps no spectral values (the option -n is on), and the values "
+            "can only be applied to a spectrum"),
+    }
+    return words.get(why, tr("ChromIQ could not use them"))
 
 
 def default_job_factory(sheet: dict, page: int, run, stamp: str, ask: bool):
@@ -223,7 +258,7 @@ def choice_label(kind: str, value: str) -> str:
         ("report_after_step", "not sure"): tr("Not sure"),
         ("reader_consent", "yes"): tr("Open the instrument"),
         ("reader_consent", "no"): tr("No"),
-        ("calibration_place", "own tile"): tr("Own tile (the cautious choice)"),
+        ("calibration_place", "own tile"): tr("Its own white tile"),
         ("calibration_place", "table tile"): tr("Table's tile"),
         ("calibration_place", "stop"): tr("End this step"),
         ("calibration_own_tile", "ready"): tr("Ready"),
@@ -517,6 +552,10 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
         "adopted_already": tr("That earlier session is being completed already."),
         "readings_with_different_fields": tr(
             "The readings were measured with different settings and cannot go into one file."),
+        "readings_with_different_white_references": tr(
+            "Some of the readings were made with the table's stored white tile values and some "
+            "without (Preferences > Beta), so they cannot go into one file. Set the option as "
+            "it was for the earlier readings, or measure the chart again."),
         "nothing_to_resume": tr("There is nothing to resume: the run has no partial "
                                 "measurement of this chart."),
         "i1profiler_running": tr("i1Profiler is open on this computer."),
@@ -1352,6 +1391,8 @@ class TableMeasureWindow(QFrame):
         page = 0
         self.job = JOB_FACTORY(self._sheet, page, self._run, self._stamp,
                                ask_after_each_step(self._settings))
+        # D-4b (Preferences > Beta, off by default): the table's stored white tile values
+        self.job.stored_tile_white = stored_tile_white(self._settings)
         # the preview follows the job (display only; emitted from the job's thread)
         self.job.on_progress = self._signals.progress.emit
         try:
@@ -1480,8 +1521,8 @@ class TableMeasureWindow(QFrame):
         return (pages[0] - 1) if pages else 0
 
     def _show_cal_choice(self) -> None:
-        """The calibration place, asked ONCE (the owner: never a question in every
-        measurement); remembered, then changed in Preferences > Beta or from the first page."""
+        """The calibration place, only when the person asks to change it on the first page
+        (the table's tile is the default and never asked); also in Preferences > Beta."""
         from workflow import measurement_messages as M
         title, body = M.M_I1IO_DRIVE_CAL_PLACE.render()
         self._show("cal_choice", title, body,
@@ -1497,9 +1538,6 @@ class TableMeasureWindow(QFrame):
         self._show_prepare()
 
     def _show_prepare(self) -> None:
-        if not calibration_place(self._settings):
-            self._show_cal_choice()
-            return
         # the job is built on the first page with something to read (review 9, NOTE)
         first = self._first_page()
         if first != self.job.page and self.job.phase == "new":
@@ -1587,6 +1625,10 @@ class TableMeasureWindow(QFrame):
         if step == "check_move":
             self._ask_check_mark()
             return
+        sw = res.detail.get("stored_white") if step == "calibrate" else None
+        if isinstance(sw, dict) and not sw.get("used"):
+            self._show_stored_white_refused(str(sw.get("why", "")))
+            return
         if step == "next_page":
             self._show_next_page(res)
             return
@@ -1607,6 +1649,13 @@ class TableMeasureWindow(QFrame):
             self._show_stopped_by_you(None)
             return
         self._next()
+
+    def _show_stored_white_refused(self, why: str) -> None:
+        """D-4b: the stored white tile values cannot be used this time; said in the panel
+        (nothing modal), and the measurement goes on with the i1Pro 2's own white."""
+        from workflow import measurement_messages as M
+        title, body = M.M_I1IO_DRIVE_STORED_WHITE_REFUSED.render(why=stored_white_reason(why))
+        self._show("stored_white_refused", title, body, [(tr("Go on"), self._next)])
 
     def _next(self) -> None:
         """The next step of the measurement, from the job's true state."""
@@ -1680,7 +1729,7 @@ class TableMeasureWindow(QFrame):
                 cb.toggled.connect(self._on_ready_tick)
             self._pending_kind = kind
             return
-        if kind == "calibration_place" and calibration_place(self._settings):
+        if kind == "calibration_place":
             # answered from the stored choice (the job keeps asking, its data still names
             # the recommended place and the open decision D-4 for the log and the analysis)
             self._pending_kind = kind

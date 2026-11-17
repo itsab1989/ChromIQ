@@ -3878,28 +3878,37 @@ class SettingsDialog(QDialog):
             _i1ioask.addWidget(self._i1io_ask_check)
             _i1ioask.addStretch()
             _beta.addLayout(_i1ioask)
-            # ...and where its i1Pro 2 is calibrated (fix round 10, the owner:
-            # asked once, then changed here; decision D-4 is still open)
+            # ...and where its i1Pro 2 is calibrated: the table's tile by default
+            # (never asked since the volunteer's table of 17 Nov 2026), the own
+            # tile as a choice
             from PyQt6.QtWidgets import QComboBox as _QCB, QLabel as _QL
             self._i1io_cal_combo = _QCB(self)
-            self._i1io_cal_combo.addItem(tr("Ask at the next table measurement"), "")
-            self._i1io_cal_combo.addItem(tr("On the table's white tile"), "table tile")
-            self._i1io_cal_combo.addItem(tr("On the i1Pro 2's own white tile (the cautious "
-                                            "choice)"), "own tile")
-            self._i1io_cal_combo.setToolTip(tr(
-                "Where the table's i1Pro 2 is calibrated. The table's tile is the "
-                "way i1Profiler does it, with the instrument staying in the arm. "
-                "ChromIQ has not yet been able to confirm on a real table that it "
-                "gives the same white as the instrument's own tile, so the own "
-                "tile is the cautious choice until then."))
+            self._i1io_cal_combo.addItem(tr("On the table's white tile (as i1Profiler does)"),
+                                         "table tile")
+            self._i1io_cal_combo.addItem(tr("On the i1Pro 2's own white tile"), "own tile")
+            self._i1io_cal_combo.setToolTip(i1io_cal_place_help())
             _i1iocal = QHBoxLayout()
             _i1iocal.setContentsMargins(28, 0, 0, 0)
             _i1iocal.addWidget(_QL(tr("Calibrate the i1Pro 2 of a table measurement:"), self))
             _i1iocal.addWidget(self._i1io_cal_combo)
             _i1iocal.addStretch()
             _beta.addLayout(_i1iocal)
+            # ...and D-4b, an option until the owner decides (off): the white
+            # scaled to the tile values stored in the table, as i1Profiler does
+            self._i1io_stored_white_check = QCheckBox(
+                tr("Use the table's stored white tile values (as i1Profiler does)"), self)
+            self._i1io_stored_white_check.setToolTip(i1io_stored_white_help())
+            _i1iosw = QHBoxLayout()
+            _i1iosw.setContentsMargins(28, 0, 0, 0)
+            _i1iosw.addWidget(self._i1io_stored_white_check)
+            _i1iosw.addStretch()
+            _i1iosw.addWidget(TooltipButton(
+                tr("Use the table's stored white tile values (as i1Profiler does)"),
+                i1io_stored_white_help(), self))
+            _beta.addLayout(_i1iosw)
         else:
             self._i1io_cal_combo = None
+            self._i1io_stored_white_check = None
 
         # X-Rite i1iSis family charts (ChromIQ's layout, measured in
         # i1Profiler). Restart to apply, like the i1iO (`workflow.isis.
@@ -6718,6 +6727,9 @@ class SettingsDialog(QDialog):
             k = self._i1io_cal_combo.findData(
                 str(s.get("i1io_table_calibration_place", "") or ""))
             self._i1io_cal_combo.setCurrentIndex(max(0, k))
+        if getattr(self, "_i1io_stored_white_check", None) is not None:
+            self._i1io_stored_white_check.setChecked(
+                bool(s.get("i1io_table_stored_tile_white", False)))
         self._isis_charts_check.setChecked(
             bool(s.get("isis_charts_beta", False)))
         self._isis_charts_toggled()
@@ -8338,10 +8350,15 @@ class SettingsDialog(QDialog):
             s.set("i1io_table_ask_after_each_step",
                   self._i1io_ask_check.isChecked())
         if getattr(self, "_i1io_cal_combo", None) is not None and \
-                self._i1io_cal_combo.currentData() != str(
-                    s.get("i1io_table_calibration_place", "") or ""):
+                self._i1io_cal_combo.currentData() != (str(
+                    s.get("i1io_table_calibration_place", "") or "") or "table tile"):
             s.set("i1io_table_calibration_place",
                   self._i1io_cal_combo.currentData())
+        if getattr(self, "_i1io_stored_white_check", None) is not None and \
+                self._i1io_stored_white_check.isChecked() != bool(
+                    s.get("i1io_table_stored_tile_white", False)):
+            s.set("i1io_table_stored_tile_white",
+                  self._i1io_stored_white_check.isChecked())
         s.set("isis_charts_beta", self._isis_charts_check.isChecked())
         # Written only when it differs from the store, so Preferences closed
         # with OK leaves no new key behind for anyone who never ticks it.
@@ -10146,6 +10163,12 @@ def i1io_support_help() -> str:
         tr("With this beta, ChromIQ can also drive an i1iO 2 table with an "
            "i1Pro 2 when you press START MEASUREMENT: it asks you once before "
            "the first time, and explains what it does."),
+        tr("What has been tried so far: on one real i1iO 2 with an i1Pro 2, on "
+           "a Mac, ChromIQ's separate tester program moved the arm, started a "
+           "table that had just been switched on, calibrated the instrument and "
+           "read the table's white tile. Reading the patches of a sheet has not "
+           "yet run on a real table: inside the app, the drive has so far run "
+           "only against a simulated table."),
         tr("What turning this on adds, after a restart of ChromIQ:\n"
            "  •  Create Chart: “i1iO 2 + i1Pro 2” in the Instrument list of "
            "Guided and of Manual. The chart is laid out for reading strip by "
@@ -10190,6 +10213,38 @@ def i1io_support_help() -> str:
         tr("With this off (the default), nothing changes: the i1iO is not "
            "offered anywhere and ChromIQ works exactly as before."),
         tr("The change takes effect the next time you start ChromIQ."),
+        tr("**Default:** off")))
+
+
+def i1io_cal_place_help() -> str:
+    """The tooltip of Preferences > Beta > "Calibrate the i1Pro 2 of a table measurement"."""
+    return tr(
+        "Before it reads, the table's i1Pro 2 measures a white tile to calibrate itself. On "
+        "the table's white tile it stays in the arm, the way i1Profiler does it, and this is "
+        "the default. On its own white tile you lift it out of the arm for the calibration "
+        "and put it back afterwards. On a real i1iO 2 both places gave the same white within "
+        "0.13 ΔE00 on average (at most 0.22), a difference nobody can see, so you do not "
+        "need to change this.")
+
+
+def i1io_stored_white_help() -> str:
+    """The (i) of Preferences > Beta > "Use the table's stored white tile values"."""
+    return "\n\n".join((
+        tr("The i1iO table keeps values for its own white tile in its memory, and i1Profiler "
+           "uses them when it calibrates the i1Pro 2 on that tile. ChromIQ can do the same, "
+           "or keep the i1Pro 2's own white reference, as when you measure by hand."),
+        tr("Off (the default): measurements made on the table agree with measurements you "
+           "make by hand with the same instrument.\n"
+           "On: measurements made on the table agree with i1Profiler's measurements on the "
+           "table. In two recorded comparisons on one real table (two rows read as strips, and "
+           "the same two rows read patch by patch, 48 patches each), ChromIQ's values worked "
+           "out from i1Profiler's own readings were about 0.1 ΔE00 away from "
+           "i1Profiler's on average with this on, and about 0.65 ΔE00 without it."),
+        tr("Which of the two is closer to the true colour is not known. With this on, ChromIQ "
+           "reads the table's white tile once after each calibration (the arm does not move) "
+           "and reads only these values from the table's memory, nothing else. If the values "
+           "do not look like a white tile, or the measurement keeps no spectral values (-n), "
+           "ChromIQ says so and measures as with this off."),
         tr("**Default:** off")))
 
 

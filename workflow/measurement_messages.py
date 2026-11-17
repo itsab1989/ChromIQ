@@ -11809,14 +11809,16 @@ M_I1IO_DRIVE_CONSENT = _m(
     "one table owner made of i1Profiler, not from X-Rite's documentation. "
     "Some steps go beyond what was recorded and are first tries.\n\n"
     "What has been tried on a real table so far. One i1iO 2 with an i1Pro 2, "
-    "on a Mac: the table's own homing and five moves over the empty table, as "
-    "i1Profiler makes them, worked as planned. The moves ChromIQ works out "
-    "itself for your sheet (aiming, the rows, feeling its way to the front) "
-    "had not been tried on a real table when this was written. The start-up "
-    "of a table that was just switched on, and reading the patches, had not "
-    "been confirmed on a real table when this text was written either. On "
-    "Windows and on Linux, nothing has been tried at all: it may not work "
-    "there, and if it does not, ChromIQ stops and tells you what it found.\n\n"
+    "on a Mac, with ChromIQ's separate tester program: the table's own homing "
+    "and the moves over the empty table, as i1Profiler makes them, the "
+    "start-up of a table that had just been switched on (once), the "
+    "calibration on the instrument's own white tile and on the table's tile, "
+    "and one reading of the table's tile all worked. The moves ChromIQ works "
+    "out itself for your sheet (aiming, the rows, feeling its way to the "
+    "front) and reading the patches of a sheet have not been tried on a real "
+    "table yet. On Windows and on Linux, nothing has been tried at all: it "
+    "may not work there, and if it does not, ChromIQ stops and tells you what "
+    "it found.\n\n"
     "Keep your hands away from the arm while it moves. Nothing may lie on the "
     "table's bed except your sheet.\n\n"
     "The way out is always the power switch. If anything looks or sounds "
@@ -11833,8 +11835,9 @@ M_I1IO_DRIVE_CONSENT = _m(
     "hand in ChromIQ always has). ArgyllCMS's notes say the helper starts "
     "again by itself. If i1Profiler then does not find the instrument or the "
     "table, quit ChromIQ, unplug the table's USB cable from the computer and "
-    "plug it in again; if that does not help, restart the computer. We do "
-    "not know yet how often this happens.\n\n"
+    "plug it in again; if that does not help, restart the computer. On the "
+    "one Mac where this has been tried, i1Profiler worked normally "
+    "afterwards; we do not know yet how often it does not.\n\n"
     "What we ask of you. ChromIQ writes a diagnostics file of every session: "
     "what was sent, what came back, the times and the readings, the versions "
     "of your system and of ChromIQ, but no serial numbers, no names and no "
@@ -11955,7 +11958,10 @@ M_I1IO_DRIVE_START_UP = _m(
     "The table has just been switched on",
     "ChromIQ can start it now, the way i1Profiler does when it finds a table "
     "that was just switched on. The arm may move to its resting place, so "
-    "please keep your hands away from the table.\n\n"
+    "please keep your hands away from the table. This start-up has run once "
+    "on a real table, sent by ChromIQ's tester program: it took about three "
+    "seconds, the arm travelled and came back to its resting place, and "
+    "nothing went wrong.\n\n"
     "Or leave the start-up to i1Profiler: ChromIQ then lets go of the table. "
     "Open i1Profiler 3.8.6 or older once, let it find the table, quit it, and "
     "press START MEASUREMENT again.\n\n"
@@ -12007,9 +12013,10 @@ M_I1IO_DRIVE_AIM_BUTTON = _m(
     "The button never starts a move. Before the arm moves again, ChromIQ "
     "still asks you here, in this panel, to take your hands away from the "
     "table.\n\n"
-    "Using the instrument's button this way is new, and it has not been "
-    "tried on a real table yet. If nothing happens when you press it, simply "
-    "press Aimed here: nothing is lost.",
+    "i1Profiler uses the button the same way on the table. ChromIQ's own way "
+    "of listening for the press has not been tried on a real table yet. If "
+    "nothing happens when you press it, simply press Aimed here: nothing is "
+    "lost.",
     approved=False)
 
 M_I1IO_DRIVE_STRIP_OPTION = _m(
@@ -12105,28 +12112,36 @@ M_I1IO_DRIVE_READER_CONSENT_MAC = _m(
     "\n\nOn a Mac this closes X-Rite's small background helper for the "
     "instrument (i1ProDeviceService) if it is using the instrument, for up "
     "to two seconds; macOS normally starts it again by itself. X-Rite's "
-    "other helper (xrdd) is not touched. We do not know yet whether "
-    "i1Profiler finds the instrument at once afterwards. The calibration is "
-    "kept where a later reading by hand finds it.",
+    "other helper (xrdd) is not touched. On the one Mac where this has been "
+    "tried, i1Profiler found the instrument and the table normally "
+    "afterwards. The calibration is kept where a later reading by hand finds "
+    "it.",
     approved=False)
 
 M_I1IO_DRIVE_CAL_PLACE = _m(
     "M-I1IO-DRIVE-CAL-PLACE",
     "Where should the i1Pro 2 be calibrated?",
     "Before it reads, the i1Pro 2 measures a white tile to calibrate itself. "
-    "ChromIQ asks you this once and remembers your answer; you can change it "
-    "at any time in Preferences > Beta, or on the first page of a table "
-    "measurement.\n\n"
-    "•  On the table's white tile: the instrument stays in the arm. This is "
-    "how i1Profiler does it, and the comfortable way.\n"
-    "•  On the instrument's own white tile (the cautious choice for now): you "
-    "lift the instrument out of the arm's holder and set it on its own tile; "
-    "it stays connected by its cable. ChromIQ calibrates it there, and then "
-    "you put it back into the arm.\n\n"
-    "Why there is a choice at all: ChromIQ has not yet been able to check on a "
-    "real table that the table's tile gives the same white as the "
-    "instrument's own tile. Until that is confirmed, the instrument's own "
-    "tile is the cautious choice.",
+    "ChromIQ uses the table's white tile unless you choose otherwise here or in "
+    "Preferences > Beta, and remembers your choice.\n\n"
+    "•  On the table's white tile (the default): the instrument stays in the "
+    "arm. This is how i1Profiler does it.\n"
+    "•  On the instrument's own white tile: you lift the instrument out of the "
+    "arm's holder and set it on its own tile; it stays connected by its cable. "
+    "ChromIQ calibrates it there, and then you put it back into the arm.\n\n"
+    "On a real i1iO 2 both places gave the same white within 0.13 ΔE00 on "
+    "average, a difference nobody can see, so the table's tile is the easier "
+    "choice.",
+    approved=False)
+
+M_I1IO_DRIVE_STORED_WHITE_REFUSED = _m(
+    "M-I1IO-DRIVE-STORED-WHITE-REFUSED",
+    "The table's stored white values are not used this time",
+    "You chose in Preferences > Beta to use the white tile values stored in "
+    "the table, as i1Profiler does, but {why}.\n\n"
+    "So this measurement uses the i1Pro 2's own white reference, as when you "
+    "measure by hand, and everything else goes on as usual. Nothing was "
+    "written into the table.",
     approved=False)
 
 M_I1IO_DRIVE_CAL_OWN_TILE = _m(
@@ -12151,6 +12166,10 @@ M_I1IO_DRIVE_CHECK_MARK = _m(
     "Is the opening on mark 3?",
     "The arm has moved to where ChromIQ works out that mark 3 is. Please look "
     "at the instrument's round opening: is it centred on mark 3?\n\n"
+    "On a real table, i1Profiler sends the opening exactly to the points you "
+    "aim at, and ChromIQ works out its moves the same way. ChromIQ's own moves "
+    "over a sheet have not run on a real table yet, so your look here is the "
+    "check that they land where they should.\n\n"
     "If it is not, nothing is read: the arm only goes home, and you can lay "
     "the sheet and aim again.",
     approved=False)
@@ -12537,7 +12556,7 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_ROW_FAILED_STRIP, M_I1IO_DRIVE_FRONT,
     M_I1IO_DRIVE_FRONT_YES,
     M_I1IO_DRIVE_FIRST_VISIT, M_I1IO_DRIVE_READER_CONSENT,
-    M_I1IO_DRIVE_READER_CONSENT_MAC, M_I1IO_DRIVE_CAL_PLACE,
+    M_I1IO_DRIVE_READER_CONSENT_MAC, M_I1IO_DRIVE_CAL_PLACE, M_I1IO_DRIVE_STORED_WHITE_REFUSED,
     M_I1IO_DRIVE_CAL_OWN_TILE, M_I1IO_DRIVE_CAL_RESEAT,
     M_I1IO_DRIVE_CHECK_MARK, M_I1IO_DRIVE_ROW_FAILED,
     M_I1IO_DRIVE_ROW_NOT_AGAIN, M_I1IO_DRIVE_REPORT, M_I1IO_DRIVE_PROBLEM,
