@@ -802,7 +802,9 @@ class TableJob:
                 self.caps = cp.caps_for_missing(sheet, self.only_locs)
         except cp.CapsRefused as exc:
             raise StageFailed(exc.reason, **exc.detail) from None
-        if not 0 <= self.page < len(self.caps.shape.pages):
+        # review 8, M-3: the CHART's pages (a resume's caps leave out the pages with nothing
+        # missing, so their count is not the chart's)
+        if not 0 <= self.page < self.pages_in_chart():
             raise StageFailed("page_not_in_chart", page=self.page + 1)
         self.diag.log("INFO", "caps derived from the chart: " + json.dumps(self.caps.as_dict()))
         # 3. the system's own lists (read only): the instrument, who holds the table, i1Profiler
@@ -915,6 +917,11 @@ class TableJob:
             return "report_due"
         if self.only_home and step != "home":
             return "only_the_homing_now"
+        if key in ("d1", "dz", "d2", "row") and not self.page_has_something_to_read():
+            # review 8, M-3: resume / refinement: a page with nothing missing is never aligned
+            # or read (the caps from the missing patches hold nothing for it); next_page()
+            # goes past it
+            return "nothing_missing_on_this_page"
         if key in ("c1", "c2", "row"):
             return self._reading_ready(step)
         if self.runs.get((self.page, key), 0) >= MAX_RUNS[key]:
@@ -1134,12 +1141,39 @@ class TableJob:
             return self._result("next_page", Kind.REFUSED, "report_due")
         if not (self.at_rest() or self.unread_rest() or self.parked()):
             return self._result("next_page", Kind.REFUSED, "arm_not_at_rest")
-        if self.page + 1 >= len(self.caps.shape.pages):
+        # review 8, M-3: the chart's pages, numbered as the chart numbers them; in a resume or
+        # a refinement the pages with nothing missing are passed over (never aligned, so the
+        # caps derived from the missing patches stay right)
+        later = [pg for pg in range(self.page + 1, self.pages_in_chart())
+                 if self.page_has_something_to_read(pg)]
+        if not later:
             return self._result("next_page", Kind.REFUSED, "no_more_pages")
-        self.page += 1
+        skipped = [pg + 1 for pg in range(self.page + 1, later[0])]
+        self.page = later[0]
         self.alignment = self.fit = None
         self.front_need = None
-        return self._result("next_page", Kind.OK, page=self.page + 1)
+        return self._result("next_page", Kind.OK, page=self.page + 1, passed_over=skipped)
+
+    def pages_in_chart(self) -> int:
+        return len(self.sheet.get("pages", []))
+
+    def page_has_something_to_read(self, page: "int | None" = None) -> bool:
+        """Whether a page (0-based; None: this one) has a patch this session reads: every page
+        when the whole chart is read; in a resume or a refinement only a page with a missing
+        patch."""
+        pg = self.page if page is None else page
+        if self.only_locs is None:
+            return True
+        try:
+            strips = self.sheet["pages"][pg]["strips"]
+        except (KeyError, IndexError, TypeError):
+            return False
+        return any(q.get("loc") in self.only_locs for st in strips for q in st["patches"])
+
+    def pages_to_read(self) -> "list[int]":
+        """The pages (1-based, the chart's numbers) with something to read in this session."""
+        return [pg + 1 for pg in range(self.pages_in_chart())
+                if self.page_has_something_to_read(pg)]
 
     # ---- helpers (part C's, the questions turned into confirmations) --------------------------
     def _step(self, key: str, lines: int, moves: int) -> None:

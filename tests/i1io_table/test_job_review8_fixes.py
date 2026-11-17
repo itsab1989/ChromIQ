@@ -235,3 +235,88 @@ def test_m2_a_table_tile_white_keeps_the_pages_go(tmp_path):
     assert job._go_page == job.page
     assert p.drive(job.calibrate()).ok
     assert job._go_page == job.page
+
+
+# ---- M-3 ------------------------------------------------------------------------------------
+
+def _pages(n):
+    """n pages of two rows of four, every location and sample id the chart's own."""
+    sheet = small_sheet([4, 4], pages=n)
+    for k in range(1, n):
+        sheet["pages"][k]["strips"] = [
+            {**st, "patches": [{**q, "loc": f"P{k + 1}-" + q["loc"],
+                                "sample_id": q["sample_id"] + 8 * k} for q in st["patches"]]}
+            for st in sheet["pages"][k]["strips"]]
+    return sheet
+
+
+#: missing on pages 1 and 3 of 3 (page 2 complete)
+_MISSING_1_3 = {"0-1", "1-2", "P3-0-0", "P3-1-3"}
+
+
+def _resume_job(tmp_path, page=0, asking=False):
+    sheet = _pages(3)
+    job, sim, helper, run = RS.make_reading_job(tmp_path, sheet=sheet, aims=H.demo_aims(sheet),
+                                                ask_after_each_step=asking)
+    job.page = page
+    p = H.Person(job, sim)
+    assert job.set_options(["-p"], only_locs=_MISSING_1_3).ok
+    return job, sim, helper, run, p
+
+
+@ASKING
+def test_m3_missing_on_pages_1_and_3_both_are_read_page_2_never_moves(tmp_path, asking):
+    """The reviewer's P4 with three pages: page 3 is reached past the complete page 2, by the
+    chart's own page numbers; the caps stay those of the missing patches (pages 1 and 3)."""
+    from workflow.i1io.table import caps as cp
+    job, sim, helper, run, p = _resume_job(tmp_path, asking=asking)
+    assert job.pages_to_read() == [1, 3]
+    ready_to_read(job, p)
+    assert job.caps == cp.caps_for(cp.ChartShape(((1, 1), (1, 1))))
+    res = read_page(job, p)
+    assert [r.detail["status"] for r in res] == ["read", "read"] and helper.reads == 2
+    assert p.drive(job.home()).ok
+    nxt = job.next_page()
+    assert nxt.ok and (nxt.detail["page"], nxt.detail["passed_over"]) == (3, [2])
+    assert job.page == 2
+    assert p.drive(job.align()).ok
+    res = read_page(job, p)
+    assert [r.detail["status"] for r in res] == ["read", "read"] and helper.reads == 4
+    assert p.drive(job.home()).ok
+    assert job.next_page().reason == "no_more_pages"
+
+
+@pytest.mark.parametrize("page", [1, 2], ids=["page2", "page3"])
+def test_m3_a_job_built_for_a_later_page_opens(tmp_path, page):
+    """The reviewer's P4b: the page is checked against the CHART's pages."""
+    job, sim, helper, run, p = _resume_job(tmp_path, page=page)
+    r = p.drive(job.open())
+    assert r.ok, r.reason
+
+
+def test_m3_nothing_moves_on_a_page_with_nothing_missing(tmp_path):
+    job, sim, helper, run, p = _resume_job(tmp_path, page=1)       # page 2: complete
+    assert p.drive(job.open()).ok
+    assert p.drive(job.calibrate()).ok                             # moves nothing anyway
+    n = len(sim.received)
+    for step in ("align", "creep", "check_move", "read_row"):
+        r = getattr(job, step)()
+        assert (r.kind, r.reason) == (J.Kind.REFUSED, "nothing_missing_on_this_page"), step
+    assert len(sim.received) == n
+    nxt = job.next_page()
+    assert nxt.ok and nxt.detail["page"] == 3 and nxt.detail["passed_over"] == []
+
+
+def test_m3_page_numbers_stay_the_charts_when_the_whole_chart_is_read(tmp_path):
+    sheet = _pages(3)
+    job, sim, helper, run = RS.make_reading_job(tmp_path, sheet=sheet, aims=H.demo_aims(sheet),
+                                                ask_after_each_step=False)
+    p = H.Person(job, sim)
+    assert job.pages_to_read() == [1, 2, 3]
+    ready_to_read(job, p, steps=("open",))
+    assert job.next_page().detail == {"page": 2, "passed_over": []}
+    assert job.next_page().detail == {"page": 3, "passed_over": []}
+    assert job.next_page().reason == "no_more_pages"
+    job2, sim2, *_ = RS.make_reading_job(tmp_path / "b", sheet=sheet, aims=H.demo_aims(sheet))
+    job2.page = 3
+    assert H.Person(job2, sim2).drive(job2.open()).reason == "page_not_in_chart"
