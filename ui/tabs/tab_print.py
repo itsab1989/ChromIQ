@@ -3570,6 +3570,43 @@ class TabPrint(QWidget):
                  chosen, wanted)
         return False
 
+    def _confirm_driver_colour_off(self) -> bool:
+        """M-PRINT-WIN-DRIVER-CM (4.3.45, Windows): before the Windows print
+        dialog opens for a chart, say where the driver's colour management
+        is switched off. True opens the dialog; Cancel (and Esc) prints
+        nothing. "Don't show this again" is stored as
+        ``print_win_hide_driver_cm_confirm``; ticked, nothing is asked."""
+        if bool(self._settings.get("print_win_hide_driver_cm_confirm", False)):
+            return True
+        from PyQt6.QtWidgets import QCheckBox
+        from workflow import measurement_messages as MM
+        title, body = MM.M_PRINT_WIN_DRIVER_CM.render()
+        box = QMessageBox(self)
+        box.setObjectName("print_win_driver_cm")
+        box.setWindowTitle(title)
+        set_warning_icon(box)
+        box.setText(title)
+        box.setInformativeText(body)
+        go = box.addButton(tr(MM._PRINT_DRIVER_CM_BTN),
+                           QMessageBox.ButtonRole.AcceptRole)
+        cancel = box.addButton(QMessageBox.StandardButton.Cancel)
+        box.setDefaultButton(go)
+        box.setEscapeButton(cancel)
+        hide = QCheckBox(tr("Don't show this again"), box)
+        box.setCheckBox(hide)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        box.exec()
+        if box.clickedButton() is not go:
+            log.info("Print: cancelled at the driver colour management "
+                     "reminder (M-PRINT-WIN-DRIVER-CM)")
+            return False
+        if hide.isChecked():
+            self._settings.set("print_win_hide_driver_cm_confirm", True)
+        log.info("Print: driver colour management reminder confirmed%s",
+                 " (not shown again)" if hide.isChecked() else "")
+        return True
+
     def _print_windows_not_postscript(self, pages: list[tuple[Path, int]],
                                       printer: str) -> None:
         """#205: ChromIQ's own route, a Windows printer whose driver is not
@@ -4867,6 +4904,12 @@ class TabPrint(QWidget):
         qprinter.setFullPage(True)
         if sizes and sizes[0][0] > sizes[0][1]:
             qprinter.setPageOrientation(QPageLayout.Orientation.Landscape)
+        # 4.3.45: on Windows the driver's colour management has to be
+        # switched off in this dialog, and the note on the tab was passed
+        # over; asked before the dialog opens (M-PRINT-WIN-DRIVER-CM)
+        if is_windows() and not self._confirm_driver_colour_off():
+            self._commit_print_record(False)
+            return
         dialog = QPrintDialog(qprinter, self)
         # Windows' print dialog raises and handles COM exceptions of its own,
         # which faulthandler writes into chromiq-crash.log as "Windows fatal

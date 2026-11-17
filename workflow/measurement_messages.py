@@ -8954,6 +8954,51 @@ M_PRINT_WIN_DIALOG_OTHER_PRINTER = _m(
     approved=False)
 _PRINT_OTHER_PRINTER_BTN = "Print on {printer}"
 
+# --- PROPOSED: switch the driver's colour management off (Windows dialog) ---
+#: 4.3.45: a tester printed through the Windows print dialog with the Canon
+#: driver's colour management on and lost about 30 % of the gamut; the note
+#: on the Print Chart tab had been passed over. Asked by
+#: `TabPrint._confirm_driver_colour_off` on Windows only, before the print
+#: dialog opens for a chart, until "Don't show this again" is ticked
+#: (setting `print_win_hide_driver_cm_confirm`). The menu paths are the
+#: makers' own manuals' (Canon IJ driver: Main > Color/Intensity: Manual >
+#: Set... > Matching > Color Correction: None; Epson: Color Management: Off
+#: (No Color Adjustment); HP: Color tab, Application-Managed Colors) and
+#: the ones the Print Chart tab's help already names.
+M_PRINT_WIN_DRIVER_CM = _m(
+    "M-PRINT-WIN-DRIVER-CM",
+    "Please switch off the printer driver's colour management",
+    "The Windows print dialog opens next. Before you press Print in it, "
+    "please switch off the colour management of the printer driver. "
+    "ChromIQ cannot do this for you on this route, and most drivers have it "
+    "switched on. If it stays on, the driver changes the colours of every "
+    "patch on their way to the printer: the chart then shows the driver's "
+    "corrections instead of what your printer really does, the printer "
+    "seems to print a much smaller range of colours than it can, and a "
+    "profile built from it is wrong.\n\n"
+    "Where the switch usually is: in the print dialog, press "
+    "“Preferences” or “Properties” for the printer, then (the names differ "
+    "a little from model to model):\n"
+    "•  Canon: on the “Main” tab set “Color/Intensity” to “Manual”, press "
+    "“Set...”, and on the “Matching” tab set “Color Correction” to "
+    "“None”.\n"
+    "•  Epson: set “Color Management” (under “More Options” or "
+    "“Advanced”, depending on the model) to “Off (No Color "
+    "Adjustment)”.\n"
+    "•  HP: on the “Color” tab choose “Application Managed Colors”, where "
+    "the driver offers it.\n"
+    "•  Other makes: look for “No Color Adjustment”, “None”, “Off” or "
+    "“Application Managed”.\n\n"
+    "While you are there, choose the paper type and the print quality you "
+    "will use with the profile, and use the same settings every time you "
+    "print with it.\n\n"
+    "Press “Open the print dialog” to go on, or “Cancel” to print nothing. "
+    "If your printer understands PostScript, ChromIQ can also send the "
+    "chart to it directly, so that no driver setting can change it: untick "
+    "“Use default Windows printer dialog” in Preferences.",
+    approved=False)
+_PRINT_DRIVER_CM_BTN = "Open the print dialog"
+
 # --- APPROVED: the P18 window's own wording, 4.3.8 (Basti, 2026-10-20) -----
 #: Basti, 2026-10-20: the window before the direct route sends a verification
 #: chart to a PostScript printer, when the run's profiling chart was printed
@@ -11801,6 +11846,7 @@ CATALOGUE = {m.id: m for m in (
     M_PRINT_WIN_INKS_NOT_POSTSCRIPT, M_PRINT_WIN_DIALOG_NOT_RGB,
     M_PRINT_WIN_DIALOG_TOO_BIG, M_PRINT_WIN_SPOOLER_FAILED,
     M_PRINT_WIN_DIALOG_OTHER_PRINTER,
+    M_PRINT_WIN_DRIVER_CM,
     M_PRINT_PS_ASK, M_PRINT_PS_FORM_APPLIES,
     M_PRINT_PS_FORM_APPLIES_PROJECT,
     M_PRINT_JOB_EPSON_MATCHING_RESET, M_PRINT_JOB_EPSON_MATCHING,
