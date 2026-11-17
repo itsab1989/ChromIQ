@@ -11,7 +11,7 @@ Chart tab had been passed over. Pinned here, with the print dialog patched
 2. "Don't show this again" is stored and then nothing is asked;
 3. macOS and Linux never ask (the same route, `is_windows()` false);
 4. the window's text is the catalogue's, names Canon, Epson and HP by the
-   makers' own menu words, offers the PostScript route only while "Use
+   makers' own menu words (Epson by model, review S2), offers the PostScript route only while "Use
    default Windows printer dialog" is ticked (review S1), and has no em
    dash.
 """
@@ -143,7 +143,7 @@ def test_the_text_says_where_the_switch_is(route, tmp_path, monkeypatch):
     # the driver's own words in straight quotes (they are not ChromIQ's
     # controls: tests/test_a_quoted_control_names_the_control_the_reader_has)
     for words in ('"Color/Intensity"', '"Matching"', '"Color Correction"',
-                  '"None"', '"Application Managed Colors"',
+                  '"None"', '"Application-Managed Colors"',
                   "“Use default Windows printer dialog”"):
         assert words in body, words
     assert "—" not in head + body
@@ -160,6 +160,25 @@ def test_the_postscript_route_is_offered_only_with_the_dialog_box_ticked(
     assert "Use default Windows printer dialog" not in body
     assert "PostScript" not in body
     assert body.rstrip().endswith("to print nothing.")
+
+
+
+def test_epson_is_named_as_epsons_own_guides_name_it():
+    """Review of 4.3.45, S2: Epson's SC-P700/P900 guide, Main tab, "Mode":
+    "Off (No Color Adjustment)"; SureColor T series, Printer Settings >
+    Advanced Settings > "Color Mode": "Off (No Color Management)". Not the
+    "Color Management" entry under "More Options" (that is Photoshop
+    Elements' print screen)."""
+    from workflow import measurement_messages as MM
+    body = MM.M_PRINT_WIN_DRIVER_CM.body
+    epson = [line for line in body.splitlines() if "Epson" in line][0]
+    for words in ('"Mode"', '"Main"', '"Off (No Color Adjustment)"',
+                  '"Printer Settings"', '"Advanced Settings"',
+                  '"Color Mode"', '"Off (No Color Management)"',
+                  "depend on the model"):
+        assert words in epson, words
+    assert "More Options" not in body
+
 
 
 

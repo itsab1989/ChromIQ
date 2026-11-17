@@ -8962,9 +8962,11 @@ _PRINT_OTHER_PRINTER_BTN = "Print on {printer}"
 #: dialog opens for a chart, until "Don't show this again" is ticked
 #: (setting `print_win_hide_driver_cm_confirm`). The menu paths are the
 #: makers' own manuals' (Canon IJ driver: Main > Color/Intensity: Manual >
-#: Set... > Matching > Color Correction: None; Epson: Color Management: Off
-#: (No Color Adjustment); HP: Color tab, Application-Managed Colors) and
-#: the ones the Print Chart tab's help already names.
+#: Set... > Matching > Color Correction: None; Epson SC-P700/P900 user's
+#: guide: Main tab, Mode: Off (No Color Adjustment); Epson SureColor T
+#: series: Printer Settings > Advanced Settings > Color Mode: Off (No Color
+#: Management); HP: Color tab, Application-Managed Colors). Review of 4.3.45,
+#: S2: Epson's labels named by model, as Epson's own guides name them.
 M_PRINT_WIN_DRIVER_CM = _m(
     "M-PRINT-WIN-DRIVER-CM",
     "Please switch off the printer driver's colour management",
@@ -8983,9 +8985,12 @@ M_PRINT_WIN_DRIVER_CM = _m(
     "•  Canon: on the \"Main\" tab set \"Color/Intensity\" to \"Manual\", "
     "press \"Set...\", and on the \"Matching\" tab set \"Color Correction\" to "
     "\"None\".\n"
-    "•  Epson: set \"Color Management\" (under \"More Options\" or "
-    "\"Advanced\", depending on the model) to \"Off (No Color Adjustment)\".\n"
-    "•  HP: on the \"Color\" tab choose \"Application Managed Colors\", "
+    "•  Epson: the names depend on the model. On the SureColor P700 and "
+    "P900, set \"Mode\" on the \"Main\" tab to \"Off (No Color "
+    "Adjustment)\". On the SureColor T series, press \"Advanced Settings\" "
+    "on the \"Printer Settings\" tab and set \"Color Mode\" to \"Off (No "
+    "Color Management)\". On other models look for one of these two.\n"
+    "•  HP: on the \"Color\" tab choose \"Application-Managed Colors\", "
     "where the driver offers it.\n"
     "•  Other makes: look for \"No Color Adjustment\", \"None\", \"Off\" or "
     "\"Application Managed\".\n"
