@@ -1,7 +1,7 @@
 # Charts for a film recorder: a page as exact pixels (beta)
 
-ChromIQ 4.3.43 has a new beta option, **"Custom page size in inches or pixels,
-and high resolution (beta)"**. It was asked for by a film recorder user in
+ChromIQ has a beta option (new in 4.3.43, with a Units choice since 4.3.44),
+**"Custom page size in inches or pixels, and high resolution (beta)"**. It was asked for by a film recorder user in
 [issue 215](https://github.com/itsab1989/ChromIQ/issues/215): a film recorder
 images a picture of an exact number of pixels at an exact resolution, for
 example 4096 x 2730 pixels at 2731 pixels per inch for a 35 mm frame, and it
@@ -12,7 +12,7 @@ profiling.
 This page shows, step by step and with pictures from the real app, how to make
 such a chart: first for the 35 mm frame, then for two larger frames, then with
 your own choice of colours. Every label, number and picture below was checked
-in ChromIQ 4.3.43 on a Mac, in English.
+in ChromIQ 4.3.44 on a Mac, in English.
 
 - [1. What the beta does, and its honest limits](#1-what-the-beta-does-and-its-honest-limits)
 - [2. Switching it on](#2-switching-it-on)
@@ -30,10 +30,12 @@ in ChromIQ 4.3.43 on a Mac, in English.
 
 With the option on, **"1. Create Chart"** in **MANUAL** offers:
 
-- **A custom page size in millimetres (now with fractions, such as 234.95), in
-  inches, or as an exact number of pixels.** There are three rows of fields,
-  one per unit. The fields you type in are the ones that count; the other two
-  rows show the same size converted, for information.
+- **A "Units:" choice under the paper size: "Millimetres", "Inches" or
+  "Pixels (page size only)".** The custom page size is one pair of fields in
+  the unit you choose: millimetres (now with fractions, such as 234.95),
+  inches, or an exact number of pixels. With inches chosen, the other lengths
+  in the panel (margins, patch size, gaps) are shown in inches too; ChromIQ
+  still keeps them in millimetres.
 - **A line under the paper size that says how many pixels the page will have**,
   for every paper size.
 - **A resolution of up to 6000 instead of 1200.**
@@ -94,27 +96,24 @@ You can switch it off again the same way at any time.
 After the restart, go to **"1. Create Chart"** and click **MANUAL**. Give the
 project a name under "Printer profile project name:" (the pictures use
 "Film-35mm"). Under "ChromIQ layout", choose your **Instrument:** and set
-**Paper:** to **"Custom…"**. Three rows of fields appear next to
-**"Custom size:"**:
+**Paper:** to **"Custom…"**. A **"Units:"** row is under "Paper:", and one
+pair of fields appears next to **"Custom size:"**. Set **"Units:"** to **"Pixels (page size only)"**: the
+fields then take an exact number of pixels, with "px" beside them.
 
-| Row | Unit | Example (35 mm frame) |
-|---|---|---|
-| first | mm | 38.10 x 25.39 |
-| second | in | 1.4998 x 0.9996 |
-| third | px | 4096 x 2730 |
+**What you type in pixels is what the chart gets.** If you type 4096 and 2730,
+the chart is exactly 4096 x 2730 pixels. The grey line under the fields tells
+you the same page in the other units, for example:
 
-**The row you type in is the one that counts.** If you type 4096 and 2730 in
-the px row, the chart is exactly 4096 x 2730 pixels, whatever the millimetre
-and inch rows show (they are only rounded for display). You can even mix: a
-width in pixels and a height in inches is fine.
+> The page will be 4096 x 2730 pixels (11.2 megapixels) at 2731 pixels per inch, which is 38.1 x 25.39 mm (1.4998 x 0.9996 in).
 
-Pixels and resolution belong together. A size typed in pixels keeps its pixels
-when you change the resolution, so the page gets larger or smaller on paper. A
-size typed in millimetres or inches keeps its size, and its pixel count follows
-the resolution. Either way, the grey line under the fields always tells you
-the result, for example:
-
-> The page will be 4096 x 2730 pixels (11.2 megapixels) at 2731 pixels per inch.
+**The unit you see is the one that is kept when you change the resolution.**
+With "Pixels" chosen, the pixel count stays and the page gets larger or smaller
+on paper; with "Millimetres" or "Inches" chosen, the size on paper stays and
+the pixel count follows the resolution. For a film recorder, keep "Pixels"
+chosen. Switching the units only to look never changes your page, and when you
+open a chart whose page was typed in pixels, "Units:" shows "Pixels (page size
+only)" for that chart by itself. ChromIQ remembers your choice for the next
+chart; it is not saved with a chart or a preset.
 
 If a side typed in pixels would be longer than 2000 mm or shorter than 1 mm at
 the resolution you have set, that line turns red, says so, and names the
@@ -154,14 +153,15 @@ spacers and no text on the frame. Go through the panel from top to bottom.
 
 ![Create Chart in MANUAL with the project name Film-35mm, the stamp unticked, the layout engine ticked, SpectroScan (flatbed) and Paper Custom…](film_recorder/02-create-chart-manual-spectroscan-custom.png)
 
-**Step 2.** Under "Page geometry", set **"Resolution:"** to **2731**. Then, in
-the **px** row next to "Custom size:", type **4096** and **2730**. The order
-does not matter. The line under the fields now says "The page will be
-4096 x 2730 pixels (11.2 megapixels) at 2731 pixels per inch." (In the
+**Step 2.** Set **"Units:"** to **"Pixels (page size only)"**. Under "Page
+geometry", set **"Resolution:"** to **2731**. Then, next to "Custom size:",
+type **4096** and **2730**. The order does not matter. The line under the
+fields now says "The page will be 4096 x 2730 pixels (11.2 megapixels) at
+2731 pixels per inch, which is 38.1 x 25.39 mm (1.4998 x 0.9996 in)." (In the
 picture, "Output" and "Presets" are folded away with their small triangles, to
 make room. You can do the same.)
 
-![The three custom size rows: 38.10 x 25.39 mm, 1.4998 x 0.9996 in, 4096 x 2730 px, and the line "The page will be 4096 x 2730 pixels (11.2 megapixels) at 2731 pixels per inch."](film_recorder/03-custom-size-in-pixels.png)
+![Units: Pixels (page size only); Custom size 4096 x 2730 px, and the line "The page will be 4096 x 2730 pixels (11.2 megapixels) at 2731 pixels per inch, which is 38.1 x 25.39 mm (1.4998 x 0.9996 in)."](film_recorder/03-custom-size-in-pixels.png)
 
 **Step 3.** Under "Basic", "Layout":
 
@@ -238,11 +238,11 @@ chart; keep them, ChromIQ needs the `.ti2` to read the measurement back.
 So the file says exactly "4096 x 2730 pixels at 2731 pixels per inch", 8 bit
 RGB, uncompressed.
 
-**A small rough edge we know of.** If you also have the FD-9 beta switched
-on, choosing the FD-9 as instrument and then going back can turn a size typed
-in pixels into millimetres. And whenever you have changed instrument or paper,
-please look at the pixel line once more before you click GENERATE CHART: it is
-the quickest check that the page is still what your recorder needs.
+**One check before every chart.** Whenever you have changed instrument or
+paper, please look at the pixel line once more before you click GENERATE
+CHART: it is the quickest check that the page is still what your recorder
+needs. (Since 4.3.44, going to the FD-9 and back keeps a size typed in pixels
+as it was.)
 
 ---
 
@@ -252,14 +252,15 @@ The steps are the same as in section 4; only the numbers change.
 
 **8192 x 5460 pixels at 5461 ppi.** This is the same 35 mm frame (about
 38.1 x 25.4 mm) at twice the resolution, so the same patches fit (see the table
-in section 6). Set "Resolution:" to **5461** and type **8192** x **5460** in the
-px row. The generated file reads 8192 x 5460 pixels, 5461/1 pixels per inch
+in section 6). With "Units:" on "Pixels (page size only)", set "Resolution:"
+to **5461** and type **8192** x **5460**. The generated file reads 8192 x 5460 pixels, 5461/1 pixels per inch
 (ResolutionUnit 2), 8 bit RGB, Compression 1 (none).
 
-**18796 x 15748 pixels at 2032 ppi (9.25 x 7.75 inches).** Set "Resolution:"
-to **2032** and type **18796** x **15748** in the px row. The rows then show
-234.95 x 196.85 mm and 9.2500 x 7.7500 in, and the line says "The page will be
-18796 x 15748 pixels (296.0 megapixels) at 2032 pixels per inch."
+**18796 x 15748 pixels at 2032 ppi (9.25 x 7.75 inches).** With "Units:" on
+"Pixels (page size only)", set "Resolution:" to **2032** and type **18796** x
+**15748**. The line says "The page will be 18796 x 15748 pixels (296.0
+megapixels) at 2032 pixels per inch, which is 234.95 x 196.85 mm (9.25 x 7.75
+in)."
 
 The picture shows this frame with **5 x 5 mm** patches and otherwise the same
 settings as in section 4: 1702 patches (46 strips of 37), one page,
@@ -279,7 +280,7 @@ the patch counts are in the table below.
 
 ## 6. How many patches fit on one frame
 
-Measured in ChromIQ 4.3.43 with the settings of section 4 (SpectroScan, all
+Measured in ChromIQ 4.3.44 with the settings of section 4 (SpectroScan, all
 margins 1 mm, instrument margins off, no labels, no clip border, no spacers,
 no stamp), one GENERATE CHART per line. Every one of them came out with
 "Margins: OK". "Strips" are the columns, "per strip" the rows.
@@ -375,7 +376,7 @@ frame).
 Back in Create Chart, the log says "[ChromIQ layout engine] 1152 patches
 (16×36), 2 pages", the preview shows "Page 1 / 2", and the pixel line still
 says "The page will be 4096 x 2730 pixels (11.2 megapixels) at 2731 pixels per
-inch." **The page is still pixel-exact**: we read both files,
+inch, which is 38.1 x 25.39 mm (1.4998 x 0.9996 in)." **The page is still pixel-exact**: we read both files,
 `Film-35mm_01.tif` and `Film-35mm_02.tif`, and each is 4096 x 2730 pixels at
 2731/1 pixels per inch, 8 bit RGB, uncompressed. You do not need to change
 "Pages:"; a set larger than one frame simply goes onto more frames.
