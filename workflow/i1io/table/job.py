@@ -2122,7 +2122,18 @@ class TableJob:
         # tester C1: the reader first (its checks and the consent), then the place, asked once
         # in the session (the tester asked it at the reader's calibration request)
         reader = yield from self._start_reader(folder, "c1_spot", sp.CAL_PATCHES, True)
-        if self.cal_place is None:
+        if self.instrument_out:
+            # S-1 (the volunteer's table, 17 Nov 2026: an own-tile calibration failed and the
+            # session went on): the instrument may still lie on its own tile, out of the arm.
+            # A calibration now is made on the own tile again, never "in the arm" with the
+            # instrument outside it; the place is not asked (an answer "table tile" would
+            # calibrate on whatever the instrument lies on and leave it out of the arm). The
+            # person is asked for "ready" on the own tile and "seated" afterwards, as always.
+            self.diag.log("STEP", "the instrument is still out of the arm after a calibration "
+                                  "on its own tile that did not finish: calibrating on its own "
+                                  "tile again")
+            place = "own tile"
+        elif self.cal_place is None:
             ans = yield Ask(Confirm.CAL_PLACE, {"recommended": CAL_PLACE_RECOMMENDED,
                                                 "decision_open": "D-4"})
             if ans == "stop":

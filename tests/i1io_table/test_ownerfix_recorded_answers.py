@@ -52,3 +52,68 @@ def test_a_strip_row_whose_c4_answers_bd_stops_cleanly(tmp_path):
     # no scan move after the unknown answer, nothing pending
     assert sum(1 for ln in sim.received if ln.startswith(";m2")) == n_m2
     assert not r.state.strip_move_may_be_pending
+
+
+# ---- (6) the calibration: a long wait at a question, and S-1 ------------------------------------
+
+from tests.i1io_table.test_job_reading import job_for  # noqa: E402
+from workflow.i1io.table import reader as rd  # noqa: E402
+
+
+def test_a_200_s_wait_at_the_question_before_a_calibration_still_calibrates(tmp_path,
+                                                                             monkeypatch):
+    """The tester counted the person's answering time into the reader's budget (201 s on the
+    real table, the calibration "took too long"). The app's reader starts its own wait only
+    when it is opened, after the answers: 200 s at the place question change nothing."""
+    clock = [1000.0]
+    monkeypatch.setattr(rd.time, "monotonic", lambda: clock[0])
+
+    def on_ask(person, res):
+        if res.confirm in (J.Confirm.CAL_PLACE, J.Confirm.CAL_OWN_TILE):
+            clock[0] += 200.0
+        return None
+    for place in ("table tile", "own tile"):
+        job, sim, helper, run, p = job_for(tmp_path / place.replace(" ", "_"),
+                                           {J.Confirm.CAL_PLACE: place})
+        p.drive(job.open())
+        p.on_ask = on_ask
+        r = p.drive(job.calibrate())
+        assert r.ok and r.detail["place"] == place, (r.reason, r.detail)
+        assert helper.calibrations == 1 and not job.instrument_out
+
+
+def test_s1_a_failed_own_tile_calibration_then_table_tile_never_calibrates_outside_the_arm(
+        tmp_path):
+    """The sequence of the real table (17 Nov 2026): own tile chosen, the calibration fails,
+    the next answer. Before this round the job asked the place again; "table tile" then
+    calibrated on whatever the instrument lay on and left it "out of the arm" for good, so
+    every step but a calibration was refused for the rest of the session."""
+    job, sim, helper, run, p = job_for(tmp_path, {J.Confirm.CAL_PLACE: "own tile"},
+                                       faults={"open": "cal_fails", "open_at": 1})
+    p.drive(job.open())
+    r = p.drive(job.calibrate())
+    assert (r.kind, r.reason) == (J.Kind.REFUSED, "calibration_failed")
+    assert job.instrument_out and job.align().reason == "instrument_not_in_the_arm"
+    # the person would now answer "table tile"
+    p.script[J.Confirm.CAL_PLACE] = "table tile"
+    p.asked.clear()
+    r = p.drive(job.calibrate())
+    assert r.ok and r.detail["place"] == "own tile", (r.reason, r.detail)
+    kinds = [a[1] for a in p.asked]
+    assert J.Confirm.CAL_PLACE not in kinds
+    assert kinds == [J.Confirm.CAL_OWN_TILE, J.Confirm.CAL_RESEAT]
+    assert not job.instrument_out and job.calibration["place"] == "own tile"
+    assert p.drive(job.align()).ok
+
+
+def test_s1_a_stop_at_ready_after_the_failure_keeps_the_instrument_out(tmp_path):
+    job, sim, helper, run, p = job_for(tmp_path, {J.Confirm.CAL_PLACE: "own tile"},
+                                       faults={"open": "cal_fails", "open_at": 1})
+    p.drive(job.open())
+    p.drive(job.calibrate())
+    p.script[J.Confirm.CAL_OWN_TILE] = "stop"
+    n = len(sim.received)
+    r = p.drive(job.calibrate())
+    assert not r.ok and job.instrument_out and job.calibration is None
+    assert job.align().reason == "instrument_not_in_the_arm"
+    assert [ln for ln in sim.received[n:] if ln[1:3] in ("m0", "m1", "m2", "i1", "i0")] == []
