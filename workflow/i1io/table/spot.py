@@ -88,7 +88,7 @@ def plan_row(sheet: dict, page: int, index: int, alignment, front_y=None, kind: 
     the table through this planner until it is built and reviewed (the seam: a strip planner
     returns a RowPlan of kind "strip" built by ``scan.sheet_rows``)."""
     if kind not in ROW_KINDS:
-        raise RowRefused("row_kind_unknown", kind=kind)
+        raise RowRefused("row_kind_unknown", row_kind=kind)
     if kind == "strip":
         raise RowRefused("strip_rows_not_built")
     try:
@@ -162,7 +162,10 @@ def failure_id(message: str, events: "list[dict]", alive: bool) -> "tuple[str, d
     module says nothing else (a wait that ran out, a call the reader refused)."""
     last = events[-1] if events else {}
     kind = last.get("event")
-    if not alive or "stopped listening" in message or kind == "helper_gone":
+    # the helper's own last word first: a helper that names its failure and then ends (no
+    # instrument, the instrument busy) did not simply die
+    if kind != "error" and (not alive or "stopped listening" in message
+                            or kind == "helper_gone"):
         return "reader_died", {}
     if kind == "error":
         ek = str(last.get("kind", ""))
@@ -170,7 +173,7 @@ def failure_id(message: str, events: "list[dict]", alive: bool) -> "tuple[str, d
         detail = str(last.get("detail", ""))
         if ek == "no_instrument" and any(w in detail.lower() for w in BUSY_WORDS):
             rid = "instrument_busy"
-        return rid, {"kind": ek}
+        return rid, {"helper_error": ek}
     if kind == "cal_required" and ("instead of a reading" in message
                                    or "calibration was not done" in message):
         return "instrument_asks_for_calibration", {"cond": str(last.get("cond", ""))}

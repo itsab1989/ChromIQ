@@ -60,7 +60,13 @@ def _read_ti2(path: Path) -> "list[tuple[str, str]]":
 
 
 class HelperSim:
-    def __init__(self, sim, faults=None):
+    def __init__(self, sim, faults=None, reader_module=None):
+        """*reader_module*: whose ``_Proc`` this helper stands in for and whose ReaderFailed it
+        raises (the app's ``workflow.i1io.table.reader``; tester 0.6.0's ``i1io_reader`` for
+        the wire capture)."""
+        if reader_module is None:
+            from workflow.i1io.table import reader as reader_module
+        self.rd = reader_module
         self.sim = sim
         self.faults = dict(faults or {})
         self.started: "list[list[str]]" = []
@@ -70,6 +76,9 @@ class HelperSim:
         self.reads = 0
         self.readings_at: "list[tuple]" = []
         self.procs: "list[FakeHelperProc]" = []
+        #: called with the sitting's reading count at every "read" (tests: a stop or a problem
+        #: report while a reading is on its way)
+        self.on_read = None
 
     def proc_class(self):
         helper = self
@@ -82,7 +91,7 @@ class HelperSim:
     def factory(self, path: str = "/sim/bin/chromiq-chartread"):
         """A reader factory for the job: the app's own reader.SpotReader with this simulated
         helper process behind it."""
-        from workflow.i1io.table import reader as rd
+        rd = self.rd
 
         def make(folder, name, patches, calibrate, extra_args, log):
             orig = rd._Proc
@@ -182,7 +191,7 @@ class FakeHelperProc:
         return [round(Y * 0.96, 4), round(Y, 4), round(Y * 0.82, 4)], [100 * v for v in spec]
 
     def send(self, obj) -> None:
-        from workflow.i1io.table.reader import ReaderFailed
+        ReaderFailed = self.helper.rd.ReaderFailed
         h, sim = self.helper, self.helper.sim
         self.log("INST", "cmd " + json.dumps(obj))
         if not self._alive:
@@ -207,6 +216,8 @@ class FakeHelperProc:
             self._ready()
         elif cmd == "read":
             h.reads += 1
+            if h.on_read is not None:
+                h.on_read(h.reads)
             sid, loc = self.patches[self.at]
             if sim.moving or sim.m2_pending is not None:
                 sim.violations.append(f"a spot reading of {loc} while the arm moves")
