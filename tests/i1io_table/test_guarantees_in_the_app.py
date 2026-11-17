@@ -162,7 +162,9 @@ def test_no_process_is_ended_and_only_the_read_only_checks_are_run():
     assert sorted(runs) == sorted([
         '["/usr/sbin/ioreg", "-a", "-r", "-c", "IOUSBHostDevice", "-l"]',
         '["/usr/bin/xattr", "-p", "com.apple.quarantine", str(path)]',
-        '["/usr/sbin/ioreg", "-a", "-r", "-c", "IOUSBHostDevice", "-l"]'])
+        '["/usr/sbin/ioreg", "-a", "-r", "-c", "IOUSBHostDevice", "-l"]',
+        # round B: the helper's build string (``--caps`` prints one line, opens nothing)
+        '[str(path or helper_path()), "--caps"]'])
     # the helper itself is started by the reader's own process wrapper only
     assert "Popen(" not in "".join(_src(TABLE / n) for n in ("session_table.py", "geometry.py",
                                                              "lines.py", "scan.py"))

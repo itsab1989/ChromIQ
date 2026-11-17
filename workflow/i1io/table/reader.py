@@ -4,8 +4,9 @@
 
 Standard library only. The table belongs to this program (its own USB connection to 0971:2004);
 the i1Pro 2 (0971:2000) is opened ONLY by the reader, ChromIQ's helper `chromiq-chartread`.
-In the app (2026-11-17) that is ChromIQ's own `native/chromiq-chartread` (build 2026-11-17a, which
-carries the table-scan mode of the tester's bundled 2026-11-16t; `helper_path`); the tester
+In the app (2026-11-17) that is ChromIQ's own `native/chromiq-chartread` (build 2026-11-17b: 2026-11-17a,
+which carries the table-scan mode of the tester's bundled 2026-11-16t, plus the button wait of round B;
+`helper_path`); the tester
 program carried its own copy in `bin/`. Two ways of reading, both the helper's:
 
 * SPOT readings: the helper's normal patch-by-patch reading (`--json -v -c 1 -p <chart>`), the same
@@ -36,7 +37,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 HELPER_NAME = "chromiq-chartread"
-HELPER_BUILD = "2026-11-17a"      # ChromIQ's helper since the table scan was merged (2026-11-16t's mode)
+HELPER_BUILD = "2026-11-17b"      # ChromIQ's helper: the table scan (2026-11-17a) + the button wait
+#: the build token of the helper's button wait (--i1io-press-wait, round B). A helper without it
+#: (2026-11-17a and older) is simply not asked: the panel's Aimed button always works.
+PRESS_WAIT_TOKEN = "+i1io-press-wait"
 #: The serial-port scan must never open macOS's Bluetooth listener (it can hang in the kernel).
 SERIAL_EXCLUDE = "/dev/cu.Bluetooth-Incoming-Port"
 #: USB vendors whose instruments ArgyllCMS recognises (any of them besides the i1Pro 2 would
@@ -499,6 +503,61 @@ class SpotReader:
 
     def close(self) -> None:
         self.proc.stop({"cmd": "quit"})
+
+
+def helper_build(path: "Path | None" = None, timeout: float = 5.0) -> str:
+    """The helper's build string, from ``--caps`` (opens nothing: it prints one line and ends).
+    Empty when it cannot be asked."""
+    try:
+        r = subprocess.run([str(path or helper_path()), "--caps"], capture_output=True,
+                           text=True, encoding="utf-8", timeout=timeout, env=helper_env())
+        return str(json.loads(r.stdout.strip().splitlines()[0]).get("build", ""))
+    except Exception:          # noqa: BLE001 - not offered, nothing breaks
+        return ""
+
+
+def press_wait_supported(build: "str | None" = None) -> bool:
+    """True when the helper can wait for the instrument's button (round B). An older helper
+    (no token in its build string) is never started for it."""
+    b = helper_build() if build is None else build
+    return (PRESS_WAIT_TOKEN + "+") in (b + "+")
+
+
+class PressWaiter:
+    """The helper in its button-wait mode (``--json --i1io-press-wait -c 1``, round B): it opens
+    the i1Pro 2 as every reading does and reports ONE press of its button per arm. It takes no
+    reading, sets no measuring mode and never opens the table. Never started without the
+    job's own instrument check (exactly one i1Pro 2, nothing else)."""
+
+    def __init__(self, helper: Path, workdir: Path, log, extra_args=()):
+        self.workdir = Path(workdir)
+        self.workdir.mkdir(parents=True, exist_ok=True)
+        self.proc = _Proc([str(helper), "--json", *extra_args, "--i1io-press-wait", "-c", "1"],
+                          log, self.workdir)
+
+    def alive(self) -> bool:
+        return self.proc.alive()
+
+    def arm(self, token: str, wait_ms: int = 600000, min_ms: int = 400) -> bool:
+        try:
+            self.proc.send({"cmd": "press_arm", "id": token, "wait_ms": str(int(wait_ms)),
+                            "min_ms": str(int(min_ms))})
+            return True
+        except ReaderFailed:
+            return False
+
+    def disarm(self) -> None:
+        try:
+            if self.alive():
+                self.proc.send({"cmd": "press_disarm"})
+        except ReaderFailed:
+            pass
+
+    def events(self) -> "list[dict]":
+        return list(self.proc.events)
+
+    def close(self) -> None:
+        self.proc.stop({"cmd": "press_quit"})
 
 
 class ScanReader:

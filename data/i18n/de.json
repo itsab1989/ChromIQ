@@ -9107,5 +9107,11 @@
  "ChromIQ's reading program stopped unexpectedly.": "Das Messprogramm von ChromIQ wurde unerwartet beendet.",
  "The calibration on the white tile did not succeed.": "Die Kalibrierung auf der weißen Kachel ist nicht gelungen.",
  "The instrument could not take a reading there.": "Das Messgerät konnte dort keinen Messwert nehmen.",
- "The instrument has not been calibrated yet.": "Das Messgerät ist noch nicht kalibriert."
+ "The instrument has not been calibrated yet.": "Das Messgerät ist noch nicht kalibriert.",
+ "Aimed by the button on the i1Pro 2": "Mit der Taste am i1Pro 2 anvisiert",
+ "ChromIQ is getting the button on the i1Pro 2 ready. Until then, please press Aimed here.": "ChromIQ macht die Taste am i1Pro 2 bereit. Bis dahin drücke bitte hier auf Anvisiert.",
+ "Instead of pressing Aimed here, you can press the button on the i1Pro 2 itself, once, while the cross hairs sit on mark {mark}. ChromIQ then takes that press as Aimed for this mark, so your hand can stay on the arm.\n\nThe button never starts a move. Before the arm moves again, ChromIQ still asks you here, in this panel, to take your hands away from the table.\n\nUsing the instrument's button this way is new, and it has not been tried on a real table yet. If nothing happens when you press it, simply press Aimed here: nothing is lost.": "Statt hier auf Anvisiert zu drücken, kannst du auch einmal die Taste am i1Pro 2 selbst drücken, während das Fadenkreuz auf Marke {mark} sitzt. ChromIQ nimmt diesen Tastendruck dann als Anvisiert für diese Marke, so kann deine Hand am Arm bleiben.\n\nDie Taste startet nie eine Bewegung. Bevor sich der Arm wieder bewegt, bittet dich ChromIQ weiterhin hier in diesem Bereich, die Hände vom Tisch zu nehmen.\n\nDie Taste des Messgeräts so zu verwenden ist neu und wurde noch nicht an einem echten Tisch ausprobiert. Wenn beim Drücken nichts passiert, drücke einfach hier auf Anvisiert: Es geht nichts verloren.",
+ "The button on the i1Pro 2 cannot be used this time. Please press Aimed here.": "Die Taste am i1Pro 2 kann diesmal nicht verwendet werden. Bitte drücke hier auf Anvisiert.",
+ "The button on the i1Pro 2 is ready: one press counts as Aimed.": "Die Taste am i1Pro 2 ist bereit: Ein Druck zählt als Anvisiert.",
+ "You can also use the button on the instrument": "Du kannst auch die Taste am Messgerät verwenden"
 }

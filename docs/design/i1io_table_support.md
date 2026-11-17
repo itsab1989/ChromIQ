@@ -566,3 +566,32 @@ lines and never under the answers; in a panel too low for six lines the true-sta
 into the scrolling area under the text; the visible part of a long text ends on a whole line,
 and the scroll bar says there is more. The words for a refusal never show a reason id. A chart made for the CR30 loaded after a table chart keeps the CR30's greyed options.
 
+
+### ⏳ Awaiting confirmation: the instrument's button as "Aimed" (round B, 2026-11-17)
+
+**Confirmed by:** *nobody yet.*
+
+Built and proved against the simulated table and the helper's own replay instrument only. **Not
+tried with a real i1Pro 2 in a real table**: whether the i1Pro 2's switch thread reports the press
+there as it does by hand is only known after the first real session (its log then has a "button
+press received" line for every mark answered that way). If no press ever arrives, nothing is
+lost: the panel's Aimed always works.
+
+* While the panel waits at an aiming question (the arm free, nothing moving), ONE press of the
+  i1Pro 2's own button is the same answer as the panel's Aimed, for that mark only. The session
+  log writes the answer's usual line followed by "(by the instrument's button)", plus a
+  "button press received" line.
+* A press never moves anything and never counts as the hands-off GO: after the third mark, the
+  GO before the check move is asked in the panel as before (the hand is on the arm). The button
+  is listened to only during the aims; a press at any other moment is ignored and logged.
+* A press sooner than 0.4 s after the question appeared is not taken (it was meant for the
+  question before). A press arriving after the panel's Aimed was used is ignored (each question
+  has its own token, used once). Stop, Report a problem and End measurement cancel the wait.
+* The helper's new mode `--i1io-press-wait` (build 2026-11-17b) opens the i1Pro 2 as every
+  reading does, takes no reading, sets no mode, never opens the table, and only reports presses
+  while the job has armed it. It is started only after the reader consent, after the same
+  instrument check as every reader (exactly one i1Pro 2, nothing else), and it has let go of the
+  i1Pro 2 before any reader opens it. With an older helper (no `+i1io-press-wait` in its build
+  string) the button is not offered and nothing else changes. No setting.
+* Text: M-I1IO-DRIVE-AIM-BUTTON (§M-PROPOSED), added under M-I1IO-DRIVE-AIM when the button is
+  offered, and one status line under the question (ready / cannot be used this time).

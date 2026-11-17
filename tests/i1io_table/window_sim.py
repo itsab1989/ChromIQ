@@ -33,11 +33,13 @@ class SlowTransport(ss.SimTransport):
 
 class WindowSim:
     def __init__(self, faults=None, delay_s: float = 0.0, cold: bool = False,
-                 app_marker_place=None, **simkw):
+                 app_marker_place=None, press: bool = False, **simkw):
         self.faults = faults
         self.delay_s = delay_s
         self.cold = cold
         self.app_marker_place = app_marker_place
+        #: round B: the helper offers the button wait (a simulated one)
+        self.press = press
         self.simkw = simkw
         self.jobs: list = []
         self.sim = None
@@ -55,7 +57,8 @@ class WindowSim:
                          ask_after_each_step=ask, reader_factory=self.helper.factory(),
                          helper_check=lambda: None,
                          instrument_check=lambda: us.Check("ok", {"i1pro_devices": 1}),
-                         app_marker_place=self.app_marker_place)
+                         app_marker_place=self.app_marker_place,
+                         press_factory=self.helper.press_factory() if self.press else None)
         self.jobs.append(job)
         return job
 

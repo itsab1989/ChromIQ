@@ -6057,6 +6057,9 @@ static int cq_locs_fit_legacy_grid(cgats *icg, int li, alphix *paix, alphix *sai
  * and {"event":"button_test_end"} says so. Reads nothing, writes nothing. */
 /* CHROMIQ_EXT (study, 2026-11-16): --i1io-table-scan <dir>, NULL = not asked. */
 static const char *cq_tscan_dir = NULL;
+/* CHROMIQ_EXT (round B, 2026-11-17): --i1io-press-wait, the i1iO table drive's
+ * "Aimed" by the instrument's button (chromiq_presswait.c). */
+static int cq_presswait = 0;
 
 static int cq_run_button_test(int comport, flow_control fc) {
 	icompaths *icmps = NULL;
@@ -6281,6 +6284,12 @@ int main(int argc, char *argv[]) {
 				 * scan on an i1iO 2 table (chromiq_tablescan.c). No chart. */
 				cq_tscan_dir = argv[ai + 1];
 				eat = 2;
+			} else if (strcmp(argv[ai], "--i1io-press-wait") == 0) {
+				/* CHROMIQ_EXT (round B, 2026-11-17): the i1iO table drive's
+				 * aiming: open the i1Pro 2, report one press of its button
+				 * when armed, read nothing. No chart. */
+				cq_presswait = 1;
+				eat = 1;
 			} else if (strcmp(argv[ai], "--button-test") == 0) {
 				/* CHROMIQ_EXT: Preferences' "Try it": open the instrument,
 				 * report every group of presses, read nothing. */
@@ -6300,7 +6309,7 @@ int main(int argc, char *argv[]) {
 			error("Failed to load replay script '%s'", cq_replay_path);
 	}
 
-	if (argc <= 1 && !cq_button_test && cq_tscan_dir == NULL)	/* CHROMIQ_EXT: "Try it" needs no chart */
+	if (argc <= 1 && !cq_button_test && cq_tscan_dir == NULL && !cq_presswait)	/* CHROMIQ_EXT: "Try it" needs no chart */
 		usage();
 
 	/* Process the arguments */
@@ -6308,7 +6317,7 @@ int main(int argc, char *argv[]) {
 	/* CHROMIQ_EXT: "Try it" has no outfile, so a flag's separate value (the
 	 * "1" of "-c 1") is taken only if no final argument is reserved for it
 	 * (Basti's ColorMunki, 2026-10-25: usage instead of the instrument). */
-	if (cq_button_test || cq_tscan_dir != NULL)
+	if (cq_button_test || cq_tscan_dir != NULL || cq_presswait)
 		mfa = 0;
 	for (fa = 1;fa < argc;fa++) {
 		nfa = fa;					/* skip to nfa if next argument is used */
@@ -6553,6 +6562,9 @@ int main(int argc, char *argv[]) {
 	/* CHROMIQ_EXT (study, 2026-11-16): the i1iO 2 table scan needs no chart. */
 	if (cq_tscan_dir != NULL)
 		return cq_run_table_scan(comport, fc, cq_tscan_dir, cq_guard_inst);
+	/* CHROMIQ_EXT (round B): the table drive's button wait needs no chart. */
+	if (cq_presswait)
+		return cq_run_press_wait(comport, fc, cq_guard_inst);
 
 	/* Get the file name argument */
 	if (fa >= argc || argv[fa][0] == '-') usage();

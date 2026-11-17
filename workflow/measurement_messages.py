@@ -11901,6 +11901,21 @@ M_I1IO_DRIVE_AIM = _m(
     "ChromIQ only reads where the arm is; it does not move it while you aim.",
     approved=False)
 
+M_I1IO_DRIVE_AIM_BUTTON = _m(
+    "M-I1IO-DRIVE-AIM-BUTTON",
+    "You can also use the button on the instrument",
+    "Instead of pressing Aimed here, you can press the button on the i1Pro "
+    "2 itself, once, while the cross hairs sit on mark {mark}. ChromIQ "
+    "then takes that press as Aimed for this mark, so your hand can stay on "
+    "the arm.\n\n"
+    "The button never starts a move. Before the arm moves again, ChromIQ "
+    "still asks you here, in this panel, to take your hands away from the "
+    "table.\n\n"
+    "Using the instrument's button this way is new, and it has not been "
+    "tried on a real table yet. If nothing happens when you press it, simply "
+    "press Aimed here: nothing is lost.",
+    approved=False)
+
 M_I1IO_DRIVE_FRONT = _m(
     "M-I1IO-DRIVE-FRONT",
     "Part of this sheet lies further forward than usual",
@@ -12364,7 +12379,8 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_EARLIER, M_I1IO_DRIVE_OPTIONS, M_I1IO_DRIVE_OPTION_REFUSED,
     M_I1IO_DRIVE_OPTIONS_FIELDS, M_I1IO_DRIVE_MARKER, M_I1IO_DRIVE_START_UP,
     M_I1IO_DRIVE_GO, M_I1IO_DRIVE_SHEET_LAID, M_I1IO_DRIVE_ARM_FELT,
-    M_I1IO_DRIVE_AIM, M_I1IO_DRIVE_FRONT, M_I1IO_DRIVE_FRONT_YES,
+    M_I1IO_DRIVE_AIM, M_I1IO_DRIVE_AIM_BUTTON, M_I1IO_DRIVE_FRONT,
+    M_I1IO_DRIVE_FRONT_YES,
     M_I1IO_DRIVE_FIRST_VISIT, M_I1IO_DRIVE_READER_CONSENT,
     M_I1IO_DRIVE_READER_CONSENT_MAC, M_I1IO_DRIVE_CAL_PLACE,
     M_I1IO_DRIVE_CAL_OWN_TILE, M_I1IO_DRIVE_CAL_RESEAT,

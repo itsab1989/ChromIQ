@@ -219,7 +219,9 @@ def test_only_the_switch_reaches_the_new_code():
 
 def test_the_build_string():
     h = (HELPER / "chromiq_ext.h").read_text(encoding="utf-8")
-    assert "chromiq-chartread 2026-11-17a " in h and "+i1io-table-scan\"" in h
+    # 2026-11-17b (round B) = 2026-11-17a + the table drive's button wait, last
+    assert "chromiq-chartread 2026-11-17b " in h
+    assert "+i1io-table-scan+i1io-press-wait\"" in h
 
 
 def _base_tree(tmp: Path) -> Path:

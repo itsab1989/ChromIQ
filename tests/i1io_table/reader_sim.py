@@ -81,6 +81,8 @@ class HelperSim:
         #: report while a reading is on its way)
         self.on_read = None
         self.failed_once: "set[str]" = set()
+        #: round B: every button wait started (FakePressProc)
+        self.press_procs: "list[FakePressProc]" = []
 
     def proc_class(self):
         helper = self
@@ -89,6 +91,16 @@ class HelperSim:
             pass
         _P.helper = helper
         return _P
+
+    def press_factory(self, path: str = "/sim/bin/chromiq-chartread"):
+        """Round B: a button-wait factory for the job: the app's own reader.PressWaiter with a
+        simulated helper process (FakePressProc) behind it."""
+        return _press_factory_for(self, path)
+
+    def press(self) -> "dict | None":
+        """The person presses the instrument's button (the newest button wait hears it)."""
+        live = [p for p in self.press_procs if p.alive()]
+        return live[-1].press() if live else None
 
     def factory(self, path: str = "/sim/bin/chromiq-chartread"):
         """A reader factory for the job: the app's own reader.SpotReader with this simulated
@@ -104,6 +116,145 @@ class HelperSim:
             finally:
                 rd._Proc = orig
         return make
+
+
+def _press_factory_for(helper: "HelperSim", path: str):
+    rd = helper.rd
+
+    class _P(FakePressProc):
+        pass
+    _P.helper = helper
+
+    def make(folder, log):
+        orig = rd._Proc
+        rd._Proc = _P
+        try:
+            return rd.PressWaiter(Path(path), folder, log)
+        finally:
+            rd._Proc = orig
+    return make
+
+
+class FakePressProc:
+    """The helper's button wait (``--i1io-press-wait``, round B), simulated with the native
+    mode's rules (chromiq_presswait.c): a press is reported only while armed and not sooner
+    than min_ms after the arm (the simulator's clock), once per arm; disarm, quit. The
+    person's thumb is :meth:`press`. Faults (``HelperSim(faults={"press": ...})``):
+    ``no_instrument`` / ``wrong_model`` / ``dies`` at the start, ``dies_on_arm``."""
+    helper: "HelperSim" = None
+
+    def __init__(self, argv, log, cwd):
+        h = self.helper
+        self.argv = list(argv)
+        self.log = log
+        self.events: "list[dict]" = []
+        self.q: "collections.deque[dict]" = collections.deque()
+        self._alive = True
+        self.armed: "str | None" = None
+        self.t_arm = 0.0
+        self.min_s = 0.4
+        self.wait_s = 600.0
+        self.sent: "list[dict]" = []
+        h.started.append(list(argv))
+        h.press_procs.append(self)
+        log("INST", "start (simulated helper): " + " ".join(Path(a).name if i == 0 else a
+                                                             for i, a in enumerate(argv)))
+        fault = h.faults.get("press")
+        self._emit({"event": "press_wait_start", "t": 0, "build": "sim +i1io-press-wait"})
+        if fault == "dies":
+            self._die()
+            return
+        if fault == "no_instrument":
+            self._emit({"event": "error", "kind": "no_instrument", "detail": ""})
+            self._die()
+            return
+        if fault == "wrong_model":
+            self._emit({"event": "error", "kind": "press_instrument", "detail": "not an i1Pro 2"})
+            self._die()
+            return
+        self._emit({"event": "press_wait_ready", "t": 0, "model": "X-Rite i1 Pro 2"})
+
+    def _now(self) -> float:
+        return float(self.helper.sim.clock)
+
+    def _emit(self, ev: dict) -> None:
+        self.events.append(ev)
+        self.q.append(ev)
+        self.log("INST", json.dumps(ev))
+
+    def _die(self) -> None:
+        self._alive = False
+        self.q.append({"event": "helper_gone"})
+
+    def press(self) -> "dict | None":
+        """The person presses the instrument's button once."""
+        if not self._alive:
+            return None
+        if self.armed is not None and self._now() - self.t_arm >= self.wait_s:
+            self._emit({"event": "press_timeout", "id": self.armed})
+            self.armed = None
+        if self.armed is None:
+            ev = {"event": "press_ignored", "why": "not_armed"}
+        elif self._now() - self.t_arm < self.min_s:
+            ev = {"event": "press_ignored", "why": "too_soon", "id": self.armed}
+        else:
+            ev = {"event": "press", "id": self.armed,
+                  "after_ms": int(1000 * (self._now() - self.t_arm))}
+            self.armed = None
+        self._emit(ev)
+        return ev
+
+    def send(self, obj) -> None:
+        ReaderFailed = self.helper.rd.ReaderFailed
+        self.sent.append(dict(obj))
+        self.log("INST", "cmd " + json.dumps(obj))
+        if not self._alive:
+            raise ReaderFailed("the reader stopped listening (BrokenPipeError)")
+        cmd = obj.get("cmd")
+        if cmd == "press_arm":
+            if self.helper.faults.get("press") == "dies_on_arm":
+                self._die()
+                return
+            self.armed = str(obj.get("id"))
+            self.t_arm = self._now()
+            self.min_s = int(obj.get("min_ms", 400)) / 1000.0
+            self.wait_s = int(obj.get("wait_ms", 600000)) / 1000.0
+            self._emit({"event": "press_armed", "id": self.armed})
+        elif cmd == "press_disarm":
+            self._emit({"event": "press_disarmed", "id": self.armed or "",
+                        "was_armed": self.armed is not None})
+            self.armed = None
+        elif cmd in ("press_quit", "quit"):
+            self._emit({"event": "press_wait_end"})
+            self._alive = False
+            self.q.append({"event": "helper_gone"})
+        else:
+            self._emit({"event": "press_unknown"})
+
+    def alive(self) -> bool:
+        return self._alive
+
+    def wait(self, names, timeout: float):
+        while self.q:
+            ev = self.q.popleft()
+            if ev.get("event") in names or ev.get("event") in ("helper_gone", "error"):
+                return ev
+        return None
+
+    def poll(self, name):
+        while self.q:
+            ev = self.q.popleft()
+            if ev.get("event") in (name, "helper_gone"):
+                return ev
+        return None
+
+    def stop(self, quit_cmd) -> None:
+        if self._alive:
+            try:
+                self.send(quit_cmd)
+            except Exception:      # noqa: BLE001
+                pass
+        self._alive = False
 
 
 class FakeHelperProc:
@@ -372,8 +523,9 @@ def make_run(tmp_path: Path, sheet: dict, name: str = "Table-Target"):
 
 def make_reading_job(tmp_path, sheet=None, aims=None, faults=None, run=True, stamp=STAMP,
                      instrument=None, helper_check=None, ask_after_each_step=True, sim=None,
-                     app_marker_place=None, **simkw):
+                     app_marker_place=None, press=False, **simkw):
     """A table job with the simulated table AND the simulated helper behind the app's reader.
+    *press*: round B's button wait is offered (the simulated helper's FakePressProc).
     Returns (job, sim, helper, run)."""
     from tests.i1io_table import job_harness as H
     from tests.i1io_table import part_c_sim as csim
@@ -403,6 +555,7 @@ def make_reading_job(tmp_path, sheet=None, aims=None, faults=None, run=True, sta
                      helper_check=helper_check or (lambda: None),
                      instrument_check=instrument or (lambda: us.Check("ok",
                                                                       {"i1pro_devices": 1})),
-                     app_marker_place=app_marker_place)
+                     app_marker_place=app_marker_place,
+                     press_factory=helper.press_factory() if press else None)
     return job, sim, helper, r
 

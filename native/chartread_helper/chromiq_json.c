@@ -35,6 +35,8 @@ volatile int cq_lights_off_pending = 0;
 void (*cq_lights_service)(void) = NULL;
 volatile int cq_exiting_on_signal = 0;
 void (*cq_tscan_line_hook)(const char *line) = NULL;
+/* The i1iO 2 table drive's button wait (round B): only while --i1io-press-wait runs. */
+void (*cq_presswait_line_hook)(const char *line) = NULL;
 
 /* ------------------------------------------------------------------ */
 /* Emission: every event is one complete JSON object on one line,      */
@@ -219,6 +221,12 @@ static void cq_handle_line(const char *line) {
 	/* The i1iO 2 table scan (study): only while --i1io-table-scan runs. */
 	if (cq_tscan_line_hook != NULL && strncmp(cmd, "tscan_", 6) == 0) {
 		cq_tscan_line_hook(line);
+		return;
+	}
+	/* The i1iO 2 table drive's button wait (round B): only while
+	 * --i1io-press-wait runs; "presses" (the replay's) is not one of them. */
+	if (cq_presswait_line_hook != NULL && strncmp(cmd, "press_", 6) == 0) {
+		cq_presswait_line_hook(line);
 		return;
 	}
 

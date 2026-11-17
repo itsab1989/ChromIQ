@@ -94,6 +94,7 @@ add_executable(chromiq-chartread
   ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_stubs.c
   ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_usbwatch.c
   ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_tablescan.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_presswait.c
   ${INSTLIB}/alphix.c
 )
 target_include_directories(chromiq-chartread PRIVATE

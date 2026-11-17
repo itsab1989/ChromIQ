@@ -603,6 +603,13 @@ class TableMeasureWindow(QFrame):
         #: review 10, B-1: the person quit ChromIQ during this session
         self._quit_wanted = False
         self._archived = False
+        #: round B: the token a press of the instrument's button must carry to answer the
+        #: aiming question shown now (None: no such question, or it was answered here)
+        self._aim_token: "str | None" = None
+        self._press_seen = 0
+        self._press_timer = QTimer(self)
+        self._press_timer.setInterval(100)
+        self._press_timer.timeout.connect(self._poll_button)
         self._build()
         self._signals = _Signals(self)
         self._signals.done.connect(self._on_done, Qt.ConnectionType.QueuedConnection)
@@ -1532,6 +1539,9 @@ class TableMeasureWindow(QFrame):
         elif kind == "aimed":
             title, body = M.M_I1IO_DRIVE_AIM.render(mark=d.get("mark", "?"),
                                                     corner=corner_text(d.get("corner", "")))
+            if d.get("button") and d.get("button_token"):
+                # round B (proposed text): the instrument's own button answers too
+                body += "\n\n" + M.M_I1IO_DRIVE_AIM_BUTTON.render(mark=d.get("mark", "?"))[1]
             self._aim_event(d.get("mark"), d.get("patch") if d.get("target") == "patch"
                             else None)
         elif kind == "front_choice":
@@ -1564,6 +1574,11 @@ class TableMeasureWindow(QFrame):
             made[0].setEnabled(False)
         self._status.setText(tr("ChromIQ waits for your answer. Nothing moves until you "
                                 "answer."))
+        if kind == "aimed" and d.get("button") and d.get("button_token"):
+            self._aim_token = str(d["button_token"])
+            self._aim_res = res
+            self._button_status()
+            self._press_timer.start()
         if kind == "row_failed":
             self._troubled = True
             self._show_note()
@@ -1575,9 +1590,68 @@ class TableMeasureWindow(QFrame):
     def answer(self, value: str) -> None:
         kind = self._pending_kind
         job = self.job
+        # round B: the panel's answer was given; a press arriving after it is not taken
+        self._aim_token = None
         if kind == "ready_to_open" and value == "yes":
             self._moving_controls(True)        # the USB is opened now
         self._call(lambda: job.answer(kind, value))
+
+    # ---- round B: the instrument's button as "Aimed" ---------------------------------------
+    def _button_events(self) -> list:
+        try:
+            return self.job.press_events() if self.job is not None else []
+        except Exception:      # noqa: BLE001 - display only
+            return []
+
+    def _button_status(self) -> None:
+        """One line under the question: whether the instrument's button can be used now."""
+        evs = self._button_events()
+        names = [e.get("event") for e in evs]
+        if "press_wait_ready" in names:
+            line = tr("The button on the i1Pro 2 is ready: one press counts as Aimed.")
+        elif "error" in names or "helper_gone" in names:
+            line = tr("The button on the i1Pro 2 cannot be used this time. Please press Aimed "
+                      "here.")
+        else:
+            line = tr("ChromIQ is getting the button on the i1Pro 2 ready. Until then, please "
+                      "press Aimed here.")
+        self._status.setText(tr("ChromIQ waits for your answer. Nothing moves until you "
+                                "answer.") + "\n" + line)
+
+    def _poll_button(self) -> None:
+        """Every 100 ms while an aiming question is shown: a press the helper reported for its
+        token answers it, exactly as the Aimed button does (the job checks the token again)."""
+        token = self._aim_token
+        if token is None or getattr(self, "_page_id", "") != "aimed" or self.job is None:
+            self._press_timer.stop()
+            return
+        evs = self._button_events()
+        if len(evs) < self._press_seen:
+            self._press_seen = 0              # a new button wait (a new alignment)
+        new, self._press_seen = evs[self._press_seen:], len(evs)
+        if any(e.get("event") in ("press_wait_ready", "error", "helper_gone") for e in new):
+            self._button_status()
+        for ev in new:
+            if ev.get("event") != "press":
+                continue
+            if self._busy or ev.get("id") != token:
+                self.job.note_button_ignored("not_this_question")
+                continue
+            self._aim_token = None
+            self._press_timer.stop()
+            job = self.job
+            self._call(lambda: job.answer_by_button(token), then=self._after_button,
+                       status=tr("Aimed by the button on the i1Pro 2"))
+            return
+
+    def _after_button(self, res) -> None:
+        """The job took the press as Aimed (its next question follows), or ignored it (the
+        question that was shown comes back unchanged; nothing was sent)."""
+        if getattr(res, "reason", "") == "button_press_ignored" and \
+                getattr(self, "_aim_res", None) is not None:
+            self._on_result(self._aim_res)
+            return
+        self._on_result(res)
 
     def _answer_yes(self) -> None:
         if self._pending_kind == "ready_to_open" and not all(
@@ -1801,6 +1875,7 @@ class TableMeasureWindow(QFrame):
         if self.job is None:
             return
         self.job.stop_at_next_pause()
+        self._aim_token = None              # round B: Stop cancels the button's wait too
         self._troubled = True
         self._status.setText(tr("Stop pressed: ChromIQ stops before the next move. A move that "
                                 "has started finishes first."))
@@ -1812,6 +1887,7 @@ class TableMeasureWindow(QFrame):
         from workflow import measurement_messages as M
         title, body = M.M_I1IO_DRIVE_PROBLEM.render()
         self._problem_back = getattr(self, "_page_id", "")
+        self._aim_token = None              # round B: no press is taken while this is open
         self._troubled = True
         self._show("problem", title, body,
                    [(tr("Cancel"), self._problem_cancel),

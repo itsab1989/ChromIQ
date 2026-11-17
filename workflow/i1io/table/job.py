@@ -50,6 +50,7 @@ from __future__ import annotations
 
 import copy
 import json
+import threading
 import time
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -134,6 +135,18 @@ READER_CONSENT_FACTS_MAC = ("on_a_mac_it_closes_xrites_i1prodeviceservice_if_the
 CAL_PLACE_RECOMMENDED = "own tile"
 #: NEXT_STEPS 4d: at most this many rows of a page are read again, whatever the session total
 ROWS_READ_AGAIN_PER_PAGE = 2
+#: round B (the owner, 2026-11-17: "can you confirm the device being on each crosshair point by
+#: pressing the button on the device instead of the button in the app?"): while an aiming
+#: question waits, ONE press of the i1Pro 2's own button is the same answer as Aimed. The helper
+#: (--i1io-press-wait) reports a press only while the job armed it, and never one sooner than
+#: BUTTON_MIN_MS after the arm (a press meant for the question before is not an answer); after
+#: BUTTON_WAIT_MS without a press it stops waiting (the panel's Aimed still works).
+BUTTON_MIN_MS = 400
+BUTTON_WAIT_MS = 600000
+#: how long the job waits, before it opens a reader, for the button wait to have let go of the
+#: i1Pro 2 (the helper's own close plus the kill that follows a close that blocks)
+BUTTON_CLOSE_WAIT_S = 12.0
+BUTTON_IGNORED = "button_press_ignored"
 #: review 8, S-1: the steps that move the arm (the homing is the way back and never refused
 #: for a stop); a stop pressed between steps or at a question ends them before their next move
 MOVING_STEPS = ("park", "align", "creep", "check_move", "read_row", "start_up")
@@ -428,7 +441,7 @@ class TableJob:
                  folder: "Path | None" = None, open_transport=None, preflight=None,
                  other_program=None, ask_after_each_step: bool = True, reader_factory=None,
                  helper_check=None, instrument_check=None, chart_ti2=None,
-                 app_marker_place: "tuple[Path, str] | None" = None):
+                 app_marker_place: "tuple[Path, str] | None" = None, press_factory=None):
         # the job's OWN copy (review of step 6): the caps are derived from it, and a caller
         # changing its chart afterwards changes nothing here
         self.sheet = copy.deepcopy(sheet)
@@ -502,6 +515,25 @@ class TableJob:
         #: starts ChromIQ's helper for spot readings (reader.SpotReader through the app's
         #: helper path, as the tester's Readers.spot did); tests pass a simulated one
         self._reader_factory = reader_factory or _default_reader
+        # ---- round B: the instrument's button as "Aimed" ---------------------------------------
+        #: builds the helper's button wait (folder, log) -> reader.PressWaiter-like; False or
+        #: None = not offered. By default the real helper's, only with the real readers (the
+        #: same helper) and only when its build string carries the button wait
+        if press_factory is None and reader_factory is None:
+            press_factory = _default_press_factory
+        self._press_factory = press_factory or None
+        self._press = None
+        self._press_lock = threading.Lock()
+        self._press_closing: "threading.Thread | None" = None
+        #: the token of the aiming question the button may answer now (None: none)
+        self._press_token: "str | None" = None
+        self._press_seq = 0
+        self._press_used: "set[str]" = set()
+        self._by_button = False
+        #: why the button is not offered at this alignment (None: offered or not asked yet)
+        self.button_unavailable: "str | None" = None
+        #: the marks answered by the instrument's button, (page, mark)
+        self.button_aims: "list[tuple[int, int]]" = []
         self._helper_check = helper_check or _default_helper_check
         self._instrument_check = instrument_check or us.instrument_now
         self._chart_ti2 = Path(chart_ti2) if chart_ti2 is not None else (
@@ -657,6 +689,9 @@ class TableJob:
 
     def answer(self, kind: str, value: str) -> StepResult:
         """The person's answer to the confirmation the job is waiting for."""
+        return self._answer(kind, value)
+
+    def _answer(self, kind: str, value: str, by: str = "") -> StepResult:
         if kind == Confirm.REPORT_AFTER_STEP and self.report_due is not None:
             return self._report(value)
         step = self._gen_step or "none"
@@ -678,7 +713,7 @@ class TableJob:
                                     rows_read_again=self.rows_again.get(self.page, 0),
                                     choices=["skip", "stop"])
         self.notes.append((f"{step}: {kind}", value))
-        self.diag.log("ANSWER", f"{step}: {kind} -> {value}")
+        self.diag.log("ANSWER", f"{step}: {kind} -> {value}{by}")
         if self._block is not None:
             self._block["answers"].append((BLOCK_LABEL.get(kind, kind), value))
         self._pending = None
@@ -694,6 +729,7 @@ class TableJob:
         at a confirmation, the job ends at once."""
         step = self._gen_step or "cancel"
         self.stopped_by_person = True
+        self._press_cancel("cancelled")
         if self._table is not None:
             self._table.request_stop()
         if self._gen is not None and self._pending is not None:
@@ -720,6 +756,9 @@ class TableJob:
         hands-off GO is asked again; the homing is never refused for it."""
         self._pause_stop = True
         self.stop_pressed = True
+        # round B: Stop cancels the wait for the instrument's button (the question on screen
+        # may still be answered in the panel; a press is no longer taken)
+        self._press_cancel("stop pressed")
         # review 9, M-1: in EVERY case, also while a step runs (a check move has no pause of
         # its own): the next movement after a stop, the homing included, asks the hands-off
         # GO again. A running step has passed its GO already; the rows set or clear it
@@ -1193,6 +1232,7 @@ class TableJob:
                                 choices=list(PROBLEM_KINDS))
         self.problems.append((kind, step, d.lines_sent if d is not None else 0))
         self.diag.log("ANSWER", f"problem reported{f' during {step}' if step else ''}: {kind}")
+        self._press_cancel("a problem was reported")
         waiting = self._gen is not None and self._pending is not None
         start_up_wrong = (d is not None and d.cold_done and d.motions_sent == d.cold_motions)
         if kind == PROBLEM_STOP_NOW or d is None or start_up_wrong:
@@ -1422,16 +1462,34 @@ class TableJob:
         self._step("d1_aims", *D1_CAPS)
         readings = []
         self._soft_stop()
-        for a in aims:
-            ans = yield Ask(Confirm.AIMED, {"mark": a["number"],
-                                            "corner": a.get("corner_on_table", ""),
-                                            "target": a.get("target"), "patch": a.get("patch")})
-            if ans != "aimed":
-                raise PersonStopped("stopped_during_the_aims")
-            rep = d.c_exchange(cl.C_FIXED["aim"], cl.C_DATA_LEN["aim"])
-            p = rep.xy()
-            d.log("DATA", f"aim {a['number']}: p1 reports {p}")
-            readings.append(p)
+        # round B: the instrument's button may answer each aiming question (never a GO: the
+        # hand is on the arm). Started here, ended before anything after the aims runs
+        self._press_start()
+        try:
+            for a in aims:
+                token = self._press_arm(a["number"])
+                self._by_button = False
+                ans = yield Ask(Confirm.AIMED, {"mark": a["number"],
+                                                "corner": a.get("corner_on_table", ""),
+                                                "target": a.get("target"),
+                                                "patch": a.get("patch"),
+                                                "button": token is not None,
+                                                "button_token": token,
+                                                "button_unavailable": self.button_unavailable})
+                by_button, self._by_button = self._by_button, False
+                self._press_disarm()
+                if ans != "aimed":
+                    raise PersonStopped("stopped_during_the_aims")
+                rep = d.c_exchange(cl.C_FIXED["aim"], cl.C_DATA_LEN["aim"])
+                p = rep.xy()
+                d.log("DATA", f"aim {a['number']}: p1 reports {p}"
+                              + (" (aimed by the instrument's button)" if by_button else ""))
+                if by_button:
+                    self.button_aims.append((self.page + 1, int(a["number"])))
+                    self._block["data"].setdefault("aimed_by_button", []).append(a["number"])
+                readings.append(p)
+        finally:
+            self._press_stop()
         # the safety review's confirmation of step 6 (required): the person's hands were on the
         # free arm for the aims, so the first motor move after them (the creep, the check move
         # or the homing) waits for a hands-off GO again, in both modes (one more question a page)
@@ -1779,6 +1837,7 @@ class TableJob:
         """Part C's instrument_ready() and spot_reader(): the helper can run, exactly one
         i1Pro 2 and no other instrument, the consent (once in the session, before the FIRST
         reader starts), then the reader. A generator (the consent is a confirmation)."""
+        self._press_join()
         why = self._helper_check()
         if why:
             raise StageFailed(why)
@@ -1854,6 +1913,155 @@ class TableJob:
     def _close_readers(self) -> None:
         for r in list(self._open_readers):
             self._close_reader(r)
+
+    # ---- round B: the instrument's button as "Aimed" ----------------------------------------
+    def _press_start(self) -> None:
+        """Start the helper's button wait for this alignment, when it is offered. Never fails
+        the step: when it cannot start, the panel's Aimed is the only way (said in the log)."""
+        self.button_unavailable = None
+        if self._press_factory is None:
+            self.button_unavailable = "not_offered"
+            return
+        if not self.reader_consent:
+            # the button wait opens the i1Pro 2 with the ArgyllCMS library, which is what the
+            # reader consent is about; before it, the instrument is not opened for a button
+            self.button_unavailable = "no_reader_consent"
+            self.diag.log("BUTTON", "the instrument's button is not offered for these aims: "
+                                    "the reading program has not been agreed to yet")
+            return
+        self._press_join()
+        why = self._helper_check()
+        if why:
+            self.button_unavailable = why
+            self.diag.log("BUTTON", f"the instrument's button is not offered: {why}")
+            return
+        chk = self._instrument_check()
+        self.diag.log("INST", f"instrument check before the button wait: {chk.state} "
+                              + json.dumps(chk.detail))
+        if chk.state != "ok":
+            self.button_unavailable = f"instrument_{chk.state}"
+            return
+        if self.diag.folder is None:
+            self.button_unavailable = "no_session_folder"
+            return
+        try:
+            waiter = self._press_factory(self.diag.folder / "button", self.diag.log)
+        except HelperWithoutButtonWait:
+            self.button_unavailable = "helper_without_button_wait"
+            self.diag.log("BUTTON", "the instrument's button is not offered: this helper has no "
+                                    "button wait (an older build); the panel's Aimed is the way")
+            return
+        except Exception as exc:       # noqa: BLE001 - not offered, nothing breaks
+            self.button_unavailable = "button_wait_could_not_start"
+            self.diag.log("BUTTON", f"the button wait could not start ({type(exc).__name__})")
+            return
+        with self._press_lock:
+            self._press = waiter
+        self.diag.log("BUTTON", "the instrument's button may answer the aiming questions "
+                                "(a first try: not confirmed on a real table yet; a press "
+                                "received is logged as 'button press received')")
+
+    def _press_arm(self, mark) -> "str | None":
+        with self._press_lock:
+            w = self._press
+            if w is None:
+                self._press_token = None
+                return None
+            self._press_seq += 1
+            token = f"p{self.page + 1}-m{int(mark)}-{self._press_seq}"
+            ok = w.arm(token, BUTTON_WAIT_MS, BUTTON_MIN_MS)
+            self._press_token = token if ok else None
+        if not ok:
+            self.button_unavailable = "button_wait_stopped"
+            self.diag.log("BUTTON", "the button wait has stopped; the panel's Aimed is the way")
+            return None
+        return token
+
+    def _press_disarm(self) -> None:
+        with self._press_lock:
+            self._press_token = None
+            w = self._press
+        if w is not None:
+            w.disarm()
+
+    def _press_cancel(self, why: str) -> None:
+        """Stop, Report a problem, a cancel: the press is no longer taken (from any thread)."""
+        with self._press_lock:
+            had = self._press_token is not None
+            self._press_token = None
+            w = self._press
+        if w is not None:
+            w.disarm()
+        if had:
+            self.diag.log("BUTTON", f"the wait for the instrument's button was cancelled ({why})")
+
+    def _press_stop(self) -> None:
+        """Let go of the button wait. The helper's close runs in the background; a reader (or a
+        new wait) first waits for it (``_press_join``)."""
+        with self._press_lock:
+            w, self._press, self._press_token = self._press, None, None
+        if w is None:
+            return
+        t = threading.Thread(target=_close_quietly, args=(w,), daemon=True)
+        self._press_closing = t
+        t.start()
+
+    def _press_join(self) -> None:
+        t = self._press_closing
+        if t is not None:
+            t.join(BUTTON_CLOSE_WAIT_S)
+            if t.is_alive():
+                self.diag.log("BUTTON", "the button wait did not let go of the instrument in "
+                                        "time")
+            self._press_closing = None
+
+    def press_events(self) -> "list[dict]":
+        """What the button wait has reported so far (display only; never acted on here)."""
+        with self._press_lock:
+            w = self._press
+        try:
+            return w.events() if w is not None else []
+        except Exception:      # noqa: BLE001
+            return []
+
+    def button_token(self) -> "str | None":
+        """The token a press must carry to answer the aiming question now (None: none)."""
+        return self._press_token
+
+    def _press_seen(self, token: str) -> bool:
+        return any(ev.get("event") == "press" and ev.get("id") == token
+                   for ev in self.press_events())
+
+    def answer_by_button(self, token: str) -> StepResult:
+        """A press of the instrument's button, reported by the helper for *token*: the same
+        answer as the panel's Aimed, and only that. Ignored (logged, nothing sent, the question
+        stays) unless an aiming question waits whose token it is, the helper itself reported a
+        press for it, and it was not used before."""
+        step = self._gen_step or "none"
+        pending = self._pending
+        why = None
+        if self._gen is None or pending is None or pending.kind != Confirm.AIMED:
+            why = "no_aiming_question"
+        elif token in self._press_used:
+            why = "used_already"
+        elif not token or pending.detail.get("button_token") != token \
+                or self._press_token != token:
+            why = "not_this_question"
+        elif not self._press_seen(token):
+            why = "not_reported_by_the_helper"
+        if why:
+            self.diag.log("BUTTON", f"a press of the instrument's button was ignored ({why})")
+            return StepResult(step, Kind.REFUSED, BUTTON_IGNORED, self.state(), self.way_back(),
+                              detail={"why": why})
+        self._press_used.add(token)
+        self._by_button = True
+        self.diag.log("BUTTON", f"button press received: mark {pending.detail.get('mark')} "
+                                f"aimed by the instrument's button")
+        return self._answer(Confirm.AIMED, "aimed", by=" (by the instrument's button)")
+
+    def note_button_ignored(self, why: str) -> None:
+        """The window saw a press it did not pass on (nothing waits for it): logged only."""
+        self.diag.log("BUTTON", f"a press of the instrument's button was ignored ({why})")
 
     # ---- calibration (part C's C1, spot white) ----------------------------------------------
     def calibrate(self) -> StepResult:
@@ -2658,6 +2866,8 @@ class TableJob:
     def close(self) -> StepResult:
         if self._gen is not None:
             self.cancel()
+        self._press_stop()
+        self._press_join()
         self._close_readers()
         d = self._table
         if d is not None:
@@ -2788,6 +2998,25 @@ def _default_reader(folder, name, patches, calibrate, extra_args, log):
     -p <row chart>``, as tester 0.6.0's Readers.spot started it."""
     return rd.SpotReader(rd.helper_path(), folder, name, patches, log, calibrate,
                          extra_args=tuple(extra_args))
+
+
+class HelperWithoutButtonWait(Exception):
+    """The helper's build string has no button wait (2026-11-17a and older)."""
+
+
+def _default_press_factory(folder, log):
+    """The real helper's button wait (round B), only when its build carries it: an older
+    helper is never started for it (``reader.press_wait_supported``)."""
+    if not rd.press_wait_supported():
+        raise HelperWithoutButtonWait()
+    return rd.PressWaiter(rd.helper_path(), folder, log)
+
+
+def _close_quietly(w) -> None:
+    try:
+        w.close()
+    except Exception:      # noqa: BLE001 - closing never raises
+        pass
 
 
 def _default_helper_check() -> "str | None":
