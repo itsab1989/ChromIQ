@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 the ChromIQ authors. Part of ChromIQ (https://github.com/itsab1989/ChromIQ).
-"""ChromIQ i1iO session test program 0.5.0: open an X-Rite i1iO 2 table that is already
-started, the way i1Profiler opens it, and then offer one of three parts, one step at a time.
+"""ChromIQ i1iO session test program 0.6.0: open an X-Rite i1iO 2 table the way i1Profiler
+opens it; if the table has just been switched on, offer to start it the way i1Profiler started
+it in the one recording of a cold start (new in 0.6.0: i1Profiler is not needed at all); then
+offer one of three parts, one step at a time.
 Part A is version 0.3.1's steps, unchanged: the homing, three recorded drives out and back
 home, the hand-alignment mode at rest, and the close. Part B (new) drives i1Profiler's
 recorded spot measurement of row 1 over the EMPTY table, without measuring: the way to the
@@ -14,6 +16,7 @@ readings, a strip reading, your own ChromIQ i1iO sheet; stages you choose one at
 
     python3 i1io_session.py              practice run on a SIMULATED table (nothing is opened)
     python3 i1io_session.py --sim cold   the same, for a table that has just been switched on
+                                         (practice of the start-up, new in 0.6.0)
     python3 i1io_session.py --plan       print every step and every line it could send, and stop
     python3 i1io_session.py --dry-run    the same as --plan, with every byte in hex
     python3 i1io_session.py --real       the real table (asks you to type a sentence first)
@@ -76,6 +79,9 @@ TOUCH_BEFORE_INTRO = (
 ASK_MINUTES = ("About how many minutes ago did you quit i1Profiler? (a rough number is fine; "
                "press Enter if you do not know)")
 ASK_MOVED = "Since you quit i1Profiler, has anyone touched or moved the arm?"
+ASK_MINUTES_ON = ("About how many minutes ago did you switch the table on? (a rough number is "
+                  "fine; press Enter if you do not know)")
+ASK_MOVED_ON = "Since you switched the table on, has anyone touched or moved the arm?"
 ASK_LIGHTS = ("Which lights are on right now, on the table and on the i1Pro 2? (a few words, "
               "for example 'table power light green, i1Pro 2 dark'; press Enter to skip)")
 ASK_COLD_START = ("If you have seen it: when i1Profiler starts the table after it was switched "
@@ -97,9 +103,65 @@ NO_LIGHT = ("The instrument's own light will not come on, because this program n
 REST_PLACE = ("its resting place, where i1Profiler leaves it when you quit it: the instrument "
               "holder over the table's small white tile, with the round measuring opening "
               "resting on that tile")
-COLD_TEXT = ("Your table has just been switched on and needs its start-up, which this "
-             "program does not send. Please open i1Profiler, wait until it shows the table, "
-             "quit i1Profiler, and run this program again. Nothing was moved.")
+COLD_TEXT = ("You chose to let i1Profiler start the table. Please open i1Profiler, wait until "
+             "it shows the table, quit i1Profiler, and run this program again. Nothing was "
+             "moved, and nothing more was sent.")
+#: 0.6.0: the start-up of a table that has just been switched on
+COLD_FOUND = ("The table answered as expected, and it says it has just been switched on "
+              "(a0 = 111800). Such a table needs its start-up before it accepts anything else.")
+COLD_FOUND_SAID_YES = (
+    "(At the start you said i1Profiler had connected since the table was switched on; the "
+    "table answers otherwise. That is no fault: perhaps it was switched off and on since.)")
+COLD_OFFER = (
+    "New in this version: the program can start the table itself, so you do not need "
+    "i1Profiler at all. This is what it does:\n"
+    "1. It sends the table's start-up command, i0, exactly as i1Profiler sent it to your table "
+    "in the one recording we have of a start-up (14 November, the same six bytes). That "
+    "command was recorded ONCE.\n"
+    "2. We do not know what the arm does during it. It may travel to find its end positions "
+    "and come back. In the recording the table reported it finished after about 3 seconds "
+    "(3.17 s). The program accepts 1 to 8 seconds; if the answer comes later, earlier, or "
+    "differs in any way from the recording, it stops at once and sends nothing more.\n"
+    "3. Then it sends the lines i1Profiler sent right after it, exactly as recorded: a status "
+    "line, four reads of the mode flag, a status line, a position read (the arm must read "
+    "its resting place, as in the recording) and the usual short homing at the resting "
+    "place. Ten lines in all, two of them movements.\n"
+    "4. Then it asks what you saw and heard, and goes on with the part you chose.\n"
+    "Before you say yes: the arm was at its resting place when you switched the table on and "
+    "nobody has moved it since; the table is empty; your hands are away from the arm; and "
+    "the power switch is within reach. If anything looks or sounds wrong, switch the table "
+    "off: that is always allowed.\n"
+    "If you prefer the old way, type i1profiler: the program then stops here, and you let "
+    "i1Profiler start the table, quit it, and run this program again.")
+ASK_COLD = ("Type yes to send the start-up now, or i1profiler to stop here and use i1Profiler "
+            "for the start-up.")
+COLD_CHOICES = ("yes", "i1profiler")
+COLD_RUNNING = ("Sending the start-up now. Keep your hands away from the arm. This takes "
+                "about 3 seconds in the recording; the program waits at most 15 seconds.")
+COLD_DONE = ("The start-up is done. The table answered every line as in the recording: the "
+             "start-up command took {took:.2f} seconds (recorded: 3.17), the arm read X {x}, "
+             "Y {y} at its resting place before the homing (recorded: X 1102, Y 14), and the "
+             "homing finished in time.")
+ASK_COLD_TRAVEL = "During the start-up, did the arm travel?"
+COLD_TRAVEL_CHOICES = ("no", "yes", "not sure", "did not see")
+ASK_COLD_SEEN = ("Where did it go and roughly how far, and what did you hear (motor sound, "
+                 "clicks, a knock)? A few words; press Enter to skip.")
+ASK_COLD_WRONG = "Did anything look or sound wrong during the start-up?"
+COLD_WRONG_CHOICES = ("no", "yes", "not sure")
+COLD_GO_ON = ("Thank you. The table is started now. The program goes on with part {part}, "
+              "which you chose at the start, in this same sitting.")
+COLD_WAY_OUT = (
+    "Please keep your hands away from the arm and switch the table off at its power switch: a "
+    "movement may be unfinished, and switching off is always allowed. Wait ten seconds and "
+    "switch it on again. Then open i1Profiler once, let it start the table as usual, and quit "
+    "it. Please send us the log before you try this program's start-up again.")
+COLD_NOT_STARTED = (
+    "Nothing was moved. The table has just been switched on and has not been started. To "
+    "start it, run this program again and answer yes at the start-up question, or open "
+    "i1Profiler once, let it find the table, and quit it.")
+COLD_I1PROFILER_AFTER = (
+    "One request: the next time you use i1Profiler with the table, please tell us whether it "
+    "works normally.")
 NOT_CLOSED = (
     "The table was not closed with i1Profiler's two closing lines (they are recorded only "
     "right after a homing at the resting place). Ending without them is what also happens "
@@ -156,6 +218,10 @@ RISKS = (
     "table in your recordings, byte for byte, with the same targets and the same speed. What "
     "is new is the order and the place where some of them are sent: each step says exactly "
     "what is as recorded and what goes one step beyond a recording.\n"
+    "New in 0.6.0: if the table has just been switched on, the program can start it itself, "
+    "with the start-up command i1Profiler sent in the one recording of a start-up. It explains "
+    "that first and sends it only after you type yes; what the arm does during it is not "
+    "known.\n"
     "It never measures, never talks to the i1Pro 2, never writes anything into the table's "
     "memory, and has no line of its own for the measuring head. Whether the table lifts and "
     "lowers the head by itself during a move is not known; please watch the round opening "
@@ -527,7 +593,8 @@ def plan_text(hex_bytes: bool = False) -> str:
            "(below). After any "
            "stop or any doubt, nothing more is sent at all.", "",
            "PART A (choose a at the start) uses lines 1 to 16; part B uses the others "
-           "and the reading, homing and mode lines.", "",
+           "and the reading, homing and mode lines. Line 46 (i0, new in 0.6.0) is the start-up "
+           "of a table just switched on, sent only in the start-up below.", "",
            f"The {len(tbl.WIRE)} lines and where i1Profiler sent them in your recordings:"]
     for key in tbl.WIRE:
         out.append(row(key))
@@ -535,8 +602,26 @@ def plan_text(hex_bytes: bool = False) -> str:
     out += ["", "Before anything: the USB set-up i1Profiler uses (FTDI reset, purge, purge, "
             "57600 baud, 8N1), then 1 s of listening.", "",
             f"Opening (only reads; {len(tbl.OPEN_KEYS)} lines). If a0 answers 111800 (just "
-            "switched on), it stops after the sixth line:"]
+            "switched on), it sends nothing more after the sixth line unless you choose the "
+            "start-up (below):"]
     out += [row(k) for k in tbl.OPEN_KEYS]
+    lo, hi = tbl.TIME_WINDOW["start_up"]
+    out += ["", f"The start-up (new in 0.6.0): only if a0 answered 111800, only after you type "
+                f"yes, at most once per sitting; {tbl.COLD_MAX_LINES} lines, "
+                f"{tbl.COLD_MAX_MOTIONS} movements, on top of the chosen part's limits; "
+                f"risk {tbl.COLD_STEP.risk}. Then the part you chose goes on:",
+            row("start_up") + f"   (the start-up; MAY MOVE the arm; must finish within "
+                              f"{lo:.2f}..{hi:.2f} s, recorded once 3.167 s; waits at most "
+                              f"{tbl.MOVE_TIMEOUT['start_up']:.0f} s)"]
+    for op in tbl.COLD_STEP.ops[1:]:
+        if op[0] == "x":
+            out.append(row(op[1]))
+        elif op[0] == "f4":
+            out.append(row("arm_mode") + f"   (must answer {op[1]})")
+        elif op[0] == "p0":
+            out.append(row("position") + f"   (must read {tbl.BOXES[op[1]].text()})")
+        elif op[0] == "home_rest":
+            out.append(row("home") + "   (MOVES home, as in step 1 below)")
     for n, step in enumerate(tbl.STEPS, 1):
         out += ["", f"Step {n}: {step.title} ({tbl.STEP_MAX_LINES[step.key]} lines, "
                     f"{tbl.STEP_MAX_MOTIONS[step.key]} movements; risk {step.risk}). Only "
@@ -866,6 +951,51 @@ class Session:
         self.note(f"step {step.key}", ans)
         return ans
 
+    # ---- 0.6.0: the start-up of a table that has just been switched on --------------------
+    def cold_start(self) -> None:
+        """Offer the start-up (COLD_STEP), run it after a typed yes, ask what was seen and
+        heard, and return so that the chosen part goes on. Any refusal or doubt ends the
+        sitting with nothing more sent."""
+        d, ui = self.d, self.ui
+        ui.say(COLD_FOUND)
+        if dict(self.answers).get("i1Profiler connected since the table was switched on") \
+                == "yes":
+            ui.say(COLD_FOUND_SAID_YES)
+        ui.say("")
+        ui.say(COLD_OFFER)
+        ui.say(PLUG)
+        ui.say(STOP_PROMISE)
+        ans = ui.ask(ASK_COLD, COLD_CHOICES)
+        self.note("start-up", ans)
+        if ans != "yes":
+            d.close_for_sending("the table has just been switched on; you chose i1Profiler "
+                                "for the start-up")
+            raise Stopped(COLD_TEXT)
+        if self.other_program():
+            d.close_for_sending("i1Profiler was started during the session")
+            raise Stopped("i1Profiler has started, so the program stops here: two programs "
+                          "must never talk to the table at the same time. Nothing more is sent "
+                          "to the table.")
+        ui.say(COLD_RUNNING)
+        try:
+            d.run_cold_start()
+        except Doubt as exc:
+            d.cold_failure = cold_failure_kind(d, exc)
+            raise Doubt(str(exc), cold_doubt_text(d, exc)) from None
+        x, y = d.cold_read
+        ui.say(COLD_DONE.format(took=d.start_up_took, x=x, y=y))
+        self.note("start-up: did the arm travel?", ui.ask(ASK_COLD_TRAVEL, COLD_TRAVEL_CHOICES))
+        self.note("start-up: where, how far, what was heard", ui.text(ASK_COLD_SEEN))
+        wrong = ui.ask(ASK_COLD_WRONG, COLD_WRONG_CHOICES)
+        self.note("start-up: anything wrong?", wrong)
+        if wrong != "no":
+            self.seen_ok = False
+            d.close_for_sending("you saw or heard something wrong during the start-up")
+            raise Stopped("Thank you, that is exactly what we need to know. The program stops "
+                          "here; nothing more is sent. The table has been started and the arm "
+                          "read its resting place before the homing.")
+        ui.say(COLD_GO_ON.format(part=self.part))
+
     def go(self) -> int:
         """The whole session. 0: ended as chosen; 1: stopped by you or cold table; 2: a doubt."""
         try:
@@ -883,12 +1013,11 @@ class Session:
             self.ui.log("INFO", f"part {self.part} chosen")
             self.ui.say("Talking to the table. Nothing moves yet.")
             if self.d.opening() == "cold":
-                self.ui.say("The table answered as expected, and we believe it says it has just "
-                            "been switched on (a0 = 111800).")
-                raise Stopped(COLD_TEXT)
-            self.ui.say("The table answered as expected: it is started (a0 = 130000), and f4 "
-                        "answered 00 as at every recorded opening (f4 is a mode flag; it does "
-                        "not tell whether the motors hold the arm).")
+                self.cold_start()
+            else:
+                self.ui.say("The table answered as expected: it is started (a0 = 130000), and f4 "
+                            "answered 00 as at every recorded opening (f4 is a mode flag; it "
+                            "does not tell whether the motors hold the arm).")
             if self.part == "B":
                 return self.go_b()
             if self.part == "C":
@@ -965,6 +1094,18 @@ class Session:
         return "maybe out"
 
     def ending(self, code: int) -> None:
+        d = self.d
+        if d.state == "cold" or (d.start_up_sent and not d.cold_done):
+            # 0.6.0: the start-up was not offered to its end, or did not finish
+            try:
+                self.ui.say("")
+                for text in cold_where_text(d):
+                    self.ui.say(text)
+                if self.part == "C" and self.part_c is not None:
+                    self.part_c.finish()
+            except BaseException:
+                pass
+            return
         if self.part == "C":
             try:
                 import i1io_part_c
@@ -1100,14 +1241,106 @@ class Session:
                       "buzz)? If yes, during which step?",
                       "Had the table been switched off and on before this run? If yes, how "
                       "long before?",
-                      ASK_LIGHTS.replace("right now", "now"), ASK_COLD_START,
+                      ASK_LIGHTS.replace("right now", "now"),
+                      *(() if self.d.start_up_sent else (ASK_COLD_START,)),
                       "Did anything else surprise you, or is there anything you want to add?"):
                 self.note(q, self.ui.text(q))
+            if self.d.start_up_sent:
+                self.ui.say(COLD_I1PROFILER_AFTER)
         except BaseException:
             try:
                 self.ui.say("Questions skipped.")
             except BaseException:
                 pass
+
+def cold_failure_kind(d: tbl.Table, exc: Doubt) -> str:
+    """0.6.0: which way the start-up failed: link, not_sent, outside, refused, no_answer,
+    bad_answer (all on the start-up line itself) or after (a line after it)."""
+    reason = str(exc)
+    if reason.startswith(tbl.LINK_FAILED):
+        return "link"
+    if not d.start_up_sent:
+        return "not_sent"
+    if d.last_move and d.last_move[0] == "start_up":
+        if d.start_up_took is not None and d.last_move[1] is False:
+            return "outside"
+        if reason.startswith("the table refused i0"):
+            return "refused"
+        if reason.startswith("no answer to i0"):
+            return "no_answer"
+        return "bad_answer"
+    return "after"
+
+
+def cold_doubt_text(d: tbl.Table, exc: Doubt) -> str:
+    """0.6.0: what went wrong in the start-up, in plain words (the state and the way out
+    follow in cold_where_text at the end)."""
+    reason = str(exc)
+    kind = cold_failure_kind(d, exc)
+    lo, hi = tbl.TIME_WINDOW["start_up"]
+    if kind == "link":
+        return ("The table's USB connection was lost during the start-up. That happens when a "
+                "USB cable is unplugged, when the table is switched off, or when the connection "
+                "drops by itself. Nothing more is sent to the table.")
+    if kind == "not_sent":
+        return f"The start-up was not sent ({reason}). Nothing more is sent to the table."
+    if kind != "after":
+        if kind == "outside":
+            return (f"The table reported its start-up finished after {d.start_up_took:.2f} "
+                    f"seconds; in the one recording it took 3.17 seconds, and this program "
+                    f"accepts {lo:.0f} to {hi:.0f} seconds. Because it is outside that, nothing "
+                    "more is sent to the table.")
+        if kind == "refused":
+            code = re.search(r"code (\d+)", reason)
+            return ("The table refused the start-up command" + (f" (code {code.group(1)})" if code
+                                                                else "") + ". That answer was "
+                    "never seen for this command. Nothing more is sent to the table.")
+        if kind == "no_answer":
+            return (f"The table did not report that its start-up had finished within "
+                    f"{tbl.MOVE_TIMEOUT['start_up']:.0f} seconds (in the recording: 3.17 s). "
+                    "Nothing more is sent to the table.")
+        return ("The table answered the start-up command differently from the recording "
+                f"({reason}). Nothing more is sent to the table.")
+    return (f"The table answered the start-up as recorded, but a line after it did not "
+            f"({reason}). Nothing more is sent to the table.")
+
+
+def cold_where_text(d: tbl.Table) -> "list[str]":
+    """0.6.0: the TRUE state after a start-up that was not offered to its end or did not
+    finish, from what the table last answered, and the way out."""
+    if not d.start_up_sent:
+        return [COLD_NOT_STARTED]
+    lm = d.last_move or ("", None)
+    if d.motion_unconfirmed and lm[0] == "start_up":
+        first = ("The table never reported that its start-up had finished: the arm may still be "
+                 "moving, or it may move later.")
+    elif d.motion_unconfirmed:
+        first = ("The table reported its start-up finished, but never reported that the homing "
+                 "after it had finished: the arm may still be moving, or it may move later.")
+    elif getattr(d, "cold_failure", None) == "refused":
+        first = ("The table refused the start-up command at once. That answer has never been "
+                 "seen for this command, so whether anything moved is not known for certain.")
+    elif lm[0] == "start_up" and lm[1] is None:
+        first = ("The table answered the start-up command differently from the recording; what "
+                 "it did is not known.")
+    else:
+        took = ("" if d.start_up_took is None else
+                f" after {d.start_up_took:.2f} seconds (recorded: 3.17)")
+        first = f"The table reported its start-up finished{took}."
+        if lm[0] == "start_up" and lm[1] is False:
+            first += " That is outside the time this program accepts."
+        p = d.last_read
+        if d.outside_at is not None:
+            first += (f" Then the arm read X {d.outside_at[0]}, Y {d.outside_at[1]}, not at its "
+                      f"resting place ({tbl.START_GUARD.text()}); in the recording it read X "
+                      "1102, Y 14. Nothing more was sent.")
+        elif p is not None:
+            first += f" The arm last read X {p[0]}, Y {p[1]}."
+        else:
+            first += " The arm's position was not read after it."
+        first += " The start-up lines that follow it were not all sent."
+    return [first, COLD_WAY_OUT]
+
 
 #: 0.5.1, part C: asked first after a lost USB link
 ASK_LINK_LOST = ("The table's USB connection was lost during this run. Did you unplug a cable or "
@@ -1237,14 +1470,21 @@ def holder_names_for_screen(holders) -> str:
 
 
 def touch_before_opening(ui, notes) -> None:
-    """Before anything is opened or sent: how long ago i1Profiler was quit, whether the arm was
-    moved, the lights. 0.3.1: NO touch here (in 0.3.0 the touch asked here pushed the free arm
-    out of the homing guard, twice). Sends nothing; the table is not even opened yet."""
+    """Before anything is opened or sent: how long ago i1Profiler was quit (or, 0.6.0, the
+    table switched on), whether the arm was moved, the lights. 0.3.1: NO touch here (in 0.3.0
+    the touch asked here pushed the free arm out of the homing guard, twice). Sends nothing;
+    the table is not even opened yet."""
+    started = dict(notes).get("i1Profiler connected since the table was switched on", "yes")
     ui.say("")
     ui.say(TOUCH_BEFORE_INTRO)
-    notes.append(("minutes since i1Profiler was quit", ui.text(ASK_MINUTES)))
-    notes.append(("arm touched or moved since i1Profiler was quit",
-                  ui.ask(ASK_MOVED, ("no", "yes", "not sure"))))
+    if started == "yes":
+        notes.append(("minutes since i1Profiler was quit", ui.text(ASK_MINUTES)))
+        notes.append(("arm touched or moved since i1Profiler was quit",
+                      ui.ask(ASK_MOVED, ("no", "yes", "not sure"))))
+    else:
+        notes.append(("minutes since the table was switched on", ui.text(ASK_MINUTES_ON)))
+        notes.append(("arm touched or moved since the table was switched on",
+                      ui.ask(ASK_MOVED_ON, ("no", "yes", "not sure"))))
     notes.append(("lights before opening", ui.text(ASK_LIGHTS)))
 
 
@@ -1256,9 +1496,32 @@ PRE_QUESTIONS = (
     "Is the table completely empty: no paper, no chart, nothing lying on it, and nothing in "
     "the way of the arm over the whole table?",
     f"Is the arm at {REST_PLACE}?",
-    "Since the table was last switched on, has i1Profiler connected to it and been quit "
-    "again?",
 )
+#: 0.6.0: this was a yes-or-stop question until 0.5.1; now a choice
+ASK_STARTED = (
+    "Since the table was last switched on, has i1Profiler connected to it (and been quit "
+    "again)? New in this version: i1Profiler is not needed at all. If the table has just been "
+    "switched on, this program offers to start it itself, and you decide then. (If you want "
+    "i1Profiler to start the table instead, you can still do that: answer stop, open "
+    "i1Profiler, let it find the table, quit it, and start this program again.) We would like "
+    "to know afterwards whether i1Profiler still works normally.")
+STARTED_CHOICES = ("yes", "no", "not sure", "stop")
+STARTED_STOP = ("Then this program does not start. " + OPEN_I1PROFILER + " Then start this "
+                "program again. Nothing was sent.")
+
+
+def pre_questions(ui, notes) -> bool:
+    """The questions before anything is opened. False: the program does not start."""
+    for q in PRE_QUESTIONS:
+        if ui.ask(q, ("yes", "no", "not sure", "stop")) != "yes":
+            ui.say("Then this program does not start. " + OPEN_I1PROFILER + " Nothing was sent.")
+            return False
+    ans = ui.ask(ASK_STARTED, STARTED_CHOICES)
+    notes.append(("i1Profiler connected since the table was switched on", ans))
+    if ans == "stop":
+        ui.say(STARTED_STOP)
+        return False
+    return True
 
 
 # ---- the results zip (0.5.0) ----------------------------------------------------------
@@ -1405,11 +1668,8 @@ def main(argv=None, sim_table=None, console=None) -> int:
                 ui.say("Another copy of this program is running. Please let it finish first. "
                        "Nothing was sent.")
                 return 2
-            for q in PRE_QUESTIONS:
-                if ui.ask(q, ("yes", "no", "not sure", "stop")) != "yes":
-                    ui.say("Then this program does not start. " + OPEN_I1PROFILER
-                           + " Nothing was sent.")
-                    return 1
+            if not pre_questions(ui, pre_notes):
+                return 1
             if i1profiler_running():
                 log("INFO", "i1Profiler is running: refused before the first touch; found "
                     + "; ".join(i1profiler_matches()))
@@ -1453,10 +1713,9 @@ def main(argv=None, sim_table=None, console=None) -> int:
                    "real run would send and receive is printed, so you can see what it will "
                    "do. Add --real for the real table.")
             if console is None and not isinstance(ui, AutoConsole):
-                for q in PRE_QUESTIONS:
-                    if ui.ask(q, ("yes", "no", "not sure", "stop")) != "yes":
-                        ui.say("Then this program does not start (practice run).")
-                        return 1
+                if not pre_questions(ui, pre_notes):
+                    ui.say("(practice run)")
+                    return 1
                 touch_before_opening(ui, pre_notes)
         log("INFO", tbl.usb_summary(transport))
         table = tbl.Table(transport, log=log)
@@ -1509,6 +1768,11 @@ def main(argv=None, sim_table=None, console=None) -> int:
                             f"{(table.last_spot_read if table.last_spot_read is not None else -1) + 1}; "
                             f"hand-alignment mode {'on' if table.mode_on else 'off'}; arm "
                             f"{ {True: 'free', False: 'held', None: 'unknown'}[table.arm_free] }")
+            if table.start_up_sent or table.cold_done or "start-up" in dict(r.answers):
+                log("INFO", f"start-up (0.6.0): sent {table.start_up_sent}; i0 took "
+                            f"{'-' if table.start_up_took is None else f'{table.start_up_took:.3f} s'}"
+                            f"; the arm read {table.cold_read} before the start-up's homing (last read "
+                            f"{table.last_read}); done {table.cold_done}; failure {table.cold_failure or '-'}")
             log("INFO", f"result {code}; table {table.state or 'not asked'}; steps done "
                         f"{table.done_steps or 'none'}; {table.lines_sent} lines sent, "
                         f"{table.motions_sent} movements; arm {r.where()}; move times "

@@ -541,6 +541,7 @@ def test_a_sitting_s_strip_cut_carries_the_uniformity(tmp_path):
 
 # ---- the version ------------------------------------------------------------------------------
 
-def test_the_version_is_0_5_1():
-    assert tbl.TOOL_VERSION == "0.5.1"
-    assert "0.5.1" in prog.TITLE
+def test_the_version_is_at_least_0_5_1():
+    # 0.6.0 carries 0.5.1 unchanged (its own version test is in test_i1io_session_060.py)
+    assert tuple(int(x) for x in tbl.TOOL_VERSION.split(".")) >= (0, 5, 1)
+    assert tbl.TOOL_VERSION in prog.TITLE

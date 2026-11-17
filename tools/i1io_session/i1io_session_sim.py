@@ -40,6 +40,11 @@ S0, F4, P0, I1, F0, F3, F1 = ";s022", ";f42b", ";p025", ";i12b", ";f02f", ";f32c
 M250, M1000 = ";m0044e00fa012c0e", ";m003e805dc012c06"
 M1498, M2507 = ";m0044e05da012c0b", ";m009cb05da012cda"
 M1L = ";m10b10055b012c42"
+#: 0.6.0: the start-up of a table just switched on (the simulator's own copy, S1 1.517)
+I0 = ";i02c"
+#: S1 1.517 to 4.684: the one recorded start-up took 3.167 s; the arm read (1102, 14) after it
+I0_RECORDED_S = 3.167
+I0_RECORDED_AFTER = (1102.0, 14.0)
 #: the simulator's own copy of the 28 spot lines of S2 session 3 (S2 454.218-495.037)
 SPOTS = (";m0fb63067a012c03 ;m0fbba067b012ca8 ;m0fc11067b012c08 ;m0fc68067b012cfc "
          ";m0fcbf067b012ca2 ;m0fd17067b012c01 ;m0fd6e067c012ccd ;m0fdc5067c012cd0 "
@@ -52,6 +57,8 @@ SPOTS = (";m0fb63067a012c03 ;m0fbba067b012ca8 ;m0fc11067b012c08 ;m0fc68067b012cf
 REC_OPEN6 = [A1, A1, K2L, UA, UB, A0]
 REC_OPEN = REC_OPEN6 + [S0, F4, F4, F4, F4]
 _HF = [S0, P0, I1, S0]
+#: 0.6.0: S1 as recorded, the opening of a cold table through the start-up's homing
+REC_COLD_OPEN = REC_OPEN6 + [I0] + REC_OPEN[6:] + _HF
 _HC = [S0, S0, P0, I1, S0]
 _AR = [S0, S0, F4, F4]
 REC_STEPS = {
@@ -188,6 +195,12 @@ class SimTable:
     free_arm: bool = False
     #: where the sensor reads after m1 (default: the labelled belief)
     m1_lands_at: "tuple[float, float]" = M1_BELIEF
+    #: 0.6.0, a cold table: how long its start-up takes, and where the arm stands after it
+    #: (default: as recorded in S1; the tests set other values for the late and the away models)
+    i0_s: float = I0_RECORDED_S
+    i0_after: "tuple[float, float]" = I0_RECORDED_AFTER
+    #: True once the start-up has finished (a cold table then behaves like a started one)
+    started: bool = False
 
     def __post_init__(self):
         self._rng = random.Random(self.seed)
@@ -207,6 +220,7 @@ class SimTable:
         self._a_alive = True
         self._b_states = _b_closure({(0, 0, 0)}) if not self.cold else set()
         self.hand_moves: "list[tuple[float, float]]" = []
+        self._b_arm = False
 
     def inject(self, kind: str, cid: "str | None" = None, value: float = 0.0) -> None:
         if kind not in FAULT_KINDS:
@@ -247,11 +261,13 @@ class SimTable:
         if self._closed:
             raise SimViolation(f"{line!r} after the close")
         if self._cur == "open":
-            seq = REC_OPEN6 if self.cold else REC_OPEN
+            seq = REC_COLD_OPEN if self.cold else REC_OPEN
             if self._cur_i < len(seq) and seq[self._cur_i] == line:
                 self._cur_i += 1
                 if self._cur_i == len(seq):
                     self._cur, self._cur_i = None, 0
+                    if self.cold:
+                        self._b_arm = True      # part B may start now, after the opening
                 return
             raise SimViolation(f"{line!r} is not the next line of the recorded opening")
         if self._cur is not None:
@@ -265,8 +281,9 @@ class SimTable:
                     self._cur, self._cur_i = None, 0
                 return
             raise SimViolation(f"{line!r} breaks the step {self._cur!r} at line {self._cur_i + 1}")
-        if self.cold:
-            raise SimViolation("nothing may follow the opening of a table just switched on")
+        if self.cold and not self.started:
+            raise SimViolation("nothing but the start-up may follow the opening of a table just "
+                               "switched on")
         # a new step: the candidates are the steps not run yet whose first line matches
         cands = [k for k, s in REC_STEPS.items() if k not in self.steps_run and s[0] == line]
         if "free" in self.steps_run:
@@ -321,6 +338,8 @@ class SimTable:
             except SimViolation as exc:
                 self._a_alive, a_err = False, exc
         self._b_states = _b_step(self._b_states, line) if self._b_states else set()
+        if self._b_arm:
+            self._b_states, self._b_arm = _b_closure({(1, 0, 0)}), False
         if not self._a_alive and not self._b_states:
             raise a_err or SimViolation(f"{line!r} continues neither part A nor part B")
 
@@ -346,6 +365,24 @@ class SimTable:
         self.hand_moves.append((float(x), float(y)))
 
     # ---- physics (own beliefs) --------------------------------------------------------
+    def _cold_rules(self, line: str) -> None:
+        """0.6.0, the simulator's own rules for a table just switched on (both modes): until
+        its start-up has finished it takes only the reading lines of the opening and then i0,
+        once, right after a0; a started table never gets i0."""
+        if line == I0:
+            if not self.cold or self.started or self.i0_sent:
+                raise SimViolation("i0 on a table that is not just switched on, or a second time")
+            if len(self.received) < 2 or self.received[-2] != A0:
+                raise SimViolation("i0 not right after a0")
+            if self.moving:
+                raise SimViolation("i0 while the arm moves")
+            self.i0_sent = True
+            return
+        if self.cold and not self.started and line not in REC_OPEN6:
+            raise SimViolation(f"{line!r} before the start-up of a table just switched on")
+
+    i0_sent = False
+
     def _physics(self, line: str) -> None:
         if self.moving:
             raise SimViolation(f"{line[1:3]} sent while the arm is still moving")
@@ -395,6 +432,7 @@ class SimTable:
         if not m or not checksum_ok(line):
             raise SimViolation(f"malformed line or bad checksum: {line!r}")
         cid, args = m.group(1), m.group(2)
+        self._cold_rules(line)
         self._check_sequence(line)
         self._physics(line)
         t0 = max(self.clock, self._busy_until)
@@ -441,7 +479,7 @@ class SimTable:
             self._reply(t_done, done)
         if kind == "extra_line":
             self._reply(t_done, ":$p00")
-        if line == I1 or line in TARGET or line == M1L or line in SPOT_XY:
+        if line in (I1, I0) or line in TARGET or line == M1L or line in SPOT_XY:
             self._busy_until = t_done
 
     def _xy(self, x: float, y: float) -> str:
@@ -485,6 +523,18 @@ class SimTable:
             return 0, self._xy(self.pos[0] + drift + jx, self.pos[1] + drift + jy), 0.0
         # movements
         self.motions += 1
+        if line == I0:
+            # the simulator's own model of the start-up (what the arm does is not recorded): it
+            # ends at i0_after, and the table is started from then on
+            self.started = True
+            self.pos = [float(self.i0_after[0]), float(self.i0_after[1])]
+            self.free_arm = False
+            t = self.i0_s
+            if kind == "slow_motion":
+                t += 8.0
+            if kind == "fast_motion":
+                t = 0.02
+            return 0, "", t
         if line == I1:
             start = (self.pos[0], self.pos[1])
             target = (1102.0, float(self._rng.choice((0, 1, 2))))

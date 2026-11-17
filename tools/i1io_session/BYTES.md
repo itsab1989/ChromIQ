@@ -1,10 +1,11 @@
-# BYTES.md: everything chromiq-i1io-session 0.5.1 can send to the table
+# BYTES.md: everything chromiq-i1io-session 0.6.0 can send to the table
 
-0.5.1 sends exactly what 0.5.0 sends: no line, gate, cap or limit below changed. Its
-changes are on the instrument side (the check before the reader counts each USB device
-once), in texts and questions, and in how strip readings are cut into patches after the
-move (the motion start 0.372 s after the lamp trigger instead of 0.43 s); none of them
-reaches the table.
+0.6.0 adds ONE line, line 46 below: `;i02c` (i0), the start-up of a table that has just been
+switched on, byte for byte as i1Profiler sent it in the one recording of a cold start (S1).
+It is sent only in the start-up (section "The start-up" below): only on a table whose a0
+answered 111800, only after the person's typed yes, at most once per sitting. The lines that
+follow it there are lines 6 to 9, already on this list. On a started table (a0 = 130000)
+0.6.0 sends exactly what 0.5.1 sends: no other line, gate, cap or limit changed.
 
 This file is the allow-list. `tests/test_i1io_session_tool.py` reads the table below and fails
 if the program's own list (`i1io_session_table.WIRE`) differs from it by a single byte, or if any
@@ -71,11 +72,57 @@ move are the recorded ones, fixed in the line.
 | 43 | `;m003e6067f012c31` | `3b 6d 30 30 33 65 36 30 36 37 66 30 31 32 63 33 31 0d` | spot26 | S2 session 3, S2 492.024, from (911, 1663), 0.431 s to (998, 1663) at 300; context p0 m0 p0 (spot pass, one patch on) |
 | 44 | `;m0043d067f012c34` | `3b 6d 30 30 34 33 64 30 36 37 66 30 31 32 63 33 34 0d` | spot27 | S2 session 3, S2 493.757, from (997, 1663), 0.432 s to (1085, 1663) at 300; context p0 m0 p0 (spot pass, one patch on) |
 | 45 | `;m00495067f012c5d` | `3b 6d 30 30 34 39 35 30 36 37 66 30 31 32 63 35 64 0d` | spot28 | S2 session 3, S2 495.037, from (1085, 1663), 0.432 s to (1173, 1663) at 300; context p0 m0 p0 (spot pass, one patch on) |
+| 46 | `;i02c` | `3b 69 30 32 63 0d` | start_up | ONCE: S1 1.517, right after a0 answered `:$a00111800B6` (just switched on); accepted `:!i00C` at 1.533, done `:$i00D9` at 4.684 (3.167 s); checked in the raw S1 capture file (one USB write of these six bytes) |
+
+## The start-up (new in 0.6.0; only on a table just switched on)
+
+S1, the one recording of a cold start (14 Nov 2026, i1Profiler 3.8.6, the tester's table),
+read byte by byte from its raw capture file: after the USB set-up and `a1 a1 k2 u8 u8`, `a0`
+answered `:$a00111800B6` (a started table answers `:$a00130000BD`). i1Profiler then sent, each
+as one USB write, with these answers:
+
+| S1 time | line | answer(s) | took | 0.6.0 checks |
+|---|---|---|---|---|
+| 1.517 | `;i02c` (line 46) | `:!i00C` 1.533, `:$i00D9` 4.684 | 3.167 s | accepted within 1 s; done with status 0 and no data within **1.0 to 8.0 s** (it waits for the done answer up to 15 s) |
+| 4.693 | `;s022` (6) | `:$s00CF` | 0.007 s | as recorded |
+| 4.706, 4.716, 4.738, 4.748 | `;f42b` x4 (7) | `:$f400078` (00) each | 0.010-0.016 s | 00 each |
+| 4.766 | `;s022` (6) | `:$s00CF` | 0.014 s | as recorded |
+| 4.780 | `;p025` (8) | `:$p00044E000E20`: X 1102, Y 14 | 0.016 s | must read START_GUARD (X 1090 to 1115, Y -1 to 250), the box of every first homing |
+| 4.796 | `;i12b` (9) | `:$i10D8` | 0.224 s | the homing's usual windows (0.6 s from Y up to 48, 1.1 s up to 80, 2.0 s up to 250) |
+| 5.020 | `;s022` (6) | `:$s00CF` | 0.016 s | as recorded |
+
+The only differences of a cold table seen in S1: the answer of a0 (111800), and that i0 is
+needed (a status line sent to a cold table before i0 was refused with `:#s01CF` in the tester's
+earlier trace run T1: that is what a refusal looks like). Every other answer, including a1,
+k2 and the start of the memory block, was the same as on a started table. Between i0's done
+answer and the next line, i1Profiler switched the i1Pro 2's light (4.689); this program never
+talks to the instrument in the start-up.
+
+**The window for i0, and why.** Recorded once, 3.167 s, with the arm believed at rest; what the
+arm does during it is not recorded. Lower limit 1.0 s: under a third of the recorded time (a
+much quicker answer would not be the recorded start-up). Upper limit 8.0 s: 2.5 times the
+recorded time and longer than the longest movement ever recorded (a strip move, 7.215 s), room
+for a travel to end positions from a slightly different start. Outside the window, on a refusal
+(`:#i0` and a code), on any answer not in the recorded form, on no answer within 15 s, on a lost
+link or Ctrl-C: nothing more is sent, and the person is told to switch the table off (a
+movement may be unfinished) and to let i1Profiler start the table after switching it on again.
+
+**What is different from the recording.** In S1, i0 followed a0's answer at once (0.000 s); here
+it follows the person's typed yes, seconds or minutes later (the table never speaks unasked,
+and the program listens for 0.05 s before every line). Nothing else: the ten lines, their order
+and their bytes are S1's.
+
+**Caps.** The start-up is 10 lines and 2 movements (i0 and the homing), at most once per sitting,
+and comes ON TOP of the chosen part's caps (`Table.cold_allowance`): part A then at most 120
+lines and 21 movements, part B 124 and 35, part C 8690 and 3062. On a started table the caps
+are 0.5.1's, unchanged. After the start-up the table is treated as started, and the chosen part
+begins as on a started table (its first homing reads the resting place again).
 
 ## Part A: the steps of 0.3.1 (each at most once per session, each only after the person's yes)
 
 The opening (always first, only reads): `a1 a1 k2 u8 u8 a0 s0 f4 f4 f4 f4` (11 lines; a
-table that answers a0 = 111800 gets the first six and nothing more).
+table that answers a0 = 111800 gets the first six and nothing more, unless the person
+chooses the start-up: then `i0 s0 f4 f4 f4 f4 s0 p0 i1 s0`, section "The start-up" above).
 
 | # | step | lines | movements | risk | lines in order |
 |---|---|---|---|---|---|
@@ -141,7 +188,7 @@ As recorded at every open: bmRequestType 0x40, wIndex 0, about 4 ms apart: reset
 
 ## Never sent in parts A and B (the tests check that no such line exists in their code)
 
-i0 (start-up of a cold table), m2, c3, c4, d1, a3 (the scanning lines, which occur only
+i0 outside the start-up (it is never part of a part's own steps), m2, c3, c4, d1, a3 (the scanning lines, which occur only
 between "arm at a patch" and "reading" in a scan), p1, any u8 other than the two reads, any
 write to the table's or the instrument's memory, any m0 other than the 32 fixed lines, any m1
 other than the one recorded line, any other speed, any traffic to the i1Pro 2, and any command
@@ -199,7 +246,7 @@ Answers part C expects to its own lines (anything else is a doubt):
 
 Part C sends at most **8680 lines and 3060 movements** in one sitting.
 
-Never sent in part C either: i0, any u8 other than the two reads, any write to the memory of
+Never sent in part C either: i0 (except in the start-up, before part C's first stage), any u8 other than the two reads, any write to the memory of
 the table or the instrument, any other speed, any target outside the area, any line form not
 seen in a recording. The instrument (0971:2000) is opened only by ChromIQ's reader in `bin/`;
 what the reader sends to it is the reader's own (ArgyllCMS 3.5.0's i1Pro driver, the same

@@ -4,7 +4,7 @@
 
 Standard library only. pyusb is imported only when the REAL table is opened.
 
-THE ONE RULE OF THIS FILE: the program can put exactly FORTY-FIVE different lines on
+THE ONE RULE OF THIS FILE: the program can put exactly FORTY-SIX different lines on
 the wire, listed in :data:`WIRE` (with where each was recorded in :data:`RECORDED_AT`
 and in BYTES.md beside this file). Every one is a line X-Rite's i1Profiler sent to the
 tester's own i1iO 2, byte for byte. Part A (0.3.1's steps, unchanged on the wire) uses
@@ -19,9 +19,13 @@ refuses every other byte string.
 The lines are sent only inside STEPS (:data:`STEPS` for part A, :data:`B_STEPS` and the
 optional :data:`OPTIONAL_NEAR_STEPS` for part B): fixed sequences, each a list of
 operations, chosen and confirmed one by one by the person beside the table. A step is
-removed by deleting its entry; the caps follow from the lists. Never in this package:
-memory or configuration writes, any line never seen in a recording (i0, m2, p1, c3,
-c4, d1, a3, every u8 other than the two reads), any target the arm was not driven to in
+removed by deleting its entry; the caps follow from the lists. 0.6.0 adds the forty-sixth
+line, i0, the start-up of a table that has just been switched on, byte for byte as
+i1Profiler sent it in the one recording of a cold start (S1 1.517): it is sent only by
+:data:`COLD_STEP`, at most once per sitting, only on a table whose a0 answered 111800, and
+only after the person's typed yes. Never in this package: memory or configuration writes,
+any line never seen in a recording (m2, p1, c3, c4, d1, a3 outside part C, every u8 other
+than the two reads), any target the arm was not driven to in
 a recording, any speed not recorded, and every line that occurs only between "arm at
 a patch" and "reading" in a scan.
 
@@ -40,7 +44,7 @@ import time
 from dataclasses import dataclass
 
 TOOL_NAME = "chromiq-i1io-session"
-TOOL_VERSION = "0.5.1"
+TOOL_VERSION = "0.6.0"
 
 VID, PID = 0x0971, 0x2004
 
@@ -160,6 +164,8 @@ WIRE = {
     "spot26": _frame("m0", "03e6067f012c"),  # ;m003e6067f012c31  to (998, 1663)
     "spot27": _frame("m0", "043d067f012c"),  # ;m0043d067f012c34  to (1085, 1663)
     "spot28": _frame("m0", "0495067f012c"),  # ;m00495067f012c5d  to (1173, 1663)
+    # ---- 0.6.0: the start-up of a table that has just been switched on (S1 1.517, once) ----
+    "start_up": _frame("i0"),                      # ;i02c  only in COLD_STEP, at most once
 }
 
 RECORDED_AT = {
@@ -222,9 +228,15 @@ RECORDED_AT = {
     "spot26":   "S2 session 3, S2 492.024, from (911, 1663), 0.431 s to (998, 1663) at 300; context p0 m0 p0 (spot pass, one patch on)",
     "spot27":   "S2 session 3, S2 493.757, from (997, 1663), 0.432 s to (1085, 1663) at 300; context p0 m0 p0 (spot pass, one patch on)",
     "spot28":   "S2 session 3, S2 495.037, from (1085, 1663), 0.432 s to (1173, 1663) at 300; context p0 m0 p0 (spot pass, one patch on)",
+    "start_up": "once, on a table that answered a0 = 111800 (just switched on), right after that "
+                "answer: S1 1.517 (accepted 1.533, done 4.684, 3.167 s; what the arm did is not "
+                "recorded); then s0 f4 f4 f4 f4 (00) s0 p0 (1102, 14) i1 (0.224 s) s0, S1 "
+                "4.693-5.036",
 }
 
-ALLOWED_LINES = frozenset(WIRE.values())
+#: Every line except the start-up (0.6.0): the start-up passes only through COLD_STEP
+#: (Table._write and the wire's own one-shot check), never through check_outgoing.
+ALLOWED_LINES = frozenset(v for k, v in WIRE.items() if k != "start_up")
 #: The 28 spot lines in the recorded order (patch 1 at the chart's right, patch 28 at its
 #: left, as the person sees it).
 SPOT_KEYS = tuple(f"spot{k:02d}" for k in range(1, 29))
@@ -243,15 +255,15 @@ PART_A_KEYS = ("identity", "k2", "memory_a", "memory_b", "a0", "status", "arm_mo
                "position", "home", "f0", "f3", "to_250", "to_1000", "to_1498", "to_2507",
                "free")
 PART_A_LINES = frozenset(WIRE[k] for k in PART_A_KEYS)
-MOTION_KEYS = frozenset({"home", "to_250", "to_1000", "to_1498", "to_2507", "m1"}
-                        | set(SPOT_KEYS))
+MOTION_KEYS = frozenset({"home", "to_250", "to_1000", "to_1498", "to_2507", "m1",
+                         "start_up"} | set(SPOT_KEYS))
 MOTION_LINES = frozenset(WIRE[k] for k in MOTION_KEYS)
 SECRET_KEYS = frozenset({"memory_a", "memory_b"})
 
 DATA_LEN = {"identity": 10, "k2": 14, "memory_a": 512, "memory_b": 208, "a0": 6,
             "status": 0, "arm_mode": 2, "position": 8, "home": 0, "f0": 2, "f3": 2,
             "to_250": 0, "to_1000": 0, "to_1498": 0, "to_2507": 0, "free": 2, "m1": 0,
-            **{k: 0 for k in SPOT_KEYS}}
+            "start_up": 0, **{k: 0 for k in SPOT_KEYS}}
 EXACT_DATA = {"identity": "005D010702", "k2": "0B600000000013", "f0": "00", "f3": "00",
               "free": "01"}
 #: f4's recorded answers: 00, and 01 only after f1 (each step says which it expects).
@@ -267,7 +279,8 @@ def _key_of(line: bytes) -> str:
 
 def check_outgoing(line: bytes) -> str:
     """THE GATE. The command id if *line* is exactly one of the allowed lines;
-    ForbiddenLine otherwise."""
+    ForbiddenLine otherwise. The start-up line (0.6.0) is not among them: it has its own
+    gate, armed only inside COLD_STEP."""
     if not isinstance(line, (bytes, bytearray)) or bytes(line) not in ALLOWED_LINES:
         raise ForbiddenLine(f"not one of the allowed lines: {line!r}")
     return bytes(line)[1:3].decode("ascii")
@@ -502,6 +515,20 @@ TIME_WINDOW.update({"m1": (0.25, 0.80), "first_patch": (1.0, 2.4), "patch": (0.3
                     "end_home": (1.6, 4.5), "home_patch": (1.0, 6.0)})
 MOVE_TIMEOUT.update({"m1": 4.0, "first_patch": 6.0, "patch": 3.0, "end_home": 12.0,
                      "home_patch": 15.0})
+#: 0.6.0, the start-up (i0) of a table just switched on: recorded ONCE, 3.167 s (S1 1.517 to
+#: 4.684), the arm believed at rest, what it did during it not recorded. Accepted 1.0 to 8.0 s:
+#:   lower 1.0 s: under a third of the one recorded time; a much shorter start-up would not be
+#:                the start-up that was recorded (every recorded homing at rest, the nearest
+#:                movement, took 0.05-0.35 s, so a 1 s floor still leaves room for a start
+#:                position nearer to wherever i0 drives);
+#:   upper 8.0 s: 2.5 times the recorded time, longer than the longest movement ever recorded
+#:                (a strip move, 7.215 s), room for a travel to end positions from a slightly
+#:                different start.
+#: The program waits up to 15 s for the done answer (as for a homing from the table); none by
+#: then: the movement may be unfinished, and the way out is the power switch.
+TIME_WINDOW["start_up"] = (1.0, 8.0)
+MOVE_TIMEOUT["start_up"] = 15.0
+START_UP_LINE = WIRE["start_up"]
 MIN_READ_S = 0.05
 QUIET_CHECK_S = 0.05
 DRAIN_QUIET_S = 1.0
@@ -776,6 +803,29 @@ NEAR_STEP_DEFS = {
 OPTIONAL_NEAR_STEPS = ("home_from_patch", "close_after_end")
 
 
+# ---- 0.6.0: the start-up of a table that has just been switched on ------------------------
+#
+# S1 (14 Nov 2026, i1Profiler 3.8.6, the volunteer's table, recorded ONCE), right after a0 had
+# answered 111800: i0 (3.167 s), then s0, f4 x4 (00), s0, p0 (1102, 14), i1 (0.224 s), s0. The
+# step sends exactly these ten lines in this order; the p0 must read START_GUARD (the box every
+# first homing of this program already uses) and the homing must finish inside its usual window.
+# After it the table is treated as started ("warm"), and the part the person chose goes on.
+
+COLD_STEP = Step(
+    "cold_start", "Start the table the way i1Profiler started it after it was switched on",
+    ("cold",), "warm",
+    (("start_up",), ("x", "status"), ("f4", "00"), ("f4", "00"), ("f4", "00"), ("f4", "00"))
+    + HOME_FIRST, "medium",
+    "The table has just been switched on. i1Profiler starts such a table with one command, "
+    "i0, and the program sends it exactly as i1Profiler sent it (the same six bytes). In the one "
+    "recording, the table took about 3 seconds to report it finished. Then come the lines "
+    "i1Profiler sent right after it: a status line, four reads of the mode flag, a status "
+    "line, a position read (it must read the resting place) and the usual homing.",
+    "This start-up command was recorded ONCE, and what the arm does during it is not known: "
+    "it may travel to find its end positions and come back. In the recording it followed the "
+    "table's answer at once; here it follows your typed yes.")
+
+
 def near_steps() -> "tuple[Step, ...]":
     return tuple(NEAR_STEP_DEFS[k] for k in OPTIONAL_NEAR_STEPS)
 
@@ -797,6 +847,8 @@ def step_lines(step: Step) -> "list[str]":
             out.append(op[1])
         elif op[0] == "place":
             out += ["status"] + ["arm_mode"] * 4 + ["position"] * PLACE_TRIES
+        elif op[0] == "start_up":
+            out.append("start_up")
     return out
 
 
@@ -812,6 +864,14 @@ STEP_MAX_MOTIONS = {s.key: sum(1 for k in step_lines(s) if k in MOTION_KEYS)
 #: Part A (0.3.1, unchanged): 110 lines, 19 movements.
 MAX_LINES = len(OPEN_KEYS) + sum(STEP_MAX_LINES[s.key] for s in STEPS)
 MAX_MOTIONS = sum(STEP_MAX_MOTIONS[s.key] for s in STEPS)
+#: 0.6.0: the start-up (10 lines, 2 movements: i0 and the homing), at most once per sitting.
+#: It is NOT part of any part's caps: a sitting in which it ran may send these ten lines more
+#: than the part's own cap (Table.cold_allowance); a sitting on a started table has exactly
+#: 0.5.1's caps.
+STEP_MAX_LINES["cold_start"] = len(step_lines(COLD_STEP))
+STEP_MAX_MOTIONS["cold_start"] = sum(1 for k in step_lines(COLD_STEP) if k in MOTION_KEYS)
+COLD_MAX_LINES = STEP_MAX_LINES["cold_start"]
+COLD_MAX_MOTIONS = STEP_MAX_MOTIONS["cold_start"]
 
 
 def _b_session_steps() -> "tuple[Step, ...]":
@@ -965,6 +1025,22 @@ class Table:
         self.link_lost_text: "str | None" = None
         #: the table's clock time of the last position reading (last_read)
         self.last_read_t: "float | None" = None
+        # ---- 0.6.0 ----
+        #: the start-up line was written (at most once per sitting)
+        self.start_up_sent = False
+        #: True only while COLD_STEP writes its start-up line (the gate's own condition)
+        self._start_up_armed = False
+        #: the start-up step ran to its end (the table is started)
+        self.cold_done = False
+        #: (lines, movements) the start-up adds to the part's caps once it has begun
+        self.cold_allowance = (0, 0)
+        #: how long the start-up took (s), and where the arm read after it
+        self.start_up_took: "float | None" = None
+        self.cold_read: "tuple[int, int] | None" = None
+        #: movements of the start-up (part C counts "nothing moved yet" after them)
+        self.cold_motions = 0
+        #: how the start-up failed (set by the session; None while nothing failed)
+        self.cold_failure: "str | None" = None
 
     # ---- logging and stopping ------------------------------------------------------
     def log(self, kind: str, text: str) -> None:
@@ -1014,7 +1090,16 @@ class Table:
         on its way."""
         if self.closed_reason is not None:
             raise Doubt(f"not sending: {self.closed_reason}")
-        if self.part == "C":
+        if bytes(line) == START_UP_LINE:
+            # 0.6.0: the start-up line passes only inside COLD_STEP, on a table that answered
+            # a0 = 111800, once per sitting; in every part, before the part's own gate
+            if (not self._start_up_armed or self.start_up_sent or self.state != "cold"
+                    or self.current_step is None or self.current_step.key != "cold_start"):
+                raise self._doubt("the start-up line outside the start-up step (a bug)")
+            cid, is_motion, label = "i0", True, "start_up"
+            max_lines, max_motions = (self.c_caps if self.part == "C"
+                                      else PART_CAPS[self.part])
+        elif self.part == "C":
             # 0.5.0, part C: its own gate (i1io_part_c.c_gate: the fixed lines it may send, and
             # computed m0/m2 lines checked against the measuring area and the recorded speeds)
             # and its own caps; parts A and B keep exactly the checks below.
@@ -1029,6 +1114,8 @@ class Table:
             max_lines, max_motions = PART_CAPS[self.part]
             is_motion = line in MOTION_LINES
             label = None
+        max_lines += self.cold_allowance[0]
+        max_motions += self.cold_allowance[1]
         if self.lines_sent >= max_lines:
             raise self._doubt("the program reached its limit of lines for one session")
         if is_motion and self.motions_sent >= max_motions:
@@ -1061,8 +1148,13 @@ class Table:
                 self.motion_unconfirmed = True
                 self.last_move = (label or _key_of(line), None)
             self.log("SEND", line.decode("ascii").rstrip("\r"))
+            if label == "start_up":
+                self.start_up_sent = True
+                self.t.start_up_armed = True     # the wire's own one-shot check (FtdiUsb)
             self.t.write(bytes(line))
         finally:
+            if label == "start_up":
+                self.t.start_up_armed = False
             release_stop_signals(held)
         return cid
 
@@ -1317,7 +1409,8 @@ class Table:
     def opening(self) -> str:
         """i1Profiler's opening (a1 a1 k2 u8 u8 a0) and, on a started table, its follow-up
         s0 f4 f4 f4 f4 (all 00), as recorded at every warm open. Returns "cold" (after six
-        lines: nothing more is sent) or "warm". Moves nothing."""
+        lines: nothing more is sent unless the person chooses the start-up, run_cold_start)
+        or "warm". Moves nothing."""
         self.busy += 1
         try:
             self.drain()
@@ -1325,10 +1418,10 @@ class Table:
                 self.exchange(key)
             a0 = self.exchange("a0").data
             if a0 == A0_COLD:
+                # 0.6.0: nothing more is sent unless the person chooses the start-up
+                # (run_cold_start); the session closes the table for sending otherwise
                 self.state = "cold"
                 self.log("DATA", "a0 = 111800: the table has just been switched on")
-                self.close_for_sending("the table has just been switched on (no start-up is "
-                                       "sent by this program)")
                 return "cold"
             self.exchange("status")
             for _ in range(4):
@@ -1371,6 +1464,38 @@ class Table:
         self.arrival_unknown = True
         self.position_now = None
         self.exchange(key, window)
+
+    def _start_up(self) -> None:
+        """0.6.0: i0, the only place that may write it (armed for this one write)."""
+        if self.state != "cold" or self.start_up_sent:
+            raise self._doubt("the start-up asked for on a table that is not just switched on, "
+                              "or a second time (a bug)")
+        self._start_up_armed = True
+        try:
+            self._move("start_up", "start_up")
+        finally:
+            self._start_up_armed = False
+            if self.timings and self.timings[-1][0] == "start_up/start_up":
+                self.start_up_took = self.timings[-1][1]
+
+    def run_cold_start(self) -> None:
+        """0.6.0: COLD_STEP, at most once per sitting, only on a table that answered a0 =
+        111800. Its ten lines come on top of the part's caps (cold_allowance)."""
+        if self.state != "cold" or self.start_up_sent or self.cold_done:
+            raise self._doubt("the start-up asked for out of order (a bug)")
+        self.cold_allowance = (COLD_MAX_LINES, COLD_MAX_MOTIONS)
+        try:
+            self.run_step(COLD_STEP)
+        finally:
+            if self.start_up_took is None:
+                for k, took in self.timings:
+                    if k == "start_up/start_up":
+                        self.start_up_took = took
+        self.cold_done = True
+        self.cold_motions = self.motions_sent
+        self.cold_read = self.before_move
+        self.log("DATA", f"the start-up is done: i0 took {self.start_up_took:.3f} s; the arm "
+                         f"read {self.cold_read} before the homing")
 
     def can_run(self, step: Step) -> bool:
         if step.key == "b_place" and self.out_touch != "free":
@@ -1537,6 +1662,8 @@ class Table:
                     self._p0_spot(op[1])
                 elif kind == "p0last":
                     self._p0_last()
+                elif kind == "start_up":
+                    self._start_up()
                 else:
                     raise self._doubt(f"unknown operation {kind} (a bug)")
             self._quiet_check()             # listens once more; sends nothing
@@ -1644,8 +1771,16 @@ class FtdiUsb(Transport):
     #: the gate at the wire: check_outgoing, or part C's own gate (0.5.0) once part C is chosen
     gate = None
 
+    #: 0.6.0: set by Table._write for exactly the one write of the start-up line
+    start_up_armed = False
+
     def write(self, data: bytes) -> None:
-        if self.gate is not None:
+        if bytes(data) == START_UP_LINE:
+            # the start-up line: only when the table armed this very write, once
+            if not self.start_up_armed:
+                raise ForbiddenLine("the start-up line without the start-up step")
+            self.start_up_armed = False
+        elif self.gate is not None:
             self.gate(data)                        # part C's gate, once more, at the wire
         else:
             check_outgoing(data)                   # the gate, once more, at the wire

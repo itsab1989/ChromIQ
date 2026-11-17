@@ -175,6 +175,7 @@ class CSimTable(SimTable):
         if not checksum_ok(line) or not line.startswith(";"):
             raise SimViolation(f"malformed line or bad checksum: {line!r}")
         cid, args = line[1:3], line[3:-2]
+        self._cold_rules(line)
         self._check_sequence(line)
         self._c_physics(line, cid, args)
         if getattr(self, "silent", False):
@@ -206,7 +207,7 @@ class CSimTable(SimTable):
             self.motions += 1
             return
         if kind == "no_done":
-            if cid in ("m0", "m1", "i1"):
+            if cid in ("m0", "m1", "i1", "i0"):
                 self._busy_until = math.inf     # a movement that never reports its end
             else:
                 self.silent = True              # the table answers nothing more
@@ -228,7 +229,7 @@ class CSimTable(SimTable):
             self._reply(t_done, done)
         if kind == "stray":
             self._reply(t0 + 0.01, ":$s00")
-        if cid in ("m0", "m1", "i1"):
+        if cid in ("m0", "m1", "i1", "i0"):
             self._busy_until = t_done
 
     def _c_execute(self, line, cid, a, fault):

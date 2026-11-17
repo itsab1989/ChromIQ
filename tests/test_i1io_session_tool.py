@@ -45,8 +45,12 @@ SPOT_LINES = (";m0fb63067a012c03 ;m0fbba067b012ca8 ;m0fc11067b012c08 ;m0fc68067b
               ";m00232067e012c69 ;m00289067e012c5d ;m002e0067f012c38 ;m00338067f012c61 "
               ";m0038f067f012c2e ;m003e6067f012c31 ;m0043d067f012c34 ;m00495067f012c5d").split()
 RECORDED_B_NEW = {";m10b10055b012c42", *SPOT_LINES}
-RECORDED = RECORDED_A | RECORDED_B_NEW
-FORBIDDEN_IDS = ("i0", "m2", "c3", "c4", "d1", "a3", "p1")
+#: 0.6.0: the start-up, S1 1.517 (checked in the raw capture: one write of 3b 69 30 32 63 0d)
+START_UP = ";i02c"
+RECORDED = RECORDED_A | RECORDED_B_NEW | {START_UP}
+#: i0 is no longer forbidden in the package (0.6.0), but it may appear only as the one frame in
+#: the table module and is never in a part's steps (tests in test_i1io_session_060.py)
+FORBIDDEN_IDS = ("m2", "c3", "c4", "d1", "a3", "p1")
 OPEN = sim_mod.REC_OPEN
 STEP_KEYS = ("home", "near", "straight", "across", "free", "close")
 PROGRAM_FILES = ("i1io_session_table.py", "i1io_session.py", "i1io_session_sim.py")
@@ -183,13 +187,15 @@ def test_no_unrecorded_or_high_risk_command_exists_in_the_package():
             assert f'_frame("{cid}"' not in src, (name, cid)
     frames = re.findall(r'_frame\("([a-z][0-9])"(?:, "([0-9a-f]*)")?\)', _source("i1io_session_table.py"))
     assert sorted(set(f for f, _ in frames)) == sorted({"a1", "k2", "u8", "a0", "s0", "f4", "p0",
-                                                        "i1", "f0", "f3", "m0", "f1", "m1"})
+                                                        "i1", "f0", "f3", "m0", "f1", "m1",
+                                                        "i0"})
+    assert [a for f, a in frames if f == "i0"] == [""]
     assert sorted(a for f, a in frames if f == "u8") == ["000060000100", "000061000068"]
     tree = ast.parse(_source("i1io_session_table.py"))
     calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call)
              and getattr(n.func, "id", None) == "_frame"]
     assert all(all(isinstance(a, ast.Constant) for a in c.args) for c in calls)
-    assert len(calls) == 45
+    assert len(calls) == 46
 
 
 def test_the_program_writes_only_in_one_place_and_through_the_gate():
@@ -332,10 +338,12 @@ def test_end_stops_offering_steps(tmp_path):
     assert sim.received == OPEN + _lines("home")
 
 
-def test_a_cold_table_gets_the_six_reading_lines_and_nothing_else(tmp_path):
-    code, sim, log, con = _run(tmp_path, sim_mod.SimTable(cold=True))
+def test_a_cold_table_whose_owner_chooses_i1profiler_gets_the_six_reading_lines(tmp_path):
+    # 0.6.0: the old way (i1Profiler does the start-up) is the answer "i1profiler"
+    code, sim, log, con = _run(tmp_path, sim_mod.SimTable(cold=True),
+                               script={"Type yes to send the start-up": "i1profiler"})
     assert code == 1 and sim.received == OPEN[:6]
-    assert "needs its start-up, which this program does not send" in " ".join(log.split())
+    assert "You chose to let i1Profiler start the table" in " ".join(log.split())
 
 
 def test_after_the_free_step_only_the_close_is_offered(tmp_path):
@@ -613,7 +621,7 @@ def test_the_practice_run_never_opens_the_real_table(tmp_path, monkeypatch):
     monkeypatch.setattr(tbl, "open_table", lambda: pytest.fail("opened"))
     for cold in (True, False):
         code, *_ = _run(tmp_path, sim_mod.SimTable(cold=cold))
-        assert code == (1 if cold else 0)
+        assert code == 0          # 0.6.0: a cold table is started, then part A runs
 
 
 # ---- the USB layer (a fake pyusb device) -----------------------------------------------------
@@ -830,7 +838,7 @@ def test_the_zip_is_reproducible_and_runs_from_a_clean_folder(tmp_path):
         r = subprocess.run([sys.executable, "-I", "i1io_session.py", "--auto", "--sim", sim,
                             "--log", f"run-{sim}.txt"], cwd=folder, capture_output=True,
                            text=True, encoding="utf-8", timeout=60, stdin=subprocess.DEVNULL)
-        assert r.returncode == (1 if sim == "cold" else 0), r.stdout + r.stderr
+        assert r.returncode == 0, r.stdout + r.stderr      # 0.6.0: cold starts, then part A
         assert "Traceback" not in r.stdout + r.stderr
 
 

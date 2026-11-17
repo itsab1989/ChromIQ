@@ -1,4 +1,4 @@
-# ChromIQ i1iO session test program 0.5.1 (one step at a time; part C reads)
+# ChromIQ i1iO session test program 0.6.0 (one step at a time; part C reads)
 
 **This is an unofficial test program. It is not from X-Rite, and X-Rite has
 nothing to do with it.** Running it is entirely your choice, at every single
@@ -40,6 +40,59 @@ what you saw, heard and felt.
 anything into the table's memory or the instrument's memory, and no part sends
 a line of its own for the measuring head.** The program is not part of the
 ChromIQ app and does not need it.
+
+## What is new in 0.6.0: the start-up, without i1Profiler
+
+**0.6.0 contains everything 0.5.1 has, unchanged**, and adds one option: the
+program can now **start a table that has just been switched on**, so
+i1Profiler is not needed at all. Until now you had to let i1Profiler connect
+to the table once after switching it on; 0.6.0 can do that start-up itself, and
+then go on with the part you chose (A, B or C) in the same sitting.
+
+* **When it is offered.** The program asks the table the same reading
+  questions as always. A table that has just been switched on answers one of
+  them (`;a034`) with 111800 instead of 130000. Only then does the program
+  offer the start-up, explain it, and wait for you to type `yes`. If you type
+  `i1profiler` instead, it stops there, as before, and you let i1Profiler
+  start the table.
+* **What it sends.** Exactly what i1Profiler sent to your table in the one
+  recording we have of a start-up (14 November): the start-up command `;i02c`
+  (i0), then the ten lines i1Profiler sent right after it: a status line, four
+  reads of the mode flag, a status line, a position read and the usual short
+  homing at the resting place. Only i0 is new to this program; the other lines
+  are on its list since 0.3.1.
+* **What we do not know.** i0 was recorded **once**. We do not know what the
+  arm does during it: it may travel to find its end positions and come back.
+  In the recording the table reported it finished after 3.17 seconds. The
+  program accepts 1 to 8 seconds; an answer earlier, later or in any other
+  form than recorded stops it at once, nothing more is sent, and it tells you
+  to switch the table off (a movement may be unfinished). Afterwards the arm
+  must read its resting place before the homing, as it did in the recording.
+* **What it asks you.** Whether the arm travelled, roughly where and how far,
+  what you heard, and whether anything looked or sounded wrong. If you say
+  something was wrong, it stops there.
+* **At most once per sitting**, and only on a table that answered 111800. A
+  started table (130000) is handled exactly as in 0.5.1: we compared every
+  simulated session of parts A, B and C byte for byte.
+* **One request:** the next time you use i1Profiler with the table, please tell
+  us whether it works normally.
+
+### How to test the start-up without i1Profiler
+
+1. Switch the table on, with the arm at its resting place (over the small
+   white tile), the i1Pro 2 seated in its holder, and the table empty.
+2. Do **not** open i1Profiler.
+3. Start the program as usual (`venv/bin/python3 i1io_session.py --real`).
+   At the question "has i1Profiler connected since the table was switched
+   on?" answer `no`. Choose the part you want to run afterwards (for example
+   `c`).
+4. When the program says the table has just been switched on, read the
+   explanation, keep your hands away from the arm and the power switch within
+   reach, and type `yes`. Watch the arm and listen during the start-up.
+5. Answer the questions about what you saw and heard. The program then goes on
+   with the part you chose.
+
+`python3 i1io_session.py --sim cold` practises all of this on a simulated table.
 
 ## What is new in 0.5.1
 
@@ -174,8 +227,9 @@ our fault, not your table's, your i1Pro 2's or your Mac's.
 ## Part A: the steps of 0.3.1
 
 The opening comes first, always, and only reads (11 lines, nothing moves). If
-the table has just been switched on, the program stops after the sixth line
-and asks you to let i1Profiler start the table first.
+the table has just been switched on, the program sends nothing more after the
+sixth line unless you choose the start-up (new in 0.6.0, see above); after the
+start-up the part you chose goes on.
 
 ### Step 1: Send the arm to its resting place once
 
@@ -310,8 +364,9 @@ Part B sends at most **114 lines and 33 movements** in one session.
 
 ## Every line it can send
 
-In parts A and B it can send only **45 different lines**. Each one is a line i1Profiler
-itself sent to your table in your recordings, byte for byte. Part C adds five
+In parts A and B it can send only **45 different lines**, and in the start-up of
+a table just switched on (new in 0.6.0) one more, `;i02c`. Each one is a line
+i1Profiler itself sent to your table in your recordings, byte for byte. Part C adds five
 more recorded lines and the computed moves; see "Part C" below. `BYTES.md` lists
 each with the exact places in your recordings and its bytes. `python3
 i1io_session.py --plan` prints every step and line; `--dry-run` adds every byte.
@@ -323,6 +378,7 @@ i1io_session.py --plan` prints every step and line; `--dry-run` adds every byte.
 | `;u8000060000100d1` | reads part 1 of the table's memory block (a read only; it holds the serial number, which is never written down) |
 | `;u8000061000068c3` | reads part 2 of the memory block (a read only) |
 | `;a034` | tells whether the table has just been switched on (111800) or is started (130000) |
+| `;i02c` | **may move** (0.6.0, only in the start-up of a table just switched on, only after your `yes`, at most once): i1Profiler's start-up command, recorded once; what the arm does during it is not known |
 | `;s022` | asks for the status |
 | `;f42b` | asks a mode flag: 00 normally, 01 in the hand-alignment mode; it does not tell whether the motors hold the arm |
 | `;p025` | asks where the arm is |
@@ -337,7 +393,8 @@ i1io_session.py --plan` prints every step and line; `--dry-run` adds every byte.
 | `;m10b10055b012c42` | **moves** (part B): i1Profiler's short move to the place where every alignment starts; we believe it puts the alignment sight there, not the measuring opening |
 | the 28 patch moves | **move** (part B): the arm to each patch of row 1 of your recorded spot measurement, speed 300: `;m0fb63067a012c03`, `;m0fbba067b012ca8`, `;m0fc11067b012c08`, `;m0fc68067b012cfc`, `;m0fcbf067b012ca2`, `;m0fd17067b012c01`, `;m0fd6e067c012ccd`, `;m0fdc5067c012cd0`, `;m0fe1c067c012cd3`, `;m0fe74067c012cfc`, `;m0fecb067c012ca2`, `;m0ff22067d012c01`, `;m0ff79067d012cf5`, `;m0ffd0067d012cd1`, `;m00027067d012c68`, `;m0007e067d012c35`, `;m000d5067d012c38`, `;m0012c067e012c3a`, `;m00184067e012c63`, `;m001db067e012c09`, `;m00232067e012c69`, `;m00289067e012c5d`, `;m002e0067f012c38`, `;m00338067f012c61`, `;m0038f067f012c2e`, `;m003e6067f012c31`, `;m0043d067f012c34`, `;m00495067f012c5d` |
 
-**What it never sends:** the start-up of a table just switched on, the scanning
+**What it never sends:** the start-up outside the start-up step (never on a
+started table, never twice in a sitting), the scanning
 lines that only occur between "arm over a patch" and "reading" in a scan (one
 of them was once thought to lower the head), the position read after the
 instrument's button (p1), any write to any memory, any target the arm was not
@@ -648,7 +705,9 @@ venv/bin/python3 -m pip install --no-cache-dir pyusb==1.2.1
 
 ### Preparing the table
 
-1. Open i1Profiler once, let it start the table, and quit it. Then start the
+1. Either switch the table on and start the program without opening
+   i1Profiler (the program offers the start-up, new in 0.6.0), or, as before,
+   open i1Profiler once, let it start the table, quit it, and start the
    program within a minute or two.
 2. i1Profiler must not be running. X-Rite's background helpers can keep
    running; please do not try to stop them by hand.
@@ -665,20 +724,22 @@ venv/bin/python3 -m pip install --no-cache-dir pyusb==1.2.1
 venv/bin/python3 i1io_session.py --real
 ```
 
-It explains the risks, asks five short questions and three more about the
-time since you quit i1Profiler and the lights (please do not touch the arm
+It explains the risks, asks five short questions (the fifth: has i1Profiler
+connected since the table was switched on, `yes`, `no` or `not sure`) and three
+more about the time since you quit i1Profiler or switched the table on, and the
+lights (please do not touch the arm
 before the first homing), and asks you to type `I understand that this moves
 my table`. Then it asks which part you want (`a`, `b`, `c` or `end`; for `b`,
 three questions about your part A or 0.3.1 run; for `c`, the same three and one
-about part B), opens the table and offers the steps or, in part C, the menu of
-stages. For part C with your sheet:
+about part B), opens the table, offers the start-up if the table has just been switched on,
+and then offers the steps or, in part C, the menu of stages. For part C with your sheet:
 
 ```
 venv/bin/python3 i1io_session.py --real --sheet /path/to/your-chart.i1io.json
 ```
  Answer
 each question by typing the whole word (`yes`, `skip`, `end`, `no`, `not sure`,
-`stop`, `holds`, `free`, `placed`) and pressing Enter.
+`stop`, `holds`, `free`, `placed`, `i1profiler`) and pressing Enter.
 
 ### How to stop
 

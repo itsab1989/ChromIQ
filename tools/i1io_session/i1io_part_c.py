@@ -475,8 +475,10 @@ class PartC:
                 and tbl.REST_GUARD.contains(p) and not d.mode_on)
 
     def unread_rest(self) -> bool:
-        """Just opened (warm, nothing moved yet): the first homing reads it first."""
-        return self.d.motions_sent == 0 and self.d.state == "warm"
+        """Just opened (warm, nothing moved yet): the first homing reads it first. 0.6.0: also
+        right after the start-up (its own homing at the resting place is the only movement so
+        far; on a started table cold_motions is 0, as in 0.5.1)."""
+        return self.d.motions_sent == self.d.cold_motions and self.d.state == "warm"
 
     def out_known(self) -> bool:
         d, p = self.d, self.d.position_now
