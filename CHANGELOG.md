@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v4.3.45
 
 **For everyone updating from 4.3.44: a new {patchsize} placeholder that prints the size of the patches on your chart, a clear explanation when your instrument does not accept the spectral filter you chose, and, on Windows, a reminder to switch off the printer driver's colour management before the print dialog opens. Charts that do not use {patchsize} are made exactly as before, and your measurements and profiles do not change.**
 
