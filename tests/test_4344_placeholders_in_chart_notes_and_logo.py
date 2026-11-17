@@ -249,3 +249,52 @@ def test_a_note_with_the_logo_keeps_its_size_and_place(tmp_path, right_mm):
     assert cols[1][0] == cols[0][0]               # the same patch-side edge
     assert cols[1][1] <= a.shape[1] - _mm(4.0)    # inside the edge reserve
     assert cols[1][1] - cols[0][1] <= 3           # the "Q" tail, at most
+
+
+# ---- {logo} follows the app's masthead; the clip band's branding is unchanged ----
+
+#: SHA-256 of the clip band's branding (`raster._vwordmark`) over a fixed set of
+#: bands, measured on 4.3.43 (origin/master 69ad0e194) and on this tree with
+#: `fix1/scripts/wordmark_same.py`: that drawing must not change in 4.3.44.
+_BRANDING_SHA_4343 = "6c8436dd2f33f95d1e3605fe861de92ded6de1dacbe8f036c2fb9c57404c4cce"
+
+
+def test_the_clip_band_branding_is_4_3_43s_byte_for_byte():
+    import hashlib
+    h = hashlib.sha256()
+    for args in [([], 200, 800, "Inter", 0, 100, 0, 0, 200),
+                 (["a line", "two"], 300, 1500, "Inter", 0, 150, 5, -7, 300),
+                 (["x"], 80, 600, "JetBrains Mono", 12, 60, 0, 0, 150)]:
+        lines, w, hh, fam, sz, sc, ox, oy, dpi = args
+        for kw in ({}, {"anchor_far": True, "centre_across": True}):
+            h.update(raster._vwordmark(lines, w, hh, fam, sz, sc, ox, oy, dpi,
+                                       **kw).tobytes())
+    assert h.hexdigest() == _BRANDING_SHA_4343
+
+
+def test_the_logo_is_drawn_from_the_mastheads_own_definition():
+    """The masthead draws "Chrom" in Instrument Serif and "IQ" in its italic,
+    both at 62 px, "IQ" at the advance of "Chrom" less 1 px. If that ever
+    changes, `raster._masthead_wordmark` has to follow it."""
+    import inspect
+    from ui import masthead_header
+    src = inspect.getsource(masthead_header.MastheadHeader.paintEvent)
+    assert src.count("setPixelSize(62)") == 2
+    assert "x_start + chrom_w - 1" in src
+    assert '"Instrument Serif"' in src
+    assert raster.MASTHEAD_IQ_KERN == -1.0 / 62.0
+    # "IQ" starts where the masthead puts it: Chrom's advance less size/62
+    size = 124
+    layer, base = raster._masthead_wordmark(size)
+    a = np.asarray(layer)
+    pink = (a[..., 3] > 128) & (a[..., 0] > 200) & (a[..., 1] < 140)
+    dark = (a[..., 3] > 128) & (a[..., :3].max(axis=2) < 80)
+    gap = np.argwhere(pink)[:, 1].min() - np.argwhere(dark)[:, 1].max()
+    assert -2 <= gap <= 2          # the masthead capture: 0 px at 124 px
+    # the render is stable: the same size twice gives the same pixels
+    assert raster._masthead_wordmark(size)[0].tobytes() == layer.tobytes()
+
+
+def test_the_logo_minimum_is_nine_pixels():
+    assert raster.LOGO_MIN_CAP_PX == 9
+    assert raster.logo_tile(8.9) is None and raster.logo_tile(9) is not None

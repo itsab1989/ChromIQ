@@ -1531,13 +1531,16 @@ def resolve_placeholders(t: str, ctx: dict) -> str:
 #: The placeholder.
 LOGO_TOKEN = "{logo}"
 #: The smallest wordmark drawn inline, as the height in pixels of its capital
-#: "C". Decided from renders of a line at every cap height from 3 to 18 px
-#: (fix round of 2026-11-17, `fix1/logo_renders/sizes_3x.png`): from 8 px the
-#: "IQ" reads as two letters and the "Q" keeps its tail; at 7 px and below the
-#: "IQ" is a pink smudge. 8 px is 0.68 mm at 300 dpi, well under the 7 pt the
-#: Sheet text's "auto" stops at, so it bites only on a low-resolution sheet. A
-#: line set smaller leaves the logo out, and the log says so.
-LOGO_MIN_CAP_PX = 8
+#: "C". Decided from renders of a line at every cap height from 4 to 15 px:
+#: first (fix round of 2026-11-17, `fix1/logo_renders/sizes_3x.png`) 8 px
+#: with the clip band's drawing; then again with the masthead's drawing,
+#: which is drawn at its true coverage and so a little softer at small
+#: sizes (`fix1/logofix/sizes_new_3x.png`): from 9 px the "IQ" reads as two
+#: letters and the "Q" keeps its tail, at 8 px it is a pink smudge. 9 px is
+#: 0.76 mm at 300 dpi, well under the 7 pt the Sheet text's "auto" stops at,
+#: so it bites only on a low-resolution sheet. A line set smaller leaves the
+#: logo out, and the log says so.
+LOGO_MIN_CAP_PX = 9
 
 
 def _cap_px(font) -> float:
@@ -1552,10 +1555,63 @@ def _cap_px(font) -> float:
 _LOGO_TILES: dict = {}
 
 
+#: The masthead's own kern between "Chrom" and "IQ": -1 px at its 62 px
+#: size (`ui/masthead_header.py::MastheadHeader.paintEvent`), as a share of
+#: the font size.
+MASTHEAD_IQ_KERN = -1.0 / 62.0
+#: Supersampling of the inline logo, so its antialiased edge is the glyph's
+#: true coverage at any size rather than a hinted small-size rendering.
+_LOGO_SUPERSAMPLE = 4
+
+
+def _masthead_wordmark(size: int) -> "tuple[Image.Image, int]":
+    """The app's masthead wordmark at font size *size* px, drawn from the
+    masthead's OWN definition (`ui/masthead_header.py`): "Chrom" in
+    Instrument Serif Regular and "IQ" in Instrument Serif Italic, both at the
+    same size on one baseline, "IQ" starting at the advance of "Chrom" less
+    the masthead's 1 px in 62 (:data:`MASTHEAD_IQ_KERN`), in the light
+    masthead's colours (#1c1b18 and #ff4573, :data:`WORDMARK_RGB` and
+    :data:`WORDMARK_IQ_RGB`).
+
+    The masthead asks Qt for a BOLD italic "IQ", but the app ships only the
+    Regular and Italic files, and on macOS Qt draws the Italic file as it is:
+    a render of that definition with Qt on the real platform has the same
+    ink as the captured masthead (3005 against 3001 pixels at 124 px), and
+    so does this drawing (fix round of 2026-11-17, `fix1/logofix/`). So the
+    Italic file at its own weight IS the masthead's "IQ".
+
+    NOT the clip band's branding (`_wordmark_parts`), which places "IQ" with
+    a kern of +2 % and has looked so on every chart released; that one is
+    left exactly as it is. Returns ``(RGBA layer, baseline row)``."""
+    S = _LOGO_SUPERSAMPLE
+    fr = _font(size * S, WORDMARK_FONT)
+    fi = _font(size * S, WORDMARK_FONT, italic=True)
+    d0 = ImageDraw.Draw(Image.new("RGBA", (4, 4)))
+    chrom_w = d0.textlength("Chrom", font=fr)
+    iq_x = chrom_w + MASTHEAD_IQ_KERN * size * S
+    asc, desc = fr.getmetrics()
+    asc_i, desc_i = fi.getmetrics()
+    pad = 4 * S
+    width = int(iq_x + d0.textlength("IQ", font=fi) + 0.4 * size * S) + 2 * pad
+    base = max(asc, asc_i) + pad
+    height = base + max(desc, desc_i) + pad
+    width, height = -(-width // S) * S, -(-height // S) * S
+    base = (base // S) * S
+    big = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    d = ImageDraw.Draw(big)
+    d.text((pad, base), "Chrom", font=fr, fill=WORDMARK_RGB + (255,),
+           anchor="ls")
+    d.text((pad + iq_x, base), "IQ", font=fi, fill=WORDMARK_IQ_RGB + (255,),
+           anchor="ls")
+    small = big.resize((width // S, height // S), Image.Resampling.BOX)
+    return small, base // S
+
+
 def logo_tile(cap_px: float) -> "tuple[Image.Image, int] | None":
     """The wordmark whose capital "C" is *cap_px* pixels tall, as
     ``(RGBA tile cut to its ink, the baseline's row in it)``,
-    or None when that is below :data:`LOGO_MIN_CAP_PX`."""
+    or None when that is below :data:`LOGO_MIN_CAP_PX`. Drawn from the
+    app's masthead (:func:`_masthead_wordmark`)."""
     if not cap_px or float(cap_px) < LOGO_MIN_CAP_PX:
         return None
     ref = 200
@@ -1564,13 +1620,7 @@ def logo_tile(cap_px: float) -> "tuple[Image.Image, int] | None":
     hit = _LOGO_TILES.get(size)
     if hit is not None:
         return hit
-    g = _wordmark_parts(size)
-    w = int(g["chrom_w"] + g["kern"] - g["iq_left"] + g["iq_tile"].width) + 4
-    h = int(max(g["asc"], g["iq_base"]) + max(
-        g["desc"], g["iq_tile"].height - g["iq_base"])) + 4
-    baseline = int(max(g["asc"], g["iq_base"])) + 2
-    layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    _paint_wordmark(layer, 2, baseline, g)
+    layer, baseline = _masthead_wordmark(size)
     # CUT TO ITS INK ON EVERY SIDE: a line's height is measured from what
     # it draws, and the font's empty line box above the wordmark made a
     # right-edge note with `{logo}` shrink to the floor and slide off its
@@ -2750,9 +2800,11 @@ def _wordmark_geometry(width_px: int, height_px: int, dpi: float,
 def _wordmark_parts(size: int) -> dict:
     """The wordmark at font size *size* px, in its parts: "Chrom" in
     Instrument Serif and the near-black of the masthead, "IQ" in the face's
-    own italic and the magenta accent, butted up with the masthead's kern.
-    ONE PLACE for the clip band's branding (`_vwordmark`) and the inline
-    ``{logo}`` (:func:`logo_tile`), so both are the same drawing."""
+    own italic and the magenta accent, butted up with a +2 % kern. The clip
+    band's branding (`_vwordmark`), exactly as every released chart has it.
+    The inline ``{logo}`` follows the app's masthead instead
+    (:func:`_masthead_wordmark`): the two differ in the "IQ"'s place, and
+    whether the clip band should follow is the owner's decision."""
     d = ImageDraw.Draw(Image.new("RGBA", (4, 4)))
     f = _font(size, WORDMARK_FONT)
     asc, desc = f.getmetrics()
