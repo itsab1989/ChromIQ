@@ -75,6 +75,8 @@ def start(tab, run, monkeypatch, sim=None):
     monkeypatch.setattr(W, "JOB_FACTORY", sim.factory)
     monkeypatch.setattr(W, "USB_STATUS", lambda: (True, ""))
     tab._settings.set(W.CONSENT_KEY, W.CONSENT_VERSION)
+    if not W.calibration_place(tab._settings):
+        tab._settings.set(W.CAL_KEY, "table tile")
     tab.set_ti1_path(run.artefact(".ti1"))
     monkeypatch.setattr(tab, "_blocked_by_new_run", lambda: False)
     monkeypatch.setattr(tab, "_i1io_not_yet_window",

@@ -32,6 +32,7 @@ def settings(tmp_path):
     yield s
     s.set(W.CONSENT_KEY, 0)
     s.set(W.ASK_KEY, True)
+    s.set(W.CAL_KEY, "")
 
 
 def project(tmp_path, sheet, name="Table-Target"):
@@ -52,6 +53,10 @@ def open_window(qtbot, monkeypatch, tmp_path, settings, *, asking=True, sheet=No
     monkeypatch.setattr(W, "JOB_FACTORY", sim.factory)
     monkeypatch.setattr(W, "USB_STATUS", lambda: (True, ""))
     settings.set(W.ASK_KEY, asking)
+    # fix round 10: the calibration place is asked once and remembered; the tests that are
+    # about that question clear it themselves
+    if not W.calibration_place(settings):
+        settings.set(W.CAL_KEY, "table tile")
     if consent:
         settings.set(W.CONSENT_KEY, W.CONSENT_VERSION)
     win = W.TableMeasureWindow(None, settings, sheet, run, args or ARGS, stamp=stamp,

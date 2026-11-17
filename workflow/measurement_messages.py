@@ -11951,14 +11951,20 @@ M_I1IO_DRIVE_READER_CONSENT_MAC = _m(
 M_I1IO_DRIVE_CAL_PLACE = _m(
     "M-I1IO-DRIVE-CAL-PLACE",
     "Where should the i1Pro 2 be calibrated?",
-    "•  On its own white tile (recommended until we know more): you lift "
-    "the instrument out of the arm's holder, set it on its own white "
-    "calibration tile, and ChromIQ calibrates it there. Then you put it back "
-    "into the arm.\n"
-    "•  On the table's small white tile: the instrument stays in the "
-    "arm.\n\n"
-    "We do not know yet which of the two agrees better with i1Profiler. "
-    "ChromIQ uses your choice for the rest of this measurement.",
+    "Before it reads, the i1Pro 2 measures a white tile to calibrate itself. "
+    "ChromIQ asks you this once and remembers your answer; you can change it "
+    "at any time in Preferences > Beta, or on the first page of a table "
+    "measurement.\n\n"
+    "•  On the table's white tile: the instrument stays in the arm. This is "
+    "how i1Profiler does it, and the comfortable way.\n"
+    "•  On the instrument's own white tile (the cautious choice for now): you "
+    "lift the instrument out of the arm's holder and set it on its own tile; "
+    "it stays connected by its cable. ChromIQ calibrates it there, and then "
+    "you put it back into the arm.\n\n"
+    "Why there is a choice at all: ChromIQ has not yet been able to check on a "
+    "real table that the table's tile gives the same white as the "
+    "instrument's own tile. Until that is confirmed, the instrument's own "
+    "tile is the cautious choice.",
     approved=False)
 
 M_I1IO_DRIVE_CAL_OWN_TILE = _m(

@@ -362,6 +362,10 @@ DEFAULTS: dict[str, Any] = {
     #: Beta switches it back). Only read or written while the Beta is on.
     "i1io_table_consent_given":  0,
     "i1io_table_ask_after_each_step": True,
+    #: where the table's i1Pro 2 is calibrated (fix round 10, the owner): ""
+    #: until the first table measurement asks it once, then "table tile" or
+    #: "own tile"; changeable in Preferences > Beta (decision D-4 open).
+    "i1io_table_calibration_place": "",
     #: Beta (Settings -> Beta): X-Rite i1iSis family charts, laid out by
     #: ChromIQ and measured in i1Profiler. Off = 4.3.37 except the one stated
     #: exception: the old printtarg entry "i1iSis (via i1Profiler)" is gone

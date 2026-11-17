@@ -3878,6 +3878,28 @@ class SettingsDialog(QDialog):
             _i1ioask.addWidget(self._i1io_ask_check)
             _i1ioask.addStretch()
             _beta.addLayout(_i1ioask)
+            # ...and where its i1Pro 2 is calibrated (fix round 10, the owner:
+            # asked once, then changed here; decision D-4 is still open)
+            from PyQt6.QtWidgets import QComboBox as _QCB, QLabel as _QL
+            self._i1io_cal_combo = _QCB(self)
+            self._i1io_cal_combo.addItem(tr("Ask at the next table measurement"), "")
+            self._i1io_cal_combo.addItem(tr("On the table's white tile"), "table tile")
+            self._i1io_cal_combo.addItem(tr("On the i1Pro 2's own white tile (the cautious "
+                                            "choice)"), "own tile")
+            self._i1io_cal_combo.setToolTip(tr(
+                "Where the table's i1Pro 2 is calibrated. The table's tile is the "
+                "way i1Profiler does it, with the instrument staying in the arm. "
+                "ChromIQ has not yet been able to confirm on a real table that it "
+                "gives the same white as the instrument's own tile, so the own "
+                "tile is the cautious choice until then."))
+            _i1iocal = QHBoxLayout()
+            _i1iocal.setContentsMargins(28, 0, 0, 0)
+            _i1iocal.addWidget(_QL(tr("Calibrate the i1Pro 2 of a table measurement:"), self))
+            _i1iocal.addWidget(self._i1io_cal_combo)
+            _i1iocal.addStretch()
+            _beta.addLayout(_i1iocal)
+        else:
+            self._i1io_cal_combo = None
 
         # X-Rite i1iSis family charts (ChromIQ's layout, measured in
         # i1Profiler). Restart to apply, like the i1iO (`workflow.isis.
@@ -6692,6 +6714,10 @@ class SettingsDialog(QDialog):
         if getattr(self, "_i1io_ask_check", None) is not None:
             self._i1io_ask_check.setChecked(
                 bool(s.get("i1io_table_ask_after_each_step", True)))
+        if getattr(self, "_i1io_cal_combo", None) is not None:
+            k = self._i1io_cal_combo.findData(
+                str(s.get("i1io_table_calibration_place", "") or ""))
+            self._i1io_cal_combo.setCurrentIndex(max(0, k))
         self._isis_charts_check.setChecked(
             bool(s.get("isis_charts_beta", False)))
         self._isis_charts_toggled()
@@ -8311,6 +8337,11 @@ class SettingsDialog(QDialog):
                     s.get("i1io_table_ask_after_each_step", True)):
             s.set("i1io_table_ask_after_each_step",
                   self._i1io_ask_check.isChecked())
+        if getattr(self, "_i1io_cal_combo", None) is not None and \
+                self._i1io_cal_combo.currentData() != str(
+                    s.get("i1io_table_calibration_place", "") or ""):
+            s.set("i1io_table_calibration_place",
+                  self._i1io_cal_combo.currentData())
         s.set("isis_charts_beta", self._isis_charts_check.isChecked())
         # Written only when it differs from the store, so Preferences closed
         # with OK leaves no new key behind for anyone who never ticks it.

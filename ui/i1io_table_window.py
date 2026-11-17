@@ -47,6 +47,11 @@ log = logging.getLogger(__name__)
 CONSENT_VERSION = 1
 CONSENT_KEY = "i1io_table_consent_given"
 ASK_KEY = "i1io_table_ask_after_each_step"
+#: where the i1Pro 2 is calibrated (fix round 10, the owner): asked once, then remembered;
+#: changeable in Preferences > Beta and from the panel's first page. The job still asks its
+#: question every time (it never answers it itself); the panel answers it from this.
+CAL_KEY = "i1io_table_calibration_place"
+CAL_PLACES = ("table tile", "own tile")
 #: the only chart the window drives (STEP4_PROPOSAL section 2): an i1iO 2 with an i1Pro 2
 CHART_TABLE, CHART_HEAD = "i1iO 2", "i1Pro 2"
 
@@ -95,6 +100,15 @@ def ask_after_each_step(settings) -> bool:
         return bool(settings.get(ASK_KEY, True))
     except Exception:      # noqa: BLE001 - the safe answer
         return True
+
+
+def calibration_place(settings) -> str:
+    """The stored place ("table tile" / "own tile"), or "" while it was never chosen."""
+    try:
+        v = str(settings.get(CAL_KEY, "") or "")
+    except Exception:      # noqa: BLE001 - not chosen: asked
+        return ""
+    return v if v in CAL_PLACES else ""
 
 
 def default_job_factory(sheet: dict, page: int, run, stamp: str, ask: bool):
@@ -184,7 +198,7 @@ def choice_label(kind: str, value: str) -> str:
         ("report_after_step", "not sure"): tr("Not sure"),
         ("reader_consent", "yes"): tr("Open the instrument"),
         ("reader_consent", "no"): tr("No"),
-        ("calibration_place", "own tile"): tr("Own tile (recommended)"),
+        ("calibration_place", "own tile"): tr("Own tile (the cautious choice)"),
         ("calibration_place", "table tile"): tr("Table's tile"),
         ("calibration_place", "stop"): tr("End this step"),
         ("calibration_own_tile", "ready"): tr("Ready"),
@@ -1084,7 +1098,27 @@ class TableMeasureWindow(QFrame):
         pages = self.job.pages_to_read()
         return (pages[0] - 1) if pages else 0
 
+    def _show_cal_choice(self) -> None:
+        """The calibration place, asked ONCE (the owner: never a question in every
+        measurement); remembered, then changed in Preferences > Beta or from the first page."""
+        from workflow import measurement_messages as M
+        title, body = M.M_I1IO_DRIVE_CAL_PLACE.render()
+        self._show("cal_choice", title, body,
+                   [(choice_label("calibration_place", "table tile"),
+                     _CalChoice(self, "table tile").fire),
+                    (choice_label("calibration_place", "own tile"),
+                     _CalChoice(self, "own tile").fire),
+                    (tr("Not now"), self._finish_not_started)])
+
+    def choose_calibration_place(self, place: str) -> None:
+        if place in CAL_PLACES:
+            self._settings.set(CAL_KEY, place)
+        self._show_prepare()
+
     def _show_prepare(self) -> None:
+        if not calibration_place(self._settings):
+            self._show_cal_choice()
+            return
         # the job is built on the first page with something to read (review 9, NOTE)
         first = self._first_page()
         if first != self.job.page and self.job.phase == "new":
@@ -1096,9 +1130,15 @@ class TableMeasureWindow(QFrame):
             body = self._reads_note + "\n\n" + body
         if self._options_note:
             body += "\n\n" + self._options_note
+        body += "\n\n" + (tr("The i1Pro 2 is calibrated on the table's white tile; it stays "
+                              "in the arm.")
+                           if calibration_place(self._settings) == "table tile" else
+                           tr("The i1Pro 2 is calibrated on its own white tile: ChromIQ asks "
+                              "you to lift it out of the arm for that and to seat it again."))
         self._show("prepare", title, body,
                    [(tr("Not now"), self._finish_not_started),
-                    (tr("Start"), self._on_start_pressed)],
+                    (tr("Start"), self._on_start_pressed),
+                    (tr("Change where it is calibrated"), self._show_cal_choice)],
                    ticks=[tr("Ask after each step of this measurement whether the table did "
                              "what was described")])
         self._tick_widgets[0].setChecked(ask_after_each_step(self._settings))
@@ -1245,6 +1285,12 @@ class TableMeasureWindow(QFrame):
             for cb in self._tick_widgets:
                 cb.toggled.connect(self._on_ready_tick)
             self._pending_kind = kind
+            return
+        if kind == "calibration_place" and calibration_place(self._settings):
+            # answered from the stored choice (the job keeps asking, its data still names
+            # the recommended place and the open decision D-4 for the log and the analysis)
+            self._pending_kind = kind
+            self.answer(calibration_place(self._settings))
             return
         texts = {
             "pending_marker": (M.M_I1IO_DRIVE_MARKER_APP_ENDED.render
@@ -1866,6 +1912,14 @@ class _Answer:
 
     def fire(self) -> None:
         self.win.answer(self.value)
+
+
+class _CalChoice:
+    def __init__(self, win: TableMeasureWindow, place: str) -> None:
+        self.win, self.place = win, place
+
+    def fire(self) -> None:
+        self.win.choose_calibration_place(self.place)
 
 
 class _Report:

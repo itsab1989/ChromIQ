@@ -877,3 +877,71 @@ def test_m3_the_ring_visits_every_patch_of_a_row_in_order(tab, beta, tmp_path, m
     for row in rows:                                     # each row's patches, in its order
         got = [loc for loc in patch_rings if loc in row]
         assert got in (row, row[::-1]), (row, got)
+
+
+# ---- the calibration place: asked once, remembered (the owner) -----------------------------------
+
+def test_the_calibration_place_is_asked_once_and_reaches_the_job(qtbot, monkeypatch, tmp_path,
+                                                                 settings):
+    settings.set(W.CAL_KEY, "")
+    settings.set(W.CONSENT_KEY, W.CONSENT_VERSION)
+    sim = WindowSim()
+    monkeypatch.setattr(W, "JOB_FACTORY", sim.factory)
+    monkeypatch.setattr(W, "USB_STATUS", lambda: (True, ""))
+    _proj, run = project(tmp_path, small_sheet())
+    win = W.TableMeasureWindow(None, settings, small_sheet(), run, ARGS)
+    qtbot.addWidget(win)
+    win.show()
+    win.start()
+    p = _person(win, sim, qtbot)
+    assert p.page() == "cal_choice"
+    assert p.labels()[:2] == ["Table's tile", "Own tile (the cautious choice)"]
+    assert not any(b.isDefault() for b in win._buttons)
+    p.press("Table's tile")
+    assert W.calibration_place(settings) == "table tile" and p.page() == "prepare"
+    assert "table's white tile" in win._text.text()
+    p.drive_until("end_of_session")
+    assert "calibration_place" not in win.pages_shown              # answered from the setting
+    assert sim.jobs[0].cal_place == "table tile"
+    # a second measurement asks nothing about it
+    win2, sim2, _r, p2, _s, _f = open_window(qtbot, monkeypatch, tmp_path / "b", settings,
+                                             asking=False)
+    assert p2.page() == "prepare"
+    p2.drive_until("end_of_session")
+    assert "cal_choice" not in win2.pages_shown and "calibration_place" not in win2.pages_shown
+
+
+def test_own_tile_stored_shows_only_the_two_hands_on_steps(qtbot, monkeypatch, tmp_path,
+                                                           settings):
+    settings.set(W.CAL_KEY, "own tile")
+    win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
+                                                    asking=False)
+    p.drive_until("end_of_session")
+    assert "calibration_place" not in win.pages_shown
+    assert {"calibration_own_tile", "calibration_reseated"} <= set(win.pages_shown)
+    assert sim.jobs[0].cal_place == "own tile"
+
+
+def test_the_change_line_on_the_first_page_and_preferences_are_honoured(qapp, qtbot, monkeypatch,
+                                                                       tmp_path, settings):
+    settings.set(W.CAL_KEY, "table tile")
+    win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
+                                                    asking=False)
+    p.press("Change where it is calibrated")
+    assert p.page() == "cal_choice"
+    p.press("Own tile (the cautious choice)")
+    assert W.calibration_place(settings) == "own tile" and p.page() == "prepare"
+    # Preferences > Beta (the Beta on): the same setting
+    import workflow.i1io.support as sup
+    from ui.dialogs.settings_dialog import SettingsDialog
+    sup.set_enabled_for_this_process(True)
+    try:
+        dlg = SettingsDialog(settings)
+        combo = dlg._i1io_cal_combo
+        assert combo.currentData() == "own tile"
+        combo.setCurrentIndex(combo.findData("table tile"))
+        dlg._save_and_close()
+        dlg.deleteLater()
+    finally:
+        sup.set_enabled_for_this_process(None)
+    assert W.calibration_place(settings) == "table tile"

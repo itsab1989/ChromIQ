@@ -18,6 +18,7 @@ DEFAULT = {
     "aimed": "Aimed",
     "reader_consent": "Open the instrument",
     "calibration_place": "Table's tile",
+    "cal_choice": "Table's tile",
     "calibration_own_tile": "Ready",
     "calibration_reseated": "Seated",
     "check_mark": "Yes, it is centred",

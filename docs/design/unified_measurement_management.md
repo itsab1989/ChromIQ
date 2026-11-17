@@ -10028,10 +10028,14 @@ alone.
 
 > **Where should the i1Pro 2 be calibrated?**
 >
-> •  On its own white tile (recommended until we know more): you lift the instrument out of the arm's holder, set it on its own white calibration tile, and ChromIQ calibrates it there. Then you put it back into the arm.
-> •  On the table's small white tile: the instrument stays in the arm.
+> Before it reads, the i1Pro 2 measures a white tile to calibrate itself. ChromIQ asks you this once and remembers your answer; you can change it at any time in Preferences > Beta, or on the first page of a table measurement.
 >
-> We do not know yet which of the two agrees better with i1Profiler. ChromIQ uses your choice for the rest of this measurement.
+> •  On the table's white tile: the instrument stays in the arm. This is how i1Profiler does it, and the comfortable way.
+> •  On the instrument's own white tile (the cautious choice for now): you lift the instrument out of the arm's holder and set it on its own tile; it stays connected by its cable. ChromIQ calibrates it there, and then you put it back into the arm.
+>
+> Why there is a choice at all: ChromIQ has not yet been able to check on a real table that the table's tile gives the same white as the instrument's own tile. Until that is confirmed, the instrument's own tile is the cautious choice.
+
+*Revised 2026-11-17 (fix round 10, the owner): asked once and remembered (setting `i1io_table_calibration_place`), changed in Preferences > Beta or from the first page; the table's tile listed first as the usual way, the own tile as the cautious choice.*
 
 ### M-I1IO-DRIVE-CAL-OWN-TILE · PROPOSED · the job asks calibration_own_tile, Measure (the i1iO table window)
 
