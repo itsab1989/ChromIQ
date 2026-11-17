@@ -46,7 +46,9 @@ def _src(path) -> str:
 #: (usb_system.py) and the session log (diagnostics.py); the five moved modules stay
 STEP6_MODULES = {"job.py", "caps.py", "usb_system.py", "diagnostics.py",
                  # build step 7: reading (spot rows, the measurement)
-                 "spot.py", "measurement.py"}
+                 "spot.py", "measurement.py",
+                 # build step 8: the end of a session, what the next START finds
+                 "session_end.py"}
 
 
 def test_the_package_holds_the_five_moved_modules_and_the_job():
@@ -66,7 +68,9 @@ STDLIB = {"__future__", "csv", "json", "os", "time", "dataclasses", "pathlib", "
 STEP7_APP_IMPORTS = {
     "measurement.py": {"workflow.measurement_pairing", "workflow.measurement_state",
                        "core.text_io", "core.file_manager"},
-    "job.py": {"workflow.measurement_state"},
+    "job.py": {"workflow.measurement_state",
+               # step 8: Save is guarded as every measurement is (old/ copy, C0 -> C)
+               "workflow.measurement_session"},
 }
 
 

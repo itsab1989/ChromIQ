@@ -60,12 +60,13 @@ from . import measurement as ms
 from . import reader as rd
 from . import scan as sc
 from . import session_table as tbl
+from . import session_end as se
 from . import spot as sp
 from . import usb_system as us
 from .diagnostics import Diagnostics
 from .session_table import Doubt, Stopped
 
-JOB_VERSION = "step7-1"
+JOB_VERSION = "step8-1"
 
 
 class Kind:
@@ -94,6 +95,8 @@ class Confirm:
     CAL_OWN_TILE = "calibration_own_tile"     # tester CAL_OWN: the i1Pro 2 on its own tile
     CAL_RESEAT = "calibration_reseated"       # tester CAL_RESEAT: seated back in the arm
     ROW_FAILED = "row_failed"                 # APP_DESIGN 9: read it again / skip / stop
+    # step 8: the end of a session (M-END's three buttons; M-END-EMPTY asks nothing)
+    END = "end_of_session"                    # save (and stop) / keep measuring / discard
 
 
 CHOICES = {
@@ -113,6 +116,7 @@ CHOICES = {
     Confirm.CAL_OWN_TILE: ("ready", "stop"),
     Confirm.CAL_RESEAT: ("seated", "stop"),
     Confirm.ROW_FAILED: ("again", "skip", "stop"),
+    Confirm.END: ("save", "keep measuring", "discard"),
 }
 #: what the reader consent stands for (tester 0.5.1's READER_CONSENT, as facts; the window words
 #: them). The Mac-only facts are listed only on a Mac.
@@ -487,7 +491,9 @@ class TableJob:
         self.rows_again: "dict[int, int]" = {}
         self._row_seq = 0
         self.tile_readings: "list[dict]" = []
-        self.ended: "str | None" = None          # "saved" / "discarded"
+        self.ended: "str | None" = None          # "saved" / "discarded" / "nothing_read"
+        #: step 8: interrupted earlier sessions adopted by this one (their readings count)
+        self._earlier_dirs: "list[Path]" = []
         self.diag.log("INFO", f"ChromIQ table job {JOB_VERSION} (table module "
                               f"{tbl.TOOL_NAME} {tbl.TOOL_VERSION}); page {self.page + 1}")
 
@@ -784,6 +790,9 @@ class TableJob:
                               table=sheet.get("table_model"), head=sheet.get("head_model"))
         try:
             self.caps = cp.caps_for_sheet(sheet)
+            if self.only_locs is not None:
+                # step 8, resume: the caps come from what is MISSING, not from the whole chart
+                self.caps = cp.caps_for_missing(sheet, self.only_locs)
         except cp.CapsRefused as exc:
             raise StageFailed(exc.reason, **exc.detail) from None
         if not 0 <= self.page < len(self.caps.shape.pages):
@@ -1848,7 +1857,11 @@ class TableJob:
             self._write_readings(folder, name, readings + rec["failed"])
             self._block["data"].setdefault("rows", []).append(
                 {k: rec[k] for k in ("page", "row", "attempt", "status", "why", "reader_ti3")}
-                | {"read": len(rec["accepted"]), "failed": len(rec["failed"])})
+                | {"read": len(rec["accepted"]), "failed": len(rec["failed"]),
+                   # the analysis script's row keys (analyse_session_050.py)
+                   "kind": plan.kind, "notes": []})
+            self._block["data"]["spot_readings"] = (
+                self._block["data"].get("spot_readings", 0) + len(readings))
         return rec
 
     def _between_patches(self) -> None:
@@ -1945,7 +1958,15 @@ class TableJob:
         except OSError:
             pass
 
-    # ---- the measurement ---------------------------------------------------------------------
+    # ---- the measurement (step 7) and the end of a session (step 8) -------------------------
+    def _session_dirs(self) -> "list[Path]":
+        return list(self._earlier_dirs) + [self.run.i1io_table_session_dir(self.stamp)]
+
+    def _base(self) -> "Path | None":
+        """The run's partial measurement this session completes (resume, or an adopted
+        interrupted session on top of one), else None."""
+        return self._resume_base
+
     def measurement(self) -> StepResult:
         """This session's readings as one measurement, in the session folder
         (``Run.i1io_table_measurement``): complete or partial, never written into the run."""
@@ -1953,42 +1974,237 @@ class TableJob:
             return self._result("measurement", Kind.REFUSED, "no_run")
         if self.ended == "discarded":
             return self._result("measurement", Kind.REFUSED, "discarded")
-        a = ms.assemble([self.run.i1io_table_session_dir(self.stamp)], self._chart_ti2,
-                        self.run.i1io_table_measurement(self.stamp), base_ti3=self._resume_base)
+        a = ms.assemble(self._session_dirs(), self._chart_ti2,
+                        self.run.i1io_table_measurement(self.stamp), base_ti3=self._base())
         self._assembly = a
         self.diag.write_json("measurement.json", a.as_dict())
         kind = Kind.OK if a.state in ("complete", "partial") else Kind.REFUSED
         return self._result("measurement", kind, a.reason, measurement=a.as_dict())
 
-    def save(self) -> StepResult:
-        """The person's Save: the measurement becomes ``Run.measurement_ti3`` (a partial one is
-        filed as partial; a later START with resume completes it). Sends nothing."""
+    def accepted_in_this_session(self) -> int:
+        if self.run is None or self.stamp is None:
+            return 0
+        return sum(len(rec.get("accepted") or []) for _f, rec in
+                   ms.row_records([self.run.i1io_table_session_dir(self.stamp)]))
+
+    def end_state(self) -> dict:
+        """What the session would leave if it ended now (nothing is sent, nothing filed), in
+        the binding specs' terms: ``complete`` (every patch of every page, §3a by location),
+        ``partial`` (which pages, rows and patches are missing), or ``nothing_read`` (this
+        session accepted no reading: M-END-EMPTY); with the arm's true state and way back."""
+        new = self.accepted_in_this_session() + sum(
+            len(rec.get("accepted") or []) for _f, rec in ms.row_records(self._earlier_dirs))
+        out = {"state": se.EMPTY, "read_in_this_session": self.accepted_in_this_session(),
+               "pages": len(self.sheet.get("pages", [])), "way_back": self.way_back(),
+               "arm_out": self.out_known() or bool(self._table is not None
+                                                   and self._table.arm_free),
+               "at_rest": self.at_rest() or self.parked() or self.unread_rest(),
+               "measurement_before": self._before_state()}
+        if new == 0:
+            return out
+        res = self.measurement()
+        a = getattr(self, "_assembly", None)
+        if not res.ok or a is None:
+            out.update(state="refused", reason=res.reason)
+            return out
+        out.update(state=a.state, read=a.read, expected=a.expected,
+                   missing=se.missing_by_page(self.sheet, a.unread),
+                   rejected=[list(r) for r in a.rejected])
+        return out
+
+    def _before_state(self) -> str:
+        from workflow.measurement_state import classify
+        if self.run is None:
+            return "none"
+        try:
+            return classify(self.run.measurement_ti3, self._chart_ti2).state.value
+        except Exception:      # noqa: BLE001 - a question, never a blocker
+            return "unreadable"
+
+    def end(self) -> StepResult:
+        """The end of the session (M-END), asked only between steps: the session's end state,
+        then the person's choice ``save`` (Save and stop), ``keep measuring``, ``discard``
+        (Discard and stop); no default. Nothing read in this session: no question, nothing
+        saved (M-END-EMPTY). NOTHING MOVES HERE: after save or discard the arm goes home only
+        by ``home()`` (its own GO); keep measuring reads on only by ``read_row()`` (its own GO).
+        The page's GO is cleared: the person's hands may have been on the bed."""
         if self._gen is not None:
+            return self._result("end", Kind.REFUSED, "another_step_waits_for_a_confirmation")
+        if self.ended is not None:
+            return self._result("end", Kind.REFUSED, f"ended_already_{self.ended}")
+        self._go_page = None
+        st = self.end_state()
+        self.diag.log("INFO", "end of the session asked: " + json.dumps(
+            {k: v for k, v in st.items() if k != "missing"}, default=str))
+        if st["state"] == se.EMPTY:
+            self.ended = "nothing_read"
+            self._end_detail = {"ending": "nothing_read", **self._after_end()}
+            return self._result("end", Kind.OK, "", **self._end_detail, end_state=st)
+        if st["state"] == "refused":
+            return self._result("end", Kind.REFUSED, st.get("reason", "measurement_refused"),
+                                end_state=st)
+        return self._begin("end", self._end(st))
+
+    def _after_end(self) -> dict:
+        """What may follow an ending: the homing when the arm is out (its own GO)."""
+        d = self._table
+        out = {"next": []}
+        if d is not None and d.closed_reason is None and (self.out_known()
+                                                          or d.arm_free is True):
+            out["next"] = ["home"]
+        return out
+
+    def _end(self, st):
+        ans = yield Ask(Confirm.END, {"end_state": st})
+        if ans == "keep measuring":
+            rows = [{"page": pg["page"], "row": r["row"], "patches": r["patches"]}
+                    for pg in st.get("missing", []) for r in pg["rows"]]
+            return {"ending": "keep_measuring", "missing_rows": rows,
+                    "rows_read_again": self.rows_again.get(self.page, 0)}
+        if ans == "discard":
+            res = self.discard()
+            return {"ending": "discarded", **self._after_end(), **res.detail}
+        res = self.save()
+        if not res.ok:
+            raise StageFailed(res.reason, **res.detail)
+        return {"ending": "saved", **self._after_end(), **res.detail}
+
+    def dismiss_end(self) -> StepResult:
+        """The later window's Esc or X on the ending: a withdrawal (measurement_exit_strategy
+        note 8b). It takes the option that changes nothing: nothing is saved or discarded and
+        NOTHING MOVES; the readings stay where they are and the ending can be asked again."""
+        if self._gen is None or self._pending is None or self._pending.kind != Confirm.END:
+            return self._result("end", Kind.REFUSED, "no_ending_open")
+        gen, self._gen, self._pending = self._gen, None, None
+        try:
+            gen.close()
+        except BaseException:         # noqa: BLE001
+            pass
+        self._gen_step = None
+        self._go_page = None
+        self.diag.log("ANSWER", "end: the ending was dismissed (nothing saved, nothing moved)")
+        return StepResult("end", Kind.OK, "", self.state(), self.way_back(),
+                          detail={"ending": "dismissed"})
+
+    def save(self) -> StepResult:
+        """The person's Save: the measurement becomes ``Run.measurement_ti3``, guarded as every
+        measurement is (``MeasurementSession``: the run's earlier file copied to ``old/`` and
+        C0 recorded first; the verdict of §3b after). A partial one is filed as partial; a later
+        START with resume completes it. Never over a measurement the run already has, unless it
+        is the partial this session completes. Sends nothing. The window then announces the
+        file as after a hand measurement (``detail["announce"]``, the run's measurement)."""
+        from workflow.measurement_session import MeasurementSession
+        from workflow.measurement_state import can_resume
+        if self._gen is not None and self._gen_step != "end":
             return self._result("save", Kind.REFUSED, "another_step_waits_for_a_confirmation")
+        if self.ended in ("saved", "discarded"):
+            return self._result("save", Kind.REFUSED, self.ended)
         res = self.measurement()
         if not res.ok:
             return replace(res, step="save")
-        why = ms.file_into_run(self._assembly, self.run, may_replace=self._resume_base)
+        dest = Path(self.run.measurement_ti3)
+        if dest.exists() and (self._base() is None
+                              or Path(self._base()).resolve() != dest.resolve()):
+            return self._result("save", Kind.REFUSED, "run_has_a_measurement_already")
+        guard = MeasurementSession(dest, self._chart_ti2, self.run.old_dir)
+        guard.begin()
+        why = ms.file_into_run(self._assembly, self.run, may_replace=self._base())
         if why:
             return self._result("save", Kind.REFUSED, why)
+        outcome = guard.finish(resumed=self._base() is not None)
         self.ended = "saved"
-        self.diag.write_json("session_result.json", {"filed": True,
-                                                     "state": self._assembly.state})
+        detail = {"measurement": self._assembly.as_dict(),
+                  "announce": dest.name, "verdict": outcome.verdict.value,
+                  "before": outcome.before, "after": outcome.after, "added": outcome.added,
+                  "restored": outcome.restored, "message_id": outcome.message_id,
+                  "archive": outcome.archive.parent.name if outcome.archive else None,
+                  "resume_next": (self._assembly.state == "partial"
+                                  and can_resume(dest, self._chart_ti2))}
+        self.diag.write_json(ms.SESSION_RESULT, {"filed": True, "state": self._assembly.state,
+                                                  "verdict": outcome.verdict.value,
+                                                  "added": outcome.added})
         self.diag.log("INFO", f"the measurement was saved into the run "
-                              f"({self._assembly.state}, {self._assembly.read} readings)")
-        return self._result("save", Kind.OK, "", measurement=self._assembly.as_dict())
+                              f"({self._assembly.state}, {self._assembly.read} readings, "
+                              f"verdict {outcome.verdict.value})")
+        return self._result("save", Kind.OK, "", **detail)
 
     def discard(self) -> StepResult:
         """The person's Discard: nothing goes into the run's measurement, and these readings
-        are never used by a later assembly (the session folder keeps them as the log of what
-        happened, marked)."""
+        are never used by a later assembly. The session folder (its log and raw readings)
+        STAYS in the run, marked (the coordinator's decision of 2026-11-17: diagnostics are
+        worth keeping; the owner may change it); ``session_end.set_aside`` moves such folders
+        into ``old/`` later, never deletes them."""
         if self.ended == "saved":
             return self._result("discard", Kind.REFUSED, "saved_already")
         self.ended = "discarded"
-        self.diag.write_json(ms.DISCARDED, {"discarded_by_person": True})
+        if self.diag.folder is not None:
+            se.mark_discarded(self.diag.folder, "the person discarded the session")
         self.diag.log("INFO", "the readings were discarded: nothing was written into the "
                               "run's measurement")
-        return self._result("discard", Kind.OK, "")
+        return self._result("discard", Kind.OK, "", session_folder_kept=True)
+
+    # ---- what the next START finds (step 8) -------------------------------------------------
+    def earlier_sessions(self) -> "list[dict]":
+        """The run's earlier table sessions as this START finds them (saved, discarded,
+        interrupted by a crash, a logout or a power cut, with or without a pending marker)."""
+        if self.run is None:
+            return []
+        return [e.as_dict() for e in se.earlier_sessions(self.run, exclude=self.stamp,
+                                                         chart_ti2=self._chart_ti2)]
+
+    def adopt_earlier(self, stamp: str) -> StepResult:
+        """Complete an INTERRUPTED earlier session: its accepted readings become part of this
+        session's measurement, and only the patches still missing (with the run's own partial
+        measurement, if any) are read. Before any row is read; sends nothing."""
+        from workflow.measurement_state import Ti3State, classify
+        if self.run is None or self._chart_ti2 is None:
+            return self._result("adopt", Kind.REFUSED, "no_run")
+        if any(self.row_status.values()):
+            return self._result("adopt", Kind.REFUSED, "rows_read_already")
+        try:
+            sdir = self.run.i1io_table_session_dir(stamp)
+        except ValueError:
+            return self._result("adopt", Kind.REFUSED, "not_a_session")
+        if stamp == self.stamp or se.session_state(sdir) != se.INTERRUPTED:
+            return self._result("adopt", Kind.REFUSED, "not_an_interrupted_session",
+                                state=se.session_state(sdir) if sdir.is_dir() else None)
+        live = Path(self.run.measurement_ti3)
+        facts = classify(live, self._chart_ti2)
+        if facts.state is Ti3State.COMPLETE:
+            return self._result("adopt", Kind.REFUSED, "run_has_a_complete_measurement")
+        if live.exists() and facts.state is not Ti3State.PARTIAL:
+            return self._result("adopt", Kind.REFUSED, "run_has_a_measurement_already",
+                                state=facts.state.value)
+        base = live if facts.state is Ti3State.PARTIAL else None
+        probe = self.run.i1io_table_session_dir(self.stamp) / f"adopted-{stamp}.ti3"
+        a = ms.assemble(list(self._earlier_dirs) + [sdir], self._chart_ti2, probe,
+                        base_ti3=base)
+        if a.state not in ("complete", "partial"):
+            return self._result("adopt", Kind.REFUSED, a.reason or "nothing_to_adopt")
+        self._earlier_dirs.append(sdir)
+        self._resume_base = base
+        self.only_locs = set(a.unread)
+        self.diag.log("INFO", f"an interrupted session ({stamp}) adopted: {a.read} readings, "
+                              f"{len(a.unread)} patches still to read")
+        return self._result("adopt", Kind.OK, "", read=a.read, still_missing=len(a.unread),
+                            state=a.state)
+
+    def discard_earlier(self, stamp: str) -> StepResult:
+        """An interrupted earlier session the person does not want: marked discarded (its
+        folder stays, never used again). Sends nothing."""
+        if self.run is None:
+            return self._result("discard_earlier", Kind.REFUSED, "no_run")
+        try:
+            sdir = self.run.i1io_table_session_dir(stamp)
+        except ValueError:
+            return self._result("discard_earlier", Kind.REFUSED, "not_a_session")
+        if stamp == self.stamp or not sdir.is_dir() or se.session_state(sdir) in (se.SAVED,
+                                                                                  se.DISCARDED):
+            return self._result("discard_earlier", Kind.REFUSED, "not_an_interrupted_session")
+        if sdir in self._earlier_dirs:
+            return self._result("discard_earlier", Kind.REFUSED, "adopted_already")
+        se.mark_discarded(sdir, "discarded at a later START")
+        return self._result("discard_earlier", Kind.OK, "")
 
     # ---- close: sends nothing ----------------------------------------------------------------
     def close(self) -> StepResult:
@@ -2031,6 +2247,18 @@ class TableJob:
                                   "not to ask after each step")
         if self.session_notes:
             self.diag.write_json("notes.json", self.session_notes)
+        # step 8: the session's summary (beside summary.json, which the analysis script and
+        # the log's RESULT blocks already carry): how it ended, and what it read
+        self.diag.write_json("session_summary.json", {
+            "job": JOB_VERSION, "ending": self.ended or "no_ending",
+            "pages": len(self.sheet.get("pages", [])),
+            "rows": {str(pg + 1): {str(r + 1): v for r, v in rows.items()}
+                     for pg, rows in self.row_status.items()},
+            "rows_read_again": {str(k + 1): v for k, v in self.rows_again.items()},
+            "accepted_readings": self.accepted_in_this_session(),
+            "calibration_place": self.cal_place, "problems": [p[0] for p in self.problems],
+            "reports": self.reports, "way_back": wb,
+            "adopted": [d.name for d in self._earlier_dirs]})
         self.phase = "closed"
         self.diag.finish()
         return StepResult("close", Kind.OK, "", st, wb, detail=detail)

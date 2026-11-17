@@ -179,3 +179,22 @@ def caps_for_sheet(sheet: dict) -> Caps:
 
 #: The creep's own step (5 mm), kept with the geometry module's value (a test pins both).
 CREEP_STEP = geo.CREEP_STEP
+
+
+def caps_for_missing(sheet: dict, locs) -> Caps:
+    """Step 8, resume: the caps of a session that reads only *locs* (the patches a partial
+    measurement lacks): the chart's shape with every row cut to its missing patches (rows and
+    pages with none left out). A page with nothing missing needs no alignment, so it adds
+    nothing. Falls back to the whole chart's caps when nothing is missing (nothing will be
+    read anyway)."""
+    keep = set(locs)
+    try:
+        pages = tuple(t for t in (tuple(n for n in (sum(1 for q in st["patches"]
+                                                         if q["loc"] in keep)
+                                                     for st in pg["strips"]) if n)
+                                  for pg in sheet["pages"]) if t)
+    except (KeyError, TypeError) as exc:
+        raise CapsRefused("chart_record_unreadable", what=type(exc).__name__) from None
+    if not pages:
+        return caps_for_sheet(sheet)
+    return caps_for(ChartShape(pages))

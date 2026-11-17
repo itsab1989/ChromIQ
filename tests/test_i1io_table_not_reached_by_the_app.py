@@ -73,7 +73,9 @@ def test_the_package_exists_and_is_complete():
         # build step 6: the job and its helpers (still reached by nothing in the app)
         "job.py", "caps.py", "usb_system.py", "diagnostics.py",
         # build step 7: reading (still reached by nothing in the app)
-        "spot.py", "measurement.py"}
+        "spot.py", "measurement.py",
+        # build step 8: the end of a session (still reached by nothing in the app)
+        "session_end.py"}
 
 
 def test_no_file_of_the_app_imports_the_table_package():

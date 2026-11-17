@@ -130,6 +130,13 @@ I1IO_TABLE_DIRNAME = "i1io-table"
 #: a test pins that the two are the same; not imported, so that nothing here
 #: loads the table package).
 I1IO_TABLE_PENDING_MARKER = "SCAN_MOVE_MAY_BE_PENDING.txt"
+#: Written into a table session folder by Discard (`workflow.i1io.table.
+#: measurement.DISCARDED`; a test pins that the two are the same): its readings
+#: are never used again, and the folder may be set aside (`Run.
+#: i1io_table_discarded_sessions`, `Run.i1io_table_session_archive_dir`).
+I1IO_TABLE_DISCARDED = "discarded.json"
+#: Written into a table session folder when its measurement was saved.
+I1IO_TABLE_SESSION_RESULT = "session_result.json"
 _I1IO_TABLE_STAMP = re.compile(r"\d{8}-\d{6}(?:_[1-9]\d*)?", re.ASCII)  # ASCII digits only
 #: #130 — the copy of the chart a run (or a dated verification) was measured
 #: with. Same name at both levels, so one word means one thing.
@@ -2305,6 +2312,24 @@ class Run:
         """The marker a strip move that may still be waiting for the lamp
         leaves in its session folder (`I1IO_TABLE_PENDING_MARKER`)."""
         return self.i1io_table_session_dir(stamp) / I1IO_TABLE_PENDING_MARKER
+
+    def i1io_table_session_result(self, stamp: str) -> Path:
+        """``i1io-table/<stamp>/session_result.json``: written when that
+        START's measurement was saved into the run."""
+        return self.i1io_table_session_dir(stamp) / I1IO_TABLE_SESSION_RESULT
+
+    def i1io_table_discarded_sessions(self) -> "list[Path]":
+        """This run's table session folders the person discarded (they hold
+        `I1IO_TABLE_DISCARDED`), oldest first: kept as diagnostics, never used
+        for a measurement, and the ones a later clean-up may set aside."""
+        return [s for s in self.i1io_table_sessions()
+                if (s / I1IO_TABLE_DISCARDED).is_file()]
+
+    def i1io_table_session_archive_dir(self, stamp: str) -> Path:
+        """Where a table session folder is set aside (moved, never deleted):
+        ``old/i1io-table/<stamp>/``. Path only; nothing is created."""
+        self.i1io_table_session_dir(stamp)          # the stamp is checked
+        return self.old_dir / I1IO_TABLE_DIRNAME / stamp
 
     def i1io_table_measurement(self, stamp: str) -> Path:
         """``i1io-table/<stamp>/measurement.ti3``: the measurement that START's

@@ -51,7 +51,8 @@ def test_a_whole_page_becomes_a_complete_measurement_in_the_charts_order(tmp_pat
             reader_vals[x[1]] = x[5:]
     assert all(reader_vals[x[1]] == x[5:] for x in rows)
     assert json.loads((run.i1io_table_session_dir(RS.STAMP) / "session_result.json")
-                      .read_text(encoding="utf-8")) == {"filed": True, "state": "complete"}
+                      .read_text(encoding="utf-8")) == {"filed": True, "state": "complete",
+                                                        "verdict": "keep", "added": 8}
 
 
 def test_a_session_with_a_row_missing_never_looks_complete(tmp_path):

@@ -46,8 +46,11 @@ TABLE_VALUE = "i1iO 2"
 #: a reading's event XYZ (4 decimals) and the value the helper saved for it must agree
 XYZ_ABS_TOLERANCE = 0.0006
 ROW_RECORD_SUFFIX = ".row.json"
-#: written into a session folder by Discard: its readings are never used again
+#: written into a session folder by Discard: its readings are never used again (the same name
+#: as core.file_manager.I1IO_TABLE_DISCARDED; a test pins it)
 DISCARDED = "discarded.json"
+#: written into a session folder when its measurement was saved (I1IO_TABLE_SESSION_RESULT)
+SESSION_RESULT = "session_result.json"
 
 
 class Refused(Exception):
