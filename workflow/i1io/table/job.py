@@ -568,6 +568,11 @@ class TableJob:
 
     # ---- results ---------------------------------------------------------------------------
     def _result(self, step: str, kind: str, reason: str = "", **detail) -> StepResult:
+        if kind in (Kind.REFUSED, Kind.STOPPED):
+            # the safety review of step 7 (REQUIRED): a step that ended refused or stopped (the
+            # person's stop inside a row, a declined move, a failed row, any named refusal) may
+            # have the person's hands on the bed; the next moving step waits for a hands-off GO
+            self._go_page = None
         return StepResult(step, kind, reason, self.state(), self.way_back(), detail=detail)
 
     def _needs(self, step: str, ask: Ask) -> StepResult:
@@ -1734,6 +1739,7 @@ class TableJob:
                 self.row_status.setdefault(self.page, {})[plan.index] = "read"
                 break
             self.row_status.setdefault(self.page, {})[plan.index] = "failed"
+            self._go_page = None          # a failed row: hands may reach in; GO before any move
             ans = yield Ask(Confirm.ROW_FAILED, {
                 "row": plan.index + 1, "page": self.page + 1, "why": rec["why"],
                 "loc": rec.get("failed_loc"), "read": len(rec["accepted"]),
@@ -1745,6 +1751,13 @@ class TableJob:
             if ans == "again":
                 if self._calibration_due_for(len(plan.patches)):
                     raise StageFailed("calibration_due", row=plan.index + 1)
+                # the reviewer's recommended variant: the arm moves right after "again", so
+                # the hands-off GO is asked first, in both modes
+                go = yield Ask(Confirm.GO, {"step": "read_row", "page": self.page + 1,
+                                            "row": plan.index + 1, "again": True})
+                if go != "yes":
+                    raise PersonStopped("person_chose_back", row=plan.index + 1)
+                self._go_page = self.page
                 self.rows_again[self.page] = self.rows_again.get(self.page, 0) + 1
                 attempt += 1
                 continue
@@ -1762,6 +1775,7 @@ class TableJob:
             # honoured (nothing follows without a new step) and does not reach the next row
             self._pause_stop = False
             out["stop_asked_during_the_last_patch"] = True
+            self._go_page = None          # the person pressed stop: GO before the next move
         n_next = len(plan.patches)
         if self._calibration_due_for(n_next):
             out["calibration_due_before_next_row"] = True
