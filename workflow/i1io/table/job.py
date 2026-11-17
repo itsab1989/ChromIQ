@@ -472,6 +472,10 @@ class TableJob:
         self.calibration: "dict | None" = None
         self.cal_place: "str | None" = None
         self.calibration_due = False
+        #: the person lifted the i1Pro 2 out of the arm's holder for its own tile, and has not
+        #: said "seated" since: nothing moves (its cable could catch), nothing but a calibration
+        #: (which asks for "seated" again) runs
+        self.instrument_out = False
         self._cal_refused: "str | None" = None
         self.options_report = sp.OptionsReport(sp.ReadOptions())
         #: resume / refinement: only these patches are read (None: every patch)
@@ -838,6 +842,8 @@ class TableJob:
             return self._result("start_up", Kind.REFUSED, why)
         if self._table.state != "cold" or self._table.start_up_sent:
             return self._result("start_up", Kind.REFUSED, "table_not_just_switched_on")
+        if self.instrument_out:
+            return self._result("start_up", Kind.REFUSED, "instrument_not_in_the_arm")
         if self.stopped_by_person:
             return self._result("start_up", Kind.REFUSED, "stopped_by_person")
         return self._begin("start_up", self._start_up())
@@ -877,6 +883,8 @@ class TableJob:
         if d.state == "cold":
             return "table_not_started"
         key = STAGE_KEY[step]
+        if self.instrument_out and step != "calibrate":
+            return "instrument_not_in_the_arm"
         if self.report_due is not None and step != "home":
             return "report_due"
         if self.only_home and step != "home":
@@ -1616,8 +1624,9 @@ class TableJob:
                 self._close_reader(reader)
                 raise PersonStopped("calibration_not_started")
             # the instrument is out of the arm from here: no white counts (and so no row is
-            # read) until a calibration ends with the person's "seated"
+            # read) until a calibration ends with the person's "seated", and nothing moves
             self.calibration = None
+            self.instrument_out = True
         self._cal_refused = None
         self._open_reader(reader, self._cal_place_ok)
         cal_ok = bool(getattr(reader, "calibrated", False))
@@ -1633,6 +1642,7 @@ class TableJob:
             ans = yield Ask(Confirm.CAL_RESEAT)
             if ans != "seated":
                 raise StageFailed("instrument_not_seated_again")
+            self.instrument_out = False
         self.calibration = {"place": place, "t": made, "kind": "spot"}
         self.calibration_due = False
         self._check_rest("after the calibration")

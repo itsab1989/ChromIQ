@@ -201,9 +201,9 @@ def test_calibration_not_seated_again_reads_no_row(tmp_path):
     p.drive(job.open())
     r = p.drive(job.calibrate())
     assert (r.kind, r.reason) == (J.Kind.REFUSED, "instrument_not_seated_again")
-    assert job.calibration is None
-    assert p.drive(job.align()).ok
-    assert job.read_row().reason == "needs_calibration"
+    assert job.calibration is None and job.instrument_out
+    assert job.align().reason == "instrument_not_in_the_arm"
+    assert job.read_row().reason == "instrument_not_in_the_arm"
 
 
 def test_calibration_only_at_rest(tmp_path):
@@ -675,5 +675,50 @@ def test_a_failed_calibration_on_the_own_tile_leaves_no_white_until_seated_again
     r = p.drive(job.calibrate())                            # the instrument out again; fails
     assert (r.kind, r.reason) == (J.Kind.REFUSED, "calibration_failed")
     assert job.calibration is None                          # it is not in the arm
+    assert job.align().reason == "instrument_not_in_the_arm"
+    assert job.read_row().reason == "instrument_not_in_the_arm"
+    assert p.drive(job.calibrate()).ok                      # the third: seated again
+    assert p.drive(job.align()).ok and p.drive(job.read_row()).ok
+
+
+def test_while_the_instrument_is_out_of_the_arm_nothing_moves(tmp_path):
+    """Own tile: from "ready" (lifted out) until "seated", its cable hangs free: no moving step
+    and no reading runs; only a calibration (which asks for "seated" again) does."""
+    job, sim, helper, run, p = job_for(tmp_path, {J.Confirm.CAL_PLACE: "own tile",
+                                                  J.Confirm.CAL_RESEAT: "stop"})
+    p.drive(job.open())
+    assert p.drive(job.calibrate()).reason == "instrument_not_seated_again"
+    assert job.instrument_out
+    n = len(sim.received)
+    for step in ("park", "align", "home", "read_tile", "read_row"):
+        assert getattr(job, step)().reason == "instrument_not_in_the_arm", step
+    assert len(sim.received) == n
+    p.script[J.Confirm.CAL_RESEAT] = "seated"
+    assert p.drive(job.calibrate()).ok and not job.instrument_out
     assert p.drive(job.align()).ok
-    assert job.read_row().reason == "needs_calibration"
+
+
+def test_a_calibration_that_fails_with_the_instrument_out_keeps_it_out(tmp_path):
+    job, sim, helper, run, p = job_for(tmp_path, {J.Confirm.CAL_PLACE: "own tile"},
+                                       faults={"open": "cal_fails"})
+    p.drive(job.open())
+    assert p.drive(job.calibrate()).reason == "calibration_failed"
+    assert job.instrument_out and job.align().reason == "instrument_not_in_the_arm"
+
+
+def test_the_reading_constants_are_pinned():
+    """Part C's plausibility and pace, ArgyllCMS's hour, the helper's 2-minute rule as the
+    margin, the reader's own waits, the i1Pro 2's name as ArgyllCMS gives it."""
+    assert sp.PLAUSIBLE_Y == (0.2, 130.0) and sp.PACE_FLOOR_S == 1.0
+    assert (sp.CAL_VALID_S, sp.CAL_MARGIN_S, sp.PATCH_S_ESTIMATE) == (3600.0, 120.0, 1.5)
+    assert (sp.OPEN_TIMEOUT_S, sp.READ_TIMEOUT_S) == (45.0, 15.0)
+    assert sp.I1PRO2_MODEL == "X-Rite i1 Pro 2" and J.ROWS_READ_AGAIN_PER_PAGE == 2
+    assert J.CAL_PLACE_RECOMMENDED == "own tile"
+
+
+def test_a_row_needs_its_time_and_the_margin_left_on_the_white(tmp_path):
+    job, sim, helper, run, p = job_for(tmp_path)
+    ready_to_read(job, p)
+    # the row's own time is left, but not the two minutes on top
+    sim.clock = job.calibration["t"] + sp.CAL_VALID_S - sp.row_seconds(4) - sp.CAL_MARGIN_S / 2
+    assert job.read_row().reason == "calibration_due"
