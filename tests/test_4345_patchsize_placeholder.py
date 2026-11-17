@@ -167,6 +167,58 @@ def test_the_preview_line_and_the_sheet_agree(tmp_path, qapp):
         patch_size_text(res.patch_size_mm) == "7.0x7.4"
 
 
+_HEX_PREVIEW = [
+    (dict(instrument="SS", hflag=True, patch_w_mm=8.0, patch_h_mm=8.0),
+     "8.0x10.7"),
+    (dict(instrument="CR30", hflag=True, patch_w_mm=10.0, patch_h_mm=10.0),
+     "10.0x13.3"),
+    (dict(instrument="CR30", hflag=True, hex_flat_top=True,
+          patch_w_mm=10.0, patch_h_mm=10.0), "13.3x10.0"),
+]
+
+
+@pytest.mark.parametrize("kw,expected", _HEX_PREVIEW,
+                         ids=["ss_hex", "cr30_hex", "cr30_turned_hex"])
+@pytest.mark.parametrize("selectors", [False, True],
+                         ids=["loaded_recipe", "create_chart"])
+def test_the_preview_line_shows_a_hexagon_as_the_sheet_prints_it(
+        tmp_path, qapp, kw, expected, selectors):
+    """Review R1 of 4.3.45: the Preview showed the typed boxes ("10.0x10.0")
+    while a honeycomb's sheet prints its hexagon tip to tip ("10.0x13.3",
+    turned "13.3x10.0"). Asked both of Create Chart's panel (its own
+    Instrument and Mode selectors and the "turned" box) and of a panel that
+    only had the recipe loaded (Preferences > Chart Layout)."""
+    from ui.dialogs.layout_options_panel import LayoutOptionsPanel
+    rec = _recipe(**kw)
+    panel = LayoutOptionsPanel(with_selectors=selectors)
+    panel.set_recipe(rec)
+    if selectors:
+        assert panel.instr.currentData() == kw["instrument"]
+        assert panel.mode.currentData() == "hex"
+    panel.patch_x.setValue(kw["patch_w_mm"])
+    panel.patch_y.setValue(kw["patch_h_mm"])
+    res, _u, _d = _build(tmp_path, "c", rec)
+    assert panel._resolve_sample("{patchsize}") == \
+        patch_size_text(res.patch_size_mm) == expected
+
+
+def test_the_preview_line_shows_a_sample_in_prioritise_chart_area(qapp):
+    """Review R1 of 4.3.45: in "Prioritise chart area" the (hidden) boxes do
+    not decide the size, so the Preview must not show them as if they did.
+    The fitted size needs the whole page, which only Generate builds, so the
+    Preview shows the sample, as it does for {patchcount} and {seed}."""
+    from ui.dialogs.layout_options_panel import LayoutOptionsPanel
+    panel = LayoutOptionsPanel(with_selectors=True)
+    panel.layout_mode.setCurrentIndex(panel.layout_mode.findData("patch_first"))
+    panel.patch_x.setValue(9.0)
+    panel.patch_y.setValue(9.0)
+    assert panel._resolve_sample("{patchsize}") == "9.0x9.0"
+    i = panel.layout_mode.findData("area_first")
+    assert i >= 0
+    panel.layout_mode.setCurrentIndex(i)
+    assert panel._resolve_sample("{patchsize}") == "7.0x7.4"   # the sample
+
+
 def test_an_area_fitted_patch_is_the_one_laid_out(tmp_path):
     """"Prioritise chart area" works the size out: the placeholder is that
     size, not the boxes' "auto", and the pitch the strips record averages

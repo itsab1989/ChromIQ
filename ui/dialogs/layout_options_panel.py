@@ -7353,16 +7353,33 @@ class LayoutOptionsPanel(QWidget):
         return resolve_placeholders(text, ctx)
 
     def _sample_patch_size(self) -> str:
-        """`{patchsize}` for the Preview line: the two Patch size boxes when
-        both are typed, else a sample (the chart prints the size it is laid
-        out with, which only Generate knows)."""
+        """`{patchsize}` for the Preview line: what the sheet prints for the
+        two Patch size boxes, else a sample like the other values here.
+
+        The build's rule (`chart.laid_out_patch_size_mm`, review R1 of
+        4.3.45): a hexagon is measured tip to tip from its slot, so 10 x 10
+        typed on a CR30 honeycomb prints "10.0x13.3" and, turned, "13.3x10.0".
+        In "Prioritise chart area" the boxes are hidden and do not decide the
+        size; the fitted size needs the whole page the host builds, which only
+        Generate knows, so the Preview shows the sample there, as it does for
+        {patchcount} and {seed}."""
+        sample = "7.0x7.4"
+        mode = getattr(self, "layout_mode", None)
+        try:
+            if mode is not None and mode.currentData() == "area_first":
+                return sample
+        except Exception:      # noqa: BLE001 - a preview, never a failure
+            return sample
+        from workflow.hex_support import shown_patch_size_mm
         from workflow.layout_engine.chart import patch_size_text
         try:
             w = float(self.patch_x.value())
             h = float(self.patch_y.value())
+            w, h, _pitch = shown_patch_size_mm(
+                w, h, self._area_is_hexagonal(), self._area_is_turned_hex())
         except Exception:      # noqa: BLE001 - a preview, never a failure
             w = h = 0.0
-        return patch_size_text((w, h)) or "7.0x7.4"
+        return patch_size_text((w, h)) or sample
 
     def _update_text_preview(self) -> None:
         if not hasattr(self, "text_preview"):
