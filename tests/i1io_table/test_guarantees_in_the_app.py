@@ -44,7 +44,9 @@ def _src(path) -> str:
 
 #: build step 6 adds the job (job.py), its derived caps (caps.py), the per-system USB checks
 #: (usb_system.py) and the session log (diagnostics.py); the five moved modules stay
-STEP6_MODULES = {"job.py", "caps.py", "usb_system.py", "diagnostics.py"}
+STEP6_MODULES = {"job.py", "caps.py", "usb_system.py", "diagnostics.py",
+                 # build step 7: reading (spot rows, the measurement)
+                 "spot.py", "measurement.py"}
 
 
 def test_the_package_holds_the_five_moved_modules_and_the_job():
@@ -56,7 +58,16 @@ STDLIB = {"__future__", "csv", "json", "os", "time", "dataclasses", "pathlib", "
           "re", "queue", "subprocess", "sys", "threading", "plistlib", "signal", "ctypes",
           "usb",          # pyusb: imported only inside open_table, when a real table is opened
           "copy",         # job.py: its own copy of the chart (review of step 6)
-          "getpass"}      # diagnostics.py: the user's name, only to keep it OUT of the log
+          "getpass",      # diagnostics.py: the user's name, only to keep it OUT of the log
+          "io", "shutil"}  # step 7: the readings' CSV; one copy of the measurement on Save
+#: step 7: the measurement is made with the APP's own functions for a measurement (the
+#: i1Profiler import's pairing, the measurement states, the atomic replace), never a second
+#: writer of its own; nothing else of the app is imported
+STEP7_APP_IMPORTS = {
+    "measurement.py": {"workflow.measurement_pairing", "workflow.measurement_state",
+                       "core.text_io", "core.file_manager"},
+    "job.py": {"workflow.measurement_state"},
+}
 
 
 @pytest.mark.parametrize("path", APP_MODULES + [MOVED["i1io_session_sim.py"],
@@ -88,7 +99,8 @@ def test_standard_library_only_and_no_em_dash(path):
                   # step 6 (owner's ruling): on Windows the table's driver state is read from
                   # the installer's own knowledge (read only)
                   or (path.name in ("session_table.py", "usb_system.py")
-                      and m == "core.usb_driver_installer"))
+                      and m == "core.usb_driver_installer")
+                  or m in STEP7_APP_IMPORTS.get(path.name, ()))
             assert ok, (path.name, m)
 
 

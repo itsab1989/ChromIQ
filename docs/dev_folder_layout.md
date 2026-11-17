@@ -76,6 +76,11 @@ path construction are owned by `core/file_manager.py` via three classes:
           <row>.spec.csv / .cut.ti3 / .cut.json   # raw stream, cut, cut record
           SCAN_MOVE_MAY_BE_PENDING.txt   # only after a strip move that may still wait
                                      #   for the lamp (Run.i1io_table_pending_marker)
+          row-<n>/<page_row>.*        #   per spot row (step 7): the reader's row chart and
+                                     #   .ti3, the job's .row.json and .readings.csv
+          measurement.ti3            #   the readings as one measurement (partial or complete,
+                                     #   Run.i1io_table_measurement); measurement_ti3 only on Save
+          discarded.json             #   only after Discard: these readings are never used
       meta.json
     run2/ …
 ```

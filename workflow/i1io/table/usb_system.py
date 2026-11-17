@@ -283,3 +283,13 @@ def preflight(platform: "str | None" = None) -> Preflight:
     return Preflight(system, usb_library.diagnostics(), instrument_check(devices),
                      holders_check(system), i1profiler_running(system),
                      table_driver_check(system))
+
+
+def instrument_now(platform: "str | None" = None) -> Check:
+    """Step 7: the instrument check alone, again before every start of the reader (the tester
+    checked before each reader too): exactly one 0971:2000 and no other measuring instrument.
+    Read only; the table the job holds is not looked at."""
+    import core.usb_library as usb_library
+    system = system_of(platform)
+    backend = usb_library.backend() if system in ("windows", "linux") else None
+    return instrument_check(list_devices(system, backend=backend))

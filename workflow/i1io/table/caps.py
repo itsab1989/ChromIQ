@@ -8,10 +8,11 @@ The tester program 0.6.0 used fixed caps per sitting (8,680 lines / 3,060 moveme
 ``session_caps()``), which would refuse the third or fourth 990-patch page. The job replaces them
 with caps worked out from the chart's own rows, patches and pages:
 
-    lines = OPEN + PARK + sum over pages of (page_need + page_allowance)
+    lines = OPEN + PARK + CAL + TILE + sum over pages of (page_need + page_allowance)
     page_need = ALIGN_CYCLE + sum over rows of ROW(n)
     page_allowance = ALIGN_CYCLE                (one more alignment: a new white, a re-aim)
                      + 2 x the page's longest ROW  (two rows read again)
+                     + CAL + TILE                (step 7: a new white and a tile reading)
                      + ceil(10 % of page_need)
 
 and the same for movements. Every per-step number below is the tester's own (its stage caps and
@@ -57,11 +58,24 @@ STRIP_ROW = (12 + 7, 2 + 2)
 ALLOWANCE_FRACTION = 0.10
 ALLOWANCE_ROWS = 2
 ALLOWANCE_ALIGNMENTS = 1
+#: Step 7, reading: a calibration reads where the arm rests before and after it (tester C1: 2
+#: lines, no movement); the white-tile reading three (C2). Each page carries one of each (a new
+#: white is due every hour, between rows or pages), and the session one more of each.
+CALIBRATION = (2, 0)
+TILE_READING = (3, 0)
 
 
 def spot_row(n: int) -> "tuple[int, int]":
     """A spot row of *n* patches: stage D3's caps (2 n + 4 lines, n movements)."""
     return (2 * n + 4, n)
+
+
+def spot_row_step(n: int) -> "tuple[int, int]":
+    """Step 7: one attempt at a spot row of *n* patches, the job step's own cap: D3's 2 n + 4
+    plus one fresh position reading per patch (a failed reading is read again once, from a
+    fresh reading of where the arm stands, the owner's rule). The session caps keep D3's
+    numbers; such re-reads come out of the page's allowance."""
+    return (3 * n + 4, n)
 
 
 def row_cost(n: int) -> "tuple[int, int]":
@@ -125,6 +139,7 @@ def page_caps(rows: "tuple[int, ...]") -> "tuple[int, int]":
     out = []
     for i in (0, 1):
         allow = (ALLOWANCE_ALIGNMENTS * ALIGN_CYCLE[i] + ALLOWANCE_ROWS * longest[i]
+                 + CALIBRATION[i] + TILE_READING[i]
                  + math.ceil(ALLOWANCE_FRACTION * need[i]))
         out.append(need[i] + allow)
     return out[0], out[1]
@@ -139,16 +154,18 @@ class Caps:
     def as_dict(self) -> dict:
         return {"lines": self.lines, "moves": self.moves, "pages": len(self.shape.pages),
                 "patches": self.shape.patches,
-                "formula": "open + park + sum(pages: align_cycle + rows + allowance)",
+                "formula": "open + park + calibration + tile + sum(pages: align_cycle + rows "
+                           "+ allowance)",
                 "allowance": {"fraction": ALLOWANCE_FRACTION, "rows": ALLOWANCE_ROWS,
-                              "alignments": ALLOWANCE_ALIGNMENTS}}
+                              "alignments": ALLOWANCE_ALIGNMENTS,
+                              "calibrations": 1, "tile_readings": 1}}
 
 
 def caps_for(shape: ChartShape) -> Caps:
     """The session caps for a chart of *shape* (CapsRefused only beyond the layout maxima)."""
     check_shape(shape)
-    lines = OPEN[0] + PARK[0]
-    moves = OPEN[1] + PARK[1]
+    lines = OPEN[0] + PARK[0] + CALIBRATION[0] + TILE_READING[0]
+    moves = OPEN[1] + PARK[1] + CALIBRATION[1] + TILE_READING[1]
     for rows in shape.pages:
         pl, pm = page_caps(rows)
         lines += pl

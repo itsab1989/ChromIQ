@@ -2306,6 +2306,12 @@ class Run:
         leaves in its session folder (`I1IO_TABLE_PENDING_MARKER`)."""
         return self.i1io_table_session_dir(stamp) / I1IO_TABLE_PENDING_MARKER
 
+    def i1io_table_measurement(self, stamp: str) -> Path:
+        """``i1io-table/<stamp>/measurement.ti3``: the measurement that START's
+        readings make (assembled by the table job, partial or complete). It
+        becomes `measurement_ti3` only when the person saves it."""
+        return self.i1io_table_session_dir(stamp) / "measurement.ti3"
+
     def i1io_table_pending_markers(self) -> "list[Path]":
         """Every pending marker this run's table sessions hold, oldest first."""
         return [m for m in (s / I1IO_TABLE_PENDING_MARKER

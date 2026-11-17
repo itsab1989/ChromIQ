@@ -19,7 +19,17 @@ rewritten for the app, with every reviewed safety setting carried over:
               furthest clean arrival is the confirmed-Y limit for the rest of the sitting
   check_move  part C's D2: the one computed move to mark 3
   home        part C's F: the recorded end of a job from where the arm stands
+  calibrate   (step 7) part C's C1, spot white only: the arm read at rest before and after, the
+              reader consent before the first reader of the session, the place (the instrument's
+              own tile or the table's tile), the instrument's own calibration
+  read_tile   (step 7) part C's C2: one spot reading of the table's tile at the resting place
+  read_row    (step 7) part C's D3/D4 for one row: the arm to every patch (computed targets,
+              arrival- and time-checked), one spot reading per patch, the plausibility check; a
+              failed reading read again once from a fresh position reading; a failed row offers
+              again / skip / stop (at most two rows read again per page)
   close       sends nothing: lets go of the USB connection, writes the results
+  measurement / save / discard   (step 7) the readings as the run's measurement (spot.py,
+              measurement.py): nothing reaches ``Run.measurement_ti3`` except by save()
 
 Every step answers a :class:`StepResult`: ``ok``, a named refusal (nothing unsafe happened, the
 sitting goes on), a named stop (nothing more is ever sent), or ``needs_confirmation`` with what
@@ -46,13 +56,16 @@ from pathlib import Path
 from . import caps as cp
 from . import geometry as geo
 from . import lines as cl
+from . import measurement as ms
+from . import reader as rd
 from . import scan as sc
 from . import session_table as tbl
+from . import spot as sp
 from . import usb_system as us
 from .diagnostics import Diagnostics
 from .session_table import Doubt, Stopped
 
-JOB_VERSION = "step6-1"
+JOB_VERSION = "step7-1"
 
 
 class Kind:
@@ -75,6 +88,12 @@ class Confirm:
     MARKER = "pending_marker"        # a strip move may still wait: the table was switched off?
     READY_TO_OPEN = "ready_to_open"  # tester PRE_QUESTIONS: the arm at rest, the bed clear
     REPORT_AFTER_STEP = "report_after_step"   # asking mode: did it do what was described?
+    # step 7, reading
+    READER_CONSENT = "reader_consent"         # tester ASK_READER_CONSENT, once per session
+    CAL_PLACE = "calibration_place"           # tester CAL_WHERE: which white tile (D-4 open)
+    CAL_OWN_TILE = "calibration_own_tile"     # tester CAL_OWN: the i1Pro 2 on its own tile
+    CAL_RESEAT = "calibration_reseated"       # tester CAL_RESEAT: seated back in the arm
+    ROW_FAILED = "row_failed"                 # APP_DESIGN 9: read it again / skip / stop
 
 
 CHOICES = {
@@ -89,7 +108,27 @@ CHOICES = {
     Confirm.MARKER: ("switched off and on", "stop"),
     Confirm.READY_TO_OPEN: ("yes", "stop"),
     Confirm.REPORT_AFTER_STEP: ("as described", "something wrong", "not sure"),
+    Confirm.READER_CONSENT: ("yes", "no"),
+    Confirm.CAL_PLACE: ("own tile", "table tile", "stop"),
+    Confirm.CAL_OWN_TILE: ("ready", "stop"),
+    Confirm.CAL_RESEAT: ("seated", "stop"),
+    Confirm.ROW_FAILED: ("again", "skip", "stop"),
 }
+#: what the reader consent stands for (tester 0.5.1's READER_CONSENT, as facts; the window words
+#: them). The Mac-only facts are listed only on a Mac.
+READER_CONSENT_FACTS = ("the_reader_opens_the_i1pro2_with_the_argyllcms_library",
+                        "as_when_measuring_by_hand")
+READER_CONSENT_FACTS_MAC = ("on_a_mac_it_closes_xrites_i1prodeviceservice_if_the_instrument_is_"
+                            "in_use_for_up_to_two_seconds",
+                            "macos_normally_starts_that_service_again_by_itself",
+                            "xrites_xrdd_is_not_touched",
+                            "unknown_whether_i1profiler_finds_the_i1pro2_at_once_afterwards",
+                            "the_calibration_is_kept_where_a_later_hand_reading_finds_it")
+#: D-4 is open (which white agrees with i1Profiler): until it is settled the instrument's own
+#: tile is the recommended place (APP_DESIGN 12, the cautious outcome); the job never answers
+CAL_PLACE_RECOMMENDED = "own tile"
+#: NEXT_STEPS 4d: at most this many rows of a page are read again, whatever the session total
+ROWS_READ_AGAIN_PER_PAGE = 2
 #: the facts READY_TO_OPEN stands for (the later window may ask them as separate ticks; the
 #: answer "yes" means every one of them is confirmed)
 READY_TO_OPEN_ITEMS = ("arm_at_its_resting_place", "nothing_on_the_bed_but_the_sheet")
@@ -203,9 +242,10 @@ class PersonStopped(Exception):
 
 
 #: part C's per-stage runs, per page (the tester's max_runs per sitting, now per sheet laid)
-MAX_RUNS = {"park": 8, "d1": 5, "dz": 3, "d2": 3, "f": 8}
+MAX_RUNS = {"park": 8, "d1": 5, "dz": 3, "d2": 3, "f": 8, "c1": 3, "c2": 3}
 #: the steps and the tester's stage key each writes its result block under
-STAGE_KEY = {"park": "park", "align": "d1", "creep": "dz", "check_move": "d2", "home": "f"}
+STAGE_KEY = {"park": "park", "align": "d1", "creep": "dz", "check_move": "d2", "home": "f",
+             "calibrate": "c1", "read_tile": "c2", "read_row": "row"}
 #: the step caps the tester used for its own stages (lines, movements)
 DZ_CAPS = cp.CREEP
 D1_CAPS = (8, 0)
@@ -362,7 +402,8 @@ class TableJob:
 
     def __init__(self, sheet: dict, page: int = 0, *, run=None, stamp: "str | None" = None,
                  folder: "Path | None" = None, open_transport=None, preflight=None,
-                 other_program=None, ask_after_each_step: bool = True):
+                 other_program=None, ask_after_each_step: bool = True, reader_factory=None,
+                 helper_check=None, instrument_check=None, chart_ti2=None):
         # the job's OWN copy (review of step 6): the caps are derived from it, and a caller
         # changing its chart afterwards changes nothing here
         self.sheet = copy.deepcopy(sheet)
@@ -415,6 +456,34 @@ class TableJob:
         self._block: "dict | None" = None
         self._pause_stop = False
         self.preflight_seen: "us.Preflight | None" = None
+        # ---- step 7, reading -------------------------------------------------------------------
+        #: starts ChromIQ's helper for spot readings (reader.SpotReader through the app's
+        #: helper path, as the tester's Readers.spot did); tests pass a simulated one
+        self._reader_factory = reader_factory or _default_reader
+        self._helper_check = helper_check or _default_helper_check
+        self._instrument_check = instrument_check or us.instrument_now
+        self._chart_ti2 = Path(chart_ti2) if chart_ti2 is not None else (
+            Path(run.chart_ti2) if run is not None else None)
+        #: the reader consent, given once in this session (never stored by the job)
+        self.reader_consent = False
+        self.readers_started = 0
+        self._open_readers: list = []
+        #: the white: {"place", "t" (the table's clock), "kind": "spot"} or None
+        self.calibration: "dict | None" = None
+        self.cal_place: "str | None" = None
+        self.calibration_due = False
+        self._cal_refused: "str | None" = None
+        self.options_report = sp.OptionsReport(sp.ReadOptions())
+        #: resume / refinement: only these patches are read (None: every patch)
+        self.only_locs: "set[str] | None" = None
+        self._resume_base: "Path | None" = None
+        #: rows per page: {page: {row index: status}} (read, failed, skipped, stopped, ...)
+        self.row_status: "dict[int, dict[int, str]]" = {}
+        #: per page, how many rows were read again (NEXT_STEPS 4d)
+        self.rows_again: "dict[int, int]" = {}
+        self._row_seq = 0
+        self.tile_readings: "list[dict]" = []
+        self.ended: "str | None" = None          # "saved" / "discarded"
         self.diag.log("INFO", f"ChromIQ table job {JOB_VERSION} (table module "
                               f"{tbl.TOOL_NAME} {tbl.TOOL_VERSION}); page {self.page + 1}")
 
@@ -524,6 +593,15 @@ class TableJob:
         if value not in CHOICES[kind]:
             return self._result(step, Kind.REFUSED, "not_one_of_the_choices",
                                 asked=self._pending.kind, choices=list(CHOICES[kind]))
+        if kind == Confirm.ROW_FAILED and value == "again":
+            # NEXT_STEPS 4d, enforced per page: a third row read again on this page is refused
+            # (nothing sent); the question stays open for skip or stop
+            why = self._again_refused()
+            if why:
+                self.diag.log("ANSWER", f"{step}: {kind} -> again refused ({why})")
+                return self._result(step, Kind.REFUSED, why, asked=kind,
+                                    rows_read_again=self.rows_again.get(self.page, 0),
+                                    choices=["skip", "stop"])
         self.notes.append((f"{step}: {kind}", value))
         self.diag.log("ANSWER", f"{step}: {kind} -> {value}")
         if self._block is not None:
@@ -601,6 +679,8 @@ class TableJob:
             res = self._result(step, Kind.REFUSED, alignment_id(str(exc)), log_reason=str(exc))
         elif isinstance(exc, (geo.AreaRefused, sc.PlanRefused)):
             res = self._result(step, Kind.REFUSED, area_id(str(exc)), log_reason=str(exc))
+        elif isinstance(exc, sp.RowRefused):
+            res = self._result(step, Kind.REFUSED, exc.reason, **exc.detail)
         elif isinstance(exc, tbl.MoveOutside):
             d.close_for_sending(str(exc))
             res = self._result(step, Kind.STOPPED, "movement_outside_time_window",
@@ -801,6 +881,8 @@ class TableJob:
             return "report_due"
         if self.only_home and step != "home":
             return "only_the_homing_now"
+        if key in ("c1", "c2", "row"):
+            return self._reading_ready(step)
         if self.runs.get((self.page, key), 0) >= MAX_RUNS[key]:
             return "ran_as_often_as_allowed"
         rest = self.at_rest() or self.unread_rest() or self.parked()
@@ -830,7 +912,9 @@ class TableJob:
             self._table.close_for_sending("i1Profiler was started during the session")
             raise Stopped("other_program_started")
 
-    def _stage(self, step: str, body) -> StepResult:
+    def _stage(self, step: str, body, go: bool = True) -> StepResult:
+        """*go*: the step moves the arm, so the page's hands-off GO applies (a calibration and
+        the tile reading move nothing, as the tester's C1 and C2)."""
         if self._gen is not None:
             return self._begin(step, None)
         why = self._ready(step)
@@ -838,7 +922,7 @@ class TableJob:
             return self._result(step, Kind.REFUSED, why)
 
         def gen():
-            if self._go_page != self.page:
+            if go and self._go_page != self.page:
                 # once per page (the owner's ruling: no question after every step); the first
                 # moving step of a page asks it, with the hands-off reminder the window shows
                 ans = yield Ask(Confirm.GO, {"step": step, "page": self.page + 1})
@@ -1311,10 +1395,554 @@ class TableJob:
             raise d._doubt(f"after the homing the arm reads {p}, not at its resting place")
         d.state = "b_done"
 
+    # ==== step 7: READING ========================================================================
+    # ---- options, resume ---------------------------------------------------------------------
+    def set_options(self, chartread_args=None, options: "sp.ReadOptions | None" = None,
+                    only_locs=None) -> StepResult:
+        """The Measure tab's options for this session (its chartread arguments, or a ReadOptions),
+        and optionally the patches to read (a refinement strips file's patches). Sends nothing.
+        An option the table cannot honour without changing what is measured is REFUSED (the
+        reading steps refuse "option_refused" until it is taken out); one with no meaning on
+        the table is dropped with its reason. Resume (-r) reads only what the run's partial
+        measurement lacks."""
+        if self._gen is not None:
+            return self._result("options", Kind.REFUSED, "another_step_waits_for_a_confirmation")
+        if any(self.row_status.values()):
+            return self._result("options", Kind.REFUSED, "rows_read_already")
+        if chartread_args is not None:
+            rep = sp.options_from_chartread_args(chartread_args)
+        else:
+            rep = sp.OptionsReport(options or sp.ReadOptions())
+        self.options_report = rep
+        self.only_locs = set(only_locs) if only_locs is not None else None
+        self._resume_base = None
+        detail = {"used": list(rep.used), "no_meaning": dict(rep.no_meaning),
+                  "refused": dict(rep.refused)}
+        self.diag.log("INFO", "reading options: " + json.dumps(detail))
+        if rep.options.resume:
+            from workflow.measurement_state import Ti3State, classify, unread_locations
+            base = Path(self.run.measurement_ti3) if self.run is not None else None
+            if base is None or self._chart_ti2 is None or not base.is_file():
+                return self._result("options", Kind.REFUSED, "nothing_to_resume", **detail)
+            facts = classify(base, self._chart_ti2)
+            unread = unread_locations(base, self._chart_ti2)
+            if facts.state is not Ti3State.PARTIAL or not unread:
+                return self._result("options", Kind.REFUSED, "nothing_to_resume",
+                                    state=facts.state.value, **detail)
+            self.only_locs = set(unread) if self.only_locs is None else \
+                self.only_locs & set(unread)
+            self._resume_base = base
+            detail["resume_unread"] = len(self.only_locs)
+        if not rep.ok:
+            return self._result("options", Kind.REFUSED, "option_refused", **detail)
+        return self._result("options", Kind.OK, "", **detail)
+
+    # ---- readiness -----------------------------------------------------------------------------
+    def _reading_ready(self, step: str) -> "str | None":
+        d = self._table
+        key = STAGE_KEY[step]
+        if self.diag.folder is None:
+            return "no_session_folder"
+        if not self.options_report.ok:
+            return "option_refused"
+        rest = self.at_rest() or self.unread_rest() or self.parked()
+        if key in ("c1", "c2"):
+            if self.runs.get((self.page, key), 0) >= MAX_RUNS[key]:
+                return "ran_as_often_as_allowed"
+            if not rest:
+                return "arm_not_at_rest"
+            if key == "c2" and not self._has_white():
+                return "needs_calibration"
+            return None
+        # a row
+        if self.alignment is None:
+            return "needs_alignment"
+        if not self.out_known() and d.arm_free is not True:
+            return "arm_not_out_on_the_sheet"
+        if not self._has_white():
+            return "needs_calibration"
+        return None
+
+    def _has_white(self) -> bool:
+        return self.calibration is not None or self.options_report.options.skip_initial_calibration
+
+    def calibration_left_s(self) -> "float | None":
+        """Seconds the job's own white has left (None: no timed white, e.g. -N)."""
+        if self.calibration is None or self.calibration.get("t") is None or self._table is None:
+            return None
+        return sp.CAL_VALID_S - (self._table.t.now() - self.calibration["t"])
+
+    def _calibration_due_for(self, n: int) -> bool:
+        if self.calibration_due:
+            return True
+        left = self.calibration_left_s()
+        return left is not None and left < sp.row_seconds(n) + sp.CAL_MARGIN_S
+
+    def _again_refused(self) -> "str | None":
+        if self.rows_again.get(self.page, 0) >= ROWS_READ_AGAIN_PER_PAGE:
+            return "rows_read_again_limit"
+        return None
+
+    # ---- the reader ------------------------------------------------------------------------
+    def _consent_facts(self) -> "list[str]":
+        system = self.preflight_seen.system if self.preflight_seen is not None else ""
+        return list(READER_CONSENT_FACTS) + (list(READER_CONSENT_FACTS_MAC)
+                                             if system == "macos" else [])
+
+    def _start_reader(self, folder: Path, name: str, patches, calibrate: bool):
+        """Part C's instrument_ready() and spot_reader(): the helper can run, exactly one
+        i1Pro 2 and no other instrument, the consent (once in the session, before the FIRST
+        reader starts), then the reader. A generator (the consent is a confirmation)."""
+        why = self._helper_check()
+        if why:
+            raise StageFailed(why)
+        chk = self._instrument_check()
+        self.diag.log("INST", f"instrument check before the reader: {chk.state} "
+                              + json.dumps(chk.detail))
+        if chk.state != "ok":
+            raise StageFailed(f"instrument_{chk.state}", **chk.detail)
+        if not self.reader_consent:
+            ans = yield Ask(Confirm.READER_CONSENT, {"facts": self._consent_facts()})
+            if ans != "yes":
+                raise PersonStopped("reader_not_started")
+            self.reader_consent = True
+        self._check_other_program()
+        try:
+            r = self._reader_factory(folder, name, list(patches), calibrate,
+                                     self.options_report.options.reader_args(), self.diag.log)
+        except (OSError, ValueError, rd.ReaderFailed) as exc:
+            raise StageFailed("reader_could_not_start", error=type(exc).__name__) from None
+        self.readers_started += 1
+        self._open_readers.append(r)
+        return r
+
+    @staticmethod
+    def _events(r) -> "list[dict]":
+        proc = getattr(r, "proc", None)
+        return list(getattr(proc, "events", []) or [])
+
+    @staticmethod
+    def _alive(r) -> bool:
+        proc = getattr(r, "proc", None)
+        try:
+            return bool(proc.alive()) if proc is not None else True
+        except Exception:      # noqa: BLE001
+            return False
+
+    def _open_reader(self, r, place) -> None:
+        """Until the reader sits on its first patch; then the model it reports must be an
+        i1Pro 2 (NEXT_STEPS 3: the helper's own report before the first move)."""
+        try:
+            r.open(place, timeout=sp.OPEN_TIMEOUT_S)
+        except rd.ReaderFailed as exc:
+            rid, det = sp.failure_id(str(exc), self._events(r), self._alive(r))
+            if self._cal_refused:
+                rid, det = self._cal_refused, {}
+            self._close_reader(r)
+            if rid == "instrument_asks_for_calibration":
+                self.calibration_due = True
+            raise StageFailed(rid, **det) from None
+        model = sp.reported_model(self._events(r))
+        if model != sp.I1PRO2_MODEL:
+            self._close_reader(r)
+            raise StageFailed("wrong_instrument" if model else "instrument_not_reported",
+                              model=model)
+
+    def _close_reader(self, r) -> None:
+        try:
+            r.close()
+        except Exception:      # noqa: BLE001 - closing never raises
+            pass
+        if r in self._open_readers:
+            self._open_readers.remove(r)
+
+    def _finish_reader(self, r) -> "Path | None":
+        try:
+            ti3 = r.finish()
+        except Exception:      # noqa: BLE001 - what it saved is kept, the rest is said
+            ti3 = None
+        if r in self._open_readers:
+            self._open_readers.remove(r)
+        return Path(ti3) if ti3 is not None else None
+
+    def _close_readers(self) -> None:
+        for r in list(self._open_readers):
+            self._close_reader(r)
+
+    # ---- calibration (part C's C1, spot white) ----------------------------------------------
+    def calibrate(self) -> StepResult:
+        """With the arm at its resting place: the reader consent (once), the place, the
+        instrument's own calibration. Nothing moves; the arm is read before and after."""
+        return self._stage("calibrate", self._calibrate, go=False)
+
+    def _cal_place_ok(self, ev) -> bool:
+        """The reader's calibration request (its own prompt, an event): only a reflective white
+        is a calibration this job does; the person placed the instrument before the reader
+        started (the place confirmation)."""
+        cond = str(ev.get("cond", ""))
+        if cond and "ref_white" not in cond:
+            self._cal_refused = "calibration_kind_unknown"
+            self.diag.log("INST", f"the reader asks for a calibration of another kind ({cond})")
+            return False
+        return True
+
+    def _cal_in_a_row(self, ev) -> bool:
+        """The instrument asks for a calibration while a row starts: never done there (the arm
+        stands over the sheet); the row ends cleanly and a new white is due."""
+        self.calibration_due = True
+        self.diag.log("INST", "the instrument asks for a calibration: a new white is due "
+                              f"({ev.get('cond', '')}); the row is not read")
+        return False
+
+    def _calibrate(self):
+        d = self._table
+        self._check_rest("before opening the instrument")
+        folder = self.diag.folder / self._block["folder"]
+        # tester C1: the reader first (its checks and the consent), then the place, asked once
+        # in the session (the tester asked it at the reader's calibration request)
+        reader = yield from self._start_reader(folder, "c1_spot", sp.CAL_PATCHES, True)
+        if self.cal_place is None:
+            ans = yield Ask(Confirm.CAL_PLACE, {"recommended": CAL_PLACE_RECOMMENDED,
+                                                "decision_open": "D-4"})
+            if ans == "stop":
+                self._close_reader(reader)
+                raise PersonStopped("calibration_not_started")
+            place = ans
+        else:
+            place = self.cal_place
+        if place == "own tile":
+            ok = yield Ask(Confirm.CAL_OWN_TILE)
+            if ok != "ready":
+                self._close_reader(reader)
+                raise PersonStopped("calibration_not_started")
+        self._cal_refused = None
+        self._open_reader(reader, self._cal_place_ok)
+        cal_ok = bool(getattr(reader, "calibrated", False))
+        self._close_reader(reader)
+        if not cal_ok:
+            raise StageFailed("calibration_not_confirmed")
+        self.cal_place = place
+        self.calibration = {"place": place, "t": d.t.now(), "kind": "spot"}
+        self.calibration_due = False
+        if place == "own tile":
+            ans = yield Ask(Confirm.CAL_RESEAT)
+            if ans != "seated":
+                raise StageFailed("instrument_not_seated_again")
+        self._check_rest("after the calibration")
+        self._block["data"]["calibration"] = {"place": place}
+        return {"place": place, "valid_s": sp.CAL_VALID_S}
+
+    # ---- the table's white tile (part C's C2) -------------------------------------------------
+    def read_tile(self) -> StepResult:
+        return self._stage("read_tile", self._read_tile, go=False)
+
+    def _read_tile(self):
+        d = self._table
+        self._check_rest("before the reading")
+        folder = self.diag.folder / self._block["folder"]
+        reader = yield from self._start_reader(folder, "c2_tile", sp.CAL_PATCHES, False)
+        rows = []
+        try:
+            self._cal_refused = None
+            self._open_reader(reader, self._cal_in_a_row)
+            self._check_rest("right before the reading")
+            p = sp.PatchTarget("1", "A1", d.position_now)
+            try:
+                rec = self._read_patch(reader, p, at=d.position_now)
+            except _PatchFailed as f:
+                rows.append({"sample_id": "1", "loc": "A1", "why": f.reason})
+                raise StageFailed(f.reason, **f.detail) from None
+            rows.append(rec)
+        finally:
+            self._finish_reader(reader)
+            self._write_readings(folder, "c2_tile", rows)
+        self._check_rest("after the reading")
+        self.tile_readings.append({"xyz": rows[0]["xyz"]})
+        return {"xyz": rows[0]["xyz"]}
+
+    # ---- a spot row ----------------------------------------------------------------------------
+    def rows_left(self) -> "list[int]":
+        """The rows of this page not tried yet (1-based), in reading order."""
+        done = self.row_status.get(self.page, {})
+        return [k + 1 for k in range(sp.rows_on_page(self.sheet, self.page)) if k not in done]
+
+    def read_row(self, row: "int | None" = None, kind: str = "spot") -> StepResult:
+        """One row of this page (1-based *row*; None: the next row not tried yet). A row tried
+        before on this page counts as a row read again (at most two per page)."""
+        step = "read_row"
+        if self._gen is not None:
+            return self._begin(step, None)
+        why = self._ready(step)
+        if why:
+            return self._result(step, Kind.REFUSED, why)
+        done = self.row_status.get(self.page, {})
+        if row is None:
+            left = self.rows_left()
+            if not left:
+                return self._result(step, Kind.REFUSED, "page_read")
+            row = left[0]
+        k = int(row) - 1
+        if not 0 <= k < sp.rows_on_page(self.sheet, self.page):
+            return self._result(step, Kind.REFUSED, "row_not_in_chart", row=row)
+        again = k in done
+        if again:
+            why = self._again_refused()
+            if why:
+                return self._result(step, Kind.REFUSED, why, row=row,
+                                    rows_read_again=self.rows_again.get(self.page, 0))
+        try:
+            plan = sp.plan_row(self.sheet, self.page, k, self.alignment, self._table.front_y,
+                               kind=kind, only_locs=self.only_locs)
+        except sp.RowRefused as exc:
+            return self._result(step, Kind.REFUSED, exc.reason, row=row, **exc.detail)
+        except geo.AreaRefused as exc:
+            return self._result(step, Kind.REFUSED, area_id(str(exc)), row=row,
+                                log_reason=str(exc))
+        if not plan.patches:
+            self.row_status.setdefault(self.page, {})[k] = "nothing_to_read"
+            return self._result(step, Kind.OK, "", row=row, status="nothing_to_read")
+        if self._calibration_due_for(len(plan.patches)):
+            return self._result(step, Kind.REFUSED, "calibration_due", row=row,
+                                left_s=self.calibration_left_s())
+        return self._stage(step, lambda: self._read_row(plan, again))
+
+    def _read_row(self, plan: "sp.RowPlan", again: bool = False):
+        if again:
+            # counted when the row really starts (after GO), never for a refused request
+            self.rows_again[self.page] = self.rows_again.get(self.page, 0) + 1
+        attempt = 1
+        while True:
+            rec = yield from self._row_attempt(plan, attempt)
+            if rec["status"] == "read":
+                self.row_status.setdefault(self.page, {})[plan.index] = "read"
+                break
+            self.row_status.setdefault(self.page, {})[plan.index] = "failed"
+            ans = yield Ask(Confirm.ROW_FAILED, {
+                "row": plan.index + 1, "page": self.page + 1, "why": rec["why"],
+                "loc": rec.get("failed_loc"), "read": len(rec["accepted"]),
+                "patches": len(plan.patches),
+                "again_allowed": self._again_refused() is None
+                and not self._calibration_due_for(len(plan.patches)),
+                "rows_read_again": self.rows_again.get(self.page, 0),
+                "calibration_due": self._calibration_due_for(len(plan.patches))})
+            if ans == "again":
+                if self._calibration_due_for(len(plan.patches)):
+                    raise StageFailed("calibration_due", row=plan.index + 1)
+                self.rows_again[self.page] = self.rows_again.get(self.page, 0) + 1
+                attempt += 1
+                continue
+            if ans == "skip":
+                self.row_status[self.page][plan.index] = "skipped"
+                rec["status"] = "skipped"
+                break
+            self.row_status[self.page][plan.index] = "failed"
+            raise PersonStopped("stopped_after_a_failed_row", row=plan.index + 1)
+        out = {"row": plan.index + 1, "page": self.page + 1, "status": rec["status"],
+               "read": len(rec["accepted"]), "patches": len(plan.patches),
+               "attempts": attempt}
+        n_next = len(plan.patches)
+        if self._calibration_due_for(n_next):
+            out["calibration_due_before_next_row"] = True
+        return out
+
+    def _row_attempt(self, plan: "sp.RowPlan", attempt: int):
+        """Part C's spot_row, for one row of the page (byte for byte the tester's table lines
+        when nothing fails): where the arm is, the first-visit rule for the whole row, the
+        reader, then per patch the pace, the move (arrival- and time-checked) and the reading."""
+        d = self._table
+        n = len(plan.patches)
+        self._step("row", *cp.spot_row_step(n))
+        self._row_seq += 1
+        name = plan.name if attempt == 1 else f"{plan.name}_again{attempt - 1}"
+        folder = self.diag.folder / self._block["folder"]
+        rec = {"seq": self._row_seq, "page": plan.page + 1, "row": plan.index + 1,
+               "attempt": attempt, "kind": plan.kind, "name": name, "status": "started",
+               "why": "", "reader_ti3": None, "accepted": [], "failed": [],
+               "patches": len(plan.patches)}
+        readings: "list[dict]" = []
+        reader = None
+        opened = False
+        try:
+            here = d.position()
+            self._free_arm_inside(here)
+            first = plan.patches[0]
+            geo.check_path(here, first.target, f"the way to patch {first.loc}", d.front_y)
+            ok = yield from self._confirm_new_part(here, *[p.target for p in plan.patches],
+                                                   what=f"row {plan.index + 1}")
+            if not ok:
+                raise PersonStopped("first_visit_declined")
+            reader = yield from self._start_reader(folder, name, [(p.sample_id, p.loc)
+                                                                  for p in plan.patches], False)
+            self._cal_refused = None
+            self._open_reader(reader, self._cal_in_a_row)
+            opened = True
+            last_t = 0.0
+            for i, p in enumerate(plan.patches):
+                if i:
+                    # held by the motors at the patch just read; a problem or a stop asked for
+                    # during that patch is honoured here, before the next move
+                    self._between_patches()
+                    d.c_wait(max(0.0, sp.PACE_FLOOR_S - last_t))
+                elif d.arm_free:
+                    self._still(here)
+                yield from self._move_to(p.target, f"the move to patch {p.loc}")
+                self._arrival = (d.lines_sent, d.position_now)
+                got = self._patch(reader, p, rec, readings)
+                last_t = got["t"]
+            rec["status"] = "read"
+        except _RowFailed as f:
+            rec.update(status="failed", why=f.reason, failed_loc=f.loc)
+        except PersonStopped as exc:
+            rec.update(status="stopped", why=exc.reason)
+            raise
+        except BaseException as exc:      # noqa: BLE001 - recorded, then the step ends
+            rec.update(status="stopped" if not isinstance(exc, StageFailed) else "failed",
+                       why=getattr(exc, "reason", type(exc).__name__))
+            raise
+        finally:
+            if reader is not None:
+                if opened:
+                    ti3 = self._finish_reader(reader)
+                    rec["reader_ti3"] = ti3.name if ti3 is not None and ti3.is_file() else None
+                else:
+                    self._close_reader(reader)
+            rec["accepted"] = [{"sample_id": r["sample_id"], "loc": r["loc"], "xyz": r["xyz"]}
+                               for r in readings if r.get("plausible")]
+            self.diag.write_json(f"{self._block['folder']}/{name}{ms.ROW_RECORD_SUFFIX}", rec)
+            self._write_readings(folder, name, readings + rec["failed"])
+            self._block["data"].setdefault("rows", []).append(
+                {k: rec[k] for k in ("page", "row", "attempt", "status", "why", "reader_ti3")}
+                | {"read": len(rec["accepted"]), "failed": len(rec["failed"])})
+        return rec
+
+    def _between_patches(self) -> None:
+        self._soft_stop()
+        if self._pause_stop:
+            self._pause_stop = False
+            raise PersonStopped("stopped_between_patches")
+
+    def _reading_place_ok(self, p) -> bool:
+        """The reading is taken where the patch is: the arm was read on the target after its
+        move (or after the fresh reading of a repeat), and nothing was sent since."""
+        d = self._table
+        lines, at = getattr(self, "_arrival", (None, None))
+        return (at is not None and d.position_now == at and lines == d.lines_sent
+                and not d.motion_unconfirmed and _near(at, p.target))
+
+    def _read_patch(self, reader, p, at=None) -> dict:
+        d = self._table
+        if at is None and not self._reading_place_ok(p):
+            raise _PatchFailed("reading_off_target", retry=True)
+        try:
+            r = reader.read(p.loc, timeout=sp.READ_TIMEOUT_S)
+        except rd.ReaderFailed as exc:
+            alive = self._alive(reader)
+            rid, det = sp.failure_id(str(exc), self._events(reader), alive)
+            if rid == "instrument_asks_for_calibration":
+                self.calibration_due = True
+            raise _PatchFailed(rid, retry=alive and rid in sp.RETRYABLE, **det) from None
+        why = sp.plausible(r.xyz)
+        rec = {"sample_id": p.sample_id, "loc": p.loc, "target": list(p.target),
+               "read_at": list(d.position_now) if d.position_now else None,
+               "xyz": [float(v) for v in r.xyz] if r.xyz is not None and why !=
+               "reading_without_values" else None,
+               "t": round(float(getattr(r, "t", 0.0) or 0.0), 3), "plausible": why is None}
+        if why:
+            raise _PatchFailed(why, retry=True, rec=rec)
+        return rec
+
+    def _patch(self, reader, p, rec, readings) -> dict:
+        """One patch, read again once from a fresh position reading if the reading failed
+        (reader alive and on the patch); a second failure fails the row."""
+        d = self._table
+        for attempt in (1, 2):
+            try:
+                got = self._read_patch(reader, p)
+                readings.append(got)
+                return got
+            except _PatchFailed as f:
+                rec["failed"].append({"sample_id": p.sample_id, "loc": p.loc, "why": f.reason,
+                                      "xyz": (f.detail.get("rec") or {}).get("xyz")})
+                if attempt == 2 or not f.retry:
+                    raise _RowFailed(f.reason, p.loc) from None
+            # the fresh reading of where the arm stands: it must still be on the patch
+            got = d.position()
+            if not _near(got, p.target):
+                d.outside_at = got
+                raise d._doubt(f"before reading {p.loc} again the arm reads {got}, "
+                               f"not {p.target}")
+            self._arrival = (d.lines_sent, d.position_now)
+        raise _RowFailed("reading_failed", p.loc)      # pragma: no cover
+
+    def _write_readings(self, folder: Path, name: str, rows) -> None:
+        """The raw readings of a row (tester's <name>.readings.csv; numbers only)."""
+        import csv
+        import io
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        w.writerow(["sample_id", "loc", "target_x", "target_y", "read_x", "read_y", "X", "Y",
+                    "Z", "seconds", "plausible", "why"])
+        for r in rows:
+            t = r.get("target") or ("", "")
+            at = r.get("read_at") or ("", "")
+            x = r.get("xyz") or ("", "", "")
+            w.writerow([r.get("sample_id", ""), r.get("loc", ""), *t, *at, *x, r.get("t", ""),
+                        r.get("plausible", False), r.get("why", "")])
+        try:
+            (folder / f"{name}.readings.csv").write_text(buf.getvalue(), encoding="utf-8")
+        except OSError:
+            pass
+
+    # ---- the measurement ---------------------------------------------------------------------
+    def measurement(self) -> StepResult:
+        """This session's readings as one measurement, in the session folder
+        (``Run.i1io_table_measurement``): complete or partial, never written into the run."""
+        if self.run is None or self.stamp is None or self._chart_ti2 is None:
+            return self._result("measurement", Kind.REFUSED, "no_run")
+        if self.ended == "discarded":
+            return self._result("measurement", Kind.REFUSED, "discarded")
+        a = ms.assemble([self.run.i1io_table_session_dir(self.stamp)], self._chart_ti2,
+                        self.run.i1io_table_measurement(self.stamp), base_ti3=self._resume_base)
+        self._assembly = a
+        self.diag.write_json("measurement.json", a.as_dict())
+        kind = Kind.OK if a.state in ("complete", "partial") else Kind.REFUSED
+        return self._result("measurement", kind, a.reason, measurement=a.as_dict())
+
+    def save(self) -> StepResult:
+        """The person's Save: the measurement becomes ``Run.measurement_ti3`` (a partial one is
+        filed as partial; a later START with resume completes it). Sends nothing."""
+        if self._gen is not None:
+            return self._result("save", Kind.REFUSED, "another_step_waits_for_a_confirmation")
+        res = self.measurement()
+        if not res.ok:
+            return replace(res, step="save")
+        why = ms.file_into_run(self._assembly, self.run, may_replace=self._resume_base)
+        if why:
+            return self._result("save", Kind.REFUSED, why)
+        self.ended = "saved"
+        self.diag.write_json("session_result.json", {"filed": True,
+                                                     "state": self._assembly.state})
+        self.diag.log("INFO", f"the measurement was saved into the run "
+                              f"({self._assembly.state}, {self._assembly.read} readings)")
+        return self._result("save", Kind.OK, "", measurement=self._assembly.as_dict())
+
+    def discard(self) -> StepResult:
+        """The person's Discard: nothing goes into the run's measurement, and these readings
+        are never used by a later assembly (the session folder keeps them as the log of what
+        happened, marked)."""
+        if self.ended == "saved":
+            return self._result("discard", Kind.REFUSED, "saved_already")
+        self.ended = "discarded"
+        self.diag.write_json(ms.DISCARDED, {"discarded_by_person": True})
+        self.diag.log("INFO", "the readings were discarded: nothing was written into the "
+                              "run's measurement")
+        return self._result("discard", Kind.OK, "")
+
     # ---- close: sends nothing ----------------------------------------------------------------
     def close(self) -> StepResult:
         if self._gen is not None:
             self.cancel()
+        self._close_readers()
         d = self._table
         if d is not None:
             d.close_for_sending("the session is over")
@@ -1393,3 +2021,36 @@ def _rows_beyond(sheet: dict, page: int, aims_mm, readings) -> dict:
         return {}
     return {"spot_outside_rows": fit["spot_outside_rows"],
             "rows_outside_list": fit["rows_outside_list"]}
+
+
+class _PatchFailed(Exception):
+    """A reading that failed (``retry``: the reader is alive and on the patch)."""
+
+    def __init__(self, reason: str, retry: bool = False, **detail):
+        super().__init__(reason)
+        self.reason, self.retry, self.detail = reason, retry, detail
+
+
+class _RowFailed(Exception):
+    def __init__(self, reason: str, loc: str):
+        super().__init__(reason)
+        self.reason, self.loc = reason, loc
+
+
+def _default_reader(folder, name, patches, calibrate, extra_args, log):
+    """ChromIQ's own helper for the i1Pro 2, through the app's helper path (reader.py's
+    helper_path: core.resource_path), reading patch by patch: ``--json [options] -v -c 1 [-N]
+    -p <row chart>``, as tester 0.6.0's Readers.spot started it."""
+    return rd.SpotReader(rd.helper_path(), folder, name, patches, log, calibrate,
+                         extra_args=tuple(extra_args))
+
+
+def _default_helper_check() -> "str | None":
+    """The helper can be started (read only): it exists and may be run."""
+    import os
+    path = rd.helper_path()
+    if not path.exists():
+        return "helper_missing"
+    if not os.access(path, os.X_OK):
+        return "helper_not_runnable"
+    return None

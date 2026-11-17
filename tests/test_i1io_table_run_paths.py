@@ -43,6 +43,8 @@ def test_session_folders_sit_at_the_run_root_not_in_cache(tmp_path):
     assert s == run.dir / "i1io-table" / "20261117-101500"
     assert run.i1io_table_log("20261117-101500") == s / "session.log"
     assert run.i1io_table_pending_marker("20261117-101500") == s / I1IO_TABLE_PENDING_MARKER
+    # step 7: the measurement a START's readings make, kept in its session folder until saved
+    assert run.i1io_table_measurement("20261117-101500") == s / "measurement.ti3"
     assert run.i1io_table_session_dir("20261117-101500_2").name == "20261117-101500_2"
 
 
@@ -69,6 +71,7 @@ def test_asking_creates_nothing(tmp_path):
     run.i1io_side_file, run.i1io_table_dir, run.i1io_table_sessions()
     run.i1io_table_session_dir("20261117-101500"), run.i1io_table_log("20261117-101500")
     run.i1io_table_pending_marker("20261117-101500"), run.i1io_table_pending_markers()
+    run.i1io_table_measurement("20261117-101500")
     assert sorted(p.relative_to(tmp_path) for p in tmp_path.rglob("*")) == before
     assert run.i1io_table_sessions() == [] and run.i1io_table_pending_markers() == []
 

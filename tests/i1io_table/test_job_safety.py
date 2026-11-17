@@ -92,8 +92,11 @@ def test_caps_formula_is_the_stated_one():
     c = cp.caps_for(shape)
     need = [cp.ALIGN_CYCLE[i] + 22 * cp.row_cost(24)[i] for i in (0, 1)]
     allow = [cp.ALIGN_CYCLE[i] + 2 * cp.row_cost(24)[i] + math.ceil(0.1 * need[i])
-             for i in (0, 1)]
-    assert (c.lines, c.moves) == (11 + 4 + need[0] + allow[0], 1 + need[1] + allow[1])
+             + cp.CALIBRATION[i] + cp.TILE_READING[i] for i in (0, 1)]
+    # step 7: one calibration (2 lines) and one tile reading (3 lines) for the session
+    assert (c.lines, c.moves) == (11 + 4 + 2 + 3 + need[0] + allow[0], 1 + need[1] + allow[1])
+    assert (cp.CALIBRATION, cp.TILE_READING) == ((2, 0), (3, 0))
+    assert cp.spot_row_step(33) == (103, 33)
 
 
 EXTREMES = {
@@ -353,7 +356,8 @@ def test_a_free_arm_that_moves_between_two_readings_is_not_moved():
 
 
 def test_a_stage_runs_at_most_as_often_as_the_tester_allowed_per_page():
-    assert J.MAX_RUNS == {"park": 8, "d1": 5, "dz": 3, "d2": 3, "f": 8}
+    # step 7: the calibration and the tile reading as the tester's C1 and C2 (3 runs each)
+    assert J.MAX_RUNS == {"park": 8, "d1": 5, "dz": 3, "d2": 3, "f": 8, "c1": 3, "c2": 3}
     job, sim, _t = H.make_job()
     p = H.Person(job, sim)
     assert p.drive(job.open()).ok
