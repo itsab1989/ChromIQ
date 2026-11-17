@@ -248,7 +248,9 @@ def test_the_start_up_runs_at_most_once_per_sitting(tmp_path):
 # ---- the simulator's cold variants -------------------------------------------------------------------
 
 def _ends_with_switch_off(log):
-    return "switch the table off at its power switch" in _flat(log)
+    # COLD_WAY_OUT's own words (PLUG, said in every run, also names the power switch)
+    return ("switch the table off at its power switch: a movement may be unfinished" in _flat(log)
+            and "before you try this program's start-up again" in _flat(log))
 
 
 def test_a_late_start_up_stops_with_the_switch_off(tmp_path):
@@ -482,7 +484,8 @@ def test_the_plan_shows_the_start_up(capsys, monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     assert prog.main(["--dry-run"]) == 0
     out = capsys.readouterr().out
-    assert ";i02c" in out and "3b 69 30 32 63 0d" in out
+    assert ";i02c" in out and out.count("3b 69 30 32 63 0d") == 2   # the list and the start-up
+    assert "(the start-up; MAY MOVE the arm" in out
     assert "1.00..8.00 s" in out and "recorded once 3.167 s" in out
 
 
@@ -507,5 +510,56 @@ def test_a_failed_start_up_when_part_c_was_chosen(tmp_path, fault):
     assert sim.received == S1_OPEN6 + [I0]
     assert not sim.violations
     t = _flat(log)
-    assert "switch the table off at its power switch" in t
+    assert _ends_with_switch_off(log)
     assert "What can run now" not in t          # part C's menu never came
+
+
+# ---- each layer of the gate on its own (planted faults: one layer removed) ----------------------
+
+def _armed(d, state, sent=False):
+    d.state, d.start_up_sent, d._start_up_armed = state, sent, True
+    d.current_step = tbl.COLD_STEP
+    d.closed_reason = None
+
+
+def test_the_write_gate_checks_each_condition_itself():
+    for state, sent, armed in (("warm", False, True), ("cold", True, True), ("cold", False, False)):
+        d = _table(cold())
+        d.opening()
+        _armed(d, state, sent)
+        d._start_up_armed = armed
+        with pytest.raises(tbl.Doubt) as e:
+            d._write(tbl.START_UP_LINE)
+        assert "the start-up line outside the start-up step" in str(e.value), (state, sent, armed)
+        assert I0 not in d.t.table.received
+
+
+def test_the_start_up_and_its_runner_refuse_by_their_own_check():
+    d = _table(cold())
+    d.opening()
+    d.run_cold_start()
+    d.closed_reason = None
+    with pytest.raises(tbl.Doubt) as e:
+        d._start_up()
+    assert "not just switched on, or a second time" in str(e.value)
+    d.closed_reason = None
+    with pytest.raises(tbl.Doubt) as e:
+        d.run_cold_start()
+    assert str(e.value) == "the start-up asked for out of order (a bug)"
+    assert d.t.table.received.count(I0) == 1
+
+
+def test_the_simulators_own_cold_rules_hold_in_part_c_mode():
+    def feed(sim, lines):
+        for ln in lines:
+            sim.receive((ln + "\r").encode())
+            sim.clock += 0.5
+    sim = csim.CSimTable(cold=True, part_c=True)
+    with pytest.raises(sim_mod.SimViolation, match="not right after a0"):
+        feed(sim, S1_OPEN6[:5] + [I0])
+    sim = csim.CSimTable(cold=False, part_c=True)
+    with pytest.raises(sim_mod.SimViolation, match="not just switched on"):
+        feed(sim, sim_mod.REC_OPEN + [I0])
+    sim = csim.CSimTable(cold=True, part_c=True)
+    with pytest.raises(sim_mod.SimViolation, match="before the start-up"):
+        feed(sim, S1_OPEN6 + [";s022"])
