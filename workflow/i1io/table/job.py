@@ -133,6 +133,9 @@ READER_CONSENT_FACTS_MAC = ("on_a_mac_it_closes_xrites_i1prodeviceservice_if_the
 CAL_PLACE_RECOMMENDED = "own tile"
 #: NEXT_STEPS 4d: at most this many rows of a page are read again, whatever the session total
 ROWS_READ_AGAIN_PER_PAGE = 2
+#: review 8, B-1: the refusal of every step but the homing once the session has ended (saved,
+#: discarded, or "nothing read"); the detail names how it ended
+SESSION_ENDED = "session_ended"
 #: the facts READY_TO_OPEN stands for (the later window may ask them as separate ticks; the
 #: answer "yes" means every one of them is confirmed)
 READY_TO_OPEN_ITEMS = ("arm_at_its_resting_place", "nothing_on_the_bed_but_the_sheet")
@@ -574,6 +577,8 @@ class TableJob:
 
     # ---- results ---------------------------------------------------------------------------
     def _result(self, step: str, kind: str, reason: str = "", **detail) -> StepResult:
+        if reason == SESSION_ENDED:
+            detail.setdefault("ended", self.ended)
         if kind in (Kind.REFUSED, Kind.STOPPED):
             # the safety review of step 7 (REQUIRED): a step that ended refused or stopped (the
             # person's stop inside a row, a declined move, a failed row, any named refusal) may
@@ -758,6 +763,8 @@ class TableJob:
     def open(self) -> StepResult:
         if self.stopped_by_person:
             return self._result("open", Kind.REFUSED, "stopped_by_person")
+        if self.ended is not None:
+            return self._result("open", Kind.REFUSED, SESSION_ENDED)
         if self.phase != "new":
             return self._result("open", Kind.REFUSED, "already_opened")
         return self._begin("open", self._open())
@@ -851,7 +858,7 @@ class TableJob:
 
     # ---- the start-up of a just-switched-on table ----------------------------------------------
     def start_up(self) -> StepResult:
-        why = self._sending_ready()
+        why = SESSION_ENDED if self.ended is not None else self._sending_ready()
         if why:
             return self._result("start_up", Kind.REFUSED, why)
         if self._table.state != "cold" or self._table.start_up_sent:
@@ -890,6 +897,11 @@ class TableJob:
         return None
 
     def _ready(self, step: str) -> "str | None":
+        if self.ended is not None and step != "home":
+            # review 8, B-1: the session has ended (saved, discarded, nothing read): the person
+            # believes it is over and may reach for the sheet; only the offered homing is left,
+            # and it asks its own hands-off GO
+            return SESSION_ENDED
         why = self._sending_ready()
         if why:
             return why
@@ -1110,7 +1122,7 @@ class TableJob:
     def next_page(self) -> StepResult:
         """The next sheet of the chart (only with the arm at rest: every page is aligned on its
         own)."""
-        why = self._sending_ready()
+        why = SESSION_ENDED if self.ended is not None else self._sending_ready()
         if why:
             return self._result("next_page", Kind.REFUSED, why)
         if self.report_due is not None:
@@ -1429,6 +1441,8 @@ class TableJob:
         measurement lacks."""
         if self._gen is not None:
             return self._result("options", Kind.REFUSED, "another_step_waits_for_a_confirmation")
+        if self.ended is not None:
+            return self._result("options", Kind.REFUSED, SESSION_ENDED)
         if any(self.row_status.values()):
             return self._result("options", Kind.REFUSED, "rows_read_already")
         if chartread_args is not None:
@@ -2027,7 +2041,9 @@ class TableJob:
         (Discard and stop); no default. Nothing read in this session: no question, nothing
         saved (M-END-EMPTY). NOTHING MOVES HERE: after save or discard the arm goes home only
         by ``home()`` (its own GO); keep measuring reads on only by ``read_row()`` (its own GO).
-        The page's GO is cleared: the person's hands may have been on the bed."""
+        The page's GO is cleared: the person's hands may have been on the bed. Once the session
+        has ended (saved, discarded, nothing read), every step but the homing is refused
+        ``session_ended`` (review 8, B-1)."""
         if self._gen is not None:
             return self._result("end", Kind.REFUSED, "another_step_waits_for_a_confirmation")
         if self.ended is not None:
@@ -2095,6 +2111,9 @@ class TableJob:
         file as after a hand measurement (``detail["announce"]``, the run's measurement)."""
         from workflow.measurement_session import MeasurementSession
         from workflow.measurement_state import can_resume
+        # review 8, B-1: Save ends the session in the person's mind; whatever follows (only the
+        # homing) asks the hands-off GO again, also when save() is called without end()
+        self._go_page = None
         if self._gen is not None and self._gen_step != "end":
             return self._result("save", Kind.REFUSED, "another_step_waits_for_a_confirmation")
         if self.ended in ("saved", "discarded"):
@@ -2134,6 +2153,11 @@ class TableJob:
         STAYS in the run, marked (the coordinator's decision of 2026-11-17: diagnostics are
         worth keeping; the owner may change it); ``session_end.set_aside`` moves such folders
         into ``old/`` later, never deletes them."""
+        self._go_page = None              # review 8, B-1: as for save()
+        if self._gen is not None and self._gen_step != "end":
+            # a step waiting for a confirmation (a GO, say) would read on into a discarded
+            # session once answered
+            return self._result("discard", Kind.REFUSED, "another_step_waits_for_a_confirmation")
         if self.ended == "saved":
             return self._result("discard", Kind.REFUSED, "saved_already")
         self.ended = "discarded"
@@ -2159,6 +2183,8 @@ class TableJob:
         from workflow.measurement_state import Ti3State, classify
         if self.run is None or self._chart_ti2 is None:
             return self._result("adopt", Kind.REFUSED, "no_run")
+        if self.ended is not None:
+            return self._result("adopt", Kind.REFUSED, SESSION_ENDED)
         if any(self.row_status.values()):
             return self._result("adopt", Kind.REFUSED, "rows_read_already")
         try:
@@ -2194,6 +2220,8 @@ class TableJob:
         folder stays, never used again). Sends nothing."""
         if self.run is None:
             return self._result("discard_earlier", Kind.REFUSED, "no_run")
+        if self.ended is not None:
+            return self._result("discard_earlier", Kind.REFUSED, SESSION_ENDED)
         try:
             sdir = self.run.i1io_table_session_dir(stamp)
         except ValueError:
