@@ -168,6 +168,19 @@ def test_an_interface_is_known_by_its_class_or_by_its_number(drop):
     assert rd.instrument_check(devices=devs) is None
 
 
+def test_a_driver_entry_with_the_device_s_numbers_is_not_a_device():
+    """A driver below a device can carry the device's idVendor and idProduct (its matching
+    personality, for example a vendor's driver for the i1Pro): it is not a second device."""
+    roots = his_mac()
+    pro = roots[0]["IORegistryEntryChildren"][1]
+    pro["IORegistryEntryChildren"].append({"IOObjectClass": "SomeVendorI1ProDriver",
+                                           "IORegistryEntryID": 777, "idVendor": 0x0971,
+                                           "idProduct": 0x2000})
+    devs = rd.usb_devices(roots)
+    assert [(d["vid"], d["pid"]) for d in devs].count(rd.I1PRO_IDS) == 1
+    assert rd.instrument_check(devices=devs) is None
+
+
 def test_two_real_i1pros_are_still_refused_and_the_text_says_what_was_seen():
     roots = his_mac()
     roots.append(_dev("eye-one", 0x0971, 0x2000, 0x01200000, 300,

@@ -113,6 +113,19 @@ def _is_interface(node: dict) -> bool:
     return "bInterfaceNumber" in node or "Interface" in str(node.get("IOObjectClass", ""))
 
 
+#: the IORegistry classes of a USB DEVICE (ioreg's -c IOUSBHostDevice lists these and their
+#: subclasses); interfaces, drivers and user clients below a device are not devices, even when
+#: they carry the device's idVendor and idProduct (a driver's matching personality can)
+DEVICE_CLASSES = ("IOUSBHostDevice", "IOUSBDevice")
+
+
+def _is_device(node: dict) -> bool:
+    cls = node.get("IOObjectClass")
+    if isinstance(cls, str):
+        return cls in DEVICE_CLASSES or cls.endswith("USBHostDevice")
+    return not _is_interface(node)
+
+
 def usb_devices(roots=None) -> "list[dict] | None":
     """Every USB DEVICE once, from macOS's list: {"vid", "pid", "place" (macOS's locationID,
     the port path; not a serial number), "hub" (a hub's device class), "interfaces" (how many
@@ -142,7 +155,7 @@ def usb_devices(roots=None) -> "list[dict] | None":
             if _is_interface(n):
                 k = key_of(n, parent_key) if isinstance(n.get("locationID"), int) else parent_key
                 interfaces[k] = interfaces.get(k, 0) + 1
-            else:
+            elif _is_device(n):
                 here = key_of(n, len(order))
                 if here not in devices:
                     loc = n.get("locationID")
