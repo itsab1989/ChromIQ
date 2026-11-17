@@ -63,6 +63,9 @@ WINDOW_ROWS = [
     (tr("Instrument Type Mismatch"), tr("Both"), tr("Instrument error")),
     (tr("Correction File Failed to Load"), tr("Both"), tr("Instrument error")),
     (tr("Instrument Mode Rejected"), tr("Both"), tr("Instrument error")),
+    # 4.3.45 (M-FILTER-REFUSED, awaiting approval): the -F choice refused
+    (tr("The instrument does not accept this filter choice"), tr("Both"),
+     tr("Instrument error")),
     (tr("Instrument Error (anything else the instrument reports)"), tr("Both"),
      tr("Instrument error")),
     # The pause between pages (jctay 149802, Basti 2026-10-23; awaiting

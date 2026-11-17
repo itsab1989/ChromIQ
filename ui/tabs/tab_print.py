@@ -262,10 +262,15 @@ _TT_BODY_PRINT_WINDOWS = (
     "• Click \"Print All Pages\" (or \"Print Current Page\" for just the page on screen) to open the dialog.\n"
     "• In the dialog, open the printer's Properties / Preferences and "
     "find its colour-management section. Set it to OFF / \"No Color "
-    "Adjustment\" / \"Application Managed Colors\":\n"
-    "    – Epson:  \"Epson Color Controls\" → Off (No Color Adjustment)\n"
-    "    – Canon:  \"Color Options\" → Manual → None\n"
-    "    – HP:     \"Color Options\" → Application Managed Colors\n"
+    "Adjustment\" / \"Application-Managed Colors\" (the names differ a "
+    "little from model to model):\n"
+    "    – Canon:  \"Main\" tab → \"Color/Intensity\": \"Manual\" → "
+    "\"Set...\" → \"Matching\" tab → \"Color Correction\": \"None\"\n"
+    "    – Epson:  depending on the model. SureColor P700 and P900: \"Main\" "
+    "tab → \"Mode\": \"Off (No Color Adjustment)\". SureColor T series: "
+    "\"Printer Settings\" tab → \"Advanced Settings\" → \"Color Mode\": "
+    "\"Off (No Color Management)\"\n"
+    "    – HP:     \"Color\" tab → \"Application-Managed Colors\"\n"
     "    – Others: look for \"No Color Management\", \"Off\", or "
     "\"Application Controlled\"\n"
     "• Pick the right paper / media type and print quality. Confirm "
@@ -364,10 +369,14 @@ _WIN_NOT_POSTSCRIPT_BODY = (
     "it on your default printer, and ChromIQ asks before printing on "
     "another one. Choose the paper and quality there. Then open the "
     "printer's Properties window and switch its colour adjustment "
-    "off:<br>&nbsp;&nbsp;– Epson: \"Epson Color Controls\" → Off (No Color "
-    "Adjustment)<br>&nbsp;&nbsp;– Canon: \"Color Options\" → Manual → "
-    "None<br>&nbsp;&nbsp;– HP: \"Color Options\" → Application Managed "
-    "Colors<br>&nbsp;&nbsp;– Others: look for \"No Color Management\", \"Off\" "
+    "off (the names differ a little from model to model):<br>&nbsp;&nbsp;– "
+    "Canon: \"Main\" tab → \"Color/Intensity\": \"Manual\" → \"Set...\" "
+    "→ \"Matching\" tab → \"Color Correction\": \"None\"<br>&nbsp;&nbsp;– "
+    "Epson: depending on the model. SureColor P700 and P900: \"Main\" tab "
+    "→ \"Mode\": \"Off (No Color Adjustment)\". SureColor T series: "
+    "\"Printer Settings\" tab → \"Advanced Settings\" → \"Color Mode\": "
+    "\"Off (No Color Management)\"<br>&nbsp;&nbsp;– HP: \"Color\" tab → "
+    "\"Application-Managed Colors\"<br>&nbsp;&nbsp;– Others: look for \"No Color Management\", \"Off\" "
     "or \"Application Controlled\"<br>• A <b>CMYK or multi-ink chart</b> "
     "cannot reach this printer without its driver changing the colours, so "
     "ChromIQ does not print it.<br><br>This is normal for most home and "
@@ -3570,6 +3579,49 @@ class TabPrint(QWidget):
                  chosen, wanted)
         return False
 
+    def _confirm_driver_colour_off(self) -> bool:
+        """M-PRINT-WIN-DRIVER-CM (4.3.45, Windows): before the Windows print
+        dialog opens for a chart, say where the driver's colour management
+        is switched off. True opens the dialog; Cancel (and Esc) prints
+        nothing. "Don't show this again" is stored as
+        ``print_win_hide_driver_cm_confirm``; ticked, nothing is asked."""
+        if bool(self._settings.get("print_win_hide_driver_cm_confirm", False)):
+            return True
+        from PyQt6.QtWidgets import QCheckBox
+        from workflow import measurement_messages as MM
+        title, body = MM.M_PRINT_WIN_DRIVER_CM.render()
+        # the PostScript route is offered only where it is not already the
+        # route: with "Use default Windows printer dialog" ticked (review of
+        # 4.3.45, S1); ChromIQ's own route reaches here for a printer that
+        # is not PostScript (#205) or a "dialog" answer, box unticked
+        if bool(self._settings.get("use_native_print_dialog", False)):
+            body = body + "\n\n" + tr(MM._PRINT_DRIVER_CM_DIRECT)
+        box = QMessageBox(self)
+        box.setObjectName("print_win_driver_cm")
+        box.setWindowTitle(title)
+        set_warning_icon(box)
+        box.setText(title)
+        box.setInformativeText(body)
+        go = box.addButton(tr(MM._PRINT_DRIVER_CM_BTN),
+                           QMessageBox.ButtonRole.AcceptRole)
+        cancel = box.addButton(QMessageBox.StandardButton.Cancel)
+        box.setDefaultButton(go)
+        box.setEscapeButton(cancel)
+        hide = QCheckBox(tr("Don't show this again"), box)
+        box.setCheckBox(hide)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        box.exec()
+        if box.clickedButton() is not go:
+            log.info("Print: cancelled at the driver colour management "
+                     "reminder (M-PRINT-WIN-DRIVER-CM)")
+            return False
+        if hide.isChecked():
+            self._settings.set("print_win_hide_driver_cm_confirm", True)
+        log.info("Print: driver colour management reminder confirmed%s",
+                 " (not shown again)" if hide.isChecked() else "")
+        return True
+
     def _print_windows_not_postscript(self, pages: list[tuple[Path, int]],
                                       printer: str) -> None:
         """#205: ChromIQ's own route, a Windows printer whose driver is not
@@ -4629,15 +4681,19 @@ class TabPrint(QWidget):
             if _sys.platform == "win32":
                 self._warn_lbl.setText(
                     tr("⚠  You are printing via the Windows printer dialog. You must disable "
-                    "colour management in your printer driver before printing — otherwise "
+                    "colour management in your printer driver before printing. Otherwise "
                     "the printer applies its own corrections and the chart will be unusable "
                     "for accurate ICC profiling.\n\n"
                     "How to disable colour management: after clicking Print, open the "
                     "printer's Properties / Preferences and look for a colour-management "
-                    "section:\n"
-                    "  • Epson:  \"Epson Color Controls\" → Off (No Color Adjustment)\n"
-                    "  • Canon:  \"Color Options\" → Manual → None\n"
-                    "  • HP:     \"Color Options\" → Application Managed Colors\n"
+                    "section (the names differ a little from model to model):\n"
+                    "  • Canon:  \"Main\" tab → \"Color/Intensity\": \"Manual\" → "
+                    "\"Set...\" → \"Matching\" tab → \"Color Correction\": \"None\"\n"
+                    "  • Epson:  depending on the model. SureColor P700 and P900: "
+                    "\"Main\" tab → \"Mode\": \"Off (No Color Adjustment)\". SureColor "
+                    "T series: \"Printer Settings\" tab → \"Advanced Settings\" → "
+                    "\"Color Mode\": \"Off (No Color Management)\"\n"
+                    "  • HP:     \"Color\" tab → \"Application-Managed Colors\"\n"
                     "  • Others: look for \"No Color Management\", \"Off\", or "
                     "\"Application Controlled\"\n\n"
                     "Allow pigment inks to dry fully before measuring "
@@ -4867,6 +4923,12 @@ class TabPrint(QWidget):
         qprinter.setFullPage(True)
         if sizes and sizes[0][0] > sizes[0][1]:
             qprinter.setPageOrientation(QPageLayout.Orientation.Landscape)
+        # 4.3.45: on Windows the driver's colour management has to be
+        # switched off in this dialog, and the note on the tab was passed
+        # over; asked before the dialog opens (M-PRINT-WIN-DRIVER-CM)
+        if is_windows() and not self._confirm_driver_colour_off():
+            self._commit_print_record(False)
+            return
         dialog = QPrintDialog(qprinter, self)
         # Windows' print dialog raises and handles COM exceptions of its own,
         # which faulthandler writes into chromiq-crash.log as "Windows fatal

@@ -1945,6 +1945,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._instrument_wrong_type: str | None = None
         self._ccmx_load_failed_msg: str | None = None
         self._mode_set_failed_msg: str | None = None
+        #: 4.3.45: the instrument refused the -F choice (M-FILTER-REFUSED)
+        self._filter_refused: bool = False
         self._ti3_mtime_before: float | None = None
         self._mode: str = "dark"
 
@@ -2076,6 +2078,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._manager.instrument_wrong_type.connect(self._on_instrument_wrong_type)
         self._manager.ccmx_load_failed.connect(self._on_ccmx_load_failed)
         self._manager.mode_set_failed.connect(self._on_mode_set_failed)
+        if hasattr(self._manager, "filter_refused"):
+            self._manager.filter_refused.connect(self._on_filter_refused)
         # B-status. Non-blocking informational messages
         self._manager.info_message.connect(self._on_info_message)
         self._manager.engine_fell_back.connect(self._on_engine_fell_back)
@@ -9776,6 +9780,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._instrument_disconnected = False
         self._device_busy = False
         self._no_instrument = False
+        self._filter_refused = False
         # (`_ti3_pre` / `_ti3_mtime_before` were taken above, before the archive)
         # §2a: copy the measurement aside and record C₀ before anything can
         # touch it. chartread writes its .ti3 only on a clean exit and a resume
@@ -11923,6 +11928,43 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
 
     def _on_mode_set_failed(self, msg: str) -> None:
         self._mode_set_failed_msg = msg
+
+    def _on_filter_refused(self, _line: str) -> None:
+        """The instrument refused the "Spectral filter type (-F)" choice
+        (4.3.45, dpreview #349): said when the read ends
+        (`_filter_refused_window`), which it does at once."""
+        self._filter_refused = True
+
+    def _filter_refused_window(self) -> None:
+        """M-FILTER-REFUSED (§M-PROPOSED), titled
+        "The instrument does not accept this filter choice" (its row in the
+        window-sounds table, Instrument error, `core/measure_windows.py`):
+        the read ended because the
+        instrument does not accept the -F choice; what that means and what
+        to do (switch the row off and start again, the measurement is then
+        in the instrument's normal mode, M0 on an i1Pro 2). The row is not
+        greyed: it means something on the instruments that accept it."""
+        self._cue_window("INSTRUMENT_ERROR")   # as the window opens
+        from PyQt6.QtWidgets import QMessageBox
+        from workflow import measurement_messages as M
+        from ui.widgets import (fit_message_box_buttons,
+                                keep_message_box_inside_the_work_area)
+        try:
+            setting = self._filter_label(self._measure_filter_code())
+        except Exception:      # noqa: BLE001 - the window still opens
+            setting = "-F"
+        title, body = M.M_FILTER_REFUSED.render(
+            setting=setting, start=self._start_button_name())
+        box = QMessageBox(self)
+        box.setObjectName("filter_refused")
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        fit_message_box_buttons(box)
+        box.exec()
 
     def _on_calibration_retrying(self, attempt: int, total: int) -> None:
         """A failed calibration is being retried automatically. The log already
@@ -18220,6 +18262,14 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             layout.addWidget(btn_box)
             tint_dialog_primary(dlg, _TAB_COLOR)
             dlg.exec()
+            return
+
+        if self._filter_refused:
+            # 4.3.45 (dpreview #349): the -F choice was refused and the read
+            # ended before anything was measured. It used to fall back to
+            # Start in silence.
+            self._filter_refused = False
+            self._filter_refused_window()
             return
 
         # chartread exits non-zero even on a clean 'd' (done) completion.

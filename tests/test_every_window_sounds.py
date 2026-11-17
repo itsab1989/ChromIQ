@@ -45,6 +45,8 @@ EXPECTED_CUE = {
     "_strip_read_twice_window":               "INSTRUMENT_ERROR",
     # A calibration the user asked for that did not succeed (K, Calibrate).
     "_show_requested_calibration_failed":     "INSTRUMENT_ERROR",
+    # 4.3.45: the -F choice refused, like "Instrument Mode Rejected".
+    "_filter_refused_window":                 "INSTRUMENT_ERROR",
 }
 
 

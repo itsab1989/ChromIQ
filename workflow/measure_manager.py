@@ -121,6 +121,13 @@ _CCMX_FAIL_RE          = re.compile(
     re.IGNORECASE,
 )
 _MODE_SET_FAIL_RE      = re.compile(r"Setting instrument mode failed with error\s*:?\s*'([^']+)'", re.IGNORECASE)
+#: The "Spectral filter type (-F)" choice refused (dpreview #349, an i1Pro 2):
+#: ArgyllCMS 3.5.0 spectro/chartread.c:705, and the helper's copy of the same
+#: code (native/chartread_helper/chromiq_chartread.c), print exactly this on
+#: stdout and exit -1 when `inst_opt_set_filter` is not `inst_ok`; i1pro.c and
+#: munki.c accept no filter at all, i1pro3.c not "p" without a polariser.
+_FILTER_REFUSED_RE     = re.compile(
+    r"Setting requested filter not supported by instrument", re.IGNORECASE)
 
 # --- B-status. Informational lines surfaced as status-bar messages -------
 _INFO_CHART_INST_MISMATCH_RE = re.compile(r"Warning:\s*chart is for\s+(\S+),\s*using instrument\s+(\S+)", re.IGNORECASE)
@@ -557,6 +564,7 @@ class MeasureManager(QObject):
     instrument_wrong_type      = pyqtSignal(str)    # instrument can't do reflection/transmission/emissive as needed
     ccmx_load_failed           = pyqtSignal(str)    # CCMX/CCSS load failed
     mode_set_failed            = pyqtSignal(str)    # setting instrument mode failed
+    filter_refused             = pyqtSignal(str)    # -F refused (M-FILTER-REFUSED)
 
     # B-status. Non-blocking informational messages
     info_message               = pyqtSignal(str, str)  # (category, text)
@@ -997,6 +1005,10 @@ class MeasureManager(QObject):
         #: changed!"). Never a lost connection, and never a reason to fall
         #: back: stock chartread stops the same way at the end.
         self._resume_spectral_changed = False
+        #: 4.3.45: the instrument refused the -F choice
+        #: (`_check_startup_failures`); stock chartread refuses it the same
+        #: way, so never a reason to fall back.
+        self._filter_refused = False
         self._user_quit = False
         self._reset_requested_calibration()
         # The user can raise this for an ageing instrument (Settings → Beta);
@@ -1493,6 +1505,8 @@ class MeasureManager(QObject):
             return False
         if getattr(self, "_resume_spectral_changed", False):
             return False        # 4.3.37: stock chartread stops the same way
+        if getattr(self, "_filter_refused", False):
+            return False        # 4.3.45: stock chartread refuses -F the same way
         if self._engine_fallback_used or self._cal_request_used:
             return False
         if self._chart_unreadable is not None or self._stock_cannot_read_chart:
@@ -1597,6 +1611,8 @@ class MeasureManager(QObject):
             return False
         if getattr(self, "_resume_spectral_changed", False):
             return False        # 4.3.37: stock chartread stops the same way
+        if getattr(self, "_filter_refused", False):
+            return False        # 4.3.45: stock chartread refuses -F the same way
         if self._cal_request_used:
             return False
         if self._chart_unreadable is not None or self._stock_cannot_read_chart:
@@ -4877,6 +4893,12 @@ class MeasureManager(QObject):
         m = _MODE_SET_FAIL_RE.search(line)
         if m:
             self.mode_set_failed.emit(m.group(1).strip())
+        # dpreview #349 (4.3.45): the -F choice refused, which ended the read
+        # with nothing on screen. Stock chartread refuses it the same way, so
+        # it is no reason to fall back to it either.
+        if _FILTER_REFUSED_RE.search(line):
+            self._filter_refused = True
+            self.filter_refused.emit(line.strip())
 
     def _check_informational(self, line: str) -> None:
         """Surface the notes chartread prints, from either reader.

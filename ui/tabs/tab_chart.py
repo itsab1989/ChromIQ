@@ -173,6 +173,12 @@ def _panel_patch_size_mm(slot_w_mm: float, slot_h_mm: float,
     return (w, ph, pitch)
 
 
+def _patchsize_help() -> str:
+    """The `{patchsize}` paragraph the Sheet text's help has (4.3.45)."""
+    from ui.dialogs.layout_options_panel import patchsize_help
+    return patchsize_help()
+
+
 def _number_of_sets(path) -> int | None:
     """``NUMBER_OF_SETS`` from a CGATS .ti1/.ti2, or None if unreadable."""
     try:
@@ -8101,7 +8107,8 @@ class TabChart(QWidget):
             "chart, each page with its own page number. What you typed is kept "
             "exactly as it is everywhere else: in the project, in the chart's "
             "files and in the reports. On a chart in fixed order {seed} is "
-            "left out, as in the Sheet text."),
+            "left out, as in the Sheet text.")
+            + "\n\n" + _patchsize_help(),
             self._manual_chart_notes_row,
             min_width=540,
         ))
@@ -27210,6 +27217,9 @@ class TabChart(QWidget):
         panel = getattr(self, "_layout_info_panel", None)
         if panel is None:
             return None
+        # `{patchsize}`'s own number for the width prediction (4.3.45): the
+        # laid-out size, set below with the estimate, never a stale one
+        self._laid_out_patch_estimate = None
         try:
             from workflow.layout_engine import geometry, instruments, papers
             w_mm, h_mm = papers.dimensions_mm(paper)
@@ -27230,6 +27240,10 @@ class TabChart(QWidget):
             # so both are shown, and the pitch is named as the pitch.
             _flat = bool(getattr(geom, "hex_flat_top", False))
             _slot_w, _slot_h = geom.pwid, geom.plen
+            # what `{patchsize}` will print (4.3.45): the laid-out size, not
+            # the pixels below (`chart.laid_out_patch_size_mm`)
+            from workflow.layout_engine.chart import laid_out_patch_size_mm
+            self._laid_out_patch_estimate = laid_out_patch_size_mm(geom)
             # THE PATCH THE RENDERER WILL DRAW, WHEN WE KNOW ITS RESOLUTION
             # (B8-1571). The "on screen" column reads the first patch the
             # engine recorded, and `geometry.patch_rects_px` rounds each edge
@@ -28103,9 +28117,33 @@ class TabChart(QWidget):
             patches=patches,
             pages=pages,
             seed=self._seed_for_prediction(r),
-            randomize=bool(getattr(r, "randomize", True)))
+            randomize=bool(getattr(r, "randomize", True)),
+            patch_size_mm=self._predicted_patch_size())
         ctx["page"] = f"page 1/{pages}"
         return ctx
+
+    def _predicted_patch_size(self) -> "tuple[float, float] | None":
+        """`{patchsize}` for the panel's predictions (4.3.45): the laid-out
+        size the Chart layout information's estimate was worked out from
+        (`chart.laid_out_patch_size_mm`, the number the build prints), else
+        the patch that estimate shows, else a stand-in as wide as a large
+        one ("88.8x88.8"), so a line is not measured shorter than it
+        prints. Never raises (see `_text_placeholder_context`)."""
+        try:
+            laid = getattr(self, "_laid_out_patch_estimate", None)
+            if laid and float(laid[0]) > 0 and float(laid[1]) > 0:
+                return (float(laid[0]), float(laid[1]))
+        except Exception:      # noqa: BLE001 - a prediction is never fatal
+            pass
+        try:
+            panel = getattr(self, "_layout_info_panel", None)
+            got = panel.predicted() if panel is not None else None
+            patch = (got or {}).get("patch")
+            if patch and float(patch[0]) > 0 and float(patch[1]) > 0:
+                return (float(patch[0]), float(patch[1]))
+        except Exception:      # noqa: BLE001 — a prediction is never fatal
+            pass
+        return (88.8, 88.8)
 
     def _bottom_sheet_text_lines(self, r) -> "list[str]":
         """Every line the bottom of the sheet will carry, in drawing order.

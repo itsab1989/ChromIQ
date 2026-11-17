@@ -8954,6 +8954,69 @@ M_PRINT_WIN_DIALOG_OTHER_PRINTER = _m(
     approved=False)
 _PRINT_OTHER_PRINTER_BTN = "Print on {printer}"
 
+# --- PROPOSED: switch the driver's colour management off (Windows dialog) ---
+#: 4.3.45: a tester printed through the Windows print dialog with the Canon
+#: driver's colour management on and lost about 30 % of the gamut; the note
+#: on the Print Chart tab had been passed over. Asked by
+#: `TabPrint._confirm_driver_colour_off` on Windows only, before the print
+#: dialog opens for a chart, until "Don't show this again" is ticked
+#: (setting `print_win_hide_driver_cm_confirm`). The menu paths are the
+#: makers' own manuals' (Canon IJ driver: Main > Color/Intensity: Manual >
+#: Set... > Matching > Color Correction: None; Epson SC-P700/P900 user's
+#: guide: Main tab, Mode: Off (No Color Adjustment); Epson SureColor T
+#: series: Printer Settings > Advanced Settings > Color Mode: Off (No Color
+#: Management); HP: Color tab, Application-Managed Colors). Review of 4.3.45,
+#: S2: Epson's labels named by model, as Epson's own guides name them;
+#: S4: the text also fits a verification chart printed through its
+#: profile, which goes through the same dialog.
+M_PRINT_WIN_DRIVER_CM = _m(
+    "M-PRINT-WIN-DRIVER-CM",
+    "Please switch off the printer driver's colour management",
+    "The Windows print dialog opens next. Before you press Print in it, "
+    "please switch off the colour management of the printer driver. "
+    "ChromIQ cannot do this for you on this route, and most drivers have "
+    "it switched on. If it stays on, the driver changes the colours of "
+    "every patch on their way to the printer, so the chart on paper no "
+    "longer has the colours ChromIQ sent. A chart for a profile then shows "
+    "the driver's corrections instead of what your printer really does, "
+    "the printer seems to print a much smaller range of colours than it "
+    "can, and a profile built from it is wrong. A verification chart then "
+    "checks the driver's corrections instead of your profile, so its "
+    "result says little about the profile.\n"
+    "\n"
+    "Where the switch usually is: in the print dialog, press "
+    "\"Preferences\" or \"Properties\" for the printer, then (the names "
+    "differ a little from model to model):\n"
+    "•  Canon: on the \"Main\" tab set \"Color/Intensity\" to \"Manual\", "
+    "press \"Set...\", and on the \"Matching\" tab set \"Color Correction\" to "
+    "\"None\".\n"
+    "•  Epson: the names depend on the model. On the SureColor P700 and "
+    "P900, set \"Mode\" on the \"Main\" tab to \"Off (No Color "
+    "Adjustment)\". On the SureColor T series, press \"Advanced Settings\" "
+    "on the \"Printer Settings\" tab and set \"Color Mode\" to \"Off (No "
+    "Color Management)\". On other models look for one of these two.\n"
+    "•  HP: on the \"Color\" tab choose \"Application-Managed Colors\", "
+    "where the driver offers it.\n"
+    "•  Other makes: look for \"No Color Adjustment\", \"None\", \"Off\" or "
+    "\"Application Managed\".\n"
+    "\n"
+    "While you are there, choose the paper type and the print quality "
+    "you will use with the profile, and use the same settings every time "
+    "you print with it.\n"
+    "\n"
+    "Press “Open the print dialog” to go on, or “Cancel” to print "
+    "nothing.",
+    approved=False)
+#: Added below M-PRINT-WIN-DRIVER-CM only while “Use default Windows printer
+#: dialog” is ticked (review of 4.3.45, S1): on ChromIQ's own route (a
+#: printer that is not PostScript, #205, or the “dialog” answer to one of
+#: its questions) that box is already unticked, and the advice was wrong.
+_PRINT_DRIVER_CM_DIRECT = (
+    "If your printer understands PostScript, ChromIQ can also send the "
+    "chart to it directly, so that no driver setting can change it: untick "
+    "“Use default Windows printer dialog” in Preferences.")
+_PRINT_DRIVER_CM_BTN = "Open the print dialog"
+
 # --- APPROVED: the P18 window's own wording, 4.3.8 (Basti, 2026-10-20) -----
 #: Basti, 2026-10-20: the window before the direct route sends a verification
 #: chart to a PostScript printer, when the run's profiling chart was printed
@@ -11655,6 +11718,39 @@ M_I1PRO2_LIGHTS_LEFT_ON = _m(
     approved=False)
 
 
+# --- PROPOSED: the instrument refused the "Spectral filter type (-F)" choice --
+#: 4.3.45 (dpreview #349, an i1Pro 2 also sold as ES-2000): with the row on,
+#: chartread printed "Setting requested filter not supported by instrument"
+#: (ArgyllCMS 3.5.0 spectro/chartread.c:705; the helper prints the same) and
+#: exited, and the Measure tab went back to Start with nothing on screen.
+#: Shown by `TabMeasure._filter_refused_window` when the read ends that way
+#: (`MeasureManager.filter_refused`). {setting} is the row's entry as the list
+#: shows it, {start} the Start button's own text. Not greyed: the row means
+#: something on the instruments that accept it (the owner's rule).
+M_FILTER_REFUSED = _m(
+    "M-FILTER-REFUSED",
+    "The instrument does not accept this filter choice",
+    "The measurement did not start. On the Measure tab, “Spectral filter "
+    "type (-F)” is switched on and set to “{setting}”, and the instrument "
+    "you have connected does not accept that choice. ArgyllCMS, which "
+    "ChromIQ measures with, reported: “Setting requested filter not "
+    "supported by instrument”.\n\n"
+    "In ArgyllCMS 3.5.0, some instruments accept no filter choice at all, "
+    "not even “M0: no filter (lamp as it is)”. The i1Pro 2 (also sold as "
+    "ES-2000) and the ColorMunki are among them: they always measure in "
+    "their normal mode, which on the i1Pro 2 is M0, the instrument's own "
+    "lamp without a filter. Other instruments accept only some of the "
+    "choices: the i1Pro 3, for example, accepts “M3: polarising filter” "
+    "only when it has a polariser fitted.\n\n"
+    "What to do: switch “Spectral filter type (-F)” off (the option is in "
+    "Manual mode), then press “{start}” again. The instrument then measures "
+    "in its normal mode; on an i1Pro 2 the measurement is M0. If your "
+    "instrument accepts other choices, you can choose one of those "
+    "instead.\n\n"
+    "Nothing has been measured or changed.",
+    approved=False)
+
+
 #: The ruler check (Preferences > Beta, 2026-11-14; §M-PROPOSED): an
 #: accepted strip that the instrument's ruler says was clearly not read all
 #: the way. Re-read Strip (the default) / Continue Anyway, as "Strip Read
@@ -12495,6 +12591,7 @@ CATALOGUE = {m.id: m for m in (
     M_STRIP_TURNED,
     M_STRIP_RULER_NOT_COVERED,
     M_I1PRO2_LIGHTS_LEFT_ON,
+    M_FILTER_REFUSED,
     M_STRIP_FAILED_COMS_DETAIL,
     M_RESUME_RESOLUTION,
     M_RESUME_RESOLUTION_INSTRUMENT,
@@ -12560,6 +12657,7 @@ CATALOGUE = {m.id: m for m in (
     M_PRINT_WIN_INKS_NOT_POSTSCRIPT, M_PRINT_WIN_DIALOG_NOT_RGB,
     M_PRINT_WIN_DIALOG_TOO_BIG, M_PRINT_WIN_SPOOLER_FAILED,
     M_PRINT_WIN_DIALOG_OTHER_PRINTER,
+    M_PRINT_WIN_DRIVER_CM,
     M_PRINT_PS_ASK, M_PRINT_PS_FORM_APPLIES,
     M_PRINT_PS_FORM_APPLIES_PROJECT,
     M_PRINT_JOB_EPSON_MATCHING_RESET, M_PRINT_JOB_EPSON_MATCHING,

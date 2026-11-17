@@ -147,6 +147,10 @@ DEFAULTS: dict[str, Any] = {
     # default route on macOS; this key never changes that, and Settings greys
     # the box out while the dialog is on.
     "pdf_print_fallback":        True,
+    # 4.3.45: "Don't show this again" on the Windows confirmation to switch
+    # the printer driver's colour management off before the print dialog
+    # opens for a chart (M-PRINT-WIN-DRIVER-CM). Windows only; global.
+    "print_win_hide_driver_cm_confirm": False,
     # "Warn me if a strip looks misaligned" (the chart-reading engine's
     # --safenet, #50). ON by default since 4.3.5 beta 8 (Basti, #210): it
     # had been off since it was added, and blind on real prints until #210

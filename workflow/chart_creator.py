@@ -2131,7 +2131,9 @@ class ChartCreator:
                     "randomize": bool(getattr(result, "randomize", True)),
                     "date": str(getattr(result, "chart_date", "") or ""),
                     "pages": int(result.layout.pages),
-                    "patches": int(result.layout.total_patches)}
+                    "patches": int(result.layout.total_patches),
+                    # `{patchsize}` (4.3.45): as laid out
+                    "patch_size_mm": getattr(result, "patch_size_mm", None)}
                 try:
                     self._stamp_tiff_metadata(tiffs, self._pending_params)
                 finally:
@@ -2284,7 +2286,17 @@ class ChartCreator:
                 self._patch_ti2_instrument(work_dir, stem)
             self._write_channel_sidecar(work_dir, stem, self._pending_params)
             self._capture_scanner_cht(work_dir, stem, self._pending_params)
-            self._stamp_tiff_metadata(tiffs, self._pending_params)
+            # `{patchsize}` in the chart notes (4.3.45): read back from the
+            # .cht just captured; only the notes' placeholders read it
+            self._notes_build = None
+            if self.notes_have_placeholders(self._pending_params):
+                self._notes_build = {
+                    "patch_size_mm": self._printtarg_patch_size_mm(
+                        work_dir, stem, self._pending_params)}
+            try:
+                self._stamp_tiff_metadata(tiffs, self._pending_params)
+            finally:
+                self._notes_build = None
 
         if on_finish:
             on_finish(tiffs)
@@ -2335,9 +2347,72 @@ class ChartCreator:
             pages=int(built.get("pages") or pages or 1),
             seed=int(built.get("seed") or 0),
             chart_date=str(built.get("date") or params.chart_date or ""),
-            randomize=bool(built.get("randomize", False)))
+            randomize=bool(built.get("randomize", False)),
+            # `{patchsize}` (4.3.45): the engine's laid-out patch, or a
+            # printtarg chart's read back from its .cht; None = unknown
+            patch_size_mm=built.get("patch_size_mm"))
         ctx["page"] = f"page {page}/{int(built.get('pages') or pages or 1)}"
         return ctx
+
+    #: printtarg instruments whose `-s` .cht boxes were measured against the
+    #: printed patch (4.3.45: i1Pro, i1Pro 3, ColorMunki with and without
+    #: double density, SpectroScan without hexagons, ArgyllCMS 3.5.0).
+    _PRINTTARG_SIZE_KNOWN = ("i1", "p3", "CM", "SS")
+
+    def _printtarg_patch_size_mm(self, work_dir: Path, stem: str,
+                                 params: "ChartParams"
+                                 ) -> "tuple[float, float] | None":
+        """The patch of a printtarg chart, ``(across the strip, along it)`` in
+        mm, for `{patchsize}`; None when it cannot be known.
+
+        Read from printtarg's own `-s` .cht that `_capture_printtarg_cht`
+        stores in channels.json (its boxes are millimetres in the page's own
+        frame, strips running down the page, as the engine's). Measured on
+        the printed TIFFs (4.3.45, 10 cases, the probe in the work folder of
+        that day): every box is the printed patch, except that the FIRST
+        strip of each `-s` page is drawn half a patch wider for scanners
+        (printtarg.c `sxwi = pwid/2`), which the chart that is printed,
+        made without `-s`, does not have. So the narrower width is the
+        patch, and the wider one must be exactly 1.5 times it or nothing is
+        claimed. Unknown: no capture (a chart that is not RGB, a capture
+        refused), only one strip on every page (nothing to tell the widths
+        apart),
+        hexagons (the box is not the hexagon), any instrument not measured."""
+        import json
+        try:
+            if params.instrument not in self._PRINTTARG_SIZE_KNOWN:
+                return None
+            if params.instrument == "SS" and params.double_density:
+                return None                       # hexagons
+            sidecar = work_dir / f"{stem}.channels.json"
+            if not sidecar.is_file():
+                return None
+            layout = (json.loads(read_text(sidecar)) or {}).get("layout") or {}
+            if layout.get("engine") != "printtarg":
+                return None
+            widths: set[float] = set()
+            heights: set[float] = set()
+            several = False
+            for text in layout.get("cht_pages") or []:
+                xs: set[float] = set()
+                for line in str(text).splitlines():
+                    f = line.split()
+                    if len(f) == 11 and f[0] in ("X", "Y"):
+                        widths.add(round(float(f[5]), 3))
+                        heights.add(round(float(f[6]), 3))
+                        xs.add(round(float(f[7]), 3))
+                several = several or len(xs) >= 2
+            if not several:
+                return None                       # only one strip a page
+            if len(heights) != 1 or len(widths) != 2:
+                return None
+            narrow, wide = sorted(widths)
+            if narrow <= 0 or abs(wide - 1.5 * narrow) > 0.01:
+                return None
+            return (narrow, next(iter(heights)))
+        except Exception:      # noqa: BLE001 - unknown, never a failure
+            log.debug("printtarg patch size unavailable", exc_info=True)
+            return None
 
     def stamp_lines(self, params: "ChartParams",
                     patch_count: int = 0,

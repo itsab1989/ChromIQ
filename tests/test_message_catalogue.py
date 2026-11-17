@@ -193,6 +193,10 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-I1IO-DRIVE-REFINE",
     "M-I1IO-DRIVE-MARKER-APP-ENDED",
     "M-I1IO-DRIVE-END-CHOICES",
+    # 4.3.45 (dpreview #349): the instrument refused the -F choice.
+    "M-FILTER-REFUSED",
+    # 4.3.45: Windows, switch the driver's colour management off first.
+    "M-PRINT-WIN-DRIVER-CM",
     # 2026-11-16: the Beta "Custom page size in inches or pixels, and high
     # resolution" (#215).
     "M-PAGE-OUTPUT-PARTS",
@@ -1258,6 +1262,10 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_measure", "TabMeasure", "_unread_choice_window"),
     # The i1Pro 2 lights (Beta), 2026-11-13: replug before connecting.
     ("ui.tabs.tab_measure", "TabMeasure", "_i1pro2_lights_left_on_window"),
+    # 4.3.45 (dpreview #349): the -F choice refused.
+    ("ui.tabs.tab_measure", "TabMeasure", "_filter_refused_window"),
+    # 4.3.45: Windows, the driver's colour management, before the dialog.
+    ("ui.tabs.tab_print", "TabPrint", "_confirm_driver_colour_off"),
     # #182 5963903650 Q5: "Was a strip read twice?"
     ("ui.tabs.tab_measure", "TabMeasure", "_strip_read_twice_window"),
     # The pause between pages (jctay 149802, Basti 2026-10-23).

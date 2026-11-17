@@ -565,6 +565,9 @@ def dialog_route(qapp, tmp_path, monkeypatch):
                         lambda title, body: events.append(("refused", title)))
     # the conftest stub stands in for this method; the real one is under test
     monkeypatch.setattr(tab, "_print_native_qt", _REAL_PRINT_NATIVE_QT.__get__(tab))
+    # 4.3.45: the driver colour management reminder (Windows) is answered;
+    # tests/test_4345_windows_driver_colour_reminder.py covers the window
+    monkeypatch.setattr(tab, "_confirm_driver_colour_off", lambda: True)
     return tab, events
 
 

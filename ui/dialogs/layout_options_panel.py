@@ -173,12 +173,37 @@ SHEET_TOKENS = (
     ("pages", tr("Total number of pages")),
     ("seed", tr("Seed (with “seed”)")),
     ("dpi", tr("Resolution (with “dpi”)")),
+    # 4.3.45 (jctay, forum post 150317): the patch as laid out
+    ("patchsize", tr("Patch size in mm, e.g. “7.0x7.4”")),
 )
 #: `{logo}` (4.3.44), in the Sheet text's menu only: the clip band's text
 #: does not draw it.
 LOGO_TOKEN_ENTRY = (
     ("logo", tr("The ChromIQ logo, as tall as the text")),
 )
+
+
+def patchsize_help() -> str:
+    """The paragraph on `{patchsize}` (4.3.45) in the help of the Sheet text,
+    the clip border's text and the Chart Notes: one text, so the three say
+    the same."""
+    return tr(
+        "{patchsize} is the size of the chart's patches in millimetres, with "
+        "one decimal each and no spaces: first the width across the strip, "
+        "then the length along the strip, for example “7.0x7.4”. It is the "
+        "size the chart was laid out with: the two numbers you typed in "
+        "“Patch size (mm)”, in the same order, or the size ChromIQ worked "
+        "out for you when they are on “auto”. On paper every patch is made "
+        "of whole pixels, so a single patch can be a fraction of a pixel "
+        "wider or narrower than this size, and the “Patch size” row under "
+        "“Chart layout information”, which measures the first patch as "
+        "drawn, can show a slightly different number. A hexagonal patch is "
+        "measured from tip to tip, as in the chart layout information. On a "
+        "chart laid out by ArgyllCMS printtarg it is the patch size "
+        "printtarg used. Where ChromIQ cannot know the size, {patchsize} "
+        "prints nothing: on an FD-9 chart, and on a chart laid out by "
+        "ArgyllCMS printtarg that is not RGB, has hexagonal patches or has "
+        "only one strip on each of its pages.")
 
 
 # Font sizes are shown to the user in points (Word/PowerPoint/PDF units) but
@@ -3094,7 +3119,8 @@ class LayoutOptionsPanel(QWidget):
                         "logo could not be recognised, the logo is left out. "
                         "It is also left out, never printed as the word, "
                         "where ChromIQ does not draw it: in the clip border's "
-                        "own text and on an i1iO table chart."),
+                        "own text and on an i1iO table chart.")
+                    + "\n\n" + patchsize_help(),
                     self))
         add_row(stg, 1, tr("Preview:"), self.text_preview)
         self._add_font_rows(stg, 2, tr("Font:"), self.chart_text_font,
@@ -3406,7 +3432,8 @@ class LayoutOptionsPanel(QWidget):
                        "put in a run of underscores (10 for long, 5 for short). "
                        "Put several in a row for a longer line; they join with no gap unless you type a space "
                        "between them. Handy for a hand-written date or paper name.\n\n"
-                       "The font and size below apply to this text."),
+                       "The font and size below apply to this text.")
+                    + "\n\n" + patchsize_help(),
                     self))
         _clip_font_w = QWidget(self)
         _cf = QHBoxLayout(_clip_font_w)
@@ -7316,11 +7343,43 @@ class LayoutOptionsPanel(QWidget):
             "patchcount": "600 patches",
             "pages": str(_pages), "seed": "seed 12345",
             "dpi": f"{int(self.dpi.value())} dpi",
+            # `{patchsize}` (4.3.45): the size typed, else a sample like the
+            # other values here; the chart prints the size it is laid out with
+            "patchsize": self._sample_patch_size(),
         }
         # the build's own rule (4.3.44): plain known names filled in, anything
         # else as typed, `{logo}` left out where it is not drawn
         from workflow.layout_engine.raster import resolve_placeholders
         return resolve_placeholders(text, ctx)
+
+    def _sample_patch_size(self) -> str:
+        """`{patchsize}` for the Preview line: what the sheet prints for the
+        two Patch size boxes, else a sample like the other values here.
+
+        The build's rule (`chart.laid_out_patch_size_mm`, review R1 of
+        4.3.45): a hexagon is measured tip to tip from its slot, so 10 x 10
+        typed on a CR30 honeycomb prints "10.0x13.3" and, turned, "13.3x10.0".
+        In "Prioritise chart area" the boxes are hidden and do not decide the
+        size; the fitted size needs the whole page the host builds, which only
+        Generate knows, so the Preview shows the sample there, as it does for
+        {patchcount} and {seed}."""
+        sample = "7.0x7.4"
+        mode = getattr(self, "layout_mode", None)
+        try:
+            if mode is not None and mode.currentData() == "area_first":
+                return sample
+        except Exception:      # noqa: BLE001 - a preview, never a failure
+            return sample
+        from workflow.hex_support import shown_patch_size_mm
+        from workflow.layout_engine.chart import patch_size_text
+        try:
+            w = float(self.patch_x.value())
+            h = float(self.patch_y.value())
+            w, h, _pitch = shown_patch_size_mm(
+                w, h, self._area_is_hexagonal(), self._area_is_turned_hex())
+        except Exception:      # noqa: BLE001 - a preview, never a failure
+            w = h = 0.0
+        return patch_size_text((w, h)) or sample
 
     def _update_text_preview(self) -> None:
         if not hasattr(self, "text_preview"):

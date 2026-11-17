@@ -231,6 +231,26 @@ def hex_patch_height_mm(row_pitch_mm: float) -> float:
     return float(row_pitch_mm) * HEX_HEIGHT_FACTOR
 
 
+def shown_patch_size_mm(slot_w_mm: float, slot_h_mm: float,
+                        hexagonal: bool, flat_top: bool = False
+                        ) -> "tuple[float, float, float]":
+    """``(patch width, patch height, pitch)`` from a patch SLOT, as Create
+    Chart's Chart layout information shows it (4.3.45, for `{patchsize}`).
+
+    The rule of `ui.tabs.tab_chart._panel_patch_size_mm`, here so the chart
+    builder can ask it without importing the UI; a test pins the two to the
+    same answers. Pointy-top hexagons are taller than their slot (tip to
+    tip), turned ones wider; square patches are their slot, pitch 0.
+    Report only, never geometry."""
+    w = float(slot_w_mm or 0.0)
+    h = float(slot_h_mm or 0.0)
+    if not hexagonal or w <= 0 or h <= 0:
+        return (w, h, 0.0)
+    if flat_top:
+        return (hex_patch_width_mm(w), h, w)
+    return (w, hex_patch_height_mm(h), h)
+
+
 def recipe_is_flat_top(recipe) -> bool:
     """True for a ROTATED honeycomb, resolved the way the BUILDER resolves it.
 

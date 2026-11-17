@@ -2164,6 +2164,23 @@ def _clip_inner_limit_px(geom, ax_px: int, aw_px: int, dpi: int) -> float:
     return max(1.0, min(float(aw_px), reach * dpi / 25.4 - float(ax_px)))
 
 
+def _clip_text_for_reach(text: str, geom) -> str:
+    """The clip text as the reach measures it: as typed, braces and all
+    (a 4.3.44 limit, kept so no existing chart moves), except `{patchsize}`
+    (review of 4.3.45, N2), which is measured with the text it prints, the
+    size laid out (`chart.laid_out_patch_size_mm`). A text without a plain
+    `{patchsize}` comes back unchanged, so its chart stays byte-identical."""
+    if "{patchsize}" not in text or not _PLACEHOLDER.search(text):
+        return text
+    try:
+        from .chart import laid_out_patch_size_mm, patch_size_text
+        size = patch_size_text(laid_out_patch_size_mm(geom))
+    except Exception:      # noqa: BLE001 - measured as typed, as before
+        return text
+    return _PLACEHOLDER.sub(
+        lambda m: size if m.group(1) == "patchsize" else m.group(0), text)
+
+
 def clip_content_reach_mm(geom, kw: dict) -> "float | None":
     """How far in from the LEFT page edge the clip border's own content (text,
     branding or image) reaches, in mm: 0.0 when the border prints nothing,
@@ -2204,7 +2221,7 @@ def clip_content_reach_mm(geom, kw: dict) -> "float | None":
     except Exception:      # noqa: BLE001
         ctx = {}
     key = (mode, int(aw), int(ah), int(ax), dpi,
-           str(kw.get("clip_text") or ""),
+           _clip_text_for_reach(str(kw.get("clip_text") or ""), geom),
            str(kw.get("clip_text_font") or "Inter"), size_mm,
            str(kw.get("clip_image_path") or ""),
            int(kw.get("clip_image_rotation") or 0),
