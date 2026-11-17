@@ -314,6 +314,15 @@ def _box(a, b):
     return None if not len(ys) else (xs.min(), ys.min(), xs.max(), ys.max())
 
 
+def _without_the_created_stamp(ti2: bytes) -> bytes:
+    """The .ti2 with its one ``CREATED "<date time>"`` line emptied (ti2_writer stamps the
+    build time to the second); every other byte is kept."""
+    import re
+    out, n = re.subn(rb'^CREATED "[^"\r\n]*"$', b'CREATED ""', ti2, flags=re.M)
+    assert n == 1, n
+    return out
+
+
 @pytest.mark.parametrize("kw", [
     dict(instrument="i1", paper="A4", dpi=150, clip_content_mode="branding",
          clip_text="Line one\nLine two"),
@@ -349,8 +358,11 @@ def test_the_new_wordmark_changes_only_the_wordmarks_own_pixels(
                          for p in sorted(res.tiff_paths)],
                         (tmp_path / which / "c.ti2").read_bytes())
     raster._clip_reach_cached.cache_clear()
-    assert built["old"][1] == built["new"][1]
-    assert built["marked"][1] == built["new"][1]
+    # the three builds may straddle a second under load: the .ti2's CREATED time stamp (and
+    # only that one line) is not part of what is compared
+    ti2 = {k: _without_the_created_stamp(v[1]) for k, v in built.items()}
+    assert ti2["old"] == ti2["new"]
+    assert ti2["marked"] == ti2["new"]
     for old, new, marked in zip(built["old"][0], built["new"][0],
                                 built["marked"][0]):
         changed = _box(old, new)
