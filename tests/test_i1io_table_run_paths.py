@@ -52,7 +52,12 @@ def test_the_marker_name_is_the_one_the_scan_module_writes():
 
 
 @pytest.mark.parametrize("bad", ["", "..", "../x", "a/b", "2026-11-17", "20261117-1015",
-                                 "20261117-101500/..", "20261117-101500_", "x20261117-101500"])
+                                 "20261117-101500/..", "20261117-101500_", "x20261117-101500",
+                                 # digits that are not ASCII (review 2026-11-17): Arabic-Indic,
+                                 # full-width, Devanagari
+                                 "\u0662\u0660\u0662\u0666\u0661\u0661\u0661\u0667-101500",
+                                 "\uff12\uff10\uff12\uff16\uff11\uff11\uff11\uff17-101500",
+                                 "20261117-\u0967\u0966\u0967\u096b\u0966\u0966"])
 def test_a_session_name_is_a_stamp_and_nothing_else(tmp_path, bad):
     with pytest.raises(ValueError):
         _run(tmp_path).i1io_table_session_dir(bad)

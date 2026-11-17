@@ -130,7 +130,7 @@ I1IO_TABLE_DIRNAME = "i1io-table"
 #: a test pins that the two are the same; not imported, so that nothing here
 #: loads the table package).
 I1IO_TABLE_PENDING_MARKER = "SCAN_MOVE_MAY_BE_PENDING.txt"
-_I1IO_TABLE_STAMP = re.compile(r"\d{8}-\d{6}(?:_[1-9]\d*)?")
+_I1IO_TABLE_STAMP = re.compile(r"\d{8}-\d{6}(?:_[1-9]\d*)?", re.ASCII)  # ASCII digits only
 #: #130 — the copy of the chart a run (or a dated verification) was measured
 #: with. Same name at both levels, so one word means one thing.
 CHART_SNAPSHOT_DIRNAME = "chart"
