@@ -7153,6 +7153,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # S-2); one left from an earlier hand session is not ours to restore
         self._displaced_measurement = None
         self._table_saved = False
+        self._table_complete_ti3 = None
         self._table_refining = bool(only_locs)
         win = TableMeasureWindow(self._stack, self._settings, sheet, run, args,
                                  only_locs=only_locs,
@@ -7234,6 +7235,20 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             return out
         except Exception:      # noqa: BLE001 - no expected colours, the split says so
             return {}
+
+    def _table_completion_now(self) -> None:
+        ti3, self._table_completion_due = getattr(self, "_table_completion_due", None), None
+        if ti3 is not None:
+            self._table_completion(ti3)
+
+    def _table_completion(self, ti3: Path) -> None:
+        """The hand path's own completion for a complete table measurement."""
+        if getattr(self, "_table_window", None) is not None or not Path(ti3).is_file():
+            return
+        if self._settings.get("averaging_enabled", False):
+            self._handle_measure_complete(Path(ti3))
+        else:
+            self._show_all_stripes_done(table=True)
 
     def _table_room(self, on: bool) -> None:
         """While the table's panel is shown (review 10, M-2 / M-3), the tab's
@@ -7428,10 +7443,20 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 + f"\nSaved: {ti3}\n\n"
                 + tr("→ Press Continue Measurement to resume where you left off, "
                      "or untick 'Refine / resume existing measurement (-r)' to start over."))
+        elif self._settings.get("averaging_enabled", False) \
+                and not getattr(self, "_table_refining", False):
+            # averaging on (docs/dev_averaging.md): the hand path's completion
+            # dialog decides, after the table's own ending, and announces the
+            # measurement itself (_promote_completed_read,
+            # _apply_completion_action), as after a hand read
+            self._table_complete_ti3 = ti3
+            return
         else:
             self._log.appendPlainText(
                 "\n" + tr("[OK] Measurement complete.") + f"\nSaved: {ti3}\n\n"
                 + tr("→ Next step: go to the '4. Build Profile' tab to create your ICC profile."))
+            if not getattr(self, "_table_refining", False):
+                self._table_complete_ti3 = ti3
         if getattr(self, "_table_refining", False):
             # open point a: a refinement's ending says the profile does not
             # update by itself, as the hand path's (M-REFINE-REBUILD)
@@ -7467,11 +7492,32 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 and not Path(self._ti1_path).with_suffix(".ti3").exists():
             self._restore_displaced_measurement(
                 Path(self._ti1_path).with_suffix(".ti3"), quiet=True)
+        # an averaging set whose next read (a table session) kept nothing must
+        # not leave the run without a measurement, as on the hand path
+        if not getattr(self, "_table_saved", False) and self._averaging_active \
+                and self._ti1_path is not None \
+                and not Path(self._ti1_path).with_suffix(".ti3").exists():
+            self._restore_a_read_when_the_set_lost_its_measurement(
+                Path(self._ti1_path).with_suffix(".ti3"))
         self._reset_progress(from_files=True)
         self.measurement_active.emit(False)
         if why == "consent_declined":
             self._log.appendPlainText(tr(
                 "Measurement not started: you chose Not now for the i1iO table."))
+        # THE USUAL COMPLETION WINDOW (the owner: "do i get the usual pop up
+        # that allows me to go to build profile after a successful
+        # measurement"): a complete table measurement ends as a complete hand
+        # measurement does, AFTER the table's own ending (Save, the arm home
+        # or left where it is, the USB let go), so the arm's state is settled
+        # before anything else is asked: averaging off, the "All Patches Read"
+        # window (Go to the tab / Close, the same auto-proceed); averaging on,
+        # the hand path's completion dialog, whose "Measure again" starts a new
+        # table START with its guards and its GO.
+        done_ti3 = getattr(self, "_table_complete_ti3", None)
+        self._table_complete_ti3 = None
+        if done_ti3 is not None and why == "ended":
+            self._table_completion_due = done_ti3
+            QTimer.singleShot(0, self._table_completion_now)
         # review 10, B-1: the person quit ChromIQ during the session; the
         # table's ending has run and the job has let go of the USB: the quit
         # goes on now, through the window's own close (which asks nothing
@@ -14662,9 +14708,17 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         """
         return self._profile_tab_name().replace("&", "&&")
 
-    def _show_all_stripes_done(self) -> None:
+    def _show_all_stripes_done(self, table: bool = False) -> None:
         """The completion sound and window, after the short gap that keeps the
-        last strip's cue from being drowned out."""
+        last strip's cue from being drowned out.
+
+        *table*: the i1iO table (Beta) has read the whole chart and its own
+        ending has run (Save, the arm home or left, the USB let go). The same
+        window, with the same Go to tab / Close choices and the same
+        auto-proceed; what differs is only what has no meaning after the table
+        let go: no reader to send keys to, no Re-read button (the table's own
+        ending offered Keep measuring, and reading again now is a new START),
+        and its own first paragraph (no reader keys to explain)."""
 
         from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
 
@@ -14768,6 +14822,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             self._settings.get("averaging_enabled", False)
             and not is_cal
             and not self._guided_refinement_active
+            and not table
         ):
             self._show_all_stripes_averaging_dialog()
             return
@@ -14779,7 +14834,14 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         layout.setSpacing(16)
         layout.setContentsMargins(24, 20, 24, 20)
 
-        if self._guided_refinement_active:
+        if table:
+            dlg.setWindowTitle(tr("All Patches Read"))
+            msg = QLabel(tr(
+                "<b>The table has read every patch of your chart, and the "
+                "measurement is saved.</b><br><br>"
+                "Click <b>Go to {tab} Tab</b> to go straight to that tab, the next "
+                "and final step.").format(tab=self._profile_tab_name()), dlg)
+        elif self._guided_refinement_active:
             dlg.setWindowTitle(tr("Re-measurement Complete"))
             # The rest of the window is identical either way; only the opening
             # sentence counts, so only that varies (real plural, never "(s)").
@@ -14870,7 +14932,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         msg.setWordWrap(True)
         layout.addWidget(msg)
 
-        summary = self._completion_summary()
+        summary = None if table else self._completion_summary()
         if summary:
             from PyQt6.QtWidgets import QLabel as _QL
             sum_lbl = _QL(self._summary_html(summary), dlg)
@@ -14948,7 +15010,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         build_btn.setDefault(True)
         build_btn.setAutoDefault(True)
         build_btn.clicked.connect(dlg.accept)
-        btn_row.addWidget(cont_btn)
+        if not table:
+            btn_row.addWidget(cont_btn)
+        else:
+            cont_btn.setVisible(False)
         btn_row.addWidget(close_btn)
         btn_row.addWidget(build_btn)
         layout.addLayout(btn_row)
@@ -14962,6 +15027,18 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             if meta.scanner_target_enabled != scanner_cb.isChecked():
                 meta.scanner_target_enabled = scanner_cb.isChecked()
                 scanner_run.save_meta(meta)
+        if table:
+            # the table has let go already: nothing to send, no filter to put
+            # back; the choice is the hand path's own (auto-proceed or Close)
+            if not accepted:
+                self._log.appendPlainText(
+                    "\n" + tr("→ Your measurement is saved. When you want the "
+                              "profile, go to the “4. Build Profile” tab and "
+                              "press “Build Profile”."))
+            else:
+                self.proceed_to_profile.emit()
+            self._log.ensureCursorVisible()
+            return
         if accepted or closed["chosen"]:
             # Close keeps the measurement exactly like Build does — it only
             # declines the trip to the Build Profile tab.
@@ -18373,7 +18450,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # of every session, so it is already False; forcing it would be the one
         # way this could corrupt a session that really is live.
         self._on_start()
-        if not getattr(self, "_session_live", False):
+        # (the i1iO table, Beta: a table session that START opened is the read
+        # under way, though no reader process is live)
+        if not getattr(self, "_session_live", False) and not self.table_session_open():
             self._restore_a_read_when_the_set_lost_its_measurement(
                 self._ti1_path.with_suffix(".ti3"))
 

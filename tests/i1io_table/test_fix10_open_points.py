@@ -278,3 +278,88 @@ def test_a_new_chart_archives_the_table_sessions_of_the_old_one(tmp_path):
     assert list(run.old_dir.glob("*/20261117-100000/summary.json"))
     assert held.is_dir() and se.session_state(held) == se.DISCARDED   # never completed
     assert se.project_markers(run)                               # and still asked about
+
+
+# ---- the usual completion window after a complete table measurement (owner) ---------------------
+
+def _finish_complete(tab, run, monkeypatch, qtbot, sim=None):
+    sim = start(tab, run, monkeypatch, sim)
+    p = _person(tab._table_window, sim, qtbot)
+    p.drive_until("end_of_session")
+    p.press("Save and stop")
+    while p.page() != "done":
+        p.press("Leave it there")
+    p.press("Close")
+    qtbot.wait(100)
+    return sim
+
+
+@pytest.mark.parametrize("choice", ["build", "close"])
+def test_completion_window_after_a_complete_table_measurement(tab, beta, tmp_path, monkeypatch,
+                                                              qtbot, choice):
+    from PyQt6.QtWidgets import QDialog, QPushButton
+    tab._settings.set("averaging_enabled", False)
+    run, sheet = table_run(tmp_path)
+    seen, went = [], []
+    tab.proceed_to_profile.connect(lambda: went.append(1))
+
+    def exec_(dlg):
+        seen.append((dlg.windowTitle(), [b.text() for b in dlg.findChildren(QPushButton)
+                                         if b.isVisibleTo(dlg)]))
+        if choice == "build":
+            return QDialog.DialogCode.Accepted
+        [b for b in dlg.findChildren(QPushButton) if b.text() == "Close"][0].click()
+        return QDialog.DialogCode.Rejected
+    monkeypatch.setattr(QDialog, "exec", exec_)
+    _finish_complete(tab, run, monkeypatch, qtbot)
+    assert seen and seen[0][0] == "All Patches Read"
+    labels = seen[0][1]
+    assert "Close" in labels and any(t.startswith("Go to") for t in labels)
+    assert not any("Re-read" in t for t in labels)        # the table's ending offered it
+    assert went == ([1] if choice == "build" else [])
+    if choice == "close":
+        assert "Your measurement is saved" in tab._log.toPlainText()
+
+
+def test_averaging_on_the_hand_paths_dialog_and_measure_again_starts_a_new_table_start(
+        tab, beta, tmp_path, monkeypatch, qtbot):
+    tab._settings.set("averaging_enabled", True)
+    try:
+        run, sheet = table_run(tmp_path)
+        asked = []
+        monkeypatch.setattr(tab, "_show_completion_dialog",
+                            lambda current, reads: asked.append(current) or ("again", "mean"))
+        started = []
+        real = tab._started_the_table_drive
+
+        def spy():
+            started.append(1)
+            return real()
+        monkeypatch.setattr(tab, "_started_the_table_drive", spy)
+        _finish_complete(tab, run, monkeypatch, qtbot)
+        qtbot.waitUntil(lambda: bool(asked) and len(started) >= 2, timeout=5000)
+        assert (run.dir / "reads" / "read1.ti3").is_file()          # the first read kept
+        assert tab._table_window is not None                         # a new table session
+        assert tab._table_window.pages_shown[-1] in ("prepare", "consent")
+    finally:
+        tab._settings.set("averaging_enabled", False)
+
+
+def test_a_partial_save_keeps_the_hand_paths_partial_ending_no_window(tab, beta, tmp_path,
+                                                                      monkeypatch, qtbot):
+    from PyQt6.QtWidgets import QDialog
+    from tests.i1io_table.window_sim import WindowSim
+    tab._settings.set("averaging_enabled", False)
+    run, sheet = table_run(tmp_path)
+    shown = []
+    monkeypatch.setattr(QDialog, "exec", lambda dlg: shown.append(dlg.windowTitle()) or 0)
+    sim = start(tab, run, monkeypatch, WindowSim(faults={"read_loc": {"B2": "dies"}}))
+    p = _person(tab._table_window, sim, qtbot)
+    p.script["row_failed"] = "Skip it"
+    p.drive_until("end_of_session")
+    p.press("Save and stop")
+    while p.page() != "done":
+        p.press("Leave it there")
+    p.press("Close")
+    qtbot.wait(100)
+    assert shown == [] and "partial readings saved" in tab._log.toPlainText()

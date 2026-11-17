@@ -2387,10 +2387,10 @@ class TiffPreview(QWidget):
 
     def _draw_table_rows(self, painter, s, sy, ox, oy) -> None:
         """The row being read: a thick frame in the accent colour with a light fill. A row
-        already read: a green check mark in the white space between the row's label and its
-        first patch; a row that could not be read: a small cross in the warning colour there
-        (the owner, after the first on-screen runs: outlines on every read row looked messy;
-        his choice of the check mark). Nothing is drawn over the patches of a row that is not
+        already read: a green dot in the white space between the row's label and its first
+        patch; a row that could not be read: a small orange cross there (the owner, after the
+        first on-screen runs: outlines on every read row looked messy; a check mark was
+        tried and stood turned on screen, see below). Nothing is drawn over the patches of a row that is not
         being read, so the chart still looks like a chart with half or all of it read."""
         from PyQt6.QtGui import QPen
         page, rows, done, active, failed = self._table_rows
@@ -2445,32 +2445,27 @@ class TiffPreview(QWidget):
             m = max(5.0, min(16.0, across * 0.36))
             cx = fx + dx * (half + 3.0 + m / 2.0)
             cy = fy + dy * (half + 3.0 + m / 2.0)
-            colour = QColor("#2fa36b") if i in done else QColor("#e08a00")
-            # UPRIGHT ON SCREEN (the owner, watching the first try: "checkmark ... is rotated
-            # wrong"): the page may be painted turned, so the mark's centre is taken to the
-            # screen and the mark is drawn there with no turn at all
-            centre = painter.transform().map(QPointF(cx, cy))
-            painter.save()
-            painter.resetTransform()
-            cx, cy = centre.x(), centre.y()
+            # NO SHAPE THAT HAS AN "UP" (the owner, twice, on screen: the check mark stood
+            # turned, because the page is painted unturned and the finished picture is shown
+            # turned, so nothing here knows which way up the screen is). A read row gets a
+            # green dot, which he also found good; a row that could not be read an orange
+            # cross, which looks the same whichever way it is turned.
+            r = m / 2.0
+            if i in done:
+                painter.setPen(QPen(QColor(255, 255, 255, 230), 1.5))
+                painter.setBrush(QColor("#2fa36b"))
+                painter.drawEllipse(QPointF(cx, cy), r, r)
+                continue
             for c, w in ((QColor(255, 255, 255, 230), max(3.0, m * 0.34)),
-                         (colour, max(1.8, m * 0.2))):
+                         (QColor("#e08a00"), max(1.8, m * 0.2))):
                 pen = QPen(c)
                 pen.setWidthF(w)
                 pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-                pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
                 painter.setPen(pen)
-                painter.setBrush(Qt.BrushStyle.NoBrush)
-                h = m / 2.0
-                if i in done:
-                    painter.drawPolyline([QPointF(cx - h, cy), QPointF(cx - h * 0.25, cy + h * 0.7),
-                                          QPointF(cx + h, cy - h * 0.75)])
-                else:
-                    painter.drawLine(QPointF(cx - h * 0.7, cy - h * 0.7),
-                                     QPointF(cx + h * 0.7, cy + h * 0.7))
-                    painter.drawLine(QPointF(cx - h * 0.7, cy + h * 0.7),
-                                     QPointF(cx + h * 0.7, cy - h * 0.7))
-            painter.restore()
+                painter.drawLine(QPointF(cx - r * 0.7, cy - r * 0.7),
+                                 QPointF(cx + r * 0.7, cy + r * 0.7))
+                painter.drawLine(QPointF(cx - r * 0.7, cy + r * 0.7),
+                                 QPointF(cx + r * 0.7, cy - r * 0.7))
         painter.restore()
 
     def _draw_scan_grid(self, painter, sx, sy, ox, oy):

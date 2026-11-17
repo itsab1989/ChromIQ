@@ -235,8 +235,13 @@ def test_no_state_of_the_table_shows_a_modal_window(tab, beta, tmp_path, monkeyp
             break
         p.answer_page(page)
     assert {"consent", "go", "end_of_session", "done"} <= set(seen)
+    after = []
+    monkeypatch.setattr(tab, "_show_all_stripes_done",
+                        lambda table=False: after.append(tab._table_window is None))
     p.press("Close")
     assert tab._table_window is None and tab._stack.currentWidget() is not win
+    # fix round 10: the usual completion window comes only AFTER the table's panel is gone
+    qtbot.waitUntil(lambda: after == [True], timeout=3000)
 
 
 def test_a_row_is_outlined_from_its_own_patch_boxes(tab, tmp_path):
