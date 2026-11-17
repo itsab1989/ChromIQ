@@ -312,10 +312,10 @@ def _sysfs(tmp_path, driver=None, holder=False, unreadable=False):
     sysfs, proc = tmp_path / "sys", tmp_path / "proc"
     dev = sysfs / "1-2"
     dev.mkdir(parents=True)
-    (dev / "idVendor").write_text("0971\n")
-    (dev / "idProduct").write_text("2004\n")
-    (dev / "busnum").write_text("1\n")
-    (dev / "devnum").write_text("7\n")
+    (dev / "idVendor").write_text("0971\n", encoding="utf-8")
+    (dev / "idProduct").write_text("2004\n", encoding="utf-8")
+    (dev / "busnum").write_text("1\n", encoding="utf-8")
+    (dev / "devnum").write_text("7\n", encoding="utf-8")
     intf = sysfs / "1-2:1.0"
     intf.mkdir()
     if driver:
@@ -324,11 +324,11 @@ def _sysfs(tmp_path, driver=None, holder=False, unreadable=False):
         (intf / "driver").symlink_to(target)
     other = sysfs / "1-3"
     other.mkdir()
-    (other / "idVendor").write_text("0971\n")
-    (other / "idProduct").write_text("2000\n")
+    (other / "idVendor").write_text("0971\n", encoding="utf-8")
+    (other / "idProduct").write_text("2000\n", encoding="utf-8")
     p = proc / "4242"
     (p / "fd").mkdir(parents=True)
-    (p / "comm").write_text("i1Profiler\n")
+    (p / "comm").write_text("i1Profiler\n", encoding="utf-8")
     if holder:
         (p / "fd" / "5").symlink_to("/dev/bus/usb/001/007")
     if unreadable:

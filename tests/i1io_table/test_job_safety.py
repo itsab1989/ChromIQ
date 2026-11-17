@@ -697,7 +697,7 @@ def test_the_job_is_reached_by_nothing_in_the_app():
     code = ("import sys, main; import ui.main_window; "
             "print(any(m.startswith('workflow.i1io.table') for m in sys.modules))")
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
-                         timeout=120, cwd=str(H.HERE.parents[1]),
+                         encoding="utf-8", timeout=120, cwd=str(H.HERE.parents[1]),
                          env={**__import__("os").environ, "QT_QPA_PLATFORM": "offscreen"})
     assert out.stdout.strip().endswith("False"), out.stderr[-2000:]
 

@@ -54,10 +54,10 @@ def test_the_log_has_the_testers_content(tmp_path):
             "movement_unconfirmed", "front_zone_reached_y"}
     assert all(keys <= set(b) for b in blocks)
     assert [b["verdict"] for b in blocks] == ["worked"] * 4
-    summary = json.loads((run.i1io_table_session_dir(STAMP) / "summary.json").read_text())
+    summary = json.loads((run.i1io_table_session_dir(STAMP) / "summary.json").read_text(encoding="utf-8"))
     assert [b["stage"] for b in summary] == ["d1", "dz", "d2", "f"]
     al = json.loads((run.i1io_table_session_dir(STAMP) / "d1-1" / "alignment.json")
-                    .read_text())
+                    .read_text(encoding="utf-8"))
     assert set(al) == {"aims_mm", "readings", "M", "checks"}
 
 
@@ -93,7 +93,7 @@ def test_a_stopped_sitting_still_writes_its_block_and_summary(tmp_path):
     res, job, sim, _p = H.run_steps(["open", "align", "check_move", "home"], sim=sim, run=run,
                                     stamp=STAMP)
     folder = run.i1io_table_session_dir(STAMP)
-    summary = json.loads((folder / "summary.json").read_text())
+    summary = json.loads((folder / "summary.json").read_text(encoding="utf-8"))
     assert summary[-1]["verdict"] == "stopped" and summary[-1]["why"] == "link_lost"
     assert summary[-1]["way_back"] in (J.WayBack.LINK_LOST_REPLUG,
                                        J.WayBack.LINK_LOST_SWITCH_OFF_FIRST)

@@ -58,14 +58,16 @@ class Diagnostics:
 
     def __init__(self, folder: "Path | None", log_path: "Path | None" = None):
         self.folder = Path(folder) if folder is not None else None
-        self.log_path = Path(log_path) if log_path is not None else (
-            self.folder / "session.log" if self.folder is not None else None)
+        # the log's own name is the Run's (Run.i1io_table_log): without it, no log file
+        self.log_path = Path(log_path) if log_path is not None else None
         self.lines: "list[str]" = []
         self.blocks: "list[dict]" = []
         self._extra = tuple(str(p) for p in (self.folder,) if p is not None)
         self._fh = None
         if self.folder is not None:
             self.folder.mkdir(parents=True, exist_ok=True)
+        if self.log_path is not None:
+            self.log_path.parent.mkdir(parents=True, exist_ok=True)
             self._fh = open(self.log_path, "a", encoding="utf-8")
 
     def log(self, kind: str, text: str) -> None:
