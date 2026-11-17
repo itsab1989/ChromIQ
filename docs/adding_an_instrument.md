@@ -1190,9 +1190,12 @@ point and check it in review.
 
 - **Every run type from the start**: a profile, refinement strips, a
   calibration and a verification. The measurement is saved under the name
-  and in the folder of its run type through `Run` and `Calibration`
-  (`core/file_manager.py`), and finished by the same code that finishes a
-  hand measurement. If a rule of a specification seems to stand in the way
+  and in the folder of its run type through `Run`, `Calibration` and
+  `VerificationChart` (`core/file_manager.py`; all three are an
+  `I1ioTablePlace`), and finished by the same code that finishes a
+  hand measurement. Readings kept between sessions record the chart they
+  were read from (its checksum) and, for a verification, its date, so they
+  are never completed into another chart or another printed sheet. If a rule of a specification seems to stand in the way
   of one run type, first try the obvious (pass the destination by run
   type) before you park it; if it still does not fit, ask, as
   [section 8](#8-every-run-type) says.

@@ -12425,9 +12425,15 @@ M_I1IO_DRIVE_REFINE_DONE_NEXT = _m(
     "{build}: takes you to the {tab} tab. Your measurement is saved already, with the new readings in it. The profile is not built yet: press “{build_profile}” there when your settings are how you want them, and your updated ICC profile is made from the new readings.\n{close}: keeps the measurement and stays on this tab. Go to the {tab} tab yourself whenever you are ready to build the profile.\nTo read more patches with the table, press START MEASUREMENT again: ChromIQ asks you to take your hands away from the table before the arm moves.",
     approved=False)
 
+M_I1IO_DRIVE_EARLIER_ELSEWHERE = _m(
+    "M-I1IO-DRIVE-EARLIER-ELSEWHERE",
+    "Earlier table readings that do not belong to this measurement",
+    "ChromIQ found the readings of an earlier table measurement that ended without Save or Discard, but they cannot be completed into this one:\n\n{sessions}\n\nThose readings stay on your disk; nothing is deleted. This measurement starts from the beginning. Nothing has been sent to the table yet.",
+    approved=False)
+
 I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_CONSENT, M_I1IO_DRIVE_PREPARE, M_I1IO_DRIVE_READY,
-    M_I1IO_DRIVE_EARLIER, M_I1IO_DRIVE_OPTIONS, M_I1IO_DRIVE_OPTION_REFUSED,
+    M_I1IO_DRIVE_EARLIER, M_I1IO_DRIVE_EARLIER_ELSEWHERE, M_I1IO_DRIVE_OPTIONS, M_I1IO_DRIVE_OPTION_REFUSED,
     M_I1IO_DRIVE_OPTIONS_FIELDS, M_I1IO_DRIVE_MARKER, M_I1IO_DRIVE_START_UP,
     M_I1IO_DRIVE_GO, M_I1IO_DRIVE_SHEET_LAID, M_I1IO_DRIVE_ARM_FELT,
     M_I1IO_DRIVE_AIM, M_I1IO_DRIVE_AIM_BUTTON, M_I1IO_DRIVE_STRIP_OPTION,

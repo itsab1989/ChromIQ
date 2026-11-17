@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from pathlib import Path
 
@@ -336,9 +337,42 @@ def option_text(flag: str, why: str) -> str:
         "external_values_not_with_the_table": tr(
             "values from another program cannot be combined with the table"),
         "fields": tr("the earlier readings were measured with another setting"),
+        # review 12, S-2: every reason the table job can give has a sentence
+        "xrga_value_unknown": tr(
+            "the calibration standard (-A) has a value ChromIQ does not know, so it is not "
+            "passed on"),
+        "option_unknown_to_the_table_job": tr(
+            "the table measurement does not know this option, so it does not measure with it"),
+        "the_table_check_picks_its_own_i1pro2": tr(
+            "ChromIQ checks for itself which i1Pro 2 sits in the table's arm"),
+        "the_reader_always_reports_the_instrument": tr(
+            "ChromIQ always records which instrument it reads with"),
+        "spot_is_the_table_s_only_reading_for_now": tr("the table reads one patch at a time"),
+        "the_table_moves_the_instrument": tr("the table moves the instrument"),
+        "no_recogniser_the_table_reads_by_position": tr(
+            "the table knows where each patch is, so no strip is recognised"),
+        "no_ruler_is_read_in_the_arm": tr("no ruler is read while the instrument sits in the "
+                                          "table's arm"),
+        "the_spot_reader_does_not_use_the_lights": tr(
+            "the instrument's lights are not used for readings on the table"),
+        "the_button_is_not_used_on_the_table": tr(
+            "the instrument's button is not used on the table"),
+        "only_an_i1pro2_is_driven": tr("the table measures with an i1Pro 2 only"),
+        "a_second_pass_is_filed_by_step_8": tr(
+            "a second pass is not read by the table yet"),
+        "strip_rows_not_built": tr("reading whole strips with the table is not built yet"),
     }
-    name = names.get(flag, flag)
-    return f"•  {name}: {whys.get(why, why)}"
+    name = names.get(flag)
+    if name is None:
+        # an option as the person typed it (-Q); never anything else on screen
+        name = (tr("Option {option}").format(option=flag)
+                if re.fullmatch(r"-[A-Za-z0-9]{1,3}", str(flag)) else tr("An option"))
+    why_text = whys.get(why)
+    if why_text is None:
+        # never the id itself on screen (review 12, S-2); it is in the log
+        log.info("i1iO table: option %r refused with %r (no sentence of its own)", flag, why)
+        why_text = tr("the table measurement cannot use it")
+    return f"•  {name}: {why_text}"
 
 
 def seen_text(d: dict) -> str:
@@ -460,6 +494,17 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
             "This run holds a complete measurement, so the interrupted readings cannot be "
             "completed into it."),
         "not_an_interrupted_session": tr("That earlier session is not an interrupted one."),
+        # review 12, M-2 / M-3: a session is completed only into its own chart and date
+        "earlier_readings_of_another_chart": tr(
+            "Those earlier readings were taken from another chart: the chart has been "
+            "replaced, made again or restored since. They stay in their own folder and are "
+            "not used for this chart."),
+        "earlier_readings_of_another_verification": tr(
+            "Those earlier readings belong to another verification of this chart (another "
+            "printed sheet). They stay in their own folder and are not used for this one."),
+        "earlier_readings_chart_unknown": tr(
+            "ChromIQ cannot tell which chart those earlier readings were taken from, so it "
+            "does not use them. They stay in their own folder."),
         "adopted_already": tr("That earlier session is being completed already."),
         "readings_with_different_fields": tr(
             "The readings were measured with different settings and cannot go into one file."),
@@ -867,6 +912,10 @@ class TableMeasureWindow(QFrame):
         room = max(0, self.width() - 32 - self._choices.horizontalSpacing())
         widest = max(b.sizeHint().width() for b in made)
         cols = 2 if widest * 2 <= room and len(made) > 1 else 1
+        if self._answers_pinned() and len(made) > 2 \
+                and widest * len(made) + self._choices.horizontalSpacing() * (len(made) - 2) \
+                <= room:
+            cols = len(made)           # review 12, S-3: the ending's answers in one row
         for n, b in enumerate(made):
             self._choices.addWidget(b, n // cols, n % cols)
         self._choice_cols = cols
@@ -900,6 +949,8 @@ class TableMeasureWindow(QFrame):
             if w is not None and w.isHidden():
                 continue
             h = w.sizeHint().height() if w is not None else it.sizeHint().height()
+            if w is not None and self._answers_pinned():
+                h = max(h, w.minimumHeight())     # review 12, S-3: the Stop's own minimum
             if h > 0:
                 fixed += h
                 n += 1
@@ -907,6 +958,12 @@ class TableMeasureWindow(QFrame):
         state_h = (self._state.sizeHint().height() + sp) if self._state.text() else 0
         self._answers.adjustSize()
         ans_h = self._answers.sizeHint().height() + sp
+        alay = self._answers.layout()
+        if self._answers_pinned() and alay is not None and alay.hasHeightForWidth():
+            # review 12, S-3: the answers' true height at the panel's width (their status
+            # line wraps; a width-less hint under-counted it and the text area overlapped)
+            ans_h = max(ans_h, alay.totalHeightForWidth(max(1, self.width() - m.left()
+                                                           - m.right())) + sp)
         need = ls * 6 + 12
         room = self.height() - fixed
         if room - ans_h - state_h >= need:
@@ -915,11 +972,27 @@ class TableMeasureWindow(QFrame):
             level = 1
         else:
             level = 2
+        pinned = self._answers_pinned()
+        if level == 2 and pinned:
+            # review 12, S-3: the ending's answers stay in view at any height the main
+            # window allows; its question's text scrolls above them instead
+            level = 1
         self._place(self._answers, level >= 2, after=self._scroll)
         self._place(self._state, level >= 1, after=self._answers)
         left = room - (ans_h if level < 2 else 0) - (state_h if level < 1 else 0)
-        self._scroll.setMinimumHeight(max(ls * 3 + 12, min(self._text_min_height(), left)))
+        if pinned:
+            # never a minimum the panel cannot give: the text area takes what is left (it
+            # stretches), down to its title's line, and never reaches over the answers
+            self._scroll.setMinimumHeight(min(ls * 3 + 12, max(ls + 12, left)))
+        else:
+            self._scroll.setMinimumHeight(max(ls * 3 + 12, min(self._text_min_height(), left)))
         self._room_level = level
+
+    #: the pages whose answers never scroll away (review 12, S-3): the ending's question
+    PINNED_ANSWER_PAGES = ("end_of_session",)
+
+    def _answers_pinned(self) -> bool:
+        return getattr(self, "_page_id", None) in self.PINNED_ANSWER_PAGES
 
     def _place(self, w, in_scroll: bool, after) -> None:
         """*w* into the scrolling page (before the note box) or back into the panel's body
@@ -1278,9 +1351,31 @@ class TableMeasureWindow(QFrame):
                 path=Path(log_path).relative_to(self._run.dir).as_posix())
         except Exception:      # noqa: BLE001
             self._log_name = ""
-        self._earlier = [e for e in self.job.earlier_sessions() if e.get("state") ==
-                         "interrupted"]
+        from workflow.i1io.table import session_end as _se
+        found = [e for e in self.job.earlier_sessions() if e.get("state") == "interrupted"]
+        # review 12, M-2 / M-3: only a session read from this very chart, for this place (a
+        # verification's date), is offered for completion; any other is named, never offered
+        self._earlier = [e for e in found if _se.offered_for_completion(e)]
+        elsewhere = [e for e in found if not _se.offered_for_completion(e)]
+        if elsewhere:
+            self._show_earlier_elsewhere(elsewhere)
+            return
         self._next_earlier()
+
+    def _show_earlier_elsewhere(self, sessions) -> None:
+        """M-I1IO-DRIVE-EARLIER-ELSEWHERE: interrupted readings that are kept but never
+        completed into this measurement (another chart, another dated verification, or a chart
+        ChromIQ cannot name), with why, before anything is opened."""
+        from workflow import measurement_messages as M
+        lines = "\n".join(
+            tr("•  Started on {when}: {why}").format(
+                when=stamp_text(e.get("stamp", "")),
+                why=reason_text(str(e.get("belongs_elsewhere") or "")))
+            for e in sessions)
+        title, body = M.M_I1IO_DRIVE_EARLIER_ELSEWHERE.render(sessions=lines)
+        self._show("earlier_elsewhere", title, body,
+                   [(tr("Continue"), self._next_earlier),
+                    (tr("Cancel"), self._finish_not_started)])
 
     def _next_earlier(self) -> None:
         if not self._earlier:
@@ -2196,6 +2291,13 @@ class TableMeasureWindow(QFrame):
 
     def _on_close_pressed(self) -> None:
         if self._busy:
+            return
+        if self._closed_job:
+            # review 12, M-1: the job has let go after its ending (the last page, which has
+            # no Close of its own in the footer): Esc or the window's close ends the panel as
+            # its Close does, so what was saved is filed (a verification on its date) and the
+            # usual windows follow
+            self._finish("ended")
             return
         if self._table_can_be_left():
             self._finish(getattr(self, "_why_not", "not_started"))

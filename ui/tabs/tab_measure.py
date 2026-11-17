@@ -7288,6 +7288,16 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if run.run_type == "verification" \
                 and self._stage_verification_for_resume() is not None:
             params.resume = self._resume_has_anything_to_resume(True)
+        if run.run_type == "verification":
+            # review 12, M-3 / S-1: the session belongs to the dated
+            # verification the bar selects ("New verification": none yet),
+            # and a resumed one keeps the date's earlier file in that date's
+            # old/ (§2a), as the hand path does
+            _ctl = getattr(self, "_target_ctl", None)
+            _vid = getattr(getattr(_ctl, "target", None), "verification_id", "") or None
+            _staged = getattr(self, "_staged_verification_ti3", None)
+            run = run.run.verification_chart(
+                _vid, getattr(self, "_staged_from", None) if _staged is not None else None)
         args = self._manager._build_args(params)
         _beside = Path(run.measurement_ti3)
         self._ti3_mtime_before = (_beside.stat().st_mtime if _beside.exists()
@@ -7304,6 +7314,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # a replace is archived only when the table's Save writes (review 10,
         # S-2); one left from an earlier hand session is not ours to restore
         self._displaced_measurement = None
+        if run.run_type == "verification" \
+                and getattr(self, "_staged_verification_ti3", None) is None:
+            # review 12, M-1: a verification left beside the chart and never
+            # filed (a kill between the table's Save and its filing) is moved
+            # to old/ first, exactly as the hand path's START does, so the new
+            # reading's Save is never refused over it
+            self._archive_measurement_before_replacing()
         self._table_saved = False
         self._table_complete_ti3 = None
         self._table_refining = bool(only_locs)
@@ -7741,9 +7758,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # table START with its guards and its GO.
         verify_ti3 = getattr(self, "_table_verify_ti3", None)
         self._table_verify_ti3 = None
-        if verify_ti3 is not None and why in ("ended", "quit"):
-            # filed on its date now, whatever else happens: on a quit without
-            # its windows (nothing may wait for an answer while ChromIQ closes)
+        if verify_ti3 is not None:
+            # filed on its date now, whatever else happens, whatever closed the
+            # panel (review 12, M-1): on a quit without its windows (nothing
+            # may wait for an answer while ChromIQ closes)
             self._verify_run = False
             if why == "quit":
                 self._finalize_verification(Path(verify_ti3), quiet=True)

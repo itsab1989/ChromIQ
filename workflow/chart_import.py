@@ -126,6 +126,9 @@ def archive_run_for_replace(run: Run, *, verification: bool) -> "Path | None":
         paths: list[Path] = [p for p in run.verifications_dir.glob("*")
                              if p.is_file()
                              and p.name not in CHART_SIDE_FILES]
+        # …and the i1iO table's session folders of that chart (review 12,
+        # M-2): they go with the chart they read, into the same archive
+        paths += run.verification_chart().i1io_table_sessions_for_a_new_chart()
         return run.archive_to_old(paths, into=run.verifications_old_dir)
     # `run.artefact`, NOT an f-string. A Replace archives what it displaces and
     # then the new chart is written beside it — so a chain this list cannot see

@@ -558,11 +558,18 @@ def test_a_quit_during_a_table_verification_files_it_without_windows(
     assert seen == []
 
 
+def _a_reading(sdir):
+    (sdir / "p1").mkdir(parents=True, exist_ok=True)
+    (sdir / "p1" / "r1.row.json").write_text(json.dumps({"seq": 1, "accepted": [{"loc": "A1"}]}),
+                                             encoding="utf-8")
+
+
 def test_calibration_reset_sets_the_table_sessions_aside(tmp_path):
     proj, cal, sheet = cal_chart(tmp_path)
     s1 = cal.i1io_table_session_dir("20261117-100000")
     s1.mkdir(parents=True)
     (s1 / "session.log").write_text("x", encoding="utf-8")
+    _a_reading(s1)            # review 12, S-5: only a session that holds a reading is set aside
     # unmeasured: the chart goes, the session is set aside, never deleted
     res = cal.reset()
     assert not s1.exists()
@@ -576,6 +583,7 @@ def test_calibration_reset_of_a_measured_calibration_keeps_the_sessions_in_its_a
     cal.ti3.write_text("CTI3\n", encoding="ascii")
     s1 = cal.i1io_table_session_dir("20261117-100000")
     s1.mkdir(parents=True)
+    _a_reading(s1)            # review 12, S-5: only a session that holds a reading is set aside
     res = cal.reset()
     assert res.archive is not None
     assert (res.archive / "i1io-table" / "20261117-100000").is_dir()

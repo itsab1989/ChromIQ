@@ -1507,6 +1507,28 @@ def settle_chart_stash(folder: Path, stash: "Path | None", *, built: bool,
 # Calibration — shared across all runs in a project
 # ---------------------------------------------------------------------------
 
+#: a row record of the table's job (`workflow.i1io.table.measurement.
+#: ROW_RECORD_SUFFIX`; a test pins that the two are the same)
+I1IO_TABLE_ROW_RECORD_SUFFIX = ".row.json"
+
+
+def i1io_table_session_holds_a_reading(sdir: Path) -> bool:
+    """True when the table session folder *sdir* holds at least one accepted
+    reading (review 12, S-5). Reads the row records only; never raises."""
+    import json as _json
+    try:
+        for f in Path(sdir).glob("*/*" + I1IO_TABLE_ROW_RECORD_SUFFIX):
+            try:
+                rec = _json.loads(f.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if isinstance(rec, dict) and rec.get("accepted"):
+                return True
+    except OSError:
+        return False
+    return False
+
+
 class I1ioTablePlace:
     """Where one START of the i1iO table keeps its session folder, for every run
     type (round A, 2026-11-17: the table drives profiling, calibration and
@@ -1521,6 +1543,15 @@ class I1ioTablePlace:
 
     #: the run type this place belongs to ("profile", "calibration", "verification")
     run_type = "profile"
+    #: review 12, M-3: what a table session of this place belongs to besides its chart (a
+    #: verification's date, `VerificationChart`); None: the place itself
+    i1io_table_session_key: "str | None" = None
+
+    @property
+    def measurement_old_dir(self) -> Path:
+        """Where the §2a guard of a table Save keeps the file it replaces (review 12, S-1):
+        this place's ``old_dir``; a resumed verification's is its date's (`VerificationChart`)."""
+        return self.old_dir
 
     def _i1io_table_root(self) -> Path:
         return Path(self.dir)
@@ -2147,6 +2178,27 @@ class Calibration(I1ioTablePlace):
                       "has been moved and cal/ is untouched", self.dir, exc)
             return None
 
+    def _table_sessions_with_a_reading(self, sessions: "list[Path]") -> "list[Path]":
+        """The *sessions* that hold an accepted reading (a row record of the
+        table's job with readings in it); every other one is marked discarded
+        where it is (review 12, S-5)."""
+        import json as _json
+        keep = []
+        for sdir in sessions:
+            if i1io_table_session_holds_a_reading(sdir):
+                keep.append(sdir)
+                continue
+            mark = sdir / I1IO_TABLE_DISCARDED
+            if not mark.is_file():
+                try:
+                    mark.write_text(_json.dumps({
+                        "discarded_by_person": False,
+                        "why": "the chart was replaced; nothing had been read"}),
+                        encoding="utf-8")
+                except OSError:
+                    log.warning("could not mark %s discarded", sdir)
+        return keep
+
     def _set_aside_table_sessions(self, sessions: "list[Path]",
                                   dest: "Path | None") -> None:
         """Move the table's session folders into ``<archive>/i1io-table/``
@@ -2289,6 +2341,12 @@ class Calibration(I1ioTablePlace):
         # old chart for completion into the new one. Set aside, never dropped,
         # on both branches: raw readings cannot be made again.
         sessions = self.i1io_table_sessions_for_a_new_chart()
+        # …BUT ONLY THOSE THAT HOLD A READING (review 12, S-5, awaiting the
+        # owner's confirmation): a session that read nothing carries nothing
+        # worth keeping, so it stays where it is, marked discarded and never
+        # offered, and an unmeasured chart whose STARTs read nothing leaves no
+        # `cal/old/` folder, as the ruling of 2026-09-02 says.
+        sessions = self._table_sessions_with_a_reading(sessions)
         if results:
             dest = self._archive_without_raising(results,
                                                  everything_but_results)
@@ -2481,10 +2539,12 @@ class Run(I1ioTablePlace):
         d = Path(self.dir)
         return d.parent.parent if d.parent.name == "runs" else None
 
-    def verification_chart(self) -> "VerificationChart":
+    def verification_chart(self, verification_id: "str | None" = None,
+                           staged_from: "Path | None" = None) -> "VerificationChart":
         """This run's shared verification chart as a place the i1iO table
-        measures into (round A)."""
-        return VerificationChart(self)
+        measures into (round A); for the dated verification *verification_id*
+        (None: "New verification"), resumed from *staged_from* (review 12)."""
+        return VerificationChart(self, verification_id, staged_from)
     # (the session members are `I1ioTablePlace`'s, shared with `Calibration`
     # and `VerificationChart`: round A, every run type is driven)
 
@@ -2898,9 +2958,11 @@ class Run(I1ioTablePlace):
             targets += [f for f in stem_files(vexp, stem, "*")
                         if f.is_file()]
         # …AND THE i1iO TABLE'S SESSION FOLDERS OF THAT CHART (round A): their
-        # readings belong to the chart being replaced, as for a run's chart
-        if targets:
-            targets += self.verification_chart().i1io_table_sessions_for_a_new_chart()
+        # readings belong to the chart being replaced, as for a run's chart.
+        # Also when the chart's files were archived first (review 12, M-2: a
+        # Replace through the chart import or Create Chart moves them before
+        # this runs): sessions with no chart beside them belong to no chart.
+        targets += self.verification_chart().i1io_table_sessions_for_a_new_chart()
         try:
             self.archive_to_old(targets, into=self.verifications_old_dir)
         except OSError as exc:
@@ -3273,8 +3335,30 @@ class VerificationChart(I1ioTablePlace):
 
     run_type = "verification"
 
-    def __init__(self, run: "Run") -> None:
+    def __init__(self, run: "Run", verification_id: "str | None" = None,
+                 staged_from: "Path | None" = None) -> None:
         self._run = run
+        #: review 12, M-3: the dated verification a START measures for (the target bar's
+        #: date; None: "New verification"). A table session belongs to it: an interrupted
+        #: session of one date is never completed into another date's measurement, as the
+        #: hand path keeps them apart (`_drop_unused_verification_stage`).
+        self.verification_id = verification_id or None
+        #: review 12, S-1: the dated file a resumed verification was staged from
+        self.staged_from = Path(staged_from) if staged_from is not None else None
+
+    @property
+    def i1io_table_session_key(self) -> str:
+        """``verification:<date>``, or ``verification:new`` for "New verification"."""
+        return f"verification:{self.verification_id or 'new'}"
+
+    @property
+    def measurement_old_dir(self) -> Path:
+        """§2a, as the hand path (`_begin_session_guard`): a resumed verification works on a
+        copy beside the shared chart, but the measurement it protects belongs to its date, so
+        the copy is kept in ``verifications/<date>/old/``, not in the chart's ``old/``."""
+        if self.staged_from is not None:
+            return self.staged_from.parent / "old"
+        return self.old_dir
 
     @property
     def run(self) -> "Run":                   return self._run

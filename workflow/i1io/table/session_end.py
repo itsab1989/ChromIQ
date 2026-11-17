@@ -85,6 +85,66 @@ def filed_into(sdir: Path, run_ti3: "Path | None") -> bool:
         return False
 
 
+# ---- review 12, M-2 / M-3: which chart (and which dated verification) a session was read from --
+#: written into every session folder when the job is made, before anything is read: the
+#: checksum of the chart (.ti2) the session reads against, and what else it belongs to (a
+#: verification's date, ``I1ioTablePlace.i1io_table_session_key``). A session is completed only
+#: into a measurement of the same chart for the same place; anything else is refused.
+IDENTITY = "chart_identity.json"
+#: the reasons a session is not offered for completion (each has a sentence in the window; not
+#: "session_...", which the window's reason_text reads as the command cap)
+ANOTHER_CHART = "earlier_readings_of_another_chart"
+ANOTHER_VERIFICATION = "earlier_readings_of_another_verification"
+CHART_NOT_RECORDED = "earlier_readings_chart_unknown"
+
+
+def place_key(place) -> "str | None":
+    return getattr(place, "i1io_table_session_key", None)
+
+
+def write_identity(sdir: Path, chart_ti2, place) -> None:
+    """Record the chart's checksum and the place's key in *sdir* (once: an existing record is
+    never rewritten). Raises OSError; a chart that cannot be read is recorded as unknown, and
+    such a session is then never completed into anything."""
+    sdir = Path(sdir)
+    if (sdir / IDENTITY).is_file():
+        return
+    try:
+        sha = sha256_of(Path(chart_ti2)) if chart_ti2 is not None else None
+    except OSError:
+        sha = None
+    # the checksum and the key only: never the chart's name (the diagnostics stay private)
+    write_json_now(sdir / IDENTITY, {"chart_sha256": sha, "belongs_to": place_key(place)})
+
+
+def read_identity(sdir: Path) -> "dict | None":
+    try:
+        rec = json.loads((Path(sdir) / IDENTITY).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return rec if isinstance(rec, dict) else None
+
+
+def belongs_elsewhere(place, sdir: Path, chart_ti2) -> "str | None":
+    """None when the session in *sdir* was read from exactly this chart for this place; else
+    why not: ANOTHER_CHART (the chart's bytes differ: it was replaced, rebuilt, imported or
+    an older one restored), ANOTHER_VERIFICATION (another date of the same chart), or
+    CHART_NOT_RECORDED (a session with no record, or a chart that could not be read then or
+    now: it cannot be proved to be this chart, so it is never completed into it)."""
+    rec = read_identity(sdir)
+    if rec is None or not rec.get("chart_sha256") or chart_ti2 is None:
+        return CHART_NOT_RECORDED
+    try:
+        now = sha256_of(Path(chart_ti2))
+    except OSError:
+        return CHART_NOT_RECORDED
+    if now != rec.get("chart_sha256"):
+        return ANOTHER_CHART
+    if rec.get("belongs_to") != place_key(place):
+        return ANOTHER_VERIFICATION
+    return None
+
+
 def session_state(sdir: Path, run_ti3: "Path | None" = None) -> str:
     """saved / discarded / interrupted / nothing_read. With *run_ti3* (the run's measurement),
     a session whose filing note matches it counts as saved (S-4: the crash came after the
@@ -148,12 +208,26 @@ def earlier_sessions(run, exclude: "str | None" = None, chart_ti2=None) -> "list
         state = session_state(sdir, run_ti3)
         marker = run.i1io_table_pending_marker(sdir.name)
         detail = {}
-        if state == INTERRUPTED and chart_ti2 is not None:
+        elsewhere = belongs_elsewhere(run, sdir, chart_ti2 if chart_ti2 is not None
+                                      else getattr(run, "chart_ti2", None)) \
+            if state == INTERRUPTED else None
+        if elsewhere:
+            # review 12, M-2 / M-3: kept where it is and never offered for completion here
+            rec = read_identity(sdir) or {}
+            detail = {"belongs_elsewhere": elsewhere, "belongs_to": rec.get("belongs_to")}
+        elif state == INTERRUPTED and chart_ti2 is not None:
             a = ms.assemble([sdir], chart_ti2, run.i1io_table_measurement(sdir.name))
             detail = {"would_make": a.state, "read": a.read, "expected": a.expected}
         out.append(EarlierSession(sdir.name, state, _accepted(sdir), marker.is_file(),
                                   marker.with_suffix(".acknowledged.json").is_file(), detail))
     return out
+
+
+def offered_for_completion(e) -> bool:
+    """An earlier session (an `EarlierSession` or its ``as_dict()``) the next START may offer
+    to complete: interrupted, and read from this very chart for this place (review 12)."""
+    d = e.as_dict() if isinstance(e, EarlierSession) else dict(e)
+    return d.get("state") == INTERRUPTED and not d.get("belongs_elsewhere")
 
 
 def set_aside(run, stamp: str) -> "Path | None":
