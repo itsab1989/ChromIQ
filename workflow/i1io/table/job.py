@@ -365,6 +365,16 @@ class TableJob:
         d = self.d
         return d is not None and d.motions_sent == d.cold_motions and d.state == "warm"
 
+    def parked(self) -> bool:
+        """Right after the job's own park (the recorded s0 p0 i1 s0 from rest, finished in its
+        window): at rest by the reading before the homing; the next step's own homing reads it
+        again before anything moves (HOME_FIRST's p0 in START_GUARD)."""
+        d = self.d
+        return (d is not None and d.state == "homed" and not d.motion_unconfirmed
+                and d.last_move == ("home", True) and d.position_now is None
+                and d.before_move is not None and tbl.START_GUARD.contains(d.before_move)
+                and d.arm_free is False and not d.mode_on)
+
     def out_known(self) -> bool:
         d = self.d
         if d is None:
@@ -406,6 +416,8 @@ class TableJob:
             return WayBack.LINK_LOST_REPLUG
         p = d.position_now
         if d.motions_sent == 0 and p is None:
+            return WayBack.NONE
+        if self.parked():
             return WayBack.NONE
         if p is None:
             return WayBack.OPEN_I1PROFILER_ONCE
@@ -535,7 +547,7 @@ class TableJob:
         if key is None:
             self._block = None
             return
-        n = sum(v for (pg, k), v in self.runs.items() if k == key) + 1
+        n = sum(v for (pg, k), v in self.runs.items() if k == key)   # this run counted already
         d = self.d
         self._block = {"stage": key, "run": n, "page": self.page + 1, "verdict": "", "why": "",
                        "folder": f"{key}-{n}", "lines_before": d.lines_sent,
@@ -693,7 +705,7 @@ class TableJob:
             return "only_the_homing_now"
         if self.runs.get((self.page, key), 0) >= MAX_RUNS[key]:
             return "ran_as_often_as_allowed"
-        rest = self.at_rest() or self.unread_rest()
+        rest = self.at_rest() or self.unread_rest() or self.parked()
         if step == "park" and not rest:
             return "arm_not_at_rest"
         if step == "align" and not (rest or (d.arm_free is True and d.mode_on)):
@@ -721,6 +733,8 @@ class TableJob:
             raise Stopped("other_program_started")
 
     def _stage(self, step: str, body) -> StepResult:
+        if self._gen is not None:
+            return self._begin(step, None)
         why = self._ready(step)
         if why:
             return self._result(step, Kind.REFUSED, why)
@@ -779,7 +793,7 @@ class TableJob:
         why = self._sending_ready()
         if why:
             return self._result("next_page", Kind.REFUSED, why)
-        if not (self.at_rest() or self.unread_rest()):
+        if not (self.at_rest() or self.unread_rest() or self.parked()):
             return self._result("next_page", Kind.REFUSED, "arm_not_at_rest")
         if self.page + 1 >= len(self.caps.shape.pages):
             return self._result("next_page", Kind.REFUSED, "no_more_pages")

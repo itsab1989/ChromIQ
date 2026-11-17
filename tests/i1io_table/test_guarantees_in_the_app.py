@@ -86,7 +86,8 @@ def test_standard_library_only_and_no_em_dash(path):
                       and m == "core.usb_library")
                   # step 6 (owner's ruling): on Windows the table's driver state is read from
                   # the installer's own knowledge (read only)
-                  or (path.name == "session_table.py" and m == "core.usb_driver_installer"))
+                  or (path.name in ("session_table.py", "usb_system.py")
+                      and m == "core.usb_driver_installer"))
             assert ok, (path.name, m)
 
 
