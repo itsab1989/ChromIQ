@@ -538,7 +538,8 @@ written to, the `old/` folder and the table's session folders beside the chart.
   the calibration amendment of 2026-09-02 says an unmeasured calibration chart leaves no
   `cal/old/` folder. A table session's raw readings are kept all the same (set aside, never
   deleted), so a calibration chart that was never saved but was read by the table does leave
-  `cal/old/<date>/i1io-table/`. The chart itself is dropped as ruled.
+  `cal/old/<date>/i1io-table/`. The chart itself is dropped as ruled. Since review 12 (S-5,
+  below) only a session that holds a reading is set aside.
 * A START anywhere in the project asks about a marker left anywhere in it (each run, each
   run's verifications, `cal/`).
 

@@ -480,3 +480,41 @@ def test_s3_the_endings_answers_are_visible_without_scrolling(qtbot, monkeypatch
         win._title.fontMetrics().lineSpacing()
 
 
+# ---- S-5: an unmeasured calibration whose START read nothing leaves no cal/old/ ----------------
+
+def test_s5_unmeasured_calibration_with_an_empty_session_leaves_no_cal_old(tmp_path):
+    """Review 12's probe R12-5, as the coordinator decided (awaiting the owner)."""
+    proj, cal, sheet = cal_chart(tmp_path)
+    s1 = _session(cal)
+    (s1 / "session.log").write_text("consent declined", encoding="utf-8")
+    cal.reset(stash=True)
+    left = list(cal.old_dir.glob("*")) if cal.old_dir.exists() else []
+    assert left == [], f"an experiment that read nothing left {left}"
+    assert s1.is_dir() and (s1 / "discarded.json").is_file()
+    assert [e.state for e in se.earlier_sessions(cal)] == [se.DISCARDED]
+
+
+def _row_record(sdir: Path, accepted):
+    d = sdir / "p1-row1"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / ("r1" + "".join([".row.json"]))).write_text(json.dumps({"seq": 1,
+                                                                  "accepted": accepted}),
+                                                      encoding="utf-8")
+
+
+def test_s5_a_session_that_holds_a_reading_is_set_aside_into_cal_old(tmp_path):
+    proj, cal, sheet = cal_chart(tmp_path)
+    s1 = _session(cal, "20261117-100000")
+    _row_record(s1, [{"loc": "A1"}])
+    s2 = _session(cal, "20261117-110000")
+    _row_record(s2, [])
+    cal.reset(stash=True)
+    moved = list(cal.old_dir.glob("*/i1io-table/*"))
+    assert [m.name for m in moved] == [s1.name]
+    assert s2.is_dir() and (s2 / "discarded.json").is_file()
+
+
+def test_s5_the_row_record_suffix_is_the_table_jobs():
+    from core import file_manager as fm
+    from workflow.i1io.table import measurement as ms
+    assert fm.I1IO_TABLE_ROW_RECORD_SUFFIX == ms.ROW_RECORD_SUFFIX
