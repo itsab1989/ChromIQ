@@ -1510,10 +1510,49 @@ def resolve_placeholders(t: str, ctx: dict) -> str:
         # 4.3.42: a chart in fixed order prints no seed, and nothing of the
         # phrase that named it is left behind (`drop_the_seed`).
         t = drop_the_seed(t)
-    try:
-        return t.format(**ctx) if t else ""
-    except (KeyError, IndexError, ValueError):
-        return t                           # leave unknown placeholders literal
+    if t and LOGO_TOKEN in t:
+        # `{logo}` is drawn only where `resolve_keeping_logo` keeps it for
+        # the drawing; everywhere else it is left out cleanly, never printed
+        # as a word (4.3.44 re-review)
+        t = drop_the_logo(t)
+    if not t:
+        return ""
+    # ONLY A PLAIN KNOWN NAME IS FILLED IN, AND NOTHING TYPED CAN RAISE
+    # (4.3.44 re-review). This was `t.format(**ctx)`, which gave Python's own
+    # meaning to everything in braces: Chart Notes "made {date.year}" raised
+    # an AttributeError that stopped Generate, "{project.upper}" printed a
+    # method's address, and one unknown name left every placeholder of the
+    # line unfilled. Now a brace group is filled only when it is exactly
+    # `{name}` with a name the chart knows; anything else ("{date.year}",
+    # "{0}", "{page!r}", "{page:>10}", "{}", "{abc}", "{{page}}") is printed
+    # as typed, and the known names in the same line are still filled in.
+    return _PLACEHOLDER.sub(
+        lambda m: str(ctx[m.group(1)]) if m.group(1) in ctx else m.group(0),
+        t)
+
+
+#: A placeholder as the chart fills it: one plain name in single braces.
+_PLACEHOLDER = re.compile(r"(?<!\{)\{([A-Za-z_][A-Za-z0-9_]*)\}(?!\})")
+
+
+def drop_the_logo(t: str) -> str:
+    """*t* with every `{logo}` left out, for a place that cannot draw it
+    (the clip border's own text, an i1iO table chart, an i1iSis chart's
+    notes): the separator or bracket that tied it to its neighbour goes
+    with it, by the tidy-up rules of :func:`drop_the_seed`, so the line
+    reads as if it had never been typed."""
+    if LOGO_TOKEN not in t:
+        return t
+    t = t.replace(LOGO_TOKEN, _GONE)
+    for _ in range(8):
+        before = t
+        for rx, rep in _SEED_TIDY[:1]:
+            t = rx.sub(rep, t)
+        if t == before:
+            break
+    for rx, rep in _SEED_TIDY[1:]:
+        t = rx.sub(rep, t)
+    return t.replace(_GONE, "")
 
 
 # ---- {logo}: the ChromIQ wordmark inside a line of text (4.3.44) ------------
@@ -2598,7 +2637,9 @@ def clip_text_lines(text: "str | None") -> list[str]:
     away. `split("\n")` keeps what was typed, and the whitespace-only guard
     below still turns a band of nothing into nothing.
     """
-    lines = (text or "").split("\n")
+    # `{logo}` is not drawn in the clip border's text: left out cleanly
+    # (4.3.44 re-review; a text that never names it is untouched)
+    lines = drop_the_logo(text or "").split("\n")
     return lines if any(ln.strip() for ln in lines) else []
 
 

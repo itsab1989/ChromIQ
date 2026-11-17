@@ -1305,6 +1305,10 @@ def page_line_parts(name, index: int, pages: int, sheet_text: str = "",
         for key, value in (text_ctx or {}).items():
             extra = extra.replace("{" + key + "}", str(value))
         extra = extra.replace("{page}", f"{index + 1}/{pages}")
+        # `{logo}` is not drawn on an i1iO table chart: left out cleanly,
+        # never printed as the word (4.3.44 re-review)
+        from workflow.layout_engine.raster import drop_the_logo
+        extra = drop_the_logo(extra).strip()
     return head, extra
 
 

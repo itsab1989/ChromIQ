@@ -3091,7 +3091,10 @@ class LayoutOptionsPanel(QWidget):
                         "as tall as the text, in its own colours: “Chrom” in "
                         "black and “IQ” in pink. It takes no room from the "
                         "patches. If the text is printed so small that the "
-                        "logo could not be recognised, the logo is left out."),
+                        "logo could not be recognised, the logo is left out. "
+                        "It is also left out, never printed as the word, "
+                        "where ChromIQ does not draw it: in the clip border's "
+                        "own text and on an i1iO table chart."),
                     self))
         add_row(stg, 1, tr("Preview:"), self.text_preview)
         self._add_font_rows(stg, 2, tr("Font:"), self.chart_text_font,
@@ -7314,10 +7317,10 @@ class LayoutOptionsPanel(QWidget):
             "pages": str(_pages), "seed": "seed 12345",
             "dpi": f"{int(self.dpi.value())} dpi",
         }
-        try:
-            return text.format(**ctx)
-        except (KeyError, IndexError, ValueError):
-            return text       # unknown token — leave literal, as the builder does
+        # the build's own rule (4.3.44): plain known names filled in, anything
+        # else as typed, `{logo}` left out where it is not drawn
+        from workflow.layout_engine.raster import resolve_placeholders
+        return resolve_placeholders(text, ctx)
 
     def _update_text_preview(self) -> None:
         if not hasattr(self, "text_preview"):

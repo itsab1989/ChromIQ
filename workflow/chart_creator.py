@@ -2385,6 +2385,11 @@ class ChartCreator:
             if ctx is not None and "{" in note:
                 from workflow.layout_engine.raster import resolve_keeping_logo
                 note = resolve_keeping_logo(note, ctx).strip()
+            elif "{logo}" in note:
+                # printed where no logo is drawn (an i1iSis chart's trailer):
+                # left out cleanly, never printed as the word
+                from workflow.layout_engine.raster import drop_the_logo
+                note = drop_the_logo(note).strip()
             if note:
                 lines.append(note)
         if params.stamp_commands:
