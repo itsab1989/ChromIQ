@@ -7180,6 +7180,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._table_no_swipe_before = bool(getattr(self._preview, "_no_swipe", False))
         self._preview.set_no_swipe(True)
         self._preview.set_table_ring(True)
+        self._table_expected = self._table_chart_expected(chart)
+        self._begin_live_expected()
         # the preview's "Progress" counts the table's readings as a hand
         # measurement's (a resume or refinement starts from the run's file)
         self._reset_progress(from_files=bool(only_locs) or "-r" in args)
@@ -7213,6 +7215,25 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 return None
             locs = [l for l in all_locs if self._strip_of(l).upper() in strips]
         return set(locs) or None
+
+    @staticmethod
+    def _table_chart_expected(chart) -> "dict[str, list[float]]":
+        """{location: the chart's expected XYZ} from the chart's own .ti2,
+        what ChromIQ's reading engine sends with every hand reading (eXYZ).
+        Empty when the chart records none."""
+        try:
+            from workflow.measurement_pairing import _first_table
+            fields, lines = _first_table(read_text(Path(chart), lenient=True))
+            ix = [fields.index(k) for k in ("XYZ_X", "XYZ_Y", "XYZ_Z")]
+            li = fields.index("SAMPLE_LOC")
+            out = {}
+            for ln in lines:
+                parts = ln.split()
+                if len(parts) >= len(fields):
+                    out[parts[li].strip('"')] = [float(parts[i]) for i in ix]
+            return out
+        except Exception:      # noqa: BLE001 - no expected colours, the split says so
+            return {}
 
     def _table_room(self, on: bool) -> None:
         """While the table's panel is shown (review 10, M-2 / M-3), the tab's
@@ -7274,8 +7295,17 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             elif kind == "patch_read":
                 xyz = ev.get("xyz") or []
                 if len(xyz) >= 3:
-                    self._on_patch_measured({"loc": str(ev.get("loc", "")),
-                                             "xyz": list(xyz[:3])})
+                    loc = str(ev.get("loc", ""))
+                    reading = {"loc": loc, "xyz": list(xyz[:3])}
+                    # review 10, S-7: the chart's own expected colour, as
+                    # the hand path's engine sends it (exyz, and ΔE*ab
+                    # CIE76 against it); without it the split was black
+                    exyz = (getattr(self, "_table_expected", None) or {}).get(loc)
+                    if exyz is not None:
+                        from workflow.measurement_report import engine_patch_de
+                        reading["exyz"] = list(exyz)
+                        reading["de"] = round(float(engine_patch_de(exyz, xyz[:3])), 2)
+                    self._on_patch_measured(reading)
                 self._count_patch_progress({"loc": str(ev.get("loc", ""))})
             elif kind == "end":
                 self._preview.highlight_patch(-1, None)

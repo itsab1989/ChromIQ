@@ -729,3 +729,28 @@ def test_e_the_jobs_close_offers_nothing_after_a_failed_row(qtbot, monkeypatch, 
     p.drive_until("done")
     assert win._tick_widgets == [] and sim.jobs[0]._a_row_failed()
     assert closed and "offer" not in closed[0]
+
+
+# ---- S-7: the expected colour of a table reading -------------------------------------------------
+
+def test_s7_a_table_reading_carries_the_charts_expected_colour(tab, beta, tmp_path, monkeypatch):
+    got = []
+    monkeypatch.setattr(tab, "_on_patch_measured", got.append)
+    tab._table_expected = {"A1": [41.0, 21.0, 1.9]}
+    tab._on_table_progress({"event": "patch_read", "loc": "A1", "xyz": [40.0, 21.0, 2.0],
+                            "page": 1})
+    tab._on_table_progress({"event": "patch_read", "loc": "A2", "xyz": [40.0, 21.0, 2.0],
+                            "page": 1})
+    assert got[0]["exyz"] == [41.0, 21.0, 1.9] and got[0]["de"] > 0
+    assert "exyz" not in got[1]                          # none recorded: as before
+
+
+def test_s7_the_expected_colours_are_read_from_the_chart(tmp_path):
+    from ui.tabs.tab_measure import TabMeasure
+    run, sheet = table_run(tmp_path)
+    exp = TabMeasure._table_chart_expected(run.chart_ti2)
+    text = run.chart_ti2.read_text(encoding="ascii")
+    if "XYZ_X" in text:
+        assert exp and all(len(v) == 3 for v in exp.values())
+    else:
+        assert exp == {}

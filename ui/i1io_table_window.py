@@ -557,6 +557,9 @@ class TableMeasureWindow(QFrame):
         self._page.addWidget(self._note_box)
         self._page.addStretch(1)
         self._scroll.setWidget(page)
+        # the text's height follows the width the viewport really has (it is known only once
+        # the panel is laid out, and changes when the scroll bar comes or goes)
+        self._scroll.viewport().installEventFilter(self)
         body.addWidget(self._scroll, 1)
 
         # the answers: two to a row when both labels fit the column, else one
@@ -680,6 +683,12 @@ class TableMeasureWindow(QFrame):
                                           max(80, self.height() // 3)))
         self._flow_choices()
         self._fit_text()
+
+    def eventFilter(self, obj, event) -> bool:      # noqa: N802
+        from PyQt6.QtCore import QEvent
+        if obj is self._scroll.viewport() and event.type() == QEvent.Type.Resize:
+            self._fit_text()
+        return False
 
     def _fit_text(self) -> None:
         """A word-wrapped label in a scroll area is laid out at its one-line minimum, so its
