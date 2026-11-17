@@ -810,3 +810,19 @@ def test_note_keep_measuring_names_the_current_page(tmp_path):
     r, _st = _end(job, p, "keep measuring")
     assert r.detail["current_page"] == 1
     assert {x["page"] for x in r.detail["missing_rows"]} == {1}
+
+
+def test_s4_a_filed_session_reads_saved_before_anything_settles_it(tmp_path, monkeypatch):
+    """Planted fault S4b (fix8): the state itself, with no earlier_sessions() call first: a
+    later START's discard_earlier never marks a filed session discarded."""
+    from workflow.i1io.table import measurement as ms
+    from workflow.i1io.table import session_end as se
+    run, job, sim, p = _a_complete_page(tmp_path)
+    _power_cut_at(monkeypatch, job, "result")
+    _save_with_a_power_cut(job)
+    sdir = run.i1io_table_session_dir(RS.STAMP)
+    assert se.session_state(sdir, run.measurement_ti3) == se.SAVED
+    assert se.session_state(sdir) == se.INTERRUPTED            # without the run's file: unknown
+    job2, *_ = job_on(run, tmp_path / "b", stamp=SECOND)
+    assert job2.discard_earlier(RS.STAMP).reason == "not_an_interrupted_session"
+    assert not (sdir / ms.DISCARDED).exists()
