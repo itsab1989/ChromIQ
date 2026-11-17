@@ -27,3 +27,15 @@ pyobjc-framework-Cocoa>=10.0 ; sys_platform == "darwin"
 # says only "no USB device (No module named 'serial')".
 pyserial>=3.5
 bleak>=0.21
+
+# The i1iO table drive (part of the i1iO Beta; core/usb_library.py): ChromIQ
+# talks to an X-Rite i1iO 2 table over USB itself.
+#   pyusb          — BSD 3-clause. 1.2.1 exactly: the version the table owner's
+#                    tester program ran with on his i1iO 2.
+#   libusb-package — Apache 2.0; carries a prebuilt libusb-1.0 (LGPL 2.1 or
+#                    later) for macOS (arm64 and x86_64 wheels, merged into one
+#                    universal file by build-release.yml), Windows x64 / x86 and
+#                    Linux. No wheel for Windows on ARM64: that build has no
+#                    table drive and says so (core/usb_library.py).
+pyusb==1.2.1
+libusb-package==1.0.30.1 ; sys_platform != "win32" or platform_machine != "ARM64"

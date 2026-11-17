@@ -2,7 +2,8 @@
 
 ``CHROMIQ_SELFTEST=1 ChromIQ.app/Contents/MacOS/ChromIQ`` loads what a normal
 start loads first (numpy with its BLAS, Qt's widgets), does one small piece of
-linear algebra, prints one line and exits, without opening a window or
+linear algebra, loads the bundled USB library of the i1iO table drive (no device
+touched), prints one line and exits, without opening a window or
 touching any setting. The macOS build runs it under ``arch -x86_64`` so the
 Intel half of the universal app is proved to start (review P_review2_beta1:
 the Rosetta step imported numpy from the build machine's site-packages, not
@@ -33,10 +34,19 @@ def run_if_asked() -> None:
         threads = blas_thread_count()
         if threads not in (None, 1):
             raise RuntimeError(f"OpenBLAS runs {threads} threads, not 1")
+        # The USB library of the i1iO table drive (core/usb_library.py): pyusb
+        # imports and the bundled libusb-1.0 LOADS and tells its version. No
+        # libusb_init, no device listed or opened. Windows on ARM64 has none
+        # bundled on purpose (no wheel) and says "usb=not-bundled".
+        from core.usb_library import status as usb_status
+        usb = usb_status()
+        if not usb.ok and usb.problem != "not-bundled":
+            raise RuntimeError(f"the USB library does not load: {usb.problem}")
     except BaseException as exc:      # noqa: BLE001 — report, then fail
         print(f"chromiq-selftest FAILED on {platform.machine()}: {exc!r}",
               flush=True)
         sys.exit(1)
     print(f"chromiq-selftest ok machine={platform.machine()} "
-          f"numpy={numpy.__version__} blas_threads={threads}", flush=True)
+          f"numpy={numpy.__version__} blas_threads={threads} "
+          f"{usb.selftest_field()}", flush=True)
     sys.exit(0)

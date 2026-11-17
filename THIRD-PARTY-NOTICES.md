@@ -255,6 +255,28 @@ clause is met here and on the Licences page. The vendored DLL's own
 > Portions of this software are copyright © 2000-2026 The FreeType Project
 > (www.freetype.org). All rights reserved.
 
+## USB access for the i1iO table — `pyusb`, `libusb-package`, libusb
+
+ChromIQ's i1iO table drive (part of the i1iO Beta) opens the table over USB. The three
+build specs bundle what it needs from the packages pinned in `requirements.txt`, and copy the
+licence texts below into the app under `licenses/usb/` (`vendor/usb/README.md` lists them):
+
+**`pyusb` 1.2.1**, the Python side. **Terms: the 3-clause BSD licence**, copyright © 2009-2017
+Wander Lairson Costa and © 2009-2021 PyUSB contributors, from its own `LICENSE`, which travels
+with the app as its second clause requires for a binary redistribution.
+
+**`libusb-package` 1.0.30.1**, which carries a prebuilt libusb library for each system.
+**Terms: the Apache License 2.0** for its Python code, from its own `LICENSE`, which travels with
+the app. It needs **`importlib_resources` 7.1.0**, also **Apache License 2.0**, whose licence
+travels as well.
+
+**libusb 1.0.30**, the native library inside that package (`libusb-1.0.dylib`, `.dll` or `.so`).
+**Terms: the GNU Lesser General Public License, version 2.1 or later**; its copyright holders are
+listed in libusb's own `AUTHORS`. Both files travel with the app. ChromIQ does not modify libusb
+and loads it at run time as a separate file, so it can be replaced by another build. Its source is
+libusb 1.0.30 as published by the libusb project and the `libusb-package` 1.0.30.1 source
+distribution on PyPI. Windows on ARM64 is built without it (no package exists for that system).
+
 ## Argyll-derived helpers — `native/`
 
 `native/argyll/LICENSE` (AGPLv3), `native/instlib/License.txt` (AGPLv3) and

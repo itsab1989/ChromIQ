@@ -52,9 +52,15 @@ def test_the_selftest_prints_one_line_and_exits_0(tmp_path):
     import platform
     # blas_threads: 1 with OpenBLAS (pinned by main.py, core/blas_threads.py),
     # None with Apple's Accelerate; never the pool size, which can hang a fork.
+    # usb=: the i1iO table drive's USB library loads (core/usb_library.py);
+    # its versions are pyusb's and the bundled libusb's own
+    from core.usb_library import status
+    usb = status()
+    assert usb.ok, usb
     assert r.stdout.strip() in (
         f"chromiq-selftest ok machine={platform.machine()} "
-        f"numpy={__import__('numpy').__version__} blas_threads={n}"
+        f"numpy={__import__('numpy').__version__} blas_threads={n} "
+        f"usb=pyusb-{usb.pyusb}/libusb-{usb.libusb}"
         for n in ("1", "None"))
 
 

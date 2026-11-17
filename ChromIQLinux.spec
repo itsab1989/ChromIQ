@@ -156,11 +156,36 @@ if _missing_licences:
     print("[ChromIQLinux.spec] MISSING LICENCE FILE(S) for the Argyll-derived "
           f"helpers: {_missing_licences}")
 
+# THE i1iO TABLE DRIVE'S USB LIBRARY (core/usb_library.py; part of the i1iO Beta).
+# pyusb, and libusb-1.0 as the prebuilt library inside the libusb-package wheel,
+# kept in its package folder so that libusb_package.get_library_path() finds it
+# in the frozen app as in a checkout. The start-up self-test (core/selftest.py)
+# proves it LOADS in the built app (`usb=pyusb-.../libusb-...`), touching no
+# device. Windows on ARM64 has no libusb-package wheel: nothing to bundle there,
+# and the app says the drive is not available on that system. The licences
+# travel under licenses/usb (vendor/usb/README.md, THIRD-PARTY-NOTICES.md).
+try:
+    _usb_binaries = list(collect_dynamic_libs('libusb_package'))
+except Exception:
+    _usb_binaries = []
+if not _usb_binaries:
+    print("[ChromIQLinux.spec] libusb-package not installed: the i1iO table drive will "
+          "have no USB library in this bundle.")
+_usb_licences = [(os.path.join('vendor', 'usb', _n), 'licenses/usb')
+                 for _n in ('README.md', 'pyusb-LICENSE', 'libusb-package-LICENSE',
+                            'libusb-COPYING', 'libusb-AUTHORS',
+                            'importlib_resources-LICENSE')]
+_USB_HIDDENIMPORTS = ['core.usb_library', 'usb', 'usb.core', 'usb.util',
+                      'usb.backend', 'usb.backend.libusb1', 'libusb_package',
+                      'importlib_resources']
+
 a = Analysis(
     ['main.py'],
     pathex=['.', os.path.join(os.path.dirname(os.path.abspath(SPEC)), 'vendor', 'fd9-independent', 'src')],
-    binaries=[*_ic_binaries, *_we_binaries, *_np_binaries, *_xcb_binaries],
+    binaries=[*_ic_binaries, *_we_binaries, *_np_binaries, *_xcb_binaries,
+              *_usb_binaries],
     datas=[
+        *_usb_licences,
         ('LICENSE',              '.'),
         ('THIRD-PARTY-NOTICES.md', '.'),
         *_native_licences,
@@ -210,6 +235,7 @@ a = Analysis(
         'PIL.ImageCms',
         'PIL.TiffImagePlugin',
         'yaml',
+        *_USB_HIDDENIMPORTS,
         'cups',
         'tifffile',
         'numpy',

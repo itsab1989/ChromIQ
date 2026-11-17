@@ -106,6 +106,22 @@ jobs:
       - name: Build Linux executable
         run: python -m PyInstaller ChromIQLinux.spec
 
+      # The same start-up self-test the macOS and Windows builds run
+      # (core/selftest.py, CHROMIQ_SELFTEST=1): numpy, Qt's widgets (offscreen,
+      # so no DISPLAY is needed and no window is opened) and the i1iO table
+      # drive's USB library load in the BUILT app; one line, then exit. The
+      # timeout turns a hang into a failure instead of a stuck job.
+      - name: Start the built app's self-test
+        run: |
+          set -uo pipefail
+          rc=0
+          out=$(CHROMIQ_SELFTEST=1 QT_QPA_PLATFORM=offscreen timeout 300 ./dist/ChromIQ/ChromIQ 2>&1) || rc=$?
+          echo "exit=$rc"
+          echo "$out"
+          [ "$rc" -eq 0 ] || { echo "::error::the built ChromIQ self-test exited $rc (124 = timed out)"; exit 1; }
+          echo "$out" | grep -q "^chromiq-selftest ok machine=" || {
+            echo "::error::the built ChromIQ exited 0 without its self-test line"; exit 1; }
+
       - name: Inspect built binary
         run: |
           # Don't try to launch the GUI — there's no DISPLAY on the runner,

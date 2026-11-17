@@ -78,6 +78,7 @@ NOTICE_SECTIONS: "tuple[str, ...]" = (
     "Scanner target recognition files",
     "Certificate bundle",
     "FreeType",
+    "USB access for the i1iO table",
     "Argyll-derived helpers",
     "CIE colorimetric tables",
     "ChromIQ's own",

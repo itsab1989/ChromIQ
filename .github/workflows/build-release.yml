@@ -220,6 +220,9 @@ jobs:
           # required by numpy ≥2.4 (see Install step). Lipo so the universal2
           # bundle has a fat libscipy_openblas64_.dylib.
           lipo_pkg scipy-openblas64     scipy_openblas64  py3-none
+          # the i1iO table drive's libusb-1.0 (core/usb_library.py): one dylib
+          # per arch in a py3-none wheel; the self-test loads it on both halves
+          lipo_pkg libusb-package       libusb_package    py3-none
 
           # numpy's Intel OpenBLAS (numpy/.dylibs) loads libgfortran, libquadmath
           # and libgcc_s from its OWN folder (@loader_path). The macOS-11 arm64
