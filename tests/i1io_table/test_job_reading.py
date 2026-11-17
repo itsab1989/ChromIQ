@@ -548,8 +548,9 @@ def test_options_from_the_measure_tab_are_honoured_or_refused_with_a_reason():
                                           "-xx": "external_values_not_with_the_table",
                                           "-Q": "option_unknown_to_the_table_job"}
     assert bad.no_meaning["-B"] == "no_meaning_for_spot_readings"
+    # round B: without -p the rows are read as strips (a first try), said as an option used
     strip = sp.options_from_chartread_args(["-v", "-c", "1", "Chart"])
-    assert strip.no_meaning["strip"] == "strip_rows_not_built_spot_is_used"
+    assert strip.options.strip and "strip" in strip.used and "strip" not in strip.no_meaning
     assert set(sp.SETTINGS) >= {"aiming_help", "i1pro2_ruler_check", "i1pro2_lights",
                                 "button_gestures", "i1pro3_conditions", "averaging_pass"}
 
@@ -575,13 +576,15 @@ def test_options_the_reader_gets_them_and_a_refused_one_reads_nothing(tmp_path):
     assert job2.calibrate().reason == "table_not_open" and sim2.received == []
 
 
-def test_strip_rows_are_not_built_and_reach_nothing(tmp_path):
+def test_a_spot_session_reads_a_strip_only_when_asked(tmp_path):
+    """Round B: strip rows exist now; a session with -p (patch by patch) reads patch by patch
+    unless a strip is asked for by name (read_row(kind="strip"), never by the window)."""
     job, sim, helper, run, p = job_for(tmp_path)
     ready_to_read(job, p)
-    n = len(sim.received)
-    r = job.read_row(kind="strip")
-    assert (r.kind, r.reason) == (J.Kind.REFUSED, "strip_rows_not_built")
-    assert len(sim.received) == n and helper.started[-1][-1] == "c1_spot"
+    assert job.row_kind == "spot"
+    r = p.drive(job.read_row())
+    assert r.ok and r.detail["row_kind"] == "spot"
+    assert not any(ln.startswith(";m2") for ln in sim.received)
 
 
 # ---- more of the new code, each with its own test (planted faults of step 7) ----------------

@@ -41,6 +41,24 @@ CAL_PATCHES = (("1", "A1"),)
 
 ROW_KINDS = ("spot", "strip")
 
+# ---- strip rows (build step 10, round B: a FIRST TRY, off by default) ------------------------
+#: NEXT_STEPS 4b / D-7: the most readings one strip row may take until a longer lamp pass is
+#: confirmed on a real table: the longest recorded pass (1,190 readings). A row that needs more
+#: at 54 mm/s goes faster (a recorded speed), and when no recorded speed keeps it inside, the
+#: row is read patch by patch (M-I1IO-DRIVE-STRIP-TOO-LONG). The helper's own cap (2,000) and
+#: the allow-list are unchanged.
+STRIP_N_MAX = 1190
+#: the scan speeds a strip row may use, slowest first (all recorded, scan.py's default 54 first:
+#: NEXT_STEPS 4b "the job picks the speed from the chart's patch length (default 54)")
+STRIP_SPEEDS = (54, 61, 87, 88, 110, 118, 137, 138)
+#: readings a patch's window must hold for the patch to be cut (a FIRST TRY value: an 8.9 mm
+#: patch at 54 mm/s gets about 12 in its clean middle; fewer means the move ran differently)
+STRIP_MIN_READINGS = 5
+#: the largest difference of one reading from its window's mean, in any band (reflectance
+#: 0..1), for the window to count as one colour (a FIRST TRY value, not from a recording: a
+#: window across two printed patches differs by far more)
+STRIP_UNIFORMITY_MAX = 0.10
+
 
 class RowRefused(Exception):
     """A row that cannot be planned (nothing was sent). ``.reason`` is an id."""
@@ -62,8 +80,10 @@ class RowPlan:
     """One row of one page: its patches in the order the arm visits them (serpentine)."""
     page: int                 # 0-based
     index: int                # 0-based row of the page (the side file's strip)
-    kind: str                 # "spot" (step 7); "strip" is step 10's
+    kind: str                 # "spot" (step 7); "strip" (step 10, round B)
     patches: "tuple[PatchTarget, ...]"
+    #: a strip row's scan plan (scan.RowPlan: start, end, speed, readings); None for spot
+    scan: "object | None" = None
 
     @property
     def name(self) -> str:
@@ -84,13 +104,11 @@ def plan_row(sheet: dict, page: int, index: int, alignment, front_y=None, kind: 
     refinement: the order stays the serpentine one). A target outside raises geometry's
     AreaRefused (the caller turns it into its id); nothing is sent either way.
 
-    Strip rows are step 10: ``kind="strip"`` is refused here, so a strip row can never reach
-    the table through this planner until it is built and reviewed (the seam: a strip planner
-    returns a RowPlan of kind "strip" built by ``scan.sheet_rows``)."""
+    Strip rows (round B): :func:`plan_strip_row`."""
     if kind not in ROW_KINDS:
         raise RowRefused("row_kind_unknown", row_kind=kind)
     if kind == "strip":
-        raise RowRefused("strip_rows_not_built")
+        return plan_strip_row(sheet, page, index, alignment, front_y, only_locs)
     try:
         st = sheet["pages"][page]["strips"][index]
     except (KeyError, IndexError, TypeError):
@@ -106,6 +124,78 @@ def plan_row(sheet: dict, page: int, index: int, alignment, front_y=None, kind: 
         keep = set(only_locs)
         pts = [p for p in pts if p.loc in keep]
     return RowPlan(page, index, kind, tuple(pts))
+
+
+def strip_windows_ok(plan) -> "int | None":
+    """The fewest readings any patch of a scan plan gets in its clean middle, or None when a
+    window lies outside the reading stream (scan.windows on the plan's own profile)."""
+    w = sc.windows(plan, sc.MOTION_START_AFTER_LAMP_S, plan.N)
+    if any(i1 - i0 < 1 for i0, i1 in w):
+        return None
+    return min(i1 - i0 for i0, i1 in w) if w else None
+
+
+def plan_strip_row(sheet: dict, page: int, index: int, alignment, front_y=None,
+                   only_locs=None) -> RowPlan:
+    """One row as a STRIP (tester 0.6.0 part C's E2/E3, ``scan.sheet_rows`` for this row): the
+    run from just beyond one end of the row to just beyond the other, serpentine as the spot
+    rows, at the slowest speed of :data:`STRIP_SPEEDS` that keeps the row within
+    :data:`STRIP_N_MAX` readings with :data:`STRIP_MIN_READINGS` in every patch. Refused (the
+    caller reads the row patch by patch, and says why):
+
+    * ``strip_only_some_patches``: a resume or a refinement wants only part of the row;
+    * ``strip_row_too_long``: no recorded speed keeps it within the readings, or the run with
+      its run-in and run-out leaves the measuring area (geometry's own check: the 230 x 320 mm
+      sheet's longest row, NEXT_STEPS 4b)."""
+    try:
+        st = sheet["pages"][page]["strips"][index]
+    except (KeyError, IndexError, TypeError):
+        raise RowRefused("row_not_in_chart", page=page + 1, row=index + 1) from None
+    if only_locs is not None and not {q["loc"] for q in st["patches"]} <= set(only_locs):
+        raise RowRefused("strip_only_some_patches", page=page + 1, row=index + 1)
+    from . import geometry as geo
+    last = None
+    for speed in STRIP_SPEEDS:
+        try:
+            plans = _one_strip(sheet, page, index, alignment, speed, front_y)
+        except (geo.AreaRefused, sc.PlanRefused) as exc:
+            raise RowRefused("strip_row_too_long", page=page + 1, row=index + 1,
+                             log_reason=str(exc)) from None
+        last = plans
+        fewest = strip_windows_ok(plans)
+        if plans.N <= STRIP_N_MAX and fewest is not None and fewest >= STRIP_MIN_READINGS:
+            try:
+                sc.check_plan(plans, None, front_y)
+            except sc.PlanRefused as exc:
+                raise RowRefused("strip_row_too_long", page=page + 1, row=index + 1,
+                                 log_reason=str(exc)) from None
+            pts = tuple(PatchTarget(q.sample_id, q.loc, (int(round(q.xy[0])),
+                                                         int(round(q.xy[1]))))
+                        for q in plans.patches)
+            return RowPlan(page, index, "strip", pts, scan=plans)
+    raise RowRefused("strip_row_too_long", page=page + 1, row=index + 1,
+                     readings=last.N if last is not None else None, readings_max=STRIP_N_MAX)
+
+
+def _one_strip(sheet, page, index, alignment, speed, front_y):
+    """scan.sheet_rows for one row (the same targets, ends and serpentine order)."""
+    along = float(sheet["patch_mm"][1])
+    st = sheet["pages"][page]["strips"][index]
+    r0, r1 = st["run_mm"]
+    ua = sc.sheet_table_mm(sheet, (st["x_mm"], r0))
+    ub = sc.sheet_table_mm(sheet, (st["x_mm"], r1))
+    a = alignment.target(ua, f"row {index + 1}'s run end", front_y=front_y)
+    b = alignment.target(ub, f"row {index + 1}'s run end", front_y=front_y)
+    if (a[0] > b[0]) != (index % 2 == 1):
+        a, b = b, a
+    patches = []
+    for q in st["patches"]:
+        u = sc.sheet_table_mm(sheet, q["centre_mm"])
+        patches.append(sc.Patch(str(q["sample_id"]), q["loc"],
+                                alignment.target(u, f"patch {q['loc']}", run_out_mm=0.5,
+                                                 front_y=front_y),
+                                half_mm=along / 2))
+    return sc.plan_row(f"p{page + 1}_row{index + 1}", a, b, speed, patches)
 
 
 def rows_on_page(sheet: dict, page: int) -> int:
@@ -219,6 +309,10 @@ class ReadOptions:
     skip_initial_calibration: bool = False
     #: -r: read only what the run's partial measurement lacks
     resume: bool = False
+    #: round B: "Patch-by-patch mode (-p)" off for a table chart = the rows are read as STRIPS
+    #: (a first try, not confirmed on a real table yet; the Measure tab ticks -p for a table
+    #: chart by default)
+    strip: bool = False
 
     def reader_args_fields(self) -> "tuple[str, ...]":
         """The field options among :meth:`reader_args` (-H -l -L -n), in that order."""
@@ -250,7 +344,17 @@ NO_MEANING = {
     "-B": "no_meaning_for_spot_readings",
     "-b": "no_meaning_for_spot_readings",
     "-v": "the_reader_always_reports_the_instrument",
-    "-p": "spot_is_the_table_s_only_reading_for_now",
+}
+#: round B: in strip mode these have no meaning for the strip rows (the table-scan mode reads in
+#: standard resolution and does its own conversion); dropped for the whole session, so the rows
+#: a strip session reads patch by patch match the strip rows' fields
+NO_MEANING_STRIP = {
+    "-H": "the_strip_reading_has_no_high_resolution",
+}
+#: round B: refused in strip mode (it would change WHAT is measured and the strip reading cannot
+#: honour it): the table-scan conversion applies no XRGA
+REFUSED_STRIP = {
+    "-A": "xrga_not_with_strip_rows",
 }
 #: options that would change WHAT is measured and that the table cannot honour: the job does
 #: not read with them (a refusal, never silently dropped)
@@ -271,7 +375,7 @@ SETTINGS = {
     "i1pro3_conditions": ("no_meaning", "only_an_i1pro2_is_driven"),
     "i1pro3_lights": ("no_meaning", "only_an_i1pro2_is_driven"),
     "averaging_pass": ("not_built", "a_second_pass_is_filed_by_step_8"),
-    "strip_mode": ("not_built", "strip_rows_not_built"),
+    "strip_mode": ("first_try", "strip_rows_a_first_try_not_confirmed_on_a_real_table"),
 }
 
 
@@ -345,5 +449,15 @@ def options_from_chartread_args(tokens) -> OptionsReport:
         else:
             refused[t] = "option_unknown_to_the_table_job"
     if not patch_by_patch:
-        no_meaning["strip"] = "strip_rows_not_built_spot_is_used"
+        # round B: strip rows (a first try); what the strip reading cannot honour is said
+        kw["strip"] = True
+        used.append("strip")
+        for flag, why in NO_MEANING_STRIP.items():
+            if flag == "-H" and kw.pop("high_res", False):
+                used.remove("-H")
+                no_meaning["-H"] = why
+        if kw.get("xrga"):
+            used[:] = [u for u in used if not u.startswith("-A ")]
+            kw.pop("xrga")
+            refused["-A"] = REFUSED_STRIP["-A"]
     return OptionsReport(ReadOptions(**kw), tuple(used), no_meaning, refused)

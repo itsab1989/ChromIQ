@@ -595,3 +595,59 @@ lost: the panel's Aimed always works.
   string) the button is not offered and nothing else changes. No setting.
 * Text: M-I1IO-DRIVE-AIM-BUTTON (§M-PROPOSED), added under M-I1IO-DRIVE-AIM when the button is
   offered, and one status line under the question (ready / cannot be used this time).
+
+### ⏳ Awaiting confirmation: reading rows as strips, a first try (round B, build step 10, 2026-11-17)
+
+**Confirmed by:** *nobody yet.*
+
+Built and proved against the simulated table and tester 0.6.0's simulated table-scan reader
+only. **Not tried on a real table**: whether the table starts the scan move on ChromIQ's lamp
+(D-1), the live timing of the trigger (D-2), the motion start the cut relies on (D-3), a lamp
+pass longer than the recorded ones (D-7) and how strip values compare with spot values and
+i1Profiler's (D-8) all wait for the volunteer's results.
+
+* **The option.** The existing "Patch-by-patch mode (-p)" of Guided and Manual decides it for
+  an i1iO table chart (STEP4_PROPOSAL section 2): ticked = patch by patch (the default: the box
+  is ticked when a table chart is loaded, the person's own value for other charts is kept and
+  comes back with them); not ticked = every row as a strip. The box is never greyed; a line
+  under it and its tooltip (M-I1IO-DRIVE-STRIP-OPTION) say that strips are a first try, and the
+  panel's first page says it again (M-I1IO-DRIVE-STRIP-FIRST-TRY). No new setting.
+* **One strip row** is tester 0.6.0's E2 row, byte for byte on the wire (339 sittings compared):
+  where the arm is, the first-visit rule for the way to the row start and the run, for a row in
+  the front zone first a spot move to each of its two ends, the instrument's lights off, c4,
+  the move to the row start at 300, d1, the arrival, the instrument armed (if it is not ready
+  to fire at once, the scan move is NEVER sent), the scan move at a recorded speed, a3, c3, the
+  lamp trigger on the one path with no stop point, the move's done answer, the arm at the row's
+  end. The hands-off GO is asked as for every row.
+* **The speed** is the slowest of 54, 61, 87, 88, 110, 118, 137, 138 mm/s (all recorded) that
+  keeps the row within 1,190 readings (the longest recorded pass, D-7) with at least five
+  readings in every patch's clean middle. A row no recorded speed keeps inside, or whose run
+  with its run-in and run-out leaves the measuring area, is read patch by patch by itself
+  (M-I1IO-DRIVE-STRIP-TOO-LONG). So is a row of which only some patches are to be read (resume,
+  refinement).
+* **The patches** are found in the readings by position, with the tester's own rule (no
+  refinement). Nothing is guessed: a row whose readings are missing, fewer than planned, whose
+  patch windows hold fewer than five readings, are not on one colour (any band more than 10 %
+  from the window's mean) or give values no print can have, is not kept at all, and the person
+  chooses: read it again as a strip, read it patch by patch, skip it, or end the step
+  (M-I1IO-DRIVE-ROW-FAILED-STRIP). Each of "again" and "patch by patch" asks the hands-off GO
+  first and counts as a row read again (two per page at most). ArgyllCMS's own recogniser runs
+  beside as a cross-check and is only recorded.
+* **The values**: the instrument's own calibrated spectra (the helper's table-scan mode), the
+  XYZ computed from them as ArgyllCMS's chartread does (D50, 2 degree observer); the row file
+  has the fields a spot row's file has for the same options (-l, -L, -n honoured), so strip
+  rows and rows read patch by patch mix in one measurement. -H has no meaning for strip rows
+  (the session reads in standard resolution), -A (XRGA) is refused for strip rows.
+* **The white**: in strip mode the calibration makes the strip white too, right after the spot
+  white and on the same tile (tester C1). A strip session without it does not read a strip row.
+* **A scan move that may still wait** (the lamp never came, the trigger could not be handed to
+  the instrument, the instrument stopped at the fire): nothing more is sent in the session,
+  the way back starts with switching the table off (M-I1IO-DRIVE-SWITCH-OFF), and the marker
+  files ask again at the next START.
+* **Stop** is honoured before the strip starts, or after the strip move has ended; it never
+  cuts the one path to the lamp trigger.
+* **App Nap**: on a Mac the job holds macOS's "latency critical" activity around every strip
+  move, so a ChromIQ that is not in front is not slowed down while a row runs.
+* **Unchanged**: the allow-list, every recorded line, the helper's own limit (2,000 readings),
+  the session and step caps (they always counted a strip row as the tester's E2 row step plus
+  its front-row ends, 19 lines and 4 movements).

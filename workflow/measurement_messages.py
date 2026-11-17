@@ -11916,6 +11916,57 @@ M_I1IO_DRIVE_AIM_BUTTON = _m(
     "press Aimed here: nothing is lost.",
     approved=False)
 
+M_I1IO_DRIVE_STRIP_OPTION = _m(
+    "M-I1IO-DRIVE-STRIP-OPTION",
+    "How the table reads each row",
+    "For a chart made for the i1iO table, “Patch-by-patch mode (-p)” decides how the "
+    "table reads your chart.\n\n"
+    "Ticked (the default for a table chart): the arm stops on every patch, and the i1Pro 2 "
+    "takes one reading there. This is the careful way, and it is the one we recommend.\n\n"
+    "Not ticked: the arm drives along the whole row while the i1Pro 2 reads all the time, "
+    "the way i1Profiler reads a row. Afterwards ChromIQ finds each patch in those readings "
+    "by where the arm was at the time. This is much faster.\n\n"
+    "Reading by strips is a first try. It is built from recordings of i1Profiler, and it "
+    "has not been tried on a real table yet. ChromIQ never guesses a value: a row that "
+    "cannot be cut cleanly into its patches is not kept, and you can read it again, or read "
+    "it patch by patch. A row that is too long for one strip move is read patch by patch "
+    "by itself. If a strip move might still be waiting at the end, ChromIQ tells you to "
+    "switch the table off with its power switch.\n\n"
+    "This choice is only for this chart. Load another chart and the option comes back as "
+    "you had it.",
+    approved=False)
+
+M_I1IO_DRIVE_STRIP_FIRST_TRY = _m(
+    "M-I1IO-DRIVE-STRIP-FIRST-TRY",
+    "Rows are read as strips",
+    "“Patch-by-patch mode (-p)” is off, so the table reads each row as a strip: the arm "
+    "drives along the row while the i1Pro 2 reads all the time, as i1Profiler does. This "
+    "is a first try and has not been tried on a real table yet. Every row that cannot be "
+    "cut cleanly into its patches is offered to you again, or patch by patch. To read "
+    "patch by patch instead, press Not now, tick “Patch-by-patch mode (-p)” and press "
+    "START MEASUREMENT again.",
+    approved=False)
+
+M_I1IO_DRIVE_STRIP_TOO_LONG = _m(
+    "M-I1IO-DRIVE-STRIP-TOO-LONG",
+    "This row is read patch by patch",
+    "Row {row} is too long to be read in one strip move on the table, so ChromIQ reads it "
+    "patch by patch instead. Nothing else changes.",
+    approved=False)
+
+M_I1IO_DRIVE_ROW_FAILED_STRIP = _m(
+    "M-I1IO-DRIVE-ROW-FAILED-STRIP",
+    "Row {row} could not be read as a strip",
+    "Row {row} of page {page} could not be read as a strip: {why}. ChromIQ keeps none of "
+    "this row's readings, because it never guesses a value.\n\n"
+    "The arm is held where the strip move ended. What would you like to do?\n"
+    "  •  Read it again as a strip.\n"
+    "  •  Read it patch by patch: slower, and the careful way.\n"
+    "  •  Skip this row: the measurement is saved without it, and you can read it later.\n"
+    "  •  End this step.\n\n"
+    "Before the arm moves again, ChromIQ asks you to take your hands away from the table.",
+    approved=False)
+
 M_I1IO_DRIVE_FRONT = _m(
     "M-I1IO-DRIVE-FRONT",
     "Part of this sheet lies further forward than usual",
@@ -12379,7 +12430,9 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_EARLIER, M_I1IO_DRIVE_OPTIONS, M_I1IO_DRIVE_OPTION_REFUSED,
     M_I1IO_DRIVE_OPTIONS_FIELDS, M_I1IO_DRIVE_MARKER, M_I1IO_DRIVE_START_UP,
     M_I1IO_DRIVE_GO, M_I1IO_DRIVE_SHEET_LAID, M_I1IO_DRIVE_ARM_FELT,
-    M_I1IO_DRIVE_AIM, M_I1IO_DRIVE_AIM_BUTTON, M_I1IO_DRIVE_FRONT,
+    M_I1IO_DRIVE_AIM, M_I1IO_DRIVE_AIM_BUTTON, M_I1IO_DRIVE_STRIP_OPTION,
+    M_I1IO_DRIVE_STRIP_FIRST_TRY, M_I1IO_DRIVE_STRIP_TOO_LONG,
+    M_I1IO_DRIVE_ROW_FAILED_STRIP, M_I1IO_DRIVE_FRONT,
     M_I1IO_DRIVE_FRONT_YES,
     M_I1IO_DRIVE_FIRST_VISIT, M_I1IO_DRIVE_READER_CONSENT,
     M_I1IO_DRIVE_READER_CONSENT_MAC, M_I1IO_DRIVE_CAL_PLACE,

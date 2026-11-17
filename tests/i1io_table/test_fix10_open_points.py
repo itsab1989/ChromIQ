@@ -203,9 +203,11 @@ def test_d_only_the_options_without_meaning_are_greyed_each_with_its_reason(
     for w in dead:
         assert not w.isEnabled() and w.toolTip(), w
     assert "i1iO table" in tab._m_instr_spin.toolTip()
-    # patch by patch: ticked and locked, with its own reason
-    assert tab._m_pbp_cb.isChecked() and not tab._m_pbp_cb.isEnabled()
-    assert "i1iO table" in tab._m_pbp_cb.toolTip()
+    # round B: patch by patch is ticked for a table chart (the default) and stays the
+    # person's choice (not ticked = strip rows, a first try), explained beside and in its tip
+    assert tab._m_pbp_cb.isChecked() and tab._m_pbp_cb.isEnabled()
+    assert "i1iO table" in tab._m_pbp_cb.toolTip() and "first try" in tab._m_pbp_cb.toolTip()
+    assert not tab._m_pbp_table_note.isHidden()
     # what works stays open: -H, -N, -S, -A, -l/-L/-n, resume, the overlay
     for key in ("highres", "save_lab", "save_lab_and_xyz", "no_spectral", "xrga"):
         assert _opt(tab, key).checkbox.isEnabled(), key

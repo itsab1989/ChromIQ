@@ -138,8 +138,9 @@ def default_job_factory(sheet: dict, page: int, run, stamp: str, ask: bool):
     """The real job: ChromIQ's own USB route, the real helper, the app-level marker place."""
     from workflow.i1io.table import job as J
     from workflow.i1io.table_settle import app_marker_place
+    from core.app_nap import latency_critical
     return J.TableJob(sheet, page, run=run, stamp=stamp, ask_after_each_step=ask,
-                      app_marker_place=app_marker_place())
+                      app_marker_place=app_marker_place(), latency_guard=latency_critical)
 
 
 #: replaced by the on-screen driver (and the tests) with the simulated table
@@ -231,6 +232,10 @@ def choice_label(kind: str, value: str) -> str:
         ("row_failed", "again"): tr("Read it again"),
         ("row_failed", "skip"): tr("Skip it"),
         ("row_failed", "stop"): tr("End this step"),
+        ("row_failed_strip", "again"): tr("Read it again as a strip"),
+        ("row_failed_strip", "patch by patch"): tr("Read it patch by patch"),
+        ("row_failed_strip", "skip"): tr("Skip it"),
+        ("row_failed_strip", "stop"): tr("End this step"),
         ("end_of_session", "save"): tr("Save and stop"),
         ("end_of_session", "discard"): tr("Discard and stop"),
         ("end_of_session", "keep measuring"): tr("Keep measuring"),
@@ -244,7 +249,8 @@ WITHDRAW = {"go": "back", "sheet_laid": "stop", "aimed": "stop", "front_choice":
             "front_yes": "no", "first_visit": "no", "pending_marker": "stop",
             "ready_to_open": "stop", "reader_consent": "no", "calibration_place": "stop",
             "calibration_own_tile": "stop", "calibration_reseated": "stop",
-            "row_failed": "stop", "start_up": "i1profiler", "arm_felt": "not sure"}
+            "row_failed": "stop", "row_failed_strip": "stop", "start_up": "i1profiler",
+            "arm_felt": "not sure"}
 
 #: the job's refusals that are the person's own Stop taking effect
 STOP_REASONS = ("stopped_before_the_next_move", "stopped_between_patches",
@@ -272,6 +278,10 @@ def step_done_text(step: str, detail: dict, page: "int | None" = None,
                 or (reason and status != "read"):
             return tr("The arm moved along row {row} of page {page}; the row could not be "
                       "read.").format(row=row, page=pg)
+        if detail.get("row_kind") == "strip":
+            return tr("The arm drove along row {row} of page {page} while the instrument read "
+                      "it as a strip, and ChromIQ found its patches in the "
+                      "readings.").format(row=row, page=pg)
         return tr("The arm moved along row {row} of page {page} and read its "
                   "patches.").format(row=row, page=pg)
     return {
@@ -372,6 +382,44 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
             "You chose to lay the sheet further back. Please lay it again and aim at its marks "
             "again."),
         "first_visit_declined": tr("You chose not to make that move, so the arm did not move."),
+        # round B: strip rows (a first try)
+        "needs_strip_calibration": tr(
+            "The i1Pro 2 has no calibration for reading strips yet. Please calibrate it first."),
+        "strip_calibration_failed": tr(
+            "The calibration for reading strips did not succeed."),
+        "strip_reading_not_available": tr(
+            "Reading strips is not available with this version of ChromIQ's reading program."),
+        "strip_reader_did_not_open": tr(
+            "ChromIQ's reading program did not get the i1Pro 2 ready for reading a strip."),
+        "strip_instrument_delivered_nothing": tr(
+            "the instrument did not deliver its readings of the strip"),
+        "strip_readings_unreadable": tr("the readings of the strip could not be read back"),
+        "strip_fewer_readings_than_planned": tr(
+            "the instrument delivered fewer readings than the strip needs"),
+        "strip_patches_outside_the_readings": tr(
+            "some patches lie outside the readings the instrument took"),
+        "strip_patch_count_differs": tr(
+            "the readings could not be cut into the number of patches the row has"),
+        "strip_patch_too_few_readings": tr("a patch got too few readings"),
+        "strip_patch_not_on_one_colour": tr(
+            "the readings of a patch did not all show the same colour, so ChromIQ could not be "
+            "sure where that patch is"),
+        "strip_patch_implausible": tr("a patch came out with values no printed patch can have"),
+        "strip_plan_refused": tr("the strip move was not inside the part of the table ChromIQ "
+                                 "uses"),
+        "strip_reader_not_running": tr("ChromIQ's reading program had stopped"),
+        "strip_lights_off_failed": tr("the instrument did not switch its lights off"),
+        "strip_c4_not_recorded": tr("the table answered in a way not seen in the recordings, "
+                                    "before anything moved"),
+        "strip_instrument_not_ready": tr(
+            "the instrument was not ready to start the strip at once, so the strip move was "
+            "never sent"),
+        "strip_move_refused_here": tr("ChromIQ's own checks refused the strip move before it "
+                                      "was sent"),
+        "strip_move_refused_by_the_table": tr("the table refused the strip move"),
+        "strip_failed": tr("the strip could not be read"),
+        "strip_row_too_long": tr("the row is too long for one strip move"),
+        "strip_only_some_patches": tr("only some patches of the row are to be read"),
         "stopped_before_the_next_move": tr("You pressed Stop, so ChromIQ stopped before the "
                                            "next move."),
         "stopped_by_person": tr("You chose Send nothing more, so ChromIQ sends nothing more "
@@ -1082,6 +1130,16 @@ class TableMeasureWindow(QFrame):
                     row=ev.get("row", "?"))
         elif kind == "aim":
             live["now"] = tr("Now: aiming at mark {mark}.").format(mark=ev.get("mark", "?"))
+        elif kind == "strip_fallback":
+            from workflow import measurement_messages as M
+            live["now"] = (M.M_I1IO_DRIVE_STRIP_TOO_LONG.render(row=ev.get("row", "?"))[1]
+                           if ev.get("why") == "strip_row_too_long" else
+                           tr("Now: row {row} is read patch by patch, because only some of its "
+                              "patches are to be read.").format(row=ev.get("row", "?")))
+        elif kind == "strip_move":
+            live["now"] = tr("Now: the arm drives along row {row} of page {page} while the "
+                             "instrument reads it as a strip.").format(
+                row=ev.get("row", "?"), page=ev.get("page", "?"))
         if self._busy and self._state.isVisible():
             self._state.setText(self.live_state_text())
 
@@ -1347,6 +1405,9 @@ class TableMeasureWindow(QFrame):
             body = self._reads_note + "\n\n" + body
         if self._options_note:
             body += "\n\n" + self._options_note
+        if self.job.row_kind == "strip":
+            # round B (proposed text): the rows are read as strips, a first try
+            body += "\n\n" + M.M_I1IO_DRIVE_STRIP_FIRST_TRY.render()[1]
         body += "\n\n" + (tr("The i1Pro 2 is calibrated on the table's white tile; it stays "
                               "in the arm.")
                            if calibration_place(self._settings) == "table tile" else
@@ -1551,6 +1612,14 @@ class TableMeasureWindow(QFrame):
             if "macos_normally_starts_that_service_again_by_itself" in d.get("facts", []):
                 mac = M.M_I1IO_DRIVE_READER_CONSENT_MAC.render()[1]
             title, body = M.M_I1IO_DRIVE_READER_CONSENT.render(mac=mac)
+        elif kind == "row_failed_strip":
+            title, body = M.M_I1IO_DRIVE_ROW_FAILED_STRIP.render(
+                row=d.get("row", "?"), page=d.get("page", page),
+                why=reason_text(d.get("why", "")).rstrip("."))
+            if not d.get("again_allowed", True):
+                why = (reason_text("calibration_due") if d.get("calibration_due")
+                       else reason_text("rows_read_again_limit"))
+                body += "\n\n" + M.M_I1IO_DRIVE_ROW_NOT_AGAIN.render(why=why)[1]
         elif kind == "row_failed":
             title, body = M.M_I1IO_DRIVE_ROW_FAILED.render(
                 row=d.get("row", "?"), page=d.get("page", page),
@@ -1570,8 +1639,10 @@ class TableMeasureWindow(QFrame):
         values = SHOWN_CHOICES.get(kind, res.choices)
         buttons = [(choice_label(kind, v), self._answer_slot(v)) for v in values]
         made = self._show(kind, title, body, buttons)
-        if kind == "row_failed" and not d.get("again_allowed", True):
+        if kind in ("row_failed", "row_failed_strip") and not d.get("again_allowed", True):
             made[0].setEnabled(False)
+            if kind == "row_failed_strip":
+                made[1].setEnabled(False)       # patch by patch is a row read again too
         self._status.setText(tr("ChromIQ waits for your answer. Nothing moves until you "
                                 "answer."))
         if kind == "aimed" and d.get("button") and d.get("button_token"):
@@ -1579,7 +1650,7 @@ class TableMeasureWindow(QFrame):
             self._aim_res = res
             self._button_status()
             self._press_timer.start()
-        if kind == "row_failed":
+        if kind in ("row_failed", "row_failed_strip"):
             self._troubled = True
             self._show_note()
 

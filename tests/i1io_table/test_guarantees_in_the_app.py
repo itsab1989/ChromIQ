@@ -48,7 +48,9 @@ STEP6_MODULES = {"job.py", "caps.py", "usb_system.py", "diagnostics.py",
                  # build step 7: reading (spot rows, the measurement)
                  "spot.py", "measurement.py",
                  # build step 8: the end of a session, what the next START finds
-                 "session_end.py"}
+                 "session_end.py",
+                 # round B (build step 10): a strip row's readings into patches, its row file
+                 "strip.py"}
 
 
 def test_the_package_holds_the_five_moved_modules_and_the_job():
@@ -69,6 +71,8 @@ STDLIB = {"__future__", "csv", "json", "os", "time", "dataclasses", "pathlib", "
 STEP7_APP_IMPORTS = {
     "measurement.py": {"workflow.measurement_pairing", "workflow.measurement_state",
                        "core.text_io", "core.file_manager"},
+    # round B: a strip row's XYZ from its spectrum, by the app's own ArgyllCMS method
+    "strip.py": {"workflow.argyll_colorimetry"},
     "job.py": {"workflow.measurement_state",
                # step 8: Save is guarded as every measurement is (old/ copy, C0 -> C)
                "workflow.measurement_session"},

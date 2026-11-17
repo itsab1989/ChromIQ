@@ -86,7 +86,9 @@ def test_the_package_exists_and_is_complete():
         # build step 7: reading (still reached by nothing in the app)
         "spot.py", "measurement.py",
         # build step 8: the end of a session (still reached by nothing in the app)
-        "session_end.py"}
+        "session_end.py",
+        # round B (build step 10): strip rows (a first try)
+        "strip.py"}
 
 
 #: build step 9: the only app modules that may import the package, and only lazily

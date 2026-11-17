@@ -85,6 +85,8 @@ DEFAULT = {J.Confirm.START_UP: "yes", J.Confirm.GO: "yes", J.Confirm.SHEET_LAID:
            J.Confirm.READER_CONSENT: "yes", J.Confirm.CAL_PLACE: "table tile",
            J.Confirm.CAL_OWN_TILE: "ready", J.Confirm.CAL_RESEAT: "seated",
            J.Confirm.ROW_FAILED: "again",
+           # round B: a failed strip row (again as a strip / patch by patch / skip / stop)
+           J.Confirm.ROW_FAILED_STRIP: "patch by patch",
            #: what the person answers when "again" is refused (two rows read again already)
            "after_again_refused": "skip"}
 
@@ -113,7 +115,8 @@ class Person:
                 self.sim.aim(res.detail["mark"])
             asked = res.confirm
             res = self.job.answer(asked, ans)
-            if (asked == J.Confirm.ROW_FAILED and res.kind == J.Kind.REFUSED
+            if (asked in (J.Confirm.ROW_FAILED, J.Confirm.ROW_FAILED_STRIP)
+                    and res.kind == J.Kind.REFUSED
                     and res.reason == "rows_read_again_limit"):
                 self.refused_again = getattr(self, "refused_again", 0) + 1
                 res = self.job.answer(asked, self.script["after_again_refused"])

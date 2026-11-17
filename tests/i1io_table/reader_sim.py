@@ -83,6 +83,10 @@ class HelperSim:
         self.failed_once: "set[str]" = set()
         #: round B: every button wait started (FakePressProc)
         self.press_procs: "list[FakePressProc]" = []
+        #: round B: every table-scan reader started (folders), and the readers themselves
+        self.scans: "list[str]" = []
+        self.scan_readers: list = []
+        self.strip_calibrated = False
 
     def proc_class(self):
         helper = self
@@ -96,6 +100,69 @@ class HelperSim:
         """Round B: a button-wait factory for the job: the app's own reader.PressWaiter with a
         simulated helper process (FakePressProc) behind it."""
         return _press_factory_for(self, path)
+
+    def scan_factory(self):
+        """Round B: a table-scan reader factory for the job: tester 0.6.0's own simulated
+        table-scan helper (part_c_sim.FakeScanReader, the strip scan at the recorded pace on the
+        table simulator's clock). Like ArgyllCMS, a strip white made by one reader is found by
+        the next. Faults: ``HelperSim(faults={"scan": {...}})`` (FakeScanReader's own: no_lamp,
+        not_ready, lights_err, dark_fail, fire_unsent, dies_at_fire, cal_fails, no_instrument,
+        dead), ``"scan_at": n`` for the n-th scan reader only."""
+        from tests.i1io_table import part_c_sim as csim
+        helper = self
+
+        def make(folder, log):
+            helper.scans.append(str(folder))
+            faults = dict(helper.faults.get("scan") or {})
+            at = helper.faults.get("scan_at")
+            if at is not None and at != len(helper.scans):
+                faults = {}
+            if helper.strip_calibrated:
+                faults["restored"] = True
+            r = _ChartScanReader(helper.sim, str(folder), log, faults)
+            r.colour_at = helper.colour_at
+            real_cal = r.calibrate
+
+            def calibrate(place, timeout=120.0):
+                real_cal(place, timeout)
+                helper.strip_calibrated = True
+            r.calibrate = calibrate
+            helper.scan_readers.append(r)
+            return r
+        return make
+
+    def colour_at(self, x: float, y: float) -> "list[float]":
+        """What the strip reader sees at table point (x, y): the printed sheet, as the spot
+        reader sees it at a patch's centre (spectrum_at of the nearest patch centre of the job's
+        aligned sheet, within half a patch), paper white elsewhere. Without a job: the strip
+        simulator's own cells."""
+        job = getattr(self, "job", None)
+        if job is None or job.alignment is None:
+            from tests.i1io_table import part_c_sim as csim
+            return csim._spectrum_at(x, y)
+        cache = getattr(self, "_centres", None)
+        if cache is None or cache[0] is not job.alignment:
+            from workflow.i1io.table import scan as sc
+            pts = []
+            for st in job.sheet["pages"][job.page]["strips"]:
+                for q in st["patches"]:
+                    u = sc.sheet_table_mm(job.sheet, q["centre_mm"])
+                    try:
+                        pts.append(job.alignment.target(u, "patch", run_out_mm=0.5,
+                                                        front_y=10 ** 6))
+                    except Exception:      # noqa: BLE001 - off the area: not printed here
+                        continue
+            half = 10.0 * float(job.sheet["patch_mm"][1]) / 2.0
+            self._centres = cache = (job.alignment, pts, half)
+        _al, pts, half = cache
+        best = None
+        for c in pts:
+            dd = max(abs(c[0] - x), abs(c[1] - y))
+            if dd <= half and (best is None or dd < best[0]):
+                best = (dd, c)
+        if best is None:
+            return [0.88] * 36
+        return spectrum_at(*best[1])
 
     def press(self) -> "dict | None":
         """The person presses the instrument's button (the newest button wait hears it)."""
@@ -116,6 +183,30 @@ class HelperSim:
             finally:
                 rd._Proc = orig
         return make
+
+
+def _chart_scan_reader():
+    from tests.i1io_table import part_c_sim as csim
+
+    class ChartScanReader(csim.FakeScanReader):
+        """part_c_sim's table-scan reader, reading the job's printed sheet (HelperSim.colour_at)
+        instead of the strip simulator's own cells; everything else (timing, lamp, faults) is
+        the tester's simulator unchanged."""
+        colour_at = None
+
+        def _stream(self, name, n, p):
+            orig = csim._spectrum_at
+            if self.colour_at is not None:
+                csim._spectrum_at = self.colour_at
+            try:
+                return super()._stream(name, n, p)
+            finally:
+                csim._spectrum_at = orig
+    return ChartScanReader
+
+
+def _ChartScanReader(*a, **k):
+    return _chart_scan_reader()(*a, **k)
 
 
 def _press_factory_for(helper: "HelperSim", path: str):
@@ -523,7 +614,7 @@ def make_run(tmp_path: Path, sheet: dict, name: str = "Table-Target"):
 
 def make_reading_job(tmp_path, sheet=None, aims=None, faults=None, run=True, stamp=STAMP,
                      instrument=None, helper_check=None, ask_after_each_step=True, sim=None,
-                     app_marker_place=None, press=False, **simkw):
+                     app_marker_place=None, press=False, latency_guard=None, **simkw):
     """A table job with the simulated table AND the simulated helper behind the app's reader.
     *press*: round B's button wait is offered (the simulated helper's FakePressProc).
     Returns (job, sim, helper, run)."""
@@ -556,6 +647,8 @@ def make_reading_job(tmp_path, sheet=None, aims=None, faults=None, run=True, sta
                      instrument_check=instrument or (lambda: us.Check("ok",
                                                                       {"i1pro_devices": 1})),
                      app_marker_place=app_marker_place,
-                     press_factory=helper.press_factory() if press else None)
+                     press_factory=helper.press_factory() if press else None,
+                     scan_factory=helper.scan_factory(), latency_guard=latency_guard)
+    helper.job = job
     return job, sim, helper, r
 

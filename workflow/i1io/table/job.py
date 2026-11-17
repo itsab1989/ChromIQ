@@ -64,6 +64,7 @@ from . import scan as sc
 from . import session_table as tbl
 from . import session_end as se
 from . import spot as sp
+from . import strip as stp
 from . import usb_system as us
 from .diagnostics import Diagnostics
 from .session_table import Doubt, Stopped
@@ -97,6 +98,8 @@ class Confirm:
     CAL_OWN_TILE = "calibration_own_tile"     # tester CAL_OWN: the i1Pro 2 on its own tile
     CAL_RESEAT = "calibration_reseated"       # tester CAL_RESEAT: seated back in the arm
     ROW_FAILED = "row_failed"                 # APP_DESIGN 9: read it again / skip / stop
+    #: round B: a STRIP row failed: read it again as a strip / patch by patch / skip / stop
+    ROW_FAILED_STRIP = "row_failed_strip"
     # step 8: the end of a session (M-END's three buttons; M-END-EMPTY asks nothing)
     END = "end_of_session"                    # save (and stop) / keep measuring / discard
 
@@ -118,6 +121,7 @@ CHOICES = {
     Confirm.CAL_OWN_TILE: ("ready", "stop"),
     Confirm.CAL_RESEAT: ("seated", "stop"),
     Confirm.ROW_FAILED: ("again", "skip", "stop"),
+    Confirm.ROW_FAILED_STRIP: ("again", "patch by patch", "skip", "stop"),
     Confirm.END: ("save", "keep measuring", "discard"),
 }
 #: what the reader consent stands for (tester 0.5.1's READER_CONSENT, as facts; the window words
@@ -441,7 +445,8 @@ class TableJob:
                  folder: "Path | None" = None, open_transport=None, preflight=None,
                  other_program=None, ask_after_each_step: bool = True, reader_factory=None,
                  helper_check=None, instrument_check=None, chart_ti2=None,
-                 app_marker_place: "tuple[Path, str] | None" = None, press_factory=None):
+                 app_marker_place: "tuple[Path, str] | None" = None, press_factory=None,
+                 scan_factory=None, latency_guard=None):
         # the job's OWN copy (review of step 6): the caps are derived from it, and a caller
         # changing its chart afterwards changes nothing here
         self.sheet = copy.deepcopy(sheet)
@@ -521,6 +526,19 @@ class TableJob:
         #: same helper) and only when its build string carries the button wait
         if press_factory is None and reader_factory is None:
             press_factory = _default_press_factory
+        # ---- round B: strip rows (a first try) ----------------------------------------------
+        #: builds the helper's table-scan reader (folder, log) -> reader.ScanReader-like; by
+        #: default the real helper's, only with the real readers (the same helper)
+        if scan_factory is None and reader_factory is None:
+            scan_factory = _default_scan_reader
+        self._scan_factory = scan_factory
+        #: a context manager held around each strip move (the app passes macOS's "latency
+        #: critical" activity, so App Nap cannot slow the one path to the fire); None: none
+        self._latency_guard = latency_guard
+        #: the strip white (tester C1's strip calibration): {"place", "t"} or None
+        self.strip_calibration: "dict | None" = None
+        #: per page, the rows read patch by patch because the strip could not be used, and why
+        self.strip_fallbacks: "dict[int, dict[int, str]]" = {}
         self._press_factory = press_factory or None
         self._press = None
         self._press_lock = threading.Lock()
@@ -703,7 +721,8 @@ class TableJob:
         if value not in CHOICES[kind]:
             return self._result(step, Kind.REFUSED, "not_one_of_the_choices",
                                 asked=self._pending.kind, choices=list(CHOICES[kind]))
-        if kind == Confirm.ROW_FAILED and value == "again":
+        if kind in (Confirm.ROW_FAILED, Confirm.ROW_FAILED_STRIP) and value in (
+                "again", "patch by patch"):
             # NEXT_STEPS 4d, enforced per page: a third row read again on this page is refused
             # (nothing sent); the question stays open for skip or stop
             why = self._again_refused()
@@ -2122,6 +2141,12 @@ class TableJob:
         self._close_reader(reader)
         if not cal_ok:
             raise StageFailed("calibration_not_confirmed")
+        strip_white = False
+        if self.options_report.options.strip:
+            # round B (tester C1): the strip white as well, on the same tile, while the
+            # instrument is where it is; the helper's table-scan mode needs its own
+            self._strip_white(folder)
+            strip_white = True
         self.cal_place = place
         made = d.t.now()
         if place == "own tile":
@@ -2133,6 +2158,8 @@ class TableJob:
                 raise StageFailed("instrument_not_seated_again")
             self.instrument_out = False
         self.calibration = {"place": place, "t": made, "kind": "spot"}
+        if strip_white:
+            self.strip_calibration = {"place": place, "t": made}
         self.calibration_due = False
         self._check_rest("after the calibration")
         self._block["data"]["calibration"] = {"place": place}
@@ -2172,9 +2199,18 @@ class TableJob:
         done = self.row_status.get(self.page, {})
         return [k + 1 for k in range(sp.rows_on_page(self.sheet, self.page)) if k not in done]
 
-    def read_row(self, row: "int | None" = None, kind: str = "spot") -> StepResult:
+    @property
+    def row_kind(self) -> str:
+        """How this session reads its rows: "spot" (patch by patch, the default), or "strip"
+        (round B: "Patch-by-patch mode (-p)" off, a first try)."""
+        return "strip" if self.options_report.options.strip else "spot"
+
+    def read_row(self, row: "int | None" = None, kind: "str | None" = None) -> StepResult:
         """One row of this page (1-based *row*; None: the next row not tried yet). A row tried
-        before on this page counts as a row read again (at most two per page)."""
+        before on this page counts as a row read again (at most two per page). *kind*: the
+        session's (:attr:`row_kind`) unless given. A strip row that cannot be read in one strip
+        move (too long, or only part of it wanted) is read patch by patch, and said so."""
+        kind = kind or self.row_kind
         step = "read_row"
         if self._gen is not None:
             return self._begin(step, None)
@@ -2196,9 +2232,20 @@ class TableJob:
             if why:
                 return self._result(step, Kind.REFUSED, why, row=row,
                                     rows_read_again=self.rows_again.get(self.page, 0))
+        fallback = None
         try:
-            plan = sp.plan_row(self.sheet, self.page, k, self.alignment, self._table.front_y,
-                               kind=kind, only_locs=self.only_locs)
+            try:
+                plan = sp.plan_row(self.sheet, self.page, k, self.alignment,
+                                   self._table.front_y, kind=kind, only_locs=self.only_locs)
+            except sp.RowRefused as exc:
+                if kind != "strip" or exc.reason not in ("strip_row_too_long",
+                                                         "strip_only_some_patches"):
+                    raise
+                fallback = exc.reason
+                self.diag.log("DATA", f"row {row} is read patch by patch: {exc.reason} "
+                                      + json.dumps(exc.detail, default=str))
+                plan = sp.plan_row(self.sheet, self.page, k, self.alignment,
+                                   self._table.front_y, kind="spot", only_locs=self.only_locs)
         except sp.RowRefused as exc:
             return self._result(step, Kind.REFUSED, exc.reason, row=row, **exc.detail)
         except geo.AreaRefused as exc:
@@ -2210,28 +2257,52 @@ class TableJob:
         if self._calibration_due_for(len(plan.patches)):
             return self._result(step, Kind.REFUSED, "calibration_due", row=row,
                                 left_s=self.calibration_left_s())
-        return self._stage(step, lambda: self._read_row(plan, again))
+        if plan.kind == "strip" and self.strip_calibration is None and \
+                not self.options_report.options.skip_initial_calibration:
+            return self._result(step, Kind.REFUSED, "needs_strip_calibration", row=row)
+        return self._stage(step, lambda: self._read_row(plan, again, fallback))
 
-    def _read_row(self, plan: "sp.RowPlan", again: bool = False):
+    def _read_row(self, plan: "sp.RowPlan", again: bool = False, fallback: "str | None" = None):
         if again:
             # counted when the row really starts (after GO), never for a refused request
             self.rows_again[self.page] = self.rows_again.get(self.page, 0) + 1
+        if fallback:
+            self.strip_fallbacks.setdefault(self.page, {})[plan.index] = fallback
+            self._progress(event="strip_fallback", row=plan.index + 1, why=fallback)
         attempt = 1
         while True:
-            rec = yield from self._row_attempt(plan, attempt)
+            if plan.kind == "strip":
+                rec = yield from self._strip_attempt(plan, attempt)
+            else:
+                rec = yield from self._row_attempt(plan, attempt)
             if rec["status"] == "read":
                 self.row_status.setdefault(self.page, {})[plan.index] = "read"
                 break
             self.row_status.setdefault(self.page, {})[plan.index] = "failed"
             self._go_page = None          # a failed row: hands may reach in; GO before any move
-            ans = yield Ask(Confirm.ROW_FAILED, {
+            ask = Confirm.ROW_FAILED_STRIP if plan.kind == "strip" else Confirm.ROW_FAILED
+            ans = yield Ask(ask, {
                 "row": plan.index + 1, "page": self.page + 1, "why": rec["why"],
                 "loc": rec.get("failed_loc"), "read": len(rec["accepted"]),
-                "patches": len(plan.patches),
+                "patches": len(plan.patches), "kind": plan.kind,
                 "again_allowed": self._again_refused() is None
                 and not self._calibration_due_for(len(plan.patches)),
                 "rows_read_again": self.rows_again.get(self.page, 0),
                 "calibration_due": self._calibration_due_for(len(plan.patches))})
+            if ans == "patch by patch":
+                if self._calibration_due_for(len(plan.patches)):
+                    raise StageFailed("calibration_due", row=plan.index + 1)
+                go = yield Ask(Confirm.GO, {"step": "read_row", "page": self.page + 1,
+                                            "row": plan.index + 1, "again": True})
+                if go != "yes":
+                    raise PersonStopped("person_chose_back", row=plan.index + 1)
+                self._go_page = self.page
+                self.rows_again[self.page] = self.rows_again.get(self.page, 0) + 1
+                plan = sp.plan_row(self.sheet, self.page, plan.index, self.alignment,
+                                   self._table.front_y, kind="spot", only_locs=self.only_locs)
+                self.strip_fallbacks.setdefault(self.page, {})[plan.index] = "chosen_by_you"
+                attempt += 1
+                continue
             if ans == "again":
                 if self._calibration_due_for(len(plan.patches)):
                     raise StageFailed("calibration_due", row=plan.index + 1)
@@ -2253,7 +2324,9 @@ class TableJob:
             raise PersonStopped("stopped_after_a_failed_row", row=plan.index + 1)
         out = {"row": plan.index + 1, "page": self.page + 1, "status": rec["status"],
                "read": len(rec["accepted"]), "patches": len(plan.patches),
-               "attempts": attempt}
+               "attempts": attempt, "row_kind": plan.kind}
+        if self.strip_fallbacks.get(self.page, {}).get(plan.index):
+            out["read_patch_by_patch_because"] = self.strip_fallbacks[self.page][plan.index]
         if self._pause_stop:
             # a stop asked for during the row's last patch: the row has ended, so it is
             # honoured (nothing follows without a new step) and does not reach the next row
@@ -2282,7 +2355,7 @@ class TableJob:
         readings: "list[dict]" = []
         reader = None
         opened = False
-        self._progress(event="row_start", row=plan.index + 1,
+        self._progress(event="row_start", row=plan.index + 1, kind=plan.kind,
                        locs=[p.loc for p in plan.patches])
         try:
             here = d.position()
@@ -2347,6 +2420,176 @@ class TableJob:
                    "kind": plan.kind, "notes": []})
             self._block["data"]["spot_readings"] = (
                 self._block["data"].get("spot_readings", 0) + len(readings))
+        return rec
+
+    # ---- round B: a strip row (tester 0.6.0 part C's E2/E3 row, scan.run_row) --------------
+    def _strip_white(self, folder: Path) -> None:
+        """The strip white (tester C1's first half): the helper's table-scan mode calibrates on
+        the tile the instrument is on; nothing is sent to the table."""
+        if self._scan_factory is None:
+            raise StageFailed("strip_reading_not_available")
+        try:
+            scan = self._scan_factory(folder / "strip", self.diag.log)
+        except (OSError, ValueError, rd.ReaderFailed) as exc:
+            raise StageFailed("reader_could_not_start", error=type(exc).__name__) from None
+        self.readers_started += 1
+        self._open_readers.append(scan)
+        try:
+            ev = scan.opened(timeout=sp.OPEN_TIMEOUT_S)
+            if not _is_i1pro2(ev.get("model")):
+                raise StageFailed("wrong_instrument", model=ev.get("model"))
+            scan.calibrate(self._cal_place_ok)
+        except rd.ReaderFailed as exc:
+            raise StageFailed("strip_calibration_failed", log_reason=str(exc)) from None
+        finally:
+            self._close_reader(scan)
+
+    def _start_scan(self, folder: Path):
+        """The checks of every reader (helper, exactly one i1Pro 2, the consent), then the
+        helper's table-scan reader. A generator."""
+        self._press_join()
+        why = self._helper_check()
+        if why:
+            raise StageFailed(why)
+        chk = self._instrument_check()
+        self.diag.log("INST", f"instrument check before the strip reader: {chk.state} "
+                              + json.dumps(chk.detail))
+        if chk.state != "ok":
+            raise StageFailed(f"instrument_{chk.state}", **chk.detail)
+        if not self.reader_consent:
+            ans = yield Ask(Confirm.READER_CONSENT, {"facts": self._consent_facts()})
+            if ans != "yes":
+                raise PersonStopped("reader_not_started")
+            self.reader_consent = True
+        self._check_other_program()
+        if self._scan_factory is None:
+            raise StageFailed("strip_reading_not_available")
+        try:
+            scan = self._scan_factory(folder, self.diag.log)
+        except (OSError, ValueError, rd.ReaderFailed) as exc:
+            raise StageFailed("reader_could_not_start", error=type(exc).__name__) from None
+        self.readers_started += 1
+        self._open_readers.append(scan)
+        return scan
+
+    def _strip_attempt(self, plan: "sp.RowPlan", attempt: int):
+        """One strip row: the first-visit rule for the way to its start and the run, the front
+        rows' two spot moves to the row's ends (tester fix 2), the table-scan reader, then
+        tester 0.6.0's scan.run_row (byte for byte its lines), the stream cut by position.
+        A pending scan move or a doubt ends the table part (nothing more is sent); a clean
+        failure (before the scan move, or a stream that cannot be cut) fails the row."""
+        d = self._table
+        scan_plan = plan.scan
+        self._row_seq += 1
+        name = plan.name if attempt == 1 else f"{plan.name}_again{attempt - 1}"
+        folder = self.diag.folder / self._block["folder"]
+        folder.mkdir(parents=True, exist_ok=True)
+        rec = {"seq": self._row_seq, "page": plan.page + 1, "row": plan.index + 1,
+               "attempt": attempt, "kind": "strip", "name": name, "status": "started",
+               "why": "", "reader_ti3": None, "accepted": [], "failed": [],
+               "patches": len(plan.patches), "speed": scan_plan.speed,
+               "readings_planned": scan_plan.N, "first_try": True}
+        if attempt > 1:
+            scan_plan = sc.plan_row(name, scan_plan.start, scan_plan.end, scan_plan.speed,
+                                    [sc.Patch(q.sample_id, q.loc, q.xy, q.along_mm, q.half_mm)
+                                     for q in scan_plan.patches])
+        else:
+            scan_plan.name = name
+        scan = None
+        self._progress(event="row_start", row=plan.index + 1, kind="strip",
+                       locs=[p.loc for p in plan.patches])
+        try:
+            if d.arm_free or d.position_now is None:
+                # the free arm (right after the aims) has no fresh reading of where it stands:
+                # read it first, so the first-visit rule judges the real way to the row start
+                # (scan.run_row then reads it again, twice while free: its stillness check)
+                self._step("row_where", 1, 0)
+                d.position()
+            a0 = d.position_now
+            ok = yield from self._confirm_new_part(a0, scan_plan.start, scan_plan.end,
+                                                   what=f"row {plan.index + 1}")
+            if not ok:
+                raise PersonStopped("first_visit_declined")
+            scan = yield from self._start_scan(folder)
+            try:
+                ev = scan.opened(timeout=sp.OPEN_TIMEOUT_S)
+            except rd.ReaderFailed as exc:
+                raise _RowFailed("strip_reader_did_not_open", "") from exc
+            if not _is_i1pro2(ev.get("model")):
+                raise _RowFailed("wrong_instrument", "")
+            self._soft_stop()
+            if self._pause_stop:
+                self._pause_stop = False
+                raise PersonStopped("stopped_before_the_strip")
+            if geo.in_front_zone(scan_plan.start) or geo.in_front_zone(scan_plan.end):
+                # tester fix 2: the creep confirmed the front Y at one X only; the strip runs
+                # along X, so both ends of the row are first reached by a spot move each
+                self._step("row_ends", 7, 2)
+                a = d.position()
+                if d.arm_free:
+                    self._still(a)
+                yield from self._move_to(scan_plan.start, f"row {plan.index + 1}'s start")
+                yield from self._move_to(scan_plan.end, f"row {plan.index + 1}'s end")
+                rec["front_row_ends_confirmed"] = True
+            self._step("row", 12, 2)
+            self._progress(event="strip_move", row=plan.index + 1, speed=scan_plan.speed)
+            guard = self._latency_guard() if self._latency_guard is not None else None
+            if guard is not None:
+                guard.__enter__()
+            try:
+                res = sc.run_row(d, scan, scan_plan, d.log, str(folder),
+                                 confirm_move=lambda a, b, e=scan_plan.end: (
+                                     self._seg_visited(a, b) and self._seg_visited(b, e)))
+            finally:
+                if guard is not None:
+                    try:
+                        guard.__exit__(None, None, None)
+                    except Exception:      # noqa: BLE001 - never the job's concern
+                        pass
+            files = sc.save_row(str(folder), res)
+            rec["scan"] = {"kind": res.kind, "why": res.why, "notes": res.notes,
+                           "files": files, "c4": res.c4, "a3": res.a3}
+            if res.kind == "pending":
+                raise Doubt("a scan move may be pending", sc.PENDING_TEXT)
+            if res.kind == "after_doubt":
+                raise Doubt(res.why)
+            if res.kind != "done":
+                raise _RowFailed(_strip_clean_id(res.why), "")
+            self.driven.append((scan_plan.start, scan_plan.end))
+            cut = stp.cut_row(scan_plan, str(folder), res.fired)
+            stp.save_cut_info(str(folder), name, cut)
+            rec["cut"] = {"ok": cut.ok, "reason": cut.reason,
+                          "readings_per_patch": cut.info.get("readings_per_patch"),
+                          "recogniser": cut.info.get("recogniser")}
+            if not cut.ok:
+                raise _RowFailed(cut.reason, str(cut.info.get("loc") or ""))
+            row_file = f"{name}.strip{stp.ROW_FILE_SUFFIX}"
+            stp.write_row_file(str(folder / row_file), cut, self.options_report.options)
+            rec["reader_ti3"] = row_file
+            rec["accepted"] = stp.accepted_entries(cut, row_file)
+            for a in rec["accepted"]:
+                self._progress(event="patch_read", row=plan.index + 1, loc=a["loc"],
+                               xyz=list(a["xyz"]))
+            rec["status"] = "read"
+            self._progress(event="row_end", row=plan.index + 1, status="read")
+        except _RowFailed as f:
+            self._progress(event="row_end", row=plan.index + 1, status="failed", loc=f.loc)
+            rec.update(status="failed", why=f.reason, failed_loc=f.loc or None)
+        except PersonStopped as exc:
+            rec.update(status="stopped", why=exc.reason)
+            raise
+        except BaseException as exc:      # noqa: BLE001 - recorded, then the step ends
+            rec.update(status="stopped" if not isinstance(exc, StageFailed) else "failed",
+                       why=getattr(exc, "reason", type(exc).__name__))
+            raise
+        finally:
+            if scan is not None:
+                self._close_reader(scan)
+            self.diag.write_json(f"{self._block['folder']}/{name}{ms.ROW_RECORD_SUFFIX}", rec)
+            self._block["data"].setdefault("rows", []).append(
+                {k: rec[k] for k in ("page", "row", "attempt", "status", "why", "reader_ti3")}
+                | {"read": len(rec["accepted"]), "failed": 0, "kind": "strip",
+                   "notes": (rec.get("scan") or {}).get("notes", [])})
         return rec
 
     def _between_patches(self) -> None:
@@ -3017,6 +3260,41 @@ def _close_quietly(w) -> None:
         w.close()
     except Exception:      # noqa: BLE001 - closing never raises
         pass
+
+
+def _default_scan_reader(folder, log):
+    """ChromIQ's own helper in its table-scan mode (round B, strip rows)."""
+    return rd.ScanReader(rd.helper_path(), folder, log)
+
+
+def _is_i1pro2(model) -> bool:
+    m = str(model or "")
+    return "i1 Pro 2" in m or "i1Pro 2" in m
+
+
+#: scan.run_row's clean failures (before the scan move, or after it with the arm at the row's
+#: end) as ids (the first match wins)
+_STRIP_CLEAN_IDS = (
+    ("the free arm moved", "free_arm_moved_between_two_readings"),
+    ("the plan was refused", "strip_plan_refused"),
+    ("you did not confirm the first move", "first_visit_declined"),
+    ("the instrument reader is not running", "strip_reader_not_running"),
+    ("the instrument's lights-off failed", "strip_lights_off_failed"),
+    ("c4 answered", "strip_c4_not_recorded"),
+    ("the move to the row start took", "movement_late_but_arrived"),
+    ("the instrument is not ready to fire", "strip_instrument_not_ready"),
+    ("the scan move was refused by the program's own checks", "strip_move_refused_here"),
+    ("scan move refused", "strip_move_refused_by_the_table"),
+    ("the scan move ran and the arm is at the row end, but the instrument did not deliver",
+     "strip_instrument_delivered_nothing"),
+)
+
+
+def _strip_clean_id(why: str) -> str:
+    for prefix, rid in _STRIP_CLEAN_IDS:
+        if why.startswith(prefix):
+            return rid
+    return "strip_failed"
 
 
 def _default_helper_check() -> "str | None":

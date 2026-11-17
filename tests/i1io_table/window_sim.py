@@ -58,7 +58,9 @@ class WindowSim:
                          helper_check=lambda: None,
                          instrument_check=lambda: us.Check("ok", {"i1pro_devices": 1}),
                          app_marker_place=self.app_marker_place,
-                         press_factory=self.helper.press_factory() if self.press else None)
+                         press_factory=self.helper.press_factory() if self.press else None,
+                         scan_factory=self.helper.scan_factory())
+        self.helper.job = job
         self.jobs.append(job)
         return job
 

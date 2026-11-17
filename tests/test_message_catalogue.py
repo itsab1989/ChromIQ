@@ -182,6 +182,11 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-I1IO-DRIVE-REFINE-DONE-NEXT",
     # 2026-11-17, round B of the i1iO table drive: the instrument's button as Aimed
     "M-I1IO-DRIVE-AIM-BUTTON",
+    # 2026-11-17, round B: strip rows, a first try
+    "M-I1IO-DRIVE-STRIP-OPTION",
+    "M-I1IO-DRIVE-STRIP-FIRST-TRY",
+    "M-I1IO-DRIVE-STRIP-TOO-LONG",
+    "M-I1IO-DRIVE-ROW-FAILED-STRIP",
     "M-I1IO-DRIVE-REFINE-NOT-ON-CHART",
     "M-I1IO-DRIVE-RESUME",
     "M-I1IO-DRIVE-REFINE",

@@ -2722,10 +2722,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             "for other charts.")
         tol = tr(
             "This tolerance tells ArgyllCMS how different the readings along "
-            "a strip may be before it refuses the strip. The i1iO table reads "
-            "one patch at a time at the place it knows, so there is no strip "
-            "to check on this chart. Your setting is remembered for other "
-            "charts.")
+            "a strip may be before it refuses the strip. The i1iO table knows "
+            "where every patch is, so ArgyllCMS's strip check is not used for "
+            "this chart, also when the table reads a row as a strip. Your "
+            "setting is remembered for other charts.")
         filt = tr(
             "The i1Pro 2 in the table's arm cannot measure with a filter "
             "(ArgyllCMS refuses every filter for it), so this setting is not "
@@ -2784,6 +2784,18 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             if opt is not None and not is_cr30:
                 opt.suppressed = False
 
+    def _pbp_table_note_label(self, parent) -> QLabel:
+        """Round B: one line under "Patch-by-patch mode (-p)", shown for an i1iO table chart
+        only: what the box means there (the explanation is in its tooltip)."""
+        lab = QLabel(tr("For this i1iO table chart: ticked, the table reads patch by patch. Not "
+                        "ticked, it reads each row as a strip: a first try, not tried on a "
+                        "real table yet."), parent)
+        lab.setObjectName("pbp_table_note")
+        lab.setWordWrap(True)
+        lab.setStyleSheet("font-size: 11px; color: #e6a23c; padding-left: 24px;")
+        lab.setVisible(False)
+        return lab
+
     def _apply_cr30_pbp_lock(self) -> None:
         """Show, in both modules, that a CR30 chart reads patch by patch.
 
@@ -2811,6 +2823,36 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         cr30 = bool(self._chart_is_cr30())
         # The i1iO table (Beta) reads one patch at a time too (open point d)
         table = not cr30 and self._table_chart_loaded()
+        for name in ("_pbp_table_note", "_m_pbp_table_note"):
+            note = getattr(self, name, None)
+            if note is not None:
+                note.setVisible(bool(table))
+        if table and not cr30:
+            # round B (i1iO table, Beta; STEP4_PROPOSAL 2): for a table chart the box CHOOSES
+            # how the table reads: ticked (the default for a table chart) patch by patch, not
+            # ticked strip by strip, a first try. Never greyed as a precaution. The person's
+            # own value is kept in the snapshot and comes back with another chart; the tick is
+            # set once, when the table chart arrives, and is then the person's
+            from workflow import measurement_messages as M
+            first = snap is None
+            if first:
+                self._pbp_lock_snapshot = {m: (cb.isChecked(), cb.toolTip())
+                                           for m, cb in pairs}
+            for _m, cb in pairs:
+                cb.blockSignals(True)
+                try:
+                    if first:
+                        cb.setChecked(True)
+                    cb.setEnabled(True)
+                    if cb.objectName() == "locked_on":
+                        cb.setObjectName("")
+                        cb.style().unpolish(cb)
+                        cb.style().polish(cb)
+                    title, body = M.M_I1IO_DRIVE_STRIP_OPTION.render()
+                    cb.setToolTip(title + "\n\n" + body)
+                finally:
+                    cb.blockSignals(False)
+            return
         if cr30 or table:
             if snap is None:
                 self._pbp_lock_snapshot = {m: (cb.isChecked(), cb.toolTip())
@@ -2851,14 +2893,6 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                         "you and cannot be turned off here; the box is ticked "
                         "so you can see the mode the measurement is really "
                         "in.\n\n"
-                        "Load a chart made for a different instrument and this "
-                        "option comes back exactly as you had it.") if cr30 else tr(
-                        "The i1iO table reads this chart one patch at a time: "
-                        "the arm moves to each patch, and the instrument reads "
-                        "it there. Reading whole strips with the table is not "
-                        "built yet. So patch-by-patch is switched on for you "
-                        "and cannot be turned off here; the box is ticked so "
-                        "you can see the mode the measurement is really in.\n\n"
                         "Load a chart made for a different instrument and this "
                         "option comes back exactly as you had it."))
                 finally:
@@ -3683,6 +3717,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             "read as \u201cyour printer is worse than the strips suggested\u201d. If it "
             "flags more than you want, raise the limit in Preferences → Measurement."),
         )
+        # round B (i1iO table, Beta): what the box means for a table chart, shown only then
+        self._pbp_table_note = self._pbp_table_note_label(left)
+        cg.addWidget(self._pbp_table_note)
         # SHOWN IN GUIDED (#160). It used to be hidden here while
         # `_collect_guided` still read it, so a stored preference put `-p` on
         # every Guided measurement with no control on screen to change it — the
@@ -4295,6 +4332,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             "read as \u201cyour printer is worse than the strips suggested\u201d. If it "
             "flags more than you want, raise the limit in Preferences → Measurement."),
         )
+        # round B (i1iO table, Beta): what the box means for a table chart, shown only then
+        self._m_pbp_table_note = self._pbp_table_note_label(left)
+        mcg.addWidget(self._m_pbp_table_note)
 
         m_resume_row = QHBoxLayout()
         self._m_resume_cb = QCheckBox(tr("Refine / resume existing measurement (-r)"), left)
@@ -7446,7 +7486,15 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         try:
             if kind == "aim":
                 self._table_aim_on_preview(ev)
+            elif kind == "strip_fallback" and ev.get("why") == "strip_row_too_long":
+                # round B: a strip row too long for one strip move, read patch by patch
+                from workflow import measurement_messages as M
+                self._log.appendPlainText(
+                    M.M_I1IO_DRIVE_STRIP_TOO_LONG.render(row=ev.get("row", "?"))[1])
             elif kind == "row_start":
+                # round B: a strip session may read a row patch by patch (too long for one
+                # strip move, or chosen after a failed strip): ring its patches then
+                self._table_row_kind = str(ev.get("kind") or "")
                 self._preview.highlight_patch(-1, None)
                 # the row being read, in both modes (patch by patch rings
                 # the patch too): a person beside the table sees it at once
@@ -7461,7 +7509,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                                           int(ev.get("row") or 0) - 1, [],
                                           status=str(ev.get("status") or "ended"))
             elif kind == "patch_next":
-                if getattr(self, "_table_patch_by_patch", False):
+                if getattr(self, "_table_patch_by_patch", False) or \
+                        getattr(self, "_table_row_kind", "") == "spot":
                     page, box = self._locate_patch(str(ev.get("loc", "")))
                     if page >= 0:
                         if page != self._preview.current_page():

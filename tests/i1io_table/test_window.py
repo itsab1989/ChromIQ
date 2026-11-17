@@ -390,7 +390,7 @@ def test_options_with_no_meaning_are_named_on_the_first_page(qtbot, monkeypatch,
     win, sim, run, p, saved, finished = open_window(
         qtbot, monkeypatch, tmp_path, settings, args=["-v", "-c", "1", "-T", "0.7", "chart"])
     assert p.page() == "prepare"
-    assert "(-T)" in win._text.text() and "patch by patch" in win._text.text()
+    assert "(-T)" in win._text.text()
 
 
 # ---- what the window never does --------------------------------------------------------
