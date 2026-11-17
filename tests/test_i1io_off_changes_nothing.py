@@ -297,6 +297,9 @@ HOOKED_FILES = {
     # of a folder that does not exist for any other run)
     "ui/tabs/tab_profile.py",
     "workflow/chart_integrity.py",
+    # the i1iO table drive (build step 9, 2026-11-17): the Measure tab's table
+    # window, built only by START on an i1iO 2 chart with the Beta on
+    "ui/i1io_table_window.py",
 }
 
 

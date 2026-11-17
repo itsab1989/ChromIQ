@@ -205,7 +205,10 @@ def test_only_the_selftest_uses_it_yet():
                     users.append(f.relative_to(ROOT).as_posix())
     # build step 6: the table package opens the table and lists devices through it (still
     # reached by nothing in the app: tests/test_i1io_table_not_reached_by_the_app.py)
-    assert sorted(set(users)) == ["core/selftest.py", "workflow/i1io/table/session_table.py",
+    # build step 9: the table window asks the library's read-only status() before it builds a
+    # job (the USB library missing is said, never a crash)
+    assert sorted(set(users)) == ["core/selftest.py", "ui/i1io_table_window.py",
+                                  "workflow/i1io/table/session_table.py",
                                   "workflow/i1io/table/usb_system.py"]
 
 

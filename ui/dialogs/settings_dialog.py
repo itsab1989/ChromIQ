@@ -3860,6 +3860,24 @@ class SettingsDialog(QDialog):
         _i1iorow.addWidget(i1io_support_tip)
         _beta.addLayout(_i1iorow)
         _beta.addWidget(self._i1io_support_restart_hint)
+        # ...and its table drive (build step 9): whether the table window asks
+        # after each step. Only while the Beta is on for this run of ChromIQ
+        # (latched), so with the Beta off Preferences is exactly as before.
+        self._i1io_ask_check = None
+        from workflow.i1io.support import i1io_enabled as _i1io_on
+        if _i1io_on():
+            self._i1io_ask_check = QCheckBox(
+                tr("Ask after each step of a table measurement"), self)
+            self._i1io_ask_check.setToolTip(tr(
+                "While this is on, the table window asks after every step of "
+                "the table whether it did what was described. It is on for "
+                "your first measurement with the table; the window offers to "
+                "switch it off at the end of a measurement that went well."))
+            _i1ioask = QHBoxLayout()
+            _i1ioask.setContentsMargins(28, 0, 0, 0)
+            _i1ioask.addWidget(self._i1io_ask_check)
+            _i1ioask.addStretch()
+            _beta.addLayout(_i1ioask)
 
         # X-Rite i1iSis family charts (ChromIQ's layout, measured in
         # i1Profiler). Restart to apply, like the i1iO (`workflow.isis.
@@ -6671,6 +6689,9 @@ class SettingsDialog(QDialog):
         self._i1io_support_check.setChecked(
             bool(s.get("i1io_support_beta", False)))
         self._i1io_support_toggled()
+        if getattr(self, "_i1io_ask_check", None) is not None:
+            self._i1io_ask_check.setChecked(
+                bool(s.get("i1io_table_ask_after_each_step", True)))
         self._isis_charts_check.setChecked(
             bool(s.get("isis_charts_beta", False)))
         self._isis_charts_toggled()
@@ -8284,6 +8305,12 @@ class SettingsDialog(QDialog):
         s.set("i1profiler_turned_export", self._i1p_turned_check.isChecked())
         s.set("fd9_support_beta", self._fd9_support_check.isChecked())
         s.set("i1io_support_beta", self._i1io_support_check.isChecked())
+        # written only when it differs, so no new key appears unasked
+        if getattr(self, "_i1io_ask_check", None) is not None and \
+                self._i1io_ask_check.isChecked() != bool(
+                    s.get("i1io_table_ask_after_each_step", True)):
+            s.set("i1io_table_ask_after_each_step",
+                  self._i1io_ask_check.isChecked())
         s.set("isis_charts_beta", self._isis_charts_check.isChecked())
         # Written only when it differs from the store, so Preferences closed
         # with OK leaves no new key behind for anyone who never ticks it.

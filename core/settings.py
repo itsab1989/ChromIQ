@@ -354,6 +354,14 @@ DEFAULTS: dict[str, Any] = {
     #: i1Pro 2. This first step makes charts only and sends nothing to any
     #: table. Off = exactly 4.3.32. Restart to apply (`workflow.i1io.support`).
     "i1io_support_beta":         False,
+    #: ...and its table drive (build step 9, 2026-11-17): the version of the
+    #: one-time explanation (M-I1IO-DRIVE-CONSENT) the person agreed to on
+    #: this computer (0 = never; a changed text raises the version and asks
+    #: again), and whether the table window asks after each step (on for the
+    #: first measurement; the window offers to switch it off, Preferences >
+    #: Beta switches it back). Only read or written while the Beta is on.
+    "i1io_table_consent_given":  0,
+    "i1io_table_ask_after_each_step": True,
     #: Beta (Settings -> Beta): X-Rite i1iSis family charts, laid out by
     #: ChromIQ and measured in i1Profiler. Off = 4.3.37 except the one stated
     #: exception: the old printtarg entry "i1iSis (via i1Profiler)" is gone

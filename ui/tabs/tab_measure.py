@@ -6914,6 +6914,82 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             return True
         return False           # repaired — carry on and measure
 
+    def _started_the_table_drive(self) -> bool:
+        """True when START is answered by the i1iO table window (build step 9):
+        i1iO support on, the loaded chart an i1iO 2 + i1Pro 2 chart of a
+        profile run (its side file says so). With the Beta off nothing is read
+        and nothing of the window is imported. Before the window: the same
+        guards as a hand read (a run that exists, the laid-out chart, the
+        replace warning M-REPLACE-*); nothing is archived or written here."""
+        from workflow.i1io.support import i1io_enabled
+        if not i1io_enabled() or not self._ti1_path:
+            return False
+        try:
+            from workflow.i1io.support import chart_names_i1io
+            chart = self._chart_file_for(self._ti1_path)
+            if chart_names_i1io(chart) is not True:
+                return False
+            from ui.i1io_table_window import drivable_sheet
+            sheet = drivable_sheet(chart)
+        except Exception:      # noqa: BLE001 - never block a read on this
+            log.debug("i1iO table chart not read", exc_info=True)
+            return False
+        if sheet is None:
+            return False
+        if self._runner.is_running or getattr(self, "_table_window", None) is not None:
+            return True
+        if self._blocked_by_new_run() or self._blocked_by_missing_chart_file():
+            return True
+        params = self._collect_params()
+        args = self._manager._build_args(params)
+        at_risk = (self._measurement_at_risk() is not None
+                   and not self._read_builds_on_existing())
+        if not self._confirm_replacing_measurement():
+            return True
+        from core.file_manager import Run
+        from ui.i1io_table_window import TableMeasureWindow
+        run = Run.for_dir(Path(chart).parent)
+        win = TableMeasureWindow(self, self._settings, sheet, run, args,
+                                 mode=self._current_mode(), replace_agreed=at_risk,
+                                 archive=self._archive_measurement_before_replacing)
+        win.saved.connect(self._on_table_measurement_saved)
+        win.finished_with.connect(self._on_table_window_finished)
+        self._table_window = win
+        self._log.appendPlainText(tr(
+            "Measuring with the i1iO table (beta): the table window is open."))
+        win.show()
+        win.start()
+        return True
+
+    def _on_table_measurement_saved(self, path, detail: dict) -> None:
+        """The table window saved into the run: announced as after a hand
+        measurement (STEP8_NOTES §2)."""
+        ti3 = Path(path)
+        if detail.get("resume_next"):
+            self._update_resume_availability()
+            cb = (self._resume_cb if self._current_mode() == "guided"
+                  else self._m_resume_cb)
+            if cb.isVisible():
+                cb.setChecked(True)
+            self._adopt_overlay_after_first_measurement()
+            self._log.appendPlainText(
+                "\n" + tr("[INFO] Measurement was interrupted — partial readings saved.")
+                + f"\nSaved: {ti3}\n\n"
+                + tr("→ Press Continue Measurement to resume where you left off, "
+                     "or untick 'Refine / resume existing measurement (-r)' to start over."))
+        else:
+            self._log.appendPlainText(
+                "\n" + tr("[OK] Measurement complete.") + f"\nSaved: {ti3}\n\n"
+                + tr("→ Next step: go to the '4. Build Profile' tab to create your ICC profile."))
+        self._log.ensureCursorVisible()
+        self.measure_finished.emit(ti3)
+
+    def _on_table_window_finished(self, why: str) -> None:
+        self._table_window = None
+        if why == "consent_declined":
+            self._log.appendPlainText(tr(
+                "Measurement not started: you chose Not now in the table window."))
+
     def _refused_as_an_i1io_chart(self) -> bool:
         """True, with M-I1IO-NOT-YET shown, when i1iO support is on and the
         loaded chart is an i1iO table chart. Reads the chart's header only
@@ -8562,6 +8638,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if _fd9_ask(self, "_is_fd9_target"):
             self._start_fd9_measurement()
             return
+        # An i1iO 2 + i1Pro 2 chart of a profile run with i1iO support on
+        # (Beta): START drives the table (build step 9, the table window).
+        # Nothing is read here while the Beta is off.
+        if self._started_the_table_drive():
+            return
         # An X-Rite i1iO table chart with i1iO support on (Beta): the table
         # cannot be driven yet, so Start says so BEFORE anything is recovered,
         # armed or written. With the switch off nothing is read here; the
@@ -8819,6 +8900,16 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # Whether this read builds on the measurement there (#182 K4): decides
         # whether the session starts with that measurement's yellow memory.
         self._session_resumes = self._read_builds_on_existing()
+        # The i1iO table drive (Beta), review 9: a table session whose Save
+        # was cut off after filing is settled before this read changes the
+        # run's file (one is_dir() for a run without table sessions).
+        from workflow.i1io.support import i1io_enabled as _i1io_on
+        if self._ti1_path is not None and _i1io_on():
+            from workflow.i1io.table_settle import \
+                settle_table_sessions_before_a_hand_write
+            from core.file_manager import Run as _Run
+            settle_table_sessions_before_a_hand_write(
+                _Run.for_dir(self._ti1_path.parent))
         self._archive_measurement_before_replacing()
         # THE EXPECTED COLOURS OF THIS READ (#182, Knut 5964173774): on a
         # verification sheet ChromIQ printed, the run profile's prediction of
@@ -15692,6 +15783,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         run = self._guard_run()
         if run is None:
             return
+        # the i1iO table drive (Beta), review 9: as before a hand read
+        from workflow.i1io.support import i1io_enabled as _i1io_on
+        if _i1io_on():
+            from workflow.i1io.table_settle import \
+                settle_table_sessions_before_a_hand_write
+            settle_table_sessions_before_a_hand_write(run)
         path = getattr(self, "_import_path", None)
         if path is None or not Path(path).exists():
             self._say_on_screen(

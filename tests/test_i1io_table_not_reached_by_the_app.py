@@ -1,4 +1,15 @@
-"""NOTHING IN THE APP REACHES ``workflow.i1io.table`` YET (the i1iO table drive, build step 2).
+"""THE APP REACHES ``workflow.i1io.table`` ONLY FROM START ON AN i1iO 2 CHART (the i1iO table
+drive; build step 2 kept it unreached, build step 9 gave START its window).
+
+Since build step 9 (2026-11-17) exactly two app modules import the package, and only inside a
+function (lazily): ``ui/i1io_table_window.py`` (the Measure tab's table window, built only by
+START on an i1iO 2 + i1Pro 2 chart with the Beta on) and ``workflow/i1io/table_settle.py`` (the
+settle hook, which imports it only for a run that has table sessions). Nothing else, at module
+level or inside a function. The run-time probe below still proves that building the window,
+opening Preferences and Start's check on an i1iO chart without a drivable side file never load
+it, Beta off and on.
+
+The text below is build step 2's, kept for its history:
 
 The table modules moved into the app from the tester program chromiq-i1io-session 0.6.0 so that
 the later steps can build on reviewed code. Until the owner approves the specification amendment
@@ -78,14 +89,36 @@ def test_the_package_exists_and_is_complete():
         "session_end.py"}
 
 
+#: build step 9: the only app modules that may import the package, and only lazily
+LAZY_IMPORTERS = {"ui/i1io_table_window.py", "workflow/i1io/table_settle.py"}
+
+
 def test_no_file_of_the_app_imports_the_table_package():
     offenders = []
     for f in _app_files():
         tree = ast.parse(f.read_text(encoding="utf-8"), str(f))
+        rel = f.relative_to(ROOT).as_posix()
+        if rel in LAZY_IMPORTERS:
+            # inside functions only: nothing at module level
+            top = ast.Module(body=[n for n in tree.body
+                                   if not isinstance(n, (ast.FunctionDef, ast.ClassDef))],
+                             type_ignores=[])
+            tree = top
         for t in _targets(f, tree):
             if t == PACKAGE or t.startswith(PACKAGE + "."):
-                offenders.append(f"{f.relative_to(ROOT)}: {t}")
+                offenders.append(f"{rel}: {t}")
     assert not offenders, offenders
+
+
+def test_the_lazy_importers_really_import_it_inside_a_function():
+    """The allowance above is used, and only as stated (a net that names files nobody uses
+    proves nothing)."""
+    for rel in LAZY_IMPORTERS:
+        f = ROOT / rel
+        tree = ast.parse(f.read_text(encoding="utf-8"), str(f))
+        inner = [t for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef))
+                 for t in _targets(f, n)]
+        assert any(t == PACKAGE or t.startswith(PACKAGE + ".") for t in inner), rel
 
 
 def test_the_static_net_would_catch_every_spelling(tmp_path):
