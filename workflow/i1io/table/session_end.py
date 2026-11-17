@@ -207,3 +207,39 @@ def mark_discarded(sdir: Path, why: str, by: "str | None" = None) -> None:
     if by is not None:
         rec["discarded_with"] = by
     (Path(sdir) / ms.DISCARDED).write_text(json.dumps(rec), encoding="utf-8")
+
+
+# ---- review 9, NOTE: the waiting strip move is a state of the TABLE, not of one run --------------
+#: the app-level markers end in this (one file per session stamp, so an acknowledgement never
+#: answers a later marker); WHERE they live is the app's choice, passed to the job
+#: (``workflow/i1io/table_settle.py::app_marker_place``: ChromIQ's own settings folder, as the
+#: i1Pro 2 lights marker; never a project folder). A marker holds the session's stamp only.
+APP_MARKER_ACK = ".acknowledged.json"
+
+
+def app_markers(folder, prefix: str) -> "list[Path]":
+    """Every app-level marker in *folder* that is not acknowledged yet, oldest first."""
+    try:
+        found = sorted(p for p in Path(folder).glob(prefix + "*.json")
+                       if not p.name.endswith(APP_MARKER_ACK))
+    except OSError:
+        return []
+    return [p for p in found if not acknowledged_path(p).exists()]
+
+
+def acknowledged_path(marker: Path) -> Path:
+    return Path(marker).with_suffix(APP_MARKER_ACK)
+
+
+def project_markers(run) -> "list[Path]":
+    """Every pending marker of EVERY run of the run's project (a START on another run still
+    asks "switched off and on"), not acknowledged yet."""
+    from .scan import PENDING_MARKER          # == Run.I1IO_TABLE_PENDING_MARKER (pinned)
+    runs_dir = Path(run.dir).parent
+    table_dir = Path(run.i1io_table_dir).name
+    try:
+        found = sorted(runs_dir.glob(f"*/{table_dir}/*/{PENDING_MARKER}"))
+    except OSError:
+        found = []
+    own = [m for m in run.i1io_table_pending_markers() if m not in found]
+    return [m for m in found + own if not acknowledged_path(m).exists()]

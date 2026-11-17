@@ -50,6 +50,7 @@ from __future__ import annotations
 
 import copy
 import json
+import time
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
@@ -403,6 +404,18 @@ def page_fit(sheet: dict, page: int, al: geo.Alignment) -> dict:
             "spot_outside_rows": spot_out_rows, "rows_outside_list": rows_out_list}
 
 
+def shape_of_options(opts: "sp.ReadOptions") -> dict:
+    """What the reader will save with these options (review 9, S-2): chartread's -l saves
+    L*a*b* instead of XYZ, -L both, -n no spectral values, -H more spectral bands."""
+    return {"xyz": not opts.save_lab, "lab": bool(opts.save_lab or opts.save_lab_and_xyz),
+            "spectral": not opts.no_spectral,
+            "high_res": bool(opts.high_res and not opts.no_spectral)}
+
+
+#: review 9, S-2: the options that decide what a reading file holds
+FIELD_OPTIONS = ("-l", "-L", "-n", "-H")
+
+
 CHART_TABLE = "i1iO 2"
 CHART_HEAD = "i1Pro 2"
 
@@ -414,11 +427,15 @@ class TableJob:
     def __init__(self, sheet: dict, page: int = 0, *, run=None, stamp: "str | None" = None,
                  folder: "Path | None" = None, open_transport=None, preflight=None,
                  other_program=None, ask_after_each_step: bool = True, reader_factory=None,
-                 helper_check=None, instrument_check=None, chart_ti2=None):
+                 helper_check=None, instrument_check=None, chart_ti2=None,
+                 app_marker_place: "tuple[Path, str] | None" = None):
         # the job's OWN copy (review of step 6): the caps are derived from it, and a caller
         # changing its chart afterwards changes nothing here
         self.sheet = copy.deepcopy(sheet)
         self.page = int(page)
+        #: review 9, NOTE: where the app-level pending marker lives ((folder, name prefix), see
+        #: session_end.app_marker_dir_and_prefix); the window passes it, None = none (tests)
+        self.app_marker_place = app_marker_place
         self.run, self.stamp = run, stamp
         if run is not None and stamp is not None:
             folder = run.i1io_table_session_dir(stamp)
@@ -505,6 +522,10 @@ class TableJob:
         self.ended: "str | None" = None          # "saved" / "discarded" / "nothing_read"
         #: step 8: interrupted earlier sessions adopted by this one (their readings count)
         self._earlier_dirs: "list[Path]" = []
+        #: review 9, S-1: True only while _end() itself saves or discards
+        self._inside_end = False
+        #: review 9, S-2: what the adopted readings hold (XYZ, L*a*b*, spectral)
+        self._adopted_shape: "dict | None" = None
         self.diag.log("INFO", f"ChromIQ table job {JOB_VERSION} (table module "
                               f"{tbl.TOOL_NAME} {tbl.TOOL_VERSION}); page {self.page + 1}")
 
@@ -672,8 +693,11 @@ class TableJob:
         let a waiting step move on, ends there (``stopped_before_the_next_move``), and the
         hands-off GO is asked again; the homing is never refused for it."""
         self._pause_stop = True
-        if self._gen is None or self._pending is not None:
-            self._go_page = None
+        # review 9, M-1: in EVERY case, also while a step runs (a check move has no pause of
+        # its own): the next movement after a stop, the homing included, asks the hands-off
+        # GO again. A running step has passed its GO already; the rows set or clear it
+        # themselves.
+        self._go_page = None
 
     def _stale_stop(self, step: "str | None") -> bool:
         """A stop pressed between steps or at a question, still waiting (consumed here)."""
@@ -794,13 +818,29 @@ class TableJob:
             return self._result("open", Kind.REFUSED, SESSION_ENDED)
         if self.phase != "new":
             return self._result("open", Kind.REFUSED, "already_opened")
+        if self._gen is None and not self.options_report.ok:
+            # review 9, NOTE: options cannot change after the opening, so a session opened with
+            # a refused option could never read; it is refused here, before anything is asked
+            return self._result("open", Kind.REFUSED, "option_refused",
+                                refused=dict(self.options_report.refused))
+        first = self.pages_to_read()
+        if (self._gen is None and first and 0 <= self.page < self.pages_in_chart()
+                and not self.page_has_something_to_read() and self.page + 1 > first[0]):
+            # review 9, NOTE: next_page() only goes forward; a job built on a page with nothing
+            # to read, after a page that has something, would never reach that one (the window
+            # builds the job on pages_to_read()[0])
+            return self._result("open", Kind.REFUSED, "an_earlier_page_is_to_be_read_first",
+                                page=self.page + 1, first_page=first[0])
         return self._begin("open", self._open())
 
     def _unacknowledged_markers(self) -> "list[Path]":
-        if self.run is None:
-            return []
-        return [m for m in self.run.i1io_table_pending_markers()
-                if not m.with_suffix(".acknowledged.json").exists()]
+        """Review 9, NOTE: a strip move that may still wait is a state of the physical table:
+        the markers of EVERY run of this project, and the app-level ones (any project, any run,
+        a job without a run), not acknowledged yet."""
+        found = se.project_markers(self.run) if self.run is not None else []
+        if self.app_marker_place is not None:
+            found += se.app_markers(*self.app_marker_place)
+        return found
 
     def _open(self):
         sheet = self.sheet
@@ -813,7 +853,7 @@ class TableJob:
                 raise PersonStopped("pending_marker_not_cleared", markers=len(markers))
             for m in markers:
                 try:
-                    m.with_suffix(".acknowledged.json").write_text(
+                    se.acknowledged_path(m).write_text(
                         json.dumps({"acknowledged_by_person": "switched off and on"}),
                         encoding="utf-8")
                 except OSError:
@@ -1014,6 +1054,11 @@ class TableJob:
                 out = yield from body()
             finally:
                 self._table.current_step = None
+                if step == "home":
+                    # review 9, NOTE: a stop pressed while the homing ran is answered by the
+                    # homing itself (the way back a stop leads to); it does not outlive it
+                    # (the next movement asks GO anyway: the stop cleared it)
+                    self._pause_stop = False
             return out
         return self._begin(step, gen())
 
@@ -1381,18 +1426,27 @@ class TableJob:
         need = fit["front_need"]
         out = {"checks": al.checks, "fit": fit}
         if need is not None and need > self.front_reached():
-            choice = yield Ask(Confirm.FRONT_CHOICE, {
-                "front_need_y": int(need), "front_spot": fit["front_spot"],
-                "front_rows": fit["front_rows"],
-                "back_mm": int((need - geo.MEASURING_AREA.ymax) / 10.0) + 1})
-            if choice == "go on":
-                yes = yield Ask(Confirm.FRONT_YES)
-                if yes == "yes":
-                    self.front_need = int(need)
-                    self._block["data"]["front_need_y"] = self.front_need
-                    out["front_need_y"] = self.front_need
-                    return out
-            self.alignment = None
+            # review 9, NOTE: ANY way out of the front questions but "go on" + "yes" (a "back",
+            # a "no", a stop thrown at the question) leaves the state "back" leaves: no
+            # alignment, never an alignment without its front-zone need
+            kept = False
+            try:
+                choice = yield Ask(Confirm.FRONT_CHOICE, {
+                    "front_need_y": int(need), "front_spot": fit["front_spot"],
+                    "front_rows": fit["front_rows"],
+                    "back_mm": int((need - geo.MEASURING_AREA.ymax) / 10.0) + 1})
+                if choice == "go on":
+                    yes = yield Ask(Confirm.FRONT_YES)
+                    if yes == "yes":
+                        self.front_need = int(need)
+                        self._block["data"]["front_need_y"] = self.front_need
+                        out["front_need_y"] = self.front_need
+                        kept = True
+                        return out
+            finally:
+                if not kept:
+                    self.alignment = None
+                    self.fit = None
             raise PersonStopped("sheet_to_be_laid_further_back",
                                 back_mm=int((need - geo.MEASURING_AREA.ymax) / 10.0) + 1)
         return out
@@ -1524,6 +1578,7 @@ class TableJob:
             # review 8, S-3: the caps are derived at open() from what is to be read; what is to
             # be read cannot change after it
             return self._result("options", Kind.REFUSED, "already_opened")
+        before = (self.options_report, self._requested)
         if chartread_args is not None:
             rep = sp.options_from_chartread_args(chartread_args)
         else:
@@ -1552,12 +1607,34 @@ class TableJob:
             self._requested = (set(unread) if asked is None else asked & set(unread), base)
             self._apply_locs()
             detail["resume_unread"] = len(self.only_locs)
+        clash = self._fields_clash(rep.options)
+        if clash is not None:
+            # review 9, S-2: the readings this session builds on (adopted ones, or the run's
+            # partial measurement for a resume) define the fields; an option that would make
+            # the new readings unlike them is refused, nothing else changes, so the session can
+            # never become impossible to save
+            self.options_report, self._requested = before
+            self._apply_locs()
+            return self._result("options", Kind.REFUSED, "options_change_the_fields",
+                                builds_on=clash, asked=shape_of_options(rep.options),
+                                field_options=list(FIELD_OPTIONS), **detail)
         if self._earlier_dirs:
             # review 8, S-3: options set after an adoption keep it (never silently undone)
             detail["adopted_still_missing"] = len(self.only_locs or ())
         if not rep.ok:
             return self._result("options", Kind.REFUSED, "option_refused", **detail)
         return self._result("options", Kind.OK, "", **detail)
+
+    def _fields_clash(self, opts: "sp.ReadOptions") -> "dict | None":
+        """The fields of the readings this session builds on (the adopted sessions' readings,
+        else the run's partial measurement a resume completes) when *opts* would save other
+        ones; None when they agree or nothing is built on."""
+        shape = self._adopted_shape if self._earlier_dirs else None
+        if shape is None and self._resume_base is not None:
+            shape = ms.fields_shape(self._resume_base)
+        if shape is None or shape == shape_of_options(opts):
+            return None
+        return shape
 
     # ---- readiness -----------------------------------------------------------------------------
     def _apply_locs(self) -> None:
@@ -2188,10 +2265,17 @@ class TableJob:
             return {"ending": "keep_measuring", "missing_rows": rows,
                     "current_page": self.page + 1,
                     "rows_read_again": self.rows_again.get(self.page, 0)}
+        # review 9, S-1: only these two calls may save or discard while the ending is shown
+        # (the public save()/discard() are refused then), and each one's own result counts
+        self._inside_end = True
+        try:
+            res = self.discard() if ans == "discard" else self.save()
+        finally:
+            self._inside_end = False
         if ans == "discard":
-            res = self.discard()
+            if not res.ok:
+                raise StageFailed(res.reason, **{**res.detail, **self._after_end()})
             return {"ending": "discarded", **self._after_end(), **res.detail}
-        res = self.save()
         if not res.ok:
             # review 8, S-5: the refusal names what was not done and what may follow (the homing)
             raise StageFailed(res.reason, **{**res.detail, **self._after_end()})
@@ -2226,8 +2310,11 @@ class TableJob:
         # review 8, B-1: Save ends the session in the person's mind; whatever follows (only the
         # homing) asks the hands-off GO again, also when save() is called without end()
         self._go_page = None
-        if self._gen is not None and self._gen_step != "end":
-            return self._result("save", Kind.REFUSED, "another_step_waits_for_a_confirmation")
+        if self._gen is not None and not (self._gen_step == "end" and self._inside_end):
+            # review 9, S-1: while the ending (M-END) is shown, only the person's answer to it
+            # saves; a direct save() then would make the ending's own answer untrue
+            return self._result("save", Kind.REFUSED, "another_step_waits_for_a_confirmation",
+                                waiting_step=self._gen_step)
         if self.ended in ("saved", "discarded"):
             return self._result("save", Kind.REFUSED, self.ended)
         res = self.measurement()
@@ -2317,10 +2404,12 @@ class TableJob:
         worth keeping; the owner may change it); ``session_end.set_aside`` moves such folders
         into ``old/`` later, never deletes them."""
         self._go_page = None              # review 8, B-1: as for save()
-        if self._gen is not None and self._gen_step != "end":
+        if self._gen is not None and not (self._gen_step == "end" and self._inside_end):
             # a step waiting for a confirmation (a GO, say) would read on into a discarded
-            # session once answered
-            return self._result("discard", Kind.REFUSED, "another_step_waits_for_a_confirmation")
+            # session once answered; review 9, S-1: the ending's own question included (only
+            # the person's answer to it discards then)
+            return self._result("discard", Kind.REFUSED, "another_step_waits_for_a_confirmation",
+                                waiting_step=self._gen_step)
         if self.ended == "saved":
             return self._result("discard", Kind.REFUSED, "saved_already")
         self.ended = "discarded"
@@ -2391,7 +2480,16 @@ class TableJob:
                         base_ti3=base)
         if a.state not in ("complete", "partial"):
             return self._result("adopt", Kind.REFUSED, a.reason or "nothing_to_adopt")
+        shape = ms.fields_shape(a.path) if a.path is not None else None
+        if shape is not None and shape != shape_of_options(self.options_report.options):
+            # review 9, S-2: the options already set would save other fields than these
+            # readings hold; adopting them would make the session impossible to save
+            return self._result("adopt", Kind.REFUSED, "options_change_the_fields",
+                                builds_on=shape,
+                                asked=shape_of_options(self.options_report.options),
+                                field_options=list(FIELD_OPTIONS))
         self._earlier_dirs.append(sdir)
+        self._adopted_shape = shape
         self._adopted = (set(a.unread), base)
         self._apply_locs()
         self.diag.log("INFO", f"an interrupted session ({stamp}) adopted: {a.read} readings, "
@@ -2433,6 +2531,18 @@ class TableJob:
                 marker = self.run.i1io_table_pending_marker(self.stamp)
                 marker.parent.mkdir(parents=True, exist_ok=True)
                 marker.write_text(sc.PENDING_TEXT + "\n", encoding="utf-8")
+            except OSError:
+                pass
+        if st.strip_move_may_be_pending and self.app_marker_place is not None:
+            # review 9, NOTE: and one app-level marker, so a START on another run or project
+            # asks too (the stamp only; no path, no name)
+            folder, prefix = self.app_marker_place
+            stamp = self.stamp or time.strftime("%Y%m%d-%H%M%S")
+            try:
+                Path(folder).mkdir(parents=True, exist_ok=True)
+                (Path(folder) / f"{prefix}{stamp}.json").write_text(
+                    json.dumps({"stamp": stamp, "what": "a strip move may still wait"}),
+                    encoding="utf-8")
             except OSError:
                 pass
         if self.transport is not None:

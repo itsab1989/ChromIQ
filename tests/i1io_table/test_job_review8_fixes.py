@@ -303,15 +303,24 @@ def test_m3_missing_on_pages_1_and_3_both_are_read_page_2_never_moves(tmp_path, 
 
 @pytest.mark.parametrize("page", [1, 2], ids=["page2", "page3"])
 def test_m3_a_job_built_for_a_later_page_opens(tmp_path, page):
-    """The reviewer's P4b: the page is checked against the CHART's pages."""
+    """The reviewer's P4b: the page is checked against the CHART's pages. Review 9, NOTE: a job
+    built on page 2 (nothing missing there) after page 1 (missing patches) is refused at the
+    opening, because next_page() only goes forward and page 1 would never be read; page 3
+    (missing patches) opens."""
     job, sim, helper, run, p = _resume_job(tmp_path, page=page)
     r = p.drive(job.open())
-    assert r.ok, r.reason
+    if page == 1:
+        assert r.reason == "an_earlier_page_is_to_be_read_first" and sim.received == []
+    else:
+        assert r.ok, r.reason
 
 
 def test_m3_nothing_moves_on_a_page_with_nothing_missing(tmp_path):
-    job, sim, helper, run, p = _resume_job(tmp_path, page=1)       # page 2: complete
+    job, sim, helper, run, p = _resume_job(tmp_path, page=0)
     assert p.drive(job.open()).ok
+    # review 9: the opening refuses a job built on page 2 here, so the guard behind it (the
+    # steps' own refusal on a page with nothing missing) is reached by putting the job there
+    job.page = 1                                                   # page 2: complete
     assert p.drive(job.calibrate()).ok                             # moves nothing anyway
     n = len(sim.received)
     for step in ("align", "creep", "check_move", "read_row"):

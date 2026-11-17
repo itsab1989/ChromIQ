@@ -96,6 +96,24 @@ def _device_free(fields: "list[str]") -> "list[int]":
     return keep
 
 
+#: the i1Pro 2's spectral bands in its standard resolution (380 to 730 nm in 10 nm steps)
+STANDARD_BANDS = 36
+
+
+def fields_shape(path) -> "dict | None":
+    """What a measurement file holds (review 9, S-2): XYZ, L*a*b*, spectral, as booleans; None
+    when the file cannot be read as a table with locations. Used to refuse an option that would
+    make new readings unlike the ones a session builds on."""
+    try:
+        fields, _rows, _text = _rows_by_loc(Path(path))
+    except (Refused, OSError, ValueError):
+        return None
+    bands = sum(1 for f in fields if f.startswith("SPEC_"))
+    return {"xyz": "XYZ_X" in fields, "lab": "LAB_L" in fields, "spectral": bands > 0,
+            # the i1Pro 2 saves 36 bands (380 to 730 nm, 10 nm); more is its high resolution
+            "high_res": bands > STANDARD_BANDS}
+
+
 def _rows_by_loc(path: Path) -> "tuple[list[str], dict[str, list[str]], str]":
     from core.text_io import read_text
     text = read_text(path, lenient=True)
@@ -256,7 +274,10 @@ def file_into_run(assembly: Assembly, run, may_replace: "Path | None" = None) ->
     if dest.exists():
         if may_replace is None or Path(may_replace).resolve() != dest.resolve():
             return "run_has_a_measurement_already"
-    tmp = dest.with_name(dest.name + ".table-part")
+    # review 9, NOTE: the copy is made in the SESSION folder (beside the assembled file, on the
+    # same disk as the run's file, so the replace stays one atomic step): a copy cut off by a
+    # full disk leaves nothing in the run's own folder, and the next Save overwrites it
+    tmp = Path(assembly.path).with_name(dest.name + ".table-part")
     shutil.copyfile(str(assembly.path), str(tmp))
     replace_read_only_too(tmp, dest)
     return ""

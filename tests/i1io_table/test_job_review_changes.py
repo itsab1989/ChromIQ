@@ -420,7 +420,11 @@ def test_the_table_object_is_private_and_nothing_outside_the_package_writes_to_i
     assert not hasattr(J.TableJob, "d")
     job, _sim, _t = H.make_job()
     assert not hasattr(job, "d")
-    # no app module outside the table package touches a job's table or a table's writers
+    # no app module outside the table package touches a job's table or a table's writers;
+    # step 9: only the Measure tab's table window and the settle hook import the package, and
+    # only inside a function (lazily, after START on an i1iO chart with the Beta on), never at
+    # module level
+    lazy_ok = {"ui/i1io_table_window.py", "workflow/i1io/table_settle.py"}
     offenders = []
     for base in ("core", "ui", "workflow", "scripts"):
         for f in (ROOT / base).rglob("*.py"):
@@ -431,7 +435,13 @@ def test_the_table_object_is_private_and_nothing_outside_the_package_writes_to_i
                 continue
             tree = ast.parse(text)
             mentions_job = "TableJob" in text
+            rel = f.relative_to(ROOT).as_posix()
+            top = {id(n) for n in tree.body}
             for n in ast.walk(tree):
+                if rel in lazy_ok and id(n) not in top:
+                    if mentions_job and isinstance(n, ast.Attribute) and n.attr == "_table":
+                        offenders.append(f"{rel}: ._table")
+                    continue
                 if mentions_job and isinstance(n, ast.Attribute) and n.attr == "_table":
                     offenders.append(f"{f.relative_to(ROOT)}: ._table")
                 if isinstance(n, (ast.Import, ast.ImportFrom)):

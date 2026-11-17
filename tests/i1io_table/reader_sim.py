@@ -372,7 +372,7 @@ def make_run(tmp_path: Path, sheet: dict, name: str = "Table-Target"):
 
 def make_reading_job(tmp_path, sheet=None, aims=None, faults=None, run=True, stamp=STAMP,
                      instrument=None, helper_check=None, ask_after_each_step=True, sim=None,
-                     **simkw):
+                     app_marker_place=None, **simkw):
     """A table job with the simulated table AND the simulated helper behind the app's reader.
     Returns (job, sim, helper, run)."""
     from tests.i1io_table import job_harness as H
@@ -402,6 +402,7 @@ def make_reading_job(tmp_path, sheet=None, aims=None, faults=None, run=True, sta
                      reader_factory=helper.factory(),
                      helper_check=helper_check or (lambda: None),
                      instrument_check=instrument or (lambda: us.Check("ok",
-                                                                      {"i1pro_devices": 1})))
+                                                                      {"i1pro_devices": 1})),
+                     app_marker_place=app_marker_place)
     return job, sim, helper, r
 

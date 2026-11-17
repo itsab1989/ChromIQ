@@ -569,10 +569,10 @@ def test_options_the_reader_gets_them_and_a_refused_one_reads_nothing(tmp_path):
     job2, sim2, helper2, run2, p2 = job_for(tmp_path / "two")
     r = job2.set_options(["-p", "-F", "n"])
     assert (r.kind, r.reason) == (J.Kind.REFUSED, "option_refused")
-    for s in ("open",):
-        p2.drive(getattr(job2, s)())
-    n = len(sim2.received)
-    assert job2.calibrate().reason == "option_refused" and len(sim2.received) == n
+    # review 9, NOTE: the opening itself is refused while an option is refused (options cannot
+    # change after it), so nothing is asked and nothing is sent
+    assert p2.drive(job2.open()).reason == "option_refused" and sim2.received == []
+    assert job2.calibrate().reason == "table_not_open" and sim2.received == []
 
 
 def test_strip_rows_are_not_built_and_reach_nothing(tmp_path):
