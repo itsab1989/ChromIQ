@@ -10226,7 +10226,7 @@ alone.
 
 > **The arm while you choose**
 >
-> The arm stays where it is while you choose; nothing moves in this window. After Save and stop or Discard and stop, ChromIQ offers to bring the arm home and asks you to take your hands away first. Keep measuring reads the rows that are still missing, after the same question.
+> The arm stays where it is while you choose; nothing moves while this question is shown. After Save and stop or Discard and stop, ChromIQ offers to bring the arm home and asks you to take your hands away first. Keep measuring reads the rows that are still missing, after the same question.
 
 ### M-I1IO-DRIVE-DONE · PROPOSED · the last page of the table window, after close(), Measure (the i1iO table window)
 

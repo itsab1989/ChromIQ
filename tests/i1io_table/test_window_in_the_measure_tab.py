@@ -179,7 +179,8 @@ def test_the_preview_follows_the_job(tab, beta, tmp_path, monkeypatch, qtbot, pb
     (_on_patch_measured)."""
     run, sheet = table_run(tmp_path)
     strips, patches, measured = [], [], []
-    monkeypatch.setattr(tab, "_on_stripe_changed", strips.append)
+    monkeypatch.setattr(tab, "_table_highlight_row",
+                        lambda page, row, locs: strips.append((page, row, locs[0])))
     monkeypatch.setattr(tab, "_locate_patch", lambda loc: (0, loc))
     monkeypatch.setattr(tab._preview, "highlight_patch",
                         lambda page, box: patches.append(box))
@@ -203,7 +204,8 @@ def test_the_preview_follows_the_job(tab, beta, tmp_path, monkeypatch, qtbot, pb
         # the patch ringed before each move is the one read next, in the job's own order
         assert [b for b in patches if isinstance(b, str)] == measured and strips == []
     else:
-        assert strips == [tab._strip_of(r[0]["loc"]) for r in rows]
+        # the row the job starts is the row highlighted, in the job's order
+        assert [(pg, r) for pg, r, _l in strips] == [(0, k) for k in range(len(rows))]
         assert not [b for b in patches if isinstance(b, str)]
 
 
@@ -233,3 +235,23 @@ def test_no_state_of_the_table_shows_a_modal_window(tab, beta, tmp_path, monkeyp
     assert {"consent", "go", "end_of_session", "done"} <= set(seen)
     p.press("Close")
     assert tab._table_window is None and tab._stack.currentWidget() is not win
+
+
+def test_a_row_is_outlined_from_its_own_patch_boxes(tab, tmp_path):
+    """The row being read: the preview's row overlay (set_scan_grid) with each row's cells
+    from the chart's patch boxes; the active row is the job's, read rows are kept."""
+    from PyQt6.QtCore import QRect
+    sheet = {"pages": [{"strips": [{"patches": [{"loc": "A1"}, {"loc": "A2"}]},
+                                   {"patches": [{"loc": "B1"}, {"loc": "B2"}]}]}]}
+    tab._table_sheet = sheet
+    tab._patch_boxes = [{"A1": QRect(0, 0, 10, 10), "A2": QRect(10, 0, 10, 10),
+                         "B1": QRect(0, 20, 10, 10), "B2": QRect(10, 20, 10, 10)}]
+    got = []
+    tab._preview.set_scan_grid = lambda rows, completed=(), active=None: got.append(
+        (len(rows), set(completed), active, rows[active][0] if active is not None else None))
+    tab._table_highlight_row(0, 0, ["A1", "A2"])
+    tab._table_highlight_row(0, 0, [], status="read")
+    tab._table_highlight_row(0, 1, ["B1", "B2"])
+    assert got[0] == (2, set(), 0, [(0, 0), (10, 0), (10, 10), (0, 10)])
+    assert got[1][1] == {0} and got[1][2] is None
+    assert got[2][1] == {0} and got[2][2] == 1

@@ -12156,8 +12156,8 @@ M_I1IO_DRIVE_FREE_LEFT = _m(
 M_I1IO_DRIVE_END = _m(
     "M-I1IO-DRIVE-END",
     "The arm while you choose",
-    "The arm stays where it is while you choose; nothing moves in this "
-    "window. After Save and stop or Discard and stop, ChromIQ offers to "
+    "The arm stays where it is while you choose; nothing moves while this "
+    "question is shown. After Save and stop or Discard and stop, ChromIQ offers to "
     "bring the arm home and asks you to take your hands away first. Keep "
     "measuring reads the rows that are still missing, after the same "
     "question.",

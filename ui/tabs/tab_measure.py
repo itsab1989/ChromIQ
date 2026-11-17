@@ -6973,6 +6973,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             if b is not None:
                 b.setEnabled(False)
         self.measurement_active.emit(True)
+        # the table moves the instrument: no "draw the instrument down this
+        # strip" arrow on the highlighted row (the CR30's own switch, #159)
+        self._table_no_swipe_before = bool(getattr(self._preview, "_no_swipe", False))
+        self._preview.set_no_swipe(True)
         self._log.appendPlainText(tr(
             "Measuring with the i1iO table (beta): the table's questions and "
             "buttons are on the left, the chart on the right shows what it reads."))
@@ -6990,11 +6994,15 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 self._table_aim_on_preview(ev)
             elif kind == "row_start":
                 self._preview.highlight_patch(-1, None)
-                locs = ev.get("locs") or []
-                if locs and not getattr(self, "_table_patch_by_patch", False):
-                    letter = self._strip_of(str(locs[0]))
-                    if letter:
-                        self._on_stripe_changed(letter)
+                if not getattr(self, "_table_patch_by_patch", False):
+                    self._table_highlight_row(int(ev.get("page") or 1) - 1,
+                                              int(ev.get("row") or 0) - 1,
+                                              ev.get("locs") or [])
+            elif kind == "row_end":
+                if not getattr(self, "_table_patch_by_patch", False):
+                    self._table_highlight_row(int(ev.get("page") or 1) - 1,
+                                              int(ev.get("row") or 0) - 1, [],
+                                              status=str(ev.get("status") or "ended"))
             elif kind == "patch_next":
                 if getattr(self, "_table_patch_by_patch", False):
                     page, box = self._locate_patch(str(ev.get("loc", "")))
@@ -7009,9 +7017,52 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                                              "xyz": list(xyz[:3])})
             elif kind == "end":
                 self._preview.highlight_patch(-1, None)
-                self._preview.highlight_stripe(-1)
+                self._preview.set_scan_grid(None)
+                self._table_rows_done = None
         except Exception:      # noqa: BLE001 - the preview never stops the table
             log.debug("table progress not shown on the preview", exc_info=True)
+
+    def _table_highlight_row(self, page: int, row: int, locs, status: str = "") -> None:
+        """The row being read (strip mode). An i1iO chart's strips run ACROSS
+        the sheet and are not found on its TIFF (the tab's strip detection
+        fails for it, a warning in the log since before the table drive), and
+        the hand path's strip highlight is the downward scan arrow of a
+        vertical strip. So the preview's own row overlay is used,
+        TiffPreview.set_scan_grid (the cells of each row in image pixels; the
+        active row outlined, read rows green), with each row's cells taken
+        from the chart's recorded patch boxes. *status* "read" marks the row
+        read; a failed row stays unmarked, as a failed strip stays unread."""
+        done = getattr(self, "_table_rows_done", None)
+        if done is None or getattr(self, "_table_rows_page", None) != page:
+            done = self._table_rows_done = set()
+            self._table_rows_page = page
+        if status == "read":
+            done.add(row)
+        rows = self._table_row_cells(page)
+        if not rows:
+            return
+        if page != self._preview.current_page():
+            self._preview.show_page(page)
+        active = None if status else (row if 0 <= row < len(rows) else None)
+        self._preview.set_scan_grid(rows, done, active)
+
+    def _table_row_cells(self, page: int) -> list:
+        sheet = getattr(self, "_table_sheet", None) or {}
+        boxes = self._patch_boxes[page] if 0 <= page < len(self._patch_boxes) else {}
+        try:
+            strips = sheet["pages"][page]["strips"]
+        except (KeyError, IndexError, TypeError):
+            return []
+        out = []
+        for st in strips:
+            cells = []
+            for q in st.get("patches", []):
+                b = boxes.get(q.get("loc"))
+                if b is not None:
+                    x, y, w, h = b.x(), b.y(), b.width(), b.height()
+                    cells.append([(x, y), (x + w, y), (x + w, y + h), (x, y + h)])
+            out.append(cells)
+        return out if any(out) else []
 
     def _table_aim_on_preview(self, ev: dict) -> None:
         """Where the arm should point: the corner patch the chart names, or the
@@ -7052,7 +7103,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         px = np.array([[r.center().x(), r.center().y()] for _m, r in pairs], dtype=float)
         coef, *_ = np.linalg.lstsq(mm, px, rcond=None)
         x, y = np.array([float(aim["page_mm"][0]), float(aim["page_mm"][1]), 1.0]) @ coef
-        side = max(8, int(min(r.width() for _m, r in pairs) * 0.6))
+        side = max(8, int(min(r.width() for _m, r in pairs)))
         return QRect(int(x - side / 2), int(y - side / 2), side, side)
 
     def _on_table_measurement_saved(self, path, detail: dict) -> None:
@@ -7091,10 +7142,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             if b is not None:
                 b.setEnabled(True)
         self._preview.highlight_patch(-1, None)
+        self._preview.set_scan_grid(None)
+        self._table_rows_done = None
+        self._preview.set_no_swipe(getattr(self, "_table_no_swipe_before", False))
         self.measurement_active.emit(False)
         if why == "consent_declined":
             self._log.appendPlainText(tr(
-                "Measurement not started: you chose Not now in the table window."))
+                "Measurement not started: you chose Not now for the i1iO table."))
 
     def _refused_as_an_i1io_chart(self) -> bool:
         """True, with M-I1IO-NOT-YET shown, when i1iO support is on and the
