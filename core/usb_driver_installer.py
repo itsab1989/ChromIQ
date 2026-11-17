@@ -169,6 +169,98 @@ class UsbDevice(NamedTuple):
     has_winusb: bool
 
 
+# ---- THE i1iO TABLE: its own entry, never an instrument (owner's ruling, 2026-11-17) ----------
+#
+# On Windows the X-Rite i1iO 2 table (USB 0971:2004) is reached the same way ArgyllCMS reaches an
+# instrument: through libusb-win32's kernel driver (libusb0.sys), which this installer can bind.
+# Unlike an instrument it is NEVER offered automatically and NEVER installed as part of an
+# instrument's installation: while the table has this driver, i1Profiler cannot use the table
+# until the driver is switched back. So it is NOT in KNOWN_COLORIMETERS (which
+# `enumerate_connected` and the driver window walk) but here, on its own, and the only way to get
+# an installable device for it is `table_device_for(ExplicitTableChoice(...))`, which the drive's
+# later window builds only from the person's explicit choice (the UI is not built yet).
+# UNTESTED ON REAL WINDOWS HARDWARE.
+TABLE_DEVICE: "dict[tuple[str, str], str]" = {("0971", "2004"): "X-Rite i1iO 2 table"}
+
+#: the table's driver states, as `table_driver_state` names them
+TABLE_DRIVER_NONE = "none"                  # no driver bound (or the table never seen)
+TABLE_DRIVER_LIBUSB0 = "libusb0"            # libusb-win32: the job can open it ("driver installed")
+TABLE_DRIVER_VENDOR = "vendor_driver"       # X-Rite's or any other driver (i1Profiler's way)
+TABLE_DRIVER_CANNOT_TELL = "cannot_tell"    # not Windows, or the registry could not be read
+
+#: the words a person confirms to choose the table's driver (the later window's own text decides
+#: what is shown; this is the token the code checks)
+TABLE_CHOICE_WORDS = "install the libusb-win32 driver for my i1iO table"
+
+
+class ExplicitTableChoice:
+    """The person's explicit choice to give the TABLE the libusb-win32 driver. Built only with
+    the exact words above (the later window passes them after the person's own confirmation);
+    nothing in ChromIQ builds one by itself."""
+
+    def __init__(self, words: str):
+        if words != TABLE_CHOICE_WORDS:
+            raise ValueError("not the explicit choice for the table's driver")
+        self.words = words
+
+
+class TableUsbDevice(UsbDevice):
+    """The table as an install target: only from `table_device_for`."""
+
+
+def table_device_for(choice: ExplicitTableChoice) -> "UsbDevice":
+    if not isinstance(choice, ExplicitTableChoice):
+        raise ValueError("the table's driver needs the person's explicit choice")
+    (vid, pid), name = next(iter(TABLE_DEVICE.items()))
+    return TableUsbDevice(vid=vid, pid=pid, name=name, has_winusb=False)
+
+
+def is_table(vid: str, pid: str) -> bool:
+    return (str(vid).lower(), str(pid).lower()) in TABLE_DEVICE
+
+
+def table_driver_state(entries: "list[tuple[str, list[tuple[str, str]]]] | None",
+                       present_instances: "set[str] | None") -> "tuple[str, dict]":
+    """The table's driver right now, from the registry's ``Enum\\USB`` entries (as
+    `_registry_usb_entries` reads them) and cfgmgr32's present instances (None: could not ask).
+    Pure: tested on every system. Never the serial number: instance keys are not returned."""
+    if entries is None:
+        return TABLE_DRIVER_CANNOT_TELL, {"why": "the registry could not be read"}
+    services = []
+    seen = False
+    for combo, instances in entries:
+        parts = combo.upper().split("&")
+        if len(parts) < 2 or not is_table(parts[0].replace("VID_", ""),
+                                          parts[1].replace("PID_", "")):
+            continue
+        seen = True
+        live = instances
+        if present_instances is not None:
+            live = [pair for pair in instances
+                    if _instance_id(combo, pair[0]) in present_instances]
+        services += [str(svc).strip().lower() for _, svc in live]
+    if not seen or not services:
+        return TABLE_DRIVER_NONE, {"seen": seen, "present": bool(services)}
+    if all(s == ARGYLL_USB_SERVICE for s in services):
+        return TABLE_DRIVER_LIBUSB0, {"service": ARGYLL_USB_SERVICE}
+    named = sorted({s for s in services if s})
+    if not named:
+        return TABLE_DRIVER_NONE, {"seen": True}
+    # a mixture (one instance libusb0, another not) is not "installed": the live one decides
+    return TABLE_DRIVER_VENDOR, {"services": [s for s in named if s != ARGYLL_USB_SERVICE]
+                                 or named}
+
+
+def table_driver_state_now() -> "tuple[str, dict]":
+    """`table_driver_state` on this computer (Windows only; read only)."""
+    if sys.platform != "win32":
+        return TABLE_DRIVER_CANNOT_TELL, {"why": "not Windows"}
+    try:
+        return table_driver_state(_registry_usb_entries(), present_usb_instance_ids())
+    except Exception as exc:      # noqa: BLE001 - read only: cannot tell
+        return TABLE_DRIVER_CANNOT_TELL, {"why": type(exc).__name__}
+
+
 def _wdi_simple_path() -> Path:
     # Single x64 binary — runs on both x64 and ARM64 Windows via the x64 emulation layer.
     return resource_path("assets/wdi_simple.exe")
@@ -867,6 +959,13 @@ def install_winusb(device: UsbDevice, *,
         log.error("refusing to install WinUSB on %s (%s:%s): it is a vendor "
                   "serial device, and WinUSB would destroy its COM port",
                   device.name, device.vid, device.pid)
+        return InstallAttempt.REFUSED
+    # THE i1iO TABLE ONLY ON THE PERSON'S EXPLICIT CHOICE (owner's ruling, 2026-11-17): never
+    # automatically, never as part of an instrument's installation. A table device that did not
+    # come from `table_device_for(ExplicitTableChoice(...))` is refused here.
+    if is_table(device.vid, device.pid) and not isinstance(device, TableUsbDevice):
+        log.error("refusing to install a driver on the i1iO table (%s:%s) without the "
+                  "person's explicit choice", device.vid, device.pid)
         return InstallAttempt.REFUSED
 
     # AFTER the serial guard, never before it. On a non-Windows host every

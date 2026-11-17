@@ -1743,16 +1743,22 @@ class FtdiUsb(Transport):
              (0x03, 0x0034, 0),   # baud divisor 52: 57 600
              (0x04, 0x0008, 0))   # 8 data bits, no parity, 1 stop
 
-    def __init__(self, dev, usb_core, usb_util):
+    def __init__(self, dev, usb_core, usb_util, timeout_codes=()):
         self.dev, self._core, self._util = dev, usb_core, usb_util
         self._timeout_error = getattr(usb_core, "USBTimeoutError", None)
+        #: build step 6, Windows: libusb-win32 reports a read timeout as its own errno (116)
+        #: through pyusb's libusb0 backend, which pyusb does not always call a timeout
+        self._timeout_codes = tuple(timeout_codes)
         self._claimed = False
         self._closed = False
 
     def _is_timeout(self, exc) -> bool:
         if self._timeout_error is not None and isinstance(exc, self._timeout_error):
             return True
-        return getattr(exc, "errno", None) in (60, 110)
+        if getattr(exc, "errno", None) in (60, 110):
+            return True
+        return bool(self._timeout_codes) and \
+            getattr(exc, "backend_error_code", None) in self._timeout_codes
 
     def setup(self) -> None:
         USBError = self._core.USBError
@@ -1999,36 +2005,56 @@ def check_usb_available() -> str:
     return f"pyusb {st.pyusb}; libusb {st.libusb}"
 
 
+#: Windows: the table's driver is not libusb-win32's (proposed id)
+DRIVER_NOT_INSTALLED = "M-I1IO-DRIVE-TABLE-DRIVER-NOT-INSTALLED"
+
+
 def open_table(system: "str | None" = None) -> FtdiUsb:
-    """Find and open the table through ChromIQ's own USB library, or raise NotAvailable (with
+    """Find and open the table through ChromIQ's own USB route, or raise NotAvailable (with
     the message id in .problem). Sends no table command; only the FTDI set-up after the
-    descriptor check. *system* is sys.platform (tests)."""
+    descriptor check. macOS / Linux: the bundled libusb-1.0. Windows: libusb-win32's driver,
+    which ChromIQ's installer gives the table only on the person's explicit choice, through
+    pyusb's libusb0 backend (core.usb_library.table_backend; UNTESTED ON REAL WINDOWS). *system*
+    is sys.platform (tests)."""
     import core.usb_library as usb_library
     system = system or sys.platform
-    check_usb_available()
-    backend = usb_library.backend()
-    if backend is None:
-        raise NotAvailable("M-I1IO-DRIVE-USB-MISSING", problem="no-backend")
+    if system == "win32":
+        import core.usb_driver_installer as inst
+        state, _detail = inst.table_driver_state_now()
+        if state != inst.TABLE_DRIVER_LIBUSB0:
+            raise NotAvailable(DRIVER_NOT_INSTALLED, problem=f"table driver {state}")
+    else:
+        check_usb_available()
+    tb = usb_library.table_backend(system)
+    if tb.backend is None:
+        raise NotAvailable(usb_library.MESSAGE_FOR_PROBLEM.get(tb.problem,
+                                                               "M-I1IO-DRIVE-USB-MISSING"),
+                           problem=tb.problem or "no-backend")
     import usb.core
     import usb.util
     try:
-        found = list(usb.core.find(find_all=True, idVendor=VID, idProduct=PID, backend=backend))
+        found = list(usb.core.find(find_all=True, idVendor=VID, idProduct=PID,
+                                   backend=tb.backend))
     except Exception as exc:          # NoBackendError, USBError, OSError: said by its id
-        raise NotAvailable(usb_library.open_failure(exc, system), problem="find") from None
+        raise NotAvailable(usb_library.open_failure(exc, system, tb.kind),
+                           problem="find") from None
     if not found:
         raise NotAvailable(NO_TABLE, problem="none")
     if len(found) > 1:
         raise NotAvailable(SEVERAL_TABLES, problem=f"{len(found)} tables")
     dev = found[0]
     check_descriptors(dev)
-    t = FtdiUsb(dev, usb.core, usb.util)
+    t = FtdiUsb(dev, usb.core, usb.util,
+                timeout_codes=usb_library.LIBUSB0_TIMEOUT_CODES if tb.kind == "libusb0" else ())
+    t.backend_kind = tb.kind
     try:
         t.setup()
     except TransportError as exc:
         t.close()
         cause = getattr(exc, "usb_error", None)
-        raise NotAvailable(usb_library.open_failure(cause, system) if cause is not None
-                           else "M-I1IO-DRIVE-USB-UNEXPECTED", problem="claim") from None
+        raise NotAvailable(usb_library.open_failure(cause, system, tb.kind)
+                           if cause is not None else "M-I1IO-DRIVE-USB-UNEXPECTED",
+                           problem="claim") from None
     except BaseException:
         t.close()
         raise

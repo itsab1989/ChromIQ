@@ -242,6 +242,21 @@ def i1profiler_running(system: str, run=_run) -> "bool | None":
 
 # ---- everything before the table is opened ---------------------------------------------------
 
+def table_driver_check(system: str, state_now=None) -> Check:
+    """Windows only (owner's ruling of 2026-11-17): which driver the table has. "libusb0" =
+    libusb-win32, installed by ChromIQ's installer on the person's explicit choice: the job can
+    open it; "none" / "vendor_driver" (X-Rite's or another, i1Profiler's way) / "cannot_tell".
+    Elsewhere "not_applicable" (macOS and Linux reach it through libusb-1.0 as it is).
+    UNTESTED ON REAL WINDOWS HARDWARE."""
+    if system != "windows":
+        return Check("not_applicable")
+    if state_now is None:
+        import core.usb_driver_installer as inst
+        state_now = inst.table_driver_state_now
+    state, detail = state_now()
+    return Check(state, dict(detail))
+
+
 @dataclass(frozen=True)
 class Preflight:
     system: str
@@ -249,12 +264,14 @@ class Preflight:
     instrument: Check
     holders: Check
     i1profiler: "bool | None"
+    table_driver: Check = Check("not_applicable")
 
     def as_dict(self) -> dict:
         return {"system": self.system, "usb": self.usb,
                 "instrument": {"state": self.instrument.state, **self.instrument.detail},
                 "holders": {"state": self.holders.state, **self.holders.detail},
-                "i1profiler_running": self.i1profiler}
+                "i1profiler_running": self.i1profiler,
+                "table_driver": {"state": self.table_driver.state, **self.table_driver.detail}}
 
 
 def preflight(platform: "str | None" = None) -> Preflight:
@@ -264,4 +281,5 @@ def preflight(platform: "str | None" = None) -> Preflight:
     backend = usb_library.backend() if system in ("windows", "linux") else None
     devices = list_devices(system, backend=backend)
     return Preflight(system, usb_library.diagnostics(), instrument_check(devices),
-                     holders_check(system), i1profiler_running(system))
+                     holders_check(system), i1profiler_running(system),
+                     table_driver_check(system))

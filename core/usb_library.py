@@ -149,14 +149,28 @@ MESSAGE_FOR_PROBLEM = {
 }
 
 
-def open_failure(exc: BaseException, system: "str | None" = None) -> str:
+#: libusb-win32 (libusb0) answers with a negative errno of ITS OWN errno.h (not the C runtime's,
+#: not Python's): EACCES 13, ENOENT 2, EBUSY 16, ENODEV 19, ETIMEDOUT 116. pyusb's libusb0
+#: backend hands the number over as ``backend_error_code``. UNTESTED ON REAL WINDOWS HARDWARE.
+LIBUSB0_ERRNO = {-13: LIBUSB_ERROR_ACCESS, -16: LIBUSB_ERROR_BUSY, -19: LIBUSB_ERROR_NO_DEVICE,
+                 -2: LIBUSB_ERROR_NOT_FOUND, -116: LIBUSB_ERROR_TIMEOUT}
+#: what a libusb0 read timeout may look like (its own 116, Windows' 10060, POSIX 110 / 60)
+LIBUSB0_TIMEOUT_CODES = (-116, 116, -10060, 10060, -110, 110, -60, 60)
+
+
+def open_failure(exc: BaseException, system: "str | None" = None,
+                 backend_kind: str = "libusb1") -> str:
     """The message id for an exception raised while finding, opening or claiming the table's
     USB device (pyusb's ``USBError`` / ``NoBackendError``, or an OSError). *system* is
-    ``sys.platform`` (for tests). Unknown errors get the general text with the diagnostics."""
+    ``sys.platform`` (for tests); *backend_kind* "libusb1" (macOS, Linux) or "libusb0" (Windows,
+    through libusb-win32: its codes are errno numbers, see LIBUSB0_ERRNO). Unknown errors get
+    the general text with the diagnostics."""
     system = system or sys.platform
     if type(exc).__name__ == "NoBackendError":
         return "M-I1IO-DRIVE-USB-MISSING"
     code = getattr(exc, "backend_error_code", None)
+    if backend_kind == "libusb0" and isinstance(code, int):
+        code = LIBUSB0_ERRNO.get(code, code if code in (LIBUSB_ERROR_ACCESS,) else None)
     if code is None:
         en = getattr(exc, "errno", None)
         code = {13: LIBUSB_ERROR_ACCESS, 16: LIBUSB_ERROR_BUSY, 19: LIBUSB_ERROR_NO_DEVICE,
@@ -175,6 +189,61 @@ def open_failure(exc: BaseException, system: "str | None" = None) -> str:
     if code in (LIBUSB_ERROR_NO_DEVICE, LIBUSB_ERROR_NOT_FOUND):
         return "M-I1IO-DRIVE-USB-GONE"
     return "M-I1IO-DRIVE-USB-UNEXPECTED"
+
+
+# ---- the table's backend, per system (owner's ruling of 2026-11-17: Windows like ArgyllCMS) -----
+#
+# macOS and Linux: libusb-1.0 as bundled (`backend`). Linux needs the udev rule for the table
+# (STEP4_PROPOSAL section 3), as ArgyllCMS's instruments do.
+#
+# WINDOWS: the table gets libusb-win32's kernel driver (libusb0.sys), installed by ChromIQ's own
+# driver installer (wdi-simple, which embeds libusb-win32 1.4.0.0) ONLY on the person's explicit
+# choice. libusb-1.0 does NOT open libusb0.sys devices by itself: its Windows backend reaches
+# libusb0.sys only through libusbK.dll ("all libusb0.sys accesses are done through it", libusb's
+# Windows wiki), which ChromIQ does not ship. libusb-win32's own user library, libusb0.dll, is
+# copied into the system folder by the very driver package the installer binds (libwdi's
+# libusb0.inf: libusb_files_dll -> system32 on x64 and ARM64), and it must match libusb0.sys. So
+# on Windows the table is opened through pyusb's libusb0 backend, with THAT file by its full path
+# (never a name search): no second driver family, nothing more to ship. UNTESTED ON REAL WINDOWS
+# HARDWARE. Windows on ARM64: the x64 ChromIQ cannot load the ARM64 libusb0.dll the driver
+# installs; that build says "not-bundled" (status) and the drive is unavailable.
+
+def libusb0_dll_path() -> "Path | None":
+    """libusb-win32's libusb0.dll as its driver package installed it (System32), or None."""
+    if sys.platform != "win32":
+        return None
+    root = os.environ.get("SystemRoot") or os.environ.get("windir")
+    if not root:
+        return None
+    p = Path(root) / "System32" / "libusb0.dll"
+    return p if p.is_file() else None
+
+
+@dataclass(frozen=True)
+class TableBackend:
+    backend: object
+    kind: str            # "libusb1" or "libusb0"
+    problem: str = ""    # "" or why there is none: "no-libusb", "no-libusb0-dll", "not-bundled"
+
+
+def table_backend(system: "str | None" = None, dll_path=None) -> TableBackend:
+    """The pyusb backend the table is opened through on this system (opens no device). The job
+    does not care which one it got: both carry pyusb's device API."""
+    system = system or sys.platform
+    if system == "win32":
+        if not bundled_on_this_platform():
+            return TableBackend(None, "libusb0", "not-bundled")
+        path = dll_path if dll_path is not None else libusb0_dll_path()
+        if path is None:
+            return TableBackend(None, "libusb0", "no-libusb0-dll")
+        import usb.backend.libusb0
+        be = usb.backend.libusb0.get_backend(find_library=lambda _name, p=str(path): p)
+        return TableBackend(be, "libusb0", "" if be is not None else "no-libusb0-dll")
+    be = backend()
+    return TableBackend(be, "libusb1", "" if be is not None else "no-libusb")
+
+
+MESSAGE_FOR_PROBLEM["no-libusb0-dll"] = "M-I1IO-DRIVE-TABLE-DRIVER-NOT-INSTALLED"
 
 
 def diagnostics() -> dict:

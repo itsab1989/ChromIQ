@@ -605,6 +605,11 @@ class TableJob:
         pf = self._preflight()
         self.preflight_seen = pf
         self.diag.log("INFO", "before opening: " + json.dumps(pf.as_dict(), default=str))
+        if pf.system == "windows" and pf.table_driver.state != "libusb0":
+            # the owner's ruling: on Windows the table is reached like ArgyllCMS's instruments,
+            # through libusb-win32, which only the person's explicit choice installs for it
+            raise StageFailed("driver_not_installed_for_table",
+                              driver_state=pf.table_driver.state, **pf.table_driver.detail)
         if pf.instrument.state != "ok":
             raise StageFailed(f"instrument_{pf.instrument.state}", **pf.instrument.detail)
         if pf.i1profiler is True:
@@ -637,7 +642,10 @@ class TableJob:
             self.transport.gate = cl.wire_gate
         d._touch_out = lambda: "asked after the step"
         state = d.opening()
-        return {"table": state}
+        out = {"table": state, "system": pf.system}
+        if pf.system == "windows":
+            out["table_driver"] = "driver_installed"
+        return out
 
     # ---- the start-up of a just-switched-on table ----------------------------------------------
     def start_up(self) -> StepResult:

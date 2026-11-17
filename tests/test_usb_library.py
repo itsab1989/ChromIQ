@@ -209,10 +209,56 @@ def test_only_the_selftest_uses_it_yet():
                                   "workflow/i1io/table/usb_system.py"]
 
 
-def test_the_windows_driver_installer_never_targets_the_table():
-    """ChromIQ's WinUSB installer works from an explicit list of instruments; the table
-    (0971:2004) is not on it and must never be: a driver installed for it would take it away
-    from i1Profiler (review B5 g; STEP4_PROPOSAL: nothing is done to the table's driver)."""
+def test_the_windows_driver_installer_never_targets_the_table_without_the_explicit_choice():
+    """The owner's ruling of 2026-11-17: on Windows the table (0971:2004) is reached like an
+    ArgyllCMS instrument, through libusb-win32, which ChromIQ's installer may bind to it ONLY on
+    the person's explicit table choice: never automatically, never as part of an instrument's
+    installation (while it has that driver, i1Profiler cannot use the table)."""
     from core import usb_driver_installer as inst
+    # not among the instruments the driver window walks and offers
     for table in (inst.KNOWN_COLORIMETERS, inst.VENDOR_SERIAL_DEVICES):
         assert ("0971", "2004") not in {(v.lower(), p.lower()) for v, p in table}
+    assert set(inst.TABLE_DEVICE) == {("0971", "2004")}
+    # the registry holding the table (with any driver) never makes it an offered instrument
+    entries = [("VID_0971&PID_2004", [("6&abc&0&1", "")]),
+               ("VID_0971&PID_2000", [("6&def&0&2", "")])]
+    found = inst.attached_devices(entries, None)
+    assert [(d.vid, d.pid) for d in found] == [("0971", "2000")]
+    # installing for the table: refused unless the device came from the explicit choice
+    plain = inst.UsbDevice("0971", "2004", "X-Rite i1iO 2 table", False)
+    assert inst.install_winusb(plain) is inst.InstallAttempt.REFUSED
+    with pytest.raises(ValueError):
+        inst.ExplicitTableChoice("yes")
+    with pytest.raises(ValueError):
+        inst.table_device_for("install the libusb-win32 driver for my i1iO table")
+    dev = inst.table_device_for(inst.ExplicitTableChoice(inst.TABLE_CHOICE_WORDS))
+    assert (dev.vid, dev.pid) == ("0971", "2004") and isinstance(dev, inst.TableUsbDevice)
+    got = inst.install_winusb(dev)
+    assert got is not inst.InstallAttempt.REFUSED      # NOT_WINDOWS here, the install on Windows
+    # nothing else in ChromIQ builds the choice: only the module itself names it
+    users = [f for base in ("core", "ui", "workflow", "scripts")
+             for f in (ROOT / base).rglob("*.py")
+             if "ExplicitTableChoice(" in f.read_text(encoding="utf-8")
+             and f.name != "usb_driver_installer.py"]
+    assert users == []
+
+
+@pytest.mark.parametrize("entries,present,want", [
+    (None, None, "cannot_tell"),
+    ([], None, "none"),
+    ([("VID_0971&PID_2004", [("6&a&0&1", "")])], None, "none"),
+    ([("VID_0971&PID_2004", [("6&a&0&1", "libusb0")])], None, "libusb0"),
+    ([("VID_0971&PID_2004", [("6&a&0&1", "FTDIBUS")])], None, "vendor_driver"),
+    ([("VID_0971&PID_2004", [("6&a&0&1", "XRiteDevice")])], None, "vendor_driver"),
+    ([("VID_0971&PID_2004", [("6&a&0&1", "libusb0"), ("6&b&0&2", "FTDIBUS")])],
+     {"USB\\VID_0971&PID_2004\\6&B&0&2"}, "vendor_driver"),       # the live one decides
+    ([("VID_0971&PID_2004", [("6&a&0&1", "FTDIBUS"), ("6&b&0&2", "libusb0")])],
+     {"USB\\VID_0971&PID_2004\\6&B&0&2"}, "libusb0"),
+    ([("VID_0971&PID_2004", [("6&a&0&1", "libusb0")])], set(), "none"),   # remembered, gone
+    ([("VID_0971&PID_2004", [("6&a&0&1", "winusb")])], None, "vendor_driver"),  # not libusb0
+])
+def test_the_tables_driver_state_is_read_from_the_registry(entries, present, want):
+    from core import usb_driver_installer as inst
+    state, detail = inst.table_driver_state(entries, present)
+    assert state == want
+    assert "6&" not in repr(detail)        # never an instance key (it can hold a serial)
