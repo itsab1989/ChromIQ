@@ -1615,6 +1615,9 @@ class TableJob:
             if ok != "ready":
                 self._close_reader(reader)
                 raise PersonStopped("calibration_not_started")
+            # the instrument is out of the arm from here: no white counts (and so no row is
+            # read) until a calibration ends with the person's "seated"
+            self.calibration = None
         self._cal_refused = None
         self._open_reader(reader, self._cal_place_ok)
         cal_ok = bool(getattr(reader, "calibrated", False))
@@ -1622,12 +1625,16 @@ class TableJob:
         if not cal_ok:
             raise StageFailed("calibration_not_confirmed")
         self.cal_place = place
-        self.calibration = {"place": place, "t": d.t.now(), "kind": "spot"}
-        self.calibration_due = False
+        made = d.t.now()
         if place == "own tile":
+            # the white counts only once the instrument is back in the arm: no row is read
+            # with an instrument the person has not seated again
+            self.calibration = None
             ans = yield Ask(Confirm.CAL_RESEAT)
             if ans != "seated":
                 raise StageFailed("instrument_not_seated_again")
+        self.calibration = {"place": place, "t": made, "kind": "spot"}
+        self.calibration_due = False
         self._check_rest("after the calibration")
         self._block["data"]["calibration"] = {"place": place}
         return {"place": place, "valid_s": sp.CAL_VALID_S}
@@ -1740,6 +1747,11 @@ class TableJob:
         out = {"row": plan.index + 1, "page": self.page + 1, "status": rec["status"],
                "read": len(rec["accepted"]), "patches": len(plan.patches),
                "attempts": attempt}
+        if self._pause_stop:
+            # a stop asked for during the row's last patch: the row has ended, so it is
+            # honoured (nothing follows without a new step) and does not reach the next row
+            self._pause_stop = False
+            out["stop_asked_during_the_last_patch"] = True
         n_next = len(plan.patches)
         if self._calibration_due_for(n_next):
             out["calibration_due_before_next_row"] = True
@@ -1865,7 +1877,11 @@ class TableJob:
                                       "xyz": (f.detail.get("rec") or {}).get("xyz")})
                 if attempt == 2 or not f.retry:
                     raise _RowFailed(f.reason, p.loc) from None
-            # the fresh reading of where the arm stands: it must still be on the patch
+            # the fresh reading of where the arm stands: it must still be on the patch; the
+            # reader is sent to the patch again (never trusted to sit on it after a failure)
+            if hasattr(reader, "ready_loc"):
+                reader.ready_loc = None
+            self._drain(reader)
             got = d.position()
             if not _near(got, p.target):
                 d.outside_at = got
@@ -1873,6 +1889,18 @@ class TableJob:
                                f"not {p.target}")
             self._arrival = (d.lines_sent, d.position_now)
         raise _RowFailed("reading_failed", p.loc)      # pragma: no cover
+
+    @staticmethod
+    def _drain(reader) -> None:
+        """Before a patch is read again: the reader's events still waiting from the failed
+        reading (a spot_ready for the next patch, say) are taken off, so that the answer to the
+        new "goto" is the one that is read."""
+        proc = getattr(reader, "proc", None)
+        if proc is None or not hasattr(proc, "poll"):
+            return
+        for _ in range(200):
+            if proc.poll("\x00 none") is None:
+                return
 
     def _write_readings(self, folder: Path, name: str, rows) -> None:
         """The raw readings of a row (tester's <name>.readings.csv; numbers only)."""
