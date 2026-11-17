@@ -1162,6 +1162,10 @@ class TableJob:
             p = rep.xy()
             d.log("DATA", f"aim {a['number']}: p1 reports {p}")
             readings.append(p)
+        # the safety review's confirmation of step 6 (required): the person's hands were on the
+        # free arm for the aims, so the first motor move after them (the creep, the check move
+        # or the homing) waits for a hands-off GO again, in both modes (one more question a page)
+        self._go_page = None
         d.exchange("status")
         for _ in range(4):
             d._f4("01")

@@ -197,12 +197,14 @@ def test_no_offer_unless_the_measurement_was_clean(how):
 # ---- B, the not-asking mode ------------------------------------------------------------------
 
 def test_not_asking_mode_asks_nothing_after_a_step_and_go_once_per_page():
+    """GO once per page, plus once more after the aims (the safety review's confirmation of
+    step 6: the hands were on the free arm)."""
     sheet, pts = H.recorded_sheet("S2 684.0", 18)
     res, job, sim, p = H.run_steps(["open", "park", "align", "creep", "check_move", "home"],
                                    script={J.Confirm.FRONT_CHOICE: "go on"}, sheet=sheet,
                                    aims=pts, ask_after_each_step=False)
     assert p.reports == [] and all(r.confirm is None for r in res)
-    assert [k for _s, k, *_ in p.asked].count(J.Confirm.GO) == 1
+    assert [k for _s, k, *_ in p.asked].count(J.Confirm.GO) == 2
     assert all(r.kind == J.Kind.OK for r in res)
 
 
@@ -219,8 +221,40 @@ def test_go_is_asked_again_on_the_next_page():
         p2.drive(getattr(job2, s)())
     assert job2.next_page().ok
     p2.drive(job2.align())
-    assert [k for _s, k, *_ in p2.asked].count(J.Confirm.GO) == 2
+    # page 1: before the park/align, again after the aims (before the homing); page 2: align
+    assert [k for _s, k, *_ in p2.asked].count(J.Confirm.GO) == 3
     assert [k for _s, k, *_ in p2.asked].count(J.Confirm.SHEET_LAID) == 2
+
+
+# ---- the safety review's confirmation of step 6: GO again after the aims ----------------------
+
+@pytest.mark.parametrize("asking", [True, False], ids=["asking mode", "not asking"])
+@pytest.mark.parametrize("after", [["creep", "check_move", "home"], ["check_move", "home"],
+                                   ["home"]], ids=["creep", "check move", "homing"])
+def test_after_the_aims_no_moving_step_runs_without_a_new_go(asking, after):
+    """The person's hands were on the free arm for the aims: the first motor move after them
+    (the creep, the check move or the homing) waits for a hands-off GO, in both modes; a "back"
+    there moves nothing."""
+    # the creep needs a sheet reaching into the front zone; the check move one that does not
+    sheet, pts = (H.recorded_sheet("S2 684.0", 18) if after[0] == "creep"
+                  else (H.demo_sheet(), H.demo_aims()))
+    job, sim, _t = H.make_job(sheet=sheet, aims=pts, ask_after_each_step=asking)
+    p = H.Person(job, sim, {J.Confirm.FRONT_CHOICE: "go on"})
+    for s in ("open", "align"):
+        assert p.drive(getattr(job, s)()).kind == J.Kind.OK
+    assert job._go_page is None
+    n_moves = len(moves(sim.received))
+    r = getattr(job, after[0])()
+    assert (r.kind, r.confirm) == (J.Kind.NEEDS, J.Confirm.GO)
+    assert len(moves(sim.received)) == n_moves and not sim.moving
+    r = job.answer(J.Confirm.GO, "back")
+    assert r.reason == "person_chose_back" and len(moves(sim.received)) == n_moves
+    for s in after:
+        before = len(p.asked)
+        assert p.drive(getattr(job, s)()).kind == J.Kind.OK
+        gos = [k for _s, k, *_ in p.asked[before:]].count(J.Confirm.GO)
+        assert gos == (1 if s == after[0] else 0)
+    assert sim.violations == []
 
 
 # ---- report_problem: any time, either mode, never lost ---------------------------------------
