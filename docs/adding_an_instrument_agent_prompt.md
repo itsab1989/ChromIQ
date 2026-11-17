@@ -36,17 +36,30 @@ test and report.
    left behind, no keyboard stealing, and "Knut or Basti must approve" means
    "the ChromIQ maintainers approve".
 3. Collect the facts (section 5 of the guide): each with its source and how
-   sure it is. Decide which kind of instrument this is (section 4 of the
+   sure it is, and look at the calibration data the instrument stores before
+   you treat anything as unknown numbers to fit. Facts come from
+   documentation, use of the maker's program, the files it writes and
+   recordings of its traffic, never from taking the maker's program or
+   firmware apart. Decide which kind of instrument this is (section 4 of the
    guide) and tell me which route and why before you write code.
-4. Read the design specifications the checklist names for the areas you will
+4. **Two routes, side by side** (section 4a of the guide): (a) ChromIQ makes
+   the chart, I measure it in the instrument's own program, and ChromIQ
+   brings the measurement back; (b) ChromIQ drives the instrument itself.
+   Route (a) is useful sooner; route (b) is the goal. Work on both in
+   parallel, never one waiting for the other, and plan every question you
+   ask me (or a tester) so that one round answers as much as possible for
+   both: the form the program wants the chart in, one file it wrote,
+   unchanged, its reading order, the physical limits, and, where possible,
+   a recording of the very measurement whose file is sent.
+5. Read the design specifications the checklist names for the areas you will
    touch.
-5. Write a plan that goes through every stage of the checklist, item by item:
+6. Write a plan that goes through every stage of the checklist, item by item:
    for each, say what you will change and in which file, or why it does not
    apply. Include the options table (section 7 of the guide) and the run
    types (section 8 of the guide). Have the plan challenged by a separate
    session that did not write it, fold in its findings, show me the plan, and
    wait for my go-ahead.
-6. Run the existing tests once inside the project's `.venv` for a green start:
+7. Run the existing tests once inside the project's `.venv` for a green start:
    `QT_QPA_PLATFORM=offscreen pytest -n auto -q`.
 
 ## Rules you keep throughout
@@ -69,6 +82,29 @@ test and report.
   device's memory, settings, calibration or firmware; no movement on a guess;
   no command "just to look"; a simulator first. If something seems to need a
   new command, stop and ask me.
+- **If the device moves** (a table, an arm, a feeder; section 12a of the
+  guide): only lines seen in recordings of the maker's program, at recorded
+  speeds; one function writes every line and checks it against the allowed
+  list first; a guarded area whose every edge rests on a recorded reading,
+  with the coordinate frame of that reading named (an alignment sight and a
+  measuring opening are different points); new ground only in small steps,
+  each checked, with its own "yes"; texts that say only what the last
+  position reading shows, and "switch it off" first for a state nothing
+  sent can end; a simulator with its own copy of the limits and timings; the
+  guard attacked with random input and planted faults; and an independent
+  safety review (physical harm, memory writes, the allowed list, truthful
+  texts, privacy) before anything is offered to a tester. Never write to the
+  memory of the device or the instrument on it.
+- **Bringing a measurement back from another program** (route (a)): give the
+  program the chart in exactly the form it takes; put every reading on its
+  patch by its own place (a tag, an order file tied to the chart by a
+  checksum, a confirmed reading order), never by colour; refuse a file that
+  does not fit before anything is written, and correct nothing.
+- **Typed values stay as typed**: if something does not fit, say so and
+  refuse, never change it silently. Numbers in sentences follow the UI
+  language; numbers in files never do. Name controls exactly as the running
+  app shows them. One Beta and one instrument list entry per instrument
+  family, loosening no other instrument's rules.
 - **Do not change another instrument's code as a side effect.** Report what
   you notice; other instruments only need to stay unchanged.
 - **Never send a print job to a real printer.**
@@ -79,15 +115,26 @@ test and report.
 
 ## Before you open the pull request
 
-1. Run the checks and the gate exactly as stage 10 of the checklist shows.
-   Read the exit code from pytest itself, not through a pipe, and do not edit
-   files while the gate runs.
-2. Help me check the real app in a real window, switch on and off, with
+1. Prove "switched off changes nothing" (sections 9, 9a and 9b of the
+   guide): the parity test, the file comparison with the previous release,
+   and, if you touched shared paths, the byte-identity loop over every
+   built-in preset in the real app (previous release against the option off,
+   then off against on with nothing new used; only clock stamps may differ),
+   saying what the loop did not cover. Every new limit applies only to what
+   the new option allows. Answer every registry test that fires for a new
+   field; never loosen one.
+2. Run the checks and the gate exactly as stage 10 of the checklist shows.
+   Read the exit code from pytest itself, not through a pipe, in the shell
+   the command is written for, and do not edit files while the gate runs.
+3. Help me check the real app in a real window, switch on and off, with
    sandboxed settings and a scratch output folder. Do not move the keyboard
-   focus while I am typing.
-3. Have the result reviewed by a separate session that did not build it, given
-   the diff rather than your conclusions; fix and repeat until it finds
-   nothing that matters.
-4. Mark every checklist item done / not applicable (why) / open, and draft the
+   focus while I am typing. Pictures come from the fully styled app
+   (section 13 of the guide). Any number you write for people (a patch
+   count, a size) must be reachable by hand in the app.
+4. Have the result reviewed by a separate session that did not build it, given
+   the diff rather than your conclusions; the review measures what it
+   suspects, on screen or in a test, rather than only reading; fix and repeat
+   until it finds nothing that matters.
+5. Mark every checklist item done / not applicable (why) / open, and draft the
    pull request description from section 15 of the guide. One topic per pull
    request.

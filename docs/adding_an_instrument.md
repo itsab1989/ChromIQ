@@ -32,15 +32,18 @@ straight to [section 2](#2-you-own-an-instrument-chromiq-does-not-support-yet-th
 2. [You own an instrument ChromIQ does not support yet? This is how you can help](#2-you-own-an-instrument-chromiq-does-not-support-yet-this-is-how-you-can-help)
 3. [Talk to us first](#3-talk-to-us-first)
 4. [What kind of instrument is it?](#4-what-kind-of-instrument-is-it)
+   - 4a. [Two routes, worked in parallel](#4a-two-routes-worked-in-parallel)
 5. [Finding the facts](#5-finding-the-facts)
 6. [Designing the chart from what the instrument needs](#6-designing-the-chart-from-what-the-instrument-needs)
 7. [Options stay open, and everything is saved](#7-options-stay-open-and-everything-is-saved)
 8. [Every run type](#8-every-run-type)
 9. [Behind a Beta switch, and off changes nothing](#9-behind-a-beta-switch-and-off-changes-nothing)
    - 9a. [Checking your instrument against the others](#9a-checking-your-instrument-against-the-others)
+   - 9b. [Proving it for every preset: the byte-identity loop](#9b-proving-it-for-every-preset-the-byte-identity-loop)
 10. [What was saved builds as it was built](#10-what-was-saved-builds-as-it-was-built)
 11. [Measuring](#11-measuring)
 12. [Talking to the hardware](#12-talking-to-the-hardware)
+   - 12a. [Devices that move](#12a-devices-that-move)
 13. [Files, text and specifications](#13-files-text-and-specifications)
 14. [How we work: challenge, build, review, prove](#14-how-we-work-challenge-build-review-prove)
 15. [Opening the pull request](#15-opening-the-pull-request)
@@ -109,9 +112,12 @@ review will look for, written down so you can do them first.
   (`docs/design/unified_measurement_management.md`) where the text of every
   new window is proposed before the maintainers approve it.
 
-Where this guide gives an example from the X-Rite i1iO table, it comes from a
-chart-only Beta: ChromIQ makes charts for the table, and does not measure with
-it yet.
+Where this guide gives an example from the X-Rite i1iO table or the i1iSis
+chart readers, it comes from a Beta that makes charts for them and brings
+back the measurement their own program (i1Profiler) made of those charts.
+ChromIQ does not drive either of them yet; driving the i1iO table is being
+worked out with an owner, outside the app
+([section 12a](#12a-devices-that-move)).
 
 ## 2. You own an instrument ChromIQ does not support yet? This is how you can help
 
@@ -185,12 +191,25 @@ says what to prepare (a printed i1iSis chart page and a plain sheet).
    The i1Pro and the i1Pro 2 look the same to the computer: if you are not
    sure which one you have, choose 1, and the recording tells them apart. If
    you have both, plug in only the one you record with.
-5. **Work through the steps** in your instrument's own program, for example
+5. **On Windows, look at one line before the first step.** The tool checks
+   your PC and says "USB recorder attached to your instrument: yes", "no" or
+   "could not tell". Only "yes" means the recording can see your instrument.
+   If it says "no", the tool explains why and lists what to do: close the
+   tool, unplug the instrument, restart Windows with "Restart" (not "Shut
+   down"), plug the instrument in afterwards, and start the tool again.
+   Pressing Enter stops there; typing "go on" records anyway, which is
+   rarely worth it. "Could not tell" never stops anything.
+6. **Work through the steps** in your instrument's own program, for example
    X-Rite's i1Profiler. Each step is a short numbered list, one action per
    line. You can skip or repeat any step, and stop at any time; the steps you
    finished are kept. After each step you type a line or two about what you
-   did and what you saw.
-6. **At the end** the tool saves a plain-text report and, for a handheld
+   did and what you saw. After the first step the tool also checks that the
+   recording holds more than the instrument's USB description. If that is
+   all it holds, it says so at once, instead of after the last step: either
+   the measuring program did not talk to the instrument, or the recorder did
+   not see it. It tells you what to check, and you can stop, record the step
+   again, or go on.
+7. **At the end** the tool saves a plain-text report and, for a handheld
    instrument or an i1iSis, one `SEND-THIS-<date>.zip` with everything to
    send. Have a look at them before you send anything.
 
@@ -206,7 +225,24 @@ your instrument. When a step kept nothing, it says what the recording did
 hold (as counts and kinds of device, never contents) and what you can try,
 one action per line. If no step kept anything, it still writes one small
 `SEND-THIS-<date>-report-only.zip` with the report and no recording, which
-helps us find out why.
+helps us find out why. The report says what the recorder check found and,
+if it happened, that the first step held only the USB description.
+
+**Switching drivers on Windows, and why a session can keep nothing.** On
+Windows the recorder (USBPcap) joins a USB device only when Windows sets the
+device up: when it is plugged in, or when Windows starts. Changing the
+instrument's driver (for example from the driver ArgyllCMS and ChromIQ use
+to the maker's own driver, so that the maker's program can see it) makes
+Windows set the instrument up again without the recorder. One tester lost
+four whole sessions to exactly this: every step was recorded, and none held
+anything of the instrument. So, after every driver change, unplug the
+instrument and plug it in again before you record, restart Windows if the
+check still says "no", and do not change the driver between sessions.
+
+**Please use the latest version.** Each release fixes something a real
+session ran into, and the report records which version made it. The failure
+above was caught before the first step by the version released for it, but
+the tester was still running an older one.
 
 **What the report hides**
 
@@ -284,7 +320,16 @@ still work with which instrument; please check it before you start.
 [new issue](https://github.com/itsab1989/ChromIQ/issues/new) in the ChromIQ
 repository and attach the files there; for the i1iO table, attach them to
 [issue #129](https://github.com/itsab1989/ChromIQ/issues/129). An issue is
-public, so attach only what you are happy to share.
+public, so attach only what you are happy to share. If you would rather not
+post your instrument's serial number in public, the README says how to send
+the zip privately instead.
+
+**What is worth sending besides the recording.** If you measured something
+in your instrument's own program during the session, please send the
+measurement file it saved too, unchanged, and say which step it belongs to.
+A recording paired with the program's own result of that very measurement
+answers far more than either alone, and a measurement saved in another
+session cannot be paired afterwards.
 
 ### What helps even without a recording
 
@@ -324,8 +369,117 @@ and changing them is the maintainers' decision.
 | **A new feature for an instrument ChromIQ already measures with** | A change to the vendored ArgyllCMS instrument code in `native/instlib/`, recorded as a patch and in its provenance note, used only while the Beta switch is on. Every other instrument stays exactly as upstream. |
 | **An instrument with its own driver that returns one reading per patch** (a spot instrument, or a strip reader whose driver hands over each patch's reading on its own) | ChromIQ's own chartread runs the session with "external values" (`-xx`, `workflow/measure_manager.py::MeasureParams.external_values`): it opens no instrument and asks ChromIQ for each patch's reading, which a small bridge fetches from your driver. chartread keeps the session, the file and all the measurement logic, so resume, re-reading and the end windows come for free. |
 | **An instrument with its own driver that returns a whole strip at once** | Open an issue first: the external-values route asks for one patch at a time, so a driver that only delivers whole strips needs a design agreed with the maintainers. |
-| **A measuring table or an automatic chart reader** | Open an issue first and agree the design there. Making charts for it follows [section 6](#6-designing-the-chart-from-what-the-instrument-needs); there is no general measuring route for these devices yet. |
+| **A measuring table or an automatic chart reader** | Open an issue first and agree the design there. Making charts for it follows [section 6](#6-designing-the-chart-from-what-the-instrument-needs); bringing back the measurement its own program made follows [section 4a](#4a-two-routes-worked-in-parallel). There is no general route for driving these devices yet; a device that moves follows [section 12a](#12a-devices-that-move). |
+| **An instrument read through its own program only** (a coordinate-reading XY table, for example) | Route (a) of [section 4a](#4a-two-routes-worked-in-parallel): a chart the program can read, and an import that puts every reading on its patch. |
 | **A scanner or camera** | Not an instrument in this sense: ChromIQ reads a scanned chart with ArgyllCMS `scanin` (Tools > "Build profile with scanner or camera"). |
+
+For an instrument ChromIQ cannot drive yet, there are two ways to make it
+useful, and they are worked on side by side: the next section.
+
+## 4a. Two routes, worked in parallel
+
+An instrument becomes useful in ChromIQ in one of two ways:
+
+- **(a) Chart out, measurement back.** ChromIQ makes the chart, the person
+  measures it in the instrument's own program, and ChromIQ brings that
+  measurement back into the run.
+- **(b) ChromIQ drives the instrument itself.**
+
+Bringing measurements back is good to support: it is far better than
+nothing, and it can work long before (b) does. But driving the instrument
+ourselves stays the goal. **Neither route waits for the other, and neither
+is put first.** Both are tried at the same time, and every round with an
+owner is planned to answer as much as possible for both (what to ask for is
+at the end of this section). Today ChromIQ uses route (a) for the i1iSis
+chart readers (their chart Beta, `workflow/isis/`) and the i1iO table
+(`workflow/i1io/measure_chart.py`, `workflow/i1io/pages.py`), while route (b)
+for the i1iO table is being worked out with an owner in a separate tester
+program ([section 12a](#12a-devices-that-move)).
+
+### What route (a) needs
+
+**The form the other program wants the chart in.** Find out exactly what it
+takes, and give it exactly that:
+
+- **A chart-definition file of its own.** i1Profiler, for example, computes
+  the i1iSis grid itself from the page, margins, patch size and patch count.
+  So ChromIQ lays its chart out by the very same rule and writes an
+  i1Profiler test-chart file that makes i1Profiler expect exactly ChromIQ's
+  sheet (`workflow/isis/export.py`), with a test that the two grids agree.
+- **Or only grid numbers**, typed by the person. i1Profiler's "Measure
+  Chart" for the i1iO asks for columns and rows and three aimed corners. A
+  coordinate-reading XY instrument may ask for the centre of the first patch,
+  the distance from patch to patch and the number of rows and columns
+  ([issue #215](https://github.com/itsab1989/ChromIQ/issues/215): a
+  Barbieri Spectro 100xy read through its own older program, Spectro32).
+  ChromIQ then shows those numbers beside the chart, in the units and the
+  order the program asks for them, and prints a mark the person can line the
+  instrument up on.
+
+**The reading order.** A program that writes one line per patch in the order
+it read them, with no patch numbers (Spectro32 does: one line per patch, 41
+spectral values from 380 to 780 nm, no numbering), leaves the order as the
+only thing that ties a reading to its patch. So the order must be known for
+certain: row by row always in one direction, or back and forth like a snake,
+where it starts, and whether the person can change it. Ask, and confirm it
+on a real file.
+
+**Matching every reading to its patch, by something that cannot drift.**
+Pair readings by their own place: a tag in the file (i1Profiler's Row and
+Column tags on every i1iO reading), an order file ChromIQ wrote when it made
+the chart and tied to that exact chart by a checksum (the i1iSis export), or
+the known reading order. Never pair by colour and never by "the closest
+match". The colours are a safety net only: they decide whether a file is
+filed, never where a reading goes.
+
+**Refusing a file that does not fit, and changing nothing.** A file whose
+grid, patch count, order or colours do not fit the chart is refused with
+the reason and the way to measure again, before anything is written. A sheet
+that looks turned, mirrored or shifted is not "corrected". Where the colours
+cannot tell (a chart of sorted greys, say), the person is asked rather than
+the file being filed in silence (`workflow/i1io/measure_chart.py`).
+
+**Several pages.** A program may save one file per sheet without saying which
+sheet it was. ChromIQ then works the page out: only the pages whose grid is
+the file's grid are candidates, each is checked on its own, exactly one
+clear match is the page, and anything less certain is asked about. A page
+that came in waits in the run folder as its own file, and the run's
+measurement is written only when every page is in, so nothing can take a
+part for the whole. The pages must agree with each other on what was
+measured (the measurement condition and the instrument) before they are
+merged (`workflow/i1io/pages.py`). Where several pages cannot be brought
+back yet (the i1iSis chart Beta today), the app says so plainly and keeps
+the file, never guesses.
+
+### What route (b) needs
+
+Everything in sections 5, 11 and 12: the facts, recordings of the maker's
+own program, a simulator, the Start preflight, and the rules for talking to
+the hardware; and, for a device that moves, section 12a.
+
+### What to ask an owner for, in one round
+
+Owners give their time; plan every round so that one sitting answers as much
+as possible, for both routes at once. A good request asks for:
+
+1. **What the program wants**: a chart-definition file (which format), or
+   the grid numbers it asks for, and how the person lines the instrument up.
+2. **What the program writes**: one file it saved, unchanged, from any
+   measurement at all. Reading its real format beats any description.
+3. **The reading order**, and whether the person can choose it.
+4. **Physical limits**: the smallest patch the person would trust, the
+   aperture, the gaps the instrument needs, how exactly it returns to a
+   position.
+5. **A measurement of a chart ChromIQ made**, as soon as there is one, with
+   the program's own file of it, and, where a recording is possible
+   ([section 2](#2-you-own-an-instrument-chromiq-does-not-support-yet-this-is-how-you-can-help)),
+   the recording of that very measurement, so the two can be paired.
+6. **Only what comes from using the program and from the files it writes.**
+   Nothing taken from inside the maker's program itself.
+
+Ask each question in plain words, one topic at a time, and say why you ask.
+
+*In [the checklist](adding_an_instrument_checklist.md): items 0.6, 0.7 and 6.5 to 6.8.*
 
 ## 5. Finding the facts
 
@@ -371,6 +525,21 @@ are the ones to use:
 - **`LIKELY`**: one reading fits all the evidence, but it is not proved;
 - **`OURS`**: a design choice of the project's own, with its reason.
 
+**Look at what the instrument stores about itself.** Many instruments keep
+factory calibration data in their own memory, and the maker's program reads
+it every time it connects, so it is in every recording of a program start.
+For instruments ArgyllCMS knows, its sources name many of these entries and
+list the rest by number (for the i1Pro family, the key tables in
+`native/instlib/i1pro_imp.h`). Before you treat a behaviour of the maker's
+program as a set of unknown numbers to be fitted, check whether one stored
+table explains it. It happened on this project: the i1Pro 2's dual-scan
+results looked like a set of per-band factors to be found from
+measurements, and two tables in the instrument's own memory explained all
+fifteen of them, leaving a single unknown. Stored data like this can belong
+to that one instrument: compare it between units before you call it a model
+constant, and keep it out of the repository like every other recording (see
+"Keep it lawful and plain" below).
+
 **A guess is a comment, never a value.** Something you only suspect is
 written down as a note beside the code or in the issue, so the next recording
 can confirm or drop it. It never becomes a number the code uses, and never a
@@ -379,9 +548,12 @@ command, a movement or a timing that a device is driven with
 
 **Keep it lawful and plain.** Observing how a program behaves, and recording
 the traffic of your own device, to make another program work with it, is
-what this project does. It never copies the maker's program code, firmware,
-calibration data, stored instrument memory, chart files or tables into the
-repository. Facts are written down in our own words, with a note of where
+what this project does. It never takes the maker's program or firmware
+apart: no disassembling, decompiling or patching of their binaries, and
+nothing read out of their installed files. What we learn comes from using the
+program, from the files it writes and from recordings of its traffic. It
+never copies the maker's program code, firmware, calibration data, stored
+instrument memory, chart files or tables into the repository. Facts are written down in our own words, with a note of where
 they came from. Treat every recording as private evidence: it may hold more
 than the instrument (another USB device's traffic, for example), which is why
 the recording tool is used in its newest version with other devices
@@ -540,7 +712,21 @@ the `.ti2`'s `CREATED` line, the clock time, is taken out). Run it with the
 switch off, then with `--betas on`, and put both tables in your pull request;
 see [section 9a](#9a-checking-your-instrument-against-the-others) below. If your change
 touches recipes, presets or saved projects, also build a few of those saved
-by the previous release in both trees, as section 10 describes.
+by the previous release in both trees, as section 10 describes, and run the
+loop over every built-in preset of
+[section 9b](#9b-proving-it-for-every-preset-the-byte-identity-loop).
+
+**A new limit applies only to what the new option allows.** A memory guard,
+a size limit or any other new refusal that comes with your option must ask
+"does this chart use something only the option allows?" before it applies.
+Otherwise switching the option on takes away charts that worked before, and
+the option becomes a regression for everyone who tries it. This happened: a
+memory guard for very large pages first applied to every chart while the
+option was on, and would have refused ordinary charts the previous release
+built. The fix was one question asked in all three places the guard runs
+(`workflow/page_output/support.py::needs_budget`), and tests that such
+charts, ones the guard would have refused, are let through with the option
+on.
 
 *In [the checklist](adding_an_instrument_checklist.md): stages 1 and 10.*
 
@@ -646,8 +832,8 @@ Put the contact sheets for the steps your work touches in the pull request.
 ### 3. "Switched off changes nothing", in one command
 
 ```bash
-python scripts/compare_with_release.py v4.3.33 --out ~/Desktop/compare
-python scripts/compare_with_release.py v4.3.33 --out ~/Desktop/compare-on --betas on
+python scripts/compare_with_release.py v4.3.43 --out ~/Desktop/compare
+python scripts/compare_with_release.py v4.3.43 --out ~/Desktop/compare-on --betas on
 ```
 
 Use the latest release tag (`git tag --sort=-v:refname`). The script checks
@@ -675,6 +861,42 @@ JSON side file, which keys) changed, so you can explain it. Put both tables
 in the pull request.
 
 *In [the checklist](adding_an_instrument_checklist.md): items 3.11, 3.12, 4.5, 10.4, 10.5 and 10.8.*
+
+## 9b. Proving it for every preset: the byte-identity loop
+
+`scripts/compare_with_release.py` builds charts from the layout engine's
+defaults. A change that touches shared paths (recipes, the panel, the files a
+chart is written to) needs the same proof through the real app, for every
+built-in preset. This is how it was done for the page-output Beta of 4.3.43:
+
+1. **Two trees**: the previous release in its own worktree, and your branch.
+2. **One driver for both**: it starts the real app in each tree with
+   sandboxed settings (as in [section 14](#14-how-we-work-challenge-build-review-prove)),
+   loads **every** built-in preset in turn, presses Generate, and keeps every
+   file written. Pin what can be pinned: the shuffle seed, the chart date and
+   the version number the files carry. A layout that draws its own random
+   seed (a contributor's layout may) needs that pinned too, or it differs
+   from run to run whatever you changed.
+3. **Compare byte for byte.** The only lines allowed to differ are clock
+   stamps: the `CREATED` line of a `.ti2` or `.ti3`, a creation date inside a
+   side file, the time in an archive folder's name. Mask only those, look at
+   every masked line once, and expect the rest to be identical: TIFFs, `.ti1`,
+   `.ti2`, `.txt` and the project files.
+4. **Run it twice**: the previous release against your branch with the option
+   off, and your branch with the option off against the option on but
+   nothing new used. Both must show no difference.
+
+**What such a loop does not cover unless you add it.** Built-in presets are
+mostly RGB charts made in Manual, so add scenarios of your own for: Guided
+mode; old projects opened and generated again; CMYK and other ink sets; the
+charts of the other instrument layouts (for example the i1iO, the i1iSis
+and the FD-9); the patch set editor's output; and builds with the settings
+stamp on. Say in the pull request which of these the loop covered.
+
+Keep the raw files of at least a few presets on both sides, so that a
+reviewer can rerun or diff them after the fact.
+
+*In [the checklist](adding_an_instrument_checklist.md): items 10.9 and 10.10.*
 
 ## 10. What was saved builds as it was built
 
@@ -769,6 +991,124 @@ command it does not understand.
 
 *In [the checklist](adding_an_instrument_checklist.md): stage 8.*
 
+## 12a. Devices that move
+
+A table, an arm or a sheet feeder adds risks a handheld instrument does not
+have: a wrong line can drive a motor against the end of its travel, drag the
+head across a sheet, or leave the device waiting in a state that nothing
+sent can end. Everything in section 12 holds, and more. These rules come
+from the work on driving the X-Rite i1iO table
+([issue #129](https://github.com/itsab1989/ChromIQ/issues/129)), done with
+the table's owner through small tester programs outside the app; the latest
+is public, with its README and the list of every line it can send, on the
+branch
+[`tester/i1io-session-0.5.0`](https://github.com/itsab1989/ChromIQ/tree/tester/i1io-session-0.5.0/tools/i1io_session).
+None of it is in the app yet; how it would move into the app is designed,
+not built.
+
+**Only what was seen.**
+
+- Every line sent is a line seen in a recording of the maker's own program on
+  that device, in its recorded form. Computed moves are built only in the
+  recorded line form, at speeds the program itself used, and only to places
+  the guarded area allows (below).
+- A line whose purpose is still unknown is sent, if at all, only exactly as
+  recorded and in the place in the sequence where it was recorded, and the
+  command list says that its purpose is unknown. Whether such a line may
+  ever ship in the app is the maintainers' decision, written into the
+  instrument's specification first.
+- Never a write to the memory or the configuration of the device or of the
+  instrument on it. The reader used on the table is built with ArgyllCMS's
+  memory writes compiled out (`ENABLE_WRITE` in `native/instlib/i1pro_imp.c`
+  stays undefined).
+- Nothing comes from taking the maker's program apart
+  ([section 5](#5-finding-the-facts)): recordings and use of the program only.
+
+**One writer, one gate.** Every line goes through one function, which checks
+it against the list of allowed lines right before it is written, and the
+lowest USB write checks it once more. Computed moves are made by a few
+builders and nowhere else. A move needs a position read since the last
+movement, and the whole rectangle the arm could sweep on its way, not only
+its target, must lie inside the guarded area.
+
+**A guarded area, with its evidence.** Every edge of the area rests on a
+position the device itself reported in a recording, or on a size the maker
+publishes, and a table names the source of each edge. Where the area is an
+estimate (a size the maker publishes for a sister model, placed by where the
+measuring opening has actually been), every text says "our estimate", never
+"the specified area".
+
+**Coordinate frames.** Name the frame of every number. On the i1iO table the
+alignment sight and the measuring opening are two different points about 3 cm
+apart, and the device reports positions for both. A front edge taken from
+sight readings let computed moves go about 3 cm further forward than the
+opening had ever been. Nothing in the tests caught it, because they used the
+same wrong number; an independent safety review did. Two checks would have
+found it at once: a table that says for every edge which frame its reading
+is in, and a test that your own fit of each recorded alignment reproduces
+the moves the maker's program then made.
+
+**Unproven territory in small confirmed steps.** A move into a part of the
+device no recording reached is announced first and needs its own "yes".
+Where a sheet needs more room than the recordings prove, the program feels
+its way there in small steps (5 mm on the i1iO), checking after each that
+the arm arrived where it was sent and in the time the recordings predict.
+The first step that does not stops; the confirmed limit stays at the last
+clean step, and nothing more moves except the recorded way home. Offer the
+safer choice first ("lay the sheet further back") and make the new ground the
+one that needs typing.
+
+**Staged tester programs that get the most out of every sitting.** A tester's
+time with the device is precious, so one sitting tests many things:
+
+- each stage is explained before it runs (what moves, how far, how long it
+  took in the maker's program, what is exactly as recorded and what goes
+  beyond it, how risky we think it is), needs a typed "yes", can be skipped,
+  and ends with questions about what the person saw, heard and felt;
+- a stage that fails cleanly (nothing left waiting, and the arm read where
+  it stands) ends only that stage: the program keeps everything about the
+  failure and offers the next stage that does not depend on it. A failure is
+  a result, improved from its log;
+- anything not clean (a move whose end is not known, a reply never seen
+  before, Ctrl-C) ends the sitting for good, and nothing more is sent;
+- everything comes back in one results file that holds no serial number and
+  nothing from the device's memory, and the program asks for the maker's
+  own measurement of the same sheet, so the two can be compared.
+
+**The true state, and the way out.** End texts say only what the last
+position reading shows ("held when last checked", "at its resting place"
+only when it was read there). For a state nothing sent can end (on the i1iO,
+a strip move waiting for the instrument's lamp), the first words are "switch
+the device off now", a marker file is written so the next start says it
+again, and no text suggests anything that could set the move off (such as
+opening the maker's program). The power switch is the emergency stop: say so
+before anything moves, and say that Ctrl-C does not stop a move that has
+already begun.
+
+**A simulator with its own timing.** The simulator has its own copy of the
+area, the speeds and the timings, measured from the recordings and not
+imported from the code it tests, so a wrong constant in the code fails a
+test instead of agreeing with itself. It answers with every fault the
+device could give at every line (no reply, a refusal, a move that falls
+short, a mechanical end of travel, a pulled cable), and it raises on anything
+the real device would not like (a line while the arm moves, a move outside
+its box).
+
+**Attack the guard.** Throw hundreds of thousands of random lines, states,
+alignments and hostile sheets at the gate and the builders, and count the
+lines that got through where they should not: the answer must be zero. Then
+plant faults in the code on purpose (remove a check, shift a limit) and make
+sure a test fails for each; add a test for every one that survives.
+
+**An independent safety review before every offer.** Before a tester program
+goes to an owner, someone who did not build it reviews it, scoped to
+physical harm to the device, the instrument or a sheet; memory writes; the
+list of allowed lines; truthful texts; and privacy. "A stage may fail" is not
+a reason to remove it; "a stage may hurt the device" is. Fix what the review
+requires, and review again.
+
+*In [the checklist](adding_an_instrument_checklist.md): items 8.11 to 8.18.*
+
 ## 13. Files, text and specifications
 
 These are the project's usual rules; the checklist has the details and the
@@ -782,9 +1122,45 @@ tests.
   vendor in the files. Where one entry stands for a family, the files carry
   the family name and record the generation separately, so a later generation
   never renames a file already written.
+- **One Beta per instrument family, with its own entry.** A new instrument
+  or family gets its own Beta switch and its own entry in the instrument
+  list, with rules of its own. It never loosens another instrument's rules
+  to fit: a chart for a coordinate-reading table, for example, is planned
+  as its own entry rather than as a change to the SpectroScan layout
+  ([issue #215](https://github.com/itsab1989/ChromIQ/issues/215)).
 - **Text**: friendly, complete, easy to understand and correct; every string
   in `tr()`; all 13 languages, with a second, independent translation pass;
   no em dash in new English text.
+- **Names as the app shows them.** Name every control, tab and option
+  exactly as the running app labels it, in the language you write in, and
+  check it on screen rather than from memory or from another tool's
+  documentation. For example, in the ChromIQ layout engine's panel the
+  resolution box is "Resolution:" under "Page geometry", not printtarg's
+  "TIFF Output DPI", and an early reply to a user named the wrong one.
+- **A value the person typed is never changed silently.** If it cannot be
+  used with another setting, keep it as typed, say in plain words what does
+  not fit and what would, and let Generate refuse with that reason. Never
+  shorten, round or "fit" it on the person's behalf. In 4.3.43 a page typed
+  in pixels was first cut down when the resolution was lowered, and stayed
+  cut when it was raised again; typing "2032" into the resolution box even
+  passed through 203 on the way. Now, with that option on, the box takes its
+  value on Return, and the typed page is kept and explained.
+- **Numbers in sentences follow the UI language; numbers in files never
+  do.** In German, French and the other languages with a decimal comma, a
+  sentence writes "11,2"; a file, a command line for ArgyllCMS, or anything
+  read back always writes "11.2" (`core/i18n.py::decimal_text`, and
+  `tr(...).format()` does it for a field with a numeric format). Do not
+  group thousands with a comma in a sentence: in those languages "4,096"
+  reads as four.
+- **Pictures for people come from the fully styled app.** A screenshot for
+  the documentation, a pull request or a reply is taken of the real window,
+  built as the app builds itself: `scripts/capture_screens.py::build_app`
+  for the application, then the main window, then
+  `scripts/capture_screens.py::set_theme` for the theme and stylesheet
+  (`ui/theme.py::apply_appearance`). A bare `QApplication` draws other
+  fonts, colours and buttons than the app people use. Before you use a
+  picture, check that it shows the version you mean and no leftover from
+  an earlier step (an old chart in the preview, an error line in the log).
 - **Messages**: every new window gets an ID in §M-PROPOSED of
   `docs/design/unified_measurement_management.md` first, word for word the
   same as in the code. Proposed texts are shown in the app; the maintainers
@@ -806,7 +1182,14 @@ tests.
 3. **Independent review after building**, by someone who did not build it
    and is given the diff rather than your conclusions, with the switch on and
    off. Fix what they find, and review again until nothing that matters is
-   left.
+   left. **A review measures; it does not only read.** What reading the code
+   suggests is a lead, to be confirmed or refuted on screen or in a test,
+   and the review says which findings were measured. The worst fault of the
+   4.3.43 Beta (a typed page cut down by the resolution box) was found only
+   by typing into the real box; two other findings made by reading turned
+   out one true and one false once they were tried. For a device that
+   moves, the review is the safety review of
+   [section 12a](#12a-devices-that-move).
 4. **Prove it in the real app, in a real window**, with sandboxed settings and
    a scratch output folder, the switch on and off. Never print to a real
    printer from a script, and never take the keyboard from a person who is
@@ -821,7 +1204,11 @@ tests.
 
    It is green when the count line says `N passed` with no `failed` and the
    exit code, read from pytest itself and not through a pipe, is 0. Do not
-   edit files while it runs. The checklist's stage 10 has the quicker checks
+   edit files while it runs. Run it in the shell it was written for: the
+   lines above work the same in bash and zsh, but a variant that reads the
+   exit code of a pipe (bash's `PIPESTATUS`, zsh's `pipestatus`) or uses
+   `$NAME:r` (a zsh modifier, plain text in bash) means something else in the
+   other shell. When in doubt, use the redirect above and nothing cleverer. The checklist's stage 10 has the quicker checks
    to run first, and the Windows command.
 
 *In [the checklist](adding_an_instrument_checklist.md): stage 10.*
@@ -829,14 +1216,18 @@ tests.
 ## 15. Opening the pull request
 
 One topic per pull request, based on the current `master`. The description
-says what the instrument is and which route it uses; the facts the chart was
+says what the instrument is and which route it uses (section 4, and for
+route (a) of section 4a: which file the other program reads and writes, how a
+reading finds its patch, and what is refused); the facts the chart was
 designed from, with their sources and confidence; the options table; which run
 types work and what the app says about the rest; the tests and the file
-comparison that prove "off changes nothing"; **what was tried on the device and
-what was not**; the commands the driver sends and its licence and provenance;
+comparisons that prove "off changes nothing" (section 9, and the loop of
+section 9b with what it covered and what it did not); **what was tried on the
+device and what was not**; the commands the driver sends and its licence and provenance;
 the new message IDs and specification blocks; the translations you are unsure
-of; who challenged and who reviewed, and what they found; the gate's count
-line and exit code; and screenshots from the real app, switch on and off.
+of; who challenged and who reviewed, what they found, and which findings
+were measured rather than read; the gate's count line and exit code; and
+screenshots from the fully styled real app (section 13), switch on and off.
 Attach the checklist with every item marked done, not applicable (why) or
 open.
 
@@ -864,6 +1255,50 @@ nobody's fault: most are invisible until somebody knows to look.
 | Raw errors and English-only log lines | Friendly windows from the catalogue, `tr()` everywhere. |
 | Tests that need the author's device or recordings | Invented data only; every test runs anywhere. |
 | An unrelated change riding along | One topic per pull request. |
+| A new limit (memory, size) that applied to every chart while the option was on | Ask "does this chart use what only the option allows?" first ([section 9](#9-behind-a-beta-switch-and-off-changes-nothing)). |
+| A value the person typed, cut down by another setting without a word | Keep it as typed, say what does not fit, refuse Generate with the reason ([section 13](#13-files-text-and-specifications)). |
+| A thousands comma in a German sentence ("4,096 pixels") | Numbers in sentences follow the UI language; files never do. |
+| A boundary taken from the alignment sight's readings instead of the measuring opening's | Name the frame of every number; test your fit against the maker's own recorded moves ([section 12a](#12a-devices-that-move)). |
+| A whole recording session that kept nothing, after the instrument's driver was changed on Windows | Re-plug (or restart Windows) after every driver change; check "USB recorder attached: yes" before the first step ([section 2](#2-you-own-an-instrument-chromiq-does-not-support-yet-this-is-how-you-can-help)). |
+| A registry test silenced instead of answered | Classify the new field in every registry, with its reason (below). |
+| A documented number nobody could reach by hand | Reproduce it by hand in the app (below). |
+| A gate result read through a pipe or in the wrong shell | Redirect to a file and read pytest's own exit code (below). |
+| A review that only read the code | Measure every finding (below). |
+
+### Four of them, told in a little more detail
+
+**A registry test fires when you add a recipe field. That is its job.**
+Adding two fields to the chart recipe turned seven tests red at once: the
+recipe round trip, the parity check's list of candidates, the i1iO's
+classification of every field, the list of files that name the i1iO, and
+more. Each is a ledger that makes sure a new field is saved, compared and
+thought about everywhere. Answer each one: classify the field with a true
+reason, add it to the round-trip sample, name the test that covers it.
+Never make one pass by loosening it, and run the everyday tier before you
+hand the work to a reviewer, so the reviewer does not find it red.
+
+**A builder's script set a value the app does not show.** The release notes
+of 4.3.43 promised 756 patches on a 35 mm frame. The builder had measured
+that with a script that also set the layout's base margin, a value with no
+control of its own in the panel. Done by hand in the released app, with
+every setting the notes listed, the same frame holds 576. Whenever a number
+is meant for people to reproduce, reproduce it by hand in the app, or with
+a driver that only presses what a person can press.
+
+**A gate read through a pipe or in the wrong shell.** `pytest` piped into
+`tail` and followed by `echo $?` prints the exit code of `tail`, so a red
+run can look green. The same command copied between bash and zsh can also
+change meaning (`PIPESTATUS` against `pipestatus`, or a `:r` after a
+variable, which zsh reads as "drop the file extension"). Redirect the output
+to a file, read `$?` right after pytest, and check the count line for
+`failed` as well.
+
+**A review done by reading only.** Reading the code finds leads, not facts.
+In one review round, a finding made by reading was confirmed once it was
+tried, another was refuted, and the most serious fault of the round was
+found only by typing into the real resolution box, which no reading had
+suggested. A review that measures says which of its findings it measured;
+one that cannot measure something says so.
 
 The checklist's last stage lists every mistake with the test or check that
 catches it.
