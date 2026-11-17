@@ -249,7 +249,7 @@ def test_a_row_is_outlined_from_its_own_patch_boxes(tab, tmp_path):
     tab._patch_boxes = [{"A1": QRect(0, 0, 10, 10), "A2": QRect(10, 0, 10, 10),
                          "B1": QRect(0, 20, 10, 10), "B2": QRect(10, 20, 10, 10)}]
     got = []
-    tab._preview.set_table_rows = lambda page, rows, done=(), active=None: got.append(
+    tab._preview.set_table_rows = lambda page, rows, done=(), active=None, failed=(): got.append(
         (page, len(rows), set(done), active, rows[active][0] if active is not None else None))
     tab._table_highlight_row(0, 0, ["A1", "A2"])
     tab._table_highlight_row(0, 0, [], status="read")

@@ -457,7 +457,7 @@ written when the table was opened makes the next START ask "switched off and on"
 anything is sent (M-I1IO-DRIVE-MARKER-APP-ENDED).
 
 The preview follows the job: the mark the arm should point at while aiming; the row being
-read in a thick frame in the accent colour with a light fill, a read row only a small green dot beside it (in
+read in a thick frame in the accent colour with a light fill, a read row only a green check mark in the white space between its label and its first patch, a row that could not be read a small cross in the warning colour there (in
 both modes); with "Patch-by-patch mode (-p)" also a ring, drawn twice as thick as the hand
 path's, on the patch the arm goes to (announced after the stop check, when the arm really
 moves). Every reading goes into the live overlay and the "Progress" figure. The panel's state

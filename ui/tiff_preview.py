@@ -2369,12 +2369,13 @@ class TiffPreview(QWidget):
             self._scan_grid = state
             self._schedule_refresh()
 
-    def set_table_rows(self, page: int, rows, done=(), active=None) -> None:
+    def set_table_rows(self, page: int, rows, done=(), active=None, failed=()) -> None:
         """The i1iO table's rows on *page* (fix round 10, M-3): *rows* a list of rows, each a
-        list of patch rects in image pixels; *done* the indices read; *active* the one being
-        read (or None). ``rows=None`` clears it. Display only."""
+        list of patch rects in image pixels; *done* the indices read; *failed* the indices that
+        could not be read; *active* the one being read (or None). ``rows=None`` clears it.
+        Display only."""
         state = None if rows is None else (int(page), [list(r) for r in rows],
-                                           frozenset(done), active)
+                                           frozenset(done), active, frozenset(failed))
         if self._table_rows != state:
             self._table_rows = state
             self._schedule_refresh()
@@ -2386,24 +2387,26 @@ class TiffPreview(QWidget):
 
     def _draw_table_rows(self, painter, s, sy, ox, oy) -> None:
         """The row being read: a thick frame in the accent colour with a light fill. A row
-        already read: only a small filled dot in the margin beside it (the owner, after the
-        first on-screen runs: outlines on every read row looked messy and crowded), so the
-        chart still looks like a chart with half or all of it read."""
+        already read: a green check mark in the white space between the row's label and its
+        first patch; a row that could not be read: a small cross in the warning colour there
+        (the owner, after the first on-screen runs: outlines on every read row looked messy;
+        his choice of the check mark). Nothing is drawn over the patches of a row that is not
+        being read, so the chart still looks like a chart with half or all of it read."""
         from PyQt6.QtGui import QPen
-        page, rows, done, active = self._table_rows
+        page, rows, done, active, failed = self._table_rows
         if page != self._current:
             return
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         accent = self._overlay_accent(self._OVERLAY_RING)
         for i, cells in enumerate(rows):
-            if not cells or (i != active and i not in done):
+            if not cells:
                 continue
-            x0 = min(r.x() for r in cells)
-            y0 = min(r.y() for r in cells)
-            x1 = max(r.x() + r.width() for r in cells)
-            y1 = max(r.y() + r.height() for r in cells)
             if i == active:
+                x0 = min(r.x() for r in cells)
+                y0 = min(r.y() for r in cells)
+                x1 = max(r.x() + r.width() for r in cells)
+                y1 = max(r.y() + r.height() for r in cells)
                 pad = 3.0
                 rect = QRectF(x0 * s + ox - pad, y0 * sy + oy - pad,
                               (x1 - x0) * s + 2 * pad, (y1 - y0) * sy + 2 * pad)
@@ -2421,14 +2424,45 @@ class TiffPreview(QWidget):
                 painter.setPen(pen)
                 painter.drawRect(rect)
                 continue
-            # read: a dot in the margin to the left of the row, never a line over the patches
-            h = (y1 - y0) * sy
-            r = max(3.0, min(7.0, h * 0.22))
-            cx = x0 * s + ox - r - 4.0
-            cy = (y0 + y1) / 2.0 * sy + oy
-            painter.setPen(QPen(QColor(255, 255, 255, 220), 1.5))
-            painter.setBrush(QColor("#2fa36b"))
-            painter.drawEllipse(QPointF(cx, cy), r, r)
+            if i not in done and i not in failed:
+                continue
+            # the mark goes in the white space beyond the row's FIRST patch, the side its
+            # label is printed on. Worked out along the row itself, because a page can be
+            # shown turned (an i1iO sheet's rows are columns of its image), so "left" in image
+            # pixels is not always left on screen. Sized to a third of the patch, which fits
+            # the gap a label leaves at any zoom; with labels off it sits in the sheet's
+            # margin there, which is white as well.
+            first, last = cells[0], cells[-1]
+            fx = (first.x() + first.width() / 2.0) * s + ox
+            fy = (first.y() + first.height() / 2.0) * sy + oy
+            lx = (last.x() + last.width() / 2.0) * s + ox
+            ly = (last.y() + last.height() / 2.0) * sy + oy
+            dx, dy = fx - lx, fy - ly
+            norm = (dx * dx + dy * dy) ** 0.5 or 1.0
+            dx, dy = dx / norm, dy / norm
+            half = max(abs(dx) * first.width() * s, abs(dy) * first.height() * sy) / 2.0
+            across = min(first.width() * s, first.height() * sy)
+            m = max(5.0, min(16.0, across * 0.36))
+            cx = fx + dx * (half + 3.0 + m / 2.0)
+            cy = fy + dy * (half + 3.0 + m / 2.0)
+            colour = QColor("#2fa36b") if i in done else QColor("#e08a00")
+            for c, w in ((QColor(255, 255, 255, 230), max(3.0, m * 0.34)),
+                         (colour, max(1.8, m * 0.2))):
+                pen = QPen(c)
+                pen.setWidthF(w)
+                pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+                pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+                painter.setPen(pen)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                h = m / 2.0
+                if i in done:
+                    painter.drawPolyline([QPointF(cx - h, cy), QPointF(cx - h * 0.25, cy + h * 0.7),
+                                          QPointF(cx + h, cy - h * 0.75)])
+                else:
+                    painter.drawLine(QPointF(cx - h * 0.7, cy - h * 0.7),
+                                     QPointF(cx + h * 0.7, cy + h * 0.7))
+                    painter.drawLine(QPointF(cx - h * 0.7, cy + h * 0.7),
+                                     QPointF(cx + h * 0.7, cy - h * 0.7))
         painter.restore()
 
     def _draw_scan_grid(self, painter, sx, sy, ox, oy):

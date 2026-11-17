@@ -7335,16 +7335,21 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         done = getattr(self, "_table_rows_done", None)
         if done is None or getattr(self, "_table_rows_page", None) != page:
             done = self._table_rows_done = set()
+            self._table_rows_failed = set()
             self._table_rows_page = page
+        failed = getattr(self, "_table_rows_failed", set())
         if status == "read":
             done.add(row)
+            failed.discard(row)
+        elif status == "failed":
+            failed.add(row)
         rows = self._table_row_cells(page)
         if not rows:
             return
         if page != self._preview.current_page():
             self._preview.show_page(page)
         active = None if status else (row if 0 <= row < len(rows) else None)
-        self._preview.set_table_rows(page, rows, done, active)
+        self._preview.set_table_rows(page, rows, done, active, failed)
 
     def _table_row_cells(self, page: int) -> list:
         sheet = getattr(self, "_table_sheet", None) or {}
