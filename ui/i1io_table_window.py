@@ -232,11 +232,14 @@ STOP_REASONS = ("stopped_before_the_next_move", "stopped_between_patches",
 SHOWN_CHOICES = {"arm_felt": ("free", "holds", "not sure")}
 
 
-def step_done_text(step: str, detail: dict) -> str:
-    """What the step that just ran did, for M-I1IO-DRIVE-REPORT's first paragraph."""
+def step_done_text(step: str, detail: dict, page: "int | None" = None) -> str:
+    """What the step that just ran did, for M-I1IO-DRIVE-REPORT's first paragraph. *page*
+    (1-based) when the step's own result does not name it (a row that failed and was ended:
+    found on screen, the text said "page ?")."""
     if step == "read_row":
         return tr("The arm moved along row {row} of page {page} and read its "
-                  "patches.").format(row=detail.get("row", "?"), page=detail.get("page", "?"))
+                  "patches.").format(row=detail.get("row", "?"),
+                                     page=detail.get("page") or page or "?")
     return {
         "start_up": tr("The table started, the way i1Profiler starts a table that was just "
                        "switched on."),
@@ -1372,7 +1375,8 @@ class TableMeasureWindow(QFrame):
     def _ask_report(self, res) -> None:
         from workflow import measurement_messages as M
         step = self.job.report_due
-        title, body = M.M_I1IO_DRIVE_REPORT.render(step=step_done_text(step, res.detail))
+        title, body = M.M_I1IO_DRIVE_REPORT.render(step=step_done_text(
+            step, res.detail, page=self.job.page + 1))
         self._report_res = res
         buttons = [(choice_label(REPORT, v), _Report(self, v).fire)
                    for v in ("as described", "something wrong", "not sure")]

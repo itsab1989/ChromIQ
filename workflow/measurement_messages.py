@@ -12003,7 +12003,8 @@ M_I1IO_DRIVE_ROW_FAILED = _m(
     "then reads the row again. At most two rows of a page are read again.\n"
     "\u2022  Skip it: the row stays missing; a later measurement with "
     "\u201cRefine / resume existing measurement (-r)\u201d reads it.\n"
-    "\u2022  Stop: nothing more is read now.",
+    "\u2022  End this step: nothing more is read now, and nothing moves until "
+    "you choose what happens next.",
     approved=False)
 
 M_I1IO_DRIVE_ROW_NOT_AGAIN = _m(

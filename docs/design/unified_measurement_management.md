@@ -10077,7 +10077,7 @@ alone.
 >
 > •  Read it again: ChromIQ first asks you to take your hands away, then reads the row again. At most two rows of a page are read again.
 > •  Skip it: the row stays missing; a later measurement with “Refine / resume existing measurement (-r)” reads it.
-> •  Stop: nothing more is read now.
+> •  End this step: nothing more is read now, and nothing moves until you choose what happens next.
 
 ### M-I1IO-DRIVE-ROW-NOT-AGAIN · PROPOSED · the line under M-I1IO-DRIVE-ROW-FAILED when reading the row again is not possible, Measure (the i1iO table window)
 

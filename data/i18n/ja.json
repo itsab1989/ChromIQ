@@ -8872,7 +8872,6 @@
  "Readings taken in this measurement: {n} (a patch read again counts again).": "この測定での読み取り回数: {n}（再読み取りしたパッチも改めて数えます）。",
  "Report a problem": "問題を報告",
  "Row {row} could not be read": "{row} 行目を読み取れませんでした",
- "Row {row} of page {page} could not be read: {why}. The row counts as missing until it has been read completely; the rows read before it are kept.\n\n•  Read it again: ChromIQ first asks you to take your hands away, then reads the row again. At most two rows of a page are read again.\n•  Skip it: the row stays missing; a later measurement with “Refine / resume existing measurement (-r)” reads it.\n•  Stop: nothing more is read now.": "ページ {page} の {row} 行目を読み取れませんでした: {why}。この行は完全に読み取れるまで「足りない」扱いになります。その前に読み取った行は残ります。\n\n•  もう一度読み取る: ChromIQ はまず手を離すよう求めてから、その行を読み直します。1 ページで読み直せるのは最大 2 行です。\n•  スキップ: この行は足りないままになります。後で「既存測定の改良/再開 (-r)」を使った測定で読み取ります。\n•  停止: 今はこれ以上何も読み取りません。",
  "Save Lab (-l)": "Lab を保存 (-l)",
  "Save Lab and XYZ (-L)": "Lab と XYZ を保存 (-L)",
  "Save note": "メモを保存",
@@ -9066,5 +9065,6 @@
  "Own tile (the cautious choice)": "専用タイル（慎重な選択）",
  "The i1Pro 2 is calibrated on its own white tile: ChromIQ asks you to lift it out of the arm for that and to seat it again.": "i1Pro 2 は専用の白色タイルでキャリブレーションされます。そのために、ChromIQ がアームから取り出して、また取り付けるよう案内します。",
  "The i1Pro 2 is calibrated on the table's white tile; it stays in the arm.": "i1Pro 2 はテーブルの白色タイルでキャリブレーションされます。アームに付けたままです。",
- "Where the table's i1Pro 2 is calibrated. The table's tile is the way i1Profiler does it, with the instrument staying in the arm. ChromIQ has not yet been able to confirm on a real table that it gives the same white as the instrument's own tile, so the own tile is the cautious choice until then.": "テーブルの i1Pro 2 をキャリブレーションする場所です。テーブルのタイルは i1Profiler と同じ方法で、測定器はアームに付けたままです。テーブルのタイルが測定器専用のタイルと同じ白を示すことを、ChromIQ はまだ実際のテーブルで確認できていないため、それまでは専用タイルが慎重な選択です。"
+ "Where the table's i1Pro 2 is calibrated. The table's tile is the way i1Profiler does it, with the instrument staying in the arm. ChromIQ has not yet been able to confirm on a real table that it gives the same white as the instrument's own tile, so the own tile is the cautious choice until then.": "テーブルの i1Pro 2 をキャリブレーションする場所です。テーブルのタイルは i1Profiler と同じ方法で、測定器はアームに付けたままです。テーブルのタイルが測定器専用のタイルと同じ白を示すことを、ChromIQ はまだ実際のテーブルで確認できていないため、それまでは専用タイルが慎重な選択です。",
+ "Row {row} of page {page} could not be read: {why}. The row counts as missing until it has been read completely; the rows read before it are kept.\n\n•  Read it again: ChromIQ first asks you to take your hands away, then reads the row again. At most two rows of a page are read again.\n•  Skip it: the row stays missing; a later measurement with “Refine / resume existing measurement (-r)” reads it.\n•  End this step: nothing more is read now, and nothing moves until you choose what happens next.": "ページ {page} の {row} 行目を読み取れませんでした: {why}。この行は完全に読み取れるまで「足りない」扱いになります。その前に読み取った行は残ります。\n\n•  もう一度読み取る: ChromIQ はまず手を離すよう求めてから、その行を読み直します。1 ページで読み直せるのは最大 2 行です。\n•  スキップ: この行は足りないままになります。後で「既存測定の改良/再開 (-r)」を使った測定で読み取ります。\n•  このステップを終了: 今はこれ以上何も読み取りません。次にどうするかを選ぶまで、何も動きません。"
 }

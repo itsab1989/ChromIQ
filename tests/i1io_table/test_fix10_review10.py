@@ -945,3 +945,16 @@ def test_the_change_line_on_the_first_page_and_preferences_are_honoured(qapp, qt
     finally:
         sup.set_enabled_for_this_process(None)
     assert W.calibration_place(settings) == "table tile"
+
+
+def test_the_report_after_an_ended_row_names_its_page():
+    """Found on screen (German pass): after a failed row was ended, the report said 'page ?'."""
+    assert "page 3" in W.step_done_text("read_row", {"row": 2}, page=3)
+    assert "page 1" in W.step_done_text("read_row", {"row": 2, "page": 1}, page=3)
+
+
+def test_the_failed_row_text_names_the_button_it_has():
+    from workflow import measurement_messages as M
+    body = M.M_I1IO_DRIVE_ROW_FAILED.render(row=2, page=1, why="x")[1]
+    labels = [W.choice_label("row_failed", v) for v in ("again", "skip", "stop")]
+    assert all(f"•  {lab}:" in body for lab in labels), labels
