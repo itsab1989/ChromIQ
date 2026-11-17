@@ -443,3 +443,40 @@ def test_s2_the_refused_option_page_shows_sentences_only(qtbot, monkeypatch, tmp
     assert "-Q" in text and not _ID.search(text), text
 
 
+# ---- S-3: the ending's answers are in view in the smallest window ------------------------------
+
+@pytest.mark.parametrize("size", [(565, 250), (440, 300), (440, 330), (560, 430)])
+def test_s3_the_endings_answers_are_visible_without_scrolling(qtbot, monkeypatch, tmp_path,
+                                                              settings, size):
+    from PyQt6.QtCore import QPoint, QRect
+    win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
+                                                    asking=False)
+    p.drive_until("end_of_session")
+    win.resize(*size)
+    qtbot.wait(200)
+    panel = QRect(0, 0, win.width(), win.height())
+
+    def first_button_top():
+        return min(b.mapTo(win, QPoint(0, 0)).y() for b in win._buttons)
+    # the steady state the person sees (the layout settles after the resize)
+    qtbot.waitUntil(lambda: win._scroll.geometry().bottom() < first_button_top(), timeout=3000)
+    assert win._answers.parent() is win, "the ending's answers went into the scrolling area"
+    texts = []
+    for b in win._buttons:
+        assert b.isVisible(), b.text()
+        r = QRect(b.mapTo(win, QPoint(0, 0)), b.size())
+        assert panel.contains(r), (size, b.text(), r, panel)
+        texts.append(b.text())
+    assert texts == ["Save and stop", "Discard and stop", "Keep measuring"]
+    # never over the text area, never under the footer
+    first = min(b.mapTo(win, QPoint(0, 0)).y() for b in win._buttons)
+    last = max(b.mapTo(win, QPoint(0, b.height())).y() for b in win._buttons)
+    assert win._scroll.geometry().bottom() < first, (size, first)
+    for w in (win._stop_btn, win._switch_off):
+        if w.isVisible():
+            assert last <= w.mapTo(win, QPoint(0, 0)).y(), (size, w.objectName())
+    # the question itself is in view
+    assert win._title.visibleRegion().boundingRect().height() >= \
+        win._title.fontMetrics().lineSpacing()
+
+

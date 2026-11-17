@@ -446,6 +446,17 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
             "This run holds a complete measurement, so the interrupted readings cannot be "
             "completed into it."),
         "not_an_interrupted_session": tr("That earlier session is not an interrupted one."),
+        # review 12, M-2 / M-3: a session is completed only into its own chart and date
+        "earlier_readings_of_another_chart": tr(
+            "Those earlier readings were taken from another chart: the chart has been "
+            "replaced, made again or restored since. They stay in their own folder and are "
+            "not used for this chart."),
+        "earlier_readings_of_another_verification": tr(
+            "Those earlier readings belong to another verification of this chart (another "
+            "printed sheet). They stay in their own folder and are not used for this one."),
+        "earlier_readings_chart_unknown": tr(
+            "ChromIQ cannot tell which chart those earlier readings were taken from, so it "
+            "does not use them. They stay in their own folder."),
         "adopted_already": tr("That earlier session is being completed already."),
         "readings_with_different_fields": tr(
             "The readings were measured with different settings and cannot go into one file."),
@@ -480,17 +491,6 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
         # without one gets the plain fallback below, never its own name on screen
         "ended_already_saved": tr("This measurement has been saved and has ended already."),
         "ended_already_discarded": tr("This measurement has been discarded and has ended "
-        # review 12, M-2 / M-3: a session is completed only into its own chart and date
-        "earlier_readings_of_another_chart": tr(
-            "Those earlier readings were taken from another chart: the chart has been "
-            "replaced, made again or restored since. They stay in their own folder and are "
-            "not used for this chart."),
-        "earlier_readings_of_another_verification": tr(
-            "Those earlier readings belong to another verification of this chart (another "
-            "printed sheet). They stay in their own folder and are not used for this one."),
-        "earlier_readings_chart_unknown": tr(
-            "ChromIQ cannot tell which chart those earlier readings were taken from, so it "
-            "does not use them. They stay in their own folder."),
                                       "already."),
         "ended_already_nothing_read": tr("This measurement has ended already; nothing was "
                                          "read in it."),
@@ -855,6 +855,10 @@ class TableMeasureWindow(QFrame):
         room = max(0, self.width() - 32 - self._choices.horizontalSpacing())
         widest = max(b.sizeHint().width() for b in made)
         cols = 2 if widest * 2 <= room and len(made) > 1 else 1
+        if self._answers_pinned() and len(made) > 2 \
+                and widest * len(made) + self._choices.horizontalSpacing() * (len(made) - 2) \
+                <= room:
+            cols = len(made)           # review 12, S-3: the ending's answers in one row
         for n, b in enumerate(made):
             self._choices.addWidget(b, n // cols, n % cols)
         self._choice_cols = cols
@@ -888,6 +892,8 @@ class TableMeasureWindow(QFrame):
             if w is not None and w.isHidden():
                 continue
             h = w.sizeHint().height() if w is not None else it.sizeHint().height()
+            if w is not None and self._answers_pinned():
+                h = max(h, w.minimumHeight())     # review 12, S-3: the Stop's own minimum
             if h > 0:
                 fixed += h
                 n += 1
@@ -895,6 +901,12 @@ class TableMeasureWindow(QFrame):
         state_h = (self._state.sizeHint().height() + sp) if self._state.text() else 0
         self._answers.adjustSize()
         ans_h = self._answers.sizeHint().height() + sp
+        alay = self._answers.layout()
+        if self._answers_pinned() and alay is not None and alay.hasHeightForWidth():
+            # review 12, S-3: the answers' true height at the panel's width (their status
+            # line wraps; a width-less hint under-counted it and the text area overlapped)
+            ans_h = max(ans_h, alay.totalHeightForWidth(max(1, self.width() - m.left()
+                                                           - m.right())) + sp)
         need = ls * 6 + 12
         room = self.height() - fixed
         if room - ans_h - state_h >= need:
@@ -903,11 +915,27 @@ class TableMeasureWindow(QFrame):
             level = 1
         else:
             level = 2
+        pinned = self._answers_pinned()
+        if level == 2 and pinned:
+            # review 12, S-3: the ending's answers stay in view at any height the main
+            # window allows; its question's text scrolls above them instead
+            level = 1
         self._place(self._answers, level >= 2, after=self._scroll)
         self._place(self._state, level >= 1, after=self._answers)
         left = room - (ans_h if level < 2 else 0) - (state_h if level < 1 else 0)
-        self._scroll.setMinimumHeight(max(ls * 3 + 12, min(self._text_min_height(), left)))
+        if pinned:
+            # never a minimum the panel cannot give: the text area takes what is left (it
+            # stretches), down to its title's line, and never reaches over the answers
+            self._scroll.setMinimumHeight(min(ls * 3 + 12, max(ls + 12, left)))
+        else:
+            self._scroll.setMinimumHeight(max(ls * 3 + 12, min(self._text_min_height(), left)))
         self._room_level = level
+
+    #: the pages whose answers never scroll away (review 12, S-3): the ending's question
+    PINNED_ANSWER_PAGES = ("end_of_session",)
+
+    def _answers_pinned(self) -> bool:
+        return getattr(self, "_page_id", None) in self.PINNED_ANSWER_PAGES
 
     def _place(self, w, in_scroll: bool, after) -> None:
         """*w* into the scrolling page (before the note box) or back into the panel's body
@@ -1267,6 +1295,21 @@ class TableMeasureWindow(QFrame):
             return
         self._next_earlier()
 
+    def _show_earlier_elsewhere(self, sessions) -> None:
+        """M-I1IO-DRIVE-EARLIER-ELSEWHERE: interrupted readings that are kept but never
+        completed into this measurement (another chart, another dated verification, or a chart
+        ChromIQ cannot name), with why, before anything is opened."""
+        from workflow import measurement_messages as M
+        lines = "\n".join(
+            tr("•  Started on {when}: {why}").format(
+                when=stamp_text(e.get("stamp", "")),
+                why=reason_text(str(e.get("belongs_elsewhere") or "")))
+            for e in sessions)
+        title, body = M.M_I1IO_DRIVE_EARLIER_ELSEWHERE.render(sessions=lines)
+        self._show("earlier_elsewhere", title, body,
+                   [(tr("Continue"), self._next_earlier),
+                    (tr("Cancel"), self._finish_not_started)])
+
     def _next_earlier(self) -> None:
         if not self._earlier:
             self._set_options()
@@ -1329,21 +1372,6 @@ class TableMeasureWindow(QFrame):
             lines = "\n".join(option_text(t, "fields") for t in used) or "•  -"
             title, body = M.M_I1IO_DRIVE_OPTIONS_FIELDS.render(options=lines)
             self._show("options_fields", title, body,
-    def _show_earlier_elsewhere(self, sessions) -> None:
-        """M-I1IO-DRIVE-EARLIER-ELSEWHERE: interrupted readings that are kept but never
-        completed into this measurement (another chart, another dated verification, or a chart
-        ChromIQ cannot name), with why, before anything is opened."""
-        from workflow import measurement_messages as M
-        lines = "\n".join(
-            tr("•  Started on {when}: {why}").format(
-                when=stamp_text(e.get("stamp", "")),
-                why=reason_text(str(e.get("belongs_elsewhere") or "")))
-            for e in sessions)
-        title, body = M.M_I1IO_DRIVE_EARLIER_ELSEWHERE.render(sessions=lines)
-        self._show("earlier_elsewhere", title, body,
-                   [(tr("Continue"), self._next_earlier),
-                    (tr("Cancel"), self._finish_not_started)])
-
                        [(tr("Measure the rest that way"), self._measure_the_rest_that_way),
                         (tr("Cancel"), self._finish_not_started)])
             return
@@ -2108,6 +2136,13 @@ class TableMeasureWindow(QFrame):
     def _on_close_pressed(self) -> None:
         if self._busy:
             return
+        if self._closed_job:
+            # review 12, M-1: the job has let go after its ending (the last page, which has
+            # no Close of its own in the footer): Esc or the window's close ends the panel as
+            # its Close does, so what was saved is filed (a verification on its date) and the
+            # usual windows follow
+            self._finish("ended")
+            return
         if self._table_can_be_left():
             self._finish(getattr(self, "_why_not", "not_started"))
             return
@@ -2202,13 +2237,6 @@ class TableMeasureWindow(QFrame):
     def closeEvent(self, event) -> None:   # the window's X
         if self._finished:
             event.accept()
-            return
-        if self._closed_job:
-            # review 12, M-1: the job has let go after its ending (the last page, which has
-            # no Close of its own in the footer): Esc or the window's close ends the panel as
-            # its Close does, so what was saved is filed (a verification on its date) and the
-            # usual windows follow
-            self._finish("ended")
             return
         event.ignore()
         self._on_close_pressed()
