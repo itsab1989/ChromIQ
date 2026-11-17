@@ -686,23 +686,30 @@ class TableMeasureWindow(QFrame):
         self._scroll.viewport().installEventFilter(self)
         body.addWidget(self._scroll, 1)
 
+        # the ticks, the answers and the status line in one box under the text (round A: in
+        # the lowest panel the box scrolls with the text, so nothing ever stands over it)
+        self._answers = QWidget(self)
+        av = QVBoxLayout(self._answers)
+        av.setContentsMargins(0, 0, 0, 0)
+        av.setSpacing(8)
         # the ticks under the text they confirm, never scrolled out of sight (on screen, the
         # consent's tick sat under a long text and its button stayed grey with no tick in view)
         self._ticks = QVBoxLayout()
         self._ticks.setSpacing(4)
-        body.addLayout(self._ticks)
+        av.addLayout(self._ticks)
 
         # the answers: two to a row when both labels fit the column, else one
         self._choices = QGridLayout()
         self._choices.setHorizontalSpacing(8)
         self._choices.setVerticalSpacing(6)
-        body.addLayout(self._choices)
+        av.addLayout(self._choices)
 
         # one line for what the panel is waiting for or what was just done
-        self._status = QLabel("", self)
+        self._status = QLabel("", self._answers)
         self._status.setObjectName("i1io_table_status")
         self._status.setWordWrap(True)
-        body.addWidget(self._status)
+        av.addWidget(self._status)
+        body.addWidget(self._answers)
 
         # the true state, after every step, and live while a step runs
         self._state = QLabel("", self)
@@ -815,46 +822,62 @@ class TableMeasureWindow(QFrame):
 
     def _fit_room(self) -> None:
         """Review 11, NOTE (text cut at the scroll edge in the smallest window): the question's
-        area gets what the rest of the panel leaves, never less than three lines and never
-        squeezed under the answers (a minimum larger than the room made the answers stand
-        over the text). When the panel is so low that the text would get fewer than six
-        lines, the true-state box moves into the scrolling area, under the text (it is still
-        there, one scroll away), and comes back under the answers when there is room."""
+        area gets what the rest of the panel leaves, and nothing ever stands over it (a
+        minimum larger than the room made the answers stand over the text). The footer (the
+        switch-off line, Report a problem, End measurement and the one Stop) always stays
+        where it is. When the panel is too low for six lines of text, first the true-state
+        box, then the ticks and answers move into the scrolling area under the text (they are
+        still there, a scroll away), and they come back when there is room."""
         ls = self._text.fontMetrics().lineSpacing()
         lay = self.layout()
         if lay is None or ls <= 0:
             return
         sp = lay.spacing()
         m = lay.contentsMargins()
-        others = m.top() + m.bottom()
-        n = 0
+        fixed, n = m.top() + m.bottom(), 0
         for i in range(lay.count()):
             it = lay.itemAt(i)
             w = it.widget()
-            if w is self._scroll or (w is not None and w.isHidden()):
+            if w in (self._scroll, self._state, self._answers):
                 continue
-            if w is self._state:
+            if w is not None and w.isHidden():
                 continue
-            h = (w.sizeHint().height() if w is not None else
-                 it.sizeHint().height())
+            h = w.sizeHint().height() if w is not None else it.sizeHint().height()
             if h > 0:
-                others += h
+                fixed += h
                 n += 1
-        others += sp * max(0, n)
-        state_h = self._state.sizeHint().height() + sp if self._state.text() else 0
-        room = self.height() - others
-        short = room - state_h < ls * 6 + 12
-        in_body = lay.indexOf(self._state) >= 0
-        if short and in_body:
-            lay.removeWidget(self._state)
-            self._page.insertWidget(self._page.count() - 1, self._state)
-        elif not short and not in_body:
-            self._page.removeWidget(self._state)
-            lay.insertWidget(lay.indexOf(self._status) + 1, self._state)
-        if not short:
-            room -= state_h
-        self._scroll.setMinimumHeight(max(ls * 3 + 12,
-                                          min(self._text_min_height(), room)))
+        fixed += sp * (n + 2)
+        state_h = (self._state.sizeHint().height() + sp) if self._state.text() else 0
+        self._answers.adjustSize()
+        ans_h = self._answers.sizeHint().height() + sp
+        need = ls * 6 + 12
+        room = self.height() - fixed
+        if room - ans_h - state_h >= need:
+            level = 0
+        elif room - ans_h >= need:
+            level = 1
+        else:
+            level = 2
+        self._place(self._answers, level >= 2, after=self._scroll)
+        self._place(self._state, level >= 1, after=self._answers)
+        left = room - (ans_h if level < 2 else 0) - (state_h if level < 1 else 0)
+        self._scroll.setMinimumHeight(max(ls * 3 + 12, min(self._text_min_height(), left)))
+        self._room_level = level
+
+    def _place(self, w, in_scroll: bool, after) -> None:
+        """*w* into the scrolling page (before the note box) or back into the panel's body
+        (after *after*)."""
+        lay = self.layout()
+        in_body = lay.indexOf(w) >= 0
+        if in_scroll and in_body:
+            lay.removeWidget(w)
+            k = self._page.indexOf(self._note_box)
+            if w is self._state:
+                k = self._page.count() - 1           # under the note, before the stretch
+            self._page.insertWidget(k, w)
+        elif not in_scroll and not in_body:
+            self._page.removeWidget(w)
+            lay.insertWidget(lay.indexOf(after) + 1, w)
 
     def eventFilter(self, obj, event) -> bool:      # noqa: N802
         from PyQt6.QtCore import QEvent

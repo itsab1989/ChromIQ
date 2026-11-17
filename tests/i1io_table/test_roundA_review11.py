@@ -627,7 +627,7 @@ def test_note_a_long_text_ends_on_a_whole_line_at_the_scroll_edge(
     assert visible % ls == 0, (visible, ls, sc.viewportMargins().bottom())
 
 
-@pytest.mark.parametrize("height", [430, 560, 900])
+@pytest.mark.parametrize("height", [330, 430, 560, 900])
 def test_note_the_answers_never_stand_over_the_text(qtbot, monkeypatch, tmp_path, settings,
                                                     height):
     """In the lowest panel the question's area is never squeezed under the answers (seen on
@@ -637,7 +637,15 @@ def test_note_the_answers_never_stand_over_the_text(qtbot, monkeypatch, tmp_path
     p.drive_until("end_of_session")
     win.resize(440, height)
     qtbot.wait(150)
-    sc = win._scroll.geometry()
-    first = min(b.geometry().top() for b in win._buttons)
-    assert sc.bottom() < first, (height, sc, first)
+    from PyQt6.QtCore import QPoint
+    text_bottom = win._text.mapTo(win, QPoint(0, win._text.height())).y()
+    first = min(b.mapTo(win, QPoint(0, 0)).y() for b in win._buttons)
+    if win._answers.parent() is win:
+        # the answers under the panel's text area, never over it
+        assert win._scroll.geometry().bottom() < first, (height, first)
+    else:
+        # the lowest panel: the answers scroll with the text, under it
+        assert text_bottom <= first, (height, text_bottom, first)
     assert win._scroll.viewport().height() >= win._text.fontMetrics().lineSpacing() * 3
+    # the footer with the one Stop stays in the panel, never in the scrolling area
+    assert win._stop_btn.parent() is win and win._switch_off.parent() is win

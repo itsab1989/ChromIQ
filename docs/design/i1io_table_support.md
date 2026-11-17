@@ -561,5 +561,8 @@ arm goes there. The legend chip of the preview never covers what an i1iO chart p
 its patches (row letters, column numbers, marks, the wordmark and name line, the text column):
 it takes a free band of the paper, smaller when it must, or is not drawn; every other chart's
 chip is placed as before. App-level in-use markers are removed one month after they were
-answered. A chart made for the CR30 loaded after a table chart keeps the CR30's greyed options.
+answered. The question's text gets the room the rest of the panel leaves, never less than three
+lines and never under the answers; in a panel too low for six lines the true-state box moves
+into the scrolling area under the text; the visible part of a long text ends on a whole line,
+and the scroll bar says there is more. The words for a refusal never show a reason id. A chart made for the CR30 loaded after a table chart keeps the CR30's greyed options.
 
