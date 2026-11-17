@@ -7241,17 +7241,26 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         it: START / STOP / SAVE AS DEFAULTS, "Play sounds" (the table plays
         none) and "Save measurement report" (its value, set before START, is
         used when the table's Save writes, as after a hand measurement), and
-        Guided's "Keep calm!" banner; the log keeps three lines. Everything
-        comes back as it was when the panel goes."""
+        Guided's "Keep calm!" banner; the log keeps three lines, or goes
+        altogether when the window is too low for the panel's question to show
+        whole (the panel says everything the log would). Everything comes back
+        as it was when the panel goes."""
         from ui.widgets import fit_log_height
         if on:
             self._table_room_before = {
                 "buttons": not self._left_buttons.isHidden(),
                 "calm": not self._calm_outer.isHidden(),
             }
+            log_box = self._log.parentWidget()
+            self._table_room_before["log"] = not log_box.isHidden()
             self._left_buttons.setVisible(False)
             self._calm_outer.setVisible(False)
             fit_log_height(self._log, 3)
+            # on screen (fix round 10): at a 1000 px main window the ending's
+            # text still scrolled; the log's room goes to the panel then
+            top = self.window()
+            if top is not None and top.height() < 1150:
+                log_box.setVisible(False)
             return
         before = getattr(self, "_table_room_before", None)
         if before is None:
@@ -7259,6 +7268,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._table_room_before = None
         self._left_buttons.setVisible(before["buttons"])
         self._calm_outer.setVisible(before["calm"])
+        self._log.parentWidget().setVisible(before.get("log", True))
         fit_log_height(self._log)
 
     def table_session_open(self) -> bool:

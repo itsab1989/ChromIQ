@@ -492,9 +492,9 @@ class TableMeasureWindow(QFrame):
     ANSWER_MIN_H = 34
 
     def _build(self) -> None:
-        """Review 10, M-2: the question's text, its ticks and the note stand in ONE scroll
-        area that takes all the free height (it scrolls only when the page is longer than the
-        tab), the answers stand under it in rows that never overlap (two to a row only when
+        """Review 10, M-2: the question's text and the note stand in ONE scroll area that
+        takes all the free height (it scrolls only when the page is longer than the tab); the
+        ticks under it, always in view; the answers under them in rows that never overlap (two to a row only when
         both labels fit), then the true state, and the footer is pinned at the bottom: the
         switch-off line, Report a problem and End measurement, and the one Stop."""
         body = QVBoxLayout(self)
@@ -527,10 +527,6 @@ class TableMeasureWindow(QFrame):
         self._text.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         self._page.addWidget(self._title)
         self._page.addWidget(self._text)
-        # the ticks right under the text they confirm
-        self._ticks = QVBoxLayout()
-        self._ticks.setSpacing(4)
-        self._page.addLayout(self._ticks)
 
         # the person's own words (M-I1IO-DRIVE-NOTE), under the question it is about
         self._note_box = QWidget(page)
@@ -561,6 +557,12 @@ class TableMeasureWindow(QFrame):
         # the panel is laid out, and changes when the scroll bar comes or goes)
         self._scroll.viewport().installEventFilter(self)
         body.addWidget(self._scroll, 1)
+
+        # the ticks under the text they confirm, never scrolled out of sight (on screen, the
+        # consent's tick sat under a long text and its button stayed grey with no tick in view)
+        self._ticks = QVBoxLayout()
+        self._ticks.setSpacing(4)
+        body.addLayout(self._ticks)
 
         # the answers: two to a row when both labels fit the column, else one
         self._choices = QGridLayout()
