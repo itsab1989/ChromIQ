@@ -567,3 +567,40 @@ lines and never under the answers; in a panel too low for six lines the true-sta
 into the scrolling area under the text; the visible part of a long text ends on a whole line,
 and the scroll bar says there is more. The words for a refusal never show a reason id. A chart made for the CR30 loaded after a table chart keeps the CR30's greyed options.
 
+### ⏳ Awaiting confirmation: review 12, where table readings are filed (2026-11-17)
+
+**Confirmed by:** *nobody yet.*
+
+Built and tested against the simulated table only; proved on screen with the simulated table.
+
+* **A saved table verification is always filed.** Whatever closes the panel after a Save (Close
+  on the last page, Esc, the panel's close, a quit), the readings are renamed `-verify` and
+  moved into their dated folder by the hand path's `_finalize_verification`. Esc on the last page
+  ends the panel as its Close does. A verification file left beside the chart and never filed
+  (ChromIQ killed between the Save and the filing) is moved to `verifications/old/<date>/` at
+  the next table START, exactly as the hand path's START does, so the next reading is never
+  refused at Save.
+* **A table session belongs to the chart it was read from, and a verification's to its date.**
+  When a session starts, its folder records the checksum (sha256) of the chart's `.ti2` and,
+  for a verification, the dated verification the target bar selects (`verification:<date>`, or
+  `verification:new` for "New verification"). An interrupted session is offered for completion
+  ("Complete it") only when both match: a chart replaced, made again, imported or restored by
+  Restore Used Chart, or another date of the same chart, never gets those readings. Such a
+  session is named on the panel with why (M-I1IO-DRIVE-EARLIER-ELSEWHERE, proposed), kept where
+  it is, and never completed; the job refuses an adoption of it whatever asks. A session with
+  no record (none exist outside the developers' machines: the table drive is unreleased) cannot
+  be proved to be of this chart and is treated the same way.
+* **A replaced verification chart takes its sessions with it also when its files were archived
+  first** (the Replace of the chart import and of Create Chart): the sessions go into the same
+  `verifications/old/<date>/` as the chart.
+* **A resumed table verification keeps the date's earlier file in `verifications/<date>/old/`**
+  (§2a), as the hand path does, not in the chart's `old/`.
+* **S-5, for the owner (the coordinator's decision):** on a calibration reset only the table
+  sessions that hold a reading are set aside into `cal/old/<date>/i1io-table/`. A session that
+  read nothing stays where it is, marked discarded and never offered, so an unmeasured
+  calibration chart whose table STARTs read nothing leaves no `cal/old/` folder, as the ruling
+  of 2026-09-02 says.
+* No page shows a reason id: every option reason of the table job has a sentence, and an
+  unknown one reads "the table measurement cannot use it".
+* The ending's question ("Keep what you have measured so far?") keeps its three answers in
+  view at every size the main window allows; in the lowest panel its text scrolls above them.
