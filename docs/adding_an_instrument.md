@@ -1396,6 +1396,14 @@ your own that put the drive and the hand path side by side, as
 `tests/i1io_table/test_window_in_the_measure_tab.py` does for the hand
 path's replace question.
 
+**The instrument's own button, and a reading mode that is a first try (round B).**
+An instrument's button can answer a question on screen only through a helper mode that does
+nothing but count presses while the program has armed it, with one token per question, never
+sooner than a moment after the question appeared, and never as the hands-off GO before a move.
+A new reading mode built from recordings (the table's strip rows) keeps the recorded wire byte
+for byte (compare it with the tester that ran on the hardware), is off by default and offered
+openly, and refuses a value it cannot find cleanly instead of guessing one.
+
 ### Reviews, and one rule while tests run
 
 Every review round of the table drive found real faults, so plan for

@@ -434,3 +434,18 @@ def test_no_strip_row_without_the_strip_white(tmp_path):
     r = job.read_row()
     assert r.kind == J.Kind.REFUSED and r.reason == "needs_strip_calibration"
     assert len(sim.received) == n
+
+
+def test_stop_while_the_strip_reader_opens_is_honoured_before_the_strip(tmp_path):
+    job, sim, helper, run, p = _job(tmp_path)
+    _ready(job, p)
+    real = job._scan_factory
+
+    def factory(folder, log):
+        job.stop_at_next_pause()                 # Stop pressed while the reader starts
+        return real(folder, log)
+    job._scan_factory = factory
+    n = len(_moves(sim))
+    r = p.drive(job.read_row())
+    assert r.kind == J.Kind.REFUSED and r.reason == "stopped_before_the_strip"
+    assert len(_moves(sim)) == n and not any(ln.startswith(";m2") for ln in sim.received)

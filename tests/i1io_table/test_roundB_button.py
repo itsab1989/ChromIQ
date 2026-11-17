@@ -172,7 +172,8 @@ def test_a_press_after_the_panels_button_is_ignored(tmp_path):
     sim.clock += 1.0
     ev2 = helper.press()
     assert job.answer_by_button(ev2["id"]).confirm == J.Confirm.AIMED
-    assert job.answer_by_button(ev2["id"]).reason == J.BUTTON_IGNORED
+    again = job.answer_by_button(ev2["id"])
+    assert again.reason == J.BUTTON_IGNORED and again.detail["why"] == "used_already"
 
 
 def test_a_press_too_soon_after_the_question_is_not_an_answer(tmp_path):
@@ -355,6 +356,9 @@ def test_the_panel_says_both_ways_and_a_press_answers_like_aimed(qtbot, monkeypa
         qtbot.waitUntil(lambda m=mark: win._busy or person.page() != "aimed"
                         or win._last.detail.get("mark") != m, timeout=5000)
         person.idle()
+        if mark < 3:
+            # the panel says so on the next mark's question
+            assert f"Mark {mark} was aimed by the button on the i1Pro 2." in win._status.text()
     log = run.i1io_table_log(win._stamp).read_text(encoding="utf-8")
     assert log.count("button press received: mark") == 3
     # the next question is the hands-off GO: the button has no say there
@@ -387,3 +391,17 @@ def test_a_press_after_the_panels_aimed_is_not_taken(qtbot, monkeypatch, tmp_pat
     out = win.job.answer_by_button(tok)           # a late press for mark 1
     assert out.reason == "button_press_ignored"
     assert len(sim.sim.received) == sent
+
+
+def test_a_press_reported_before_stop_is_not_taken_after_it(tmp_path):
+    """The helper reported the press, but Stop came before the window passed it on: the wait
+    was cancelled, so the press does not answer (the question waits for the panel)."""
+    job, sim, helper, res = _at_first_aim(tmp_path)
+    tok = res.detail["button_token"]
+    sim.aim(1)
+    sim.clock += 2.0
+    assert helper.press()["event"] == "press"
+    job.stop_at_next_pause()
+    out = job.answer_by_button(tok)
+    assert out.reason == J.BUTTON_IGNORED and out.detail["why"] == "not_this_question"
+    assert job._pending is not None and job._pending.kind == J.Confirm.AIMED

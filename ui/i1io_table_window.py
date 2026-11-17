@@ -655,6 +655,8 @@ class TableMeasureWindow(QFrame):
         #: aiming question shown now (None: no such question, or it was answered here)
         self._aim_token: "str | None" = None
         self._press_seen = 0
+        #: the mark the last aiming question was answered for by the instrument's button
+        self._aimed_by_button: "int | None" = None
         self._press_timer = QTimer(self)
         self._press_timer.setInterval(100)
         self._press_timer.timeout.connect(self._poll_button)
@@ -1663,6 +1665,7 @@ class TableMeasureWindow(QFrame):
         job = self.job
         # round B: the panel's answer was given; a press arriving after it is not taken
         self._aim_token = None
+        self._aimed_by_button = None
         if kind == "ready_to_open" and value == "yes":
             self._moving_controls(True)        # the USB is opened now
         self._call(lambda: job.answer(kind, value))
@@ -1680,6 +1683,9 @@ class TableMeasureWindow(QFrame):
         names = [e.get("event") for e in evs]
         if "press_wait_ready" in names:
             line = tr("The button on the i1Pro 2 is ready: one press counts as Aimed.")
+            if self._aimed_by_button is not None:
+                line = tr("Mark {mark} was aimed by the button on the i1Pro 2.").format(
+                    mark=self._aimed_by_button) + "\n" + line
         elif "error" in names or "helper_gone" in names:
             line = tr("The button on the i1Pro 2 cannot be used this time. Please press Aimed "
                       "here.")
@@ -1710,6 +1716,9 @@ class TableMeasureWindow(QFrame):
                 continue
             self._aim_token = None
             self._press_timer.stop()
+            mark = (getattr(self, "_aim_res", None).detail.get("mark")
+                    if getattr(self, "_aim_res", None) is not None else None)
+            self._aimed_by_button = mark
             job = self.job
             self._call(lambda: job.answer_by_button(token), then=self._after_button,
                        status=tr("Aimed by the button on the i1Pro 2"))
