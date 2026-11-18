@@ -1,3 +1,4 @@
+"""Beta 20 round 6 attack: flat legacy projects whose folder name collides with their own files, migrated and compared file by file (one-off example; its output paths are the maintainer's)."""
 import os, sys, json, shutil, tempfile, pathlib
 SBOX = tempfile.mkdtemp(prefix="chromiq-r6-sandbox-")
 os.environ["CHROMIQ_SETTINGS_FILE"] = os.path.join(SBOX, "settings.ini")

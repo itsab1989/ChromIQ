@@ -78,6 +78,31 @@ def _targets(path: Path, tree) -> "list[str]":
     return out
 
 
+def _bound_modules(path: Path, tree) -> "list[str]":
+    """The modules an import in *tree* really loads: ``from workflow.i1io.table import lines``
+    loads ``workflow.i1io.table.lines`` (and the package's ``__init__``, which every allowed
+    import loads too); a name imported from a submodule loads that submodule."""
+    me = _module_name(path)
+    pkg = me if path.name == "__init__.py" else me.rpartition(".")[0]
+    out = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            out += [a.name for a in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            if node.level:
+                base = pkg.split(".")
+                base = base[:len(base) - (node.level - 1)] if node.level > 1 else base
+                mod = ".".join(base + ([node.module] if node.module else []))
+            else:
+                mod = node.module or ""
+            out += ([f"{mod}.{a.name}" for a in node.names] if mod == PACKAGE
+                    else [mod] + [f"{mod}.{a.name}" for a in node.names])
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            if node.value.startswith(PACKAGE):
+                out.append(node.value)
+    return out
+
+
 def test_the_package_exists_and_is_complete():
     assert {p.name for p in TABLE_DIR.glob("*.py")} == {
         "__init__.py", "session_table.py", "geometry.py", "lines.py", "scan.py", "reader.py",
@@ -94,6 +119,19 @@ def test_the_package_exists_and_is_complete():
 #: build step 9: the only app modules that may import the package, and only lazily
 LAZY_IMPORTERS = {"ui/i1io_table_window.py", "workflow/i1io/table_settle.py"}
 
+#: Developer TOOLS, not the app (2026-11-18). The recording tools (``scripts/recording_vs_
+#: allowlist.py``, ``scripts/recording_timeline.py``) compare a USB recording of the table with
+#: the allow-list the app really has, so their i1iO 2 plug-in and the synthetic test recording
+#: IMPORT that allow-list instead of copying it. They run only when a developer starts them;
+#: nothing in the app imports them (``test_the_app_never_imports_the_recording_tools``), so with
+#: the Beta off they still load nothing. The allowance is narrow: only these two files, only
+#: inside a function (lazily, so ``--help`` works without the app's tree), and only the modules
+#: that hold constants, the line format, the allow-list and the move builders. Never ``job``,
+#: never the table object (``Table``) or a job's ``._table`` (``test_the_recording_tools_read_
+#: only_the_allow_list``).
+TOOL_IMPORTERS = {"scripts/recordings/plugins/i1io2_table.py", "scripts/recordings/synthetic.py"}
+TOOL_MODULES = {f"{PACKAGE}.{m}" for m in ("geometry", "lines", "reader", "session_table")}
+
 
 def test_no_file_of_the_app_imports_the_table_package():
     offenders = []
@@ -106,9 +144,65 @@ def test_no_file_of_the_app_imports_the_table_package():
                                    if not isinstance(n, (ast.FunctionDef, ast.ClassDef))],
                              type_ignores=[])
             tree = top
+        if rel in TOOL_IMPORTERS:
+            # a developer tool: lazily, and only the read-only modules named above
+            top = ast.Module(body=[n for n in tree.body
+                                   if not isinstance(n, (ast.FunctionDef, ast.ClassDef))],
+                             type_ignores=[])
+            for t in _targets(f, top):
+                if t == PACKAGE or t.startswith(PACKAGE + "."):
+                    offenders.append(f"{rel}: {t} (at module level)")
+            for n in tree.body:
+                if isinstance(n, (ast.FunctionDef, ast.ClassDef)):
+                    for t in _bound_modules(f, n):
+                        if (t == PACKAGE or t.startswith(PACKAGE + ".")) and not any(
+                                t == m or t.startswith(m + ".") for m in TOOL_MODULES):
+                            offenders.append(f"{rel}: {t} (not a read-only module)")
+            continue
         for t in _targets(f, tree):
             if t == PACKAGE or t.startswith(PACKAGE + "."):
                 offenders.append(f"{rel}: {t}")
+    assert not offenders, offenders
+
+
+def test_the_recording_tools_use_their_allowance_and_read_only_the_allow_list():
+    """The tools' allowance above is used (a net naming files nobody uses proves nothing), and
+    they never reach the table object: no ``Table``, no ``TableJob``, no ``._table``, no
+    ``job`` module."""
+    for rel in TOOL_IMPORTERS:
+        f = ROOT / rel
+        tree = ast.parse(f.read_text(encoding="utf-8"), str(f))
+        inner = [t for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef))
+                 for t in _targets(f, n)]
+        assert any(t == PACKAGE or t.startswith(PACKAGE + ".") for t in inner), rel
+        bad = [ast.unparse(n) for n in ast.walk(tree)
+               if (isinstance(n, ast.Attribute) and n.attr in ("Table", "TableJob", "_table",
+                                                                 "job"))
+               or (isinstance(n, ast.Name) and n.id in ("Table", "TableJob"))
+               or (isinstance(n, ast.alias) and n.name.rpartition(".")[2] in (
+                   "Table", "TableJob", "job"))]
+        assert not bad, (rel, bad)
+
+
+def test_the_app_never_imports_the_recording_tools():
+    """What makes the tools' allowance safe: they are not the app. Nothing the app runs
+    (``main.py``, ``core/``, ``ui/``, ``workflow/``) imports them, by any spelling."""
+    files = [ROOT / "main.py"]
+    for top in ("core", "ui", "workflow"):
+        files += sorted((ROOT / top).rglob("*.py"))
+    offenders = []
+    for f in files:
+        if "__pycache__" in f.parts:
+            continue
+        tree = ast.parse(f.read_text(encoding="utf-8"), str(f))
+        for t in _targets(f, tree):
+            if t.split(".")[0] == "recordings" or t.startswith("scripts.recordings") \
+                    or t.startswith("scripts.recording_"):
+                offenders.append(f"{f.relative_to(ROOT).as_posix()}: {t}")
+        for n in ast.walk(tree):
+            if isinstance(n, ast.Constant) and isinstance(n.value, str) and (
+                    n.value.startswith("recordings.") or "scripts.recordings" in n.value):
+                offenders.append(f"{f.relative_to(ROOT).as_posix()}: {n.value!r}")
     assert not offenders, offenders
 
 

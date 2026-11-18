@@ -359,12 +359,26 @@ def test_note_one_row_is_said_in_the_singular():
 def test_note_esc_in_the_note_field_does_not_ask_the_ending(
         qtbot, monkeypatch, tmp_path, settings):
     from PyQt6.QtCore import Qt
+    from PyQt6.QtWidgets import QApplication
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings)
     p.drive_until("check_mark")
     win._show_note()
-    win.activateWindow()
-    win._note_edit.setFocus()
-    qtbot.waitUntil(lambda: win._note_edit.hasFocus(), timeout=3000)
+
+    # The person's Esc can only reach the window while it is the active window with the
+    # keyboard in the note field, so that is the state to set up. Under the offscreen platform
+    # one activateWindow() is not enough: activation is an asynchronous platform event, the
+    # drive above leaves the platform's focus window at None, and a single request was seen
+    # to be lost (2 of 3 runs of this file timed out with QApplication.activeWindow() None and
+    # the field never focused; measured 2026-11-18). So the request is repeated until the
+    # focus really is in the field, and nothing processes events between that check and
+    # reject().
+    def _note_field_has_the_keyboard():
+        if not win._note_edit.hasFocus():
+            win.activateWindow()
+            win._note_edit.setFocus()
+        return win._note_edit.hasFocus()
+    qtbot.waitUntil(_note_field_has_the_keyboard, timeout=15000)
+    assert QApplication.focusWidget() is win._note_edit
     shown = list(win.pages_shown)
     win.reject()                         # what the Esc shortcut calls
     p.idle()
