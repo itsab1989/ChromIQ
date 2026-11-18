@@ -43,7 +43,7 @@ TOOLS = {
     "scripts/planted_faults.py", "scripts/driven_instrument_proof_driver.py",
     "scripts/make_tools_index.py", "scripts/run_tests.sh", "scripts/release_notes.py",
     "scripts/vendor_instlib.py", "scripts/decode_i1profiler_probe.py",
-    "scripts/check_bundle_load_paths.py",
+    "scripts/check_bundle_load_paths.py", "scripts/ptyrun.py", "scripts/run_release_gates.sh",
     "scripts/check_bundle_min_macos.py", "scripts/make_release_demo_package.py",
 }
 

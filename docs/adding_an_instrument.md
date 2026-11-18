@@ -909,6 +909,10 @@ stamp on. Say in the pull request which of these the loop covered.
 Keep the raw files of at least a few presets on both sides, so that a
 reviewer can rerun or diff them after the fact.
 
+The driver and the comparison used for 4.3.43 and 4.3.44 are kept as a worked example in
+`scripts/examples/charts/byte_identity_every_preset/`, with a README: change the block that
+sets the option under test, and run it in both trees.
+
 *In [the checklist](adding_an_instrument_checklist.md): items 10.9 and 10.10.*
 
 ## 10. What was saved builds as it was built
@@ -1251,6 +1255,10 @@ then becomes the app's job, held to it byte for byte (step 4).
   builder's safety brief beside it ([`docs/templates/safety_brief.md`](templates/safety_brief.md)).
   "A step may fail" is not a reason to remove it; "a step may hurt the device" is.
 
+To test the tester program the way a volunteer uses it, `scripts/ptyrun.py` runs it in a
+pseudo-terminal and types each answer only after its question has appeared, keeping a
+transcript; run every scenario against the program's simulator before an owner sees it.
+
 The detailed rules for devices that move are in [section 12a](#12a-devices-that-move).
 
 ### Step 4. The app side: a job, a panel, and a simulator that behaves like the device
@@ -1469,7 +1477,9 @@ translated, collided with an ordinary everyday word, one term used for two diffe
 and buttons quoted in the text by names they do not carry.
 
 **Never edit a file while any test tier runs**, and close with the release gates of
-[section 14](#14-how-we-work-challenge-build-review-prove).
+[section 14](#14-how-we-work-challenge-build-review-prove). For a release, the project asks
+for three consecutive green gates on the final tree; `scripts/run_release_gates.sh` runs them
+and records each gate's commit, pytest's own exit code and its count line.
 
 ### Step 8. When real results arrive
 

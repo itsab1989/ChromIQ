@@ -55,7 +55,7 @@ driver; never let a driver open a real device.
 | tool | what it does | run | needs |
 |---|---|---|---|
 | `scripts/compare_with_release.py` | builds the same charts with a release and with your tree, every instrument, and compares every file | `python scripts/compare_with_release.py v4.3.44 --out NEW_FOLDER` | ArgyllCMS |
-| (method) | every built-in preset through the real app in two trees: [`docs/adding_an_instrument.md`](adding_an_instrument.md), section 9b | | |
+| `scripts/examples/charts/byte_identity_every_preset/` | example: every built-in preset generated on screen in two trees, every file hashed and compared (section 9b of [the guide](adding_an_instrument.md)) | its README | display, sandbox, ArgyllCMS |
 
 ## Check one instrument against the others
 
@@ -77,6 +77,7 @@ driver; never let a driver open a real device.
 | `scripts/recording_timeline.py` | a USB recording as a timeline, or one row per distinct command with its answer times | `python scripts/recording_timeline.py REC.pcap --commands` |
 | `scripts/recording_vs_allowlist.py` | every recorded host line against the app's allow-list; computed lines rebuilt byte for byte | `python scripts/recording_vs_allowlist.py REC.pcap` |
 | `scripts/recordings/synthetic.py` | an invented recording to try both on | `python scripts/recordings/synthetic.py NEW_FILE.pcap` |
+| `scripts/ptyrun.py` | runs a console tester program in a pseudo-terminal and types each answer after its question, keeping a transcript | `python scripts/ptyrun.py --demo` |
 | `scripts/decode_i1profiler_probe.py` | reads i1Profiler's layout off a printed probe chart | read its docstring |
 
 The recording itself is made by an owner with the separate recording tool,
@@ -106,6 +107,7 @@ How these fit together: [`docs/adding_an_instrument.md`](adding_an_instrument.md
 | tool | what it does | run |
 |---|---|---|
 | `scripts/gate_tier.py` | which gate a change needs (normal or full) | `python scripts/gate_tier.py` |
+| `scripts/run_release_gates.sh` | N consecutive `--runslow` gates on this checkout, each with its commit, clean status, pytest's own exit code and count line; stops at the first red | `scripts/run_release_gates.sh NEW_FOLDER 3` |
 | `scripts/run_tests.sh` | the suite, hardened against a wedged helper process | `scripts/run_tests.sh` |
 | `scripts/release_notes.py` | a release note people can scan, from `CHANGELOG.md` | read its docstring |
 | `scripts/make_release_demo_package.py` | the demo package attached to a release | read its docstring |
@@ -142,7 +144,7 @@ you are changing, read it, and copy its pattern. Their names say the round they 
 
 <!-- BEGIN GENERATED: python scripts/make_tools_index.py -->
 
-Every file in `scripts/` (562 in all), by topic. TOOL: reusable, kept working. example: a one-off check kept as a worked pattern; it may need adapting, and one marked "maintainer's paths" will not run unchanged on another machine. "needs" is read from the source by a heuristic. Read a script before you run it, and set CHROMIQ_SETTINGS_FILE first (scripts/README.md).
+Every file in `scripts/` (567 in all), by topic. TOOL: reusable, kept working. example: a one-off check kept as a worked pattern; it may need adapting, and one marked "maintainer's paths" will not run unchanged on another machine. "needs" is read from the source by a heuristic. Read a script before you run it, and set CHROMIQ_SETTINGS_FILE first (scripts/README.md).
 
 ### Driven instruments and recordings (13)
 
@@ -162,7 +164,7 @@ Every file in `scripts/` (562 in all), by topic. TOOL: reusable, kept working. e
 | `scripts/recordings/plugins/i1io2_table.py` | example | Plug-in for the X-Rite i1iO 2 table (USB 0971:2004) with an i1Pro 2 (0971:2000) in its arm. | - |
 | `scripts/recordings/synthetic.py` | TOOL | Make a small INVENTED recording of an i1iO 2 table session, to try the recording tools on. | - |
 
-### Release, gates and packaging (19)
+### Release, gates and packaging (20)
 
 | file | kind | what it does | needs |
 |---|---|---|---|
@@ -182,6 +184,7 @@ Every file in `scripts/` (562 in all), by topic. TOOL: reusable, kept working. e
 | `scripts/make_release_demo_package.py` | TOOL | Build the ONE demo package attached to every ChromIQ release (#182 K29). | ArgyllCMS, maintainer's paths: adapt first |
 | `scripts/make_tools_index.py` | TOOL | Write the generated part of docs/dev_tools_index.md: every script in scripts/, by topic. | - |
 | `scripts/release_notes.py` | TOOL | Build a release note a user can actually scan, from CHANGELOG.md. | - |
+| `scripts/run_release_gates.sh` | TOOL | Run the release gate N times in a row on this checkout, and read pytest's OWN exit code. | - |
 | `scripts/run_tests.sh` | TOOL | Run the ChromIQ test suite robustly. | - |
 | `scripts/update_homebrew_tap.py` | example | Point the Homebrew tap's casks at a new ChromIQ release. | - |
 | `scripts/vendor_instlib.py` | TOOL | Vendor Argyll's standalone instrument library into native/instlib. | ArgyllCMS, maintainer's paths: adapt first |
@@ -312,7 +315,7 @@ Every file in `scripts/` (562 in all), by topic. TOOL: reusable, kept working. e
 | `scripts/mockup_cm_verification_print.py` | example | Mockups for colour-managed verification printing (#130). | - |
 | `scripts/probe_182_right_edge_report.py` | example | Print the K1 / K5 measurement JSON in a readable shape (no app, no window). | - |
 
-### Presets and recipes (39)
+### Presets and recipes (42)
 
 | file | kind | what it does | needs |
 |---|---|---|---|
@@ -351,6 +354,9 @@ Every file in `scripts/` (562 in all), by topic. TOOL: reusable, kept working. e
 | `scripts/drive_preset_save_new_patch_set.py` | example | a maintainer, #182 5872273862: after saving a preset under a new name, "New Patch Set…" in the patch set editor shows a previously used setup, not the preset's. | display, settings sandbox |
 | `scripts/drive_preset_stale_proof.py` | example | On-screen proof for fix/preset-goes-stale. | settings sandbox |
 | `scripts/drive_r27_generate_delete_and_defaults.py` | example | Adversary round 27, part two: generate, delete, regenerate, and the Preferences defaults, driven in a real window. | display, settings sandbox |
+| `scripts/examples/charts/byte_identity_every_preset/compare_identity.py` | example | EXAMPLE (kept as a pattern; may need adapting): compare two identity_driver.py runs, preset by preset and file by file. | - |
+| `scripts/examples/charts/byte_identity_every_preset/identity_driver.py` | example | EXAMPLE (kept as a pattern; may need adapting): generate EVERY built-in preset in the real app, on screen, and record a SHA-256 of every file each build writes. | display, settings sandbox, ArgyllCMS |
+| `scripts/examples/charts/byte_identity_every_preset/masked_compare.py` | example | EXAMPLE (kept as a pattern; may need adapting): compare two kept build folders file by file, with wall-clock instants and the checkout and output folder names masked. | - |
 | `scripts/import_knut_presets.py` | example | Import a maintainer's exported chart families as bundled built-in presets. | ArgyllCMS |
 | `scripts/import_pharmacist_presets.py` | example | Import the "by Pharmacist" built-ins a maintainer sent on #182 (5860041950). | ArgyllCMS |
 | `scripts/make_preset_certificates.py` | example | Write the built-in presets' metric certificates (#182, a maintainer 6045500910, answer 5). RUN AT EVERY RELEASE, after the version bump: | settings sandbox, ArgyllCMS |
@@ -684,7 +690,7 @@ Every file in `scripts/` (562 in all), by topic. TOOL: reusable, kept working. e
 | `scripts/splice_landing_shots.py` | example | Put freshly captured screenshots into the landing page (docs/index.html). | - |
 | `scripts/userdrive.py` | TOOL | Drive ChromIQ ON SCREEN the way a user does, and read the log afterwards. | display, settings sandbox |
 
-### Other one-off checks (87)
+### Other one-off checks (88)
 
 | file | kind | what it does | needs |
 |---|---|---|---|
@@ -772,6 +778,7 @@ Every file in `scripts/` (562 in all), by topic. TOOL: reusable, kept working. e
 | `scripts/probe_popup_watchdog_mutations.py` | example | Mutation probes for PopupWatchdog: each mutation is applied to a COPY of scripts/onscreen_capture.py, the test file is run against the copy, and the result must be RED. The repo file is never touched. | - |
 | `scripts/probe_tab_headings.py` | example | Every tab heading, measured as INK rather than as advance, in a real window. | settings sandbox |
 | `scripts/prove_tooltip_icon.py` | example | The Preferences ⓘ icon, at real size, with its contrast measured. | settings sandbox |
+| `scripts/ptyrun.py` | TOOL | Run a console program in a pseudo-terminal, answer its questions in turn, keep a transcript. | - |
 | `scripts/real_settings_copy.py` | example | A throw-away COPY of the user's real ChromIQ preferences, for seeding sandboxes. | - |
 | `scripts/repro_bug_d.py` | example | Reproduce (or rule out) #130 Bug D: with the Profile-run bar set to "Overwrite run 1", selecting a preset builds into run 2 instead of run 1. | ArgyllCMS |
 | `scripts/sweep_every_tab_for_clipping.py` | TOOL | Every tab, every heading, every button: what is CLIPPED, and by how much. | settings sandbox |
