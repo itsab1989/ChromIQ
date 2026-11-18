@@ -34,10 +34,30 @@ _DVAL = (0, -1, +1, 9,
 #: (ArgyllCMS's own validity rule for the i1Pro 3; no-ruler scans had 0 on the
 #: i1Pro 2 and 8 on the i1Pro 3).
 MIN_TRANSITIONS = 10
-#: i1Pro 2: samples = readings x clocks - 5, give or take one 64-byte packet
-#: (R1/R3: exact in 9 of 10 scans, one +64).
-I1PRO2_PAIR_OFFSET = 5
-I1PRO2_PAIR_TOLERANCE = 64
+#: i1Pro 2: does the ruler stream belong to the readings of this scan? The
+#: stream is one sample per integration clock, so it is as long as the
+#: readings, less a few samples the driver does not deliver, plus now and then
+#: ONE extra 64-sample USB packet when the stream's end is seen a packet late.
+#:
+#: 4.3.47 (issue 216, an ES-2000 on Windows): the "- 5" of 4.3.35 came from
+#: X-Rite i1Profiler's own USB recordings (R1/R3, 139 clocks; exact in 9 of
+#: 10 scans, one +64). ChromIQ's reading engine (136 clocks) delivers
+#: readings x clocks - 2: 104 of 104 strips of one i1Pro 2 (fw 634, two
+#: sessions, 4.3.39 and 4.3.40) and 79 of 80 of an ES-2000 (fw 634, 4.3.45),
+#: whose 80th strip was -2 + 64, one extra packet. Against "- 5 +- 64" that
+#: strip was 67 off and lost its ruler figures.
+#:
+#: The rule is now: off by LESS THAN HALF A READING (clocks / 2 samples) from
+#: readings x clocks - 2. Half a reading is the bound that keeps a stream of
+#: another scan out: a stream that belongs to one reading more or fewer is a
+#: whole reading (clocks samples) away, and even with an extra packet towards
+#: us still clocks - 64 = 72 (at 136 clocks), more than half a reading (68).
+#: Within the bound, pairing reading i with samples [clocks i, clocks (i+1))
+#: is off by under half a reading at worst, which was already the case with
+#: +- 64 (DESIGN.md: "< 0.5 reading of alignment error").
+I1PRO2_PAIR_OFFSET = 2
+#: the share of one reading (clocks samples) a stream may be off, exclusive
+I1PRO2_PAIR_TOLERANCE_READINGS = 0.5
 #: The question fires below this share of the patch span (PROVISIONAL).
 COVER_FRACTION = 0.9
 #: Upper bounds for the size of one ruler step, mm (PROVISIONAL). An unknown
@@ -57,7 +77,9 @@ MIN_STRIPS_FOR_SESSION_PITCH = 3
 THRESHOLDS = {
     "min_transitions": MIN_TRANSITIONS,
     "i1pro2_pair_offset": I1PRO2_PAIR_OFFSET,
-    "i1pro2_pair_tolerance": I1PRO2_PAIR_TOLERANCE,
+    # 4.3.47: no longer a fixed 64 samples but under half a reading
+    # (|samples - expected| < clocks x this), file revision 4
+    "i1pro2_pair_tolerance_readings": I1PRO2_PAIR_TOLERANCE_READINGS,
     "cover_fraction": COVER_FRACTION,
     "mm_per_step_upper": dict(MM_PER_STEP_UPPER),
     "mm_per_step_known": dict(MM_PER_STEP_KNOWN),
@@ -126,7 +148,7 @@ def _paired(gen: str, samples: int, readings: int, clocks: int) -> "tuple[bool, 
         return False, None
     if gen == "i1pro2":
         exp = readings * clocks - I1PRO2_PAIR_OFFSET
-        return abs(samples - exp) <= I1PRO2_PAIR_TOLERANCE, exp
+        return abs(samples - exp) < clocks * I1PRO2_PAIR_TOLERANCE_READINGS, exp
     exp = readings * clocks
     return exp - 2 * clocks <= samples <= exp, exp
 

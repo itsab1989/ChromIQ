@@ -225,7 +225,7 @@ def test_the_file_records_the_note(tmp_path):
     _read(rs, "G", -1, True)
     rs.flush()
     doc = json.loads(rs.diagnostics_path().read_text(encoding="utf-8"))
-    assert doc["revision"] == 3 and doc["version"] == 1
+    assert doc["revision"] >= 3 and doc["version"] == 1   # 4 since 4.3.47
     e = doc["strips"][-1]
     assert e["verdict"] == "accepted" and e["direction_question"] is False
     assert e["direction_confirmed_by_colours"] is True
