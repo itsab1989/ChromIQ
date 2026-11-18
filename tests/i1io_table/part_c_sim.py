@@ -48,6 +48,27 @@ C_CREEP = 50
 SIGHT_OFFSET = (-106, -323)
 READING_S = 0.005004
 
+#: 4.3.47 fix2: the volunteer's real table, where real data exists (``real_table=True``, the
+#: default). i1Profiler's arrivals after its 48 spot moves on his table (17 Nov, REC3, next p0
+#: minus target): dx -2..+3, dy -5..+1, as counts. Every computed m0 lands off by one draw.
+REAL_ARRIVAL_DX = ((-2, 1), (-1, 4), (0, 16), (1, 19), (2, 6), (3, 2))
+REAL_ARRIVAL_DY = ((-5, 1), (-1, 7), (0, 32), (1, 8))
+#: His arm at rest after a homing, when nothing drives it (18 Nov, ChromIQ 4.3.46's log: after
+#: the c1 homing (1102, 35), 17 s later with nothing sent (1101, 48); i1Profiler's own rests read
+#: Y 1..48): it relaxes by about (-1, +13). The simulated arm does so once, at the first reading
+#: at least REAL_RELAX_AFTER_S after a homing ended, until the next movement.
+REAL_REST_RELAX = (-1, 13)
+REAL_RELAX_AFTER_S = 1.0
+
+
+def _draw(rng, counts):
+    n = rng.randrange(sum(c for _v, c in counts))
+    for v, c in counts:
+        if n < c:
+            return v
+        n -= c
+    return counts[-1][0]      # pragma: no cover
+
 
 def _s16(h):
     v = int(h, 16)
@@ -61,9 +82,15 @@ def _inside(box, p):
 class CSimTable(SimTable):
     """0.4.0's simulated table with part C's mode switched on (`part_c=True`)."""
 
-    def __init__(self, *a, part_c=True, aims=None, **kw):
+    def __init__(self, *a, part_c=True, aims=None, real_table=True, **kw):
         super().__init__(*a, **kw)
         self.part_c = part_c
+        #: 4.3.47 fix2: arrivals a few units off and the resting arm relaxing (see REAL_*);
+        #: False: the ideal table the frozen tester 0.6.0 captures were made on
+        self.real_table = real_table
+        self._real_rng = random.Random(self.seed * 7919 + 17)
+        self._relax_due: "float | None" = None
+        self.arrivals_off: "list[tuple[int, int]]" = []
         #: where the person's sight is put on marks 1, 2, 3 (sensor targets, table units)
         self.aims = list(aims or [])
         self.m2_pending = None
@@ -235,6 +262,12 @@ class CSimTable(SimTable):
 
     def _c_execute(self, line, cid, a, fault):
         kind = fault.kind if fault else None
+        if cid == "p0" and self.real_table and self._relax_due is not None \
+                and self.clock >= self._relax_due:
+            self._relax_due = None
+            self.pos = [self.pos[0] + REAL_REST_RELAX[0], self.pos[1] + REAL_REST_RELAX[1]]
+        if cid != "p0" and cid in ("m0", "m1", "m2", "i1", "i0"):
+            self._relax_due = None
         if cid == "p1":
             self.p1_count += 1
             return 0, self._xy(self.pos[0] - SIGHT_OFFSET[0], self.pos[1] - SIGHT_OFFSET[1]), 0.0
@@ -261,6 +294,11 @@ class CSimTable(SimTable):
                 x, y = x + 300, y
             if "front_wall" in self.c_faults:      # a mechanical front end: the arm stalls there
                 y = min(y, int(self.c_faults["front_wall"]))
+            if self.real_table:
+                ox, oy = _draw(self._real_rng, REAL_ARRIVAL_DX), _draw(self._real_rng,
+                                                                     REAL_ARRIVAL_DY)
+                self.arrivals_off.append((ox, oy))
+                x, y = x + ox, y + oy
             self.pos = [float(x + off), float(y)]
             self.free_arm = False
             self.front_seen = max(self.front_seen, float(y))
@@ -271,6 +309,11 @@ class CSimTable(SimTable):
             free = self.free_arm
             self.pos = [1102.0, float(self._rng.choice((0, 1, 2)))]
             self.free_arm = False
+            if self.real_table:
+                # the arm at rest, not driven, relaxes a little later (REAL_REST_RELAX)
+                took = (0.17 + abs(start[1]) * 0.0038 if 1090 <= start[0] <= 1115
+                        and start[1] <= 250 else 2.0)
+                self._relax_due = self.clock + took + REAL_RELAX_AFTER_S
             if 1090 <= start[0] <= 1115 and start[1] <= 250:
                 return 0, "", 0.17 + abs(start[1]) * 0.0038
             return 0, "", 2.0 + max(abs(start[0] - 1102), abs(start[1])) * 0.0006 + \

@@ -87,7 +87,8 @@ def _arrive_beside(sim, after_moves: int, dx: int, dy: int, reads: int = 2):
 
 
 def _ready(tmp_path, script=None, **kw):
-    job, sim, helper, run, p = job_for(tmp_path, script, **kw)
+    # the ideal table: the offsets below are the whole arrival error (no random one on top)
+    job, sim, helper, run, p = job_for(tmp_path, script, real_table=False, **kw)
     sim.jitter = False
     for s in ("open", "calibrate", "align"):
         assert p.drive(getattr(job, s)()).ok, s
@@ -128,7 +129,8 @@ def test_a_patch_arrival_more_than_1_mm_off_still_ends_the_sending(tmp_path, off
 def test_a_strip_row_start_beside_its_target(tmp_path, off, closed):
     """The row start of a strip row: within 1 mm the row fails cleanly before any scan move
     (nothing is pending) and may be read again or patch by patch; beyond, a doubt."""
-    job, sim, helper, run, p = job_for(tmp_path, {J.Confirm.ROW_FAILED_STRIP: "skip"})
+    job, sim, helper, run, p = job_for(tmp_path, {J.Confirm.ROW_FAILED_STRIP: "skip"},
+                                       real_table=False)
     assert job.set_options(STRIP_ARGS).ok
     sim.jitter = False
     for s in ("open", "calibrate", "align", "check_move"):

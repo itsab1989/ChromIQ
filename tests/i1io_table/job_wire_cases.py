@@ -58,7 +58,8 @@ def job_lines(case: dict, ask_after_each_step: bool = True):
         sheet, aims = H.recorded_sheet(*case["recorded"])
     if "aims" in case:
         aims = case["aims"]
-    sim = csim.CSimTable(part_c=True, aims=list(aims or H.demo_aims()),
+    # the ideal table: the frozen tester 0.6.0 captures were made on it (fix2: real_table)
+    sim = csim.CSimTable(part_c=True, aims=list(aims or H.demo_aims()), real_table=False,
                          **case.get("simkw", {}))
     if "must1" in case:
         M1.rng_neutral_at(sim, case["must1"])

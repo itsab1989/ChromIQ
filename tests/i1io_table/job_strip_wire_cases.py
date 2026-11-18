@@ -54,7 +54,8 @@ def cases(base_len: "int | None" = BASE_LEN):
 
 def job_run(case: dict, tmp_path, ask_after_each_step: bool = True):
     """(lines sent, results, sim, helper)."""
-    sim = csim.CSimTable(part_c=True, aims=list(H.demo_aims()))
+    # the ideal table: the frozen tester 0.6.0 captures were made on it (fix2: real_table)
+    sim = csim.CSimTable(part_c=True, aims=list(H.demo_aims()), real_table=False)
     if "fault" in case:
         i, kind = case["fault"]
         # 4.3.47 MUST-1: tester line i is the job's line job_index(i) (must1_wire)
