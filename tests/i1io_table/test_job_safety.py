@@ -474,7 +474,7 @@ def test_a_wrong_answer_is_refused_and_continues_nothing():
     job, sim, _t = H.make_job()
     p = H.Person(job, sim)
     assert p.drive(job.open()).ok
-    r = job.align()
+    r = job.park()
     assert r.confirm == J.Confirm.GO
     n = len(sim.received)
     assert job.answer(J.Confirm.SHEET_LAID, "yes").reason == "not_the_confirmation_asked_for"
@@ -489,8 +489,10 @@ def test_go_back_sends_nothing():
     p = H.Person(job, sim, {J.Confirm.GO: "back"})
     assert p.drive(job.open()).ok
     n = len(sim.received)
-    for s in ("park", "align"):
-        r = p.drive(getattr(job, s)())
+    # (the alignment asks no GO before the sheet is laid: final fix round, M-1; its own
+    # "End this step" is test_the_sheet_not_laid_sends_nothing)
+    for _ in range(2):
+        r = p.drive(job.park())
         assert (r.kind, r.reason) == (J.Kind.REFUSED, "person_chose_back")
     assert len(sim.received) == n
 

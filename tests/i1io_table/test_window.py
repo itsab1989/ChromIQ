@@ -166,7 +166,7 @@ def test_report_a_problem_stops_movement_but_the_homing_and_the_note_goes_to_the
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
                                                     asking=asking)
     p.drive_until("check_mark")
-    p.press("Yes, it is centred")
+    p.press("Yes, it is centred, my hands are away")
     p.drive_until(("report_after_step", "end_of_session") if asking else "end_of_session")
     assert win._problem_btn.isVisible() and win._stop_btn.isVisible()
     win._problem_btn.click()
@@ -193,7 +193,7 @@ def test_stop_during_a_row_stops_before_the_next_move_and_carry_on_asks_go(
                                                     asking=False, sim=sim)
     p.drive_until("check_mark")
     sim.transport.delay_s = 0.02
-    [b for b in win._buttons if b.text() == "Yes, it is centred"][0].click()
+    [b for b in win._buttons if b.text() == "Yes, it is centred, my hands are away"][0].click()
     qtbot.waitUntil(lambda: win._busy, timeout=5000)
     qtbot.wait(150)
     assert win._stop_btn.isVisible() and win._stop_btn.isEnabled()
@@ -220,7 +220,7 @@ def test_stop_now_ends_the_table_part_and_the_readings_can_still_be_saved(
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
                                                     asking=False, sheet=small_sheet([4, 4, 4]))
     p.drive_until("check_mark")
-    p.press("Yes, it is centred")
+    p.press("Yes, it is centred, my hands are away")
     p.drive_until("end_of_session")
     p.press("Keep measuring")                             # nothing missing: ends again
     win._problem_btn.click()
@@ -334,7 +334,7 @@ def _interrupted(qtbot, monkeypatch, tmp_path, settings):
                                                    asking=False, sheet=sheet, run=run)
     p.drive_until("check_mark")
     sim.helper.faults = {"read_loc": {"1-0": "dies"}}
-    p.press("Yes, it is centred")
+    p.press("Yes, it is centred, my hands are away")
     p.drive_until("row_failed")
     win._finished = True                                  # a crash: no ending at all
     sim.jobs[0].close()
@@ -419,12 +419,12 @@ def test_stop_on_the_report_question_keeps_the_question_and_then_asks_go(
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
                                                     asking=True)
     p.drive_until("check_mark")
-    p.press("Yes, it is centred")
+    p.press("Yes, it is centred, my hands are away")
     assert p.drive_until("report_after_step") == "report_after_step"
     n = moves(sim)
     win._stop_btn.click()
     assert p.page() == "report_after_step"
-    p.press("As described")
+    p.press("As described, my hands are away")
     assert p.page() == "stopped_by_you" and moves(sim) == n
     p.press("Carry on")
     assert p.page() == "go" and moves(sim) == n
@@ -438,7 +438,7 @@ def test_a_result_arriving_while_the_problem_page_is_open_waits_behind_it(
                                                     asking=False, sim=sim)
     p.drive_until("check_mark")
     sim.transport.delay_s = 0.01
-    [b for b in win._buttons if b.text() == "Yes, it is centred"][0].click()
+    [b for b in win._buttons if b.text() == "Yes, it is centred, my hands are away"][0].click()
     qtbot.waitUntil(lambda: win._busy, timeout=5000)
     win._problem_btn.click()
     assert win.pages_shown[-1] == "problem"

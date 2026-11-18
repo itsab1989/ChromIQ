@@ -230,11 +230,13 @@ def stamp_text(stamp: str) -> str:
 def choice_label(kind: str, value: str) -> str:
     """The button for one choice of one confirmation."""
     labels = {
-        ("start_up", "yes"): tr("Start the table"),
+        # final fix round, M-1: the answers that are the hands-off confirmation say so (their
+        # page asks the person to take the hands away and names the move that follows)
+        ("start_up", "yes"): tr("Start the table, my hands are away"),
         ("start_up", "i1profiler"): tr("Leave it to i1Profiler"),
         ("go", "yes"): tr("Go"),
         ("go", "back"): tr("Back"),
-        ("sheet_laid", "yes"): tr("Yes, it is on the table"),
+        ("sheet_laid", "yes"): tr("The page is laid, and my hands are away from the table"),
         # review 10, M-3: the panel has ONE Stop (the footer's); an answer that only ends
         # the step on screen says so
         ("sheet_laid", "stop"): tr("End this step"),
@@ -247,13 +249,13 @@ def choice_label(kind: str, value: str) -> str:
         ("front_choice", "go on"): tr("Feel the way forward"),
         ("front_yes", "yes"): tr("Yes, feel forward"),
         ("front_yes", "no"): tr("No"),
-        ("first_visit", "yes"): tr("Make this move"),
+        ("first_visit", "yes"): tr("Make this move, my hands are away"),
         ("first_visit", "no"): tr("No"),
         ("pending_marker", "switched off and on"): tr("I switched it off and on"),
         ("pending_marker", "stop"): tr("Not now"),
         ("ready_to_open", "yes"): tr("Start"),
         ("ready_to_open", "stop"): tr("Not now"),
-        ("report_after_step", "as described"): tr("As described"),
+        ("report_after_step", "as described"): tr("As described, my hands are away"),
         ("report_after_step", "something wrong"): tr("Something was wrong"),
         ("report_after_step", "not sure"): tr("Not sure"),
         ("reader_consent", "yes"): tr("Open the instrument"),
@@ -287,6 +289,16 @@ WITHDRAW = {"go": "back", "sheet_laid": "stop", "aimed": "stop", "front_choice":
             "calibration_own_tile": "stop", "calibration_reseated": "stop",
             "row_failed": "stop", "row_failed_strip": "stop", "start_up": "i1profiler",
             "arm_felt": "not sure"}
+
+#: the pages that show one of the JOB's questions (answered through ``job.answer`` or the
+#: report, which keep the hands-off rule themselves) and the mark-3 check, whose two answers say
+#: themselves whether they are the hands-off confirmation; every other page's buttons tell the
+#: job that a question was answered (final fix round, M-1)
+JOB_QUESTION_PAGES = frozenset({
+    "pending_marker", "ready_to_open", "start_up", "go", "sheet_laid", "arm_felt", "aimed",
+    "front_choice", "front_yes", "first_visit", "reader_consent", "calibration_place",
+    "calibration_own_tile", "calibration_reseated", "row_failed", "row_failed_strip",
+    "end_of_session", "report_after_step", "check_mark"})
 
 #: the job's refusals that are the person's own Stop taking effect
 STOP_REASONS = ("stopped_before_the_next_move", "stopped_between_patches",
@@ -1137,6 +1149,12 @@ class TableMeasureWindow(QFrame):
             b.setDefault(False)
             b.setMinimumHeight(self.ANSWER_MIN_H)
             b.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            if page_id not in JOB_QUESTION_PAGES:
+                # final fix round, M-1: an answer to one of the panel's own questions counts
+                # as a question answered at the table (the next movement asks GO first)
+                pressed = _Pressed(self, page_id, slot)
+                self._slot_owners.append(pressed)
+                slot = pressed.fire
             b.clicked.connect(slot)
             made.append(b)
         from ui.dialogs.no_default_button import no_default_button
@@ -1659,51 +1677,89 @@ class TableMeasureWindow(QFrame):
 
     def _next(self) -> None:
         """The next step of the measurement, from the job's true state."""
+        act = self._next_action()
+        if act is None:
+            return
+        fn, status, _moves = act
+        if fn is None:
+            self._on_end_pressed()
+            return
+        owner = getattr(fn, "__self__", None)
+        if isinstance(owner, (_ReadRow, _PageDone)):
+            owner.prepare()               # on the GUI thread, before the call runs
+        if status is None:
+            self._call(fn)
+            return
+        self._call(fn, status=status)
+
+    def _next_action(self):
+        """What :meth:`_next` does now, without doing it: (the job call, its status line or
+        None, the words for the movement it starts or None when it moves nothing before its
+        next question). (None, None, None) is the ending; None: nothing (the session ended).
+        Final fix round, M-1: the report's "As described" names the move that follows."""
         j = self.job
         if j.ended is not None:
-            return
+            return None
         out = j.out_known() or bool(j.state().arm_free)
+        home_txt = tr("the arm goes back to its resting place")
         if j.calibration_due:
             if out:
-                self._call(j.home, status=tr("Bringing the arm home before the new "
-                                             "calibration..."))
-            else:
-                self._call(j.calibrate, status=tr("Calibrating the instrument..."))
-            return
+                return (j.home, tr("Bringing the arm home before the new calibration..."),
+                        home_txt)
+            return (j.calibrate, tr("Calibrating the instrument..."), None)
         if j.calibration is None and not j.options_report.options.skip_initial_calibration:
             if out:
-                self._call(j.home, status=tr("Bringing the arm home first."))
-            else:
-                self._call(j.calibrate, status=tr("Calibrating the instrument..."))
-            return
+                return (j.home, tr("Bringing the arm home first."), home_txt)
+            return (j.calibrate, tr("Calibrating the instrument..."), None)
         # a page with nothing missing (a resume, an adopted session) is never aligned or read
         left = j.rows_left() if j.page_has_something_to_read() else []
         want = bool(left or self._again_rows)
         if want and j.alignment is None:
-            self._call(j.align, status=tr("Aiming at the sheet..."))
-            return
+            return (j.align, tr("Aiming at the sheet..."), None)
         if want and j.front_need is not None and j.front_reached() < j.front_need:
-            self._call(j.creep, status=tr("Feeling the way forward..."))
-            return
+            return (j.creep, tr("Feeling the way forward..."),
+                    tr("the arm feels its way towards the front of the table"))
         if want and self._checked_page != j.page:
-            self._call(j.check_move, status=tr("Moving the arm to mark 3..."))
-            return
+            return (j.check_move, tr("Moving the arm to mark 3..."),
+                    tr("the arm moves by itself to mark 3"))
         if self._again_rows:
-            row = self._again_rows.pop(0)
-            self._call(lambda: j.read_row(row), status=self._row_status(row))
-            return
+            row = self._again_rows[0]
+            return (_ReadRow(self, row).fire, self._row_status(row),
+                    self._row_move_text(row))
         if left:
-            self._call(j.read_row, status=self._row_status(left[0]))
-            return
+            return (j.read_row, self._row_status(left[0]), self._row_move_text(left[0]))
         later = [p for p in j.pages_to_read() if p > j.page + 1]
         if later:
-            self._page_done = j.page + 1
             if out:
-                self._call(j.home, status=tr("Bringing the arm home first."))
-            else:
-                self._call(j.next_page)
-            return
-        self._on_end_pressed()
+                return (_PageDone(self, home=True).fire, tr("Bringing the arm home first."),
+                        home_txt)
+            return (_PageDone(self, home=False).fire, None, None)
+        return (None, None, None)
+
+    def _row_move_text(self, row: int) -> str:
+        return tr("the arm moves to row {row} of page {page} and reads it").format(
+            row=row, page=self.job.page + 1)
+
+    def _report_next_text(self, res) -> str:
+        """Final fix round, M-1: the paragraph of the report question that makes its "As
+        described" the hands-off confirmation, with the move that follows it."""
+        step = res.step
+        j = self.job
+        moves = None
+        if res.kind == OK and step not in ("check_move", "next_page", "end", "save") and not (
+                step == "home" and (j.ended is not None or j.only_home
+                                    or getattr(self, "_home_then_stop", False))):
+            sw = res.detail.get("stored_white") if step == "calibrate" else None
+            if not (isinstance(sw, dict) and not sw.get("used")):
+                act = self._next_action()
+                moves = act[2] if act else None
+        if moves:
+            return tr("If it did, please take your hands away from the table and the arm, and "
+                      "then press “As described, my hands are away”. ChromIQ goes on at once: "
+                      "{move}.").format(move=moves)
+        return tr("If it did, please take your hands away from the table and the arm, and then "
+                  "press “As described, my hands are away”. Nothing moves before ChromIQ's next "
+                  "question.")
 
     def _row_status(self, row: int) -> str:
         return tr("Reading row {row} of {rows} on page {page} of {pages}...").format(
@@ -1809,6 +1865,17 @@ class TableMeasureWindow(QFrame):
             self._troubled = True
             self._show_note()
 
+    def _window_answered(self, page_id: str, what: str = "") -> None:
+        """Final fix round, M-1: one of the panel's own questions was answered while the table
+        is open and nothing runs: the next movement asks the hands-off GO first."""
+        j = self.job
+        if j is None or j.phase != "open" or self._busy:
+            return
+        try:
+            j.person_answered(page_id, what)
+        except Exception:      # noqa: BLE001 - never in the way of the button
+            log.exception("i1iO table: the answer could not be noted")
+
     def _answer_slot(self, value: str):
         """A bound answer for one button (no lambda capturing self on a child's signal)."""
         return _Answer(self, value).fire
@@ -1903,7 +1970,7 @@ class TableMeasureWindow(QFrame):
         step = self.job.report_due
         title, body = M.M_I1IO_DRIVE_REPORT.render(step=step_done_text(
             step, res.detail, page=self.job.page + 1,
-            reason=res.reason if res.kind != OK else ""))
+            reason=res.reason if res.kind != OK else ""), next=self._report_next_text(res))
         self._report_res = res
         buttons = [(choice_label(REPORT, v), _Report(self, v).fire)
                    for v in ("as described", "something wrong", "not sure")]
@@ -1935,7 +2002,7 @@ class TableMeasureWindow(QFrame):
         from workflow import measurement_messages as M
         title, body = M.M_I1IO_DRIVE_CHECK_MARK.render()
         self._show("check_mark", title, body,
-                   [(tr("Yes, it is centred"), self._on_mark_ok),
+                   [(tr("Yes, it is centred, my hands are away"), self._on_mark_ok),
                     (tr("No"), self._on_mark_wrong)])
 
     def _aim_patch(self, mark) -> "str | None":
@@ -1948,12 +2015,14 @@ class TableMeasureWindow(QFrame):
         return None
 
     def _on_mark_ok(self) -> None:
-        self.job.note("check_mark", "centred")
+        # final fix round, M-1: this answer is the hands-off confirmation (its page asks for
+        # the hands to be taken away and says that the reading starts at once)
+        self.job.person_answered("check_mark", "centred")
         self._checked_page = self.job.page
         self._next()
 
     def _on_mark_wrong(self) -> None:
-        self.job.note("check_mark", "not centred")
+        self.job.person_answered("check_mark", "not centred")
         self.job.restrict_to_homing("the person said the opening is not on mark 3")
         self._show_note()
         self._show_after_problem()
@@ -2114,6 +2183,9 @@ class TableMeasureWindow(QFrame):
                                 "has started finishes first."))
         # the report question (asking mode) stays: the stop acts at the next move, after it
         if not self._busy and getattr(self, "_page_id", "") in ("check_mark", "next_page"):
+            # no step runs or waits: the stop takes effect here, once (final fix round: Carry
+            # on showed "Stopped" a second time); the next movement asks GO first
+            self.job.stop_honoured_between_steps()
             self._show_stopped_by_you(None)
 
     def _on_problem(self) -> None:
@@ -2454,6 +2526,46 @@ class TableMeasureWindow(QFrame):
             return
         event.ignore()
         self._on_close_pressed()
+
+
+class _Pressed:
+    """A button of one of the panel's own pages: the job hears that a question was answered
+    (final fix round, M-1), then the button does what it does."""
+
+    def __init__(self, win: TableMeasureWindow, page_id: str, slot) -> None:
+        self.win, self.page_id, self.slot = win, page_id, slot
+
+    def fire(self) -> None:
+        self.win._window_answered(self.page_id, getattr(self.slot, "__name__", ""))
+        self.slot()
+
+
+class _ReadRow:
+    """The job call that reads one row again (Keep measuring), bound (no lambda)."""
+
+    def __init__(self, win: TableMeasureWindow, row: int) -> None:
+        self.win, self.row = win, row
+
+    def prepare(self) -> None:
+        if self.win._again_rows and self.win._again_rows[0] == self.row:
+            self.win._again_rows.pop(0)
+
+    def fire(self):
+        return self.win.job.read_row(self.row)
+
+
+class _PageDone:
+    """A page is read and another follows: the homing first when the arm is out, else the next
+    page (the job's calls, run in the worker)."""
+
+    def __init__(self, win: TableMeasureWindow, home: bool) -> None:
+        self.win, self.home = win, home
+
+    def prepare(self) -> None:
+        self.win._page_done = self.win.job.page + 1
+
+    def fire(self):
+        return self.win.job.home() if self.home else self.win.job.next_page()
 
 
 class _Answer:

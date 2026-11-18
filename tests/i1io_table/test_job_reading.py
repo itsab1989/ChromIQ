@@ -403,9 +403,10 @@ def test_one_report_per_row_in_the_asking_mode_none_in_the_quiet_one(tmp_path, a
     rows = len(p.reports) - before
     assert rows == (len(SMALL) if asking else 0)
     assert all(step == "read_row" for step, _a in p.reports[before:])
-    # GO: once before the first move after the aims (and once before the alignment), not per
-    # row
-    assert [c for _s, c, *_r in p.asked].count(J.Confirm.GO) == 2
+    # GO: once before the first move after the aims, not per row (the alignment's move is
+    # confirmed by the sheet-laid answer, final fix round M-1; "As described" is the hands-off
+    # confirmation between rows in the asking mode)
+    assert [c for _s, c, *_r in p.asked].count(J.Confirm.GO) == 1
 
 
 def test_asking_mode_a_wrong_report_after_a_row_leaves_only_the_homing(tmp_path):

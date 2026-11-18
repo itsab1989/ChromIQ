@@ -48,7 +48,7 @@ def test_b1_quit_asks_the_tables_ending_and_quits_only_after_the_job_let_go(
     win.finished_with.connect(reasons.append)
     p = _person(win, sim, qtbot)
     p.drive_until("check_mark")
-    p.press("Yes, it is centred")
+    p.press("Yes, it is centred, my hands are away")
     p.drive_until("end_of_session")
     p.press("Keep measuring")                            # nothing missing: asked again
     p.drive_until("end_of_session")
@@ -87,7 +87,7 @@ def test_b1_keep_measuring_at_the_quit_cancels_the_quit(tab, beta, tmp_path, mon
     win.finished_with.connect(reasons.append)
     p = _person(win, sim, qtbot)
     p.drive_until("check_mark")
-    p.press("Yes, it is centred")
+    p.press("Yes, it is centred, my hands are away")
     p.drive_until("end_of_session")
     p.press("Keep measuring")
     p.drive_until("end_of_session")
@@ -108,7 +108,7 @@ def test_b1_quit_with_nothing_read_ends_and_quits(tab, beta, tmp_path, monkeypat
     reasons = []
     win.finished_with.connect(reasons.append)
     p = _person(win, sim, qtbot)
-    p.drive_until("go")
+    p.drive_until("sheet_laid")       # final fix round, M-1: the first question at the bed
     n = moves(sim)
     assert tab.confirm_quit_during_measurement() is False
     qtbot.waitUntil(lambda: reasons == ["quit"], timeout=15000)
@@ -118,13 +118,13 @@ def test_b1_quit_with_nothing_read_ends_and_quits(tab, beta, tmp_path, monkeypat
 def _into_a_running_row(win, sim, p, qtbot, delay):
     """From the check-mark question to a row being read with a slowed transport."""
     p.drive_until("check_mark")
-    p.press("Yes, it is centred")
+    p.press("Yes, it is centred, my hands are away")
     sim.transport.delay_s = delay
     for _ in range(4):
         page = p.page()
         if page not in ("first_visit", "go"):
             break
-        want = {"first_visit": "Make this move", "go": "Go"}[page]
+        want = {"first_visit": "Make this move, my hands are away", "go": "Go"}[page]
         [b for b in win._buttons if b.text() == want][0].click()
         qtbot.wait(60)
         if win._busy:
@@ -265,7 +265,7 @@ def test_m1_every_shortcut_during_a_table_session_does_what_it_does_during_a_han
     sim = start(tm, run, monkeypatch)
     win = tm._table_window
     p = _person(win, sim, qtbot)
-    p.drive_until("go")
+    p.drive_until("sheet_laid")       # final fix round, M-1: the first question at the bed
     measure = w._tabs.indexOf(tm)
     opened = []
     monkeypatch.setattr("ui.dialogs.settings_dialog.SettingsDialog.exec",

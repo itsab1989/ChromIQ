@@ -199,6 +199,20 @@ def clean_note(note) -> str:
 MAY_OFFER_DO_NOT_ASK_AGAIN = "may_offer_do_not_ask_again"
 
 
+#: final fix round, M-1 (review 13: "a hand can be on the bed or the arm at EVERY question"): after
+#: ANY answered question the next motor move waits for the hands-off confirmation. These
+#: answers ARE that confirmation, because the page that asks them says "take your hands away
+#: from the table and the arm" and names the move that follows (the window's texts); every
+#: other answer, the job's and the window's own questions alike, makes the next move ask GO
+#: first. The table module refuses a movement line while one is owed (a bug guard).
+HANDS_OFF_ANSWERS = frozenset({(Confirm.GO, "yes"), (Confirm.SHEET_LAID, "yes"),
+                               (Confirm.FIRST_VISIT, "yes"), (Confirm.START_UP, "yes"),
+                               (Confirm.REPORT_AFTER_STEP, "as described")})
+#: the window's own questions whose answer is the hands-off confirmation (same rule)
+HANDS_OFF_WINDOW_ANSWERS = frozenset({("check_mark", "centred")})
+#: every movement the guard refused (a bug in the job: the tests fail on any entry)
+HANDS_OFF_BREACHES: "list[str]" = []
+
 #: the tester's names for the answers in a result block (the analysis script reads them)
 BLOCK_LABEL = {Confirm.FRONT_CHOICE: "front part", Confirm.FRONT_YES: "front part, yes",
                Confirm.FIRST_VISIT: "first visit", Confirm.SHEET_LAID: "on the table"}
@@ -519,6 +533,10 @@ class TableJob:
         self.stopped_by_person = False
         #: GO is asked once per page (the owner's ruling: no question after every step)
         self._go_page: "int | None" = None
+        #: final fix round, M-1: a question was answered since the last hands-off
+        #: confirmation; the next movement asks GO first (True from the start: the first
+        #: question, READY_TO_OPEN, is answered before anything can move)
+        self._hands_off_due = True
         self.notes: "list[tuple[str, str]]" = []
         self._gen = None
         self._gen_step: "str | None" = None
@@ -763,6 +781,10 @@ class TableJob:
         if self._block is not None:
             self._block["answers"].append((BLOCK_LABEL.get(kind, kind), value))
         self._pending = None
+        # final fix round, M-1: the person was at the screen, and maybe at the table, for this
+        # question; unless the answer is itself the hands-off confirmation, the next movement
+        # asks GO first
+        self._hands_off_due = (kind, value) not in HANDS_OFF_ANSWERS
         # review 8, S-1: Stop was pressed while this question was shown: the step ends here,
         # before the move the answer would allow (the reader, if open, is finished by the
         # step's own way out)
@@ -810,6 +832,16 @@ class TableJob:
         # GO again. A running step has passed its GO already; the rows set or clear it
         # themselves.
         self._go_page = None
+
+    def stop_honoured_between_steps(self) -> None:
+        """Final fix round: the window showed the person's Stop at once, because no step was
+        running or waiting (the mark-3 check, the next page's question): the stop has taken
+        effect there, so it does not stop the next step a second time. The next movement still
+        asks the hands-off GO (stop_at_next_pause cleared it)."""
+        if self._gen is None and self._pause_stop:
+            self._pause_stop = False
+            self.diag.log("ANSWER", "the stop pressed between steps is honoured: nothing moved; "
+                                    "the next movement asks the hands-off GO first")
 
     def _stale_stop(self, step: "str | None") -> bool:
         """A stop pressed between steps or at a question, still waiting (consumed here)."""
@@ -1033,6 +1065,8 @@ class TableJob:
         d.creep = False
         d.c_gate = cl.make_gate(d)
         d.c_caps = (self.caps.lines, self.caps.moves)
+        # final fix round, M-1: no movement line while a hands-off confirmation is owed
+        d.motion_guard = self._motion_guard
         if hasattr(self.transport, "gate"):
             self.transport.gate = cl.wire_gate
         d._touch_out = lambda: "asked after the step"
@@ -1066,6 +1100,7 @@ class TableJob:
                                 "the start-up")
             raise PersonStopped("start_up_left_to_i1profiler")
         self._check_other_program()
+        yield from self._hands_off("start_up")
         try:
             d.run_cold_start()
         except Doubt as exc:
@@ -1152,7 +1187,8 @@ class TableJob:
             return self._result(step, Kind.REFUSED, STOPPED_BEFORE_THE_NEXT_MOVE, by_person=True)
 
         def gen():
-            if go and self._go_page != self.page:
+            ask_go = go() if callable(go) else go
+            if ask_go and (self._go_page != self.page or self._hands_off_due):
                 # once per page (the owner's ruling: no question after every step); the first
                 # moving step of a page asks it, with the hands-off reminder the window shows
                 ans = yield Ask(Confirm.GO, {"step": step, "page": self.page + 1})
@@ -1184,7 +1220,15 @@ class TableJob:
         return self._stage("park", self._park)
 
     def align(self) -> StepResult:
-        return self._stage("align", self._align)
+        # final fix round, M-1: when the sheet is to be laid, its question IS the hands-off
+        # confirmation (the person lays the sheet, takes the hands away and says so; the arm
+        # moves right after it), so no GO is asked before it: a GO first, then "lay the
+        # sheet", then a move, was the order review 13 found unsafe
+        return self._stage("align", self._align, go=self._align_asks_go)
+
+    def _align_asks_go(self) -> bool:
+        d = self._table
+        return d is not None and d.arm_free is True and d.mode_on
 
     def creep(self) -> StepResult:
         return self._stage("creep", self._creep)
@@ -1238,6 +1282,9 @@ class TableJob:
             return self._result("report", Kind.REFUSED, "not_one_of_the_choices",
                                 choices=list(CHOICES[Confirm.REPORT_AFTER_STEP]))
         self.report_due = None
+        # final fix round, M-1: "As described" is the hands-off confirmation (its page says so
+        # and names the move that follows); any other answer makes the next movement ask GO
+        self._hands_off_due = (Confirm.REPORT_AFTER_STEP, value) not in HANDS_OFF_ANSWERS
         self.reports.append((step, value))
         self.notes.append((f"{step}: report", value))
         self.diag.log("ANSWER", f"{step}: report_after_step -> {value}")
@@ -1329,6 +1376,41 @@ class TableJob:
         """An answer kept for the diagnostics only (it gates nothing)."""
         self.notes.append((question_id, answer))
         self.diag.log("ANSWER", f"{question_id} -> {answer}")
+
+    def person_answered(self, question_id: str, answer: str = "") -> None:
+        """Final fix round, M-1: the person answered one of the WINDOW's own questions (the
+        mark-3 check, a "Go on", "Carry on", the problem page...). As after any of the job's
+        questions, the next movement asks the hands-off GO first, unless the answer is itself
+        that confirmation (``HANDS_OFF_WINDOW_ANSWERS``). Ignored while a step runs (its GO was
+        given before it started; a page answered then is not a question at the table)."""
+        self.notes.append((question_id, answer))
+        if self._gen is not None and self._pending is None:
+            self.diag.log("ANSWER", f"{question_id} -> {answer} (while a step runs)")
+            return
+        self._hands_off_due = (question_id, answer) not in HANDS_OFF_WINDOW_ANSWERS
+        self.diag.log("ANSWER", f"{question_id} -> {answer}"
+                      + ("" if self._hands_off_due else " (the hands-off confirmation)"))
+
+    def _hands_off(self, step: str, **detail):
+        """Final fix round, M-1: before a movement inside a step, the hands-off GO when a
+        question was answered since the last one (a generator; asks nothing otherwise)."""
+        if not self._hands_off_due:
+            return
+        ans = yield Ask(Confirm.GO, {"step": step, "page": self.page + 1,
+                                     "after_a_question": True, **detail})
+        if ans != "yes":
+            raise PersonStopped("person_chose_back")
+        self._go_page = self.page
+
+    def _motion_guard(self) -> "str | None":
+        """The table module's last check before any movement line (a bug guard: the steps ask
+        GO themselves)."""
+        if self._hands_off_due:
+            why = "a movement before the hands-off confirmation that follows a question"
+            HANDS_OFF_BREACHES.append(f"{self._gen_step}: {why}")
+            del HANDS_OFF_BREACHES[:-50]
+            return why
+        return None
 
     def next_page(self) -> StepResult:
         """The next sheet of the chart (only with the arm at rest: every page is aligned on its
@@ -1458,6 +1540,7 @@ class TableJob:
         ok = yield from self._confirm_new_part(a, target, what=what)
         if not ok:
             raise PersonStopped("first_visit_declined")
+        yield from self._hands_off(self._gen_step or "move")
         win = geo.move_window(a, target)
         try:
             d.c_exchange(geo.m0_line(target[0], target[1]), 0, window=win,
@@ -1505,9 +1588,14 @@ class TableJob:
         sheet = self.sheet
         aims = sc.aims_of(sheet, self.page)
         if not (d.arm_free is True and d.mode_on):
-            ans = yield Ask(Confirm.SHEET_LAID, {"orientation": sheet.get("orientation", "")})
+            ans = yield Ask(Confirm.SHEET_LAID, {"orientation": sheet.get("orientation", ""),
+                                                 "hands_off": True})
             if ans != "yes":
                 raise PersonStopped("sheet_not_laid")
+            # its "yes" is the page's hands-off GO (the page says so, and that the arm moves)
+            self._go_page = self.page
+            self._check_other_program()
+            yield from self._hands_off("align")
             # part B's recorded way out to the alignment start, the arm let go there
             self._run_b(C_HOME)
             self._run_b(C_ALIGN)
@@ -1619,6 +1707,7 @@ class TableJob:
             n += 1
             if n > cp.CREEP_STEPS_MAX:
                 raise StageFailed("more_creep_steps_than_allowed")
+            yield from self._hands_off("creep")
             here = d.position_now
             target = (x, min(here[1] + geo.CREEP_STEP, self.front_reached() + geo.CREEP_STEP,
                              need))
@@ -1889,10 +1978,13 @@ class TableJob:
         return list(READER_CONSENT_FACTS) + (list(READER_CONSENT_FACTS_MAC)
                                              if system == "macos" else [])
 
-    def _start_reader(self, folder: Path, name: str, patches, calibrate: bool):
+    def _start_reader(self, folder: Path, name: str, patches, calibrate: bool,
+                      moves_next: bool = False):
         """Part C's instrument_ready() and spot_reader(): the helper can run, exactly one
         i1Pro 2 and no other instrument, the consent (once in the session, before the FIRST
-        reader starts), then the reader. A generator (the consent is a confirmation)."""
+        reader starts), then the reader. A generator (the consent is a confirmation).
+        *moves_next*: the arm moves once the reader is open (a row): a consent answered here
+        is followed by the hands-off GO before the reader starts (final fix round, M-1)."""
         self._press_join()
         why = self._helper_check()
         if why:
@@ -1907,6 +1999,8 @@ class TableJob:
             if ans != "yes":
                 raise PersonStopped("reader_not_started")
             self.reader_consent = True
+        if moves_next:
+            yield from self._hands_off(self._gen_step or "read_row")
         self._check_other_program()
         try:
             r = self._reader_factory(folder, name, list(patches), calibrate,
@@ -2463,7 +2557,8 @@ class TableJob:
             if not ok:
                 raise PersonStopped("first_visit_declined")
             reader = yield from self._start_reader(folder, name, [(p.sample_id, p.loc)
-                                                                  for p in plan.patches], False)
+                                                                  for p in plan.patches], False,
+                                                   moves_next=True)
             self._cal_refused = None
             self._open_reader(reader, self._cal_in_a_row)
             opened = True
@@ -2557,6 +2652,8 @@ class TableJob:
             if ans != "yes":
                 raise PersonStopped("reader_not_started")
             self.reader_consent = True
+        # final fix round, M-1: the strip moves once the reader is open
+        yield from self._hands_off(self._gen_step or "read_row")
         self._check_other_program()
         if self._scan_factory is None:
             raise StageFailed("strip_reading_not_available")
@@ -2628,6 +2725,11 @@ class TableJob:
                 yield from self._move_to(scan_plan.start, f"row {plan.index + 1}'s start")
                 yield from self._move_to(scan_plan.end, f"row {plan.index + 1}'s end")
                 rec["front_row_ends_confirmed"] = True
+            if self._hands_off_due:
+                # final fix round, M-1 (never expected: every question of this row is asked
+                # before the reader opens, and GO follows it there); no GO is asked with the
+                # strip reader open, the row fails cleanly before anything moves
+                raise _RowFailed("strip_move_refused_here", "")
             self._step("row", 12, 2)
             self._progress(event="strip_move", row=plan.index + 1, speed=scan_plan.speed)
             guard = self._latency_guard() if self._latency_guard is not None else None

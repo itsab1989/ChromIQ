@@ -236,7 +236,10 @@ def test_m2_an_own_tile_white_mid_page_then_the_next_movement_asks_go(tmp_path, 
     n = len(moves(sim.received))
     assert p.drive(job.align()).ok
     before = [c for c, m in seen if m == n]
-    assert before[0] == J.Confirm.GO, seen
+    # final fix round, M-1: the sheet-laid question is the hands-off confirmation itself (its
+    # page says "take your hands away" and that the arm moves), asked before anything moves
+    assert before[0] == J.Confirm.SHEET_LAID, seen
+    assert (J.Confirm.SHEET_LAID, "yes") in J.HANDS_OFF_ANSWERS
 
 
 def test_m2_a_table_tile_white_keeps_the_pages_go(tmp_path):
@@ -602,6 +605,10 @@ def test_s1_a_stop_while_a_question_is_shown_ends_the_step_before_it_moves(tmp_p
     ends it instead."""
     job, sim, helper, run, p = _job_for(tmp_path, False)
     ready_to_read(job, p, steps=("open", "calibrate"))
+    if question == J.Confirm.GO:
+        # final fix round, M-1: the alignment asks no GO before the sheet is laid (that answer
+        # is the hands-off confirmation); the GO after the aims is the check move's
+        assert p.drive(job.align()).ok
     seen = []
 
     def on_ask(person, res):
@@ -610,7 +617,7 @@ def test_s1_a_stop_while_a_question_is_shown_ends_the_step_before_it_moves(tmp_p
             job.stop_at_next_pause()
         return None
     p.on_ask = on_ask
-    r = p.drive(job.align())
+    r = p.drive(job.check_move() if question == J.Confirm.GO else job.align())
     assert (r.kind, r.reason) == (J.Kind.REFUSED, STOPPED_BEFORE), r.reason
     assert len(moves(sim.received)) == seen[0]
     assert job._go_page is None and not job._pause_stop

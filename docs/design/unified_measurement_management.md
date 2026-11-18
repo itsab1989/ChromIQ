@@ -9871,7 +9871,7 @@ alone.
 > •  Switch the table on, with the arm at its resting place over the small white tile, and nothing on the bed but your sheet.
 > •  Set the arm's height for this paper, as X-Rite's guide for the table describes.
 > •  Lay page {page} on the table the way it was printed for it, with mark 1 at the top left.
-> •  Keep your hands away from the arm whenever it moves. ChromIQ asks you before every move that follows a question.
+> •  Keep your hands away from the table and the arm whenever it moves. Before the arm moves after any question, ChromIQ asks you to take your hands away and waits until you confirm it, on a page of its own or with your answer to that question.
 >
 > This chart has {pages} pages; ChromIQ reads them one after the other and asks you to lay the next one when a page is done.
 >
@@ -9885,9 +9885,11 @@ alone.
 > •  Switch the table on, with the arm at its resting place over the small white tile, and nothing on the bed but your sheet.
 > •  Set the arm's height for this paper, as X-Rite's guide for the table describes.
 > •  Lay page {page} on the table the way it was printed for it, with mark 1 at the top left.
-> •  Keep your hands away from the arm whenever it moves. ChromIQ asks you before every move that follows a question.
+> •  Keep your hands away from the table and the arm whenever it moves. Before the arm moves after any question, ChromIQ asks you to take your hands away and waits until you confirm it, on a page of its own or with your answer to that question.
 >
 > To stop the arm at once, switch the table off at its power switch. That is always allowed.
+
+*Revised 2026-11-18 (final fix round of the i1iO table drive, M-1: after any question the next move waits for the hands-off confirmation; where the answer itself is that confirmation, the page says so and names the move).*
 
 ### M-I1IO-DRIVE-READY · PROPOSED · the job asks ready_to_open: two ticks, both needed, Measure (the i1iO table window)
 
@@ -9971,13 +9973,17 @@ alone.
 
 > **The table has just been switched on**
 >
-> ChromIQ can start it now, the way i1Profiler does when it finds a table that was just switched on. The arm may move to its resting place, so please keep your hands away from the table. This start-up has run once on a real table, sent by ChromIQ's tester program: it took about three seconds, the arm travelled and came back to its resting place, and nothing went wrong.
+> ChromIQ can start it now, the way i1Profiler does when it finds a table that was just switched on. The arm moves during the start-up and ends at its resting place, so please take your hands away from the table and the arm first. When you press “Start the table, my hands are away”, the start-up begins at once.
+>
+> ChromIQ's tester program has sent this start-up to a real table once: it took about three seconds, the arm travelled and came back to its resting place, and nothing went wrong.
 >
 > Or leave the start-up to i1Profiler: ChromIQ then lets go of the table. Open i1Profiler 3.8.6 or older once, let it find the table, quit it, and press START MEASUREMENT again.
 >
 > To stop the arm at once, switch the table off at its power switch.
 
 *Revised 2026-11-17 (owner-results round: the volunteer's two sessions and one recording of 17 Nov 2026 on a real i1iO 2): the start-up has run once on a real table, sent by the tester program.*
+
+*Revised 2026-11-18 (final fix round of the i1iO table drive, M-1: after any question the next move waits for the hands-off confirmation; where the answer itself is that confirmation, the page says so and names the move).*
 
 ### M-I1IO-DRIVE-GO · PROPOSED · the job asks go: the hands-off confirmation before a movement, Measure (the i1iO table window)
 
@@ -9997,7 +10003,9 @@ alone.
 >
 > Please lay page {page} on the table the way it was printed for it, with mark 1 at the top left, and nothing else on the bed.
 >
-> When you press Yes, the arm moves to the place where you aim it, and the table lets go of it there, so that you can push it gently by hand.
+> Then take your hands away from the table and the arm. When you press “The page is laid, and my hands are away from the table”, the arm moves at once: it makes its homing at the resting place, then drives out over the bed to the place where you aim it, and the table lets go of it there, so that you can push it gently by hand.
+
+*Revised 2026-11-18 (final fix round of the i1iO table drive, M-1: after any question the next move waits for the hands-off confirmation; where the answer itself is that confirmation, the page says so and names the move).*
 
 ### M-I1IO-DRIVE-ARM-FELT · PROPOSED · the job asks arm_felt: the free arm at the alignment start, Measure (the i1iO table window)
 
@@ -10107,7 +10115,9 @@ alone.
 >
 > The next move takes the arm to a part of the table where no recording of i1Profiler has taken it. It stays inside the area ChromIQ allows, and it is a first try.
 >
-> Make this move now? If you say No, nothing moves and this step ends.
+> To make this move, please take your hands away from the table and the arm, and then press “Make this move, my hands are away”: the arm makes it at once. If you say No, nothing moves and this step ends.
+
+*Revised 2026-11-18 (final fix round of the i1iO table drive, M-1: after any question the next move waits for the hands-off confirmation; where the answer itself is that confirmation, the page says so and names the move).*
 
 ### M-I1IO-DRIVE-READER-CONSENT · PROPOSED · the job asks reader_consent before the first reader of a session, Measure (the i1iO table window)
 
@@ -10186,11 +10196,13 @@ alone.
 >
 > The arm has moved to where ChromIQ works out that mark 3 is. Please look at the instrument's round opening: is it centred on mark 3?
 >
-> On a real table, i1Profiler sends the opening exactly to the points you aim at, and ChromIQ works out its moves the same way. ChromIQ's own moves over a sheet have not run on a real table yet, so your look here is the check that they land where they should.
+> If it is centred, please take your hands away from the table and the arm, and then press “Yes, it is centred, my hands are away”: the arm starts reading the rows at once. If it is not, nothing is read: the arm only goes home, and you can lay the sheet and aim again.
 >
-> If it is not, nothing is read: the arm only goes home, and you can lay the sheet and aim again.
+> On a real table, i1Profiler sends the opening exactly to the points you aim at, and ChromIQ works out its moves the same way. ChromIQ's own moves over a sheet have not run on a real table yet, so your look here is the check that they land where they should.
 
 *Revised 2026-11-17 (owner-results round: the volunteer's two sessions and one recording of 17 Nov 2026 on a real i1iO 2): says why the question is asked: i1Profiler's own scans run straight through the aimed points, and ChromIQ's own moves over a sheet have not run on a real table yet (D-5).*
+
+*Revised 2026-11-18 (final fix round of the i1iO table drive, M-1: after any question the next move waits for the hands-off confirmation; where the answer itself is that confirmation, the page says so and names the move).*
 
 ### M-I1IO-DRIVE-ROW-FAILED · PROPOSED · the job asks row_failed: again / skip / stop, Measure (the i1iO table window)
 
@@ -10220,7 +10232,11 @@ alone.
 >
 > {step}
 >
+> {next}
+>
 > We ask this after each step during your first measurement with the table. If anything looks or sounds wrong at any time, press Report a problem, or switch the table off at its power switch.
+
+*Revised 2026-11-18 (final fix round of the i1iO table drive, M-1: after any question the next move waits for the hands-off confirmation; where the answer itself is that confirmation, the page says so and names the move).*
 
 ### M-I1IO-DRIVE-PROBLEM · PROPOSED · the always visible Report a problem control, pressed, Measure (the i1iO table window)
 

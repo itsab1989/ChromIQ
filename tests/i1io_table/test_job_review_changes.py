@@ -221,8 +221,10 @@ def test_go_is_asked_again_on_the_next_page():
         p2.drive(getattr(job2, s)())
     assert job2.next_page().ok
     p2.drive(job2.align())
-    # page 1: before the park/align, again after the aims (before the homing); page 2: align
-    assert [k for _s, k, *_ in p2.asked].count(J.Confirm.GO) == 3
+    # page 1: the sheet-laid answer is the hands-off confirmation before the move to the
+    # aiming place (final fix round, M-1: no GO before it), GO after the aims (before the
+    # homing); page 2: its own sheet-laid answer again
+    assert [k for _s, k, *_ in p2.asked].count(J.Confirm.GO) == 1
     assert [k for _s, k, *_ in p2.asked].count(J.Confirm.SHEET_LAID) == 2
 
 

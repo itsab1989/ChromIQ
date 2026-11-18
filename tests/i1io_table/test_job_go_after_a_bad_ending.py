@@ -114,7 +114,9 @@ def test_again_on_a_failed_row_asks_go_before_the_arm_moves(tmp_path, asking):
 
 #: first_visit 3 -> 1 in the owner-results round (S-8): every spot row now starts at column 0,
 #: so the move to each row's start runs back over the chart's own rows, already driven
-CLEAN = {'aimed': 3, 'arm_felt': 1, 'calibration_place': 1, 'first_visit': 1, 'go': 2,
+#: go 2 -> 1 in the final fix round (M-1): the sheet-laid answer is the hands-off
+#: confirmation before the move to the aiming place, so no GO is asked before it
+CLEAN = {'aimed': 3, 'arm_felt': 1, 'calibration_place': 1, 'first_visit': 1, 'go': 1,
          'reader_consent': 1, 'ready_to_open': 1, 'sheet_laid': 1}
 
 

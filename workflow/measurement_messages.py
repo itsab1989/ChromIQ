@@ -11857,8 +11857,10 @@ M_I1IO_DRIVE_PREPARE = _m(
     "table describes.\n"
     "•  Lay page {page} on the table the way it was printed for it, with "
     "mark 1 at the top left.\n"
-    "•  Keep your hands away from the arm whenever it moves. ChromIQ asks "
-    "you before every move that follows a question.\n\n"
+    "•  Keep your hands away from the table and the arm whenever it moves. "
+    "Before the arm moves after any question, ChromIQ asks you to take your "
+    "hands away and waits until you confirm it, on a page of its own or with "
+    "your answer to that question.\n\n"
     "This chart has {pages} pages; ChromIQ reads them one after the other "
     "and asks you to lay the next one when a page is done.\n\n"
     "To stop the arm at once, switch the table off at its power switch. That "
@@ -11872,8 +11874,10 @@ M_I1IO_DRIVE_PREPARE = _m(
         "the table describes.\n"
         "•  Lay page {page} on the table the way it was printed for it, "
         "with mark 1 at the top left.\n"
-        "•  Keep your hands away from the arm whenever it moves. ChromIQ "
-        "asks you before every move that follows a question.\n\n"
+        "•  Keep your hands away from the table and the arm whenever it "
+        "moves. Before the arm moves after any question, ChromIQ asks you to "
+        "take your hands away and waits until you confirm it, on a page of its "
+        "own or with your answer to that question.\n\n"
         "To stop the arm at once, switch the table off at its power switch. "
         "That is always allowed."),
     count_key="pages", approved=False)
@@ -11957,11 +11961,13 @@ M_I1IO_DRIVE_START_UP = _m(
     "M-I1IO-DRIVE-START-UP",
     "The table has just been switched on",
     "ChromIQ can start it now, the way i1Profiler does when it finds a table "
-    "that was just switched on. The arm may move to its resting place, so "
-    "please keep your hands away from the table. This start-up has run once "
-    "on a real table, sent by ChromIQ's tester program: it took about three "
-    "seconds, the arm travelled and came back to its resting place, and "
-    "nothing went wrong.\n\n"
+    "that was just switched on. The arm moves during the start-up and ends at "
+    "its resting place, so please take your hands away from the table and the "
+    "arm first. When you press “Start the table, my hands are away”, the "
+    "start-up begins at once.\n\n"
+    "ChromIQ's tester program has sent this start-up to a real table once: "
+    "it took about three seconds, the arm travelled and came back to its "
+    "resting place, and nothing went wrong.\n\n"
     "Or leave the start-up to i1Profiler: ChromIQ then lets go of the table. "
     "Open i1Profiler 3.8.6 or older once, let it find the table, quit it, and "
     "press START MEASUREMENT again.\n\n"
@@ -11983,8 +11989,11 @@ M_I1IO_DRIVE_SHEET_LAID = _m(
     "Is page {page} on the table?",
     "Please lay page {page} on the table the way it was printed for it, with "
     "mark 1 at the top left, and nothing else on the bed.\n\n"
-    "When you press Yes, the arm moves to the place where you aim it, and the "
-    "table lets go of it there, so that you can push it gently by hand.",
+    "Then take your hands away from the table and the arm. When you press "
+    "“The page is laid, and my hands are away from the table”, the arm moves "
+    "at once: it makes its homing at the resting place, then drives out over "
+    "the bed to the place where you aim it, and the table lets go of it there, "
+    "so that you can push it gently by hand.",
     approved=False)
 
 M_I1IO_DRIVE_ARM_FELT = _m(
@@ -12095,7 +12104,9 @@ M_I1IO_DRIVE_FIRST_VISIT = _m(
     "The next move takes the arm to a part of the table where no recording "
     "of i1Profiler has taken it. It stays inside the area ChromIQ allows, "
     "and it is a first try.\n\n"
-    "Make this move now? If you say No, nothing moves and this step ends.",
+    "To make this move, please take your hands away from the table and the "
+    "arm, and then press “Make this move, my hands are away”: the arm makes "
+    "it at once. If you say No, nothing moves and this step ends.",
     approved=False)
 
 M_I1IO_DRIVE_READER_CONSENT = _m(
@@ -12166,12 +12177,14 @@ M_I1IO_DRIVE_CHECK_MARK = _m(
     "Is the opening on mark 3?",
     "The arm has moved to where ChromIQ works out that mark 3 is. Please look "
     "at the instrument's round opening: is it centred on mark 3?\n\n"
+    "If it is centred, please take your hands away from the table and the "
+    "arm, and then press “Yes, it is centred, my hands are away”: the arm "
+    "starts reading the rows at once. If it is not, nothing is read: the arm "
+    "only goes home, and you can lay the sheet and aim again.\n\n"
     "On a real table, i1Profiler sends the opening exactly to the points you "
     "aim at, and ChromIQ works out its moves the same way. ChromIQ's own moves "
     "over a sheet have not run on a real table yet, so your look here is the "
-    "check that they land where they should.\n\n"
-    "If it is not, nothing is read: the arm only goes home, and you can lay "
-    "the sheet and aim again.",
+    "check that they land where they should.",
     approved=False)
 
 M_I1IO_DRIVE_ROW_FAILED = _m(
@@ -12198,6 +12211,7 @@ M_I1IO_DRIVE_REPORT = _m(
     "M-I1IO-DRIVE-REPORT",
     "Did the table and the arm do what you expected?",
     "{step}\n\n"
+    "{next}\n\n"
     "We ask this after each step during your first measurement with the "
     "table. If anything looks or sounds wrong at any time, press Report a "
     "problem, or switch the table off at its power switch.",

@@ -56,7 +56,9 @@ def test_a_note_with_a_report_goes_into_the_log_and_the_steps_block(tmp_path):
 def test_a_note_with_a_problem_and_a_note_at_the_end(tmp_path):
     run, job, sim, p = _job(tmp_path, ask_after_each_step=False)
     assert p.drive(job.open()).ok
-    r = job.align()
+    # (the park's GO: the alignment asks no GO before its sheet-laid question any more, final
+    # fix round M-1, and that question is asked inside the step's block)
+    r = job.park()
     assert r.confirm == J.Confirm.GO
     job.report_problem(J.PROBLEM_STOP_NOW, note="my cat jumped on the table")
     job.add_note("it was the cat, nothing else")
@@ -67,7 +69,7 @@ def test_a_note_with_a_problem_and_a_note_at_the_end(tmp_path):
     notes = json.loads((_folder(run) / "notes.json").read_text(encoding="utf-8"))
     assert [n["words"] for n in notes] == ["my cat jumped on the table",
                                            "it was the cat, nothing else"]
-    assert notes[0]["about"] == "problem: stop now" and notes[0]["step"] == "align"
+    assert notes[0]["about"] == "problem: stop now" and notes[0]["step"] == "park"
 
 
 def test_an_empty_note_changes_nothing(tmp_path):

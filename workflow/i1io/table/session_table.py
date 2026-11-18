@@ -1054,6 +1054,9 @@ class Table:
         # ---- 0.5.0, part C ----
         #: part C's gate: line -> (command id, is it a movement, label); set by i1io_part_c
         self.c_gate = None
+        #: final fix round, M-1: the job's last check before a movement line (None: none);
+        #: returns why the movement may not be sent, or None
+        self.motion_guard = None
         #: part C's caps per session (lines, movements)
         self.c_caps = (0, 0)
         #: True only on the one path from a scan move to the instrument's fire (i1io_scan):
@@ -1177,6 +1180,10 @@ class Table:
                 raise self._doubt(f"the step '{key}' reached its limit of movements")
         elif is_motion:
             raise self._doubt("a movement outside a step (a bug)")
+        if is_motion and self.motion_guard is not None:
+            why = self.motion_guard()
+            if why:
+                raise self._doubt(f"{why} (a bug)")
         held = hold_stop_signals()
         try:
             # part C: on the scan path a stop is deferred until the scan move has ended, but the
