@@ -9228,8 +9228,8 @@
  "X-Rite i1iO table (Beta)": "Mesa i1iO de X-Rite (Beta)",
  "In the table's window: {title}": "En la ventana de la mesa: {title}",
  "Your answer: {answer}": "Tu respuesta: {answer}",
- "Report a problem: ChromIQ stops the table before its next move (a move that has started finishes first) and then asks what is wrong.": "Informar de un problema: ChromIQ detiene la mesa antes de su próximo movimiento (un movimiento ya iniciado termina primero) y después pregunta qué ocurre.",
- "Measuring with the i1iO table (beta): when the table needs an answer, a window opens beside the chart; this log shows what the table does. Stop stops the table before its next move.": "Medición con la mesa i1iO (beta): cuando la mesa necesita una respuesta, se abre una ventana junto a la carta; este registro muestra lo que hace la mesa. Detener detiene la mesa antes de su próximo movimiento.",
+ "Report a problem: ChromIQ stops the table before its next move (a move that has started finishes first) and then asks what is wrong.": "Informar de un problema: ChromIQ detiene la mesa antes de su próximo desplazamiento (un desplazamiento ya iniciado termina primero) y después pregunta qué ocurre.",
+ "Measuring with the i1iO table (beta): when the table needs an answer, a window opens beside the chart; this log shows what the table does. Stop stops the table before its next move.": "Medición con la mesa i1iO (beta): cuando la mesa necesita una respuesta, se abre una ventana junto a la carta; este registro muestra lo que hace la mesa. Detener detiene la mesa antes de su próximo desplazamiento.",
  "To stop the arm at once, switch the table off at its power switch.": "Para detener el brazo al instante, apaga la mesa con su interruptor de encendido.",
  "ChromIQ closes after the i1iO table measurement has ended. Please answer the questions in the table's window; nothing moves without your Go.": "ChromIQ se cerrará cuando haya terminado la medición con la mesa i1iO. Responde a las preguntas de la ventana de la mesa; nada se mueve sin tu «Adelante»."
 }
