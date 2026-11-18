@@ -310,7 +310,7 @@ SHOWN_CHOICES = {"arm_felt": ("free", "holds", "not sure")}
 
 
 def step_done_text(step: str, detail: dict, page: "int | None" = None,
-                   reason: str = "") -> str:
+                   reason: str = "", patches: "list | None" = None) -> str:
     """What the step that just ran did, for M-I1IO-DRIVE-REPORT's first paragraph. *page*
     (1-based) when the step's own result does not name it (a row that failed and was ended:
     found on screen, the text said "page ?"). *reason*: the step's refusal, when it ended
@@ -332,6 +332,12 @@ def step_done_text(step: str, detail: dict, page: "int | None" = None,
                       "readings.").format(row=row, page=pg)
         return tr("The arm moved along row {row} of page {page} and read its "
                   "patches.").format(row=row, page=pg)
+    if patches and step == "align":
+        return tr("The arm moved to the place where you aim it, the table let go of it, and "
+                  "you aimed it at patches {a}, {b} and {c}.").format(
+            a=patches[0], b=patches[1], c=patches[2])
+    if patches and step == "check_move":
+        return tr("The arm moved by itself to patch {patch}.").format(patch=patches[2])
     return {
         "start_up": tr("The table started, the way i1Profiler starts a table that was just "
                        "switched on."),
@@ -452,6 +458,10 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
     texts = {
         "chart_not_for_i1io2_with_i1pro2": tr(
             "This chart was not made for an i1iO 2 with an i1Pro 2."),
+        "chart_page_without_three_aim_points": tr(
+            "A page of this chart does not name the three points to aim at (three crosses, or "
+            "three corner patches), so the table cannot be aimed at it. Please make the chart "
+            "again in Create Chart. Nothing was sent to the table."),
         "not_ready_to_open": tr("You chose Not now, so ChromIQ did not connect to the table."),
         "pending_marker_not_cleared": tr(
             "You chose Stop at the question about switching the table off, so ChromIQ did not "
@@ -464,8 +474,7 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
             "The arm did not move freely when you pushed it, so ChromIQ does not aim with it."),
         "stopped_during_the_aims": tr("You chose Stop while aiming."),
         "sheet_to_be_laid_further_back": tr(
-            "You chose to lay the sheet further back. Please lay it again and aim at its marks "
-            "again."),
+            "You chose to lay the sheet further back. Please lay it again and aim at it again."),
         "first_visit_declined": tr("You chose not to make that move, so the arm did not move."),
         # round B: strip rows (a first try)
         "needs_strip_calibration": tr(
@@ -582,7 +591,8 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
         "movement_outside_time_window": tr("A movement took longer or shorter than recorded."),
         "arm_not_where_expected": tr("The arm did not report the place it was sent to."),
         "target_outside_area": tr("The place lies outside the area ChromIQ sends the arm to."),
-        "target_off_sheet": tr("The place lies outside the aimed marks of the sheet."),
+        "target_off_sheet": tr("The place lies outside the three points of the sheet you "
+                               "aimed at."),
         "path_leaves_area": tr("The way there would leave the area ChromIQ allows."),
         "target_beyond_confirmed_front": tr(
             "The place lies further forward than the arm has felt its way in this sitting."),
@@ -657,6 +667,11 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
             "Press Carry on to calibrate again."),
         "calibration_not_done": tr("The instrument has not been calibrated yet."),
     }
+    if (rid.startswith("aims_") or rid in ("sheet_marks_on_one_line", "sheet_turned",
+                                           "alignment_refused")) and d.get("aim_target") == "patch":
+        return tr("The three corner patches you aimed at do not fit this sheet. Nothing has "
+                  "moved over your sheet; please aim again, at the centre of each patch, in the "
+                  "order shown.")
     if rid.startswith("aims_") or rid in ("sheet_marks_on_one_line", "sheet_turned",
                                           "alignment_refused"):
         return tr("The three marks you aimed at do not fit this sheet. Nothing has moved over "
@@ -1328,7 +1343,9 @@ class TableMeasureWindow(QFrame):
                 live["now"] = tr("Now: row {row} could not be read.").format(
                     row=ev.get("row", "?"))
         elif kind == "aim":
-            live["now"] = tr("Now: aiming at mark {mark}.").format(mark=ev.get("mark", "?"))
+            live["now"] = (tr("Now: aiming at patch {patch}.").format(patch=ev["patch"])
+                           if ev.get("patch") else
+                           tr("Now: aiming at mark {mark}.").format(mark=ev.get("mark", "?")))
         elif kind == "strip_fallback":
             from workflow import measurement_messages as M
             live["now"] = (M.M_I1IO_DRIVE_STRIP_TOO_LONG.render(row=ev.get("row", "?"))[1]
@@ -1778,6 +1795,11 @@ class TableMeasureWindow(QFrame):
             return (j.creep, tr("Feeling the way forward..."),
                     tr("the arm feels its way towards the front of the table"))
         if want and self._checked_page != j.page:
+            patch = self._aim_patch(3)
+            if patch:
+                return (j.check_move, tr("Moving the arm to patch {patch}...").format(
+                    patch=patch), tr("the arm moves by itself to patch {patch}").format(
+                    patch=patch))
             return (j.check_move, tr("Moving the arm to mark 3..."),
                     tr("the arm moves by itself to mark 3"))
         if self._again_rows:
@@ -1867,11 +1889,19 @@ class TableMeasureWindow(QFrame):
         elif kind == "sheet_laid":
             title, body = M.M_I1IO_DRIVE_SHEET_LAID.render(page=page)
         elif kind == "aimed":
-            title, body = M.M_I1IO_DRIVE_AIM.render(mark=d.get("mark", "?"),
-                                                    corner=corner_text(d.get("corner", "")))
+            patch = d.get("patch") if d.get("target") == "patch" else None
+            if patch:
+                # final fix round (the owner): a chart without crosses: the corner PATCH
+                title, body = M.M_I1IO_DRIVE_AIM_PATCH.render(
+                    patch=patch, corner=corner_text(d.get("corner", "")))
+            else:
+                title, body = M.M_I1IO_DRIVE_AIM.render(mark=d.get("mark", "?"),
+                                                        corner=corner_text(d.get("corner", "")))
             if d.get("button") and d.get("button_token"):
                 # round B (proposed text): the instrument's own button answers too
-                body += "\n\n" + M.M_I1IO_DRIVE_AIM_BUTTON.render(mark=d.get("mark", "?"))[1]
+                body += "\n\n" + (M.M_I1IO_DRIVE_AIM_BUTTON_PATCH.render(patch=patch)[1]
+                                   if patch else
+                                   M.M_I1IO_DRIVE_AIM_BUTTON.render(mark=d.get("mark", "?"))[1])
             self._aim_event(d.get("mark"), d.get("patch") if d.get("target") == "patch"
                             else None)
         elif kind == "front_choice":
@@ -1962,8 +1992,11 @@ class TableMeasureWindow(QFrame):
         if "press_wait_ready" in names:
             line = tr("The button on the i1Pro 2 is ready: one press counts as Aimed.")
             if self._aimed_by_button is not None:
-                line = tr("Mark {mark} was aimed by the button on the i1Pro 2.").format(
-                    mark=self._aimed_by_button) + "\n" + line
+                patch = self._aim_patch(self._aimed_by_button)
+                line = (tr("Patch {patch} was aimed by the button on the i1Pro 2.").format(
+                    patch=patch) if patch else
+                    tr("Mark {mark} was aimed by the button on the i1Pro 2.").format(
+                        mark=self._aimed_by_button)) + "\n" + line
         elif "error" in names or "helper_gone" in names:
             line = tr("The button on the i1Pro 2 cannot be used this time. Please press Aimed "
                       "here.")
@@ -2028,7 +2061,8 @@ class TableMeasureWindow(QFrame):
         step = self.job.report_due
         title, body = M.M_I1IO_DRIVE_REPORT.render(step=step_done_text(
             step, res.detail, page=self.job.page + 1,
-            reason=res.reason if res.kind != OK else ""), next=self._report_next_text(res))
+            reason=res.reason if res.kind != OK else "",
+            patches=self._aim_patches()), next=self._report_next_text(res))
         self._report_res = res
         buttons = [(choice_label(REPORT, v), _Report(self, v).fire)
                    for v in ("as described", "something wrong", "not sure")]
@@ -2058,17 +2092,25 @@ class TableMeasureWindow(QFrame):
     def _ask_check_mark(self) -> None:
         self._aim_event(3, self._aim_patch(3))
         from workflow import measurement_messages as M
-        title, body = M.M_I1IO_DRIVE_CHECK_MARK.render()
+        patch = self._aim_patch(3)
+        title, body = (M.M_I1IO_DRIVE_CHECK_MARK_PATCH.render(patch=patch) if patch
+                       else M.M_I1IO_DRIVE_CHECK_MARK.render())
         self._show("check_mark", title, body,
                    [(tr("Yes, it is centred, my hands are away"), self._on_mark_ok),
                     (tr("No"), self._on_mark_wrong)])
+
+    def _aim_patches(self) -> "list[str] | None":
+        """The three corner patches of this page in aiming order, when its chart has no
+        crosses (None: it aims at crosses)."""
+        names = [self._aim_patch(m) for m in (1, 2, 3)]
+        return names if all(names) else None
 
     def _aim_patch(self, mark) -> "str | None":
         try:
             for a in self._sheet["pages"][self.job.page]["aim_points"]:
                 if a.get("number") == mark and a.get("target") == "patch":
                     return a.get("patch")
-        except (KeyError, IndexError, TypeError):
+        except (KeyError, IndexError, TypeError, AttributeError):
             pass
         return None
 
@@ -2158,7 +2200,10 @@ class TableMeasureWindow(QFrame):
 
     def _show_refusal(self, res, after=None) -> None:
         from workflow import measurement_messages as M
-        why = reason_text(res.reason, res.detail)
+        detail = dict(res.detail or {})
+        if self._aim_patches():
+            detail["aim_target"] = "patch"
+        why = reason_text(res.reason, detail)
         if res.reason == "measurement_not_written" and getattr(self, "_archived", False):
             why += " " + tr("Your previous measurement was moved to the run's old folder for "
                             "this Save. If this measurement ends without a Save, ChromIQ puts "

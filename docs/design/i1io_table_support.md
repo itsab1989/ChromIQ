@@ -802,5 +802,16 @@ table.
 * **Windows: decided by what loads (S-6):** the bundled libusb-1.0 and, on Windows, libusb0.dll
   are loaded to decide; only a library that truly does not load gets a message (on an ARM64 PC
   the one that says the drive cannot run there yet).
+* **A chart without aiming crosses (the owner).** The three aimed points are the centres of the
+  corner patches the chart names (top left, bottom left, bottom right, in that order); every
+  patch target follows from them exactly as from crosses. The aiming pages name the patch as
+  printed ("Aim at patch A1", "the centre of patch A1, the one at the top left"), say that the
+  preview shows it ringed, and so do the button line, the check move ("Is the opening on the
+  centre of patch X?"), the reports, the status lines and the log; with crosses the texts are
+  unchanged. A page of such a chart that names no three aim points is refused before anything
+  is opened (the chart module gives a page whose corner patches cannot be aimed at its
+  crosses). Aiming at a patch's centre by eye is less exact than at a cross, which has a fine
+  centre: the check move's question is what catches a poor aim.
+* **The table's own patch-by-patch default (the owner):** see per_target_settings.md §1.9.
 * **Preferences and the completion window (S-8):** the calibration place has its (i); after a
   table measurement the completion window says "saved" once and Close only stays on the tab.

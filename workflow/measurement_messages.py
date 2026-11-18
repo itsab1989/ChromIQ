@@ -12012,6 +12012,32 @@ M_I1IO_DRIVE_AIM = _m(
     "ChromIQ only reads where the arm is; it does not move it while you aim.",
     approved=False)
 
+M_I1IO_DRIVE_AIM_PATCH = _m(
+    "M-I1IO-DRIVE-AIM-PATCH",
+    "Aim at patch {patch}",
+    "Push the arm gently by hand until the cross hairs of the sight sit exactly on the "
+    "centre of patch {patch}, {corner}, as it is printed on your sheet. The preview shows "
+    "that patch ringed. Then press Aimed.\n\n"
+    "This chart has no aiming crosses, so its corner patches are the three points you aim "
+    "at. A patch has no fine centre to aim at, as a cross has, so aim as well as you can at "
+    "its middle: after the aims, the arm moves by itself to the third point, and you check "
+    "there that the opening sits on it before anything is read.\n\n"
+    "ChromIQ only reads where the arm is; it does not move it while you aim.",
+    approved=False)
+
+M_I1IO_DRIVE_AIM_BUTTON_PATCH = _m(
+    "M-I1IO-DRIVE-AIM-BUTTON-PATCH",
+    "You can also use the button on the instrument",
+    "Instead of pressing Aimed here, you can press the button on the i1Pro 2 itself, once, "
+    "while the cross hairs sit on the centre of patch {patch}. ChromIQ then takes that press "
+    "as Aimed for this patch, so your hand can stay on the arm.\n\n"
+    "The button never starts a move. Before the arm moves again, ChromIQ still asks you here, "
+    "in this panel, to take your hands away from the table.\n\n"
+    "i1Profiler uses the button the same way on the table. ChromIQ's own way of listening for "
+    "the press has not been tried on a real table yet. If nothing happens when you press it, "
+    "simply press Aimed here: nothing is lost.",
+    approved=False)
+
 M_I1IO_DRIVE_AIM_BUTTON = _m(
     "M-I1IO-DRIVE-AIM-BUTTON",
     "You can also use the button on the instrument",
@@ -12098,8 +12124,8 @@ M_I1IO_DRIVE_FRONT = _m(
     "the arm has gone in our recordings. ChromIQ can feel its way there "
     "first, in steps of 5 mm, and it stops at the first step that does not "
     "arrive exactly.\n\n"
-    "Or lay the sheet about {back_mm} mm further back and aim at its marks "
-    "again: then the arm does not need to go there at all.",
+    "Or lay the sheet about {back_mm} mm further back and aim at it again: "
+    "then the arm does not need to go there at all.",
     approved=False)
 
 M_I1IO_DRIVE_FRONT_YES = _m(
@@ -12197,6 +12223,21 @@ M_I1IO_DRIVE_CHECK_MARK = _m(
     "aim at, and ChromIQ works out its moves the same way. ChromIQ's own moves "
     "over a sheet have not run on a real table yet, so your look here is the "
     "check that they land where they should.",
+    approved=False)
+
+M_I1IO_DRIVE_CHECK_MARK_PATCH = _m(
+    "M-I1IO-DRIVE-CHECK-MARK-PATCH",
+    "Is the opening on the centre of patch {patch}?",
+    "The arm has moved to where ChromIQ works out that the centre of patch {patch}, the one at "
+    "the bottom right, is. Please look at the instrument's round opening: does it sit on the "
+    "centre of that patch?\n\n"
+    "If it does, please take your hands away from the table and the arm, and then press "
+    "“Yes, it is centred, my hands are away”: the arm starts reading the rows at once. If it "
+    "does not, nothing is read: the arm only goes home, and you can lay the sheet and aim "
+    "again.\n\n"
+    "This chart has no aiming crosses, and a patch's centre is harder to hit by eye than a "
+    "cross, so this look is what catches an aim that was a little off. ChromIQ's own moves "
+    "over a sheet have not run on a real table yet either.",
     approved=False)
 
 M_I1IO_DRIVE_ROW_FAILED = _m(
@@ -12577,7 +12618,8 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_EARLIER, M_I1IO_DRIVE_EARLIER_ELSEWHERE, M_I1IO_DRIVE_OPTIONS, M_I1IO_DRIVE_OPTION_REFUSED,
     M_I1IO_DRIVE_OPTIONS_FIELDS, M_I1IO_DRIVE_MARKER, M_I1IO_DRIVE_START_UP,
     M_I1IO_DRIVE_GO, M_I1IO_DRIVE_SHEET_LAID, M_I1IO_DRIVE_ARM_FELT,
-    M_I1IO_DRIVE_AIM, M_I1IO_DRIVE_AIM_BUTTON, M_I1IO_DRIVE_STRIP_OPTION,
+    M_I1IO_DRIVE_AIM, M_I1IO_DRIVE_AIM_BUTTON, M_I1IO_DRIVE_AIM_PATCH,
+    M_I1IO_DRIVE_AIM_BUTTON_PATCH, M_I1IO_DRIVE_CHECK_MARK_PATCH, M_I1IO_DRIVE_STRIP_OPTION,
     M_I1IO_DRIVE_STRIP_FIRST_TRY, M_I1IO_DRIVE_STRIP_TOO_LONG, M_I1IO_DRIVE_STRIP_DEFAULT_OFFER,
     M_I1IO_DRIVE_ROW_FAILED_STRIP, M_I1IO_DRIVE_FRONT,
     M_I1IO_DRIVE_FRONT_YES,

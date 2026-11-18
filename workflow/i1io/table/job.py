@@ -1023,6 +1023,15 @@ class TableJob:
         if sheet.get("table_model") != CHART_TABLE or sheet.get("head_model") != CHART_HEAD:
             raise StageFailed("chart_not_for_i1io2_with_i1pro2",
                               table=sheet.get("table_model"), head=sheet.get("head_model"))
+        # final fix round (crosses off): every page must name its three points to aim at
+        # (three crosses, or three corner patches); checked here, before anything is opened,
+        # never at the aims (the chart module gives a page whose corner patches cannot be
+        # aimed at its crosses, so a chart ChromIQ made never fails this)
+        for k, pg in enumerate(sheet.get("pages") or []):
+            pts = pg.get("aim_points") or []
+            if len(pts) != 3 or any(len(a.get("page_mm") or ()) != 2 for a in pts) or \
+                    sorted(int(a.get("number", 0)) for a in pts) != [1, 2, 3]:
+                raise StageFailed("chart_page_without_three_aim_points", page=k + 1)
         try:
             self.caps = cp.caps_for_sheet(sheet)
             if self.only_locs is not None:
@@ -1641,6 +1650,8 @@ class TableJob:
                 rep = d.c_exchange(cl.C_FIXED["aim"], cl.C_DATA_LEN["aim"])
                 p = rep.xy()
                 d.log("DATA", f"aim {a['number']}: p1 reports {p}"
+                              + (f" (the centre of corner patch {a.get('patch')})"
+                                 if a.get("target") == "patch" else "")
                               + (" (aimed by the instrument's button)" if by_button else ""))
                 if by_button:
                     self.button_aims.append((self.page + 1, int(a["number"])))

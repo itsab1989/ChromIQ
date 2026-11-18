@@ -187,6 +187,10 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-I1IO-DRIVE-STRIP-OPTION",
     "M-I1IO-DRIVE-STRIP-FIRST-TRY",
     "M-I1IO-DRIVE-STRIP-TOO-LONG",
+    # 2026-11-18, final fix round: a chart without aiming crosses (the owner)
+    "M-I1IO-DRIVE-AIM-PATCH",
+    "M-I1IO-DRIVE-AIM-BUTTON-PATCH",
+    "M-I1IO-DRIVE-CHECK-MARK-PATCH",
     # 2026-11-18, final fix round: the offer to make strips the table's default (the owner)
     "M-I1IO-DRIVE-STRIP-DEFAULT-OFFER",
     "M-I1IO-DRIVE-ROW-FAILED-STRIP",
