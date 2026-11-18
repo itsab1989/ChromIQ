@@ -2382,6 +2382,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             if unknown:
                 log.info("ignored %d unknown stored Measure setting(s): %s",
                          len(unknown), ", ".join(sorted(unknown)[:8]))
+            self._pbp_stored_into_snapshot(stored)
             self._reassert_guided_refinement()
             self._apply_cr30_pbp_lock()
             self._apply_cr30_dead_options()
@@ -2467,6 +2468,23 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             return bool(snap[mode][0])
         cb = self._pbp_cb if mode == "guided" else self._m_pbp_cb
         return bool(cb.isChecked())
+
+    def _pbp_stored_into_snapshot(self, stored: dict) -> None:
+        """Review 13, S-5: a target's stored patch-by-patch value, loaded while a CR30 lock or
+        an i1iO table chart's snapshot is held (the target changed and its settings arrived
+        before its chart did), is that target's own value: it is ALSO what the snapshot gives
+        back when the target's own chart arrives, so the chart that was loaded before can
+        never write its value into the next target. Only when the target stores one (the two
+        boxes mirror each other, so both are taken from the screen then)."""
+        snap = self._pbp_lock_snapshot
+        if snap is None or not isinstance(stored, dict):
+            return
+        if "patch_by_patch" not in stored and "patch_by_patch_guided" not in stored:
+            return
+        for mode, cb in (("manual", getattr(self, "_m_pbp_cb", None)),
+                         ("guided", getattr(self, "_pbp_cb", None))):
+            if mode in snap and cb is not None:
+                snap[mode] = (bool(cb.isChecked()), snap[mode][1])
 
     def _set_pbp_user_value(self, mode: str, value: bool) -> None:
         """Load a stored patch-by-patch value without fighting the lock.
