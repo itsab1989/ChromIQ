@@ -9213,7 +9213,7 @@
  "The arm moved by itself to patch {patch}.": "机械臂自行移到了色块 {patch}。",
  "The arm moved to the place where you aim it, the table let go of it, and you aimed it at patches {a}, {b} and {c}.": "机械臂移到了你对准它的位置，扫描台松开了它，你把它对准了色块 {a}、{b} 和 {c}。",
  "The place lies outside the three points of the sheet you aimed at.": "该位置在纸张上你对准的三个点之外。",
- "The three corner patches you aimed at do not fit this sheet. Nothing has moved over your sheet; please aim again, at the centre of each patch, in the order shown.": "你对准的三个角上的色块与这张纸不符。你的纸张上方没有任何移动；请按显示的顺序，对准每个色块的中心重新对准。",
+ "The three corner patches you aimed at do not fit this sheet. Nothing has moved over your sheet; please aim again, at the centre of each patch, in the order shown.": "你对准的三个角上的色块与这张纸不符。你的纸张上方没有任何移动；请按显示的顺序，重新对准每个色块的中心。",
  "Ticked (the default): a chart made for the i1iO table starts with “Patch-by-patch mode (-p)” ticked on the Measure tab, and the table reads it patch by patch, the careful way. Not ticked: table charts start with it not ticked, and the table reads each row as a strip, which is much faster. Reading by strips is a first try and has not been tried on a real table yet. This is the table's own choice: Save as Defaults on the Measure tab with a table chart loaded changes it too, and charts for other instruments keep their own patch-by-patch setting. A project that keeps its own setting opens with its own.": "已勾选（默认）：为 i1iO 扫描台制作的色卡在「测量」选项卡上开始时「逐块模式 (-p)」为已勾选，扫描台以稳妥的方式逐块读取。未勾选：扫描台色卡开始时该选项为未勾选，扫描台把每一行当作色条来读取，这样快得多。按色条读取是第一次尝试，还没有在真实的扫描台上试过。这是扫描台自己的选择：载入扫描台色卡时，在「测量」选项卡上使用「存为默认」也会更改它，用于其他仪器的色卡保留它们自己的逐块设置。保存了自己设置的项目会以它自己的设置打开。",
  "Yes, make strips the default": "是，默认按色条读取",
  "You chose to lay the sheet further back. Please lay it again and aim at it again.": "你选择了把纸张往后放。请重新放好纸张，然后再次对准它。",
