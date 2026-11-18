@@ -7,7 +7,10 @@ recorded with its exact arguments. It speaks the helper's JSON events as
 ``native/chartread_helper`` emits them (instrument, cal_required, cal_done, spot_ready,
 patch_read, unread_confirm, saved, error), on the table simulator's clock, and reads whatever
 stands under the simulated sensor. Like ArgyllCMS (ENABLE_NONVCAL) a calibration made by one
-reader is found by the next. It writes the row's .ti3 as chartread does when told "done".
+reader is found by the next. It writes the row's .ti3 when told "done" (NOT after every
+reading, as the real helper does: see the note in ``send``). At its prompts outside the patch menu (a
+calibration request, a failed reading, a stop at a patch) it takes keys as the real helper does
+(``send``); ``killed`` lists every helper the reader had to end by force.
 
 Faults (``HelperSim(faults=...)``):
   open        no_instrument / busy / wrong_model / no_model / dies / silent / cal_fails /
@@ -96,6 +99,9 @@ class HelperSim:
         self.scans: "list[str]" = []
         self.scan_readers: list = []
         self.strip_calibrated = False
+        #: 4.3.46: the chart names of the spot readers that were still running when the reader
+        #: gave up on them and ended them by force (the real _Proc.stop's kill)
+        self.killed: "list[str]" = []
 
     def proc_class(self):
         helper = self
@@ -454,6 +460,28 @@ class FakeHelperProc:
         if not self._alive:
             raise ReaderFailed("the reader stopped listening (BrokenPipeError)")
         cmd = obj.get("cmd")
+        # 4.3.46 fix round 2: the real helper's prompts outside its patch menu
+        # (chromiq_chartread.c's spot loop, chromiq_cal.c). There it waits for ONE key: Esc
+        # ("quit") ends it (it->del, the process ends); a goto is dropped (cq_wait_char takes
+        # it and waits on); ANY other key carries on: at a calibration request that is the
+        # calibration itself, on whatever lies under the instrument; at a failed reading or
+        # after a stop at a patch it is "retry", the same patch again.
+        if self.state in ("cal", "prompt", "interrupted", "confirm"):
+            if cmd == "quit":
+                self._die()
+                return
+            if cmd == "goto":
+                return
+            if self.state == "cal" and cmd != "ok":
+                sim.violations.append(f"a calibration started by '{cmd}' at a calibration "
+                                      "request (the instrument calibrates where it stands)")
+                cmd = "ok"
+            elif self.state in ("prompt", "interrupted"):
+                self._ready()
+                return
+            elif self.state == "confirm" and cmd != "yes":
+                self._ready()
+                return
         if cmd == "ok" and self.state == "cal":
             sim.clock += 3.0
             # the events of the REAL helper for the calibration a session starts with
@@ -485,8 +513,12 @@ class FakeHelperProc:
                 sim.violations.append(f"a spot reading of {loc} while the arm moves")
             fault = self._fault_for(loc)
             if fault in ("error", "coms"):
-                self._emit({"event": "error", "kind": "read_error" if fault == "error"
+                # the real helper's words for a failed spot reading ("misread", also for an
+                # unexpected error, and "coms"), and its prompt: "Hit Esc or 'q' to give up,
+                # any other key to retry" (it no longer sits at the patch menu)
+                self._emit({"event": "error", "kind": "misread" if fault == "error"
                             else "coms", "detail": ""})
+                self.state = "prompt"
                 return
             if fault == "dies":
                 self._die()
@@ -496,6 +528,7 @@ class FakeHelperProc:
             if fault == "cal_required":
                 self._emit({"event": "cal_required", "cond": "man_ref_white", "id": "",
                             "optional": False})
+                self.state = "cal"
                 return
             sim.clock += float(h.faults.get("read_s", 0.9))
             xyz, spec = self._xyz_here()
@@ -514,13 +547,11 @@ class FakeHelperProc:
                 self._emit({"event": "patch_read", "id": other[0], "loc": other[1],
                             "xyz": xyz, "exyz": xyz, "de": 0.0})
                 return
-            self.read[loc] = [sid, xyz, spec]
             self._emit({"event": "patch_read", "id": sid, "loc": loc, "xyz": xyz,
                         "exyz": [50.0, 50.0, 50.0], "de": 1.0})
+            self.read[loc] = [sid, xyz, spec]
             # NOT simulated: the real helper also autosaves the .ti3 after every spot reading
-            # ({"event":"saved"}; test_engine_spot.py::test_each_patch_read_autosaves). Several
-            # tests here assume a row's earlier readings are lost when its reader dies (review
-            # of 4.3.46, REVIEW.md); the app's assembly takes them either way.
+            # ({"event":"saved"}; test_engine_spot.py::test_each_patch_read_autosaves).
             if self.at + 1 < len(self.patches):
                 self.at += 1
             self._ready()
@@ -534,7 +565,13 @@ class FakeHelperProc:
         elif cmd == "yes" and self.state == "confirm":
             self._save()
         elif cmd == "quit":
-            self._alive = False
+            # at a patch the real helper's first Esc only stops the reading and asks again
+            # ("strip_interrupted"; chromiq_chartread.c); anywhere else it ends
+            if self.state == "ready":
+                self._emit({"event": "strip_interrupted"})
+                self.state = "interrupted"
+                return
+            self._die()
 
     def _save(self) -> None:
         """The real helper's end ("done"): chartread writes the .ti3, says {"event":"done"} and
@@ -606,6 +643,8 @@ class FakeHelperProc:
                 self.send(quit_cmd)
             except Exception:      # noqa: BLE001
                 pass
+            if self._alive:            # the real _Proc.stop waits 5 s, then kills
+                self.helper.killed.append(self.name)
         self._alive = False
 
 
