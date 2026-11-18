@@ -1847,17 +1847,93 @@ I1PRO_IMP_C_TSCAN = [
      "/* --i1io-table-scan. */\n#include \"cq_i1pro2_tscan.h\"\n"),
 ]
 # ---- END I1IO TABLE SCAN ----
+
+# ---- THE i1Pro 2 DUAL SCAN (2026-11-18, step 2) ----
+# ChromIQ's own code lives in cq_i1pro2_dual.h (API: cq_dual.h), included at
+# the end of i1pro_imp.c; these hooks are no-ops unless the helper switched
+# the dual scan on (i1pro2_cq_dual_options). See PROVENANCE.md.
+I1PRO_IMP_H_DUAL = [
+    ('\n}; typedef struct _i1proimp i1proimp;\n',
+     "\n\t/* CHROMIQ PATCH: the i1Pro 2 dual scan (2026-11-18), cq_i1pro2_dual.h. */\n\tint cq_dual_on;\t\t\t/* the helper's option, this session (0 = no hook does anything) */\n\tvoid *cq_dual_rec;\t\t/* cq_dual_state (cq_i1pro2_dual.h) */\n\n}; typedef struct _i1proimp i1proimp;\n"),
+    ('\ti1p2_wl_cal      = 0x24\t\t/* No scan, wavelength reference LED illumination (Rev E) */\n} i1p_mmodif;',
+     "\ti1p2_wl_cal      = 0x24,\t\t/* No scan, wavelength reference LED illumination (Rev E) */\n\ti1p2_cq_UV_cal   = 0x21\t\t/* CHROMIQ PATCH: dual scan, UV LED on the tile, no scan */\n} i1p_mmodif;\n\n/* CHROMIQ PATCH: the i1Pro 2 dual scan's hooks (cq_i1pro2_dual.h), no-ops unless on. */\nint i1pro2_cq_dual_lamp_delay(void *pp, int mmodif);\nint i1pro2_cq_dual_ruler_bits(void *pp, int mmodif);\nint i1pro2_cq_dual_ruler_phase(void *pp);\nvoid i1pro2_cq_dual_lamp_readings(void *pp, int nreadings);\nint i1pro2_cq_dual_readings(void *pp, double **multimes, int nmeas, double **absraw, int npatch);\nvoid i1pro2_cq_dual_keep_lamp(void *pp, double **specrd, int nvals, int clamp);"),
+]
+I1PRO_IMP_C_DUAL = [
+    ("\tif (s->reflective && (mmodif & 0x10)) {\n",
+     "\tif (s->reflective && ((mmodif & 0x10)\n"
+     "\t || i1pro2_cq_dual_lamp_delay(p, mmodif))) {\t/* CHROMIQ PATCH: dual scan, no-op unless on */\n"),
+    ("\t\tif (mmodif == i1p2_UV)\n\t\t\tmeasmodeflags2 |= I1PRO2_MMF_UV_LED;",
+     "\t\tif (mmodif == i1p2_UV\n"
+     "\t\t || mmodif == i1p2_cq_UV_cal)\t\t/* CHROMIQ PATCH: dual scan, the UV LED on the tile */\n"
+     "\t\t\tmeasmodeflags2 |= I1PRO2_MMF_UV_LED;"),
+    ("\t\tmeasmodeflags2 |= i1pro2_cq_ruler_bits(p, mmodif);\t/* CHROMIQ PATCH: ruler check (Beta), a no-op unless armed */\n",
+     "\t\tmeasmodeflags2 |= i1pro2_cq_ruler_bits(p, mmodif);\t/* CHROMIQ PATCH: ruler check (Beta), a no-op unless armed */\n"
+     "\t\tmeasmodeflags2 |= i1pro2_cq_dual_ruler_bits(p, mmodif);\t/* CHROMIQ PATCH: dual scan, no-op unless armed */\n"),
+    ("\tif (!s->scan) {\n\t\tif (numpatches != 1) {",
+     "\t/* CHROMIQ PATCH: the dual scan's UV pass keeps every reading, no-op unless armed */\n"
+     "\tif (i1pro2_cq_dual_readings(p, multimes, nmeasuered, absraw, numpatches)) {\n"
+     "\t\trv = 0;\n"
+     "\t} else\n"
+     "\tif (!s->scan) {\n\t\tif (numpatches != 1) {"),
+    ("\t/* Transfer spectral and convert to XYZ */\n\tif ((ev = i1pro_conv2XYZ(p, vals, nvals, specrd, clamp)) != I1PRO_OK) {",
+     "\ti1pro2_cq_dual_keep_lamp(p, specrd, nvals, (int)clamp);\t/* CHROMIQ PATCH: dual scan, no-op unless armed */\n"
+     "\t/* Transfer spectral and convert to XYZ */\n\tif ((ev = i1pro_conv2XYZ(p, vals, nvals, specrd, clamp)) != I1PRO_OK) {"),
+    ("\tif (!m->cq_ruler_inscan || r == NULL)\n\t\treturn;\n\tcq_ruler_rec_clear(r);",
+     "\tif (!m->cq_ruler_inscan || r == NULL)\n\t\treturn;\n"
+     "\tif (i1pro2_cq_dual_ruler_phase(p) == 3 && m->cq_ruler_th != NULL)\n"
+     "\t\treturn;\t\t/* CHROMIQ PATCH: dual scan's UV pass, the lamp pass's reader runs on */\n"
+     "\tcq_ruler_rec_clear(r);"),
+    ("\tif (!m->cq_ruler_inscan || r == NULL || c == NULL)\n\t\treturn;\n\tm->cq_ruler_inscan = 0;\n",
+     "\tif (!m->cq_ruler_inscan || r == NULL || c == NULL)\n\t\treturn;\n\tm->cq_ruler_inscan = 0;\n"
+     "\tif (i1pro2_cq_dual_ruler_phase(p) == 1 && ev == I1PRO_OK) {\t/* CHROMIQ PATCH: dual scan's lamp pass: */\n"
+     "\t\ti1pro2_cq_dual_lamp_readings(p, nreadings);\t/* its stream runs on into the UV pass */\n"
+     "\t\tm->cq_ruler_recording = 1;\t/* the recogniser's cut follows */\n"
+     "\t\treturn;\n"
+     "\t}\n"),
+    ('#include "cq_i1pro2_tscan.h"\n',
+     '#include "cq_i1pro2_tscan.h"\n'
+     "\n/* CHROMIQ PATCH: the i1Pro 2 dual scan (2026-11-18). ChromIQ's own code in */\n"
+     "/* cq_i1pro2_dual.h, at the end of the file; nothing in it does anything */\n"
+     "/* unless ChromIQ's helper switches the dual scan on. */\n#include \"cq_i1pro2_dual.h\"\n"),
+]
+# ---- END i1Pro 2 DUAL SCAN ----
 PATCHES = {
     "rspl1.c": [(RSPL1_UPSTREAM, RSPL1_PATCHED)],
     "conv.c": CONV_PATCHES,
     "usbio.c": USBIO_PATCHES,
-    "i1pro_imp.h": I1PRO_IMP_H_LIGHTS + I1PRO_IMP_H_RULER + I1PRO_IMP_H_TOL,
-    "i1pro_imp.c": I1PRO_IMP_C_LIGHTS + I1PRO_IMP_C_RULER + I1PRO_IMP_C_TOL + I1PRO_IMP_C_TSCAN,
+    "i1pro_imp.h": I1PRO_IMP_H_LIGHTS + I1PRO_IMP_H_RULER + I1PRO_IMP_H_TOL + I1PRO_IMP_H_DUAL,
+    "i1pro_imp.c": I1PRO_IMP_C_LIGHTS + I1PRO_IMP_C_RULER + I1PRO_IMP_C_TOL + I1PRO_IMP_C_TSCAN + I1PRO_IMP_C_DUAL,
     "i1pro.c": I1PRO_C_LIGHTS,
     "i1pro3_imp.h": I1PRO3_IMP_H_LIGHTS + I1PRO3_IMP_H_RULER + I1PRO3_IMP_H_COND,
     "i1pro3_imp.c": I1PRO3_IMP_C_LIGHTS + I1PRO3_IMP_C_RULER + I1PRO3_IMP_C_COND,
     "i1pro3.c": I1PRO3_C_LIGHTS,
 }
+
+
+def _fold_dual(pairs, dual):
+    """The dual scan's hooks sit partly INSIDE text an earlier ChromIQ patch
+    added (the ruler block, the lights' struct fields, a prototype block).
+    Such a hook is folded into that earlier patch's replacement, so that every
+    recorded patch is still found once in the tree and undoing them in reverse
+    order still gives ArgyllCMS's own file; the others stay patches of their
+    own, applied last."""
+    pairs = [list(pr) for pr in pairs]
+    rest = []
+    for old, new in dual:
+        for pr in reversed(pairs):		# the latest text holds the earlier ones as context
+            if old in pr[1]:
+                assert pr[1].count(old) == 1, old[:60]
+                pr[1] = pr[1].replace(old, new)
+                break
+        else:
+            rest.append((old, new))
+    return [tuple(pr) for pr in pairs] + rest
+
+
+PATCHES["i1pro_imp.h"] = _fold_dual(I1PRO_IMP_H_LIGHTS + I1PRO_IMP_H_RULER + I1PRO_IMP_H_TOL,
+                                    I1PRO_IMP_H_DUAL)
+PATCHES["i1pro_imp.c"] = _fold_dual(I1PRO_IMP_C_LIGHTS + I1PRO_IMP_C_RULER + I1PRO_IMP_C_TOL
+                                    + I1PRO_IMP_C_TSCAN, I1PRO_IMP_C_DUAL)
 
 # (source-relative, dest-name) — dest flat like the instlib zip
 FILES = []
@@ -2086,7 +2162,28 @@ prov.write_text(
     "  readings fixed by the caller, lamp flag, no scan bit), the 0xC9 status.\n"
     "  No EEPROM write (i1Profiler's usage log is not copied), no ruler bits,\n"
     "  no 0xD7. Nothing calls it unless the helper runs with\n"
-    "  `--i1io-table-scan`. Not tested on a real instrument by the project.\n\n"
+    "  `--i1io-table-scan`. Not tested on a real instrument by the project.\n"
+    "- **`i1pro_imp.c`, `i1pro_imp.h`: the i1Pro 2 dual scan** (2026-11-18,\n"
+    "  step 2; not yet in ChromIQ's UI). One `#include \"cq_i1pro2_dual.h\"` at\n"
+    "  the end of the file (ChromIQ's own code, API in `cq_dual.h`; this script\n"
+    "  never writes either) and seven one-line hooks, each a no-op unless the\n"
+    "  helper switched the dual scan on (`i1pro2_cq_dual_options`, only for an\n"
+    "  inited i1Pro 2 whose EEPROM reports the UV LED and holds the factory\n"
+    "  tables 0x2f77 / 0x2f76, read-only, not in high resolution): the lamp\n"
+    "  pre-delay for a UV-LED trigger (i1Profiler sends 41 clocks with its lamp\n"
+    "  and its UV readings); one new measurement modifier, `i1p2_cq_UV_cal`\n"
+    "  (0x21: the UV LED on the white tile, no scan bit, flags 0x0200, as\n"
+    "  recorded); the ruler flags split over the two passes of a hand strip\n"
+    "  (lamp pass \"ruler start\" 0x0105, UV pass \"ruler end\" 0x0209, as\n"
+    "  recorded; the ruler check's own 0x85 reader runs on from the first into\n"
+    "  the second); the UV pass's readings kept per reading instead of going\n"
+    "  through the patch recogniser; the lamp reading's spectra kept before the\n"
+    "  output conversion, so that M1 and M2 go through the same\n"
+    "  `i1pro_conv2XYZ` as M0. Requests: only 0xD4 triggers (dark and UV-LED,\n"
+    "  ArgyllCMS's own `i1p2_UV` path) and 0xD8 (`i1pro2_getUVvolts`, read\n"
+    "  only). No EEPROM write, no indicator-light program of i1Profiler's, no\n"
+    "  0xD7. Not tested on a real instrument by the project.\n"
+    "\n"
     "| patched file | upstream sha256 (first 16) | shipped sha256 (first 16) |\n"
     "|---|---|---|\n" + "\n".join(patched) + "\n\n"
     "## Files\n\n"

@@ -64,4 +64,10 @@ double cq_dual_flatness(int nb, int ncell, const int (*cells)[2],
                         const double *lamp_pos, int nuv, const double *uv_pos,
                         const double *uv, double trim);
 
+/* Ruler positions of a hand dual strip's two passes (step 2): see
+ * chromiq_dualscan.c. lp[n1], up[n2]; 1 = ok. */
+#define CQ_DUAL_MAXCHG 20000
+int cq_dual_positions(int first, int nch, const int *gaps, const unsigned char *codes,
+                      long total, int n1, int n2, int clk, double *lp, double *up);
+
 #endif /* CHROMIQ_DUALSCAN_H */

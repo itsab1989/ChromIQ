@@ -62,8 +62,8 @@ from workflow.dual_scan.scale import (
 #: the helper's capability word for keeping dual-scan conditions (step 1:
 #: the arithmetic and the files; readings come only from the replay)
 CAPABILITY = "i1pro2_dual_conditions"
-#: the word a later helper will add when it can drive the UV LED of a real
-#: i1Pro 2 (NEXT_STEPS.md). The app offers dual scan only with BOTH.
+#: the word of a helper that can drive the UV LED of a real i1Pro 2 (step 2,
+#: helper 2026-11-18c). The app offers dual scan only with BOTH words.
 DEVICE_CAPABILITY = "i1pro2_dual_scan"
 
 DUAL_KEYWORD = "CHROMIQ_DUAL_SCAN"

@@ -817,6 +817,11 @@ static int cq_cx_from_ipatch(cq_cx_val *d, ipatch *v) {
 	return 1;
 }
 
+/* CHROMIQ_EXT: the i1Pro 2 dual scan's device side (step 2). */
+#include "cq_ruler.h"
+#include "cq_dual.h"
+#include "chromiq_dualdev.c"
+
 /* The driver's record of the reading read_strip / read_sample just made
  * (n values), or nothing when it did not end with a reading. */
 static void cq_cond_after_read(int rv, int n) {
@@ -842,6 +847,24 @@ static void cq_cond_after_read(int rv, int n) {
 		return;
 	}
 	memset(cq_vx, 0, sizeof(cq_cx3) * (size_t)n);
+	if (cq_cond_dual && !cq_cond_replay) {	/* the i1Pro 2 dual scan, a real instrument (step 2) */
+		free(tmp);
+		if (cq_dd.why != NULL || cq_dd.n != n || cq_dd.vx == NULL) {
+			static char buf[64];
+			snprintf(buf, sizeof(buf), "dual_%s", cq_dd.why != NULL ? cq_dd.why : "record");
+			cq_dd.on = 0;
+			i1pro2_cq_dual_arm(cq_dd.it, CQ_DUAL_PHASE_OFF);
+			cq_cond_lose(buf);
+			return;
+		}
+		for (i = 0; i < n; i++) {
+			memcpy(&cq_vx[i][1], &cq_dd.vx[i][1], sizeof(cq_cx_val));
+			memcpy(&cq_vx[i][2], &cq_dd.vx[i][2], sizeof(cq_cx_val));
+		}
+		cq_vx_n = n;
+		cq_vx_valid = 1;
+		return;
+	}
 	if (cq_cond_dual) {			/* the i1Pro 2 dual scan (step 1) */
 		const cq_dual_cal *cal = NULL;
 		const double *lamp = NULL, *uv = NULL;
@@ -1486,13 +1509,18 @@ static void cq_cond_for_session(inst *it, int rmode, int emis, int trans,
 			why = "filter";
 		else if (n != 2 || cq_sctx.cols == NULL || cq_sctx.npat <= 0)
 			why = "files";
-		else if (!(cq_replay_active() && cq_replay_dual_ready()))
-			why = "dual_not_available";
 		else if (cq_dual_main_kind(cq_sctx.outname) == 1)
 			why = "mixed";		/* readings of single scans in the main file */
+		else if (cq_replay_active()) {
+			if (!cq_replay_dual_ready())
+				why = "dual_not_available";
+		} else
+			why = cq_dd_start(it);	/* step 2: a real i1Pro 2 */
 		if (why == NULL) {
-			cq_cond_replay = 1;
+			cq_cond_replay = cq_replay_active();
 			cq_cond_dual = 1;
+			if (!cq_cond_replay)
+				cq_cal_done_hook = cq_dd_cal_hook;
 		}
 	}
 	else if (emis || trans || displ || (rmode != 0 && rmode != 1))
@@ -1528,6 +1556,12 @@ static void cq_cond_for_session(inst *it, int rmode, int emis, int trans,
 		free(cq_cx);
 		cq_cx = NULL;
 		cq_cond_dual = 0;
+		if (cq_dd.on) {			/* the device side off again */
+			i1pro2_cq_dual_arm(cq_dd.it, CQ_DUAL_PHASE_OFF);
+			(void)i1pro2_cq_dual_options(cq_dd.it, 0, NULL, NULL);
+			cq_dd.on = 0;
+			cq_cal_done_hook = NULL;
+		}
 		cq_emit_raw("{\"event\":\"conditions\",\"active\":false,\"why\":\"%s\"}", why);
 		return;
 	}
@@ -4196,7 +4230,20 @@ a1log *log			/* verb, debug & error log */
 		 * as the flag being ignored (Knut, #131 2026-07-27 — he saw it in
 		 * patch-by-patch mode). If the instrument truly refuses to read, the
 		 * in-loop inst_needs_cal handler still asks, at the moment it matters. */
-		if (nocal == 0 && (it->needs_calibration(it) & inst_calt_n_dfrble_mask)) {
+		if (nocal == 0 && cq_dd.on && !cq_dd.cal.have_uv_tile) {
+			/* CHROMIQ_EXT: the i1Pro 2 dual scan needs a calibration that
+			 * also reads the tile with the UV LED, at the reading's own
+			 * exposure: a white calibration now (a restored one has none) */
+			rv = cq_handle_calibrate(it, inst_calt_ref_white, inst_calc_none, 0);
+			if (rv != inst_ok) {
+				printf("\nCalibration failed with error :'%s' (%s)\n",
+	       	       it->inst_interp_error(it, rv), it->interp_error(it, rv));
+				it->del(it);
+				if (pfname != NULL)
+					free(pfname);
+				return -1;
+			}
+		} else if (nocal == 0 && (it->needs_calibration(it) & inst_calt_n_dfrble_mask)) {
 			rv = cq_json
 			   ? cq_handle_calibrate(it, inst_calt_needed, inst_calc_none, 0)
 			   : inst_handle_calibrate(it, inst_calt_needed, inst_calc_none, NULL, NULL, 0);
@@ -4387,13 +4434,19 @@ a1log *log			/* verb, debug & error log */
 					cq_cal_gate_set(1);
 				cq_press_listen(0);		/* CHROMIQ_EXT: a fresh group */
 				cq_lights_prompt();		/* CHROMIQ_EXT: lights (Beta) */
-				cq_ruler_arm(1);		/* CHROMIQ_EXT: ruler check (Beta) */
+				if (cq_dd.on && cq_cond_active)	/* CHROMIQ_EXT: i1Pro 2 dual scan, pass 1 of 2 */
+					i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_LAMP);
+				else
+					cq_ruler_arm(1);		/* CHROMIQ_EXT: ruler check (Beta) */
 				cq_cond_arm(1);			/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
 				cq_usbwatch_begin();	/* CHROMIQ_EXT 4.3.36: a reading begins */
 				rv = it->read_strip(it, "STRIP", stipa+nextrap, nn, guide, plen, glen, tlen, vals);
+				if (cq_dd.on && cq_cond_active)	/* CHROMIQ_EXT: i1Pro 2 dual scan, pass 2 of 2 */
+					cq_dd_strip(it, nn, &rv, stipa+nextrap, guide, plen, glen, tlen);
 				cq_margin_set(vals, stipa+nextrap, scols, stipa, totpa, npat, oroi,
 				              skipp != 0 || nextrap != 0);	/* CHROMIQ_EXT: margin tolerance (Beta) */
-				cq_ruler_after_strip(nn, &rv);	/* CHROMIQ_EXT: ruler check (Beta); may rescue (margin tolerance) */
+				if (!cq_dd.on)
+					cq_ruler_after_strip(nn, &rv);	/* CHROMIQ_EXT: ruler check (Beta); may rescue (margin tolerance) */
 				cq_cond_after_read(rv, stipa+nextrap);	/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
 				cq_cond_arm(0);
 				if (cq_json)
@@ -5526,8 +5579,12 @@ a1log *log			/* verb, debug & error log */
 				cq_press_listen(0);		/* CHROMIQ_EXT: a fresh group */
 				cq_lights_prompt();		/* CHROMIQ_EXT: lights (Beta) */
 				cq_cond_arm(1);			/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
+				if (cq_dd.on && cq_cond_active)	/* CHROMIQ_EXT: i1Pro 2 dual spot, the lamp half */
+					i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_SPOT);
 				cq_usbwatch_begin();	/* CHROMIQ_EXT 4.3.36: a reading begins */
 				rv = it->read_sample(it, "SPOT", &val, 1);
+				if (cq_dd.on && cq_cond_active)	/* CHROMIQ_EXT: i1Pro 2 dual spot, the UV half */
+					cq_dd_spot(&rv);
 				cq_cond_after_read(rv, 1);	/* CHROMIQ_EXT: M0/M1/M2 (Beta) */
 				cq_cond_arm(0);
 				if (cq_json)
@@ -6469,7 +6526,7 @@ int main(int argc, char *argv[]) {
 				 * before it relies on it. One JSON line, then exit 0.
 				 * "legacy_labels": reads sheets ChromIQ's layout engine
 				 * printed with its pre-4.3.3-beta.7 labels as printed. */
-				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"turn\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\",\"lights_signals\",\"lights_during_reading\",\"ruler_check\",\"i1pro3_conditions\",\"margin_tolerance\",\"i1pro2_dual_conditions\"],\"build\":\"%s\"}\n",
+				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"turn\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\",\"lights_signals\",\"lights_during_reading\",\"ruler_check\",\"i1pro3_conditions\",\"margin_tolerance\",\"i1pro2_dual_conditions\",\"i1pro2_dual_scan\"],\"build\":\"%s\"}\n",
 				       cq_helper_build_string());
 				fflush(stdout);
 				return 0;

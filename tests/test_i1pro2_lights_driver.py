@@ -155,10 +155,11 @@ def _added_lines(dest: str) -> "list[str]":
     ruler = [pt for k in ("I1PRO_IMP_H_RULER", "I1PRO_IMP_C_RULER",
                           "I1PRO3_IMP_H_RULER", "I1PRO3_IMP_C_RULER")
              for pt in v.get(k, [])]
+    ruler_olds = {o for o, _n in ruler}
     added = []
     for old, new in v["PATCHES"].get(dest, []):
-        if (old, new) in ruler:
-            continue
+        if (old, new) in ruler or old in ruler_olds:
+            continue          # a ruler patch (the dual scan folds hooks into some, 2026-11-18)
         o = set(old.splitlines())
         added += [ln for ln in new.splitlines() if ln not in o]
     return added

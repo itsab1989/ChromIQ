@@ -1,0 +1,36 @@
+{
+  "what": "The SHAPE of X-Rite i1Profiler 3.8.6's i1Pro 2 dual-scan requests, from two owners' USB recordings (2026-11-17; the recordings themselves are private and not in the repository). Only request codes, measurement flags, integration and lamp clock counts and reading counts: the protocol's public form, as docs/design and native/instlib/cq_tscan.h already publish the table's recorded lines. No instrument data, no EEPROM bytes, no serial.",
+  "flags": {"dark": "0x0000", "lamp": "0x0100", "uv_led": "0x0200", "wl_led": "0x0300", "scan": "0x0001", "ruler_start": "0x0004", "ruler_end": "0x0008"},
+  "dual_calibration_tail": {
+    "source": "instrument 1, hand-held session 204244 step 2 (and 210339); instrument 2 on the i1iO 2 table, 22:14:49 (the same tail at 139 clocks)",
+    "after_the_white": [
+      {"req": "0xD4", "flags": "0x0000", "nummeas": 10, "intclocks": "the white's", "lampclocks": 0},
+      {"req": "0xD4", "flags": "0x0200", "nummeas": 5, "intclocks": "the white's", "lampclocks": "the lamp's (41)"},
+      {"req": "0xD8"}
+    ],
+    "i1profiler_also_sends_which_chromiq_does_not": ["0xC4 / 0xC3: 2 EEPROM reads and 10 EEPROM writes (its usage log)", "0xD6 + bulk 0x03: an 18-byte light program before and a 2,306-byte one after the calibration"]
+  },
+  "dual_strip_by_hand": {
+    "source": "instrument 1, sessions 202936 / 204244 / 210339 step 4 (normal) and 202936 / 205320 step 6 (slow)",
+    "per_strip": [
+      {"req": "0xD4", "flags": "0x0000", "nummeas": 5, "intclocks": 139, "lampclocks": 0},
+      {"req": "0xD4", "flags": "0x0105", "nummeas": 10, "intclocks": 139, "lampclocks": 41, "note": "lamp + scan + ruler start; the scan runs while the button is held (440-560 readings)"},
+      {"req": "0xD4", "flags": "0x0000", "nummeas": 5, "intclocks": 139, "lampclocks": 0},
+      {"req": "0xD4", "flags": "0x0209", "nummeas": 10, "intclocks": 139, "lampclocks": 41, "note": "UV LED + scan + ruler end, about 4.3 s (slow 6.5 s) after the lamp pass"},
+      {"req": "0xD8"}
+    ],
+    "ruler": "one continuous stream on endpoint 0x85 from the lamp pass's trigger to the end of the UV pass",
+    "i1profiler_also_sends_which_chromiq_does_not": ["0xD6 + bulk 0x03: a 702-byte light program between the passes and a 2,990-byte one after the UV pass", "EEPROM writes (usage log), 12 per session"]
+  },
+  "dual_spot_on_the_table": {
+    "source": "instrument 2 on the i1iO 2 table, 48 of 48 patches",
+    "per_patch": [
+      {"req": "0xD4", "flags": "0x0000", "nummeas": 1, "intclocks": 517, "lampclocks": 0},
+      {"req": "0xD4", "flags": "0x0100", "nummeas": 1, "intclocks": 517, "lampclocks": 41},
+      {"req": "0xD4", "flags": "0x0000", "nummeas": 1, "intclocks": 1443, "lampclocks": 0},
+      {"req": "0xD4", "flags": "0x0200", "nummeas": 1, "intclocks": 1443, "lampclocks": 41},
+      {"req": "0xD8"}
+    ],
+    "chromiq_differs": "ChromIQ reads the UV half at the lamp half's integration (the one its own calibration read the tile with the UV LED at): the recordings show the UV-tile level per unit of integration the same at 139, 1183, 1440 and 1443 clocks, so the exposure rule (calibration = reading, per light source) holds either way"
+  }
+}

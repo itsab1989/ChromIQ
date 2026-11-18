@@ -210,3 +210,74 @@ double cq_dual_flatness(int nb, int ncell, const int (*cells)[2],
 		return (double)NAN;
 	return (within / (double)nm) / (var > 1e-30 ? var : 1e-30);
 }
+
+/* ---- the ruler positions of a hand dual strip (step 2) -------------------
+ * One continuous ruler stream runs from the lamp pass's start ("ruler start")
+ * to the UV pass's end ("ruler end"), one 2-bit quadrature sample per
+ * integration clock. The ruler check's record keeps it as a change list
+ * (cq_ruler.h: the first code, then per change the gap in samples and the
+ * new code). The lamp pass's readings are the stream's first n1 * clk
+ * samples, the UV pass's its last n2 * clk - 5 (the work-folder analysis of
+ * 2026-11-17, process.py _uv_cut, which lined the recorded passes up within
+ * about one ruler step). The position at each reading's centre is
+ * interpolated between the count's changes inside its pass, held flat
+ * beyond them (as ArgyllCMS's i1Pro 3 zebra code does). 1 = ok, 0 = the
+ * stream is too short or the ruler hardly moved (fewer than 10 changes). */
+static const int cq_dual_gray[4] = { 0, 1, 3, 2 };	/* code -> quadrature phase */
+
+static int cq_dual_window(int first, int nch, const int *gaps, const unsigned char *codes,
+                          long w0, long len, int n, int clk, double *out) {
+	long at = 0;
+	int k, prev = cq_dual_gray[first & 3], pos = 0, startpos = 0, nt = 0, i;
+	static double tt[CQ_DUAL_MAXCHG + 1], pp[CQ_DUAL_MAXCHG + 1];	/* one helper, one reading at a time */
+	for (k = 0; k < nch; k++) {
+		int g = cq_dual_gray[codes[k] & 3], d = ((g - prev) % 4 + 4) % 4, np = pos;
+		at += gaps[k];
+		if (d == 1) np = pos + 1;
+		else if (d == 3) np = pos - 1;
+		prev = g;
+		if (at <= w0) {
+			pos = np;
+			startpos = pos;
+			continue;
+		}
+		if (at >= w0 + len)
+			break;
+		if (np != pos && nt < CQ_DUAL_MAXCHG) {
+			if (nt == 0) {
+				tt[0] = 0.0;
+				pp[0] = (double)startpos;
+				nt = 1;
+			}
+			tt[nt] = (double)(at - w0);
+			pp[nt] = (double)np;
+			nt++;
+		}
+		pos = np;
+	}
+	if (nt < 11)				/* fewer than 10 changes: the ruler did not move */
+		return 0;
+	for (i = 0; i < n; i++) {
+		double x = (i + 0.5) * (double)clk;
+		int j;
+		if (x <= tt[0]) { out[i] = pp[0]; continue; }
+		if (x >= tt[nt - 1]) { out[i] = pp[nt - 1]; continue; }
+		for (j = 1; j < nt && tt[j] < x; j++)
+			;
+		out[i] = pp[j - 1] + (pp[j] - pp[j - 1]) * (x - tt[j - 1]) / (tt[j] - tt[j - 1]);
+	}
+	return 1;
+}
+
+int cq_dual_positions(int first, int nch, const int *gaps, const unsigned char *codes,
+                      long total, int n1, int n2, int clk, double *lp, double *up) {
+	long need1, need2;
+	if (gaps == NULL || codes == NULL || nch <= 0 || n1 <= 0 || n2 <= 0 || clk <= 0)
+		return 0;
+	need1 = (long)n1 * clk;
+	need2 = (long)n2 * clk - 5;
+	if (need2 <= 0 || total < need1 + need2)
+		return 0;
+	return cq_dual_window(first, nch, gaps, codes, 0, need1, n1, clk, lp)
+	    && cq_dual_window(first, nch, gaps, codes, total - need2, need2, n2, clk, up);
+}

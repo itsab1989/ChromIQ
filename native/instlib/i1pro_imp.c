@@ -3304,6 +3304,7 @@ i1pro_code i1pro_imp_measure(
 	}
 	free(mbuf);
 
+	i1pro2_cq_dual_keep_lamp(p, specrd, nvals, (int)clamp);	/* CHROMIQ PATCH: dual scan, no-op unless armed */
 	/* Transfer spectral and convert to XYZ */
 	if ((ev = i1pro_conv2XYZ(p, vals, nvals, specrd, clamp)) != I1PRO_OK) {
 		free_dmatrix(specrd, 0, nvals-1, 0, m->nwav[m->highres]-1);
@@ -5579,6 +5580,10 @@ i1pro_code i1pro_read_patches_2(
 
 	darkthresh = i1pro_raw_to_absraw(p, darkthresh, inttime, gainmode);  
 
+	/* CHROMIQ PATCH: the dual scan's UV pass keeps every reading, no-op unless armed */
+	if (i1pro2_cq_dual_readings(p, multimes, nmeasuered, absraw, numpatches)) {
+		rv = 0;
+	} else
 	if (!s->scan) {
 		if (numpatches != 1) {
 			free_dmatrix(absraw, 0, numpatches-1, -1, m->nraw-1);
@@ -6123,7 +6128,8 @@ i1pro_trigger_one_measure(
 	intclocks = (int)dintclocks;
 	*inttime = (double)intclocks * m->intclkp;		/* Quantized integration time */
 
-	if (s->reflective && (mmodif & 0x10)) {
+	if (s->reflective && ((mmodif & 0x10)
+	 || i1pro2_cq_dual_lamp_delay(p, mmodif))) {	/* CHROMIQ PATCH: dual scan, no-op unless on */
 		dlampclocks = floor(s->lamptime/(m->subclkdiv * m->intclkp) + 0.5);
 		if (dlampclocks > 256.0)		/* Clip - not sure why. Silly value anyway */
 			dlampclocks = 256.0;
@@ -6152,7 +6158,8 @@ i1pro_trigger_one_measure(
 		if (s->scan && !(mmodif & 0x20))			/* Never scan on a calibration */
 			measmodeflags2 |= I1PRO2_MMF_SCAN;
 
-		if (mmodif == i1p2_UV)
+		if (mmodif == i1p2_UV
+		 || mmodif == i1p2_cq_UV_cal)		/* CHROMIQ PATCH: dual scan, the UV LED on the tile */
 			measmodeflags2 |= I1PRO2_MMF_UV_LED;	/* UV LED illumination measurement */
 		else if (mmodif == i1p2_wl_cal)
 			measmodeflags2 |= I1PRO2_MMF_WL_LED;	/* Wavelength illumination cal */
@@ -6163,6 +6170,7 @@ i1pro_trigger_one_measure(
 			return I1PRO_INT_NO_HIGH_GAIN;
 
 		measmodeflags2 |= i1pro2_cq_ruler_bits(p, mmodif);	/* CHROMIQ PATCH: ruler check (Beta), a no-op unless armed */
+		measmodeflags2 |= i1pro2_cq_dual_ruler_bits(p, mmodif);	/* CHROMIQ PATCH: dual scan, no-op unless armed */
 	}
 
 	a1logd(p->log,2,"i1pro: Int time %f msec, delay %f msec, no readings %d, expect %f msec\n",
@@ -13085,6 +13093,8 @@ void i1pro2_cq_ruler_start(void *pp) {
 	cq_ruler_ctx *c;
 	if (!m->cq_ruler_inscan || r == NULL)
 		return;
+	if (i1pro2_cq_dual_ruler_phase(p) == 3 && m->cq_ruler_th != NULL)
+		return;		/* CHROMIQ PATCH: dual scan's UV pass, the lamp pass's reader runs on */
 	cq_ruler_rec_clear(r);
 	m->cq_ruler_t0 = msec_time();
 	c = (cq_ruler_ctx *)calloc(1, sizeof(cq_ruler_ctx));
@@ -13130,6 +13140,11 @@ void i1pro2_cq_ruler_finish(void *pp, int nreadings, int ev) {
 	if (!m->cq_ruler_inscan || r == NULL || c == NULL)
 		return;
 	m->cq_ruler_inscan = 0;
+	if (i1pro2_cq_dual_ruler_phase(p) == 1 && ev == I1PRO_OK) {	/* CHROMIQ PATCH: dual scan's lamp pass: */
+		i1pro2_cq_dual_lamp_readings(p, nreadings);	/* its stream runs on into the UV pass */
+		m->cq_ruler_recording = 1;	/* the recogniser's cut follows */
+		return;
+	}
 	t1 = msec_time();
 	while (!c->done && (msec_time() - t1) < CQ_RULER_END_WAIT_MS)
 		msec_sleep(5);
@@ -14577,3 +14592,8 @@ static i1data *new_i1data(i1proimp *m) {
 /* is touched; nothing calls it unless ChromIQ's helper is started with */
 /* --i1io-table-scan. */
 #include "cq_i1pro2_tscan.h"
+
+/* CHROMIQ PATCH: the i1Pro 2 dual scan (2026-11-18). ChromIQ's own code in */
+/* cq_i1pro2_dual.h, at the end of the file; nothing in it does anything */
+/* unless ChromIQ's helper switches the dual scan on. */
+#include "cq_i1pro2_dual.h"

@@ -170,9 +170,9 @@ mismatch (white at 154 clocks, strip at 139), which `calibration_mismatch` refus
 
 ### 5. What is NOT established
 
-* **ChromIQ's own UV reading has never run on a real instrument.** Step 1 contains no
-  instrument command for the UV LED; the helper's dual path is fed only by its replay
-  instrument. Every instrument step (the dual calibration, the UV pass, the volts query, the
+* **ChromIQ's own UV reading has never run on a real instrument.** Step 2 built the
+  instrument commands from the recordings (section 7); they were tested only on a fake USB layer
+  and with recorded readings. Every instrument step (the dual calibration, the UV pass, the volts query, the
   ruler across both passes, the dual spot reading on the table) is to be built from the
   recordings and is a first try until a real i1Pro 2 has shown it.
 * s on a third instrument; s on instrument 2 with its own tile; the creep of s within a
@@ -189,3 +189,53 @@ mismatch (white at 154 clocks, strip at 139), which `calibration_mismatch` refus
 * With i1Profiler, the factor can be refined for one instrument, which brought both test
   instruments to about 0.05-0.08 dE00 mean.
 * Measuring with dual scan is a first try until a real instrument has shown it.
+
+### 7. The instrument part (step 2, 2026-11-18): built from the recordings, never run on an instrument
+
+* **Where.** Driver side: `native/instlib/cq_i1pro2_dual.h` (ChromIQ's own file, included at the end
+  of `i1pro_imp.c`; API and wire summary in `cq_dual.h`) and seven one-line hooks in `i1pro_imp.c` /
+  `.h` (`scripts/vendor_instlib.py` `I1PRO_IMP_H_DUAL` / `I1PRO_IMP_C_DUAL`, PROVENANCE.md), each a
+  no-op unless the helper switched the dual scan on. Helper side: `chromiq_dualdev.c`. Capability
+  word `i1pro2_dual_scan`, helper build 2026-11-18c.
+* **Offered** only for a real i1Pro 2 whose EEPROM reports the UV LED and holds the two tables
+  (0x2f77 / 0x2f76, 18 values, read-only from the image read at open); otherwise the conditions
+  event says `dual_no_uv_tables` (M0 as always). Refused in high resolution (`dual_high_resolution`:
+  the tables exist only at 10 nm).
+* **(a) Dual calibration.** After every successful calibration of a dual session (a white
+  calibration is always asked for first: a restored one has no UV reading), still on the tile: 10
+  dark + 5 UV-LED readings at the white calibration's own integration (the reading's), then the UV
+  volts. Checked by the arithmetic's rules (tables, the UV LED lit: `uv_tile_dark`). The calibration
+  and the reading are made in the same mode and at the same integration, per light source; a
+  reading at another one is refused (`calibration_mismatch`, `calibration_mode_changed`).
+* **(b) Dual spot.** The lamp reading as always, then dark + UV-LED readings of the same patch at
+  the same integration, then the volts: one unit (either half failing = the patch again).
+  i1Profiler reads the UV half on the table at 1443 clocks against 517 for the lamp; ChromIQ uses
+  the lamp's integration for both (the recorded UV-tile level per unit of integration is the same
+  at 139-1443 clocks, so the formula does not depend on it; the UV signal is weaker).
+* **(c) Dual strip by hand.** The lamp pass with "ruler start" (0x0105), then the helper asks for
+  the UV pass itself (event `dual_pass`) and reads it with "ruler end" (0x0209): one ruler stream,
+  as recorded. The UV pass is not put through the patch recogniser; every reading is kept, cut into
+  the lamp pass's patches by the ruler (the lamp pass's readings are the stream's first n1 x clocks
+  samples, the UV pass's its last n2 x clocks - 5) with the travel and alignment gates; each pass
+  has its own verdict (`dual_pass_result`). A failed pass makes the strip a misread and BOTH passes
+  are read again, because on the instrument a UV pass can only be lined up with the lamp pass of
+  the same ruler stream (no other form was recorded): this differs from section 2a's "a failed pass
+  is read again alone" and is **for the owner to decide**. After a lamp pass that triggered, the UV
+  pass is always asked for (it closes the ruler stream).
+* **(d) The UV LED.** It lights only during a trigger with the UV flag, for that trigger's
+  readings; no command switches it on persistently. A UV scan runs while the button is held and
+  the instrument ends it on release, as every scan. ArgyllCMS's own UV switch (`uv_en`) is set
+  only for an armed UV reading and cleared on every way out.
+* **(e) Not sent:** i1Profiler's indicator-light programs (18 / 2,306 bytes at calibration, 702 /
+  2,990 bytes around the UV pass) and its usage-log EEPROM writes. With the lights Beta on, its own
+  recorded OFF_SLOW goes before every trigger exactly as for a single scan.
+* **(f) Conversions.** M1 and M2 are computed on the lamp reading's spectra before ArgyllCMS's
+  output conversion and then go through the same `i1pro_conv2XYZ` as M0 (XRGA when asked for, the
+  observer, the clamp).
+* **What it took to prove, without an instrument:** a trace of the real driver on a fake USB layer
+  (`tests/test_i1pro2_dual_scan_device.py`: the requests, flags, clocks and counts against the
+  recorded shape, `tests/data/i1pro2_dual_wire_shape.json`; a single scan's requests unchanged); and
+  privately, instrument 1's recorded sessions through the same functions (the dual calibration, the
+  UV pass's readings, the ruler record, the cut, the formula): M2 0.055-0.079 mean dE00 with its own
+  factor and 0.209-0.230 with the standard one, as in step 1. Instrument 2's spot path was not
+  replayed. Everything here is a first try until a real i1Pro 2 has shown it.

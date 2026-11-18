@@ -186,6 +186,14 @@ def test_the_driver_file_is_4_3_44s_plus_one_include():
              b"/* cq_i1pro2_tscan.h, at the end of the file so that no other recorded patch */\n"
              b"/* is touched; nothing calls it unless ChromIQ's helper is started with */\n"
              b"/* --i1io-table-scan. */\n#include \"cq_i1pro2_tscan.h\"\n")
+    # 2026-11-18 (the i1Pro 2 dual scan, step 2): its hooks come after; with
+    # them undone the file is 4.3.44's plus this one include, as before
+    from tests.test_engine_embeds_a_numeric_calibration import _vendor_module
+    text = now.decode("utf-8", "surrogateescape")
+    for old, new in reversed(_vendor_module()["I1PRO_IMP_C_DUAL"]):
+        assert text.count(new) == 1, old[:60]
+        text = text.replace(new, old)
+    now = text.encode("utf-8", "surrogateescape")
     assert now.count(block) == 1 and now.endswith(block)
     assert now[:-len(block)] == base
 
@@ -214,18 +222,22 @@ def test_only_the_switch_reaches_the_new_code():
     caps = [ln for ln in src.splitlines() if '{\\"caps\\":[' in ln]
     base = [ln for ln in _git_show("native/chartread_helper/chromiq_chartread.c")
             .decode("utf-8", "replace").splitlines() if '{\\"caps\\":[' in ln]
-    # 2026-11-18a: one word more, the i1Pro 2 dual-scan conditions (step 1)
+    # 2026-11-18a: one word more, the i1Pro 2 dual-scan conditions (step 1);
+    # 2026-11-18c: and its device side (step 2)
     assert caps and base and caps == [base[0].replace(
-        '\\"margin_tolerance\\"]', '\\"margin_tolerance\\",\\"i1pro2_dual_conditions\\"]')]
+        '\\"margin_tolerance\\"]',
+        '\\"margin_tolerance\\",\\"i1pro2_dual_conditions\\",\\"i1pro2_dual_scan\\"]')]
 
 
 def test_the_build_string():
     h = (HELPER / "chromiq_ext.h").read_text(encoding="utf-8")
     # 2026-11-17b (round B) = 2026-11-17a + the table drive's button wait;
     # 2026-11-18a = 17b + the i1Pro 2 dual-scan conditions;
-    # 2026-11-18b = 18a + the dual scan's resume rule (review fixes), last
-    assert "chromiq-chartread 2026-11-18b " in h
-    assert "+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule\"" in h
+    # 2026-11-18b = 18a + the dual scan's resume rule (review fixes);
+    # 2026-11-18c = 18b + the dual scan's device side (step 2), last
+    assert "chromiq-chartread 2026-11-18c " in h
+    assert ("+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule"
+            "+i1pro2-dual-device\"") in h
 
 
 def _base_tree(tmp: Path) -> Path:

@@ -150,7 +150,7 @@ void cq_json_escape(char *dst, size_t dstlen, const char *src);
  *
  * ⚠ BUMP THIS IN THE SAME COMMIT AS ANY CHANGE TO THE HELPER, and rebuild and
  * commit native/chromiq-chartread. The test tells you the expected value. */
-#define CQ_HELPER_BUILD "chromiq-chartread 2026-11-18b legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures+exit-guard+save-after-close+i1pro2-lights+i1pro3-lights+i1pro3-lights-choices+ruler-check+usb-step-detail+i1pro2-beta-paused+i1pro2-lights-quiet+resume-spectral-check+hold-interruptible+i1pro2-ruler-back+own-row-direction+turn-round+filter-event+i1pro3-conditions+conditions-commit-last+margin-tolerance+ruler-trigger-wait+margin-one-way+margin-accounted+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule"
+#define CQ_HELPER_BUILD "chromiq-chartread 2026-11-18c legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures+exit-guard+save-after-close+i1pro2-lights+i1pro3-lights+i1pro3-lights-choices+ruler-check+usb-step-detail+i1pro2-beta-paused+i1pro2-lights-quiet+resume-spectral-check+hold-interruptible+i1pro2-ruler-back+own-row-direction+turn-round+filter-event+i1pro3-conditions+conditions-commit-last+margin-tolerance+ruler-trigger-wait+margin-one-way+margin-accounted+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions+i1pro2-dual-resume-rule+i1pro2-dual-device"
 const char *cq_helper_build_string(void);
 
 
@@ -367,6 +367,10 @@ extern void (*cq_tscan_line_hook)(const char *line);
  * while --i1io-press-wait runs; the command thread hands it every "press_*"
  * command. NULL (always, without the switch): such commands are ignored. */
 extern void (*cq_presswait_line_hook)(const char *line);
+/* The i1Pro 2 dual scan (step 2, chromiq_dualdev.c): called after every
+ * successful calibration (chromiq_cal.c) while a real i1Pro 2 dual session
+ * runs; NULL otherwise. Its argument is the inst. */
+extern void (*cq_cal_done_hook)(void *it);
 
 #ifdef INST_H
 int cq_run_table_scan(int comport, flow_control fc, const char *outdir,

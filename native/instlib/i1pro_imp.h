@@ -375,6 +375,10 @@ struct _i1proimp {
 	unsigned int cq_lights_owed_ms;
 	unsigned int cq_lights_end_ms;	/* msec_time() a light write ended, 0 = none (4.3.37) */
 
+	/* CHROMIQ PATCH: the i1Pro 2 dual scan (2026-11-18), cq_i1pro2_dual.h. */
+	int cq_dual_on;			/* the helper's option, this session (0 = no hook does anything) */
+	void *cq_dual_rec;		/* cq_dual_state (cq_i1pro2_dual.h) */
+
 }; typedef struct _i1proimp i1proimp;
 
 /* Add an implementation structure */
@@ -750,8 +754,17 @@ typedef enum {
 	i1p2_UV          = 0x01,	/* Measurement using UV LED instead of incandescent (Rev E) */
 	i1p_cal          = 0x32,	/* No scan, with current mode illumination */
 	i1p_dark_cal     = 0x23,	/* No scan, no illumination */
-	i1p2_wl_cal      = 0x24		/* No scan, wavelength reference LED illumination (Rev E) */
+	i1p2_wl_cal      = 0x24,		/* No scan, wavelength reference LED illumination (Rev E) */
+	i1p2_cq_UV_cal   = 0x21		/* CHROMIQ PATCH: dual scan, UV LED on the tile, no scan */
 } i1p_mmodif;
+
+/* CHROMIQ PATCH: the i1Pro 2 dual scan's hooks (cq_i1pro2_dual.h), no-ops unless on. */
+int i1pro2_cq_dual_lamp_delay(void *pp, int mmodif);
+int i1pro2_cq_dual_ruler_bits(void *pp, int mmodif);
+int i1pro2_cq_dual_ruler_phase(void *pp);
+void i1pro2_cq_dual_lamp_readings(void *pp, int nreadings);
+int i1pro2_cq_dual_readings(void *pp, double **multimes, int nmeas, double **absraw, int npatch);
+void i1pro2_cq_dual_keep_lamp(void *pp, double **specrd, int nvals, int clamp);
 
 /* Trigger a single measurement cycle. This could be a dark calibration, */
 /* a calibration, or a real measurement. Used to create the higher */

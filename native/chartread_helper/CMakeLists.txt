@@ -393,9 +393,22 @@ if(NOT WIN32)
   target_link_libraries(i1pro2_dual_maths_test PRIVATE m)
 endif()
 
+# The i1Pro 2 dual scan, step 2 (2026-11-18): its requests through the real
+# driver on the fake USB layer (tests/test_i1pro2_dual_scan_device.py).
+add_executable(i1pro2_dual_test EXCLUDE_FROM_ALL
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests/i1pro2_dual_test.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_dualscan.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_stubs.c
+  ${INSTLIB}/alphix.c
+)
+target_include_directories(i1pro2_dual_test PRIVATE
+  ${INSTLIB} ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(i1pro2_dual_test PRIVATE instlib)
+
 set(_cq_link_targets chromiq-chartread i1pro2_lights_test i1pro3_lights_test
     i1pro3_conditions_test i1io_table_scan_test)
 list(APPEND _cq_link_targets i1pro2_lights_modes_test i1pro3_lights_modes_test)
+list(APPEND _cq_link_targets i1pro2_dual_test)
 list(APPEND _cq_link_targets i1pro_ruler_scan_test i1pro3_ruler_test)
 list(APPEND _cq_link_targets i1pro2_lights_modes_test_watched
      i1pro3_lights_modes_test_watched i1pro_ruler_scan_test_watched

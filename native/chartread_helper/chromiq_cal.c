@@ -54,6 +54,11 @@ static const char *cq_calc_name(inst_cal_cond calc) {
 	}
 }
 
+/* CHROMIQ_EXT: the i1Pro 2 dual scan (step 2): the tile's UV reading right
+ * after a successful calibration, while the instrument is still on the tile
+ * (chromiq_dualdev.c sets it only for a real i1Pro 2 dual session). */
+void (*cq_cal_done_hook)(void *it) = NULL;
+
 inst_code cq_handle_calibrate(inst *p, inst_cal_type calt, inst_cal_cond calc,
 	int doimmediately) {
 	inst_code ev;
@@ -79,6 +84,8 @@ inst_code cq_handle_calibrate(inst *p, inst_cal_type calt, inst_cal_cond calc,
 				cq_json_escape(esc, sizeof(esc), id);
 				cq_emit_raw("{\"event\":\"cal_message\",\"text\":\"%s\"}", esc);
 			}
+			if (cq_cal_done_hook != NULL)
+				cq_cal_done_hook(p);	/* the i1Pro 2 dual scan (step 2) */
 			if (usermes)
 				cq_emit_simple("cal_done");
 			return ev;
@@ -194,6 +201,8 @@ int cq_run_requested_calibration(inst *p, int *prompted, char *detail,
 				cq_json_escape(esc, sizeof(esc), id);
 				cq_emit_raw("{\"event\":\"cal_message\",\"text\":\"%s\"}", esc);
 			}
+			if (cq_cal_done_hook != NULL)
+				cq_cal_done_hook(p);	/* the i1Pro 2 dual scan (step 2) */
 			return CQ_CALREQ_DONE;
 		}
 		if ((ev & inst_mask) == inst_unsupported)

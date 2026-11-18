@@ -353,7 +353,7 @@ def test_the_caps_and_the_build_say_it():
                        encoding="utf-8", timeout=30).stdout
     j = json.loads(o.strip().splitlines()[-1])
     assert storage.CAPABILITY in j["caps"]
-    assert storage.DEVICE_CAPABILITY not in j["caps"]     # step 1: no device part yet
+    assert storage.DEVICE_CAPABILITY in j["caps"]         # step 2: the device part is compiled in
     assert "+i1pro2-dual-conditions" in j["build"]
 
 

@@ -1,0 +1,329 @@
+/* CHROMIQ_EXT: the X-Rite i1Pro 2 dual scan, the helper's side of the
+ * instrument part (2026-11-18, step 2). Included ONCE by chromiq_chartread.c
+ * (it uses that file's conditions record and event functions); the driver's
+ * side is native/instlib/cq_i1pro2_dual.h, its API cq_dual.h.
+ *
+ * Nothing here runs unless a session was started with --dual-scale and
+ * --condition-dir on a REAL i1Pro 2 that can do it (cq_dd_start); a replay
+ * keeps the step-1 path (chromiq_replay.c).
+ *
+ * (a) After every successful calibration the tile is read with the UV LED
+ *     at the calibration's own integration (cq_dd_after_cal); the result is
+ *     checked by the arithmetic's own rules (chromiq_dualscan.c: tables, the
+ *     UV LED lit) and reported as one event.
+ * (b) A spot reading: the lamp reading as always, then the UV half on the
+ *     same patch (one unit: either failing = the patch again).
+ * (c) A hand strip: the lamp pass (ruler start) as always, then the helper
+ *     asks for the UV pass itself (event dual_pass) and reads it (ruler
+ *     end), each pass with its own verdict. The UV pass is cut into the lamp
+ *     pass's patches by the ruler (cq_dual_cut, with the travel and
+ *     alignment gates). A pass that fails makes the strip a misread: both
+ *     passes are read again (on the instrument a UV pass can only be lined up
+ *     with the lamp pass of the same ruler stream: the recorded wire has no
+ *     other form, see docs/design/i1pro2_dual_scan.md section 7).
+ * M1 / M2 go through the driver's own output conversion, exactly as M0.
+ *
+ * AGPL-3.0 - see ../instlib/License.txt. */
+
+int i1pro2_cq_ruler_take(void *pp, void *vout);	/* the ruler check's record (cq_ruler.h) */
+
+static struct {
+	int on;					/* a real i1Pro 2 dual session */
+	inst *it;
+	cq_dual_cal cal;		/* kA / kD from the EEPROM; W / T / E from the last tile reading */
+	int cal_ok;				/* the last calibration gave a usable dual calibration */
+	int cal_scan;			/* ... made for scans (1) or spot readings (0) */
+	const char *cal_why;	/* why not (a reason id of workflow/dual_scan/reasons.py) */
+	int n;					/* patches of the last reading with M1 / M2 */
+	cq_cx3 *vx;
+	int vx_cap;
+	const char *why;		/* why the last reading has none */
+} cq_dd;
+
+/* in cq_cond_for_session: NULL when this real i1Pro 2 can do it, else why */
+static const char *cq_dd_start(inst *it) {
+	int na, j;
+	memset(&cq_dd.cal, 0, sizeof(cq_dd.cal));
+	cq_dd.on = 0;
+	cq_dd.cal_ok = 0;
+	cq_dd.cal_why = "no_dual_calibration";
+	na = i1pro2_cq_dual_options(it, 1, cq_dd.cal.kA, cq_dd.cal.kD);
+	switch (na) {
+	case CQ_DUAL_NA_OK: break;
+	case CQ_DUAL_NA_NO_UV_LED:
+	case CQ_DUAL_NA_NO_TABLES: return "dual_no_uv_tables";
+	case CQ_DUAL_NA_HIGHRES: return "dual_high_resolution";
+	default: return "dual_not_available";
+	}
+	cq_dd.cal.nb = CQ_DUAL_NB;
+	cq_dd.cal.wl_short = 380.0;
+	cq_dd.cal.wl_long = 730.0;
+	for (j = 0; j < CQ_DUAL_NB; j++)
+		cq_dd.cal.W[j] = cq_dd.cal.E[j] = 1.0;	/* until a dual calibration */
+	cq_dd.it = it;
+	cq_dd.on = 1;
+	return NULL;
+}
+
+/* (a) the dual calibration: right after every successful calibration */
+static void cq_dd_after_cal(inst *p) {
+	cq_dual_tile t;
+	const char *why = NULL;
+	int ev, j;
+	if (!cq_dd.on || p != cq_dd.it)
+		return;
+	cq_dd.cal_ok = 0;
+	cq_dd.cal.have_uv_tile = 0;
+	ev = i1pro2_cq_dual_tile(p, &t);
+	if (ev != 0 || !t.ok)
+		why = "no_dual_calibration";
+	else {
+		for (j = 0; j < CQ_DUAL_NB; j++) {
+			cq_dd.cal.W[j] = t.W[j];
+			cq_dd.cal.T[j] = t.T[j];
+			cq_dd.cal.E[j] = t.E[j];
+		}
+		cq_dd.cal.have_uv_tile = 1;
+		cq_dd.cal.cal_lamp_clocks = t.lamp_clocks;
+		cq_dd.cal.cal_uv_clocks = t.uv_clocks;
+		cq_dd.cal_scan = t.mode_scan;
+		why = cq_dual_check(&cq_dd.cal);		/* the tables, the UV LED lit (uv_tile_dark) */
+	}
+	cq_dd.cal_ok = why == NULL;
+	cq_dd.cal_why = why != NULL ? why : "";
+	cq_emit_raw("{\"event\":\"dual_calibration\",\"ok\":%s,\"why\":\"%s\",\"mode\":\"%s\","
+	            "\"lamp_clocks\":%d,\"uv_clocks\":%d,\"volts\":[%d,%d],\"driver\":%d}",
+	            cq_dd.cal_ok ? "true" : "false", why != NULL ? why : "",
+	            t.mode_scan ? "scan" : "spot", t.lamp_clocks, t.uv_clocks,
+	            t.volts_before, t.volts_after, ev);
+}
+
+/* A failure of the PASS (read it again) rather than of the session (the
+ * calibration, the ruler sensor, the arithmetic's inputs: M1 / M2 end for
+ * the session, M0 goes on). */
+static int cq_dd_pass_level(const char *why) {
+	static const char *pass[] = { "lamp", "uv_pass_missing", "uv_pass_short",
+	                              "uv_pass_stalled", "uv_pass_too_fast",
+	                              "uv_pass_misaligned", "uv_pass_count", "no_ruler", NULL };
+	int i;
+	for (i = 0; why != NULL && pass[i] != NULL; i++)
+		if (strcmp(why, pass[i]) == 0)
+			return 1;
+	return 0;
+}
+
+static void cq_dd_cal_hook(void *it) {
+	cq_dd_after_cal((inst *)it);
+}
+
+/* M1 / M2 of n patches into cq_dd.vx, through the driver's conversion */
+static const char *cq_dd_compute(const double *L, const double *U, int n, int clamp) {
+	ipatch tmp;
+	double m1[CQ_DUAL_NB], m2[CQ_DUAL_NB];
+	int i;
+	if (n > cq_dd.vx_cap) {
+		free(cq_dd.vx);
+		if ((cq_dd.vx = (cq_cx3 *)calloc((size_t)n, sizeof(cq_cx3))) == NULL) {
+			cq_dd.vx_cap = 0;
+			return "memory";
+		}
+		cq_dd.vx_cap = n;
+	}
+	memset(cq_dd.vx, 0, sizeof(cq_cx3) * (size_t)n);
+	for (i = 0; i < n; i++) {
+		const char *r = cq_dual_patch(&cq_dd.cal, cq_dual_scale, L + i * CQ_DUAL_NB,
+		                              U + i * CQ_DUAL_NB, m1, m2);
+		if (r != NULL)
+			return r;
+		memset(&tmp, 0, sizeof(tmp));
+		if (i1pro2_cq_dual_conv(cq_dd.it, &tmp, 1, m1, clamp) != 0
+		 || !cq_cx_from_ipatch(&cq_dd.vx[i][1], &tmp))
+			return "conversion";
+		memset(&tmp, 0, sizeof(tmp));
+		if (i1pro2_cq_dual_conv(cq_dd.it, &tmp, 1, m2, clamp) != 0
+		 || !cq_cx_from_ipatch(&cq_dd.vx[i][2], &tmp))
+			return "conversion";
+	}
+	cq_dd.n = n;
+	return NULL;
+}
+
+/* The calibration fits a reading of this mode at these clocks
+ * (workflow/dual_scan/storage.calibration_fits, in C). */
+static const char *cq_dd_fits(int scan, int clocks) {
+	if (!cq_dd.cal.have_uv_tile)
+		return "no_dual_calibration";
+	if (!cq_dd.cal_ok)
+		return cq_dd.cal_why[0] ? cq_dd.cal_why : "no_dual_calibration";
+	if (scan != cq_dd.cal_scan)
+		return "calibration_mode_changed";
+	if (clocks > 0 && cq_dd.cal.cal_uv_clocks > 0 && clocks != cq_dd.cal.cal_uv_clocks)
+		return "calibration_mismatch";
+	return NULL;
+}
+
+static void cq_dd_result(const char *what, const char *strip, const char *why, int nuv,
+                         const int *counts, int npatch, const cq_dual_uv *u) {
+	char sb[64];
+	int i, mn = -1;
+	cq_json_escape(sb, sizeof(sb), strip != NULL ? strip : "");
+	for (i = 0; counts != NULL && i < npatch; i++)
+		if (mn < 0 || counts[i] < mn)
+			mn = counts[i];
+	cq_emit_raw("{\"event\":\"dual_pass_result\",\"what\":\"%s\",\"strip\":\"%s\",\"ok\":%s,"
+	            "\"why\":\"%s\",\"uv_readings\":%d,\"fewest_per_patch\":%d,\"uv_triggers\":%d,"
+	            "\"volts\":[%d,%d]}",
+	            what, sb, why == NULL ? "true" : "false", why != NULL ? why : "", nuv, mn,
+	            u != NULL ? u->uv_triggers : 0,
+	            u != NULL ? u->volts_before : -1, u != NULL ? u->volts_after : -1);
+}
+
+/* (b) a spot reading: after read_sample. A failing UV half makes the patch
+ * a misread (it is read again, both halves). */
+static void cq_dd_spot(inst_code *rv) {
+	cq_dual_lamp l;
+	cq_dual_uv u;
+	const char *why = NULL;
+	cq_dd.n = 0;
+	cq_dd.why = "record";
+	memset(&u, 0, sizeof(u));
+	if (!cq_dd.on)
+		return;
+	if (*rv != inst_ok && (*rv & inst_mask) != inst_user_trig) {
+		i1pro2_cq_dual_arm(cq_dd.it, CQ_DUAL_PHASE_OFF);
+		return;
+	}
+	if (!i1pro2_cq_dual_take_lamp(cq_dd.it, &l) || l.n != 1)
+		why = "record";
+	i1pro2_cq_dual_arm(cq_dd.it, CQ_DUAL_PHASE_OFF);
+	if (why == NULL && (why = cq_dd_fits(0, 0)) == NULL) {
+		if (i1pro2_cq_dual_spot_uv(cq_dd.it, &u) != 0 || u.n != 1)
+			why = "uv_pass_missing";
+		else if ((why = cq_dd_fits(0, u.clocks)) == NULL)
+			why = cq_dd_compute(l.L, u.U, 1, l.clamp);
+	}
+	i1pro2_cq_dual_arm(cq_dd.it, CQ_DUAL_PHASE_OFF);
+	cq_dd_result("spot", "", why, u.n, NULL, 0, &u);
+	free(l.L);
+	free(u.U);
+	cq_dd.why = why;
+	if (why != NULL) {
+		cq_dd.n = 0;
+		if (cq_dd_pass_level(why))
+			*rv = inst_misread;	/* one unit: the patch again */
+	}
+}
+
+/* Ruler positions of the two passes from the ruler check's record. */
+static int cq_dd_positions(const cq_ruler_rec *r, int n1, int n2, double **lp, double **up) {
+	*lp = (double *)malloc(sizeof(double) * (size_t)(n1 > 0 ? n1 : 1));
+	*up = (double *)malloc(sizeof(double) * (size_t)(n2 > 0 ? n2 : 1));
+	if (*lp == NULL || *up == NULL)
+		return 0;
+	return cq_dual_positions(r->first, r->nch, r->ch_gap, r->ch_code, r->samples,
+	                         n1, n2, r->clocks, *lp, *up);
+}
+
+/* (c) a hand strip, right after the lamp pass's read_strip. */
+static void cq_dd_strip(inst *it, const char *strip, inst_code *rv, int npatch, int sguide,
+                        double pwid, double gwid, double twid) {
+	cq_dual_lamp l;
+	cq_dual_uv u;
+	cq_ruler_rec r;
+	ipatch *v2 = NULL;
+	double *lp = NULL, *up = NULL, *cutv = NULL;
+	int *counts = NULL;
+	inst_code rv2;
+	int lamp_ok, got_r = 0;
+	const char *why = NULL;
+	char sb[64];
+
+	cq_dd.n = 0;
+	cq_dd.why = "record";
+	memset(&u, 0, sizeof(u));
+	memset(&r, 0, sizeof(r));
+	if (!cq_dd.on)
+		return;
+	lamp_ok = *rv == inst_ok;
+	if (!i1pro2_cq_dual_take_lamp(it, &l))
+		memset(&l, 0, sizeof(l));
+	/* an aborted or commanded lamp pass ends here (nothing to close: a
+	 * lamp pass that never triggered started no ruler stream) */
+	if ((*rv & inst_mask) == inst_user_abort) {
+		i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_OFF);
+		free(l.L);
+		return;
+	}
+	/* pass 2 of 2: the helper asks for it itself; it also closes the ruler
+	 * stream the lamp pass opened, so it is read even after a failed lamp
+	 * pass (then both are read again) */
+	cq_json_escape(sb, sizeof(sb), strip);
+	cq_emit_raw("{\"event\":\"dual_pass\",\"strip\":\"%s\",\"pass\":\"uv\",\"of\":2,"
+	            "\"lamp_ok\":%s}", sb, lamp_ok ? "true" : "false");
+	i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_UV);
+	if ((v2 = (ipatch *)calloc((size_t)npatch, sizeof(ipatch))) == NULL)
+		rv2 = inst_internal_error;
+	else
+		rv2 = it->read_strip(it, "STRIP", npatch, (char *)strip, sguide, pwid, gwid, twid, v2);
+	i1pro2_cq_dual_arm(it, CQ_DUAL_PHASE_OFF);	/* the UV switch off on every way out */
+	free(v2);
+	(void)i1pro2_cq_dual_take_uv(it, &u);
+	got_r = i1pro2_cq_ruler_take(it, &r);
+
+	if (!lamp_ok)
+		why = "lamp";
+	else if ((rv2 & inst_mask) == inst_user_abort) {
+		*rv = rv2;				/* the loop handles the key or command */
+		why = "uv_pass_missing";
+	} else if (rv2 != inst_ok || u.n <= 0)
+		why = "uv_pass_missing";
+	else if ((why = cq_dd_fits(1, u.clocks)) != NULL)
+		;
+	else if (l.n != npatch || l.L == NULL)
+		why = "record";
+	else if (!got_r || !r.valid || r.ended != CQ_RULER_END_SHORT || r.ncut != npatch
+	      || r.clocks <= 0)
+		why = "dual_needs_ruler";
+	if (why == NULL) {
+		int n1, k;
+		/* the lamp pass's readings (the driver kept the count at the lamp
+		 * pass's end); the UV pass's are the stream's last ones */
+		n1 = i1pro2_cq_dual_lamp_count(it);
+		if (n1 <= 0 || !cq_dd_positions(&r, n1, u.n, &lp, &up))
+			why = "no_ruler";
+		else if ((cutv = (double *)malloc(sizeof(double) * CQ_DUAL_NB * (size_t)npatch)) == NULL
+		      || (counts = (int *)malloc(sizeof(int) * (size_t)npatch)) == NULL)
+			why = "memory";
+		else {
+			int (*cells)[2] = (int (*)[2])malloc(sizeof(int) * 2 * (size_t)npatch);
+			if (cells == NULL)
+				why = "memory";
+			else {
+				for (k = 0; k < npatch; k++) {
+					cells[k][0] = r.cut_ss[k];
+					cells[k][1] = r.cut_no[k];
+				}
+				why = cq_dual_cut(CQ_DUAL_NB, npatch, (const int (*)[2])cells, n1, lp,
+				                  u.n, up, u.U, CQ_DUAL_TRIM, CQ_DUAL_MIN_UV, cutv, counts);
+				free(cells);
+			}
+		}
+		if (why == NULL)
+			why = cq_dd_compute(l.L, cutv, npatch, l.clamp);
+	}
+	cq_dd_result("strip", strip, why, u.n, why == NULL || counts != NULL ? counts : NULL,
+	             counts != NULL ? npatch : 0, &u);
+	free(l.L);
+	free(u.U);
+	free(lp);
+	free(up);
+	free(cutv);
+	free(counts);
+	cq_ruler_rec_clear(&r);
+	cq_dd.why = why;
+	if (why != NULL) {
+		cq_dd.n = 0;
+		if (*rv == inst_ok && cq_dd_pass_level(why))
+			*rv = inst_misread;	/* both passes again */
+	}
+}
