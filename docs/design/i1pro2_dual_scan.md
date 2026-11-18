@@ -318,8 +318,9 @@ never on a real instrument. Code: `workflow/dual_scan/session.py` (the rules),
   is refused before START (M-DUAL-START-REFUSED); one started with another factor continues with
   its own (`storage.continuation_choice`). An engine refusal of the same kind is never a fallback
   to stock chartread.
-* **Before START.** A note above the chart (the preview's banner; nothing covers the chart):
-  each strip read twice, the ruler needed (without it only M0), the condition chosen, a first try
+* **Before START.** A line in the Measure tab's own status line (under the log, where the tab
+  says what happens next; never a box over the chart, Basti 2026-11-18): each strip read twice,
+  the ruler needed (without it only M0), the condition chosen, a first try
   (M-DUAL-BEFORE-START). It follows the row and Preferences and goes while a session runs.
 * **Calibration.** The calibration window of a dual session (startup and on request) adds "keep
   the instrument on its white tile ..." (M-DUAL-CAL-TILE); from Start Calibration that sentence
@@ -327,7 +328,8 @@ never on a real instrument. Code: `workflow/dual_scan/session.py` (the rules),
   requested calibration's result), which come after the tile's UV reading (safety review S5).
   Calibration Complete then says the tile was read with the UV light too and the instrument can be
   lifted (M-DUAL-CAL-DONE), or why this calibration gives no M1 / M2 (M-DUAL-CAL-REFUSED).
-* **Each strip, two passes.** Above the chart, where the pass is asked for: "Strip A, pass 1 of 2
+* **Each strip, two passes.** In the same status line, as a variant of the strip prompt (a
+  flashed line shows for its time and then gives it back): "Strip A, pass 1 of 2
   (lamp)" at every strip prompt, "Strip A, pass 2 of 2 (UV light)" when the engine's `dual_pass`
   asks for the second (M-DUAL-PASS-ONE / -TWO; after a first pass ArgyllCMS did not recognise,
   M-DUAL-PASS-TWO-UNREAD). The strip stays highlighted as for any strip.

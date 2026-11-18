@@ -446,6 +446,7 @@ def test_the_pass_record_follows_the_events_and_build_from_is_preset_once(
     fake._strip_name = lambda s: s
     fake._hide_status_flash = lambda: None
     fake._dual_strip_labels = lambda: TabMeasure._dual_strip_labels(fake)
+    fake._dual_status = lambda t: TabMeasure._dual_status(fake, t)
     TabMeasure._dual_reset(fake)
     TabMeasure._on_dual_session(fake, {"active": True, "dual": True,
                                        "scale": 1.156, "chosen": "M2",
@@ -569,3 +570,59 @@ def test_preferences_the_switch_lives_under_the_i1pro3_beta(qapp, tmp_path):
         d.reject()
         s.set("i1pro3_conditions_beta", False)
         s.set(D.SETTING, False)
+
+
+# ------------------------------------- where the pass prompt lives (Basti)
+
+@pytest.mark.parametrize("size", [(1500, 1000), (900, 620)])
+def test_the_pass_prompt_is_the_tabs_own_status_line_and_covers_nothing(
+        qapp, tmp_path, size):
+    """Basti, watching the drive (2026-11-18): "the yellow box for the uv
+    pass info looks out of place and seems to cover other infos". The pass
+    information is a variant of the tab's own strip prompt line (the status
+    line under the log), never the preview's amber banner; it lies beside
+    the log, the buttons and the chart preview, never over them."""
+    from PyQt6.QtCore import QRect
+    from tests.test_b202_the_i1pro_generation_is_read_right import _tab
+    tab = _tab(tmp_path)
+    tab.resize(*size)
+    tab.show()
+    qapp.processEvents()
+    tab._dual_reset()
+    tab._dual_live = True
+    tab._on_dual_pass({"strip": "A", "pass": "uv", "of": 2, "lamp_ok": True})
+    tab._flash_status("an unrelated line", 1)
+    for _ in range(20):
+        qapp.processEvents()
+    import time
+    time.sleep(0.05)
+    qapp.processEvents()
+    tab._hide_status_flash()
+    lbl = tab._status_bar_lbl
+    assert lbl.isVisible()
+    assert lbl.text().startswith("Strip A, pass 2 of 2 (UV light): ")
+    assert not tab._preview._banner_lbl.isVisible(), "no box over the chart"
+
+    def rect(w):
+        return QRect(w.mapTo(tab, w.rect().topLeft()), w.size())
+    mine = rect(lbl)
+    for other in (tab._log, tab._start_btn, tab._stop_btn, tab._preview):
+        if other.isVisible():
+            assert not mine.intersects(rect(other)), other.objectName() or other
+    # the pass ends: the line goes, and nothing else of the tab's is hidden
+    tab._on_dual_pass_result({"what": "strip", "strip": "A", "ok": True,
+                              "why": "", "pairing": "checked"})
+    assert not lbl.isVisible()
+    tab.close()
+
+
+def test_with_the_beta_off_the_status_line_is_never_touched(qapp, tmp_path):
+    from tests.test_b202_the_i1pro_generation_is_read_right import _tab
+    tab = _tab(tmp_path)
+    tab._flash_status("something else", 60000)
+    tab._refresh_dual_note()
+    tab._dual_session_over()
+    qapp.processEvents()
+    assert tab._status_bar_lbl.text() == "something else"
+    assert not tab._status_bar_lbl.isHidden()
+    tab.close()

@@ -11558,6 +11558,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         """Take the flashed status line down again (see `_flash_status`)."""
         if getattr(self, "_gesture_paused", None):
             return      # the pause's line stays until the pause ends
+        if getattr(self, "_dual_status_text", ""):
+            # the i1Pro 2 dual scan's pass line is the strip prompt: it
+            # comes back after a flashed line
+            self._status_bar_lbl.setText(self._dual_status_text)
+            self._status_bar_lbl.setVisible(True)
+            return
         lbl = getattr(self, "_status_bar_lbl", None)
         if lbl is not None:
             lbl.setVisible(False)
@@ -12230,10 +12236,27 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._dual_tile_wait = False     # "keep it on the tile" is up
         self._dual_ended_text = ""       # M1 / M2 ended for the session
         self._dual_end_reason = ""
-        try:
-            self._preview.set_banner(None)
-        except Exception:      # noqa: BLE001 - a half-built tab
-            pass
+        if getattr(self, "_dual_status_text", ""):
+            self._dual_status("")
+
+    def _dual_status(self, text: str) -> None:
+        """The dual scan's line in the Measure tab's own status line (under
+        the log, where the tab says what happens next): the note before
+        START and "Strip A, pass 2 of 2 (UV light)". Never a box over the
+        chart; a flashed line (`_flash_status`) still shows for its time and
+        then gives this one back."""
+        self._dual_status_text = str(text or "")
+        lbl = getattr(self, "_status_bar_lbl", None)
+        if lbl is None:
+            return
+        timer = getattr(self, "_status_flash_timer", None)
+        if timer is not None:
+            timer.stop()
+        if self._dual_status_text:
+            lbl.setText(self._dual_status_text)
+            lbl.setVisible(True)
+        elif not getattr(self, "_gesture_paused", None):
+            lbl.setVisible(False)
 
     def _dual_caps(self) -> frozenset:
         try:
@@ -12345,7 +12368,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             return ""
         title, body = M.M_DUAL_BEFORE_START.render(
             chosen=condition_name(plan.chosen))
-        return f"<b>{html.escape(title)}</b><br>{html.escape(body)}"
+        return f"{title}. {body}"
 
     def _refresh_dual_note(self, *_a) -> None:
         """The note above the chart before START (the ruler, the two passes),
@@ -12355,7 +12378,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             return
         try:
             text = self._dual_before_start_text()
-            self._preview.set_banner(text or None)
+            if text or getattr(self, "_dual_status_text", ""):
+                self._dual_status(text)     # nothing at all with the Beta off
         except Exception:      # noqa: BLE001 - a note never breaks the tab
             log.debug("dual scan: no note", exc_info=True)
 
@@ -12405,7 +12429,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._dual_ended_text = f"{title}. {body}"
         self._log.appendPlainText(f"[{title}]\n{body}")
         self._log.ensureCursorVisible()
-        self._preview.set_banner(None)
+        self._dual_status("")
         self._preview.set_notice(self._dual_ended_text, warn=True)
 
     def _dual_notice_shown(self) -> bool:
@@ -12509,9 +12533,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._log.appendPlainText(f"[{title}]\n{body}")
         self._log.ensureCursorVisible()
 
-    def _dual_banner(self, title: str, body: str) -> None:
-        self._preview.set_banner(
-            f"<b>{html.escape(title)}</b><br>{html.escape(body)}")
+    def _dual_prompt(self, title: str, body: str) -> None:
+        """The pass prompt, as a variant of the tab's strip prompt line."""
+        self._dual_status(f"{title}: {body}")
 
     def _dual_pass_one(self, strip_id: str) -> None:
         """At strip_ready: "Strip A, pass 1 of 2 (lamp)" above the chart."""
@@ -12521,7 +12545,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         from workflow import measurement_messages as M
         name = self._strip_name(strip_id) or str(strip_id)
         title, body = M.M_DUAL_PASS_ONE.render(strip=name)
-        self._dual_banner(title, body)
+        self._dual_prompt(title, body)
         self._log.appendPlainText(f"[{title}]")
 
     def _on_dual_pass(self, ev: dict) -> None:
@@ -12532,10 +12556,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         msg = (M.M_DUAL_PASS_TWO if ev.get("lamp_ok", True)
                else M.M_DUAL_PASS_TWO_UNREAD)
         title, body = msg.render(strip=name)
-        self._dual_banner(title, body)
+        self._dual_prompt(title, body)
         self._log.appendPlainText(f"[{title}]\n{body}")
         self._log.ensureCursorVisible()
-        self._flash_status(title, 20000)
 
     def _on_dual_pass_result(self, ev: dict) -> None:
         """A pass's verdict. A refused second pass makes the strip a misread
@@ -12545,7 +12568,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         what = str(ev.get("what") or "strip")
         strip = str(ev.get("strip") or "")
         why = str(ev.get("why") or "")
-        self._preview.set_banner(None)
+        if getattr(self, "_dual_status_text", ""):
+            self._dual_status("")
         if ev.get("ok"):
             self._dual_failed = None
             notes = []
@@ -12559,7 +12583,6 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                     strip=self._strip_name(strip) or strip,
                     note=D.note_sentence(n))
                 self._log.appendPlainText(f"[{title}]\n{body}")
-            self._hide_status_flash()
             return
         if why == "lamp":
             # the first pass was not recognised: ArgyllCMS's own misread
@@ -12673,10 +12696,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._dual_live = False
         self._dual_tile_wait = False
         self._dual_ended_text = ""
-        try:
-            self._preview.set_banner(None)
-        except Exception:      # noqa: BLE001
-            pass
+        if getattr(self, "_dual_status_text", ""):
+            self._dual_status("")
         QTimer.singleShot(0, self._refresh_dual_note)
 
     def _dual_filter_refused_variant(self, setting: str):
