@@ -409,6 +409,17 @@ def read_ti3_spectra(path: Path) -> "tuple[list[float], dict]":
 #: failed reading ("Hit Esc or 'q' to give up, any other key to retry"), and the stop at a patch
 #: (Esc there gives "strip_interrupted" and asks once more).
 KEY_PROMPTS = ("cal_required", "error", "strip_interrupted")
+#: 4.3.47 (release review NOTE of 4.3.46): only THESE "error" kinds leave the helper waiting for
+#: a key, checked against its C sources: "misread" and "coms" (chromiq_chartread.c's spot loop,
+#: "Hit Esc or 'q' to give up, any other key to retry", cq_prompt_char), "cal_failed"
+#: (chromiq_cal.c, "Wait for retry (any command) or quit", cq_wait_char) and "read_error"
+#: (ierror(), cq_wait_char; not reached in spot mode, kept for safety). Every other kind is said
+#: and the helper carries on without a key: "autosave_rename" (the save after a reading could
+#: not replace the .ti3; Windows, a virus scanner holding the file), "patch_not_found" (a goto
+#: it could not follow). Before, any "error" counted as a prompt, so a failed autosave that was
+#: the newest event when a row ended made finish() send Esc instead of "done" and skipped the
+#: helper's final save.
+KEY_PROMPT_ERROR_KINDS = ("misread", "coms", "cal_failed", "read_error")
 #: the events after which the helper is back at its patch menu (or has ended)
 AT_THE_MENU = ("spot_ready", "cal_done", "cal_result", "patch_read", "saved", "unread_confirm",
                "done")
@@ -486,6 +497,8 @@ class SpotReader:
             if k in KEY_PROMPTS:
                 if k == "error" and ev.get("kind") == "patch_not_found":
                     return None            # a goto it could not follow: back at the menu
+                if k == "error" and ev.get("kind") not in KEY_PROMPT_ERROR_KINDS:
+                    continue               # said, no key waited for: where it was before
                 return ev
             if k in AT_THE_MENU:
                 return None
