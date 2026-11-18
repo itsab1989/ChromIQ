@@ -416,3 +416,30 @@ def test_the_cut_finds_the_patches_of_both_passes_by_position():
         want = 0.05 + 0.04 * int(q.sample_id)
         assert abs(l[0] - want) < 1e-9 and abs(u[0] - 0.2 * want) < 1e-9
     assert min(cut.info["lamp_readings_per_patch"] + cut.info["uv_readings_per_patch"]) >= 3
+
+
+def test_the_dual_phase_is_on_only_while_its_pass_runs(tmp_path):
+    """d1 210 and m2 at 132 are reachable only while the dual row's pass runs: before and
+    after every row (also a failed one) the table has no dual phase, and its gate refuses
+    both."""
+    job, sim, helper, run, p = _job(tmp_path)
+    _ready(job, p)
+    seen = []
+    real = sc.run_row
+
+    def watch(table, *a, **k):
+        seen.append(table.dual_phase)
+        return real(table, *a, **k)
+    import workflow.i1io.table.scan as scm
+    scm.run_row = watch
+    try:
+        assert p.drive(job.read_row()).ok
+    finally:
+        scm.run_row = real
+    assert seen == ["lamp", "uv"]
+    d = job._table
+    assert d.dual_phase is None
+    gate = cl.make_gate(d)
+    for line in (REC_D1_UV, REC_LAMP_M2):
+        with pytest.raises(tbl.ForbiddenLine):
+            gate(line)

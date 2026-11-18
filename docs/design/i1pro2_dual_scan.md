@@ -455,3 +455,46 @@ M-DUAL-MODEL-CORRECTED, M-DUAL-MODEL-NOTED, M-DUAL-FILTER-OFF-PARENT; M-DUAL-END
 * **The simulated helper** ends M1 / M2 as the real one does: the strip that ends them is read
   without its UV half, so the real helper's record is lost and its condition files go out of step,
   and a later Continue Measurement gets the real helper's own `why: "resume"`.
+
+### 10. The dual scan on the i1iO 2 table (2026-11-18, a first try)
+
+**Confirmed by:** *nobody yet.* Built, tested against the simulated table and helper, and driven
+on screen against them; never run on a real table. Why both modes are built: the owner's ruling
+of 18 Nov 2026, "you have the commands so you will do patch by patch and strip mode so it can be
+tried. as long as there is no chance for physical harm of the table this is ok so we can collect
+data".
+
+* **Where it applies.** The Measure tab's table START with both Beta switches of section 8 on and
+  a helper that names `i1io_table_dual` (helper 2026-11-18e). The plan is the hand dual scan's
+  (`workflow/dual_scan/session.plan_for`): the filter row's choice is recorded, never sent as
+  `-F`; never mixed with single-scan readings or another factor; `-N` and `-H` are refused before
+  anything is opened. Off: the table job is the released one, line for line.
+* **Patch by patch.** No new table line. Each patch is read by the helper's dual spot reading
+  (section 7 (b)): the lamp reading, then on the same spot dark + UV-LED readings at the lamp's
+  integration (accepted provisionally by the safety review, NOTE (a)), then the volts. Every row is
+  read by a reader of its own under `-N`, so the dual tile reading of the calibration is kept
+  beside ArgyllCMS's own calibration file and taken up again ONLY for the same white (its date
+  and a checksum of the white); a row whose reader finds none moves nothing and asks for a new
+  calibration.
+* **Rows.** Each row twice on the same line, exactly the recorded dual row: the lamp pass forward
+  at 132 (d1 365), then straight back with the UV LED at 132 (a zero-length m0, c4, d1 210, p0,
+  the scan move back, a3, c3; the same one path to the fire). Every row from its -X end. 132 and
+  d1 210 are allowed only in the dual row's matching pass. The table's position log (y1-y5) is not
+  asked for: both passes are cut by position (1.5 mm clean edge; lamp motion start 0.372 s, first
+  reading 0.370 s; UV 0.236 s / 0.231 s), at least three readings per patch per pass; a row that
+  cannot give that, or would need more than the longest recorded UV-LED pass (1,150 readings), is
+  read patch by patch with the dual scan. M1 / M2 are worked out by the helper from the app's cut
+  (the factory tables never leave it), after the hand dual scan's pairing check: a UV pass that
+  does not belong to the row fails the row, which is offered again as a row or patch by patch (no
+  slow repeats, unlike i1Profiler).
+* **Calibration.** The spot white and, for rows, the strip white each read the tile with the UV
+  LED right after (10 dark + 5 UV-LED readings, the volts; on the table's tile, as recorded).
+* **Files.** M1 and M2 are assembled from the same rows as M0 (each patch from its M0 row) and
+  filed beside the run's measurement as the i1Pro 3 Beta's files, with the pass record, so Build
+  Profile starts at the person's choice as after a hand dual scan. Every reading of both passes,
+  the cut and the helper's input and output stay in the session folder.
+* **Proof on the recordings** (private, statistics only; table work folder `proof/out/replay.txt`):
+  the five accepted recorded rows through this cut: M0 0.082 mean / 0.218 p95 / 0.317 max dE00
+  against i1Profiler's own file (in its table white reference); with i1Profiler's M0 as the base,
+  M2 0.015 / 0.054 / 0.149 and M1 0.007 / 0.024 / 0.076 at the instrument's own factor (0.027 and
+  0.011 means at the standard 1.156); every wrong row's UV pass (8 of 8) refused by the pairing.
