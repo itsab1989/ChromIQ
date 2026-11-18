@@ -532,3 +532,16 @@ def test_at_most_one_answer_is_filled_in_the_accent(qtbot, monkeypatch, tmp_path
             break
         p.answer_page(page)
     assert seen > 10
+
+
+@pytest.mark.parametrize("presentation", ["panel", "popups"])
+def test_the_problem_window_has_the_note_field(qtbot, monkeypatch, tmp_path, settings,
+                                               presentation):
+    win, sim, run, p, saved, finished = _quiet(qtbot, monkeypatch, tmp_path, settings,
+                                               presentation=presentation)
+    p.drive_until("go")
+    win._on_problem()
+    p.idle()
+    assert p.page() == "problem"
+    host = win.popup() if presentation == "popups" else win
+    assert win._note_box.isVisibleTo(host) and win._note_edit.isVisibleTo(host)

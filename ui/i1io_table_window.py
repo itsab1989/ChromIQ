@@ -2995,6 +2995,11 @@ class TableMeasureWindow(QFrame):
                    [(tr("Cancel"), self._problem_cancel),
                     (tr("Send nothing more"), self._problem_stop_now),
                     (tr("Something looks or sounds wrong"), self._problem_wrong)])
+        # the note field with the report (the owner: "it opens the problem window with the
+        # note field"); its text says the person can tell us in their own words
+        self._show_note()
+        if self._popups:
+            QTimer.singleShot(0, self._refit_popup)
 
     def _problem_cancel(self) -> None:
         # nothing reported: the page that was shown comes back with the job's last result
