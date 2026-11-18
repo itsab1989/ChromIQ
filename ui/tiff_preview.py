@@ -5351,10 +5351,15 @@ class TiffPreview(QWidget):
 
             if self._active_stripe < len(self._stripe_rects):
                 r   = self._stripe_rects[self._active_stripe]
-                # Convert device-pixel coords → logical coords for painter
-                x   = r.x()     * sx / dpr + B
+                # Convert device-pixel coords → logical coords for painter.
+                # The arrow is the strip's width plus one device pixel on
+                # EACH side, centred on the strip: the extra two pixels used
+                # to go to the right only, which at a small preview (a strip
+                # 8 px wide) put the arrow a quarter of a strip towards the
+                # next one (Basti's screenshot, 2026-11-18; the same in
+                # 4.3.45).
                 rw  = max(1.0, r.width() * sx / dpr + 2.0 / dpr)
-                cx  = x + rw / 2
+                cx  = r.x() * sx / dpr + B + r.width() * sx / dpr / 2
                 arrow_h = 20  # logical pixels — constant visual size on all displays
                 path = QPainterPath()
                 if self._stripe_arrow_mode == "tip":
