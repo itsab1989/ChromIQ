@@ -12400,11 +12400,29 @@ M_I1IO_DRIVE_COLD_WAY_OUT = _m(
 M_I1IO_DRIVE_FREE_LEFT = _m(
     "M-I1IO-DRIVE-FREE-LEFT",
     "The arm is still free",
-    "The table did not take the arm back, so it is still free. ChromIQ has "
-    "let go of the table. Please do not push the arm. Open i1Profiler 3.8.6 "
-    "or older once: it should bring the arm home. If it does not, quit "
-    "i1Profiler, switch the table off, wait ten seconds, switch it on and "
-    "open i1Profiler again.",
+    "The arm is still free: the motors have let go of it, and the table is "
+    "still in the mode in which you aim by hand. Please leave the arm where "
+    "it is and "
+    "do not push it. i1Profiler 3.8.6 or older should bring it home when it "
+    "finds the table. If it does not, quit i1Profiler, switch the table off "
+    "with its power switch, wait ten seconds, switch it on and open "
+    "i1Profiler again.",
+    approved=False)
+
+# --- PROPOSED (4.3.47): ChromIQ stopped and sends nothing more, the measurement still open --
+# {free_arm}: M-I1IO-DRIVE-FREE-LEFT as its own paragraph ("\n\n" + its body) when the arm was
+# left free out on the table, else empty (safety review 4.3.47, SHOULD-1: before the steps)
+M_I1IO_DRIVE_STOPPED_END_FIRST = _m(
+    "M-I1IO-DRIVE-STOPPED-END-FIRST",
+    "ChromIQ has stopped",
+    "ChromIQ has stopped and sends nothing more to the table in this "
+    "measurement. The arm last reported {where}.{free_arm}\n\n"
+    "What to do now:\n"
+    "1. Press End measurement. Until you do, ChromIQ still holds the "
+    "table's USB connection.\n"
+    "2. Then open i1Profiler 3.8.6 or older once and let it find the table: "
+    "it should bring the arm home.\n\n"
+    "Please send us the diagnostics file of this measurement: {log}.",
     approved=False)
 
 M_I1IO_DRIVE_END = _m(
@@ -12763,7 +12781,8 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_REFUSED, M_I1IO_DRIVE_HOME_OFFERED, M_I1IO_DRIVE_SWITCH_OFF,
     M_I1IO_DRIVE_STOPPED, M_I1IO_DRIVE_LINK_LOST,
     M_I1IO_DRIVE_LINK_LOST_SWITCH_OFF, M_I1IO_DRIVE_COLD,
-    M_I1IO_DRIVE_COLD_WAY_OUT, M_I1IO_DRIVE_FREE_LEFT, M_I1IO_DRIVE_END,
+    M_I1IO_DRIVE_COLD_WAY_OUT, M_I1IO_DRIVE_FREE_LEFT, M_I1IO_DRIVE_STOPPED_END_FIRST,
+    M_I1IO_DRIVE_END,
     M_I1IO_DRIVE_DONE, M_I1IO_DRIVE_NOT_I1IO2, M_I1IO_DRIVE_NOT_I1PRO2,
     M_I1IO_DRIVE_BUSY, M_I1IO_DRIVE_I1PROFILER_OPEN,
     M_I1IO_DRIVE_USB_MISSING, M_I1IO_DRIVE_USB_NOT_ON_THIS_SYSTEM,

@@ -167,6 +167,8 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-I1IO-DRIVE-COLD",
     "M-I1IO-DRIVE-COLD-WAY-OUT",
     "M-I1IO-DRIVE-FREE-LEFT",
+    # 4.3.47: the stopped page while the measurement is still open (End measurement first)
+    "M-I1IO-DRIVE-STOPPED-END-FIRST",
     "M-I1IO-DRIVE-END",
     "M-I1IO-DRIVE-DONE",
     "M-I1IO-DRIVE-NOT-I1IO2",

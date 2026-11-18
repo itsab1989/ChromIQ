@@ -47,13 +47,16 @@ def chart_of(pages: int) -> dict:
     return sheet
 
 
-def _job(tmp_path, monkeypatch, pages=1):
+def _job(tmp_path, monkeypatch, pages=1, real_table=False, script=None):
+    """*real_table* False: the ideal simulated table, so every count below is exact (the less
+    ideal table of 4.3.47 fix2 has its own test at the end)."""
     sheet = chart_of(pages)
     job, sim, helper, run = RS.make_reading_job(tmp_path, sheet=sheet,
                                                 aims=H.demo_aims(sheet, origin=ORIGIN),
-                                                ask_after_each_step=False)
+                                                ask_after_each_step=False,
+                                                real_table=real_table)
     monkeypatch.setattr(rd, "time", SimTime(sim))
-    return job, sim, helper, run, H.Person(job, sim)
+    return job, sim, helper, run, H.Person(job, sim, script)
 
 
 def _align(job, sim, p):
@@ -148,3 +151,29 @@ def test_a_row_is_never_started_without_its_time_left_on_the_white(tmp_path, mon
     sim.clock = job.calibration["t"] + 3000.0
     _read_chart(job, sim, p, 1)
     assert all(left >= sp.row_seconds(33) + sp.CAL_MARGIN_S for left in starts)
+
+
+def test_the_densest_page_on_a_less_ideal_table_is_read_whole(tmp_path, monkeypatch):
+    """4.3.47 fix2: the same page on the simulated table that lands as the volunteer's real one
+    did (i1Profiler's 48 arrivals: dx -2..+3, dy -5..+1) and reads with the simulator's +-1 unit
+    jitter. An arrival read twice 6 units off happens about once a page; under the old rule it
+    ended the measurement ("arm_not_where_expected", measured on this test before the change),
+    now the row fails cleanly and is read again ("again"), and the page completes within its
+    caps."""
+    job, sim, helper, run, p = _job(tmp_path, monkeypatch, real_table=True,
+                                    script={J.Confirm.ROW_FAILED: "again"})
+    for s in ("open", "calibrate"):
+        assert p.drive(getattr(job, s)()).ok
+    _align(job, sim, p)
+    log = _read_chart(job, sim, p, 1)
+    assert log["rows"] == 30
+    assert sim.violations == [] and job._table.closed_reason is None
+    assert len(sim.arrivals_off) >= 990 and min(dy for _dx, dy in sim.arrivals_off) >= -5
+    again = [q for q in p.asked if q[1] == J.Confirm.ROW_FAILED]
+    assert again and all(q[2]["why"] == "arrived_beside_the_target" for q in again), again
+    print(f"\nless ideal table: {len(again)} row(s) read again, {helper.reads} readings")
+    assert helper.reads >= 990
+    d = job._table
+    assert d.lines_sent <= job.caps.lines and d.motions_sent <= job.caps.moves
+    m = job.save().detail["measurement"]
+    assert (m["state"], m["read"], m["expected"]) == ("complete", 990, 990)

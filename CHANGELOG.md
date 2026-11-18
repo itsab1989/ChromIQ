@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+Only with the beta option “X-Rite i1iO support” on:
+
+- **A table measurement no longer stops when the table lets the arm go for the aiming.** On the first real run of 4.3.46, the white calibration worked, the arm drove to the place where the aiming starts, and the table let go of it as it should. The free arm then rested about 1 mm from where the motors had left it, with nobody touching it, and ChromIQ stopped the measurement, because it allowed a free arm only half a millimetre there. That rule was ours and too strict: it was written for an arm the motors hold, and our simulated table never let its free arm move at all. A free arm may now settle by up to 5 mm there; if it moves further, ChromIQ still stops and sends nothing more to the table. Nothing else that ChromIQ sends to the table has changed.
+- **A stop that ends the measurement now shows what to do, with a button for it.** After such a stop the Measure tab showed a page without any button, said that ChromIQ had let go of the table while it still held its USB connection, and said that readings could be saved when nothing had been measured. The page now offers End measurement, says to press it before you open i1Profiler, says what to do with an arm that is still free, and says whether there is anything to save.
+
 ## v4.3.46
 
 **For everyone updating from 4.3.45: this version is for owners of an X-Rite i1iO 2 table who try the beta option “X-Rite i1iO support”. When 4.3.45 drove a real table itself, every measurement stopped at the white calibration at its start. That was a fault of ours, and it is fixed. On Windows, ChromIQ now offers to install the driver the table needs, the same way as for your measuring instruments, and the ARM64 version of ChromIQ can drive the table on Windows for ARM computers. With the beta option off, which is the default, nothing changes: your charts, measurements and profiles are made exactly as with 4.3.45.**

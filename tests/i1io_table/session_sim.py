@@ -141,6 +141,14 @@ SPOT_XY = {ln: _xy_of(ln) for ln in SPOTS}
 M1_LANDS = (2507.0, 1429.0)
 #: i1Profiler's own m1 from (999, 1503), the recording of 17 Nov 2026 (and R1, R2): 1.759 s
 M1_FROM_1000_S = 1.759
+#: MEASURED on the volunteer's i1iO 2 on 18 Nov 2026 (ChromIQ 4.3.46, stage d1): when f1 let the
+#: arm go at the alignment start, the next p0 (0.8 s after the one that read the m1 landing,
+#: nobody asked to touch it) read (2501, 1441) where the held arm had read (2506, 1429): the
+#: freed arm SETTLES by about (-5, +12) units. Until then this simulator's free arm stood
+#: exactly where the motors had left it, so the program's "the free arm must not have moved
+#: more than 5 units" check passed every test and stopped the first real run. Tests set
+#: `release_settle` to (0, 0) for the old belief, or to a larger shift for a person's touch.
+RELEASE_SETTLE_REAL = (-5.0, 12.0)
 
 
 def _first_start(p) -> bool:         # the simulator's own copy of where spot 1 may start
@@ -208,6 +216,8 @@ class SimTable:
     free_arm: bool = False
     #: where the opening reads after m1 (default: where the real table put it)
     m1_lands_at: "tuple[float, float]" = M1_LANDS
+    #: how far the arm shifts when f1 lets it go (default: what the real table did, 18 Nov)
+    release_settle: "tuple[float, float]" = RELEASE_SETTLE_REAL
     #: 0.6.0, a cold table: how long its start-up takes, and where the arm stands after it
     #: (default: as recorded in S1; the tests set other values for the late and the away models)
     i0_s: float = I0_RECORDED_S
@@ -525,6 +535,10 @@ class SimTable:
                 return 0, ("01" if self.mode == "00" else "00"), 0.0
             return 0, self.mode, 0.0
         if cid == "f1":
+            if not self.free_arm:
+                # the motors let go: the arm settles (RELEASE_SETTLE_REAL, measured)
+                self.pos = [self.pos[0] + float(self.release_settle[0]),
+                            self.pos[1] + float(self.release_settle[1])]
             self.mode, self.free_arm = "01", True
             return 0, "01", 0.0
         if cid == "f3":
