@@ -598,3 +598,16 @@ def test_s5_the_pop_up_stays_on_its_screen_on_all_four_edges(qtbot, monkeypatch,
         av.contains(fg.bottomRight()) or fg.height() > av.height() or fg.width() > av.width()), \
         (where, fg, av)
 
+
+# ---- S-6: no text says "in this panel" ----------------------------------------------------------
+
+def test_s6_no_table_text_says_in_this_panel():
+    for m in M.I1IO_DRIVE_MESSAGES:
+        for t in (m.title, m.body, m.body_one or ""):
+            assert "in this panel" not in t, m.id
+            assert "under this text" not in t, m.id
+    assert "on screen" in M.M_I1IO_DRIVE_AIM_BUTTON.body
+    assert "on screen" in M.M_I1IO_DRIVE_AIM_BUTTON_PATCH.body
+    import inspect
+    assert "in this panel" not in inspect.getsource(W)
+

@@ -12031,8 +12031,8 @@ M_I1IO_DRIVE_AIM_BUTTON_PATCH = _m(
     "Instead of pressing Aimed here, you can press the button on the i1Pro 2 itself, once, "
     "while the cross hairs sit on the centre of patch {patch}. ChromIQ then takes that press "
     "as Aimed for this patch, so your hand can stay on the arm.\n\n"
-    "The button never starts a move. Before the arm moves again, ChromIQ still asks you here, "
-    "in this panel, to take your hands away from the table.\n\n"
+    "The button never starts a move. Before the arm moves again, ChromIQ still asks you on "
+    "screen to take your hands away from the table.\n\n"
     "i1Profiler uses the button the same way on the table. ChromIQ's own way of listening for "
     "the press has not been tried on a real table yet. If nothing happens when you press it, "
     "simply press Aimed here: nothing is lost.",
@@ -12046,8 +12046,7 @@ M_I1IO_DRIVE_AIM_BUTTON = _m(
     "then takes that press as Aimed for this mark, so your hand can stay on "
     "the arm.\n\n"
     "The button never starts a move. Before the arm moves again, ChromIQ "
-    "still asks you here, in this panel, to take your hands away from the "
-    "table.\n\n"
+    "still asks you on screen to take your hands away from the table.\n\n"
     "i1Profiler uses the button the same way on the table. ChromIQ's own way "
     "of listening for the press has not been tried on a real table yet. If "
     "nothing happens when you press it, simply press Aimed here: nothing is "
@@ -12311,7 +12310,7 @@ M_I1IO_DRIVE_STOPPED_BY_YOU = _m(
 M_I1IO_DRIVE_REFUSED = _m(
     "M-I1IO-DRIVE-REFUSED",
     "ChromIQ did not do this step",
-    "{why}\n\nThe true state of the table and the arm is shown under this text.",
+    "{why}\n\nThe true state of the table and the arm is shown on the Measure tab.",
     approved=False)
 
 M_I1IO_DRIVE_HOME_OFFERED = _m(

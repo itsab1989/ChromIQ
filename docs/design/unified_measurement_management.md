@@ -10049,11 +10049,13 @@ alone.
 >
 > Instead of pressing Aimed here, you can press the button on the i1Pro 2 itself, once, while the cross hairs sit on the centre of patch {patch}. ChromIQ then takes that press as Aimed for this patch, so your hand can stay on the arm.
 >
-> The button never starts a move. Before the arm moves again, ChromIQ still asks you here, in this panel, to take your hands away from the table.
+> The button never starts a move. Before the arm moves again, ChromIQ still asks you on screen to take your hands away from the table.
 >
 > i1Profiler uses the button the same way on the table. ChromIQ's own way of listening for the press has not been tried on a real table yet. If nothing happens when you press it, simply press Aimed here: nothing is lost.
 
 *Revised 2026-11-18 (final fix round of the i1iO table drive, crosses off: the corner patch named as printed).*
+
+*Revised 2026-11-18 (the last fix round before 4.3.45, review 14 S-6: one wording that is true in the panel and in a pop-up).*
 
 ### M-I1IO-DRIVE-AIM-BUTTON · PROPOSED · added to M-I1IO-DRIVE-AIM when the helper can wait for the instrument's button, Measure (the i1iO table window)
 
@@ -10063,11 +10065,13 @@ alone.
 >
 > Instead of pressing Aimed here, you can press the button on the i1Pro 2 itself, once, while the cross hairs sit on mark {mark}. ChromIQ then takes that press as Aimed for this mark, so your hand can stay on the arm.
 >
-> The button never starts a move. Before the arm moves again, ChromIQ still asks you here, in this panel, to take your hands away from the table.
+> The button never starts a move. Before the arm moves again, ChromIQ still asks you on screen to take your hands away from the table.
 >
 > i1Profiler uses the button the same way on the table. ChromIQ's own way of listening for the press has not been tried on a real table yet. If nothing happens when you press it, simply press Aimed here: nothing is lost.
 
 *Revised 2026-11-17 (owner-results round: the volunteer's two sessions and one recording of 17 Nov 2026 on a real i1iO 2): i1Profiler confirms all three marks with the button on that table; ChromIQ's own listening has not run there yet.*
+
+*Revised 2026-11-18 (the last fix round before 4.3.45, review 14 S-6: one wording that is true in the panel and in a pop-up).*
 
 ### M-I1IO-DRIVE-STRIP-OPTION · PROPOSED · the tooltip of “Patch-by-patch mode (-p)” while an i1iO table chart is loaded, Measure (Guided and Manual)
 
@@ -10341,7 +10345,9 @@ alone.
 >
 > {why}
 >
-> The true state of the table and the arm is shown under this text.
+> The true state of the table and the arm is shown on the Measure tab.
+
+*Revised 2026-11-18 (the last fix round before 4.3.45, review 14 S-6: one wording that is true in the panel and in a pop-up).*
 
 ### M-I1IO-DRIVE-HOME-OFFERED · PROPOSED · way back home_offered: the arm out on the table, the homing possible, Measure (the i1iO table window)
 
