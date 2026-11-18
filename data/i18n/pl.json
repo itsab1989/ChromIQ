@@ -10224,7 +10224,7 @@
  "While this is on, ChromIQ asks after every step of an i1iO table measurement whether the table did what was described. It is on for your first measurement with the table; at the end of a measurement that went well, ChromIQ offers to switch it off.": "Gdy ta opcja jest włączona, ChromIQ podczas pomiaru stołem i1iO pyta po każdym kroku, czy stół zrobił to, co opisano. Jest włączona przy Twoim pierwszym pomiarze stołem; na końcu pomiaru, który przebiegł dobrze, ChromIQ proponuje jej wyłączenie.",
  "With the white the i1Pro 2 has just made, the table's white tile reads Y {y}, and a white tile reads between {lo} and {hi}. Most likely the instrument did not sit flat on its white tile during the calibration. ChromIQ does not use this white, and nothing has been read with it. Press Carry on to calibrate again.": "Z bielą, którą i1Pro 2 właśnie zmierzył, biała płytka stołu daje Y {y}, a biała płytka daje wartość od {lo} do {hi}. Najprawdopodobniej przyrząd nie leżał płasko na swojej białej płytce podczas kalibracji. ChromIQ nie używa tej bieli i nic nie zostało z nią odczytane. Naciśnij Kontynuuj, aby skalibrować ponownie.",
  "Yes, it is centred, my hands are away": "Tak, jest na środku, moje ręce są odsunięte",
- "the arm feels its way towards the front of the table": "ramię po omacku przesuwa się w stronę przodu stołu",
+ "the arm feels its way towards the front of the table": "ramię ostrożnie posuwa się w stronę przedniej krawędzi stołu",
  "the arm goes back to its resting place": "ramię wraca na swoje miejsce spoczynku",
  "the arm moves by itself to mark 3": "ramię samo przejeżdża do znacznika 3",
  "the arm moves to row {row} of page {page} and reads it": "ramię przejeżdża do rzędu {row} na stronie {page} i go odczytuje",
