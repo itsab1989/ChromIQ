@@ -575,3 +575,26 @@ def test_s4_the_tabs_stop_is_red_only_while_a_quiet_table_session_is_open(tab, b
                     timeout=10000)
     assert tab._stop_btn.styleSheet() == before
 
+
+# ---- S-5: the pop-up stays fully on its screen ---------------------------------------------------
+
+@pytest.mark.parametrize("where", ["right", "bottom_right", "gone_monitor", "left_top"])
+def test_s5_the_pop_up_stays_on_its_screen_on_all_four_edges(qtbot, monkeypatch, tmp_path,
+                                                             settings, where):
+    from PyQt6.QtGui import QGuiApplication
+    av = QGuiApplication.primaryScreen().availableGeometry()
+    pos = {"right": (av.right() - 50, av.top() + 40),
+           "bottom_right": (av.right() - 30, av.bottom() - 30),
+           "gone_monitor": (av.right() + 3000, av.top() + 100),
+           "left_top": (av.left() - 300, av.top() - 200)}[where]
+    settings.set(W.POPUP_POS_KEY, f"{pos[0]},{pos[1]}")
+    win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
+                                                    asking=False)
+    p.idle()
+    qtbot.waitUntil(win.popup_open, timeout=5000)
+    qtbot.wait(200)                                     # the re-fits after the show
+    fg = win.popup().frameGeometry()
+    assert av.contains(fg.topLeft()) and (
+        av.contains(fg.bottomRight()) or fg.height() > av.height() or fg.width() > av.width()), \
+        (where, fg, av)
+

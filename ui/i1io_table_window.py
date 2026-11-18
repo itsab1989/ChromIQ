@@ -1579,15 +1579,26 @@ class TableMeasureWindow(QFrame):
         return False
 
     def _keep_popup_on_screen(self) -> None:
+        """Review 14, S-5: the whole pop-up (its frame, all four edges) stays inside the screen
+        it opens on, after every show and re-fit: a remembered place near an edge, a smaller
+        resolution or a main window standing partly off screen never puts an answer out of
+        reach. Taller or wider than the screen: its top-left corner stays on it."""
         pop = self._popup
-        scr = pop.screen()
+        if pop is None:
+            return
+        from PyQt6.QtGui import QGuiApplication
+        fg = pop.frameGeometry()
+        scr = QGuiApplication.screenAt(fg.center()) or pop.screen() \
+            or QGuiApplication.primaryScreen()
         if scr is None:
             return
         av = scr.availableGeometry()
-        fg = pop.frameGeometry()
-        dy = fg.bottom() - av.bottom()
-        if dy > 0:
-            pop.move(pop.x(), max(av.y(), pop.y() - dy))
+        x = min(fg.left(), av.left() + av.width() - fg.width())
+        y = min(fg.top(), av.top() + av.height() - fg.height())
+        x, y = max(av.left(), x), max(av.top(), y)
+        dx, dy = x - fg.left(), y - fg.top()
+        if dx or dy:
+            pop.move(pop.x() + dx, pop.y() + dy)
             if pop.placed_at is not None:
                 from PyQt6.QtCore import QPoint
                 pop.placed_at = QPoint(pop.x(), pop.y())
