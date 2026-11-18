@@ -78,7 +78,7 @@ def devices_from_pyusb(found) -> "list[dict]":
     return out
 
 
-def devices_from_instance_ids(instance_ids) -> "list[dict] | None":
+def devices_from_instance_ids(instance_ids, hub_ids=None) -> "list[dict] | None":
     r"""Windows: cfgmgr32's present USB device INSTANCE ids -> the reader's device records.
 
     2026-11-18 (the owner: "many modern pcs use arm processors so this should work for them"):
@@ -86,12 +86,19 @@ def devices_from_instance_ids(instance_ids) -> "list[dict] | None":
     without any USB library. One record per INSTANCE, never per (vid, pid), so two i1Pro 2 stay
     two and the check still says "several instruments". Composite children
     (``USB\VID_0971&PID_2000&MI_00\...``) are interfaces of a device already counted, and ids
-    without VID/PID (``USB\ROOT_HUB30\...``) are hubs: both skipped. ``hub`` is False for the
-    rest: a hub carries no instrument vendor id, so `_is_other_instrument` cannot mistake one.
-    None stays None (the list could not be read: cannot tell)."""
+    without VID/PID (``USB\ROOT_HUB30\...``) are root hubs: both skipped.
+
+    ``hub`` is True for the instances in *hub_ids* (`core.usb_driver_installer.
+    usb_hub_instance_ids`: a hub driver's service or a hub-class compatible id). Review WIN2,
+    F-M1: a hub chip can carry an instrument maker's vendor id (WCH's 1A86:8091, Microchip's
+    04D8, even X-Rite's 0971), and unmarked it would be counted as "another measuring
+    instrument" and START refused, where the libusb route (bDeviceClass 9) and macOS ignore it.
+    *hub_ids* None (the registry could not be read) marks no hub: the behaviour before.
+    None for *instance_ids* stays None (the list could not be read: cannot tell)."""
     if instance_ids is None:
         return None
     from core.usb_driver_installer import usb_ids_in_instance
+    hubs = {str(h).upper() for h in (hub_ids or ())}
     out = []
     for one in sorted(str(i) for i in instance_ids):
         parts = one.split("\\")
@@ -104,12 +111,13 @@ def devices_from_instance_ids(instance_ids) -> "list[dict] | None":
             vid, pid = int(ids[0], 16), int(ids[1], 16)
         except ValueError:
             continue
-        out.append({"vid": vid, "pid": pid, "place": None, "hub": False, "interfaces": 0})
+        out.append({"vid": vid, "pid": pid, "place": None, "hub": one.upper() in hubs,
+                    "interfaces": 0})
     return out
 
 
 def list_devices(system: str, backend=None, ioreg_roots=None, pyusb_find=None,
-                 instance_ids=None) -> "list[dict] | None":
+                 instance_ids=None, hub_ids=None) -> "list[dict] | None":
     """Every USB device once, as the reader counts them; None when the system's list cannot be
     read. *ioreg_roots* / *pyusb_find* / *instance_ids* are for tests (recorded answers, no
     device). Windows lists through cfgmgr32 (`devices_from_instance_ids`), on x64 and ARM64
@@ -123,7 +131,13 @@ def list_devices(system: str, backend=None, ioreg_roots=None, pyusb_find=None,
                 instance_ids = present_usb_instance_ids()
             except Exception:      # noqa: BLE001 - the list could not be read: cannot tell
                 return None
-        return devices_from_instance_ids(instance_ids)
+            if hub_ids is None:
+                try:
+                    from core.usb_driver_installer import usb_hub_instance_ids
+                    hub_ids = usb_hub_instance_ids()
+                except Exception:      # noqa: BLE001 - no hub flag: none marked, as before
+                    hub_ids = None
+        return devices_from_instance_ids(instance_ids, hub_ids)
     if system == "linux":
         try:
             if pyusb_find is None:

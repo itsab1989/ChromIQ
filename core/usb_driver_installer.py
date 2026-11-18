@@ -283,6 +283,14 @@ def table_driver_state(entries: "list[tuple[str, list[tuple[str, str]]]] | None"
         if present_instances is not None:
             live = [pair for pair in instances
                     if _instance_id(combo, pair[0]) in present_instances]
+            pair_ids = (parts[0].replace("VID_", "").lower(),
+                        parts[1].replace("PID_", "").lower())
+            if not live and any(usb_ids_in_instance(one) == pair_ids
+                                for one in present_instances):
+                # review WIN2, N8: cfgmgr32 says the table's vid:pid IS here but no instance
+                # id matched: presence is not in doubt (as in `attached_devices`), so the
+                # remembered instances speak, and "not connected" is never said of it
+                live = instances
         services += [str(svc).strip().lower() for _, svc in live]
     if not seen or not services:
         return TABLE_DRIVER_NONE, {"seen": seen, "present": bool(services)}
@@ -358,6 +366,9 @@ _CM_GETIDLIST_FILTER_ENUMERATOR = 0x00000001
 #: `CM_GETIDLIST_FILTER_PRESENT` — the whole point: attached right now.
 _CM_GETIDLIST_FILTER_PRESENT = 0x00000100
 _CR_SUCCESS = 0
+#: `CR_BUFFER_SMALL`: the list grew between the size call and the list call.
+_CR_BUFFER_SMALL = 0x0000001A
+_CM_LIST_ATTEMPTS = 3
 
 
 def usb_ids_in_instance(instance_id: str) -> "tuple[str, str] | None":
@@ -399,15 +410,25 @@ def present_usb_instance_ids() -> "set[str] | None":
         flags = ctypes.c_ulong(
             _CM_GETIDLIST_FILTER_ENUMERATOR | _CM_GETIDLIST_FILTER_PRESENT)
         enumerator = ctypes.c_wchar_p("USB")
-        size = ctypes.c_ulong(0)
-        if cfgmgr.CM_Get_Device_ID_List_SizeW(
-                ctypes.byref(size), enumerator, flags) != _CR_SUCCESS:
+        raw = None
+        # review WIN2, N1: a device plugged in between the size call and the list call makes
+        # the list longer than the buffer (CR_BUFFER_SMALL); ask again, up to three times,
+        # rather than answer "cannot tell" and refuse START once
+        for _attempt in range(_CM_LIST_ATTEMPTS):
+            size = ctypes.c_ulong(0)
+            if cfgmgr.CM_Get_Device_ID_List_SizeW(
+                    ctypes.byref(size), enumerator, flags) != _CR_SUCCESS:
+                return None
+            buf = ctypes.create_unicode_buffer(size.value)
+            answer = cfgmgr.CM_Get_Device_ID_ListW(enumerator, buf, size, flags)
+            if answer == _CR_BUFFER_SMALL:
+                continue
+            if answer != _CR_SUCCESS:
+                return None
+            raw = buf[:size.value]
+            break
+        if raw is None:
             return None
-        buf = ctypes.create_unicode_buffer(size.value)
-        if cfgmgr.CM_Get_Device_ID_ListW(
-                enumerator, buf, size, flags) != _CR_SUCCESS:
-            return None
-        raw = buf[:size.value]
     except Exception as exc:   # noqa: BLE001 — a missing DLL must not kill the caller
         log.warning("could not ask Windows which USB devices are present: %s", exc)
         return None
@@ -572,6 +593,76 @@ def _registry_usb_entries() -> "list[tuple[str, list[tuple[str, str]]]]":
             pass
         entries.append((combo, instances))
     return entries
+
+
+#: The Windows services that drive a USB HUB (lower-case; the registry writes ``usbhub`` and
+#: ``USBHUB3``, so compare lower-cased). Review WIN2, F-M1 (2026-11-18): the cfgmgr32 list
+#: carries no device class, and a hub chip may carry an instrument maker's vendor id (WCH's
+#: CH334/CH335 hubs are 1A86:8091, in very many cheap hubs and docks; Microchip's are 04D8), so
+#: a hub has to be named as one, or the i1iO check counts it as "another measuring instrument".
+#: ``usbhub`` (USB 2) and ``usbhub3`` (USB 3, Windows 8 and later) are Windows' own; the others
+#: are the vendor USB 3 stacks of the Windows 7 years (Intel, Renesas, AMD, ASMedia). The class
+#: test in `is_hub_entry` is the main signal and catches any other hub driver too.
+HUB_SERVICES = frozenset({"usbhub", "usbhub3", "iusb3hub", "nusb3hub", "amdhub30",
+                          "amdhub31", "asmthub3"})
+
+
+def is_hub_entry(service: str, compatible_ids) -> bool:
+    r"""Whether one ``Enum\USB`` instance is a USB hub: its service is a hub driver, or Windows
+    made a hub-class compatible id for it (``USB\Class_09...``, from the device descriptor's
+    bDeviceClass 9, the same test as the libusb route's ``bDeviceClass == 9``). Pure."""
+    if str(service or "").strip().lower() in HUB_SERVICES:
+        return True
+    return any(str(c).strip().upper().startswith("USB\\CLASS_09")
+               for c in (compatible_ids or ()))
+
+
+def usb_hub_instance_ids() -> "set[str] | None":
+    r"""The UPPER-CASE instance ids (``USB\VID_1A86&PID_8091\...``) of the USB hubs the registry
+    knows, by `is_hub_entry`; None when the registry could not be read (the caller then marks
+    no hub, the behaviour before this list existed). Read only; nothing is opened."""
+    if sys.platform != "win32":
+        return None
+    try:
+        import winreg
+        base = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Enum\USB")
+    except OSError:
+        return None
+    hubs: "set[str]" = set()
+    i = 0
+    while True:
+        try:
+            combo = winreg.EnumKey(base, i)
+        except OSError:
+            break
+        i += 1
+        try:
+            dev_key = winreg.OpenKey(base, combo)
+        except OSError:
+            continue
+        j = 0
+        while True:
+            try:
+                inst = winreg.EnumKey(dev_key, j)
+            except OSError:
+                break
+            j += 1
+            values = {}
+            try:
+                key = winreg.OpenKey(dev_key, inst)
+            except OSError:
+                continue
+            for name in ("Service", "CompatibleIDs"):
+                try:
+                    values[name], _ = winreg.QueryValueEx(key, name)
+                except OSError:
+                    values[name] = None
+            compat = values["CompatibleIDs"]
+            if isinstance(compat, str):
+                compat = [compat]
+            if is_hub_entry(values["Service"] or "", compat or ()):
+                hubs.add(_instance_id(combo, inst))
+    return hubs
 
 
 def enumerate_connected(include_table: bool = False) -> list[UsbDevice]:
