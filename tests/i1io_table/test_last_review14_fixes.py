@@ -457,9 +457,11 @@ def test_s1_go_is_not_taken_in_its_first_moment(qtbot, monkeypatch, tmp_path, se
     qtbot.wait(200)                                  # laid out, still not ready
     assert _moves(sim) == n and win.pages_shown[-1] == page and not win._busy
     assert not b.isEnabled()
-    size = b.size()
+    # its own size (what the style gives the button, not where a loaded run's layout has got
+    # to: the gate measured the pop-up still being laid out 200 ms after it opened)
+    size = (b.sizeHint(), b.minimumSizeHint())
     qtbot.waitUntil(b.isEnabled, timeout=3000)
-    assert b.size() == size                          # the same size, ready now
+    assert (b.sizeHint(), b.minimumSizeHint()) == size      # the same size, ready now
     b.click()
     p.idle()
     assert win.pages_shown[-1] != page
