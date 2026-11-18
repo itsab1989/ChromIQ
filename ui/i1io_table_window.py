@@ -89,6 +89,17 @@ POPUP_SOUND = {
 }
 
 
+#: REVIEW 14, M-1: the ways back that mean a move may still be waiting, or a movement (or the
+#: start-up) was never reported as finished: "Switch the table off now" is the first thing shown,
+#: and no later page hides or contradicts it
+SWITCH_OFF_WAYS = ("switch_off_pending", "switch_off_unfinished", "link_lost_switch_off_first",
+                   "cold_way_out")
+
+
+def switch_off_line() -> str:
+    """The one-line switch-off sentence (the same words as the tab's own line)."""
+    return tr("To stop the arm at once, switch the table off at its power switch.")
+
 #: the role each answer has in the pop-up's button box (by its English label, compared through
 #: tr()), as the hand path's windows give theirs: the application's style orders the roles for
 #: the platform; the AcceptRole answer is filled in the Measure tab's accent (never a default);
@@ -1547,10 +1558,62 @@ class TableMeasureWindow(QFrame):
         self._close_btn.setVisible(not open_ and not page_close)
         self._sync_popup_footer()
 
+    # ---- review 14, M-1: the arm's true state decides every text about it -------------------
+    def _switch_off_needed(self) -> bool:
+        """A move may still be waiting, or a movement (or the start-up) was never reported as
+        finished: only the power switch is a safe way out now. From the job's true state;
+        False while a step runs (its state is in flux; its result is shown when it returns)."""
+        j = self.job
+        if j is None or self._busy:
+            return False
+        try:
+            if j.phase == "new":
+                return False
+            st = j.state()
+            if st.table is None:
+                return False
+            return bool(st.movement_may_be_unfinished or st.strip_move_may_be_pending) \
+                or j.way_back() in SWITCH_OFF_WAYS
+        except Exception:      # noqa: BLE001 - the state could not be read: say nothing new
+            log.debug("i1iO table: the state for the switch-off line was not read", exc_info=True)
+            return False
+
+    @staticmethod
+    def _result_says_switch_off(res) -> bool:
+        """A step's result that must be shown at once, before any problem window (M-1): the table
+        part has ended, or a move may still wait."""
+        if getattr(res, "kind", "") == STOPPED:
+            return True
+        if getattr(res, "way_back", "") in SWITCH_OFF_WAYS + ("link_lost_replug",):
+            return True
+        st = getattr(res, "state", None)
+        return bool(st is not None and (st.movement_may_be_unfinished
+                                        or st.strip_move_may_be_pending))
+
+    def _arm_at_rest(self) -> bool:
+        """The table REPORTED the arm at its resting place (never assumed)."""
+        j = self.job
+        try:
+            return j is not None and (bool(j.state().at_rest) or j.parked())
+        except Exception:      # noqa: BLE001 - not known: not at rest
+            return False
+
+    @staticmethod
+    def _switch_off_first() -> str:
+        return tr("Switch the table off now with its power switch: a move may still be waiting, "
+                  "or a movement was not reported as finished.")
+
     def _moving_controls(self, on: bool) -> None:
-        """Stop and Report a problem, and the switch-off line: visible while anything can move."""
+        """Stop and Report a problem, and the switch-off line: visible while anything can move.
+        Review 14, M-1: never hidden while a move may still be waiting (the line stays even
+        after the table has been let go of)."""
+        pending = self._switch_off_needed()
+        j = self.job
+        on = bool(on) or (pending and j is not None and j.phase == "open")
         for w in (self._stop_btn, self._problem_btn, self._switch_off):
             w.setVisible(on)
+        if pending and not on:
+            self._switch_off.setVisible(True)
         if self._popups:
             # the tab's own Stop and Report a problem stand for the panel's (quiet mode)
             self.moving_changed.emit(bool(on))
@@ -1805,6 +1868,11 @@ class TableMeasureWindow(QFrame):
         # the note field stays while what it is about is on screen (a problem, a stop, a
         # failure); the next job call clears that
         self._note_box.setVisible(bool(getattr(self, "_note_sticky", False)))
+        says_it, self._says_switch_off = getattr(self, "_says_switch_off", False), False
+        if not says_it and self._switch_off_needed():
+            # review 14, M-1: while a move may still be waiting, "Switch the table off now" is
+            # the first thing every page shows, whatever else it asks
+            text = self._switch_off_first() + "\n\n" + text
         self._title.setText(title)
         self._text.setText(text)
         self._scroll.verticalScrollBar().setValue(0)
@@ -2058,15 +2126,29 @@ class TableMeasureWindow(QFrame):
         self._close_btn.setEnabled(True)
         self._status.setText("")
         then, self._then = self._then, None
-        if getattr(self, "_page_id", "") == "problem" and not isinstance(res, BaseException):
+        if getattr(self, "_page_id", "") == "problem" and not isinstance(res, BaseException) \
+                and not self._result_says_switch_off(res):
             # the person is choosing what to report: the step's result waits behind it
             self._last = res
             self._deferred = (then, res)
             self._refresh_state()
             return
+        if getattr(self, "_page_id", "") == "problem":
+            # review 14, M-1: a result that says "switch the table off" (or that the table part
+            # has ended) is never kept behind the problem page: it replaces it at once (the
+            # note field and Report a problem stay)
+            self._deferred = None
+            self._problem_by_stop = False
         if isinstance(res, BaseException):
             self._show_error(res)
             return
+        if getattr(self, "_problem_wanted", False) and self._result_says_switch_off(res):
+            # review 14, M-1: Report a problem was pressed while the step ran, and the step ended
+            # with a move that may still wait (or the table part ended): "Switch the table off
+            # now" comes first and is never replaced by the problem window; Report a problem
+            # and the note field stay on it
+            self._problem_wanted = False
+            self._problem_by_stop = False
         if getattr(self, "_problem_wanted", False):
             # quiet mode: Report a problem was pressed while the step ran; the table has
             # stopped before its next move, and only now (nothing moving) the problem window
@@ -2932,13 +3014,18 @@ class TableMeasureWindow(QFrame):
                 "cold_way_out": M.M_I1IO_DRIVE_COLD_WAY_OUT,
                 "home_offered": M.M_I1IO_DRIVE_HOME_OFFERED}
         msg = msgs.get(wb)
+        self._says_switch_off = wb in SWITCH_OFF_WAYS
         if msg is None and wb == "none" and res.reason in ("stopped_by_person",
                                                            "cancelled_by_person"):
             title, body = _refused(M, reason_text(res.reason))
         else:
             msg = msg or M.M_I1IO_DRIVE_STOPPED
             title, body = msg.render(**_fill(msg, where=where, log=self._log_name))
-            body = reason_text(res.reason, res.detail) + "\n\n" + body
+            if wb in SWITCH_OFF_WAYS:
+                # review 14, M-1: "Switch the table off now" first, then why
+                body = body + "\n\n" + reason_text(res.reason, res.detail)
+            else:
+                body = reason_text(res.reason, res.detail) + "\n\n" + body
         self._show("stopped", title, body, self._way_on_buttons())
         self._after_stop_controls()
         self._show_note()
@@ -3050,15 +3137,36 @@ class TableMeasureWindow(QFrame):
                                   "home."))
 
     def _show_after_problem(self) -> None:
+        """What follows a reported problem, from the job's TRUE state (review 14, M-1): a move
+        that may still wait says "Switch the table off now" first and keeps the switch-off line
+        and Stop; an arm ChromIQ can bring home is offered the homing; "at its resting place"
+        only when the table reported it there; else where the arm last reported, with the
+        switch-off line and Stop kept."""
         from workflow import measurement_messages as M
         j = self.job
-        if j.way_back() == "home_offered" and j.ended is None:
+        wb = j.way_back()
+        if self._switch_off_needed():
+            msg = {"link_lost_switch_off_first": M.M_I1IO_DRIVE_LINK_LOST_SWITCH_OFF,
+                   "cold_way_out": M.M_I1IO_DRIVE_COLD_WAY_OUT}.get(wb, M.M_I1IO_DRIVE_SWITCH_OFF)
+            title, body = msg.render(**_fill(msg, where=self._where(), log=self._log_name))
+            self._says_switch_off = True
+            self._show("after_problem", title, body, self._way_on_buttons())
+            self._after_stop_controls()
+            return
+        if wb == "home_offered" and j.ended is None:
             title, body = M.M_I1IO_DRIVE_HOME_OFFERED.render(where=self._where())
-        else:
+            self._show("after_problem", title, body, self._way_on_buttons())
+            return
+        if self._arm_at_rest():
             title, body = M.M_I1IO_DRIVE_AFTER_PROBLEM.render()
-        self._show("after_problem", title, body, self._way_on_buttons())
-        if j.way_back() != "home_offered":
+            self._show("after_problem", title, body, self._way_on_buttons())
             self._moving_controls(False)       # nothing can move any more
+            return
+        title, body = M.M_I1IO_DRIVE_AFTER_PROBLEM_OUT.render(where=self._where())
+        self._show("after_problem", title, body, self._way_on_buttons())
+        # the arm stands out over the bed and ChromIQ cannot bring it home: the switch-off line
+        # and Stop stay while the table is open
+        self._moving_controls(j.phase == "open" and not self._closed_job)
 
     def _show_note(self) -> None:
         self._note_sticky = True
@@ -3111,7 +3219,10 @@ class TableMeasureWindow(QFrame):
         # review 10, S-6: the table's own variant of M-END's choices (§M-PROPOSED): no
         # "window" to close, and no em dash
         body = read_line + " " + M.M_I1IO_DRIVE_END_CHOICES.render()[1]
-        body += "\n\n" + M.M_I1IO_DRIVE_END.render()[1]
+        if not self._switch_off_needed():
+            # (review 14, M-1: while a move may still wait, the switch-off line is first and
+            # nothing here says ChromIQ brings the arm home)
+            body += "\n\n" + M.M_I1IO_DRIVE_END.render()[1]
         self._ending_open = True
         self._pending_kind = "end_of_session"
         self._show("end_of_session", tr("Keep what you have measured so far?"), body,
@@ -3205,6 +3316,7 @@ class TableMeasureWindow(QFrame):
             msg = msgs.get(wb, M.M_I1IO_DRIVE_STOPPED)
             body = msg.render(**_fill(msg, where=self._where(), log=self._log_name))[1] + \
                 "\n\n" + body
+            self._says_switch_off = wb in SWITCH_OFF_WAYS
         if self._quit_wanted and wb in ("none", "home_offered"):
             # review 10, B-1: the person quit ChromIQ; the job has let go of the table and
             # nothing waits to be said: ChromIQ closes now

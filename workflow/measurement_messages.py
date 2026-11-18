@@ -12561,6 +12561,21 @@ M_I1IO_DRIVE_AFTER_PROBLEM = _m(
     "start again with START MEASUREMENT.",
     approved=False)
 
+# review 14 (last fix round before 4.3.45), M-1: the arm's TRUE state after a reported problem
+# when ChromIQ cannot bring it home (the arm is out and the homing is refused)
+M_I1IO_DRIVE_AFTER_PROBLEM_OUT = _m(
+    "M-I1IO-DRIVE-AFTER-PROBLEM-OUT",
+    "ChromIQ cannot bring the arm home now",
+    "After the problem you reported, nothing more moves in this measurement, and ChromIQ "
+    "cannot bring the arm home from where it is. The table has not reported the arm at its "
+    "resting place: it last reported {where}.\n\n"
+    "To stop the arm at once, switch the table off at its power switch. That is always "
+    "allowed.\n\n"
+    "Please press End measurement: you can keep what was read (Save and stop) or discard it. "
+    "Then open i1Profiler 3.8.6 or older once and let it find the table: it brings the arm "
+    "home. Afterwards you can start again with START MEASUREMENT.",
+    approved=False)
+
 M_I1IO_DRIVE_ENDING_CLOSED = _m(
     "M-I1IO-DRIVE-ENDING-CLOSED",
     "Nothing was saved or discarded",
@@ -12641,6 +12656,7 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_USB_GONE, M_I1IO_DRIVE_USB_UNEXPECTED,
     M_I1IO_DRIVE_TABLE_NOT_FOUND, M_I1IO_DRIVE_SEVERAL_TABLES,
     M_I1IO_DRIVE_AFTER_PROBLEM, M_I1IO_DRIVE_ENDING_CLOSED,
+    M_I1IO_DRIVE_AFTER_PROBLEM_OUT,
     M_I1IO_DRIVE_REFINE_DONE_NEXT,
     M_I1IO_DRIVE_REFINE_NOT_ON_CHART,
     M_I1IO_DRIVE_RESUME,

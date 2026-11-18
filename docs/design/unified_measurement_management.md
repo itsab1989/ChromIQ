@@ -10569,6 +10569,18 @@ alone.
 >
 > After the problem you reported, nothing more moves in this measurement, and the arm is at its resting place. Please press End measurement: you can keep what was read (Save and stop) or discard it. Afterwards you can start again with START MEASUREMENT.
 
+### M-I1IO-DRIVE-AFTER-PROBLEM-OUT · PROPOSED · after a problem report when ChromIQ cannot bring the arm home (the homing refused, e.g. at the alignment start), Measure (the i1iO table window)
+
+*New 2026-11-18 (the last fix round before 4.3.45, review 14 M-1: the arm's true state after a reported problem; M-I1IO-DRIVE-AFTER-PROBLEM says "at its resting place" only when the table reported the arm there). {where} is the place the table last reported. Shown in betas as a proposed text (Knut, 2026-10-14); approved afterwards.*
+
+> **ChromIQ cannot bring the arm home now**
+>
+> After the problem you reported, nothing more moves in this measurement, and ChromIQ cannot bring the arm home from where it is. The table has not reported the arm at its resting place: it last reported {where}.
+>
+> To stop the arm at once, switch the table off at its power switch. That is always allowed.
+>
+> Please press End measurement: you can keep what was read (Save and stop) or discard it. Then open i1Profiler 3.8.6 or older once and let it find the table: it brings the arm home. Afterwards you can start again with START MEASUREMENT.
+
 ### M-I1IO-DRIVE-ENDING-CLOSED · PROPOSED · the ending closed with Esc or the window's X, Measure (the i1iO table window)
 
 *New 2026-11-17 (build step 9 of the i1iO table drive, found needed on screen). Shown in betas as a proposed text (Knut, 2026-10-14); approved afterwards.*
