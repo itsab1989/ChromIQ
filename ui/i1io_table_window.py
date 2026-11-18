@@ -37,8 +37,9 @@ import time
 from pathlib import Path
 
 from PyQt6.QtCore import QObject, QRunnable, Qt, QThreadPool, QTimer, pyqtSignal, pyqtSlot
-from PyQt6.QtWidgets import (QCheckBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QPlainTextEdit,
-                             QPushButton, QScrollArea, QSizePolicy, QVBoxLayout, QWidget)
+from PyQt6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox, QFrame, QGridLayout, QHBoxLayout, QLabel,
+                             QPlainTextEdit, QPushButton, QScrollArea, QSizePolicy, QVBoxLayout,
+                             QWidget)
 
 from core.i18n import tr
 
@@ -58,6 +59,85 @@ CAL_KEY = "i1io_table_calibration_place"
 CAL_PLACES = ("table tile", "own tile")
 #: the only chart the window drives (STEP4_PROPOSAL section 2): an i1iO 2 with an i1Pro 2
 CHART_TABLE, CHART_HEAD = "i1iO 2", "i1Pro 2"
+
+#: THE QUIET MODE'S PRESENTATION (the owner, 2026-11-18): "After the first measurement with the
+#: table went well and the user confirmed he does not want to be asked those questions every
+#: time i want the left panel in the measure tab to look the same as for the handheld devices
+#: [...] for the other instruments we are using pop up windows when something needs the users
+#: attention ... i would like to keep things similar actually." With "ask after each step" OFF
+#: the tab keeps its own layout and every question of this window opens as a pop-up
+#: (:class:`TablePopup`); with it ON the reviewed panel is shown, unchanged. The ONE switch:
+#: False puts every START back on the panel.
+QUIET_POPUPS = True
+PRESENTATION_PANEL, PRESENTATION_POPUPS = "panel", "popups"
+#: where the person last moved the pop-up ("x,y" in screen points), for the session and across
+#: sessions
+POPUP_POS_KEY = "i1io_table_popup_pos"
+#: the pop-up's width (it stands over the Measure tab's left column, beside the chart preview)
+POPUP_MIN_W, POPUP_MAX_W = 380, 560
+#: the sound a pop-up plays as it opens (measurement_window_sounds.md, rule W-1: a warning or an
+#: error window sounds as it appears; a question that is part of the normal flow, like the
+#: hand path's "Calibrate the instrument" or the pause after a page, makes none): a row that
+#: could not be read as "Patch read failed" does, everything that refused or stopped the table as
+#: the instrument windows do
+POPUP_SOUND = {
+    "row_failed": "STRIP_FAIL", "row_failed_strip": "STRIP_FAIL",
+    "refused": "INSTRUMENT_ERROR", "stopped": "INSTRUMENT_ERROR",
+    "open_refused": "INSTRUMENT_ERROR", "error": "INSTRUMENT_ERROR",
+    "usb_missing": "INSTRUMENT_ERROR", "stored_white_refused": "INSTRUMENT_ERROR",
+    "pending_marker": "INSTRUMENT_ERROR",
+}
+
+
+#: the role each answer has in the pop-up's button box (by its English label, compared through
+#: tr()), as the hand path's windows give theirs: the application's style orders the roles for
+#: the platform; the AcceptRole answer is filled in the Measure tab's accent (never a default);
+#: a DestructiveRole one is never filled (ui.default_button); every other answer is plain
+_ACCEPT_LABELS = (
+    "I understand, drive my table", "Start", "Start the table, my hands are away", "Go",
+    "The page is laid, and my hands are away from the table", "It moves freely", "Aimed",
+    "Yes, feel forward", "Make this move, my hands are away", "I switched it off and on",
+    "As described, my hands are away", "Open the instrument", "Ready", "Seated",
+    "Read it again", "Read it again as a strip", "Save and stop",
+    "Yes, it is centred, my hands are away", "Go on", "Carry on", "Bring the arm home",
+    "Complete it", "Continue", "Measure the rest that way", "Yes, make strips the default",
+    "Table's tile")
+_REJECT_LABELS = ("Not now", "Cancel", "No", "Back", "End this step", "Leave it there",
+                  "Leave it to i1Profiler", "Keep measuring", "Not sure", "End measurement")
+_DESTRUCTIVE_LABELS = ("Discard and stop", "Discard it", "Send nothing more")
+
+
+def answer_role(label: str, alone: bool = False):
+    """The QDialogButtonBox role of one answer of the pop-up (*alone*: the page's only
+    answer, which is then its confirming one, as "Close" in the hand path's windows)."""
+    R = QDialogButtonBox.ButtonRole
+    if alone:
+        return R.AcceptRole
+    if label in {tr(x) for x in _DESTRUCTIVE_LABELS}:
+        return R.DestructiveRole
+    if label in {tr(x) for x in _ACCEPT_LABELS}:
+        return R.AcceptRole
+    if label in {tr(x) for x in _REJECT_LABELS} or label == tr("Close"):
+        return R.RejectRole
+    return R.ActionRole
+
+
+def measure_tab_accent() -> str:
+    """The Measure tab's accent, as its own windows are tinted (``tint_dialog_primary``)."""
+    try:
+        from ui.tabs.tab_measure import _TAB_COLOR
+        return _TAB_COLOR
+    except Exception:      # noqa: BLE001 - the tab's value, as written there
+        return "#56d6a5"
+
+
+def presentation_for(settings) -> str:
+    """The presentation a START uses: the pop-ups when the person has switched the question
+    after each step off (the quiet mode), else the panel. Decided at START; a change in the
+    middle (the first page's tick) acts from the next START on."""
+    if QUIET_POPUPS and not ask_after_each_step(settings):
+        return PRESENTATION_POPUPS
+    return PRESENTATION_PANEL
 
 # the job's result kinds (``workflow.i1io.table.job.Kind``), by value: the job is not imported here
 OK, REFUSED, STOPPED, NEEDS = "ok", "refused", "stopped", "needs_confirmation"
@@ -735,6 +815,124 @@ def _pool() -> QThreadPool:
     return _POOL
 
 
+class _StatusLine(QLabel):
+    """The status line under the answers; in the pop-up presentation a line said while no
+    pop-up is open goes to the Measure tab's log instead (``on_text``)."""
+
+    on_text = None
+
+    def setText(self, text) -> None:      # noqa: N802 - Qt's own name
+        super().setText(text)
+        hook = self.on_text
+        if hook is not None:
+            hook(text)
+
+
+class NoDefaultButtonBox(QDialogButtonBox):
+    """A QDialogButtonBox whose buttons are never the default (condition 4). Qt's own box makes
+    its first AcceptRole button the dialog's default each time it is shown (found by the tests:
+    Return would have pressed the confirming answer); this one takes that back at once."""
+
+    def event(self, ev) -> bool:
+        res = super().event(ev)
+        from PyQt6.QtCore import QEvent
+        if ev.type() in (QEvent.Type.Show, QEvent.Type.ChildAdded, QEvent.Type.LayoutRequest):
+            self.no_default()
+        return res
+
+    def no_default(self) -> None:
+        for b in self.buttons():
+            if isinstance(b, QPushButton):
+                b.setDefault(False)
+                b.setAutoDefault(False)
+                b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+
+
+class TablePopup(QDialog):
+    """The quiet mode's pop-up: the window's question (title, text, ticks, note, answers) in a
+    small, MOVABLE top-level dialog, in the style of the other instruments' measurement windows
+    (the owner, 2026-11-18). One definition of every question: the window builds its pages as
+    always and this dialog only hosts them, so no text or answer exists twice.
+
+    Its four conditions (awaiting confirmation, the coordinator's):
+
+    1. a normal top-level dialog, APPLICATION-modal like the hand path's windows (never
+       ``WindowModal``, which is a macOS sheet over the main window), opened over the Measure
+       tab's left column beside the chart preview, and where the person last moved it;
+    2. open only while an answer is needed: the window hides it before every job call;
+    3. nothing moves while it is open: the job waits for the answer (the window starts no job
+       call before it has hidden the pop-up), and every pop-up of an open table offers End
+       measurement, since the tab's Stop is behind it;
+    4. NO DEFAULT BUTTON. THIS IS THE ONE DELIBERATE DIFFERENCE FROM THE OTHER INSTRUMENTS'
+       WINDOWS: Enter, Return and Space never answer (no button is a default or an auto-default
+       and none takes the keyboard focus, so Space cannot press one); Esc is the window's own
+       Esc (the panel's: a question is withdrawn with the answer that moves nothing, the
+       ending's Esc is a withdrawal), never an answer that leads to a move."""
+
+    def __init__(self, win: "TableMeasureWindow") -> None:
+        super().__init__(win, Qt.WindowType.Dialog | Qt.WindowType.CustomizeWindowHint
+                         | Qt.WindowType.WindowTitleHint | Qt.WindowType.WindowCloseButtonHint)
+        self._win = win
+        self.setObjectName("i1io_table_popup")
+        self.setWindowModality(Qt.WindowModality.ApplicationModal)
+        self.setSizeGripEnabled(False)
+        self.setWindowTitle(tr("X-Rite i1iO table (Beta)"))
+        # THE HAND PATH'S MEASUREMENT WINDOWS ARE THE MODEL (the owner, 2026-11-18: "look how
+        # we handle button positioning and colors in other pop ups so things look similar"):
+        # the margins and spacing of "All Strips Read" and the unread-patches window, a bold
+        # title above the text, no icon, the answers in a QDialogButtonBox by role, so the
+        # application's style (main.py: WinButtonLayoutStyle) puts them in the platform's
+        # order, the confirming answer filled in the Measure tab's accent through
+        # tint_dialog_primary, a discarding one marked destructive (never filled), as M-END.
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(24, 20, 24, 20)
+        lay.setSpacing(16)
+        # the window's question area and answers are put here by the window (_build_popup)
+        self.foot = NoDefaultButtonBox(self)
+        self.foot.setObjectName("i1io_table_popup_footer")
+        self.problem_btn = QPushButton(tr("Report a problem"), self.foot)
+        self.problem_btn.setObjectName("i1io_table_popup_problem")
+        self.end_btn = QPushButton(tr("End measurement"), self.foot)
+        self.end_btn.setObjectName("i1io_table_popup_end")
+        self.close_btn = QPushButton(tr("Close"), self.foot)
+        self.close_btn.setObjectName("i1io_table_popup_close")
+        self.foot.addButton(self.problem_btn, QDialogButtonBox.ButtonRole.HelpRole)
+        self.foot.addButton(self.end_btn, QDialogButtonBox.ButtonRole.DestructiveRole)
+        self.foot.addButton(self.close_btn, QDialogButtonBox.ButtonRole.RejectRole)
+        for b in (self.problem_btn, self.end_btn, self.close_btn):
+            b.setFixedHeight(TablePopup.BUTTON_H)
+            b.setAutoDefault(False)
+            b.setDefault(False)
+            b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            b.setVisible(False)
+        self.problem_btn.clicked.connect(win._on_problem)
+        self.end_btn.clicked.connect(win._on_end_pressed)
+        self.close_btn.clicked.connect(win._on_close_pressed)
+        lay.addWidget(self.foot)
+        #: where the window last put the pop-up (a later difference is the person's move)
+        self.placed_at = None
+
+    #: the hand path's measurement windows' button height
+    BUTTON_H = 32
+
+    def keyPressEvent(self, event) -> None:      # noqa: N802
+        # condition 4: Enter, Return and Space never answer a question of the table
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    def reject(self) -> None:      # Esc: the window's own Esc, never a hidden answer
+        self._win.reject()
+
+    def closeEvent(self, event) -> None:      # noqa: N802 - the title bar's close box
+        if self._win._finished:
+            event.accept()
+            return
+        event.ignore()
+        self._win._on_close_pressed()
+
+
 # ---- the window -------------------------------------------------------------------------------
 
 class TableMeasureWindow(QFrame):
@@ -752,13 +950,28 @@ class TableMeasureWindow(QFrame):
     saved = pyqtSignal(object, dict)
     #: the window is done: "consent_declined", "not_started", "ended", "usb_missing", ...
     finished_with = pyqtSignal(str)
+    #: the pop-up presentation (quiet mode): a line for the Measure tab's log (what the table
+    #: does, each question asked and the answer given)
+    log_line = pyqtSignal(str)
+    #: the pop-up presentation: whether anything can move now (the tab's Stop and Report a
+    #: problem follow it)
+    moving_changed = pyqtSignal(bool)
+    #: the pop-up presentation: the sound a pop-up plays as it opens (a ``core.sound`` name)
+    cue = pyqtSignal(str)
 
     def __init__(self, parent, settings, sheet: dict, run, chart_args, *, only_locs=None,
                  mode: str = "manual", replace_agreed: bool = False, archive=None,
-                 stamp: "str | None" = None) -> None:
+                 stamp: "str | None" = None, presentation: "str | None" = None) -> None:
         super().__init__(parent)
         self.setObjectName("i1io_table_window")
         self._settings = settings
+        #: "panel" (the first measurement, asking after each step) or "popups" (quiet mode),
+        #: decided at START and kept for the whole session
+        self.presentation = presentation or presentation_for(settings)
+        self._popups = self.presentation == PRESENTATION_POPUPS
+        self._popup: "TablePopup | None" = None
+        self._popup_area = None
+        self._logged_state: "list[str]" = []
         self._sheet = sheet
         self._run = run
         self._chart_args = list(chart_args or [])
@@ -898,7 +1111,7 @@ class TableMeasureWindow(QFrame):
         av.addLayout(self._choices)
 
         # one line for what the panel is waiting for or what was just done
-        self._status = QLabel("", self._answers)
+        self._status = _StatusLine("", self._answers)
         self._status.setObjectName("i1io_table_status")
         self._status.setWordWrap(True)
         av.addWidget(self._status)
@@ -962,6 +1175,316 @@ class TableMeasureWindow(QFrame):
         self._esc = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
         self._esc.setContext(Qt.ShortcutContext.WindowShortcut)
         self._esc.activated.connect(self.reject)
+        if self._popups:
+            self._build_popup()
+
+    # ---- the pop-up presentation (quiet mode, the owner 2026-11-18) ----------------------------
+    def _build_popup(self) -> None:
+        """The question area and the answers move into the pop-up: the same widgets, built by the
+        same page builders, so the panel and the pop-ups share one definition of every question
+        (title, text, answers, which answer is the hands-off confirmation)."""
+        pop = self._popup = TablePopup(self)
+        body = self.layout()
+        for w in (self._scroll, self._answers):
+            body.removeWidget(w)
+            w.setParent(pop)
+        plo = pop.layout()
+        plo.insertWidget(0, self._scroll, 1)
+        plo.insertWidget(1, self._answers)
+        # the title as the hand path's windows set theirs: bold, in the text's size
+        f = self._title.font()
+        f.setPointSizeF(self._text.font().pointSizeF())
+        self._title.setFont(f)
+        # the answers in a button box by role (the grid stays empty in this presentation)
+        self._answer_box = NoDefaultButtonBox(self._answers)
+        self._answer_box.setObjectName("i1io_table_popup_answers")
+        av = self._answers.layout()
+        av.insertWidget(av.indexOf(self._status), self._answer_box)
+        self._button_roles = {}
+        # the true state goes to the log in this presentation (after every step, and live)
+        self._state.setVisible(False)
+        self._status.on_text = self._status_said
+
+    def set_popup_area(self, fn) -> None:
+        """*fn()* gives the screen rectangle the pop-up opens in (the Measure tab's left column,
+        beside the chart preview), or None."""
+        self._popup_area = fn
+
+    def popup(self) -> "TablePopup | None":
+        return self._popup
+
+    def popup_open(self) -> bool:
+        """A pop-up of this window is on screen (the job waits for its answer)."""
+        p = self._popup
+        try:
+            return p is not None and p.isVisible()
+        except RuntimeError:          # gone
+            return False
+
+    def _say(self, text: str) -> None:
+        """A line for the Measure tab's log (pop-up presentation only)."""
+        if self._popups and text:
+            self.log_line.emit(str(text))
+
+    def _status_said(self, text: str) -> None:
+        # a status line said while no pop-up shows it (a Stop pressed while a step runs, a quit)
+        if text and not self.popup_open():
+            self._say(text)
+
+    def _area_rect(self):
+        fn = self._popup_area
+        try:
+            r = fn() if fn is not None else None
+        except Exception:      # noqa: BLE001 - placed by the screen then
+            r = None
+        if r is not None and r.width() > 0 and r.height() > 0:
+            return r
+        from PyQt6.QtGui import QGuiApplication
+        scr = QGuiApplication.primaryScreen()
+        if scr is None:
+            return None
+        av = scr.availableGeometry()
+        from PyQt6.QtCore import QRect
+        return QRect(av.x() + 40, av.y() + 40, min(POPUP_MAX_W + 32, av.width() - 80),
+                     max(300, av.height() - 80))
+
+    def _popup_width(self) -> int:
+        r = self._area_rect()
+        if r is None:
+            return POPUP_MAX_W
+        return max(POPUP_MIN_W, min(POPUP_MAX_W, r.width() - 32))
+
+    def _host_width(self) -> int:
+        """The width the answers are laid out in: the panel's, or the pop-up's."""
+        if self._popups:
+            m = self._popup.layout().contentsMargins()
+            return self._popup_width() - m.left() - m.right() + 32
+        return self.width()
+
+    def _fit_popup(self) -> None:
+        """The pop-up's size for the page it shows: its width from the left column, its height
+        what the page needs, at most the column's height. A page longer than that scrolls with
+        its answers after its text (review 13, S-3: no part of a question, a safety sentence
+        least of all, below the edge while its answers are in view); the ending's answers stay
+        under its text (nothing moves on them)."""
+        pop = self._popup
+        if pop is None or getattr(self, "_fitting_popup", False):
+            return
+        self._fitting_popup = True
+        try:
+            area = self._area_rect()
+            w = self._popup_width()
+            max_h = max(260, area.height() - 32) if area is not None else 700
+            lay = pop.layout()
+            m = lay.contentsMargins()
+            sp = lay.spacing()
+            inner = max(1, w - m.left() - m.right())
+            sb = self._scroll.verticalScrollBar().sizeHint().width()
+            tw = max(1, inner - 2 * self._scroll.frameWidth() - sb - 6
+                     - self._page.contentsMargins().right())
+            text_h, n = 0, 0
+            for lab in (self._title, self._text):
+                if lab.text():
+                    text_h += lab.heightForWidth(tw)
+                    n += 1
+            if self._note_box.isVisibleTo(pop) or getattr(self, "_note_sticky", False):
+                text_h += self._note_box.sizeHint().height()
+                n += 1
+            text_h += self._page.spacing() * max(0, n - 1) + 8
+            alay = self._answers.layout()
+            ans_h = (alay.totalHeightForWidth(inner) if alay is not None
+                     and alay.hasHeightForWidth() else self._answers.sizeHint().height())
+            foot_h = pop.foot.sizeHint().height() if not pop.foot.isHidden() else 0
+            fixed = m.top() + m.bottom() + foot_h + sp * 2
+            fits = fixed + text_h + ans_h + sp <= max_h
+            pinned = self._answers_pinned()
+            in_scroll = not fits and not pinned
+            self._place(self._answers, in_scroll, after=self._scroll)
+            if fits:
+                self._scroll.setMinimumHeight(text_h)
+                h = fixed + text_h + ans_h + sp
+            else:
+                left = max_h - fixed - (0 if in_scroll else ans_h + sp)
+                self._scroll.setMinimumHeight(max(self._text.fontMetrics().lineSpacing() * 3,
+                                                  left))
+                h = max_h
+            self._room_level = 2 if in_scroll else 0
+            pop.setFixedWidth(w)
+            if pop.height() != h:
+                pop.setFixedHeight(int(h))
+        finally:
+            self._fitting_popup = False
+
+    def _flow_popup_choices(self, made) -> None:
+        """The answers into the pop-up's button box, each with its role (the platform's order,
+        through the application's style); one above the other when they do not fit side by
+        side at the pop-up's width."""
+        box = self._answer_box
+        roles = self._button_roles
+        for b in made:
+            if box.buttonRole(b) == QDialogButtonBox.ButtonRole.InvalidRole:
+                box.addButton(b, roles.get(id(b), QDialogButtonBox.ButtonRole.ActionRole))
+        if not made:
+            return
+        m = self._popup.layout().contentsMargins()
+        inner = self._popup_width() - m.left() - m.right()
+        need = sum(b.sizeHint().width() for b in made) + 12 * (len(made) + 1)
+        box.setOrientation(Qt.Orientation.Horizontal if need <= inner
+                           else Qt.Orientation.Vertical)
+        self._choice_cols = len(made) if need <= inner else 1
+
+    def _style_popup_buttons(self) -> None:
+        """The answers' look, as the hand path's windows: the confirming answer filled in the
+        Measure tab's accent (``tint_dialog_primary``, objectName "primary") while it can be
+        pressed, a discarding one marked destructive, the rest plain; End measurement in the
+        look of the tab's own Stop. None is a default, none takes the focus (condition 4)."""
+        from ui.default_button import mark_destructive
+        from ui.widgets import tint_dialog_primary
+        R = QDialogButtonBox.ButtonRole
+        for b in list(self._answer_box.buttons()):
+            role = self._answer_box.buttonRole(b)
+            b.setStyleSheet("")
+            b.setObjectName("primary" if role == R.AcceptRole and b.isEnabled() else "")
+            if role == R.DestructiveRole:
+                mark_destructive(b)
+            b.style().unpolish(b)
+            b.style().polish(b)
+        tint_dialog_primary(self._answers, measure_tab_accent())
+        qss = getattr(self, "_stop_qss", "")
+        if qss:
+            self._popup.end_btn.setStyleSheet(qss)
+        mark_destructive(self._popup.end_btn)
+
+    def set_stop_style(self, qss: str) -> None:
+        """The look of the tab's own Stop, for the pop-up's End measurement."""
+        self._stop_qss = str(qss or "")
+
+    def _sync_popup_footer(self) -> None:
+        """The pop-up's footer offers what the panel's footer offers now (Report a problem while
+        the table is open, End measurement, Close), except an answer the page has already."""
+        pop = self._popup
+        if pop is None:
+            return
+        labels = {b.text() for b in getattr(self, "_buttons", [])}
+        pairs = ((pop.problem_btn, self._problem_btn), (pop.end_btn, self._end_btn),
+                 (pop.close_btn, self._close_btn))
+        for mine, theirs in pairs:
+            mine.setVisible(not theirs.isHidden() and mine.text() not in labels)
+            mine.setEnabled(theirs.isEnabled())
+        pop.foot.setVisible(any(not b.isHidden() for b, _t in pairs))
+
+    def _present_popup(self, page_id: str, title: str) -> None:
+        """Open (or refresh) the pop-up for the page just built: only when an answer is
+        needed, never while a job call runs."""
+        pop = self._popup
+        if pop is None:
+            return
+        if self._busy:
+            # never over a running step (condition 3); the step's result builds the next page
+            log.warning("i1iO table: a page was built while a step runs; no pop-up for %s",
+                        page_id)
+            return
+        from PyQt6.QtWidgets import QPushButton
+        self._style_popup_buttons()
+        for b in pop.findChildren(QPushButton):
+            b.setAutoDefault(False)
+            b.setDefault(False)
+            b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        pop.setWindowTitle(title or tr("X-Rite i1iO table (Beta)"))
+        self._sync_popup_footer()
+        self._fit_popup()
+        was_open = pop.isVisible()
+        if not was_open:
+            snd = POPUP_SOUND.get(page_id)
+            if snd:
+                self.cue.emit(snd)          # W-1: as the window appears
+            self._move_popup_into_place()
+            pop.show()
+        self._answer_box.no_default()
+        pop.foot.no_default()
+        self._keep_popup_on_screen()
+
+    def _move_popup_into_place(self) -> None:
+        pop = self._popup
+        from PyQt6.QtCore import QPoint
+        pos = None
+        raw = ""
+        try:
+            raw = str(self._settings.get(POPUP_POS_KEY, "") or "")
+        except Exception:      # noqa: BLE001 - the default place then
+            raw = ""
+        mt = re.fullmatch(r"\s*(-?\d+)\s*,\s*(-?\d+)\s*", raw)
+        if mt:
+            pos = QPoint(int(mt.group(1)), int(mt.group(2)))
+            if not self._on_a_screen(pos):
+                pos = None
+        if pos is None:
+            area = self._area_rect()
+            pos = QPoint(area.x() + 16, area.y() + 16) if area is not None else QPoint(80, 80)
+        pop.move(pos)
+        pop.placed_at = QPoint(pos)
+
+    @staticmethod
+    def _on_a_screen(pos) -> bool:
+        from PyQt6.QtGui import QGuiApplication
+        from PyQt6.QtCore import QPoint
+        for scr in QGuiApplication.screens():
+            if scr.availableGeometry().contains(pos + QPoint(40, 20)):
+                return True
+        return False
+
+    def _keep_popup_on_screen(self) -> None:
+        pop = self._popup
+        scr = pop.screen()
+        if scr is None:
+            return
+        av = scr.availableGeometry()
+        fg = pop.frameGeometry()
+        dy = fg.bottom() - av.bottom()
+        if dy > 0:
+            pop.move(pop.x(), max(av.y(), pop.y() - dy))
+            if pop.placed_at is not None:
+                from PyQt6.QtCore import QPoint
+                pop.placed_at = QPoint(pop.x(), pop.y())
+
+    def _hide_popup(self) -> None:
+        """Closes the pop-up (a job call starts, or the session is over); a place the person
+        moved it to is remembered (the setting)."""
+        pop = self._popup
+        if pop is None:
+            return
+        try:
+            if pop.isVisible():
+                self._remember_popup_place()
+                pop.hide()
+        except RuntimeError:          # gone
+            pass
+
+    def _remember_popup_place(self) -> None:
+        pop = self._popup
+        at = pop.placed_at
+        here = pop.pos()
+        if at is None or (abs(here.x() - at.x()) <= 4 and abs(here.y() - at.y()) <= 4):
+            return
+        try:
+            self._settings.set(POPUP_POS_KEY, f"{here.x()},{here.y()}")
+        except Exception:      # noqa: BLE001 - only a convenience
+            log.debug("the table pop-up's place was not stored", exc_info=True)
+        pop.placed_at = here
+
+    def _log_state(self) -> None:
+        """The true state in the log, line by line, whenever a line of it changed."""
+        if not self._popups:
+            return
+        try:
+            text = self.state_text()
+        except Exception:      # noqa: BLE001 - display only
+            return
+        lines = [ln for ln in text.split("\n") if ln]
+        for ln in lines:
+            if ln not in self._logged_state:
+                self._say(ln)
+        self._logged_state = lines
 
     def _text_min_height(self) -> int:
         """The question's area never shrinks below about eight lines of its text."""
@@ -976,13 +1499,25 @@ class TableMeasureWindow(QFrame):
         own = {tr("Close"), tr("Cancel"), tr("Not now")}
         page_close = any(b.text() in own for b in getattr(self, "_buttons", []))
         self._close_btn.setVisible(not open_ and not page_close)
+        self._sync_popup_footer()
 
     def _moving_controls(self, on: bool) -> None:
         """Stop and Report a problem, and the switch-off line: visible while anything can move."""
         for w in (self._stop_btn, self._problem_btn, self._switch_off):
             w.setVisible(on)
+        if self._popups:
+            # the tab's own Stop and Report a problem stand for the panel's (quiet mode)
+            self.moving_changed.emit(bool(on))
+            self._sync_popup_footer()
 
     def _clear_page(self) -> None:
+        box = getattr(self, "_answer_box", None)
+        if box is not None:
+            for b in list(box.buttons()):
+                box.removeButton(b)
+                b.setParent(None)
+                b.deleteLater()
+            self._button_roles = {}
         for lay in (self._choices, self._ticks):
             while lay.count():
                 it = lay.takeAt(0)
@@ -996,11 +1531,14 @@ class TableMeasureWindow(QFrame):
         side in the panel's width, else one to a row (review 10, M-2: never on top of each
         other, at any width the main window allows and in every language)."""
         made = list(getattr(self, "_buttons", []))
+        if self._popups:
+            self._flow_popup_choices(made)
+            return
         while self._choices.count():
             self._choices.takeAt(0)
         if not made:
             return
-        room = max(0, self.width() - 32 - self._choices.horizontalSpacing())
+        room = max(0, self._host_width() - 32 - self._choices.horizontalSpacing())
         widest = max(b.sizeHint().width() for b in made)
         cols = 2 if widest * 2 <= room and len(made) > 1 else 1
         if self._answers_pinned() and len(made) > 2 \
@@ -1025,6 +1563,9 @@ class TableMeasureWindow(QFrame):
         where it is. When the panel is too low for six lines of text, first the true-state
         box, then the ticks and answers move into the scrolling area under the text (they are
         still there, a scroll away), and they come back when there is room."""
+        if self._popups:
+            self._fit_popup()
+            return
         ls = self._text.fontMetrics().lineSpacing()
         lay = self.layout()
         if lay is None or ls <= 0:
@@ -1117,9 +1658,9 @@ class TableMeasureWindow(QFrame):
         return getattr(self, "_page_id", None) in self.PINNED_ANSWER_PAGES
 
     def _place(self, w, in_scroll: bool, after) -> None:
-        """*w* into the scrolling page (before the note box) or back into the panel's body
-        (after *after*)."""
-        lay = self.layout()
+        """*w* into the scrolling page (before the note box) or back into the panel's body, or
+        the pop-up's (after *after*)."""
+        lay = self._popup.layout() if self._popups else self.layout()
         in_body = lay.indexOf(w) >= 0
         if in_scroll and in_body:
             lay.removeWidget(w)
@@ -1220,25 +1761,40 @@ class TableMeasureWindow(QFrame):
             b = QPushButton(label, self)
             b.setAutoDefault(False)
             b.setDefault(False)
-            b.setMinimumHeight(self.ANSWER_MIN_H)
-            b.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            if self._popups:
+                # the hand path's windows' buttons (TablePopup), by role
+                b.setFixedHeight(TablePopup.BUTTON_H)
+                b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+                self._button_roles[id(b)] = answer_role(label, alone=len(buttons) == 1)
+            else:
+                b.setMinimumHeight(self.ANSWER_MIN_H)
+                b.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             if page_id not in JOB_QUESTION_PAGES:
                 # final fix round, M-1: an answer to one of the panel's own questions counts
                 # as a question answered at the table (the next movement asks GO first)
                 pressed = _Pressed(self, page_id, slot)
                 self._slot_owners.append(pressed)
                 slot = pressed.fire
+            if self._popups:
+                # quiet mode: the answer given goes to the log
+                said = _Said(self, label, slot)
+                self._slot_owners.append(said)
+                slot = said.fire
             b.clicked.connect(slot)
             made.append(b)
         from ui.dialogs.no_default_button import no_default_button
         no_default_button(self)
         self._tick_widgets = made_ticks
         self._buttons = made
+        if self._popups:
+            self._say(tr("In the table's window: {title}").format(title=title))
         self._flow_choices()
         self._fit_room()
         self._fit_text()
         QTimer.singleShot(0, self._fit_text)
         self._sync_footer()
+        if self._popups:
+            self._present_popup(page_id, title)
         return made
 
     # ---- the true state --------------------------------------------------------------------
@@ -1304,7 +1860,9 @@ class TableMeasureWindow(QFrame):
     def _refresh_state(self) -> None:
         if self.job is not None and self.job.phase not in ("new", "closed"):
             self._state.setText(self.live_state_text() if self._busy else self.state_text())
-            self._state.setVisible(True)
+            self._state.setVisible(not self._popups)
+            if not self._busy:
+                self._log_state()
 
     # ---- the state while a step runs (review 10, M-3: counts as they are read) -----------
     def _live_begin(self) -> None:
@@ -1359,6 +1917,9 @@ class TableMeasureWindow(QFrame):
                 row=ev.get("row", "?"), page=ev.get("page", "?"))
         if self._busy and self._state.isVisible():
             self._state.setText(self.live_state_text())
+        if self._popups and live.get("now") and live["now"] != getattr(self, "_said_now", ""):
+            self._said_now = live["now"]
+            self._say(live["now"])
 
     def live_state_text(self) -> str:
         """While a step runs: what the job reported last, without asking the job (it works
@@ -1390,13 +1951,21 @@ class TableMeasureWindow(QFrame):
         self._end_btn.setEnabled(False)
         self._close_btn.setEnabled(False)
         self._show_working(status)
+        if self._popups:
+            # condition 3: never a job call (and so never a move) while a pop-up is open
+            self._hide_popup()
         _pool().start(_JobCall(self._token, fn, self._signals))
 
     def _show_working(self, status: str = "") -> None:
         """While a job call runs: no answer buttons (an answer given is not shown as open),
         what is happening, and the hands-off reminder; Stop and Report a problem stay."""
-        if getattr(self, "_page_id", "") == "problem":
+        if getattr(self, "_page_id", "") == "problem" and not self._popups:
             return
+        if self._popups:
+            # condition 2: no pop-up is open while the table works; what it does goes to the log
+            self._hide_popup()
+            if status:
+                self._say(status)
         self._clear_page()
         self._buttons = []
         self._tick_widgets = []
@@ -1425,6 +1994,16 @@ class TableMeasureWindow(QFrame):
             return
         if isinstance(res, BaseException):
             self._show_error(res)
+            return
+        if getattr(self, "_problem_wanted", False):
+            # quiet mode: Report a problem was pressed while the step ran; the table has
+            # stopped before its next move, and only now (nothing moving) the problem window
+            # opens, with the step's result waiting behind it
+            self._problem_wanted = False
+            self._last = res
+            self._deferred = (then, res)
+            self._refresh_state()
+            self._on_problem()
             return
         if self.job is not None and self.job.phase == "open" and not self._closed_job \
                 and not getattr(self, "_moving_shown", False):
@@ -1466,10 +2045,14 @@ class TableMeasureWindow(QFrame):
                           ticks=[tr("I have read this.")])
         self._consent_go = btns[1]
         self._consent_go.setEnabled(False)
+        if self._popups:
+            self._style_popup_buttons()
         self._tick_widgets[0].toggled.connect(self._on_consent_tick)
 
     def _on_consent_tick(self, on: bool) -> None:
         self._consent_go.setEnabled(bool(on))
+        if self._popups:
+            self._style_popup_buttons()
 
     def _on_consent_declined(self) -> None:
         self._why_not = "consent_declined"
@@ -1728,6 +2311,17 @@ class TableMeasureWindow(QFrame):
             self._ask_check_mark()
             return
         sw = res.detail.get("stored_white") if step == "calibrate" else None
+        if step == "calibrate" and self._popups:
+            # quiet mode: the white reference this calibration uses, in the log (the first
+            # page's own sentences)
+            if isinstance(sw, dict) and sw.get("used"):
+                self._say(tr("White reference: the values the table keeps for its white tile, "
+                             "as i1Profiler uses them (Preferences > Beta). If the table does "
+                             "not give usable values, ChromIQ says so and uses the i1Pro 2's "
+                             "own reference instead."))
+            else:
+                self._say(tr("White reference: the i1Pro 2's own, as when you measure by hand "
+                             "(Preferences > Beta)."))
         if isinstance(sw, dict) and not sw.get("used"):
             self._show_stored_white_refused(str(sw.get("why", "")))
             return
@@ -1870,6 +2464,8 @@ class TableMeasureWindow(QFrame):
                                      tr("Nothing lies on the table's bed except your sheet.")])
             self._ready_go = btns[1]
             self._ready_go.setEnabled(False)
+            if self._popups:
+                self._style_popup_buttons()
             for cb in self._tick_widgets:
                 cb.toggled.connect(self._on_ready_tick)
             self._pending_kind = kind
@@ -1951,6 +2547,8 @@ class TableMeasureWindow(QFrame):
             made[0].setEnabled(False)
             if kind == "row_failed_strip":
                 made[1].setEnabled(False)       # patch by patch is a row read again too
+            if self._popups:
+                self._style_popup_buttons()
         self._status.setText(tr("ChromIQ waits for your answer. Nothing moves until you "
                                 "answer."))
         if kind == "aimed" and d.get("button") and d.get("button_token"):
@@ -2064,6 +2662,8 @@ class TableMeasureWindow(QFrame):
 
     def _on_ready_tick(self, _on: bool) -> None:
         self._ready_go.setEnabled(all(cb.isChecked() for cb in self._tick_widgets))
+        if self._popups:
+            self._style_popup_buttons()
 
     def _ask_report(self, res) -> None:
         from workflow import measurement_messages as M
@@ -2302,6 +2902,19 @@ class TableMeasureWindow(QFrame):
 
     def _on_problem(self) -> None:
         from workflow import measurement_messages as M
+        if self._popups and self._busy:
+            # condition 3 (quiet mode): no pop-up while anything can move. The table stops
+            # before its next move (a move that has started finishes), then the problem window
+            # opens (_on_done)
+            if self.job is not None:
+                self.job.stop_at_next_pause()
+                self._problem_by_stop = True
+            self._aim_token = None
+            self._troubled = True
+            self._problem_wanted = True
+            self._say(tr("Report a problem: ChromIQ stops the table before its next move (a "
+                         "move that has started finishes first) and then asks what is wrong."))
+            return
         title, body = M.M_I1IO_DRIVE_PROBLEM.render()
         self._problem_back = getattr(self, "_page_id", "")
         self._aim_token = None              # round B: no press is taken while this is open
@@ -2314,6 +2927,13 @@ class TableMeasureWindow(QFrame):
     def _problem_cancel(self) -> None:
         # nothing reported: the page that was shown comes back with the job's last result
         deferred, self._deferred = getattr(self, "_deferred", None), None
+        if getattr(self, "_problem_by_stop", False):
+            # quiet mode: the stop that made room for the problem window is not a Stop of the
+            # person's: honoured here when no step waits (the next movement asks GO first,
+            # the problem page's answer made it due)
+            self._problem_by_stop = False
+            if self.job is not None:
+                self.job.stop_honoured_between_steps()
         if deferred is not None:
             then, res = deferred
             then(res)
@@ -2608,6 +3228,7 @@ class TableMeasureWindow(QFrame):
         if self._finished:
             return
         self._finished = True
+        self._hide_popup()
         self.progress.emit({"event": "end"})
         self.setVisible(False)
         self.finished_with.emit("quit" if self._quit_wanted else why)
@@ -2694,6 +3315,17 @@ class _Pressed:
 
     def fire(self) -> None:
         self.win._window_answered(self.page_id, getattr(self.slot, "__name__", ""))
+        self.slot()
+
+
+class _Said:
+    """Quiet mode: an answer button whose label goes to the log before it acts."""
+
+    def __init__(self, win: TableMeasureWindow, label: str, slot) -> None:
+        self.win, self.label, self.slot = win, label, slot
+
+    def fire(self) -> None:
+        self.win._say(tr("Your answer: {answer}").format(answer=self.label))
         self.slot()
 
 

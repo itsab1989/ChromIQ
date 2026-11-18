@@ -28,6 +28,13 @@ from workflow.i1io.table import job as J
 from tests.i1io_table.test_window import settings  # noqa: F401 (the fixture)
 
 ASKING = pytest.mark.parametrize("asking", [True, False], ids=["asking", "quiet"])
+#: the panel walks in BOTH presentations (quiet round, 2026-11-18): the panel and the quiet
+#: mode's pop-ups, each with and without the report after every step
+MODES = pytest.mark.parametrize("asking,presentation",
+                                [(True, "panel"), (False, "panel"),
+                                 (True, "popups"), (False, "popups")],
+                                ids=["panel-asking", "panel-quiet", "popups-asking",
+                                     "popups-quiet"])
 MOVES = ("m0", "m1", "m2", "i1", "i0")
 HANDS = "take your hands away from the table and the arm"
 
@@ -343,10 +350,25 @@ PANEL_HANDS_OFF = {("go", "Go"),
 
 
 def _panel_walk(qtbot, monkeypatch, tmp_path, settings, asking, script=None, sim=None,
-                sheet=None, before=None):
+                sheet=None, before=None, presentation="panel"):
     from tests.i1io_table.test_window import open_window
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
-                                                    asking=asking, sim=sim, sheet=sheet)
+                                                    asking=asking, sim=sim, sheet=sheet,
+                                                    presentation=presentation)
+    assert win.presentation == presentation
+    # the pop-ups' condition 3: not one movement line while a pop-up is open
+    while_open = []
+    if presentation == "popups" and getattr(sim, "transport", None) is not None:
+        real_write = sim.transport.write
+
+        def write(data, *a, **k):
+            was_open = win.popup_open()
+            n0 = len(sim.sim.received)
+            out = real_write(data, *a, **k)
+            if was_open and any(ln[1:3] in MOVES for ln in sim.sim.received[n0:]):
+                while_open.append(win.pages_shown[-1:])
+            return out
+        sim.transport.write = write
     p.script.update({"end_of_session": "Save and stop", "stopped_by_you": "Carry on",
                      "stored_white_refused": "Go on"})
     p.script.update(script or {})
@@ -361,6 +383,7 @@ def _panel_walk(qtbot, monkeypatch, tmp_path, settings, asking, script=None, sim
     if before is not None:
         before(win, sim, p)
     p.drive_until("done")
+    assert while_open == [], while_open
     presses.append(("done", "", _motions(sim.sim)))
     out = []
     for (page, label, n), (_p2, _l2, m) in zip(presses, presses[1:]):
@@ -369,11 +392,12 @@ def _panel_walk(qtbot, monkeypatch, tmp_path, settings, asking, script=None, sim
     return out, [pg for pg, _l, _n in presses]
 
 
-@ASKING
-def test_the_panel_whole_measurement_cold_table(qtbot, monkeypatch, tmp_path, settings, asking):
+@MODES
+def test_the_panel_whole_measurement_cold_table(qtbot, monkeypatch, tmp_path, settings, asking, presentation):
     from tests.i1io_table.window_sim import WindowSim
     bad, pages = _panel_walk(qtbot, monkeypatch, tmp_path, settings, asking,
-                             sim=WindowSim(cold=True))
+                             sim=WindowSim(cold=True),
+                             presentation=presentation)
     assert bad == [], pages
     assert "start_up" in pages and "sheet_laid" in pages and "check_mark" in pages
     assert pages.index("sheet_laid") < pages.index("aimed")
@@ -382,9 +406,9 @@ def test_the_panel_whole_measurement_cold_table(qtbot, monkeypatch, tmp_path, se
     assert "go" not in pages[max(0, i - 2):i]
 
 
-@ASKING
+@MODES
 def test_the_panel_failed_row_skip_and_keep_measuring(qtbot, monkeypatch, tmp_path, settings,
-                                                      asking):
+                                                      asking, presentation):
     from tests.i1io_table.window_sim import WindowSim
 
     def before(win, sim, p):
@@ -393,7 +417,8 @@ def test_the_panel_failed_row_skip_and_keep_measuring(qtbot, monkeypatch, tmp_pa
     bad, pages = _panel_walk(qtbot, monkeypatch, tmp_path, settings, asking,
                              sheet=small_sheet([4, 4, 4]),
                              sim=WindowSim(faults={"read": {2: "dies"}}),
-                             script={"row_failed": "Skip it"}, before=before)
+                             script={"row_failed": "Skip it"}, before=before,
+                             presentation=presentation)
     assert bad == [], pages
     assert "row_failed" in pages and pages.count("end_of_session") == 2
 
@@ -410,38 +435,41 @@ def _two_pages() -> dict:
     return sheet
 
 
-@ASKING
-def test_the_panel_two_pages(qtbot, monkeypatch, tmp_path, settings, asking):
+@MODES
+def test_the_panel_two_pages(qtbot, monkeypatch, tmp_path, settings, asking, presentation):
     bad, pages = _panel_walk(qtbot, monkeypatch, tmp_path, settings, asking,
-                             sheet=_two_pages())
+                             sheet=_two_pages(),
+                             presentation=presentation)
     assert bad == [], pages
     assert "next_page" in pages and pages.count("sheet_laid") == 2
 
 
-@ASKING
+@MODES
 def test_the_panel_stored_white_refused_and_own_tile(qtbot, monkeypatch, tmp_path, settings,
-                                                     asking):
+                                                     asking, presentation):
     from ui import i1io_table_window as W
     from tests.i1io_table.window_sim import WindowSim
     settings.set(W.STORED_WHITE_KEY, True)
     settings.set(W.CAL_KEY, "own tile")
     try:
         bad, pages = _panel_walk(qtbot, monkeypatch, tmp_path, settings, asking,
-                                 sim=WindowSim(stored_tile=None))     # no usable values
+                                 sim=WindowSim(stored_tile=None),     # no usable values
+                                 presentation=presentation)
     finally:
         settings.set(W.STORED_WHITE_KEY, True)
     assert bad == [], pages
     assert "stored_white_refused" in pages and "calibration_reseated" in pages
 
 
-@ASKING
+@MODES
 def test_the_panel_stop_at_the_mark_3_check_and_carry_on(qtbot, monkeypatch, tmp_path, settings,
-                                                         asking):
+                                                         asking, presentation):
     def before(win, sim, p):
         p.drive_until("check_mark")
         win._on_stop()                       # the footer's Stop, with the check on screen
         assert p.page() == "stopped_by_you"
-    bad, pages = _panel_walk(qtbot, monkeypatch, tmp_path, settings, asking, before=before)
+    bad, pages = _panel_walk(qtbot, monkeypatch, tmp_path, settings, asking, before=before,
+                             presentation=presentation)
     assert bad == [], pages
     i = pages.index("stopped_by_you")
     assert pages[i + 1] == "go"

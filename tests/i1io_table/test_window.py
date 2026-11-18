@@ -46,7 +46,7 @@ def project(tmp_path, sheet, name="Table-Target"):
 
 def open_window(qtbot, monkeypatch, tmp_path, settings, *, asking=True, sheet=None,
                 consent=True, sim=None, args=None, stamp=RS.STAMP, run=None,
-                replace_agreed=False, archive=None):
+                replace_agreed=False, archive=None, presentation=None):
     sheet = sheet or small_sheet()
     if run is None:
         _proj, run = project(tmp_path, sheet)
@@ -61,7 +61,8 @@ def open_window(qtbot, monkeypatch, tmp_path, settings, *, asking=True, sheet=No
     if consent:
         settings.set(W.CONSENT_KEY, W.CONSENT_VERSION)
     win = W.TableMeasureWindow(None, settings, sheet, run, args or ARGS, stamp=stamp,
-                               replace_agreed=replace_agreed, archive=archive)
+                               replace_agreed=replace_agreed, archive=archive,
+                               presentation=presentation)
     qtbot.addWidget(win)
     saved, finished = [], []
     win.saved.connect(lambda p, d: saved.append((p, d)))
@@ -436,7 +437,8 @@ def test_a_result_arriving_while_the_problem_page_is_open_waits_behind_it(
     """Found on screen (run 9): a step's result must not replace the problem page."""
     sim = WindowSim()
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
-                                                    asking=False, sim=sim)
+                                                    asking=False, sim=sim,
+                                                    presentation=W.PRESENTATION_PANEL)
     p.drive_until("check_mark")
     sim.transport.delay_s = 0.01
     [b for b in win._buttons if b.text() == "Yes, it is centred, my hands are away"][0].click()

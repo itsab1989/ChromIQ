@@ -457,7 +457,8 @@ def test_s3_the_endings_answers_are_visible_without_scrolling(qtbot, monkeypatch
                                                               settings, size):
     from PyQt6.QtCore import QPoint, QRect
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
-                                                    asking=False)
+                                                    asking=False,
+                                                    presentation="panel")
     p.drive_until("end_of_session")
     win.resize(*size)
     qtbot.wait(200)

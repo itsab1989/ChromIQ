@@ -7414,10 +7414,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._table_refining = bool(only_locs)
         self._table_refine_locs = sorted(only_locs or [])
         self._table_verify_ti3 = None
+        from ui.i1io_table_window import PRESENTATION_POPUPS, presentation_for
+        presentation = presentation_for(self._settings)
         win = TableMeasureWindow(self._stack, self._settings, sheet, run, args,
                                  only_locs=only_locs,
                                  mode=self._current_mode(), replace_agreed=at_risk,
-                                 archive=self._archive_measurement_before_replacing)
+                                 archive=self._archive_measurement_before_replacing,
+                                 presentation=presentation)
         win.saved.connect(self._on_table_measurement_saved)
         win.finished_with.connect(self._on_table_window_finished)
         win.progress.connect(self._on_table_progress)
@@ -7425,9 +7428,25 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._table_sheet = sheet
         self._table_patch_by_patch = "-p" in args
         self._table_stack_before = self._stack.currentIndex()
-        self._stack.addWidget(win)
-        self._stack.setCurrentWidget(win)
-        self._table_room(True)
+        self._table_quiet = presentation == PRESENTATION_POPUPS
+        if self._table_quiet:
+            # THE QUIET MODE (the owner, 2026-11-18): the tab keeps the hand
+            # measurement's own layout (options greyed as for a hand read, the
+            # live-preview options usable, the log, START / STOP), and the
+            # table asks through pop-up windows like the other instruments.
+            # The panel is not shown; it only builds the pop-ups' pages.
+            win.setVisible(False)
+            win.log_line.connect(self._on_table_log_line)
+            win.moving_changed.connect(self._on_table_moving)
+            win.cue.connect(self._cue_window)
+            win.set_popup_area(self._table_popup_area)
+            # End measurement in a pop-up looks like the tab's own Stop
+            win.set_stop_style(self._stop_btn.styleSheet())
+            self._table_quiet_room(True)
+        else:
+            self._stack.addWidget(win)
+            self._stack.setCurrentWidget(win)
+            self._table_room(True)
         self._set_settings_enabled(False)
         self._start_btn.setEnabled(False)
         for b in (getattr(self, "_guided_btn", None), getattr(self, "_manual_btn", None),
@@ -7445,11 +7464,114 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # the preview's "Progress" counts the table's readings as a hand
         # measurement's (a resume or refinement starts from the run's file)
         self._reset_progress(from_files=bool(only_locs) or "-r" in args)
-        self._log.appendPlainText(tr(
-            "Measuring with the i1iO table (beta): the table's questions and "
-            "buttons are on the left, the chart on the right shows what it reads."))
+        if self._table_quiet:
+            self._log.appendPlainText(tr(
+                "Measuring with the i1iO table (beta): when the table needs an "
+                "answer, a window opens beside the chart; this log shows what the "
+                "table does. Stop stops the table before its next move."))
+        else:
+            self._log.appendPlainText(tr(
+                "Measuring with the i1iO table (beta): the table's questions and "
+                "buttons are on the left, the chart on the right shows what it reads."))
         win.start()
         return True
+
+    # ---- the quiet mode's presentation (the owner, 2026-11-18) -------------
+    def _table_quiet_room(self, on: bool) -> None:
+        """While a quiet table session is open: the hand measurement's own
+        layout, plus one line where Guided's banner stands ("To stop the arm
+        at once, switch the table off at its power switch.") and Report a
+        problem beside the tab's Stop. Both exist only while such a session
+        is open (built at its first START, hidden after it); with the Beta
+        off nothing of them exists. Everything comes back as it was."""
+        from PyQt6.QtWidgets import QLabel, QPushButton
+        if on:
+            self._table_quiet_before = {"calm": not self._calm_outer.isHidden()}
+            line = getattr(self, "_table_switch_off_line", None)
+            if line is None:
+                left = self._left_buttons.parentWidget()
+                line = QLabel(tr("To stop the arm at once, switch the table off at its "
+                                 "power switch."), left)
+                line.setObjectName("i1io_table_switch_off_line")
+                line.setWordWrap(True)
+                line.setContentsMargins(16, 8, 16, 0)
+                f = line.font()
+                f.setBold(True)
+                line.setFont(f)
+                lay = left.layout()
+                lay.insertWidget(lay.indexOf(self._left_buttons), line)
+                self._table_switch_off_line = line
+            btn = getattr(self, "_table_problem_btn", None)
+            if btn is None:
+                btn = QPushButton(tr("Report a problem"), self._left_buttons)
+                btn.setObjectName("i1io_table_tab_problem")
+                btn.setFixedHeight(36)
+                btn.setAutoDefault(False)
+                btn.clicked.connect(self._on_table_problem_pressed)
+                row = self._row_holding(self._stop_btn)
+                if row is not None:
+                    row.insertWidget(row.indexOf(self._stop_btn) + 1, btn)
+                self._table_problem_btn = btn
+            self._calm_outer.setVisible(False)
+            line.setVisible(True)
+            btn.setVisible(True)
+            btn.setEnabled(False)
+            self._stop_btn.setEnabled(False)
+            return
+        before = getattr(self, "_table_quiet_before", None)
+        if before is None:
+            return
+        self._table_quiet_before = None
+        for w in (getattr(self, "_table_switch_off_line", None),
+                  getattr(self, "_table_problem_btn", None)):
+            if w is not None:
+                w.setVisible(False)
+        self._calm_outer.setVisible(before["calm"])
+        self._stop_btn.setEnabled(False)
+
+    def _row_holding(self, w):
+        """The layout in the tab's button area that holds *w*."""
+        stack = [self._left_buttons.layout()]
+        while stack:
+            lay = stack.pop()
+            if lay is None:
+                continue
+            if lay.indexOf(w) >= 0:
+                return lay
+            for i in range(lay.count()):
+                sub = lay.itemAt(i).layout()
+                if sub is not None:
+                    stack.append(sub)
+        return None
+
+    def _on_table_moving(self, on: bool) -> None:
+        """The tab's Stop is the table's Stop in quiet mode: live whenever
+        anything can move, in its own look (as during a hand measurement)."""
+        if not getattr(self, "_table_quiet", False):
+            return
+        self._stop_btn.setEnabled(bool(on))
+        btn = getattr(self, "_table_problem_btn", None)
+        if btn is not None:
+            btn.setEnabled(bool(on))
+
+    def _on_table_problem_pressed(self) -> None:
+        win = getattr(self, "_table_window", None)
+        if win is not None:
+            win._on_problem()
+
+    def _on_table_log_line(self, text: str) -> None:
+        self._log.appendPlainText(str(text))
+        self._log.ensureCursorVisible()
+
+    def _table_popup_area(self):
+        """Where the table's pop-ups open: over the tab's left column (its
+        options), beside the chart preview, in screen coordinates."""
+        from PyQt6.QtCore import QPoint, QRect
+        left = self._left_buttons.parentWidget()
+        if left is None or not left.isVisible():
+            return None
+        top_left = left.mapToGlobal(QPoint(0, 0))
+        return QRect(top_left, left.size())
 
     def _table_refinement_locs(self, params) -> "set[str] | None":
         """The patches a refinement asks the table to read again (open point
@@ -7795,6 +7917,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if win is not None:
             self._stack.removeWidget(win)
             win.deleteLater()
+        if getattr(self, "_table_quiet", False):
+            self._table_quiet = False
+            self._table_quiet_room(False)
         self._stack.setCurrentIndex(getattr(self, "_table_stack_before", 0))
         self._set_settings_enabled(True)
         self._start_btn.setEnabled(True)
@@ -11023,6 +11148,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if _fd9_ask(self, "_fd9_engaged"):
             self._stop_fd9_measurement()
             return
+        win = getattr(self, "_table_window", None)
+        if win is not None:
+            # the i1iO table's quiet mode: the tab's Stop is the table's Stop
+            # (before the next move; its pop-up then offers carry on, the
+            # ending, or bringing the arm home)
+            win._on_stop()
+            return
         self._key_watchdog.stop()
         self._end_session(self._confirm_end_of_session(self.END_STOP))
 
@@ -11094,10 +11226,16 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if win is not None:
             if win.request_quit():
                 return True
-            self._log.appendPlainText(tr(
-                "ChromIQ closes after the i1iO table measurement has ended. "
-                "Please answer the questions on the left; nothing moves "
-                "without your Go."))
+            if getattr(self, "_table_quiet", False):
+                self._log.appendPlainText(tr(
+                    "ChromIQ closes after the i1iO table measurement has ended. "
+                    "Please answer the questions in the table's window; nothing "
+                    "moves without your Go."))
+            else:
+                self._log.appendPlainText(tr(
+                    "ChromIQ closes after the i1iO table measurement has ended. "
+                    "Please answer the questions on the left; nothing moves "
+                    "without your Go."))
             self._log.ensureCursorVisible()
             log.info("quit held: the i1iO table session ends first")
             return False

@@ -384,7 +384,8 @@ def test_m3_exactly_one_stop_and_it_is_the_footers(qtbot, monkeypatch, tmp_path,
 
 def test_m3_the_state_counts_while_a_row_is_read(qtbot, monkeypatch, tmp_path, settings):
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
-                                                    asking=False, sheet=small_sheet([6, 6]))
+                                                    asking=False, sheet=small_sheet([6, 6]),
+                                                    presentation="panel")
     _into_a_running_row(win, sim, p, qtbot, delay=0.02)
     seen = []
     for _ in range(800):
@@ -486,7 +487,8 @@ def test_m5_the_lights_guard_is_asked_for_the_i1pro2_in_the_arm(tab, beta, tmp_p
 
 def test_p2_a_real_esc_on_the_ending_withdraws_it(qtbot, monkeypatch, tmp_path, settings):
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
-                                                    asking=False)
+                                                    asking=False,
+                                                    presentation="panel")
     p.drive_until("end_of_session")
     n = moves(sim)
     win.activateWindow()
@@ -498,7 +500,8 @@ def test_p2_a_real_esc_on_the_ending_withdraws_it(qtbot, monkeypatch, tmp_path, 
 
 def test_s1_esc_at_the_go_question_moves_nothing(qtbot, monkeypatch, tmp_path, settings):
     win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
-                                                    asking=False)
+                                                    asking=False,
+                                                    presentation="panel")
     p.drive_until("go")
     n = moves(sim)
     win.activateWindow()
