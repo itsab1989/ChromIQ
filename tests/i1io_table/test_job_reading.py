@@ -675,7 +675,9 @@ def test_a_free_arm_left_outside_the_area_starts_no_row(tmp_path):
 
 def test_a_failed_calibration_on_the_own_tile_leaves_no_white_until_seated_again(tmp_path):
     job, sim, helper, run, p = job_for(tmp_path, {J.Confirm.CAL_PLACE: "own tile"},
-                                       faults={"open": "cal_fails", "open_at": 2})
+                                       faults={"open": "cal_fails", "open_at": 3})
+    # (open_at 3: the second calibration's reader; the first calibration's second reader is
+    # the table tile's reading that checks its white, final fix round S-1)
     p.drive(job.open())
     assert p.drive(job.calibrate()).ok and job.calibration is not None
     r = p.drive(job.calibrate())                            # the instrument out again; fails

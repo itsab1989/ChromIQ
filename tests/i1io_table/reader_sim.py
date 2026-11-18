@@ -29,8 +29,17 @@ from pathlib import Path
 WAVELENGTHS = list(range(380, 731, 10))
 
 
+#: final fix round, S-1: the table's white tile under the opening while the arm is at rest
+#: (Y below 300 units), as on the real table: 88 % in every band (the volunteer's table read
+#: Y 89.78 there with a white made on the instrument's own tile)
+REST_TILE = 0.88
+
+
 def spectrum_at(x: float, y: float) -> "list[float]":
-    """A smooth spectrum per 8.7 mm cell (0..1), the same rule as the strip simulator's."""
+    """A smooth spectrum per 8.7 mm cell (0..1), the same rule as the strip simulator's; the
+    table's white tile at rest."""
+    if y < 300:
+        return [REST_TILE] * 36
     cx, cy = round(x / 87.0), round(y / 87.0)
     r = random.Random(cx * 10007 + cy)
     base = [r.uniform(0.05, 0.9) for _ in range(4)]

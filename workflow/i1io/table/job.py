@@ -144,6 +144,16 @@ READER_CONSENT_FACTS_MAC = ("on_a_mac_it_closes_xrites_i1prodeviceservice_if_the
 CAL_PLACE_RECOMMENDED = "table tile"
 #: what the calibration question's data says about it (the log and the analysis read it)
 CAL_PLACE_MEASURED = "own_tile_and_table_tile_0.13_dE00_apart_on_one_real_table_2026-11-17"
+#: final fix round, S-1 (review 13: a white taken partly off the tile spoils every patch): the
+#: level of the white, checked on a reading of the TABLE's tile taken with it (Y, the reading's
+#: own scale, 100 = the instrument's perfect white). Derived from the volunteer's table on
+#: 17 Nov 2026 (test data, nothing private): the table's tile read with a white made on the
+#: instrument's own tile gave Y 89.78; the values stored in the table give about 87.6; the
+#: i1Pro 2's own reference lies within 0.3-1.0 % of that reading. About 7 % either side: a
+#: white made partly off its tile (darker) makes the tile read brighter than 97, a white made
+#: on something brighter than a white tile, or a tile not under the opening, below 82.
+WHITE_TILE_Y = (82.0, 97.0)
+
 #: NEXT_STEPS 4d: at most this many rows of a page are read again, whatever the session total
 ROWS_READ_AGAIN_PER_PAGE = 2
 #: round B (the owner, 2026-11-17: "can you confirm the device being on each crosshair point by
@@ -1477,13 +1487,14 @@ class TableJob:
             d.state = "homed"
         d.run_step(C_HOME if step.key == "b_home" else step)
 
-    def _check_rest(self, what: str) -> None:
+    def _check_rest(self, what: str):
         self._step(f"{self._block['stage']}_rest", 1, 0)
         p = self._table.position()
         self._table.log("DATA", f"{what}: the arm reports {p}")
         if not tbl.REST_GUARD.contains(p):
             self._table.outside_at = p
             raise StageFailed("arm_not_at_rest", read=p)
+        return p
 
     def _visited(self, p) -> bool:
         return (any(box.contains(p) for box in geo.DRIVEN)
@@ -2240,7 +2251,24 @@ class TableJob:
 
     def _calibrate(self):
         d = self._table
-        self._check_rest("before opening the instrument")
+        p = self._check_rest("before opening the instrument")
+        if not tbl.REST_RECORDED.contains(p):
+            # final fix round, S-1: the white is made only with the arm in the recorded resting
+            # box over the tile (Y up to 48, where every recorded calibration was made); from
+            # the wider guard (Y 49..80) the recorded homing at rest comes first, after the
+            # hands-off GO as before any move
+            if self._go_page != self.page or self._hands_off_due:
+                ans = yield Ask(Confirm.GO, {"step": "calibrate", "page": self.page + 1,
+                                             "homing_before_the_white": True})
+                if ans != "yes":
+                    raise PersonStopped("person_chose_back")
+                self._go_page = self.page
+            self._check_other_program()
+            self._run_b(C_HOME)
+            p = self._check_rest("after the homing before the white")
+            if not tbl.REST_RECORDED.contains(p):
+                self._table.outside_at = p
+                raise StageFailed("arm_not_over_the_tile", read=p)
         folder = self.diag.folder / self._block["folder"]
         # tester C1: the reader first (its checks and the consent), then the place, asked once
         # in the session (the tester asked it at the reader's calibration request)
@@ -2300,21 +2328,57 @@ class TableJob:
             if ans != "seated":
                 raise StageFailed("instrument_not_seated_again")
             self.instrument_out = False
+        self._check_rest("after the calibration")
+        self._block["data"]["calibration"] = {"place": place}
+        out = {"place": place, "valid_s": sp.CAL_VALID_S}
+        self._tile_spectrum = None
+        tile_read = False
+        if place == "own tile" or self.stored_tile_white:
+            # final fix round, S-1: the white's LEVEL, on a reading of the table's tile made with
+            # it (ArgyllCMS checks only the white's spectral shape). Nothing is read with a white
+            # that fails it; the calibration can be made again. After a white on the
+            # instrument's own tile this reading is independent of the white; after a white on
+            # the table's tile it is taken at the same place, so it can only catch a white far
+            # off (there the recorded resting box above is what keeps the opening on the tile),
+            # and it is made only when the stored-white option reads the tile anyway.
+            out["white_level_y"] = yield from self._white_level_check()
+            tile_read = True
         self.calibration = {"place": place, "t": made, "kind": "spot"}
         if strip_white:
             self.strip_calibration = {"place": place, "t": made}
         self.calibration_due = False
-        self._check_rest("after the calibration")
-        self._block["data"]["calibration"] = {"place": place}
-        out = {"place": place, "valid_s": sp.CAL_VALID_S}
         if self.stored_tile_white:
-            out["stored_white"] = yield from self._stored_white()
+            out["stored_white"] = yield from self._stored_white(tile_read=tile_read)
         return out
 
-    def _stored_white(self):
+    def _white_level_check(self):
+        """Final fix round, S-1: one reading of the table's white tile at rest with the white
+        just made (nothing moves); its Y must be a white tile's (``WHITE_TILE_Y``). Refused:
+        no white counts (no row is read), the reason is said, the calibration can be made
+        again."""
+        try:
+            yield from self._read_tile()
+        except StageFailed as exc:
+            self.calibration = None
+            self.strip_calibration = None
+            raise StageFailed("white_level_not_checked", why=exc.reason) from None
+        y = float(self.tile_readings[-1]["xyz"][1])
+        lo, hi = WHITE_TILE_Y
+        self.diag.log("STEP", f"the white's level: the table's tile reads Y {y:.2f} with it "
+                              f"(a white tile reads {lo:.0f} to {hi:.0f})")
+        self._block["data"]["white_level_y"] = round(y, 2)
+        if not lo <= y <= hi:
+            self.calibration = None
+            self.strip_calibration = None
+            raise StageFailed("white_level_implausible", tile_y=round(y, 2),
+                              lowest=lo, highest=hi)
+        return round(y, 2)
+
+    def _stored_white(self, tile_read: bool = False):
         """D-4b: read the table's tile once (at rest, nothing moves) and scale this session's
         white per band to the tile values stored in the table. Any doubt: said, and the session
-        measures with the i1Pro 2's own reference (the option's off behaviour)."""
+        measures with the i1Pro 2's own reference (the option's off behaviour). *tile_read*:
+        the white's level check has read the tile already (that reading is used)."""
         d = self._table
         self.white_scale = None
         why = ""
@@ -2323,13 +2387,14 @@ class TableJob:
         elif d.stored_tile is None:
             why = "stored_white_not_readable"
         else:
-            self._tile_spectrum = None
-            try:
-                yield from self._read_tile()
-            except StageFailed as exc:
-                self.diag.log("STEP", f"the tile reading for the stored white failed "
-                                      f"({exc.reason})")
-                why = "stored_white_no_tile_reading"
+            if not tile_read:
+                self._tile_spectrum = None
+                try:
+                    yield from self._read_tile()
+                except StageFailed as exc:
+                    self.diag.log("STEP", f"the tile reading for the stored white failed "
+                                          f"({exc.reason})")
+                    why = "stored_white_no_tile_reading"
             if not why:
                 factors, why = sp.stored_white_factors(d.stored_tile, self._tile_spectrum)
                 if factors is not None:

@@ -56,6 +56,27 @@ def test_the_reader_arguments_are_the_testers_apart_from_the_row_charts_name():
                     ["--json", "-v", "-c", "1", "-N", "-p", "d3_row1"]]
 
 
+#: final fix round, S-1: after a white on the instrument's own tile the job reads the table's
+#: tile once (at rest, nothing moves) to check the white's level; tester 0.6.0 did not. Those
+#: three position readings and that reader are the only difference, and they are checked here.
+S1_TILE_LINES = [";p025", ";p025", ";p025"]
+S1_TILE_READER = ["--json", "-v", "-c", "1", "-N", "-p", "c2_tile"]
+
+
+def without_the_s1_tile_reading(got, readers=None, charts=None):
+    """The job's wire of an own-tile sitting with S-1's tile reading taken out (asserted to be
+    exactly there: after the calibration's two position readings)."""
+    k = [i for i, ln in enumerate(got) if ln == ";p025"][1] + 1
+    assert got[k:k + 3] == S1_TILE_LINES, got[:k + 4]
+    got = got[:k] + got[k + 3:]
+    if readers is not None:
+        assert readers[1] == S1_TILE_READER, readers
+        readers = readers[:1] + readers[2:]
+    if charts is not None:
+        charts = charts[:1] + charts[2:]
+    return got, readers, charts
+
+
 def _modes(name):
     return [True, False] if not name.startswith(("F ", "G ")) else [True]
 
@@ -65,6 +86,8 @@ def _modes(name):
 def test_the_job_reads_as_tester_060_reads(name, asking, tmp_path):
     got, readers, charts, results, sim = W.job_run(CASES[name], tmp_path, asking)
     want = TESTER["sittings"][name]
+    if "own tile" in name:
+        got, readers, charts = without_the_s1_tile_reading(got, readers, charts)
     if "sha256" in want:
         assert len(got) == want["n"]
         assert hashlib.sha256("\n".join(got).encode()).hexdigest() == want["sha256"]
