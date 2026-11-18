@@ -758,7 +758,7 @@ def usb_table_text(devices, tables_not_offered=(), button: "str | None" = None,
             "find the device in the list; it may be underneath one of the top-level entries. "
             "Right-click it, choose \u201cUpdate Driver Software...\u201d, then \u201clet me "
             "pick from a list of device drivers on my computer\u201d, choose X-Rite's driver "
-            "from the list, and finish with \u201cNext\u201d and \u201cClose\u201d. These "
+            "from the list, and finish with Next and Close. These "
             "names are the ones in that guide; Windows 10 and 11 may word them a little "
             "differently. ChromIQ has not yet tried these steps with a table. The same guide "
             "adds: if you switch often, you can try a different USB port for each driver, which "
