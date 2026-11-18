@@ -1719,15 +1719,34 @@ class TableMeasureWindow(QFrame):
             full = sc.height() - 2 * sc.frameWidth()
             inner = sc.widget()
             want = 0
-            ls = self._text.fontMetrics().lineSpacing()
-            top = self._text.y() + self._text.contentsRect().y()
-            if inner is not None and inner.sizeHint().height() > full and ls > 0 \
-                    and full - top > ls:
-                want = int((full - top) % ls)
+            if inner is not None and inner.sizeHint().height() > full:
+                want = self._cut_above(full)
             if sc.viewportMargins().bottom() != want:
                 sc.setViewportMargins(0, 0, 0, want)
         except RuntimeError:          # the panel is gone
             pass
+
+    def _cut_above(self, full: int) -> int:
+        """Quiet round, part 3 (the final round's pictures: the state box cut at the scroll edge
+        on the start-up page): the pixels kept free under the visible part so that it ends on
+        a whole line of the text or the title, else above any other part it would cut (the
+        framed true-state box, the ticks and answers, the note), which then shows whole when
+        scrolled to, never with its last line or its frame half below the edge."""
+        lay = self._page
+        for i in range(lay.count()):
+            w = lay.itemAt(i).widget()
+            if w is None or w.isHidden():
+                continue
+            top, bottom = w.y(), w.y() + w.height()
+            if not (top < full < bottom):
+                continue
+            if isinstance(w, QLabel) and w.text() and w.frameShape() == QFrame.Shape.NoFrame:
+                ls = w.fontMetrics().lineSpacing()
+                first = top + w.contentsRect().y()
+                if ls > 0 and full - first > ls:
+                    return int((full - first) % ls)
+            return max(0, full - top)
+        return 0
 
     def _show(self, page_id: str, title: str, text: str, buttons=(), ticks=()) -> "list":
         """One page: a title, its text, optional ticks and the answer buttons (none default).

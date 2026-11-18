@@ -7664,6 +7664,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         else:
             self._show_all_stripes_done(table=True)
 
+    #: a main window lower than this gives the table panel the room of the
+    #: (locked) mode buttons and chart file box
+    TABLE_LOW_WINDOW = 800
+
     def _table_room(self, on: bool) -> None:
         """While the table's panel is shown (review 10, M-2 / M-3), the tab's
         own measurement controls that have no function then make room for
@@ -7690,11 +7694,24 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             top = self.window()
             if top is not None and top.height() < 1150:
                 log_box.setVisible(False)
+            # QUIET ROUND, PART 3 (the final round's smallest-window picture:
+            # at 900 x 650 the ending showed its answers but not one line of
+            # its explanation). In a low window the mode buttons (disabled for
+            # the whole session) and the chart file box (locked too) give their
+            # room to the panel; both come back when it goes.
+            self._table_room_before["mode_row"] = not self._mode_row_widget.isHidden()
+            self._table_room_before["file"] = not self._file_grp.isHidden()
+            if top is not None and top.height() < self.TABLE_LOW_WINDOW:
+                self._mode_row_widget.setVisible(False)
+                self._file_grp.setVisible(False)
             return
         before = getattr(self, "_table_room_before", None)
         if before is None:
             return
         self._table_room_before = None
+        if "mode_row" in before:
+            self._mode_row_widget.setVisible(before["mode_row"])
+            self._file_grp.setVisible(before["file"])
         self._left_buttons.setVisible(before["buttons"])
         self._calm_outer.setVisible(before["calm"])
         self._log.parentWidget().setVisible(before.get("log", True))

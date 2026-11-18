@@ -10119,15 +10119,15 @@ alone.
 
 > **Row {row} could not be read as a strip**
 >
-> Row {row} of page {page} could not be read as a strip: {why}. ChromIQ keeps none of this row's readings, because it never guesses a value.
+> The arm is held where the strip move ended. Before it moves again, ChromIQ asks you to take your hands away from the table and the arm.
 >
-> The arm is held where the strip move ended. Before it moves again, ChromIQ asks you to take your hands away from the table and the arm. What would you like to do?
+> Row {row} of page {page} could not be read as a strip: {why}. ChromIQ keeps none of this row's readings, because it never guesses a value. What would you like to do?
 >   •  Read it again as a strip.
 >   •  Read it patch by patch: slower, and the careful way.
 >   •  Skip this row: the measurement is saved without it, and you can read it later.
 >   •  End this step.
 
-*Revised 2026-11-18 (final fix round of the i1iO table drive, S-3: the hands-off sentence comes first, so it can never be the part below a scroll edge).*
+*Revised 2026-11-18 (final fix round of the i1iO table drive, S-3: the hands-off sentence comes first, so it can never be the part below a scroll edge; the reorder itself made in the quiet round, 2026-11-18, where the final round had only recorded it).*
 
 ### M-I1IO-DRIVE-FRONT · PROPOSED · the job asks front_choice: the sheet reaches the front zone, Measure (the i1iO table window)
 

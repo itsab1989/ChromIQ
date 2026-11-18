@@ -12107,10 +12107,10 @@ M_I1IO_DRIVE_STRIP_TOO_LONG = _m(
 M_I1IO_DRIVE_ROW_FAILED_STRIP = _m(
     "M-I1IO-DRIVE-ROW-FAILED-STRIP",
     "Row {row} could not be read as a strip",
-    "Row {row} of page {page} could not be read as a strip: {why}. ChromIQ keeps none of "
-    "this row's readings, because it never guesses a value.\n\n"
     "The arm is held where the strip move ended. Before it moves again, ChromIQ asks you to "
-    "take your hands away from the table and the arm. What would you like to do?\n"
+    "take your hands away from the table and the arm.\n\n"
+    "Row {row} of page {page} could not be read as a strip: {why}. ChromIQ keeps none of "
+    "this row's readings, because it never guesses a value. What would you like to do?\n"
     "  •  Read it again as a strip.\n"
     "  •  Read it patch by patch: slower, and the careful way.\n"
     "  •  Skip this row: the measurement is saved without it, and you can read it later.\n"
