@@ -648,6 +648,15 @@ class TableJob:
         self._inside_end = False
         #: review 9, S-2: what the adopted readings hold (XYZ, L*a*b*, spectral)
         self._adopted_shape: "dict | None" = None
+        #: review 14, M-2: the white reference the adopted readings were made with
+        self._adopted_white: "str | None" = None
+        #: review 14, M-2: THE SESSION'S WHITE REFERENCE, decided ONCE, at its first calibration
+        #: (or its first row, read without one under -N), and kept for every later calibration:
+        #: "stored" (the table's stored white tile values) or "own" (the i1Pro 2's own). A later
+        #: calibration that cannot give it is refused like a failed white (calibrate again, or
+        #: end and save what was read with it); a session never switches reference silently, so
+        #: its readings always go into one file
+        self.session_white: "str | None" = None
         #: fix round 10, S-2: an adoption made with the replace agreed (the run's measurement
         #: is replaced at Save, by the window's archive, and never built on)
         self._replacing = False
@@ -1902,6 +1911,16 @@ class TableJob:
             return self._result("options", Kind.REFUSED, "options_change_the_fields",
                                 builds_on=clash, asked=shape_of_options(rep.options),
                                 field_options=list(FIELD_OPTIONS), **detail)
+        built_on = self.built_on_white()
+        if built_on is not None and built_on != self.white_asked():
+            # review 14, M-2: the readings this session completes (a resume's or refinement's
+            # base, or adopted readings) were made with the other white reference; readings of
+            # both kinds cannot go into one file, so this is refused BEFORE anything is opened,
+            # with what the person can do (the option, or a new measurement)
+            self.options_report, self._requested = before
+            self._apply_locs()
+            return self._result("options", Kind.REFUSED, "built_on_another_white_reference",
+                                built_on=built_on, asked=self.white_asked(), **detail)
         if self._earlier_dirs:
             # review 8, S-3: options set after an adoption keep it (never silently undone)
             detail["adopted_still_missing"] = len(self.only_locs or ())
@@ -1939,6 +1958,25 @@ class TableJob:
         if shape is None or shape == shape_of_options(opts):
             return None
         return shape
+
+    def white_asked(self) -> str:
+        """The white reference the option asks for: "stored" or "own" (review 14, M-2)."""
+        return "stored" if self.stored_tile_white else "own"
+
+    def built_on_white(self) -> "str | None":
+        """Review 14, M-2: the white reference of the readings this session builds on (adopted
+        readings, else the run's measurement a resume or refinement completes); None when it
+        builds on nothing."""
+        if self._earlier_dirs and self._adopted_white is not None:
+            return self._adopted_white
+        if self._resume_base is not None:
+            return ms.white_of(self._resume_base)
+        return None
+
+    def white_needed(self) -> str:
+        """The white reference this session's next calibration must give: the one decided at
+        its first calibration, else the one of the readings it builds on, else the option's."""
+        return self.session_white or self.built_on_white() or self.white_asked()
 
     # ---- readiness -----------------------------------------------------------------------------
     def _apply_locs(self) -> None:
@@ -2372,14 +2410,47 @@ class TableJob:
         if strip_white:
             self.strip_calibration = {"place": place, "t": made}
         self.calibration_due = False
-        if self.stored_tile_white:
-            out["stored_white"] = yield from self._stored_white(tile_read=tile_read)
+        need = self.white_needed()
+        decided = self.session_white is not None or self.built_on_white() is not None
+        if need == "stored":
+            sw = yield from self._stored_white(tile_read=tile_read)
+            if not sw.get("used") and decided:
+                # review 14, M-2: this session's readings (or the readings it completes) were
+                # made with the table's stored values; a white without them would make the
+                # session unsaveable. No row is read with this white; calibrate again, or end
+                # and save what was read with the first reference
+                self.calibration = None
+                self.strip_calibration = None
+                self.diag.log("STEP", "this calibration is not used: the session's white "
+                                      "reference is the table's stored white tile values, and "
+                                      f"they could not be used this time ({sw.get('why')}); "
+                                      "no row is read with it")
+                raise StageFailed("stored_white_refused_later", why=str(sw.get("why", "")),
+                                  rows_read=bool(self.session_white is not None))
+            out["stored_white"] = sw
         else:
             # D-4b: the log always says which white reference this session uses
             self.white_scale = None
-            self.diag.log("STEP", "white reference: the i1Pro 2's own (the table's stored "
-                                  "white tile values are switched off in Preferences > Beta)")
+            if self.stored_tile_white:
+                self.diag.log("STEP", "white reference: the i1Pro 2's own, kept for the whole "
+                                      "session (decided at its first calibration, or by the "
+                                      "readings it completes)")
+            else:
+                self.diag.log("STEP", "white reference: the i1Pro 2's own (the table's stored "
+                                      "white tile values are switched off in Preferences > Beta)")
+        if self.session_white is None:
+            self.session_white = "stored" if self.white_scale else "own"
+            self.diag.log("STEP", f"the session's white reference is decided: {self.session_white} "
+                                  "(kept for every later calibration of this session)")
         return out
+
+    def _decide_white_by_a_row(self) -> None:
+        """Review 14, M-2: a row read before any calibration (-N) decides the session's white
+        reference as a first calibration would: the one its readings are made with."""
+        if self.session_white is None:
+            self.session_white = "stored" if self.white_scale else "own"
+            self.diag.log("STEP", f"the session's white reference is decided by its first row: "
+                                  f"{self.session_white}")
 
     def _white_level_check(self):
         """Final fix round, S-1: one reading of the table's white tile at rest with the white
@@ -2637,6 +2708,7 @@ class TableJob:
                "why": "", "reader_ti3": None, "accepted": [], "failed": [],
                "patches": len(plan.patches),
                "white_scale": list(self.white_scale) if self.white_scale else None}
+        self._decide_white_by_a_row()
         readings: "list[dict]" = []
         reader = None
         opened = False
@@ -2779,6 +2851,7 @@ class TableJob:
                "patches": len(plan.patches), "speed": scan_plan.speed,
                "readings_planned": scan_plan.N, "first_try": True,
                "white_scale": list(self.white_scale) if self.white_scale else None}
+        self._decide_white_by_a_row()
         if attempt > 1:
             scan_plan = sc.plan_row(name, scan_plan.start, scan_plan.end, scan_plan.speed,
                                     [sc.Patch(q.sample_id, q.loc, q.xy, q.along_mm, q.half_mm)
@@ -3344,6 +3417,7 @@ class TableJob:
                                 field_options=list(FIELD_OPTIONS))
         self._earlier_dirs.append(sdir)
         self._adopted_shape = shape
+        self._adopted_white = ms.white_of(a.path) if a.path is not None else None
         self._adopted = (set(a.unread), base)
         self._apply_locs()
         self.diag.log("INFO", f"an interrupted session ({stamp}) adopted: {a.read} readings, "

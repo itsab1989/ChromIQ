@@ -279,3 +279,153 @@ def test_m1_no_page_contradicts_the_true_state(qtbot, monkeypatch, tmp_path, set
         (fw[0] if fw and rnd.random() < 0.9 else rnd.choice(cands)).click()
     assert not bad, (seed, bad[:4], win.pages_shown[-10:])
 
+
+# ---- M-2: one white reference per session -------------------------------------------------------
+
+def _refuse_stored(monkeypatch, why="stored_white_too_far_from_the_reading"):
+    monkeypatch.setattr(sp, "stored_white_factors", lambda stored, spec: (None, why))
+
+
+def _again_calibrated(job, p):
+    job.calibration_due = True
+    p.drive(job.home())
+    return p.drive(job.calibrate())
+
+
+def test_m2_a_later_calibration_keeps_the_sessions_reference_and_the_save_works(tmp_path,
+                                                                                monkeypatch):
+    job, sim, helper, run, p = job_for(tmp_path)
+    job.stored_tile_white = True
+    sim.stored_tile = tuple([0.88] * 36)
+    ready_to_read(job, p)
+    assert job.white_scale is not None and job.session_white == "stored"
+    r = p.drive(job.read_row())
+    assert r.ok, r.reason
+    real = sp.stored_white_factors
+    _refuse_stored(monkeypatch)
+    c = _again_calibrated(job, p)
+    # never a silent switch: the calibration is refused, and no row is read with it
+    assert (c.kind, c.reason) == (J.Kind.REFUSED, "stored_white_refused_later")
+    assert c.detail["why"] == "stored_white_too_far_from_the_reading"
+    assert job.calibration is None and job.session_white == "stored"
+    assert p.drive(job.read_row()).reason in ("needs_calibration", "needs_alignment",
+                                              "arm_not_out_on_the_sheet")
+    # calibrate again: the values can be used this time, and the session goes on
+    monkeypatch.setattr(sp, "stored_white_factors", real)
+    c2 = p.drive(job.calibrate())
+    assert c2.ok and job.white_scale is not None
+    p.drive(job.align())
+    read_page(job, p)
+    e = job.end()
+    s = job.answer(J.Confirm.END, "save") if e.kind == J.Kind.NEEDS else e
+    assert s.ok, (s.reason, s.detail)
+
+
+def test_m2_end_after_the_refused_calibration_saves_what_was_read(tmp_path, monkeypatch):
+    job, sim, helper, run, p = job_for(tmp_path)
+    job.stored_tile_white = True
+    sim.stored_tile = tuple([0.88] * 36)
+    ready_to_read(job, p)
+    assert p.drive(job.read_row()).ok
+    _refuse_stored(monkeypatch)
+    assert _again_calibrated(job, p).reason == "stored_white_refused_later"
+    e = job.end()
+    s = job.answer(J.Confirm.END, "save") if e.kind == J.Kind.NEEDS else e
+    assert s.ok, (s.reason, s.detail)
+    assert s.detail["measurement"]["state"] == "partial"
+    assert "CHROMIQ_TABLE_WHITE" in run.measurement_ti3.read_text(encoding="utf-8")
+
+
+def test_m2_a_first_white_with_the_own_reference_stays_own(tmp_path, monkeypatch):
+    """The stored values unusable at the FIRST calibration: the session measures with the
+    i1Pro 2's own reference (said, as before) and keeps it, even when a later calibration
+    could use the stored values."""
+    job, sim, helper, run, p = job_for(tmp_path)
+    job.stored_tile_white = True
+    sim.stored_tile = tuple([0.88] * 36)
+    real = sp.stored_white_factors
+    _refuse_stored(monkeypatch)
+    ready_to_read(job, p)
+    assert job.white_scale is None and job.session_white == "own"
+    assert p.drive(job.read_row()).ok
+    monkeypatch.setattr(sp, "stored_white_factors", real)
+    c = _again_calibrated(job, p)
+    assert c.ok and job.white_scale is None and job.session_white == "own"
+    p.drive(job.align())
+    read_page(job, p)
+    e = job.end()
+    s = job.answer(J.Confirm.END, "save") if e.kind == J.Kind.NEEDS else e
+    assert s.ok, (s.reason, s.detail)
+    assert "CHROMIQ_TABLE_WHITE" not in run.measurement_ti3.read_text(encoding="utf-8")
+
+
+def _partial_run(tmp_path, stored: bool, monkeypatch):
+    job, sim, helper, run, p = job_for(tmp_path, {J.Confirm.ROW_FAILED: "skip"},
+                                       faults={"read_loc": {"1-1": "dies"}})
+    job.stored_tile_white = stored
+    sim.stored_tile = tuple([0.88] * 36)
+    ready_to_read(job, p)
+    read_page(job, p)
+    assert job.save().detail["measurement"]["state"] == "partial"
+    job.close()
+    return run
+
+
+@pytest.mark.parametrize("first,now", [(False, True), (True, False)])
+def test_m2_a_resume_of_the_other_reference_is_refused_before_start(tmp_path, monkeypatch,
+                                                                   first, now):
+    run = _partial_run(tmp_path, first, monkeypatch)
+    job2, sim2, helper2, _r, p2 = job_for(tmp_path / "second", sheet=small_sheet())
+    job2.run = run
+    job2._chart_ti2 = run.chart_ti2
+    job2.stamp = "20261117-150000"
+    from workflow.i1io.table.diagnostics import Diagnostics
+    job2.diag = Diagnostics(run.i1io_table_session_dir(job2.stamp),
+                            run.i1io_table_log(job2.stamp))
+    job2.stored_tile_white = now
+    r = job2.set_options(["-p", "-r"])
+    assert (r.kind, r.reason) == (J.Kind.REFUSED, "built_on_another_white_reference")
+    assert r.detail["built_on"] == ("stored" if first else "own")
+    assert job2.phase == "new" and not sim2.received        # nothing was sent
+    # with the option as the readings were made, the resume goes on
+    job2.stored_tile_white = first
+    assert job2.set_options(["-p", "-r"]).ok
+
+
+@pytest.mark.parametrize("built_on", ["stored", "own"])
+def test_m2_the_window_names_what_the_person_can_do(qtbot, monkeypatch, tmp_path, settings,
+                                                    built_on):
+    win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
+                                                    asking=True)
+    p.drive_until("prepare")
+    res = J.StepResult("options", J.Kind.REFUSED, "built_on_another_white_reference",
+                       detail={"built_on": built_on, "asked": "own" if built_on == "stored"
+                               else "stored"})
+    monkeypatch.setattr(win.job, "set_options", lambda *a, **k: res)
+    win._set_options()
+    assert win.pages_shown[-1] == "white_other_reference"
+    msg = M.M_I1IO_DRIVE_WHITE_BASE_STORED if built_on == "stored" else M.M_I1IO_DRIVE_WHITE_BASE_OWN
+    assert win._title.text() == msg.render()[0]
+    text = win._text.text()
+    assert "Preferences > Beta" in text and "measure the chart again" in text
+    assert ("switch that option on" in text) == (built_on == "stored")
+    assert ("switch that option off" in text) == (built_on == "own")
+    assert [b.text() for b in win._buttons] == ["Close"]
+
+
+def test_m2_the_refused_later_calibration_page_offers_both_ways(qtbot, monkeypatch, tmp_path,
+                                                                settings):
+    win, sim, run, p, saved, finished = open_window(qtbot, monkeypatch, tmp_path, settings,
+                                                    asking=False)
+    p.drive_until("sheet_laid")
+    res = J.StepResult("calibrate", J.Kind.REFUSED, "stored_white_refused_later",
+                       detail={"why": "stored_white_too_far_from_the_reading"})
+    win._on_refused(res)
+    assert win.pages_shown[-1] == "white_later_refused"
+    assert [b.text() for b in win._buttons] == ["Save what was read and end", "Calibrate again"]
+    assert W.stored_white_reason("stored_white_too_far_from_the_reading") in win._text.text()
+    assert W.POPUP_SOUND["white_later_refused"] == "INSTRUMENT_ERROR"
+    # the reason the Save could still give names no option the person did not touch
+    old = W.reason_text("readings_with_different_white_references")
+    assert "Set the option" not in old and "(Preferences > Beta)" not in old
+

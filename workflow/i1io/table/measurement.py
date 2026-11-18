@@ -117,6 +117,20 @@ def fields_shape(path) -> "dict | None":
             "high_res": bands > STANDARD_BANDS}
 
 
+def white_of(path) -> "str | None":
+    """Review 14, M-2: the white reference a measurement file was made with: "stored" (it
+    declares the table's stored white tile values), "own" (it does not), None when it cannot be
+    read. The same rule the assembly applies to a base file."""
+    try:
+        from core.text_io import read_text
+        text = read_text(Path(path), lenient=True)
+    except (OSError, ValueError):
+        return None
+    if not text:
+        return None
+    return "stored" if re.search(r'^' + WHITE_KEYWORD + r'\s', text, re.M) else "own"
+
+
 def _rows_by_loc(path: Path) -> "tuple[list[str], dict[str, list[str]], str]":
     from core.text_io import read_text
     text = read_text(path, lenient=True)

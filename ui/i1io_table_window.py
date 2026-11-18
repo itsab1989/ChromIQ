@@ -85,6 +85,7 @@ POPUP_SOUND = {
     "refused": "INSTRUMENT_ERROR", "stopped": "INSTRUMENT_ERROR",
     "open_refused": "INSTRUMENT_ERROR", "error": "INSTRUMENT_ERROR",
     "usb_missing": "INSTRUMENT_ERROR", "stored_white_refused": "INSTRUMENT_ERROR",
+    "white_later_refused": "INSTRUMENT_ERROR",
     "pending_marker": "INSTRUMENT_ERROR",
 }
 
@@ -661,8 +662,17 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
             "The readings were measured with different settings and cannot go into one file."),
         "readings_with_different_white_references": tr(
             "Some of the readings were made with the table's stored white tile values and some "
-            "without (Preferences > Beta), so they cannot go into one file. Set the option as "
-            "it was for the earlier readings, or measure the chart again."),
+            "with the i1Pro 2's own white reference, so they cannot go into one file. Your "
+            "readings stay in this measurement's folder. Please measure the chart again, and "
+            "send us the diagnostics file of this measurement: this should not happen."),
+        # review 14, M-2
+        "stored_white_refused_later": tr(
+            "The table's stored white values could not be used with this calibration, and this "
+            "measurement keeps the white reference it started with, so the calibration is not "
+            "used."),
+        "built_on_another_white_reference": tr(
+            "The readings this measurement would complete were made with another white "
+            "reference than the one set in Preferences > Beta."),
         "nothing_to_resume": tr("There is nothing to resume: the run has no partial "
                                 "measurement of this chart."),
         "i1profiler_running": tr("i1Profiler is open on this computer."),
@@ -2314,6 +2324,15 @@ class TableMeasureWindow(QFrame):
             self._show("option_refused", title, body,
                        [(tr("Close"), self._finish_not_started)])
             return
+        if res.reason == "built_on_another_white_reference":
+            # review 14, M-2: refused before anything is opened, with what the person can do
+            from workflow import measurement_messages as M
+            msg = (M.M_I1IO_DRIVE_WHITE_BASE_STORED if res.detail.get("built_on") == "stored"
+                   else M.M_I1IO_DRIVE_WHITE_BASE_OWN)
+            title, body = msg.render()
+            self._show("white_other_reference", title, body,
+                       [(tr("Close"), self._finish_not_started)])
+            return
         if res.reason == "options_change_the_fields":
             from workflow import measurement_messages as M
             used = [t for t in self._chart_args if t in res.detail.get("field_options", [])]
@@ -2391,8 +2410,9 @@ class TableMeasureWindow(QFrame):
         # D-4b (the owner, 2026-11-18): which white reference this measurement uses
         body += "\n\n" + (tr("White reference: the values the table keeps for its white tile, "
                               "as i1Profiler uses them (Preferences > Beta). If the table does "
-                              "not give usable values, ChromIQ says so and uses the i1Pro 2's "
-                              "own reference instead.")
+                              "not give usable values at the first calibration, ChromIQ says so "
+                              "and uses the i1Pro 2's own reference instead. Either way, the "
+                              "whole measurement keeps the white reference it starts with.")
                            if stored_tile_white(self._settings) else
                            tr("White reference: the i1Pro 2's own, as when you measure by hand "
                               "(Preferences > Beta)."))
@@ -2471,8 +2491,9 @@ class TableMeasureWindow(QFrame):
             if isinstance(sw, dict) and sw.get("used"):
                 self._say(tr("White reference: the values the table keeps for its white tile, "
                              "as i1Profiler uses them (Preferences > Beta). If the table does "
-                             "not give usable values, ChromIQ says so and uses the i1Pro 2's "
-                             "own reference instead."))
+                             "not give usable values at the first calibration, ChromIQ says so "
+                             "and uses the i1Pro 2's own reference instead. Either way, the "
+                             "whole measurement keeps the white reference it starts with."))
             else:
                 self._say(tr("White reference: the i1Pro 2's own, as when you measure by hand "
                              "(Preferences > Beta)."))
@@ -2506,6 +2527,23 @@ class TableMeasureWindow(QFrame):
         from workflow import measurement_messages as M
         title, body = M.M_I1IO_DRIVE_STORED_WHITE_REFUSED.render(why=stored_white_reason(why))
         self._show("stored_white_refused", title, body, [(tr("Go on"), self._next)])
+
+    def _show_white_later_refused(self, res) -> None:
+        """Review 14, M-2: a calibration that could not give the session's white reference (the
+        table's stored values) is not used: calibrate again, or save what was read with the
+        first reference and end. Never a silent switch, never a Save refused afterwards."""
+        from workflow import measurement_messages as M
+        title, body = M.M_I1IO_DRIVE_WHITE_LATER_REFUSED.render(
+            why=stored_white_reason(str((res.detail or {}).get("why", ""))))
+        self._troubled = True
+        self._show("white_later_refused", title, body,
+                   [(tr("Save what was read and end"), self._on_save_and_end),
+                    (tr("Calibrate again"), self._next)])
+
+    def _on_save_and_end(self) -> None:
+        """The ending, answered with Save and stop (nothing moves for it)."""
+        self._save_at_ending = True
+        self._on_end_pressed()
 
     def _next(self) -> None:
         """The next step of the measurement, from the job's true state."""
@@ -2913,6 +2951,9 @@ class TableMeasureWindow(QFrame):
         if reason == "calibration_due":
             self._next()
             return
+        if reason == "stored_white_refused_later":
+            self._show_white_later_refused(res)
+            return
         if reason == "report_due" and self.job.report_due is not None:
             self._ask_report(getattr(self, "_report_res", res))
             return
@@ -3202,6 +3243,12 @@ class TableMeasureWindow(QFrame):
 
     def _ask_end(self, res) -> None:
         from workflow import measurement_messages as M
+        if getattr(self, "_save_at_ending", False):
+            # review 14, M-2: "Save what was read and end" was pressed: that IS the answer
+            self._save_at_ending = False
+            self._pending_kind = "end_of_session"
+            self.answer("save")
+            return
         st = res.detail.get("end_state", {})
         n = int(st.get("read_in_this_session") or 0)
         if getattr(self, "_adopted_any", False) and "read" in st:
@@ -3233,6 +3280,7 @@ class TableMeasureWindow(QFrame):
 
     def _after_end(self, res) -> None:
         self._ending_open = False
+        self._save_at_ending = False
         ending = res.detail.get("ending")
         if ending in ("keep_measuring", "dismissed") and self._quit_wanted:
             # the hand path's rule: Keep measuring cancels the quit

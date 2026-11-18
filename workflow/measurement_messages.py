@@ -12576,6 +12576,53 @@ M_I1IO_DRIVE_AFTER_PROBLEM_OUT = _m(
     "home. Afterwards you can start again with START MEASUREMENT.",
     approved=False)
 
+# review 14, M-2: a session keeps the white reference of its first calibration
+M_I1IO_DRIVE_WHITE_LATER_REFUSED = _m(
+    "M-I1IO-DRIVE-WHITE-LATER-REFUSED",
+    "This calibration cannot be used",
+    "This measurement started with the white tile values stored in the table, as i1Profiler "
+    "does, and it keeps that white reference to the end, so that all of its readings can go "
+    "into one measurement file. After this new calibration, though, {why}.\n\n"
+    "So ChromIQ does not use this calibration, and nothing is read with it. Nothing has moved "
+    "for this, and the readings taken so far are kept.\n\n"
+    "What each button does:\n\n"
+    "\u2022  Calibrate again: ChromIQ calibrates the i1Pro 2 once more and tries the table's "
+    "stored values again. Before the arm moves, ChromIQ asks you to take your hands away from "
+    "the table.\n\n"
+    "\u2022  Save what was read and end: ChromIQ saves the readings taken so far, all made with "
+    "the table's stored values, into this run's measurement file and ends the measurement. "
+    "You can read the missing patches later: tick \u201cRefine / resume existing measurement "
+    "(-r)\u201d and press START MEASUREMENT.",
+    approved=False)
+
+# review 14, M-2: refused before START: the readings a resume, refinement or adoption completes
+# were made with the other white reference
+M_I1IO_DRIVE_WHITE_BASE_STORED = _m(
+    "M-I1IO-DRIVE-WHITE-BASE-STORED",
+    "These readings were made with the table's stored white values",
+    "The readings this measurement would complete were made on the table with the white tile "
+    "values stored in the table. In Preferences > Beta, \u201cUse the table's stored white "
+    "tile values (as i1Profiler does)\u201d is now off. Readings made with two different "
+    "white references cannot go into one measurement file.\n\n"
+    "To complete them with the table, switch that option on again in Preferences > Beta and "
+    "press START MEASUREMENT again. Or measure the chart again from the beginning instead of "
+    "completing them. Nothing has been sent to the table, and your measurement is unchanged.",
+    approved=False)
+
+M_I1IO_DRIVE_WHITE_BASE_OWN = _m(
+    "M-I1IO-DRIVE-WHITE-BASE-OWN",
+    "These readings were made with the i1Pro 2's own white reference",
+    "The readings this measurement would complete were made with the i1Pro 2's own white "
+    "reference: by hand, or on the table while the stored values were switched off. In "
+    "Preferences > "
+    "Beta, \u201cUse the table's stored white tile values (as i1Profiler does)\u201d is on. "
+    "Readings made with two different white references cannot go into one measurement "
+    "file.\n\n"
+    "To complete them with the table, switch that option off in Preferences > Beta and press "
+    "START MEASUREMENT again. Or measure the chart again from the beginning instead of "
+    "completing them. Nothing has been sent to the table, and your measurement is unchanged.",
+    approved=False)
+
 M_I1IO_DRIVE_ENDING_CLOSED = _m(
     "M-I1IO-DRIVE-ENDING-CLOSED",
     "Nothing was saved or discarded",
@@ -12657,6 +12704,9 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_TABLE_NOT_FOUND, M_I1IO_DRIVE_SEVERAL_TABLES,
     M_I1IO_DRIVE_AFTER_PROBLEM, M_I1IO_DRIVE_ENDING_CLOSED,
     M_I1IO_DRIVE_AFTER_PROBLEM_OUT,
+    M_I1IO_DRIVE_WHITE_LATER_REFUSED,
+    M_I1IO_DRIVE_WHITE_BASE_STORED,
+    M_I1IO_DRIVE_WHITE_BASE_OWN,
     M_I1IO_DRIVE_REFINE_DONE_NEXT,
     M_I1IO_DRIVE_REFINE_NOT_ON_CHART,
     M_I1IO_DRIVE_RESUME,
