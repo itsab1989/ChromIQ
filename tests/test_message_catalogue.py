@@ -187,6 +187,8 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-I1IO-DRIVE-STRIP-OPTION",
     "M-I1IO-DRIVE-STRIP-FIRST-TRY",
     "M-I1IO-DRIVE-STRIP-TOO-LONG",
+    # 2026-11-18, final fix round: the offer to make strips the table's default (the owner)
+    "M-I1IO-DRIVE-STRIP-DEFAULT-OFFER",
     "M-I1IO-DRIVE-ROW-FAILED-STRIP",
     "M-I1IO-DRIVE-REFINE-NOT-ON-CHART",
     "M-I1IO-DRIVE-EARLIER-ELSEWHERE",  # review 12 of the i1iO table drive (2026-11-17)

@@ -193,8 +193,13 @@ def wired(tmp_path, qapp):
                  # and a stand-in that silently lacks a method the real object
                  # calls reports the caller broken when only the double is.
                  "_apply_cr30_aim_visibility", "_apply_active_view_settings",
-                 "_chart_is_cr30", "_chart_file_for"):
+                 "_chart_is_cr30", "_chart_file_for",
+                 # final fix round: the target's own "-p" and the i1iO table's default
+                 "_pbp_stored_into_snapshot", "_note_target_pbp", "_target_store_key",
+                 "_show_table_pbp_default", "_table_pbp_start_values",
+                 "_table_chart_loaded"):
         setattr(_WiredTab, name, getattr(tm.TabMeasure, name))
+    _WiredTab.TABLE_PBP_KEY = tm.TabMeasure.TABLE_PBP_KEY
     # …and the class-level list the dead-option lock consults.
     _WiredTab.CR30_DEAD_OPTIONS = tm.TabMeasure.CR30_DEAD_OPTIONS
     store = _Store(tmp_path)

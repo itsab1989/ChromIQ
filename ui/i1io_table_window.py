@@ -2460,11 +2460,51 @@ class TableMeasureWindow(QFrame):
         if self._offer_dont_ask:
             ticks = [tr("Don't ask after each step from now on. (You can switch the question "
                         "back on in Preferences.)")]
-        self._show("done", title, body, [(tr("Close"), self._on_done_close)], ticks=ticks)
+        buttons = [(tr("Close"), self._on_done_close)]
+        if self._strip_default_offer_due():
+            # the owner (4.3.45): after a clean strip measurement, the strip choice may become
+            # the table's default; offered once, quietly, never as a default button
+            _t, offer = M.M_I1IO_DRIVE_STRIP_DEFAULT_OFFER.render()
+            body += "\n\n" + _t + "\n" + offer
+            buttons = [(tr("Not now"), self._on_strip_offer_declined),
+                       (tr("Yes, make strips the default"), self._on_strip_offer_taken)]
+            self._strip_offer_shown = True
+        self._show("done", title, body, buttons, ticks=ticks)
         if self._quit_wanted:
             self._status.setText(tr("ChromIQ closes when you press Close."))
         self._close_btn.setVisible(False)
         self._state.setVisible(False)          # the session is over; the text says how
+
+    TABLE_PBP_KEY = "i1io_table_patch_by_patch"
+    STRIP_OFFER_DECLINED_KEY = "i1io_table_strip_offer_declined"
+
+    def _strip_default_offer_due(self) -> bool:
+        """After a COMPLETE table measurement read as strips with no failed, skipped or re-read
+        row, no row read patch by patch instead, no Stop and no problem report, while the
+        table's default is still patch by patch and the offer was never declined."""
+        j = self.job
+        try:
+            if j is None or j.ended != "saved" or j.row_kind != "strip" or self._troubled \
+                    or self._quit_wanted or j.stop_pressed or j.problems:
+                return False
+            if j._a_row_failed() or any(j.strip_fallbacks.values()):
+                return False
+            if not bool(self._settings.get(self.TABLE_PBP_KEY, True)) or \
+                    bool(self._settings.get(self.STRIP_OFFER_DECLINED_KEY, False)):
+                return False
+            from workflow.measurement_state import Ti3State, classify
+            return classify(self._run.measurement_ti3, self._run.chart_ti2).state \
+                is Ti3State.COMPLETE
+        except Exception:      # noqa: BLE001 - no offer when anything is unclear
+            return False
+
+    def _on_strip_offer_taken(self) -> None:
+        self._settings.set(self.TABLE_PBP_KEY, False)
+        self._on_done_close()
+
+    def _on_strip_offer_declined(self) -> None:
+        self._settings.set(self.STRIP_OFFER_DECLINED_KEY, True)
+        self._on_done_close()
 
     def _on_done_close(self) -> None:
         if getattr(self, "_offer_dont_ask", False) and self._tick_widgets \

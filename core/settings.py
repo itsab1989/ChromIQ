@@ -377,6 +377,13 @@ DEFAULTS: dict[str, Any] = {
     #: table's memory, as i1Profiler does. Off = the i1Pro 2's own white
     #: reference, as in a measurement by hand.
     "i1io_table_stored_tile_white": False,
+    #: the table's own "Patch-by-patch mode (-p)" default for a table chart (4.3.45, the
+    #: owner): True = patch by patch (the default), False = rows as strips (a first try).
+    #: Separate from the hand instruments' -p defaults and the CR30's lock; a target's own
+    #: stored -p still comes first (per_target_settings.md).
+    "i1io_table_patch_by_patch": True,
+    #: the offer after a clean strip measurement was answered "Not now": not offered again
+    "i1io_table_strip_offer_declined": False,
     #: Beta (Settings -> Beta): X-Rite i1iSis family charts, laid out by
     #: ChromIQ and measured in i1Profiler. Off = 4.3.37 except the one stated
     #: exception: the old printtarg entry "i1iSis (via i1Profiler)" is gone

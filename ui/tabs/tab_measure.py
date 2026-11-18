@@ -2362,6 +2362,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             # values are the ones the user chose under "Save as Defaults" — not
             # a second idea of what a default is.
             self._loading_measure_settings = True
+            self._note_target_pbp(None)
             try:
                 self._restore_defaults()
             except Exception:      # noqa: BLE001
@@ -2369,6 +2370,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                             exc_info=True)
             finally:
                 self._loading_measure_settings = False
+            self._show_table_pbp_default()
             self._reassert_guided_refinement()
             # …and the CR30 patch-by-patch lock, for the same reason: a stored
             # or default `false` has just been written onto the screen (#159).
@@ -2383,6 +2385,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 log.info("ignored %d unknown stored Measure setting(s): %s",
                          len(unknown), ", ".join(sorted(unknown)[:8]))
             self._pbp_stored_into_snapshot(stored)
+            self._note_target_pbp(stored)
             self._reassert_guided_refinement()
             self._apply_cr30_pbp_lock()
             self._apply_cr30_dead_options()
@@ -2476,7 +2479,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         back when the target's own chart arrives, so the chart that was loaded before can
         never write its value into the next target. Only when the target stores one (the two
         boxes mirror each other, so both are taken from the screen then)."""
-        snap = self._pbp_lock_snapshot
+        snap = getattr(self, "_pbp_lock_snapshot", None)
         if snap is None or not isinstance(stored, dict):
             return
         if "patch_by_patch" not in stored and "patch_by_patch_guided" not in stored:
@@ -2806,12 +2809,74 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             if opt is not None and not is_cr30:
                 opt.suppressed = False
 
+    #: the table's OWN saved "-p" default (Save as Defaults with a table chart loaded, the
+    #: offer after a clean strip measurement, Preferences > Beta); separate from the hand
+    #: instruments' measure_patch_by_patch / manual2_chartread_pbp and from the CR30's lock
+    TABLE_PBP_KEY = "i1io_table_patch_by_patch"
+    #: (the target's store folder, {mode: value} or None): the "-p" the target itself stores,
+    #: from its last settings load (per_target_settings.md: the target's own value first)
+    _pbp_target_value: "tuple | None" = None
+
+    def _target_store_key(self) -> "str | None":
+        try:
+            from workflow.per_target_settings import store_for_target
+            store = store_for_target(getattr(self, "_target_ctl", None))
+            return str(store.dir) if store is not None else None
+        except Exception:      # noqa: BLE001 - a question must never raise
+            return None
+
+    def _note_target_pbp(self, stored) -> None:
+        """What the target being loaded stores for "-p" (None: nothing)."""
+        vals = None
+        if isinstance(stored, dict):
+            got = {}
+            for key, mode in (("patch_by_patch", "manual"), ("patch_by_patch_guided", "guided")):
+                rec = stored.get(key)
+                if isinstance(rec, dict) and "value" in rec:
+                    got[mode] = bool(rec["value"])
+            if got:
+                if len(got) == 1:          # the two boxes mirror each other
+                    got = {m: next(iter(got.values())) for m in ("manual", "guided")}
+                vals = got
+        self._pbp_target_value = (self._target_store_key(), vals)
+
+    def _table_pbp_start_values(self) -> dict:
+        """What "-p" shows when a table chart arrives (the owner, 4.3.45: "patch by patch being
+        default is ok but the user should be able to disable the patch by patch option to try
+        strip reading and if it works save it as default for the device"): the target's own
+        stored value first (per_target_settings.md §4: a target with settings opens on its
+        own), else the table's saved default, else ticked."""
+        tv = self._pbp_target_value
+        if tv is not None and tv[1] and tv[0] is not None and tv[0] == self._target_store_key():
+            return dict(tv[1])
+        try:
+            v = bool(self._settings.get(self.TABLE_PBP_KEY, True))
+        except Exception:      # noqa: BLE001 - the safe answer
+            v = True
+        return {"manual": v, "guided": v}
+
+    def _show_table_pbp_default(self) -> None:
+        """A target with nothing stored, a table chart loaded: the table's saved default."""
+        if getattr(self, "_pbp_lock_snapshot", None) is None or self._chart_is_cr30() \
+                or not self._table_chart_loaded():
+            return
+        start = self._table_pbp_start_values()
+        for m, cb in (("guided", getattr(self, "_pbp_cb", None)),
+                      ("manual", getattr(self, "_m_pbp_cb", None))):
+            if cb is not None:
+                cb.blockSignals(True)
+                try:
+                    cb.setChecked(start.get(m, True))
+                finally:
+                    cb.blockSignals(False)
+
     def _pbp_table_note_label(self, parent) -> QLabel:
         """Round B: one line under "Patch-by-patch mode (-p)", shown for an i1iO table chart
         only: what the box means there (the explanation is in its tooltip)."""
         lab = QLabel(tr("For this i1iO table chart: ticked, the table reads patch by patch. Not "
                         "ticked, it reads each row as a strip: a first try, not tried on a "
-                        "real table yet."), parent)
+                        "real table yet. Save as Defaults keeps your choice for every table "
+                        "chart."), parent)
         lab.setObjectName("pbp_table_note")
         lab.setWordWrap(True)
         lab.setStyleSheet("font-size: 11px; color: #e6a23c; padding-left: 24px;")
@@ -2860,11 +2925,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             if first:
                 self._pbp_lock_snapshot = {m: (cb.isChecked(), cb.toolTip())
                                            for m, cb in pairs}
+            start = self._table_pbp_start_values() if first else {}
             for _m, cb in pairs:
                 cb.blockSignals(True)
                 try:
                     if first:
-                        cb.setChecked(True)
+                        cb.setChecked(start.get(_m, True))
                     cb.setEnabled(True)
                     if cb.objectName() == "locked_on":
                         cb.setObjectName("")
@@ -24306,6 +24372,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
 
     def _on_save_defaults(self) -> None:
         s = self._settings
+        if self._table_chart_loaded() and not self._chart_is_cr30():
+            # the table's own "-p" default (the hand instruments' default below is the
+            # person's value kept aside while the table chart is loaded, unchanged)
+            cb = self._pbp_cb if self._current_mode() == "guided" else self._m_pbp_cb
+            s.set(self.TABLE_PBP_KEY, bool(cb.isChecked()))
         if self._current_mode() == "guided":
             s.set("measure_bidir_mode",        self._bidir_combo.currentData())
             s.set("measure_bidir_auto",        self._bidir_auto_cb.isChecked())

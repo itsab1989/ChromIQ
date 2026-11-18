@@ -3910,9 +3910,23 @@ class SettingsDialog(QDialog):
                 tr("Use the table's stored white tile values (as i1Profiler does)"),
                 i1io_stored_white_help(), self))
             _beta.addLayout(_i1iosw)
+            # ...and how a table chart starts reading (4.3.45, the owner): the table's own
+            # "-p" default, the same value Save as Defaults keeps with a table chart loaded
+            self._i1io_pbp_check = QCheckBox(
+                tr("Table charts start with “Patch-by-patch mode (-p)” ticked"), self)
+            self._i1io_pbp_check.setToolTip(i1io_table_pbp_help())
+            _i1iopbp = QHBoxLayout()
+            _i1iopbp.setContentsMargins(28, 0, 0, 0)
+            _i1iopbp.addWidget(self._i1io_pbp_check)
+            _i1iopbp.addStretch()
+            _i1iopbp.addWidget(TooltipButton(
+                tr("Table charts start with “Patch-by-patch mode (-p)” ticked"),
+                i1io_table_pbp_help(), self))
+            _beta.addLayout(_i1iopbp)
         else:
             self._i1io_cal_combo = None
             self._i1io_stored_white_check = None
+            self._i1io_pbp_check = None
 
         # X-Rite i1iSis family charts (ChromIQ's layout, measured in
         # i1Profiler). Restart to apply, like the i1iO (`workflow.isis.
@@ -6734,6 +6748,8 @@ class SettingsDialog(QDialog):
         if getattr(self, "_i1io_stored_white_check", None) is not None:
             self._i1io_stored_white_check.setChecked(
                 bool(s.get("i1io_table_stored_tile_white", False)))
+        if getattr(self, "_i1io_pbp_check", None) is not None:
+            self._i1io_pbp_check.setChecked(bool(s.get("i1io_table_patch_by_patch", True)))
         self._isis_charts_check.setChecked(
             bool(s.get("isis_charts_beta", False)))
         self._isis_charts_toggled()
@@ -8363,6 +8379,10 @@ class SettingsDialog(QDialog):
                     s.get("i1io_table_stored_tile_white", False)):
             s.set("i1io_table_stored_tile_white",
                   self._i1io_stored_white_check.isChecked())
+        if getattr(self, "_i1io_pbp_check", None) is not None and \
+                self._i1io_pbp_check.isChecked() != bool(
+                    s.get("i1io_table_patch_by_patch", True)):
+            s.set("i1io_table_patch_by_patch", self._i1io_pbp_check.isChecked())
         s.set("isis_charts_beta", self._isis_charts_check.isChecked())
         # Written only when it differs from the store, so Preferences closed
         # with OK leaves no new key behind for anyone who never ticks it.
@@ -10231,6 +10251,19 @@ def i1io_cal_place_help() -> str:
         "need to change this. Either way, ChromIQ makes the white only with the arm at its "
         "resting place over the table's tile, and after a white on the instrument's own tile "
         "it reads the table's tile once to check that the white is right.")
+
+
+def i1io_table_pbp_help() -> str:
+    """The (i) of Preferences > Beta > "Table charts start with Patch-by-patch mode ticked"."""
+    return tr(
+        "Ticked (the default): a chart made for the i1iO table starts with “Patch-by-patch "
+        "mode (-p)” ticked on the Measure tab, and the table reads it patch by patch, the "
+        "careful way. Not ticked: table charts start with it not ticked, and the table reads "
+        "each row as a strip, which is much faster. Reading by strips is a first try and has "
+        "not been tried on a real table yet. This is the table's own choice: Save as Defaults "
+        "on the Measure tab with a table chart loaded changes it too, and charts for other "
+        "instruments keep their own patch-by-patch setting. A project that keeps its own "
+        "setting opens with its own.")
 
 
 def i1io_stored_white_help() -> str:

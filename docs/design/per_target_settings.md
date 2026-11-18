@@ -272,6 +272,34 @@ Opening a chart whose page is stored in pixels (or inches) SHOWS that unit
 for that chart without writing `page_output_units`. The patch set editor's
 hidden copy of the panel has no Units choice.
 
+### 1.9 ⏳ Awaiting confirmation: the i1iO table's own "-p" default (4.3.45, Beta on)
+
+**Confirmed by:** *nobody yet.*
+
+The owner, 2026-11-18: *"patch by patch being default is ok but the user should be able to
+disable the patch by patch option to try strip reading and if it works save it as default for
+the device"*. "Patch-by-patch mode (-p)" stays a per-target Measure setting (§1.2); the table
+gets a saved default of its OWN, beside the hand instruments' (`measure_patch_by_patch`,
+`manual2_chartread_pbp`) and the CR30's lock, so none overwrites another.
+
+| rank | where "-p" comes from when a table chart is loaded | |
+|---|---|---|
+| 1 | the target's own stored value (§4 S1-S3: a target with settings opens on its own) | per target |
+| 2 | the table's saved default (`i1io_table_patch_by_patch`): Save as Defaults with a table chart loaded, the offer after a clean strip measurement, or Preferences > Beta | per computer |
+| 3 | ticked (patch by patch) | factory |
+
+* The table's default fills only what §4 lets a saved default fill (S4, S5, S8, and a target
+  whose stored settings carry no "-p"); it never overrides a target's own value (§4c D-2).
+* Save as Defaults with a table chart loaded writes the table's default; the hand instruments'
+  "-p" defaults keep the person's own value, which is held aside while a table chart is loaded
+  (and comes back with the next hand chart). A CR30 chart keeps its lock and its own value.
+* The offer ("Reading rows as strips worked for this chart. Make it the default for the
+  table?", M-I1IO-DRIVE-STRIP-DEFAULT-OFFER, proposed) comes only after a complete table
+  measurement read as strips with no failed, skipped or re-read row, no row read patch by patch
+  instead, no Stop and no problem report, while the table's default is still patch by patch;
+  "Not now" is remembered and it is not offered again.
+* Beta off: none of this is read or written.
+
 ## 2. When settings are loaded
 
 Knut asked for this to be pinned down and checked:

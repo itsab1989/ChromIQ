@@ -12044,8 +12044,20 @@ M_I1IO_DRIVE_STRIP_OPTION = _m(
     "it patch by patch. A row that is too long for one strip move is read patch by patch "
     "by itself. If a strip move might still be waiting at the end, ChromIQ tells you to "
     "switch the table off with its power switch.\n\n"
-    "This choice is only for this chart. Load another chart and the option comes back as "
-    "you had it.",
+    "Every table chart starts ticked, unless you saved another choice for the table: Save "
+    "as Defaults on this tab keeps your choice for every table chart, and Preferences > "
+    "Beta can change it as well. A project that keeps its own setting opens with its own. "
+    "Charts for other instruments keep their own patch-by-patch setting.",
+    approved=False)
+
+M_I1IO_DRIVE_STRIP_DEFAULT_OFFER = _m(
+    "M-I1IO-DRIVE-STRIP-DEFAULT-OFFER",
+    "Reading rows as strips worked for this chart",
+    "Every row of this chart was read as a strip, and none of them failed or had to be read "
+    "again. Make reading rows as strips the default for the table? Every later table chart "
+    "then starts with “Patch-by-patch mode (-p)” not ticked. Reading by strips is still a "
+    "first try, and you can change this at any time with Save as Defaults on the Measure "
+    "tab or in Preferences > Beta.",
     approved=False)
 
 M_I1IO_DRIVE_STRIP_FIRST_TRY = _m(
@@ -12566,7 +12578,7 @@ I1IO_DRIVE_MESSAGES = (
     M_I1IO_DRIVE_OPTIONS_FIELDS, M_I1IO_DRIVE_MARKER, M_I1IO_DRIVE_START_UP,
     M_I1IO_DRIVE_GO, M_I1IO_DRIVE_SHEET_LAID, M_I1IO_DRIVE_ARM_FELT,
     M_I1IO_DRIVE_AIM, M_I1IO_DRIVE_AIM_BUTTON, M_I1IO_DRIVE_STRIP_OPTION,
-    M_I1IO_DRIVE_STRIP_FIRST_TRY, M_I1IO_DRIVE_STRIP_TOO_LONG,
+    M_I1IO_DRIVE_STRIP_FIRST_TRY, M_I1IO_DRIVE_STRIP_TOO_LONG, M_I1IO_DRIVE_STRIP_DEFAULT_OFFER,
     M_I1IO_DRIVE_ROW_FAILED_STRIP, M_I1IO_DRIVE_FRONT,
     M_I1IO_DRIVE_FRONT_YES,
     M_I1IO_DRIVE_FIRST_VISIT, M_I1IO_DRIVE_READER_CONSENT,
