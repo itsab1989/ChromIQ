@@ -505,3 +505,25 @@ def test_s1_every_hands_off_answer_is_held(hands_off_hold):
     shown |= {"Yes, it is centred, my hands are away"}
     assert set(W.HANDS_OFF_LABELS) == shown
 
+
+# ---- S-2: the strip offer's neutral answer stands where Close stands ----------------------------
+
+def test_s2_not_now_is_the_offers_confirming_answer(qtbot, monkeypatch, tmp_path, settings):
+    from tests.i1io_table.test_final_table_pbp_default import KEY, STRIP as PBP_STRIP, _measure
+    settings.set(KEY, True)
+    settings.set("i1io_table_strip_offer_declined", False)
+    try:
+        win, p = _measure(qtbot, monkeypatch, tmp_path, settings, PBP_STRIP)
+        assert "Reading rows as strips worked for this chart" in win._text.text()
+        box = win._answer_box
+        R = QDialogButtonBox.ButtonRole
+        roles = {b.text(): box.buttonRole(b) for b in box.buttons()}
+        assert roles["Not now"] == R.AcceptRole
+        assert roles["Yes, make strips the default"] == R.ActionRole
+        filled = [b.text() for b in box.buttons() if b.objectName() == "primary"]
+        assert filled == ["Not now"]
+        assert not any(b.isDefault() or b.autoDefault() for b in box.buttons())
+    finally:
+        settings.set(KEY, True)
+        settings.set("i1io_table_strip_offer_declined", False)
+

@@ -123,19 +123,28 @@ _ACCEPT_LABELS = (
     "As described, my hands are away", "Open the instrument", "Ready", "Seated",
     "Read it again", "Read it again as a strip", "Save and stop",
     "Yes, it is centred, my hands are away", "Go on", "Carry on", "Bring the arm home",
-    "Complete it", "Continue", "Measure the rest that way", "Yes, make strips the default",
+    "Complete it", "Continue", "Measure the rest that way", "Calibrate again",
     "Table's tile")
 _REJECT_LABELS = ("Not now", "Cancel", "No", "Back", "End this step", "Leave it there",
                   "Leave it to i1Profiler", "Keep measuring", "Not sure", "End measurement")
 _DESTRUCTIVE_LABELS = ("Discard and stop", "Discard it", "Send nothing more")
 
 
-def answer_role(label: str, alone: bool = False):
+#: answers whose role depends on the page (review 14, S-2: after a clean strip measurement the
+#: offer's neutral answer "Not now" stands where Close stands, and "Yes, make strips the
+#: default" is a plain answer beside it, never the filled one)
+_PAGE_ROLES = {("done", "Not now"): "accept", ("done", "Yes, make strips the default"): "action"}
+
+
+def answer_role(label: str, alone: bool = False, page: str = ""):
     """The QDialogButtonBox role of one answer of the pop-up (*alone*: the page's only
     answer, which is then its confirming one, as "Close" in the hand path's windows)."""
     R = QDialogButtonBox.ButtonRole
     if alone:
         return R.AcceptRole
+    for (pg, english), role in _PAGE_ROLES.items():
+        if pg == page and label == tr(english):
+            return R.AcceptRole if role == "accept" else R.ActionRole
     if label in {tr(x) for x in _DESTRUCTIVE_LABELS}:
         return R.DestructiveRole
     if label in {tr(x) for x in _ACCEPT_LABELS}:
@@ -1966,7 +1975,7 @@ class TableMeasureWindow(QFrame):
                 # the hand path's windows' buttons (TablePopup), by role, in the height the
                 # application's button style gives them
                 b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-                role = answer_role(label, alone=len(buttons) == 1)
+                role = answer_role(label, alone=len(buttons) == 1, page=page_id)
                 if role == QDialogButtonBox.ButtonRole.AcceptRole and any(
                         r == QDialogButtonBox.ButtonRole.AcceptRole
                         for r in self._button_roles.values()):
