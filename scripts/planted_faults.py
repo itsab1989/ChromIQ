@@ -126,7 +126,7 @@ def run_tests(tree: Path, here: Path, tests, pytest_args, python: str, timeout: 
     t0 = time.monotonic()
     try:
         proc = subprocess.run(cmd, cwd=tree, env=env, capture_output=True, text=True,
-                              timeout=timeout)
+                              encoding="utf-8", errors="replace", timeout=timeout)
         rc, output = proc.returncode, proc.stdout + proc.stderr
     except subprocess.TimeoutExpired as exc:
         rc = -1

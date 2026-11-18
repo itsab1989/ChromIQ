@@ -427,6 +427,16 @@ def test_the_table_object_is_private_and_nothing_outside_the_package_writes_to_i
     # only inside a function (lazily, after START on an i1iO chart with the Beta on), never at
     # module level
     lazy_ok = {"ui/i1io_table_window.py", "workflow/i1io/table_settle.py"}
+    # 2026-11-18: two developer TOOLS, not the app. The recording tools' i1iO 2 plug-in and
+    # their synthetic recording import the app's allow-list rather than copy it; nothing in the
+    # app imports them (tests/test_i1io_table_not_reached_by_the_app.py). They may import only
+    # inside a function (lazily) and only the read-only modules (constants, the line format,
+    # the allow-list, the move builders), and never name the table object, a job or its
+    # ``._table``.
+    tools_ok = {"scripts/recordings/plugins/i1io2_table.py": None,
+                "scripts/recordings/synthetic.py": None}
+    tool_modules = {"workflow.i1io.table." + m
+                    for m in ("geometry", "lines", "reader", "session_table")}
     offenders = []
     for base in ("core", "ui", "workflow", "scripts"):
         for f in (ROOT / base).rglob("*.py"):
@@ -439,6 +449,27 @@ def test_the_table_object_is_private_and_nothing_outside_the_package_writes_to_i
             mentions_job = "TableJob" in text
             rel = f.relative_to(ROOT).as_posix()
             top = {id(n) for n in tree.body}
+            if rel in tools_ok:
+                tools_ok[rel] = "seen"
+                for n in ast.walk(tree):
+                    if (isinstance(n, ast.Attribute) and n.attr in ("_table", "Table", "TableJob")
+                            or isinstance(n, ast.Name) and n.id in ("Table", "TableJob")):
+                        offenders.append(f"{rel}: names the table object or a job")
+                    if not isinstance(n, (ast.Import, ast.ImportFrom)):
+                        continue
+                    mod = getattr(n, "module", "") or ""
+                    names = ([a.name for a in n.names] if isinstance(n, ast.Import) else
+                             [f"{mod}.{a.name}" for a in n.names] if mod == "workflow.i1io.table"
+                             else [mod] + [f"{mod}.{a.name}" for a in n.names])
+                    hits = [x for x in names if x.startswith("workflow.i1io")]
+                    if hits and id(n) in top:
+                        offenders.append(f"{rel}: imports the table package at module level")
+                    for x in hits:
+                        if x in ("workflow.i1io", "workflow.i1io.table") or (
+                                x.startswith("workflow.i1io.table") and not any(
+                                    x == m or x.startswith(m + ".") for m in tool_modules)):
+                            offenders.append(f"{rel}: imports {x}")
+                continue
             for n in ast.walk(tree):
                 if rel in lazy_ok and id(n) not in top:
                     if mentions_job and isinstance(n, ast.Attribute) and n.attr == "_table":
@@ -454,6 +485,7 @@ def test_the_table_object_is_private_and_nothing_outside_the_package_writes_to_i
                            for x in names):
                         offenders.append(f"{f.relative_to(ROOT)}: imports the table package")
     assert offenders == []
+    assert all(v == "seen" for v in tools_ok.values()), tools_ok   # the allowance is used
     # inside the package only the job and the scan path call the table's writers
     for f in TABLE.glob("*.py"):
         if f.name in ("job.py", "scan.py", "session_table.py"):

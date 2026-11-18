@@ -60,7 +60,7 @@ def test_the_check_mode_writes_nothing(tmp_path):
     before = (ROOT / "docs" / "dev_tools_index.md").read_bytes()
     proc = subprocess.run([sys.executable, str(ROOT / "scripts" / "make_tools_index.py"),
                            "--check"], cwd=tmp_path, capture_output=True, text=True,
-                          timeout=300)
+                          encoding="utf-8", errors="replace", timeout=300)
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert (ROOT / "docs" / "dev_tools_index.md").read_bytes() == before
 
