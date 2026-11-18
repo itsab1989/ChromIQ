@@ -107,3 +107,107 @@ def test_the_check_is_not_empty():
     assert {"i1pro_trigger_one_measure", "i1pro2_getUVvolts", "i1pro_readmeasurement"} <= d
     h = _calls(HELPER)
     assert {"it->read_strip", "i1pro2_cq_dual_tile", "i1pro2_cq_dual_spot_uv"} <= h
+
+
+# --------------------------------------------- the allow-list as THE rule (safety fix, S1)
+#
+# The two tests above allow a function by name; this one follows every allowed function into
+# ArgyllCMS's driver (i1pro_imp.c, i1pro.c and the dual file itself, function references
+# included, so a trigger THREAD counts as reached) and collects every USB request any of them
+# can send. The result must be exactly the table below; a new request anywhere on these paths
+# fails here until someone has read what it sends.
+
+INSTLIB = ROOT / "native" / "instlib"
+
+#: every USB sender reachable from the dual scan's entry points: (function, kind, code) -> why
+REACHABLE_SENDERS = {
+    ("i1pro2_delayed_trigger", "control", "0xD4"): "the i1Pro 2 measurement trigger (recorded)",
+    ("i1pro2_getUVvolts", "control", "0xD8"): "the UV LED's volts, read only (recorded)",
+    ("i1pro_readmeasurement", "read", "0x82"): "the readings of a trigger",
+    ("cq_ruler_thread", "read", "0x85"): "the ruler stream, read only (the ruler check's reader)",
+    ("i1pro_waitfor_switch_th", "read", "0x84"): "the instrument's button, read only",
+    # the lights Beta's own recorded light program, before a trigger, only with that Beta on
+    ("cq_lights_send", "control", "0xD6"): "lights Beta only: its recorded OFF_SLOW",
+    ("cq_lights_send", "write", "0x03"): "lights Beta only: its recorded OFF_SLOW",
+    # the i1Pro Rev A-D's own path; the dual scan is offered only for an i1Pro 2
+    ("i1pro_delayed_trigger", "control", "0xC0"): "Rev A-D trigger (p->dtype != instI1Pro2)",
+    ("i1pro_getmcmode", "control", "0xD1"): "Rev A-D clock mode (the else of dtype == instI1Pro2)",
+    ("i1pro_setmcmode", "control", "0xCF"): "Rev A-D clock mode (the else of dtype == instI1Pro2)",
+    ("i1pro_setmeasparams", "control", "0xC1"): "Rev A-D parameters (p->dtype != instI1Pro2)",
+}
+
+
+def _driver_defs() -> "dict[str, str]":
+    src = ""
+    for f in ("i1pro_imp.c", "i1pro.c", "cq_i1pro2_dual.h"):
+        t = (INSTLIB / f).read_text(encoding="latin-1")
+        src += re.sub(r"/\*.*?\*/", "", t, flags=re.S)
+    defs = {}
+    for m in re.finditer(r"^(?:[A-Za-z_][\w\*]*[ \t\*]+)*\**(\w+)\s*\(([^;{}()]*(?:\([^()]*\)[^;{}()]*)*)\)\s*\{",
+                         src, flags=re.M):
+        defs[m.group(1)] = src[m.end():src.find("\n}\n", m.end())]
+    return defs
+
+
+def _reachable(defs, start) -> "set[str]":
+    seen, todo = set(), list(start)
+    while todo:
+        f = todo.pop()
+        if f in seen or f not in defs:
+            continue
+        seen.add(f)
+        todo += [n for n in re.findall(r"\b([A-Za-z_]\w*)\b", defs[f]) if n in defs]
+    return seen
+
+
+def _senders(defs, names) -> "set[tuple[str, str, str]]":
+    out = set()
+    for f in names:
+        for kind, args in re.findall(r"usb_(control|read|write)\s*\(([^;]*?)\)\s*\)?\s*[;!=<>]", defs[f],
+                                     flags=re.S):
+            a = [x.strip() for x in args.split(",")]
+            code = a[2] if kind == "control" else a[2]
+            out.add((f, kind, "0x%02X" % int(code, 16)))
+    return out
+
+
+def test_every_request_the_dual_scan_can_reach_is_one_we_have_read():
+    defs = _driver_defs()
+    api = set(re.findall(r"\b(i1pro2_cq_dual_\w+)\s*\(", (INSTLIB / "cq_dual.h").read_text(encoding="utf-8")))
+    assert api and api <= set(defs), sorted(api - set(defs))
+    drv = {n for n in DRIVER_MAY_CALL if n in defs}
+    start = api | drv | {"i1pro_read_strip"}     # the helper's it->read_strip is ArgyllCMS's
+    found = _senders(defs, _reachable(defs, start))
+    assert found == set(REACHABLE_SENDERS), (
+        f"new: {sorted(found - set(REACHABLE_SENDERS))}; gone: {sorted(set(REACHABLE_SENDERS) - found)}")
+    # never an EEPROM write, an indicator program of i1Profiler's, a ruler stop
+    reach = _reachable(defs, start)
+    for never in ("i1pro_writeEEProm", "i1pro2_indLEDseq", "i1pro2_indLEDoff", "i1pro2_stop_ruler",
+                  "i1pro_update_log"):
+        assert never not in reach, never
+
+
+def test_the_rev_a_to_d_senders_hang_only_off_the_rev_a_to_d_branches():
+    """0xC0 / 0xC1 / 0xCF / 0xD1 are reachable by name only: each is called from
+    i1pro_trigger_one_measure (or its Rev A-D trigger) behind ``p->dtype != instI1Pro2`` or in the
+    ``else`` of ``p->dtype == instI1Pro2``, and the dual scan refuses anything but an i1Pro 2
+    (i1pro2_cq_dual_options)."""
+    defs = _driver_defs()
+    reach = _reachable(defs, {"i1pro_read_strip"} | {n for n in DRIVER_MAY_CALL if n in defs})
+    rev_ad = {"i1pro_delayed_trigger", "i1pro_getmcmode", "i1pro_setmcmode", "i1pro_setmeasparams",
+              "i1pro_triggermeasure"}
+    parents = {s: {f for f in reach if f != s and re.search(r"\b" + s + r"\b", defs[f])} for s in rev_ad}
+    assert parents["i1pro_delayed_trigger"] == {"i1pro_triggermeasure"}
+    for s in ("i1pro_getmcmode", "i1pro_setmcmode", "i1pro_setmeasparams", "i1pro_triggermeasure"):
+        assert parents[s] == {"i1pro_trigger_one_measure"}, (s, parents[s])
+    body = defs["i1pro_trigger_one_measure"]
+    rev_e = body.index("if (p->dtype == instI1Pro2) {")
+    other = body.index("} else {", rev_e)
+    for s in ("i1pro_getmcmode", "i1pro_setmcmode"):
+        assert all(m.start() > other for m in re.finditer(r"\b" + s + r"\(", body)), s
+        assert s not in body[rev_e:other]
+    for s in ("i1pro_setmeasparams", "i1pro_triggermeasure"):
+        for m in re.finditer(r"\b" + s + r"\(", body):
+            assert "p->dtype != instI1Pro2" in body[max(0, m.start() - 200):m.start()], s
+    opts = defs["i1pro2_cq_dual_options"]
+    assert "p->dtype != instI1Pro2" in opts.split("if (!on)")[0]

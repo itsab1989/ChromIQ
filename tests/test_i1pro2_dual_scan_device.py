@@ -274,3 +274,21 @@ def test_every_reason_the_device_side_gives_has_a_sentence():
     ids |= set(re.findall(r'return "([a-z_]+)"', (HELPER / "chromiq_dualscan.c").read_text(encoding="utf-8")))
     missing = sorted(i for i in ids if i not in REASONS and not i.startswith("dual_") and i != "ok")
     assert not missing, missing
+
+
+def test_s2_every_pass_refusal_says_what_the_instrument_path_does():
+    """Safety review S2: on a hand strip a failed pass makes the strip a misread and BOTH passes
+    are read again (provisional for the first Beta, spec section 0 (a)), so no pass refusal may
+    say "the first pass is kept"; each says both passes come again."""
+    from workflow.dual_scan.reasons import REASONS
+    src = _code((HELPER / "chromiq_dualdev.c").read_text(encoding="utf-8"))
+    i = src.index("static int cq_dd_pass_level(")
+    ids = set(re.findall(r'"([a-z_]+)"', src[i:src.index("\n}\n", i)])) - {"lamp"}
+    assert {"uv_pass_wrong_strip", "uv_pass_too_long", "uv_spot_failed"} <= ids
+    for rid in ids:
+        text = REASONS[rid]
+        assert "first pass is kept" not in text, rid
+        if rid == "uv_spot_failed":
+            assert "both readings are made again" in text
+        elif rid != "no_ruler":
+            assert "both passes" in text and "the first pass is read again too" in text, rid
