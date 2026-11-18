@@ -902,11 +902,74 @@ in-app drive has still not run on a real table.
   that could not be read plays "Strip read failed" (as "Patch read failed"); a refusal, a stop, a
   failed opening, an error, the stored-white notice and the switched-off-first question play
   "Instrument error"; every other question plays none (as the hand path's "Calibrate the
-  instrument" and the pause after a page). These rows are not in that document's generated tables
-  yet.
+  instrument" and the pause after a page). These rows are not in that document's generated tables;
+  its §4k points here.
 * **Quit, close box, logout** during a quiet session go through the same table ending as in the
   panel: with a pop-up open the ending opens in it; while a step runs the table stops before its
   next move first.
+
+### ⏳ Awaiting confirmation: the last fix round before 4.3.45 (review 14, 2026-11-18)
+
+**Confirmed by:** *nobody yet.*
+
+Built and tested against the simulated table (`tests/i1io_table/test_last_review14_fixes.py`,
+and the reviewer's own walker and probes, copied as `test_review14_walker.py` and
+`test_review14_probes.py`); not run on a real table.
+
+* **The switch-off message comes first (M-1).** Whenever a move may still be waiting or a movement
+  (or the start-up) was not reported as finished (the job's way back is `switch_off_pending`,
+  `switch_off_unfinished`, `link_lost_switch_off_first` or `cold_way_out`, or its true state says
+  so), M-I1IO-DRIVE-SWITCH-OFF (or its link-lost / start-up sibling) is the first thing shown, in
+  both presentations. A step's result that says so is never kept behind the problem window: Report
+  a problem pressed during that step (the panel's page, or the tab's button in quiet mode) gives
+  way to it, and the note field and Report a problem stay on it. Every later page starts with
+  "Switch the table off now with its power switch: a move may still be waiting, or a movement was
+  not reported as finished." unless it is a switch-off message itself, and the ending leaves out
+  M-I1IO-DRIVE-END (which offers the homing). The switch-off line, Stop and Report a problem are
+  never hidden while the table is open in that state (`moving_changed(True)` in quiet mode), and
+  the panel's switch-off line stays even after the table has been let go of.
+* **Where the arm is, from the true state (M-1).** After a reported problem: the switch-off message
+  in that state; M-I1IO-DRIVE-HOME-OFFERED when ChromIQ can bring the arm home; M-I1IO-DRIVE-AFTER-
+  PROBLEM ("at its resting place") only when the table reported the arm there (`at_rest`, or the
+  recorded homing finished); otherwise M-I1IO-DRIVE-AFTER-PROBLEM-OUT with the place the table
+  last reported, the switch-off sentence, and Stop and the switch-off line kept (e.g. after "It
+  does not move" at the alignment start, where the homing is refused).
+* **One white reference per session (M-2).** The session's reference ("stored" or "own") is
+  decided once, at its first calibration (or by its first row under -N), and kept for every later
+  calibration. A later calibration that cannot use the table's stored values is refused
+  (`stored_white_refused_later`): nothing is read with it, and M-I1IO-DRIVE-WHITE-LATER-REFUSED
+  offers "Save what was read and end" and "Calibrate again" (plays Instrument error). A session
+  that started with the i1Pro 2's own reference keeps it. A resume, a refinement or an adopted
+  interrupted session whose readings were made with the other reference than the option asks is
+  refused before anything is opened (`built_on_another_white_reference`), with
+  M-I1IO-DRIVE-WHITE-BASE-STORED or M-I1IO-DRIVE-WHITE-BASE-OWN, which name the option in
+  Preferences > Beta and the other way (measure the chart again).
+* **The hands-off answers wait a moment (S-1).** An answer that IS the hands-off confirmation
+  (Go, "Start the table, my hands are away", "The page is laid, and my hands are away from the
+  table", "Make this move, my hands are away", "As described, my hands are away", "Yes, it is
+  centred, my hands are away") is pressable only 0.6 s (`HANDS_OFF_READY_MS`) after its page is
+  shown, in both presentations; until then it is disabled, in the same size, with a dashed frame
+  in the pop-up. The instrument's button as Aimed has the same minimum after its wait is armed
+  (`BUTTON_MIN_MS`, before 0.4 s).
+* **The strip offer (S-2).** "Not now" is the offer's confirming answer (the place and fill of
+  Close); "Yes, make strips the default" is a plain answer.
+* **How to stop, in every window that moves at once (S-3).** The pages after whose answer the arm
+  moves at once (`MOVES_AT_ONCE_PAGES`: go, start_up, sheet_laid, first_visit, check_mark,
+  report_after_step) end with "To stop the arm at once, switch the table off at its power
+  switch." when their text does not say it already, in both presentations (one definition).
+* **The tab's Stop (S-4).** While a quiet table session is open the Measure tab's Stop has the
+  panel's red Stop look (`stop_button_qss`, without the panel's own size), disabled grey when
+  nothing can move; a hand measurement's Stop is unchanged.
+* **On the screen (S-5).** The pop-up's whole frame is kept inside the available area of the
+  screen it opens on, on all four edges, after every show and re-fit; a remembered place on a
+  screen that is gone opens it at the default place.
+* **One wording for both presentations (S-6).** "ChromIQ still asks you on screen" (not "here,
+  in this panel"); M-I1IO-DRIVE-REFUSED says the true state "is shown on the Measure tab".
+* **Attention (S-8).** A pop-up that opens while ChromIQ is not the active application calls
+  `QApplication.alert` (the Dock icon bounces, the taskbar button flashes); nothing is raised or
+  activated, so the keyboard stays where the person types.
+* **Sounds.** M-I1IO-DRIVE-WHITE-LATER-REFUSED plays Instrument error; `measurement_window_sounds.md`
+  §4k points here, and a test checks every `POPUP_SOUND` name against `core.sound`.
 
 ### ⏳ Awaiting confirmation: the quiet round's panel fixes (2026-11-18)
 
