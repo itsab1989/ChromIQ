@@ -517,6 +517,10 @@ class FakeHelperProc:
             self.read[loc] = [sid, xyz, spec]
             self._emit({"event": "patch_read", "id": sid, "loc": loc, "xyz": xyz,
                         "exyz": [50.0, 50.0, 50.0], "de": 1.0})
+            # NOT simulated: the real helper also autosaves the .ti3 after every spot reading
+            # ({"event":"saved"}; test_engine_spot.py::test_each_patch_read_autosaves). Several
+            # tests here assume a row's earlier readings are lost when its reader dies (review
+            # of 4.3.46, REVIEW.md); the app's assembly takes them either way.
             if self.at + 1 < len(self.patches):
                 self.at += 1
             self._ready()
@@ -533,6 +537,14 @@ class FakeHelperProc:
             self._alive = False
 
     def _save(self) -> None:
+        """The real helper's end ("done"): chartread writes the .ti3, says {"event":"done"} and
+        ends (chromiq_chartread.c, after read_strips; it sends no "saved" there: that is the
+        autosave's word). Until 4.3.46 this simulator answered "saved" and stayed alive."""
+        self._write(event=False)
+        self._emit({"event": "done"})
+        self._die()
+
+    def _write(self, event: bool = True) -> None:
         path = self.cwd / f"{self.name}.ti3"
         if self.read:
             fields = ["SAMPLE_ID", "SAMPLE_LOC", "RGB_R", "RGB_G", "RGB_B"]
@@ -566,7 +578,8 @@ class FakeHelperProc:
                 lines.append(" ".join(row))
             lines += ["END_DATA", ""]
             path.write_text("\n".join(lines), encoding="ascii")
-        self._emit({"event": "saved", "path": str(path), "read_patches": len(self.read)})
+        if event:
+            self._emit({"event": "saved", "path": str(path), "read_patches": len(self.read)})
 
     # ---- reader._Proc's interface --------------------------------------------------------------
     def alive(self) -> bool:
