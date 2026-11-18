@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **The scan arrow on the Measure tab sits on its strip at every preview size.** At a small preview the arrow leaned a quarter of a strip towards the next one, because the two extra pixels that make it a little wider than the strip all went to its right side. It is now centred on the strip.
+
 ## v4.3.46
 
 **For everyone updating from 4.3.45: this version is for owners of an X-Rite i1iO 2 table who try the beta option “X-Rite i1iO support”. When 4.3.45 drove a real table itself, every measurement stopped at the white calibration at its start. That was a fault of ours, and it is fixed. On Windows, ChromIQ now offers to install the driver the table needs, the same way as for your measuring instruments, and the ARM64 version of ChromIQ can drive the table on Windows for ARM computers. With the beta option off, which is the default, nothing changes: your charts, measurements and profiles are made exactly as with 4.3.45.**
