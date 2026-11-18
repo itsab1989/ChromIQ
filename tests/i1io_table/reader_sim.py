@@ -4,7 +4,7 @@
 replaces ``reader._Proc`` while a ``reader.SpotReader`` is built, so the job's readings go
 through the app's own ``SpotReader`` code (open, goto, read, finish, close) and every start is
 recorded with its exact arguments. It speaks the helper's JSON events as
-``native/chartread_helper`` emits them (instrument, cal_required, cal_result, spot_ready,
+``native/chartread_helper`` emits them (instrument, cal_required, cal_done, spot_ready,
 patch_read, unread_confirm, saved, error), on the table simulator's clock, and reads whatever
 stands under the simulated sensor. Like ArgyllCMS (ENABLE_NONVCAL) a calibration made by one
 reader is found by the next. It writes the row's .ti3 as chartread does when told "done".
@@ -456,12 +456,17 @@ class FakeHelperProc:
         cmd = obj.get("cmd")
         if cmd == "ok" and self.state == "cal":
             sim.clock += 3.0
+            # the events of the REAL helper for the calibration a session starts with
+            # (chromiq_cal.c: "cal_done"; a failure is an "error" of kind "cal_failed").
+            # Until 4.3.46 this simulator sent "cal_result", the event of a calibration the
+            # person asks for, and so hid that the reader never saw a white on a real i1Pro 2.
             if self._cal_fault == "cal_fails":
-                self._emit({"event": "cal_result", "result": "failed"})
+                self._emit({"event": "error", "kind": "cal_failed",
+                            "detail": "simulated calibration failure"})
                 return
             h.calibrated = True
             h.calibrations += 1
-            self._emit({"event": "cal_result", "result": "done"})
+            self._emit({"event": "cal_done"})
             self._ready()
         elif cmd == "goto":
             loc = obj.get("patch")

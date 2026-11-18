@@ -428,7 +428,8 @@ class SpotReader:
         must be); a request that is not answered True ends the reader."""
         end = time.monotonic() + timeout
         while True:
-            ev = self.proc.wait(("spot_ready", "cal_required", "cal_result", "instrument"),
+            ev = self.proc.wait(("spot_ready", "cal_required", "cal_done", "cal_result",
+                                 "instrument"),
                                 max(0.0, end - time.monotonic()))
             if ev is None:
                 raise ReaderFailed("the reader did not get ready within "
@@ -442,10 +443,22 @@ class SpotReader:
                     raise ReaderFailed("the calibration was not done")
                 self.proc.send({"cmd": "ok"})
                 end = time.monotonic() + 60.0
+            elif k == "cal_done":
+                # 4.3.46 (the first run of the drive on a real table, 18 Nov 2026): the
+                # calibration the instrument asks for when a session starts ends with the
+                # helper's "cal_done" (native/chartread_helper/chromiq_cal.c). This reader
+                # waited only for "cal_result", which the helper sends for a calibration the
+                # PERSON asked for, so on a real i1Pro 2 no white ever counted and every table
+                # measurement ended at the calibration (the job's "not confirmed" refusal). The
+                # simulated reader sent "cal_result", which is why no test saw it.
+                self.calibrated = True
             elif k == "cal_result":
                 if ev.get("result") != "done":
                     raise ReaderFailed(f"the calibration ended with '{ev.get('result')}'")
                 self.calibrated = True
+            elif k == "error" and ev.get("kind") == "cal_failed":
+                # the helper's own word for a calibration that failed at the start of a session
+                raise ReaderFailed("the calibration ended with 'failed'")
             elif k in ("helper_gone", "error"):
                 raise ReaderFailed(f"the reader reported {ev}")
 
