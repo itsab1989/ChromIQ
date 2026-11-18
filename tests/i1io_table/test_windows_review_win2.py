@@ -345,3 +345,33 @@ def test_the_old_drivers_fake_the_list_as_the_window_now_calls_it(script):
     assert fakes
     for fake in fakes:
         assert fake.args.kwarg is not None, script
+
+
+# ---- F-S2 / F-S3: the texts say what is not tried, and Windows 10/11's extra step -------------
+
+def test_the_x64_on_arm_message_says_what_nobody_has_tried():
+    """F-S3: neither the ARM64 build's table install nor its opening has been tried; the text
+    may not state either as fact, and says so in the way the way back does."""
+    from workflow import measurement_messages as M
+    msg = M.M_I1IO_DRIVE_USB_NOT_ON_THIS_SYSTEM
+    assert not msg.approved and msg.id in M.PROPOSED
+    _t, body = msg.render()
+    flat = " ".join(body.split())
+    assert "ChromIQ has not yet tried either version with a table on an ARM computer" in flat
+    assert "It reaches the table through the same driver" not in flat
+    assert "can install that driver for the table" not in flat
+    assert "—" not in body
+
+
+def test_the_way_back_names_the_browse_step_without_claiming_it():
+    """F-S2 (not verified on a real Windows): Windows 10 and 11 may ask "Browse my computer for
+    drivers" before the pick-from-a-list choice; the text is right whether or not it asks, and
+    says the step is not the guide's."""
+    from ui.dialogs import settings_dialog as sd
+    window = sd.usb_table_text([udi.TableUsbDevice("0971", "2004", "X-Rite i1iO 2 table", False)],
+                               button="Install Driver for the Table")
+    flat = " ".join(window.split())
+    assert ("If Windows asks how you want to search for drivers before it offers the choice to "
+            "pick from a list, choose “Browse my computer for drivers” first") in flat
+    assert "that step is not in the guide" in flat
+    assert flat.index("Browse my computer") > flat.index("let me pick from a list")

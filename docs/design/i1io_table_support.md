@@ -1060,3 +1060,37 @@ is his; the behaviour below is what was built from it and awaits his confirmatio
   in a Windows 11 ARM64 virtual machine without a table or an i1Pro 2 (the ARM64 `libusb0.dll`
   loads in an ARM64 process, pyusb's libusb0 backend starts on it, the cfgmgr32 list works); no
   USB transfer to a table and no measurement has run on an ARM computer.
+
+### ⏳ Awaiting confirmation: review WIN2 of the Windows driver help (2026-11-18)
+
+**Confirmed by:** *nobody yet.*
+
+* **USB hubs are hubs (F-M1).** The cfgmgr32 list carries no device class, and a hub chip can
+  carry an instrument maker's vendor id (WCH's CH334/CH335 hubs are 1A86:8091, in very many cheap
+  hubs and docks; Microchip's carry 04D8; a hub could carry X-Rite's 0971). Such a hub was
+  counted as "another measuring instrument" and START was refused, on x64 Windows too. Hubs are
+  now named from the registry entry of each device instance (`Enum\USB\<ids>\<instance>`): a hub
+  driver's service (`usbhub`, `USBHUB3`, compared in any case, and the Windows 7 vendor USB 3 hub
+  drivers `iusb3hub`, `nusb3hub`, `amdhub30`, `amdhub31`, `asmthub3`), or a hub-class compatible
+  id (`USB\Class_09...`, Windows' copy of the device class 9 the libusb route and macOS already
+  used). The class test is the main one and catches any other hub driver. When the registry
+  cannot be read, no hub is marked (the behaviour before). Nothing here opens a device.
+* **A table that is not connected (F-M2).** On Windows, a table that is neither present nor ever
+  seen, or only remembered by Windows, gets M-I1IO-DRIVE-TABLE-NOT-FOUND ("ChromIQ did not find
+  the table"), not the driver offer, which would lead into an Instrument drivers window that
+  lists no table. A table whose USB ids cfgmgr32 lists, but under an instance id the registry
+  keys do not rebuild, still counts as present (as in the Instrument drivers window).
+* **The x64 build on a Windows for ARM computer is refused first (F-S1).** Before the "ready to
+  open" question and whatever the drivers' states: M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM. That
+  process can never drive the table, so the person is not asked to prepare the table first.
+* **M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM says what is untried (F-S3):** that neither version has
+  yet been tried with a table on an ARM computer, and asks to hear how it went.
+* **The way back, the Windows 10 and 11 step (F-S2, NOT verified on a real Windows).** The
+  Instrument drivers window's paragraph adds: if Windows asks how to search for drivers before
+  it offers the choice to pick from a list, choose "Browse my computer for drivers" first (on
+  some versions "Browse my computer for driver software"), and says that step is not in the
+  guide. Worded so that it is right whether or not Windows asks it; to be checked in the virtual
+  machine.
+* **cfgmgr32 asked again when the list grew (N1).** A device plugged in between the size call and
+  the list call (CR_BUFFER_SMALL) makes ChromIQ ask again, up to three times, instead of "cannot
+  tell" and a refused START.

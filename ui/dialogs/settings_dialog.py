@@ -748,6 +748,9 @@ def usb_table_text(devices, tables_not_offered=(), button: "str | None" = None,
         # reportedly avoids the need to manually switch drivers". The menu names are the
         # guide's own, quoted exactly; the guide does not document re-running X-Rite's
         # installer, so that is no longer said. Not tried with a table, and said so.
+        # Review WIN2, F-S2 (NOT verified on a real Windows yet): Windows 10 and 11 put a
+        # "Browse my computer for drivers" page before the pick-from-a-list choice, which the
+        # guide does not show; worded so that it is right whether or not Windows asks it.
         parts.append(tr(
             "While the table has this driver, i1Profiler cannot use the table, as with any "
             "X-Rite instrument that has it."))
@@ -760,7 +763,11 @@ def usb_table_text(devices, tables_not_offered=(), button: "str | None" = None,
             "pick from a list of device drivers on my computer\u201d, choose X-Rite's driver "
             "from the list, and finish with Next and Close. These "
             "names are the ones in that guide; Windows 10 and 11 may word them a little "
-            "differently. ChromIQ has not yet tried these steps with a table. The same guide "
+            "differently. If Windows asks how you want to search for drivers before it offers "
+            "the choice to pick from a list, choose \u201cBrowse my computer for drivers\u201d "
+            "first (on some versions \u201cBrowse my computer for driver software\u201d); that "
+            "step is not in the guide. ChromIQ has not yet tried these steps with a table. The "
+            "same guide "
             "adds: if you switch often, you can try a different USB port for each driver, which "
             "reportedly saves switching by hand."))
     if tables_not_offered:
