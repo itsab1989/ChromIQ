@@ -3124,6 +3124,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         """
         if not hasattr(self, "_mode_row_widget"):
             return
+        if getattr(self, "_table_holds_the_mode_row", False):
+            # the i1iO table's panel has its room in a low window (quiet round, part 3)
+            self._mode_row_widget.setVisible(False)
+            return
         row = self._mode_row_widget
         self._mode_row_widget.setVisible(
             self._guided_btn.isVisibleTo(row)
@@ -7694,6 +7698,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             self._table_room_before["mode_row"] = not self._mode_row_widget.isHidden()
             self._table_room_before["file"] = not self._file_grp.isHidden()
             if top is not None and top.height() < self.TABLE_LOW_WINDOW:
+                self._table_holds_the_mode_row = True
                 self._mode_row_widget.setVisible(False)
                 self._file_grp.setVisible(False)
             return
@@ -7702,6 +7707,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             return
         self._table_room_before = None
         if "mode_row" in before:
+            self._table_holds_the_mode_row = False
             self._mode_row_widget.setVisible(before["mode_row"])
             self._file_grp.setVisible(before["file"])
         self._left_buttons.setVisible(before["buttons"])

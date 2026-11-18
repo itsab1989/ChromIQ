@@ -823,6 +823,8 @@ class _StatusLine(QLabel):
 
     def setText(self, text) -> None:      # noqa: N802 - Qt's own name
         super().setText(text)
+        # an empty line takes no room (quiet round, part 3: the smallest window's ending)
+        self.setVisible(bool(text))
         hook = self.on_text
         if hook is not None:
             hook(text)
@@ -1111,6 +1113,7 @@ class TableMeasureWindow(QFrame):
 
         # one line for what the panel is waiting for or what was just done
         self._status = _StatusLine("", self._answers)
+        self._status.setVisible(False)
         self._status.setObjectName("i1io_table_status")
         self._status.setWordWrap(True)
         av.addWidget(self._status)

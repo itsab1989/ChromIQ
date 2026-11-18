@@ -74,6 +74,8 @@ def test_the_ending_shows_answers_and_explanation_in_the_smallest_window(tab, be
     win = tab._table_window
     assert win.presentation == W.PRESENTATION_PANEL
     assert not tab._mode_row_widget.isVisible() and not tab._file_grp.isVisible()
+    tab._sync_mode_row_visibility()          # the tab's own re-show (seen on screen)
+    assert not tab._mode_row_widget.isVisible()
     p = WindowPerson(win, sim, lambda c: qtbot.waitUntil(c, timeout=15000))
     p.drive_until("end_of_session")
     qtbot.wait(250)
