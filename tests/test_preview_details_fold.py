@@ -118,6 +118,19 @@ def test_open_it_costs_no_pixel_and_folded_the_preview_gets_it_all(
         _show_chart(qapp, w, one_page_tif)
         tab = w._tab_chart
         prev = tab._preview
+        # a loaded run (the whole suite on every core) can still be laying the tab out after
+        # the two seconds above: measured red in four everyday runs of 2026-11-17/18 with the
+        # preview 15 px higher, green alone. Wait until the layout has settled (the same
+        # geometry for half a second, at most ten seconds), then compare as before.
+        import time
+        last, since, t0 = None, time.monotonic(), time.monotonic()
+        while time.monotonic() - t0 < 10:
+            qapp.processEvents()
+            now = (_geom(w, prev), _geom(w, tab._info_scroll))
+            if now != last:
+                last, since = now, time.monotonic()
+            elif time.monotonic() - since >= 0.5:
+                break
         lab = prev._page_label
         got = {"preview": _geom(w, prev), "nav": _geom(w, prev._nav),
                "page_centre_x": _geom(w, lab)[0] + lab.width() // 2,
