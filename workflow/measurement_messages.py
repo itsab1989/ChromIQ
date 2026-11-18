@@ -12001,7 +12001,7 @@ M_I1IO_DRIVE_ARM_FELT = _m(
     "Does the arm move freely?",
     "The table has let go of the arm. Please push it gently by hand, a few "
     "centimetres in each direction, and tell ChromIQ what you felt. Do not "
-    "force it: if it holds, it is still held by the table's motors.",
+    "force it: if it does not move, it is still held by the table's motors.",
     approved=False)
 
 M_I1IO_DRIVE_AIM = _m(
@@ -12301,8 +12301,8 @@ M_I1IO_DRIVE_LINK_LOST = _m(
     "in this order:\n\n"
     "1. ChromIQ has stopped and let go of the table.\n"
     "2. Switch the table off with its power switch, wait ten seconds and "
-    "switch it on again, or unplug the table's USB cable from the computer "
-    "and plug it in again.\n"
+    "switch it on again. Unplugging its USB cable is not enough, because that "
+    "does not switch the table off.\n"
     "3. Open i1Profiler 3.8.6 or older and let it find the table (it brings "
     "the arm home as usual).\n"
     "4. If i1Profiler does not find the table, restart the computer.\n\n"
@@ -12470,10 +12470,10 @@ M_I1IO_DRIVE_USB_LINUX_KERNEL_DRIVER = _m(
 
 M_I1IO_DRIVE_USB_GONE = _m(
     "M-I1IO-DRIVE-USB-GONE",
-    "The table disappeared",
-    "The table disappeared while ChromIQ was opening it (its USB cable or "
-    "its power). Nothing was sent. Please check both and press START "
-    "MEASUREMENT again.",
+    "ChromIQ lost the connection to the table",
+    "The table could no longer be found while ChromIQ was opening it: its "
+    "USB cable or its power may have been disconnected. Nothing was sent. "
+    "Please check both and press START MEASUREMENT again.",
     approved=False)
 
 M_I1IO_DRIVE_USB_UNEXPECTED = _m(

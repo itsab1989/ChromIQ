@@ -241,7 +241,7 @@ def choice_label(kind: str, value: str) -> str:
         # the step on screen says so
         ("sheet_laid", "stop"): tr("End this step"),
         ("arm_felt", "free"): tr("It moves freely"),
-        ("arm_felt", "holds"): tr("It holds"),
+        ("arm_felt", "holds"): tr("It does not move"),
         ("arm_felt", "not sure"): tr("Not sure"),
         ("aimed", "aimed"): tr("Aimed"),
         ("aimed", "stop"): tr("End this step"),
@@ -321,7 +321,7 @@ def step_done_text(step: str, detail: dict, page: "int | None" = None,
         status = detail.get("status", "")
         if reason in STOP_REASONS or reason == "stopped_by_person":
             return tr("The arm moved along row {row} of page {page}, but the row was not "
-                      "read to its end, because you stopped it.").format(row=row, page=pg)
+                      "read to its end, because you pressed Stop.").format(row=row, page=pg)
         if status in ("failed", "skipped") or reason == "stopped_after_a_failed_row" \
                 or (reason and status != "read"):
             return tr("The arm moved along row {row} of page {page}; the row could not be "
@@ -377,9 +377,6 @@ def option_text(flag: str, why: str) -> str:
         "the_table_knows_where_each_patch_is": tr(
             "the table knows where each patch is, so no strip is recognised"),
         "no_meaning_for_spot_readings": tr("the table reads one patch at a time"),
-        "strip_rows_not_built_spot_is_used": tr(
-            "reading whole strips with the table is not built yet, so ChromIQ reads patch by "
-            "patch"),
         "i1pro2_refuses_every_filter": tr("the i1Pro 2 cannot measure with a filter"),
         "external_values_not_with_the_table": tr(
             "values from another program cannot be combined with the table"),
@@ -394,7 +391,6 @@ def option_text(flag: str, why: str) -> str:
             "ChromIQ checks for itself which i1Pro 2 sits in the table's arm"),
         "the_reader_always_reports_the_instrument": tr(
             "ChromIQ always records which instrument it reads with"),
-        "spot_is_the_table_s_only_reading_for_now": tr("the table reads one patch at a time"),
         "the_table_moves_the_instrument": tr("the table moves the instrument"),
         "no_recogniser_the_table_reads_by_position": tr(
             "the table knows where each patch is, so no strip is recognised"),
@@ -407,7 +403,6 @@ def option_text(flag: str, why: str) -> str:
         "only_an_i1pro2_is_driven": tr("the table measures with an i1Pro 2 only"),
         "a_second_pass_is_filed_by_step_8": tr(
             "a second pass is not read by the table yet"),
-        "strip_rows_not_built": tr("reading whole strips with the table is not built yet"),
         # round B's strip reasons (integration for 4.3.45: each with a sentence, review 12 S-2)
         "xrga_not_with_strip_rows": tr(
             "when the table reads rows as strips, ChromIQ cannot convert the readings to "
@@ -1258,7 +1253,7 @@ class TableMeasureWindow(QFrame):
             lines.append(tr("Arm: out over the table; the table reports X {x}, Y {y} (in "
                             "tenths of a millimetre).").format(x=int(p[0]), y=int(p[1])))
         else:
-            lines.append(tr("Arm: where it is is not known."))
+            lines.append(tr("Arm: its position is not known."))
         pages = j.pages_in_chart()
         rows = self._rows_on_page()
         status = j.row_status.get(j.page, {})
@@ -1327,7 +1322,8 @@ class TableMeasureWindow(QFrame):
         elif kind == "row_end":
             if ev.get("status") == "read":
                 live["rows_read"].add(int(ev.get("row") or 0))
-                live["now"] = tr("Now: row {row} is read.").format(row=ev.get("row", "?"))
+                live["now"] = tr("Now: row {row} has been read.").format(
+                    row=ev.get("row", "?"))
             else:
                 live["now"] = tr("Now: row {row} could not be read.").format(
                     row=ev.get("row", "?"))

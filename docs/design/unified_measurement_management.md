@@ -10013,7 +10013,9 @@ alone.
 
 > **Does the arm move freely?**
 >
-> The table has let go of the arm. Please push it gently by hand, a few centimetres in each direction, and tell ChromIQ what you felt. Do not force it: if it holds, it is still held by the table's motors.
+> The table has let go of the arm. Please push it gently by hand, a few centimetres in each direction, and tell ChromIQ what you felt. Do not force it: if it does not move, it is still held by the table's motors.
+
+*Revised 2026-11-18 (final fix round of the i1iO table drive, the translation challenger's English doubts: the power switch is the way back everywhere, plainer words).*
 
 ### M-I1IO-DRIVE-AIM · PROPOSED · the job asks aimed, once per mark, Measure (the i1iO table window)
 
@@ -10320,11 +10322,13 @@ alone.
 > The table's USB connection was lost. The arm last reported {where}; what the table did after that, ChromIQ cannot know. The safe way back, in this order:
 >
 > 1. ChromIQ has stopped and let go of the table.
-> 2. Switch the table off with its power switch, wait ten seconds and switch it on again, or unplug the table's USB cable from the computer and plug it in again.
+> 2. Switch the table off with its power switch, wait ten seconds and switch it on again. Unplugging its USB cable is not enough, because that does not switch the table off.
 > 3. Open i1Profiler 3.8.6 or older and let it find the table (it brings the arm home as usual).
 > 4. If i1Profiler does not find the table, restart the computer.
 >
 > Please do not press START MEASUREMENT again before i1Profiler has found the table. Your readings so far are kept. The diagnostics file is {log}.
+
+*Revised 2026-11-18 (final fix round of the i1iO table drive, the translation challenger's English doubts: the power switch is the way back everywhere, plainer words).*
 
 ### M-I1IO-DRIVE-LINK-LOST-SWITCH-OFF · PROPOSED · way back link_lost_switch_off_first, Measure (the i1iO table window)
 
@@ -10469,9 +10473,11 @@ alone.
 
 *New 2026-11-17 (build step 9 of the i1iO table drive, inside the Beta "X-Rite i1iO support"; drafts of STEP4_PROPOSAL section 3 and the job's confirmations). Shown in betas as a proposed text (Knut, 2026-10-14); approved afterwards.*
 
-> **The table disappeared**
+> **ChromIQ lost the connection to the table**
 >
-> The table disappeared while ChromIQ was opening it (its USB cable or its power). Nothing was sent. Please check both and press START MEASUREMENT again.
+> The table could no longer be found while ChromIQ was opening it: its USB cable or its power may have been disconnected. Nothing was sent. Please check both and press START MEASUREMENT again.
+
+*Revised 2026-11-18 (final fix round of the i1iO table drive, the translation challenger's English doubts: the power switch is the way back everywhere, plainer words).*
 
 ### M-I1IO-DRIVE-USB-UNEXPECTED · PROPOSED · any other USB error while opening, Measure (the i1iO table window)
 

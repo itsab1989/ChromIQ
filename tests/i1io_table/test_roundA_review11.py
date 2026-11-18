@@ -222,7 +222,7 @@ def test_s4_texts():
                                                                "status": "skipped"})
     assert "could not be read" in W.step_done_text("read_row", {"row": 2},
                                                    page=1, reason="stopped_after_a_failed_row")
-    assert "you stopped it" in W.step_done_text("read_row", {"row": 2}, page=1,
+    assert "you pressed Stop" in W.step_done_text("read_row", {"row": 2}, page=1,
                                                 reason="stopped_between_patches")
 
 

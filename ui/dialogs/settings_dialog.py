@@ -3869,10 +3869,10 @@ class SettingsDialog(QDialog):
             self._i1io_ask_check = QCheckBox(
                 tr("Ask after each step of a table measurement"), self)
             self._i1io_ask_check.setToolTip(tr(
-                "While this is on, the i1iO table asks after every step "
-                "whether it did what was described. It is on for your first "
-                "measurement with the table; at the end of a measurement that "
-                "went well, ChromIQ offers to switch it off."))
+                "While this is on, ChromIQ asks after every step of an i1iO "
+                "table measurement whether the table did what was described. It "
+                "is on for your first measurement with the table; at the end of "
+                "a measurement that went well, ChromIQ offers to switch it off."))
             _i1ioask = QHBoxLayout()
             _i1ioask.setContentsMargins(28, 0, 0, 0)
             _i1ioask.addWidget(self._i1io_ask_check)

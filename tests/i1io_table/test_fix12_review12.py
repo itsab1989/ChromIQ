@@ -415,8 +415,7 @@ def test_s2_every_option_reason_of_the_table_job_has_a_sentence():
     whys = set(sp.NO_MEANING.values()) | set(sp.REFUSED.values()) \
         | set(sp.NO_MEANING_STRIP.values()) | set(sp.REFUSED_STRIP.values()) \
         | {w for _k, w in sp.SETTINGS.values()} \
-        | {"xrga_value_unknown", "option_unknown_to_the_table_job",
-           "strip_rows_not_built_spot_is_used"}
+        | {"xrga_value_unknown", "option_unknown_to_the_table_job"}
     for why in sorted(whys):
         line = W.option_text("-Q", why)
         assert not _ID.search(line), line
