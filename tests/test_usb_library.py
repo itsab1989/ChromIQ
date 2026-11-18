@@ -93,13 +93,36 @@ def test_a_library_that_does_not_load_is_said_as_such(tmp_path, monkeypatch):
 
 
 def test_windows_on_arm64_has_none_on_purpose(monkeypatch):
+    """The ARM64 build (the PROCESS, review 13 S-6) bundles no libusb-1.0: said as such."""
     monkeypatch.setattr(U.sys, "platform", "win32")
-    monkeypatch.setattr(U.platform, "machine", lambda: "ARM64")
+    monkeypatch.setattr(U.sysconfig, "get_platform", lambda: "win-arm64")
+    monkeypatch.setattr(U, "library_path", lambda: None)
     assert U.bundled_on_this_platform() is False
     st = U.status()
     assert st.problem == "not-bundled" and st.selftest_field() == "usb=not-bundled"
     assert U.backend() is None
     assert U.MESSAGE_FOR_PROBLEM["not-bundled"] == "M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM"
+
+
+def test_an_x64_build_on_an_arm64_pc_is_decided_by_what_loads(monkeypatch, tmp_path):
+    """Review 13, S-6: the machine type alone decides nothing. An x64 ChromIQ under emulation on
+    an ARM64 PC (whose machine may be reported as ARM64) uses the x64 library it carries when it
+    loads; only a library that truly does not load is refused."""
+    monkeypatch.setattr(U.sys, "platform", "win32")
+    monkeypatch.setattr(U.platform, "machine", lambda: "ARM64")
+    monkeypatch.setattr(U.sysconfig, "get_platform", lambda: "win-amd64")
+    lib = tmp_path / "libusb-1.0.dll"
+    lib.write_bytes(b"x")
+    monkeypatch.setattr(U, "library_path", lambda: lib)
+    monkeypatch.setattr(U, "library_version", lambda path: "1.0.30")
+    st = U.status()
+    assert st.ok and st.libusb == "1.0.30"
+
+    def no_load(path):
+        raise OSError("[WinError 193] %1 is not a valid Win32 application")
+    monkeypatch.setattr(U, "library_version", no_load)
+    st = U.status()
+    assert not st.ok and st.problem == "libusb-does-not-load"
 
 
 class _USBError(Exception):
@@ -274,3 +297,25 @@ def test_the_tables_driver_state_is_read_from_the_registry(entries, present, wan
     state, detail = inst.table_driver_state(entries, present)
     assert state == want
     assert "6&" not in repr(detail)        # never an instance key (it can hold a serial)
+
+
+def test_start_on_windows_does_not_refuse_for_a_library_the_table_does_not_use(monkeypatch):
+    """Review 13, S-6: on Windows the table is reached through libusb0.dll, which is LOADED
+    when the table is opened (with its own message when it truly does not load). So START is
+    not refused because the build carries no libusb-1.0; pyusb must import."""
+    monkeypatch.setattr(U.sys, "platform", "win32")
+    monkeypatch.setattr(U, "status", lambda: U.UsbStatus(False, pyusb="1.2.1",
+                                                         problem="not-bundled"))
+    assert U.table_usb_status().ok
+    monkeypatch.setattr(U, "status", lambda: U.UsbStatus(False, problem="no-pyusb"))
+    assert U.table_usb_status().problem == "no-pyusb"
+    monkeypatch.setattr(U.sys, "platform", "darwin")
+    monkeypatch.setattr(U, "status", lambda: U.UsbStatus(False, pyusb="1.2.1",
+                                                         problem="no-libusb"))
+    assert U.table_usb_status().problem == "no-libusb"
+
+
+def test_the_x64_build_loads_libusb0_or_says_why(monkeypatch, tmp_path):
+    bad = tmp_path / "libusb0.dll"
+    bad.write_bytes(b"not a library")
+    assert U.load_libusb0(bad) is not None        # does not load: the reason, never a crash

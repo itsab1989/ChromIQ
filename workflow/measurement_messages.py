@@ -12422,9 +12422,9 @@ M_I1IO_DRIVE_USB_MISSING = _m(
 M_I1IO_DRIVE_USB_NOT_ON_THIS_SYSTEM = _m(
     "M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM",
     "The table cannot be driven on this system yet",
-    "ChromIQ cannot drive the table on Windows for ARM computers yet, because "
-    "the USB library it needs does not exist for this system. Measuring in "
-    "i1Profiler 3.8.6 or older and IMPORT still work.",
+    "ChromIQ could not load the USB library it needs for the table on this "
+    "Windows for ARM computer, so it cannot drive the table here yet. Nothing "
+    "was sent. Measuring in i1Profiler 3.8.6 or older and IMPORT still work.",
     approved=False)
 
 M_I1IO_DRIVE_USB_WINDOWS_DRIVER = _m(

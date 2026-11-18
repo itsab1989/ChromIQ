@@ -1,4 +1,4 @@
-"""The USB library ChromIQ ships for the i1iO table drive (part of the i1iO Beta; NOT WIRED IN YET).
+"""The USB library ChromIQ ships for the i1iO table drive (part of the i1iO Beta).
 
 ChromIQ's own table code (`workflow/i1io/table/`) talks to an X-Rite i1iO 2 table over USB with
 pyusb on top of libusb-1.0. The app bundles both on every platform it is built for:
@@ -7,15 +7,22 @@ pyusb on top of libusb-1.0. The app bundles both on every platform it is built f
 * **libusb-1.0** (LGPL 2.1 or later) as the prebuilt shared library of the ``libusb-package`` wheel
   (Apache 2.0 for its Python part), found here by path, never from the system, so that the frozen
   app on macOS, Windows and Linux uses the library it ships;
-* not on Windows on ARM64, for which ``libusb-package`` publishes no wheel: there
-  :func:`status` says so (``"not-bundled"``) and the drive is unavailable with a plain reason.
+* not in the Windows on ARM64 build, for which ``libusb-package`` publishes no wheel: there
+  :func:`status` says so (``"not-bundled"``). On Windows the table itself is reached through
+  libusb-win32's libusb0.dll, not libusb-1.0 (:func:`table_backend`).
+
+Availability is decided by what can actually be LOADED, never by the machine type alone (review
+13, S-6: an x64 ChromIQ under emulation on an ARM64 PC): :func:`status` loads the bundled file
+when there is one, :func:`table_backend` loads libusb0.dll on Windows, and only a library that
+truly does not load gets a message.
 
 Nothing here opens, claims or even lists a USB device. :func:`status` only LOADS the library and
 asks its version (``libusb_get_version`` needs no ``libusb_init``); the app's start-up self-test
 (`core/selftest.py`) uses it to prove the library loads in the built app. :func:`backend` (which
-does call ``libusb_init``, still opening no device) and :func:`open_failure` are for the drive's
-later steps; nothing calls them yet. The words a person reads for each failure are proposals
-(STEP4_PROPOSAL, §M-PROPOSED); this module returns only their message ids.
+does call ``libusb_init``, still opening no device), :func:`table_backend` and
+:func:`open_failure` are used by the table drive (``workflow.i1io.table.session_table``). The
+words a person reads for each failure are proposals (§M-PROPOSED); this module returns only
+their message ids.
 """
 from __future__ import annotations
 
@@ -23,6 +30,7 @@ import ctypes
 import os
 import platform
 import sys
+import sysconfig
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -31,17 +39,17 @@ LIBRARY_NAME = {"darwin": "libusb-1.0.dylib", "win32": "libusb-1.0.dll"}.get(
     sys.platform, "libusb-1.0.so")
 
 
-def bundled_on_this_platform() -> bool:
-    """False only where no libusb is bundled on purpose (Windows on ARM64: no wheel).
+def process_is_windows_arm64() -> bool:
+    """This PROCESS is an ARM64 Windows build (the Python it runs on), whatever the machine.
+    An x64 ChromIQ under emulation on an ARM64 PC is not (review 13, S-6)."""
+    return sys.platform == "win32" and sysconfig.get_platform().lower() == "win-arm64"
 
-    DOUBT, NOT MEASURED (review 2026-11-17, A2-c): on Windows ``platform.machine()`` may name the
-    HOST rather than this process, so an x64 ChromIQ running under emulation on an ARM64 PC could
-    be told "ARM64" here and refuse the x64 library it carries. One run settles it: on a Windows
-    ARM64 machine, start the x64 build with CHROMIQ_SELFTEST=1; ``usb=pyusb-.../libusb-...`` means
-    this is fine, ``usb=not-bundled`` means decide by the process instead
-    (``sysconfig.get_platform() == "win-arm64"``) or by whether the file is bundled."""
-    return not (sys.platform == "win32"
-                and platform.machine().upper() in ("ARM64", "AARCH64"))
+
+def bundled_on_this_platform() -> bool:
+    """False only for the build that bundles no libusb-1.0 on purpose (the Windows on ARM64
+    build: no wheel). Decided by the process, not the machine (review 13, S-6); and even then
+    :func:`status` first looks whether a file is there and loads it."""
+    return not process_is_windows_arm64()
 
 
 def library_path() -> "Path | None":
@@ -108,11 +116,11 @@ def status() -> UsbStatus:
         pyusb = str(getattr(usb, "__version__", "?"))
     except ImportError:
         return UsbStatus(False, problem="no-pyusb")
-    if not bundled_on_this_platform():
-        return UsbStatus(False, pyusb=pyusb, problem="not-bundled")
     path = library_path()
     if path is None:
-        return UsbStatus(False, pyusb=pyusb, problem="no-libusb")
+        # review 13, S-6: what is (not) there decides, the machine type only names why
+        return UsbStatus(False, pyusb=pyusb,
+                         problem="no-libusb" if bundled_on_this_platform() else "not-bundled")
     try:
         version = library_version(path)
     except (OSError, AttributeError):
@@ -124,7 +132,7 @@ def backend():
     """pyusb's libusb-1.0 backend on ChromIQ's own library, or None. Calls ``libusb_init``
     (which opens no device). For the drive's later steps; nothing calls it yet."""
     path = library_path()
-    if path is None or not bundled_on_this_platform():
+    if path is None:
         return None
     import usb.backend.libusb1
     return usb.backend.libusb1.get_backend(find_library=lambda _name: str(path))
@@ -206,7 +214,9 @@ def open_failure(exc: BaseException, system: "str | None" = None,
 # on Windows the table is opened through pyusb's libusb0 backend, with THAT file by its full path
 # (never a name search): no second driver family, nothing more to ship. UNTESTED ON REAL WINDOWS
 # HARDWARE. Windows on ARM64: the x64 ChromIQ cannot load the ARM64 libusb0.dll the driver
-# installs; that build says "not-bundled" (status) and the drive is unavailable.
+# installs. Review 13, S-6: that is decided by LOADING the file (``load_libusb0``), and only a
+# file that truly does not load gets a message (``"libusb0-does-not-load"``): on an ARM64 PC
+# the one that says the drive cannot run on this system yet, elsewhere the library message.
 
 def libusb0_dll_path() -> "Path | None":
     """libusb-win32's libusb0.dll as its driver package installed it (System32), or None."""
@@ -217,6 +227,27 @@ def libusb0_dll_path() -> "Path | None":
         return None
     p = Path(root) / "System32" / "libusb0.dll"
     return p if p.is_file() else None
+
+
+def load_libusb0(path) -> "str | None":
+    """None when libusb0.dll at *path* loads into this process, else why not (an x64 ChromIQ
+    and an ARM64 file, a damaged file). Loading opens no device."""
+    try:
+        loader = getattr(ctypes, "WinDLL", ctypes.CDLL)
+        loader(str(path))
+    except OSError as exc:
+        return type(exc).__name__
+    return None
+
+
+def machine_is_arm64() -> bool:
+    """The MACHINE is an ARM64 PC (the machine-wide registry value, as the CH34x gate reads
+    it), for the words of a message only; False when it cannot be told."""
+    try:
+        from core.ch34x_driver import machine_arch
+        return machine_arch() == "ARM64"
+    except Exception:      # noqa: BLE001 - only the wording depends on it
+        return False
 
 
 @dataclass(frozen=True)
@@ -231,11 +262,14 @@ def table_backend(system: "str | None" = None, dll_path=None) -> TableBackend:
     does not care which one it got: both carry pyusb's device API."""
     system = system or sys.platform
     if system == "win32":
-        if not bundled_on_this_platform():
-            return TableBackend(None, "libusb0", "not-bundled")
         path = dll_path if dll_path is not None else libusb0_dll_path()
         if path is None:
             return TableBackend(None, "libusb0", "no-libusb0-dll")
+        why = load_libusb0(path)
+        if why is not None:
+            # review 13, S-6: the file is there and does not load into this process
+            return TableBackend(None, "libusb0", "libusb0-does-not-load-arm64"
+                                if machine_is_arm64() else "libusb0-does-not-load")
         import usb.backend.libusb0
         be = usb.backend.libusb0.get_backend(find_library=lambda _name, p=str(path): p)
         return TableBackend(be, "libusb0", "" if be is not None else "no-libusb0-dll")
@@ -244,6 +278,20 @@ def table_backend(system: "str | None" = None, dll_path=None) -> TableBackend:
 
 
 MESSAGE_FOR_PROBLEM["no-libusb0-dll"] = "M-I1IO-DRIVE-TABLE-DRIVER-NOT-INSTALLED"
+MESSAGE_FOR_PROBLEM["libusb0-does-not-load-arm64"] = "M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM"
+MESSAGE_FOR_PROBLEM["libusb0-does-not-load"] = "M-I1IO-DRIVE-USB-MISSING"
+
+
+def table_usb_status() -> UsbStatus:
+    """What START asks before anything is opened (review 13, S-6). macOS and Linux: the bundled
+    libusb-1.0 (:func:`status`). Windows: the table is reached through libusb0.dll, which
+    :func:`table_backend` LOADS when the table is opened (with its own message when it truly
+    does not load), so here only pyusb must import: a build without libusb-1.0 is not refused
+    for a library the table does not use there."""
+    st = status()
+    if sys.platform != "win32" or st.ok or st.problem == "no-pyusb":
+        return st
+    return UsbStatus(True, pyusb=st.pyusb, libusb=st.libusb, path=st.path)
 
 
 def diagnostics() -> dict:

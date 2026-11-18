@@ -10429,7 +10429,9 @@ alone.
 
 > **The table cannot be driven on this system yet**
 >
-> ChromIQ cannot drive the table on Windows for ARM computers yet, because the USB library it needs does not exist for this system. Measuring in i1Profiler 3.8.6 or older and IMPORT still work.
+> ChromIQ could not load the USB library it needs for the table on this Windows for ARM computer, so it cannot drive the table here yet. Nothing was sent. Measuring in i1Profiler 3.8.6 or older and IMPORT still work.
+
+*Revised 2026-11-18 (final fix round of the i1iO table drive, S-6: decided by whether the USB library loads, not by the machine type alone).*
 
 ### M-I1IO-DRIVE-USB-WINDOWS-DRIVER · PROPOSED · Windows refuses access (UNTESTED), Measure (the i1iO table window)
 

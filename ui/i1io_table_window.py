@@ -187,7 +187,7 @@ def usb_status():
     """(ok, message id) of the USB library, read only (no device is touched)."""
     try:
         import core.usb_library as usb_library
-        st = usb_library.status()
+        st = usb_library.table_usb_status()      # review 13, S-6: what can be loaded decides
     except Exception:      # noqa: BLE001 - said, never a crash
         return False, "M-I1IO-DRIVE-USB-MISSING"
     if st.ok:

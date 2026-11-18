@@ -256,14 +256,23 @@ def test_the_windows_backend_is_libusb_win32s_own_dll_by_full_path(monkeypatch, 
     got = []
     monkeypatch.setattr(l0, "get_backend", lambda find_library=None: got.append(
         find_library("libusb0")) or "be0")
-    monkeypatch.setattr(ul, "bundled_on_this_platform", lambda: True)
+    monkeypatch.setattr(ul, "load_libusb0", lambda path: None)        # it loads
     dll = tmp_path / "libusb0.dll"
     tb = ul.table_backend("win32", dll_path=dll)
     assert (tb.backend, tb.kind) == ("be0", "libusb0") and got == [str(dll)]
     monkeypatch.setattr(ul, "libusb0_dll_path", lambda: None)
     assert ul.table_backend("win32").problem == "no-libusb0-dll"
-    monkeypatch.setattr(ul, "bundled_on_this_platform", lambda: False)
-    assert ul.table_backend("win32").problem == "not-bundled"
+    # review 13, S-6: decided by loading the file, never by the machine type alone
+    monkeypatch.setattr(ul, "load_libusb0", lambda path: "OSError")
+    for arm, problem, mid in ((True, "libusb0-does-not-load-arm64",
+                               "M-I1IO-DRIVE-USB-NOT-ON-THIS-SYSTEM"),
+                              (False, "libusb0-does-not-load", "M-I1IO-DRIVE-USB-MISSING")):
+        monkeypatch.setattr(ul, "machine_is_arm64", lambda a=arm: a)
+        tb = ul.table_backend("win32", dll_path=dll)
+        assert tb.backend is None and tb.problem == problem
+        assert ul.MESSAGE_FOR_PROBLEM[problem] == mid
+    got.clear()
+    assert got == []
 
 
 # (5) the per-system checks, from recorded answers ----------------------------------------------
