@@ -1350,7 +1350,9 @@ class TableMeasureWindow(QFrame):
             return
         m = self._popup.layout().contentsMargins()
         inner = self._popup_width() - m.left() - m.right()
-        need = sum(b.sizeHint().width() for b in made) + 12 * (len(made) + 1)
+        sp = box.layout().spacing() if box.layout() is not None else 12
+        need = sum(max(b.sizeHint().width(), b.minimumSizeHint().width()) for b in made) \
+            + max(6, sp) * (len(made) - 1)
         box.setOrientation(Qt.Orientation.Horizontal if need <= inner
                            else Qt.Orientation.Vertical)
         self._choice_cols = len(made) if need <= inner else 1
@@ -1384,6 +1386,10 @@ class TableMeasureWindow(QFrame):
     def _refit_popup(self) -> None:
         try:
             if self._popup is not None and self._popup.isVisible():
+                # the answers side by side when their POLISHED widths fit (the hand path's
+                # M-END shows its three in one row; a hint taken before the style was applied
+                # stacked them)
+                self._flow_choices()
                 self._fit_text()
                 self._fit_popup()
                 self._keep_popup_on_screen()
