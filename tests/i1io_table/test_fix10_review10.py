@@ -329,6 +329,14 @@ def _check_layout(win, page):
     assert len(stops) <= 1, (page, [b.text() for b in stops])
 
 
+def _layout_ok(win, page) -> bool:
+    try:
+        _check_layout(win, page)
+        return True
+    except AssertionError:
+        return False
+
+
 @pytest.mark.parametrize("size", [(560, 760), (420, 700), (330, 640)])
 def test_m2_no_button_overlaps_and_no_text_is_cut_on_any_page(qtbot, monkeypatch, tmp_path,
                                                               settings, size):
@@ -340,6 +348,12 @@ def test_m2_no_button_overlaps_and_no_text_is_cut_on_any_page(qtbot, monkeypatch
     for _ in range(200):
         page = p.page()
         qtbot.wait(5)
+        # final fix round, S-3: the panel re-fits once its layout has settled (a moment after a
+        # page); judged then, as the person sees it
+        try:
+            qtbot.waitUntil(lambda: _layout_ok(win, page), timeout=1500)
+        except Exception:      # noqa: BLE001 - the check below says what is wrong
+            pass
         _check_layout(win, page)
         seen.add(page)
         if page == "row_failed":

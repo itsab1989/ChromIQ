@@ -20,7 +20,8 @@ Nothing here opens, claims or even lists a USB device. :func:`status` only LOADS
 asks its version (``libusb_get_version`` needs no ``libusb_init``); the app's start-up self-test
 (`core/selftest.py`) uses it to prove the library loads in the built app. :func:`backend` (which
 does call ``libusb_init``, still opening no device), :func:`table_backend` and
-:func:`open_failure` are used by the table drive (``workflow.i1io.table.session_table``). The
+:func:`open_failure` are used by the table drive's session module
+(``workflow/i1io/table/session_table.py``). The
 words a person reads for each failure are proposals (§M-PROPOSED); this module returns only
 their message ids.
 """
