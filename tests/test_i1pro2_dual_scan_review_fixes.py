@@ -127,7 +127,7 @@ def test_m1_averaging_dual_reads_of_two_factors_keeps_no_m1_m2(tmp_path):
         return p
     a, b, c = f("a.ti3", "1.1560", "standard"), f("b.ti3", "1.1560", "standard"), f("c.ti3", "1.2000", "refined")
     plain = tmp_path / "p.ti3"
-    plain.write_text("CTI3\nBEGIN_DATA_FORMAT\nSAMPLE_ID\nEND_DATA_FORMAT\nBEGIN_DATA\n1\nEND_DATA\n")
+    plain.write_text("CTI3\nBEGIN_DATA_FORMAT\nSAMPLE_ID\nEND_DATA_FORMAT\nBEGIN_DATA\n1\nEND_DATA\n", encoding="utf-8")
     assert storage.average_guard([a, b]) is None
     assert storage.average_guard([a, c]) == "mixed_factor"
     assert storage.average_guard([a, plain]) == "mixed_scan_kind"
@@ -262,11 +262,11 @@ def test_s2_a_calibration_whose_uv_led_did_not_light_is_refused():
 def test_s2_the_engine_refuses_m1_m2_from_a_dark_uv_tile(tmp_path, monkeypatch):
     monkeypatch.setenv("CHROMIQ_REPLAY_INSTRUMENT", "i1pro2")
     base, rp, _t, _ = T._chart(tmp_path)
-    text = rp.read_text().splitlines()
+    text = rp.read_text(encoding="utf-8").splitlines()
     tline = [i for i, ln in enumerate(text) if ln.startswith("T ")][0]
     vals = [float(v) * 0.001 for v in text[tline].split()[1:]]
     text[tline] = "T " + " ".join(f"{v:.10g}" for v in vals)
-    rp.write_text("\n".join(text) + "\n")
+    rp.write_text("\n".join(text) + "\n", encoding="utf-8")
     cdir = tmp_path / "conditions"
     cdir.mkdir()
     with ReplaySession(base, rp, extra_args=T._dual_args(cdir)) as ses:

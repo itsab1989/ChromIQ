@@ -143,7 +143,7 @@ def test_f4_the_helper_build_string_is_the_new_one():
     # 2026-11-17a (the i1iO 2 table scan), 17b (its button wait), 18a (the
     # i1Pro 2 dual-scan conditions), 18b (its resume rule) and 18c (its
     # device side) keep every token of 16d
-    assert re.search(r"chromiq-chartread 2026-11-1(6d|7a|7b|8a|8b|8c) ", h)
+    assert re.search(r"chromiq-chartread 2026-11-1(6d|7a|7b|8a|8b|8c|8d) ", h)
     assert "+conditions-commit-last" in h
 
 
