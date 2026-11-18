@@ -900,7 +900,9 @@ class TablePopup(QDialog):
         self.foot.addButton(self.end_btn, QDialogButtonBox.ButtonRole.DestructiveRole)
         self.foot.addButton(self.close_btn, QDialogButtonBox.ButtonRole.RejectRole)
         for b in (self.problem_btn, self.end_btn, self.close_btn):
-            b.setFixedHeight(TablePopup.BUTTON_H)
+            # the height the application's button style gives (a fixed 32 px, as the hand
+            # path's horizontal rows set, was overridden by the style's own minimum and the
+            # last button of a stacked box was cut: measured on screen)
             b.setAutoDefault(False)
             b.setDefault(False)
             b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -911,9 +913,6 @@ class TablePopup(QDialog):
         lay.addWidget(self.foot)
         #: where the window last put the pop-up (a later difference is the person's move)
         self.placed_at = None
-
-    #: the hand path's measurement windows' button height
-    BUTTON_H = 32
 
     def keyPressEvent(self, event) -> None:      # noqa: N802
         # condition 4: Enter, Return and Space never answer a question of the table
@@ -1819,8 +1818,8 @@ class TableMeasureWindow(QFrame):
             b.setAutoDefault(False)
             b.setDefault(False)
             if self._popups:
-                # the hand path's windows' buttons (TablePopup), by role
-                b.setFixedHeight(TablePopup.BUTTON_H)
+                # the hand path's windows' buttons (TablePopup), by role, in the height the
+                # application's button style gives them
                 b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
                 role = answer_role(label, alone=len(buttons) == 1)
                 if role == QDialogButtonBox.ButtonRole.AcceptRole and any(

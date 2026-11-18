@@ -490,6 +490,9 @@ def test_no_button_of_a_pop_up_is_cut(qtbot, monkeypatch, tmp_path, settings, pa
     """Found on screen: the last answer and the footer were cut at the pop-up's lower edge
     (the polished buttons are taller than a hint taken before the pop-up was shown)."""
     win, sim, run, p, saved, finished = _quiet(qtbot, monkeypatch, tmp_path, settings)
+    # the app's button style makes buttons taller than a fixed 32 px (as on screen); styled
+    # on the pop-up itself, never on the application (CLAUDE.md)
+    win.popup().setStyleSheet("QPushButton { min-height: 40px; padding: 4px 14px; }")
     p.script.update({"end_of_session": "Save and stop"})
     p.drive_until(page)
     qtbot.wait(300)
