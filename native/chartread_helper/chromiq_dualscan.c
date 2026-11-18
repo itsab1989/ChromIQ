@@ -72,6 +72,9 @@ const char *cq_dual_patch(const cq_dual_cal *c, double s, const double *L,
 	return NULL;
 }
 
+#define CQ_DUAL_MAXCELL 1024
+static int cq_cnt_tmp[CQ_DUAL_MAXCELL];
+
 const char *cq_dual_cut(int nb, int ncell, const int (*cells)[2],
                         int nlamp, const double *lamp_pos,
                         int nuv, const double *uv_pos, const double *uv,
@@ -99,7 +102,7 @@ const char *cq_dual_cut(int nb, int ncell, const int (*cells)[2],
 	}
 	if (lmax - lmin <= 0.0 || umax - umin <= 0.0)
 		return "no_ruler";
-	if (ncell <= 0)
+	if (ncell <= 0 || ncell > CQ_DUAL_MAXCELL)
 		return "uv_pass_count";
 	for (k = 0; k < ncell; k++) {
 		int s = cells[k][0], n = cells[k][1], cnt = 0;
@@ -122,10 +125,23 @@ const char *cq_dual_cut(int nb, int ncell, const int (*cells)[2],
 		}
 		if (counts != NULL)
 			counts[k] = cnt;
-		if (cnt < min_readings)
-			return "uv_pass_not_aligned";
-		for (j = 0; j < nb; j++)
+		for (j = 0; j < nb && cnt > 0; j++)
 			out[k * nb + j] /= (double)cnt;
+		cq_cnt_tmp[k < CQ_DUAL_MAXCELL ? k : CQ_DUAL_MAXCELL - 1] = cnt;
+	}
+	/* the verdict (workflow/dual_scan/cut.py::travel_verdict) */
+	{
+		int n = ncell < CQ_DUAL_MAXCELL ? ncell : CQ_DUAL_MAXCELL, zero = 0, few = 0;
+		if (cq_cnt_tmp[0] == 0 || cq_cnt_tmp[n - 1] == 0)
+			return "uv_pass_short";
+		for (k = 0; k < n; k++) {
+			if (cq_cnt_tmp[k] == 0) zero = 1;
+			else if (cq_cnt_tmp[k] < min_readings) few = 1;
+		}
+		if (zero)
+			return "uv_pass_stalled";
+		if (few)
+			return "uv_pass_too_fast";
 	}
 	return NULL;
 }

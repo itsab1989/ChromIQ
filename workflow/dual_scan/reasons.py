@@ -34,10 +34,30 @@ REASONS: "dict[str, str]" = {
         "The UV pass does not hold the same number of patches as the lamp "
         "pass, so ChromIQ cannot tell which UV reading belongs to which "
         "patch. Read the strip again."),
-    "uv_pass_not_aligned": (
-        "The UV pass did not cover every patch of the lamp pass well enough "
-        "to tell which UV reading belongs to which patch. Read the strip "
-        "again, the second pass over the whole strip at an even speed."),
+    "uv_pass_short": (
+        "The second pass (UV light) did not cover the whole strip. Read the "
+        "second pass of this strip again, over every patch; the first pass "
+        "is kept."),
+    "uv_pass_too_fast": (
+        "The second pass (UV light) was read in a way that left too few "
+        "readings per patch: move a little slower. Read the second pass of "
+        "this strip again; the first pass is kept."),
+    "uv_pass_stalled": (
+        "The second pass (UV light) stopped or jumped part of the way along "
+        "the strip, so some patches have no reading. Read the second pass of "
+        "this strip again at an even speed; the first pass is kept."),
+    "uv_pass_wrong_strip": (
+        "The second pass (UV light) does not seem to belong to this strip: "
+        "its readings do not follow the first pass. Read the second pass of "
+        "this strip again, on the same strip; the first pass is kept."),
+    "lamp_pass_changed": (
+        "The first pass of this strip was read again, and the second pass "
+        "taken earlier does not fit it any more. Read the second pass "
+        "again too."),
+    "dual_needs_ruler": (
+        "A dual scan by hand needs the instrument's position ruler, to match "
+        "the two passes patch by patch, and it gave no usable positions. "
+        "M0 can still be measured as always."),
     "no_ruler": (
         "The instrument's position ruler gave no usable positions for this "
         "dual scan, so the two passes cannot be matched patch by patch. "

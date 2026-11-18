@@ -165,7 +165,7 @@ def test_a_uv_pass_that_misses_patches_is_refused():
     keep = up > 300                      # the second pass stopped half way
     with pytest.raises(DualScanRefused) as e:
         cut.cut_uv_pass(cells, lp, up[keep], ur[keep])
-    assert e.value.reason == "uv_pass_not_aligned"
+    assert e.value.reason == "uv_pass_short"
     with pytest.raises(DualScanRefused) as e:
         cut.cut_uv_pass(cells, lp, np.zeros_like(up), ur)
     assert e.value.reason == "no_ruler"

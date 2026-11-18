@@ -75,7 +75,7 @@ def test_the_c_arithmetic_is_the_python_module(tmp_path_factory):
                       ("no_uv_tile", "no_dual_calibration"),
                       ("table_out_of_band", "bad_uv_tables"),
                       ("no_tables", "no_uv_tables"), ("nan_value", "bad_values"),
-                      ("cut_half", "uv_pass_not_aligned"),
+                      ("cut_half", "uv_pass_short"),
                       ("cut_no_ruler", "no_ruler")):
         assert lines[key] == f"{key} {want}", lines.get(key)
     cut = lines["cut"].split()

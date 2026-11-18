@@ -41,7 +41,8 @@ const char *cq_dual_patch(const cq_dual_cal *c, double s, const double *L,
 /* The UV pass cut into the lamp cells by ruler position (cut.py): cells
  * [ncell] = {first lamp reading, count}; lamp_pos[nlamp], uv_pos[nuv],
  * uv[nuv][nb]; out[ncell][nb], counts[ncell]. NULL on success, else a
- * reason id ("no_ruler", "uv_pass_count", "uv_pass_not_aligned"). */
+ * reason id ("no_ruler", "uv_pass_count", "uv_pass_short",
+ * "uv_pass_stalled", "uv_pass_too_fast": cut.py::travel_verdict). */
 const char *cq_dual_cut(int nb, int ncell, const int (*cells)[2],
                         int nlamp, const double *lamp_pos,
                         int nuv, const double *uv_pos, const double *uv,

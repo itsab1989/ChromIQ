@@ -2640,6 +2640,16 @@ class Run(I1ioTablePlace):
         return (self.condition_dir_of(m)
                 / f"{key}-{str(cond).upper()}.ti3")
 
+    @staticmethod
+    def dual_pass_record(measurement: Path) -> Path:
+        """The i1Pro 2 dual scan's per-strip pass record of *measurement*
+        (``workflow/dual_scan/record.py``): ``dual_scan/<stem>.passes.json``
+        beside the measurement's ``conditions/`` folder. Kept in the run,
+        never in a shared file; it holds no serial number."""
+        m = Path(measurement)
+        return (Run.condition_dir_of(m).parent / "dual_scan"
+                / f"{m.stem}.passes.json")
+
     @property
     def verification_condition_dir(self) -> Path:
         """``verifications/conditions/``: ONE folder for the condition files

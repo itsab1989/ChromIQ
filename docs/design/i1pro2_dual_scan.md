@@ -48,6 +48,37 @@ outside 0.5-2.0.
 * A dual reading only after a dual calibration at the same exposure; a change of reading mode
   in either direction needs a new calibration.
 
+### 2a. The two passes of a hand dual scan are two units (the owner, 2026-11-18)
+
+* The lamp pass and the UV pass of a strip are two separately started readings, each with its
+  own verdict and data; a failed pass is read again ALONE, the other one is kept; a good pass is
+  never repeated silently. A dark reading precedes each pass, as in the recordings.
+* Lamp pass: valid by today's single-scan rules (ArgyllCMS's patch recognition; the ruler check
+  where it applies).
+* UV pass: valid by (a) the ruler: it covered every patch of the lamp pass (`uv_pass_short`), with
+  no gap or stall (`uv_pass_stalled`), with at least 3 readings per patch (`uv_pass_too_fast`;
+  the recordings had 4-5, slow 9-10); either direction, the ruler says which; and (b) it belongs to
+  the strip (`uv_pass_wrong_strip`): at 380-400 nm nothing glows, so the UV reading must follow
+  (T/W) x the lamp pass across the strip's patches (correlation >= 0.95 and median ratio error
+  <= 0.10; on the two instruments' recordings right 0.9997-0.9999 / <= 0.044, wrong <= 0.574 /
+  >= 0.146: 14 of 14 right pairings accepted, 110 of 110 wrong ones refused). On a paper without
+  brightener a mix-up cannot change M1 / M2 (J = 0), so the check may be waived there.
+* A lamp pass read again keeps the strip's UV pass only when the UV pass is proved to belong to
+  it; otherwise the UV pass is due again (`lamp_pass_changed`).
+* A dual scan by hand needs the ruler: without usable ruler positions the UV pass cannot be
+  assigned to patches, the dual scan is refused (`dual_needs_ruler`) and M0 can still be
+  measured. The i1Pro 2's existing ruler reader (the "Ruler Check (beta)" code in the helper and
+  `cq_ruler.h`) is to be reused, not a second one.
+* Per strip, the state of each pass, the UV pass's per-patch data and the calibration each came
+  from are kept in the run (`dual_scan/<stem>.passes.json`, `workflow/dual_scan/record.py`), never
+  in a shared file, no serial. A measurement stopped early keeps an honest M0 of what was read;
+  M1 / M2 exist only for strips with both passes and are offered for the measurement only when
+  every strip has both; "Continue Measurement" asks only for the missing passes after a new dual
+  calibration and records that the passes come from more than one calibration.
+* A spot dual reading (lamp + UV on one patch in one press) is one unit: if either reading fails
+  the patch is read again. On the table: patch by patch as spot; strips = the whole chart with the
+  lamp, then with the UV light, a failed row of the second pass repeated alone, by position.
+
 ### 3. The scale s (`workflow/dual_scan/scale.py`)
 
 * Built in: a standard factor, 1.156, the middle of the two instruments measured (1.100 and

@@ -74,6 +74,8 @@ def cut_uv_pass(cells, lamp_pos, uv_pos, uv_readings, *, trim: float = TRIM,
         raise DualScanRefused("no_ruler", "the ruler did not move")
     if not cells:
         raise DualScanRefused("uv_pass_count", "no cells")
+    if np.any(np.diff(up) == 0) and np.count_nonzero(np.diff(up)) < up.size // 2:
+        raise DualScanRefused("uv_pass_stalled", "the ruler stood still")
     out, counts, spans = [], [], []
     for start, length in cells:
         start, length = int(start), int(length)
@@ -83,16 +85,46 @@ def cut_uv_pass(cells, lamp_pos, uv_pos, uv_readings, *, trim: float = TRIM,
         lo, hi = min(a, b), max(a, b)
         w = hi - lo
         m = (up >= lo + trim * w) & (up <= hi - trim * w)
-        n = int(m.sum())
-        counts.append(n)
+        counts.append(int(m.sum()))
         spans.append((lo, hi))
-        if n < min_readings:
-            raise DualScanRefused(
-                "uv_pass_not_aligned",
-                f"patch {len(out) + 1}: {n} UV readings (need {min_readings})")
-        out.append(ur[m].mean(axis=0))
+        out.append(ur[m].mean(axis=0) if m.any() else np.full(ur.shape[1], np.nan))
+    verdict = travel_verdict(counts, min_readings)
+    if verdict is not None:
+        raise DualScanRefused(verdict, f"UV readings per patch {counts}")
     flat = _flatness(spans, up, ur, trim)
     return CutResult(uv=np.array(out), counts=counts, flatness=flat)
+
+
+def travel_verdict(counts: "list[int]", min_readings: int = MIN_UV_READINGS
+                   ) -> "str | None":
+    """Why a UV pass's readings per patch do not make a pass (None = fine):
+
+    * ``uv_pass_short``: one or more patches at an END got no reading (the
+      second pass did not cover the whole strip);
+    * ``uv_pass_stalled``: a patch INSIDE the strip got none while patches
+      on both sides did (a gap or a stall);
+    * ``uv_pass_too_fast``: every patch was reached but some by fewer than
+      *min_readings* readings (move a little slower)."""
+    c = list(counts)
+    if not c:
+        return "uv_pass_count"
+    if c[0] == 0 or c[-1] == 0:
+        return "uv_pass_short"
+    if any(v == 0 for v in c):
+        return "uv_pass_stalled"
+    if min(c) < min_readings:
+        return "uv_pass_too_fast"
+    return None
+
+
+def pass_direction(positions) -> int:
+    """+1 when the ruler counted up over the pass, -1 down, 0 not moving.
+    Either direction is a good pass; the ruler says which."""
+    p = np.asarray(positions, dtype=float)
+    if p.size < 2:
+        return 0
+    d = p[-1] - p[0]
+    return 0 if d == 0 else (1 if d > 0 else -1)
 
 
 def _flatness(spans, up, ur, trim) -> float:
