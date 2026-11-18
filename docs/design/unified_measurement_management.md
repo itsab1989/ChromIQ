@@ -10437,17 +10437,19 @@ alone.
 
 ### M-I1IO-DRIVE-STOPPED-END-FIRST · PROPOSED · way back open_i1profiler_once while the measurement is still open (the stopped page), Measure (the i1iO table window)
 
-*New 2026-11-18 for the release after 4.3.46 (the volunteer's first real table run: the stopped page had no answer button and said "let go of the table" while ChromIQ still held its USB connection). Shown in betas as a proposed text (Knut, 2026-10-14); approved afterwards. The page now also carries an End measurement button. M-I1IO-DRIVE-FREE-LEFT follows it when the arm is free, then one sentence on the readings ("Your readings so far are kept: when you press End measurement, ChromIQ asks whether to save them." or "Nothing was measured yet, so there is nothing to save."). **Confirmed by:** *nobody yet.**
+*New 2026-11-18 for the release after 4.3.46 (the volunteer's first real table run: the stopped page had no answer button and said "let go of the table" while ChromIQ still held its USB connection). Shown in betas as a proposed text (Knut, 2026-10-14); approved afterwards. The page now also carries an End measurement button. M-I1IO-DRIVE-FREE-LEFT follows its first paragraph when the arm is free (before the steps since the safety review's SHOULD-1), and one sentence on the readings follows it ("Your readings so far are kept: when you press End measurement, ChromIQ asks whether to save them." or "Nothing was measured yet, so there is nothing to save."). **Confirmed by:** *nobody yet.**
 
 > **ChromIQ has stopped**
 >
-> ChromIQ has stopped and sends nothing more to the table in this measurement. The arm last reported {where}.
+> ChromIQ has stopped and sends nothing more to the table in this measurement. The arm last reported {where}.{free_arm}
 >
 > What to do now:
 > 1. Press End measurement. Until you do, ChromIQ still holds the table's USB connection.
-> 2. Then open i1Profiler 3.8.6 or older once and let it find the table: it brings the arm home.
+> 2. Then open i1Profiler 3.8.6 or older once and let it find the table: it should bring the arm home.
 >
 > Please send us the diagnostics file of this measurement: {log}.
+
+*Revised 2026-11-18 after the independent safety review of 4.3.47 (SHOULD-1): step 2 says "should bring", as M-I1IO-DRIVE-FREE-LEFT does (no recording shows i1Profiler opening a table whose arm was left free out on the table), and M-I1IO-DRIVE-FREE-LEFT now stands before the numbered steps, as the paragraph `{free_arm}` (empty when the arm is not free). **Confirmed by:** *nobody yet.**
 
 ### M-I1IO-DRIVE-END · PROPOSED · the paragraph added to M-END for the table (its title is not shown), Measure (the i1iO table window)
 

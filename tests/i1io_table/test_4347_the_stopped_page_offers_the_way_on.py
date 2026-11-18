@@ -68,3 +68,29 @@ def test_a_held_arm_left_out_keeps_its_old_last_page_words():
     import ui.i1io_table_window as W
     src = inspect.getsource(W.TableMeasureWindow._after_close)
     assert "The arm was left out over the table." in src and "_arm_left_free()" in src
+
+
+@pytest.mark.parametrize("asking", [True, False])
+def test_the_free_arm_paragraph_comes_before_the_steps_and_both_say_should(
+        qtbot, monkeypatch, tmp_path, settings, asking):
+    """Safety review 4.3.47, SHOULD-1: no recording shows i1Profiler opening a table whose arm
+    was left free out on the table, so step 2 says it SHOULD bring the arm home (as the free-arm
+    paragraph does), and "leave the arm where it is" comes before the numbered steps."""
+    win, sim, p, _f = _stop_at_the_aiming_place(qtbot, monkeypatch, tmp_path, settings, asking)
+    text = win._text.text()
+    free = M.M_I1IO_DRIVE_FREE_LEFT.render()[1]
+    assert text.count(free) == 1
+    assert text.index("The arm last reported") < text.index(free) < text.index("What to do now")
+    assert text.index(free) < text.index("1. Press End measurement")
+    assert "it should bring the arm home." in text
+    assert "it brings the arm home" not in text
+    assert text.index("Please send us the diagnostics file") < text.index(
+        "Nothing was measured yet")
+
+
+def test_without_a_free_arm_the_stopped_page_has_no_free_arm_paragraph():
+    title, body = M.M_I1IO_DRIVE_STOPPED_END_FIRST.render(where="X 1, Y 2", log="x.zip",
+                                                          free_arm="")
+    assert "The arm is still free" not in body
+    assert "reported X 1, Y 2.\n\nWhat to do now:" in body
+    assert "it should bring the arm home." in body

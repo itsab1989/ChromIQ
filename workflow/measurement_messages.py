@@ -12410,16 +12410,18 @@ M_I1IO_DRIVE_FREE_LEFT = _m(
     approved=False)
 
 # --- PROPOSED (4.3.47): ChromIQ stopped and sends nothing more, the measurement still open --
+# {free_arm}: M-I1IO-DRIVE-FREE-LEFT as its own paragraph ("\n\n" + its body) when the arm was
+# left free out on the table, else empty (safety review 4.3.47, SHOULD-1: before the steps)
 M_I1IO_DRIVE_STOPPED_END_FIRST = _m(
     "M-I1IO-DRIVE-STOPPED-END-FIRST",
     "ChromIQ has stopped",
     "ChromIQ has stopped and sends nothing more to the table in this "
-    "measurement. The arm last reported {where}.\n\n"
+    "measurement. The arm last reported {where}.{free_arm}\n\n"
     "What to do now:\n"
     "1. Press End measurement. Until you do, ChromIQ still holds the "
     "table's USB connection.\n"
     "2. Then open i1Profiler 3.8.6 or older once and let it find the table: "
-    "it brings the arm home.\n\n"
+    "it should bring the arm home.\n\n"
     "Please send us the diagnostics file of this measurement: {log}.",
     approved=False)
 

@@ -604,6 +604,19 @@ def reason_text(rid: str, detail: "dict | None" = None) -> str:
             "When the motors let the arm go at the place where the aiming starts, it moved "
             "further than a freed arm settles by itself (more than 5 mm). ChromIQ cannot tell "
             "whether a hand or the table moved it, so it sends nothing more to the table."),
+        # 4.3.47 MUST-1 (safety review): the arm read again after the last question had moved
+        "free_arm_moved_while_asked": tr(
+            "While the last question was open, the free arm moved a little (more than 0.2 mm). A "
+            "hand may still be on it, so ChromIQ did not drive it anywhere. Please take your "
+            "hands off the arm, make sure nothing touches it, and press Carry on: ChromIQ then "
+            "reads again where the arm stands and checks the whole way from there before it "
+            "moves the arm."),
+        "arm_moved_while_asked": tr(
+            "While the last question was open, the arm moved by more than 0.5 mm, although the "
+            "motors hold it. ChromIQ did not drive it any further. Please make sure nothing "
+            "touches the arm or the sheet, and press Carry on: ChromIQ then reads again where "
+            "the arm stands and tries this step once more from there. If this happens again, "
+            "please end the measurement and send us its diagnostics file."),
         "arm_did_not_give_way_at_the_alignment_start": tr(
             "The arm did not move freely when you pushed it, so ChromIQ does not aim with it."),
         "stopped_during_the_aims": tr("You chose Stop while aiming."),
@@ -3277,7 +3290,11 @@ class TableMeasureWindow(QFrame):
                 # way back says that first; the free arm and the readings as they are
                 msg = M.M_I1IO_DRIVE_STOPPED_END_FIRST
             msg = msg or M.M_I1IO_DRIVE_STOPPED
-            title, body = msg.render(**_fill(msg, where=where, log=self._log_name))
+            free_arm = ("\n\n" + M.M_I1IO_DRIVE_FREE_LEFT.render()[1]
+                        if msg is M.M_I1IO_DRIVE_STOPPED_END_FIRST and self._arm_left_free()
+                        else "")
+            title, body = msg.render(**_fill(msg, where=where, log=self._log_name,
+                                             free_arm=free_arm))
             if msg is M.M_I1IO_DRIVE_STOPPED_END_FIRST:
                 body += self._stopped_extras()
             if wb in SWITCH_OFF_WAYS:
@@ -3295,12 +3312,9 @@ class TableMeasureWindow(QFrame):
         return bool(st is not None and st.arm_free is True and not st.at_rest)
 
     def _stopped_extras(self) -> str:
-        """4.3.47: after M-I1IO-DRIVE-STOPPED-END-FIRST, the free arm (M-I1IO-DRIVE-FREE-LEFT)
-        and what happens to the readings, each only when it is true."""
-        from workflow import measurement_messages as M
+        """4.3.47: after M-I1IO-DRIVE-STOPPED-END-FIRST, what happens to the readings (the free
+        arm, M-I1IO-DRIVE-FREE-LEFT, now stands inside it, before the steps: SHOULD-1)."""
         out = ""
-        if self._arm_left_free():
-            out += "\n\n" + M.M_I1IO_DRIVE_FREE_LEFT.render()[1]
         n = self.job.accepted_in_this_session() if self.job is not None else 0
         if n:
             out += "\n\n" + tr("Your readings so far are kept: when you press End measurement, "
