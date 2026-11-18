@@ -136,7 +136,9 @@ class CSimTable(SimTable):
                     self.received[-3] not in (C_D1, C_D1_UV):
                 raise SimViolation("a scan move at 132 not after d1 and p0")
             if cid == "m0" and self.last_scan_end is not None and \
-                    _near(here, self.last_scan_end) and (x, y) == (round(here[0]), round(here[1])):
+                    _near(here, self.last_scan_end) and _near(here, (x, y)):
+                # the recorded zero-length m0 goes to the position p0 just reported, which may
+                # differ by a unit or two from where the simulated arm "really" stands
                 self.zero_m0_at = len(self.received) - 1
             if not _inside(C_TARGET_BOX, (x, y)):
                 raise SimViolation(f"{cid} to ({x}, {y}) outside the area")
