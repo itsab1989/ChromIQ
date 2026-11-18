@@ -839,3 +839,80 @@ table.
   goes on with the i1Pro 2's own reference; never silently.
 * **Preferences and the completion window (S-8):** the calibration place has its (i); after a
   table measurement the completion window says "saved" once and Close only stays on the tab.
+
+#### ✅ Confirmed behaviour: the quiet mode looks like a hand measurement (2026-11-18)
+
+**Confirmed by:** Sebastian, 2026-11-18 (*"i want the left panel in the measure tab to look the
+same as for the handheld devices [...] for the other instruments we are using pop up windows when
+something needs the users attention ... i would like to keep things similar actually"*)
+
+In quiet mode the tab keeps the hand measurement's layout and the table asks through pop-up
+windows like the other instruments.
+
+### ⏳ Awaiting confirmation: the quiet mode's pop-up windows (quiet round, 2026-11-18)
+
+**Confirmed by:** *nobody yet.*
+
+Built and tested against the simulated table (`tests/i1io_table/test_quiet_popups.py`); the
+in-app drive has still not run on a real table.
+
+* **Which presentation.** "Ask after each step" ON (the first measurement): the reviewed panel,
+  unchanged. OFF (quiet mode): the tab's own layout and the pop-ups. Decided at START, so a change
+  (the offer at the end, Preferences > Beta, the first page's tick) acts from the next START on.
+  `ui/i1io_table_window.py::QUIET_POPUPS` is the one switch back to the panel.
+* **The tab in quiet mode.** Its options greyed as for a hand measurement (`_set_settings_enabled`),
+  the live-preview options usable, the mode buttons locked, the log showing what the table does
+  (where the arm is, which row and patch is read, the counts, the white reference used, each
+  question as "In the table's window: <title>" and each answer as "Your answer: <label>"), its own
+  START / STOP row. The tab's Stop is the table's Stop (before the next move; its pop-up then
+  offers Carry on, End measurement, Bring the arm home), live whenever anything can move, in the
+  tab's own Stop look. While the session is open: "To stop the arm at once, switch the table off
+  at its power switch." above the buttons (where Guided's banner stands), and Report a problem
+  beside Stop.
+* **One definition of every question.** The pop-ups host the panel's own page widgets, built by
+  the same page builders: no title, text, answer or hands-off rule exists twice, and every row of
+  QUESTIONS.md is a pop-up with the same words (tested walk by walk against the panel).
+* **Condition 1, the window.** A normal, small, movable top-level dialog, APPLICATION-modal like
+  the hand path's measurement windows, never a macOS sheet (never `WindowModal` on a child of the
+  main window). It opens over the tab's left column, beside the chart preview, never over it at
+  the default window size or the smallest; where the person moves it is kept as a setting
+  (`i1io_table_popup_pos`) for the session and later ones.
+* **Condition 2, only for an answer.** It is open only while an answer is needed; before every
+  job call (and so before every move) it is closed.
+* **Condition 3, nothing moves while one is open.** The job waits for the answer. Report a problem
+  pressed while a step runs first stops the table before its next move, and the problem window
+  opens only then. Every pop-up of an open table offers End measurement (in the look of the tab's
+  Stop), since the tab's Stop is behind the modal window.
+* **Condition 4, no default button: THE ONE DELIBERATE DIFFERENCE FROM THE OTHER INSTRUMENTS'
+  WINDOWS.** No button is a default or an auto-default (Qt's button box makes its first confirming
+  button the default each time it is shown; ChromIQ takes that back), none takes the keyboard
+  focus, so Enter, Return and Space never answer. Esc and the title bar's close box do what the
+  panel's Esc does: a question is withdrawn with the answer that moves nothing and the ending is
+  asked; Esc on the ending is a withdrawal. Never an answer that leads to a move.
+* **The look, as the hand path's windows.** The model windows: M-END ("Keep what you have measured
+  so far?"), "All Strips Read", the unread-patches window. The same margins, a bold title above
+  the text, no icon, the answers in a button box by role so the application's style
+  (`WinButtonLayoutStyle`) gives the platform's order, the confirming answer filled in the Measure
+  tab's accent through `tint_dialog_primary` (not while it cannot be pressed), Discard and Send
+  nothing more marked destructive (never filled), the rest plain; M-END's own roles for the
+  ending.
+* **Sounds** (`measurement_window_sounds.md`, rule W-1, at the moment the window opens): a row
+  that could not be read plays "Strip read failed" (as "Patch read failed"); a refusal, a stop, a
+  failed opening, an error, the stored-white notice and the switched-off-first question play
+  "Instrument error"; every other question plays none (as the hand path's "Calibrate the
+  instrument" and the pause after a page). These rows are not in that document's generated tables
+  yet.
+* **Quit, close box, logout** during a quiet session go through the same table ending as in the
+  panel: with a pop-up open the ending opens in it; while a step runs the table stops before its
+  next move first.
+
+### ⏳ Awaiting confirmation: the quiet round's panel fixes (2026-11-18)
+
+**Confirmed by:** *nobody yet.*
+
+* The panel's visible part ends on a whole line of the text or the title; a framed part (the
+  true-state box), the ticks or the note wait below the scroll edge instead of being cut.
+* M-I1IO-DRIVE-ROW-FAILED-STRIP says the hands-off sentence first.
+* In a main window lower than 800 px the tab's mode buttons and chart file box (locked during the
+  session) give their room to the panel: at 900 x 650 the ending shows its three answers and at
+  least three lines of its explanation.
