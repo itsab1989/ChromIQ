@@ -82,8 +82,11 @@ D1_UV_ECHO = "00D2"
 UV_FIRST_READING_AFTER_TRIGGER_S = 0.231
 UV_MOTION_START_AFTER_TRIGGER_S = 0.236
 #: the clean edge the dual row's cut leaves on each side of a patch's window (at 132 mm/s the
-#: lamp pass's motion start is known to +-6 ms = 0.8 mm; 0.5 mm gave p95 1.04 dE00, 1.5 mm 0.22)
-DUAL_EDGE_MM = 1.5
+#: lamp pass's motion start is known to +-6 ms = 0.8 mm; on the recorded rows 0.5 mm gave p95
+#: 1.04 dE00, 1.0 mm 0.25, 1.5 mm 0.22). 1.5 mm first; 1.0 mm only when 1.5 mm leaves a patch
+#: fewer than DUAL_MIN_READINGS (ChromIQ's own 10 mm patches: 2 readings at 1.5 mm, 3-5 at 1.0)
+DUAL_EDGES_MM = (1.5, 1.0)
+DUAL_EDGE_MM = DUAL_EDGES_MM[0]
 #: readings each patch must get in EACH pass (the hand dual scan's own minimum, CQ_DUAL_MIN_UV)
 DUAL_MIN_READINGS = 3
 #: the longest UV-LED on time ever recorded: 1150 readings (a slow hand pass, 6.0 s; the

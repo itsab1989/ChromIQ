@@ -132,24 +132,32 @@ def _uv_patch_order(lamp, uv):
     return [by[q.loc] for q in lamp.patches]
 
 
-def cut_dual(lamp, uv, lamp_rows, uv_rows) -> DualCut:
+def _dual_windows(lamp, uv, nl, nu, edge):
+    wl_ = sc.windows(lamp, sc.MOTION_START_AFTER_LAMP_S, nl, edge_mm=edge)
+    wu_ = sc.windows(uv, sc.UV_MOTION_START_AFTER_TRIGGER_S, nu, edge_mm=edge,
+                     first_reading_s=sc.UV_FIRST_READING_AFTER_TRIGGER_S)
+    order = _uv_patch_order(lamp, uv)
+    return wl_, [wu_[k] for k in order]
+
+
+def cut_dual(lamp, uv, lamp_rows, uv_rows, edges=None) -> DualCut:
     """Both passes of a dual row cut into the row's patches BY POSITION (the move's own profile,
-    each pass's recorded first-reading delay and motion start, the dual row's clean edge).
-    Refused (nothing guessed) when a window lies outside a pass's readings, holds fewer than
-    ``scan.DUAL_MIN_READINGS``, or the lamp pass's window is not on one colour. The UV pass is
-    judged later by the helper (whether it belongs to this row)."""
+    each pass's recorded first-reading delay and motion start, the dual row's clean edge: the
+    widest of ``scan.DUAL_EDGES_MM`` that leaves every patch ``scan.DUAL_MIN_READINGS`` in both
+    passes). Refused (nothing guessed) when a window lies outside a pass's readings, holds fewer
+    than that at the narrowest edge, or the lamp pass's window is not on one colour. The UV pass
+    is judged later by the helper (whether it belongs to this row)."""
     if len(lamp_rows) < lamp.N or len(uv_rows) < uv.N:
         return DualCut(False, "strip_fewer_readings_than_planned",
                        info={"lamp": len(lamp_rows), "uv": len(uv_rows), "planned": lamp.N})
-    wl_ = sc.windows(lamp, sc.MOTION_START_AFTER_LAMP_S, len(lamp_rows), edge_mm=sc.DUAL_EDGE_MM)
-    wu_ = sc.windows(uv, sc.UV_MOTION_START_AFTER_TRIGGER_S, len(uv_rows),
-                     edge_mm=sc.DUAL_EDGE_MM, first_reading_s=sc.UV_FIRST_READING_AFTER_TRIGGER_S)
-    order = _uv_patch_order(lamp, uv)
-    wu = [wu_[k] for k in order]
-    counts_l = [i1 - i0 for i0, i1 in wl_]
-    counts_u = [i1 - i0 for i0, i1 in wu]
+    for edge in (edges or sc.DUAL_EDGES_MM):
+        wl_, wu = _dual_windows(lamp, uv, len(lamp_rows), len(uv_rows), edge)
+        counts_l = [i1 - i0 for i0, i1 in wl_]
+        counts_u = [i1 - i0 for i0, i1 in wu]
+        if min(counts_l + counts_u, default=0) >= sc.DUAL_MIN_READINGS:
+            break
     info = {"lamp_windows": wl_, "uv_windows": wu, "lamp_readings_per_patch": counts_l,
-            "uv_readings_per_patch": counts_u, "edge_mm": sc.DUAL_EDGE_MM,
+            "uv_readings_per_patch": counts_u, "edge_mm": edge,
             "lamp_motion_start_s": sc.MOTION_START_AFTER_LAMP_S,
             "uv_motion_start_s": sc.UV_MOTION_START_AFTER_TRIGGER_S,
             "uv_first_reading_s": sc.UV_FIRST_READING_AFTER_TRIGGER_S}

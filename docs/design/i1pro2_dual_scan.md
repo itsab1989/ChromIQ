@@ -480,7 +480,7 @@ data".
   at 132 (d1 365), then straight back with the UV LED at 132 (a zero-length m0, c4, d1 210, p0,
   the scan move back, a3, c3; the same one path to the fire). Every row from its -X end. 132 and
   d1 210 are allowed only in the dual row's matching pass. The table's position log (y1-y5) is not
-  asked for: both passes are cut by position (1.5 mm clean edge; lamp motion start 0.372 s, first
+  asked for: both passes are cut by position (1.5 mm clean edge, 1.0 mm when 1.5 mm leaves a patch too few readings, as on ChromIQ's own 10 mm patches; lamp motion start 0.372 s, first
   reading 0.370 s; UV 0.236 s / 0.231 s), at least three readings per patch per pass; a row that
   cannot give that, or would need more than the longest recorded UV-LED pass (1,150 readings), is
   read patch by patch with the dual scan. M1 / M2 are worked out by the helper from the app's cut
@@ -498,3 +498,5 @@ data".
   against i1Profiler's own file (in its table white reference); with i1Profiler's M0 as the base,
   M2 0.015 / 0.054 / 0.149 and M1 0.007 / 0.024 / 0.076 at the instrument's own factor (0.027 and
   0.011 means at the standard 1.156); every wrong row's UV pass (8 of 8) refused by the pairing.
+  With the 1.0 mm edge alone the same rows give M0 0.104 / 0.254 / 1.326 (one patch at the edge)
+  and, on i1Profiler's M0, M2 0.013 and M1 0.006 means.

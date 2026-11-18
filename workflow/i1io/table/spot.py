@@ -245,12 +245,13 @@ def plan_strip_row(sheet: dict, page: int, index: int, alignment, front_y=None,
 
 # ---- THE DUAL ROW (the i1Pro 2 dual scan on the table, 2026-11-18; A FIRST TRY) ---------------
 
-def dual_windows_ok(lamp, uv) -> "int | None":
+def dual_windows_ok(lamp, uv, edge_mm: "float | None" = None) -> "int | None":
     """The fewest readings any patch gets in EITHER pass of a dual row with the dual row's cut
-    (``scan.DUAL_EDGE_MM``, each pass's own motion start and first reading), or None when a
-    window lies outside a pass's readings."""
-    w = sc.windows(lamp, sc.MOTION_START_AFTER_LAMP_S, lamp.N, edge_mm=sc.DUAL_EDGE_MM)
-    w += sc.windows(uv, sc.UV_MOTION_START_AFTER_TRIGGER_S, uv.N, edge_mm=sc.DUAL_EDGE_MM,
+    (*edge_mm*, default the narrowest of ``scan.DUAL_EDGES_MM``; each pass's own motion start
+    and first reading), or None when a window lies outside a pass's readings."""
+    e = min(sc.DUAL_EDGES_MM) if edge_mm is None else edge_mm
+    w = sc.windows(lamp, sc.MOTION_START_AFTER_LAMP_S, lamp.N, edge_mm=e)
+    w += sc.windows(uv, sc.UV_MOTION_START_AFTER_TRIGGER_S, uv.N, edge_mm=e,
                     first_reading_s=sc.UV_FIRST_READING_AFTER_TRIGGER_S)
     if any(i1 - i0 < 1 for i0, i1 in w):
         return None

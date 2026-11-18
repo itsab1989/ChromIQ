@@ -2781,6 +2781,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             "used for this chart. Your setting is remembered for other "
             "charts.")
         out = []
+        # the X-Rite i1Pro 2 dual scan on the table (Preferences > Beta): the filter row
+        # chooses M0 / M1 / M2 (recorded, never sent as -F), so it has a meaning then
+        try:
+            from workflow.dual_scan import session as _D
+            dual_on = _D.switched_on(self._settings) and _D.helper_can(self._dual_caps())
+        except Exception:      # noqa: BLE001 - as without the Beta
+            dual_on = False
         for name in ("_instr_spin", "_m_instr_spin"):
             w = getattr(self, name, None)
             if w is not None:
@@ -2793,7 +2800,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         for opts in (getattr(self, "_chartread_opts", None) or [],
                      getattr(self, "_m_chartread_opts", None) or []):
             for opt in opts:
-                why = {"tolerance": tol, "filter": filt}.get(opt.key)
+                why = {"tolerance": tol, "filter": None if dual_on else filt}.get(opt.key)
                 if why is None:
                     continue
                 for w in (opt.checkbox, opt.widget):
@@ -12423,6 +12430,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if ti1 is None or Path(ti1).parent.name == "cal" or _fd9_ask(
                 self, "_is_fd9_target") or self._chart_is_cr30():
             return D.Plan(False, why_not="not_this_chart")
+        if self._chart_is_an_i1io_chart():
+            # the i1iO table plans its own dual scan (_table_dual_setup) and says it on its
+            # own first page: the hand note ("on the ruler") is not this measurement's
+            return D.Plan(False, why_not="table_chart")
         try:
             main = self._measurement_to_continue()
         except Exception:      # noqa: BLE001

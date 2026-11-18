@@ -299,7 +299,8 @@ def test_a_stop_during_the_lamp_pass_is_honoured_before_the_uv_pass(tmp_path):
 
 
 def test_short_patches_are_read_patch_by_patch_with_the_dual_scan(tmp_path):
-    job, sim, helper, run, p = _job(tmp_path, sheet=small_sheet())
+    job, sim, helper, run, p = _job(tmp_path, sheet=shaped_sheet([4, 4], along=7.0, w=210.0,
+                                                                h=297.0))
     _ready(job, p)
     r = p.drive(job.read_row())
     assert r.ok and r.detail["read_patch_by_patch_because"] == "dual_row_patches_too_short"
@@ -443,3 +444,26 @@ def test_the_dual_phase_is_on_only_while_its_pass_runs(tmp_path):
     for line in (REC_D1_UV, REC_LAMP_M2):
         with pytest.raises(tbl.ForbiddenLine):
             gate(line)
+
+
+def test_chromiqs_own_10_mm_patches_are_read_as_dual_rows(tmp_path):
+    sheet = shaped_sheet([6, 6], along=10.0, across=10.0, w=210.0, h=297.0)
+    job, sim, helper, run, p = _job(tmp_path, sheet=sheet)
+    _ready(job, p)
+    r = p.drive(job.read_row())
+    assert r.ok and r.detail["row_kind"] == "strip", (r.reason, r.detail)
+    folder = next(iter(job.diag.folder.glob("row-*")))
+    cut = json.loads((folder / "p1_row1.dual_cut.json").read_text(encoding="utf-8"))
+    assert cut["ok"] and cut["info"]["edge_mm"] in sc.DUAL_EDGES_MM
+    assert min(cut["info"]["lamp_readings_per_patch"]) >= sc.DUAL_MIN_READINGS
+
+
+def test_the_cut_takes_the_narrower_edge_only_when_the_wider_leaves_too_few():
+    pts = [sc.Patch(str(k), f"A{k}", (-1200 + 100 * k, 1700), half_mm=5.0) for k in range(20)]
+    lamp = sc.plan_row("r", (-1300, 1700), (800, 1700), 132, pts, dual=True)
+    uv = sp.uv_pass_of(lamp)
+    rows = [[0.5] * 36 for _ in range(lamp.N)]
+    wide = dl.cut_dual(lamp, uv, rows, rows, edges=(1.5,))
+    auto = dl.cut_dual(lamp, uv, rows, rows)
+    assert not wide.ok and wide.reason == "strip_patch_too_few_readings"
+    assert auto.ok and auto.info["edge_mm"] == 1.0
