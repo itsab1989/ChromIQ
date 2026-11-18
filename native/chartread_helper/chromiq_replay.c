@@ -43,6 +43,7 @@
 #include "inst.h"
 
 #include "chromiq_ext.h"
+#include "chromiq_dualscan.h"
 #ifdef NT
 # include <windows.h>
 # include <process.h>
@@ -69,6 +70,11 @@ typedef struct {
 	 * patches under the conditions a COND block gives (0 M0, 1 M1, 2 M2) */
 	int    cn[3];
 	double cxyz[3][CQ_MAX_STEPS][3];
+	/* The i1Pro 2 dual scan (step 1, 2026-11-18): per patch the lamp and
+	 * the UV-LED reading as spectra (LAMP / UV lines), allocated on demand */
+	int    dl, du;
+	double (*dlamp)[CQ_DUAL_NB];
+	double (*duv)[CQ_DUAL_NB];
 } cq_strip;
 
 static cq_strip cq_strips[CQ_MAX_STRIPS];
@@ -76,15 +82,36 @@ static int      cq_nstrips = 0;
 static int      cq_stipa = 0;
 
 static int cq_replay_conds = 0;	/* the script carries COND blocks */
+/* The i1Pro 2 dual scan (step 1, 2026-11-18): the script's DUALCAL block
+ * (W, T, E, KA, KD lines of 36 values, CLOCKS lamp uv) and whether any strip
+ * carries LAMP / UV lines. SYNTHETIC data only in the repository. */
+static cq_dual_cal cq_dcal;
+static int cq_replay_dual = 0;		/* the script carries LAMP / UV lines */
+static int cq_replay_dualcal = 0;	/* ... and a DUALCAL block */
+
+static int cq_read36(const char *p, double *out) {
+	int j, n = 0;
+	for (j = 0; j < CQ_DUAL_NB; j++) {
+		char *e;
+		double v = strtod(p, &e);
+		if (e == p)
+			break;
+		out[j] = v;
+		p = e;
+		n++;
+	}
+	return n;
+}
 /* The margin tolerance (Beta): the paper white of the fake sheet, for the
  * segments a refused swipe hands over ("PAPER X Y Z" in the script). */
 static double cq_paper[3] = { 93.3, 96.6, 79.9 };
 
 int cq_replay_load(const char *path) {
 	FILE *fp;
-	char line[256];
+	char line[2048];		/* a LAMP / UV line holds 36 values */
 	cq_strip *cur = NULL;
 	int cond = -1;			/* inside a COND block of the current strip */
+	int indcal = 0;			/* inside the DUALCAL block */
 
 	if ((fp = fopen(path, "r")) == NULL) {
 		a1logw(g_log, "chromiq replay: can't open '%s'\n", path);
@@ -99,6 +126,49 @@ int cq_replay_load(const char *path) {
 			continue;
 		if (sscanf(line, "PAPER %lf %lf %lf", &x, &y, &z) == 3) {
 			cq_paper[0] = x; cq_paper[1] = y; cq_paper[2] = z;
+			continue;
+		}
+		if (strncmp(line, "DUALCAL", 7) == 0) {
+			memset(&cq_dcal, 0, sizeof(cq_dcal));
+			cq_dcal.nb = CQ_DUAL_NB;
+			cq_dcal.wl_short = 380.0;
+			cq_dcal.wl_long = 730.0;
+			cq_replay_dualcal = 1;
+			indcal = 1;
+			continue;
+		}
+		if (indcal) {
+			double *dst = NULL;
+			const char *rest = NULL;
+			int lc, uc;
+			if (strncmp(line, "W ", 2) == 0) { dst = cq_dcal.W; rest = line + 2; }
+			else if (strncmp(line, "T ", 2) == 0) { dst = cq_dcal.T; rest = line + 2; cq_dcal.have_uv_tile = 1; }
+			else if (strncmp(line, "E ", 2) == 0) { dst = cq_dcal.E; rest = line + 2; }
+			else if (strncmp(line, "KA ", 3) == 0) { dst = cq_dcal.kA; rest = line + 3; }
+			else if (strncmp(line, "KD ", 3) == 0) { dst = cq_dcal.kD; rest = line + 3; }
+			else if (sscanf(line, "CLOCKS %d %d", &lc, &uc) == 2) {
+				cq_dcal.cal_lamp_clocks = lc;
+				cq_dcal.cal_uv_clocks = uc;
+				continue;
+			}
+			if (dst != NULL) {
+				cq_read36(rest, dst);	/* missing values stay 0 (KA/KD: 18) */
+				continue;
+			}
+			indcal = 0;			/* anything else ends the block */
+		}
+		if (cur != NULL && (strncmp(line, "LAMP ", 5) == 0 || strncmp(line, "UV ", 3) == 0)) {
+			int uv = line[0] == 'U';
+			int *cnt = uv ? &cur->du : &cur->dl;
+			double (**arr)[CQ_DUAL_NB] = uv ? &cur->duv : &cur->dlamp;
+			if (*arr == NULL && (*arr = calloc(CQ_MAX_STEPS, sizeof(**arr))) == NULL) {
+				fclose(fp);
+				return 1;
+			}
+			if (*cnt < CQ_MAX_STEPS
+			 && cq_read36(line + (uv ? 3 : 5), (*arr)[*cnt]) == CQ_DUAL_NB)
+				(*cnt)++;
+			cq_replay_dual = 1;
 			continue;
 		}
 		if (sscanf(line, "STRIP %7s", lab) == 1) {
@@ -796,6 +866,78 @@ int cq_replay_cond_take(int cond, void *outp, int n) {
 	return 1;
 }
 
+/* ---------------- the i1Pro 2 dual scan (step 1, 2026-11-18) ----------------
+ * A strip with LAMP / UV lines is read as an i1Pro 2 dual scan would hand it
+ * over: the main values are the LAMP spectra (as the driver's
+ * i1pro_conv2XYZ makes them: percent reflectance, XYZ under D50, CIE 1931
+ * 2 degree, x 100), and the raw record of this reading (lamp and UV
+ * spectra per patch, 0..1, in the order the patches were filed, and the
+ * script's DUALCAL) is what cq_replay_dual_take hands the helper, which
+ * works out M1 and M2 itself (chromiq_dualscan.c). The UV pass arrives
+ * already cut into patches here (the ruler cut is chromiq_dualscan.c's
+ * cq_dual_cut, tested on its own). */
+static int cq_rd_n = 0;
+static double cq_rd_lamp[CQ_MAX_STEPS][CQ_DUAL_NB];
+static double cq_rd_uv[CQ_MAX_STEPS][CQ_DUAL_NB];
+static int cq_rd_have_uv = 0;
+
+void cq_replay_spec_to_patch(const double *refl01, int nb, void *vp) {
+	ipatch *v = (ipatch *)vp;
+	xsp2cie *conv;
+	int j;
+	memset(v, 0, sizeof(*v));
+	v->sp.spec_n = nb;
+	v->sp.spec_wl_short = 380.0;
+	v->sp.spec_wl_long = 730.0;
+	v->sp.norm = 100.0;
+	for (j = 0; j < nb; j++)
+		v->sp.spec[j] = 100.0 * refl01[j];
+	if ((conv = new_xsp2cie(icxIT_D50, 0.0, NULL, icxOT_CIE_1931_2, NULL,
+	                        icSigXYZData, icxNoClamp)) != NULL) {
+		conv->convert(conv, v->XYZ, &v->sp);
+		conv->del(conv);
+		for (j = 0; j < 3; j++)
+			v->XYZ[j] *= 100.0;
+		v->XYZ_v = 1;
+	}
+	v->mtype = inst_mrt_reflective;
+	v->mcond = inst_mrc_none;
+}
+
+static inst_code cq_replay_dual_strip(cq_strip *st, int npatch, int reversed,
+                                      ipatch *vals) {
+	int i;
+	for (i = 0; i < npatch; i++) {
+		int six = reversed ? npatch - 1 - i : i;
+		cq_replay_spec_to_patch(st->dlamp[six], CQ_DUAL_NB, &vals[i]);
+		memcpy(cq_rd_lamp[i], st->dlamp[six], sizeof(cq_rd_lamp[i]));
+		if (st->du >= npatch)
+			memcpy(cq_rd_uv[i], st->duv[six], sizeof(cq_rd_uv[i]));
+	}
+	cq_rd_have_uv = st->du >= npatch;
+	cq_rd_n = npatch;
+	cq_rc_n = 0;			/* no i1Pro 3 conditions record */
+	return inst_ok;
+}
+
+int cq_replay_dual_ready(void) {
+	const char *ri = getenv("CHROMIQ_REPLAY_INSTRUMENT");
+	return cq_replay_dual && ri != NULL && strcmp(ri, "i1pro2") == 0;
+}
+
+/* The last reading's raw record (n patches): 1 and the pointers, else 0.
+ * *uv is NULL when the script gave no UV lines for it (the second pass is
+ * missing); *cal is NULL when the script has no DUALCAL. */
+int cq_replay_dual_take(int n, const cq_dual_cal **cal, const double **lamp,
+                        const double **uv) {
+	if (n <= 0 || n != cq_rd_n)
+		return 0;
+	*cal = cq_replay_dualcal ? &cq_dcal : NULL;
+	*lamp = &cq_rd_lamp[0][0];
+	*uv = cq_rd_have_uv ? &cq_rd_uv[0][0] : NULL;
+	return 1;
+}
+
 static inst_code cq_read_strip(inst *p, char *name, int npatch, char *pname,
 	int sguide, double pwid, double gwid, double twid, ipatch *vals) {
 	cq_inst *cq = (cq_inst *)p;
@@ -900,6 +1042,9 @@ static inst_code cq_read_strip(inst *p, char *name, int npatch, char *pname,
 			}
 
 			st = cq_find(cq_swipe_as[0] != '\0' ? cq_swipe_as : pname);
+			cq_rd_n = 0;		/* the dual record: this reading's only */
+			if (st != NULL && st->dl >= npatch && npatch <= CQ_MAX_STEPS)
+				return cq_replay_dual_strip(st, npatch, cq_swipe_reversed, vals);
 			if (st == NULL || st->n < npatch)
 				return inst_misread;	/* script gap reads as misread */
 

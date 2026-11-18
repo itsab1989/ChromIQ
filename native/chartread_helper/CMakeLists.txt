@@ -90,6 +90,7 @@ add_executable(chromiq-chartread
   ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_json.c
   ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_margin.c
   ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_replay.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_dualscan.c
   ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_cal.c
   ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_stubs.c
   ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_usbwatch.c
@@ -380,6 +381,17 @@ add_executable(i1io_table_scan_test EXCLUDE_FROM_ALL
 target_include_directories(i1io_table_scan_test PRIVATE
   ${INSTLIB} ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(i1io_table_scan_test PRIVATE instlib)
+
+# The i1Pro 2 dual scan (step 1, 2026-11-18): the arithmetic alone, no
+# instrument (tests/test_i1pro2_dual_scan_engine.py).
+add_executable(i1pro2_dual_maths_test EXCLUDE_FROM_ALL
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests/i1pro2_dual_maths_test.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/chromiq_dualscan.c
+)
+target_include_directories(i1pro2_dual_maths_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+if(NOT WIN32)
+  target_link_libraries(i1pro2_dual_maths_test PRIVATE m)
+endif()
 
 set(_cq_link_targets chromiq-chartread i1pro2_lights_test i1pro3_lights_test
     i1pro3_conditions_test i1io_table_scan_test)

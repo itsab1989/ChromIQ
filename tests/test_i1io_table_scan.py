@@ -214,14 +214,17 @@ def test_only_the_switch_reaches_the_new_code():
     caps = [ln for ln in src.splitlines() if '{\\"caps\\":[' in ln]
     base = [ln for ln in _git_show("native/chartread_helper/chromiq_chartread.c")
             .decode("utf-8", "replace").splitlines() if '{\\"caps\\":[' in ln]
-    assert caps and caps == base
+    # 2026-11-18a: one word more, the i1Pro 2 dual-scan conditions (step 1)
+    assert caps and base and caps == [base[0].replace(
+        '\\"margin_tolerance\\"]', '\\"margin_tolerance\\",\\"i1pro2_dual_conditions\\"]')]
 
 
 def test_the_build_string():
     h = (HELPER / "chromiq_ext.h").read_text(encoding="utf-8")
-    # 2026-11-17b (round B) = 2026-11-17a + the table drive's button wait, last
-    assert "chromiq-chartread 2026-11-17b " in h
-    assert "+i1io-table-scan+i1io-press-wait\"" in h
+    # 2026-11-17b (round B) = 2026-11-17a + the table drive's button wait;
+    # 2026-11-18a = 17b + the i1Pro 2 dual-scan conditions, last
+    assert "chromiq-chartread 2026-11-18a " in h
+    assert "+i1io-table-scan+i1io-press-wait+i1pro2-dual-conditions\"" in h
 
 
 def _base_tree(tmp: Path) -> Path:

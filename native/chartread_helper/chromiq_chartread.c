@@ -724,6 +724,33 @@ static int cq_vx_cap = 0, cq_vx_n = 0, cq_vx_valid = 0;
 static cq_cx3 *cq_prev_cx = NULL;	/* beside cq_prev ("I read strip B") */
 static const char *cq_cond_name[3] = { "M0", "M1", "M2" };
 
+/* CHROMIQ_EXT: the X-Rite i1Pro 2 dual scan (step 1, 2026-11-18). With
+ * --dual-scale <s> (and --condition-dir) an i1Pro 2 whose readings come with
+ * a UV-LED pass keeps M1 and M2 in the SAME conditions record and files as
+ * the i1Pro 3 above, worked out here from the lamp and UV readings by
+ * chromiq_dualscan.c (the C twin of workflow/dual_scan/model.py). Step 1
+ * has no instrument part: only the replay instrument hands over dual
+ * readings (CHROMIQ_REPLAY_INSTRUMENT=i1pro2, LAMP / UV lines, DUALCAL);
+ * a real i1Pro 2 is refused with why "dual_not_available", and nothing at
+ * all changes without --dual-scale. Every file of such a measurement says
+ * so: CHROMIQ_DUAL_SCAN, CHROMIQ_DUAL_SCALE, CHROMIQ_DUAL_SCALE_SOURCE,
+ * CHROMIQ_DUAL_WHITE (workflow/dual_scan/storage.py). */
+static int cq_dual_req = 0;			/* --dual-scale given */
+static double cq_dual_scale = 0.0;
+static const char *cq_dual_source = "standard";	/* --dual-scale-source */
+static const char *cq_dual_white = "instrument";	/* --dual-white */
+static int cq_cond_dual = 0;			/* the record comes from dual readings */
+
+static int cq_dual_word_ok(const char *w) {
+	int i;
+	if (w == NULL || w[0] == '\0' || strlen(w) > 24)
+		return 0;
+	for (i = 0; w[i] != '\0'; i++)
+		if (!((w[i] >= 'a' && w[i] <= 'z') || (w[i] >= '0' && w[i] <= '9') || w[i] == '_'))
+			return 0;
+	return 1;
+}
+
 static cq_cx3 *cq_cx_of(chcol *c) {
 	long i;
 	if (!cq_cond_active || cq_cx == NULL || c == NULL)
@@ -813,6 +840,42 @@ static void cq_cond_after_read(int rv, int n) {
 		return;
 	}
 	memset(cq_vx, 0, sizeof(cq_cx3) * (size_t)n);
+	if (cq_cond_dual) {			/* the i1Pro 2 dual scan (step 1) */
+		const cq_dual_cal *cal = NULL;
+		const double *lamp = NULL, *uv = NULL;
+		const char *why = NULL;
+		double m1[CQ_DUAL_NB], m2[CQ_DUAL_NB];
+		if (!cq_replay_dual_take(n, &cal, &lamp, &uv))
+			why = "record";
+		else if (cal == NULL)
+			why = "dual_no_dual_calibration";
+		else if (uv == NULL)
+			why = "dual_uv_pass_missing";
+		for (i = 0; why == NULL && i < n; i++) {
+			const char *r = cq_dual_patch(cal, cq_dual_scale, lamp + i * CQ_DUAL_NB,
+			                              uv + i * CQ_DUAL_NB, m1, m2);
+			if (r != NULL) {
+				static char buf[64];
+				snprintf(buf, sizeof(buf), "dual_%s", r);
+				why = buf;
+				break;
+			}
+			cq_replay_spec_to_patch(lamp + i * CQ_DUAL_NB, CQ_DUAL_NB, &tmp[0]);
+			cq_cx_from_ipatch(&cq_vx[i][0], &tmp[0]);
+			cq_replay_spec_to_patch(m1, CQ_DUAL_NB, &tmp[0]);
+			cq_cx_from_ipatch(&cq_vx[i][1], &tmp[0]);
+			cq_replay_spec_to_patch(m2, CQ_DUAL_NB, &tmp[0]);
+			cq_cx_from_ipatch(&cq_vx[i][2], &tmp[0]);
+		}
+		free(tmp);
+		if (why != NULL) {
+			cq_cond_lose(why);
+			return;
+		}
+		cq_vx_n = n;
+		cq_vx_valid = 1;
+		return;
+	}
 	for (c = 0; c < 3 && ok; c++) {
 		if (c == cq_cond_main)
 			continue;
@@ -845,7 +908,7 @@ static void cq_cond_file(chcol *d, int ix) {
 
 /* Around one read_strip / read_sample. */
 static void cq_cond_arm(int on) {
-	if (!cq_cond_active || cq_cond_replay || cq_cond_it == NULL)
+	if (!cq_cond_active || cq_cond_replay || cq_cond_dual || cq_cond_it == NULL)
 		return;
 	i1pro3_cq_cond_arm(cq_cond_it, on);
 }
@@ -1026,6 +1089,9 @@ static int cq_cond_write_one(const char *text, long len, int c, const char *hash
 				        cq_cond_name[c], hash);
 				if (c == 2)
 					fprintf(fp, "KEYWORD \"INSTRUMENT_FILTER\"\nINSTRUMENT_FILTER \"UVCUT\"\n");
+				/* the i1Pro 2 dual scan: the main file carries these from
+				 * the session's start (cq_cond_for_session); copied as they
+				 * are below, nothing to add here */
 			}
 			if (cq_line_is(lbuf, n, "BEGIN_DATA_FORMAT"))
 				state = 1;
@@ -1297,6 +1363,29 @@ static int cq_cond_load_one(const char *path, int c, const char *hash,
 	return 0;
 }
 
+/* The main file on disk: 0 none / no readings yet, 1 readings without the
+ * dual-scan keyword (single scans), 2 readings with it (a dual scan). */
+static int cq_dual_main_kind(const char *mainfile) {
+	char *buf;
+	long len;
+	int kind;
+	if (mainfile == NULL || (buf = cq_read_all(mainfile, &len)) == NULL)
+		return 0;
+	if (strstr(buf, "\nBEGIN_DATA\n") == NULL && strstr(buf, "\nBEGIN_DATA\r\n") == NULL)
+		kind = 0;
+	else {
+		char *b = strstr(buf, "\nBEGIN_DATA");
+		char *e = b != NULL ? strstr(b, "\nEND_DATA") : NULL;
+		long rows = 0;
+		char *q;
+		for (q = b != NULL ? b + 1 : NULL; q != NULL && e != NULL && q < e; q = strchr(q + 1, '\n'))
+			rows++;
+		kind = rows <= 1 ? 0 : (strstr(buf, "CHROMIQ_DUAL_SCAN") != NULL ? 2 : 1);
+	}
+	free(buf);
+	return kind;
+}
+
 static int cq_cond_resume(const char *mainfile, chcol *cols, int npat) {
 	char hash[64];
 	int c, any = 0, i;
@@ -1333,8 +1422,26 @@ static void cq_cond_for_session(inst *it, int rmode, int emis, int trans,
 	             : (fe == inst_opt_filter_none || fe == inst_opt_filter_unknown) ? 0 : -1;
 	n = cq_cond_dir != NULL ? 2 : 0;
 	(void)c;
+	cq_cond_dual = 0;
 	if (it == NULL)
 		why = "instrument";
+	else if (cq_dual_req && it->dtype == instI1Pro2) {
+		/* the i1Pro 2 dual scan (step 1): main = the lamp pass = M0 */
+		if (emis || trans || displ || (rmode != 0 && rmode != 1))
+			why = "mode";
+		else if (cq_cond_main != 0)
+			why = "filter";
+		else if (n != 2 || cq_sctx.cols == NULL || cq_sctx.npat <= 0)
+			why = "files";
+		else if (!(cq_replay_active() && cq_replay_dual_ready()))
+			why = "dual_not_available";
+		else if (cq_dual_main_kind(cq_sctx.outname) == 1)
+			why = "mixed";		/* readings of single scans in the main file */
+		if (why == NULL) {
+			cq_cond_replay = 1;
+			cq_cond_dual = 1;
+		}
+	}
 	else if (emis || trans || displ || (rmode != 0 && rmode != 1))
 		why = "mode";
 	else if (cq_cond_main < 0)
@@ -1367,7 +1474,21 @@ static void cq_cond_for_session(inst *it, int rmode, int emis, int trans,
 			i1pro3_cq_cond_options(it, 0);
 		free(cq_cx);
 		cq_cx = NULL;
+		cq_cond_dual = 0;
 		cq_emit_raw("{\"event\":\"conditions\",\"active\":false,\"why\":\"%s\"}", why);
+		return;
+	}
+	if (cq_cond_dual) {
+		char sb[32];
+		snprintf(sb, sizeof(sb), "%.4f", cq_dual_scale);
+		cq_sctx.ocg->add_kword(cq_sctx.ocg, 0, "CHROMIQ_DUAL_SCAN", "i1pro2", NULL);
+		cq_sctx.ocg->add_kword(cq_sctx.ocg, 0, "CHROMIQ_DUAL_SCALE", sb, NULL);
+		cq_sctx.ocg->add_kword(cq_sctx.ocg, 0, "CHROMIQ_DUAL_SCALE_SOURCE", cq_dual_source, NULL);
+		cq_sctx.ocg->add_kword(cq_sctx.ocg, 0, "CHROMIQ_DUAL_WHITE", cq_dual_white, NULL);
+		cq_emit_raw("{\"event\":\"conditions\",\"active\":true,\"instrument\":\"i1pro2\","
+		            "\"dual\":true,\"scale\":%s,\"scale_source\":\"%s\",\"white\":\"%s\","
+		            "\"main\":\"M0\",\"extra\":[\"M1\",\"M2\"]}",
+		            sb, cq_dual_source, cq_dual_white);
 		return;
 	}
 	cq_emit_raw("{\"event\":\"conditions\",\"active\":true,\"instrument\":\"i1pro3\","
@@ -6242,6 +6363,23 @@ int main(int argc, char *argv[]) {
 				cq_cond_dir = argv[ai + 1];
 				cq_cond_req = 1;
 				eat = 2;
+			} else if (strcmp(argv[ai], "--dual-scale") == 0 && ai + 1 < argc) {
+				/* CHROMIQ_EXT: the i1Pro 2 dual scan (step 1): the glow
+				 * scale (workflow/dual_scan/scale.py); 0.5..2.0 or ignored. */
+				double v = atof(argv[ai + 1]);
+				if (v >= 0.5 && v <= 2.0) {
+					cq_dual_scale = v;
+					cq_dual_req = 1;
+				}
+				eat = 2;
+			} else if (strcmp(argv[ai], "--dual-scale-source") == 0 && ai + 1 < argc) {
+				if (cq_dual_word_ok(argv[ai + 1]))
+					cq_dual_source = argv[ai + 1];
+				eat = 2;
+			} else if (strcmp(argv[ai], "--dual-white") == 0 && ai + 1 < argc) {
+				if (cq_dual_word_ok(argv[ai + 1]))
+					cq_dual_white = argv[ai + 1];
+				eat = 2;
 			} else if (strcmp(argv[ai], "--ruler") == 0) {
 				/* CHROMIQ_EXT: Preferences > Beta, the ruler check. */
 				cq_ruler = 1;
@@ -6256,7 +6394,7 @@ int main(int argc, char *argv[]) {
 				 * before it relies on it. One JSON line, then exit 0.
 				 * "legacy_labels": reads sheets ChromIQ's layout engine
 				 * printed with its pre-4.3.3-beta.7 labels as printed. */
-				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"turn\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\",\"lights_signals\",\"lights_during_reading\",\"ruler_check\",\"i1pro3_conditions\",\"margin_tolerance\"],\"build\":\"%s\"}\n",
+				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"turn\",\"gestures\",\"button_test\",\"i1pro2_lights\",\"i1pro3_lights\",\"lights_signals\",\"lights_during_reading\",\"ruler_check\",\"i1pro3_conditions\",\"margin_tolerance\",\"i1pro2_dual_conditions\"],\"build\":\"%s\"}\n",
 				       cq_helper_build_string());
 				fflush(stdout);
 				return 0;

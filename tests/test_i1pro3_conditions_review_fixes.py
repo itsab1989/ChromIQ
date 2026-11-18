@@ -140,8 +140,9 @@ def test_f4_the_old_pair_goes_only_after_the_main_is_in_place():
 def test_f4_the_helper_build_string_is_the_new_one():
     h = (ROOT / "native" / "chartread_helper" / "chromiq_ext.h").read_text(
         encoding="utf-8")
-    # 2026-11-17a (the i1iO 2 table scan) and 17b (its button wait) keep every token of 16d
-    assert re.search(r"chromiq-chartread 2026-11-1(6d|7a|7b) ", h)
+    # 2026-11-17a (the i1iO 2 table scan), 17b (its button wait) and 18a (the
+    # i1Pro 2 dual-scan conditions) keep every token of 16d
+    assert re.search(r"chromiq-chartread 2026-11-1(6d|7a|7b|8a) ", h)
     assert "+conditions-commit-last" in h
 
 

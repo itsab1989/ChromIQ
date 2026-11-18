@@ -42,6 +42,10 @@ REASONS: "dict[str, str]" = {
         "The instrument's position ruler gave no usable positions for this "
         "dual scan, so the two passes cannot be matched patch by patch. "
         "Read the strip again."),
+    "calibration_mode_changed": (
+        "The reading mode changed since the last calibration (dual scan "
+        "and single scan need their own calibration). Calibrate again "
+        "before measuring."),
     "bad_values": (
         "A reading holds values that are not numbers, so ChromIQ does not "
         "use it. Read it again."),
