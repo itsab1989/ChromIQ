@@ -548,3 +548,30 @@ def test_s3_every_page_that_moves_at_once_carries_the_switch_off_line(qtbot, mon
         p.answer_page(page)
     assert {"go", "sheet_laid", "check_mark"} <= seen
 
+
+# ---- S-4: the tab's Stop in quiet mode -----------------------------------------------------------
+
+from tests.i1io_table.test_window_in_the_measure_tab import beta, tab  # noqa: E402,F401
+
+
+def test_s4_the_tabs_stop_is_red_only_while_a_quiet_table_session_is_open(tab, beta, tmp_path,
+                                                                          monkeypatch, qtbot):
+    from tests.i1io_table.test_quiet_popups import _tab_quiet
+    from tests.i1io_table.window_person import WindowPerson
+    before = tab._stop_btn.styleSheet()
+    assert "#c62828" not in before                     # a hand measurement's Stop: unchanged
+    run, sim = _tab_quiet(tab, tmp_path, monkeypatch, size=(1440, 900))
+    win = tab._table_window
+    assert "#c62828" in tab._stop_btn.styleSheet()
+    assert "QPushButton:disabled" in tab._stop_btn.styleSheet()
+    p = WindowPerson(win, sim, lambda c: qtbot.waitUntil(c, timeout=15000))
+    p.drive_until("sheet_laid")
+    assert "#c62828" in tab._stop_btn.styleSheet()
+    win._on_end_pressed()                 # nothing read: no completion window of the tab
+    p.script.update({"home_offered": "Leave it there"})
+    p.drive_until("done")
+    p.press("Close")
+    qtbot.waitUntil(lambda: getattr(tab, "_table_window", None) is None or win._finished,
+                    timeout=10000)
+    assert tab._stop_btn.styleSheet() == before
+

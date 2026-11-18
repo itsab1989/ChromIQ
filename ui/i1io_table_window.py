@@ -116,6 +116,19 @@ def switch_off_line() -> str:
     """The one-line switch-off sentence (the same words as the tab's own line)."""
     return tr("To stop the arm at once, switch the table off at its power switch.")
 
+
+def stop_button_qss(selector: str = "QPushButton", own_size: bool = True) -> str:
+    """The table's Stop look (review 10, M-3): red, the strongest control while anything can
+    move. Shared by the asking-mode panel's Stop and, in quiet mode, the Measure tab's Stop while
+    a table session is open (review 14, S-4: there *own_size* False keeps the tab's button in
+    the size its row gives it, so START keeps its room)."""
+    size = " font-size: 15px; letter-spacing: 1px; padding: 6px 18px;" if own_size else ""
+    return (f"{selector} {{ background: #c62828; color: #ffffff;"
+            f" border: 1px solid #8e1b1b; border-radius: 6px; font-weight: 700;{size} }}"
+            f"{selector}:hover {{ background: #b71c1c; }}"
+            f"{selector}:pressed {{ background: #8e1b1b; }}")
+
+
 #: the role each answer has in the pop-up's button box (by its English label, compared through
 #: tr()), as the hand path's windows give theirs: the application's style orders the roles for
 #: the platform; the AcceptRole answer is filled in the Measure tab's accent (never a default);
@@ -1068,11 +1081,7 @@ class TableMeasureWindow(QFrame):
     # ---- layout --------------------------------------------------------------------------
     #: the Stop button's own look (review 10, M-3): the one Stop, the strongest control of the
     #: panel while anything can move, in the same place on every page
-    STOP_QSS = ("QPushButton#i1io_table_stop { background: #c62828; color: #ffffff;"
-                " border: 1px solid #8e1b1b; border-radius: 6px; font-weight: 700;"
-                " font-size: 15px; letter-spacing: 1px; padding: 6px 18px; }"
-                "QPushButton#i1io_table_stop:hover { background: #b71c1c; }"
-                "QPushButton#i1io_table_stop:pressed { background: #8e1b1b; }")
+    STOP_QSS = stop_button_qss("QPushButton#i1io_table_stop")
     #: an answer button is never squeezed below its own height (review 10, M-2)
     ANSWER_MIN_H = 34
 

@@ -3184,6 +3184,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             disabled_rule = (
                 f"QPushButton:disabled {{ background: {disabled_bg};"
                 f" color: {disabled_fg}; border-color: {disabled_border}; }}")
+        if getattr(self, "_table_stop_red", False):
+            # review 14, S-4: while a quiet i1iO table session is open, the tab's Stop is the
+            # table's Stop and wears its red look (the asking-mode panel's, one shared style);
+            # disabled it keeps the disabled look, so it never seems pressable
+            from ui.i1io_table_window import stop_button_qss
+            self._stop_btn.setStyleSheet(stop_button_qss(own_size=False) + disabled_rule)
+            return
         self._stop_btn.setStyleSheet(
             "QPushButton { background: #f4f4f4; color: #121212; border: 1px solid #cccccc; font-weight: 600; }"
             "QPushButton:hover { background: #e0e0e0; border-color: #bbbbbb; }"
@@ -7528,6 +7535,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             btn.setVisible(True)
             btn.setEnabled(False)
             self._stop_btn.setEnabled(False)
+            self._table_stop_red = True
+            self._apply_stop_btn_style()
             return
         before = getattr(self, "_table_quiet_before", None)
         if before is None:
@@ -7539,6 +7548,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 w.setVisible(False)
         self._calm_outer.setVisible(before["calm"])
         self._stop_btn.setEnabled(False)
+        if getattr(self, "_table_stop_red", False):
+            self._table_stop_red = False
+            self._apply_stop_btn_style()
 
     def _on_table_moving(self, on: bool) -> None:
         """The tab's Stop is the table's Stop in quiet mode: live whenever
