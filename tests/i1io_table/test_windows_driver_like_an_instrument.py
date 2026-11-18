@@ -206,6 +206,26 @@ def test_the_i1pro2_can_get_the_driver_while_the_table_keeps_x_rites(
     assert [(d.vid, d.pid) for d in installed] == [TABLE]
 
 
+@pytest.mark.parametrize("order", ["pro_first", "two_instruments_and_the_table"])
+def test_each_device_gets_its_own_install_once_and_the_table_only_when_chosen(
+        dialog, on_windows, beta, monkeypatch, order):
+    """Review 446, planted fault W5b survived because every test listed the table first: with
+    the i1Pro 2 listed BEFORE the table (and with two instruments plus the table), each device
+    gets exactly one install call of its own, with its own id, and the table only when its own
+    button was pressed."""
+    listed = ([_pro(), _table()] if order == "pro_first"
+              else [_pro(), _other(), _table()])
+    instruments = [(d.vid, d.pid) for d in listed if not inst.is_table(d.vid, d.pid)]
+    asked, installed = _hardware(monkeypatch, listed)
+    _press(dialog, "Install Driver")
+    assert [(d.vid, d.pid) for d in installed] == instruments      # once each, no table
+    assert not any(inst.is_table(d.vid, d.pid) for d in installed)
+    installed.clear()
+    _press(dialog, "Install Driver for the Table")
+    assert [(d.vid, d.pid) for d in installed] == [TABLE]           # once, its own id
+    assert inst._choice_holds(installed[0])
+
+
 def test_a_table_target_is_built_from_the_listed_table_and_never_from_an_instrument():
     choice = inst.ExplicitTableChoice(inst.TABLE_CHOICE_WORDS)
     t = inst.table_device_for(choice, _table())
