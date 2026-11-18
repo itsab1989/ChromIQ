@@ -11790,7 +11790,7 @@ M_DUAL_FILTER_NOT_DUAL = _m(
 #: The Measure tab before START, while the dual scan applies.
 M_DUAL_BEFORE_START = _m(
     "M-DUAL-BEFORE-START",
-    "Dual scan (beta, first try): each strip is read twice",
+    "Dual scan (beta, first try): each strip is read twice, on the ruler",
     "First as usual with the lamp, then once more over the same strip with "
     "the UV light, without lifting the instrument. "
     "From the two passes ChromIQ works out M1 and M2 besides M0, and the "

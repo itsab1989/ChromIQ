@@ -600,7 +600,8 @@ def test_the_pass_prompt_is_the_tabs_own_status_line_and_covers_nothing(
     tab._hide_status_flash()
     lbl = tab._status_bar_lbl
     assert lbl.isVisible()
-    assert lbl.text().startswith("Strip A, pass 2 of 2 (UV light): ")
+    assert lbl.text() == "Strip A, pass 2 of 2 (UV light)", "one line"
+    assert lbl.toolTip().startswith("Now read strip A once more")
     assert not tab._preview._banner_lbl.isVisible(), "no box over the chart"
 
     def rect(w):

@@ -11562,6 +11562,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             # the i1Pro 2 dual scan's pass line is the strip prompt: it
             # comes back after a flashed line
             self._status_bar_lbl.setText(self._dual_status_text)
+            self._status_bar_lbl.setToolTip(
+                getattr(self, "_dual_status_detail", ""))
             self._status_bar_lbl.setVisible(True)
             return
         lbl = getattr(self, "_status_bar_lbl", None)
@@ -12239,7 +12241,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if getattr(self, "_dual_status_text", ""):
             self._dual_status("")
 
-    def _dual_status(self, text: str) -> None:
+    def _dual_status(self, text: str, detail: str = "") -> None:
         """The dual scan's line in the Measure tab's own status line (under
         the log, where the tab says what happens next): the note before
         START and "Strip A, pass 2 of 2 (UV light)". Never a box over the
@@ -12252,10 +12254,16 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         timer = getattr(self, "_status_flash_timer", None)
         if timer is not None:
             timer.stop()
+        # ONE LINE in the status line, the whole sentence on hover and in
+        # the log: three lines there squeezed the options above at a narrow
+        # window (photographed 2026-11-18, en-narrow2)
+        self._dual_status_detail = str(detail or "")
         if self._dual_status_text:
             lbl.setText(self._dual_status_text)
+            lbl.setToolTip(self._dual_status_detail)
             lbl.setVisible(True)
         elif not getattr(self, "_gesture_paused", None):
+            lbl.setToolTip("")
             lbl.setVisible(False)
 
     def _dual_caps(self) -> frozenset:
@@ -12356,19 +12364,19 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         log.info("dual scan: %s (the row's choice, recorded; no -F)",
                  " ".join(p.engine_dual_args))
 
-    def _dual_before_start_text(self) -> str:
-        """M-DUAL-BEFORE-START while the dual scan applies, else ""."""
+    def _dual_before_start_text(self) -> "tuple[str, str]":
+        """M-DUAL-BEFORE-START (title, body) while the dual scan applies,
+        else ("", "")."""
         from workflow import measurement_messages as M
         from workflow.measurement_condition import condition_name
         try:
             plan = self._dual_plan_now()
         except Exception:      # noqa: BLE001
-            return ""
+            return "", ""
         if not plan.dual:
-            return ""
-        title, body = M.M_DUAL_BEFORE_START.render(
+            return "", ""
+        return M.M_DUAL_BEFORE_START.render(
             chosen=condition_name(plan.chosen))
-        return f"{title}. {body}"
 
     def _refresh_dual_note(self, *_a) -> None:
         """The note above the chart before START (the ruler, the two passes),
@@ -12377,9 +12385,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if getattr(self, "_session_live", False) or self._runner.is_running:
             return
         try:
-            text = self._dual_before_start_text()
-            if text or getattr(self, "_dual_status_text", ""):
-                self._dual_status(text)     # nothing at all with the Beta off
+            title, body = self._dual_before_start_text()
+            if title or getattr(self, "_dual_status_text", ""):
+                self._dual_status(title, body)  # nothing at all, Beta off
+            if title and getattr(self, "_dual_note_logged", "") != body:
+                self._dual_note_logged = body
+                self._log.appendPlainText(f"[{title}]\n{body}")
         except Exception:      # noqa: BLE001 - a note never breaks the tab
             log.debug("dual scan: no note", exc_info=True)
 
@@ -12534,8 +12545,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._log.ensureCursorVisible()
 
     def _dual_prompt(self, title: str, body: str) -> None:
-        """The pass prompt, as a variant of the tab's strip prompt line."""
-        self._dual_status(f"{title}: {body}")
+        """The pass prompt, as a variant of the tab's strip prompt line: the
+        headline there, the whole sentence on hover and in the log."""
+        self._dual_status(title, body)
 
     def _dual_pass_one(self, strip_id: str) -> None:
         """At strip_ready: "Strip A, pass 1 of 2 (lamp)" above the chart."""
@@ -12546,7 +12558,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         name = self._strip_name(strip_id) or str(strip_id)
         title, body = M.M_DUAL_PASS_ONE.render(strip=name)
         self._dual_prompt(title, body)
-        self._log.appendPlainText(f"[{title}]")
+        self._log.appendPlainText(f"[{title}]\n{body}")
 
     def _on_dual_pass(self, ev: dict) -> None:
         """Pass 2 of 2 is due (the engine waits for the UV pass)."""

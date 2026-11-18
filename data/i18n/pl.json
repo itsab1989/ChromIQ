@@ -10295,7 +10295,6 @@
  "A dual scan is not available in high resolution mode: the instrument's factory data for M1 and M2 is given only at 10 nm steps. Switch high resolution off for a dual scan, or measure M0 in high resolution.": "Podwójny skan nie jest dostępny w trybie wysokiej rozdzielczości: dane fabryczne przyrządu dla M1 i M2 istnieją tylko w krokach co 10 nm. Wyłącz wysoką rozdzielczość dla podwójnego skanu albo zmierz M0 w wysokiej rozdzielczości.",
  "A reading holds values that are not numbers, so ChromIQ does not use it. Read it again.": "Odczyt zawiera wartości, które nie są liczbami, więc ChromIQ go nie używa. Odczytaj ponownie.",
  "Dual scan (beta, first try)": "Podwójny skan (beta, pierwsza próba)",
- "Dual scan (beta, first try): each strip is read twice": "Podwójny skan (beta, pierwsza próba): każdy pasek jest odczytywany dwa razy",
  "Dual scan: M1 and M2 stop for this measurement": "Podwójny skan: M1 i M2 zatrzymane dla tego pomiaru",
  "Dual scan: the white tile was read with the UV light too": "Podwójny skan: biała płytka została odczytana także światłem UV",
  "Dual scan: {chosen} was chosen in the Measure tab. {reason}": "Podwójny skan: na karcie Zmierz wybrano {chosen}. {reason}",
@@ -10354,5 +10353,6 @@
  "{reason}": "{reason}",
  "{reason}\n\nNothing has been measured or changed.": "{reason}\n\nNic nie zostało zmierzone ani zmienione.",
  "{reason}\n\nYou can lift the instrument now. M0 is measured as always; to have M1 and M2 as well, calibrate again (press K or the Calibrate button) before the next strip.": "{reason}\n\nMożesz teraz podnieść przyrząd. M0 jest mierzone jak zawsze; aby mieć też M1 i M2, skalibruj ponownie (naciśnij K lub przycisk Kalibruj) przed następnym paskiem.",
- "{reason} M0 goes on as always: carry on measuring.": "{reason} M0 jest mierzone dalej jak zawsze: po prostu mierz dalej."
+ "{reason} M0 goes on as always: carry on measuring.": "{reason} M0 jest mierzone dalej jak zawsze: po prostu mierz dalej.",
+ "Dual scan (beta, first try): each strip is read twice, on the ruler": "Podwójny skan (beta, pierwsza próba): każdy pasek jest odczytywany dwa razy, na linijce"
 }

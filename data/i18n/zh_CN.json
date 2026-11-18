@@ -9261,7 +9261,6 @@
  "A dual scan is not available in high resolution mode: the instrument's factory data for M1 and M2 is given only at 10 nm steps. Switch high resolution off for a dual scan, or measure M0 in high resolution.": "高分辨率模式下无法使用双重扫描：仪器的 M1 和 M2 出厂数据只有 10 nm 步长。请为双重扫描关闭高分辨率，或以高分辨率测量 M0。",
  "A reading holds values that are not numbers, so ChromIQ does not use it. Read it again.": "某次读取包含非数字的值，因此 ChromIQ 不使用它。请重新读取。",
  "Dual scan (beta, first try)": "双重扫描（测试版，首次尝试）",
- "Dual scan (beta, first try): each strip is read twice": "双重扫描（测试版，首次尝试）：每条色条读取两次",
  "Dual scan: M1 and M2 stop for this measurement": "双重扫描：本次测量停止 M1 和 M2",
  "Dual scan: the white tile was read with the UV light too": "双重扫描：白色校准板也用紫外光读取了",
  "Dual scan: {chosen} was chosen in the Measure tab. {reason}": "双重扫描：在“测量”选项卡中选择了 {chosen}。{reason}",
@@ -9320,5 +9319,6 @@
  "{reason}": "{reason}",
  "{reason}\n\nNothing has been measured or changed.": "{reason}\n\n没有进行任何测量或更改。",
  "{reason}\n\nYou can lift the instrument now. M0 is measured as always; to have M1 and M2 as well, calibrate again (press K or the Calibrate button) before the next strip.": "{reason}\n\n现在可以拿起仪器了。M0 照常测量；如需同时得到 M1 和 M2，请在下一条色条之前重新校准（按 K 或“校准”按钮）。",
- "{reason} M0 goes on as always: carry on measuring.": "{reason} M0 照常继续：请继续测量。"
+ "{reason} M0 goes on as always: carry on measuring.": "{reason} M0 照常继续：请继续测量。",
+ "Dual scan (beta, first try): each strip is read twice, on the ruler": "双重扫描（测试版，首次尝试）：每条色条在标尺上读取两次"
 }

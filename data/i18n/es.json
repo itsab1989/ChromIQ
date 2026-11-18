@@ -9261,7 +9261,6 @@
  "A dual scan is not available in high resolution mode: the instrument's factory data for M1 and M2 is given only at 10 nm steps. Switch high resolution off for a dual scan, or measure M0 in high resolution.": "El doble escaneo no está disponible en el modo de alta resolución: los datos de fábrica del instrumento para M1 y M2 solo existen en pasos de 10 nm. Desactiva la alta resolución para un doble escaneo, o mide M0 en alta resolución.",
  "A reading holds values that are not numbers, so ChromIQ does not use it. Read it again.": "Una lectura contiene valores que no son números, así que ChromIQ no la usa. Vuelve a leerla.",
  "Dual scan (beta, first try)": "Doble escaneo (beta, primer intento)",
- "Dual scan (beta, first try): each strip is read twice": "Doble escaneo (beta, primer intento): cada tira se lee dos veces",
  "Dual scan: M1 and M2 stop for this measurement": "Doble escaneo: M1 y M2 se detienen para esta medición",
  "Dual scan: the white tile was read with the UV light too": "Doble escaneo: la baldosa blanca también se leyó con la luz UV",
  "Dual scan: {chosen} was chosen in the Measure tab. {reason}": "Doble escaneo: en la pestaña Medir se eligió {chosen}. {reason}",
@@ -9320,5 +9319,6 @@
  "{reason}": "{reason}",
  "{reason}\n\nNothing has been measured or changed.": "{reason}\n\nNo se ha medido ni cambiado nada.",
  "{reason}\n\nYou can lift the instrument now. M0 is measured as always; to have M1 and M2 as well, calibrate again (press K or the Calibrate button) before the next strip.": "{reason}\n\nYa puedes levantar el instrumento. M0 se mide como siempre; para tener también M1 y M2, vuelve a calibrar (pulsa K o el botón Calibrar) antes de la siguiente tira.",
- "{reason} M0 goes on as always: carry on measuring.": "{reason} M0 sigue como siempre: sigue midiendo."
+ "{reason} M0 goes on as always: carry on measuring.": "{reason} M0 sigue como siempre: sigue midiendo.",
+ "Dual scan (beta, first try): each strip is read twice, on the ruler": "Doble escaneo (beta, primer intento): cada tira se lee dos veces, sobre la regla"
 }

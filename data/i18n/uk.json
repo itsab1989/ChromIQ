@@ -10325,7 +10325,6 @@
  "A dual scan is not available in high resolution mode: the instrument's factory data for M1 and M2 is given only at 10 nm steps. Switch high resolution off for a dual scan, or measure M0 in high resolution.": "Подвійне сканування недоступне в режимі високої роздільності: заводські дані приладу для M1 і M2 є лише з кроком 10 нм. Вимкніть високу роздільність для подвійного сканування або виміряйте M0 у високій роздільності.",
  "A reading holds values that are not numbers, so ChromIQ does not use it. Read it again.": "Вимірювання містить значення, які не є числами, тому ChromIQ його не використовує. Виміряйте ще раз.",
  "Dual scan (beta, first try)": "Подвійне сканування (бета, перша спроба)",
- "Dual scan (beta, first try): each strip is read twice": "Подвійне сканування (бета, перша спроба): кожна смуга зчитується двічі",
  "Dual scan: M1 and M2 stop for this measurement": "Подвійне сканування: M1 і M2 для цього вимірювання припинено",
  "Dual scan: the white tile was read with the UV light too": "Подвійне сканування: білу плитку зчитано й УФ-світлом",
  "Dual scan: {chosen} was chosen in the Measure tab. {reason}": "Подвійне сканування: на вкладці «Виміряти» вибрано {chosen}. {reason}",
@@ -10384,5 +10383,6 @@
  "{reason}": "{reason}",
  "{reason}\n\nNothing has been measured or changed.": "{reason}\n\nНічого не виміряно й не змінено.",
  "{reason}\n\nYou can lift the instrument now. M0 is measured as always; to have M1 and M2 as well, calibrate again (press K or the Calibrate button) before the next strip.": "{reason}\n\nТепер прилад можна підняти. M0 вимірюється як завжди; щоб мати й M1 та M2, відкалібруйте прилад ще раз (клавіша K або кнопка «Калібрувати») перед наступною смугою.",
- "{reason} M0 goes on as always: carry on measuring.": "{reason} M0 вимірюється далі, як завжди: просто продовжуйте вимірювання."
+ "{reason} M0 goes on as always: carry on measuring.": "{reason} M0 вимірюється далі, як завжди: просто продовжуйте вимірювання.",
+ "Dual scan (beta, first try): each strip is read twice, on the ruler": "Подвійне сканування (бета, перша спроба): кожна смуга зчитується двічі, на лінійці"
 }

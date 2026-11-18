@@ -10289,7 +10289,6 @@
  "A dual scan is not available in high resolution mode: the instrument's factory data for M1 and M2 is given only at 10 nm steps. Switch high resolution off for a dual scan, or measure M0 in high resolution.": "Двойное сканирование недоступно в режиме высокого разрешения: заводские данные прибора для M1 и M2 есть только с шагом 10 нм. Выключите высокое разрешение для двойного сканирования или измерьте M0 в высоком разрешении.",
  "A reading holds values that are not numbers, so ChromIQ does not use it. Read it again.": "Измерение содержит значения, которые не являются числами, поэтому ChromIQ его не использует. Измерьте ещё раз.",
  "Dual scan (beta, first try)": "Двойное сканирование (бета, первая попытка)",
- "Dual scan (beta, first try): each strip is read twice": "Двойное сканирование (бета, первая попытка): каждая полоса считывается дважды",
  "Dual scan: M1 and M2 stop for this measurement": "Двойное сканирование: M1 и M2 для этого измерения прекращены",
  "Dual scan: the white tile was read with the UV light too": "Двойное сканирование: белая плитка считана и УФ-светом",
  "Dual scan: {chosen} was chosen in the Measure tab. {reason}": "Двойное сканирование: на вкладке «Измерение» выбрано {chosen}. {reason}",
@@ -10348,5 +10347,6 @@
  "{reason}": "{reason}",
  "{reason}\n\nNothing has been measured or changed.": "{reason}\n\nНичего не измерено и не изменено.",
  "{reason}\n\nYou can lift the instrument now. M0 is measured as always; to have M1 and M2 as well, calibrate again (press K or the Calibrate button) before the next strip.": "{reason}\n\nТеперь прибор можно поднять. M0 измеряется как всегда; чтобы получить и M1 с M2, откалибруйте прибор ещё раз (клавиша K или кнопка «Калибровать») перед следующей полосой.",
- "{reason} M0 goes on as always: carry on measuring.": "{reason} M0 измеряется дальше, как всегда: просто продолжайте измерение."
+ "{reason} M0 goes on as always: carry on measuring.": "{reason} M0 измеряется дальше, как всегда: просто продолжайте измерение.",
+ "Dual scan (beta, first try): each strip is read twice, on the ruler": "Двойное сканирование (бета, первая попытка): каждая полоса считывается дважды, на линейке"
 }

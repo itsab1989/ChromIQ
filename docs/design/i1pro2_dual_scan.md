@@ -319,7 +319,8 @@ never on a real instrument. Code: `workflow/dual_scan/session.py` (the rules),
   its own (`storage.continuation_choice`). An engine refusal of the same kind is never a fallback
   to stock chartread.
 * **Before START.** A line in the Measure tab's own status line (under the log, where the tab
-  says what happens next; never a box over the chart, Basti 2026-11-18): each strip read twice,
+  says what happens next; never a box over the chart, Basti 2026-11-18), one line, the whole
+  note on hover and once in the log: each strip read twice,
   the ruler needed (without it only M0), the condition chosen, a first try
   (M-DUAL-BEFORE-START). It follows the row and Preferences and goes while a session runs.
 * **Calibration.** The calibration window of a dual session (startup and on request) adds "keep

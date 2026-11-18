@@ -9261,7 +9261,6 @@
  "A dual scan is not available in high resolution mode: the instrument's factory data for M1 and M2 is given only at 10 nm steps. Switch high resolution off for a dual scan, or measure M0 in high resolution.": "Een dubbele scan is niet beschikbaar in de hoge-resolutiemodus: de fabrieksgegevens van het instrument voor M1 en M2 bestaan alleen in stappen van 10 nm. Zet de hoge resolutie uit voor een dubbele scan, of meet M0 in hoge resolutie.",
  "A reading holds values that are not numbers, so ChromIQ does not use it. Read it again.": "Een meting bevat waarden die geen getallen zijn, dus ChromIQ gebruikt hem niet. Lees opnieuw.",
  "Dual scan (beta, first try)": "Dubbele scan (bèta, eerste poging)",
- "Dual scan (beta, first try): each strip is read twice": "Dubbele scan (bèta, eerste poging): elke strook wordt twee keer gelezen",
  "Dual scan: M1 and M2 stop for this measurement": "Dubbele scan: M1 en M2 stoppen voor deze meting",
  "Dual scan: the white tile was read with the UV light too": "Dubbele scan: de witte tegel is ook met het UV-licht gelezen",
  "Dual scan: {chosen} was chosen in the Measure tab. {reason}": "Dubbele scan: op het tabblad Meten is {chosen} gekozen. {reason}",
@@ -9320,5 +9319,6 @@
  "{reason}": "{reason}",
  "{reason}\n\nNothing has been measured or changed.": "{reason}\n\nEr is niets gemeten of veranderd.",
  "{reason}\n\nYou can lift the instrument now. M0 is measured as always; to have M1 and M2 as well, calibrate again (press K or the Calibrate button) before the next strip.": "{reason}\n\nJe kunt het instrument nu optillen. M0 wordt zoals altijd gemeten; om ook M1 en M2 te krijgen, kalibreer je opnieuw (druk op K of de knop Kalibreren) vóór de volgende strook.",
- "{reason} M0 goes on as always: carry on measuring.": "{reason} M0 gaat door zoals altijd: meet gewoon verder."
+ "{reason} M0 goes on as always: carry on measuring.": "{reason} M0 gaat door zoals altijd: meet gewoon verder.",
+ "Dual scan (beta, first try): each strip is read twice, on the ruler": "Dubbele scan (bèta, eerste poging): elke strook wordt twee keer gelezen, op de liniaal"
 }

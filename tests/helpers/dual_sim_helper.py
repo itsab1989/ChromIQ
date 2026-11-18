@@ -177,13 +177,15 @@ def main(argv: "list[str]") -> int:
         plain = {k: v for k, v in cmd.items()
                  if k in ("cmd", "as", "reversed", "fault", "reason")}
         if st["spot"]:
+            # patch by patch the replay reads on {"cmd":"read"}; a fault is
+            # armed by a swipe first (chromiq_replay.c cq_read_sample)
             if cmd.get("uv_fault"):
                 st["pending"] = result("spot", "", False, cmd["uv_fault"])
                 to_child({"cmd": "swipe", "fault": "misread",
                           "reason": "Misread"})
             else:
                 st["pending"] = result("spot", "", True, pairing="")
-                to_child(plain)
+            to_child({"cmd": "read"})
             continue
         strip = st["strip"]
         if st["phase"] == "lamp":

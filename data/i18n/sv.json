@@ -9261,7 +9261,6 @@
  "A dual scan is not available in high resolution mode: the instrument's factory data for M1 and M2 is given only at 10 nm steps. Switch high resolution off for a dual scan, or measure M0 in high resolution.": "Dubbelskanning finns inte i högupplösningsläget: instrumentets fabriksdata för M1 och M2 finns bara i steg om 10 nm. Stäng av hög upplösning för en dubbelskanning, eller mät M0 i hög upplösning.",
  "A reading holds values that are not numbers, so ChromIQ does not use it. Read it again.": "En mätning innehåller värden som inte är tal, så ChromIQ använder den inte. Läs om den.",
  "Dual scan (beta, first try)": "Dubbelskanning (beta, första försök)",
- "Dual scan (beta, first try): each strip is read twice": "Dubbelskanning (beta, första försök): varje remsa läses två gånger",
  "Dual scan: M1 and M2 stop for this measurement": "Dubbelskanning: M1 och M2 upphör för den här mätningen",
  "Dual scan: the white tile was read with the UV light too": "Dubbelskanning: den vita plattan lästes också med UV-ljuset",
  "Dual scan: {chosen} was chosen in the Measure tab. {reason}": "Dubbelskanning: {chosen} valdes på fliken Mät. {reason}",
@@ -9320,5 +9319,6 @@
  "{reason}": "{reason}",
  "{reason}\n\nNothing has been measured or changed.": "{reason}\n\nIngenting har mätts eller ändrats.",
  "{reason}\n\nYou can lift the instrument now. M0 is measured as always; to have M1 and M2 as well, calibrate again (press K or the Calibrate button) before the next strip.": "{reason}\n\nDu kan lyfta instrumentet nu. M0 mäts som alltid; för att också få M1 och M2, kalibrera igen (tryck K eller knappen Kalibrera) före nästa remsa.",
- "{reason} M0 goes on as always: carry on measuring.": "{reason} M0 fortsätter som alltid: mät bara vidare."
+ "{reason} M0 goes on as always: carry on measuring.": "{reason} M0 fortsätter som alltid: mät bara vidare.",
+ "Dual scan (beta, first try): each strip is read twice, on the ruler": "Dubbelskanning (beta, första försök): varje remsa läses två gånger, på linjalen"
 }

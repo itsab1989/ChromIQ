@@ -9261,7 +9261,6 @@
  "A dual scan is not available in high resolution mode: the instrument's factory data for M1 and M2 is given only at 10 nm steps. Switch high resolution off for a dual scan, or measure M0 in high resolution.": "Ein Doppelscan ist im Hochauflösungsmodus nicht möglich: Die Werksdaten des Messgeräts für M1 und M2 gibt es nur in 10-nm-Schritten. Schalte die hohe Auflösung für einen Doppelscan aus, oder miss M0 in hoher Auflösung.",
  "A reading holds values that are not numbers, so ChromIQ does not use it. Read it again.": "Eine Messung enthält Werte, die keine Zahlen sind, deshalb verwendet ChromIQ sie nicht. Miss noch einmal.",
  "Dual scan (beta, first try)": "Doppelscan (Beta, erster Versuch)",
- "Dual scan (beta, first try): each strip is read twice": "Doppelscan (Beta, erster Versuch): Jeder Streifen wird zweimal gelesen",
  "Dual scan: M1 and M2 stop for this measurement": "Doppelscan: M1 und M2 enden für diese Messung",
  "Dual scan: the white tile was read with the UV light too": "Doppelscan: Die weiße Kachel wurde auch mit dem UV-Licht gelesen",
  "Dual scan: {chosen} was chosen in the Measure tab. {reason}": "Doppelscan: Im Tab Messen wurde {chosen} gewählt. {reason}",
@@ -9320,5 +9319,6 @@
  "{reason}": "{reason}",
  "{reason}\n\nNothing has been measured or changed.": "{reason}\n\nEs wurde nichts gemessen oder geändert.",
  "{reason}\n\nYou can lift the instrument now. M0 is measured as always; to have M1 and M2 as well, calibrate again (press K or the Calibrate button) before the next strip.": "{reason}\n\nDu kannst das Messgerät jetzt anheben. M0 wird wie immer gemessen; um auch M1 und M2 zu bekommen, kalibriere vor dem nächsten Streifen noch einmal (drücke K oder die Schaltfläche Kalibrieren).",
- "{reason} M0 goes on as always: carry on measuring.": "{reason} M0 wird wie immer weiter gemessen: Miss einfach weiter."
+ "{reason} M0 goes on as always: carry on measuring.": "{reason} M0 wird wie immer weiter gemessen: Miss einfach weiter.",
+ "Dual scan (beta, first try): each strip is read twice, on the ruler": "Doppelscan (Beta, erster Versuch): Jeder Streifen wird zweimal gelesen, auf dem Lineal"
 }

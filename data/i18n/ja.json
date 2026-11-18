@@ -9261,7 +9261,6 @@
  "A dual scan is not available in high resolution mode: the instrument's factory data for M1 and M2 is given only at 10 nm steps. Switch high resolution off for a dual scan, or measure M0 in high resolution.": "高解像度モードではデュアルスキャンは使えません。機器の M1 と M2 の工場データは 10 nm 刻みでしかありません。デュアルスキャンでは高解像度をオフにするか、M0 を高解像度で測定してください。",
  "A reading holds values that are not numbers, so ChromIQ does not use it. Read it again.": "読み取りに数値でない値が含まれているため、ChromIQ はそれを使いません。もう一度読み取ってください。",
  "Dual scan (beta, first try)": "デュアルスキャン (ベータ、最初の試み)",
- "Dual scan (beta, first try): each strip is read twice": "デュアルスキャン (ベータ、最初の試み): 各ストリップを 2 回読み取ります",
  "Dual scan: M1 and M2 stop for this measurement": "デュアルスキャン: この測定では M1 と M2 を止めます",
  "Dual scan: the white tile was read with the UV light too": "デュアルスキャン: 白色タイルを UV 光でも読み取りました",
  "Dual scan: {chosen} was chosen in the Measure tab. {reason}": "デュアルスキャン: 測定タブで {chosen} が選ばれています。{reason}",
@@ -9320,5 +9319,6 @@
  "{reason}": "{reason}",
  "{reason}\n\nNothing has been measured or changed.": "{reason}\n\n何も測定・変更されていません。",
  "{reason}\n\nYou can lift the instrument now. M0 is measured as always; to have M1 and M2 as well, calibrate again (press K or the Calibrate button) before the next strip.": "{reason}\n\n機器を持ち上げてかまいません。M0 はいつも通り測定されます。M1 と M2 も得るには、次のストリップの前にもう一度キャリブレーションしてください (K キーまたは「キャリブレーションする」ボタン)。",
- "{reason} M0 goes on as always: carry on measuring.": "{reason} M0 はいつも通り続きます。そのまま測定を続けてください。"
+ "{reason} M0 goes on as always: carry on measuring.": "{reason} M0 はいつも通り続きます。そのまま測定を続けてください。",
+ "Dual scan (beta, first try): each strip is read twice, on the ruler": "デュアルスキャン (ベータ、最初の試み): 各ストリップを定規の上で 2 回読み取ります"
 }

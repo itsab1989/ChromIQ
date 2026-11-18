@@ -9261,7 +9261,6 @@
  "A dual scan is not available in high resolution mode: the instrument's factory data for M1 and M2 is given only at 10 nm steps. Switch high resolution off for a dual scan, or measure M0 in high resolution.": "A dupla passagem não está disponível no modo de alta resolução: os dados de fábrica do instrumento para M1 e M2 só existem em passos de 10 nm. Desligue a alta resolução para uma dupla passagem, ou meça M0 em alta resolução.",
  "A reading holds values that are not numbers, so ChromIQ does not use it. Read it again.": "Uma leitura contém valores que não são números, por isso o ChromIQ não a usa. Leia de novo.",
  "Dual scan (beta, first try)": "Dupla passagem (beta, primeira tentativa)",
- "Dual scan (beta, first try): each strip is read twice": "Dupla passagem (beta, primeira tentativa): cada tira é lida duas vezes",
  "Dual scan: M1 and M2 stop for this measurement": "Dupla passagem: M1 e M2 param para esta medição",
  "Dual scan: the white tile was read with the UV light too": "Dupla passagem: o ladrilho branco também foi lido com a luz UV",
  "Dual scan: {chosen} was chosen in the Measure tab. {reason}": "Dupla passagem: no separador Medir foi escolhido {chosen}. {reason}",
@@ -9320,5 +9319,6 @@
  "{reason}": "{reason}",
  "{reason}\n\nNothing has been measured or changed.": "{reason}\n\nNada foi medido nem alterado.",
  "{reason}\n\nYou can lift the instrument now. M0 is measured as always; to have M1 and M2 as well, calibrate again (press K or the Calibrate button) before the next strip.": "{reason}\n\nJá pode levantar o instrumento. M0 é medido como sempre; para ter também M1 e M2, calibre de novo (prima K ou o botão Calibrar) antes da tira seguinte.",
- "{reason} M0 goes on as always: carry on measuring.": "{reason} M0 continua como sempre: continue a medir."
+ "{reason} M0 goes on as always: carry on measuring.": "{reason} M0 continua como sempre: continue a medir.",
+ "Dual scan (beta, first try): each strip is read twice, on the ruler": "Dupla passagem (beta, primeira tentativa): cada tira é lida duas vezes, na régua"
 }

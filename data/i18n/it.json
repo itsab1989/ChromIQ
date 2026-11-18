@@ -9261,7 +9261,6 @@
  "A dual scan is not available in high resolution mode: the instrument's factory data for M1 and M2 is given only at 10 nm steps. Switch high resolution off for a dual scan, or measure M0 in high resolution.": "La doppia scansione non è disponibile in alta risoluzione: i dati di fabbrica dello strumento per M1 e M2 esistono solo a passi di 10 nm. Disattiva l'alta risoluzione per una doppia scansione, oppure misura M0 in alta risoluzione.",
  "A reading holds values that are not numbers, so ChromIQ does not use it. Read it again.": "Una lettura contiene valori che non sono numeri, quindi ChromIQ non la usa. Rileggila.",
  "Dual scan (beta, first try)": "Doppia scansione (beta, primo tentativo)",
- "Dual scan (beta, first try): each strip is read twice": "Doppia scansione (beta, primo tentativo): ogni striscia viene letta due volte",
  "Dual scan: M1 and M2 stop for this measurement": "Doppia scansione: M1 e M2 si fermano per questa misura",
  "Dual scan: the white tile was read with the UV light too": "Doppia scansione: la piastrella bianca è stata letta anche con la luce UV",
  "Dual scan: {chosen} was chosen in the Measure tab. {reason}": "Doppia scansione: nella scheda Misura è stato scelto {chosen}. {reason}",
@@ -9320,5 +9319,6 @@
  "{reason}": "{reason}",
  "{reason}\n\nNothing has been measured or changed.": "{reason}\n\nNon è stato misurato né modificato nulla.",
  "{reason}\n\nYou can lift the instrument now. M0 is measured as always; to have M1 and M2 as well, calibrate again (press K or the Calibrate button) before the next strip.": "{reason}\n\nOra puoi sollevare lo strumento. M0 viene misurato come sempre; per avere anche M1 e M2, calibra di nuovo (premi K o il pulsante Calibra) prima della striscia successiva.",
- "{reason} M0 goes on as always: carry on measuring.": "{reason} M0 continua come sempre: continua pure a misurare."
+ "{reason} M0 goes on as always: carry on measuring.": "{reason} M0 continua come sempre: continua pure a misurare.",
+ "Dual scan (beta, first try): each strip is read twice, on the ruler": "Doppia scansione (beta, primo tentativo): ogni striscia viene letta due volte, sul righello"
 }

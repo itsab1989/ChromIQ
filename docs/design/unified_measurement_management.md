@@ -9824,9 +9824,9 @@ alone.
 
 ### M-DUAL-BEFORE-START · PROPOSED · the X-Rite i1Pro 2 dual scan (Preferences > Beta), Measure, 2026-11-18
 
-*New 2026-11-18 (the dual scan's UI step, a first try, never run on a real instrument): the note above the chart in the Measure tab before START, while the dual scan applies (the Beta on, ChromIQ's engine, a chart that is not a calibration's, no instrument of another model seen in this app run). {chosen} is the condition chosen in the row, by its name. It follows the row and the Preferences; it goes when a session starts (the pass prompts take its place) and comes back when it ends. Shown in the beta while awaiting approval.*
+*New 2026-11-18 (the dual scan's UI step, a first try, never run on a real instrument): the headline of the Measure tab's status line before START (the whole note on hover and once in the log), while the dual scan applies (the Beta on, ChromIQ's engine, a chart that is not a calibration's, no instrument of another model seen in this app run). {chosen} is the condition chosen in the row, by its name. It follows the row and the Preferences; it goes when a session starts (the pass prompts take its place) and comes back when it ends. Shown in the beta while awaiting approval.*
 
-> **Dual scan (beta, first try): each strip is read twice**
+> **Dual scan (beta, first try): each strip is read twice, on the ruler**
 >
 > First as usual with the lamp, then once more over the same strip with the UV light, without lifting the instrument. From the two passes ChromIQ works out M1 and M2 besides M0, and the profile is made from {chosen}. This needs the ruler (the guide the i1Pro 2 slides along): without it only M0 is measured. Not yet tried on a real instrument; M1 and M2 are calculated.
 
@@ -9858,7 +9858,7 @@ alone.
 
 ### M-DUAL-PASS-ONE · PROPOSED · the X-Rite i1Pro 2 dual scan (Preferences > Beta), Measure, 2026-11-18
 
-*New 2026-11-18 (the dual scan's UI step, a first try, never run on a real instrument): above the chart (the preview's banner) at every strip prompt of a dual session, strips by hand; {strip} the strip's label. Also in the log. Shown in the beta while awaiting approval.*
+*New 2026-11-18 (the dual scan's UI step, a first try, never run on a real instrument): the headline in the Measure tab's status line (under the log, where the tab says what comes next; the whole sentence on hover and in the log) at every strip prompt of a dual session, strips by hand; {strip} the strip's label. Shown in the beta while awaiting approval.*
 
 > **Strip {strip}, pass 1 of 2 (lamp)**
 >
@@ -9866,7 +9866,7 @@ alone.
 
 ### M-DUAL-PASS-TWO · PROPOSED · the X-Rite i1Pro 2 dual scan (Preferences > Beta), Measure, 2026-11-18
 
-*New 2026-11-18 (the dual scan's UI step, a first try, never run on a real instrument): above the chart when the engine asks for the strip's second pass (event dual_pass, lamp_ok true); also in the log and the status line. Shown in the beta while awaiting approval.*
+*New 2026-11-18 (the dual scan's UI step, a first try, never run on a real instrument): the same place when the engine asks for the strip's second pass (event dual_pass, lamp_ok true). Shown in the beta while awaiting approval.*
 
 > **Strip {strip}, pass 2 of 2 (UV light)**
 >

@@ -9261,7 +9261,6 @@
  "A dual scan is not available in high resolution mode: the instrument's factory data for M1 and M2 is given only at 10 nm steps. Switch high resolution off for a dual scan, or measure M0 in high resolution.": "Le double scan n'est pas disponible en mode haute résolution : les données d'usine de l'instrument pour M1 et M2 n'existent qu'au pas de 10 nm. Désactive la haute résolution pour un double scan, ou mesure M0 en haute résolution.",
  "A reading holds values that are not numbers, so ChromIQ does not use it. Read it again.": "Une lecture contient des valeurs qui ne sont pas des nombres, donc ChromIQ ne l'utilise pas. Relis-la.",
  "Dual scan (beta, first try)": "Double scan (bêta, premier essai)",
- "Dual scan (beta, first try): each strip is read twice": "Double scan (bêta, premier essai) : chaque bande est lue deux fois",
  "Dual scan: M1 and M2 stop for this measurement": "Double scan : M1 et M2 s'arrêtent pour cette mesure",
  "Dual scan: the white tile was read with the UV light too": "Double scan : le carreau blanc a aussi été lu avec la lumière UV",
  "Dual scan: {chosen} was chosen in the Measure tab. {reason}": "Double scan : {chosen} a été choisi dans l'onglet Mesurer. {reason}",
@@ -9320,5 +9319,6 @@
  "{reason}": "{reason}",
  "{reason}\n\nNothing has been measured or changed.": "{reason}\n\nRien n'a été mesuré ni modifié.",
  "{reason}\n\nYou can lift the instrument now. M0 is measured as always; to have M1 and M2 as well, calibrate again (press K or the Calibrate button) before the next strip.": "{reason}\n\nTu peux soulever l'instrument maintenant. M0 est mesuré comme toujours ; pour avoir aussi M1 et M2, calibre à nouveau (touche K ou bouton Calibrer) avant la bande suivante.",
- "{reason} M0 goes on as always: carry on measuring.": "{reason} M0 continue comme toujours : continue simplement à mesurer."
+ "{reason} M0 goes on as always: carry on measuring.": "{reason} M0 continue comme toujours : continue simplement à mesurer.",
+ "Dual scan (beta, first try): each strip is read twice, on the ruler": "Double scan (bêta, premier essai) : chaque bande est lue deux fois, sur la règle"
 }

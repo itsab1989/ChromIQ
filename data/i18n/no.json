@@ -9261,7 +9261,6 @@
  "A dual scan is not available in high resolution mode: the instrument's factory data for M1 and M2 is given only at 10 nm steps. Switch high resolution off for a dual scan, or measure M0 in high resolution.": "Dobbeltskanning er ikke tilgjengelig i høyoppløsningsmodus: instrumentets fabrikkdata for M1 og M2 finnes bare i trinn på 10 nm. Slå av høy oppløsning for en dobbeltskanning, eller mål M0 i høy oppløsning.",
  "A reading holds values that are not numbers, so ChromIQ does not use it. Read it again.": "En måling inneholder verdier som ikke er tall, så ChromIQ bruker den ikke. Les den på nytt.",
  "Dual scan (beta, first try)": "Dobbeltskanning (beta, første forsøk)",
- "Dual scan (beta, first try): each strip is read twice": "Dobbeltskanning (beta, første forsøk): hver stripe leses to ganger",
  "Dual scan: M1 and M2 stop for this measurement": "Dobbeltskanning: M1 og M2 stopper for denne målingen",
  "Dual scan: the white tile was read with the UV light too": "Dobbeltskanning: den hvite flisen ble også lest med UV-lyset",
  "Dual scan: {chosen} was chosen in the Measure tab. {reason}": "Dobbeltskanning: {chosen} ble valgt i Mål-fanen. {reason}",
@@ -9320,5 +9319,6 @@
  "{reason}": "{reason}",
  "{reason}\n\nNothing has been measured or changed.": "{reason}\n\nIngenting er målt eller endret.",
  "{reason}\n\nYou can lift the instrument now. M0 is measured as always; to have M1 and M2 as well, calibrate again (press K or the Calibrate button) before the next strip.": "{reason}\n\nDu kan løfte instrumentet nå. M0 måles som alltid; for å få M1 og M2 også, kalibrer på nytt (trykk K eller Kalibrer-knappen) før neste stripe.",
- "{reason} M0 goes on as always: carry on measuring.": "{reason} M0 fortsetter som alltid: bare mål videre."
+ "{reason} M0 goes on as always: carry on measuring.": "{reason} M0 fortsetter som alltid: bare mål videre.",
+ "Dual scan (beta, first try): each strip is read twice, on the ruler": "Dobbeltskanning (beta, første forsøk): hver stripe leses to ganger, på linjalen"
 }
