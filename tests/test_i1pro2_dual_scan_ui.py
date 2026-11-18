@@ -498,6 +498,7 @@ def test_build_from_is_set_to_the_choice_once(qapp, tmp_path, monkeypatch):
                            _refresh_build_from=lambda: None)
     fake._dual_preset_commit = lambda m, c: TabProfile._dual_preset_commit(
         fake, m, c)
+    fake._dual_preset_commit_pending = lambda: None
     TabProfile._dual_preset_once(fake, True)
     assert fake._build_from == "M2"
     # a load of the target's settings before it is stored: set again
@@ -526,7 +527,8 @@ def test_until_every_strip_has_both_passes_it_says_why(qapp, tmp_path):
     fake = SimpleNamespace(_ti3_path=main, _build_from="",
                            _dual_note_lbl=lbl,
                            save_target_settings=lambda: None,
-                           _dual_preset_commit=lambda m, c: None)
+                           _dual_preset_commit=lambda m, c: None,
+                           _dual_preset_commit_pending=lambda: None)
     TabProfile._dual_preset_once(fake, True)
     assert fake._build_from == ""
     assert shown["v"] is True and "M2" in shown["t"] and "B" in shown["t"]

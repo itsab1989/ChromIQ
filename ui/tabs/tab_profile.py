@@ -3226,9 +3226,8 @@ class TabProfile(QWidget):
                         log.info("Build Profile: build from %s, as chosen in "
                                  "the Measure tab for this dual scan", cond)
                         from PyQt6.QtCore import QTimer
-                        QTimer.singleShot(
-                            0, lambda m=main, c=cond: self._dual_preset_commit(
-                                m, c))
+                        self._dual_preset_pending = (main, cond)
+                        QTimer.singleShot(0, self._dual_preset_commit_pending)
                     elif cond == "M0" and reason and \
                             storage.chosen_condition(main) != "M0":
                         text = tr(
@@ -3241,6 +3240,12 @@ class TabProfile(QWidget):
         if lbl is not None:
             lbl.setText(text)
             lbl.setVisible(bool(text))
+
+    def _dual_preset_commit_pending(self) -> None:
+        pending = getattr(self, "_dual_preset_pending", None)
+        self._dual_preset_pending = None
+        if pending is not None:
+            self._dual_preset_commit(*pending)
 
     def _dual_preset_commit(self, main, cond: str) -> None:
         """The pre-set is kept in the target's settings, then marked done in

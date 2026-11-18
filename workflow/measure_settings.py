@@ -43,6 +43,10 @@ NOT_A_SETTING = {
                            "(the ruler check, 2026-11-14)"),
     "engine_margin_tolerance": ("a Preferences (Beta) value, global by §1.1 "
                                 "(the margin tolerance, 2026-11-16)"),
+    "engine_dual_args": ("worked out at every Start from a Preferences "
+                         "(Beta) value, global by §1.1, and the Measure "
+                         "tab's filter row (the i1Pro 2 dual scan, "
+                         "2026-11-18)"),
     "engine_condition_dir": ("worked out at every Start from a Preferences "
                              "(Beta) value, global by §1.1, and the run's "
                              "folder (M0, M1 and M2 from one scan, "

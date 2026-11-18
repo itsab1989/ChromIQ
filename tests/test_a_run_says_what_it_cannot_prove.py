@@ -222,7 +222,7 @@ def test_eight_files_skip_wholesale_without_it():
     # i1Pro 3 writing the measurement's M1/M2 pair. 30 with the margin
     # tolerance (Beta, 2026-11-16): the replay instrument as an i1Pro 2 whose
     # refused swipe hands over its segments.
-    assert len(whole) == 10 and len(partial) == 33, (
+    assert len(whole) == 10 and len(partial) == 34, (
         "the number of files gated on the chart-reading helper has changed "
         f"({len(whole)} wholesale, {len(partial)} in part) -> update the "
         f"header in tests/conftest.py. wholesale={whole} partial={partial}")

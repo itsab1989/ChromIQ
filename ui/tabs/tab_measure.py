@@ -9446,7 +9446,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             before = read_condition(ti3)
             if before is None:
                 return False
-            code = self._dual_effective_filter_code()
+            code = self._measure_filter_code()
+            _eff = getattr(self, "_dual_effective_filter_code", None)
+            if callable(_eff):
+                code = _eff()      # the dual scan sends no -F (records M0)
             now = condition_for_filter(code)
             if now == before:
                 return False
@@ -12645,7 +12648,14 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             reason=D.reason_sentence(kind))
         self._log.appendPlainText(f"[{title}]\n{body}")
         self._log.ensureCursorVisible()
-        QTimer.singleShot(0, lambda: self._say_on_screen(title, body))
+        self._dual_refused_text = (title, body)
+        QTimer.singleShot(0, self._dual_say_refused)
+
+    def _dual_say_refused(self) -> None:
+        text = getattr(self, "_dual_refused_text", None)
+        self._dual_refused_text = None
+        if text is not None:
+            self._say_on_screen(*text)
 
     def _dual_strip_measured(self, ev: dict) -> None:
         """A strip read after M1 / M2 ended: M0 only, its second pass due."""
@@ -24871,7 +24881,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if not self._manager.engine_active:
             self._preview.set_notice(None)
             return
-        if self._dual_notice_shown():
+        _dual = getattr(self, "_dual_notice_shown", None)
+        if callable(_dual) and _dual():
             return
         if saved and saved > 0:
             self._preview.set_notice(tr(
