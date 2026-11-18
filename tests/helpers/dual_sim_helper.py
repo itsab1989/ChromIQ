@@ -199,9 +199,10 @@ def main(argv: "list[str]") -> int:
                   "of": 2, "lamp_ok": not st["lamp_fault"]})
             st["phase"] = "uv"
             continue
-        # the second pass
+        # the second pass: the instrument's button, then the slide (the
+        # replay's own trigger, so its scan time is the pass's, as by hand)
         st["phase"] = "lamp"
-        emit({"event": "scan_started"})
+        to_child({"cmd": "trigger"})
         time.sleep(PASS_S)
         if st["lamp_fault"]:
             st["pending"] = result("strip", strip, False, "lamp")

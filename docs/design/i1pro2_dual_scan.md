@@ -290,3 +290,71 @@ mismatch (white at 154 clocks, strip at 139), which `calibration_mismatch` refus
   171 recorded cases (14 right, 110 wrong, 12 re-arrangements, dark strips and crossings, whites,
   blacks). The 41 lamp clocks cannot change these numbers: the replayed readings were recorded
   with 41. Everything here is a first try until a real i1Pro 2 has shown it.
+
+### 8. The hand measurement in the Measure tab (UI step, 2026-11-18)
+
+**Confirmed by:** *nobody yet.* Built and driven on screen against a simulated helper (the real
+helper's replay instrument plus the device path's events, `tests/helpers/dual_sim_helper.py`);
+never on a real instrument. Code: `workflow/dual_scan/session.py` (the rules),
+`ui/tabs/tab_measure.py` (the `_dual_*` methods), `ui/tabs/tab_profile.py`
+(`_dual_preset_once`), `ui/dialogs/settings_dialog.py`; texts §M-PROPOSED
+`M-DUAL-*` of `unified_measurement_management.md`; tests
+`tests/test_i1pro2_dual_scan_ui.py`.
+
+* **Where it is switched on.** Preferences > Beta, "X-Rite i1Pro 2: also M1 and M2, by a dual
+  scan (beta, first try)", indented under "X-Rite i1Pro 3: keep M0, M1 and M2 from every scan" and
+  greyed (keeping its value) while that is off, because the dual scan ends in that Beta's files.
+  Turning it on asks for the own-risk confirmation, as the other instrument Betas do. Its (i)
+  holds the cost sentence of section 6. Off (either switch): no `--dual-*` argument, no note, no
+  window; the Measure tab is as before.
+* **Which instrument.** Only ChromIQ's engine, a helper naming both capability words, a chart that
+  is not a calibration's, and no instrument of another model seen in this app run (an i1Pro 3
+  keeps its own `-F`). The first measurement of an app run cannot know the model before START;
+  the switch says "i1Pro 2", so it is taken at its word.
+* **The filter row chooses the main condition.** With the dual scan on, "Spectral filter type
+  (-F)" (off = M0, or M0 / M1 / M2) is not sent as `-F`: it goes out as `--dual-chosen` and is
+  recorded; the main file stays M0. The polariser and D65 are refused before START
+  (M-DUAL-FILTER-NOT-DUAL). A dual measurement continued as a single scan, or the other way round,
+  is refused before START (M-DUAL-START-REFUSED); one started with another factor continues with
+  its own (`storage.continuation_choice`). An engine refusal of the same kind is never a fallback
+  to stock chartread.
+* **Before START.** A note above the chart (the preview's banner; nothing covers the chart):
+  each strip read twice, the ruler needed (without it only M0), the condition chosen, a first try
+  (M-DUAL-BEFORE-START). It follows the row and Preferences and goes while a session runs.
+* **Calibration.** The calibration window of a dual session (startup and on request) adds "keep
+  the instrument on its white tile ..." (M-DUAL-CAL-TILE); from Start Calibration that sentence
+  stays under the chart (amber) and in the status line until the engine's `cal_done` (or a
+  requested calibration's result), which come after the tile's UV reading (safety review S5).
+  Calibration Complete then says the tile was read with the UV light too and the instrument can be
+  lifted (M-DUAL-CAL-DONE), or why this calibration gives no M1 / M2 (M-DUAL-CAL-REFUSED).
+* **Each strip, two passes.** Above the chart, where the pass is asked for: "Strip A, pass 1 of 2
+  (lamp)" at every strip prompt, "Strip A, pass 2 of 2 (UV light)" when the engine's `dual_pass`
+  asks for the second (M-DUAL-PASS-ONE / -TWO; after a first pass ArgyllCMS did not recognise,
+  M-DUAL-PASS-TWO-UNREAD). The strip stays highlighted as for any strip.
+* **A refused pass.** The engine makes the strip a misread; "Strip Read Failed" opens as for any
+  misread (its buttons, keys and sound unchanged) and shows "The second pass of strip B failed"
+  with the reason's sentence, which says that both passes are read again (provisional, section 0
+  (a)); Retry asks for pass 1 of 2 again. Patch by patch the same in "Patch Read Failed"
+  (M-DUAL-SPOT-FAILED). A pass accepted with its pairing not judged gets a log line.
+* **M1 and M2 ended for the session** (the ruler lost, the calibration, high resolution, no
+  factory data): an amber line under the chart until the session ends and a log line
+  (M-DUAL-ENDED); never a window; M0 goes on.
+* **The pass record.** Written after every save of the engine, beside the conditions folder
+  (`Run.dual_pass_record`), from the events: the choice, each dual calibration (its clocks; no
+  spectra reach the app), per strip both passes good, a refused second pass with its reason, or
+  M0 only with the reason M1 / M2 ended. The engine works M1 / M2 out itself and writes them into
+  the i1Pro 3 Beta's files.
+* **Build Profile.** "Build from" is set to the chosen condition as soon as every strip has both
+  passes (`storage.build_from_preset`), kept in the target's settings, and only once (the pass
+  record's `preset_done`), so a later choice of the person's stands. Until then it stays at M0 and
+  a line under the measurement says why ("Dual scan: M2 was chosen in the Measure tab. M1 and M2
+  are not available yet: the second pass (UV light) of these strips is missing: ...").
+* **The ending, the lock, Continue Measurement, sounds and lights** are the hand path's, unchanged.
+* **Known difference from i1Profiler (the coordinator's decision, 2026-11-18):** a strip's LAMP
+  pass carries ArgyllCMS's own lamp clocks (102 in scan mode), where i1Profiler sends 41; that is
+  identical to every single scan ChromIQ makes today. Only the UV-LED triggers carry the recorded
+  41 (section 7 (d)).
+* **Not built in this step:** refining the factor from an i1Profiler file (the core has it; a
+  window needs the instrument's serial, which the app does not get from the engine today; the
+  standard factor makes the feature fully usable without it), distinct sounds per pass (a row in
+  `measurement_window_sounds.md` first), and the i1iO 2 table.
